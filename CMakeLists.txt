@@ -1,15 +1,24 @@
 cmake_minimum_required (VERSION 2.6.3)
-project (optprop_s2)
+project (tenstream)
 
-MESSAGE("$ENV{PETSC_DIR}")
+MESSAGE("Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")
 
 list (APPEND CMAKE_MODULE_PATH "$ENV{PETSC_DIR}/cmake-modules")
+#include(CMakeAddFortranSubdirectory)
+
 find_package(PETSc REQUIRED)
 find_package(MPI REQUIRED)
 
+enable_language(Fortran)
 
-set(APP_NAME optprop_s2)
-add_executable( createLUT createLUT.f90 )
+set (CMAKE_INSTALL_RPATH "lib")
+
+set(APP_NAME test_cmake)
+message("Starting cmake for ${APP_NAME} ...")
+
+add_subdirectory (src)
+
+#add_executable( "${APP_NAME}" "${test_cmake_SRCS}" )
 
 
 
@@ -112,7 +121,7 @@ add_executable( createLUT createLUT.f90 )
 ##set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${Dohp_BINARY_DIR}/bin CACHE PATH "Output directory for Dohp executables")
 #mark_as_advanced (CMAKE_ARCHIVE_OUTPUT_DIRECTORY CMAKE_LIBRARY_OUTPUT_DIRECTORY CMAKE_RUNTIME_OUTPUT_DIRECTORY)
 #
-#set (CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+set (CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 #set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 #
 ## Convenience for testing
