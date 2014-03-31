@@ -29,10 +29,10 @@ module petsc_ts
 !      character(len=*),parameter :: ident='run_box4'   ; double precision,parameter :: ident_dx=70, ident_dy=70, ident_dz=100,phi0=270
 !      character(len=*),parameter :: ident='run_box4'   ; double precision,parameter :: ident_dx=2800, ident_dy=2800, ident_dz=100,phi0=270
 !      character(len=*),parameter :: ident='run_cb'     ; double precision,parameter :: ident_dx=250, ident_dy=250, ident_dz=100,phi0=180
-!      character(len=*),parameter :: ident='run_cosmo1' ; double precision,parameter :: ident_dx=2800,ident_dy=2800,ident_dz=250,phi0=180
+      character(len=*),parameter :: ident='run_cosmo1' ; double precision,parameter :: ident_dx=2800,ident_dy=2800,ident_dz=250,phi0=180
 !      character(len=*),parameter :: ident='run_cosmo2' ; double precision,parameter :: ident_dx=2800,ident_dy=2800,ident_dz=250,phi0=180
 !      character(len=*),parameter :: ident='run_cosmo3' ; double precision,parameter :: ident_dx=2800,ident_dy=2800,ident_dz=250,phi0=180
-      character(len=*),parameter :: ident='run_i3rc1'  ; double precision,parameter :: ident_dx=66.7,ident_dy=66.7,ident_dz=100,phi0=180
+!      character(len=*),parameter :: ident='run_i3rc1'  ; double precision,parameter :: ident_dx=66.7,ident_dy=66.7,ident_dz=100,phi0=180
 
       double precision,parameter :: albedo=0.05, theta0=0, twostr_ratio=.5_ireals !phi=azimuth ; theta=sza
 

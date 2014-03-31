@@ -33,7 +33,8 @@ module tenstream_optprop_LUT
 !    integer ,parameter :: Ndz=15, Nkabs=15, Nksca=15, Ng=7, Nphi=2, Ntheta=2, interp_mode=1 !1e-5/1e-2
 !    integer ,parameter :: Ndz=25, Nkabs=30, Nksca=30, Ng=12, Nphi=2, Ntheta=2, interp_mode=2 !1e-6/1e-3
 !    integer ,parameter :: Ndz=20, Nkabs=10, Nksca=30, Ng=20, Nphi=2, Ntheta=2, interp_mode=2 !1e-6/1e-3
-    integer ,parameter :: Ndz=20, Nkabs=20, Nksca=30, Ng=20, Nphi=2, Ntheta=2, interp_mode=2 !1e-6/1e-3
+!    integer ,parameter :: Ndz=20, Nkabs=20, Nksca=30, Ng=20, Nphi=2, Ntheta=2, interp_mode=2 !1e-6/1e-3
+    integer ,parameter :: Ndz=20, Nkabs=30, Nksca=30, Ng=20, Nphi=2, Ntheta=10, interp_mode=2 !1e-6/5e-2
   !  integer,parameter :: Ndz=15, Nkabs =15, Nksca=15, Ng=7, Nphi=2, Ntheta=2, interp_mode=2
 
 
@@ -57,7 +58,7 @@ module tenstream_optprop_LUT
     real(ireals),dimension(2)      :: range_dz      = [ 50_ireals   , 5000_ireals ]
     real(ireals),dimension(2)      :: range_kabs    = [ 1e-99_ireals, 10._ireals  ] !lower limit for kabs,ksca is set in set_parameter_space
     real(ireals),dimension(2)      :: range_ksca    = [ 1e-99_ireals, one         ] !lower limit for kabs,ksca is set in set_parameter_space
-    real(ireals),dimension(2)      :: range_g       = [ zero        , .98_ireals  ]
+    real(ireals),dimension(2)      :: range_g       = [ zero        , .999_ireals ]
     real(ireals),dimension(2)      :: range_phi     = [ zero        , 90._ireals  ]
     real(ireals),dimension(2)      :: range_theta   = [ zero        , 90._ireals  ]
   end type
