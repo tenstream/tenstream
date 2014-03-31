@@ -1,7 +1,13 @@
 program main
 
-      implicit none
+  implicit none
+  include 'mpif.h'
 
-      print *,'This is a cmake test'
+  integer :: myid,ierr
 
-      end program
+  call MPI_Init(ierr)
+  call MPI_comm_rank(MPI_COMM_WORLD, myid, ierr)
+  print *,'This is a cmake test',myid
+  call MPI_FINALIZE(ierr)
+
+end program
