@@ -1,6 +1,6 @@
 program main
       use mpi
-      use tenstream_optprop_LUT
+      use tenstream_optprop_LUT_8_10
 
       integer myid
 

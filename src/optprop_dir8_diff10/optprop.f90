@@ -1,15 +1,16 @@
-module tenstream_optprop
-use data_parameters, only: ireals,iintegers,dir_streams,diff_streams,one,zero,i0,i1
+module tenstream_optprop_8_10
+use data_parameters, only: ireals,iintegers,one,zero,i0,i1,mpiint
+use boxmc_parameters_8_10, only : delta_scale,dir_streams,diff_streams
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
-use tenstream_optprop_LUT
-use tenstream_optprop_ANN
+use tenstream_optprop_LUT_8_10
+use tenstream_optprop_ANN_8_10
 
 implicit none
 
 private
-public :: init_optprop, optprop_lookup_coeff,optprop_debug,delta_scale
-integer :: ierr
+public :: init_optprop, optprop_lookup_coeff,optprop_debug
+integer(mpiint) :: ierr
 
 logical :: optprop_debug=.False.
 
@@ -20,7 +21,7 @@ contains
 
   subroutine init_optprop(dx_inp,dy_inp,comm)
       real(ireals),intent(in) :: dx_inp,dy_inp
-      integer ,intent(in) :: comm
+      integer(mpiint) ,intent(in) :: comm
 
       dx=dx_inp
       dy=dy_inp
@@ -59,7 +60,7 @@ contains
         logical,parameter :: determine_coeff_error=.True.
         real(ireals),parameter :: checking_limit=1e-5
         real(ireals) :: angles(2)
-        integer :: isrc
+        integer(iintegers) :: isrc
 
         if(optprop_debug) then
           if( (any([dz,kabs,ksca,g].lt.zero)) .or. (any(isnan([dz,kabs,ksca,g]))) ) then
@@ -148,9 +149,9 @@ end function
         function coeff_symmetry(isrc,coeff)
                real(ireals) :: coeff_symmetry(diff_streams)
                real(ireals),intent(in) :: coeff(:)
-               integer,intent(in) :: isrc
-               integer,parameter :: l=1
-               integer,parameter :: k=5
+               integer(iintegers),intent(in) :: isrc
+               integer(iintegers),parameter :: l=1
+               integer(iintegers),parameter :: k=5
 !               integer,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
                select case (isrc)
                 case(1)

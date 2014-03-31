@@ -1,5 +1,6 @@
-module tenstream_optprop_ANN
-      USE data_parameters, ONLY : ireals, iintegers,dir_streams,diff_streams, zero,one,i1
+module tenstream_optprop_ANN_1_2
+      use data_parameters, only : ireals, iintegers, zero,one,i1
+      use boxmc_parameters_1_2, only : dir_streams,diff_streams
       use arrayio
 
       implicit none

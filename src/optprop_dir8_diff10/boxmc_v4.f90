@@ -1,8 +1,9 @@
-module boxmc
+module boxmc_8_10
       use iso_c_binding
       use mersenne
       use mpi
-      use data_parameters, only: iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,dir_streams,diff_streams
+      use data_parameters, only: iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
+      use boxmc_parameters_8_10,only : dir_streams,diff_streams, delta_scale_truncate
       implicit none
 
       private
@@ -12,14 +13,12 @@ module boxmc
 !      integer,parameter :: qreals=kind(quad_precision)
       integer,parameter :: qreals=ireals
 
-      double precision,parameter :: nil=-999._ireals, delta_scale_truncate=.9962_ireals ! .9962 = 5 degrees delta scaling
-      double precision,parameter ::  pi=3.14159265359_ireals,one=1._ireals,zero=0._ireals
-      integer,parameter :: fg=1,bg=2,tot=3,dp=kind(one),inil=-999
+      integer,parameter :: fg=1,bg=2,tot=3
 
       type photon
               double precision :: loc(3)=nil,dir(3)=nil,weight=nil,dx=nil,dy=nil,dz=nil
               logical :: alive=.True.,direct=.False.
-              integer :: side=inil,src=inil,scattercnt=0
+              integer(iintegers) :: side=inil,src=inil,scattercnt=0
               double precision :: optprop(3) ! kabs,ksca,g
       end type
 
@@ -42,7 +41,8 @@ contains
 subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta0,dx,dy,dz)
         double precision,intent(in) :: op_bg(3),phi0,theta0
         logical,intent(in) :: deltascale
-        integer,intent(in) :: src,comm
+        integer(iintegers),intent(in) :: src
+        integer :: comm
         logical,intent(in) :: dir
         double precision,intent(in) :: dx,dy,dz
         double precision,intent(out):: S_out(10),Sdir_out(8)
@@ -384,7 +384,7 @@ double precision function deg2rad(deg)
 subroutine init_dir_photon(p,src,direct,initial_dir,dx,dy,dz)
         type(photon),intent(inout) :: p
         double precision,intent(in) :: dx,dy,dz,initial_dir(3)
-        integer,intent(in) :: src
+        integer(iintegers),intent(in) :: src
         logical,intent(in) :: direct
 
         p%alive = .False.
@@ -434,7 +434,7 @@ end subroutine
 subroutine init_photon(p,src,dx,dy,dz)
         type(photon),intent(inout) :: p
         double precision,intent(in) :: dx,dy,dz
-        integer,intent(in) :: src
+        integer(iintegers),intent(in) :: src
         double precision,parameter :: I=1.,O=0.
 
         if(src.eq.1) then
@@ -526,7 +526,7 @@ subroutine intersect_distance(p,max_dist)
 
         double precision :: x,y,z
 !        double precision,parameter :: eps=1e-3
-        integer :: i,sides(3)
+        integer(iintegers) :: i,sides(3)
 
         double precision :: dist(3)
 
@@ -587,7 +587,7 @@ subroutine intersect_distance(p,max_dist)
           !Ohhh there was a problem.. maybe with numerics, seems that it may happen that we dont find a solution if norm of p%dir is not equal to one....
           max_dist=huge(dist)
           do i=1,3
-            if(p%dir(i).gt.1e-12_dp.and.p%dir(i).lt.-1e-12_dp) then
+            if(p%dir(i).gt.1e-12_ireals.and.p%dir(i).lt.-1e-12_ireals) then
               if( dist(i).le.max_dist ) then
                 p%side = sides(i)
                 max_dist = dist(i)
@@ -605,7 +605,7 @@ pure double precision function hit_plane(p,po,pn)
         double precision,intent(in) :: po(3),pn(3)
         double precision :: discr
         discr = dot_product(p%dir,pn)
-        if(discr.le.zero+1e-80_dp .and. discr.ge.-1e-80_dp) then
+        if(discr.le.zero+1e-80_ireals .and. discr.ge.-1e-80_ireals) then
                 hit_plane=huge(hit_plane)
         else        
                 hit_plane = dot_product(po-p%loc, pn) / discr
@@ -616,7 +616,7 @@ elemental function distance(tau,beta)
         double precision,intent(in) :: tau,beta
         double precision :: distance
         distance = tau/beta
-        if(beta.le.zero+1e-40_dp) distance=huge(distance)
+        if(beta.le.zero+1e-40_ireals) distance=huge(distance)
 end function
 
 elemental function tau(r)
@@ -630,7 +630,7 @@ elemental function hengreen(r,g)
         double precision :: hengreen
         double precision,parameter :: one=1.0,two=2.0
         hengreen = one/(two*g) * (one+g**two - ( (one-g**two) / ( two*g*r + one-g) )**two )
-        if(g.le.1e-8_dp .and. g.ge.-1e-8_dp) hengreen = two*r-one
+        if(g.le.1e-8_ireals .and. g.ge.-1e-8_ireals) hengreen = two*r-one
         hengreen = min(max(hengreen,-one), one)
 end function
 
@@ -675,11 +675,11 @@ subroutine scatter_photon(p)
         sinfi = sin(fi)
         cosfi = cos(fi)
 
-        if( muzs .ge. one-1e-8_dp) then
+        if( muzs .ge. one-1e-8_ireals) then
                 muxd = sintheta*cosfi
                 muyd = sintheta*sinfi
                 muzd = costheta
-        else if ( muzs .le. -one+1e-8_dp) then
+        else if ( muzs .le. -one+1e-8_ireals) then
                 muxd =  sintheta*cosfi
                 muyd = -sintheta*sinfi
                 muzd = -costheta

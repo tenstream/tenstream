@@ -1,10 +1,12 @@
-module tenstream_optprop_LUT
-  use data_parameters, only : ireals, iintegers, diff_streams, dir_streams, one,zero
-  use boxmc, only: bmc_get_coeff
+module tenstream_optprop_LUT_8_10
+  use data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint
+  use boxmc_parameters_8_10, only: dir_streams,diff_streams, Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale
+  use boxmc_8_10, only: bmc_get_coeff
   use tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
   use arrayio
 
   use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
+
 
   implicit none
 
@@ -34,18 +36,13 @@ module tenstream_optprop_LUT
 !    integer ,parameter :: Ndz=25, Nkabs=30, Nksca=30, Ng=12, Nphi=2, Ntheta=2, interp_mode=2 !1e-6/1e-3
 !    integer ,parameter :: Ndz=20, Nkabs=10, Nksca=30, Ng=20, Nphi=2, Ntheta=2, interp_mode=2 !1e-6/1e-3
 !    integer ,parameter :: Ndz=20, Nkabs=20, Nksca=30, Ng=20, Nphi=2, Ntheta=2, interp_mode=2 !1e-6/1e-3
-    integer ,parameter :: Ndz=20, Nkabs=30, Nksca=30, Ng=20, Nphi=2, Ntheta=10, interp_mode=2 !1e-6/5e-2
+!    integer ,parameter :: Ndz=20, Nkabs=30, Nksca=30, Ng=20, Nphi=2, Ntheta=10, interp_mode=2 !1e-6/5e-2
   !  integer,parameter :: Ndz=15, Nkabs =15, Nksca=15, Ng=7, Nphi=2, Ntheta=2, interp_mode=2
-
-
-
-  logical,parameter :: delta_scale=.True.
-!   logical,parameter :: delta_scale=.False.
 
   logical :: LUT_initiliazed=.False.,optprop_debug=.True.
 
   integer(iintegers) :: iierr
-  integer :: ierr
+  integer(mpiint) :: ierr
 
   type parameter_space
     real(ireals),dimension(Ndz)    :: dz
@@ -87,8 +84,9 @@ module tenstream_optprop_LUT
 
 contains
   subroutine scatter_LUTtables(comm)
-      integer ,intent(in) :: comm
-      integer :: myid,Ntot,Ncoeff,iphi,itheta
+      integer(mpiint) ,intent(in) :: comm
+      integer(mpiint) :: myid,Ntot
+      integer(iintegers) :: Ncoeff,iphi,itheta
       real(ireals),allocatable,dimension(:) :: tmp
 
       call MPI_Comm_rank(comm, myid, ierr)
@@ -162,12 +160,12 @@ contains
   !{{{ init LUT
   subroutine init_LUT(dx,dy,comm)
       real(ireals),intent(in) :: dx,dy
-      integer ,intent(in) :: comm
-      integer :: myid,comm_size
+      integer(mpiint) ,intent(in) :: comm
+      integer(mpiint) :: myid,comm_size
 
-      character(len=*),parameter :: lutbasename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT'
+      character(len=*),parameter :: lutbasename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT_8_10.'
       character(len=300) :: descr
-      integer :: k,idx,idy
+      integer(iintegers) :: idx,idy
       call MPI_Comm_rank(comm, myid, ierr)
       call MPI_Comm_size(comm, comm_size, ierr)
       idx = nint( dx/10  ) * 10
@@ -211,7 +209,7 @@ contains
       type(diffuseTable),intent(in) :: LUT
       real(ireals),allocatable :: buf(:)
       character(300) :: str(2)
-      integer align(4);
+      integer(iintegers) align(4);
       write(str(1),FMT='("dx",I0)')   int(LUT%dx)
       write(str(2),FMT='("dy",I0)')   int(LUT%dy)
       align=0
@@ -237,7 +235,7 @@ contains
       type(directTable),intent(in) :: LUT
       real(ireals),allocatable :: buf(:)
       character(300) :: str(2)
-      integer align(6);
+      integer(iintegers) align(6);
       write(str(1),FMT='("dx",I0)')   int(LUT%dx)
       write(str(2),FMT='("dy",I0)')   int(LUT%dy)
       align=0
@@ -275,8 +273,9 @@ end function
 !{{{ load LUT                                          
 subroutine loadLUT_diff(LUT,comm)
     type(diffuseTable) :: LUT
-    integer,intent(in) :: comm
-    integer :: myid,i,errcnt
+    integer(mpiint),intent(in) :: comm
+    integer(iintegers) :: errcnt
+    integer(mpiint) :: myid
     character(300) :: str(2)
 
     call MPI_Comm_rank(comm, myid, ierr)
@@ -319,9 +318,9 @@ subroutine loadLUT_diff(LUT,comm)
 end subroutine
 subroutine loadLUT_dir(LUT,comm)
     type(directTable) :: LUT
-    integer,intent(in) :: comm
-    integer :: myid
-    integer :: i,errcnt,iphi,itheta
+    integer(mpiint),intent(in) :: comm
+    integer(mpiint) :: myid
+    integer(iintegers) :: errcnt,iphi,itheta
     character(300) :: str(4)
 
     call MPI_Comm_rank(comm, myid, ierr)
@@ -394,9 +393,9 @@ end subroutine
 !{{{ create LUT
 subroutine createLUT_diff(LUT,comm)
     type(diffuseTable) :: LUT
-    integer,intent(in) :: comm
-    integer :: myid
-    integer :: idz,ikabs ,iksca,ig,src,total_size,cnt
+    integer(mpiint),intent(in) :: comm
+    integer(mpiint) :: myid
+    integer(iintegers) :: idz,ikabs ,iksca,ig,total_size,cnt
     real(ireals) :: S_diff(diff_streams),T_dir(dir_streams)
 
     call MPI_Comm_rank(comm, myid, ierr)
@@ -411,13 +410,13 @@ subroutine createLUT_diff(LUT,comm)
           do idz   =1,Ndz   
             if(myid.eq.0) print *,'diff dx',LUT%dx,'dz',LUT%pspace%dz(idz),' :: ',LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
             ! src=1
-            call bmc_wrapper(1,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
+            call bmc_wrapper(i1,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
             LUT%S%c( 1, idz,ikabs ,iksca,ig) = S_diff(1)
             LUT%S%c( 2, idz,ikabs ,iksca,ig) = S_diff(2)
             LUT%S%c( 3, idz,ikabs ,iksca,ig) = sum(S_diff([3,4,7, 8]) )/4
             LUT%S%c( 4, idz,ikabs ,iksca,ig) = sum(S_diff([5,6,9,10]) )/4
             ! src=3
-            call bmc_wrapper(3,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
+            call bmc_wrapper(i3,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
             LUT%S%c( 5:10, idz,ikabs ,iksca,ig) = S_diff(1:6)
             LUT%S%c( 11  , idz,ikabs ,iksca,ig) = sum(S_diff(7: 8))/2
             LUT%S%c( 12  , idz,ikabs ,iksca,ig) = sum(S_diff(9:10))/2
@@ -432,9 +431,10 @@ subroutine createLUT_diff(LUT,comm)
 end subroutine
 subroutine createLUT_dir(LUT,comm,iphi,itheta)
     type(directTable) :: LUT
-    integer,intent(in) :: comm,iphi,itheta
-    integer :: myid
-    integer :: idz,ikabs ,iksca,ig,src,total_size,cnt
+    integer(iintegers),intent(in) :: iphi,itheta
+    integer(mpiint),intent(in) :: comm
+    integer(mpiint) :: myid
+    integer(iintegers) :: idz,ikabs ,iksca,ig,src,total_size,cnt
     real(ireals) :: S_diff(diff_streams),T_dir(dir_streams)
 
     call MPI_Comm_rank(comm, myid, ierr)
@@ -465,8 +465,8 @@ end subroutine
 !}}} 
 !{{{ bmc_wrapper 
 subroutine bmc_wrapper(src,dx,dy,dz,kabs ,ksca,g,dir,delta_scale,phi,theta,comm,S_diff,T_dir)
-    integer,intent(in) :: src
-    integer,intent(in) :: comm
+    integer(iintegers),intent(in) :: src
+    integer(mpiint),intent(in) :: comm
     logical,intent(in) :: dir,delta_scale
     real(ireals),intent(in) :: dx,dy,dz,kabs ,ksca,g,phi,theta
 
@@ -487,7 +487,7 @@ end subroutine
 !{{{ set parameter space
  real(ireals) function exp_param_to_index(val,range,N,expn)
     real(ireals),intent(in) :: val,range(2),expn
-    integer,intent(in) :: N
+    integer(iintegers),intent(in) :: N
     real(ireals) :: expn1,k
     expn1=one/expn
     k=range(1)**expn1
@@ -496,20 +496,20 @@ end subroutine
 end function
  real(ireals) function exp_index_to_param(index,range,N,expn)
     real(ireals),intent(in) :: index,range(2),expn
-    integer,intent(in) :: N
+    integer(iintegers),intent(in) :: N
     real(ireals) :: expn1
     expn1=one/expn
     exp_index_to_param = lin_index_to_param( index, range**expn1, N) ** expn
 end function
  real(ireals) function lin_param_to_index(val,range,N)
     real(ireals),intent(in) :: val,range(2)
-    integer,intent(in) :: N
+    integer(iintegers),intent(in) :: N
     if(.not.valid_input(val,range)) continue
     lin_param_to_index = min(one*N, max(   one, one+ (N-one) * (val-range(1) )/( range(2)-range(1) )   ))
 end function
  real(ireals) function lin_index_to_param(index,range,N)
     real(ireals),intent(in) :: index,range(2)
-    integer,intent(in) :: N
+    integer(iintegers),intent(in) :: N
     lin_index_to_param = range(1) + (index-one) * ( range(2)-range(1) ) / (N-1)
 end function
 
@@ -518,7 +518,7 @@ subroutine set_parameter_space(ps,dx)
     real(ireals),intent(in) :: dx
     real(ireals) :: diameter ! diameter of max. cube size
     real(ireals),parameter :: maximum_transmission=one-1e-3_ireals
-    integer :: k
+    integer(iintegers) :: k
     ! LUT Extend is already set in type definition in header, however we could overwrite the range here.
 
     ps%range_dz      = [ min(ps%range_dz(1), dx/10_ireals )  , max( ps%range_dz(2), 2*dx ) ]
@@ -573,9 +573,9 @@ end function
 function coeff_symmetry(isrc,coeff)
     real(ireals) :: coeff_symmetry(diff_streams)
     real(ireals),intent(in) :: coeff(ubound(diffLUT%S%c,1) )
-    integer,intent(in) :: isrc
-    integer,parameter :: l=1
-    integer,parameter :: k=5
+    integer(iintegers),intent(in) :: isrc
+    integer(iintegers),parameter :: l=1
+    integer(iintegers),parameter :: k=5
     !               integer,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
     select case (isrc)
     case(1)
@@ -637,7 +637,7 @@ subroutine LUT_get_dir2dir(dz,in_kabs ,in_ksca,g,phi,theta,C)
     real(ireals),intent(in) :: dz,in_kabs ,in_ksca,g,phi,theta
     real(ireals),intent(out):: C(dir_streams**2)
     real(ireals) :: kabs,ksca
-    integer :: i
+    integer(iintegers) :: i
 
     real(ireals) :: pti(6),weights(6),imap(2) ! index of point
 
@@ -716,7 +716,7 @@ subroutine LUT_get_dir2diff(dz,in_kabs ,in_ksca,g,phi,theta,C)
 
     real(ireals) :: kabs,ksca
     real(ireals) :: pti(6),weights(6),imap(2) ! index of point
-    integer :: i
+    integer(iintegers) :: i
 
     kabs = in_kabs; ksca = in_ksca
     call catch_upper_limit_kabs(dirLUT%pspace,kabs,ksca)

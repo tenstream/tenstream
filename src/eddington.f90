@@ -2,6 +2,11 @@ module eddington
       use data_parameters, only: ireals,iintegers
       implicit none
 
+      private
+      public :: rodents
+
+      logical,parameter :: ldelta_scale=.False.
+
       contains
 
       pure subroutine delta_scale(dtau,w0,g, dtau_d,g_d,w0_d)
@@ -9,10 +14,16 @@ module eddington
         real(ireals),intent(out) :: dtau_d,g_d,w0_d
         real(ireals) :: f
 
-        f = g**2
-        dtau_d = dtau * ( 1. - w0 * f )
-        g_d    = ( g - f ) / ( 1. - f )
-        w0_d   = w0 * ( 1. - f ) / ( 1. - f * w0 )
+        if(ldelta_scale) then
+          f = g**2
+          dtau_d = dtau * ( 1. - w0 * f )
+          g_d    = ( g - f ) / ( 1. - f )
+          w0_d   = w0 * ( 1. - f ) / ( 1. - f * w0 )
+        else
+          dtau_d = dtau
+          w0_d   = w0
+          g_d    = g
+        endif
       end subroutine
 
       pure subroutine rodents(dtau,w0,g,mu0, coeff)
@@ -23,7 +34,6 @@ module eddington
         real(ireals) :: mu_0_inv,b_mmu_0,bscr,alpha_1,alpha_2,lambd, &
           exp1,term1,A,a11,a12,alpha_3,alpha_4,den1,   &
           alpha_5,alpha_6,a33,a13,a23,tmp(3)
-
 
         call delta_scale(dtau,w0,g, dtau_d,w0_d,g_d)
 

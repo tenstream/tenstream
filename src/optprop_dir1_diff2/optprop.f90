@@ -1,10 +1,10 @@
 module tenstream_optprop_1_2
 use data_parameters, only: ireals,iintegers,one,zero,i0,i1
-use boxmc_parameters, only: delta_scale,dir_streams,diff_streams
+use boxmc_parameters_1_2, only: delta_scale,dir_streams,diff_streams
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
-use tenstream_optprop_LUT
-use tenstream_optprop_ANN
+use tenstream_optprop_LUT_1_2
+use tenstream_optprop_ANN_1_2
 
 implicit none
 

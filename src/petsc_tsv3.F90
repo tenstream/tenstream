@@ -8,7 +8,7 @@ module petsc_ts
           ireals,    &
           iintegers
       use kato_data
-      use tenstream_optprop
+      use tenstream_optprop_8_10
 
       implicit none
 
@@ -185,8 +185,8 @@ elemental double precision function deg2rad(a)
         Mat :: A
         type(coord) :: C
 
-        PetscInt :: Msize,Msize_glob
-        PetscInt,dimension(:),allocatable :: o_nnz,d_nnz,dnz
+!        PetscInt :: Msize,Msize_glob
+        PetscInt,dimension(:),allocatable :: o_nnz,d_nnz!,dnz
 
         call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ; call chkerr(ierr,'Init Matrix :: DMSetMatrixPreallocateOnly')
 !        call MatCreate(PETSC_COMM_WORLD, A, ierr) ; call chkerr(ierr,'Init Matrix :: MatCreate')
@@ -275,7 +275,7 @@ elemental double precision function deg2rad(a)
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
-        PetscInt :: vsize,mrows,mcols, i,j,k,dof,li,lj,lk
+        PetscInt :: vsize !,mrows,mcols, i,j,k,dof,li,lj,lk
 
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
@@ -425,7 +425,7 @@ elemental double precision function deg2rad(a)
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
-        PetscInt :: vsize,mrows,mcols, i,j,k,li,lj,lk
+        PetscInt :: vsize,i,j !mrows,mcols, i,j,k,li,lj,lk
 
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
@@ -536,8 +536,7 @@ elemental double precision function deg2rad(a)
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
-
-        PetscInt :: vsize,mrows,mcols, i,j,k,li,lj,lk
+        PetscInt :: vsize,i,j !,mrows,mcols, i,j,k,li,lj,lk
 
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
@@ -651,7 +650,7 @@ elemental double precision function deg2rad(a)
                logical,parameter :: lround=.False.
                double precision,parameter :: fround=1e-4
 
-               double precision :: kabs,ksca,g,w,tmp_coeff(size(coeff))
+               double precision :: kabs,ksca,g !,tmp_coeff(size(coeff))
 
                ! coeff mode determines the coeff by:
                ! 1: plane parallel approx
@@ -659,7 +658,7 @@ elemental double precision function deg2rad(a)
                ! 3: mix of ipa and plane-parallel
                ! 4: neural network with cloud fraction
 
-               integer(iintegers),parameter :: coeff_mode=2
+!               integer(iintegers),parameter :: coeff_mode=2
                call PetscLogStagePush(logstage(7),ierr)
 
                kabs = op%bg(1) 
@@ -730,7 +729,7 @@ subroutine set_dir_coeff(A,C)
         Mat :: A
         type(coord) :: C
 
-        PetscInt :: i,j,k,src,dst, li,lj,lk, irow,icol
+        PetscInt :: i,j,k,src,dst, li,lj,lk
 
         MatStencil :: row(4,C%dof)  ,col(4,C%dof)
         PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm
@@ -820,7 +819,7 @@ subroutine set_dir_coeff(A,C)
           PetscInt :: i,j,li,lj
           PetscScalar,pointer,dimension(:,:,:,:) :: xincSolar
 
-          PetscReal :: dx,dy,edirTOA
+          PetscReal :: edirTOA
 
           call VecSet(incSolar,zero,ierr)
 
@@ -1035,7 +1034,7 @@ end subroutine
 subroutine load_test_optprop(kato,iq)
       integer(iintegers),intent(in) :: kato,iq
       double precision,allocatable,dimension(:) :: hhl1d,dx,dy,dz
-      PetscInt :: i,j,k,ierr
+      PetscInt :: i,j,k
 
       type op
         double precision,allocatable,dimension(:,:,:) :: kabs,ksca,g
@@ -1102,7 +1101,6 @@ subroutine load_test_optprop(kato,iq)
   subroutine load_optprop(kato,iq)
       integer(iintegers),intent(in) :: kato,iq
       double precision,allocatable,dimension(:,:,:) :: tmp
-      double precision,allocatable,dimension(:,:,:,:) :: tmp2
       double precision,allocatable,dimension(:) :: hhl1d,dx,dy,dz
       PetscInt :: i,j,k
       double precision,parameter :: min_coeff=1e-30
@@ -1234,9 +1232,9 @@ subroutine local_optprop(glob_optP)
 subroutine calc_flx_div(edir,ediff,abso)
         Vec :: edir,ediff,abso
         PetscReal,pointer,dimension(:,:,:,:) :: xediff,xedir,xabso
-        PetscInt :: i,j,k,li,lj,lk,x
+        PetscInt :: i,j,k,li,lj,lk
         Vec :: ledir,lediff ! local copies of vectors, including ghosts
-        PetscReal :: div(13),dx,dy,Ax,Ay,Az
+        PetscReal :: div(13),Ax,Ay,Az
 
         if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence'
         call VecSet(abso,zero,ierr)
@@ -1297,7 +1295,7 @@ subroutine scale_flx(edir,ediff)
         Vec :: edir,ediff
         PetscReal,pointer,dimension(:,:,:,:) :: xediff,xedir
         PetscInt :: i,j,k,li,lj,lk
-        PetscReal :: dx,dy,Ax,Ay,Az
+        PetscReal :: Ax,Ay,Az
 
         if(myid.eq.0.and.ldebug) print *,'rescaling fluxes'
         call DMDAVecGetArrayF90(C_diff%da,ediff,xediff,ierr)
@@ -1498,11 +1496,9 @@ program main
 
         Mat :: Mdiff,Mdir
         Vec :: b,x,edir,intedir,intx,incSolar,abso
-        PetscInt :: iter
+!        PetscInt :: iter
 
         KSP :: kspdir,kspdiff
-
-        Vec :: Sdir(2)
 
         integer(iintegers) :: iq
         integer(iintegers) :: kato

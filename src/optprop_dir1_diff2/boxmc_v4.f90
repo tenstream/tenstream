@@ -1,9 +1,9 @@
-module boxmc
+module boxmc_1_2
       use iso_c_binding
       use mersenne
       use mpi
       use data_parameters, only: iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, nil,inil, one,zero,pi
-      use boxmc_parameter, only: dir_streams,diff_streams, delta_scale_truncate
+      use boxmc_parameters_1_2, only: dir_streams,diff_streams, delta_scale_truncate
       implicit none
 
       private
@@ -41,8 +41,8 @@ contains
 subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta0,dx,dy,dz)
         double precision,intent(in) :: op_bg(3),phi0,theta0
         logical,intent(in) :: deltascale
-        integer(iintegers),intent(in) :: src
         integer,intent(in) :: comm
+        integer(iintegers),intent(in) :: src
         logical,intent(in) :: dir
         double precision,intent(in) :: dx,dy,dz
         double precision,intent(out):: S_out(diff_streams),Sdir_out(dir_streams)
@@ -147,9 +147,9 @@ subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta
         endif
         call cpu_time(time(2))
 
-        if(myid.le.0.and.total_photons.ge.1e7) print *,src,dz,op_bg,'angles',phi0,theta0,'took',time(2)-time(1),'s',' phots*1e3 :: ',total_photons/1e3,' abso :',one-sum(Sdir_out)-sum(S_out),':',total_photons/(time(2)-time(1))/numnodes,'phots/sec/node'
-!        if(myid.le.0) write(*, FMT='(" src ", I0, " optprop ", 3(f12.8), " angles ",2(f5.1), " total ", I0, " photons in ", (f5.2), "s (", I0, " p/s)" )' ) &
-!            src,op_bg,[phi0,theta0],int(total_photons),time(2)-time(1),int(total_photons/(time(2)-time(1)))/numnodes
+        if(myid.le.0.and.total_photons.ge.1e7) then
+          print *,src,dz,op_bg,'angles',phi0,theta0,'took',time(2)-time(1),'s',' phots*1e3 :: ',total_photons/1e3,' abso :',one-sum(Sdir_out)-sum(S_out),':',total_photons/(time(2)-time(1))/numnodes,'phots/sec/node'
+        endif
 end subroutine
 
 subroutine mpi_reduce_sum(v,comm,myid)

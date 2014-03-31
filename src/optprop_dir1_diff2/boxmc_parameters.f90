@@ -1,4 +1,4 @@
-module boxmc_parameters
+module boxmc_parameters_1_2
       use data_parameters,only : ireals,iintegers
       implicit none
       

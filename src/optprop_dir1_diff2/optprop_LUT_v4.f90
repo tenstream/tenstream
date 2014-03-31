@@ -1,7 +1,7 @@
-module tenstream_optprop_LUT
+module tenstream_optprop_LUT_1_2
   use data_parameters, only : ireals, iintegers, one,zero,i1,i0
-  use boxmc_parameters, only: dir_streams,diff_streams, Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale
-  use boxmc, only: bmc_get_coeff
+  use boxmc_parameters_1_2, only: dir_streams,diff_streams, Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale
+  use boxmc_1_2, only: bmc_get_coeff
   use tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
   use arrayio
 
@@ -162,7 +162,7 @@ contains
       integer ,intent(in) :: comm
       integer :: myid,comm_size
 
-      character(len=*),parameter :: lutbasename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT_1_2'
+      character(len=*),parameter :: lutbasename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT_1_2.'
       character(len=300) :: descr
       integer(iintegers) :: idx,idy
       call MPI_Comm_rank(comm, myid, ierr)
