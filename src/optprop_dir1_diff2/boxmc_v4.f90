@@ -54,9 +54,9 @@ subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta
 
         Ndir=i0;Ndiff=i0
         
-        call init_stddev( std_Sdir , dir_streams  ,1e-7_qreals, 5e-3_qreals )
-        call init_stddev( std_Sdiff, diff_streams ,1e-7_qreals, 5e-3_qreals )
-        call init_stddev( std_abso , i1           ,1e-7_qreals, 5e-4_qreals )
+        call init_stddev( std_Sdir , dir_streams  ,1e-5_qreals, 1e-3_qreals )
+        call init_stddev( std_Sdiff, diff_streams ,1e-5_qreals, 1e-3_qreals )
+        call init_stddev( std_abso , i1           ,1e-5_qreals, 1e-4_qreals )
 
         initial_dir  = (/ sin(deg2rad(theta0))*sin(deg2rad(phi0)) ,&
                     sin(deg2rad(theta0))*cos(deg2rad(phi0)) ,&

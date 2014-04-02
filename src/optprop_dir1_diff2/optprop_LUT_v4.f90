@@ -549,7 +549,7 @@ subroutine set_parameter_space(ps,dx)
     integer(iintegers) :: k
     ! LUT Extend is already set in type definition in header, however we could overwrite the range here.
 
-    ps%range_dz      = [ min(ps%range_dz(1), dx/10_ireals )  , min( ps%range_dz(2), 2*dx ) ]
+    ps%range_dz      = [ min(ps%range_dz(1), dx/10_ireals )  , ps%range_dz(2) ]
     diameter = sqrt(2*dx**2 +  ps%range_dz(2)**2 )
 
 !    ps%range_dz      = [ dx/100_ireals , 2*dx ]

@@ -46,7 +46,7 @@ program main
 !      if(myid.eq.0) write(*, FMT='( i2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,Sdir_out,S_out
       endif
 
-      if(.True.) then
+      if(.False.) then
         print *,'Testing optprop'
         call optprop_8_10_init(dx,dy,[phi0],[theta0],MPI_COMM_WORLD)
 

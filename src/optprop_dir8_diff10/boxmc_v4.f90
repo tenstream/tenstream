@@ -54,9 +54,11 @@ subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta
 
         Ndir=i0;Ndiff=i0
         
-        call init_stddev( std_Sdir , dir_streams  ,1e-7_qreals, 5e-3_qreals )
-        call init_stddev( std_Sdiff, diff_streams ,1e-7_qreals, 5e-3_qreals )
-        call init_stddev( std_abso , i1           ,1e-7_qreals, 5e-4_qreals )
+        call init_stddev( std_Sdir , dir_streams  ,1e-5_qreals, 1e-3_qreals )
+        call init_stddev( std_Sdiff, diff_streams ,1e-5_qreals, 1e-3_qreals )
+        call init_stddev( std_abso , i1           ,1e-5_qreals, 1e-4_qreals )
+
+        if(.not.dir) std_Sdir%converged=.True.
 
         initial_dir  = (/ sin(deg2rad(theta0))*sin(deg2rad(phi0)) ,&
                     sin(deg2rad(theta0))*cos(deg2rad(phi0)) ,&
@@ -776,7 +778,8 @@ end subroutine
       std%mean  = std%mean  + std%delta/N
       std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
       std%var = sqrt( std%mean2/max( i1,N ) ) / sqrt( one*N*numnodes )
-      if( all( std%var .lt. std%atol .or. std%var/std%mean .lt. std%rtol ) ) then
+!      print *,'atol',std%var,'rtol',std%var/max(std%mean,std%rtol)
+      if( all( std%var .lt. std%atol .or. std%var/max(std%mean,epsilon(std%rtol)) .lt. std%rtol ) ) then
         std%converged = .True.
       else
         std%converged = .False.
