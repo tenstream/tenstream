@@ -9,17 +9,17 @@ use tenstream_optprop_ANN_8_10
 implicit none
 
 private
-public :: init_optprop, optprop_lookup_coeff,optprop_debug
+public :: optprop_8_10_init, optprop_8_10_lookup_coeff,optprop_8_10_debug
 integer(mpiint) :: ierr
 
-logical :: optprop_debug=.False.
+logical :: optprop_8_10_debug=.False.
 
 real(ireals) :: dx,dy
 integer(iintegers),parameter :: coeff_mode=i0 ! 0 is LUT, 1 is Neural Network
 
 contains
 
-  subroutine init_optprop(dx_inp,dy_inp, azis, szas, comm)
+  subroutine optprop_8_10_init(dx_inp,dy_inp, azis, szas, comm)
       real(ireals),intent(in) :: szas(:),azis(:),dx_inp,dy_inp
       integer(mpiint) ,intent(in) :: comm
 
@@ -48,7 +48,7 @@ contains
     endif
   end function
 
-  subroutine optprop_lookup_coeff(dz,kabs,ksca,g,dir,C,inp_angles)
+  subroutine optprop_8_10_lookup_coeff(dz,kabs,ksca,g,dir,C,inp_angles)
         logical,intent(in) :: dir
         real(ireals),intent(in) :: dz,g,kabs,ksca
         real(ireals),intent(in),optional :: inp_angles(2)
@@ -62,7 +62,7 @@ contains
         real(ireals) :: angles(2)
         integer(iintegers) :: isrc
 
-        if(optprop_debug) then
+        if(optprop_8_10_debug) then
           if( (any([dz,kabs,ksca,g].lt.zero)) .or. (any(isnan([dz,kabs,ksca,g]))) ) then
             print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[dz,kabs,ksca,g]
             call exit
@@ -110,7 +110,7 @@ contains
 ! This enables on-line calculations of coefficients with bmc code. This takes FOREVER! - use this only to check if LUT is working correctly!
         if(determine_coeff_error) then 
                 call random_number(T_dir(1)) 
-                if(optprop_debug.and.(T_dir(1).le.checking_limit)) then
+                if(optprop_8_10_debug.and.(T_dir(1).le.checking_limit)) then
                         if(present(inp_angles)) then 
                                 if(dir) then !dir2dir
                                         do isrc=1,dir_streams

@@ -137,7 +137,7 @@ contains
       deallocate(tmp)
 
       print *,myid,' :: ',diffLUT%S%c(1,1,1,1,1)
-      call mpi_barrier(comm,ierr)
+!      call mpi_barrier(comm,ierr)
   end subroutine
   !{{{ init LUT
   subroutine init_LUT(dx,dy, azis,szas, comm)
@@ -167,7 +167,6 @@ contains
 
       call set_parameter_space(diffLUT%pspace,diffLUT%dx)
       call loadLUT_diff(diffLUT,comm)
-      call check_diffLUT_matches_pspace(diffLUT)
 
       ! Load direct LUTS
       write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta",L1)') idx,Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,delta_scale
@@ -178,9 +177,10 @@ contains
 
       call set_parameter_space(dirLUT%pspace,dirLUT%dx)
       call loadLUT_dir(dirLUT, azis, szas, comm)
-      call check_dirLUT_matches_pspace(dirLUT)
 
       if(comm_size.gt.1) call scatter_LUTtables(azis,szas,comm)
+      call check_diffLUT_matches_pspace(diffLUT)
+      call check_dirLUT_matches_pspace(dirLUT)
 
       LUT_initiliazed=.True.
       if(myid.eq.0) print *,'Done loading LUTs'
@@ -329,8 +329,7 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask,comm)
         print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
       enddo
     endif
-    call mpi_barrier(comm,ierr)
-
+!    call mpi_barrier(comm,ierr)
 end subroutine
 subroutine loadLUT_dir(LUT, azis,szas, comm)
     real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
@@ -408,7 +407,6 @@ subroutine loadLUT_dir(LUT, azis,szas, comm)
       enddo
     enddo
 
-
     if(myid.eq.0) print *,'Done loading direct LUTs'
 end subroutine
 !}}}
@@ -422,7 +420,7 @@ subroutine createLUT_diff(LUT,comm)
 
     call MPI_Comm_rank(comm, myid, ierr)
 
-    allocate(LUT%S%c(12, Ndz,Nkabs ,Nksca,Ng))
+    if(myid.eq.0) allocate(LUT%S%c(12, Ndz,Nkabs ,Nksca,Ng))
 
     total_size = Ng*Nksca*Nkabs *Ndz
     cnt=1
@@ -433,15 +431,15 @@ subroutine createLUT_diff(LUT,comm)
             if(myid.eq.0) print *,'diff dx',LUT%dx,'dz',LUT%pspace%dz(idz),' :: ',LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
             ! src=1
             call bmc_wrapper(i1,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
-            LUT%S%c( 1, idz,ikabs ,iksca,ig) = S_diff(1)
-            LUT%S%c( 2, idz,ikabs ,iksca,ig) = S_diff(2)
-            LUT%S%c( 3, idz,ikabs ,iksca,ig) = sum(S_diff([3,4,7, 8]) )/4
-            LUT%S%c( 4, idz,ikabs ,iksca,ig) = sum(S_diff([5,6,9,10]) )/4
+            if(myid.eq.0) LUT%S%c( 1, idz,ikabs ,iksca,ig) = S_diff(1)
+            if(myid.eq.0) LUT%S%c( 2, idz,ikabs ,iksca,ig) = S_diff(2)
+            if(myid.eq.0) LUT%S%c( 3, idz,ikabs ,iksca,ig) = sum(S_diff([3,4,7, 8]) )/4
+            if(myid.eq.0) LUT%S%c( 4, idz,ikabs ,iksca,ig) = sum(S_diff([5,6,9,10]) )/4
             ! src=3
             call bmc_wrapper(i3,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
-            LUT%S%c( 5:10, idz,ikabs ,iksca,ig) = S_diff(1:6)
-            LUT%S%c( 11  , idz,ikabs ,iksca,ig) = sum(S_diff(7: 8))/2
-            LUT%S%c( 12  , idz,ikabs ,iksca,ig) = sum(S_diff(9:10))/2
+            if(myid.eq.0) LUT%S%c( 5:10, idz,ikabs ,iksca,ig) = S_diff(1:6)
+            if(myid.eq.0) LUT%S%c( 11  , idz,ikabs ,iksca,ig) = sum(S_diff(7: 8))/2
+            if(myid.eq.0) LUT%S%c( 12  , idz,ikabs ,iksca,ig) = sum(S_diff(9:10))/2
 
             cnt=cnt+1
             !            if(myid.eq.0) print *,''
@@ -449,11 +447,7 @@ subroutine createLUT_diff(LUT,comm)
         enddo
       enddo
     enddo
-    if(myid.eq.0) then 
-      print *,'done calculating diffuse coefficients'
-    else
-      deallocate(LUT%S%c)
-    endif
+    if(myid.eq.0) print *,'done calculating diffuse coefficients'
 end subroutine
 subroutine createLUT_dir(LUT,comm,iphi,itheta)
     type(directTable) :: LUT
@@ -465,8 +459,13 @@ subroutine createLUT_dir(LUT,comm,iphi,itheta)
 
     call MPI_Comm_rank(comm, myid, ierr)
 
-    allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
-    allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
+    if(myid.eq.0) then
+      if(allocated( LUT%T(iphi,itheta)%c ) ) deallocate(LUT%T(iphi,itheta)%c) ! This is necessary if only a partial hdf5 load happened. 
+      if(allocated( LUT%S(iphi,itheta)%c ) ) deallocate(LUT%S(iphi,itheta)%c) ! In this case we have to calculate both entries again.
+
+      allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
+      allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
+    endif
 
     total_size = Ng*Nksca*Nkabs *Ndz
     cnt=1
@@ -477,8 +476,8 @@ subroutine createLUT_dir(LUT,comm,iphi,itheta)
             if(myid.eq.0) print *,'direct dx',LUT%dx,'dz',LUT%pspace%dz(idz),'phi0,theta0',LUT%pspace%phi(iphi),LUT%pspace%theta(itheta),' :: ',LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
             do src=1,dir_streams
               call bmc_wrapper(src,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.True.,delta_scale,LUT%pspace%phi(iphi),LUT%pspace%theta(itheta),comm,S_diff,T_dir)
-              LUT%T(iphi,itheta)%c( (src-1)*dir_streams+1:src*dir_streams, idz,ikabs ,iksca,ig) = T_dir
-              LUT%S(iphi,itheta)%c( (src-1)*diff_streams+1:(src)*diff_streams, idz,ikabs ,iksca,ig) = S_diff
+              if(myid.eq.0) LUT%T(iphi,itheta)%c( (src-1)*dir_streams+1:src*dir_streams, idz,ikabs ,iksca,ig) = T_dir
+              if(myid.eq.0) LUT%S(iphi,itheta)%c( (src-1)*diff_streams+1:(src)*diff_streams, idz,ikabs ,iksca,ig) = S_diff
             enddo
             cnt=cnt+1
             !            if(myid.eq.0) print *,''
@@ -486,12 +485,7 @@ subroutine createLUT_dir(LUT,comm,iphi,itheta)
         enddo
       enddo
     enddo
-    if(myid.eq.0) then 
-      print *,'done calculating direct coefficients'
-    else
-      deallocate(LUT%T(iphi,itheta)%c)
-      deallocate(LUT%S(iphi,itheta)%c)
-    endif
+    if(myid.eq.0) print *,'done calculating direct coefficients'
 end subroutine
 !}}} 
 !{{{ bmc_wrapper 

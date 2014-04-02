@@ -7,7 +7,7 @@ target_link_libraries( "${APP_NAME}" "${MPI_Fortran_LIBRARIES}" )
 
 
 # petsc_solver
-file (GLOB_RECURSE optprop_sources "optprop_dir8_diff10/optprop*.?90" "optprop_dir8_diff10/boxmc*.f90" )
+file (GLOB_RECURSE optprop_sources "optprop_dir*_diff*/optprop*.?90" "optprop_dir*_diff*/boxmc*.f90" )
 
 list (APPEND solver_sources "arrayio.f90"  "data_parameters.f90"  "eddington.f90"  "gridtransform.f90"  "interpolation.f90"  "kato_data.f90"  "mersenne.f95"  "petsc_tsv3.F90" )
 

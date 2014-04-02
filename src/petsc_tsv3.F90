@@ -9,6 +9,7 @@ module petsc_ts
           iintegers
       use kato_data
       use tenstream_optprop_8_10
+      use tenstream_optprop_1_2
 
       implicit none
 
@@ -664,7 +665,11 @@ elemental double precision function deg2rad(a)
                kabs = op%bg(1) 
                ksca = op%bg(2) 
                g    = op%bg(3)
-               call optprop_lookup_coeff(dz,kabs,ksca,g,dir,coeff,angles)
+               if(twostr_ratio*dz.gt.newgrid%dx(1) ) then
+                 call optprop_1_2_lookup_coeff(dz,kabs,ksca,g,dir,coeff,angles)
+               else
+                 call optprop_8_10_lookup_coeff(dz,kabs,ksca,g,dir,coeff,angles)
+               endif
 
 !               select case(coeff_mode)
 !               case(1) ! plane parallel
@@ -739,6 +744,7 @@ subroutine set_dir_coeff(A,C)
         PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm
         PetscInt,parameter :: entries(8)=[0,8,16,24,32,40,48,56]
         PetscReal :: edd_coeff(5)
+        PetscReal :: twostr_coeff(1)
 
 !        if(ldebug) print *,myid,'DEBUG(set_dir_coeff) DMDA',C%xs,C%xe,C%ys,C%ye,C%zs,C%ze-1
 
@@ -753,15 +759,6 @@ subroutine set_dir_coeff(A,C)
           lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
           lk = 1+k-C%zs         !
           !          print *,'setting direct coeff',li,lj,lk,'PETSC_grid',i,j,k,'pcc_optprop',lbound(pcc_optprop,1),ubound(pcc_optprop,1),':',lbound(pcc_optprop,2),ubound(pcc_optprop,2),':',lbound(pcc_optprop,3),ubound(pcc_optprop,3)
-
-          !         _______________
-          !        |               |
-          !        |           3   |  
-          !      2 |               |  
-          !        |               |
-          !        |               |
-          !        |_______________|  
-          !                 1
 
           dst = 1 ; row(MatStencil_i,dst) = i      ; row(MatStencil_j,dst) = j       ;  row(MatStencil_k,dst) = k+1     ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
           dst = 2 ; row(MatStencil_i,dst) = i      ; row(MatStencil_j,dst) = j       ;  row(MatStencil_k,dst) = k+1     ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
@@ -781,13 +778,15 @@ subroutine set_dir_coeff(A,C)
           src = 7 ; col(MatStencil_i,src) = i        ; col(MatStencil_j,src) = j+1-yinc ; col(MatStencil_k,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
           src = 8 ; col(MatStencil_i,src) = i        ; col(MatStencil_j,src) = j+1-yinc ; col(MatStencil_k,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
-
-          !       if(myid.eq.0.and.li.eq.istartpar.and.lj.eq.jstartpar.and.lk.eq.1) optprop_debug=.True.
           if(luse_twostream .and. twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
             call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
             coeffs=zero
             coeffs([0, 8+1, 16+2, 24+3 ]+i1) = edd_coeff(5) ! only use the four vertical tiles with a33
-          else ! use only one dimensional direct radiation
+          elseif(twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
+            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., twostr_coeff, [symmetry_phi, theta0])
+            coeffs=zero
+            coeffs([0, 8+1, 16+2, 24+3 ]+i1) = twostr_coeff(1) ! only use the four vertical tiles with direct transmission
+          else
             call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., coeffs, [symmetry_phi, theta0])
           endif
 
@@ -851,7 +850,7 @@ subroutine set_diff_coeff(A,C)
   PetscInt :: i,j,k,src,dst, li,lj,lk
 
   MatStencil :: row(4,0:C%dof-1)  ,col(4,0:C%dof-1)
-  PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm,edd_coeff(5)
+  PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm,edd_coeff(5),twostr_coeff(2)
   PetscInt,parameter :: entries(10)=[0,10,20,30,40,50,60,70,80,90]
 
   ! if(ldebug) print *,myid,'DEBUG(set_dir_coeff) jspec',jspec,'igas',igas,'isub',isub
@@ -915,6 +914,10 @@ subroutine set_diff_coeff(A,C)
           coeffs = zero
           call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
           coeffs([ 0,1, 10,11 ]+i1) = [ edd_coeff(2), edd_coeff(1), edd_coeff(1), edd_coeff(2) ]
+        elseif(twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
+          call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff )
+          coeffs=zero
+          coeffs([ 0,1, 10,11 ]+i1) = [ twostr_coeff(2), twostr_coeff(1), twostr_coeff(1), twostr_coeff(2) ]
         else
           call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs )
         endif
@@ -951,7 +954,7 @@ subroutine setup_b(edir,kato,iq,b)
         PetscScalar,pointer,dimension(:,:,:,:) :: &
         xsrc,xedir
         PetscInt :: li,lj,lk
-        PetscReal :: coeffs(C_dir%dof*C_diff%dof),edd_coeff(5)
+        PetscReal :: coeffs(C_dir%dof*C_diff%dof),edd_coeff(5),twostr_coeff(2)
         
         PetscInt :: i,j,k,src
         
@@ -978,6 +981,10 @@ subroutine setup_b(edir,kato,iq,b)
                 xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(i0,i,j,k)*edd_coeff(3)
                 xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(i0,i,j,k)*edd_coeff(4)
 
+              elseif(twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
+                call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, [symmetry_phi, theta0] )
+                xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(i0,i,j,k)*twostr_coeff(1)
+                xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(i0,i,j,k)*twostr_coeff(2)
               else
                 call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, [symmetry_phi, theta0] )
 
@@ -1545,9 +1552,9 @@ program main
         call VecSet(abso,zero,ierr)
 !        call vec_to_hdf5(abso)
 
-        call init_optprop(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) ! i0 is LUT, i1 is ANN
-
         call setup_dir_inc(phi0,symmetry_phi)
+        call optprop_8_10_init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) ! i0 is LUT, i1 is ANN
+        call optprop_1_2_init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) ! i0 is LUT, i1 is ANN
 
         ! Create Objects to work with
         call init_Matrix(Mdir,C_dir)

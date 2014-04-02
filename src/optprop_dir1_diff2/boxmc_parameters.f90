@@ -9,5 +9,6 @@ module boxmc_parameters_1_2
 
       integer(iintegers) ,parameter :: Ndz=10, Nkabs=40, Nksca=40, Ng=10, Nphi=2, Ntheta=10, interp_mode=2 
 !      integer(iintegers) ,parameter :: Ndz=5, Nkabs=5, Nksca=5, Ng=5, Nphi=2, Ntheta=10, interp_mode=2 
+!      integer(iintegers) ,parameter :: Ndz=2, Nkabs=2, Nksca=2, Ng=2, Nphi=2, Ntheta=10, interp_mode=2 
 
 end module

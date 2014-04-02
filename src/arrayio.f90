@@ -618,7 +618,7 @@ end interface
 
         ierr=0 ; lastid = ubound(id,1)
         dims=[ubound(arr,1),ubound(arr,2),ubound(arr,3),ubound(arr,4),ubound(arr,5)]
-        chunk=[dims(1),dims(2),dims(3),dims(4),dims(5)]/2
+        chunk=max(1_HSIZE_T,[dims(1),dims(2),dims(3),dims(4),dims(5)]/2)
         if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
                               &  and scnd is at least hdf5 root /, and third is data name'
 !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))

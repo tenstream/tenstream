@@ -51,7 +51,7 @@ module tenstream_optprop_LUT_1_2
     real(ireals),dimension(Nphi)   :: phi
     real(ireals),dimension(Ntheta) :: theta
     real(ireals) :: dz_exponent,kabs_exponent,ksca_exponent,g_exponent
-    real(ireals),dimension(2)      :: range_dz      = [ 50_ireals   , 5000_ireals ]
+    real(ireals),dimension(2)      :: range_dz      = [ 50_ireals   , 5001_ireals ]
     real(ireals),dimension(2)      :: range_kabs    = [ 1e-99_ireals, 10._ireals  ] !lower limit for kabs,ksca is set in set_parameter_space
     real(ireals),dimension(2)      :: range_ksca    = [ 1e-99_ireals, one         ] !lower limit for kabs,ksca is set in set_parameter_space
     real(ireals),dimension(2)      :: range_g       = [ zero        , .999_ireals ]
@@ -188,7 +188,6 @@ contains
 
       call set_parameter_space(diffLUT%pspace,diffLUT%dx)
       call loadLUT_diff(diffLUT,comm)
-      call check_diffLUT_matches_pspace(diffLUT)
 
       ! Load direct LUTS
       write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta",L1)') idx,Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,delta_scale
@@ -199,9 +198,11 @@ contains
 
       call set_parameter_space(dirLUT%pspace,dirLUT%dx)
       call loadLUT_dir(dirLUT,azis,szas,comm)
-      call check_dirLUT_matches_pspace(dirLUT)
 
       if(comm_size.gt.1) call scatter_LUTtables(azis,szas,comm)
+
+      call check_diffLUT_matches_pspace(diffLUT)
+      call check_dirLUT_matches_pspace(dirLUT)
 
       LUT_initiliazed=.True.
       if(myid.eq.0) print *,'Done loading LUTs'
@@ -315,7 +316,7 @@ subroutine loadLUT_diff(LUT,comm)
         call h5write([LUT%fname,'diffuse',str(1),str(2),"pspace","g    "],LUT%pspace%g    ,iierr)
       endif
 
-      call mpi_barrier(comm,ierr)
+!      call mpi_barrier(comm,ierr)
     endif
 
     if(myid.eq.0) print *,'Done loading diffuse LUTs'
@@ -449,7 +450,7 @@ subroutine createLUT_diff(LUT,comm)
     enddo
     if(myid.eq.0) print *,'done calculating diffuse coefficients'
 end subroutine
-subroutine createLUT_dir(L UT,comm,iphi,itheta)
+subroutine createLUT_dir(LUT,comm,iphi,itheta)
     type(directTable) :: LUT
     integer,intent(in) :: comm
     integer(iintegers),intent(in) :: iphi,itheta
@@ -459,8 +460,15 @@ subroutine createLUT_dir(L UT,comm,iphi,itheta)
 
     call MPI_Comm_rank(comm, myid, ierr)
 
-    if(myid.eq.0) allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
-    if(myid.eq.0) allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
+    if(myid.eq.0) then 
+      print *,'calculating direct coefficients for ',iphi,itheta
+
+      if(allocated(LUT%S(iphi,itheta)%c) ) deallocate(LUT%S(iphi,itheta)%c) ! This is necessary as it may happen, that one of 
+      if(allocated(LUT%T(iphi,itheta)%c) ) deallocate(LUT%T(iphi,itheta)%c) ! the two entries got saved partially. In that case however, we have to calculate both again.
+
+      allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
+      allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
+    endif
 
     total_size = Ng*Nksca*Nkabs *Ndz
     cnt=1
@@ -480,7 +488,7 @@ subroutine createLUT_dir(L UT,comm,iphi,itheta)
         enddo
       enddo
     enddo
-    if(myid.eq.0) print *,'done calculating direct coefficients'
+    if(myid.eq.0) print *,'done calculating direct coefficients',shape(LUT%S(iphi,itheta)%c),shape(LUT%T(iphi,itheta)%c)
 end subroutine
 !}}} 
 !{{{ bmc_wrapper 
@@ -541,7 +549,7 @@ subroutine set_parameter_space(ps,dx)
     integer(iintegers) :: k
     ! LUT Extend is already set in type definition in header, however we could overwrite the range here.
 
-    ps%range_dz      = [ min(ps%range_dz(1), dx/10_ireals )  , max( ps%range_dz(2), 2*dx ) ]
+    ps%range_dz      = [ min(ps%range_dz(1), dx/10_ireals )  , min( ps%range_dz(2), 2*dx ) ]
     diameter = sqrt(2*dx**2 +  ps%range_dz(2)**2 )
 
 !    ps%range_dz      = [ dx/100_ireals , 2*dx ]

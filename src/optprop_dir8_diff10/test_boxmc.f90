@@ -48,15 +48,15 @@ program main
 
       if(.True.) then
         print *,'Testing optprop'
-        call init_optprop(dx,dy,[phi0],[theta0],MPI_COMM_WORLD)
+        call optprop_8_10_init(dx,dy,[phi0],[theta0],MPI_COMM_WORLD)
 
-        optprop_debug = .True.
+        optprop_8_10_debug = .True.
         
         tau = 1e-0_ireals/dz
         w = .9_ireals
         g = .9_ireals
         allocate(coeff(dir_streams*diff_streams) )
-        call optprop_lookup_coeff(dz,tau ,w,g,direct,coeff,[zero,zero])
+        call optprop_8_10_lookup_coeff(dz,tau ,w,g,direct,coeff,[zero,zero])
 
       endif
         call MPI_Finalize(ierr)
