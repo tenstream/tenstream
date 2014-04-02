@@ -1,5 +1,5 @@
 module tenstream_optprop_LUT_1_2
-  use data_parameters, only : ireals, iintegers, one,zero,i1,i0
+  use data_parameters, only : mpiint,ireals, iintegers, one,zero,i1,i0
   use boxmc_parameters_1_2, only: dir_streams,diff_streams, Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale
   use boxmc_1_2, only: bmc_get_coeff
   use tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
@@ -82,19 +82,23 @@ module tenstream_optprop_LUT_1_2
   type(diffuseTable) :: diffLUT
 
 contains
-  subroutine scatter_LUTtables(comm)
+  subroutine scatter_LUTtables(azis,szas,comm)
+      real(ireals),intent(in) :: szas(:),azis(:) 
       integer ,intent(in) :: comm
-      integer :: myid,Ntot
-      integer(iintegers) :: Ncoeff,iphi,itheta
+      integer(mpiint) :: myid,Ntot,Ncoeff
+      integer(iintegers) :: iphi,itheta
       real(ireals),allocatable,dimension(:) :: tmp
+      logical :: angle_mask(Nphi,Ntheta)
 
       call MPI_Comm_rank(comm, myid, ierr)
+      call determine_angles_to_load(dirLUT, azis, szas, angle_mask)
 
       do itheta=1,Ntheta
         do iphi  =1,Nphi
 
-          if(dirLUT%pspace%theta(itheta).le.1e-3_ireals .and. dirLUT%pspace%phi(iphi).gt.1e-3_ireals ) cycle ! dont need to calculate different azimuth angles except the zero one... rest is symmetric
+!          if(dirLUT%pspace%theta(itheta).le.1e-3_ireals .and. dirLUT%pspace%phi(iphi).gt.1e-3_ireals ) cycle ! dont need to calculate different azimuth angles except the zero one... rest is symmetric
 !          if(itheta.gt.2.or.iphi.gt.2) cycle !TODO just a shortcut, so that we can already calculate stuff until we wait for the LUT calculations
+          if(.not.angle_mask(iphi,itheta) ) cycle
 
           ! DIRECT 2 DIRECT
           if(myid.eq.0) then
@@ -110,7 +114,7 @@ contains
           call mpi_bcast(tmp, Ntot, MPI_DOUBLE_PRECISION, 0, comm, ierr)
           if(myid.gt.0) then
             allocate(dirLUT%T(iphi,itheta)%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
-            dirLUT%T(iphi,itheta)%c = reshape(tmp, [Ncoeff, Ndz, Nkabs, Nksca, Ng] )
+            dirLUT%T(iphi,itheta)%c = reshape(tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] )
           endif
           deallocate(tmp)
 
@@ -128,7 +132,7 @@ contains
           call mpi_bcast(tmp, Ntot, MPI_DOUBLE_PRECISION, 0, comm, ierr)
           if(myid.gt.0) then
             allocate(dirLUT%S(iphi,itheta)%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
-            dirLUT%S(iphi,itheta)%c = reshape(tmp, [Ncoeff, Ndz, Nkabs, Nksca, Ng] )
+            dirLUT%S(iphi,itheta)%c = reshape(tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] )
           endif
           deallocate(tmp)
 
@@ -149,15 +153,16 @@ contains
       call mpi_bcast(tmp, Ntot, MPI_DOUBLE_PRECISION, 0, comm, ierr)
       if(myid.gt.0) then
         allocate(diffLUT%S%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
-        diffLUT%S%c = reshape(tmp, [Ncoeff, Ndz, Nkabs, Nksca, Ng] )
+        diffLUT%S%c = reshape(tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] )
       endif
       deallocate(tmp)
 
       print *,myid,' :: ',diffLUT%S%c(1,1,1,1,1)
-      call mpi_barrier(comm,ierr)
+!      call mpi_barrier(comm,ierr)
   end subroutine
   !{{{ init LUT
-  subroutine init_LUT(dx,dy,comm)
+  subroutine init_LUT(dx,dy,azis,szas,comm)
+      real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
       real(ireals),intent(in) :: dx,dy
       integer ,intent(in) :: comm
       integer :: myid,comm_size
@@ -193,10 +198,10 @@ contains
       dirLUT%dy    = idy
 
       call set_parameter_space(dirLUT%pspace,dirLUT%dx)
-      call loadLUT_dir(dirLUT,comm)
+      call loadLUT_dir(dirLUT,azis,szas,comm)
       call check_dirLUT_matches_pspace(dirLUT)
 
-      if(comm_size.gt.1) call scatter_LUTtables(comm)
+      if(comm_size.gt.1) call scatter_LUTtables(azis,szas,comm)
 
       LUT_initiliazed=.True.
       if(myid.eq.0) print *,'Done loading LUTs'
@@ -315,12 +320,14 @@ subroutine loadLUT_diff(LUT,comm)
 
     if(myid.eq.0) print *,'Done loading diffuse LUTs'
 end subroutine
-subroutine loadLUT_dir(LUT,comm)
+subroutine loadLUT_dir(LUT, azis,szas,comm)
+    real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
     type(directTable) :: LUT
     integer,intent(in) :: comm
     integer :: myid
     integer(iintegers) :: errcnt,iphi,itheta
     character(300) :: str(4)
+    logical :: angle_mask(Nphi,Ntheta)
 
     call MPI_Comm_rank(comm, myid, ierr)
 
@@ -335,25 +342,20 @@ subroutine loadLUT_dir(LUT,comm)
     write(str(1),FMT='("dx",I0)') nint(LUT%dx)
     write(str(2),FMT='("dy",I0)') nint(LUT%dy)
 
+    call determine_angles_to_load(LUT, azis, szas, angle_mask)
+
     errcnt=0
     do itheta=1,Ntheta
       do iphi  =1,Nphi
         if(LUT%pspace%theta(itheta).le.1e-3_ireals .and. LUT%pspace%phi(iphi).gt.1e-3_ireals ) cycle ! dont need to calculate different azimuth angles except the zero one... rest is symmetric
+        if(.not.angle_mask(iphi,itheta) ) cycle
 
         write(str(3),FMT='("phi",I0)')  int(LUT%pspace%phi(iphi)    )
         write(str(4),FMT='("theta",I0)')int(LUT%pspace%theta(itheta))
 
         if(myid.eq.0) then
-          if(itheta.gt.1.or.iphi.gt.1) then
-            allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
-            allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
-            LUT%S(iphi,itheta)%c = LUT%S(1,1)%c
-            LUT%T(iphi,itheta)%c = LUT%T(1,1)%c
-            !            cycle !TODO just a shortcut, so that we can already calculate stuff until we wait for the LUT calculations
-          else
             call h5load([LUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],LUT%S(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
             call h5load([LUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],LUT%T(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
-          endif
         endif
         call mpi_bcast(errcnt,1 , MPI_INTEGER, 0, comm, ierr)
 
@@ -388,6 +390,33 @@ subroutine loadLUT_dir(LUT,comm)
 
     if(myid.eq.0) print *,'Done loading direct LUTs'
 end subroutine
+subroutine determine_angles_to_load(LUT,azis,szas, mask)
+    type(directTable) :: LUT
+    real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
+    logical,intent(out) :: mask(Nphi,Ntheta) ! boolean array, which LUT entries should be loaded
+
+    integer(iintegers) :: itheta, iphi
+    logical :: lneed_azi, lneed_sza
+    real(ireals) :: theta(2),phi(2) ! sza and azimuth angle
+
+    mask = .False.
+    ! Check if really need to load it... i.e. we only want to load angles which are necessary for this run.
+    do itheta=1,Ntheta-1
+      do iphi  =1,Nphi-1
+        phi   = LUT%pspace%phi( [ iphi, iphi+1 ] )
+        theta = LUT%pspace%theta( [ itheta, itheta+1 ]  )
+        lneed_azi = any( azis.ge.phi(1) .and. azis.lt.phi(2) )
+        lneed_sza = any( szas.ge.theta(1) .and. szas.lt.theta(2) )
+        if( lneed_azi .and. lneed_sza ) mask([iphi,iphi+1],[itheta,itheta+1]) = .True.
+      enddo
+    enddo
+    print *,'       phis',LUT%pspace%range_phi
+    do itheta=1,Ntheta
+      print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
+    enddo
+
+end subroutine
+
 !}}}
 !{{{ create LUT
 subroutine createLUT_diff(LUT,comm)
@@ -399,7 +428,7 @@ subroutine createLUT_diff(LUT,comm)
 
     call MPI_Comm_rank(comm, myid, ierr)
 
-    allocate(LUT%S%c(12, Ndz,Nkabs ,Nksca,Ng))
+    if(myid.eq.0) allocate(LUT%S%c(12, Ndz,Nkabs ,Nksca,Ng))
 
     total_size = Ng*Nksca*Nkabs *Ndz
     cnt=1
@@ -410,7 +439,7 @@ subroutine createLUT_diff(LUT,comm)
             if(myid.eq.0) print *,'diff dx',LUT%dx,'dz',LUT%pspace%dz(idz),' :: ',LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
             ! src=1
             call bmc_wrapper(i1,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
-            LUT%S%c( i1, idz,ikabs ,iksca,ig) = S_diff(i1)
+            if(myid.eq.0) LUT%S%c( i1, idz,ikabs ,iksca,ig) = S_diff(i1)
 
             cnt=cnt+1
             !            if(myid.eq.0) print *,''
@@ -420,7 +449,7 @@ subroutine createLUT_diff(LUT,comm)
     enddo
     if(myid.eq.0) print *,'done calculating diffuse coefficients'
 end subroutine
-subroutine createLUT_dir(LUT,comm,iphi,itheta)
+subroutine createLUT_dir(L UT,comm,iphi,itheta)
     type(directTable) :: LUT
     integer,intent(in) :: comm
     integer(iintegers),intent(in) :: iphi,itheta
@@ -430,8 +459,8 @@ subroutine createLUT_dir(LUT,comm,iphi,itheta)
 
     call MPI_Comm_rank(comm, myid, ierr)
 
-    allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
-    allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
+    if(myid.eq.0) allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
+    if(myid.eq.0) allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
 
     total_size = Ng*Nksca*Nkabs *Ndz
     cnt=1
@@ -442,8 +471,8 @@ subroutine createLUT_dir(LUT,comm,iphi,itheta)
             if(myid.eq.0) print *,'direct dx',LUT%dx,'dz',LUT%pspace%dz(idz),'phi0,theta0',LUT%pspace%phi(iphi),LUT%pspace%theta(itheta),' :: ',LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
             do src=i1,dir_streams
               call bmc_wrapper(src,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.True.,delta_scale,LUT%pspace%phi(iphi),LUT%pspace%theta(itheta),comm,S_diff,T_dir)
-              LUT%T(iphi,itheta)%c( (src-1)*dir_streams+1:src*dir_streams, idz,ikabs ,iksca,ig) = T_dir
-              LUT%S(iphi,itheta)%c( (src-1)*diff_streams+1:(src)*diff_streams, idz,ikabs ,iksca,ig) = S_diff
+              if(myid.eq.0) LUT%T(iphi,itheta)%c( (src-1)*dir_streams+1:src*dir_streams, idz,ikabs ,iksca,ig) = T_dir
+              if(myid.eq.0) LUT%S(iphi,itheta)%c( (src-1)*diff_streams+1:(src)*diff_streams, idz,ikabs ,iksca,ig) = S_diff
             enddo
             cnt=cnt+1
             !            if(myid.eq.0) print *,''
@@ -508,7 +537,7 @@ subroutine set_parameter_space(ps,dx)
     type(parameter_space),intent(inout) :: ps
     real(ireals),intent(in) :: dx
     real(ireals) :: diameter ! diameter of max. cube size
-    real(ireals),parameter :: maximum_transmission=one-1e-3_ireals
+    real(ireals),parameter :: maximum_transmission=one-1e-2_ireals
     integer(iintegers) :: k
     ! LUT Extend is already set in type definition in header, however we could overwrite the range here.
 

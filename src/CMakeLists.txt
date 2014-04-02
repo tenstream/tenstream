@@ -1,3 +1,5 @@
+message( "Entering tenstream src dir with EXTLIB==${EXTLIB} ")
+
 # test_cmake
 list( APPEND test_cmake_SRCS test_cmake.f90 )
 add_executable( "${APP_NAME}" "${test_cmake_SRCS}" )
@@ -10,7 +12,7 @@ file (GLOB_RECURSE optprop_sources "optprop_dir8_diff10/optprop*.?90" "optprop_d
 list (APPEND solver_sources "arrayio.f90"  "data_parameters.f90"  "eddington.f90"  "gridtransform.f90"  "interpolation.f90"  "kato_data.f90"  "mersenne.f95"  "petsc_tsv3.F90" )
 
 add_executable( "petsc_solver" ${solver_sources} ${optprop_sources} )
-target_link_libraries( "petsc_solver" "${MPI_Fortran_LIBRARIES}" "${HDF5_LIBRARIES}" "${PETSC_LIBRARIES}" )
+target_link_libraries( "petsc_solver" "${EXTLIB}" )
 
 # createLUT 
 file( GLOB streams optprop_dir*_diff* )
@@ -24,7 +26,7 @@ foreach ( stream ${streams} )
     message( "Building CreateLUT for ${basename} with ${optprop_sources} " )
 
     add_executable( "createLUT_${basename}" ${optprop_sources}  )
-    target_link_libraries( "createLUT_${basename}" "${MPI_Fortran_LIBRARIES}" "${HDF5_LIBRARIES}" "${PETSC_LIBRARIES}" )
+    target_link_libraries( "createLUT_${basename}" "${EXTLIB}" )
 
 endforeach ()
 
@@ -39,6 +41,6 @@ foreach ( stream ${streams} )
     message( "Building test_boxmc for ${basename} with ${optprop_sources} " )
 
     add_executable( "test_boxmc_${basename}" ${optprop_sources}  )
-    target_link_libraries( "test_boxmc_${basename}" "${MPI_Fortran_LIBRARIES}" "${HDF5_LIBRARIES}" "${PETSC_LIBRARIES}" )
+    target_link_libraries( "test_boxmc_${basename}" "${EXTLIB}" )
 
 endforeach ()

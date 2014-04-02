@@ -57,7 +57,7 @@ program main
 
       if(.False.) then
         print *,'Testing optprop'
-        call optprop_1_2_init(dx,dy,comm)
+        call optprop_1_2_init(dx,dy,[phi0],[theta0],comm)
 
         optprop_1_2_debug = .True.
         

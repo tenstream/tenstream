@@ -48,7 +48,7 @@ program main
 
       if(.True.) then
         print *,'Testing optprop'
-        call init_optprop(dx,dy,MPI_COMM_WORLD)
+        call init_optprop(dx,dy,[phi0],[theta0],MPI_COMM_WORLD)
 
         optprop_debug = .True.
         

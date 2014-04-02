@@ -19,8 +19,9 @@ integer(iintegers),parameter :: coeff_mode=i0 ! 0 is LUT, 1 is Neural Network
 
 contains
 
-  subroutine optprop_1_2_init(dx_inp,dy_inp,comm)
+  subroutine optprop_1_2_init(dx_inp,dy_inp,azis,szas,comm)
       real(ireals),intent(in) :: dx_inp,dy_inp
+      real(ireals),intent(in) :: szas(:),azis(:)
       integer ,intent(in) :: comm
 
       dx=dx_inp
@@ -28,7 +29,7 @@ contains
 
       select case (coeff_mode)
         case(i0)
-          call init_LUT(dx,dy,comm)
+          call init_LUT(dx,dy,azis, szas, comm)
         case(i1)
           call ANN_init(dx,dy)
         case default

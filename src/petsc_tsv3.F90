@@ -62,7 +62,7 @@ module petsc_ts
       end type
       type(t_optprop),allocatable :: pcc_optprop(:,:,:)
 
-      PetscReal :: phi
+      PetscReal :: symmetry_phi
       PetscInt :: yinc,xinc
 
       PetscLogStage :: logstage(7)
@@ -710,16 +710,20 @@ elemental double precision function deg2rad(a)
                endif
             call PetscLogStagePop(ierr)
         end subroutine
-
-subroutine setup_dir_inc(phi0)
+double precision function sym_rot_phi(phi0)
   double precision,intent(in) :: phi0
-  ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
   ! ''swap'' phi axis down to the range of [0,180] 
-  phi = acos(cos(phi0*pi/180))
+  sym_rot_phi = acos(cos(phi0*pi/180))
   !        print *,'1st phi0 swap',phi0,phi,'=',phi0*pi/180,cos(phi0*pi/180),acos(cos(phi0*pi/180))
   ! and then mirror it onto range [0,90]
-  phi = asin(sin(phi)) /pi * 180
+  sym_rot_phi = asin(sin(sym_rot_phi)) /pi * 180
   !        print *,'2nd phi0 swap',phi0,phi,'=',sin(phi),asin(sin(phi)),asin(sin(phi)) /pi * 180,int(asin(sin(phi)) /pi * 180)
+end function
+subroutine setup_dir_inc(phi0,symmetry_phi)
+  double precision,intent(in) :: phi0
+  double precision,intent(out) :: symmetry_phi
+  ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
+  symmetry_phi = sym_rot_phi(phi0)
   xinc=i0 ; yinc=i0
   if(phi0.gt.180) xinc=i1
   if(phi0.gt.90.and.phi0.lt.270) yinc=i1
@@ -784,7 +788,7 @@ subroutine set_dir_coeff(A,C)
             coeffs=zero
             coeffs([0, 8+1, 16+2, 24+3 ]+i1) = edd_coeff(5) ! only use the four vertical tiles with a33
           else ! use only one dimensional direct radiation
-            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., coeffs, [phi, theta0])
+            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., coeffs, [symmetry_phi, theta0])
           endif
 
           ! make sure that energy is conserved... better to be on the absorbing side
@@ -975,7 +979,7 @@ subroutine setup_b(edir,kato,iq,b)
                 xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(i0,i,j,k)*edd_coeff(4)
 
               else
-                call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, [phi, theta0] )
+                call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, [symmetry_phi, theta0] )
 
                 do src=1,C_dir%dof
                   xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_up  +i1+(src-1)*C_diff%dof)
@@ -1541,9 +1545,9 @@ program main
         call VecSet(abso,zero,ierr)
 !        call vec_to_hdf5(abso)
 
-        call init_optprop(newgrid%dx(1),newgrid%dy(1),PETSC_COMM_WORLD) ! i0 is LUT, i1 is ANN
+        call init_optprop(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) ! i0 is LUT, i1 is ANN
 
-        call setup_dir_inc(phi0)
+        call setup_dir_inc(phi0,symmetry_phi)
 
         ! Create Objects to work with
         call init_Matrix(Mdir,C_dir)

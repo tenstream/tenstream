@@ -45,9 +45,9 @@ set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE PATH "Output d
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE PATH "Output directory for Dohp executables")
 set (CMAKE_INSTALL_RPATH "lib")
 
-set(APP_NAME test_cmake)
-message("Starting cmake for ${APP_NAME} ...")
+list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
+list (APPEND EXTLIB "${HDF5_LIBRARIES}" )
+list (APPEND EXTLIB "${PETSC_LIBRARIES}" )
 
 add_subdirectory (src)
 
-#set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)

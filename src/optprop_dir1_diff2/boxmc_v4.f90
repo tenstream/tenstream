@@ -54,9 +54,9 @@ subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta
 
         Ndir=i0;Ndiff=i0
         
-        call init_stddev( std_Sdir , dir_streams  ,1e-7_qreals, 5e-2_qreals )
-        call init_stddev( std_Sdiff, diff_streams ,1e-7_qreals, 5e-2_qreals )
-        call init_stddev( std_abso , i1           ,1e-7_qreals, 5e-3_qreals )
+        call init_stddev( std_Sdir , dir_streams  ,1e-7_qreals, 5e-3_qreals )
+        call init_stddev( std_Sdiff, diff_streams ,1e-7_qreals, 5e-3_qreals )
+        call init_stddev( std_abso , i1           ,1e-7_qreals, 5e-4_qreals )
 
         initial_dir  = (/ sin(deg2rad(theta0))*sin(deg2rad(phi0)) ,&
                     sin(deg2rad(theta0))*cos(deg2rad(phi0)) ,&
@@ -410,15 +410,18 @@ end function
 elemental function tau(r)
         double precision,intent(in) :: r
         double precision :: tau
-        tau = -log(one-r)
+        tau = -log( max( epsilon(tau), one-r ) ) 
 end function
 
 elemental function hengreen(r,g)
         double precision,intent(in) :: r,g
         double precision :: hengreen
         double precision,parameter :: one=1.0,two=2.0
-        hengreen = one/(two*g) * (one+g**two - ( (one-g**two) / ( two*g*r + one-g) )**two )
-        if(g.le.1e-8_dp .and. g.ge.-1e-8_dp) hengreen = two*r-one
+        if(g.le.epsilon(hengreen) .and. g.ge.-epsilon(hengreen) ) then
+          hengreen = two*r-one
+        else
+          hengreen = one/(two*g) * (one+g**two - ( (one-g**two) / ( two*g*r + one-g) )**two )
+        endif
         hengreen = min(max(hengreen,-one), one)
 end function
 
