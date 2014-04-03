@@ -101,26 +101,33 @@ module tenstream_interpolation
         double precision :: a0(size(res)),a1(size(res))
 
         if(n.eq.1) then
-          res = f( t(1), a(:,i), a(:,i+1) )
+          res = spline( t(1), a(:,i), a(:,i+1) )
         else
           call interpn(n-1,a,t,i,a0)
           call interpn(n-1,a,t,i+2**(n-1),a1)
-          res = f( t(n), a0, a1 )
+          res = spline( t(n), a0, a1 )
         endif
       end subroutine
 
-      function f(t,a0,a1)
-        double precision,intent(in) :: t,a0(:),a1(:)
-        double precision :: f(size(a1)),s
-        logical,parameter :: lspline=.False.
+pure      function spline(t,a0,a1)
+        double precision,intent(in) :: t,a0(:),a1(:) ! t is weighting distance from a0
+        double precision :: spline(size(a1))
+        double precision :: s(size(a1))
+        logical,parameter :: lspline = .True.
 
         if(lspline) then
-          s = t**2*(3 - 2*t)
+          where( a0 .gt. a1 )
+            s = t**2
+          else where(a0.le.a1)
+            s = sqrt(t)
+          end where
+!          s = t**2*(3_ireals - 2_ireals*t)
         else
           s = t
         endif
 
-        f = s*a1 + (one-s)*a0
+!        spline = s*a1 + (one-s)*a0
+        spline = a0 + s * ( a1-a0 )
         !      print *,'interpolating t,a0,a1',t,a0,a1,'==>',f
       end function
 
@@ -212,22 +219,28 @@ pure subroutine interp_6d(pti,weights,db,C)
 
         ! Permutations for 1st axis
         do i=1,2**(Ndim-1)
-          db5(:,i)  =  db6(:,2*i-1) + ( db6(:,2*i) - db6(:,2*i-1) ) * (weights(1))
+!          db5(:,i)  =  db6(:,2*i-1) + ( db6(:,2*i) - db6(:,2*i-1) ) * spline(weights(1))
+          db5(:,i)  = spline( weights(1), db6(:,2*i-1), db6(:,2*i) )
         enddo
         do i=1,2**(Ndim-2)
-          db4(:,i)  =  db5(:,2*i-1) + ( db5(:,2*i) - db5(:,2*i-1) ) * (weights(2))
+!          db4(:,i)  =  db5(:,2*i-1) + ( db5(:,2*i) - db5(:,2*i-1) ) * spline(weights(2))
+          db4(:,i)  = spline( weights(2), db5(:,2*i-1), db5(:,2*i) )
         enddo
         do i=1,2**(Ndim-3)
-          db3(:,i)  =  db4(:,2*i-1) + ( db4(:,2*i) - db4(:,2*i-1) ) * (weights(3))
+!          db3(:,i)  =  db4(:,2*i-1) + ( db4(:,2*i) - db4(:,2*i-1) ) * spline(weights(3))
+          db3(:,i)  = spline( weights(3), db5(:,4*i-1), db5(:,4*i) )
         enddo
         do i=1,2**(Ndim-4)
-          db2(:,i)  =  db3(:,2*i-1) + ( db3(:,2*i) - db3(:,2*i-1) ) * (weights(4))
+!          db2(:,i)  =  db3(:,2*i-1) + ( db3(:,2*i) - db3(:,2*i-1) ) * spline(weights(4))
+          db2(:,i)  = spline( weights(4), db5(:,3*i-1), db3(:,2*i) )
         enddo
         do i=1,2**(Ndim-5)
-          db1(:,i)  =  db2(:,2*i-1) + ( db2(:,2*i) - db2(:,2*i-1) ) * (weights(5))
+!          db1(:,i)  =  db2(:,2*i-1) + ( db2(:,2*i) - db2(:,2*i-1) ) * spline(weights(5))
+          db1(:,i)  = spline( weights(5), db2(:,2*i-1), db2(:,2*i) )
         enddo
 
-        C(:)        =  db1(:,2  -1) + ( db1(:,2  ) - db1(:,2  -1) ) * (weights(6))
+!        C(:)        =  db1(:,2  -1) + ( db1(:,2  ) - db1(:,2  -1) ) * spline(weights(6))
+        C(:)  = spline( weights(6), db1(:,2), db1(:,1) )
 end subroutine
 pure subroutine interp_4d(pti,weights,db,C)
         integer,parameter :: Ndim=4
