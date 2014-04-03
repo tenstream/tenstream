@@ -5,16 +5,11 @@ program main
       integer myid
 
       character(len=32) :: arg
-      double precision :: dx,azis(91),szas(91)
-      integer i
+      double precision :: dx
+      double precision :: azis(2),szas(5)
 
-      do i=1,91
-        azis(i) = 1.*i-1
-        szas(i) = 1.*i-1
-      enddo
-
-      azis=0
-      szas=0
+      azis = [0,90]
+      szas = [0,20,40,60,80]
 
       call get_command_argument(1, arg)
       if(len_trim(arg) == 0) call exit
