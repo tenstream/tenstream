@@ -10,7 +10,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif (NOT CMAKE_BUILD_TYPE)
 
 set (CMAKE_Fortran_FLAGS "-fbacktrace -finit-real=nan -ffree-line-length-none -W -Wall -Wuninitialized " )
-set (CMAKE_Fortran_FLAGS_RELEASE "-funroll-all-loops -fno-f2c -O3 -Ofast -ffast-math ") #-march=native -mtune=native")
+set (CMAKE_Fortran_FLAGS_RELEASE "-funroll-all-loops -fno-f2c -O3 -Ofast -ffast-math -march=native -mtune=native")
 set (CMAKE_Fortran_FLAGS_DEBUG   "-fno-f2c -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check -ffpe-trap=invalid,zero,overflow")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
