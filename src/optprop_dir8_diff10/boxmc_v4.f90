@@ -1,4 +1,5 @@
 module boxmc_8_10
+      use helper_functions, only : approx,mean,rmse,deg2rad,norm
       use iso_c_binding
       use mersenne
       use mpi
@@ -165,17 +166,6 @@ subroutine mpi_reduce_sum(v,comm,myid)
     endif
 end subroutine
 
-function rmse(a,b)
-  real(qreals) :: rmse,a(:),b(:)
-  rmse = sqrt( mean( (a-b)**2 ) )
-  end function
-
-function mean(arr)
-  real(qreals) :: mean
-  real(qreals) :: arr(:)
-  mean = sum(arr)/size(arr)
-  end function
-
 subroutine roulette(p)
         type(photon),intent(inout) :: p
         double precision,parameter :: m=1e-1_ireals,s=1e-3_ireals*m
@@ -259,38 +249,6 @@ subroutine update_direct_stream(p,S,N)
       call print_photon(p)
     end select
 end subroutine
-!subroutine update_direct_stream(p,S)
-!        type(photon),intent(in) :: p
-!        real(qreals),intent(inout) :: S(:)
-!
-!!         _______________
-!!        |               |
-!!        |               |  
-!!      2 |               |
-!!        |               |
-!!        |  3            |
-!!        |_______________|  
-!!               1
-!
-!!        call print_photon(p)
-!        if(p%side.eq.2.or.p%side.eq.1 ) then
-!                S(1) = S(1)+p%weight
-!!                print *,'updating stream 1',p%weight,p%side
-!                return                             
-!        else if(p%side.eq.3.or.p%side.eq.4 ) then  
-!                S(2) = S(2)+p%weight               
-!!                print *,'updating stream 2',p%weight,p%side
-!                return                             
-!        else if(p%side.eq.5.or.p%side.eq.6 ) then  
-!                S(3) = S(3)+p%weight               
-!!                print *,'updating stream 3',p%weight,p%side
-!                return
-!        else
-!                print *,'Couldnt find a stream on to which I can put the photon weight on?!'
-!                call print_photon(p)
-!                call exit
-!        endif
-!end subroutine
 subroutine delta_scaling(p,deltascale,initial_dir)
         type(photon),intent(inout) :: p
         double precision,intent(in) :: initial_dir(3)
@@ -373,15 +331,12 @@ end subroutine
 double precision function s()
         s = -one + 2*R()
 end function
-double precision function L(v)
-        double precision,intent(in) ::v
-        double precision,parameter :: eps=1e-3
-        L = min( max(R()*v,eps), v-eps)
+function L(v)
+    double precision :: L
+    double precision,intent(in) ::v
+    double precision,parameter :: eps=1e-3
+    L = min( max(R()*v,eps), v-eps)
 end function
-double precision function deg2rad(deg)
-        double precision,intent(in) :: deg
-        deg2rad = deg*pi/180.
-        end function
 
 subroutine init_dir_photon(p,src,direct,initial_dir,dx,dy,dz)
         type(photon),intent(inout) :: p
@@ -411,16 +366,6 @@ subroutine init_dir_photon(p,src,direct,initial_dir,dx,dy,dz)
                 print *,'Dont know what to do with source spec:',src
                 call exit
         endif
-!        if(src.eq.1) then
-!                p%loc = (/L(dx), L(dy),    dz  /)
-!        else if(src.eq.2) then
-!                p%loc = (/ zero, L(dy),  L(dz) /)
-!        else if(src.eq.3) then
-!                p%loc = (/L(dx), zero ,  L(dz) /)
-!        else
-!                print *,'Dont know what to do with source spec:',src
-!                call exit
-!        endif
 
         p%weight=one
         p%dx   = dx
@@ -486,11 +431,6 @@ subroutine init_photon(p,src,dx,dy,dz)
 
 end subroutine
 
-pure double precision function norm(v)
-        double precision,intent(in) :: v(:)
-        norm = sqrt(dot_product(v,v))
-end function
-
 subroutine move_photon(p)
         type(photon),intent(inout) :: p
 
@@ -527,7 +467,6 @@ subroutine intersect_distance(p,max_dist)
         double precision,intent(out) :: max_dist
 
         double precision :: x,y,z
-!        double precision,parameter :: eps=1e-3
         integer(iintegers) :: i,sides(3)
 
         double precision :: dist(3)
@@ -607,7 +546,7 @@ pure double precision function hit_plane(p,po,pn)
         double precision,intent(in) :: po(3),pn(3)
         double precision :: discr
         discr = dot_product(p%dir,pn)
-        if(discr.le.zero+1e-80_ireals .and. discr.ge.-1e-80_ireals) then
+        if( approx(discr, zero) ) then
                 hit_plane=huge(hit_plane)
         else        
                 hit_plane = dot_product(po-p%loc, pn) / discr
@@ -618,7 +557,7 @@ elemental function distance(tau,beta)
         double precision,intent(in) :: tau,beta
         double precision :: distance
         distance = tau/beta
-        if(beta.le.zero+1e-40_ireals) distance=huge(distance)
+        if(approx(beta,zero) ) distance=huge(distance)
 end function
 
 elemental function tau(r)
@@ -632,7 +571,7 @@ elemental function hengreen(r,g)
         double precision,intent(in) :: r,g
         double precision :: hengreen
         double precision,parameter :: one=1.0,two=2.0
-        if(g.le.1e-8_ireals .and. g.ge.-1e-8_ireals) then
+        if( approx(g,zero) ) then
           hengreen = two*r-one
         else
           hengreen = one/(two*g) * (one+g**two - ( (one-g**two) / ( two*g*r + one-g) )**two )
@@ -649,14 +588,19 @@ end function
 subroutine absorb_photon(p,dist)
         type(photon),intent(inout) :: p
         double precision,intent(in) :: dist
-        double precision :: new_weight
+        double precision :: new_weight,tau
 
-        new_weight = p%weight * exp(- get_kabs(p)*dist)
-        if( (new_weight.gt.one).or.(new_weight.lt.zero) ) then
-            print *,'something wrong with new weight after absorption',new_weight,'=',p%weight,'*',exp(-get_kabs(p)*dist),'(',get_kabs(p),dist,')'
-            call exit
+        tau = get_kabs(p)*dist
+        if(tau.gt.20) then
+          p%weight = zero
+        else
+          new_weight = p%weight * exp(- tau)
+!          if( (new_weight.gt.one).or.(new_weight.lt.zero) ) then
+!            print *,'something wrong with new weight after absorption',new_weight,'=',p%weight,'*',exp(-get_kabs(p)*dist),'(',get_kabs(p),dist,')'
+!            call exit
+!          endif
+          p%weight = new_weight
         endif
-        p%weight = new_weight
 end subroutine
 
 subroutine scatter_photon(p)

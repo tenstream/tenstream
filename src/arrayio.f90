@@ -763,114 +763,114 @@ end interface
         call h5close_f(hferr)  ; ierr=ierr+hferr
       end subroutine
       !}}}
-      !{{{ h5write_4d_parallel
-      subroutine h5write_4d_parallel(groups,glob_dim,off,arr,comm,ierr)
-        integer,parameter :: rank=4
-        integer,intent(in),dimension(rank) :: glob_dim,off
-        character(len=*) :: groups(:)
-        real(ireals),intent(in) :: arr(:,:,:,:)
-        integer,intent(in) :: comm
-        integer(iintegers),intent(out) :: ierr
-
-        integer :: k,lastid,hferr
-        integer(HSIZE_T) :: dims(rank),chunk(rank)
-        logical :: compression,file_exists,link_exists
-        integer(HSIZE_T),  dimension(rank) :: count  
-        integer(HSSIZE_T), dimension(rank) :: offset 
-        integer(HSIZE_T),  dimension(rank) :: stride
-        integer(HSIZE_T),  dimension(rank) :: block
-
-        integer(HID_T) :: id(size(groups)-1),dataset,dataspace,memspace
-        integer(HID_T) :: dsetprops,fprops,xferprops
-
-        call h5open_f(hferr); ierr=ierr+hferr
-
-        ierr=0 ; lastid = ubound(id,1)
-        dims=glob_dim
-        chunk=[ubound(arr,1),ubound(arr,2),ubound(arr,3),ubound(arr,4)]
-
-        block=chunk
-        offset=off
-        stride=1
-        count=1
-
-        if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
-                              &  and scnd is at least hdf5 root /, and third is data name'
-!        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
-
-        CALL h5zfilter_avail_f(H5Z_FILTER_DEFLATE_F, compression, hferr) ; ierr=ierr+hferr
-        if (.not.compression) then
-           write(*,'("compression filter not available. :( ",/)')
-           call exit()
-        else
-           print *,'Compression filter is ready'
-        endif
-
-        call h5pcreate_f(H5P_FILE_ACCESS_F, fprops, hferr)
-        call h5pset_fapl_mpio_f(fprops, comm, MPI_INFO_NULL, hferr)
-
-        inquire(file=trim(groups(1)), exist=file_exists)
-        if(.not.file_exists) then
-                print *,'File does not yet exists, creating new one'
-                call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr,access_prp=fprops) ; ierr=ierr+hferr
-        else   
-                print *,'File does exist, opening it RW'
-                call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr,access_prp=fprops) ; ierr=ierr+hferr
-        endif
-        call h5pclose_f(fprops, hferr)
-
-        print *,'Creating Compression Filter'
-        call h5pcreate_f(H5P_DATASET_CREATE_F, dsetprops, hferr) ; ierr=ierr+hferr
-        call h5pset_deflate_f(dsetprops, 9, hferr) ; ierr=ierr+hferr
-        call h5pset_chunk_f(dsetprops, rank, chunk, hferr) ; ierr=ierr+hferr
-
-        call h5pcreate_f(H5P_DATASET_XFER_F, xferprops, hferr) ; ierr=ierr+hferr
-        call h5pset_dxpl_mpio_f(xferprops, H5FD_MPIO_COLLECTIVE_F, hferr) ; ierr=ierr+hferr
-
-        do k=2,lastid
-                call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
-                if(link_exists) then
-                        print *,'opening group',trim(groups(k))
-                        call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-                else
-                        print *,'Create Groups',trim(groups(k))
-                        call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-                endif
-        enddo
-
-        print *,'Creating DataSpace'
-        call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
-        call h5screate_simple_f(rank, chunk, memspace, hferr) ; ierr=ierr+hferr
-        if(hferr.ne.0) return
-
-        ! Select hyperslab in the file.
-        call h5sselect_hyperslab_f (dataspace, H5S_SELECT_SET_F, offset, count, hferr, stride, block)
-
-        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
-        call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dsetprops) ; ierr=ierr+hferr
-
-        if(ierr.ne.0) return
-        print *,'Write to dataset'
-        call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, arr, dims, hferr, &
-                     file_space_id = dataspace, mem_space_id = memspace, xfer_prp = xferprops)
-
-        print *,'Closing handles'
-        call h5pclose_f(xferprops, hferr)
-        call h5pclose_f(dsetprops, hferr)
-
-        call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
-        call h5sclose_f(memspace,hferr) ; ierr=ierr+hferr
-        call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
-        do k=lastid,2,-1
-                call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
-        enddo
-        call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-
-!        print *,'Data is now:',sum(arr)/size(arr)
-
-        call h5close_f(hferr)  ; ierr=ierr+hferr
-      end subroutine
-      !}}}
+!      !{{{ h5write_4d_parallel
+!      subroutine h5write_4d_parallel(groups,glob_dim,off,arr,comm,ierr)
+!        integer,parameter :: rank=4
+!        integer,intent(in),dimension(rank) :: glob_dim,off
+!        character(len=*) :: groups(:)
+!        real(ireals),intent(in) :: arr(:,:,:,:)
+!        integer,intent(in) :: comm
+!        integer(iintegers),intent(out) :: ierr
+!
+!        integer :: k,lastid,hferr
+!        integer(HSIZE_T) :: dims(rank),chunk(rank)
+!        logical :: compression,file_exists,link_exists
+!        integer(HSIZE_T),  dimension(rank) :: count  
+!        integer(HSSIZE_T), dimension(rank) :: offset 
+!        integer(HSIZE_T),  dimension(rank) :: stride
+!        integer(HSIZE_T),  dimension(rank) :: block
+!
+!        integer(HID_T) :: id(size(groups)-1),dataset,dataspace,memspace
+!        integer(HID_T) :: dsetprops,fprops,xferprops
+!
+!        call h5open_f(hferr); ierr=ierr+hferr
+!
+!        ierr=0 ; lastid = ubound(id,1)
+!        dims=glob_dim
+!        chunk=[ubound(arr,1),ubound(arr,2),ubound(arr,3),ubound(arr,4)]
+!
+!        block=chunk
+!        offset=off
+!        stride=1
+!        count=1
+!
+!        if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
+!                              &  and scnd is at least hdf5 root /, and third is data name'
+!!        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
+!
+!        CALL h5zfilter_avail_f(H5Z_FILTER_DEFLATE_F, compression, hferr) ; ierr=ierr+hferr
+!        if (.not.compression) then
+!           write(*,'("compression filter not available. :( ",/)')
+!           call exit()
+!        else
+!           print *,'Compression filter is ready'
+!        endif
+!
+!        call h5pcreate_f(H5P_FILE_ACCESS_F, fprops, hferr)
+!        call h5pset_fapl_mpio_f(fprops, comm, MPI_INFO_NULL, hferr)
+!
+!        inquire(file=trim(groups(1)), exist=file_exists)
+!        if(.not.file_exists) then
+!                print *,'File does not yet exists, creating new one'
+!                call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr,access_prp=fprops) ; ierr=ierr+hferr
+!        else   
+!                print *,'File does exist, opening it RW'
+!                call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr,access_prp=fprops) ; ierr=ierr+hferr
+!        endif
+!        call h5pclose_f(fprops, hferr)
+!
+!        print *,'Creating Compression Filter'
+!        call h5pcreate_f(H5P_DATASET_CREATE_F, dsetprops, hferr) ; ierr=ierr+hferr
+!        call h5pset_deflate_f(dsetprops, 9, hferr) ; ierr=ierr+hferr
+!        call h5pset_chunk_f(dsetprops, rank, chunk, hferr) ; ierr=ierr+hferr
+!
+!        call h5pcreate_f(H5P_DATASET_XFER_F, xferprops, hferr) ; ierr=ierr+hferr
+!        call h5pset_dxpl_mpio_f(xferprops, H5FD_MPIO_COLLECTIVE_F, hferr) ; ierr=ierr+hferr
+!
+!        do k=2,lastid
+!                call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
+!                if(link_exists) then
+!                        print *,'opening group',trim(groups(k))
+!                        call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!                else
+!                        print *,'Create Groups',trim(groups(k))
+!                        call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!                endif
+!        enddo
+!
+!        print *,'Creating DataSpace'
+!        call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
+!        call h5screate_simple_f(rank, chunk, memspace, hferr) ; ierr=ierr+hferr
+!        if(hferr.ne.0) return
+!
+!        ! Select hyperslab in the file.
+!        call h5sselect_hyperslab_f (dataspace, H5S_SELECT_SET_F, offset, count, hferr, stride, block)
+!
+!        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
+!        call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dsetprops) ; ierr=ierr+hferr
+!
+!        if(ierr.ne.0) return
+!        print *,'Write to dataset'
+!        call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, arr, dims, hferr, &
+!                     file_space_id = dataspace, mem_space_id = memspace, xfer_prp = xferprops)
+!
+!        print *,'Closing handles'
+!        call h5pclose_f(xferprops, hferr)
+!        call h5pclose_f(dsetprops, hferr)
+!
+!        call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
+!        call h5sclose_f(memspace,hferr) ; ierr=ierr+hferr
+!        call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
+!        do k=lastid,2,-1
+!                call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
+!        enddo
+!        call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+!
+!!        print *,'Data is now:',sum(arr)/size(arr)
+!
+!        call h5close_f(hferr)  ; ierr=ierr+hferr
+!      end subroutine
+!      !}}}
 !{{{ h5load_reals
       subroutine h5load_1d(groups,arr,ierr)
         character(len=*) :: groups(:)
@@ -1068,7 +1068,7 @@ end interface
         real(ireals),allocatable :: arr(:,:,:,:)
         integer(HSIZE_T) :: dims(4),maxdims(4)
         integer(iintegers),intent(out) :: ierr
-        logical :: file_exists,link_exists,compression
+        logical :: file_exists,link_exists
         integer k,lastid,hferr,rank
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
         character(200) :: name
@@ -1140,7 +1140,7 @@ end interface
         integer(iintegers),intent(out) :: ierr
 
         integer(HSIZE_T) :: dims(5),maxdims(5)
-        logical :: file_exists,link_exists,compression
+        logical :: file_exists,link_exists
         integer k,lastid,hferr,rank
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
         character(200) :: name
@@ -1195,7 +1195,7 @@ end interface
         real(ireals),allocatable :: arr(:,:,:,:,:,:,:)
         integer(HSIZE_T) :: dims(7),maxdims(7)
         integer(iintegers),intent(out) :: ierr
-        logical :: file_exists,link_exists,compression
+        logical :: file_exists,link_exists
         integer k,lastid,hferr,rank
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
         character(200) :: name

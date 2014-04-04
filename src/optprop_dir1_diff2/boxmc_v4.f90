@@ -1,4 +1,5 @@
 module boxmc_1_2
+      use helper_functions, only : approx,mean,rmse,deg2rad
       use iso_c_binding
       use mersenne
       use mpi
@@ -163,17 +164,6 @@ subroutine mpi_reduce_sum(v,comm,myid)
     endif
 end subroutine
 
-function rmse(a,b)
-  real(qreals) :: rmse,a(:),b(:)
-  rmse = sqrt( mean( (a-b)**2 ) )
-  end function
-
-function mean(arr)
-  real(qreals) :: mean
-  real(qreals) :: arr(:)
-  mean = sum(arr)/size(arr)
-  end function
-
 subroutine roulette(p)
         type(photon),intent(inout) :: p
         double precision,parameter :: m=1e-1_ireals,s=1e-3_ireals*m
@@ -254,10 +244,6 @@ double precision function L(v)
         double precision,parameter :: eps=1e-3
         L = min( max(R()*v,eps), v-eps)
 end function
-double precision function deg2rad(deg)
-        double precision,intent(in) :: deg
-        deg2rad = deg*pi/180.
-        end function
 
 subroutine init_dir_photon(p,src,direct,initial_dir,dx,dy,dz)
         type(photon),intent(inout) :: p
@@ -273,16 +259,6 @@ subroutine init_dir_photon(p,src,direct,initial_dir,dx,dy,dz)
                 print *,'Dont know what to do with source spec:',src
                 call exit
         endif
-!        if(src.eq.1) then
-!                p%loc = (/L(dx), L(dy),    dz  /)
-!        else if(src.eq.2) then
-!                p%loc = (/ zero, L(dy),  L(dz) /)
-!        else if(src.eq.3) then
-!                p%loc = (/L(dx), zero ,  L(dz) /)
-!        else
-!                print *,'Dont know what to do with source spec:',src
-!                call exit
-!        endif
 
         p%weight=one
         p%dx   = dx
@@ -393,7 +369,7 @@ pure double precision function hit_plane(p,po,pn)
         double precision,intent(in) :: po(3),pn(3)
         double precision :: discr
         discr = dot_product(p%dir,pn)
-        if(discr.le.zero+1e-80_dp .and. discr.ge.-1e-80_dp) then
+        if( approx(discr,zero) ) then
                 hit_plane=huge(hit_plane)
         else        
                 hit_plane = dot_product(po-p%loc, pn) / discr
@@ -403,8 +379,12 @@ end function
 elemental function distance(tau,beta)
         double precision,intent(in) :: tau,beta
         double precision :: distance
-        distance = tau/beta
-        if(beta.le.zero+1e-40_dp) distance=huge(distance)
+        if( approx( beta,zero ) ) then
+          distance=huge(distance)
+        else
+          distance = tau/beta
+        endif
+
 end function
 
 elemental function tau(r)
@@ -417,7 +397,7 @@ elemental function hengreen(r,g)
         double precision,intent(in) :: r,g
         double precision :: hengreen
         double precision,parameter :: one=1.0,two=2.0
-        if(g.le.epsilon(hengreen) .and. g.ge.-epsilon(hengreen) ) then
+        if( approx(g,zero) ) then
           hengreen = two*r-one
         else
           hengreen = one/(two*g) * (one+g**two - ( (one-g**two) / ( two*g*r + one-g) )**two )
@@ -434,14 +414,19 @@ end function
 subroutine absorb_photon(p,dist)!,tau_abs)
         type(photon),intent(inout) :: p
         double precision,intent(in) :: dist
-        double precision :: new_weight
+        double precision :: new_weight,tau
 
-        new_weight = p%weight * exp(- get_kabs(p)*dist)
-        if( (new_weight.gt.one).or.(new_weight.lt.zero) ) then
-            print *,'something wrong with new weight after absorption',new_weight,'=',p%weight,'*',exp(-get_kabs(p)*dist),'(',get_kabs(p),dist,')'
-            call exit
+        tau = get_kabs(p)*dist
+        if(tau.gt.20) then
+          p%weight = zero
+        else
+          new_weight = p%weight * exp(-tau)
+!          if( (new_weight.gt.one).or.(new_weight.lt.zero) ) then
+!            print *,'something wrong with new weight after absorption',new_weight,'=',p%weight,'*',exp(-tau),'(',get_kabs(p),dist,')'
+!            call exit
+!          endif
+          p%weight = new_weight
         endif
-        p%weight = new_weight
 end subroutine
 
 subroutine scatter_photon(p)
@@ -466,11 +451,11 @@ subroutine scatter_photon(p)
         sinfi = sin(fi)
         cosfi = cos(fi)
 
-        if( muzs .ge. one-1e-8_dp) then
+        if( muzs .ge. one-epsilon(muzs)) then
                 muxd = sintheta*cosfi
                 muyd = sintheta*sinfi
                 muzd = costheta
-        else if ( muzs .le. -one+1e-8_dp) then
+        else if ( muzs .le. -one+epsilon(muzs) ) then
                 muxd =  sintheta*cosfi
                 muyd = -sintheta*sinfi
                 muzd = -costheta

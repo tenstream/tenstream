@@ -1,4 +1,5 @@
 module tenstream_optprop_LUT_1_2
+  use helper_functions, only : approx
   use data_parameters, only : mpiint,ireals, iintegers, one,zero,i1,i0,nil
   use boxmc_parameters_1_2, only: dir_streams,diff_streams, Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale
   use boxmc_1_2, only: bmc_get_coeff
@@ -219,8 +220,8 @@ contains
       write(str(2),FMT='("dy",I0)')   int(LUT%dy)
       align=0
       call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","dz      "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%dz )   )) align(1)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","kabs      "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%kabs )   )) align(2)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","ksca       "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%ksca  )   )) align(3)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","kabs    "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%kabs )   )) align(2)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","ksca    "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%ksca  )   )) align(3)=1 ; deallocate(buf)
       call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","g       "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%g  )   )) align(4)=1 ; deallocate(buf)
 
       if(any(align.ne.0)) then
@@ -245,8 +246,8 @@ contains
       write(str(2),FMT='("dy",I0)')   int(LUT%dy)
       align=0
       call h5load([LUT%fname,'direct',str(1),str(2),"pspace","dz      "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%dz   ) )) align(1)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","kabs      "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%kabs   ) )) align(2)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","ksca       "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%ksca    ) )) align(3)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","kabs    "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%kabs   ) )) align(2)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","ksca    "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%ksca    ) )) align(3)=1 ; deallocate(buf)
       call h5load([LUT%fname,'direct',str(1),str(2),"pspace","g       "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%g    ) )) align(4)=1 ; deallocate(buf)
       call h5load([LUT%fname,'direct',str(1),str(2),"pspace","phi     "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%phi  ) )) align(5)=1 ; deallocate(buf)
       call h5load([LUT%fname,'direct',str(1),str(2),"pspace","theta   "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%theta) )) align(6)=1 ; deallocate(buf)
@@ -264,15 +265,6 @@ contains
         call exit
       endif
   end subroutine                                   
-  elemental logical function approx(a,b)
-    real(ireals),intent(in) :: a,b
-    real(ireals),parameter :: eps=1e-5
-    if( a.le.b+eps .and. a.ge.b-eps ) then
-      approx = .True.
-    else
-      approx = .False.
-    endif
-end function
 
 !}}}
 !{{{ load LUT                                          
@@ -481,7 +473,7 @@ subroutine createLUT_diff(LUT,coeff_table_name,comm)
 
       enddo !ksca
     enddo !g
-    if(myid.eq.0) print *,'done calculating diffuse coefficients'
+    if(myid.eq.0) print *,'done calculating diffuse coefficients',shape(LUT%S%c),'min/max',minval(LUT%S%c),maxval(LUT%S%c)
 end subroutine
 subroutine createLUT_dir(LUT,dir_coeff_table_name,diff_coeff_table_name,comm,iphi,itheta)
     type(directTable) :: LUT
@@ -649,11 +641,6 @@ subroutine set_parameter_space(ps,dx)
     enddo
 end subroutine
 !}}}
-
-function RMSE(a,b)
-    real(ireals) :: RMSE,a(:),b(size(a))
-    RMSE = sqrt( sum( (a-b)**2 )/size(a) )
-end function
 
 subroutine catch_upper_limit_kabs(ps,kabs,ksca)
     ! If we hit the upper limit of the LUT for kabs, we try to scale ksca down,
