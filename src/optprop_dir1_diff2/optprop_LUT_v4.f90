@@ -297,7 +297,7 @@ subroutine loadLUT_diff(LUT,comm)
     errcnt=0
     if(myid.eq.0) call h5load([LUT%fname,'diffuse',str(1),str(2),"S"],LUT%S%c ,iierr) ; errcnt = errcnt+iierr
     if(allocated(LUT%S%c) ) then
-      if(any( isnan(LUT%S%c) ).or.any(LUT%S%c.lt.zero) ) errcnt=100
+      if( any(LUT%S%c.gt.one) .or. any(LUT%S%c.lt.zero) ) errcnt=100
     endif
     call mpi_bcast(errcnt,1 , MPI_INTEGER, 0, comm, ierr)
 
@@ -364,10 +364,10 @@ subroutine loadLUT_dir(LUT, azis,szas,comm)
         endif
 
         if(allocated(LUT%S(iphi,itheta)%c) ) then
-          if(any( isnan(LUT%S(iphi,itheta)%c) ).or.any(LUT%S(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
+          if(any( LUT%S(iphi,itheta)%c.gt.one ).or.any(LUT%S(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
         endif
         if(allocated(LUT%T(iphi,itheta)%c) ) then
-          if(any( isnan(LUT%T(iphi,itheta)%c) ).or.any(LUT%T(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
+          if(any( LUT%T(iphi,itheta)%c.gt.one ).or.any(LUT%T(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
         endif
 
         call mpi_bcast(errcnt,1 , MPI_INTEGER, 0, comm, ierr)

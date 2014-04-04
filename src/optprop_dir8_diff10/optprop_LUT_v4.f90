@@ -1,5 +1,5 @@
 module tenstream_optprop_LUT_8_10
-  use data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint
+  use data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil
   use boxmc_parameters_8_10, only: dir_streams,diff_streams, Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale
   use boxmc_8_10, only: bmc_get_coeff
   use tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
@@ -265,7 +265,7 @@ subroutine loadLUT_diff(LUT,comm)
 
     if(myid.eq.0) print *,'... loading diffuse LUT',myid
     if(allocated(LUT%S%c)) then
-      print *,'LUT already loaded!',myid
+      print *,'LUT already loaded! is this a second call?',myid
       return
     endif
 
@@ -274,11 +274,14 @@ subroutine loadLUT_diff(LUT,comm)
 
     errcnt=0
     if(myid.eq.0) call h5load([LUT%fname,'diffuse',str(1),str(2),"S"],LUT%S%c,iierr) ; errcnt = errcnt+iierr
+    if(allocated(LUT%S%c) ) then
+      if( any(LUT%S%c.gt.one) .or. any(LUT%S%c.lt.zero) ) errcnt=100
+    endif
     call mpi_bcast(errcnt,1 , MPI_INTEGER, 0, comm, ierr)
 
     if(errcnt.ne.0) then
       if(myid.eq.0) print *,'Loading of diffuse tables failed for',trim(LUT%fname),'  diffuse ',trim(str(1)),' ',trim(str(2)),'::',errcnt
-      call createLUT_diff(LUT,comm)
+      call createLUT_diff(LUT,[LUT%fname,'diffuse',str(1),str(2),"S"],comm)
 
       if(myid.eq.0) then
         call h5write([LUT%fname,'diffuse',str(1),str(2),"S"],LUT%S%c,iierr)
@@ -358,10 +361,8 @@ subroutine loadLUT_dir(LUT, azis,szas, comm)
     errcnt=0
     do itheta=1,Ntheta
       do iphi  =1,Nphi
-!        if(LUT%pspace%theta(itheta).le.1e-3_ireals .and. LUT%pspace%phi(iphi).gt.1e-3_ireals ) cycle ! dont need to calculate different azimuth angles except the zero one... rest is symmetric
+        if(LUT%pspace%theta(itheta).le.1e-3_ireals .and. LUT%pspace%phi(iphi).gt.1e-3_ireals ) cycle ! dont need to calculate different azimuth angles except the zero one... rest is symmetric
         if(.not.angle_mask(iphi,itheta) ) cycle
-
-
 
         write(str(3),FMT='("phi",I0)')  int(LUT%pspace%phi(iphi)    )
         write(str(4),FMT='("theta",I0)')int(LUT%pspace%theta(itheta))
@@ -378,11 +379,19 @@ subroutine loadLUT_dir(LUT, azis,szas, comm)
             call h5load([LUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],LUT%T(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
 !          endif
         endif
+
+        if(allocated(LUT%S(iphi,itheta)%c) ) then
+          if(any( LUT%S(iphi,itheta)%c.gt.one ).or.any(LUT%S(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
+        endif
+        if(allocated(LUT%T(iphi,itheta)%c) ) then
+          if(any( LUT%T(iphi,itheta)%c.gt.one ).or.any(LUT%T(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
+        endif
+
         call mpi_bcast(errcnt,1 , MPI_INTEGER, 0, comm, ierr)
 
         if(errcnt.ne.0) then
           if(myid.eq.0) print *,'Loading of direct tables failed for',trim(LUT%fname),'  direct ',trim(str(1)),' ',trim(str(2)),' ',trim(str(3)),' ',trim(str(4)),'::',errcnt
-          call createLUT_dir(LUT,comm,iphi,itheta)
+          call createLUT_dir(LUT,[LUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],[LUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],comm,iphi,itheta)
 
           if(myid.eq.0) then
             call h5write([LUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],LUT%S(iphi,itheta)%c,iierr)
@@ -413,23 +422,38 @@ subroutine loadLUT_dir(LUT, azis,szas, comm)
 end subroutine
 !}}}
 !{{{ create LUT
-subroutine createLUT_diff(LUT,comm)
+subroutine createLUT_diff(LUT,coeff_table_name,comm)
     type(diffuseTable) :: LUT
     integer(mpiint),intent(in) :: comm
+    character(300),intent(in) :: coeff_table_name(:)
+
     integer(mpiint) :: myid
     integer(iintegers) :: idz,ikabs ,iksca,ig,total_size,cnt
     real(ireals) :: S_diff(diff_streams),T_dir(dir_streams)
+    logical :: ldone
 
     call MPI_Comm_rank(comm, myid, ierr)
 
-    if(myid.eq.0) allocate(LUT%S%c(12, Ndz,Nkabs ,Nksca,Ng))
+    if(myid.eq.0.and. .not. allocated(LUT%S%c) ) then
+      allocate(LUT%S%c(12, Ndz,Nkabs ,Nksca,Ng))
+      LUT%S%c = nil
+    endif
 
     total_size = Ng*Nksca*Nkabs *Ndz
-    cnt=1
+    cnt=0
     do ig    =1,Ng
       do iksca    =1,Nksca    
         do ikabs    =1,Nkabs    
           do idz   =1,Ndz   
+            cnt=cnt+1
+            ! Check if we already calculated the coefficients and inform the other nodes
+            ldone=.False.
+            if(myid.eq.0) then
+              if( all( LUT%S%c( :, idz,ikabs ,iksca,ig).ge.zero).and.all( LUT%S%c( :, idz,ikabs ,iksca,ig).le.one) ) ldone = .True.
+            endif
+            call mpi_bcast(ldone,1 , MPI_LOGICAL, 0, comm, ierr)
+            if(ldone) cycle
+
             if(myid.eq.0) print *,'diff dx',LUT%dx,'dz',LUT%pspace%dz(idz),' :: ',LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
             ! src=1
             call bmc_wrapper(i1,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
@@ -443,50 +467,80 @@ subroutine createLUT_diff(LUT,comm)
             if(myid.eq.0) LUT%S%c( 11  , idz,ikabs ,iksca,ig) = sum(S_diff(7: 8))/2
             if(myid.eq.0) LUT%S%c( 12  , idz,ikabs ,iksca,ig) = sum(S_diff(9:10))/2
 
-            cnt=cnt+1
-            !            if(myid.eq.0) print *,''
-          enddo
-        enddo
-      enddo
-    enddo
+          enddo !dz
+        enddo !kabs
+
+        if(myid.eq.0) then
+          print *,'Writing diffuse table to file...'
+          call h5write(coeff_table_name,LUT%S%c,iierr)
+          print *,'done writing!',iierr
+        endif
+
+      enddo !ksca
+    enddo !g
     if(myid.eq.0) print *,'done calculating diffuse coefficients'
 end subroutine
-subroutine createLUT_dir(LUT,comm,iphi,itheta)
+subroutine createLUT_dir(LUT,dir_coeff_table_name,diff_coeff_table_name,comm,iphi,itheta)
     type(directTable) :: LUT
     integer(iintegers),intent(in) :: iphi,itheta
     integer(mpiint),intent(in) :: comm
+    character(300),intent(in) :: dir_coeff_table_name(:),diff_coeff_table_name(:)
+
     integer(mpiint) :: myid
     integer(iintegers) :: idz,ikabs ,iksca,ig,src,total_size,cnt
     real(ireals) :: S_diff(diff_streams),T_dir(dir_streams)
+    logical :: ldone
 
     call MPI_Comm_rank(comm, myid, ierr)
 
     if(myid.eq.0) then
-      if(allocated( LUT%T(iphi,itheta)%c ) ) deallocate(LUT%T(iphi,itheta)%c) ! This is necessary if only a partial hdf5 load happened. 
-      if(allocated( LUT%S(iphi,itheta)%c ) ) deallocate(LUT%S(iphi,itheta)%c) ! In this case we have to calculate both entries again.
+      print *,'calculating direct coefficients for ',iphi,itheta
 
-      allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
-      allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
+      if(.not. allocated(LUT%S(iphi,itheta)%c) ) then
+        allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
+        LUT%S(iphi,itheta)%c = nil
+      endif
+
+      if(.not. allocated(LUT%T(iphi,itheta)%c) ) then
+        allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
+        LUT%T(iphi,itheta)%c = nil
+      endif
     endif
 
     total_size = Ng*Nksca*Nkabs *Ndz
-    cnt=1
+    cnt=0
     do ig    =1,Ng
       do iksca    =1,Nksca    
         do ikabs   =1,Nkabs    
           do idz   =1,Ndz   
+            cnt=cnt+1
+            ! Check if we already calculated the coefficients and inform the other nodes
+            ldone=.False.
+            if(myid.eq.0) then
+              if( all( LUT%S(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).ge.zero).and.all( LUT%S(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).le.one) .and. &
+                  all( LUT%T(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).ge.zero).and.all( LUT%T(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).le.one) ) ldone = .True.
+            endif
+            call mpi_bcast(ldone,1 , MPI_LOGICAL, 0, comm, ierr)
+            if(ldone) cycle
+
             if(myid.eq.0) print *,'direct dx',LUT%dx,'dz',LUT%pspace%dz(idz),'phi0,theta0',LUT%pspace%phi(iphi),LUT%pspace%theta(itheta),' :: ',LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
             do src=1,dir_streams
               call bmc_wrapper(src,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.True.,delta_scale,LUT%pspace%phi(iphi),LUT%pspace%theta(itheta),comm,S_diff,T_dir)
               if(myid.eq.0) LUT%T(iphi,itheta)%c( (src-1)*dir_streams+1:src*dir_streams, idz,ikabs ,iksca,ig) = T_dir
               if(myid.eq.0) LUT%S(iphi,itheta)%c( (src-1)*diff_streams+1:(src)*diff_streams, idz,ikabs ,iksca,ig) = S_diff
             enddo
-            cnt=cnt+1
-            !            if(myid.eq.0) print *,''
-          enddo
-        enddo
-      enddo
-    enddo
+          enddo !dz
+        enddo !kabs
+        
+        if(myid.eq.0) then
+          print *,'Writing direct table to file...'
+          call h5write(diff_coeff_table_name,LUT%S(iphi,itheta)%c,iierr) ; ierr = ierr+iierr
+          call h5write(dir_coeff_table_name ,LUT%T(iphi,itheta)%c,iierr) ; ierr = ierr+iierr
+          print *,'done writing!',ierr
+        endif
+
+      enddo !ksca
+    enddo !g
     if(myid.eq.0) print *,'done calculating direct coefficients'
 end subroutine
 !}}} 
