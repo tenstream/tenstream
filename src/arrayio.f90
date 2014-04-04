@@ -661,7 +661,12 @@ end interface
         if(hferr.ne.0) return
 
 !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
-        call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+        call h5lexists_f(id(lastid), trim(groups(lastid+1)), link_exists, hferr) ; ierr=ierr+hferr
+        if(link_exists) then
+          call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
+        else
+          call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+        endif
 
         if(ierr.ne.0) return
 !        print *,'Write to dataset'

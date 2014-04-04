@@ -295,6 +295,7 @@ subroutine loadLUT_diff(LUT,comm)
       endif
 
       call mpi_barrier(comm,ierr)
+      call exit() ! TODO: We exit here in order to split the jobs for shorter runtime.
     endif
 
     if(myid.eq.0) print *,'Done loading diffuse LUTs'
@@ -402,6 +403,7 @@ subroutine loadLUT_dir(LUT, azis,szas, comm)
             call h5write([LUT%fname,'direct',str(1),str(2),"pspace","theta"],LUT%pspace%theta,iierr)
           endif
           call mpi_barrier(comm,ierr)
+          call exit() ! TODO: We exit here in order to split the jobs for shorter runtime.
         endif
 
       enddo
