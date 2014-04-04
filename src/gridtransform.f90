@@ -20,7 +20,6 @@ module gridtransform
         logical,intent(in) :: lsame
 
         integer(c_int) i,j,k
-        double precision :: dbg
 
         if(allocated(newgrid%z)) return
 

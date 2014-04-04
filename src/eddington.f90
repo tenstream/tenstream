@@ -33,7 +33,7 @@ module eddington
 
         real(ireals) :: mu_0_inv,b_mmu_0,bscr,alpha_1,alpha_2,lambd, &
           exp1,term1,A,a11,a12,alpha_3,alpha_4,den1,   &
-          alpha_5,alpha_6,a33,a13,a23,tmp(3)
+          alpha_5,alpha_6,a33,a13,a23
 
         call delta_scale(dtau,w0,g, dtau_d,w0_d,g_d)
 

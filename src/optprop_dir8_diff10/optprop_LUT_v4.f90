@@ -534,8 +534,8 @@ subroutine createLUT_dir(LUT,dir_coeff_table_name,diff_coeff_table_name,comm,iph
         
         if(myid.eq.0) then
           print *,'Writing direct table to file...'
-          call h5write(diff_coeff_table_name,LUT%S(iphi,itheta)%c,iierr) ; ierr = ierr+iierr
-          call h5write(dir_coeff_table_name ,LUT%T(iphi,itheta)%c,iierr) ; ierr = ierr+iierr
+          call h5write(diff_coeff_table_name,LUT%S(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
+          call h5write(dir_coeff_table_name ,LUT%T(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
           print *,'done writing!',ierr
         endif
 

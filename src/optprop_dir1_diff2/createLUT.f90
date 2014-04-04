@@ -1,7 +1,7 @@
 program main
       use data_parameters, only: mpiint, ireals
       use mpi
-      use tenstream_optprop_LUT_8_10
+      use tenstream_optprop_LUT_1_2
 
       integer(mpiint) :: myid,comm
 
