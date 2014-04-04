@@ -109,7 +109,7 @@ module tenstream_interpolation
         endif
       end subroutine
 
-pure      function spline(t,a0,a1)
+pure function spline(t,a0,a1)
         double precision,intent(in) :: t,a0(:),a1(:) ! t is weighting distance from a0
         double precision :: spline(size(a1))
         double precision :: s(size(a1))

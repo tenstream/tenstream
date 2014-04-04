@@ -264,19 +264,18 @@ subroutine loadLUT_diff(LUT,comm)
     write(str(2),FMT='("dy",I0)')   int(LUT%dy)
 
     errcnt=0
-    if(myid.eq.0) call h5load([LUT%fname,'diffuse',str(1),str(2),"S"],LUT%S%c,iierr) ; errcnt = errcnt+iierr
-    if(allocated(LUT%S%c) ) then
-      if( any(LUT%S%c.gt.one) .or. any(LUT%S%c.lt.zero) ) errcnt=100
+    if(myid.eq.0) then
+      call h5load([LUT%fname,'diffuse',str(1),str(2),"S"],LUT%S%c,iierr) ; errcnt = errcnt+iierr
+      if(allocated(LUT%S%c) ) then
+        if( any(LUT%S%c.gt.one) .or. any(LUT%S%c.lt.zero) ) errcnt=100
+        call check_diffLUT_matches_pspace(LUT)
+      endif
     endif
     call mpi_bcast(errcnt,1 , MPI_INTEGER, 0, comm, ierr)
 
     if(errcnt.ne.0) then
-      if(myid.eq.0) print *,'Loading of diffuse tables failed for',trim(LUT%fname),'  diffuse ',trim(str(1)),' ',trim(str(2)),'::',errcnt
-      call createLUT_diff(LUT,[LUT%fname,'diffuse',str(1),str(2),"S"],comm)
-
       if(myid.eq.0) then
-        call h5write([LUT%fname,'diffuse',str(1),str(2),"S"],LUT%S%c,iierr)
-
+        print *,'Loading of diffuse tables failed for',trim(LUT%fname),'  diffuse ',trim(str(1)),' ',trim(str(2)),'::',errcnt
         call h5write([LUT%fname,'diffuse',str(1),str(2),"pspace","range_dz   "],LUT%pspace%range_dz   ,iierr)
         call h5write([LUT%fname,'diffuse',str(1),str(2),"pspace","range_kabs   "],LUT%pspace%range_kabs   ,iierr)
         call h5write([LUT%fname,'diffuse',str(1),str(2),"pspace","range_ksca    "],LUT%pspace%range_ksca    ,iierr)
@@ -287,6 +286,10 @@ subroutine loadLUT_diff(LUT,comm)
         call h5write([LUT%fname,'diffuse',str(1),str(2),"pspace","ksca    "],LUT%pspace%ksca    ,iierr)
         call h5write([LUT%fname,'diffuse',str(1),str(2),"pspace","g    "],LUT%pspace%g    ,iierr)
       endif
+
+      call createLUT_diff(LUT,[LUT%fname,'diffuse',str(1),str(2),"S"],comm)
+
+      if(myid.eq.0) call h5write([LUT%fname,'diffuse',str(1),str(2),"S"],LUT%S%c,iierr)
 
       call mpi_barrier(comm,ierr)
       call exit() ! TODO: We exit here in order to split the jobs for shorter runtime.
@@ -359,35 +362,25 @@ subroutine loadLUT_dir(LUT, azis,szas, comm)
         write(str(4),FMT='("theta",I0)')int(LUT%pspace%theta(itheta))
 
         if(myid.eq.0) then
-!          if(itheta.gt.1.or.iphi.gt.1) then
-!            allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
-!            allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
-!            LUT%S(iphi,itheta)%c = LUT%S(1,1)%c
-!            LUT%T(iphi,itheta)%c = LUT%T(1,1)%c
-!            !            cycle !TODO just a shortcut, so that we can already calculate stuff until we wait for the LUT calculations
-!          else
             call h5load([LUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],LUT%S(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
             call h5load([LUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],LUT%T(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
-!          endif
-        endif
 
-        if(allocated(LUT%S(iphi,itheta)%c) ) then
-          if(any( LUT%S(iphi,itheta)%c.gt.one ).or.any(LUT%S(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
-        endif
-        if(allocated(LUT%T(iphi,itheta)%c) ) then
-          if(any( LUT%T(iphi,itheta)%c.gt.one ).or.any(LUT%T(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
+            call check_dirLUT_matches_pspace(LUT)
+
+            if(allocated(LUT%S(iphi,itheta)%c) ) then
+              if(any( LUT%S(iphi,itheta)%c.gt.one ).or.any(LUT%S(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
+            endif
+            if(allocated(LUT%T(iphi,itheta)%c) ) then
+              if(any( LUT%T(iphi,itheta)%c.gt.one ).or.any(LUT%T(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
+            endif
+
         endif
 
         call mpi_bcast(errcnt,1 , MPI_INTEGER, 0, comm, ierr)
 
         if(errcnt.ne.0) then
-          if(myid.eq.0) print *,'Loading of direct tables failed for',trim(LUT%fname),'  direct ',trim(str(1)),' ',trim(str(2)),' ',trim(str(3)),' ',trim(str(4)),'::',errcnt
-          call createLUT_dir(LUT,[LUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],[LUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],comm,iphi,itheta)
-
           if(myid.eq.0) then
-            call h5write([LUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],LUT%S(iphi,itheta)%c,iierr)
-            call h5write([LUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],LUT%T(iphi,itheta)%c,iierr)
-
+            print *,'Loading of direct tables failed for',trim(LUT%fname),'  direct ',trim(str(1)),' ',trim(str(2)),' ',trim(str(3)),' ',trim(str(4)),'::',errcnt
             call h5write([LUT%fname,'direct',str(1),str(2),"pspace","range_dz   "],LUT%pspace%range_dz   ,iierr)
             call h5write([LUT%fname,'direct',str(1),str(2),"pspace","range_kabs "],LUT%pspace%range_kabs   ,iierr)
             call h5write([LUT%fname,'direct',str(1),str(2),"pspace","range_ksca "],LUT%pspace%range_ksca    ,iierr)
@@ -402,6 +395,14 @@ subroutine loadLUT_dir(LUT, azis,szas, comm)
             call h5write([LUT%fname,'direct',str(1),str(2),"pspace","phi  "],LUT%pspace%phi  ,iierr)
             call h5write([LUT%fname,'direct',str(1),str(2),"pspace","theta"],LUT%pspace%theta,iierr)
           endif
+
+          call createLUT_dir(LUT,[LUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],[LUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],comm,iphi,itheta)
+
+          if(myid.eq.0) then
+            call h5write([LUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],LUT%S(iphi,itheta)%c,iierr)
+            call h5write([LUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],LUT%T(iphi,itheta)%c,iierr)
+          endif
+
           call mpi_barrier(comm,ierr)
           call exit() ! TODO: We exit here in order to split the jobs for shorter runtime.
         endif
@@ -428,6 +429,7 @@ subroutine createLUT_diff(LUT,coeff_table_name,comm)
     if(myid.eq.0.and. .not. allocated(LUT%S%c) ) then
       allocate(LUT%S%c(12, Ndz,Nkabs ,Nksca,Ng))
       LUT%S%c = nil
+      call h5write(coeff_table_name,LUT%S%c,iierr)
     endif
 
     total_size = Ng*Nksca*Nkabs *Ndz
@@ -490,11 +492,13 @@ subroutine createLUT_dir(LUT,dir_coeff_table_name,diff_coeff_table_name,comm,iph
       if(.not. allocated(LUT%S(iphi,itheta)%c) ) then
         allocate(LUT%S(iphi,itheta)%c(dir_streams*diff_streams, Ndz,Nkabs ,Nksca,Ng))
         LUT%S(iphi,itheta)%c = nil
+        call h5write(diff_coeff_table_name,LUT%S(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
       endif
 
       if(.not. allocated(LUT%T(iphi,itheta)%c) ) then
         allocate(LUT%T(iphi,itheta)%c(dir_streams*dir_streams, Ndz,Nkabs ,Nksca,Ng))
         LUT%T(iphi,itheta)%c = nil
+        call h5write(dir_coeff_table_name ,LUT%T(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
       endif
     endif
 
@@ -593,7 +597,7 @@ subroutine set_parameter_space(ps,dx)
     integer(iintegers) :: k
     ! LUT Extend is already set in type definition in header, however we could overwrite the range here.
 
-    ps%range_dz      = [ min(ps%range_dz(1), dx/10_ireals )  , min( ps%range_dz(2), 2*dx ) ]
+    ps%range_dz      = [ min(ps%range_dz(1), dx/10_ireals )  , min( ps%range_dz(2), dx ) ]
     diameter = sqrt(2*dx**2 +  ps%range_dz(2)**2 )
 
 !    ps%range_dz      = [ dx/100_ireals , 2*dx ]
