@@ -1,5 +1,5 @@
 module helper_functions
-      use data_parameters,only : ireals,pi
+      use data_parameters,only : ireals,pi,one
 
       implicit none
       contains
@@ -29,9 +29,16 @@ module helper_functions
           mean = sum(arr)/size(arr)
       end function
 
-      elemental logical function approx(a,b)
+      elemental logical function approx(a,b,precision)
         real(ireals),intent(in) :: a,b
-        if( a.le.b+1e3*epsilon(b) .and. a.ge.b-1e3*epsilon(b) ) then
+        real(ireals),intent(in),optional :: precision
+        real(ireals) :: factor
+        if(present(precision) ) then
+          factor = precision
+        else
+          factor = epsilon(b)
+        endif
+        if( a.le.b+factor .and. a.ge.b-factor ) then
           approx = .True.
         else
           approx = .False.

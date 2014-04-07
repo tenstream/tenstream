@@ -2,7 +2,7 @@ module tenstream_optprop_LUT_1_2
   use helper_functions, only : approx
   use data_parameters, only : mpiint,ireals, iintegers, one,zero,i1,i0,nil
   use boxmc_parameters_1_2, only: dir_streams,diff_streams, Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale
-  use boxmc_1_2, only: bmc_get_coeff_1_2
+  use boxmc_oop, only: boxmc_1_2
   use tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
   use arrayio
 
@@ -81,6 +81,8 @@ module tenstream_optprop_LUT_1_2
 
   type(directTable) :: dirLUT
   type(diffuseTable) :: diffLUT
+
+  type(boxmc_1_2) :: bmc
 
 contains
   subroutine scatter_LUTtables(azis,szas,comm)
@@ -219,10 +221,10 @@ contains
       write(str(1),FMT='("dx",I0)')   int(LUT%dx)
       write(str(2),FMT='("dy",I0)')   int(LUT%dy)
       align=0
-      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","dz      "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%dz )   )) align(1)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","kabs    "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%kabs ) )) align(2)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","ksca    "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%ksca  ))) align(3)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","g       "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%g  )   )) align(4)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","dz      "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%dz  ,1e-6_ireals ) )) align(1)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","kabs    "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%kabs,1e-6_ireals ) )) align(2)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","ksca    "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%ksca,1e-6_ireals ) )) align(3)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'diffuse',str(1),str(2),"pspace","g       "],buf,iierr) ; if(.not.all(approx( buf, LUT%pspace%g   ,1e-6_ireals ) )) align(4)=1 ; deallocate(buf)
 
       if(any(align.ne.0)) then
         print *,'ERROR, the LUT we found at ',LUT%fname,'diffuse',str(1),str(2),' does not match the parameter space!',align
@@ -245,12 +247,12 @@ contains
       write(str(1),FMT='("dx",I0)')   int(LUT%dx)
       write(str(2),FMT='("dy",I0)')   int(LUT%dy)
       align=0
-      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","dz      "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%dz   ) )) align(1)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","kabs    "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%kabs   ) )) align(2)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","ksca    "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%ksca    ) )) align(3)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","g       "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%g    ) )) align(4)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","phi     "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%phi  ) )) align(5)=1 ; deallocate(buf)
-      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","theta   "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%theta) )) align(6)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","dz      "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%dz   ,1e-6_ireals ) )) align(1)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","kabs    "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%kabs ,1e-6_ireals ) )) align(2)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","ksca    "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%ksca ,1e-6_ireals ) )) align(3)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","g       "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%g    ,1e-6_ireals ) )) align(4)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","phi     "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%phi  ,1e-6_ireals ) )) align(5)=1 ; deallocate(buf)
+      call h5load([LUT%fname,'direct',str(1),str(2),"pspace","theta   "],buf,iierr) ; if(.not.all(approx( buf,LUT%pspace%theta,1e-6_ireals ) )) align(6)=1 ; deallocate(buf)
 
       if(any(align.ne.0)) then
         print *,'ERROR, the LUT we found at ',LUT%fname,'direct',str(1),str(2),' does not match the parameter space!',align
@@ -568,7 +570,8 @@ subroutine bmc_wrapper(src,dx,dy,dz,kabs ,ksca,g,dir,delta_scale,phi,theta,comm,
     bg(3) = g
 
 !    print *,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
-    call bmc_get_coeff_1_2(comm,bg,src,S_diff,T_dir,dir,delta_scale,phi,theta,dx,dy,dz)
+    if(.not. bmc%initialized) call bmc%init(comm)
+    call bmc%get_coeff(comm,bg,src,S_diff,T_dir,dir,delta_scale,phi,theta,dx,dy,dz)
     !        print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
 !}}}
