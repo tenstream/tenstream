@@ -878,7 +878,7 @@ end interface
         integer(iintegers),intent(out) :: ierr
 
         integer(HSIZE_T) :: dims(1),maxdims(1)
-        logical :: file_exists,link_exists
+        logical :: file_exists,link_exists,compression
         integer :: k,lastid,hferr,rank
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
         character(200) :: name
@@ -887,7 +887,17 @@ end interface
         ierr=0 ; lastid = ubound(id,1)
         if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
                              &   and scnd is at least hdf5 root /, and third is data name'
-!        print *,'opening hdf5 file ',trim(groups(1))
+        do k=1,size(groups)
+          print *,'opening hdf5 file groups(',k,') ',trim(groups(k))
+        enddo
+
+        CALL h5zfilter_avail_f(H5Z_FILTER_SZIP_F, compression, hferr) ; ierr=ierr+hferr
+        if (.not.compression) then
+           write(*,'("compression filter not available. :( ",/)')
+           call exit()
+        else
+           print *,'Compression filter is ready'
+        endif
 
         inquire(file=trim(groups(1)), exist=file_exists)
         if(.not.file_exists) then
@@ -924,16 +934,16 @@ end interface
         allocate(arr(dims(1)))
 
         call h5dread_f(dataset, H5T_NATIVE_DOUBLE, arr, dims, hferr) ; ierr=ierr+hferr
-!        print *,'read',ierr
+        print *,'read',ierr
 
         call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
         do k=lastid,2,-1
                 call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
         enddo
         call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-!        print *,'closed',ierr
+        print *,'closed',ierr
 
-!        print *,'Data average is now:',sum(arr)/size(arr)
+        print *,'Data average is now:',sum(arr)/size(arr)
         call h5close_f(hferr)
       end subroutine
       subroutine h5load_2d(groups,arr,ierr)
@@ -1068,7 +1078,7 @@ end interface
         real(ireals),allocatable :: arr(:,:,:,:)
         integer(HSIZE_T) :: dims(4),maxdims(4)
         integer(iintegers),intent(out) :: ierr
-        logical :: file_exists,link_exists
+        logical :: file_exists,link_exists,compression
         integer k,lastid,hferr,rank
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
         character(200) :: name
@@ -1077,15 +1087,15 @@ end interface
         ierr=0 ; lastid = ubound(id,1)
         if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
                              &   and scnd is at least hdf5 root /, and third is data name'
-!        print *,'opening 4d hdf5 file ',trim(groups(1))
+        print *,'opening 4d hdf5 file ',trim(groups(1))
 
-!        CALL h5zfilter_avail_f(H5Z_FILTER_SZIP_F, compression, hferr) ; ierr=ierr+hferr
-!        if (.not.compression) then
-!           write(*,'("compression filter not available. :( ",/)')
-!           call exit()
-!        else
-!           print *,'Compression filter is ready'
-!        endif
+        CALL h5zfilter_avail_f(H5Z_FILTER_SZIP_F, compression, hferr) ; ierr=ierr+hferr
+        if (.not.compression) then
+           write(*,'("compression filter not available. :( ",/)')
+           call exit()
+        else
+           print *,'Compression filter is ready'
+        endif
 
         inquire(file=trim(groups(1)), exist=file_exists)
         if(.not.file_exists) then
@@ -1140,7 +1150,7 @@ end interface
         integer(iintegers),intent(out) :: ierr
 
         integer(HSIZE_T) :: dims(5),maxdims(5)
-        logical :: file_exists,link_exists
+        logical :: file_exists,link_exists,compression
         integer k,lastid,hferr,rank
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
         character(200) :: name
@@ -1156,6 +1166,15 @@ end interface
                 print *,'file doesnt exist: ',trim(groups(1))
                 return
         endif
+
+        CALL h5zfilter_avail_f(H5Z_FILTER_SZIP_F, compression, hferr) ; ierr=ierr+hferr
+        if (.not.compression) then
+           write(*,'("compression filter not available. :( ",/)')
+           call exit()
+        else
+           print *,'Compression filter is ready'
+        endif
+
 
         call h5fopen_f(trim(groups(1)), H5F_ACC_RDONLY_F, id(1), hferr) ; ierr=ierr+hferr
         !First check if everything is here:

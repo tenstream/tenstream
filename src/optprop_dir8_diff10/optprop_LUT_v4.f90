@@ -180,6 +180,7 @@ contains
       call loadLUT_dir(dirLUT, azis, szas, comm)
 
       if(comm_size.gt.1) call scatter_LUTtables(azis,szas,comm)
+
       call check_diffLUT_matches_pspace(diffLUT)
       call check_dirLUT_matches_pspace(dirLUT)
 
@@ -355,7 +356,7 @@ subroutine loadLUT_dir(LUT, azis,szas, comm)
     errcnt=0
     do itheta=1,Ntheta
       do iphi  =1,Nphi
-        if(LUT%pspace%theta(itheta).le.1e-3_ireals .and. LUT%pspace%phi(iphi).gt.1e-3_ireals ) cycle ! dont need to calculate different azimuth angles except the zero one... rest is symmetric
+!        if(LUT%pspace%theta(itheta).le.1e-3_ireals .and. LUT%pspace%phi(iphi).gt.1e-3_ireals ) cycle ! dont need to calculate different azimuth angles except the zero one... rest is symmetric
         if(.not.angle_mask(iphi,itheta) ) cycle
 
         write(str(3),FMT='("phi",I0)')  int(LUT%pspace%phi(iphi)    )
@@ -365,13 +366,13 @@ subroutine loadLUT_dir(LUT, azis,szas, comm)
             call h5load([LUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],LUT%S(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
             call h5load([LUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],LUT%T(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
 
-            call check_dirLUT_matches_pspace(LUT)
 
             if(allocated(LUT%S(iphi,itheta)%c) ) then
               if(any( LUT%S(iphi,itheta)%c.gt.one ).or.any(LUT%S(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
             endif
             if(allocated(LUT%T(iphi,itheta)%c) ) then
               if(any( LUT%T(iphi,itheta)%c.gt.one ).or.any(LUT%T(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
+              call check_dirLUT_matches_pspace(LUT)
             endif
 
         endif
