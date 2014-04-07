@@ -1,6 +1,6 @@
 program main
       use tenstream_optprop_1_2 ,only : optprop_1_2_init, optprop_1_2_lookup_coeff,optprop_1_2_debug
-      use boxmc_1_2,only : bmc_get_coeff
+      use boxmc_1_2,only : bmc_get_coeff_1_2
       use mpi, only : MPI_Init,MPI_Comm_Rank,MPI_Finalize,MPI_COMM_WORLD
       use data_parameters, only : ireals,iintegers,i1,zero,one
       use boxmc_parameters_1_2, only : dir_streams, diff_streams, delta_scale
@@ -41,7 +41,7 @@ program main
 
           print *,'Testing direct Solar coefficients, no scattering: optprop: ',op_bg
 
-          call bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,direct,.False.,phi0,theta0,dx,dy,dz)
+          call bmc_get_coeff_1_2(comm,op_bg,src,S_out,Sdir_out,direct,.False.,phi0,theta0,dx,dy,dz)
 
           if(myid.eq.0) write(*, FMT='( i2," direct ", 1(f10.5), "::",2(f10.5)  )' ) iter,Sdir_out,S_out
 

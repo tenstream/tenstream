@@ -1,6 +1,6 @@
 program main
       use tenstream_optprop_8_10
-      use boxmc_8_10
+      use boxmc_8_10, only : bmc_get_coeff_8_10
       use mpi
       use data_parameters, only : mpiint,ireals,iintegers,zero,one
       use boxmc_parameters_8_10,only : dir_streams,diff_streams,delta_scale
@@ -34,13 +34,13 @@ program main
           w = dble(iter)/10._ireals-1e-3_ireals
           g = .9_ireals
           op_bg = [tau*(one-w)/dz, tau*w/dz, g ]
-          call bmc_get_coeff(MPI_COMM_WORLD,op_bg,src,S_out,Sdir_out,.True.,delta_scale,phi0,theta0,dx,dy,dz)
+          call bmc_get_coeff_8_10(MPI_COMM_WORLD,op_bg,src,S_out,Sdir_out,.True.,delta_scale,phi0,theta0,dx,dy,dz)
           if(myid.eq.0) write(*, FMT='( i2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,Sdir_out,S_out
         enddo
 
         od_sca = tau*w
         op_bg = [tau*(one-w)/dz, od_sca*(one-g)/dz, zero ]
-        call bmc_get_coeff(MPI_COMM_WORLD,op_bg,src,S_out,Sdir_out,.True.,delta_scale,phi0,theta0,dx,dy,dz)
+        call bmc_get_coeff_8_10(MPI_COMM_WORLD,op_bg,src,S_out,Sdir_out,.True.,delta_scale,phi0,theta0,dx,dy,dz)
         if(myid.eq.0) write(*, FMT='( i2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,Sdir_out,S_out
 !      enddo
 !      if(myid.eq.0) write(*, FMT='( i2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,Sdir_out,S_out

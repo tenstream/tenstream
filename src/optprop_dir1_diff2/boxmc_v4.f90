@@ -1,45 +1,42 @@
 module boxmc_1_2
-      use helper_functions, only : approx,mean,rmse,deg2rad
+      use helper_functions, only : approx,mean,rmse,deg2rad,norm
       use iso_c_binding
       use mersenne
       use mpi
       use data_parameters, only: iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, nil,inil, one,zero,pi
-      use boxmc_parameters_1_2, only: dir_streams,diff_streams, delta_scale_truncate
+      use boxmc_parameters_1_2, only: dir_streams,diff_streams
+      use boxmc_parameters, only : delta_scale_truncate
+
+      use boxmc, only :  qreals,& ! quad precision reals                                                                           
+      fg,bg,tot,                & ! parameter integers for optical properties in cloudfraction boxes                               
+      photon, stddev,           & ! struct definitions
+      Nphotons_max,             & ! maximum number of photons that are globally started... if that does not reach convergence this gets too expensive...
+      mpi_reduce_sum,           & ! mpi_reduce_sum
+      roulette,                 & ! roulette kills photons by chance
+      delta_scaling,            & ! resets direct or diffuse status depending on incident angle
+      s,L,                      & ! small arbitrary helper functions
+      update_photon_loc,        & ! shift photon location
+      hit_plane,                & ! hit plane with given startlocation and normal vector
+      distance,                 & ! dice roll distance, the photon has to travel
+      tau,hengreen,             & ! random optical depth and henyey greenstein phase function
+      absorb_photon,scatter_photon, & ! multiply photon weight with absorption and calculate scattering angle
+      get_kabs,get_ksca,get_g,  & ! get'er functions for optical props
+      print_photon,             & ! debug print statement
+      init_random_seed,R,       & ! init mersenne RNG
+      lRNGseeded,               & ! logical if init RNG
+      init_stddev,std_update      ! standard deviation routines
+
       implicit none
 
       private
-      public :: bmc_get_coeff
-
-      real(c_float128) :: quad_precision
-!      integer,parameter :: qreals=kind(quad_precision)
-      integer,parameter :: qreals=ireals
-
-      integer,parameter :: fg=1,bg=2,tot=3,dp=kind(one)
-
-      type photon
-              double precision :: loc(3)=nil,dir(3)=nil,weight=nil,dx=nil,dy=nil,dz=nil
-              logical :: alive=.True.,direct=.False.
-              integer(iintegers) :: side=inil,src=inil,scattercnt=0
-              double precision :: optprop(3) ! kabs,ksca,g
-      end type
-
-      integer(iintegers),parameter :: Nphotons=int(1e9)
-
-      logical :: RNGseeded=.False.
-      type(randomNumberSequence) :: rndSeq
-
-      type stddev
-        real(qreals),allocatable,dimension(:) :: inc,delta,mean,mean2,var
-        logical :: converged=.False.
-        real(qreals) :: atol=zero, rtol=zero
-      end type
+      public :: bmc_get_coeff_1_2
 
       type(stddev) :: std_Sdir, std_Sdiff, std_abso
 
       integer :: ierr,myid,numnodes
-        
+
 contains
-subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta0,dx,dy,dz)
+subroutine bmc_get_coeff_1_2(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta0,dx,dy,dz)
         double precision,intent(in) :: op_bg(3),phi0,theta0
         logical,intent(in) :: deltascale
         integer,intent(in) :: comm
@@ -75,7 +72,7 @@ subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta
                 call MPI_Comm_rank(comm, myid, ierr)
         endif
 
-        if(.not.RNGseeded) call init_random_seed(myid+2)
+        if(.not.lRNGseeded) call init_random_seed(myid+2)
 
         if(dx.le.zero .or. dy.le.zero .or. dz.le.zero ) print *,'ERROR: box dimensions have to be positive!',dx,dy,dz
 
@@ -85,19 +82,19 @@ subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta
 
         call cpu_time(time(1))
 
-        mycnt = max(i1*numnodes,Nphotons/numnodes)
+        mycnt = max(i1*numnodes,Nphotons_max/numnodes)
         do k=1,mycnt
                 if(k*numnodes.gt.1e4 .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit 
 
                 if(dir) then
-                        call init_dir_photon(p,src,dir,initial_dir,dx,dy,dz)
+                        call init_dir_photon_1_2(p,src,dir,initial_dir,dx,dy,dz)
                 else
-                        call init_photon(p,src,dx,dy,dz)
+                        call init_photon_1_2(p,src,dx,dy,dz)
                 endif
                 p%optprop = op_bg
 
                 move: do 
-                        call move_photon(p)
+                        call move_photon_1_2(p)
                         call roulette(p)
                 
                         if(.not.p%alive) exit move
@@ -111,9 +108,9 @@ subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta
                 std_Sdiff%inc = zero
 
                 if(p%direct) then
-                  call update_direct_stream(p,std_Sdir%inc,Ndir)
+                  call update_direct_stream_1_2(p,std_Sdir%inc,Ndir)
                 else
-                  call update_stream(p,std_Sdiff%inc,Ndiff)
+                  call update_stream_1_2(p,std_Sdiff%inc,Ndiff)
                 endif
 
                 call std_update( std_abso , k, i1*numnodes)
@@ -153,31 +150,7 @@ subroutine bmc_get_coeff(comm,op_bg,src,S_out,Sdir_out,dir,deltascale,phi0,theta
         endif
 end subroutine
 
-subroutine mpi_reduce_sum(v,comm,myid)
-    double precision,intent(inout) :: v
-    integer,intent(in) :: comm,myid
-    integer :: ierr
-    if(myid.eq.0) then
-      call mpi_reduce(MPI_IN_PLACE, v, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
-    else
-      call mpi_reduce(v, MPI_IN_PLACE, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
-    endif
-end subroutine
-
-subroutine roulette(p)
-        type(photon),intent(inout) :: p
-        double precision,parameter :: m=1e-1_ireals,s=1e-3_ireals*m
-
-        if(p%weight.lt.s) then
-                if(R().ge.p%weight/m) then
-                        p%weight=zero
-                        p%alive=.False.
-                else
-                        p%weight=m
-                endif
-        endif
-end subroutine
-subroutine update_direct_stream(p,S,N)
+subroutine update_direct_stream_1_2(p,S,N)
         type(photon),intent(in) :: p
         real(qreals),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
@@ -192,22 +165,7 @@ subroutine update_direct_stream(p,S,N)
       call print_photon(p)
     end select
 end subroutine
-subroutine delta_scaling(p,deltascale,initial_dir)
-        type(photon),intent(inout) :: p
-        double precision,intent(in) :: initial_dir(3)
-        logical,intent(in) :: deltascale
-
-        double precision :: angle
-        if((.not.deltascale).or.p%direct) return
-
-        angle = dot_product(initial_dir, p%dir)
-
-        if(angle.gt.delta_scale_truncate) then
-          p%direct = .True.
-!          print *,'delta scaling photon initial', initial_dir,'dir',p%dir,'angle',angle,'cos', (acos(angle))*180/pi
-        endif
-end subroutine
-subroutine update_stream(p,S,N)
+subroutine update_stream_1_2(p,S,N)
         type(photon),intent(in) :: p
         real(qreals),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
@@ -236,16 +194,7 @@ subroutine update_stream(p,S,N)
         endif
 end subroutine
 
-double precision function s()
-        s = -one + 2*R()
-end function
-double precision function L(v)
-        double precision,intent(in) ::v
-        double precision,parameter :: eps=1e-3
-        L = min( max(R()*v,eps), v-eps)
-end function
-
-subroutine init_dir_photon(p,src,direct,initial_dir,dx,dy,dz)
+subroutine init_dir_photon_1_2(p,src,direct,initial_dir,dx,dy,dz)
         type(photon),intent(inout) :: p
         double precision,intent(in) :: dx,dy,dz,initial_dir(3)
         integer(iintegers),intent(in) :: src
@@ -271,7 +220,7 @@ subroutine init_dir_photon(p,src,direct,initial_dir,dx,dy,dz)
         p%dir = initial_dir
 end subroutine
 
-subroutine init_photon(p,src,dx,dy,dz)
+subroutine init_photon_1_2(p,src,dx,dy,dz)
         type(photon),intent(inout) :: p
         double precision,intent(in) :: dx,dy,dz
         integer(iintegers),intent(in) :: src
@@ -300,18 +249,12 @@ subroutine init_photon(p,src,dx,dy,dz)
 
 end subroutine
 
-pure double precision function norm(v)
-        double precision,intent(in) :: v(:)
-        norm = sqrt(dot_product(v,v))
-end function
-
-subroutine move_photon(p)
+subroutine move_photon_1_2(p)
         type(photon),intent(inout) :: p
-
         double precision :: tau_travel,dist,intersec_dist
 
         tau_travel = tau(R())
-        call intersect_distance(p,intersec_dist)
+        call intersect_distance_1_2(p,intersec_dist)
 
         dist = distance(tau(R() ), get_ksca(p) )
 
@@ -324,19 +267,7 @@ subroutine move_photon(p)
         endif
 end subroutine
 
-subroutine update_photon_loc(p,dist)
-        type(photon),intent(inout) :: p
-        double precision,intent(in) :: dist
-        call absorb_photon(p,dist)
-        p%loc = p%loc + (dist*p%dir)
-        if(any(isnan(p%loc))) then
-          print *,'loc is now a NAN! ',p%loc,'dist',dist
-          call print_photon(p)
-          call exit
-        endif
-end subroutine
-
-subroutine intersect_distance(p,max_dist)
+subroutine intersect_distance_1_2(p,max_dist)
         type(photon),intent(inout) :: p
         double precision,intent(out) :: max_dist
 
@@ -363,197 +294,5 @@ subroutine intersect_distance(p,max_dist)
           call print_photon(p)
 
 end subroutine
-
-pure double precision function hit_plane(p,po,pn)
-        type(photon),intent(in) :: p
-        double precision,intent(in) :: po(3),pn(3)
-        double precision :: discr
-        discr = dot_product(p%dir,pn)
-        if( approx(discr,zero) ) then
-                hit_plane=huge(hit_plane)
-        else        
-                hit_plane = dot_product(po-p%loc, pn) / discr
-        endif
-end function
-
-elemental function distance(tau,beta)
-        double precision,intent(in) :: tau,beta
-        double precision :: distance
-        if( approx( beta,zero ) ) then
-          distance=huge(distance)
-        else
-          distance = tau/beta
-        endif
-
-end function
-
-elemental function tau(r)
-        double precision,intent(in) :: r
-        double precision :: tau
-        tau = -log( max( epsilon(tau), one-r ) ) 
-end function
-
-elemental function hengreen(r,g)
-        double precision,intent(in) :: r,g
-        double precision :: hengreen
-        double precision,parameter :: one=1.0,two=2.0
-        if( approx(g,zero) ) then
-          hengreen = two*r-one
-        else
-          hengreen = one/(two*g) * (one+g**two - ( (one-g**two) / ( two*g*r + one-g) )**two )
-        endif
-        hengreen = min(max(hengreen,-one), one)
-end function
-
-function R() 
-      double precision :: R
-!      call random_number(R)
-      R = getRandomReal(rndSeq)
-end function
-
-subroutine absorb_photon(p,dist)!,tau_abs)
-        type(photon),intent(inout) :: p
-        double precision,intent(in) :: dist
-        double precision :: new_weight,tau
-
-        tau = get_kabs(p)*dist
-        if(tau.gt.20) then
-          p%weight = zero
-        else
-          new_weight = p%weight * exp(-tau)
-!          if( (new_weight.gt.one).or.(new_weight.lt.zero) ) then
-!            print *,'something wrong with new weight after absorption',new_weight,'=',p%weight,'*',exp(-tau),'(',get_kabs(p),dist,')'
-!            call exit
-!          endif
-          p%weight = new_weight
-        endif
-end subroutine
-
-subroutine scatter_photon(p)
-        type(photon),intent(inout) :: p
-        double precision :: muxs,muys,muzs,muxd,muyd,muzd
-        double precision :: mutheta,fi,costheta,sintheta,sinfi,cosfi,denom,muzcosfi
-
-        mutheta = hengreen(R(),get_g(p))
-
-        p%scattercnt = p%scattercnt+1
-
-        muxs = p%dir(1)  
-        muys = p%dir(2)  
-        muzs = p%dir(3)  
-        if(p%direct) then
-          p%direct=.False.
-        endif
-        fi      = R()*pi*2.
-
-        costheta = (mutheta)
-        sintheta = sqrt(one-costheta**2)
-        sinfi = sin(fi)
-        cosfi = cos(fi)
-
-        if( muzs .ge. one-epsilon(muzs)) then
-                muxd = sintheta*cosfi
-                muyd = sintheta*sinfi
-                muzd = costheta
-        else if ( muzs .le. -one+epsilon(muzs) ) then
-                muxd =  sintheta*cosfi
-                muyd = -sintheta*sinfi
-                muzd = -costheta
-        else
-                denom = sqrt(one-muzs**2)
-                muzcosfi = muzs*cosfi
-
-                muxd = sintheta*(muxs*muzcosfi-muys*sinfi)/denom + muxs*costheta
-                muyd = sintheta*(muys*muzcosfi+muxs*sinfi)/denom + muys*costheta
-                muzd = -denom*sintheta*cosfi + muzs*costheta
-        endif
-
-        if(isnan(muxd).or.isnan(muyd).or.isnan(muzd) ) print *,'new direction is NAN :( --',muxs,muys,muzs,mutheta,fi,'::',muxd,muyd,muzd
-
-        p%dir(1) = muxd
-        p%dir(2) = muyd
-        p%dir(3) = muzd
-
-end subroutine
-
-pure double precision function get_kabs(p)
-        type(photon),intent(in) :: p
-        get_kabs = p%optprop(1)
-end function
-pure double precision function get_ksca(p)
-        type(photon),intent(in) :: p
-        get_ksca = p%optprop(2)
-end function
-pure double precision function get_g(p)
-        type(photon),intent(in) :: p
-        get_g = p%optprop(3)
-end function    
-
-subroutine print_photon(p)
-        type(photon),intent(in) :: p
-        print *,'---------------------------'
-        print *,'Location  of Photon:',p%loc
-        print *,'Direction of Photon:',p%dir
-        print *,'weight',p%weight,'alive,direct',p%alive,p%direct,'scatter count',p%scattercnt
-        print *,'side',p%side,'src',p%src
-        print *,'kabs,ksca,g',get_kabs(p),get_ksca(p),get_g(p)
-end subroutine
-
-subroutine init_random_seed(myid)
-  integer myid
-  INTEGER :: i, n, clock, s
-  INTEGER, DIMENSION(:), ALLOCATABLE :: seed
-  real :: rn
-          
-  CALL RANDOM_SEED(size = n)
-  ALLOCATE(seed(n))
-
-  CALL SYSTEM_CLOCK(COUNT=clock)
-
-  seed = myid*3*7*11*13*17 + clock + 37 * (/ (i - 1, i = 1, n) /)
-  CALL RANDOM_SEED(PUT = seed)
-
-  DEALLOCATE(seed)
-
-  call random_number(rn)
-  s = int(rn*1000)*myid
-
-!  s=myid
-!  print *,myid,'Seeding RNG with ',s
-  rndseq = new_RandomNumberSequence(seed=s)
-  RNGseeded=.True.
-end subroutine
-  subroutine init_stddev( std, N, rtol, atol)
-      type(stddev),intent(inout) :: std
-      real(qreals),intent(in) :: atol,rtol
-      integer(iintegers) :: N
-      if( allocated(std%inc     ) ) deallocate( std%inc  )
-      if( allocated(std%delta   ) ) deallocate( std%delta)
-      if( allocated(std%mean    ) ) deallocate( std%mean )
-      if( allocated(std%mean2   ) ) deallocate( std%mean2)
-      if( allocated(std%var     ) ) deallocate( std%var  )
-      allocate( std%inc   (N)) ; std%inc   = zero
-      allocate( std%delta (N)) ; std%delta = zero
-      allocate( std%mean  (N)) ; std%mean  = zero
-      allocate( std%mean2 (N)) ; std%mean2 = zero
-      allocate( std%var   (N)) ; std%var   = zero
-      std%atol = atol
-      std%rtol = rtol
-  end subroutine
-
-  subroutine std_update(std, N, numnodes)
-      type(stddev),intent(inout) :: std
-      integer(iintegers) :: N, numnodes
-      std%delta = std%inc   - std%mean
-      std%mean  = std%mean  + std%delta/N
-      std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
-      std%var = sqrt( std%mean2/max( i1,N ) ) / sqrt( one*N*numnodes )
-      if( all( std%var .lt. std%atol .or. std%var/std%mean .lt. std%rtol ) ) then
-        std%converged = .True.
-      else
-        std%converged = .False.
-      endif
-  end subroutine
-
 
 end module

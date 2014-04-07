@@ -2,7 +2,7 @@ module tenstream_optprop_LUT_8_10
   use helper_functions, only : approx
   use data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil
   use boxmc_parameters_8_10, only: dir_streams,diff_streams, Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale
-  use boxmc_8_10, only: bmc_get_coeff
+  use boxmc_8_10, only: bmc_get_coeff_8_10
   use tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
   use arrayio
 
@@ -556,7 +556,7 @@ subroutine bmc_wrapper(src,dx,dy,dz,kabs ,ksca,g,dir,delta_scale,phi,theta,comm,
     bg(3) = g
 
 !    print *,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
-    call bmc_get_coeff(comm,bg,src,S_diff,T_dir,dir,delta_scale,phi,theta,dx,dy,dz)
+    call bmc_get_coeff_8_10(comm,bg,src,S_diff,T_dir,dir,delta_scale,phi,theta,dx,dy,dz)
     !        print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
 !}}}
