@@ -8,8 +8,7 @@ module petsc_ts
           ireals,    &
           iintegers
       use kato_data
-      use tenstream_optprop_8_10
-      use tenstream_optprop_1_2
+      use optprop, only : t_optprop_1_2,t_optprop_8_10
 
       implicit none
 
@@ -62,6 +61,9 @@ module petsc_ts
         double precision :: kext1=nil ,kext2=nil ,ksca1=nil ,ksca2=nil, w1=nil, w2=nil, g1=nil, g2=nil
       end type
       type(t_optprop),allocatable :: pcc_optprop(:,:,:)
+
+      type(t_optprop_1_2) OPP_1_2
+      type(t_optprop_8_10) OPP_8_10
 
       PetscReal :: symmetry_phi
       PetscInt :: yinc,xinc
@@ -666,9 +668,9 @@ elemental double precision function deg2rad(a)
                ksca = op%bg(2) 
                g    = op%bg(3)
                if(twostr_ratio*dz.gt.newgrid%dx(1) ) then
-                 call optprop_1_2_lookup_coeff(dz,kabs,ksca,g,dir,coeff,angles)
+                 call OPP_1_2%get_coeff(dz,kabs,ksca,g,dir,coeff,angles)
                else
-                 call optprop_8_10_lookup_coeff(dz,kabs,ksca,g,dir,coeff,angles)
+                 call OPP_8_10%get_coeff(dz,kabs,ksca,g,dir,coeff,angles)
                endif
 
 !               select case(coeff_mode)
@@ -1553,8 +1555,9 @@ program main
 !        call vec_to_hdf5(abso)
 
         call setup_dir_inc(phi0,symmetry_phi)
-        call optprop_8_10_init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) ! i0 is LUT, i1 is ANN
-        call optprop_1_2_init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) ! i0 is LUT, i1 is ANN
+
+        call OPP_8_10%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD)
+        call OPP_1_2%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) 
 
         ! Create Objects to work with
         call init_Matrix(Mdir,C_dir)

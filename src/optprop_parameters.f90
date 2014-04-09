@@ -1,4 +1,4 @@
-module boxmc_parameters
+module optprop_parameters
       use data_parameters,only : ireals,iintegers
       implicit none
       

@@ -1,6 +1,6 @@
 
 subroutine update_dir_stream_8_10(bmc,p,S,N)
-        class(boxmc_8_10) :: bmc
+        class(t_boxmc_8_10) :: bmc
         type(photon),intent(in) :: p
         real(ireals),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
@@ -71,7 +71,7 @@ subroutine update_dir_stream_8_10(bmc,p,S,N)
     end select
 end subroutine
 subroutine update_diff_stream_8_10(bmc,p,S,N)
-        class(boxmc_8_10) :: bmc
+        class(t_boxmc_8_10) :: bmc
         type(photon),intent(in) :: p
         real(ireals),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
@@ -136,7 +136,7 @@ subroutine update_diff_stream_8_10(bmc,p,S,N)
 end subroutine
 
 subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
-        class(boxmc_8_10) :: bmc
+        class(t_boxmc_8_10) :: bmc
         type(photon),intent(inout) :: p
         double precision,intent(in) :: dx,dy,dz,initial_dir(3)
         integer(iintegers),intent(in) :: src
@@ -177,7 +177,7 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
 end subroutine
 
 subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
-        class(boxmc_8_10) :: bmc
+        class(t_boxmc_8_10) :: bmc
         type(photon),intent(inout) :: p
         double precision,intent(in) :: dx,dy,dz
         integer(iintegers),intent(in) :: src
@@ -231,7 +231,7 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
 end subroutine
 
 subroutine intersect_distance_8_10(bmc,p,max_dist)
-        class(boxmc_8_10) :: bmc
+        class(t_boxmc_8_10) :: bmc
         type(photon),intent(inout) :: p
         double precision,intent(out) :: max_dist
 

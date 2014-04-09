@@ -1,38 +1,53 @@
+!> @brief Module contains Raytracer to compute Transfer Coefficients for different 'stream' realizations
+!> @author Fabian Jakub LMU/MIM
+
 module boxmc
       use helper_functions, only : approx,mean,rmse,deg2rad,norm
       use iso_c_binding
       use mersenne
       use mpi
-      use data_parameters, only: iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
+      use data_parameters, only: mpiint,iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
       
       use boxmc_parameters, only : delta_scale_truncate
-      
+
       implicit none
 
       private
-      public :: qreals,         & ! quad precision reals                                                                           
-      fg,bg,tot,                & ! parameter integers for optical properties in cloudfraction boxes                               
-      photon, stddev,           & ! struct definitions
-      Nphotons_max,             & ! maximum number of photons that are globally started... if that does not reach convergence this gets too expensive...
-      mpi_reduce_sum,           & ! mpi_reduce_sum
-      roulette,                 & ! roulette kills photons by chance
-      delta_scaling,            & ! resets direct or diffuse status depending on incident angle
-      s,L,                      & ! small arbitrary helper functions
-      update_photon_loc,        & ! shift photon location
-      hit_plane,                & ! hit plane with given startlocation and normal vector
-      distance,                 & ! dice roll distance, the photon has to travel
-      tau,hengreen,             & ! random optical depth and henyey greenstein phase function
-      absorb_photon,scatter_photon, & ! multiply photon weight with absorption and calculate scattering angle
-      get_kabs,get_ksca,get_g,  & ! get'er functions for optical props
-      print_photon,             & ! debug print statement
-      init_random_seed,R,       & ! init mersenne RNG
-      lRNGseeded,               & ! logical if init RNG
-      init_stddev,std_update      ! standard deviation routines
-      
-      real(c_float128) :: quad_precision
-      integer,parameter :: qreals=ireals
+      public :: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
 
-      integer,parameter :: fg=1,bg=2,tot=3
+      ! ******************** TYPE DEFINITIONS ************************
+      type,abstract :: t_boxmc
+        integer(iintegers) :: dir_streams=inil,diff_streams=inil
+        logical :: initialized=.False.
+        contains
+          procedure :: init
+          procedure :: get_coeff         
+          procedure :: move_photon
+          procedure(intersect_distance),deferred :: intersect_distance
+
+          procedure(init_dir_photon),deferred  :: init_dir_photon
+          procedure(init_diff_photon),deferred :: init_diff_photon
+          procedure(update_dir_stream),deferred  :: update_dir_stream
+          procedure(update_diff_stream),deferred :: update_diff_stream
+      end type
+
+      type,extends(t_boxmc) :: t_boxmc_1_2
+        contains 
+          procedure :: intersect_distance => intersect_distance_1_2
+          procedure :: init_dir_photon    => init_dir_photon_1_2
+          procedure :: init_diff_photon   => init_diff_photon_1_2
+          procedure :: update_dir_stream  => update_dir_stream_1_2
+          procedure :: update_diff_stream => update_diff_stream_1_2
+      end type t_boxmc_1_2
+
+      type,extends(t_boxmc) :: t_boxmc_8_10
+        contains 
+          procedure :: intersect_distance => intersect_distance_8_10
+          procedure :: init_dir_photon    => init_dir_photon_8_10
+          procedure :: init_diff_photon   => init_diff_photon_8_10
+          procedure :: update_dir_stream  => update_dir_stream_8_10
+          procedure :: update_diff_stream => update_diff_stream_8_10
+      end type t_boxmc_8_10
 
       type photon
               double precision :: loc(3)=nil,dir(3)=nil,weight=nil,dx=nil,dy=nil,dz=nil
@@ -41,13 +56,16 @@ module boxmc
               double precision :: optprop(3) ! kabs,ksca,g
       end type
 
-      integer(iintegers),parameter :: Nphotons_max=int(1e9)
-
       type stddev
-        real(qreals),allocatable,dimension(:) :: inc,delta,mean,mean2,var
+        real(ireals),allocatable,dimension(:) :: inc,delta,mean,mean2,var
         logical :: converged=.False.
-        real(qreals) :: atol=zero, rtol=zero
+        real(ireals) :: atol=zero, rtol=zero
       end type
+
+      ! ******************** TYPE DEFINITIONS ************************
+
+      integer,parameter :: fg=1,bg=2,tot=3
+      integer(iintegers),parameter :: Nphotons_max=int(1e9)
 
       type(stddev) :: std_Sdir, std_Sdiff, std_abso
 
@@ -56,8 +74,182 @@ module boxmc
       logical :: lRNGseeded=.False.
       type(randomNumberSequence) :: rndSeq
 
+      ! ***************** INTERFACES ************
+      abstract interface
+        subroutine init_diff_photon(bmc,p,src,dx,dy,dz)
+          import :: t_boxmc,photon,iintegers
+          class(t_boxmc) :: bmc
+          type(photon),intent(inout) :: p
+          double precision,intent(in) :: dx,dy,dz
+          integer(iintegers),intent(in) :: src
+        end subroutine
+      end interface
+
+      abstract interface
+        subroutine init_dir_photon(bmc,p,src,direct,initial_dir,dx,dy,dz)
+          import :: t_boxmc,photon,iintegers
+          class(t_boxmc) :: bmc
+          type(photon),intent(inout) :: p
+          double precision,intent(in) :: dx,dy,dz,initial_dir(3)
+          integer(iintegers),intent(in) :: src
+          logical,intent(in) :: direct
+        end subroutine
+      end interface
+
+      abstract interface
+        subroutine update_diff_stream(bmc,p,S,N)
+          import :: t_boxmc,photon,iintegers,ireals
+          class(t_boxmc) :: bmc
+          type(photon),intent(in) :: p
+          real(ireals),intent(inout) :: S(:)
+          integer(iintegers),intent(inout) :: N(:)
+        end subroutine
+      end interface
+
+      abstract interface
+        subroutine update_dir_stream(bmc,p,S,N)
+          import :: t_boxmc,photon,iintegers,ireals
+          class(t_boxmc) :: bmc
+          type(photon),intent(in) :: p
+          real(ireals),intent(inout) :: S(:)
+          integer(iintegers),intent(inout) :: N(:)
+        end subroutine
+      end interface
+
+      abstract interface
+        subroutine intersect_distance(bmc,p,max_dist)
+          import :: t_boxmc,photon
+          class(t_boxmc) :: bmc
+          type(photon),intent(inout) :: p
+          double precision,intent(out) :: max_dist
+        end subroutine
+      end interface
+      ! ***************** INTERFACES ************
 
 contains
+
+
+  !> @brief Calculate Transfer Coefficients using MonteCarlo integration
+  !> @details All MPI Nodes start photons from src stream and ray trace it including scattering events through the box until it leaves the box through one of the exit streams.\n
+  !> Scattering Absorption is accounted for by carrying on a photon weight and succinctly lower it by lambert Beers Law \f$ \omega_{abso}^{'} = \omega_{abso} \cdot e^{- \rm{d}s \cdot {\rm k}_{sca}   }   \f$ \n
+  !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev. Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
+  subroutine get_coeff(bmc,comm,op_bg,src,S_out,Sdir_out,ldir,ldeltascale,phi0,theta0,dx,dy,dz)
+      class(t_boxmc)                :: bmc                       !< @param[in] bmc Raytracer Type - determines number of streams
+      double precision,intent(in)   :: op_bg(3)                  !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
+      double precision,intent(in)   :: phi0                      !< @param[in] phi0 solar azimuth angle
+      double precision,intent(in)   :: theta0                    !< @param[in] theta0 solar zenith angle
+      logical,intent(in)            :: ldeltascale               !< @param[in] ldeltascale implemented as following: if a photon leaves the box with an angle, that is approximately the same as the incidence angle, it is counted as direct
+      integer(iintegers),intent(in) :: src                       !< @param[in] src stream from which to start photons - see init_photon routines
+      integer(mpiint),intent(in)    :: comm                      !< @param[in] comm MPI Communicator
+      logical,intent(in)            :: ldir                      !< @param[in] ldir determines if photons should be started with a fixed incidence angle
+      double precision,intent(in)   :: dx,dy,dz                  !< @param[in] dx,dy,dz box with dimensions in [m]
+      double precision,intent(out)  :: S_out(bmc%diff_streams)   !< @param[out] S_out diffuse streams transfer coefficients
+      double precision,intent(out)  :: Sdir_out(bmc%dir_streams) !< @param[out] Sdir_out direct streams transfer coefficients
+
+      type(photon)       :: p
+      integer(iintegers) :: k,mycnt
+      double precision   :: time(2),total_photons,initial_dir(3)
+      integer(iintegers) :: Ndir(bmc%dir_streams),Ndiff(bmc%diff_streams)
+
+      if(.not. bmc%initialized ) stop 'Box Monte Carlo Ray Tracer is not initialized! - This should not happen!'
+
+      Ndir=i0;Ndiff=i0
+
+      call init_stddev( std_Sdir , bmc%dir_streams  ,1e-5_ireals, 5e-3_ireals )
+      call init_stddev( std_Sdiff, bmc%diff_streams ,1e-5_ireals, 5e-3_ireals )
+      call init_stddev( std_abso , i1               ,1e-5_ireals, 5e-4_ireals )
+
+      if(.not.ldir) std_Sdir%converged=.True.
+
+      initial_dir  = [ sin(deg2rad(theta0))*sin(deg2rad(phi0)) ,&
+                        sin(deg2rad(theta0))*cos(deg2rad(phi0)) ,&
+                                          - cos(deg2rad(theta0)) ]
+      initial_dir = initial_dir/norm(initial_dir)
+
+      if( (any(op_bg.lt.zero)) .or. (any(isnan(op_bg))) ) then
+        print *,'corrupt optical properties: bg:: ',op_bg
+        call exit
+      endif
+
+      if(dx.le.zero .or. dy.le.zero .or. dz.le.zero ) then
+        print *,'ERROR: box dimensions have to be positive!',dx,dy,dz
+        call exit()
+      endif
+
+      call cpu_time(time(1))
+
+      mycnt = max(i1*numnodes,Nphotons_max/numnodes)
+      do k=1,mycnt
+        if(k*numnodes.gt.1e4 .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
+
+        if(ldir) then
+          call bmc%init_dir_photon(p,src,ldir,initial_dir,dx,dy,dz)
+        else
+          call bmc%init_diff_photon(p,src,dx,dy,dz)
+        endif
+        p%optprop = op_bg
+
+        move: do
+          call bmc%move_photon(p)
+          call roulette(p)
+
+          if(.not.p%alive) exit move
+          call scatter_photon(p)
+        enddo move
+
+        if(ldir) call delta_scaling(p,ldeltascale,initial_dir)
+
+        std_abso%inc = one-p%weight
+        std_Sdir%inc  = zero
+        std_Sdiff%inc = zero
+
+        if(p%direct) then
+          call bmc%update_dir_stream(p,std_Sdir%inc,Ndir)
+        else
+          call bmc%update_diff_stream(p,std_Sdiff%inc,Ndiff)
+        endif
+
+        if(ldir) call std_update( std_Sdir , k, i1*numnodes )
+        call std_update( std_abso , k, i1*numnodes)
+        call std_update( std_Sdiff, k, i1*numnodes )
+      enddo
+
+      total_photons=k
+      S_out    = dble( std_Sdiff%mean*k )
+      if(ldir) Sdir_out = dble( std_Sdir%mean *k )
+      if(myid.ge.0) then
+        call mpi_reduce_sum(total_photons,comm,myid)
+        do k=1,ubound(S_out,1)
+          call mpi_reduce_sum(S_out(k),comm,myid)
+        enddo
+
+        if(ldir) then
+          do k=1,ubound(Sdir_out,1)
+            call mpi_reduce_sum(Sdir_out(k),comm,myid)
+          enddo
+        endif
+      endif
+      S_out    = S_out / total_photons
+      if(ldir) then
+        Sdir_out = Sdir_out / total_photons
+      else
+        Sdir_out=zero
+      endif
+
+      if( (sum(S_out)+sum(Sdir_out)).gt.one+1e-6_ireals) then
+        print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),':: op',p%optprop
+        call print_photon(p)
+        call exit
+      endif
+      if( (any(isnan(S_out) )) .or. (any(isnan(Sdir_out)) ) ) then
+        print *,'Found a NaN in output! this should not happen! dir',Sdir_out,'diff',S_out
+        call print_photon(p)
+        call exit()
+      endif
+      call cpu_time(time(2))
+
+      if(myid.le.0.and.total_photons.ge.1e7) print *,src,dz,op_bg,'angles',phi0,theta0,'took',time(2)-time(1),'s',' phots*1e3 :: ',total_photons/1e3,' abso :',one-sum(Sdir_out)-sum(S_out),':',total_photons/(time(2)-time(1))/numnodes,'phots/sec/node'
+  end subroutine
 
 subroutine mpi_reduce_sum(v,comm,myid)
     double precision,intent(inout) :: v
@@ -83,13 +275,13 @@ subroutine roulette(p)
                 endif
         endif
 end subroutine
-subroutine delta_scaling(p,deltascale,initial_dir)
+subroutine delta_scaling(p,ldeltascale,initial_dir)
         type(photon),intent(inout) :: p
         double precision,intent(in) :: initial_dir(3)
-        logical,intent(in) :: deltascale
+        logical,intent(in) :: ldeltascale
 
         double precision :: angle
-        if((.not.deltascale).or.p%direct) return
+        if((.not.ldeltascale).or.p%direct) return
 
         angle = dot_product(initial_dir, p%dir)
 
@@ -109,6 +301,24 @@ function L(v)
     L = min( max(R()*v,eps), v-eps)
 end function
 
+subroutine move_photon(bmc,p)
+        class(t_boxmc) :: bmc
+        type(photon),intent(inout) :: p
+        double precision :: tau_travel,dist,intersec_dist
+
+        tau_travel = tau(R())
+        call bmc%intersect_distance(p,intersec_dist)
+
+        dist = distance(tau(R() ), get_ksca(p) )
+
+        if(intersec_dist .le. dist) then
+          p%alive=.False.
+          call update_photon_loc(p,intersec_dist)
+        else
+          call update_photon_loc(p,dist)
+          return
+        endif
+end subroutine
 subroutine update_photon_loc(p,dist)
         type(photon),intent(inout) :: p
         double precision,intent(in) :: dist
@@ -278,7 +488,7 @@ subroutine init_random_seed(myid)
 end subroutine
   subroutine init_stddev( std, N, rtol, atol)
       type(stddev),intent(inout) :: std
-      real(qreals),intent(in) :: atol,rtol
+      real(ireals),intent(in) :: atol,rtol
       integer(iintegers) :: N
       if( allocated(std%inc     ) ) deallocate( std%inc  )
       if( allocated(std%delta   ) ) deallocate( std%delta)
@@ -309,5 +519,36 @@ end subroutine
       endif
   end subroutine
 
+  subroutine init(bmc, comm)
+        class(t_boxmc) :: bmc
+        integer(mpiint),intent(in) :: comm
+
+        if(comm.eq.-1) then
+                myid = -1
+        else
+                call MPI_Comm_rank(comm, myid, ierr)
+        endif
+
+        if(.not.lRNGseeded) call init_random_seed(myid+2)
+
+        numnodes=1
+        if(myid.ge.0) call mpi_comm_size(comm,numnodes,ierr)
+
+        select type (bmc)
+          class is (t_boxmc_8_10)
+                  bmc%dir_streams  =  8
+                  bmc%diff_streams = 10
+          class is (t_boxmc_1_2)
+                  bmc%dir_streams  =  1
+                  bmc%diff_streams =  2
+          class default
+              stop 'initialize: unexpected type for boxmc object!'
+        end select
+
+        bmc%initialized = .True.
+  end subroutine
+
+include 'boxmc_8_10.inc'
+include 'boxmc_1_2.inc'
 
 end module
