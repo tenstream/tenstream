@@ -8,7 +8,7 @@ module boxmc
       use mpi
       use data_parameters, only: mpiint,iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
       
-      use boxmc_parameters, only : delta_scale_truncate
+      use optprop_parameters, only : delta_scale_truncate,stddev_rtol
 
       implicit none
 
@@ -155,9 +155,9 @@ contains
 
       Ndir=i0;Ndiff=i0
 
-      call init_stddev( std_Sdir , bmc%dir_streams  ,1e-5_ireals, 5e-3_ireals )
-      call init_stddev( std_Sdiff, bmc%diff_streams ,1e-5_ireals, 5e-3_ireals )
-      call init_stddev( std_abso , i1               ,1e-5_ireals, 5e-4_ireals )
+      call init_stddev( std_Sdir , bmc%dir_streams  ,1e-5_ireals, stddev_rtol )
+      call init_stddev( std_Sdiff, bmc%diff_streams ,1e-5_ireals, stddev_rtol )
+      call init_stddev( std_abso , i1               ,1e-5_ireals, stddev_rtol*1e-1 )
 
       if(.not.ldir) std_Sdir%converged=.True.
 

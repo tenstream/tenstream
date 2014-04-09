@@ -5,6 +5,9 @@ module optprop_parameters
       logical,parameter :: delta_scale=.True.
 
       real(ireals),parameter :: delta_scale_truncate=.9962_ireals ! .9962 = 5 degrees delta scaling
+!      real(ireals),parameter :: stddev_rtol=5e-3_ireals
+!      real(ireals),parameter :: stddev_rtol=1e-3_ireals
+      real(ireals),parameter :: stddev_rtol=1e-2_ireals
 
       integer(iintegers) ,parameter :: Ndz=20, Nkabs=40, Nksca=40, Ng=15, Nphi=2, Ntheta=10, interp_mode=2 
 !      integer(iintegers) ,parameter :: Ndz=5, Nkabs=5, Nksca=5, Ng=5, Nphi=2, Ntheta=10, interp_mode=2 

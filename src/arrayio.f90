@@ -348,7 +348,12 @@ end interface
         if(hferr.ne.0) return
 
 !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
-        call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+        call h5lexists_f(id(lastid), trim(groups(lastid+1)), link_exists, hferr) ; ierr=ierr+hferr
+        if(link_exists) then
+          call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
+        else
+          call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+        endif
 
         if(ierr.ne.0) return
 !        print *,'Write to dataset'
@@ -583,7 +588,12 @@ end interface
         if(hferr.ne.0) return
 
 !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
-        call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+        call h5lexists_f(id(lastid), trim(groups(lastid+1)), link_exists, hferr) ; ierr=ierr+hferr
+        if(link_exists) then
+          call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
+        else
+          call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+        endif
 
         if(ierr.ne.0) return
 !        print *,'Write to dataset'
@@ -887,16 +897,16 @@ end interface
         ierr=0 ; lastid = ubound(id,1)
         if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
                              &   and scnd is at least hdf5 root /, and third is data name'
-        do k=1,size(groups)
-          print *,'opening hdf5 file groups(',k,') ',trim(groups(k))
-        enddo
+!        do k=1,size(groups)
+!          print *,'opening hdf5 file groups(',k,') ',trim(groups(k))
+!        enddo
 
         CALL h5zfilter_avail_f(H5Z_FILTER_SZIP_F, compression, hferr) ; ierr=ierr+hferr
         if (.not.compression) then
            write(*,'("compression filter not available. :( ",/)')
            call exit()
         else
-           print *,'Compression filter is ready'
+!           print *,'Compression filter is ready'
         endif
 
         inquire(file=trim(groups(1)), exist=file_exists)
@@ -934,16 +944,16 @@ end interface
         allocate(arr(dims(1)))
 
         call h5dread_f(dataset, H5T_NATIVE_DOUBLE, arr, dims, hferr) ; ierr=ierr+hferr
-        print *,'read',ierr
+!        print *,'read',ierr
 
         call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
         do k=lastid,2,-1
                 call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
         enddo
         call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-        print *,'closed',ierr
+!        print *,'closed',ierr
 
-        print *,'Data average is now:',sum(arr)/size(arr)
+!        print *,'Data average is now:',sum(arr)/size(arr)
         call h5close_f(hferr)
       end subroutine
       subroutine h5load_2d(groups,arr,ierr)
@@ -1172,7 +1182,7 @@ end interface
            write(*,'("compression filter not available. :( ",/)')
            call exit()
         else
-           print *,'Compression filter is ready'
+!           print *,'Compression filter is ready'
         endif
 
 

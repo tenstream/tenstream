@@ -15,7 +15,7 @@ program main
       comm = MPI_COMM_WORLD
       call mpi_comm_rank(comm,myid,ierr)
 
-      azis = [90,0]
+      azis = [0,90]
       szas = [0,20,40,60,80]
 
       call get_command_argument(1, arg)
