@@ -10,13 +10,13 @@ if (NOT CMAKE_BUILD_TYPE)
 endif (NOT CMAKE_BUILD_TYPE)
 
 set (CMAKE_Fortran_FLAGS "-ffree-line-length-none -W -Wall -Wuninitialized " )
-set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-f2c -O3 -Ofast -ffast-math -march=native -mtune=native")
+set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-f2c -O3 -funroll-loops -Ofast -ffast-math -march=native -mtune=native")
 set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fno-f2c -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check -ffpe-trap=invalid,zero,overflow,denormal ")#-ffpe-trap=invalid,zero,overflow,denormal,precision")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 MESSAGE("Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")
 
-list (APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/petsc_cmake_modules")
+list (APPEND CMAKE_MODULE_PATH "$ENV{PETSC_DIR}/cmake-modules")
 list (APPEND CMAKE_MODULE_PATH "/usr/users/jakub/ticalib/ompi1.7.3/hdf5/hdf5-latest/build/install/share/cmake/hdf5")
 message( "Searching for cmake Files in ${CMAKE_MODULE_PATH}" )
 

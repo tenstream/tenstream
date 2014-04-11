@@ -1120,7 +1120,7 @@ end interface
         do k=2,lastid+1
                 name = trim(name)//'/'//trim(groups(k))
                 call h5lexists_f(id(1), trim(name), link_exists, hferr) ; ierr=ierr+hferr
-!                print *,'checked if ',trim(name),' exists: ',link_exists,ierr
+                print *,'checked if ',trim(name),' exists: ',link_exists,ierr
                 if (.not.link_exists) then
                         ierr=-6
                         call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr

@@ -248,7 +248,7 @@ contains
       endif
       call cpu_time(time(2))
 
-      if(myid.le.0.and.total_photons.ge.1e7) print *,src,dz,op_bg,'angles',phi0,theta0,'took',time(2)-time(1),'s',' phots*1e3 :: ',total_photons/1e3,' abso :',one-sum(Sdir_out)-sum(S_out),':',total_photons/(time(2)-time(1))/numnodes,'phots/sec/node'
+      if(myid.le.0.and.total_photons.ge.1e6) print *,src,dz,op_bg,'angles',phi0,theta0,'took',time(2)-time(1),'s',' phots*1e3 :: ',total_photons/1e3,' abso :',one-sum(Sdir_out)-sum(S_out),':',total_photons/(time(2)-time(1))/numnodes,'phots/sec/node'
   end subroutine
 
 subroutine mpi_reduce_sum(v,comm,myid)

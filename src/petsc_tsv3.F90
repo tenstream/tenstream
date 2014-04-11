@@ -1,16 +1,15 @@
 module petsc_ts
-#include "finclude/petscdef.h"
-      use petsc
+      use helper_functions, only: deg2rad
       use gridtransform
       use arrayio
       use eddington, only : rodents
-      USE data_parameters, ONLY :   &
-          ireals,    &
-          iintegers
+      USE data_parameters, ONLY : mpiint,ireals,iintegers
       use kato_data
       use optprop, only : t_optprop_1_2,t_optprop_8_10
 
+!      use petsc
       implicit none
+#include "finclude/petsc.h90"
 
       PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
       PetscInt,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,i5=5,i6=6,i7=7,i8=8,i10=10
@@ -26,10 +25,10 @@ module petsc_ts
 !      character(len=*),parameter :: ident='run_test'   ; double precision,parameter :: ident_dx=67, ident_dy=67, ident_dz=100,phi0=270 ; logical,parameter ::ltest=.True.
 !                                                                                                                              
 !      character(len=*),parameter :: ident='run_box2'   ; double precision,parameter :: ident_dx=500, ident_dy=500, ident_dz=100,phi0=270
-!      character(len=*),parameter :: ident='run_box2'   ; double precision,parameter :: ident_dx=250, ident_dy=250, ident_dz=100,phi0=270
+      character(len=*),parameter :: ident='run_box2'   ; double precision,parameter :: ident_dx=250, ident_dy=250, ident_dz=100,phi0=270
 !      character(len=*),parameter :: ident='run_box4'   ; double precision,parameter :: ident_dx=70, ident_dy=70, ident_dz=100,phi0=270
 !      character(len=*),parameter :: ident='run_box4'   ; double precision,parameter :: ident_dx=2800, ident_dy=2800, ident_dz=100,phi0=270
-      character(len=*),parameter :: ident='run_cb'     ; double precision,parameter :: ident_dx=250, ident_dy=250, ident_dz=100,phi0=180
+!      character(len=*),parameter :: ident='run_cb'     ; double precision,parameter :: ident_dx=250, ident_dy=250, ident_dz=100,phi0=180
 !      character(len=*),parameter :: ident='run_cosmo1' ; double precision,parameter :: ident_dx=2800,ident_dy=2800,ident_dz=250,phi0=180
 !      character(len=*),parameter :: ident='run_cosmo2' ; double precision,parameter :: ident_dx=2800,ident_dy=2800,ident_dz=250,phi0=180
 !      character(len=*),parameter :: ident='run_cosmo3' ; double precision,parameter :: ident_dx=2800,ident_dy=2800,ident_dz=250,phi0=180
@@ -37,8 +36,6 @@ module petsc_ts
 
       double precision,parameter :: albedo=0.05, theta0=0, twostr_ratio=1_ireals !phi=azimuth ; theta=sza
 
-
-      PetscInt :: myid,numnodes
 
       type coord
         PetscInt :: xs,xe,ys,ye,zs,ze     ! local domain start and end indices
@@ -55,6 +52,7 @@ module petsc_ts
 
       PetscErrorCode :: ierr
       integer(iintegers) :: iierr
+      integer(mpiint) :: myid,numnodes,mpierr
 
       type t_optprop
         real(ireals) :: bg(3)=nil,fg(4)=nil
@@ -78,71 +76,53 @@ module petsc_ts
       if(errcode.ne.0) then
               if(present(str)) then
                       print *,'******** ERROR :: ',errcode,':: ',trim(str)
-                      call MPI_Abort(PETSC_COMM_WORLD,errcode,ierr)
+                      call MPI_Abort(PETSC_COMM_WORLD,errcode,mpierr)
               else
                       print *,'******** ERROR :: ',errcode
-                      call MPI_Abort(PETSC_COMM_WORLD,errcode,ierr)
+                      call MPI_Abort(PETSC_COMM_WORLD,errcode,mpierr)
               endif
-              call petscfinalize(ierr)
+              call petscfinalize(ierr) ;CHKERRQ(ierr)
               call exit()
        endif
        end subroutine
 
-elemental double precision function deg2rad(a)
-                double precision,intent(in) :: a
-                deg2rad = a*pi/180.
-        end function
-
       subroutine setup_grid()
-        PetscInt,parameter :: stencil_size=1
-        integer :: mpierr
         DMBoundaryType :: bp=DM_BOUNDARY_PERIODIC, bn=DM_BOUNDARY_NONE, bg=DM_BOUNDARY_GHOSTED
-        DMDAStencilType,parameter  :: stype=DMDA_STENCIL_BOX
 
-        call MPI_Comm_size( PETSC_COMM_WORLD, numnodes, mpierr)
         if(myid.eq.0.and.ldebug) print *,myid,'Setting up the DMDA grid for ',newgrid%Nx,newgrid%Ny,newgrid%Nz,'using ',numnodes,' nodes'
         
         if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C_diff'
-        C_diff%dof=10
-        call DMDACreate3d(PETSC_COMM_WORLD,bp,bp,bn,stype,       &
-                              -newgrid%Nx, -newgrid%Ny, -(newgrid%Nz+1),  &
-                              PETSC_DECIDE,PETSC_DECIDE,i1,    &
-                              i1*C_diff%dof,stencil_size,              &
-                              PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
-                              C_diff%da,ierr)
-        call setup_coords(C_diff)
+        call setup_dmda(C_diff, newgrid%Nz+1, bp, i10)
 
         if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C_dir'
-        C_dir%dof=8
         if(lcycle_dir) then
-          call DMDACreate3d(PETSC_COMM_WORLD,bp,bp,bn,stype,       &
-              -newgrid%Nx, -newgrid%Ny, -(newgrid%Nz+1),  &
-              PETSC_DECIDE,PETSC_DECIDE,i1,    &
-              i1*C_dir%dof,stencil_size,              &
-              PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
-              C_dir%da,ierr)
+          call setup_dmda(C_dir, newgrid%Nz+1, bp, i8)
         else
-          call DMDACreate3d(PETSC_COMM_WORLD,bg,bg,bn,stype,       &
-              -newgrid%Nx, -newgrid%Ny, -(newgrid%Nz+1),  &
-              PETSC_DECIDE,PETSC_DECIDE,i1,    &
-              i1*C_dir%dof,stencil_size,              &
-              PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
-              C_dir%da,ierr)
+          call setup_dmda(C_dir, newgrid%Nz+1, bg, i8)
         endif
-        call setup_coords(C_dir)
 
         if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C1'
-        C_one%dof=1
-        call DMDACreate3d(PETSC_COMM_WORLD,bp,bp,bn,stype,       &
-                              -newgrid%Nx, -newgrid%Ny, -(newgrid%Nz),  &
-                              PETSC_DECIDE,PETSC_DECIDE,i1,    &
-                              i1*C_one%dof,stencil_size,              &
-                              PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
-                              C_one%da,ierr)
-        call setup_coords(C_one)
+        call setup_dmda(C_one, newgrid%Nz, bp, i1)
 
         if(myid.eq.0.and.ldebug) print *,myid,'DMDA grid ready'
         contains
+          subroutine setup_dmda(C, Nz, boundary, dof)
+              type(coord) :: C
+              PetscInt,intent(in) :: Nz,dof
+              DMBoundaryType :: boundary
+              PetscInt,parameter :: stencil_size=1
+              C%dof = i1*dof
+              call DMDACreate3d( PETSC_COMM_WORLD  ,                                           &
+                                boundary           , boundary           , bn                 , &
+                                DMDA_STENCIL_STAR  ,                                           &
+                                -i1*newgrid%Nx     , -i1*newgrid%Ny     , -i1*Nz             , &
+                                PETSC_DECIDE       , PETSC_DECIDE       , i1                 , &
+                                C%dof              , stencil_size       ,                      &
+                                PETSC_NULL_INTEGER , PETSC_NULL_INTEGER , PETSC_NULL_INTEGER , &
+                                C%da               , ierr) ;CHKERRQ(ierr)
+              call setup_coords(C)
+              call DMSetup(C%da,ierr) ;CHKERRQ(ierr)
+          end subroutine
         subroutine setup_coords(C)
           type(coord) :: C
 
@@ -151,10 +131,10 @@ elemental double precision function deg2rad(a)
             PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
             PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
             PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
-            ierr)
+            ierr) ;CHKERRQ(ierr)
 
-          call DMDAGetCorners(C%da,C%xs,C%ys,C%zs, C%xm,C%ym,C%zm, ierr)
-          call DMDAGetGhostCorners(C%da,C%gxs,C%gys,C%gzs,C%gxm,C%gym,C%gzm,ierr)
+          call DMDAGetCorners(C%da,C%xs,C%ys,C%zs, C%xm,C%ym,C%zm, ierr) ;CHKERRQ(ierr)
+          call DMDAGetGhostCorners(C%da,C%gxs,C%gys,C%gzs,C%gxm,C%gym,C%gzm,ierr) ;CHKERRQ(ierr)
           C%xe = C%xs+C%xm-1
           C%ye = C%ys+C%ym-1
           C%ze = C%zs+C%zm-1
@@ -163,8 +143,8 @@ elemental double precision function deg2rad(a)
           if(ldebug) print *,myid,'Domain Corners z:: ',C%zs,':',C%ze,' (',C%zm,' entries)','global size',C%glob_zm
 
           allocate(C%neighbors(0:3**C%dim-1) )
-          call DMDAGetNeighbors(C%da,C%neighbors,ierr)
-          call DMSetUp(C%da,ierr)
+          call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;CHKERRQ(ierr)
+          call DMSetUp(C%da,ierr) ;CHKERRQ(ierr)
           if(ldebug.and.C%dim.eq.3) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,12,16,14]),'while I am ',C%neighbors(13)
           if(ldebug.and.C%dim.eq.2) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
         end subroutine
@@ -175,7 +155,7 @@ elemental double precision function deg2rad(a)
         double  precision info(MAT_INFO_SIZE)
         double  precision mal, nz_allocated, nz_used, nz_unneeded
 
-        call MatGetInfo(A,MAT_LOCAL,info,ierr)
+        call MatGetInfo(A,MAT_LOCAL,info,ierr) ;CHKERRQ(ierr)
         mal = info(MAT_INFO_MALLOCS)
         nz_allocated = info(MAT_INFO_NZ_ALLOCATED)
         nz_used   = info(MAT_INFO_NZ_USED)
@@ -185,51 +165,43 @@ elemental double precision function deg2rad(a)
         if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
 
       end subroutine
-      subroutine init_matrix(A,C)
+      subroutine init_Matrix(A,C)
         Mat :: A
         type(coord) :: C
 
-!        PetscInt :: Msize,Msize_glob
         PetscInt,dimension(:),allocatable :: o_nnz,d_nnz!,dnz
 
-        call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ; call chkerr(ierr,'Init Matrix :: DMSetMatrixPreallocateOnly')
-!        call MatCreate(PETSC_COMM_WORLD, A, ierr) ; call chkerr(ierr,'Init Matrix :: MatCreate')
-!
-!        Msize =  C%xm*C%ym*C%zm*C%dof 
-!        Msize_glob = C%glob_xm*C%glob_ym*C%glob_zm*C%dof
-!
-!        call MatSetSizes(A, Msize, Msize, Msize_glob, Msize_glob, ierr) ; call chkerr(ierr,'Init Matrix :: MatSetSizes')
+        call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+        call DMCreateMatrix(C%da, A, ierr) ;CHKERRQ(ierr)
+        call mat_info(A)
 
-        call DMCreateMatrix(C%da, A, ierr) ; call chkerr(ierr,'Init Matrix :: CreateMatrix')
-
-        call MatSetFromOptions(A,ierr) ; call chkerr(ierr,'Init Matrix :: Set Options')
+        call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
 
         ! Determine perfect preallocation
-        if(myid.eq.0.and.ldebug) print *,'determine preallocation for ',C%dof
-        select case (C%dof)
-                case(i3)
-                        call setup_dir_preallocation(d_nnz,o_nnz,C)
-                        call MatMPIAIJSetPreallocation(A, PETSC_NULL_INTEGER,d_nnz, PETSC_NULL_INTEGER, o_nnz, ierr) ; call chkerr(ierr,'Init Matrix :: MatMPIAIJSetPreallocation dir')
-                case(i8)
-                        call setup_dir8_preallocation(d_nnz,o_nnz,C)
-                        call MatMPIAIJSetPreallocation(A, PETSC_NULL_INTEGER,d_nnz, PETSC_NULL_INTEGER, o_nnz, ierr) ; call chkerr(ierr,'Init Matrix :: MatMPIAIJSetPreallocation dir 8streams')
-                case(i10)
-                        call setup_diff_preallocation(d_nnz,o_nnz,C)
-                        call MatMPIAIJSetPreallocation(A, PETSC_NULL_INTEGER,d_nnz, PETSC_NULL_INTEGER, o_nnz, ierr) ; call chkerr(ierr,'Init Matrix :: MatMPIAIJSetPreallocation diff')
-                case default
-                        ierr = C%dof
-                        call chkerr(ierr,'Dont know which preallocation routine I shall call! - exiting...')
-        end select
+        if(numnodes.gt.1) then
+          select case (C%dof)
+          case(i3)
+            call setup_dir_preallocation(d_nnz,o_nnz,C)
+          case(i8)
+            call setup_dir8_preallocation(d_nnz,o_nnz,C)
+          case(i10)
+            call setup_diff_preallocation(d_nnz,o_nnz,C)
+          case default
+            ierr = C%dof
+            call chkerr(ierr,'Dont know which preallocation routine I shall call! - exiting...')
+          end select
 
-        call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ; call chkerr(ierr,'Init Matrix :: MatSeqAIJSetPreallocation')
+          call MatMPIAIJSetPreallocation(A, PETSC_NULL_INTEGER,d_nnz, PETSC_NULL_INTEGER, o_nnz, ierr) ;CHKERRQ(ierr)
 
-        deallocate(o_nnz)
-        deallocate(d_nnz)
+          deallocate(o_nnz)
+          deallocate(d_nnz)
+        endif
 
-        !call MatMPIAIJSetPreallocation(A, C%dof+1, PETSC_NULL_INTEGER, C%dof, PETSC_NULL_INTEGER, ierr)
-        !call MatSeqAIJSetPreallocation(A, C%dof+1, PETSC_NULL_INTEGER, ierr) ; call chkerr(ierr,'Init Matrix :: MatSeqAIJSetPreallocation')
+        call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr)
+        call MatSetUp(A,ierr) ;CHKERRQ(ierr)
+        call mat_info(A)
 
-        call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr)
+        call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
 
         call mat_set_diagonal(A,C)
       end subroutine
@@ -240,35 +212,29 @@ elemental double precision function deg2rad(a)
         MatStencil :: row(4,1), col(4,1)
         PetscReal :: v(1)
 
-        character(100) :: errstr
-
         v(1)=one
         
         if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally'
         do k=C%zs,C%ze
-                row(MatStencil_k,1) = k
-                col(MatStencil_k,1) = k
+          row(MatStencil_k,1) = k
+          col(MatStencil_k,1) = k
 
-                do j=C%ys,C%ye 
-                        row(MatStencil_j,1) = j
-                        col(MatStencil_j,1) = j
+          do j=C%ys,C%ye 
+            row(MatStencil_j,1) = j
+            col(MatStencil_j,1) = j
 
-                        do i=C%xs,C%xe
-                                row(MatStencil_i,1) = i
-                                col(MatStencil_i,1) = i
+            do i=C%xs,C%xe
+              row(MatStencil_i,1) = i
+              col(MatStencil_i,1) = i
 
-                                do dof=0,C%dof-1
-                                        row(MatStencil_c,1) = dof
-                                        col(MatStencil_c,1) = dof
-                                        
-                                        call MatSetValuesStencil(A,i1, row,i1, col , v ,INSERT_VALUES,ierr) 
-                                        if(ldebug) then
-                                                write(errstr,FMT='("mat_set_diagonal :: MatSetValuesStencil",I0,".",I0,".",I0,".",I0)' ) dof,i,j,k
-                                                call chkerr(ierr,errstr)
-                                        endif
-                                enddo 
-                        enddo 
-                enddo 
+              do dof=0,C%dof-1
+                row(MatStencil_c,1) = dof
+                col(MatStencil_c,1) = dof
+
+                call MatSetValuesStencil(A,i1, row,i1, col , v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr) 
+              enddo 
+            enddo 
+          enddo 
         enddo
         if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally ... done'
       end subroutine
@@ -279,16 +245,16 @@ elemental double precision function deg2rad(a)
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
-        PetscInt :: vsize !,mrows,mcols, i,j,k,dof,li,lj,lk
+        PetscInt :: vsize
 
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
         PetscInt,parameter :: ind(9)=[E_up,E_le_m,E_le_p,E_ri_m,E_ri_p,E_ba_m,E_ba_p,E_fw_m,E_fw_p]
 
-        call DMCreateGlobalVector(C%da,v_o_nnz,ierr)
-        call DMCreateGlobalVector(C%da,v_d_nnz,ierr)
-        call DMDAVecGetArrayF90(C%da,v_o_nnz,xo,ierr)
-        call DMDAVecGetArrayF90(C%da,v_d_nnz,xd,ierr)
+        call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+        call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
 
         xo = i0
         xd = i1
@@ -403,22 +369,22 @@ elemental double precision function deg2rad(a)
 !          enddo
 !        endif
 
-        call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr)
-        call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr)
+        call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
         
-        call VecGetLocalSize(v_o_nnz,vsize,ierr)
+        call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
         allocate(o_nnz(0:vsize-1))
         allocate(d_nnz(0:vsize-1))
 
-        call VecGetArrayF90(v_o_nnz,xx_v_o,ierr)
-        call VecGetArrayF90(v_d_nnz,xx_v_d,ierr)
+        call VecGetArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
+        call VecGetArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
         o_nnz=int(xx_v_o)
         d_nnz=int(xx_v_d)
-        call VecRestoreArrayF90(v_o_nnz,xx_v_o,ierr)
-        call VecRestoreArrayF90(v_d_nnz,xx_v_d,ierr)
+        call VecRestoreArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
+        call VecRestoreArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
 
-        call VecDestroy(v_o_nnz,ierr)
-        call VecDestroy(v_d_nnz,ierr)
+        call VecDestroy(v_o_nnz,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(v_d_nnz,ierr) ;CHKERRQ(ierr)
 
         if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
       end subroutine 
@@ -435,11 +401,11 @@ elemental double precision function deg2rad(a)
 
         logical :: lsun_east,lsun_north
 
-!        if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
-        call DMCreateGlobalVector(C%da,v_o_nnz,ierr)
-        call DMCreateGlobalVector(C%da,v_d_nnz,ierr)
-        call DMDAVecGetArrayF90(C%da,v_o_nnz,xo,ierr)
-        call DMDAVecGetArrayF90(C%da,v_d_nnz,xd,ierr)
+        if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
+        call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+        call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
 
         xo = i0
         xd = i1
@@ -514,22 +480,22 @@ elemental double precision function deg2rad(a)
 !          enddo
 !        endif
 
-        call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr)
-        call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr)
+        call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
         
-        call VecGetLocalSize(v_o_nnz,vsize,ierr)
+        call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
         allocate(o_nnz(0:vsize-1))
         allocate(d_nnz(0:vsize-1))
 
-        call VecGetArrayF90(v_o_nnz,xx_v_o,ierr)
-        call VecGetArrayF90(v_d_nnz,xx_v_d,ierr)
+        call VecGetArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
+        call VecGetArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
         o_nnz=int(xx_v_o)
         d_nnz=int(xx_v_d)
-        call VecRestoreArrayF90(v_o_nnz,xx_v_o,ierr)
-        call VecRestoreArrayF90(v_d_nnz,xx_v_d,ierr)
+        call VecRestoreArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
+        call VecRestoreArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
 
-        call VecDestroy(v_o_nnz,ierr)
-        call VecDestroy(v_d_nnz,ierr)
+        call VecDestroy(v_o_nnz,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(v_d_nnz,ierr) ;CHKERRQ(ierr)
 
         if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
       end subroutine 
@@ -547,10 +513,10 @@ elemental double precision function deg2rad(a)
         logical :: lsun_east,lsun_north
 
 !        if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
-        call DMCreateGlobalVector(C%da,v_o_nnz,ierr)
-        call DMCreateGlobalVector(C%da,v_d_nnz,ierr)
-        call DMDAVecGetArrayF90(C%da,v_o_nnz,xo,ierr)
-        call DMDAVecGetArrayF90(C%da,v_d_nnz,xd,ierr)
+        call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+        call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
 
         xo = i0
         xd = i1
@@ -625,22 +591,22 @@ elemental double precision function deg2rad(a)
 !          enddo
 !        endif
 
-        call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr)
-        call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr)
+        call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
         
-        call VecGetLocalSize(v_o_nnz,vsize,ierr)
+        call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
         allocate(o_nnz(0:vsize-1))
         allocate(d_nnz(0:vsize-1))
 
-        call VecGetArrayF90(v_o_nnz,xx_v_o,ierr)
-        call VecGetArrayF90(v_d_nnz,xx_v_d,ierr)
+        call VecGetArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
+        call VecGetArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
         o_nnz=int(xx_v_o)
         d_nnz=int(xx_v_d)
-        call VecRestoreArrayF90(v_o_nnz,xx_v_o,ierr)
-        call VecRestoreArrayF90(v_d_nnz,xx_v_d,ierr)
+        call VecRestoreArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
+        call VecRestoreArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
 
-        call VecDestroy(v_o_nnz,ierr)
-        call VecDestroy(v_d_nnz,ierr)
+        call VecDestroy(v_o_nnz,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(v_d_nnz,ierr) ;CHKERRQ(ierr)
 
         if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
       end subroutine 
@@ -663,7 +629,7 @@ elemental double precision function deg2rad(a)
                ! 4: neural network with cloud fraction
 
 !               integer(iintegers),parameter :: coeff_mode=2
-               call PetscLogStagePush(logstage(7),ierr)
+               call PetscLogStagePush(logstage(7),ierr) ;CHKERRQ(ierr)
 
                kabs = op%bg(1) 
                ksca = op%bg(2) 
@@ -716,7 +682,7 @@ elemental double precision function deg2rad(a)
                if(ldebug) then
                  if( any(isnan(coeff)) .or. any(coeff.lt.zero) .or. any(coeff.gt.one) ) print *,'Wrong coeff',coeff,'op',op
                endif
-            call PetscLogStagePop(ierr)
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
         end subroutine
 double precision function sym_rot_phi(phi0)
   double precision,intent(in) :: phi0
@@ -731,6 +697,7 @@ subroutine setup_dir_inc(phi0,symmetry_phi)
   double precision,intent(in) :: phi0
   double precision,intent(out) :: symmetry_phi
   ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
+  if(ldebug) print *,'setup_dir_inc'
   symmetry_phi = sym_rot_phi(phi0)
   xinc=i0 ; yinc=i0
   if(phi0.gt.180) xinc=i1
@@ -807,14 +774,14 @@ subroutine set_dir_coeff(A,C)
             v(entries+src) = coeffs( i1+(src-i1)*C%dof : src*C%dof )
           enddo
 
-          call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr)
+          call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
         enddo ; enddo ; enddo
 
         if(myid.eq.0.and.ldebug) print *,myid,'setup_direct_matrix done'
 
-        call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ; call chkerr(ierr,'Set direct coeff :: MatAssemblyBegin')
-        call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ; call chkerr(ierr,'Set direct coeff :: MatAssemblyEnd')
+        call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
+        call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)  
 
         end subroutine
 
@@ -827,11 +794,11 @@ subroutine set_dir_coeff(A,C)
 
           PetscReal :: edirTOA
 
-          call VecSet(incSolar,zero,ierr)
+          call VecSet(incSolar,zero,ierr) ;CHKERRQ(ierr)
 
           edirTOA = get_edirTOA(kato,iq,newgrid%z(1))
 
-          call DMDAVecGetArrayF90(C_dir%da,incSolar,xincSolar,ierr)
+          call DMDAVecGetArrayF90(C_dir%da,incSolar,xincSolar,ierr) ;CHKERRQ(ierr)
           do j=C_dir%ys,C_dir%ye
             do i=C_dir%xs,C_dir%xe        ! i,j,k indices are defined on petsc global grid
               li = istartpar+i-C_dir%xs ! l-indices are used for local arrays, 
@@ -841,7 +808,7 @@ subroutine set_dir_coeff(A,C)
             enddo
           enddo
 
-          call DMDAVecRestoreArrayF90(C_dir%da,incSolar,xincSolar,ierr)
+          call DMDAVecRestoreArrayF90(C_dir%da,incSolar,xincSolar,ierr) ;CHKERRQ(ierr)
           if(myid.eq.0.and.ldebug) print *,myid,'Setup of IncSolar done'
 
         end subroutine
@@ -938,15 +905,15 @@ subroutine set_diff_coeff(A,C)
           v(entries+src) = coeffs( i1+(src-i1)*C%dof : src*C%dof )
         enddo
 
-        call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr)
+        call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
       enddo ; enddo ; enddo
       if(myid.eq.0.and.ldebug) print *,myid,'setup_diffuse_matrix done'
 
       if(myid.eq.0.and.ldebug) print *,myid,'Final diffuse Matrix Assembly:'
-      call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr)
-      call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr)
-      call MatSetOption(A,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE, ierr)
+      call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
+      call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
+      call MatSetOption(A,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE, ierr) ;CHKERRQ(ierr)
 end subroutine
  
 subroutine setup_b(edir,kato,iq,b)
@@ -963,13 +930,13 @@ subroutine setup_b(edir,kato,iq,b)
         
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly...'
 
-        call VecSet(b,zero,ierr)
+        call VecSet(b,zero,ierr) ;CHKERRQ(ierr)
 
-        call DMCreateLocalVector(C_diff%da,local_b,ierr)
-        call VecSet(local_b,zero,ierr)
+        call DMCreateLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
+        call VecSet(local_b,zero,ierr) ;CHKERRQ(ierr)
 
-        call DMDAVecGetArrayF90(C_diff%da,local_b,xsrc,ierr)
-        call DMDAVecGetArrayF90(C_dir%da,edir,xedir,ierr)
+        call DMDAVecGetArrayF90(C_diff%da,local_b,xsrc,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C_dir%da,edir,xedir,ierr) ;CHKERRQ(ierr)
 
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients'
         do k=C_diff%zs,C_diff%ze-1 
@@ -1034,13 +1001,13 @@ subroutine setup_b(edir,kato,iq,b)
 
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients ...done'
 
-        call DMDAVecRestoreArrayF90(C_dir%da,edir,xedir,ierr)
-        call DMDAVecRestoreArrayF90(C_diff%da,local_b,xsrc,ierr)
+        call DMDAVecRestoreArrayF90(C_dir%da,edir,xedir,ierr) ;CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C_diff%da,local_b,xsrc,ierr) ;CHKERRQ(ierr)
 
-        call DMLocalToGlobalBegin(C_diff%da,local_b,ADD_VALUES, b,ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
-        call DMLocalToGlobalEnd  (C_diff%da,local_b,ADD_VALUES, b,ierr)
+        call DMLocalToGlobalBegin(C_diff%da,local_b,ADD_VALUES, b,ierr) ;CHKERRQ(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
+        call DMLocalToGlobalEnd  (C_diff%da,local_b,ADD_VALUES, b,ierr) ;CHKERRQ(ierr)
 
-        call VecDestroy(local_b,ierr)
+        call VecDestroy(local_b,ierr) ;CHKERRQ(ierr)
 
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly done'
 end subroutine
@@ -1251,20 +1218,20 @@ subroutine calc_flx_div(edir,ediff,abso)
         PetscReal :: div(13),Ax,Ay,Az
 
         if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence'
-        call VecSet(abso,zero,ierr)
+        call VecSet(abso,zero,ierr) ;CHKERRQ(ierr)
         
-        call DMCreateLocalVector(C_diff%da,lediff,ierr) ; call VecSet(lediff,zero,ierr)
-        call DMCreateLocalVector(C_dir%da ,ledir ,ierr) ; call VecSet(ledir ,zero,ierr)
-        call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr)
-        call DMGlobalToLocalEnd(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr)
+        call DMCreateLocalVector(C_diff%da,lediff,ierr) ;CHKERRQ(ierr) ; call VecSet(lediff,zero,ierr) ;CHKERRQ(ierr)
+        call DMCreateLocalVector(C_dir%da ,ledir ,ierr) ;CHKERRQ(ierr) ; call VecSet(ledir ,zero,ierr) ;CHKERRQ(ierr)
+        call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ;CHKERRQ(ierr)
+        call DMGlobalToLocalEnd(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ;CHKERRQ(ierr)
 
-        call DMGlobalToLocalBegin(C_diff%da,ediff,ADD_VALUES,lediff,ierr)
-        call DMGlobalToLocalEnd(C_diff%da,ediff,ADD_VALUES,lediff,ierr)
+        call DMGlobalToLocalBegin(C_diff%da,ediff,ADD_VALUES,lediff,ierr) ;CHKERRQ(ierr)
+        call DMGlobalToLocalEnd(C_diff%da,ediff,ADD_VALUES,lediff,ierr) ;CHKERRQ(ierr)
 
         ! calculate absorption by flux divergence
-        call DMDAVecGetArrayF90(C_diff%da,lediff,xediff,ierr)
-        call DMDAVecGetArrayF90(C_dir%da ,ledir ,xedir ,ierr)
-        call DMDAVecGetArrayF90(C_one%da ,abso ,xabso ,ierr)
+        call DMDAVecGetArrayF90(C_diff%da,lediff,xediff,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C_dir%da ,ledir ,xedir ,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C_one%da ,abso ,xabso ,ierr) ;CHKERRQ(ierr)
 
         do k=C_one%zs,C_one%ze
         do j=C_one%ys,C_one%ye         
@@ -1297,12 +1264,12 @@ subroutine calc_flx_div(edir,ediff,abso)
         enddo                             
         enddo   
         
-        call DMDAVecRestoreArrayF90(C_one%da ,abso ,xabso ,ierr)
-        call DMDAVecRestoreArrayF90(C_diff%da,lediff,xediff,ierr)
-        call DMDAVecRestoreArrayF90(C_dir%da ,ledir ,xedir ,ierr)
+        call DMDAVecRestoreArrayF90(C_one%da ,abso ,xabso ,ierr) ;CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C_diff%da,lediff,xediff,ierr) ;CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C_dir%da ,ledir ,xedir ,ierr) ;CHKERRQ(ierr)
         
-        call VecDestroy(lediff,ierr)
-        call VecDestroy(ledir ,ierr)
+        call VecDestroy(lediff,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(ledir ,ierr) ;CHKERRQ(ierr)
 end subroutine
 
 subroutine scale_flx(edir,ediff)
@@ -1312,8 +1279,8 @@ subroutine scale_flx(edir,ediff)
         PetscReal :: Ax,Ay,Az
 
         if(myid.eq.0.and.ldebug) print *,'rescaling fluxes'
-        call DMDAVecGetArrayF90(C_diff%da,ediff,xediff,ierr)
-        call DMDAVecGetArrayF90(C_dir%da ,edir ,xedir ,ierr)
+        call DMDAVecGetArrayF90(C_diff%da,ediff,xediff,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C_dir%da ,edir ,xedir ,ierr) ;CHKERRQ(ierr)
         ! rescale total energy fluxes to average quantities i.e. W/m**2 or W/m**3
         do k=C_one%zs,C_one%ze
         do j=C_one%ys,C_one%ye         
@@ -1356,35 +1323,10 @@ subroutine scale_flx(edir,ediff)
         enddo
         enddo
 
-        call DMDAVecRestoreArrayF90(C_diff%da,ediff,xediff,ierr)
-        call DMDAVecRestoreArrayF90(C_dir%da ,edir ,xedir ,ierr)
+        call DMDAVecRestoreArrayF90(C_diff%da,ediff,xediff,ierr) ;CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C_dir%da ,edir ,xedir ,ierr) ;CHKERRQ(ierr)
 end subroutine
 
-subroutine hdf5_to_vec(v,ie)
-      Vec :: v
-      PetscErrorCode,intent(out) :: ie
-
-      character(10),parameter :: suffix='.h5'
-      character(110) :: fname
-      logical fexists
-      PetscFileMode :: fmode
-      PetscViewer :: view
-
-      fname = trim(basepath) // 'ts.' // trim(ident)  // trim(suffix)
-      inquire(file=trim(fname), exist=fexists)
-      
-      if(fexists) then
-        if(myid.eq.0)  print *,myid,'loading vector-data from hdf5 file',trim(fname)
-        fmode = FILE_MODE_READ
-      else 
-          ie=-1
-          return
-      endif
-
-      call PetscViewerHDF5Open(PETSC_COMM_WORLD,trim(fname),fmode, view, ierr)
-      call VecLoad(v, view, ie)
-      call PetscViewerDestroy(view,ierr)
-end subroutine
 subroutine vec_from_hdf5(v,err_code)
       Vec :: v
       character(10),parameter :: suffix='.h5'
@@ -1398,7 +1340,7 @@ subroutine vec_from_hdf5(v,err_code)
       PetscViewer view
       PetscErrorCode ierr
 
-      call PetscObjectGetName(v,vecname,ierr)
+      call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
 
       write(s_theta0,FMT='(".",I0)' ) int(theta0)
       
@@ -1408,9 +1350,9 @@ subroutine vec_from_hdf5(v,err_code)
       if(myid.eq.0)  print *,myid,'reading vector from hdf5 file ',trim(fname),' vecname: ',vecname
       fmode = FILE_MODE_READ
 
-      call PetscViewerHDF5Open(PETSC_COMM_WORLD,trim(fname),fmode, view, ierr)
+      call PetscViewerHDF5Open(PETSC_COMM_WORLD,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
       call VecLoad(v, view, err_code)
-      call PetscViewerDestroy(view,ierr)
+      call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
       if(myid.eq.0.and.ldebug) print *,myid,'reading from hdf5 file done :: error:',err_code
 end subroutine
 subroutine vec_to_hdf5(v)
@@ -1424,7 +1366,7 @@ subroutine vec_to_hdf5(v)
       PetscViewer view
       PetscErrorCode ierr
 
-      call PetscObjectGetName(v,vecname,ierr)
+      call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
 
       write(s_theta0,FMT='(".",I0)' ) int(theta0)
       
@@ -1439,9 +1381,9 @@ subroutine vec_to_hdf5(v)
         fmode = FILE_MODE_WRITE
       endif
 
-      call PetscViewerHDF5Open(PETSC_COMM_WORLD,trim(fname),fmode, view, ierr)
-      call VecView(v, view, ierr)
-      call PetscViewerDestroy(view,ierr)
+      call PetscViewerHDF5Open(PETSC_COMM_WORLD,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
+      call VecView(v, view, ierr) ;CHKERRQ(ierr)
+      call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
       if(myid.eq.0.and.ldebug) print *,myid,'writing to hdf5 file done'
 end subroutine
 
@@ -1457,24 +1399,24 @@ subroutine solve(ksp,b,A,x,C)
 
       if(myid.eq.0.and.ldebug) print *,'Solving Matrix'
 
-      call KSPSetOperators(ksp,A,A,ierr)
-!      call KSPSetOperators(ksp,A,A,SAME_NONZERO_PATTERN,ierr)
-!      call KSPSetOperators(ksp,A,A,DIFFERENT_NONZERO_PATTERN,ierr)
+      call KSPSetOperators(ksp,A,A,ierr) ;CHKERRQ(ierr)
+!      call KSPSetOperators(ksp,A,A,SAME_NONZERO_PATTERN,ierr) ;CHKERRQ(ierr)
+!      call KSPSetOperators(ksp,A,A,DIFFERENT_NONZERO_PATTERN,ierr) ;CHKERRQ(ierr)
 
-      call KSPSetFromOptions(ksp,ierr)
-      call KSPSetDM(ksp,C%da,ierr)
-      call KSPSetDMActive(ksp,PETSC_FALSE,ierr)
-      call KSPSetUp(ksp,ierr)
+      call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
+      call KSPSetDM(ksp,C%da,ierr) ;CHKERRQ(ierr)
+      call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
+      call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
 
-      call KSPSolve(ksp,b,x,ierr)
-      call KSPGetIterationNumber(ksp,iter,ierr)
-      call KSPGetConvergedReason(ksp,reason,ierr)
+      call KSPSolve(ksp,b,x,ierr) ;CHKERRQ(ierr)
+      call KSPGetIterationNumber(ksp,iter,ierr) ;CHKERRQ(ierr)
+      call KSPGetConvergedReason(ksp,reason,ierr) ;CHKERRQ(ierr)
 
 !      print *,'Source Vector:'
-!      call VecView(b,PETSC_VIEWER_STDOUT_WORLD ,ierr)
+!      call VecView(b,PETSC_VIEWER_STDOUT_WORLD ,ierr) ;CHKERRQ(ierr)
 !
 !      print *,'Solution Vector:'
-!      call VecView(x,PETSC_VIEWER_STDOUT_WORLD ,ierr)
+!      call VecView(x,PETSC_VIEWER_STDOUT_WORLD ,ierr) ;CHKERRQ(ierr)
 
       if(myid.eq.0) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
       if(reason.eq.KSP_DIVERGED_ITS) then
@@ -1484,10 +1426,10 @@ subroutine solve(ksp,b,A,x,C)
 
       if(reason.le.0) then
               if(myid.eq.0) print *,myid,'Resetted initial guess to zero and try again:'
-              call VecSet(x,zero,ierr)
-              call KSPSolve(ksp,b,x,ierr)
-              call KSPGetIterationNumber(ksp,iter,ierr)
-              call KSPGetConvergedReason(ksp,reason,ierr)
+              call VecSet(x,zero,ierr) ;CHKERRQ(ierr)
+              call KSPSolve(ksp,b,x,ierr) ;CHKERRQ(ierr)
+              call KSPGetIterationNumber(ksp,iter,ierr) ;CHKERRQ(ierr)
+              call KSPGetConvergedReason(ksp,reason,ierr) ;CHKERRQ(ierr)
               if(myid.eq.0) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
       endif
 
@@ -1498,7 +1440,7 @@ subroutine solve(ksp,b,A,x,C)
 end subroutine
 subroutine setup_ksp(ksp)
       KSP :: ksp
-      call KSPCreate(PETSC_COMM_WORLD,ksp,ierr)
+      call KSPCreate(PETSC_COMM_WORLD,ksp,ierr) ;CHKERRQ(ierr)
 
 end subroutine
 
@@ -1519,16 +1461,17 @@ program main
 
         character(100) :: vecname
 
-        call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
-        call MPI_COMM_RANK( PETSC_COMM_WORLD, myid, ierr )
+        call PetscInitialize(PETSC_NULL_CHARACTER,ierr) ;CHKERRQ(ierr)
+        call MPI_COMM_RANK( PETSC_COMM_WORLD, myid, mpierr )
+        call MPI_Comm_size( PETSC_COMM_WORLD, numnodes, mpierr)
 
-        call PetscLogStageRegister('total_tenstream',logstage(1), ierr)
-        call PetscLogStageRegister('setup_edir',logstage(2), ierr)
-        call PetscLogStageRegister('calc_edir',logstage(3), ierr)
-        call PetscLogStageRegister('setup_ediff',logstage(4), ierr)
-        call PetscLogStageRegister('calc_ediff',logstage(5), ierr)
-        call PetscLogStageRegister('setup_b',logstage(6), ierr)
-        call PetscLogStageRegister('get_coeff',logstage(7), ierr)
+        call PetscLogStageRegister('total_tenstream',logstage(1), ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('setup_edir',logstage(2), ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('calc_edir',logstage(3), ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('setup_ediff',logstage(4), ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('calc_ediff',logstage(5), ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('setup_b',logstage(6), ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('get_coeff',logstage(7), ierr) ;CHKERRQ(ierr)
         print *,'Loggin stages',logstage
 
         if(ltest) then
@@ -1540,41 +1483,43 @@ program main
         call setup_grid()
 
         ! Write the result vectors once, to ensure that we are able to write the results
-        call DMCreateGlobalVector(C_diff%da,intx,ierr)
-        write(vecname,FMT='("ediff.",I0,".",I0)') int(phi0),int(theta0); call PetscObjectSetName(intx,vecname,ierr)
-        call VecSet(intx,zero,ierr)
+        call DMCreateGlobalVector(C_diff%da,intx,ierr) ;CHKERRQ(ierr)
+        write(vecname,FMT='("ediff.",I0,".",I0)') int(phi0),int(theta0); call PetscObjectSetName(intx,vecname,ierr) ;CHKERRQ(ierr)
+        call VecSet(intx,zero,ierr) ;CHKERRQ(ierr)
 !        call vec_to_hdf5(intx)
 
-        call DMCreateGlobalVector(C_dir%da,intedir,ierr)
-        write(vecname,FMT='("edir.",I0,".",I0)') int(phi0),int(theta0); call PetscObjectSetName(intedir,vecname,ierr)
-        call VecSet(intedir,zero,ierr)
+        call DMCreateGlobalVector(C_dir%da,intedir,ierr) ;CHKERRQ(ierr)
+        write(vecname,FMT='("edir.",I0,".",I0)') int(phi0),int(theta0); call PetscObjectSetName(intedir,vecname,ierr) ;CHKERRQ(ierr)
+        call VecSet(intedir,zero,ierr) ;CHKERRQ(ierr)
 !        call vec_to_hdf5(intedir)
 
-        call DMCreateGlobalVector(C_one%da,abso,ierr)
-        write(vecname,FMT='("abso.",I0,".",I0)') int(phi0),int(theta0); call PetscObjectSetName(abso,vecname,ierr)
-        call VecSet(abso,zero,ierr)
+        call DMCreateGlobalVector(C_one%da,abso,ierr) ;CHKERRQ(ierr)
+        write(vecname,FMT='("abso.",I0,".",I0)') int(phi0),int(theta0); call PetscObjectSetName(abso,vecname,ierr) ;CHKERRQ(ierr)
+        call VecSet(abso,zero,ierr) ;CHKERRQ(ierr)
 !        call vec_to_hdf5(abso)
 
         call setup_dir_inc(phi0,symmetry_phi)
-
-        call OPP_8_10%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD)
-        call OPP_1_2%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) 
 
         ! Create Objects to work with
         call init_Matrix(Mdir,C_dir)
         call init_Matrix(Mdiff,C_diff)
         call setup_ksp(kspdir)
-        call KSPAppendOptionsPrefix(kspdir,"dir_",ierr)
+        call KSPAppendOptionsPrefix(kspdir,"dir_",ierr) ;CHKERRQ(ierr)
         call setup_ksp(kspdiff)
-        call KSPAppendOptionsPrefix(kspdiff,"diff_",ierr)
+        call KSPAppendOptionsPrefix(kspdiff,"diff_",ierr) ;CHKERRQ(ierr)
 
-        call DMCreateGlobalVector(C_dir%da,edir,ierr)
-        call DMCreateGlobalVector(C_dir%da,incSolar,ierr)
-        call DMCreateGlobalVector(C_diff%da,b,ierr)
-        call DMCreateGlobalVector(C_diff%da,x,ierr)
+        call DMCreateGlobalVector(C_dir%da,edir,ierr) ;CHKERRQ(ierr)
+        call DMCreateGlobalVector(C_dir%da,incSolar,ierr) ;CHKERRQ(ierr)
+        call DMCreateGlobalVector(C_diff%da,b,ierr) ;CHKERRQ(ierr)
+        call DMCreateGlobalVector(C_diff%da,x,ierr) ;CHKERRQ(ierr)
 
-        call VecSet(edir,zero,ierr)
-        call VecSet(x,zero,ierr)
+        call VecSet(edir,zero,ierr) ;CHKERRQ(ierr)
+        call VecSet(x,zero,ierr) ;CHKERRQ(ierr)
+
+        !Init optical Property Mechanisms
+        call OPP_8_10%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD)
+        call OPP_1_2%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) 
+
 
         do kato=1,32
 !                  do kato=11,11
@@ -1586,9 +1531,9 @@ program main
 
             !First try reading them from file and we can resume from there:
             if(l_writeall) then
-              write(vecname,FMT='("edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr)
+              write(vecname,FMT='("edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr) ;CHKERRQ(ierr)
               call vec_from_hdf5(edir,ierr)
-              write(vecname,FMT='("x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr)
+              write(vecname,FMT='("x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
               call vec_from_hdf5(x,ierr)
             endif
 
@@ -1599,64 +1544,64 @@ program main
             endif
             call local_optprop(pcc_optprop)
 
-            call PetscLogStagePush(logstage(1),ierr)
+            call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate Edir'
-            call PetscLogStagePush(logstage(2),ierr)
+            call PetscLogStagePush(logstage(2),ierr) ;CHKERRQ(ierr)
             call set_dir_coeff(Mdir,C_dir)
             call setup_incSolar(incSolar,kato,iq)
             if(l_writeall) then
-              write(vecname,FMT='("incSolar.",I0,".",I0)') kato,iq; call PetscObjectSetName(incSolar,vecname,ierr)
+              write(vecname,FMT='("incSolar.",I0,".",I0)') kato,iq; call PetscObjectSetName(incSolar,vecname,ierr) ;CHKERRQ(ierr)
               call vec_to_hdf5(incSolar)
             endif
-            call PetscLogStagePop(ierr)
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
-            call PetscLogStagePush(logstage(3),ierr)
+            call PetscLogStagePush(logstage(3),ierr) ;CHKERRQ(ierr)
             call solve(kspdir,incSolar,Mdir,edir,C_dir)
             if(l_writeall) then
-              write(vecname,FMT='("edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr)
+              write(vecname,FMT='("edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr) ;CHKERRQ(ierr)
               call vec_to_hdf5(edir)
             endif
-            call PetscLogStagePop(ierr)
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate diffuse src term'
-            call PetscLogStagePush(logstage(6),ierr)
+            call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
             call setup_b(edir,kato,iq,b)
             if(l_writeall) then
-              write(vecname,FMT='("b.",I0,".",I0)') kato,iq; call PetscObjectSetName(b,vecname,ierr)
+              write(vecname,FMT='("b.",I0,".",I0)') kato,iq; call PetscObjectSetName(b,vecname,ierr) ;CHKERRQ(ierr)
               call vec_to_hdf5(b)
             endif
-            call PetscLogStagePop(ierr)
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate diffuse Radition'
-            call PetscLogStagePush(logstage(4),ierr)
+            call PetscLogStagePush(logstage(4),ierr) ;CHKERRQ(ierr)
             call set_diff_coeff(Mdiff,C_diff)
-            call PetscLogStagePop(ierr)
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
-            call PetscLogStagePush(logstage(5),ierr)
+            call PetscLogStagePush(logstage(5),ierr) ;CHKERRQ(ierr)
             call solve(kspdiff,b,Mdiff,x,C_diff)
-            call PetscLogStagePop(ierr)
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(l_writeall) then
-              write(vecname,FMT='("x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr)
+              write(vecname,FMT='("x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
               call vec_to_hdf5(x)
             endif
-            call VecAXPY(intedir,one,edir,ierr)
-            call VecAXPY(intx,one,x,ierr)
+            call VecAXPY(intedir,one,edir,ierr) ;CHKERRQ(ierr)
+            call VecAXPY(intx,one,x,ierr) ;CHKERRQ(ierr)
 
-            call PetscLogStagePop(ierr)
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
           enddo
         enddo
 
-        call VecDestroy(incSolar,ierr)
-        call VecDestroy(edir,ierr)
-        call VecDestroy(b,ierr)
-        call VecDestroy(x,ierr)
-        call MatDestroy(Mdir,ierr)
-        call MatDestroy(Mdiff,ierr)
+        call VecDestroy(incSolar,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(edir,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(b,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(x,ierr) ;CHKERRQ(ierr)
+        call MatDestroy(Mdir,ierr) ;CHKERRQ(ierr)
+        call MatDestroy(Mdiff,ierr) ;CHKERRQ(ierr)
 
-        call KSPDestroy(kspdir,ierr)
-        call KSPDestroy(kspdiff,ierr)
+        call KSPDestroy(kspdir,ierr) ;CHKERRQ(ierr)
+        call KSPDestroy(kspdiff,ierr) ;CHKERRQ(ierr)
 
         print *,'scale Energy from W to W/m^2 or W/m^3'
         call scale_flx(intedir,intx)
@@ -1669,10 +1614,10 @@ program main
         call vec_to_hdf5(intx)
 
         print *,'Cleanup Result vectors'
-        call VecDestroy(intedir,ierr)
-        call VecDestroy(intx,ierr)
-        call VecDestroy(abso,ierr)
+        call VecDestroy(intedir,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(intx,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(abso,ierr) ;CHKERRQ(ierr)
 
         !!        if(myid.eq.0) read(*,*) iter
-        call PetscFinalize(ierr)
+        call PetscFinalize(ierr) ;CHKERRQ(ierr)
 end program

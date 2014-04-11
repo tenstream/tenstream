@@ -197,6 +197,7 @@ subroutine loadLUT_diff(OPP, comm)
       call exit() !> \todo: We exit here in order to split the jobs for shorter runtime.
     endif
 
+    if(myid.eq.0) deallocate(OPP%diffLUT%S%stddev_rtol)
     if(myid.eq.0) print *,'Done loading diffuse OPP%diffLUTs'
 end subroutine
 subroutine loadLUT_dir(OPP, azis,szas, comm)
@@ -298,6 +299,8 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
           call exit() !> \todo: We exit here in order to split the jobs for shorter runtime.
         endif
 
+        if(myid.eq.0) deallocate(OPP%dirLUT%S(iphi,itheta)%stddev_rtol)
+        if(myid.eq.0) deallocate(OPP%dirLUT%T(iphi,itheta)%stddev_rtol)
       enddo
     enddo
 
