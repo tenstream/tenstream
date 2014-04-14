@@ -25,7 +25,7 @@ module petsc_ts
 !      character(len=*),parameter :: ident='run_test'   ; double precision,parameter :: ident_dx=67, ident_dy=67, ident_dz=100,phi0=270 ; logical,parameter ::ltest=.True.
 !                                                                                                                              
 !      character(len=*),parameter :: ident='run_box2'   ; double precision,parameter :: ident_dx=500, ident_dy=500, ident_dz=100,phi0=270
-      character(len=*),parameter :: ident='run_box2'   ; double precision,parameter :: ident_dx=250, ident_dy=250, ident_dz=100,phi0=270
+      character(len=20) :: ident   ; double precision :: ident_dx, ident_dy, ident_dz=nil,phi0=nil
 !      character(len=*),parameter :: ident='run_box4'   ; double precision,parameter :: ident_dx=70, ident_dy=70, ident_dz=100,phi0=270
 !      character(len=*),parameter :: ident='run_box4'   ; double precision,parameter :: ident_dx=2800, ident_dy=2800, ident_dz=100,phi0=270
 !      character(len=*),parameter :: ident='run_cb'     ; double precision,parameter :: ident_dx=250, ident_dy=250, ident_dz=100,phi0=180
@@ -34,7 +34,7 @@ module petsc_ts
 !      character(len=*),parameter :: ident='run_cosmo3' ; double precision,parameter :: ident_dx=2800,ident_dy=2800,ident_dz=250,phi0=180
 !      character(len=*),parameter :: ident='run_i3rc1'  ; double precision,parameter :: ident_dx=66.7,ident_dy=66.7,ident_dz=100,phi0=180
 
-      double precision,parameter :: albedo=0.05, theta0=0, twostr_ratio=1_ireals !phi=azimuth ; theta=sza
+      double precision :: albedo=0.05, theta0=nil, twostr_ratio=1_ireals !phi=azimuth ; theta=sza
 
 
       type coord
@@ -1444,6 +1444,40 @@ subroutine setup_ksp(ksp)
 
 end subroutine
 
+subroutine read_commandline_options()
+        PetscInt :: flg
+        logical :: lflg
+
+        call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-ident',ident,lflg,ierr) ; CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) stop 'Need "-ident" commandline option e.g. -ident run_box2'
+
+        call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dx",ident_dx, lflg,ierr)  ; CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) stop 'Need "-dx" commandline option e.g. -dx 500'
+
+        call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
+
+        phi0=180 ; theta0=0
+        call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-phi",phi0, lflg,ierr)     ; CHKERRQ(ierr)
+        call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-theta",theta0, lflg,ierr) ; CHKERRQ(ierr)
+        if(myid.eq.0) then
+          print *,'********************************************************************'
+          print *,'***   Running Job: ',ident,'dx,dy ',ident_dx,ident_dy,' phi,theta',phi0,theta0
+          print *,'********************************************************************'
+          print *,''
+        endif
+end subroutine
+
+subroutine setup_logging()
+        call PetscLogStageRegister('total_tenstream' , logstage(1)     , ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('setup_edir'      , logstage(2)     , ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('calc_edir'       , logstage(3)     , ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('setup_ediff'     , logstage(4)     , ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('calc_ediff'      , logstage(5)     , ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('setup_b'         , logstage(6)     , ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;CHKERRQ(ierr)
+        print *, 'Loggin stages' , logstage
+end subroutine
 end module
 
 program main
@@ -1452,7 +1486,6 @@ program main
 
         Mat :: Mdiff,Mdir
         Vec :: b,x,edir,intedir,intx,incSolar,abso
-!        PetscInt :: iter
 
         KSP :: kspdir,kspdiff
 
@@ -1465,14 +1498,8 @@ program main
         call MPI_COMM_RANK( PETSC_COMM_WORLD, myid, mpierr )
         call MPI_Comm_size( PETSC_COMM_WORLD, numnodes, mpierr)
 
-        call PetscLogStageRegister('total_tenstream',logstage(1), ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('setup_edir',logstage(2), ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('calc_edir',logstage(3), ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('setup_ediff',logstage(4), ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('calc_ediff',logstage(5), ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('setup_b',logstage(6), ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('get_coeff',logstage(7), ierr) ;CHKERRQ(ierr)
-        print *,'Loggin stages',logstage
+        call read_commandline_options()
+        call setup_logging()
 
         if(ltest) then
           call load_test_optprop(1_iintegers,0_iintegers)
