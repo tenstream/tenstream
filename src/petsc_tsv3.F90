@@ -1475,6 +1475,49 @@ subroutine setup_logging()
         call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;CHKERRQ(ierr)
         print *, 'Loggin stages' , logstage
 end subroutine
+subroutine init_memory(b,x,edir,intedir,intx,incSolar,abso,Mdiff,Mdir)
+        Vec :: b,x,edir,intedir,intx,incSolar,abso
+        Mat :: Mdiff,Mdir
+
+        character(100) :: vecname
+
+        ! intx
+        call DMCreateGlobalVector(C_diff%da,intx,ierr)                  ; CHKERRQ(ierr)
+        write(vecname,FMT='("ediff.",I0,".",I0)') int(phi0),int(theta0)
+        call PetscObjectSetName(intx,vecname,ierr)                      ; CHKERRQ(ierr)
+        call VecSet(intx,zero,ierr)                                     ; CHKERRQ(ierr)
+
+        ! intedir
+        call DMCreateGlobalVector(C_dir%da,intedir,ierr)               ; CHKERRQ(ierr)
+        write(vecname,FMT='("edir.",I0,".",I0)') int(phi0),int(theta0)
+        call PetscObjectSetName(intedir,vecname,ierr)                  ; CHKERRQ(ierr)
+        call VecSet(intedir,zero,ierr)                                 ; CHKERRQ(ierr)
+
+        ! abso
+        call DMCreateGlobalVector(C_one%da,abso,ierr)                  ; CHKERRQ(ierr)
+        write(vecname,FMT='("abso.",I0,".",I0)') int(phi0),int(theta0)
+        call PetscObjectSetName(abso,vecname,ierr)                     ; CHKERRQ(ierr)
+        call VecSet(abso,zero,ierr)                                    ; CHKERRQ(ierr)
+
+        call DMCreateGlobalVector(C_dir%da,edir,ierr)     ; CHKERRQ(ierr)
+        call DMCreateGlobalVector(C_dir%da,incSolar,ierr) ; CHKERRQ(ierr)
+        call DMCreateGlobalVector(C_diff%da,b,ierr)       ; CHKERRQ(ierr)
+        call DMCreateGlobalVector(C_diff%da,x,ierr)       ; CHKERRQ(ierr)
+
+        call VecSet(edir,zero,ierr)     ; CHKERRQ(ierr)
+        call VecSet(incSolar,zero,ierr) ; CHKERRQ(ierr)
+        call VecSet(x,zero,ierr)        ; CHKERRQ(ierr)
+        call VecSet(b,zero,ierr)        ; CHKERRQ(ierr)
+
+        call init_Matrix(Mdir,C_dir)
+        call init_Matrix(Mdiff,C_diff)
+
+        ! Write the result vectors once, to ensure that we are able to write the results
+        call vec_to_hdf5(abso)
+        call vec_to_hdf5(intedir)
+        call vec_to_hdf5(intx)
+end subroutine
+
 end module
 
 program main
@@ -1505,40 +1548,16 @@ program main
         endif
 
         call setup_grid()
-
-        ! Write the result vectors once, to ensure that we are able to write the results
-        call DMCreateGlobalVector(C_diff%da,intx,ierr) ;CHKERRQ(ierr)
-        write(vecname,FMT='("ediff.",I0,".",I0)') int(phi0),int(theta0); call PetscObjectSetName(intx,vecname,ierr) ;CHKERRQ(ierr)
-        call VecSet(intx,zero,ierr) ;CHKERRQ(ierr)
-!        call vec_to_hdf5(intx)
-
-        call DMCreateGlobalVector(C_dir%da,intedir,ierr) ;CHKERRQ(ierr)
-        write(vecname,FMT='("edir.",I0,".",I0)') int(phi0),int(theta0); call PetscObjectSetName(intedir,vecname,ierr) ;CHKERRQ(ierr)
-        call VecSet(intedir,zero,ierr) ;CHKERRQ(ierr)
-!        call vec_to_hdf5(intedir)
-
-        call DMCreateGlobalVector(C_one%da,abso,ierr) ;CHKERRQ(ierr)
-        write(vecname,FMT='("abso.",I0,".",I0)') int(phi0),int(theta0); call PetscObjectSetName(abso,vecname,ierr) ;CHKERRQ(ierr)
-        call VecSet(abso,zero,ierr) ;CHKERRQ(ierr)
-!        call vec_to_hdf5(abso)
-
         call setup_dir_inc(phi0,symmetry_phi)
 
         ! Create Objects to work with
-        call init_Matrix(Mdir,C_dir)
-        call init_Matrix(Mdiff,C_diff)
+        call init_memory(b,x,edir,intedir,intx,incSolar,abso,Mdiff,Mdir)
+
+        ! Setup Solver Context
         call setup_ksp(kspdir)
         call KSPAppendOptionsPrefix(kspdir,"dir_",ierr) ;CHKERRQ(ierr)
         call setup_ksp(kspdiff)
         call KSPAppendOptionsPrefix(kspdiff,"diff_",ierr) ;CHKERRQ(ierr)
-
-        call DMCreateGlobalVector(C_dir%da,edir,ierr) ;CHKERRQ(ierr)
-        call DMCreateGlobalVector(C_dir%da,incSolar,ierr) ;CHKERRQ(ierr)
-        call DMCreateGlobalVector(C_diff%da,b,ierr) ;CHKERRQ(ierr)
-        call DMCreateGlobalVector(C_diff%da,x,ierr) ;CHKERRQ(ierr)
-
-        call VecSet(edir,zero,ierr) ;CHKERRQ(ierr)
-        call VecSet(x,zero,ierr) ;CHKERRQ(ierr)
 
         !Init optical Property Mechanisms
         call OPP_8_10%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD)
