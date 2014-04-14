@@ -113,7 +113,8 @@ pure function spline(t,a0,a1)
         double precision,intent(in) :: t,a0(:),a1(:) ! t is weighting distance from a0
         double precision :: spline(size(a1))
         double precision :: s(size(a1))
-        logical,parameter :: lspline = .True.
+        logical,parameter :: lspline = .False.
+!        logical,parameter :: lspline = .True.
 
         if(lspline) then
           where( a0 .gt. a1 )
