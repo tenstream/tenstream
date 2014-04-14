@@ -1335,19 +1335,23 @@ subroutine vec_from_hdf5(v,err_code)
       fname = trim(basepath) // 'ts.' // trim(ident) // trim(s_theta0) // trim(suffix)
       inquire(file=trim(fname), exist=fexists)
       
-      if(.not.fexists) then
+      if(fexists) then
+        if(myid.eq.0)  print *,myid,'reading vector from hdf5 file ',trim(fname),' vecname: ',vecname
+        fmode = FILE_MODE_READ
+
+        call PetscViewerHDF5Open(PETSC_COMM_WORLD,trim(fname),fmode, view, ierr) ; CHKERRQ(ierr)
+        call VecLoad(v, view, err_code)                                          ; CHKERRQ(ierr)
+        call PetscViewerDestroy(view,ierr)                                       ; CHKERRQ(ierr)
+
+      else
         err_code = 1378 ! Random Number(thought by Fabian) to show that file does not exist
-        if(myid.eq.0)  print *,myid,'reading vector from hdf5 file ',trim(fname),' vecname: ',vecname,' :: file didnt exist, setting vec to zero and return'
-        call VecSet(v,zero,ierr)
-        return
+
       endif
 
-      if(myid.eq.0)  print *,myid,'reading vector from hdf5 file ',trim(fname),' vecname: ',vecname
-      fmode = FILE_MODE_READ
+      if(err_code.ne.0) then !Somehow couldnt read vector - set it to zero.
+        call VecSet(v,zero,ierr) ; CHKERRQ(ierr)
+      endif
 
-      call PetscViewerHDF5Open(PETSC_COMM_WORLD,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
-      call VecLoad(v, view, err_code)
-      call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
       if(myid.eq.0.and.ldebug) print *,myid,'reading from hdf5 file done :: error:',err_code
 end subroutine
 subroutine vec_to_hdf5(v)
