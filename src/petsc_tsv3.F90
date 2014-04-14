@@ -1335,6 +1335,13 @@ subroutine vec_from_hdf5(v,err_code)
       fname = trim(basepath) // 'ts.' // trim(ident) // trim(s_theta0) // trim(suffix)
       inquire(file=trim(fname), exist=fexists)
       
+      if(.not.fexists) then
+        err_code = 1378 ! Random Number(thought by Fabian) to show that file does not exist
+        if(myid.eq.0)  print *,myid,'reading vector from hdf5 file ',trim(fname),' vecname: ',vecname,' :: file didnt exist, setting vec to zero and return'
+        call VecSet(v,zero,ierr)
+        return
+      endif
+
       if(myid.eq.0)  print *,myid,'reading vector from hdf5 file ',trim(fname),' vecname: ',vecname
       fmode = FILE_MODE_READ
 
@@ -1513,9 +1520,9 @@ subroutine init_memory(b,x,edir,intedir,intx,incSolar,abso,Mdiff,Mdir)
         call init_Matrix(Mdiff,C_diff)
 
         ! Write the result vectors once, to ensure that we are able to write the results
-        call vec_to_hdf5(abso)
-        call vec_to_hdf5(intedir)
-        call vec_to_hdf5(intx)
+!        call vec_to_hdf5(abso)
+!        call vec_to_hdf5(intedir)
+!        call vec_to_hdf5(intx)
 end subroutine
 
 end module
