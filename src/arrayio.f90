@@ -377,7 +377,7 @@ module arrayIO
                   call h5close_f(hferr)  ; ierr=ierr+hferr
                   close(v,status='delete')
                   return
-                  99      write(*,*) 'lock file already exists'
+          99      write(*,*) 'lock file already exists'
                   call sleep(1)
                 enddo
             end subroutine
@@ -848,72 +848,73 @@ module arrayIO
                   open(v,file=lockfile,status='new',err=99)
                   write(v,*) 'file is locked by process: ',getpid()
 
-                call h5open_f(hferr)
-                ierr=0 ; lastid = ubound(id,1)
-                if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
-                    &   and scnd is at least hdf5 root /, and third is data name'
-                !        do k=1,size(groups)
-                !          print *,'opening hdf5 file groups(',k,') ',trim(groups(k))
-                !        enddo
+                  call h5open_f(hferr)
+                  ierr=0 ; lastid = ubound(id,1)
+                  if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
+                      &   and scnd is at least hdf5 root /, and third is data name'
+                  !        do k=1,size(groups)
+                  !          print *,'opening hdf5 file groups(',k,') ',trim(groups(k))
+                  !        enddo
 
-                CALL h5zfilter_avail_f(H5Z_FILTER_SZIP_F, compression, hferr) ; ierr=ierr+hferr
-                if (.not.compression) then
-                  write(*,'("compression filter not available. :( ",/)')
-                  call exit()
-                else
-                  !           print *,'Compression filter is ready'
-                endif
-
-                inquire(file=trim(groups(1)), exist=file_exists)
-                if(.not.file_exists) then
-                  ierr=-5
-                  print *,'file doesnt exist: ',trim(groups(1))
-                  return
-                endif
-
-                call h5fopen_f(trim(groups(1)), H5F_ACC_RDONLY_F, id(1), hferr) ; ierr=ierr+hferr
-                !First check if everything is here:
-                name = ''
-                do k=2,lastid+1
-                  name = trim(name)//'/'//trim(groups(k))
-                  call h5lexists_f(id(1), trim(name), link_exists, hferr) ; ierr=ierr+hferr
-                  !                print *,'checked if ',trim(name),' exists: ',link_exists,ierr
-                  if (.not.link_exists) then
-                    ierr=-6
-                    call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-                    return
+                  CALL h5zfilter_avail_f(H5Z_FILTER_SZIP_F, compression, hferr) ; ierr=ierr+hferr
+                  if (.not.compression) then
+                    write(*,'("compression filter not available. :( ",/)')
+                    call exit()
+                  else
+                    !           print *,'Compression filter is ready'
                   endif
-                enddo
 
-                do k=2,lastid
-                  call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-                enddo
-                !Get dataset creation properties list
-                call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
-                !        print *,'groups all open',ierr
+                  inquire(file=trim(groups(1)), exist=file_exists)
+                  if(.not.file_exists) then
+                    ierr=-5
+                    print *,'file doesnt exist: ',trim(groups(1))
+                    close(v,status='delete') ; return
+                  endif
 
-                call h5dget_space_f(dataset, dataspace, hferr) ; ierr=ierr+hferr
-                call h5sget_simple_extent_dims_f(dataspace, dims, maxdims, rank) ; ierr=ierr+min(0,rank)
-                call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
+                  call h5fopen_f(trim(groups(1)), H5F_ACC_RDONLY_F, id(1), hferr) ; ierr=ierr+hferr
+                  !First check if everything is here:
+                  name = ''
+                  do k=2,lastid+1
+                    name = trim(name)//'/'//trim(groups(k))
+                    call h5lexists_f(id(1), trim(name), link_exists, hferr) ; ierr=ierr+hferr
+                    !                print *,'checked if ',trim(name),' exists: ',link_exists,ierr
+                    if (.not.link_exists) then
+                      ierr=-6
+                      call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+                      close(v,status='delete') ; return
+                    endif
+                  enddo
 
-                allocate(arr(dims(1)))
+                  do k=2,lastid
+                    call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+                  enddo
+                  !Get dataset creation properties list
+                  call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
+                  !        print *,'groups all open',ierr
 
-                call h5dread_f(dataset, H5T_NATIVE_DOUBLE, arr, dims, hferr) ; ierr=ierr+hferr
-                !        print *,'read',ierr
+                  call h5dget_space_f(dataset, dataspace, hferr) ; ierr=ierr+hferr
+                  call h5sget_simple_extent_dims_f(dataspace, dims, maxdims, rank) ; ierr=ierr+min(0,rank)
+                  call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
 
-                call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
-                do k=lastid,2,-1
-                  call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
-                enddo
-                call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-                !        print *,'closed',ierr
+                  allocate(arr(dims(1)))
 
-                !        print *,'Data average is now:',sum(arr)/size(arr)
-                call h5close_f(hferr)
-                  close(v,status='delete')
-                  return
+                  call h5dread_f(dataset, H5T_NATIVE_DOUBLE, arr, dims, hferr) ; ierr=ierr+hferr
+                  !        print *,'read',ierr
+
+                  call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
+                  do k=lastid,2,-1
+                    call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
+                  enddo
+                  call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+                  !        print *,'closed',ierr
+
+                  !        print *,'Data average is now:',sum(arr)/size(arr)
+                  call h5close_f(hferr)
+                  close(v,status='delete') ; return
+
                   99      write(*,*) 'lock file already exists'
                   call sleep(1)
+
                 enddo
             end subroutine
             subroutine h5load_2d(groups,arr,ierr)
@@ -942,7 +943,7 @@ module arrayIO
                 if(.not.file_exists) then
                   ierr=-5
                   print *,'file doesnt exist: ',trim(groups(1))
-                  return
+                  close(v,status='delete') ; return
                 endif
 
                 call h5fopen_f(trim(groups(1)), H5F_ACC_RDONLY_F, id(1), hferr) ; ierr=ierr+hferr
@@ -955,7 +956,7 @@ module arrayIO
                   if (.not.link_exists) then
                     ierr=-6
                     call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-                    return
+                    close(v,status='delete') ; return
                   endif
                 enddo
 
@@ -1016,7 +1017,7 @@ module arrayIO
                 if(.not.file_exists) then
                   ierr=-5
                   print *,'file doesnt exist: ',trim(groups(1))
-                  return
+                  close(v,status='delete') ; return
                 endif
 
                 call h5fopen_f(trim(groups(1)), H5F_ACC_RDONLY_F, id(1), hferr) ; ierr=ierr+hferr
@@ -1029,7 +1030,7 @@ module arrayIO
                   if (.not.link_exists) then
                     ierr=-6
                     call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-                    return
+                    close(v,status='delete') ; return
                   endif
                 enddo
 
@@ -1096,7 +1097,7 @@ module arrayIO
                 if(.not.file_exists) then
                   ierr=-5
                   print *,'file doesnt exist: ',trim(groups(1))
-                  return
+                  close(v,status='delete') ; return
                 endif
 
                 call h5fopen_f(trim(groups(1)), H5F_ACC_RDONLY_F, id(1), hferr) ; ierr=ierr+hferr
@@ -1109,7 +1110,7 @@ module arrayIO
                   if (.not.link_exists) then
                     ierr=-6
                     call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-                    return
+                    close(v,status='delete') ; return
                   endif
                 enddo
 
@@ -1169,7 +1170,7 @@ module arrayIO
                 if(.not.file_exists) then
                   ierr=-5
                   print *,'file doesnt exist: ',trim(groups(1))
-                  return
+                  close(v,status='delete') ; return
                 endif
 
                 CALL h5zfilter_avail_f(H5Z_FILTER_SZIP_F, compression, hferr) ; ierr=ierr+hferr
@@ -1190,7 +1191,7 @@ module arrayIO
                   if (.not.link_exists) then
                     ierr=-6
                     call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-                    return
+                    close(v,status='delete') ; return
                   endif
                 enddo
 
@@ -1243,7 +1244,7 @@ module arrayIO
                 if(.not.file_exists) then
                   ierr=-5
                   print *,'file doesnt exist: ',trim(groups(1))
-                  return
+                  close(v,status='delete') ; return
                 endif
 
                 call h5fopen_f(trim(groups(1)), H5F_ACC_RDONLY_F, id(1), hferr) ; ierr=ierr+hferr
@@ -1256,7 +1257,7 @@ module arrayIO
                   if (.not.link_exists) then
                     ierr=-6
                     call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-                    return
+                    close(v,status='delete') ; return
                   endif
                 enddo
 
@@ -1319,7 +1320,7 @@ module arrayIO
                 if(.not.file_exists) then
                   ierr=-5
                   print *,'file doesnt exist: ',trim(groups(1))
-                  return
+                  close(v,status='delete') ; return
                 endif
 
                 call h5fopen_f(trim(groups(1)), H5F_ACC_RDONLY_F, id(1), hferr) ; ierr=ierr+hferr
@@ -1332,7 +1333,7 @@ module arrayIO
                   if (.not.link_exists) then
                     ierr=-6
                     call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-                    return
+                    close(v,status='delete') ; return
                   endif
                 enddo
 
@@ -1396,7 +1397,7 @@ module arrayIO
                 if(.not.file_exists) then
                   ierr=-5
                   print *,'file doesnt exist: ',trim(groups(1))
-                  return
+                  close(v,status='delete') ; return
                 endif
 
                 call h5fopen_f(trim(groups(1)), H5F_ACC_RDONLY_F, id(1), hferr) ; ierr=ierr+hferr
@@ -1409,7 +1410,7 @@ module arrayIO
                   if (.not.link_exists) then
                     ierr=-6
                     call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
-                    return
+                    close(v,status='delete') ; return
                   endif
                 enddo
 

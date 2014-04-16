@@ -669,16 +669,46 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
 !    call mpi_barrier(comm,ierr)
 end subroutine
 
-function exp_param_to_index(val,range,N,expn)
-    real(ireals) :: exp_param_to_index
-    real(ireals),intent(in) :: val,range(2),expn
-    integer(iintegers),intent(in) :: N
-    real(ireals) :: expn1,k
-    expn1=one/expn
-    k=range(1)**expn1
-    if(.not.valid_input(val,range)) continue
-    exp_param_to_index = min(one*N, max(   one, one+ (N-1)*(val**expn1-k)/(range(2)**expn1-k)   ))
+function search_sorted_bisection(arr,val) ! return index+residula i where arr(i) .gt. val
+  real(ireals) :: search_sorted_bisection
+  real(ireals),intent(in) :: arr(:)
+  real(ireals),intent(in) :: val
+  real(ireals) :: loc_increment
+  integer(iintegers) :: i,j,k
+
+  i=lbound(arr,1)
+  j=ubound(arr,1)
+
+  do
+    k=(i+j)/2
+    if (val < arr(k)) then
+      j=k
+    else
+      i=k
+    endif
+    if (i+1 >= j) then ! only single or tuple left
+      ! i is left bound and j is right bound index
+      if(i.eq.j) then
+        loc_increment = zero
+      else
+        loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
+      endif
+      search_sorted_bisection= i + loc_increment ! return `real-numbered` location of val
+      exit
+    endif
+  end do
 end function
+
+!function exp_param_to_index(val,range,N,expn)
+!    real(ireals) :: exp_param_to_index
+!    real(ireals),intent(in) :: val,range(2),expn
+!    integer(iintegers),intent(in) :: N
+!    real(ireals) :: expn1,k
+!    expn1=one/expn
+!    k=range(1)**expn1
+!    if(.not.valid_input(val,range)) continue
+!    exp_param_to_index = min(one*N, max(   one, one+ (N-1)*(val**expn1-k)/(range(2)**expn1-k)   ))
+!end function
 function exp_index_to_param(index,range,N,expn)
     real(ireals) :: exp_index_to_param
     real(ireals),intent(in) :: index,range(2),expn
@@ -687,13 +717,13 @@ function exp_index_to_param(index,range,N,expn)
     expn1=one/expn
     exp_index_to_param = lin_index_to_param( index, range**expn1, N) ** expn
 end function
-function lin_param_to_index(val,range,N)
-    real(ireals) :: lin_param_to_index
-    real(ireals),intent(in) :: val,range(2)
-    integer(iintegers),intent(in) :: N
-    if(.not.valid_input(val,range)) continue
-    lin_param_to_index = min(one*N, max(   one, one+ (N-one) * (val-range(1) )/( range(2)-range(1) )   ))
-end function
+!function lin_param_to_index(val,range,N)
+!    real(ireals) :: lin_param_to_index
+!    real(ireals),intent(in) :: val,range(2)
+!    integer(iintegers),intent(in) :: N
+!    if(.not.valid_input(val,range)) continue
+!    lin_param_to_index = min(one*N, max(   one, one+ (N-one) * (val-range(1) )/( range(2)-range(1) )   ))
+!end function
 function lin_index_to_param(index,range,N)
     real(ireals) :: lin_index_to_param
     real(ireals),intent(in) :: index,range(2)
@@ -759,7 +789,7 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     real(ireals) :: kabs,ksca
     integer(iintegers) :: i
 
-    real(ireals) :: pti(6),weights(6),imap(2) ! index of point
+    real(ireals) :: pti(6),weights(6)!,imap(2) ! index of point
 
     kabs = in_kabs; ksca = in_ksca
     call catch_upper_limit_kabs(OPP%dirLUT%pspace,kabs,ksca)
@@ -772,37 +802,37 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
       C = OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
     case(2)
       weights = modulo(pti,one)
-      imap = [ exp_index_to_param(dble(floor  (pti(1))), OPP%dirLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent), &
-               exp_index_to_param(dble(ceiling(pti(1))), OPP%dirLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent)  ]
-      if(approx(imap(2), imap(1)) ) then
-        weights(1)=zero
-      else
-        weights(1) = min(one, (dz -imap(1))/(imap(2)-imap(1)) )
-      endif
-
-      imap = [ exp_index_to_param(dble(floor  (pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent ), &
-               exp_index_to_param(dble(ceiling(pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent )  ]
-      if(approx(imap(2),imap(1)) ) then
-        weights(2)=zero
-      else
-        weights(2) = (kabs -imap(1))/(imap(2)-imap(1))
-      endif
-
-      imap = [ exp_index_to_param(dble(floor  (pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent ), &
-               exp_index_to_param(dble(ceiling(pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent )  ]
-      if(approx(imap(2),imap(1)) ) then
-        weights(3)=zero
-      else
-        weights(3) = (ksca -imap(1))/(imap(2)-imap(1))
-      endif
-
-      imap = [ exp_index_to_param(dble(floor  (pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent ), &
-               exp_index_to_param(dble(ceiling(pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent )  ]
-      if(approx(imap(2),imap(1)) ) then
-        weights(4)=zero
-      else
-        weights(4) = (g -imap(1))/(imap(2)-imap(1))
-      endif
+!      imap = [ exp_index_to_param(dble(floor  (pti(1))), OPP%dirLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent), &
+!               exp_index_to_param(dble(ceiling(pti(1))), OPP%dirLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent)  ]
+!      if(approx(imap(2), imap(1)) ) then
+!        weights(1)=zero
+!      else
+!        weights(1) = min(one, (dz -imap(1))/(imap(2)-imap(1)) )
+!      endif
+!
+!      imap = [ exp_index_to_param(dble(floor  (pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent ), &
+!               exp_index_to_param(dble(ceiling(pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent )  ]
+!      if(approx(imap(2),imap(1)) ) then
+!        weights(2)=zero
+!      else
+!        weights(2) = (kabs -imap(1))/(imap(2)-imap(1))
+!      endif
+!
+!      imap = [ exp_index_to_param(dble(floor  (pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent ), &
+!               exp_index_to_param(dble(ceiling(pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent )  ]
+!      if(approx(imap(2),imap(1)) ) then
+!        weights(3)=zero
+!      else
+!        weights(3) = (ksca -imap(1))/(imap(2)-imap(1))
+!      endif
+!
+!      imap = [ exp_index_to_param(dble(floor  (pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent ), &
+!               exp_index_to_param(dble(ceiling(pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent )  ]
+!      if(approx(imap(2),imap(1)) ) then
+!        weights(4)=zero
+!      else
+!        weights(4) = (g -imap(1))/(imap(2)-imap(1))
+!      endif
 
       call interp_4d(pti, weights, OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c, C)
     case default
@@ -828,7 +858,7 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     real(ireals),intent(out):: C(OPP%dir_streams*OPP%diff_streams)
 
     real(ireals) :: kabs,ksca
-    real(ireals) :: pti(6),weights(6),imap(2) ! index of point
+    real(ireals) :: pti(6),weights(6)!,imap(2) ! index of point
     integer(iintegers) :: i
 
     kabs = in_kabs; ksca = in_ksca
@@ -843,37 +873,37 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     case(2)
       !                        print *,'linear interpolation not implemented yet!'
       weights = modulo(pti,one)
-      imap = [ exp_index_to_param(dble(floor  (pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent), &
-          exp_index_to_param(dble(ceiling(pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent)  ]
-      if(approx(imap(2), imap(1)) ) then
-        weights(1)=zero
-      else
-        weights(1) = min(one, (dz -imap(1))/(imap(2)-imap(1)) )
-      endif
-
-      imap = [ exp_index_to_param(dble(floor  (pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent ), &
-          exp_index_to_param(dble(ceiling(pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent )  ]
-      if(approx(imap(2), imap(1)) ) then
-        weights(2)=zero
-      else
-        weights(2) = min(one, (kabs -imap(1))/(imap(2)-imap(1)) )
-      endif
-
-      imap = [ exp_index_to_param(dble(floor  (pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent ), &
-          exp_index_to_param(dble(ceiling(pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent )  ]
-      if(approx(imap(2), imap(1)) ) then
-        weights(3)=zero
-      else
-        weights(3) = min(one, (ksca -imap(1))/(imap(2)-imap(1)) )
-      endif
-
-      imap = [ exp_index_to_param(dble(floor  (pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent ), &
-               exp_index_to_param(dble(ceiling(pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent )  ]
-      if(approx(imap(2),imap(1)) ) then
-        weights(4)=zero
-      else
-        weights(4) = (g -imap(1))/(imap(2)-imap(1))
-      endif
+!      imap = [ exp_index_to_param(dble(floor  (pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent), &
+!          exp_index_to_param(dble(ceiling(pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent)  ]
+!      if(approx(imap(2), imap(1)) ) then
+!        weights(1)=zero
+!      else
+!        weights(1) = min(one, (dz -imap(1))/(imap(2)-imap(1)) )
+!      endif
+!
+!      imap = [ exp_index_to_param(dble(floor  (pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent ), &
+!          exp_index_to_param(dble(ceiling(pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent )  ]
+!      if(approx(imap(2), imap(1)) ) then
+!        weights(2)=zero
+!      else
+!        weights(2) = min(one, (kabs -imap(1))/(imap(2)-imap(1)) )
+!      endif
+!
+!      imap = [ exp_index_to_param(dble(floor  (pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent ), &
+!          exp_index_to_param(dble(ceiling(pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent )  ]
+!      if(approx(imap(2), imap(1)) ) then
+!        weights(3)=zero
+!      else
+!        weights(3) = min(one, (ksca -imap(1))/(imap(2)-imap(1)) )
+!      endif
+!
+!      imap = [ exp_index_to_param(dble(floor  (pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent ), &
+!               exp_index_to_param(dble(ceiling(pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent )  ]
+!      if(approx(imap(2),imap(1)) ) then
+!        weights(4)=zero
+!      else
+!        weights(4) = (g -imap(1))/(imap(2)-imap(1))
+!      endif
 
       call interp_4d(pti, weights, OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c, C)
       !                        call interp_4p2d(pti, weights, OPP%dirLUT%S, C)
@@ -905,7 +935,7 @@ subroutine LUT_get_diff2diff(OPP, dz,in_kabs ,in_ksca,g,C)
     real(ireals),allocatable,intent(out):: C(:)
 
     real(ireals) :: kabs,ksca
-    real(ireals) :: pti(4),weights(4),imap(2) ! index of point
+    real(ireals) :: pti(4),weights(4)!,imap(2) ! index of point
 
     kabs = in_kabs; ksca = in_ksca
     call catch_upper_limit_kabs(OPP%diffLUT%pspace,kabs,ksca)
@@ -920,37 +950,37 @@ subroutine LUT_get_diff2diff(OPP, dz,in_kabs ,in_ksca,g,C)
     case(2)
       !                        print *,'linear interpolation not implemented yet!'
       weights = modulo(pti,one)
-      imap = [ exp_index_to_param(dble(floor  (pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%diffLUT%pspace%dz_exponent), &
-          exp_index_to_param(dble(ceiling(pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%diffLUT%pspace%dz_exponent)  ]
-      if(approx(imap(2),imap(1)) ) then
-        weights(1)=zero
-      else
-        weights(1) = min(one, (dz -imap(1))/(imap(2)-imap(1)) )
-      endif
-
-      imap = [ exp_index_to_param(dble(floor  (pti(2))), OPP%diffLUT%pspace%range_kabs , Nkabs, OPP%diffLUT%pspace%kabs_exponent), &
-          exp_index_to_param(dble(ceiling(pti(2))), OPP%diffLUT%pspace%range_kabs , Nkabs, OPP%diffLUT%pspace%kabs_exponent)  ]
-      if(approx(imap(2), imap(1)) ) then
-        weights(2)=zero
-      else
-        weights(2) = min(one, (kabs -imap(1))/(imap(2)-imap(1)) )
-      endif
-
-      imap = [ exp_index_to_param(dble(floor  (pti(3))), OPP%diffLUT%pspace%range_ksca , Nksca, OPP%diffLUT%pspace%ksca_exponent), &
-          exp_index_to_param(dble(ceiling(pti(3))), OPP%diffLUT%pspace%range_ksca , Nksca, OPP%diffLUT%pspace%ksca_exponent)  ]
-      if(approx(imap(2), imap(1)) ) then
-        weights(3)=zero
-      else
-        weights(3) = min(one, (ksca -imap(1))/(imap(2)-imap(1)) )
-      endif
-
-      imap = [ exp_index_to_param(dble(floor  (pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent ), &
-               exp_index_to_param(dble(ceiling(pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent )  ]
-      if(approx(imap(2),imap(1)) ) then
-        weights(4)=zero
-      else
-        weights(4) = (g -imap(1))/(imap(2)-imap(1))
-      endif
+!      imap = [ exp_index_to_param(dble(floor  (pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%diffLUT%pspace%dz_exponent), &
+!          exp_index_to_param(dble(ceiling(pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%diffLUT%pspace%dz_exponent)  ]
+!      if(approx(imap(2),imap(1)) ) then
+!        weights(1)=zero
+!      else
+!        weights(1) = min(one, (dz -imap(1))/(imap(2)-imap(1)) )
+!      endif
+!
+!      imap = [ exp_index_to_param(dble(floor  (pti(2))), OPP%diffLUT%pspace%range_kabs , Nkabs, OPP%diffLUT%pspace%kabs_exponent), &
+!          exp_index_to_param(dble(ceiling(pti(2))), OPP%diffLUT%pspace%range_kabs , Nkabs, OPP%diffLUT%pspace%kabs_exponent)  ]
+!      if(approx(imap(2), imap(1)) ) then
+!        weights(2)=zero
+!      else
+!        weights(2) = min(one, (kabs -imap(1))/(imap(2)-imap(1)) )
+!      endif
+!
+!      imap = [ exp_index_to_param(dble(floor  (pti(3))), OPP%diffLUT%pspace%range_ksca , Nksca, OPP%diffLUT%pspace%ksca_exponent), &
+!          exp_index_to_param(dble(ceiling(pti(3))), OPP%diffLUT%pspace%range_ksca , Nksca, OPP%diffLUT%pspace%ksca_exponent)  ]
+!      if(approx(imap(2), imap(1)) ) then
+!        weights(3)=zero
+!      else
+!        weights(3) = min(one, (ksca -imap(1))/(imap(2)-imap(1)) )
+!      endif
+!
+!      imap = [ exp_index_to_param(dble(floor  (pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent ), &
+!               exp_index_to_param(dble(ceiling(pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent )  ]
+!      if(approx(imap(2),imap(1)) ) then
+!        weights(4)=zero
+!      else
+!        weights(4) = (g -imap(1))/(imap(2)-imap(1))
+!      endif
 
       call interp_4d(pti, weights, OPP%diffLUT%S%c, C)
       !                        print *,'lin interp diff weights',weights,'imap',imap,'C',C
@@ -967,10 +997,14 @@ function get_indices_4d(dz,kabs ,ksca,g,ps)
     real(ireals),intent(in) :: dz,kabs ,ksca,g
     type(parameter_space),intent(in) :: ps
 
-    get_indices_4d(1) = exp_param_to_index( dz    ,ps%range_dz   ,Ndz  , ps%dz_exponent )
-    get_indices_4d(2) = exp_param_to_index( kabs  ,ps%range_kabs ,Nkabs, ps%kabs_exponent )
-    get_indices_4d(3) = exp_param_to_index( ksca  ,ps%range_ksca ,Nksca, ps%ksca_exponent )
-    get_indices_4d(4) = exp_param_to_index( g     ,ps%range_g    ,Ng   , ps%g_exponent )
+!    get_indices_4d(1) = exp_param_to_index( dz    ,ps%range_dz   ,Ndz  , ps%dz_exponent )
+!    get_indices_4d(2) = exp_param_to_index( kabs  ,ps%range_kabs ,Nkabs, ps%kabs_exponent )
+!    get_indices_4d(3) = exp_param_to_index( ksca  ,ps%range_ksca ,Nksca, ps%ksca_exponent )
+!    get_indices_4d(4) = exp_param_to_index( g     ,ps%range_g    ,Ng   , ps%g_exponent )
+    get_indices_4d(1) = search_sorted_bisection(ps%dz   , dz)
+    get_indices_4d(2) = search_sorted_bisection(ps%kabs , kabs)
+    get_indices_4d(3) = search_sorted_bisection(ps%ksca , ksca)
+    get_indices_4d(4) = search_sorted_bisection(ps%g    , g)
 end function
 function get_indices_6d(dz,kabs ,ksca,g,phi,theta,ps)
     real(ireals) :: get_indices_6d(6)
@@ -978,8 +1012,11 @@ function get_indices_6d(dz,kabs ,ksca,g,phi,theta,ps)
     type(parameter_space),intent(in) :: ps
 
     get_indices_6d(1:4) = get_indices_4d(dz,kabs ,ksca,g,ps)
-    get_indices_6d(5) = lin_param_to_index( phi   ,ps%range_phi  ,Nphi )
-    get_indices_6d(6) = lin_param_to_index( theta ,ps%range_theta,Ntheta)
+!    get_indices_6d(5) = lin_param_to_index( phi   ,ps%range_phi  ,Nphi )
+!    get_indices_6d(6) = lin_param_to_index( theta ,ps%range_theta,Ntheta)
+
+    get_indices_6d(5) = search_sorted_bisection(ps%phi  ,phi )
+    get_indices_6d(6) = search_sorted_bisection(ps%theta,theta)
 end function
 
 logical function valid_input(val,range)
