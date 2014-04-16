@@ -70,12 +70,12 @@ contains
         real(ireals),intent(out):: C(:)
 
         real(ireals),allocatable :: C_diff(:)
-
-        real(ireals) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
-        logical,parameter :: determine_coeff_error=.True.
-        real(ireals),parameter :: checking_limit=1e-5
         real(ireals) :: angles(2)
         integer(iintegers) :: isrc
+
+!        real(ireals) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
+!        logical,parameter :: determine_coeff_error=.True.
+!        real(ireals),parameter :: checking_limit=1e-5
 
         if( (any([dz,kabs,ksca,g].lt.zero)) .or. (any(isnan([dz,kabs,ksca,g]))) ) then
           print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[dz,kabs,ksca,g]

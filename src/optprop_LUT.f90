@@ -113,16 +113,6 @@ contains
 
       call OPP%bmc%init(comm)
 
-      ! Load diffuse LUT
-      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0)') idx,Ndz,Nkabs,Nksca,Ng
-      if(myid.eq.0) print *,'Loading diffuse LUT from ',descr
-      OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
-      OPP%diffLUT%dx    = idx
-      OPP%diffLUT%dy    = idy
-
-      call OPP%set_parameter_space(OPP%diffLUT%pspace,OPP%diffLUT%dx)
-      call OPP%loadLUT_diff(comm)
-
       ! Load direct LUTS
       write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta",L1)') idx,Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,delta_scale
       if(myid.eq.0) print *,'Loading direct LUT from ',descr
@@ -132,6 +122,16 @@ contains
 
       call OPP%set_parameter_space(OPP%dirLUT%pspace,OPP%dirLUT%dx)
       call OPP%loadLUT_dir(azis, szas, comm)
+
+      ! Load diffuse LUT
+      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0)') idx,Ndz,Nkabs,Nksca,Ng
+      if(myid.eq.0) print *,'Loading diffuse LUT from ',descr
+      OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
+      OPP%diffLUT%dx    = idx
+      OPP%diffLUT%dy    = idy
+
+      call OPP%set_parameter_space(OPP%diffLUT%pspace,OPP%diffLUT%dx)
+      call OPP%loadLUT_diff(comm)
 
       if(comm_size.gt.1) call OPP%scatter_LUTtables(azis,szas,comm)
 
@@ -385,8 +385,8 @@ end subroutine
 subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
     class(t_optprop_LUT) :: OPP
     integer(mpiint),intent(in) :: comm
-    character(300),intent(in) :: coeff_table_name(:)
-    character(300),intent(in) :: stddev_rtol_table_name(:)
+    character(len=*),intent(in) :: coeff_table_name(:)
+    character(len=*),intent(in) :: stddev_rtol_table_name(:)
 
     integer(iintegers) :: idz,ikabs ,iksca,ig,total_size,cnt
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
@@ -477,8 +477,8 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
 end subroutine
 subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_stddev_rtol_table_name,diff_stddev_rtol_table_name, comm, iphi,itheta)
     class(t_optprop_LUT) :: OPP
-    character(300),intent(in) :: dir_coeff_table_name(:),diff_coeff_table_name(:)
-    character(300),intent(in) :: dir_stddev_rtol_table_name(:),diff_stddev_rtol_table_name(:)
+    character(len=*),intent(in) :: dir_coeff_table_name(:),diff_coeff_table_name(:)
+    character(len=*),intent(in) :: dir_stddev_rtol_table_name(:),diff_stddev_rtol_table_name(:)
     integer(mpiint),intent(in) :: comm
     integer(iintegers),intent(in) :: iphi,itheta
 
