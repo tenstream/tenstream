@@ -10,7 +10,7 @@ module arrayIO
   public :: h5write,h5load,write_bin,write_ascii,read_bin
 
   integer :: u=10,v=11
-  integer,parameter :: maxwait=30
+  integer,parameter :: maxwait=300
   integer :: iwait
   character(310) :: lockfile
 
@@ -843,6 +843,11 @@ module arrayIO
                 integer(HID_T) :: id(size(groups)-1),dataset,dataspace
                 character(300) :: name
 
+                lockfile=trim(groups(1))//'.lock'
+                do iwait=1,maxwait
+                  open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
+
                 call h5open_f(hferr)
                 ierr=0 ; lastid = ubound(id,1)
                 if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
@@ -905,6 +910,11 @@ module arrayIO
 
                 !        print *,'Data average is now:',sum(arr)/size(arr)
                 call h5close_f(hferr)
+                  close(v,status='delete')
+                  return
+                  99      write(*,*) 'lock file already exists'
+                  call sleep(1)
+                enddo
             end subroutine
             subroutine h5load_2d(groups,arr,ierr)
                 character(len=*) :: groups(:)
@@ -916,6 +926,11 @@ module arrayIO
                 integer :: k,lastid,hferr,rank
                 integer(HID_T) :: id(size(groups)-1),dataset,dataspace
                 character(300) :: name
+
+                lockfile=trim(groups(1))//'.lock'
+                do iwait=1,maxwait
+                  open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                 call h5open_f(hferr)
                 ierr=0 ; lastid = ubound(id,1)
@@ -969,6 +984,11 @@ module arrayIO
 
                 !        print *,'Data average is now:',sum(arr)/size(arr)
                 call h5close_f(hferr)
+                  close(v,status='delete')
+                  return
+                  99      write(*,*) 'lock file already exists'
+                  call sleep(1)
+                enddo
             end subroutine
             subroutine h5load_3d(groups,arr,ierr)
                 character(len=*) :: groups(:)
@@ -980,6 +1000,11 @@ module arrayIO
                 integer k,lastid,hferr,rank
                 integer(HID_T) :: id(size(groups)-1),dataset,dataspace
                 character(300) :: name
+
+                lockfile=trim(groups(1))//'.lock'
+                do iwait=1,maxwait
+                  open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                 call h5open_f(hferr)
                 ierr=0 ; lastid = ubound(id,1)
@@ -1032,6 +1057,11 @@ module arrayIO
 
                 !        print *,'loaded 3d data, with shape',shape(arr)
                 call h5close_f(hferr)
+                  close(v,status='delete')
+                  return
+                  99      write(*,*) 'lock file already exists'
+                  call sleep(1)
+                enddo
             end subroutine
             subroutine h5load_4d(groups,arr,ierr)
                 character(len=*) :: groups(:)
@@ -1042,6 +1072,11 @@ module arrayIO
                 integer k,lastid,hferr,rank
                 integer(HID_T) :: id(size(groups)-1),dataset,dataspace
                 character(300) :: name
+
+                lockfile=trim(groups(1))//'.lock'
+                do iwait=1,maxwait
+                  open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                 call h5open_f(hferr)
                 ierr=0 ; lastid = ubound(id,1)
@@ -1103,6 +1138,11 @@ module arrayIO
                 !        print *,'Data average is now:',sum(arr)/size(arr)
                 !        print *,'loaded 4d data, with shape',shape(arr)
                 call h5close_f(hferr)
+                  close(v,status='delete')
+                  return
+                  99      write(*,*) 'lock file already exists'
+                  call sleep(1)
+                enddo
             end subroutine
             subroutine h5load_5d(groups,arr,ierr)
                 character(len=*) :: groups(:)
@@ -1114,6 +1154,11 @@ module arrayIO
                 integer k,lastid,hferr,rank
                 integer(HID_T) :: id(size(groups)-1),dataset,dataspace
                 character(300) :: name
+
+                lockfile=trim(groups(1))//'.lock'
+                do iwait=1,maxwait
+                  open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                 call h5open_f(hferr)
                 ierr=0 ; lastid = ubound(id,1)
@@ -1168,6 +1213,11 @@ module arrayIO
                 enddo
                 call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
                 call h5close_f(hferr)
+                  close(v,status='delete')
+                  return
+                  99      write(*,*) 'lock file already exists'
+                  call sleep(1)
+                enddo
             end subroutine
             subroutine h5load_7d(groups,arr,ierr)
                 character(len=*) :: groups(:)
@@ -1178,6 +1228,11 @@ module arrayIO
                 integer k,lastid,hferr,rank
                 integer(HID_T) :: id(size(groups)-1),dataset,dataspace
                 character(300) :: name
+
+                lockfile=trim(groups(1))//'.lock'
+                do iwait=1,maxwait
+                  open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                 call h5open_f(hferr)
                 ierr=0 ; lastid = ubound(id,1)
@@ -1230,6 +1285,11 @@ module arrayIO
                 !        print *,'Data average is now:',sum(arr)/size(arr)
                 !        print *,'loaded 4d data, with shape',shape(arr)
                 call h5close_f(hferr)
+                  close(v,status='delete')
+                  return
+                  99      write(*,*) 'lock file already exists'
+                  call sleep(1)
+                enddo
             end subroutine
 
             subroutine h5load_1d_int(groups,out_arr,ierr)
@@ -1243,6 +1303,11 @@ module arrayIO
                 integer k,lastid,hferr,rank
                 integer(HID_T) :: id(size(groups)-1),dataset,dataspace
                 character(300) :: name
+
+                lockfile=trim(groups(1))//'.lock'
+                do iwait=1,maxwait
+                  open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                 call h5open_f(hferr)
                 ierr=0 ; lastid = ubound(id,1)
@@ -1298,6 +1363,11 @@ module arrayIO
                 call h5close_f(hferr)
                 allocate(out_arr(ubound(arr,1)))
                 out_arr = arr
+                  close(v,status='delete')
+                  return
+                  99      write(*,*) 'lock file already exists'
+                  call sleep(1)
+                enddo
             end subroutine
             subroutine h5load_2d_int(groups,out_arr,ierr)
                 character(len=*) :: groups(:)
@@ -1310,6 +1380,11 @@ module arrayIO
                 integer k,lastid,hferr,rank
                 integer(HID_T) :: id(size(groups)-1),dataset,dataspace
                 character(300) :: name
+
+                lockfile=trim(groups(1))//'.lock'
+                do iwait=1,maxwait
+                  open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                 call h5open_f(hferr)
                 ierr=0 ; lastid = ubound(id,1)
@@ -1366,6 +1441,11 @@ module arrayIO
 
                 allocate(out_arr(ubound(arr,1),ubound(arr,2) ))
                 out_arr = arr
+                  close(v,status='delete')
+                  return
+                  99      write(*,*) 'lock file already exists'
+                  call sleep(1)
+                enddo
             end subroutine
 
           end module
