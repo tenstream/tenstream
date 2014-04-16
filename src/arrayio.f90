@@ -304,6 +304,7 @@ module arrayIO
                 lockfile=trim(groups(1))//'.lock'
                 do iwait=1,maxwait
                   open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                   call h5open_f(hferr); ierr=ierr+hferr
 
@@ -396,6 +397,7 @@ module arrayIO
                 lockfile=trim(groups(1))//'.lock'
                 do iwait=1,maxwait
                   open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                   call h5open_f(hferr); ierr=ierr+hferr
 
@@ -483,6 +485,7 @@ module arrayIO
                 lockfile=trim(groups(1))//'.lock'
                 do iwait=1,maxwait
                   open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                   call h5open_f(hferr); ierr=ierr+hferr
 
@@ -570,6 +573,7 @@ module arrayIO
                 lockfile=trim(groups(1))//'.lock'
                 do iwait=1,maxwait
                   open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                   call h5open_f(hferr); ierr=ierr+hferr
 
@@ -662,6 +666,7 @@ module arrayIO
                 lockfile=trim(groups(1))//'.lock'
                 do iwait=1,maxwait
                   open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                   call h5open_f(hferr); ierr=ierr+hferr
 
@@ -754,6 +759,7 @@ module arrayIO
                 lockfile=trim(groups(1))//'.lock'
                 do iwait=1,maxwait
                   open(v,file=lockfile,status='new',err=99)
+                  write(v,*) 'file is locked by process: ',getpid()
 
                   call h5open_f(hferr); ierr=ierr+hferr
 
