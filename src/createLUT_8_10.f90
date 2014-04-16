@@ -6,7 +6,7 @@ program main
       integer(mpiint) :: myid,comm
 
       character(len=32) :: arg
-      real(ireals) :: dx
+      real(ireals) :: dx,user_sza
       real(ireals) :: azis(2),szas(5)
 
       type(t_optprop_LUT_8_10) :: OPP
@@ -21,6 +21,12 @@ program main
       call get_command_argument(1, arg)
       if(len_trim(arg) == 0) call exit
       read (arg,*) dx
+
+      call get_command_argument(2, arg)
+      if(len_trim(arg) .gt. 0) then
+        read (arg,*) user_sza
+        szas=user_sza
+      endif
 
       print *,'calculating coeffs for dx',dx
       call OPP%init(dx,dx,azis,szas,comm)
