@@ -542,9 +542,18 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
               lstarted_calculations = .True.
             endif
 
-            if(myid.eq.0) print *,'direct dx',OPP%dirLUT%dx,'dz',OPP%dirLUT%pspace%dz(idz),'phi0,theta0',OPP%dirLUT%pspace%phi(iphi),OPP%dirLUT%pspace%theta(itheta),' :: ',OPP%dirLUT%pspace%kabs (ikabs ),OPP%dirLUT%pspace%ksca(iksca),OPP%dirLUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
+            if(myid.eq.0) print *,'direct dx',OPP%dirLUT%dx,'dz',OPP%dirLUT%pspace%dz(idz),'phi0,theta0',OPP%dirLUT%pspace%phi(iphi),OPP%dirLUT%pspace%theta(itheta),' :: '&
+                ,OPP%dirLUT%pspace%kabs (ikabs ),OPP%dirLUT%pspace%ksca(iksca),OPP%dirLUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
+
             do src=1,OPP%dir_streams
-              call OPP%bmc_wrapper(src,OPP%dirLUT%dx,OPP%dirLUT%dy,OPP%dirLUT%pspace%dz(idz),OPP%dirLUT%pspace%kabs (ikabs ),OPP%dirLUT%pspace%ksca(iksca),OPP%dirLUT%pspace%g(ig),.True.,delta_scale,OPP%dirLUT%pspace%phi(iphi),OPP%dirLUT%pspace%theta(itheta),comm,S_diff,T_dir)
+
+              call OPP%bmc_wrapper(src                             ,                                                               & 
+                                   OPP%dirLUT%dx                   , OPP%dirLUT%dy                   , OPP%dirLUT%pspace%dz(idz) , &
+                                   OPP%dirLUT%pspace%kabs (ikabs ) , OPP%dirLUT%pspace%ksca(iksca)   , OPP%dirLUT%pspace%g(ig)   , &
+                                   .True.                          , delta_scale                     ,                             & ! direct(y/n), delta_scale(y/n)
+                                   OPP%dirLUT%pspace%phi(iphi)     , OPP%dirLUT%pspace%theta(itheta) ,                             &
+                                   comm                            , S_diff                          , T_dir)
+
               if(myid.eq.0) OPP%dirLUT%T(iphi,itheta)%c( (src-1)*OPP%dir_streams+1:src*OPP%dir_streams, idz,ikabs ,iksca,ig) = T_dir
               if(myid.eq.0) OPP%dirLUT%S(iphi,itheta)%c( (src-1)*OPP%diff_streams+1:(src)*OPP%diff_streams, idz,ikabs ,iksca,ig) = S_diff
             enddo
@@ -552,18 +561,18 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
             if(myid.eq.0) OPP%dirLUT%T(iphi,itheta)%stddev_rtol( idz,ikabs,iksca,ig) = stddev_rtol
           enddo !dz
         enddo !kabs
-        
-        if(myid.eq.0) print *,'Checkpointing direct table ... (',100*cnt/total_size,'%)','started?',lstarted_calculations
-        if(myid.eq.0 .and. lstarted_calculations) then
-          print *,'Writing direct table to file... (',100*cnt/total_size,'%)','started?',lstarted_calculations
-          call h5write(diff_coeff_table_name,OPP%dirLUT%S(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
-          call h5write(dir_coeff_table_name ,OPP%dirLUT%T(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
-          call h5write(diff_stddev_rtol_table_name,OPP%dirLUT%S(iphi,itheta)%stddev_rtol,iierr)
-          call h5write(dir_stddev_rtol_table_name, OPP%dirLUT%T(iphi,itheta)%stddev_rtol,iierr)
-          print *,'done writing!',ierr
-        endif
-
       enddo !ksca
+
+      if(myid.eq.0) print *,'Checkpointing direct table ... (',100*cnt/total_size,'%)','started?',lstarted_calculations
+      if(myid.eq.0 .and. lstarted_calculations) then
+        print *,'Writing direct table to file... (',100*cnt/total_size,'%)','started?',lstarted_calculations
+        call h5write(diff_coeff_table_name,OPP%dirLUT%S(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
+        call h5write(dir_coeff_table_name ,OPP%dirLUT%T(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
+        call h5write(diff_stddev_rtol_table_name,OPP%dirLUT%S(iphi,itheta)%stddev_rtol,iierr)
+        call h5write(dir_stddev_rtol_table_name, OPP%dirLUT%T(iphi,itheta)%stddev_rtol,iierr)
+        print *,'done writing!',ierr
+      endif
+
     enddo !g
     call mpi_barrier(comm,ierr)
     if(myid.eq.0) print *,'done calculating direct coefficients'

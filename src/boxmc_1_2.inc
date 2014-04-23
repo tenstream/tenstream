@@ -6,7 +6,7 @@ subroutine update_dir_stream_1_2(bmc,p,S,N)
         integer(iintegers),intent(inout) :: N(:)
 
     select case (p%side)
-    case(2)
+    case(1:2)
         S(1) = S(1)+p%weight
         N(1) = N(1)+i1
         return
