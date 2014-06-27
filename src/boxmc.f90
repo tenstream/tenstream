@@ -452,6 +452,7 @@ subroutine scatter_photon(p,ldeltascale)
         mutheta = hengreen(R(),get_g(p))
 
         p%scattercnt = p%scattercnt+1
+        p%direct=.False.
 
         muxs = p%dir(1)  
         muys = p%dir(2)  
