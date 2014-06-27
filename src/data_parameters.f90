@@ -1,8 +1,23 @@
 module data_parameters
-      integer,parameter :: &
-      ireals=selected_real_kind(15,200), &
-      iintegers=selected_int_kind(12)
+
+        implicit none
+#include "finclude/petsc.h90"
+
+!      integer,parameter :: &
+!      ireals=selected_real_kind(8,100), &
+!      ireals=selected_real_kind(16,200), &
+!      iintegers=selected_int_kind(12)
+
       integer :: mpiint_dummy
+      PetscInt :: petscint_dummy
+
+      PetscReal :: petscreal_dummy
+
+      integer,parameter :: iintegers = kind(petscint_dummy), &
+          ireals = kind(petscreal_dummy)
+
+
+
       integer,parameter :: mpiint = kind(mpiint_dummy)
       real(ireals),parameter :: pi=3.141592653589793, nil=-9999._ireals
       real(ireals),parameter :: zero=0._ireals, one=1._ireals

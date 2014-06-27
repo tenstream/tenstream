@@ -1,7 +1,7 @@
 module optprop_LUT
   use helper_functions, only : approx
   use data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil
-  use optprop_parameters, only: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale,stddev_rtol
+  use optprop_parameters, only: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale,delta_scale_truncate,stddev_rtol
   use boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
   use tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
   use arrayio
@@ -113,30 +113,39 @@ contains
 
       call OPP%bmc%init(comm)
 
-      ! Load direct LUTS
-      write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta",L1)') idx,Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,delta_scale
-      if(myid.eq.0) print *,'Loading direct LUT from ',descr
-      OPP%dirLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
-      OPP%dirLUT%dx    = idx
-      OPP%dirLUT%dy    = idy
-
-      call OPP%set_parameter_space(OPP%dirLUT%pspace,OPP%dirLUT%dx)
-      call OPP%loadLUT_dir(azis, szas, comm)
-
-      ! Load diffuse LUT
-      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0)') idx,Ndz,Nkabs,Nksca,Ng
+      write(descr,FMT='("diffuse.mu.deltaedd.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,Ndz,Nkabs,Nksca,Ng,delta_scale,delta_scale_truncate
+!      write(descr,FMT='("diffuse.theta.deltaedd.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0)') idx,Ndz,Nkabs,Nksca,Ng
       if(myid.eq.0) print *,'Loading diffuse LUT from ',descr
       OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
       OPP%diffLUT%dx    = idx
       OPP%diffLUT%dy    = idy
 
-      call OPP%set_parameter_space(OPP%diffLUT%pspace,OPP%diffLUT%dx)
-      call OPP%loadLUT_diff(comm)
+      if(any(szas.lt.0)) then
+
+        ! Load diffuse LUT
+        call OPP%set_parameter_space(OPP%diffLUT%pspace,OPP%diffLUT%dx)
+        call OPP%loadLUT_diff(comm)
+      else
+
+        ! Load direct LUTS
+        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,delta_scale,delta_scale_truncate
+        if(myid.eq.0) print *,'Loading direct LUT from ',descr
+        OPP%dirLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
+        OPP%dirLUT%dx    = idx
+        OPP%dirLUT%dy    = idy
+
+        call OPP%set_parameter_space(OPP%dirLUT%pspace,OPP%dirLUT%dx)
+        call OPP%loadLUT_dir(azis, szas, comm)
+
+        ! Load diffuse LUT
+        call OPP%set_parameter_space(OPP%diffLUT%pspace,OPP%diffLUT%dx)
+        call OPP%loadLUT_diff(comm)
+      endif
 
       if(comm_size.gt.1) call OPP%scatter_LUTtables(azis,szas,comm)
 
       OPP%LUT_initiliazed=.True.
-      if(myid.eq.0) print *,'Done loading LUTs'
+      if(myid.eq.0) print *,'Done loading LUTs (shape diffLUT',shape(OPP%diffLUT%S%c),')'
 
   end subroutine
 subroutine loadLUT_diff(OPP, comm)
@@ -228,10 +237,6 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
         write(str(3),FMT='("phi",I0)')  int(OPP%dirLUT%pspace%phi(iphi)    )
         write(str(4),FMT='("theta",I0)')int(OPP%dirLUT%pspace%theta(itheta))
 
-        !> \todo Remove dirty hack :: Only load sza=0 azi=0
-!        write(str(3),FMT='("phi",I0)')  0 !int(OPP%dirLUT%pspace%phi(iphi)    )
-!        write(str(4),FMT='("theta",I0)')0 !int(OPP%dirLUT%pspace%theta(itheta))
-
         if(myid.eq.0) then
             print *,'Trying to load the LUT from file...'
             call h5load([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],OPP%dirLUT%S(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
@@ -301,8 +306,10 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
 
         if(myid.eq.0) deallocate(OPP%dirLUT%S(iphi,itheta)%stddev_rtol)
         if(myid.eq.0) deallocate(OPP%dirLUT%T(iphi,itheta)%stddev_rtol)
-      enddo
-    enddo
+
+        if(myid.eq.0) print *,'Done loading direct LUT, for phi/theta:',int(OPP%dirLUT%pspace%phi(iphi)),int(OPP%dirLUT%pspace%theta(itheta)),':: shape(T)',shape(OPP%dirLUT%T(iphi,itheta)%c),':: shape(S)',shape(OPP%dirLUT%S(iphi,itheta)%c)
+      enddo !iphi
+    enddo! itheta
 
     if(myid.eq.0) print *,'Done loading direct OPP%dirLUTs'
 end subroutine
@@ -312,7 +319,7 @@ end subroutine
       integer(mpiint) ,intent(in) :: comm
       integer(mpiint) :: Ntot,Ncoeff
       integer(iintegers) :: iphi,itheta
-      real(ireals),allocatable,dimension(:) :: tmp
+      double precision,allocatable,dimension(:) :: tmp
       logical :: angle_mask(Nphi,Ntheta)
 
       call determine_angles_to_load(OPP%dirLUT, azis, szas, angle_mask)
@@ -329,13 +336,18 @@ end subroutine
           endif
           call mpi_bcast(Ncoeff, 1, MPI_INTEGER, 0, comm, ierr)
           call mpi_bcast(Ntot  , 1, MPI_INTEGER, 0, comm, ierr)
-          allocate(tmp(Ntot)) 
-          if(myid.eq.0) tmp = reshape(OPP%dirLUT%T(iphi,itheta)%c,shape(tmp) )
+          allocate(tmp(Ntot))
+
+          if(myid.eq.0) then
+            tmp = dble( reshape(OPP%dirLUT%T(iphi,itheta)%c,shape(tmp) ) )
+          else
+            tmp=nil
+          endif
 
           call mpi_bcast(tmp, Ntot, MPI_DOUBLE_PRECISION, 0, comm, ierr)
           if(myid.gt.0) then
             allocate(OPP%dirLUT%T(iphi,itheta)%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
-            OPP%dirLUT%T(iphi,itheta)%c = reshape(tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] )
+            OPP%dirLUT%T(iphi,itheta)%c = real( reshape( tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] ) )
           endif
           deallocate(tmp)
 
@@ -348,12 +360,17 @@ end subroutine
           call mpi_bcast(Ncoeff, 1, MPI_INTEGER, 0, comm, ierr)
           call mpi_bcast(Ntot  , 1, MPI_INTEGER, 0, comm, ierr)
           allocate(tmp(Ntot)) 
-          if(myid.eq.0) tmp = reshape(OPP%dirLUT%S(iphi,itheta)%c,[Ntot] )
+          if(myid.eq.0) then
+            tmp = dble( reshape(OPP%dirLUT%S(iphi,itheta)%c,[Ntot] ) )
+          else
+            tmp=nil
+          endif
+
 
           call mpi_bcast(tmp, Ntot, MPI_DOUBLE_PRECISION, 0, comm, ierr)
           if(myid.gt.0) then
             allocate(OPP%dirLUT%S(iphi,itheta)%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
-            OPP%dirLUT%S(iphi,itheta)%c = reshape(tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] )
+            OPP%dirLUT%S(iphi,itheta)%c = real( reshape(tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] ) )
           endif
           deallocate(tmp)
 
@@ -369,17 +386,16 @@ end subroutine
       call mpi_bcast(Ncoeff, 1, MPI_INTEGER, 0, comm, ierr)
       call mpi_bcast(Ntot  , 1, MPI_INTEGER, 0, comm, ierr)
       allocate(tmp(Ntot)) 
-      if(myid.eq.0) tmp = reshape(OPP%diffLUT%S%c,[Ntot] )
+      if(myid.eq.0) tmp = dble( reshape(OPP%diffLUT%S%c,[Ntot] ) )
 
       call mpi_bcast(tmp, Ntot, MPI_DOUBLE_PRECISION, 0, comm, ierr)
       if(myid.gt.0) then
         allocate(OPP%diffLUT%S%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
-        OPP%diffLUT%S%c = reshape(tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] )
+        OPP%diffLUT%S%c = real( reshape(tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] ) )
       endif
       deallocate(tmp)
 
       print *,myid,' :: ',OPP%diffLUT%S%c(1,1,1,1,1)
-!      call mpi_barrier(comm,ierr)
   end subroutine
 
 subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
@@ -574,7 +590,6 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
       endif
 
     enddo !g
-    call mpi_barrier(comm,ierr)
     if(myid.eq.0) print *,'done calculating direct coefficients'
 end subroutine
 subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,delta_scale,phi,theta,comm,S_diff,T_dir)
@@ -592,7 +607,10 @@ subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,delta_scale,phi,theta,
     bg(2) = ksca
     bg(3) = g
 
-!    print *,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
+    S_diff=nil
+    T_dir=nil
+
+!    print *,comm,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
     call OPP%bmc%get_coeff(comm,bg,src,S_diff,T_dir,dir,delta_scale,phi,theta,dx,dy,dz)
     !        print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
@@ -640,7 +658,7 @@ end subroutine
       compare_same = .False.
       return
     endif
-    compare_same = all( approx( a,b,1e-6_ireals ) )
+    compare_same = all( approx( a,b,1e-4_ireals ) )
     if(.not. compare_same ) then
       print *,'Compare_Same :: Arrays are not the same:'
       do k=1,size(a)
@@ -655,8 +673,9 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
     logical,intent(out) :: mask(Nphi,Ntheta) ! boolean array, which LUT entries should be loaded
 
     integer(iintegers) :: itheta, iphi
-    logical :: lneed_azi, lneed_sza
+    logical :: lneed_azi(2), lneed_sza(2)
     real(ireals) :: theta(2),phi(2) ! sza and azimuth angle
+!    integer(iintegers) :: iszas(:),iazis(:) ! all solar zenith angles rounded to nearest integer value
 
     mask = .False.
     ! Check if really need to load it... i.e. we only want to load angles which are necessary for this run.
@@ -664,9 +683,22 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
       do iphi  =1,Nphi-1
         phi   = LUT%pspace%phi( [ iphi, iphi+1 ] )
         theta = LUT%pspace%theta( [ itheta, itheta+1 ]  )
-        lneed_azi = any( azis.ge.phi(1) .and. azis.lt.phi(2) )
-        lneed_sza = any( szas.ge.theta(1) .and. szas.lt.theta(2) )
-        if( lneed_azi .and. lneed_sza ) mask([iphi,iphi+1],[itheta,itheta+1]) = .True.
+
+        lneed_azi(1) = any( azis .ge. phi(1)       .and. azis .lt. sum(phi)/2 )
+        lneed_azi(2) = any( azis .ge. sum(phi)/2   .and. azis .lt. phi(2) )
+
+        lneed_sza(1) = any( szas .ge. theta(1)     .and. szas .lt. sum(theta)/2 )
+        lneed_sza(2) = any( szas .ge. sum(theta)/2 .and. szas .lt. theta(2) )
+
+        !print *,'determine_angles_to_load: occuring azimuths',azis,'/ szas',szas,': phi,theta',phi,theta,'need_azi',lneed_azi,'lneed_sza',lneed_sza
+
+        if( lneed_azi(1) .and. lneed_sza(1) ) mask(iphi   , itheta)   = .True.
+        if( lneed_azi(1) .and. lneed_sza(2) ) mask(iphi   , itheta+1) = .True.
+        if( lneed_azi(2) .and. lneed_sza(1) ) mask(iphi+1 , itheta)   = .True.
+        if( lneed_azi(2) .and. lneed_sza(2) ) mask(iphi+1 , itheta+1) = .True.
+
+        !if (all( lneed_azi .and. lneed_sza )) mask([iphi,iphi+1],[itheta,itheta+1]) = .True. !todo breaks if we need either theta+1 or phi+1 i.e. uneven sza or phi=90
+        !if (all( lneed_azi .and. lneed_sza )) mask([iphi],[itheta]) = .True. !todo breaks if we need either theta+1 or phi+1 i.e. uneven sza or phi=90
       enddo
     enddo
     if(myid.eq.0) then
@@ -675,7 +707,6 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
         print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
       enddo
     endif
-!    call mpi_barrier(comm,ierr)
 end subroutine
 
 function search_sorted_bisection(arr,val) ! return index+residula i where arr(i) .gt. val
@@ -702,7 +733,7 @@ function search_sorted_bisection(arr,val) ! return index+residula i where arr(i)
       else
         loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
       endif
-      search_sorted_bisection= i + loc_increment ! return `real-numbered` location of val
+      search_sorted_bisection= min(max(one*lbound(arr,1), i + loc_increment), one*ubound(arr,1)) ! return `real-numbered` location of val
       exit
     endif
   end do
@@ -745,17 +776,32 @@ subroutine set_parameter_space(OPP,ps,dx)
     type(parameter_space),intent(inout) :: ps
     real(ireals),intent(in) :: dx
     real(ireals) :: diameter ! diameter of max. cube size
-    real(ireals),parameter :: maximum_transmission=one-1e-2_ireals ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
+    real(ireals),parameter :: maximum_transmission=one-1e-5_ireals ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
     integer(iintegers) :: k
+
+    ps%dz_exponent=1
+    ps%kabs_exponent=10.
+    ps%ksca_exponent=10.
+    ps%g_exponent=.25
 
     select type(OPP)
       class is (t_optprop_LUT_1_2)
-        ps%range_dz      = [ min(ps%range_dz(1), dx/10_ireals )  , max( ps%range_dz(2), dx ) ]
+        ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , max( ps%range_dz(2), dx ) ]
       class is (t_optprop_LUT_8_10)
-        ps%range_dz      = [ min(ps%range_dz(1), dx/10_ireals )  , min( ps%range_dz(2), dx ) ]
+        ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , min( ps%range_dz(2), dx ) ]
       class default 
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select
+
+    do k=1,Ndz
+      ps%dz(k)    = exp_index_to_param(one*k,ps%range_dz,Ndz, ps%dz_exponent )
+    enddo
+    if(Ndz.eq.2) then
+      ps%dz(1) = 40._ireals/70._ireals *dx
+      ps%dz(2) = 200._ireals/250._ireals *dx
+      ps%range_dz = [minval(ps%dz),maxval(ps%dz)]
+    endif
+
     diameter = sqrt(2*dx**2 +  ps%range_dz(2)**2 )
 
     ps%range_kabs(1) = - log(maximum_transmission) / diameter
@@ -766,14 +812,6 @@ subroutine set_parameter_space(OPP,ps,dx)
       call exit()
     endif
 
-    ps%dz_exponent=6.
-    ps%kabs_exponent=10.
-    ps%ksca_exponent=10.
-    ps%g_exponent=.25
-
-    do k=1,Ndz
-      ps%dz(k)    = exp_index_to_param(one*k,ps%range_dz,Ndz, ps%dz_exponent )
-    enddo
     do k=1,Nkabs 
       ps%kabs (k) = exp_index_to_param(one*k,ps%range_kabs ,Nkabs,ps%kabs_exponent )
     enddo
@@ -798,10 +836,10 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     real(ireals) :: kabs,ksca
     integer(iintegers) :: i
 
-    real(ireals) :: pti(6),weights(6)!,imap(2) ! index of point
+    real(ireals) :: pti(6),weights(6)
 
     kabs = in_kabs; ksca = in_ksca
-    call catch_upper_limit_kabs(OPP%dirLUT%pspace,kabs,ksca)
+    call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
 
     pti = get_indices_6d(dz,kabs ,ksca,g,phi,theta,OPP%dirLUT%pspace)
 
@@ -811,37 +849,6 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
       C = OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
     case(2)
       weights = modulo(pti,one)
-!      imap = [ exp_index_to_param(dble(floor  (pti(1))), OPP%dirLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent), &
-!               exp_index_to_param(dble(ceiling(pti(1))), OPP%dirLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent)  ]
-!      if(approx(imap(2), imap(1)) ) then
-!        weights(1)=zero
-!      else
-!        weights(1) = min(one, (dz -imap(1))/(imap(2)-imap(1)) )
-!      endif
-!
-!      imap = [ exp_index_to_param(dble(floor  (pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent ), &
-!               exp_index_to_param(dble(ceiling(pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent )  ]
-!      if(approx(imap(2),imap(1)) ) then
-!        weights(2)=zero
-!      else
-!        weights(2) = (kabs -imap(1))/(imap(2)-imap(1))
-!      endif
-!
-!      imap = [ exp_index_to_param(dble(floor  (pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent ), &
-!               exp_index_to_param(dble(ceiling(pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent )  ]
-!      if(approx(imap(2),imap(1)) ) then
-!        weights(3)=zero
-!      else
-!        weights(3) = (ksca -imap(1))/(imap(2)-imap(1))
-!      endif
-!
-!      imap = [ exp_index_to_param(dble(floor  (pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent ), &
-!               exp_index_to_param(dble(ceiling(pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent )  ]
-!      if(approx(imap(2),imap(1)) ) then
-!        weights(4)=zero
-!      else
-!        weights(4) = (g -imap(1))/(imap(2)-imap(1))
-!      endif
 
       call interp_4d(pti, weights, OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c, C)
     case default
@@ -867,11 +874,11 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     real(ireals),intent(out):: C(OPP%dir_streams*OPP%diff_streams)
 
     real(ireals) :: kabs,ksca
-    real(ireals) :: pti(6),weights(6)!,imap(2) ! index of point
+    real(ireals) :: pti(6),weights(6)
     integer(iintegers) :: i
 
     kabs = in_kabs; ksca = in_ksca
-    call catch_upper_limit_kabs(OPP%dirLUT%pspace,kabs,ksca)
+    call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
 
     pti = get_indices_6d(dz,kabs ,ksca,g,phi,theta,OPP%dirLUT%pspace)
 
@@ -882,44 +889,7 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     case(2)
       !                        print *,'linear interpolation not implemented yet!'
       weights = modulo(pti,one)
-!      imap = [ exp_index_to_param(dble(floor  (pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent), &
-!          exp_index_to_param(dble(ceiling(pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%dirLUT%pspace%dz_exponent)  ]
-!      if(approx(imap(2), imap(1)) ) then
-!        weights(1)=zero
-!      else
-!        weights(1) = min(one, (dz -imap(1))/(imap(2)-imap(1)) )
-!      endif
-!
-!      imap = [ exp_index_to_param(dble(floor  (pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent ), &
-!          exp_index_to_param(dble(ceiling(pti(2))), OPP%dirLUT%pspace%range_kabs , Nkabs, OPP%dirLUT%pspace%kabs_exponent )  ]
-!      if(approx(imap(2), imap(1)) ) then
-!        weights(2)=zero
-!      else
-!        weights(2) = min(one, (kabs -imap(1))/(imap(2)-imap(1)) )
-!      endif
-!
-!      imap = [ exp_index_to_param(dble(floor  (pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent ), &
-!          exp_index_to_param(dble(ceiling(pti(3))), OPP%dirLUT%pspace%range_ksca , Nksca, OPP%dirLUT%pspace%ksca_exponent )  ]
-!      if(approx(imap(2), imap(1)) ) then
-!        weights(3)=zero
-!      else
-!        weights(3) = min(one, (ksca -imap(1))/(imap(2)-imap(1)) )
-!      endif
-!
-!      imap = [ exp_index_to_param(dble(floor  (pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent ), &
-!               exp_index_to_param(dble(ceiling(pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent )  ]
-!      if(approx(imap(2),imap(1)) ) then
-!        weights(4)=zero
-!      else
-!        weights(4) = (g -imap(1))/(imap(2)-imap(1))
-!      endif
-
       call interp_4d(pti, weights, OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c, C)
-      !                        call interp_4p2d(pti, weights, OPP%dirLUT%S, C)
-      !                        print *,'lin interp dir2diff weights',weights,'imap',imap,'C',C
-      !                        call interp_6d_recursive(pti, weights, OPP%dirLUT%S, C)
-      !                        print *,'lin interp dir2diff recursive weights',weights,'imap',imap,'C',C
-      !                        call exit
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
@@ -944,10 +914,10 @@ subroutine LUT_get_diff2diff(OPP, dz,in_kabs ,in_ksca,g,C)
     real(ireals),allocatable,intent(out):: C(:)
 
     real(ireals) :: kabs,ksca
-    real(ireals) :: pti(4),weights(4)!,imap(2) ! index of point
+    real(ireals) :: pti(4),weights(4)
 
     kabs = in_kabs; ksca = in_ksca
-    call catch_upper_limit_kabs(OPP%diffLUT%pspace,kabs,ksca)
+    call catch_limits(OPP%diffLUT%pspace,dz,kabs,ksca,g)
 
     allocate( C(ubound(OPP%diffLUT%S%c,1) ) )
     pti = get_indices_4d(dz,kabs ,ksca,g,OPP%diffLUT%pspace)
@@ -957,45 +927,9 @@ subroutine LUT_get_diff2diff(OPP, dz,in_kabs ,in_ksca,g,C)
       ! Nearest neighbour
       C = OPP%diffLUT%S%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
     case(2)
-      !                        print *,'linear interpolation not implemented yet!'
+      ! Linear interpolation
       weights = modulo(pti,one)
-!      imap = [ exp_index_to_param(dble(floor  (pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%diffLUT%pspace%dz_exponent), &
-!          exp_index_to_param(dble(ceiling(pti(1))), OPP%diffLUT%pspace%range_dz , Ndz, OPP%diffLUT%pspace%dz_exponent)  ]
-!      if(approx(imap(2),imap(1)) ) then
-!        weights(1)=zero
-!      else
-!        weights(1) = min(one, (dz -imap(1))/(imap(2)-imap(1)) )
-!      endif
-!
-!      imap = [ exp_index_to_param(dble(floor  (pti(2))), OPP%diffLUT%pspace%range_kabs , Nkabs, OPP%diffLUT%pspace%kabs_exponent), &
-!          exp_index_to_param(dble(ceiling(pti(2))), OPP%diffLUT%pspace%range_kabs , Nkabs, OPP%diffLUT%pspace%kabs_exponent)  ]
-!      if(approx(imap(2), imap(1)) ) then
-!        weights(2)=zero
-!      else
-!        weights(2) = min(one, (kabs -imap(1))/(imap(2)-imap(1)) )
-!      endif
-!
-!      imap = [ exp_index_to_param(dble(floor  (pti(3))), OPP%diffLUT%pspace%range_ksca , Nksca, OPP%diffLUT%pspace%ksca_exponent), &
-!          exp_index_to_param(dble(ceiling(pti(3))), OPP%diffLUT%pspace%range_ksca , Nksca, OPP%diffLUT%pspace%ksca_exponent)  ]
-!      if(approx(imap(2), imap(1)) ) then
-!        weights(3)=zero
-!      else
-!        weights(3) = min(one, (ksca -imap(1))/(imap(2)-imap(1)) )
-!      endif
-!
-!      imap = [ exp_index_to_param(dble(floor  (pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent ), &
-!               exp_index_to_param(dble(ceiling(pti(4))), OPP%dirLUT%pspace%range_g , Ng, OPP%dirLUT%pspace%g_exponent )  ]
-!      if(approx(imap(2),imap(1)) ) then
-!        weights(4)=zero
-!      else
-!        weights(4) = (g -imap(1))/(imap(2)-imap(1))
-!      endif
-
       call interp_4d(pti, weights, OPP%diffLUT%S%c, C)
-      !                        print *,'lin interp diff weights',weights,'imap',imap,'C',C
-      !                        call interp_4d_recursive(pti, weights, OPP%diffLUT%S, C)
-      !                        print *,'recursive lin interp diff weights',weights,'imap',imap,'C',C
-      !                        call exit
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
@@ -1006,10 +940,6 @@ function get_indices_4d(dz,kabs ,ksca,g,ps)
     real(ireals),intent(in) :: dz,kabs ,ksca,g
     type(parameter_space),intent(in) :: ps
 
-!    get_indices_4d(1) = exp_param_to_index( dz    ,ps%range_dz   ,Ndz  , ps%dz_exponent )
-!    get_indices_4d(2) = exp_param_to_index( kabs  ,ps%range_kabs ,Nkabs, ps%kabs_exponent )
-!    get_indices_4d(3) = exp_param_to_index( ksca  ,ps%range_ksca ,Nksca, ps%ksca_exponent )
-!    get_indices_4d(4) = exp_param_to_index( g     ,ps%range_g    ,Ng   , ps%g_exponent )
     get_indices_4d(1) = search_sorted_bisection(ps%dz   , dz)
     get_indices_4d(2) = search_sorted_bisection(ps%kabs , kabs)
     get_indices_4d(3) = search_sorted_bisection(ps%ksca , ksca)
@@ -1021,11 +951,10 @@ function get_indices_6d(dz,kabs ,ksca,g,phi,theta,ps)
     type(parameter_space),intent(in) :: ps
 
     get_indices_6d(1:4) = get_indices_4d(dz,kabs ,ksca,g,ps)
-!    get_indices_6d(5) = lin_param_to_index( phi   ,ps%range_phi  ,Nphi )
-!    get_indices_6d(6) = lin_param_to_index( theta ,ps%range_theta,Ntheta)
 
     get_indices_6d(5) = search_sorted_bisection(ps%phi  ,phi )
     get_indices_6d(6) = search_sorted_bisection(ps%theta,theta)
+
 end function
 
 logical function valid_input(val,range)
@@ -1037,14 +966,16 @@ logical function valid_input(val,range)
       valid_input=.True.
     endif
 end function
-subroutine catch_upper_limit_kabs(ps,kabs,ksca)
+subroutine catch_limits(ps,dz,kabs,ksca,g)
     ! If we hit the upper limit of the LUT for kabs, we try to scale ksca down,
     ! so that single scatter albedo w stays constant ..... this is a hack for
     ! really big absorption optical depths, where we dampen the scattering
     ! strength
     type(parameter_space),intent(in) :: ps
     real(ireals),intent(inout) :: kabs,ksca
+    real(ireals),intent(in) :: dz,g
     real(ireals) :: w,scaled_kabs,scaled_ksca
+    
     if(kabs.gt.ps%range_kabs(2) ) then
       w = ksca/(kabs+ksca)
       scaled_kabs = ps%range_kabs(2)
@@ -1052,10 +983,30 @@ subroutine catch_upper_limit_kabs(ps,kabs,ksca)
       print *,'rescaling kabs because it is too big kabs',kabs,'->',scaled_kabs,'ksca',ksca,'->',scaled_ksca
       ksca=scaled_ksca
       kabs=scaled_kabs
+      stop 'catch_upper_limit_kabs happened -> but I dont know if this really helps!'
     endif
 
     kabs = max( ps%range_kabs(1), kabs ) ! Also use lower limit of LUT table....
     ksca = max( ps%range_ksca(1), ksca ) ! Lets hope that we have a meaningful lower bound, as we will not get a warning for this.
+    ierr=0
+
+    if( dz.lt.ps%range_dz(1) .or. dz.gt.ps%range_dz(2) ) then
+      print *,'dz is not in LookUpTable Range',dz, 'LUT range',ps%range_dz
+      ierr=ierr+1
+    endif
+    if( kabs.lt.ps%range_kabs(1) .or. kabs.gt.ps%range_kabs(2) ) then
+      print *,'kabs is not in LookUpTable Range',kabs, 'LUT range',ps%range_kabs
+      ierr=ierr+1
+    endif
+    if( ksca.lt.ps%range_ksca(1) .or. ksca.gt.ps%range_ksca(2) ) then
+      print *,'ksca is not in LookUpTable Range',ksca, 'LUT range',ps%range_ksca
+      ierr=ierr+1
+    endif
+    if( g.lt.ps%range_g(1) .or. g.gt.ps%range_g(2) ) then
+      print *,'g is not in LookUpTable Range',g, 'LUT range',ps%range_g
+      ierr=ierr+1
+    endif
+    if(ierr.ne.0) stop 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.'
 end subroutine
 
 

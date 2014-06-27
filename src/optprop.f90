@@ -1,6 +1,7 @@
 module optprop
+  use helper_functions, only : rmse
 use data_parameters, only: ireals,iintegers,one,zero,i0,i1,mpiint
-use optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2, t_optprop_LUT_8_10
+use optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 
@@ -73,13 +74,23 @@ contains
         real(ireals) :: angles(2)
         integer(iintegers) :: isrc
 
-!        real(ireals) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
-!        logical,parameter :: determine_coeff_error=.True.
-!        real(ireals),parameter :: checking_limit=1e-5
+! This enables on-line calculations of coefficients with bmc code. This takes FOREVER! - use this only to check if LUT is working correctly!
+        logical,parameter :: determine_coeff_error=.False.
+        real(ireals) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
+        real(ireals) :: frmse(2)
+        real(ireals),parameter :: checking_limit=1e-1
 
-        if( (any([dz,kabs,ksca,g].lt.zero)) .or. (any(isnan([dz,kabs,ksca,g]))) ) then
-          print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[dz,kabs,ksca,g]
-          call exit
+        real(ireals) :: dx,dy,diff_streams,dir_streams
+        dx = OPP%dx
+        dy = OPP%dy
+        diff_streams= OPP%OPP_LUT%diff_streams
+        dir_streams = OPP%OPP_LUT%dir_streams
+
+        if(OPP%optprop_debug) then
+          if( (any([dz,kabs,ksca,g].lt.zero)) .or. (any(isnan([dz,kabs,ksca,g]))) ) then
+            print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[dz,kabs,ksca,g]
+            call exit
+          endif
         endif
 
         if(present(inp_angles)) then
@@ -100,45 +111,50 @@ contains
 
         if(.not.present(inp_angles)) then
           do isrc=1,OPP%OPP_LUT%diff_streams
-            C( (isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams ) = OPP%coeff_symmetry(isrc, C_diff )
+            C( (isrc-1)*OPP%OPP_LUT%diff_streams+i1 : isrc*OPP%OPP_LUT%diff_streams ) = OPP%coeff_symmetry(isrc, C_diff )
           enddo
           deallocate(C_diff)
         endif
 
-! This enables on-line calculations of coefficients with bmc code. This takes FOREVER! - use this only to check if LUT is working correctly!
-!        if(determine_coeff_error) then 
-!                call random_number(T_dir(1)) 
-!                if(optprop_8_10_debug.and.(T_dir(1).le.checking_limit)) then
-!                        if(present(inp_angles)) then 
-!                                if(dir) then !dir2dir
-!                                        do isrc=1,dir_streams
-!                                                call bmc_wrapper(isrc,dx,dy,dz,kabs,ksca,g,.True.,delta_scale,angles(1),angles(2),-1,S_diff,T_dir)
-!                                                print "('check ',i1,' dir2dir ',6e10.2,' :: RMSE ',2e13.4,' coeff ',8f7.4,' bmc ',8f7.4)",&
-!                                                        isrc,dz,kabs,ksca,g,angles(1),angles(2),RMSE(C((isrc-1)*dir_streams+1:isrc*dir_streams), T_dir),C((isrc-1)*dir_streams+1:isrc*dir_streams),T_dir
-!                                        enddo
-!                                else ! dir2diff
-!                                        do isrc=1,dir_streams
-!                                                call bmc_wrapper(isrc,dx,dy,dz,kabs,ksca,g,.True.,delta_scale,angles(1),angles(2),-1,S_diff,T_dir)
-!                                                print "('check ',i1,' dir2diff ',6e10.2,' :: RMSE ',2e13.4,' coeff ',10e10.2)",&
-!                                                        isrc,dz,kabs,ksca,g,angles(1),angles(2),RMSE(C((isrc-1)*diff_streams+1:isrc*diff_streams), S_diff),abs(C((isrc-1)*diff_streams+1:isrc*diff_streams)-S_diff)
-!                                                print "(a10,e13.4,10e13.4)",'C_interp',sum(C((isrc-1)*diff_streams+1:isrc*diff_streams)),C((isrc-1)*diff_streams+1:isrc*diff_streams)
-!                                                print "(a10,e13.4,10e13.4)",'C_bmc   ',sum(S_diff),                  S_diff
-!                                                print *,''
-!                                        enddo
-!                                endif
-!                        else
-!                                ! diff2diff
-!                                do isrc=1,diff_streams
-!                                        call bmc_wrapper(isrc,dx,dy,dz,kabs,ksca,g,.False.,delta_scale,zero,zero,-1,S_diff,T_dir)
-!                                        print "('check ',i1,' diff2diff ',4e10.2,' :: RMSE ',2e13.4,' coeff err',10e10.2)",&
-!                                                isrc,dz,kabs,ksca,g,RMSE(C((isrc-1)*diff_streams+1:isrc*diff_streams), S_diff),abs(C((isrc-1)*diff_streams+1:isrc*diff_streams)-S_diff)
-!                                        print "(a10,e13.4,10e13.4)",'C_interp',sum(C((isrc-1)*diff_streams+1:isrc*diff_streams)),C((isrc-1)*diff_streams+1:isrc*diff_streams)
-!                                        print "(a10,e13.4,10e13.4)",'C_bmc   ',sum(S_diff),S_diff
-!                                        print *,''
-!                                enddo
-!                        endif ! angles_present
-!                endif ! is in checking_limit
-!        endif ! want to check
+        if(determine_coeff_error) then 
+                call random_number(T_dir(1)) 
+                if(T_dir(1).le.checking_limit) then
+                        if(present(inp_angles)) then 
+                                if(dir) then !dir2dir
+                                        do isrc=1,OPP%OPP_LUT%dir_streams
+                                                call OPP%OPP_LUT%bmc_wrapper( isrc,dx,dy,dz,kabs,ksca,g,.True.,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
+                                                frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams), T_dir)
+                                                print "('check ',i1,' dir2dir ',6e10.2,' :: RMSE ',2e13.4,' coeff ',8f7.4,' bmc ',8f7.4)",&
+                                                        isrc,dz,kabs,ksca,g,angles(1),angles(2),frmse, C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams),T_dir
+                                                if(all(frmse.gt..1_ireals) ) stop 'Something terrible happened... I checked the coefficients and they differ more than they should!'
+                                        enddo
+                                else ! dir2diff
+                                        do isrc=1,OPP%OPP_LUT%dir_streams
+                                                call OPP%OPP_LUT%bmc_wrapper(isrc,dx,dy,dz,kabs,ksca,g,.True.,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
+                                                frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams), S_diff)
+                                                print "('check ',i1,' dir2diff ',6e10.2,' :: RMSE ',2e13.4,' coeff ',10e10.2)",&
+                                                        isrc,dz,kabs,ksca,g,angles(1),angles(2),frmse ,abs(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)-S_diff)
+                                                print "(a10,e13.4,10e13.4)",'C_interp',sum(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)),C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)
+                                                print "(a10,e13.4,10e13.4)",'C_bmc   ',sum(S_diff),                  S_diff
+                                                print *,''
+                                                if(all(frmse.gt..1_ireals) ) stop 'Something terrible happened... I checked the coefficients and they differ more than they should!'
+                                        enddo
+                                endif
+                        else
+                                ! diff2diff
+                                do isrc=1,OPP%OPP_LUT%diff_streams
+                                        call OPP%OPP_LUT%bmc_wrapper(isrc,dx,dy,dz,kabs,ksca,g,.False.,.True.,zero,zero,-1_mpiint,S_diff,T_dir)
+                                        frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams), S_diff)
+                                        print "('check ',i1,' diff2diff ',4e10.2,' :: RMSE ',2e13.4,' coeff err',10e10.2)",&
+                                                isrc,dz,kabs,ksca,g,frmse,abs(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)-S_diff)
+                                        print "(a10,e13.4,10e13.4)",'C_interp',sum(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)),C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)
+                                        print "(a10,e13.4,10e13.4)",'C_bmc   ',sum(S_diff),S_diff
+                                        print *,''
+                                        if(all(frmse.gt..1_ireals) ) stop 'Something terrible happened... I checked the coefficients and they differ more than they should!'
+                                enddo
+                        endif ! angles_present
+                endif ! is in checking_limit
+        endif ! want to check
 end subroutine
         function coeff_symmetry(OPP, isrc,coeff)
             class(t_optprop) :: OPP

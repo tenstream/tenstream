@@ -48,7 +48,7 @@ end subroutine
 subroutine init_dir_photon_1_2(bmc,p,src,direct,initial_dir,dx,dy,dz)
         class(t_boxmc_1_2) :: bmc
         type(photon),intent(inout) :: p
-        double precision,intent(in) :: dx,dy,dz,initial_dir(3)
+        real(ireals),intent(in) :: dx,dy,dz,initial_dir(3)
         integer(iintegers),intent(in) :: src
         logical,intent(in) :: direct
 
@@ -75,21 +75,23 @@ end subroutine
 subroutine init_diff_photon_1_2(bmc,p,src,dx,dy,dz)
         class(t_boxmc_1_2) :: bmc
         type(photon),intent(inout) :: p
-        double precision,intent(in) :: dx,dy,dz
+        real(ireals),intent(in) :: dx,dy,dz
         integer(iintegers),intent(in) :: src
-        double precision,parameter :: I=1.,O=0.
+
+        real(ireals) :: phi,mu
 
         if(src.eq.1) then
                 p%loc = (/L(dx), L(dy),    dz  /)
-                p%dir = (/s()   , s()   ,   -I  /)
+                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( R()*360._ireals )
         else if(src.eq.2) then
-                p%loc = (/L(dx), L(dy),    O /)
-                p%dir = (/s()   , s()   ,    I /)
+                p%loc = (/L(dx), L(dy),    zero/)
+                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( R()*360._ireals )
         else
                 print *,'Dont know what to do with source spec:',src
                 call exit
         endif
 
+        p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
         p%weight=one
         p%dx   = dx
         p%dy   = dy
@@ -98,17 +100,17 @@ subroutine init_diff_photon_1_2(bmc,p,src,dx,dy,dz)
         p%direct= .False.
         p%side = int(nil)
         p%src  = src
-        p%dir = p%dir/norm(p%dir)
+        if(.not. approx( norm(p%dir) ,one ) ) stop 'init_diff_photon_1_2 :: direction was not normed?!'
 
 end subroutine
 
 subroutine intersect_distance_1_2(bmc,p,max_dist)
         class(t_boxmc_1_2) :: bmc
         type(photon),intent(inout) :: p
-        double precision,intent(out) :: max_dist
+        real(ireals),intent(out) :: max_dist
 
-        double precision :: x,y
-!        double precision,parameter :: eps=1e-3
+        real(ireals) :: x,y
+!        real(ireals),parameter :: eps=1e-3
 
         !crossing with bottom and top plane:
           if(p%dir(3).ge.zero) then

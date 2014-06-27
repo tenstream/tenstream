@@ -1,25 +1,26 @@
 module gridtransform
       use iso_c_binding
+      use data_parameters, only: ireals,iintegers
       implicit none
 
       type gridinfo
-              double precision,allocatable,dimension(:) :: dx,dy,dz
-              double precision,allocatable,dimension(:) :: x,y,z
-              integer(c_int) :: Nx,Ny,Nz
+              real(ireals),allocatable,dimension(:) :: dx,dy,dz
+              real(ireals),allocatable,dimension(:) :: x,y,z
+              integer(iintegers) :: Nx,Ny,Nz
       end type
 
       type(gridinfo) :: oldgrid,newgrid
 
-      double precision :: solution_dx=-1,solution_dy=-1,solution_dz=-1
-!      double precision,parameter :: solution_dx=250,solution_dy=250,solution_dz=200
+      real(ireals) :: solution_dx=-1,solution_dy=-1,solution_dz=-1
+!      real(ireals),parameter :: solution_dx=250,solution_dy=250,solution_dz=200
 
       contains
 
       subroutine init_grid_transform(odx,ody,odz,lsame)
-        double precision,dimension(:),intent(in) :: odx,ody,odz
+        real(ireals),dimension(:),intent(in) :: odx,ody,odz
         logical,intent(in) :: lsame
 
-        integer(c_int) i,j,k
+        integer(iintegers) i,j,k
 
         if(allocated(newgrid%z)) return
 
@@ -83,8 +84,8 @@ module gridtransform
            newgrid%z(k-1) = newgrid%z(k) + newgrid%dz(k-1)
         enddo
 
-        print *,'Old grid had',oldgrid%Nx,oldgrid%Ny,oldgrid%Nz,'boxes'
-        print *,'New grid has',newgrid%Nx,newgrid%Ny,newgrid%Nz,'boxes'
+!        print *,'Old grid had',oldgrid%Nx,oldgrid%Ny,oldgrid%Nz,'boxes'
+!        print *,'New grid has',newgrid%Nx,newgrid%Ny,newgrid%Nz,'boxes'
 !
 !        print *,'-------------------------------'
 !        print *,'dx',oldgrid%dx,' :: ',newgrid%dx
@@ -97,11 +98,11 @@ module gridtransform
       end subroutine
 
       subroutine grid_old_to_new(A)
-        double precision,allocatable,dimension(:,:,:),intent(inout) :: A
-        double precision,allocatable,dimension(:,:,:) :: tmp
+        real(ireals),allocatable,dimension(:,:,:),intent(inout) :: A
+        real(ireals),allocatable,dimension(:,:,:) :: tmp
 
-        integer(c_int) i,j,k,oi,oj,ok
-        double precision :: val
+        integer(iintegers) i,j,k,oi,oj,ok
+        real(ireals) :: val
 
         allocate(tmp(size(newgrid%dx),size(newgrid%dy),size(newgrid%dz) ))
         tmp = A
@@ -126,11 +127,11 @@ module gridtransform
         enddo
       end subroutine
       subroutine grid_new_to_old(A)
-        double precision,allocatable,dimension(:,:,:),intent(inout) :: A
-        double precision,dimension(lbound(A,1):ubound(A,1),lbound(A,2):ubound(A,2),lbound(A,3):ubound(A,3)) :: tmp
+        real(ireals),allocatable,dimension(:,:,:),intent(inout) :: A
+        real(ireals),dimension(lbound(A,1):ubound(A,1),lbound(A,2):ubound(A,2),lbound(A,3):ubound(A,3)) :: tmp
 
-        integer(c_int) i,j,k,oi,oj,ok
-        double precision :: val
+        integer(iintegers) i,j,k,oi,oj,ok
+        real(ireals) :: val
 
         tmp = A
         deallocate(A)
@@ -164,10 +165,10 @@ function search_sorted_bisec(arr,val) ! return index i where arr(i) .gt. val
 !  search   12.500000     return index           9 which is value   20.000000     at lvl           1
 !  search   10.000000     return index           9 which is value   20.000000     at lvl           1
 
-  integer(c_int) :: search_sorted_bisec
-  double precision,dimension(:),intent(in) :: arr
-  double precision,intent(in)              :: val
-  integer(c_int) :: i,j,k
+  integer(iintegers) :: search_sorted_bisec
+  real(ireals),dimension(:),intent(in) :: arr
+  real(ireals),intent(in)              :: val
+  integer(iintegers) :: i,j,k
   i=lbound(arr,1)
   j=ubound(arr,1)
   if(arr(i).gt.arr(j)) then
@@ -205,9 +206,9 @@ end module
 !      use gridtransform
 !      implicit none
 !
-!      integer(c_int),parameter :: Nx=1,Ny=1,Nz=3
+!      integer(iintegers),parameter :: Nx=1,Ny=1,Nz=3
 !
-!      double precision,allocatable :: &
+!      real(ireals),allocatable :: &
 !      kabs(:,:,:) ,&
 !      dx(:),dy(:),dz(:)
 !

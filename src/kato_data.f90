@@ -6,11 +6,11 @@ implicit none
 
       integer(iintegers),parameter :: kato_bands(32) = (/0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 5 , 0 , 4 , 0 , 5 , 5 , 5 , 5 , 5 , 6 , 5 , 6 , 7 , 5 , 10 , 5 , 6 , 8 , 7 , 3 , 14 /)
 
-double precision,allocatable :: edirTOA(:,:),ednTOA(:,:)
+real(ireals),allocatable :: edirTOA(:,:),ednTOA(:,:)
 
       contains
       subroutine setup(z)
-        double precision,intent(in) :: z
+        real(ireals),intent(in) :: z
                 allocate( ednTOA(32,0:14) )
                 allocate( edirTOA(32,0:14) )
                 ednTOA=-1
@@ -477,8 +477,9 @@ endif
         !}}}
         end subroutine
 
-        double precision function get_ednTOA(k,q,z)
-                double precision,intent(in) :: z
+        function get_ednTOA(k,q,z)
+                real(ireals),intent(in) :: z
+                real(ireals) :: get_ednTOA
                 integer(iintegers),intent(in) :: k,q
                 if( .not.allocated(ednTOA) ) call setup(z)
                 get_ednTOA = ednTOA(k,q)
@@ -488,8 +489,9 @@ endif
                         call exit()
                 endif
         end function
-        double precision function get_edirTOA(k,q,z)
-                double precision,intent(in) :: z
+        function get_edirTOA(k,q,z)
+                real(ireals),intent(in) :: z
+                real(ireals) :: get_edirTOA
                 integer(iintegers),intent(in) :: k,q
                 if( .not.allocated(edirTOA) ) call setup(z)
                 get_edirTOA = edirTOA(k,q)

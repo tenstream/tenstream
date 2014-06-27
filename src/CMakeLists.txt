@@ -9,6 +9,7 @@ set( general_sources
   "interpolation.f90"  
   "kato_data.f90"  
   "mersenne.f95"  
+  "twostream.f90"
   )
 
 set( optprop_sources
@@ -17,7 +18,6 @@ set( optprop_sources
   "optprop_LUT.f90"
   "optprop.f90"
   )
-
 
 file( GLOB streams createLUT_*.f90 )
 foreach ( stream ${streams} )
@@ -36,6 +36,10 @@ list (APPEND solver_sources
 
 add_executable( "petsc_solver" ${solver_sources} )
 target_link_libraries( "petsc_solver" "${EXTLIB}" )
+
+add_executable( "test_boxmc" ${optprop_sources} ${general_sources} "test_boxmc.f90" )
+target_link_libraries( "test_boxmc" "${EXTLIB}" )
+
 #
 ### createLUT 
 #file( GLOB streams optprop_dir*_diff* )

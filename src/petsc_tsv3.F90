@@ -1,5 +1,6 @@
 module petsc_ts
-      use helper_functions, only: deg2rad
+      use m_twostream, only: twostream_dir,twostream_diff
+      use helper_functions, only: deg2rad,approx
       use gridtransform
       use arrayio
       use eddington, only : rodents
@@ -16,14 +17,16 @@ module petsc_ts
       PetscInt,parameter :: istartpar=i1, jstartpar=i1
       PetscReal,parameter:: zero=0,one=1.0, pi=3.141592653589793, nil=-9999999
 
-      logical,parameter :: l_writeall=.True.
-
-      logical,parameter :: ldebug=.True.,lcycle_dir=.True.,luse_twostream=.False.
+      logical :: l_writeall,luse_twostr_guess,luse_hdf5_guess
+      logical,parameter :: ldebug=.False.,lcycle_dir=.True.
       character(len=*),parameter :: basepath='/home/users/jakub/scratch/tenstream/'
-
       logical,parameter ::ltest=.False.
-      character(len=20) :: ident   ; double precision :: ident_dx, ident_dy, ident_dz=nil,phi0=nil
-      double precision :: albedo=0.05, theta0=nil, twostr_ratio=1_ireals !phi=azimuth ; theta=sza
+
+      character(len=300) :: ident,output_prefix 
+      real(ireals) :: ident_dx, ident_dy, ident_dz=nil
+      logical :: luse_eddington 
+      real(ireals) :: albedo=0.05, phi0=nil, theta0=nil, twostr_ratio=nil
+      integer(iintegers) :: pert_xshift,pert_yshift
 
       type coord
         PetscInt :: xs,xe,ys,ye,zs,ze     ! local domain start and end indices
@@ -45,7 +48,7 @@ module petsc_ts
       type t_optprop
         real(ireals) :: bg(3)=nil,fg(4)=nil
         logical :: updated=.True.
-        double precision :: kext1=nil ,kext2=nil ,ksca1=nil ,ksca2=nil, w1=nil, w2=nil, g1=nil, g2=nil
+        real(ireals) :: kext1=nil ,kext2=nil ,ksca1=nil ,ksca2=nil, w1=nil, w2=nil, g1=nil, g2=nil
       end type
       type(t_optprop),allocatable :: pcc_optprop(:,:,:)
 
@@ -55,7 +58,7 @@ module petsc_ts
       PetscReal :: symmetry_phi
       PetscInt :: yinc,xinc
 
-      PetscLogStage :: logstage(7)
+      PetscLogStage :: logstage(10)
 
       contains 
      subroutine chkerr(errcode,str)
@@ -340,7 +343,7 @@ module petsc_ts
                 ! no foreign stream dependencies
         endif
 
-!        if(luse_twostream) then
+!        if(luse_eddington) then
 !          do k=C%zs,C%ze-1
 !            do j=C%ys,C%ye
 !              do i=C%xs,C%xe        ! i,j,k indices are defined on petsc global grid
@@ -451,7 +454,7 @@ module petsc_ts
                 endif
         enddo
 
-!        if(luse_twostream) then
+!        if(luse_eddington) then
 !          do k=C%zs,C%ze-1
 !            do j=C%ys,C%ye
 !              do i=C%xs,C%xe        ! i,j,k indices are defined on petsc global grid
@@ -562,7 +565,7 @@ module petsc_ts
                 endif
         enddo
 
-!        if(luse_twostream) then
+!        if(luse_eddington) then
 !          do k=C%zs,C%ze-1
 !            do j=C%ys,C%ye
 !              do i=C%xs,C%xe        ! i,j,k indices are defined on petsc global grid
@@ -600,15 +603,15 @@ module petsc_ts
       end subroutine 
 
         subroutine get_coeff(op,dz,dir,coeff,angles)
-               double precision,intent(out) :: coeff(:)
+               real(ireals),intent(out) :: coeff(:)
                type(t_optprop),intent(in) :: op
-               double precision,intent(in) :: dz
-               double precision,intent(in),optional :: angles(2)
+               real(ireals),intent(in) :: dz
+               real(ireals),intent(in),optional :: angles(2)
                logical,intent(in) :: dir
                logical,parameter :: lround=.False.
-               double precision,parameter :: fround=1e-4
+               real(ireals),parameter :: fround=1e-4
 
-               double precision :: kabs,ksca,g !,tmp_coeff(size(coeff))
+               real(ireals) :: kabs,ksca,g !,tmp_coeff(size(coeff))
 
                ! coeff mode determines the coeff by:
                ! 1: plane parallel approx
@@ -619,6 +622,7 @@ module petsc_ts
 !               integer(iintegers),parameter :: coeff_mode=2
                call PetscLogStagePush(logstage(7),ierr) ;CHKERRQ(ierr)
 
+               coeff=zero !todo just here to be sure...
                kabs = op%bg(1) 
                ksca = op%bg(2) 
                g    = op%bg(3)
@@ -672,18 +676,19 @@ module petsc_ts
                endif
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
         end subroutine
-double precision function sym_rot_phi(phi0)
-  double precision,intent(in) :: phi0
+function sym_rot_phi(phi0)
+  real(ireals) :: sym_rot_phi
+  real(ireals),intent(in) :: phi0
   ! ''swap'' phi axis down to the range of [0,180] 
   sym_rot_phi = acos(cos(phi0*pi/180))
-  !        print *,'1st phi0 swap',phi0,phi,'=',phi0*pi/180,cos(phi0*pi/180),acos(cos(phi0*pi/180))
+!  print *,'1st phi0 swap',phi0,' :: ',sym_rot_phi,'=',phi0*pi/180,cos(phi0*pi/180),acos(cos(phi0*pi/180))
   ! and then mirror it onto range [0,90]
-  sym_rot_phi = asin(sin(sym_rot_phi)) /pi * 180
-  !        print *,'2nd phi0 swap',phi0,phi,'=',sin(phi),asin(sin(phi)),asin(sin(phi)) /pi * 180,int(asin(sin(phi)) /pi * 180)
+  sym_rot_phi = int( asin(sin(sym_rot_phi)) /pi * 180 )
+!  print *,'2nd phi0 swap',phi0,' :: ',sym_rot_phi,'=',sin(sym_rot_phi),asin(sin(sym_rot_phi)),asin(sin(sym_rot_phi)) /pi * 180,int(asin(sin(sym_rot_phi)) /pi * 180)
 end function
 subroutine setup_dir_inc(phi0,symmetry_phi)
-  double precision,intent(in) :: phi0
-  double precision,intent(out) :: symmetry_phi
+  real(ireals),intent(in) :: phi0
+  real(ireals),intent(out) :: symmetry_phi
   ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
   if(ldebug) print *,'setup_dir_inc'
   symmetry_phi = sym_rot_phi(phi0)
@@ -709,6 +714,7 @@ subroutine set_dir_coeff(A,C)
         row=PETSC_NULL_INTEGER
         col=PETSC_NULL_INTEGER
         v=PETSC_NULL_REAL
+        coeffs=PETSC_NULL_REAL
 
         do k=C%zs,C%ze-1
         do j=C%ys,C%ye
@@ -736,14 +742,15 @@ subroutine set_dir_coeff(A,C)
           src = 7 ; col(MatStencil_i,src) = i        ; col(MatStencil_j,src) = j+1-yinc ; col(MatStencil_k,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
           src = 8 ; col(MatStencil_i,src) = i        ; col(MatStencil_j,src) = j+1-yinc ; col(MatStencil_k,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
-          if(luse_twostream .and. twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
-            call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
-            coeffs=zero
-            coeffs([0, 8+1, 16+2, 24+3 ]+i1) = edd_coeff(5) ! only use the four vertical tiles with a33
-          elseif(twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
-            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., twostr_coeff, [symmetry_phi, theta0])
-            coeffs=zero
-            coeffs([0, 8+1, 16+2, 24+3 ]+i1) = twostr_coeff(1) ! only use the four vertical tiles with direct transmission
+          coeffs=zero
+          if( twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(1) ) then
+            if(luse_eddington) then
+              call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
+              coeffs([0, 8+1, 16+2, 24+3 ]+i1) = edd_coeff(5) ! only use the four vertical tiles with a33
+            else
+              call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., twostr_coeff, [symmetry_phi, theta0])
+              coeffs([0, 8+1, 16+2, 24+3 ]+i1) = twostr_coeff(1) ! only use the four vertical tiles with direct transmission
+            endif
           else
             call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., coeffs, [symmetry_phi, theta0])
           endif
@@ -780,7 +787,7 @@ subroutine set_dir_coeff(A,C)
           PetscInt :: i,j,li,lj
           PetscScalar,pointer,dimension(:,:,:,:) :: xincSolar
 
-          PetscReal :: edirTOA
+          PetscReal :: edirTOA,Az
 
           call VecSet(incSolar,zero,ierr) ;CHKERRQ(ierr)
 
@@ -792,12 +799,16 @@ subroutine set_dir_coeff(A,C)
               li = istartpar+i-C_dir%xs ! l-indices are used for local arrays, 
               lj = jstartpar+j-C_dir%ys ! which are defined on the cosmo grid
 
-              xincSolar(i0:i3,i,j,C_dir%zs) = edirTOA* newgrid%dx(li)*newgrid%dy(lj) * max(zero,cos(deg2rad(theta0))) *.25
+              Az = newgrid%dx(1)*newgrid%dy(1)
+
+              xincSolar(i0:i3,i,j,C_dir%zs) = edirTOA* Az * max(zero,cos(deg2rad(theta0))) *.25_ireals
             enddo
           enddo
 
           call DMDAVecRestoreArrayF90(C_dir%da,incSolar,xincSolar,ierr) ;CHKERRQ(ierr)
-          if(myid.eq.0.and.ldebug) print *,myid,'Setup of IncSolar done'
+
+          if(myid.eq.0 .and. ldebug) print *,myid,'Setup of IncSolar done',get_edirTOA(kato,iq,newgrid%z(1))
+
 
         end subroutine
 
@@ -808,7 +819,7 @@ subroutine set_diff_coeff(A,C)
   PetscInt :: i,j,k,src,dst, li,lj,lk
 
   MatStencil :: row(4,0:C%dof-1)  ,col(4,0:C%dof-1)
-  PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm,edd_coeff(5),twostr_coeff(2)
+  PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm,edd_coeff(5),twostr_coeff(4)
   PetscInt,parameter :: entries(10)=[0,10,20,30,40,50,60,70,80,90]
 
   ! if(ldebug) print *,myid,'DEBUG(set_dir_coeff) jspec',jspec,'igas',igas,'isub',isub
@@ -868,14 +879,15 @@ subroutine set_diff_coeff(A,C)
         dst = 8; row(MatStencil_i,dst) = i    ; row(MatStencil_j,dst) = j     ; row(MatStencil_k,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
         dst = 9; row(MatStencil_i,dst) = i    ; row(MatStencil_j,dst) = j+1   ; row(MatStencil_k,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
-        if(luse_twostream .and. twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
-          coeffs = zero
-          call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
-          coeffs([ 0,1, 10,11 ]+i1) = [ edd_coeff(2), edd_coeff(1), edd_coeff(1), edd_coeff(2) ]
-        elseif(twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
-          call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff )
-          coeffs=zero
-          coeffs([ 0,1, 10,11 ]+i1) = [ twostr_coeff(2), twostr_coeff(1), twostr_coeff(1), twostr_coeff(2) ]
+        coeffs = zero
+        if( twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
+          if(luse_eddington ) then
+            call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
+            coeffs([ 0,1, 10,11 ]+i1) = [ edd_coeff(2), edd_coeff(1), edd_coeff(1), edd_coeff(2) ]
+          else
+            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff )
+            coeffs([ 0,1, 10,11 ]+i1) = twostr_coeff
+          endif
         else
           call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs )
         endif
@@ -918,8 +930,6 @@ subroutine setup_b(edir,kato,iq,b)
         
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly...'
 
-        call VecSet(b,zero,ierr) ;CHKERRQ(ierr)
-
         call DMCreateLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
         call VecSet(local_b,zero,ierr) ;CHKERRQ(ierr)
 
@@ -934,32 +944,41 @@ subroutine setup_b(edir,kato,iq,b)
               lj = jstartpar+j-C_diff%ys
               lk = i1+k-C_diff%zs        
 
-              if(luse_twostream .and. twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
-                call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
-                xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(i0,i,j,k)*edd_coeff(3)
-                xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(i0,i,j,k)*edd_coeff(4)
+              coeffs=zero
+              if(twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(1) ) then
 
-              elseif(twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
-                call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, [symmetry_phi, theta0] )
-                xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(i0,i,j,k)*twostr_coeff(1)
-                xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(i0,i,j,k)*twostr_coeff(2)
+                if(luse_eddington ) then
+                  call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
+                  ! Only transport the 4 tiles from dir0 to the Eup and Edn
+                  do src=1,4
+                    coeffs(E_up  +i1+(src-1)*C_diff%dof) = edd_coeff(3)
+                    coeffs(E_dn  +i1+(src-1)*C_diff%dof) = edd_coeff(4)
+                  enddo
+
+                else
+                  call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, [symmetry_phi, theta0] )
+                  do src=1,4
+                    coeffs(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
+                    coeffs(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
+                  enddo
+                endif
+
               else
                 call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, [symmetry_phi, theta0] )
-
-                do src=1,C_dir%dof
-                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_up  +i1+(src-1)*C_diff%dof)
-                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*coeffs(E_dn  +i1+(src-1)*C_diff%dof)
-                  xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_le_m+i1+(src-1)*C_diff%dof)
-                  xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_le_p+i1+(src-1)*C_diff%dof)
-                  xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  xedir(src-1,i,j,k)*coeffs(E_ri_m+i1+(src-1)*C_diff%dof)  
-                  xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  xedir(src-1,i,j,k)*coeffs(E_ri_p+i1+(src-1)*C_diff%dof)  
-                  xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_ba_m+i1+(src-1)*C_diff%dof)  
-                  xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_ba_p+i1+(src-1)*C_diff%dof)  
-                  xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  xedir(src-1,i,j,k)*coeffs(E_fw_m+i1+(src-1)*C_diff%dof)  
-                  xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  xedir(src-1,i,j,k)*coeffs(E_fw_p+i1+(src-1)*C_diff%dof) 
-                enddo
-
               endif
+
+              do src=1,C_dir%dof
+                xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_up  +i1+(src-1)*C_diff%dof)
+                xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*coeffs(E_dn  +i1+(src-1)*C_diff%dof)
+                xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_le_m+i1+(src-1)*C_diff%dof)
+                xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_le_p+i1+(src-1)*C_diff%dof)
+                xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  xedir(src-1,i,j,k)*coeffs(E_ri_m+i1+(src-1)*C_diff%dof)  
+                xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  xedir(src-1,i,j,k)*coeffs(E_ri_p+i1+(src-1)*C_diff%dof)  
+                xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_ba_m+i1+(src-1)*C_diff%dof)  
+                xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_ba_p+i1+(src-1)*C_diff%dof)  
+                xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  xedir(src-1,i,j,k)*coeffs(E_fw_m+i1+(src-1)*C_diff%dof)  
+                xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  xedir(src-1,i,j,k)*coeffs(E_fw_p+i1+(src-1)*C_diff%dof) 
+              enddo
 
             enddo
           enddo
@@ -974,23 +993,26 @@ subroutine setup_b(edir,kato,iq,b)
             xsrc(E_up   ,i,j,k) = sum(xedir(i0:i3,i,j,k))*albedo
           enddo
         enddo
-        if(newgrid%z(1).le.15e3) then
-          if(myid.eq.0) print *,'Updating diffuse downward stream with ',get_ednTOA(kato,iq,newgrid%z(1)),'W/m2'
-          do i=C_diff%xs,C_diff%xe     
-            do j=C_diff%ys,C_diff%ye     
-              li = istartpar+i-C_diff%xs 
-              lj = jstartpar+j-C_diff%ys 
-              k = C_diff%zs
-              !              xsrc(   :   ,i,j,k ) = nil
-              xsrc(E_dn   ,i,j,k ) = get_ednTOA(kato,iq,newgrid%z(1))*newgrid%dx(li)*newgrid%dy(lj)
-            enddo
-          enddo
-        endif
+!        if(newgrid%z(1).le.15e3) then
+!          stop 'additional source terms are not permitted at the moment'
+!          if(myid.eq.0) print *,'Updating diffuse downward stream with ',get_ednTOA(kato,iq,newgrid%z(1)),'W/m2'
+!          do i=C_diff%xs,C_diff%xe     
+!            do j=C_diff%ys,C_diff%ye     
+!              li = istartpar+i-C_diff%xs 
+!              lj = jstartpar+j-C_diff%ys 
+!              k = C_diff%zs
+!              !              xsrc(   :   ,i,j,k ) = nil
+!              xsrc(E_dn   ,i,j,k ) = get_ednTOA(kato,iq,newgrid%z(1))*newgrid%dx(1)*newgrid%dy(1)
+!            enddo
+!          enddo
+!        endif
 
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients ...done'
 
         call DMDAVecRestoreArrayF90(C_dir%da,edir,xedir,ierr) ;CHKERRQ(ierr)
         call DMDAVecRestoreArrayF90(C_diff%da,local_b,xsrc,ierr) ;CHKERRQ(ierr)
+
+        call VecSet(b,zero,ierr) ;CHKERRQ(ierr) ! reset global Vec
 
         call DMLocalToGlobalBegin(C_diff%da,local_b,ADD_VALUES, b,ierr) ;CHKERRQ(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
         call DMLocalToGlobalEnd  (C_diff%da,local_b,ADD_VALUES, b,ierr) ;CHKERRQ(ierr)
@@ -1002,14 +1024,14 @@ end subroutine
 
 subroutine load_test_optprop(kato,iq)
       integer(iintegers),intent(in) :: kato,iq
-      double precision,allocatable,dimension(:) :: hhl1d,dx,dy,dz
+      real(ireals),allocatable,dimension(:) :: hhl1d,dx,dy,dz
       PetscInt :: i,j,k
 
       type op
-        double precision,allocatable,dimension(:,:,:) :: kabs,ksca,g
+        real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
       end type
       type(op) :: optP
-      integer(iintegers),parameter :: glob_Nx=5,glob_Ny=5,glob_Nz=5, zTOA=150000
+      integer(iintegers),parameter :: glob_Nx=3,glob_Ny=3,glob_Nz=10, zTOA=500
 
       if(myid.eq.0.and.ldebug) print *,myid,'Creating Optical Properties here instead of taking them from kato',kato,iq
 
@@ -1034,7 +1056,7 @@ subroutine load_test_optprop(kato,iq)
       optP%kabs=1e-8
       optP%ksca=1e-8
 
-      if(myid.eq.0) optP%ksca(1,1,1) = 1e-3
+!      if(myid.eq.0) optP%ksca(1,1,1) = 1e-3
 !      optP%ksca(1:5,1:5,5:15) = .1
 
       allocate(dx(ubound(optP%kabs,1))) ; dx=ident_dx
@@ -1069,27 +1091,39 @@ subroutine load_test_optprop(kato,iq)
   end subroutine
   subroutine load_optprop(kato,iq)
       integer(iintegers),intent(in) :: kato,iq
-      double precision,allocatable,dimension(:,:,:) :: tmp
-      double precision,allocatable,dimension(:) :: hhl1d,dx,dy,dz
+      real(ireals),allocatable,dimension(:,:,:) :: tmp
+      real(ireals),allocatable,dimension(:) :: hhl1d,dx,dy,dz
       PetscInt :: i,j,k
-      double precision,parameter :: min_coeff=1e-30
+      real(ireals),parameter :: min_coeff=1e-30
 
-      character(100) :: skato,siq
-      character(100),parameter :: uvspec_file='/usr/users/jakub/data/tenstream/scenes/scenes.h5'
+!      character(300) :: skato,siq
+      character(300),parameter :: uvspec_file='/usr/users/jakub/cosmodata/tenstream/scenes/scenes.h5'
+      character(300) :: groups(10)
 
       type op
-        double precision,allocatable,dimension(:,:,:) :: kabs,ksca,g
+        real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
       end type
       type(op) :: optP
 
-      call h5load([uvspec_file,ident,'hhl'],hhl1d,iierr)
+      integer(mpiint) :: Ntot
+
+      groups(1) = uvspec_file
+      groups(2) = ident
+
+      !Actually loading data
+
+      groups(3) = 'hhl'
+      call h5load(groups(1:3),hhl1d,iierr)
       if(myid.eq.0) print *,'hhl',hhl1d
 
-      write(skato,FMT='("kato",I0)') kato
-      write(siq  ,FMT='("iq",I0)') iq
-      call h5load([uvspec_file,ident,skato,siq,'kabs'],optP%kabs,iierr) 
-      call h5load([uvspec_file,ident,skato,siq,'ksca'],optP%ksca,iierr) 
-      call h5load([uvspec_file,ident,skato,siq,'g   '],optP%g,iierr) 
+      write(groups(3),FMT='("kato",I0)') kato
+      write(groups(4),FMT='("iq",I0)') iq
+      groups(5) = 'kabs'
+      call h5load(groups(1:5),optP%kabs,iierr)
+      groups(5) = 'ksca'
+      call h5load(groups(1:5),optP%ksca,iierr) 
+      groups(5) = 'g'
+      call h5load(groups(1:5),optP%g,iierr) 
 
       if(size(optP%ksca).ne.size(optP%kabs).or.size(optP%kabs).ne.size(optP%g).or.size(hhl1d).ne.ubound(optP%kabs,3)+1) then !.or.(ubound(hhl1d,1)-1.ne.ubound(kabs,3))) then
         print *,'ERROR : shapes of optical properties do not match!!!'
@@ -1144,6 +1178,15 @@ subroutine load_test_optprop(kato,iq)
       call grid_old_to_new(optP%kabs)
       call grid_old_to_new(optP%ksca)
       call grid_old_to_new(optP%g)
+
+      !this is just for runtime evaluation - we shift optical properties mimicing wind
+      optP%kabs = cshift(optP%kabs, shift=pert_xshift, dim=1)
+      optP%ksca = cshift(optP%ksca, shift=pert_xshift, dim=1)
+      optP%g    = cshift(optP%g   , shift=pert_xshift, dim=1)
+      optP%kabs = cshift(optP%kabs, shift=pert_yshift, dim=2)
+      optP%ksca = cshift(optP%ksca, shift=pert_yshift, dim=2)
+      optP%g    = cshift(optP%g   , shift=pert_yshift, dim=2)
+      !
 
       if(allocated(pcc_optprop)) deallocate(pcc_optprop)
       allocate(pcc_optprop(ubound(optP%kabs,1),ubound(optP%kabs,2),ubound(optP%kabs,3) ))
@@ -1203,73 +1246,29 @@ subroutine calc_flx_div(edir,ediff,abso)
         PetscReal,pointer,dimension(:,:,:,:) :: xediff,xedir,xabso
         PetscInt :: i,j,k,li,lj,lk
         Vec :: ledir,lediff ! local copies of vectors, including ghosts
-        PetscReal :: div(13),Ax,Ay,Az
+        PetscReal :: div2(13)
+        PetscReal :: Ax,Ay,Az
 
         if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence'
         call VecSet(abso,zero,ierr) ;CHKERRQ(ierr)
         
-        call DMCreateLocalVector(C_diff%da,lediff,ierr) ;CHKERRQ(ierr) ; call VecSet(lediff,zero,ierr) ;CHKERRQ(ierr)
-        call DMCreateLocalVector(C_dir%da ,ledir ,ierr) ;CHKERRQ(ierr) ; call VecSet(ledir ,zero,ierr) ;CHKERRQ(ierr)
-        call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ;CHKERRQ(ierr)
-        call DMGlobalToLocalEnd(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ;CHKERRQ(ierr)
+        ! Copy ghosted values for direct vec
+        call DMCreateLocalVector(C_dir%da ,ledir ,ierr)                   ; CHKERRQ(ierr)
+        call VecSet(ledir ,zero,ierr)                                     ; CHKERRQ(ierr)
+        call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
+        call DMGlobalToLocalEnd(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr)   ; CHKERRQ(ierr)
 
-        call DMGlobalToLocalBegin(C_diff%da,ediff,ADD_VALUES,lediff,ierr) ;CHKERRQ(ierr)
-        call DMGlobalToLocalEnd(C_diff%da,ediff,ADD_VALUES,lediff,ierr) ;CHKERRQ(ierr)
+        ! Copy ghosted values for diffuse vec
+        call DMCreateLocalVector(C_diff%da,lediff,ierr)                   ; CHKERRQ(ierr)
+        call VecSet(lediff,zero,ierr)                                     ; CHKERRQ(ierr)
+        call DMGlobalToLocalBegin(C_diff%da,ediff,ADD_VALUES,lediff,ierr) ; CHKERRQ(ierr)
+        call DMGlobalToLocalEnd(C_diff%da,ediff,ADD_VALUES,lediff,ierr)   ; CHKERRQ(ierr)
 
         ! calculate absorption by flux divergence
-        call DMDAVecGetArrayF90(C_diff%da,lediff,xediff,ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C_dir%da ,ledir ,xedir ,ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C_one%da ,abso ,xabso ,ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C_diff%da,lediff,xediff,ierr) ; CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C_dir%da ,ledir ,xedir ,ierr) ; CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C_one%da ,abso ,xabso ,ierr)  ; CHKERRQ(ierr)
 
-        do k=C_one%zs,C_one%ze
-        do j=C_one%ys,C_one%ye         
-        do i=C_one%xs,C_one%xe      
-          li = istartpar+i-C_one%xs 
-          lj = jstartpar+j-C_one%ys 
-          lk = 1+k-C_one%zs
-                Ax = newgrid%dy(lj)*newgrid%dz(lk)
-                Ay = newgrid%dx(li)*newgrid%dz(lk)
-                Az = newgrid%dx(li)*newgrid%dy(lj)
-
-                ! Divergence    =                       Incoming                -       Outgoing
-                div( 1) = sum( xedir(i0:i3, i,j,k)          - xedir(i0:i3, i,j,k+i1  ) ) *Az*.25
-                div( 2) = sum( xedir(i4:i5, i+i1-xinc,j,k)  - xedir(i4:i5, i+xinc,j,k) ) *Ax*.5
-                div( 3) = sum( xedir(i6:i7, i,j+i1-yinc,k)  - xedir(i6:i7, i,j+yinc,k) ) *Ay*.5
-                                                                     
-                div( 4) = Az* ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  )
-                div( 5) = Az* ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  )
-                div( 6) = Ax* ( xediff(E_le_m,i+1,j  ,k  )  - xediff(E_le_m,i  ,j  ,k  )  )
-                div( 7) = Ax* ( xediff(E_le_p,i+1,j  ,k  )  - xediff(E_le_p,i  ,j  ,k  )  )
-                div( 8) = Ax* ( xediff(E_ri_m,i  ,j  ,k  )  - xediff(E_ri_m,i+1,j  ,k  )  )
-                div( 9) = Ax* ( xediff(E_ri_p,i  ,j  ,k  )  - xediff(E_ri_p,i+1,j  ,k  )  )
-                div(10) = Ay* ( xediff(E_ba_m,i  ,j+1,k  )  - xediff(E_ba_m,i  ,j  ,k  )  )
-                div(11) = Ay* ( xediff(E_ba_p,i  ,j+1,k  )  - xediff(E_ba_p,i  ,j  ,k  )  )
-                div(12) = Ay* ( xediff(E_fw_m,i  ,j  ,k  )  - xediff(E_fw_m,i  ,j+1,k  )  )
-                div(13) = Ay* ( xediff(E_fw_p,i  ,j  ,k  )  - xediff(E_fw_p,i  ,j+1,k  )  )
-
-                xabso(i0,i,j,k) = sum(div)/ ( newgrid%dx(li)*newgrid%dy(lj)*newgrid%dz(lk) )
-        enddo                             
-        enddo                             
-        enddo   
-        
-        call DMDAVecRestoreArrayF90(C_one%da ,abso ,xabso ,ierr) ;CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C_diff%da,lediff,xediff,ierr) ;CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C_dir%da ,ledir ,xedir ,ierr) ;CHKERRQ(ierr)
-        
-        call VecDestroy(lediff,ierr) ;CHKERRQ(ierr)
-        call VecDestroy(ledir ,ierr) ;CHKERRQ(ierr)
-end subroutine
-
-subroutine scale_flx(edir,ediff)
-        Vec :: edir,ediff
-        PetscReal,pointer,dimension(:,:,:,:) :: xediff,xedir
-        PetscInt :: i,j,k,li,lj,lk
-        PetscReal :: Ax,Ay,Az
-
-        if(myid.eq.0.and.ldebug) print *,'rescaling fluxes'
-        call DMDAVecGetArrayF90(C_diff%da,ediff,xediff,ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C_dir%da ,edir ,xedir ,ierr) ;CHKERRQ(ierr)
-        ! rescale total energy fluxes to average quantities i.e. W/m**2 or W/m**3
         do k=C_one%zs,C_one%ze
         do j=C_one%ys,C_one%ye         
         do i=C_one%xs,C_one%xe      
@@ -1280,39 +1279,121 @@ subroutine scale_flx(edir,ediff)
                 Ay = newgrid%dx(li)*newgrid%dz(lk)
                 Az = newgrid%dx(li)*newgrid%dy(lj)
 
-                xedir(i0:i3,i,j,k) = xedir(i0:i3,i,j,k) / ( Az*.25 )
-                xedir(i4:i5,i,j,k) = xedir(i4:i5,i,j,k) / ( Ax*.5  )
-                xedir(i6:i7,i,j,k) = xedir(i6:i7,i,j,k) / ( Ay*.5  )
+                ! Divergence    =                       Incoming                -       Outgoing
+                div2( 1) = sum( xedir(i0:i3, i,j,k)          - xedir(i0:i3, i,j,k+i1  ) ) *Az*.25
+                div2( 2) = sum( xedir(i4:i5, i+i1-xinc,j,k)  - xedir(i4:i5, i+xinc,j,k) ) *Ax*.5
+                div2( 3) = sum( xedir(i6:i7, i,j+i1-yinc,k)  - xedir(i6:i7, i,j+yinc,k) ) *Ay*.5
 
-                xediff(E_up  ,i,j,k) = xediff(E_up  ,i,j,k) / Az
-                xediff(E_dn  ,i,j,k) = xediff(E_dn  ,i,j,k) / Az
-                xediff(E_le_m,i,j,k) = xediff(E_le_m,i,j,k) / Ax
-                xediff(E_le_p,i,j,k) = xediff(E_le_p,i,j,k) / Ax
-                xediff(E_ri_m,i,j,k) = xediff(E_ri_m,i,j,k) / Ax
-                xediff(E_ri_p,i,j,k) = xediff(E_ri_p,i,j,k) / Ax
-                xediff(E_ba_m,i,j,k) = xediff(E_ba_m,i,j,k) / Ay
-                xediff(E_ba_p,i,j,k) = xediff(E_ba_p,i,j,k) / Ay
-                xediff(E_fw_m,i,j,k) = xediff(E_fw_m,i,j,k) / Ay
-                xediff(E_fw_p,i,j,k) = xediff(E_fw_p,i,j,k) / Ay
+                div2( 4) = Az* ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  )
+                div2( 5) = Az* ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  )
+                div2( 6) = Ax* ( xediff(E_le_m,i+1,j  ,k  )  - xediff(E_le_m,i  ,j  ,k  )  )
+                div2( 7) = Ax* ( xediff(E_le_p,i+1,j  ,k  )  - xediff(E_le_p,i  ,j  ,k  )  )
+                div2( 8) = Ax* ( xediff(E_ri_m,i  ,j  ,k  )  - xediff(E_ri_m,i+1,j  ,k  )  )
+                div2( 9) = Ax* ( xediff(E_ri_p,i  ,j  ,k  )  - xediff(E_ri_p,i+1,j  ,k  )  )
+                div2(10) = Ay* ( xediff(E_ba_m,i  ,j+1,k  )  - xediff(E_ba_m,i  ,j  ,k  )  )
+                div2(11) = Ay* ( xediff(E_ba_p,i  ,j+1,k  )  - xediff(E_ba_p,i  ,j  ,k  )  )
+                div2(12) = Ay* ( xediff(E_fw_m,i  ,j  ,k  )  - xediff(E_fw_m,i  ,j+1,k  )  )
+                div2(13) = Ay* ( xediff(E_fw_p,i  ,j  ,k  )  - xediff(E_fw_p,i  ,j+1,k  )  )
+
+                xabso(i0,i,j,k) = sum(div2)/ ( newgrid%dx(li)*newgrid%dy(lj)*newgrid%dz(lk) )
+        enddo                             
+        enddo                             
+        enddo   
+        
+        call DMDAVecRestoreArrayF90(C_one%da ,abso ,xabso ,ierr)  ; CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C_diff%da,lediff,xediff,ierr) ; CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C_dir%da ,ledir ,xedir ,ierr) ; CHKERRQ(ierr)
+        
+        call VecDestroy(lediff,ierr) ; CHKERRQ(ierr)
+        call VecDestroy(ledir ,ierr) ; CHKERRQ(ierr)
+end subroutine
+
+subroutine scale_flx(v,C)
+        Vec :: v
+        type(coord) :: C
+        PetscReal,pointer,dimension(:,:,:,:) :: xv
+        PetscInt :: i,j,k,li,lj,lk
+        PetscReal :: Ax,Ay,Az
+
+        if(myid.eq.0.and.ldebug) print *,'rescaling fluxes'
+        call DMDAVecGetArrayF90(C%da,v,xv,ierr) ;CHKERRQ(ierr)
+        ! rescale total energy fluxes to average quantities i.e. W/m**2 or W/m**3
+        do k=C%zs,C%ze-i1
+        do j=C%ys,C%ye         
+        do i=C%xs,C%xe      
+          li = istartpar+i-C%xs 
+          lj = jstartpar+j-C%ys 
+          lk = i1+k-C%zs
+          Ax = newgrid%dy(lj)*newgrid%dz(lk)
+          Ay = newgrid%dx(li)*newgrid%dz(lk)
+          Az = newgrid%dx(li)*newgrid%dy(lj)
+
+          if(C%dof.eq.i8) then ! This is 8 stream direct radiation
+            xv(i0:i3,i,j,k) = xv(i0:i3,i,j,k) / ( Az*.25 )
+            xv(i4:i5,i,j,k) = xv(i4:i5,i,j,k) / ( Ax*.5  )
+            xv(i6:i7,i,j,k) = xv(i6:i7,i,j,k) / ( Ay*.5  )
+          endif
+
+          if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
+            xv(E_up  ,i,j,k) = xv(E_up  ,i,j,k) / Az
+            xv(E_dn  ,i,j,k) = xv(E_dn  ,i,j,k) / Az
+            xv(E_le_m,i,j,k) = xv(E_le_m,i,j,k) / Ax
+            xv(E_le_p,i,j,k) = xv(E_le_p,i,j,k) / Ax
+            xv(E_ri_m,i,j,k) = xv(E_ri_m,i,j,k) / Ax
+            xv(E_ri_p,i,j,k) = xv(E_ri_p,i,j,k) / Ax
+            xv(E_ba_m,i,j,k) = xv(E_ba_m,i,j,k) / Ay
+            xv(E_ba_p,i,j,k) = xv(E_ba_p,i,j,k) / Ay
+            xv(E_fw_m,i,j,k) = xv(E_fw_m,i,j,k) / Ay
+            xv(E_fw_p,i,j,k) = xv(E_fw_p,i,j,k) / Ay
+          endif
         enddo
         enddo
         enddo
 
-        do j=C_diff%ys,C_diff%ye         
-        do i=C_diff%xs,C_diff%xe      
-                k=C_diff%ze
+        do j=C%ys,C%ye         
+        do i=C%xs,C%xe      
+                k=C%ze
                 li = istartpar+i-C_diff%xs 
                 lj = jstartpar+j-C_diff%ys 
-                lk = 1+k-C_diff%zs         
                 Az = newgrid%dx(li)*newgrid%dy(lj)
-                xedir (i0:i3 ,i,j,k) = xedir (i0:i3 ,i,j,k) / ( Az*.25 )
-                xediff(E_up  ,i,j,k) = xediff(E_up  ,i,j,k) / Az
-                xediff(E_dn  ,i,j,k) = xediff(E_dn  ,i,j,k) / Az
+                if(C%dof.eq.i8) then ! This is 8 stream direct radiation
+                  xv (i0:i3 ,i,j,k) = xv (i0:i3 ,i,j,k) / ( Az*.25 )
+                endif
+                if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
+                  xv(E_up  ,i,j,k) = xv(E_up  ,i,j,k) / Az
+                  xv(E_dn  ,i,j,k) = xv(E_dn  ,i,j,k) / Az
+                endif
         enddo
         enddo
 
-        call DMDAVecRestoreArrayF90(C_diff%da,ediff,xediff,ierr) ;CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C_dir%da ,edir ,xedir ,ierr) ;CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C%da ,v ,xv ,ierr) ;CHKERRQ(ierr)
+end subroutine
+
+subroutine add_noise(v,C,noiselevel) ! add noiselevel to vector -- noiselevel given in percent
+    Vec :: v
+    type(coord) :: C
+    real(ireals),intent(in) :: noiselevel
+
+    PetscReal,pointer,dimension(:,:,:,:) :: xv
+    integer(iintegers) :: i,j,k,src
+    real(ireals) :: fac
+
+    if(myid.eq.0) print *,'Adding ',noiselevel,' % noise to vector :: fac',noiselevel/100._ireals
+    call DMDAVecGetArrayF90(C%da,v,xv,ierr) ;CHKERRQ(ierr)
+    do k=C%zs,C%ze
+      do j=C%ys,C%ye         
+        do i=C%xs,C%xe
+          do src=1,C%dof
+            call random_number(fac)
+            fac = fac*2._ireals -1._ireals ! fac is now random number in range [-1,1]
+            fac = fac*noiselevel/100._ireals
+            xv(src-1,i,j,k) = xv(src-1,i,j,k)+ xv(src-1,i,j,k)*fac
+          enddo
+        enddo
+      enddo
+    enddo
+
+    call DMDAVecRestoreArrayF90(C%da ,v ,xv ,ierr) ;CHKERRQ(ierr)
 end subroutine
 
 subroutine vec_from_hdf5(v,err_code)
@@ -1322,17 +1403,20 @@ subroutine vec_from_hdf5(v,err_code)
       logical fexists
       PetscFileMode :: fmode
       character(100) :: vecname,s_theta0
+      PetscScalar :: rvecsum
 
       PetscInt :: err_code
       
       PetscViewer view
       PetscErrorCode ierr
 
+      call PetscLogStagePush(logstage(10),ierr) ;CHKERRQ(ierr)
+
       call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
 
       write(s_theta0,FMT='(".",I0)' ) int(theta0)
       
-      fname = trim(basepath) // 'ts.' // trim(ident) // trim(s_theta0) // trim(suffix)
+      fname = trim(basepath) // trim(output_prefix) // '.' // trim(ident) // trim(s_theta0) // trim(suffix)
       inquire(file=trim(fname), exist=fexists)
       
       if(fexists) then
@@ -1352,8 +1436,10 @@ subroutine vec_from_hdf5(v,err_code)
         call VecSet(v,zero,ierr) ; CHKERRQ(ierr)
       endif
 
-      if(myid.eq.0.and.ldebug) print *,myid,'reading from hdf5 file done :: error:',err_code
-end subroutine
+      call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+      call VecSum(v,rvecsum,ierr) ;CHKERRQ(ierr)
+      if(myid.eq.0) print *,myid,'reading from hdf5 file done :: error:',err_code,'sum of vector',rvecsum
+end subroutine 
 subroutine vec_to_hdf5(v)
       Vec,intent(in) :: v
       character(10),parameter :: suffix='.h5'
@@ -1362,14 +1448,15 @@ subroutine vec_to_hdf5(v)
       PetscFileMode :: fmode
       character(100) :: vecname,s_theta0
       
-      PetscViewer view
-      PetscErrorCode ierr
+      PetscViewer :: view
+      PetscReal :: tmp
 
+      call PetscLogStagePush(logstage(10),ierr) ;CHKERRQ(ierr)
       call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
 
       write(s_theta0,FMT='(".",I0)' ) int(theta0)
       
-      fname = trim(basepath) // 'ts.' // trim(ident) // trim(s_theta0) // trim(suffix)
+      fname = trim(basepath) // trim(output_prefix) // '.' // trim(ident) // trim(s_theta0) // trim(suffix)
       inquire(file=trim(fname), exist=fexists)
       
       if(fexists) then
@@ -1383,12 +1470,13 @@ subroutine vec_to_hdf5(v)
       call PetscViewerHDF5Open(PETSC_COMM_WORLD,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
       call VecView(v, view, ierr) ;CHKERRQ(ierr)
       call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
-      if(myid.eq.0.and.ldebug) print *,myid,'writing to hdf5 file done'
+      call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+
+      if(myid.eq.0 .and. ldebug) print *,myid,'writing to hdf5 file done'
 end subroutine
 
-subroutine solve(ksp,b,A,x,C)
+subroutine solve(ksp,b,x,C)
       KSP :: ksp
-      Mat:: A
       Vec:: b
       Vec:: x
       type(coord) :: C
@@ -1397,15 +1485,6 @@ subroutine solve(ksp,b,A,x,C)
       PetscInt :: iter
 
       if(myid.eq.0.and.ldebug) print *,'Solving Matrix'
-
-      call KSPSetOperators(ksp,A,A,ierr) ;CHKERRQ(ierr)
-!      call KSPSetOperators(ksp,A,A,SAME_NONZERO_PATTERN,ierr) ;CHKERRQ(ierr)
-!      call KSPSetOperators(ksp,A,A,DIFFERENT_NONZERO_PATTERN,ierr) ;CHKERRQ(ierr)
-
-      call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
-      call KSPSetDM(ksp,C%da,ierr) ;CHKERRQ(ierr)
-      call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
-      call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
 
       call KSPSolve(ksp,b,x,ierr) ;CHKERRQ(ierr)
       call KSPGetIterationNumber(ksp,iter,ierr) ;CHKERRQ(ierr)
@@ -1437,14 +1516,37 @@ subroutine solve(ksp,b,A,x,C)
               call exit()
       endif
 end subroutine
-subroutine setup_ksp(ksp)
+subroutine setup_ksp(ksp,C,A,init,prefix)
       KSP :: ksp
-      call KSPCreate(PETSC_COMM_WORLD,ksp,ierr) ;CHKERRQ(ierr)
+      Mat:: A
+      type(coord) :: C
+      PetscReal,parameter :: rtol=1e-5, atol=1e-6
+      logical :: init
+      character(len=*),optional :: prefix
 
+      if(init) return
+      if(myid.eq.0.and.ldebug) print *,'Setup KSP'
+
+      call KSPCreate(PETSC_COMM_WORLD,ksp,ierr) ;CHKERRQ(ierr)
+      if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;CHKERRQ(ierr)
+
+      call KSPSetOperators(ksp,A,A,ierr) ;CHKERRQ(ierr)
+!      call KSPSetOperators(ksp,A,A,SAME_NONZERO_PATTERN,ierr) ;CHKERRQ(ierr)
+!      call KSPSetOperators(ksp,A,A,DIFFERENT_NONZERO_PATTERN,ierr) ;CHKERRQ(ierr)
+
+    ! if we want to use multigrid preconditioners, enable these two here -> they might however use more memory than if we use already preallocated matrix A
+      call KSPSetDM(ksp,C%da,ierr) ;CHKERRQ(ierr)
+      call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
+
+      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),PETSC_DEFAULT_REAL,PETSC_DEFAULT_INTEGER,ierr)
+
+      call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
+      call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
+      init = .True. 
 end subroutine
 
 subroutine read_commandline_options()
-        logical :: lflg
+        logical :: lflg,lhelp=.False.
 !      character(len=*) , parameter :: ident='run_test'   ; double precision , parameter :: ident_dx=67   , phi0=270 ; logical , parameter ::ltest=.True.
 !      character(len=*) , parameter :: ident='run_box2'   ; double precision , parameter :: ident_dx=500  , phi0=270
 !      character(len=*) , parameter :: ident='run_box4'   ; double precision , parameter :: ident_dx=70   , phi0=270
@@ -1455,9 +1557,18 @@ subroutine read_commandline_options()
 !      character(len=*) , parameter :: ident='run_cosmo3' ; double precision , parameter :: ident_dx=2800 , phi0=180
 !      character(len=*) , parameter :: ident='run_i3rc1'  ; double precision , parameter :: ident_dx=66.7 , phi0=180
 
+        call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-help" , lhelp , lflg , ierr) ;CHKERRQ(ierr)
+        call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-h"    , lhelp , lflg , ierr) ;CHKERRQ(ierr)
+        if(lhelp) then
+          if(myid.eq.0) call print_help()
+          stop 'Stopped because help was called'
+        endif
 
         call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-ident',ident,lflg,ierr) ; CHKERRQ(ierr)
         if(lflg.eqv.PETSC_FALSE) stop 'Need "-ident" commandline option e.g. -ident run_box2'
+
+        call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-out',output_prefix,lflg,ierr) ; CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) output_prefix = 'ts'
 
         call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dx",ident_dx, lflg,ierr)  ; CHKERRQ(ierr)
         if(lflg.eqv.PETSC_FALSE) stop 'Need "-dx" commandline option e.g. -dx 500'
@@ -1465,15 +1576,68 @@ subroutine read_commandline_options()
         call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
         if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
 
+        call PetscOptionsGetBool(PETSC_NULL_CHARACTER,"-eddington",luse_eddington,lflg,ierr) ;CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) luse_eddington = .True.
+
+        call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-writeall"     , l_writeall        , lflg , ierr) ;CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) l_writeall = .False.
+
+        call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-hdf5_guess"   , luse_hdf5_guess   , lflg , ierr) ;CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) luse_hdf5_guess = .False.
+
+        call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-twostr_guess" , luse_twostr_guess , lflg , ierr) ;CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) luse_twostr_guess = .False.
+
+        if(luse_twostr_guess.and.luse_hdf5_guess) stop 'cant use twostr_guess .AND. hdf5_guess at the same time'
+
+
+        call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-twostr_ratio",twostr_ratio, lflg,ierr)  ; CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) twostr_ratio=1._ireals
+
+
         phi0=180 ; theta0=0
         call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-phi",phi0, lflg,ierr)     ; CHKERRQ(ierr)
         call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-theta",theta0, lflg,ierr) ; CHKERRQ(ierr)
+
+        call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-pert_xshift",pert_xshift, lflg,ierr) ; CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) pert_xshift=0
+        call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-pert_yshift",pert_yshift, lflg,ierr) ; CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) pert_yshift=0
+
         if(myid.eq.0) then
           print *,'********************************************************************'
-          print *,'***   Running Job: ',ident,'dx,dy ',ident_dx,ident_dy,' phi,theta',phi0,theta0
+          print *,'***   Running Job: ',ident
+          print *,'***   nr. of Nodes:',numnodes
+          print *,'***   dx,dy        ',ident_dx,ident_dy
+          print *,'***   phi,theta    ',phi0,theta0
+          print *,'***   eddington    ',luse_eddington
+          print *,'***   writeall     ',l_writeall
+          print *,'***   twostr_guess ',luse_twostr_guess
+          print *,'***   hdf5_guess   ',luse_hdf5_guess
+          print *,'***   twostr_ratio ',twostr_ratio
+          print *,'***   out          ',output_prefix
+          print *,'***   solar azimuth',phi0   
+          print *,'***   solar zenith ',theta0 
+          print *,'***   size_of ireal/iintegers',sizeof(one),sizeof(i0)
           print *,'********************************************************************'
           print *,''
         endif
+        call mpi_barrier(PETSC_COMM_WORLD,ierr)
+        contains 
+          subroutine print_help()
+              print *,'Options are:'
+              print *,' -ident        ( mandatory)     :: e.g. run_i3rc1, run_cosmo1, run_cosmo3, run_box3, run_cb'
+              print *,' -dx           ( mandatory)     :: horizontal resolution e.g. -dx 70'
+              print *,' -dy           ( default=dx)    :: horizontal resolution in y-axis'
+              print *,' -eddington    ( default=True)  :: above aspect ratio, use eddington coefficients for tenstream solve'
+              print *,' -writeall     ( default=False) :: write restart files'
+              print *,' -twostr_guess ( default=False) :: use delta eddington twostream as initial guess'
+              print *,' -hdf5_guess   ( default=False) :: try to load restart files ( preceeds twostr_guess) '
+              print *,' -twostr_ratio ( default=1)     :: coefficients are usually only up till ratio 1 - if set lower but LUT doesnt supply this you will get an error. If set very high, there will be a twostream solution in the tenstream solver'
+              print *,' -out          ( default="ts")  :: output prefix'
+              print *,' -phi          ( default=180(S)):: solar azimuth angle'
+              print *,' -theta        ( default=  0)   :: solar zenith angle'
+          end subroutine
 end subroutine
 
 subroutine setup_logging()
@@ -1484,10 +1648,14 @@ subroutine setup_logging()
         call PetscLogStageRegister('calc_ediff'      , logstage(5)     , ierr) ;CHKERRQ(ierr)
         call PetscLogStageRegister('setup_b'         , logstage(6)     , ierr) ;CHKERRQ(ierr)
         call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;CHKERRQ(ierr)
-        print *, 'Loggin stages' , logstage
+        call PetscLogStageRegister('twostream_dir'   , logstage(8)     , ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('twostream_diff'  , logstage(9)     , ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('write_hdf5'      , logstage(10)     , ierr) ;CHKERRQ(ierr)
+
+        if(myid.eq.0) print *, 'Logging stages' , logstage
 end subroutine
-subroutine init_memory(b,x,edir,intedir,intx,incSolar,abso,Mdiff,Mdir)
-        Vec :: b,x,edir,intedir,intx,incSolar,abso
+subroutine init_memory(b,x,edir,intedir,intx,incSolar,abso,intabso,Mdiff,Mdir)
+        Vec :: b,x,edir,intedir,intx,incSolar,abso,intabso
         Mat :: Mdiff,Mdir
 
         character(100) :: vecname
@@ -1505,20 +1673,21 @@ subroutine init_memory(b,x,edir,intedir,intx,incSolar,abso,Mdiff,Mdir)
         call VecSet(intedir,zero,ierr)                                 ; CHKERRQ(ierr)
 
         ! abso
-        call DMCreateGlobalVector(C_one%da,abso,ierr)                  ; CHKERRQ(ierr)
+        call DMCreateGlobalVector(C_one%da,intabso,ierr)                  ; CHKERRQ(ierr)
         write(vecname,FMT='("abso.",I0,".",I0)') int(phi0),int(theta0)
-        call PetscObjectSetName(abso,vecname,ierr)                     ; CHKERRQ(ierr)
-        call VecSet(abso,zero,ierr)                                    ; CHKERRQ(ierr)
+        call PetscObjectSetName(intabso,vecname,ierr)                     ; CHKERRQ(ierr)
+        call VecSet(intabso,zero,ierr)                                    ; CHKERRQ(ierr)
 
         call DMCreateGlobalVector(C_dir%da,edir,ierr)     ; CHKERRQ(ierr)
         call DMCreateGlobalVector(C_dir%da,incSolar,ierr) ; CHKERRQ(ierr)
         call DMCreateGlobalVector(C_diff%da,b,ierr)       ; CHKERRQ(ierr)
         call DMCreateGlobalVector(C_diff%da,x,ierr)       ; CHKERRQ(ierr)
+        call DMCreateGlobalVector(C_one%da,abso,ierr)     ; CHKERRQ(ierr)
 
         call VecSet(edir,zero,ierr)     ; CHKERRQ(ierr)
         call VecSet(incSolar,zero,ierr) ; CHKERRQ(ierr)
-        call VecSet(x,zero,ierr)        ; CHKERRQ(ierr)
         call VecSet(b,zero,ierr)        ; CHKERRQ(ierr)
+        call VecSet(x,zero,ierr)        ; CHKERRQ(ierr)
 
         call init_Matrix(Mdir,C_dir)
         call init_Matrix(Mdiff,C_diff)
@@ -1529,6 +1698,90 @@ subroutine init_memory(b,x,edir,intedir,intx,incSolar,abso,Mdiff,Mdir)
 !        call vec_to_hdf5(intx)
 end subroutine
 
+subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff)
+    integer(iintegers),intent(in) :: kato,iq
+
+    Vec :: edir,ediff
+    type(coord) :: Cedir,Cediff
+
+    PetscReal,pointer,dimension(:,:,:,:) :: xv_dir,xv_diff
+    integer(iintegers) :: i,j,src
+
+    real(ireals),allocatable :: dtau(:),w0(:),g(:),S(:,:),E(:,:)
+    real(ireals) :: mu0,incSolar,edirTOA,Az
+
+    integer(iintegers) :: li,lj
+
+!    print *,''
+    if(myid.eq.0) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM'
+!    print *,''
+
+    allocate( dtau(Cedir%zm-1) )
+    allocate(   w0(Cedir%zm-1) )
+    allocate(    g(Cedir%zm-1) )
+
+    mu0 = cos(deg2rad(theta0))
+
+    edirTOA = get_edirTOA(kato,iq,newgrid%z(1))
+
+    call VecSet(edir ,zero,ierr); CHKERRQ(ierr)
+    call VecSet(ediff,zero,ierr); CHKERRQ(ierr)
+
+    call DMDAVecGetArrayF90(Cedir%da ,edir ,xv_dir ,ierr) ;CHKERRQ(ierr)
+    call DMDAVecGetArrayF90(Cediff%da,ediff,xv_diff,ierr) ;CHKERRQ(ierr)
+
+    allocate( S(Cedir%zm ,3) )
+    allocate( E(Cediff%zm,2) )
+
+    do j=Cedir%ys,Cedir%ye         
+      do i=Cedir%xs,Cedir%xe
+
+    ! ---------------------------- DIRECT ------------------------------
+        call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
+        li = istartpar+i-Cedir%xs 
+        lj = jstartpar+j-Cedir%ys 
+
+        Az = newgrid%dx(li)*newgrid%dy(lj)
+
+        dtau = newgrid%dz * pcc_optprop(li,lj,:)%kext1
+        w0   = pcc_optprop(li,lj,:)%w1
+        g    = pcc_optprop(li,lj,:)%g1
+
+        incSolar = edirTOA * Az 
+
+        call twostream_dir(dtau,w0,g,mu0,incSolar,albedo, S)
+
+        do src=i0,i3
+          xv_dir(src,i,j,:) = S(:,1) *.25_ireals
+        enddo
+        call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+
+    ! ---------------------------- DIFFUSE ------------------------------
+        call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
+
+        call twostream_diff(dtau,w0,g,S,albedo, E)
+        xv_diff(E_up,i,j,:) = E(:,1)
+        xv_diff(E_dn,i,j,:) = E(:,2)
+
+        call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+      enddo
+    enddo
+
+    deallocate(S)
+    deallocate(E)
+
+    call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
+    call DMDAVecRestoreArrayF90(Cedir%da  ,edir ,xv_dir  ,ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+
+    call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
+    call DMDAVecRestoreArrayF90(Cediff%da ,ediff,xv_diff ,ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+!    print *,''
+!    print *,' CALCULATING DELTA EDDINGTON TWOSTREAM ... done'
+!    print *,''
+end subroutine
+
 end module
 
 program main
@@ -1536,12 +1789,14 @@ program main
         implicit none
 
         Mat :: Mdiff,Mdir
-        Vec :: b,x,edir,intedir,intx,incSolar,abso
+        Vec :: b,x,edir,intedir,intx,incSolar,abso,intabso
 
         KSP :: kspdir,kspdiff
+        logical :: linit_kspdir=.False.,linit_kspdiff=.False.
 
         integer(iintegers) :: iq
         integer(iintegers) :: kato
+        integer(iintegers) :: err_sum
 
         character(100) :: vecname
 
@@ -1562,34 +1817,19 @@ program main
         call setup_dir_inc(phi0,symmetry_phi)
 
         ! Create Objects to work with
-        call init_memory(b,x,edir,intedir,intx,incSolar,abso,Mdiff,Mdir)
-
-        ! Setup Solver Context
-        call setup_ksp(kspdir)
-        call KSPAppendOptionsPrefix(kspdir,"dir_",ierr) ;CHKERRQ(ierr)
-        call setup_ksp(kspdiff)
-        call KSPAppendOptionsPrefix(kspdiff,"diff_",ierr) ;CHKERRQ(ierr)
+        call init_memory(b,x,edir,intedir,intx,incSolar,abso,intabso,Mdiff,Mdir)
 
         !Init optical Property Mechanisms
         call OPP_8_10%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD)
-        call OPP_1_2%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) 
+        if(.not.luse_eddington) call OPP_1_2%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) 
 
 
         do kato=1,32
 !                  do kato=11,11
           do iq=0,kato_bands(kato)
-            if(myid.eq.0) print *,'                            ----------------------------------------------------------------------------------------'
-            if(myid.eq.0) print *,'                            -------------------------- Calculate kato',kato,'iq',iq,'-------------------------------'
-            if(myid.eq.0) print *,'                            ----------------------------------------------------------------------------------------'
-
-
-            !First try reading them from file and we can resume from there:
-            if(l_writeall) then
-              write(vecname,FMT='("edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr) ;CHKERRQ(ierr)
-              call vec_from_hdf5(edir,ierr)
-              write(vecname,FMT='("x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
-              call vec_from_hdf5(x,ierr)
-            endif
+            if(myid.eq.0) print *,'                            -----------------------------------------------------------------------------------------------------------------------------'
+            if(myid.eq.0) print *,'                            -------------------------- Calculate ',ident,' sza',theta0,' kato',kato,'iq',iq,'-------------------------------'
+            if(myid.eq.0) print *,'                            -----------------------------------------------------------------------------------------------------------------------------'
 
             if(ltest) then
               call load_test_optprop(kato,iq)
@@ -1598,33 +1838,56 @@ program main
             endif
             call local_optprop(pcc_optprop)
 
+            call setup_incSolar(incSolar,kato,iq)
+
+            !First try reading them from file and we can resume from there:
+            if(luse_hdf5_guess) then
+              err_sum=0
+              write(vecname,FMT='("unscaled_edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr) ;CHKERRQ(ierr)
+              call vec_from_hdf5(edir,ierr); err_sum = err_sum+ierr
+              write(vecname,FMT='("unscaled_x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
+              call vec_from_hdf5(x,ierr); err_sum = err_sum+ierr
+            else
+              err_sum=-1
+            endif
+
+            if(luse_twostr_guess) then
+              call twostream(kato,iq,edir,C_dir,x,C_diff)
+
+              if(l_writeall) then
+                call scale_flx(edir,C_dir)
+                write(vecname,FMT='("twostr_edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr) ;CHKERRQ(ierr)
+                call vec_to_hdf5(edir)
+
+                call scale_flx(x,C_diff)
+                write(vecname,FMT='("twostr_x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
+                call vec_to_hdf5(x)
+                call twostream(kato,iq,edir,C_dir,x,C_diff)
+              endif
+            endif
+
+            if(err_sum .ne. 0 .or. (.not.luse_twostr_guess .and. .not.luse_hdf5_guess) ) then ! Couldnt resume calculations from file or just dont want to... 
+              call vecset(edir,zero,ierr) ; CHKERRQ(ierr)
+              call vecset(x   ,zero,ierr) ; CHKERRQ(ierr)
+            endif
+
             call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate Edir'
             call PetscLogStagePush(logstage(2),ierr) ;CHKERRQ(ierr)
             call set_dir_coeff(Mdir,C_dir)
-            call setup_incSolar(incSolar,kato,iq)
-            if(l_writeall) then
-              write(vecname,FMT='("incSolar.",I0,".",I0)') kato,iq; call PetscObjectSetName(incSolar,vecname,ierr) ;CHKERRQ(ierr)
-              call vec_to_hdf5(incSolar)
-            endif
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
+            ! Setup Solver Context
+            call setup_ksp(kspdir,C_dir,Mdir,linit_kspdir,"dir_")
+
             call PetscLogStagePush(logstage(3),ierr) ;CHKERRQ(ierr)
-            call solve(kspdir,incSolar,Mdir,edir,C_dir)
-            if(l_writeall) then
-              write(vecname,FMT='("edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr) ;CHKERRQ(ierr)
-              call vec_to_hdf5(edir)
-            endif
+            call solve(kspdir,incSolar,edir,C_dir)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate diffuse src term'
             call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
             call setup_b(edir,kato,iq,b)
-            if(l_writeall) then
-              write(vecname,FMT='("b.",I0,".",I0)') kato,iq; call PetscObjectSetName(b,vecname,ierr) ;CHKERRQ(ierr)
-              call vec_to_hdf5(b)
-            endif
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate diffuse Radition'
@@ -1632,45 +1895,80 @@ program main
             call set_diff_coeff(Mdiff,C_diff)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
+            ! Setup Solver Context
+            call setup_ksp(kspdiff,C_diff,Mdiff,linit_kspdiff,"diff_")
+
             call PetscLogStagePush(logstage(5),ierr) ;CHKERRQ(ierr)
-            call solve(kspdiff,b,Mdiff,x,C_diff)
+            call solve(kspdiff,b,x,C_diff)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(l_writeall) then
-              write(vecname,FMT='("x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
+              write(vecname,FMT='("unscaled_edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr) ;CHKERRQ(ierr)
+              call vec_to_hdf5(edir)
+
+              write(vecname,FMT='("unscaled_x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
               call vec_to_hdf5(x)
             endif
+
+            call scale_flx(incSolar,C_dir)
+            call scale_flx(edir,C_dir)
+            call scale_flx(b,C_diff)
+            call scale_flx(x,C_diff)
+
+            call calc_flx_div(edir,x,abso)
+
+!            if(l_writeall) then
+!              write(vecname,FMT='("incSolar.",I0,".",I0)') kato,iq; call PetscObjectSetName(incSolar,vecname,ierr) ;CHKERRQ(ierr)
+!              call vec_to_hdf5(incSolar)
+!
+!              write(vecname,FMT='("edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr) ;CHKERRQ(ierr)
+!              call vec_to_hdf5(edir)
+!
+!              write(vecname,FMT='("b.",I0,".",I0)') kato,iq; call PetscObjectSetName(b,vecname,ierr) ;CHKERRQ(ierr)
+!              call vec_to_hdf5(b)
+!
+!              write(vecname,FMT='("x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
+!              call vec_to_hdf5(x)
+!
+!              write(vecname,FMT='("abso.",I0,".",I0)') kato,iq; call PetscObjectSetName(abso,vecname,ierr) ;CHKERRQ(ierr)
+!              call vec_to_hdf5(abso)
+!            endif
             call VecAXPY(intedir,one,edir,ierr) ;CHKERRQ(ierr)
             call VecAXPY(intx,one,x,ierr) ;CHKERRQ(ierr)
+            call VecAXPY(intabso,one,abso,ierr) ;CHKERRQ(ierr)
 
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
           enddo
         enddo
 
+!        print *,'Calculating divergence'
+        call calc_flx_div(intedir,intx,abso)
+        write(vecname,FMT='("abso_flxdiv.",I0,".",I0)') kato,iq; call PetscObjectSetName(abso,vecname,ierr) ;CHKERRQ(ierr)
+        call vec_to_hdf5(abso)
+
         call VecDestroy(incSolar,ierr) ;CHKERRQ(ierr)
         call VecDestroy(edir,ierr) ;CHKERRQ(ierr)
         call VecDestroy(b,ierr) ;CHKERRQ(ierr)
         call VecDestroy(x,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(abso,ierr) ;CHKERRQ(ierr)
         call MatDestroy(Mdir,ierr) ;CHKERRQ(ierr)
         call MatDestroy(Mdiff,ierr) ;CHKERRQ(ierr)
 
-        call KSPDestroy(kspdir,ierr) ;CHKERRQ(ierr)
-        call KSPDestroy(kspdiff,ierr) ;CHKERRQ(ierr)
+        call KSPDestroy(kspdir,ierr) ;CHKERRQ(ierr); linit_kspdir=.False.
+        call KSPDestroy(kspdiff,ierr) ;CHKERRQ(ierr); linit_kspdiff=.False.
 
-        print *,'scale Energy from W to W/m^2 or W/m^3'
-        call scale_flx(intedir,intx)
+!        print *,'scale Energy from W to W/m^2 or W/m^3'
+!        call scale_flx(intedir,intx)
 
-        print *,'Calculating divergence'
-        call calc_flx_div(intedir,intx,abso)
 
-        call vec_to_hdf5(abso)
+        call vec_to_hdf5(intabso)
         call vec_to_hdf5(intedir)
         call vec_to_hdf5(intx)
 
         print *,'Cleanup Result vectors'
         call VecDestroy(intedir,ierr) ;CHKERRQ(ierr)
         call VecDestroy(intx,ierr) ;CHKERRQ(ierr)
-        call VecDestroy(abso,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(intabso,ierr) ;CHKERRQ(ierr)
 
         !!        if(myid.eq.0) read(*,*) iter
         call PetscFinalize(ierr) ;CHKERRQ(ierr)

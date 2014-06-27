@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 2.6.3)
 project (tenstream)
 enable_language(Fortran)
+set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 
 # make sure that the default is a RELEASE
 if (NOT CMAKE_BUILD_TYPE)
@@ -9,25 +10,28 @@ if (NOT CMAKE_BUILD_TYPE)
       FORCE)
 endif (NOT CMAKE_BUILD_TYPE)
 
-set (CMAKE_Fortran_FLAGS "-ffree-line-length-none -W -Wall -Wuninitialized " )
-set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-f2c -O3 -funroll-loops -Ofast -ffast-math -march=native -mtune=native")
-set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fno-f2c -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check -ffpe-trap=invalid,zero,overflow,denormal ")#-ffpe-trap=invalid,zero,overflow,denormal,precision")
+set (CMAKE_Fortran_FLAGS "-cpp -ffree-line-length-none -W -Wall -Wuninitialized " )
+set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-f2c -O3 -funroll-loops ")#-march=native -mtune=native")
+set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fno-f2c -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check ")#-ffpe-trap=invalid,zero,overflow,denormal,precision")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 MESSAGE("Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")
 
 list (APPEND CMAKE_MODULE_PATH "$ENV{PETSC_DIR}/cmake-modules")
-list (APPEND CMAKE_MODULE_PATH "/usr/users/jakub/ticalib/ompi1.7.3/hdf5/hdf5-latest/build/install/share/cmake/hdf5")
+#list (APPEND CMAKE_MODULE_PATH "$ENV{HDF5_DIR}/share/cmake")
 message( "Searching for cmake Files in ${CMAKE_MODULE_PATH}" )
 
 #zlib
-set( ZLIB_DIR "/usr/users/jakub/ticalib/ompi1.7.3/hdf5/hdf5-1.8.12/build/ZLIB-prefix/src/ZLIB-build/zlib-config.cmake")
+#set( ZLIB_DIR "$ENV{PETSC_DIR}/../hdf5/hdf5-latest/build/ZLIB-prefix/src/ZLIB-build/zlib-config.cmake")
 
-#find_package(HDF5 REQUIRED)
+set( HDF5_ROOT_DIR_HINT "$ENV{HDF5_DIR}/share/cmake/hdf5")
 FIND_PACKAGE (HDF5 NAMES hdf5 REQUIRED)
-# FIND_PACKAGE (HDF5) # Find non-cmake built HDF5
-INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR})
-SET (LINK_LIBS ${LINK_LIBS} ${HDF5_LIBRARIES})
+#INCLUDE_DIRECTORIES( $ENV{HDF5_DIR}/include )
+#SET (LINK_LIBS ${LINK_LIBS} ${HDF5_LIBRARIES})
+#message(" HDF5 Includes are:${HDF5_INCLUDE_DIR}" )
+#set (CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${MPI_Fortran_LINK_FLAGS} )
+set(CMAKE_INCLUDE_SYSTEM_FLAG_Fortran "-I")
+
 
 # Petsc
 find_package(PETSc REQUIRED)
@@ -48,6 +52,8 @@ set (CMAKE_INSTALL_RPATH "lib")
 list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
 list (APPEND EXTLIB "${HDF5_LIBRARIES}" )
 list (APPEND EXTLIB "${PETSC_LIBRARIES}" )
+
+#message(" External Libraries are: ${EXTLIB}")
 
 add_subdirectory (src)
 

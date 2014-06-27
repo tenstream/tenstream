@@ -13,7 +13,7 @@ module boxmc
       implicit none
 
       private
-      public :: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
+      public :: t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
 
       ! ******************** TYPE DEFINITIONS ************************
       type,abstract :: t_boxmc
@@ -49,11 +49,20 @@ module boxmc
           procedure :: update_diff_stream => update_diff_stream_8_10
       end type t_boxmc_8_10
 
+      type,extends(t_boxmc) :: t_boxmc_3_10
+        contains 
+          procedure :: intersect_distance => intersect_distance_3_10
+          procedure :: init_dir_photon    => init_dir_photon_3_10
+          procedure :: init_diff_photon   => init_diff_photon_3_10
+          procedure :: update_dir_stream  => update_dir_stream_3_10
+          procedure :: update_diff_stream => update_diff_stream_3_10
+      end type t_boxmc_3_10
+
       type photon
-              double precision :: loc(3)=nil,dir(3)=nil,weight=nil,dx=nil,dy=nil,dz=nil
+              real(ireals) :: loc(3)=nil,dir(3)=nil,weight=nil,dx=nil,dy=nil,dz=nil
               logical :: alive=.True.,direct=.False.
               integer(iintegers) :: side=inil,src=inil,scattercnt=0
-              double precision :: optprop(3) ! kabs,ksca,g
+              real(ireals) :: optprop(3) ! kabs,ksca,g
       end type
 
       type stddev
@@ -61,11 +70,9 @@ module boxmc
         logical :: converged=.False.
         real(ireals) :: atol=zero, rtol=zero
       end type
-
       ! ******************** TYPE DEFINITIONS ************************
 
       integer,parameter :: fg=1,bg=2,tot=3
-      integer(iintegers),parameter :: Nphotons_max=int(1e9)
 
       type(stddev) :: std_Sdir, std_Sdiff, std_abso
 
@@ -77,20 +84,20 @@ module boxmc
       ! ***************** INTERFACES ************
       abstract interface
         subroutine init_diff_photon(bmc,p,src,dx,dy,dz)
-          import :: t_boxmc,photon,iintegers
+          import :: t_boxmc,photon,iintegers,ireals
           class(t_boxmc) :: bmc
           type(photon),intent(inout) :: p
-          double precision,intent(in) :: dx,dy,dz
+          real(ireals),intent(in) :: dx,dy,dz
           integer(iintegers),intent(in) :: src
         end subroutine
       end interface
 
       abstract interface
         subroutine init_dir_photon(bmc,p,src,direct,initial_dir,dx,dy,dz)
-          import :: t_boxmc,photon,iintegers
+          import :: t_boxmc,photon,iintegers,ireals
           class(t_boxmc) :: bmc
           type(photon),intent(inout) :: p
-          double precision,intent(in) :: dx,dy,dz,initial_dir(3)
+          real(ireals),intent(in) :: dx,dy,dz,initial_dir(3)
           integer(iintegers),intent(in) :: src
           logical,intent(in) :: direct
         end subroutine
@@ -118,10 +125,10 @@ module boxmc
 
       abstract interface
         subroutine intersect_distance(bmc,p,max_dist)
-          import :: t_boxmc,photon
+          import :: t_boxmc,photon,ireals
           class(t_boxmc) :: bmc
           type(photon),intent(inout) :: p
-          double precision,intent(out) :: max_dist
+          real(ireals),intent(out) :: max_dist
         end subroutine
       end interface
       ! ***************** INTERFACES ************
@@ -135,34 +142,36 @@ contains
   !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev. Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
   subroutine get_coeff(bmc,comm,op_bg,src,S_out,Sdir_out,ldir,ldeltascale,phi0,theta0,dx,dy,dz)
       class(t_boxmc)                :: bmc                       !< @param[in] bmc Raytracer Type - determines number of streams
-      double precision,intent(in)   :: op_bg(3)                  !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
-      double precision,intent(in)   :: phi0                      !< @param[in] phi0 solar azimuth angle
-      double precision,intent(in)   :: theta0                    !< @param[in] theta0 solar zenith angle
+      real(ireals),intent(in)   :: op_bg(3)                  !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
+      real(ireals),intent(in)   :: phi0                      !< @param[in] phi0 solar azimuth angle
+      real(ireals),intent(in)   :: theta0                    !< @param[in] theta0 solar zenith angle
       logical,intent(in)            :: ldeltascale               !< @param[in] ldeltascale implemented as following: if a photon leaves the box with an angle, that is approximately the same as the incidence angle, it is counted as direct
       integer(iintegers),intent(in) :: src                       !< @param[in] src stream from which to start photons - see init_photon routines
       integer(mpiint),intent(in)    :: comm                      !< @param[in] comm MPI Communicator
       logical,intent(in)            :: ldir                      !< @param[in] ldir determines if photons should be started with a fixed incidence angle
-      double precision,intent(in)   :: dx,dy,dz                  !< @param[in] dx,dy,dz box with dimensions in [m]
-      double precision,intent(out)  :: S_out(bmc%diff_streams)   !< @param[out] S_out diffuse streams transfer coefficients
-      double precision,intent(out)  :: Sdir_out(bmc%dir_streams) !< @param[out] Sdir_out direct streams transfer coefficients
+      real(ireals),intent(in)   :: dx,dy,dz                  !< @param[in] dx,dy,dz box with dimensions in [m]
+      real(ireals),intent(out)  :: S_out(bmc%diff_streams)   !< @param[out] S_out diffuse streams transfer coefficients
+      real(ireals),intent(out)  :: Sdir_out(bmc%dir_streams) !< @param[out] Sdir_out direct streams transfer coefficients
 
       type(photon)       :: p
-      integer(iintegers) :: k,mycnt
-      double precision   :: time(2),total_photons,initial_dir(3)
+      integer(iintegers) :: k,mycnt,mincnt
+      real(ireals),parameter   :: stddev_atol=1e-5_ireals
+      real(ireals)   :: time(2),total_photons,initial_dir(3)
       integer(iintegers) :: Ndir(bmc%dir_streams),Ndiff(bmc%diff_streams)
 
       if(.not. bmc%initialized ) stop 'Box Monte Carlo Ray Tracer is not initialized! - This should not happen!'
 
       Ndir=i0;Ndiff=i0
 
-      call init_stddev( std_Sdir , bmc%dir_streams  ,1e-5_ireals, stddev_rtol )
-      call init_stddev( std_Sdiff, bmc%diff_streams ,1e-5_ireals, stddev_rtol )
-      call init_stddev( std_abso , i1               ,1e-5_ireals, stddev_rtol*1e-1 )
+      call init_stddev( std_Sdir , bmc%dir_streams  ,stddev_atol, stddev_rtol )
+      call init_stddev( std_Sdiff, bmc%diff_streams ,stddev_atol, stddev_rtol )
+      call init_stddev( std_abso , i1               ,stddev_atol, stddev_rtol*1e-1 )
 
       if(.not.ldir) std_Sdir%converged=.True.
 
+
       initial_dir  = [ sin(deg2rad(theta0))*sin(deg2rad(phi0)) ,&
-                        sin(deg2rad(theta0))*cos(deg2rad(phi0)) ,&
+                       sin(deg2rad(theta0))*cos(deg2rad(phi0)) ,&
                                           - cos(deg2rad(theta0)) ]
       initial_dir = initial_dir/norm(initial_dir)
 
@@ -178,9 +187,10 @@ contains
 
       call cpu_time(time(1))
 
-      mycnt = max(i1*numnodes,Nphotons_max/numnodes)
+      mincnt= int( (one/stddev_rtol)**2 )
+      mycnt = max(mincnt, int( (one/stddev_atol)**2/numnodes) )
       do k=1,mycnt
-        if(k*numnodes.gt.1e4 .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
+        if(k*numnodes.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
 
         if(ldir) then
           call bmc%init_dir_photon(p,src,ldir,initial_dir,dx,dy,dz)
@@ -188,16 +198,17 @@ contains
           call bmc%init_diff_photon(p,src,dx,dy,dz)
         endif
         p%optprop = op_bg
+        if(ldeltascale) call delta_scale_optprop(p%optprop)
 
         move: do
           call bmc%move_photon(p)
           call roulette(p)
 
           if(.not.p%alive) exit move
-          call scatter_photon(p)
+          call scatter_photon(p,ldeltascale)
         enddo move
 
-        if(ldir) call delta_scaling(p,ldeltascale,initial_dir)
+        if(ldir) call refill_direct_stream(p,initial_dir)
 
         std_abso%inc = one-p%weight
         std_Sdir%inc  = zero
@@ -215,9 +226,10 @@ contains
       enddo
 
       total_photons=k
-      S_out    = dble( std_Sdiff%mean*k )
-      if(ldir) Sdir_out = dble( std_Sdir%mean *k )
-      if(myid.ge.0) then
+      S_out    = std_Sdiff%mean*k
+      if(ldir) Sdir_out = std_Sdir%mean *k
+
+      if(comm.ne.-1 .and. myid.ge.0) then
         call mpi_reduce_sum(total_photons,comm,myid)
         do k=1,ubound(S_out,1)
           call mpi_reduce_sum(S_out(k),comm,myid)
@@ -229,6 +241,7 @@ contains
           enddo
         endif
       endif
+
       S_out    = S_out / total_photons
       if(ldir) then
         Sdir_out = Sdir_out / total_photons
@@ -248,11 +261,14 @@ contains
       endif
       call cpu_time(time(2))
 
-      if(myid.le.0.and.total_photons.ge.1e6) print *,src,dz,op_bg,'angles',phi0,theta0,'took',time(2)-time(1),'s',' phots*1e3 :: ',total_photons/1e3,' abso :',one-sum(Sdir_out)-sum(S_out),':',total_photons/(time(2)-time(1))/numnodes,'phots/sec/node'
+      if(myid.le.0.and.rand().gt..99) then
+        write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/(time(2)-time(1))/numnodes,time(2)-time(1)
+!        print *,src,dz,op_bg,'angles',phi0,theta0,'took',time(2)-time(1),'s',' phots*1e3 :: ',total_photons/1e3,' abso :',one-sum(Sdir_out)-sum(S_out),':',total_photons/(time(2)-time(1))/numnodes,'phots/sec/node','delta_optprop',p%optprop
+      endif
   end subroutine
 
 subroutine mpi_reduce_sum(v,comm,myid)
-    double precision,intent(inout) :: v
+    real(ireals),intent(inout) :: v
     integer,intent(in) :: comm,myid
     integer :: ierr
     if(myid.eq.0) then
@@ -262,9 +278,28 @@ subroutine mpi_reduce_sum(v,comm,myid)
     endif
 end subroutine
 
+  subroutine delta_scale_optprop( optprop ) 
+      real(ireals),intent(inout) :: optprop(3)
+      real(ireals) :: dtau_d,g_d,w0_d
+      real(ireals) :: dtau,g,w0
+      real(ireals) :: f
+
+      dtau = optprop(1)+optprop(2)
+      w0   = optprop(2)/dtau
+      g    = optprop(3)
+
+      f = g**2
+      dtau_d = dtau * ( one - w0 * f )
+      g_d    = ( g - f ) / ( one - f )
+      w0_d   = w0 * ( one - f ) / ( one - f * w0 )
+
+      optprop(1) = dtau_d* (one-w0_d)
+      optprop(2) = dtau_d* (    w0_d)
+      optprop(3) = g_d
+  end subroutine
 subroutine roulette(p)
         type(photon),intent(inout) :: p
-        double precision,parameter :: m=1e-1_ireals,s=1e-3_ireals*m
+        real(ireals),parameter :: m=1e-3_ireals,s=1e-6_ireals*m
 
         if(p%weight.lt.s) then
                 if(R().ge.p%weight/m) then
@@ -275,13 +310,11 @@ subroutine roulette(p)
                 endif
         endif
 end subroutine
-subroutine delta_scaling(p,ldeltascale,initial_dir)
+subroutine refill_direct_stream(p,initial_dir)
         type(photon),intent(inout) :: p
-        double precision,intent(in) :: initial_dir(3)
-        logical,intent(in) :: ldeltascale
+        real(ireals),intent(in) :: initial_dir(3)
 
-        double precision :: angle
-        if((.not.ldeltascale).or.p%direct) return
+        real(ireals) :: angle
 
         angle = dot_product(initial_dir, p%dir)
 
@@ -291,20 +324,44 @@ subroutine delta_scaling(p,ldeltascale,initial_dir)
         endif
 end subroutine
 
-double precision function s()
+real(ireals) function s()
         s = -one + 2*R()
 end function
+function deg2mu(deg) ! return cosine of deg(in degrees)
+        real(ireals),intent(in) :: deg
+        real(ireals) :: deg2mu
+        deg2mu = cos(deg2rad(deg))
+end function
+function interv_R(a,b) ! return uniform random number between a and b
+        real(ireals),intent(in) :: a,b
+        real(ireals) :: interv_R
+        real(ireals) :: lb,ub
+
+        lb=min(a,b)
+        ub=max(a,b)
+        interv_R = lb + R()*(ub-lb)
+end function
+function interv_R2(a,b) ! return uniform random number between a and b
+        real(ireals),intent(in) :: a,b
+        real(ireals) :: interv_R2
+        real(ireals) :: lb,ub
+
+        lb=min(a,b)
+        ub=max(a,b)
+        interv_R2 = lb + R()*(ub-lb)
+!        interv_R2 = lb + sqrt(R()) *(ub-lb) !TODO
+end function
 function L(v)
-    double precision :: L
-    double precision,intent(in) ::v
-    double precision,parameter :: eps=1e-3
+    real(ireals) :: L
+    real(ireals),intent(in) ::v
+    real(ireals),parameter :: eps=1e-3
     L = min( max(R()*v,eps), v-eps)
 end function
 
 subroutine move_photon(bmc,p)
         class(t_boxmc) :: bmc
         type(photon),intent(inout) :: p
-        double precision :: tau_travel,dist,intersec_dist
+        real(ireals) :: tau_travel,dist,intersec_dist
 
         tau_travel = tau(R())
         call bmc%intersect_distance(p,intersec_dist)
@@ -321,7 +378,7 @@ subroutine move_photon(bmc,p)
 end subroutine
 subroutine update_photon_loc(p,dist)
         type(photon),intent(inout) :: p
-        double precision,intent(in) :: dist
+        real(ireals),intent(in) :: dist
         call absorb_photon(p,dist)
         p%loc = p%loc + (dist*p%dir)
         if(any(isnan(p%loc))) then
@@ -330,10 +387,10 @@ subroutine update_photon_loc(p,dist)
           call exit
         endif
 end subroutine
-pure double precision function hit_plane(p,po,pn)
+pure real(ireals) function hit_plane(p,po,pn)
         type(photon),intent(in) :: p
-        double precision,intent(in) :: po(3),pn(3)
-        double precision :: discr
+        real(ireals),intent(in) :: po(3),pn(3)
+        real(ireals) :: discr
         discr = dot_product(p%dir,pn)
         if( approx(discr, zero) ) then
                 hit_plane=huge(hit_plane)
@@ -343,23 +400,23 @@ pure double precision function hit_plane(p,po,pn)
 end function
 
 elemental function distance(tau,beta)
-        double precision,intent(in) :: tau,beta
-        double precision :: distance
+        real(ireals),intent(in) :: tau,beta
+        real(ireals) :: distance
         distance = tau/beta
         if(approx(beta,zero) ) distance=huge(distance)
 end function
 
 elemental function tau(r)
-        double precision,intent(in) :: r
-        double precision :: tau,arg
+        real(ireals),intent(in) :: r
+        real(ireals) :: tau,arg
         arg = max( epsilon(arg), one-r )
         tau = -log(arg)
 end function
 
 elemental function hengreen(r,g)
-        double precision,intent(in) :: r,g
-        double precision :: hengreen
-        double precision,parameter :: one=1.0,two=2.0
+        real(ireals),intent(in) :: r,g
+        real(ireals) :: hengreen
+        real(ireals),parameter :: two=2*one
         if( approx(g,zero) ) then
           hengreen = two*r-one
         else
@@ -370,8 +427,8 @@ end function
 
 subroutine absorb_photon(p,dist)
         type(photon),intent(inout) :: p
-        double precision,intent(in) :: dist
-        double precision :: new_weight,tau
+        real(ireals),intent(in) :: dist
+        real(ireals) :: new_weight,tau
 
         tau = get_kabs(p)*dist
         if(tau.gt.20) then
@@ -386,10 +443,11 @@ subroutine absorb_photon(p,dist)
         endif
 end subroutine
 
-subroutine scatter_photon(p)
+subroutine scatter_photon(p,ldeltascale)
         type(photon),intent(inout) :: p
-        double precision :: muxs,muys,muzs,muxd,muyd,muzd
-        double precision :: mutheta,fi,costheta,sintheta,sinfi,cosfi,denom,muzcosfi
+        logical,intent(in) :: ldeltascale
+        real(ireals) :: muxs,muys,muzs,muxd,muyd,muzd
+        real(ireals) :: mutheta,fi,costheta,sintheta,sinfi,cosfi,denom,muzcosfi
 
         mutheta = hengreen(R(),get_g(p))
 
@@ -398,10 +456,15 @@ subroutine scatter_photon(p)
         muxs = p%dir(1)  
         muys = p%dir(2)  
         muzs = p%dir(3)  
-        if(p%direct) then
-          p%direct=.False.
-        endif
-        fi      = R()*pi*2.
+
+!        if(p%direct) then
+!          if(ldeltascale) then
+!            if(mutheta.gt.delta_scale_truncate) return
+!          endif
+!          p%direct=.False.
+!        endif
+
+        fi = R()*pi*2.
 
         costheta = (mutheta)
         sintheta = sqrt(one-costheta**2)
@@ -433,15 +496,15 @@ subroutine scatter_photon(p)
 
 end subroutine
 
-pure double precision function get_kabs(p)
+pure real(ireals) function get_kabs(p)
         type(photon),intent(in) :: p
         get_kabs = p%optprop(1)
 end function
-pure double precision function get_ksca(p)
+pure real(ireals) function get_ksca(p)
         type(photon),intent(in) :: p
         get_ksca = p%optprop(2)
 end function
-pure double precision function get_g(p)
+pure real(ireals) function get_g(p)
         type(photon),intent(in) :: p
         get_g = p%optprop(3)
 end function    
@@ -457,7 +520,7 @@ subroutine print_photon(p)
 end subroutine
 
 function R()
-    double precision :: R
+    real(ireals) :: R
     R = getRandomReal(rndSeq)
     call random_number(R)
 end function
@@ -502,6 +565,7 @@ end subroutine
       allocate( std%var   (N)) ; std%var   = zero
       std%atol = atol
       std%rtol = rtol
+      std%converged = .False.
   end subroutine
 
   subroutine std_update(std, N, numnodes)
@@ -523,6 +587,7 @@ end subroutine
         class(t_boxmc) :: bmc
         integer(mpiint),intent(in) :: comm
 
+        print *,'initializing boxmc'
         if(comm.eq.-1) then
                 myid = -1
         else
@@ -538,6 +603,9 @@ end subroutine
           class is (t_boxmc_8_10)
                   bmc%dir_streams  =  8
                   bmc%diff_streams = 10
+          class is (t_boxmc_3_10)
+                  bmc%dir_streams  =  3
+                  bmc%diff_streams = 10
           class is (t_boxmc_1_2)
                   bmc%dir_streams  =  1
                   bmc%diff_streams =  2
@@ -548,7 +616,9 @@ end subroutine
         bmc%initialized = .True.
   end subroutine
 
+
 include 'boxmc_8_10.inc'
+include 'boxmc_3_10.inc'
 include 'boxmc_1_2.inc'
 
 end module
