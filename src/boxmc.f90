@@ -6,7 +6,7 @@ module boxmc
       use iso_c_binding
       use mersenne
       use mpi
-      use data_parameters, only: mpiint,iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
+      use data_parameters, only: mpiint,imp_real,iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
       
       use optprop_parameters, only : delta_scale_truncate,stddev_rtol
 
@@ -76,7 +76,7 @@ module boxmc
 
       type(stddev) :: std_Sdir, std_Sdiff, std_abso
 
-      integer :: ierr,myid,numnodes
+      integer(mpiint) :: ierr,myid,numnodes
 
       logical :: lRNGseeded=.False.
       type(randomNumberSequence) :: rndSeq
@@ -188,7 +188,8 @@ contains
       call cpu_time(time(1))
 
       mincnt= int( (one/stddev_rtol)**2 )
-      mycnt = max(mincnt, int( (one/stddev_atol)**2/numnodes) )
+      mycnt = ( (one/stddev_atol)**2/numnodes )
+      mycnt = max(mincnt, mycnt )
       do k=1,mycnt
         if(k*numnodes.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
 
@@ -270,11 +271,10 @@ contains
 subroutine mpi_reduce_sum(v,comm,myid)
     real(ireals),intent(inout) :: v
     integer,intent(in) :: comm,myid
-    integer :: ierr
     if(myid.eq.0) then
-      call mpi_reduce(MPI_IN_PLACE, v, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
+      call mpi_reduce(MPI_IN_PLACE, v, 1, imp_real, MPI_SUM, 0, comm, ierr)
     else
-      call mpi_reduce(v, MPI_IN_PLACE, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
+      call mpi_reduce(v, MPI_IN_PLACE, 1, imp_real, MPI_SUM, 0, comm, ierr)
     endif
 end subroutine
 
@@ -348,8 +348,8 @@ function interv_R2(a,b) ! return uniform random number between a and b
 
         lb=min(a,b)
         ub=max(a,b)
-        interv_R2 = lb + R()*(ub-lb)
-!        interv_R2 = lb + sqrt(R()) *(ub-lb) !TODO
+!        interv_R2 = lb + R()*(ub-lb)
+        interv_R2 = lb + sqrt(R()) *(ub-lb)
 end function
 function L(v)
     real(ireals) :: L

@@ -1,6 +1,6 @@
 module optprop_LUT
   use helper_functions, only : approx
-  use data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil
+  use data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real
   use optprop_parameters, only: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale,delta_scale_truncate,stddev_rtol
   use boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
   use tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
@@ -113,7 +113,7 @@ contains
 
       call OPP%bmc%init(comm)
 
-      write(descr,FMT='("diffuse.mu.deltaedd.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,Ndz,Nkabs,Nksca,Ng,delta_scale,delta_scale_truncate
+      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,Ndz,Nkabs,Nksca,Ng,delta_scale,delta_scale_truncate
 !      write(descr,FMT='("diffuse.theta.deltaedd.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0)') idx,Ndz,Nkabs,Nksca,Ng
       if(myid.eq.0) print *,'Loading diffuse LUT from ',descr
       OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
@@ -178,7 +178,7 @@ subroutine loadLUT_diff(OPP, comm)
       if(lstddev_inbounds) lstddev_inbounds = all(OPP%diffLUT%S%stddev_rtol.le.stddev_rtol)
 
     endif
-    call mpi_bcast(errcnt           , 1 , MPI_INTEGER , 0 , comm , ierr)
+    call mpi_bcast(errcnt           , 1 , imp_int , 0 , comm , ierr)
     call mpi_bcast(lstddev_inbounds , 1 , MPI_LOGICAL , 0 , comm , ierr)
 
     if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then
@@ -203,7 +203,7 @@ subroutine loadLUT_diff(OPP, comm)
       endif
 
       call mpi_barrier(comm,ierr)
-      call exit() !> \todo: We exit here in order to split the jobs for shorter runtime.
+!      call exit() !> \todo: We exit here in order to split the jobs for shorter runtime.
     endif
 
     if(myid.eq.0) deallocate(OPP%diffLUT%S%stddev_rtol)
@@ -263,7 +263,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds
         endif
 
-        call mpi_bcast(errcnt           , 1 , MPI_INTEGER , 0 , comm , ierr)
+        call mpi_bcast(errcnt           , 1 , imp_int , 0 , comm , ierr)
         call mpi_bcast(lstddev_inbounds , 1 , MPI_LOGICAL , 0 , comm , ierr)
 
         if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then
@@ -301,7 +301,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
           endif
 
           call mpi_barrier(comm,ierr)
-          call exit() !> \todo: We exit here in order to split the jobs for shorter runtime.
+!          call exit() !> \todo: We exit here in order to split the jobs for shorter runtime.
         endif
 
         if(myid.eq.0) deallocate(OPP%dirLUT%S(iphi,itheta)%stddev_rtol)
@@ -317,9 +317,8 @@ end subroutine
       class(t_optprop_LUT) :: OPP
       real(ireals),intent(in) :: szas(:),azis(:) 
       integer(mpiint) ,intent(in) :: comm
-      integer(mpiint) :: Ntot,Ncoeff
+      integer(iintegers) :: Ntot,Ncoeff
       integer(iintegers) :: iphi,itheta
-      double precision,allocatable,dimension(:) :: tmp
       logical :: angle_mask(Nphi,Ntheta)
 
       call determine_angles_to_load(OPP%dirLUT, azis, szas, angle_mask)
@@ -334,22 +333,11 @@ end subroutine
             Ntot   = size(OPP%dirLUT%T(iphi,itheta)%c) 
             print *,myid,'Scattering LUT tables....',Ncoeff,Ntot,' iphi,itheta',iphi,itheta 
           endif
-          call mpi_bcast(Ncoeff, 1, MPI_INTEGER, 0, comm, ierr)
-          call mpi_bcast(Ntot  , 1, MPI_INTEGER, 0, comm, ierr)
-          allocate(tmp(Ntot))
+          call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
+          call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
 
-          if(myid.eq.0) then
-            tmp = dble( reshape(OPP%dirLUT%T(iphi,itheta)%c,shape(tmp) ) )
-          else
-            tmp=nil
-          endif
-
-          call mpi_bcast(tmp, Ntot, MPI_DOUBLE_PRECISION, 0, comm, ierr)
-          if(myid.gt.0) then
-            allocate(OPP%dirLUT%T(iphi,itheta)%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
-            OPP%dirLUT%T(iphi,itheta)%c = real( reshape( tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] ) )
-          endif
-          deallocate(tmp)
+          if(myid.gt.0) allocate(OPP%dirLUT%T(iphi,itheta)%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
+          call mpi_bcast(OPP%dirLUT%T(iphi,itheta)%c, Ntot, imp_real, 0, comm, ierr)
 
           ! DIRECT 2 DIFFUSE
           if(myid.eq.0) then
@@ -357,22 +345,11 @@ end subroutine
             Ntot   = size(OPP%dirLUT%S(iphi,itheta)%c) 
             !          print *,'Scattering LUT tables....',Ncoeff,Ntot
           endif
-          call mpi_bcast(Ncoeff, 1, MPI_INTEGER, 0, comm, ierr)
-          call mpi_bcast(Ntot  , 1, MPI_INTEGER, 0, comm, ierr)
-          allocate(tmp(Ntot)) 
-          if(myid.eq.0) then
-            tmp = dble( reshape(OPP%dirLUT%S(iphi,itheta)%c,[Ntot] ) )
-          else
-            tmp=nil
-          endif
+          call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
+          call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
 
-
-          call mpi_bcast(tmp, Ntot, MPI_DOUBLE_PRECISION, 0, comm, ierr)
-          if(myid.gt.0) then
-            allocate(OPP%dirLUT%S(iphi,itheta)%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
-            OPP%dirLUT%S(iphi,itheta)%c = real( reshape(tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] ) )
-          endif
-          deallocate(tmp)
+          if(myid.gt.0) allocate(OPP%dirLUT%S(iphi,itheta)%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
+          call mpi_bcast(OPP%dirLUT%S(iphi,itheta)%c, Ntot, imp_real, 0, comm, ierr)
 
         enddo
       enddo
@@ -383,19 +360,13 @@ end subroutine
         Ntot   = size(OPP%diffLUT%S%c) 
         !          print *,'Scattering LUT tables....',Ncoeff,Ntot
       endif
-      call mpi_bcast(Ncoeff, 1, MPI_INTEGER, 0, comm, ierr)
-      call mpi_bcast(Ntot  , 1, MPI_INTEGER, 0, comm, ierr)
-      allocate(tmp(Ntot)) 
-      if(myid.eq.0) tmp = dble( reshape(OPP%diffLUT%S%c,[Ntot] ) )
+      call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
+      call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
 
-      call mpi_bcast(tmp, Ntot, MPI_DOUBLE_PRECISION, 0, comm, ierr)
-      if(myid.gt.0) then
-        allocate(OPP%diffLUT%S%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
-        OPP%diffLUT%S%c = real( reshape(tmp, [i1*Ncoeff, Ndz, Nkabs, Nksca, Ng] ) )
-      endif
-      deallocate(tmp)
+      if(myid.gt.0) allocate(OPP%diffLUT%S%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
+      call mpi_bcast(OPP%diffLUT%S%c, Ntot, imp_real, 0, comm, ierr)
 
-      print *,myid,' :: ',OPP%diffLUT%S%c(1,1,1,1,1)
+!      print *,myid,' :: Scatter LUT -- sum of diff LUT-> S= ',sum(OPP%diffLUT%S%c)
   end subroutine
 
 subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
@@ -776,7 +747,7 @@ subroutine set_parameter_space(OPP,ps,dx)
     type(parameter_space),intent(inout) :: ps
     real(ireals),intent(in) :: dx
     real(ireals) :: diameter ! diameter of max. cube size
-    real(ireals),parameter :: maximum_transmission=one-1e-5_ireals ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
+    real(ireals),parameter :: maximum_transmission=one-1e-4_ireals ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
     integer(iintegers) :: k
 
     ps%dz_exponent=1
@@ -990,7 +961,7 @@ subroutine catch_limits(ps,dz,kabs,ksca,g)
     ksca = max( ps%range_ksca(1), ksca ) ! Lets hope that we have a meaningful lower bound, as we will not get a warning for this.
     ierr=0
 
-    if( dz.lt.ps%range_dz(1) .or. dz.gt.ps%range_dz(2) ) then
+    if( int(dz).lt.ps%range_dz(1) .or. int(dz).gt.ps%range_dz(2) ) then
       print *,'dz is not in LookUpTable Range',dz, 'LUT range',ps%range_dz
       ierr=ierr+1
     endif

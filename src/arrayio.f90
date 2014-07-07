@@ -372,7 +372,7 @@ module arrayIO
           call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .99) write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -454,7 +454,7 @@ module arrayIO
           call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -536,7 +536,7 @@ module arrayIO
           call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -623,7 +623,7 @@ module arrayIO
           call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -710,7 +710,7 @@ module arrayIO
           call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -792,7 +792,7 @@ module arrayIO
           call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -813,6 +813,7 @@ module arrayIO
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
+          close(v,status='delete') 
 
           call h5open_f(hferr)
           ierr=0 ; lastid = ubound(id,1)
@@ -872,9 +873,8 @@ module arrayIO
 
           !        print *,'Data average is now:',sum(arr)/size(arr)
           call h5close_f(hferr)
-          close(v,status='delete') ; return
-
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          return
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
 
         enddo
@@ -895,6 +895,7 @@ module arrayIO
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
+          close(v,status='delete') 
 
           call h5open_f(hferr)
           ierr=0 ; lastid = ubound(id,1)
@@ -950,9 +951,8 @@ module arrayIO
 
           !        print *,'Data average is now:',sum(arr)/size(arr)
           call h5close_f(hferr)
-          close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -972,6 +972,7 @@ module arrayIO
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
+          close(v,status='delete')
 
           call h5open_f(hferr)
           ierr=0 ; lastid = ubound(id,1)
@@ -1026,9 +1027,8 @@ module arrayIO
 
           !        print *,'loaded 3d data, with shape',shape(arr)
           call h5close_f(hferr)
-          close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -1047,6 +1047,7 @@ module arrayIO
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
+          close(v,status='delete')
 
           call h5open_f(hferr)
           ierr=0 ; lastid = ubound(id,1)
@@ -1104,9 +1105,8 @@ module arrayIO
           !        print *,'Data average is now:',sum(arr)/size(arr)
           !        print *,'loaded 4d data, with shape',shape(arr)
           call h5close_f(hferr)
-          close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -1126,6 +1126,7 @@ module arrayIO
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
+          close(v,status='delete')
 
           call h5open_f(hferr)
           ierr=0 ; lastid = ubound(id,1)
@@ -1175,9 +1176,8 @@ module arrayIO
           enddo
           call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
           call h5close_f(hferr)
-          close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -1196,6 +1196,7 @@ module arrayIO
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
+          close(v,status='delete')
 
           call h5open_f(hferr)
           ierr=0 ; lastid = ubound(id,1)
@@ -1250,9 +1251,8 @@ module arrayIO
           !        print *,'Data average is now:',sum(arr)/size(arr)
           !        print *,'loaded 4d data, with shape',shape(arr)
           call h5close_f(hferr)
-          close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -1273,6 +1273,7 @@ module arrayIO
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
+          close(v,status='delete')
 
           call h5open_f(hferr)
           ierr=0 ; lastid = ubound(id,1)
@@ -1328,9 +1329,8 @@ module arrayIO
           call h5close_f(hferr)
           allocate(out_arr(ubound(arr,1)))
           out_arr = arr
-          close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -1350,6 +1350,7 @@ module arrayIO
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
+          close(v,status='delete')
 
           call h5open_f(hferr)
           ierr=0 ; lastid = ubound(id,1)
@@ -1406,9 +1407,8 @@ module arrayIO
 
           allocate(out_arr(ubound(arr,1),ubound(arr,2) ))
           out_arr = arr
-          close(v,status='delete')
           return
-          99 if(rand() .gt. .99)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine

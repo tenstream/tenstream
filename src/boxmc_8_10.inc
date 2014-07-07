@@ -220,34 +220,34 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
 !        endif
         if(src.eq.1) then
                 p%loc = (/L(dx), L(dy),    dz  /)
-                mu = interv_R2( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( R()*360._ireals )
+                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( R()*360._ireals )
         else if(src.eq.2) then
                 p%loc = (/L(dx), L(dy),    zero /)
-                mu = interv_R2( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( R()*360._ireals )
+                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( R()*360._ireals )
         else if(src.eq.3) then
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                mu = interv_R2( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(-90._ireals,90._ireals) )
         else if(src.eq.4) then
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                mu = interv_R2( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(90._ireals,270._ireals) )
         else if(src.eq.5) then
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                mu = interv_R2( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(-90._ireals,90._ireals) )
         else if(src.eq.6) then
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                mu = interv_R2( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(90._ireals,270._ireals) )
         else if(src.eq.7) then
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                mu = interv_R2( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(0._ireals,180._ireals) )
         else if(src.eq.8) then
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                mu = interv_R2( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(180._ireals,360._ireals) )
         else if(src.eq.9) then
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                mu = interv_R2( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(0._ireals,180._ireals) )
         else if(src.eq.10) then
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                mu = interv_R2( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(180._ireals,360._ireals) )
         else
                 print *,'Dont know what to do with source spec:',src
                 call exit

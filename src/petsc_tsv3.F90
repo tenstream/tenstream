@@ -1,10 +1,10 @@
 module petsc_ts
       use m_twostream, only: twostream_dir,twostream_diff
-      use helper_functions, only: deg2rad,approx
+      use helper_functions, only: deg2rad,approx,imp_bcast
       use gridtransform
       use arrayio
       use eddington, only : rodents
-      USE data_parameters, ONLY : mpiint,ireals,iintegers
+      use data_parameters, only : init_mpi_data_parameters,mpiint,ireals,iintegers,imp_comm
       use kato_data
       use optprop, only : t_optprop_1_2,t_optprop_8_10
 
@@ -18,7 +18,7 @@ module petsc_ts
       PetscReal,parameter:: zero=0,one=1.0, pi=3.141592653589793, nil=-9999999
 
       logical :: l_writeall,luse_twostr_guess,luse_hdf5_guess
-      logical,parameter :: ldebug=.False.,lcycle_dir=.True.
+      logical,parameter :: ldebug=.True.,lcycle_dir=.True.
       character(len=*),parameter :: basepath='/home/users/jakub/scratch/tenstream/'
       logical,parameter ::ltest=.False.
 
@@ -36,7 +36,7 @@ module petsc_ts
         PetscInt :: glob_xm,glob_ym,glob_zm ! global domain size
         PetscInt :: dof,dim               ! degrees of freedom of Petsc Domain, dimension of dmda
         DM :: da                          ! The Domain Decomposition Object
-        PetscInt,allocatable :: neighbors(:)         ! all 3d neighbours( (x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
+        PetscMPIInt,allocatable :: neighbors(:)         ! all 3d neighbours( (x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
       end type
 
       type(coord) :: C_dir,C_diff,C_one
@@ -67,10 +67,10 @@ module petsc_ts
       if(errcode.ne.0) then
               if(present(str)) then
                       print *,'******** ERROR :: ',errcode,':: ',trim(str)
-                      call MPI_Abort(PETSC_COMM_WORLD,errcode,mpierr)
+                      call MPI_Abort(imp_comm,errcode,mpierr)
               else
                       print *,'******** ERROR :: ',errcode
-                      call MPI_Abort(PETSC_COMM_WORLD,errcode,mpierr)
+                      call MPI_Abort(imp_comm,errcode,mpierr)
               endif
               call petscfinalize(ierr) ;CHKERRQ(ierr)
               call exit()
@@ -103,16 +103,21 @@ module petsc_ts
               DMBoundaryType :: boundary
               PetscInt,parameter :: stencil_size=1
               C%dof = i1*dof
-              call DMDACreate3d( PETSC_COMM_WORLD  ,                                           &
+
+              call DMDACreate3d( imp_comm  ,                                           &
                                 boundary           , boundary           , bn                 , &
                                 DMDA_STENCIL_STAR  ,                                           &
-                                -i1*newgrid%Nx     , -i1*newgrid%Ny     , -i1*Nz             , &
+                                i1*newgrid%Nx     , i1*newgrid%Ny     , i1*Nz                , &
                                 PETSC_DECIDE       , PETSC_DECIDE       , i1                 , &
                                 C%dof              , stencil_size       ,                      &
                                 PETSC_NULL_INTEGER , PETSC_NULL_INTEGER , PETSC_NULL_INTEGER , &
                                 C%da               , ierr) ;CHKERRQ(ierr)
               call setup_coords(C)
               call DMSetup(C%da,ierr) ;CHKERRQ(ierr)
+              call DMSetMatType(C%da, MATAIJ, ierr); CHKERRQ(ierr)
+              call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+
+              call DMSetFromOptions(C%da, ierr) ; CHKERRQ(ierr)
           end subroutine
         subroutine setup_coords(C)
           type(coord) :: C
@@ -143,8 +148,8 @@ module petsc_ts
 
       subroutine mat_info(A)
         Mat :: A
-        double  precision info(MAT_INFO_SIZE)
-        double  precision mal, nz_allocated, nz_used, nz_unneeded
+        real(ireals) :: info(MAT_INFO_SIZE)
+        real(ireals) :: mal, nz_allocated, nz_used, nz_unneeded
 
         call MatGetInfo(A,MAT_LOCAL,info,ierr) ;CHKERRQ(ierr)
         mal = info(MAT_INFO_MALLOCS)
@@ -162,23 +167,30 @@ module petsc_ts
 
         PetscInt,dimension(:),allocatable :: o_nnz,d_nnz!,dnz
 
-        call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;CHKERRQ(ierr)
         call DMCreateMatrix(C%da, A, ierr) ;CHKERRQ(ierr)
-        call mat_info(A)
+
+        call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+        call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
         call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
+        call MatSetUp(A,ierr) ;CHKERRQ(ierr)
+
+        call mat_info(A)
 
         ! Determine perfect preallocation
         if(numnodes.gt.1) then
           select case (C%dof)
           case(i3)
             call setup_dir_preallocation(d_nnz,o_nnz,C)
+!             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i2, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
           case(i8)
             call setup_dir8_preallocation(d_nnz,o_nnz,C)
+!             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i4, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
           case(i10)
             call setup_diff_preallocation(d_nnz,o_nnz,C)
+!             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i4, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
           case default
-            ierr = C%dof
             call chkerr(ierr,'Dont know which preallocation routine I shall call! - exiting...')
           end select
 
@@ -186,13 +198,13 @@ module petsc_ts
 
           deallocate(o_nnz)
           deallocate(d_nnz)
+
         endif
 
-        call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr)
-        call MatSetUp(A,ierr) ;CHKERRQ(ierr)
-        call mat_info(A)
 
-        call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+        call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr)
+
+        call mat_info(A)
 
         call mat_set_diagonal(A,C)
       end subroutine
@@ -201,7 +213,7 @@ module petsc_ts
         type(coord),intent(in) :: C
         PetscInt :: i,j,k,dof
         MatStencil :: row(4,1), col(4,1)
-        PetscReal :: v(1)
+        PetscScalar :: v(1)
 
         v(1)=one
         
@@ -769,6 +781,10 @@ subroutine set_dir_coeff(A,C)
             v(entries+src) = coeffs( i1+(src-i1)*C%dof : src*C%dof )
           enddo
 
+          where(approx(coeffs,zero))
+            coeffs = PETSC_NULL_REAL
+          end where
+
           call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
         enddo ; enddo ; enddo
@@ -913,13 +929,12 @@ subroutine set_diff_coeff(A,C)
       if(myid.eq.0.and.ldebug) print *,myid,'Final diffuse Matrix Assembly:'
       call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
       call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
-      call MatSetOption(A,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE, ierr) ;CHKERRQ(ierr)
+!      call MatSetOption(A,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE, ierr) ;CHKERRQ(ierr)
 end subroutine
  
-subroutine setup_b(edir,kato,iq,b)
+subroutine setup_b(edir,b)
         Vec :: edir
         Vec :: local_b,b
-        integer(iintegers),intent(in) :: kato,iq
 
         PetscScalar,pointer,dimension(:,:,:,:) :: &
         xsrc,xedir
@@ -1105,40 +1120,48 @@ subroutine load_test_optprop(kato,iq)
       end type
       type(op) :: optP
 
-      integer(mpiint) :: Ntot
-
       groups(1) = uvspec_file
       groups(2) = ident
 
       !Actually loading data
 
       groups(3) = 'hhl'
-      call h5load(groups(1:3),hhl1d,iierr)
-      if(myid.eq.0) print *,'hhl',hhl1d
-
-      write(groups(3),FMT='("kato",I0)') kato
-      write(groups(4),FMT='("iq",I0)') iq
-      groups(5) = 'kabs'
-      call h5load(groups(1:5),optP%kabs,iierr)
-      groups(5) = 'ksca'
-      call h5load(groups(1:5),optP%ksca,iierr) 
-      groups(5) = 'g'
-      call h5load(groups(1:5),optP%g,iierr) 
-
-      if(size(optP%ksca).ne.size(optP%kabs).or.size(optP%kabs).ne.size(optP%g).or.size(hhl1d).ne.ubound(optP%kabs,3)+1) then !.or.(ubound(hhl1d,1)-1.ne.ubound(kabs,3))) then
-        print *,'ERROR : shapes of optical properties do not match!!!'
-        print *,'shape(kabs)',shape(optP%kabs)
-        print *,'shape(ksca)',shape(optP%ksca)
-        print *,'shape(g)',shape(optP%g)
-        print *,'shape(hhl1d)',shape(hhl1d)
-
-        call exit()
+      if(myid.eq.0) call h5load(groups(1:3),hhl1d,iierr)
+      if(iierr.ne.0) then
+        print *,'Tried loading hhl1d from ',trim(groups(1)),' ::  ',trim(groups(2)),'  ::  ',trim(groups(3))
+        stop 'Error occured loading hhl1d'
       endif
+      if(myid.eq.0) print *,'hhl',hhl1d
+      call imp_bcast(hhl1d,0_mpiint,myid)
 
-      optP%kabs = max(min_coeff, optP%kabs )
-      optP%ksca = max(min_coeff, optP%ksca )
-      optP%g    = max(min_coeff, optP%g    )
+      if(myid.eq.0) then
+        write(groups(3),FMT='("kato",I0)') kato
+        write(groups(4),FMT='("iq",I0)') iq
+        groups(5) = 'kabs'
+        call h5load(groups(1:5),optP%kabs,iierr)
+        groups(5) = 'ksca'
+        call h5load(groups(1:5),optP%ksca,iierr) 
+        groups(5) = 'g'
+        call h5load(groups(1:5),optP%g,iierr) 
 
+        if(size(optP%ksca).ne.size(optP%kabs).or.size(optP%kabs).ne.size(optP%g).or.size(hhl1d).ne.ubound(optP%kabs,3)+1) then !.or.(ubound(hhl1d,1)-1.ne.ubound(kabs,3))) then
+          print *,'ERROR : shapes of optical properties do not match!!!'
+          print *,'shape(kabs)',shape(optP%kabs)
+          print *,'shape(ksca)',shape(optP%ksca)
+          print *,'shape(g)',shape(optP%g)
+          print *,'shape(hhl1d)',shape(hhl1d)
+
+          call exit()
+        endif
+
+        optP%kabs = max(min_coeff, optP%kabs )
+        optP%ksca = max(min_coeff, optP%ksca )
+        optP%g    = max(min_coeff, optP%g    )
+
+      endif
+      call imp_bcast(optP%kabs,0_mpiint,myid)
+      call imp_bcast(optP%ksca,0_mpiint,myid)
+      call imp_bcast(optP%g   ,0_mpiint,myid)
 
       allocate(dz(size(hhl1d)-1))
       dz = hhl1d(1:ubound(hhl1d,1)-1) - hhl1d(2:ubound(hhl1d,1)) 
@@ -1405,7 +1428,7 @@ subroutine vec_from_hdf5(v,err_code)
       character(100) :: vecname,s_theta0
       PetscScalar :: rvecsum
 
-      PetscInt :: err_code
+      PetscErrorCode :: err_code
       
       PetscViewer view
       PetscErrorCode ierr
@@ -1423,7 +1446,7 @@ subroutine vec_from_hdf5(v,err_code)
         if(myid.eq.0)  print *,myid,'reading vector from hdf5 file ',trim(fname),' vecname: ',vecname
         fmode = FILE_MODE_READ
 
-        call PetscViewerHDF5Open(PETSC_COMM_WORLD,trim(fname),fmode, view, ierr) ; CHKERRQ(ierr)
+        call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ; CHKERRQ(ierr)
         call VecLoad(v, view, err_code)                                          ; CHKERRQ(ierr)
         call PetscViewerDestroy(view,ierr)                                       ; CHKERRQ(ierr)
 
@@ -1449,7 +1472,6 @@ subroutine vec_to_hdf5(v)
       character(100) :: vecname,s_theta0
       
       PetscViewer :: view
-      PetscReal :: tmp
 
       call PetscLogStagePush(logstage(10),ierr) ;CHKERRQ(ierr)
       call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
@@ -1467,7 +1489,7 @@ subroutine vec_to_hdf5(v)
         fmode = FILE_MODE_WRITE
       endif
 
-      call PetscViewerHDF5Open(PETSC_COMM_WORLD,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
+      call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
       call VecView(v, view, ierr) ;CHKERRQ(ierr)
       call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
@@ -1475,11 +1497,10 @@ subroutine vec_to_hdf5(v)
       if(myid.eq.0 .and. ldebug) print *,myid,'writing to hdf5 file done'
 end subroutine
 
-subroutine solve(ksp,b,x,C)
+subroutine solve(ksp,b,x)
       KSP :: ksp
       Vec:: b
       Vec:: x
-      type(coord) :: C
 
       KSPConvergedReason :: reason
       PetscInt :: iter
@@ -1520,14 +1541,15 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
       KSP :: ksp
       Mat:: A
       type(coord) :: C
-      PetscReal,parameter :: rtol=1e-5, atol=1e-6
+      PetscReal,parameter :: rtol=1e-5, atol=1e-5
       logical :: init
       character(len=*),optional :: prefix
+!      MatNullSpace :: nullspace
 
       if(init) return
       if(myid.eq.0.and.ldebug) print *,'Setup KSP'
 
-      call KSPCreate(PETSC_COMM_WORLD,ksp,ierr) ;CHKERRQ(ierr)
+      call KSPCreate(imp_comm,ksp,ierr) ;CHKERRQ(ierr)
       if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;CHKERRQ(ierr)
 
       call KSPSetOperators(ksp,A,A,ierr) ;CHKERRQ(ierr)
@@ -1538,7 +1560,11 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
       call KSPSetDM(ksp,C%da,ierr) ;CHKERRQ(ierr)
       call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
-      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),PETSC_DEFAULT_REAL,PETSC_DEFAULT_INTEGER,ierr)
+      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),PETSC_DEFAULT_REAL,PETSC_DEFAULT_INTEGER,ierr);CHKERRQ(ierr)
+
+!      call MatNullSpaceCreate( imp_comm,PETSC_TRUE,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,nullspace,ierr);;CHKERRQ(ierr)
+!      call KSPSetNullspace(ksp,nullspace,ierr);CHKERRQ(ierr)
+!      call MatNullSpaceDestroy(nullspace,ierr);CHKERRQ(ierr)
 
       call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
       call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
@@ -1561,7 +1587,7 @@ subroutine read_commandline_options()
         call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-h"    , lhelp , lflg , ierr) ;CHKERRQ(ierr)
         if(lhelp) then
           if(myid.eq.0) call print_help()
-          stop 'Stopped because help was called'
+!          stop 'Stopped because help was called'
         endif
 
         call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-ident',ident,lflg,ierr) ; CHKERRQ(ierr)
@@ -1622,7 +1648,7 @@ subroutine read_commandline_options()
           print *,'********************************************************************'
           print *,''
         endif
-        call mpi_barrier(PETSC_COMM_WORLD,ierr)
+        call mpi_barrier(imp_comm,ierr)
         contains 
           subroutine print_help()
               print *,'Options are:'
@@ -1800,9 +1826,14 @@ program main
 
         character(100) :: vecname
 
+
         call PetscInitialize(PETSC_NULL_CHARACTER,ierr) ;CHKERRQ(ierr)
-        call MPI_COMM_RANK( PETSC_COMM_WORLD, myid, mpierr )
-        call MPI_Comm_size( PETSC_COMM_WORLD, numnodes, mpierr)
+        
+        call init_mpi_data_parameters(PETSC_COMM_WORLD)
+
+        call MPI_COMM_RANK( imp_comm, myid, mpierr )
+        call MPI_Comm_size( imp_comm, numnodes, mpierr)
+
 
         call read_commandline_options()
         call setup_logging()
@@ -1820,16 +1851,16 @@ program main
         call init_memory(b,x,edir,intedir,intx,incSolar,abso,intabso,Mdiff,Mdir)
 
         !Init optical Property Mechanisms
-        call OPP_8_10%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD)
-        if(.not.luse_eddington) call OPP_1_2%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],PETSC_COMM_WORLD) 
+        call OPP_8_10%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],imp_comm)
+        if(.not.luse_eddington) call OPP_1_2%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],imp_comm) 
 
 
         do kato=1,32
 !                  do kato=11,11
           do iq=0,kato_bands(kato)
-            if(myid.eq.0) print *,'                            -----------------------------------------------------------------------------------------------------------------------------'
-            if(myid.eq.0) print *,'                            -------------------------- Calculate ',ident,' sza',theta0,' kato',kato,'iq',iq,'-------------------------------'
-            if(myid.eq.0) print *,'                            -----------------------------------------------------------------------------------------------------------------------------'
+            if(myid.eq.0) print *,'-----------------------------------------------------------------------------------------------------------------------------'
+            if(myid.eq.0) print *,'-------------------------- Calculate ',trim(ident),' sza',theta0,' kato',kato,'iq',iq
+            if(myid.eq.0) print *,'-----------------------------------------------------------------------------------------------------------------------------'
 
             if(ltest) then
               call load_test_optprop(kato,iq)
@@ -1882,12 +1913,12 @@ program main
             call setup_ksp(kspdir,C_dir,Mdir,linit_kspdir,"dir_")
 
             call PetscLogStagePush(logstage(3),ierr) ;CHKERRQ(ierr)
-            call solve(kspdir,incSolar,edir,C_dir)
+            call solve(kspdir,incSolar,edir)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate diffuse src term'
             call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
-            call setup_b(edir,kato,iq,b)
+            call setup_b(edir,b)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate diffuse Radition'
@@ -1899,7 +1930,7 @@ program main
             call setup_ksp(kspdiff,C_diff,Mdiff,linit_kspdiff,"diff_")
 
             call PetscLogStagePush(logstage(5),ierr) ;CHKERRQ(ierr)
-            call solve(kspdiff,b,x,C_diff)
+            call solve(kspdiff,b,x)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(l_writeall) then

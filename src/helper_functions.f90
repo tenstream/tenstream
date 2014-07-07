@@ -1,7 +1,16 @@
 module helper_functions
-      use data_parameters,only : ireals,pi,one
+      use data_parameters,only : iintegers,ireals,pi,one,imp_real,imp_int,mpiint,imp_comm
 
       implicit none
+
+      public imp_bcast
+
+      interface imp_bcast
+        module procedure imp_bcast_real_1d,imp_bcast_real_3d
+      end interface
+
+      integer(mpiint) :: mpierr
+
       contains
 
       pure function norm(v)
@@ -44,6 +53,32 @@ module helper_functions
           approx = .False.
         endif
       end function
+
+      subroutine  imp_bcast_real_1d(arr,sendid,myid)
+          real(ireals),allocatable,intent(inout) :: arr(:)
+          integer(mpiint),intent(in) :: sendid,myid
+
+          integer(iintegers) :: Ntot
+
+          if(sendid.eq.myid) Ntot = size(arr)
+          call mpi_bcast(Ntot,1,imp_int,sendid,imp_comm,mpierr)
+
+          if(myid.ne.sendid) allocate( arr(Ntot) )
+          call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr)
+      end subroutine
+      subroutine  imp_bcast_real_3d(arr,sendid,myid)
+          real(ireals),allocatable,intent(inout) :: arr(:,:,:)
+          integer(mpiint),intent(in) :: sendid,myid
+
+          integer(iintegers) :: Ntot(3)
+
+          if(sendid.eq.myid) Ntot = shape(arr)
+          call mpi_bcast(Ntot,3,imp_int,sendid,imp_comm,mpierr)
+
+          if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3) ) )
+          call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr)
+      end subroutine
+
 
 
       end module

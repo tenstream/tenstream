@@ -1,5 +1,6 @@
 module data_parameters
 
+        use mpi,only:MPI_SIZEOF,MPI_TYPE_MATCH_SIZE
         implicit none
 #include "finclude/petsc.h90"
 
@@ -13,14 +14,31 @@ module data_parameters
 
       PetscReal :: petscreal_dummy
 
-      integer,parameter :: iintegers = kind(petscint_dummy), &
-          ireals = kind(petscreal_dummy)
+      integer,parameter :: &
+          iintegers = kind(petscint_dummy), &
+          ireals = kind(petscreal_dummy),   &
+          mpiint = kind(mpiint_dummy)
 
-
-
-      integer,parameter :: mpiint = kind(mpiint_dummy)
       real(ireals),parameter :: pi=3.141592653589793, nil=-9999._ireals
       real(ireals),parameter :: zero=0._ireals, one=1._ireals
       integer(iintegers) ,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,i5=5,i6=6,i7=7,i8=8,i9=9,i10=10,i11=11,inil=-9999_iintegers
 
+
+      integer :: imp_int, imp_real, imp_comm
+
+contains 
+subroutine init_mpi_data_parameters(comm)
+  integer,intent(in) :: comm
+  integer :: size,ierror
+
+  imp_comm = comm
+  call MPI_SIZEOF(i0, size, ierror)    
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, size, imp_int, ierror)
+
+  call MPI_SIZEOF(one, size, ierror)    
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, size, imp_real, ierror)
+
+!  print *,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real
+!  print *,'init_mpi_data_parameters :: MPI_INTEGER',MPI_INTEGER,' :: MPI_DOUBLE_PRECISION',MPI_DOUBLE_PRECISION,' :: MPI_REAL',MPI_REAL
+end subroutine
 end module

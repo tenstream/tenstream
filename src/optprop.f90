@@ -59,8 +59,6 @@ contains
           stop 'coeff mode optprop initialization not defined ' 
       end select
 
-      print *,'Optical properties initialized!'
-
   end subroutine
 
   subroutine get_coeff(OPP, dz,kabs,ksca,g,dir,C,inp_angles)
