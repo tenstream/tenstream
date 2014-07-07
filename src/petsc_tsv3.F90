@@ -148,8 +148,8 @@ module petsc_ts
 
       subroutine mat_info(A)
         Mat :: A
-        real(ireals) :: info(MAT_INFO_SIZE)
-        real(ireals) :: mal, nz_allocated, nz_used, nz_unneeded
+        double precision :: info(MAT_INFO_SIZE)
+        double precision :: mal, nz_allocated, nz_used, nz_unneeded
 
         call MatGetInfo(A,MAT_LOCAL,info,ierr) ;CHKERRQ(ierr)
         mal = info(MAT_INFO_MALLOCS)
