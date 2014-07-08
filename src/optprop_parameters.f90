@@ -12,8 +12,9 @@ module optprop_parameters
       real(ireals),parameter :: stddev_rtol=1e-2_ireals
 
 !      integer(iintegers) ,parameter :: Ndz=20, Nkabs=40, Nksca=40, Ng=15, Nphi=2, Ntheta=10, interp_mode=2
-      integer(iintegers) ,parameter :: Ndz=2, Nkabs=30, Nksca=30, Ng=15, Nphi=10, Ntheta=10, interp_mode=2
+      integer(iintegers) ,parameter :: Ndz_8_10=2, Nkabs_8_10=30, Nksca_8_10=30, Ng_8_10=15, Nphi_8_10=10, Ntheta_8_10=10, interp_mode_8_10=2
 !      integer(iintegers) ,parameter :: Ndz=5, Nkabs=5, Nksca=5, Ng=5, Nphi=2, Ntheta=10, interp_mode=2 
 !      integer(iintegers) ,parameter :: Ndz=2, Nkabs=2, Nksca=2, Ng=2, Nphi=2, Ntheta=10, interp_mode=2 
 
+      integer(iintegers) ,parameter :: Ndz_1_2=30, Nkabs_1_2=30, Nksca_1_2=30, Ng_1_2=15, Nphi_1_2=10, Ntheta_1_2=10, interp_mode_1_2=2
 end module

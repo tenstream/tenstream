@@ -20,7 +20,7 @@ module petsc_ts
       logical :: l_writeall,luse_twostr_guess,luse_hdf5_guess
       logical,parameter :: ldebug=.True.,lcycle_dir=.True.
       character(len=*),parameter :: basepath='/home/users/jakub/scratch/tenstream/'
-      logical,parameter ::ltest=.False.
+      logical,parameter ::ltest=.False.,lprealloc=.True.
 
       character(len=300) :: ident,output_prefix 
       real(ireals) :: ident_dx, ident_dy, ident_dz=nil
@@ -47,7 +47,7 @@ module petsc_ts
 
       type t_optprop
         real(ireals) :: bg(3)=nil,fg(4)=nil
-        logical :: updated=.True.
+        logical :: updated=.True.,one_dimensional=.False.
         real(ireals) :: kext1=nil ,kext2=nil ,ksca1=nil ,ksca2=nil, w1=nil, w2=nil, g1=nil, g2=nil
       end type
       type(t_optprop),allocatable :: pcc_optprop(:,:,:)
@@ -106,7 +106,7 @@ module petsc_ts
 
               call DMDACreate3d( imp_comm  ,                                           &
                                 boundary           , boundary           , bn                 , &
-                                DMDA_STENCIL_STAR  ,                                           &
+                                DMDA_STENCIL_BOX  ,                                            &
                                 i1*newgrid%Nx     , i1*newgrid%Ny     , i1*Nz                , &
                                 PETSC_DECIDE       , PETSC_DECIDE       , i1                 , &
                                 C%dof              , stencil_size       ,                      &
@@ -114,8 +114,8 @@ module petsc_ts
                                 C%da               , ierr) ;CHKERRQ(ierr)
               call setup_coords(C)
               call DMSetup(C%da,ierr) ;CHKERRQ(ierr)
-              call DMSetMatType(C%da, MATAIJ, ierr); CHKERRQ(ierr)
-              call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+!              call DMSetMatType(C%da, MATAIJ, ierr); CHKERRQ(ierr)
+              if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;CHKERRQ(ierr)
 
               call DMSetFromOptions(C%da, ierr) ; CHKERRQ(ierr)
           end subroutine
@@ -170,39 +170,39 @@ module petsc_ts
         call DMCreateMatrix(C%da, A, ierr) ;CHKERRQ(ierr)
 
         call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-        call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
+!        call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+!        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
         call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
-        call MatSetUp(A,ierr) ;CHKERRQ(ierr)
+!        call MatSetUp(A,ierr) ;CHKERRQ(ierr)
 
         call mat_info(A)
 
-        ! Determine perfect preallocation
-        if(numnodes.gt.1) then
-          select case (C%dof)
-          case(i3)
-            call setup_dir_preallocation(d_nnz,o_nnz,C)
-!             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i2, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
-          case(i8)
-            call setup_dir8_preallocation(d_nnz,o_nnz,C)
-!             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i4, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
-          case(i10)
-            call setup_diff_preallocation(d_nnz,o_nnz,C)
-!             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i4, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
-          case default
-            call chkerr(ierr,'Dont know which preallocation routine I shall call! - exiting...')
-          end select
+        if(lprealloc) then
+          ! Determine perfect preallocation
+          if(numnodes.gt.1) then
+            select case (C%dof)
+            case(i3)
+              call setup_dir_preallocation(d_nnz,o_nnz,C)
+              !             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i2, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
+            case(i8)
+              call setup_dir8_preallocation(d_nnz,o_nnz,C)
+              !             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i4, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
+            case(i10)
+              call setup_diff_preallocation(d_nnz,o_nnz,C)
+              !             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i4, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
+            case default
+              call chkerr(ierr,'Dont know which preallocation routine I shall call! - exiting...')
+            end select
 
-          call MatMPIAIJSetPreallocation(A, PETSC_NULL_INTEGER,d_nnz, PETSC_NULL_INTEGER, o_nnz, ierr) ;CHKERRQ(ierr)
+            call MatMPIAIJSetPreallocation(A, PETSC_NULL_INTEGER,d_nnz, PETSC_NULL_INTEGER, o_nnz, ierr) ;CHKERRQ(ierr)
 
-          deallocate(o_nnz)
-          deallocate(d_nnz)
+            deallocate(o_nnz)
+            deallocate(d_nnz)
 
+          endif
+          call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr)
         endif
-
-
-        call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr)
 
         call mat_info(A)
 
@@ -253,6 +253,7 @@ module petsc_ts
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
         PetscInt,parameter :: ind(9)=[E_up,E_le_m,E_le_p,E_ri_m,E_ri_p,E_ba_m,E_ba_p,E_fw_m,E_fw_p]
+        PetscInt :: i,j,k,li,lj,lk
 
         call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
         call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
@@ -355,22 +356,20 @@ module petsc_ts
                 ! no foreign stream dependencies
         endif
 
-!        if(luse_eddington) then
-!          do k=C%zs,C%ze-1
-!            do j=C%ys,C%ye
-!              do i=C%xs,C%xe        ! i,j,k indices are defined on petsc global grid
-!                li = istartpar+i-C%xs ! l-indices are used for local arrays, 
-!                lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
-!                lk = 1+k-C%zs         !
-!                if( newgrid%dz(lk).gt.newgrid%dx(li) ) then
-!                  xo(:,i,j,k) = i0
-!                  xd(:,i,j,k) = i1
-!                  xd([E_up,E_dn],i,j,k) = i3
-!                endif
-!              enddo
-!            enddo
-!          enddo
-!        endif
+ !        do k=C%zs,C%ze-1
+ !          do j=C%ys,C%ye
+ !            do i=C%xs,C%xe      ! i,j,k indices are defined on petsc global grid
+ !              li = istartpar+i-C%xs ! l-indices are used for local arrays, 
+ !              lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
+ !              lk = 1+k-C%zs         !
+ !              if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+ !                xo(:,i,j,k) = i0
+ !                xd(:,i,j,k) = i1
+ !                xd(0:1,i,j,k) = i3
+ !              endif
+ !            enddo
+ !          enddo
+ !        enddo
 
         call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
         call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
@@ -398,7 +397,7 @@ module petsc_ts
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
-        PetscInt :: vsize,i,j !mrows,mcols, i,j,k,li,lj,lk
+        PetscInt :: vsize,i,j,k,li,lj,lk
 
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
@@ -466,22 +465,20 @@ module petsc_ts
                 endif
         enddo
 
-!        if(luse_eddington) then
-!          do k=C%zs,C%ze-1
-!            do j=C%ys,C%ye
-!              do i=C%xs,C%xe        ! i,j,k indices are defined on petsc global grid
-!                li = istartpar+i-C%xs ! l-indices are used for local arrays, 
-!                lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
-!                lk = 1+k-C%zs         !
-!                if( newgrid%dz(lk).gt.newgrid%dx(li) ) then
-!                  xo(:,i,j,k) = i0
-!                  xd(:,i,j,k) = i1
-!                  xd(0:3,i,j,k) = i2
-!                endif
-!              enddo
-!            enddo
-!          enddo
-!        endif
+         do k=C%zs,C%ze-1
+           do j=C%ys,C%ye
+             do i=C%xs,C%xe      ! i,j,k indices are defined on petsc global grid
+               li = istartpar+i-C%xs ! l-indices are used for local arrays, 
+               lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
+               lk = 1+k-C%zs         !
+               if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+                 xo(:,i,j,k) = i0
+                 xd(:,i,j,k) = i1
+                 xd(0:3,i,j,k) = i5
+               endif
+             enddo
+           enddo
+         enddo
 
         call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
         call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
@@ -509,7 +506,7 @@ module petsc_ts
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
-        PetscInt :: vsize,i,j !,mrows,mcols, i,j,k,li,lj,lk
+        PetscInt :: vsize,i,j,k,li,lj,lk
 
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
@@ -577,22 +574,20 @@ module petsc_ts
                 endif
         enddo
 
-!        if(luse_eddington) then
-!          do k=C%zs,C%ze-1
-!            do j=C%ys,C%ye
-!              do i=C%xs,C%xe        ! i,j,k indices are defined on petsc global grid
-!                li = istartpar+i-C%xs ! l-indices are used for local arrays, 
-!                lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
-!                lk = 1+k-C%zs         !
-!                if( newgrid%dz(lk).gt.newgrid%dx(li) ) then
-!                  xo(:,i,j,k) = i0
-!                  xd(:,i,j,k) = i1
-!                  xd(0,i,j,k) = i2
-!                endif
-!              enddo
-!            enddo
-!          enddo
-!        endif
+         do k=C%zs,C%ze-1
+           do j=C%ys,C%ye
+             do i=C%xs,C%xe      ! i,j,k indices are defined on petsc global grid
+               li = istartpar+i-C%xs ! l-indices are used for local arrays, 
+               lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
+               lk = 1+k-C%zs         !
+               if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+                 xo(:,i,j,k) = i0
+                 xd(:,i,j,k) = i1
+                 xd(0,i,j,k) = i2
+               endif
+             enddo
+           enddo
+         enddo
 
         call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
         call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
@@ -614,12 +609,15 @@ module petsc_ts
         if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
       end subroutine 
 
-        subroutine get_coeff(op,dz,dir,coeff,angles)
-               real(ireals),intent(out) :: coeff(:)
+        subroutine get_coeff(op,dz,dir,coeff,lone_dimensional,angles)
                type(t_optprop),intent(in) :: op
                real(ireals),intent(in) :: dz
-               real(ireals),intent(in),optional :: angles(2)
                logical,intent(in) :: dir
+               real(ireals),intent(out) :: coeff(:)
+
+               logical,intent(in) :: lone_dimensional
+               real(ireals),intent(in),optional :: angles(2)
+
                logical,parameter :: lround=.False.
                real(ireals),parameter :: fround=1e-4
 
@@ -638,7 +636,8 @@ module petsc_ts
                kabs = op%bg(1) 
                ksca = op%bg(2) 
                g    = op%bg(3)
-               if(twostr_ratio*dz.gt.newgrid%dx(1) ) then
+
+               if(lone_dimensional) then
                  call OPP_1_2%get_coeff(dz,kabs,ksca,g,dir,coeff,angles)
                else
                  call OPP_8_10%get_coeff(dz,kabs,ksca,g,dir,coeff,angles)
@@ -707,6 +706,7 @@ subroutine setup_dir_inc(phi0,symmetry_phi)
   xinc=i0 ; yinc=i0
   if(phi0.gt.180) xinc=i1
   if(phi0.gt.90.and.phi0.lt.270) yinc=i1
+  if(ldebug) print *,'setup_dir_inc done'
 end subroutine
 
 subroutine set_dir_coeff(A,C)
@@ -718,6 +718,7 @@ subroutine set_dir_coeff(A,C)
         MatStencil :: row(4,C%dof)  ,col(4,C%dof)
         PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm
         PetscInt,parameter :: entries(8)=[0,8,16,24,32,40,48,56]
+        PetscInt,parameter :: entries1d(4)=[0,4,8,12]
         PetscReal :: edd_coeff(5)
         PetscReal :: twostr_coeff(1)
 
@@ -754,17 +755,17 @@ subroutine set_dir_coeff(A,C)
           src = 7 ; col(MatStencil_i,src) = i        ; col(MatStencil_j,src) = j+1-yinc ; col(MatStencil_k,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
           src = 8 ; col(MatStencil_i,src) = i        ; col(MatStencil_j,src) = j+1-yinc ; col(MatStencil_k,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
-          coeffs=zero
-          if( twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(1) ) then
+          coeffs=PETSC_NULL_REAL
+          if( pcc_optprop(li,lj,lk)%one_dimensional ) then
             if(luse_eddington) then
               call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
               coeffs([0, 8+1, 16+2, 24+3 ]+i1) = edd_coeff(5) ! only use the four vertical tiles with a33
             else
-              call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., twostr_coeff, [symmetry_phi, theta0])
+              call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., twostr_coeff, pcc_optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0] )
               coeffs([0, 8+1, 16+2, 24+3 ]+i1) = twostr_coeff(1) ! only use the four vertical tiles with direct transmission
             endif
           else
-            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., coeffs, [symmetry_phi, theta0])
+            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., coeffs, pcc_optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0])
           endif
 
           ! make sure that energy is conserved... better to be on the absorbing side
@@ -776,16 +777,28 @@ subroutine set_dir_coeff(A,C)
             enddo
           endif
 
-          ! reorder coeffs from src-ordered to dst-ordered
-          do src=1,C%dof
-            v(entries+src) = coeffs( i1+(src-i1)*C%dof : src*C%dof )
-          enddo
-
           where(approx(coeffs,zero))
             coeffs = PETSC_NULL_REAL
           end where
 
-          call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+
+          if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+            ! reorder coeffs from src-ordered to dst-ordered
+            do src=1,4
+              v(entries1d+src) = coeffs( i1+(src-i1)*C%dof : i5+(src-i1)*C%dof )
+            enddo
+
+            call MatSetValuesStencil(A,i4, row,i4, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+!            call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+
+          else
+
+            ! reorder coeffs from src-ordered to dst-ordered
+            do src=1,C%dof
+              v(entries+src) = coeffs( i1+(src-i1)*C%dof : src*C%dof )
+            enddo
+            call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+          endif
 
         enddo ; enddo ; enddo
 
@@ -837,6 +850,7 @@ subroutine set_diff_coeff(A,C)
   MatStencil :: row(4,0:C%dof-1)  ,col(4,0:C%dof-1)
   PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm,edd_coeff(5),twostr_coeff(4)
   PetscInt,parameter :: entries(10)=[0,10,20,30,40,50,60,70,80,90]
+  PetscInt,parameter :: entries1d(2)=[0,2]
 
   ! if(ldebug) print *,myid,'DEBUG(set_dir_coeff) jspec',jspec,'igas',igas,'isub',isub
 
@@ -895,18 +909,22 @@ subroutine set_diff_coeff(A,C)
         dst = 8; row(MatStencil_i,dst) = i    ; row(MatStencil_j,dst) = j     ; row(MatStencil_k,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
         dst = 9; row(MatStencil_i,dst) = i    ; row(MatStencil_j,dst) = j+1   ; row(MatStencil_k,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
-        coeffs = zero
-        if( twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(li) ) then
+        coeffs = PETSC_NULL_REAL
+        if( pcc_optprop(li,lj,lk)%one_dimensional ) then
           if(luse_eddington ) then
             call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
             coeffs([ 0,1, 10,11 ]+i1) = [ edd_coeff(2), edd_coeff(1), edd_coeff(1), edd_coeff(2) ]
           else
-            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff )
+            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, pcc_optprop(li,lj,lk)%one_dimensional)
             coeffs([ 0,1, 10,11 ]+i1) = twostr_coeff
           endif
         else
-          call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs )
+          call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, pcc_optprop(li,lj,lk)%one_dimensional)
         endif
+
+        where(approx(coeffs,zero))
+          coeffs = PETSC_NULL_REAL
+        end where
 
         if(ldebug) then
           do dst=1,C%dof
@@ -916,12 +934,20 @@ subroutine set_diff_coeff(A,C)
           enddo
         endif
 
-        ! reorder coeffs from src-ordered to dst-ordered
-        do src=1,C%dof
-          v(entries+src) = coeffs( i1+(src-i1)*C%dof : src*C%dof )
-        enddo
 
-        call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+!        if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+!          do src=1,2
+!            v(entries+src) = coeffs( i1+(src-i1)*C%dof : i3+(src-i1)*C%dof )
+!          enddo
+!          call MatSetValuesStencil(A,i2, row,i2, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+!        else
+          ! reorder coeffs from src-ordered to dst-ordered
+          do src=1,C%dof
+            v(entries+src) = coeffs( i1+(src-i1)*C%dof : src*C%dof )
+          enddo
+          call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+!        endif
+
 
       enddo ; enddo ; enddo
       if(myid.eq.0.and.ldebug) print *,myid,'setup_diffuse_matrix done'
@@ -959,9 +985,8 @@ subroutine setup_b(edir,b)
               lj = jstartpar+j-C_diff%ys
               lk = i1+k-C_diff%zs        
 
-              coeffs=zero
-              if(twostr_ratio*newgrid%dz(lk).gt.newgrid%dx(1) ) then
-
+              coeffs=PETSC_NULL_REAL
+              if( pcc_optprop(li,lj,lk)%one_dimensional ) then
                 if(luse_eddington ) then
                   call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
                   ! Only transport the 4 tiles from dir0 to the Eup and Edn
@@ -971,7 +996,7 @@ subroutine setup_b(edir,b)
                   enddo
 
                 else
-                  call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, [symmetry_phi, theta0] )
+                  call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, pcc_optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0])
                   do src=1,4
                     coeffs(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
                     coeffs(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
@@ -979,32 +1004,39 @@ subroutine setup_b(edir,b)
                 endif
 
               else
-                call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, [symmetry_phi, theta0] )
+                call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, pcc_optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0] )
               endif
 
-              do src=1,C_dir%dof
-                xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_up  +i1+(src-1)*C_diff%dof)
-                xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*coeffs(E_dn  +i1+(src-1)*C_diff%dof)
-                xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_le_m+i1+(src-1)*C_diff%dof)
-                xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_le_p+i1+(src-1)*C_diff%dof)
-                xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  xedir(src-1,i,j,k)*coeffs(E_ri_m+i1+(src-1)*C_diff%dof)  
-                xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  xedir(src-1,i,j,k)*coeffs(E_ri_p+i1+(src-1)*C_diff%dof)  
-                xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_ba_m+i1+(src-1)*C_diff%dof)  
-                xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_ba_p+i1+(src-1)*C_diff%dof)  
-                xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  xedir(src-1,i,j,k)*coeffs(E_fw_m+i1+(src-1)*C_diff%dof)  
-                xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  xedir(src-1,i,j,k)*coeffs(E_fw_p+i1+(src-1)*C_diff%dof) 
-              enddo
+              if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+                do src=1,C_dir%dof-4
+                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_up  +i1+(src-1)*C_diff%dof)
+                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*coeffs(E_dn  +i1+(src-1)*C_diff%dof)
+                enddo
+              else
+                do src=1,C_dir%dof
+                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_up  +i1+(src-1)*C_diff%dof)
+                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*coeffs(E_dn  +i1+(src-1)*C_diff%dof)
+                  xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_le_m+i1+(src-1)*C_diff%dof)
+                  xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_le_p+i1+(src-1)*C_diff%dof)
+                  xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  xedir(src-1,i,j,k)*coeffs(E_ri_m+i1+(src-1)*C_diff%dof)  
+                  xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  xedir(src-1,i,j,k)*coeffs(E_ri_p+i1+(src-1)*C_diff%dof)  
+                  xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_ba_m+i1+(src-1)*C_diff%dof)  
+                  xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_ba_p+i1+(src-1)*C_diff%dof)  
+                  xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  xedir(src-1,i,j,k)*coeffs(E_fw_m+i1+(src-1)*C_diff%dof)  
+                  xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  xedir(src-1,i,j,k)*coeffs(E_fw_p+i1+(src-1)*C_diff%dof) 
+                enddo
+              endif
 
             enddo
           enddo
         enddo
 
+        ! Ground Albedo reflecting direct radiation, the diffuse part is considered by the solver(Matrix)
         do i=C_diff%xs,C_diff%xe     
           do j=C_diff%ys,C_diff%ye     
             li = istartpar+i-C_diff%xs 
             lj = jstartpar+j-C_diff%ys 
             k = C_diff%ze
-            !          xsrc(   :   ,i,j,k) = nil
             xsrc(E_up   ,i,j,k) = sum(xedir(i0:i3,i,j,k))*albedo
           enddo
         enddo
@@ -1100,6 +1132,8 @@ subroutine load_test_optprop(kato,iq)
             pcc_optprop(i,j,k)%w2  = pcc_optprop(i,j,k)%ksca2/pcc_optprop(i,j,k)%kext2
             pcc_optprop(i,j,k)%g1  = pcc_optprop(i,j,k)%bg(3)
             pcc_optprop(i,j,k)%g2  = (pcc_optprop(i,j,k)%bg(3)*pcc_optprop(i,j,k)%bg(2) + pcc_optprop(i,j,k)%fg(3)*pcc_optprop(i,j,k)%fg(2))/ (pcc_optprop(i,j,k)%bg(2)+pcc_optprop(i,j,k)%fg(2) )
+
+            if( twostr_ratio*newgrid%dz(k).gt.newgrid%dx(i) ) pcc_optprop(i,j,k)%one_dimensional=.True.
           enddo
         enddo
       enddo
@@ -1131,7 +1165,6 @@ subroutine load_test_optprop(kato,iq)
         print *,'Tried loading hhl1d from ',trim(groups(1)),' ::  ',trim(groups(2)),'  ::  ',trim(groups(3))
         stop 'Error occured loading hhl1d'
       endif
-      if(myid.eq.0) print *,'hhl',hhl1d
       call imp_bcast(hhl1d,0_mpiint,myid)
 
       if(myid.eq.0) then
@@ -1166,7 +1199,7 @@ subroutine load_test_optprop(kato,iq)
       allocate(dz(size(hhl1d)-1))
       dz = hhl1d(1:ubound(hhl1d,1)-1) - hhl1d(2:ubound(hhl1d,1)) 
 
-      if(myid.eq.0) then
+      if(ldebug.and.myid.eq.0) then
         do k=1,ubound(optP%kabs,3)
           print *,myid,'Optical Properties:',k,'hhl',hhl1d(k),'dz',dz(k),'k',minval(optP%kabs(:,:,k)),minval(optP%ksca(:,:,k)),minval(optP%g(:,:,k)),maxval(optP%kabs(:,:,k)),maxval(optP%ksca(:,:,k)),maxval(optP%g(:,:,k))
         enddo
@@ -1229,6 +1262,8 @@ subroutine load_test_optprop(kato,iq)
             pcc_optprop(i,j,k)%w2  = pcc_optprop(i,j,k)%ksca2/pcc_optprop(i,j,k)%kext2
             pcc_optprop(i,j,k)%g1  = pcc_optprop(i,j,k)%bg(3)
             pcc_optprop(i,j,k)%g2  = (pcc_optprop(i,j,k)%bg(3)*pcc_optprop(i,j,k)%bg(2) + pcc_optprop(i,j,k)%fg(3)*pcc_optprop(i,j,k)%fg(2))/ (pcc_optprop(i,j,k)%bg(2)+pcc_optprop(i,j,k)%fg(2) )
+
+            if( twostr_ratio*newgrid%dz(k).gt.newgrid%dx(i) ) pcc_optprop(i,j,k)%one_dimensional=.True.
           enddo
         enddo
       enddo
@@ -1541,10 +1576,9 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
       KSP :: ksp
       Mat:: A
       type(coord) :: C
-      PetscReal,parameter :: rtol=1e-5, atol=1e-5
+      PetscReal,parameter :: rtol=1e-12, atol=1e-8
       logical :: init
       character(len=*),optional :: prefix
-!      MatNullSpace :: nullspace
 
       if(init) return
       if(myid.eq.0.and.ldebug) print *,'Setup KSP'
@@ -1553,18 +1587,10 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
       if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;CHKERRQ(ierr)
 
       call KSPSetOperators(ksp,A,A,ierr) ;CHKERRQ(ierr)
-!      call KSPSetOperators(ksp,A,A,SAME_NONZERO_PATTERN,ierr) ;CHKERRQ(ierr)
-!      call KSPSetOperators(ksp,A,A,DIFFERENT_NONZERO_PATTERN,ierr) ;CHKERRQ(ierr)
-
-    ! if we want to use multigrid preconditioners, enable these two here -> they might however use more memory than if we use already preallocated matrix A
       call KSPSetDM(ksp,C%da,ierr) ;CHKERRQ(ierr)
       call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
       call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),PETSC_DEFAULT_REAL,PETSC_DEFAULT_INTEGER,ierr);CHKERRQ(ierr)
-
-!      call MatNullSpaceCreate( imp_comm,PETSC_TRUE,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,nullspace,ierr);;CHKERRQ(ierr)
-!      call KSPSetNullspace(ksp,nullspace,ierr);CHKERRQ(ierr)
-!      call MatNullSpaceDestroy(nullspace,ierr);CHKERRQ(ierr)
 
       call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
       call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)

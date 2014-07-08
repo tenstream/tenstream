@@ -1,7 +1,10 @@
 module optprop_LUT
   use helper_functions, only : approx
   use data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real
-  use optprop_parameters, only: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode,delta_scale,delta_scale_truncate,stddev_rtol
+  use optprop_parameters, only: &
+      Ndz_1_2,Nkabs_1_2,Nksca_1_2,Ng_1_2,Nphi_1_2,Ntheta_1_2,interp_mode_1_2,   &
+      Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,interp_mode_8_10, &
+      delta_scale,delta_scale_truncate,stddev_rtol
   use boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
   use tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
   use arrayio
@@ -21,19 +24,19 @@ module optprop_LUT
   integer(mpiint) :: myid,comm_size,ierr
 
   type parameter_space
-    real(ireals),dimension(Ndz)    :: dz
-    real(ireals),dimension(Nkabs ) :: kabs
-    real(ireals),dimension(Nksca)  :: ksca
-    real(ireals),dimension(Ng)     :: g
-    real(ireals),dimension(Nphi)   :: phi
-    real(ireals),dimension(Ntheta) :: theta
+    real(ireals),allocatable ,dimension(:) :: dz
+    real(ireals),allocatable ,dimension(:) :: kabs
+    real(ireals),allocatable ,dimension(:) :: ksca
+    real(ireals),allocatable ,dimension(:) :: g
+    real(ireals),allocatable ,dimension(:) :: phi
+    real(ireals),allocatable ,dimension(:) :: theta
     real(ireals) :: dz_exponent,kabs_exponent,ksca_exponent,g_exponent
-    real(ireals),dimension(2)      :: range_dz      = [ 50._ireals   , 5001._ireals ]
-    real(ireals),dimension(2)      :: range_kabs    = [ 1e-99_ireals, 10._ireals    ] !lower limit for kabs,ksca is set in set_parameter_space
-    real(ireals),dimension(2)      :: range_ksca    = [ 1e-99_ireals, one           ] !lower limit for kabs,ksca is set in set_parameter_space
-    real(ireals),dimension(2)      :: range_g       = [ zero        , .999_ireals   ]
-    real(ireals),dimension(2)      :: range_phi     = [ zero        , 90._ireals    ]
-    real(ireals),dimension(2)      :: range_theta   = [ zero        , 90._ireals    ]
+    real(ireals) , dimension(2)      :: range_dz      = [ 50._ireals , 5001._ireals ]
+    real(ireals) , dimension(2)      :: range_kabs    = [ nil        , 10._ireals    ] !lower limit for kabs , ksca is set in set_parameter_space
+    real(ireals) , dimension(2)      :: range_ksca    = [ nil        , one           ] !lower limit for kabs , ksca is set in set_parameter_space
+    real(ireals) , dimension(2)      :: range_g       = [ zero       , .999_ireals   ]
+    real(ireals) , dimension(2)      :: range_phi     = [ zero       , 90._ireals    ]
+    real(ireals) , dimension(2)      :: range_theta   = [ zero       , 90._ireals    ]
   end type
 
   type table
@@ -61,6 +64,7 @@ module optprop_LUT
     type(directTable) :: dirLUT
     type(diffuseTable) :: diffLUT
 
+    integer(iintegers) :: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
     logical :: LUT_initiliazed=.False.,optprop_LUT_debug=.True.
     character(len=300) :: lutbasename 
@@ -113,32 +117,31 @@ contains
 
       call OPP%bmc%init(comm)
 
-      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,Ndz,Nkabs,Nksca,Ng,delta_scale,delta_scale_truncate
-!      write(descr,FMT='("diffuse.theta.deltaedd.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0)') idx,Ndz,Nkabs,Nksca,Ng
+      call OPP%set_parameter_space(OPP%diffLUT%pspace,one*idx)
+      call OPP%set_parameter_space(OPP%dirLUT%pspace ,one*idx)
+      call OPP%set_parameter_space(OPP%diffLUT%pspace,one*idx)
+
+      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,delta_scale,delta_scale_truncate
       if(myid.eq.0) print *,'Loading diffuse LUT from ',descr
       OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
       OPP%diffLUT%dx    = idx
       OPP%diffLUT%dy    = idy
 
       if(any(szas.lt.0)) then
-
         ! Load diffuse LUT
-        call OPP%set_parameter_space(OPP%diffLUT%pspace,OPP%diffLUT%dx)
         call OPP%loadLUT_diff(comm)
       else
 
         ! Load direct LUTS
-        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,delta_scale,delta_scale_truncate
+        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta,delta_scale,delta_scale_truncate
         if(myid.eq.0) print *,'Loading direct LUT from ',descr
         OPP%dirLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
         OPP%dirLUT%dx    = idx
         OPP%dirLUT%dy    = idy
 
-        call OPP%set_parameter_space(OPP%dirLUT%pspace,OPP%dirLUT%dx)
         call OPP%loadLUT_dir(azis, szas, comm)
 
         ! Load diffuse LUT
-        call OPP%set_parameter_space(OPP%diffLUT%pspace,OPP%diffLUT%dx)
         call OPP%loadLUT_diff(comm)
       endif
 
@@ -215,22 +218,22 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
     integer(mpiint),intent(in) :: comm
     integer(iintegers) :: errcnt,iphi,itheta
     character(300) :: str(4)
-    logical :: angle_mask(Nphi,Ntheta),lstddev_inbounds
+    logical :: angle_mask(OPP%Nphi,OPP%Ntheta),lstddev_inbounds
 
     if(myid.eq.0) print *,'... loading direct OPP%dirLUT'
     if(allocated(OPP%dirLUT%S).and.allocated(OPP%dirLUT%T)) then
       print *,'OPP%dirLUTs already loaded!',myid
       return
     endif
-    allocate( OPP%dirLUT%S(Nphi,Ntheta) )
-    allocate( OPP%dirLUT%T(Nphi,Ntheta) )
+    allocate( OPP%dirLUT%S(OPP%Nphi,OPP%Ntheta) )
+    allocate( OPP%dirLUT%T(OPP%Nphi,OPP%Ntheta) )
 
     write(str(1),FMT='("dx",I0)') nint(OPP%dirLUT%dx)
     write(str(2),FMT='("dy",I0)') nint(OPP%dirLUT%dy)
 
     call determine_angles_to_load(OPP%dirLUT, azis, szas, angle_mask)
-    do itheta=1,Ntheta
-      do iphi  =1,Nphi
+    do itheta=1,OPP%Ntheta
+      do iphi  =1,OPP%Nphi
         errcnt=0
         if(.not.angle_mask(iphi,itheta) ) cycle
 
@@ -319,12 +322,12 @@ end subroutine
       integer(mpiint) ,intent(in) :: comm
       integer(iintegers) :: Ntot,Ncoeff
       integer(iintegers) :: iphi,itheta
-      logical :: angle_mask(Nphi,Ntheta)
+      logical :: angle_mask(OPP%Nphi,OPP%Ntheta)
 
       call determine_angles_to_load(OPP%dirLUT, azis, szas, angle_mask)
 
-      do itheta=1,Ntheta
-        do iphi  =1,Nphi
+      do itheta=1,OPP%Ntheta
+        do iphi  =1,OPP%Nphi
           if(.not.angle_mask(iphi,itheta) ) cycle
 
           ! DIRECT 2 DIRECT
@@ -336,7 +339,7 @@ end subroutine
           call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
           call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
 
-          if(myid.gt.0) allocate(OPP%dirLUT%T(iphi,itheta)%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
+          if(myid.gt.0) allocate(OPP%dirLUT%T(iphi,itheta)%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
           call mpi_bcast(OPP%dirLUT%T(iphi,itheta)%c, Ntot, imp_real, 0, comm, ierr)
 
           ! DIRECT 2 DIFFUSE
@@ -348,7 +351,7 @@ end subroutine
           call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
           call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
 
-          if(myid.gt.0) allocate(OPP%dirLUT%S(iphi,itheta)%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
+          if(myid.gt.0) allocate(OPP%dirLUT%S(iphi,itheta)%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
           call mpi_bcast(OPP%dirLUT%S(iphi,itheta)%c, Ntot, imp_real, 0, comm, ierr)
 
         enddo
@@ -363,7 +366,7 @@ end subroutine
       call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
       call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
 
-      if(myid.gt.0) allocate(OPP%diffLUT%S%c(Ncoeff, Ndz, Nkabs, Nksca, Ng) )
+      if(myid.gt.0) allocate(OPP%diffLUT%S%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
       call mpi_bcast(OPP%diffLUT%S%c, Ntot, imp_real, 0, comm, ierr)
 
 !      print *,myid,' :: Scatter LUT -- sum of diff LUT-> S= ',sum(OPP%diffLUT%S%c)
@@ -380,7 +383,7 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
     logical :: ldone,lstarted_calculations=.False.
 
     if(myid.eq.0.and. .not. allocated(OPP%diffLUT%S%stddev_rtol) ) then
-      allocate(OPP%diffLUT%S%stddev_rtol(Ndz,Nkabs ,Nksca,Ng))
+      allocate(OPP%diffLUT%S%stddev_rtol(OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
       OPP%diffLUT%S%stddev_rtol = one
       call h5write(stddev_rtol_table_name,OPP%diffLUT%S%stddev_rtol,iierr)
     endif
@@ -389,10 +392,10 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
 
       select type(OPP)
         class is (t_optprop_LUT_8_10)
-          allocate(OPP%diffLUT%S%c(12, Ndz,Nkabs ,Nksca,Ng))
+          allocate(OPP%diffLUT%S%c(12, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
 
         class is (t_optprop_LUT_1_2)
-          allocate(OPP%diffLUT%S%c(2, Ndz,Nkabs ,Nksca,Ng))
+          allocate(OPP%diffLUT%S%c(2, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
 
         class default
           stop 'createLUT_diff: unexpected type for optprop_LUT object!'
@@ -403,12 +406,12 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
       call h5write(coeff_table_name,OPP%diffLUT%S%c,iierr)
     endif
 
-    total_size = Ng*Nksca*Nkabs *Ndz
+    total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz
     cnt=0
-    do ig    =1,Ng
-      do iksca    =1,Nksca    
-        do ikabs    =1,Nkabs    
-          do idz   =1,Ndz   
+    do ig    =1,OPP%Ng
+      do iksca    =1,OPP%Nksca    
+        do ikabs    =1,OPP%Nkabs    
+          do idz   =1,OPP%Ndz   
             cnt=cnt+1
             ! Check if we already calculated the coefficients and inform the other nodes
             ldone=.False.
@@ -475,13 +478,13 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
 
     if(myid.eq.0) then
       if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%stddev_rtol) ) then
-        allocate(OPP%dirLUT%S(iphi,itheta)%stddev_rtol(Ndz,Nkabs ,Nksca,Ng))
+        allocate(OPP%dirLUT%S(iphi,itheta)%stddev_rtol(OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
         OPP%dirLUT%S(iphi,itheta)%stddev_rtol = one
         call h5write(diff_stddev_rtol_table_name,OPP%dirLUT%S(iphi,itheta)%stddev_rtol,iierr)
       endif
 
       if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%stddev_rtol) ) then
-        allocate(OPP%dirLUT%T(iphi,itheta)%stddev_rtol( Ndz,Nkabs ,Nksca,Ng))
+        allocate(OPP%dirLUT%T(iphi,itheta)%stddev_rtol( OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
         OPP%dirLUT%T(iphi,itheta)%stddev_rtol = one
         call h5write(dir_stddev_rtol_table_name ,OPP%dirLUT%T(iphi,itheta)%stddev_rtol,iierr)
       endif
@@ -491,25 +494,25 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
       print *,'calculating direct coefficients for ',iphi,itheta
 
       if(.not. allocated(OPP%dirLUT%S(iphi,itheta)%c) ) then
-        allocate(OPP%dirLUT%S(iphi,itheta)%c(OPP%dir_streams*OPP%diff_streams, Ndz,Nkabs ,Nksca,Ng))
+        allocate(OPP%dirLUT%S(iphi,itheta)%c(OPP%dir_streams*OPP%diff_streams, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
         OPP%dirLUT%S(iphi,itheta)%c = nil
         call h5write(diff_coeff_table_name,OPP%dirLUT%S(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
       endif
 
       if(.not. allocated(OPP%dirLUT%T(iphi,itheta)%c) ) then
-        allocate(OPP%dirLUT%T(iphi,itheta)%c(OPP%dir_streams*OPP%dir_streams, Ndz,Nkabs ,Nksca,Ng))
+        allocate(OPP%dirLUT%T(iphi,itheta)%c(OPP%dir_streams*OPP%dir_streams, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
         OPP%dirLUT%T(iphi,itheta)%c = nil
         call h5write(dir_coeff_table_name ,OPP%dirLUT%T(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
       endif
 
     endif
 
-    total_size = Ng*Nksca*Nkabs *Ndz
+    total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz
     cnt=0
-    do ig    =1,Ng
-      do iksca    =1,Nksca    
-        do ikabs   =1,Nkabs    
-          do idz   =1,Ndz   
+    do ig    =1,OPP%Ng
+      do iksca    =1,OPP%Nksca    
+        do ikabs   =1,OPP%Nkabs    
+          do idz   =1,OPP%Ndz   
             cnt=cnt+1
             ! Check if we already calculated the coefficients and inform the other nodes
             ldone=.False.
@@ -641,7 +644,7 @@ end function
 subroutine determine_angles_to_load(LUT,azis,szas, mask)
     type(directTable) :: LUT
     real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
-    logical,intent(out) :: mask(Nphi,Ntheta) ! boolean array, which LUT entries should be loaded
+    logical,intent(out) :: mask(size(LUT%pspace%phi),size(LUT%pspace%theta)) ! boolean array, which LUT entries should be loaded
 
     integer(iintegers) :: itheta, iphi
     logical :: lneed_azi(2), lneed_sza(2)
@@ -650,8 +653,8 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
 
     mask = .False.
     ! Check if really need to load it... i.e. we only want to load angles which are necessary for this run.
-    do itheta=1,Ntheta-1
-      do iphi  =1,Nphi-1
+    do itheta=1,size(LUT%pspace%theta)-1
+      do iphi  =1,size(LUT%pspace%phi)-1
         phi   = LUT%pspace%phi( [ iphi, iphi+1 ] )
         theta = LUT%pspace%theta( [ itheta, itheta+1 ]  )
 
@@ -674,7 +677,7 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
     enddo
     if(myid.eq.0) then
       print *,'       phis',LUT%pspace%range_phi
-      do itheta=1,Ntheta
+      do itheta=1,size(LUT%pspace%theta)
         print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
       enddo
     endif
@@ -750,6 +753,34 @@ subroutine set_parameter_space(OPP,ps,dx)
     real(ireals),parameter :: maximum_transmission=one-1e-4_ireals ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
     integer(iintegers) :: k
 
+
+    select type(OPP)
+      class is (t_optprop_LUT_1_2)
+          OPP%Ndz    = Ndz_1_2
+          OPP%Nkabs  = Nkabs_1_2
+          OPP%Nksca  = Nksca_1_2
+          OPP%Ng     = Ng_1_2
+          OPP%Nphi   = Nphi_1_2
+          OPP%Ntheta = Ntheta_1_2
+          OPP%interp_mode = interp_mode_1_2
+      class is (t_optprop_LUT_8_10)
+          OPP%Ndz    = Ndz_8_10
+          OPP%Nkabs  = Nkabs_8_10
+          OPP%Nksca  = Nksca_8_10
+          OPP%Ng     = Ng_8_10
+          OPP%Nphi   = Nphi_8_10
+          OPP%Ntheta = Ntheta_8_10
+          OPP%interp_mode = interp_mode_8_10
+      class default 
+        stop 'set_parameter space: unexpected type for optprop_LUT object!'
+    end select
+    if(.not. allocated(ps%dz   )) allocate(ps%dz    (OPP%Ndz    ))
+    if(.not. allocated(ps%kabs )) allocate(ps%kabs  (OPP%Nkabs  ))
+    if(.not. allocated(ps%ksca )) allocate(ps%ksca  (OPP%Nksca  ))
+    if(.not. allocated(ps%g    )) allocate(ps%g     (OPP%Ng     ))
+    if(.not. allocated(ps%phi  )) allocate(ps%phi   (OPP%Nphi   ))
+    if(.not. allocated(ps%theta)) allocate(ps%theta (OPP%Ntheta ))
+
     ps%dz_exponent=1
     ps%kabs_exponent=10.
     ps%ksca_exponent=10.
@@ -764,10 +795,24 @@ subroutine set_parameter_space(OPP,ps,dx)
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select
 
-    do k=1,Ndz
-      ps%dz(k)    = exp_index_to_param(one*k,ps%range_dz,Ndz, ps%dz_exponent )
+    do k=1,OPP%Ndz
+      ps%dz(k)    = exp_index_to_param(one*k,ps%range_dz,OPP%Ndz, ps%dz_exponent )
     enddo
-    if(Ndz.eq.2) then
+
+    if(OPP%Ndz.eq.3) then
+      if(approx(dx,40._ireals) ) then
+        ps%dz(1) = 10._ireals/40._ireals *dx
+        ps%dz(2) = 20._ireals/40._ireals *dx
+        ps%dz(3) = 30._ireals/40._ireals *dx
+      else
+        ps%dz(1) = 40._ireals/70._ireals *dx
+        ps%dz(2) = 200._ireals/250._ireals *dx
+        ps%dz(3) = 25._ireals/250._ireals *dx
+      endif
+      ps%range_dz = [minval(ps%dz),maxval(ps%dz)]
+    endif
+
+    if(OPP%Ndz.eq.2) then
       ps%dz(1) = 40._ireals/70._ireals *dx
       ps%dz(2) = 200._ireals/250._ireals *dx
       ps%range_dz = [minval(ps%dz),maxval(ps%dz)]
@@ -778,25 +823,25 @@ subroutine set_parameter_space(OPP,ps,dx)
     ps%range_kabs(1) = - log(maximum_transmission) / diameter
     ps%range_ksca(1) = - log(maximum_transmission) / diameter
 
-    if( any([Ndz,Nkabs ,Nksca,Ng,Nphi,Ntheta].le.1) ) then
+    if( any([OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta].le.1) ) then
       print *,'Need at least 2 support points for LUT!'
       call exit()
     endif
 
-    do k=1,Nkabs 
-      ps%kabs (k) = exp_index_to_param(one*k,ps%range_kabs ,Nkabs,ps%kabs_exponent )
+    do k=1,OPP%Nkabs 
+      ps%kabs (k) = exp_index_to_param(one*k,ps%range_kabs ,OPP%Nkabs,ps%kabs_exponent )
     enddo
-    do k=1,Nksca
-      ps%ksca (k) = exp_index_to_param(one*k,ps%range_ksca ,Nksca,ps%ksca_exponent )
+    do k=1,OPP%Nksca
+      ps%ksca (k) = exp_index_to_param(one*k,ps%range_ksca ,OPP%Nksca,ps%ksca_exponent )
     enddo
-    do k=1,Ng
-      ps%g(k)     = exp_index_to_param(one*k,ps%range_g,Ng, ps%g_exponent )
+    do k=1,OPP%Ng
+      ps%g(k)     = exp_index_to_param(one*k,ps%range_g,OPP%Ng, ps%g_exponent )
     enddo
-    do k=1,Nphi
-      ps%phi(k)   = lin_index_to_param(one*k,ps%range_phi,Nphi)
+    do k=1,OPP%Nphi
+      ps%phi(k)   = lin_index_to_param(one*k,ps%range_phi,OPP%Nphi)
     enddo
-    do k=1,Ntheta
-      ps%theta(k) = lin_index_to_param(one*k,ps%range_theta,Ntheta)
+    do k=1,OPP%Ntheta
+      ps%theta(k) = lin_index_to_param(one*k,ps%range_theta,OPP%Ntheta)
     enddo
 end subroutine
 
@@ -814,7 +859,7 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
 
     pti = get_indices_6d(dz,kabs ,ksca,g,phi,theta,OPP%dirLUT%pspace)
 
-    select case(interp_mode)
+    select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
       C = OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
@@ -853,7 +898,7 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
 
     pti = get_indices_6d(dz,kabs ,ksca,g,phi,theta,OPP%dirLUT%pspace)
 
-    select case(interp_mode)
+    select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
       C = OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
@@ -893,7 +938,7 @@ subroutine LUT_get_diff2diff(OPP, dz,in_kabs ,in_ksca,g,C)
     allocate( C(ubound(OPP%diffLUT%S%c,1) ) )
     pti = get_indices_4d(dz,kabs ,ksca,g,OPP%diffLUT%pspace)
 
-    select case(interp_mode)
+    select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
       C = OPP%diffLUT%S%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
