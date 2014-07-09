@@ -204,7 +204,7 @@ end subroutine
                 stop 'coeff_symmetry : unexpected type for OPP !'
             end select
 
-            if(sum(coeff_symmetry).ge.1._ireals) then
+            if(sum(coeff_symmetry).ge.one) then
               print *,'sum of diffuse coeff_symmetrys bigger one!',sum(coeff_symmetry),'for src=',isrc,'coeff_symmetry:',coeff_symmetry
               call exit()
             endif

@@ -632,7 +632,7 @@ end subroutine
       compare_same = .False.
       return
     endif
-    compare_same = all( approx( a,b,1e-4_ireals ) )
+    compare_same = all( approx( a,b,1e-3_ireals ) )
     if(.not. compare_same ) then
       print *,'Compare_Same :: Arrays are not the same:'
       do k=1,size(a)

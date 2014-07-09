@@ -20,7 +20,7 @@ module petsc_ts
       logical :: l_writeall,luse_twostr_guess,luse_hdf5_guess
       logical,parameter :: ldebug=.True.,lcycle_dir=.True.
       character(len=*),parameter :: basepath='/home/users/jakub/scratch/tenstream/'
-      logical,parameter ::ltest=.False.,lprealloc=.True.
+      logical,parameter :: lprealloc=.True.
 
       character(len=300) :: ident,output_prefix 
       real(ireals) :: ident_dx, ident_dy, ident_dz=nil
@@ -161,13 +161,15 @@ module petsc_ts
         if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
 
       end subroutine
-      subroutine init_Matrix(A,C)
+      subroutine init_Matrix(A,C,prefix)
         Mat :: A
         type(coord) :: C
+        character(len=*),optional :: prefix
 
         PetscInt,dimension(:),allocatable :: o_nnz,d_nnz!,dnz
 
         call DMCreateMatrix(C%da, A, ierr) ;CHKERRQ(ierr)
+!        if(present(prefix) ) call MatAppendOptionsPrefix(A,trim(prefix),ierr) !!! Not in the Fortran API?
 
         call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
 !        call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
@@ -356,20 +358,20 @@ module petsc_ts
                 ! no foreign stream dependencies
         endif
 
- !        do k=C%zs,C%ze-1
- !          do j=C%ys,C%ye
- !            do i=C%xs,C%xe      ! i,j,k indices are defined on petsc global grid
- !              li = istartpar+i-C%xs ! l-indices are used for local arrays, 
- !              lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
- !              lk = 1+k-C%zs         !
- !              if( pcc_optprop(li,lj,lk)%one_dimensional ) then
- !                xo(:,i,j,k) = i0
- !                xd(:,i,j,k) = i1
- !                xd(0:1,i,j,k) = i3
- !              endif
- !            enddo
- !          enddo
- !        enddo
+        do k=C%zs,C%ze-1
+          do j=C%ys,C%ye
+            do i=C%xs,C%xe      ! i,j,k indices are defined on petsc global grid
+              li = istartpar+i-C%xs ! l-indices are used for local arrays, 
+              lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
+              lk = 1+k-C%zs         !
+              if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+                xo(:,i,j,k) = i0
+                xd(:,i,j,k) = i1
+                xd(0:1,i,j,k) = i3
+              endif
+            enddo
+          enddo
+        enddo
 
         call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
         call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
@@ -723,6 +725,7 @@ subroutine set_dir_coeff(A,C)
         PetscReal :: twostr_coeff(1)
 
 !        if(ldebug) print *,myid,'DEBUG(set_dir_coeff) DMDA',C%xs,C%xe,C%ys,C%ye,C%zs,C%ze-1
+        call PetscLogStagePush(logstage(2),ierr) ;CHKERRQ(ierr)
 
         row=PETSC_NULL_INTEGER
         col=PETSC_NULL_INTEGER
@@ -769,13 +772,13 @@ subroutine set_dir_coeff(A,C)
           endif
 
           ! make sure that energy is conserved... better to be on the absorbing side
-          if(ldebug) then
-            do src=1,C%dof
-              norm = sum( coeffs((src-1)*C%dof+1:src*C%dof) )
-              !          if( norm.ge.one )  coeffs((src-1)*C%dof+1:src*C%dof)  = coeffs((src-1)*C%dof+1:src*C%dof) / (norm+1e-8)
-              if( ldebug .and. norm.gt.one ) print *,'sum(src==',src,') ge one',norm
-            enddo
-          endif
+!          if(ldebug) then
+!            do src=1,C%dof
+!              norm = sum( coeffs((src-1)*C%dof+1:src*C%dof) )
+!              if( ldebug .and. norm.ge.one ) print *,'sum(src==',src,') ge one',norm
+!              !          if( norm.ge.one )  coeffs((src-1)*C%dof+1:src*C%dof)  = coeffs((src-1)*C%dof+1:src*C%dof) / (norm+1e-8)
+!            enddo
+!          endif
 
           where(approx(coeffs,zero))
             coeffs = PETSC_NULL_REAL
@@ -807,6 +810,7 @@ subroutine set_dir_coeff(A,C)
         call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
         call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)  
 
+        call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
         end subroutine
 
         subroutine setup_incSolar(incSolar,kato,iq)
@@ -853,6 +857,7 @@ subroutine set_diff_coeff(A,C)
   PetscInt,parameter :: entries1d(2)=[0,2]
 
   ! if(ldebug) print *,myid,'DEBUG(set_dir_coeff) jspec',jspec,'igas',igas,'isub',isub
+  call PetscLogStagePush(logstage(4),ierr) ;CHKERRQ(ierr)
 
   row=PETSC_NULL_INTEGER
   col=PETSC_NULL_INTEGER
@@ -926,27 +931,31 @@ subroutine set_diff_coeff(A,C)
           coeffs = PETSC_NULL_REAL
         end where
 
-        if(ldebug) then
-          do dst=1,C%dof
-            norm = sum( coeffs((dst-1)*C%dof+1:dst*C%dof) )
-            if( norm.ge.one )  coeffs((dst-1)*C%dof+1:dst*C%dof)  = coeffs((dst-1)*C%dof+1:dst*C%dof) / (norm+1e-8_ireals)
-            if( ldebug .and. norm.gt.one ) print *,'diffuse sum(dst==',dst,') ge one',norm
-          enddo
-        endif
-
-
-!        if( pcc_optprop(li,lj,lk)%one_dimensional ) then
-!          do src=1,2
-!            v(entries+src) = coeffs( i1+(src-i1)*C%dof : i3+(src-i1)*C%dof )
+!        if(ldebug) then
+!          do dst=1,C%dof
+!            norm = sum( coeffs((dst-1)*C%dof+1:dst*C%dof) )
+!            if( ldebug ) then
+!              if( norm.ge.one ) then
+!                coeffs((dst-1)*C%dof+1:dst*C%dof)  = coeffs((dst-1)*C%dof+1:dst*C%dof) / (norm+1e-8_ireals)
+!                print *,'diffuse sum(dst==',dst,') ge one',norm
+!              endif
+!            endif
 !          enddo
-!          call MatSetValuesStencil(A,i2, row,i2, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
-!        else
+!        endif
+
+
+        if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+          do src=1,2
+            v(entries+src) = coeffs( i1+(src-i1)*C%dof : i3+(src-i1)*C%dof )
+          enddo
+          call MatSetValuesStencil(A,i2, row,i2, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+        else
           ! reorder coeffs from src-ordered to dst-ordered
           do src=1,C%dof
             v(entries+src) = coeffs( i1+(src-i1)*C%dof : src*C%dof )
           enddo
           call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
-!        endif
+        endif
 
 
       enddo ; enddo ; enddo
@@ -956,6 +965,7 @@ subroutine set_diff_coeff(A,C)
       call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
       call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
 !      call MatSetOption(A,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_TRUE, ierr) ;CHKERRQ(ierr)
+      call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 end subroutine
  
 subroutine setup_b(edir,b)
@@ -968,6 +978,7 @@ subroutine setup_b(edir,b)
         PetscReal :: coeffs(C_dir%dof*C_diff%dof),edd_coeff(5),twostr_coeff(2)
         
         PetscInt :: i,j,k,src
+        call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
         
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly...'
 
@@ -1066,6 +1077,7 @@ subroutine setup_b(edir,b)
 
         call VecDestroy(local_b,ierr) ;CHKERRQ(ierr)
 
+        call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly done'
 end subroutine
 
@@ -1078,7 +1090,7 @@ subroutine load_test_optprop(kato,iq)
         real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
       end type
       type(op) :: optP
-      integer(iintegers),parameter :: glob_Nx=3,glob_Ny=3,glob_Nz=10, zTOA=500
+      integer(iintegers),parameter :: glob_Nx=16,glob_Ny=16,glob_Nz=16, zTOA=glob_Nz*40
 
       if(myid.eq.0.and.ldebug) print *,myid,'Creating Optical Properties here instead of taking them from kato',kato,iq
 
@@ -1099,12 +1111,12 @@ subroutine load_test_optprop(kato,iq)
       enddo
       dz = hhl1d(1:glob_Nz)-hhl1d(2:glob_Nz+1)
 
-      optP%g=0
-      optP%kabs=1e-8
-      optP%ksca=1e-8
+      optP%g=0.5
+      optP%kabs=1e-3
+      optP%ksca=1e-3
 
-!      if(myid.eq.0) optP%ksca(1,1,1) = 1e-3
-!      optP%ksca(1:5,1:5,5:15) = .1
+      if(myid.eq.0) optP%ksca(4:6,4:6,5:8) = 5e-2
+!      optP%ksca(1,1,3:5) = 1e-2
 
       allocate(dx(ubound(optP%kabs,1))) ; dx=ident_dx
       allocate(dy(ubound(optP%kabs,2))) ; dy=ident_dy
@@ -1153,6 +1165,11 @@ subroutine load_test_optprop(kato,iq)
         real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
       end type
       type(op) :: optP
+
+      if(ident.eq.'run_test') then
+        call load_test_optprop(kato,iq)
+        return
+      endif
 
       groups(1) = uvspec_file
       groups(2) = ident
@@ -1576,7 +1593,7 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
       KSP :: ksp
       Mat:: A
       type(coord) :: C
-      PetscReal,parameter :: rtol=1e-12, atol=1e-8
+      PetscReal,parameter :: rtol=1e-4, atol=1e-4
       logical :: init
       character(len=*),optional :: prefix
 
@@ -1741,13 +1758,8 @@ subroutine init_memory(b,x,edir,intedir,intx,incSolar,abso,intabso,Mdiff,Mdir)
         call VecSet(b,zero,ierr)        ; CHKERRQ(ierr)
         call VecSet(x,zero,ierr)        ; CHKERRQ(ierr)
 
-        call init_Matrix(Mdir,C_dir)
-        call init_Matrix(Mdiff,C_diff)
-
-        ! Write the result vectors once, to ensure that we are able to write the results
-!        call vec_to_hdf5(abso)
-!        call vec_to_hdf5(intedir)
-!        call vec_to_hdf5(intx)
+        call init_Matrix(Mdir,C_dir,"dir_")
+        call init_Matrix(Mdiff,C_diff,"diff_")
 end subroutine
 
 subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff)
@@ -1864,11 +1876,7 @@ program main
         call read_commandline_options()
         call setup_logging()
 
-        if(ltest) then
-          call load_test_optprop(1_iintegers,0_iintegers)
-        else
-          call load_optprop(1_iintegers,0_iintegers)
-        endif
+        call load_optprop(1_iintegers,0_iintegers)
 
         call setup_grid()
         call setup_dir_inc(phi0,symmetry_phi)
@@ -1888,11 +1896,7 @@ program main
             if(myid.eq.0) print *,'-------------------------- Calculate ',trim(ident),' sza',theta0,' kato',kato,'iq',iq
             if(myid.eq.0) print *,'-----------------------------------------------------------------------------------------------------------------------------'
 
-            if(ltest) then
-              call load_test_optprop(kato,iq)
-            else
-              call load_optprop(kato,iq)
-            endif
+            call load_optprop(kato,iq)
             call local_optprop(pcc_optprop)
 
             call setup_incSolar(incSolar,kato,iq)
@@ -1931,9 +1935,7 @@ program main
             call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate Edir'
-            call PetscLogStagePush(logstage(2),ierr) ;CHKERRQ(ierr)
             call set_dir_coeff(Mdir,C_dir)
-            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             ! Setup Solver Context
             call setup_ksp(kspdir,C_dir,Mdir,linit_kspdir,"dir_")
@@ -1943,14 +1945,10 @@ program main
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate diffuse src term'
-            call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
             call setup_b(edir,b)
-            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0) print *,'Calculate diffuse Radition'
-            call PetscLogStagePush(logstage(4),ierr) ;CHKERRQ(ierr)
             call set_diff_coeff(Mdiff,C_diff)
-            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             ! Setup Solver Context
             call setup_ksp(kspdiff,C_diff,Mdiff,linit_kspdiff,"diff_")
@@ -1998,7 +1996,6 @@ program main
           enddo
         enddo
 
-!        print *,'Calculating divergence'
         call calc_flx_div(intedir,intx,abso)
         write(vecname,FMT='("abso_flxdiv.",I0,".",I0)') kato,iq; call PetscObjectSetName(abso,vecname,ierr) ;CHKERRQ(ierr)
         call vec_to_hdf5(abso)
@@ -2014,10 +2011,6 @@ program main
         call KSPDestroy(kspdir,ierr) ;CHKERRQ(ierr); linit_kspdir=.False.
         call KSPDestroy(kspdiff,ierr) ;CHKERRQ(ierr); linit_kspdiff=.False.
 
-!        print *,'scale Energy from W to W/m^2 or W/m^3'
-!        call scale_flx(intedir,intx)
-
-
         call vec_to_hdf5(intabso)
         call vec_to_hdf5(intedir)
         call vec_to_hdf5(intx)
@@ -2027,6 +2020,5 @@ program main
         call VecDestroy(intx,ierr) ;CHKERRQ(ierr)
         call VecDestroy(intabso,ierr) ;CHKERRQ(ierr)
 
-        !!        if(myid.eq.0) read(*,*) iter
         call PetscFinalize(ierr) ;CHKERRQ(ierr)
 end program
