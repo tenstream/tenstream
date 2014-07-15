@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6.3)
+cmake_minimum_required (VERSION 2.8.10)
 project (tenstream)
 enable_language(Fortran)
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
@@ -15,11 +15,11 @@ set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-f2c -O3 -funroll-loops ")#
 set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fno-f2c -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check ")#-ffpe-trap=invalid,zero,overflow,denormal,precision")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
-MESSAGE("Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")
+#MESSAGE("Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")
 
 list (APPEND CMAKE_MODULE_PATH "$ENV{PETSC_DIR}/cmake-modules")
 #list (APPEND CMAKE_MODULE_PATH "$ENV{HDF5_DIR}/share/cmake")
-message( "Searching for cmake Files in ${CMAKE_MODULE_PATH}" )
+#message( "Searching for cmake Files in ${CMAKE_MODULE_PATH}" )
 
 #zlib
 #set( ZLIB_DIR "$ENV{PETSC_DIR}/../hdf5/hdf5-latest/build/ZLIB-prefix/src/ZLIB-build/zlib-config.cmake")

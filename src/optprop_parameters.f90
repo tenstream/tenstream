@@ -2,9 +2,11 @@ module optprop_parameters
       use data_parameters,only : ireals,iintegers
       implicit none
       
-      logical,parameter :: delta_scale=.True.
+!      logical,parameter :: delta_scale=.True.
+      logical,parameter :: delta_scale=.False.
 
-      real(ireals),parameter :: delta_scale_truncate=.9962_ireals ! .9962 = 5 degrees delta scaling
+      real(ireals),parameter :: delta_scale_truncate=1.0_ireals ! .9962 = 5 degrees delta scaling
+!      real(ireals),parameter :: delta_scale_truncate=.9962_ireals ! .9962 = 5 degrees delta scaling
 !      real(ireals),parameter :: delta_scale_truncate=.9848_ireals ! .9848 = 10 degrees delta scaling
 !      real(ireals),parameter :: delta_scale_truncate=.8660_ireals ! .8660 = 30 degrees delta scaling
       real(ireals),parameter :: stddev_rtol=5e-3_ireals

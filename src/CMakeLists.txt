@@ -19,7 +19,7 @@ set( optprop_sources
   "optprop.f90"
   )
 
-add_library( solver "${general_sources}" "${optprop_sources}" "petsc_tsv3.F90" )
+add_library( solver STATIC ${general_sources} ${optprop_sources} petsc_tsv3.F90 )
 
 file( GLOB streams createLUT_*.f90 )
 foreach ( stream ${streams} )

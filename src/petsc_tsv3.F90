@@ -1,6 +1,6 @@
 module petsc_ts
       use m_twostream, only: twostream_dir,twostream_diff
-      use helper_functions, only: deg2rad,approx,imp_bcast
+      use helper_functions, only: deg2rad,approx,imp_bcast,rmse
       use gridtransform
       use arrayio
       use eddington, only : rodents
@@ -17,7 +17,7 @@ module petsc_ts
       PetscInt,parameter :: istartpar=i1, jstartpar=i1
       PetscReal,parameter:: zero=0,one=1.0, pi=3.141592653589793, nil=-9999999
 
-      logical :: l_writeall,luse_twostr_guess,luse_hdf5_guess
+      logical :: l_writeall,ltwostr,luse_twostr_guess,luse_hdf5_guess
       logical,parameter :: ldebug=.True.,lcycle_dir=.True.
       character(len=*),parameter :: basepath='/home/users/jakub/scratch/tenstream/'
       logical,parameter :: lprealloc=.True.
@@ -171,14 +171,9 @@ module petsc_ts
         call DMCreateMatrix(C%da, A, ierr) ;CHKERRQ(ierr)
 !        if(present(prefix) ) call MatAppendOptionsPrefix(A,trim(prefix),ierr) !!! Not in the Fortran API?
 
-        call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-!        call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-!        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
-
-        call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
-!        call MatSetUp(A,ierr) ;CHKERRQ(ierr)
-
-        call mat_info(A)
+!        call MatCreate(PETSC_COMM_WORLD, A,ierr); CHKERRQ(ierr)
+!        call MatSetSizes(A, C%xm*C%ym*C%zm*C%dof, C%xm*C%ym*C%zm*C%dof, C%glob_xm*C%glob_ym*C%glob_zm*C%dof, C%glob_xm*C%glob_ym*C%glob_zm*C%dof,ierr);CHKERRQ(ierr)
+!        call MatSetType(A, MATAIJ, ierr); CHKERRQ(ierr)
 
         if(lprealloc) then
           ! Determine perfect preallocation
@@ -205,6 +200,15 @@ module petsc_ts
           endif
           call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr)
         endif
+
+        call mat_info(A)
+
+        call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
+        call MatSetUp(A,ierr) ;CHKERRQ(ierr)
+
+!        call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+!        call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+!        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
         call mat_info(A)
 
@@ -634,7 +638,6 @@ module petsc_ts
 !               integer(iintegers),parameter :: coeff_mode=2
                call PetscLogStagePush(logstage(7),ierr) ;CHKERRQ(ierr)
 
-               coeff=zero !todo just here to be sure...
                kabs = op%bg(1) 
                ksca = op%bg(2) 
                g    = op%bg(3)
@@ -780,6 +783,10 @@ subroutine set_dir_coeff(A,C)
 !            enddo
 !          endif
 
+!          if( any(rmse([coeffs(1)],[exp(-pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk))] ).gt.one) ) then
+!            print *,'RMSE to lambert beer',rmse([coeffs(1)],[exp(-pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk))] ),' :: ',coeffs(1),exp(-pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk)),'(',pcc_optprop(li,lj,lk)%bg,newgrid%dz(lk),')'
+!          endif
+
           where(approx(coeffs,zero))
             coeffs = PETSC_NULL_REAL
           end where
@@ -792,8 +799,6 @@ subroutine set_dir_coeff(A,C)
             enddo
 
             call MatSetValuesStencil(A,i4, row,i4, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
-!            call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
-
           else
 
             ! reorder coeffs from src-ordered to dst-ordered
@@ -834,7 +839,7 @@ subroutine set_dir_coeff(A,C)
 
               Az = newgrid%dx(1)*newgrid%dy(1)
 
-              xincSolar(i0:i3,i,j,C_dir%zs) = edirTOA* Az * .25_ireals
+              xincSolar(i0:i3,i,j,C_dir%zs) = edirTOA* Az * max(zero,cos(deg2rad(theta0))) *.25_ireals
             enddo
           enddo
 
@@ -1593,7 +1598,7 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
       KSP :: ksp
       Mat:: A
       type(coord) :: C
-      PetscReal,parameter :: rtol=1e-4, atol=1e-4
+      PetscReal,parameter :: rtol=1e-6, atol=1e-6
       logical :: init
       character(len=*),optional :: prefix
 
@@ -1654,8 +1659,12 @@ subroutine read_commandline_options()
         call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-hdf5_guess"   , luse_hdf5_guess   , lflg , ierr) ;CHKERRQ(ierr)
         if(lflg.eqv.PETSC_FALSE) luse_hdf5_guess = .False.
 
+        call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-twostr" , ltwostr , lflg , ierr) ;CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) ltwostr = .False.
+
         call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-twostr_guess" , luse_twostr_guess , lflg , ierr) ;CHKERRQ(ierr)
         if(lflg.eqv.PETSC_FALSE) luse_twostr_guess = .False.
+        if(luse_twostr_guess) ltwostr = .True. 
 
         if(luse_twostr_guess.and.luse_hdf5_guess) stop 'cant use twostr_guess .AND. hdf5_guess at the same time'
 
@@ -1667,8 +1676,8 @@ subroutine read_commandline_options()
         phi0=180 ; theta0=0
         call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-phi",phi0, lflg,ierr)     ; CHKERRQ(ierr)
         call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-theta",theta0, lflg,ierr) ; CHKERRQ(ierr)
-        costheta0 = max(zero, cos(deg2rad(theta0))
-        sintheta0 = max(zero, sin(deg2rad(theta0))
+        costheta0 = max(zero, cos(deg2rad(theta0)))
+        sintheta0 = max(zero, sin(deg2rad(theta0)))
 
         call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-pert_xshift",pert_xshift, lflg,ierr) ; CHKERRQ(ierr)
         if(lflg.eqv.PETSC_FALSE) pert_xshift=0
@@ -1683,6 +1692,7 @@ subroutine read_commandline_options()
           print *,'***   phi,theta    ',phi0,theta0
           print *,'***   eddington    ',luse_eddington
           print *,'***   writeall     ',l_writeall
+          print *,'***   twostr       ',ltwostr
           print *,'***   twostr_guess ',luse_twostr_guess
           print *,'***   hdf5_guess   ',luse_hdf5_guess
           print *,'***   twostr_ratio ',twostr_ratio
@@ -1725,8 +1735,8 @@ subroutine setup_logging()
 
         if(myid.eq.0) print *, 'Logging stages' , logstage
 end subroutine
-subroutine init_memory(b,x,edir,intedir,intx,incSolar,abso,intabso,Mdiff,Mdir)
-        Vec :: b,x,edir,intedir,intx,incSolar,abso,intabso
+subroutine init_memory(b,x,edir,intedir,intx,incSolar,intabso,Mdiff,Mdir, intedir_twostr, intx_twostr, intabso_twostr )
+        Vec :: b,x,edir,intedir,intx,incSolar,intabso,intedir_twostr, intx_twostr, intabso_twostr
         Mat :: Mdiff,Mdir
 
         character(100) :: vecname
@@ -1753,25 +1763,42 @@ subroutine init_memory(b,x,edir,intedir,intx,incSolar,abso,intabso,Mdiff,Mdir)
         call DMCreateGlobalVector(C_dir%da,incSolar,ierr) ; CHKERRQ(ierr)
         call DMCreateGlobalVector(C_diff%da,b,ierr)       ; CHKERRQ(ierr)
         call DMCreateGlobalVector(C_diff%da,x,ierr)       ; CHKERRQ(ierr)
-        call DMCreateGlobalVector(C_one%da,abso,ierr)     ; CHKERRQ(ierr)
 
-        call VecSet(edir,zero,ierr)     ; CHKERRQ(ierr)
         call VecSet(incSolar,zero,ierr) ; CHKERRQ(ierr)
+        call VecSet(edir,zero,ierr)     ; CHKERRQ(ierr)
         call VecSet(b,zero,ierr)        ; CHKERRQ(ierr)
         call VecSet(x,zero,ierr)        ; CHKERRQ(ierr)
 
         call init_Matrix(Mdir,C_dir,"dir_")
         call init_Matrix(Mdiff,C_diff,"diff_")
+
+        if(ltwostr) then
+          call VecDuplicate(intedir, intedir_twostr, ierr) ;CHKERRQ(ierr)
+          write(vecname,FMT='("edir.twostr.",I0,".",I0)') int(phi0),int(theta0)
+          call PetscObjectSetName(intedir_twostr,vecname,ierr)                     ; CHKERRQ(ierr)
+
+          call VecDuplicate(intx   , intx_twostr   , ierr) ;CHKERRQ(ierr)
+          write(vecname,FMT='("ediff.twostr.",I0,".",I0)') int(phi0),int(theta0)
+          call PetscObjectSetName(intx_twostr,vecname,ierr)                     ; CHKERRQ(ierr)
+
+          call VecDuplicate(intabso, intabso_twostr, ierr) ;CHKERRQ(ierr)
+          write(vecname,FMT='("abso.twostr.",I0,".",I0)') int(phi0),int(theta0)
+          call PetscObjectSetName(intabso_twostr,vecname,ierr)                     ; CHKERRQ(ierr)
+
+          call VecSet(intedir_twostr,zero,ierr)     ; CHKERRQ(ierr)
+          call VecSet(intabso_twostr,zero,ierr)     ; CHKERRQ(ierr)
+          call VecSet(intx_twostr   ,zero,ierr)     ; CHKERRQ(ierr)
+        endif
 end subroutine
 
-subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff)
+subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff, intabso_twostr, Cabso)
     integer(iintegers),intent(in) :: kato,iq
 
-    Vec :: edir,ediff
-    type(coord) :: Cedir,Cediff
+    Vec :: edir,ediff,intabso_twostr
+    type(coord) :: Cedir,Cediff,Cabso
 
-    PetscReal,pointer,dimension(:,:,:,:) :: xv_dir,xv_diff
-    integer(iintegers) :: i,j,src
+    PetscReal,pointer,dimension(:,:,:,:) :: xv_dir,xv_diff,xv_abso
+    integer(iintegers) :: i,j,k,src
 
     real(ireals),allocatable :: dtau(:),w0(:),g(:),S(:,:),E(:,:)
     real(ireals) :: mu0,incSolar,edirTOA,Az
@@ -1786,7 +1813,7 @@ subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff)
     allocate(   w0(Cedir%zm-1) )
     allocate(    g(Cedir%zm-1) )
 
-    mu0 = costheta0
+    mu0 = cos(deg2rad(theta0))
 
     edirTOA = get_edirTOA(kato,iq,newgrid%z(1))
 
@@ -1836,6 +1863,22 @@ subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff)
     deallocate(S)
     deallocate(E)
 
+
+!    call DMDAVecGetArrayF90(Cabso%da ,intabso_twostr ,xv_abso ,ierr) ;CHKERRQ(ierr)
+!    
+!    do k=Cabso%zs,Cabso%ze         
+!      do j=Cabso%ys,Cabso%ye         
+!        do i=Cabso%xs,Cabso%xe
+!          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) + sum( xv_dir (0:3 ,i,j,k   ) - xv_dir(0:3 ,i,j,k+i1) )*.25_ireals
+!          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) +      xv_diff(E_up,i,j,k+i1) + xv_dir(E_dn,i,j,k   )
+!          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) -      xv_diff(E_up,i,j,k   ) - xv_dir(E_dn,i,j,k+i1)
+!        enddo
+!      enddo
+!    enddo
+!
+!    call DMDAVecRestoreArrayF90(Cabso%da  ,intabso_twostr ,xv_abso  ,ierr) ;CHKERRQ(ierr)
+
+
     call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
     call DMDAVecRestoreArrayF90(Cedir%da  ,edir ,xv_dir  ,ierr) ;CHKERRQ(ierr)
     call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
@@ -1855,7 +1898,8 @@ program main
         implicit none
 
         Mat :: Mdiff,Mdir
-        Vec :: b,x,edir,intedir,intx,incSolar,abso,intabso
+        Vec :: b,x,edir,intedir,intx,incSolar,intabso
+        Vec :: intedir_twostr, intx_twostr, intabso_twostr
 
         KSP :: kspdir,kspdiff
         logical :: linit_kspdir=.False.,linit_kspdiff=.False.
@@ -1884,7 +1928,7 @@ program main
         call setup_dir_inc(phi0,symmetry_phi)
 
         ! Create Objects to work with
-        call init_memory(b,x,edir,intedir,intx,incSolar,abso,intabso,Mdiff,Mdir)
+        call init_memory(b,x,edir,intedir,intx,incSolar,intabso,Mdiff,Mdir,intedir_twostr, intx_twostr, intabso_twostr)
 
         !Init optical Property Mechanisms
         call OPP_8_10%init(newgrid%dx(1),newgrid%dy(1),[symmetry_phi],[theta0],imp_comm)
@@ -1901,6 +1945,18 @@ program main
             call load_optprop(kato,iq)
             call local_optprop(pcc_optprop)
 
+            if(ltwostr) then
+              call twostream(kato,iq,edir,C_dir,x,C_diff,intabso_twostr,C_one)
+
+              call VecAXPY(intedir_twostr,one,edir,ierr) ;CHKERRQ(ierr)
+              call VecAXPY(intx_twostr   ,one,x,ierr) ;CHKERRQ(ierr)
+
+              if(luse_twostr_guess) then
+                ! this should just be used...
+              endif
+
+            endif
+
             call setup_incSolar(incSolar,kato,iq)
 
             !First try reading them from file and we can resume from there:
@@ -1912,21 +1968,6 @@ program main
               call vec_from_hdf5(x,ierr); err_sum = err_sum+ierr
             else
               err_sum=-1
-            endif
-
-            if(luse_twostr_guess) then
-              call twostream(kato,iq,edir,C_dir,x,C_diff)
-
-              if(l_writeall) then
-                call scale_flx(edir,C_dir)
-                write(vecname,FMT='("twostr_edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr) ;CHKERRQ(ierr)
-                call vec_to_hdf5(edir)
-
-                call scale_flx(x,C_diff)
-                write(vecname,FMT='("twostr_x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
-                call vec_to_hdf5(x)
-                call twostream(kato,iq,edir,C_dir,x,C_diff)
-              endif
             endif
 
             if(err_sum .ne. 0 .or. (.not.luse_twostr_guess .and. .not.luse_hdf5_guess) ) then ! Couldnt resume calculations from file or just dont want to... 
@@ -1959,21 +2000,6 @@ program main
             call solve(kspdiff,b,x)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
-            if(l_writeall) then
-              write(vecname,FMT='("unscaled_edir.",I0,".",I0)') kato,iq; call PetscObjectSetName(edir,vecname,ierr) ;CHKERRQ(ierr)
-              call vec_to_hdf5(edir)
-
-              write(vecname,FMT='("unscaled_x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
-              call vec_to_hdf5(x)
-            endif
-
-            call scale_flx(incSolar,C_dir)
-            call scale_flx(edir,C_dir)
-            call scale_flx(b,C_diff)
-            call scale_flx(x,C_diff)
-
-            call calc_flx_div(edir,x,abso)
-
 !            if(l_writeall) then
 !              write(vecname,FMT='("incSolar.",I0,".",I0)') kato,iq; call PetscObjectSetName(incSolar,vecname,ierr) ;CHKERRQ(ierr)
 !              call vec_to_hdf5(incSolar)
@@ -1987,31 +2013,28 @@ program main
 !              write(vecname,FMT='("x.",I0,".",I0)') kato,iq; call PetscObjectSetName(x,vecname,ierr) ;CHKERRQ(ierr)
 !              call vec_to_hdf5(x)
 !
-!              write(vecname,FMT='("abso.",I0,".",I0)') kato,iq; call PetscObjectSetName(abso,vecname,ierr) ;CHKERRQ(ierr)
-!              call vec_to_hdf5(abso)
 !            endif
             call VecAXPY(intedir,one,edir,ierr) ;CHKERRQ(ierr)
             call VecAXPY(intx,one,x,ierr) ;CHKERRQ(ierr)
-            call VecAXPY(intabso,one,abso,ierr) ;CHKERRQ(ierr)
 
-            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr) ! logstage(1)
           enddo
         enddo
 
-        call calc_flx_div(intedir,intx,abso)
-        write(vecname,FMT='("abso_flxdiv.",I0,".",I0)') kato,iq; call PetscObjectSetName(abso,vecname,ierr) ;CHKERRQ(ierr)
-        call vec_to_hdf5(abso)
+        call KSPDestroy(kspdir,ierr) ;CHKERRQ(ierr); linit_kspdir=.False.
+        call KSPDestroy(kspdiff,ierr) ;CHKERRQ(ierr); linit_kspdiff=.False.
 
         call VecDestroy(incSolar,ierr) ;CHKERRQ(ierr)
         call VecDestroy(edir,ierr) ;CHKERRQ(ierr)
         call VecDestroy(b,ierr) ;CHKERRQ(ierr)
         call VecDestroy(x,ierr) ;CHKERRQ(ierr)
-        call VecDestroy(abso,ierr) ;CHKERRQ(ierr)
         call MatDestroy(Mdir,ierr) ;CHKERRQ(ierr)
         call MatDestroy(Mdiff,ierr) ;CHKERRQ(ierr)
 
-        call KSPDestroy(kspdir,ierr) ;CHKERRQ(ierr); linit_kspdir=.False.
-        call KSPDestroy(kspdiff,ierr) ;CHKERRQ(ierr); linit_kspdiff=.False.
+        call scale_flx(intedir,C_dir)
+        call scale_flx(intx,C_diff)
+
+        call calc_flx_div(intedir,intx,intabso)
 
         call vec_to_hdf5(intabso)
         call vec_to_hdf5(intedir)
@@ -2021,6 +2044,22 @@ program main
         call VecDestroy(intedir,ierr) ;CHKERRQ(ierr)
         call VecDestroy(intx,ierr) ;CHKERRQ(ierr)
         call VecDestroy(intabso,ierr) ;CHKERRQ(ierr)
+
+        if(ltwostr) then
+          call scale_flx(intedir_twostr,C_dir)
+          call scale_flx(intx_twostr   ,C_diff)
+
+          call calc_flx_div(intedir_twostr,intx_twostr,intabso_twostr)
+
+          call vec_to_hdf5(intabso_twostr)
+          call vec_to_hdf5(intedir_twostr)
+          call vec_to_hdf5(intx_twostr)
+
+          print *,'Cleanup Result vectors'
+          call VecDestroy(intedir_twostr,ierr) ;CHKERRQ(ierr)
+          call VecDestroy(intx_twostr   ,ierr) ;CHKERRQ(ierr)
+          call VecDestroy(intabso_twostr,ierr) ;CHKERRQ(ierr)
+        endif
 
         call PetscFinalize(ierr) ;CHKERRQ(ierr)
 end program
