@@ -165,7 +165,7 @@ contains
 
       call init_stddev( std_Sdir , bmc%dir_streams  ,stddev_atol, stddev_rtol )
       call init_stddev( std_Sdiff, bmc%diff_streams ,stddev_atol, stddev_rtol )
-      call init_stddev( std_abso , i1               ,stddev_atol, stddev_rtol*1e-1 )
+      call init_stddev( std_abso , i1               ,stddev_atol, stddev_rtol/10_ireals )
 
       if(.not.ldir) std_Sdir%converged=.True.
 
@@ -250,7 +250,7 @@ contains
         Sdir_out=zero
       endif
 
-      if( (sum(S_out)+sum(Sdir_out)).gt.one+1e-6_ireals) then
+      if( (sum(S_out)+sum(Sdir_out)).gt.one+epsilon(one)*10) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),':: op',p%optprop
         call print_photon(p)
         call exit
@@ -354,7 +354,7 @@ end function
 function L(v)
     real(ireals) :: L
     real(ireals),intent(in) ::v
-    real(ireals),parameter :: eps=1e-3
+    real(ireals),parameter :: eps=epsilon(L)*10
     L = min( max(R()*v,eps), v-eps)
 end function
 
@@ -431,14 +431,10 @@ subroutine absorb_photon(p,dist)
         real(ireals) :: new_weight,tau
 
         tau = get_kabs(p)*dist
-        if(tau.gt.20) then
+        if(tau.gt.30) then
           p%weight = zero
         else
           new_weight = p%weight * exp(- tau)
-!          if( (new_weight.gt.one).or.(new_weight.lt.zero) ) then
-!            print *,'something wrong with new weight after absorption',new_weight,'=',p%weight,'*',exp(-get_kabs(p)*dist),'(',get_kabs(p),dist,')'
-!            call exit
-!          endif
           p%weight = new_weight
         endif
 end subroutine
@@ -472,11 +468,11 @@ subroutine scatter_photon(p,ldeltascale)
         sinfi = sin(fi)
         cosfi = cos(fi)
 
-        if( muzs .ge. one-1e-8_ireals) then
+        if( approx(muzs , one) ) then
                 muxd = sintheta*cosfi
                 muyd = sintheta*sinfi
                 muzd = costheta
-        else if ( muzs .le. -one+1e-8_ireals) then
+        else if ( approx( muzs ,-one) ) then
                 muxd =  sintheta*cosfi
                 muyd = -sintheta*sinfi
                 muzd = -costheta

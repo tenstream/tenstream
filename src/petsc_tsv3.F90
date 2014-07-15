@@ -25,7 +25,7 @@ module petsc_ts
       character(len=300) :: ident,output_prefix 
       real(ireals) :: ident_dx, ident_dy, ident_dz=nil
       logical :: luse_eddington 
-      real(ireals) :: albedo=0.05, phi0=nil, theta0=nil, twostr_ratio=nil
+      real(ireals) :: albedo=0.05, phi0=nil, theta0=nil, twostr_ratio=nil, costheta0=nil,sintheta0=nil
       integer(iintegers) :: pert_xshift,pert_yshift
 
       type coord
@@ -761,7 +761,7 @@ subroutine set_dir_coeff(A,C)
           coeffs=PETSC_NULL_REAL
           if( pcc_optprop(li,lj,lk)%one_dimensional ) then
             if(luse_eddington) then
-              call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
+              call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, costheta0, edd_coeff )
               coeffs([0, 8+1, 16+2, 24+3 ]+i1) = edd_coeff(5) ! only use the four vertical tiles with a33
             else
               call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., twostr_coeff, pcc_optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0] )
@@ -834,7 +834,7 @@ subroutine set_dir_coeff(A,C)
 
               Az = newgrid%dx(1)*newgrid%dy(1)
 
-              xincSolar(i0:i3,i,j,C_dir%zs) = edirTOA* Az * max(zero,cos(deg2rad(theta0))) *.25_ireals
+              xincSolar(i0:i3,i,j,C_dir%zs) = edirTOA* Az * .25_ireals
             enddo
           enddo
 
@@ -917,7 +917,7 @@ subroutine set_diff_coeff(A,C)
         coeffs = PETSC_NULL_REAL
         if( pcc_optprop(li,lj,lk)%one_dimensional ) then
           if(luse_eddington ) then
-            call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
+            call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, costheta0, edd_coeff )
             coeffs([ 0,1, 10,11 ]+i1) = [ edd_coeff(2), edd_coeff(1), edd_coeff(1), edd_coeff(2) ]
           else
             call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, pcc_optprop(li,lj,lk)%one_dimensional)
@@ -999,7 +999,7 @@ subroutine setup_b(edir,b)
               coeffs=PETSC_NULL_REAL
               if( pcc_optprop(li,lj,lk)%one_dimensional ) then
                 if(luse_eddington ) then
-                  call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, cos(deg2rad(theta0)), edd_coeff )
+                  call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, costheta0, edd_coeff )
                   ! Only transport the 4 tiles from dir0 to the Eup and Edn
                   do src=1,4
                     coeffs(E_up  +i1+(src-1)*C_diff%dof) = edd_coeff(3)
@@ -1048,7 +1048,7 @@ subroutine setup_b(edir,b)
             li = istartpar+i-C_diff%xs 
             lj = jstartpar+j-C_diff%ys 
             k = C_diff%ze
-            xsrc(E_up   ,i,j,k) = sum(xedir(i0:i3,i,j,k))*albedo
+            xsrc(E_up   ,i,j,k) = sum(xedir(i0:i3,i,j,k))*costheta0 *albedo
           enddo
         enddo
 !        if(newgrid%z(1).le.15e3) then
@@ -1404,9 +1404,9 @@ subroutine scale_flx(v,C)
           Az = newgrid%dx(li)*newgrid%dy(lj)
 
           if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-            xv(i0:i3,i,j,k) = xv(i0:i3,i,j,k) / ( Az*.25 )
-            xv(i4:i5,i,j,k) = xv(i4:i5,i,j,k) / ( Ax*.5  )
-            xv(i6:i7,i,j,k) = xv(i6:i7,i,j,k) / ( Ay*.5  )
+            xv(i0:i3,i,j,k) = xv(i0:i3,i,j,k) / ( Az*.25 ) *costheta0
+            xv(i4:i5,i,j,k) = xv(i4:i5,i,j,k) / ( Ax*.5  ) *sintheta0
+            xv(i6:i7,i,j,k) = xv(i6:i7,i,j,k) / ( Ay*.5  ) *sintheta0
           endif
 
           if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
@@ -1432,7 +1432,7 @@ subroutine scale_flx(v,C)
                 lj = jstartpar+j-C_diff%ys 
                 Az = newgrid%dx(li)*newgrid%dy(lj)
                 if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-                  xv (i0:i3 ,i,j,k) = xv (i0:i3 ,i,j,k) / ( Az*.25 )
+                  xv (i0:i3 ,i,j,k) = xv (i0:i3 ,i,j,k) / ( Az*.25 ) *costheta0
                 endif
                 if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
                   xv(E_up  ,i,j,k) = xv(E_up  ,i,j,k) / Az
@@ -1667,6 +1667,8 @@ subroutine read_commandline_options()
         phi0=180 ; theta0=0
         call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-phi",phi0, lflg,ierr)     ; CHKERRQ(ierr)
         call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-theta",theta0, lflg,ierr) ; CHKERRQ(ierr)
+        costheta0 = max(zero, cos(deg2rad(theta0))
+        sintheta0 = max(zero, sin(deg2rad(theta0))
 
         call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-pert_xshift",pert_xshift, lflg,ierr) ; CHKERRQ(ierr)
         if(lflg.eqv.PETSC_FALSE) pert_xshift=0
@@ -1784,7 +1786,7 @@ subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff)
     allocate(   w0(Cedir%zm-1) )
     allocate(    g(Cedir%zm-1) )
 
-    mu0 = cos(deg2rad(theta0))
+    mu0 = costheta0
 
     edirTOA = get_edirTOA(kato,iq,newgrid%z(1))
 
