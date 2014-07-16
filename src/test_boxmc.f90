@@ -39,13 +39,13 @@ program main
       if(.True.) then
         src=1
         do iter=1,10
-          tau = dz
+          tau = dz*2
 !          w = dble(iter)/10._ireals-1e-3_ireals
           w = .99
           g = .9_ireals
           bg = [tau*(one-w)/dz, tau*w/dz, g ]
           call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.True.,.True.,phi0,theta0,dx,dy,dz)
-          if(myid.eq.0) write(*, FMT='( "iter ",I0," direct ", 8(es15.5), "::",10(es15.5)  )' ) iter,T,S
+          if(myid.eq.0) write(*, FMT='( "iter ",I2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,T,S
         enddo
       endif
 

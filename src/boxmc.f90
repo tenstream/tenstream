@@ -155,7 +155,7 @@ contains
 
       type(photon)       :: p
       integer(iintegers) :: k,mycnt,mincnt
-      real(ireals),parameter   :: stddev_atol=1e-2_ireals
+      real(ireals),parameter   :: stddev_atol=stddev_rtol ! 1e-2_ireals
       real(ireals)   :: time(2),total_photons,initial_dir(3)
       integer(iintegers) :: Ndir(bmc%dir_streams),Ndiff(bmc%diff_streams)
 
@@ -187,7 +187,7 @@ contains
 
       call cpu_time(time(1))
 
-      mincnt= int( (one/min(stddev_atol,stddev_rtol))**2 ) ! at least one value has to reach tolerance
+      mincnt= int( (one/min(stddev_atol,stddev_rtol))**2/numnodes) ! at least one value has to reach tolerance
       mycnt = int( ( ( ( bmc%diff_streams+bmc%dir_streams )/min(stddev_atol,stddev_rtol)*10)**2/numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee it but we need to hard break it somewhere?? do we?
       mycnt = min( max(mincnt, mycnt ), huge(mycnt)-1 )
 !      print *,'minimal count of photons is',mincnt,' maximum',mycnt,'huge(mycnt)',huge(mycnt)-1
@@ -195,7 +195,7 @@ contains
       do k=1,mycnt
 !          k=k+1
           if(k.eq.mycnt) print *,'boxmc :: INFO ::: we just passed the assumed maximum number of photons we ought to need... maybe this calculation is not converging as it should be? k',k,'converged?',[std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]
-            if(k*numnodes.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
+            if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
 
             if(ldir) then
               call bmc%init_dir_photon(p,src,ldir,initial_dir,dx,dy,dz)
@@ -552,12 +552,13 @@ pure subroutine std_update(std, N, numnodes)
       type(stddev),intent(inout) :: std
       integer(iintegers),intent(in) :: N, numnodes
       real(ireals) :: relvar(size(std%var))
+      real(ireals),parameter :: relvar_limit=1e-4_ireals
 
       std%delta = std%inc   - std%mean
       std%mean  = std%mean  + std%delta/N
       std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
       std%var = sqrt( std%mean2/N ) / sqrt( one*N*numnodes )
-      where(std%mean.gt.epsilon(zero))
+      where(std%mean.gt.relvar_limit)
         relvar = std%var / std%mean
       else where
         relvar = zero
