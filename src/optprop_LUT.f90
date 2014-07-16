@@ -452,16 +452,16 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
 
           enddo !dz
         enddo !kabs
-
-        if(myid.eq.0) print *,'Checkpointing diffuse table ... (',100*cnt/total_size,'%)','started?',lstarted_calculations
-        if(myid.eq.0 .and. lstarted_calculations) then
-          print *,'Writing diffuse table to file...'
-          call h5write(coeff_table_name,OPP%diffLUT%S%c,iierr)
-          call h5write(stddev_rtol_table_name,OPP%diffLUT%S%stddev_rtol,iierr)
-          print *,'done writing!',iierr
-        endif
-
       enddo !ksca
+
+      if(myid.eq.0) print *,'Checkpointing diffuse table ... (',100*cnt/total_size,'%)','started?',lstarted_calculations
+      if(myid.eq.0 .and. lstarted_calculations) then
+        print *,'Writing diffuse table to file...'
+        call h5write(coeff_table_name,OPP%diffLUT%S%c,iierr)
+        call h5write(stddev_rtol_table_name,OPP%diffLUT%S%stddev_rtol,iierr)
+        print *,'done writing!',iierr
+      endif
+
     enddo !g
     if(myid.eq.0) print *,'done calculating diffuse coefficients'
 end subroutine

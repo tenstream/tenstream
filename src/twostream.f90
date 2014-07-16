@@ -22,12 +22,9 @@ module m_twostream
           call rodents(dtau(k),w0(k),g(k),mu0, eddington(:,k) )
         enddo
 
-        S(1,1) = incSolar
+        S(1,1) = incSolar ! irradiance through tilted plane
         do k=1,ke
           S(k+1,1) = S(k,1) * eddington(5,k)
-        enddo
-
-        do k=1,ke
           S(k  ,2) = S(k,1) * eddington(3,k)
           S(k+1,3) = S(k,1) * eddington(4,k)
         enddo
@@ -37,7 +34,7 @@ module m_twostream
 
         S(1,3) = zero ! no contribution to Edn at TOA
 
-        S(:,1) = S(:,1) * mu0
+        S(:,1) = S(:,1) * mu0 ! convert from radiance to irradiance on z plane
 
       end subroutine
 

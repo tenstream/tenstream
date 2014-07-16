@@ -2,7 +2,7 @@
 !> @author Fabian Jakub LMU/MIM
 
 module boxmc
-      use helper_functions, only : approx,mean,rmse,deg2rad,norm
+      use helper_functions, only : approx,mean,rmse,deg2rad,norm,delta_scale_optprop
       use iso_c_binding
       use mersenne
       use mpi
@@ -155,7 +155,7 @@ contains
 
       type(photon)       :: p
       integer(iintegers) :: k,mycnt,mincnt
-      real(ireals),parameter   :: stddev_atol=1e-5_ireals
+      real(ireals),parameter   :: stddev_atol=1e-2_ireals
       real(ireals)   :: time(2),total_photons,initial_dir(3)
       integer(iintegers) :: Ndir(bmc%dir_streams),Ndiff(bmc%diff_streams)
 
@@ -187,43 +187,47 @@ contains
 
       call cpu_time(time(1))
 
-      mincnt= int( (one/stddev_rtol)**2 )
-      mycnt = ( (one/stddev_atol)**2/numnodes )
-      mycnt = max(mincnt, mycnt )
+      mincnt= int( (one/min(stddev_atol,stddev_rtol))**2 ) ! at least one value has to reach tolerance
+      mycnt = int( ( ( ( bmc%diff_streams+bmc%dir_streams )/min(stddev_atol,stddev_rtol)*10)**2/numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee it but we need to hard break it somewhere?? do we?
+      mycnt = min( max(mincnt, mycnt ), huge(mycnt)-1 )
+!      print *,'minimal count of photons is',mincnt,' maximum',mycnt,'huge(mycnt)',huge(mycnt)-1
+!      k=0
       do k=1,mycnt
-        if(k*numnodes.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
+!          k=k+1
+          if(k.eq.mycnt) print *,'boxmc :: INFO ::: we just passed the assumed maximum number of photons we ought to need... maybe this calculation is not converging as it should be? k',k,'converged?',[std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]
+            if(k*numnodes.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
 
-        if(ldir) then
-          call bmc%init_dir_photon(p,src,ldir,initial_dir,dx,dy,dz)
-        else
-          call bmc%init_diff_photon(p,src,dx,dy,dz)
-        endif
-        p%optprop = op_bg
-        if(ldeltascale) call delta_scale_optprop(p%optprop)
+            if(ldir) then
+              call bmc%init_dir_photon(p,src,ldir,initial_dir,dx,dy,dz)
+            else
+              call bmc%init_diff_photon(p,src,dx,dy,dz)
+            endif
+            p%optprop = op_bg
+            if(ldeltascale) call delta_scale_optprop(p%optprop)
 
-        move: do
-          call bmc%move_photon(p)
-          call roulette(p)
+            move: do
+              call bmc%move_photon(p)
+              call roulette(p)
 
-          if(.not.p%alive) exit move
-          call scatter_photon(p,ldeltascale)
-        enddo move
+              if(.not.p%alive) exit move
+              call scatter_photon(p)
+            enddo move
 
-        if(ldir) call refill_direct_stream(p,initial_dir)
+            if(ldir) call refill_direct_stream(p,initial_dir)
 
-        std_abso%inc = one-p%weight
-        std_Sdir%inc  = zero
-        std_Sdiff%inc = zero
+            std_abso%inc = one-p%weight
+            std_Sdir%inc  = zero
+            std_Sdiff%inc = zero
 
-        if(p%direct) then
-          call bmc%update_dir_stream(p,std_Sdir%inc,Ndir)
-        else
-          call bmc%update_diff_stream(p,std_Sdiff%inc,Ndiff)
-        endif
+            if(p%direct) then
+              call bmc%update_dir_stream(p,std_Sdir%inc,Ndir)
+            else
+              call bmc%update_diff_stream(p,std_Sdiff%inc,Ndiff)
+            endif
 
-        if(ldir) call std_update( std_Sdir , k, i1*numnodes )
-        call std_update( std_abso , k, i1*numnodes)
-        call std_update( std_Sdiff, k, i1*numnodes )
+            if(ldir) call std_update( std_Sdir , k, i1*numnodes )
+            call std_update( std_abso , k, i1*numnodes)
+            call std_update( std_Sdiff, k, i1*numnodes )
       enddo
 
       total_photons=k
@@ -251,7 +255,8 @@ contains
       endif
 
       if( (sum(S_out)+sum(Sdir_out)).gt.one+epsilon(one)*10) then
-        print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),':: op',p%optprop
+        print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',\
+                sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),':: op',p%optprop
         call print_photon(p)
         call exit
       endif
@@ -263,8 +268,8 @@ contains
       call cpu_time(time(2))
 
       if(myid.le.0.and.rand().gt..99) then
-        write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/(time(2)-time(1))/numnodes,time(2)-time(1)
-!        print *,src,dz,op_bg,'angles',phi0,theta0,'took',time(2)-time(1),'s',' phots*1e3 :: ',total_photons/1e3,' abso :',one-sum(Sdir_out)-sum(S_out),':',total_photons/(time(2)-time(1))/numnodes,'phots/sec/node','delta_optprop',p%optprop
+        write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') \
+        src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/(time(2)-time(1))/numnodes,time(2)-time(1)
       endif
   end subroutine
 
@@ -278,25 +283,6 @@ subroutine mpi_reduce_sum(v,comm,myid)
     endif
 end subroutine
 
-  subroutine delta_scale_optprop( optprop ) 
-      real(ireals),intent(inout) :: optprop(3)
-      real(ireals) :: dtau_d,g_d,w0_d
-      real(ireals) :: dtau,g,w0
-      real(ireals) :: f
-
-      dtau = optprop(1)+optprop(2)
-      w0   = optprop(2)/dtau
-      g    = optprop(3)
-
-      f = g**2
-      dtau_d = dtau * ( one - w0 * f )
-      g_d    = ( g - f ) / ( one - f )
-      w0_d   = w0 * ( one - f ) / ( one - f * w0 )
-
-      optprop(1) = dtau_d* (one-w0_d)
-      optprop(2) = dtau_d* (    w0_d)
-      optprop(3) = g_d
-  end subroutine
 subroutine roulette(p)
         type(photon),intent(inout) :: p
         real(ireals),parameter :: m=1e-3_ireals,s=1e-6_ireals*m
@@ -324,7 +310,8 @@ subroutine refill_direct_stream(p,initial_dir)
         endif
 end subroutine
 
-real(ireals) function s()
+function s()
+        real(ireals) :: s
         s = -one + 2*R()
 end function
 function deg2mu(deg) ! return cosine of deg(in degrees)
@@ -387,7 +374,8 @@ subroutine update_photon_loc(p,dist)
           call exit
         endif
 end subroutine
-pure real(ireals) function hit_plane(p,po,pn)
+pure function hit_plane(p,po,pn)
+        real(ireals) :: hit_plane
         type(photon),intent(in) :: p
         real(ireals),intent(in) :: po(3),pn(3)
         real(ireals) :: discr
@@ -425,7 +413,7 @@ elemental function hengreen(r,g)
         hengreen = min(max(hengreen,-one), one)
 end function
 
-subroutine absorb_photon(p,dist)
+pure subroutine absorb_photon(p,dist)
         type(photon),intent(inout) :: p
         real(ireals),intent(in) :: dist
         real(ireals) :: new_weight,tau
@@ -439,9 +427,8 @@ subroutine absorb_photon(p,dist)
         endif
 end subroutine
 
-subroutine scatter_photon(p,ldeltascale)
+subroutine scatter_photon(p)
         type(photon),intent(inout) :: p
-        logical,intent(in) :: ldeltascale
         real(ireals) :: muxs,muys,muzs,muxd,muyd,muzd
         real(ireals) :: mutheta,fi,costheta,sintheta,sinfi,cosfi,denom,muzcosfi
 
@@ -453,13 +440,6 @@ subroutine scatter_photon(p,ldeltascale)
         muxs = p%dir(1)  
         muys = p%dir(2)  
         muzs = p%dir(3)  
-
-!        if(p%direct) then
-!          if(ldeltascale) then
-!            if(mutheta.gt.delta_scale_truncate) return
-!          endif
-!          p%direct=.False.
-!        endif
 
         fi = R()*pi*2.
 
@@ -485,7 +465,7 @@ subroutine scatter_photon(p,ldeltascale)
                 muzd = -denom*sintheta*cosfi + muzs*costheta
         endif
 
-        if(isnan(muxd).or.isnan(muyd).or.isnan(muzd) ) print *,'new direction is NAN :( --',muxs,muys,muzs,mutheta,fi,'::',muxd,muyd,muzd
+!        if(isnan(muxd).or.isnan(muyd).or.isnan(muzd) ) print *,'new direction is NAN :( --',muxs,muys,muzs,mutheta,fi,'::',muxd,muyd,muzd
 
         p%dir(1) = muxd
         p%dir(2) = muyd
@@ -493,17 +473,20 @@ subroutine scatter_photon(p,ldeltascale)
 
 end subroutine
 
-pure real(ireals) function get_kabs(p)
-        type(photon),intent(in) :: p
-        get_kabs = p%optprop(1)
+pure function get_kabs(p)
+    real(ireals) :: get_kabs
+    type(photon),intent(in) :: p
+    get_kabs = p%optprop(1)
 end function
-pure real(ireals) function get_ksca(p)
-        type(photon),intent(in) :: p
-        get_ksca = p%optprop(2)
+pure function get_ksca(p)
+    real(ireals) :: get_ksca
+    type(photon),intent(in) :: p
+    get_ksca = p%optprop(2)
 end function
-pure real(ireals) function get_g(p)
-        type(photon),intent(in) :: p
-        get_g = p%optprop(3)
+pure function get_g(p)
+    real(ireals) :: get_g
+    type(photon),intent(in) :: p
+    get_g = p%optprop(3)
 end function    
 
 subroutine print_photon(p)
@@ -518,8 +501,8 @@ end subroutine
 
 function R()
     real(ireals) :: R
-    R = getRandomReal(rndSeq)
-    call random_number(R)
+    R = getRandomDouble(rndSeq)
+!    call random_number(R)
 end function
 
 subroutine init_random_seed(myid)
@@ -565,15 +548,23 @@ end subroutine
       std%converged = .False.
   end subroutine
 
-  subroutine std_update(std, N, numnodes)
+pure subroutine std_update(std, N, numnodes)
       type(stddev),intent(inout) :: std
-      integer(iintegers) :: N, numnodes
+      integer(iintegers),intent(in) :: N, numnodes
+      real(ireals) :: relvar(size(std%var))
+
       std%delta = std%inc   - std%mean
       std%mean  = std%mean  + std%delta/N
       std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
-      std%var = sqrt( std%mean2/max( i1,N ) ) / sqrt( one*N*numnodes )
-!      print *,'atol',std%var,'rtol',std%var/max(std%mean,std%rtol)
-      if( all( std%var .lt. std%atol .or. std%var/max(std%mean,epsilon(std%rtol)) .lt. std%rtol ) ) then
+      std%var = sqrt( std%mean2/N ) / sqrt( one*N*numnodes )
+      where(std%mean.gt.epsilon(zero))
+        relvar = std%var / std%mean
+      else where
+        relvar = zero
+      end where
+
+      !print *,'atol',std%var,'rtol',relvar
+      if( all( std%var .lt. std%atol .and. relvar .lt. std%rtol ) ) then
         std%converged = .True.
       else
         std%converged = .False.

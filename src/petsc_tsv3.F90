@@ -1,6 +1,6 @@
 module petsc_ts
       use m_twostream, only: twostream_dir,twostream_diff
-      use helper_functions, only: deg2rad,approx,imp_bcast,rmse
+      use helper_functions, only: deg2rad,approx,imp_bcast,rmse,delta_scale_optprop
       use gridtransform
       use arrayio
       use eddington, only : rodents
@@ -627,7 +627,7 @@ module petsc_ts
                logical,parameter :: lround=.False.
                real(ireals),parameter :: fround=1e-4
 
-               real(ireals) :: kabs,ksca,g !,tmp_coeff(size(coeff))
+               real(ireals) :: kabs,ksca,g,tmp_op(3) !,tmp_coeff(size(coeff))
 
                ! coeff mode determines the coeff by:
                ! 1: plane parallel approx
@@ -638,9 +638,13 @@ module petsc_ts
 !               integer(iintegers),parameter :: coeff_mode=2
                call PetscLogStagePush(logstage(7),ierr) ;CHKERRQ(ierr)
 
-               kabs = op%bg(1) 
-               ksca = op%bg(2) 
-               g    = op%bg(3)
+               tmp_op = op%bg
+
+!               call delta_scale_optprop( tmp_op )
+
+               kabs = tmp_op(1) 
+               ksca = tmp_op(2) 
+               g    = tmp_op(3)
 
                if(lone_dimensional) then
                  call OPP_1_2%get_coeff(dz,kabs,ksca,g,dir,coeff,angles)
@@ -839,7 +843,7 @@ subroutine set_dir_coeff(A,C)
 
               Az = newgrid%dx(1)*newgrid%dy(1)
 
-              xincSolar(i0:i3,i,j,C_dir%zs) = edirTOA* Az * max(zero,cos(deg2rad(theta0))) *.25_ireals
+              xincSolar(i0:i3,i,j,C_dir%zs) = edirTOA* Az * .25_ireals * costheta0
             enddo
           enddo
 
@@ -1053,7 +1057,7 @@ subroutine setup_b(edir,b)
             li = istartpar+i-C_diff%xs 
             lj = jstartpar+j-C_diff%ys 
             k = C_diff%ze
-            xsrc(E_up   ,i,j,k) = sum(xedir(i0:i3,i,j,k))*costheta0 *albedo
+            xsrc(E_up   ,i,j,k) = sum(xedir(i0:i3,i,j,k))*albedo
           enddo
         enddo
 !        if(newgrid%z(1).le.15e3) then
@@ -1360,20 +1364,20 @@ subroutine calc_flx_div(edir,ediff,abso)
                 Az = newgrid%dx(li)*newgrid%dy(lj)
 
                 ! Divergence    =                       Incoming                -       Outgoing
-                div2( 1) = sum( xedir(i0:i3, i,j,k)          - xedir(i0:i3, i,j,k+i1  ) ) *Az*.25
-                div2( 2) = sum( xedir(i4:i5, i+i1-xinc,j,k)  - xedir(i4:i5, i+xinc,j,k) ) *Ax*.5
-                div2( 3) = sum( xedir(i6:i7, i,j+i1-yinc,k)  - xedir(i6:i7, i,j+yinc,k) ) *Ay*.5
+                div2( 1) = sum( xedir(i0:i3, i,j,k)          - xedir(i0:i3, i,j,k+i1  ) ) !*Az*.25
+                div2( 2) = sum( xedir(i4:i5, i+i1-xinc,j,k)  - xedir(i4:i5, i+xinc,j,k) ) !*Ax*.5
+                div2( 3) = sum( xedir(i6:i7, i,j+i1-yinc,k)  - xedir(i6:i7, i,j+yinc,k) ) !*Ay*.5
 
-                div2( 4) = Az* ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  )
-                div2( 5) = Az* ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  )
-                div2( 6) = Ax* ( xediff(E_le_m,i+1,j  ,k  )  - xediff(E_le_m,i  ,j  ,k  )  )
-                div2( 7) = Ax* ( xediff(E_le_p,i+1,j  ,k  )  - xediff(E_le_p,i  ,j  ,k  )  )
-                div2( 8) = Ax* ( xediff(E_ri_m,i  ,j  ,k  )  - xediff(E_ri_m,i+1,j  ,k  )  )
-                div2( 9) = Ax* ( xediff(E_ri_p,i  ,j  ,k  )  - xediff(E_ri_p,i+1,j  ,k  )  )
-                div2(10) = Ay* ( xediff(E_ba_m,i  ,j+1,k  )  - xediff(E_ba_m,i  ,j  ,k  )  )
-                div2(11) = Ay* ( xediff(E_ba_p,i  ,j+1,k  )  - xediff(E_ba_p,i  ,j  ,k  )  )
-                div2(12) = Ay* ( xediff(E_fw_m,i  ,j  ,k  )  - xediff(E_fw_m,i  ,j+1,k  )  )
-                div2(13) = Ay* ( xediff(E_fw_p,i  ,j  ,k  )  - xediff(E_fw_p,i  ,j+1,k  )  )
+                div2( 4) = ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  )!*Az
+                div2( 5) = ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  )!*Az
+                div2( 6) = ( xediff(E_le_m,i+1,j  ,k  )  - xediff(E_le_m,i  ,j  ,k  )  )!*Ax
+                div2( 7) = ( xediff(E_le_p,i+1,j  ,k  )  - xediff(E_le_p,i  ,j  ,k  )  )!*Ax
+                div2( 8) = ( xediff(E_ri_m,i  ,j  ,k  )  - xediff(E_ri_m,i+1,j  ,k  )  )!*Ax
+                div2( 9) = ( xediff(E_ri_p,i  ,j  ,k  )  - xediff(E_ri_p,i+1,j  ,k  )  )!*Ax
+                div2(10) = ( xediff(E_ba_m,i  ,j+1,k  )  - xediff(E_ba_m,i  ,j  ,k  )  )!*Ay
+                div2(11) = ( xediff(E_ba_p,i  ,j+1,k  )  - xediff(E_ba_p,i  ,j  ,k  )  )!*Ay
+                div2(12) = ( xediff(E_fw_m,i  ,j  ,k  )  - xediff(E_fw_m,i  ,j+1,k  )  )!*Ay
+                div2(13) = ( xediff(E_fw_p,i  ,j  ,k  )  - xediff(E_fw_p,i  ,j+1,k  )  )!*Ay
 
                 xabso(i0,i,j,k) = sum(div2)/ ( newgrid%dx(li)*newgrid%dy(lj)*newgrid%dz(lk) )
         enddo                             
@@ -1409,9 +1413,9 @@ subroutine scale_flx(v,C)
           Az = newgrid%dx(li)*newgrid%dy(lj)
 
           if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-            xv(i0:i3,i,j,k) = xv(i0:i3,i,j,k) / ( Az*.25 ) *costheta0
-            xv(i4:i5,i,j,k) = xv(i4:i5,i,j,k) / ( Ax*.5  ) *sintheta0
-            xv(i6:i7,i,j,k) = xv(i6:i7,i,j,k) / ( Ay*.5  ) *sintheta0
+            xv(i0:i3,i,j,k) = xv(i0:i3,i,j,k) / ( Az*.25 ) !*costheta0
+            xv(i4:i5,i,j,k) = xv(i4:i5,i,j,k) / ( Ax*.5  ) !*sintheta0
+            xv(i6:i7,i,j,k) = xv(i6:i7,i,j,k) / ( Ay*.5  ) !*sintheta0
           endif
 
           if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
@@ -1437,7 +1441,7 @@ subroutine scale_flx(v,C)
                 lj = jstartpar+j-C_diff%ys 
                 Az = newgrid%dx(li)*newgrid%dy(lj)
                 if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-                  xv (i0:i3 ,i,j,k) = xv (i0:i3 ,i,j,k) / ( Az*.25 ) *costheta0
+                  xv (i0:i3 ,i,j,k) = xv (i0:i3 ,i,j,k) / ( Az*.25 ) !*costheta0
                 endif
                 if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
                   xv(E_up  ,i,j,k) = xv(E_up  ,i,j,k) / Az
@@ -1840,12 +1844,12 @@ subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff, intabso_twostr, Cabso)
         w0   = pcc_optprop(li,lj,:)%w1
         g    = pcc_optprop(li,lj,:)%g1
 
-        incSolar = edirTOA * Az 
+        incSolar = edirTOA
 
         call twostream_dir(dtau,w0,g,mu0,incSolar,albedo, S)
 
         do src=i0,i3
-          xv_dir(src,i,j,:) = S(:,1) *.25_ireals
+          xv_dir(src,i,j,:) = S(:,1) *.25_ireals *Az
         enddo
         call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
@@ -1853,8 +1857,8 @@ subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff, intabso_twostr, Cabso)
         call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
 
         call twostream_diff(dtau,w0,g,S,albedo, E)
-        xv_diff(E_up,i,j,:) = E(:,1)
-        xv_diff(E_dn,i,j,:) = E(:,2)
+        xv_diff(E_up,i,j,:) = E(:,1) * Az
+        xv_diff(E_dn,i,j,:) = E(:,2) * Az
 
         call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
       enddo
@@ -1864,19 +1868,19 @@ subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff, intabso_twostr, Cabso)
     deallocate(E)
 
 
-!    call DMDAVecGetArrayF90(Cabso%da ,intabso_twostr ,xv_abso ,ierr) ;CHKERRQ(ierr)
-!    
-!    do k=Cabso%zs,Cabso%ze         
-!      do j=Cabso%ys,Cabso%ye         
-!        do i=Cabso%xs,Cabso%xe
-!          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) + sum( xv_dir (0:3 ,i,j,k   ) - xv_dir(0:3 ,i,j,k+i1) )*.25_ireals
-!          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) +      xv_diff(E_up,i,j,k+i1) + xv_dir(E_dn,i,j,k   )
-!          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) -      xv_diff(E_up,i,j,k   ) - xv_dir(E_dn,i,j,k+i1)
-!        enddo
-!      enddo
-!    enddo
-!
-!    call DMDAVecRestoreArrayF90(Cabso%da  ,intabso_twostr ,xv_abso  ,ierr) ;CHKERRQ(ierr)
+    call DMDAVecGetArrayF90(Cabso%da ,intabso_twostr ,xv_abso ,ierr) ;CHKERRQ(ierr)
+    
+    do k=Cabso%zs,Cabso%ze         
+      do j=Cabso%ys,Cabso%ye         
+        do i=Cabso%xs,Cabso%xe
+          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) + sum( xv_dir (0:3 ,i,j,k   ) - xv_dir(0:3 ,i,j,k+i1) )*.25_ireals
+          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) +      xv_diff(E_up,i,j,k+i1) + xv_diff(E_dn,i,j,k   )
+          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) -      xv_diff(E_up,i,j,k   ) - xv_diff(E_dn,i,j,k+i1)
+        enddo
+      enddo
+    enddo
+
+    call DMDAVecRestoreArrayF90(Cabso%da  ,intabso_twostr ,xv_abso  ,ierr) ;CHKERRQ(ierr)
 
 
     call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
@@ -2031,10 +2035,10 @@ program main
         call MatDestroy(Mdir,ierr) ;CHKERRQ(ierr)
         call MatDestroy(Mdiff,ierr) ;CHKERRQ(ierr)
 
+        call calc_flx_div(intedir,intx,intabso)
+
         call scale_flx(intedir,C_dir)
         call scale_flx(intx,C_diff)
-
-        call calc_flx_div(intedir,intx,intabso)
 
         call vec_to_hdf5(intabso)
         call vec_to_hdf5(intedir)
@@ -2046,10 +2050,10 @@ program main
         call VecDestroy(intabso,ierr) ;CHKERRQ(ierr)
 
         if(ltwostr) then
+          call calc_flx_div(intedir_twostr,intx_twostr,intabso_twostr)
+
           call scale_flx(intedir_twostr,C_dir)
           call scale_flx(intx_twostr   ,C_diff)
-
-          call calc_flx_div(intedir_twostr,intx_twostr,intabso_twostr)
 
           call vec_to_hdf5(intabso_twostr)
           call vec_to_hdf5(intedir_twostr)

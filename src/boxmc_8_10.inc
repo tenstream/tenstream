@@ -69,6 +69,9 @@ subroutine update_dir_stream_8_10(bmc,p,S,N)
       print *,'Dont know what to do with this p%side'
       call print_photon(p)
     end select
+        select type(bmc)
+        end select
+
 end subroutine
 subroutine update_diff_stream_8_10(bmc,p,S,N)
         class(t_boxmc_8_10) :: bmc
@@ -133,6 +136,9 @@ subroutine update_diff_stream_8_10(bmc,p,S,N)
                 call print_photon(p)
                 call exit
         endif
+        select type(bmc)
+        end select
+
 end subroutine
 
 subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
@@ -174,6 +180,9 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         p%side = int(nil)
         p%src  = src
         p%dir = initial_dir
+        select type(bmc)
+        end select
+
 end subroutine
 
 subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
@@ -266,6 +275,9 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
           print *,'p%dir',p%dir,'norm',norm(p%dir)
           stop 'init_diff_photon_8_10 :: direction was not normed?!'
         endif
+        select type(bmc)
+        end select
+
 
 end subroutine
 
@@ -344,8 +356,12 @@ subroutine intersect_distance_8_10(bmc,p,max_dist)
             endif
           enddo
 
-          print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
-          call print_photon(p)
+!          stop 'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?'
+!          print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
+!          call print_photon(p)
+
+        select type(bmc)
+        end select
 
 end subroutine
   ! ******************* BOXMC 8 10 ************************

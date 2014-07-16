@@ -10,7 +10,7 @@ module arrayIO
   public :: h5write,h5load,write_bin,write_ascii,read_bin
 
   integer :: u=10,v=11
-  real(ireals),parameter :: maxwait=300 !in seconds
+  real(ireals),parameter :: maxwait=600 !in seconds
   real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds 
   integer :: iwait
   character(310) :: lockfile
