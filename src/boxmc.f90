@@ -188,13 +188,19 @@ contains
       call cpu_time(time(1))
 
       mincnt= int( (one/min(stddev_atol,stddev_rtol))**2/numnodes) ! at least one value has to reach tolerance
-      mycnt = int( ( ( ( bmc%diff_streams+bmc%dir_streams )/min(stddev_atol,stddev_rtol)*10)**2/numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee it but we need to hard break it somewhere?? do we?
-      mycnt = min( max(mincnt, mycnt ), huge(mycnt)-1 )
+      mycnt = int( ( ( (bmc%diff_streams*bmc%dir_streams )/min(stddev_atol,stddev_rtol))**2/numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee it but we need to hard break it somewhere?? do we?
+      mycnt = int(1e8)/numnodes
+      mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
 !      print *,'minimal count of photons is',mincnt,' maximum',mycnt,'huge(mycnt)',huge(mycnt)-1
 !      k=0
       do k=1,mycnt
+
 !          k=k+1
-          if(k.eq.mycnt) print *,'boxmc :: INFO ::: we just passed the assumed maximum number of photons we ought to need... maybe this calculation is not converging as it should be? k',k,'converged?',[std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]
+!          if(k.eq.mycnt) then
+!            print *,'boxmc :: INFO ::: we just passed the assumed maximum number of photons we ought to need... maybe this calculation is not converging as it should be? min/maxcnt',mincnt,mycnt,'converged?',[std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]
+!            exit
+!          endif
+
             if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
 
             if(ldir) then

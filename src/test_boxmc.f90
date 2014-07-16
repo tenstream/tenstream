@@ -1,17 +1,19 @@
 program main
       use boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2
       use mpi
-      use data_parameters, only : mpiint,ireals,iintegers,zero,one,i0,i1, init_mpi_data_parameters
+      use data_parameters, only : mpiint,ireals,iintegers,one, init_mpi_data_parameters
 
       implicit none
 
       real(ireals) :: bg(3),S(10),T(8),phi0,theta0,dx,dy,dz
 
-      integer(iintegers) :: src=1,itau,iter
-      integer(mpiint) :: myid,ierr
+      integer(iintegers),parameter :: Niter=10
+      real(ireals) :: Siter(Niter,size(S) ), Titer(Niter,size(T) )
 
-      real(ireals) :: tau,w,od_sca,g
-      real(ireals),allocatable :: coeff(:)
+      integer(iintegers) :: src=1,iter
+      integer(mpiint) :: myid,ierr,numnodes
+
+      real(ireals) :: tau,w,g
 
       type(t_boxmc_8_10) :: bmc_8_10
 
@@ -19,6 +21,7 @@ program main
       print *,'Testing boxmc...'
       call MPI_Init(ierr)
       call MPI_Comm_Rank(MPI_COMM_WORLD, myid,ierr)
+      call mpi_comm_size(MPI_COMM_WORLD, numnodes,ierr)
 
       call init_mpi_data_parameters(MPI_COMM_WORLD)
 
@@ -38,18 +41,43 @@ program main
 
       if(.True.) then
         src=1
-        do iter=1,10
-          tau = dz*2
+        do iter=1,Niter
+          tau = 2
 !          w = dble(iter)/10._ireals-1e-3_ireals
-          w = .99
+          w = .9
           g = .9_ireals
           bg = [tau*(one-w)/dz, tau*w/dz, g ]
           call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.True.,.True.,phi0,theta0,dx,dy,dz)
-          if(myid.eq.0) write(*, FMT='( "iter ",I2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,T,S
+          if(myid.le.1) write(*, FMT='( "iter ",I2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,T,S
+
+          Siter(iter,:) = S
+          Titer(iter,:) = T
         enddo
       endif
 
-!        od_sca = tau*w
+      if(myid.eq.0) then
+        print *,''
+        print *,''
+
+        write(*, FMT='( "    mean    :  ",8(f10.5) ,"::",10(f10.5) )' ) sum(Titer,dim=1 )/Niter  , sum(Siter,dim=1 )/Niter
+        write(*, FMT='( "    stddev  :  ",8(f10.5) ,"::",10(f10.5) )' ) sqrt(one*Niter*numnodes)* (sqrt(sum(Titer**2,dim=1 )/Niter - (sum(Titer,dim=1 )/Niter)**2) )                           , sqrt(one*Niter*numnodes)* (sqrt(sum(Siter**2,dim=1 )/Niter - (sum(Siter,dim=1 )/Niter)**2) )
+        write(*, FMT='( "rel stddev  :  ",8(f10.5) ,"::",10(f10.5) )' ) sqrt(one*Niter*numnodes)* (sqrt(sum(Titer**2,dim=1 )/Niter - (sum(Titer,dim=1 )/Niter)**2) / (sum(Titer,dim=1 )/Niter)), sqrt(one*Niter*numnodes)* (sqrt(sum(Siter**2,dim=1 )/Niter - (sum(Siter,dim=1 )/Niter)**2) / (sum(Siter,dim=1 )/Niter))
+        print *,''
+
+      endif
+      call mpi_barrier(mpi_comm_world,ierr)
+      if(myid.eq.1) then
+        print *,''
+        print *,''
+
+        write(*, FMT='( "    mean    :  ",8(f10.5) ,"::",10(f10.5) )' ) sum(Titer,dim=1 )/Niter  , sum(Siter,dim=1 )/Niter
+        write(*, FMT='( "    stddev  :  ",8(f10.5) ,"::",10(f10.5) )' ) sqrt(one*Niter)*(sqrt(sum(Titer**2,dim=1 )/Niter - (sum(Titer,dim=1 )/Niter)**2) )                           , sqrt(one*Niter)*(sqrt(sum(Siter**2,dim=1 )/Niter - (sum(Siter,dim=1 )/Niter)**2) )
+        write(*, FMT='( "rel stddev  :  ",8(f10.5) ,"::",10(f10.5) )' ) sqrt(one*Niter)*(sqrt(sum(Titer**2,dim=1 )/Niter - (sum(Titer,dim=1 )/Niter)**2) / (sum(Titer,dim=1 )/Niter)), sqrt(one*Niter)*(sqrt(sum(Siter**2,dim=1 )/Niter - (sum(Siter,dim=1 )/Niter)**2) / (sum(Siter,dim=1 )/Niter))
+        print *,''
+
+      endif
+
+      !        od_sca = tau*w
 !        op_bg = [tau*(one-w)/dz, od_sca*(one-g)/dz, zero ]
 !        call bmc_get_coeff_8_10(MPI_COMM_WORLD,op_bg,src,S_out,Sdir_out,.True.,delta_scale,phi0,theta0,dx,dy,dz)
 !        if(myid.eq.0) write(*, FMT='( i2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,Sdir_out,S_out
