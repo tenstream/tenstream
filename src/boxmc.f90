@@ -187,7 +187,7 @@ contains
 
       call cpu_time(time(1))
 
-      mincnt= int( (one/min(stddev_atol,stddev_rtol))**2/numnodes) ! at least one value has to reach tolerance
+      mincnt= int( 1e3 )!(one/min(stddev_atol,stddev_rtol))**2/numnodes) ! at least one value has to reach tolerance
       mycnt = int( ( ( (bmc%diff_streams*bmc%dir_streams )/min(stddev_atol,stddev_rtol))**2/numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee it but we need to hard break it somewhere?? do we?
       mycnt = int(1e8)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
@@ -564,14 +564,15 @@ pure subroutine std_update(std, N, numnodes)
       std%mean  = std%mean  + std%delta/N
       std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
       std%var = sqrt( std%mean2/N ) / sqrt( one*N*numnodes )
-      where(std%mean.gt.relvar_limit)
-        relvar = std%var / std%mean
-      else where
-        relvar = zero
-      end where
+!      where(std%mean.gt.relvar_limit)
+!        relvar = std%var / std%mean
+!      else where
+!        relvar = zero
+!      end where
 
       !print *,'atol',std%var,'rtol',relvar
-      if( all( std%var .lt. std%atol .and. relvar .lt. std%rtol ) ) then
+!      if( all( std%var .lt. std%atol .and. relvar .lt. std%rtol ) ) then
+      if( all( std%var .lt. std%atol ) ) then
         std%converged = .True.
       else
         std%converged = .False.

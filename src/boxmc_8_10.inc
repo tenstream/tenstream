@@ -356,9 +356,8 @@ subroutine intersect_distance_8_10(bmc,p,max_dist)
             endif
           enddo
 
-!          stop 'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?'
-!          print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
-!          call print_photon(p)
+          print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
+          call print_photon(p)
 
         select type(bmc)
         end select

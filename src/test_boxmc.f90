@@ -42,7 +42,7 @@ program main
       if(.True.) then
         src=1
         do iter=1,Niter
-          tau = 2
+          tau = 20
 !          w = dble(iter)/10._ireals-1e-3_ireals
           w = .9
           g = .9_ireals

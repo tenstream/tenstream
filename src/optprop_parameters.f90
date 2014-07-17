@@ -11,7 +11,7 @@ module optprop_parameters
 !      real(ireals),parameter :: delta_scale_truncate=.8660_ireals ! .8660 = 30 degrees delta scaling
 !      real(ireals),parameter :: stddev_rtol=5e-3_ireals
 !      real(ireals),parameter :: stddev_rtol=2e-3_ireals
-      real(ireals),parameter :: stddev_rtol=5e-2_ireals
+      real(ireals),parameter :: stddev_rtol=1e-3_ireals
 
 !      integer(iintegers) ,parameter :: Ndz=20, Nkabs=40, Nksca=40, Ng=15, Nphi=2, Ntheta=10, interp_mode=2
 !      integer(iintegers) ,parameter :: Ndz_8_10=3, Nkabs_8_10=80, Nksca_8_10=80, Ng_8_10=15, Nphi_8_10=10, Ntheta_8_10=10, interp_mode_8_10=2

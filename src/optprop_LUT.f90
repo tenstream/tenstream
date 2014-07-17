@@ -750,7 +750,7 @@ subroutine set_parameter_space(OPP,ps,dx)
     type(parameter_space),intent(inout) :: ps
     real(ireals),intent(in) :: dx
     real(ireals) :: diameter ! diameter of max. cube size
-    real(ireals),parameter :: maximum_transmission=one-1e-6_ireals ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
+    real(ireals),parameter :: maximum_transmission=one-1e-4_ireals ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
     integer(iintegers) :: k
 
 
