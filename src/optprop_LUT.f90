@@ -178,7 +178,7 @@ subroutine loadLUT_diff(OPP, comm)
       lstddev_inbounds=.False.
       call h5load([OPP%diffLUT%fname,'diffuse',str(1),str(2),"S_rtol"],OPP%diffLUT%S%stddev_rtol,iierr) ; errcnt = errcnt+iierr
       lstddev_inbounds = iierr.eq.i0
-      if(lstddev_inbounds) lstddev_inbounds = all(OPP%diffLUT%S%stddev_rtol.le.stddev_rtol)
+      if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%diffLUT%S%stddev_rtol).le.real(stddev_rtol))
 
     endif
     call mpi_bcast(errcnt           , 1 , imp_int , 0 , comm , ierr)
@@ -186,7 +186,7 @@ subroutine loadLUT_diff(OPP, comm)
 
     if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then
       if(myid.eq.0) then
-        print *,'Loading of diffuse tables failed for',trim(OPP%diffLUT%fname),'  diffuse ',trim(str(1)),' ',trim(str(2)),'::',errcnt
+        print *,'Loading of diffuse tables failed for',trim(OPP%diffLUT%fname),'  diffuse ',trim(str(1)),' ',trim(str(2)),'::',errcnt,'stddev required',lstddev_inbounds
         call h5write([OPP%diffLUT%fname,'diffuse',str(1),str(2),"pspace","range_dz   "],OPP%diffLUT%pspace%range_dz   ,iierr)
         call h5write([OPP%diffLUT%fname,'diffuse',str(1),str(2),"pspace","range_kabs   "],OPP%diffLUT%pspace%range_kabs   ,iierr)
         call h5write([OPP%diffLUT%fname,'diffuse',str(1),str(2),"pspace","range_ksca    "],OPP%diffLUT%pspace%range_ksca    ,iierr)
@@ -257,11 +257,11 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             lstddev_inbounds = .True. ! first assume that precision is met and then check if this is still the case...
             call h5load([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"S_rtol"],OPP%dirLUT%S(iphi,itheta)%stddev_rtol,iierr) 
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0 
-            if(lstddev_inbounds) lstddev_inbounds = all(OPP%dirLUT%S(iphi,itheta)%stddev_rtol.le.stddev_rtol)
+            if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_rtol).le.real(stddev_rtol))
 
             call h5load([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"T_rtol"],OPP%dirLUT%T(iphi,itheta)%stddev_rtol,iierr)
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0
-            if(lstddev_inbounds) lstddev_inbounds = all(OPP%dirLUT%S(iphi,itheta)%stddev_rtol.le.stddev_rtol)
+            if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_rtol).le.real(stddev_rtol))
 
             print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds
         endif
@@ -418,7 +418,7 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
             if(myid.eq.0) then
               if  ( all( OPP%diffLUT%S%c( :, idz,ikabs ,iksca,ig).ge.zero) &
                .and.all( OPP%diffLUT%S%c( :, idz,ikabs ,iksca,ig).le.one ) &
-               .and. OPP%diffLUT%S%stddev_rtol(idz,ikabs ,iksca,ig).le.stddev_rtol &
+               .and. real(OPP%diffLUT%S%stddev_rtol(idz,ikabs ,iksca,ig)).le.real(stddev_rtol) &
                ) ldone = .True.
             endif
             call mpi_bcast(ldone,1 , MPI_LOGICAL, 0, comm, ierr)
@@ -474,7 +474,7 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
 
     integer(iintegers) :: idz,ikabs ,iksca,ig,src,total_size,cnt
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
-    logical :: ldone,lstarted_calculations=.False.
+    logical :: ldone,lstarted_calculations=.False., ldonearr(6)
 
     if(myid.eq.0) then
       if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%stddev_rtol) ) then
@@ -517,13 +517,17 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
             ! Check if we already calculated the coefficients and inform the other nodes
             ldone=.False.
             if(myid.eq.0) then
-              if(      all( OPP%dirLUT%S(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).ge.zero) &
-                 .and. all( OPP%dirLUT%S(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).le.one)  &
-                 .and. all( OPP%dirLUT%T(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).ge.zero) &
-                 .and. all( OPP%dirLUT%T(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).le.one)  &
-                 .and. OPP%dirLUT%S(iphi,itheta)%stddev_rtol(idz,ikabs ,iksca,ig).le.stddev_rtol  &
-                 .and. OPP%dirLUT%T(iphi,itheta)%stddev_rtol(idz,ikabs ,iksca,ig).le.stddev_rtol  &
-                       ) ldone = .True.
+              ldonearr(1) = all( OPP%dirLUT%S(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).ge.zero)
+              ldonearr(2) = all( OPP%dirLUT%S(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).le.one) 
+              ldonearr(3) = all( OPP%dirLUT%T(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).ge.zero)
+              ldonearr(4) = all( OPP%dirLUT%T(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).le.one)  
+              ldonearr(5) = real(OPP%dirLUT%S(iphi,itheta)%stddev_rtol(idz,ikabs ,iksca,ig)).le.real(stddev_rtol)
+              ldonearr(6) = real(OPP%dirLUT%T(iphi,itheta)%stddev_rtol(idz,ikabs ,iksca,ig)).le.real(stddev_rtol)
+              if(all (ldonearr) ) then
+                ldone = .True.
+              else
+                print *,'not all done:',ldonearr,' :: ',stddev_rtol,' :: ',OPP%dirLUT%S(iphi,itheta)%stddev_rtol(idz,ikabs ,iksca,ig),OPP%dirLUT%T(iphi,itheta)%stddev_rtol(idz,ikabs ,iksca,ig)
+              endif
             endif
             call mpi_bcast(ldone,1 , MPI_LOGICAL, 0, comm, ierr)
             if(ldone) then

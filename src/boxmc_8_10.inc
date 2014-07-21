@@ -78,6 +78,7 @@ subroutine update_diff_stream_8_10(bmc,p,S,N)
         type(photon),intent(in) :: p
         real(ireals),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
+        real(ireals),parameter :: side_limit=.3_ireals
 
 !         _______1_______
 !        |           10  |
@@ -88,56 +89,58 @@ subroutine update_diff_stream_8_10(bmc,p,S,N)
 !      3 |_______________| 4
 !                2
 
-        if(p%side.eq.1) then
-                S(1) = S(1)+p%weight
-                N(1) = N(1)+i1
-                return
-        else if(p%side.eq.2) then
-                S(2) = S(2)+p%weight
-                N(2) = N(2)+i1
-                return
+if(p%side.eq.1) then
 
-        else if(p%side.eq.3 .and. p%dir(3).le.zero ) then
-                S(3) = S(3)+p%weight
-                N(3) = N(3)+i1
-                return
-        else if(p%side.eq.3 .and. p%dir(3).gt.zero ) then
-                S(5) = S(5)+p%weight
-                N(5) = N(5)+i1
-                return
+  S(1) = S(1)+p%weight
+  N(1) = N(1)+i1
+  return
+else if(p%side.eq.2) then
 
-        else if(p%side.eq.4 .and. p%dir(3).le.zero ) then
-                S(4) = S(4)+p%weight
-                N(4) = N(4)+i1
-                return
-        else if(p%side.eq.4 .and. p%dir(3).gt.zero ) then
-                S(6) = S(6)+p%weight
-                N(6) = N(6)+i1
-                return
+  S(2) = S(2)+p%weight
+  N(2) = N(2)+i1
+  return
 
-        else if(p%side.eq.5 .and. p%dir(3).le.zero ) then
-                S(7) = S(7)+p%weight
-                N(7) = N(7)+i1
-                return
-        else if(p%side.eq.6 .and. p%dir(3).le.zero ) then
-                S(8) = S(8)+p%weight
-                N(8) = N(8)+i1
-                return
-        else if(p%side.eq.5 .and. p%dir(3).gt.zero ) then
-                S(9) = S(9)+p%weight
-                N(9) = N(9)+i1
-                return
-        else if(p%side.eq.6 .and. p%dir(3).gt.zero ) then
-                S(10) =S(10)+p%weight
-                N(10) =N(10)+i1
-                return
-        else
-                print *,'Couldnt find a stream on to which I can put the photon weight on?!'
-                call print_photon(p)
-                call exit
-        endif
-        select type(bmc)
-        end select
+else if(p%side.eq.3 .and. p%dir(3).le.zero ) then
+  S(3) = S(3)+p%weight
+  N(3) = N(3)+i1
+  return
+else if(p%side.eq.3 .and. p%dir(3).gt.zero ) then
+  S(5) = S(5)+p%weight
+  N(5) = N(5)+i1
+  return
+
+else if(p%side.eq.4 .and. p%dir(3).le.zero ) then
+  S(4) = S(4)+p%weight
+  N(4) = N(4)+i1
+  return
+else if(p%side.eq.4 .and. p%dir(3).gt.zero ) then
+  S(6) = S(6)+p%weight
+  N(6) = N(6)+i1
+  return
+
+else if(p%side.eq.5 .and. p%dir(3).le.zero ) then
+  S(7) = S(7)+p%weight
+  N(7) = N(7)+i1
+  return
+else if(p%side.eq.6 .and. p%dir(3).le.zero ) then
+  S(8) = S(8)+p%weight
+  N(8) = N(8)+i1
+  return
+else if(p%side.eq.5 .and. p%dir(3).gt.zero ) then
+  S(9) = S(9)+p%weight
+  N(9) = N(9)+i1
+  return
+else if(p%side.eq.6 .and. p%dir(3).gt.zero ) then
+  S(10) =S(10)+p%weight
+  N(10) =N(10)+i1
+  return
+else
+  print *,'Couldnt find a stream on to which I can put the photon weight on?!'
+  call print_photon(p)
+  call exit
+endif
+select type(bmc)
+end select
 
 end subroutine
 
@@ -191,7 +194,7 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         real(ireals),intent(in) :: dx,dy,dz
         integer(iintegers),intent(in) :: src
 
-        real(ireals) :: phi,mu
+        real(ireals) :: phi,mu,mu1,mu2
 
 !        if(src.eq.1) then
 !                p%loc = (/L(dx), L(dy),    dz  /)
@@ -227,36 +230,48 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
 !                print *,'Dont know what to do with source spec:',src
 !                call exit
 !        endif
+        mu1 = R() ! evenly distribution between 0 and 90 degree
+        mu2= sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
+        mu2 = mu1 !TODO
         if(src.eq.1) then
                 p%loc = (/L(dx), L(dy),    dz  /)
-                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( R()*360._ireals )
+                mu = -mu2 
+                phi= deg2rad( R()*360._ireals )
         else if(src.eq.2) then
                 p%loc = (/L(dx), L(dy),    zero /)
-                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( R()*360._ireals )
+                mu = mu2 ; phi= deg2rad( R()*360._ireals )
         else if(src.eq.3) then
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                mu =  -one+mu2
+                phi= deg2rad( interv_R(-90._ireals,90._ireals) )
         else if(src.eq.4) then
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                mu =  -one+mu2 
+                phi= deg2rad( interv_R(90._ireals,270._ireals) )
         else if(src.eq.5) then
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                mu =  one-mu2
+                phi= deg2rad( interv_R(-90._ireals,90._ireals) )
         else if(src.eq.6) then
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                mu =  one-mu2 
+                phi= deg2rad( interv_R(90._ireals,270._ireals) )
         else if(src.eq.7) then
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                mu =  -one+mu2
+                phi= deg2rad( interv_R(0._ireals,180._ireals) )
         else if(src.eq.8) then
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                mu =  -one+mu2 
+                phi= deg2rad( interv_R(180._ireals,360._ireals) )
         else if(src.eq.9) then
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                mu =  one-mu2
+                phi= deg2rad( interv_R(0._ireals,180._ireals) )
         else if(src.eq.10) then
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                mu =  one-mu2 
+                phi= deg2rad( interv_R(180._ireals,360._ireals) )
         else
                 print *,'Dont know what to do with source spec:',src
                 call exit

@@ -1,5 +1,5 @@
 module petsc_ts
-      use m_twostream, only: twostream_dir,twostream_diff
+      use m_twostream, only: delta_eddington_twostream
       use helper_functions, only: deg2rad,approx,imp_bcast,rmse,delta_scale_optprop
       use gridtransform
       use arrayio
@@ -640,7 +640,7 @@ module petsc_ts
 
                tmp_op = op%bg
 
-!               call delta_scale_optprop( tmp_op )
+!               call delta_scale_optprop( tmp_op ) !TODO
 
                kabs = tmp_op(1) 
                ksca = tmp_op(2) 
@@ -778,14 +778,14 @@ subroutine set_dir_coeff(A,C)
             call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., coeffs, pcc_optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0])
           endif
 
-          ! make sure that energy is conserved... better to be on the absorbing side
-!          if(ldebug) then
-!            do src=1,C%dof
-!              norm = sum( coeffs((src-1)*C%dof+1:src*C%dof) )
-!              if( ldebug .and. norm.ge.one ) print *,'sum(src==',src,') ge one',norm
-!              !          if( norm.ge.one )  coeffs((src-1)*C%dof+1:src*C%dof)  = coeffs((src-1)*C%dof+1:src*C%dof) / (norm+1e-8)
-!            enddo
-!          endif
+         ! make sure that energy is conserved... better to be on the absorbing side
+          if(ldebug) then
+            do src=1,C%dof
+              norm = sum( coeffs((src-1)*C%dof+1:src*C%dof) )
+              if( ldebug .and. real(norm).gt.real(one) ) print *,'sum(src==',src,') gt one',norm
+              !          if( norm.ge.one )  coeffs((src-1)*C%dof+1:src*C%dof)  = coeffs((src-1)*C%dof+1:src*C%dof) / (norm+1e-8)
+            enddo
+          endif
 
 !          if( any(rmse([coeffs(1)],[exp(-pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk))] ).gt.one) ) then
 !            print *,'RMSE to lambert beer',rmse([coeffs(1)],[exp(-pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk))] ),' :: ',coeffs(1),exp(-pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk)),'(',pcc_optprop(li,lj,lk)%bg,newgrid%dz(lk),')'
@@ -940,17 +940,17 @@ subroutine set_diff_coeff(A,C)
           coeffs = PETSC_NULL_REAL
         end where
 
-!        if(ldebug) then
-!          do dst=1,C%dof
-!            norm = sum( coeffs((dst-1)*C%dof+1:dst*C%dof) )
-!            if( ldebug ) then
-!              if( norm.ge.one ) then
+        if(ldebug) then
+          do dst=1,C%dof
+            norm = sum( coeffs((dst-1)*C%dof+1:dst*C%dof) )
+            if( ldebug ) then
+              if( real(norm).gt.real(one) ) then
 !                coeffs((dst-1)*C%dof+1:dst*C%dof)  = coeffs((dst-1)*C%dof+1:dst*C%dof) / (norm+1e-8_ireals)
-!                print *,'diffuse sum(dst==',dst,') ge one',norm
-!              endif
-!            endif
-!          enddo
-!        endif
+                print *,'diffuse sum(dst==',dst,') gt one',norm
+              endif
+            endif
+          enddo
+        endif
 
 
         if( pcc_optprop(li,lj,lk)%one_dimensional ) then
@@ -1121,10 +1121,10 @@ subroutine load_test_optprop(kato,iq)
       dz = hhl1d(1:glob_Nz)-hhl1d(2:glob_Nz+1)
 
       optP%g=0.5
-      optP%kabs=1e-3
-      optP%ksca=1e-3
+      optP%kabs=1e-4
+      optP%ksca=1e-6
 
-      if(myid.eq.0) optP%ksca(4:6,4:6,5:8) = 5e-2
+      if(myid.eq.0) optP%ksca(1,1,5) = 5e-2
 !      optP%ksca(1,1,3:5) = 1e-2
 
       allocate(dx(ubound(optP%kabs,1))) ; dx=ident_dx
@@ -1225,11 +1225,11 @@ subroutine load_test_optprop(kato,iq)
       allocate(dz(size(hhl1d)-1))
       dz = hhl1d(1:ubound(hhl1d,1)-1) - hhl1d(2:ubound(hhl1d,1)) 
 
-      if(ldebug.and.myid.eq.0) then
-        do k=1,ubound(optP%kabs,3)
-          print *,myid,'Optical Properties:',k,'hhl',hhl1d(k),'dz',dz(k),'k',minval(optP%kabs(:,:,k)),minval(optP%ksca(:,:,k)),minval(optP%g(:,:,k)),maxval(optP%kabs(:,:,k)),maxval(optP%ksca(:,:,k)),maxval(optP%g(:,:,k))
-        enddo
-      endif
+!      if(ldebug.and.myid.eq.0) then
+!        do k=1,ubound(optP%kabs,3)
+!          print *,myid,'Optical Properties:',k,'hhl',hhl1d(k),'dz',dz(k),'k',minval(optP%kabs(:,:,k)),minval(optP%ksca(:,:,k)),minval(optP%g(:,:,k)),maxval(optP%kabs(:,:,k)),maxval(optP%ksca(:,:,k)),maxval(optP%g(:,:,k))
+!        enddo
+!      endif
 
       ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
       if(ubound(optP%kabs,2).eq.1) then
@@ -1602,7 +1602,8 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
       KSP :: ksp
       Mat:: A
       type(coord) :: C
-      PetscReal,parameter :: rtol=1e-6, atol=1e-6
+      PetscReal,parameter :: rtol=1e-4, atol=1e-5
+      PetscInt,parameter :: maxiter=500
       logical :: init
       character(len=*),optional :: prefix
 
@@ -1616,7 +1617,7 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
       call KSPSetDM(ksp,C%da,ierr) ;CHKERRQ(ierr)
       call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
-      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),PETSC_DEFAULT_REAL,PETSC_DEFAULT_INTEGER,ierr);CHKERRQ(ierr)
+      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
 
       call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
       call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
@@ -1804,7 +1805,7 @@ subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff, intabso_twostr, Cabso)
     PetscReal,pointer,dimension(:,:,:,:) :: xv_dir,xv_diff,xv_abso
     integer(iintegers) :: i,j,k,src
 
-    real(ireals),allocatable :: dtau(:),w0(:),g(:),S(:,:),E(:,:)
+    real(ireals),allocatable :: dtau(:),w0(:),g(:),S(:),Edn(:),Eup(:)
     real(ireals) :: mu0,incSolar,edirTOA,Az
 
     integer(iintegers) :: li,lj
@@ -1827,8 +1828,9 @@ subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff, intabso_twostr, Cabso)
     call DMDAVecGetArrayF90(Cedir%da ,edir ,xv_dir ,ierr) ;CHKERRQ(ierr)
     call DMDAVecGetArrayF90(Cediff%da,ediff,xv_diff,ierr) ;CHKERRQ(ierr)
 
-    allocate( S(Cedir%zm ,3) )
-    allocate( E(Cediff%zm,2) )
+    allocate( S(Cedir%zm ) )
+    allocate( Eup(Cediff%zm) )
+    allocate( Edn(Cediff%zm) )
 
     do j=Cedir%ys,Cedir%ye         
       do i=Cedir%xs,Cedir%xe
@@ -1846,26 +1848,22 @@ subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff, intabso_twostr, Cabso)
 
         incSolar = edirTOA
 
-        call twostream_dir(dtau,w0,g,mu0,incSolar,albedo, S)
+        call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,albedo, S,Edn,Eup)
 
         do src=i0,i3
-          xv_dir(src,i,j,:) = S(:,1) *.25_ireals *Az
+          xv_dir(src,i,j,:) = S(:) *.25_ireals *Az
         enddo
-        call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+        xv_diff(E_up,i,j,:) = Eup(:) * Az
+        xv_diff(E_dn,i,j,:) = Edn(:) * Az
 
-    ! ---------------------------- DIFFUSE ------------------------------
-        call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
-
-        call twostream_diff(dtau,w0,g,S,albedo, E)
-        xv_diff(E_up,i,j,:) = E(:,1) * Az
-        xv_diff(E_dn,i,j,:) = E(:,2) * Az
-
-        call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
       enddo
     enddo
+    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+
 
     deallocate(S)
-    deallocate(E)
+    deallocate(Edn)
+    deallocate(Eup)
 
 
     call DMDAVecGetArrayF90(Cabso%da ,intabso_twostr ,xv_abso ,ierr) ;CHKERRQ(ierr)
@@ -1960,6 +1958,7 @@ program main
               endif
 
             endif
+            cycle
 
             call setup_incSolar(incSolar,kato,iq)
 
@@ -2025,6 +2024,23 @@ program main
           enddo
         enddo
 
+        if(ltwostr) then
+          call calc_flx_div(intedir_twostr,intx_twostr,intabso_twostr)
+
+          call scale_flx(intedir_twostr,C_dir)
+          call scale_flx(intx_twostr   ,C_diff)
+
+          call vec_to_hdf5(intabso_twostr)
+          call vec_to_hdf5(intedir_twostr)
+          call vec_to_hdf5(intx_twostr)
+
+          print *,'Cleanup Result vectors'
+          call VecDestroy(intedir_twostr,ierr) ;CHKERRQ(ierr)
+          call VecDestroy(intx_twostr   ,ierr) ;CHKERRQ(ierr)
+          call VecDestroy(intabso_twostr,ierr) ;CHKERRQ(ierr)
+        endif
+
+
         call KSPDestroy(kspdir,ierr) ;CHKERRQ(ierr); linit_kspdir=.False.
         call KSPDestroy(kspdiff,ierr) ;CHKERRQ(ierr); linit_kspdiff=.False.
 
@@ -2048,22 +2064,6 @@ program main
         call VecDestroy(intedir,ierr) ;CHKERRQ(ierr)
         call VecDestroy(intx,ierr) ;CHKERRQ(ierr)
         call VecDestroy(intabso,ierr) ;CHKERRQ(ierr)
-
-        if(ltwostr) then
-          call calc_flx_div(intedir_twostr,intx_twostr,intabso_twostr)
-
-          call scale_flx(intedir_twostr,C_dir)
-          call scale_flx(intx_twostr   ,C_diff)
-
-          call vec_to_hdf5(intabso_twostr)
-          call vec_to_hdf5(intedir_twostr)
-          call vec_to_hdf5(intx_twostr)
-
-          print *,'Cleanup Result vectors'
-          call VecDestroy(intedir_twostr,ierr) ;CHKERRQ(ierr)
-          call VecDestroy(intx_twostr   ,ierr) ;CHKERRQ(ierr)
-          call VecDestroy(intabso_twostr,ierr) ;CHKERRQ(ierr)
-        endif
 
         call PetscFinalize(ierr) ;CHKERRQ(ierr)
 end program

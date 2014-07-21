@@ -187,7 +187,7 @@ contains
 
       call cpu_time(time(1))
 
-      mincnt= int( 1e3 )!(one/min(stddev_atol,stddev_rtol))**2/numnodes) ! at least one value has to reach tolerance
+      mincnt= max( 10, int( 1e3 /numnodes ) ) !(one/min(stddev_atol,stddev_rtol))**2/numnodes) ! at least one value has to reach tolerance
       mycnt = int( ( ( (bmc%diff_streams*bmc%dir_streams )/min(stddev_atol,stddev_rtol))**2/numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee it but we need to hard break it somewhere?? do we?
       mycnt = int(1e8)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
@@ -334,7 +334,7 @@ function interv_R(a,b) ! return uniform random number between a and b
         ub=max(a,b)
         interv_R = lb + R()*(ub-lb)
 end function
-function interv_R2(a,b) ! return uniform random number between a and b
+function interv_R2(a,b) 
         real(ireals),intent(in) :: a,b
         real(ireals) :: interv_R2
         real(ireals) :: lb,ub
@@ -558,21 +558,21 @@ pure subroutine std_update(std, N, numnodes)
       type(stddev),intent(inout) :: std
       integer(iintegers),intent(in) :: N, numnodes
       real(ireals) :: relvar(size(std%var))
-      real(ireals),parameter :: relvar_limit=1e-4_ireals
+      real(ireals),parameter :: relvar_limit=1e-6_ireals,rtol=1e-1_ireals
 
       std%delta = std%inc   - std%mean
       std%mean  = std%mean  + std%delta/N
       std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
       std%var = sqrt( std%mean2/N ) / sqrt( one*N*numnodes )
-!      where(std%mean.gt.relvar_limit)
-!        relvar = std%var / std%mean
-!      else where
-!        relvar = zero
-!      end where
+      where(std%mean.gt.relvar_limit)
+        relvar = std%var / std%mean
+      else where
+        relvar = zero
+      end where
 
       !print *,'atol',std%var,'rtol',relvar
-!      if( all( std%var .lt. std%atol .and. relvar .lt. std%rtol ) ) then
-      if( all( std%var .lt. std%atol ) ) then
+      if( all( std%var .lt. std%atol .and. relvar .lt. rtol ) ) then
+!      if( all( std%var .lt. std%atol ) ) then
         std%converged = .True.
       else
         std%converged = .False.
