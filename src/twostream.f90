@@ -39,7 +39,7 @@ module m_twostream
 !          a13(k) = eddington(3,k)
 !          a23(k) = eddington(4,k)
 !          a33(k) = eddington(5,k)
-          call eddington_coeff_rb (dtau(k),g(k),min( w0(k), one-epsilon(w0)*10 ),mu0,a11(k),a12(k),a13(k),a23(k),a33(k))
+          call eddington_coeff_rb (dtau(k),g(k), w0(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k))
         enddo
 
         S(1) = incSolar ! irradiance on tilted plane

@@ -1957,8 +1957,8 @@ program main
                 ! this should just be used...
               endif
 
+!              cycle
             endif
-            cycle
 
             call setup_incSolar(incSolar,kato,iq)
 

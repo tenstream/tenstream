@@ -1,6 +1,7 @@
 module eddington
       use data_parameters, only: ireals,iintegers,zero,one
       use helper_functions, only: approx
+      use ISO_FORTRAN_ENV
       implicit none
 
       private
@@ -10,7 +11,7 @@ module eddington
 
       contains
 
-      pure subroutine delta_scale(dtau,w0,g, dtau_d,g_d,w0_d)
+      pure subroutine delta_scale(dtau,w0,g, dtau_d,w0_d,g_d)
         real(ireals),intent(in) :: g,w0,dtau
         real(ireals),intent(out) :: dtau_d,g_d,w0_d
         real(ireals) :: f
@@ -150,12 +151,13 @@ module eddington
 
       subroutine eddington_coeff_bm (dtau_in,g_in,omega0_in,mu0,a11,a12,a13,a23,a33)
           real(ireals),intent(in) :: dtau_in,g_in,omega0_in,mu0
-          real(ireals)            :: dtau,g,omega0
+          real(ireals)            :: dtau_d,g_d,omega0_d
           real(ireals),intent(out) :: a11,a12,a13,a23,a33
 
-          real(ireals) ::  alpha1, alpha2, alpha3, alpha4, alpha5, alpha6;
-          real(ireals) ::  lambda, b, A;
-          real(ireals) ::  denom;
+          real(real128) ::  dtau,g,omega0
+          real(real128) ::  alpha1, alpha2, alpha3, alpha4, alpha5, alpha6;
+          real(real128) ::  lambda, b, A;
+          real(real128) ::  denom;
 
 
           if(dtau_in.lt.epsilon(dtau_in)) then
@@ -163,11 +165,11 @@ module eddington
             return
           endif
 
-          call delta_scale(dtau_in,min( omega0_in,one-epsilon(omega0_in)*10 ),g_in, dtau, omega0, g)
+          call delta_scale(dtau_in,min( omega0_in,one-1e-6_ireals ),g_in, dtau_d, omega0_d, g_d)
 
-          dtau   = max(( epsilon(dtau)     ), dtau_in)
-          g      = max(( epsilon(g)     ), g_in)
-          omega0 = max(( epsilon(omega0)), omega0_in)
+          dtau   = max(( epsilon(dtau)     ), dtau_d)
+          g      = max(( epsilon(g)     ), g_d)
+          omega0 = max(( epsilon(omega0)), omega0_d)
 
 
           alpha1= (1.0_ireals-omega0)+0.75_ireals*(1.0_ireals-omega0*g);
@@ -198,7 +200,7 @@ module eddington
           a13=alpha5*(1.0_ireals-(a11)*(a33))-alpha6*(a12);
           a23=-(a12)*alpha5*(a33)+alpha6*((a33)-(a11));
 
-          if(any(isnan( [a11,a12,a13,a23,a33] ) )) then !.or. [a11,a12,a13,a23,a33].gt.one .or. [a11,a12,a13,a23,a33].lt.zero ) ) then
+          if(any(isnan( [a11,a12,a13,a23,a33] ) ))then!.or. [a11,a12,a13,a23,a33].gt.one .or. [a11,a12,a13,a23,a33].lt.zero ) ) then
             print *,'Found NaN in eddington coefficients _bm -- this should not happen!'
             print *,'input',dtau,g,omega0,mu0
             print *,'alpha1',alpha1
@@ -219,56 +221,59 @@ module eddington
 
       subroutine eddington_coeff_rb (dtau_in,g_in,omega_0_in,mu_0,a11,a12,a13,a23,a33)
           real(ireals),intent(in) :: dtau_in,g_in,omega_0_in,mu_0
-          real(ireals)            :: dtau,g,omega_0
+          real(ireals)            :: dtau_d,g_d,omega_0_d,f_d
           real(ireals),intent(out) :: a11,a12,a13,a23,a33
 
-          real(ireals) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6;
-          real(ireals) ::  b_mmu_0, lambda, A, exp1, term1, bscr;
-          real(ireals) ::  den1, mu_0_inv;
+          real(real128) ::  dtau,g,omega_0
+          real(real128) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6;
+          real(real128) ::  b_mmu_0, lambda, A, exp1, term1, bscr;
+          real(real128) ::  den1, mu_0_inv;
 
           real(ireals),parameter ::  eps = 1e-6_ireals
 
+          omega_0_d = min(omega_0_in, 1.0_ireals - eps)
+          if ( approx( omega_0_d * g_in , 1.0_ireals ) ) omega_0_d = omega_0_d * (1.0_ireals - eps);
+!          call delta_scale(dtau_in, tmp, g_in, dtau_d, omega_0_d, g_d)
+          f_d = g_in**2
 
-          if(dtau_in.lt.epsilon(dtau_in)) then
-            a11=one;a12=zero;a13=zero;a23=zero;a33=one
-            return
-          endif
+          dtau_d = dtau_in * ( 1._ireals - omega_0_in * f_d );
+          g_d    = ( g_in - f_d ) / ( 1._ireals - f_d );
+          omega_0_d = omega_0_d * ( 1._ireals - f_d ) / ( 1._ireals - f_d * omega_0_d );
 
-          call delta_scale(dtau_in,min( omega_0_in,one-epsilon(omega_0_in)*10 ),g_in, dtau, omega_0, g)
+!          if(dtau_in.lt.epsilon(dtau_in)) then
+!            a11=one;a12=zero;a13=zero;a23=zero;a33=one
+!            return
+!          endif
 
-          dtau    = max(( epsilon(dtau)     ), dtau_in)
-          g       = max(( epsilon(g)     ), g_in)
-          omega_0 = max(( epsilon(omega_0)), omega_0_in)
+          dtau    = max(( epsilon(dtau)   ), dtau_d)
+          g       = max(( epsilon(g)      ), g_d)
+          omega_0 = max(( epsilon(omega_0)), omega_0_d)
 
-          mu_0_inv = 1._ireals/mu_0;
-
-          omega_0 = min(omega_0, 1.0_ireals - eps)
-
-          if ( approx( omega_0 * g , 1.0_ireals ) ) omega_0 = omega_0 * (1.0_ireals - eps);
+          mu_0_inv = 1._real128/mu_0;
 
     
-          b_mmu_0 = 0.5_ireals - 0.75_ireals * g * mu_0;
+          b_mmu_0 = 0.5_real128 - 0.75_ireals * g * mu_0;
 
-          bscr = 0.5_ireals - 0.375_ireals * g;
-          alpha_1 = 2._ireals * ( 1._ireals - omega_0 * ( 1._ireals - bscr ) ) - 0.25_ireals;
-          alpha_2 = 2._ireals * omega_0 * bscr - 0.25_ireals;
+          bscr = 0.5_real128 - 0.375_ireals * g;
+          alpha_1 = 2._real128 * ( 1._ireals - omega_0 * ( 1._ireals - bscr ) ) - 0.25_ireals;
+          alpha_2 = 2._real128 * omega_0 * bscr - 0.25_ireals;
 
           lambda = sqrt ( alpha_1 * alpha_1 - alpha_2 * alpha_2 );
 
-          if ( lambda * dtau .gt. 20._ireals ) then
+          if ( lambda * dtau .gt. 20._real128 ) then
             a11 = zero;
             a12 = ( alpha_1 - lambda ) / alpha_2;
           else
             exp1  = exp( lambda * dtau );
             term1 = alpha_2 / ( alpha_1 - lambda ) * exp1;
 
-            A = 1.0_ireals / ( term1 - 1._ireals / term1 );
+            A = 1.0_real128 / ( term1 - 1._ireals / term1 );
 
-            a11 = A * 2.0_ireals * lambda / alpha_2;
-            a12 = A * ( exp1 - 1._ireals / exp1 );
+            a11 = A * 2.0_real128 * lambda / alpha_2;
+            a12 = A * ( exp1 - 1._real128 / exp1 );
           endif
 
-          den1 = min( huge(den1)*.5, 1._ireals / ( mu_0_inv * mu_0_inv - lambda * lambda ))
+          den1 = min( huge(den1)*.5, 1._real128 / ( mu_0_inv * mu_0_inv - lambda * lambda ))
 
           alpha_3 = - omega_0 * b_mmu_0;
           alpha_4 = omega_0 + alpha_3;
@@ -277,14 +282,14 @@ module eddington
 
           a33      = exp ( - dtau  * mu_0_inv );   
 
-          a13 = + alpha_5 * ( 1.0_ireals - a33 * a11 ) - alpha_6 * a12;
+          a13 = + alpha_5 * ( 1.0_real128 - a33 * a11 ) - alpha_6 * a12;
           a23 = - alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 );
 
-          a12 = min(one, max( zero, a12 ))
-          a13 = min(one, max( zero, a13 ))
-          a23 = min(one, max( zero, a23 ))
+!          a12 = max( zero, a12 )!min(one, )
+!          a13 = max( zero, a13 )!min(one, )
+!          a23 = max( zero, a23 )!min(one, )
 
-          if(any(isnan( [a11,a12,a13,a23,a33] ) .or. [a11,a12,a13,a23,a33].gt.one .or. [a11,a12,a13,a23,a33].lt.zero ) ) then
+          if(any(isnan( [a11,a12,a13,a23,a33] ) )) then !.or. [a11,a12,a13,a23,a33].gt.one .or. [a11,a12,a13,a23,a33].lt.zero ) ) then
             print *,'Found NaN in eddington coefficients _rb -- this should not happen!'
             print *,'input',dtau,g,omega_0,mu_0
             print *,'alpha1',alpha_1,isnan(alpha_1),alpha_1.gt.huge(alpha_1)
