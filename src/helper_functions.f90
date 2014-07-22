@@ -79,24 +79,25 @@ module helper_functions
           call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr)
       end subroutine
 
-  subroutine delta_scale_optprop( optprop ) 
-      real(ireals),intent(inout) :: optprop(3)
-      real(ireals) :: dtau_d,g_d,w0_d
-      real(ireals) :: dtau,g,w0
-      real(ireals) :: f
+      subroutine delta_scale_optprop_arr( op ) 
+          real(ireals),intent(inout) :: op(3)
+          real(ireals) :: dtau, w0, g
+          dtau = op(1)+op(2)
+          w0   = op(2)/dtau
+          g    = op(3)
+          call delta_scale_optprop( dtau, w0, g)
+          op(2)= dtau * w0
+          op(1)= dtau * (one-w0)
+          op(3)= g
+      end subroutine
+      subroutine delta_scale_optprop( dtau, w0, g) 
+          real(ireals),intent(inout) :: dtau,g,w0
+          real(ireals) :: f
 
-      dtau = optprop(1)+optprop(2)
-      w0   = optprop(2)/dtau
-      g    = optprop(3)
-
-      f = g**2
-      dtau_d = dtau * ( one - w0 * f )
-      g_d    = ( g - f ) / ( one - f )
-      w0_d   = w0 * ( one - f ) / ( one - f * w0 )
-
-      optprop(1) = dtau_d* (one-w0_d)
-      optprop(2) = dtau_d* (    w0_d)
-      optprop(3) = g_d
-  end subroutine
+          f = g**2
+          dtau = dtau * ( one - w0 * f )
+          g    = ( g - f ) / ( one - f )
+          w0   = w0 * ( one - f ) / ( one - f * w0 )
+      end subroutine
 
       end module

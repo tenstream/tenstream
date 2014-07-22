@@ -12,7 +12,6 @@ module gridtransform
       type(gridinfo) :: oldgrid,newgrid
 
       real(ireals) :: solution_dx=-1,solution_dy=-1,solution_dz=-1
-!      real(ireals),parameter :: solution_dx=250,solution_dy=250,solution_dz=200
 
       contains
 
@@ -51,6 +50,7 @@ module gridtransform
                 newgrid%Ny = oldgrid%Ny
                 newgrid%Nz = oldgrid%Nz
         else
+          stop 'gridtransform on new grid :: this is probably not working at the moment...?!'
                 newgrid%Nx = int(sum(odx)/solution_dx)
                 newgrid%Ny = int(sum(ody)/solution_dy)
                 newgrid%Nz = int(sum(odz)/solution_dz)

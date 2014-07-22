@@ -10,9 +10,9 @@ if (NOT CMAKE_BUILD_TYPE)
       FORCE)
 endif (NOT CMAKE_BUILD_TYPE)
 
-set (CMAKE_Fortran_FLAGS "-cpp -ffree-line-length-none -W -Wall -Wuninitialized " )
-set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -O2")#-funroll-loops ")#-march=native -mtune=native")
-set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check ")#-ffpe-trap=invalid,zero,overflow,denormal,precision")
+set (CMAKE_Fortran_FLAGS "-cpp -ffree-line-length-none -W -Wall -Wuninitialized" )
+set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -ffast-math -O2")#-funroll-loops ")#-march=native -mtune=native")
+set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check -ffpe-trap=invalid,zero,overflow,denormal")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 #MESSAGE("Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")
@@ -31,7 +31,6 @@ FIND_PACKAGE (HDF5 NAMES hdf5 REQUIRED)
 #message(" HDF5 Includes are:${HDF5_INCLUDE_DIR}" )
 #set (CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${MPI_Fortran_LINK_FLAGS} )
 set(CMAKE_INCLUDE_SYSTEM_FLAG_Fortran "-I")
-
 
 # Petsc
 find_package(PETSc REQUIRED)

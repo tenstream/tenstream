@@ -1,9 +1,10 @@
 module petsc_ts
+
       use m_twostream, only: delta_eddington_twostream
-      use helper_functions, only: deg2rad,approx,imp_bcast,rmse,delta_scale_optprop
+      use helper_functions, only: deg2rad,approx,imp_bcast,rmse,delta_scale_optprop_arr
       use gridtransform
       use arrayio
-      use eddington, only : rodents
+      use eddington, only : eddington_coeff_rb
       use data_parameters, only : init_mpi_data_parameters,mpiint,ireals,iintegers,imp_comm
       use kato_data
       use optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -17,7 +18,7 @@ module petsc_ts
       PetscInt,parameter :: istartpar=i1, jstartpar=i1
       PetscReal,parameter:: zero=0,one=1.0, pi=3.141592653589793, nil=-9999999
 
-      logical :: l_writeall,ltwostr,luse_twostr_guess,luse_hdf5_guess
+      logical :: l_writeall,ltwostr,luse_twostr_guess,luse_hdf5_guess, ldouble_delta_scale
       logical,parameter :: ldebug=.True.,lcycle_dir=.True.
       character(len=*),parameter :: basepath='/home/users/jakub/scratch/tenstream/'
       logical,parameter :: lprealloc=.True.
@@ -46,11 +47,11 @@ module petsc_ts
       integer(mpiint) :: myid,numnodes,mpierr
 
       type t_optprop
-        real(ireals) :: bg(3)=nil,fg(4)=nil
+        real(ireals) :: bg(3)=nil
         logical :: updated=.True.,one_dimensional=.False.
-        real(ireals) :: kext1=nil ,kext2=nil ,ksca1=nil ,ksca2=nil, w1=nil, w2=nil, g1=nil, g2=nil
+        real(ireals) :: a11,a12,a13,a23,a33
       end type
-      type(t_optprop),allocatable :: pcc_optprop(:,:,:)
+      type(t_optprop),allocatable :: optprop(:,:,:)
 
       type(t_optprop_1_2) OPP_1_2
       type(t_optprop_8_10) OPP_8_10
@@ -102,13 +103,18 @@ module petsc_ts
               PetscInt,intent(in) :: Nz,dof
               DMBoundaryType :: boundary
               PetscInt,parameter :: stencil_size=1
+
+              PetscInt :: decomp_x=PETSC_DECIDE, decomp_y=PETSC_DECIDE
+              if(newgrid%Nx.le.i3) decomp_x=i1
+              if(newgrid%Ny.le.i3) decomp_y=i1
+
               C%dof = i1*dof
 
               call DMDACreate3d( imp_comm  ,                                           &
                                 boundary           , boundary           , bn                 , &
                                 DMDA_STENCIL_BOX  ,                                            &
                                 i1*newgrid%Nx     , i1*newgrid%Ny     , i1*Nz                , &
-                                PETSC_DECIDE       , PETSC_DECIDE       , i1                 , &
+                                decomp_x          , decomp_y          , i1                 , &
                                 C%dof              , stencil_size       ,                      &
                                 PETSC_NULL_INTEGER , PETSC_NULL_INTEGER , PETSC_NULL_INTEGER , &
                                 C%da               , ierr) ;CHKERRQ(ierr)
@@ -169,7 +175,9 @@ module petsc_ts
         PetscInt,dimension(:),allocatable :: o_nnz,d_nnz!,dnz
 
         call DMCreateMatrix(C%da, A, ierr) ;CHKERRQ(ierr)
-!        if(present(prefix) ) call MatAppendOptionsPrefix(A,trim(prefix),ierr) !!! Not in the Fortran API?
+        if(present(prefix) ) then
+            !call MatAppendOptionsPrefix(A,trim(prefix),ierr) !!! Not in the Fortran API?
+        endif
 
 !        call MatCreate(PETSC_COMM_WORLD, A,ierr); CHKERRQ(ierr)
 !        call MatSetSizes(A, C%xm*C%ym*C%zm*C%dof, C%xm*C%ym*C%zm*C%dof, C%glob_xm*C%glob_ym*C%glob_zm*C%dof, C%glob_xm*C%glob_ym*C%glob_zm*C%dof,ierr);CHKERRQ(ierr)
@@ -368,7 +376,7 @@ module petsc_ts
               li = istartpar+i-C%xs ! l-indices are used for local arrays, 
               lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
               lk = 1+k-C%zs         !
-              if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+              if( optprop(li,lj,lk)%one_dimensional ) then
                 xo(:,i,j,k) = i0
                 xd(:,i,j,k) = i1
                 xd(0:1,i,j,k) = i3
@@ -477,7 +485,7 @@ module petsc_ts
                li = istartpar+i-C%xs ! l-indices are used for local arrays, 
                lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
                lk = 1+k-C%zs         !
-               if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+               if( optprop(li,lj,lk)%one_dimensional ) then
                  xo(:,i,j,k) = i0
                  xd(:,i,j,k) = i1
                  xd(0:3,i,j,k) = i5
@@ -586,7 +594,7 @@ module petsc_ts
                li = istartpar+i-C%xs ! l-indices are used for local arrays, 
                lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
                lk = 1+k-C%zs         !
-               if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+               if( optprop(li,lj,lk)%one_dimensional ) then
                  xo(:,i,j,k) = i0
                  xd(:,i,j,k) = i1
                  xd(0,i,j,k) = i2
@@ -639,8 +647,6 @@ module petsc_ts
                call PetscLogStagePush(logstage(7),ierr) ;CHKERRQ(ierr)
 
                tmp_op = op%bg
-
-!               call delta_scale_optprop( tmp_op ) !TODO
 
                kabs = tmp_op(1) 
                ksca = tmp_op(2) 
@@ -728,7 +734,6 @@ subroutine set_dir_coeff(A,C)
         PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm
         PetscInt,parameter :: entries(8)=[0,8,16,24,32,40,48,56]
         PetscInt,parameter :: entries1d(4)=[0,4,8,12]
-        PetscReal :: edd_coeff(5)
         PetscReal :: twostr_coeff(1)
 
 !        if(ldebug) print *,myid,'DEBUG(set_dir_coeff) DMDA',C%xs,C%xe,C%ys,C%ye,C%zs,C%ze-1
@@ -745,7 +750,7 @@ subroutine set_dir_coeff(A,C)
           li = istartpar+i-C%xs ! l-indices are used for local arrays, 
           lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
           lk = 1+k-C%zs         !
-          !          print *,'setting direct coeff',li,lj,lk,'PETSC_grid',i,j,k,'pcc_optprop',lbound(pcc_optprop,1),ubound(pcc_optprop,1),':',lbound(pcc_optprop,2),ubound(pcc_optprop,2),':',lbound(pcc_optprop,3),ubound(pcc_optprop,3)
+          !          print *,'setting direct coeff',li,lj,lk,'PETSC_grid',i,j,k,'optprop',lbound(optprop,1),ubound(optprop,1),':',lbound(optprop,2),ubound(optprop,2),':',lbound(optprop,3),ubound(optprop,3)
 
           dst = 1 ; row(MatStencil_i,dst) = i      ; row(MatStencil_j,dst) = j       ;  row(MatStencil_k,dst) = k+1     ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
           dst = 2 ; row(MatStencil_i,dst) = i      ; row(MatStencil_j,dst) = j       ;  row(MatStencil_k,dst) = k+1     ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
@@ -766,16 +771,15 @@ subroutine set_dir_coeff(A,C)
           src = 8 ; col(MatStencil_i,src) = i        ; col(MatStencil_j,src) = j+1-yinc ; col(MatStencil_k,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
           coeffs=PETSC_NULL_REAL
-          if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+          if( optprop(li,lj,lk)%one_dimensional ) then
             if(luse_eddington) then
-              call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, costheta0, edd_coeff )
-              coeffs([0, 8+1, 16+2, 24+3 ]+i1) = edd_coeff(5) ! only use the four vertical tiles with a33
+              coeffs([0, 8+1, 16+2, 24+3 ]+i1) = optprop(li,lj,lk)%a33 ! only use the four vertical tiles with a33
             else
-              call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., twostr_coeff, pcc_optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0] )
+              call get_coeff(optprop(li,lj,lk), newgrid%dz(lk),.True., twostr_coeff, optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0] )
               coeffs([0, 8+1, 16+2, 24+3 ]+i1) = twostr_coeff(1) ! only use the four vertical tiles with direct transmission
             endif
           else
-            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.True., coeffs, pcc_optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0])
+            call get_coeff(optprop(li,lj,lk), newgrid%dz(lk),.True., coeffs, optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0])
           endif
 
          ! make sure that energy is conserved... better to be on the absorbing side
@@ -787,8 +791,8 @@ subroutine set_dir_coeff(A,C)
             enddo
           endif
 
-!          if( any(rmse([coeffs(1)],[exp(-pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk))] ).gt.one) ) then
-!            print *,'RMSE to lambert beer',rmse([coeffs(1)],[exp(-pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk))] ),' :: ',coeffs(1),exp(-pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk)),'(',pcc_optprop(li,lj,lk)%bg,newgrid%dz(lk),')'
+!          if( any(rmse([coeffs(1)],[exp(-optprop(li,lj,lk)%kext1*newgrid%dz(lk))] ).gt.one) ) then
+!            print *,'RMSE to lambert beer',rmse([coeffs(1)],[exp(-optprop(li,lj,lk)%kext1*newgrid%dz(lk))] ),' :: ',coeffs(1),exp(-optprop(li,lj,lk)%kext1*newgrid%dz(lk)),'(',optprop(li,lj,lk)%bg,newgrid%dz(lk),')'
 !          endif
 
           where(approx(coeffs,zero))
@@ -796,7 +800,7 @@ subroutine set_dir_coeff(A,C)
           end where
 
 
-          if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+          if( optprop(li,lj,lk)%one_dimensional ) then
             ! reorder coeffs from src-ordered to dst-ordered
             do src=1,4
               v(entries1d+src) = coeffs( i1+(src-i1)*C%dof : i5+(src-i1)*C%dof )
@@ -861,9 +865,9 @@ subroutine set_diff_coeff(A,C)
   PetscInt :: i,j,k,src,dst, li,lj,lk
 
   MatStencil :: row(4,0:C%dof-1)  ,col(4,0:C%dof-1)
-  PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm,edd_coeff(5),twostr_coeff(4)
+  PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm,twostr_coeff(4)
   PetscInt,parameter :: entries(10)=[0,10,20,30,40,50,60,70,80,90]
-  PetscInt,parameter :: entries1d(2)=[0,2]
+!  PetscInt,parameter :: entries1d(2)=[0,2]
 
   ! if(ldebug) print *,myid,'DEBUG(set_dir_coeff) jspec',jspec,'igas',igas,'isub',isub
   call PetscLogStagePush(logstage(4),ierr) ;CHKERRQ(ierr)
@@ -924,16 +928,16 @@ subroutine set_diff_coeff(A,C)
         dst = 9; row(MatStencil_i,dst) = i    ; row(MatStencil_j,dst) = j+1   ; row(MatStencil_k,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
         coeffs = PETSC_NULL_REAL
-        if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+        if( optprop(li,lj,lk)%one_dimensional ) then
           if(luse_eddington ) then
-            call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, costheta0, edd_coeff )
-            coeffs([ 0,1, 10,11 ]+i1) = [ edd_coeff(2), edd_coeff(1), edd_coeff(1), edd_coeff(2) ]
+!            call rodents(optprop(li,lj,lk)%kext1*newgrid%dz(lk), optprop(li,lj,lk)%w1, optprop(li,lj,lk)%g1, costheta0, edd_coeff )
+            coeffs([ 0,1, 10,11 ]+i1) = [ optprop(li,lj,lk)%a12, optprop(li,lj,lk)%a11, optprop(li,lj,lk)%a11, optprop(li,lj,lk)%a12 ]
           else
-            call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, pcc_optprop(li,lj,lk)%one_dimensional)
+            call get_coeff(optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, optprop(li,lj,lk)%one_dimensional)
             coeffs([ 0,1, 10,11 ]+i1) = twostr_coeff
           endif
         else
-          call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, pcc_optprop(li,lj,lk)%one_dimensional)
+          call get_coeff(optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, optprop(li,lj,lk)%one_dimensional)
         endif
 
         where(approx(coeffs,zero))
@@ -953,7 +957,7 @@ subroutine set_diff_coeff(A,C)
         endif
 
 
-        if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+        if( optprop(li,lj,lk)%one_dimensional ) then
           do src=1,2
             v(entries+src) = coeffs( i1+(src-i1)*C%dof : i3+(src-i1)*C%dof )
           enddo
@@ -984,7 +988,7 @@ subroutine setup_b(edir,b)
         PetscScalar,pointer,dimension(:,:,:,:) :: &
         xsrc,xedir
         PetscInt :: li,lj,lk
-        PetscReal :: coeffs(C_dir%dof*C_diff%dof),edd_coeff(5),twostr_coeff(2)
+        PetscReal :: coeffs(C_dir%dof*C_diff%dof),twostr_coeff(2)
         
         PetscInt :: i,j,k,src
         call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
@@ -1006,17 +1010,17 @@ subroutine setup_b(edir,b)
               lk = i1+k-C_diff%zs        
 
               coeffs=PETSC_NULL_REAL
-              if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+              if( optprop(li,lj,lk)%one_dimensional ) then
                 if(luse_eddington ) then
-                  call rodents(pcc_optprop(li,lj,lk)%kext1*newgrid%dz(lk), pcc_optprop(li,lj,lk)%w1, pcc_optprop(li,lj,lk)%g1, costheta0, edd_coeff )
+!                  call rodents(optprop(li,lj,lk)%kext1*newgrid%dz(lk), optprop(li,lj,lk)%w1, optprop(li,lj,lk)%g1, costheta0, edd_coeff )
                   ! Only transport the 4 tiles from dir0 to the Eup and Edn
                   do src=1,4
-                    coeffs(E_up  +i1+(src-1)*C_diff%dof) = edd_coeff(3)
-                    coeffs(E_dn  +i1+(src-1)*C_diff%dof) = edd_coeff(4)
+                    coeffs(E_up  +i1+(src-1)*C_diff%dof) = optprop(li,lj,lk)%a13
+                    coeffs(E_dn  +i1+(src-1)*C_diff%dof) = optprop(li,lj,lk)%a23
                   enddo
 
                 else
-                  call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, pcc_optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0])
+                  call get_coeff(optprop(li,lj,lk), newgrid%dz(lk),.False., twostr_coeff, optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0])
                   do src=1,4
                     coeffs(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
                     coeffs(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
@@ -1024,10 +1028,10 @@ subroutine setup_b(edir,b)
                 endif
 
               else
-                call get_coeff(pcc_optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, pcc_optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0] )
+                call get_coeff(optprop(li,lj,lk), newgrid%dz(lk),.False., coeffs, optprop(li,lj,lk)%one_dimensional, [symmetry_phi, theta0] )
               endif
 
-              if( pcc_optprop(li,lj,lk)%one_dimensional ) then
+              if( optprop(li,lj,lk)%one_dimensional ) then
                 do src=1,C_dir%dof-4
                   xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_up  +i1+(src-1)*C_diff%dof)
                   xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*coeffs(E_dn  +i1+(src-1)*C_diff%dof)
@@ -1090,90 +1094,15 @@ subroutine setup_b(edir,b)
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly done'
 end subroutine
 
-subroutine load_test_optprop(kato,iq)
-      integer(iintegers),intent(in) :: kato,iq
-      real(ireals),allocatable,dimension(:) :: hhl1d,dx,dy,dz
-      PetscInt :: i,j,k
-
-      type op
-        real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
-      end type
-      type(op) :: optP
-      integer(iintegers),parameter :: glob_Nx=16,glob_Ny=16,glob_Nz=16, zTOA=glob_Nz*40
-
-      if(myid.eq.0.and.ldebug) print *,myid,'Creating Optical Properties here instead of taking them from kato',kato,iq
-
-!      test_dz(1:5)=10
-!      test_dz(6:10)=20
-!      test_dz(11:15)=100
-!      test_dz(15:20)=200
-
-      allocate(optP%kabs(glob_Nx,glob_Ny,glob_Nz))
-      allocate(optP%ksca(glob_Nx,glob_Ny,glob_Nz))
-      allocate(optP%g   (glob_Nx,glob_Ny,glob_Nz))
-      allocate(hhl1d (glob_Nz+1))
-      allocate(dz (glob_Nz))
-
-      hhl1d(ubound(hhl1d,1))=0
-      do k=ubound(hhl1d,1),2,-1
-        hhl1d(k-1)=hhl1d(k)+zTOA/glob_Nz
-      enddo
-      dz = hhl1d(1:glob_Nz)-hhl1d(2:glob_Nz+1)
-
-      optP%g=0.5
-      optP%kabs=1e-4
-      optP%ksca=1e-6
-
-      if(myid.eq.0) optP%ksca(1,1,5) = 5e-2
-!      optP%ksca(1,1,3:5) = 1e-2
-
-      allocate(dx(ubound(optP%kabs,1))) ; dx=ident_dx
-      allocate(dy(ubound(optP%kabs,2))) ; dy=ident_dy
-
-      call init_grid_transform(dx,dy,dz,.True.)
-      call grid_old_to_new(optP%kabs)
-      call grid_old_to_new(optP%ksca)
-      call grid_old_to_new(optP%g)
-
-      if(allocated(pcc_optprop)) deallocate(pcc_optprop)
-      allocate(pcc_optprop(ubound(optP%kabs,1),ubound(optP%kabs,2),ubound(optP%kabs,3) ))
-      do k=1,ubound(optP%kabs,3)
-        do j=1,ubound(optP%kabs,2)
-          do i=1,ubound(optP%kabs,1)
-            pcc_optprop(i,j,k)%bg(:)   = [ optP%kabs(i,j,k), optP%ksca(i,j,k), optP%g(i,j,k) ]
-            pcc_optprop(i,j,k)%fg(1:3) = pcc_optprop(i,j,k)%bg(:)
-            pcc_optprop(i,j,k)%fg(4)   = zero
-
-            pcc_optprop(i,j,k)%kext1 = pcc_optprop(i,j,k)%bg(1) + pcc_optprop(i,j,k)%bg(2)
-            pcc_optprop(i,j,k)%kext2 = pcc_optprop(i,j,k)%kext1 + pcc_optprop(i,j,k)%fg(1) + pcc_optprop(i,j,k)%fg(2)
-            pcc_optprop(i,j,k)%ksca1 = pcc_optprop(i,j,k)%bg(2)
-            pcc_optprop(i,j,k)%ksca2 = pcc_optprop(i,j,k)%bg(2)+pcc_optprop(i,j,k)%fg(2)
-
-            pcc_optprop(i,j,k)%w1  = pcc_optprop(i,j,k)%ksca1/pcc_optprop(i,j,k)%kext1
-            pcc_optprop(i,j,k)%w2  = pcc_optprop(i,j,k)%ksca2/pcc_optprop(i,j,k)%kext2
-            pcc_optprop(i,j,k)%g1  = pcc_optprop(i,j,k)%bg(3)
-            pcc_optprop(i,j,k)%g2  = (pcc_optprop(i,j,k)%bg(3)*pcc_optprop(i,j,k)%bg(2) + pcc_optprop(i,j,k)%fg(3)*pcc_optprop(i,j,k)%fg(2))/ (pcc_optprop(i,j,k)%bg(2)+pcc_optprop(i,j,k)%fg(2) )
-
-            if( twostr_ratio*newgrid%dz(k).gt.newgrid%dx(i) ) pcc_optprop(i,j,k)%one_dimensional=.True.
-          enddo
-        enddo
-      enddo
-  end subroutine
   subroutine load_optprop(kato,iq)
       integer(iintegers),intent(in) :: kato,iq
-      real(ireals),allocatable,dimension(:,:,:) :: tmp
-      real(ireals),allocatable,dimension(:) :: hhl1d,dx,dy,dz
-      PetscInt :: i,j,k
-      real(ireals),parameter :: min_coeff=1e-30
+      real(ireals),allocatable,dimension(:) :: hhl1d
 
 !      character(300) :: skato,siq
       character(300),parameter :: uvspec_file='/usr/users/jakub/cosmodata/tenstream/scenes/scenes.h5'
       character(300) :: groups(10)
 
-      type op
-        real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
-      end type
-      type(op) :: optP
+      real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
 
       if(ident.eq.'run_test') then
         call load_test_optprop(kato,iq)
@@ -1197,105 +1126,154 @@ subroutine load_test_optprop(kato,iq)
         write(groups(3),FMT='("kato",I0)') kato
         write(groups(4),FMT='("iq",I0)') iq
         groups(5) = 'kabs'
-        call h5load(groups(1:5),optP%kabs,iierr)
+        call h5load(groups(1:5),kabs,iierr)
         groups(5) = 'ksca'
-        call h5load(groups(1:5),optP%ksca,iierr) 
+        call h5load(groups(1:5),ksca,iierr) 
         groups(5) = 'g'
-        call h5load(groups(1:5),optP%g,iierr) 
+        call h5load(groups(1:5),g,iierr) 
 
-        if(size(optP%ksca).ne.size(optP%kabs).or.size(optP%kabs).ne.size(optP%g).or.size(hhl1d).ne.ubound(optP%kabs,3)+1) then !.or.(ubound(hhl1d,1)-1.ne.ubound(kabs,3))) then
+        if(size(ksca).ne.size(kabs).or.size(kabs).ne.size(g).or.size(hhl1d).ne.ubound(kabs,3)+1) then !.or.(ubound(hhl1d,1)-1.ne.ubound(kabs,3))) then
           print *,'ERROR : shapes of optical properties do not match!!!'
-          print *,'shape(kabs)',shape(optP%kabs)
-          print *,'shape(ksca)',shape(optP%ksca)
-          print *,'shape(g)',shape(optP%g)
+          print *,'shape(kabs)',shape(kabs)
+          print *,'shape(ksca)',shape(ksca)
+          print *,'shape(g)',shape(g)
           print *,'shape(hhl1d)',shape(hhl1d)
 
           call exit()
         endif
 
-        optP%kabs = max(min_coeff, optP%kabs )
-        optP%ksca = max(min_coeff, optP%ksca )
-        optP%g    = max(min_coeff, optP%g    )
-
       endif
-      call imp_bcast(optP%kabs,0_mpiint,myid)
-      call imp_bcast(optP%ksca,0_mpiint,myid)
-      call imp_bcast(optP%g   ,0_mpiint,myid)
+      call imp_bcast(kabs,0_mpiint,myid)
+      call imp_bcast(ksca,0_mpiint,myid)
+      call imp_bcast(g   ,0_mpiint,myid)
 
-      allocate(dz(size(hhl1d)-1))
-      dz = hhl1d(1:ubound(hhl1d,1)-1) - hhl1d(2:ubound(hhl1d,1)) 
+      call fill_optprop(kabs,ksca,g,hhl1d)
+    contains
+      subroutine load_test_optprop(kato,iq)
+          integer(iintegers),intent(in) :: kato,iq
+          real(ireals),allocatable,dimension(:) :: hhl1d
+
+          real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
+
+          integer(iintegers),parameter :: glob_Nx=16,glob_Ny=16,glob_Nz=16, zTOA=glob_Nz*40
+          integer(iintegers) :: k
+
+          if(myid.eq.0.and.ldebug) print *,myid,'Creating Optical Properties here instead of taking them from kato',kato,iq
+
+          allocate(kabs(glob_Nx,glob_Ny,glob_Nz))
+          allocate(ksca(glob_Nx,glob_Ny,glob_Nz))
+          allocate(g   (glob_Nx,glob_Ny,glob_Nz))
+          allocate(hhl1d (glob_Nz+1))
+
+          hhl1d(ubound(hhl1d,1))=0
+          do k=ubound(hhl1d,1),2,-1
+            hhl1d(k-1)=hhl1d(k)+zTOA/glob_Nz
+          enddo
+
+          g=0.5
+          kabs=1e-4
+          ksca=1e-6
+
+          if(myid.eq.0) ksca(1,1,5) = 5e-2
+          !      ksca(1,1,3:5) = 1e-2
+
+          call fill_optprop(kabs,ksca,g,hhl1d)
+  end subroutine
+
+  subroutine fill_optprop(kabs,ksca,g,hhl1d)
+      real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
+      real(ireals),allocatable,dimension(:) :: hhl1d
+      real(ireals),allocatable,dimension(:) :: dx,dy,dz
+
+      PetscInt :: i,j,k
 
 !      if(ldebug.and.myid.eq.0) then
-!        do k=1,ubound(optP%kabs,3)
-!          print *,myid,'Optical Properties:',k,'hhl',hhl1d(k),'dz',dz(k),'k',minval(optP%kabs(:,:,k)),minval(optP%ksca(:,:,k)),minval(optP%g(:,:,k)),maxval(optP%kabs(:,:,k)),maxval(optP%ksca(:,:,k)),maxval(optP%g(:,:,k))
+!        do k=1,ubound(kabs,3)
+!          print *,myid,'Optical Properties:',k,'hhl',hhl1d(k),'dz',dz(k),'k',minval(kabs(:,:,k)),minval(ksca(:,:,k)),minval(g(:,:,k)),maxval(kabs(:,:,k)),maxval(ksca(:,:,k)),maxval(g(:,:,k))
 !        enddo
 !      endif
 
       ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
-      if(ubound(optP%kabs,2).eq.1) then
-        allocate(tmp(ubound(optP%kabs,1),3,ubound(optP%kabs,3) ) )
-        tmp(:,1,:) = optP%kabs(:,1,:) ; tmp(:,2,:) = optP%kabs(:,1,:) ; tmp(:,3,:) = optP%kabs(:,1,:)
-        deallocate(optP%kabs) ; allocate(optP%kabs(ubound(tmp,1),ubound(tmp,2),ubound(tmp,3) ) )
-        optP%kabs = tmp ; deallocate(tmp)
+      call extend_arr(kabs)
+      call extend_arr(ksca)
+      call extend_arr(g)
 
-        allocate(tmp(ubound(optP%ksca,1),3,ubound(optP%ksca,3) ) )
-        tmp(:,1,:) = optP%ksca(:,1,:) ; tmp(:,2,:) = optP%ksca(:,1,:) ; tmp(:,3,:) = optP%ksca(:,1,:)
-        deallocate(optP%ksca) ; allocate(optP%ksca(ubound(tmp,1),ubound(tmp,2),ubound(tmp,3) ) )
-        optP%ksca = tmp ; deallocate(tmp)
+      allocate(dz(size(hhl1d)-1))
+      dz = hhl1d(1:ubound(hhl1d,1)-1) - hhl1d(2:ubound(hhl1d,1)) 
 
-        allocate(tmp(ubound(optP%g,1),3,ubound(optP%g,3) ) )
-        tmp(:,1,:) = optP%g(:,1,:) ; tmp(:,2,:) = optP%g(:,1,:) ; tmp(:,3,:) = optP%g(:,1,:)
-        deallocate(optP%g) ; allocate(optP%g(ubound(tmp,1),ubound(tmp,2),ubound(tmp,3) ) )
-        optP%g = tmp ; deallocate(tmp)
-      endif
-
-      allocate(dx(ubound(optP%kabs,1))) ; dx=ident_dx
-      allocate(dy(ubound(optP%kabs,2))) ; dy=ident_dy
-
-      solution_dx = ident_dx
-      solution_dy = ident_dy
-      solution_dz = ident_dz
+      allocate(dx(ubound(kabs,1))) ; dx=ident_dx
+      allocate(dy(ubound(kabs,2))) ; dy=ident_dy
 
       call init_grid_transform(dx,dy,dz,.True.)
-      call grid_old_to_new(optP%kabs)
-      call grid_old_to_new(optP%ksca)
-      call grid_old_to_new(optP%g)
+      call grid_old_to_new(kabs)
+      call grid_old_to_new(ksca)
+      call grid_old_to_new(g)
 
       !this is just for runtime evaluation - we shift optical properties mimicing wind
-      optP%kabs = cshift(optP%kabs, shift=pert_xshift, dim=1)
-      optP%ksca = cshift(optP%ksca, shift=pert_xshift, dim=1)
-      optP%g    = cshift(optP%g   , shift=pert_xshift, dim=1)
-      optP%kabs = cshift(optP%kabs, shift=pert_yshift, dim=2)
-      optP%ksca = cshift(optP%ksca, shift=pert_yshift, dim=2)
-      optP%g    = cshift(optP%g   , shift=pert_yshift, dim=2)
-      !
+      kabs = cshift(kabs, shift=pert_xshift, dim=1)
+      ksca = cshift(ksca, shift=pert_xshift, dim=1)
+      g    = cshift(g   , shift=pert_xshift, dim=1)
+      kabs = cshift(kabs, shift=pert_yshift, dim=2)
+      ksca = cshift(ksca, shift=pert_yshift, dim=2)
+      g    = cshift(g   , shift=pert_yshift, dim=2)
 
-      if(allocated(pcc_optprop)) deallocate(pcc_optprop)
-      allocate(pcc_optprop(ubound(optP%kabs,1),ubound(optP%kabs,2),ubound(optP%kabs,3) ))
-      do k=1,ubound(optP%kabs,3)
-        do j=1,ubound(optP%kabs,2)
-          do i=1,ubound(optP%kabs,1)
-            pcc_optprop(i,j,k)%bg(:)   = [ optP%kabs(i,j,k), optP%ksca(i,j,k), optP%g(i,j,k) ]
-            pcc_optprop(i,j,k)%fg(1:3) = nil
-            pcc_optprop(i,j,k)%fg(4)   = zero
+      if(allocated(optprop)) deallocate(optprop)
+      allocate(optprop(ubound(kabs,1),ubound(kabs,2),ubound(kabs,3) ))
+      optprop(:,:,:)%bg(1) = kabs ; deallocate(kabs)
+      optprop(:,:,:)%bg(2) = ksca ; deallocate(ksca)
+      optprop(:,:,:)%bg(3) = g    ; deallocate(g   )
 
-            pcc_optprop(i,j,k)%kext1 = pcc_optprop(i,j,k)%bg(1) + pcc_optprop(i,j,k)%bg(2)
-            pcc_optprop(i,j,k)%kext2 = pcc_optprop(i,j,k)%kext1 + pcc_optprop(i,j,k)%fg(1) + pcc_optprop(i,j,k)%fg(2)
-            pcc_optprop(i,j,k)%ksca1 = pcc_optprop(i,j,k)%bg(2)
-            pcc_optprop(i,j,k)%ksca2 = pcc_optprop(i,j,k)%bg(2)+pcc_optprop(i,j,k)%fg(2)
+      do k=1,ubound(kabs,3)
+        do j=1,ubound(kabs,2)
+          do i=1,ubound(kabs,1)
 
-            pcc_optprop(i,j,k)%w1  = pcc_optprop(i,j,k)%ksca1/pcc_optprop(i,j,k)%kext1
-            pcc_optprop(i,j,k)%w2  = pcc_optprop(i,j,k)%ksca2/pcc_optprop(i,j,k)%kext2
-            pcc_optprop(i,j,k)%g1  = pcc_optprop(i,j,k)%bg(3)
-            pcc_optprop(i,j,k)%g2  = (pcc_optprop(i,j,k)%bg(3)*pcc_optprop(i,j,k)%bg(2) + pcc_optprop(i,j,k)%fg(3)*pcc_optprop(i,j,k)%fg(2))/ (pcc_optprop(i,j,k)%bg(2)+pcc_optprop(i,j,k)%fg(2) )
+            if(ldouble_delta_scale) call delta_scale_optprop_arr(optprop(i,j,k)%bg)
 
-            if( twostr_ratio*newgrid%dz(k).gt.newgrid%dx(i) ) pcc_optprop(i,j,k)%one_dimensional=.True.
+            if( twostr_ratio*newgrid%dz(k).gt.newgrid%dx(i) ) then
+              optprop(i,j,k)%one_dimensional=.True.
+              call eddington_coeff_rb ( newgrid%dz(k)* (optprop(i,j,k)%bg(1) + optprop(i,j,k)%bg(2)) ,          & ! dtau
+                                        optprop(i,j,k)%bg(3),                                                       & ! g
+                                        optprop(i,j,k)%bg(2)/ (optprop(i,j,k)%bg(1) + optprop(i,j,k)%bg(2)),& ! w0
+                                        costheta0,                                                                      & ! mu0
+                                        optprop(i,j,k)%a11,optprop(i,j,k)%a12,                                  & !
+                                        optprop(i,j,k)%a13,optprop(i,j,k)%a23,optprop(i,j,k)%a33 )
+            endif
+
           enddo
         enddo
       enddo
-end subroutine
+  end subroutine
+  subroutine extend_arr(arr)
+      real(ireals),intent(inout),allocatable :: arr(:,:,:)
+      real(ireals),allocatable :: tmp(:,:)
+      integer(iintegers) :: dims(3),i
+      integer(iintegers),parameter :: mindim=2
 
-subroutine local_optprop(glob_optP)
+      dims = shape(arr)
+      if( dims(1) .eq. 1 ) then
+        allocate( tmp(dims(2),dims(3) ), SOURCE=arr(1,:,:) )
+        deallocate(arr) 
+        allocate( arr(mindim, dims(2), dims(3) ) )
+        do i=1,mindim
+          arr(i, :, :) = tmp
+        enddo
+        deallocate(tmp)
+      endif
+
+      if( dims(2) .eq. 1 ) then
+        allocate( tmp(dims(1),dims(3) ), SOURCE=arr(:,1,:) )
+        deallocate(arr) 
+        allocate( arr(dims(1), mindim, dims(3) ) )
+        do i=1,mindim
+          arr(:,i , :) = tmp
+        enddo
+        deallocate(tmp)
+      endif
+  end subroutine
+
+  end subroutine
+
+  subroutine local_optprop(glob_optP)
       type(t_optprop),allocatable :: glob_optP(:,:,:)
       type(t_optprop),allocatable :: loc_optP(:,:,:)
       integer :: k
@@ -1602,6 +1580,7 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
       KSP :: ksp
       Mat:: A
       type(coord) :: C
+      MatNullSpace :: nullspace
       PetscReal,parameter :: rtol=1e-4, atol=1e-5
       PetscInt,parameter :: maxiter=500
       logical :: init
@@ -1621,6 +1600,10 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
 
       call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
       call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
+
+      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, nullspace, ierr) ; CHKERRQ(ierr)
+      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
+
       init = .True. 
 end subroutine
 
@@ -1673,6 +1656,8 @@ subroutine read_commandline_options()
 
         if(luse_twostr_guess.and.luse_hdf5_guess) stop 'cant use twostr_guess .AND. hdf5_guess at the same time'
 
+        call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-double_delta" , ldouble_delta_scale , lflg , ierr) ;CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) ldouble_delta_scale = .False.
 
         call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-twostr_ratio",twostr_ratio, lflg,ierr)  ; CHKERRQ(ierr)
         if(lflg.eqv.PETSC_FALSE) twostr_ratio=1._ireals
@@ -1701,6 +1686,7 @@ subroutine read_commandline_options()
           print *,'***   twostr_guess ',luse_twostr_guess
           print *,'***   hdf5_guess   ',luse_hdf5_guess
           print *,'***   twostr_ratio ',twostr_ratio
+          print *,'***   double delta ',ldouble_delta_scale
           print *,'***   out          ',output_prefix
           print *,'***   solar azimuth',phi0   
           print *,'***   solar zenith ',theta0 
@@ -1842,9 +1828,9 @@ subroutine twostream(kato,iq,edir,Cedir,ediff,Cediff, intabso_twostr, Cabso)
 
         Az = newgrid%dx(li)*newgrid%dy(lj)
 
-        dtau = newgrid%dz * pcc_optprop(li,lj,:)%kext1
-        w0   = pcc_optprop(li,lj,:)%w1
-        g    = pcc_optprop(li,lj,:)%g1
+        dtau = newgrid%dz * (optprop(li,lj,:)%bg(1) + optprop(li,lj,:)%bg(2)) 
+        g    = optprop(li,lj,:)%bg(3)
+        w0   = optprop(li,lj,:)%bg(2)/ (optprop(li,lj,:)%bg(1) + optprop(li,lj,:)%bg(2))
 
         incSolar = edirTOA
 
@@ -1905,6 +1891,7 @@ program main
 
         KSP :: kspdir,kspdiff
         logical :: linit_kspdir=.False.,linit_kspdiff=.False.
+        PetscReal :: maxsolar
 
         integer(iintegers) :: iq
         integer(iintegers) :: kato
@@ -1945,7 +1932,7 @@ program main
             if(myid.eq.0) print *,'-----------------------------------------------------------------------------------------------------------------------------'
 
             call load_optprop(kato,iq)
-            call local_optprop(pcc_optprop)
+            call local_optprop(optprop)
 
             if(ltwostr) then
               call twostream(kato,iq,edir,C_dir,x,C_diff,intabso_twostr,C_one)
@@ -1961,6 +1948,8 @@ program main
             endif
 
             call setup_incSolar(incSolar,kato,iq)
+            call vecmax(incSolar, PETSC_NULL_INTEGER, maxsolar, ierr) ;CHKERRQ(ierr)
+            if( maxsolar .lt. 1e-2_ireals) cycle
 
             !First try reading them from file and we can resume from there:
             if(luse_hdf5_guess) then
@@ -2038,6 +2027,7 @@ program main
           call VecDestroy(intedir_twostr,ierr) ;CHKERRQ(ierr)
           call VecDestroy(intx_twostr   ,ierr) ;CHKERRQ(ierr)
           call VecDestroy(intabso_twostr,ierr) ;CHKERRQ(ierr)
+          call mpi_barrier(PETSC_COMM_WORLD,ierr)
         endif
 
 

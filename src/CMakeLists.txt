@@ -1,4 +1,4 @@
-message( "Entering tenstream src dir with EXTLIB==${EXTLIB} ")
+#message( "Entering tenstream src dir with EXTLIB==${EXTLIB} ")
 
 set( general_sources 
   "helper_functions.f90" 
@@ -20,18 +20,19 @@ set( optprop_sources
   )
 
 add_library( solver STATIC ${general_sources} ${optprop_sources} petsc_tsv3.F90 )
+TARGET_LINK_LIBRARIES( solver  "${EXTLIB}" )
 
 file( GLOB streams createLUT_*.f90 )
 foreach ( stream ${streams} )
   GET_FILENAME_COMPONENT(basename "${stream}" NAME_WE )
 
   add_executable("${basename}" "${basename}.f90" )                                                                                                                                                                   
-  target_link_libraries( "${basename}" solver "${EXTLIB}" )                                                                                                                                                                  
+  target_link_libraries( "${basename}" solver )                                                                                                                                                                  
 endforeach ()
                                                                                                                                                                                                                          
 add_executable( "petsc_solver" "petsc_tsv3.F90" )
-target_link_libraries( "petsc_solver" solver "${EXTLIB}" )
+target_link_libraries( "petsc_solver" solver )
 
 add_executable( "test_boxmc" "test_boxmc.f90" )
-target_link_libraries( "test_boxmc" solver "${EXTLIB}" )
+target_link_libraries( "test_boxmc" solver )
 

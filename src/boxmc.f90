@@ -2,7 +2,7 @@
 !> @author Fabian Jakub LMU/MIM
 
 module boxmc
-      use helper_functions, only : approx,mean,rmse,deg2rad,norm,delta_scale_optprop
+      use helper_functions, only : approx,mean,rmse,deg2rad,norm,delta_scale_optprop_arr
       use iso_c_binding
       use mersenne
       use mpi
@@ -209,7 +209,8 @@ contains
               call bmc%init_diff_photon(p,src,dx,dy,dz)
             endif
             p%optprop = op_bg
-            if(ldeltascale) call delta_scale_optprop(p%optprop)
+            if(ldeltascale) call delta_scale_optprop_arr( p%optprop )
+
 
             move: do
               call bmc%move_photon(p)
