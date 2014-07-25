@@ -4,6 +4,7 @@ subroutine update_dir_stream_8_10(bmc,p,S,N)
         type(photon),intent(in) :: p
         real(ireals),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
+        real(ireals),parameter :: h=.5_ireals
 
 !            1       2
 !               3       4
@@ -16,19 +17,19 @@ subroutine update_dir_stream_8_10(bmc,p,S,N)
 !      5 |_______________| 
     select case (p%side)
     case(1:2)
-      if(p%loc(1).le.p%dx/2.and.p%loc(2).le.p%dy/2) then
+      if(p%loc(1).le.p%dx*h.and.p%loc(2).le.p%dy*h) then
         S(1) = S(1)+p%weight
         N(1) = N(1)+i1
         return
-      else if(p%loc(1).gt.p%dx/2.and.p%loc(2).le.p%dy/2) then
+      else if(p%loc(1).gt.p%dx*h.and.p%loc(2).le.p%dy*h) then
         S(2) = S(2)+p%weight
         N(2) = N(2)+i1
         return
-      else if(p%loc(1).le.p%dx/2.and.p%loc(2).gt.p%dy/2) then
+      else if(p%loc(1).le.p%dx*h.and.p%loc(2).gt.p%dy*h) then
         S(3) = S(3)+p%weight
         N(3) = N(3)+i1
         return
-      else if(p%loc(1).gt.p%dx/2.and.p%loc(2).gt.p%dy/2) then
+      else if(p%loc(1).gt.p%dx*h.and.p%loc(2).gt.p%dy*h) then
         S(4) = S(4)+p%weight
         N(4) = N(4)+i1
         return
@@ -39,11 +40,11 @@ subroutine update_dir_stream_8_10(bmc,p,S,N)
 
     case(3:4)
 
-      if(p%loc(3).le.p%dz/2 ) then
+      if(p%loc(3).le.p%dz*h ) then
         S(5) = S(5)+p%weight
         N(5) = N(5)+i1
         return
-      else if(p%loc(3).gt.p%dz/2 ) then
+      else if(p%loc(3).gt.p%dz*h ) then
         S(6) = S(6)+p%weight
         N(6) = N(6)+i1
         return
@@ -53,11 +54,11 @@ subroutine update_dir_stream_8_10(bmc,p,S,N)
       endif
     case(5:6)
 
-      if(p%loc(3).le.p%dz/2 ) then
+      if(p%loc(3).le.p%dz*h ) then
         S(7) = S(7)+p%weight
         N(7) = N(7)+i1
         return
-      else if(p%loc(3).gt.p%dz/2 ) then
+      else if(p%loc(3).gt.p%dz*h ) then
         S(8) = S(8)+p%weight
         N(8) = N(8)+i1
         return
@@ -150,29 +151,31 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         real(ireals),intent(in) :: dx,dy,dz,initial_dir(3)
         integer(iintegers),intent(in) :: src
         logical,intent(in) :: direct
+        real(ireals),parameter :: h=.5_ireals
 
         p%alive = .False.
 
-        if(src.eq.1) then
-                p%loc = (/L(dx)/2     , L(dy)/2     ,    dz  /)
-        else if(src.eq.2) then
-                p%loc = (/dx/2+L(dx)/2, L(dy)/2     ,    dz  /)
-        else if(src.eq.3) then
-                p%loc = (/L(dx)/2     , dy/2+L(dy)/2,    dz  /)
-        else if(src.eq.4) then
-                p%loc = (/dx/2+L(dx)/2, dy/2+L(dy)/2,    dz  /)
-        else if(src.eq.5) then
-                p%loc = (/  zero      , L(dy)       , L(dz)/2/)
-        else if(src.eq.6) then
-                p%loc = (/  zero      , L(dy)       , dz/2+L(dz)/2/)
-        else if(src.eq.7) then
-                p%loc = (/L(dx)       ,   zero      , L(dz)/2/)
-        else if(src.eq.8) then
-                p%loc = (/L(dx)       ,   zero      , dz/2+L(dz)/2/)
-        else
+        select case(src)
+        case (1)
+                p%loc = (/L(dx)*h     , L(dy)*h     ,    dz  /)
+        case (2)
+                p%loc = (/dx*h+L(dx)*h, L(dy)*h     ,    dz  /)
+        case (3)
+                p%loc = (/L(dx)*h     , dy*h+L(dy)*h,    dz  /)
+        case (4)
+                p%loc = (/dx*h+L(dx)*h, dy*h+L(dy)*h,    dz  /)
+        case (5)
+                p%loc = (/  zero      , L(dy)       , L(dz)*h/)
+        case (6)
+                p%loc = (/  zero      , L(dy)       , dz*h+L(dz)*h/)
+        case (7)
+                p%loc = (/L(dx)       ,   zero      , L(dz)*h/)
+        case (8)
+                p%loc = (/L(dx)       ,   zero      , dz*h+L(dz)*h/)
+        case default
                 print *,'Dont know what to do with source spec:',src
                 call exit
-        endif
+        end select
 
         p%weight=one
         p%dx   = dx
@@ -232,50 +235,50 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
 !        endif
         mu1 = R() ! evenly distribution between 0 and 90 degree
         mu2= sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
-        mu2 = mu1 !TODO
-        if(src.eq.1) then
+        select case(src)
+        case (1)
                 p%loc = (/L(dx), L(dy),    dz  /)
-                mu = -mu2 
+                mu = -mu1 
                 phi= deg2rad( R()*360._ireals )
-        else if(src.eq.2) then
+        case (2)
                 p%loc = (/L(dx), L(dy),    zero /)
-                mu = mu2 ; phi= deg2rad( R()*360._ireals )
-        else if(src.eq.3) then
+                mu = mu1 ; phi= deg2rad( R()*360._ireals )
+        case (3)
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                mu =  -one+mu2
+                mu =  -one+mu1
                 phi= deg2rad( interv_R(-90._ireals,90._ireals) )
-        else if(src.eq.4) then
+        case (4)
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                mu =  -one+mu2 
+                mu =  -one+mu1 
                 phi= deg2rad( interv_R(90._ireals,270._ireals) )
-        else if(src.eq.5) then
+        case (5)
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                mu =  one-mu2
+                mu =  one-mu1
                 phi= deg2rad( interv_R(-90._ireals,90._ireals) )
-        else if(src.eq.6) then
+        case (6)
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                mu =  one-mu2 
+                mu =  one-mu1 
                 phi= deg2rad( interv_R(90._ireals,270._ireals) )
-        else if(src.eq.7) then
+        case (7)
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                mu =  -one+mu2
+                mu =  -one+mu1
                 phi= deg2rad( interv_R(0._ireals,180._ireals) )
-        else if(src.eq.8) then
+        case (8)
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                mu =  -one+mu2 
+                mu =  -one+mu1 
                 phi= deg2rad( interv_R(180._ireals,360._ireals) )
-        else if(src.eq.9) then
+        case (9)
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                mu =  one-mu2
+                mu =  one-mu1
                 phi= deg2rad( interv_R(0._ireals,180._ireals) )
-        else if(src.eq.10) then
+        case (10)
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                mu =  one-mu2 
+                mu =  one-mu1 
                 phi= deg2rad( interv_R(180._ireals,360._ireals) )
-        else
+        case default
                 print *,'Dont know what to do with source spec:',src
                 call exit
-        endif
+        end select
 
         p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
         p%weight=one

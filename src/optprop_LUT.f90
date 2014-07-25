@@ -108,7 +108,7 @@ contains
         class is (t_optprop_LUT_8_10)
           OPP%dir_streams  =  8
           OPP%diff_streams = 10
-          OPP%lutbasename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT_8_10.'
+          OPP%lutbasename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT_8_10.delta0.'
           allocate(t_boxmc_8_10::OPP%bmc)
 
         class default
@@ -526,7 +526,7 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
               if(all (ldonearr) ) then
                 ldone = .True.
               else
-                print *,'not all done:',ldonearr,' :: ',stddev_rtol,' :: ',OPP%dirLUT%S(iphi,itheta)%stddev_rtol(idz,ikabs ,iksca,ig),OPP%dirLUT%T(iphi,itheta)%stddev_rtol(idz,ikabs ,iksca,ig)
+!                print *,'not all done:',ldonearr,' :: ',stddev_rtol,' :: ',OPP%dirLUT%S(iphi,itheta)%stddev_rtol(idz,ikabs ,iksca,ig),OPP%dirLUT%T(iphi,itheta)%stddev_rtol(idz,ikabs ,iksca,ig)
               endif
             endif
             call mpi_bcast(ldone,1 , MPI_LOGICAL, 0, comm, ierr)
@@ -799,6 +799,7 @@ subroutine set_parameter_space(OPP,ps,dx)
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select
 
+    ! -------------- Setup dz support points
     do k=1,OPP%Ndz
       ps%dz(k)    = exp_index_to_param(one*k,ps%range_dz,OPP%Ndz, ps%dz_exponent )
     enddo
@@ -822,15 +823,30 @@ subroutine set_parameter_space(OPP,ps,dx)
       ps%range_dz = [minval(ps%dz),maxval(ps%dz)]
     endif
 
+
+    ! -------------- Setup g support points
+
+    do k=1,OPP%Ng
+      ps%g(k)     = exp_index_to_param(one*k,ps%range_g,OPP%Ng, ps%g_exponent )
+    enddo
+
+    if(OPP%Ng.eq.1) then
+      ps%g(1)=zero
+      ps%range_g=zero
+    endif
+
+
+    ! -------------- Setup kabs/ksca support points
+
     diameter = sqrt(2*dx**2 +  ps%range_dz(2)**2 )
 
     ps%range_kabs(1) = - log(maximum_transmission) / diameter
     ps%range_ksca(1) = - log(maximum_transmission) / diameter
 
-    if( any([OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta].le.1) ) then
-      print *,'Need at least 2 support points for LUT!'
-      call exit()
-    endif
+!    if( any([OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta].le.1) ) then
+!      print *,'Need at least 2 support points for LUT!'
+!      call exit()
+!    endif
 
     do k=1,OPP%Nkabs 
       ps%kabs (k) = exp_index_to_param(one*k,ps%range_kabs ,OPP%Nkabs,ps%kabs_exponent )
@@ -838,9 +854,10 @@ subroutine set_parameter_space(OPP,ps,dx)
     do k=1,OPP%Nksca
       ps%ksca (k) = exp_index_to_param(one*k,ps%range_ksca ,OPP%Nksca,ps%ksca_exponent )
     enddo
-    do k=1,OPP%Ng
-      ps%g(k)     = exp_index_to_param(one*k,ps%range_g,OPP%Ng, ps%g_exponent )
-    enddo
+
+
+    ! -------------- Setup phi/theta support points
+
     do k=1,OPP%Nphi
       ps%phi(k)   = lin_index_to_param(one*k,ps%range_phi,OPP%Nphi)
     enddo

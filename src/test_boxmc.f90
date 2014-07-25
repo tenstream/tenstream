@@ -40,13 +40,14 @@ program main
 !       if(myid.eq.0) write(*, FMT='( " direct ", 8(es15.5), "::",10(es15.5)  )' ) T,S
 
       if(.True.) then
-        src=1
+        src=6
         do iter=1,Niter
-          tau = 20
+          tau = 1e-6
 !          w = dble(iter)/10._ireals-1e-3_ireals
           w = .9
-          g = .9_ireals
+          g = .0_ireals
           bg = [tau*(one-w)/dz, tau*w/dz, g ]
+          bg = [1e-6,1e-6,0.]
           call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.True.,.True.,phi0,theta0,dx,dy,dz)
           if(myid.le.1) write(*, FMT='( "iter ",I2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,T,S
 

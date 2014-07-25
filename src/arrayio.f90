@@ -289,80 +289,78 @@ module arrayIO
         close(unit=v)
     end subroutine
 
-    subroutine h5write_1d(groups,arr,ierr)
+    subroutine h5write_open(groups,dims,id,dataset,dataspace,ierr)
         character(len=*) :: groups(:)
-        real(ireals),intent(in) :: arr(:)
+        integer(HSIZE_T),intent(in) :: dims(:)
+        integer(HID_T) :: id(:),dataset,dataspace
         integer(iintegers),intent(out) :: ierr
 
-        integer,parameter :: rank=1
-        integer :: k,lastid,hferr
-        integer(HSIZE_T) :: dims(rank),chunk(rank)
-        logical :: compression,file_exists,link_exists
+        integer(HSIZE_T) :: chunk(size(dims) )
 
-        integer(HID_T) :: id(size(groups)-1),dataset,dataspace
+        integer :: k,lastid,hferr
+        logical :: compression,file_exists,link_exists
         integer(HID_T) :: dcpl
 
-        lockfile=trim(groups(1))//'.lock'
-        do iwait=1,int(maxwait/waitinterval)
-          open(v,file=lockfile,status='new',err=99)
-          write(v,*) 'file is locked by process: ',getpid()
+        ierr=0 ; lastid = ubound(id,1)
+        call h5open_f(hferr); ierr=ierr+hferr
+        if(ierr.ne.0) return
+        chunk=max(1, dims/2)
 
-          call h5open_f(hferr); ierr=ierr+hferr
+!        print *,'Hdf5 chunks are:',chunk
+        if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
+            &  and scnd is at least hdf5 root /, and third is data name'
+        !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
 
-          ierr=0 ; lastid = ubound(id,1)
-          dims=[ubound(arr,1)]
-          chunk=[dims(1)]/2
-          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
-              &  and scnd is at least hdf5 root /, and third is data name'
-          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
+        compression=check_for_zip_filter()
 
-          compression=check_for_zip_filter()
+        inquire(file=trim(groups(1)), exist=file_exists)
+        if(.not.file_exists) then
+          !                print *,'File does not yet exists, creating new one'
+          call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
+        else   
+          !                print *,'File does exist, opening it RW'
+          call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
+        endif
 
-          inquire(file=trim(groups(1)), exist=file_exists)
-          if(.not.file_exists) then
-            !                print *,'File does not yet exists, creating new one'
-            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
-          else   
-            !                print *,'File does exist, opening it RW'
-            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
-          endif
+        !        print *,'Creating Compression Filter'
+        call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
+        call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
+        call h5pset_chunk_f(dcpl, size(dims), chunk, hferr) ; ierr=ierr+hferr
 
-          !        print *,'Creating Compression Filter'
-          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
-          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
-          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
-
-          do k=2,lastid
-            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
-            if(link_exists) then
-              !                        print *,'opening group',trim(groups(k))
-              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            else
-              !                        print *,'Create Groups',trim(groups(k))
-              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            endif
-          enddo
-
-          !        print *,'Creating DataSpace'
-          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
-          if(hferr.ne.0) return
-
-          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
-          call h5lexists_f(id(lastid), trim(groups(lastid+1)), link_exists, hferr) ; ierr=ierr+hferr
+        do k=2,lastid
+          call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
           if(link_exists) then
-            call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
+            !                        print *,'opening group',trim(groups(k))
+            call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
           else
-            call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+            !                        print *,'Create Groups',trim(groups(k))
+            call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
           endif
+        enddo
 
-          if(ierr.ne.0) return
-          !        print *,'Write to dataset'
-          call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
+        !        print *,'Creating DataSpace'
+        call h5screate_simple_f(size(dims), dims, dataspace, hferr) ; ierr=ierr+hferr
+        if(hferr.ne.0) return
+
+        !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
+        call h5lexists_f(id(lastid), trim(groups(lastid+1)), link_exists, hferr) ; ierr=ierr+hferr
+        if(link_exists) then
+          call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
+        else
+          call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+        endif
+
+        if(ierr.ne.0) return
+    end subroutine
+    subroutine h5write_close(id, dataset,dataspace,ierr)
+        integer(HID_T) :: id(:),dataset,dataspace
+        integer(iintegers),intent(out) :: ierr
+        integer :: k,hferr
 
           !        print *,'Closing handles'
           call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
           call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
-          do k=lastid,2,-1
+          do k=ubound(id,1),2,-1
             call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
           enddo
           call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
@@ -370,6 +368,30 @@ module arrayIO
           !        print *,'Data is now:',sum(arr)/size(arr)
 
           call h5close_f(hferr)  ; ierr=ierr+hferr
+    end subroutine
+    subroutine h5write_1d(groups,arr,ierr)
+        character(len=*) :: groups(:)
+        real(ireals),intent(in) :: arr(:)
+        integer(iintegers),intent(out) :: ierr
+
+        integer :: hferr
+        integer(HSIZE_T) :: dims( 1 )
+
+        integer(HID_T) :: id(size(groups)-1),dataset,dataspace
+
+        lockfile=trim(groups(1))//'.lock'
+        do iwait=1,int(maxwait/waitinterval)
+          open(v,file=lockfile,status='new',err=99)
+          write(v,*) 'file is locked by process: ',getpid()
+
+          dims = shape(arr)
+          call h5write_open(groups,dims,id,dataset,dataspace,ierr)
+
+          !        print *,'Write to dataset'
+          call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
+
+          call h5write_close(id, dataset,dataspace,ierr)
+
           close(v,status='delete')
           return
           99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
@@ -381,80 +403,27 @@ module arrayIO
         real(ireals),intent(in) :: arr(:,:)
         integer(iintegers),intent(out) :: ierr
 
-        integer,parameter :: rank=2
-        integer :: k,lastid,hferr
-        integer(HSIZE_T) :: dims(rank),chunk(rank)
-        logical :: compression,file_exists,link_exists
+        integer :: hferr
+        integer(HSIZE_T) :: dims( 2 )
 
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
-        integer(HID_T) :: dcpl
 
         lockfile=trim(groups(1))//'.lock'
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
 
-          call h5open_f(hferr); ierr=ierr+hferr
+          dims = shape(arr)
+          call h5write_open(groups,dims,id,dataset,dataspace,ierr)
 
-          ierr=0 ; lastid = ubound(id,1)
-          dims=[ubound(arr,1),ubound(arr,2)]
-          chunk=[dims(1),dims(2)]/2
-          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
-              &  and scnd is at least hdf5 root /, and third is data name'
-          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
-
-          compression=check_for_zip_filter()
-
-          inquire(file=trim(groups(1)), exist=file_exists)
-          if(.not.file_exists) then
-            !                print *,'File does not yet exists, creating new one'
-            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
-          else   
-            !                print *,'File does exist, opening it RW'
-            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
-          endif
-
-          !        print *,'Creating Compression Filter'
-          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
-          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
-          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
-
-          do k=2,lastid
-            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
-            if(link_exists) then
-              !                        print *,'opening group',trim(groups(k))
-              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            else
-              !                        print *,'Create Groups',trim(groups(k))
-              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            endif
-          enddo
-
-          !        print *,'Creating DataSpace'
-          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
-          if(hferr.ne.0) return
-
-          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
-          call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
-
-          if(ierr.ne.0) return
           !        print *,'Write to dataset'
           call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
 
-          !        print *,'Closing handles'
-          call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
-          call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
-          do k=lastid,2,-1
-            call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
-          enddo
-          call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+          call h5write_close(id, dataset,dataspace,ierr)
 
-          !        print *,'Data is now:',sum(arr)/size(arr)
-
-          call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -463,80 +432,27 @@ module arrayIO
         real(ireals),intent(in) :: arr(:,:,:)
         integer(iintegers),intent(out) :: ierr
 
-        integer,parameter :: rank=3
-        integer :: k,lastid,hferr
-        integer(HSIZE_T) :: dims(rank),chunk(rank)
-        logical :: compression,file_exists,link_exists
+        integer :: hferr
+        integer(HSIZE_T) :: dims( 3 )
 
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
-        integer(HID_T) :: dcpl
 
         lockfile=trim(groups(1))//'.lock'
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
 
-          call h5open_f(hferr); ierr=ierr+hferr
+          dims = shape(arr)
+          call h5write_open(groups,dims,id,dataset,dataspace,ierr)
 
-          ierr=0 ; lastid = ubound(id,1)
-          dims=[ubound(arr,1),ubound(arr,2),ubound(arr,3)]
-          chunk=[dims(1),dims(2),dims(3)]/2
-          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
-              &  and scnd is at least hdf5 root /, and third is data name'
-          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
-
-          compression=check_for_zip_filter()
-
-          inquire(file=trim(groups(1)), exist=file_exists)
-          if(.not.file_exists) then
-            !                print *,'File does not yet exists, creating new one'
-            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
-          else   
-            !                print *,'File does exist, opening it RW'
-            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
-          endif
-
-          !        print *,'Creating Compression Filter'
-          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
-          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
-          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
-
-          do k=2,lastid
-            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
-            if(link_exists) then
-              !                        print *,'opening group',trim(groups(k))
-              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            else
-              !                        print *,'Create Groups',trim(groups(k))
-              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            endif
-          enddo
-
-          !        print *,'Creating DataSpace'
-          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
-          if(hferr.ne.0) return
-
-          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
-          call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
-
-          if(ierr.ne.0) return
           !        print *,'Write to dataset'
           call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
 
-          !        print *,'Closing handles'
-          call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
-          call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
-          do k=lastid,2,-1
-            call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
-          enddo
-          call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+          call h5write_close(id, dataset,dataspace,ierr)
 
-          !        print *,'Data is now:',sum(arr)/size(arr)
-
-          call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -545,85 +461,27 @@ module arrayIO
         real(ireals),intent(in) :: arr(:,:,:,:)
         integer(iintegers),intent(out) :: ierr
 
-        integer,parameter :: rank=4
-        integer :: k,lastid,hferr
-        integer(HSIZE_T) :: dims(rank),chunk(rank)
-        logical :: compression,file_exists,link_exists
+        integer :: hferr
+        integer(HSIZE_T) :: dims( 4 )
 
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
-        integer(HID_T) :: dcpl
 
         lockfile=trim(groups(1))//'.lock'
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
 
-          call h5open_f(hferr); ierr=ierr+hferr
+          dims = shape(arr)
+          call h5write_open(groups,dims,id,dataset,dataspace,ierr)
 
-          ierr=0 ; lastid = ubound(id,1)
-          dims=[ubound(arr,1),ubound(arr,2),ubound(arr,3),ubound(arr,4)]
-          chunk=[dims(1),dims(2),dims(3),dims(4)]/2
-          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
-              &  and scnd is at least hdf5 root /, and third is data name'
-          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
-
-          compression=check_for_zip_filter()
-
-          inquire(file=trim(groups(1)), exist=file_exists)
-          if(.not.file_exists) then
-            !                print *,'File does not yet exists, creating new one'
-            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
-          else   
-            !                print *,'File does exist, opening it RW'
-            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
-          endif
-
-          !        print *,'Creating Compression Filter'
-          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
-          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
-          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
-
-          do k=2,lastid
-            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
-            if(link_exists) then
-              !                        print *,'opening group',trim(groups(k))
-              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            else
-              !                        print *,'Create Groups',trim(groups(k))
-              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            endif
-          enddo
-
-          !        print *,'Creating DataSpace'
-          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
-          if(hferr.ne.0) return
-
-          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
-          call h5lexists_f(id(lastid), trim(groups(lastid+1)), link_exists, hferr) ; ierr=ierr+hferr
-          if(link_exists) then
-            call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
-          else
-            call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
-          endif
-
-          if(ierr.ne.0) return
           !        print *,'Write to dataset'
           call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
 
-          !        print *,'Closing handles'
-          call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
-          call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
-          do k=lastid,2,-1
-            call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
-          enddo
-          call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+          call h5write_close(id, dataset,dataspace,ierr)
 
-          !        print *,'Data is now:',sum(arr)/size(arr)
-
-          call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -632,85 +490,56 @@ module arrayIO
         real(ireals),intent(in) :: arr(:,:,:,:,:)
         integer(iintegers),intent(out) :: ierr
 
-        integer,parameter :: rank=5
-        integer :: k,lastid,hferr
-        integer(HSIZE_T) :: dims(rank),chunk(rank)
-        logical :: compression,file_exists,link_exists
+        integer :: hferr
+        integer(HSIZE_T) :: dims( 5 )
 
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
-        integer(HID_T) :: dcpl
 
         lockfile=trim(groups(1))//'.lock'
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
 
-          call h5open_f(hferr); ierr=ierr+hferr
+          dims = shape(arr)
+          call h5write_open(groups,dims,id,dataset,dataspace,ierr)
 
-          ierr=0 ; lastid = ubound(id,1)
-          dims=[ubound(arr,1),ubound(arr,2),ubound(arr,3),ubound(arr,4),ubound(arr,5)]
-          chunk=max(1_HSIZE_T,[dims(1),dims(2),dims(3),dims(4),dims(5)]/2)
-          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
-              &  and scnd is at least hdf5 root /, and third is data name'
-          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
-
-          compression=check_for_zip_filter()
-
-          inquire(file=trim(groups(1)), exist=file_exists)
-          if(.not.file_exists) then
-            !                print *,'File does not yet exists, creating new one'
-            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
-          else   
-            !                print *,'File does exist, opening it RW'
-            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
-          endif
-
-          !        print *,'Creating Compression Filter'
-          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
-          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
-          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
-
-          do k=2,lastid
-            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
-            if(link_exists) then
-              !                        print *,'opening group',trim(groups(k))
-              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            else
-              !                        print *,'Create Groups',trim(groups(k))
-              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            endif
-          enddo
-
-          !        print *,'Creating DataSpace'
-          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
-          if(hferr.ne.0) return
-
-          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
-          call h5lexists_f(id(lastid), trim(groups(lastid+1)), link_exists, hferr) ; ierr=ierr+hferr
-          if(link_exists) then
-            call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
-          else
-            call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
-          endif
-
-          if(ierr.ne.0) return
           !        print *,'Write to dataset'
           call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
 
-          !        print *,'Closing handles'
-          call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
-          call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
-          do k=lastid,2,-1
-            call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
-          enddo
-          call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+          call h5write_close(id, dataset,dataspace,ierr)
 
-          !        print *,'Data is now:',sum(arr)/size(arr)
-
-          call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
+          call cpusleep(waitinterval)
+        enddo
+    end subroutine
+    subroutine h5write_6d(groups,arr,ierr)
+        character(len=*) :: groups(:)
+        real(ireals),intent(in) :: arr(:,:,:,:,:,:)
+        integer(iintegers),intent(out) :: ierr
+
+        integer :: hferr
+        integer(HSIZE_T) :: dims( 6 )
+
+        integer(HID_T) :: id(size(groups)-1),dataset,dataspace
+
+        lockfile=trim(groups(1))//'.lock'
+        do iwait=1,int(maxwait/waitinterval)
+          open(v,file=lockfile,status='new',err=99)
+          write(v,*) 'file is locked by process: ',getpid()
+
+          dims = shape(arr)
+          call h5write_open(groups,dims,id,dataset,dataspace,ierr)
+
+          !        print *,'Write to dataset'
+          call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
+
+          call h5write_close(id, dataset,dataspace,ierr)
+
+          close(v,status='delete')
+          return
+          99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
@@ -719,83 +548,450 @@ module arrayIO
         real(ireals),intent(in) :: arr(:,:,:,:,:,:,:)
         integer(iintegers),intent(out) :: ierr
 
-        integer,parameter :: rank=7
-        integer :: k,lastid,hferr
-        integer(HSIZE_T) :: dims(rank),chunk(rank)
-        logical :: compression,file_exists,link_exists
+        integer :: hferr
+        integer(HSIZE_T) :: dims( 7 )
 
         integer(HID_T) :: id(size(groups)-1),dataset,dataspace
-        integer(HID_T) :: dcpl
 
         lockfile=trim(groups(1))//'.lock'
         do iwait=1,int(maxwait/waitinterval)
           open(v,file=lockfile,status='new',err=99)
           write(v,*) 'file is locked by process: ',getpid()
 
-          call h5open_f(hferr); ierr=ierr+hferr
+          dims = shape(arr)
+          call h5write_open(groups,dims,id,dataset,dataspace,ierr)
 
-          ierr=0 ; lastid = ubound(id,1)
-          dims=[ubound(arr,1),ubound(arr,2),ubound(arr,3),ubound(arr,4),ubound(arr,5),ubound(arr,6),ubound(arr,7)]
-          chunk=[dims(1),dims(2),dims(3),dims(4),dims(5),dims(6),dims(7)]/2
-          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
-              &  and scnd is at least hdf5 root /, and third is data name'
-          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
-
-          compression=check_for_zip_filter()
-
-          inquire(file=trim(groups(1)), exist=file_exists)
-          if(.not.file_exists) then
-            !                print *,'File does not yet exists, creating new one'
-            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
-          else   
-            !                print *,'File does exist, opening it RW'
-            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
-          endif
-
-          !        print *,'Creating Compression Filter'
-          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
-          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
-          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
-
-          do k=2,lastid
-            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
-            if(link_exists) then
-              !                        print *,'opening group',trim(groups(k))
-              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            else
-              !                        print *,'Create Groups',trim(groups(k))
-              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
-            endif
-          enddo
-
-          !        print *,'Creating DataSpace'
-          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
-          if(hferr.ne.0) return
-
-          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
-          call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
-
-          if(ierr.ne.0) return
           !        print *,'Write to dataset'
           call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
 
-          !        print *,'Closing handles'
-          call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
-          call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
-          do k=lastid,2,-1
-            call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
-          enddo
-          call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+          call h5write_close(id, dataset,dataspace,ierr)
 
-          !        print *,'Data is now:',sum(arr)/size(arr)
-
-          call h5close_f(hferr)  ; ierr=ierr+hferr
           close(v,status='delete')
           return
-          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
+          99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
           call cpusleep(waitinterval)
         enddo
     end subroutine
+!    subroutine h5write_2d(groups,arr,ierr)
+!        character(len=*) :: groups(:)
+!        real(ireals),intent(in) :: arr(:,:)
+!        integer(iintegers),intent(out) :: ierr
+!
+!        integer,parameter :: rank=2
+!        integer :: k,lastid,hferr
+!        integer(HSIZE_T) :: dims(rank),chunk(rank)
+!        logical :: compression,file_exists,link_exists
+!
+!        integer(HID_T) :: id(size(groups)-1),dataset,dataspace
+!        integer(HID_T) :: dcpl
+!
+!        lockfile=trim(groups(1))//'.lock'
+!        do iwait=1,int(maxwait/waitinterval)
+!          open(v,file=lockfile,status='new',err=99)
+!          write(v,*) 'file is locked by process: ',getpid()
+!
+!          call h5open_f(hferr); ierr=ierr+hferr
+!
+!          ierr=0 ; lastid = ubound(id,1)
+!          dims=[ubound(arr,1),ubound(arr,2)]
+!          chunk=[dims(1),dims(2)]/2
+!          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
+!              &  and scnd is at least hdf5 root /, and third is data name'
+!          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
+!
+!          compression=check_for_zip_filter()
+!
+!          inquire(file=trim(groups(1)), exist=file_exists)
+!          if(.not.file_exists) then
+!            !                print *,'File does not yet exists, creating new one'
+!            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
+!          else   
+!            !                print *,'File does exist, opening it RW'
+!            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
+!          endif
+!
+!          !        print *,'Creating Compression Filter'
+!          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
+!          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
+!          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
+!
+!          do k=2,lastid
+!            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
+!            if(link_exists) then
+!              !                        print *,'opening group',trim(groups(k))
+!              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!            else
+!              !                        print *,'Create Groups',trim(groups(k))
+!              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!            endif
+!          enddo
+!
+!          !        print *,'Creating DataSpace'
+!          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
+!          if(hferr.ne.0) return
+!
+!          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
+!          call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+!
+!          if(ierr.ne.0) return
+!          !        print *,'Write to dataset'
+!          call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
+!
+!          !        print *,'Closing handles'
+!          call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
+!          call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
+!          do k=lastid,2,-1
+!            call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
+!          enddo
+!          call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+!
+!          !        print *,'Data is now:',sum(arr)/size(arr)
+!
+!          call h5close_f(hferr)  ; ierr=ierr+hferr
+!          close(v,status='delete')
+!          return
+!          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
+!          call cpusleep(waitinterval)
+!        enddo
+!    end subroutine
+!    subroutine h5write_3d(groups,arr,ierr)
+!        character(len=*) :: groups(:)
+!        real(ireals),intent(in) :: arr(:,:,:)
+!        integer(iintegers),intent(out) :: ierr
+!
+!        integer,parameter :: rank=3
+!        integer :: k,lastid,hferr
+!        integer(HSIZE_T) :: dims(rank),chunk(rank)
+!        logical :: compression,file_exists,link_exists
+!
+!        integer(HID_T) :: id(size(groups)-1),dataset,dataspace
+!        integer(HID_T) :: dcpl
+!
+!        lockfile=trim(groups(1))//'.lock'
+!        do iwait=1,int(maxwait/waitinterval)
+!          open(v,file=lockfile,status='new',err=99)
+!          write(v,*) 'file is locked by process: ',getpid()
+!
+!          call h5open_f(hferr); ierr=ierr+hferr
+!
+!          ierr=0 ; lastid = ubound(id,1)
+!          dims=[ubound(arr,1),ubound(arr,2),ubound(arr,3)]
+!          chunk=[dims(1),dims(2),dims(3)]/2
+!          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
+!              &  and scnd is at least hdf5 root /, and third is data name'
+!          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
+!
+!          compression=check_for_zip_filter()
+!
+!          inquire(file=trim(groups(1)), exist=file_exists)
+!          if(.not.file_exists) then
+!            !                print *,'File does not yet exists, creating new one'
+!            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
+!          else   
+!            !                print *,'File does exist, opening it RW'
+!            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
+!          endif
+!
+!          !        print *,'Creating Compression Filter'
+!          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
+!          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
+!          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
+!
+!          do k=2,lastid
+!            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
+!            if(link_exists) then
+!              !                        print *,'opening group',trim(groups(k))
+!              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!            else
+!              !                        print *,'Create Groups',trim(groups(k))
+!              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!            endif
+!          enddo
+!
+!          !        print *,'Creating DataSpace'
+!          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
+!          if(hferr.ne.0) return
+!
+!          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
+!          call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+!
+!          if(ierr.ne.0) return
+!          !        print *,'Write to dataset'
+!          call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
+!
+!          !        print *,'Closing handles'
+!          call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
+!          call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
+!          do k=lastid,2,-1
+!            call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
+!          enddo
+!          call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+!
+!          !        print *,'Data is now:',sum(arr)/size(arr)
+!
+!          call h5close_f(hferr)  ; ierr=ierr+hferr
+!          close(v,status='delete')
+!          return
+!          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
+!          call cpusleep(waitinterval)
+!        enddo
+!    end subroutine
+!    subroutine h5write_4d(groups,arr,ierr)
+!        character(len=*) :: groups(:)
+!        real(ireals),intent(in) :: arr(:,:,:,:)
+!        integer(iintegers),intent(out) :: ierr
+!
+!        integer,parameter :: rank=4
+!        integer :: k,lastid,hferr
+!        integer(HSIZE_T) :: dims(rank),chunk(rank)
+!        logical :: compression,file_exists,link_exists
+!
+!        integer(HID_T) :: id(size(groups)-1),dataset,dataspace
+!        integer(HID_T) :: dcpl
+!
+!        lockfile=trim(groups(1))//'.lock'
+!        do iwait=1,int(maxwait/waitinterval)
+!          open(v,file=lockfile,status='new',err=99)
+!          write(v,*) 'file is locked by process: ',getpid()
+!
+!          call h5open_f(hferr); ierr=ierr+hferr
+!
+!          ierr=0 ; lastid = ubound(id,1)
+!          dims=[ubound(arr,1),ubound(arr,2),ubound(arr,3),ubound(arr,4)]
+!          chunk=[dims(1),dims(2),dims(3),dims(4)]/2
+!          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
+!              &  and scnd is at least hdf5 root /, and third is data name'
+!          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
+!
+!          compression=check_for_zip_filter()
+!
+!          inquire(file=trim(groups(1)), exist=file_exists)
+!          if(.not.file_exists) then
+!            !                print *,'File does not yet exists, creating new one'
+!            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
+!          else   
+!            !                print *,'File does exist, opening it RW'
+!            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
+!          endif
+!
+!          !        print *,'Creating Compression Filter'
+!          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
+!          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
+!          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
+!
+!          do k=2,lastid
+!            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
+!            if(link_exists) then
+!              !                        print *,'opening group',trim(groups(k))
+!              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!            else
+!              !                        print *,'Create Groups',trim(groups(k))
+!              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!            endif
+!          enddo
+!
+!          !        print *,'Creating DataSpace'
+!          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
+!          if(hferr.ne.0) return
+!
+!          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
+!          call h5lexists_f(id(lastid), trim(groups(lastid+1)), link_exists, hferr) ; ierr=ierr+hferr
+!          if(link_exists) then
+!            call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
+!          else
+!            call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+!          endif
+!
+!          if(ierr.ne.0) return
+!          !        print *,'Write to dataset'
+!          call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
+!
+!          !        print *,'Closing handles'
+!          call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
+!          call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
+!          do k=lastid,2,-1
+!            call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
+!          enddo
+!          call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+!
+!          !        print *,'Data is now:',sum(arr)/size(arr)
+!
+!          call h5close_f(hferr)  ; ierr=ierr+hferr
+!          close(v,status='delete')
+!          return
+!          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
+!          call cpusleep(waitinterval)
+!        enddo
+!    end subroutine
+!    subroutine h5write_5d(groups,arr,ierr)
+!        character(len=*) :: groups(:)
+!        real(ireals),intent(in) :: arr(:,:,:,:,:)
+!        integer(iintegers),intent(out) :: ierr
+!
+!        integer,parameter :: rank=5
+!        integer :: k,lastid,hferr
+!        integer(HSIZE_T) :: dims(rank),chunk(rank)
+!        logical :: compression,file_exists,link_exists
+!
+!        integer(HID_T) :: id(size(groups)-1),dataset,dataspace
+!        integer(HID_T) :: dcpl
+!
+!        lockfile=trim(groups(1))//'.lock'
+!        do iwait=1,int(maxwait/waitinterval)
+!          open(v,file=lockfile,status='new',err=99)
+!          write(v,*) 'file is locked by process: ',getpid()
+!
+!          call h5open_f(hferr); ierr=ierr+hferr
+!
+!          ierr=0 ; lastid = ubound(id,1)
+!          dims=[ubound(arr,1),ubound(arr,2),ubound(arr,3),ubound(arr,4),ubound(arr,5)]
+!          chunk=max(1_HSIZE_T,[dims(1),dims(2),dims(3),dims(4),dims(5)]/2)
+!          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
+!              &  and scnd is at least hdf5 root /, and third is data name'
+!          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
+!
+!          compression=check_for_zip_filter()
+!
+!          inquire(file=trim(groups(1)), exist=file_exists)
+!          if(.not.file_exists) then
+!            !                print *,'File does not yet exists, creating new one'
+!            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
+!          else   
+!            !                print *,'File does exist, opening it RW'
+!            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
+!          endif
+!
+!          !        print *,'Creating Compression Filter'
+!          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
+!          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
+!          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
+!
+!          do k=2,lastid
+!            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
+!            if(link_exists) then
+!              !                        print *,'opening group',trim(groups(k))
+!              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!            else
+!              !                        print *,'Create Groups',trim(groups(k))
+!              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!            endif
+!          enddo
+!
+!          !        print *,'Creating DataSpace'
+!          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
+!          if(hferr.ne.0) return
+!
+!          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
+!          call h5lexists_f(id(lastid), trim(groups(lastid+1)), link_exists, hferr) ; ierr=ierr+hferr
+!          if(link_exists) then
+!            call h5dopen_f(id(lastid), trim(groups(lastid+1)), dataset, hferr) ; ierr=ierr+hferr
+!          else
+!            call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+!          endif
+!
+!          if(ierr.ne.0) return
+!          !        print *,'Write to dataset'
+!          call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
+!
+!          !        print *,'Closing handles'
+!          call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
+!          call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
+!          do k=lastid,2,-1
+!            call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
+!          enddo
+!          call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+!
+!          !        print *,'Data is now:',sum(arr)/size(arr)
+!
+!          call h5close_f(hferr)  ; ierr=ierr+hferr
+!          close(v,status='delete')
+!          return
+!          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
+!          call cpusleep(waitinterval)
+!        enddo
+!    end subroutine
+!    subroutine h5write_7d(groups,arr,ierr)
+!        character(len=*) :: groups(:)
+!        real(ireals),intent(in) :: arr(:,:,:,:,:,:,:)
+!        integer(iintegers),intent(out) :: ierr
+!
+!        integer,parameter :: rank=7
+!        integer :: k,lastid,hferr
+!        integer(HSIZE_T) :: dims(rank),chunk(rank)
+!        logical :: compression,file_exists,link_exists
+!
+!        integer(HID_T) :: id(size(groups)-1),dataset,dataspace
+!        integer(HID_T) :: dcpl
+!
+!        lockfile=trim(groups(1))//'.lock'
+!        do iwait=1,int(maxwait/waitinterval)
+!          open(v,file=lockfile,status='new',err=99)
+!          write(v,*) 'file is locked by process: ',getpid()
+!
+!          call h5open_f(hferr); ierr=ierr+hferr
+!
+!          ierr=0 ; lastid = ubound(id,1)
+!          dims = shape(arr) ![ubound(arr,1),ubound(arr,2),ubound(arr,3),ubound(arr,4),ubound(arr,5),ubound(arr,6),ubound(arr,7)]
+!          chunk = max(1, [dims(1),dims(2),dims(3),dims(4),dims(5),dims(6),dims(7)]/2 )
+!          if(size(groups).lt.3) print *,'ARGHHH :: need at least 3 group entries, first is filename &
+!              &  and scnd is at least hdf5 root /, and third is data name'
+!          !        print *,'writing hdf5 file ',trim(groups(1)), 'with groups: ',groups(2:ubound(groups,1))
+!
+!          compression=check_for_zip_filter()
+!
+!          inquire(file=trim(groups(1)), exist=file_exists)
+!          if(.not.file_exists) then
+!            !                print *,'File does not yet exists, creating new one'
+!            call h5fcreate_f(trim(groups(1)), H5F_ACC_TRUNC_F, id(1), hferr) ; ierr=ierr+hferr
+!          else   
+!            !                print *,'File does exist, opening it RW'
+!            call h5fopen_f(trim(groups(1)), H5F_ACC_RDWR_F, id(1), hferr) ; ierr=ierr+hferr
+!          endif
+!
+!          !        print *,'Creating Compression Filter'
+!          call h5pcreate_f(H5P_DATASET_CREATE_F, dcpl, hferr) ; ierr=ierr+hferr
+!          call h5pset_deflate_f(dcpl, 9, hferr) ; ierr=ierr+hferr
+!          call h5pset_chunk_f(dcpl, rank, chunk, hferr) ; ierr=ierr+hferr
+!
+!          do k=2,lastid
+!            call h5lexists_f(id(k-1), trim(groups(k)), link_exists, hferr) ; ierr=ierr+hferr
+!            if(link_exists) then
+!              !                        print *,'opening group',trim(groups(k))
+!              call h5gopen_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!            else
+!              !                        print *,'Create Groups',trim(groups(k))
+!              call h5gcreate_f(id(k-1), trim(groups(k)), id(k), hferr) ; ierr=ierr+hferr
+!            endif
+!          enddo
+!
+!          !        print *,'Creating DataSpace'
+!          call h5screate_simple_f(rank, dims, dataspace, hferr) ; ierr=ierr+hferr
+!          if(hferr.ne.0) return
+!
+!          !        print *,'Create Dataset id',id(lastid),'name ',trim(groups(lastid+1))
+!          call h5dcreate_f(id(lastid), trim(groups(lastid+1)), H5T_NATIVE_DOUBLE, dataspace, dataset, hferr, dcpl) ; ierr=ierr+hferr
+!
+!          if(ierr.ne.0) return
+!          !        print *,'Write to dataset'
+!          call h5dwrite_f(dataset, H5T_NATIVE_DOUBLE, dble(arr), dims, hferr) ; ierr=ierr+hferr
+!
+!          !        print *,'Closing handles'
+!          call h5sclose_f(dataspace,hferr) ; ierr=ierr+hferr
+!          call h5dclose_f(dataset,hferr) ; ierr=ierr+hferr
+!          do k=lastid,2,-1
+!            call h5gclose_f(id(k),hferr) ; ierr=ierr+hferr
+!          enddo
+!          call h5fclose_f(id(1),hferr) ; ierr=ierr+hferr
+!
+!          !        print *,'Data is now:',sum(arr)/size(arr)
+!
+!          call h5close_f(hferr)  ; ierr=ierr+hferr
+!          close(v,status='delete')
+!          return
+!          99 if(rand() .gt. .999)     write(*,*) 'lock file already exists: ',lockfile
+!          call cpusleep(waitinterval)
+!        enddo
+!    end subroutine
 
     subroutine h5load_1d(groups,arr,ierr)
         character(len=*) :: groups(:)

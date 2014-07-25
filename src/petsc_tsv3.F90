@@ -1581,8 +1581,8 @@ subroutine setup_ksp(ksp,C,A,init,prefix)
       Mat:: A
       type(coord) :: C
       MatNullSpace :: nullspace
-      PetscReal,parameter :: rtol=1e-4, atol=1e-5
-      PetscInt,parameter :: maxiter=500
+      PetscReal,parameter :: rtol=1e-7, atol=1e-25
+      PetscInt,parameter :: maxiter=5000
       logical :: init
       character(len=*),optional :: prefix
 
@@ -1949,7 +1949,7 @@ program main
 
             call setup_incSolar(incSolar,kato,iq)
             call vecmax(incSolar, PETSC_NULL_INTEGER, maxsolar, ierr) ;CHKERRQ(ierr)
-            if( maxsolar .lt. 1e-2_ireals) cycle
+            if( maxsolar .lt. 1e-8_ireals) cycle
 
             !First try reading them from file and we can resume from there:
             if(luse_hdf5_guess) then

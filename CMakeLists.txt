@@ -11,8 +11,8 @@ if (NOT CMAKE_BUILD_TYPE)
 endif (NOT CMAKE_BUILD_TYPE)
 
 set (CMAKE_Fortran_FLAGS "-cpp -ffree-line-length-none -W -Wall -Wuninitialized" )
-set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -ffast-math -O2")#-funroll-loops ")#-march=native -mtune=native")
-set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check -ffpe-trap=invalid,zero,overflow,denormal")
+set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -ffast-math -O3 -funroll-loops ")#-march=native -mtune=native")
+set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check ")#-ffpe-trap=invalid,zero,overflow,denormal")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 #MESSAGE("Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")

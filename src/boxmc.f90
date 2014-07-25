@@ -232,11 +232,12 @@ contains
               call bmc%update_diff_stream(p,std_Sdiff%inc,Ndiff)
             endif
 
-            if(ldir) call std_update( std_Sdir , k, i1*numnodes )
+            if(ldir)call std_update( std_Sdir , k, i1*numnodes )
             call std_update( std_abso , k, i1*numnodes)
             call std_update( std_Sdiff, k, i1*numnodes )
-      enddo
+      enddo ! k photons
 
+      ! weight mean by calculated photons and compare it with results from other nodes
       total_photons=k
       S_out    = std_Sdiff%mean*k
       if(ldir) Sdir_out = std_Sdir%mean *k
@@ -348,8 +349,8 @@ end function
 function L(v)
     real(ireals) :: L
     real(ireals),intent(in) ::v
-    real(ireals),parameter :: eps=epsilon(L)*10
-    L = min( max(R()*v,eps), v-eps)
+    real(ireals),parameter :: eps=epsilon(L)*100
+    L = ( eps + R()*(one-2*eps) ) *v
 end function
 
 subroutine move_photon(bmc,p)
@@ -559,7 +560,7 @@ pure subroutine std_update(std, N, numnodes)
       type(stddev),intent(inout) :: std
       integer(iintegers),intent(in) :: N, numnodes
       real(ireals) :: relvar(size(std%var))
-      real(ireals),parameter :: relvar_limit=1e-6_ireals,rtol=1e-1_ireals
+      real(ireals),parameter :: relvar_limit=1e-6_ireals,rtol=1e-0_ireals
 
       std%delta = std%inc   - std%mean
       std%mean  = std%mean  + std%delta/N

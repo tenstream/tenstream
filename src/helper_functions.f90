@@ -94,7 +94,8 @@ module helper_functions
           real(ireals),intent(inout) :: dtau,g,w0
           real(ireals) :: f
 
-          f = g**2
+!          f = g**2
+          f = g
           dtau = dtau * ( one - w0 * f )
           g    = ( g - f ) / ( one - f )
           w0   = w0 * ( one - f ) / ( one - f * w0 )
