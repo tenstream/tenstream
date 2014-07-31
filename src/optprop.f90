@@ -1,7 +1,8 @@
-module optprop
-  use helper_functions, only : rmse
-use data_parameters, only: ireals,iintegers,one,zero,i0,i1,mpiint
-use optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10
+module m_optprop
+use m_optprop_parameters, only : ldebug_optprop
+use m_helper_functions, only : rmse
+use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,mpiint
+use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 
@@ -84,10 +85,12 @@ contains
         diff_streams= OPP%OPP_LUT%diff_streams
         dir_streams = OPP%OPP_LUT%dir_streams
 
-        if(OPP%optprop_debug) then
-          if( (any([dz,kabs,ksca,g].lt.zero)) .or. (any(isnan([dz,kabs,ksca,g]))) ) then
-            print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[dz,kabs,ksca,g]
-            call exit
+        if(ldebug_optprop) then
+          if(OPP%optprop_debug) then
+            if( (any([dz,kabs,ksca,g].lt.zero)) .or. (any(isnan([dz,kabs,ksca,g]))) ) then
+              print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[dz,kabs,ksca,g]
+              call exit
+            endif
           endif
         endif
 
@@ -204,9 +207,11 @@ end subroutine
                 stop 'coeff_symmetry : unexpected type for OPP !'
             end select
 
-            if(sum(coeff_symmetry).ge.one) then
-              print *,'sum of diffuse coeff_symmetrys bigger one!',sum(coeff_symmetry),'for src=',isrc,'coeff_symmetry:',coeff_symmetry
-              call exit()
+            if(ldebug_optprop) then
+              if(real(sum(coeff_symmetry)).gt.one) then
+                print *,'sum of diffuse coeff_symmetrys bigger one!',sum(coeff_symmetry),'for src=',isrc,'coeff_symmetry:',coeff_symmetry
+                call exit()
+              endif
             endif
         end function
 

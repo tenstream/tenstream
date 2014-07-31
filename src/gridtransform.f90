@@ -1,6 +1,6 @@
-module gridtransform
+module m_gridtransform
       use iso_c_binding
-      use data_parameters, only: ireals,iintegers
+      use m_data_parameters, only: ireals,iintegers
       implicit none
 
       type gridinfo

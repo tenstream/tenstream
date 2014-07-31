@@ -1,4 +1,4 @@
-module data_parameters
+module m_data_parameters
 
         use mpi,only:MPI_SIZEOF,MPI_TYPE_MATCH_SIZE
         implicit none
@@ -24,7 +24,8 @@ module data_parameters
       integer(iintegers) ,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,i5=5,i6=6,i7=7,i8=8,i9=9,i10=10,i11=11,inil=-9999_iintegers
 
 
-      integer :: imp_int, imp_real, imp_comm
+      integer(mpiint) :: imp_int, imp_real, imp_comm
+      integer(mpiint) :: myid,numnodes,mpierr
 
 contains 
 subroutine init_mpi_data_parameters(comm)
@@ -32,6 +33,10 @@ subroutine init_mpi_data_parameters(comm)
   integer :: size,ierror
 
   imp_comm = comm
+
+  call MPI_COMM_RANK( imp_comm, myid, mpierr )
+  call MPI_Comm_size( imp_comm, numnodes, mpierr)
+
   call MPI_SIZEOF(i0, size, ierror)    
   call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, size, imp_int, ierror)
 

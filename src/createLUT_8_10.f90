@@ -1,7 +1,7 @@
 program main
-      use data_parameters, only: mpiint, ireals, init_mpi_data_parameters
+      use m_data_parameters, only: mpiint, ireals, init_mpi_data_parameters
       use mpi
-      use optprop_LUT, only : t_optprop_LUT_8_10
+      use m_optprop_LUT, only : t_optprop_LUT_8_10
 
       integer(mpiint) :: myid,comm
 
@@ -32,6 +32,7 @@ program main
 
       print *,'calculating coeffs for dx',dx,'szas',szas
       call OPP%init(dx,dx,azis,szas,comm)
+      print *,'loaded 8_10 coeffs for dx',dx,'szas',szas,'azis',azis
 
       call mpi_finalize(ierr)
 end program

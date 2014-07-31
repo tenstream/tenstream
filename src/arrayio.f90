@@ -1,7 +1,7 @@
-module arrayIO
+module m_arrayIO
   use mpi
   use HDF5
-  USE data_parameters, ONLY :   &
+  USE m_data_parameters, ONLY :   &
       ireals,    &
       iintegers
   implicit none

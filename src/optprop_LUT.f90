@@ -1,13 +1,13 @@
-module optprop_LUT
-  use helper_functions, only : approx
-  use data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real
-  use optprop_parameters, only: &
+module m_optprop_LUT
+  use m_helper_functions, only : approx
+  use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real
+  use m_optprop_parameters, only: ldebug_optprop, &
       Ndz_1_2,Nkabs_1_2,Nksca_1_2,Ng_1_2,Nphi_1_2,Ntheta_1_2,interp_mode_1_2,   &
       Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,interp_mode_8_10, &
-      delta_scale,delta_scale_truncate,stddev_rtol
-  use boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
-  use tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
-  use arrayio
+      ldelta_scale,delta_scale_truncate,stddev_rtol
+  use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
+  use m_tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
+  use m_arrayio
 
   use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 
@@ -33,7 +33,7 @@ module optprop_LUT
     real(ireals) :: dz_exponent,kabs_exponent,ksca_exponent,g_exponent
     real(ireals) , dimension(2)      :: range_dz      = [ 50._ireals , 5001._ireals ]
     real(ireals) , dimension(2)      :: range_kabs    = [ nil        , 10._ireals    ] !lower limit for kabs , ksca is set in set_parameter_space
-    real(ireals) , dimension(2)      :: range_ksca    = [ nil        , one           ] !lower limit for kabs , ksca is set in set_parameter_space
+    real(ireals) , dimension(2)      :: range_ksca    = [ nil        , one           ] !lower limit for ksca , ksca is set in set_parameter_space // TODO: if we keep hard delta scaling , we can reduce ksca max to 0.1
     real(ireals) , dimension(2)      :: range_g       = [ zero       , .999_ireals   ]
     real(ireals) , dimension(2)      :: range_phi     = [ zero       , 90._ireals    ]
     real(ireals) , dimension(2)      :: range_theta   = [ zero       , 90._ireals    ]
@@ -121,7 +121,7 @@ contains
       call OPP%set_parameter_space(OPP%dirLUT%pspace ,one*idx)
       call OPP%set_parameter_space(OPP%diffLUT%pspace,one*idx)
 
-      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,delta_scale,delta_scale_truncate
+      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,ldelta_scale,delta_scale_truncate
       if(myid.eq.0) print *,'Loading diffuse LUT from ',descr
       OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
       OPP%diffLUT%dx    = idx
@@ -133,7 +133,7 @@ contains
       else
 
         ! Load direct LUTS
-        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta,delta_scale,delta_scale_truncate
+        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta,ldelta_scale,delta_scale_truncate
         if(myid.eq.0) print *,'Loading direct LUT from ',descr
         OPP%dirLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
         OPP%dirLUT%dx    = idx
@@ -433,19 +433,19 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
             select type(OPP)
               class is (t_optprop_LUT_8_10)
                   ! src=1
-                  call OPP%bmc_wrapper(i1,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
+                  call OPP%bmc_wrapper(i1,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,ldelta_scale,zero,zero,comm,S_diff,T_dir)
                   if(myid.eq.0) OPP%diffLUT%S%c( 1, idz,ikabs ,iksca,ig) = S_diff(1)
                   if(myid.eq.0) OPP%diffLUT%S%c( 2, idz,ikabs ,iksca,ig) = S_diff(2)
                   if(myid.eq.0) OPP%diffLUT%S%c( 3, idz,ikabs ,iksca,ig) = sum(S_diff([3,4,7, 8]) )/4
                   if(myid.eq.0) OPP%diffLUT%S%c( 4, idz,ikabs ,iksca,ig) = sum(S_diff([5,6,9,10]) )/4
                   ! src=3
-                  call OPP%bmc_wrapper(i3,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
+                  call OPP%bmc_wrapper(i3,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,ldelta_scale,zero,zero,comm,S_diff,T_dir)
                   if(myid.eq.0) OPP%diffLUT%S%c( 5:10, idz,ikabs ,iksca,ig) = S_diff(1:6)
                   if(myid.eq.0) OPP%diffLUT%S%c( 11  , idz,ikabs ,iksca,ig) = sum(S_diff(7: 8))/2
                   if(myid.eq.0) OPP%diffLUT%S%c( 12  , idz,ikabs ,iksca,ig) = sum(S_diff(9:10))/2
               class is (t_optprop_LUT_1_2)
                   ! src=1
-                  call OPP%bmc_wrapper(i1,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,delta_scale,zero,zero,comm,S_diff,T_dir)
+                  call OPP%bmc_wrapper(i1,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,ldelta_scale,zero,zero,comm,S_diff,T_dir)
                   if(myid.eq.0) OPP%diffLUT%S%c( :, idz,ikabs ,iksca,ig) = S_diff
             end select
             if(myid.eq.0) OPP%diffLUT%S%stddev_rtol(idz,ikabs ,iksca,ig) = stddev_rtol
@@ -461,7 +461,6 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
         call h5write(stddev_rtol_table_name,OPP%diffLUT%S%stddev_rtol,iierr)
         print *,'done writing!',iierr
       endif
-
     enddo !g
     if(myid.eq.0) print *,'done calculating diffuse coefficients'
 end subroutine
@@ -544,7 +543,7 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
               call OPP%bmc_wrapper(src                             ,                                                               & 
                                    OPP%dirLUT%dx                   , OPP%dirLUT%dy                   , OPP%dirLUT%pspace%dz(idz) , &
                                    OPP%dirLUT%pspace%kabs (ikabs ) , OPP%dirLUT%pspace%ksca(iksca)   , OPP%dirLUT%pspace%g(ig)   , &
-                                   .True.                          , delta_scale                     ,                             & ! direct(y/n), delta_scale(y/n)
+                                   .True.                          , ldelta_scale                     ,                             & ! direct(y/n), delta_scale(y/n)
                                    OPP%dirLUT%pspace%phi(iphi)     , OPP%dirLUT%pspace%theta(itheta) ,                             &
                                    comm                            , S_diff                          , T_dir)
 
@@ -570,11 +569,11 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
     enddo !g
     if(myid.eq.0) print *,'done calculating direct coefficients'
 end subroutine
-subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,delta_scale,phi,theta,comm,S_diff,T_dir)
+subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,ldelta_scale,phi,theta,comm,S_diff,T_dir)
     class(t_optprop_LUT) :: OPP
     integer(iintegers),intent(in) :: src
     integer(mpiint),intent(in) :: comm
-    logical,intent(in) :: dir,delta_scale
+    logical,intent(in) :: dir,ldelta_scale
     real(ireals),intent(in) :: dx,dy,dz,kabs ,ksca,g,phi,theta
 
     real(ireals),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
@@ -589,7 +588,7 @@ subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,delta_scale,phi,theta,
     T_dir=nil
 
 !    print *,comm,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
-    call OPP%bmc%get_coeff(comm,bg,src,S_diff,T_dir,dir,delta_scale,phi,theta,dx,dy,dz)
+    call OPP%bmc%get_coeff(comm,bg,src,S_diff,T_dir,dir,ldelta_scale,phi,theta,dx,dy,dz)
     !        print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
 
@@ -754,7 +753,7 @@ subroutine set_parameter_space(OPP,ps,dx)
     type(parameter_space),intent(inout) :: ps
     real(ireals),intent(in) :: dx
     real(ireals) :: diameter ! diameter of max. cube size
-    real(ireals),parameter :: maximum_transmission=one-1e-4_ireals ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
+    real(ireals),parameter :: maximum_transmission=one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
     integer(iintegers) :: k
 
 
@@ -825,6 +824,7 @@ subroutine set_parameter_space(OPP,ps,dx)
 
 
     ! -------------- Setup g support points
+    if(ldelta_scale) ps%range_g=[zero,.5_ireals]
 
     do k=1,OPP%Ng
       ps%g(k)     = exp_index_to_param(one*k,ps%range_g,OPP%Ng, ps%g_exponent )
@@ -837,6 +837,13 @@ subroutine set_parameter_space(OPP,ps,dx)
 
 
     ! -------------- Setup kabs/ksca support points
+
+    select type(OPP)
+      class is (t_optprop_LUT_1_2)
+          !TODO introduce only here but we could/should enable this next time we calculate LUT's also for 8_10
+          !     this is a result of us using delta scaling.
+          ps%range_ksca=[-nil, .1_ireals ]
+    end select
 
     diameter = sqrt(2*dx**2 +  ps%range_dz(2)**2 )
 
@@ -876,7 +883,7 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     real(ireals) :: pti(6),weights(6)
 
     kabs = in_kabs; ksca = in_ksca
-    call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
+    if(ldebug_optprop) call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
 
     pti = get_indices_6d(dz,kabs ,ksca,g,phi,theta,OPP%dirLUT%pspace)
 
@@ -891,17 +898,19 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
-    if(OPP%optprop_LUT_debug) then
-      !Check for energy conservation:
-      ierr=0
-      do i=1,OPP%dir_streams
-        if(sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)).gt.one) ierr=ierr+1
-      enddo
-      if(ierr.ne.0) then
-        print *,'Error in dir2dir coeffs :: ierr',ierr
+    if(ldebug_optprop) then
+      if(OPP%optprop_LUT_debug) then
+        !Check for energy conservation:
+        ierr=0
         do i=1,OPP%dir_streams
-          print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)),' :: coeff',C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)
+          if(real(sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams))).gt.one) ierr=ierr+1
         enddo
+        if(ierr.ne.0) then
+          print *,'Error in dir2dir coeffs :: ierr',ierr
+          do i=1,OPP%dir_streams
+            print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)),' :: coeff',C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)
+          enddo
+        endif
       endif
     endif
 end subroutine 
@@ -915,7 +924,7 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     integer(iintegers) :: i
 
     kabs = in_kabs; ksca = in_ksca
-    call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
+    if(ldebug_optprop) call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
 
     pti = get_indices_6d(dz,kabs ,ksca,g,phi,theta,OPP%dirLUT%pspace)
 
@@ -931,17 +940,19 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
 
-    if(OPP%optprop_LUT_debug) then
-      !Check for energy conservation:
-      ierr=0
-      do i=1,OPP%dir_streams
-        if(sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)).gt.one) ierr=ierr+1
-      enddo
-      if(ierr.ne.0) then
-        print *,'Error in dir2diff coeffs :: ierr',ierr
+    if(ldebug_optprop) then
+      if(OPP%optprop_LUT_debug) then
+        !Check for energy conservation:
+        ierr=0
         do i=1,OPP%dir_streams
-          print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)),' :: coeff',C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)
+          if(sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)).gt.one) ierr=ierr+1
         enddo
+        if(ierr.ne.0) then
+          print *,'Error in dir2diff coeffs :: ierr',ierr
+          do i=1,OPP%dir_streams
+            print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)),' :: coeff',C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)
+          enddo
+        endif
       endif
     endif
 end subroutine
@@ -954,7 +965,7 @@ subroutine LUT_get_diff2diff(OPP, dz,in_kabs ,in_ksca,g,C)
     real(ireals) :: pti(4),weights(4)
 
     kabs = in_kabs; ksca = in_ksca
-    call catch_limits(OPP%diffLUT%pspace,dz,kabs,ksca,g)
+    if(ldebug_optprop) call catch_limits(OPP%diffLUT%pspace,dz,kabs,ksca,g)
 
     allocate( C(ubound(OPP%diffLUT%S%c,1) ) )
     pti = get_indices_4d(dz,kabs ,ksca,g,OPP%diffLUT%pspace)
@@ -1045,7 +1056,5 @@ subroutine catch_limits(ps,dz,kabs,ksca,g)
     endif
     if(ierr.ne.0) stop 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.'
 end subroutine
-
-
 
 end module

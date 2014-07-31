@@ -1,5 +1,5 @@
-module tenstream_interpolation
-      use data_parameters, only: ireals,zero,one
+module m_tenstream_interpolation
+      use m_data_parameters, only: ireals,zero,one
       implicit none
 
       ! a has the bounds on axes

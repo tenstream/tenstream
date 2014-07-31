@@ -1,5 +1,5 @@
-module helper_functions
-      use data_parameters,only : iintegers,ireals,pi,one,imp_real,imp_int,mpiint,imp_comm
+module m_helper_functions
+      use m_data_parameters,only : iintegers,ireals,pi,one,imp_real,imp_int,mpiint,imp_comm
 
       implicit none
 
@@ -79,23 +79,22 @@ module helper_functions
           call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr)
       end subroutine
 
-      subroutine delta_scale_optprop_arr( op ) 
-          real(ireals),intent(inout) :: op(3)
-          real(ireals) :: dtau, w0, g
-          dtau = op(1)+op(2)
-          w0   = op(2)/dtau
-          g    = op(3)
+elemental subroutine delta_scale( kabs,ksca,g ) 
+          real(ireals),intent(inout) :: kabs,ksca,g ! kabs, ksca, g
+          real(ireals) :: dtau, w0
+          dtau = kabs+ksca
+          w0   = ksca/dtau
+          g    = g
           call delta_scale_optprop( dtau, w0, g)
-          op(2)= dtau * w0
-          op(1)= dtau * (one-w0)
-          op(3)= g
+          kabs= dtau * (one-w0)
+          ksca= dtau * w0
       end subroutine
-      subroutine delta_scale_optprop( dtau, w0, g) 
+elemental subroutine delta_scale_optprop( dtau, w0, g) 
           real(ireals),intent(inout) :: dtau,g,w0
           real(ireals) :: f
 
-!          f = g**2
-          f = g
+          f = g**2
+!          f = g
           dtau = dtau * ( one - w0 * f )
           g    = ( g - f ) / ( one - f )
           w0   = w0 * ( one - f ) / ( one - f * w0 )

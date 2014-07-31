@@ -1,6 +1,6 @@
 module m_twostream
-      use data_parameters, only: ireals,iintegers,zero,one
-      use eddington, only: eddington_coeff_rb
+      use m_data_parameters, only: ireals,iintegers,zero,one
+      use m_eddington, only: eddington_coeff_rb
       implicit none
 
       private

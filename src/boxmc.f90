@@ -1,14 +1,14 @@
 !> @brief Module contains Raytracer to compute Transfer Coefficients for different 'stream' realizations
 !> @author Fabian Jakub LMU/MIM
 
-module boxmc
-      use helper_functions, only : approx,mean,rmse,deg2rad,norm,delta_scale_optprop_arr
+module m_boxmc
+      use m_helper_functions, only : approx,mean,rmse,deg2rad,norm
       use iso_c_binding
       use mersenne
       use mpi
-      use data_parameters, only: mpiint,imp_real,iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
+      use m_data_parameters, only: mpiint,imp_real,iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
       
-      use optprop_parameters, only : delta_scale_truncate,stddev_rtol
+      use m_optprop_parameters, only : delta_scale_truncate,stddev_rtol,ldebug_optprop
 
       implicit none
 
@@ -209,7 +209,7 @@ contains
               call bmc%init_diff_photon(p,src,dx,dy,dz)
             endif
             p%optprop = op_bg
-            if(ldeltascale) call delta_scale_optprop_arr( p%optprop )
+            !if(ldeltascale) call delta_scale_optprop_arr( p%optprop )
 
 
             move: do
@@ -262,7 +262,7 @@ contains
         Sdir_out=zero
       endif
 
-      if( (sum(S_out)+sum(Sdir_out)).gt.one+epsilon(one)*10) then
+      if( real(sum(S_out)+sum(Sdir_out)).gt.one ) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',\
                 sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),':: op',p%optprop
         call print_photon(p)

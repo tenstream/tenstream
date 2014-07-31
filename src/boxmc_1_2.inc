@@ -58,8 +58,6 @@ subroutine init_dir_photon_1_2(bmc,p,src,direct,initial_dir,dx,dy,dz)
     integer(iintegers),intent(in) :: src
     logical,intent(in) :: direct
 
-    p%alive = .False.
-
     if(src.eq.1) then
       p%loc = (/L(dx)     , L(dy)     ,    dz  /)
     else
@@ -88,14 +86,17 @@ subroutine init_diff_photon_1_2(bmc,p,src,dx,dy,dz)
     real(ireals),intent(in) :: dx,dy,dz
     integer(iintegers),intent(in) :: src
 
-    real(ireals) :: phi,mu
+    real(ireals) :: phi,mu,mu1
 
+    mu1 = R()
     if(src.eq.1) then
       p%loc = (/L(dx), L(dy),    dz  /)
-      mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( R()*360._ireals )
+      mu = -mu1 !mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) 
+      phi= deg2rad( R()*360._ireals )
     else if(src.eq.2) then
       p%loc = (/L(dx), L(dy),    zero/)
-      mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( R()*360._ireals )
+      mu = mu1 !mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) 
+      phi= deg2rad( R()*360._ireals )
     else
       print *,'Dont know what to do with source spec:',src
       call exit

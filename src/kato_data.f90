@@ -1,5 +1,5 @@
-module kato_data
-      use data_parameters, only : ireals,iintegers
+module m_kato_data
+      use m_data_parameters, only : ireals,iintegers
 implicit none
       private
       public :: get_edirTOA,kato_bands,get_ednTOA

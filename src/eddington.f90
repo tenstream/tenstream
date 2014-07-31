@@ -1,6 +1,6 @@
-module eddington
-      use data_parameters, only: ireals,iintegers,zero,one
-      use helper_functions, only: approx,delta_scale_optprop
+module m_eddington
+      use m_data_parameters, only: ireals,iintegers,zero,one
+      use m_helper_functions, only: approx,delta_scale_optprop
       use ISO_FORTRAN_ENV
       implicit none
 

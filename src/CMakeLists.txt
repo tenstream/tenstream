@@ -10,6 +10,8 @@ set( general_sources
   "kato_data.f90"  
   "mersenne.f95"  
   "twostream.f90"
+  "tenstream.f90"
+  "tenstream_options.f90"
   )
 
 set( optprop_sources
@@ -19,20 +21,20 @@ set( optprop_sources
   "optprop.f90"
   )
 
-add_library( solver STATIC ${general_sources} ${optprop_sources} petsc_tsv3.F90 )
-TARGET_LINK_LIBRARIES( solver  "${EXTLIB}" )
+add_library( tenstream STATIC ${general_sources} ${optprop_sources} )
+TARGET_LINK_LIBRARIES( tenstream  "${EXTLIB}" )
 
 file( GLOB streams createLUT_*.f90 )
 foreach ( stream ${streams} )
   GET_FILENAME_COMPONENT(basename "${stream}" NAME_WE )
 
   add_executable("${basename}" "${basename}.f90" )                                                                                                                                                                   
-  target_link_libraries( "${basename}" solver )                                                                                                                                                                  
+  target_link_libraries( "${basename}" tenstream )                                                                                                                                                                  
 endforeach ()
                                                                                                                                                                                                                          
 add_executable( "petsc_solver" "petsc_tsv3.F90" )
-target_link_libraries( "petsc_solver" solver )
+target_link_libraries( "petsc_solver" tenstream )
 
 add_executable( "test_boxmc" "test_boxmc.f90" )
-target_link_libraries( "test_boxmc" solver )
+target_link_libraries( "test_boxmc" tenstream )
 
