@@ -34,7 +34,7 @@ module m_tenstream_options
           if(lflg.eqv.PETSC_FALSE) basepath = '/home/users/jakub/scratch/tenstream/'
 
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dx",ident_dx, lflg,ierr)  ; CHKERRQ(ierr)
-          if(lflg.eqv.PETSC_FALSE) stop 'Need "-dx" commandline option e.g. -dx 500'
+!          if(lflg.eqv.PETSC_FALSE) stop 'Need "-dx" commandline option e.g. -dx 500'
 
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx

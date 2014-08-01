@@ -12,6 +12,7 @@ set( general_sources
   "twostream.f90"
   "tenstream.f90"
   "tenstream_options.f90"
+  "f2c_tenstream.f90"
   )
 
 set( optprop_sources
@@ -38,3 +39,5 @@ target_link_libraries( "petsc_solver" tenstream )
 add_executable( "test_boxmc" "test_boxmc.f90" )
 target_link_libraries( "test_boxmc" tenstream )
 
+add_executable( "Cwrapper_test" "f2c_tenstream.c" )
+target_link_libraries( "Cwrapper_test" tenstream )

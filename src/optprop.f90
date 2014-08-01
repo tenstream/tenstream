@@ -22,6 +22,7 @@ type,abstract :: t_optprop
     procedure :: init
     procedure :: get_coeff
     procedure :: coeff_symmetry
+    procedure :: destroy
 end type
 
 type,extends(t_optprop) :: t_optprop_1_2
@@ -60,6 +61,10 @@ contains
           stop 'coeff mode optprop initialization not defined ' 
       end select
 
+  end subroutine
+  subroutine destroy(OPP)
+      class(t_optprop) :: OPP
+      if(allocated(OPP%OPP_LUT)) deallocate(OPP%OPP_LUT)
   end subroutine
 
   subroutine get_coeff(OPP, dz,kabs,ksca,g,dir,C,inp_angles)

@@ -149,7 +149,6 @@ contains
 
       OPP%LUT_initiliazed=.True.
       if(myid.eq.0) print *,'Done loading LUTs (shape diffLUT',shape(OPP%diffLUT%S%c),')'
-
   end subroutine
 subroutine loadLUT_diff(OPP, comm)
     class(t_optprop_LUT) :: OPP

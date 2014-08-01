@@ -5,7 +5,7 @@ module m_tenstream
         zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
 
       use m_twostream, only: delta_eddington_twostream
-      use m_helper_functions, only: deg2rad,approx,imp_bcast,rmse,delta_scale
+      use m_helper_functions, only: deg2rad,approx,rmse,delta_scale
       use m_eddington, only : eddington_coeff_rb
       use m_optprop_parameters, only : ldelta_scale
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -17,7 +17,8 @@ module m_tenstream
       private
       public :: init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
                 edir,ediff,abso,&
-                edir_twostr,ediff_twostr,abso_twostr
+                edir_twostr,ediff_twostr,abso_twostr, &
+                t_coord,C_dir,C_diff,C_one
 
       PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
       PetscInt,parameter :: istartpar=i1, jstartpar=i1
@@ -25,7 +26,7 @@ module m_tenstream
       logical,parameter :: ldebug=.True.,lcycle_dir=.True.
       logical,parameter :: lprealloc=.True.
 
-      type coord
+      type t_coord
         PetscInt :: xs,xe,ys,ye,zs,ze     ! local domain start and end indices
         PetscInt :: xm,ym,zm              ! size of local domain
         PetscInt :: gxs,gys,gzs           ! domain indices including ghost points
@@ -36,7 +37,7 @@ module m_tenstream
         PetscMPIInt,allocatable :: neighbors(:) ! all 3d neighbours( (x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
       end type
 
-      type(coord) :: C_dir,C_diff,C_one
+      type(t_coord) :: C_dir,C_diff,C_one
 
       PetscErrorCode :: ierr
 
@@ -76,6 +77,8 @@ module m_tenstream
       KSP :: kspdir, kspdiff
       logical :: linit_kspdir=.False., linit_kspdiff=.False.
 
+      integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
+
       contains 
       subroutine setup_grid(Nx,Ny,Nz)
         PetscInt,intent(in) :: Nx,Ny,Nz
@@ -99,7 +102,7 @@ module m_tenstream
         if(myid.eq.0.and.ldebug) print *,myid,'DMDA grid ready'
         contains
           subroutine setup_dmda(C, Nx, Ny, Nz, boundary, dof)
-              type(coord) :: C
+              type(t_coord) :: C
               PetscInt,intent(in) :: Nx,Ny,Nz,dof
 
               DMBoundaryType :: boundary
@@ -125,7 +128,7 @@ module m_tenstream
               call DMSetFromOptions(C%da, ierr) ; CHKERRQ(ierr)
           end subroutine
         subroutine setup_coords(C)
-          type(coord) :: C
+          type(t_coord) :: C
 
           call DMDAGetInfo(C%da,C%dim,                             &
             C%glob_xm,C%glob_ym,C%glob_zm,                           &
@@ -168,7 +171,7 @@ module m_tenstream
       end subroutine
       subroutine init_Matrix(A,C,prefix)
         Mat :: A
-        type(coord) :: C
+        type(t_coord) :: C
         character(len=*),optional :: prefix
 
         PetscInt,dimension(:),allocatable :: o_nnz,d_nnz!,dnz
@@ -223,7 +226,7 @@ module m_tenstream
       end subroutine
       subroutine mat_set_diagonal(A,C)
         Mat :: A
-        type(coord),intent(in) :: C
+        type(t_coord),intent(in) :: C
         PetscInt :: i,j,k,dof
         MatStencil :: row(4,1), col(4,1)
         PetscScalar :: v(1)
@@ -257,7 +260,7 @@ module m_tenstream
       subroutine setup_diff_preallocation(d_nnz,o_nnz,C)
         PetscInt,allocatable :: o_nnz(:)
         PetscInt,allocatable :: d_nnz(:)
-        type(coord) :: C
+        type(t_coord) :: C
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
@@ -406,7 +409,7 @@ module m_tenstream
       subroutine setup_dir8_preallocation(d_nnz,o_nnz,C)
         PetscInt,allocatable :: d_nnz(:)
         PetscInt,allocatable :: o_nnz(:)
-        type(coord) :: C
+        type(t_coord) :: C
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
@@ -515,7 +518,7 @@ module m_tenstream
       subroutine setup_dir_preallocation(d_nnz,o_nnz,C)
         PetscInt,allocatable :: d_nnz(:)
         PetscInt,allocatable :: o_nnz(:)
-        type(coord) :: C
+        type(t_coord) :: C
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
@@ -673,7 +676,7 @@ end subroutine
 
 subroutine set_dir_coeff(A,C)
         Mat :: A
-        type(coord) :: C
+        type(t_coord) :: C
 
         PetscInt :: i,j,k,src,dst, li,lj,lk
 
@@ -799,7 +802,7 @@ subroutine set_dir_coeff(A,C)
 
 subroutine set_diff_coeff(A,C)
   Mat :: A
-  type(coord) :: C
+  type(t_coord) :: C
 
   PetscInt :: i,j,k,src,dst, li,lj,lk
 
@@ -1130,12 +1133,12 @@ subroutine solve(ksp,b,x)
 end subroutine
 subroutine setup_ksp(ksp,C,A,linit, prefix)
       KSP :: ksp
-      type(coord) :: C
+      type(t_coord) :: C
       Mat :: A
       logical :: linit
 
-      MatNullSpace :: nullspace
-      PetscReal,parameter :: rtol=1e-7, atol=1e-25
+!      MatNullSpace :: nullspace
+      PetscReal,parameter :: rtol=1e-5, atol=1e-5
       PetscInt,parameter :: maxiter=1000
       character(len=*),optional :: prefix
 
@@ -1144,18 +1147,17 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
 
       call KSPCreate(imp_comm,ksp,ierr) ;CHKERRQ(ierr)
       if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;CHKERRQ(ierr)
+      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
+      call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
 
       call KSPSetOperators(ksp,A,A,ierr) ;CHKERRQ(ierr)
       call KSPSetDM(ksp,C%da,ierr) ;CHKERRQ(ierr)
       call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
-      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
-
-      call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
       call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
 
-      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, nullspace, ierr) ; CHKERRQ(ierr)
-      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
+!      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, nullspace, ierr) ; CHKERRQ(ierr)
+!      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
 
       linit = .True.
 end subroutine
@@ -1178,8 +1180,8 @@ end subroutine
 subroutine twostream(edirTOA)
     real(ireals),intent(in) :: edirTOA
 
-    PetscReal,pointer,dimension(:,:,:,:) :: xv_dir,xv_diff,xv_abso
-    integer(iintegers) :: i,j,k,src
+    PetscReal,pointer,dimension(:,:,:,:) :: xv_dir,xv_diff
+    integer(iintegers) :: i,j,src
 
     real(ireals),allocatable :: dtau(:),w0(:),g(:),S(:),Edn(:),Eup(:)
     real(ireals) :: mu0,Az
@@ -1253,7 +1255,7 @@ end subroutine
 
 subroutine scale_flx(v,C)
         Vec :: v
-        type(coord) :: C
+        type(t_coord) :: C
         PetscReal,pointer,dimension(:,:,:,:) :: xv
         PetscInt :: i,j,k,li,lj,lk
         PetscReal :: Ax,Ay,Az
@@ -1366,7 +1368,8 @@ end subroutine
           atm%l1d = .False.
         end where
 
-        call setup_grid(Nx,Ny,Nz)
+        call setup_grid( max(minimal_dimension, Nx), &
+                         max(minimal_dimension, Ny), Nz)
         call setup_suninfo(phi0,theta0,sun)
 
       ! init boxmc
@@ -1385,9 +1388,11 @@ end subroutine
       integer(iintegers) :: i,j,k
 
       ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
-      call extend_arr(global_kabs)
-      call extend_arr(global_ksca)
-      call extend_arr(global_g)
+      if(myid.eq.0) then
+        call extend_arr(global_kabs)
+        call extend_arr(global_ksca)
+        call extend_arr(global_g)
+      endif
 
       if(.not.allocated(atm%op) )       allocate( atm%op       (C_one%xm, C_one%ym, C_one%zm) )
       if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%xm, C_one%ym, C_one%zm) ) ! allocate space and copy optical properties for delta scaling
@@ -1437,45 +1442,103 @@ end subroutine
           subroutine local_optprop(global_kabs, global_ksca, global_g)
                 real(ireals),allocatable,dimension(:,:,:) :: global_kabs, global_ksca, global_g
 
+                Vec :: optprop_vec
+                PetscReal,pointer,dimension(:,:,:,:) :: xoptprop_vec
+
                 !TODO : this is very poorly done... we should not scatter the global optical properties to all nodes and then pick what is local, rather only copy local parts....
 
                 if(myid.eq.0.and.ldebug) print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
-
                 atm%op(:,:,:)%kabs = global_kabs(C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
                 atm%op(:,:,:)%ksca = global_ksca(C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
                 atm%op(:,:,:)%g    = global_g   (C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
 
+                call DMCreateGlobalVector(C_one%da, optprop_vec, ierr) ; CHKERRQ(ierr)
+                call scatterZerotoDM(global_kabs,C_one,optprop_vec)
+                call DMDAVecGetArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
+!                print *,'kabs same',all(approx(xoptprop_vec(0,:,:,:),atm%op(:,:,:)%kabs))
+                atm%op(:,:,:)%kabs = xoptprop_vec(0,:,:,:)
+                call DMDAVecRestoreArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
                 deallocate(global_kabs)
+
+
+                call scatterZerotoDM(global_ksca,C_one,optprop_vec)
+                call DMDAVecGetArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
+!                print *,'ksca same',all(approx(xoptprop_vec(0,:,:,:),atm%op(:,:,:)%ksca))
+                atm%op(:,:,:)%ksca = xoptprop_vec(0,:,:,:)
+                call DMDAVecRestoreArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
                 deallocate(global_ksca)
+
+
+                call scatterZerotoDM(global_g,C_one,optprop_vec)
+                call DMDAVecGetArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
+!                print *,'g same',all(approx(xoptprop_vec(0,:,:,:),atm%op(:,:,:)%g))
+                atm%op(:,:,:)%g = xoptprop_vec(0,:,:,:)
+                call DMDAVecRestoreArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
                 deallocate(global_g   )
+
+                call VecDestroy(optprop_vec,ierr) ; CHKERRQ(ierr)
+
           end subroutine
+          subroutine scatterZerotoDM(arr,C,vec)
+              real(ireals),dimension(:,:,:) :: arr
+              type(t_coord) :: C
+              Vec :: vec
+
+              VecScatter :: scatter_context
+              Vec :: natural,local
+              PetscScalar,Pointer :: xloc(:)
+
+              call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
+              call VecScatterCreateToZero(natural, scatter_context, local, ierr); CHKERRQ(ierr)
+
+              if(myid.eq.0) then
+                call VecGetArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+!                print *,myid,'shape of local',shape(xloc), 'shape of arr',shape(arr)
+                xloc = reshape( arr , [ size(arr) ] )
+                call VecRestoreArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+              endif
+
+              call VecScatterBegin(scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); CHKERRQ(ierr)
+              call VecScatterEnd  (scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); CHKERRQ(ierr)
+
+              call DMDANaturalToGlobalBegin(C%da,natural, INSERT_VALUES, vec, ierr); CHKERRQ(ierr)
+              call DMDANaturalToGlobalEnd  (C%da,natural, INSERT_VALUES, vec, ierr); CHKERRQ(ierr)
+              
+              call VecScatterDestroy(scatter_context, ierr); CHKERRQ(ierr)
+              call VecDestroy(local,ierr); CHKERRQ(ierr)
+              call VecDestroy(natural,ierr); CHKERRQ(ierr)
+
+          end subroutine
+
+
 
           subroutine extend_arr(arr)
                 real(ireals),intent(inout),allocatable :: arr(:,:,:)
                 real(ireals),allocatable :: tmp(:,:)
                 integer(iintegers) :: dims(3),i
-                integer(iintegers),parameter :: mindim=2
 
                 dims = shape(arr)
                 if( dims(1) .eq. 1 ) then
                   allocate( tmp(dims(2),dims(3) ), SOURCE=arr(1,:,:) )
                   deallocate(arr) 
-                  allocate( arr(mindim, dims(2), dims(3) ) )
-                  do i=1,mindim
+                  allocate( arr(minimal_dimension, dims(2), dims(3) ) )
+                  do i=1,minimal_dimension
                     arr(i, :, :) = tmp
                   enddo
                   deallocate(tmp)
                 endif
 
+                dims = shape(arr)
                 if( dims(2) .eq. 1 ) then
                   allocate( tmp(dims(1),dims(3) ), SOURCE=arr(:,1,:) )
                   deallocate(arr) 
-                  allocate( arr(dims(1), mindim, dims(3) ) )
-                  do i=1,mindim
+                  allocate( arr(dims(1), minimal_dimension, dims(3) ) )
+                  do i=1,minimal_dimension
                     arr(:,i , :) = tmp
                   enddo
                   deallocate(tmp)
                 endif
+                if(any(shape(arr).lt.minimal_dimension) ) stop 'set_optprop -> extend_arr :: dimension is smaller than we support... please think of something here'
           end subroutine
     end subroutine
 
@@ -1544,5 +1607,21 @@ end subroutine
             call VecDestroy(abso     , ierr) ;CHKERRQ(ierr)
             call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
             call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
+
+            call DMDestroy(C_one%da, ierr); CHKERRQ(ierr)
+            call DMDestroy(C_dir%da, ierr); CHKERRQ(ierr)
+            call DMDestroy(C_diff%da,ierr); CHKERRQ(ierr)
+
+            deallocate(atm%op)
+            deallocate(atm%delta_op)
+            deallocate(atm%a11)
+            deallocate(atm%a12)
+            deallocate(atm%a13)
+            deallocate(atm%a23)
+            deallocate(atm%a33)
+            deallocate(atm%dz)
+            deallocate(atm%l1d)
+            call OPP_1_2%destroy()
+            call OPP_8_10%destroy()
     end subroutine
 end module
