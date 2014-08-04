@@ -90,7 +90,7 @@ elemental subroutine delta_scale( kabs,ksca,g )
           ksca= dtau * w0
       end subroutine
 elemental subroutine delta_scale_optprop( dtau, w0, g) 
-          real(ireals),intent(inout) :: dtau,g,w0
+          real(ireals),intent(inout) :: dtau,w0,g
           real(ireals) :: f
 
           f = g**2

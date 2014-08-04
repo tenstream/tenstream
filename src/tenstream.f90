@@ -6,7 +6,7 @@ module m_tenstream
 
       use m_twostream, only: delta_eddington_twostream
       use m_helper_functions, only: deg2rad,approx,rmse,delta_scale
-      use m_eddington, only : eddington_coeff_rb
+      use m_eddington, only : eddington_coeff_fab
       use m_optprop_parameters, only : ldelta_scale
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
       use m_tenstream_options, only : ltwostr, luse_twostr_guess, luse_eddington, twostr_ratio
@@ -16,7 +16,7 @@ module m_tenstream
 
       private
       public :: init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
-                edir,ediff,abso,&
+                b,edir,ediff,abso,&
                 edir_twostr,ediff_twostr,abso_twostr, &
                 t_coord,C_dir,C_diff,C_one
 
@@ -1189,7 +1189,8 @@ subroutine twostream(edirTOA)
     integer(iintegers) :: li,lj
 
     call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
-    if(myid.eq.0) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM'
+    Az = atm%dx*atm%dy
+    if(myid.eq.0) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM',Az
 
     allocate( dtau(C_dir%zm-1) )
     allocate(   w0(C_dir%zm-1) )
@@ -1207,16 +1208,18 @@ subroutine twostream(edirTOA)
     allocate( Eup(C_diff%zm) )
     allocate( Edn(C_diff%zm) )
 
-    Az = atm%dx*atm%dy
     do j=C_dir%ys,C_dir%ye         
         lj = jstartpar+j-C_dir%ys 
 
         do i=C_dir%xs,C_dir%xe
           li = istartpar+i-C_dir%xs 
 
-          dtau = atm%dz * (atm%op(li,lj,:)%kabs + atm%op(li,lj,:)%ksca) 
+          dtau = atm%dz * (atm%op(li,lj,:)%kabs + atm%op(li,lj,:)%ksca)
+          w0   = atm%op(li,lj,:)%ksca / (atm%op(li,lj,:)%kabs + atm%op(li,lj,:)%ksca)
+!          print *,'twostr dtau',dtau
+!          print *,'twostr w0  ',w0
           g    = atm%op(li,lj,:)%g
-          w0   = atm%op(li,lj,:)%ksca / dtau
+
           call delta_eddington_twostream(dtau,w0,g,mu0,edirTOA,atm%albedo, S,Edn,Eup)
 
           do src=i0,i3
@@ -1228,27 +1231,12 @@ subroutine twostream(edirTOA)
         enddo
     enddo
 
+    call DMDAVecRestoreArrayF90(C_dir%da  ,edir_twostr ,xv_dir  ,ierr) ;CHKERRQ(ierr)
+    call DMDAVecRestoreArrayF90(C_diff%da ,ediff_twostr,xv_diff ,ierr) ;CHKERRQ(ierr)
+
     deallocate(S)
     deallocate(Edn)
     deallocate(Eup)
-
-
-!    call DMDAVecGetArrayF90(C_one%da ,abso_twostr ,xv_abso ,ierr) ;CHKERRQ(ierr)
-!
-!    do k=C_one%zs,C_one%ze         
-!      do j=C_one%ys,C_one%ye         
-!        do i=C_one%xs,C_one%xe
-!          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) + sum( xv_dir (0:3 ,i,j,k   ) - xv_dir(0:3 ,i,j,k+i1) )*.25_ireals
-!          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) +      xv_diff(E_up,i,j,k+i1) + xv_diff(E_dn,i,j,k   )
-!          xv_abso(i0,i,j,k) = xv_abso(i0,i,j,k) -      xv_diff(E_up,i,j,k   ) - xv_diff(E_dn,i,j,k+i1)
-!        enddo
-!      enddo
-!    enddo
-!
-!    call DMDAVecRestoreArrayF90(C_one%da  ,abso_twostr ,xv_abso  ,ierr) ;CHKERRQ(ierr)
-
-    call DMDAVecRestoreArrayF90(C_dir%da  ,edir_twostr ,xv_dir  ,ierr) ;CHKERRQ(ierr)
-    call DMDAVecRestoreArrayF90(C_diff%da ,ediff_twostr,xv_diff ,ierr) ;CHKERRQ(ierr)
 
     call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 end subroutine
@@ -1348,15 +1336,18 @@ subroutine init_memory(incSolar,b,edir,ediff,abso,Mdir,Mdiff,edir_twostr,ediff_t
         endif
 end subroutine
 
-    subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy,hhl ,phi0,theta0)
+    subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy,hhl ,phi0,theta0,albedo)
         integer,intent(in) :: icomm
         integer(iintegers),intent(in) :: Nx,Ny,Nz
-        real(ireals),intent(in) :: dx,dy,hhl(:), phi0,theta0
+        real(ireals),intent(in) :: dx,dy,hhl(:), phi0,theta0,albedo
 
         call init_mpi_data_parameters(icomm)
 
+        call setup_suninfo(phi0,theta0,sun)
+
         atm%dx  = dx
         atm%dy  = dy
+        atm%albedo = albedo
 
         allocate(atm%dz(size(hhl)-1))
         atm%dz = hhl( 1:size(hhl)-1 ) - hhl( 2:size(hhl) ) 
@@ -1370,7 +1361,6 @@ end subroutine
 
         call setup_grid( max(minimal_dimension, Nx), &
                          max(minimal_dimension, Ny), Nz)
-        call setup_suninfo(phi0,theta0,sun)
 
       ! init boxmc
         call OPP_8_10%init(atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm)
@@ -1384,7 +1374,7 @@ end subroutine
 
     subroutine set_optical_properties(global_kabs, global_ksca, global_g)
       real(ireals),intent(inout),dimension(:,:,:),allocatable :: global_kabs, global_ksca, global_g
-      real(ireals) :: tau,w0
+      real(ireals) :: tau,w0,g
       integer(iintegers) :: i,j,k
 
       ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
@@ -1397,14 +1387,6 @@ end subroutine
       if(.not.allocated(atm%op) )       allocate( atm%op       (C_one%xm, C_one%ym, C_one%zm) )
       if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%xm, C_one%ym, C_one%zm) ) ! allocate space and copy optical properties for delta scaling
 
-      if(luse_eddington) then
-        if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xm, C_one%ym, C_one%zm )) ! allocate space for twostream coefficients
-        if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xm, C_one%ym, C_one%zm )) 
-        if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%xm, C_one%ym, C_one%zm )) 
-        if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%xm, C_one%ym, C_one%zm )) 
-        if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one%xm, C_one%ym, C_one%zm )) 
-      endif
-        
       ! Scatter global optical properties to MPI nodes
       call local_optprop(global_kabs, global_ksca, global_g)
       ! Now atm%op(:,:,:)%k... is populated.
@@ -1413,13 +1395,22 @@ end subroutine
       call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g )
 
       if(luse_eddington) then
+        if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xm, C_one%ym, C_one%zm )) ! allocate space for twostream coefficients
+        if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xm, C_one%ym, C_one%zm )) 
+        if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%xm, C_one%ym, C_one%zm )) 
+        if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%xm, C_one%ym, C_one%zm )) 
+        if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one%xm, C_one%ym, C_one%zm )) 
+      endif
+        
+      if(luse_eddington) then
         do k=1,size(atm%dz)
           if( atm%l1d(k) ) then
             do j=1,ubound(atm%op,2)
               do i=1,ubound(atm%op,1)
                 tau = atm%dz(k)* (atm%op(i,j,k)%kabs + atm%op(i,j,k)%ksca)
-                w0  = atm%op(i,j,k)%ksca / tau
-                call eddington_coeff_rb ( tau , atm%op(i,j,k)%g, w0, sun%costheta, & 
+                w0  = atm%op(i,j,k)%ksca / (atm%op(i,j,k)%kabs + atm%op(i,j,k)%ksca)
+                g   = atm%op(i,j,k)%g 
+                call eddington_coeff_fab ( tau , w0, g, sun%costheta, & 
                   atm%a11(i,j,k),          &
                   atm%a12(i,j,k),          &
                   atm%a13(i,j,k),          &
@@ -1448,9 +1439,9 @@ end subroutine
                 !TODO : this is very poorly done... we should not scatter the global optical properties to all nodes and then pick what is local, rather only copy local parts....
 
                 if(myid.eq.0.and.ldebug) print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
-                atm%op(:,:,:)%kabs = global_kabs(C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
-                atm%op(:,:,:)%ksca = global_ksca(C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
-                atm%op(:,:,:)%g    = global_g   (C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
+!                atm%op(:,:,:)%kabs = global_kabs(C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
+!                atm%op(:,:,:)%ksca = global_ksca(C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
+!                atm%op(:,:,:)%g    = global_g   (C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
 
                 call DMCreateGlobalVector(C_one%da, optprop_vec, ierr) ; CHKERRQ(ierr)
                 call scatterZerotoDM(global_kabs,C_one,optprop_vec)
@@ -1458,7 +1449,6 @@ end subroutine
 !                print *,'kabs same',all(approx(xoptprop_vec(0,:,:,:),atm%op(:,:,:)%kabs))
                 atm%op(:,:,:)%kabs = xoptprop_vec(0,:,:,:)
                 call DMDAVecRestoreArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
-                deallocate(global_kabs)
 
 
                 call scatterZerotoDM(global_ksca,C_one,optprop_vec)
@@ -1466,7 +1456,6 @@ end subroutine
 !                print *,'ksca same',all(approx(xoptprop_vec(0,:,:,:),atm%op(:,:,:)%ksca))
                 atm%op(:,:,:)%ksca = xoptprop_vec(0,:,:,:)
                 call DMDAVecRestoreArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
-                deallocate(global_ksca)
 
 
                 call scatterZerotoDM(global_g,C_one,optprop_vec)
@@ -1474,9 +1463,14 @@ end subroutine
 !                print *,'g same',all(approx(xoptprop_vec(0,:,:,:),atm%op(:,:,:)%g))
                 atm%op(:,:,:)%g = xoptprop_vec(0,:,:,:)
                 call DMDAVecRestoreArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
-                deallocate(global_g   )
 
                 call VecDestroy(optprop_vec,ierr) ; CHKERRQ(ierr)
+
+                if(myid.eq.0) then
+                  deallocate(global_kabs)
+                  deallocate(global_g   )
+                  deallocate(global_ksca)
+                endif
 
           end subroutine
           subroutine scatterZerotoDM(arr,C,vec)

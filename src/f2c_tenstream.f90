@@ -20,13 +20,13 @@ module f2c_tenstream
 
 contains
 
-      subroutine f2c_init_tenstream(comm, Nx,Ny,Nz,dx,dy,hhl, phi0, theta0 ) bind(C)                                
+      subroutine f2c_init_tenstream(comm, Nx,Ny,Nz,dx,dy,hhl, phi0, theta0, albedo ) bind(C)                                
         integer(c_int), value :: comm, Nx,Ny,Nz                     
-        real(c_double), value :: dx,dy, phi0,theta0
+        real(c_double), value :: dx,dy, phi0,theta0,albedo
         real(c_double),intent(in),dimension(Nz+1) :: hhl
 
         integer(iintegers) :: oNx,oNy,oNz
-        real(ireals) :: odx,ody,ophi0,otheta0
+        real(ireals) :: odx,ody,ophi0,otheta0,oalbedo
         real(ireals),allocatable :: ohhl(:)
 
         call init_mpi_data_parameters(comm)
@@ -41,11 +41,12 @@ contains
         ody = dy
         ophi0  = phi0
         otheta0= theta0
+        oalbedo= albedo
 
         if(myid.eq.0) allocate( ohhl(size(hhl)), source=hhl)
         call imp_bcast(ohhl,0_mpiint,myid)
 
-        call init_tenstream(imp_comm, oNx,oNy,oNz, odx,ody,ohhl ,ophi0,otheta0)
+        call init_tenstream(imp_comm, oNx,oNy,oNz, odx,ody,ohhl ,ophi0, otheta0, oalbedo)
         print *,'Initializing Tenstream environment from C Language ... done'
       end subroutine                                             
 
@@ -89,14 +90,14 @@ contains
         real(ireals),allocatable,dimension(:,:,:,:) :: res
 
         call globalVec2Local(edir,C_dir,res)
-        res_edir = sum(res(1:4,:,:,:),dim=1) *.25_ireals
+        res_edir = sum(res(1:4,1:Nx,1:Ny,:),dim=1) *.25_ireals
 
         call globalVec2Local(ediff,C_diff,res)
-        res_edn = res(2,:,:,:)
-        res_eup = res(1,:,:,:)
+        res_edn = res(2,1:Nx,1:Ny,:)
+        res_eup = res(1,1:Nx,1:Ny,:)
 
         call globalVec2Local(abso,C_one,res)
-        res_abso = res(1,:,:,:)
+        res_abso = res(1,1:Nx,1:Ny,:)
 
         deallocate(res)
      end subroutine

@@ -1,6 +1,6 @@
 module m_twostream
       use m_data_parameters, only: ireals,iintegers,zero,one
-      use m_eddington, only: eddington_coeff_rb
+      use m_eddington, only: eddington_coeff_fab
       implicit none
 
       private
@@ -12,7 +12,6 @@ module m_twostream
         real(ireals),intent(in) :: dtau(:),w0(:),g(:),albedo,mu0,incSolar
         real(ireals),dimension(size(dtau)+1),intent(out):: S,Edn,Eup 
 
-!        real(ireals) :: eddington(5,size(dtau))
         real(ireals),dimension(size(dtau)) :: a11,a12,a13,a23,a33
 
         integer(iintegers) :: i,j,k,ke,ke1,bi
@@ -33,13 +32,8 @@ module m_twostream
         KLU = KL+KU+1
 
         do k=1,ke
-!          call rodents(dtau(k),w0(k),g(k),mu0, eddington(:,k) )
-!          a11(k) = eddington(1,k)
-!          a12(k) = eddington(2,k)
-!          a13(k) = eddington(3,k)
-!          a23(k) = eddington(4,k)
-!          a33(k) = eddington(5,k)
-          call eddington_coeff_rb (dtau(k),g(k), w0(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k))
+          call eddington_coeff_fab (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k))
+!          print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k)
         enddo
 
         S(1) = incSolar *mu0 ! irradiance on tilted plane
@@ -85,7 +79,7 @@ module m_twostream
 
         do k=1,ke
           if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k)] )) ) then
-            print *,'eddington coefficients',k,' source',B(2*k-1,1),B(2*k,1), 'eddington',a11(k),a12(k),' :: ',a13(k),a23(k), ' :: ',a33(k), ' :: ',dtau(k),w0(k),g(k)
+            print *,'eddington coefficients',k,' source',B(2*k-1,1),B(2*k,1), 'eddington',a11(k),a12(k),' :: ',a13(k),a23(k), ' :: ',a33(k), ' :: ',dtau(k),w0(k),g(k),'S=',S(k)
             call exit()
           endif
         enddo
@@ -93,8 +87,11 @@ module m_twostream
         INFO=-1
         if(kind(one).eq.kind(real(one)) ) then !single_precision
           call SGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
-        else
+        else if(kind(one).eq.kind(dble(one)) ) then !double_precision
           call DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
+        else
+          print *,'Dont know which LAPACK routine to call for real kind',kind(one)
+          call exit(-5)
         endif
 
         if(INFO.ne.0) then
@@ -106,7 +103,8 @@ module m_twostream
         do k=1,ke1
           Eup(k) = B(2*k-1,NRHS) ! Eup
           Edn(k) = B(2*k,NRHS) ! Edn
-          if(any(isnan( [Eup(k),Edn(k)] )) ) print *,'setting value for Eup,Edn',k,' indices',B(2*k-1,1),B(2*k,1), Eup(k),Edn(k),'IPIV',IPIV(2*k-1:2*k)
+          if(any(isnan( [Eup(k),Edn(k)] )) ) &
+              print *,'setting value for Eup,Edn',k,' Source',B(2*k-1,1),B(2*k,1),'Eup/dn', Eup(k),Edn(k),'IPIV',IPIV(2*k-1:2*k)
         enddo
 
 !        S = S*mu0

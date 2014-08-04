@@ -11,8 +11,8 @@ module m_tenstream_options
       real(ireals) :: twostr_ratio,&
             ident_dx,&
             ident_dy,&
-            phi,&
-            theta
+            options_phi,&
+            options_theta
                     
       integer(iintegers) :: pert_xshift,pert_yshift
 
@@ -39,9 +39,9 @@ module m_tenstream_options
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
 
-          phi=180; theta=0
-          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-phi",phi, lflg,ierr)     ; CHKERRQ(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-theta",theta, lflg,ierr) ; CHKERRQ(ierr)
+          options_phi=180; options_theta=0
+          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-phi"  ,options_phi, lflg,ierr)     ; CHKERRQ(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-theta",options_theta, lflg,ierr) ; CHKERRQ(ierr)
 
           call PetscOptionsGetBool(PETSC_NULL_CHARACTER,"-eddington",luse_eddington,lflg,ierr) ;CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) luse_eddington = .True.
@@ -82,8 +82,8 @@ module m_tenstream_options
             print *,'***   hdf5_guess   ',luse_hdf5_guess
             print *,'***   twostr_ratio ',twostr_ratio
             print *,'***   out          ',output_prefix
-            print *,'***   solar azimuth',phi
-            print *,'***   solar zenith ',theta
+            print *,'***   solar azimuth',options_phi
+            print *,'***   solar zenith ',options_theta
             print *,'***   size_of ireal/iintegers',sizeof(one),sizeof(i0)
             print *,'********************************************************************'
             print *,''

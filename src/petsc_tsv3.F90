@@ -8,17 +8,16 @@ module m_petsc_ts
       use m_kato_data
       use m_helper_functions, only : imp_bcast
 
-      use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
-                            edir,ediff,abso, &
+      use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream, &
+                            b,edir,ediff,abso, &
                             edir_twostr,ediff_twostr,abso_twostr
 
-      use m_tenstream_options, only : read_commandline_options, &
-                                      ident_dx,ident_dy,phi,theta,ident,basepath,output_prefix,ltwostr,lwriteall
+      use m_tenstream_options, only : read_commandline_options,lwriteall, &
+                                      ident_dx,ident_dy,options_phi,options_theta,ident,basepath,output_prefix,ltwostr
 
       implicit none
 #include "finclude/petsc.h90"
 
-!      logical :: l_writeall,ltwostr
       PetscErrorCode :: ierr
 
       contains
@@ -39,7 +38,7 @@ subroutine vec_from_hdf5(v,err_code)
 
       call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
 
-      write(s_theta0,FMT='(".",I0)' ) int(theta)
+      write(s_theta0,FMT='(".",I0)' ) int(options_theta)
       
       fname = trim(basepath) // trim(output_prefix) // '.' // trim(ident) // trim(s_theta0) // trim(suffix)
       inquire(file=trim(fname), exist=fexists)
@@ -76,7 +75,7 @@ subroutine vec_to_hdf5(v)
 
       call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
 
-      write(s_theta0,FMT='(".",I0)' ) int(theta)
+      write(s_theta0,FMT='(".",I0)' ) int(options_theta)
       
       fname = trim(basepath) // trim(output_prefix) // '.' // trim(ident) // trim(s_theta0) // trim(suffix)
       inquire(file=trim(fname), exist=fexists)
@@ -164,7 +163,7 @@ end subroutine
 
           real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
 
-          integer(iintegers),parameter :: glob_Nx=16,glob_Ny=16,glob_Nz=16, zTOA=glob_Nz*40
+          integer(iintegers),parameter :: glob_Nx=3,glob_Ny=3,glob_Nz=10, zTOA=glob_Nz*40
           integer(iintegers) :: k
 
           if(myid.eq.0) print *,myid,'Creating Optical Properties here instead of taking them from kato',kato,iq
@@ -180,10 +179,10 @@ end subroutine
           enddo
 
           g=0.5
-          kabs=1e-4
-          ksca=1e-6
+          kabs=1e-14
+          ksca=1e-4
 
-          if(myid.eq.0) ksca(1,1,5) = 5e-2
+          if(myid.eq.0) ksca(1,1,5) = 5e-1
           !      ksca(1,1,3:5) = 1e-2
 
   end subroutine
@@ -198,29 +197,37 @@ end subroutine
 
         if(ltwostr) then
           call VecDuplicate(edir_twostr , intedir_twostr , ierr) ; CHKERRQ(ierr)
-          write(vecname,FMT='("edir.twostr.",I0,".",I0)') int(phi),int(theta) 
+          write(vecname,FMT='("edir.twostr.",I0,".",I0)') int(options_phi),int(options_theta) 
           call PetscObjectSetName(intedir_twostr,vecname,ierr)          ; CHKERRQ(ierr)
 
           call VecDuplicate(ediff_twostr, intediff_twostr, ierr) ; CHKERRQ(ierr)
-          write(vecname,FMT='("ediff.twostr.",I0,".",I0)') int(phi),int(theta) 
+          write(vecname,FMT='("ediff.twostr.",I0,".",I0)') int(options_phi),int(options_theta) 
           call PetscObjectSetName(intediff_twostr,vecname,ierr)          ; CHKERRQ(ierr)
 
           call VecDuplicate(abso_twostr , intabso_twostr , ierr) ; CHKERRQ(ierr)
-          write(vecname,FMT='("abso.twostr.",I0,".",I0)') int(phi),int(theta) 
+          write(vecname,FMT='("abso.twostr.",I0,".",I0)') int(options_phi),int(options_theta) 
           call PetscObjectSetName(intabso_twostr,vecname,ierr)          ; CHKERRQ(ierr)
+
+          call VecSet(intedir_twostr ,zero,ierr) ;CHKERRQ(ierr)
+          call VecSet(intediff_twostr,zero,ierr) ;CHKERRQ(ierr)
+          call VecSet(intabso_twostr ,zero,ierr) ;CHKERRQ(ierr)
         endif
 
         call VecDuplicate(edir , intedir , ierr) ; CHKERRQ(ierr)
-        write(vecname,FMT='("edir.",I0,".",I0)') int(phi),int(theta) 
+        write(vecname,FMT='("edir.",I0,".",I0)') int(options_phi),int(options_theta) 
         call PetscObjectSetName(intedir,vecname,ierr)          ; CHKERRQ(ierr)
 
         call VecDuplicate(ediff, intediff, ierr) ; CHKERRQ(ierr)
-        write(vecname,FMT='("ediff.",I0,".",I0)') int(phi),int(theta) 
+        write(vecname,FMT='("ediff.",I0,".",I0)') int(options_phi),int(options_theta) 
         call PetscObjectSetName(intediff,vecname,ierr)          ; CHKERRQ(ierr)
 
         call VecDuplicate(abso , intabso , ierr) ; CHKERRQ(ierr)
-        write(vecname,FMT='("abso.",I0,".",I0)') int(phi),int(theta) 
+        write(vecname,FMT='("abso.",I0,".",I0)') int(options_phi),int(options_theta) 
         call PetscObjectSetName(intabso,vecname,ierr)          ; CHKERRQ(ierr)
+
+        call VecSet(intedir ,zero,ierr) ;CHKERRQ(ierr)
+        call VecSet(intediff,zero,ierr) ;CHKERRQ(ierr)
+        call VecSet(intabso ,zero,ierr) ;CHKERRQ(ierr)
 
         linit = .True.
 
@@ -231,29 +238,32 @@ end subroutine
         character(100) :: vecname
 
         if(ltwostr) then
-          write(vecname,FMT='("edir.twostr.",I0,".",I0,"-",I0,"-",I0)') int(phi),int(theta),kato,iq
+          write(vecname,FMT='("edir.twostr.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
           call PetscObjectSetName(edir_twostr,vecname,ierr) ; CHKERRQ(ierr)
           call vec_to_hdf5(edir_twostr)
 
-          write(vecname,FMT='("ediff.twostr.",I0,".",I0,"-",I0,"-",I0)') int(phi),int(theta),kato,iq
+          write(vecname,FMT='("ediff.twostr.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
           call PetscObjectSetName(ediff_twostr,vecname,ierr) ; CHKERRQ(ierr)
           call vec_to_hdf5(ediff_twostr)
 
-          write(vecname,FMT='("abso.twostr.",I0,".",I0,"-",I0,"-",I0)') int(phi),int(theta),kato,iq
+          write(vecname,FMT='("abso.twostr.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
           call PetscObjectSetName(abso_twostr,vecname,ierr) ; CHKERRQ(ierr)
           call vec_to_hdf5(abso_twostr)
         endif
 
+        write(vecname,FMT='("b.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
+        call PetscObjectSetName(b,vecname,ierr) ; CHKERRQ(ierr)
+        call vec_to_hdf5(b)
 
-        write(vecname,FMT='("edir.",I0,".",I0,"-",I0,"-",I0)') int(phi),int(theta),kato,iq
+        write(vecname,FMT='("edir.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
         call PetscObjectSetName(edir,vecname,ierr) ; CHKERRQ(ierr)
         call vec_to_hdf5(edir)
 
-        write(vecname,FMT='("ediff.",I0,".",I0,"-",I0,"-",I0)') int(phi),int(theta),kato,iq
+        write(vecname,FMT='("ediff.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
         call PetscObjectSetName(ediff,vecname,ierr) ; CHKERRQ(ierr)
         call vec_to_hdf5(ediff)
 
-        write(vecname,FMT='("abso.",I0,".",I0,"-",I0,"-",I0)') int(phi),int(theta),kato,iq
+        write(vecname,FMT='("abso.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
         call PetscObjectSetName(abso,vecname,ierr) ; CHKERRQ(ierr)
         call vec_to_hdf5(abso)
 
@@ -273,6 +283,7 @@ program main
 
         real(ireals),allocatable,dimension(:,:,:) :: global_kabs,global_ksca,global_g
         real(ireals),allocatable :: hhl(:)
+        real(ireals),parameter :: albedo = 0.05
 
         logical :: linit_integral_vecs = .False.
 
@@ -282,13 +293,13 @@ program main
 
         call load_optprop(1_iintegers,0_iintegers, global_kabs,global_ksca,global_g, hhl)
 
-        call init_tenstream(imp_comm, ubound(global_kabs,1), ubound(global_kabs,2) , ubound(global_kabs,3), ident_dx, ident_dy, hhl ,phi,theta)
+        call init_tenstream(imp_comm, ubound(global_kabs,1), ubound(global_kabs,2) , ubound(global_kabs,3), ident_dx, ident_dy, hhl ,options_phi,options_theta,albedo)
 
         do kato=1,32
-!                  do kato=11,12
+!                  do kato=11,11
           do iq=0,kato_bands(kato)
             if(myid.eq.0) print *,'-----------------------------------------------------------------------------------------------------------------------------'
-            if(myid.eq.0) print *,'-------------------------- Calculate ',trim(ident),' sza',theta,' kato',kato,'iq',iq
+            if(myid.eq.0) print *,'-------------------------- Calculate ',trim(ident),' sza',options_theta,' kato',kato,'iq',iq
             if(myid.eq.0) print *,'-----------------------------------------------------------------------------------------------------------------------------'
 
             call load_optprop(kato,iq, global_kabs,global_ksca,global_g, hhl)
