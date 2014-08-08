@@ -43,7 +43,11 @@ contains
         otheta0= theta0
         oalbedo= albedo
 
-        if(myid.eq.0) allocate( ohhl(size(hhl)), source=hhl)
+        if(myid.eq.0) then
+          allocate( ohhl(size(hhl)) )
+          ohhl = hhl
+        endif
+
         call imp_bcast(ohhl,0_mpiint,myid)
 
         call init_tenstream(imp_comm, oNx,oNy,oNz, odx,ody,ohhl ,ophi0, otheta0, oalbedo)
@@ -57,9 +61,9 @@ contains
         real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og
         
         if(myid.eq.0) then
-          allocate( okabs(Nx,Ny,Nz), source=kabs)
-          allocate( oksca(Nx,Ny,Nz), source=ksca)
-          allocate( og   (Nx,Ny,Nz), source=g   )
+          allocate( okabs(Nx,Ny,Nz) ); okabs = kabs
+          allocate( oksca(Nx,Ny,Nz) ); oksca = ksca
+          allocate( og   (Nx,Ny,Nz) ); og    = g   
         endif
 
         call imp_bcast(okabs,0_mpiint,myid)

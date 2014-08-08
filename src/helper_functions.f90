@@ -53,6 +53,23 @@ module m_helper_functions
           approx = .False.
         endif
       end function
+      elemental logical function rel_approx(a,b,precision)
+        real(ireals),intent(in) :: a,b
+        real(ireals),intent(in),optional :: precision
+        real(ireals) :: factor,rel_error
+        if(present(precision) ) then
+          factor = precision
+        else
+          factor = 10*epsilon(b)
+        endif
+        rel_error = abs( (a-b)/ max(epsilon(a), ( (a+b)*.5_ireals ) ) )
+
+        if( rel_error .lt. precision ) then
+          rel_approx = .True.
+        else
+          rel_approx = .False.
+        endif
+      end function
 
       subroutine  imp_bcast_real_1d(arr,sendid,myid)
           real(ireals),allocatable,intent(inout) :: arr(:)
@@ -79,21 +96,33 @@ module m_helper_functions
           call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr)
       end subroutine
 
-elemental subroutine delta_scale( kabs,ksca,g ) 
+elemental subroutine delta_scale( kabs,ksca,g,factor ) 
           real(ireals),intent(inout) :: kabs,ksca,g ! kabs, ksca, g
+          real(ireals),intent(in),optional :: factor
           real(ireals) :: dtau, w0
           dtau = kabs+ksca
           w0   = ksca/dtau
           g    = g
-          call delta_scale_optprop( dtau, w0, g)
+
+          if(present(factor)) then
+            call delta_scale_optprop( dtau, w0, g, factor)
+          else
+            call delta_scale_optprop( dtau, w0, g)
+          endif
+
           kabs= dtau * (one-w0)
           ksca= dtau * w0
       end subroutine
-elemental subroutine delta_scale_optprop( dtau, w0, g) 
+elemental subroutine delta_scale_optprop( dtau, w0, g,factor) 
           real(ireals),intent(inout) :: dtau,w0,g
+          real(ireals),intent(in),optional :: factor
           real(ireals) :: f
 
-          f = g**2
+          if(present(factor)) then
+            f = factor
+          else
+            f = g**2
+          endif
 !          f = g
           dtau = dtau * ( one - w0 * f )
           g    = ( g - f ) / ( one - f )

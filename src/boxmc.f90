@@ -140,12 +140,11 @@ contains
   !> @details All MPI Nodes start photons from src stream and ray trace it including scattering events through the box until it leaves the box through one of the exit streams.\n
   !> Scattering Absorption is accounted for by carrying on a photon weight and succinctly lower it by lambert Beers Law \f$ \omega_{abso}^{'} = \omega_{abso} \cdot e^{- \rm{d}s \cdot {\rm k}_{sca}   }   \f$ \n
   !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev. Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
-  subroutine get_coeff(bmc,comm,op_bg,src,S_out,Sdir_out,ldir,ldeltascale,phi0,theta0,dx,dy,dz)
+  subroutine get_coeff(bmc,comm,op_bg,src,S_out,Sdir_out,ldir,phi0,theta0,dx,dy,dz)
       class(t_boxmc)                :: bmc                       !< @param[in] bmc Raytracer Type - determines number of streams
       real(ireals),intent(in)   :: op_bg(3)                  !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
       real(ireals),intent(in)   :: phi0                      !< @param[in] phi0 solar azimuth angle
       real(ireals),intent(in)   :: theta0                    !< @param[in] theta0 solar zenith angle
-      logical,intent(in)            :: ldeltascale               !< @param[in] ldeltascale implemented as following: if a photon leaves the box with an angle, that is approximately the same as the incidence angle, it is counted as direct
       integer(iintegers),intent(in) :: src                       !< @param[in] src stream from which to start photons - see init_photon routines
       integer(mpiint),intent(in)    :: comm                      !< @param[in] comm MPI Communicator
       logical,intent(in)            :: ldir                      !< @param[in] ldir determines if photons should be started with a fixed incidence angle
@@ -264,7 +263,7 @@ contains
 
       if( real(sum(S_out)+sum(Sdir_out)).gt.one ) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',\
-                sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),':: op',p%optprop
+                sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),':: op',p%optprop,'eps',epsilon(one)
         call print_photon(p)
         call exit
       endif

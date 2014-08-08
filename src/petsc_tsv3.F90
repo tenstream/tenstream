@@ -19,6 +19,7 @@ module m_petsc_ts
 #include "finclude/petsc.h90"
 
       PetscErrorCode :: ierr
+      integer(iintegers) :: iierr
 
       contains
 
@@ -123,7 +124,7 @@ end subroutine
 
       groups(3) = 'hhl'
       if(myid.eq.0) then
-        call h5load(groups(1:3),hhl,ierr)
+        call h5load(groups(1:3),hhl,iierr)
 
         if(ierr.ne.0) then
           print *,'Tried loading hhl from ',trim(groups(1)),' ::  ',trim(groups(2)),'  ::  ',trim(groups(3))
@@ -133,11 +134,11 @@ end subroutine
         write(groups(3),FMT='("kato",I0)') kato
         write(groups(4),FMT='("iq",I0)') iq
         groups(5) = 'kabs'
-        call h5load(groups(1:5),kabs,ierr)
+        call h5load(groups(1:5),kabs,iierr)
         groups(5) = 'ksca'
-        call h5load(groups(1:5),ksca,ierr) 
+        call h5load(groups(1:5),ksca,iierr) 
         groups(5) = 'g'
-        call h5load(groups(1:5),g,ierr) 
+        call h5load(groups(1:5),g,iierr) 
 
         if(size(ksca).ne.size(kabs).or.size(kabs).ne.size(g).or.size(hhl).ne.ubound(kabs,3)+1) then !.or.(ubound(hhl1d,1)-1.ne.ubound(kabs,3))) then
           print *,'ERROR : shapes of optical properties do not match!!!'
@@ -163,7 +164,7 @@ end subroutine
 
           real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
 
-          integer(iintegers),parameter :: glob_Nx=3,glob_Ny=3,glob_Nz=10, zTOA=glob_Nz*40
+          integer(iintegers),parameter :: glob_Nx=3,glob_Ny=3,glob_Nz=5, zTOA=glob_Nz*40
           integer(iintegers) :: k
 
           if(myid.eq.0) print *,myid,'Creating Optical Properties here instead of taking them from kato',kato,iq
@@ -179,10 +180,10 @@ end subroutine
           enddo
 
           g=0.5
-          kabs=1e-14
+          kabs=1e-4
           ksca=1e-4
 
-          if(myid.eq.0) ksca(1,1,5) = 5e-1
+!          if(myid.eq.0) ksca(1,1,5) = 5e-1
           !      ksca(1,1,3:5) = 1e-2
 
   end subroutine
@@ -280,6 +281,7 @@ program main
 
         integer(iintegers) :: iq
         integer(iintegers) :: kato
+        integer(iintegers) :: dims(3)
 
         real(ireals),allocatable,dimension(:,:,:) :: global_kabs,global_ksca,global_g
         real(ireals),allocatable :: hhl(:)
@@ -293,7 +295,8 @@ program main
 
         call load_optprop(1_iintegers,0_iintegers, global_kabs,global_ksca,global_g, hhl)
 
-        call init_tenstream(imp_comm, ubound(global_kabs,1), ubound(global_kabs,2) , ubound(global_kabs,3), ident_dx, ident_dy, hhl ,options_phi,options_theta,albedo)
+        dims = shape(global_kabs)
+        call init_tenstream(imp_comm, dims(1),dims(2),dims(3), ident_dx, ident_dy, hhl ,options_phi,options_theta,albedo)
 
         do kato=1,32
 !                  do kato=11,11

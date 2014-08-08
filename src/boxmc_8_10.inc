@@ -79,7 +79,6 @@ subroutine update_diff_stream_8_10(bmc,p,S,N)
         type(photon),intent(in) :: p
         real(ireals),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
-        real(ireals),parameter :: side_limit=.3_ireals
 
 !         _______1_______
 !        |           10  |

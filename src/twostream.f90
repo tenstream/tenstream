@@ -1,6 +1,7 @@
 module m_twostream
       use m_data_parameters, only: ireals,iintegers,zero,one
       use m_eddington, only: eddington_coeff_fab
+      use m_helper_functions, only : delta_scale_optprop
       implicit none
 
       private
@@ -8,11 +9,13 @@ module m_twostream
 
     contains
 
-      subroutine delta_eddington_twostream(dtau,w0,g,mu0,incSolar,albedo, S,Edn,Eup)
-        real(ireals),intent(in) :: dtau(:),w0(:),g(:),albedo,mu0,incSolar
-        real(ireals),dimension(size(dtau)+1),intent(out):: S,Edn,Eup 
+      subroutine delta_eddington_twostream(dtau_in,w0_in,g_in,mu0,incSolar,albedo, S,Edn,Eup)
+        real(ireals),intent(in),dimension(:) :: dtau_in,w0_in,g_in
+        real(ireals),intent(in) :: albedo,mu0,incSolar
+        real(ireals),dimension(size(dtau_in)+1),intent(out):: S,Edn,Eup 
 
-        real(ireals),dimension(size(dtau)) :: a11,a12,a13,a23,a33
+        real(ireals),dimension(size(dtau_in)) :: dtau,w0,g
+        real(ireals),dimension(size(dtau_in)) :: a11,a12,a13,a23,a33
 
         integer(iintegers) :: i,j,k,ke,ke1,bi
         real(ireals) :: R,T
@@ -31,12 +34,17 @@ module m_twostream
         LDB  = N
         KLU = KL+KU+1
 
+        dtau = dtau_in
+        w0   = w0_in
+        g    = g_in
+        call delta_scale_optprop( dtau, w0, g  )
+
         do k=1,ke
           call eddington_coeff_fab (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k))
 !          print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k)
         enddo
 
-        S(1) = incSolar *mu0 ! irradiance on tilted plane
+        S(1) = incSolar ! irradiance on tilted plane
         do k=1,ke
           S(k+1) = S(k) * a33(k)
         enddo
@@ -104,7 +112,7 @@ module m_twostream
           Eup(k) = B(2*k-1,NRHS) ! Eup
           Edn(k) = B(2*k,NRHS) ! Edn
           if(any(isnan( [Eup(k),Edn(k)] )) ) &
-              print *,'setting value for Eup,Edn',k,' Source',B(2*k-1,1),B(2*k,1),'Eup/dn', Eup(k),Edn(k),'IPIV',IPIV(2*k-1:2*k)
+              print *,'setting value for Eup,Edn',k,' LAPACK entries',B(2*k-1,1),B(2*k,1),'Eup/dn', Eup(k),Edn(k),'IPIV',IPIV(2*k-1:2*k)
         enddo
 
 !        S = S*mu0

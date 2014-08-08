@@ -14,13 +14,14 @@ public :: t_optprop_1_2,t_optprop_8_10
 integer(mpiint) :: ierr
 
 type,abstract :: t_optprop
-  logical :: optprop_debug=.False.
+  logical :: optprop_debug=.True.
   real(ireals) :: dx,dy
   integer(iintegers) :: coeff_mode=i0 ! 0 is LUT, 1 is Neural Network
   class(t_optprop_LUT),allocatable :: OPP_LUT
   contains
     procedure :: init
     procedure :: get_coeff
+    procedure :: get_coeff_bmc
     procedure :: coeff_symmetry
     procedure :: destroy
 end type
@@ -67,6 +68,38 @@ contains
       if(allocated(OPP%OPP_LUT)) deallocate(OPP%OPP_LUT)
   end subroutine
 
+  subroutine get_coeff_bmc(OPP, dz,kabs,ksca,g,dir,C,angles)
+      class(t_optprop) :: OPP
+      real(ireals),intent(in) :: dz,g,kabs,ksca
+      logical,intent(in) :: dir
+      real(ireals),intent(out):: C(:)
+      real(ireals),intent(in),optional :: angles(2)
+
+      real(ireals) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
+      integer(iintegers) :: isrc
+
+      if(present(angles)) then 
+        if(dir) then !dir2dir
+          do isrc=1,OPP%OPP_LUT%dir_streams
+            call OPP%OPP_LUT%bmc_wrapper( isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
+            C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams) = T_dir
+          enddo
+        else ! dir2diff
+          do isrc=1,OPP%OPP_LUT%dir_streams
+            call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
+            C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
+          enddo
+        endif
+      else
+        ! diff2diff
+        do isrc=1,OPP%OPP_LUT%diff_streams
+          call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.False.,zero,zero,-1_mpiint,S_diff,T_dir)
+          C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
+        enddo
+      endif ! angles_present
+
+  end subroutine
+
   subroutine get_coeff(OPP, dz,kabs,ksca,g,dir,C,inp_angles)
         class(t_optprop) :: OPP
         logical,intent(in) :: dir
@@ -80,11 +113,18 @@ contains
 
 ! This enables on-line calculations of coefficients with bmc code. This takes FOREVER! - use this only to check if LUT is working correctly!
         logical,parameter :: determine_coeff_error=.False.
+        logical,parameter :: compute_coeff_online=.False.
         real(ireals) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
         real(ireals) :: frmse(2)
         real(ireals),parameter :: checking_limit=1e-1
 
         real(ireals) :: dx,dy,diff_streams,dir_streams
+
+        if(compute_coeff_online) then
+          call get_coeff_bmc(OPP, dz,kabs,ksca,g,dir,C,inp_angles)
+          return
+        endif
+
         dx = OPP%dx
         dy = OPP%dy
         diff_streams= OPP%OPP_LUT%diff_streams
@@ -95,6 +135,18 @@ contains
             if( (any([dz,kabs,ksca,g].lt.zero)) .or. (any(isnan([dz,kabs,ksca,g]))) ) then
               print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[dz,kabs,ksca,g]
               call exit
+            endif
+          endif
+          if(present(inp_angles)) then
+            if(dir .and. size(C).ne. OPP%OPP_LUT%dir_streams**2) then
+              print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%OPP_LUT%dir_streams
+            endif
+            if(.not.dir .and. size(C).ne. OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams) then
+              print *,'dir2diffuse called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%OPP_LUT%diff_streams
+            endif
+          else
+            if(size(C).ne. OPP%OPP_LUT%diff_streams**2) then
+              print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%OPP_LUT%diff_streams
             endif
           endif
         endif
@@ -128,7 +180,7 @@ contains
                         if(present(inp_angles)) then 
                                 if(dir) then !dir2dir
                                         do isrc=1,OPP%OPP_LUT%dir_streams
-                                                call OPP%OPP_LUT%bmc_wrapper( isrc,dx,dy,dz,kabs,ksca,g,.True.,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
+                                                call OPP%OPP_LUT%bmc_wrapper( isrc,dx,dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
                                                 frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams), T_dir)
                                                 print "('check ',i1,' dir2dir ',6e10.2,' :: RMSE ',2e13.4,' coeff ',8f7.4,' bmc ',8f7.4)",&
                                                         isrc,dz,kabs,ksca,g,angles(1),angles(2),frmse, C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams),T_dir
@@ -136,7 +188,7 @@ contains
                                         enddo
                                 else ! dir2diff
                                         do isrc=1,OPP%OPP_LUT%dir_streams
-                                                call OPP%OPP_LUT%bmc_wrapper(isrc,dx,dy,dz,kabs,ksca,g,.True.,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
+                                                call OPP%OPP_LUT%bmc_wrapper(isrc,dx,dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
                                                 frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams), S_diff)
                                                 print "('check ',i1,' dir2diff ',6e10.2,' :: RMSE ',2e13.4,' coeff ',10e10.2)",&
                                                         isrc,dz,kabs,ksca,g,angles(1),angles(2),frmse ,abs(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)-S_diff)
@@ -149,7 +201,7 @@ contains
                         else
                                 ! diff2diff
                                 do isrc=1,OPP%OPP_LUT%diff_streams
-                                        call OPP%OPP_LUT%bmc_wrapper(isrc,dx,dy,dz,kabs,ksca,g,.False.,.True.,zero,zero,-1_mpiint,S_diff,T_dir)
+                                        call OPP%OPP_LUT%bmc_wrapper(isrc,dx,dy,dz,kabs,ksca,g,.False.,zero,zero,-1_mpiint,S_diff,T_dir)
                                         frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams), S_diff)
                                         print "('check ',i1,' diff2diff ',4e10.2,' :: RMSE ',2e13.4,' coeff err',10e10.2)",&
                                                 isrc,dz,kabs,ksca,g,frmse,abs(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)-S_diff)

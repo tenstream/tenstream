@@ -1,5 +1,5 @@
 module m_optprop_LUT
-  use m_helper_functions, only : approx
+  use m_helper_functions, only : approx,rel_approx
   use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real
   use m_optprop_parameters, only: ldebug_optprop, &
       Ndz_1_2,Nkabs_1_2,Nksca_1_2,Ng_1_2,Nphi_1_2,Ntheta_1_2,interp_mode_1_2,   &
@@ -33,7 +33,7 @@ module m_optprop_LUT
     real(ireals) :: dz_exponent,kabs_exponent,ksca_exponent,g_exponent
     real(ireals) , dimension(2)      :: range_dz      = [ 50._ireals , 5001._ireals ]
     real(ireals) , dimension(2)      :: range_kabs    = [ nil        , 10._ireals    ] !lower limit for kabs , ksca is set in set_parameter_space
-    real(ireals) , dimension(2)      :: range_ksca    = [ nil        , one           ] !lower limit for ksca , ksca is set in set_parameter_space // TODO: if we keep hard delta scaling , we can reduce ksca max to 0.1
+    real(ireals) , dimension(2)      :: range_ksca    = [ nil        , .1_ireals     ] !lower limit for ksca , ksca is set in set_parameter_space // TODO: if we keep hard delta scaling , we can reduce ksca max to 0.1
     real(ireals) , dimension(2)      :: range_g       = [ zero       , .999_ireals   ]
     real(ireals) , dimension(2)      :: range_phi     = [ zero       , 90._ireals    ]
     real(ireals) , dimension(2)      :: range_theta   = [ zero       , 90._ireals    ]
@@ -108,7 +108,7 @@ contains
         class is (t_optprop_LUT_8_10)
           OPP%dir_streams  =  8
           OPP%diff_streams = 10
-          OPP%lutbasename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT_8_10.delta0.'
+          OPP%lutbasename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT_8_10.delta0.1.'
           allocate(t_boxmc_8_10::OPP%bmc)
 
         class default
@@ -432,19 +432,19 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_rtol_table_name, comm)
             select type(OPP)
               class is (t_optprop_LUT_8_10)
                   ! src=1
-                  call OPP%bmc_wrapper(i1,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,ldelta_scale,zero,zero,comm,S_diff,T_dir)
+                  call OPP%bmc_wrapper(i1,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
                   if(myid.eq.0) OPP%diffLUT%S%c( 1, idz,ikabs ,iksca,ig) = S_diff(1)
                   if(myid.eq.0) OPP%diffLUT%S%c( 2, idz,ikabs ,iksca,ig) = S_diff(2)
                   if(myid.eq.0) OPP%diffLUT%S%c( 3, idz,ikabs ,iksca,ig) = sum(S_diff([3,4,7, 8]) )/4
                   if(myid.eq.0) OPP%diffLUT%S%c( 4, idz,ikabs ,iksca,ig) = sum(S_diff([5,6,9,10]) )/4
                   ! src=3
-                  call OPP%bmc_wrapper(i3,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,ldelta_scale,zero,zero,comm,S_diff,T_dir)
+                  call OPP%bmc_wrapper(i3,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
                   if(myid.eq.0) OPP%diffLUT%S%c( 5:10, idz,ikabs ,iksca,ig) = S_diff(1:6)
                   if(myid.eq.0) OPP%diffLUT%S%c( 11  , idz,ikabs ,iksca,ig) = sum(S_diff(7: 8))/2
                   if(myid.eq.0) OPP%diffLUT%S%c( 12  , idz,ikabs ,iksca,ig) = sum(S_diff(9:10))/2
               class is (t_optprop_LUT_1_2)
                   ! src=1
-                  call OPP%bmc_wrapper(i1,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,ldelta_scale,zero,zero,comm,S_diff,T_dir)
+                  call OPP%bmc_wrapper(i1,OPP%diffLUT%dx,OPP%diffLUT%dy,OPP%diffLUT%pspace%dz(idz),OPP%diffLUT%pspace%kabs (ikabs ),OPP%diffLUT%pspace%ksca(iksca),OPP%diffLUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
                   if(myid.eq.0) OPP%diffLUT%S%c( :, idz,ikabs ,iksca,ig) = S_diff
             end select
             if(myid.eq.0) OPP%diffLUT%S%stddev_rtol(idz,ikabs ,iksca,ig) = stddev_rtol
@@ -542,7 +542,7 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
               call OPP%bmc_wrapper(src                             ,                                                               & 
                                    OPP%dirLUT%dx                   , OPP%dirLUT%dy                   , OPP%dirLUT%pspace%dz(idz) , &
                                    OPP%dirLUT%pspace%kabs (ikabs ) , OPP%dirLUT%pspace%ksca(iksca)   , OPP%dirLUT%pspace%g(ig)   , &
-                                   .True.                          , ldelta_scale                     ,                             & ! direct(y/n), delta_scale(y/n)
+                                   .True.                          ,                                                               & ! direct(y/n), delta_scale(y/n)
                                    OPP%dirLUT%pspace%phi(iphi)     , OPP%dirLUT%pspace%theta(itheta) ,                             &
                                    comm                            , S_diff                          , T_dir)
 
@@ -568,11 +568,11 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
     enddo !g
     if(myid.eq.0) print *,'done calculating direct coefficients'
 end subroutine
-subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,ldelta_scale,phi,theta,comm,S_diff,T_dir)
+subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,phi,theta,comm,S_diff,T_dir)
     class(t_optprop_LUT) :: OPP
     integer(iintegers),intent(in) :: src
     integer(mpiint),intent(in) :: comm
-    logical,intent(in) :: dir,ldelta_scale
+    logical,intent(in) :: dir
     real(ireals),intent(in) :: dx,dy,dz,kabs ,ksca,g,phi,theta
 
     real(ireals),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
@@ -587,7 +587,7 @@ subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,ldelta_scale,phi,theta
     T_dir=nil
 
 !    print *,comm,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
-    call OPP%bmc%get_coeff(comm,bg,src,S_diff,T_dir,dir,ldelta_scale,phi,theta,dx,dy,dz)
+    call OPP%bmc%get_coeff(comm,bg,src,S_diff,T_dir,dir,phi,theta,dx,dy,dz)
     !        print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
 
@@ -634,9 +634,9 @@ end subroutine
       compare_same = .False.
       return
     endif
-    compare_same = all( approx( a,b,1e-3_ireals ) )
+    compare_same = all( rel_approx( a,b,1e-1_ireals ) )
     if(.not. compare_same ) then
-      print *,'Compare_Same :: Arrays are not the same:'
+      print *,'Compare_Same :: Arrays do not have the same values:'
       do k=1,size(a)
         print *,'k=',k,'a',a(k),'b',b(k),'diff',a(k)-b(k)
       enddo
@@ -752,9 +752,10 @@ subroutine set_parameter_space(OPP,ps,dx)
     type(parameter_space),intent(inout) :: ps
     real(ireals),intent(in) :: dx
     real(ireals) :: diameter ! diameter of max. cube size
-    real(ireals),parameter :: maximum_transmission=one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
+    real(ireals),parameter :: maximum_transmission=one-1e-6_ireals !one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
     integer(iintegers) :: k
 
+    print *,'maximum_transmission=',one-epsilon(maximum_transmission)
 
     select type(OPP)
       class is (t_optprop_LUT_1_2)
@@ -916,14 +917,18 @@ end subroutine
 subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: dz,in_kabs ,in_ksca,g,phi,theta
-    real(ireals),intent(out):: C(OPP%dir_streams*OPP%diff_streams)
+!    real(ireals),intent(out):: C(OPP%dir_streams*OPP%diff_streams)
+    real(ireals),intent(out):: C(:)
 
     real(ireals) :: kabs,ksca
     real(ireals) :: pti(6),weights(6)
     integer(iintegers) :: i
 
     kabs = in_kabs; ksca = in_ksca
-    if(ldebug_optprop) call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
+    if(ldebug_optprop) then
+      call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
+      if(size(C).ne.OPP%dir_streams*OPP%diff_streams) stop 'LUT_get_dir2diff called with wrong array shape'
+    endif
 
     pti = get_indices_6d(dz,kabs ,ksca,g,phi,theta,OPP%dirLUT%pspace)
 
@@ -1022,7 +1027,7 @@ subroutine catch_limits(ps,dz,kabs,ksca,g)
     real(ireals),intent(inout) :: kabs,ksca
     real(ireals),intent(in) :: dz,g
     real(ireals) :: w,scaled_kabs,scaled_ksca
-    
+
     if(kabs.gt.ps%range_kabs(2) ) then
       w = ksca/(kabs+ksca)
       scaled_kabs = ps%range_kabs(2)

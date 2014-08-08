@@ -197,16 +197,14 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           real(real128) ::  b_mmu_0, lambda, A, exp1, term1, bscr, term2, exp2;
           real(real128) ::  den1, mu_0_inv;
 
-          real(ireals),parameter ::  eps = sqrt(epsilon(omega_0)),rsec=1e-8_ireals
+          real(ireals),parameter ::  eps = 10._ireals * epsilon(omega_0)
 
           dtau   = max(( epsilon(dtau)   ), dtau_in)
           g      = g_in
           omega_0= max(( epsilon(omega_0)), omega_0_in)
 
-          omega_0 = min(omega_0, 1.0_ireals - rsec)
-          if ( approx( omega_0 * g , 1.0_ireals ) ) omega_0 = omega_0 * (1.0_ireals - rsec);
-
-          call delta_scale_optprop( dtau, omega_0, g  )
+          omega_0 = min(omega_0, one-eps)
+          if ( approx( omega_0 * g , 1.0_ireals ) ) omega_0 = omega_0 * (one-eps);
 
           mu_0_inv =  1._real128/ mu_0;
           b_mmu_0 = (0.5_real128 - 0.75_real128 * g * mu_0);
@@ -214,7 +212,6 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           bscr = (0.5_real128 - 0.375_real128 * g);
           alpha_1 = 2._real128 * ( 1._real128 - omega_0 * ( 1._real128 - bscr ) ) - 0.25_real128;
           alpha_2 = 2._real128 * omega_0 * bscr - 0.25_real128;
-!          alpha_2 = omega_0 * bscr / 0.5_real128;
 
           lambda = sqrt ( alpha_1 * alpha_1 - alpha_2 * alpha_2 );
 
@@ -227,8 +224,8 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             term1 = alpha_2 / ( alpha_1 - lambda ) * exp1;
             term2 = alpha_2 / ( alpha_1 + lambda ) * exp2;
 
-!            A = max(zero, 1.0_real128 / ( term1 - term2 ) );
-            A = 1.0_real128 / ( term1 - term2 );
+            A = min( huge(A), 1.0_real128 / ( term1 - term2 ) );
+!            A = 1.0_real128 / ( term1 - term2 );
 
             a11 = A * 2.0_real128 * lambda / alpha_2;
             a12 = A * ( exp1 - exp2 );
@@ -249,9 +246,10 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           a13 = a13 * mu_0_inv !Fabian: Roberts coefficients a13 expect S to be
           a23 = a23 * mu_0_inv !        irradiance on tilted plane... we use irradiance on z-plane
 
+          a11 = max( zero, a11 )!min(one, )
           a12 = max( zero, a12 )!min(one, )
-!          a13 = max( zero, a13 )!min(one, )
-!          a23 = max( zero, a23 )!min(one, )
+          a13 = max( zero, a13 )!min(one, )
+          a23 = max( zero, a23 )!min(one, )
 
           if(any(isnan( [a11,a12,a13,a23,a33] )  .or. [a11,a12,a13,a23,a33].gt.one .or. [a11,a12,a13,a23,a33].lt.zero ) ) then
             print *,'Found NaN in eddington coefficients _fab -- this should not happen!'
@@ -272,6 +270,13 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             print *,'coeff', [a11,a12,a13,a23,a33]
             call MPI_Abort(imp_comm,VALUE_ERROR)
           endif
+
+!          print *,'eddington called with',dtau_in,omega_0_in,g_in,'::',a11,a12,a13,a23,a33
+
+!          if(dtau_in.gt.1) then
+!            print *,'eddington :: ',dtau_in, omega_0_in,g_in, mu_0
+!            print *,'eddington :: ',dtau, omega_0,g, '::',a11,a12,a13,a23,a33
+!          endif
 
       end subroutine
 
