@@ -164,7 +164,7 @@ end subroutine
 
           real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
 
-          integer(iintegers),parameter :: glob_Nx=3,glob_Ny=3,glob_Nz=5, zTOA=glob_Nz*40
+          integer(iintegers),parameter :: glob_Nx=20,glob_Ny=20,glob_Nz=20, zTOA=glob_Nz*40
           integer(iintegers) :: k
 
           if(myid.eq.0) print *,myid,'Creating Optical Properties here instead of taking them from kato',kato,iq
@@ -183,7 +183,7 @@ end subroutine
           kabs=1e-4
           ksca=1e-4
 
-!          if(myid.eq.0) ksca(1,1,5) = 5e-1
+          if(myid.eq.0) ksca(:,:,5) = 5e-2
           !      ksca(1,1,3:5) = 1e-2
 
   end subroutine
@@ -298,8 +298,8 @@ program main
         dims = shape(global_kabs)
         call init_tenstream(imp_comm, dims(1),dims(2),dims(3), ident_dx, ident_dy, hhl ,options_phi,options_theta,albedo)
 
-        do kato=1,32
-!                  do kato=11,11
+!        do kato=1,32
+                  do kato=11,11
           do iq=0,kato_bands(kato)
             if(myid.eq.0) print *,'-----------------------------------------------------------------------------------------------------------------------------'
             if(myid.eq.0) print *,'-------------------------- Calculate ',trim(ident),' sza',options_theta,' kato',kato,'iq',iq

@@ -2,7 +2,7 @@ module f2c_tenstream
 
       use iso_c_binding
 
-      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid
+      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr
 
       use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
                             edir,ediff,abso, &
@@ -21,8 +21,14 @@ module f2c_tenstream
 contains
 
       subroutine f2c_init_tenstream(comm, Nx,Ny,Nz,dx,dy,hhl, phi0, theta0, albedo ) bind(C)                                
-        integer(c_int), value :: comm, Nx,Ny,Nz                     
-        real(c_double), value :: dx,dy, phi0,theta0,albedo
+        ! initialize tenstream environment
+        ! all nodes in communicator have to call this 
+        ! but only the zeroth node has to have meaningful values for the arguments except the communicator
+        ! all but hhl is overwritten on nonzero nodes
+
+        integer(c_int), value :: comm
+        integer(c_int),intent(inout) :: Nx,Ny,Nz                     
+        real(c_double),intent(inout) :: dx,dy, phi0,theta0,albedo
         real(c_double),intent(in),dimension(Nz+1) :: hhl
 
         integer(iintegers) :: oNx,oNy,oNz
@@ -32,23 +38,43 @@ contains
         call init_mpi_data_parameters(comm)
         call read_commandline_options()
 
-        print *,myid,'Initializing Tenstream environment from C Language :: domainshape',Nx,Ny,Nz,'::',shape(hhl)
-
-        oNx = Nx
-        oNy = Ny
-        oNz = Nz
-        odx = dx
-        ody = dy
-        ophi0  = phi0
-        otheta0= theta0
-        oalbedo= albedo
-
         if(myid.eq.0) then
+
+          oNx     = Nx
+          oNy     = Ny
+          oNz     = Nz
+          odx     = dx
+          ody     = dy
+          ophi0   = phi0
+          otheta0 = theta0
+          oalbedo = albedo
+
           allocate( ohhl(size(hhl)) )
           ohhl = hhl
         endif
 
+        call imp_bcast(oNx    ,0_mpiint,myid)
+        call imp_bcast(oNy    ,0_mpiint,myid)
+        call imp_bcast(oNz    ,0_mpiint,myid)
+        call imp_bcast(odx    ,0_mpiint,myid)
+        call imp_bcast(ody    ,0_mpiint,myid)
+        call imp_bcast(ophi0  ,0_mpiint,myid)
+        call imp_bcast(otheta0,0_mpiint,myid)
+        call imp_bcast(oalbedo,0_mpiint,myid)
+
         call imp_bcast(ohhl,0_mpiint,myid)
+
+        Nx     = oNx
+        Ny     = oNy
+        Nz     = oNz
+        dx     = odx
+        dy     = ody
+        phi0   = ophi0
+        theta0 = otheta0
+        albedo = oalbedo
+
+        ! Now every process has the correct values
+        print *,myid,'Initializing Tenstream environment from C Language :: domainshape',oNx,oNy,oNz,'::',shape(ohhl)
 
         call init_tenstream(imp_comm, oNx,oNy,oNz, odx,ody,ohhl ,ophi0, otheta0, oalbedo)
         print *,'Initializing Tenstream environment from C Language ... done'
@@ -66,18 +92,24 @@ contains
           allocate( og   (Nx,Ny,Nz) ); og    = g   
         endif
 
-        call imp_bcast(okabs,0_mpiint,myid)
-        call imp_bcast(oksca,0_mpiint,myid)
-        call imp_bcast(og   ,0_mpiint,myid)
+!        call imp_bcast(okabs,0_mpiint,myid)
+!        call imp_bcast(oksca,0_mpiint,myid)
+!        call imp_bcast(og   ,0_mpiint,myid)
 
         call set_optical_properties(okabs, oksca, og)
       end subroutine
 
       subroutine f2c_solve_tenstream(edirTOA) bind(c)
+        ! solve tenstream equations
+        ! optical properties have had to be set and environment had to be initialized
+        ! incoming solar radiation need only be set by zeroth node
+
         real(c_double), value :: edirTOA
         real(ireals) :: oedirTOA
 
-        oedirTOA = edirTOA
+        if(myid.eq.0) oedirTOA = edirTOA
+        call imp_bcast(oedirTOA    ,0_mpiint,myid)
+
         call solve_tenstream(oedirTOA)
       end subroutine
 
@@ -86,6 +118,9 @@ contains
       end subroutine
 
       subroutine get_result(Nx,Ny,Nz, res_edir,res_edn,res_eup,res_abso) bind(c)
+        ! after solving equations -- retrieve the results for edir,edn,eup and absorption
+        ! only zeroth node gets the results back.
+
         integer(c_int), value :: Nx,Ny,Nz
         real(c_double),intent(out),dimension(Nx,Ny,Nz+1) :: res_edir
         real(c_double),intent(out),dimension(Nx,Ny,Nz+1) :: res_edn
@@ -94,16 +129,16 @@ contains
         real(ireals),allocatable,dimension(:,:,:,:) :: res
 
         call globalVec2Local(edir,C_dir,res)
-        res_edir = sum(res(1:4,1:Nx,1:Ny,:),dim=1) *.25_ireals
+        if(myid.eq.0) res_edir = sum(res(1:4,1:Nx,1:Ny,:),dim=1) *.25_ireals
 
         call globalVec2Local(ediff,C_diff,res)
-        res_edn = res(2,1:Nx,1:Ny,:)
-        res_eup = res(1,1:Nx,1:Ny,:)
+        if(myid.eq.0) res_edn = res(2,1:Nx,1:Ny,:)
+        if(myid.eq.0) res_eup = res(1,1:Nx,1:Ny,:)
 
         call globalVec2Local(abso,C_one,res)
-        res_abso = res(1,1:Nx,1:Ny,:)
+        if(myid.eq.0) res_abso = res(1,1:Nx,1:Ny,:)
 
-        deallocate(res)
+        if(myid.eq.0) deallocate(res)
      end subroutine
 
       subroutine globalVec2Local(vec,C,res)
@@ -117,7 +152,7 @@ contains
         PetscScalar,Pointer :: xloc(:)
 
         if(allocated(res)) deallocate(res)
-        allocate( res(C%dof,C%glob_xm,C%glob_ym,C%glob_zm) )
+        if(myid.eq.0) allocate( res(C%dof,C%glob_xm,C%glob_ym,C%glob_zm) )
 
         call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
 

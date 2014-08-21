@@ -122,7 +122,7 @@ module m_tenstream
                                 C%da               , ierr) ;CHKERRQ(ierr)
               call setup_coords(C)
               call DMSetup(C%da,ierr) ;CHKERRQ(ierr)
-!              call DMSetMatType(C%da, MATAIJ, ierr); CHKERRQ(ierr)
+!              call DMSetMatType(C%da, MATBAIJ, ierr); CHKERRQ(ierr)
               if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;CHKERRQ(ierr)
 
               call DMSetFromOptions(C%da, ierr) ; CHKERRQ(ierr)
@@ -1237,6 +1237,7 @@ subroutine solve(ksp,b,x)
               call exit()
       endif
 end subroutine
+
 subroutine setup_ksp(ksp,C,A,linit, prefix)
       KSP :: ksp
       type(t_coord) :: C
@@ -1244,12 +1245,13 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
       logical :: linit
 
 !      MatNullSpace :: nullspace
-      PetscReal,parameter :: rtol=1e-4, atol=1e-5
+      PetscReal,parameter :: rtol=1e-4, atol=1e-3
       PetscInt,parameter :: maxiter=1000
       character(len=*),optional :: prefix
 
       if(linit) return
-      if(myid.eq.0.and.ldebug) print *,'Setup KSP'
+      call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
+      if(myid.eq.0) print *,'Setup KSP'
 
       call KSPCreate(imp_comm,ksp,ierr) ;CHKERRQ(ierr)
       if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;CHKERRQ(ierr)
@@ -1266,6 +1268,8 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
 !      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
 
       linit = .True.
+      if(myid.eq.0) print *,'Setup KSP done'
+      call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 end subroutine
 
 subroutine setup_logging()
@@ -1276,8 +1280,8 @@ subroutine setup_logging()
         call PetscLogStageRegister('calc_ediff'      , logstage(5)     , ierr) ;CHKERRQ(ierr)
         call PetscLogStageRegister('setup_b'         , logstage(6)     , ierr) ;CHKERRQ(ierr)
         call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('twostream_dir'   , logstage(8)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('twostream_diff'  , logstage(9)     , ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('twostream'       , logstage(8)     , ierr) ;CHKERRQ(ierr)
+        call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;CHKERRQ(ierr)
         call PetscLogStageRegister('write_hdf5'      , logstage(10)     , ierr) ;CHKERRQ(ierr)
 
         if(myid.eq.0) print *, 'Logging stages' , logstage

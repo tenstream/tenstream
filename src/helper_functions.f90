@@ -6,7 +6,7 @@ module m_helper_functions
       public imp_bcast
 
       interface imp_bcast
-        module procedure imp_bcast_real_1d,imp_bcast_real_3d
+        module procedure imp_bcast_real_1d,imp_bcast_real_3d,imp_bcast_int,imp_bcast_real
       end interface
 
       integer(mpiint) :: mpierr
@@ -71,6 +71,18 @@ module m_helper_functions
         endif
       end function
 
+      subroutine  imp_bcast_int(val,sendid,myid)
+          integer(iintegers),intent(inout) :: val
+          integer(mpiint),intent(in) :: sendid,myid
+
+          call mpi_bcast(val,1,imp_int,sendid,imp_comm,mpierr)
+      end subroutine
+      subroutine  imp_bcast_real(val,sendid,myid)
+          real(ireals),intent(inout) :: val
+          integer(mpiint),intent(in) :: sendid,myid
+
+          call mpi_bcast(val,1,imp_real,sendid,imp_comm,mpierr)
+      end subroutine
       subroutine  imp_bcast_real_1d(arr,sendid,myid)
           real(ireals),allocatable,intent(inout) :: arr(:)
           integer(mpiint),intent(in) :: sendid,myid

@@ -8,7 +8,7 @@ module m_boxmc
       use mpi
       use m_data_parameters, only: mpiint,imp_real,iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
       
-      use m_optprop_parameters, only : delta_scale_truncate,stddev_rtol,ldebug_optprop
+      use m_optprop_parameters, only : delta_scale_truncate,stddev_atol,stddev_rtol,ldebug_optprop
 
       implicit none
 
@@ -154,7 +154,6 @@ contains
 
       type(photon)       :: p
       integer(iintegers) :: k,mycnt,mincnt
-      real(ireals),parameter   :: stddev_atol=stddev_rtol ! 1e-2_ireals
       real(ireals)   :: time(2),total_photons,initial_dir(3)
       integer(iintegers) :: Ndir(bmc%dir_streams),Ndiff(bmc%diff_streams)
 
@@ -164,7 +163,7 @@ contains
 
       call init_stddev( std_Sdir , bmc%dir_streams  ,stddev_atol, stddev_rtol )
       call init_stddev( std_Sdiff, bmc%diff_streams ,stddev_atol, stddev_rtol )
-      call init_stddev( std_abso , i1               ,stddev_atol, stddev_rtol/10_ireals )
+      call init_stddev( std_abso , i1               ,stddev_atol, stddev_rtol )
 
       if(.not.ldir) std_Sdir%converged=.True.
 
@@ -187,7 +186,7 @@ contains
       call cpu_time(time(1))
 
       mincnt= max( 10, int( 1e3 /numnodes ) ) !(one/min(stddev_atol,stddev_rtol))**2/numnodes) ! at least one value has to reach tolerance
-      mycnt = int( ( ( (bmc%diff_streams*bmc%dir_streams )/min(stddev_atol,stddev_rtol))**2/numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee it but we need to hard break it somewhere?? do we?
+      mycnt = int( ( (bmc%diff_streams*bmc%dir_streams ) / stddev_atol**2 / numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee -- but we need to hard break it somewhere?? do we?
       mycnt = int(1e8)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
 !      print *,'minimal count of photons is',mincnt,' maximum',mycnt,'huge(mycnt)',huge(mycnt)-1
@@ -536,7 +535,7 @@ subroutine init_random_seed(myid)
   rndSeq = new_RandomNumberSequence(seed=s)
   lRNGseeded=.True.
 end subroutine
-  subroutine init_stddev( std, N, rtol, atol)
+  subroutine init_stddev( std, N, atol, rtol)
       type(stddev),intent(inout) :: std
       real(ireals),intent(in) :: atol,rtol
       integer(iintegers) :: N
@@ -559,7 +558,7 @@ pure subroutine std_update(std, N, numnodes)
       type(stddev),intent(inout) :: std
       integer(iintegers),intent(in) :: N, numnodes
       real(ireals) :: relvar(size(std%var))
-      real(ireals),parameter :: relvar_limit=1e-6_ireals,rtol=1e-0_ireals
+      real(ireals),parameter :: relvar_limit=1e-6_ireals
 
       std%delta = std%inc   - std%mean
       std%mean  = std%mean  + std%delta/N
@@ -572,7 +571,7 @@ pure subroutine std_update(std, N, numnodes)
       end where
 
       !print *,'atol',std%var,'rtol',relvar
-      if( all( std%var .lt. std%atol .and. relvar .lt. rtol ) ) then
+      if( all( std%var .lt. std%atol .and. relvar .lt. std%rtol ) ) then
 !      if( all( std%var .lt. std%atol ) ) then
         std%converged = .True.
       else

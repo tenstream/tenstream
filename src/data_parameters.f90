@@ -43,7 +43,7 @@ subroutine init_mpi_data_parameters(comm)
   call MPI_SIZEOF(one, size, ierror)    
   call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, size, imp_real, ierror)
 
-!  print *,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real
+  print *,myid,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real
 !  print *,'init_mpi_data_parameters :: MPI_INTEGER',MPI_INTEGER,' :: MPI_DOUBLE_PRECISION',MPI_DOUBLE_PRECISION,' :: MPI_REAL',MPI_REAL
 end subroutine
 end module
