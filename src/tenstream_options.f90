@@ -20,21 +20,52 @@ module m_tenstream_options
       character(len=300) :: basepath
 
       contains 
+        subroutine show_options()
+          print *,'------------------------------------------------------------------------------------------------------------------'  
+          print *,'------------------------------------------------------------------------------------------------------------------'  
+          print *,'Tenstream options:'
+          print *,'-show_options         :: show this text                                                                           '  
+          print *,'-ident <run_*>        :: load optical properties from hdf5 -read petsc_solver::load_optprop (default = run_test)  '
+          print *,'-ident run_test       :: load optical properties from function in petsc_solver::load_test_optprop                 '
+          print *,'-out                  :: output prefix (default = ts)                                                             '  
+          print *,'-basepath             :: output directory (default = ./)                                                          '  
+          print *,'-dx -dy               :: domain size in [m] (mandatory if running with -ident <run_*> )                           '  
+          print *,'-phi -theta           :: solar azimuth and zenith angle (default = (180,0) == south,overhead sun)                 '  
+          print *,'-writeall             :: dump intermediate results                                                                '  
+          print *,'-twostr               :: calculate delta eddington twostream solution                                             ' 
+          print *,'-hdf5_guess           :: if run earlier with -writeall can now use dumped solutions as initial guess              '  
+          print *,'-twostr_guess         :: use delta eddington twostream solution as first guess                                    '  
+          print *,'-twostr_ratio <limit> :: when aspect ratio (dz/dx) is smaller than <limit> then we use twostr_coeffs(default = 1.)'  
+          print *,'-pert_xshift <i>      :: shift optical properties in x direction by <i> pixels                                    '  
+          print *,'-pert_yshift <j>      :: shift optical properties in Y direction by <j> pixels                                    '  
+          print *,'------------------------------------------------------------------------------------------------------------------'  
+          print *,'------------------------------------------------------------------------------------------------------------------'  
+        end subroutine
         subroutine read_commandline_options()
-          logical :: lflg
+          logical :: lflg=.False.,lflg_ident=.False.
           PetscErrorCode :: ierr
+          logical :: lshow_options=.False.
 
-          call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-ident',ident,lflg,ierr) ; CHKERRQ(ierr)
-          if(lflg.eqv.PETSC_FALSE) ident = 'run_test'
+          call PetscOptionsGetBool(PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;CHKERRQ(ierr)
+          if(lshow_options) then
+            if(myid.eq.0) call show_options()
+            call mpi_abort(imp_comm,ierr)
+          endif
+
+          call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-ident',ident,lflg_ident,ierr) ; CHKERRQ(ierr)
+          if(lflg_ident.eqv.PETSC_FALSE) ident = 'run_test'
 
           call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-out',output_prefix,lflg,ierr) ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) output_prefix = 'ts'
 
           call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-basepath',basepath,lflg,ierr) ; CHKERRQ(ierr)
-          if(lflg.eqv.PETSC_FALSE) basepath = '/home/users/jakub/scratch/tenstream/'
+          if(lflg.eqv.PETSC_FALSE) basepath = './'
 
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dx",ident_dx, lflg,ierr)  ; CHKERRQ(ierr)
-!          if(lflg.eqv.PETSC_FALSE) stop 'Need "-dx" commandline option e.g. -dx 500'
+          if( (lflg.eqv.PETSC_FALSE) .and. (lflg_ident.eqv.PETSC_TRUE) ) then
+            print *,'If we run with -ident, you need to specify "-dx" commandline option e.g. -dx 70'
+            call mpi_abort(imp_comm,ierr)
+          endif
 
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
@@ -59,7 +90,10 @@ module m_tenstream_options
           if(lflg.eqv.PETSC_FALSE) luse_twostr_guess = .False.
           if(luse_twostr_guess) ltwostr = .True.
 
-          if(luse_twostr_guess.and.luse_hdf5_guess) stop 'cant use twostr_guess .AND. hdf5_guess at the same time'
+          if(luse_twostr_guess.and.luse_hdf5_guess) then
+            print *,'cant use twostr_guess .AND. hdf5_guess at the same time'
+            call mpi_abort(imp_comm,ierr)
+          endif
 
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-twostr_ratio",twostr_ratio, lflg,ierr)  ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) twostr_ratio=1._ireals
@@ -90,7 +124,6 @@ module m_tenstream_options
           endif
 
           call mpi_barrier(imp_comm,ierr)
-
 
       end subroutine
 end module

@@ -44,3 +44,15 @@ which mpirun
 mkdir build && cd build
 cmake .. && make
 
+# Important steps before you start:
+# You should define the size of the Lookuptables and where to store them.
+# For this, edit the file src/optprop_parameters.f90
+
+# lut_basename should be a path, that is reachable for node==0.
+# so that we dont have to compute the lookuptables over and over again.
+
+# Check the runtime options with 
+bin/petsc_solver -show_options
+
+
+

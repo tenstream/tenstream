@@ -1,7 +1,7 @@
 module m_optprop_LUT
   use m_helper_functions, only : approx,rel_approx
   use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real
-  use m_optprop_parameters, only: ldebug_optprop, &
+  use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
       Ndz_1_2,Nkabs_1_2,Nksca_1_2,Ng_1_2,Nphi_1_2,Ntheta_1_2,interp_mode_1_2,   &
       Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,interp_mode_8_10, &
       ldelta_scale,delta_scale_truncate,stddev_atol
@@ -102,13 +102,13 @@ contains
         class is (t_optprop_LUT_1_2)
           OPP%dir_streams  =  1
           OPP%diff_streams =  2
-          OPP%lutbasename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT_1_2.'
+          OPP%lutbasename=trim(lut_basename)//'_1_2.'
           allocate(t_boxmc_1_2::OPP%bmc)
 
         class is (t_optprop_LUT_8_10)
           OPP%dir_streams  =  8
           OPP%diff_streams = 10
-          OPP%lutbasename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT_8_10.delta0.1.'
+          OPP%lutbasename=trim(lut_basename)//'_8_10.delta0.1.'
           allocate(t_boxmc_8_10::OPP%bmc)
 
         class default
