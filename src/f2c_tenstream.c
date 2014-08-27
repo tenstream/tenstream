@@ -3,39 +3,43 @@
 #include <stdlib.h>                                                                                                                    
 #include "petscsys.h" 
 
-void f2c_init_tenstream(int fcomm, int *Nx,int *Ny,int *Nz,double *dx,double *dy,double *hhl, double *phi0, double *theta0, double *albedo );
-void f2c_set_optical_properties(int Nx,int Ny,int Nz, double ***kabs, double ***ksca, double ***g);
-void f2c_solve_tenstream(double edirTOA);
-void f2c_destroy_tenstream();
-void get_result(int Nx,int Ny,int Nz, double ***edir, double ***edn, double ***eup, double ***abso);
+void tenstr_f2c_init(int fcomm, int *Nx,int *Ny,int *Nz,double *dx,double *dy,float *hhl, float *phi0, float *theta0, float *albedo );
+void tenstr_f2c_set_optical_properties(int Nx,int Ny,int Nz, float *kabs, float *ksca, float *g);
+void tenstr_f2c_solve(double edirTOA);
+void tenstr_f2c_destroy();
+void tenstr_f2c_get_result(int Nx,int Ny,int Nz, float *edir, float *edn, float *eup, float *abso);
 
 static char help[] = "This is the C wrapper interface to the Tenstream solver environment.\n\n";
 
 int master(int fcomm) {
   int    Nx=1, Ny=1, Nz=10;
   double dx=70,dy=70;
-  double phi0=180, theta0=0;
-  double albedo=.05;
+  float phi0=180, theta0=0;
+  float albedo=.05;
 
-  double kabs[Nz][Ny][Nx];
-  double ksca[Nz][Ny][Nx];
-  double g   [Nz][Ny][Nx];
-  double hhl[Nz+1];
+  float *hhl  = (float *)malloc(Nz+1 *sizeof(float) );
 
-  double edir[Nz+1][Ny][Nx];
-  double edn [Nz+1][Ny][Nx];
-  double eup [Nz+1][Ny][Nx];
-  double abso[Nz  ][Ny][Nx];
+  float *kabs = (float *)malloc(Nz*Ny*Nx * sizeof(float) );
+  float *ksca = (float *)malloc(Nz*Ny*Nx * sizeof(float) );
+  float *g    = (float *)malloc(Nz*Ny*Nx * sizeof(float) );
+
+  float *edir = (float *)malloc((Nz+1)*Ny*Nx * sizeof(float) );
+  float *edn  = (float *)malloc((Nz+1)*Ny*Nx * sizeof(float) );
+  float *eup  = (float *)malloc((Nz+1)*Ny*Nx * sizeof(float) );
+  float *abso = (float *)malloc(Nz*Ny*Nx * sizeof(float) );
+
 
   for(int i=0;i<Nx;i++) {
     for(int j=0;j<Ny;j++) {
       for(int k=0;k<Nz;k++) {
-        kabs[k][j][i] = 1e-3;
-        ksca[k][j][i] = 1e-40;
-        g   [k][j][i] =   .5;
-        edir[k][j][i] =  -1.;
+        int ind = i + Nx*j + Nx*Ny*k; // index for [Nz][Ny][Nx]
+        kabs[ind] = 1e-3;
+        ksca[ind] = 1e-40;
+        g   [ind] =   .5;
+        edir[ind] =  -1.;
       }
-      edir[Nz][j][i] =  -1.;
+      int ind = i + Nx*j + Nx*Ny*Nz+1;
+      edir[ind] =  -1.;
     }
   }             
 
@@ -43,25 +47,25 @@ int master(int fcomm) {
   for(int k=Nz;k>0;k--) 
     hhl[k-1] = hhl[k]+40.;
 
-  f2c_init_tenstream(fcomm,&Nx,&Ny,&Nz, &dx,&dy, hhl, &phi0, &theta0,&albedo);
-  f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g);
-  f2c_solve_tenstream(1.);
-  get_result(Nx,Ny,Nz, edir,edn,eup,abso);
+  tenstr_f2c_init(fcomm,&Nx,&Ny,&Nz, &dx,&dy, hhl, &phi0, &theta0,&albedo);
+  tenstr_f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g);
+  tenstr_f2c_solve(1.);
+  tenstr_f2c_get_result(Nx,Ny,Nz, edir,edn,eup,abso);
 
-  f2c_destroy_tenstream();
+  tenstr_f2c_destroy();
 
   for(int j=0;j<Ny;j++){
     for(int k=0;k<Nz+1;k++)
-      printf("output: %f ",edir[k][j][0]);
+      printf("output: %f ",edir[Nx*j + Nx*Ny*k]);
     printf("\n");
     for(int k=0;k<Nz+1;k++)
-      printf("output: %f ",edn[k][j][0]);
+      printf("output: %f ",edn[Nx*j + Nx*Ny*k]);
     printf("\n");
     for(int k=0;k<Nz+1;k++)
-      printf("output: %f ",eup[k][j][0]);
+      printf("output: %f ",eup[Nx*j + Nx*Ny*k]);
     printf("\n      ");
     for(int k=0;k<Nz;k++)
-      printf("output: %f ",abso[k][j][0]);
+      printf("output: %f ",abso[Nx*j + Nx*Ny*k]);
     printf("\n");
     printf("\n");
   }
@@ -70,27 +74,28 @@ int master(int fcomm) {
   return 0;
 }
 int slave(int fcomm) {
-  int    Nx=NULL, Ny=NULL, Nz=NULL;
-  double dx=NULL,dy=NULL;
-  double phi0=NULL, theta0=NULL;
-  double albedo=NULL;
+  int    Nx, Ny, Nz;
+  double dx,dy;
+  float phi0, theta0;
+  float albedo;
 
-  double ***kabs=NULL;
-  double ***ksca=NULL;
-  double ***g=NULL   ;
-  double *hhl=NULL;
+  float *kabs=NULL;
+  float *ksca=NULL;
+  float *g=NULL   ;
+  float *hhl=NULL;
 
-  double ***edir=NULL;
-  double ***edn =NULL;
-  double ***eup =NULL;
-  double ***abso=NULL;
+  float *edir=NULL;
+  float *edn =NULL;
+  float *eup =NULL;
+  float *abso=NULL;
 
-  f2c_init_tenstream(fcomm,&Nx,&Ny,&Nz, &dx,&dy, hhl, &phi0, &theta0,&albedo);
-  f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g);
-  f2c_solve_tenstream(1.);
-  get_result(Nx,Ny,Nz, edir,edn,eup,abso);
+  tenstr_f2c_init(fcomm,&Nx,&Ny,&Nz, &dx,&dy, hhl, &phi0, &theta0,&albedo);
+  tenstr_f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g);
+  tenstr_f2c_solve(1.);
+  tenstr_f2c_get_result(Nx,Ny,Nz, edir,edn,eup,abso);
 
-  f2c_destroy_tenstream();
+  tenstr_f2c_destroy();
+  return 0;
 }
 
 int main(int argc, char *argv[]) { 

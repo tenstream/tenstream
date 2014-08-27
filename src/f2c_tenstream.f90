@@ -20,7 +20,7 @@ module f2c_tenstream
 
 contains
 
-      subroutine f2c_init_tenstream(comm, Nx,Ny,Nz,dx,dy,hhl, phi0, theta0, albedo ) bind(C)                                
+      subroutine tenstr_f2c_init(comm, Nx,Ny,Nz,dx,dy,hhl, phi0, theta0, albedo ) bind(C)                                
         ! initialize tenstream environment
         ! all nodes in communicator have to call this 
         ! but only the zeroth node has to have meaningful values for the arguments except the communicator
@@ -28,12 +28,17 @@ contains
 
         integer(c_int), value :: comm
         integer(c_int),intent(inout) :: Nx,Ny,Nz                     
-        real(c_double),intent(inout) :: dx,dy, phi0,theta0,albedo
-        real(c_double),intent(in),dimension(Nz+1) :: hhl
+        real(c_double),intent(inout) :: dx,dy 
+        real(c_float), intent(inout) :: phi0,theta0,albedo
+        real(c_float), intent(in),dimension(Nz+1) :: hhl
 
         integer(iintegers) :: oNx,oNy,oNz
         real(ireals) :: odx,ody,ophi0,otheta0,oalbedo
         real(ireals),allocatable :: ohhl(:)
+
+        logical,save :: initialized=.False.
+
+        if(initialized) return
 
         call init_mpi_data_parameters(comm)
         call read_commandline_options()
@@ -78,11 +83,12 @@ contains
 
         call init_tenstream(imp_comm, oNx,oNy,oNz, odx,ody,ohhl ,ophi0, otheta0, oalbedo)
         print *,'Initializing Tenstream environment from C Language ... done'
+        initialized=.True.
       end subroutine                                             
 
-      subroutine f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g) bind(c)
+      subroutine tenstr_f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g) bind(c)
         integer(c_int), value :: Nx,Ny,Nz
-        real(c_double),intent(in),dimension(Nx,Ny,Nz) :: kabs, ksca, g
+        real(c_float),intent(in),dimension(Nx,Ny,Nz) :: kabs, ksca, g
 
         real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og
         
@@ -99,7 +105,7 @@ contains
         call set_optical_properties(okabs, oksca, og)
       end subroutine
 
-      subroutine f2c_solve_tenstream(edirTOA) bind(c)
+      subroutine tenstr_f2c_solve(edirTOA) bind(c)
         ! solve tenstream equations
         ! optical properties have had to be set and environment had to be initialized
         ! incoming solar radiation need only be set by zeroth node
@@ -113,19 +119,19 @@ contains
         call solve_tenstream(oedirTOA)
       end subroutine
 
-      subroutine f2c_destroy_tenstream() bind(c)
+      subroutine tenstr_f2c_destroy() bind(c)
         call destroy_tenstream()
       end subroutine
 
-      subroutine get_result(Nx,Ny,Nz, res_edir,res_edn,res_eup,res_abso) bind(c)
+      subroutine tenstr_f2c_get_result(Nx,Ny,Nz, res_edir,res_edn,res_eup,res_abso) bind(c)
         ! after solving equations -- retrieve the results for edir,edn,eup and absorption
         ! only zeroth node gets the results back.
 
         integer(c_int), value :: Nx,Ny,Nz
-        real(c_double),intent(out),dimension(Nx,Ny,Nz+1) :: res_edir
-        real(c_double),intent(out),dimension(Nx,Ny,Nz+1) :: res_edn
-        real(c_double),intent(out),dimension(Nx,Ny,Nz+1) :: res_eup
-        real(c_double),intent(out),dimension(Nx,Ny,Nz  ) :: res_abso
+        real(c_float),intent(out),dimension(Nx,Ny,Nz+1) :: res_edir
+        real(c_float),intent(out),dimension(Nx,Ny,Nz+1) :: res_edn
+        real(c_float),intent(out),dimension(Nx,Ny,Nz+1) :: res_eup
+        real(c_float),intent(out),dimension(Nx,Ny,Nz  ) :: res_abso
         real(ireals),allocatable,dimension(:,:,:,:) :: res
 
         call globalVec2Local(edir,C_dir,res)

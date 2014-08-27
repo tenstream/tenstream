@@ -451,7 +451,6 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_atol_table_name, comm)
 
           enddo !dz
         enddo !kabs
-      enddo !ksca
 
       if(myid.eq.0) print *,'Checkpointing diffuse table ... (',100*cnt/total_size,'%)','started?',lstarted_calculations
       if(myid.eq.0 .and. lstarted_calculations) then
@@ -460,6 +459,7 @@ subroutine createLUT_diff(OPP, coeff_table_name, stddev_atol_table_name, comm)
         call h5write(stddev_atol_table_name,OPP%diffLUT%S%stddev_atol,iierr)
         print *,'done writing!',iierr
       endif
+      enddo !ksca
     enddo !g
     if(myid.eq.0) print *,'done calculating diffuse coefficients'
 end subroutine
@@ -553,7 +553,6 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
             if(myid.eq.0) OPP%dirLUT%T(iphi,itheta)%stddev_atol( idz,ikabs,iksca,ig) = stddev_atol
           enddo !dz
         enddo !kabs
-      enddo !ksca
 
       if(myid.eq.0) print *,'Checkpointing direct table ... (',100*cnt/total_size,'%)','started?',lstarted_calculations
       if(myid.eq.0 .and. lstarted_calculations) then
@@ -565,6 +564,7 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
         print *,'done writing!',ierr
       endif
 
+      enddo !ksca
     enddo !g
     if(myid.eq.0) print *,'done calculating direct coefficients'
 end subroutine

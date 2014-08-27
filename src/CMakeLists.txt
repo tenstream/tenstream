@@ -1,5 +1,7 @@
 #message( "Entering tenstream src dir with EXTLIB==${EXTLIB} ")
 
+include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
+
 set( general_sources 
   "helper_functions.f90" 
   "arrayio.f90"  

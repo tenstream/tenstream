@@ -1245,7 +1245,7 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
       logical :: linit
 
 !      MatNullSpace :: nullspace
-      PetscReal,parameter :: rtol=1e-4, atol=1e-3
+      PetscReal,parameter :: rtol=1e-5, atol=1e-5
       PetscInt,parameter :: maxiter=1000
       character(len=*),optional :: prefix
 
