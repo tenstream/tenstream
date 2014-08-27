@@ -1,0 +1,46 @@
+#Environment options at the Meteorological Institute Munich:
+
+#put the following in the bashrc:
+
+TICAP=/home/opt/cosmo_tica_lib/
+
+OMPI=1.8.1
+export OMPIDIR=$TICAP/ompi$OMPI/openmpi-$OMPI/install/
+
+if [ -n "$OMPIDIR" ]
+    then # echo "setting OpenMPI environment to: $OMPIDIR"
+            export LD_RUN_PATH=$OMPIDIR/lib64/:$LD_RUN_PATH
+            export PATH=$OMPIDIR/bin/:$PATH
+            export LD_LIBRARY_PATH=$OMPIDIR/lib64/:$LD_LIBRARY_PATH
+            export MANPATH=$OMPIDIR/share/man:$MANPATH
+    fi
+
+# HDF5
+export HDF5_DIR=$TICAP/ompi$OMPI/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/
+export PATH=$HDF5_DIR/bin:$PATH
+export LD_LIBRARY_PATH=$HDF5_DIR/lib:$LD_LIBRARY_PATH
+export LD_RUN_PATH=$HDF5_DIR/lib:$LD_RUN_PATH
+export HDF5_DISABLE_VERSION_CHECK=1
+
+#PETSC
+export PETSC_DIR=$TICAP/ompi$OMPI/petsc-maint
+export PETSc_DIR=$PETSC_DIR
+export PETSC_ARCH=fast
+
+# Valgrind 
+export PATH=$TICAP/valgrind-svn/install/bin:$PATH
+export LD_LIBRARY_PATH=$TICAP/valgrind-svn/install/lib:$TICAP/valgrind-svn/install/lib64:$LD_LIBRARY_PATH
+export CPATH=$TICAP/valgrind-svn/install/include:$CPATH
+
+
+#Then check if PETSC works:
+
+cd $PETSC_DIR && make check
+
+#And confirm that we use the correct mpi
+which mpirun
+
+#Then build tenstream
+mkdir build && cd build
+cmake .. && make
+
