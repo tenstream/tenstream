@@ -1,6 +1,23 @@
-#Environment options at the Meteorological Institute Munich:
+# Prerequisites for the Tenstream solver are
+#
+#  *cmake
+#  *PETSc
+#  *HDF5
+#  *MPI
+#
+# Instructions on how to install these is beyond the scope of this text.
+#
+# Generally you should set the following environment variables:
+#
+#  *HDF5_DIR
+#  *PETSC_DIR
+#  *PETSC_ARCH
+#
+#
+# If you are lucky, you at the Meteorological Institute Munich and you just follow the steps below:
 
-#put the following in the bashrc:
+################ put the following in the bashrc: ########################################################
+#Environment options at the Meteorological Institute Munich necessary for the tenstream solver:
 
 TICAP=/home/opt/cosmo_tica_lib/
 
@@ -32,27 +49,35 @@ export PATH=$TICAP/valgrind-svn/install/bin:$PATH
 export LD_LIBRARY_PATH=$TICAP/valgrind-svn/install/lib:$TICAP/valgrind-svn/install/lib64:$LD_LIBRARY_PATH
 export CPATH=$TICAP/valgrind-svn/install/include:$CPATH
 
+##########################################################################################################
 
-#Then check if PETSC works:
-
-cd $PETSC_DIR && make check
-
-#And confirm that we use the correct mpi
+# Confirm that we use the correct mpi
 which mpirun
 
-#Then build tenstream
-mkdir build && cd build
-cmake .. && make
+# Then check if PETSC works:
+cd $PETSC_DIR && make check
 
 # Important steps before you start:
 # You should define the size of the Lookuptables and where to store them.
 # For this, edit the file src/optprop_parameters.f90
 
-# lut_basename should be a path, that is reachable for node==0.
-# so that we dont have to compute the lookuptables over and over again.
+# lut_basename should be a path, that is reachable for mpi_node==0.
+# and if possible globally reachable so that we dont have to compute the lookuptables over and over again.
 
-# Check the runtime options with 
-bin/petsc_solver -show_options
+#Then build tenstream
+cd -
+mkdir build && cd build
+cmake .. && make
 
+# Check the tenstream runtime options with 
+./bin/petsc_solver -show_options
 
+# For a first example you could run
+mpirun -np 2 ./bin/petsc_solver -ident run_test -dx 70
 
+# If that does not throw a lot of errors at you ---
+
+# Congratulations !!, you successfully installed the tenstream solver.
+# Be proud, this is not an easy task!
+
+# You are now ready to proceed to your libRadtran installation....
