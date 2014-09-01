@@ -1448,41 +1448,43 @@ subroutine init_memory(incSolar,b,edir,ediff,abso,Mdir,Mdiff,edir_twostr,ediff_t
         endif
 end subroutine
 
-    subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy,hhl ,phi0,theta0,albedo)
-        integer,intent(in) :: icomm
-        integer(iintegers),intent(in) :: Nx,Ny,Nz
-        real(ireals),intent(in) :: dx,dy,hhl(:), phi0,theta0,albedo
+subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy,hhl ,phi0,theta0,albedo)
+    integer,intent(in) :: icomm
+    integer(iintegers),intent(in) :: Nx,Ny,Nz
+    real(ireals),intent(in) :: dx,dy,hhl(:), phi0,theta0,albedo
 
-        call init_mpi_data_parameters(icomm)
+    call init_mpi_data_parameters(icomm)
 
-        call setup_suninfo(phi0,theta0,sun)
+    call setup_suninfo(phi0,theta0,sun)
 
-        atm%dx  = dx
-        atm%dy  = dy
-        atm%albedo = albedo
+    atm%dx  = dx
+    atm%dy  = dy
+    atm%albedo = albedo
 
-        allocate(atm%dz(size(hhl)-1))
-        atm%dz = hhl( 1:size(hhl)-1 ) - hhl( 2:size(hhl) ) 
+    allocate(atm%dz(size(hhl)-1))
+    atm%dz = hhl( 1:size(hhl)-1 ) - hhl( 2:size(hhl) ) 
 
-        allocate(atm%l1d( size(atm%dz) ) )
-        where( twostr_ratio*atm%dz.gt.atm%dx ) 
-          atm%l1d = .True.
-        else where
-          atm%l1d = .False.
-        end where
+    allocate(atm%l1d( size(atm%dz) ) )
+    where( twostr_ratio*atm%dz.gt.atm%dx ) 
+      atm%l1d = .True.
+    else where
+      atm%l1d = .False.
+    end where
 
-        call setup_grid( max(minimal_dimension, Nx), &
-                         max(minimal_dimension, Ny), Nz)
+    call setup_grid( max(minimal_dimension, Nx), &
+        max(minimal_dimension, Ny), Nz)
 
-      ! init boxmc
-        call OPP_8_10%init(atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm)
-        if(.not.luse_eddington) call OPP_1_2%init(atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm) 
+    ! init boxmc
+    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm)
 
-      ! init matrices & vectors
-        call init_memory(incSolar,b,edir,ediff,abso,Mdir,Mdiff,edir_twostr,ediff_twostr,abso_twostr)
+    if(.not.luse_eddington) call OPP_1_2%init(atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm) 
 
-        call setup_logging()
-    end subroutine
+
+    ! init matrices & vectors
+    call init_memory(incSolar,b,edir,ediff,abso,Mdir,Mdiff,edir_twostr,ediff_twostr,abso_twostr)
+
+    call setup_logging()
+end subroutine
 
     subroutine set_optical_properties(global_kabs, global_ksca, global_g)
       real(ireals),intent(inout),dimension(:,:,:),allocatable :: global_kabs, global_ksca, global_g

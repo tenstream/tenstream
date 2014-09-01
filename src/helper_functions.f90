@@ -45,7 +45,7 @@ module m_helper_functions
         if(present(precision) ) then
           factor = precision
         else
-          factor = 10*epsilon(b)
+          factor = 10._ireals*epsilon(b)
         endif
         if( a.le.b+factor .and. a.ge.b-factor ) then
           approx = .True.

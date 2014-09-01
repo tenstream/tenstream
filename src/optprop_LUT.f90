@@ -108,7 +108,7 @@ contains
         class is (t_optprop_LUT_8_10)
           OPP%dir_streams  =  8
           OPP%diff_streams = 10
-          OPP%lutbasename=trim(lut_basename)//'_8_10.delta0.1.'
+          OPP%lutbasename=trim(lut_basename)//'_8_10.'
           allocate(t_boxmc_8_10::OPP%bmc)
 
         class default

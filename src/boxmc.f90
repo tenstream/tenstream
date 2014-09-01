@@ -347,7 +347,7 @@ end function
 function L(v)
     real(ireals) :: L
     real(ireals),intent(in) ::v
-    real(ireals),parameter :: eps=epsilon(L)*100
+    real(ireals),parameter :: eps=epsilon(L)*1e3_ireals
     L = ( eps + R()*(one-2*eps) ) *v
 end function
 
