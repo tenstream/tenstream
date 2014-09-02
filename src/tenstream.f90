@@ -23,7 +23,7 @@ module m_tenstream
       PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
       PetscInt,parameter :: istartpar=i1, jstartpar=i1
 
-      logical,parameter :: ldebug=.False.,lcycle_dir=.True.
+      logical,parameter :: ldebug=.True.,lcycle_dir=.True.
       logical,parameter :: lprealloc=.True.
 
       type t_coord
@@ -795,8 +795,6 @@ subroutine set_dir_coeff(A,C)
               enddo
           end subroutine
 
-
-          
         end subroutine
 
         subroutine setup_incSolar(incSolar,edirTOA)
@@ -1115,6 +1113,10 @@ subroutine calc_flx_div(edir,ediff,abso)
         Vec :: ledir,lediff ! local copies of vectors, including ghosts
         PetscReal :: div2(13)
         PetscReal :: Volume
+        real(ireals) :: c_dir2dir(C_dir%dof**2)
+        real(ireals) :: c_dir2diff(C_dir%dof*C_diff%dof)
+        real(ireals) :: c_diff2diff(C_diff%dof**2)
+        integer(iintegers) :: isrc
 
         if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence'
         call VecSet(abso,zero,ierr) ;CHKERRQ(ierr)
@@ -1154,7 +1156,20 @@ subroutine calc_flx_div(edir,ediff,abso)
                 div2( 4) = ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  )
                 div2( 5) = ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  )
 
+!                div2(1) = sum( xedir(i0:i3, i, j,k ) ) * (one-atm%a33(li,lj,lk)-atm%a13(li,lj,lk)-atm%a23(li,lj,lk))
+!                if((one-atm%a33(li,lj,lk)-atm%a13(li,lj,lk)-atm%a23(li,lj,lk)).lt.zero) then 
+!                  ! negative values are of course physically not meaningful, they do however happen because of inaccuracies in delta eddington twostream coefficients
+!                  ! we can try to estimate absorption by ...
+!                  div2(1) = sum( xedir(i0:i3, i, j,k ) ) * exp(- atm%op(li,lj,lk)%kabs*atm%dz(lk)/sun%costheta ) ! absorption of direct radiation
+!                  ! this neglects absorption of diffuse radiation! this is
+!                  ! probably bad!...
+!                endif
+
                 xabso(i0,i,j,k) = sum(div2) / Volume
+!                if(xabso(i0,i,j,k).lt.zero) then
+!                  print *,'OhOh :: 1-D Attention: neg. abso',xabso(i0,i,j,k),' at ',i,j,k
+!                  print *,'div2',div2
+!                endif
               enddo                             
             enddo                             
 
@@ -1167,7 +1182,9 @@ subroutine calc_flx_div(edir,ediff,abso)
                 li = istartpar+i-C_one%xs 
 
                 div2 = zero
-                ! Divergence    =                       Incoming                -       Outgoing
+
+!          Divergence     =                        Incoming                        -                   Outgoing
+
                 div2( 1) = sum( xedir(i0:i3 , i             , j             , k)  - xedir(i0:i3 , i          , j          , k+i1  ) )
                 div2( 2) = sum( xedir(i4:i5 , i+i1-sun%xinc , j             , k)  - xedir(i4:i5 , i+sun%xinc , j          , k) )
                 div2( 3) = sum( xedir(i6:i7 , i             , j+i1-sun%yinc , k)  - xedir(i6:i7 , i          , j+sun%yinc , k) )
@@ -1183,7 +1200,43 @@ subroutine calc_flx_div(edir,ediff,abso)
                 div2(12) = ( xediff(E_fw_m,i  ,j  ,k  )  - xediff(E_fw_m,i  ,j+1,k  )  )
                 div2(13) = ( xediff(E_fw_p,i  ,j  ,k  )  - xediff(E_fw_p,i  ,j+1,k  )  )
 
-                xabso(i0,i,j,k) = sum(div2) / Volume
+!         Divergence can also be expressed as the sum of divergence for each stream -- probably more stable... TODO: not tested at all?
+!                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.True., c_dir2dir,   atm%l1d(lk), [sun%symmetry_phi, sun%theta])
+!                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False.,c_dir2diff,  atm%l1d(lk), [sun%symmetry_phi, sun%theta])
+!                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False.,c_diff2diff, atm%l1d(lk) )
+!
+!                do isrc=1,4
+!                  div2(1) = div2(1) + xedir(isrc-i1,i,j,k) * max(zero, one &                          ! Absorption of direct streams is One minus
+!                                    - sum(c_dir2dir ( (isrc-1) *C_dir%dof  +1 : isrc*C_dir%dof  ) ) & ! - transmission
+!                                    - sum(c_dir2diff( (isrc-1) *C_diff%dof +1 : isrc*C_diff%dof ) ) ) ! - diffuse sources
+!                enddo     
+!                do isrc=5,6
+!                  div2(2) = div2(2) + xedir(isrc-i1,i+1-sun%xinc,j,k) * max(zero, one &
+!                                    - sum(c_dir2dir ( (isrc-1) *C_dir%dof  +1 : isrc*C_dir%dof  ) ) &
+!                                    - sum(c_dir2diff( (isrc-1) *C_diff%dof +1 : isrc*C_diff%dof ) ) )
+!                enddo
+!                do isrc=7,8
+!                  div2(3) = div2(3) + xedir(isrc-i1,i,j+1-sun%yinc,k) * max(zero, one &
+!                                    - sum(c_dir2dir ( (isrc-1) *C_dir%dof  +1 : isrc*C_dir%dof  ) ) &
+!                                    - sum(c_dir2diff( (isrc-1) *C_diff%dof +1 : isrc*C_diff%dof ) ) )
+!                enddo
+!
+!                div2( 4) = xediff(E_up  ,i  ,j  ,k+1)* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
+!                div2( 5) = xediff(E_dn  ,i  ,j  ,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
+!                div2( 6) = xediff(E_le_m,i+1,j  ,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
+!                div2( 7) = xediff(E_le_p,i+1,j  ,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
+!                div2( 8) = xediff(E_ri_m,i  ,j  ,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
+!                div2( 9) = xediff(E_ri_p,i  ,j  ,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
+!                div2(10) = xediff(E_ba_m,i  ,j+1,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
+!                div2(11) = xediff(E_ba_p,i  ,j+1,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
+!                div2(12) = xediff(E_fw_m,i  ,j  ,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
+!                div2(13) = xediff(E_fw_p,i  ,j  ,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
+
+                xabso(i0,i,j,k) = max(zero,sum(div2)) / Volume
+!                if(any(div2.lt.epsilon(xabso)*100._ireals) ) then
+!                  print *,'Attention: neg. abso at ',i,j,k
+!                  print *,'div2',div2
+!                endif
               enddo                             
             enddo                             
           endif

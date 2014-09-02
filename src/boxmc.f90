@@ -185,8 +185,8 @@ contains
 
       call cpu_time(time(1))
 
-      mincnt= max( 10, int( 1e3 /numnodes ) ) !(one/min(stddev_atol,stddev_rtol))**2/numnodes) ! at least one value has to reach tolerance
-      mycnt = int( ( (bmc%diff_streams*bmc%dir_streams ) / stddev_atol**2 / numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee -- but we need to hard break it somewhere?? do we?
+      mincnt= max( 100, int( 1e4 /numnodes ) ) !(one/min(stddev_atol,stddev_rtol))**2/numnodes) ! at least one value has to reach tolerance
+!      mycnt = int( ( (bmc%diff_streams*bmc%dir_streams ) / stddev_atol**2 / numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee -- but we need to hard break it somewhere?? do we?
       mycnt = int(1e8)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
 !      print *,'minimal count of photons is',mincnt,' maximum',mycnt,'huge(mycnt)',huge(mycnt)-1
@@ -366,7 +366,14 @@ subroutine move_photon(bmc,p)
           call update_photon_loc(p,intersec_dist)
         else
           call update_photon_loc(p,dist)
-          return
+        endif
+
+        if(p%scattercnt.gt.1e9) then 
+          print *,'Scattercnt:',p%scattercnt,' -- maybe this photon got stuck? -- I will move this one out of the box but keep in mind, that this is a dirty hack i.e. absorption will be wrong!'
+          call print_photon(p)
+          p%alive=.False.
+          call update_photon_loc(p,intersec_dist)
+          call print_photon(p)
         endif
 end subroutine
 subroutine update_photon_loc(p,dist)
