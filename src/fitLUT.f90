@@ -18,12 +18,11 @@ end type
       type(context) :: train_inp_ctx, train_out_ctx, test_inp_ctx, test_out_ctx, coeff_ctx
 
     contains
-      subroutine iterative_fit(Norder,Ndim, test_inp,test_out, inp, out, coeff, luse_coeff)
+      subroutine iterative_fit(Norder,Ndim, test_inp,test_out, inp, out, coeff, coeff_ind)
         integer(iintegers),intent(in) :: Norder,Ndim
-        real(ireals),intent(in) :: inp(:,:),out(:)
-        real(ireals),intent(in) :: test_inp(:,:),test_out(:)
-        real(ireals),intent(out),allocatable :: coeff(:)
-        logical,intent(inout) :: luse_coeff(:)
+        Vec :: test_inp,test_out
+        Vec :: inp, out
+        Vec :: coeff, coeff_ind
 
         integer(iintegers) :: j,k,jmin
         Mat :: A
@@ -33,19 +32,18 @@ end type
         Vec :: vtmp_coeff
         KSP :: ksp
 
-        real(ireals) :: err,tmp_err
-        PetscScalar, pointer :: xcoeff(:)
+        real(ireals) :: err=huge(err),tmp_err=huge(err)
+        PetscScalar, pointer :: xv_coeff(:)
 
-        logical :: ltmp_coeff(size(luse_coeff) )
-        luse_coeff=.False.
-        err=huge(err)
-
-        call setup_general(test_inp,test_out,vtest_inp,vtest_out,inp,out,vinp,vout)
+        coeff     = createVec(1_iintegers, PETSC_DECIDE) ! start with only one entry for coefficients
+        coeff_ind = createVec(1_iintegers, PETSC_DECIDE) ! start with only one entry for coefficients
+        call setup_context(coeff, coeff_ctx)
+        call VecSet(coeff_ind,-one,ierr)                 ! and assume we dont use any coefficients
 
         jmin=0
-        do k=1,size(luse_coeff)*Norder**2
+        do k=1,10 ! do this a while, inifinite would be nice, can we find a suitable exit condition?
 
-          call clean_small_coeffs(coeff,luse_coeff)
+          call clean_small_coeffs(coeff,luse_coeff) ! Throw away small coefficients
 
           call setup_iter_step(size(out), count(luse_coeff)+1, vcoeff,vtmp_coeff, A, ksp)
 
@@ -151,17 +149,17 @@ end type
         call KSPSolve(ksp, vout, vcoeff, ierr)
       end subroutine
 
-      subroutine setup_general(test_inp,test_out,vtest_inp,vtest_out,inp,out,vinp,vout)
-        real(ireals),intent(in) :: test_inp(:,:),test_out(:)
-        Vec :: vtest_inp, vtest_out
-        real(ireals),intent(in) :: inp(:,:),out(:)
-        Vec :: vinp, vout
-
-!        vinp      = createVec(size(inp),reshape( inp , (/size(inp)/) ) )
-!        vout      = createVec(size(out),out)
-!        vtest_inp = createVec(size(test_inp),reshape( test_inp, (/size(test_inp)/)) )
-!        vtest_out = createVec(size(test_out),test_out)
-      end subroutine
+!      subroutine setup_general(test_inp,test_out,vtest_inp,vtest_out,inp,out,vinp,vout)
+!        real(ireals),intent(in) :: test_inp(:,:),test_out(:)
+!        Vec :: vtest_inp, vtest_out
+!        real(ireals),intent(in) :: inp(:,:),out(:)
+!        Vec :: vinp, vout
+!
+!!        vinp      = createVec(size(inp),reshape( inp , (/size(inp)/) ) )
+!!        vout      = createVec(size(out),out)
+!!        vtest_inp = createVec(size(test_inp),reshape( test_inp, (/size(test_inp)/)) )
+!!        vtest_out = createVec(size(test_out),test_out)
+!      end subroutine
 
       subroutine fill_A(Norder,Ndim,Nsample,luse_coeff,vinp, A)
         integer(iintegers) :: Norder,Ndim,Nsample
@@ -379,29 +377,31 @@ program main
 
 
       !Additionally setup test function
-!      call VecGetArrayF90(  test_inp, xv_inp,   ierr)
-!      call VecGetArrayF90(  test_out, xv_out,   ierr)
-!      do i=1,test_out_ctx%lN
-!        xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim ) = [ one*i+test_out_ctx%xs, one ] * [ one*Nsample/Ntest, one ] ! double sampling along x
-!        xv_out(i) = poly2d(Norder, int(xv_coeff_ind), xv_coeff, xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim  ) ) !*(one+((xv_out(i)-.5)*40/100_ireals)) 
-!      enddo
-!      call VecRestoreArrayF90(  inp, xv_inp,   ierr)
-!      call VecRestoreArrayF90(  out, xv_out,   ierr)
+      call VecGetArrayF90(  test_inp, xv_inp,   ierr)
+      call VecGetArrayF90(  test_out, xv_out,   ierr)
+      do i=1,test_out_ctx%lN
+        xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim ) = [ one*i+test_out_ctx%xs, one ] * [ one*Nsample/Ntest, one ] ! double sampling along x
+        xv_out(i) = poly2d(Norder, int(xv_coeff_ind), xv_coeff, xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim  ) ) !*(one+((xv_out(i)-.5)*40/100_ireals)) 
+      enddo
+      call VecRestoreArrayF90(  inp, xv_inp,   ierr)
+      call VecRestoreArrayF90(  out, xv_out,   ierr)
 
 
       call VecRestoreArrayF90(coeff_ind, xv_coeff_ind, ierr)
       call VecRestoreArrayF90(coeff, xv_coeff, ierr)
 
-      call VecView(inp, PETSC_VIEWER_STDOUT_WORLD ,ierr)
-      call VecView(out, PETSC_VIEWER_STDOUT_WORLD ,ierr)
+!      call VecView(inp, PETSC_VIEWER_STDOUT_WORLD ,ierr)
+!      call VecView(out, PETSC_VIEWER_STDOUT_WORLD ,ierr)
 !      call VecView(test_inp, PETSC_VIEWER_STDOUT_WORLD ,ierr)
 !      call VecView(test_out, PETSC_VIEWER_STDOUT_WORLD ,ierr)
 
       if(myid.eq.0) print *,'Initial coefficients, used for test dataset'
-      call VecView(coeff, PETSC_VIEWER_STDOUT_WORLD ,ierr)
-      call VecView(coeff_ind, PETSC_VIEWER_STDOUT_WORLD ,ierr)
+!      call VecView(coeff, PETSC_VIEWER_STDOUT_WORLD ,ierr)
+!      call VecView(coeff_ind, PETSC_VIEWER_STDOUT_WORLD ,ierr)
+      call VecDestroy(coeff,     ierr)
+      call VecDestroy(coeff_ind, ierr)
 
-!      call iterative_fit(Norder,Ndim, test_inp,test_out,inp,out,coeff,luse_coeff)
+      call iterative_fit(Norder,Ndim, test_inp,test_out,inp,out,coeff,coeff_ind)
 !      print *,'coeff of fit: ',coeff
 !
 !      do i=1,Ntest
@@ -429,3 +429,5 @@ program main
 
       call PetscFinalize(ierr) ;CHKERRQ(ierr)
 end program
+
+      TODO: coeff vector has to be global for ALL nodes! -- need a smart mechnism to achieve that....
