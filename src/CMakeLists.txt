@@ -43,3 +43,6 @@ target_link_libraries( "test_boxmc" tenstream )
 
 add_executable( "Cwrapper_test" "f2c_tenstream.c" )
 target_link_libraries( "Cwrapper_test" tenstream )
+
+add_executable( "fitLUT" "fitLUT.f90" )
+target_link_libraries( "fitLUT" tenstream )

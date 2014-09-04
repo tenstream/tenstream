@@ -660,11 +660,11 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
         phi   = LUT%pspace%phi( [ iphi, iphi+1 ] )
         theta = LUT%pspace%theta( [ itheta, itheta+1 ]  )
 
-        lneed_azi(1) = any( azis .ge. phi(1)       .and. azis .lt. sum(phi)/2 )
-        lneed_azi(2) = any( azis .ge. sum(phi)/2   .and. azis .lt. phi(2) )
+        lneed_azi(1) = any( azis .ge. phi(1)       .and. azis .le. sum(phi)/2 )
+        lneed_azi(2) = any( azis .ge. sum(phi)/2   .and. azis .le. phi(2) )
 
-        lneed_sza(1) = any( szas .ge. theta(1)     .and. szas .lt. sum(theta)/2 )
-        lneed_sza(2) = any( szas .ge. sum(theta)/2 .and. szas .lt. theta(2) )
+        lneed_sza(1) = any( szas .ge. theta(1)     .and. szas .le. sum(theta)/2 )
+        lneed_sza(2) = any( szas .ge. sum(theta)/2 .and. szas .le. theta(2) )
 
         !print *,'determine_angles_to_load: occuring azimuths',azis,'/ szas',szas,': phi,theta',phi,theta,'need_azi',lneed_azi,'lneed_sza',lneed_sza
 
