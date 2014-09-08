@@ -24,7 +24,7 @@ set( optprop_sources
   "optprop.f90"
   )
 
-add_library( tenstream SHARED ${general_sources} ${optprop_sources} )
+add_library( tenstream STATIC ${general_sources} ${optprop_sources} )
 TARGET_LINK_LIBRARIES( tenstream  "${EXTLIB}" )
 
 file( GLOB streams createLUT_*.f90 )

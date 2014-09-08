@@ -12,11 +12,6 @@
 #  *HDF5_DIR
 #  *PETSC_DIR
 #  *PETSC_ARCH
-#  *TENSTREAM_DIR
-
-
-# In any case, add the tenstream lib
-export TENSTREAM_DIR=<PATH to tenstream> # e.g. export TENSTREAM_DIR=$(pwd)
 
 # If you are lucky, you work at the Meteorological Institute Munich and just follow the steps below:
 
@@ -53,8 +48,6 @@ export PATH=$TICAP/valgrind-svn/install/bin:$PATH
 export LD_LIBRARY_PATH=$TICAP/valgrind-svn/install/lib:$TICAP/valgrind-svn/install/lib64:$LD_LIBRARY_PATH
 export CPATH=$TICAP/valgrind-svn/install/include:$CPATH
 
-TENSTREAM_DIR=<PATH to tenstream>
-export LD_LIBRARY_PATH=$TENSTREAM_DIR/build/lib/:$LD_LIBRARY_PATH
 ##########################################################################################################
 
 # Confirm that we use the correct mpi
