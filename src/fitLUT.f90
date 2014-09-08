@@ -23,6 +23,7 @@ type Vector
       Vec :: v
 end type
       integer(iintegers) :: poly_func
+      integer(iintegers) :: poly_order
       real(ireals) :: err_ratio
 
     contains
@@ -71,7 +72,7 @@ end type
 !            call MatMult(A%A,coeff%v, tmp_out%v,ierr)
 !            call VecView( tmp_out%v,PETSC_VIEWER_STDOUT_WORLD,ierr)
 
-            if(myid.eq.0) print *,'k=',k,' :: testing new coeff:',j,'with new err',tmp_err,tmp_err/train_inp%gN,'::',ltmp_coeff
+            if(myid.eq.0) print *,'k=',k,' :: testing new coeff:',j,'with new err',tmp_err,tmp_err/train_inp%gN !,'::',ltmp_coeff
             if( tmp_err.lt.err) then ! .and. mincoeff.gt. 1e-8_ireals) then ! if error was reduced -- we also want the coefficients to be big -- small coefficients are usually not stable?
               tmp=err
               err=tmp_err
@@ -96,7 +97,7 @@ end type
           endif
 
           luse_coeff(jmin) =.True. 
-          if(myid.eq.0) print *,'iteration',k,' :: selecting new coeff:',jmin,'with err',err,err/train_inp%gN,'::',luse_coeff
+          if(myid.eq.0) print *,'iteration',k,' :: selecting new coeff:',jmin,'with err',err,err/train_inp%gN  !,'::',luse_coeff
 
           if( check_if_converged(err/train_inp%gN) ) then
             if(myid.eq.0) print *,'exiting iterative fit routine :: we converged'
@@ -273,6 +274,7 @@ end type
           p = exp(v*e)
         case default
 !          stop 'dont know poly_func option'
+          p = legendre(v,e)
         end select
       end function
 
@@ -305,16 +307,16 @@ end type
         real(ireals),intent(out),DIMENSION(0:N) :: pn,pd
         integer(iintegers) :: k
         real(ireals) :: p0,p1,pf
-        PN(0)=1.0D0
+        PN(0)=one
         PN(1)=X
-        PD(0)=0.0D0
-        PD(1)=1.0D0
-        P0=1.0D0
+        PD(0)=zero
+        PD(1)=one
+        P0=one
         P1=X
         DO 10 K=2,N
-           PF=(2.0D0*K-1.0D0)/K*X*P1-(K-1.0D0)/K*P0
+           PF=(2._ireals*K-one)/K*X*P1-(K-one)/K*P0
            PN(K)=PF
-           IF (DABS(X).EQ.1.0D0) THEN
+           IF (DABS(X).EQ.one) THEN
               PD(K)=0.5D0*X**(K+1)*K*(K+1.0D0)
            ELSE
               PD(K)=K*(P1-X*PF)/(1.0D0-X*X)
@@ -355,7 +357,7 @@ end type
         logical :: fexists
         
         if(myid.eq.0) print *,'**************************** Writing Solution **********************************'
-        write( vecname,FMT='(A,".",I0,".")' ) trim(prefix),poly_func
+        write( vecname,FMT='(A,".poly",I0,".order",I0,".")' ) trim(prefix), poly_func, poly_order
 
         inquire(file=trim(fname), exist=fexists)
         if(fexists) then
@@ -375,9 +377,8 @@ end type
 
       subroutine fitLUT(dx,azimuth,zenith)
         real(ireals),intent(in) :: dx,azimuth,zenith
-      
 
-        integer(iintegers),parameter :: Norder=4
+!        integer(iintegers),parameter :: Norder=8
         type(t_optprop_LUT_8_10) :: OPP  
         integer(iintegers) :: Ndim,Nsample,Ncoeff
 
@@ -390,7 +391,7 @@ end type
 
         PetscScalar, pointer :: xv_inp(:),xv_out(:),xv_coeff(:)
 
-        real(ireals),allocatable :: coords(:), dummy_inp(:), dummy_coeff(:)
+        real(ireals),allocatable :: coords(:),coords_norm(:,:), dummy_inp(:), dummy_coeff(:)
 
         integer(iintegers) :: i,j,idz,ikabs,iksca,ig,icoeff
 
@@ -400,12 +401,22 @@ end type
         Nsample = OPP%Ndz*OPP%Nkabs*OPP%Nksca*OPP%Ng
         Ncoeff = ubound(OPP%diffLUT%S%c,1)
         allocate(coords(Ndim))
+        allocate(coords_norm(2,Ndim))
 
-        if(myid.eq.0) print *,'LUT has',Ndim,'dimensions and ',Nsample,'entries and',Ncoeff,'coefficients'
-        print *,'LUT dimensions :: dz  ',OPP%diffLUT%pspace%dz
-        print *,'LUT dimensions :: kabs',OPP%diffLUT%pspace%kabs
-        print *,'LUT dimensions :: ksca',OPP%diffLUT%pspace%ksca
-        print *,'LUT dimensions :: g   ',OPP%diffLUT%pspace%g 
+        coords_norm(:,1) = OPP%diffLUT%pspace%range_dz
+        coords_norm(:,2) = OPP%diffLUT%pspace%range_kabs
+        coords_norm(:,3) = OPP%diffLUT%pspace%range_ksca
+        coords_norm(:,4) = OPP%diffLUT%pspace%range_g
+
+        coords_norm(2,:) = one/ ( coords_norm(2,:)-coords_norm(1,:) )
+
+        if(myid.eq.0) then
+          print *,'LUT has',Ndim,'dimensions and ',Nsample,'entries and',Ncoeff,'coefficients'
+          print *,'LUT dimensions :: dz  ',OPP%diffLUT%pspace%dz
+          print *,'LUT dimensions :: kabs',OPP%diffLUT%pspace%kabs
+          print *,'LUT dimensions :: ksca',OPP%diffLUT%pspace%ksca
+          print *,'LUT dimensions :: g   ',OPP%diffLUT%pspace%g 
+        endif
 
         call createVec(PETSC_DECIDE,Nsample,train_out)      
         call createVec(train_out%lN*Ndim ,Nsample*Ndim, train_inp)
@@ -414,7 +425,7 @@ end type
         call VecGetArrayF90(  train_inp%v, xv_inp,   ierr)
         call VecGetArrayF90(  train_out%v, xv_out,   ierr)
 
-        icoeff=1
+        icoeff=2
 
         i=1
         j=-1 ! j counts the global entries... i counts only when we reach the local part
@@ -428,6 +439,9 @@ end type
                 coords(2) = OPP%diffLUT%pspace%kabs(ikabs) !ikabs!
                 coords(3) = OPP%diffLUT%pspace%ksca(iksca) !iksca!
                 coords(4) = OPP%diffLUT%pspace%g(ig)       !ig   !
+
+                coords = (coords-coords_norm(1,:) ) * coords_norm(2,:)
+
                 xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim ) = coords
 
                 xv_out(i) = OPP%diffLUT%S%c(icoeff,idz,ikabs,iksca,ig)
@@ -436,17 +450,19 @@ end type
             enddo
           enddo
         enddo
-        print *,'we have set up till index',i,'::',(i-1)*Ndim + Ndim
-        print *,'setting trainings out',xv_out(1:20)
+        if(myid.eq.0) then
+          print *,'we have set up till index',i,'::',(i-1)*Ndim + Ndim
+          print *,'setting trainings out',xv_out(1:20)
+        endif
 
         call VecRestoreArrayF90(  train_inp%v, xv_inp,   ierr)
         call VecRestoreArrayF90(  train_out%v, xv_out,   ierr)
 
         ! Find a fit for training set
-        call createVec(PETSC_DECIDE, polygonal_number(Ndim,Norder), coeff)
-        allocate(luse_coeff(polygonal_number(Ndim,Norder)) )
+        call createVec(PETSC_DECIDE, polygonal_number(Ndim,poly_order), coeff)
+        allocate(luse_coeff(polygonal_number(Ndim,poly_order)) )
 
-        call iterative_fit(Norder,Ndim, train_inp, train_out, luse_coeff, coeff)
+        call iterative_fit(poly_order,Ndim, train_inp, train_out, luse_coeff, coeff)
 
         ! Sample the result on same grid
 
@@ -455,7 +471,7 @@ end type
         call init_Mat(A,fit_out%lN,coeff%lN, fit_out%gN,coeff%gN)
 
         if(myid.eq.0) print *,'************************************ Solution **********************************'
-        call fill_A(Norder,Ndim, luse_coeff,train_inp, A)
+        call fill_A(poly_order,Ndim, luse_coeff,train_inp, A)
         call MatMult(A%A,coeff%v,fit_out%v,ierr)
 
         call VecScatterCreateToZero(coeff%v, scatter_ctx, glob_coeff%v, ierr)
@@ -469,7 +485,7 @@ end type
 
           allocate(dummy_inp(train_inp%gN))
           allocate(dummy_coeff(coeff%gN))
-          dummy_coeff = poly(Norder,Ndim, luse_coeff, dummy_inp, 'c1=', xv_coeff)
+          dummy_coeff = poly(poly_order,Ndim, luse_coeff, dummy_inp, 'c1=', xv_coeff)
           call VecRestoreArrayF90(  glob_coeff%v, xv_coeff,   ierr)
         endif
 
@@ -477,71 +493,75 @@ end type
 
         call write_poly_fit(train_inp,train_out,fit_out,'./fitLUT.h5','train')
       end subroutine
-      subroutine create_benchmark(train_inp,train_out)
-      type(Vector) :: train_inp, train_out
-
-      integer(iintegers),parameter :: Ndim=2,Nsample=100      ! Size of original data (here created by test_func)
-      integer(iintegers),parameter :: Norder=4               ! Order of the polynomial that we want to fit
-
-      type(Vector) ::  coeff!, fit_out
-      type(Matrix) :: A
-      logical,allocatable :: luse_coeff(:)
-      
-      integer(iintegers) :: i
-      real(ireals) :: rnd
-
-      PetscScalar, pointer :: xv_inp(:),xv_out(:)
-
-      PetscViewer :: view
-
-      if(myid.eq.0) print *,'Maximum nr of polynomials for dimension/order',Ndim,Norder,' is',polygonal_number(Ndim,Norder)
-
-      call createVec(PETSC_DECIDE,Nsample,train_out)      
-      call createVec(train_out%lN*Ndim ,Nsample*Ndim, train_inp)
-
-      call createVec(PETSC_DECIDE, polygonal_number(Ndim,Norder), coeff)
-      allocate(luse_coeff(polygonal_number(Ndim,Norder)) )
-
-      call init_Mat(A,train_out%lN,coeff%lN, train_out%gN,coeff%gN)
-
-      call VecSet(coeff%v,one,ierr)
-
-      do i=1,size(luse_coeff)
-        call random_number(rnd)
-        luse_coeff(i) = .True.
-        if(rnd.lt..5_ireals) luse_coeff(i) = .False.
-      enddo
-
-      !Setup initial input and output for training dataset
-      call VecGetArrayF90(  train_inp%v, xv_inp,   ierr)
-      do i=1,train_out%lN
-        xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim ) = [ one*i+train_out%xs,  (one*i+train_out%xs)**3 ]/ [ train_out%gN, train_out%gN**3 ]
-      enddo
-      call VecRestoreArrayF90(  train_inp%v, xv_inp,   ierr)
-
-      if(myid.eq.0) print *,'************************************ Benchmark *********************************'
-      call fill_A(Norder,Ndim, luse_coeff,train_inp, A)
-      call MatMult(A%A,coeff%v,train_out%v,ierr)
-
-      call VecGetArrayF90(  train_out%v, xv_out,   ierr)
-      do i=1,train_out%lN
-        call random_number(rnd)
-        xv_out(i) = xv_out(i) * ( one + .3_ireals*(rnd-.5_ireals) )
-      enddo
-      call VecRestoreArrayF90(  train_out%v, xv_out,   ierr)
-
-      if(myid.eq.0) print *,'************************************ Benchmark *********************************'
-      end subroutine
+!      subroutine create_benchmark(train_inp,train_out)
+!      type(Vector) :: train_inp, train_out
+!
+!      integer(iintegers),parameter :: Ndim=2,Nsample=100      ! Size of original data (here created by test_func)
+!      integer(iintegers),parameter :: Norder=4               ! Order of the polynomial that we want to fit
+!
+!      type(Vector) ::  coeff!, fit_out
+!      type(Matrix) :: A
+!      logical,allocatable :: luse_coeff(:)
+!      
+!      integer(iintegers) :: i
+!      real(ireals) :: rnd
+!
+!      PetscScalar, pointer :: xv_inp(:),xv_out(:)
+!
+!      PetscViewer :: view
+!
+!      if(myid.eq.0) print *,'Maximum nr of polynomials for dimension/order',Ndim,Norder,' is',polygonal_number(Ndim,Norder)
+!
+!      call createVec(PETSC_DECIDE,Nsample,train_out)      
+!      call createVec(train_out%lN*Ndim ,Nsample*Ndim, train_inp)
+!
+!      call createVec(PETSC_DECIDE, polygonal_number(Ndim,Norder), coeff)
+!      allocate(luse_coeff(polygonal_number(Ndim,Norder)) )
+!
+!      call init_Mat(A,train_out%lN,coeff%lN, train_out%gN,coeff%gN)
+!
+!      call VecSet(coeff%v,one,ierr)
+!
+!      do i=1,size(luse_coeff)
+!        call random_number(rnd)
+!        luse_coeff(i) = .True.
+!        if(rnd.lt..5_ireals) luse_coeff(i) = .False.
+!      enddo
+!
+!      !Setup initial input and output for training dataset
+!      call VecGetArrayF90(  train_inp%v, xv_inp,   ierr)
+!      do i=1,train_out%lN
+!        xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim ) = [ one*i+train_out%xs,  (one*i+train_out%xs)**3 ]/ [ train_out%gN, train_out%gN**3 ]
+!      enddo
+!      call VecRestoreArrayF90(  train_inp%v, xv_inp,   ierr)
+!
+!      if(myid.eq.0) print *,'************************************ Benchmark *********************************'
+!      call fill_A(Norder,Ndim, luse_coeff,train_inp, A)
+!      call MatMult(A%A,coeff%v,train_out%v,ierr)
+!
+!      call VecGetArrayF90(  train_out%v, xv_out,   ierr)
+!      do i=1,train_out%lN
+!        call random_number(rnd)
+!        xv_out(i) = xv_out(i) * ( one + .3_ireals*(rnd-.5_ireals) )
+!      enddo
+!      call VecRestoreArrayF90(  train_out%v, xv_out,   ierr)
+!
+!      if(myid.eq.0) print *,'************************************ Benchmark *********************************'
+!      end subroutine
 
       subroutine get_cmd_line_options()
         logical :: lflg=.False.
         call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-poly",poly_func, lflg,ierr)  ; CHKERRQ(ierr)
-        if(lflg.eqv.PETSC_FALSE) poly_func = 1
+        if(lflg.eqv.PETSC_FALSE) poly_func = 2
+
+        call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-order",poly_order, lflg,ierr)  ; CHKERRQ(ierr)
+        if(lflg.eqv.PETSC_FALSE) poly_order = 4
 
         call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-err_ratio",err_ratio, lflg,ierr)  ; CHKERRQ(ierr)
         if(lflg.eqv.PETSC_FALSE) err_ratio = .99
 
         print *,' ************* poly_func is now ',poly_func,' *************'
+        print *,' ************* poly_order is now',poly_order,' *************'
         print *,' ************* error ratio is : ',err_ratio,' *************'
       end subroutine
 end module
@@ -550,21 +570,21 @@ program main
       use m_fitLUT 
       implicit none
 
-      integer(iintegers),parameter :: Ndim=2,Nsample=100          ! Size of original data (here created by test_func)
-      integer(iintegers),parameter :: Norder=2                    ! Order of the polynomial that we want to fit
+!      integer(iintegers),parameter :: Ndim=2,Nsample=100          ! Size of original data (here created by test_func)
+!      integer(iintegers),parameter :: Norder=2                    ! Order of the polynomial that we want to fit
 
-      type(Vector) :: train_inp, train_out, coeff, fit_out
-
-      type(Matrix) :: A
-      logical,allocatable :: luse_coeff(:)
-      
-      integer(iintegers) :: i
-      real(ireals) :: rnd
-
-      character(len=300) :: groups(3)
-
-      PetscRandom :: rctx
-      PetscScalar, pointer :: xv_inp(:),xv_out(:)
+!      type(Vector) :: train_inp, train_out, coeff, fit_out
+!
+!      type(Matrix) :: A
+!      logical,allocatable :: luse_coeff(:)
+!      
+!      integer(iintegers) :: i
+!      real(ireals) :: rnd
+!
+!      character(len=300) :: groups(3)
+!
+!      PetscRandom :: rctx
+!      PetscScalar, pointer :: xv_inp(:),xv_out(:)
 
       call PetscInitialize(PETSC_NULL_CHARACTER,ierr) ;CHKERRQ(ierr)
       call init_mpi_data_parameters(PETSC_COMM_WORLD)
@@ -574,45 +594,45 @@ program main
 
       call PetscFinalize(ierr) ;CHKERRQ(ierr);  return
 
-
-
-
-
-      call create_benchmark(train_inp,train_out)
-
-      ! Find a fit for benchmark training set
-      call createVec(PETSC_DECIDE, polygonal_number(Ndim,Norder), coeff)
-      allocate(luse_coeff(polygonal_number(Ndim,Norder)) )
-
-      call iterative_fit(Norder,Ndim, train_inp, train_out, luse_coeff, coeff)
-     
-      ! Sample the result on a fine grid
-      call createVec(PETSC_DECIDE, Nsample, fit_out)      
-
-      call init_Mat(A,fit_out%lN,coeff%lN, fit_out%gN,coeff%gN)
-
-      !Setup input grid 
-      call VecGetArrayF90(  train_inp%v, xv_inp,   ierr)
-      do i=1,fit_out%lN
-        xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim ) = [ one*i+fit_out%xs,  (one*i+fit_out%xs)**3 ]/ [ fit_out%gN, fit_out%gN**3 ]
-      enddo
-      call VecRestoreArrayF90(  train_inp%v, xv_inp,   ierr)
-
-      if(myid.eq.0) print *,'************************************ Solution **********************************'
-      call fill_A(Norder,Ndim, luse_coeff,train_inp, A)
-      call MatMult(A%A,coeff%v,fit_out%v,ierr)
-!      call VecView(train_out%v, PETSC_VIEWER_STDOUT_WORLD ,ierr)
-      if(myid.eq.0) print *,'************************************ Solution **********************************'
-      call VecAXPY(fit_out%v,-one,train_out%v,ierr) ! a-b
-      call VecNorm(fit_out%v, NORM_2 , rnd,ierr)
-      print *,'rmse is :',rnd/Nsample
-
-!      call PetscViewerHDF5Open(imp_comm,'./fitLUT.h5', FILE_MODE_WRITE, view, ierr) ;CHKERRQ(ierr)
-!      call PetscObjectSetName(train_inp%v, 'train_inp',ierr)          ; CHKERRQ(ierr);   call VecView(train_inp%v, view, ierr) ;CHKERRQ(ierr)
-!      call PetscObjectSetName(train_out%v, 'train_out',ierr)          ; CHKERRQ(ierr);   call VecView(train_out%v, view, ierr) ;CHKERRQ(ierr)
-!      call PetscObjectSetName(fit_out%v, 'fit_out',ierr)          ; CHKERRQ(ierr);   call VecView(fit_out%v, view, ierr) ;CHKERRQ(ierr)
-!      call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
-
-
-      call PetscFinalize(ierr) ;CHKERRQ(ierr)
+!
+!
+!
+!
+!      call create_benchmark(train_inp,train_out)
+!
+!      ! Find a fit for benchmark training set
+!      call createVec(PETSC_DECIDE, polygonal_number(Ndim,Norder), coeff)
+!      allocate(luse_coeff(polygonal_number(Ndim,Norder)) )
+!
+!      call iterative_fit(Norder,Ndim, train_inp, train_out, luse_coeff, coeff)
+!     
+!      ! Sample the result on a fine grid
+!      call createVec(PETSC_DECIDE, Nsample, fit_out)      
+!
+!      call init_Mat(A,fit_out%lN,coeff%lN, fit_out%gN,coeff%gN)
+!
+!      !Setup input grid 
+!      call VecGetArrayF90(  train_inp%v, xv_inp,   ierr)
+!      do i=1,fit_out%lN
+!        xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim ) = [ one*i+fit_out%xs,  (one*i+fit_out%xs)**3 ]/ [ fit_out%gN, fit_out%gN**3 ]
+!      enddo
+!      call VecRestoreArrayF90(  train_inp%v, xv_inp,   ierr)
+!
+!      if(myid.eq.0) print *,'************************************ Solution **********************************'
+!      call fill_A(Norder,Ndim, luse_coeff,train_inp, A)
+!      call MatMult(A%A,coeff%v,fit_out%v,ierr)
+!!      call VecView(train_out%v, PETSC_VIEWER_STDOUT_WORLD ,ierr)
+!      if(myid.eq.0) print *,'************************************ Solution **********************************'
+!      call VecAXPY(fit_out%v,-one,train_out%v,ierr) ! a-b
+!      call VecNorm(fit_out%v, NORM_2 , rnd,ierr)
+!      print *,'rmse is :',rnd/Nsample
+!
+!!      call PetscViewerHDF5Open(imp_comm,'./fitLUT.h5', FILE_MODE_WRITE, view, ierr) ;CHKERRQ(ierr)
+!!      call PetscObjectSetName(train_inp%v, 'train_inp',ierr)          ; CHKERRQ(ierr);   call VecView(train_inp%v, view, ierr) ;CHKERRQ(ierr)
+!!      call PetscObjectSetName(train_out%v, 'train_out',ierr)          ; CHKERRQ(ierr);   call VecView(train_out%v, view, ierr) ;CHKERRQ(ierr)
+!!      call PetscObjectSetName(fit_out%v, 'fit_out',ierr)          ; CHKERRQ(ierr);   call VecView(fit_out%v, view, ierr) ;CHKERRQ(ierr)
+!!      call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
+!
+!
+!      call PetscFinalize(ierr) ;CHKERRQ(ierr)
 end program
