@@ -39,7 +39,7 @@ end type
 
         KSP :: ksp
 
-        real(ireals) :: err=huge(err),tmp_err=huge(err),tmp
+        real(ireals) :: err=huge(err),tmp_err=huge(err),last_err
 
         integer(iintegers) :: k,j, jmin
 
@@ -55,9 +55,12 @@ end type
         luse_coeff=.False. ! start without any coefficients
         call init_Mat(A,train_out%lN,coeff%lN, train_out%gN,coeff%gN)
 
-        do k=1,size(luse_coeff)*2 ! do this a while, inifinite would be nice, can we find a suitable exit condition?
+        k=0
+        do ! do this a while, inifinite would be nice, can we find a suitable exit condition?
+          k=k+1
 
           jmin=0; 
+          last_err = err
           do j=1,size(luse_coeff)
             ltmp_coeff = luse_coeff
             if( ltmp_coeff(j) ) cycle ! already included
@@ -72,23 +75,21 @@ end type
 !            call MatMult(A%A,coeff%v, tmp_out%v,ierr)
 !            call VecView( tmp_out%v,PETSC_VIEWER_STDOUT_WORLD,ierr)
 
-            if(myid.eq.0) print *,'k=',k,' :: testing new coeff:',j,'with new err',tmp_err,tmp_err/train_inp%gN !,'::',ltmp_coeff
+            if(myid.eq.0) print *,'k=',k,' :: testing new coeff:',j,'(',size(luse_coeff),')','old err',err,err/train_inp%gN,'with new err',tmp_err,tmp_err/train_inp%gN ,'::',tmp_err/err
             if( tmp_err.lt.err) then ! .and. mincoeff.gt. 1e-8_ireals) then ! if error was reduced -- we also want the coefficients to be big -- small coefficients are usually not stable?
-              tmp=err
               err=tmp_err
-              tmp_err=err
               jmin = j
               call VecSet(coeff%v,zero,ierr)
               call VecAXPY(coeff%v, one, tmp_coeff%v,ierr)
               call VecCopy(tmp_coeff%v,coeff%v,ierr)
 
-!               call VecView( coeff%v,PETSC_VIEWER_STDOUT_WORLD,ierr)
+!              call VecView( coeff%v,PETSC_VIEWER_STDOUT_WORLD,ierr)
             endif
 
           enddo
 
-          if( err/tmp_err .gt. err_ratio ) then
-            if(myid.eq.0) print *,'exiting iterative fit routine :: last coefficient we added reduce the error by less than would like to ; ratio is:',err/tmp_err
+          if( err/last_err .gt. err_ratio ) then
+            if(myid.eq.0) print *,'exiting iterative fit routine :: last coefficient we added reduce the error by less than would like to ',err,last_err,' ratio is:',err/last_err
             exit
           endif
           if( jmin.eq.0 ) then
@@ -403,12 +404,13 @@ end type
         allocate(coords(Ndim))
         allocate(coords_norm(2,Ndim))
 
-        coords_norm(:,1) = OPP%diffLUT%pspace%range_dz
-        coords_norm(:,2) = OPP%diffLUT%pspace%range_kabs
-        coords_norm(:,3) = OPP%diffLUT%pspace%range_ksca
-        coords_norm(:,4) = OPP%diffLUT%pspace%range_g
+        coords_norm(:,1) = [ minval( OPP%diffLUT%pspace%dz   ), maxval( OPP%diffLUT%pspace%dz   ) ]
+        coords_norm(:,2) = [ minval( OPP%diffLUT%pspace%kabs ), maxval( OPP%diffLUT%pspace%kabs ) ]
+        coords_norm(:,3) = [ minval( OPP%diffLUT%pspace%ksca ), maxval( OPP%diffLUT%pspace%ksca ) ]
+        coords_norm(:,4) = [ minval( OPP%diffLUT%pspace%g    ), maxval( OPP%diffLUT%pspace%g    ) ]
 
-        coords_norm(2,:) = one/ ( coords_norm(2,:)-coords_norm(1,:) )
+!        coords_norm(2,:) = one/ ( coords_norm(2,:)-coords_norm(1,:) )
+!        coords_norm(2,:) = one/ ( coords_norm(2,:) )
 
         if(myid.eq.0) then
           print *,'LUT has',Ndim,'dimensions and ',Nsample,'entries and',Ncoeff,'coefficients'
@@ -435,12 +437,13 @@ end type
               do ig=1,OPP%Ng
                 j=j+1
                 if(j.lt.train_out%xs.or.j.ge.train_out%xe) cycle
-                coords(1) = OPP%diffLUT%pspace%dz(idz)     !idz  !
-                coords(2) = OPP%diffLUT%pspace%kabs(ikabs) !ikabs!
-                coords(3) = OPP%diffLUT%pspace%ksca(iksca) !iksca!
-                coords(4) = OPP%diffLUT%pspace%g(ig)       !ig   !
+                coords(1) = OPP%diffLUT%pspace%dz(idz)     / OPP%Ndz   !idz  !
+                coords(2) = OPP%diffLUT%pspace%kabs(ikabs) / OPP%Nkabs !ikabs!
+                coords(3) = OPP%diffLUT%pspace%ksca(iksca) / OPP%Nksca !iksca!
+                coords(4) = OPP%diffLUT%pspace%g(ig)       / OPP%Ng    !ig   !
 
-                coords = (coords-coords_norm(1,:) ) * coords_norm(2,:)
+!                coords = (coords-coords_norm(1,:) ) * coords_norm(2,:)
+!                coords = (coords) * coords_norm(2,:)
 
                 xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim ) = coords
 
@@ -474,6 +477,8 @@ end type
         call fill_A(poly_order,Ndim, luse_coeff,train_inp, A)
         call MatMult(A%A,coeff%v,fit_out%v,ierr)
 
+        call write_poly_fit(train_inp,train_out,fit_out,'./fitLUT.h5','train')
+
         call VecScatterCreateToZero(coeff%v, scatter_ctx, glob_coeff%v, ierr)
         call VecScatterBegin(scatter_ctx,coeff%v,glob_coeff%v,INSERT_VALUES,SCATTER_FORWARD,ierr);
         call VecScatterEnd(scatter_ctx,coeff%v,glob_coeff%v,INSERT_VALUES,SCATTER_FORWARD,ierr);
@@ -491,7 +496,6 @@ end type
 
         call VecDestroy(glob_coeff%v,ierr);
 
-        call write_poly_fit(train_inp,train_out,fit_out,'./fitLUT.h5','train')
       end subroutine
 !      subroutine create_benchmark(train_inp,train_out)
 !      type(Vector) :: train_inp, train_out
