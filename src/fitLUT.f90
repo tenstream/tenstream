@@ -721,10 +721,10 @@ end type
                   do ix=1,size(x)
                     j=j+1
                     if( (j-1)*Ndim .lt. inp%xs .or. (j-1)*Ndim+Ndim .ge. inp%xe) cycle
-                    coords(1) = (x(ix)-norm(1,1)  )*norm(2,1) ! linear transformation into orthogonal space of legendre polynomials [0,1]
-                    coords(2) = (y(iy)-norm(1,2)  )*norm(2,2)                                                                       
-                    coords(3) = (z(iz)-norm(1,3)  )*norm(2,3)                                                                       
-                    coords(4) = (k(ik)-norm(1,4)  )*norm(2,4)                                                                       
+                    coords(1) = (x(ix)-norm(1,1)  )*norm(2,1) ! linear transformation into orthogonal space of legendre polynomials [0,1]!(ix-one) / (size(x)-one)  !
+                    coords(2) = (y(iy)-norm(1,2)  )*norm(2,2)                                                                            !(iy-one) / (size(y)-one)  !
+                    coords(3) = (z(iz)-norm(1,3)  )*norm(2,3)                                                                            !(iz-one) / (size(z)-one)  !
+                    coords(4) = (k(ik)-norm(1,4)  )*norm(2,4)                                                                            !(ik-one) / (size(k)-one)  !
 
                     xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim ) = coords
                     i=i+1
@@ -802,15 +802,20 @@ end type
 
             call OPP%init(dx,dx,[azimuth],[zenith],imp_comm)
 
-            icoeff = 1
+            icoeff = 2
 
-            call fit4d(OPP%diffLUT%pspace%dz,OPP%diffLUT%pspace%kabs,OPP%diffLUT%pspace%ksca,OPP%diffLUT%pspace%g, OPP%diffLUT%S%c(icoeff,:,:,:,:), luse_coeff, coeff)
-            call run_fit4d(OPP%diffLUT%pspace%dz,OPP%diffLUT%pspace%kabs,OPP%diffLUT%pspace%ksca,OPP%diffLUT%pspace%g, luse_coeff,coeff,'fit')
+            allocate( x(size(OPP%diffLUT%pspace%dz  )),source=exp(-OPP%diffLUT%pspace%dz  ) )
+            allocate( y(size(OPP%diffLUT%pspace%kabs)),source=exp(-OPP%diffLUT%pspace%kabs) )
+            allocate( z(size(OPP%diffLUT%pspace%ksca)),source=exp(-OPP%diffLUT%pspace%ksca) )
+            allocate( k(size(OPP%diffLUT%pspace%g   )),source=OPP%diffLUT%pspace%g   **1 )
 
-            allocate( x(2*size(OPP%diffLUT%pspace%dz  )-1 ) ) ; x(1:size(x):2) = OPP%diffLUT%pspace%dz  ;  x(2:size(x):2) = [ ( (x(i-1)+x(i+1))/2  , i=2,size(x),2 ) ]
-            allocate( y(2*size(OPP%diffLUT%pspace%kabs)-1 ) ) ; y(1:size(y):2) = OPP%diffLUT%pspace%kabs;  y(2:size(y):2) = [ ( (y(i-1)+y(i+1))/2  , i=2,size(y),2 ) ]
-            allocate( z(2*size(OPP%diffLUT%pspace%ksca)-1 ) ) ; z(1:size(z):2) = OPP%diffLUT%pspace%ksca;  z(2:size(z):2) = [ ( (z(i-1)+z(i+1))/2  , i=2,size(z),2 ) ]
-            allocate( k(2*size(OPP%diffLUT%pspace%g   )-1 ) ) ; k(1:size(k):2) = OPP%diffLUT%pspace%g   ;  k(2:size(k):2) = [ ( (k(i-1)+k(i+1))/2  , i=2,size(k),2 ) ]
+            call fit4d    (x,y,z,k, OPP%diffLUT%S%c(icoeff,:,:,:,:), luse_coeff, coeff)
+            call run_fit4d(x,y,z,k, luse_coeff,coeff,'fit')
+
+            deallocate( x );allocate( x(2*size(OPP%diffLUT%pspace%dz  )-1 ) ) ; x(1:size(x):2) = OPP%diffLUT%pspace%dz  ;  x(2:size(x):2) = [ ( (x(i-1)+x(i+1))/2  , i=2,size(x),2 ) ]
+            deallocate( y );allocate( y(2*size(OPP%diffLUT%pspace%kabs)-1 ) ) ; y(1:size(y):2) = OPP%diffLUT%pspace%kabs;  y(2:size(y):2) = [ ( (y(i-1)+y(i+1))/2  , i=2,size(y),2 ) ]
+            deallocate( z );allocate( z(2*size(OPP%diffLUT%pspace%ksca)-1 ) ) ; z(1:size(z):2) = OPP%diffLUT%pspace%ksca;  z(2:size(z):2) = [ ( (z(i-1)+z(i+1))/2  , i=2,size(z),2 ) ]
+            deallocate( k );allocate( k(2*size(OPP%diffLUT%pspace%g   )-1 ) ) ; k(1:size(k):2) = OPP%diffLUT%pspace%g   ;  k(2:size(k):2) = [ ( (k(i-1)+k(i+1))/2  , i=2,size(k),2 ) ]
 
             call run_fit4d(x,y,z,k, luse_coeff,coeff,'dfit')
 
