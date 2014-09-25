@@ -721,7 +721,7 @@ subroutine set_dir_coeff(A,C)
               type(t_coord),intent(in) :: C
               Mat,intent(inout) :: A
               integer(iintegers),intent(in) :: i,j,k,li,lj,lk
-              integer(iintegers),intent(out) :: ierr
+              PetscErrorCode, intent(out) :: ierr
 
               MatStencil :: row(4,C%dof)  ,col(4,C%dof)
               PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm
@@ -756,8 +756,8 @@ subroutine set_dir_coeff(A,C)
                 do src=1,C%dof
                   norm = sum( coeffs((src-1)*C%dof+1:src*C%dof) )
                   if( ldebug .and. real(norm).gt.real(one) ) then
-!                    print *,'sum(src==',src,') gt one',norm
-!                    stop 'omg.. shouldnt be happening'
+                    print *,'sum(src==',src,') gt one',norm
+                    stop 'omg.. shouldnt be happening'
                     ierr=-5
                     return
                   endif
@@ -868,7 +868,7 @@ subroutine set_dir_coeff(A,C)
                 type(t_coord),intent(in) :: C
                 Mat,intent(inout) :: A
                 integer(iintegers),intent(in) :: i,j,k,li,lj,lk
-                integer(iintegers),intent(out) :: ierr
+                PetscErrorCode,intent(out) :: ierr
 
                 MatStencil :: row(4,0:C%dof-1)  ,col(4,0:C%dof-1)
                 PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm
@@ -1113,10 +1113,10 @@ subroutine calc_flx_div(edir,ediff,abso)
         Vec :: ledir,lediff ! local copies of vectors, including ghosts
         PetscReal :: div2(13)
         PetscReal :: Volume
-        real(ireals) :: c_dir2dir(C_dir%dof**2)
-        real(ireals) :: c_dir2diff(C_dir%dof*C_diff%dof)
-        real(ireals) :: c_diff2diff(C_diff%dof**2)
-        integer(iintegers) :: isrc
+!        real(ireals) :: c_dir2dir(C_dir%dof**2)
+!        real(ireals) :: c_dir2diff(C_dir%dof*C_diff%dof)
+!        real(ireals) :: c_diff2diff(C_diff%dof**2)
+!        integer(iintegers) :: isrc
 
         if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence'
         call VecSet(abso,zero,ierr) ;CHKERRQ(ierr)

@@ -183,7 +183,7 @@ end subroutine
           kabs=1e-4
           ksca=1e-4
 
-          if(myid.eq.0) ksca(:,:,5) = 5e-2
+          if(myid.eq.0) ksca(1:glob_Nx:5,1:glob_Ny:5,5) = 5e-3
           !      ksca(1,1,3:5) = 1e-2
 
   end subroutine
@@ -299,7 +299,7 @@ program main
         call init_tenstream(imp_comm, dims(1),dims(2),dims(3), ident_dx, ident_dy, hhl ,options_phi,options_theta,albedo)
 
 !        do kato=1,32
-                  do kato=16,16
+                  do kato=11,11
           do iq=0,kato_bands(kato)
             if(myid.eq.0) print *,'-----------------------------------------------------------------------------------------------------------------------------'
             if(myid.eq.0) print *,'-------------------------- Calculate ',trim(ident),' sza',options_theta,' kato',kato,'iq',iq

@@ -12,6 +12,16 @@ module m_optprop_parameters
       character(len=300),parameter :: lut_basename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT'
 
       !-----------------------------------------
+      !- Define the mode to calculate coeffs   -
+      !-----------------------------------------
+      ! 0 :: retrieve directly from Lookuptable
+      ! 1 :: retrieve from ANN (experimental) :: 
+      !        this assumes you actually have a
+      !        ANN that can be queried....
+      ! 
+      integer(iintegers),parameter :: coeff_mode = 0
+
+      !-----------------------------------------
       !- Define the size of the Lookuptables:  -
       !-----------------------------------------
       !
@@ -19,7 +29,7 @@ module m_optprop_parameters
       ! interp_mode 1 == nearest neighbour interpolation
       ! interp_mode 2 == linear interpolation
 
-      integer(iintegers) ,parameter :: Ndz_8_10=30, Nkabs_8_10=30, Nksca_8_10=30, Ng_8_10=4, Nphi_8_10=10, Ntheta_8_10=10, interp_mode_8_10=2
+      integer(iintegers) ,parameter :: Ndz_8_10=30, Nkabs_8_10=30, Nksca_8_10=30, Ng_8_10=4, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
 
 !      integer(iintegers) ,parameter :: Ndz_8_10=3, Nkabs_8_10=10, Nksca_8_10=10, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=10, interp_mode_8_10=2
 !      integer(iintegers) ,parameter :: Ndz_8_10=3, Nkabs_8_10=100, Nksca_8_10=100, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=10, interp_mode_8_10=1
@@ -27,7 +37,7 @@ module m_optprop_parameters
 !      integer(iintegers) ,parameter :: Ndz_8_10=3, Nkabs_8_10=200, Nksca_8_10=200, Ng_8_10=1, Nphi_8_10=10, Ntheta_8_10=10, interp_mode_8_10=2
 !      integer(iintegers) ,parameter :: Ndz_8_10=3, Nkabs_8_10=40, Nksca_8_10=40, Ng_8_10=10, Nphi_8_10=10, Ntheta_8_10=10, interp_mode_8_10=2
 
-      integer(iintegers) ,parameter :: Ndz_1_2=40, Nkabs_1_2=30, Nksca_1_2=30, Ng_1_2=3, Nphi_1_2=10, Ntheta_1_2=10, interp_mode_1_2=2
+      integer(iintegers) ,parameter :: Ndz_1_2=40, Nkabs_1_2=30, Nksca_1_2=30, Ng_1_2=3, Nphi_1_2=10, Ntheta_1_2=10, Ndiff_1_2=2, Ndir_1_2=1, interp_mode_1_2=2
 
       !-----------------------------------------
       !- Define precision of coefficients      -

@@ -2,7 +2,7 @@ program main
       use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
       use mpi
-      use m_data_parameters, only : mpiint,ireals,iintegers,one, init_mpi_data_parameters
+      use m_data_parameters, only : mpiint,ireals,iintegers,one, init_mpi_data_parameters,i1
       use m_eddington, only : eddington_coeff_fab
       use m_helper_functions, only: deg2rad,delta_scale
 
@@ -59,13 +59,13 @@ program main
       print *,'1.5 aled optprop',delta1_bg
 
       if(myid.eq.0) then
-        call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,1,S,T,.True.,phi0,theta0,dx,dy,dz)
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,i1,S,T,.True.,phi0,theta0,dx,dy,dz)
         write(*, FMT='( " direct normal     ", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
 
-        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta_bg,1,S,T,.True.,phi0,theta0,dx,dy,dz)
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta_bg,i1,S,T,.True.,phi0,theta0,dx,dy,dz)
         write(*, FMT='( " direct deltascaled", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
 
-        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta1_bg,1,S,T,.True.,phi0,theta0,dx,dy,dz)
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta1_bg,i1,S,T,.True.,phi0,theta0,dx,dy,dz)
         write(*, FMT='( " direct 1.5  scaled", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
 
         call OPP_8_10%get_coeff(dz,delta_bg(1),delta_bg(2),delta_bg(3),.True.,dir2dir_coeff,[phi0,theta0])

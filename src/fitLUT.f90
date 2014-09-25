@@ -1,4 +1,4 @@
-module m_fitLUT
+module m_poly_fitLUT
       use m_helper_functions, only: rmse
       use m_data_parameters, only: ireals,iintegers, init_mpi_data_parameters,numnodes,myid,zero,one,imp_comm
       use m_arrayio
@@ -482,7 +482,7 @@ end type
             logical :: fexists
 
             if(myid.eq.0) print *,'**************************** Writing Solution **********************************'
-            write( vecname,FMT='(A,".poly",I0,".order",I0,".full",L,".")' ) trim(prefix), poly_func, poly_order,lfull_poly
+            write( vecname,FMT='(A,".poly",I0,".order",I0,".full",L1,".")' ) trim(prefix), poly_func, poly_order,lfull_poly
 
             inquire(file=trim(fname), exist=fexists)
             if(fexists) then
@@ -799,25 +799,27 @@ end type
 
             integer(iintegers) :: icoeff,i
             real(ireals),allocatable,dimension(:) :: x,y,z,k
+            real(ireals),allocatable,dimension(:) :: xx,yy,zz,kk
 
             call OPP%init(dx,dx,[azimuth],[zenith],imp_comm)
 
             icoeff = 2
 
-            allocate( x(size(OPP%diffLUT%pspace%dz  )),source=exp(-OPP%diffLUT%pspace%dz  ) )
-            allocate( y(size(OPP%diffLUT%pspace%kabs)),source=exp(-OPP%diffLUT%pspace%kabs) )
-            allocate( z(size(OPP%diffLUT%pspace%ksca)),source=exp(-OPP%diffLUT%pspace%ksca) )
-            allocate( k(size(OPP%diffLUT%pspace%g   )),source=OPP%diffLUT%pspace%g   **1 )
+            allocate( x(size(OPP%diffLUT%pspace%dz  )),source=(OPP%diffLUT%pspace%dz  )**.1 )
+            allocate( y(size(OPP%diffLUT%pspace%kabs)),source=(OPP%diffLUT%pspace%kabs)**.1 )
+            allocate( z(size(OPP%diffLUT%pspace%ksca)),source=(OPP%diffLUT%pspace%ksca)**.1 )
+            allocate( k(size(OPP%diffLUT%pspace%g   )),source=OPP%diffLUT%pspace%g )
+
+            allocate( xx(2*size(x)-1 ) ) ; xx(1:size(xx):2) = x;  xx(2:size(xx):2) = [ ( (xx(i-1)+xx(i+1))/2  , i=2,size(xx),2 ) ]
+            allocate( yy(2*size(y)-1 ) ) ; yy(1:size(yy):2) = y;  yy(2:size(yy):2) = [ ( (yy(i-1)+yy(i+1))/2  , i=2,size(yy),2 ) ]
+            allocate( zz(2*size(z)-1 ) ) ; zz(1:size(zz):2) = z;  zz(2:size(zz):2) = [ ( (zz(i-1)+zz(i+1))/2  , i=2,size(zz),2 ) ]
+            allocate( kk(2*size(k)-1 ) ) ; kk(1:size(kk):2) = k;  kk(2:size(kk):2) = [ ( (kk(i-1)+kk(i+1))/2  , i=2,size(kk),2 ) ]
+
 
             call fit4d    (x,y,z,k, OPP%diffLUT%S%c(icoeff,:,:,:,:), luse_coeff, coeff)
             call run_fit4d(x,y,z,k, luse_coeff,coeff,'fit')
 
-            deallocate( x );allocate( x(2*size(OPP%diffLUT%pspace%dz  )-1 ) ) ; x(1:size(x):2) = OPP%diffLUT%pspace%dz  ;  x(2:size(x):2) = [ ( (x(i-1)+x(i+1))/2  , i=2,size(x),2 ) ]
-            deallocate( y );allocate( y(2*size(OPP%diffLUT%pspace%kabs)-1 ) ) ; y(1:size(y):2) = OPP%diffLUT%pspace%kabs;  y(2:size(y):2) = [ ( (y(i-1)+y(i+1))/2  , i=2,size(y),2 ) ]
-            deallocate( z );allocate( z(2*size(OPP%diffLUT%pspace%ksca)-1 ) ) ; z(1:size(z):2) = OPP%diffLUT%pspace%ksca;  z(2:size(z):2) = [ ( (z(i-1)+z(i+1))/2  , i=2,size(z),2 ) ]
-            deallocate( k );allocate( k(2*size(OPP%diffLUT%pspace%g   )-1 ) ) ; k(1:size(k):2) = OPP%diffLUT%pspace%g   ;  k(2:size(k):2) = [ ( (k(i-1)+k(i+1))/2  , i=2,size(k),2 ) ]
-
-            call run_fit4d(x,y,z,k, luse_coeff,coeff,'dfit')
+            call run_fit4d(xx,yy,zz,kk, luse_coeff,coeff,'dfit')
 
           end subroutine
 
@@ -842,7 +844,7 @@ end type
 end module
 
 program main
-          use m_fitLUT 
+          use m_poly_fitLUT 
           implicit none
 
           call PetscInitialize(PETSC_NULL_CHARACTER,ierr) ;CHKERRQ(ierr)

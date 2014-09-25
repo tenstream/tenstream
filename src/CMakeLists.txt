@@ -21,6 +21,7 @@ set( optprop_sources
   "boxmc.f90"
   "optprop_parameters.f90"
   "optprop_LUT.f90"
+  "optprop_ANN.f90"
   "optprop.f90"
   )
 
