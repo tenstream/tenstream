@@ -1,12 +1,13 @@
 module m_helper_functions
-      use m_data_parameters,only : iintegers,ireals,pi,one,imp_real,imp_int,mpiint,imp_comm
+      use m_data_parameters,only : iintegers,ireals,pi,one,imp_real,imp_int,imp_logical,mpiint,imp_comm
 
       implicit none
 
-      public imp_bcast
+      private
+      public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale
 
       interface imp_bcast
-        module procedure imp_bcast_real_1d,imp_bcast_real_3d,imp_bcast_int,imp_bcast_real
+        module procedure imp_bcast_real_1d,imp_bcast_real_3d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
       end interface
 
       integer(mpiint) :: mpierr
@@ -71,6 +72,12 @@ module m_helper_functions
         endif
       end function
 
+      subroutine  imp_bcast_logical(val,sendid,myid)
+          logical,intent(inout) :: val
+          integer(mpiint),intent(in) :: sendid,myid
+
+          call mpi_bcast(val, 1, imp_logical, sendid, imp_comm, mpierr)
+      end subroutine
       subroutine  imp_bcast_int(val,sendid,myid)
           integer(iintegers),intent(inout) :: val
           integer(mpiint),intent(in) :: sendid,myid

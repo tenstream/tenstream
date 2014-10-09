@@ -86,21 +86,27 @@ subroutine init_diff_photon_1_2(bmc,p,src,dx,dy,dz)
     real(ireals),intent(in) :: dx,dy,dz
     integer(iintegers),intent(in) :: src
 
-    real(ireals) :: phi,mu,mu1
+    real(ireals) :: phi,mu,mu1,mu2
 
-    mu1 = R()
-    if(src.eq.1) then
+    mu2 = R()
+    mu1 = sqrt(R())
+    select case(src)
+    case (-1) ! thermal emission
+      p%loc = (/L(dx), L(dy), L(dz) /)
+      mu = 2._ireals*mu2 - one
+      phi= deg2rad( R()*360._ireals )
+    case (1)
       p%loc = (/L(dx), L(dy),    dz  /)
       mu = -mu1 !mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) 
       phi= deg2rad( R()*360._ireals )
-    else if(src.eq.2) then
+    case (2)
       p%loc = (/L(dx), L(dy),    zero/)
       mu = mu1 !mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) 
       phi= deg2rad( R()*360._ireals )
-    else
+    case default
       print *,'Dont know what to do with source spec:',src
       call exit
-    endif
+    end select
 
     p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
     p%weight=one

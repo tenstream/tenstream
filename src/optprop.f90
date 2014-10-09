@@ -144,18 +144,21 @@ contains
           case(i0) ! LookUpTable Mode
 
             if(present(inp_angles)) then ! obviously we want the direct coefficients
-              if(dir) then ! specifically the dir2dir
+              if(dir) then ! dir2dir
                 call OPP%OPP_LUT%LUT_get_dir2dir(dz,kabs,ksca,g,angles(1),angles(2),C)
-              else ! dir2diff
+              else         ! dir2diff
                 call OPP%OPP_LUT%LUT_get_dir2diff(dz,kabs,ksca,g,angles(1),angles(2),C)
               endif
             else
-              ! diff2diff
-              call OPP%OPP_LUT%LUT_get_diff2diff(dz,kabs,ksca,g,C_diff)
-              do isrc=1,OPP%OPP_LUT%diff_streams
-                C( (isrc-1)*OPP%OPP_LUT%diff_streams+i1 : isrc*OPP%OPP_LUT%diff_streams ) = OPP%coeff_symmetry(isrc, C_diff )
-              enddo
-              deallocate(C_diff)
+              if(dir) then ! emission
+                call OPP%OPP_LUT%LUT_get_emission(dz,kabs,ksca,g,C)
+              else         ! diff2diff
+                call OPP%OPP_LUT%LUT_get_diff2diff(dz,kabs,ksca,g,C_diff)
+                do isrc=1,OPP%OPP_LUT%diff_streams
+                  C( (isrc-1)*OPP%OPP_LUT%diff_streams+i1 : isrc*OPP%OPP_LUT%diff_streams ) = OPP%coeff_symmetry(isrc, C_diff )
+                enddo
+                deallocate(C_diff)
+              endif
             endif
 
 
@@ -279,14 +282,17 @@ contains
             endif
             if(present(inp_angles)) then
               if(dir .and. size(C).ne. OPP%dir_streams**2) then
-                print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%dir_streams
+                print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%dir_streams**2
               endif
               if(.not.dir .and. size(C).ne. OPP%diff_streams*OPP%dir_streams) then
-                print *,'dir2diffuse called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%diff_streams
+                print *,'dir2diffuse called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%diff_streams*OPP%dir_streams
               endif
             else
-              if(size(C).ne. OPP%diff_streams**2) then
+              if(dir .and. size(C).ne. OPP%diff_streams) then
                 print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%diff_streams
+              endif
+              if(.not.dir .and. size(C).ne. OPP%diff_streams**2) then
+                print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%diff_streams**2
               endif
             endif
         end subroutine

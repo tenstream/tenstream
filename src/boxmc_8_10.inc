@@ -198,88 +198,87 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
 
         real(ireals) :: phi,mu,mu1,mu2
 
-!        if(src.eq.1) then
-!                p%loc = (/L(dx), L(dy),    dz  /)
-!                mu = deg2mu( interv_R( 90._ireals,180._ireals) ) ; phi= deg2rad( R()*360._ireals )
-!        else if(src.eq.2) then
-!                p%loc = (/L(dx), L(dy),    zero /)
-!                mu = deg2mu( interv_R( 0._ireals,90._ireals) ) ; phi= deg2rad( R()*360._ireals )
-!        else if(src.eq.3) then
-!                p%loc = (/  zero   , L(dy), L(dz)/)
-!                mu = deg2mu( interv_R( 90._ireals,180._ireals) ) ; phi= deg2rad( interv_R(-90._ireals,90._ireals) )
-!        else if(src.eq.4) then
-!                p%loc = (/ dx   , L(dy), L(dz)/)
-!                mu = deg2mu( interv_R( 90._ireals,180._ireals) ) ; phi= deg2rad( interv_R(90._ireals,270._ireals) )
-!        else if(src.eq.5) then
-!                p%loc = (/  zero   , L(dy), L(dz)/)
-!                mu = deg2mu( interv_R( 0._ireals,90._ireals) ) ; phi= deg2rad( interv_R(-90._ireals,90._ireals) )
-!        else if(src.eq.6) then
-!                p%loc = (/ dx   , L(dy), L(dz)/)
-!                mu = deg2mu( interv_R( 0._ireals,90._ireals) ) ; phi= deg2rad( interv_R(90._ireals,270._ireals) )
-!        else if(src.eq.7) then
-!                p%loc = (/L(dx),   zero   , L(dz)/)
-!                mu = deg2mu( interv_R( 90._ireals,180._ireals) ) ; phi= deg2rad( interv_R(0._ireals,180._ireals) )
-!        else if(src.eq.8) then
-!                p%loc = (/L(dx),  dy   , L(dz)/)
-!                mu = deg2mu( interv_R( 90._ireals,180._ireals) ) ; phi= deg2rad( interv_R(180._ireals,360._ireals) )
-!        else if(src.eq.9) then
-!                p%loc = (/L(dx),   zero   , L(dz)/)
-!                mu = deg2mu( interv_R( 0._ireals,90._ireals) ) ; phi= deg2rad( interv_R(0._ireals,180._ireals) )
-!        else if(src.eq.10) then
-!                p%loc = (/L(dx),  dy   , L(dz)/)
-!                mu = deg2mu( interv_R( 0._ireals,90._ireals) ) ; phi= deg2rad( interv_R(180._ireals,360._ireals) )
-!        else
-!                print *,'Dont know what to do with source spec:',src
-!                call exit
-!        endif
-        mu1 = R() ! evenly distribution between 0 and 90 degree
-        mu2= sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
+        mu1= sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
+        mu2 = R() ! evenly distribution between 0 and 90 degree
+
+        mu=mu1
         select case(src)
+        case (-1) ! thermal emission
+                p%loc = (/L(dx), L(dy), L(dz) /)
+                mu = 2._ireals*mu2 - one
+                phi= deg2rad( R()*360._ireals )
         case (1)
                 p%loc = (/L(dx), L(dy),    dz  /)
-                mu = -mu1 
                 phi= deg2rad( R()*360._ireals )
         case (2)
                 p%loc = (/L(dx), L(dy),    zero /)
-                mu = mu1 ; phi= deg2rad( R()*360._ireals )
+                phi= deg2rad( R()*360._ireals )
         case (3)
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                mu =  -one+mu1
                 phi= deg2rad( interv_R(-90._ireals,90._ireals) )
         case (4)
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                mu =  -one+mu1 
                 phi= deg2rad( interv_R(90._ireals,270._ireals) )
         case (5)
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                mu =  one-mu1
-                phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                phi= deg2rad( interv_R(90._ireals,270._ireals) )
         case (6)
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                mu =  one-mu1 
-                phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                phi= deg2rad( interv_R(-90._ireals,90._ireals) )
         case (7)
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                mu =  -one+mu1
                 phi= deg2rad( interv_R(0._ireals,180._ireals) )
         case (8)
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                mu =  -one+mu1 
                 phi= deg2rad( interv_R(180._ireals,360._ireals) )
         case (9)
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                mu =  one-mu1
-                phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                phi= deg2rad( interv_R(180._ireals,360._ireals) )
         case (10)
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                mu =  one-mu1 
-                phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                phi= deg2rad( interv_R(0._ireals,180._ireals) )
         case default
                 print *,'Dont know what to do with source spec:',src
                 call exit
         end select
+        select case(src)
+          case(1:2)
+            phi= deg2rad( R()*360._ireals )
+          case(3:10)
+            phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+        end select
 
         p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
+
+        select case(src)
+          case(1)
+            p%dir = rotate_y(p%dir,180)
+          case(3)
+            p%dir = rotate_y(p%dir,-90)
+          case(4)
+            p%dir = rotate_y(p%dir,-90)
+            p%dir = rotate_z(p%dir,180)
+          case(5)
+            p%dir = rotate_y(p%dir,90)
+            p%dir = rotate_z(p%dir,180)
+          case(6)
+            p%dir = rotate_y(p%dir,90)
+
+          case(7)
+            p%dir = rotate_y(p%dir,-90)
+            p%dir = rotate_z(p%dir,-90)
+          case(8)
+            p%dir = rotate_y(p%dir,-90)
+            p%dir = rotate_z(p%dir,180)
+            p%dir = rotate_z(p%dir,-90)
+          case(9)
+            p%dir = rotate_y(p%dir,90)
+            p%dir = rotate_z(p%dir,90)
+          case(10)
+            p%dir = rotate_y(p%dir,90)
+            p%dir = rotate_z(p%dir,-90)
+
+        end select
         p%weight=one
         p%dx   = dx
         p%dy   = dy
@@ -295,6 +294,49 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         select type(bmc)
         end select
 
+        contains
+          function rotate_x(v,angle)
+              real(ireals) :: rotate_x(3)
+              real(ireals),intent(in) :: v(3)
+              integer :: angle
+              real(ireals) :: M(3,3),s,c
+              s=sin(deg2rad(one*angle))
+              c=cos(deg2rad(one*angle))
+
+              M(1,:)=[one ,zero ,zero]
+              M(2,:)=[zero, c   , s  ]
+              M(3,:)=[zero,-s   , c  ]
+
+              rotate_x = matmul(M,v)
+          end function
+          function rotate_y(v,angle)
+              real(ireals) :: rotate_y(3)
+              real(ireals),intent(in) :: v(3)
+              integer :: angle
+              real(ireals) :: M(3,3),s,c
+              s=sin(deg2rad(one*angle))
+              c=cos(deg2rad(one*angle))
+
+              M(1,:)=[ c  ,zero , -s ]
+              M(2,:)=[zero, one ,zero]
+              M(3,:)=[ s  , zero, c  ]
+
+              rotate_y = matmul(M,v)
+          end function
+          function rotate_z(v,angle)
+              real(ireals) :: rotate_z(3)
+              real(ireals),intent(in) :: v(3)
+              integer :: angle
+              real(ireals) :: M(3,3),s,c
+              s=sin(deg2rad(one*angle))
+              c=cos(deg2rad(one*angle))
+
+              M(1,:)=[ c  , s   ,zero]
+              M(2,:)=[-s  , c   ,zero]
+              M(3,:)=[zero, zero, one]
+
+              rotate_z = matmul(M,v)
+          end function
 
 end subroutine
 
@@ -379,6 +421,6 @@ subroutine intersect_distance_8_10(bmc,p,max_dist)
         select type(bmc)
         end select
 
-end subroutine
+end subroutine 
   ! ******************* BOXMC 8 10 ************************
 

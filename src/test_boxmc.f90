@@ -2,7 +2,7 @@ program main
       use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
       use mpi
-      use m_data_parameters, only : mpiint,ireals,iintegers,one, init_mpi_data_parameters,i1
+      use m_data_parameters, only : mpiint,ireals,iintegers,one,zero, init_mpi_data_parameters,i1
       use m_eddington, only : eddington_coeff_fab
       use m_helper_functions, only: deg2rad,delta_scale
 
@@ -17,10 +17,11 @@ program main
       integer(iintegers) :: src=1,iter
       integer(mpiint) :: myid,ierr,numnodes
 
-      real(ireals) :: tau,w,g
-      real(ireals) :: a11,a12,a13,a23,a33
+      real(ireals) :: tau,w,g,c1,c2,c3,p0,p1,planck(2)
+      real(ireals) :: a11,a12,a13,a23,a33,g1,g2,b1,b2
 
       type(t_boxmc_8_10) :: bmc_8_10
+      type(t_boxmc_1_2) :: bmc_1_2
 
       type(t_optprop_8_10) OPP_8_10
       type(t_optprop_1_2) OPP_1_2
@@ -30,7 +31,7 @@ program main
       theta0=0.
 
       dx=70
-      dy=70
+      dy=dx
       dz=40
 
       print *,'Testing boxmc...'
@@ -41,48 +42,87 @@ program main
       call init_mpi_data_parameters(MPI_COMM_WORLD)
 
       call bmc_8_10%init(MPI_COMM_WORLD)
-      call OPP_8_10%init(dx,dy,[phi0],[theta0],MPI_COMM_WORLD)
+      call bmc_1_2%init(MPI_COMM_WORLD)
+
+      if(.True.) then
+        bg = [5e-2, 1e-36, .0 ]
+        call bmc_1_2%get_coeff(MPI_COMM_WORLD,bg,-1,S,T,.False.,phi0,theta0,dx,dy,dz)
+        if(myid.eq.0) write(*, FMT='( " diffuse emission :: ",2(es10.3),"  :: ",2(es10.3) )' ) S(1:2),one-S(1:2)
+
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,-1,S,T,.False.,phi0,theta0,dx,dy,dz)
+        if(myid.eq.0) write(*, FMT='( " diffuse emission ::  :: ",10(es10.3)," :: ",10(es10.3)  )' ) S,one-S
+        print *,'sum S)',sum(S)
+
+        if(myid.eq.0) write(*, FMT='( " hohlraum ::  :: ",10(es10.3)," :: ",10(es10.3)  )' ) 2*(dx*dy+dy*dz+dz*dx) * (one-S)
+        do src=1,10
+          call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.False.,phi0,theta0,dx,dy,dz)
+          if(myid.eq.0) write(*, FMT='( " diffuse emission :: ",10(es10.3)," :: ",es10.3  )' ) S,one-sum(S)
+        enddo
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(55._ireals*3.1416_ireals/180._ireals ) )
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau):  ",   es10.3   )' ) one-exp(-bg(1)*dz )
+
+        tau = (bg(1)+bg(2))*dz
+        w   = bg(2)/(bg(1)+bg(2))
+        g   = bg(3)
+        planck = one
+
+        call eddington_coeff_fab ( tau , w, g, cos(deg2rad(theta0)), a11, a12, a13, a23, a33, g1, g2 )
+        if(tau.gt.0.01_ireals) then
+          p0 = planck(1)
+          p1 = (planck(1)-planck(2))/tau
+        else
+          p0 = .5_ireals*sum(planck)
+          p1 = zero
+        endif
+        c1 = g1*(p0+p1*tau)
+        c2 = g2*p1
+        c3 = g1*p0
+        b1 = ( -a11*(c1+c2) - a12*(c3-c2) + c2+c3 )  
+        b2 = ( -a12*(c1+c2) - a11*(c3-c2) + c1-c2 )  
+        if(myid.eq.0) write(*, FMT='( "eddington coeffs   ", 1(es10.3),"   ::   ",2(es10.3)," :: ",4(es10.3) )' ) a33,a13,a23,g1,g2,b1,b2
+
+      endif
+
+      if(.False.) then
+
+        call OPP_8_10%init(dx,dy,[phi0],[theta0],MPI_COMM_WORLD)
+
+        allocate( dir2dir_coeff(OPP_8_10%OPP_LUT%dir_streams**2) )
+        allocate( dir2diff_coeff(OPP_8_10%OPP_LUT%dir_streams*OPP_8_10%OPP_LUT%diff_streams) )
+        allocate( diff2diff_coeff(OPP_8_10%OPP_LUT%diff_streams**2) )
+
+        src=i1 ! attention: output below is always only for src==1
+        bg = [1e-4, 1e-6, .8 ]
+        delta_bg = bg
+        delta1_bg = bg
+        call delta_scale(delta1_bg(1),delta1_bg(2),delta1_bg(3),delta1_bg(3)**1.5 )
+        call delta_scale(delta_bg(1),delta_bg(2),delta_bg(3) )
+        if(myid.eq.0) then
+          print *,'unscaled optprop',bg
+          print *,'  scaled optprop',delta_bg
+          print *,'1.5 aled optprop',delta1_bg
+        endif
+
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.True.,phi0,theta0,dx,dy,dz)
+        if(myid.eq.0) write(*, FMT='( " direct normal     ", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
 
 
-      allocate( dir2dir_coeff(OPP_8_10%OPP_LUT%dir_streams**2) )
-      allocate( dir2diff_coeff(OPP_8_10%OPP_LUT%dir_streams*OPP_8_10%OPP_LUT%diff_streams) )
-      allocate( diff2diff_coeff(OPP_8_10%OPP_LUT%diff_streams**2) )
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta_bg,src,S,T,.True.,phi0,theta0,dx,dy,dz)
+        if(myid.eq.0) write(*, FMT='( " direct deltascaled", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
 
-
-      bg = [1e-6, 1e-3, .8 ]
-      delta_bg = bg
-      delta1_bg = bg
-      call delta_scale(delta1_bg(1),delta1_bg(2),delta1_bg(3),delta1_bg(3)**1.5 )
-      call delta_scale(delta_bg(1),delta_bg(2),delta_bg(3) )
-      print *,'unscaled optprop',bg
-      print *,'  scaled optprop',delta_bg
-      print *,'1.5 aled optprop',delta1_bg
-
-      if(myid.eq.0) then
-        call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,i1,S,T,.True.,phi0,theta0,dx,dy,dz)
-        write(*, FMT='( " direct normal     ", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
-
-        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta_bg,i1,S,T,.True.,phi0,theta0,dx,dy,dz)
-        write(*, FMT='( " direct deltascaled", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
-
-        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta1_bg,i1,S,T,.True.,phi0,theta0,dx,dy,dz)
-        write(*, FMT='( " direct 1.5  scaled", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta1_bg,src,S,T,.True.,phi0,theta0,dx,dy,dz)
+        if(myid.eq.0) write(*, FMT='( " direct 1.5  scaled", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
 
         call OPP_8_10%get_coeff(dz,delta_bg(1),delta_bg(2),delta_bg(3),.True.,dir2dir_coeff,[phi0,theta0])
         call OPP_8_10%get_coeff(dz,delta_bg(1),delta_bg(2),delta_bg(3),.False.,dir2diff_coeff,[phi0,theta0])
-        write(*, FMT='( " direct LUT        ", 8(es10.3), "  ::  ",10(es10.3)  )' ) dir2dir_coeff(1:OPP_8_10%OPP_LUT%dir_streams),dir2diff_coeff(1:OPP_8_10%OPP_LUT%diff_streams)
+        if(myid.eq.0) write(*, FMT='( " direct LUT        ", 8(es10.3), "  ::  ",10(es10.3)  )' ) dir2dir_coeff(1:OPP_8_10%OPP_LUT%dir_streams),dir2diff_coeff(1:OPP_8_10%OPP_LUT%diff_streams)
 
         tau = (delta_bg(1)+delta_bg(2))*dz
         w   = delta_bg(2)/(delta_bg(1)+delta_bg(2))
         g   = delta_bg(3)
-        call eddington_coeff_fab ( tau , w, g, cos(deg2rad(theta0)), &
-            a11,          &
-            a12,          &
-            a13,          &
-            a23,          &
-            a33 )
+        call eddington_coeff_fab ( tau , w, g, cos(deg2rad(theta0)), a11, a12, a13, a23, a33, g1, g2 )
 
-        write(*, FMT='( "directeddington    ", 1(es10.3),"                                                                       ::   ",2(es10.3) )' ) a33,a13,a23
+        if(myid.eq.0) write(*, FMT='( "directeddington    ", 1(es10.3),"                                                                       ::   ",2(es10.3)," :: ",2(es10.3) )' ) a33,a13,a23,g1,g2
       endif
 
       if(.False.) then

@@ -5,7 +5,7 @@ module m_tenstream
         zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
 
       use m_twostream, only: delta_eddington_twostream
-      use m_helper_functions, only: deg2rad,approx,rmse,delta_scale
+      use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast
       use m_eddington, only : eddington_coeff_fab
       use m_optprop_parameters, only : ldelta_scale
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -37,7 +37,7 @@ module m_tenstream
         PetscMPIInt,allocatable :: neighbors(:) ! all 3d neighbours( (x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
       end type
 
-      type(t_coord) :: C_dir,C_diff,C_one
+      type(t_coord) :: C_dir,C_diff,C_one,C_one1
 
       PetscErrorCode :: ierr
 
@@ -48,7 +48,9 @@ module m_tenstream
       type t_atmosphere
         type(t_optprop) , allocatable , dimension(:,:,:) :: op
         type(t_optprop) , allocatable , dimension(:,:,:) :: delta_op
+        real(ireals)    , allocatable , dimension(:,:,:) :: planck
         real(ireals)    , allocatable , dimension(:,:,:) :: a11, a12, a13, a23, a33
+        real(ireals)    , allocatable , dimension(:,:,:) :: g1,g2
         real(ireals)    , allocatable , dimension(:) :: dz
         logical         , allocatable , dimension(:) :: l1d
         real(ireals) :: albedo
@@ -98,6 +100,7 @@ module m_tenstream
 
         if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C1'
         call setup_dmda(C_one,Nx,Ny, Nz, bp, i1)
+        call setup_dmda(C_one1,Nx,Ny, Nz+1, bp, i1)
 
         if(myid.eq.0.and.ldebug) print *,myid,'DMDA grid ready'
         contains
@@ -1006,9 +1009,15 @@ subroutine setup_b(edir,b)
         PetscScalar,pointer,dimension(:,:,:,:) :: &
         xsrc,xedir
         PetscInt :: li,lj,lk
-        PetscReal :: coeffs(C_dir%dof*C_diff%dof),twostr_coeff(2)
+        PetscReal :: diff2diff(C_diff%dof**2), dir2diff(C_dir%dof*C_diff%dof),twostr_coeff(2)
+        PetscReal :: diff_emis(C_diff%dof)
         
         PetscInt :: i,j,k,src
+        PetscReal :: Ax,Ay,Az,S,over4pi,c1,c2,c3,b0,b1,dtau
+
+        over4pi = one/4._ireals/pi
+        Az = atm%dx*atm%dy
+
         call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
         
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly...'
@@ -1022,6 +1031,10 @@ subroutine setup_b(edir,b)
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients'
         do k=C_diff%zs,C_diff%ze-1 
           lk = i1+k-C_diff%zs        
+          Ax = atm%dy*atm%dz(lk)
+          Ay = atm%dx*atm%dz(lk)
+          S  = one/(2._ireals*(Ax+Ay+Az) ) ! 1 / box-surface
+
           if( atm%l1d(lk) ) then
 
             do j=C_diff%ys,C_diff%ye         
@@ -1029,27 +1042,52 @@ subroutine setup_b(edir,b)
               do i=C_diff%xs,C_diff%xe    
                 li = istartpar+i-C_diff%xs
 
-                coeffs=zero
+                dir2diff = zero
 
                 if(luse_eddington ) then
                   ! Only transport the 4 tiles from dir0 to the Eup and Edn
                   do src=1,4
-                    coeffs(E_up  +i1+(src-1)*C_diff%dof) = atm%a13(li,lj,lk)
-                    coeffs(E_dn  +i1+(src-1)*C_diff%dof) = atm%a23(li,lj,lk)
+                    dir2diff(E_up  +i1+(src-1)*C_diff%dof) = atm%a13(li,lj,lk)
+                    dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = atm%a23(li,lj,lk)
                   enddo
 
                 else
                   call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False., twostr_coeff, atm%l1d(lk), [sun%symmetry_phi, sun%theta])
                   do src=1,4
-                    coeffs(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
-                    coeffs(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
+                    dir2diff(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
+                    dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
                   enddo
                 endif
 
                 do src=1,C_dir%dof-4
-                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_up  +i1+(src-1)*C_diff%dof)
-                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*coeffs(E_dn  +i1+(src-1)*C_diff%dof)
+                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_up  +i1+(src-1)*C_diff%dof)
+                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*dir2diff(E_dn  +i1+(src-1)*C_diff%dof)
                 enddo
+
+                if(allocated(atm%planck) ) then
+!                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  .5_ireals*(atm%planck(li,lj,lk)+atm%planck(li,lj,lk))*(one-exp(-atm%op(li,lj,lk)%kabs*atm%dz(lk)/.525_ireals))  * Az*pi
+!                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  .5_ireals*(atm%planck(li,lj,lk)+atm%planck(li,lj,lk))*(one-exp(-atm%op(li,lj,lk)%kabs*atm%dz(lk)/.525_ireals))  * Az*pi
+
+                  if(luse_eddington ) then
+                    !see libradtran rodents
+                    dtau = atm%dz(lk) * ( atm%op(li,lj,lk)%kabs + atm%op(li,lj,lk)%ksca)
+                    if( dtau.gt.0.01_ireals ) then
+                      b0 = atm%planck(li,lj,lk)
+                      b1 = ( atm%planck(li,lj,lk)-atm%planck(li,lj,lk+1) ) / dtau
+                    else
+                      b0 = .5_ireals*(atm%planck(li,lj,lk)+atm%planck(li,lj,lk+1))
+                      b1 = zero
+                    endif
+                    c1 = atm%g1(li,lj,lk) * (b0 + b1*dtau)
+                    c2 = atm%g2(li,lj,lk) * b1
+                    c3 = atm%g1(li,lj,lk) * b0
+                  else
+                    stop 'boxmc coeff for thermal emission not supported at the moment'
+                  endif
+                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   + ( - atm%a11(li,lj,lk)*(c1+c2) - atm%a12(li,lj,lk)*(c3-c2) + c2 + c3 )*Az*pi
+                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) + ( - atm%a12(li,lj,lk)*(c1+c2) - atm%a11(li,lj,lk)*(c3-c2) + c1 - c2 )*Az*pi
+                endif
+
               enddo
             enddo
 
@@ -1059,22 +1097,58 @@ subroutine setup_b(edir,b)
               lj = jstartpar+j-C_diff%ys
               do i=C_diff%xs,C_diff%xe    
                 li = istartpar+i-C_diff%xs
-                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False., coeffs, atm%l1d(lk), [sun%symmetry_phi, sun%theta] )
+                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False., dir2diff,  atm%l1d(lk), [sun%symmetry_phi, sun%theta] )
 
                 do src=1,C_dir%dof
-                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_up  +i1+(src-1)*C_diff%dof)
-                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*coeffs(E_dn  +i1+(src-1)*C_diff%dof)
-                  xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_le_m+i1+(src-1)*C_diff%dof)
-                  xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_le_p+i1+(src-1)*C_diff%dof)
-                  xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  xedir(src-1,i,j,k)*coeffs(E_ri_m+i1+(src-1)*C_diff%dof)  
-                  xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  xedir(src-1,i,j,k)*coeffs(E_ri_p+i1+(src-1)*C_diff%dof)  
-                  xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_ba_m+i1+(src-1)*C_diff%dof)  
-                  xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  xedir(src-1,i,j,k)*coeffs(E_ba_p+i1+(src-1)*C_diff%dof)  
-                  xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  xedir(src-1,i,j,k)*coeffs(E_fw_m+i1+(src-1)*C_diff%dof)  
-                  xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  xedir(src-1,i,j,k)*coeffs(E_fw_p+i1+(src-1)*C_diff%dof) 
+                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_up  +i1+(src-1)*C_diff%dof) 
+                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*dir2diff(E_dn  +i1+(src-1)*C_diff%dof) 
+                  xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_le_m+i1+(src-1)*C_diff%dof) 
+                  xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_le_p+i1+(src-1)*C_diff%dof) 
+                  xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  xedir(src-1,i,j,k)*dir2diff(E_ri_m+i1+(src-1)*C_diff%dof) 
+                  xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  xedir(src-1,i,j,k)*dir2diff(E_ri_p+i1+(src-1)*C_diff%dof) 
+                  xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_ba_m+i1+(src-1)*C_diff%dof) 
+                  xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_ba_p+i1+(src-1)*C_diff%dof) 
+                  xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  xedir(src-1,i,j,k)*dir2diff(E_fw_m+i1+(src-1)*C_diff%dof) 
+                  xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  xedir(src-1,i,j,k)*dir2diff(E_fw_p+i1+(src-1)*C_diff%dof) 
                 enddo
               enddo
             enddo
+
+            if(allocated(atm%planck) ) then
+              do j=C_diff%ys,C_diff%ye         
+                lj = jstartpar+j-C_diff%ys
+                do i=C_diff%xs,C_diff%xe    
+                  li = istartpar+i-C_diff%xs
+                  call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False., diff2diff, atm%l1d(lk) )
+                  b0 = .5_ireals*(atm%planck(li,lj,lk)+atm%planck(li,lj,lk+i1)) *pi
+                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  b0  *(one-sum( diff2diff( E_up  *C_diff%dof+i1 : E_up  *C_diff%dof+C_diff%dof ))) *Az
+                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  b0  *(one-sum( diff2diff( E_dn  *C_diff%dof+i1 : E_dn  *C_diff%dof+C_diff%dof ))) *Az
+                  xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  b0  *(one-sum( diff2diff( E_le_m*C_diff%dof+i1 : E_le_m*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
+                  xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  b0  *(one-sum( diff2diff( E_le_p*C_diff%dof+i1 : E_le_p*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
+                  xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  b0  *(one-sum( diff2diff( E_ri_m*C_diff%dof+i1 : E_ri_m*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
+                  xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  b0  *(one-sum( diff2diff( E_ri_p*C_diff%dof+i1 : E_ri_p*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
+                  xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  b0  *(one-sum( diff2diff( E_ba_m*C_diff%dof+i1 : E_ba_m*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
+                  xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  b0  *(one-sum( diff2diff( E_ba_p*C_diff%dof+i1 : E_ba_p*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
+                  xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  b0  *(one-sum( diff2diff( E_fw_m*C_diff%dof+i1 : E_fw_m*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
+                  xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  b0  *(one-sum( diff2diff( E_fw_p*C_diff%dof+i1 : E_fw_p*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
+
+!                  call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.True., diff_emis, atm%l1d(lk) )
+!                  b0 = 4._ireals * pi * .5_ireals*(atm%planck(li,lj,lk)+atm%planck(li,lj,lk)) * 2._ireals*(Az+Ax+Ay) ! total emission of volume
+!
+!                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   + b0 * diff_emis(E_up  +i1)
+!                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) + b0 * diff_emis(E_dn  +i1)
+!                  xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   + b0 * diff_emis(E_le_m+i1)
+!                  xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   + b0 * diff_emis(E_le_p+i1)
+!                  xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) + b0 * diff_emis(E_ri_m+i1)
+!                  xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) + b0 * diff_emis(E_ri_p+i1)
+!                  xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   + b0 * diff_emis(E_ba_m+i1)
+!                  xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   + b0 * diff_emis(E_ba_p+i1)
+!                  xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) + b0 * diff_emis(E_fw_m+i1)
+!                  xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) + b0 * diff_emis(E_fw_p+i1)
+
+                enddo
+              enddo
+            endif ! have thermal
 
           endif
 
@@ -1089,6 +1163,18 @@ subroutine setup_b(edir,b)
             xsrc(E_up   ,i,j,k) = sum(xedir(i0:i3,i,j,k))*atm%albedo
           enddo
         enddo
+
+        ! Thermal emission at surface
+        if(allocated(atm%planck) ) then
+          lk = i1+k-C_diff%zs        
+          do j=C_diff%ys,C_diff%ye         
+            lj = jstartpar+j-C_diff%ys
+            do i=C_diff%xs,C_diff%xe    
+              li = istartpar+i-C_diff%xs
+              xsrc(E_up   ,i,j,k) = xsrc(E_up   ,i,j,k) + atm%planck(li,lj,lk)*Az *(one-atm%albedo)*pi
+            enddo
+          enddo
+        endif
 
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients ...done'
 
@@ -1113,6 +1199,7 @@ subroutine calc_flx_div(edir,ediff,abso)
         Vec :: ledir,lediff ! local copies of vectors, including ghosts
         PetscReal :: div2(13)
         PetscReal :: Volume
+
 !        real(ireals) :: c_dir2dir(C_dir%dof**2)
 !        real(ireals) :: c_dir2diff(C_dir%dof*C_diff%dof)
 !        real(ireals) :: c_diff2diff(C_diff%dof**2)
@@ -1151,7 +1238,7 @@ subroutine calc_flx_div(edir,ediff,abso)
 
                 div2 = zero
                 ! Divergence    =                       Incoming                -       Outgoing
-                div2( 1) = sum( xedir(i0:i3 , i             , j             , k)  - xedir(i0:i3 , i          , j          , k+i1  ) )
+                div2( 1) = sum( xedir(i0:i3, i, j , k)  - xedir(i0:i3 , i, j, k+i1  ) )
 
                 div2( 4) = ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  )
                 div2( 5) = ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  )
@@ -1200,7 +1287,7 @@ subroutine calc_flx_div(edir,ediff,abso)
                 div2(12) = ( xediff(E_fw_m,i  ,j  ,k  )  - xediff(E_fw_m,i  ,j+1,k  )  )
                 div2(13) = ( xediff(E_fw_p,i  ,j  ,k  )  - xediff(E_fw_p,i  ,j+1,k  )  )
 
-!         Divergence can also be expressed as the sum of divergence for each stream -- probably more stable... TODO: not tested at all?
+!         Divergence can also be expressed as the sum of divergence for each stream -- probably more stable... TODO: not tested at all
 !                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.True., c_dir2dir,   atm%l1d(lk), [sun%symmetry_phi, sun%theta])
 !                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False.,c_dir2diff,  atm%l1d(lk), [sun%symmetry_phi, sun%theta])
 !                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False.,c_diff2diff, atm%l1d(lk) )
@@ -1232,7 +1319,7 @@ subroutine calc_flx_div(edir,ediff,abso)
 !                div2(12) = xediff(E_fw_m,i  ,j  ,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
 !                div2(13) = xediff(E_fw_p,i  ,j  ,k  )* max(zero, one - sum( c_diff2diff( E_up*C_diff%dof +1 : E_up*C_diff%dof +C_diff%dof  )  ) )
 
-                xabso(i0,i,j,k) = max(zero,sum(div2)) / Volume
+                xabso(i0,i,j,k) = sum(div2) / Volume
 !                if(any(div2.lt.epsilon(xabso)*100._ireals) ) then
 !                  print *,'Attention: neg. abso at ',i,j,k
 !                  print *,'div2',div2
@@ -1539,27 +1626,33 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy,hhl ,phi0,theta0,albedo)
     call setup_logging()
 end subroutine
 
-    subroutine set_optical_properties(global_kabs, global_ksca, global_g)
-      real(ireals),intent(inout),dimension(:,:,:),allocatable :: global_kabs, global_ksca, global_g
+    subroutine set_optical_properties(global_kabs, global_ksca, global_g, global_planck)
+      real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_kabs, global_ksca, global_g
+      real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_planck
       real(ireals) :: tau,kext,w0,g
       integer(iintegers) :: i,j,k
+      logical :: lhave_planck
+
+      lhave_planck = present(global_planck); call imp_bcast( lhave_planck, 0_mpiint, myid )
 
       ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
       if(myid.eq.0) then
         call extend_arr(global_kabs)
         call extend_arr(global_ksca)
         call extend_arr(global_g)
+        if(present(global_planck)) call extend_arr(global_planck)
       endif
 
       if(.not.allocated(atm%op) )       allocate( atm%op       (C_one%xm, C_one%ym, C_one%zm) )
-      if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%xm, C_one%ym, C_one%zm) ) ! allocate space and copy optical properties for delta scaling
+      if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%xm, C_one%ym, C_one%zm) )
+      if(lhave_planck .and. .not.allocated(atm%planck) ) allocate( atm%planck (C_one1%xm, C_one1%ym, C_one1%zm) )
 
       ! Scatter global optical properties to MPI nodes
-      call local_optprop(global_kabs, global_ksca, global_g)
+      call local_optprop()
       ! Now atm%op(:,:,:)%k... is populated.
 
       atm%delta_op = atm%op
-      call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo stron deltascaling?
+      call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
 
       if(luse_eddington) then
         if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xm, C_one%ym, C_one%zm )) ! allocate space for twostream coefficients
@@ -1567,6 +1660,8 @@ end subroutine
         if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%xm, C_one%ym, C_one%zm )) 
         if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%xm, C_one%ym, C_one%zm )) 
         if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one%xm, C_one%ym, C_one%zm )) 
+        if(.not.allocated(atm%g1 ) ) allocate(atm%g1  (C_one%xm, C_one%ym, C_one%zm )) 
+        if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one%xm, C_one%ym, C_one%zm )) 
       endif
         
       if(luse_eddington) then
@@ -1583,7 +1678,9 @@ end subroutine
                   atm%a12(i,j,k),          &
                   atm%a13(i,j,k),          &
                   atm%a23(i,j,k),          &
-                  atm%a33(i,j,k) )
+                  atm%a33(i,j,k),          &
+                  atm%g1(i,j,k),           &
+                  atm%g2(i,j,k) )
               enddo
             enddo
 
@@ -1593,56 +1690,52 @@ end subroutine
 
       if(myid.eq.0) then
         do k=1,ubound(atm%op,3)
-          print *,myid,'Optical Properties:',k,'dz',atm%dz(k),atm%l1d(k),'k',minval(atm%op(:,:,k)%kabs),minval(atm%op(:,:,k)%ksca),minval(atm%op(:,:,k)%g),maxval(atm%op(:,:,k)%kabs),maxval(atm%op(:,:,k)%ksca),maxval(atm%op(:,:,k)%g)
+          if(lhave_planck) then
+            print *,myid,'Optical Properties:',k,'dz',atm%dz(k),atm%l1d(k),'k',minval(atm%op(:,:,k)%kabs),minval(atm%op(:,:,k)%ksca),minval(atm%op(:,:,k)%g),maxval(atm%op(:,:,k)%kabs),maxval(atm%op(:,:,k)%ksca),maxval(atm%op(:,:,k)%g),'::',minval(atm%planck(:,:,k)),maxval(atm%planck(:,:,k))
+          else    
+            print *,myid,'Optical Properties:',k,'dz',atm%dz(k),atm%l1d(k),'k',minval(atm%op(:,:,k)%kabs),minval(atm%op(:,:,k)%ksca),minval(atm%op(:,:,k)%g),maxval(atm%op(:,:,k)%kabs),maxval(atm%op(:,:,k)%ksca),maxval(atm%op(:,:,k)%g)
+          endif
         enddo
       endif
 
       contains
-          subroutine local_optprop(global_kabs, global_ksca, global_g)
-                real(ireals),allocatable,dimension(:,:,:) :: global_kabs, global_ksca, global_g
-
-                Vec :: optprop_vec
-                PetscReal,pointer,dimension(:,:,:,:) :: xoptprop_vec
+          subroutine local_optprop()
+                Vec :: local_vec
+                PetscReal,pointer,dimension(:,:,:,:) :: xlocal_vec
 
                 !TODO : this is very poorly done... we should not scatter the global optical properties to all nodes and then pick what is local, rather only copy local parts....
 
                 if(myid.eq.0.and.ldebug) print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
-!                atm%op(:,:,:)%kabs = global_kabs(C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
-!                atm%op(:,:,:)%ksca = global_ksca(C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
-!                atm%op(:,:,:)%g    = global_g   (C_one%xs+1:C_one%xe+1, C_one%ys+1:C_one%ye+1, :)
 
-                call DMCreateGlobalVector(C_one%da, optprop_vec, ierr) ; CHKERRQ(ierr)
-                call scatterZerotoDM(global_kabs,C_one,optprop_vec)
-                call DMDAVecGetArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
-!                print *,'kabs same',all(approx(xoptprop_vec(0,:,:,:),atm%op(:,:,:)%kabs))
-                atm%op(:,:,:)%kabs = xoptprop_vec(0,:,:,:)
-                call DMDAVecRestoreArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
+                call DMCreateGlobalVector(C_one%da, local_vec, ierr) ; CHKERRQ(ierr)
+                call scatterZerotoDM(global_kabs,C_one,local_vec)
+                call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                atm%op(:,:,:)%kabs = xlocal_vec(0,:,:,:)
+                call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
 
+                call scatterZerotoDM(global_ksca,C_one,local_vec)
+                call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                atm%op(:,:,:)%ksca = xlocal_vec(0,:,:,:)
+                call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
 
-                call scatterZerotoDM(global_ksca,C_one,optprop_vec)
-                call DMDAVecGetArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
-!                print *,'ksca same',all(approx(xoptprop_vec(0,:,:,:),atm%op(:,:,:)%ksca))
-                atm%op(:,:,:)%ksca = xoptprop_vec(0,:,:,:)
-                call DMDAVecRestoreArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
+                call scatterZerotoDM(global_g,C_one,local_vec)
+                call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                atm%op(:,:,:)%g = xlocal_vec(0,:,:,:)
+                call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
 
+                call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
 
-                call scatterZerotoDM(global_g,C_one,optprop_vec)
-                call DMDAVecGetArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
-!                print *,'g same',all(approx(xoptprop_vec(0,:,:,:),atm%op(:,:,:)%g))
-                atm%op(:,:,:)%g = xoptprop_vec(0,:,:,:)
-                call DMDAVecRestoreArrayF90(C_one%da ,optprop_vec ,xoptprop_vec ,ierr)  ; CHKERRQ(ierr)
-
-                call VecDestroy(optprop_vec,ierr) ; CHKERRQ(ierr)
-
-                if(myid.eq.0) then
-                  deallocate(global_kabs)
-                  deallocate(global_g   )
-                  deallocate(global_ksca)
+                if(lhave_planck) then
+                  call DMCreateGlobalVector(C_one1%da, local_vec, ierr) ; CHKERRQ(ierr)
+                  call scatterZerotoDM(global_planck,C_one1,local_vec)
+                  call DMDAVecGetArrayF90(C_one1%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  atm%planck = xlocal_vec(0,:,:,:)
+                  call DMDAVecRestoreArrayF90(C_one1%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
                 endif
-
           end subroutine
           subroutine scatterZerotoDM(arr,C,vec)
-              real(ireals),dimension(:,:,:) :: arr
+              real(ireals),allocatable,dimension(:,:,:) :: arr
               type(t_coord) :: C
               Vec :: vec
 
@@ -1671,9 +1764,6 @@ end subroutine
               call VecDestroy(natural,ierr); CHKERRQ(ierr)
 
           end subroutine
-
-
-
           subroutine extend_arr(arr)
                 real(ireals),intent(inout),allocatable :: arr(:,:,:)
                 real(ireals),allocatable :: tmp(:,:)
@@ -1705,7 +1795,7 @@ end subroutine
     end subroutine
 
     subroutine solve_tenstream(edirTOA)
-      real(ireals),intent(in) :: edirTOA
+        real(ireals),intent(in) :: edirTOA
 
             if(ltwostr) then
               call twostream(edirTOA)
@@ -1722,16 +1812,19 @@ end subroutine
             endif
 
             ! ---------------------------- Edir  -------------------
-            call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
-            call setup_incSolar(incSolar,edirTOA)
-            call set_dir_coeff(Mdir,C_dir)
+            if(edirTOA.gt.zero) then
+              call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
+              call setup_incSolar(incSolar,edirTOA)
+              call set_dir_coeff(Mdir,C_dir)
 
-            call setup_ksp(kspdir,C_dir,Mdir,linit_kspdir, "dir_")
+              call setup_ksp(kspdir,C_dir,Mdir,linit_kspdir, "dir_")
 
-            call PetscLogStagePush(logstage(3),ierr) ;CHKERRQ(ierr)
-            call solve(kspdir,incSolar,edir)
-            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
-
+              call PetscLogStagePush(logstage(3),ierr) ;CHKERRQ(ierr)
+              call solve(kspdir,incSolar,edir)
+              call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+            else
+              call VecSet(edir,zero,ierr)
+            endif
             ! ---------------------------- Source Term -------------
             call setup_b(edir,b)
 
@@ -1776,6 +1869,7 @@ end subroutine
 
             deallocate(atm%op)
             deallocate(atm%delta_op)
+            if(allocated(atm%planck)) deallocate(atm%planck)
             deallocate(atm%a11)
             deallocate(atm%a12)
             deallocate(atm%a13)

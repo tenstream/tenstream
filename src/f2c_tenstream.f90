@@ -2,7 +2,7 @@ module f2c_tenstream
 
       use iso_c_binding
 
-      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr
+      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr,zero
 
       use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
                             edir,ediff,abso, &
@@ -11,7 +11,7 @@ module f2c_tenstream
 
       use m_tenstream_options, only: read_commandline_options
 
-      use m_helper_functions, only: imp_bcast
+      use m_helper_functions, only: imp_bcast,mean
 
       implicit none
 #include "finclude/petsc.h90"
@@ -79,38 +79,45 @@ contains
         albedo = oalbedo
 
         ! Now every process has the correct values
-        print *,myid,'Initializing Tenstream environment from C Language :: domainshape',oNx,oNy,oNz,'::',shape(ohhl)
+!        print *,myid,'Initializing Tenstream environment from C Language :: domainshape',oNx,oNy,oNz,'::',shape(ohhl)
 
         call init_tenstream(imp_comm, oNx,oNy,oNz, odx,ody,ohhl ,ophi0, otheta0, oalbedo)
-        print *,'Initializing Tenstream environment from C Language ... done'
         initialized=.True.
       end subroutine                                             
 
-      subroutine tenstr_f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g) bind(c)
+      subroutine tenstr_f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g, planck) bind(c)
         integer(c_int), value :: Nx,Ny,Nz
         real(c_float),intent(in),dimension(Nx,Ny,Nz) :: kabs, ksca, g
+        real(c_float),intent(in),dimension(Nx,Ny,Nz+1) :: planck
 
-        real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og
+        real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og, oplanck
         
         if(myid.eq.0) then
-          allocate( okabs(Nx,Ny,Nz) ); okabs = kabs
-          allocate( oksca(Nx,Ny,Nz) ); oksca = ksca
-          allocate( og   (Nx,Ny,Nz) ); og    = g   
+          allocate( okabs  (Nx,Ny,Nz) ); okabs   = kabs
+          allocate( oksca  (Nx,Ny,Nz) ); oksca   = ksca
+          allocate( og     (Nx,Ny,Nz) ); og      = g   
+          allocate( oplanck(Nx,Ny,Nz+1) ); oplanck = planck
+
+          if(any(oplanck.gt.zero)) then
+            call set_optical_properties(okabs, oksca, og, oplanck)
+          else
+            call set_optical_properties(okabs, oksca, og)
+          endif
+
+!          print *,'mean kabs  ',sum(okabs)  /size(okabs)
+!          print *,'mean ksca  ',sum(oksca)  /size(oksca)
+!          print *,'mean g     ',sum(og)     /size(og)
+!          print *,'mean planck',sum(oplanck)/size(oplanck)
+        else !slave
+          call set_optical_properties()
         endif
-
-!        call imp_bcast(okabs,0_mpiint,myid)
-!        call imp_bcast(oksca,0_mpiint,myid)
-!        call imp_bcast(og   ,0_mpiint,myid)
-
-        call set_optical_properties(okabs, oksca, og)
       end subroutine
 
       subroutine tenstr_f2c_solve(edirTOA) bind(c)
         ! solve tenstream equations
         ! optical properties have had to be set and environment had to be initialized
         ! incoming solar radiation need only be set by zeroth node
-
-        real(c_double), value :: edirTOA
+        real(c_float), value :: edirTOA
         real(ireals) :: oedirTOA
 
         if(myid.eq.0) oedirTOA = edirTOA
@@ -143,6 +150,14 @@ contains
 
         call globalVec2Local(abso,C_one,res)
         if(myid.eq.0) res_abso = res(1,1:Nx,1:Ny,:)
+
+        if(myid.eq.0) then
+          print *,'Retrieving results:',Nx,Ny,Nz+1
+          print *,sum(res_edir)/size(res_edir)
+          print *,sum(res_edn) /size(res_edn)
+          print *,sum(res_eup) /size(res_eup)
+          print *,sum(res_abso)/size(res_abso),'surf',res_abso(1,1,Nz),'toa',res_abso(1,1,1)
+        endif
 
         if(myid.eq.0) deallocate(res)
      end subroutine

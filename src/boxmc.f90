@@ -161,9 +161,15 @@ contains
 
       Ndir=i0;Ndiff=i0
 
-      call init_stddev( std_Sdir , bmc%dir_streams  ,stddev_atol, stddev_rtol )
-      call init_stddev( std_Sdiff, bmc%diff_streams ,stddev_atol, stddev_rtol )
-      call init_stddev( std_abso , i1               ,stddev_atol, stddev_rtol )
+!      if(src.gt.i1) then
+        call init_stddev( std_Sdir , bmc%dir_streams  ,stddev_atol, stddev_rtol )
+        call init_stddev( std_Sdiff, bmc%diff_streams ,stddev_atol, stddev_rtol )
+        call init_stddev( std_abso , i1               ,stddev_atol, stddev_rtol )
+!      else
+!        call init_stddev( std_Sdir , bmc%dir_streams  ,stddev_atol*1e-1, stddev_rtol*1e-1 )
+!        call init_stddev( std_Sdiff, bmc%diff_streams ,stddev_atol*1e-1, stddev_rtol*1e-1 )
+!        call init_stddev( std_abso , i1               ,stddev_atol*1e-1, stddev_rtol*1e-1 )
+!      endif
 
       if(.not.ldir) std_Sdir%converged=.True.
 

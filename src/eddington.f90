@@ -1,5 +1,5 @@
 module m_eddington
-      use m_data_parameters, only: ireals,iintegers,mpiint,imp_comm,zero,one
+      use m_data_parameters, only: ireals,iintegers,mpiint,imp_comm,zero,one,pi
       use m_helper_functions, only: approx,delta_scale_optprop
       use ISO_FORTRAN_ENV
       implicit none
@@ -187,24 +187,26 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           endif
 
       end subroutine
-      subroutine eddington_coeff_fab (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23,a33)
+      subroutine eddington_coeff_fab (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23,a33,g1,g2)
           real(ireals),intent(in) :: dtau_in,g_in,omega_0_in,mu_0
-          real(ireals),intent(out) :: a11,a12,a13,a23,a33
+          real(ireals),intent(out) :: a11,a12,a13,a23,a33,g1,g2
 
           real(ireals)            :: dtau,g,omega_0
 
           real(real128) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6;
-          real(real128) ::  b_mmu_0, lambda, A, exp1, term1, bscr, term2, exp2;
+          real(real128) ::  b_mmu_0, lambda, A, exp1, term1, bscr, term2, exp2, g0
           real(real128) ::  den1, mu_0_inv;
 
           real(ireals),parameter ::  eps = 10._ireals * epsilon(omega_0)
 
+          ! Singularities -- dont use values before here
           dtau   = max(( epsilon(dtau)   ), dtau_in)
           g      = g_in
           omega_0= max(( epsilon(omega_0)), omega_0_in)
 
           omega_0 = min(omega_0, one-eps)
           if ( approx( omega_0 * g , 1.0_ireals ) ) omega_0 = omega_0 * (one-eps);
+          ! Singularities -- dont use values before here
 
           mu_0_inv =  1._real128/ mu_0;
           b_mmu_0 = (0.5_real128 - 0.75_real128 * g * mu_0);
@@ -246,12 +248,18 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           a13 = a13 * mu_0_inv !Fabian: Roberts coefficients a13 expect S to be
           a23 = a23 * mu_0_inv !        irradiance on tilted plane... we use irradiance on z-plane
 
-          a11 = max( zero, a11 )!min(one, )
-          a12 = max( zero, a12 )!min(one, )
-          a13 = max( zero, a13 )!min(one, )
-          a23 = max( zero, a23 )!min(one, )
+          a11 = min(one, max( zero, a11 ) )
+          a12 = min(one, max( zero, a12 ) )
+          a13 = min(one, max( zero, a13 ) )
+          a23 = min(one, max( zero, a23 ) )
 
-          if(any(isnan( [a11,a12,a13,a23,a33] )  .or. [a11,a12,a13,a23,a33].gt.one .or. [a11,a12,a13,a23,a33].lt.zero ) ) then
+          g0 = 2._ireals*(one-omega_0) ! this is alpha3/pi in zdunkowsky for thermal part
+          g1 = g0 / (alpha_1-alpha_2)
+          g2 = g0 / (lambda**2)
+          g1 = min(one, max( zero, g1 ) )
+          g2 = min(one, max( zero, g2 ) )
+
+          if(any(isnan( [a11,a12,a13,a23,a33,g1,g2] )  .or. [a11,a12,a13,a23,a33,g1,g2].gt.one .or. [a11,a12,a13,a23,a33,g1,g2].lt.zero ) ) then
             print *,'Found NaN in eddington coefficients _fab -- this should not happen!'
             print *,'input_in',dtau_in,omega_0_in,g_in,mu_0
             print *,'input',dtau,omega_0,g,mu_0
@@ -267,7 +275,8 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             print *,'exp1,term1',exp1,term1
             print *,'exp2,term2',exp2,term2
             print *,'A',A
-            print *,'coeff', [a11,a12,a13,a23,a33]
+            print *,'g0',g0
+            print *,'coeff', [a11,a12,a13,a23,a33,g1,g2]
             call MPI_Abort(imp_comm,VALUE_ERROR)
           endif
 

@@ -15,7 +15,7 @@ module m_twostream
         real(ireals),dimension(size(dtau_in)+1),intent(out):: S,Edn,Eup 
 
         real(ireals),dimension(size(dtau_in)) :: dtau,w0,g
-        real(ireals),dimension(size(dtau_in)) :: a11,a12,a13,a23,a33
+        real(ireals),dimension(size(dtau_in)) :: a11,a12,a13,a23,a33,g1,g2
 
         integer(iintegers) :: i,j,k,ke,ke1,bi
         real(ireals) :: R,T
@@ -40,7 +40,7 @@ module m_twostream
         call delta_scale_optprop( dtau, w0, g  )
 
         do k=1,ke
-          call eddington_coeff_fab (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k))
+          call eddington_coeff_fab (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k), g1(k),g2(k) )
 !          print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k)
         enddo
 
