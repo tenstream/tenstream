@@ -12,7 +12,7 @@ endif (NOT CMAKE_BUILD_TYPE)
 
 set (CMAKE_C_FLAGS "-cpp -W -Wall -Wuninitialized --std=c99" )
 set (CMAKE_Fortran_FLAGS "-cpp -ffree-line-length-none -W -Wall -Wuninitialized" )
-set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O2")
+set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3 -ftree-vectorizer-verbose=1")
 set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check ")#-ffpe-trap=invalid,zero,overflow,denormal")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)

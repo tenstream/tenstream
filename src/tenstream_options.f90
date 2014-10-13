@@ -70,7 +70,7 @@ module m_tenstream_options
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
 
-          options_phi=180; options_theta=0
+          options_phi=180; options_theta=-1
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-phi"  ,options_phi, lflg,ierr)     ; CHKERRQ(ierr)
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-theta",options_theta, lflg,ierr) ; CHKERRQ(ierr)
 

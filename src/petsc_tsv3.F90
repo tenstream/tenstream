@@ -298,8 +298,8 @@ program main
         dims = shape(global_kabs)
         call init_tenstream(imp_comm, dims(1),dims(2),dims(3), ident_dx, ident_dy, hhl ,options_phi,options_theta,albedo)
 
-        do kato=1,32
-!                  do kato=11,11
+!        do kato=1,32
+                  do kato=11,11
           do iq=0,kato_bands(kato)
             if(myid.eq.0) print *,'-----------------------------------------------------------------------------------------------------------------------------'
             if(myid.eq.0) print *,'-------------------------- Calculate ',trim(ident),' sza',options_theta,' kato',kato,'iq',iq

@@ -279,7 +279,7 @@ module m_tenstream
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
         PetscInt,parameter :: ind(9)=[E_up,E_le_m,E_le_p,E_ri_m,E_ri_p,E_ba_m,E_ba_p,E_fw_m,E_fw_p]
-        PetscInt :: i,j,k,li,lj,lk
+        PetscInt :: i,j,k!d,li,lj,lk
 
         call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
         call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
@@ -384,12 +384,12 @@ module m_tenstream
         endif
 
         do k=C%zs,C%ze-1
-          lk = i1+k-C%zs         !
-          if( atm%l1d(lk) ) then
+!d          lk = i1+k-C%zs         !
+          if( atm%l1d(k) ) then
             do j=C%ys,C%ye
-              lj = jstartpar+j-C%ys 
+!d              lj = jstartpar+j-C%ys 
               do i=C%xs,C%xe      
-                li = istartpar+i-C%xs  
+!d                li = istartpar+i-C%xs  
 
                 xo(:,i,j,k) = i0
                 xd(:,i,j,k) = i1
@@ -426,7 +426,7 @@ module m_tenstream
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
-        PetscInt :: vsize,i,j,k,li,lj,lk
+        PetscInt :: vsize,i,j,k
 
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
@@ -496,11 +496,8 @@ module m_tenstream
 
          do k=C%zs,C%ze-1
            do j=C%ys,C%ye
-             do i=C%xs,C%xe      ! i,j,k indices are defined on petsc global grid
-               li = istartpar+i-C%xs ! l-indices are used for local arrays, 
-               lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
-               lk = 1+k-C%zs         !
-               if( atm%l1d(lk) ) then
+             do i=C%xs,C%xe      
+               if( atm%l1d(k) ) then
                  xo(:,i,j,k) = i0
                  xd(:,i,j,k) = i1
                  xd(0:3,i,j,k) = i5
@@ -535,7 +532,7 @@ module m_tenstream
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
-        PetscInt :: vsize,i,j,k,li,lj,lk
+        PetscInt :: vsize,i,j,k
 
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
@@ -606,10 +603,7 @@ module m_tenstream
          do k=C%zs,C%ze-1
            do j=C%ys,C%ye
              do i=C%xs,C%xe      ! i,j,k indices are defined on petsc global grid
-               li = istartpar+i-C%xs ! l-indices are used for local arrays, 
-               lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
-               lk = 1+k-C%zs         !
-               if( atm%l1d(lk) ) then
+               if( atm%l1d(k) ) then
                  xo(:,i,j,k) = i0
                  xd(:,i,j,k) = i1
                  xd(0,i,j,k) = i2
@@ -691,21 +685,18 @@ subroutine set_dir_coeff(A,C)
         Mat :: A
         type(t_coord) :: C
 
-        PetscInt :: i,j,k,li,lj,lk
+        PetscInt :: i,j,k
 
         call PetscLogStagePush(logstage(2),ierr) ;CHKERRQ(ierr)
 
         do k=C%zs,C%ze-1
-          lk = 1+k-C%zs
           do j=C%ys,C%ye
-            lj = jstartpar+j-C%ys 
             do i=C%xs,C%xe        
-              li = istartpar+i-C%xs  
 
-              if( atm%l1d(lk) ) then
-                call set_eddington_coeff(A, i,j,k, li,lj,lk)
+              if( atm%l1d(k) ) then
+                call set_eddington_coeff(A, i,j,k)
               else
-                call set_tenstream_coeff(C, A, i,j,k, li,lj,lk,ierr); CHKERRQ(ierr)
+                call set_tenstream_coeff(C, A, i,j,k,ierr); CHKERRQ(ierr)
               endif
 
             enddo 
@@ -720,10 +711,10 @@ subroutine set_dir_coeff(A,C)
         call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
         contains 
-          subroutine set_tenstream_coeff(C,A,i,j,k,li,lj,lk,ierr)
+          subroutine set_tenstream_coeff(C,A,i,j,k,ierr)
               type(t_coord),intent(in) :: C
               Mat,intent(inout) :: A
-              integer(iintegers),intent(in) :: i,j,k,li,lj,lk
+              integer(iintegers),intent(in) :: i,j,k
               PetscErrorCode, intent(out) :: ierr
 
               MatStencil :: row(4,C%dof)  ,col(4,C%dof)
@@ -753,7 +744,7 @@ subroutine set_dir_coeff(A,C)
               src = 7 ; col(MatStencil_i,src) = i            ; col(MatStencil_j,src) = j+1-sun%yinc ; col(MatStencil_k,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
               src = 8 ; col(MatStencil_i,src) = i            ; col(MatStencil_j,src) = j+1-sun%yinc ; col(MatStencil_k,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
-              call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.True., coeffs, atm%l1d(lk), [sun%symmetry_phi, sun%theta])
+              call get_coeff(atm%delta_op(i,j,k), atm%dz(k),.True., coeffs, atm%l1d(k), [sun%symmetry_phi, sun%theta])
 
               if(ldebug) then
                 do src=1,C%dof
@@ -774,18 +765,18 @@ subroutine set_dir_coeff(A,C)
 
           end subroutine
 
-          subroutine set_eddington_coeff(A,i,j,k,li,lj,lk)
+          subroutine set_eddington_coeff(A,i,j,k)
               Mat,intent(inout) :: A
-              integer(iintegers),intent(in) :: i,j,k,li,lj,lk
+              integer(iintegers),intent(in) :: i,j,k
 
               MatStencil :: row(4,1)  ,col(4,1)
               PetscReal :: v(1)
               integer(iintegers) :: src
 
               if(luse_eddington) then
-                v = atm%a33(li,lj,lk)
+                v = atm%a33(i,j,k)
               else
-                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.True., v, atm%l1d(lk), [sun%symmetry_phi, sun%theta] )
+                call get_coeff(atm%delta_op(i,j,k), atm%dz(k),.True., v, atm%l1d(k), [sun%symmetry_phi, sun%theta] )
               endif
 
               col(MatStencil_i,i1) = i      ; col(MatStencil_j,i1) = j       ; col(MatStencil_k,i1) = k    
@@ -804,7 +795,6 @@ subroutine set_dir_coeff(A,C)
           Vec :: incSolar
           real(ireals),intent(in) :: edirTOA
 
-          PetscInt :: i,j,li,lj
           PetscScalar,pointer,dimension(:,:,:,:) :: xincSolar
 
           PetscReal :: Az
@@ -813,14 +803,8 @@ subroutine set_dir_coeff(A,C)
           call VecSet(incSolar,zero,ierr) ;CHKERRQ(ierr)
 
           call DMDAVecGetArrayF90(C_dir%da,incSolar,xincSolar,ierr) ;CHKERRQ(ierr)
-          do j=C_dir%ys,C_dir%ye
-            do i=C_dir%xs,C_dir%xe        ! i,j,k indices are defined on petsc global grid
-              li = istartpar+i-C_dir%xs ! l-indices are used for local arrays, 
-              lj = jstartpar+j-C_dir%ys ! which are defined on the cosmo grid
 
-              xincSolar(i0:i3,i,j,C_dir%zs) = edirTOA* Az * .25_ireals * sun%costheta
-            enddo
-          enddo
+          xincSolar(i0:i3,:,:,C_dir%zs) = edirTOA* Az * .25_ireals * sun%costheta
 
           call DMDAVecRestoreArrayF90(C_dir%da,incSolar,xincSolar,ierr) ;CHKERRQ(ierr)
 
@@ -832,7 +816,7 @@ subroutine set_dir_coeff(A,C)
             Mat :: A
             type(t_coord) :: C
 
-            PetscInt :: i,j,k,li,lj,lk
+            PetscInt :: i,j,k
 
 
             call PetscLogStagePush(logstage(4),ierr) ;CHKERRQ(ierr)
@@ -840,16 +824,13 @@ subroutine set_dir_coeff(A,C)
             if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients for diffuse Light'
 
             do k=C%zs,C%ze-1
-              lk = 1+k-C%zs         !
               do j=C%ys,C%ye
-                lj = jstartpar+j-C%ys ! which are defined on the cosmo grid
                 do i=C%xs,C%xe
-                  li = istartpar+i-C%xs ! l-indices are used for local arrays, 
 
-                  if( atm%l1d(lk) ) then
-                    call set_eddington_coeff(A, i,j,k, li,lj,lk)
+                  if( atm%l1d(k) ) then
+                    call set_eddington_coeff(A, i,j,k)
                   else
-                    call set_tenstream_coeff(C, A, i,j,k, li,lj,lk,ierr); CHKERRQ(ierr)
+                    call set_tenstream_coeff(C, A, i,j,k, ierr); CHKERRQ(ierr)
                   endif
 
                 enddo 
@@ -867,10 +848,10 @@ subroutine set_dir_coeff(A,C)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
           contains
-            subroutine set_tenstream_coeff(C,A,i,j,k,li,lj,lk,ierr)
+            subroutine set_tenstream_coeff(C,A,i,j,k,ierr)
                 type(t_coord),intent(in) :: C
                 Mat,intent(inout) :: A
-                integer(iintegers),intent(in) :: i,j,k,li,lj,lk
+                integer(iintegers),intent(in) :: i,j,k
                 PetscErrorCode,intent(out) :: ierr
 
                 MatStencil :: row(4,0:C%dof-1)  ,col(4,0:C%dof-1)
@@ -922,7 +903,7 @@ subroutine set_dir_coeff(A,C)
                 dst = 8; row(MatStencil_i,dst) = i    ; row(MatStencil_j,dst) = j     ; row(MatStencil_k,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
                 dst = 9; row(MatStencil_i,dst) = i    ; row(MatStencil_j,dst) = j+1   ; row(MatStencil_k,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
-                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False., coeffs, atm%l1d(lk))
+                call get_coeff(atm%delta_op(i,j,k), atm%dz(k),.False., coeffs, atm%l1d(k))
 
                 if(ldebug) then
                   do dst=1,C%dof
@@ -947,18 +928,18 @@ subroutine set_dir_coeff(A,C)
 
             end subroutine
 
-            subroutine set_eddington_coeff(A,i,j,k,li,lj,lk)
+            subroutine set_eddington_coeff(A,i,j,k)
                 Mat,intent(inout) :: A
-                integer(iintegers),intent(in) :: i,j,k,li,lj,lk
+                integer(iintegers),intent(in) :: i,j,k
 
                 MatStencil :: row(4,2)  ,col(4,2)
                 PetscReal :: v(4),twostr_coeff(4) ! v ==> a12,a11,a11,a12
                 integer(iintegers) :: src,dst
 
                 if(luse_eddington ) then
-                  v = [ atm%a12(li,lj,lk), atm%a11(li,lj,lk), atm%a11(li,lj,lk), atm%a12(li,lj,lk)]
+                  v = [ atm%a12(i,j,k), atm%a11(i,j,k), atm%a11(i,j,k), atm%a12(i,j,k)]
                 else
-                  call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False., twostr_coeff, atm%l1d(lk)) !twostr_coeff ==> a12,a11,a12,a11
+                  call get_coeff(atm%delta_op(i,j,k), atm%dz(k),.False., twostr_coeff, atm%l1d(k)) !twostr_coeff ==> a12,a11,a12,a11
                   v = [ twostr_coeff(1), twostr_coeff(2) , twostr_coeff(2) , twostr_coeff(1) ]
                 endif
 
@@ -1006,17 +987,9 @@ subroutine setup_b(edir,b)
         Vec :: edir
         Vec :: local_b,b
 
-        PetscScalar,pointer,dimension(:,:,:,:) :: &
-        xsrc,xedir
-        PetscInt :: li,lj,lk
+        PetscScalar,pointer,dimension(:,:,:,:) :: xsrc,xedir
         PetscReal :: diff2diff(C_diff%dof**2), dir2diff(C_dir%dof*C_diff%dof),twostr_coeff(2)
-        PetscReal :: diff_emis(C_diff%dof)
-        
         PetscInt :: i,j,k,src
-        PetscReal :: Ax,Ay,Az,S,over4pi,c1,c2,c3,b0,b1,dtau
-
-        over4pi = one/4._ireals/pi
-        Az = atm%dx*atm%dy
 
         call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
         
@@ -1028,153 +1001,8 @@ subroutine setup_b(edir,b)
         call DMDAVecGetArrayF90(C_diff%da,local_b,xsrc,ierr) ;CHKERRQ(ierr)
         call DMDAVecGetArrayF90(C_dir%da,edir,xedir,ierr) ;CHKERRQ(ierr)
 
-        if(myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients'
-        do k=C_diff%zs,C_diff%ze-1 
-          lk = i1+k-C_diff%zs        
-          Ax = atm%dy*atm%dz(lk)
-          Ay = atm%dx*atm%dz(lk)
-          S  = one/(2._ireals*(Ax+Ay+Az) ) ! 1 / box-surface
-
-          if( atm%l1d(lk) ) then
-
-            do j=C_diff%ys,C_diff%ye         
-              lj = jstartpar+j-C_diff%ys
-              do i=C_diff%xs,C_diff%xe    
-                li = istartpar+i-C_diff%xs
-
-                dir2diff = zero
-
-                if(luse_eddington ) then
-                  ! Only transport the 4 tiles from dir0 to the Eup and Edn
-                  do src=1,4
-                    dir2diff(E_up  +i1+(src-1)*C_diff%dof) = atm%a13(li,lj,lk)
-                    dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = atm%a23(li,lj,lk)
-                  enddo
-
-                else
-                  call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False., twostr_coeff, atm%l1d(lk), [sun%symmetry_phi, sun%theta])
-                  do src=1,4
-                    dir2diff(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
-                    dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
-                  enddo
-                endif
-
-                do src=1,C_dir%dof-4
-                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_up  +i1+(src-1)*C_diff%dof)
-                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*dir2diff(E_dn  +i1+(src-1)*C_diff%dof)
-                enddo
-
-                if(allocated(atm%planck) ) then
-!                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  .5_ireals*(atm%planck(li,lj,lk)+atm%planck(li,lj,lk))*(one-exp(-atm%op(li,lj,lk)%kabs*atm%dz(lk)/.525_ireals))  * Az*pi
-!                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  .5_ireals*(atm%planck(li,lj,lk)+atm%planck(li,lj,lk))*(one-exp(-atm%op(li,lj,lk)%kabs*atm%dz(lk)/.525_ireals))  * Az*pi
-
-                  if(luse_eddington ) then
-                    !see libradtran rodents
-                    dtau = atm%dz(lk) * ( atm%op(li,lj,lk)%kabs + atm%op(li,lj,lk)%ksca)
-                    if( dtau.gt.0.01_ireals ) then
-                      b0 = atm%planck(li,lj,lk)
-                      b1 = ( atm%planck(li,lj,lk)-atm%planck(li,lj,lk+1) ) / dtau
-                    else
-                      b0 = .5_ireals*(atm%planck(li,lj,lk)+atm%planck(li,lj,lk+1))
-                      b1 = zero
-                    endif
-                    c1 = atm%g1(li,lj,lk) * (b0 + b1*dtau)
-                    c2 = atm%g2(li,lj,lk) * b1
-                    c3 = atm%g1(li,lj,lk) * b0
-                  else
-                    stop 'boxmc coeff for thermal emission not supported at the moment'
-                  endif
-                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   + ( - atm%a11(li,lj,lk)*(c1+c2) - atm%a12(li,lj,lk)*(c3-c2) + c2 + c3 )*Az*pi
-                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) + ( - atm%a12(li,lj,lk)*(c1+c2) - atm%a11(li,lj,lk)*(c3-c2) + c1 - c2 )*Az*pi
-                endif
-
-              enddo
-            enddo
-
-          else ! Tenstream source terms
-
-            do j=C_diff%ys,C_diff%ye         
-              lj = jstartpar+j-C_diff%ys
-              do i=C_diff%xs,C_diff%xe    
-                li = istartpar+i-C_diff%xs
-                call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False., dir2diff,  atm%l1d(lk), [sun%symmetry_phi, sun%theta] )
-
-                do src=1,C_dir%dof
-                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_up  +i1+(src-1)*C_diff%dof) 
-                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*dir2diff(E_dn  +i1+(src-1)*C_diff%dof) 
-                  xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_le_m+i1+(src-1)*C_diff%dof) 
-                  xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_le_p+i1+(src-1)*C_diff%dof) 
-                  xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  xedir(src-1,i,j,k)*dir2diff(E_ri_m+i1+(src-1)*C_diff%dof) 
-                  xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  xedir(src-1,i,j,k)*dir2diff(E_ri_p+i1+(src-1)*C_diff%dof) 
-                  xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_ba_m+i1+(src-1)*C_diff%dof) 
-                  xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_ba_p+i1+(src-1)*C_diff%dof) 
-                  xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  xedir(src-1,i,j,k)*dir2diff(E_fw_m+i1+(src-1)*C_diff%dof) 
-                  xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  xedir(src-1,i,j,k)*dir2diff(E_fw_p+i1+(src-1)*C_diff%dof) 
-                enddo
-              enddo
-            enddo
-
-            if(allocated(atm%planck) ) then
-              do j=C_diff%ys,C_diff%ye         
-                lj = jstartpar+j-C_diff%ys
-                do i=C_diff%xs,C_diff%xe    
-                  li = istartpar+i-C_diff%xs
-                  call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.False., diff2diff, atm%l1d(lk) )
-                  b0 = .5_ireals*(atm%planck(li,lj,lk)+atm%planck(li,lj,lk+i1)) *pi
-                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  b0  *(one-sum( diff2diff( E_up  *C_diff%dof+i1 : E_up  *C_diff%dof+C_diff%dof ))) *Az
-                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  b0  *(one-sum( diff2diff( E_dn  *C_diff%dof+i1 : E_dn  *C_diff%dof+C_diff%dof ))) *Az
-                  xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  b0  *(one-sum( diff2diff( E_le_m*C_diff%dof+i1 : E_le_m*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
-                  xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  b0  *(one-sum( diff2diff( E_le_p*C_diff%dof+i1 : E_le_p*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
-                  xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  b0  *(one-sum( diff2diff( E_ri_m*C_diff%dof+i1 : E_ri_m*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
-                  xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  b0  *(one-sum( diff2diff( E_ri_p*C_diff%dof+i1 : E_ri_p*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
-                  xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  b0  *(one-sum( diff2diff( E_ba_m*C_diff%dof+i1 : E_ba_m*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
-                  xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  b0  *(one-sum( diff2diff( E_ba_p*C_diff%dof+i1 : E_ba_p*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
-                  xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  b0  *(one-sum( diff2diff( E_fw_m*C_diff%dof+i1 : E_fw_m*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
-                  xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  b0  *(one-sum( diff2diff( E_fw_p*C_diff%dof+i1 : E_fw_p*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
-
-!                  call get_coeff(atm%delta_op(li,lj,lk), atm%dz(lk),.True., diff_emis, atm%l1d(lk) )
-!                  b0 = 4._ireals * pi * .5_ireals*(atm%planck(li,lj,lk)+atm%planck(li,lj,lk)) * 2._ireals*(Az+Ax+Ay) ! total emission of volume
-!
-!                  xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   + b0 * diff_emis(E_up  +i1)
-!                  xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) + b0 * diff_emis(E_dn  +i1)
-!                  xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   + b0 * diff_emis(E_le_m+i1)
-!                  xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   + b0 * diff_emis(E_le_p+i1)
-!                  xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) + b0 * diff_emis(E_ri_m+i1)
-!                  xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) + b0 * diff_emis(E_ri_p+i1)
-!                  xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   + b0 * diff_emis(E_ba_m+i1)
-!                  xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   + b0 * diff_emis(E_ba_p+i1)
-!                  xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) + b0 * diff_emis(E_fw_m+i1)
-!                  xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) + b0 * diff_emis(E_fw_p+i1)
-
-                enddo
-              enddo
-            endif ! have thermal
-
-          endif
-
-        enddo
-
-        ! Ground Albedo reflecting direct radiation, the diffuse part is considered by the solver(Matrix)
-        k = C_diff%ze
-        do j=C_diff%ys,C_diff%ye     
-          lj = jstartpar+j-C_diff%ys 
-          do i=C_diff%xs,C_diff%xe     
-            li = istartpar+i-C_diff%xs 
-            xsrc(E_up   ,i,j,k) = sum(xedir(i0:i3,i,j,k))*atm%albedo
-          enddo
-        enddo
-
-        ! Thermal emission at surface
-        if(allocated(atm%planck) ) then
-          lk = i1+k-C_diff%zs        
-          do j=C_diff%ys,C_diff%ye         
-            lj = jstartpar+j-C_diff%ys
-            do i=C_diff%xs,C_diff%xe    
-              li = istartpar+i-C_diff%xs
-              xsrc(E_up   ,i,j,k) = xsrc(E_up   ,i,j,k) + atm%planck(li,lj,lk)*Az *(one-atm%albedo)*pi
-            enddo
-          enddo
-        endif
+        call set_solar_source()
+        if(allocated(atm%planck) ) call set_thermal_source()
 
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients ...done'
 
@@ -1190,12 +1018,151 @@ subroutine setup_b(edir,b)
 
         call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly done'
-end subroutine
+      contains
+        subroutine set_thermal_source()
+            PetscReal :: Ax,Ay,Az,c1,c2,c3,b0,b1,dtau
+
+            if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms'
+            Az = atm%dx*atm%dy
+
+            do k=C_diff%zs,C_diff%ze-1 
+              Ax = atm%dy*atm%dz(k)
+              Ay = atm%dx*atm%dz(k)
+
+              if( atm%l1d(k) ) then
+
+                do j=C_diff%ys,C_diff%ye         
+                  do i=C_diff%xs,C_diff%xe    
+
+                    if(luse_eddington ) then
+                      !see libradtran rodents
+                      dtau = atm%dz(k) * ( atm%op(i,j,k)%kabs + atm%op(i,j,k)%ksca)
+                      if( dtau.gt.0.01_ireals ) then
+                        b0 = atm%planck(i,j,k)
+                        b1 = ( atm%planck(i,j,k)-atm%planck(i,j,k+1) ) / dtau
+                      else
+                        b0 = .5_ireals*(atm%planck(i,j,k)+atm%planck(i,j,k+1))
+                        b1 = zero
+                      endif
+                      c1 = atm%g1(i,j,k) * (b0 + b1*dtau)
+                      c2 = atm%g2(i,j,k) * b1
+                      c3 = atm%g1(i,j,k) * b0
+                    else
+                      stop 'boxmc coeff for thermal emission not supported at the moment'
+                    endif
+                    xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   + ( - atm%a11(i,j,k)*(c1+c2) - atm%a12(i,j,k)*(c3-c2) + c2 + c3 )*Az*pi
+                    xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) + ( - atm%a12(i,j,k)*(c1+c2) - atm%a11(i,j,k)*(c3-c2) + c1 - c2 )*Az*pi
+
+                  enddo
+                enddo
+
+              else ! Tenstream source terms
+
+                do j=C_diff%ys,C_diff%ye         
+                  do i=C_diff%xs,C_diff%xe    
+                    call get_coeff(atm%delta_op(i,j,k), atm%dz(k),.False., diff2diff, atm%l1d(k) )
+                    b0 = .5_ireals*(atm%planck(i,j,k)+atm%planck(i,j,k+i1)) *pi
+                    xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  b0  *(one-sum( diff2diff( E_up  *C_diff%dof+i1 : E_up  *C_diff%dof+C_diff%dof ))) *Az
+                    xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  b0  *(one-sum( diff2diff( E_dn  *C_diff%dof+i1 : E_dn  *C_diff%dof+C_diff%dof ))) *Az
+                    xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  b0  *(one-sum( diff2diff( E_le_m*C_diff%dof+i1 : E_le_m*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
+                    xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  b0  *(one-sum( diff2diff( E_le_p*C_diff%dof+i1 : E_le_p*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
+                    xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  b0  *(one-sum( diff2diff( E_ri_m*C_diff%dof+i1 : E_ri_m*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
+                    xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  b0  *(one-sum( diff2diff( E_ri_p*C_diff%dof+i1 : E_ri_p*C_diff%dof+C_diff%dof ))) *Ax*.5_ireals
+                    xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  b0  *(one-sum( diff2diff( E_ba_m*C_diff%dof+i1 : E_ba_m*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
+                    xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  b0  *(one-sum( diff2diff( E_ba_p*C_diff%dof+i1 : E_ba_p*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
+                    xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  b0  *(one-sum( diff2diff( E_fw_m*C_diff%dof+i1 : E_fw_m*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
+                    xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  b0  *(one-sum( diff2diff( E_fw_p*C_diff%dof+i1 : E_fw_p*C_diff%dof+C_diff%dof ))) *Ay*.5_ireals
+                  enddo
+                enddo
+
+              endif ! 1D or Tenstream?
+            enddo ! k
+
+            ! Thermal emission at surface
+            do j=C_diff%ys,C_diff%ye         
+              do i=C_diff%xs,C_diff%xe    
+                xsrc(E_up   ,i,j,k) = xsrc(E_up   ,i,j,k) + atm%planck(i,j,k)*Az *(one-atm%albedo)*pi
+              enddo
+            enddo
+        end subroutine
+        subroutine set_solar_source()
+            if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source'
+            do k=C_diff%zs,C_diff%ze-1 
+
+              if( atm%l1d(k) ) then
+                do j=C_diff%ys,C_diff%ye         
+                  do i=C_diff%xs,C_diff%xe    
+
+                    if( any (xedir(:,i,j,k) .gt. zero) ) then
+                      dir2diff = zero
+                      if(luse_eddington ) then
+                        ! Only transport the 4 tiles from dir0 to the Eup and Edn
+                        do src=1,4
+                          dir2diff(E_up  +i1+(src-1)*C_diff%dof) = atm%a13(i,j,k)
+                          dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = atm%a23(i,j,k)
+                        enddo
+
+                      else
+                        call get_coeff(atm%delta_op(i,j,k), atm%dz(k),.False., twostr_coeff, atm%l1d(k), [sun%symmetry_phi, sun%theta])
+                        do src=1,4
+                          dir2diff(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
+                          dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
+                        enddo
+                      endif
+
+                      do src=1,C_dir%dof-4
+                        xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_up  +i1+(src-1)*C_diff%dof)
+                        xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*dir2diff(E_dn  +i1+(src-1)*C_diff%dof)
+                      enddo
+                    endif
+
+                  enddo
+                enddo
+
+              else ! Tenstream source terms
+
+                do j=C_diff%ys,C_diff%ye         
+                  do i=C_diff%xs,C_diff%xe    
+
+                    if( any (xedir(:,i,j,k) .gt. zero) ) then
+
+                      call get_coeff(atm%delta_op(i,j,k), atm%dz(k),.False., dir2diff,  atm%l1d(k), [sun%symmetry_phi, sun%theta] )
+
+                      do src=1,C_dir%dof
+                        xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_up  +i1+(src-1)*C_diff%dof) 
+                        xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  xedir(src-1,i,j,k)*dir2diff(E_dn  +i1+(src-1)*C_diff%dof) 
+                        xsrc(E_le_m ,i,j,k)   = xsrc(E_le_m ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_le_m+i1+(src-1)*C_diff%dof) 
+                        xsrc(E_le_p ,i,j,k)   = xsrc(E_le_p ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_le_p+i1+(src-1)*C_diff%dof) 
+                        xsrc(E_ri_m ,i+1,j,k) = xsrc(E_ri_m ,i+1,j,k) +  xedir(src-1,i,j,k)*dir2diff(E_ri_m+i1+(src-1)*C_diff%dof) 
+                        xsrc(E_ri_p ,i+1,j,k) = xsrc(E_ri_p ,i+1,j,k) +  xedir(src-1,i,j,k)*dir2diff(E_ri_p+i1+(src-1)*C_diff%dof) 
+                        xsrc(E_ba_m ,i,j,k)   = xsrc(E_ba_m ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_ba_m+i1+(src-1)*C_diff%dof) 
+                        xsrc(E_ba_p ,i,j,k)   = xsrc(E_ba_p ,i,j,k)   +  xedir(src-1,i,j,k)*dir2diff(E_ba_p+i1+(src-1)*C_diff%dof) 
+                        xsrc(E_fw_m ,i,j+1,k) = xsrc(E_fw_m ,i,j+1,k) +  xedir(src-1,i,j,k)*dir2diff(E_fw_m+i1+(src-1)*C_diff%dof) 
+                        xsrc(E_fw_p ,i,j+1,k) = xsrc(E_fw_p ,i,j+1,k) +  xedir(src-1,i,j,k)*dir2diff(E_fw_p+i1+(src-1)*C_diff%dof) 
+                      enddo
+
+                    endif
+
+                  enddo
+                enddo
+
+              endif ! 1D or Tenstream?
+            enddo
+
+            ! Ground Albedo reflecting direct radiation, the diffuse part is considered by the solver(Matrix)
+            k = C_diff%ze
+            do j=C_diff%ys,C_diff%ye     
+              do i=C_diff%xs,C_diff%xe     
+                xsrc(E_up   ,i,j,k) = sum(xedir(i0:i3,i,j,k))*atm%albedo
+              enddo
+            enddo
+        end subroutine
+    end subroutine
 
 subroutine calc_flx_div(edir,ediff,abso)
         Vec :: edir,ediff,abso
         PetscReal,pointer,dimension(:,:,:,:) :: xediff,xedir,xabso
-        PetscInt :: i,j,k,li,lj,lk
+        PetscInt :: i,j,k!d,li,lj,lk
         Vec :: ledir,lediff ! local copies of vectors, including ghosts
         PetscReal :: div2(13)
         PetscReal :: Volume
@@ -1226,15 +1193,11 @@ subroutine calc_flx_div(edir,ediff,abso)
         call DMDAVecGetArrayF90(C_one%da ,abso ,xabso ,ierr)  ; CHKERRQ(ierr)
 
         do k=C_one%zs,C_one%ze
-          lk = i1+k-C_one%zs
-          Volume = atm%dx * atm%dy * atm%dz(lk)
+          Volume = atm%dx * atm%dy * atm%dz(k)
 
-          if(atm%l1d(lk)) then ! one dimensional i.e. twostream
+          if(atm%l1d(k)) then ! one dimensional i.e. twostream
             do j=C_one%ys,C_one%ye         
-              lj = jstartpar+j-C_one%ys 
-
               do i=C_one%xs,C_one%xe      
-                li = istartpar+i-C_one%xs 
 
                 div2 = zero
                 ! Divergence    =                       Incoming                -       Outgoing
@@ -1263,10 +1226,7 @@ subroutine calc_flx_div(edir,ediff,abso)
           else
 
             do j=C_one%ys,C_one%ye         
-              lj = jstartpar+j-C_one%ys 
-
               do i=C_one%xs,C_one%xe      
-                li = istartpar+i-C_one%xs 
 
                 div2 = zero
 
@@ -1436,8 +1396,6 @@ subroutine twostream(edirTOA)
     real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
     real(ireals) :: mu0,Az,incSolar
 
-    integer(iintegers) :: li,lj
-
     call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
     Az = atm%dx*atm%dy
 
@@ -1462,15 +1420,12 @@ subroutine twostream(edirTOA)
     if(myid.eq.0) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM',edirTOA* sun%costheta
 
     do j=C_dir%ys,C_dir%ye         
-        lj = jstartpar+j-C_dir%ys 
-
         do i=C_dir%xs,C_dir%xe
-          li = istartpar+i-C_dir%xs 
 
-          kext = atm%op(li,lj,:)%kabs + atm%op(li,lj,:)%ksca
+          kext = atm%op(i,j,:)%kabs + atm%op(i,j,:)%ksca
           dtau = atm%dz * kext
-          w0   = atm%op(li,lj,:)%ksca / kext
-          g    = atm%op(li,lj,:)%g
+          w0   = atm%op(i,j,:)%ksca / kext
+          g    = atm%op(i,j,:)%g
 
           call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo, S,Edn,Eup)
 
@@ -1497,7 +1452,7 @@ subroutine scale_flx(v,C)
         Vec :: v
         type(t_coord) :: C
         PetscReal,pointer,dimension(:,:,:,:) :: xv
-        PetscInt :: i,j,k,li,lj,lk
+        PetscInt :: i,j,k!d,li,lj,lk
         PetscReal :: Ax,Ay,Az
 
         if(myid.eq.0.and.ldebug) print *,'rescaling fluxes'
@@ -1507,15 +1462,11 @@ subroutine scale_flx(v,C)
         Az = atm%dx*atm%dy
 
         do k=C%zs,C%ze-i1
-          lk = i1+k-C%zs
-          Ax = atm%dy*atm%dz(lk)
-          Ay = atm%dx*atm%dz(lk)
+          Ax = atm%dy*atm%dz(k)
+          Ay = atm%dx*atm%dz(k)
 
           do j=C%ys,C%ye         
-            lj = jstartpar+j-C%ys 
-
             do i=C%xs,C%xe      
-              li = istartpar+i-C%xs 
 
               if(C%dof.eq.i8) then ! This is 8 stream direct radiation
                 xv(i0:i3,i,j,k) = xv(i0:i3,i,j,k) / ( Az*.25 ) !*costheta0
@@ -1541,10 +1492,7 @@ subroutine scale_flx(v,C)
 
         k=C%ze
         do j=C%ys,C%ye         
-          lj = jstartpar+j-C_diff%ys 
-
           do i=C%xs,C%xe      
-            li = istartpar+i-C_diff%xs 
 
             if(C%dof.eq.i8) then ! This is 8 stream direct radiation
               xv (i0:i3 ,i,j,k) = xv (i0:i3 ,i,j,k) / ( Az*.25 ) !*costheta0
@@ -1601,10 +1549,11 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy,hhl ,phi0,theta0,albedo)
     atm%dy  = dy
     atm%albedo = albedo
 
-    allocate(atm%dz(size(hhl)-1))
+
+    allocate(atm%dz( 0 : (size(hhl)-1) -1 ))
     atm%dz = hhl( 1:size(hhl)-1 ) - hhl( 2:size(hhl) ) 
 
-    allocate(atm%l1d( size(atm%dz) ) )
+    allocate(atm%l1d( 0 : size(atm%dz)-1 ) )
     where( twostr_ratio*atm%dz.gt.atm%dx ) 
       atm%l1d = .True.
     else where
@@ -1643,9 +1592,9 @@ end subroutine
         if(present(global_planck)) call extend_arr(global_planck)
       endif
 
-      if(.not.allocated(atm%op) )       allocate( atm%op       (C_one%xm, C_one%ym, C_one%zm) )
-      if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%xm, C_one%ym, C_one%zm) )
-      if(lhave_planck .and. .not.allocated(atm%planck) ) allocate( atm%planck (C_one1%xm, C_one1%ym, C_one1%zm) )
+      if(.not.allocated(atm%op) )                        allocate( atm%op       (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+      if(.not.allocated(atm%delta_op) )                  allocate( atm%delta_op (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+      if(lhave_planck .and. .not.allocated(atm%planck) ) allocate( atm%planck   (C_one1%xs:C_one1%xe, C_one1%ys:C_one1%ye , C_one1%zs:C_one1%ze) )
 
       ! Scatter global optical properties to MPI nodes
       call local_optprop()
@@ -1655,20 +1604,20 @@ end subroutine
       call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
 
       if(luse_eddington) then
-        if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xm, C_one%ym, C_one%zm )) ! allocate space for twostream coefficients
-        if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xm, C_one%ym, C_one%zm )) 
-        if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%xm, C_one%ym, C_one%zm )) 
-        if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%xm, C_one%ym, C_one%zm )) 
-        if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one%xm, C_one%ym, C_one%zm )) 
-        if(.not.allocated(atm%g1 ) ) allocate(atm%g1  (C_one%xm, C_one%ym, C_one%zm )) 
-        if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one%xm, C_one%ym, C_one%zm )) 
+        if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) ! allocate space for twostream coefficients
+        if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+        if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+        if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+        if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+        if(.not.allocated(atm%g1 ) ) allocate(atm%g1  (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+        if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
       endif
         
       if(luse_eddington) then
-        do k=1,size(atm%dz)
+        do k=lbound(atm%op,3),ubound(atm%op,3)
           if( atm%l1d(k) ) then
-            do j=1,ubound(atm%op,2)
-              do i=1,ubound(atm%op,1)
+            do j=lbound(atm%op,2),ubound(atm%op,2)
+              do i=lbound(atm%op,1),ubound(atm%op,1)
                 kext = atm%delta_op(i,j,k)%kabs + atm%delta_op(i,j,k)%ksca
                 w0   = atm%delta_op(i,j,k)%ksca / kext
                 tau  = atm%dz(k)* kext
@@ -1689,7 +1638,7 @@ end subroutine
       endif
 
       if(myid.eq.0) then
-        do k=1,ubound(atm%op,3)
+        do k=lbound(atm%op,3),ubound(atm%op,3)
           if(lhave_planck) then
             print *,myid,'Optical Properties:',k,'dz',atm%dz(k),atm%l1d(k),'k',minval(atm%op(:,:,k)%kabs),minval(atm%op(:,:,k)%ksca),minval(atm%op(:,:,k)%g),maxval(atm%op(:,:,k)%kabs),maxval(atm%op(:,:,k)%ksca),maxval(atm%op(:,:,k)%g),'::',minval(atm%planck(:,:,k)),maxval(atm%planck(:,:,k))
           else    
@@ -1812,7 +1761,7 @@ end subroutine
             endif
 
             ! ---------------------------- Edir  -------------------
-            if(edirTOA.gt.zero) then
+            if(edirTOA.gt.zero .and. sun%theta.gt.zero) then
               call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
               call setup_incSolar(incSolar,edirTOA)
               call set_dir_coeff(Mdir,C_dir)

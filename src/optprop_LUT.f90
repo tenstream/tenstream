@@ -95,11 +95,12 @@ contains
 
       character(len=300) :: descr
       integer(iintegers) :: idx,idy
+      integer(iintegers),parameter :: horiz_rounding=1 ! round LUT for various horizontal distances: e.g. horiz_rounding=10 -> dx=66.7 ==> dx=70
 
       call MPI_Comm_rank(comm, myid, ierr)
       call MPI_Comm_size(comm, comm_size, ierr)
-      idx = nint( dx/10  ) * 10
-      idy = nint( dy/10  ) * 10
+      idx = nint( dx/horiz_rounding  ) * horiz_rounding
+      idy = nint( dy/horiz_rounding  ) * horiz_rounding
 
       select type (OPP)
         class is (t_optprop_LUT_1_2)
@@ -181,7 +182,7 @@ subroutine loadLUT_diff(OPP, comm)
     if(myid.eq.0) then
       ! Load LUT's from file
       call h5load(OPP%diffLUT%S%table_name_c ,OPP%diffLUT%S%c,iierr) ; errcnt = errcnt+iierr
-      call h5load(OPP%diffLUT%B%table_name_c ,OPP%diffLUT%B%c,iierr) ; errcnt = errcnt+iierr
+!      call h5load(OPP%diffLUT%B%table_name_c ,OPP%diffLUT%B%c,iierr) ; errcnt = errcnt+iierr
 
       ! check if all coefficients are in range between 0 and 1 and if we
       ! actually hold a lookuptable for the here specified parameter ranges.
@@ -189,9 +190,9 @@ subroutine loadLUT_diff(OPP, comm)
         if( any(OPP%diffLUT%S%c.gt.one) .or. any(OPP%diffLUT%S%c.lt.zero) ) errcnt=3
         call check_diffLUT_matches_pspace(OPP%diffLUT)
       endif
-      if(allocated(OPP%diffLUT%B%c) ) then
-        if( any(OPP%diffLUT%B%c.gt.one) .or. any(OPP%diffLUT%B%c.lt.zero) ) errcnt=errcnt+5
-      endif
+!      if(allocated(OPP%diffLUT%B%c) ) then
+!        if( any(OPP%diffLUT%B%c.gt.one) .or. any(OPP%diffLUT%B%c.lt.zero) ) errcnt=errcnt+5
+!      endif
 
       lstddev_inbounds=.False.
       call h5load(OPP%diffLUT%S%table_name_tol, OPP%diffLUT%S%stddev_tol,iierr) ; errcnt = errcnt+iierr
