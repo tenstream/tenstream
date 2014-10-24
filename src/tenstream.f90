@@ -1079,6 +1079,7 @@ subroutine setup_b(edir,b)
             enddo ! k
 
             ! Thermal emission at surface
+            k = C_diff%ze
             do j=C_diff%ys,C_diff%ye         
               do i=C_diff%xs,C_diff%xe    
                 xsrc(E_up   ,i,j,k) = xsrc(E_up   ,i,j,k) + atm%planck(i,j,k)*Az *(one-atm%albedo)*pi
@@ -1404,8 +1405,13 @@ subroutine twostream(edirTOA)
     allocate(   w0(C_dir%zm-1) )
     allocate(    g(C_dir%zm-1) )
 
-    mu0 = sun%costheta
-    incSolar = edirTOA* Az * sun%costheta
+    if(sun%theta.le.zero) then
+      mu0=zero
+      incSolar=zero
+    else
+      mu0 = sun%costheta
+      incSolar = edirTOA* Az * sun%costheta
+    endif
 
     call VecSet(edir_twostr ,zero,ierr); CHKERRQ(ierr)
     call VecSet(ediff_twostr,zero,ierr); CHKERRQ(ierr)
@@ -1417,7 +1423,7 @@ subroutine twostream(edirTOA)
     allocate( Eup(C_diff%zm) )
     allocate( Edn(C_diff%zm) )
 
-    if(myid.eq.0) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM',edirTOA* sun%costheta
+    if(myid.eq.0) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM',incSolar/Az
 
     do j=C_dir%ys,C_dir%ye         
         do i=C_dir%xs,C_dir%xe
@@ -1427,7 +1433,11 @@ subroutine twostream(edirTOA)
           w0   = atm%op(i,j,:)%ksca / kext
           g    = atm%op(i,j,:)%g
 
-          call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo, S,Edn,Eup)
+          if(allocated(atm%planck) ) then
+            call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo, S,Edn,Eup, planck=atm%planck(i,j,:)*Az )
+          else
+            call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo, S,Edn,Eup )
+          endif
 
           do src=i0,i3
             xv_dir(src,i,j,:) = .25_ireals * S(:)
@@ -1560,8 +1570,7 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy,hhl ,phi0,theta0,albedo)
       atm%l1d = .False.
     end where
 
-    call setup_grid( max(minimal_dimension, Nx), &
-        max(minimal_dimension, Ny), Nz)
+    call setup_grid( max(minimal_dimension, Nx), max(minimal_dimension, Ny), Nz)
 
     ! init boxmc
     if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm)
@@ -1743,6 +1752,59 @@ end subroutine
           end subroutine
     end subroutine
 
+    subroutine set_diff_initial_guess(inp,guess,C)
+        ! Deprecated -- this is probably not helping convergence....
+        Vec :: inp,guess
+        type(t_coord) :: C
+
+        Vec :: local_guess
+        PetscScalar,pointer,dimension(:,:,:,:) :: xinp,xguess
+        PetscReal :: diff2diff(C_diff%dof**2)!, dir2diff(C_dir%dof*C_diff%dof)
+        PetscInt :: i,j,k,src
+
+        if(myid.eq.0.and.ldebug) print *,'setting initial guess...'
+        call DMCreateLocalVector(C%da,local_guess,ierr) ;CHKERRQ(ierr)
+        call VecSet(local_guess,zero,ierr) ;CHKERRQ(ierr)
+
+        call DMDAVecGetArrayF90(C%da,inp,  xinp,  ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C%da,local_guess,xguess,ierr) ;CHKERRQ(ierr)
+
+        do k=C%zs,C%ze-1 
+          if( .not. atm%l1d(k) ) then
+              do j=C%ys,C%ye         
+                do i=C%xs,C%xe    
+                  call get_coeff(atm%delta_op(i,j,k), atm%dz(k),.False., diff2diff, atm%l1d(k) )
+!                  print *,'xinp before',xinp(:,i,j,k)
+!                  print *,'xguess before',xguess(:,i,j,k)
+                  do src=1,C%dof
+                    xguess(E_up   ,i,j,k)   = xguess(E_up   ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_up  +i1+(src-1)*C%dof) 
+                    xguess(E_dn   ,i,j,k+1) = xguess(E_dn   ,i,j,k+1) +  xinp(src-1,i,j,k)*diff2diff(E_dn  +i1+(src-1)*C%dof) 
+                    xguess(E_le_m ,i,j,k)   = xguess(E_le_m ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_le_m+i1+(src-1)*C%dof) 
+                    xguess(E_le_p ,i,j,k)   = xguess(E_le_p ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_le_p+i1+(src-1)*C%dof) 
+                    xguess(E_ri_m ,i+1,j,k) = xguess(E_ri_m ,i+1,j,k) +  xinp(src-1,i,j,k)*diff2diff(E_ri_m+i1+(src-1)*C%dof) 
+                    xguess(E_ri_p ,i+1,j,k) = xguess(E_ri_p ,i+1,j,k) +  xinp(src-1,i,j,k)*diff2diff(E_ri_p+i1+(src-1)*C%dof) 
+                    xguess(E_ba_m ,i,j,k)   = xguess(E_ba_m ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_ba_m+i1+(src-1)*C%dof) 
+                    xguess(E_ba_p ,i,j,k)   = xguess(E_ba_p ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_ba_p+i1+(src-1)*C%dof) 
+                    xguess(E_fw_m ,i,j+1,k) = xguess(E_fw_m ,i,j+1,k) +  xinp(src-1,i,j,k)*diff2diff(E_fw_m+i1+(src-1)*C%dof) 
+                    xguess(E_fw_p ,i,j+1,k) = xguess(E_fw_p ,i,j+1,k) +  xinp(src-1,i,j,k)*diff2diff(E_fw_p+i1+(src-1)*C%dof) 
+                  enddo
+!                  print *,'xguess after',xguess(:,i,j,k)
+                enddo
+              enddo
+          endif
+        enddo
+
+        call DMDAVecRestoreArrayF90(C%da,local_guess,xguess,ierr) ;CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C%da,inp,xinp,ierr) ;CHKERRQ(ierr)
+
+        call VecSet(guess,zero,ierr) ;CHKERRQ(ierr) ! reset global Vec
+
+        call DMLocalToGlobalBegin(C%da,local_guess,ADD_VALUES, guess,ierr) ;CHKERRQ(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
+        call DMLocalToGlobalEnd  (C%da,local_guess,ADD_VALUES, guess,ierr) ;CHKERRQ(ierr)
+
+        call VecDestroy(local_guess,ierr) ;CHKERRQ(ierr)
+    end subroutine
+
     subroutine solve_tenstream(edirTOA)
         real(ireals),intent(in) :: edirTOA
 
@@ -1756,12 +1818,14 @@ end subroutine
               if(luse_twostr_guess) then
                 call VecCopy(edir_twostr  ,edir ,ierr) ;CHKERRQ(ierr)
                 call VecCopy(ediff_twostr ,ediff,ierr) ;CHKERRQ(ierr)
+!                call set_diff_initial_guess(ediff_twostr, ediff, C_diff)
               endif
+              
               if(myid.eq.0) print *,'twostream calculation done'
             endif
 
             ! ---------------------------- Edir  -------------------
-            if(edirTOA.gt.zero .and. sun%theta.gt.zero) then
+            if(edirTOA.gt.zero .and. sun%theta.ge.zero) then
               call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
               call setup_incSolar(incSolar,edirTOA)
               call set_dir_coeff(Mdir,C_dir)

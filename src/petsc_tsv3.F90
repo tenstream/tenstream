@@ -96,10 +96,10 @@ subroutine vec_to_hdf5(v)
       if(myid.eq.0 ) print *,myid,'writing to hdf5 file done'
 end subroutine
 
-  subroutine load_optprop(kato,iq,kabs,ksca,g,hhl)
+  subroutine load_optprop(kato,iq,kabs,ksca,g,hhl,planck)
       integer(iintegers),intent(in) :: kato,iq
       real(ireals),allocatable,dimension(:) :: hhl
-      real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
+      real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,planck
 
 !      character(300) :: skato,siq
       character(300),parameter :: uvspec_file='/usr/users/jakub/cosmodata/tenstream/scenes/scenes.h5'
@@ -110,6 +110,9 @@ end subroutine
       if(allocated(ksca) ) deallocate(ksca)
       if(allocated(g   ) ) deallocate(g   )
       if(allocated(hhl ) ) deallocate(hhl )
+
+      if(allocated(planck))deallocate(planck)
+
 
       ! run test if we dont know which ident to run
       if(ident.eq.'run_test') then
@@ -150,6 +153,15 @@ end subroutine
           call exit()
         endif
 
+      endif
+
+      if(options_theta.lt.zero) then 
+        !TODO this is just for debug purposes... we
+        !     do not maintain the calculation of planck emission for ident test
+        !     cases.... if you want to calc thermal heating rates, please use the
+        !     tenstream solver in libRadtran.
+        allocate(planck(ubound(kabs,1),ubound(kabs,2),ubound(hhl,1) ))
+        planck = 100
       endif
 
       call imp_bcast(hhl ,0_mpiint,myid)
@@ -283,7 +295,7 @@ program main
         integer(iintegers) :: kato
         integer(iintegers) :: dims(3)
 
-        real(ireals),allocatable,dimension(:,:,:) :: global_kabs,global_ksca,global_g
+        real(ireals),allocatable,dimension(:,:,:) :: global_kabs,global_ksca,global_g, global_planck
         real(ireals),allocatable :: hhl(:)
         real(ireals),parameter :: albedo = 0.05
 
@@ -293,7 +305,7 @@ program main
         call init_mpi_data_parameters(PETSC_COMM_WORLD)
         call read_commandline_options()
 
-        call load_optprop(1_iintegers,0_iintegers, global_kabs,global_ksca,global_g, hhl)
+        call load_optprop(1_iintegers,0_iintegers, global_kabs,global_ksca,global_g, hhl, global_planck)
 
         dims = shape(global_kabs)
         call init_tenstream(imp_comm, dims(1),dims(2),dims(3), ident_dx, ident_dy, hhl ,options_phi,options_theta,albedo)
@@ -305,8 +317,12 @@ program main
             if(myid.eq.0) print *,'-------------------------- Calculate ',trim(ident),' sza',options_theta,' kato',kato,'iq',iq
             if(myid.eq.0) print *,'-----------------------------------------------------------------------------------------------------------------------------'
 
-            call load_optprop(kato,iq, global_kabs,global_ksca,global_g, hhl)
-            call set_optical_properties(global_kabs, global_ksca, global_g)
+            call load_optprop(kato,iq, global_kabs,global_ksca,global_g, hhl, global_planck)
+            if(allocated(global_planck)) then
+              call set_optical_properties(global_kabs, global_ksca, global_g, global_planck)
+            else
+              call set_optical_properties(global_kabs, global_ksca, global_g)
+            endif
 
             call solve_tenstream( get_edirTOA(kato,iq,hhl(1)) )
 

@@ -1,5 +1,5 @@
 module m_twostream
-      use m_data_parameters, only: ireals,iintegers,zero,one
+      use m_data_parameters, only: ireals,iintegers,zero,one,pi
       use m_eddington, only: eddington_coeff_fab
       use m_helper_functions, only : delta_scale_optprop
       implicit none
@@ -9,10 +9,11 @@ module m_twostream
 
     contains
 
-      subroutine delta_eddington_twostream(dtau_in,w0_in,g_in,mu0,incSolar,albedo, S,Edn,Eup)
+      subroutine delta_eddington_twostream(dtau_in,w0_in,g_in,mu0,incSolar,albedo, S,Edn,Eup, planck)
         real(ireals),intent(in),dimension(:) :: dtau_in,w0_in,g_in
         real(ireals),intent(in) :: albedo,mu0,incSolar
         real(ireals),dimension(size(dtau_in)+1),intent(out):: S,Edn,Eup 
+        real(ireals),dimension(size(dtau_in)+1),intent(in),optional :: planck
 
         real(ireals),dimension(size(dtau_in)) :: dtau,w0,g
         real(ireals),dimension(size(dtau_in)) :: a11,a12,a13,a23,a33,g1,g2
@@ -23,6 +24,8 @@ module m_twostream
         real(ireals),allocatable :: B (:,:)
         integer,allocatable :: IPIV(:)
         integer :: N, KLU,  KL, KU, NRHS, LDAB, LDB, INFO
+
+        real(ireals) :: b0,b1,c1,c2,c3 !thermal coeffs
 
         ke = size(dtau)
         ke1 = ke+1
@@ -56,13 +59,33 @@ module m_twostream
         B    = zero
         IPIV = 0
 
-        ! Setup src vector
+        ! Setup solar src vector
         do k=1,ke
           B(2*k-1,1) = S(k) * a13(k) ! Eup 
           B(2*k+2,1) = S(k) * a23(k) ! Edn 
         enddo
         B(2,1) = zero ! no Edn at TOA
         B(2*ke1-1,1) = S(ke1) * albedo 
+
+        ! Setup thermal src vector
+        if(present(planck) ) then
+          do k=1,ke
+            if( dtau(k).gt.0.01_ireals ) then
+              b0 = planck(k)
+              b1 = ( planck(k)-planck(k+1) ) / dtau(k)
+            else
+              b0 = .5_ireals*(planck(k)+planck(k+1))
+              b1 = zero
+            endif
+            c1 = g1(k) * (b0 + b1*dtau(k))
+            c2 = g2(k) * b1
+            c3 = g1(k) * b0
+            B(2*k-1,1) = B(2*k-1,1) + ( - a11(k)*(c1+c2) - a12(k)*(c3-c2) + c2 + c3 )*pi 
+            B(2*k+2,1) = B(2*k+2,1) + ( - a12(k)*(c1+c2) - a11(k)*(c3-c2) + c1 - c2 )*pi 
+          enddo
+          ! B(2,1) = B(2,1) + zero ! no Edn at TOA
+          B(2*ke1-1,1) = B(2*ke1-1,1) + planck(ke1)*(one-albedo)*pi 
+        endif
 
         !diagonal entries
         do i=1,N
