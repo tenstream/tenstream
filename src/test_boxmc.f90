@@ -30,7 +30,7 @@ program main
       phi0 = 0.
       theta0=0.
 
-      dx=70
+      dx=7000
       dy=dx
       dz=40
 
@@ -50,16 +50,31 @@ program main
         if(myid.eq.0) write(*, FMT='( " diffuse emission :: ",2(es10.3),"  :: ",2(es10.3) )' ) S(1:2),one-S(1:2)
 
         call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,-1,S,T,.False.,phi0,theta0,dx,dy,dz)
-        if(myid.eq.0) write(*, FMT='( " diffuse emission ::  :: ",10(es10.3)," :: ",10(es10.3)  )' ) S,one-S
-        print *,'sum S)',sum(S)
-
+        if(myid.eq.0) write(*, FMT='( " diffuse emission(-1)::  :: ",10(es10.3)," :: ",10(es10.3)  )' ) S,one-S
+        print *,''
+        print *,'sum S:',sum(S)
         if(myid.eq.0) write(*, FMT='( " hohlraum ::  :: ",10(es10.3)," :: ",10(es10.3)  )' ) 2*(dx*dy+dy*dz+dz*dx) * (one-S)
+        print *,''
+
         do src=1,10
           call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.False.,phi0,theta0,dx,dy,dz)
           if(myid.eq.0) write(*, FMT='( " diffuse emission :: ",10(es10.3)," :: ",es10.3  )' ) S,one-sum(S)
         enddo
-        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(55._ireals*3.1416_ireals/180._ireals ) )
-        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau):  ",   es10.3   )' ) one-exp(-bg(1)*dz )
+
+        print *,''
+
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau)/mu( 0):  ",   es10.3   )' ) one-exp(-bg(1)*dz )
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau)/mu(05):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(deg2rad(05._ireals) ) )
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau)/mu(15):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(deg2rad(15._ireals) ) )
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau)/mu(25):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(deg2rad(25._ireals) ) )
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau)/mu(35):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(deg2rad(35._ireals) ) )
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau)/mu(45):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(deg2rad(45._ireals) ) )
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau)/mu(55):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(deg2rad(55._ireals) ) )
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau)/mu(65):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(deg2rad(65._ireals) ) )
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau)/mu(75):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(deg2rad(75._ireals) ) )
+        if(myid.eq.0) write(*, FMT='( " diffuse 1-exp(tau)/mu(85):  ",   es10.3   )' ) one-exp(-bg(1)*dz / cos(deg2rad(85._ireals) ) )
+
+        print *,''
 
         tau = (bg(1)+bg(2))*dz
         w   = bg(2)/(bg(1)+bg(2))
