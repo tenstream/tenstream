@@ -8,7 +8,7 @@ module m_petsc_ts
       use m_kato_data
       use m_helper_functions, only : imp_bcast
 
-      use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream, &
+      use m_tenstream, only : init_tenstream, set_global_optical_properties, solve_tenstream, destroy_tenstream, &
                             b,edir,ediff,abso, &
                             edir_twostr,ediff_twostr,abso_twostr
 
@@ -319,9 +319,9 @@ program main
 
             call load_optprop(kato,iq, global_kabs,global_ksca,global_g, hhl, global_planck)
             if(allocated(global_planck)) then
-              call set_optical_properties(global_kabs, global_ksca, global_g, global_planck)
+              call set_global_optical_properties(global_kabs, global_ksca, global_g, global_planck)
             else
-              call set_optical_properties(global_kabs, global_ksca, global_g)
+              call set_global_optical_properties(global_kabs, global_ksca, global_g)
             endif
 
             call solve_tenstream( get_edirTOA(kato,iq,hhl(1)) )

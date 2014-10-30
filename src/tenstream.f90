@@ -15,7 +15,7 @@ module m_tenstream
 #include "finclude/petsc.h90"
 
       private
-      public :: init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
+      public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
                 b,edir,ediff,abso,&
                 edir_twostr,ediff_twostr,abso_twostr, &
                 t_coord,C_dir,C_diff,C_one
@@ -265,6 +265,10 @@ module m_tenstream
             enddo 
           enddo 
         enddo
+
+        call MatAssemblyBegin(A,MAT_FLUSH_ASSEMBLY,ierr) ;CHKERRQ(ierr)
+        call MatAssemblyEnd  (A,MAT_FLUSH_ASSEMBLY,ierr) ;CHKERRQ(ierr)  
+
         if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally ... done'
       end subroutine
       subroutine setup_diff_preallocation(d_nnz,o_nnz,C)
@@ -1584,11 +1588,11 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy,hhl ,phi0,theta0,albedo)
     call setup_logging()
 end subroutine
 
-    subroutine set_optical_properties(global_kabs, global_ksca, global_g, global_planck)
+    subroutine set_global_optical_properties(global_kabs, global_ksca, global_g, global_planck)
       real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_kabs, global_ksca, global_g
       real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_planck
-      real(ireals) :: tau,kext,w0,g
-      integer(iintegers) :: i,j,k
+      real(ireals),dimension(:,:,:),allocatable :: local_kabs, local_ksca, local_g
+      real(ireals),dimension(:,:,:),allocatable :: local_planck
       logical :: lhave_planck
 
       lhave_planck = present(global_planck); call imp_bcast( lhave_planck, 0_mpiint, myid )
@@ -1601,84 +1605,38 @@ end subroutine
         if(present(global_planck)) call extend_arr(global_planck)
       endif
 
-      if(.not.allocated(atm%op) )                        allocate( atm%op       (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
-      if(.not.allocated(atm%delta_op) )                  allocate( atm%delta_op (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
-      if(lhave_planck .and. .not.allocated(atm%planck) ) allocate( atm%planck   (C_one1%xs:C_one1%xe, C_one1%ys:C_one1%ye , C_one1%zs:C_one1%ze) )
+      if(present(global_kabs) ) allocate( local_kabs (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+      if(present(global_ksca) ) allocate( local_ksca (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+      if(present(global_g   ) ) allocate( local_g    (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+      if(lhave_planck .and. present(global_planck) ) allocate( local_planck   (C_one1%xs:C_one1%xe, C_one1%ys:C_one1%ye , C_one1%zs:C_one1%ze) )
 
       ! Scatter global optical properties to MPI nodes
       call local_optprop()
-      ! Now atm%op(:,:,:)%k... is populated.
+      ! Now global_fields are local to mpi subdomain.
 
-      atm%delta_op = atm%op
-      call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
-
-      if(luse_eddington) then
-        if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) ! allocate space for twostream coefficients
-        if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-        if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-        if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-        if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-        if(.not.allocated(atm%g1 ) ) allocate(atm%g1  (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-        if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-      endif
-        
-      if(luse_eddington) then
-        do k=lbound(atm%op,3),ubound(atm%op,3)
-          if( atm%l1d(k) ) then
-            do j=lbound(atm%op,2),ubound(atm%op,2)
-              do i=lbound(atm%op,1),ubound(atm%op,1)
-                kext = atm%delta_op(i,j,k)%kabs + atm%delta_op(i,j,k)%ksca
-                w0   = atm%delta_op(i,j,k)%ksca / kext
-                tau  = atm%dz(k)* kext
-                g    = atm%delta_op(i,j,k)%g 
-                call eddington_coeff_fab ( tau , w0, g, sun%costheta, & 
-                  atm%a11(i,j,k),          &
-                  atm%a12(i,j,k),          &
-                  atm%a13(i,j,k),          &
-                  atm%a23(i,j,k),          &
-                  atm%a33(i,j,k),          &
-                  atm%g1(i,j,k),           &
-                  atm%g2(i,j,k) )
-              enddo
-            enddo
-
-          endif
-        enddo
-      endif
-
-      if(myid.eq.0) then
-        do k=lbound(atm%op,3),ubound(atm%op,3)
-          if(lhave_planck) then
-            print *,myid,'Optical Properties:',k,'dz',atm%dz(k),atm%l1d(k),'k',minval(atm%op(:,:,k)%kabs),minval(atm%op(:,:,k)%ksca),minval(atm%op(:,:,k)%g),maxval(atm%op(:,:,k)%kabs),maxval(atm%op(:,:,k)%ksca),maxval(atm%op(:,:,k)%g),'::',minval(atm%planck(:,:,k)),maxval(atm%planck(:,:,k))
-          else    
-            print *,myid,'Optical Properties:',k,'dz',atm%dz(k),atm%l1d(k),'k',minval(atm%op(:,:,k)%kabs),minval(atm%op(:,:,k)%ksca),minval(atm%op(:,:,k)%g),maxval(atm%op(:,:,k)%kabs),maxval(atm%op(:,:,k)%ksca),maxval(atm%op(:,:,k)%g)
-          endif
-        enddo
-      endif
+      call set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
 
       contains
           subroutine local_optprop()
                 Vec :: local_vec
                 PetscReal,pointer,dimension(:,:,:,:) :: xlocal_vec
 
-                !TODO : this is very poorly done... we should not scatter the global optical properties to all nodes and then pick what is local, rather only copy local parts....
-
                 if(myid.eq.0.and.ldebug) print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
 
                 call DMCreateGlobalVector(C_one%da, local_vec, ierr) ; CHKERRQ(ierr)
                 call scatterZerotoDM(global_kabs,C_one,local_vec)
                 call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
-                atm%op(:,:,:)%kabs = xlocal_vec(0,:,:,:)
+                local_kabs = xlocal_vec(0,:,:,:)
                 call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
 
                 call scatterZerotoDM(global_ksca,C_one,local_vec)
                 call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
-                atm%op(:,:,:)%ksca = xlocal_vec(0,:,:,:)
+                local_ksca = xlocal_vec(0,:,:,:)
                 call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
 
                 call scatterZerotoDM(global_g,C_one,local_vec)
                 call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
-                atm%op(:,:,:)%g = xlocal_vec(0,:,:,:)
+                local_g = xlocal_vec(0,:,:,:)
                 call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
 
                 call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
@@ -1687,7 +1645,7 @@ end subroutine
                   call DMCreateGlobalVector(C_one1%da, local_vec, ierr) ; CHKERRQ(ierr)
                   call scatterZerotoDM(global_planck,C_one1,local_vec)
                   call DMDAVecGetArrayF90(C_one1%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
-                  atm%planck = xlocal_vec(0,:,:,:)
+                  local_planck = xlocal_vec(0,:,:,:)
                   call DMDAVecRestoreArrayF90(C_one1%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
                   call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
                 endif
@@ -1750,6 +1708,74 @@ end subroutine
                 endif
                 if(any(shape(arr).lt.minimal_dimension) ) stop 'set_optprop -> extend_arr :: dimension is smaller than we support... please think of something here'
           end subroutine
+    end subroutine
+
+    subroutine set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
+      real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: local_kabs, local_ksca, local_g
+      real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: local_planck
+      real(ireals) :: tau,kext,w0,g
+      integer(iintegers) :: i,j,k
+
+      if(.not.allocated(atm%op) )  allocate( atm%op       (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+      if(present(local_kabs) ) atm%op(:,:,:)%kabs = local_kabs
+      if(present(local_ksca) ) atm%op(:,:,:)%ksca = local_ksca
+      if(present(local_g   ) ) atm%op(:,:,:)%g    = local_g   
+
+      if(present(local_planck) .and. .not.allocated(atm%planck) ) allocate( atm%planck   (C_one1%xs:C_one1%xe, C_one1%ys:C_one1%ye , C_one1%zs:C_one1%ze) )
+
+      ! Make space for deltascaled optical properties
+      if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze), source=atm%op )
+      call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
+
+      if(luse_eddington) then
+        if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) ! allocate space for twostream coefficients
+        if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+        if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+        if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+        if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+        if(.not.allocated(atm%g1 ) ) allocate(atm%g1  (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+        if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+      endif
+        
+      if(luse_eddington) then
+        do k=lbound(atm%op,3),ubound(atm%op,3)
+          if( atm%l1d(k) ) then
+            do j=lbound(atm%op,2),ubound(atm%op,2)
+              do i=lbound(atm%op,1),ubound(atm%op,1)
+                kext = atm%delta_op(i,j,k)%kabs + atm%delta_op(i,j,k)%ksca
+                w0   = atm%delta_op(i,j,k)%ksca / kext
+                tau  = atm%dz(k)* kext
+                g    = atm%delta_op(i,j,k)%g 
+                call eddington_coeff_fab ( tau , w0, g, sun%costheta, & 
+                  atm%a11(i,j,k),          &
+                  atm%a12(i,j,k),          &
+                  atm%a13(i,j,k),          &
+                  atm%a23(i,j,k),          &
+                  atm%a33(i,j,k),          &
+                  atm%g1(i,j,k),           &
+                  atm%g2(i,j,k) )
+              enddo
+            enddo
+
+          endif
+        enddo
+      endif
+
+      if(myid.eq.0) then
+        do k=lbound(atm%op,3),ubound(atm%op,3)
+          if(present(local_planck)) then
+            print *,myid,'Optical Properties:',k,'dz',atm%dz(k),atm%l1d(k),'k',&
+                minval(atm%op(:,:,k)%kabs),minval(atm%op(:,:,k)%ksca),minval(atm%op(:,:,k)%g),&
+                maxval(atm%op(:,:,k)%kabs),maxval(atm%op(:,:,k)%ksca),maxval(atm%op(:,:,k)%g),&
+                '::',minval(atm%planck(:,:,k)),maxval(atm%planck(:,:,k))
+          else    
+            print *,myid,'Optical Properties:',k,'dz',atm%dz(k),atm%l1d(k),'k',&
+                minval(atm%op(:,:,k)%kabs),minval(atm%op(:,:,k)%ksca),minval(atm%op(:,:,k)%g),&
+                maxval(atm%op(:,:,k)%kabs),maxval(atm%op(:,:,k)%ksca),maxval(atm%op(:,:,k)%g)
+          endif
+        enddo
+      endif
+
     end subroutine
 
     subroutine set_diff_initial_guess(inp,guess,C)

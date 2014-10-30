@@ -4,7 +4,7 @@
 #include "petscsys.h" 
 
 void tenstr_f2c_init(int fcomm, int *Nx,int *Ny,int *Nz,double *dx,double *dy,float *hhl, float *phi0, float *theta0, float *albedo );
-void tenstr_f2c_set_optical_properties(int Nx,int Ny,int Nz, float *kabs, float *ksca, float *g, float *planck);
+void tenstr_f2c_set_global_optical_properties(int Nx,int Ny,int Nz, float *kabs, float *ksca, float *g, float *planck);
 void tenstr_f2c_solve(double edirTOA);
 void tenstr_f2c_destroy();
 void tenstr_f2c_get_result(int Nx,int Ny,int Nz, float *edir, float *edn, float *eup, float *abso);
@@ -51,7 +51,7 @@ int master(int fcomm) {
     hhl[k-1] = hhl[k]+40.;
 
   tenstr_f2c_init(fcomm,&Nx,&Ny,&Nz, &dx,&dy, hhl, &phi0, &theta0,&albedo);
-  tenstr_f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g, planck);
+  tenstr_f2c_set_global_optical_properties(Nx,Ny,Nz, kabs, ksca, g, planck);
   tenstr_f2c_solve(0.);
   tenstr_f2c_get_result(Nx,Ny,Nz, edir,edn,eup,abso);
 
@@ -105,7 +105,7 @@ int slave(int fcomm) {
   float *abso   = NULL;
 
   tenstr_f2c_init(fcomm,&Nx,&Ny,&Nz, &dx,&dy, hhl, &phi0, &theta0,&albedo);
-  tenstr_f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g, planck);
+  tenstr_f2c_set_global_optical_properties(Nx,Ny,Nz, kabs, ksca, g, planck);
   tenstr_f2c_solve(1.);
   tenstr_f2c_get_result(Nx,Ny,Nz, edir,edn,eup,abso);
 

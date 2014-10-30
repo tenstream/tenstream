@@ -4,7 +4,7 @@ module f2c_tenstream
 
       use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr,zero
 
-      use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
+      use m_tenstream, only : init_tenstream, set_global_optical_properties, solve_tenstream, destroy_tenstream,&
                             edir,ediff,abso, &
                             edir_twostr,ediff_twostr,abso_twostr,&
                             t_coord,C_dir,C_diff,C_one
@@ -85,7 +85,7 @@ contains
         initialized=.True.
       end subroutine                                             
 
-      subroutine tenstr_f2c_set_optical_properties(Nx,Ny,Nz, kabs, ksca, g, planck) bind(c)
+      subroutine tenstr_f2c_set_global_optical_properties(Nx,Ny,Nz, kabs, ksca, g, planck) bind(c)
         integer(c_int), value :: Nx,Ny,Nz
         real(c_float),intent(in),dimension(Nx,Ny,Nz) :: kabs, ksca, g
         real(c_float),intent(in),dimension(Nx,Ny,Nz+1) :: planck
@@ -99,9 +99,9 @@ contains
           allocate( oplanck(Nx,Ny,Nz+1) ); oplanck = planck
 
           if(any(oplanck.gt.zero)) then
-            call set_optical_properties(okabs, oksca, og, oplanck)
+            call set_global_optical_properties(okabs, oksca, og, oplanck)
           else
-            call set_optical_properties(okabs, oksca, og)
+            call set_global_optical_properties(okabs, oksca, og)
           endif
 
 !          print *,'mean kabs  ',sum(okabs)  /size(okabs)
@@ -109,7 +109,7 @@ contains
 !          print *,'mean g     ',sum(og)     /size(og)
 !          print *,'mean planck',sum(oplanck)/size(oplanck)
         else !slave
-          call set_optical_properties()
+          call set_global_optical_properties()
         endif
       end subroutine
 
