@@ -25,8 +25,13 @@ set( optprop_sources
   "optprop.f90"
   )
 
-add_library( tenstream STATIC ${general_sources} ${optprop_sources} )
-TARGET_LINK_LIBRARIES( tenstream  "${EXTLIB}" )
+add_library( tenstream_stat SHARED ${general_sources} ${optprop_sources} )
+TARGET_LINK_LIBRARIES( tenstream_stat "${EXTLIB}" )
+
+add_library( tenstream SHARED ${general_sources} ${optprop_sources} )
+TARGET_LINK_LIBRARIES( tenstream "${EXTLIB}" )
+
+#target_include_directories (tenstream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 file( GLOB streams createLUT_*.f90 )
 foreach ( stream ${streams} )
@@ -47,3 +52,7 @@ target_link_libraries( "Cwrapper_test" tenstream )
 
 add_executable( "fitLUT" "fitLUT.f90" )
 target_link_libraries( "fitLUT" tenstream )
+
+
+install(TARGETS tenstream DESTINATION lib)
+

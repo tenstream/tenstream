@@ -39,7 +39,8 @@ include_directories (${PETSC_INCLUDES} ${ITAPS_INCLUDES} ${HDF5_INCLUDE_DIRS})
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE PATH "Output directory for Dohp archives")
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE PATH "Output directory for Dohp libraries")
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE PATH "Output directory for Dohp executables")
-set (CMAKE_INSTALL_RPATH "lib")
+
+#set (CMAKE_INSTALL_RPATH "lib")
 
 list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
 list (APPEND EXTLIB "${HDF5_LIBRARIES}" )

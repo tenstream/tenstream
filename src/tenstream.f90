@@ -1521,6 +1521,59 @@ subroutine scale_flx(v,C)
         call DMDAVecRestoreArrayF90(C%da ,v ,xv ,ierr) ;CHKERRQ(ierr)
 end subroutine
 
+    subroutine set_diff_initial_guess(inp,guess,C)
+        ! Deprecated -- this is probably not helping convergence....
+        Vec :: inp,guess
+        type(t_coord) :: C
+
+        Vec :: local_guess
+        PetscScalar,pointer,dimension(:,:,:,:) :: xinp,xguess
+        PetscReal :: diff2diff(C_diff%dof**2)!, dir2diff(C_dir%dof*C_diff%dof)
+        PetscInt :: i,j,k,src
+
+        if(myid.eq.0.and.ldebug) print *,'setting initial guess...'
+        call DMCreateLocalVector(C%da,local_guess,ierr) ;CHKERRQ(ierr)
+        call VecSet(local_guess,zero,ierr) ;CHKERRQ(ierr)
+
+        call DMDAVecGetArrayF90(C%da,inp,  xinp,  ierr) ;CHKERRQ(ierr)
+        call DMDAVecGetArrayF90(C%da,local_guess,xguess,ierr) ;CHKERRQ(ierr)
+
+        do k=C%zs,C%ze-1 
+          if( .not. atm%l1d(k) ) then
+              do j=C%ys,C%ye         
+                do i=C%xs,C%xe    
+                  call get_coeff(atm%delta_op(i,j,k), atm%dz(k),.False., diff2diff, atm%l1d(k) )
+!                  print *,'xinp before',xinp(:,i,j,k)
+!                  print *,'xguess before',xguess(:,i,j,k)
+                  do src=1,C%dof
+                    xguess(E_up   ,i,j,k)   = xguess(E_up   ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_up  +i1+(src-1)*C%dof) 
+                    xguess(E_dn   ,i,j,k+1) = xguess(E_dn   ,i,j,k+1) +  xinp(src-1,i,j,k)*diff2diff(E_dn  +i1+(src-1)*C%dof) 
+                    xguess(E_le_m ,i,j,k)   = xguess(E_le_m ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_le_m+i1+(src-1)*C%dof) 
+                    xguess(E_le_p ,i,j,k)   = xguess(E_le_p ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_le_p+i1+(src-1)*C%dof) 
+                    xguess(E_ri_m ,i+1,j,k) = xguess(E_ri_m ,i+1,j,k) +  xinp(src-1,i,j,k)*diff2diff(E_ri_m+i1+(src-1)*C%dof) 
+                    xguess(E_ri_p ,i+1,j,k) = xguess(E_ri_p ,i+1,j,k) +  xinp(src-1,i,j,k)*diff2diff(E_ri_p+i1+(src-1)*C%dof) 
+                    xguess(E_ba_m ,i,j,k)   = xguess(E_ba_m ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_ba_m+i1+(src-1)*C%dof) 
+                    xguess(E_ba_p ,i,j,k)   = xguess(E_ba_p ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_ba_p+i1+(src-1)*C%dof) 
+                    xguess(E_fw_m ,i,j+1,k) = xguess(E_fw_m ,i,j+1,k) +  xinp(src-1,i,j,k)*diff2diff(E_fw_m+i1+(src-1)*C%dof) 
+                    xguess(E_fw_p ,i,j+1,k) = xguess(E_fw_p ,i,j+1,k) +  xinp(src-1,i,j,k)*diff2diff(E_fw_p+i1+(src-1)*C%dof) 
+                  enddo
+!                  print *,'xguess after',xguess(:,i,j,k)
+                enddo
+              enddo
+          endif
+        enddo
+
+        call DMDAVecRestoreArrayF90(C%da,local_guess,xguess,ierr) ;CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C%da,inp,xinp,ierr) ;CHKERRQ(ierr)
+
+        call VecSet(guess,zero,ierr) ;CHKERRQ(ierr) ! reset global Vec
+
+        call DMLocalToGlobalBegin(C%da,local_guess,ADD_VALUES, guess,ierr) ;CHKERRQ(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
+        call DMLocalToGlobalEnd  (C%da,local_guess,ADD_VALUES, guess,ierr) ;CHKERRQ(ierr)
+
+        call VecDestroy(local_guess,ierr) ;CHKERRQ(ierr)
+    end subroutine
+
 subroutine init_memory(incSolar,b,edir,ediff,abso,Mdir,Mdiff,edir_twostr,ediff_twostr,abso_twostr)
         Vec :: b,ediff,edir,abso,incSolar,edir_twostr,ediff_twostr,abso_twostr
         Mat :: Mdiff,Mdir
@@ -1776,59 +1829,6 @@ end subroutine
         enddo
       endif
 
-    end subroutine
-
-    subroutine set_diff_initial_guess(inp,guess,C)
-        ! Deprecated -- this is probably not helping convergence....
-        Vec :: inp,guess
-        type(t_coord) :: C
-
-        Vec :: local_guess
-        PetscScalar,pointer,dimension(:,:,:,:) :: xinp,xguess
-        PetscReal :: diff2diff(C_diff%dof**2)!, dir2diff(C_dir%dof*C_diff%dof)
-        PetscInt :: i,j,k,src
-
-        if(myid.eq.0.and.ldebug) print *,'setting initial guess...'
-        call DMCreateLocalVector(C%da,local_guess,ierr) ;CHKERRQ(ierr)
-        call VecSet(local_guess,zero,ierr) ;CHKERRQ(ierr)
-
-        call DMDAVecGetArrayF90(C%da,inp,  xinp,  ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C%da,local_guess,xguess,ierr) ;CHKERRQ(ierr)
-
-        do k=C%zs,C%ze-1 
-          if( .not. atm%l1d(k) ) then
-              do j=C%ys,C%ye         
-                do i=C%xs,C%xe    
-                  call get_coeff(atm%delta_op(i,j,k), atm%dz(k),.False., diff2diff, atm%l1d(k) )
-!                  print *,'xinp before',xinp(:,i,j,k)
-!                  print *,'xguess before',xguess(:,i,j,k)
-                  do src=1,C%dof
-                    xguess(E_up   ,i,j,k)   = xguess(E_up   ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_up  +i1+(src-1)*C%dof) 
-                    xguess(E_dn   ,i,j,k+1) = xguess(E_dn   ,i,j,k+1) +  xinp(src-1,i,j,k)*diff2diff(E_dn  +i1+(src-1)*C%dof) 
-                    xguess(E_le_m ,i,j,k)   = xguess(E_le_m ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_le_m+i1+(src-1)*C%dof) 
-                    xguess(E_le_p ,i,j,k)   = xguess(E_le_p ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_le_p+i1+(src-1)*C%dof) 
-                    xguess(E_ri_m ,i+1,j,k) = xguess(E_ri_m ,i+1,j,k) +  xinp(src-1,i,j,k)*diff2diff(E_ri_m+i1+(src-1)*C%dof) 
-                    xguess(E_ri_p ,i+1,j,k) = xguess(E_ri_p ,i+1,j,k) +  xinp(src-1,i,j,k)*diff2diff(E_ri_p+i1+(src-1)*C%dof) 
-                    xguess(E_ba_m ,i,j,k)   = xguess(E_ba_m ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_ba_m+i1+(src-1)*C%dof) 
-                    xguess(E_ba_p ,i,j,k)   = xguess(E_ba_p ,i,j,k)   +  xinp(src-1,i,j,k)*diff2diff(E_ba_p+i1+(src-1)*C%dof) 
-                    xguess(E_fw_m ,i,j+1,k) = xguess(E_fw_m ,i,j+1,k) +  xinp(src-1,i,j,k)*diff2diff(E_fw_m+i1+(src-1)*C%dof) 
-                    xguess(E_fw_p ,i,j+1,k) = xguess(E_fw_p ,i,j+1,k) +  xinp(src-1,i,j,k)*diff2diff(E_fw_p+i1+(src-1)*C%dof) 
-                  enddo
-!                  print *,'xguess after',xguess(:,i,j,k)
-                enddo
-              enddo
-          endif
-        enddo
-
-        call DMDAVecRestoreArrayF90(C%da,local_guess,xguess,ierr) ;CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C%da,inp,xinp,ierr) ;CHKERRQ(ierr)
-
-        call VecSet(guess,zero,ierr) ;CHKERRQ(ierr) ! reset global Vec
-
-        call DMLocalToGlobalBegin(C%da,local_guess,ADD_VALUES, guess,ierr) ;CHKERRQ(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
-        call DMLocalToGlobalEnd  (C%da,local_guess,ADD_VALUES, guess,ierr) ;CHKERRQ(ierr)
-
-        call VecDestroy(local_guess,ierr) ;CHKERRQ(ierr)
     end subroutine
 
     subroutine solve_tenstream(edirTOA)
