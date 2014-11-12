@@ -1,6 +1,6 @@
 module m_optprop_LUT
   use m_helper_functions, only : approx,rel_approx
-  use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_comm
+  use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_comm,imp_logical
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
       Ndz_1_2,Nkabs_1_2,Nksca_1_2,Ng_1_2,Nphi_1_2,Ntheta_1_2,Ndir_1_2,Ndiff_1_2,interp_mode_1_2,   &
       Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,Ndir_8_10,Ndiff_8_10,interp_mode_8_10, &
@@ -68,7 +68,7 @@ module m_optprop_LUT
 
     integer(iintegers) :: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
-    logical :: LUT_initiliazed=.False.,optprop_LUT_debug=.True.
+    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=.True.
     character(len=300) :: lutbasename 
 
     contains
@@ -102,31 +102,34 @@ contains
       idx = nint( dx/horiz_rounding  ) * horiz_rounding
       idy = nint( dy/horiz_rounding  ) * horiz_rounding
 
-      select type (OPP)
-        class is (t_optprop_LUT_1_2)
-          OPP%dir_streams  =  Ndir_1_2
-          OPP%diff_streams =  Ndiff_1_2
-          OPP%lutbasename=trim(lut_basename)//'_1_2.'
-          allocate(t_boxmc_1_2::OPP%bmc)
+      if(.not.allocated(OPP%bmc)) then
+        select type (OPP)
+          class is (t_optprop_LUT_1_2)
+            OPP%dir_streams  =  Ndir_1_2
+            OPP%diff_streams =  Ndiff_1_2
+            OPP%lutbasename=trim(lut_basename)//'_1_2.'
+            allocate(t_boxmc_1_2::OPP%bmc)
 
-        class is (t_optprop_LUT_8_10)
-          OPP%dir_streams  = Ndir_8_10
-          OPP%diff_streams = Ndiff_8_10
-          OPP%lutbasename=trim(lut_basename)//'_8_10.'
-          allocate(t_boxmc_8_10::OPP%bmc)
+          class is (t_optprop_LUT_8_10)
+            OPP%dir_streams  = Ndir_8_10
+            OPP%diff_streams = Ndiff_8_10
+            OPP%lutbasename=trim(lut_basename)//'_8_10.'
+            allocate(t_boxmc_8_10::OPP%bmc)
 
-        class default
-          stop 'initialize LUT: unexpected type for optprop_LUT object!'
-      end select
+          class default
+            stop 'initialize LUT: unexpected type for optprop_LUT object!'
+        end select
 
-      call OPP%bmc%init(comm)
+        call OPP%bmc%init(comm)
+      endif
 
       call OPP%set_parameter_space(OPP%diffLUT%pspace,one*idx)
       call OPP%set_parameter_space(OPP%dirLUT%pspace ,one*idx)
       call OPP%set_parameter_space(OPP%diffLUT%pspace,one*idx)
 
+
       write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,ldelta_scale,delta_scale_truncate
-      if(myid.eq.0) print *,'Loading diffuse LUT from ',descr
+      if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading diffuse LUT from ',trim(descr)
       OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
       OPP%diffLUT%dx    = idx
       OPP%diffLUT%dy    = idy
@@ -138,7 +141,7 @@ contains
 
         ! Load direct LUTS
         write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta,ldelta_scale,delta_scale_truncate
-        if(myid.eq.0) print *,'Loading direct LUT from ',descr
+        if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading direct LUT from ',trim(descr),' for szas',szas,': azi :',azis
         OPP%dirLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
         OPP%dirLUT%dx    = idx
         OPP%dirLUT%dy    = idy
@@ -151,8 +154,8 @@ contains
 
       if(comm_size.gt.1) call OPP%scatter_LUTtables(azis,szas,comm)
 
-      OPP%LUT_initiliazed=.True.
-      if(myid.eq.0) print *,'Done loading LUTs (shape diffLUT',shape(OPP%diffLUT%S%c),')'
+      OPP%LUT_initialiazed=.True.
+      if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading LUTs (shape diffLUT',shape(OPP%diffLUT%S%c),')'
   end subroutine
 subroutine loadLUT_diff(OPP, comm)
     class(t_optprop_LUT) :: OPP
@@ -161,9 +164,9 @@ subroutine loadLUT_diff(OPP, comm)
     character(300) :: str(2)
     logical :: lstddev_inbounds
 
-    if(myid.eq.0) print *,'... loading diffuse OPP%diffLUT',myid
+    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'... loading diffuse OPP%diffLUT',myid
     if(allocated(OPP%diffLUT%S%c)) then
-      print *,'OPP%diffLUT already loaded! is this a second call?',myid
+      if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'OPP%diffLUT already loaded! is this a second call?',myid
       return
     endif
 
@@ -209,7 +212,7 @@ subroutine loadLUT_diff(OPP, comm)
 
     if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then ! something is missing... lets try to recompute missing values in LUT
       if(myid.eq.0) then
-        print *,'Loading of diffuse tables failed for',trim(OPP%diffLUT%fname),'  diffuse ',trim(str(1)),' ',trim(str(2)),'::',errcnt,'stddev required',lstddev_inbounds
+        if(OPP%optprop_LUT_debug) print *,'Loading of diffuse tables failed for',trim(OPP%diffLUT%fname),'  diffuse ',trim(str(1)),' ',trim(str(2)),'::',errcnt,'stddev required',lstddev_inbounds
         call h5write([OPP%diffLUT%fname,'diffuse',str(1),str(2),"pspace","range_dz   "],OPP%diffLUT%pspace%range_dz   ,iierr)
         call h5write([OPP%diffLUT%fname,'diffuse',str(1),str(2),"pspace","range_kabs "],OPP%diffLUT%pspace%range_kabs ,iierr)
         call h5write([OPP%diffLUT%fname,'diffuse',str(1),str(2),"pspace","range_ksca "],OPP%diffLUT%pspace%range_ksca ,iierr)
@@ -229,7 +232,7 @@ subroutine loadLUT_diff(OPP, comm)
 
     if(myid.eq.0) deallocate(OPP%diffLUT%S%stddev_tol)
 !    if(myid.eq.0) deallocate(OPP%diffLUT%B%stddev_tol)
-    if(myid.eq.0) print *,'Done loading diffuse OPP%diffLUTs'
+    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading diffuse OPP%diffLUTs'
 end subroutine
 subroutine loadLUT_dir(OPP, azis,szas, comm)
     class(t_optprop_LUT) :: OPP
@@ -239,13 +242,13 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
     character(300) :: str(4)
     logical :: angle_mask(OPP%Nphi,OPP%Ntheta),lstddev_inbounds
 
-    if(myid.eq.0) print *,'... loading direct OPP%dirLUT'
-    if(allocated(OPP%dirLUT%S).and.allocated(OPP%dirLUT%T)) then
-      print *,'OPP%dirLUTs already loaded!',myid
-      return
-    endif
-    allocate( OPP%dirLUT%S(OPP%Nphi,OPP%Ntheta) )
-    allocate( OPP%dirLUT%T(OPP%Nphi,OPP%Ntheta) )
+    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'... loading direct OPP%dirLUT'
+!    if(allocated(OPP%dirLUT%S).and.allocated(OPP%dirLUT%T)) then
+!      if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'OPP%dirLUTs already loaded!',myid
+!      return
+!    endif
+    if(.not. allocated(OPP%dirLUT%S) ) allocate( OPP%dirLUT%S(OPP%Nphi,OPP%Ntheta) )
+    if(.not. allocated(OPP%dirLUT%T) ) allocate( OPP%dirLUT%T(OPP%Nphi,OPP%Ntheta) )
 
     write(str(1),FMT='("dx",I0)') nint(OPP%dirLUT%dx)
     write(str(2),FMT='("dy",I0)') nint(OPP%dirLUT%dy)
@@ -254,13 +257,13 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
     do itheta=1,OPP%Ntheta
       do iphi  =1,OPP%Nphi
         errcnt=0
-        if(.not.angle_mask(iphi,itheta) ) cycle
+        if( allocated(OPP%dirLUT%S(iphi,itheta)%c) .or. .not.angle_mask(iphi,itheta) ) cycle
 
         write(str(3),FMT='("phi",I0)')  int(OPP%dirLUT%pspace%phi(iphi)    )
         write(str(4),FMT='("theta",I0)')int(OPP%dirLUT%pspace%theta(itheta))
 
         if(myid.eq.0) then
-            print *,'Trying to load the LUT from file...'
+          if(OPP%optprop_LUT_debug) print *,'Trying to load the LUT from file...'
             call h5load([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],OPP%dirLUT%S(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
             if(allocated(OPP%dirLUT%S(iphi,itheta)%c) ) then
               if(any( OPP%dirLUT%S(iphi,itheta)%c.gt.one ).or.any(OPP%dirLUT%S(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
@@ -282,7 +285,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0
             if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol))
 
-            print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds
+            if(OPP%optprop_LUT_debug) print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds
         endif
 
         call mpi_bcast(errcnt           , 1 , imp_int , 0 , comm , ierr)
@@ -290,7 +293,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
 
         if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then
           if(myid.eq.0) then
-            print *,'Loading of direct tables failed for',trim(OPP%dirLUT%fname),'  direct ',trim(str(1)),' ',trim(str(2)),' ',trim(str(3)),' ',trim(str(4)),'::',errcnt,'lstddev_inbounds',lstddev_inbounds
+            if(OPP%optprop_LUT_debug) print *,'Loading of direct tables failed for',trim(OPP%dirLUT%fname),'  direct ',trim(str(1)),' ',trim(str(2)),' ',trim(str(3)),' ',trim(str(4)),'::',errcnt,'lstddev_inbounds',lstddev_inbounds
             call h5write([OPP%dirLUT%fname , 'direct' , str(1) , str(2) , "pspace" , "range_dz   "] , OPP%dirLUT%pspace%range_dz    , iierr)
             call h5write([OPP%dirLUT%fname , 'direct' , str(1) , str(2) , "pspace" , "range_kabs "] , OPP%dirLUT%pspace%range_kabs  , iierr)
             call h5write([OPP%dirLUT%fname , 'direct' , str(1) , str(2) , "pspace" , "range_ksca "] , OPP%dirLUT%pspace%range_ksca  , iierr)
@@ -313,13 +316,13 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
                                   comm,iphi,itheta)
 
           if(myid.eq.0) then
-            print *,'Final dump of LUT for phi/theta',iphi,itheta
+            if(OPP%optprop_LUT_debug) print *,'Final dump of LUT for phi/theta',iphi,itheta
             call h5write([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],OPP%dirLUT%S(iphi,itheta)%c,iierr)
             call h5write([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],OPP%dirLUT%T(iphi,itheta)%c,iierr)
 
             call h5write([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"S_rtol"],OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr)
             call h5write([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"T_rtol"],OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr)
-            print *,'Final dump of LUT for phi/theta',iphi,itheta,'... done'
+            if(OPP%optprop_LUT_debug) print *,'Final dump of LUT for phi/theta',iphi,itheta,'... done'
           endif
 
 !          call mpi_barrier(comm,ierr)
@@ -329,11 +332,11 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
         if(myid.eq.0) deallocate(OPP%dirLUT%S(iphi,itheta)%stddev_tol)
         if(myid.eq.0) deallocate(OPP%dirLUT%T(iphi,itheta)%stddev_tol)
 
-        if(myid.eq.0) print *,'Done loading direct LUT, for phi/theta:',int(OPP%dirLUT%pspace%phi(iphi)),int(OPP%dirLUT%pspace%theta(itheta)),':: shape(T)',shape(OPP%dirLUT%T(iphi,itheta)%c),':: shape(S)',shape(OPP%dirLUT%S(iphi,itheta)%c)
+        if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading direct LUT, for phi/theta:',int(OPP%dirLUT%pspace%phi(iphi)),int(OPP%dirLUT%pspace%theta(itheta)),':: shape(T)',shape(OPP%dirLUT%T(iphi,itheta)%c),':: shape(S)',shape(OPP%dirLUT%S(iphi,itheta)%c)
       enddo !iphi
     enddo! itheta
 
-    if(myid.eq.0) print *,'Done loading direct OPP%dirLUTs'
+    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading direct OPP%dirLUTs'
 end subroutine
   subroutine scatter_LUTtables(OPP, azis,szas,comm)
       class(t_optprop_LUT) :: OPP
@@ -348,17 +351,18 @@ end subroutine
       do itheta=1,OPP%Ntheta
         do iphi  =1,OPP%Nphi
           if(.not.angle_mask(iphi,itheta) ) cycle
+          if ( mpi_logical_and( allocated(OPP%dirLUT%T(iphi,itheta)%c)) ) cycle 
 
           ! DIRECT 2 DIRECT
           if(myid.eq.0) then
             Ncoeff = size(OPP%dirLUT%T(iphi,itheta)%c, 1)
             Ntot   = size(OPP%dirLUT%T(iphi,itheta)%c) 
-            print *,myid,'Scattering LUT tables....',Ncoeff,Ntot,' iphi,itheta',iphi,itheta 
+            if(OPP%optprop_LUT_debug) print *,myid,'Scattering LUT tables....',Ncoeff,Ntot,' iphi,itheta',iphi,itheta 
           endif
           call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
           call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
 
-          if(myid.gt.0) allocate(OPP%dirLUT%T(iphi,itheta)%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
+          if(myid.gt.0 .and. .not.allocated(OPP%dirLUT%T(iphi,itheta)%c) ) allocate(OPP%dirLUT%T(iphi,itheta)%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
           call mpi_bcast(OPP%dirLUT%T(iphi,itheta)%c, Ntot, imp_real, 0, comm, ierr)
 
           ! DIRECT 2 DIFFUSE
@@ -370,23 +374,25 @@ end subroutine
           call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
           call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
 
-          if(myid.gt.0) allocate(OPP%dirLUT%S(iphi,itheta)%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
+          if(myid.gt.0 .and. .not.allocated(OPP%dirLUT%S(iphi,itheta)%c) ) allocate(OPP%dirLUT%S(iphi,itheta)%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
           call mpi_bcast(OPP%dirLUT%S(iphi,itheta)%c, Ntot, imp_real, 0, comm, ierr)
 
         enddo
       enddo
 
       ! DIFFUSE 2 DIFFUSE
-      if(myid.eq.0) then
-        Ncoeff = size(OPP%diffLUT%S%c, 1)
-        Ntot   = size(OPP%diffLUT%S%c) 
-        !          print *,'Scattering LUT tables....',Ncoeff,Ntot
-      endif
-      call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
-      call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
+      if( mpi_logical_or(.not.allocated(OPP%diffLUT%S%c) )) then
+        if(myid.eq.0) then
+          Ncoeff = size(OPP%diffLUT%S%c, 1)
+          Ntot   = size(OPP%diffLUT%S%c) 
+          !          print *,'Scattering LUT tables....',Ncoeff,Ntot
+        endif
+        call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
+        call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
 
-      if(myid.gt.0) allocate(OPP%diffLUT%S%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
-      call mpi_bcast(OPP%diffLUT%S%c, Ntot, imp_real, 0, comm, ierr)
+        if(myid.gt.0 .and. .not.allocated(OPP%diffLUT%S%c) ) allocate(OPP%diffLUT%S%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
+        call mpi_bcast(OPP%diffLUT%S%c, Ntot, imp_real, 0, comm, ierr)
+      endif
 
       ! DIFFUSE EMISSION
 !      if(myid.eq.0) then
@@ -401,6 +407,19 @@ end subroutine
 !      call mpi_bcast(OPP%diffLUT%B%c, Ntot, imp_real, 0, comm, ierr)
 
 !      print *,myid,' :: Scatter LUT -- sum of diff LUT-> S= ',sum(OPP%diffLUT%S%c)
+contains 
+function mpi_logical_and(lneed)
+    logical :: mpi_logical_and
+    logical,intent(in) :: lneed
+    call mpi_allreduce(lneed, mpi_logical_and, 1, imp_logical, MPI_LAND, 0, comm, ierr)
+!    print *,myid,'scattering LUT:',lneed,'==>',mpi_logical_and
+end function
+function mpi_logical_or(lneed)
+    logical :: mpi_logical_or
+    logical,intent(in) :: lneed
+    call mpi_allreduce(lneed, mpi_logical_or, 1, imp_logical, MPI_LOR, 0, comm, ierr)
+!    print *,myid,'scattering LUT:',lneed,'==>',mpi_logical_or
+end function
   end subroutine
 
 subroutine createLUT_diff(OPP, LUT, comm)
@@ -806,7 +825,7 @@ subroutine set_parameter_space(OPP,ps,dx)
     real(ireals),parameter :: maximum_transmission=one-1e-6_ireals !one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
     integer(iintegers) :: k
 
-    print *,'maximum_transmission=',one-epsilon(maximum_transmission)
+    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'maximum_transmission=',one-epsilon(maximum_transmission)
 
     select type(OPP)
       class is (t_optprop_LUT_1_2)

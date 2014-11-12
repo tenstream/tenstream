@@ -59,10 +59,10 @@ contains
           case(i0) ! LookUpTable Mode
             select type(OPP)
               class is (t_optprop_1_2)
-                allocate(t_optprop_LUT_1_2::OPP%OPP_LUT)
+               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_1_2::OPP%OPP_LUT)
 
               class is (t_optprop_8_10)
-                allocate(t_optprop_LUT_8_10::OPP%OPP_LUT)
+               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_10::OPP%OPP_LUT)
 
               class default
                 stop ' init optprop : unexpected type for optprop object!'

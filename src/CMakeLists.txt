@@ -25,10 +25,10 @@ set( optprop_sources
   "optprop.f90"
   )
 
-add_library( tenstream_stat SHARED ${general_sources} ${optprop_sources} )
-TARGET_LINK_LIBRARIES( tenstream_stat "${EXTLIB}" )
+add_library( tenstream_d SHARED ${general_sources} ${optprop_sources} )
+TARGET_LINK_LIBRARIES( tenstream_d "${EXTLIB}" )
 
-add_library( tenstream SHARED ${general_sources} ${optprop_sources} )
+add_library( tenstream STATIC ${general_sources} ${optprop_sources} )
 TARGET_LINK_LIBRARIES( tenstream "${EXTLIB}" )
 
 #target_include_directories (tenstream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

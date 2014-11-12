@@ -36,6 +36,9 @@ contains
         real(ireals) :: odx,ody,ophi0,otheta0,oalbedo
         real(ireals),allocatable :: ohhl(:)
 
+        real(ireals),allocatable :: odz(:)
+        integer(iintegers) :: k
+
         logical,save :: initialized=.False.
 
         if(initialized) return
@@ -79,9 +82,15 @@ contains
         albedo = oalbedo
 
         ! Now every process has the correct values
-!        print *,myid,'Initializing Tenstream environment from C Language :: domainshape',oNx,oNy,oNz,'::',shape(ohhl)
+        !        print *,myid,'Initializing Tenstream environment from C Language :: domainshape',oNx,oNy,oNz,'::',shape(ohhl)
 
-        call init_tenstream(imp_comm, oNx,oNy,oNz, odx,ody,ohhl ,ophi0, otheta0, oalbedo)
+        allocate(odz(oNz))
+        do k=1,Nz
+          odz(k) = ohhl(k) - ohhl(k+1)
+        enddo
+
+        call init_tenstream(imp_comm, oNx,oNy,oNz, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz)
+
         initialized=.True.
       end subroutine                                             
 

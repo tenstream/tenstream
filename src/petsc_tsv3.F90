@@ -291,12 +291,11 @@ program main
         Vec :: intedir,intediff,intabso
         Vec :: intedir_twostr, intediff_twostr, intabso_twostr
 
-        integer(iintegers) :: iq
-        integer(iintegers) :: kato
+        integer(iintegers) :: iq, kato, k
         integer(iintegers) :: dims(3)
 
         real(ireals),allocatable,dimension(:,:,:) :: global_kabs,global_ksca,global_g, global_planck
-        real(ireals),allocatable :: hhl(:)
+        real(ireals),allocatable :: hhl(:),dz(:)
         real(ireals),parameter :: albedo = 0.05
 
         logical :: linit_integral_vecs = .False.
@@ -308,7 +307,11 @@ program main
         call load_optprop(1_iintegers,0_iintegers, global_kabs,global_ksca,global_g, hhl, global_planck)
 
         dims = shape(global_kabs)
-        call init_tenstream(imp_comm, dims(1),dims(2),dims(3), ident_dx, ident_dy, hhl ,options_phi,options_theta,albedo)
+        allocate(dz(dims(3)))
+        do k=1,dims(3)
+          dz(k) = hhl(k)-hhl(k+1)
+        enddo
+        call init_tenstream(imp_comm, dims(1),dims(2),dims(3), ident_dx, ident_dy, options_phi,options_theta,albedo,dz1d=dz )
 
 !        do kato=1,32
                   do kato=11,11
