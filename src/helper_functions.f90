@@ -119,7 +119,7 @@ elemental subroutine delta_scale( kabs,ksca,g,factor )
           real(ireals),intent(inout) :: kabs,ksca,g ! kabs, ksca, g
           real(ireals),intent(in),optional :: factor
           real(ireals) :: dtau, w0
-          dtau = kabs+ksca
+          dtau = max( kabs+ksca, epsilon(dtau) )
           w0   = ksca/dtau
           g    = g
 

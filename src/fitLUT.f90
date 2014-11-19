@@ -440,7 +440,7 @@ end type
           DO K=2,N
             PF=(2._ireals*K-one)/K*X*P1-(K-one)/K*P0
             PN(K)=PF
-            IF (DABS(X).EQ.one) THEN
+            IF (ABS(X).EQ.one) THEN
               PD(K)=0.5D0*X**(K+1)*K*(K+1.0D0)
             ELSE
               PD(K)=K*(P1-X*PF)/(1.0D0-X*X)

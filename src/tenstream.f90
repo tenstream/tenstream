@@ -24,7 +24,7 @@ module m_tenstream
       PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
       PetscInt,parameter :: istartpar=i1, jstartpar=i1
 
-      logical,parameter :: ldebug=.true.,lcycle_dir=.True.
+      logical,parameter :: ldebug=.False.,lcycle_dir=.True.
       logical,parameter :: lprealloc=.True.
 
       type t_coord
@@ -83,6 +83,13 @@ module m_tenstream
       logical :: linitialized=.False.
 
       integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
+
+      logical,parameter :: lenable_solutions=.True. ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
+      type t_state_container
+        Vec :: edir,ediff
+        logical :: lset=.False.
+      end type
+      type(t_state_container),save :: solutions(1000)
 
       contains 
       subroutine setup_grid(Nx,Ny,Nz,nxproc,nyproc)
@@ -239,7 +246,6 @@ module m_tenstream
 !        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
         call mat_info(A)
-
         call mat_set_diagonal(A,C)
       end subroutine
       subroutine mat_set_diagonal(A,C)
@@ -705,6 +711,9 @@ subroutine set_dir_coeff(A,C)
 
         call PetscLogStagePush(logstage(2),ierr) ;CHKERRQ(ierr)
 
+        call MatZeroEntries(A, ierr) ;CHKERRQ(ierr)
+        call mat_set_diagonal(A,C)
+
         do k=C%zs,C%ze-1
           do j=C%ys,C%ye
             do i=C%xs,C%xe        
@@ -834,10 +843,12 @@ subroutine set_dir_coeff(A,C)
 
             PetscInt :: i,j,k
 
-
             call PetscLogStagePush(logstage(4),ierr) ;CHKERRQ(ierr)
 
             if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients for diffuse Light'
+
+!            call MatZeroEntries(A, ierr) ;CHKERRQ(ierr)
+!            call mat_set_diagonal(A,C)
 
             do k=C%zs,C%ze-1
               do j=C%ys,C%ye
@@ -1098,12 +1109,12 @@ subroutine setup_b(edir,b)
             enddo
         end subroutine
         subroutine set_solar_source()
-            if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source'
+            if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(0:3,:,:,:))/size(xedir(0:3,:,:,:))
             do k=C_diff%zs,C_diff%ze-1 
               do j=C_diff%ys,C_diff%ye         
                 do i=C_diff%xs,C_diff%xe    
 
-                  if( any (xedir(:,i,j,k) .gt. zero) ) then
+                  if( any (xedir(:,i,j,k) .gt. epsilon(one)) ) then
                     if( atm%l1d(i,j,k) ) then
                       dir2diff = zero
                       if(luse_eddington ) then
@@ -1310,14 +1321,14 @@ subroutine solve(ksp,b,x)
 !      print *,'Solution Vector:'
 !      call VecView(x,PETSC_VIEWER_STDOUT_WORLD ,ierr) ;CHKERRQ(ierr)
 
-      if(myid.eq.0) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
+      if(myid.eq.0.and.ldebug) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
       if(reason.eq.KSP_DIVERGED_ITS) then
         if(myid.eq.0) print *,'We take our chances, that this is a meaningful output.... and just go on'
         return
       endif
 
       if(reason.le.0) then
-              if(myid.eq.0) print *,myid,'Resetted initial guess to zero and try again with gmres:'
+              if(myid.eq.0.and.ldebug) print *,myid,'Resetted initial guess to zero and try again with gmres:'
               call VecSet(x,zero,ierr) ;CHKERRQ(ierr)
               call KSPSetType(ksp,KSPGMRES,ierr) ;CHKERRQ(ierr)
               call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
@@ -1327,7 +1338,7 @@ subroutine solve(ksp,b,x)
 
               call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
               call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
-              if(myid.eq.0) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
+              if(myid.eq.0.and.ldebug) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
       endif
 
       if(reason.le.0) then
@@ -1343,19 +1354,22 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
       PC  :: prec
       logical :: linit
 
-!      MatNullSpace :: nullspace
-      PetscReal,parameter :: rtol=1e-4, atol=1e-4
-      PetscInt,parameter :: maxiter=1000
+      MatNullSpace :: nullspace
+!      PetscReal,parameter :: rtol=epsilon(one)*10, atol=epsilon(one)*10
       character(len=*),optional :: prefix
+
+      PetscReal,parameter :: rtol=1e-5, atol=1e-5
+      PetscInt,parameter  :: maxiter=100
 
       if(linit) return
       call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
-      if(myid.eq.0) print *,'Setup KSP'
+      if(myid.eq.0.and.ldebug) print *,'Setup KSP'
 
       call KSPCreate(imp_comm,ksp,ierr) ;CHKERRQ(ierr)
       if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;CHKERRQ(ierr)
 
       call KSPSetType(ksp,KSPFBCGS,ierr)  ;CHKERRQ(ierr)
+      call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr) ;CHKERRQ(ierr) 
       call KSPGetPC  (ksp,prec,ierr)  ;CHKERRQ(ierr)
       if(numnodes.eq.0) then
         call PCSetType (prec,PCILU,ierr);CHKERRQ(ierr)
@@ -1363,7 +1377,10 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
         call PCSetType (prec,PCBJACOBI,ierr);CHKERRQ(ierr)
       endif
 
-      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
+      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(atm%l1d)/size(atm%l1d) ,PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
+
+      call KSPSetConvergenceTest(ksp,MyKSPConverged, PETSC_NULL_OBJECT,PETSC_NULL_FUNCTION,ierr)
+
       call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
 
       call KSPSetOperators(ksp,A,A,ierr) ;CHKERRQ(ierr)
@@ -1372,27 +1389,79 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
 
       call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
 
-!      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, nullspace, ierr) ; CHKERRQ(ierr)
-!      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
+      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, nullspace, ierr) ; CHKERRQ(ierr)
+      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
 
       linit = .True.
-      if(myid.eq.0) print *,'Setup KSP done'
+      if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+end subroutine
+subroutine MyKSPConverged(ksp,n,rnorm,flag,dummy,ierr)
+! Input Parameters:
+!    ksp   - iterative context
+!    n     - iteration number
+!    rnorm - 2-norm (preconditioned) residual value (may be estimated)
+!    dummy - optional user-defined monitor context (unused here)
+    KSP               :: ksp
+    PetscErrorCode    :: ierr
+    PetscInt          :: n,dummy
+    KSPConvergedReason:: flag
+    PetscReal         :: rnorm
+
+    real(ireals)       :: rtol,atol,dtol
+    real(ireals),save  :: initial_rnorm
+    integer(iintegers) :: maxits
+
+    call KSPGetTolerances(ksp, rtol,atol,dtol,maxits,ierr)
+
+    flag=0
+    if(n.eq.0) then
+      initial_rnorm=rnorm
+      return
+    endif
+
+    if(rnorm/initial_rnorm.le.rtol) then
+      flag=2
+      return
+    endif
+    
+    if(rnorm.le.atol) then
+      flag=3
+      return
+    endif
+
+    if(n.gt.maxits) then
+      flag=-3
+      return
+    endif
+
+    if(rnorm/initial_rnorm.ge.dtol) then
+      flag=-4
+      return
+    endif
+
+    if(isnan(rnorm)) then
+      flag=-9
+      return
+    endif
 end subroutine
 
 subroutine setup_logging()
-        call PetscLogStageRegister('total_tenstream' , logstage(1)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('setup_edir'      , logstage(2)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('calc_edir'       , logstage(3)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('setup_ediff'     , logstage(4)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('calc_ediff'      , logstage(5)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('setup_b'         , logstage(6)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('twostream'       , logstage(8)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;CHKERRQ(ierr)
-        call PetscLogStageRegister('write_hdf5'      , logstage(10)     , ierr) ;CHKERRQ(ierr)
+    logical,save :: logstage_init=.False.
+    if(logstage_init) return
+    call PetscLogStageRegister('total_tenstream' , logstage(1)     , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('setup_edir'      , logstage(2)     , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('calc_edir'       , logstage(3)     , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('setup_ediff'     , logstage(4)     , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('calc_ediff'      , logstage(5)     , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('setup_b'         , logstage(6)     , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('twostream'       , logstage(8)     , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('write_hdf5'      , logstage(10)     , ierr) ;CHKERRQ(ierr)
 
-        if(myid.eq.0) print *, 'Logging stages' , logstage
+    if(myid.eq.0) print *, 'Logging stages' , logstage
+    logstage_init=.True.
 end subroutine
 
 subroutine twostream(edirTOA)
@@ -1648,36 +1717,34 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy, phi0,theta0,albedo, dz1d, dz3d
     atm%dy  = dy
     atm%albedo = albedo
 
-    if(.not.allocated(atm%dz) ) then
-      allocate(atm%dz( C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze ))
-      if(present(dz1d)) then
-        do j=C_one%ys,C_one%ye
-          do i=C_one%xs,C_one%xe
-            atm%dz(i,j,:) = dz1d
-          enddo
-        enddo
-      else if(present(dz3d)) then
-        atm%dz = dz3d
-      else
-        print *,'have to give either dz1d or dz3d in routine call....'
-        call exit(1)
-      endif
-    endif
-
+    if(.not.allocated(atm%dz) ) allocate(atm%dz( C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze ))
     if(.not.allocated(atm%l1d)) allocate(atm%l1d( C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze ) )
 
-    atm%l1d(:,:,Nz-1) = twostr_ratio*atm%dz(:,:,Nz-1).gt.atm%dx
-    do k=Nz-2,0,-1
+    if(present(dz1d)) then
       do j=C_one%ys,C_one%ye
         do i=C_one%xs,C_one%xe
-!          if( atm%l1d(i,j,k+1) ) then !can only be 3D RT if below is a 3D layer
-!            atm%l1d(i,j,k)=.True.
-!          else
-            !TODO this does actually not make sense and i am not even sure why
-            !this wouldnt work.
+          atm%dz(i,j,:) = dz1d
+        enddo
+      enddo
+    else if(present(dz3d)) then
+      atm%dz = dz3d
+    else
+      print *,'have to give either dz1d or dz3d in routine call....'
+      call exit(1)
+    endif
+
+
+    atm%l1d(:,:,C_one%ze) = twostr_ratio*atm%dz(:,:,C_one%ze).gt.atm%dx
+    do k=C_one%ze-1,C_one%zs,-1
+      do j=C_one%ys,C_one%ye
+        do i=C_one%xs,C_one%xe
+          if( atm%l1d(i,j,k+1) ) then !can only be 3D RT if below is a 3D layer
+            atm%l1d(i,j,k)=.True.
+          else
+            !TODO this does actually not really make sense. I am not sure why this might not work. i.e. if it is necessary.
             atm%l1d(i,j,k) = twostr_ratio*atm%dz(i,j,k).gt.atm%dx
             if(atm%dz(i,j,k).lt.atm%dx/10._ireals) atm%l1d(i,j,k)=.True.
-!          endif
+          endif
         enddo
       enddo
     enddo
@@ -1703,10 +1770,12 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy, phi0,theta0,albedo, dz1d, dz3d
         ! the numbers of processors per direction are (int) x_procs, y_procs, z_procs respectively
         ! (no parallelization in direction 'dir' means dir_procs = 1)
 
-        MPI_Comm :: NewComm
-        PetscInt :: x,y
+!        MPI_Comm :: NewComm
+!        PetscInt :: x,y
+!
+!        integer(mpiint) :: orig_id,new_id,petsc_id,ierr ! id according to fortran decomposition
 
-        integer(mpiint) :: orig_id,new_id,petsc_id,ierr ! id according to fortran decomposition
+        PETSC_COMM_WORLD = icomm
 
 !        if(present(nxproc) .and. present(nyproc) ) then
 !          call MPI_COMM_RANK( icomm, orig_id, ierr )
@@ -1723,11 +1792,7 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy, phi0,theta0,albedo, dz1d, dz3d
 !
 !          ! override the default communicator (was MPI_COMM_WORLD as default)
 !          PETSC_COMM_WORLD = NewComm
-!        else
-          PETSC_COMM_WORLD = icomm
 !        endif
-
-
 !        print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id,'PETSC_COMM_WORLD',new_id
 
     end subroutine
@@ -1874,25 +1939,44 @@ end subroutine
       else
         if(allocated(atm%planck)) deallocate(atm%planck)
       endif
- 
-!      print *,'local_kabs   ',maxval(local_kabs   )  ,shape(local_kabs   )
-!      print *,'local_ksca   ',maxval(local_ksca   )  ,shape(local_ksca   )
-!      print *,'local_g      ',maxval(local_g      )  ,shape(local_g      )
-!      print *,'local_planck ',maxval(local_planck )  ,shape(local_planck ), shape(atm%planck)
-!      print *,'atm_kabs   ',maxval(atm%op%kabs  )  ,shape(atm%op%kabs  )
-!      print *,'atm_ksca   ',maxval(atm%op%ksca  )  ,shape(atm%op%ksca  )
-!      print *,'atm_g      ',maxval(atm%op%g     )  ,shape(atm%op%g     )
-!      print *,'atm_planck ',maxval(atm%planck   )  ,shape(atm%planck   )
-!      print *,'atm_dz     ',maxval(atm%dz       )  ,shape(atm%dz       )
-!
-!      print *, count(atm%l1d) , size(atm%l1d)
-!      if(ldebug.and.myid.eq.0) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%op)
+
+      if(ldebug) then
+        if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
+          print *,myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
+          do k=1,ubound(local_kabs,3)
+            print *,myid,k,'local_kabs',local_kabs(:,:,k)
+            print *,myid,k,'local_ksca',local_ksca(:,:,k)
+          enddo
+        endif
+      endif
+      if(ldebug) then
+        if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
+          print *,myid,'set_optical_properties :: found illegal value in optical properties! abort!'
+        endif
+      endif
+      !      print *,'local_kabs   ',maxval(local_kabs   )  ,shape(local_kabs   )
+      !      print *,'local_ksca   ',maxval(local_ksca   )  ,shape(local_ksca   )
+      !      print *,'local_g      ',maxval(local_g      )  ,shape(local_g      )
+      !      print *,'local_planck ',maxval(local_planck )  ,shape(local_planck ), shape(atm%planck)
+      !      print *,'atm_kabs   ',maxval(atm%op%kabs  )  ,shape(atm%op%kabs  )
+      !      print *,'atm_ksca   ',maxval(atm%op%ksca  )  ,shape(atm%op%ksca  )
+      !      print *,'atm_g      ',maxval(atm%op%g     )  ,shape(atm%op%g     )
+      !      print *,'atm_planck ',maxval(atm%planck   )  ,shape(atm%planck   )
+      !      print *,'atm_dz     ',maxval(atm%dz       )  ,shape(atm%dz       )
+      !
+      !      print *, count(atm%l1d) , size(atm%l1d)
+      !      if(ldebug.and.myid.eq.0) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%op)
 
       ! Make space for deltascaled optical properties
       if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
       atm%delta_op = atm%op
       call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
 
+      if(ldebug) then
+        if( (any([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g]))) ) then
+          print *,myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
+        endif
+      endif
       if(luse_eddington) then
         if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) ! allocate space for twostream coefficients
         if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
@@ -1930,21 +2014,24 @@ end subroutine
         do k=lbound(atm%op,3),ubound(atm%op,3)
           if(present(local_planck)) then
             print *,myid,'Optical Properties:',k,'dz',atm%dz(0,0,k),atm%l1d(0,0,k),'k',&
-                minval(atm%op(:,:,k)%kabs),minval(atm%op(:,:,k)%ksca),minval(atm%op(:,:,k)%g),&
-                maxval(atm%op(:,:,k)%kabs),maxval(atm%op(:,:,k)%ksca),maxval(atm%op(:,:,k)%g),&
+                minval(atm%delta_op(:,:,k)%kabs),minval(atm%delta_op(:,:,k)%ksca),minval(atm%delta_op(:,:,k)%g),&
+                maxval(atm%delta_op(:,:,k)%kabs),maxval(atm%delta_op(:,:,k)%ksca),maxval(atm%delta_op(:,:,k)%g),&
                 '::',minval(atm%planck(:,:,k)),maxval(atm%planck(:,:,k))
           else    
             print *,myid,'Optical Properties:',k,'dz',atm%dz(0,0,k),atm%l1d(0,0,k),'k',&
-                minval(atm%op(:,:,k)%kabs),minval(atm%op(:,:,k)%ksca),minval(atm%op(:,:,k)%g),&
-                maxval(atm%op(:,:,k)%kabs),maxval(atm%op(:,:,k)%ksca),maxval(atm%op(:,:,k)%g)
+                minval(atm%delta_op(:,:,k)%kabs),minval(atm%delta_op(:,:,k)%ksca),minval(atm%delta_op(:,:,k)%g),&
+                maxval(atm%delta_op(:,:,k)%kabs),maxval(atm%delta_op(:,:,k)%ksca),maxval(atm%delta_op(:,:,k)%g),&
+                '::',minval(atm%a33(:,:,k)),maxval(atm%a33(:,:,k))
           endif
         enddo
       endif
 
     end subroutine
 
-    subroutine solve_tenstream(edirTOA)
+    subroutine solve_tenstream(edirTOA,solution_uid)
         real(ireals),intent(in) :: edirTOA
+        integer(iintegers),optional,intent(in) :: solution_uid
+        logical :: loaded
 
             if(ltwostr) then
               call twostream(edirTOA)
@@ -1956,14 +2043,17 @@ end subroutine
               if(luse_twostr_guess) then
                 call VecCopy(edir_twostr  ,edir ,ierr) ;CHKERRQ(ierr)
                 call VecCopy(ediff_twostr ,ediff,ierr) ;CHKERRQ(ierr)
-!                call set_diff_initial_guess(ediff_twostr, ediff, C_diff)
+                !                call set_diff_initial_guess(ediff_twostr, ediff, C_diff)
               endif
-              
+
               if(myid.eq.0) print *,'twostream calculation done'
             endif
 
             ! ---------------------------- Edir  -------------------
             if(edirTOA.gt.zero .and. sun%theta.ge.zero) then
+
+              if( present(solution_uid) ) loaded = load_solution(solution_uid)
+
               call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
               call setup_incSolar(incSolar,edirTOA)
               call set_dir_coeff(Mdir,C_dir)
@@ -1988,15 +2078,16 @@ end subroutine
             call solve(kspdiff, b, ediff)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
-            ! ---------------------------- Absorption and Rescaling-
+            if(present(solution_uid) ) call save_solution(solution_uid)
 
+            ! ---------------------------- Absorption and Rescaling-
             call calc_flx_div(edir,ediff,abso)
 
             call scale_flx(edir,C_dir)
             call scale_flx(ediff,C_diff)
-    end subroutine
+        end subroutine
 
-    subroutine destroy_tenstream()
+        subroutine destroy_tenstream()
             if(ltwostr) then
               call VecDestroy(edir_twostr    , ierr) ;CHKERRQ(ierr)
               call VecDestroy(ediff_twostr   , ierr) ;CHKERRQ(ierr)
@@ -2014,10 +2105,6 @@ end subroutine
             call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
             call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
 
-            call DMDestroy(C_one%da, ierr); CHKERRQ(ierr)
-            call DMDestroy(C_dir%da, ierr); CHKERRQ(ierr)
-            call DMDestroy(C_diff%da,ierr); CHKERRQ(ierr)
-
             deallocate(atm%op)
             deallocate(atm%delta_op)
             if(allocated(atm%planck)) deallocate(atm%planck)
@@ -2031,35 +2118,152 @@ end subroutine
             call OPP_1_2%destroy()
             call OPP_8_10%destroy()
 
+            deallocate(C_dir%neighbors)  ; call DMDestroy(C_dir%da ,ierr)
+            deallocate(C_diff%neighbors) ; call DMDestroy(C_diff%da,ierr)
+            deallocate(C_one%neighbors)  ; call DMDestroy(C_one%da ,ierr)
+            deallocate(C_one1%neighbors) ; call DMDestroy(C_one1%da,ierr)
+
             linitialized=.False.
-    end subroutine
+        end subroutine
 
-    subroutine tenstream_get_result(redir,redn,reup,rabso)
-        real(ireals),dimension(:,:,:),allocatable,intent(out),optional :: redir,redn,reup,rabso
-        PetscScalar,pointer,dimension(:,:,:,:) :: x
-        integer(iintegers) :: dims(4)
+        subroutine tenstream_get_result(redir,redn,reup,rabso)
+            real(ireals),dimension(:,:,:),intent(out),optional :: redir,redn,reup,rabso
+            PetscScalar,pointer,dimension(:,:,:,:) :: x
 
-        if(present(redir)) then
-          call DMDAVecGetArrayF90(C_dir%da,edir,x,ierr) ;CHKERRQ(ierr)
-          dims = shape(x)
-          allocate( redir(dims(2),dims(3),dims(4) ) , source = sum(x(i0:i3,:,:,:),dim=1)/4)
-          call DMDAVecRestoreArrayF90(C_dir%da,edir,x,ierr) ;CHKERRQ(ierr)
-        endif
+            if(present(redir)) then
+              call DMDAVecGetArrayF90(C_dir%da,edir,x,ierr) ;CHKERRQ(ierr)
+              redir = sum(x(i0:i3,:,:,:),dim=1)/4
+              call DMDAVecRestoreArrayF90(C_dir%da,edir,x,ierr) ;CHKERRQ(ierr)
+            endif
 
-        if(present(redn).or.present(reup)) then
-          call DMDAVecGetArrayF90(C_diff%da,ediff,x,ierr) ;CHKERRQ(ierr)
-          dims = shape(x)
-          if(present(redn) ) allocate( redn(dims(2),dims(3),dims(4) ), source=x(i1,:,:,:) ) 
-          if(present(reup) ) allocate( reup(dims(2),dims(3),dims(4) ), source=x(i0,:,:,:) ) 
-          call DMDAVecRestoreArrayF90(C_diff%da,ediff,x,ierr) ;CHKERRQ(ierr)
-        endif
+            if(present(redn).or.present(reup)) then
+              call DMDAVecGetArrayF90(C_diff%da,ediff,x,ierr) ;CHKERRQ(ierr)
+              if(present(redn) )redn = x(i1,:,:,:)
+              if(present(reup) )reup = x(i0,:,:,:)
+              call DMDAVecRestoreArrayF90(C_diff%da,ediff,x,ierr) ;CHKERRQ(ierr)
+            endif
 
-        if(present(rabso)) then
-          call DMDAVecGetArrayF90(C_one%da,abso,x,ierr) ;CHKERRQ(ierr)
-          dims = shape(x)
-          allocate( rabso(dims(2),dims(3),dims(4) ), source=x(i0,:,:,:))
-          call DMDAVecRestoreArrayF90(C_one%da,abso,x,ierr) ;CHKERRQ(ierr)
-        endif
-    end subroutine
+            if(present(rabso)) then
+              call DMDAVecGetArrayF90(C_one%da,abso,x,ierr) ;CHKERRQ(ierr)
+              rabso = x(i0,:,:,:)
+              call DMDAVecRestoreArrayF90(C_one%da,abso,x,ierr) ;CHKERRQ(ierr)
+            endif
+        end subroutine
 
-end module
+        function load_solution(uid) result(loaded)
+            integer(iintegers),intent(in) :: uid
+            logical :: loaded
+            real(ireals) :: norm1,norm2
+            if(.not.lenable_solutions) return
+
+            if(uid.gt.size(solutions)) then
+              print *,'unique identifier exceeds container size.... you might want to grow it...',uid,size(solutions)
+              call exit(1)
+            endif
+
+            if( .not. solutions(uid)%lset ) then
+              loaded = .False.
+              return
+            else
+              if(ldebug.and.myid.eq.0) print *,'Loading Solution for uid',uid
+              call VecCopy(solutions(uid)%edir , edir , ierr) ;CHKERRQ(ierr)
+              call VecCopy(solutions(uid)%ediff, ediff, ierr) ;CHKERRQ(ierr)
+            endif
+            loaded = .True.
+
+!            call VecNorm(edir,NORM_2,norm1,ierr)
+!            call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
+!            print *,'loading vectors edir norms',norm1,norm2
+!            call VecNorm(ediff,NORM_2,norm1,ierr)
+!            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
+!            print *,'loading vectors ediff norms',norm1,norm2
+        end function
+        subroutine save_solution(uid)
+            integer(iintegers),intent(in) :: uid
+            character(100) :: vecname
+            real(ireals) :: norm1,norm2
+            if(.not.lenable_solutions) return
+
+            if(uid.gt.size(solutions)) then
+              print *,'unique identifier exceeds container size.... you might want to grow it...',uid,size(solutions)
+              call exit(1)
+            endif
+
+            if( .not. solutions(uid)%lset ) then
+!              if(myid.eq.0 .and. ldebug) print *,'duplicating vectors to store solution',uid
+              call VecDuplicate(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
+              call VecDuplicate(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)
+              solutions(uid)%lset=.True.
+            endif
+
+!            call VecNorm(edir,NORM_2,norm1,ierr)
+!            call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
+!            print *,'before saving vectors edir norms',norm1,norm2
+!            call VecNorm(ediff,NORM_2,norm1,ierr)
+!            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
+!            print *,'before saving vectors ediff norms',norm1,norm2
+
+
+            if(ldebug.and.myid.eq.0) print *,'Saving Solution for uid',uid
+            call VecCopy(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
+            call VecCopy(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)
+
+!            call VecNorm(edir,NORM_2,norm1,ierr)
+!            call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
+!            print *,'saving vectors edir norms',norm1,norm2
+!            call VecNorm(ediff,NORM_2,norm1,ierr)
+!            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
+!            print *,'saving vectors ediff norms',norm1,norm2
+
+
+!            write(vecname,FMT='("edir",I0)') uid
+!            call PetscObjectSetName(edir,vecname,ierr) ; CHKERRQ(ierr)
+!            call vec_to_hdf5(edir)
+!
+!            write(vecname,FMT='("ediff",I0)') uid
+!            call PetscObjectSetName(ediff,vecname,ierr) ; CHKERRQ(ierr)
+!            call vec_to_hdf5(ediff)
+!
+!            write(vecname,FMT='("abso",I0)') uid
+!            call PetscObjectSetName(abso,vecname,ierr) ; CHKERRQ(ierr)
+!            call vec_to_hdf5(abso)
+!
+!            write(vecname,FMT='("b",I0)') uid
+!            call PetscObjectSetName(b,vecname,ierr) ; CHKERRQ(ierr)
+!            call vec_to_hdf5(b)
+!
+!            write(vecname,FMT='("incSolar",I0)') uid
+!            call PetscObjectSetName(incSolar,vecname,ierr) ; CHKERRQ(ierr)
+!            call vec_to_hdf5(incSolar)
+        end subroutine
+
+subroutine vec_to_hdf5(v)
+      Vec,intent(in) :: v
+      character(10),parameter :: suffix='.h5'
+      character(110) :: fname
+      logical fexists
+      PetscFileMode :: fmode
+      character(100) :: vecname
+      
+      PetscViewer :: view
+
+      call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
+
+      fname = 'vecdump' // trim(suffix)
+      inquire(file=trim(fname), exist=fexists)
+      
+      if(fexists) then
+        if(myid.eq.0 .and. ldebug)  print *,myid,'appending vector to hdf5 file ',trim(fname),' vecname: ',vecname
+        fmode = FILE_MODE_APPEND
+      else 
+        if(myid.eq.0 .and. ldebug)  print *,myid,'writing vector to hdf5 file ',trim(fname),' vecname: ',vecname
+        fmode = FILE_MODE_WRITE
+      endif
+
+      call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
+      call VecView(v, view, ierr) ;CHKERRQ(ierr)
+      call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
+
+      if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'
+end subroutine
+      end module

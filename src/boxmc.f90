@@ -596,7 +596,7 @@ pure subroutine std_update(std, N, numnodes)
         class(t_boxmc) :: bmc
         integer(mpiint),intent(in) :: comm
 
-        print *,'initializing boxmc'
+!        print *,'initializing boxmc'
         if(comm.eq.-1) then
                 myid = -1
         else

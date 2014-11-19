@@ -68,7 +68,7 @@ module m_optprop_LUT
 
     integer(iintegers) :: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
-    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=.True.
+    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=.False.
     character(len=300) :: lutbasename 
 
     contains
@@ -747,12 +747,12 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
         !if (all( lneed_azi .and. lneed_sza )) mask([iphi],[itheta]) = .True. !todo breaks if we need either theta+1 or phi+1 i.e. uneven sza or phi=90
       enddo
     enddo
-    if(myid.eq.0) then
-      print *,'       phis',LUT%pspace%range_phi
-      do itheta=1,size(LUT%pspace%theta)
-        print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
-      enddo
-    endif
+!    if(myid.eq.0) then
+!      print *,'       phis',LUT%pspace%range_phi
+!      do itheta=1,size(LUT%pspace%theta)
+!        print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
+!      enddo
+!    endif
 end subroutine
 
 function search_sorted_bisection(arr,val) ! return index+residula i where arr(i) .gt. val
@@ -825,7 +825,7 @@ subroutine set_parameter_space(OPP,ps,dx)
     real(ireals),parameter :: maximum_transmission=one-1e-6_ireals !one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
     integer(iintegers) :: k
 
-    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'maximum_transmission=',one-epsilon(maximum_transmission)
+!    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'maximum_transmission=',one-epsilon(maximum_transmission)
 
     select type(OPP)
       class is (t_optprop_LUT_1_2)

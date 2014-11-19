@@ -45,7 +45,7 @@ subroutine init_mpi_data_parameters(comm)
 
   imp_logical = mpi_logical
 
-  print *,myid,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real
+  if(myid.eq.0) print *,myid,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real,'epsilon(real)',epsilon(one)
 !  print *,'init_mpi_data_parameters :: MPI_INTEGER',MPI_INTEGER,' :: MPI_DOUBLE_PRECISION',MPI_DOUBLE_PRECISION,' :: MPI_REAL',MPI_REAL
 end subroutine
 end module

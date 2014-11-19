@@ -11,16 +11,16 @@ if (NOT CMAKE_BUILD_TYPE)
 endif (NOT CMAKE_BUILD_TYPE)
 
 set (CMAKE_C_FLAGS "-cpp -W -Wall -Wuninitialized --std=c99" )
-set (CMAKE_Fortran_FLAGS "-cpp -ffree-line-length-none -W -Wall -Wuninitialized" )
+set (CMAKE_Fortran_FLAGS "-cpp -ffree-line-length-none -W -Wall -Wuninitialized -g" )
 set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3")# -ftree-vectorizer-verbose=1")
-set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -g -pg -fbounds-check ")#-ffpe-trap=invalid,zero,overflow,denormal")
+set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -pg -fbounds-check ")#-ffpe-trap=invalid,zero,overflow,denormal")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 #MESSAGE("Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")
 
-list (APPEND CMAKE_MODULE_PATH "$ENV{PETSC_DIR}/cmake-modules")
+list (APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules")
 
-set( HDF5_ROOT_DIR_HINT "$ENV{HDF5_DIR}/share/cmake/hdf5")
+set( HDF5_ROOT_DIR_HINT "${CMAKE_SOURCE_DIR}/cmake/hdf5")
 FIND_PACKAGE (HDF5 NAMES hdf5 REQUIRED)
 
 set(CMAKE_INCLUDE_SYSTEM_FLAG_Fortran "-I")
