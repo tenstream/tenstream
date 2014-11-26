@@ -90,9 +90,9 @@ module m_tenstream
         logical :: lset=.False.
 
         !save error statistics
-        integer(iintegers) :: errindex=1
-        real(ireals) :: time(3)
-        real(ireals) :: errors(3) 
+        real(ireals) :: time(5) = -one
+        real(ireals) :: initial_residual(5) = zero
+        real(ireals),allocatable :: ksp_residual_history(:)
       end type
       type(t_state_container),save :: solutions(1000)
 
@@ -1306,25 +1306,25 @@ subroutine calc_flx_div(edir,ediff,abso)
         call VecDestroy(ledir ,ierr) ; CHKERRQ(ierr)
 end subroutine
 
-subroutine solve(ksp,b,x)
+subroutine solve(ksp,b,x,solution_uid)
       KSP :: ksp
       Vec:: b
       Vec:: x
+      integer(iintegers),optional,intent(in) :: solution_uid
 
       KSPConvergedReason :: reason
       PetscInt :: iter
 
       if(myid.eq.0.and.ldebug) print *,'Solving Matrix'
 
+      if(present(solution_uid)) then
+        if(.not.allocated( solutions(solution_uid)%ksp_residual_history) ) allocate(solutions(solution_uid)%ksp_residual_history(100) )
+        call KSPSetResidualHistory(ksp, solutions(solution_uid)%ksp_residual_history, 100_iintegers, .True.,ierr)
+      endif
+
       call KSPSolve(ksp,b,x,ierr) ;CHKERRQ(ierr)
       call KSPGetIterationNumber(ksp,iter,ierr) ;CHKERRQ(ierr)
       call KSPGetConvergedReason(ksp,reason,ierr) ;CHKERRQ(ierr)
-
-!      print *,'Source Vector:'
-!      call VecView(b,PETSC_VIEWER_STDOUT_WORLD ,ierr) ;CHKERRQ(ierr)
-!
-!      print *,'Solution Vector:'
-!      call VecView(x,PETSC_VIEWER_STDOUT_WORLD ,ierr) ;CHKERRQ(ierr)
 
       if(myid.eq.0.and.ldebug) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
       if(reason.eq.KSP_DIVERGED_ITS) then
@@ -2049,16 +2049,30 @@ end subroutine
               if(luse_twostr_guess) then
                 call VecCopy(edir_twostr  ,edir ,ierr) ;CHKERRQ(ierr)
                 call VecCopy(ediff_twostr ,ediff,ierr) ;CHKERRQ(ierr)
-                !                call set_diff_initial_guess(ediff_twostr, ediff, C_diff)
               endif
 
               if(myid.eq.0) print *,'twostream calculation done'
             endif
 
+
+            ! ------------------------ Try load old solution -------
+            if( present(solution_uid) .and. present(solution_time) ) then
+              loaded = load_solution(solution_uid)
+              if(loaded) then !if we successfully loaded an earlier solution,
+                ! lets see if we can estimate its worth
+                if( .not. need_new_solution(solution_uid,solution_time) ) then
+                  ! and if it seems reasonable to assume nothing has changed, we are already done...
+                  call calc_flx_div(edir,ediff,abso)
+                  call scale_flx(edir,C_dir)
+                  call scale_flx(ediff,C_diff)
+                  return
+
+                endif ! need solution
+              endif ! loaded
+            endif ! have solution info
+
             ! ---------------------------- Edir  -------------------
             if(edirTOA.gt.zero .and. sun%theta.ge.zero) then
-
-              if( present(solution_uid) .and. present(solution_time) ) loaded = load_solution(solution_uid,solution_time)
 
               call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
               call setup_incSolar(incSolar,edirTOA)
@@ -2081,7 +2095,7 @@ end subroutine
             call setup_ksp(kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
 
             call PetscLogStagePush(logstage(5),ierr) ;CHKERRQ(ierr)
-            call solve(kspdiff, b, ediff)
+            call solve(kspdiff, b, ediff,solution_uid)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             if(present(solution_uid) .and. present(solution_time) ) call save_solution(solution_uid,solution_time)
@@ -2156,11 +2170,10 @@ end subroutine
             endif
         end subroutine
 
-        function load_solution(uid,time) result(loaded)
+        function load_solution(uid) result(loaded)
             integer(iintegers),intent(in) :: uid
-            real(ireals),intent(in) :: time
             logical :: loaded
-            real(ireals) :: norm1,norm2
+!            real(ireals) :: norm1,norm2
             if(.not.lenable_solutions) return
 
             if(uid.gt.size(solutions)) then
@@ -2185,11 +2198,56 @@ end subroutine
 !            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
 !            print *,'loading vectors ediff norms',norm1,norm2
         end function
+        function need_new_solution(uid,time)
+            integer(iintegers),intent(in) :: uid
+            real(ireals),intent(in) :: time
+            logical :: need_new_solution
+
+            real(ireals),parameter :: time_limit =  120 !s
+            real(ireals),parameter :: err_limit  = 1e-3 !W/m**2
+
+            real(ireals) :: t1,e1, t2,e2, t3,e3, error_estimate
+            e1 = solutions(uid)%initial_residual(3)
+            e2 = solutions(uid)%initial_residual(2)
+            e3 = solutions(uid)%initial_residual(1)
+
+            t1 = solutions(uid)%time(3)
+            t2 = solutions(uid)%time(2)
+            t3 = solutions(uid)%time(1)
+
+            call parabola(t1, e1, t2, e2, t3, e3, time, error_estimate)
+
+            need_new_solution=.True.
+            if(error_estimate.le.err_limit) need_new_solution=.False.
+            if(any([t1,t2,t3].lt.zero) )    need_new_solution=.True.
+            if(time-solutions(uid)%time(1) .gt. time_limit) need_new_solution=.True.
+
+            !need_new_solution=.True. ! overwrite it and calculate anyway
+
+            if(ldebug .and. myid.eq.0 .and. .not. need_new_solution ) &
+                print *,'need new calculation',need_new_solution,' because estimated error ist small for time',time,error_estimate
+
+            contains
+              subroutine parabola(x1, y1, x2, y2, x3, y3, x4, y4)
+                  ! Solve for coefficient in equation A.x**2 + B.x + C and evaluate polynomial at x4
+                  real(ireals), intent(in) :: x1, y1, x2, y2, x3, y3, x4
+                  real(ireals), intent(out) :: y4
+                  real(ireals) :: denom,A,B,C
+                  denom = (x1 - x2) * (x1 - x3) * (x2 - x3)
+                  A     = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / denom
+                  B     = (x3**2 * (y1 - y2) + x2**2 * (y3 - y1) + x1**2 * (y2 - y3)) / denom
+                  C     = (x2 * x3 * (x2 - x3) * y1 + x3 * x1 * (x3 - x1) * y2 + &
+                      x1 * x2 * (x1 - x2) * y3) / denom
+                  y4 = x4*(A*x4+B)+C
+!                  print *,'parabola:',denom,A,B,C,'::',y4
+              end subroutine
+
+        end function
         subroutine save_solution(uid,time)
             integer(iintegers),intent(in) :: uid
             real(ireals),intent(in) :: time
             character(100) :: vecname
-            real(ireals) :: norm1,norm2
+            real(ireals) :: norm1!,norm2
             if(.not.lenable_solutions) return
 
             if(uid.gt.size(solutions)) then
@@ -2216,6 +2274,14 @@ end subroutine
             call VecCopy(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
             call VecCopy(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)
 
+            solutions(uid)%initial_residual = eoshift ( solutions(uid)%initial_residual, shift = -1) !shift all values by 1 to the right
+            solutions(uid)%time             = eoshift ( solutions(uid)%time            , shift = -1) !shift all values by 1 to the right
+            solutions(uid)%time( 1 ) = time
+            norm1 = one* C_diff%glob_xm*C_diff%glob_ym*C_diff%glob_zm*C_diff%dof ! number of fluxes
+            solutions(uid)%initial_residual( 1 ) = solutions(uid)%ksp_residual_history( 1 )/norm1
+
+            if(ldebug.and.myid.eq.0) &
+              print *,'Updating error statistics for solutions with uid',uid,' time ',time,'::',solutions(uid)%initial_residual,'::',solutions(uid)%time
 !            call VecNorm(edir,NORM_2,norm1,ierr)
 !            call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
 !            print *,'saving vectors edir norms',norm1,norm2
