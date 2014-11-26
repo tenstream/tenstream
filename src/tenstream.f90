@@ -88,6 +88,11 @@ module m_tenstream
       type t_state_container
         Vec :: edir,ediff
         logical :: lset=.False.
+
+        !save error statistics
+        integer(iintegers) :: errindex=1
+        real(ireals) :: time(3)
+        real(ireals) :: errors(3) 
       end type
       type(t_state_container),save :: solutions(1000)
 
@@ -2028,9 +2033,10 @@ end subroutine
 
     end subroutine
 
-    subroutine solve_tenstream(edirTOA,solution_uid)
+    subroutine solve_tenstream(edirTOA,solution_uid,solution_time)
         real(ireals),intent(in) :: edirTOA
         integer(iintegers),optional,intent(in) :: solution_uid
+        real(ireals),      optional,intent(in) :: solution_time
         logical :: loaded
 
             if(ltwostr) then
@@ -2052,7 +2058,7 @@ end subroutine
             ! ---------------------------- Edir  -------------------
             if(edirTOA.gt.zero .and. sun%theta.ge.zero) then
 
-              if( present(solution_uid) ) loaded = load_solution(solution_uid)
+              if( present(solution_uid) .and. present(solution_time) ) loaded = load_solution(solution_uid,solution_time)
 
               call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
               call setup_incSolar(incSolar,edirTOA)
@@ -2078,7 +2084,7 @@ end subroutine
             call solve(kspdiff, b, ediff)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
-            if(present(solution_uid) ) call save_solution(solution_uid)
+            if(present(solution_uid) .and. present(solution_time) ) call save_solution(solution_uid,solution_time)
 
             ! ---------------------------- Absorption and Rescaling-
             call calc_flx_div(edir,ediff,abso)
@@ -2150,8 +2156,9 @@ end subroutine
             endif
         end subroutine
 
-        function load_solution(uid) result(loaded)
+        function load_solution(uid,time) result(loaded)
             integer(iintegers),intent(in) :: uid
+            real(ireals),intent(in) :: time
             logical :: loaded
             real(ireals) :: norm1,norm2
             if(.not.lenable_solutions) return
@@ -2178,8 +2185,9 @@ end subroutine
 !            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
 !            print *,'loading vectors ediff norms',norm1,norm2
         end function
-        subroutine save_solution(uid)
+        subroutine save_solution(uid,time)
             integer(iintegers),intent(in) :: uid
+            real(ireals),intent(in) :: time
             character(100) :: vecname
             real(ireals) :: norm1,norm2
             if(.not.lenable_solutions) return
