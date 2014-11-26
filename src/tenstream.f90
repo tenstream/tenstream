@@ -1377,7 +1377,7 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
         call PCSetType (prec,PCBJACOBI,ierr);CHKERRQ(ierr)
       endif
 
-      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(atm%l1d)/size(atm%l1d) ,PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
+      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)) ,PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
 
       call KSPSetConvergenceTest(ksp,MyKSPConverged, PETSC_NULL_OBJECT,PETSC_NULL_FUNCTION,ierr)
 

@@ -1153,7 +1153,7 @@ subroutine catch_limits(ps,dz,kabs,ksca,g)
       print *,'g is not in LookUpTable Range',g, 'LUT range',ps%range_g
       ierr=ierr+1
     endif
-    if(ierr.ne.0) stop 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.'
+    if(ierr.ne.0) print*, 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.'
 end subroutine
 
 end module
