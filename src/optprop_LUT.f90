@@ -135,11 +135,10 @@ contains
       OPP%diffLUT%dy    = idy
 
       if(any(szas.lt.0)) then
-        ! Load diffuse LUT
+        ! Load diffuse LUT first
         call OPP%loadLUT_diff(comm)
       else
-
-        ! Load direct LUTS
+        ! otherwise load direct LUTS first and then the diffuse
         write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta,ldelta_scale,delta_scale_truncate
         if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading direct LUT from ',trim(descr),' for szas',szas,': azi :',azis
         OPP%dirLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.h5'
@@ -351,7 +350,7 @@ end subroutine
       do itheta=1,OPP%Ntheta
         do iphi  =1,OPP%Nphi
           if(.not.angle_mask(iphi,itheta) ) cycle
-          if ( mpi_logical_and( allocated(OPP%dirLUT%T(iphi,itheta)%c)) ) cycle 
+          if ( mpi_logical_and( allocated(OPP%dirLUT%T(iphi,itheta)%c)) ) cycle ! if all nodes have the LUT already, we dont need to scatter it...
 
           ! DIRECT 2 DIRECT
           if(myid.eq.0) then
@@ -381,7 +380,7 @@ end subroutine
       enddo
 
       ! DIFFUSE 2 DIFFUSE
-      if( mpi_logical_or(.not.allocated(OPP%diffLUT%S%c) )) then
+      if( mpi_logical_or(.not.allocated(OPP%diffLUT%S%c) )) then ! if one or more nodes do not have it, guess we have to send it...
         if(myid.eq.0) then
           Ncoeff = size(OPP%diffLUT%S%c, 1)
           Ntot   = size(OPP%diffLUT%S%c) 
@@ -411,13 +410,13 @@ contains
 function mpi_logical_and(lneed)
     logical :: mpi_logical_and
     logical,intent(in) :: lneed
-    call mpi_allreduce(lneed, mpi_logical_and, 1, imp_logical, MPI_LAND, 0, comm, ierr)
+    call mpi_allreduce(lneed, mpi_logical_and, 1_mpiint, imp_logical, MPI_LAND, comm, ierr)
 !    print *,myid,'scattering LUT:',lneed,'==>',mpi_logical_and
 end function
 function mpi_logical_or(lneed)
     logical :: mpi_logical_or
     logical,intent(in) :: lneed
-    call mpi_allreduce(lneed, mpi_logical_or, 1, imp_logical, MPI_LOR, 0, comm, ierr)
+    call mpi_allreduce(lneed, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, comm, ierr)
 !    print *,myid,'scattering LUT:',lneed,'==>',mpi_logical_or
 end function
   end subroutine
@@ -861,9 +860,9 @@ subroutine set_parameter_space(OPP,ps,dx)
 
     select type(OPP)
       class is (t_optprop_LUT_1_2)
-        ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , max( ps%range_dz(2), dx ) ]
+        ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , max( ps%range_dz(2), dx*2 ) ]
       class is (t_optprop_LUT_8_10)
-        ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , min( ps%range_dz(2), dx ) ]
+        ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , min( ps%range_dz(2), dx*2 ) ]
       class default 
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select

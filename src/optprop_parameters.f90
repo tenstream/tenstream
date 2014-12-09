@@ -2,23 +2,29 @@ module m_optprop_parameters
       use m_data_parameters,only : ireals,iintegers
       implicit none
       
+      !> \page optprop_parameters Parameters concerning the transport coefficients
+      !! You should define some parameters about how and where to find the Look
+      !! Up Tables foir the transport coefficients
+      !> Have a look at the options in m_optprop_parameters::
+
       !-----------------------------------------
-      !- Define the path to the Lookuptables:  -
+      !> Define the path to the Lookuptables
+      !!
+      !!  This has to be a reachable path for rank 0,
+      !!  At MIM in Munich please set to
+      !!  '/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT'
       !-----------------------------------------
-      ! This should be a globally reachable path,
-      ! At MIM in Munich please set to
-      ! '/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT'
 
       character(len=300),parameter :: lut_basename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT'
 
       !-----------------------------------------
-      !- Define the mode to calculate coeffs   -
-      !-----------------------------------------
-      ! 0 :: retrieve directly from Lookuptable
-      ! 1 :: retrieve from ANN (experimental) :: 
-      !        this assumes you actually have a
-      !        ANN that can be queried....
-      ! 
+      !> Define the mode to calculate coeffs   -
+      !!-----------------------------------------
+      !! 0 :: retrieve directly from Lookuptable
+      !! 1 :: retrieve from ANN (experimental) :: 
+      !!        this assumes you actually have a
+      !!        ANN that can be queried....
+      !! 
       integer(iintegers),parameter :: coeff_mode = 0
 
       !-----------------------------------------
@@ -29,7 +35,8 @@ module m_optprop_parameters
       ! interp_mode 1 == nearest neighbour interpolation
       ! interp_mode 2 == linear interpolation
 
-      integer(iintegers) ,parameter :: Ndz_8_10=30, Nkabs_8_10=30, Nksca_8_10=30, Ng_8_10=4, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
+      integer(iintegers) ,parameter :: Ndz_8_10=40, Nkabs_8_10=20, Nksca_8_10=20, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
+!      integer(iintegers) ,parameter :: Ndz_8_10=30, Nkabs_8_10=30, Nksca_8_10=30, Ng_8_10=4, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
 !      integer(iintegers) ,parameter :: Ndz_8_10=50, Nkabs_8_10=80, Nksca_8_10=80, Ng_8_10=5, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
 
 !      integer(iintegers) ,parameter :: Ndz_8_10=3, Nkabs_8_10=10, Nksca_8_10=10, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=10, interp_mode_8_10=2

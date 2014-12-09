@@ -12,7 +12,7 @@ void tenstr_f2c_get_result(int Nx,int Ny,int Nz, float *edir, float *edn, float 
 static char help[] = "This is the C wrapper interface to the Tenstream solver environment.\n\n";
 
 int master(int fcomm) {
-  int    Nx=1, Ny=1, Nz=10;
+  int    Nx=20, Ny=20, Nz=10;
   double dx=70,dy=70;
   float phi0=180, theta0=0;
   float albedo=.05;

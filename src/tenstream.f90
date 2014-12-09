@@ -1,3 +1,29 @@
+!> \mainpage The Tenstream radiative transfer solver
+!!  - The driving routines are: \subpage driving_routines
+!!  - Important files to look into:
+!!    *  \subpage optprop_parameters
+!!  - At the moment there is no spectral integration parametrization included.
+
+!> \page driving_routines Driving Routines
+!! A typical use of the tenstream library would be to call the following functions in that order:
+!!
+!!  * m_tenstream::init_tenstream (needs only be called if any of the below changes)
+!!    - setup the grid information for parallelization
+!!    - setup the matrix structures
+!!    - setup the LUT tables or neural networks for the coefficients
+!!    - setup derivatives for sun directions
+!!    
+!!  * m_tenstream::set_optical_properties
+!!    - setup the optical properties for next calculation
+!!    - call set_global_optical_properties if only rank 0 has the global info
+!!
+!!  * m_tenstream::solve_tenstream
+!!    - setup the matrices and solve the equation system
+!!
+!!  * m_tenstream::tenstream_get_result
+!!    - retrieve the result from solution vectors
+
+
 module m_tenstream
 
       use m_data_parameters, only : ireals,iintegers,       &
@@ -9,14 +35,14 @@ module m_tenstream
       use m_eddington, only : eddington_coeff_fab
       use m_optprop_parameters, only : ldelta_scale
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
-      use m_tenstream_options, only : read_commandline_options, ltwostr, luse_twostr_guess, luse_eddington, twostr_ratio
+      use m_tenstream_options, only : read_commandline_options, ltwostr, luse_twostr_guess, luse_eddington, twostr_ratio, options_max_solution_err, options_max_solution_time
 
       implicit none
 #include "finclude/petsc.h90"
 
       private
       public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
-                tenstream_get_result, &
+                tenstream_get_result, need_new_solution, &
                 b,edir,ediff,abso,&
                 edir_twostr,ediff_twostr,abso_twostr, &
                 t_coord,C_dir,C_diff,C_one
@@ -90,8 +116,9 @@ module m_tenstream
         logical :: lset=.False.
 
         !save error statistics
-        real(ireals) :: time(5) = -one
-        real(ireals) :: initial_residual(5) = zero
+        real(ireals) :: time            (3000) = -one
+        real(ireals) :: initial_residual(3000) = zero
+        real(ireals) :: final_residual(3000)   = zero
         real(ireals),allocatable :: ksp_residual_history(:)
       end type
       type(t_state_container),save :: solutions(1000)
@@ -1319,6 +1346,7 @@ subroutine solve(ksp,b,x,solution_uid)
 
       if(present(solution_uid)) then
         if(.not.allocated( solutions(solution_uid)%ksp_residual_history) ) allocate(solutions(solution_uid)%ksp_residual_history(100) )
+        solutions(solution_uid)%ksp_residual_history = -1
         call KSPSetResidualHistory(ksp, solutions(solution_uid)%ksp_residual_history, 100_iintegers, .True.,ierr)
       endif
 
@@ -1364,7 +1392,7 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
       character(len=*),optional :: prefix
 
       PetscReal,parameter :: rtol=1e-5, atol=1e-5
-      PetscInt,parameter  :: maxiter=100
+      PetscInt,parameter  :: maxiter=1000
 
       if(linit) return
       call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
@@ -1723,7 +1751,6 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy, phi0,theta0,albedo, dz1d, dz3d
     atm%albedo = albedo
 
     if(.not.allocated(atm%dz) ) allocate(atm%dz( C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze ))
-    if(.not.allocated(atm%l1d)) allocate(atm%l1d( C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze ) )
 
     if(present(dz1d)) then
       do j=C_one%ys,C_one%ye
@@ -1738,11 +1765,18 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy, phi0,theta0,albedo, dz1d, dz3d
       call exit(1)
     endif
 
+    if(.not.allocated(atm%l1d)) then
+      allocate(atm%l1d( C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze ) )
+      atm%l1d = .False.
+    endif
 
-    atm%l1d(:,:,C_one%ze) = twostr_ratio*atm%dz(:,:,C_one%ze).gt.atm%dx
     do k=C_one%ze-1,C_one%zs,-1
       do j=C_one%ys,C_one%ye
         do i=C_one%xs,C_one%xe
+          if( atm%l1d(i,j,k) ) cycle ! if it was already marked 1D before, we must not change it to 3D -- otherwise have to recreate matrix routines. possible but not implemented at the moment !TODO
+
+          atm%l1d(i,j,C_one%ze) = twostr_ratio*atm%dz(i,j,C_one%ze).gt.atm%dx
+
           if( atm%l1d(i,j,k+1) ) then !can only be 3D RT if below is a 3D layer
             atm%l1d(i,j,k)=.True.
           else
@@ -2058,17 +2092,17 @@ end subroutine
             ! ------------------------ Try load old solution -------
             if( present(solution_uid) .and. present(solution_time) ) then
               loaded = load_solution(solution_uid)
-              if(loaded) then !if we successfully loaded an earlier solution,
-                ! lets see if we can estimate its worth
-                if( .not. need_new_solution(solution_uid,solution_time) ) then
-                  ! and if it seems reasonable to assume nothing has changed, we are already done...
-                  call calc_flx_div(edir,ediff,abso)
-                  call scale_flx(edir,C_dir)
-                  call scale_flx(ediff,C_diff)
-                  return
-
-                endif ! need solution
-              endif ! loaded
+!              if(loaded) then !if we successfully loaded an earlier solution,
+!                ! lets see if we can estimate its worth
+!                if( .not. need_new_solution(solution_uid,solution_time) ) then
+!                  ! and if it seems reasonable to assume nothing has changed, we are already done...
+!                  call calc_flx_div(edir,ediff,abso)
+!                  call scale_flx(edir,C_dir)
+!                  call scale_flx(ediff,C_diff)
+!                  return
+!
+!                endif ! need solution
+!              endif ! loaded
             endif ! have solution info
 
             ! ---------------------------- Edir  -------------------
@@ -2098,11 +2132,10 @@ end subroutine
             call solve(kspdiff, b, ediff,solution_uid)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
-            if(present(solution_uid) .and. present(solution_time) ) call save_solution(solution_uid,solution_time)
-
             ! ---------------------------- Absorption and Rescaling-
             call calc_flx_div(edir,ediff,abso)
 
+            if(present(solution_uid) .and. present(solution_time) ) call save_solution(solution_uid,solution_time)
             call scale_flx(edir,C_dir)
             call scale_flx(ediff,C_diff)
         end subroutine
@@ -2185,7 +2218,8 @@ end subroutine
               loaded = .False.
               return
             else
-              if(ldebug.and.myid.eq.0) print *,'Loading Solution for uid',uid
+              if(myid.eq.0) &
+                  print *,'Loading Solution for uid',uid
               call VecCopy(solutions(uid)%edir , edir , ierr) ;CHKERRQ(ierr)
               call VecCopy(solutions(uid)%ediff, ediff, ierr) ;CHKERRQ(ierr)
             endif
@@ -2203,10 +2237,19 @@ end subroutine
             real(ireals),intent(in) :: time
             logical :: need_new_solution
 
-            real(ireals),parameter :: time_limit =  120 !s
-            real(ireals),parameter :: err_limit  = 1e-3 !W/m**2
+!            real(ireals),parameter :: time_limit =  30 !s
+!            real(ireals),parameter :: err_limit  = 10._ireals/86.1_ireals ! ~ 1 Kelvin/day
 
             real(ireals) :: t1,e1, t2,e2, t3,e3, error_estimate
+            character(len=30) :: reason
+            integer, parameter :: out_unit=20
+
+            if( .not. solutions(uid)%lset ) then !if we did not store a solution, return immediately
+              need_new_solution=.True.
+              write(reason,*) 'no solution yet' 
+              return 
+            endif
+
             e1 = solutions(uid)%initial_residual(3)
             e2 = solutions(uid)%initial_residual(2)
             e3 = solutions(uid)%initial_residual(1)
@@ -2215,19 +2258,61 @@ end subroutine
             t2 = solutions(uid)%time(2)
             t3 = solutions(uid)%time(1)
 
-            call parabola(t1, e1, t2, e2, t3, e3, time, error_estimate)
+!            call parabola(t1, e1, t2, e2, t3, e3, time, error_estimate)
+            call exponential(t2, e2, t3, e3, time, error_estimate)
 
-            need_new_solution=.True.
-            if(error_estimate.le.err_limit) need_new_solution=.False.
-            if(any([t1,t2,t3].lt.zero) )    need_new_solution=.True.
-            if(time-solutions(uid)%time(1) .gt. time_limit) need_new_solution=.True.
+            if(error_estimate.le.options_max_solution_err) then
+              need_new_solution=.False.
+              write(reason,*) 'ERR_TOL_IN_BOUND' 
+            else
+              need_new_solution=.True.
+              write(reason,*) 'ERR_TOL_EXCEEDED' 
+            endif
 
-            !need_new_solution=.True. ! overwrite it and calculate anyway
+!            if(any([t1,t2,t3].lt.zero) ) then
+            if(any([t2,t3].lt.zero) ) then
+              need_new_solution=.True.
+              write(reason,*) 'FEW_SOLUTIONS' 
+            endif
+            if(time-solutions(uid)%time(1) .gt. options_max_solution_time) then
+              need_new_solution=.True.
+              write(reason,*) 'MIN_TIME_EXCEEDED' 
+            endif
 
-            if(ldebug .and. myid.eq.0 .and. .not. need_new_solution ) &
-                print *,'need new calculation',need_new_solution,' because estimated error ist small for time',time,error_estimate
+            if(.not.need_new_solution) then
+              need_new_solution=.True. ! overwrite it and calculate anyway
+              write(reason,*) 'MANUAL OVERRIDE' 
+            endif
+
+!            if(ldebug .and. myid.eq.0 .and. .not. need_new_solution ) &
+            if(myid.eq.0) then
+              print *,''
+              print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid,'::',error_estimate , ' residuals _solver ::', solutions(uid)%ksp_residual_history(1:4)
+              print *,''
+              if(uid.eq.2) then
+                open (unit=out_unit,file="residuals.log",action="write",status="replace")
+              else
+                open (unit=out_unit,file="residuals.log",action="readwrite",status="unknown",position = "append")
+              endif
+
+              write (out_unit,*) uid,solutions(uid)%initial_residual
+              write (out_unit,*) uid,solutions(uid)%time
+              write (out_unit,*) uid,solutions(uid)%final_residual
+              close (out_unit)
+            endif
 
             contains
+              subroutine exponential(x1, y1, x2, y2, x3, y3)
+                  ! fit to the function y = exp(alpha * x) +beta
+                  real(ireals), intent(in) :: x1, y1, x2, y2, x3
+                  real(ireals), intent(out) :: y3
+                  real(ireals) :: alpha,beta
+                  beta = y1 - one
+                  alpha = log( max(y1,y2) -beta)/(x2-x1)
+                  y3 = exp( alpha * (x3-x1) ) + beta
+!                  if(myid.eq.0) print *,'exponential error_estimate:',x1,y1,x2,y2,'::',alpha,beta,'::',x3,y3
+!                  if(myid.eq.0) print *,''
+              end subroutine
               subroutine parabola(x1, y1, x2, y2, x3, y3, x4, y4)
                   ! Solve for coefficient in equation A.x**2 + B.x + C and evaluate polynomial at x4
                   real(ireals), intent(in) :: x1, y1, x2, y2, x3, y3, x4
@@ -2247,7 +2332,11 @@ end subroutine
             integer(iintegers),intent(in) :: uid
             real(ireals),intent(in) :: time
             character(100) :: vecname
-            real(ireals) :: norm1!,norm2
+            real(ireals) :: norm1,norm2,norm3
+            Vec :: abso_old
+
+            real(ireals),save :: last_solution_save_time=0
+
             if(.not.lenable_solutions) return
 
             if(uid.gt.size(solutions)) then
@@ -2269,19 +2358,51 @@ end subroutine
 !            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
 !            print *,'before saving vectors ediff norms',norm1,norm2
 
+            call VecDuplicate(abso , abso_old , ierr)
+            call calc_flx_div(solutions(uid)%edir,solutions(uid)%ediff, abso_old)
 
-            if(ldebug.and.myid.eq.0) print *,'Saving Solution for uid',uid
+            call VecAXPY(abso_old , -one, abso , ierr) ! overwrite abso_old with difference to new one
+            call VecNorm(abso_old ,  NORM_1, norm1, ierr)
+            call VecNorm(abso_old ,  NORM_2, norm2, ierr)
+            call VecNorm(abso_old ,  NORM_INFINITY, norm3, ierr)
+            call VecDestroy(abso_old,ierr)
+
+            
+!            ! Overwrite old solution vectors with difference to new solution
+!            call VecAXPY(solutions(uid)%edir , -one, edir , ierr)
+!            call VecAXPY(solutions(uid)%ediff, -one, ediff, ierr)
+!
+!            call scale_flx(solutions(uid)%edir ,C_dir)
+!            call scale_flx(solutions(uid)%ediff,C_diff)
+!            ! Get norm of residual vector
+!            call VecNorm(solutions(uid)%edir ,  NORM_INFINITY, norm1, ierr)
+!            call VecNorm(solutions(uid)%ediff,  NORM_INFINITY, norm2, ierr)
+
+            ! Save norm for later analysis
+            solutions(uid)%initial_residual = eoshift ( solutions(uid)%initial_residual, shift = -1) !shift all values by 1 to the right
+            solutions(uid)%final_residual   = eoshift ( solutions(uid)%final_residual,   shift = -1) !shift all values by 1 to the right
+            solutions(uid)%time             = eoshift ( solutions(uid)%time            , shift = -1) !shift all values by 1 to the right
+
+
+!            norm1 = one* C_diff%glob_xm*C_diff%glob_ym*C_diff%glob_zm*C_diff%dof ! number of fluxes
+            solutions(uid)%initial_residual( 1 ) = norm3 ! solutions(uid)%ksp_residual_history( 1 ) / (C_diff%glob_xm*C_diff%glob_ym*C_diff%glob_zm*C_diff%dof)
+            solutions(uid)%final_residual( 1 )   = norm2
+            solutions(uid)%time( 1 ) = time
+
+
+!            if(ldebug .and. myid.eq.0) &
+            if(myid.eq.0) &
+              print *,'Updating error statistics for solutions with uid',uid,' time ',time,last_solution_save_time,'::',solutions(uid)%time(1),':: norm',norm1,norm2,norm3,':: hr_norm approx:',norm3*86.1
+
+            !TODO: this is for the residual history tests...
+            if(time-last_solution_save_time .le. 30._ireals .and. last_solution_save_time.ne.time ) return ! if not even 30 seconds went by, just return
+            last_solution_save_time=time
+
+            if(myid.eq.0) &
+                print *,'Saving Solution for uid',uid
             call VecCopy(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
             call VecCopy(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)
 
-            solutions(uid)%initial_residual = eoshift ( solutions(uid)%initial_residual, shift = -1) !shift all values by 1 to the right
-            solutions(uid)%time             = eoshift ( solutions(uid)%time            , shift = -1) !shift all values by 1 to the right
-            solutions(uid)%time( 1 ) = time
-            norm1 = one* C_diff%glob_xm*C_diff%glob_ym*C_diff%glob_zm*C_diff%dof ! number of fluxes
-            solutions(uid)%initial_residual( 1 ) = solutions(uid)%ksp_residual_history( 1 )/norm1
-
-            if(ldebug.and.myid.eq.0) &
-              print *,'Updating error statistics for solutions with uid',uid,' time ',time,'::',solutions(uid)%initial_residual,'::',solutions(uid)%time
 !            call VecNorm(edir,NORM_2,norm1,ierr)
 !            call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
 !            print *,'saving vectors edir norms',norm1,norm2

@@ -12,7 +12,8 @@ module m_tenstream_options
             ident_dx,&
             ident_dy,&
             options_phi,&
-            options_theta
+            options_theta,&
+            options_max_solution_err, options_max_solution_time
                     
       integer(iintegers) :: pert_xshift,pert_yshift
 
@@ -38,6 +39,8 @@ module m_tenstream_options
           print *,'-twostr_ratio <limit> :: when aspect ratio (dz/dx) is smaller than <limit> then we use twostr_coeffs(default = 1.)'  
           print *,'-pert_xshift <i>      :: shift optical properties in x direction by <i> pixels                                    '  
           print *,'-pert_yshift <j>      :: shift optical properties in Y direction by <j> pixels                                    '  
+          print *,'-max_solution_err [K] :: if max error of solution is estimated below this value, skip calculation                 '  
+          print *,'-max_solution_time[s] :: if last update of solution is older, update irrespective of estimated error              '  
           print *,'------------------------------------------------------------------------------------------------------------------'  
           print *,'------------------------------------------------------------------------------------------------------------------'  
         end subroutine
@@ -69,6 +72,11 @@ module m_tenstream_options
             call mpi_abort(imp_comm,ierr)
           endif
 
+          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-max_solution_err",options_max_solution_err, lflg,ierr)  ; CHKERRQ(ierr)
+          if (lflg.eqv.PETSC_FALSE ) options_max_solution_err=0
+          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-max_solution_time",options_max_solution_time, lflg,ierr)  ; CHKERRQ(ierr)
+          if (lflg.eqv.PETSC_FALSE ) options_max_solution_time=0
+
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
 
@@ -98,7 +106,7 @@ module m_tenstream_options
           endif
 
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-twostr_ratio",twostr_ratio, lflg,ierr)  ; CHKERRQ(ierr)
-          if(lflg.eqv.PETSC_FALSE) twostr_ratio=1._ireals
+          if(lflg.eqv.PETSC_FALSE) twostr_ratio=.5_ireals
 
           call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-pert_xshift",pert_xshift, lflg,ierr) ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) pert_xshift=0
@@ -121,6 +129,8 @@ module m_tenstream_options
             print *,'***   solar azimuth',options_phi
             print *,'***   solar zenith ',options_theta
             print *,'***   size_of ireal/iintegers',sizeof(one),sizeof(i0)
+            print *,'***   max_solution_err       ',options_max_solution_err
+            print *,'***   max_solution_time      ',options_max_solution_time
             print *,'********************************************************************'
             print *,''
           endif
