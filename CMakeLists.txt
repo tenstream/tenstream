@@ -1,6 +1,7 @@
 set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/config)
 include(CMakeForceCompiler) #Necessary to change between MPI/parallel/profiler compilers, without having to do a make clean
-list (APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules")
+list (APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/hdf5/")
 
 cmake_minimum_required (VERSION 2.8.1)
 
@@ -23,10 +24,7 @@ project (tenstream)
 enable_language(Fortran)
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 
-#set (CMAKE_C_FLAGS "-cpp -W -Wall -Wuninitialized --std=c99" )
-#set (CMAKE_Fortran_FLAGS "-cpp -ffree-line-length-none -W -Wall -Wuninitialized -g" )
-#set (CMAKE_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3")# -ftree-vectorizer-verbose=1")
-#set (CMAKE_Fortran_FLAGS_DEBUG   "-finit-real=nan -fcheck=all -fbacktrace -O0 -g -pedantic -Wsurprising -pg -fbounds-check ")#-ffpe-trap=invalid,zero,overflow,denormal")
+#set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CMAKE_C_FLAGS               ${USER_C_FLAGS} )
 set(CMAKE_Fortran_FLAGS         ${USER_Fortran_FLAGS} )
@@ -35,7 +33,6 @@ set(CMAKE_Fortran_FLAGS_DEBUG   ${USER_Fortran_FLAGS_DEBUG})
 
 set(CMAKE_INCLUDE_SYSTEM_FLAG_Fortran "-I")
 
-
 MESSAGE(STATUS "Build Type " ${CMAKE_BUILD_TYPE})
 if (CMAKE_BUILD_TYPE STREQUAL "RELEASE")
   MESSAGE(STATUS "Compiler Flags " ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_RELEASE})
@@ -43,8 +40,13 @@ else()
   MESSAGE(STATUS "Compiler Flags " ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_DEBUG})
 endif()
 
-set( HDF5_ROOT_DIR_HINT "${CMAKE_SOURCE_DIR}/cmake/hdf5")
-FIND_PACKAGE (HDF5 NAMES hdf5 REQUIRED)
+# Add HDF5
+set(HDF5_ROOT_DIR_HINT ${USER_HDF5_ROOT_DIR_HINT})
+find_package(HDF5 REQUIRED)
+message(STATUS "Found HDF5            :: ${HDF5_FOUND} ")
+message(STATUS "HDF5 Includes         :: ${HDF5_INCLUDE_DIR} ")
+message(STATUS "HDF5 Fortran Includes :: ${HDF5_FORTRAN_INCLUDE_DIR} ")
+
 include_directories (${HDF5_INCLUDE_DIRS})
 list (APPEND EXTLIB "${HDF5_LIBRARIES}" )
 
@@ -53,7 +55,6 @@ find_package( LAPACK REQUIRED )
 list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
 
 # Petsc
-#set(CMAKE_VERBOSE_MAKEFILE ON)
 MESSAGE(STATUS "Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")
 find_package(PETSc REQUIRED)
 message(STATUS "Found Petsc:    ${PETSC_FOUND}" )

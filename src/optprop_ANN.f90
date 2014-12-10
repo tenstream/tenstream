@@ -18,7 +18,7 @@ module m_optprop_ANN
     logical :: initialized=.False.
   end type
 
-  type(ANN) :: diff2diff_network, dir2dir_network, dir2diff_network, direct_network
+  type(ANN),save :: diff2diff_network, dir2dir_network, dir2diff_network, direct_network
 
 contains
 

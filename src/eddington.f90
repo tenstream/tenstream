@@ -1,7 +1,6 @@
 module m_eddington
-      use m_data_parameters, only: ireals,iintegers,mpiint,imp_comm,zero,one,pi
+      use m_data_parameters, only: ireals,iintegers,mpiint,imp_comm,zero,one,pi,ireal128
       use m_helper_functions, only: approx,delta_scale_optprop
-      use ISO_FORTRAN_ENV
       implicit none
 
       private
@@ -19,9 +18,9 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           real(ireals)            :: dtau,g,omega_0
 
-          real(real128) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6;
-          real(real128) ::  b_mmu_0, lambda, A, exp1, term1, bscr;
-          real(real128) ::  den1, mu_0_inv;
+          real(ireal128) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6;
+          real(ireal128) ::  b_mmu_0, lambda, A, exp1, term1, bscr;
+          real(ireal128) ::  den1, mu_0_inv;
 
           real(ireals),parameter ::  eps = sqrt(epsilon(omega_0))
 
@@ -35,30 +34,30 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           call delta_scale_optprop( dtau, omega_0, g  )
 !          print *,'eddington_coeff_rb dtau_in',dtau_in,'dtau',dtau
 
-          mu_0_inv = 1._real128/mu_0;
+          mu_0_inv = 1._ireal128/mu_0;
     
-          b_mmu_0 = 0.5_real128 - 0.75_real128 * g * mu_0;
+          b_mmu_0 = 0.5_ireal128 - 0.75_ireal128 * g * mu_0;
 
-          bscr = 0.5_real128 - 0.375_real128 * g;
-          alpha_1 = 2._real128 * ( 1._real128 - omega_0 * ( 1._real128 - bscr ) ) - 0.25_real128;
-          alpha_2 = 2._real128 * omega_0 * bscr - 0.25_real128;
+          bscr = 0.5_ireal128 - 0.375_ireal128 * g;
+          alpha_1 = 2._ireal128 * ( 1._ireal128 - omega_0 * ( 1._ireal128 - bscr ) ) - 0.25_ireal128;
+          alpha_2 = 2._ireal128 * omega_0 * bscr - 0.25_ireal128;
 
           lambda = sqrt ( alpha_1 * alpha_1 - alpha_2 * alpha_2 );
 
-          if ( lambda * dtau .gt. 100._real128 ) then
+          if ( lambda * dtau .gt. 100._ireal128 ) then
             a11 = zero;
             a12 = ( alpha_1 - lambda ) / alpha_2;
           else
             exp1  = exp( lambda * dtau );
             term1 = alpha_2 / ( alpha_1 - lambda ) * exp1;
 
-            A = 1.0_real128 / ( term1 - 1._real128 / term1 );
+            A = 1.0_ireal128 / ( term1 - 1._ireal128 / term1 );
 
-            a11 = A * 2.0_real128 * lambda / alpha_2;
-            a12 = A * ( exp1 - 1._real128 / exp1 );
+            a11 = A * 2.0_ireal128 * lambda / alpha_2;
+            a12 = A * ( exp1 - 1._ireal128 / exp1 );
           endif
 
-          den1 = 1._real128 / ( mu_0_inv * mu_0_inv - lambda * lambda )
+          den1 = 1._ireal128 / ( mu_0_inv * mu_0_inv - lambda * lambda )
 
           alpha_3 = - omega_0 * b_mmu_0;
           alpha_4 = omega_0 + alpha_3;
@@ -67,7 +66,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           a33     = exp ( - dtau  * mu_0_inv );   
 
-          a13 = + alpha_5 * ( 1.0_real128 - a33 * a11 ) - alpha_6 * a12;
+          a13 = + alpha_5 * ( 1.0_ireal128 - a33 * a11 ) - alpha_6 * a12;
           a23 = - alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 );
 
           a13 = a13 * mu_0_inv !Fabian: Roberts coefficients a13 expect S to be
@@ -129,7 +128,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           
           mu_0_inv =  1._ireals/ mu_0;
           b_mmu_0 = 0.5_ireals - 0.75_ireals * g * mu_0;
-          bscr = 0.5_real128 - 0.375_real128 * g;
+          bscr = 0.5_ireal128 - 0.375_ireal128 * g;
 
           zod1 = 2._ireals * ( 1._ireals - omega_0 * ( 1._ireals - bscr ) ) - 0.25_ireals;
           zod2 = 2._ireals * omega_0 * bscr - 0.25_ireals;
@@ -193,9 +192,9 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           real(ireals)            :: dtau,g,omega_0
 
-          real(real128) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6;
-          real(real128) ::  b_mmu_0, lambda, A, exp1, term1, bscr, term2, exp2, g0
-          real(real128) ::  den1, mu_0_inv;
+          real(ireal128) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6;
+          real(ireal128) ::  b_mmu_0, lambda, A, exp1, term1, bscr, term2, exp2, g0
+          real(ireal128) ::  den1, mu_0_inv;
 
           real(ireals),parameter ::  eps = 10._ireals * epsilon(omega_0)
 
@@ -208,16 +207,16 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           if ( approx( omega_0 * g , 1.0_ireals ) ) omega_0 = omega_0 * (one-eps);
           ! Singularities -- dont use values before here
 
-          mu_0_inv =  1._real128/ mu_0;
-          b_mmu_0 = (0.5_real128 - 0.75_real128 * g * mu_0);
+          mu_0_inv =  1._ireal128/ mu_0;
+          b_mmu_0 = (0.5_ireal128 - 0.75_ireal128 * g * mu_0);
 
-          bscr = (0.5_real128 - 0.375_real128 * g);
-          alpha_1 = 2._real128 * ( 1._real128 - omega_0 * ( 1._real128 - bscr ) ) - 0.25_real128;
-          alpha_2 = 2._real128 * omega_0 * bscr - 0.25_real128;
+          bscr = (0.5_ireal128 - 0.375_ireal128 * g);
+          alpha_1 = 2._ireal128 * ( 1._ireal128 - omega_0 * ( 1._ireal128 - bscr ) ) - 0.25_ireal128;
+          alpha_2 = 2._ireal128 * omega_0 * bscr - 0.25_ireal128;
 
           lambda = sqrt ( alpha_1 * alpha_1 - alpha_2 * alpha_2 );
 
-          if ( lambda * dtau .gt. 40._real128 ) then
+          if ( lambda * dtau .gt. 40._ireal128 ) then
             a11 = zero;
             a12 = ( alpha_1 - lambda ) / alpha_2;
           else
@@ -226,14 +225,14 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             term1 = alpha_2 / ( alpha_1 - lambda ) * exp1;
             term2 = alpha_2 / ( alpha_1 + lambda ) * exp2;
 
-            A = min( huge(A), 1.0_real128 / ( term1 - term2 ) );
-!            A = 1.0_real128 / ( term1 - term2 );
+            A = min( huge(A), 1.0_ireal128 / ( term1 - term2 ) );
+!            A = 1.0_ireal128 / ( term1 - term2 );
 
-            a11 = A * 2.0_real128 * lambda / alpha_2;
+            a11 = A * 2.0_ireal128 * lambda / alpha_2;
             a12 = A * ( exp1 - exp2 );
           endif
 
-          den1 = min( huge(den1), 1._real128 / ( mu_0_inv * mu_0_inv - lambda * lambda ))
+          den1 = min( huge(den1), 1._ireal128 / ( mu_0_inv * mu_0_inv - lambda * lambda ))
 
           alpha_3 = - omega_0 * b_mmu_0;
           alpha_4 = omega_0 + alpha_3;
@@ -242,7 +241,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           a33     = exp ( - dtau  * mu_0_inv );   
 
-          a13 = + alpha_5 * ( 1.0_real128 - a33 * a11 ) - alpha_6 * a12;
+          a13 = + alpha_5 * ( 1.0_ireal128 - a33 * a11 ) - alpha_6 * a12;
           a23 = - alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 );
 
           a13 = a13 * mu_0_inv !Fabian: Roberts coefficients a13 expect S to be

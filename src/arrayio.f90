@@ -7,7 +7,7 @@ module m_arrayIO
   implicit none
 
   private
-  public :: h5write,h5load,write_bin,write_ascii,read_bin
+  public :: h5write,h5load!,write_bin,write_ascii,read_bin
 
   integer :: u=10,v=11
   real(ireals),parameter :: maxwait=600 !in seconds
@@ -21,273 +21,273 @@ module m_arrayIO
   interface h5load
     module procedure h5load_1d,h5load_2d,h5load_3d,h5load_4d,h5load_5d,h5load_7d, h5load_1d_int,h5load_2d_int
   end interface
-  interface write_bin
-    module procedure wb1d,wb2d,wb3d,wb4d
-  end interface
-  interface write_ascii
-    module procedure wa1d,wa2d,wa3d
-  end interface
-  interface read_bin
-    module procedure rb1d,rb2d,rb3d,rb4d
-  end interface
+!  interface write_bin
+!    module procedure wb1d,wb2d,wb3d,wb4d
+!  end interface
+!  interface write_ascii
+!    module procedure wa1d,wa2d,wa3d
+!  end interface
+!  interface read_bin
+!    module procedure rb1d,rb2d,rb3d,rb4d
+!  end interface
 
   contains 
 
-    subroutine wa1d(basename,a)
-        character(100),intent(in) :: basename
-        real(ireals),intent(in) :: a(:)
-        character(10) :: suffbin='.txt',suffdescr='.txt.descr'
-        character(100) :: fname,descr
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-
-        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
-
-        open (newunit=u, file=trim(descr), status="replace")
-        write(u, *) shape(a)
-        close(u)
-
-        open (unit=v, file=trim(fname), status="replace")
-        write(v, *) a
-        close(v)
-    end subroutine
-    subroutine wa2d(basename,a)
-        character(100),intent(in) :: basename
-        real(ireals),intent(in) :: a(:,:)
-        character(10) :: suffbin='.txt',suffdescr='.txt.descr'
-        character(100) :: fname,descr
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-
-        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
-
-        open (newunit=u, file=trim(descr), status="replace")
-        write(u, *) shape(a)
-        close(u)
-
-        open (unit=v, file=trim(fname), status="replace")
-        write(v, *) a
-        close(v)
-    end subroutine
-    subroutine wa3d(basename,a)
-        character(100),intent(in) :: basename
-        real(ireals),intent(in) :: a(:,:,:)
-        character(10) :: suffbin='.txt',suffdescr='.txt.descr'
-        character(100) :: fname,descr
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-
-        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
-
-        open (newunit=u, file=trim(descr), status="replace")
-        write(u, *) shape(a)
-        close(u)
-
-        open (newunit=v, file=trim(fname), status="replace")
-        write(v, *) a
-        close(v)
-    end subroutine
-
-    subroutine wb1d(basename,a)
-        character(100),intent(in) :: basename
-        real(ireals),intent(in) :: a(:)
-        integer :: reclen
-        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
-        character(100) :: fname,descr
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-
-        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
-
-        open (newunit=u, file=trim(descr), status="replace")
-        write(u, *) shape(a)
-        close(u)
-
-        inquire(iolength=reclen) a
-        open (unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
-        write(unit=v,rec=1) a
-        close(unit=v)
-    end subroutine
-    subroutine rb1d(basename,o,ierr)
-        character(100),intent(in) :: basename
-        real(ireals),allocatable :: o(:)
-        integer :: reclen,dims(1)
-        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
-        character(100) :: fname,descr
-        logical :: file_exists
-        integer(iintegers),intent(out) :: ierr
-        ierr=0
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-        inquire(file=fname, exist=file_exists)
-        if(.not.file_exists) then
-          ierr=5
-          print *,'file doesnt exist: ',trim(fname),' : ',trim(descr)
-          return
-        endif
-
-        !        print *,'reading description from',trim(descr)
-        open (newunit=u, file=trim(descr), status="old")
-        read (u, *) dims
-        close(u)
-        !        print *,'dimensions of array are',dims
-        allocate(o(dims(1)))
-
-        inquire(iolength=reclen) o
-        open(unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
-        read(unit=v,rec=1) o
-        close(unit=v)
-    end subroutine
-    subroutine wb2d(basename,a)
-        character(100),intent(in) :: basename
-        real(ireals),intent(in) :: a(:,:)
-        integer :: reclen
-        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
-        character(100) :: fname,descr
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-
-        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
-
-        open (newunit=u, file=trim(descr), status="replace")
-        write(u, *) shape(a)
-        close(u)
-
-        inquire(iolength=reclen) a
-        open (unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
-        write(unit=v,rec=1) a
-        close(unit=v)
-    end subroutine
-    subroutine rb2d(basename,o,ierr)
-        character(100),intent(in) :: basename
-        real(ireals),allocatable :: o(:,:)
-        integer :: reclen,dims(2)
-        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
-        character(100) :: fname,descr
-        logical :: file_exists
-        integer(iintegers),intent(out) :: ierr
-        ierr=0
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-        inquire(file=fname, exist=file_exists)
-        if(.not.file_exists) then
-          ierr=5
-          print *,'file doesnt exist: ',trim(fname),' : ',trim(descr)
-          return
-        endif
-
-        !        print *,'reading description from',trim(descr)
-        open (newunit=u, file=trim(descr), status="old")
-        read (u, *) dims
-        close(u)
-        !        print *,'dimensions of array are',dims
-        allocate(o(dims(1),dims(2)))
-
-        inquire(iolength=reclen) o
-        open(unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
-        read(unit=v,rec=1) o
-        close(unit=v)
-    end subroutine
-    subroutine wb3d(basename,a)
-        character(100),intent(in) :: basename
-        real(ireals),intent(in) :: a(:,:,:)
-        integer :: reclen
-        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
-        character(100) :: fname,descr
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-
-        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
-
-        open (newunit=u, file=trim(descr), status="replace")
-        write(u, *) shape(a)
-        close(u)
-
-        inquire(iolength=reclen) a
-        open (unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
-        write(unit=v,rec=1) a
-        close(unit=v)
-    end subroutine
-    subroutine rb3d(basename,o,ierr)
-        character(100),intent(in) :: basename
-        real(ireals),allocatable :: o(:,:,:)
-        integer :: reclen,dims(3)
-        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
-        character(100) :: fname,descr
-        logical :: file_exists
-        integer(iintegers),intent(out) :: ierr
-        ierr=0
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-        inquire(file=fname, exist=file_exists)
-        if(.not.file_exists) then
-          ierr=5
-          print *,'file doesnt exist: ',trim(fname),' : ',trim(descr)
-          return
-        endif
-
-        !        print *,'reading description from',trim(descr)
-        open (newunit=u, file=trim(descr), status="old")
-        read (u, *) dims
-        close(u)
-        !        print *,'dimensions of array are',dims
-        allocate(o(dims(1),dims(2),dims(3)))
-
-        inquire(iolength=reclen) o
-        open(unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
-        read(unit=v,rec=1) o
-        close(unit=v)
-    end subroutine
-    subroutine wb4d(basename,a)
-        character(100),intent(in) :: basename
-        real(ireals),intent(in) :: a(:,:,:,:)
-        integer :: reclen
-        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
-        character(100) :: fname,descr
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-
-        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
-
-        open (newunit=u, file=trim(descr), status="replace")
-        write(u, *) shape(a)
-        close(u)
-
-        inquire(iolength=reclen) a
-        open (unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
-        write(unit=v,rec=1) a
-        close(unit=v)
-    end subroutine
-    subroutine rb4d(basename,o,ierr)
-        character(100),intent(in) :: basename
-        real(ireals),allocatable :: o(:,:,:,:)
-        integer :: reclen,dims(4)
-        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
-        character(100) :: fname,descr
-        logical :: file_exists
-        integer(iintegers),intent(out) :: ierr
-        ierr=0
-        fname = trim(basename) // trim(suffbin)
-        descr = trim(basename) // trim(suffdescr)
-        inquire(file=fname, exist=file_exists)
-        if(.not.file_exists) then
-          ierr=5
-          print *,'file doesnt exist: ',trim(fname),' : ',trim(descr)
-          return
-        endif
-
-        !        print *,'reading description from',trim(descr)
-        open (newunit=u, file=trim(descr), status="old")
-        read (u, *) dims
-        close(u)
-        !        print *,'dimensions of array are',dims
-        allocate(o(dims(1),dims(2),dims(3),dims(4)))
-
-        inquire(iolength=reclen) o
-        open(unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
-        read(unit=v,rec=1) o
-        close(unit=v)
-    end subroutine
+!    subroutine wa1d(basename,a)
+!        character(100),intent(in) :: basename
+!        real(ireals),intent(in) :: a(:)
+!        character(10) :: suffbin='.txt',suffdescr='.txt.descr'
+!        character(100) :: fname,descr
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!
+!        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
+!
+!        open (newunit=u, file=trim(descr), status="replace")
+!        write(u, *) shape(a)
+!        close(u)
+!
+!        open (unit=v, file=trim(fname), status="replace")
+!        write(v, *) a
+!        close(v)
+!    end subroutine
+!    subroutine wa2d(basename,a)
+!        character(100),intent(in) :: basename
+!        real(ireals),intent(in) :: a(:,:)
+!        character(10) :: suffbin='.txt',suffdescr='.txt.descr'
+!        character(100) :: fname,descr
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!
+!        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
+!
+!        open (newunit=u, file=trim(descr), status="replace")
+!        write(u, *) shape(a)
+!        close(u)
+!
+!        open (unit=v, file=trim(fname), status="replace")
+!        write(v, *) a
+!        close(v)
+!    end subroutine
+!    subroutine wa3d(basename,a)
+!        character(100),intent(in) :: basename
+!        real(ireals),intent(in) :: a(:,:,:)
+!        character(10) :: suffbin='.txt',suffdescr='.txt.descr'
+!        character(100) :: fname,descr
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!
+!        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
+!
+!        open (newunit=u, file=trim(descr), status="replace")
+!        write(u, *) shape(a)
+!        close(u)
+!
+!        open (newunit=v, file=trim(fname), status="replace")
+!        write(v, *) a
+!        close(v)
+!    end subroutine
+!
+!    subroutine wb1d(basename,a)
+!        character(100),intent(in) :: basename
+!        real(ireals),intent(in) :: a(:)
+!        integer :: reclen
+!        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
+!        character(100) :: fname,descr
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!
+!        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
+!
+!        open (newunit=u, file=trim(descr), status="replace")
+!        write(u, *) shape(a)
+!        close(u)
+!
+!        inquire(iolength=reclen) a
+!        open (unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
+!        write(unit=v,rec=1) a
+!        close(unit=v)
+!    end subroutine
+!    subroutine rb1d(basename,o,ierr)
+!        character(100),intent(in) :: basename
+!        real(ireals),allocatable :: o(:)
+!        integer :: reclen,dims(1)
+!        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
+!        character(100) :: fname,descr
+!        logical :: file_exists
+!        integer(iintegers),intent(out) :: ierr
+!        ierr=0
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!        inquire(file=fname, exist=file_exists)
+!        if(.not.file_exists) then
+!          ierr=5
+!          print *,'file doesnt exist: ',trim(fname),' : ',trim(descr)
+!          return
+!        endif
+!
+!        !        print *,'reading description from',trim(descr)
+!        open (newunit=u, file=trim(descr), status="old")
+!        read (u, *) dims
+!        close(u)
+!        !        print *,'dimensions of array are',dims
+!        allocate(o(dims(1)))
+!
+!        inquire(iolength=reclen) o
+!        open(unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
+!        read(unit=v,rec=1) o
+!        close(unit=v)
+!    end subroutine
+!    subroutine wb2d(basename,a)
+!        character(100),intent(in) :: basename
+!        real(ireals),intent(in) :: a(:,:)
+!        integer :: reclen
+!        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
+!        character(100) :: fname,descr
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!
+!        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
+!
+!        open (newunit=u, file=trim(descr), status="replace")
+!        write(u, *) shape(a)
+!        close(u)
+!
+!        inquire(iolength=reclen) a
+!        open (unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
+!        write(unit=v,rec=1) a
+!        close(unit=v)
+!    end subroutine
+!    subroutine rb2d(basename,o,ierr)
+!        character(100),intent(in) :: basename
+!        real(ireals),allocatable :: o(:,:)
+!        integer :: reclen,dims(2)
+!        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
+!        character(100) :: fname,descr
+!        logical :: file_exists
+!        integer(iintegers),intent(out) :: ierr
+!        ierr=0
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!        inquire(file=fname, exist=file_exists)
+!        if(.not.file_exists) then
+!          ierr=5
+!          print *,'file doesnt exist: ',trim(fname),' : ',trim(descr)
+!          return
+!        endif
+!
+!        !        print *,'reading description from',trim(descr)
+!        open (newunit=u, file=trim(descr), status="old")
+!        read (u, *) dims
+!        close(u)
+!        !        print *,'dimensions of array are',dims
+!        allocate(o(dims(1),dims(2)))
+!
+!        inquire(iolength=reclen) o
+!        open(unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
+!        read(unit=v,rec=1) o
+!        close(unit=v)
+!    end subroutine
+!    subroutine wb3d(basename,a)
+!        character(100),intent(in) :: basename
+!        real(ireals),intent(in) :: a(:,:,:)
+!        integer :: reclen
+!        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
+!        character(100) :: fname,descr
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!
+!        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
+!
+!        open (newunit=u, file=trim(descr), status="replace")
+!        write(u, *) shape(a)
+!        close(u)
+!
+!        inquire(iolength=reclen) a
+!        open (unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
+!        write(unit=v,rec=1) a
+!        close(unit=v)
+!    end subroutine
+!    subroutine rb3d(basename,o,ierr)
+!        character(100),intent(in) :: basename
+!        real(ireals),allocatable :: o(:,:,:)
+!        integer :: reclen,dims(3)
+!        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
+!        character(100) :: fname,descr
+!        logical :: file_exists
+!        integer(iintegers),intent(out) :: ierr
+!        ierr=0
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!        inquire(file=fname, exist=file_exists)
+!        if(.not.file_exists) then
+!          ierr=5
+!          print *,'file doesnt exist: ',trim(fname),' : ',trim(descr)
+!          return
+!        endif
+!
+!        !        print *,'reading description from',trim(descr)
+!        open (newunit=u, file=trim(descr), status="old")
+!        read (u, *) dims
+!        close(u)
+!        !        print *,'dimensions of array are',dims
+!        allocate(o(dims(1),dims(2),dims(3)))
+!
+!        inquire(iolength=reclen) o
+!        open(unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
+!        read(unit=v,rec=1) o
+!        close(unit=v)
+!    end subroutine
+!    subroutine wb4d(basename,a)
+!        character(100),intent(in) :: basename
+!        real(ireals),intent(in) :: a(:,:,:,:)
+!        integer :: reclen
+!        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
+!        character(100) :: fname,descr
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!
+!        print *,'writing data to:  ',trim(fname),'   ; shape to:   ',trim(descr)
+!
+!        open (newunit=u, file=trim(descr), status="replace")
+!        write(u, *) shape(a)
+!        close(u)
+!
+!        inquire(iolength=reclen) a
+!        open (unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
+!        write(unit=v,rec=1) a
+!        close(unit=v)
+!    end subroutine
+!    subroutine rb4d(basename,o,ierr)
+!        character(100),intent(in) :: basename
+!        real(ireals),allocatable :: o(:,:,:,:)
+!        integer :: reclen,dims(4)
+!        character(10) :: suffbin='.bin',suffdescr='.bin.descr'
+!        character(100) :: fname,descr
+!        logical :: file_exists
+!        integer(iintegers),intent(out) :: ierr
+!        ierr=0
+!        fname = trim(basename) // trim(suffbin)
+!        descr = trim(basename) // trim(suffdescr)
+!        inquire(file=fname, exist=file_exists)
+!        if(.not.file_exists) then
+!          ierr=5
+!          print *,'file doesnt exist: ',trim(fname),' : ',trim(descr)
+!          return
+!        endif
+!
+!        !        print *,'reading description from',trim(descr)
+!        open (newunit=u, file=trim(descr), status="old")
+!        read (u, *) dims
+!        close(u)
+!        !        print *,'dimensions of array are',dims
+!        allocate(o(dims(1),dims(2),dims(3),dims(4)))
+!
+!        inquire(iolength=reclen) o
+!        open(unit=v, file=trim(fname), form='unformatted',access='direct',recl=reclen)
+!        read(unit=v,rec=1) o
+!        close(unit=v)
+!    end subroutine
 
     subroutine h5write_open(groups,dims,id,dataset,dataspace,ierr)
         character(len=*) :: groups(:)

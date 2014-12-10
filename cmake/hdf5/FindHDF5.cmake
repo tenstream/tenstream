@@ -82,5 +82,4 @@ set ( HDF5_INCLUDE_DIR "${HDF5_INCLUDE_DIRS}" )
 
 if (HDF5_INCLUDE_DIR)
   set (HDF5_FOUND "YES")
-  include (${HDF5_ROOT_DIR}/hdf5-config.cmake)
 endif (HDF5_INCLUDE_DIR)

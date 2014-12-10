@@ -58,7 +58,7 @@ program main
 
         do src=1,10
           call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.False.,phi0,theta0,dx,dy,dz)
-          if(myid.eq.0) write(*, FMT='( " diffuse emission :: ",10(es10.3)," :: ",es10.3  )' ) S,one-sum(S)
+          if(myid.eq.0) write(*, FMT='( " diffuse transmission chan",I3,":: ",10(es10.3)," :: emission ",es10.3  )' ) src,S,one-sum(S)
         enddo
 
         print *,''

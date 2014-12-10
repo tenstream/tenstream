@@ -11,12 +11,13 @@ module m_data_parameters
 
       integer :: mpiint_dummy
       PetscInt :: petscint_dummy
-
       PetscReal :: petscreal_dummy
 
       integer,parameter :: &
           iintegers = kind(petscint_dummy), &
           ireals = kind(petscreal_dummy),   &
+!          ireal128 = selected_real_kind(33, 4931), &
+          ireal128 = selected_real_kind(15, 307), &
           mpiint = kind(mpiint_dummy)
 
       real(ireals),parameter :: pi=3.141592653589793_ireals, clight=299792458._ireals, nil=-9999._ireals
@@ -44,6 +45,10 @@ subroutine init_mpi_data_parameters(comm)
   call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, size, imp_real, ierror)
 
   imp_logical = mpi_logical
+
+  if(ireal128.lt.i0) then
+    if(myid.eq.0) print *,'128 bit reals not supported :( -- you can switch to double precision instead -- beware that the twostream coefficients may not be stable -- please edit data_parameters'
+  endif
 
   if(myid.eq.0) print *,myid,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real,'epsilon(real)',epsilon(one)
 !  print *,'init_mpi_data_parameters :: MPI_INTEGER',MPI_INTEGER,' :: MPI_DOUBLE_PRECISION',MPI_DOUBLE_PRECISION,' :: MPI_REAL',MPI_REAL
