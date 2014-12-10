@@ -2237,9 +2237,6 @@ end subroutine
             real(ireals),intent(in) :: time
             logical :: need_new_solution
 
-!            real(ireals),parameter :: time_limit =  30 !s
-!            real(ireals),parameter :: err_limit  = 10._ireals/86.1_ireals ! ~ 1 Kelvin/day
-
             real(ireals) :: t1,e1, t2,e2, t3,e3, error_estimate
             character(len=30) :: reason
             integer, parameter :: out_unit=20
@@ -2395,7 +2392,7 @@ end subroutine
               print *,'Updating error statistics for solutions with uid',uid,' time ',time,last_solution_save_time,'::',solutions(uid)%time(1),':: norm',norm1,norm2,norm3,':: hr_norm approx:',norm3*86.1
 
             !TODO: this is for the residual history tests...
-            if(time-last_solution_save_time .le. 30._ireals .and. last_solution_save_time.ne.time ) return ! if not even 30 seconds went by, just return
+            if(time-last_solution_save_time .le. 10._ireals .and. last_solution_save_time.ne.time ) return ! if not even 30 seconds went by, just return
             last_solution_save_time=time
 
             if(myid.eq.0) &

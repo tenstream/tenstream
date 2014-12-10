@@ -16,8 +16,9 @@ set(NETCDF_INCLUDE_DIR "/sw/squeeze-x64/netcdf-latest-static-gcc48/include/")
 set(NETCDF_LIB_1       "/sw/squeeze-x64/netcdf-latest-static-gcc48/lib/libnetcdff.a")
 set(NETCDF_LIB_2       "/sw/squeeze-x64/netcdf-latest-static-gcc48/lib/libnetcdf.a")
 
-#set(HDF5_ROOT_DIR     "/home/zmaw/m300362/libs/hdf5/hdf5-1.8.14-gcc48/install/")
-set(HDF5_INCLUDE_DIRS "/home/zmaw/m300362/libs/hdf5/hdf5-1.8.14-gcc48/install/include")
+set(HDF5_INCLUDE_DIRS       "/home/zmaw/m300362/libs/hdf5/hdf5-1.8.14-gcc48/install/include")
+list(APPEND HDF5_LIBRARIES  "/home/zmaw/m300362/libs/hdf5/hdf5-1.8.14-gcc48/install/lib/libhdf5hl_fortran.a")
+list(APPEND HDF5_LIBRARIES  "/home/zmaw/m300362/libs/hdf5/hdf5-1.8.14-gcc48/install/lib/libhdf5_fortran.a")
 
 set(SZIP_LIB           "/sw/squeeze-x64/szip-latest-static/lib/libsz.a")
 set(LIBS ${NETCDF_LIB_1} ${NETCDF_LIB_2} ${SZIP_LIB} m z curl jpeg)
