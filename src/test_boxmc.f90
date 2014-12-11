@@ -1,5 +1,5 @@
 program main
-      use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2
+      use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
       use mpi
       use m_data_parameters, only : mpiint,ireals,iintegers,one,zero, init_mpi_data_parameters,i1
@@ -8,7 +8,7 @@ program main
 
       implicit none
 
-      real(ireals) :: bg(3),delta_bg(3),delta1_bg(3),S(10),T(8),phi0,theta0,dx,dy,dz
+      real(ireals) :: bg(3),delta_bg(3),delta1_bg(3),S(10),T(8),T3(3),phi0,theta0,dx,dy,dz
 
       integer(iintegers),parameter :: Niter=10
       real(ireals) :: Siter(Niter,size(S) ), Titer(Niter,size(T) )
@@ -21,6 +21,7 @@ program main
       real(ireals) :: a11,a12,a13,a23,a33,g1,g2,b1,b2
 
       type(t_boxmc_8_10) :: bmc_8_10
+      type(t_boxmc_3_10) :: bmc_3_10
       type(t_boxmc_1_2) :: bmc_1_2
 
       type(t_optprop_8_10) OPP_8_10
@@ -28,11 +29,11 @@ program main
 
 
       phi0 = 0.
-      theta0=0.
+      theta0=45.
 
-      dx=7000
+      dx=7e5
       dy=dx
-      dz=40
+      dz=1e3
 
       print *,'Testing boxmc...'
       call MPI_Init(ierr)
@@ -42,10 +43,11 @@ program main
       call init_mpi_data_parameters(MPI_COMM_WORLD)
 
       call bmc_8_10%init(MPI_COMM_WORLD)
+      call bmc_3_10%init(MPI_COMM_WORLD)
       call bmc_1_2%init(MPI_COMM_WORLD)
 
       if(.True.) then
-        bg = [5e-2, 1e-36, .0 ]
+        bg = [1e-3, 1e-36, .0 ]
         call bmc_1_2%get_coeff(MPI_COMM_WORLD,bg,-1,S,T,.False.,phi0,theta0,dx,dy,dz)
         if(myid.eq.0) write(*, FMT='( " diffuse emission :: ",2(es10.3),"  :: ",2(es10.3) )' ) S(1:2),one-S(1:2)
 
@@ -56,9 +58,24 @@ program main
         if(myid.eq.0) write(*, FMT='( " hohlraum ::  :: ",10(es10.3)," :: ",10(es10.3)  )' ) 2*(dx*dy+dy*dz+dz*dx) * (one-S)
         print *,''
 
+        do src=1,3
+          call bmc_3_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T3,.True.,phi0,theta0,dx,dy,dz)
+          if(myid.eq.0) write(*, FMT='( " direct transmission chan",I3,":: ",3(es10.3)," :: diffuse ",10(es10.3)  )' ) src,T3,S
+        enddo
+
+        print *,''
+        print *,''
+
         do src=1,10
           call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.False.,phi0,theta0,dx,dy,dz)
           if(myid.eq.0) write(*, FMT='( " diffuse transmission chan",I3,":: ",10(es10.3)," :: emission ",es10.3  )' ) src,S,one-sum(S)
+        enddo
+
+        print *,''
+        print *,''
+        do src=1,8
+          call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.True.,phi0,theta0,dx,dy,dz)
+          if(myid.eq.0) write(*, FMT='( " direct transmission chan",I3,":: ",8(es10.3)," :: diffuse ",10(es10.3)  )' ) src,T,S
         enddo
 
         print *,''

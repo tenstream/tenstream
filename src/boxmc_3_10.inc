@@ -19,8 +19,8 @@ subroutine update_dir_stream_3_10(bmc,p,S,N)
     case(3:4)
 
       if(p%loc(3).le.p%dz) then
-        S(5) = S(5)+p%weight
-        N(5) = N(5)+i1
+        S(2) = S(2)+p%weight
+        N(2) = N(2)+i1
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -29,8 +29,8 @@ subroutine update_dir_stream_3_10(bmc,p,S,N)
     case(5:6)
 
       if(p%loc(3).le.p%dz ) then
-        S(7) = S(7)+p%weight
-        N(7) = N(7)+i1
+        S(3) = S(3)+p%weight
+        N(3) = N(3)+i1
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -121,16 +121,17 @@ subroutine init_dir_photon_3_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
 
         p%alive = .False.
 
-        if(src.eq.1) then
+        select case(src)
+        case (1)
                 p%loc = (/L(dx)     , L(dy)     ,    dz  /)
-        else if(src.eq.2) then
-                p%loc = (/  zero      , L(dy)       , L(dz)/)
-        else if(src.eq.3) then
-                p%loc = (/L(dx)       ,   zero      , L(dz)/)
-        else
+        case (2)
+                p%loc = (/  zero    , L(dy)     , L(dz)  /)
+        case (3)
+                p%loc = (/L(dx)     ,   zero    , L(dz)  /)
+        case default
                 print *,'Dont know what to do with source spec:',src
                 call exit
-        endif
+        end select
 
         p%weight=one
         p%dx   = dx
@@ -143,6 +144,7 @@ subroutine init_dir_photon_3_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         p%dir = initial_dir
         select type(bmc)
         end select
+
 
 end subroutine
 
