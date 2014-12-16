@@ -1342,6 +1342,8 @@ subroutine solve(ksp,b,x,solution_uid)
       KSPConvergedReason :: reason
       PetscInt :: iter
 
+      KSPType :: old_ksp_type
+
       if(myid.eq.0.and.ldebug) print *,'Solving Matrix'
 
       if(present(solution_uid)) then
@@ -1363,12 +1365,15 @@ subroutine solve(ksp,b,x,solution_uid)
       if(reason.le.0) then
               if(myid.eq.0.and.ldebug) print *,myid,'Resetted initial guess to zero and try again with gmres:'
               call VecSet(x,zero,ierr) ;CHKERRQ(ierr)
+              call KSPGetType(ksp,old_ksp_type,ierr); CHKERRQ(ierr)
               call KSPSetType(ksp,KSPGMRES,ierr) ;CHKERRQ(ierr)
               call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
               call KSPSolve(ksp,b,x,ierr) ;CHKERRQ(ierr)
               call KSPGetIterationNumber(ksp,iter,ierr) ;CHKERRQ(ierr)
               call KSPGetConvergedReason(ksp,reason,ierr) ;CHKERRQ(ierr)
 
+              ! And return to normal solver...
+              call KSPSetType(ksp,old_ksp_type,ierr) ;CHKERRQ(ierr)
               call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
               call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
               if(myid.eq.0.and.ldebug) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
@@ -1394,6 +1399,12 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
       PetscReal,parameter :: rtol=1e-5, atol=1e-5
       PetscInt,parameter  :: maxiter=1000
 
+      PetscInt,parameter :: ilu_default_levels=1
+      PetscInt :: pcbjac_n_local, pcbjac_iglob ! number of local ksp contexts and index in global ksp-table
+      KSP,allocatable :: pcbjac_ksps(:)
+      PC  :: pcbjac_sub_pc
+      integer(iintegers) :: isub
+
       if(linit) return
       call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
       if(myid.eq.0.and.ldebug) print *,'Setup KSP'
@@ -1401,7 +1412,7 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
       call KSPCreate(imp_comm,ksp,ierr) ;CHKERRQ(ierr)
       if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;CHKERRQ(ierr)
 
-      call KSPSetType(ksp,KSPFBCGS,ierr)  ;CHKERRQ(ierr)
+      call KSPSetType(ksp,KSPBCGS,ierr)  ;CHKERRQ(ierr)
       call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr) ;CHKERRQ(ierr) 
       call KSPGetPC  (ksp,prec,ierr)  ;CHKERRQ(ierr)
       if(numnodes.eq.0) then
@@ -1414,16 +1425,32 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
 
       call KSPSetConvergenceTest(ksp,MyKSPConverged, PETSC_NULL_OBJECT,PETSC_NULL_FUNCTION,ierr)
 
-      call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
-
       call KSPSetOperators(ksp,A,A,ierr) ;CHKERRQ(ierr)
       call KSPSetDM(ksp,C%da,ierr) ;CHKERRQ(ierr)
       call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
       call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
 
-      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, nullspace, ierr) ; CHKERRQ(ierr)
-      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
+      if(numnodes.eq.0) then
+        call PCFactorSetLevels(prec,ilu_default_levels,ierr);CHKERRQ(ierr)
+      else
+        call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,PETSC_NULL_OBJECT,ierr);CHKERRQ(ierr)
+        if(.not.allocated(pcbjac_ksps)) allocate(pcbjac_ksps(pcbjac_n_local))
+        call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);CHKERRQ(ierr)
+
+        do isub=1,pcbjac_n_local
+          call KSPSetType(pcbjac_ksps(isub) ,KSPPREONLY,ierr)              ;CHKERRQ(ierr)
+          call KSPGetPC  (pcbjac_ksps(isub), pcbjac_sub_pc,ierr)        ;CHKERRQ(ierr)
+          call PCSetType (pcbjac_sub_pc, PCILU,ierr)                    ;CHKERRQ(ierr)
+          call PCFactorSetLevels(pcbjac_sub_pc,ilu_default_levels,ierr) ;CHKERRQ(ierr)
+        enddo
+
+      endif
+
+      call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
+
+!      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, nullspace, ierr) ; CHKERRQ(ierr)
+!      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
 
       linit = .True.
       if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
