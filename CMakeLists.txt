@@ -3,7 +3,7 @@ include(CMakeForceCompiler) #Necessary to change between MPI/parallel/profiler c
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/hdf5/")
 
-cmake_minimum_required (VERSION 2.8.1)
+cmake_minimum_required (VERSION 2.8.10)
 
 #Load system specific settings
 if (NOT SYST)
