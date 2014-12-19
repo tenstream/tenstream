@@ -1,6 +1,9 @@
 module m_arrayIO
   use mpi
   use HDF5
+#if defined(__INTEL_COMPILER)
+      use ifport
+#endif
   USE m_data_parameters, ONLY :   &
       ireals,    &
       iintegers

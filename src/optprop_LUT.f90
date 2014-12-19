@@ -73,11 +73,16 @@ module m_optprop_LUT
 
     contains
       procedure :: init
-      procedure :: LUT_get_dir2dir,LUT_get_dir2diff
-      procedure :: LUT_get_emission,LUT_get_diff2diff
-      procedure :: bmc_wrapper, scatter_LUTtables
-      procedure :: createLUT_dir, createLUT_diff
-      procedure :: loadLUT_dir, loadLUT_diff
+      procedure :: LUT_get_dir2dir
+      procedure :: LUT_get_dir2diff
+      procedure :: LUT_get_emission
+      procedure :: LUT_get_diff2diff
+      procedure :: bmc_wrapper
+      procedure :: scatter_LUTtables
+      procedure :: createLUT_dir
+      procedure :: createLUT_diff
+      procedure :: loadLUT_dir
+      procedure :: loadLUT_diff
       procedure :: set_parameter_space
   end type
 

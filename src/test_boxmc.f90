@@ -127,7 +127,7 @@ program main
         bg = [1e-4, 1e-6, .8 ]
         delta_bg = bg
         delta1_bg = bg
-        call delta_scale(delta1_bg(1),delta1_bg(2),delta1_bg(3),delta1_bg(3)**1.5 )
+        call delta_scale(delta1_bg(1),delta1_bg(2),delta1_bg(3),delta1_bg(3)**1.5_ireals )
         call delta_scale(delta_bg(1),delta_bg(2),delta_bg(3) )
         if(myid.eq.0) then
           print *,'unscaled optprop',bg

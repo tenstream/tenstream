@@ -21,7 +21,7 @@ endif (NOT CMAKE_BUILD_TYPE)
 
 ########################### Tenstream Project: ###################################
 project (tenstream)
-enable_language(Fortran)
+enable_language(C Fortran)
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)

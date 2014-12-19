@@ -805,9 +805,9 @@ end type
 
             icoeff = 2
 
-            allocate( x(size(OPP%diffLUT%pspace%dz  )),source=(OPP%diffLUT%pspace%dz  )**.1 )
-            allocate( y(size(OPP%diffLUT%pspace%kabs)),source=(OPP%diffLUT%pspace%kabs)**.1 )
-            allocate( z(size(OPP%diffLUT%pspace%ksca)),source=(OPP%diffLUT%pspace%ksca)**.1 )
+            allocate( x(size(OPP%diffLUT%pspace%dz  )),source=(OPP%diffLUT%pspace%dz  )**.1_ireals )
+            allocate( y(size(OPP%diffLUT%pspace%kabs)),source=(OPP%diffLUT%pspace%kabs)**.1_ireals )
+            allocate( z(size(OPP%diffLUT%pspace%ksca)),source=(OPP%diffLUT%pspace%ksca)**.1_ireals )
             allocate( k(size(OPP%diffLUT%pspace%g   )),source=OPP%diffLUT%pspace%g )
 
             allocate( xx(2*size(x)-1 ) ) ; xx(1:size(xx):2) = x;  xx(2:size(xx):2) = [ ( (xx(i-1)+xx(i+1))/2  , i=2,size(xx),2 ) ]

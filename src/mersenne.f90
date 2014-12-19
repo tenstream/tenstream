@@ -75,7 +75,7 @@
 !    email: matumoto@math.keio.ac.jp
 ! -------------------------------------------------------------
 
-module mersenne
+module m_mersenne
 ! -------------------------------------------------------------
   implicit none
   private
@@ -352,7 +352,7 @@ contains
       twister%state(:) = 0
   end subroutine finalize_RandomNumberSequence
   ! --------------------  
-end module mersenne
+end module m_mersenne
 
 ! program testRandoms
 !   use mersenne

@@ -13,7 +13,7 @@ static char help[] = "This is the C wrapper interface to the Tenstream solver en
 
 int master(int fcomm) {
   int    Nx=20, Ny=20, Nz=10;
-  double dx=70,dy=70;
+  double dx=50,dy=50;
   float phi0=180, theta0=0;
   float albedo=.05;
 

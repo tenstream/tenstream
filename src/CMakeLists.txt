@@ -10,7 +10,7 @@ set( general_sources
   "gridtransform.f90"  
   "interpolation.f90"  
   "kato_data.f90"  
-  "mersenne.f95"  
+  "mersenne.f90"  
   "twostream.f90"
   "tenstream.f90"
   "tenstream_options.f90"

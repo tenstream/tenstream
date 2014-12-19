@@ -2,9 +2,12 @@
 !> @author Fabian Jakub LMU/MIM
 
 module m_boxmc
+#if defined(__INTEL_COMPILER)
+      use ifport
+#endif
       use m_helper_functions, only : approx,mean,rmse,deg2rad,norm
       use iso_c_binding
-      use mersenne
+      use m_mersenne
       use mpi
       use m_data_parameters, only: mpiint,imp_real,iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
       
