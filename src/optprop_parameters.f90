@@ -15,7 +15,7 @@ module m_optprop_parameters
       !!  '/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT'
       !-----------------------------------------
 
-      character(len=300),parameter :: lut_basename='/scratch/mpi/mpiaes/m300362/tenstream_LUT/LUT'
+      character(len=300),parameter :: lut_basename='/scratch/mpi/mpiaes/m300362/tenstream_LUT-intel15/LUT'
 
       !-----------------------------------------
       !> Define the mode to calculate coeffs   -

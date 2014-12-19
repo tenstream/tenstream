@@ -269,9 +269,9 @@ contains
         Sdir_out=zero
       endif
 
-      if( real(sum(S_out)+sum(Sdir_out)).gt.one+100_ireals*epsilon(one) ) then
+      if( (sum(S_out)+sum(Sdir_out)).gt.one+1e-3_ireals ) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',\
-                sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),':: op',p%optprop,'eps',epsilon(one)
+                sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),'.gt',one+1e-3_ireals,':: op',p%optprop,'eps',epsilon(one)
         call print_photon(p)
         call exit
       endif
