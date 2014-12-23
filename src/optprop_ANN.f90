@@ -1,6 +1,6 @@
 module m_optprop_ANN
   USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1
-  use m_arrayio
+  use m_netcdfio
 
   implicit none
   private
@@ -55,14 +55,14 @@ contains
       integer(iintegers) :: errcnt,k
       ierr=0
       if(.not.allocated(net%weights)) then
-        call h5load([fname,netname,'weights' ],net%weights ,ierr) ; errcnt = ierr         ! ; print *,'loading weights ',ierr
-        call h5load([fname,netname,'units'   ],net%units   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading units   ',ierr
-        call h5load([fname,netname,'inno'    ],net%inno    ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inno    ',ierr
-        call h5load([fname,netname,'outno'   ],net%outno   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading outno   ',ierr
-        call h5load([fname,netname,'conec'   ],net%conec   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading conec   ',ierr
-        call h5load([fname,netname,'deo'     ],net%deo     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading deo     ',ierr
-        call h5load([fname,netname,'eni'     ],net%eni     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading eni     ',ierr
-        call h5load([fname,netname,'inlimits'],net%inlimits,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inlimits',ierr
+        call ncload([fname,netname,'weights' ],net%weights ,ierr) ; errcnt = ierr         ! ; print *,'loading weights ',ierr
+        call ncload([fname,netname,'units'   ],net%units   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading units   ',ierr
+        call ncload([fname,netname,'inno'    ],net%inno    ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inno    ',ierr
+        call ncload([fname,netname,'outno'   ],net%outno   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading outno   ',ierr
+        call ncload([fname,netname,'conec'   ],net%conec   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading conec   ',ierr
+        call ncload([fname,netname,'deo'     ],net%deo     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading deo     ',ierr
+        call ncload([fname,netname,'eni'     ],net%eni     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading eni     ',ierr
+        call ncload([fname,netname,'inlimits'],net%inlimits,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inlimits',ierr
         if(ldebug) print *,'Loading ANN from:',fname,'name of Network: ',trim(netname),' resulted in errcnt',errcnt
         if(errcnt.ne.0) return
 

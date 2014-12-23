@@ -39,7 +39,7 @@ module m_tenstream_options
           print *,'-twostr_ratio <limit> :: when aspect ratio (dz/dx) is smaller than <limit> then we use twostr_coeffs(default = 1.)'  
           print *,'-pert_xshift <i>      :: shift optical properties in x direction by <i> pixels                                    '  
           print *,'-pert_yshift <j>      :: shift optical properties in Y direction by <j> pixels                                    '  
-          print *,'-max_solution_err [K] :: if max error of solution is estimated below this value, skip calculation                 '  
+          print *,'-max_solution_err [W] :: if max error of solution is estimated below this value, skip calculation                 '  
           print *,'-max_solution_time[s] :: if last update of solution is older, update irrespective of estimated error              '  
           print *,'------------------------------------------------------------------------------------------------------------------'  
           print *,'------------------------------------------------------------------------------------------------------------------'  

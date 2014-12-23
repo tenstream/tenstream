@@ -31,7 +31,7 @@ module m_tenstream
         zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
 
       use m_twostream, only: delta_eddington_twostream
-      use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast
+      use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum
       use m_eddington, only : eddington_coeff_fab
       use m_optprop_parameters, only : ldelta_scale
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -117,8 +117,8 @@ module m_tenstream
 
         !save error statistics
         real(ireals) :: time            (3000) = -one
-        real(ireals) :: initial_residual(3000) = zero
-        real(ireals) :: final_residual(3000)   = zero
+        real(ireals) :: maxnorm(3000) = zero
+        real(ireals) :: twonorm(3000)   = zero
         real(ireals),allocatable :: ksp_residual_history(:)
       end type
       type(t_state_container),save :: solutions(1000)
@@ -2245,7 +2245,7 @@ end subroutine
               loaded = .False.
               return
             else
-              if(myid.eq.0) &
+              if(myid.eq.0.and.ldebug) &
                   print *,'Loading Solution for uid',uid
               call VecCopy(solutions(uid)%edir , edir , ierr) ;CHKERRQ(ierr)
               call VecCopy(solutions(uid)%ediff, ediff, ierr) ;CHKERRQ(ierr)
@@ -2264,9 +2264,13 @@ end subroutine
             real(ireals),intent(in) :: time
             logical :: need_new_solution
 
-            real(ireals) :: t1,e1, t2,e2, t3,e3, error_estimate
+            integer,parameter :: Nfit=5 ! Number of used residuals
+            real(ireals) :: t(Nfit),tm(Nfit),dt(Nfit-1),e(Nfit-1),integ_err(Nfit), error_estimate, polyc(3)
+          
             character(len=30) :: reason
             integer, parameter :: out_unit=20
+
+            integer(iintegers) :: k
 
             if( .not. solutions(uid)%lset ) then !if we did not store a solution, return immediately
               need_new_solution=.True.
@@ -2274,16 +2278,50 @@ end subroutine
               return 
             endif
 
-            e1 = solutions(uid)%initial_residual(3)
-            e2 = solutions(uid)%initial_residual(2)
-            e3 = solutions(uid)%initial_residual(1)
+            do k=1,Nfit
+              t(k) = solutions(uid)%time(Nfit-k+1)
+            enddo
+            do k=1,Nfit-1
+              e(k) = solutions(uid)%maxnorm(Nfit-k)
+            enddo
 
-            t1 = solutions(uid)%time(3)
-            t2 = solutions(uid)%time(2)
-            t3 = solutions(uid)%time(1)
+!            call parabola(t2, e1, t3, e2, t4, e3, time, error_estimate)
+!            call exponential(t3, e2, t4, e3, time, error_estimate)
 
-!            call parabola(t1, e1, t2, e2, t3, e3, time, error_estimate)
-            call exponential(t2, e2, t3, e3, time, error_estimate)
+
+            ! t is pts where the solution got updated
+            ! tm is in between those time
+            ! dt is the weight for the integral
+            do k=1,Nfit-1
+              tm(k) = (t(k)+t(k+1) )*.5_ireals
+            enddo
+            tm(Nfit) = ( t(Nfit) + time )*.5_ireals
+
+            do k=1,Nfit-1
+              dt(k) = tm(k+1) - tm(k)
+            enddo
+
+            ! cumsum(e*dt) is the integral over error
+            integ_err(1:Nfit-1) = cumsum(e*dt)
+            polyc = polyfit(t(2:Nfit),integ_err(1:Nfit-1),size(polyc)-i1)
+
+            ! Use fit coefficients to calculate estimate of error integral at t=time
+            integ_err(Nfit)=0
+            do k=1,size(polyc)
+              integ_err(Nfit) = integ_err(Nfit) + polyc(k)*time**(k-1)
+            enddo
+
+            error_estimate = abs( integ_err(Nfit)-integ_err(Nfit-1) )/ (time - t(Nfit))
+
+            if(myid.eq.0 .and. error_estimate.le.zero) then
+              print *,'DEBUG t',t
+              print *,'DEBUG e',e
+              print *,'DEBUG tm',tm
+              print *,'DEBUG dt',dt
+              print *,'DEBUG integ_err',integ_err
+              print *,'DEBUG err_est',error_estimate
+              print *,'DEBUG polyc',polyc
+            endif
 
             if(error_estimate.le.options_max_solution_err) then
               need_new_solution=.False.
@@ -2293,35 +2331,35 @@ end subroutine
               write(reason,*) 'ERR_TOL_EXCEEDED' 
             endif
 
-!            if(any([t1,t2,t3].lt.zero) ) then
-            if(any([t2,t3].lt.zero) ) then
+            if(any(t.lt.zero) ) then
               need_new_solution=.True.
               write(reason,*) 'FEW_SOLUTIONS' 
             endif
+
             if(time-solutions(uid)%time(1) .gt. options_max_solution_time) then
               need_new_solution=.True.
               write(reason,*) 'MIN_TIME_EXCEEDED' 
             endif
 
-            if(.not.need_new_solution) then
-              need_new_solution=.True. ! overwrite it and calculate anyway
-              write(reason,*) 'MANUAL OVERRIDE' 
-            endif
+!            if(.not.need_new_solution) then
+!              need_new_solution=.True. ! overwrite it and calculate anyway
+!              write(reason,*) 'MANUAL OVERRIDE' 
+!            endif
 
 !            if(ldebug .and. myid.eq.0 .and. .not. need_new_solution ) &
             if(myid.eq.0) then
               print *,''
-              print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid,'::',error_estimate , ' residuals _solver ::', solutions(uid)%ksp_residual_history(1:4)
               print *,''
+              print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid,' residuals _solver ::', solutions(uid)%ksp_residual_history(1:4),'    ::     est.',error_estimate,'[W]',error_estimate*86.1,'[K/d]'
               if(uid.eq.2) then
                 open (unit=out_unit,file="residuals.log",action="write",status="replace")
               else
                 open (unit=out_unit,file="residuals.log",action="readwrite",status="unknown",position = "append")
               endif
 
-              write (out_unit,*) uid,solutions(uid)%initial_residual
+              write (out_unit,*) uid,solutions(uid)%maxnorm
               write (out_unit,*) uid,solutions(uid)%time
-              write (out_unit,*) uid,solutions(uid)%final_residual
+              write (out_unit,*) uid,solutions(uid)%twonorm
               close (out_unit)
             endif
 
@@ -2350,7 +2388,71 @@ end subroutine
                   y4 = x4*(A*x4+B)+C
 !                  print *,'parabola:',denom,A,B,C,'::',y4
               end subroutine
+              function polyfit(vx, vy, d) !Rosetta Code http://rosettacode.org/wiki/Polynomial_regression#Fortran
+                  implicit none
+                  integer(iintegers), intent(in)            :: d
+                  real(ireals), dimension(d+1)              :: polyfit
+                  real(ireals), dimension(:), intent(in)    :: vx, vy
 
+                  real(ireals), dimension(size(vx),d+1) :: X
+                  real(ireals), dimension(d+1,size(vx)) :: XT
+                  real(ireals), dimension(d+1,d+1)      :: XTX
+
+                  integer(iintegers) :: i, j
+
+                  integer(iintegers) :: n, lda, lwork
+                  integer(iintegers) :: info
+                  integer(iintegers), dimension(d+1) :: ipiv
+                  real(ireals)      , dimension(d+1) :: work
+
+                  n = d+1
+                  lda = n
+                  lwork = n
+
+                  do i=1,size(vx)
+                    if(any (vx(i).eq.vx(i+1:size(vx)) ) ) then ! polyfit cannot cope with same x values --> matrix gets singular
+                      polyfit=0
+                      polyfit(1) = nil
+                      return
+                    endif
+                  enddo
+
+                  ! prepare the matrix
+                  do i = 0, d
+                    do j = 1, size(vx)
+                      X(j, i+1) = vx(j)**i
+                    end do
+                  end do
+
+                  XT  = transpose(X)
+                  XTX = matmul(XT, X)
+
+                  ! calls to LAPACK subs DGETRF and DGETRI
+                  if(sizeof(one).eq.4) then !single precision
+                    call SGETRF(n, n, XTX, lda, ipiv, info)
+                  else if(sizeof(one).eq.8) then !double precision
+                    call DGETRF(n, n, XTX, lda, ipiv, info)
+                  else
+                    print *,'dont know which lapack routine to call for reals with sizeof==',sizeof(one)
+                  endif
+                  if ( info /= 0 ) then
+                    print *, "problem with lapack lsqr :: 1"
+                    return
+                  end if
+                  if(sizeof(one).eq.4) then !single precision
+                    call SGETRI(n, XTX, lda, ipiv, work, lwork, info)
+                  else if(sizeof(one).eq.8) then !double precision
+                    call DGETRI(n, XTX, lda, ipiv, work, lwork, info)
+                  else
+                    print *,'dont know which lapack routine to call for reals with sizeof==',sizeof(one)
+                  endif
+                  if ( info /= 0 ) then
+                    print *, "problem with lapack lsqr :: 2"
+                    return
+                  end if
+
+                  polyfit = matmul( matmul(XTX, XT), vy)
+              end function
         end function
         subroutine save_solution(uid,time)
             integer(iintegers),intent(in) :: uid
@@ -2403,26 +2505,27 @@ end subroutine
 !            call VecNorm(solutions(uid)%ediff,  NORM_INFINITY, norm2, ierr)
 
             ! Save norm for later analysis
-            solutions(uid)%initial_residual = eoshift ( solutions(uid)%initial_residual, shift = -1) !shift all values by 1 to the right
-            solutions(uid)%final_residual   = eoshift ( solutions(uid)%final_residual,   shift = -1) !shift all values by 1 to the right
-            solutions(uid)%time             = eoshift ( solutions(uid)%time            , shift = -1) !shift all values by 1 to the right
+            solutions(uid)%maxnorm = eoshift ( solutions(uid)%maxnorm, shift = -1) !shift all values by 1 to the right
+            solutions(uid)%twonorm = eoshift ( solutions(uid)%twonorm, shift = -1) !shift all values by 1 to the right
+            solutions(uid)%time    = eoshift ( solutions(uid)%time            , shift = -1) !shift all values by 1 to the right
 
 
 !            norm1 = one* C_diff%glob_xm*C_diff%glob_ym*C_diff%glob_zm*C_diff%dof ! number of fluxes
-            solutions(uid)%initial_residual( 1 ) = norm3 ! solutions(uid)%ksp_residual_history( 1 ) / (C_diff%glob_xm*C_diff%glob_ym*C_diff%glob_zm*C_diff%dof)
-            solutions(uid)%final_residual( 1 )   = norm2
+            solutions(uid)%maxnorm( 1 ) = norm3 ! solutions(uid)%ksp_residual_history( 1 ) / (C_diff%glob_xm*C_diff%glob_ym*C_diff%glob_zm*C_diff%dof)
+            solutions(uid)%twonorm( 1 ) = norm2
             solutions(uid)%time( 1 ) = time
 
 
 !            if(ldebug .and. myid.eq.0) &
             if(myid.eq.0) &
-              print *,'Updating error statistics for solutions with uid',uid,' time ',time,last_solution_save_time,'::',solutions(uid)%time(1),':: norm',norm1,norm2,norm3,':: hr_norm approx:',norm3*86.1
+              print *,'Updating error statistics for solutions with uid',uid,' time ',time,last_solution_save_time,'::',solutions(uid)%time(1),':: norm',norm1,norm2,norm3,'[W] :: hr_norm approx:',norm3*86.1,'[K/d]'
 
             !TODO: this is for the residual history tests...
-            if(time-last_solution_save_time .le. 10._ireals .and. last_solution_save_time.ne.time ) return ! if not even 30 seconds went by, just return
+!            if(time-last_solution_save_time .le. 30._ireals .and. last_solution_save_time.ne.time ) return ! if not even 30 seconds went by, just return
             last_solution_save_time=time
 
-            if(myid.eq.0) &
+!            if(myid.eq.0) &
+            if(ldebug .and. myid.eq.0) &
                 print *,'Saving Solution for uid',uid
             call VecCopy(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
             call VecCopy(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)

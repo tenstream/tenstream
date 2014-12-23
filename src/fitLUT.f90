@@ -1,7 +1,7 @@
 module m_poly_fitLUT
       use m_helper_functions, only: rmse
       use m_data_parameters, only: ireals,iintegers, init_mpi_data_parameters,numnodes,myid,zero,one,imp_comm
-      use m_arrayio
+      use m_netcdfio
 
       use m_optprop_LUT, only : t_optprop_LUT_8_10
 

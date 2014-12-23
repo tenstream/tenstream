@@ -9,7 +9,7 @@ module m_boxmc
       use iso_c_binding
       use m_mersenne
       use mpi
-      use m_data_parameters, only: mpiint,imp_real,iintegers,ireals,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
+      use m_data_parameters, only: mpiint,imp_real,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, zero,one,nil,inil,pi
       
       use m_optprop_parameters, only : delta_scale_truncate,stddev_atol,stddev_rtol,ldebug_optprop
 
@@ -145,15 +145,15 @@ contains
   !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev. Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
   subroutine get_coeff(bmc,comm,op_bg,src,S_out,Sdir_out,ldir,phi0,theta0,dx,dy,dz)
       class(t_boxmc)                :: bmc                       !< @param[in] bmc Raytracer Type - determines number of streams
-      real(ireals),intent(in)   :: op_bg(3)                  !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
-      real(ireals),intent(in)   :: phi0                      !< @param[in] phi0 solar azimuth angle
-      real(ireals),intent(in)   :: theta0                    !< @param[in] theta0 solar zenith angle
+      real(ireals),intent(in)       :: op_bg(3)                  !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
+      real(ireals),intent(in)       :: phi0                      !< @param[in] phi0 solar azimuth angle
+      real(ireals),intent(in)       :: theta0                    !< @param[in] theta0 solar zenith angle
       integer(iintegers),intent(in) :: src                       !< @param[in] src stream from which to start photons - see init_photon routines
       integer(mpiint),intent(in)    :: comm                      !< @param[in] comm MPI Communicator
       logical,intent(in)            :: ldir                      !< @param[in] ldir determines if photons should be started with a fixed incidence angle
-      real(ireals),intent(in)   :: dx,dy,dz                  !< @param[in] dx,dy,dz box with dimensions in [m]
-      real(ireals),intent(out)  :: S_out(bmc%diff_streams)   !< @param[out] S_out diffuse streams transfer coefficients
-      real(ireals),intent(out)  :: Sdir_out(bmc%dir_streams) !< @param[out] Sdir_out direct streams transfer coefficients
+      real(ireals),intent(in)       :: dx,dy,dz                  !< @param[in] dx,dy,dz box with dimensions in [m]
+      real(ireals),intent(out)      :: S_out(bmc%diff_streams)   !< @param[out] S_out diffuse streams transfer coefficients
+      real(ireals),intent(out)      :: Sdir_out(bmc%dir_streams) !< @param[out] Sdir_out direct streams transfer coefficients
 
       type(photon)       :: p
       integer(iintegers) :: k,mycnt,mincnt
@@ -194,19 +194,10 @@ contains
 
       call cpu_time(time(1))
 
-      mincnt= max( 100, int( 1e4 /numnodes ) ) !(one/min(stddev_atol,stddev_rtol))**2/numnodes) ! at least one value has to reach tolerance
-!      mycnt = int( ( (bmc%diff_streams*bmc%dir_streams ) / stddev_atol**2 / numnodes ) ) ! maximum if we had the chance that all values could have reached tolerances... this is however not a guarantee -- but we need to hard break it somewhere?? do we?
+      mincnt= max( 100, int( 1e4 /numnodes ) )
       mycnt = int(1e8)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
-!      print *,'minimal count of photons is',mincnt,' maximum',mycnt,'huge(mycnt)',huge(mycnt)-1
-!      k=0
       do k=1,mycnt
-
-!          k=k+1
-!          if(k.eq.mycnt) then
-!            print *,'boxmc :: INFO ::: we just passed the assumed maximum number of photons we ought to need... maybe this calculation is not converging as it should be? min/maxcnt',mincnt,mycnt,'converged?',[std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]
-!            exit
-!          endif
 
             if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
 
@@ -216,8 +207,6 @@ contains
               call bmc%init_diff_photon(p,src,dx,dy,dz)
             endif
             p%optprop = op_bg
-            !if(ldeltascale) call delta_scale_optprop_arr( p%optprop )
-
 
             move: do
               call bmc%move_photon(p)
@@ -396,17 +385,20 @@ subroutine update_photon_loc(p,dist)
           call exit
         endif
 end subroutine
-pure function hit_plane(p,po,pn)
+pure function hit_plane(p,po_i,pn_i)
         real(ireals) :: hit_plane
         type(photon),intent(in) :: p
-        real(ireals),intent(in) :: po(3),pn(3)
-        real(ireals) :: discr
+        real(ireals),intent(in) :: po_i(3),pn_i(3)
+        real(ireal_dp) :: po(3),pn(3)
+        real(ireal_dp) :: discr
+        po = po_i
+        pn = pn_i
         discr = dot_product(p%dir,pn)
-        if( approx(discr, zero) ) then
-                hit_plane=huge(hit_plane)
-        else        
+!        if( discr.le. 1e-8_ireal_dp ) then
+!                hit_plane=huge(hit_plane)
+!        else        
                 hit_plane = dot_product(po-p%loc, pn) / discr
-        endif
+!        endif
 end function
 
 elemental function distance(tau,beta)

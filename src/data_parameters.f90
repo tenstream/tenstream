@@ -18,6 +18,7 @@ module m_data_parameters
           ireals = kind(petscreal_dummy),   &
 !          ireal128 = selected_real_kind(33, 4931), &
           ireal128 = selected_real_kind(15, 307), &
+          ireal_dp = selected_real_kind(15, 307), &
           mpiint = kind(mpiint_dummy)
 
       real(ireals),parameter :: pi=3.141592653589793_ireals, clight=299792458._ireals, nil=-9999._ireals

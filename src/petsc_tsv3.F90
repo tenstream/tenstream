@@ -1,7 +1,7 @@
 module m_petsc_ts
 
 !      use m_gridtransform
-      use m_arrayio
+      use m_netcdfio
       use m_data_parameters, only : init_mpi_data_parameters,mpiint,ireals,iintegers,&
           imp_comm,myid, &
           nil,zero,one
@@ -127,7 +127,7 @@ end subroutine
 
       groups(3) = 'hhl'
       if(myid.eq.0) then
-        call h5load(groups(1:3),hhl,iierr)
+        call ncload(groups(1:3),hhl,iierr)
 
         if(ierr.ne.0) then
           print *,'Tried loading hhl from ',trim(groups(1)),' ::  ',trim(groups(2)),'  ::  ',trim(groups(3))
@@ -137,11 +137,11 @@ end subroutine
         write(groups(3),FMT='("kato",I0)') kato
         write(groups(4),FMT='("iq",I0)') iq
         groups(5) = 'kabs'
-        call h5load(groups(1:5),kabs,iierr)
+        call ncload(groups(1:5),kabs,iierr)
         groups(5) = 'ksca'
-        call h5load(groups(1:5),ksca,iierr) 
+        call ncload(groups(1:5),ksca,iierr) 
         groups(5) = 'g'
-        call h5load(groups(1:5),g,iierr) 
+        call ncload(groups(1:5),g,iierr) 
 
         if(size(ksca).ne.size(kabs).or.size(kabs).ne.size(g).or.size(hhl).ne.ubound(kabs,3)+1) then !.or.(ubound(hhl1d,1)-1.ne.ubound(kabs,3))) then
           print *,'ERROR : shapes of optical properties do not match!!!'

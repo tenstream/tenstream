@@ -345,10 +345,10 @@ subroutine intersect_distance_8_10(bmc,p,max_dist)
         type(photon),intent(inout) :: p
         real(ireals),intent(out) :: max_dist
 
-        real(ireals) :: x,y,z
+        real(ireal_dp) :: x,y,z
         integer(iintegers) :: i,sides(3)
 
-        real(ireals) :: dist(3)
+        real(ireal_dp) :: dist(3)
 
         !crossing with bottom and top plane:
           if(p%dir(3).ge.zero) then
@@ -405,7 +405,7 @@ subroutine intersect_distance_8_10(bmc,p,max_dist)
           endif
 
           !Ohhh there was a problem.. maybe with numerics, seems that it may happen that we dont find a solution if norm of p%dir is not equal to one....
-          max_dist=huge(dist)
+          max_dist=huge(max_dist)
           do i=1,3
             if(.not. approx(p%dir(i),zero) ) then
               if( dist(i).le.max_dist ) then

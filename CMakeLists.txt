@@ -40,16 +40,6 @@ else()
   MESSAGE(STATUS "Compiler Flags " ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_DEBUG})
 endif()
 
-# Add HDF5
-set(HDF5_ROOT_DIR_HINT ${USER_HDF5_ROOT_DIR_HINT})
-find_package(HDF5 REQUIRED)
-message(STATUS "Found HDF5            :: ${HDF5_FOUND} ")
-message(STATUS "HDF5 Includes         :: ${HDF5_INCLUDE_DIRS} ")
-message(STATUS "HDF5 Libraries        :: ${HDF5_LIBRARIES} ")
-
-include_directories (${HDF5_INCLUDE_DIRS})
-list (APPEND EXTLIB "${HDF5_LIBRARIES}" )
-
 # Add Lapack
 find_package( LAPACK REQUIRED )
 list (APPEND EXTLIB "${LAPACK_LIBRARIES}")

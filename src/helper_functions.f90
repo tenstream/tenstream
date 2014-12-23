@@ -4,7 +4,7 @@ module m_helper_functions
       implicit none
 
       private
-      public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale
+      public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_3d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -147,5 +147,16 @@ elemental subroutine delta_scale_optprop( dtau, w0, g,factor)
           g    = ( g - f ) / ( one - f )
           w0   = w0 * ( one - f ) / ( one - f * w0 )
       end subroutine
+
+      function cumsum(arr)
+        real(ireals),intent(in) :: arr(:)
+        real(ireals) :: cumsum(size(arr))
+        integer :: i
+        cumsum(1) = arr(1)
+        do i=2,size(arr)
+          cumsum(i) = cumsum(i-1) + arr(i)
+        enddo
+      end function
+
 
       end module

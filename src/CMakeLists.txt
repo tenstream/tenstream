@@ -4,7 +4,7 @@ include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 
 set( general_sources 
   "helper_functions.f90" 
-  "arrayio.f90"  
+  "netcdfio.f90"  
   "data_parameters.f90"  
   "eddington.f90"  
   "gridtransform.f90"  
@@ -26,7 +26,7 @@ set( optprop_sources
   )
 
 add_library( tenstream STATIC ${general_sources} ${optprop_sources} )
-TARGET_LINK_LIBRARIES( tenstream "${EXTLIB}" )
+TARGET_LINK_LIBRARIES( tenstream ${EXTLIB} ${USERLIB} )
 
 #target_include_directories (tenstream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
