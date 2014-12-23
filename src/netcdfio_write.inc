@@ -6,7 +6,7 @@ integer :: Ndims,ncid,i,varid
 integer,allocatable :: dims(:),dim_ids(:)
 character(len=10) :: dimname
 
-logical :: file_exists
+logical :: file_exists, var_exists
 
 integer(iintegers),intent(out) :: ierr
 lockfile=trim(groups(1))//'.lock'
@@ -49,7 +49,8 @@ enddo
 
 !Check if variable already exists
 ierr = nf90_inq_varid(ncid, varname, varid) ; call nccheck(ierr)
-if(ldebug) print *,'Check if variable exists',ierr
+var_exists = ierr.ne.NF90_NOERR
+if(ldebug) print *,'Check if variable exists',ierr,'::',var_exists
 
 if(ierr.ne.NF90_NOERR) then !Otherwise create it
   if(ldebug) print *,'Create variable'
