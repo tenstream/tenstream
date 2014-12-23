@@ -187,6 +187,8 @@ subroutine loadLUT_diff(OPP, comm)
     OPP%diffLUT%S%table_name_c = [OPP%diffLUT%fname,'diffuse',str(1),str(2),"S"]
     OPP%diffLUT%B%table_name_c = [OPP%diffLUT%fname,'diffuse',str(1),str(2),"B"]
 
+    if(.not.allocated(OPP%diffLUT%S%table_name_tol) ) allocate(OPP%diffLUT%S%table_name_tol(5)) 
+    if(.not.allocated(OPP%diffLUT%B%table_name_tol) ) allocate(OPP%diffLUT%B%table_name_tol(5)) 
     OPP%diffLUT%S%table_name_tol = [OPP%diffLUT%fname,'diffuse',str(1),str(2),"S_tol"]
     OPP%diffLUT%B%table_name_tol = [OPP%diffLUT%fname,'diffuse',str(1),str(2),"B_tol"]
 

@@ -1,6 +1,7 @@
   ncerr = nf90_get_var(ncid, varid, arr) ; call nccheck(ncerr) ; ierr = ierr+ncerr
   ncerr = nf90_close(ncid)               ; call nccheck(ncerr) ; ierr = ierr+ncerr
 
+  100 continue
   close(v,status='delete')
   if(ldebug) print *,'Reading Netcdf file returned with ierr: ',ierr
   return

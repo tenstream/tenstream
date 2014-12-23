@@ -1,9 +1,9 @@
 module m_netcdfIO
-  use mpi
-  use netcdf
 #if defined(__INTEL_COMPILER)
       use ifport
 #endif
+!  use mpi
+  use netcdf
   USE m_data_parameters, ONLY :   &
       ireals,    &
       iintegers
