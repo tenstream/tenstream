@@ -394,11 +394,11 @@ pure function hit_plane(p,po_i,pn_i)
         po = po_i
         pn = pn_i
         discr = dot_product(p%dir,pn)
-!        if( discr.le. 1e-8_ireal_dp ) then
-!                hit_plane=huge(hit_plane)
-!        else        
+        if( discr.eq. 0._ireal_dp ) then
+                hit_plane=huge(hit_plane)
+        else        
                 hit_plane = dot_product(po-p%loc, pn) / discr
-!        endif
+        endif
 end function
 
 elemental function distance(tau,beta)

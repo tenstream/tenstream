@@ -151,26 +151,27 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         integer(iintegers),intent(in) :: src
         logical,intent(in) :: direct
         real(ireals),parameter :: h=.5_ireals
+        real(ireals),parameter :: e=1e-8_ireals
 
         p%alive = .False.
 
         select case(src)
         case (1)
-                p%loc = (/L(dx)*h     , L(dy)*h     ,    dz  /)
+                p%loc = (/L(dx)*h     , L(dy)*h     ,    dz-e  /)
         case (2)
-                p%loc = (/dx*h+L(dx)*h, L(dy)*h     ,    dz  /)
+                p%loc = (/dx*h+L(dx)*h, L(dy)*h     ,    dz-e  /)
         case (3)
-                p%loc = (/L(dx)*h     , dy*h+L(dy)*h,    dz  /)
+                p%loc = (/L(dx)*h     , dy*h+L(dy)*h,    dz-e  /)
         case (4)
-                p%loc = (/dx*h+L(dx)*h, dy*h+L(dy)*h,    dz  /)
+                p%loc = (/dx*h+L(dx)*h, dy*h+L(dy)*h,    dz-e  /)
         case (5)
-                p%loc = (/  zero      , L(dy)       , L(dz)*h/)
+                p%loc = (/  zero+e      , L(dy)       , L(dz)*h/)
         case (6)
-                p%loc = (/  zero      , L(dy)       , dz*h+L(dz)*h/)
+                p%loc = (/  zero+e      , L(dy)       , dz*h+L(dz)*h/)
         case (7)
-                p%loc = (/L(dx)       ,   zero      , L(dz)*h/)
+                p%loc = (/L(dx)       ,   zero+e      , L(dz)*h/)
         case (8)
-                p%loc = (/L(dx)       ,   zero      , dz*h+L(dz)*h/)
+                p%loc = (/L(dx)       ,   zero+e      , dz*h+L(dz)*h/)
         case default
                 print *,'Dont know what to do with source spec:',src
                 call exit
@@ -415,7 +416,7 @@ subroutine intersect_distance_8_10(bmc,p,max_dist)
             endif
           enddo
 
-          print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
+          print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist,'::',dist
           call print_photon(p)
 
         select type(bmc)
