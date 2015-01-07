@@ -13,9 +13,11 @@ module m_optprop_parameters
       !!  This has to be a reachable path for rank 0,
       !!  At MIM in Munich please set to
       !!  '/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT'
+      !!  At ZMAW in Hamburg please set to
+      !!  '/scratch/mpi/mpiaes/m300362/tenstream_LUT/LUT'
       !-----------------------------------------
 
-      character(len=300),parameter :: lut_basename='/home/opt/cosmo_tica_lib/tenstream/optpropLUT/LUT'
+      character(len=300) :: lut_basename='./LUT' !'/scratch/mpi/mpiaes/m300362/tenstream_LUT/LUT'
 
       !-----------------------------------------
       !> Define the mode to calculate coeffs   -

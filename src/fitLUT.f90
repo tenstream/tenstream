@@ -493,7 +493,7 @@ end type
               fmode = FILE_MODE_WRITE
             endif
 
-            call PetscViewerHDF5Open(imp_comm,fname, fmode, view, ierr) ;CHKERRQ(ierr)
+!            call PetscViewerHDF5Open(imp_comm,fname, fmode, view, ierr) ;CHKERRQ(ierr)
             call PetscObjectSetName(inp%v, trim(vecname)//'inp',ierr) ; CHKERRQ(ierr);   call VecView(inp%v, view, ierr) ;CHKERRQ(ierr)
             call PetscObjectSetName(out%v, trim(vecname)//'out',ierr) ; CHKERRQ(ierr);   call VecView(out%v, view, ierr) ;CHKERRQ(ierr)
             call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)

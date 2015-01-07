@@ -274,7 +274,7 @@ contains
   ! --------------------
   function getRandomDouble(twister)
     type(randomNumberSequence), intent(inout) :: twister
-    double precision                          :: getRandomDouble
+    real(8)                          :: getRandomDouble
     ! Generate a random number on [0,1]
     !   Equivalent to genrand_real1 in the C code
     !   The result is stored as double precision but has 32 bit resolution

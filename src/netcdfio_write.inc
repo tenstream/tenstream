@@ -69,8 +69,8 @@ if(def_mode) then !if we created the file here, we need to leave define mode...
   ierr = nf90_enddef(ncid); call nccheck(ierr )
   if(ldebug) print *,'Putting netcdf file in datamode',ierr
 endif
-
-ierr = nf90_put_var(ncid, varid, arr) ; call nccheck(ierr)
+tmp=arr
+ierr = nf90_put_var(ncid, varid, tmp) ; call nccheck(ierr)
 
 ierr = nf90_close(ncid) ; call nccheck(ierr)
 
@@ -79,5 +79,6 @@ return
 99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
 call cpusleep(waitinterval)
 enddo
+stop 'Couldnt write file .. waited now for quite a while but we couldnt write to it :('
 
 

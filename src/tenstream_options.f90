@@ -1,5 +1,6 @@
 module m_tenstream_options
       use m_data_parameters, only : ireals,iintegers,myid,numnodes,one,i0,imp_comm
+      use m_optprop_parameters, only: lut_basename
       implicit none
 #include "finclude/petsc.h90"
 
@@ -41,6 +42,7 @@ module m_tenstream_options
           print *,'-pert_yshift <j>      :: shift optical properties in Y direction by <j> pixels                                    '  
           print *,'-max_solution_err [W] :: if max error of solution is estimated below this value, skip calculation                 '  
           print *,'-max_solution_time[s] :: if last update of solution is older, update irrespective of estimated error              '  
+          print *,'-lut_basename         :: path to LUT table files -- default is local dir                                          '  
           print *,'------------------------------------------------------------------------------------------------------------------'  
           print *,'------------------------------------------------------------------------------------------------------------------'  
         end subroutine
@@ -113,6 +115,7 @@ module m_tenstream_options
           call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-pert_yshift",pert_yshift, lflg,ierr) ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) pert_yshift=0
 
+          call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-lut_basename',lut_basename,lflg,ierr) ; CHKERRQ(ierr)
 
           if(myid.eq.0) then
             print *,'********************************************************************'
@@ -131,6 +134,7 @@ module m_tenstream_options
             print *,'***   size_of ireal/iintegers',sizeof(one),sizeof(i0)
             print *,'***   max_solution_err       ',options_max_solution_err
             print *,'***   max_solution_time      ',options_max_solution_time
+            print *,'***   lut_basename           ',lut_basename
             print *,'********************************************************************'
             print *,''
           endif

@@ -1,4 +1,7 @@
 module m_optprop_LUT
+
+  use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
+
   use m_helper_functions, only : approx,rel_approx
   use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_comm,imp_logical
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
@@ -8,8 +11,6 @@ module m_optprop_LUT
   use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
   use m_tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
   use m_netcdfio
-
-  use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 
 
   implicit none
@@ -21,7 +22,7 @@ module m_optprop_LUT
   ! It also holds functions for interpolation on the regular LUT grid.
 
   integer(iintegers) :: iierr
-  integer(mpiint) :: myid,comm_size,ierr
+  integer(mpiint) :: myid,comm_size,mpierr
 
   type parameter_space
     real(ireals),allocatable ,dimension(:) :: dz
@@ -103,8 +104,8 @@ contains
       integer(iintegers) :: idx,idy
       integer(iintegers),parameter :: horiz_rounding=1 ! round LUT for various horizontal distances: e.g. horiz_rounding=10 -> dx=66.7 ==> dx=70
 
-      call MPI_Comm_rank(comm, myid, ierr)
-      call MPI_Comm_size(comm, comm_size, ierr)
+      call MPI_Comm_rank(comm, myid, mpierr)
+      call MPI_Comm_size(comm, comm_size, mpierr)
       idx = nint( dx/horiz_rounding  ) * horiz_rounding
       idy = nint( dy/horiz_rounding  ) * horiz_rounding
 
@@ -210,7 +211,7 @@ subroutine loadLUT_diff(OPP, comm)
 
       lstddev_inbounds=.False.
       call ncload(OPP%diffLUT%S%table_name_tol, OPP%diffLUT%S%stddev_tol,iierr) ; errcnt = errcnt+iierr
-      if( allocated(OPP%diffLUT%S%stddev_tol) ) lstddev_inbounds = all(real(OPP%diffLUT%S%stddev_tol).le.real(stddev_atol))
+      if( allocated(OPP%diffLUT%S%stddev_tol) ) lstddev_inbounds = all(real(OPP%diffLUT%S%stddev_tol).le.real(stddev_atol+1e-8_ireals))
       if(.not.lstddev_inbounds) errcnt=errcnt+7 
       
 !      call ncload(OPP%diffLUT%B%table_name_tol, OPP%diffLUT%B%stddev_tol,iierr) ; errcnt = errcnt+iierr
@@ -218,8 +219,8 @@ subroutine loadLUT_diff(OPP, comm)
       
 
     endif
-    call mpi_bcast(errcnt           , 1 , imp_int     , 0 , comm , ierr) ! inform all nodes if we were able to load the LUT
-    call mpi_bcast(lstddev_inbounds , 1 , MPI_LOGICAL , 0 , comm , ierr) ! and if all coefficients are valid
+    call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr) ! inform all nodes if we were able to load the LUT
+    call mpi_bcast(lstddev_inbounds , 1_mpiint , imp_logical , 0_mpiint , comm , mpierr) ! and if all coefficients are valid
 
     if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then ! something is missing... lets try to recompute missing values in LUT
       if(myid.eq.0) then
@@ -279,12 +280,13 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
         if(myid.eq.0) then
           if(OPP%optprop_LUT_debug) print *,'Trying to load the LUT from file...'
             call ncload([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],OPP%dirLUT%S(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
-            if(allocated(OPP%dirLUT%S(iphi,itheta)%c) ) then
+          if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"S"],OPP%dirLUT%S(iphi,itheta)%c
+            if(iierr.eq.0) then
               if(any( OPP%dirLUT%S(iphi,itheta)%c.gt.one ).or.any(OPP%dirLUT%S(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
             endif
 
             call ncload([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"T"],OPP%dirLUT%T(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
-            if(allocated(OPP%dirLUT%T(iphi,itheta)%c) ) then
+            if(iierr.eq.0) then
               if(any( OPP%dirLUT%T(iphi,itheta)%c.gt.one ).or.any(OPP%dirLUT%T(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
               call check_dirLUT_matches_pspace(OPP%dirLUT)
             endif
@@ -293,18 +295,18 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             lstddev_inbounds = .True. ! first assume that precision is met and then check if this is still the case...
             call ncload([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"S_rtol"],OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr) 
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0 
-            if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol))
+            if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol+1e-8_ireals))
 
             call ncload([OPP%dirLUT%fname,'direct',str(1),str(2),str(3),str(4),"T_rtol"],OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr)
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0
-            if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol))
+            if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol+1e-8_ireals))
 
 !            if(OPP%optprop_LUT_debug) &
                 print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds
         endif
 
-        call mpi_bcast(errcnt           , 1 , imp_int , 0 , comm , ierr)
-        call mpi_bcast(lstddev_inbounds , 1 , MPI_LOGICAL , 0 , comm , ierr)
+        call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr)
+        call mpi_bcast(lstddev_inbounds , 1_mpiint , imp_logical , 0_mpiint , comm , mpierr)
 
         if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then
           if(myid.eq.0) then
@@ -374,11 +376,11 @@ end subroutine
             Ntot   = size(OPP%dirLUT%T(iphi,itheta)%c) 
             if(OPP%optprop_LUT_debug) print *,myid,'Scattering LUT tables....',Ncoeff,Ntot,' iphi,itheta',iphi,itheta 
           endif
-          call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
-          call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
+          call mpi_bcast(Ncoeff, 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
+          call mpi_bcast(Ntot  , 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
 
           if(myid.gt.0 .and. .not.allocated(OPP%dirLUT%T(iphi,itheta)%c) ) allocate(OPP%dirLUT%T(iphi,itheta)%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
-          call mpi_bcast(OPP%dirLUT%T(iphi,itheta)%c, Ntot, imp_real, 0, comm, ierr)
+          call mpi_bcast(OPP%dirLUT%T(iphi,itheta)%c, 1_mpiint*Ntot, imp_real, 0_mpiint, comm, mpierr)
 
           ! DIRECT 2 DIFFUSE
           if(myid.eq.0) then
@@ -386,11 +388,11 @@ end subroutine
             Ntot   = size(OPP%dirLUT%S(iphi,itheta)%c) 
             !          print *,'Scattering LUT tables....',Ncoeff,Ntot
           endif
-          call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
-          call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
+          call mpi_bcast(Ncoeff, 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
+          call mpi_bcast(Ntot  , 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
 
           if(myid.gt.0 .and. .not.allocated(OPP%dirLUT%S(iphi,itheta)%c) ) allocate(OPP%dirLUT%S(iphi,itheta)%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
-          call mpi_bcast(OPP%dirLUT%S(iphi,itheta)%c, Ntot, imp_real, 0, comm, ierr)
+          call mpi_bcast(OPP%dirLUT%S(iphi,itheta)%c, 1_mpiint*Ntot, imp_real, 0_mpiint, comm, mpierr)
 
         enddo
       enddo
@@ -402,11 +404,11 @@ end subroutine
           Ntot   = size(OPP%diffLUT%S%c) 
           !          print *,'Scattering LUT tables....',Ncoeff,Ntot
         endif
-        call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
-        call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
+        call mpi_bcast(Ncoeff, 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
+        call mpi_bcast(Ntot  , 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
 
         if(myid.gt.0 .and. .not.allocated(OPP%diffLUT%S%c) ) allocate(OPP%diffLUT%S%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
-        call mpi_bcast(OPP%diffLUT%S%c, Ntot, imp_real, 0, comm, ierr)
+        call mpi_bcast(OPP%diffLUT%S%c, 1_mpiint*Ntot, imp_real, 0_mpiint, comm, mpierr)
       endif
 
       ! DIFFUSE EMISSION
@@ -426,13 +428,13 @@ contains
 function mpi_logical_and(lneed)
     logical :: mpi_logical_and
     logical,intent(in) :: lneed
-    call mpi_allreduce(lneed, mpi_logical_and, 1_mpiint, imp_logical, MPI_LAND, comm, ierr)
+    call mpi_allreduce(lneed, mpi_logical_and, 1_mpiint, imp_logical, MPI_LAND, comm, mpierr)
 !    print *,myid,'scattering LUT:',lneed,'==>',mpi_logical_and
 end function
 function mpi_logical_or(lneed)
     logical :: mpi_logical_or
     logical,intent(in) :: lneed
-    call mpi_allreduce(lneed, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, comm, ierr)
+    call mpi_allreduce(lneed, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, comm, mpierr)
 !    print *,myid,'scattering LUT:',lneed,'==>',mpi_logical_or
 end function
   end subroutine
@@ -485,7 +487,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
                         ) ldone = .True.
 !                    print *,'done',ldone,'::',ig,iksca,ikabs,idz,'::',T%c(:, idz,ikabs ,iksca,ig),':',T%stddev_tol(idz,ikabs ,iksca,ig)
                   endif
-                  call mpi_bcast(ldone,1 , MPI_LOGICAL, 0, comm, ierr)
+                  call mpi_bcast(ldone,1_mpiint , imp_logical, 0_mpiint, comm, mpierr)
                   if(ldone) then
                     cycle
                   else
@@ -555,7 +557,7 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
     integer(mpiint),intent(in) :: comm
     integer(iintegers),intent(in) :: iphi,itheta
 
-    integer(iintegers) :: idz,ikabs ,iksca,ig,src,total_size,cnt
+    integer(iintegers) :: idz,ikabs ,iksca,ig,src,total_size,cnt,errcnt
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     logical :: ldone,lstarted_calculations=.False., ldonearr(6)
 
@@ -575,19 +577,21 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
 
     if(myid.eq.0) then
       print *,'calculating direct coefficients for ',iphi,itheta
+      errcnt=0
 
       if(.not. allocated(OPP%dirLUT%S(iphi,itheta)%c) ) then
         allocate(OPP%dirLUT%S(iphi,itheta)%c(OPP%dir_streams*OPP%diff_streams, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
         OPP%dirLUT%S(iphi,itheta)%c = nil
-        call ncwrite(diff_coeff_table_name,OPP%dirLUT%S(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
+        call ncwrite(diff_coeff_table_name,OPP%dirLUT%S(iphi,itheta)%c,iierr); errcnt = errcnt +iierr
       endif
 
       if(.not. allocated(OPP%dirLUT%T(iphi,itheta)%c) ) then
         allocate(OPP%dirLUT%T(iphi,itheta)%c(OPP%dir_streams*OPP%dir_streams, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
         OPP%dirLUT%T(iphi,itheta)%c = nil
-        call ncwrite(dir_coeff_table_name ,OPP%dirLUT%T(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
+        call ncwrite(dir_coeff_table_name ,OPP%dirLUT%T(iphi,itheta)%c,iierr) ;errcnt = errcnt +iierr
       endif
 
+      if(errcnt.ne.0) stop 'createLUT_dir :: could somehow not write to file... exiting...'
     endif
 
     total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz
@@ -612,7 +616,7 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
 !                print *,'not all done:',ldonearr,' :: ',stddev_atol,' :: ',OPP%dirLUT%S(iphi,itheta)%stddev_tol(idz,ikabs ,iksca,ig),OPP%dirLUT%T(iphi,itheta)%stddev_tol(idz,ikabs ,iksca,ig)
               endif
             endif
-            call mpi_bcast(ldone,1 , MPI_LOGICAL, 0, comm, ierr)
+            call mpi_bcast(ldone,1_mpiint , imp_logical, 0_mpiint, comm, mpierr)
             if(ldone) then
               cycle
             else
@@ -642,11 +646,13 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
       if(myid.eq.0) print *,'Checkpointing direct table ... (',100*cnt/total_size,'%)','started?',lstarted_calculations
       if(myid.eq.0 .and. lstarted_calculations) then
         print *,'Writing direct table to file... (',100*cnt/total_size,'%)','started?',lstarted_calculations
-        call ncwrite(diff_coeff_table_name,OPP%dirLUT%S(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
-        call ncwrite(dir_coeff_table_name ,OPP%dirLUT%T(iphi,itheta)%c,iierr) ; ierr = ierr+int(iierr)
-        call ncwrite(diff_stddev_atol_table_name,OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr)
-        call ncwrite(dir_stddev_atol_table_name, OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr)
-        print *,'done writing!',ierr
+        errcnt=0
+        call ncwrite(diff_coeff_table_name,OPP%dirLUT%S(iphi,itheta)%c,iierr) ; errcnt = errcnt+int(iierr)
+        call ncwrite(dir_coeff_table_name ,OPP%dirLUT%T(iphi,itheta)%c,iierr) ; errcnt = errcnt+int(iierr)
+        call ncwrite(diff_stddev_atol_table_name,OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr); errcnt = errcnt+int(iierr)
+        call ncwrite(dir_stddev_atol_table_name, OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr); errcnt = errcnt+int(iierr)
+        print *,'done writing!',errcnt
+        if(errcnt.ne.0) stop 'createLUT_dir :: could somehow not write to file... exiting...'
       endif
 
       enddo !ksca
@@ -986,12 +992,12 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     if(ldebug_optprop) then
       if(OPP%optprop_LUT_debug) then
         !Check for energy conservation:
-        ierr=0
+        iierr=0
         do i=1,OPP%dir_streams
-          if(real(sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams))).gt.one) ierr=ierr+1
+          if(real(sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams))).gt.one) iierr=iierr+1
         enddo
-        if(ierr.ne.0) then
-          print *,'Error in dir2dir coeffs :: ierr',ierr
+        if(iierr.ne.0) then
+          print *,'Error in dir2dir coeffs :: ierr',iierr
           do i=1,OPP%dir_streams
             print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)),' :: coeff',C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)
           enddo
@@ -1032,12 +1038,12 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     if(ldebug_optprop) then
       if(OPP%optprop_LUT_debug) then
         !Check for energy conservation:
-        ierr=0
+        iierr=0
         do i=1,OPP%dir_streams
-          if(sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)).gt.one) ierr=ierr+1
+          if(sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)).gt.one) iierr=iierr+1
         enddo
-        if(ierr.ne.0) then
-          print *,'Error in dir2diff coeffs :: ierr',ierr
+        if(iierr.ne.0) then
+          print *,'Error in dir2diff coeffs :: ierr',iierr
           do i=1,OPP%dir_streams
             print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)),' :: coeff',C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)
           enddo
@@ -1150,25 +1156,25 @@ subroutine catch_limits(ps,dz,kabs,ksca,g)
 
     kabs = max( ps%range_kabs(1), kabs ) ! Also use lower limit of LUT table....
     ksca = max( ps%range_ksca(1), ksca ) ! Lets hope that we have a meaningful lower bound, as we will not get a warning for this.
-    ierr=0
+    iierr=0
 
     if( int(dz).lt.ps%range_dz(1) .or. int(dz).gt.ps%range_dz(2) ) then
       print *,'dz is not in LookUpTable Range',dz, 'LUT range',ps%range_dz
-      ierr=ierr+1
+      iierr=iierr+1
     endif
     if( kabs.lt.ps%range_kabs(1) .or. kabs.gt.ps%range_kabs(2) ) then
       print *,'kabs is not in LookUpTable Range',kabs, 'LUT range',ps%range_kabs
-      ierr=ierr+1
+      iierr=iierr+1
     endif
     if( ksca.lt.ps%range_ksca(1) .or. ksca.gt.ps%range_ksca(2) ) then
       print *,'ksca is not in LookUpTable Range',ksca, 'LUT range',ps%range_ksca
-      ierr=ierr+1
+      iierr=iierr+1
     endif
     if( g.lt.ps%range_g(1) .or. g.gt.ps%range_g(2) ) then
       print *,'g is not in LookUpTable Range',g, 'LUT range',ps%range_g
-      ierr=ierr+1
+      iierr=iierr+1
     endif
-    if(ierr.ne.0) print*, 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.'
+    if(iierr.ne.0) print*, 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.'
 end subroutine
 
 end module

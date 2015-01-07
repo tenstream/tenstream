@@ -31,7 +31,7 @@ set(CMAKE_Fortran_FLAGS         ${USER_Fortran_FLAGS} )
 set(CMAKE_Fortran_FLAGS_RELEASE ${USER_Fortran_FLAGS_RELEASE} )
 set(CMAKE_Fortran_FLAGS_DEBUG   ${USER_Fortran_FLAGS_DEBUG})
 
-set(CMAKE_INCLUDE_SYSTEM_FLAG_Fortran "-I")
+#set(CMAKE_INCLUDE_SYSTEM_FLAG_Fortran "-I")
 
 MESSAGE(STATUS "Build Type " ${CMAKE_BUILD_TYPE})
 if (CMAKE_BUILD_TYPE STREQUAL "RELEASE")
@@ -39,6 +39,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "RELEASE")
 else()
   MESSAGE(STATUS "Compiler Flags " ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_DEBUG})
 endif()
+
+#find_package( NetCDF REQUIRED )
 
 # Add Lapack
 find_package( LAPACK REQUIRED )

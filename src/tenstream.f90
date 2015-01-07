@@ -26,6 +26,8 @@
 
 module m_tenstream
 
+#include "finclude/petscdef.h"
+use petsc
       use m_data_parameters, only : ireals,iintegers,       &
         imp_comm, myid, numnodes,init_mpi_data_parameters,mpiint, &
         zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
@@ -38,7 +40,6 @@ module m_tenstream
       use m_tenstream_options, only : read_commandline_options, ltwostr, luse_twostr_guess, luse_eddington, twostr_ratio, options_max_solution_err, options_max_solution_time
 
       implicit none
-#include "finclude/petsc.h90"
 
       private
       public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
@@ -50,7 +51,9 @@ module m_tenstream
       PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
       PetscInt,parameter :: istartpar=i1, jstartpar=i1
 
-      logical,parameter :: ldebug=.False.,lcycle_dir=.True.
+      logical,parameter :: ldebug=.False.
+!      logical,parameter :: ldebug=.True.
+      logical,parameter :: lcycle_dir=.True.
       logical,parameter :: lprealloc=.True.
 
       type t_coord
@@ -131,7 +134,7 @@ module m_tenstream
         DMBoundaryType :: bp=DM_BOUNDARY_PERIODIC, bn=DM_BOUNDARY_NONE, bg=DM_BOUNDARY_GHOSTED
 
         if(myid.eq.0.and.ldebug) print *,myid,'Setting up the DMDA grid for ',Nx,Ny,Nz,'using ',numnodes,' nodes'
-        
+
         if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C_diff'
         call setup_dmda(C_diff,Nx,Ny, Nz+1, bp, i10)
 
@@ -148,42 +151,44 @@ module m_tenstream
 
         if(myid.eq.0.and.ldebug) print *,myid,'DMDA grid ready'
         contains
-          subroutine setup_dmda(C, Nx, Ny, Nz, boundary, dof)
-              type(t_coord) :: C
-              PetscInt,intent(in) :: Nx,Ny,Nz,dof
+        subroutine setup_dmda(C, Nx, Ny, Nz, boundary, dof)
+        type(t_coord) :: C
+        PetscInt,intent(in) :: Nx,Ny,Nz,dof
 
-              DMBoundaryType :: boundary
-              PetscInt,parameter :: stencil_size=1
+        DMBoundaryType :: boundary
+        PetscInt,parameter :: stencil_size=1
 
-              C%dof = i1*dof
+        C%dof = i1*dof
+        if(present(nxproc) .and. present(nyproc) ) then
+          call DMDACreate3d( imp_comm  ,                                           &
+          boundary           , boundary           , bn                 , &
+          DMDA_STENCIL_BOX  ,                                            &
+          sum(nxproc)     , sum(nyproc)     , i1*Nz                , &
+          size(nxproc)          , size(nyproc)          , i1                 , &
+          C%dof              , stencil_size       ,                      &
+          nxproc , nyproc , Nz , &
+          C%da               , ierr) ;CHKERRQ(ierr)
 
-              if(present(nxproc) .and. present(nyproc) ) then
-                call DMDACreate3d( imp_comm  ,                                           &
-                    boundary           , boundary           , bn                 , &
-                    DMDA_STENCIL_BOX  ,                                            &
-                    sum(nxproc)     , sum(nyproc)     , i1*Nz                , &
-                    size(nxproc)          , size(nyproc)          , i1                 , &
-                    C%dof              , stencil_size       ,                      &
-                    nxproc , nyproc , Nz , &
-                    C%da               , ierr) ;CHKERRQ(ierr)
+        else
+          call DMDACreate3d( imp_comm  ,                                           &
+          boundary           , boundary           , bn                 , &
+          DMDA_STENCIL_BOX  ,                                            &
+          Nx     , Ny     , i1*Nz                , &
+          PETSC_DECIDE          , PETSC_DECIDE          , i1                 , &
+          C%dof              , stencil_size       ,                      &
+          PETSC_NULL_INTEGER , PETSC_NULL_INTEGER , PETSC_NULL_INTEGER , &
+          C%da               , ierr) ;CHKERRQ(ierr)
+        endif
 
-              else
-                call DMDACreate3d( imp_comm  ,                                           &
-                    boundary           , boundary           , bn                 , &
-                    DMDA_STENCIL_BOX  ,                                            &
-                    Nx     , Ny     , i1*Nz                , &
-                    PETSC_DECIDE          , PETSC_DECIDE          , i1                 , &
-                    C%dof              , stencil_size       ,                      &
-                    PETSC_NULL_INTEGER , PETSC_NULL_INTEGER , PETSC_NULL_INTEGER , &
-                    C%da               , ierr) ;CHKERRQ(ierr)
-              endif
-              call setup_coords(C)
-              call DMSetup(C%da,ierr) ;CHKERRQ(ierr)
-!              call DMSetMatType(C%da, MATBAIJ, ierr); CHKERRQ(ierr)
-              if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;CHKERRQ(ierr)
 
-              call DMSetFromOptions(C%da, ierr) ; CHKERRQ(ierr)
-          end subroutine
+        call DMSetup(C%da,ierr) ;CHKERRQ(ierr)
+        call DMSetMatType(C%da, MATAIJ, ierr); CHKERRQ(ierr)
+        if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+
+        call DMSetFromOptions(C%da, ierr) ; CHKERRQ(ierr)
+        if(ldebug) call DMView(C%da, PETSC_VIEWER_STDOUT_WORLD ,ierr)
+        call setup_coords(C)
+        end subroutine
         subroutine setup_coords(C)
           type(t_coord) :: C
 
@@ -205,7 +210,6 @@ module m_tenstream
 
           allocate(C%neighbors(0:3**C%dim-1) )
           call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;CHKERRQ(ierr)
-          call DMSetUp(C%da,ierr) ;CHKERRQ(ierr)
           if(ldebug.and.C%dim.eq.3) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,12,16,14]),'while I am ',C%neighbors(13)
           if(ldebug.and.C%dim.eq.2) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
         end subroutine
@@ -213,8 +217,8 @@ module m_tenstream
 
       subroutine mat_info(A)
         Mat :: A
-        double precision :: info(MAT_INFO_SIZE)
-        double precision :: mal, nz_allocated, nz_used, nz_unneeded
+        real(ireals) :: info(MAT_INFO_SIZE)
+        real(ireals) :: mal, nz_allocated, nz_used, nz_unneeded
 
         call MatGetInfo(A,MAT_LOCAL,info,ierr) ;CHKERRQ(ierr)
         mal = info(MAT_INFO_MALLOCS)
@@ -226,17 +230,17 @@ module m_tenstream
         if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
 
       end subroutine
-      subroutine init_Matrix(A,C,prefix)
+      subroutine init_Matrix(A,C)!,prefix)
         Mat :: A
         type(t_coord) :: C
-        character(len=*),optional :: prefix
+!        character(len=*),optional :: prefix
 
         PetscInt,dimension(:),allocatable :: o_nnz,d_nnz!,dnz
 
         call DMCreateMatrix(C%da, A, ierr) ;CHKERRQ(ierr)
-        if(present(prefix) ) then
-            !call MatAppendOptionsPrefix(A,trim(prefix),ierr) !!! Not in the Fortran API?
-        endif
+!        if(present(prefix) ) then
+!            call MatAppendOptionsPrefix(A,trim(prefix),ierr) !!! Not in the Fortran API?
+!        endif
 
 !        call MatCreate(PETSC_COMM_WORLD, A,ierr); CHKERRQ(ierr)
 !        call MatSetSizes(A, C%xm*C%ym*C%zm*C%dof, C%xm*C%ym*C%zm*C%dof, C%glob_xm*C%glob_ym*C%glob_zm*C%dof, C%glob_xm*C%glob_ym*C%glob_zm*C%dof,ierr);CHKERRQ(ierr)
@@ -270,12 +274,12 @@ module m_tenstream
 
         call mat_info(A)
 
-        call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
-        call MatSetUp(A,ierr) ;CHKERRQ(ierr)
-
 !        call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
 !        call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-!        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
+        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
+
+        call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
+        call MatSetUp(A,ierr) ;CHKERRQ(ierr)
 
         call mat_info(A)
         call mat_set_diagonal(A,C)
@@ -480,7 +484,7 @@ module m_tenstream
         Vec :: v_o_nnz,v_d_nnz
         PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
 
-        PetscInt :: vsize,i,j,k
+        PetscInt :: vsize,i,j,k,s
 
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
@@ -494,41 +498,60 @@ module m_tenstream
 
         xo = i0
         xd = i1
-        xd( i0:i3 ,:,:,C%zs+1 :C%ze   ) = C%dof+i1 ! Edir_vertical depends on 3 values Edir_vertical,xaxis,yaxis :: starting with second entries(seen from top)
-        xd( i4:i7 ,:,:,C%zs   :C%ze-i1) = C%dof+i1 ! Edir_xaxis,yaxis depends on 3 values Edir_vertical,xaxis,yaxis :: starting with first entries(seen from top)
+
+
+        forall(k=C%zs+1:C%ze  , j=C%ys:C%ye, i=C%xs:C%xe, s=i0:i3) xd( s ,i,j,k ) = C%dof+i1 ! Edir_vertical depends on 3 values Edir_vertical,xaxis,yaxis :: starting with second entries(seen from top)
+        forall(k=C%zs  :C%ze-1, j=C%ys:C%ye, i=C%xs:C%xe, s=i4:i7) xd( s ,i,j,k ) = C%dof+i1 ! Edir_xaxis,yaxis depends on 3 values Edir_vertical,xaxis,yaxis :: starting with first entries(seen from top)
+
+!        do s=0,3
+!        if(myid.eq.0.and.ldebug) print *,myid,'start Dir prealloc 0:3: lsun_north :: xo',xo(s, C%xs, C%ye, C%zs+i1), 'xd',xd(s, C%xs, C%ye, C%zs+i1)
+!      enddo
 
         do j=C%ys,C%ye
                  lsun_east  = (sun%xinc.eq.i0)
 
-                 if( C%neighbors(14).ne.myid .and. C%neighbors(14).ge.i0 ) then ! neigh east
+                 if( C%neighbors(14).ne.myid .and. C%neighbors(14).ge.i0 ) then ! real neigh east
                          if( lsun_east ) then 
                                 ! if the sun is in the east, the channels in the last box are influenced by the 2nd channel which is a ghost
                                 xo(i0:i3, C%xe, j, C%zs+1:C%ze) = xo(i0:i3, C%xe, j, C%zs+1:C%ze)+i2 ! channel 1 from zs+1 to ze
                                 xd(i0:i3, C%xe, j, C%zs+1:C%ze) = xd(i0:i3, C%xe, j, C%zs+1:C%ze)-i2
+!                                if(myid.eq.0.and.ldebug.and.j.eq.C%ys) print *,myid,'Dir prealloc 0:3: lsun_east :: xo',xo(i0:i3, C%xe, j, C%zs+1), 'xd',xd(i0:i3, C%xe, j, C%zs+1)
 
-                                xo(i4:i7, C%xe, j, C%zs:C%ze-1) = xo(i4:i7, C%xe, j, C%zs:C%ze-1)+i2 ! channel 2 and 3 from zs
+                                xo(i4:i7, C%xe, j, C%zs:C%ze-1) = xo(i4:i7, C%xe, j, C%zs:C%ze-1)+i2 ! channel 2 and 3 from zs to ze-1
                                 xd(i4:i7, C%xe, j, C%zs:C%ze-1) = xd(i4:i7, C%xe, j, C%zs:C%ze-1)-i2
+!                                if(myid.eq.0.and.ldebug.and.j.eq.C%ys) print *,myid,'Dir prealloc 4:7: lsun_east :: xo',xo(i4:i7, C%xe, j, C%zs), 'xd',xd(i4:i7, C%xe, j, C%zs)
+                                if(ldebug) then
+                                  if(any(xd.lt.i0)) print *,myid,'lsun_east :: something wrong happened, we can not have preallocation to be less than 0 in xd!'
+                                  if(any(xo.lt.i0)) print *,myid,'lsun_east :: something wrong happened, we can not have preallocation to be less than 0 in xo!'
+                                endif
                         endif
                 endif
         enddo
         do i=C%xs,C%xe
                  lsun_north = (sun%yinc.eq.i0 )
 
-                 if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh north
+                 if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! real neigh north
                          if( lsun_north ) then 
                                 ! if the sun is in the north, the 3rd channel is a ghost
+!                                if(myid.eq.0.and.ldebug.and.i.eq.C%xs) print *,myid,'before Dir prealloc 0:3: lsun_north :: xo',xo(i0:i3, i, C%ye, C%zs+1), 'xd',xd(i0:i3, i, C%ye, C%zs+1)
                                 xo(i0:i3, i, C%ye, C%zs+1:C%ze) = xo(i0:i3, i, C%ye, C%zs+1:C%ze)+i2 ! channel 1 from zs+1 to ze
                                 xd(i0:i3, i, C%ye, C%zs+1:C%ze) = xd(i0:i3, i, C%ye, C%zs+1:C%ze)-i2
+!                                if(myid.eq.0.and.ldebug.and.i.eq.C%xs) print *,myid,'Dir prealloc 0:3: lsun_north :: xo',xo(i0:i3, i, C%ye, C%zs+1), 'xd',xd(i0:i3, i, C%ye, C%zs+1)
 
                                 xo(i4:i7,  i, C%ye, C%zs:C%ze-1) = xo(i4:i7, i, C%ye, C%zs:C%ze-1)+i2 ! channel 2 and 3 from zs
                                 xd(i4:i7,  i, C%ye, C%zs:C%ze-1) = xd(i4:i7, i, C%ye, C%zs:C%ze-1)-i2
+!                                if(myid.eq.0.and.ldebug.and.i.eq.C%xs) print *,myid,'Dir prealloc 4:7: lsun_norht :: xo',xo(i4:i7, i, C%ye, C%zs), 'xd',xd(i4:i7, i, C%ye, C%zs)
+                                if(ldebug) then
+                                  if(any(xd.lt.i0)) print *,myid,'lsun_north :: something wrong happened, we can not have preallocation to be less than 0 in xd!'
+                                  if(any(xo.lt.i0)) print *,myid,'lsun_north :: something wrong happened, we can not have preallocation to be less than 0 in xo!'
+                                endif
                         endif
                 endif
         enddo
         do j=C%ys,C%ye
                  lsun_east  = (sun%xinc.eq.i0)
 
-                 if( C%neighbors(12).ne.myid.and. C%neighbors(12).ge.i0 ) then ! neigh west
+                 if( C%neighbors(12).ne.myid.and. C%neighbors(12).ge.i0 ) then ! real neigh west
                          if( .not. lsun_east ) then 
                                 ! if the sun is in the west, the 2nd channel is solemnly dependant on ghost values
                                 xo(i4:i5, C%xs, j, C%zs:C%ze-1) = C%dof
@@ -539,7 +562,7 @@ module m_tenstream
         do i=C%xs,C%xe
                  lsun_north = (sun%yinc.eq.i0 )
 
-                 if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh south
+                 if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! real neigh south
                          if( .not. lsun_north ) then 
                                 ! if the sun is in the south, the 3rd channel is solemnly dependant on ghost values
                                 xo(i6:i7, i, C%ys, C%zs:C%ze-1) = C%dof
@@ -1731,8 +1754,8 @@ subroutine init_memory(incSolar,b,edir,ediff,abso,Mdir,Mdiff,edir_twostr,ediff_t
         call VecSet(ediff,zero,ierr)    ; CHKERRQ(ierr)
         call VecSet(abso,zero,ierr)     ; CHKERRQ(ierr)
 
-        call init_Matrix(Mdir,C_dir,"dir_")
-        call init_Matrix(Mdiff,C_diff,"diff_")
+        call init_Matrix(Mdir ,C_dir )!,"dir_")
+        call init_Matrix(Mdiff,C_diff)!,"diff_")
 
         if(ltwostr) then
           call DMCreateGlobalVector(C_dir%da,edir_twostr,ierr)     ; CHKERRQ(ierr)
@@ -2559,33 +2582,33 @@ end subroutine
 !            call vec_to_hdf5(incSolar)
         end subroutine
 
-subroutine vec_to_hdf5(v)
-      Vec,intent(in) :: v
-      character(10),parameter :: suffix='.h5'
-      character(110) :: fname
-      logical fexists
-      PetscFileMode :: fmode
-      character(100) :: vecname
-      
-      PetscViewer :: view
-
-      call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
-
-      fname = 'vecdump' // trim(suffix)
-      inquire(file=trim(fname), exist=fexists)
-      
-      if(fexists) then
-        if(myid.eq.0 .and. ldebug)  print *,myid,'appending vector to hdf5 file ',trim(fname),' vecname: ',vecname
-        fmode = FILE_MODE_APPEND
-      else 
-        if(myid.eq.0 .and. ldebug)  print *,myid,'writing vector to hdf5 file ',trim(fname),' vecname: ',vecname
-        fmode = FILE_MODE_WRITE
-      endif
-
-      call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
-      call VecView(v, view, ierr) ;CHKERRQ(ierr)
-      call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
-
-      if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'
-end subroutine
+!subroutine vec_to_hdf5(v)
+!      Vec,intent(in) :: v
+!      character(10),parameter :: suffix='.h5'
+!      character(110) :: fname
+!      logical fexists
+!      PetscFileMode :: fmode
+!      character(100) :: vecname
+!      
+!      PetscViewer :: view
+!
+!      call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
+!
+!      fname = 'vecdump' // trim(suffix)
+!      inquire(file=trim(fname), exist=fexists)
+!      
+!      if(fexists) then
+!        if(myid.eq.0 .and. ldebug)  print *,myid,'appending vector to hdf5 file ',trim(fname),' vecname: ',vecname
+!        fmode = FILE_MODE_APPEND
+!      else 
+!        if(myid.eq.0 .and. ldebug)  print *,myid,'writing vector to hdf5 file ',trim(fname),' vecname: ',vecname
+!        fmode = FILE_MODE_WRITE
+!      endif
+!
+!      call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
+!      call VecView(v, view, ierr) ;CHKERRQ(ierr)
+!      call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
+!
+!      if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'
+!end subroutine
       end module

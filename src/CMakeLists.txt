@@ -1,6 +1,7 @@
 #message( "Entering tenstream src dir with EXTLIB==${EXTLIB} ")
 
-include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
+include_directories (${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${INCLUDE_DIRS})
 
 set( general_sources 
   "helper_functions.f90" 
@@ -26,9 +27,7 @@ set( optprop_sources
   )
 
 add_library( tenstream STATIC ${general_sources} ${optprop_sources} )
-TARGET_LINK_LIBRARIES( tenstream ${EXTLIB} ${USERLIB} )
-
-#target_include_directories (tenstream PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+TARGET_LINK_LIBRARIES( tenstream ${EXTLIB} ${USERLIB} ${LIBS})
 
 file( GLOB streams createLUT_*.f90 )
 foreach ( stream ${streams} )
@@ -47,7 +46,7 @@ add_executable( "test_boxmc" "test_boxmc.f90" )
 target_link_libraries( "test_boxmc" tenstream )
 
 add_executable( "Cwrapper_test" "f2c_tenstream.c" )
-target_link_libraries( "Cwrapper_test" tenstream )
+target_link_libraries( "Cwrapper_test" tenstream)
 
 add_executable( "fitLUT" "fitLUT.f90" )
 target_link_libraries( "fitLUT" tenstream )

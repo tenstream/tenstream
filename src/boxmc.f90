@@ -394,7 +394,7 @@ pure function hit_plane(p,po_i,pn_i)
         po = po_i
         pn = pn_i
         discr = dot_product(p%dir,pn)
-        if( discr.eq. 0._ireal_dp ) then
+        if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.epsilon(discr)  ) ) then
                 hit_plane=huge(hit_plane)
         else        
                 hit_plane = dot_product(po-p%loc, pn) / discr

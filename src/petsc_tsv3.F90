@@ -48,7 +48,7 @@ subroutine vec_from_hdf5(v,err_code)
         if(myid.eq.0)  print *,myid,'reading vector from hdf5 file ',trim(fname),' vecname: ',vecname
         fmode = FILE_MODE_READ
 
-        call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ; CHKERRQ(ierr)
+!        call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ; CHKERRQ(ierr)
         call VecLoad(v, view, err_code)                                          ; CHKERRQ(ierr)
         call PetscViewerDestroy(view,ierr)                                       ; CHKERRQ(ierr)
 
@@ -89,7 +89,7 @@ subroutine vec_to_hdf5(v)
         fmode = FILE_MODE_WRITE
       endif
 
-      call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
+!      call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
       call VecView(v, view, ierr) ;CHKERRQ(ierr)
       call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
 
