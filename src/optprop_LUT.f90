@@ -68,7 +68,7 @@ module m_optprop_LUT
 
     integer(iintegers) :: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
-    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=.True.
+    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=.False.
     character(len=300) :: lutbasename 
 
     contains

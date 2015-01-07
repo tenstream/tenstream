@@ -73,9 +73,9 @@ module m_tenstream_options
           endif
 
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-max_solution_err",options_max_solution_err, lflg,ierr)  ; CHKERRQ(ierr)
-          if (lflg.eqv.PETSC_FALSE ) options_max_solution_err=0
+          if (lflg.eqv.PETSC_FALSE ) options_max_solution_err=0.01
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-max_solution_time",options_max_solution_time, lflg,ierr)  ; CHKERRQ(ierr)
-          if (lflg.eqv.PETSC_FALSE ) options_max_solution_time=0
+          if (lflg.eqv.PETSC_FALSE ) options_max_solution_time=60
 
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
