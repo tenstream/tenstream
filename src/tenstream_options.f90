@@ -134,7 +134,7 @@ module m_tenstream_options
             print *,'***   size_of ireal/iintegers',sizeof(one),sizeof(i0)
             print *,'***   max_solution_err       ',options_max_solution_err
             print *,'***   max_solution_time      ',options_max_solution_time
-            print *,'***   lut_basename           ',lut_basename
+            print *,'***   lut_basename           ',trim(lut_basename)
             print *,'********************************************************************'
             print *,''
           endif
