@@ -217,7 +217,7 @@ use petsc
 
       subroutine mat_info(A)
         Mat :: A
-        real(ireals) :: info(MAT_INFO_SIZE)
+        MatInfo :: info(MAT_INFO_SIZE)
         real(ireals) :: mal, nz_allocated, nz_used, nz_unneeded
 
         call MatGetInfo(A,MAT_LOCAL,info,ierr) ;CHKERRQ(ierr)
@@ -2434,7 +2434,7 @@ end subroutine
                   lwork = n
 
                   do i=1,size(vx)
-                    if(any (vx(i).eq.vx(i+1:size(vx)) ) ) then ! polyfit cannot cope with same x values --> matrix gets singular
+                    if(any (approx( vx(i), vx(i+1:size(vx)) ) ) ) then ! polyfit cannot cope with same x values --> matrix gets singular
                       polyfit=0
                       polyfit(1) = nil
                       return

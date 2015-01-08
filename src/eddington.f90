@@ -103,14 +103,13 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           real(ireals)            :: dtau,g,omega_0,mu_0
 
 !          real(ireals) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6;
-          real(ireals) ::  bscr,lambda,ze,zeps,zm,ze1mwf,mu_0_inv,zg1,zg2,b_mmu_0,zmu0if
+          real(ireals) ::  bscr,ze,zeps,zm,ze1mwf,mu_0_inv,zg1,zg2,b_mmu_0,zmu0if
           real(ireals) ::  zod1,zod2,zod3,zod4,zod5
 
           real(ireals),parameter ::  eps = sqrt(epsilon(omega_0))
           REAL    (KIND=ireals   ), PARAMETER ::  &
               zargli  = 80.0     , &  ! argument limit for EXP  
               ztsec   = 1.0E-35  , &  ! (=exp(-zargli) avoids ALOG(0.0)
-              zodmax  = 1.0E+6   , &  ! maximum allowed optical depth
               zepres  = 1.0E-7  ! , &  ! for resonance case avoidance 
 !              zangfa  = 1.648721271   ! exp(0.5)
 

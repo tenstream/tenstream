@@ -38,8 +38,8 @@
 set(CMAKE_Fortran_COMPILER "/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90")
 set(Fortran_COMPILER_WRAPPER "/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90")
 
-set(USER_C_FLAGS               "-cpp -W -Wall -Wuninitialized --std=c99") 
-set(USER_Fortran_FLAGS         "-cpp -ffree-line-length-none -W -Wall -Wuninitialized -g") 
+set(USER_C_FLAGS               "-cpp -W -std=c99") 
+set(USER_Fortran_FLAGS         "-cpp -ffree-line-length-none -g") 
 set(USER_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3") 
 set(USER_Fortran_FLAGS_DEBUG   "-fbacktrace -finit-real=nan -W -Wall -Wuninitialized -g -pg -fcheck=all -fbounds-check -pedantic -Wsurprising")
 

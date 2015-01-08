@@ -76,19 +76,19 @@ module m_helper_functions
           logical,intent(inout) :: val
           integer(mpiint),intent(in) :: sendid,myid
 
-          call mpi_bcast(val, 1, imp_logical, sendid, imp_comm, mpierr)
+          call mpi_bcast(val, 1_mpiint, imp_logical, sendid, imp_comm, mpierr)
       end subroutine
       subroutine  imp_bcast_int(val,sendid,myid)
           integer(iintegers),intent(inout) :: val
           integer(mpiint),intent(in) :: sendid,myid
 
-          call mpi_bcast(val,1,imp_int,sendid,imp_comm,mpierr)
+          call mpi_bcast(val,1_mpiint,imp_int,sendid,imp_comm,mpierr)
       end subroutine
       subroutine  imp_bcast_real(val,sendid,myid)
           real(ireals),intent(inout) :: val
           integer(mpiint),intent(in) :: sendid,myid
 
-          call mpi_bcast(val,1,imp_real,sendid,imp_comm,mpierr)
+          call mpi_bcast(val,1_mpiint,imp_real,sendid,imp_comm,mpierr)
       end subroutine
       subroutine  imp_bcast_real_1d(arr,sendid,myid)
           real(ireals),allocatable,intent(inout) :: arr(:)
@@ -97,7 +97,7 @@ module m_helper_functions
           integer(iintegers) :: Ntot
 
           if(sendid.eq.myid) Ntot = size(arr)
-          call mpi_bcast(Ntot,1,imp_int,sendid,imp_comm,mpierr)
+          call mpi_bcast(Ntot,1_mpiint,imp_int,sendid,imp_comm,mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot) )
           call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr)
