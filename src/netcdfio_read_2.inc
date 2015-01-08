@@ -4,8 +4,11 @@
   100 continue
   close(v,status='delete')
   if(ldebug) print *,'Reading Netcdf file returned with ierr: ',ierr
-  arr=tmp
-  if(allocated(tmp) ) deallocate(tmp)
+
+  if(allocated(tmp) ) then
+    arr=tmp
+    deallocate(tmp)
+  endif
   return
 
   99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
