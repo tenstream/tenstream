@@ -18,7 +18,7 @@ module m_netcdfIO
   real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds 
   integer :: iwait
   character(310) :: lockfile
-  logical,parameter :: ldebug=.True.
+  logical,parameter :: ldebug=.False.
 
   interface ncwrite
     module procedure ncwrite_1d,ncwrite_2d,ncwrite_3d,ncwrite_4d,ncwrite_5d,ncwrite_7d
