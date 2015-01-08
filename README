@@ -54,21 +54,24 @@ cd $PETSC_DIR && make check
 # the default is otherwise local job directory. -- see src/optprop_parameters.f90
 # lut_basename should be a path, that is reachable for mpi_node==0.
 # and if possible globally reachable so that we dont have to compute the lookuptables over and over again.
-# The lu_basename may also be provided as a commandline option: -lut_basename /global_reachable_path/LUT
+# The lut_basename may also be provided as a commandline option: -lut_basename /global_reachable_path/LUT
+# or simply put in a ~/.petscrc or ./.petscrc
+echo "-lut_basename /global_reachable_path/LUT" >> ~/.petscrc
 
 # Next step is to set the paths for additional libraries and thus provide a config file
-
+# Check the appropriate files in config/*
 
 #Then build tenstream
 cd $TENSTREAM_DIR
 mkdir build && cd build
-cmake .. && make
+cmake .. && make -j
 
 # Check the tenstream runtime options with 
 ./bin/petsc_solver -show_options
 
 # For a first example you could run
 mpirun -np 2 ./bin/petsc_solver -ident run_test -dx 70
+# Note that creating the Lookuptables takes a loong time.... dont be discouraged if you run it for the first time.
 
 # If that does not throw a lot of errors ---
 # well, then... Congratulations !!, you successfully installed the tenstream solver.

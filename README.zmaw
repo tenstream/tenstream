@@ -64,5 +64,5 @@ EOF
 # Then use the provided cmake file for zmaw and the tenstream should compile.
 cd $TENSTREAM_DIR
 mkdir build && cd build
-cmake .. -DSYST:STRING=thunder.ifort.cmake -DCMAKE_INSTALL_PREFIX:PATH=$SCRATCH/tenstream-C_ARCH  && make install
+cmake .. -DSYST:STRING=thunder.ifort -DCMAKE_INSTALL_PREFIX:PATH=$SCRATCH/tenstream-C_ARCH  && make -j install
 
