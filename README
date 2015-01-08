@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Prerequisites for the Tenstream solver are
 #
 #  *cmake
@@ -12,11 +13,16 @@
 
 # If you are lucky, you work at the Meteorological Institute Munich,
 # just follow the steps in config/lmu_mim.cmake
-
+#
+# README.zmaw provides installation instructions for the MPI Hamburg environment
+#
+# If you found yourself go nuts because of compile errors,
+# please consider providing installation instructions for your enviroment.
+#
 ##########################################################################################################
 
 # Confirm that we use the correct mpi
-which mpirun
+which mpif90
 
 # If you dont have an up to date and working petsc installation, the install process might be something like
 export PETSC_DIR=~/petsc-maint
