@@ -2,66 +2,56 @@
 #
 #  *cmake
 #  *PETSc
-#  *HDF5
+#  *NETCDF
 #  *MPI
 #
 # Instructions on how to install these is beyond the scope of this text.
 #
-# Generally you should set the following environment variables:
+# You may find a hint for a suitable config file in the config/ directory:
 #
-#  *HDF5_DIR
-#  *PETSC_DIR
-#  *PETSC_ARCH
 
-# If you are lucky, you work at the Meteorological Institute Munich and just follow the steps below:
-
-################ put the following in the bashrc: ########################################################
-#Environment options at the Meteorological Institute Munich necessary for the tenstream solver:
-
-TICAP=/home/opt/cosmo_tica_lib/
-
-OMPI=1.8.1
-export OMPIDIR=$TICAP/ompi$OMPI/openmpi-$OMPI/install/
-
-if [ -n "$OMPIDIR" ]
-    then # echo "setting OpenMPI environment to: $OMPIDIR"
-            export LD_RUN_PATH=$OMPIDIR/lib64/:$LD_RUN_PATH
-            export PATH=$OMPIDIR/bin/:$PATH
-            export LD_LIBRARY_PATH=$OMPIDIR/lib64/:$LD_LIBRARY_PATH
-            export MANPATH=$OMPIDIR/share/man:$MANPATH
-    fi
-
-# HDF5
-export HDF5_DIR=$TICAP/ompi$OMPI/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/
-export PATH=$HDF5_DIR/bin:$PATH
-export LD_LIBRARY_PATH=$HDF5_DIR/lib:$LD_LIBRARY_PATH
-export LD_RUN_PATH=$HDF5_DIR/lib:$LD_RUN_PATH
-export HDF5_DISABLE_VERSION_CHECK=1
-
-#PETSC
-export PETSC_DIR=$TICAP/ompi$OMPI/petsc-maint
-export PETSc_DIR=$PETSC_DIR
-export PETSC_ARCH=fast
-
-# Valgrind 
-export PATH=$TICAP/valgrind-svn/install/bin:$PATH
-export LD_LIBRARY_PATH=$TICAP/valgrind-svn/install/lib:$TICAP/valgrind-svn/install/lib64:$LD_LIBRARY_PATH
-export CPATH=$TICAP/valgrind-svn/install/include:$CPATH
+# If you are lucky, you work at the Meteorological Institute Munich,
+# just follow the steps in config/lmu_mim.cmake
 
 ##########################################################################################################
 
 # Confirm that we use the correct mpi
 which mpirun
 
+# If you dont have an up to date and working petsc installation, the install process might be something like
+export PETSC_DIR=~/petsc-maint
+
+git clone -b maint https://bitbucket.org/petsc/petsc $PETSC_DIR
+
+cd $PETSC_DIR
+export PETSC_ARCH=mypetsc
+./configure                             \
+    --with-cc=$(which mpicc)            \
+    --with-fc=$(which mpif90)           \
+    --with-cxx=$(which mpic++)          \
+    --with-fortran                      \
+    && make all
+
+# and put the environment variables in your bashrc
+cat >> ~/.bashrc <<EOF
+#PETSC Installation
+export PETSC_DIR=$PETSC_DIR
+export PETSC_ARCH=mypetsc
+EOF
+
 # Then check if PETSC works:
 cd $PETSC_DIR && make check
 
-# Important steps before you start:
-# You should define the size of the Lookuptables and where to store them.
-# For this, edit the file src/optprop_parameters.f90
-
+# Optional steps before you start:
+#
+# You may want to override the lut_basename, the path where the tenstream solver will put the lookuptables
+# the default is otherwise local job directory. -- see src/optprop_parameters.f90
 # lut_basename should be a path, that is reachable for mpi_node==0.
 # and if possible globally reachable so that we dont have to compute the lookuptables over and over again.
+# The lu_basename may also be provided as a commandline option: -lut_basename /global_reachable_path/LUT
+
+# Next step is to set the paths for additional libraries and thus provide a config file
+
 
 #Then build tenstream
 cd $TENSTREAM_DIR

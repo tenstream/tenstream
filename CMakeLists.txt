@@ -1,4 +1,4 @@
-set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/config)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
 include(CMakeForceCompiler) #Necessary to change between MPI/parallel/profiler compilers, without having to do a make clean
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/hdf5/")
@@ -40,7 +40,16 @@ else()
   MESSAGE(STATUS "Compiler Flags " ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_DEBUG})
 endif()
 
-#find_package( NetCDF REQUIRED )
+# NetCDF
+set (NETCDF_F90 "YES")
+find_package( NetCDF REQUIRED )
+message(STATUS "Found NetCDF:    ${NETCDF_FOUND}" )
+message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
+message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
+message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
+include_directories(${NETCDF_INCLUDES})
+include_directories(${NETCDF_INCLUDES_F90})
+list (APPEND EXTLIB ${NETCDF_LIBRARIES})
 
 # Add Lapack
 find_package( LAPACK REQUIRED )
@@ -68,7 +77,6 @@ link_directories(${MPI_Fortran_LIBRARIES})
 list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
 
 include_directories(${ITAPS_INCLUDES})
-
 
 # Set Output Directories
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE PATH "Output directory for Dohp archives")
