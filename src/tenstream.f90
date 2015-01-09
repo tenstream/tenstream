@@ -1777,12 +1777,13 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy, phi0,theta0,albedo, dz1d, dz3d
     integer(iintegers),optional :: nxproc(:), nyproc(:) ! size of local domains on each node
 
     integer(iintegers) :: i,j,k
-    character(len=30),parameter :: tenstreamrc='./.tenstreamrc'
+!    character(len=30),parameter :: tenstreamrc='./.tenstreamrc'
 
     if(.not.linitialized) then
 
       call setup_petsc_comm
-      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
+!      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
+      call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;CHKERRQ(ierr)
       call init_mpi_data_parameters(PETSC_COMM_WORLD)
 
       call read_commandline_options()
