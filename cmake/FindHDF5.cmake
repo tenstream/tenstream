@@ -1,5 +1,5 @@
 #
-# To be used by projects that make use of Cmakeified hdf5-1.8
+# To be used by projects that make use of Cmakeified hdf5-1.8.13
 #
 
 #
@@ -10,9 +10,9 @@
 # HDF5_FOUND               - True if found, otherwise all other vars are undefined
 # HDF5_INCLUDE_DIR         - The include dir for main *.h files
 # HDF5_FORTRAN_INCLUDE_DIR - The include dir for fortran modules and headers
-# HDF5_VERSION_STRING      - full version (e.g. 1.8.5)
+# HDF5_VERSION_STRING      - full version (e.g. 1.8.13)
 # HDF5_VERSION_MAJOR       - major part of version (e.g. 1.8)
-# HDF5_VERSION_MINOR       - minor part (e.g. 5)
+# HDF5_VERSION_MINOR       - minor part (e.g. 13)
 # 
 # The following boolean vars will be defined
 # HDF5_ENABLE_PARALLEL  - 1 if HDF5 parallel supported
@@ -38,18 +38,18 @@
 # To aid in finding HDF5 as part of a subproject set
 # HDF5_ROOT_DIR_HINT to the location where hdf5-config.cmake lies
 
-INCLUDE (SelectLibraryConfigurations)
-INCLUDE (FindPackageHandleStandardArgs)
+include (SelectLibraryConfigurations)
+include (FindPackageHandleStandardArgs)
 
 # The HINTS option should only be used for values computed from the system.
-SET (_HDF5_HINTS
+set (_HDF5_HINTS
     $ENV{HOME}/.local
     $ENV{HDF5_ROOT}
     $ENV{HDF5_ROOT_DIR_HINT}
 )
 # Hard-coded guesses should still go in PATHS. This ensures that the user
 # environment can always override hard guesses.
-SET (_HDF5_PATHS
+set (_HDF5_PATHS
     $ENV{HOME}/.local
     $ENV{HDF5_ROOT}
     $ENV{HDF5_ROOT_DIR_HINT}
@@ -58,14 +58,17 @@ SET (_HDF5_PATHS
     /usr/local/hdf5
     /usr/local/hdf5/share
 )
+message(STATUS "_HDF5_PATHS:: ${_HDF5_PATHS}")
 
 FIND_PATH (HDF5_ROOT_DIR "hdf5-config.cmake"
     HINTS ${_HDF5_HINTS}
     PATHS ${_HDF5_PATHS}
     PATH_SUFFIXES
+        cmake/hdf5
         lib/cmake/hdf5
         share/cmake/hdf5
 )
+message(STATUS "HDF5_ROOT_DIR:: ${HDF5_ROOT_DIR}")
 
 FIND_PATH (HDF5_INCLUDE_DIRS "H5public.h"
     HINTS ${_HDF5_HINTS}
@@ -77,9 +80,8 @@ FIND_PATH (HDF5_INCLUDE_DIRS "H5public.h"
 
 # For backwards compatibility we set HDF5_INCLUDE_DIR to the value of
 # HDF5_INCLUDE_DIRS
-SET ( HDF5_INCLUDE_DIR "${HDF5_INCLUDE_DIRS}" )
+set ( HDF5_INCLUDE_DIR "${HDF5_INCLUDE_DIRS}" )
 
-IF (HDF5_INCLUDE_DIR)
-  SET (HDF5_FOUND "YES")
-  INCLUDE (${HDF5_ROOT_DIR}/hdf5-config.cmake)
-ENDIF (HDF5_INCLUDE_DIR)
+if (HDF5_INCLUDE_DIR)
+  set (HDF5_FOUND "YES")
+endif (HDF5_INCLUDE_DIR)

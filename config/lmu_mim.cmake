@@ -43,5 +43,6 @@ set(USER_Fortran_FLAGS         "-cpp -ffree-line-length-none -g")
 set(USER_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3") 
 set(USER_Fortran_FLAGS_DEBUG   "-fbacktrace -finit-real=nan -W -Wall -Wuninitialized -g -pg -fcheck=all -fbounds-check -pedantic -Wsurprising")
 
-set(NETCDF_DIR      "/home/opt/cosmo_tica_lib//ompi1.8.1/netcdf-4.3.0/install/")
-set(NETCDF_DIR_F90  "/home/opt/cosmo_tica_lib//ompi1.8.1/netcdf-fortran-4.2/install/")
+set(NETCDF_DIR      "/home/opt/cosmo_tica_lib//ompi1.8.1/netcdf-c-4.3.3-rc2/build/install/")
+set(NETCDF_DIR_F90  "/home/opt/cosmo_tica_lib//ompi1.8.1/netcdf-fortran-4.4.1/build/install/")
+set(HDF_ROOT        "/home/opt/cosmo_tica_lib//ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/")

@@ -1,7 +1,7 @@
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
 include(CMakeForceCompiler) #Necessary to change between MPI/parallel/profiler compilers, without having to do a make clean
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/hdf5/")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 cmake_minimum_required (VERSION 2.8.10)
 
@@ -39,6 +39,17 @@ if (CMAKE_BUILD_TYPE STREQUAL "RELEASE")
 else()
   MESSAGE(STATUS "Compiler Flags " ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_DEBUG})
 endif()
+
+# HDF5
+#find_package( HDF5 REQUIRED )
+FIND_PACKAGE (HDF5 NAMES hdf5)
+message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
+message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
+message(STATUS "HDF5 F90      : ${HDF5_BUILD_FORTRAN}" )
+message(STATUS "HDF5 Library  : ${HDF5_LIBRARIES}")
+include_directories(${HDF5_INCLUDE_DIR})
+include_directories(${HDF5_FORTRAN_INCLUDE_DIR})
+list (APPEND EXTLIB ${HDF5_LIBRARIES})
 
 # NetCDF
 set (NETCDF_F90 "YES")

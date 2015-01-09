@@ -38,7 +38,7 @@ module m_optprop_parameters
       ! interp_mode 2 == linear interpolation
 
 !      integer(iintegers) ,parameter :: Ndz_8_10=4, Nkabs_8_10=2, Nksca_8_10=2, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
-      integer(iintegers) ,parameter :: Ndz_8_10=40, Nkabs_8_10=20, Nksca_8_10=20, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
+      integer(iintegers) ,parameter :: Ndz_8_10=40, Nkabs_8_10=20, Nksca_8_10=20, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=20, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
 !      integer(iintegers) ,parameter :: Ndz_8_10=30, Nkabs_8_10=30, Nksca_8_10=30, Ng_8_10=4, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
 !      integer(iintegers) ,parameter :: Ndz_8_10=50, Nkabs_8_10=80, Nksca_8_10=80, Ng_8_10=5, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
 
