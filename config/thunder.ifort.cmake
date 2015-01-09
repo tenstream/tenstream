@@ -11,12 +11,12 @@ set(USER_Fortran_FLAGS "-cpp -traceback -extend_source -g ")
 set(USER_Fortran_FLAGS_RELEASE " -O3 -no-prec-div -xAVX -fp-model source ")
 set(USER_Fortran_FLAGS_DEBUG "-fpe0 -O0 -g -check all -check nopointers -check noarg_temp_created")
 
+
+set(NETCDF_DIR      "/sw/squeeze-x64/netcdf-4.2-static/")
+set(NETCDF_DIR_F90  "/sw/squeeze-x64/netcdf_fortran-4.2-static-intel15/")
+#set(HDF_ROOT        "/sw/squeeze-x64/hdf5-1.8.8-static/") # we should set this if hdf5 was made with cmake... otherwise set libraries by hand:
+
 set(HDF5_LIB_1         "/sw/squeeze-x64/hdf5-1.8.8-static/lib/libhdf5_hl.a")
 set(HDF5_LIB_2         "/sw/squeeze-x64/hdf5-1.8.8-static/lib/libhdf5.a")
 set(SZIP_LIB           "/sw/squeeze-x64/szip-2.1-static/lib/libsz.a")
-set(LIBS ${HDF5_LIB_1} ${HDF5_LIB_2} ${SZIP_LIB} m z curl)
-
-set(NETCDF_DIR      "/sw/squeeze-x64/netcdf-4.2-static/")
-set(NETCDF_DIR_F90  "/sw/squeeze-x64/netcdf_fortran-4.2-static-intel13/")
-set(HDF_ROOT        "/sw/squeeze-x64/hdf5-1.8.8-static/")
-
+set(LIBS ${HDF5_LIB_1} ${HDF5_LIB_2} ${SZIP_LIB})
