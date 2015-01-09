@@ -43,7 +43,7 @@ use petsc
 
       private
       public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
-                tenstream_get_result, need_new_solution, &
+                tenstream_get_result, need_new_solution, load_solution, &
                 b,edir,ediff,abso,&
                 edir_twostr,ediff_twostr,abso_twostr, &
                 t_coord,C_dir,C_diff,C_one
@@ -119,9 +119,9 @@ use petsc
         logical :: lset=.False.
 
         !save error statistics
-        real(ireals) :: time            (3000) = -one
+        real(ireals) :: time   (3000) = -one
         real(ireals) :: maxnorm(3000) = zero
-        real(ireals) :: twonorm(3000)   = zero
+        real(ireals) :: twonorm(3000) = zero
         real(ireals),allocatable :: ksp_residual_history(:)
       end type
       type(t_state_container),save :: solutions(1000)
@@ -2183,10 +2183,9 @@ end subroutine
             call solve(kspdiff, b, ediff,solution_uid)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
+            if(present(solution_uid) .and. present(solution_time) ) call save_solution(solution_uid,solution_time)
             ! ---------------------------- Absorption and Rescaling-
             call calc_flx_div(edir,ediff,abso)
-
-            if(present(solution_uid) .and. present(solution_time) ) call save_solution(solution_uid,solution_time)
             call scale_flx(edir,C_dir)
             call scale_flx(ediff,C_diff)
         end subroutine
@@ -2258,7 +2257,10 @@ end subroutine
             integer(iintegers),intent(in) :: uid
             logical :: loaded
 !            real(ireals) :: norm1,norm2
-            if(.not.lenable_solutions) return
+            if(.not.lenable_solutions) then
+              loaded=.False.
+              return
+            endif
 
             if(uid.gt.size(solutions)) then
               print *,'unique identifier exceeds container size.... you might want to grow it...',uid,size(solutions)
@@ -2273,6 +2275,11 @@ end subroutine
                   print *,'Loading Solution for uid',uid
               call VecCopy(solutions(uid)%edir , edir , ierr) ;CHKERRQ(ierr)
               call VecCopy(solutions(uid)%ediff, ediff, ierr) ;CHKERRQ(ierr)
+
+              ! Solution vectors are not rescaled nor is the absorption calculated/saved.
+              call calc_flx_div(edir,ediff,abso)
+              call scale_flx(edir,C_dir)
+              call scale_flx(ediff,C_diff)
             endif
             loaded = .True.
 
@@ -2517,7 +2524,6 @@ end subroutine
             call VecNorm(abso_old ,  NORM_INFINITY, norm3, ierr)
             call VecDestroy(abso_old,ierr)
 
-            
 !            ! Overwrite old solution vectors with difference to new solution
 !            call VecAXPY(solutions(uid)%edir , -one, edir , ierr)
 !            call VecAXPY(solutions(uid)%ediff, -one, ediff, ierr)
