@@ -2184,9 +2184,12 @@ end subroutine
             call solve(kspdiff, b, ediff,solution_uid)
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
-            if(present(solution_uid) .and. present(solution_time) ) call save_solution(solution_uid,solution_time)
             ! ---------------------------- Absorption and Rescaling-
             call calc_flx_div(edir,ediff,abso)
+
+            if(present(solution_uid) .and. present(solution_time) ) & ! Attention this has to be called after abso was defined!
+                call save_solution(solution_uid,solution_time)
+
             call scale_flx(edir,C_dir)
             call scale_flx(ediff,C_diff)
         end subroutine
@@ -2509,15 +2512,19 @@ end subroutine
               solutions(uid)%lset=.True.
             endif
 
-!            call VecNorm(edir,NORM_2,norm1,ierr)
-!            call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
-!            print *,'before saving vectors edir norms',norm1,norm2
-!            call VecNorm(ediff,NORM_2,norm1,ierr)
-!            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
-!            print *,'before saving vectors ediff norms',norm1,norm2
-
             call VecDuplicate(abso , abso_old , ierr)
             call calc_flx_div(solutions(uid)%edir,solutions(uid)%ediff, abso_old)
+
+!            call VecNorm(edir,NORM_2,norm1,ierr)
+!            call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
+!            if(myid.eq.0) print *,'before saving vectors edir norms',norm1,norm2
+!            call VecNorm(ediff,NORM_2,norm1,ierr)
+!            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
+!            if(myid.eq.0) print *,'before saving vectors ediff norms',norm1,norm2
+!            call VecNorm(abso,NORM_2,norm1,ierr)
+!            call VecNorm(abso_old,NORM_2,norm2,ierr)
+!            if(myid.eq.0) print *,'before saving vectors abso norms',norm1,norm2
+
 
             call VecAXPY(abso_old , -one, abso , ierr) ! overwrite abso_old with difference to new one
             call VecNorm(abso_old ,  NORM_1, norm1, ierr)
@@ -2553,6 +2560,7 @@ end subroutine
 
             !TODO: this is for the residual history tests...
 !            if(time-last_solution_save_time .le. 30._ireals .and. last_solution_save_time.ne.time ) return ! if not even 30 seconds went by, just return
+!            return
             last_solution_save_time=time
 
 !            if(myid.eq.0) &
