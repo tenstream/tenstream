@@ -1,5 +1,5 @@
 module m_helper_functions
-      use m_data_parameters!,only : iintegers,ireals,pi,one,imp_real,imp_int,imp_logical,mpiint,imp_comm
+      use m_data_parameters,only : iintegers,ireals,pi,one,imp_real,imp_int,imp_logical,mpiint,imp_comm
 
       implicit none
 
