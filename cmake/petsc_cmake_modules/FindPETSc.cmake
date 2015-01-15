@@ -139,14 +139,15 @@ if (petsc_conf_rules AND petsc_conf_variables AND NOT petsc_config_current)
 include ${petsc_conf_rules}
 include ${petsc_conf_variables}
 show :
-\t-@echo -n \${\${VARIABLE}}
+\t-@echo \${\${VARIABLE}}
 ")
 
   macro (PETSC_GET_VARIABLE name var)
     set (${var} "NOTFOUND" CACHE INTERNAL "Cleared" FORCE)
     execute_process (COMMAND ${MAKE_EXECUTABLE} --no-print-directory -f ${petsc_config_makefile} show VARIABLE=${name}
       OUTPUT_VARIABLE ${var}
-      RESULT_VARIABLE petsc_return)
+      RESULT_VARIABLE petsc_return
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
   endmacro (PETSC_GET_VARIABLE)
   petsc_get_variable (PETSC_LIB_DIR            petsc_lib_dir)
   petsc_get_variable (PETSC_EXTERNAL_LIB_BASIC petsc_libs_external)
