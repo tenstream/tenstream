@@ -77,12 +77,12 @@ module m_boxmc
 
       integer,parameter :: fg=1,bg=2,tot=3
 
-      type(stddev) :: std_Sdir, std_Sdiff, std_abso
+      type(stddev),save :: std_Sdir, std_Sdiff, std_abso
 
       integer(mpiint) :: ierr,myid,numnodes
 
       logical :: lRNGseeded=.False.
-      type(randomNumberSequence) :: rndSeq
+      type(randomNumberSequence),save :: rndSeq
 
       ! ***************** INTERFACES ************
       abstract interface
@@ -182,10 +182,12 @@ contains
                                           - cos(deg2rad(theta0)) ]
       initial_dir = initial_dir/norm(initial_dir)
 
+#ifndef _XLF      
       if( (any(op_bg.lt.zero)) .or. (any(isnan(op_bg))) ) then
         print *,'corrupt optical properties: bg:: ',op_bg
         call exit
       endif
+#endif
 
       if(dx.le.zero .or. dy.le.zero .or. dz.le.zero ) then
         print *,'ERROR: box dimensions have to be positive!',dx,dy,dz
@@ -259,20 +261,22 @@ contains
       endif
 
       if( (sum(S_out)+sum(Sdir_out)).gt.one+1e-3_ireals ) then
-        print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',\
+        print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
                 sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),'.gt',one+1e-3_ireals,':: op',p%optprop,'eps',epsilon(one)
         call print_photon(p)
         call exit
       endif
+#ifndef _XLF      
       if( (any(isnan(S_out) )) .or. (any(isnan(Sdir_out)) ) ) then
         print *,'Found a NaN in output! this should not happen! dir',Sdir_out,'diff',S_out
         call print_photon(p)
         call exit()
       endif
+#endif      
       call cpu_time(time(2))
 
       if(myid.le.0.and.rand().gt..99) then
-        write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') \
+        write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') &
         src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/(time(2)-time(1))/numnodes,time(2)-time(1)
       endif
   end subroutine
@@ -379,11 +383,13 @@ subroutine update_photon_loc(p,dist)
         real(ireals),intent(in) :: dist
         call absorb_photon(p,dist)
         p%loc = p%loc + (dist*p%dir)
+#ifndef _XLF      
         if(any(isnan(p%loc))) then
           print *,'loc is now a NAN! ',p%loc,'dist',dist
           call print_photon(p)
           call exit
         endif
+#endif      
 end subroutine
 pure function hit_plane(p,po_i,pn_i)
         real(ireals) :: hit_plane
@@ -574,7 +580,7 @@ pure subroutine std_update(std, N, numnodes)
       std%var = sqrt( std%mean2/N ) / sqrt( one*N*numnodes )
       where(std%mean.gt.relvar_limit)
         relvar = std%var / std%mean
-      else where
+      elsewhere
         relvar = zero
       end where
 

@@ -76,22 +76,6 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 !          a13 = max( zero, a13 )!min(one, )
 !          a23 = max( zero, a23 )!min(one, )
 
-!          if(any(isnan( [a11,a12,a13,a23,a33] ) )) then !.or. [a11,a12,a13,a23,a33].gt.one .or. [a11,a12,a13,a23,a33].lt.zero ) ) then
-!            print *,'Found NaN in eddington coefficients _rb -- this should not happen!'
-!            print *,'input',dtau,g,omega_0,mu_0
-!            print *,'alpha1',alpha_1,isnan(alpha_1),alpha_1.gt.huge(alpha_1)
-!            print *,'alpha2',alpha_2,isnan(alpha_2),alpha_2.gt.huge(alpha_2)
-!            print *,'alpha3',alpha_3,isnan(alpha_3),alpha_3.gt.huge(alpha_3)
-!            print *,'alpha4',alpha_4,isnan(alpha_4),alpha_4.gt.huge(alpha_4)
-!            print *,'alpha5',alpha_5,isnan(alpha_5),alpha_5.gt.huge(alpha_5)
-!            print *,'alpha6',alpha_6,isnan(alpha_6),alpha_6.gt.huge(alpha_6)
-!            print *,'A',A
-!            print *,'lambda',lambda
-!            print *,'denom,bmmu0',den1,b_mmu_0
-!            print *,'exp1,term1',exp1,term1
-!            print *,'coeff', [a11,a12,a13,a23,a33]
-!            call exit()
-!          endif
 
 
       end subroutine
@@ -167,23 +151,6 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           a23 = zg2*(a33-a11) -zg1*a12*a33
           a13 = zg1*(1.-a11*a33) -zg2*a12
 
-          if(any(isnan( [a11,a12,a13,a23,a33] ) .or. [a11,a12,a13,a23,a33].gt.one .or. [a11,a12,a13,a23,a33].lt.zero ) ) then
-            print *,'Found NaN in eddington coefficients _fab -- this should not happen!'
-            print *,'input_in',dtau_in,omega_0_in,g_in,mu_0
-            print *,'input',dtau,omega_0,g,mu_0
-            print *,'zod1',zod1
-            print *,'zod2',zod2
-            print *,'zod3',zod3
-            print *,'zod4',zod4
-            print *,'zod5',zod5
-!            print *,'A',A
-!            print *,'lambda',lambda
-!            print *,'denom,bmmu0',den1,b_mmu_0
-!            print *,'exp1,term1',exp1,term1
-            print *,'coeff', [a11,a12,a13,a23,a33]
-            call MPI_Abort(imp_comm,VALUE_ERROR)
-          endif
-
       end subroutine
       subroutine eddington_coeff_fab (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23,a33,g1,g2)
           real(ireals),intent(in) :: dtau_in,g_in,omega_0_in,mu_0
@@ -256,27 +223,6 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           g2 = g0 / (lambda**2)
           g1 = min(one, max( zero, g1 ) )
           g2 = min(one, max( zero, g2 ) )
-
-          if(any(isnan( [a11,a12,a13,a23,a33,g1,g2] )  .or. [a11,a12,a13,a23,a33,g1,g2].gt.one .or. [a11,a12,a13,a23,a33,g1,g2].lt.zero ) ) then
-            print *,'Found NaN in eddington coefficients _fab -- this should not happen!'
-            print *,'input_in',dtau_in,omega_0_in,g_in,mu_0
-            print *,'input',dtau,omega_0,g,mu_0
-            print *,'alpha1',alpha_1,isnan(alpha_1),alpha_1.gt.huge(alpha_1)
-            print *,'alpha2',alpha_2,isnan(alpha_2),alpha_2.gt.huge(alpha_2)
-            print *,'alpha3',alpha_3,isnan(alpha_3),alpha_3.gt.huge(alpha_3)
-            print *,'alpha4',alpha_4,isnan(alpha_4),alpha_4.gt.huge(alpha_4)
-            print *,'alpha5',alpha_5,isnan(alpha_5),alpha_5.gt.huge(alpha_5)
-            print *,'alpha6',alpha_6,isnan(alpha_6),alpha_6.gt.huge(alpha_6)
-            print *,'bscr',bscr,'b_mmu_0',b_mmu_0
-            print *,'lambda',lambda
-            print *,'denom,bmmu0',den1,b_mmu_0
-            print *,'exp1,term1',exp1,term1
-            print *,'exp2,term2',exp2,term2
-            print *,'A',A
-            print *,'g0',g0
-            print *,'coeff', [a11,a12,a13,a23,a33,g1,g2]
-            call MPI_Abort(imp_comm,VALUE_ERROR)
-          endif
 
 !          print *,'eddington called with',dtau_in,omega_0_in,g_in,'::',a11,a12,a13,a23,a33
 

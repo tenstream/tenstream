@@ -176,10 +176,12 @@ end type
             xvals_inp = xinp( (irow-A%xs)*Ndim+1 : (irow-A%xs)*Ndim + Ndim )
             xvals = poly(Norder,Ndim, luse_coeff, xvals_inp)
 
+#ifndef _XLF
             if(any(isnan(xvals)).or.any(isnan(xvals_inp)) ) then
               print *,irow,':',irow-A%xs,'xvals_inp',xvals_inp,'xvals',xvals,'A%gNcol',A%gNcol,'col_ind',col_ind
               stop 'fill_A :: NaN in xvals -- bug!'
             endif
+#endif
             call MatSetValues(A%A, 1_iintegers, [irow], A%gNcol, col_ind, xvals, INSERT_VALUES, ierr)
           enddo
           call VecRestoreArrayF90(inp%v,xinp,ierr)

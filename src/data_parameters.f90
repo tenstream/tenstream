@@ -1,8 +1,20 @@
 module m_data_parameters
 
-        use mpi,only:MPI_SIZEOF,MPI_TYPE_MATCH_SIZE
+#ifdef _XLF
+        use mpi 
+#else
+        use mpi ,only:mpi_sizeof, mpi_type_match_size 
+#endif
+
         implicit none
 #include "finclude/petsc.h90"
+
+
+      private
+      public pi,clight,nil,zero,one,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil, &
+             iintegers,ireals,ireal128,ireal_dp,                                &
+             mpiint,imp_int,imp_real,imp_logical,imp_comm,myid,numnodes,mpierr, &
+             init_mpi_data_parameters
 
 !      integer,parameter :: &
 !      ireals=selected_real_kind(8,100), &

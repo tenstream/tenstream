@@ -15,7 +15,7 @@ fname=trim(groups(1))
 
 do iwait=1,int(maxwait/waitinterval)
 open(v,file=lockfile,status='new',err=99)
-write(v,*) 'file is locked by process: ',getpid()
+write(v,*) 'file is locked by process: ',get_pid_macro()
 
 if(ldebug) print *,'***********************************************************************************************'
 if(ldebug) print *,'writing to file: ',trim(fname)

@@ -726,9 +726,11 @@ use petsc
                  call OPP_8_10%get_coeff(dz,op%kabs,op%ksca,op%g,dir,coeff,angles)
                endif
 
+#ifndef _XLF
                if(ldebug) then
                  if( any(isnan(coeff)) .or. any(coeff.lt.zero) .or. any(coeff.gt.one) ) print *,'Wrong coeff',coeff,'op',op
                endif
+#endif
             call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
         end subroutine
 function sym_rot_phi(phi0)
@@ -1523,10 +1525,12 @@ subroutine MyKSPConverged(ksp,n,rnorm,flag,dummy,ierr)
       return
     endif
 
+#ifndef _XLF
     if(isnan(rnorm)) then
       flag=-9
       return
-    endif
+  endif
+#endif
 end subroutine
 
 subroutine setup_logging()
@@ -2031,6 +2035,7 @@ end subroutine
         if(allocated(atm%planck)) deallocate(atm%planck)
       endif
 
+#ifndef _XLF
       if(ldebug) then
         if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
           print *,myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
@@ -2045,6 +2050,7 @@ end subroutine
           print *,myid,'set_optical_properties :: found illegal value in optical properties! abort!'
         endif
       endif
+#endif      
       !      print *,'local_kabs   ',maxval(local_kabs   )  ,shape(local_kabs   )
       !      print *,'local_ksca   ',maxval(local_ksca   )  ,shape(local_ksca   )
       !      print *,'local_g      ',maxval(local_g      )  ,shape(local_g      )
@@ -2063,11 +2069,13 @@ end subroutine
       atm%delta_op = atm%op
       call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
 
+#ifndef _XLF
       if(ldebug) then
         if( (any([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g]))) ) then
           print *,myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
         endif
       endif
+#endif      
       if(luse_eddington) then
         if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) ! allocate space for twostream coefficients
         if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 

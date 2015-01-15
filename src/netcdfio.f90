@@ -2,6 +2,7 @@ module m_netcdfIO
 #if defined(__INTEL_COMPILER)
       use ifport
 #endif
+
 !  use mpi
   use netcdf
   USE m_data_parameters, ONLY :   &
@@ -159,6 +160,16 @@ module m_netcdfIO
           if(ldebug) print *,"NetCDF Error ::",trim(nf90_strerror(status)),'::',status
         end if
     end subroutine nccheck
+
+    function get_pid_macro()
+    integer(iintegers) :: get_pid_macro
+#ifdef _XLF
+        get_pid_macro=-1
+!        call MGPID(get_pid_macro) 
+#else
+        get_pid_macro=getpid()
+#endif
+    end function
 
   end module
 

@@ -33,7 +33,7 @@ int master(int fcomm) {
   for(int i=0;i<Nx;i++) {
     for(int j=0;j<Ny;j++) {
       for(int k=0;k<Nz;k++) {
-        int ind = i + Nx*j + Nx*Ny*k; // index for [Nz][Ny][Nx]
+        int ind = i + Nx*j + Nx*Ny*k; /* index for [Nz][Ny][Nx] */
         kabs   [ind] = 1e+3;
         ksca   [ind] = 1e-40;
         g      [ind] =   .5;
@@ -42,7 +42,7 @@ int master(int fcomm) {
       }
       int ind = i + Nx*j + Nx*Ny*Nz;
       edir   [ind] =  -1.;
-      planck [ind] =  5.67e-8*273.*273.*273.*273./3.1415; // surface emission
+      planck [ind] =  5.67e-8*273.*273.*273.*273./3.1415; /* surface emission */
     }
   }             
 

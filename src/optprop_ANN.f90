@@ -49,20 +49,20 @@ contains
   end subroutine
 
   subroutine loadnet(fname, netname,net,ierr)
-      character(300) :: fname, netname
+      character(300) :: fname, netname, varname
       type(ANN) :: net
       integer(iintegers),intent(out) :: ierr
       integer(iintegers) :: errcnt,k
       ierr=0
       if(.not.allocated(net%weights)) then
-        call ncload([fname,netname,'weights' ],net%weights ,ierr) ; errcnt = ierr         ! ; print *,'loading weights ',ierr
-        call ncload([fname,netname,'units'   ],net%units   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading units   ',ierr
-        call ncload([fname,netname,'inno'    ],net%inno    ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inno    ',ierr
-        call ncload([fname,netname,'outno'   ],net%outno   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading outno   ',ierr
-        call ncload([fname,netname,'conec'   ],net%conec   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading conec   ',ierr
-        call ncload([fname,netname,'deo'     ],net%deo     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading deo     ',ierr
-        call ncload([fname,netname,'eni'     ],net%eni     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading eni     ',ierr
-        call ncload([fname,netname,'inlimits'],net%inlimits,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inlimits',ierr
+        write(varname,*) 'weights'  ; call ncload([fname,netname,varname],net%weights ,ierr) ; errcnt = ierr         ! ; print *,'loading weights ',ierr
+        write(varname,*) 'units'    ; call ncload([fname,netname,varname],net%units   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading units   ',ierr
+        write(varname,*) 'inno'     ; call ncload([fname,netname,varname],net%inno    ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inno    ',ierr
+        write(varname,*) 'outno'    ; call ncload([fname,netname,varname],net%outno   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading outno   ',ierr
+        write(varname,*) 'conec'    ; call ncload([fname,netname,varname],net%conec   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading conec   ',ierr
+        write(varname,*) 'deo'      ; call ncload([fname,netname,varname],net%deo     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading deo     ',ierr
+        write(varname,*) 'eni'      ; call ncload([fname,netname,varname],net%eni     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading eni     ',ierr
+        write(varname,*) 'inlimits' ; call ncload([fname,netname,varname],net%inlimits,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inlimits',ierr
         if(ldebug) print *,'Loading ANN from:',fname,'name of Network: ',trim(netname),' resulted in errcnt',errcnt
         if(errcnt.ne.0) return
 

@@ -119,9 +119,9 @@ pure function spline(t,a0,a1)
         if(lspline) then
           where( a0 .gt. a1 )
             s = t**2
-          else where(a0.le.a1)
+          elsewhere(a0.le.a1)
             s = sqrt(t)
-          end where
+          endwhere
 !          s = t**2*(3_ireals - 2_ireals*t)
         else
           s = t
