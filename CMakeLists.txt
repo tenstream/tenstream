@@ -57,22 +57,28 @@ endif(${HDF5_FOUND})
 
 # NetCDF
 set (NETCDF_F90 "YES")
-find_package( NetCDF REQUIRED )
-message(STATUS "Found NetCDF:    ${NETCDF_FOUND}" )
-message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
-message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
-message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
-include_directories(${NETCDF_INCLUDES})
-include_directories(${NETCDF_INCLUDES_F90})
-list (APPEND EXTLIB ${NETCDF_LIBRARIES})
+find_package( NetCDF )
+if(${NETCDF_FOUND})
+  message(STATUS "Found NetCDF:    ${NETCDF_FOUND}" )
+  message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
+  message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
+  message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
+  include_directories(${NETCDF_INCLUDES})
+  include_directories(${NETCDF_INCLUDES_F90})
+  list (APPEND EXTLIB ${NETCDF_LIBRARIES})
+else(${NETCDF_FOUND})
+  message(WARNING "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
+endif(${NETCDF_FOUND})
 
 # Add Lapack
-find_package( LAPACK REQUIRED )
-list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
+find_package( LAPACK )
+if(${LAPACK_FOUND})
+  list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
+endif(${LAPACK_FOUND})
 
 # Petsc
 MESSAGE(STATUS "Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")
-find_package(PETSc REQUIRED)
+find_package( PETSc )
 message(STATUS "Found Petsc:    ${PETSC_FOUND}" )
 message(STATUS "Petsc Includes: ${PETSC_INCLUDES}" )
 message(STATUS "Petsc Library : ${PETSC_LIBRARIES}")
@@ -85,13 +91,14 @@ include_directories (${PETSC_INCLUDES})
 list (APPEND EXTLIB "${PETSC_LIBRARIES}" )
 
 # Set MPI Stuff
-find_package(MPI REQUIRED)
-add_definitions(${MPI_Fortran_COMPILE_FLAGS})
-include_directories(${MPI_Fortran_INCLUDE_PATH})
-link_directories(${MPI_Fortran_LIBRARIES})
-list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
-
-include_directories(${ITAPS_INCLUDES})
+find_package( MPI )
+if(${MPI_Fortran_FOUND})
+  add_definitions(${MPI_Fortran_COMPILE_FLAGS})
+  include_directories(${MPI_Fortran_INCLUDE_PATH})
+  link_directories(${MPI_Fortran_LIBRARIES})
+  list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
+  include_directories(${ITAPS_INCLUDES})
+endif(${MPI_Fortran_FOUND})
 
 # Set Output Directories
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE PATH "Output directory for Dohp archives")
@@ -101,6 +108,14 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE PATH "Output d
 # Install Fortran *.mod files into include dir
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include )
 install(DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY}/ DESTINATION include)
+
+# Find out if the compiler is XLF and if so give this to the C preprocessor
+string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "XL" _is_XLF)
+if(${_is_XLF})
+  add_definitions(-D_XLF)
+  # and add the directory to the include path, as IBM xlf compiler will otherwise not find it. This is already an open bug in cmake and was supposed to be fixed.... grml
+  include_directories(${CMAKE_Fortran_MODULE_DIRECTORY})
+endif(${_is_XLF})
 
 # Add Source Directories
 add_subdirectory (src)
