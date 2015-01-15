@@ -712,7 +712,7 @@ end subroutine
   subroutine check_dirLUT_matches_pspace(LUT)
       type(directTable),intent(in) :: LUT
       real(ireals),allocatable :: buf(:)
-      character(300) :: str(2)
+      character(300) :: str(5)
       integer(iintegers) align(6);
       write(str(1),*) "diffuse"
       write(str(2),FMT='("dx",I0)')   int(LUT%dx)
