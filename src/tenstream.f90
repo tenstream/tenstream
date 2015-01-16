@@ -86,30 +86,30 @@ use petsc
         real(ireals) :: albedo
         real(ireals) :: dx,dy
       end type
-      type(t_atmosphere) :: atm
+      type(t_atmosphere),save :: atm
 
 
-      type(t_optprop_1_2) OPP_1_2
-      type(t_optprop_8_10) OPP_8_10
+      type(t_optprop_1_2),save  :: OPP_1_2
+      type(t_optprop_8_10),save :: OPP_8_10
 
       type t_suninfo
         real(ireals) :: symmetry_phi
         integer(iintegers) :: yinc,xinc
         real(ireals) :: theta,phi,costheta,sintheta
       end type
-      type(t_suninfo) :: sun
+      type(t_suninfo),save :: sun
 
       PetscLogStage :: logstage(10)
 
-      Mat :: Mdir,Mdiff
+      Mat,save :: Mdir,Mdiff
 
-      Vec :: incSolar,b,edir,ediff,abso
-      Vec :: edir_twostr,ediff_twostr,abso_twostr
+      Vec,save :: incSolar,b,edir,ediff,abso
+      Vec,save :: edir_twostr,ediff_twostr,abso_twostr
 
-      KSP :: kspdir, kspdiff
-      logical :: linit_kspdir=.False., linit_kspdiff=.False.
+      KSP,save :: kspdir, kspdiff
+      logical,save :: linit_kspdir=.False., linit_kspdiff=.False.
 
-      logical :: linitialized=.False.
+      logical,save :: linitialized=.False.
 
       integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
 
@@ -260,7 +260,7 @@ use petsc
               call setup_diff_preallocation(d_nnz,o_nnz,C)
               !             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i4, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
             case default
-              stop('Dont know which preallocation routine I shall call! - exiting...')
+!              stop('Dont know which preallocation routine I shall call! - exiting...')
             end select
 
             call MatMPIAIJSetPreallocation(A, PETSC_NULL_INTEGER,d_nnz, PETSC_NULL_INTEGER, o_nnz, ierr) ;CHKERRQ(ierr)

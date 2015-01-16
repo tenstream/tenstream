@@ -451,7 +451,7 @@ end type
             P1=PF
           enddo
           RETURN
-          END
+          END SUBROUTINE
 
           pure recursive function factorial(n)  result(fact)
             integer(iintegers) :: fact

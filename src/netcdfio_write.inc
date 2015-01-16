@@ -76,7 +76,8 @@ ierr = nf90_close(ncid) ; call nccheck(ierr)
 
 close(v,status='delete')
 return
-99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
+99 continue
+if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
 call cpusleep(waitinterval)
 enddo
 stop 'Couldnt write file .. waited now for quite a while but we couldnt write to it :('

@@ -225,17 +225,17 @@ subroutine loadLUT_diff(OPP, comm)
 
     if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then ! something is missing... lets try to recompute missing values in LUT
       if(myid.eq.0) then
-        if(OPP%optprop_LUT_debug) print *,'Loading of diffuse tables failed for',trim(OPP%diffLUT%fname),'  diffuse ',trim(str(1)),' ',trim(str(2)),'::',errcnt,'stddev required',lstddev_inbounds
-        write(str(4),*) "pspace"
-        write(str(5),*) "range_dz   "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_dz   ,iierr)
-        write(str(5),*) "range_kabs "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_kabs ,iierr)
-        write(str(5),*) "range_ksca "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_ksca ,iierr)
-        write(str(5),*) "range_g    "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_g    ,iierr)
-                                     
-        write(str(5),*) "dz         "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%dz   ,iierr)
-        write(str(5),*) "kabs       "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%kabs ,iierr)
-        write(str(5),*) "ksca       "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%ksca ,iierr)
-        write(str(5),*) "g          "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%g    ,iierr)
+        if(OPP%optprop_LUT_debug) print *,'Loading of diffuse tables failed for',trim(OPP%diffLUT%fname),trim(str(1)),' ',trim(str(2)),trim(str(3))'::',errcnt,'stddev required',lstddev_inbounds
+        write(str(4),FMT='(A)') "pspace"
+        write(str(5),FMT='(A)') "range_dz   "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_dz   ,iierr)
+        write(str(5),FMT='(A)') "range_kabs "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_kabs ,iierr)
+        write(str(5),FMT='(A)') "range_ksca "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_ksca ,iierr)
+        write(str(5),FMT='(A)') "range_g    "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_g    ,iierr)
+
+        write(str(5),FMT='(A)') "dz         "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%dz   ,iierr)
+        write(str(5),FMT='(A)') "kabs       "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%kabs ,iierr)
+        write(str(5),FMT='(A)') "ksca       "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%ksca ,iierr)
+        write(str(5),FMT='(A)') "g          "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%g    ,iierr)
       endif
 
       call OPP%createLUT_diff(OPP%diffLUT, comm)
