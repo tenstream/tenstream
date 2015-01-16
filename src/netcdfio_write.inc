@@ -17,14 +17,16 @@ do iwait=1,int(maxwait/waitinterval)
 open(v,file=lockfile,status='new',err=99)
 write(v,*) 'file is locked by process: ',get_pid_macro()
 
-if(ldebug) print *,'***********************************************************************************************'
-if(ldebug) print *,'writing to file: ',trim(fname)
-if(ldebug) print *,'varname is: ',trim(varname)
-
 varname=trim(groups(2))
 do i=3,size(groups)
 varname=trim(varname)//'.'//trim(groups(i))
 enddo
+
+if(ldebug) print *,'***********************************************************************************************'
+if(ldebug) print *,'writing to file: ',trim(fname)
+if(ldebug) print *,'varname is: ',trim(varname)
+if(ldebug) print *,'***********************************************************************************************'
+
 
 Ndims = size(shape(arr))
 
