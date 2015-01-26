@@ -49,7 +49,6 @@ use petsc
                 t_coord,C_dir,C_diff,C_one
 
       PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
-      PetscInt,parameter :: istartpar=i1, jstartpar=i1
 
       logical,parameter :: ldebug=.False.
 !      logical,parameter :: ldebug=.True.
@@ -67,7 +66,7 @@ use petsc
         PetscMPIInt,allocatable :: neighbors(:) ! all 3d neighbours( (x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
       end type
 
-      type(t_coord) :: C_dir,C_diff,C_one,C_one1
+      type(t_coord),save :: C_dir,C_diff,C_one,C_one1
 
       PetscErrorCode :: ierr
 
@@ -99,7 +98,7 @@ use petsc
       end type
       type(t_suninfo),save :: sun
 
-      PetscLogStage :: logstage(10)
+      PetscLogStage,save :: logstage(10)
 
       Mat,save :: Mdir,Mdiff
 
@@ -217,9 +216,10 @@ use petsc
 
       subroutine mat_info(A)
         Mat :: A
-        MatInfo :: info(MAT_INFO_SIZE)
+        MatInfo :: info(MAT_INFO_SIZE) 
         real(ireals) :: mal, nz_allocated, nz_used, nz_unneeded
 
+        return !TODO decide if this is the correct type for matgetinfo call, in docs it states we should use double precision? for the time being it may be safe to just return....
         call MatGetInfo(A,MAT_LOCAL,info,ierr) ;CHKERRQ(ierr)
         mal = info(MAT_INFO_MALLOCS)
         nz_allocated = info(MAT_INFO_NZ_ALLOCATED)
@@ -255,7 +255,7 @@ use petsc
               !             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i2, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
             case(i8)
               call setup_dir8_preallocation(d_nnz,o_nnz,C)
-              !             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i4, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
+              !call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i4, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
             case(i10)
               call setup_diff_preallocation(d_nnz,o_nnz,C)
               !             call MatMPIAIJSetPreallocation(A, C%dof,PETSC_NULL_INTEGER, i4, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr) !TODO
@@ -292,36 +292,37 @@ use petsc
         PetscScalar :: v(1)
 
         !TODO -- we should use this form... however get an allocation ERROR - fix this
-!        Vec :: diag
+        Vec :: diag
 
-!        call DMCreateGlobalVector(C%da,diag,ierr) ;CHKERRQ(ierr)
-!        call VecSet(diag,one,ierr) ;CHKERRQ(ierr)
-!        call MatDiagonalSet( A, diag, INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+        call DMCreateGlobalVector(C%da,diag,ierr) ;CHKERRQ(ierr)
+        call VecSet(diag,one,ierr) ;CHKERRQ(ierr)
+        call MatDiagonalSet( A, diag, INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+        call VecDestroy(diag,ierr) ;CHKERRQ(ierr)
 
-        v(1)=one
-        
-        if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally'
-        do k=C%zs,C%ze
-          row(MatStencil_k,1) = k
-          col(MatStencil_k,1) = k
-
-          do j=C%ys,C%ye 
-            row(MatStencil_j,1) = j
-            col(MatStencil_j,1) = j
-
-            do i=C%xs,C%xe
-              row(MatStencil_i,1) = i
-              col(MatStencil_i,1) = i
-
-              do dof=0,C%dof-1
-                row(MatStencil_c,1) = dof
-                col(MatStencil_c,1) = dof
-
-                call MatSetValuesStencil(A,i1, row,i1, col , v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr) 
-              enddo 
-            enddo 
-          enddo 
-        enddo
+!        v(1)=one
+!        
+!        if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally'
+!        do k=C%zs,C%ze
+!          row(MatStencil_k,1) = k
+!          col(MatStencil_k,1) = k
+!
+!          do j=C%ys,C%ye 
+!            row(MatStencil_j,1) = j
+!            col(MatStencil_j,1) = j
+!
+!            do i=C%xs,C%xe
+!              row(MatStencil_i,1) = i
+!              col(MatStencil_i,1) = i
+!
+!              do dof=0,C%dof-1
+!                row(MatStencil_c,1) = dof
+!                col(MatStencil_c,1) = dof
+!
+!                call MatSetValuesStencil(A,i1, row,i1, col , v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr) 
+!              enddo 
+!            enddo 
+!          enddo 
+!        enddo
 
         call MatAssemblyBegin(A,MAT_FLUSH_ASSEMBLY,ierr) ;CHKERRQ(ierr)
         call MatAssemblyEnd  (A,MAT_FLUSH_ASSEMBLY,ierr) ;CHKERRQ(ierr)  
@@ -498,7 +499,6 @@ use petsc
 
         xo = i0
         xd = i1
-
 
         forall(k=C%zs+1:C%ze  , j=C%ys:C%ye, i=C%xs:C%xe, s=i0:i3) xd( s ,i,j,k ) = C%dof+i1 ! Edir_vertical depends on 3 values Edir_vertical,xaxis,yaxis :: starting with second entries(seen from top)
         forall(k=C%zs  :C%ze-1, j=C%ys:C%ye, i=C%xs:C%xe, s=i4:i7) xd( s ,i,j,k ) = C%dof+i1 ! Edir_xaxis,yaxis depends on 3 values Edir_vertical,xaxis,yaxis :: starting with first entries(seen from top)
@@ -731,7 +731,7 @@ use petsc
                  if( any(isnan(coeff)) .or. any(coeff.lt.zero) .or. any(coeff.gt.one) ) print *,'Wrong coeff',coeff,'op',op
                endif
 #endif
-            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+               call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
         end subroutine
 function sym_rot_phi(phi0)
   real(ireals) :: sym_rot_phi
@@ -778,7 +778,7 @@ subroutine set_dir_coeff(A,C)
               if( atm%l1d(i,j,k) ) then
                 call set_eddington_coeff(A, i,j,k)
               else
-                call set_tenstream_coeff(C, A, i,j,k,ierr); CHKERRQ(ierr)
+                call set_tenstream_coeff(C, A, i,j,k)
               endif
 
             enddo 
@@ -793,20 +793,17 @@ subroutine set_dir_coeff(A,C)
         call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
         contains 
-          subroutine set_tenstream_coeff(C,A,i,j,k,ierr)
+          subroutine set_tenstream_coeff(C,A,i,j,k)
               type(t_coord),intent(in) :: C
               Mat,intent(inout) :: A
               integer(iintegers),intent(in) :: i,j,k
-              PetscErrorCode, intent(out) :: ierr
 
               MatStencil :: row(4,C%dof)  ,col(4,C%dof)
-              PetscReal :: v(C%dof**2),coeffs(C%dof**2),norm
+              PetscScalar :: v(C%dof**2),coeffs(C%dof**2),norm
 
               PetscInt,parameter :: entries(8)=[0,8,16,24,32,40,48,56]
 
               integer(iintegers) :: dst,src
-
-              ierr=0
 
               dst = 1 ; row(MatStencil_i,dst) = i            ; row(MatStencil_j,dst) = j            ; row(MatStencil_k,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
               dst = 2 ; row(MatStencil_i,dst) = i            ; row(MatStencil_j,dst) = j            ; row(MatStencil_k,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
@@ -852,7 +849,7 @@ subroutine set_dir_coeff(A,C)
               integer(iintegers),intent(in) :: i,j,k
 
               MatStencil :: row(4,1)  ,col(4,1)
-              PetscReal :: v(1)
+              PetscScalar :: v(1)
               integer(iintegers) :: src
 
               if(luse_eddington) then
@@ -904,8 +901,8 @@ subroutine set_dir_coeff(A,C)
 
             if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients for diffuse Light'
 
-!            call MatZeroEntries(A, ierr) ;CHKERRQ(ierr)
-!            call mat_set_diagonal(A,C)
+            call MatZeroEntries(A, ierr) ;CHKERRQ(ierr) !TODO necessary?
+            call mat_set_diagonal(A,C)
 
             do k=C%zs,C%ze-1
               do j=C%ys,C%ye
@@ -1545,7 +1542,7 @@ subroutine setup_logging()
     call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;CHKERRQ(ierr)
     call PetscLogStageRegister('twostream'       , logstage(8)     , ierr) ;CHKERRQ(ierr)
     call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('write_hdf5'      , logstage(10)     , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('write_hdf5'      , logstage(10)    , ierr) ;CHKERRQ(ierr)
 
     if(myid.eq.0) print *, 'Logging stages' , logstage
     logstage_init=.True.
@@ -1899,51 +1896,66 @@ end subroutine
       real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_planck
       real(ireals),dimension(:,:,:),allocatable :: local_kabs, local_ksca, local_g
       real(ireals),dimension(:,:,:),allocatable :: local_planck
-      logical :: lhave_planck
+      logical :: lhave_planck,lhave_kabs,lhave_ksca,lhave_g
 
+      lhave_kabs   = present(global_kabs  ); call imp_bcast( lhave_kabs  , 0_mpiint, myid )
+      lhave_ksca   = present(global_ksca  ); call imp_bcast( lhave_ksca  , 0_mpiint, myid )
+      lhave_g      = present(global_g     ); call imp_bcast( lhave_g     , 0_mpiint, myid )
       lhave_planck = present(global_planck); call imp_bcast( lhave_planck, 0_mpiint, myid )
 
       ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
       if(myid.eq.0) then
-        call extend_arr(global_kabs)
-        call extend_arr(global_ksca)
-        call extend_arr(global_g)
-        if(present(global_planck)) call extend_arr(global_planck)
+         if( lhave_kabs   ) call extend_arr(global_kabs)
+         if( lhave_ksca   ) call extend_arr(global_ksca)
+         if( lhave_g      ) call extend_arr(global_g)
+         if( lhave_planck ) call extend_arr(global_planck)
       endif
 
-      if(present(global_kabs) ) allocate( local_kabs (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
-      if(present(global_ksca) ) allocate( local_ksca (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
-      if(present(global_g   ) ) allocate( local_g    (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
-      if(lhave_planck .and. present(global_planck) ) allocate( local_planck   (C_one1%xs:C_one1%xe, C_one1%ys:C_one1%ye , C_one1%zs:C_one1%ze) )
+      if( lhave_kabs   ) allocate( local_kabs   (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+      if( lhave_ksca   ) allocate( local_ksca   (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+      if( lhave_g      ) allocate( local_g      (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+      if( lhave_planck ) allocate( local_planck (C_one1%xs:C_one1%xe, C_one1%ys:C_one1%ye , C_one1%zs:C_one1%ze) )
 
       ! Scatter global optical properties to MPI nodes
       call local_optprop()
       ! Now global_fields are local to mpi subdomain.
 
-      call set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
+      if(lhave_planck) then
+        call set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
+      else
+        call set_optical_properties(local_kabs, local_ksca, local_g)
+      endif
+
 
       contains
           subroutine local_optprop()
                 Vec :: local_vec
                 PetscReal,pointer,dimension(:,:,:,:) :: xlocal_vec
 
-                if(myid.eq.0.and.ldebug) print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
+                if(myid.eq.0.and.ldebug .and. lhave_kabs) print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
 
                 call DMCreateGlobalVector(C_one%da, local_vec, ierr) ; CHKERRQ(ierr)
-                call scatterZerotoDM(global_kabs,C_one,local_vec)
-                call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
-                local_kabs = xlocal_vec(0,:,:,:)
-                call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
 
-                call scatterZerotoDM(global_ksca,C_one,local_vec)
-                call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
-                local_ksca = xlocal_vec(0,:,:,:)
-                call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                if(lhave_kabs) then
+                  call scatterZerotoDM(global_kabs,C_one,local_vec)
+                  call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  local_kabs = xlocal_vec(0,C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze)
+                  call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                endif
 
-                call scatterZerotoDM(global_g,C_one,local_vec)
-                call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
-                local_g = xlocal_vec(0,:,:,:)
-                call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                if(lhave_ksca) then
+                  call scatterZerotoDM(global_ksca,C_one,local_vec)
+                  call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  local_ksca = xlocal_vec(0,:,:,:)
+                  call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                endif
+
+                if(lhave_g) then
+                  call scatterZerotoDM(global_g,C_one,local_vec)
+                  call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  local_g = xlocal_vec(0,:,:,:)
+                  call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                endif
 
                 call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
 
@@ -1957,7 +1969,7 @@ end subroutine
                 endif
           end subroutine
           subroutine scatterZerotoDM(arr,C,vec)
-              real(ireals),allocatable,dimension(:,:,:) :: arr
+              real(ireals),dimension(:,:,:) :: arr
               type(t_coord) :: C
               Vec :: vec
 
@@ -1965,26 +1977,32 @@ end subroutine
               Vec :: natural,local
               PetscScalar,Pointer :: xloc(:)
 
+              if(ldebug) print *,myid,'scatterZerotoDM :: start....'
+              call VecSet(vec,zero,ierr)
+
               call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
               call VecScatterCreateToZero(natural, scatter_context, local, ierr); CHKERRQ(ierr)
 
               if(myid.eq.0) then
                 call VecGetArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
-!                print *,myid,'shape of local',shape(xloc), 'shape of arr',shape(arr)
+                if(ldebug) print *,myid,'scatterZerotoDM :: shape of local',shape(xloc), 'shape of arr',shape(arr)
                 xloc = reshape( arr , [ size(arr) ] )
                 call VecRestoreArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
               endif
 
+              if(ldebug) print *,myid,'scatterZerotoDM :: scatter reverse....'
               call VecScatterBegin(scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); CHKERRQ(ierr)
               call VecScatterEnd  (scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); CHKERRQ(ierr)
 
+              if(ldebug) print *,myid,'scatterZerotoDM :: natural to global....'
               call DMDANaturalToGlobalBegin(C%da,natural, INSERT_VALUES, vec, ierr); CHKERRQ(ierr)
               call DMDANaturalToGlobalEnd  (C%da,natural, INSERT_VALUES, vec, ierr); CHKERRQ(ierr)
               
+              if(ldebug) print *,myid,'scatterZerotoDM :: destroying contexts....'
               call VecScatterDestroy(scatter_context, ierr); CHKERRQ(ierr)
               call VecDestroy(local,ierr); CHKERRQ(ierr)
               call VecDestroy(natural,ierr); CHKERRQ(ierr)
-
+              if(ldebug) print *,myid,'scatterZerotoDM :: done....'
           end subroutine
     end subroutine
 
@@ -1992,6 +2010,8 @@ end subroutine
         real(ireals),intent(inout),allocatable :: arr(:,:,:)
         real(ireals),allocatable :: tmp(:,:)
         integer(iintegers) :: dims(3),i
+
+        if(.not. allocated(arr) ) print *,myid,'ERROR in SUBROUTINE extend_arr :: Cannot extend non allocated array!'
 
         dims = shape(arr)
         if( dims(1) .eq. 1 ) then
@@ -2018,112 +2038,123 @@ end subroutine
     end subroutine
 
     subroutine set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
-      real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g
-      real(ireals),intent(in),dimension(:,:,:),optional :: local_planck
-      real(ireals) :: tau,kext,w0,g
-      integer(iintegers) :: i,j,k
+    real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g
+    real(ireals),intent(in),dimension(:,:,:),optional :: local_planck
+    real(ireals) :: tau,kext,w0,g
+    integer(iintegers) :: i,j,k
 
-      if(.not.allocated(atm%op) )  allocate( atm%op       (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
-      if(present(local_kabs) ) atm%op(:,:,:)%kabs = local_kabs
-      if(present(local_ksca) ) atm%op(:,:,:)%ksca = local_ksca
-      if(present(local_g   ) ) atm%op(:,:,:)%g    = local_g   
+    if(.not.allocated(atm%op) )  allocate( atm%op       (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+    if(present(local_kabs) ) atm%op(:,:,:)%kabs = local_kabs
+    if(present(local_ksca) ) atm%op(:,:,:)%ksca = local_ksca
+    if(present(local_g   ) ) atm%op(:,:,:)%g    = local_g   
 
+    if(present(local_planck) ) then 
+      if (.not.allocated(atm%planck) ) allocate( atm%planck   (C_one1%xs:C_one1%xe, C_one1%ys:C_one1%ye , C_one1%zs:C_one1%ze) )
+      atm%planck = local_planck
+    else
+      if(allocated(atm%planck)) deallocate(atm%planck)
+    endif
+
+#ifndef _XLF
+    if(ldebug) then
+      if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
+        print *,myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
+        do k=1,ubound(local_kabs,3)
+          print *,myid,k,'local_kabs',local_kabs(:,:,k)
+          print *,myid,k,'local_ksca',local_ksca(:,:,k)
+        enddo
+      endif
+    endif
+    if(ldebug) then
+      if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
+        print *,myid,'set_optical_properties :: found illegal value in optical properties! abort!'
+      endif
+    endif
+#endif      
+
+    if(ldebug.and.myid.eq.0) then
+      if(present(local_kabs) ) then 
+        !      print *,'local_kabs   ',maxval(local_kabs   )  ,shape(local_kabs   )
+        print *,'atm_kabs     ',maxval(atm%op%kabs  )  ,shape(atm%op%kabs  )
+      endif
+      if(present(local_ksca) ) then 
+        !      print *,'local_ksca   ',maxval(local_ksca   )  ,shape(local_ksca   )
+        print *,'atm_ksca     ',maxval(atm%op%ksca  )  ,shape(atm%op%ksca  )
+      endif
+      if(present(local_g) ) then 
+        !      print *,'local_g      ',maxval(local_g      )  ,shape(local_g      )
+        print *,'atm_g        ',maxval(atm%op%g     )  ,shape(atm%op%g     )
+      endif
       if(present(local_planck) ) then 
-        if (.not.allocated(atm%planck) ) allocate( atm%planck   (C_one1%xs:C_one1%xe, C_one1%ys:C_one1%ye , C_one1%zs:C_one1%ze) )
-        atm%planck = local_planck
-      else
-        if(allocated(atm%planck)) deallocate(atm%planck)
+        !      print *,'local_planck ',maxval(local_planck )  ,shape(local_planck ), shape(atm%planck)
+        print *,'atm_planck   ',maxval(atm%planck   )  ,shape(atm%planck   )
       endif
+
+      print *, count(atm%l1d) , size(atm%l1d)
+      if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%op)
+    endif
+
+    ! Make space for deltascaled optical properties
+    if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+    atm%delta_op = atm%op
+    call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
 
 #ifndef _XLF
-      if(ldebug) then
-        if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
-          print *,myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
-          do k=1,ubound(local_kabs,3)
-            print *,myid,k,'local_kabs',local_kabs(:,:,k)
-            print *,myid,k,'local_ksca',local_ksca(:,:,k)
-          enddo
-        endif
+    if(ldebug) then
+      if( (any([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g]))) ) then
+        print *,myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
       endif
-      if(ldebug) then
-        if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
-          print *,myid,'set_optical_properties :: found illegal value in optical properties! abort!'
-        endif
-      endif
+    endif
 #endif      
-      !      print *,'local_kabs   ',maxval(local_kabs   )  ,shape(local_kabs   )
-      !      print *,'local_ksca   ',maxval(local_ksca   )  ,shape(local_ksca   )
-      !      print *,'local_g      ',maxval(local_g      )  ,shape(local_g      )
-      !      print *,'local_planck ',maxval(local_planck )  ,shape(local_planck ), shape(atm%planck)
-      !      print *,'atm_kabs   ',maxval(atm%op%kabs  )  ,shape(atm%op%kabs  )
-      !      print *,'atm_ksca   ',maxval(atm%op%ksca  )  ,shape(atm%op%ksca  )
-      !      print *,'atm_g      ',maxval(atm%op%g     )  ,shape(atm%op%g     )
-      !      print *,'atm_planck ',maxval(atm%planck   )  ,shape(atm%planck   )
-      !      print *,'atm_dz     ',maxval(atm%dz       )  ,shape(atm%dz       )
-      !
-      !      print *, count(atm%l1d) , size(atm%l1d)
-      !      if(ldebug.and.myid.eq.0) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%op)
 
-      ! Make space for deltascaled optical properties
-      if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
-      atm%delta_op = atm%op
-      call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
+  if(luse_eddington) then
+      if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) ! allocate space for twostream coefficients
+      if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+      if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+      if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+      if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+      if(.not.allocated(atm%g1 ) ) allocate(atm%g1  (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+      if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
+    endif
 
-#ifndef _XLF
-      if(ldebug) then
-        if( (any([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g]))) ) then
-          print *,myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
-        endif
-      endif
-#endif      
-      if(luse_eddington) then
-        if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) ! allocate space for twostream coefficients
-        if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-        if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-        if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-        if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-        if(.not.allocated(atm%g1 ) ) allocate(atm%g1  (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-        if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
-      endif
-        
-      if(luse_eddington) then
-        do k=lbound(atm%op,3),ubound(atm%op,3)
-          do j=lbound(atm%op,2),ubound(atm%op,2)
-            do i=lbound(atm%op,1),ubound(atm%op,1)
-              if( atm%l1d(i,j,k) ) then
-                kext = atm%delta_op(i,j,k)%kabs + atm%delta_op(i,j,k)%ksca
-                w0   = atm%delta_op(i,j,k)%ksca / kext
-                tau  = atm%dz(i,j,k)* kext
-                g    = atm%delta_op(i,j,k)%g 
-                call eddington_coeff_fab ( tau , w0, g, sun%costheta, & 
-                    atm%a11(i,j,k),          &
-                    atm%a12(i,j,k),          &
-                    atm%a13(i,j,k),          &
-                    atm%a23(i,j,k),          &
-                    atm%a33(i,j,k),          &
-                    atm%g1(i,j,k),           &
-                    atm%g2(i,j,k) )
-              endif
-            enddo
+    if(luse_eddington) then
+      do k=lbound(atm%op,3),ubound(atm%op,3)
+        do j=lbound(atm%op,2),ubound(atm%op,2)
+          do i=lbound(atm%op,1),ubound(atm%op,1)
+            if( atm%l1d(i,j,k) ) then
+              kext = atm%delta_op(i,j,k)%kabs + atm%delta_op(i,j,k)%ksca
+              w0   = atm%delta_op(i,j,k)%ksca / kext
+              tau  = atm%dz(i,j,k)* kext
+              g    = atm%delta_op(i,j,k)%g 
+              call eddington_coeff_fab ( tau , w0, g, sun%costheta, & 
+              atm%a11(i,j,k),          &
+              atm%a12(i,j,k),          &
+              atm%a13(i,j,k),          &
+              atm%a23(i,j,k),          &
+              atm%a33(i,j,k),          &
+              atm%g1(i,j,k),           &
+              atm%g2(i,j,k) )
+            endif
           enddo
         enddo
-      endif
+      enddo
+    endif
 
-      if(ldebug .and. myid.eq.0) then
-        do k=lbound(atm%op,3),ubound(atm%op,3)
-          if(present(local_planck)) then
-            print *,myid,'Optical Properties:',k,'dz',atm%dz(0,0,k),atm%l1d(0,0,k),'k',&
-                minval(atm%delta_op(:,:,k)%kabs),minval(atm%delta_op(:,:,k)%ksca),minval(atm%delta_op(:,:,k)%g),&
-                maxval(atm%delta_op(:,:,k)%kabs),maxval(atm%delta_op(:,:,k)%ksca),maxval(atm%delta_op(:,:,k)%g),&
-                '::',minval(atm%planck(:,:,k)),maxval(atm%planck(:,:,k))
-          else    
-            print *,myid,'Optical Properties:',k,'dz',atm%dz(0,0,k),atm%l1d(0,0,k),'k',&
-                minval(atm%delta_op(:,:,k)%kabs),minval(atm%delta_op(:,:,k)%ksca),minval(atm%delta_op(:,:,k)%g),&
-                maxval(atm%delta_op(:,:,k)%kabs),maxval(atm%delta_op(:,:,k)%ksca),maxval(atm%delta_op(:,:,k)%g),&
-                '::',minval(atm%a33(:,:,k)),maxval(atm%a33(:,:,k))
-          endif
-        enddo
-      endif
+    if(ldebug .and. myid.eq.0) then
+      do k=lbound(atm%op,3),ubound(atm%op,3)
+        if(present(local_planck)) then
+          print *,myid,'Optical Properties:',k,'dz',atm%dz(0,0,k),atm%l1d(0,0,k),'k',&
+          minval(atm%delta_op(:,:,k)%kabs),minval(atm%delta_op(:,:,k)%ksca),minval(atm%delta_op(:,:,k)%g),&
+          maxval(atm%delta_op(:,:,k)%kabs),maxval(atm%delta_op(:,:,k)%ksca),maxval(atm%delta_op(:,:,k)%g),&
+          '::',minval(atm%planck(:,:,k)),maxval(atm%planck(:,:,k))
+        else    
+          print *,myid,'Optical Properties:',k,'dz',atm%dz(0,0,k),atm%l1d(0,0,k),'k',&
+          minval(atm%delta_op(:,:,k)%kabs),minval(atm%delta_op(:,:,k)%ksca),minval(atm%delta_op(:,:,k)%g),&
+          maxval(atm%delta_op(:,:,k)%kabs),maxval(atm%delta_op(:,:,k)%ksca),maxval(atm%delta_op(:,:,k)%g),&
+          '::',minval(atm%a33(:,:,k)),maxval(atm%a33(:,:,k))
+        endif
+      enddo
+    endif
 
     end subroutine
 
