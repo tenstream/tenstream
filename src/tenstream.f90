@@ -276,7 +276,7 @@ use petsc
 
 !        call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
 !        call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
+!        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
         call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
         call MatSetUp(A,ierr) ;CHKERRQ(ierr)
@@ -291,38 +291,37 @@ use petsc
         MatStencil :: row(4,1), col(4,1)
         PetscScalar :: v(1)
 
-        !TODO -- we should use this form... however get an allocation ERROR - fix this
-        Vec :: diag
+        !TODO -- we should use this form... however this does somehow corrupt preallocation? - maybe fix this
+!        Vec :: diag
+!        call DMCreateGlobalVector(C%da,diag,ierr) ;CHKERRQ(ierr)
+!        call VecSet(diag,one,ierr) ;CHKERRQ(ierr)
+!        call MatDiagonalSet( A, diag, INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+!        call VecDestroy(diag,ierr) ;CHKERRQ(ierr)
 
-        call DMCreateGlobalVector(C%da,diag,ierr) ;CHKERRQ(ierr)
-        call VecSet(diag,one,ierr) ;CHKERRQ(ierr)
-        call MatDiagonalSet( A, diag, INSERT_VALUES,ierr) ;CHKERRQ(ierr)
-        call VecDestroy(diag,ierr) ;CHKERRQ(ierr)
+        v(1)=one
+        
+        if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally'
+        do k=C%zs,C%ze
+          row(MatStencil_k,1) = k
+          col(MatStencil_k,1) = k
 
-!        v(1)=one
-!        
-!        if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally'
-!        do k=C%zs,C%ze
-!          row(MatStencil_k,1) = k
-!          col(MatStencil_k,1) = k
-!
-!          do j=C%ys,C%ye 
-!            row(MatStencil_j,1) = j
-!            col(MatStencil_j,1) = j
-!
-!            do i=C%xs,C%xe
-!              row(MatStencil_i,1) = i
-!              col(MatStencil_i,1) = i
-!
-!              do dof=0,C%dof-1
-!                row(MatStencil_c,1) = dof
-!                col(MatStencil_c,1) = dof
-!
-!                call MatSetValuesStencil(A,i1, row,i1, col , v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr) 
-!              enddo 
-!            enddo 
-!          enddo 
-!        enddo
+          do j=C%ys,C%ye 
+            row(MatStencil_j,1) = j
+            col(MatStencil_j,1) = j
+
+            do i=C%xs,C%xe
+              row(MatStencil_i,1) = i
+              col(MatStencil_i,1) = i
+
+              do dof=0,C%dof-1
+                row(MatStencil_c,1) = dof
+                col(MatStencil_c,1) = dof
+
+                call MatSetValuesStencil(A,i1, row,i1, col , v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr) 
+              enddo 
+            enddo 
+          enddo 
+        enddo
 
         call MatAssemblyBegin(A,MAT_FLUSH_ASSEMBLY,ierr) ;CHKERRQ(ierr)
         call MatAssemblyEnd  (A,MAT_FLUSH_ASSEMBLY,ierr) ;CHKERRQ(ierr)  
@@ -490,6 +489,8 @@ use petsc
         PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
         logical :: lsun_east,lsun_north
+        lsun_east  = (sun%xinc.eq.i0)
+        lsun_north = (sun%yinc.eq.i0 )
 
         if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
         call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
@@ -498,18 +499,20 @@ use petsc
         call DMDAVecGetArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
 
         xo = i0
-        xd = i1
+        xd = C%dof+i1
 
-        forall(k=C%zs+1:C%ze  , j=C%ys:C%ye, i=C%xs:C%xe, s=i0:i3) xd( s ,i,j,k ) = C%dof+i1 ! Edir_vertical depends on 3 values Edir_vertical,xaxis,yaxis :: starting with second entries(seen from top)
-        forall(k=C%zs  :C%ze-1, j=C%ys:C%ye, i=C%xs:C%xe, s=i4:i7) xd( s ,i,j,k ) = C%dof+i1 ! Edir_xaxis,yaxis depends on 3 values Edir_vertical,xaxis,yaxis :: starting with first entries(seen from top)
+        forall(k=C%zs+1:C%ze  , j=C%ys:C%ye, i=C%xs:C%xe, s=i0:i3) 
+            xd( s ,i,j,k ) = C%dof+i1 ! Edir_vertical depends on 3 values Edir_vertical,xaxis,yaxis :: starting with second entries(seen from top)
+        end forall
+        forall(k=C%zs  :C%ze-1, j=C%ys:C%ye, i=C%xs:C%xe, s=i4:i7) 
+            xd( s ,i,j,k ) = C%dof+i1 ! Edir_xaxis,yaxis depends on 3 values Edir_vertical,xaxis,yaxis :: starting with first entries(seen from top)
+        end forall
 
 !        do s=0,3
-!        if(myid.eq.0.and.ldebug) print *,myid,'start Dir prealloc 0:3: lsun_north :: xo',xo(s, C%xs, C%ye, C%zs+i1), 'xd',xd(s, C%xs, C%ye, C%zs+i1)
-!      enddo
+!          if(myid.eq.0.and.ldebug) print *,myid,'start Dir prealloc 0:3: N/E',lsun_north,lsun_east,' :: xo',xo(s, C%xs, C%ye, C%zs+i1), 'xd',xd(s, C%xs, C%ye, C%zs+i1)
+!        enddo
 
         do j=C%ys,C%ye
-                 lsun_east  = (sun%xinc.eq.i0)
-
                  if( C%neighbors(14).ne.myid .and. C%neighbors(14).ge.i0 ) then ! real neigh east
                          if( lsun_east ) then 
                                 ! if the sun is in the east, the channels in the last box are influenced by the 2nd channel which is a ghost
@@ -528,8 +531,6 @@ use petsc
                 endif
         enddo
         do i=C%xs,C%xe
-                 lsun_north = (sun%yinc.eq.i0 )
-
                  if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! real neigh north
                          if( lsun_north ) then 
                                 ! if the sun is in the north, the 3rd channel is a ghost
@@ -767,11 +768,13 @@ subroutine set_dir_coeff(A,C)
         PetscInt :: i,j,k
 
         call PetscLogStagePush(logstage(2),ierr) ;CHKERRQ(ierr)
+        if(myid.eq.0.and.ldebug) print *,myid,'setup_direct_matrix ...'
 
         call MatZeroEntries(A, ierr) ;CHKERRQ(ierr)
         call mat_set_diagonal(A,C)
 
         do k=C%zs,C%ze-1
+!          if(myid.eq.0.and.ldebug) print *,myid,'setup_direct_matrix ...',k
           do j=C%ys,C%ye
             do i=C%xs,C%xe        
 
@@ -891,7 +894,7 @@ subroutine set_dir_coeff(A,C)
 
         end subroutine
 
-        subroutine set_diff_coeff(A,C)
+         subroutine set_diff_coeff(A,C)
             Mat :: A
             type(t_coord) :: C
 
@@ -1544,7 +1547,7 @@ subroutine setup_logging()
     call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;CHKERRQ(ierr)
     call PetscLogStageRegister('write_hdf5'      , logstage(10)    , ierr) ;CHKERRQ(ierr)
 
-    if(myid.eq.0) print *, 'Logging stages' , logstage
+    if(myid.eq.0 .and. ldebug) print *, 'Logging stages' , logstage
     logstage_init=.True.
 end subroutine
 
