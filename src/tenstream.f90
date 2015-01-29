@@ -1345,14 +1345,16 @@ subroutine calc_flx_div(edir,ediff,abso)
                 !                endif
               endif
               xabso(i0,i,j,k) = sum(div2) / Volume
-!              if(myid.eq.0) print *,'flxdiv',i,j,k,'::',xabso(i0,i,j,k),Volume,'::',div2 !TODO
+              if(ldebug) then
+                if( isnan(xabso(i0,i,j,k)) ) print *,'nan in flxdiv',i,j,k,'::',xabso(i0,i,j,k),Volume,'::',div2
+              endif
             enddo                             
           enddo                             
         enddo   
         
         call DMDAVecRestoreArrayF90(C_one%da ,abso ,xabso ,ierr)  ; CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C_diff%da,lediff,xediff,ierr) ; CHKERRQ(ierr)
         call DMDAVecRestoreArrayF90(C_dir%da ,ledir ,xedir ,ierr) ; CHKERRQ(ierr)
+        call DMDAVecRestoreArrayF90(C_diff%da,lediff,xediff,ierr) ; CHKERRQ(ierr)
         
         call VecDestroy(lediff,ierr) ; CHKERRQ(ierr)
         call VecDestroy(ledir ,ierr) ; CHKERRQ(ierr)
@@ -2110,8 +2112,8 @@ end subroutine
     endif
 #endif      
 
-  if(luse_eddington) then
-      if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) ! allocate space for twostream coefficients
+    if(luse_eddington) then
+      if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze ))   ! allocate space for twostream coefficients
       if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
       if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
       if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze )) 
@@ -2130,13 +2132,21 @@ end subroutine
               tau  = atm%dz(i,j,k)* kext
               g    = atm%delta_op(i,j,k)%g 
               call eddington_coeff_fab ( tau , w0, g, sun%costheta, & 
-              atm%a11(i,j,k),          &
-              atm%a12(i,j,k),          &
-              atm%a13(i,j,k),          &
-              atm%a23(i,j,k),          &
-              atm%a33(i,j,k),          &
-              atm%g1(i,j,k),           &
-              atm%g2(i,j,k) )
+                  atm%a11(i,j,k),          &
+                  atm%a12(i,j,k),          &
+                  atm%a13(i,j,k),          &
+                  atm%a23(i,j,k),          &
+                  atm%a33(i,j,k),          &
+                  atm%g1(i,j,k),           &
+                  atm%g2(i,j,k) )
+            else
+              atm%a11(i,j,k) = 0
+              atm%a12(i,j,k) = 0
+              atm%a13(i,j,k) = 0
+              atm%a23(i,j,k) = 0
+              atm%a33(i,j,k) = 0
+              atm%g1(i,j,k)  = 0
+              atm%g2(i,j,k)  = 0
             endif
           enddo
         enddo
@@ -2302,7 +2312,8 @@ end subroutine
         function load_solution(uid) result(loaded)
             integer(iintegers),intent(in) :: uid
             logical :: loaded
-!            real(ireals) :: norm1,norm2
+            real(ireals) :: norm1,norm2
+
             if(.not.lenable_solutions) then
               loaded=.False.
               return
@@ -2322,26 +2333,35 @@ end subroutine
               call VecCopy(solutions(uid)%edir , edir , ierr) ;CHKERRQ(ierr)
               call VecCopy(solutions(uid)%ediff, ediff, ierr) ;CHKERRQ(ierr)
 
+              if(ldebug .and. myid.eq.0) then
+                call VecNorm(edir,NORM_2,norm1,ierr)
+                call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
+                print *,'loading direct solution vectors for uid',uid,', the norm of those 2 vectors ... :',norm1,norm2
+                if(.not. approx(norm1,norm2) ) call exit(-1)
+                
+                call VecNorm(ediff,NORM_2,norm1,ierr)
+                call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
+                print *,'loading diffuse solution vectors for uid',uid,', the norm of those 2 vectors ... :',norm1,norm2
+                if(.not. approx(norm1,norm2) ) call exit(-1)
+              endif
+
+              loaded = .True.
+            endif
+
+            if(loaded) then
               ! Solution vectors are not rescaled nor is the absorption calculated/saved.
               call calc_flx_div(edir,ediff,abso)
               call scale_flx(edir,C_dir)
               call scale_flx(ediff,C_diff)
             endif
-            loaded = .True.
 
-!            call VecNorm(edir,NORM_2,norm1,ierr)
-!            call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
-!            print *,'loading vectors edir norms',norm1,norm2
-!            call VecNorm(ediff,NORM_2,norm1,ierr)
-!            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
-!            print *,'loading vectors ediff norms',norm1,norm2
         end function
         function need_new_solution(uid,time)
             integer(iintegers),intent(in) :: uid
             real(ireals),intent(in) :: time
             logical :: need_new_solution
 
-            integer,parameter :: Nfit=5 ! Number of used residuals
+            integer,parameter :: Nfit=4 ! Number of used residuals
             real(ireals) :: t(Nfit),tm(Nfit),dt(Nfit-1),e(Nfit-1),integ_err(Nfit), error_estimate, polyc(3)
           
             character(len=30) :: reason
@@ -2548,7 +2568,7 @@ end subroutine
             endif
 
             if( .not. solutions(uid)%lset ) then
-!              if(myid.eq.0 .and. ldebug) print *,'duplicating vectors to store solution',uid
+              if(myid.eq.0 .and. ldebug) print *,'duplicating vectors to store solution',uid
               call VecDuplicate(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
               call VecDuplicate(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)
               solutions(uid)%lset=.True.
@@ -2611,12 +2631,14 @@ end subroutine
             call VecCopy(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
             call VecCopy(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)
 
-!            call VecNorm(edir,NORM_2,norm1,ierr)
-!            call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
-!            print *,'saving vectors edir norms',norm1,norm2
-!            call VecNorm(ediff,NORM_2,norm1,ierr)
-!            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
-!            print *,'saving vectors ediff norms',norm1,norm2
+            if(ldebug .and. myid.eq.0) then
+              call VecNorm(edir,NORM_2,norm1,ierr)
+              call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
+              print *,'saving vectors edir norms',norm1,norm2
+              call VecNorm(ediff,NORM_2,norm1,ierr)
+              call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
+              print *,'saving vectors ediff norms',norm1,norm2
+            endif
 
 
 !            write(vecname,FMT='("edir",I0)') uid
