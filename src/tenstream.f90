@@ -2333,16 +2333,20 @@ end subroutine
               call VecCopy(solutions(uid)%edir , edir , ierr) ;CHKERRQ(ierr)
               call VecCopy(solutions(uid)%ediff, ediff, ierr) ;CHKERRQ(ierr)
 
-              if(ldebug .and. myid.eq.0) then
+              if(ldebug) then
                 call VecNorm(edir,NORM_2,norm1,ierr)
                 call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
-                print *,'loading direct solution vectors for uid',uid,', the norm of those 2 vectors ... :',norm1,norm2
-                if(.not. approx(norm1,norm2) ) call exit(-1)
+                if(myid.eq.0) then
+                  print *,'loading direct solution vectors for uid',uid,', the norm of those 2 vectors ... :',norm1,norm2
+                  if(.not. approx(norm1,norm2) ) call exit(-1)
+                endif
                 
                 call VecNorm(ediff,NORM_2,norm1,ierr)
                 call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
-                print *,'loading diffuse solution vectors for uid',uid,', the norm of those 2 vectors ... :',norm1,norm2
-                if(.not. approx(norm1,norm2) ) call exit(-1)
+                if(myid.eq.0) then
+                  print *,'loading diffuse solution vectors for uid',uid,', the norm of those 2 vectors ... :',norm1,norm2
+                  if(.not. approx(norm1,norm2) ) call exit(-1)
+                endif
               endif
 
               loaded = .True.
@@ -2571,54 +2575,34 @@ end subroutine
               if(myid.eq.0 .and. ldebug) print *,'duplicating vectors to store solution',uid
               call VecDuplicate(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
               call VecDuplicate(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)
+              call VecSet(solutions(uid)%edir , zero, ierr) ; CHKERRQ(ierr)
+              call VecSet(solutions(uid)%ediff, zero, ierr) ; CHKERRQ(ierr)
               solutions(uid)%lset=.True.
             endif
 
-            call VecDuplicate(abso , abso_old , ierr)
-            call calc_flx_div(solutions(uid)%edir,solutions(uid)%ediff, abso_old)
+            ! Also save the difference between last solution and now
 
-!            call VecNorm(edir,NORM_2,norm1,ierr)
-!            call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
-!            if(myid.eq.0) print *,'before saving vectors edir norms',norm1,norm2
-!            call VecNorm(ediff,NORM_2,norm1,ierr)
-!            call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
-!            if(myid.eq.0) print *,'before saving vectors ediff norms',norm1,norm2
-!            call VecNorm(abso,NORM_2,norm1,ierr)
-!            call VecNorm(abso_old,NORM_2,norm2,ierr)
-!            if(myid.eq.0) print *,'before saving vectors abso norms',norm1,norm2
+            call VecDuplicate(abso , abso_old , ierr)  ; CHKERRQ(ierr) ! create abso_old vec in the image of abso vector.
+            call calc_flx_div(solutions(uid)%edir,solutions(uid)%ediff, abso_old) ! and fill in absorption calculated from old values
 
-
-            call VecAXPY(abso_old , -one, abso , ierr) ! overwrite abso_old with difference to new one
-            call VecNorm(abso_old ,  NORM_1, norm1, ierr)
-            call VecNorm(abso_old ,  NORM_2, norm2, ierr)
-            call VecNorm(abso_old ,  NORM_INFINITY, norm3, ierr)
-            call VecDestroy(abso_old,ierr)
-
-!            ! Overwrite old solution vectors with difference to new solution
-!            call VecAXPY(solutions(uid)%edir , -one, edir , ierr)
-!            call VecAXPY(solutions(uid)%ediff, -one, ediff, ierr)
-!
-!            call scale_flx(solutions(uid)%edir ,C_dir)
-!            call scale_flx(solutions(uid)%ediff,C_diff)
-!            ! Get norm of residual vector
-!            call VecNorm(solutions(uid)%edir ,  NORM_INFINITY, norm1, ierr)
-!            call VecNorm(solutions(uid)%ediff,  NORM_INFINITY, norm2, ierr)
+            call VecAXPY(abso_old , -one, abso , ierr)             ; CHKERRQ(ierr) ! overwrite abso_old with difference to new one
+            call VecNorm(abso_old ,  NORM_1, norm1, ierr)          ; CHKERRQ(ierr)
+            call VecNorm(abso_old ,  NORM_2, norm2, ierr)          ; CHKERRQ(ierr)
+            call VecNorm(abso_old ,  NORM_INFINITY, norm3, ierr)   ; CHKERRQ(ierr)
+            call VecDestroy(abso_old,ierr)                         ; CHKERRQ(ierr)
 
             ! Save norm for later analysis
             solutions(uid)%maxnorm = eoshift ( solutions(uid)%maxnorm, shift = -1) !shift all values by 1 to the right
             solutions(uid)%twonorm = eoshift ( solutions(uid)%twonorm, shift = -1) !shift all values by 1 to the right
             solutions(uid)%time    = eoshift ( solutions(uid)%time            , shift = -1) !shift all values by 1 to the right
 
-
-!            norm1 = one* C_diff%glob_xm*C_diff%glob_ym*C_diff%glob_zm*C_diff%dof ! number of fluxes
-            solutions(uid)%maxnorm( 1 ) = norm3 ! solutions(uid)%ksp_residual_history( 1 ) / (C_diff%glob_xm*C_diff%glob_ym*C_diff%glob_zm*C_diff%dof)
+            solutions(uid)%maxnorm( 1 ) = norm3 
             solutions(uid)%twonorm( 1 ) = norm2
             solutions(uid)%time( 1 ) = time
 
-
-!            if(ldebug .and. myid.eq.0) &
+            !            if(ldebug .and. myid.eq.0) &
             if(myid.eq.0) &
-              print *,'Updating error statistics for solutions with uid',uid,' time ',time,last_solution_save_time,'::',solutions(uid)%time(1),':: norm',norm1,norm2,norm3,'[W] :: hr_norm approx:',norm3*86.1,'[K/d]'
+            print *,'Updating error statistics for solutions with uid',uid,' time ',time,last_solution_save_time,'::',solutions(uid)%time(1),':: norm',norm1,norm2,norm3,'[W] :: hr_norm approx:',norm3*86.1,'[K/d]'
 
             !TODO: this is for the residual history tests...
 !            if(time-last_solution_save_time .le. 30._ireals .and. last_solution_save_time.ne.time ) return ! if not even 30 seconds went by, just return
@@ -2627,19 +2611,20 @@ end subroutine
 
 !            if(myid.eq.0) &
             if(ldebug .and. myid.eq.0) &
-                print *,'Saving Solution for uid',uid
+              print *,'Saving Solution for uid',uid,'...'
             call VecCopy(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
             call VecCopy(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)
+            if(ldebug .and. myid.eq.0) &
+              print *,'Saving Solution for uid',uid,' done'
 
-            if(ldebug .and. myid.eq.0) then
-              call VecNorm(edir,NORM_2,norm1,ierr)
-              call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
-              print *,'saving vectors edir norms',norm1,norm2
-              call VecNorm(ediff,NORM_2,norm1,ierr)
-              call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
-              print *,'saving vectors ediff norms',norm1,norm2
+            if(ldebug) then
+              call VecNorm(edir,NORM_2,norm1,ierr)                ;CHKERRQ(ierr)
+              call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr) ;CHKERRQ(ierr)
+              if(myid.eq.0) print *,'saving vectors edir norms',norm1,norm2
+              call VecNorm(ediff,NORM_2,norm1,ierr)                ;CHKERRQ(ierr)
+              call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr) ;CHKERRQ(ierr)
+              if(myid.eq.0) print *,'saving vectors ediff norms',norm1,norm2
             endif
-
 
 !            write(vecname,FMT='("edir",I0)') uid
 !            call PetscObjectSetName(edir,vecname,ierr) ; CHKERRQ(ierr)
