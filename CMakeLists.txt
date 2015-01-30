@@ -91,14 +91,14 @@ include_directories (${PETSC_INCLUDES})
 list (APPEND EXTLIB "${PETSC_LIBRARIES}" )
 
 # Set MPI Stuff
-find_package( MPI )
-if(${MPI_Fortran_FOUND})
-  add_definitions(${MPI_Fortran_COMPILE_FLAGS})
-  include_directories(${MPI_Fortran_INCLUDE_PATH})
-  link_directories(${MPI_Fortran_LIBRARIES})
-  list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
-  include_directories(${ITAPS_INCLUDES})
-endif(${MPI_Fortran_FOUND})
+#find_package( MPI )
+#if(${MPI_Fortran_FOUND})
+#  add_definitions(${MPI_Fortran_COMPILE_FLAGS})
+#  include_directories(${MPI_Fortran_INCLUDE_PATH})
+#  link_directories(${MPI_Fortran_LIBRARIES})
+#  list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
+#  include_directories(${ITAPS_INCLUDES})
+#endif(${MPI_Fortran_FOUND})
 
 # Set Output Directories
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE PATH "Output directory for Dohp archives")
