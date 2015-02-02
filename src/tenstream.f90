@@ -1903,6 +1903,11 @@ end subroutine
       real(ireals),dimension(:,:,:),allocatable :: local_planck
       logical :: lhave_planck,lhave_kabs,lhave_ksca,lhave_g
 
+      if(.not.linitialized) then
+        print *,myid,'You tried to set global optical properties but tenstream environment seems not to be initialized.... please call init first!'
+        call exit(1)
+      endif
+
       lhave_kabs   = present(global_kabs  ); call imp_bcast( lhave_kabs  , 0_mpiint, myid )
       lhave_ksca   = present(global_ksca  ); call imp_bcast( lhave_ksca  , 0_mpiint, myid )
       lhave_g      = present(global_g     ); call imp_bcast( lhave_g     , 0_mpiint, myid )
@@ -1937,7 +1942,8 @@ end subroutine
                 Vec :: local_vec
                 PetscReal,pointer,dimension(:,:,:,:) :: xlocal_vec
 
-                if(myid.eq.0.and.ldebug .and. lhave_kabs) print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
+                if(myid.eq.0.and.ldebug .and. lhave_kabs) &
+                    print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
 
                 call DMCreateGlobalVector(C_one%da, local_vec, ierr) ; CHKERRQ(ierr)
 
@@ -1973,42 +1979,43 @@ end subroutine
                   call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
                 endif
           end subroutine
-          subroutine scatterZerotoDM(arr,C,vec)
-              real(ireals),dimension(:,:,:) :: arr
-              type(t_coord) :: C
-              Vec :: vec
+    end subroutine
+    subroutine scatterZerotoDM(arr,C,vec)
+        real(ireals),allocatable,dimension(:,:,:),intent(in) :: arr
+        type(t_coord),intent(in) :: C
+        Vec :: vec
 
-              VecScatter :: scatter_context
-              Vec :: natural,local
-              PetscScalar,Pointer :: xloc(:)
+        VecScatter :: scatter_context
+        Vec :: natural,local
+        PetscScalar,Pointer :: xloc(:)
 
-              if(ldebug) print *,myid,'scatterZerotoDM :: start....'
-              call VecSet(vec,zero,ierr)
+        if(ldebug) print *,myid,'scatterZerotoDM :: start....'
+        call VecSet(vec,zero,ierr)
 
-              call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
-              call VecScatterCreateToZero(natural, scatter_context, local, ierr); CHKERRQ(ierr)
+        call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
+        call VecScatterCreateToZero(natural, scatter_context, local, ierr); CHKERRQ(ierr)
 
-              if(myid.eq.0) then
-                call VecGetArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
-                if(ldebug) print *,myid,'scatterZerotoDM :: shape of local',shape(xloc), 'shape of arr',shape(arr)
-                xloc = reshape( arr , [ size(arr) ] )
-                call VecRestoreArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
-              endif
+        if(myid.eq.0) then
+          call VecGetArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+          if(ldebug) &
+              print *,myid,'scatterZerotoDM :: shape of local',shape(xloc), 'shape of arr',shape(arr)
+          xloc = reshape( arr , [ size(arr) ] )
+          call VecRestoreArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+        endif
 
-              if(ldebug) print *,myid,'scatterZerotoDM :: scatter reverse....'
-              call VecScatterBegin(scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); CHKERRQ(ierr)
-              call VecScatterEnd  (scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); CHKERRQ(ierr)
+        if(ldebug) print *,myid,'scatterZerotoDM :: scatter reverse....'
+        call VecScatterBegin(scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); CHKERRQ(ierr)
+        call VecScatterEnd  (scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); CHKERRQ(ierr)
 
-              if(ldebug) print *,myid,'scatterZerotoDM :: natural to global....'
-              call DMDANaturalToGlobalBegin(C%da,natural, INSERT_VALUES, vec, ierr); CHKERRQ(ierr)
-              call DMDANaturalToGlobalEnd  (C%da,natural, INSERT_VALUES, vec, ierr); CHKERRQ(ierr)
-              
-              if(ldebug) print *,myid,'scatterZerotoDM :: destroying contexts....'
-              call VecScatterDestroy(scatter_context, ierr); CHKERRQ(ierr)
-              call VecDestroy(local,ierr); CHKERRQ(ierr)
-              call VecDestroy(natural,ierr); CHKERRQ(ierr)
-              if(ldebug) print *,myid,'scatterZerotoDM :: done....'
-          end subroutine
+        if(ldebug) print *,myid,'scatterZerotoDM :: natural to global....'
+        call DMDANaturalToGlobalBegin(C%da,natural, INSERT_VALUES, vec, ierr); CHKERRQ(ierr)
+        call DMDANaturalToGlobalEnd  (C%da,natural, INSERT_VALUES, vec, ierr); CHKERRQ(ierr)
+
+        if(ldebug) print *,myid,'scatterZerotoDM :: destroying contexts....'
+        call VecScatterDestroy(scatter_context, ierr); CHKERRQ(ierr)
+        call VecDestroy(local,ierr); CHKERRQ(ierr)
+        call VecDestroy(natural,ierr); CHKERRQ(ierr)
+        if(ldebug) print *,myid,'scatterZerotoDM :: done....'
     end subroutine
 
     subroutine extend_arr(arr)
