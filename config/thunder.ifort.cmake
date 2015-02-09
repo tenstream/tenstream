@@ -8,7 +8,7 @@ set(CMAKE_Fortran_COMPILER "mpif90")
 
 set(USER_C_FLAGS "-std=c99")
 set(USER_Fortran_FLAGS "-cpp -traceback -extend_source -g ")
-set(USER_Fortran_FLAGS_RELEASE " -O3 -no-prec-div -xAVX -fp-model source ")
+set(USER_Fortran_FLAGS_RELEASE " -O3 -no-prec-div -xAVX -fp-model source -fno-omit-frame-pointer")
 set(USER_Fortran_FLAGS_DEBUG "-fpe0 -O0 -g -check all -check nopointers -check noarg_temp_created")
 
 
