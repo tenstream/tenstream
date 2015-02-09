@@ -176,7 +176,7 @@ end subroutine
 
           real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
 
-          integer(iintegers),parameter :: glob_Nx=40,glob_Ny=40,glob_Nz=40, zTOA=glob_Nz*40
+          integer(iintegers),parameter :: glob_Nx=10,glob_Ny=10,glob_Nz=20, zTOA=glob_Nz*40
           integer(iintegers) :: k
 
           if(myid.eq.0) print *,myid,'Creating Optical Properties here instead of taking them from kato',kato,iq

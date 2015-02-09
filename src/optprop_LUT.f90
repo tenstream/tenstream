@@ -315,7 +315,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol+1e-8_ireals))
 
 !            if(OPP%optprop_LUT_debug) &
-                print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds
+                print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds,':',trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5))
         endif
 
         call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr)

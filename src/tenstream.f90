@@ -1423,7 +1423,7 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
 !      PetscReal,parameter :: rtol=epsilon(one)*10, atol=epsilon(one)*10
       character(len=*),optional :: prefix
 
-      PetscReal,parameter :: rtol=1e-5, atol=1e-5
+      PetscReal,parameter :: rtol=1e-5_ireals, atol=1e-5_ireals
       PetscInt,parameter  :: maxiter=1000
 
       PetscInt,parameter :: ilu_default_levels=1
@@ -1434,7 +1434,8 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
 
       if(linit) return
       call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
-      if(myid.eq.0.and.ldebug) print *,'Setup KSP'
+      if(myid.eq.0.and.ldebug) &
+          print *,'Setup KSP -- tolerances:',rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d))
 
       call KSPCreate(imp_comm,ksp,ierr) ;CHKERRQ(ierr)
       if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;CHKERRQ(ierr)
@@ -1448,7 +1449,7 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
         call PCSetType (prec,PCBJACOBI,ierr);CHKERRQ(ierr)
       endif
 
-      call KSPSetTolerances(ksp,rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)) ,PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
+      call KSPSetTolerances(ksp,rtol,max(1e-30_ireals, atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)) ),PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
 
       call KSPSetConvergenceTest(ksp,MyKSPConverged, PETSC_NULL_OBJECT,PETSC_NULL_FUNCTION,ierr)
 
@@ -2203,17 +2204,6 @@ end subroutine
             ! ------------------------ Try load old solution -------
             if( present(solution_uid) .and. present(solution_time) ) then
               loaded = load_solution(solution_uid)
-!              if(loaded) then !if we successfully loaded an earlier solution,
-!                ! lets see if we can estimate its worth
-!                if( .not. need_new_solution(solution_uid,solution_time) ) then
-!                  ! and if it seems reasonable to assume nothing has changed, we are already done...
-!                  call calc_flx_div(edir,ediff,abso)
-!                  call scale_flx(edir,C_dir)
-!                  call scale_flx(ediff,C_diff)
-!                  return
-!
-!                endif ! need solution
-!              endif ! loaded
             endif ! have solution info
 
             ! ---------------------------- Edir  -------------------
@@ -2299,6 +2289,12 @@ end subroutine
             if(present(redir)) then
               call DMDAVecGetArrayF90(C_dir%da,edir,x,ierr) ;CHKERRQ(ierr)
               redir = sum(x(i0:i3,:,:,:),dim=1)/4
+              if(ldebug) then
+                if(any(redir.lt.-one)) then 
+                  print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
+                  call exit(1)
+                endif
+              endif
               call DMDAVecRestoreArrayF90(C_dir%da,edir,x,ierr) ;CHKERRQ(ierr)
             endif
 
@@ -2306,6 +2302,20 @@ end subroutine
               call DMDAVecGetArrayF90(C_diff%da,ediff,x,ierr) ;CHKERRQ(ierr)
               if(present(redn) )redn = x(i1,:,:,:)
               if(present(reup) )reup = x(i0,:,:,:)
+!              if(ldebug) then
+                if(present(redir).and.present(redn)) then
+                  if(any(redn.lt.-one)) then 
+                    print *,'Found direct radiation smaller than 0 in edn result... that should not happen',minval(redn)
+                    call exit(1)
+                  endif
+                endif
+                if(present(redir).and.present(reup)) then
+                  if(any(reup.lt.-one)) then 
+                    print *,'Found direct radiation smaller than 0 in eup result... that should not happen',minval(reup)
+                    call exit(1)
+                  endif
+                endif
+!              endif
               call DMDAVecRestoreArrayF90(C_diff%da,ediff,x,ierr) ;CHKERRQ(ierr)
             endif
 
@@ -2455,7 +2465,7 @@ end subroutine
 !            endif
 
 !            if(ldebug .and. myid.eq.0 .and. .not. need_new_solution ) &
-            if(myid.eq.0) then
+            if(ldebug.and. myid.eq.0) then
               print *,''
               print *,''
               print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid,' residuals _solver ::', solutions(uid)%ksp_residual_history(1:4),'    ::     est.',error_estimate,'[W]',error_estimate*86.1,'[K/d]'
@@ -2544,7 +2554,7 @@ end subroutine
                     print *,'dont know which lapack routine to call for reals with sizeof==',sizeof(one)
                   endif
                   if ( info /= 0 ) then
-                    print *, "problem with lapack lsqr :: 1"
+                    print *, "problem with lapack lsqr :: 1 :: info",info
                     return
                   end if
                   if(sizeof(one).eq.4) then !single precision
@@ -2555,7 +2565,7 @@ end subroutine
                     print *,'dont know which lapack routine to call for reals with sizeof==',sizeof(one)
                   endif
                   if ( info /= 0 ) then
-                    print *, "problem with lapack lsqr :: 2"
+                    print *, "problem with lapack lsqr :: 2 :: info",info
                     return
                   end if
 

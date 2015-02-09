@@ -128,7 +128,7 @@ module m_tenstream_options
             print *,'***   twostr_guess ',luse_twostr_guess
             print *,'***   hdf5_guess   ',luse_hdf5_guess
             print *,'***   twostr_ratio ',twostr_ratio
-            print *,'***   out          ',output_prefix
+            print *,'***   out          ',trim(output_prefix)
             print *,'***   solar azimuth',options_phi
             print *,'***   solar zenith ',options_theta
             print *,'***   size_of ireal/iintegers',sizeof(one),sizeof(i0)

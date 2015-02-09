@@ -14,6 +14,8 @@ program main
 
       type(t_optprop_LUT_8_10) :: OPP
 
+      PetscErrorCode :: ierr
+
       call mpi_init(ierr)
       comm = MPI_COMM_WORLD
       call mpi_comm_rank(comm,myid,ierr)
