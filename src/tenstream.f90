@@ -333,19 +333,23 @@ use petsc
         PetscInt,allocatable :: d_nnz(:)
         type(t_coord) :: C
         Vec :: v_o_nnz,v_d_nnz
-        PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
+        PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
+        PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
 
         PetscInt :: vsize
-
-        PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
         PetscInt,parameter :: ind(9)=[E_up,E_le_m,E_le_p,E_ri_m,E_ri_p,E_ba_m,E_ba_p,E_fw_m,E_fw_p]
         PetscInt :: i,j,k!d,li,lj,lk
 
         call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
         call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
+
+        call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
+        allocate(o_nnz(0:vsize-1))
+        allocate(d_nnz(0:vsize-1))
+
+        call getVecPointer(v_o_nnz,C,xo1d,xo)
+        call getVecPointer(v_d_nnz,C,xd1d,xd)
 
         xo = i0
         xd = i1
@@ -458,19 +462,11 @@ use petsc
           enddo
         enddo
 
-        call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
-        
-        call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
-        allocate(o_nnz(0:vsize-1))
-        allocate(d_nnz(0:vsize-1))
+        o_nnz=int(xo1d)
+        d_nnz=int(xd1d)
 
-        call VecGetArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
-        call VecGetArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
-        o_nnz=int(xx_v_o)
-        d_nnz=int(xx_v_d)
-        call VecRestoreArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
-        call VecRestoreArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
+        call restoreVecPointer(v_o_nnz,C,xo1d,xo)
+        call restoreVecPointer(v_d_nnz,C,xd1d,xd)
 
         call VecDestroy(v_o_nnz,ierr) ;CHKERRQ(ierr)
         call VecDestroy(v_d_nnz,ierr) ;CHKERRQ(ierr)
@@ -482,11 +478,10 @@ use petsc
         PetscInt,allocatable :: o_nnz(:)
         type(t_coord) :: C
         Vec :: v_o_nnz,v_d_nnz
-        PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
+        PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
+        PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
 
         PetscInt :: vsize,i,j,k,s
-
-        PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
         logical :: lsun_east,lsun_north
         lsun_east  = (sun%xinc.eq.i0)
@@ -495,8 +490,13 @@ use petsc
         if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
         call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
         call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
+
+        call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
+        allocate(o_nnz(0:vsize-1))
+        allocate(d_nnz(0:vsize-1))
+
+        call getVecPointer(v_o_nnz,C,xo1d,xo)
+        call getVecPointer(v_d_nnz,C,xd1d,xd)
 
         xo = i0
         xd = C%dof+i1
@@ -584,19 +584,11 @@ use petsc
            enddo
          enddo
 
-        call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
-        
-        call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
-        allocate(o_nnz(0:vsize-1))
-        allocate(d_nnz(0:vsize-1))
+        o_nnz=int(xo1d)
+        d_nnz=int(xd1d)
 
-        call VecGetArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
-        call VecGetArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
-        o_nnz=int(xx_v_o)
-        d_nnz=int(xx_v_d)
-        call VecRestoreArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
-        call VecRestoreArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
+        call restoreVecPointer(v_o_nnz,C,xo1d,xo)
+        call restoreVecPointer(v_d_nnz,C,xd1d,xd)
 
         call VecDestroy(v_o_nnz,ierr) ;CHKERRQ(ierr)
         call VecDestroy(v_d_nnz,ierr) ;CHKERRQ(ierr)
@@ -608,19 +600,23 @@ use petsc
         PetscInt,allocatable :: o_nnz(:)
         type(t_coord) :: C
         Vec :: v_o_nnz,v_d_nnz
-        PetscScalar,Pointer :: xo(:,:,:,:),xd(:,:,:,:)
+        PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
+        PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
 
         PetscInt :: vsize,i,j,k
-
-        PetscScalar, pointer :: xx_v_o(:),xx_v_d(:)
 
         logical :: lsun_east,lsun_north
 
 !        if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
         call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
         call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
+
+        call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
+        allocate(o_nnz(0:vsize-1))
+        allocate(d_nnz(0:vsize-1))
+
+        call getVecPointer(v_o_nnz,C,xo1d,xo)
+        call getVecPointer(v_d_nnz,C,xd1d,xd)
 
         xo = i0
         xd = i1
@@ -690,19 +686,11 @@ use petsc
            enddo
          enddo
 
-        call DMDAVecRestoreArrayF90(C%da,v_o_nnz,xo,ierr) ;CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C%da,v_d_nnz,xd,ierr) ;CHKERRQ(ierr)
-        
-        call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
-        allocate(o_nnz(0:vsize-1))
-        allocate(d_nnz(0:vsize-1))
+        o_nnz=int(xo1d)
+        d_nnz=int(xd1d)
 
-        call VecGetArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
-        call VecGetArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
-        o_nnz=int(xx_v_o)
-        d_nnz=int(xx_v_d)
-        call VecRestoreArrayF90(v_o_nnz,xx_v_o,ierr) ;CHKERRQ(ierr)
-        call VecRestoreArrayF90(v_d_nnz,xx_v_d,ierr) ;CHKERRQ(ierr)
+        call restoreVecPointer(v_o_nnz,C,xo1d,xo)
+        call restoreVecPointer(v_d_nnz,C,xd1d,xd)
 
         call VecDestroy(v_o_nnz,ierr) ;CHKERRQ(ierr)
         call VecDestroy(v_d_nnz,ierr) ;CHKERRQ(ierr)
@@ -877,18 +865,18 @@ subroutine set_dir_coeff(A,C)
           Vec :: incSolar
           real(ireals),intent(in) :: edirTOA
 
-          PetscScalar,pointer,dimension(:,:,:,:) :: xincSolar
+          PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
           PetscReal :: Az
           Az = atm%dx*atm%dy
 
           call VecSet(incSolar,zero,ierr) ;CHKERRQ(ierr)
 
-          call DMDAVecGetArrayF90(C_dir%da,incSolar,xincSolar,ierr) ;CHKERRQ(ierr)
+          call getVecPointer(incSolar,C_dir,x1d,x4d)
 
-          xincSolar(i0:i3,:,:,C_dir%zs) = edirTOA* Az * .25_ireals * sun%costheta
+          x4d(i0:i3,:,:,C_dir%zs) = edirTOA* Az * .25_ireals * sun%costheta
 
-          call DMDAVecRestoreArrayF90(C_dir%da,incSolar,xincSolar,ierr) ;CHKERRQ(ierr)
+          call restoreVecPointer(incSolar,C_dir,x1d,x4d)
 
           if(myid.eq.0 .and. ldebug) print *,myid,'Setup of IncSolar done',edirTOA* sun%costheta
 
@@ -1071,7 +1059,8 @@ subroutine setup_b(edir,b)
         Vec :: edir
         Vec :: local_b,b
 
-        PetscScalar,pointer,dimension(:,:,:,:) :: xsrc,xedir
+        PetscScalar,pointer,dimension(:,:,:,:) :: xsrc=>null(),xedir=>null()
+        PetscScalar,pointer,dimension(:) :: xsrc1d=>null(),xedir1d=>null()
         PetscReal :: diff2diff(C_diff%dof**2), dir2diff(C_dir%dof*C_diff%dof),twostr_coeff(2)
         PetscInt :: i,j,k,src
 
@@ -1082,16 +1071,16 @@ subroutine setup_b(edir,b)
         call DMCreateLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
         call VecSet(local_b,zero,ierr) ;CHKERRQ(ierr)
 
-        call DMDAVecGetArrayF90(C_diff%da,local_b,xsrc,ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C_dir%da,edir,xedir,ierr) ;CHKERRQ(ierr)
+        call getVecPointer(local_b,C_diff,xsrc1d,xsrc)
+        call getVecPointer(edir,C_dir,xedir1d,xedir)
 
         call set_solar_source()
         if(allocated(atm%planck) ) call set_thermal_source()
 
         if(myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients ...done'
 
-        call DMDAVecRestoreArrayF90(C_dir%da,edir,xedir,ierr) ;CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C_diff%da,local_b,xsrc,ierr) ;CHKERRQ(ierr)
+        call restoreVecPointer(local_b,C_diff,xsrc1d,xsrc)
+        call restoreVecPointer(edir,C_dir,xedir1d,xedir)
 
         call VecSet(b,zero,ierr) ;CHKERRQ(ierr) ! reset global Vec
 
@@ -1230,7 +1219,8 @@ subroutine setup_b(edir,b)
 
 subroutine calc_flx_div(edir,ediff,abso)
         Vec :: edir,ediff,abso
-        PetscReal,pointer,dimension(:,:,:,:) :: xediff,xedir,xabso
+        PetscReal,pointer,dimension(:,:,:,:) :: xediff=>null(),xedir=>null(),xabso=>null()
+        PetscReal,pointer,dimension(:) :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
         PetscInt :: i,j,k!d,li,lj,lk
         Vec :: ledir,lediff ! local copies of vectors, including ghosts
         PetscReal :: div2(13)
@@ -1257,9 +1247,9 @@ subroutine calc_flx_div(edir,ediff,abso)
         call DMGlobalToLocalEnd(C_diff%da,ediff,ADD_VALUES,lediff,ierr)   ; CHKERRQ(ierr)
 
         ! calculate absorption by flux divergence
-        call DMDAVecGetArrayF90(C_diff%da,lediff,xediff,ierr) ; CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C_dir%da ,ledir ,xedir ,ierr) ; CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C_one%da ,abso ,xabso ,ierr)  ; CHKERRQ(ierr)
+        call getVecPointer(lediff,C_diff,xediff1d,xediff)
+        call getVecPointer(ledir ,C_dir ,xedir1d ,xedir )
+        call getVecPointer(abso  ,C_one ,xabso1d ,xabso )
 
         do k=C_one%zs,C_one%ze
           do j=C_one%ys,C_one%ye         
@@ -1352,10 +1342,10 @@ subroutine calc_flx_div(edir,ediff,abso)
           enddo                             
         enddo   
         
-        call DMDAVecRestoreArrayF90(C_one%da ,abso ,xabso ,ierr)  ; CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C_dir%da ,ledir ,xedir ,ierr) ; CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C_diff%da,lediff,xediff,ierr) ; CHKERRQ(ierr)
-        
+        call restoreVecPointer(lediff,C_diff,xediff1d,xediff)
+        call restoreVecPointer(ledir ,C_dir ,xedir1d ,xedir )
+        call restoreVecPointer(abso  ,C_one ,xabso1d ,xabso )
+
         call VecDestroy(lediff,ierr) ; CHKERRQ(ierr)
         call VecDestroy(ledir ,ierr) ; CHKERRQ(ierr)
 end subroutine
@@ -1557,7 +1547,8 @@ end subroutine
 subroutine twostream(edirTOA)
     real(ireals),intent(in) :: edirTOA
 
-    PetscReal,pointer,dimension(:,:,:,:) :: xv_dir,xv_diff
+    PetscReal,pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()
+    PetscReal,pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
     integer(iintegers) :: i,j,src
 
     real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
@@ -1582,8 +1573,8 @@ subroutine twostream(edirTOA)
     call VecSet(edir_twostr ,zero,ierr); CHKERRQ(ierr)
     call VecSet(ediff_twostr,zero,ierr); CHKERRQ(ierr)
 
-    call DMDAVecGetArrayF90(C_dir%da ,edir_twostr ,xv_dir ,ierr) ;CHKERRQ(ierr)
-    call DMDAVecGetArrayF90(C_diff%da,ediff_twostr,xv_diff,ierr) ;CHKERRQ(ierr)
+    call getVecPointer(edir_twostr  ,C_dir  ,xv_dir1d , xv_dir  )
+    call getVecPointer(ediff_twostr ,C_diff ,xv_diff1d, xv_diff )
 
     allocate( S(C_dir%zm ) )
     allocate( Eup(C_diff%zm) )
@@ -1614,8 +1605,8 @@ subroutine twostream(edirTOA)
         enddo
     enddo
 
-    call DMDAVecRestoreArrayF90(C_dir%da  ,edir_twostr ,xv_dir  ,ierr) ;CHKERRQ(ierr)
-    call DMDAVecRestoreArrayF90(C_diff%da ,ediff_twostr,xv_diff ,ierr) ;CHKERRQ(ierr)
+    call restoreVecPointer(edir_twostr  ,C_dir  ,xv_dir1d , xv_dir  )
+    call restoreVecPointer(ediff_twostr ,C_diff ,xv_diff1d, xv_diff )
 
     deallocate(S)
     deallocate(Edn)
@@ -1627,12 +1618,13 @@ end subroutine
 subroutine scale_flx(v,C)
         Vec :: v
         type(t_coord) :: C
-        PetscReal,pointer,dimension(:,:,:,:) :: xv
+        PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
+        PetscReal,pointer,dimension(:)       :: xv1d=>null()
         PetscInt :: i,j,k!d,li,lj,lk
         PetscReal :: Ax,Ay,Az
 
         if(myid.eq.0.and.ldebug) print *,'rescaling fluxes'
-        call DMDAVecGetArrayF90(C%da,v,xv,ierr) ;CHKERRQ(ierr)
+        call getVecPointer(v ,C ,xv1d, xv )
         ! rescale total energy fluxes to average quantities i.e. W/m**2 or W/m**3
 
         Az = atm%dx*atm%dy
@@ -1689,7 +1681,7 @@ subroutine scale_flx(v,C)
           enddo
         enddo
 
-        call DMDAVecRestoreArrayF90(C%da ,v ,xv ,ierr) ;CHKERRQ(ierr)
+        call restoreVecPointer(v ,C ,xv1d, xv )
 end subroutine
 
     subroutine set_diff_initial_guess(inp,guess,C)
@@ -1698,7 +1690,8 @@ end subroutine
         type(t_coord) :: C
 
         Vec :: local_guess
-        PetscScalar,pointer,dimension(:,:,:,:) :: xinp,xguess
+        PetscScalar,pointer,dimension(:,:,:,:) :: xinp=>null(),xguess=>null()
+        PetscScalar,pointer,dimension(:) :: xinp1d=>null(),xguess1d=>null()
         PetscReal :: diff2diff(C_diff%dof**2)!, dir2diff(C_dir%dof*C_diff%dof)
         PetscInt :: i,j,k,src
 
@@ -1706,8 +1699,8 @@ end subroutine
         call DMCreateLocalVector(C%da,local_guess,ierr) ;CHKERRQ(ierr)
         call VecSet(local_guess,zero,ierr) ;CHKERRQ(ierr)
 
-        call DMDAVecGetArrayF90(C%da,inp,  xinp,  ierr) ;CHKERRQ(ierr)
-        call DMDAVecGetArrayF90(C%da,local_guess,xguess,ierr) ;CHKERRQ(ierr)
+        call getVecPointer(inp ,C ,xinp1d, xinp )
+        call getVecPointer(local_guess ,C ,xguess1d, xguess )
 
         do k=C%zs,C%ze-1 
           do j=C%ys,C%ye         
@@ -1734,8 +1727,8 @@ end subroutine
           enddo
         enddo
 
-        call DMDAVecRestoreArrayF90(C%da,local_guess,xguess,ierr) ;CHKERRQ(ierr)
-        call DMDAVecRestoreArrayF90(C%da,inp,xinp,ierr) ;CHKERRQ(ierr)
+        call restoreVecPointer(inp ,C ,xinp1d, xinp )
+        call restoreVecPointer(local_guess ,C ,xguess1d, xguess )
 
         call VecSet(guess,zero,ierr) ;CHKERRQ(ierr) ! reset global Vec
 
@@ -1941,7 +1934,8 @@ end subroutine
       contains
           subroutine local_optprop()
                 Vec :: local_vec
-                PetscReal,pointer,dimension(:,:,:,:) :: xlocal_vec
+                PetscReal,pointer,dimension(:,:,:,:) :: xlocal_vec  =>null()
+                PetscReal,pointer,dimension(:)       :: xlocal_vec1d=>null()
 
                 if(myid.eq.0.and.ldebug .and. lhave_kabs) &
                     print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
@@ -1950,23 +1944,23 @@ end subroutine
 
                 if(lhave_kabs) then
                   call scatterZerotoDM(global_kabs,C_one,local_vec)
-                  call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
                   local_kabs = xlocal_vec(0,C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze)
-                  call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  call restoreVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
                 endif
 
                 if(lhave_ksca) then
                   call scatterZerotoDM(global_ksca,C_one,local_vec)
-                  call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
                   local_ksca = xlocal_vec(0,:,:,:)
-                  call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  call restoreVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
                 endif
 
                 if(lhave_g) then
                   call scatterZerotoDM(global_g,C_one,local_vec)
-                  call DMDAVecGetArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
                   local_g = xlocal_vec(0,:,:,:)
-                  call DMDAVecRestoreArrayF90(C_one%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  call restoreVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
                 endif
 
                 call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
@@ -1974,9 +1968,9 @@ end subroutine
                 if(lhave_planck) then
                   call DMCreateGlobalVector(C_one1%da, local_vec, ierr) ; CHKERRQ(ierr)
                   call scatterZerotoDM(global_planck,C_one1,local_vec)
-                  call DMDAVecGetArrayF90(C_one1%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  call getVecPointer(local_vec ,C_one1 ,xlocal_vec1d, xlocal_vec )
                   local_planck = xlocal_vec(0,:,:,:)
-                  call DMDAVecRestoreArrayF90(C_one1%da ,local_vec ,xlocal_vec ,ierr)  ; CHKERRQ(ierr)
+                  call restoreVecPointer(local_vec ,C_one1 ,xlocal_vec1d, xlocal_vec )
                   call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
                 endif
           end subroutine
@@ -1988,7 +1982,7 @@ end subroutine
 
         VecScatter :: scatter_context
         Vec :: natural,local
-        PetscScalar,Pointer :: xloc(:)
+        PetscScalar,Pointer :: xloc(:)=>null()
 
         if(ldebug) print *,myid,'scatterZerotoDM :: start....'
         call VecSet(vec,zero,ierr)
@@ -2062,7 +2056,7 @@ end subroutine
     if(present(local_g   ) ) atm%op(:,:,:)%g    = local_g   
 
     if(present(local_planck) ) then 
-      if (.not.allocated(atm%planck) ) allocate( atm%planck   (C_one1%xs:C_one1%xe, C_one1%ys:C_one1%ye , C_one1%zs:C_one1%ze) )
+      if (.not.allocated(atm%planck) ) allocate( atm%planck   (C_one%xs:C_one%xe, C_one%ys:C_one%ye , C_one1%zs:C_one1%ze) )
       atm%planck = local_planck
     else
       if(allocated(atm%planck)) deallocate(atm%planck)
@@ -2283,46 +2277,49 @@ end subroutine
         end subroutine
 
         subroutine tenstream_get_result(redir,redn,reup,rabso)
-            real(ireals),dimension(:,:,:),intent(out),optional :: redir,redn,reup,rabso
-            PetscScalar,pointer,dimension(:,:,:,:) :: x
+            real(ireals),dimension(:,:,:),intent(inout),allocatable :: redir,redn,reup,rabso
+            PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
-            if(present(redir)) then
-              call DMDAVecGetArrayF90(C_dir%da,edir,x,ierr) ;CHKERRQ(ierr)
-              redir = sum(x(i0:i3,:,:,:),dim=1)/4
+            if(allocated(redir)) then
+              call getVecPointer(edir,C_dir,x1d,x4d)
+              redir = sum(x4d(i0:i3,:,:,:),dim=1)/4
               if(ldebug) then
+                print *,'Edir',redir(1,1,:)
                 if(any(redir.lt.-one)) then 
                   print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
                   call exit(1)
                 endif
               endif
-              call DMDAVecRestoreArrayF90(C_dir%da,edir,x,ierr) ;CHKERRQ(ierr)
+              call restoreVecPointer(edir,C_dir,x1d,x4d)
             endif
 
-            if(present(redn).or.present(reup)) then
-              call DMDAVecGetArrayF90(C_diff%da,ediff,x,ierr) ;CHKERRQ(ierr)
-              if(present(redn) )redn = x(i1,:,:,:)
-              if(present(reup) )reup = x(i0,:,:,:)
-!              if(ldebug) then
-                if(present(redir).and.present(redn)) then
+            if(allocated(redn).or.allocated(reup)) then
+              call getVecPointer(ediff,C_diff,x1d,x4d)
+              if(allocated(redn) )redn = x4d(i1,:,:,:)
+              if(allocated(reup) )reup = x4d(i0,:,:,:)
+              if(ldebug) then
+                print *,' Edn',redn(1,1,:)
+                print *,' Eup',reup(1,1,:)
+                if(allocated(redir).and.allocated(redn)) then
                   if(any(redn.lt.-one)) then 
                     print *,'Found direct radiation smaller than 0 in edn result... that should not happen',minval(redn)
                     call exit(1)
                   endif
                 endif
-                if(present(redir).and.present(reup)) then
+                if(allocated(redir).and.allocated(reup)) then
                   if(any(reup.lt.-one)) then 
                     print *,'Found direct radiation smaller than 0 in eup result... that should not happen',minval(reup)
                     call exit(1)
                   endif
                 endif
-!              endif
-              call DMDAVecRestoreArrayF90(C_diff%da,ediff,x,ierr) ;CHKERRQ(ierr)
+              endif!ldebug
+              call restoreVecPointer(ediff,C_diff,x1d,x4d)
             endif
 
-            if(present(rabso)) then
-              call DMDAVecGetArrayF90(C_one%da,abso,x,ierr) ;CHKERRQ(ierr)
-              rabso = x(i0,:,:,:)
-              call DMDAVecRestoreArrayF90(C_one%da,abso,x,ierr) ;CHKERRQ(ierr)
+            if(allocated(rabso)) then
+              call getVecPointer(abso,C_one,x1d,x4d)
+              rabso = x4d(i0,:,:,:)
+              call restoreVecPointer(abso,C_one,x1d,x4d)
             endif
         end subroutine
 
@@ -2664,6 +2661,36 @@ end subroutine
 !            call vec_to_hdf5(incSolar)
         end subroutine
 
+        subroutine getVecPointer(vec,C,x1d,x4d)
+        Vec :: vec
+        type(t_coord),intent(in) :: C
+        PetscScalar,intent(inout),pointer,dimension(:,:,:,:) :: x4d
+        PetscScalar,intent(inout),pointer,dimension(:) :: x1d
+
+        if(associated(x1d).or.associated(x4d)) then
+          print *,'ERROR : getVecPointer : input vector already associated!!',associated(x1d),associated(x4d)
+          call sleep(30)
+          call exit(1)
+        endif
+        call VecGetArrayF90(vec,x1d,ierr) ;CHKERRQ(ierr)
+        x4d(0:C%dof-1, C%xs:C%xe, C%ys:C%ye, C%zs:C%ze) => x1d
+
+        end subroutine
+        subroutine restoreVecPointer(vec,C,x1d,x4d)
+        Vec :: vec
+        type(t_coord),intent(in) :: C
+        PetscScalar,intent(inout),pointer,dimension(:,:,:,:) :: x4d
+        PetscScalar,intent(inout),pointer,dimension(:) :: x1d
+
+        if(.not.associated(x1d).or..not.associated(x4d)) then
+          print *,'ERROR : restoreVecPointer : input vector not yet associated!!',associated(x1d),associated(x4d)
+          call exit(1)
+        endif
+
+        x4d => null()
+        call VecRestoreArrayF90(vec,x1d,ierr) ;CHKERRQ(ierr)
+        x1d => null()
+        end subroutine
 !subroutine vec_to_hdf5(v)
 !      Vec,intent(in) :: v
 !      character(10),parameter :: suffix='.h5'
