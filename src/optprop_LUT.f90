@@ -69,7 +69,7 @@ module m_optprop_LUT
 
     integer(iintegers) :: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
-    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=.False.
+    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=.True.
     character(len=300) :: lutbasename 
 
     contains
@@ -141,31 +141,23 @@ contains
       OPP%diffLUT%dx    = idx
       OPP%diffLUT%dy    = idy
 
-      if(any(szas.lt.0)) then
-        ! Load diffuse LUT first
-        call OPP%loadLUT_diff(comm)
-      else
-        ! otherwise load direct LUTS first and then the diffuse
-        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta,ldelta_scale,delta_scale_truncate
-        if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading direct LUT from ',trim(descr),' for szas',szas,': azi :',azis
-        OPP%dirLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.nc'
-        OPP%dirLUT%dx    = idx
-        OPP%dirLUT%dy    = idy
+      ! Load diffuse LUT
+      call OPP%loadLUT_diff(comm)
 
-        call OPP%loadLUT_dir(azis, szas, comm)
+      ! otherwise load direct LUTS first and then the diffuse
+      write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta,ldelta_scale,delta_scale_truncate
+      if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading direct LUT from ',trim(descr),' for szas',szas,': azi :',azis
+      OPP%dirLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.nc'
+      OPP%dirLUT%dx    = idx
+      OPP%dirLUT%dy    = idy
 
-        ! Load diffuse LUT
-        call OPP%loadLUT_diff(comm)
-      endif
+      call OPP%loadLUT_dir(azis, szas, comm)
 
       if(comm_size.gt.1) call OPP%scatter_LUTtables(azis,szas,comm)
 
       OPP%LUT_initialiazed=.True.
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading LUTs (shape diffLUT',shape(OPP%diffLUT%S%c),')'
   end subroutine
-
-
-
 
 subroutine loadLUT_diff(OPP, comm)
     class(t_optprop_LUT) :: OPP
@@ -258,8 +250,6 @@ subroutine loadLUT_diff(OPP, comm)
     if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading diffuse OPP%diffLUTs'
 end subroutine
 
-
-
 subroutine loadLUT_dir(OPP, azis,szas, comm)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
@@ -293,12 +283,13 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
           if(OPP%optprop_LUT_debug) print *,'Trying to load the LUT from file...'
             write(str(6),FMT='(A)') 'S' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%S(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
 
-          if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)]!,OPP%dirLUT%S(iphi,itheta)%c
+            if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[trim(OPP%dirLUT%fname),trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5)),trim(str(6))]!,OPP%dirLUT%S(iphi,itheta)%c
             if(iierr.eq.0) then
               if(any( OPP%dirLUT%S(iphi,itheta)%c.gt.one ).or.any(OPP%dirLUT%S(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
             endif
 
             write(str(6),FMT='(A)') 'T' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%T(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
+            if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[trim(OPP%dirLUT%fname),trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5)),trim(str(6))]!,OPP%dirLUT%S(iphi,itheta)%c
             if(iierr.eq.0) then
               if(any( OPP%dirLUT%T(iphi,itheta)%c.gt.one ).or.any(OPP%dirLUT%T(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
               call check_dirLUT_matches_pspace(OPP%dirLUT)
@@ -352,8 +343,8 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
 
           if(myid.eq.0) then
             if(OPP%optprop_LUT_debug) print *,'Final dump of LUT for phi/theta',iphi,itheta
-            call ncwrite([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(1)],OPP%dirLUT%S(iphi,itheta)%c,iierr)
-            call ncwrite([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(2)],OPP%dirLUT%T(iphi,itheta)%c,iierr)
+            call ncwrite([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(1)],OPP%dirLUT%T(iphi,itheta)%c,iierr)
+            call ncwrite([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(2)],OPP%dirLUT%S(iphi,itheta)%c,iierr)
 
             call ncwrite([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(3)],OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr)
             call ncwrite([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(4)],OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr)
@@ -665,8 +656,8 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
       if(myid.eq.0 .and. lstarted_calculations) then
         print *,'Writing direct table to file... (',100*cnt/total_size,'%)','started?',lstarted_calculations
         errcnt=0
-        call ncwrite(diff_coeff_table_name,OPP%dirLUT%S(iphi,itheta)%c,iierr) ; errcnt = errcnt+int(iierr)
-        call ncwrite(dir_coeff_table_name ,OPP%dirLUT%T(iphi,itheta)%c,iierr) ; errcnt = errcnt+int(iierr)
+        call ncwrite(diff_coeff_table_name, OPP%dirLUT%S(iphi,itheta)%c, iierr) ; errcnt = errcnt+int(iierr)
+        call ncwrite(dir_coeff_table_name , OPP%dirLUT%T(iphi,itheta)%c, iierr) ; errcnt = errcnt+int(iierr)
         call ncwrite(diff_stddev_atol_table_name,OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr); errcnt = errcnt+int(iierr)
         call ncwrite(dir_stddev_atol_table_name, OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr); errcnt = errcnt+int(iierr)
         print *,'done writing!',errcnt
@@ -1025,6 +1016,7 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
           do i=1,OPP%dir_streams
             print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)),' :: coeff',C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)
           enddo
+          call exit(1)
         endif
       endif
     endif
@@ -1067,10 +1059,12 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
           if(sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)).gt.one) iierr=iierr+1
         enddo
         if(iierr.ne.0) then
-          print *,'Error in dir2diff coeffs :: ierr',iierr
+          print *,'Error in dir2diff coeffs :: ierr',iierr,':',dz,in_kabs ,in_ksca,g,phi,theta,'::',C,'::',shape(OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
+          print *,'Error in dir2dir coeffs :: ierr',iierr,'::',OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ),'::',shape(OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
           do i=1,OPP%dir_streams
-            print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)),' :: coeff',C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)
+            print *,'SUM dir2diff coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)),' :: coeff',C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)
           enddo
+          call exit(1)
         endif
       endif
     endif
