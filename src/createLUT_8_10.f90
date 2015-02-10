@@ -8,13 +8,14 @@ program main
 
       integer(mpiint) :: myid,comm
 
-      character(len=32) :: arg
+      character(len=80) :: arg
       real(ireals) :: dx,user_sza
-      real(ireals) :: azis(2),szas(5)
+      real(ireals) :: azis(2),szas(6)
 
       type(t_optprop_LUT_8_10) :: OPP
 
       PetscErrorCode :: ierr
+      integer :: i
 
       call mpi_init(ierr)
       comm = MPI_COMM_WORLD
@@ -26,17 +27,27 @@ program main
       call read_commandline_options()
 
       azis = [0,90]
-      szas = [0,20,40,60,80]
+      szas = [-1,0,20,40,60,80]
 
-      call get_command_argument(1, arg)
-      if(len_trim(arg) == 0) call exit
-      read (arg,*) dx
+      dx=-1
+      do i=1,10
+        call get_command_argument(i, arg)
+        if(len_trim(arg) .gt. 0) then
 
-      call get_command_argument(2, arg)
-      if(len_trim(arg) .gt. 0) then
-        read (arg,*) user_sza
-        szas=user_sza
-      endif
+          if(arg.eq.'-dx') then
+            call get_command_argument(i+1, arg)
+            read (arg,*) dx
+          endif
+
+          if(arg.eq.'-sza') then 
+            call get_command_argument(i+1, arg)
+            read (arg,*) user_sza
+            szas=user_sza
+          endif
+        endif
+      enddo
+
+      if(dx.eq.-1) stop 'Need to supply option dx to create Lookuptables... stopping' 
 
       print *,'calculating coeffs for dx',dx,'szas',szas
       call OPP%init(dx,dx,azis,szas,comm)
