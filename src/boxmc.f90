@@ -197,7 +197,7 @@ contains
       call cpu_time(time(1))
 
       mincnt= max( 100, int( 1e4 /numnodes ) )
-      mycnt = int(1e8)/numnodes
+      mycnt = int(1e9)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
       do k=1,mycnt
 
@@ -277,7 +277,7 @@ contains
 
       if(myid.le.0.and.rand().gt..99) then
         write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') &
-        src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/(time(2)-time(1))/numnodes,time(2)-time(1)
+        src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
       endif
   end subroutine
 
