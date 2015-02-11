@@ -1047,7 +1047,7 @@ subroutine set_dir_coeff(A,C)
                     row(MatStencil_i,i1) = i          
                     col(MatStencil_i,i1) = i        
 
-                    call MatSetValuesStencil(A,i1, row, i1, col , -atm%albedo ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+                    call MatSetValuesStencil(A,i1, row, i1, col , [-atm%albedo] ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
                   enddo
                 enddo
@@ -1335,9 +1335,11 @@ subroutine calc_flx_div(edir,ediff,abso)
                 !                endif
               endif
               xabso(i0,i,j,k) = sum(div2) / Volume
+#ifndef _XLF
               if(ldebug) then
                 if( isnan(xabso(i0,i,j,k)) ) print *,'nan in flxdiv',i,j,k,'::',xabso(i0,i,j,k),Volume,'::',div2
               endif
+#endif
             enddo                             
           enddo                             
         enddo   
