@@ -15,7 +15,7 @@ public :: t_optprop_1_2,t_optprop_8_10
 integer(mpiint) :: ierr
 
 type,abstract :: t_optprop
-  logical :: optprop_debug=.True.
+  logical :: optprop_debug=.False.
   real(ireals) :: dx,dy
   integer(iintegers) :: dir_streams=inil,diff_streams=inil
   class(t_optprop_LUT),allocatable :: OPP_LUT

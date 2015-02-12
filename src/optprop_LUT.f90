@@ -69,7 +69,7 @@ module m_optprop_LUT
 
     integer(iintegers) :: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
-    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=.True.
+    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=.False.
     character(len=300) :: lutbasename 
 
     contains
@@ -1176,23 +1176,25 @@ subroutine catch_limits(ps,dz,kabs,ksca,g)
     ksca = max( ps%range_ksca(1), ksca ) ! Lets hope that we have a meaningful lower bound, as we will not get a warning for this.
     iierr=0
 
-    if( int(dz).lt.ps%range_dz(1) .or. int(dz).gt.ps%range_dz(2) ) then
-      print *,'dz is not in LookUpTable Range',dz, 'LUT range',ps%range_dz
-      iierr=iierr+1
+    if(ldebug_optprop) then
+      if( int(dz).lt.ps%range_dz(1) .or. int(dz).gt.ps%range_dz(2) ) then
+        print *,'dz is not in LookUpTable Range',dz, 'LUT range',ps%range_dz
+        iierr=iierr+1
+      endif
+      if( kabs.lt.ps%range_kabs(1) .or. kabs.gt.ps%range_kabs(2) ) then
+        print *,'kabs is not in LookUpTable Range',kabs, 'LUT range',ps%range_kabs
+        iierr=iierr+1
+      endif
+      if( ksca.lt.ps%range_ksca(1) .or. ksca.gt.ps%range_ksca(2) ) then
+        print *,'ksca is not in LookUpTable Range',ksca, 'LUT range',ps%range_ksca
+        iierr=iierr+1
+      endif
+      if( g.lt.ps%range_g(1) .or. g.gt.ps%range_g(2) ) then
+        print *,'g is not in LookUpTable Range',g, 'LUT range',ps%range_g
+        iierr=iierr+1
+      endif
+      if(iierr.ne.0) print*, 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.'
     endif
-    if( kabs.lt.ps%range_kabs(1) .or. kabs.gt.ps%range_kabs(2) ) then
-      print *,'kabs is not in LookUpTable Range',kabs, 'LUT range',ps%range_kabs
-      iierr=iierr+1
-    endif
-    if( ksca.lt.ps%range_ksca(1) .or. ksca.gt.ps%range_ksca(2) ) then
-      print *,'ksca is not in LookUpTable Range',ksca, 'LUT range',ps%range_ksca
-      iierr=iierr+1
-    endif
-    if( g.lt.ps%range_g(1) .or. g.gt.ps%range_g(2) ) then
-      print *,'g is not in LookUpTable Range',g, 'LUT range',ps%range_g
-      iierr=iierr+1
-    endif
-    if(iierr.ne.0) print*, 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.'
 end subroutine
 
 end module
