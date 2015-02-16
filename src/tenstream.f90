@@ -56,9 +56,11 @@ use petsc
       logical,parameter :: lprealloc=.True.
 
       type t_coord
-        PetscInt :: xs,xe,ys,ye,zs,ze     ! local domain start and end indices
+        PetscInt :: xs,xe,ys              ! local domain start and end indices
+        PetscInt :: ye,zs,ze              ! 
         PetscInt :: xm,ym,zm              ! size of local domain
         PetscInt :: gxs,gys,gzs           ! domain indices including ghost points
+        PetscInt :: gxe,gye,gze           ! 
         PetscInt :: gxm,gym,gzm           ! size of local domain including ghosts
         PetscInt :: glob_xm,glob_ym,glob_zm ! global domain size
         PetscInt :: dof,dim               ! degrees of freedom of Petsc Domain, dimension of dmda
@@ -199,13 +201,20 @@ use petsc
             ierr) ;CHKERRQ(ierr)
 
           call DMDAGetCorners(C%da,C%xs,C%ys,C%zs, C%xm,C%ym,C%zm, ierr) ;CHKERRQ(ierr)
-          call DMDAGetGhostCorners(C%da,C%gxs,C%gys,C%gzs,C%gxm,C%gym,C%gzm,ierr) ;CHKERRQ(ierr)
           C%xe = C%xs+C%xm-1
           C%ye = C%ys+C%ym-1
           C%ze = C%zs+C%zm-1
-          if(ldebug) print *,myid,'Domain Corners x:: ',C%xs,':',C%xe,' (',C%xm,' entries)','global size',C%glob_xm
-          if(ldebug) print *,myid,'Domain Corners y:: ',C%ys,':',C%ye,' (',C%ym,' entries)','global size',C%glob_ym
-          if(ldebug) print *,myid,'Domain Corners z:: ',C%zs,':',C%ze,' (',C%zm,' entries)','global size',C%glob_zm
+
+          call DMDAGetGhostCorners(C%da,C%gxs,C%gys,C%gzs,C%gxm,C%gym,C%gzm,ierr) ;CHKERRQ(ierr)
+          C%gxe = C%gxs+C%gxm-1
+          C%gye = C%gys+C%gym-1
+          C%gze = C%gzs+C%gzm-1
+
+          if(ldebug) then
+            print *,myid,'Domain Corners x:: ',C%xs,':',C%xe,' (',C%xm,' entries)','global size',C%glob_xm
+            print *,myid,'Domain Corners y:: ',C%ys,':',C%ye,' (',C%ym,' entries)','global size',C%glob_ym
+            print *,myid,'Domain Corners z:: ',C%zs,':',C%ze,' (',C%zm,' entries)','global size',C%glob_zm
+          endif
 
           allocate(C%neighbors(0:3**C%dim-1) )
           call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;CHKERRQ(ierr)
@@ -348,8 +357,8 @@ use petsc
         allocate(o_nnz(0:vsize-1))
         allocate(d_nnz(0:vsize-1))
 
-        call getVecPointer(v_o_nnz,C,xo1d,xo)
-        call getVecPointer(v_d_nnz,C,xd1d,xd)
+        call getVecPointer(v_o_nnz,C,xo1d,xo,.False.)
+        call getVecPointer(v_d_nnz,C,xd1d,xd,.False.)
 
         xo = i0
         xd = i1
@@ -495,8 +504,8 @@ use petsc
         allocate(o_nnz(0:vsize-1))
         allocate(d_nnz(0:vsize-1))
 
-        call getVecPointer(v_o_nnz,C,xo1d,xo)
-        call getVecPointer(v_d_nnz,C,xd1d,xd)
+        call getVecPointer(v_o_nnz,C,xo1d,xo,.False.)
+        call getVecPointer(v_d_nnz,C,xd1d,xd,.False.)
 
         xo = i0
         xd = C%dof+i1
@@ -615,8 +624,8 @@ use petsc
         allocate(o_nnz(0:vsize-1))
         allocate(d_nnz(0:vsize-1))
 
-        call getVecPointer(v_o_nnz,C,xo1d,xo)
-        call getVecPointer(v_d_nnz,C,xd1d,xd)
+        call getVecPointer(v_o_nnz,C,xo1d,xo,.False.)
+        call getVecPointer(v_d_nnz,C,xd1d,xd,.False.)
 
         xo = i0
         xd = i1
@@ -872,7 +881,7 @@ subroutine set_dir_coeff(A,C)
 
           call VecSet(incSolar,zero,ierr) ;CHKERRQ(ierr)
 
-          call getVecPointer(incSolar,C_dir,x1d,x4d)
+          call getVecPointer(incSolar,C_dir,x1d,x4d,.False.)
 
           x4d(i0:i3,:,:,C_dir%zs) = edirTOA* Az * .25_ireals * sun%costheta
 
@@ -1071,8 +1080,8 @@ subroutine setup_b(edir,b)
         call DMCreateLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
         call VecSet(local_b,zero,ierr) ;CHKERRQ(ierr)
 
-        call getVecPointer(local_b,C_diff,xsrc1d,xsrc)
-        call getVecPointer(edir,C_dir,xedir1d,xedir)
+        call getVecPointer(local_b,C_diff,xsrc1d,xsrc,.True.)
+        call getVecPointer(edir,C_dir,xedir1d,xedir,.False.)
 
         call set_solar_source()
         if(allocated(atm%planck) ) call set_thermal_source()
@@ -1155,7 +1164,7 @@ subroutine setup_b(edir,b)
             enddo
         end subroutine
         subroutine set_solar_source()
-            if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(0:3,:,:,:))/size(xedir(0:3,:,:,:))
+            if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(0:3,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye,C_dir%zs:C_dir%ze))/size(xedir(0:3,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye,C_dir%zs:C_dir%ze))
             do k=C_diff%zs,C_diff%ze-1 
               do j=C_diff%ys,C_diff%ye         
                 do i=C_diff%xs,C_diff%xe    
@@ -1247,9 +1256,9 @@ subroutine calc_flx_div(edir,ediff,abso)
         call DMGlobalToLocalEnd(C_diff%da,ediff,ADD_VALUES,lediff,ierr)   ; CHKERRQ(ierr)
 
         ! calculate absorption by flux divergence
-        call getVecPointer(lediff,C_diff,xediff1d,xediff)
-        call getVecPointer(ledir ,C_dir ,xedir1d ,xedir )
-        call getVecPointer(abso  ,C_one ,xabso1d ,xabso )
+        call getVecPointer(lediff,C_diff,xediff1d,xediff, .True.)
+        call getVecPointer(ledir ,C_dir ,xedir1d ,xedir , .True.)
+        call getVecPointer(abso  ,C_one ,xabso1d ,xabso , .False.)
 
         do k=C_one%zs,C_one%ze
           do j=C_one%ys,C_one%ye         
@@ -1575,8 +1584,8 @@ subroutine twostream(edirTOA)
     call VecSet(edir_twostr ,zero,ierr); CHKERRQ(ierr)
     call VecSet(ediff_twostr,zero,ierr); CHKERRQ(ierr)
 
-    call getVecPointer(edir_twostr  ,C_dir  ,xv_dir1d , xv_dir  )
-    call getVecPointer(ediff_twostr ,C_diff ,xv_diff1d, xv_diff )
+    call getVecPointer(edir_twostr  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
+    call getVecPointer(ediff_twostr ,C_diff ,xv_diff1d, xv_diff ,.False.)
 
     allocate( S(C_dir%zm ) )
     allocate( Eup(C_diff%zm) )
@@ -1626,7 +1635,7 @@ subroutine scale_flx(v,C)
         PetscReal :: Ax,Ay,Az
 
         if(myid.eq.0.and.ldebug) print *,'rescaling fluxes'
-        call getVecPointer(v ,C ,xv1d, xv )
+        call getVecPointer(v ,C ,xv1d, xv ,.False. )
         ! rescale total energy fluxes to average quantities i.e. W/m**2 or W/m**3
 
         Az = atm%dx*atm%dy
@@ -1701,8 +1710,8 @@ end subroutine
         call DMCreateLocalVector(C%da,local_guess,ierr) ;CHKERRQ(ierr)
         call VecSet(local_guess,zero,ierr) ;CHKERRQ(ierr)
 
-        call getVecPointer(inp ,C ,xinp1d, xinp )
-        call getVecPointer(local_guess ,C ,xguess1d, xguess )
+        call getVecPointer(inp ,C ,xinp1d, xinp ,.False.)
+        call getVecPointer(local_guess ,C ,xguess1d, xguess ,.True.)
 
         do k=C%zs,C%ze-1 
           do j=C%ys,C%ye         
@@ -1946,21 +1955,21 @@ end subroutine
 
                 if(lhave_kabs) then
                   call scatterZerotoDM(global_kabs,C_one,local_vec)
-                  call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
+                  call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec,.False. )
                   local_kabs = xlocal_vec(0,C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze)
                   call restoreVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
                 endif
 
                 if(lhave_ksca) then
                   call scatterZerotoDM(global_ksca,C_one,local_vec)
-                  call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
+                  call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec,.False. )
                   local_ksca = xlocal_vec(0,:,:,:)
                   call restoreVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
                 endif
 
                 if(lhave_g) then
                   call scatterZerotoDM(global_g,C_one,local_vec)
-                  call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
+                  call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec,.False. )
                   local_g = xlocal_vec(0,:,:,:)
                   call restoreVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
                 endif
@@ -1970,7 +1979,7 @@ end subroutine
                 if(lhave_planck) then
                   call DMCreateGlobalVector(C_one1%da, local_vec, ierr) ; CHKERRQ(ierr)
                   call scatterZerotoDM(global_planck,C_one1,local_vec)
-                  call getVecPointer(local_vec ,C_one1 ,xlocal_vec1d, xlocal_vec )
+                  call getVecPointer(local_vec ,C_one1 ,xlocal_vec1d, xlocal_vec,.False. )
                   local_planck = xlocal_vec(0,:,:,:)
                   call restoreVecPointer(local_vec ,C_one1 ,xlocal_vec1d, xlocal_vec )
                   call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
@@ -2283,7 +2292,7 @@ end subroutine
             PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
             if(allocated(redir)) then
-              call getVecPointer(edir,C_dir,x1d,x4d)
+              call getVecPointer(edir,C_dir,x1d,x4d,.False.)
               redir = sum(x4d(i0:i3,:,:,:),dim=1)/4
               if(ldebug) then
                 print *,'Edir',redir(1,1,:)
@@ -2296,7 +2305,7 @@ end subroutine
             endif
 
             if(allocated(redn).or.allocated(reup)) then
-              call getVecPointer(ediff,C_diff,x1d,x4d)
+              call getVecPointer(ediff,C_diff,x1d,x4d,.False.)
               if(allocated(redn) )redn = x4d(i1,:,:,:)
               if(allocated(reup) )reup = x4d(i0,:,:,:)
               if(ldebug) then
@@ -2319,7 +2328,7 @@ end subroutine
             endif
 
             if(allocated(rabso)) then
-              call getVecPointer(abso,C_one,x1d,x4d)
+              call getVecPointer(abso,C_one,x1d,x4d,.False.)
               rabso = x4d(i0,:,:,:)
               call restoreVecPointer(abso,C_one,x1d,x4d)
             endif
@@ -2663,19 +2672,48 @@ end subroutine
 !            call vec_to_hdf5(incSolar)
         end subroutine
 
-        subroutine getVecPointer(vec,C,x1d,x4d)
+        subroutine getVecPointer(vec,C,x1d,x4d,local)
         Vec :: vec
         type(t_coord),intent(in) :: C
         PetscScalar,intent(inout),pointer,dimension(:,:,:,:) :: x4d
         PetscScalar,intent(inout),pointer,dimension(:) :: x1d
+        logical,intent(in) :: local
+
+        integer(iintegers) :: N
+        logical :: lghosted
 
         if(associated(x1d).or.associated(x4d)) then
           print *,'ERROR : getVecPointer : input vector already associated!!',associated(x1d),associated(x4d)
           call sleep(30)
           call exit(1)
         endif
+
+        call VecGetLocalSize(vec,N,ierr)
+
+        if( N .eq. C%dof*C%xm*C%ym*C%zm ) then
+          lghosted=.False.
+        else if( N .eq. C%dof*C%gxm*C%gym*C%gzm ) then
+          lghosted=.True.
+        else
+          stop 'Local Vector dimensions does not conform to DMDA size'
+        endif
+
+!        if( present(local) ) then
+!          print *,'Local VecSize',N,':: global',C%dof*C%xm*C%ym*C%zm,':: local',C%dof*C%gxm*C%gym*C%gzm,'::ghosted ',lghosted,'::',local
+        !TODO -- the above option of petsc determining if the vec is local or global does not work at the moment.... as a workaround, we explicitly need the user to supply this information
+          if(local) then
+            lghosted=.False.
+          else
+            lghosted=.True.
+          endif
+!        endif 
+
         call VecGetArrayF90(vec,x1d,ierr) ;CHKERRQ(ierr)
-        x4d(0:C%dof-1, C%xs:C%xe, C%ys:C%ye, C%zs:C%ze) => x1d
+        if(lghosted) then
+          x4d(0:C%dof-1, C%xs:C%xe, C%ys:C%ye, C%zs:C%ze) => x1d
+        else
+          x4d(0:C%dof-1, C%gxs:C%gxe, C%gys:C%gye, C%gzs:C%gze) => x1d
+        endif
 
         end subroutine
         subroutine restoreVecPointer(vec,C,x1d,x4d)
