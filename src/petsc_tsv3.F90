@@ -367,5 +367,4 @@ program main
         call VecDestroy(intabso,ierr) ;CHKERRQ(ierr)
 
         call destroy_tenstream()
-        call PetscFinalize(ierr) ;CHKERRQ(ierr)
 end program

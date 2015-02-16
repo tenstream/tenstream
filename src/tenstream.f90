@@ -724,11 +724,13 @@ use petsc
                  call OPP_8_10%get_coeff(dz,op%kabs,op%ksca,op%g,dir,coeff,angles)
                endif
 
-#ifndef _XLF
                if(ldebug) then
+#ifndef _XLF
                  if( any(isnan(coeff)) .or. any(coeff.lt.zero) .or. any(coeff.gt.one) ) print *,'Wrong coeff',coeff,'op',op
-               endif
+#else                 
+                 if( any(coeff.lt.zero) .or. any(coeff.gt.one) ) print *,'Wrong coeff',coeff,'op',op
 #endif
+               endif
                call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
         end subroutine
 function sym_rot_phi(phi0)
@@ -2285,6 +2287,8 @@ end subroutine
             deallocate(C_one1%neighbors) ; call DMDestroy(C_one1%da,ierr)
 
             linitialized=.False.
+
+            call PetscFinalize(ierr) ;CHKERRQ(ierr)
         end subroutine
 
         subroutine tenstream_get_result(redir,redn,reup,rabso)
@@ -2295,7 +2299,6 @@ end subroutine
               call getVecPointer(edir,C_dir,x1d,x4d,.False.)
               redir = sum(x4d(i0:i3,:,:,:),dim=1)/4
               if(ldebug) then
-                print *,'Edir',redir(1,1,:)
                 if(any(redir.lt.-one)) then 
                   print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
                   call exit(1)
@@ -2309,8 +2312,6 @@ end subroutine
               if(allocated(redn) )redn = x4d(i1,:,:,:)
               if(allocated(reup) )reup = x4d(i0,:,:,:)
               if(ldebug) then
-                print *,' Edn',redn(1,1,:)
-                print *,' Eup',reup(1,1,:)
                 if(allocated(redir).and.allocated(redn)) then
                   if(any(redn.lt.-one)) then 
                     print *,'Found direct radiation smaller than 0 in edn result... that should not happen',minval(redn)
