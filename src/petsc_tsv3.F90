@@ -9,8 +9,7 @@ module m_petsc_ts
       use m_helper_functions, only : imp_bcast
 
       use m_tenstream, only : init_tenstream, set_global_optical_properties, solve_tenstream, destroy_tenstream, &
-                            b,edir,ediff,abso, &
-                            edir_twostr,ediff_twostr,abso_twostr
+                            b,edir,ediff,abso
 
       use m_tenstream_options, only : read_commandline_options,lwriteall, &
                                       ident_dx,ident_dy,options_phi,options_theta,ident,basepath,output_prefix,ltwostr
@@ -201,30 +200,11 @@ end subroutine
   end subroutine
   end subroutine
 
-  subroutine init_integral_vecs(intedir,intediff,intabso,intedir_twostr, intediff_twostr, intabso_twostr, linit)
+  subroutine init_integral_vecs(intedir,intediff,intabso, linit)
         Vec :: intedir,intediff,intabso
-        Vec :: intedir_twostr, intediff_twostr, intabso_twostr
         logical :: linit
 
         character(100) :: vecname
-
-        if(ltwostr) then
-          call VecDuplicate(edir_twostr , intedir_twostr , ierr) ; CHKERRQ(ierr)
-          write(vecname,FMT='("edir.twostr.",I0,".",I0)') int(options_phi),int(options_theta) 
-          call PetscObjectSetName(intedir_twostr,vecname,ierr)          ; CHKERRQ(ierr)
-
-          call VecDuplicate(ediff_twostr, intediff_twostr, ierr) ; CHKERRQ(ierr)
-          write(vecname,FMT='("ediff.twostr.",I0,".",I0)') int(options_phi),int(options_theta) 
-          call PetscObjectSetName(intediff_twostr,vecname,ierr)          ; CHKERRQ(ierr)
-
-          call VecDuplicate(abso_twostr , intabso_twostr , ierr) ; CHKERRQ(ierr)
-          write(vecname,FMT='("abso.twostr.",I0,".",I0)') int(options_phi),int(options_theta) 
-          call PetscObjectSetName(intabso_twostr,vecname,ierr)          ; CHKERRQ(ierr)
-
-          call VecSet(intedir_twostr ,zero,ierr) ;CHKERRQ(ierr)
-          call VecSet(intediff_twostr,zero,ierr) ;CHKERRQ(ierr)
-          call VecSet(intabso_twostr ,zero,ierr) ;CHKERRQ(ierr)
-        endif
 
         call VecDuplicate(edir , intedir , ierr) ; CHKERRQ(ierr)
         write(vecname,FMT='("edir.",I0,".",I0)') int(options_phi),int(options_theta) 
@@ -249,20 +229,6 @@ end subroutine
   subroutine dump_vectors(kato,iq)
         integer(iintegers),intent(in) :: kato,iq
         character(100) :: vecname
-
-        if(ltwostr) then
-          write(vecname,FMT='("edir.twostr.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
-          call PetscObjectSetName(edir_twostr,vecname,ierr) ; CHKERRQ(ierr)
-          call vec_to_hdf5(edir_twostr)
-
-          write(vecname,FMT='("ediff.twostr.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
-          call PetscObjectSetName(ediff_twostr,vecname,ierr) ; CHKERRQ(ierr)
-          call vec_to_hdf5(ediff_twostr)
-
-          write(vecname,FMT='("abso.twostr.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
-          call PetscObjectSetName(abso_twostr,vecname,ierr) ; CHKERRQ(ierr)
-          call vec_to_hdf5(abso_twostr)
-        endif
 
         write(vecname,FMT='("b.",I0,".",I0,"-",I0,"-",I0)') int(options_phi),int(options_theta),kato,iq
         call PetscObjectSetName(b,vecname,ierr) ; CHKERRQ(ierr)
@@ -289,7 +255,6 @@ program main
         implicit none
 
         Vec :: intedir,intediff,intabso
-        Vec :: intedir_twostr, intediff_twostr, intabso_twostr
 
         integer(iintegers) :: iq, kato, k
         integer(iintegers) :: dims(3)
@@ -329,13 +294,7 @@ program main
 
             call solve_tenstream( get_edirTOA(kato,iq,hhl(1)) )
 
-            if(.not.linit_integral_vecs) call init_integral_vecs(intedir,intediff,intabso,intedir_twostr, intediff_twostr, intabso_twostr, linit_integral_vecs)
-
-            if(ltwostr) then
-              call VecAXPY(intedir_twostr ,one,edir_twostr ,ierr) ;CHKERRQ(ierr)
-              call VecAXPY(intediff_twostr,one,ediff_twostr,ierr) ;CHKERRQ(ierr)
-              call VecAXPY(intabso_twostr ,one,abso_twostr ,ierr) ;CHKERRQ(ierr)
-            endif
+            if(.not.linit_integral_vecs) call init_integral_vecs(intedir,intediff,intabso, linit_integral_vecs)
 
             call VecAXPY(intedir ,one,edir ,ierr) ;CHKERRQ(ierr)
             call VecAXPY(intediff,one,ediff,ierr) ;CHKERRQ(ierr)
@@ -345,18 +304,6 @@ program main
 
           enddo
         enddo
-
-        if(ltwostr) then
-          call vec_to_hdf5(intabso_twostr)
-          call vec_to_hdf5(intedir_twostr)
-          call vec_to_hdf5(intediff_twostr)
-
-          print *,'Cleanup Result vectors'
-          call VecDestroy(intedir_twostr,ierr) ;CHKERRQ(ierr)
-          call VecDestroy(intediff_twostr   ,ierr) ;CHKERRQ(ierr)
-          call VecDestroy(intabso_twostr,ierr) ;CHKERRQ(ierr)
-          call mpi_barrier(imp_comm,ierr)
-        endif
 
         call vec_to_hdf5(intabso)
         call vec_to_hdf5(intedir)
