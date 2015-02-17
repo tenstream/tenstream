@@ -1773,8 +1773,8 @@ subroutine init_memory(incSolar,b,edir,ediff,abso,Mdir,Mdiff,edir_twostr,ediff_t
 
         if(ltwostr) then
           call DMCreateGlobalVector(C_dir%da,edir_twostr,ierr)     ; CHKERRQ(ierr)
-          call DMCreateGlobalVector(C_diff%da,ediff_twostr,ierr)       ; CHKERRQ(ierr)
-          call DMCreateGlobalVector(C_one%da,abso_twostr,ierr)       ; CHKERRQ(ierr)
+          call DMCreateGlobalVector(C_diff%da,ediff_twostr,ierr)   ; CHKERRQ(ierr)
+          call DMCreateGlobalVector(C_one%da,abso_twostr,ierr)     ; CHKERRQ(ierr)
           call VecSet(edir_twostr,zero,ierr)     ; CHKERRQ(ierr)
           call VecSet(ediff_twostr,zero,ierr)    ; CHKERRQ(ierr)
           call VecSet(abso_twostr,zero,ierr)     ; CHKERRQ(ierr)
@@ -2200,13 +2200,17 @@ end subroutine
               call scale_flx(edir_twostr  ,C_dir)
               call scale_flx(ediff_twostr ,C_diff)
 
-              if(luse_twostr_guess) then
+              if(luse_twostr_guess.or.ltwostr_only) then
                 call VecCopy(edir_twostr  ,edir ,ierr) ;CHKERRQ(ierr)
                 call VecCopy(ediff_twostr ,ediff,ierr) ;CHKERRQ(ierr)
               endif
 
               if(myid.eq.0) print *,'twostream calculation done'
-              if(ltwostr_only) return
+
+              if(ltwostr_only) then
+                call calc_flx_div(edir,ediff,abso)
+                return
+              endif
             endif
 
 
@@ -2357,7 +2361,6 @@ end subroutine
 
             if( .not. solutions(uid)%lset ) then
               loaded = .False.
-              return
             else
               if(myid.eq.0.and.ldebug) &
                   print *,'Loading Solution for uid',uid
