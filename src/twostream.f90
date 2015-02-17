@@ -111,7 +111,7 @@ module m_twostream
 #ifndef _XLF       
         do k=1,ke
           if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k)] )) ) then
-            print *,'eddington coefficients',k,' source',B(2*k-1,1),B(2*k,1), 'eddington',a11(k),a12(k),' :: ',a13(k),a23(k), ' :: ',a33(k), ' :: ',dtau(k),w0(k),g(k),'S=',S(k)
+            print *,'eddington coefficients',k,' source',B(2*k-1,1),B(2*k,1), 'eddington',a11(k),a12(k),' :: ',a13(k),a23(k), ' :: ',a33(k), ' :: ',dtau(k),w0(k),g(k),mu0,'S=',S(k)
             call exit()
           endif
         enddo

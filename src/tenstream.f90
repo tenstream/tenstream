@@ -37,7 +37,8 @@ use petsc
       use m_eddington, only : eddington_coeff_fab
       use m_optprop_parameters, only : ldelta_scale
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
-      use m_tenstream_options, only : read_commandline_options, ltwostr, luse_twostr_guess, luse_eddington, twostr_ratio, options_max_solution_err, options_max_solution_time
+      use m_tenstream_options, only : read_commandline_options, ltwostr, luse_twostr_guess, luse_eddington, twostr_ratio, &
+              options_max_solution_err, options_max_solution_time, ltwostr_only
 
       implicit none
 
@@ -1410,8 +1411,8 @@ subroutine solve(ksp,b,x,solution_uid)
       endif
 
       if(reason.le.0) then
-              print *,'*********************************************************** SOLVER did NOT converge :( ***************************************************88'
-              call exit()
+        if(myid.eq.0) print *,'***** SOLVER did NOT converge :( ********',reason
+        call exit()
       endif
 end subroutine
 
@@ -2205,6 +2206,7 @@ end subroutine
               endif
 
               if(myid.eq.0) print *,'twostream calculation done'
+              if(ltwostr_only) return
             endif
 
 
@@ -2299,6 +2301,7 @@ end subroutine
               call getVecPointer(edir,C_dir,x1d,x4d,.False.)
               redir = sum(x4d(i0:i3,:,:,:),dim=1)/4
               if(ldebug) then
+                if(myid.eq.0) print *,'Edir',redir(1,1,:)
                 if(any(redir.lt.-one)) then 
                   print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
                   call exit(1)
@@ -2312,6 +2315,8 @@ end subroutine
               if(allocated(redn) )redn = x4d(i1,:,:,:)
               if(allocated(reup) )reup = x4d(i0,:,:,:)
               if(ldebug) then
+                if(myid.eq.0) print *,' Edn',redn(1,1,:)
+                if(myid.eq.0) print *,' Eup',reup(1,1,:)
                 if(allocated(redir).and.allocated(redn)) then
                   if(any(redn.lt.-one)) then 
                     print *,'Found direct radiation smaller than 0 in edn result... that should not happen',minval(redn)
@@ -2430,7 +2435,12 @@ end subroutine
 
             ! cumsum(e*dt) is the integral over error
             integ_err(1:Nfit-1) = cumsum(e*dt)
-            polyc = polyfit(t(2:Nfit),integ_err(1:Nfit-1),size(polyc)-i1)
+            polyc = polyfit(t(2:Nfit),integ_err(1:Nfit-1),size(polyc)-i1, ierr)
+            if(ierr.ne.0) then 
+              need_new_solution=.True.
+              write(reason,*) 'problem fitting error curve'
+              return
+            endif
 
             ! Use fit coefficients to calculate estimate of error integral at t=time
             integ_err(Nfit)=0
@@ -2515,11 +2525,12 @@ end subroutine
                   y4 = x4*(A*x4+B)+C
 !                  print *,'parabola:',denom,A,B,C,'::',y4
               end subroutine
-              function polyfit(vx, vy, d) !Rosetta Code http://rosettacode.org/wiki/Polynomial_regression#Fortran
+              function polyfit(vx, vy, d, ierr) !Rosetta Code http://rosettacode.org/wiki/Polynomial_regression#Fortran
                   implicit none
                   integer(iintegers), intent(in)            :: d
                   real(ireals), dimension(d+1)              :: polyfit
                   real(ireals), dimension(:), intent(in)    :: vx, vy
+                  PetscErrorCode,intent(out) :: ierr
 
                   real(ireals), dimension(size(vx),d+1) :: X
                   real(ireals), dimension(d+1,size(vx)) :: XT
@@ -2532,6 +2543,8 @@ end subroutine
                   integer(iintegers), dimension(d+1) :: ipiv
                   real(ireals)      , dimension(d+1) :: work
 
+                  ierr=0
+
                   n = d+1
                   lda = n
                   lwork = n
@@ -2540,6 +2553,7 @@ end subroutine
                     if(any (approx( vx(i), vx(i+1:size(vx)) ) ) ) then ! polyfit cannot cope with same x values --> matrix gets singular
                       polyfit=0
                       polyfit(1) = nil
+                      ierr=1
                       return
                     endif
                   enddo
@@ -2563,7 +2577,8 @@ end subroutine
                     print *,'dont know which lapack routine to call for reals with sizeof==',sizeof(one)
                   endif
                   if ( info /= 0 ) then
-                    print *, "problem with lapack lsqr :: 1 :: info",info
+                    if(myid.eq.0) print *, "problem with lapack lsqr :: 1 :: info",info
+                    ierr=2
                     return
                   end if
                   if(sizeof(one).eq.4) then !single precision
@@ -2574,7 +2589,8 @@ end subroutine
                     print *,'dont know which lapack routine to call for reals with sizeof==',sizeof(one)
                   endif
                   if ( info /= 0 ) then
-                    print *, "problem with lapack lsqr :: 2 :: info",info
+                    if(myid.eq.0) print *, "problem with lapack lsqr :: 2 :: info",info
+                    ierr=3
                     return
                   end if
 

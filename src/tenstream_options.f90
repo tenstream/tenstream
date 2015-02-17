@@ -5,6 +5,7 @@ module m_tenstream_options
 #include "finclude/petsc.h90"
 
       logical :: ltwostr, & ! additionally calculate delta eddington twostream solution
+        ltwostr_only, & ! only calculate twostream
         lwriteall, & ! write out each and every solution -- mainly good to debug solver
         luse_eddington, & ! use delta eddington coefficients for upper atmosphere, if False, we use boxmc 2-str coeffs
         luse_hdf5_guess, & ! try loading initial guess from file
@@ -34,6 +35,7 @@ module m_tenstream_options
           print *,'-dx -dy               :: domain size in [m] (mandatory if running with -ident <run_*> )                           '  
           print *,'-phi -theta           :: solar azimuth and zenith angle (default = (180,0) == south,overhead sun)                 '  
           print *,'-writeall             :: dump intermediate results                                                                '  
+          print *,'-twostr_only          :: only calculate twostream solution -- dont bother calculating 3D Radiation                ' 
           print *,'-twostr               :: calculate delta eddington twostream solution                                             ' 
           print *,'-hdf5_guess           :: if run earlier with -writeall can now use dumped solutions as initial guess              '  
           print *,'-twostr_guess         :: use delta eddington twostream solution as first guess                                    '  
@@ -117,6 +119,14 @@ module m_tenstream_options
 
           call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-lut_basename',lut_basename,lflg,ierr) ; CHKERRQ(ierr)
 
+          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-twostr_only" , ltwostr_only , lflg , ierr) ;CHKERRQ(ierr)
+          if(lflg.eqv.PETSC_FALSE) ltwostr_only = .False.
+          if(ltwostr_only) then
+            twostr_ratio=1e8_ireals
+            ltwostr=.True.
+            luse_twostr_guess=.True.
+          endif
+
           if(myid.eq.0) then
             print *,'********************************************************************'
             print *,'***   Running Job: ',ident
@@ -124,6 +134,7 @@ module m_tenstream_options
             print *,'***   dx,dy        ',ident_dx,ident_dy
             print *,'***   eddington    ',luse_eddington
             print *,'***   writeall     ',lwriteall
+            print *,'***   twostr_only  ',ltwostr_only
             print *,'***   twostr       ',ltwostr
             print *,'***   twostr_guess ',luse_twostr_guess
             print *,'***   hdf5_guess   ',luse_hdf5_guess

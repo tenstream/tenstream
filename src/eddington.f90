@@ -165,9 +165,9 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           real(ireals),parameter ::  eps = 10._ireals * epsilon(omega_0)
 
           ! Singularities -- dont use values before here
-          dtau   = max(( epsilon(dtau)   ), dtau_in)
-          g      = g_in
-          omega_0= max(( epsilon(omega_0)), omega_0_in)
+          dtau   = max( epsilon(dtau_in)   , dtau_in   )
+          g      = max( epsilon(g_in)      , g_in      )
+          omega_0= max( epsilon(omega_0_in), omega_0_in)
 
           omega_0 = min(omega_0, one-eps)
           if ( approx( omega_0 * g , 1.0_ireals ) ) omega_0 = omega_0 * (one-eps);
@@ -210,8 +210,13 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           a13 = + alpha_5 * ( 1.0_ireal128 - a33 * a11 ) - alpha_6 * a12;
           a23 = - alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 );
 
-          a13 = a13 * mu_0_inv !Fabian: Roberts coefficients a13 expect S to be
-          a23 = a23 * mu_0_inv !        irradiance on tilted plane... we use irradiance on z-plane
+          if(mu_0.gt.epsilon(mu_0)) then
+            a13 = a13 * mu_0_inv !Fabian: Roberts coefficients a13 expect S to be
+            a23 = a23 * mu_0_inv !        irradiance on tilted plane... we use irradiance on z-plane
+          else
+            a13=zero
+            a23=zero
+          endif
 
           a11 = min(one, max( zero, a11 ) )
           a12 = min(one, max( zero, a12 ) )
