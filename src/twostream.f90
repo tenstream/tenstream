@@ -12,8 +12,8 @@ module m_twostream
       subroutine delta_eddington_twostream(dtau_in,w0_in,g_in,mu0,incSolar,albedo, S,Edn,Eup, planck)
         real(ireals),intent(in),dimension(:) :: dtau_in,w0_in,g_in
         real(ireals),intent(in) :: albedo,mu0,incSolar
-        real(ireals),dimension(size(dtau_in)+1),intent(out):: S,Edn,Eup 
-        real(ireals),dimension(size(dtau_in)+1),intent(in),optional :: planck
+        real(ireals),dimension(:),intent(out):: S,Edn,Eup 
+        real(ireals),dimension(:),intent(in),optional :: planck
 
         real(ireals),dimension(size(dtau_in)) :: dtau,w0,g
         real(ireals),dimension(size(dtau_in)) :: a11,a12,a13,a23,a33,g1,g2
@@ -26,6 +26,10 @@ module m_twostream
         integer :: N, KLU,  KL, KU, NRHS, LDAB, LDB, INFO
 
         real(ireals) :: b0,b1,c1,c2,c3 !thermal coeffs
+
+        S=zero
+        Edn=zero
+        Eup=zero
 
         ke = size(dtau)
         ke1 = ke+1
@@ -141,10 +145,6 @@ module m_twostream
               print *,'setting value for Eup,Edn',k,' LAPACK entries',B(2*k-1,1),B(2*k,1),'Eup/dn', Eup(k),Edn(k),'IPIV',IPIV(2*k-1:2*k)
 #endif        
         enddo
-
-!        S = S*mu0
-
-!        call exit()
 
         end subroutine
 
