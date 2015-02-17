@@ -50,8 +50,8 @@ use petsc
 
       PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
 
-!      logical,parameter :: ldebug=.False.
-      logical,parameter :: ldebug=.True.
+      logical,parameter :: ldebug=.False.
+!      logical,parameter :: ldebug=.True.
       logical,parameter :: lcycle_dir=.True.
       logical,parameter :: lprealloc=.True.
 
