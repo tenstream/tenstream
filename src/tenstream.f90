@@ -2538,9 +2538,9 @@ end subroutine
 
                   integer(iintegers) :: i, j
 
-                  integer(iintegers) :: n, lda, lwork
-                  integer(iintegers) :: info
-                  integer(iintegers), dimension(d+1) :: ipiv
+                  integer :: n, lda, lwork
+                  integer :: info
+                  integer, dimension(d+1) :: ipiv
                   real(ireals)      , dimension(d+1) :: work
 
                   ierr=0
