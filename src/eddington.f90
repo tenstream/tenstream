@@ -170,10 +170,10 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           omega_0= max( epsilon(omega_0_in), omega_0_in)
 
           omega_0 = min(omega_0, one-eps)
-          if ( approx( omega_0 * g , 1.0_ireals ) ) omega_0 = omega_0 * (one-eps);
+          if ( approx( omega_0 * g , one ) ) omega_0 = omega_0 * (one-eps);
           ! Singularities -- dont use values before here
 
-          mu_0_inv =  1._ireal128/ mu_0;
+          mu_0_inv =  1._ireal128/ max(mu_0,epsilon(mu_0));
           b_mmu_0 = (0.5_ireal128 - 0.75_ireal128 * g * mu_0);
 
           bscr = (0.5_ireal128 - 0.375_ireal128 * g);
@@ -198,22 +198,23 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             a12 = A * ( exp1 - exp2 );
           endif
 
-          den1 = min( huge(den1), 1._ireal128 / ( mu_0_inv * mu_0_inv - lambda * lambda ))
-
           alpha_3 = - omega_0 * b_mmu_0;
           alpha_4 = omega_0 + alpha_3;
-          alpha_5 = ( ( alpha_1 - mu_0_inv ) * alpha_3 - alpha_2 * alpha_4 ) * den1;
-          alpha_6 = ( alpha_2 * alpha_3 - ( alpha_1 + mu_0_inv ) * alpha_4 ) * den1;
-
-          a33     = exp ( - dtau  * mu_0_inv );   
-
-          a13 = + alpha_5 * ( 1.0_ireal128 - a33 * a11 ) - alpha_6 * a12;
-          a23 = - alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 );
 
           if(mu_0.gt.epsilon(mu_0)) then
+            den1 = min( huge(den1), 1._ireal128 / ( mu_0_inv * mu_0_inv - lambda * lambda ))
+            alpha_5 = ( ( alpha_1 - mu_0_inv ) * alpha_3 - alpha_2 * alpha_4 ) * den1;
+            alpha_6 = ( alpha_2 * alpha_3 - ( alpha_1 + mu_0_inv ) * alpha_4 ) * den1;
+
+            a33     = exp ( - dtau  * mu_0_inv );   
+
+            a13 = + alpha_5 * ( 1.0_ireal128 - a33 * a11 ) - alpha_6 * a12;
+            a23 = - alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 );
+
             a13 = a13 * mu_0_inv !Fabian: Roberts coefficients a13 expect S to be
             a23 = a23 * mu_0_inv !        irradiance on tilted plane... we use irradiance on z-plane
           else
+            a33=zero
             a13=zero
             a23=zero
           endif
