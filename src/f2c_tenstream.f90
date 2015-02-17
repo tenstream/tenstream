@@ -6,7 +6,6 @@ module f2c_tenstream
 
       use m_tenstream, only : init_tenstream, set_global_optical_properties, solve_tenstream, destroy_tenstream,&
                             edir,ediff,abso, &
-                            edir_twostr,ediff_twostr,abso_twostr,&
                             t_coord,C_dir,C_diff,C_one
 
       use m_tenstream_options, only: read_commandline_options
