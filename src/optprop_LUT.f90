@@ -979,16 +979,16 @@ subroutine set_parameter_space(OPP,ps,dx)
     enddo
 end subroutine
 
-subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
+subroutine LUT_get_dir2dir(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: dz,in_kabs ,in_ksca,g,phi,theta
+    real(ireals),intent(in) :: in_dz, in_kabs, in_ksca,g, phi,theta
     real(ireals),intent(out):: C(OPP%dir_streams**2)
-    real(ireals) :: kabs,ksca
+    real(ireals) :: kabs,ksca,dz
     integer(iintegers) :: i
 
     real(ireals) :: pti(6),weights(6)
 
-    kabs = in_kabs; ksca = in_ksca
+    kabs = in_kabs; ksca = in_ksca; dz=in_dz
     if(ldebug_optprop) call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
 
     pti = get_indices_6d(dz,kabs ,ksca,g,phi,theta,OPP%dirLUT%pspace)
@@ -1019,17 +1019,17 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
       endif
     endif
 end subroutine 
-subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
+subroutine LUT_get_dir2diff(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: dz,in_kabs ,in_ksca,g,phi,theta
+    real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g,phi,theta
 !    real(ireals),intent(out):: C(OPP%dir_streams*OPP%diff_streams)
     real(ireals),intent(out):: C(:)
 
-    real(ireals) :: kabs,ksca
+    real(ireals) :: kabs,ksca,dz
     real(ireals) :: pti(6),weights(6)
     integer(iintegers) :: i
 
-    kabs = in_kabs; ksca = in_ksca
+    kabs = in_kabs; ksca = in_ksca; dz=in_dz
     if(ldebug_optprop) then
       call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
       if(size(C).ne.OPP%dir_streams*OPP%diff_streams) stop 'LUT_get_dir2diff called with wrong array shape'
@@ -1065,15 +1065,15 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
       endif
     endif
 end subroutine
-subroutine LUT_get_emission(OPP, dz,in_kabs ,in_ksca,g,C)
+subroutine LUT_get_emission(OPP, in_dz,in_kabs ,in_ksca,g,C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: dz,in_kabs ,in_ksca,g
+    real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g
     real(ireals),intent(out):: C(:)
 
-    real(ireals) :: kabs,ksca
+    real(ireals) :: kabs,ksca,dz
     real(ireals) :: pti(4),weights(4)
 
-    kabs = in_kabs; ksca = in_ksca
+    kabs = in_kabs; ksca = in_ksca; dz=in_dz
     if(ldebug_optprop) call catch_limits(OPP%diffLUT%pspace,dz,kabs,ksca,g)
 
     pti = get_indices_4d(dz,kabs ,ksca,g,OPP%diffLUT%pspace)
@@ -1090,15 +1090,15 @@ subroutine LUT_get_emission(OPP, dz,in_kabs ,in_ksca,g,C)
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
 end subroutine 
-subroutine LUT_get_diff2diff(OPP, dz,in_kabs ,in_ksca,g,C)
+subroutine LUT_get_diff2diff(OPP, in_dz,in_kabs ,in_ksca,g,C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: dz,in_kabs ,in_ksca,g
+    real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g
     real(ireals),allocatable,intent(out):: C(:)
 
-    real(ireals) :: kabs,ksca
+    real(ireals) :: kabs,ksca,dz
     real(ireals) :: pti(4),weights(4)
 
-    kabs = in_kabs; ksca = in_ksca
+    kabs = in_kabs; ksca = in_ksca; dz=in_dz
     if(ldebug_optprop) call catch_limits(OPP%diffLUT%pspace,dz,kabs,ksca,g)
 
     allocate( C(ubound(OPP%diffLUT%S%c,1) ) )
@@ -1154,18 +1154,31 @@ subroutine catch_limits(ps,dz,kabs,ksca,g)
     ! really big absorption optical depths, where we dampen the scattering
     ! strength
     type(parameter_space),intent(in) :: ps
-    real(ireals),intent(inout) :: kabs,ksca
-    real(ireals),intent(in) :: dz,g
+    real(ireals),intent(inout) :: kabs,ksca,dz
+    real(ireals),intent(in) :: g
     real(ireals) :: w,scaled_kabs,scaled_ksca
+    logical, parameter :: allow_rescale_dz=.True.
+    logical, parameter :: allow_rescale_kabs=.True.
 
-    if(kabs.gt.ps%range_kabs(2) ) then
-      w = ksca/(kabs+ksca)
-      scaled_kabs = ps%range_kabs(2)
-      scaled_ksca = w*scaled_kabs / (one-w)
-!      print *,'rescaling kabs because it is too big kabs',kabs,'->',scaled_kabs,'ksca',ksca,'->',scaled_ksca
-      ksca=scaled_ksca
-      kabs=scaled_kabs
-!      stop 'catch_upper_limit_kabs happened -> but I dont know if this really helps!'
+    if(allow_rescale_dz) then
+      !TODO is this a good idea? -- probably only for 1D coefficients meaningful
+      if(dz.gt.ps%range_dz(2)) then 
+        ksca = ksca*dz/ps%range_dz(2)
+        kabs = ksca*dz/ps%range_dz(2)
+        dz   = ps%range_dz(2)
+      endif
+    endif
+
+    if(allow_rescale_kabs) then
+      if(kabs.gt.ps%range_kabs(2) ) then
+        w = ksca/(kabs+ksca)
+        scaled_kabs = ps%range_kabs(2)
+        scaled_ksca = w*scaled_kabs / (one-w)
+        !      print *,'rescaling kabs because it is too big kabs',kabs,'->',scaled_kabs,'ksca',ksca,'->',scaled_ksca
+        ksca=scaled_ksca
+        kabs=scaled_kabs
+        !      stop 'catch_upper_limit_kabs happened -> but I dont know if this really helps!'
+      endif
     endif
 
     kabs = max( ps%range_kabs(1), kabs ) ! Also use lower limit of LUT table....
@@ -1189,7 +1202,7 @@ subroutine catch_limits(ps,dz,kabs,ksca,g)
         print *,'g is not in LookUpTable Range',g, 'LUT range',ps%range_g
         iierr=iierr+1
       endif
-      if(iierr.ne.0) print*, 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.'
+      if(iierr.ne.0) print*, 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.',iierr
     endif
 end subroutine
 

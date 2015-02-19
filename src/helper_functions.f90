@@ -142,7 +142,6 @@ elemental subroutine delta_scale_optprop( dtau, w0, g,factor)
           else
             f = g**2
           endif
-!          f = g
           dtau = dtau * ( one - w0 * f )
           g    = ( g - f ) / ( one - f )
           w0   = w0 * ( one - f ) / ( one - f * w0 )
