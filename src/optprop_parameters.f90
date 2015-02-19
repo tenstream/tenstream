@@ -48,7 +48,7 @@ module m_optprop_parameters
 !      integer(iintegers) ,parameter :: Ndz_8_10=3, Nkabs_8_10=200, Nksca_8_10=200, Ng_8_10=1, Nphi_8_10=10, Ntheta_8_10=10, interp_mode_8_10=2
 !      integer(iintegers) ,parameter :: Ndz_8_10=3, Nkabs_8_10=40, Nksca_8_10=40, Ng_8_10=10, Nphi_8_10=10, Ntheta_8_10=10, interp_mode_8_10=2
 
-      integer(iintegers) ,parameter :: Ndz_1_2=40, Nkabs_1_2=30, Nksca_1_2=30, Ng_1_2=3, Nphi_1_2=10, Ntheta_1_2=10, Ndiff_1_2=2, Ndir_1_2=1, interp_mode_1_2=2
+      integer(iintegers) ,parameter :: Ndz_1_2=80, Nkabs_1_2=20, Nksca_1_2=20, Ng_1_2=3, Nphi_1_2=1, Ntheta_1_2=19, Ndiff_1_2=2, Ndir_1_2=1, interp_mode_1_2=2
 
       !-----------------------------------------
       !- Define precision of coefficients      -
@@ -66,7 +66,7 @@ module m_optprop_parameters
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
       ! what to expect.
-      logical,parameter :: ldebug_optprop=.False.
+      logical,parameter :: ldebug_optprop=.True. 
 
       ! Use delta scaling on optical properties? -- this significantly reduces
       ! the size of the lookuptables.

@@ -283,13 +283,13 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
           if(OPP%optprop_LUT_debug) print *,'Trying to load the LUT from file...'
             write(str(6),FMT='(A)') 'S' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%S(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
 
-            if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[trim(OPP%dirLUT%fname),trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5)),trim(str(6))]!,OPP%dirLUT%S(iphi,itheta)%c
+!            if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[trim(OPP%dirLUT%fname),trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5)),trim(str(6))]!,OPP%dirLUT%S(iphi,itheta)%c
             if(iierr.eq.0) then
               if(any( OPP%dirLUT%S(iphi,itheta)%c.gt.one ).or.any(OPP%dirLUT%S(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
             endif
 
             write(str(6),FMT='(A)') 'T' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%T(iphi,itheta)%c,iierr) ; errcnt = errcnt+iierr
-            if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[trim(OPP%dirLUT%fname),trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5)),trim(str(6))]!,OPP%dirLUT%S(iphi,itheta)%c
+!            if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[trim(OPP%dirLUT%fname),trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5)),trim(str(6))]!,OPP%dirLUT%S(iphi,itheta)%c
             if(iierr.eq.0) then
               if(any( OPP%dirLUT%T(iphi,itheta)%c.gt.one ).or.any(OPP%dirLUT%T(iphi,itheta)%c.lt.zero) ) errcnt=errcnt+100
               call check_dirLUT_matches_pspace(OPP%dirLUT)
@@ -895,21 +895,27 @@ subroutine set_parameter_space(OPP,ps,dx)
     ps%ksca_exponent=10.
     ps%g_exponent=.25
 
+    ! -------------- Setup dz support points
+
     select type(OPP)
       class is (t_optprop_LUT_1_2)
-        ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , max( ps%range_dz(2), dx*2 ) ]
+        ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , min(5e3_ireals, max( ps%range_dz(2), dx*2 ) ) ]
+        do k=1,OPP%Ndz
+          ps%dz(k)    = lin_index_to_param(one*k,ps%range_dz,OPP%Ndz )
+        enddo
+
       class is (t_optprop_LUT_8_10)
         ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , min( ps%range_dz(2), dx*2 ) ]
+        do k=1,OPP%Ndz
+          ps%dz(k)    = exp_index_to_param(one*k,ps%range_dz,OPP%Ndz, ps%dz_exponent )
+        enddo
+
       class default 
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select
 
-    ! -------------- Setup dz support points
-    do k=1,OPP%Ndz
-      ps%dz(k)    = exp_index_to_param(one*k,ps%range_dz,OPP%Ndz, ps%dz_exponent )
-    enddo
 
-    if(OPP%Ndz.eq.3) then
+    if(OPP%Ndz.eq.3) then !TODO special cases for testing to keep LUT sizes small -- should be remove sometime
       if(approx(dx,40._ireals) ) then
         ps%dz(1) = 10._ireals/40._ireals *dx
         ps%dz(2) = 20._ireals/40._ireals *dx
@@ -922,7 +928,7 @@ subroutine set_parameter_space(OPP,ps,dx)
       ps%range_dz = [minval(ps%dz),maxval(ps%dz)]
     endif
 
-    if(OPP%Ndz.eq.2) then
+    if(OPP%Ndz.eq.2) then !TODO special cases for testing to keep LUT sizes small -- should be remove sometime
       ps%dz(1) = 40._ireals/70._ireals *dx
       ps%dz(2) = 200._ireals/250._ireals *dx
       ps%range_dz = [minval(ps%dz),maxval(ps%dz)]
@@ -930,6 +936,7 @@ subroutine set_parameter_space(OPP,ps,dx)
 
 
     ! -------------- Setup g support points
+
     if(ldelta_scale) ps%range_g=[zero,.5_ireals]
 
     do k=1,OPP%Ng
@@ -943,13 +950,6 @@ subroutine set_parameter_space(OPP,ps,dx)
 
 
     ! -------------- Setup kabs/ksca support points
-
-    select type(OPP)
-      class is (t_optprop_LUT_1_2)
-          !TODO introduce only here but we could/should enable this next time we calculate LUT's also for 8_10
-          !     this is a result of us using delta scaling.
-          ps%range_ksca=[-nil, .1_ireals ]
-    end select
 
     diameter = sqrt(2*dx**2 +  ps%range_dz(2)**2 )
 
@@ -1005,19 +1005,17 @@ subroutine LUT_get_dir2dir(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
     if(ldebug_optprop) then
-      if(OPP%optprop_LUT_debug) then
-        !Check for energy conservation:
-        iierr=0
+      !Check for energy conservation:
+      iierr=0
+      do i=1,OPP%dir_streams
+        if(real(sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams))).gt.one) iierr=iierr+1
+      enddo
+      if(iierr.ne.0) then
+        print *,'Error in dir2dir coeffs :: ierr',iierr
         do i=1,OPP%dir_streams
-          if(real(sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams))).gt.one) iierr=iierr+1
+          print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)),' :: coeff',C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)
         enddo
-        if(iierr.ne.0) then
-          print *,'Error in dir2dir coeffs :: ierr',iierr
-          do i=1,OPP%dir_streams
-            print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)),' :: coeff',C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)
-          enddo
-          call exit(1)
-        endif
+        call exit(1)
       endif
     endif
 end subroutine 
@@ -1052,20 +1050,18 @@ subroutine LUT_get_dir2diff(OPP, dz,in_kabs ,in_ksca,g,phi,theta,C)
     end select
 
     if(ldebug_optprop) then
-      if(OPP%optprop_LUT_debug) then
-        !Check for energy conservation:
-        iierr=0
+      !Check for energy conservation:
+      iierr=0
+      do i=1,OPP%dir_streams
+        if(sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)).gt.one) iierr=iierr+1
+      enddo
+      if(iierr.ne.0) then
+        print *,'Error in dir2diff coeffs :: ierr',iierr,':',dz,in_kabs ,in_ksca,g,phi,theta,'::',C,'::',shape(OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
+        print *,'Error in dir2dir coeffs :: ierr',iierr,'::',OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ),'::',shape(OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
         do i=1,OPP%dir_streams
-          if(sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)).gt.one) iierr=iierr+1
+          print *,'SUM dir2diff coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)),' :: coeff',C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)
         enddo
-        if(iierr.ne.0) then
-          print *,'Error in dir2diff coeffs :: ierr',iierr,':',dz,in_kabs ,in_ksca,g,phi,theta,'::',C,'::',shape(OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
-          print *,'Error in dir2dir coeffs :: ierr',iierr,'::',OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ),'::',shape(OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
-          do i=1,OPP%dir_streams
-            print *,'SUM dir2diff coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)),' :: coeff',C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)
-          enddo
-          call exit(1)
-        endif
+        call exit(1)
       endif
     endif
 end subroutine

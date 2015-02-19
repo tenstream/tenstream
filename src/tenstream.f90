@@ -1073,7 +1073,7 @@ subroutine setup_b(edir,b)
 
         PetscScalar,pointer,dimension(:,:,:,:) :: xsrc=>null(),xedir=>null()
         PetscScalar,pointer,dimension(:) :: xsrc1d=>null(),xedir1d=>null()
-        PetscReal :: diff2diff(C_diff%dof**2), dir2diff(C_dir%dof*C_diff%dof),twostr_coeff(2)
+        PetscReal :: diff2diff(C_diff%dof**2), dir2diff(C_dir%dof*C_diff%dof)
         PetscInt :: i,j,k,src
 
         call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
@@ -1106,6 +1106,7 @@ subroutine setup_b(edir,b)
       contains
         subroutine set_thermal_source()
             PetscReal :: Ax,Ay,Az,c1,c2,c3,b0,b1,dtau
+            real(ireals) :: diff2diff1d(4)
 
             if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms'
             Az = atm%dx*atm%dy
@@ -1129,11 +1130,19 @@ subroutine setup_b(edir,b)
                       c1 = atm%g1(i,j,k) * (b0 + b1*dtau)
                       c2 = atm%g2(i,j,k) * b1
                       c3 = atm%g1(i,j,k) * b0
+
+                      xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   + ( - atm%a11(i,j,k)*(c1+c2) - atm%a12(i,j,k)*(c3-c2) + c2 + c3 )*Az*pi
+                      xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) + ( - atm%a12(i,j,k)*(c1+c2) - atm%a11(i,j,k)*(c3-c2) + c1 - c2 )*Az*pi
+
                     else
-                      stop 'boxmc coeff for thermal emission not supported at the moment'
+
+                      call get_coeff(atm%delta_op(i,j,k), atm%dz(i,j,k),.False., diff2diff1d, atm%l1d(i,j,k))
+
+                      b0 = .5_ireals*(atm%planck(i,j,k)+atm%planck(i,j,k+i1)) *pi
+                      xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
+                      xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
+
                     endif
-                    xsrc(E_up   ,i,j,k)   = xsrc(E_up   ,i,j,k)   + ( - atm%a11(i,j,k)*(c1+c2) - atm%a12(i,j,k)*(c3-c2) + c2 + c3 )*Az*pi
-                    xsrc(E_dn   ,i,j,k+1) = xsrc(E_dn   ,i,j,k+1) + ( - atm%a12(i,j,k)*(c1+c2) - atm%a11(i,j,k)*(c3-c2) + c1 - c2 )*Az*pi
 
                   else ! Tenstream source terms
                     Ax = atm%dy*atm%dz(i,j,k)
@@ -1167,6 +1176,7 @@ subroutine setup_b(edir,b)
             enddo
         end subroutine
         subroutine set_solar_source()
+            real(ireals) :: twostr_coeff(2)
             if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(0:3,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye,C_dir%zs:C_dir%ze))/size(xedir(0:3,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye,C_dir%zs:C_dir%ze))
             do k=C_diff%zs,C_diff%ze-1 
               do j=C_diff%ys,C_diff%ye         
@@ -2648,7 +2658,7 @@ end subroutine
         type(t_coord),intent(in) :: C
         PetscScalar,intent(inout),pointer,dimension(:,:,:,:) :: x4d
         PetscScalar,intent(inout),pointer,dimension(:) :: x1d
-        logical,intent(in) :: local
+        logical,optional,intent(in) :: local
 
         integer(iintegers) :: N
         logical :: lghosted
@@ -2668,17 +2678,6 @@ end subroutine
         else
           stop 'Local Vector dimensions does not conform to DMDA size'
         endif
-
-!        if( present(local) ) then
-!          print *,'Local VecSize',N,':: global',C%dof*C%xm*C%ym*C%zm,':: local',C%dof*C%gxm*C%gym*C%gzm,'::ghosted ',lghosted,'::',local
-        !TODO -- the above option of petsc determining if the vec is local or global does not work at the moment.... as a workaround, we explicitly need the user to supply this information
-!        if(local.neqv.lghosted) stop 'User assumes we got a local vec at hand(or other way around), yet I suspect this is different....'
-!        if(local) then
-!          lghosted=.False.
-!        else
-!          lghosted=.True.
-!        endif
-!        endif 
 
         call VecGetArrayF90(vec,x1d,ierr) ;CHKERRQ(ierr)
         if(lghosted) then
