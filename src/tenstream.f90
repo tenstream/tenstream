@@ -2221,38 +2221,41 @@ end subroutine
 
         subroutine destroy_tenstream()
 
-            call KSPDestroy(kspdir , ierr) ;CHKERRQ(ierr); linit_kspdir =.False.
-            call KSPDestroy(kspdiff, ierr) ;CHKERRQ(ierr); linit_kspdiff=.False.
+            if(linitialized) then 
 
-            call VecDestroy(incSolar , ierr) ;CHKERRQ(ierr)
-            call VecDestroy(b        , ierr) ;CHKERRQ(ierr)
-            call VecDestroy(edir     , ierr) ;CHKERRQ(ierr)
-            call VecDestroy(ediff    , ierr) ;CHKERRQ(ierr)
-            call VecDestroy(abso     , ierr) ;CHKERRQ(ierr)
-            call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
-            call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
+              call KSPDestroy(kspdir , ierr) ;CHKERRQ(ierr); linit_kspdir =.False.
+              call KSPDestroy(kspdiff, ierr) ;CHKERRQ(ierr); linit_kspdiff=.False.
 
-            deallocate(atm%op)
-            deallocate(atm%delta_op)
-            if(allocated(atm%planck)) deallocate(atm%planck)
-            deallocate(atm%a11)
-            deallocate(atm%a12)
-            deallocate(atm%a13)
-            deallocate(atm%a23)
-            deallocate(atm%a33)
-            deallocate(atm%dz)
-            deallocate(atm%l1d)
-            call OPP_1_2%destroy()
-            call OPP_8_10%destroy()
+              call VecDestroy(incSolar , ierr) ;CHKERRQ(ierr)
+              call VecDestroy(b        , ierr) ;CHKERRQ(ierr)
+              call VecDestroy(edir     , ierr) ;CHKERRQ(ierr)
+              call VecDestroy(ediff    , ierr) ;CHKERRQ(ierr)
+              call VecDestroy(abso     , ierr) ;CHKERRQ(ierr)
+              call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
+              call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
 
-            deallocate(C_dir%neighbors)  ; call DMDestroy(C_dir%da ,ierr)
-            deallocate(C_diff%neighbors) ; call DMDestroy(C_diff%da,ierr)
-            deallocate(C_one%neighbors)  ; call DMDestroy(C_one%da ,ierr)
-            deallocate(C_one1%neighbors) ; call DMDestroy(C_one1%da,ierr)
+              deallocate(atm%op)
+              deallocate(atm%delta_op)
+              if(allocated(atm%planck)) deallocate(atm%planck)
+              deallocate(atm%a11)
+              deallocate(atm%a12)
+              deallocate(atm%a13)
+              deallocate(atm%a23)
+              deallocate(atm%a33)
+              deallocate(atm%dz)
+              deallocate(atm%l1d)
+              call OPP_1_2%destroy()
+              call OPP_8_10%destroy()
 
-            linitialized=.False.
+              deallocate(C_dir%neighbors)  ; call DMDestroy(C_dir%da ,ierr)
+              deallocate(C_diff%neighbors) ; call DMDestroy(C_diff%da,ierr)
+              deallocate(C_one%neighbors)  ; call DMDestroy(C_one%da ,ierr)
+              deallocate(C_one1%neighbors) ; call DMDestroy(C_one1%da,ierr)
+
+              linitialized=.False.
 
             call PetscFinalize(ierr) ;CHKERRQ(ierr)
+          endif
         end subroutine
 
         subroutine tenstream_get_result(redir,redn,reup,rabso)
