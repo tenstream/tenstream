@@ -15,7 +15,7 @@ public :: t_optprop_1_2,t_optprop_8_10
 integer(mpiint) :: ierr
 
 type,abstract :: t_optprop
-  logical :: optprop_debug=.False.
+  logical :: optprop_debug=ldebug_optprop
   real(ireals) :: dx,dy
   integer(iintegers) :: dir_streams=inil,diff_streams=inil
   class(t_optprop_LUT),allocatable :: OPP_LUT
@@ -351,7 +351,7 @@ end subroutine
             end select
 
             if(ldebug_optprop) then
-              if(real(sum(coeff_symmetry)).gt.one) then
+              if(real(sum(coeff_symmetry)).gt.one+epsilon(one)*10._ireals) then
                 print *,'sum of diffuse coeff_symmetrys bigger one!',sum(coeff_symmetry),'for src=',isrc,'coeff_symmetry:',coeff_symmetry
                 call exit()
               endif

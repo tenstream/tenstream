@@ -69,7 +69,7 @@ module m_optprop_LUT
 
     integer(iintegers) :: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
-    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=.False.
+    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=ldebug_optprop
     character(len=300) :: lutbasename 
 
     contains
@@ -305,7 +305,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0
             if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol+1e-8_ireals))
 
-!            if(OPP%optprop_LUT_debug) &
+            if(OPP%optprop_LUT_debug) &
                 print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds,':',trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5))
         endif
 
@@ -754,17 +754,21 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
     real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
     logical,intent(out) :: mask(size(LUT%pspace%phi),size(LUT%pspace%theta)) ! boolean array, which LUT entries should be loaded
 
-    integer(iintegers) :: itheta, iphi
+    integer(iintegers) :: itheta, iphi, itheta1, iphi1
     logical :: lneed_azi(2), lneed_sza(2)
     real(ireals) :: theta(2),phi(2) ! sza and azimuth angle
 !    integer(iintegers) :: iszas(:),iazis(:) ! all solar zenith angles rounded to nearest integer value
 
     mask = .False.
     ! Check if really need to load it... i.e. we only want to load angles which are necessary for this run.
-    do itheta=1,size(LUT%pspace%theta)-1
-      do iphi  =1,size(LUT%pspace%phi)-1
-        phi   = LUT%pspace%phi( [ iphi, iphi+1 ] )
-        theta = LUT%pspace%theta( [ itheta, itheta+1 ]  )
+    do itheta=1,size(LUT%pspace%theta)
+      do iphi  =1,size(LUT%pspace%phi)
+
+        iphi1   = min(size(LUT%pspace%phi),   iphi+1)
+        itheta1 = min(size(LUT%pspace%theta), itheta+1)
+
+        phi   = LUT%pspace%phi( [ iphi, iphi1 ] )
+        theta = LUT%pspace%theta( [ itheta, itheta1 ]  )
 
         lneed_azi(1) = any( azis .ge. phi(1)       .and. azis .le. sum(phi)/2 )
         lneed_azi(2) = any( azis .ge. sum(phi)/2   .and. azis .le. phi(2) )
@@ -772,18 +776,18 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
         lneed_sza(1) = any( szas .ge. theta(1)     .and. szas .le. sum(theta)/2 )
         lneed_sza(2) = any( szas .ge. sum(theta)/2 .and. szas .le. theta(2) )
 
-        !print *,'determine_angles_to_load: occuring azimuths',azis,'/ szas',szas,': phi,theta',phi,theta,'need_azi',lneed_azi,'lneed_sza',lneed_sza
+!        print *,'determine_angles_to_load: occuring azimuths',azis,'/ szas',szas,': phi,theta',phi,theta,'need_azi',lneed_azi,'lneed_sza',lneed_sza
 
-        if( lneed_azi(1) .and. lneed_sza(1) ) mask(iphi   , itheta)   = .True.
-        if( lneed_azi(1) .and. lneed_sza(2) ) mask(iphi   , itheta+1) = .True.
-        if( lneed_azi(2) .and. lneed_sza(1) ) mask(iphi+1 , itheta)   = .True.
-        if( lneed_azi(2) .and. lneed_sza(2) ) mask(iphi+1 , itheta+1) = .True.
+        if( lneed_azi(1) .and. lneed_sza(1) ) mask(iphi  , itheta ) = .True.
+        if( lneed_azi(1) .and. lneed_sza(2) ) mask(iphi  , itheta1) = .True.
+        if( lneed_azi(2) .and. lneed_sza(1) ) mask(iphi1 , itheta ) = .True.
+        if( lneed_azi(2) .and. lneed_sza(2) ) mask(iphi1 , itheta1) = .True.
 
         !if (all( lneed_azi .and. lneed_sza )) mask([iphi,iphi+1],[itheta,itheta+1]) = .True. !todo breaks if we need either theta+1 or phi+1 i.e. uneven sza or phi=90
         !if (all( lneed_azi .and. lneed_sza )) mask([iphi],[itheta]) = .True. !todo breaks if we need either theta+1 or phi+1 i.e. uneven sza or phi=90
       enddo
     enddo
-!    if(myid.eq.0) then
+!    if(ldebug_optprop .and. myid.eq.0) then
 !      print *,'       phis',LUT%pspace%range_phi
 !      do itheta=1,size(LUT%pspace%theta)
 !        print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
@@ -850,7 +854,11 @@ function lin_index_to_param(index,range,N)
     real(ireals) :: lin_index_to_param
     real(ireals),intent(in) :: index,range(2)
     integer(iintegers),intent(in) :: N
-    lin_index_to_param = range(1) + (index-one) * ( range(2)-range(1) ) / (N-1)
+    if(N.gt.i1) then
+      lin_index_to_param = range(1) + (index-one) * ( range(2)-range(1) ) / (N-1)
+    else
+      lin_index_to_param = range(1)
+    endif
 end function
 
 subroutine set_parameter_space(OPP,ps,dx)
@@ -982,7 +990,7 @@ end subroutine
 subroutine LUT_get_dir2dir(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: in_dz, in_kabs, in_ksca,g, phi,theta
-    real(ireals),intent(out):: C(OPP%dir_streams**2)
+    real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams**2)
     real(ireals) :: kabs,ksca,dz
     integer(iintegers) :: i
 
