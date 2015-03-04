@@ -1769,6 +1769,10 @@ subroutine init_tenstream(icomm, Nx,Ny,Nz, dx,dy, phi0,theta0,albedo, dz1d, dz3d
       call setup_petsc_comm
 !      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
       call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;CHKERRQ(ierr)
+#ifdef _XLF
+      call PetscPopSignalHandler(ierr); CHKERRQ(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
+#endif
+
       call init_mpi_data_parameters(PETSC_COMM_WORLD)
 
       call read_commandline_options()
