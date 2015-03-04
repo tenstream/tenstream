@@ -132,6 +132,7 @@ int main(int argc, char *argv[]) {
     slave(fcomm);
   }
 
+  PetscFinalize();
   MPI_Finalize();
   return(0);
 

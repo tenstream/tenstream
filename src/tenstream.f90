@@ -2223,7 +2223,10 @@ end subroutine
                 call save_solution(solution_uid,solution_time)
         end subroutine
 
-        subroutine destroy_tenstream()
+        subroutine destroy_tenstream(lfinalizepetsc)
+            logical,optional :: lfinalizepetsc
+            logical :: lfinalize = .True.
+            if(present(lfinalizepetsc)) lfinalize = lfinalizepetsc
 
             if(linitialized) then 
 
@@ -2258,7 +2261,7 @@ end subroutine
 
               linitialized=.False.
 
-            call PetscFinalize(ierr) ;CHKERRQ(ierr)
+              if(lfinalize) call PetscFinalize(ierr) ;CHKERRQ(ierr)
           endif
         end subroutine
 

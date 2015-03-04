@@ -135,7 +135,7 @@ contains
       end subroutine
 
       subroutine tenstr_f2c_destroy() bind(c)
-        call destroy_tenstream()
+        call destroy_tenstream(lfinalizepetsc=.False.)
       end subroutine
 
       subroutine tenstr_f2c_get_result(Nx,Ny,Nz, res_edir,res_edn,res_eup,res_abso) bind(c)
