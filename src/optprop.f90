@@ -150,15 +150,12 @@ contains
                 call OPP%OPP_LUT%LUT_get_dir2diff(dz,kabs,ksca,g,angles(1),angles(2),C)
               endif
             else
-              if(dir) then ! emission
-                call OPP%OPP_LUT%LUT_get_emission(dz,kabs,ksca,g,C)
-              else         ! diff2diff
-                call OPP%OPP_LUT%LUT_get_diff2diff(dz,kabs,ksca,g,C_diff)
-                do isrc=1,OPP%OPP_LUT%diff_streams
-                  C( (isrc-1)*OPP%OPP_LUT%diff_streams+i1 : isrc*OPP%OPP_LUT%diff_streams ) = OPP%coeff_symmetry(isrc, C_diff )
-                enddo
-                deallocate(C_diff)
-              endif
+              ! diff2diff
+              call OPP%OPP_LUT%LUT_get_diff2diff(dz,kabs,ksca,g,C_diff)
+              do isrc=1,OPP%OPP_LUT%diff_streams
+                C( (isrc-1)*OPP%OPP_LUT%diff_streams+i1 : isrc*OPP%OPP_LUT%diff_streams ) = OPP%coeff_symmetry(isrc, C_diff )
+              enddo
+              deallocate(C_diff)
             endif
 
 

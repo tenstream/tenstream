@@ -2,7 +2,7 @@ module m_optprop_LUT
 
   use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
 
-  use m_helper_functions, only : approx,rel_approx
+  use m_helper_functions, only : approx,rel_approx,imp_bcast
   use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_comm,imp_logical
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
       Ndz_1_2,Nkabs_1_2,Nksca_1_2,Ng_1_2,Nphi_1_2,Ntheta_1_2,Ndir_1_2,Ndiff_1_2,interp_mode_1_2,   &
@@ -34,7 +34,7 @@ module m_optprop_LUT
     real(ireals) :: dz_exponent,kabs_exponent,ksca_exponent,g_exponent
     real(ireals) , dimension(2)      :: range_dz      = [ 50._ireals , 5001._ireals ]
     real(ireals) , dimension(2)      :: range_kabs    = [ nil        , 10._ireals    ] !lower limit for kabs , ksca is set in set_parameter_space
-    real(ireals) , dimension(2)      :: range_ksca    = [ nil        , .1_ireals     ] !lower limit for ksca , ksca is set in set_parameter_space // TODO: if we keep hard delta scaling , we can reduce ksca max to 0.1
+    real(ireals) , dimension(2)      :: range_ksca    = [ nil        , .1_ireals     ] !lower limit for ksca , ksca is set in set_parameter_space // if we keep hard delta scaling , we can reduce ksca max to 0.1
     real(ireals) , dimension(2)      :: range_g       = [ zero       , .999_ireals   ]
     real(ireals) , dimension(2)      :: range_phi     = [ zero       , 90._ireals    ]
     real(ireals) , dimension(2)      :: range_theta   = [ zero       , 90._ireals    ]
@@ -50,7 +50,7 @@ module m_optprop_LUT
   type diffuseTable
     real(ireals) :: dx,dy
     character(len=300) :: fname
-    type(table) :: S,B
+    type(table) :: S
     type(parameter_space) :: pspace
   end type
 
@@ -76,7 +76,7 @@ module m_optprop_LUT
       procedure :: init
       procedure :: LUT_get_dir2dir
       procedure :: LUT_get_dir2diff
-      procedure :: LUT_get_emission
+!      procedure :: LUT_get_emission
       procedure :: LUT_get_diff2diff
       procedure :: bmc_wrapper
       procedure :: scatter_LUTtables
@@ -166,9 +166,8 @@ subroutine loadLUT_diff(OPP, comm)
     character(300) :: str(5)
     logical :: lstddev_inbounds
 
-    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'... loading diffuse OPP%diffLUT',myid
     if(allocated(OPP%diffLUT%S%c)) then
-      if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'OPP%diffLUT already loaded! is this a second call?',myid
+      if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'OPP%diffLUT already loaded! is this a second call?'
       return
     endif
 
@@ -177,20 +176,18 @@ subroutine loadLUT_diff(OPP, comm)
     write(str(3),FMT='("dy",I0)')   int(OPP%diffLUT%dy)
 
     if(.not.allocated(OPP%diffLUT%S%table_name_c) ) allocate(OPP%diffLUT%S%table_name_c(5)) 
-    if(.not.allocated(OPP%diffLUT%B%table_name_c) ) allocate(OPP%diffLUT%B%table_name_c(5)) 
     write(str(4),FMT='(A)') "S" ; OPP%diffLUT%S%table_name_c = [OPP%diffLUT%fname,str(1),str(2),str(3),str(4)]
-    write(str(4),FMT='(A)') "B" ; OPP%diffLUT%B%table_name_c = [OPP%diffLUT%fname,str(1),str(2),str(3),str(4)]
 
     if(.not.allocated(OPP%diffLUT%S%table_name_tol) ) allocate(OPP%diffLUT%S%table_name_tol(5)) 
-    if(.not.allocated(OPP%diffLUT%B%table_name_tol) ) allocate(OPP%diffLUT%B%table_name_tol(5)) 
     write(str(4),FMT='(A)') "S_tol"  ; OPP%diffLUT%S%table_name_tol = [OPP%diffLUT%fname,str(1),str(2),str(3),str(4)]
-    write(str(4),FMT='(A)') "B_tol"  ; OPP%diffLUT%B%table_name_tol = [OPP%diffLUT%fname,str(1),str(2),str(3),str(4)]
 
-    errcnt=0
+    errcnt=-1
     if(myid.eq.0) then
+      lstddev_inbounds=.False.
+      errcnt=0
+
       ! Load LUT's from file
       call ncload(OPP%diffLUT%S%table_name_c ,OPP%diffLUT%S%c,iierr) ; errcnt = errcnt+iierr
-!      call ncload(OPP%diffLUT%B%table_name_c ,OPP%diffLUT%B%c,iierr) ; errcnt = errcnt+iierr
 
       ! check if all coefficients are in range between 0 and 1 and if we
       ! actually hold a lookuptable for the here specified parameter ranges.
@@ -198,37 +195,34 @@ subroutine loadLUT_diff(OPP, comm)
         if( any(OPP%diffLUT%S%c.gt.one) .or. any(OPP%diffLUT%S%c.lt.zero) ) errcnt=3
         call check_diffLUT_matches_pspace(OPP%diffLUT)
       endif
-!      if(allocated(OPP%diffLUT%B%c) ) then
-!        if( any(OPP%diffLUT%B%c.gt.one) .or. any(OPP%diffLUT%B%c.lt.zero) ) errcnt=errcnt+5
-!      endif
 
-      lstddev_inbounds=.False.
       call ncload(OPP%diffLUT%S%table_name_tol, OPP%diffLUT%S%stddev_tol,iierr) ; errcnt = errcnt+iierr
-      if( allocated(OPP%diffLUT%S%stddev_tol) ) lstddev_inbounds = all(real(OPP%diffLUT%S%stddev_tol).le.real(stddev_atol+1e-8_ireals))
-      if(.not.lstddev_inbounds) errcnt=errcnt+7 
-      
-!      call ncload(OPP%diffLUT%B%table_name_tol, OPP%diffLUT%B%stddev_tol,iierr) ; errcnt = errcnt+iierr
-!      if( allocated(OPP%diffLUT%B%stddev_tol) ) lstddev_inbounds = all(real(OPP%diffLUT%B%stddev_tol).le.real(stddev_atol))
-      
 
+      if( allocated(OPP%diffLUT%S%stddev_tol) ) &
+          lstddev_inbounds = all(real(OPP%diffLUT%S%stddev_tol).le.real(stddev_atol)+10._ireals*epsilon(one))
+      
+          if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'... loading diffuse OPP%diffLUT',errcnt,lstddev_inbounds
     endif
     call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr) ! inform all nodes if we were able to load the LUT
     call mpi_bcast(lstddev_inbounds , 1_mpiint , imp_logical , 0_mpiint , comm , mpierr) ! and if all coefficients are valid
 
     if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then ! something is missing... lets try to recompute missing values in LUT
       if(myid.eq.0) then
-        if(OPP%optprop_LUT_debug) print *,'Loading of diffuse tables failed for ',trim(OPP%diffLUT%fname),' :: ',trim(str(1)),' ',trim(str(2)),' ',trim(str(3)),'::',errcnt,'stddev required',lstddev_inbounds
         write(str(4),FMT='(A)') "pspace"
+
+        if(OPP%optprop_LUT_debug) then
+          print *,'Loading of diffuse tables failed for ',trim(OPP%diffLUT%fname),' :: ',trim(str(1)),' ',trim(str(2)),' ',trim(str(3)),'::',errcnt,'stddev required',lstddev_inbounds
+          print *,''
+          print *,'will write pspace with arguments:'
+          print *,'0 ',trim(OPP%diffLUT%fname)
+          print *,'1 ',trim(str(1))
+          print *,'2 ',trim(str(2))
+          print *,'3 ',trim(str(3))
+          print *,'4 ',trim(str(4))
+          print *,''
+        endif
+
         write(str(5),FMT='(A)') "range_dz   "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_dz   ,iierr)
-
-        print *,'will write pspace with arguments:'
-        print *,'0 ',trim(OPP%diffLUT%fname)
-        print *,'1 ',trim(str(1))
-        print *,'2 ',trim(str(2))
-        print *,'3 ',trim(str(3))
-        print *,'4 ',trim(str(4))
-        print *,'5 ',trim(str(5))
-
         write(str(5),FMT='(A)') "range_kabs "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_kabs ,iierr)
         write(str(5),FMT='(A)') "range_ksca "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_ksca ,iierr)
         write(str(5),FMT='(A)') "range_g    "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%range_g    ,iierr)
@@ -240,14 +234,10 @@ subroutine loadLUT_diff(OPP, comm)
       endif
 
       call OPP%createLUT_diff(OPP%diffLUT, comm)
-
-!      call mpi_barrier(comm,ierr)
-!      call exit() !> \todo: We exit here in order to split the jobs for shorter runtime.
     endif
 
     if(myid.eq.0) deallocate(OPP%diffLUT%S%stddev_tol)
-!    if(myid.eq.0) deallocate(OPP%diffLUT%B%stddev_tol)
-    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading diffuse OPP%diffLUTs'
+    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading diffuse OPP%diffLUTs',errcnt
 end subroutine
 
 subroutine loadLUT_dir(OPP, azis,szas, comm)
@@ -258,7 +248,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
     character(300) :: str(7),varname(4)
     logical :: angle_mask(OPP%Nphi,OPP%Ntheta),lstddev_inbounds
 
-    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'... loading direct OPP%dirLUT'
+!    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'... loading direct OPP%dirLUT'
 !    if(allocated(OPP%dirLUT%S).and.allocated(OPP%dirLUT%T)) then
 !      if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'OPP%dirLUTs already loaded!',myid
 !      return
@@ -362,7 +352,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
       enddo !iphi
     enddo! itheta
 
-    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading direct OPP%dirLUTs'
+!    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading direct OPP%dirLUTs'
 end subroutine
   subroutine scatter_LUTtables(OPP, azis,szas,comm)
       class(t_optprop_LUT) :: OPP
@@ -376,63 +366,17 @@ end subroutine
 
       do itheta=1,OPP%Ntheta
         do iphi  =1,OPP%Nphi
-          if(.not.angle_mask(iphi,itheta) ) cycle
+          if(.not.angle_mask(iphi,itheta) ) cycle                               ! this LUT is not needed, skip....
           if ( mpi_logical_and( allocated(OPP%dirLUT%T(iphi,itheta)%c)) ) cycle ! if all nodes have the LUT already, we dont need to scatter it...
 
-          ! DIRECT 2 DIRECT
-          if(myid.eq.0) then
-            Ncoeff = size(OPP%dirLUT%T(iphi,itheta)%c, 1)
-            Ntot   = size(OPP%dirLUT%T(iphi,itheta)%c) 
-            if(OPP%optprop_LUT_debug) print *,myid,'Scattering LUT tables....',Ncoeff,Ntot,' iphi,itheta',iphi,itheta 
-          endif
-          call mpi_bcast(Ncoeff, 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
-          call mpi_bcast(Ntot  , 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
-
-          if(myid.gt.0 .and. .not.allocated(OPP%dirLUT%T(iphi,itheta)%c) ) allocate(OPP%dirLUT%T(iphi,itheta)%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
-          call mpi_bcast(OPP%dirLUT%T(iphi,itheta)%c, 1_mpiint*Ntot, imp_real, 0_mpiint, comm, mpierr)
-
-          ! DIRECT 2 DIFFUSE
-          if(myid.eq.0) then
-            Ncoeff = size(OPP%dirLUT%S(iphi,itheta)%c, 1)
-            Ntot   = size(OPP%dirLUT%S(iphi,itheta)%c) 
-            !          print *,'Scattering LUT tables....',Ncoeff,Ntot
-          endif
-          call mpi_bcast(Ncoeff, 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
-          call mpi_bcast(Ntot  , 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
-
-          if(myid.gt.0 .and. .not.allocated(OPP%dirLUT%S(iphi,itheta)%c) ) allocate(OPP%dirLUT%S(iphi,itheta)%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
-          call mpi_bcast(OPP%dirLUT%S(iphi,itheta)%c, 1_mpiint*Ntot, imp_real, 0_mpiint, comm, mpierr)
-
+          call imp_bcast(OPP%dirLUT%T(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIRECT
+          call imp_bcast(OPP%dirLUT%S(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIFFUSE
         enddo
       enddo
 
       ! DIFFUSE 2 DIFFUSE
-      if( mpi_logical_or(.not.allocated(OPP%diffLUT%S%c) )) then ! if one or more nodes do not have it, guess we have to send it...
-        if(myid.eq.0) then
-          Ncoeff = size(OPP%diffLUT%S%c, 1)
-          Ntot   = size(OPP%diffLUT%S%c) 
-          !          print *,'Scattering LUT tables....',Ncoeff,Ntot
-        endif
-        call mpi_bcast(Ncoeff, 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
-        call mpi_bcast(Ntot  , 1_mpiint, imp_int, 0_mpiint, comm, mpierr)
-
-        if(myid.gt.0 .and. .not.allocated(OPP%diffLUT%S%c) ) allocate(OPP%diffLUT%S%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
-        call mpi_bcast(OPP%diffLUT%S%c, 1_mpiint*Ntot, imp_real, 0_mpiint, comm, mpierr)
-      endif
-
-      ! DIFFUSE EMISSION
-!      if(myid.eq.0) then
-!        Ncoeff = size(OPP%diffLUT%B%c, 1)
-!        Ntot   = size(OPP%diffLUT%B%c) 
-!        !          print *,'Scattering LUT tables....',Ncoeff,Ntot
-!      endif
-!      call mpi_bcast(Ncoeff, 1, imp_int, 0, comm, ierr)
-!      call mpi_bcast(Ntot  , 1, imp_int, 0, comm, ierr)
-!
-!      if(myid.gt.0) allocate(OPP%diffLUT%B%c(Ncoeff, OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng) )
-!      call mpi_bcast(OPP%diffLUT%B%c, Ntot, imp_real, 0, comm, ierr)
-
-!      print *,myid,' :: Scatter LUT -- sum of diff LUT-> S= ',sum(OPP%diffLUT%S%c)
+      if( mpi_logical_or(.not.allocated(OPP%diffLUT%S%c) )) & ! then ! if one or more nodes do not have it, guess we have to send it...
+        call imp_bcast(OPP%diffLUT%S%c, 0_mpiint, myid )
 contains 
 function mpi_logical_and(lneed)
     logical :: mpi_logical_and
@@ -466,35 +410,34 @@ subroutine createLUT_diff(OPP, LUT, comm)
         class default
           stop 'dont know optprop_class'
       end select
-
-!      call prepare_table_space(LUT%B,OPP%diff_streams)
     endif
 
-!    call fill_table(LUT%B,lemission=.True.)
-    call fill_table(LUT%S,lemission=.False.)
+    call fill_table(LUT%S)
 
     if(myid.eq.0) print *,'done calculating diffuse coefficients'
     contains 
-      subroutine fill_table(T,lemission)
+      subroutine fill_table(T)
           type(table) :: T
-          logical,intent(in) :: lemission
           integer(iintegers) :: idz,ikabs ,iksca,ig,total_size,cnt
           logical :: ldone,lstarted_calculations=.False.
+
           total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz
+
           cnt=0
           do ig    =1,OPP%Ng
             do iksca    =1,OPP%Nksca    
               do ikabs    =1,OPP%Nkabs    
                 do idz   =1,OPP%Ndz   
+
                   cnt=cnt+1
+
                   ! Check if we already calculated the coefficients and inform the other nodes
                   ldone=.False.
                   if(myid.eq.0) then
-                    if  ( all( T%c( :, idz,ikabs ,iksca,ig).ge.zero) &
-                        .and.all( T%c( :, idz,ikabs ,iksca,ig).le.one ) &
+                    if  (     all ( T%c( :, idz,ikabs ,iksca,ig).ge.zero)                  &
+                        .and. all ( T%c( :, idz,ikabs ,iksca,ig).le.one )                  &
                         .and. real(T%stddev_tol(idz,ikabs ,iksca,ig)).le.real(stddev_atol) &
                         ) ldone = .True.
-!                    print *,'done',ldone,'::',ig,iksca,ikabs,idz,'::',T%c(:, idz,ikabs ,iksca,ig),':',T%stddev_tol(idz,ikabs ,iksca,ig)
                   endif
                   call mpi_bcast(ldone,1_mpiint , imp_logical, 0_mpiint, comm, mpierr)
                   if(ldone) then
@@ -503,31 +446,30 @@ subroutine createLUT_diff(OPP, LUT, comm)
                     lstarted_calculations = .True.
                   endif
 
+
                   if(myid.eq.0) print *,'diff dx',LUT%dx,'dz',LUT%pspace%dz(idz),' :: ',LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
 
-                  if(lemission) then
-                    call OPP%bmc_wrapper(-i1 ,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
-                    if(myid.eq.0) T%c( :, idz,ikabs ,iksca,ig) = one - S_diff
-                  else
-                    select type(OPP)
-                      class is (t_optprop_LUT_8_10)
-                        ! src=1
-                        call OPP%bmc_wrapper(i1,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
-                        if(myid.eq.0) T%c( 1, idz,ikabs ,iksca,ig) = S_diff(1)
-                        if(myid.eq.0) T%c( 2, idz,ikabs ,iksca,ig) = S_diff(2)
-                        if(myid.eq.0) T%c( 3, idz,ikabs ,iksca,ig) = sum(S_diff([3,4,7, 8]) )/4
-                        if(myid.eq.0) T%c( 4, idz,ikabs ,iksca,ig) = sum(S_diff([5,6,9,10]) )/4
-                        ! src=3
-                        call OPP%bmc_wrapper(i3,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
-                        if(myid.eq.0) T%c( 5:10, idz,ikabs ,iksca,ig) = S_diff(1:6)
-                        if(myid.eq.0) T%c( 11  , idz,ikabs ,iksca,ig) = sum(S_diff(7: 8))/2
-                        if(myid.eq.0) T%c( 12  , idz,ikabs ,iksca,ig) = sum(S_diff(9:10))/2
-                      class is (t_optprop_LUT_1_2)
-                        ! src=1
-                        call OPP%bmc_wrapper(i1,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
-                        if(myid.eq.0) T%c( :, idz,ikabs ,iksca,ig) = S_diff
-                    end select
-                  endif
+                  select type(OPP)
+                    class is (t_optprop_LUT_8_10)
+                      ! src=1
+                      call OPP%bmc_wrapper(i1,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
+                      if(myid.eq.0) T%c( 1, idz,ikabs ,iksca,ig) = S_diff(1)
+                      if(myid.eq.0) T%c( 2, idz,ikabs ,iksca,ig) = S_diff(2)
+                      if(myid.eq.0) T%c( 3, idz,ikabs ,iksca,ig) = sum(S_diff([3,4,7, 8]) )/4
+                      if(myid.eq.0) T%c( 4, idz,ikabs ,iksca,ig) = sum(S_diff([5,6,9,10]) )/4
+                      ! src=3
+                      call OPP%bmc_wrapper(i3,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
+                      if(myid.eq.0) T%c( 5:10, idz,ikabs ,iksca,ig) = S_diff(1:6)
+                      if(myid.eq.0) T%c( 11  , idz,ikabs ,iksca,ig) = sum(S_diff(7: 8))/2
+                      if(myid.eq.0) T%c( 12  , idz,ikabs ,iksca,ig) = sum(S_diff(9:10))/2
+
+                    class is (t_optprop_LUT_1_2)
+                      ! src=1
+                      call OPP%bmc_wrapper(i1,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
+                      if(myid.eq.0) T%c( :, idz,ikabs ,iksca,ig) = S_diff
+
+                  end select
+
                   if(myid.eq.0) T%stddev_tol(idz,ikabs ,iksca,ig) = stddev_atol
 
                 enddo !dz
@@ -540,6 +482,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
                 call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
                 print *,'done writing!',iierr
               endif
+
             enddo !ksca
           enddo !g
       end subroutine
@@ -923,24 +866,24 @@ subroutine set_parameter_space(OPP,ps,dx)
     end select
 
 
-    if(OPP%Ndz.eq.3) then !TODO special cases for testing to keep LUT sizes small -- should be remove sometime
-      if(approx(dx,40._ireals) ) then
-        ps%dz(1) = 10._ireals/40._ireals *dx
-        ps%dz(2) = 20._ireals/40._ireals *dx
-        ps%dz(3) = 30._ireals/40._ireals *dx
-      else
-        ps%dz(1) = 100._ireals/500._ireals *dx
-        ps%dz(2) = 40._ireals/70._ireals *dx
-        ps%dz(3) = 200._ireals/250._ireals *dx
-      endif
-      ps%range_dz = [minval(ps%dz),maxval(ps%dz)]
-    endif
-
-    if(OPP%Ndz.eq.2) then !TODO special cases for testing to keep LUT sizes small -- should be remove sometime
-      ps%dz(1) = 40._ireals/70._ireals *dx
-      ps%dz(2) = 200._ireals/250._ireals *dx
-      ps%range_dz = [minval(ps%dz),maxval(ps%dz)]
-    endif
+!    if(OPP%Ndz.eq.3) then !TODO special cases for testing to keep LUT sizes small -- should be remove sometime
+!      if(approx(dx,40._ireals) ) then
+!        ps%dz(1) = 10._ireals/40._ireals *dx
+!        ps%dz(2) = 20._ireals/40._ireals *dx
+!        ps%dz(3) = 30._ireals/40._ireals *dx
+!      else
+!        ps%dz(1) = 100._ireals/500._ireals *dx
+!        ps%dz(2) = 40._ireals/70._ireals *dx
+!        ps%dz(3) = 200._ireals/250._ireals *dx
+!      endif
+!      ps%range_dz = [minval(ps%dz),maxval(ps%dz)]
+!    endif
+!
+!    if(OPP%Ndz.eq.2) then !TODO special cases for testing to keep LUT sizes small -- should be remove sometime
+!      ps%dz(1) = 40._ireals/70._ireals *dx
+!      ps%dz(2) = 200._ireals/250._ireals *dx
+!      ps%range_dz = [minval(ps%dz),maxval(ps%dz)]
+!    endif
 
 
     ! -------------- Setup g support points
@@ -1073,31 +1016,31 @@ subroutine LUT_get_dir2diff(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
       endif
     endif
 end subroutine
-subroutine LUT_get_emission(OPP, in_dz,in_kabs ,in_ksca,g,C)
-    class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g
-    real(ireals),intent(out):: C(:)
-
-    real(ireals) :: kabs,ksca,dz
-    real(ireals) :: pti(4),weights(4)
-
-    kabs = in_kabs; ksca = in_ksca; dz=in_dz
-    if(ldebug_optprop) call catch_limits(OPP%diffLUT%pspace,dz,kabs,ksca,g)
-
-    pti = get_indices_4d(dz,kabs ,ksca,g,OPP%diffLUT%pspace)
-
-    select case(OPP%interp_mode)
-    case(1)
-      ! Nearest neighbour
-      C = OPP%diffLUT%B%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
-    case(2)
-      ! Linear interpolation
-      weights = modulo(pti,one)
-      call interp_4d(pti, weights, OPP%diffLUT%B%c, C)
-    case default
-      stop 'interpolation mode not implemented yet! please choose something else! '
-    end select
-end subroutine 
+!subroutine LUT_get_emission(OPP, in_dz,in_kabs ,in_ksca,g,C)
+!    class(t_optprop_LUT) :: OPP
+!    real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g
+!    real(ireals),intent(out):: C(:)
+!
+!    real(ireals) :: kabs,ksca,dz
+!    real(ireals) :: pti(4),weights(4)
+!
+!    kabs = in_kabs; ksca = in_ksca; dz=in_dz
+!    if(ldebug_optprop) call catch_limits(OPP%diffLUT%pspace,dz,kabs,ksca,g)
+!
+!    pti = get_indices_4d(dz,kabs ,ksca,g,OPP%diffLUT%pspace)
+!
+!    select case(OPP%interp_mode)
+!    case(1)
+!      ! Nearest neighbour
+!      C = OPP%diffLUT%B%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
+!    case(2)
+!      ! Linear interpolation
+!      weights = modulo(pti,one)
+!      call interp_4d(pti, weights, OPP%diffLUT%B%c, C)
+!    case default
+!      stop 'interpolation mode not implemented yet! please choose something else! '
+!    end select
+!end subroutine 
 subroutine LUT_get_diff2diff(OPP, in_dz,in_kabs ,in_ksca,g,C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g
@@ -1169,7 +1112,7 @@ subroutine catch_limits(ps,dz,kabs,ksca,g)
     logical, parameter :: allow_rescale_kabs=.True.
 
     if(allow_rescale_dz) then
-      !TODO is this a good idea? -- probably only for 1D coefficients meaningful
+      !TODO check if this is a good idea? -- probably only for 1D coefficients meaningful
       if(dz.gt.ps%range_dz(2)) then 
         ksca = ksca*dz/ps%range_dz(2)
         kabs = ksca*dz/ps%range_dz(2)
