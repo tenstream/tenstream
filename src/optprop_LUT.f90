@@ -700,7 +700,6 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
     integer(iintegers) :: itheta, iphi, itheta1, iphi1
     logical :: lneed_azi(2), lneed_sza(2)
     real(ireals) :: theta(2),phi(2) ! sza and azimuth angle
-!    integer(iintegers) :: iszas(:),iazis(:) ! all solar zenith angles rounded to nearest integer value
 
     mask = .False.
     ! Check if really need to load it... i.e. we only want to load angles which are necessary for this run.
@@ -736,6 +735,8 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
 !        print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
 !      enddo
 !    endif
+
+  !TODO: in case ranks would require different angles, we should broadcast this here. in principal ranks may only load the LUT they need, this approach may however not be the easiest to implement?
 end subroutine
 
 function search_sorted_bisection(arr,val) ! return index+residula i where arr(i) .gt. val
@@ -1016,31 +1017,6 @@ subroutine LUT_get_dir2diff(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
       endif
     endif
 end subroutine
-!subroutine LUT_get_emission(OPP, in_dz,in_kabs ,in_ksca,g,C)
-!    class(t_optprop_LUT) :: OPP
-!    real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g
-!    real(ireals),intent(out):: C(:)
-!
-!    real(ireals) :: kabs,ksca,dz
-!    real(ireals) :: pti(4),weights(4)
-!
-!    kabs = in_kabs; ksca = in_ksca; dz=in_dz
-!    if(ldebug_optprop) call catch_limits(OPP%diffLUT%pspace,dz,kabs,ksca,g)
-!
-!    pti = get_indices_4d(dz,kabs ,ksca,g,OPP%diffLUT%pspace)
-!
-!    select case(OPP%interp_mode)
-!    case(1)
-!      ! Nearest neighbour
-!      C = OPP%diffLUT%B%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
-!    case(2)
-!      ! Linear interpolation
-!      weights = modulo(pti,one)
-!      call interp_4d(pti, weights, OPP%diffLUT%B%c, C)
-!    case default
-!      stop 'interpolation mode not implemented yet! please choose something else! '
-!    end select
-!end subroutine 
 subroutine LUT_get_diff2diff(OPP, in_dz,in_kabs ,in_ksca,g,C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g
