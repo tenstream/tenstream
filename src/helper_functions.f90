@@ -7,7 +7,7 @@ module m_helper_functions
       public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum
 
       interface imp_bcast
-        module procedure imp_bcast_real_1d,imp_bcast_real_3d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
+        module procedure imp_bcast_real_1d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
       end interface
 
       integer(mpiint) :: mpierr
@@ -109,9 +109,21 @@ module m_helper_functions
           integer(iintegers) :: Ntot(3)
 
           if(sendid.eq.myid) Ntot = shape(arr)
-          call mpi_bcast(Ntot,3,imp_int,sendid,imp_comm,mpierr)
+          call mpi_bcast(Ntot,3_mpiint,imp_int,sendid,imp_comm,mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3) ) )
+          call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr)
+      end subroutine
+      subroutine  imp_bcast_real_5d(arr,sendid,myid)
+          real(ireals),allocatable,intent(inout) :: arr(:,:,:,:,:)
+          integer(mpiint),intent(in) :: sendid,myid
+
+          integer(iintegers) :: Ntot(5)
+
+          if(sendid.eq.myid) Ntot = shape(arr)
+          call mpi_bcast(Ntot,5_mpiint,imp_int,sendid,imp_comm,mpierr)
+
+          if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3), Ntot(4), Ntot(5) ) )
           call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr)
       end subroutine
 
