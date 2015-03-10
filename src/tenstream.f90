@@ -1405,7 +1405,7 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
       logical :: linit
 
       MatNullSpace :: nullspace
-!      PetscReal,parameter :: rtol=epsilon(one)*10, atol=epsilon(one)*10
+      Vec :: nullvecs(0)
       character(len=*),optional :: prefix
 
       PetscReal,parameter :: rtol=1e-5_ireals, atol=1e-5_ireals
@@ -1462,8 +1462,8 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
 
       call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
 
-!      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, nullspace, ierr) ; CHKERRQ(ierr)
-!      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
+      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, nullvecs, nullspace, ierr) ; CHKERRQ(ierr)
+      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
 
       linit = .True.
       if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
