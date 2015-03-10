@@ -124,7 +124,7 @@ module m_tenstream
       end type
       type(t_suninfo),save :: sun
 
-      PetscLogStage,save :: logstage(10)
+      PetscLogStage,save :: logstage(11)
 
       Mat,save :: Mdir,Mdiff
 
@@ -1532,6 +1532,7 @@ subroutine setup_logging()
     call PetscLogStageRegister('twostream'       , logstage(8)     , ierr) ;CHKERRQ(ierr)
     call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;CHKERRQ(ierr)
     call PetscLogStageRegister('write_hdf5'      , logstage(10)    , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('load_save_sol'   , logstage(11)    , ierr) ;CHKERRQ(ierr)
 
     if(myid.eq.0 .and. ldebug) print *, 'Logging stages' , logstage
     logstage_init=.True.
@@ -2343,6 +2344,7 @@ end subroutine
               call exit(1)
             endif
 
+            call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
             if( .not. solutions(uid)%lset ) then
               loaded = .False.
             else
@@ -2371,6 +2373,7 @@ end subroutine
 
               loaded = .True.
             endif
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
         end function
         function need_new_solution(uid,time)
@@ -2392,6 +2395,7 @@ end subroutine
               return 
             endif
 
+            call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
             do k=1,Nfit
               t(k) = solutions(uid)%time(Nfit-k+1)
             enddo
@@ -2421,6 +2425,7 @@ end subroutine
             if(ierr.ne.0) then 
               need_new_solution=.True.
               write(reason,*) 'problem fitting error curve'
+              call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
               return
             endif
 
@@ -2481,6 +2486,7 @@ end subroutine
               write (out_unit,*) uid,solutions(uid)%twonorm
               close (out_unit)
             endif
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
             contains
               subroutine exponential(x1, y1, x2, y2, x3, y3)
@@ -2595,6 +2601,7 @@ end subroutine
               call exit(1)
             endif
 
+            call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
             if( .not. solutions(uid)%lset ) then
               if(myid.eq.0 .and. ldebug) print *,'duplicating vectors to store solution',uid
               call VecDuplicate(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
@@ -2630,6 +2637,7 @@ end subroutine
             endif
             !TODO: this is for the residual history tests...
 !            if(time-last_solution_save_time .le. 30._ireals .and. last_solution_save_time.ne.time ) return ! if not even 30 seconds went by, just return
+!            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 !            return
             last_solution_save_time=time
 
@@ -2653,6 +2661,7 @@ end subroutine
               call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr) ;CHKERRQ(ierr)
               if(myid.eq.0) print *,'saving vectors ediff norms',norm1,norm2
             endif
+            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
 !            write(vecname,FMT='("edir",I0)') uid
 !            call PetscObjectSetName(edir,vecname,ierr) ; CHKERRQ(ierr)
