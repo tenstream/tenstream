@@ -45,8 +45,13 @@
 
 module m_tenstream
 
+#ifdef _XLF
+      use ieee_arithmetic 
+#define isnan ieee_is_nan
+#endif
+
 #include "finclude/petscdef.h"
-use petsc
+      use petsc
       use m_data_parameters, only : ireals,iintegers,       &
         imp_comm, myid, numnodes,init_mpi_data_parameters,mpiint, &
         zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
@@ -745,11 +750,7 @@ use petsc
                endif
 
                if(ldebug) then
-#ifndef _XLF
                  if( any(isnan(coeff)) .or. any(coeff.lt.zero) .or. any(coeff.gt.one) ) print *,'Wrong coeff',coeff,'op',op
-#else                 
-                 if( any(coeff.lt.zero) .or. any(coeff.gt.one) ) print *,'Wrong coeff',coeff,'op',op
-#endif
                endif
                call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
         end subroutine
@@ -1329,11 +1330,9 @@ subroutine calc_flx_div(edir,ediff,abso)
 
               endif
               xabso(i0,i,j,k) = sum(div2) / Volume
-#ifndef _XLF
               if(ldebug) then
                 if( isnan(xabso(i0,i,j,k)) ) print *,'nan in flxdiv',i,j,k,'::',xabso(i0,i,j,k),Volume,'::',div2
               endif
-#endif
             enddo                             
           enddo                             
         enddo   
@@ -1514,12 +1513,10 @@ subroutine MyKSPConverged(ksp,n,rnorm,flag,dummy,ierr)
       return
     endif
 
-#ifndef _XLF
     if(isnan(rnorm)) then
       flag=-9
       return
   endif
-#endif
 end subroutine
 
 subroutine setup_logging()
@@ -2070,7 +2067,6 @@ end subroutine
       if(allocated(atm%planck)) deallocate(atm%planck)
     endif
 
-#ifndef _XLF
     if(ldebug) then
       if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
         print *,myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
@@ -2085,7 +2081,6 @@ end subroutine
         print *,myid,'set_optical_properties :: found illegal value in optical properties! abort!'
       endif
     endif
-#endif      
 
     if(ldebug.and.myid.eq.0) then
       if(present(local_kabs) ) then 
@@ -2114,13 +2109,11 @@ end subroutine
     atm%delta_op = atm%op
     call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
 
-#ifndef _XLF
     if(ldebug) then
       if( (any([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g]))) ) then
         print *,myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
       endif
     endif
-#endif      
 
     if(luse_eddington) then
       if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze ))   ! allocate space for twostream coefficients
