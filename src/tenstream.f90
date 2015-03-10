@@ -145,9 +145,9 @@ module m_tenstream
         logical :: lset=.False.
 
         !save error statistics
-        real(ireals) :: time   (3000) = -one
-        real(ireals) :: maxnorm(3000) = zero
-        real(ireals) :: twonorm(3000) = zero
+        real(ireals) :: time   (300) = -one
+        real(ireals) :: maxnorm(300) = zero
+        real(ireals) :: twonorm(300) = zero
         real(ireals),allocatable :: ksp_residual_history(:)
       end type
       type(t_state_container),save :: solutions(1000)
@@ -2435,7 +2435,7 @@ end subroutine
               integ_err(Nfit) = integ_err(Nfit) + polyc(k)*time**(k-1)
             enddo
 
-            error_estimate = abs( integ_err(Nfit)-integ_err(Nfit-1) )/ (time - t(Nfit))
+            error_estimate = abs( integ_err(Nfit)-integ_err(Nfit-1) )/ max(epsilon(time), time - t(Nfit))
 
             if(myid.eq.0 .and. error_estimate.le.zero) then
               print *,'DEBUG t',t
@@ -2610,7 +2610,7 @@ end subroutine
               call VecSet(solutions(uid)%ediff, zero, ierr) ; CHKERRQ(ierr)
               solutions(uid)%lset=.True.
             else
-              ! Also save the difference between last solution and now
+              ! If we already have a saved solution,  save the difference between last solution and now
 
               call VecDuplicate(abso , abso_old , ierr)  ; CHKERRQ(ierr) ! create abso_old vec in the image of abso vector.
               call calc_flx_div(solutions(uid)%edir,solutions(uid)%ediff, abso_old) ! and fill in absorption calculated from old values
@@ -2628,7 +2628,7 @@ end subroutine
 
               solutions(uid)%maxnorm( 1 ) = norm3 
               solutions(uid)%twonorm( 1 ) = norm2
-              solutions(uid)%time( 1 ) = time
+              solutions(uid)%time( 1 )    = time
 
               !            if(ldebug .and. myid.eq.0) &
               if(myid.eq.0) &
