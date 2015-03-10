@@ -1489,11 +1489,11 @@ subroutine MyKSPConverged(ksp,n,rnorm,flag,dummy,ierr)
 
     flag=0
     if(n.eq.0) then
-      initial_rnorm=rnorm
+      initial_rnorm=max(epsilon(rnorm),rnorm)
       return
     endif
 
-    if(rnorm/initial_rnorm.le.rtol) then
+    if(rnorm / initial_rnorm .le.rtol) then
       flag=2
       return
     endif
@@ -2189,15 +2189,20 @@ end subroutine
             endif
 
             ! ------------------------ Try load old solution -------
-            if( present(solution_uid) .and. present(solution_time) ) &
+            if( present(solution_uid) .and. present(solution_time) ) then
               loaded = load_solution(solution_uid)
+
+              ! scale from [W/m**2] to [W]      
+              if(edirTOA.gt.zero .and. sun%theta.ge.zero .and. .not.lintegrated_dir) &
+                  call scale_flx(edir ,C_dir , lintegrate=.True. ) 
+
+              if(.not.lintegrated_diff)  & 
+                call scale_flx(ediff,C_diff, lintegrate=.True. )
+
+            endif
 
             ! ---------------------------- Edir  -------------------
             if(edirTOA.gt.zero .and. sun%theta.ge.zero) then
-              if(.not.lintegrated_dir) & ! scale from [W/m**2] to [W]      
-                call scale_flx(edir ,C_dir , lintegrate=.True. ) 
-              if(.not.lintegrated_diff) & ! scale from [W/m**2] to [W]      
-                call scale_flx(ediff,C_diff, lintegrate=.True. )
 
               call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
               call setup_incSolar(incSolar,edirTOA)
