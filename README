@@ -6,7 +6,7 @@
   
   The solver is coupled to the software packages:
     LibRadtran  -- all purpose radiative transfer Library(partially free)
-    UCLA-LES    -- Large Eddy Simulation Code for high resolution cloud resolving simulations
+    UCLA-LES    -- Large Eddy Simulation for high resolution cloud resolving simulations
 
 ##################################################################################
 # Prerequisites for the Tenstream solver are
