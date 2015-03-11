@@ -1,9 +1,11 @@
-# The Tenstream solver approximately solves the radiative transfer equation in three dimensions.
-# The solver converts optical properties into irradiance and heating rates.
-# At the moment the conversion from physical variables like liquid water to optical properties is not included.
-# The solver is coupled to the software packages:
-#   LibRadtran  -- all purpose radiative transfer Library(partially free)
-#   UCLA-LES    -- Large Eddy Simulation Code for high resolution cloud resolving simulations
+The Tenstream solver approximately solves the radiative transfer equation
+in three dimensions.
+The solver converts optical properties into irradiance and heating rates.
+At the moment the conversion from physical variables like liquid water 
+to optical properties is not included.
+The solver is coupled to the software packages:
+  LibRadtran  -- all purpose radiative transfer Library(partially free)
+  UCLA-LES    -- Large Eddy Simulation Code for high resolution cloud resolving simulations
 
 ##################################################################################
 # Prerequisites for the Tenstream solver are
