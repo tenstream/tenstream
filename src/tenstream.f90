@@ -62,7 +62,7 @@ module m_tenstream
       use m_optprop_parameters, only : ldelta_scale
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
       use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
-              options_max_solution_err, options_max_solution_time, ltwostr_only
+              options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess
 
       implicit none
 
@@ -2181,6 +2181,7 @@ end subroutine
         real(ireals),      optional,intent(in) :: solution_time
         logical :: loaded
 
+            ! --------- Can we get an initial guess? ---------------
             if(ltwostr) then
               call twostream(edirTOA,edir,ediff)
               if(myid.eq.0) print *,'twostream calculation done'
@@ -2188,18 +2189,17 @@ end subroutine
               if(ltwostr_only) return
             endif
 
-            ! ------------------------ Try load old solution -------
-            if( present(solution_uid) .and. present(solution_time) ) then
+            if( present(solution_uid) .and. .not.luse_twostr_guess ) & ! if users specifically asks for twostream guess, dont overwrite with saved solution
               loaded = load_solution(solution_uid)
 
-              ! scale from [W/m**2] to [W]      
-              if(edirTOA.gt.zero .and. sun%theta.ge.zero .and. .not.lintegrated_dir) &
-                  call scale_flx(edir ,C_dir , lintegrate=.True. ) 
 
-              if(.not.lintegrated_diff)  & 
-                call scale_flx(ediff,C_diff, lintegrate=.True. )
+            ! --------- scale from [W/m**2] to [W] -----------------
+            if(edirTOA.gt.zero .and. sun%theta.ge.zero .and. .not.lintegrated_dir) &
+                call scale_flx(edir ,C_dir , lintegrate=.True. ) 
 
-            endif
+            if(.not.lintegrated_diff)  & 
+              call scale_flx(ediff,C_diff, lintegrate=.True. )
+
 
             ! ---------------------------- Edir  -------------------
             if(edirTOA.gt.zero .and. sun%theta.ge.zero) then
