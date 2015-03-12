@@ -78,3 +78,6 @@ mpirun -np 2 ./bin/petsc_solver -ident run_test -dx 70
 # Be proud, this is not an easy task!
 
 # You are now ready to proceed to your libRadtran installation....
+
+# If you installed everything and are ready to run it, please also check the solver options.
+# For examples look in doc/petscrc_example

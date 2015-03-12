@@ -1,0 +1,72 @@
+# This file contains example configurations for solver options.
+# These options may be supplied per commandline or put them into ~/.petscrc
+
+# define location where to put the lookuptables:
+-lut_basename /globally/reachable/path/for/rank/0/LUT_PREFIX_
+
+# at the end, print summary about timings at the different phases of the solver
+-log_summary
+
+# To see whats going on, specify:
+# specify prefix  -dir_ or -diff_ for direct and diffuse solver.
+
+# Monitor residuals for each solve
+-dir_ksp_monitor_true_residual
+-diff_ksp_monitor_true_residual
+
+# Show Solver information:
+-dir_ksp_view
+-diff_ksp_view
+
+# Check if , after how many iterations and why solver converged:
+-dir_ksp_converged_reason
+-diff_ksp_converged_reason
+
+# change solver tolerances
+-dir_ksp_rtol  1e-5
+-dir_ksp_atol  1e-25
+-diff_ksp_rtol 1e-5
+-diff_ksp_atol 1e-25
+
+# For small systems you may try -- bi-conjugate gradient solver with incomplete LU factorization with fill level 2
+# If you dont specify any options this is the default:
+-prefix_ksp_type bcgs
+-prefix_pc_type bjacobi
+-prefix_sub_pc_type ilu
+-prefix_sub_pc_factor_levels 2
+
+# If you want to try algebraic multigrid, try with something like:
+
+# Use gmres as outer solver, bcgs may diverge
+-prefix_ksp_type gmres
+
+# you may use ml or hypre amg
+-prefix_pc_type ml
+# or
+-prefix_pc_type hypre
+
+# if you use single precision, however you should checkout the native amg framework:
+-prefix_pc_type gamg
+
+# see what gamg does:
+-prefix_pc_gamg_verbose 1
+
+# use unsmoothed aggregation for unsymmetric problems
+-prefix_pc_gamg_agg_nsmooths 0
+
+# symmetrize graphs
+-prefix_pc_gamg_sym_graph true
+
+# use richardson solver on each coarse level -- bcgs is also nice but may lead to erratic outer solver -- then better use flexible outer solver fgmres or gcr
+-prefix_mg_levels_ksp_type richardson
+
+# use SOR as smoother with 8 iterations
+-prefix_mg_levels_pc_type sor
+-prefix_mg_levels_pc_sor_its 8
+
+# reuse interpolation structure for subsequent solves
+-prefix_pc_gamg_reuse_interpolation true
+
+
+
+
