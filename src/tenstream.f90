@@ -1369,10 +1369,10 @@ subroutine solve(ksp,b,x,solution_uid)
       call KSPGetConvergedReason(ksp,reason,ierr) ;CHKERRQ(ierr)
 
       if(myid.eq.0.and.ldebug) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
-      if(reason.eq.KSP_DIVERGED_ITS) then
-        if(myid.eq.0) print *,'We take our chances, that this is a meaningful output.... and just go on'
-        return
-      endif
+!      if(reason.eq.KSP_DIVERGED_ITS) then
+!        if(myid.eq.0) print *,'We take our chances, that this is a meaningful output.... and just go on'
+!        return
+!      endif
 
       if(reason.le.0) then
               if(myid.eq.0.and.ldebug) print *,myid,'Resetted initial guess to zero and try again with gmres:'
@@ -1409,7 +1409,7 @@ subroutine setup_ksp(ksp,C,A,linit, prefix)
       character(len=*),optional :: prefix
 
       PetscReal,parameter :: rtol=1e-5_ireals, atol=1e-5_ireals
-      PetscInt,parameter  :: maxiter=1000
+      PetscInt,parameter  :: maxiter=10000
 
       PetscInt,parameter :: ilu_default_levels=1
       PetscInt :: pcbjac_n_local, pcbjac_iglob ! number of local ksp contexts and index in global ksp-table
