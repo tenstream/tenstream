@@ -2187,9 +2187,14 @@ end subroutine
               if(myid.eq.0) print *,'twostream calculation done'
 
               if(ltwostr_only) return
+
+              if(.not.luse_twostr_guess) then
+                call VecSet(edir ,zero,ierr); CHKERRQ(ierr)
+                call VecSet(ediff,zero,ierr); CHKERRQ(ierr)
+              endif
             endif
 
-            if( present(solution_uid) .and. .not.luse_twostr_guess ) & ! if users specifically asks for twostream guess, dont overwrite with saved solution
+            if( present(solution_uid) ) & 
               loaded = load_solution(solution_uid)
 
 
