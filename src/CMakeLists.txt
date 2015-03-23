@@ -51,6 +51,8 @@ target_link_libraries( "Cwrapper_test" tenstream)
 add_executable( "fitLUT" "fitLUT.f90" )
 target_link_libraries( "fitLUT" tenstream )
 
+add_executable( "test_eddington" "test_eddington.f90" )
+target_link_libraries( "test_eddington" tenstream )
 
 install(TARGETS tenstream DESTINATION lib)
 

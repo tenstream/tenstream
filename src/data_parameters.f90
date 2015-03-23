@@ -48,6 +48,7 @@ module m_data_parameters
           iintegers = kind(petscint_dummy), &
           ireals = kind(petscreal_dummy),   &
 !          ireal128 = selected_real_kind(33, 4931), &
+!          ireal128 = selected_real_kind(6, 37), &
           ireal128 = selected_real_kind(15, 307), &
           ireal_dp = selected_real_kind(15, 307), &
           mpiint = kind(mpiint_dummy)
