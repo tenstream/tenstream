@@ -329,7 +329,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             alpha_4 =  omega_0 * (one-b_minus_mu0)
 
             den = (one/mu_0)**2 - lambda**2
-            if( den.lt.-epsilon(den) .or. den.gt.epsilon(den)  ) then !avoid resonance case
+            if( den.ge.-epsilon(den) .and. den.le.epsilon(den)  ) then !avoid resonance case
               if(mu_0.gt..5_ireal128) then
                 den = (one/ (mu_0 - 1e-6_ireal128) )**2 - lambda**2
               else
