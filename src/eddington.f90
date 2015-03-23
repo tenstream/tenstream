@@ -20,6 +20,12 @@
 module m_eddington
       use m_data_parameters, only: ireals,iintegers,mpiint,imp_comm,zero,one,pi,ireal128
       use m_helper_functions, only: approx,delta_scale_optprop
+
+#ifdef _XLF
+  use ieee_arithmetic 
+#define isnan ieee_is_nan
+#endif
+
       implicit none
 
       private
