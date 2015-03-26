@@ -11,6 +11,10 @@ program main
 
       print *,'Checking eddington coefficients'
 
+      inp = [ 0.1931012775E-04, 0.4384377003, -0.0000000000E+00,  0.7070999742 ]
+      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
+      print *,inp,'::',out
+
       inp = [ 4.895462513 , 0.3104626103E-05 , -0.0000000000E+00 , 0.49999997019767761  ] ! resonance case
       call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
       print *,inp,'::',out
