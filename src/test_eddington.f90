@@ -11,6 +11,10 @@ program main
 
       print *,'Checking eddington coefficients'
 
+      inp = [ 0.1731484532,  0.6180083156, 0.4121485054, 1.00000000000 ]
+      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
+      print *,inp,'::',out
+
       inp = [ 0.1931012775E-04, 0.4384377003, -0.0000000000E+00,  0.7070999742 ]
       call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
       print *,inp,'::',out

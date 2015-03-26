@@ -276,6 +276,8 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           real(ireal128) ::  lambda, A, den, g0, e1,e2
           real(ireal128) ::  alpha1_p_lambda, alpha1_m_lambda
 
+          real(ireal128),parameter ::  eps_resonance=1e-6_ireal128
+
           ! Singularities -- dont use values before here
           dtau   = max( epsilon(dtau_in)   , dtau_in   )
           dtau   = min( 100._ireal128      , dtau      )
@@ -329,11 +331,12 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             alpha_4 =  omega_0 * (one-b_minus_mu0)
 
             den = (one/mu_0)**2 - lambda**2
-            if( abs(den).le.sqrt(epsilon(den)) ) then ! den.ge.-epsilon(den) .and. den.le.epsilon(den)  ) then !avoid resonance case
+            if( abs(den).le.eps_resonance ) then ! den.ge.-epsilon(den) .and. den.le.epsilon(den)  ) then !avoid resonance case
+              print *, 'resonance'
               if(mu_0.gt..5_ireal128) then
-                den = (one/ (mu_0 - sqrt(epsilon(den))) )**2 - lambda**2
+                den = one/ (mu_0**2 - eps_resonance)  - lambda**2
               else
-                den = (one/ (mu_0 + sqrt(epsilon(den))) )**2 - lambda**2
+                den = one/ (mu_0**2 + eps_resonance)  - lambda**2
               endif
             endif
 
@@ -374,7 +377,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
               .or. any(isnan([a11,a12,a13,a23,a33,g1,g2]))  ) then
             print *,'eddington ',dtau_in,omega_0_in,g_in,'::',a11,a12,a13,a23,a33,g1,g2
             print *,'eddington ',dtau,omega_0,g,mu_0,':1:',A,lambda,alpha_1,alpha_2,e1,e2,g0
-            print *,'eddington ',dtau,omega_0,g,mu_0,':2:',alpha_3,alpha_4,(one/mu_0)**2 - lambda**2,alpha_5,alpha_6
+            print *,'eddington ',dtau,omega_0,g,mu_0,':2:',alpha_3,alpha_4,den,(one/mu_0)**2 - lambda**2,alpha_5,alpha_6
             print *,'eddington ',dtau,omega_0,g,mu_0,':3:',beta11,beta21,beta12,beta22,beta13,beta23
             print *,'eddington ',dtau,omega_0,g,mu_0,':4:',gamma11,gamma12,gamma21,gamma22
             print *,'eddington ',dtau,omega_0,g,mu_0,':5:',beta13*gamma12,beta23*gamma22,alpha_6*a33
