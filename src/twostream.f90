@@ -19,7 +19,7 @@
 
 module m_twostream
       use m_data_parameters, only: ireals,iintegers,zero,one,pi
-      use m_eddington, only: eddington_coeff_fab
+      use m_eddington, only: eddington_coeff_zdun
       use m_helper_functions, only : delta_scale_optprop
       implicit none
 
@@ -66,8 +66,11 @@ module m_twostream
         call delta_scale_optprop( dtau, w0, g  )
 
         do k=1,ke
-          call eddington_coeff_fab (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k), g1(k),g2(k) )
-!          print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k)
+          call eddington_coeff_zdun (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k), g1(k),g2(k) )
+          if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k),g1(k),g2(k)] )) ) then
+            print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k),'::',g1(k),g2(k)
+            call exit()
+          endif
         enddo
 
         S(1) = incSolar ! irradiance on tilted plane
