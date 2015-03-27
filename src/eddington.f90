@@ -332,7 +332,6 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
             den = (one/mu_0)**2 - lambda**2
             if( abs(den).le.eps_resonance ) then ! den.ge.-epsilon(den) .and. den.le.epsilon(den)  ) then !avoid resonance case
-              print *, 'resonance'
               if(mu_0.gt..5_ireal128) then
                 den = one/ (mu_0**2 - eps_resonance)  - lambda**2
               else
