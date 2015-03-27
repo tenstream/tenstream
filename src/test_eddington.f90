@@ -11,6 +11,9 @@ program main
 
       print *,'Checking eddington coefficients'
 
+      inp = [0.2018013448, 0.3797843754, 0.4556422830, 1.00000000000]
+      call calc(inp)
+
       inp = [ 0.1731484532,  0.6180083156, 0.4121485054, 1.00000000000 ]
       call calc(inp)
 
@@ -43,11 +46,11 @@ program main
             real(ireals) :: inp(4)
             real(ireals) :: out1(7),out2(7)
 
-            call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out1(1),out1(2),out1(3),out1(4),out1(5),out1(6),out1(7))
-            call eddington_coeff_zdun(inp(1),inp(2),inp(3),inp(4),out2(1),out2(2),out2(3),out2(4),out2(5),out2(6),out2(7))
             print *,'inp ::',inp
-            print *,'fab  ::',out1
+            call eddington_coeff_zdun(inp(1),inp(2),inp(3),inp(4),out2(1),out2(2),out2(3),out2(4),out2(5),out2(6),out2(7))
             print *,'zdun ::',out2
+!            call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out1(1),out1(2),out1(3),out1(4),out1(5),out1(6),out1(7))
+            print *,'fab  ::',out1
             print *,''
         end subroutine
 

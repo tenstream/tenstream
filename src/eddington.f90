@@ -305,13 +305,14 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           e1 = min(huge(e1)   , exp( lambda*dtau))
           e2 = max(epsilon(e2), exp(-lambda*dtau))
 
-          A = one / ( alpha_2/(alpha_1-lambda) *e1 - alpha_2/(alpha_1+lambda) * e2 )
 
 !          a11 = A * 2._ireal128 * lambda / alpha_2
 !          a12 = A * ( e1 - e2 )
 
           alpha1_m_lambda = max(epsilon(alpha_1), alpha_1-lambda )
           alpha1_p_lambda = max(epsilon(alpha_1), alpha_1+lambda )
+
+          A = one / ( alpha_2/(alpha1_m_lambda) *e1 - alpha_2/(alpha1_p_lambda) * e2 )
 
           beta11  =  A * alpha_2/alpha1_m_lambda
           beta21  = -A * alpha_2/alpha1_p_lambda
