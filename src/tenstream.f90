@@ -62,7 +62,7 @@ module m_tenstream
       use m_optprop_parameters, only : ldelta_scale
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
       use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
-              options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess
+              options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess, lcalc_nca
 
       implicit none
 
@@ -124,7 +124,7 @@ module m_tenstream
       end type
       type(t_suninfo),save :: sun
 
-      PetscLogStage,save :: logstage(11)
+      PetscLogStage,save :: logstage(12)
 
       Mat,save :: Mdir,Mdiff
 
@@ -1271,8 +1271,15 @@ subroutine calc_flx_div(edir,ediff,abso)
         if(lintegrated_dir) stop 'tried calculating absorption but dir  vector was in [W], not in [W/m**2], scale first!'
         if(lintegrated_diff)stop 'tried calculating absorption but diff vector was in [W], not in [W/m**2], scale first!'
 
+        if( lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
+          call nca_wrapper(ediff,abso)
+          return
+        endif
+
         if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence'
         call VecSet(abso,zero,ierr) ;CHKERRQ(ierr)
+
+        ! TODO: if there are no 3D layers, we should skip the ghost value copying....
 
         ! Copy ghosted values for direct vec
         call DMCreateLocalVector(C_dir%da ,ledir ,ierr)                   ; CHKERRQ(ierr)
@@ -1533,9 +1540,73 @@ subroutine setup_logging()
     call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;CHKERRQ(ierr)
     call PetscLogStageRegister('write_hdf5'      , logstage(10)    , ierr) ;CHKERRQ(ierr)
     call PetscLogStageRegister('load_save_sol'   , logstage(11)    , ierr) ;CHKERRQ(ierr)
+    call PetscLogStageRegister('nca'             , logstage(12)    , ierr) ;CHKERRQ(ierr)
 
     if(myid.eq.0 .and. ldebug) print *, 'Logging stages' , logstage
     logstage_init=.True.
+end subroutine
+
+subroutine nca_wrapper(ediff,abso)
+    use m_nca, only : nca
+    Vec :: ediff,abso
+    Vec :: lediff ! local ediff vector with ghost values -- in dimension 0 and 1 are fluxes followed by dz,planck,kabs
+
+    PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
+    PetscReal,pointer,dimension(:)       :: xv1d=>null()
+    integer(iintegers) :: i,j,k,src
+
+    real(ireals),allocatable,dimension(:,:,:) :: dz_g, planck_g, kabs_g, hr, Edn_g, Eup_g
+
+    call PetscLogStagePush(logstage(12),ierr) ;CHKERRQ(ierr)
+
+    ! put additional values into ediff vec .. TODO: this is a rather dirty hack but is straightforward
+    call getVecPointer(ediff ,C_diff ,xv1d, xv)
+    xv(  i2, :,:, C_diff%zs:C_diff%ze-1 ) = atm%dz
+    xv(  i2, :,:, C_diff%ze ) = zero
+
+    xv(  i3, :,:, C_diff%zs:C_diff%ze   ) = atm%planck
+
+    xv(  i4, :,:, C_diff%zs:C_diff%ze-1 ) = atm%delta_op%kabs
+    xv(  i4, :,:, C_diff%ze ) = zero
+    call restoreVecPointer(ediff ,C_diff ,xv1d, xv )
+
+
+    ! get ghost values for dz, planck, kabs and fluxes and pack em in new arrays
+    call DMCreateLocalVector(C_diff%da ,lediff ,ierr)                   ; CHKERRQ(ierr)
+    call VecSet(lediff,zero,ierr); CHKERRQ(ierr)
+
+    call DMGlobalToLocalBegin(C_diff%da ,ediff ,ADD_VALUES,lediff ,ierr) ; CHKERRQ(ierr)
+    call DMGlobalToLocalEnd(C_diff%da ,ediff ,ADD_VALUES,lediff ,ierr)   ; CHKERRQ(ierr)
+
+    allocate ( dz_g     ( C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye ) )
+    allocate ( kabs_g   ( C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye ) )
+    allocate ( planck_g ( C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye ) )
+    allocate ( Edn_g    ( C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye ) )
+    allocate ( Eup_g    ( C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye ) )
+    allocate ( hr       ( C_diff%zs:C_diff%ze, C_diff%xs :C_diff%xe , C_diff%ys :C_diff%ye  ) )
+
+    call getVecPointer(lediff ,C_diff ,xv1d, xv)
+    do k=C_diff%zs,C_diff%ze 
+      Edn_g   (k,:,:) = xv( E_dn, :,:, k )
+      Eup_g   (k,:,:) = xv( E_up, :,:, k )
+      dz_g    (k,:,:) = xv(   i2, :,:, k )
+      planck_g(k,:,:) = xv(   i3, :,:, k )
+      kabs_g  (k,:,:) = xv(   i4, :,:, k )
+    enddo
+    call restoreVecPointer(lediff ,C_diff ,xv1d, xv )
+
+    call VecDestroy(lediff, ierr) ; CHKERRQ(ierr)
+
+    call nca(C_diff%gzm, C_diff%gxm, C_diff%gym, dz_g, planck_g, kabs_g, hr, atm%dx, atm%dy, Edn_g, Eup_g)
+
+
+    call getVecPointer( abso, C_one ,xv1d, xv)
+    do k=C_one%zs,C_one%ze 
+      xv(i0,:,:,k) = hr(k,:,:)
+    enddo
+    call restoreVecPointer( abso ,C_one ,xv1d, xv )
+
+    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 end subroutine
 
 subroutine twostream(edirTOA,edir,ediff)
@@ -1981,6 +2052,7 @@ end subroutine
                 endif
           end subroutine
     end subroutine
+
     subroutine scatterZerotoDM(arr,C,vec)
         real(ireals),allocatable,dimension(:,:,:),intent(in) :: arr
         type(t_coord),intent(in) :: C

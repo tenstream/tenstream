@@ -1,3 +1,4 @@
+
 #message( "Entering tenstream src dir with EXTLIB==${EXTLIB} ")
 
 include_directories (${CMAKE_CURRENT_SOURCE_DIR})
@@ -16,6 +17,7 @@ set( general_sources
   "tenstream.f90"
   "tenstream_options.f90"
   "f2c_tenstream.f90"
+  "nca.f90"
   )
 
 set( optprop_sources
