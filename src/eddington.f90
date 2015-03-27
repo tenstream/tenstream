@@ -29,7 +29,7 @@ module m_eddington
       implicit none
 
       private
-      public :: eddington_coeff_rb,eddington_coeff_fab,eddington_coeff_cosmo
+      public :: eddington_coeff_rb,eddington_coeff_fab,eddington_coeff_cosmo,eddington_coeff_zdun
 
       integer(mpiint) :: VALUE_ERROR=-5
 
@@ -177,7 +177,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           a13 = zg1*(1.-a11*a33) -zg2*a12
 
       end subroutine
-      subroutine eddington_coeff_fab2(dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23,a33,g1,g2)
+      subroutine eddington_coeff_fab(dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23,a33,g1,g2)
           real(ireals),intent(in) :: dtau_in,g_in,omega_0_in,mu_0
           real(ireals),intent(out) :: a11,a12,a13,a23,a33,g1,g2
 
@@ -263,7 +263,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 !          endif
 
       end subroutine
-      subroutine eddington_coeff_fab(dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23,a33,g1,g2)
+      subroutine eddington_coeff_zdun(dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23,a33,g1,g2)
           real(ireals),intent(in) :: dtau_in,g_in,omega_0_in,mu_0
           real(ireals),intent(out) :: a11,a12,a13,a23,a33,g1,g2
 
@@ -271,10 +271,11 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           real(ireal128) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6
           real(ireal128) ::  beta11,beta21,beta12,beta22,beta13,beta23
-          real(ireal128) ::  gamma11,gamma12,gamma21,gamma22
+          real(ireal128) ::  gamma12,gamma22
           real(ireal128) ::  mubar, bbar, b_minus_mu0
           real(ireal128) ::  lambda, A, den, g0, e1,e2
           real(ireal128) ::  alpha1_p_lambda, alpha1_m_lambda
+          real(ireal128) ::  bscr
 
           real(ireal128),parameter ::  eps_resonance=1e-6_ireal128
 
@@ -284,7 +285,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           g      = max( 1e-6_ireals        , g_in      )
           omega_0= max( epsilon(omega_0_in), omega_0_in)
 
-          omega_0 = min(omega_0, one-epsilon(omega_0))
+          omega_0 = min(omega_0, one-eps_resonance)
           ! Singularities -- dont use values before here
 
 
@@ -294,6 +295,10 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           alpha_1 = ( one - omega_0*(one-bbar) ) / mubar 
           alpha_2 = omega_0*bbar/mubar
+
+          bscr = 0.5_ireal128 - 0.375_ireal128 * g;
+          alpha_1 = 2._ireal128 * ( 1._ireal128 - omega_0 * ( 1._ireal128 - bscr ) ) - 0.25_ireal128;
+          alpha_2 = 2._ireal128 * omega_0 * bscr - 0.25_ireal128;
 
           lambda = sqrt(alpha_1**2 - alpha_2** 2) 
 
@@ -313,16 +318,16 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           beta12  = -A * e2
           beta22  =  A * e1
 
-          gamma11 = one
-          gamma12 = alpha_2/(alpha1_p_lambda) * e1
-          gamma21 = one
-          gamma22 = alpha_2/(alpha1_m_lambda) * e2
+!          gamma11 = one
+          gamma12 = alpha_2/alpha1_p_lambda * e1
+!          gamma21 = one
+          gamma22 = alpha_2/alpha1_m_lambda * e2
 
-          a11 = beta11*gamma11 + beta21*gamma21
-          a12 = beta12*gamma11 + beta22*gamma21
+          a11 = beta11 + beta21
+          a12 = beta12 + beta22
 
-          a11 = min(one, a11)
-          a12 = min(one, a12)
+          a11 = max(zero,  min(one, a11) )
+          a12 = max(zero,  min(one, a12) )
 
           if(mu_0.gt.epsilon(mu_0)) then
             a33     = exp ( - dtau  / mu_0 )
@@ -345,7 +350,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             beta13  = -beta11*alpha_5 * a33 - beta12*alpha_6
             beta23  = -beta21*alpha_5 * a33 - beta22*alpha_6
 
-            a13 = beta13*gamma11 + beta23*gamma21 + alpha_5
+            a13 = beta13         + beta23         + alpha_5
             a23 = beta13*gamma12 + beta23*gamma22 + alpha_6*a33
 
             a13 = a13 / mu_0 !Fabian: Roberts coefficients a13 expect S to be
@@ -361,12 +366,6 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             a23=zero
           endif
 
-
-          !          a11 = min(one, max( zero, a11 ) )
-          !          a12 = min(one, max( zero, a12 ) )
-          !          a13 = min(one, max( zero, a13 ) )
-          !          a23 = min(one, max( zero, a23 ) )
-
           g0 = (one-omega_0)/mubar ! this is alpha3/pi in zdunkowsky for thermal part
           g1 = g0 / (alpha_1-alpha_2)
           g2 = g0 / lambda**2
@@ -378,7 +377,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             print *,'eddington ',dtau,omega_0,g,mu_0,':1:',A,lambda,alpha_1,alpha_2,e1,e2,g0
             print *,'eddington ',dtau,omega_0,g,mu_0,':2:',alpha_3,alpha_4,den,(one/mu_0)**2 - lambda**2,alpha_5,alpha_6
             print *,'eddington ',dtau,omega_0,g,mu_0,':3:',beta11,beta21,beta12,beta22,beta13,beta23
-            print *,'eddington ',dtau,omega_0,g,mu_0,':4:',gamma11,gamma12,gamma21,gamma22
+            print *,'eddington ',dtau,omega_0,g,mu_0,':4:',gamma12,gamma22
             print *,'eddington ',dtau,omega_0,g,mu_0,':5:',beta13*gamma12,beta23*gamma22,alpha_6*a33
             print *,'eddington ',dtau,omega_0,g,mu_0,':6:',alpha1_m_lambda,alpha1_p_lambda
             call exit()
@@ -390,7 +389,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             print *,'eddington enercons',dtau,omega_0,g,mu_0,':1:',A,lambda,alpha_1,alpha_2,e1,e2,g0
             print *,'eddington enercons',dtau,omega_0,g,mu_0,':2:',alpha_3,alpha_4,(one/mu_0)**2 - lambda**2,alpha_5,alpha_6
             print *,'eddington enercons',dtau,omega_0,g,mu_0,':3:',beta11,beta21,beta12,beta22,beta13,beta23
-            print *,'eddington enercons',dtau,omega_0,g,mu_0,':4:',gamma11,gamma12,gamma21,gamma22
+            print *,'eddington enercons',dtau,omega_0,g,mu_0,':4:',gamma12,gamma22
             print *,'eddington enercons',dtau,omega_0,g,mu_0,':5:',beta13*gamma12,beta23*gamma22,alpha_6*a33
             call exit()
           endif

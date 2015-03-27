@@ -22,7 +22,7 @@ program main
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
       use mpi
       use m_data_parameters, only : mpiint,ireals,iintegers,one,zero, init_mpi_data_parameters,i1
-      use m_eddington, only : eddington_coeff_fab
+      use m_eddington, only : eddington_coeff_zdun
       use m_helper_functions, only: deg2rad,delta_scale
 
       implicit none
@@ -117,7 +117,7 @@ program main
         g   = bg(3)
         planck = one
 
-        call eddington_coeff_fab ( tau , w, g, cos(deg2rad(theta0)), a11, a12, a13, a23, a33, g1, g2 )
+        call eddington_coeff_zdun ( tau , w, g, cos(deg2rad(theta0)), a11, a12, a13, a23, a33, g1, g2 )
         if(tau.gt.0.01_ireals) then
           p0 = planck(1)
           p1 = (planck(1)-planck(2))/tau
@@ -171,7 +171,7 @@ program main
         tau = (delta_bg(1)+delta_bg(2))*dz
         w   = delta_bg(2)/(delta_bg(1)+delta_bg(2))
         g   = delta_bg(3)
-        call eddington_coeff_fab ( tau , w, g, cos(deg2rad(theta0)), a11, a12, a13, a23, a33, g1, g2 )
+        call eddington_coeff_zdun ( tau , w, g, cos(deg2rad(theta0)), a11, a12, a13, a23, a33, g1, g2 )
 
         if(myid.eq.0) write(*, FMT='( "directeddington    ", 1(es10.3),"                                                                       ::   ",2(es10.3)," :: ",2(es10.3) )' ) a33,a13,a23,g1,g2
       endif

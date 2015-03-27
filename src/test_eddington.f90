@@ -12,42 +12,43 @@ program main
       print *,'Checking eddington coefficients'
 
       inp = [ 0.1731484532,  0.6180083156, 0.4121485054, 1.00000000000 ]
-      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
-      print *,inp,'::',out
+      call calc(inp)
 
       inp = [ 0.1931012775E-04, 0.4384377003, -0.0000000000E+00,  0.7070999742 ]
-      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
-      print *,inp,'::',out
+      call calc(inp)
 
       inp = [ 4.895462513 , 0.3104626103E-05 , -0.0000000000E+00 , 0.49999997019767761  ] ! resonance case
-      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
-      print *,inp,'::',out
+      call calc(inp)
 
       inp = [ 3.2662250689525390E-011 , 0.99999171495417127 ,       0.0000000000000000  , 0.17364817766693041 ]
-      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
-      print *,inp,'::',out
+      call calc(inp)
 
       inp = [ 2.9317851124478626E-012,   1.0000000000000000  ,      0.0000000000000000 , 0.17364817766693041 ]
-      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
-      print *,inp,'::',out
-
+      call calc(inp)
 
       inp = [1.93321303E-10,  0.999984443 ,      2.22044605E-16,  0.17364817766693041 ]
-      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
-      print *,inp,'::',out
+      call calc(inp)
 
       inp = [7.89528581E-11,  0.999988437  ,     2.22044605E-16 , 0.17364817766693041 ]
-      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
-      print *,inp,'::',out
+      call calc(inp)
       
       inp = [ 1.3865453490508738E-011 , 0.99999499320987351 , 0.0000000000000000 , 0.17364817766693041 ]
-      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
-      print *,inp,'::',out
+      call calc(inp)
 
       inp = [ 113.59224626216431 , 2.7005225550306174E-008 , 0.0000000000000000  , 0.17364817766693041 ]
-      call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
-      print *,inp,'::',out
+      call calc(inp)
 
+      contains 
+        subroutine calc(inp)
+            real(ireals) :: inp(4)
+            real(ireals) :: out1(7),out2(7)
 
+            call eddington_coeff_fab(inp(1),inp(2),inp(3),inp(4),out1(1),out1(2),out1(3),out1(4),out1(5),out1(6),out1(7))
+            call eddington_coeff_zdun(inp(1),inp(2),inp(3),inp(4),out2(1),out2(2),out2(3),out2(4),out2(5),out2(6),out2(7))
+            print *,'inp ::',inp
+            print *,'fab  ::',out1
+            print *,'zdun ::',out2
+            print *,''
+        end subroutine
 
 end program

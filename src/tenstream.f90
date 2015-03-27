@@ -58,7 +58,7 @@ module m_tenstream
 
       use m_twostream, only: delta_eddington_twostream
       use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum
-      use m_eddington, only : eddington_coeff_fab
+      use m_eddington, only : eddington_coeff_zdun
       use m_optprop_parameters, only : ldelta_scale
       use m_optprop, only : t_optprop_1_2,t_optprop_8_10
       use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -1549,6 +1549,9 @@ subroutine twostream(edirTOA,edir,ediff)
     real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
     real(ireals) :: mu0,incSolar
 
+    call VecSet(edir ,zero,ierr); CHKERRQ(ierr)
+    call VecSet(ediff,zero,ierr); CHKERRQ(ierr)
+
     call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
 
     allocate( dtau(C_dir%zm-1) )
@@ -1558,9 +1561,6 @@ subroutine twostream(edirTOA,edir,ediff)
 
     mu0 = sun%costheta
     incSolar = edirTOA* sun%costheta
-
-    call VecSet(edir ,zero,ierr); CHKERRQ(ierr)
-    call VecSet(ediff,zero,ierr); CHKERRQ(ierr)
 
     call getVecPointer(edir  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
     call getVecPointer(ediff ,C_diff ,xv_diff1d, xv_diff ,.False.)
@@ -2135,7 +2135,7 @@ end subroutine
               w0   = atm%delta_op(i,j,k)%ksca / kext
               tau  = atm%dz(i,j,k)* kext
               g    = atm%delta_op(i,j,k)%g 
-              call eddington_coeff_fab ( tau , w0, g, sun%costheta, & 
+              call eddington_coeff_zdun ( tau , w0, g, sun%costheta, & 
                   atm%a11(i,j,k),          &
                   atm%a12(i,j,k),          &
                   atm%a13(i,j,k),          &
