@@ -24,7 +24,7 @@ module f2c_tenstream
       use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr,zero
 
       use m_tenstream, only : init_tenstream, set_global_optical_properties, solve_tenstream, destroy_tenstream,&
-                            edir,ediff,abso, &
+                              tenstream_get_result, edir,ediff,abso, &
                             t_coord,C_dir,C_diff,C_one
 
       use m_tenstream_options, only: read_commandline_options
@@ -167,6 +167,11 @@ contains
         real(c_float),intent(out),dimension(Nx,Ny,Nz+1) :: res_eup
         real(c_float),intent(out),dimension(Nx,Ny,Nz  ) :: res_abso
         real(ireals),allocatable,dimension(:,:,:,:) :: res
+        real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
+
+        allocate(rabso( C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze ))
+        call tenstream_get_result(redir,redn,reup,rabso) ! TODO -- this is a shitty hack to call get result once so that everything is in order to retrieve the results
+        deallocate(rabso)
 
         call globalVec2Local(edir,C_dir,res)
         if(myid.eq.0) res_edir = sum(res(1:4,1:Nx,1:Ny,:),dim=1) *.25_ireals
