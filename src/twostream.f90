@@ -18,6 +18,12 @@
 !-------------------------------------------------------------------------
 
 module m_twostream
+
+#ifdef _XLF
+      use ieee_arithmetic 
+#define isnan ieee_is_nan
+#endif
+
       use m_data_parameters, only: ireals,iintegers,zero,one,pi
       use m_eddington, only: eddington_coeff_zdun
       use m_helper_functions, only : delta_scale_optprop
@@ -134,14 +140,12 @@ module m_twostream
         enddo
         i=2*ke1-1 ; j=i+1 ; bi= KLU+i-j ; AB(bi,j) = -albedo ! Eup at surface is Edn*albedo
 
-#ifndef _XLF       
         do k=1,ke
           if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k)] )) ) then
             print *,'eddington coefficients',k,' source',B(2*k-1,1),B(2*k,1), 'eddington',a11(k),a12(k),' :: ',a13(k),a23(k), ' :: ',a33(k), ' :: ',dtau(k),w0(k),g(k),mu0,'S=',S(k)
             call exit()
           endif
         enddo
-#endif        
         
         INFO=-1
         if(kind(one).eq.kind(real(one)) ) then !single_precision
@@ -162,10 +166,8 @@ module m_twostream
         do k=1,ke1
           Eup(k) = B(2*k-1,NRHS) ! Eup
           Edn(k) = B(2*k,NRHS) ! Edn
-#ifndef _XLF       
           if(any(isnan( [Eup(k),Edn(k)] )) ) &
               print *,'setting value for Eup,Edn',k,' LAPACK entries',B(2*k-1,1),B(2*k,1),'Eup/dn', Eup(k),Edn(k),'IPIV',IPIV(2*k-1:2*k)
-#endif        
         enddo
 
         end subroutine

@@ -24,6 +24,10 @@ module m_boxmc
 #if defined(__INTEL_COMPILER)
       use ifport
 #endif
+#ifdef _XLF
+      use ieee_arithmetic 
+#define isnan ieee_is_nan
+#endif
       use m_helper_functions, only : approx,mean,rmse,deg2rad,norm
       use iso_c_binding
       use m_mersenne
@@ -201,12 +205,10 @@ contains
                                           - cos(deg2rad(theta0)) ]
       initial_dir = initial_dir/norm(initial_dir)
 
-#ifndef _XLF      
       if( (any(op_bg.lt.zero)) .or. (any(isnan(op_bg))) ) then
         print *,'corrupt optical properties: bg:: ',op_bg
         call exit
       endif
-#endif
 
       if(dx.le.zero .or. dy.le.zero .or. dz.le.zero ) then
         print *,'ERROR: box dimensions have to be positive!',dx,dy,dz
@@ -285,13 +287,11 @@ contains
         call print_photon(p)
         call exit
       endif
-#ifndef _XLF      
       if( (any(isnan(S_out) )) .or. (any(isnan(Sdir_out)) ) ) then
         print *,'Found a NaN in output! this should not happen! dir',Sdir_out,'diff',S_out
         call print_photon(p)
         call exit()
       endif
-#endif      
       call cpu_time(time(2))
 
       if(myid.le.0.and.rand().gt..99) then
@@ -402,13 +402,11 @@ subroutine update_photon_loc(p,dist)
         real(ireals),intent(in) :: dist
         call absorb_photon(p,dist)
         p%loc = p%loc + (dist*p%dir)
-#ifndef _XLF      
         if(any(isnan(p%loc))) then
           print *,'loc is now a NAN! ',p%loc,'dist',dist
           call print_photon(p)
           call exit
         endif
-#endif      
 end subroutine
 pure function hit_plane(p,po_i,pn_i)
         real(ireals) :: hit_plane

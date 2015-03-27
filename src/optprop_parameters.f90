@@ -85,7 +85,7 @@ module m_optprop_parameters
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
       ! what to expect.
-      logical,parameter :: ldebug_optprop=.True. 
+      logical,parameter :: ldebug_optprop=.False.
 
       ! Use delta scaling on optical properties? -- this significantly reduces
       ! the size of the lookuptables.

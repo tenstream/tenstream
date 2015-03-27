@@ -18,6 +18,12 @@
 !-------------------------------------------------------------------------
 
 module m_optprop
+
+#ifdef _XLF
+      use ieee_arithmetic 
+#define isnan ieee_is_nan
+#endif
+
 use m_optprop_parameters, only : ldebug_optprop, Ndir_8_10,Ndiff_8_10, Ndir_1_2,Ndiff_1_2, coeff_mode
 use m_helper_functions, only : rmse
 use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
@@ -290,14 +296,12 @@ contains
             real(ireals),intent(in) :: dz,g,kabs,ksca
             logical,intent(in) :: dir
             real(ireals),intent(in):: C(:)
-#ifndef _XLF
             if(OPP%optprop_debug) then
               if( (any([dz,kabs,ksca,g].lt.zero)) .or. (any(isnan([dz,kabs,ksca,g]))) ) then
                 print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[dz,kabs,ksca,g]
                 call exit
               endif
             endif
-#endif
             if(present(inp_angles)) then
               if(dir .and. size(C).ne. OPP%dir_streams**2) then
                 print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%dir_streams**2
