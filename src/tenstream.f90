@@ -1547,7 +1547,7 @@ subroutine setup_logging()
 end subroutine
 
 subroutine nca_wrapper(ediff,abso)
-    use m_nca, only : nca
+    use m_ts_nca, only : ts_nca
     Vec :: ediff,abso
     Vec :: lediff ! local ediff vector with ghost values -- in dimension 0 and 1 are fluxes followed by dz,planck,kabs
 
@@ -1578,27 +1578,30 @@ subroutine nca_wrapper(ediff,abso)
     call DMGlobalToLocalBegin(C_diff%da ,ediff ,ADD_VALUES,lediff ,ierr) ; CHKERRQ(ierr)
     call DMGlobalToLocalEnd(C_diff%da ,ediff ,ADD_VALUES,lediff ,ierr)   ; CHKERRQ(ierr)
 
-    allocate ( dz_g     ( C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye ) )
-    allocate ( kabs_g   ( C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye ) )
+    allocate ( dz_g     ( C_one%zs :C_one%ze ,  C_one%gxs: C_one%gxe,  C_one%gys: C_one%gye ) )
+    allocate ( kabs_g   ( C_one%zs :C_one%ze ,  C_one%gxs: C_one%gxe,  C_one%gys: C_one%gye ) )
     allocate ( planck_g ( C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye ) )
     allocate ( Edn_g    ( C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye ) )
     allocate ( Eup_g    ( C_diff%zs:C_diff%ze, C_diff%gxs:C_diff%gxe, C_diff%gys:C_diff%gye ) )
-    allocate ( hr       ( C_diff%zs:C_diff%ze, C_diff%xs :C_diff%xe , C_diff%ys :C_diff%ye  ) )
+    allocate ( hr       (  C_one%zs: C_one%ze,  C_one%xs : C_one%xe ,  C_one%ys : C_one%ye  ) )
 
     call getVecPointer(lediff ,C_diff ,xv1d, xv)
-    do k=C_diff%zs,C_diff%ze 
-      Edn_g   (k,:,:) = xv( E_dn, :,:, k )
-      Eup_g   (k,:,:) = xv( E_up, :,:, k )
+    do k= C_one%zs, C_one%ze 
       dz_g    (k,:,:) = xv(   i2, :,:, k )
-      planck_g(k,:,:) = xv(   i3, :,:, k )
       kabs_g  (k,:,:) = xv(   i4, :,:, k )
     enddo
+    do k= C_diff%zs, C_diff%ze 
+      Edn_g   (k,:,:) = xv( E_dn, :,:, k )
+      Eup_g   (k,:,:) = xv( E_up, :,:, k )
+      planck_g(k,:,:) = xv(   i3, :,:, k )
+    enddo
+
     call restoreVecPointer(lediff ,C_diff ,xv1d, xv )
 
     call VecDestroy(lediff, ierr) ; CHKERRQ(ierr)
 
-    call nca(C_diff%gzm, C_diff%gxm, C_diff%gym, dz_g, planck_g, kabs_g, hr, atm%dx, atm%dy, Edn_g, Eup_g)
-
+    hr=0
+    call ts_nca(C_one%zm, C_one%xm, C_one%ym, dz_g, planck_g, kabs_g, hr, atm%dx, atm%dy, Edn_g, Eup_g)
 
     call getVecPointer( abso, C_one ,xv1d, xv)
     do k=C_one%zs,C_one%ze 

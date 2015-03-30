@@ -21,18 +21,20 @@
 ! Klinger and Mayer, 2015, **
 ! carolin.klinger@physik.lmu.de
 !----------------------------------------------------------------------------
-module m_nca
+module m_ts_nca
   use m_data_parameters, only : ireals,iintegers
   implicit none
   !global vars
 
 contains
-  subroutine nca (nlyr, Nx, Ny, dz, B, kabs_3d, hr_nca_3d_tmp, dx, dy, Ldn, Lup)
+  subroutine ts_nca (nlyr, Nx, Ny, dz, B, kabs_3d, hr_nca_3d_tmp, dx, dy, Ldn, Lup)
 
     integer(iintegers), intent(in) :: Nx, Ny, nlyr
-    real(ireals), intent(in) :: dz(:,:,:), B(:,:,:), kabs_3d(:,:,:), dx, dy
-    real(ireals), intent(inout) :: Ldn(:,:,:), Lup(:,:,:)
-    real(ireals), intent(out) :: hr_nca_3d_tmp(:,:,:)
+    real(ireals), intent(in) :: dx, dy
+    real(ireals), intent(in),dimension(nlyr  ,0:Nx+1,0:Ny+1) :: dz, B, kabs_3d
+    real(ireals), intent(in),dimension(nlyr+1,0:Nx+1,0:Ny+1) :: Ldn,Lup
+
+    real(ireals), intent(out) :: hr_nca_3d_tmp(nlyr,Nx,Ny)
 
     ! ############## Definition of variables ##################
 
@@ -86,8 +88,8 @@ contains
     real(ireals)           :: l = 0.0
     real(ireals)           :: Trans = 0.0
 
-    real(ireals)           :: L_up_3d(nlyr,Nx,Ny)
-    real(ireals)           :: L_dn_3d(nlyr,Nx,Ny)
+    real(ireals)           :: L_up_3d(nlyr+1,0:Nx+1,0:Ny+1)
+    real(ireals)           :: L_dn_3d(nlyr+1,0:Nx+1,0:Ny+1)
     real(ireals)           :: B1 = 0
     real(ireals)           :: B2 = 0
     real(ireals)           :: B1_1 = 0
@@ -95,10 +97,10 @@ contains
 
     integer(iintegers) :: is,ie,js,je
 
-    is = lbound(Ldn,2)+1
-    ie = ubound(Ldn,2)-1
-    js = lbound(Ldn,3)+1
-    je = ubound(Ldn,3)-1
+    is = 1
+    ie = Nx
+    js = 1
+    je = Ny
 
     ! ### get radiance from flux (back converted at the end)
     L_dn_3d=Ldn/pi
@@ -106,7 +108,7 @@ contains
 
     ! ################# start 3d calculation ####################
     ! ###########################################################
-    do ilyr=1,nlyr-1    !  loop over all height levels 
+    do ilyr=1,nlyr    !  loop over all height levels 
        do ixx=is,ie           ! loop over all x gridboxes 
           do iyy=js,je         !  loop over all y gridboxes  
 
@@ -349,8 +351,7 @@ contains
           enddo ! iyy
        enddo ! ixx   
     enddo ! end ilyr
-   
-  end subroutine nca
+  end subroutine
 
 
   ! ################################################################################ 
@@ -472,4 +473,4 @@ contains
 
     endif
   end function integrate_emis
-end module m_nca
+end module m_ts_nca
