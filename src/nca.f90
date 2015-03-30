@@ -106,9 +106,9 @@ contains
 
     ! ################# start 3d calculation ####################
     ! ###########################################################
-    do ilyr=1,nlyr-1,1    !  loop over all height levels 
-       do ixx=3,Nx-2,1            ! loop over all x gridboxes 
-          do iyy=3,Ny-2,1         !  loop over all y gridboxes  
+    do ilyr=1,nlyr-1    !  loop over all height levels 
+       do ixx=is,ie           ! loop over all x gridboxes 
+          do iyy=js,je         !  loop over all y gridboxes  
 
 
            !  print*,ilyr, iyy, ixx, dz(ilyr,ixx,iyy), dx, dy
