@@ -232,7 +232,7 @@ contains
 
                    areaweight=dz(ilyr,ixx,iyy)/dx
 
-                   Absdn3 = integrate_abs((B1+B2)/2.,  L_dn_3d(ilyr,ixx,modulo(iyy-2,Nx)+1), kabs_3d(ilyr,ixx,modulo(iyy-2,Nx)+1), kabs_3d(ilyr,ixx,iyy),&
+                   Absdn3 = integrate_abs((B1+B2)/2.,  L_dn_3d(ilyr,ixx,modulo(iyy-2,Ny)+1), kabs_3d(ilyr,ixx,modulo(iyy-2,Ny)+1), kabs_3d(ilyr,ixx,iyy),&
                         az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)*areaweight
                    Emdn3 = -((B1+B2)/2.)*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)*areaweight    
 
@@ -244,7 +244,7 @@ contains
 
                    areaweight=dz(ilyr,ixx,iyy)/dx
 
-                   Absdn4 = integrate_abs((B1+B2)/2.,  L_dn_3d(ilyr,ixx,modulo(iyy,Nx)+1), kabs_3d(ilyr,ixx,modulo(iyy,Nx)+1), kabs_3d(ilyr,ixx,iyy),&
+                   Absdn4 = integrate_abs((B1+B2)/2.,  L_dn_3d(ilyr,ixx,modulo(iyy,Ny)+1), kabs_3d(ilyr,ixx,modulo(iyy,Ny)+1), kabs_3d(ilyr,ixx,iyy),&
                         az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)*areaweight
                    Emdn4 = -((B1+B2)/2.)*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)*areaweight
                 endif ! iface .eq. 5
@@ -309,7 +309,7 @@ contains
 
                    areaweight=dz(ilyr,ixx,iyy)/dx
 
-                   Absup3=integrate_abs((B1+B2)/2., L_up_3d(ilyr+1,ixx,modulo(iyy-2,Nx)+1), kabs_3d(ilyr,ixx,modulo(iyy-2,Nx)+1), kabs_3d(ilyr,ixx,iyy),&
+                   Absup3=integrate_abs((B1+B2)/2., L_up_3d(ilyr+1,ixx,modulo(iyy-2,Ny)+1), kabs_3d(ilyr,ixx,modulo(iyy-2,Ny)+1), kabs_3d(ilyr,ixx,iyy),&
                         az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)*areaweight
                    Emup3 = -((B1+B2)/2.)*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)*areaweight
                 endif ! iface .eq. 4
@@ -320,7 +320,7 @@ contains
 
                    areaweight=dz(ilyr,ixx,iyy)/dx
 
-                   Absup4=integrate_abs((B1+B2)/2., L_up_3d(ilyr+1,ixx,modulo(iyy,Nx)+1), kabs_3d(ilyr,ixx,modulo(iyy,Nx)+1), kabs_3d(ilyr,ixx,iyy),&
+                   Absup4=integrate_abs((B1+B2)/2., L_up_3d(ilyr+1,ixx,modulo(iyy,Ny)+1), kabs_3d(ilyr,ixx,modulo(iyy,Ny)+1), kabs_3d(ilyr,ixx,iyy),&
                         az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)*areaweight
                    Emup4 = -((B1+B2)/2.)*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)*areaweight
                 endif ! iface.eq.5
