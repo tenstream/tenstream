@@ -170,10 +170,6 @@ contains
         real(ireals),allocatable,dimension(:,:,:,:) :: res
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
-        allocate(rabso( C_one%xs:C_one%xe, C_one%ys:C_one%ye, C_one%zs:C_one%ze ))
-        call tenstream_get_result(redir,redn,reup,rabso) ! TODO -- this is a shitty hack to call get result once so that everything is in order to retrieve the results
-        deallocate(rabso)
-
         Vec :: vec
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
