@@ -31,8 +31,8 @@ contains
 
     integer(iintegers), intent(in) :: Nx, Ny, nlyr
     real(ireals), intent(in) :: dx, dy
-    real(ireals), intent(in),dimension(nlyr  ,0:Nx+1,0:Ny+1) :: dz, B, kabs_3d
-    real(ireals), intent(in),dimension(nlyr+1,0:Nx+1,0:Ny+1) :: Ldn,Lup
+    real(ireals), intent(in),dimension(nlyr  ,0:Nx+1,0:Ny+1) :: dz, kabs_3d
+    real(ireals), intent(in),dimension(nlyr+1,0:Nx+1,0:Ny+1) :: B,Ldn,Lup
 
     real(ireals), intent(out) :: hr_nca_3d_tmp(nlyr,Nx,Ny)
 
