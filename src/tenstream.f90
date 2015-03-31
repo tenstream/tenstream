@@ -1605,7 +1605,7 @@ subroutine nca_wrapper(ediff,abso)
 
     call getVecPointer( abso, C_one ,xv1d, xv)
     do k=C_one%zs,C_one%ze 
-      xv(i0,:,:,k) = hr(k,:,:)
+      xv(i0,:,:,k) = hr(k,:,:) / dz_g(k,:,:)
     enddo
     call restoreVecPointer( abso ,C_one ,xv1d, xv )
 
