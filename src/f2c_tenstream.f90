@@ -24,7 +24,8 @@ module f2c_tenstream
       use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr,zero
 
       use m_tenstream, only : init_tenstream, set_global_optical_properties, solve_tenstream, destroy_tenstream,&
-                              tenstream_get_result, edir,ediff,abso, &
+!                            edir,ediff,abso, &
+                            tenstream_get_result, getvecpointer, restorevecpointer, &
                             t_coord,C_dir,C_diff,C_one
 
       use m_tenstream_options, only: read_commandline_options
@@ -173,15 +174,37 @@ contains
         call tenstream_get_result(redir,redn,reup,rabso) ! TODO -- this is a shitty hack to call get result once so that everything is in order to retrieve the results
         deallocate(rabso)
 
-        call globalVec2Local(edir,C_dir,res)
-        if(myid.eq.0) res_edir = sum(res(1:4,1:Nx,1:Ny,:),dim=1) *.25_ireals
+        Vec :: vec
+        real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
-        call globalVec2Local(ediff,C_diff,res)
-        if(myid.eq.0) res_edn = res(2,1:Nx,1:Ny,:)
-        if(myid.eq.0) res_eup = res(1,1:Nx,1:Ny,:)
+        PetscScalar,pointer,dimension(:,:,:,:) :: xinp=>null()
+        PetscScalar,pointer,dimension(:) :: xinp1d=>null()
 
-        call globalVec2Local(abso,C_one,res)
-        if(myid.eq.0) res_abso = res(1,1:Nx,1:Ny,:)
+        allocate( redir(C_dir%xs :C_dir%xe , C_dir%ys :C_dir%ye  , C_dir%zs :C_dir%ze) )
+        allocate( redn (C_diff%xs :C_diff%xe , C_diff%ys :C_diff%ye  , C_diff%zs :C_diff%ze) )
+        allocate( reup (C_diff%xs :C_diff%xe , C_diff%ys :C_diff%ye  , C_diff%zs :C_diff%ze) )
+        allocate( rabso(C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+
+        call tenstream_get_result(redir,redn,reup,rabso)
+
+        call DMCreateGlobalVector(C_diff%da,vec,ierr) ; CHKERRQ(ierr)
+        call getVecPointer(vec ,C_diff ,xinp1d, xinp)
+        xinp(0,:,:,:) = redir
+        xinp(1,:,:,:) = redn
+        xinp(2,:,:,:) = reup
+        xinp(3,C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) = rabso
+        call restoreVecPointer(vec ,C_diff ,xinp1d, xinp )
+
+        call globalVec2Local(vec,C_diff,res)
+
+        call VecDestroy(vec,ierr); CHKERRQ(ierr)
+
+        if(myid.eq.0) then
+          res_edir = res(1,:,:,:)
+          res_edn  = res(2,:,:,:)
+          res_eup  = res(3,:,:,:)
+          res_abso = res(4,:,:,C_one%zs+1 :C_one%ze+1)
+        endif
 
         if(myid.eq.0) then
           print *,'Retrieving results:',Nx,Ny,Nz+1
