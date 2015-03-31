@@ -168,7 +168,6 @@ contains
         real(c_float),intent(out),dimension(Nx,Ny,Nz+1) :: res_eup
         real(c_float),intent(out),dimension(Nx,Ny,Nz  ) :: res_abso
         real(ireals),allocatable,dimension(:,:,:,:) :: res
-        real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
         Vec :: vec
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
