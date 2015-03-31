@@ -39,9 +39,6 @@ foreach ( stream ${streams} )
   install(TARGETS ${basename} RUNTIME DESTINATION bin)
 endforeach ()
                                                                                                                                                                                                                          
-add_executable( "petsc_solver" "petsc_tsv3.F90" )
-target_link_libraries( "petsc_solver" tenstream )
-
 add_executable( "test_boxmc" "test_boxmc.f90" )
 target_link_libraries( "test_boxmc" tenstream )
 
