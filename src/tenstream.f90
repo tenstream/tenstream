@@ -1265,7 +1265,7 @@ subroutine calc_flx_div(edir,ediff,abso)
         PetscReal,pointer,dimension(:) :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
         PetscInt :: i,j,k!d,li,lj,lk
         Vec :: ledir,lediff ! local copies of vectors, including ghosts
-        PetscReal :: div2(13)
+        PetscReal :: div(3),div2(13)
         PetscReal :: Volume,Ax,Ay,Az
 
         if(lintegrated_dir) stop 'tried calculating absorption but dir  vector was in [W], not in [W/m**2], scale first!'
@@ -1304,25 +1304,25 @@ subroutine calc_flx_div(edir,ediff,abso)
           do j=C_one%ys,C_one%ye         
             do i=C_one%xs,C_one%xe      
 
-              div2 = zero
               Ax     = atm%dy * atm%dz(i,j,k)
               Ay     = atm%dx * atm%dz(i,j,k)
               Volume = Az     * atm%dz(i,j,k)
 
               if(atm%l1d(i,j,k)) then ! one dimensional i.e. twostream
                 ! Divergence    =                       Incoming                -       Outgoing
-                div2( 1) = sum( xedir(i0:i3, i, j , k)  - xedir(i0:i3 , i, j, k+i1  ) ) *Az*.25_ireals
+                div( 1) = sum( xedir(i0:i3, i, j , k)  - xedir(i0:i3 , i, j, k+i1  ) ) *Az*.25_ireals
 
-                div2( 4) = ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  ) *Az
-                div2( 5) = ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  ) *Az
+                div( 4) = ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  ) *Az
+                div( 5) = ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  ) *Az
 
+                xabso(i0,i,j,k) = sum(div) / Volume
               else
 
                 !          Divergence     =                        Incoming                        -                   Outgoing
 
                 div2( 1) = sum( xedir(i0:i3 , i             , j             , k)  - xedir(i0:i3 , i          , j          , k+i1  ) ) *Az*.25_ireals
-                div2( 2) = sum( xedir(i4:i5 , i+i1-sun%xinc , j             , k)  - xedir(i4:i5 , i+sun%xinc , j          , k) ) *Az*.5_ireals
-                div2( 3) = sum( xedir(i6:i7 , i             , j+i1-sun%yinc , k)  - xedir(i6:i7 , i          , j+sun%yinc , k) ) *Az*.5_ireals
+                div2( 2) = sum( xedir(i4:i5 , i+i1-sun%xinc , j             , k)  - xedir(i4:i5 , i+sun%xinc , j          , k) ) *Ax*.5_ireals
+                div2( 3) = sum( xedir(i6:i7 , i             , j+i1-sun%yinc , k)  - xedir(i6:i7 , i          , j+sun%yinc , k) ) *Ay*.5_ireals
 
                 div2( 4) = ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  ) *Az
                 div2( 5) = ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  ) *Az
@@ -1335,10 +1335,11 @@ subroutine calc_flx_div(edir,ediff,abso)
                 div2(12) = ( xediff(E_fw_m,i  ,j  ,k  )  - xediff(E_fw_m,i  ,j+1,k  )  ) *Ay
                 div2(13) = ( xediff(E_fw_p,i  ,j  ,k  )  - xediff(E_fw_p,i  ,j+1,k  )  ) *Ay
 
-              endif
-              xabso(i0,i,j,k) = sum(div2) / Volume
-              if(ldebug) then
-                if( isnan(xabso(i0,i,j,k)) ) print *,'nan in flxdiv',i,j,k,'::',xabso(i0,i,j,k),Volume,'::',div2
+                xabso(i0,i,j,k) = sum(div2) / Volume
+
+                if(ldebug) then
+                  if( isnan(xabso(i0,i,j,k)) ) print *,'nan in flxdiv',i,j,k,'::',xabso(i0,i,j,k),Volume,'::',div2
+                endif
               endif
             enddo                             
           enddo                             
