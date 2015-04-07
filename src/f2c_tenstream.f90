@@ -24,7 +24,6 @@ module f2c_tenstream
       use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr,zero
 
       use m_tenstream, only : init_tenstream, set_global_optical_properties, solve_tenstream, destroy_tenstream,&
-!                            edir,ediff,abso, &
                             tenstream_get_result, getvecpointer, restorevecpointer, &
                             t_coord,C_dir,C_diff,C_one
 
@@ -39,7 +38,7 @@ module f2c_tenstream
 
 contains
 
-      subroutine tenstr_f2c_init(comm, Nx,Ny,Nz,dx,dy,hhl, phi0, theta0, albedo ) bind(C)                                
+      subroutine tenstr_f2c_init(comm, Nz,Nx,Ny,dx,dy,hhl, phi0, theta0, albedo ) bind(C)                                
         ! initialize tenstream environment
         ! all nodes in communicator have to call this 
         ! but only the zeroth node has to have meaningful values for the arguments except the communicator
@@ -108,23 +107,23 @@ contains
           odz(k) = ohhl(k) - ohhl(k+1)
         enddo
 
-        call init_tenstream(imp_comm, oNx,oNy,oNz, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz)
+        call init_tenstream(imp_comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz)
 
         initialized=.True.
       end subroutine                                             
 
-      subroutine tenstr_f2c_set_global_optical_properties(Nx,Ny,Nz, kabs, ksca, g, planck) bind(c)
+      subroutine tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, kabs, ksca, g, planck) bind(c)
         integer(c_int), value :: Nx,Ny,Nz
-        real(c_float),intent(in),dimension(Nx,Ny,Nz) :: kabs, ksca, g
-        real(c_float),intent(in),dimension(Nx,Ny,Nz+1) :: planck
+        real(c_float),intent(in),dimension(Nz  ,Nx,Ny) :: kabs, ksca, g
+        real(c_float),intent(in),dimension(Nz+1,Nx,Ny) :: planck
 
         real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og, oplanck
         
         if(myid.eq.0) then
-          allocate( okabs  (Nx,Ny,Nz) ); okabs   = kabs
-          allocate( oksca  (Nx,Ny,Nz) ); oksca   = ksca
-          allocate( og     (Nx,Ny,Nz) ); og      = g   
-          allocate( oplanck(Nx,Ny,Nz+1) ); oplanck = planck
+          allocate( okabs  (Nz  ,Nx,Ny) ); okabs   = kabs
+          allocate( oksca  (Nz  ,Nx,Ny) ); oksca   = ksca
+          allocate( og     (Nz  ,Nx,Ny) ); og      = g   
+          allocate( oplanck(Nz+1,Nx,Ny) ); oplanck = planck
 
           if(any(oplanck.gt.zero)) then
             call set_global_optical_properties(okabs, oksca, og, oplanck)
@@ -132,10 +131,10 @@ contains
             call set_global_optical_properties(okabs, oksca, og)
           endif
 
-!          print *,'mean kabs  ',sum(okabs)  /size(okabs)
-!          print *,'mean ksca  ',sum(oksca)  /size(oksca)
-!          print *,'mean g     ',sum(og)     /size(og)
-!          print *,'mean planck',sum(oplanck)/size(oplanck)
+          print *,'mean kabs  ',sum(okabs)  /size(okabs)
+          print *,'mean ksca  ',sum(oksca)  /size(oksca)
+          print *,'mean g     ',sum(og)     /size(og)
+          print *,'mean planck',sum(oplanck)/size(oplanck)
         else !slave
           call set_global_optical_properties()
         endif
@@ -158,15 +157,15 @@ contains
         call destroy_tenstream(lfinalizepetsc=.False.)
       end subroutine
 
-      subroutine tenstr_f2c_get_result(Nx,Ny,Nz, res_edir,res_edn,res_eup,res_abso) bind(c)
+      subroutine tenstr_f2c_get_result(Nz,Nx,Ny, res_edir,res_edn,res_eup,res_abso) bind(c)
         ! after solving equations -- retrieve the results for edir,edn,eup and absorption
         ! only zeroth node gets the results back.
 
         integer(c_int), value :: Nx,Ny,Nz
-        real(c_float),intent(out),dimension(Nx,Ny,Nz+1) :: res_edir
-        real(c_float),intent(out),dimension(Nx,Ny,Nz+1) :: res_edn
-        real(c_float),intent(out),dimension(Nx,Ny,Nz+1) :: res_eup
-        real(c_float),intent(out),dimension(Nx,Ny,Nz  ) :: res_abso
+        real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_edir
+        real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_edn
+        real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_eup
+        real(c_float),intent(out),dimension(Nz  ,Nx,Ny) :: res_abso
         real(ireals),allocatable,dimension(:,:,:,:) :: res
 
         Vec :: vec
@@ -175,10 +174,10 @@ contains
         PetscScalar,pointer,dimension(:,:,:,:) :: xinp=>null()
         PetscScalar,pointer,dimension(:) :: xinp1d=>null()
 
-        allocate( redir(C_dir%xs :C_dir%xe , C_dir%ys :C_dir%ye  , C_dir%zs :C_dir%ze) )
-        allocate( redn (C_diff%xs :C_diff%xe , C_diff%ys :C_diff%ye  , C_diff%zs :C_diff%ze) )
-        allocate( reup (C_diff%xs :C_diff%xe , C_diff%ys :C_diff%ye  , C_diff%zs :C_diff%ze) )
-        allocate( rabso(C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) )
+        allocate( redir(C_dir%zs :C_dir%ze  ,C_dir%xs  :C_dir%xe  , C_dir%ys :C_dir%ye   ) )
+        allocate( redn (C_diff%zs :C_diff%ze,C_diff%xs :C_diff%xe , C_diff%ys:C_diff%ye  ) )
+        allocate( reup (C_diff%zs :C_diff%ze,C_diff%xs :C_diff%xe , C_diff%ys:C_diff%ye  ) )
+        allocate( rabso(C_one%zs :C_one%ze  ,C_one%xs  :C_one%xe  , C_one%ys :C_one%ye   ) )
 
         call tenstream_get_result(redir,redn,reup,rabso)
 
@@ -187,7 +186,7 @@ contains
         xinp(0,:,:,:) = redir
         xinp(1,:,:,:) = redn
         xinp(2,:,:,:) = reup
-        xinp(3,C_one%xs :C_one%xe , C_one%ys :C_one%ye  , C_one%zs :C_one%ze) = rabso
+        xinp(3, C_one%zs :C_one%ze, C_one%xs :C_one%xe , C_one%ys :C_one%ye  ) = rabso
         call restoreVecPointer(vec ,C_diff ,xinp1d, xinp )
 
         call globalVec2Local(vec,C_diff,res)
@@ -198,7 +197,7 @@ contains
           res_edir = res(1,:,:,:)
           res_edn  = res(2,:,:,:)
           res_eup  = res(3,:,:,:)
-          res_abso = res(4,:,:,C_one%zs+1 :C_one%ze+1)
+          res_abso = res(4,C_one%zs+1 :C_one%ze+1,:,:)
         endif
 
         if(myid.eq.0) then
@@ -206,7 +205,7 @@ contains
           print *,sum(res_edir)/size(res_edir)
           print *,sum(res_edn) /size(res_edn)
           print *,sum(res_eup) /size(res_eup)
-          print *,sum(res_abso)/size(res_abso),'surf',res_abso(1,1,Nz),'toa',res_abso(1,1,1)
+          print *,sum(res_abso)/size(res_abso),'surf',res_abso(Nz,1,1),'toa',res_abso(1,1,1)
         endif
 
         if(myid.eq.0) deallocate(res)
@@ -223,7 +222,7 @@ contains
         PetscScalar,Pointer :: xloc(:)
 
         if(allocated(res)) deallocate(res)
-        if(myid.eq.0) allocate( res(C%dof,C%glob_xm,C%glob_ym,C%glob_zm) )
+        if(myid.eq.0) allocate( res(C%dof,C%glob_zm,C%glob_xm,C%glob_ym) )
 
         call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
 
@@ -240,7 +239,7 @@ contains
         if(myid.eq.0) then
           call VecGetArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
 
-          res = reshape( xloc, (/ C%dof,C%glob_xm,C%glob_ym,C%glob_zm /) )
+          res = reshape( xloc, (/ C%dof,C%glob_zm,C%glob_xm,C%glob_ym /) )
 
           call VecRestoreArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
         endif

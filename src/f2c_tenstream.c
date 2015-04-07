@@ -22,17 +22,17 @@
 #include <stdlib.h>                                                                                                                    
 #include "petscsys.h" 
 
-void tenstr_f2c_init(int fcomm, int *Nx,int *Ny,int *Nz,double *dx,double *dy,float *hhl, float *phi0, float *theta0, float *albedo );
-void tenstr_f2c_set_global_optical_properties(int Nx,int Ny,int Nz, float *kabs, float *ksca, float *g, float *planck);
-void tenstr_f2c_solve(double edirTOA);
+void tenstr_f2c_init(int fcomm, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, float *albedo );
+void tenstr_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float *kabs, float *ksca, float *g, float *planck);
+void tenstr_f2c_solve(float edirTOA);
 void tenstr_f2c_destroy();
-void tenstr_f2c_get_result(int Nx,int Ny,int Nz, float *edir, float *edn, float *eup, float *abso);
+void tenstr_f2c_get_result(int Nz,int Nx,int Ny, float *edir, float *edn, float *eup, float *abso);
 
 static char help[] = "This is the C wrapper interface to the Tenstream solver environment.\n\n";
 
 int master(int fcomm) {
-  int    Nx=20, Ny=20, Nz=10;
-  double dx=50,dy=50;
+  int    Nx=12, Ny=12, Nz=15;
+  double dx=70,dy=70;
   float phi0=180, theta0=0;
   float albedo=.05;
 
@@ -49,19 +49,31 @@ int master(int fcomm) {
   float *abso  = (float *)malloc(Nz*Ny*Nx * sizeof(float) );
 
 
-  for(int i=0;i<Nx;i++) {
-    for(int j=0;j<Ny;j++) {
+  for(int j=0;j<Ny;j++) {
+    for(int i=0;i<Nx;i++) {
       for(int k=0;k<Nz;k++) {
-        int ind = i + Nx*j + Nx*Ny*k; /* index for [Nz][Ny][Nx] */
-        kabs   [ind] = 1e+3;
-        ksca   [ind] = 1e-40;
+        int ind = k + Nz*i + Nz*Nx*j; /* index for [Ny][Nx][Nz] */
+
+        kabs   [ind] = 1e-3;
+        ksca   [ind] = 1e-4;
         g      [ind] =   .5;
-        planck [ind] =   5.67e-8*273.*273.*273.*273./3.1415;
-        edir   [ind] =  -1.;
+
+        printf("ind %d\n",ind);
+        
       }
-      int ind = i + Nx*j + Nx*Ny*Nz;
-      edir   [ind] =  -1.;
-      planck [ind] =  5.67e-8*273.*273.*273.*273./3.1415; /* surface emission */
+    }
+  }             
+
+  for(int j=0;j<Ny;j++) {
+    for(int i=0;i<Nx;i++) {
+      for(int k=0;k<Nz+1;k++) {
+        int ind = k + (Nz+1)*i + (Nz+1)*Nx*j; /* index for [Ny][Nx][Nz] */
+
+        planck [ind] =  -1;// 5.67e-8*273.*273.*273.*273./3.1415;
+        edir   [ind] =  -1;
+
+        printf("ind %d\n",ind);
+      }
     }
   }             
 
@@ -69,26 +81,26 @@ int master(int fcomm) {
   for(int k=Nz;k>0;k--) 
     hhl[k-1] = hhl[k]+40.;
 
-  tenstr_f2c_init(fcomm,&Nx,&Ny,&Nz, &dx,&dy, hhl, &phi0, &theta0,&albedo);
-  tenstr_f2c_set_global_optical_properties(Nx,Ny,Nz, kabs, ksca, g, planck);
-  tenstr_f2c_solve(0.);
-  tenstr_f2c_get_result(Nx,Ny,Nz, edir,edn,eup,abso);
+  tenstr_f2c_init(fcomm,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0,&albedo);
+  tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, kabs, ksca, g, planck);
+  tenstr_f2c_solve( 1. );
+  tenstr_f2c_get_result(Nz,Nx,Ny, edir,edn,eup,abso);
 
   tenstr_f2c_destroy();
 
-  for(int j=0;j<Ny;j++){
+  for(int i=0;i<Nx;i++){
     printf("\n edir ");
     for(int k=0;k<Nz+1;k++)
-      printf(" %f ",edir[Nx*j + Nx*Ny*k]);
+      printf(" %f ",edir[(Nz+1)*i + k]);
     printf("\n edn ");
     for(int k=0;k<Nz+1;k++)
-      printf(" %f ",edn[Nx*j + Nx*Ny*k]);
+      printf(" %f ",edn[(Nz+1)*i + k]);
     printf("\n eup ");
     for(int k=0;k<Nz+1;k++)
-      printf(" %f ",eup[Nx*j + Nx*Ny*k]);
+      printf(" %f ",eup[(Nz+1)*i + k]);
     printf("\n abso      ");
     for(int k=0;k<Nz;k++)
-      printf(" %f ",abso[Nx*j + Nx*Ny*k]);
+      printf(" %f ",abso[Nz*i + k]);
     printf("\n");
     printf("\n");
   }
@@ -123,10 +135,10 @@ int slave(int fcomm) {
   float *eup    = NULL;
   float *abso   = NULL;
 
-  tenstr_f2c_init(fcomm,&Nx,&Ny,&Nz, &dx,&dy, hhl, &phi0, &theta0,&albedo);
-  tenstr_f2c_set_global_optical_properties(Nx,Ny,Nz, kabs, ksca, g, planck);
+  tenstr_f2c_init(fcomm,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0,&albedo);
+  tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, kabs, ksca, g, planck);
   tenstr_f2c_solve(1.);
-  tenstr_f2c_get_result(Nx,Ny,Nz, edir,edn,eup,abso);
+  tenstr_f2c_get_result(Nz,Nx,Ny, edir,edn,eup,abso);
 
   tenstr_f2c_destroy();
   return 0;
