@@ -1312,8 +1312,8 @@ subroutine calc_flx_div(edir,ediff,abso)
                 ! Divergence    =                       Incoming                -       Outgoing
                 div( 1) = sum( xedir(i0:i3, i, j , k)  - xedir(i0:i3 , i, j, k+i1  ) ) *Az*.25_ireals
 
-                div( 4) = ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  ) *Az
-                div( 5) = ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  ) *Az
+                div( 2) = ( xediff(E_up  ,i  ,j  ,k+1)  - xediff(E_up  ,i  ,j  ,k  )  ) *Az
+                div( 3) = ( xediff(E_dn  ,i  ,j  ,k  )  - xediff(E_dn  ,i  ,j  ,k+1)  ) *Az
 
                 xabso(i0,i,j,k) = sum(div) / Volume
               else
