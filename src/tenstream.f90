@@ -1253,7 +1253,7 @@ contains
       PetscReal,pointer,dimension(:) :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
       PetscInt :: i,j,k
       Vec :: ledir,lediff ! local copies of vectors, including ghosts
-      PetscReal :: div2(13)
+      PetscReal :: div(3),div2(13)
       PetscReal :: Volume,Ax,Ay,Az
 
       if(lintegrated_dir) stop 'tried calculating absorption but dir  vector was in [W], not in [W/m**2], scale first!'
@@ -1292,18 +1292,18 @@ contains
         do j=C_one%ys,C_one%ye         
           do i=C_one%xs,C_one%xe      
 
-            div2 = zero
             Ax     = atm%dy * atm%dz(k,i,j)
             Ay     = atm%dx * atm%dz(k,i,j)
             Volume = Az     * atm%dz(k,i,j)
 
             if(atm%l1d(k,i,j)) then ! one dimensional i.e. twostream
               ! Divergence    =                       Incoming                -       Outgoing
-              div2( 1) = sum( xedir(i0:i3, k, i, j )  - xedir(i0:i3 , k+i1 , i, j ) ) *Az*.25_ireals
+              div( 1) = sum( xedir(i0:i3, k, i, j )  - xedir(i0:i3 , k+i1 , i, j ) ) *Az*.25_ireals
 
-              div2( 4) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  ) *Az
-              div2( 5) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  ) *Az
+              div( 2) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  ) *Az
+              div( 3) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  ) *Az
 
+              xabso(i0,k,i,j) = sum(div) / Volume
             else
 
               !          Divergence     =                        Incoming                        -                   Outgoing
@@ -1323,10 +1323,10 @@ contains
               div2(12) = ( xediff(E_fw_m,k  ,i  ,j  )  - xediff(E_fw_m,k  ,i  ,j+1)  ) *Ay
               div2(13) = ( xediff(E_fw_p,k  ,i  ,j  )  - xediff(E_fw_p,k  ,i  ,j+1)  ) *Ay
 
-            endif
-            xabso(i0,k,i,j) = sum(div2) / Volume
-            if(ldebug) then
-              if( isnan(xabso(i0,k,i,j)) ) print *,'nan in flxdiv',k,i,j,'::',xabso(i0,k,i,j),Volume,'::',div2
+              xabso(i0,k,i,j) = sum(div2) / Volume
+              if(ldebug) then
+                if( isnan(xabso(i0,k,i,j)) ) print *,'nan in flxdiv',k,i,j,'::',xabso(i0,k,i,j),Volume,'::',div2
+              endif
             endif
           enddo                             
         enddo                             
