@@ -23,7 +23,7 @@ module m_helper_functions
       implicit none
 
       private
-      public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum
+      public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -31,18 +31,23 @@ module m_helper_functions
 
       integer(mpiint) :: mpierr
 
-      contains
+    contains
+      pure elemental subroutine inc(x,i)
+          real(ireals),intent(inout) :: x
+          real(ireals),intent(in) :: i
+          x=x+i
+      end subroutine
 
       pure function norm(v)
-        real(ireals) :: norm
-        real(ireals),intent(in) :: v(:)
-        norm = sqrt(dot_product(v,v))
+          real(ireals) :: norm
+          real(ireals),intent(in) :: v(:)
+          norm = sqrt(dot_product(v,v))
       end function
 
       elemental function deg2rad(deg)
-        real(ireals) :: deg2rad
-        real(ireals),intent(in) :: deg
-        deg2rad = deg *pi/180._ireals
+          real(ireals) :: deg2rad
+          real(ireals),intent(in) :: deg
+          deg2rad = deg *pi/180._ireals
       end function
 
       pure function rmse(a,b)
@@ -59,36 +64,36 @@ module m_helper_functions
       end function
 
       elemental logical function approx(a,b,precision)
-        real(ireals),intent(in) :: a,b
-        real(ireals),intent(in),optional :: precision
-        real(ireals) :: factor
-        if(present(precision) ) then
-          factor = precision
-        else
-          factor = 10._ireals*epsilon(b)
-        endif
-        if( a.le.b+factor .and. a.ge.b-factor ) then
-          approx = .True.
-        else
-          approx = .False.
-        endif
+          real(ireals),intent(in) :: a,b
+          real(ireals),intent(in),optional :: precision
+          real(ireals) :: factor
+          if(present(precision) ) then
+            factor = precision
+          else
+            factor = 10._ireals*epsilon(b)
+          endif
+          if( a.le.b+factor .and. a.ge.b-factor ) then
+            approx = .True.
+          else
+            approx = .False.
+          endif
       end function
       elemental logical function rel_approx(a,b,precision)
-        real(ireals),intent(in) :: a,b
-        real(ireals),intent(in),optional :: precision
-        real(ireals) :: factor,rel_error
-        if(present(precision) ) then
-          factor = precision
-        else
-          factor = 10*epsilon(b)
-        endif
-        rel_error = abs( (a-b)/ max(epsilon(a), ( (a+b)*.5_ireals ) ) )
+          real(ireals),intent(in) :: a,b
+          real(ireals),intent(in),optional :: precision
+          real(ireals) :: factor,rel_error
+          if(present(precision) ) then
+            factor = precision
+          else
+            factor = 10*epsilon(b)
+          endif
+          rel_error = abs( (a-b)/ max(epsilon(a), ( (a+b)*.5_ireals ) ) )
 
-        if( rel_error .lt. precision ) then
-          rel_approx = .True.
-        else
-          rel_approx = .False.
-        endif
+          if( rel_error .lt. precision ) then
+            rel_approx = .True.
+          else
+            rel_approx = .False.
+          endif
       end function
 
       subroutine  imp_bcast_logical(val,sendid,myid)
@@ -146,7 +151,7 @@ module m_helper_functions
           call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr)
       end subroutine
 
-elemental subroutine delta_scale( kabs,ksca,g,factor ) 
+      elemental subroutine delta_scale( kabs,ksca,g,factor ) 
           real(ireals),intent(inout) :: kabs,ksca,g ! kabs, ksca, g
           real(ireals),intent(in),optional :: factor
           real(ireals) :: dtau, w0
@@ -163,7 +168,7 @@ elemental subroutine delta_scale( kabs,ksca,g,factor )
           kabs= dtau * (one-w0)
           ksca= dtau * w0
       end subroutine
-elemental subroutine delta_scale_optprop( dtau, w0, g,factor) 
+      elemental subroutine delta_scale_optprop( dtau, w0, g,factor) 
           real(ireals),intent(inout) :: dtau,w0,g
           real(ireals),intent(in),optional :: factor
           real(ireals) :: f
@@ -179,13 +184,13 @@ elemental subroutine delta_scale_optprop( dtau, w0, g,factor)
       end subroutine
 
       function cumsum(arr)
-        real(ireals),intent(in) :: arr(:)
-        real(ireals) :: cumsum(size(arr))
-        integer :: i
-        cumsum(1) = arr(1)
-        do i=2,size(arr)
-          cumsum(i) = cumsum(i-1) + arr(i)
-        enddo
+          real(ireals),intent(in) :: arr(:)
+          real(ireals) :: cumsum(size(arr))
+          integer :: i
+          cumsum(1) = arr(1)
+          do i=2,size(arr)
+            cumsum(i) = cumsum(i-1) + arr(i)
+          enddo
       end function
 
 

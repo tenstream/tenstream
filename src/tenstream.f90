@@ -57,7 +57,7 @@ module m_tenstream
       zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
 
   use m_twostream, only: delta_eddington_twostream
-  use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum
+  use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -241,7 +241,7 @@ contains
 
           allocate(C%neighbors(0:3**C%dim-1) )
           call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;CHKERRQ(ierr)
-          if(ldebug.and.C%dim.eq.3) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,12,16,14]),'while I am ',C%neighbors(13)
+          if(ldebug.and.C%dim.eq.3) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
           if(ldebug.and.C%dim.eq.2) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
       end subroutine
   end subroutine
@@ -250,6 +250,7 @@ contains
       Mat :: A
       MatInfo :: info(MAT_INFO_SIZE) 
       real(ireals) :: mal, nz_allocated, nz_used, nz_unneeded
+      PetscInt :: m,n
 
       return !TODO decide if this is the correct type for matgetinfo call, in docs it states we should use double precision? for the time being it may be safe to just return....
       call MatGetInfo(A,MAT_LOCAL,info,ierr) ;CHKERRQ(ierr)
@@ -258,8 +259,11 @@ contains
       nz_used   = info(MAT_INFO_NZ_USED)
       nz_unneeded = info(MAT_INFO_NZ_UNNEEDED)
 
+      call MatGetOwnershipRange(A, m,n, ierr)
+
       if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_MALLOCS',mal,'MAT_INFO_NZ_ALLOCATED',nz_allocated
       if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
+      if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: Ownership range',m,n
 
   end subroutine
   subroutine init_Matrix(A,C)!,prefix)
@@ -278,9 +282,10 @@ contains
           case(i3)
             call setup_dir_preallocation(d_nnz,o_nnz,C)
           case(i8)
+!            call setup_dir_preallocation(d_nnz,o_nnz,C)
             call setup_dir8_preallocation(d_nnz,o_nnz,C)
           case(i10)
-            call setup_diff_preallocation(d_nnz,o_nnz,C)
+            call setup_diff10_preallocation(d_nnz,o_nnz,C)
           case default
             stop('Dont know which preallocation routine I shall call! - exiting...')
           end select
@@ -350,7 +355,7 @@ contains
 
       if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally ... done'
   end subroutine
-  subroutine setup_diff_preallocation(d_nnz,o_nnz,C)
+  subroutine setup_diff10_preallocation(d_nnz,o_nnz,C)
       PetscInt,allocatable :: o_nnz(:)
       PetscInt,allocatable :: d_nnz(:)
       type(t_coord) :: C
@@ -370,8 +375,8 @@ contains
       allocate(o_nnz(0:vsize-1))
       allocate(d_nnz(0:vsize-1))
 
-      call getVecPointer(v_o_nnz,C,xo1d,xo,.False.)
-      call getVecPointer(v_d_nnz,C,xd1d,xd,.False.)
+      call getVecPointer(v_o_nnz,C,xo1d,xo)
+      call getVecPointer(v_d_nnz,C,xd1d,xd)
 
       xo = i0
       xd = i1
@@ -381,92 +386,92 @@ contains
       xd(E_dn,C%zs+1:C%ze,:,:) = C%dof+i1
 
       ! Determine prealloc for E_dn and E_up
-      if( C%neighbors(14).ne.myid .and. C%neighbors(14).ge.i0 ) then ! neigh east
+      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
         ! E_le is not local
         xd(E_dn,C%zs+1:C%ze,C%xe,:) = xd(E_dn,C%zs+1:C%ze,C%xe,:) - i2
         xo(E_dn,C%zs+1:C%ze,C%xe,:) = xo(E_dn,C%zs+1:C%ze,C%xe,:) + i2
         xd(E_up,C%zs:C%ze-1,C%xe,:) = xd(E_up,C%zs:C%ze-1,C%xe,:) - i2
         xo(E_up,C%zs:C%ze-1,C%xe,:) = xo(E_up,C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0) then ! neigh north
+      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0) then ! neigh north
         ! E_ba is not local
         xd(E_dn,C%zs+1:C%ze,:,C%ye) = xd(E_dn,C%zs+1:C%ze,:,C%ye) - i2
         xo(E_dn,C%zs+1:C%ze,:,C%ye) = xo(E_dn,C%zs+1:C%ze,:,C%ye) + i2
         xd(E_up,C%zs:C%ze-1,:,C%ye) = xd(E_up,C%zs:C%ze-1,:,C%ye) - i2
         xo(E_up,C%zs:C%ze-1,:,C%ye) = xo(E_up,C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0) then ! neigh south
+      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(12).ne.myid .and. C%neighbors(12).ge.i0) then ! neigh west
+      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0) then ! neigh west
         ! no foreign stream dependencies
       endif
       ! Determine prealloc for E_le
-      if( C%neighbors(14).ne.myid .and. C%neighbors(14).ge.i0 ) then ! neigh east
+      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
         ! E_le is not local
         xd([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) = xd([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) - i2
         xo([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) = xo([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh north
+      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
         ! E_ba is not local
         xd([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) = xd([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) - i2
         xo([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) = xo([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh south
+      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(12).ne.myid .and. C%neighbors(12).ge.i0 ) then ! neigh west
+      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
         ! no foreign stream dependencies
       endif
       ! Determine prealloc for E_ri
-      if( C%neighbors(14).ne.myid .and. C%neighbors(14).ge.i0 ) then ! neigh east
+      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh north
+      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
         ! E_ba is not local
         xd([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) = xd([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) - i2
         xo([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) = xo([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh south
+      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(12).ne.myid .and. C%neighbors(12).ge.i0 ) then ! neigh west
+      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
         ! E_ri local dependencies are only self, and 2*E_le
         xd([E_ri_m,E_ri_p],C%zs:C%ze-1,C%xs,:) = i3
         xo([E_ri_m,E_ri_p],C%zs:C%ze-1,C%xs,:) = i8
       endif
       ! Determine prealloc for E_ba
-      if( C%neighbors(14).ne.myid .and. C%neighbors(14).ge.i0 ) then ! neigh east
+      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
         ! E_le is not local
         xd([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) = xd([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) - i2
         xo([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) = xo([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh north
+      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
         ! E_ba is not local
         xd([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) = xd([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) - i2
         xo([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) = xo([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh south
+      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(12).ne.myid .and. C%neighbors(12).ge.i0 ) then ! neigh west
+      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
         ! no foreign stream dependencies
       endif
       ! Determine prealloc for E_fw
-      if( C%neighbors(14).ne.myid .and. C%neighbors(14).ge.i0 ) then ! neigh east
+      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
         ! E_le is not local
         xd([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) = xd([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) - i2
         xo([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) = xo([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh north
+      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh south
+      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
         ! E_fw local dependencies are only self, and 2*E_ba
         xd([E_fw_m,E_fw_p],C%zs:C%ze-1,:,C%ys) = i3
         xo([E_fw_m,E_fw_p],C%zs:C%ze-1,:,C%ys) = i8
       endif
-      if( C%neighbors(12).ne.myid .and. C%neighbors(12).ge.i0 ) then ! neigh west
+      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
         ! no foreign stream dependencies
       endif
 
@@ -517,25 +522,17 @@ contains
       allocate(o_nnz(0:vsize-1))
       allocate(d_nnz(0:vsize-1))
 
-      call getVecPointer(v_o_nnz,C,xo1d,xo,.False.)
-      call getVecPointer(v_d_nnz,C,xd1d,xd,.False.)
+      call getVecPointer(v_o_nnz,C,xo1d,xo)
+      call getVecPointer(v_d_nnz,C,xd1d,xd)
 
       xo = i0
       xd = C%dof+i1
 
-      forall(k=C%zs+1:C%ze  , j=C%ys:C%ye, i=C%xs:C%xe, s=i0:i3) 
-          xd( s ,k ,i,j) = C%dof+i1 ! Edir_vertical depends on 3 values Edir_vertical,xaxis,yaxis :: starting with second entries(seen from top)
-      end forall
-      forall(k=C%zs  :C%ze-1, j=C%ys:C%ye, i=C%xs:C%xe, s=i4:i7) 
-          xd( s ,k ,i,j) = C%dof+i1 ! Edir_xaxis,yaxis depends on 3 values Edir_vertical,xaxis,yaxis :: starting with first entries(seen from top)
-      end forall
-
-      !        do s=0,3
-      !          if(myid.eq.0.and.ldebug) print *,myid,'start Dir prealloc 0:3: N/E',lsun_north,lsun_east,' :: xo',xo(s, C%xs, C%ye, C%zs+i1), 'xd',xd(s, C%xs, C%ye, C%zs+i1)
-      !        enddo
+      xd( i0:i3 ,C%zs+1:C%ze  , C%xs:C%xe, C%ys:C%ye ) = C%dof+i1 ! Edir_vertical depends on 3 values Edir_vertical,xaxis,yaxis :: starting with second entries(seen from top)
+      xd( i4:i7 ,C%zs  :C%ze-1, C%xs:C%xe, C%ys:C%ye ) = C%dof+i1 ! Edir_xaxis,yaxis depends on 3 values Edir_vertical,xaxis,yaxis :: starting with first entries(seen from top)
 
       do j=C%ys,C%ye
-        if( C%neighbors(14).ne.myid .and. C%neighbors(14).ge.i0 ) then ! real neigh east
+        if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! real neigh east
           if( lsun_east ) then 
             ! if the sun is in the east, the channels in the last box are influenced by the 2nd channel which is a ghost
             xo(i0:i3, C%zs+1:C%ze, C%xe, j) = xo(i0:i3, C%zs+1:C%ze, C%xe, j)+i2 ! channel 1 from zs+1 to ze
@@ -553,7 +550,7 @@ contains
         endif
       enddo
       do i=C%xs,C%xe
-        if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! real neigh north
+        if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! real neigh north
           if( lsun_north ) then 
             ! if the sun is in the north, the 3rd channel is a ghost
             !                                if(myid.eq.0.and.ldebug.and.i.eq.C%xs) print *,myid,'before Dir prealloc 0:3: lsun_north :: xo',xo(i0:i3, i, C%ye, C%zs+1), 'xd',xd(i0:i3, i, C%ye, C%zs+1)
@@ -574,7 +571,7 @@ contains
       do j=C%ys,C%ye
         lsun_east  = (sun%xinc.eq.i0)
 
-        if( C%neighbors(12).ne.myid.and. C%neighbors(12).ge.i0 ) then ! real neigh west
+        if( C%neighbors(10).ne.myid.and. C%neighbors(10).ge.i0 ) then ! real neigh west
           if( .not. lsun_east ) then 
             ! if the sun is in the west, the 2nd channel is solemnly dependant on ghost values
             xo(i4:i5, C%zs:C%ze-1, C%xs, j) = C%dof
@@ -585,7 +582,7 @@ contains
       do i=C%xs,C%xe
         lsun_north = (sun%yinc.eq.i0 )
 
-        if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! real neigh south
+        if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! real neigh south
           if( .not. lsun_north ) then 
             ! if the sun is in the south, the 3rd channel is solemnly dependant on ghost values
             xo(i6:i7, C%zs:C%ze-1, i, C%ys) = C%dof
@@ -621,103 +618,178 @@ contains
       PetscInt,allocatable :: d_nnz(:)
       PetscInt,allocatable :: o_nnz(:)
       type(t_coord) :: C
-      Vec :: v_o_nnz,v_d_nnz
-      PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
-      PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
+      Vec :: gv_o_nnz,gv_d_nnz
+      Vec :: lv_nnz
+      PetscScalar,Pointer :: xl(:,:,:,:)=>null(),xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
+      PetscScalar,Pointer :: xl1d(:)=>null(),xo1d(:)=>null(),xd1d(:)=>null()
 
-      PetscInt :: vsize,i,j,k
+      PetscInt :: vsize,i,j,k,src,dst
 
       logical :: lsun_east,lsun_north
 
-      !        if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
-      call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMCreateGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMCreateGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call VecSet(gv_d_nnz, zero, ierr) ;CHKERRQ(ierr)
+      call VecSet(gv_o_nnz, zero, ierr) ;CHKERRQ(ierr)
 
-      call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
-      allocate(o_nnz(0:vsize-1))
-      allocate(d_nnz(0:vsize-1))
+      call DMCreateLocalVector(C%da, lv_nnz,ierr) ;CHKERRQ(ierr)
 
-      call getVecPointer(v_o_nnz,C,xo1d,xo,.False.)
-      call getVecPointer(v_d_nnz,C,xd1d,xd,.False.)
+      call getVecPointer(lv_nnz,C,xl1d,xl)
 
-      xo = i0
-      xd = i1
-      xd( i0    ,C%zs+1:C%ze    ,:,:) = C%dof+i1 ! Edir_vertical depends on 3 values Edir_vertical,xaxis,yaxis :: starting with second entries(seen from top)
-      xd([i1,i2],C%zs   :C%ze-i1,:,:) = C%dof+i1 ! Edir_xaxis,yaxis depends on 3 values Edir_vertical,xaxis,yaxis :: starting with first entries(seen from top)
+      xl=zero
 
       do j=C%ys,C%ye
-        lsun_east  = (sun%xinc.eq.i0)
-
-        if( C%neighbors(14).ne.myid .and. C%neighbors(14).ge.i0 ) then ! neigh east
-          if( lsun_east ) then 
-            ! if the sun is in the east, the channels in the last box are influenced by the 2nd channel which is a ghost
-            xo(i0, C%zs+1:C%ze, C%xe, j) = xo(i0, C%zs+1:C%ze, C%xe, j)+i1 ! channel 1 from zs+1 to ze
-            xd(i0, C%zs+1:C%ze, C%xe, j) = xd(i0, C%zs+1:C%ze, C%xe, j)-i1
-
-            xo([i1,i2], C%zs:C%ze-1, C%xe, j) = xo([i1,i2], C%zs:C%ze-1, C%xe, j)+i1 ! channel 2 and 3 from zs
-            xd([i1,i2], C%zs:C%ze-1, C%xe, j) = xd([i1,i2], C%zs:C%ze-1, C%xe, j)-i1
-          endif
-        endif
-      enddo
-      do i=C%xs,C%xe
-        lsun_north = (sun%yinc.eq.i0 )
-
-        if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh north
-          if( lsun_north ) then 
-            ! if the sun is in the north, the 3rd channel is a ghost
-            xo(i0, C%zs+1:C%ze, i, C%ye) = xo(i0, C%zs+1:C%ze, i, C%ye)+i1 ! channel 1 from zs+1 to ze
-            xd(i0, C%zs+1:C%ze, i, C%ye) = xd(i0, C%zs+1:C%ze, i, C%ye)-i1
-
-            xo([i1,i2], C%zs:C%ze-1,  i, C%ye) = xo([i1,i2], C%zs:C%ze-1, i, C%ye)+i1 ! channel 2 and 3 from zs
-            xd([i1,i2], C%zs:C%ze-1,  i, C%ye) = xd([i1,i2], C%zs:C%ze-1, i, C%ye)-i1
-          endif
-        endif
-      enddo
-      do j=C%ys,C%ye
-        lsun_east  = (sun%xinc.eq.i0)
-
-        if( C%neighbors(12).ne.myid.and. C%neighbors(12).ge.i0 ) then ! neigh west
-          if( .not. lsun_east ) then 
-            ! if the sun is in the west, the 2nd channel is solemnly dependant on ghost values
-            xo(i1, C%zs:C%ze-1, C%xs, j) = i3
-            xd(i1, C%zs:C%ze-1, C%xs, j) = i1
-          endif
-        endif
-      enddo
-      do i=C%xs,C%xe
-        lsun_north = (sun%yinc.eq.i0 )
-
-        if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh south
-          if( .not. lsun_north ) then 
-            ! if the sun is in the south, the 3rd channel is solemnly dependant on ghost values
-            xo(i2, C%zs:C%ze-1, i, C%ys) = i3
-            xd(i2, C%zs:C%ze-1, i, C%ys) = i1
-          endif
-        endif
-      enddo
-
-      do k=C%zs,C%ze-1
-        do j=C%ys,C%ye
-          do i=C%xs,C%xe      ! i,j,k indices are defined on petsc global grid
+        do i=C%xs,C%xe        
+          do k=C%zs,C%ze-1
             if( atm%l1d(k,i,j) ) then
-              xo(:,k,i,j) = i0
-              xd(:,k,i,j) = i1
-              xd(0,k,i,j) = i2
+              do dst=i0,i3
+                call inc( xl(dst, k+1, i,j), one )
+              enddo
+            else
+
+               dst = i0 ;call inc( xl(dst , k+1 , i          , j          ) , one*C%dof )
+               dst = i1 ;call inc( xl(dst , k+1 , i          , j          ) , one*C%dof )
+               dst = i2 ;call inc( xl(dst , k+1 , i          , j          ) , one*C%dof )
+               dst = i3 ;call inc( xl(dst , k+1 , i          , j          ) , one*C%dof )
+               dst = i4 ;call inc( xl(dst , k   , i+sun%xinc , j          ) , one*C%dof )
+               dst = i5 ;call inc( xl(dst , k   , i+sun%xinc , j          ) , one*C%dof )
+               dst = i6 ;call inc( xl(dst , k   , i          , j+sun%yinc ) , one*C%dof )
+               dst = i7 ;call inc( xl(dst , k   , i          , j+sun%yinc ) , one*C%dof )
+                     
             endif
+
+          enddo 
+        enddo 
+      enddo
+      call restoreVecPointer(lv_nnz,C,xl1d,xl)
+
+      ! Now we have a local vector with ghosts that counts all entries
+      ! We still have to seperate the diagonal and the off-diagonal part:
+      ! For that, transmit the ghost parts with ADD_VALUES to _o_nnz
+      call DMLocalToGlobalBegin(C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalEnd  (C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
+
+      call getVecPointer(lv_nnz,C,xl1d,xl)
+      call getVecPointer(gv_o_nnz,C,xo1d,xo)
+      call getVecPointer(gv_d_nnz,C,xd1d,xd)
+
+      do k=C%zs,C%ze
+        do j=C%ys,C%ye
+          do i=C%xs,C%xe        
+            xo(:,k,i,j) = xo(:,k,i,j)-xl(:,k,i,j)
+            xd(:,k,i,j) = -xo(:,k,i,j) + C%dof+i1
+            print *,myid,k,i,j,'off',int(xo(:,k,i,j)),'on',int(xd(:,k,i,j))
           enddo
         enddo
       enddo
 
+      allocate(o_nnz(0:C%dof*C%zm*C%xm*C%ym-1))
+      allocate(d_nnz(0:C%dof*C%zm*C%xm*C%ym-1))
       o_nnz=int(xo1d)
       d_nnz=int(xd1d)
 
-      call restoreVecPointer(v_o_nnz,C,xo1d,xo)
-      call restoreVecPointer(v_d_nnz,C,xd1d,xd)
+      call restoreVecPointer(lv_nnz,C,xl1d,xl)
+      call restoreVecPointer(gv_o_nnz,C,xo1d,xo)
+      call restoreVecPointer(gv_d_nnz,C,xd1d,xd)
 
-      call VecDestroy(v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call VecDestroy(v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call VecDestroy(gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call VecDestroy(gv_d_nnz,ierr) ;CHKERRQ(ierr)
+      call VecDestroy(lv_nnz  ,ierr) ;CHKERRQ(ierr)
+  end subroutine 
+  subroutine setup_diff_preallocation(d_nnz,o_nnz,C)
+      PetscInt,allocatable :: d_nnz(:)
+      PetscInt,allocatable :: o_nnz(:)
+      type(t_coord) :: C
+      Vec :: gv_o_nnz,gv_d_nnz
+      Vec :: lv_nnz
+      PetscScalar,Pointer :: xl(:,:,:,:)=>null(),xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
+      PetscScalar,Pointer :: xl1d(:)=>null(),xo1d(:)=>null(),xd1d(:)=>null()
 
-      if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
+      PetscInt :: vsize,i,j,k,src,dst
+
+      logical :: lsun_east,lsun_north
+
+      call DMCreateGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMCreateGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call VecSet(gv_d_nnz, zero, ierr) ;CHKERRQ(ierr)
+      call VecSet(gv_o_nnz, zero, ierr) ;CHKERRQ(ierr)
+
+      call DMCreateLocalVector(C%da, lv_nnz,ierr) ;CHKERRQ(ierr)
+
+      call getVecPointer(lv_nnz,C,xl1d,xl)
+
+      xl=zero
+
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe        
+          do k=C%zs,C%ze-1
+            if( atm%l1d(k,i,j) ) then
+              do dst=i0,i1
+                call inc( xl(dst, k+1, i,j), one )
+                call inc( xl(dst, k  , i,j), one )
+              enddo
+            else
+
+               dst = E_up  ;call inc( xl(dst , k   , i   , j   ) , one*C%dof )
+               dst = E_dn  ;call inc( xl(dst , k+1 , i   , j   ) , one*C%dof )
+               dst = E_le_m;call inc( xl(dst , k   , i   , j   ) , one*C%dof )
+               dst = E_ri_m;call inc( xl(dst , k   , i+1 , j   ) , one*C%dof-1 )
+               dst = E_le_p;call inc( xl(dst , k   , i   , j   ) , one*C%dof )
+               dst = E_ri_p;call inc( xl(dst , k   , i+1 , j   ) , one*C%dof-1 )
+               dst = E_ba_m;call inc( xl(dst , k   , i   , j   ) , one*C%dof )
+               dst = E_fw_m;call inc( xl(dst , k   , i   , j+1 ) , one*C%dof-1 )
+               dst = E_ba_p;call inc( xl(dst , k   , i   , j   ) , one*C%dof )
+               dst = E_fw_p;call inc( xl(dst , k   , i   , j+1 ) , one*C%dof-1 )
+                     
+              print *,myid,'diff',k,i,j,'xl',int(xl(:,k,i,j))
+            endif
+
+          enddo 
+        enddo 
+      enddo
+      call restoreVecPointer(lv_nnz,C,xl1d,xl)
+
+      ! Now we have a local vector with ghosts that counts all entries
+      ! We still have to seperate the diagonal and the off-diagonal part:
+      ! For that, transmit the ghost parts with ADD_VALUES to _o_nnz
+      call DMLocalToGlobalBegin(C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalEnd  (C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
+
+      call getVecPointer(lv_nnz,C,xl1d,xl)
+      call getVecPointer(gv_o_nnz,C,xo1d,xo)
+      call getVecPointer(gv_d_nnz,C,xd1d,xd)
+
+      do k=C%zs,C%ze
+        do j=C%ys,C%ye
+          do i=C%xs,C%xe        
+            xo(:,k,i,j) = xo(:,k,i,j)-xl(:,k,i,j)
+            xd(:,k,i,j) = + C%dof+i1  -xo(:,k,i,j) 
+            print *,myid,'diff',k,i,j,'on',int(xd(:,k,i,j)),'off',int(xo(:,k,i,j))
+          enddo
+        enddo
+      enddo
+
+      if( C%neighbors(10) .eq. C%neighbors(13) ) then ! neighbour in x-dir is actually me again....
+        xd(:,:,C%xs,:) = C%dof+1
+        xd(:,:,C%xe,:) = C%dof+1
+      endif
+      if( C%neighbors(4) .eq. C%neighbors(13) ) then ! neighbour in y-dir is actually me again....
+        xd(:,:,:,C%ys) = C%dof+1
+        xd(:,:,:,C%ye) = C%dof+1
+      endif
+
+      allocate(o_nnz(0:C%dof*C%zm*C%xm*C%ym-1))
+      allocate(d_nnz(0:C%dof*C%zm*C%xm*C%ym-1))
+      o_nnz=int(xo1d)
+      d_nnz=int(xd1d)
+
+      call restoreVecPointer(lv_nnz,C,xl1d,xl)
+      call restoreVecPointer(gv_o_nnz,C,xo1d,xo)
+      call restoreVecPointer(gv_d_nnz,C,xd1d,xd)
+
+      call VecDestroy(gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call VecDestroy(gv_d_nnz,ierr) ;CHKERRQ(ierr)
+      call VecDestroy(lv_nnz  ,ierr) ;CHKERRQ(ierr)
   end subroutine 
 
   subroutine get_coeff(op,dz,dir,coeff,lone_dimensional,angles)
@@ -1282,9 +1354,9 @@ contains
       call DMGlobalToLocalEnd(C_diff%da,ediff,ADD_VALUES,lediff,ierr)   ; CHKERRQ(ierr)
 
       ! calculate absorption by flux divergence
-      call getVecPointer(lediff,C_diff,xediff1d,xediff, .True.)
-      call getVecPointer(ledir ,C_dir ,xedir1d ,xedir , .True.)
-      call getVecPointer(abso  ,C_one ,xabso1d ,xabso , .False.)
+      call getVecPointer(lediff,C_diff,xediff1d,xediff)
+      call getVecPointer(ledir ,C_dir ,xedir1d ,xedir )
+      call getVecPointer(abso  ,C_one ,xabso1d ,xabso )
 
       Az = atm%dx * atm%dy
 
@@ -2131,7 +2203,7 @@ contains
       if(ldebug) then
         if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
           print *,myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
-          do k=1,ubound(local_kabs,3)
+          do k=C_one%zs,C_one%ze
             print *,myid,k,'local_kabs',local_kabs(k,:,:)
             print *,myid,k,'local_ksca',local_ksca(k,:,:)
           enddo
@@ -2218,7 +2290,7 @@ contains
       endif
 
       if(ldebug .and. myid.eq.0) then
-        do k=lbound(atm%op,3),ubound(atm%op,3)
+        do k=C_one%zs,C_one%ze
           if(present(local_planck)) then
             print *,myid,'Optical Properties:',k,'dz',atm%dz(k,0,0),atm%l1d(k,0,0),'k',&
                 minval(atm%delta_op    (k,:,:)%kabs),minval(atm%delta_op (k, :,:)%ksca),minval(atm%delta_op (k, :,:)%g),&
