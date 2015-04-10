@@ -2160,22 +2160,22 @@ contains
 
       dims = shape(arr)
       if( dims(2) .eq. 1 ) then
-        allocate( tmp(dims(2),dims(3) ), SOURCE=arr(1,:,:) )
+        allocate( tmp(dims(1),dims(3) ), SOURCE=arr(:, 1, :) )
         deallocate(arr) 
-        allocate( arr(minimal_dimension, dims(2), dims(3) ) )
+        allocate( arr(dims(1), minimal_dimension, dims(3) ) )
         do i=1,minimal_dimension
-          arr(i, :, :) = tmp
+          arr(:, i, :) = tmp
         enddo
         deallocate(tmp)
       endif
 
       dims = shape(arr)
       if( dims(3) .eq. 1 ) then
-        allocate( tmp(dims(1),dims(3) ), SOURCE=arr(:,1,:) )
+        allocate( tmp(dims(1),dims(2) ), SOURCE=arr(:,:,1) )
         deallocate(arr) 
-        allocate( arr(dims(1), minimal_dimension, dims(3) ) )
+        allocate( arr(dims(1), dims(2), minimal_dimension ) )
         do i=1,minimal_dimension
-          arr(:,i , :) = tmp
+          arr(:, :, i) = tmp
         enddo
         deallocate(tmp)
       endif
