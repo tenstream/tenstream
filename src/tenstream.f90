@@ -328,17 +328,17 @@ contains
       v(1)=one
 
       if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally'
-      do k=C%zs,C%ze
-        row(MatStencil_i,1) = k
-        col(MatStencil_i,1) = k
+      do j=C%ys,C%ye 
+        row(MatStencil_k,1) = j
+        col(MatStencil_k,1) = j
 
-        do j=C%ys,C%ye 
-          row(MatStencil_k,1) = j
-          col(MatStencil_k,1) = j
+        do i=C%xs,C%xe
+          row(MatStencil_j,1) = i
+          col(MatStencil_j,1) = i
 
-          do i=C%xs,C%xe
-            row(MatStencil_j,1) = i
-            col(MatStencil_j,1) = i
+          do k=C%zs,C%ze
+            row(MatStencil_i,1) = k
+            col(MatStencil_i,1) = k
 
             do dof=0,C%dof-1
               row(MatStencil_c,1) = dof
@@ -475,9 +475,9 @@ contains
         ! no foreign stream dependencies
       endif
 
-      do k=C%zs,C%ze-1
-        do j=C%ys,C%ye
-          do i=C%xs,C%xe      
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe      
+          do k=C%zs,C%ze-1
             if( atm%l1d(k,i,j) ) then
 
               xo(:  ,k,i,j) = i0
@@ -591,9 +591,9 @@ contains
         endif
       enddo
 
-      do k=C%zs,C%ze-1
-        do j=C%ys,C%ye
-          do i=C%xs,C%xe      
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe      
+          do k=C%zs,C%ze-1
             if( atm%l1d(k,i,j) ) then
               xo(:  ,k,i,j) = i0
               xd(:  ,k,i,j) = i1
@@ -673,12 +673,12 @@ contains
       call getVecPointer(gv_o_nnz,C,xo1d,xo)
       call getVecPointer(gv_d_nnz,C,xd1d,xd)
 
-      do k=C%zs,C%ze
-        do j=C%ys,C%ye
-          do i=C%xs,C%xe        
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe        
+          do k=C%zs,C%ze
             xo(:,k,i,j) = xo(:,k,i,j)-xl(:,k,i,j)
             xd(:,k,i,j) = -xo(:,k,i,j) + C%dof+i1
-            print *,myid,k,i,j,'off',int(xo(:,k,i,j)),'on',int(xd(:,k,i,j))
+!            print *,myid,k,i,j,'off',int(xo(:,k,i,j)),'on',int(xd(:,k,i,j))
           enddo
         enddo
       enddo
@@ -759,9 +759,9 @@ contains
       call getVecPointer(gv_o_nnz,C,xo1d,xo)
       call getVecPointer(gv_d_nnz,C,xd1d,xd)
 
-      do k=C%zs,C%ze
-        do j=C%ys,C%ye
-          do i=C%xs,C%xe        
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe        
+          do k=C%zs,C%ze
             xo(:,k,i,j) = xo(:,k,i,j)-xl(:,k,i,j)
             xd(:,k,i,j) = + C%dof+i1  -xo(:,k,i,j) 
             print *,myid,'diff',k,i,j,'on',int(xd(:,k,i,j)),'off',int(xo(:,k,i,j))
@@ -853,9 +853,9 @@ contains
       call MatZeroEntries(A, ierr) ;CHKERRQ(ierr)
       call mat_set_diagonal(A,C)
 
-      do k=C%zs,C%ze-1
-        do j=C%ys,C%ye
-          do i=C%xs,C%xe        
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe        
+          do k=C%zs,C%ze-1
 
             if( atm%l1d(k,i,j) ) then
               call set_eddington_coeff(A,k, i,j)
@@ -988,9 +988,9 @@ contains
       call MatZeroEntries(A, ierr) ;CHKERRQ(ierr) !TODO necessary?
       call mat_set_diagonal(A,C)
 
-      do k=C%zs,C%ze-1
-        do j=C%ys,C%ye
-          do i=C%xs,C%xe
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe
+          do k=C%zs,C%ze-1
 
             if( atm%l1d(k,i,j) ) then
               call set_eddington_coeff(A, k,i,j)
@@ -1191,9 +1191,9 @@ contains
           if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms'
           Az = atm%dx*atm%dy
 
-          do k=C_diff%zs,C_diff%ze-1 
-            do j=C_diff%ys,C_diff%ye         
-              do i=C_diff%xs,C_diff%xe    
+          do j=C_diff%ys,C_diff%ye         
+            do i=C_diff%xs,C_diff%xe    
+              do k=C_diff%zs,C_diff%ze-1 
 
                 if( atm%l1d(k,i,j) ) then
 
@@ -1258,9 +1258,9 @@ contains
       subroutine set_solar_source()
           real(ireals) :: twostr_coeff(2)
           if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))/size(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
-          do k=C_diff%zs,C_diff%ze-1 
-            do j=C_diff%ys,C_diff%ye         
-              do i=C_diff%xs,C_diff%xe    
+          do j=C_diff%ys,C_diff%ye         
+            do i=C_diff%xs,C_diff%xe    
+              do k=C_diff%zs,C_diff%ze-1 
 
                 if( any (xedir(:,k,i,j) .gt. epsilon(one)) ) then
                   if( atm%l1d(k,i,j) ) then
@@ -1360,9 +1360,9 @@ contains
 
       Az = atm%dx * atm%dy
 
-      do k=C_one%zs,C_one%ze
-        do j=C_one%ys,C_one%ye         
-          do i=C_one%xs,C_one%xe      
+      do j=C_one%ys,C_one%ye         
+        do i=C_one%xs,C_one%xe      
+          do k=C_one%zs,C_one%ze
 
             Ax     = atm%dy * atm%dz(k,i,j)
             Ay     = atm%dx * atm%dz(k,i,j)
@@ -1762,9 +1762,9 @@ contains
         Az4 = one/(atm%dx*atm%dy*.25_ireals)
       endif
 
-      do k=C%zs,C%ze-i1
-        do j=C%ys,C%ye         
-          do i=C%xs,C%xe      
+      do j=C%ys,C%ye         
+        do i=C%xs,C%xe      
+          do k=C%zs,C%ze-i1
 
             if(C%dof.eq.i8) then ! This is 8 stream direct radiation
               xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) * Az4
@@ -1847,9 +1847,9 @@ contains
       call getVecPointer(inp ,C ,xinp1d, xinp ,.False.)
       call getVecPointer(local_guess ,C ,xguess1d, xguess ,.True.)
 
-      do k=C%zs,C%ze-1 
-        do j=C%ys,C%ye         
-          do i=C%xs,C%xe    
+      do j=C%ys,C%ye         
+        do i=C%xs,C%xe    
+          do k=C%zs,C%ze-1 
             if( .not. atm%l1d(k,i,j) ) then
               call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
               do src=1,C%dof
@@ -1959,9 +1959,9 @@ contains
         atm%l1d = .False.
       endif
 
-      do k=C_one%ze-1,C_one%zs,-1
-        do j=C_one%ys,C_one%ye
-          do i=C_one%xs,C_one%xe
+      do j=C_one%ys,C_one%ye
+        do i=C_one%xs,C_one%xe
+          do k=C_one%ze-1,C_one%zs,-1
             if( atm%l1d(k,i,j) ) cycle ! if it was already marked 1D before, we must not change it to 3D -- otherwise have to recreate matrix routines. possible but not implemented at the moment !TODO
 
             atm%l1d(C_one%ze,i,j) = twostr_ratio*atm%dz(C_one%ze,i,j).gt.atm%dx
@@ -2259,9 +2259,9 @@ contains
       endif
 
       if(luse_eddington) then
-        do k=C_one%zs,C_one%ze
-          do j=C_one%ys,C_one%ye
-            do i=C_one%xs,C_one%xe
+        do j=C_one%ys,C_one%ye
+          do i=C_one%xs,C_one%xe
+            do k=C_one%zs,C_one%ze
               if( atm%l1d(k,i,j) ) then
                 kext = atm%delta_op(k,i,j)%kabs + atm%delta_op(k,i,j)%ksca
                 w0   = atm%delta_op(k,i,j)%ksca / kext
@@ -2316,7 +2316,7 @@ contains
       ! --------- Can we get an initial guess? ---------------
       if(ltwostr) then
         call twostream(edirTOA,edir,ediff)
-        if(myid.eq.0) print *,'twostream calculation done'
+        if(ldebug .and. myid.eq.0) print *,'twostream calculation done'
 
         if(ltwostr_only) return
 
@@ -2339,7 +2339,6 @@ contains
 
 
       ! ---------------------------- Edir  -------------------
-      print *,'DEBUG ---------------------------------- ',edirTOA,sun%theta
       if(edirTOA.gt.zero .and. sun%theta.ge.zero) then
 
         call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
