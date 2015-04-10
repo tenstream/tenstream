@@ -2217,23 +2217,19 @@ contains
 
       if(ldebug.and.myid.eq.0) then
         if(present(local_kabs) ) then 
-          !      print *,'local_kabs   ',maxval(local_kabs   )  ,shape(local_kabs   )
           print *,'atm_kabs     ',maxval(atm%op%kabs  )  ,shape(atm%op%kabs  )
         endif
         if(present(local_ksca) ) then 
-          !      print *,'local_ksca   ',maxval(local_ksca   )  ,shape(local_ksca   )
           print *,'atm_ksca     ',maxval(atm%op%ksca  )  ,shape(atm%op%ksca  )
         endif
         if(present(local_g) ) then 
-          !      print *,'local_g      ',maxval(local_g      )  ,shape(local_g      )
           print *,'atm_g        ',maxval(atm%op%g     )  ,shape(atm%op%g     )
         endif
         if(present(local_planck) ) then 
-          !      print *,'local_planck ',maxval(local_planck )  ,shape(local_planck ), shape(atm%planck)
           print *,'atm_planck   ',maxval(atm%planck   )  ,shape(atm%planck   )
         endif
 
-        print *, count(atm%l1d) , size(atm%l1d)
+        print *,'Number of 1D layers: ', count(atm%l1d) , size(atm%l1d),'(',(100._ireals* count(atm%l1d) )/size(atm%l1d),'%)'
         if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%op)
       endif
 
@@ -2276,13 +2272,18 @@ contains
                     atm%g1(k,i,j),           &
                     atm%g2(k,i,j) )
               else
-                atm%a11(k,i,j) = 0
-                atm%a12(k,i,j) = 0
-                atm%a13(k,i,j) = 0
-                atm%a23(k,i,j) = 0
-                atm%a33(k,i,j) = 0
-                atm%g1(k,i,j)  = 0
-                atm%g2(k,i,j)  = 0
+                !TODO :: we should really not have this memeory accesible at all....
+                !     :: the fix would be trivial at the moment, as long as all 1d layers start at same 'k',
+                !     :: however if that is to change i.e. on staggered grid, we would need staggered array constructs....
+                if(ldebug) then
+                  atm%a11(k,i,j) = nil
+                  atm%a12(k,i,j) = nil
+                  atm%a13(k,i,j) = nil
+                  atm%a23(k,i,j) = nil
+                  atm%a33(k,i,j) = nil
+                  atm%g1(k,i,j)  = nil
+                  atm%g2(k,i,j)  = nil
+                endif
               endif
             enddo
           enddo
