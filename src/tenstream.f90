@@ -368,8 +368,8 @@ contains
       PetscInt,parameter :: ind(9)=[E_up,E_le_m,E_le_p,E_ri_m,E_ri_p,E_ba_m,E_ba_p,E_fw_m,E_fw_p]
       PetscInt :: i,j,k!d,li,lj,lk
 
-      call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
 
       call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
       allocate(o_nnz(0:vsize-1))
@@ -495,8 +495,8 @@ contains
       call restoreVecPointer(v_o_nnz,C,xo1d,xo)
       call restoreVecPointer(v_d_nnz,C,xd1d,xd)
 
-      call VecDestroy(v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call VecDestroy(v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
 
       if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
   end subroutine 
@@ -515,8 +515,8 @@ contains
       lsun_north = (sun%yinc.eq.i0 )
 
       if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
-      call DMCreateGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMCreateGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
 
       call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
       allocate(o_nnz(0:vsize-1))
@@ -609,8 +609,8 @@ contains
       call restoreVecPointer(v_o_nnz,C,xo1d,xo)
       call restoreVecPointer(v_d_nnz,C,xd1d,xd)
 
-      call VecDestroy(v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call VecDestroy(v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
 
       if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
   end subroutine 
@@ -627,12 +627,12 @@ contains
 
       logical :: lsun_east,lsun_north
 
-      call DMCreateGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
-      call DMCreateGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
       call VecSet(gv_d_nnz, zero, ierr) ;CHKERRQ(ierr)
       call VecSet(gv_o_nnz, zero, ierr) ;CHKERRQ(ierr)
 
-      call DMCreateLocalVector(C%da, lv_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C%da, lv_nnz,ierr) ;CHKERRQ(ierr)
 
       call getVecPointer(lv_nnz,C,xl1d,xl)
 
@@ -692,9 +692,9 @@ contains
       call restoreVecPointer(gv_o_nnz,C,xo1d,xo)
       call restoreVecPointer(gv_d_nnz,C,xd1d,xd)
 
-      call VecDestroy(gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call VecDestroy(gv_d_nnz,ierr) ;CHKERRQ(ierr)
-      call VecDestroy(lv_nnz  ,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreLocalVector (C%da, lv_nnz  ,ierr) ;CHKERRQ(ierr)
   end subroutine 
   subroutine setup_diff_preallocation(d_nnz,o_nnz,C)
       PetscInt,allocatable :: d_nnz(:)
@@ -709,12 +709,12 @@ contains
 
       logical :: lsun_east,lsun_north
 
-      call DMCreateGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
-      call DMCreateGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
       call VecSet(gv_d_nnz, zero, ierr) ;CHKERRQ(ierr)
       call VecSet(gv_o_nnz, zero, ierr) ;CHKERRQ(ierr)
 
-      call DMCreateLocalVector(C%da, lv_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C%da, lv_nnz,ierr) ;CHKERRQ(ierr)
 
       call getVecPointer(lv_nnz,C,xl1d,xl)
 
@@ -787,9 +787,9 @@ contains
       call restoreVecPointer(gv_o_nnz,C,xo1d,xo)
       call restoreVecPointer(gv_d_nnz,C,xd1d,xd)
 
-      call VecDestroy(gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call VecDestroy(gv_d_nnz,ierr) ;CHKERRQ(ierr)
-      call VecDestroy(lv_nnz  ,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreLocalVector (C%da, lv_nnz,  ierr) ;CHKERRQ(ierr)
   end subroutine 
 
   subroutine get_coeff(op,dz,dir,coeff,lone_dimensional,angles)
@@ -1160,7 +1160,7 @@ contains
 
       if(myid.eq.0.and.ldebug) print *,'src Vector Assembly...'
 
-      call DMCreateLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
       call VecSet(local_b,zero,ierr) ;CHKERRQ(ierr)
 
       call getVecPointer(local_b,C_diff,xsrc1d,xsrc,.True.)
@@ -1179,7 +1179,7 @@ contains
       call DMLocalToGlobalBegin(C_diff%da, local_b, ADD_VALUES, b,ierr) ;CHKERRQ(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
       call DMLocalToGlobalEnd  (C_diff%da, local_b, ADD_VALUES, b,ierr) ;CHKERRQ(ierr)
 
-      call VecDestroy(local_b,ierr) ;CHKERRQ(ierr)
+      call DMRestoreLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
 
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
       if(myid.eq.0.and.ldebug) print *,'src Vector Assembly done'
@@ -1342,13 +1342,13 @@ contains
       ! TODO: if there are no 3D layers, we should skip the ghost value copying....
 
       ! Copy ghosted values for direct vec
-      call DMCreateLocalVector(C_dir%da ,ledir ,ierr)                   ; CHKERRQ(ierr)
+      call DMGetLocalVector(C_dir%da ,ledir ,ierr)                   ; CHKERRQ(ierr)
       call VecSet(ledir ,zero,ierr)                                     ; CHKERRQ(ierr)
       call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
       call DMGlobalToLocalEnd(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr)   ; CHKERRQ(ierr)
 
       ! Copy ghosted values for diffuse vec
-      call DMCreateLocalVector(C_diff%da,lediff,ierr)                   ; CHKERRQ(ierr)
+      call DMGetLocalVector(C_diff%da,lediff,ierr)                   ; CHKERRQ(ierr)
       call VecSet(lediff,zero,ierr)                                     ; CHKERRQ(ierr)
       call DMGlobalToLocalBegin(C_diff%da,ediff,ADD_VALUES,lediff,ierr) ; CHKERRQ(ierr)
       call DMGlobalToLocalEnd(C_diff%da,ediff,ADD_VALUES,lediff,ierr)   ; CHKERRQ(ierr)
@@ -1408,8 +1408,8 @@ contains
       call restoreVecPointer(ledir ,C_dir ,xedir1d ,xedir )
       call restoreVecPointer(abso  ,C_one ,xabso1d ,xabso )
 
-      call VecDestroy(lediff,ierr) ; CHKERRQ(ierr)
-      call VecDestroy(ledir ,ierr) ; CHKERRQ(ierr)
+      call DMRestoreLocalVector(C_diff%da,lediff,ierr)                   ; CHKERRQ(ierr)
+      call DMRestoreLocalVector(C_dir%da ,ledir ,ierr)                   ; CHKERRQ(ierr)
   end subroutine
 
   subroutine solve(ksp,b,x,solution_uid)
@@ -1632,7 +1632,7 @@ contains
 
 
       ! get ghost values for dz, planck, kabs and fluxes and pack em in new arrays, ready to give it to NCA
-      call DMCreateLocalVector(C_diff%da ,lediff ,ierr)                   ; CHKERRQ(ierr)
+      call DMGetLocalVector(C_diff%da ,lediff ,ierr)                   ; CHKERRQ(ierr)
       call VecSet(lediff,zero,ierr); CHKERRQ(ierr)
 
       call DMGlobalToLocalBegin(C_diff%da ,ediff ,ADD_VALUES,lediff ,ierr) ; CHKERRQ(ierr)
@@ -1658,7 +1658,7 @@ contains
 
       call restoreVecPointer(lediff ,C_diff ,xv1d, xv )
 
-      call VecDestroy(lediff, ierr) ; CHKERRQ(ierr)
+      call DMRestoreLocalVector(C_diff%da, lediff, ierr); CHKERRQ(ierr)
 
       hr=0
       call ts_nca(C_one%zm, C_one%xm, C_one%ym, dz_g, planck_g, kabs_g, hr, atm%dx, atm%dy, Edn_g, Eup_g)
@@ -1841,7 +1841,7 @@ contains
       PetscInt :: k,i,j,src
 
       if(myid.eq.0.and.ldebug) print *,'setting initial guess...'
-      call DMCreateLocalVector(C%da,local_guess,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C%da,local_guess,ierr) ;CHKERRQ(ierr)
       call VecSet(local_guess,zero,ierr) ;CHKERRQ(ierr)
 
       call getVecPointer(inp ,C ,xinp1d, xinp ,.False.)
@@ -1877,7 +1877,7 @@ contains
       call DMLocalToGlobalBegin(C%da,local_guess,ADD_VALUES, guess,ierr) ;CHKERRQ(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
       call DMLocalToGlobalEnd  (C%da,local_guess,ADD_VALUES, guess,ierr) ;CHKERRQ(ierr)
 
-      call VecDestroy(local_guess,ierr) ;CHKERRQ(ierr)
+      call DMRestoreLocalVector(C_diff%da, local_guess, ierr); CHKERRQ(ierr)
   end subroutine
 
   subroutine init_memory(incSolar,b,edir,ediff,abso,Mdir,Mdiff)
@@ -2077,7 +2077,7 @@ contains
           if(myid.eq.0.and.ldebug .and. lhave_kabs) &
               print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
 
-          call DMCreateGlobalVector(C_one%da, local_vec, ierr) ; CHKERRQ(ierr)
+          call DMGetGlobalVector(C_one%da, local_vec, ierr) ; CHKERRQ(ierr)
 
           if(lhave_kabs) then
             call scatterZerotoDM(global_kabs,C_one,local_vec)
@@ -2100,15 +2100,15 @@ contains
             call restoreVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
           endif
 
-          call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
+          call DMRestoreGlobalVector(C_one%da, local_vec, ierr) ; CHKERRQ(ierr)
 
           if(lhave_planck) then
-            call DMCreateGlobalVector(C_one1%da, local_vec, ierr) ; CHKERRQ(ierr)
+            call DMGetGlobalVector(C_one1%da, local_vec, ierr) ; CHKERRQ(ierr)
             call scatterZerotoDM(global_planck,C_one1,local_vec)
             call getVecPointer(local_vec ,C_one1 ,xlocal_vec1d, xlocal_vec,.False. )
             local_planck = xlocal_vec(0,:,:,:)
             call restoreVecPointer(local_vec ,C_one1 ,xlocal_vec1d, xlocal_vec )
-            call VecDestroy(local_vec,ierr) ; CHKERRQ(ierr)
+            call DMRestoreGlobalVector(C_one1%da, local_vec, ierr) ; CHKERRQ(ierr)
           endif
       end subroutine
   end subroutine
