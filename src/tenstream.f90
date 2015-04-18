@@ -2400,7 +2400,7 @@ end subroutine
       integer(iintegers),optional,intent(in) :: opt_solution_uid
       real(ireals),      optional,intent(in) :: opt_solution_time
       logical :: loaded
-      integer(iintegers) :: uid
+      integer(iintegers) :: uid,twostr_uid
 
       if(present(opt_solution_uid)) then
         uid = opt_solution_uid
@@ -2412,10 +2412,22 @@ end subroutine
 
       ! --------- Can we get an initial guess? ---------------
       if(ltwostr) then
-        call prepare_solution(solutions(-1),-1_iintegers, lsolar=.True. ) ! make space for twostream solution 
-        call twostream(edirTOA,  solutions(-1) )
-        solutions(-1)%lchanged=.True.
+        if(ltwostr_only) then
+          twostr_uid = uid
+        else
+          twostr_uid = -1
+        endif
+
+        call prepare_solution(solutions(twostr_uid),twostr_uid, lsolar=.True. ) ! make space for twostream solution 
+        call twostream(edirTOA,  solutions(twostr_uid) )
+        solutions(twostr_uid)%lchanged=.True.
         if(ldebug .and. myid.eq.0) print *,'twostream calculation done'
+
+        if(present(opt_solution_time) ) then 
+          call restore_solution(solutions(twostr_uid),opt_solution_time)
+        else
+          call restore_solution(solutions(twostr_uid))
+        endif
 
         if(ltwostr_only) return
       endif
