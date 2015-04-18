@@ -62,14 +62,15 @@ module m_tenstream
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
-      options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess, lcalc_nca
+      options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
+      lwriteall,lcalc_nca
 
   implicit none
 
   private
   public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
       getVecPointer,restoreVecPointer, &
-      tenstream_get_result, need_new_solution, load_solution, &
+      tenstream_get_result, need_new_solution, &
       t_coord,C_dir,C_diff,C_one
 
   PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
@@ -128,12 +129,10 @@ module m_tenstream
 
   Mat,save :: Mdir,Mdiff
 
-  Vec,save :: incSolar,b,edir,ediff,abso
+  Vec,save :: incSolar,b
 
   KSP,save :: kspdir, kspdiff
   logical,save :: linit_kspdir=.False., linit_kspdiff=.False.
-
-  logical,save :: lintegrated_dir=.True. , lintegrated_diff=.True.  ! save state of solution vectors... they are either in [W](true) or [W/m**2](false)
 
   logical,save :: linitialized=.False.
 
@@ -141,8 +140,14 @@ module m_tenstream
 
   logical,parameter :: lenable_solutions=.True. ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
   type t_state_container
-    Vec :: edir,ediff
-    logical :: lset=.False.
+    integer(iintegers) :: uid ! dirty hack to give the solution a unique hash for example to write it out to disk -- this should be the same as the index in global solutions array
+    Vec :: edir,ediff,abso
+    logical :: lset        = .False. ! initialized?
+    logical :: lsolar_rad  = .False. ! direct radiation calculated?
+    logical :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
+
+    ! save state of solution vectors... they are either in [W](true) or [W/m**2](false)
+    logical :: lintegrated_dir=.True. , lintegrated_diff=.True.  
 
     !save error statistics
     real(ireals) :: time   (300) = -one
@@ -150,7 +155,7 @@ module m_tenstream
     real(ireals) :: twonorm(300) = zero
     real(ireals),allocatable :: ksp_residual_history(:)
   end type
-  type(t_state_container),save :: solutions(1000)
+  type(t_state_container),save :: solutions(-1:1000)
 
 contains 
   subroutine setup_grid(Nz,Nx,Ny,nxproc,nyproc)
@@ -1147,13 +1152,12 @@ contains
       end subroutine
   end subroutine
 
-  subroutine setup_b(edir,b)
-      Vec :: edir
+  subroutine setup_b(solution,b)
+      type(t_state_container) :: solution
       Vec :: local_b,b
 
-      PetscScalar,pointer,dimension(:,:,:,:) :: xsrc=>null(),xedir=>null()
-      PetscScalar,pointer,dimension(:) :: xsrc1d=>null(),xedir1d=>null()
-      PetscReal :: diff2diff(C_diff%dof**2), dir2diff(C_dir%dof*C_diff%dof)
+      PetscScalar,pointer,dimension(:,:,:,:) :: xsrc=>null()
+      PetscScalar,pointer,dimension(:) :: xsrc1d=>null()
       PetscInt :: k,i,j,src
 
       call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
@@ -1163,16 +1167,17 @@ contains
       call DMGetLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
       call VecSet(local_b,zero,ierr) ;CHKERRQ(ierr)
 
-      call getVecPointer(local_b,C_diff,xsrc1d,xsrc,.True.)
-      call getVecPointer(edir,C_dir,xedir1d,xedir,.False.)
+      call getVecPointer(local_b,C_diff,xsrc1d,xsrc)
 
-      call set_solar_source()
-      if(allocated(atm%planck) ) call set_thermal_source()
+      if(solution%lsolar_rad) &
+          call set_solar_source(solution%edir)
+
+      if(allocated(atm%planck) ) &
+          call set_thermal_source()
 
       if(myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients ...done'
 
       call restoreVecPointer(local_b, C_diff, xsrc1d , xsrc )
-      call restoreVecPointer(edir   , C_dir , xedir1d, xedir)
 
       call VecSet(b,zero,ierr) ;CHKERRQ(ierr) ! reset global Vec
 
@@ -1183,10 +1188,12 @@ contains
 
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
       if(myid.eq.0.and.ldebug) print *,'src Vector Assembly done'
+
     contains
       subroutine set_thermal_source()
           PetscReal :: Ax,Ay,Az,c1,c2,c3,b0,b1,dtau
           real(ireals) :: diff2diff1d(4)
+          PetscReal :: diff2diff(C_diff%dof**2)
 
           if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms'
           Az = atm%dx*atm%dy
@@ -1255,8 +1262,28 @@ contains
             enddo
           enddo
       end subroutine
-      subroutine set_solar_source()
+      subroutine set_solar_source(edir)
+          Vec :: edir
           real(ireals) :: twostr_coeff(2)
+          real(ireals) :: dir2diff(C_dir%dof*C_diff%dof), solrad(C_dir%dof)
+
+          Vec :: ledir
+          PetscScalar,pointer,dimension(:,:,:,:) :: xedir=>null()
+          PetscScalar,pointer,dimension(:)       :: xedir1d=>null()
+
+          logical :: lsun_east,lsun_north
+          lsun_east  = (sun%xinc.eq.i0)
+          lsun_north = (sun%yinc.eq.i0 )
+
+
+          ! Copy ghosted values for direct vec
+          call DMGetLocalVector(C_dir%da ,ledir ,ierr)                      ; CHKERRQ(ierr)
+          call VecSet(ledir ,zero,ierr)                                     ; CHKERRQ(ierr)
+          call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
+          call DMGlobalToLocalEnd  (C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
+
+          call getVecPointer(ledir,C_dir,xedir1d,xedir)
+
           if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))/size(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
           do j=C_diff%ys,C_diff%ye         
             do i=C_diff%xs,C_diff%xe    
@@ -1290,16 +1317,47 @@ contains
                     call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., dir2diff,  atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
 
                     do src=1,C_dir%dof
-                      xsrc(E_up   , k   , i   , j   ) = xsrc(E_up   , k   , i   , j   ) +  xedir(src-1 , k , i , j ) *dir2diff(E_up  +i1+(src-1 ) *C_diff%dof )
-                      xsrc(E_dn   , k+1 , i   , j   ) = xsrc(E_dn   , k+1 , i   , j   ) +  xedir(src-1 , k , i , j ) *dir2diff(E_dn  +i1+(src-1 ) *C_diff%dof )
-                      xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  xedir(src-1 , k , i , j ) *dir2diff(E_le_m+i1+(src-1 ) *C_diff%dof )
-                      xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  xedir(src-1 , k , i , j ) *dir2diff(E_le_p+i1+(src-1 ) *C_diff%dof )
-                      xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  xedir(src-1 , k , i , j ) *dir2diff(E_ri_m+i1+(src-1 ) *C_diff%dof )
-                      xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  xedir(src-1 , k , i , j ) *dir2diff(E_ri_p+i1+(src-1 ) *C_diff%dof )
-                      xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  xedir(src-1 , k , i , j ) *dir2diff(E_ba_m+i1+(src-1 ) *C_diff%dof )
-                      xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  xedir(src-1 , k , i , j ) *dir2diff(E_ba_p+i1+(src-1 ) *C_diff%dof )
-                      xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  xedir(src-1 , k , i , j ) *dir2diff(E_fw_m+i1+(src-1 ) *C_diff%dof )
-                      xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  xedir(src-1 , k , i , j ) *dir2diff(E_fw_p+i1+(src-1 ) *C_diff%dof )
+                      select case(src)
+                      case (1:4)
+                        solrad = xedir( : , k , i , j )
+                      case (5:6)
+                        solrad = xedir( : , k , i+i1-sun%xinc , j )
+                      case (7:8)
+                        solrad = xedir( : , k , i , j+i1-sun%yinc )
+                      case default
+                        stop 'invalid dof for solar source term'
+                      end select
+                      xsrc(E_up   , k   , i   , j   ) = xsrc(E_up   , k   , i   , j   ) +  solrad(src) *dir2diff(E_up  +i1 + (src-1)*C_diff%dof )
+                      xsrc(E_dn   , k+1 , i   , j   ) = xsrc(E_dn   , k+1 , i   , j   ) +  solrad(src) *dir2diff(E_dn  +i1 + (src-1)*C_diff%dof )
+
+                      if(lsun_east) then ! if sun shines from right to left, switch ''reflection'' and ''transmission'' coefficients.
+                        xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_ri_m+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_ri_p+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_le_m+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_le_p+i1 + (src-1)*C_diff%dof )
+                      else
+                        xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_le_m+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_le_p+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_ri_m+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_ri_p+i1 + (src-1)*C_diff%dof )
+                      endif
+                      if(lsun_north) then ! likewise if sun shines from forward to backwards, 
+                        xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_fw_m+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_fw_p+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_ba_m+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_ba_p+i1 + (src-1)*C_diff%dof )
+                      else
+                        xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_ba_m+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_ba_p+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_fw_m+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_fw_p+i1 + (src-1)*C_diff%dof )
+                      endif
+
+                      if(ldebug) then
+                        if(sum(dir2diff(i1+(src-1 ) *C_diff%dof : C_dir%dof+(src-1 ) *C_diff%dof ) ) .gt. one .or. &
+                           sum(dir2diff(i1+(src-1 ) *C_diff%dof : C_dir%dof+(src-1 ) *C_diff%dof ) ) .lt. zero   ) &
+                            print *,'DEBUG Found dir2diff gt one:',src,'::',sum(dir2diff(i1+(src-1 ) *C_diff%dof : C_dir%dof+(src-1 ) *C_diff%dof ) ),'::',dir2diff(i1+(src-1 ) *C_diff%dof : C_dir%dof+(src-1 ) *C_diff%dof ) 
+                      endif
                     enddo
 
                   endif ! 1D or Tenstream?
@@ -1316,11 +1374,14 @@ contains
               xsrc(E_up   ,k,i,j) = sum(xedir(i0:i3,k,i,j))*atm%albedo
             enddo
           enddo
+
+          call restoreVecPointer(ledir ,C_dir ,xedir1d ,xedir )
+          call DMRestoreLocalVector(C_dir%da ,ledir ,ierr)       ; CHKERRQ(ierr)
       end subroutine
   end subroutine
 
-  subroutine calc_flx_div(edir,ediff,abso)
-      Vec :: edir,ediff,abso
+  subroutine calc_flx_div(solution)
+      type(t_state_container) :: solution
       PetscReal,pointer,dimension(:,:,:,:) :: xediff=>null(),xedir=>null(),xabso=>null()
       PetscReal,pointer,dimension(:) :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
       PetscInt :: i,j,k
@@ -1328,72 +1389,81 @@ contains
       PetscReal :: div(3),div2(13)
       PetscReal :: Volume,Ax,Ay,Az
 
-      if(lintegrated_dir) stop 'tried calculating absorption but dir  vector was in [W], not in [W/m**2], scale first!'
-      if(lintegrated_diff)stop 'tried calculating absorption but diff vector was in [W], not in [W/m**2], scale first!'
+      if(.not. solution%lintegrated_dir) stop 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!'
+      if(.not. solution%lintegrated_diff)stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
 
       if( lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
-        call nca_wrapper(ediff,abso)
+        stop 'TODO: this is not supported atm -- i guess nca does not expect [W] but [W/m**2]'
+        call nca_wrapper(solution%ediff,solution%abso)
         return
       endif
 
       if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence'
-      call VecSet(abso,zero,ierr) ;CHKERRQ(ierr)
+      call VecSet(solution%abso,zero,ierr) ;CHKERRQ(ierr)
 
       ! TODO: if there are no 3D layers, we should skip the ghost value copying....
 
-      ! Copy ghosted values for direct vec
-      call DMGetLocalVector(C_dir%da ,ledir ,ierr)                   ; CHKERRQ(ierr)
-      call VecSet(ledir ,zero,ierr)                                     ; CHKERRQ(ierr)
-      call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
-      call DMGlobalToLocalEnd(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr)   ; CHKERRQ(ierr)
+      if(solution%lsolar_rad) then
+        ! Copy ghosted values for direct vec
+        call DMGetLocalVector(C_dir%da ,ledir ,ierr)                      ; CHKERRQ(ierr)
+        call VecSet(ledir ,zero,ierr)                                     ; CHKERRQ(ierr)
+        call DMGlobalToLocalBegin(C_dir%da ,solution%edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
+        call DMGlobalToLocalEnd  (C_dir%da ,solution%edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
+        call getVecPointer(ledir, C_dir ,xedir1d ,xedir )
+      endif
 
       ! Copy ghosted values for diffuse vec
-      call DMGetLocalVector(C_diff%da,lediff,ierr)                   ; CHKERRQ(ierr)
+      call DMGetLocalVector(C_diff%da,lediff,ierr)                      ; CHKERRQ(ierr)
       call VecSet(lediff,zero,ierr)                                     ; CHKERRQ(ierr)
-      call DMGlobalToLocalBegin(C_diff%da,ediff,ADD_VALUES,lediff,ierr) ; CHKERRQ(ierr)
-      call DMGlobalToLocalEnd(C_diff%da,ediff,ADD_VALUES,lediff,ierr)   ; CHKERRQ(ierr)
+      call DMGlobalToLocalBegin(C_diff%da,solution%ediff,ADD_VALUES,lediff,ierr) ; CHKERRQ(ierr)
+      call DMGlobalToLocalEnd  (C_diff%da,solution%ediff,ADD_VALUES,lediff,ierr) ; CHKERRQ(ierr)
+      call getVecPointer(lediff, C_diff, xediff1d, xediff)
+
+      call getVecPointer(solution%abso, C_one, xabso1d, xabso)
 
       ! calculate absorption by flux divergence
-      call getVecPointer(lediff,C_diff,xediff1d,xediff)
-      call getVecPointer(ledir ,C_dir ,xedir1d ,xedir )
-      call getVecPointer(abso  ,C_one ,xabso1d ,xabso )
-
       Az = atm%dx * atm%dy
 
       do j=C_one%ys,C_one%ye         
         do i=C_one%xs,C_one%xe      
           do k=C_one%zs,C_one%ze
 
-            Ax     = atm%dy * atm%dz(k,i,j)
-            Ay     = atm%dx * atm%dz(k,i,j)
             Volume = Az     * atm%dz(k,i,j)
 
             if(atm%l1d(k,i,j)) then ! one dimensional i.e. twostream
               ! Divergence    =                       Incoming                -       Outgoing
-              div( 1) = sum( xedir(i0:i3, k, i, j )  - xedir(i0:i3 , k+i1 , i, j ) ) *Az*.25_ireals
+              if(solution%lsolar_rad) then
+                div(1) = sum( xedir(i0:i3, k, i, j )  - xedir(i0:i3 , k+i1 , i, j ) ) 
+              else 
+                div(1) = zero
+              endif
 
-              div( 2) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  ) *Az
-              div( 3) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  ) *Az
+              div(2) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  ) 
+              div(3) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  ) 
 
               xabso(i0,k,i,j) = sum(div) / Volume
+!              if(xabso(i0,k,i,j).lt.zero) print *,'1D abso<0 :: ',i,j,k,'::',xabso(i0,k,i,j),'::',div
             else
 
-              !          Divergence     =                        Incoming                        -                   Outgoing
+              ! Divergence    =                 Incoming                        -                   Outgoing
+              if(solution%lsolar_rad) then
+                div2( 1) = sum( xedir(i0:i3 , k, i             , j             )  - xedir(i0:i3 , k+i1 , i          , j           ) ) 
+                div2( 2) = sum( xedir(i4:i5 , k, i+i1-sun%xinc , j             )  - xedir(i4:i5 , k    , i+sun%xinc , j           ) ) 
+                div2( 3) = sum( xedir(i6:i7 , k, i             , j+i1-sun%yinc )  - xedir(i6:i7 , k    , i          , j+sun%yinc  ) ) 
+              else 
+                div2(1:3) = zero
+              endif
 
-              div2( 1) = sum( xedir(i0:i3 , k, i             , j             )  - xedir(i0:i3 , k+i1 , i          , j           ) ) *Az*.25_ireals
-              div2( 2) = sum( xedir(i4:i5 , k, i+i1-sun%xinc , j             )  - xedir(i4:i5 , k    , i+sun%xinc , j           ) ) *Ax*.5_ireals
-              div2( 3) = sum( xedir(i6:i7 , k, i             , j+i1-sun%yinc )  - xedir(i6:i7 , k    , i          , j+sun%yinc  ) ) *Ay*.5_ireals
-
-              div2( 4) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  ) *Az
-              div2( 5) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  ) *Az
-              div2( 6) = ( xediff(E_le_m,k  ,i+1,j  )  - xediff(E_le_m,k  ,i  ,j  )  ) *Ax
-              div2( 7) = ( xediff(E_le_p,k  ,i+1,j  )  - xediff(E_le_p,k  ,i  ,j  )  ) *Ax
-              div2( 8) = ( xediff(E_ri_m,k  ,i  ,j  )  - xediff(E_ri_m,k  ,i+1,j  )  ) *Ax
-              div2( 9) = ( xediff(E_ri_p,k  ,i  ,j  )  - xediff(E_ri_p,k  ,i+1,j  )  ) *Ax
-              div2(10) = ( xediff(E_ba_m,k  ,i  ,j+1)  - xediff(E_ba_m,k  ,i  ,j  )  ) *Ay
-              div2(11) = ( xediff(E_ba_p,k  ,i  ,j+1)  - xediff(E_ba_p,k  ,i  ,j  )  ) *Ay
-              div2(12) = ( xediff(E_fw_m,k  ,i  ,j  )  - xediff(E_fw_m,k  ,i  ,j+1)  ) *Ay
-              div2(13) = ( xediff(E_fw_p,k  ,i  ,j  )  - xediff(E_fw_p,k  ,i  ,j+1)  ) *Ay
+              div2( 4) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  ) 
+              div2( 5) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  ) 
+              div2( 6) = ( xediff(E_le_m,k  ,i+1,j  )  - xediff(E_le_m,k  ,i  ,j  )  ) 
+              div2( 7) = ( xediff(E_le_p,k  ,i+1,j  )  - xediff(E_le_p,k  ,i  ,j  )  ) 
+              div2( 8) = ( xediff(E_ri_m,k  ,i  ,j  )  - xediff(E_ri_m,k  ,i+1,j  )  ) 
+              div2( 9) = ( xediff(E_ri_p,k  ,i  ,j  )  - xediff(E_ri_p,k  ,i+1,j  )  ) 
+              div2(10) = ( xediff(E_ba_m,k  ,i  ,j+1)  - xediff(E_ba_m,k  ,i  ,j  )  ) 
+              div2(11) = ( xediff(E_ba_p,k  ,i  ,j+1)  - xediff(E_ba_p,k  ,i  ,j  )  ) 
+              div2(12) = ( xediff(E_fw_m,k  ,i  ,j  )  - xediff(E_fw_m,k  ,i  ,j+1)  ) 
+              div2(13) = ( xediff(E_fw_p,k  ,i  ,j  )  - xediff(E_fw_p,k  ,i  ,j+1)  ) 
 
               xabso(i0,k,i,j) = sum(div2) / Volume
               if(ldebug) then
@@ -1404,12 +1474,16 @@ contains
         enddo                             
       enddo   
 
-      call restoreVecPointer(lediff,C_diff,xediff1d,xediff)
-      call restoreVecPointer(ledir ,C_dir ,xedir1d ,xedir )
-      call restoreVecPointer(abso  ,C_one ,xabso1d ,xabso )
 
-      call DMRestoreLocalVector(C_diff%da,lediff,ierr)                   ; CHKERRQ(ierr)
-      call DMRestoreLocalVector(C_dir%da ,ledir ,ierr)                   ; CHKERRQ(ierr)
+      if(solution%lsolar_rad) then
+        call restoreVecPointer(ledir          ,C_dir ,xedir1d ,xedir )
+        call DMRestoreLocalVector(C_dir%da ,ledir ,ierr) ; CHKERRQ(ierr)
+      endif
+
+      call restoreVecPointer(lediff         ,C_diff,xediff1d,xediff)
+      call DMRestoreLocalVector(C_diff%da,lediff,ierr) ; CHKERRQ(ierr)
+
+      call restoreVecPointer(solution%abso  ,C_one ,xabso1d ,xabso )
   end subroutine
 
   subroutine solve(ksp,b,x,solution_uid)
@@ -1475,7 +1549,7 @@ contains
       !      Vec :: nullvecs(0)
       character(len=*),optional :: prefix
 
-      PetscReal,parameter :: rtol=1e-5_ireals, atol=1e-5_ireals
+      PetscReal,parameter :: rtol=1e-5_ireals, atol=1e-8_ireals
       PetscInt,parameter  :: maxiter=10000
 
       PetscInt,parameter :: ilu_default_levels=1
@@ -1672,9 +1746,9 @@ contains
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
   end subroutine
 
-  subroutine twostream(edirTOA,edir,ediff)
+  subroutine twostream(edirTOA,solution)
       real(ireals),intent(in) :: edirTOA
-      Vec :: edir,ediff
+      type(t_state_container) :: solution
 
       PetscReal,pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()
       PetscReal,pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
@@ -1683,8 +1757,8 @@ contains
       real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
       real(ireals) :: mu0,incSolar
 
-      call VecSet(edir ,zero,ierr); CHKERRQ(ierr)
-      call VecSet(ediff,zero,ierr); CHKERRQ(ierr)
+      call VecSet(solution%edir ,zero,ierr); CHKERRQ(ierr)
+      call VecSet(solution%ediff,zero,ierr); CHKERRQ(ierr)
 
       call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
 
@@ -1696,8 +1770,8 @@ contains
       mu0 = sun%costheta
       incSolar = edirTOA* sun%costheta
 
-      call getVecPointer(edir  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
-      call getVecPointer(ediff ,C_diff ,xv_diff1d, xv_diff ,.False.)
+      call getVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
+      call getVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff ,.False.)
 
       allocate( S(C_dir%zm ) )
       allocate( Eup(C_diff%zm) )
@@ -1728,12 +1802,14 @@ contains
         enddo
       enddo
 
-      call restoreVecPointer(edir  ,C_dir  ,xv_dir1d , xv_dir  )
-      call restoreVecPointer(ediff ,C_diff ,xv_diff1d, xv_diff )
+      call restoreVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  )
+      call restoreVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff )
 
       !Twostream solver returns fluxes as [W]
-      lintegrated_dir = .False.
-      lintegrated_diff= .False.
+      solution%lintegrated_dir  = .False.
+      solution%lintegrated_diff = .False.
+      ! and mark solution that it is not up to date
+      solution%lchanged         = .False.
 
       deallocate(S)
       deallocate(Edn)
@@ -1742,92 +1818,109 @@ contains
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
   end subroutine
 
-  subroutine scale_flx(v,C,lintegrate)
-      Vec :: v
-      type(t_coord) :: C
-      PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
-      PetscReal,pointer,dimension(:)       :: xv1d=>null()
-      PetscInt :: i,j,k
-      PetscReal :: Ax,Ax2,Ay,Ay2,Az,Az4
-      logical,intent(in) :: lintegrate ! determines direction of scaling, if true, scale from W/m**2 to W
+  subroutine scale_flx(solution, lWm2_to_W)
+    type(t_state_container) :: solution
+    logical,intent(in) :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W 
 
-      if(myid.eq.0.and.ldebug) print *,'rescaling fluxes'
-      call getVecPointer(v ,C ,xv1d, xv ,.False. )
+    if(solution%lsolar_rad) then
+      if(solution%lintegrated_dir .neqv. lWm2_to_W) then
+          call scale_flx_vec(solution%edir, C_dir, lWm2_to_W)
+          solution%lintegrated_dir = lWm2_to_W
+        endif
+    endif
+    if(solution%lintegrated_diff .neqv. lWm2_to_W) then
+      call scale_flx_vec(solution%ediff, C_diff, lWm2_to_W)
+      solution%lintegrated_diff = lWm2_to_W
+    endif
 
-      if(lintegrate) then
-        Az  = atm%dx*atm%dy
-        Az4 = atm%dx*atm%dy*.25_ireals
-      else
-        Az  = one/(atm%dx*atm%dy)
-        Az4 = one/(atm%dx*atm%dy*.25_ireals)
-      endif
+  contains
+    subroutine scale_flx_vec(v,C,lWm2_to_W)
+        Vec :: v
+        type(t_coord) :: C
+        PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
+        PetscReal,pointer,dimension(:)       :: xv1d=>null()
+        PetscInt :: i,j,k
+        PetscReal :: Ax,Ax2,Ay,Ay2,Az,Az4
+        logical,intent(in) :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
 
-      do j=C%ys,C%ye         
-        do i=C%xs,C%xe      
-          do k=C%zs,C%ze-i1
+        if(myid.eq.0.and.ldebug) print *,'rescaling fluxes'
+        call getVecPointer(v ,C ,xv1d, xv ,.False. )
+
+        if(lWm2_to_W) then
+          Az  = atm%dx*atm%dy
+          Az4 = atm%dx*atm%dy*.25_ireals
+        else
+          Az  = one/(atm%dx*atm%dy)
+          Az4 = one/(atm%dx*atm%dy*.25_ireals)
+        endif
+
+        do j=C%ys,C%ye         
+          do i=C%xs,C%xe      
+            do k=C%zs,C%ze-i1
+
+              if(C%dof.eq.i8) then ! This is 8 stream direct radiation
+                xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) * Az4
+              endif
+
+              if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
+                xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
+                xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
+              endif
+
+              if(.not.atm%l1d(k,i,j)) then
+
+                if(C%dof.eq.i8) then ! This is 8 stream direct radiation
+
+                  if(lWm2_to_W) then
+                    Ax2 = atm%dy*atm%dz(k,i,j)*.5_ireals
+                    Ay2 = atm%dx*atm%dz(k,i,j)*.5_ireals
+                  else
+                    Ax2 = one/(atm%dy*atm%dz(k,i,j)*.5_ireals )
+                    Ay2 = one/(atm%dx*atm%dz(k,i,j)*.5_ireals )
+                  endif
+                  xv(i4:i5,k,i,j) = xv(i4:i5,k,i,j) * Ax2 
+                  xv(i6:i7,k,i,j) = xv(i6:i7,k,i,j) * Ay2 
+                endif
+
+                if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
+                  if(lWm2_to_W) then
+                    Ax  = atm%dy*atm%dz(k,i,j)
+                    Ay  = atm%dx*atm%dz(k,i,j)
+                  else
+                    Ax  = one/(atm%dy*atm%dz(k,i,j) )
+                    Ay  = one/(atm%dx*atm%dz(k,i,j) )
+                  endif
+                  xv(E_le_m,k,i,j) = xv(E_le_m,k,i,j) * Ax
+                  xv(E_le_p,k,i,j) = xv(E_le_p,k,i,j) * Ax
+                  xv(E_ri_m,k,i,j) = xv(E_ri_m,k,i,j) * Ax
+                  xv(E_ri_p,k,i,j) = xv(E_ri_p,k,i,j) * Ax
+                  xv(E_ba_m,k,i,j) = xv(E_ba_m,k,i,j) * Ay
+                  xv(E_ba_p,k,i,j) = xv(E_ba_p,k,i,j) * Ay
+                  xv(E_fw_m,k,i,j) = xv(E_fw_m,k,i,j) * Ay
+                  xv(E_fw_p,k,i,j) = xv(E_fw_p,k,i,j) * Ay
+                endif
+              endif
+            enddo
+          enddo
+        enddo
+
+        k=C%ze
+        do j=C%ys,C%ye         
+          do i=C%xs,C%xe      
 
             if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-              xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) * Az4
+              xv (i0:i3 ,k,i,j) = xv (i0:i3 ,k,i,j) * Az4
             endif
-
             if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
               xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
               xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
             endif
-
-            if(.not.atm%l1d(k,i,j)) then
-
-              if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-
-                if(lintegrate) then
-                  Ax2 = atm%dy*atm%dz(k,i,j)*.5_ireals
-                  Ay2 = atm%dx*atm%dz(k,i,j)*.5_ireals
-                else
-                  Ax2 = one/(atm%dy*atm%dz(k,i,j)*.5_ireals )
-                  Ay2 = one/(atm%dx*atm%dz(k,i,j)*.5_ireals )
-                endif
-                xv(i4:i5,k,i,j) = xv(i4:i5,k,i,j) * Ax2 
-                xv(i6:i7,k,i,j) = xv(i6:i7,k,i,j) * Ay2 
-              endif
-
-              if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
-                if(lintegrate) then
-                  Ax  = atm%dy*atm%dz(k,i,j)
-                  Ay  = atm%dx*atm%dz(k,i,j)
-                else
-                  Ax  = one/(atm%dy*atm%dz(k,i,j) )
-                  Ay  = one/(atm%dx*atm%dz(k,i,j) )
-                endif
-                xv(E_le_m,k,i,j) = xv(E_le_m,k,i,j) * Ax
-                xv(E_le_p,k,i,j) = xv(E_le_p,k,i,j) * Ax
-                xv(E_ri_m,k,i,j) = xv(E_ri_m,k,i,j) * Ax
-                xv(E_ri_p,k,i,j) = xv(E_ri_p,k,i,j) * Ax
-                xv(E_ba_m,k,i,j) = xv(E_ba_m,k,i,j) * Ay
-                xv(E_ba_p,k,i,j) = xv(E_ba_p,k,i,j) * Ay
-                xv(E_fw_m,k,i,j) = xv(E_fw_m,k,i,j) * Ay
-                xv(E_fw_p,k,i,j) = xv(E_fw_p,k,i,j) * Ay
-              endif
-            endif
           enddo
         enddo
-      enddo
 
-      k=C%ze
-      do j=C%ys,C%ye         
-        do i=C%xs,C%xe      
-
-          if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-            xv (i0:i3 ,k,i,j) = xv (i0:i3 ,k,i,j) * Az4
-          endif
-          if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
-            xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-            xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-          endif
-        enddo
-      enddo
-
-      call restoreVecPointer(v ,C ,xv1d, xv )
-  end subroutine
+        call restoreVecPointer(v ,C ,xv1d, xv )
+    end subroutine
+end subroutine
 
   subroutine set_diff_initial_guess(inp,guess,C)
       ! Deprecated -- this is probably not helping convergence....
@@ -1880,21 +1973,15 @@ contains
       call DMRestoreLocalVector(C_diff%da, local_guess, ierr); CHKERRQ(ierr)
   end subroutine
 
-  subroutine init_memory(incSolar,b,edir,ediff,abso,Mdir,Mdiff)
-      Vec :: b,ediff,edir,abso,incSolar
+  subroutine init_memory(incSolar,b,Mdir,Mdiff)
+      Vec :: b,incSolar
       Mat :: Mdiff,Mdir
 
       call DMCreateGlobalVector(C_dir%da,incSolar,ierr) ; CHKERRQ(ierr)
       call DMCreateGlobalVector(C_diff%da,b,ierr)       ; CHKERRQ(ierr)
-      call DMCreateGlobalVector(C_dir%da,edir,ierr)     ; CHKERRQ(ierr)
-      call DMCreateGlobalVector(C_diff%da,ediff,ierr)       ; CHKERRQ(ierr)
-      call DMCreateGlobalVector(C_one%da,abso,ierr)       ; CHKERRQ(ierr)
 
       call VecSet(incSolar,zero,ierr) ; CHKERRQ(ierr)
       call VecSet(b,zero,ierr)        ; CHKERRQ(ierr)
-      call VecSet(edir,zero,ierr)     ; CHKERRQ(ierr)
-      call VecSet(ediff,zero,ierr)    ; CHKERRQ(ierr)
-      call VecSet(abso,zero,ierr)     ; CHKERRQ(ierr)
 
       call init_Matrix(Mdir ,C_dir )!,"dir_")
       call init_Matrix(Mdiff,C_diff)!,"diff_")
@@ -1985,7 +2072,7 @@ contains
 
       if(.not.linitialized) then
         ! init matrices & vectors
-        call init_memory(incSolar,b,edir,ediff,abso,Mdir,Mdiff)
+        call init_memory(incSolar,b,Mdir,Mdiff)
 
         ! init petsc logging facilities
         call setup_logging()
@@ -2308,39 +2395,36 @@ contains
 
   end subroutine
 
-  subroutine solve_tenstream(edirTOA,solution_uid,solution_time)
+  subroutine solve_tenstream(edirTOA,opt_solution_uid,opt_solution_time)
       real(ireals),intent(in) :: edirTOA
-      integer(iintegers),optional,intent(in) :: solution_uid
-      real(ireals),      optional,intent(in) :: solution_time
+      integer(iintegers),optional,intent(in) :: opt_solution_uid
+      real(ireals),      optional,intent(in) :: opt_solution_time
       logical :: loaded
+      integer(iintegers) :: uid
+
+      if(present(opt_solution_uid)) then
+        uid = opt_solution_uid
+      else
+        uid = i0 ! default solution is uid==0
+      endif
+
+      call prepare_solution( solutions(uid), uid, lsolar=(edirTOA.gt.zero .and. sun%theta.ge.zero) ) ! setup solution vectors
 
       ! --------- Can we get an initial guess? ---------------
       if(ltwostr) then
-        call twostream(edirTOA,edir,ediff)
+        call prepare_solution(solutions(-1),-1_iintegers, lsolar=.True. ) ! make space for twostream solution 
+        call twostream(edirTOA,  solutions(-1) )
+        solutions(-1)%lchanged=.True.
         if(ldebug .and. myid.eq.0) print *,'twostream calculation done'
 
         if(ltwostr_only) return
-
-        if(.not.luse_twostr_guess) then
-          call VecSet(edir ,zero,ierr); CHKERRQ(ierr)
-          call VecSet(ediff,zero,ierr); CHKERRQ(ierr)
-        endif
       endif
 
-      if( present(solution_uid) ) & 
-          loaded = load_solution(solution_uid)
-
-
       ! --------- scale from [W/m**2] to [W] -----------------
-      if(edirTOA.gt.zero .and. sun%theta.ge.zero .and. .not.lintegrated_dir) &
-          call scale_flx(edir ,C_dir , lintegrate=.True. ) 
-
-      if(.not.lintegrated_diff)  & 
-          call scale_flx(ediff,C_diff, lintegrate=.True. )
-
+      call scale_flx(solutions(uid), lWm2_to_W=.True. )
 
       ! ---------------------------- Edir  -------------------
-      if(edirTOA.gt.zero .and. sun%theta.ge.zero) then
+      if( solutions(uid)%lsolar_rad ) then
 
         call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
         call setup_incSolar(incSolar,edirTOA)
@@ -2349,16 +2433,14 @@ contains
         call setup_ksp(kspdir,C_dir,Mdir,linit_kspdir, "dir_")
 
         call PetscLogStagePush(logstage(3),ierr) ;CHKERRQ(ierr)
-        call solve(kspdir,incSolar,edir)
+        call solve(kspdir,incSolar,solutions(uid)%edir)
+        solutions(uid)%lchanged=.True.
+        solutions(uid)%lintegrated_dir=.True.
         call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
-        !Tenstream solver returns fluxes as [W]
-        lintegrated_dir = .True.
-      else
-        call VecSet(edir,zero,ierr)
       endif
 
       ! ---------------------------- Source Term -------------
-      call setup_b(edir,b)
+      call setup_b(solutions(uid),b)
 
       ! ---------------------------- Ediff -------------------
       call set_diff_coeff(Mdiff,C_diff)
@@ -2366,22 +2448,24 @@ contains
       call setup_ksp(kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
 
       call PetscLogStagePush(logstage(5),ierr) ;CHKERRQ(ierr)
-      call solve(kspdiff, b, ediff,solution_uid)
+
+      call solve(kspdiff, b, solutions(uid)%ediff,uid)
+      solutions(uid)%lchanged=.True.
+      solutions(uid)%lintegrated_diff=.True. !Tenstream solver returns fluxes as [W]
+
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
-      !Tenstream solver returns fluxes as [W]
-      call scale_flx(edir ,C_dir , lintegrate=.False.) ! hence scale from [W] to [W/m**2]
-      call scale_flx(ediff,C_diff, lintegrate=.False.)
-      lintegrated_dir = .False.
-      lintegrated_diff= .False.
-
-      if(present(solution_uid) .and. present(solution_time) ) & ! Attention this has to be called after abso was defined!
-          call save_solution(solution_uid,solution_time)
+      if(present(opt_solution_time) ) then 
+        call restore_solution(solutions(uid),opt_solution_time)
+      else
+        call restore_solution(solutions(uid))
+      endif
   end subroutine
 
   subroutine destroy_tenstream(lfinalizepetsc)
       logical,optional :: lfinalizepetsc
       logical :: lfinalize = .True.
+      integer(iintegers) :: uid
       if(present(lfinalizepetsc)) lfinalize = lfinalizepetsc
 
       if(linitialized) then 
@@ -2391,11 +2475,17 @@ contains
 
         call VecDestroy(incSolar , ierr) ;CHKERRQ(ierr)
         call VecDestroy(b        , ierr) ;CHKERRQ(ierr)
-        call VecDestroy(edir     , ierr) ;CHKERRQ(ierr)
-        call VecDestroy(ediff    , ierr) ;CHKERRQ(ierr)
-        call VecDestroy(abso     , ierr) ;CHKERRQ(ierr)
         call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
         call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
+
+        do uid=lbound(solutions,1),ubound(solutions,1)
+          if( solutions(uid)%lset ) then
+            if(solutions(uid)%lsolar_rad) &
+                call VecDestroy(solutions(uid)%edir     , ierr) ;CHKERRQ(ierr)
+            call VecDestroy(solutions(uid)%ediff    , ierr) ;CHKERRQ(ierr)
+            call VecDestroy(solutions(uid)%abso     , ierr) ;CHKERRQ(ierr)
+          endif
+        enddo
 
         deallocate(atm%op)
         deallocate(atm%delta_op)
@@ -2421,15 +2511,29 @@ contains
       endif
   end subroutine
 
-  subroutine tenstream_get_result(redir,redn,reup,rabso)
+  subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
       real(ireals),dimension(:,:,:),intent(inout),allocatable :: redir,redn,reup,rabso
+      integer(iintegers),optional,intent(in) :: opt_solution_uid
+
+      integer(iintegers) :: uid
       PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
-      if(ldebug .and. myid.eq.0) print *,'calling tenstream_get_result',allocated(redir),allocated(redn),allocated(reup),allocated(rabso)
+
+
+      if(present(opt_solution_uid)) then
+        uid = opt_solution_uid
+      else
+        uid = i0 ! default solution is uid==0
+      endif
+
+      if(ldebug .and. myid.eq.0) print *,'calling tenstream_get_result',allocated(redir),allocated(redn),allocated(reup),allocated(rabso),'for uid',uid
+
+      if(solutions(uid)%lchanged) stop 'tried to get results from unrestored solution -- call restore_solution first'
 
       if(allocated(redir)) then
-        if(lintegrated_dir) stop 'tried to get result from integrated result vector(dir)'
-        call getVecPointer(edir,C_dir,x1d,x4d,.False.)
-        redir = sum(x4d(i0:i3,:,:,:),dim=1)/4
+        if( solutions(uid)%lintegrated_dir ) stop 'tried to get result from integrated result vector(dir)'
+        if( .not. solutions(uid)%lsolar_rad ) stop 'tried to get result from solution which does not have solar radiation' ! we could also just hand back an zeroed array?
+        call getVecPointer(solutions(uid)%edir,C_dir,x1d,x4d)
+        redir = sum(x4d(i0:i3,:,:,:),dim=1)/4 ! return average of the 4 vertical tiles
         if(ldebug) then
           if(myid.eq.0) print *,'Edir',redir(1,1,:)
           if(any(redir.lt.-one)) then 
@@ -2437,12 +2541,12 @@ contains
             call exit(1)
           endif
         endif
-        call restoreVecPointer(edir,C_dir,x1d,x4d)
+        call restoreVecPointer(solutions(uid)%edir,C_dir,x1d,x4d)
       endif
 
       if(allocated(redn).or.allocated(reup)) then
-        if(lintegrated_diff) stop 'tried to get result from integrated result vector(diff)'
-        call getVecPointer(ediff,C_diff,x1d,x4d,.False.)
+        if(solutions(uid)%lintegrated_diff) stop 'tried to get result from integrated result vector(diff)'
+        call getVecPointer(solutions(uid)%ediff,C_diff,x1d,x4d,.False.)
         if(allocated(redn) )redn = x4d(i1,:,:,:)
         if(allocated(reup) )reup = x4d(i0,:,:,:)
         if(ldebug) then
@@ -2461,64 +2565,44 @@ contains
             endif
           endif
         endif!ldebug
-        call restoreVecPointer(ediff,C_diff,x1d,x4d)
+        call restoreVecPointer(solutions(uid)%ediff,C_diff,x1d,x4d)
       endif
 
       if(allocated(rabso)) then
-        call calc_flx_div(edir,ediff,abso)
-        call getVecPointer(abso,C_one,x1d,x4d,.False.)
+        call getVecPointer(solutions(uid)%abso,C_one,x1d,x4d)
         rabso = x4d(i0,:,:,:)
-        call restoreVecPointer(abso,C_one,x1d,x4d)
+        call restoreVecPointer(solutions(uid)%abso,C_one,x1d,x4d)
       endif
   end subroutine
 
-  function load_solution(uid) result(loaded)
-      integer(iintegers),intent(in) :: uid
-      logical :: loaded
-      real(ireals) :: norm1,norm2
+  subroutine prepare_solution(solution, uid, lsolar)
+    type(t_state_container) :: solution
+    integer(iintegers),intent(in) :: uid
+    logical,intent(in) :: lsolar
 
-      if(.not.lenable_solutions) then
-        loaded=.False.
-        return
-      endif
+    solutions(uid)%uid = uid ! dirty hack to give the solution a unique hash for example to write it out to disk
 
-      if(uid.gt.size(solutions)) then
-        print *,'unique identifier exceeds container size.... you might want to grow it...',uid,size(solutions)
-        call exit(1)
-      endif
+    if( lsolar .and.  (solution%lsolar_rad.eqv..False.) ) then 
+      ! set up the direct vectors in any case. This may be necessary even if solution was
+      ! already initialized once... e.g. in case we calculated thermal before with same uid
+      call DMCreateGlobalVector(C_dir%da ,solution%edir  ,ierr)  ; CHKERRQ(ierr)
+      call VecSet(solution%edir,zero,ierr); CHKERRQ(ierr)
+      solution%lsolar_rad = .True.
+    endif
 
-      call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
-      if( .not. solutions(uid)%lset ) then
-        loaded = .False.
-      else
-        if(myid.eq.0.and.ldebug) &
-            print *,'Loading Solution for uid',uid
-        call VecCopy(solutions(uid)%edir , edir , ierr) ;CHKERRQ(ierr)
-        call VecCopy(solutions(uid)%ediff, ediff, ierr) ;CHKERRQ(ierr)
-        lintegrated_dir = .False. ! Solution vectors are saved as [W/m**2]
-        lintegrated_diff= .False. ! Solution vectors are saved as [W/m**2]
+    if(ldebug .and. myid.eq.0) print *,'Prepare solution',uid,'::',lsolar,solution%lsolar_rad,'set?',solution%lset
 
-        if(ldebug) then
-          call VecNorm(edir,NORM_2,norm1,ierr)
-          call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr)
-          if(myid.eq.0) then
-            print *,'loading direct solution vectors for uid',uid,', the norm of those 2 vectors ... :',norm1,norm2
-            if(.not. approx(norm1,norm2) ) call exit(-1)
-          endif
+    if(solution%lset) return ! already set-up 
 
-          call VecNorm(ediff,NORM_2,norm1,ierr)
-          call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr)
-          if(myid.eq.0) then
-            print *,'loading diffuse solution vectors for uid',uid,', the norm of those 2 vectors ... :',norm1,norm2
-            if(.not. approx(norm1,norm2) ) call exit(-1)
-          endif
-        endif
+    call DMCreateGlobalVector(C_diff%da,solution%ediff ,ierr)  ; CHKERRQ(ierr)
+    call DMCreateGlobalVector(C_one%da ,solution%abso  ,ierr)  ; CHKERRQ(ierr)
 
-        loaded = .True.
-      endif
-      call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+    call VecSet(solution%ediff,zero,ierr)    ; CHKERRQ(ierr)
+    call VecSet(solution%abso,zero,ierr)     ; CHKERRQ(ierr)
 
-  end function
+    solution%lset = .True.
+  end subroutine
+
   function need_new_solution(uid,time)
       integer(iintegers),intent(in) :: uid
       real(ireals),intent(in) :: time
@@ -2728,103 +2812,93 @@ contains
           polyfit = matmul( matmul(XTX, XT), vy)
       end function
   end function
-  subroutine save_solution(uid,time)
-      integer(iintegers),intent(in) :: uid
-      real(ireals),intent(in) :: time
+
+  subroutine restore_solution(solution,time)
+  ! restore_solution:: if flux have changed, we need to update absorption, save the residual history
+      type(t_state_container) :: solution
+      real(ireals),intent(in),optional :: time
+
       character(100) :: vecname
       real(ireals) :: norm1,norm2,norm3
       Vec :: abso_old
 
-      real(ireals),save :: last_solution_save_time=0
+      call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
 
-      if(.not.lenable_solutions) return
+      if( .not. solution%lset ) &
+          stop 'cant restore solution that was not initialized'
 
-      if(uid.gt.size(solutions)) then
-        print *,'unique identifier exceeds container size.... you might want to grow it...',uid,size(solutions)
-        call exit(1)
+      if( .not. solution%lchanged ) &
+          stop 'cant restore solution which was not changed'
+
+      if(present(time) ) then ! Create working vec to determine difference between old and new absorption vec
+        call DMGetGlobalVector(C_one%da, abso_old, ierr) ; CHKERRQ(ierr) 
+        call VecCopy( solution%abso, abso_old, ierr)     ; CHKERRQ(ierr)
       endif
 
-      call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
-      if( .not. solutions(uid)%lset ) then
-        if(myid.eq.0 .and. ldebug) print *,'duplicating vectors to store solution',uid
-        call VecDuplicate(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
-        call VecDuplicate(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)
-        call VecSet(solutions(uid)%edir , zero, ierr) ; CHKERRQ(ierr)
-        call VecSet(solutions(uid)%ediff, zero, ierr) ; CHKERRQ(ierr)
-        solutions(uid)%lset=.True.
-      else
-        ! If we already have a saved solution,  save the difference between last solution and now
+      ! make sure to bring the fluxes into [W] for absorption calculation
+      call scale_flx(solution, lWm2_to_W=.True. ) 
 
-        call VecDuplicate(abso , abso_old , ierr)  ; CHKERRQ(ierr) ! create abso_old vec in the image of abso vector.
-        call calc_flx_div(solutions(uid)%edir,solutions(uid)%ediff, abso_old) ! and fill in absorption calculated from old values
+      ! update absorption
+      call calc_flx_div(solution)
 
-        call VecAXPY(abso_old , -one, abso , ierr)             ; CHKERRQ(ierr) ! overwrite abso_old with difference to new one
+      if(present(time) ) then ! Compute norm between old absorption and new one
+        call VecAXPY(abso_old , -one, solution%abso , ierr)    ; CHKERRQ(ierr) ! overwrite abso_old with difference to new one
         call VecNorm(abso_old ,  NORM_1, norm1, ierr)          ; CHKERRQ(ierr)
         call VecNorm(abso_old ,  NORM_2, norm2, ierr)          ; CHKERRQ(ierr)
         call VecNorm(abso_old ,  NORM_INFINITY, norm3, ierr)   ; CHKERRQ(ierr)
-        call VecDestroy(abso_old,ierr)                         ; CHKERRQ(ierr)
+
+        call DMRestoreGlobalVector(C_one%da, abso_old, ierr)   ; CHKERRQ(ierr) 
 
         ! Save norm for later analysis
-        solutions(uid)%maxnorm = eoshift ( solutions(uid)%maxnorm, shift = -1) !shift all values by 1 to the right
-        solutions(uid)%twonorm = eoshift ( solutions(uid)%twonorm, shift = -1) !shift all values by 1 to the right
-        solutions(uid)%time    = eoshift ( solutions(uid)%time            , shift = -1) !shift all values by 1 to the right
+        solution%maxnorm = eoshift ( solution%maxnorm, shift = -1) !shift all values by 1 to the right
+        solution%twonorm = eoshift ( solution%twonorm, shift = -1) !shift all values by 1 to the right
+        solution%time    = eoshift ( solution%time   , shift = -1) !shift all values by 1 to the right
 
-        solutions(uid)%maxnorm( 1 ) = norm3 
-        solutions(uid)%twonorm( 1 ) = norm2
-        solutions(uid)%time( 1 )    = time
+        solution%maxnorm( 1 ) = norm3 
+        solution%twonorm( 1 ) = norm2
+        solution%time( 1 )    = time
 
-        !            if(ldebug .and. myid.eq.0) &
-        if(myid.eq.0) &
-            print *,'Updating error statistics for solutions with uid',uid,' time ',time,last_solution_save_time,'::',solutions(uid)%time(1),':: norm',norm1,norm2,norm3,'[W] :: hr_norm approx:',norm3*86.1,'[K/d]'
+        !if(myid.eq.0) &
+        if(ldebug .and. myid.eq.0) &
+            print *,'Updating error statistics for solution ',solution%uid,'at time ',time,'::',solution%time(1),':: norm',norm1,norm2,norm3,'[W] :: hr_norm approx:',norm3*86.1,'[K/d]'
 
-      endif
-      !TODO: this is for the residual history tests...
-      !            if(time-last_solution_save_time .le. 30._ireals .and. last_solution_save_time.ne.time ) return ! if not even 30 seconds went by, just return
-      !            call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
-      !            return
-      last_solution_save_time=time
+      endif !present(time)
 
-      !            if(myid.eq.0) &
       if(ldebug .and. myid.eq.0) &
-          print *,'Saving Solution for uid',uid,'...'
+          print *,'Saving Solution ',solution%uid
 
-      if(lintegrated_dir) stop 'tried saving dir  solution vector but it was in [W], not in [W/m**2], scale first!'
-      if(lintegrated_diff)stop 'tried saving diff solution vector but it was in [W], not in [W/m**2], scale first!'
+      ! make sure to bring the fluxes into [W/m**2]
+      call scale_flx(solution, lWm2_to_W=.False. ) 
 
-      call VecCopy(edir , solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
-      call VecCopy(ediff, solutions(uid)%ediff, ierr) ;CHKERRQ(ierr)
       if(ldebug .and. myid.eq.0) &
-          print *,'Saving Solution for uid',uid,' done'
+          print *,'Saving Solution done'
+      solution%lchanged=.False.
 
-      if(ldebug) then
-        call VecNorm(edir,NORM_2,norm1,ierr)                ;CHKERRQ(ierr)
-        call VecNorm(solutions(uid)%edir,NORM_2,norm2,ierr) ;CHKERRQ(ierr)
-        if(myid.eq.0) print *,'saving vectors edir norms',norm1,norm2
-        call VecNorm(ediff,NORM_2,norm1,ierr)                ;CHKERRQ(ierr)
-        call VecNorm(solutions(uid)%ediff,NORM_2,norm2,ierr) ;CHKERRQ(ierr)
-        if(myid.eq.0) print *,'saving vectors ediff norms',norm1,norm2
-      endif
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 
-      !            write(vecname,FMT='("edir",I0)') uid
-      !            call PetscObjectSetName(edir,vecname,ierr) ; CHKERRQ(ierr)
-      !            call vec_to_hdf5(edir)
-      !
-      !            write(vecname,FMT='("ediff",I0)') uid
-      !            call PetscObjectSetName(ediff,vecname,ierr) ; CHKERRQ(ierr)
-      !            call vec_to_hdf5(ediff)
-      !
-      !            write(vecname,FMT='("abso",I0)') uid
-      !            call PetscObjectSetName(abso,vecname,ierr) ; CHKERRQ(ierr)
-      !            call vec_to_hdf5(abso)
-      !
-      !            write(vecname,FMT='("b",I0)') uid
-      !            call PetscObjectSetName(b,vecname,ierr) ; CHKERRQ(ierr)
-      !            call vec_to_hdf5(b)
-      !
-      !            write(vecname,FMT='("incSolar",I0)') uid
-      !            call PetscObjectSetName(incSolar,vecname,ierr) ; CHKERRQ(ierr)
-      !            call vec_to_hdf5(incSolar)
+      if(lwriteall) then
+        if(solution%lsolar_rad) then
+          write(vecname,FMT='("edir",I0)') solution%uid
+          call PetscObjectSetName(solution%edir,vecname,ierr) ; CHKERRQ(ierr)
+          call vec_to_hdf5(solution%edir)
+        endif
+
+        write(vecname,FMT='("ediff",I0)') solution%uid
+        call PetscObjectSetName(solution%ediff,vecname,ierr) ; CHKERRQ(ierr)
+        call vec_to_hdf5(solution%ediff)
+
+        write(vecname,FMT='("abso",I0)') solution%uid
+        call PetscObjectSetName(solution%abso,vecname,ierr) ; CHKERRQ(ierr)
+        call vec_to_hdf5(solution%abso)
+
+        write(vecname,FMT='("b",I0)') solution%uid
+        call PetscObjectSetName(b,vecname,ierr) ; CHKERRQ(ierr)
+        call vec_to_hdf5(b)
+
+        write(vecname,FMT='("incSolar",I0)') solution%uid
+        call PetscObjectSetName(incSolar,vecname,ierr) ; CHKERRQ(ierr)
+        call vec_to_hdf5(incSolar)
+      endif
   end subroutine
 
   subroutine getVecPointer(vec,C,x1d,x4d,local)
@@ -2877,33 +2951,33 @@ contains
       x1d => null()
   end subroutine
 
-  !subroutine vec_to_hdf5(v)
-  !      Vec,intent(in) :: v
-  !      character(10),parameter :: suffix='.h5'
-  !      character(110) :: fname
-  !      logical fexists
-  !      PetscFileMode :: fmode
-  !      character(100) :: vecname
-  !      
-  !      PetscViewer :: view
-  !
-  !      call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
-  !
-  !      fname = 'vecdump' // trim(suffix)
-  !      inquire(file=trim(fname), exist=fexists)
-  !      
-  !      if(fexists) then
-  !        if(myid.eq.0 .and. ldebug)  print *,myid,'appending vector to hdf5 file ',trim(fname),' vecname: ',vecname
-  !        fmode = FILE_MODE_APPEND
-  !      else 
-  !        if(myid.eq.0 .and. ldebug)  print *,myid,'writing vector to hdf5 file ',trim(fname),' vecname: ',vecname
-  !        fmode = FILE_MODE_WRITE
-  !      endif
-  !
-  !      call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
-  !      call VecView(v, view, ierr) ;CHKERRQ(ierr)
-  !      call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
-  !
-  !      if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'
-  !end subroutine
+subroutine vec_to_hdf5(v)
+      Vec,intent(in) :: v
+      character(10),parameter :: suffix='.h5'
+      character(110) :: fname
+      logical fexists
+      PetscFileMode :: fmode
+      character(100) :: vecname
+      
+      PetscViewer :: view
+
+      call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
+
+      fname = 'vecdump' // trim(suffix)
+      inquire(file=trim(fname), exist=fexists)
+      
+      if(fexists) then
+        if(myid.eq.0 .and. ldebug)  print *,myid,'appending vector to hdf5 file ',trim(fname),' vecname: ',vecname
+        fmode = FILE_MODE_APPEND
+      else 
+        if(myid.eq.0 .and. ldebug)  print *,myid,'writing vector to hdf5 file ',trim(fname),' vecname: ',vecname
+        fmode = FILE_MODE_WRITE
+      endif
+
+      call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
+      call VecView(v, view, ierr) ;CHKERRQ(ierr)
+      call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
+
+      if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'
+end subroutine
 end module
