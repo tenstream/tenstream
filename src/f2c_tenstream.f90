@@ -181,7 +181,7 @@ contains
 
         call tenstream_get_result(redir,redn,reup,rabso)
 
-        call DMCreateGlobalVector(C_diff%da,vec,ierr) ; CHKERRQ(ierr)
+        call DMGetGlobalVector(C_diff%da,vec,ierr) ; CHKERRQ(ierr)
         call getVecPointer(vec ,C_diff ,xinp1d, xinp)
         xinp(0,:,:,:) = redir
         xinp(1,:,:,:) = redn
@@ -191,13 +191,13 @@ contains
 
         call globalVec2Local(vec,C_diff,res)
 
-        call VecDestroy(vec,ierr); CHKERRQ(ierr)
+        call DMRestoreGlobalVector(C_diff%da,vec,ierr) ; CHKERRQ(ierr)
 
         if(myid.eq.0) then
-          res_edir = res(1,:,:,:)
-          res_edn  = res(2,:,:,:)
-          res_eup  = res(3,:,:,:)
-          res_abso = res(4,C_one%zs+1 :C_one%ze+1,:,:)
+          res_edir = res(1,:, 1:Nx, 1:Ny)
+          res_edn  = res(2,:, 1:Nx, 1:Ny)
+          res_eup  = res(3,:, 1:Nx, 1:Ny)
+          res_abso = res(4,C_one%zs+1 :C_one%ze+1, 1:Nx, 1:Ny)
         endif
 
         if(myid.eq.0) then
