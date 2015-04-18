@@ -855,8 +855,8 @@ contains
       call PetscLogStagePush(logstage(2),ierr) ;CHKERRQ(ierr)
       if(myid.eq.0.and.ldebug) print *,myid,'setup_direct_matrix ...'
 
-      call MatZeroEntries(A, ierr) ;CHKERRQ(ierr)
-      call mat_set_diagonal(A,C)
+!      call MatZeroEntries(A, ierr) ;CHKERRQ(ierr) !TODO necessary?
+!      call mat_set_diagonal(A,C)
 
       do j=C%ys,C%ye
         do i=C%xs,C%xe        
@@ -990,8 +990,8 @@ contains
 
       if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients for diffuse Light'
 
-      call MatZeroEntries(A, ierr) ;CHKERRQ(ierr) !TODO necessary?
-      call mat_set_diagonal(A,C)
+!      call MatZeroEntries(A, ierr) ;CHKERRQ(ierr) !TODO necessary?
+!      call mat_set_diagonal(A,C)
 
       do j=C%ys,C%ye
         do i=C%xs,C%xe
