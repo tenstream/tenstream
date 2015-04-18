@@ -31,10 +31,10 @@ void tenstr_f2c_get_result(int Nz,int Nx,int Ny, float *edir, float *edn, float 
 static char help[] = "This is the C wrapper interface to the Tenstream solver environment.\n\n";
 
 int master(int fcomm) {
-  int    Nx=12, Ny=12, Nz=15;
-  double dx=70,dy=70;
-  float phi0=180, theta0=0;
-  float albedo=.05;
+  int    Nx=5, Ny=5, Nz=5;
+  double dx=70,dy=70, dz=40.414518843273818;
+  float phi0=0, theta0=60;
+  float albedo=1e-8;
 
   float *hhl   = (float *)malloc((Nz+1) *sizeof(float) );
 
@@ -54,11 +54,22 @@ int master(int fcomm) {
       for(int k=0;k<Nz;k++) {
         int ind = k + Nz*i + Nz*Nx*j; /* index for [Ny][Nx][Nz] */
 
-        kabs   [ind] = 1e-3;
-        ksca   [ind] = 1e-4;
-        g      [ind] =   .5;
+        kabs   [ind] = 1e-30;
+        ksca   [ind] = 1e-30;
+        g      [ind] =   .0;
 
-        printf("ind %d\n",ind);
+        if(k==0) {
+          kabs   [ind] = 10;
+        }
+
+        if(k==0 && i==1 && j==1) {
+          kabs   [ind] = 1e-30;
+          ksca   [ind] = 1e-3;
+          g      [ind] =   .0;
+        }
+
+
+//        printf("ind %d\n",ind);
         
       }
     }
@@ -72,14 +83,14 @@ int master(int fcomm) {
         planck [ind] =  -1;// 5.67e-8*273.*273.*273.*273./3.1415;
         edir   [ind] =  -1;
 
-        printf("ind %d\n",ind);
+//        printf("ind %d\n",ind);
       }
     }
   }             
 
   hhl[Nz] = 0;
   for(int k=Nz;k>0;k--) 
-    hhl[k-1] = hhl[k]+40.;
+    hhl[k-1] = hhl[k]+dz;
 
   tenstr_f2c_init(fcomm,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0,&albedo);
   tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, kabs, ksca, g, planck);
@@ -88,19 +99,20 @@ int master(int fcomm) {
 
   tenstr_f2c_destroy();
 
-  for(int i=0;i<Nx;i++){
-    printf("\n edir ");
+  for(int j=0;j<Ny;j++){
+    int i=1;
+    printf("\n %d edir ",j);
     for(int k=0;k<Nz+1;k++)
-      printf(" %f ",edir[(Nz+1)*i + k]);
+      printf(" %f ",edir[(Nz+1)*Nx*j + (Nz+1)*i + k]);
     printf("\n edn ");
     for(int k=0;k<Nz+1;k++)
-      printf(" %f ",edn[(Nz+1)*i + k]);
+      printf(" %f ",edn[(Nz+1)*Nx*j + (Nz+1)*i + k]);
     printf("\n eup ");
     for(int k=0;k<Nz+1;k++)
-      printf(" %f ",eup[(Nz+1)*i + k]);
+      printf(" %f ",eup[(Nz+1)*Nx*j + (Nz+1)*i + k]);
     printf("\n abso      ");
     for(int k=0;k<Nz;k++)
-      printf(" %f ",abso[Nz*i + k]);
+      printf(" %f ",abso[Nz*Nx*j + Nz*i + k]*dz);
     printf("\n");
     printf("\n");
   }
