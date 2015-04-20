@@ -2542,18 +2542,21 @@ end subroutine
       if(solutions(uid)%lchanged) stop 'tried to get results from unrestored solution -- call restore_solution first'
 
       if(allocated(redir)) then
-        if( solutions(uid)%lintegrated_dir ) stop 'tried to get result from integrated result vector(dir)'
-        if( .not. solutions(uid)%lsolar_rad ) stop 'tried to get result from solution which does not have solar radiation' ! we could also just hand back an zeroed array?
-        call getVecPointer(solutions(uid)%edir,C_dir,x1d,x4d)
-        redir = sum(x4d(i0:i3,:,:,:),dim=1)/4 ! return average of the 4 vertical tiles
-        if(ldebug) then
-          if(myid.eq.0) print *,'Edir',redir(1,1,:)
-          if(any(redir.lt.-one)) then 
-            print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
-            call exit(1)
+        if( .not. solutions(uid)%lsolar_rad ) then
+          redir = zero
+        else
+          if( solutions(uid)%lintegrated_dir ) stop 'tried to get result from integrated result vector(dir)'
+          call getVecPointer(solutions(uid)%edir,C_dir,x1d,x4d)
+          redir = sum(x4d(i0:i3,:,:,:),dim=1)/4 ! return average of the 4 vertical tiles
+          if(ldebug) then
+            if(myid.eq.0) print *,'Edir',redir(1,1,:)
+            if(any(redir.lt.-one)) then 
+              print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
+              call exit(1)
+            endif
           endif
+          call restoreVecPointer(solutions(uid)%edir,C_dir,x1d,x4d)
         endif
-        call restoreVecPointer(solutions(uid)%edir,C_dir,x1d,x4d)
       endif
 
       if(allocated(redn).or.allocated(reup)) then
