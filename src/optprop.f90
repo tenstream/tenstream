@@ -327,7 +327,12 @@ end subroutine
             integer(iintegers),intent(in) :: isrc
             integer(iintegers),parameter :: l=1
             integer(iintegers),parameter :: k=5
-            !               integer,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
+            !TODO: this was just a simple test if we can enhance diffusion
+            !      artificially by fiddling with the transport coefficients. -- only marginally improvement for Enet(surface) but increased
+            !      rmse in atmosphere...
+            real(ireals),parameter :: artificial_diffusion = zero  
+            
+            ! integer,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
             select type(OPP)
 
               class is (t_optprop_1_2)
@@ -366,9 +371,22 @@ end subroutine
                     stop 'cant call coeff_symmetry with isrc -- error happened for optprop_8_10'
                 end select
 
+                if(artificial_diffusion.gt.zero) then
+                  if(isrc.eq.1 .or. isrc.eq.2) then
+                    coeff_symmetry(3:4) = coeff_symmetry(3:4) + coeff_symmetry(2)*artificial_diffusion *.25_ireals
+                    coeff_symmetry(7:8) = coeff_symmetry(7:8) + coeff_symmetry(2)*artificial_diffusion *.25_ireals
+                    coeff_symmetry(2)   = coeff_symmetry(2)   - coeff_symmetry(2)*artificial_diffusion
+
+                    coeff_symmetry(5: 6) = coeff_symmetry(5: 6) + coeff_symmetry(1)*artificial_diffusion *.25_ireals
+                    coeff_symmetry(9:10) = coeff_symmetry(9:10) + coeff_symmetry(1)*artificial_diffusion *.25_ireals
+                    coeff_symmetry(1)    = coeff_symmetry(1)    - coeff_symmetry(1)*artificial_diffusion
+                  endif
+                endif
+
               class default
                 stop 'coeff_symmetry : unexpected type for OPP !'
             end select
+
 
             if(ldebug_optprop) then
               if(real(sum(coeff_symmetry)).gt.one+epsilon(one)*10._ireals) then
