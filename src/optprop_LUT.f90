@@ -28,7 +28,7 @@ module m_optprop_LUT
       Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,Ndir_8_10,Ndiff_8_10,interp_mode_8_10, &
       ldelta_scale,delta_scale_truncate,stddev_atol
   use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
-  use m_tenstream_interpolation, only: interp_4d,interp_6d,interp_6d_recursive,interp_4p2d
+  use m_tenstream_interpolation, only: interp_4d !,interp_6d,interp_6d_recursive,interp_4p2d
   use m_netcdfio
 
 

@@ -21,6 +21,9 @@ module m_tenstream_interpolation
       use m_data_parameters, only: ireals,zero,one
       implicit none
 
+      private
+      public :: interp_4d
+
       ! a has the bounds on axes
       ! t has the distance weights
 
@@ -268,7 +271,6 @@ pure subroutine interp_4d(pti,weights,db,C)
         real(ireals),intent(out) :: C(:)
 
         integer :: indices(Ndim,2**Ndim),fpti(Ndim)
-        real(ireals) :: bound_vals(size(C),2**Ndim) 
         integer :: i,d
         real(ireals) :: db4(size(C),2**(Ndim ))
         real(ireals) :: db3(size(C),2**(Ndim-1))
@@ -283,11 +285,6 @@ pure subroutine interp_4d(pti,weights,db,C)
         ! Make sure we dont recall a value outside of array dimensions
         do d=1,Ndim
           indices(d,:) = max( i1, min( ubound(db,d+i1), indices(d,:) ) )
-        enddo
-
-        ! Then get the corner values of hypercube
-        do i=1,2**Ndim
-          bound_vals(:,i) = db(:, indices(1,i),indices(2,i),indices(3,i),indices(4,i) )
         enddo
 
         ! Then get the corner values of hypercube
