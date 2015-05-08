@@ -22,13 +22,14 @@
 You may find a hint for a suitable config file in the config/ directory:
 
 #### Currently the solver is tested for Compilers:
+
 * GFortran
 * Intel Fortran Compiler
 * XLF IBM Compilers
 
- If you found yourself go nuts because of compile errors,
- please consider providing installation instructions
- for your particular enviroment.
+If you found yourself go nuts because of compile errors,
+please consider providing installation instructions
+for your particular enviroment.
 
 #### Optional steps before you start:
 ```
