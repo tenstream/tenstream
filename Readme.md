@@ -4,13 +4,13 @@
   to optical properties is not included.
 
 #### The solver is coupled to the software packages:
-*LibRadtran  -- all purpose radiative transfer Library(partially free)
-*UCLA-LES    -- Large Eddy Simulation code for cloud resolving simulations
+  * LibRadtran  -- all purpose radiative transfer Library(partially free)
+  * UCLA-LES    -- Large Eddy Simulation code for cloud resolving simulations
 
 ##### Prerequisites for the Tenstream solver are
-  *cmake
-  *PETSc
-  *MPI
+  * cmake
+  * PETSc
+  * MPI
  Instructions on how to install these is beyond the scope of this text.
 
 #### The solver is currently tested and running at:
