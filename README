@@ -1,41 +1,33 @@
-##################################################################################
-  The Tenstream solver approximately solves the radiative transfer equation in 3D 
-    and computes irradiance and heating rates from optical properties.
-##################################################################################
+#  The Tenstream solver approximately solves the radiative transfer equation in 3D and computes irradiance and heating rates from optical properties.
 
   At the moment the conversion from physical variables like liquid water 
   to optical properties is not included.
   
-  The solver is coupled to the software packages:
-    LibRadtran  -- all purpose radiative transfer Library(partially free)
-    UCLA-LES    -- Large Eddy Simulation code for cloud resolving simulations
+##  The solver is coupled to the software packages:
+*LibRadtran  -- all purpose radiative transfer Library(partially free)
+*UCLA-LES    -- Large Eddy Simulation code for cloud resolving simulations
 
-##################################################################################
-Prerequisites for the Tenstream solver are
+### Prerequisites for the Tenstream solver are
   *cmake
   *PETSc
   *MPI
-
  Instructions on how to install these is beyond the scope of this text.
 
- The solver is currently tested and running at:
-   Linux Cluster University Munich
-   Linux Cluster LRZ
-   Linux Cluster MaxPlanckInstitute Hamburg
-   IBM Power6  Machine "blizzard" at DKRZ
-
+## The solver is currently tested and running at:
+* Linux Cluster University Munich
+* Linux Cluster LRZ
+* Linux Cluster MaxPlanckInstitute Hamburg
+* IBM Power6  Machine "blizzard" at DKRZ
  You may find a hint for a suitable config file in the config/ directory:
 
- Currently the solver is tested for Compilers:
-   GFortran
-   Intel Fortran Compiler
-   XLF IBM Compilers
+## Currently the solver is tested for Compilers:
+* GFortran
+* Intel Fortran Compiler
+* XLF IBM Compilers
 
  If you found yourself go nuts because of compile errors,
  please consider providing installation instructions 
  for your particular enviroment.
-
-##################################################################################
 
 # Optional steps before you start:
 #
