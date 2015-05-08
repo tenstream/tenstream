@@ -69,8 +69,6 @@ int master(int fcomm) {
         }
 
 
-//        printf("ind %d\n",ind);
-        
       }
     }
   }             
@@ -80,10 +78,8 @@ int master(int fcomm) {
       for(int k=0;k<Nz+1;k++) {
         int ind = k + (Nz+1)*i + (Nz+1)*Nx*j; /* index for [Ny][Nx][Nz] */
 
-        planck [ind] =  -1;// 5.67e-8*273.*273.*273.*273./3.1415;
+        planck [ind] =  -1;/* 5.67e-8*273.*273.*273.*273./3.1415; */
         edir   [ind] =  -1;
-
-//        printf("ind %d\n",ind);
       }
     }
   }             

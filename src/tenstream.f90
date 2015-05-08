@@ -2989,9 +2989,13 @@ subroutine vec_to_hdf5(v)
         fmode = FILE_MODE_WRITE
       endif
 
+#ifdef _XLF
+      ! on ibm compiler disable debug writing of vectors because i could not bring petsc to compile with hdf5
+#else      
       call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
       call VecView(v, view, ierr) ;CHKERRQ(ierr)
       call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
+#endif
 
       if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'
 end subroutine
