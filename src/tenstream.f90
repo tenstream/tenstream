@@ -1559,7 +1559,7 @@ contains
       integer(iintegers) :: isub
 
       if(linit) return
-      call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
+      call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
       if(myid.eq.0.and.ldebug) &
           print *,'Setup KSP -- tolerances:',rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d))
 
