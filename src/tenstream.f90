@@ -1687,61 +1687,66 @@ contains
 
       PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
       PetscReal,pointer,dimension(:)       :: xv1d=>null()
+      PetscReal,pointer,dimension(:,:,:,:) :: xvlocal  =>null()
+      PetscReal,pointer,dimension(:)       :: xvlocal1d=>null()
+      PetscReal,pointer,dimension(:,:,:,:) :: xhr  =>null()
+      PetscReal,pointer,dimension(:)       :: xhr1d=>null()
       integer(iintegers) :: k
 
       real(ireals),allocatable,dimension(:,:,:) :: dz_g, planck_g, kabs_g, hr, Edn_g, Eup_g
 
+      integer(iintegers),parameter :: idz=i2,iplanck=i3,ikabs=i4,ihr=i5
+
       call PetscLogStagePush(logstage(12),ierr) ;CHKERRQ(ierr)
 
-      ! put additional values into a new ediff vec .. TODO: this is a rather dirty hack but is straightforward
-      call getVecPointer(ediff ,C_diff ,xv1d, xv)
-      xv(  i2, C_diff%zs:C_diff%ze-1, :,: ) = atm%dz
-      xv(  i2, C_diff%ze            , :,: ) = zero
-                                         
-      xv(  i3, C_diff%zs:C_diff%ze  , :,: ) = atm%planck
-                                         
-      xv(  i4, C_diff%zs:C_diff%ze-1, :,: ) = atm%delta_op%kabs
-      xv(  i4, C_diff%ze            , :,: ) = zero
-      call restoreVecPointer(ediff ,C_diff ,xv1d, xv )
+      ! put additional values into a local ediff vec .. TODO: this is a rather dirty hack but is straightforward
 
-
-      ! get ghost values for dz, planck, kabs and fluxes and pack em in new arrays, ready to give it to NCA
+      ! get ghost values for dz, planck, kabs and fluxes, ready to give it to NCA
       call DMGetLocalVector(C_diff%da ,lediff ,ierr)                   ; CHKERRQ(ierr)
-      call VecSet(lediff,zero,ierr); CHKERRQ(ierr)
 
+      call getVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal)
+      xvlocal(  idz    , C_diff%zs:C_diff%ze-1, :,: ) = atm%dz
+      xvlocal(  idz    , C_diff%ze            , :,: ) = zero
+      xvlocal(  iplanck, C_diff%zs:C_diff%ze  , :,: ) = atm%planck
+      xvlocal(  ikabs  , C_diff%zs:C_diff%ze-1, :,: ) = atm%delta_op%kabs
+      xvlocal(  ikabs  , C_diff%ze            , :,: ) = zero
+
+
+      ! Copy Edn and Eup to local convenience vector
+      call getVecPointer(ediff ,C_diff ,xv1d, xv)
+      xvlocal( E_up,:,:,:) = xv( E_up,:,:,:)
+      xvlocal( E_dn,:,:,:) = xv( E_dn,:,:,:)
+      call restoreVecPointer(ediff ,C_diff ,xv1d, xv)
+
+      call restoreVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal )
+
+      ! retrieve ghost values
       call DMGlobalToLocalBegin(C_diff%da ,ediff ,ADD_VALUES,lediff ,ierr) ; CHKERRQ(ierr)
-      call DMGlobalToLocalEnd(C_diff%da ,ediff ,ADD_VALUES,lediff ,ierr)   ; CHKERRQ(ierr)
+      call DMGlobalToLocalEnd  (C_diff%da ,ediff ,ADD_VALUES,lediff ,ierr) ; CHKERRQ(ierr)
 
-      allocate ( dz_g     ( C_one%zs :C_one%ze ,  C_one%gxs : C_one%gxe ,  C_one%gys : C_one%gye  ) )
-      allocate ( kabs_g   ( C_one%zs :C_one%ze ,  C_one%gxs : C_one%gxe ,  C_one%gys : C_one%gye  ) )
-      allocate ( planck_g ( C_diff%zs:C_diff%ze,  C_diff%gxs: C_diff%gxe,  C_diff%gys: C_diff%gye ) )
-      allocate ( Edn_g    ( C_diff%zs:C_diff%ze,  C_diff%gxs: C_diff%gxe,  C_diff%gys: C_diff%gye ) )
-      allocate ( Eup_g    ( C_diff%zs:C_diff%ze,  C_diff%gxs: C_diff%gxe,  C_diff%gys: C_diff%gye ) )
-      allocate ( hr       ( C_one%zs: C_one%ze ,  C_one%xs  : C_one%xe  ,  C_one%ys  : C_one%ye   ) )
+      ! call NCA
+      call getVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal)
 
-      call getVecPointer(lediff ,C_diff ,xv1d, xv)
-      do k= C_one%zs, C_one%ze 
-        dz_g    (k,:,:) = xv(   i2, k , :,:)
-        kabs_g  (k,:,:) = xv(   i4, k , :,:)
-      enddo
-      do k= C_diff%zs, C_diff%ze 
-        Edn_g   (k,:,:) = xv( E_dn, k , :,:)
-        Eup_g   (k,:,:) = xv( E_up, k , :,:)
-        planck_g(k,:,:) = xv(   i3, k , :,:)
-      enddo
+      call ts_nca(C_one%zm , C_one%xm , C_one%ym   ,         &
+          xv(   idz        , C_one%zs :C_one%ze    , : , :), &
+          xv(   iplanck    , C_diff%zs:C_diff%ze   , : , :), &
+          xv(   ikabs      , C_one%zs :C_one%ze    , : , :), &
+          xv(   ihr        , C_diff%zs:C_diff%ze   , : , :), &
+          atm%dx           , atm%dy                ,         &
+          xv(   E_dn       , C_diff%zs:C_diff%ze   , : , :), &
+          xv(   E_up       , C_diff%zs:C_diff%ze   , : , :))
 
-      call restoreVecPointer(lediff ,C_diff ,xv1d, xv )
 
-      call DMRestoreLocalVector(C_diff%da, lediff, ierr); CHKERRQ(ierr)
-
-      hr=0
-      call ts_nca(C_one%zm, C_one%xm, C_one%ym, dz_g, planck_g, kabs_g, hr, atm%dx, atm%dy, Edn_g, Eup_g)
-
-      call getVecPointer( abso, C_one ,xv1d, xv)
+      ! return absorption
+      call getVecPointer( abso, C_one ,xhr1d, xhr)
       do k=C_one%zs,C_one%ze 
-        xv(i0,k,:,:) = hr(k,:,:) / dz_g(k,:,:)
+        xhr(i0,k,:,:) = xv( ihr , k,:,:) / xv( idz , k,:,:)
       enddo
-      call restoreVecPointer( abso ,C_one ,xv1d, xv )
+      call restoreVecPointer( abso ,C_one ,xhr1d, xhr )
+
+      !return convenience vector that holds optical properties
+      call restoreVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal )
+      call DMRestoreLocalVector(C_diff%da, lediff, ierr); CHKERRQ(ierr)
 
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
   end subroutine
@@ -2456,9 +2461,7 @@ end subroutine
 
       ! ---------------------------- Ediff -------------------
       call set_diff_coeff(Mdiff,C_diff)
-
       call setup_ksp(kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
-
       call PetscLogStagePush(logstage(5),ierr) ;CHKERRQ(ierr)
 
       call solve(kspdiff, b, solutions(uid)%ediff,uid)
