@@ -100,6 +100,7 @@ contains
     integer(iintegers) :: is,ie,js,je
 
     hr_nca_3d_tmp = -9999999
+    stop 'NCA not freely available.... please consult Carolin Klinger for an implementation.'
   end subroutine
 
 

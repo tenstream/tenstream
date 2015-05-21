@@ -1396,8 +1396,10 @@ contains
       if(.not. solution%lintegrated_diff)stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
 
       if( lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
-        stop 'TODO: this is not supported atm -- i guess nca does not expect [W] but [W/m**2]'
+        !stop 'TODO: this is not supported atm -- i guess nca does not expect [W] but [W/m**2]'
+        call scale_flx(solution, lWm2_to_W=.False.)
         call nca_wrapper(solution%ediff,solution%abso)
+        call scale_flx(solution, lWm2_to_W=.True.)
         return
       endif
 
@@ -1698,7 +1700,7 @@ contains
 
       real(ireals),allocatable,dimension(:,:,:) :: dz_g, planck_g, kabs_g, hr, Edn_g, Eup_g
 
-      integer(iintegers),parameter :: idz=i2,iplanck=i3,ikabs=i4,ihr=i5
+      integer(iintegers),parameter :: idz=i2, iplanck=i3, ikabs=i4, ihr=i5
 
       call PetscLogStagePush(logstage(12),ierr) ;CHKERRQ(ierr)
 
@@ -1706,19 +1708,20 @@ contains
 
       ! get ghost values for dz, planck, kabs and fluxes, ready to give it to NCA
       call DMGetLocalVector(C_diff%da ,lediff ,ierr)                   ; CHKERRQ(ierr)
+      call VecSet(lediff, zero, ierr); CHKERRQ(ierr)
 
       call getVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal)
-      xvlocal(  idz    , C_diff%zs:C_diff%ze-1, :,: ) = atm%dz
-      xvlocal(  idz    , C_diff%ze            , :,: ) = zero
-      xvlocal(  iplanck, C_diff%zs:C_diff%ze  , :,: ) = atm%planck
-      xvlocal(  ikabs  , C_diff%zs:C_diff%ze-1, :,: ) = atm%delta_op%kabs
-      xvlocal(  ikabs  , C_diff%ze            , :,: ) = zero
+      xvlocal(  idz    , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%dz
+      xvlocal(  idz    , C_diff%ze            , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = zero
+      xvlocal(  iplanck, C_diff%zs:C_diff%ze  , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%planck
+      xvlocal(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%delta_op%kabs
+      xvlocal(  ikabs  , C_diff%ze            , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = zero
 
 
       ! Copy Edn and Eup to local convenience vector
       call getVecPointer(ediff ,C_diff ,xv1d, xv)
-      xvlocal( E_up,:,:,:) = xv( E_up,:,:,:)
-      xvlocal( E_dn,:,:,:) = xv( E_dn,:,:,:)
+      xvlocal( E_up,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_up,:,:,:)
+      xvlocal( E_dn,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_dn,:,:,:)
       call restoreVecPointer(ediff ,C_diff ,xv1d, xv)
 
       call restoreVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal )
@@ -1731,19 +1734,19 @@ contains
       call getVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal)
 
       call ts_nca(C_one%zm , C_one%xm , C_one%ym   ,         &
-          xv(   idz        , C_one%zs :C_one%ze    , : , :), &
-          xv(   iplanck    , C_diff%zs:C_diff%ze   , : , :), &
-          xv(   ikabs      , C_one%zs :C_one%ze    , : , :), &
-          xv(   ihr        , C_diff%zs:C_diff%ze   , : , :), &
+          xvlocal(   idz        , C_one%zs :C_one%ze    , : , :), &
+          xvlocal(   iplanck    , C_diff%zs:C_diff%ze   , : , :), &
+          xvlocal(   ikabs      , C_one%zs :C_one%ze    , : , :), &
+          xvlocal(   ihr        , C_diff%zs:C_diff%ze   , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye), &
           atm%dx           , atm%dy                ,         &
-          xv(   E_dn       , C_diff%zs:C_diff%ze   , : , :), &
-          xv(   E_up       , C_diff%zs:C_diff%ze   , : , :))
+          xvlocal(   E_dn       , C_diff%zs:C_diff%ze   , : , :), &
+          xvlocal(   E_up       , C_diff%zs:C_diff%ze   , : , :))
 
 
       ! return absorption
       call getVecPointer( abso, C_one ,xhr1d, xhr)
       do k=C_one%zs,C_one%ze 
-        xhr(i0,k,:,:) = xv( ihr , k,:,:) / xv( idz , k,:,:)
+        xhr(i0,k,:,:) = xvlocal( ihr , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) / xvlocal( idz , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
       enddo
       call restoreVecPointer( abso ,C_one ,xhr1d, xhr )
 
