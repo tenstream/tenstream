@@ -139,9 +139,12 @@ module m_tenstream
   integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
 
   logical,parameter :: lenable_solutions=.True. ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
+  real(ireals),parameter :: time_debug_solutions=zero ! if enabled, we calculate new solutions but do not return the update solutions to the host model.(set to zero to disable)
+
   type t_state_container
     integer(iintegers) :: uid ! dirty hack to give the solution a unique hash for example to write it out to disk -- this should be the same as the index in global solutions array
     Vec :: edir,ediff,abso
+
     logical :: lset        = .False. ! initialized?
     logical :: lsolar_rad  = .False. ! direct radiation calculated?
     logical :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
@@ -155,7 +158,7 @@ module m_tenstream
     real(ireals) :: twonorm(300) = zero
     real(ireals),allocatable :: ksp_residual_history(:)
   end type
-  type(t_state_container),save :: solutions(-1:1000)
+  type(t_state_container),save :: solutions(-1000:1000)
 
 contains 
   subroutine setup_grid(Nz,Nx,Ny,nxproc,nyproc)
@@ -2536,9 +2539,34 @@ end subroutine
 
       if(present(opt_solution_uid)) then
         uid = opt_solution_uid
+
+        ! for residual history testing: old, un-updated solution should lie in solutions(-uid), return the old solution vector
+        if( time_debug_solutions.gt.zero ) then ! two possibilities:
+
+          ! first, we may be at a point where we want to overwrite the solution but keep everything else untouched
+          if( (solutions(-uid)%lchanged.eqv..False.) .and. (solutions(uid)%time(1) .lt. solutions(-uid)%time(1)+time_debug_solutions) ) then  ! need consistent state in (-uid) and less time since last active solution than debug_sol_time
+            print *,uid,'Getting Results from Vector -uid insted of ',time_debug_solutions,solutions(uid)%time(1),solutions(-uid)%time(1),'::', &
+                    solutions(-uid)%lchanged.eqv..False.,solutions(uid)%time(1) .lt. solutions(-uid)%time(1)+time_debug_solutions
+
+            if(solutions(uid)%lsolar_rad) &
+                call VecCopy(solutions(-uid)%edir , solutions(uid)%edir , ierr)
+            call VecCopy(solutions(-uid)%ediff, solutions(uid)%ediff, ierr)
+            call VecCopy(solutions(-uid)%abso , solutions(uid)%abso , ierr)
+
+
+          else
+            ! secondly, we really want to refresh the starting point -- here overwrite (-uid) with correct set:
+            print *,uid,'Getting Results from normal Vector insted of (-uid) -- REFRESHING initial solution',time_debug_solutions,solutions(uid)%time(1),solutions(-uid)%time(1),'::', &
+                    solutions(-uid)%lchanged.eqv..False.,solutions(uid)%time(1) .lt. solutions(-uid)%time(1)+time_debug_solutions
+            call copy_solution(solutions(uid),solutions(-uid))
+          endif
+
+        endif
+
       else
         uid = i0 ! default solution is uid==0
       endif
+
 
       if(ldebug .and. myid.eq.0) print *,'calling tenstream_get_result',allocated(redir),allocated(redn),allocated(reup),allocated(rabso),'for uid',uid
 
@@ -2626,13 +2654,15 @@ end subroutine
       real(ireals),intent(in) :: time
       logical :: need_new_solution
 
-      integer,parameter :: Nfit=4 ! Number of used residuals
-      real(ireals) :: t(Nfit),tm(Nfit),dt(Nfit-1),e(Nfit-1),integ_err(Nfit), error_estimate, polyc(3)
+      integer,parameter :: Nfit=3   ! Number of used residuals
+      integer,parameter :: Nporder=2 ! max order of polynomial
+      real(ireals) :: t(Nfit),tm(Nfit),dt(Nfit-1),err(2, 2*(Nfit-1)), error_estimate
+      real(ireals) :: polyc(Nporder+1),estimate(Nporder)
 
       character(len=30) :: reason
       integer, parameter :: out_unit=20
 
-      integer(iintegers) :: k
+      integer(iintegers) :: k,ipoly
 
       if( .not. solutions(uid)%lset ) then !if we did not store a solution, return immediately
         need_new_solution=.True.
@@ -2644,13 +2674,9 @@ end subroutine
       do k=1,Nfit
         t(k) = solutions(uid)%time(Nfit-k+1)
       enddo
-      do k=1,Nfit-1
-        e(k) = solutions(uid)%maxnorm(Nfit-k)
-      enddo
 
       !            call parabola(t2, e1, t3, e2, t4, e3, time, error_estimate)
       !            call exponential(t3, e2, t4, e3, time, error_estimate)
-
 
       ! t is pts where the solution got updated
       ! tm is in between those time
@@ -2664,31 +2690,39 @@ end subroutine
         dt(k) = tm(k+1) - tm(k)
       enddo
 
-      ! cumsum(e*dt) is the integral over error
-      integ_err(1:Nfit-1) = cumsum(e*dt)
-      polyc = polyfit(t(2:Nfit),integ_err(1:Nfit-1),size(polyc)-i1, ierr)
-      if(ierr.ne.0) then 
-        need_new_solution=.True.
-        write(reason,*) 'problem fitting error curve'
-        call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
-        return
-      endif
-
-      ! Use fit coefficients to calculate estimate of error integral at t=time
-      integ_err(Nfit)=0
-      do k=1,size(polyc)
-        integ_err(Nfit) = integ_err(Nfit) + polyc(k)*time**(k-1)
+      ! setup error timeseries on which to fit -- first index is time, second is error
+      do k=1,Nfit-1
+        err(1, 2*k-1) = tm(k)
+        err(1, 2*k  ) = t(k+1)
+        err(2, 2*k-1) = zero
+        err(2, 2*k  ) = solutions(uid)%maxnorm(Nfit-k)
       enddo
 
-      error_estimate = abs( integ_err(Nfit)-integ_err(Nfit-1) )/ max(epsilon(time), time - t(Nfit))
+      ! try several polynomials and find max error:
+      do ipoly=1,Nporder
+        polyc(1:ipoly+1) = polyfit(err(1,:),err(2,:),ipoly, ierr) ! e.g. second order polynomial has 3 coefficients
+        if(ierr.ne.0) then 
+          need_new_solution=.True.
+          write(reason,*) 'problem fitting error curve'
+          call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+          return
+        endif
+        estimate(ipoly)=zero
+        do k=1,ipoly+1
+          estimate(ipoly) = estimate(ipoly) + polyc(k)*time**(k-1)
+        enddo
+      enddo
 
-      if(myid.eq.0 .and. error_estimate.le.zero) then
+
+      error_estimate = maxval(abs(estimate))
+!      error_estimate = abs( integ_err(Nfit)-integ_err(Nfit-1) )/ max(epsilon(time), time - t(Nfit))
+
+      if(myid.eq.0) then ! .and. error_estimate.le.zero) then
         print *,'DEBUG t',t
-        print *,'DEBUG e',e
         print *,'DEBUG tm',tm
         print *,'DEBUG dt',dt
-        print *,'DEBUG integ_err',integ_err
-        print *,'DEBUG err_est',error_estimate
+        print *,'DEBUG err',err(1,:),'::',err(2,:)
+        print *,'DEBUG err_est',error_estimate,'::',estimate
         print *,'DEBUG polyc',polyc
       endif
 
@@ -2710,17 +2744,24 @@ end subroutine
         write(reason,*) 'MIN_TIME_EXCEEDED' 
       endif
 
-      !            if(.not.need_new_solution) then
-      !              need_new_solution=.True. ! overwrite it and calculate anyway
-      !              write(reason,*) 'MANUAL OVERRIDE' 
-      !            endif
+      if(time_debug_solutions.gt.zero) then
+        if(.not.need_new_solution) then
+          need_new_solution=.True. ! overwrite it and calculate anyway
+          write(reason,*) 'MANUAL OVERRIDE' 
+          ! Hack to monitor error growth...
+          ! We tell the user that he has to calculate radiation again.
+          ! We will calculate and update the solution vectors...
+          ! But once he tries to load em, we give him the old, un-updated solution.
+          ! This happens in restore_solution i.e. we overwrite solution with old one.
+        endif
+      endif
 
       !            if(ldebug .and. myid.eq.0 .and. .not. need_new_solution ) &
       if(ldebug.and. myid.eq.0) then
         print *,''
         print *,''
         print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid,' residuals _solver ::', solutions(uid)%ksp_residual_history(1:4),'    ::     est.',error_estimate,'[W]',error_estimate*86.1,'[K/d]'
-        if(uid.eq.2) then
+        if(uid.eq.501) then
           open (unit=out_unit,file="residuals.log",action="write",status="replace")
         else
           open (unit=out_unit,file="residuals.log",action="readwrite",status="unknown",position = "append")
@@ -2830,6 +2871,33 @@ end subroutine
           polyfit = matmul( matmul(XTX, XT), vy)
       end function
   end function
+
+  subroutine copy_solution(inp,out)
+    type(t_state_container),intent(in) :: inp
+    type(t_state_container),intent(out) :: out
+
+
+    if(ldebug.and.myid.eq.0) &
+      print *,'DEBUG: Copy solution state for',inp%uid,'lchanged',inp%lchanged
+
+    ! make sure target solution is defined.
+    call prepare_solution(out, inp%uid, inp%lsolar_rad)
+
+    out%lintegrated_dir = inp%lintegrated_dir
+    out%lintegrated_diff= inp%lintegrated_diff
+    out%lchanged = inp%lchanged
+
+    out%time    = inp%time
+    out%maxnorm = inp%maxnorm
+    out%twonorm = inp%twonorm
+    if(.not. allocated(out%ksp_residual_history)) allocate(out%ksp_residual_history( size(inp%ksp_residual_history) ) )
+    out%ksp_residual_history = inp%ksp_residual_history
+
+    if(out%lsolar_rad) call VecCopy(inp%edir , out%edir , ierr)
+    call VecCopy(inp%ediff, out%ediff, ierr)
+    call VecCopy(inp%abso , out%abso , ierr)
+    
+  end subroutine
 
   subroutine restore_solution(solution,time)
   ! restore_solution:: if flux have changed, we need to update absorption, save the residual history
