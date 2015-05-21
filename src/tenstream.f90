@@ -2673,6 +2673,12 @@ end subroutine
         return 
       endif
 
+      if(ltwostr_only) then
+        need_new_solution=.True.
+        write(reason,*) 'twostr-only -> no err.est.' 
+        return 
+      endif
+
       call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
       do k=1,Nfit
         t(k) = solutions(uid)%time(Nfit-k+1)
