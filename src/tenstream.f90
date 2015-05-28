@@ -50,7 +50,7 @@ module m_tenstream
 #define isnan ieee_is_nan
 #endif
 
-#include "finclude/petscdef.h"
+#include "petsc/finclude/petscdef.h"
   use petsc
   use m_data_parameters, only : ireals,iintegers,       &
       imp_comm, myid, numnodes,init_mpi_data_parameters,mpiint, &

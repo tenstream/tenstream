@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 program main
-#include "finclude/petscdef.h"
+#include "petsc/finclude/petscdef.h"
       use petsc
       use m_data_parameters, only: mpiint, ireals, init_mpi_data_parameters
       use mpi

@@ -31,7 +31,7 @@ module m_poly_fitLUT
       use m_optprop_LUT, only : t_optprop_LUT_8_10
 
       implicit none
-#include "finclude/petsc.h90"
+#include "petsc/finclude/petsc.h90"
 
       PetscErrorCode :: ierr
       PetscViewer :: view

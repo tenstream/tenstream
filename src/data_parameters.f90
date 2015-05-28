@@ -26,7 +26,7 @@ module m_data_parameters
 #endif
 
         implicit none
-#include "finclude/petsc.h90"
+#include "petsc/finclude/petsc.h90"
 
 
       private

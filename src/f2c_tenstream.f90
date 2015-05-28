@@ -32,7 +32,7 @@ module f2c_tenstream
       use m_helper_functions, only: imp_bcast,mean
 
       implicit none
-#include "finclude/petsc.h90"
+#include "petsc/finclude/petsc.h90"
 
       PetscErrorCode :: ierr
 
