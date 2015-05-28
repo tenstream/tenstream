@@ -34,6 +34,7 @@ module m_eddington
       integer(mpiint) :: VALUE_ERROR=-5
 
 !      logical,parameter :: ldelta_scale=.True.
+      logical,parameter :: ldebug=.False.
 
       contains
 
@@ -263,7 +264,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 !          endif
 
       end subroutine
-      subroutine eddington_coeff_zdun(dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23,a33,g1,g2)
+     subroutine eddington_coeff_zdun(dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23,a33,g1,g2)
           real(ireals),intent(in) :: dtau_in,g_in,omega_0_in,mu_0
           real(ireals),intent(out) :: a11,a12,a13,a23,a33,g1,g2
 
@@ -371,9 +372,10 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           g1 = g0 / (alpha_1-alpha_2)
           g2 = g0 / lambda**2
 
-          if(      any([a11,a12,a13,a23,a33].gt.one)        &
-              .or. any([a11,a12,a13,a23,a33,g1,g2].lt.zero) &
-              .or. any(isnan([a11,a12,a13,a23,a33,g1,g2]))  ) then
+          if(ldebug) then
+            if(      any([a11,a12,a13,a23,a33].gt.one)        &
+                .or. any([a11,a12,a13,a23,a33,g1,g2].lt.zero) &
+                .or. any(isnan([a11,a12,a13,a23,a33,g1,g2]))  ) then
             print *,'eddington ',dtau_in,omega_0_in,g_in,'::',a11,a12,a13,a23,a33,g1,g2
             print *,'eddington ',dtau,omega_0,g,mu_0,':1:',A,lambda,alpha_1,alpha_2,e1,e2,g0
             print *,'eddington ',dtau,omega_0,g,mu_0,':2:',alpha_3,alpha_4,den,(one/mu_0)**2 - lambda**2,alpha_5,alpha_6
@@ -394,6 +396,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             print *,'eddington enercons',dtau,omega_0,g,mu_0,':5:',beta13*gamma12,beta23*gamma22,alpha_6*a33
             call exit()
           endif
+        endif
 
       end subroutine
 
