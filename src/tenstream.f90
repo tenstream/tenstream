@@ -1398,7 +1398,7 @@ contains
       if( lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
         !stop 'TODO: this is not supported atm -- i guess nca does not expect [W] but [W/m**2]'
         call scale_flx(solution, lWm2_to_W=.False.)
-        call nca_wrapper(solution%ediff,solution%abso)
+        call nca_wrapper(solution%ediff, solution%abso)
         call scale_flx(solution, lWm2_to_W=.True.)
         return
       endif
@@ -1712,10 +1712,10 @@ contains
 
       call getVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal)
       xvlocal(  idz    , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%dz
-      xvlocal(  idz    , C_diff%ze            , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = zero
+!      xvlocal(  idz    , C_diff%ze            , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = zero
       xvlocal(  iplanck, C_diff%zs:C_diff%ze  , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%planck
       xvlocal(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%delta_op%kabs
-      xvlocal(  ikabs  , C_diff%ze            , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = zero
+!      xvlocal(  ikabs  , C_diff%ze            , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = zero
 
 
       ! Copy Edn and Eup to local convenience vector
@@ -1733,19 +1733,18 @@ contains
       ! call NCA
       call getVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal)
 
-      call ts_nca(C_one%zm , C_one%xm , C_one%ym   ,         &
-          xvlocal(   idz        , C_one%zs :C_one%ze    , : , :), &
-          xvlocal(   iplanck    , C_diff%zs:C_diff%ze   , : , :), &
-          xvlocal(   ikabs      , C_one%zs :C_one%ze    , : , :), &
-          xvlocal(   ihr        , C_diff%zs:C_diff%ze   , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye), &
-          atm%dx           , atm%dy                ,         &
-          xvlocal(   E_dn       , C_diff%zs:C_diff%ze   , : , :), &
-          xvlocal(   E_up       , C_diff%zs:C_diff%ze   , : , :))
-
+      call ts_nca( atm%dx, atm%dy,                     &
+                   xvlocal(   idz        , : , : , :), &
+                   xvlocal(   iplanck    , : , : , :), &
+                   xvlocal(   ikabs      , : , : , :), &
+                   xvlocal(   E_dn       , : , : , :), &
+                   xvlocal(   E_up       , : , : , :), &
+                   xvlocal(   ihr        , : , : , :))
+                   
 
       ! return absorption
       call getVecPointer( abso, C_one ,xhr1d, xhr)
-      do k=C_one%zs,C_one%ze 
+      do k=C_one%zs,C_one%ze
         xhr(i0,k,:,:) = xvlocal( ihr , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) / xvlocal( idz , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
       enddo
       call restoreVecPointer( abso ,C_one ,xhr1d, xhr )

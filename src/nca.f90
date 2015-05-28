@@ -21,6 +21,7 @@
 ! Klinger and Mayer, 2015, **
 ! carolin.klinger@physik.lmu.de
 !----------------------------------------------------------------------------
+
 module m_ts_nca
   use m_data_parameters, only : ireals,iintegers
   implicit none
@@ -29,14 +30,12 @@ module m_ts_nca
   public :: ts_nca
 
 contains
-  subroutine ts_nca (nlyr, Nx, Ny, dz, B, kabs_3d, hr_nca_3d_tmp, dx, dy, Ldn, Lup)
+  subroutine ts_nca (dx, dy, dz, B, kabs_3d, Edn, Eup, hr)
 
-    integer(iintegers), intent(in) :: Nx, Ny, nlyr
     real(ireals), intent(in) :: dx, dy
-    real(ireals), intent(in),dimension(nlyr  ,0:Nx+1,0:Ny+1) :: dz, kabs_3d
-    real(ireals), intent(in),dimension(nlyr+1,0:Nx+1,0:Ny+1) :: B,Ldn,Lup
-
-    real(ireals), intent(out) :: hr_nca_3d_tmp(nlyr,Nx,Ny)
+    real(ireals), intent(in), dimension(:,:,:) :: dz, kabs_3d   ! dimensions including ghost values (Nlevel,Nx,Ny)
+    real(ireals), intent(in), dimension(:,:,:) :: B,Edn,Eup     ! dimensions including ghost values (Nlevel,Nx,Ny)
+    real(ireals), intent(out),dimension(:,:,:) :: hr            ! dimensions including ghost values (Nlevel,Nx,Ny)
 
     ! ############## Definition of variables ##################
 
@@ -90,18 +89,28 @@ contains
     real(ireals)           :: l = 0.0
     real(ireals)           :: Trans = 0.0
 
-    real(ireals)           :: L_up_3d(nlyr+1,0:Nx+1,0:Ny+1)
-    real(ireals)           :: L_dn_3d(nlyr+1,0:Nx+1,0:Ny+1)
+    real(ireals)           :: L_up_3d(lbound(Eup,1):ubound(Eup,1),lbound(Eup,2):ubound(Eup,2),lbound(Eup,3):ubound(Eup,3))
+    real(ireals)           :: L_dn_3d(lbound(Edn,1):ubound(Edn,1),lbound(Edn,2):ubound(Edn,2),lbound(Edn,3):ubound(Edn,3))
     real(ireals)           :: B1 = 0
     real(ireals)           :: B2 = 0
     real(ireals)           :: B1_1 = 0
     real(ireals)           :: B2_1 = 0
 
-    integer(iintegers) :: is,ie,js,je
+    integer(iintegers) :: is,ie,js,je,nlyr, Nx,Ny
 
-    hr_nca_3d_tmp = -9999999
-    stop 'NCA not freely available.... please consult Carolin Klinger for an implementation.'
+    nlyr = ubound(hr,1)-1
+    is = lbound(hr,2) +1
+    ie = ubound(hr,2) -1
+    js = lbound(hr,3) +1
+    je = ubound(hr,3) -1
+
+    Nx = ie-1
+    Ny = je-1
+
+    hr(1:nlyr,is:ie,js:je) = Edn(1:nlyr,is:ie,js:je) + Eup(2:nlyr+1,is:ie,js:je) - Eup(1:nlyr,is:ie,js:je) - Edn(2:nlyr+1,is:ie,js:je)
+!    stop 'NCA is not freely available.... please consult Carolin Klinger for an implementation.'
+
+    return
   end subroutine
-
 
 end module m_ts_nca
