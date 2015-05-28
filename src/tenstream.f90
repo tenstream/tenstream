@@ -57,7 +57,7 @@ module m_tenstream
       zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
 
   use m_twostream, only: delta_eddington_twostream
-  use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc
+  use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -138,7 +138,7 @@ module m_tenstream
 
   integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
 
-  logical,parameter :: lenable_solutions=.True. ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
+  logical,parameter :: lenable_solutions=.True.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
   real(ireals),parameter :: time_debug_solutions=zero ! if enabled, we calculate new solutions but do not return the update solutions to the host model.(set to zero to disable)
 
   type t_state_container
@@ -1391,6 +1391,7 @@ contains
       Vec :: ledir,lediff ! local copies of vectors, including ghosts
       PetscReal :: div(3),div2(13)
       PetscReal :: Volume,Ax,Ay,Az
+      logical :: lhave_no_3d_layer
 
       if(.not. solution%lintegrated_dir) stop 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!'
       if(.not. solution%lintegrated_diff)stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
@@ -1406,7 +1407,44 @@ contains
       if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence'
       call VecSet(solution%abso,zero,ierr) ;CHKERRQ(ierr)
 
-      ! TODO: if there are no 3D layers, we should skip the ghost value copying....
+      ! if there are no 3D layers, we should skip the ghost value copying....
+      lhave_no_3d_layer = mpi_logical_and(all(atm%l1d.eqv..True.))
+      if(lhave_no_3d_layer) then
+
+        if(solution%lsolar_rad) call getVecPointer(solution%edir, C_dir ,xedir1d ,xedir )
+
+        call getVecPointer(solution%ediff, C_diff, xediff1d, xediff)
+        call getVecPointer(solution%abso, C_one, xabso1d, xabso)
+
+        ! calculate absorption by flux divergence
+        Az = atm%dx * atm%dy
+
+        do j=C_one%ys,C_one%ye         
+          do i=C_one%xs,C_one%xe      
+            do k=C_one%zs,C_one%ze
+              Volume = Az     * atm%dz(k,i,j)
+              ! Divergence    =                       Incoming                -       Outgoing
+              if(solution%lsolar_rad) then
+                div(1) = sum( xedir(i0:i3, k, i, j )  - xedir(i0:i3 , k+i1 , i, j ) ) 
+              else 
+                div(1) = zero
+              endif
+
+              div(2) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  ) 
+              div(3) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  ) 
+
+              xabso(i0,k,i,j) = sum(div) / Volume
+            enddo                             
+          enddo                             
+        enddo   
+
+        if(solution%lsolar_rad) call restoreVecPointer(solution%edir, C_dir, xedir1d, xedir )
+
+        call restoreVecPointer(solution%ediff, C_diff,xediff1d,xediff)
+        call restoreVecPointer(solution%abso , C_one ,xabso1d ,xabso )
+
+        return
+      endif
 
       if(solution%lsolar_rad) then
         ! Copy ghosted values for direct vec
@@ -1787,7 +1825,7 @@ contains
       allocate( Eup(C_diff%zm) )
       allocate( Edn(C_diff%zm) )
 
-      if(myid.eq.0) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM ::',sun%theta,':',incSolar
+      if(myid.eq.0 .and. ldebug) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM ::',sun%theta,':',incSolar
 
       do j=C_dir%ys,C_dir%ye         
         do i=C_dir%xs,C_dir%xe
@@ -1986,6 +2024,8 @@ end subroutine
   subroutine init_memory(incSolar,b,Mdir,Mdiff)
       Vec :: b,incSolar
       Mat :: Mdiff,Mdir
+
+      if(ltwostr_only) return
 
       call DMCreateGlobalVector(C_dir%da,incSolar,ierr) ; CHKERRQ(ierr)
       call DMCreateGlobalVector(C_diff%da,b,ierr)       ; CHKERRQ(ierr)
@@ -2330,6 +2370,8 @@ end subroutine
         if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%op)
       endif
 
+      if(ltwostr_only) return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
+
       ! Make space for deltascaled optical properties
       if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%zs :C_one%ze,C_one%xs :C_one%xe , C_one%ys :C_one%ye ) )
       atm%delta_op = atm%op
@@ -2489,14 +2531,19 @@ end subroutine
       if(present(lfinalizepetsc)) lfinalize = lfinalizepetsc
 
       if(linitialized) then 
+        if(linit_kspdir) then
+          call KSPDestroy(kspdir , ierr) ;CHKERRQ(ierr); linit_kspdir =.False.
+        endif
+        if(linit_kspdiff) then
+          call KSPDestroy(kspdiff, ierr) ;CHKERRQ(ierr); linit_kspdiff=.False.
+        endif
 
-        call KSPDestroy(kspdir , ierr) ;CHKERRQ(ierr); linit_kspdir =.False.
-        call KSPDestroy(kspdiff, ierr) ;CHKERRQ(ierr); linit_kspdiff=.False.
-
-        call VecDestroy(incSolar , ierr) ;CHKERRQ(ierr)
-        call VecDestroy(b        , ierr) ;CHKERRQ(ierr)
-        call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
-        call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
+        if(.not. ltwostr_only) then
+          call VecDestroy(incSolar , ierr) ;CHKERRQ(ierr)
+          call VecDestroy(b        , ierr) ;CHKERRQ(ierr)
+          call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
+          call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
+        endif
 
         do uid=lbound(solutions,1),ubound(solutions,1)
           if( solutions(uid)%lset ) then
@@ -2507,16 +2554,16 @@ end subroutine
           endif
         enddo
 
-        deallocate(atm%op)
-        deallocate(atm%delta_op)
-        if(allocated(atm%planck)) deallocate(atm%planck)
-        deallocate(atm%a11)
-        deallocate(atm%a12)
-        deallocate(atm%a13)
-        deallocate(atm%a23)
-        deallocate(atm%a33)
-        deallocate(atm%dz)
-        deallocate(atm%l1d)
+        if(allocated(atm%op))       deallocate(atm%op)
+        if(allocated(atm%delta_op)) deallocate(atm%delta_op)
+        if(allocated(atm%planck))   deallocate(atm%planck)
+        if(allocated(atm%a11))      deallocate(atm%a11)
+        if(allocated(atm%a12))      deallocate(atm%a12)
+        if(allocated(atm%a13))      deallocate(atm%a13)
+        if(allocated(atm%a23))      deallocate(atm%a23)
+        if(allocated(atm%a33))      deallocate(atm%a33)
+        if(allocated(atm%dz))       deallocate(atm%dz)
+        if(allocated(atm%l1d))      deallocate(atm%l1d)
         call OPP_1_2%destroy()
         call OPP_8_10%destroy()
 
@@ -2935,7 +2982,17 @@ end subroutine
       ! update absorption
       call calc_flx_div(solution)
 
-      if(present(time) ) then ! Compute norm between old absorption and new one
+      if(ldebug .and. myid.eq.0) &
+          print *,'Saving Solution ',solution%uid
+
+      ! make sure to bring the fluxes into [W/m**2]
+      call scale_flx(solution, lWm2_to_W=.False. ) 
+
+      if(ldebug .and. myid.eq.0) &
+          print *,'Saving Solution done'
+      solution%lchanged=.False.
+
+      if(present(time) .and. lenable_solutions) then ! Compute norm between old absorption and new one
         call VecAXPY(abso_old , -one, solution%abso , ierr)    ; CHKERRQ(ierr) ! overwrite abso_old with difference to new one
         call VecNorm(abso_old ,  NORM_1, norm1, ierr)          ; CHKERRQ(ierr)
         call VecNorm(abso_old ,  NORM_2, norm2, ierr)          ; CHKERRQ(ierr)
@@ -2958,15 +3015,6 @@ end subroutine
 
       endif !present(time)
 
-      if(ldebug .and. myid.eq.0) &
-          print *,'Saving Solution ',solution%uid
-
-      ! make sure to bring the fluxes into [W/m**2]
-      call scale_flx(solution, lWm2_to_W=.False. ) 
-
-      if(ldebug .and. myid.eq.0) &
-          print *,'Saving Solution done'
-      solution%lchanged=.False.
 
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
 

@@ -21,7 +21,7 @@ module m_optprop_LUT
 
   use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
 
-  use m_helper_functions, only : approx,rel_approx,imp_bcast
+  use m_helper_functions, only : approx,rel_approx,imp_bcast,mpi_logical_and,mpi_logical_or
   use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_comm,imp_logical
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
       Ndz_1_2,Nkabs_1_2,Nksca_1_2,Ng_1_2,Nphi_1_2,Ntheta_1_2,Ndir_1_2,Ndiff_1_2,interp_mode_1_2,   &
@@ -396,19 +396,6 @@ end subroutine
       ! DIFFUSE 2 DIFFUSE
       if( mpi_logical_or(.not.allocated(OPP%diffLUT%S%c) )) & ! then ! if one or more nodes do not have it, guess we have to send it...
         call imp_bcast(OPP%diffLUT%S%c, 0_mpiint, myid )
-contains 
-function mpi_logical_and(lneed)
-    logical :: mpi_logical_and
-    logical,intent(in) :: lneed
-    call mpi_allreduce(lneed, mpi_logical_and, 1_mpiint, imp_logical, MPI_LAND, comm, mpierr)
-!    print *,myid,'scattering LUT:',lneed,'==>',mpi_logical_and
-end function
-function mpi_logical_or(lneed)
-    logical :: mpi_logical_or
-    logical,intent(in) :: lneed
-    call mpi_allreduce(lneed, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, comm, mpierr)
-!    print *,myid,'scattering LUT:',lneed,'==>',mpi_logical_or
-end function
   end subroutine
 
 subroutine createLUT_diff(OPP, LUT, comm)

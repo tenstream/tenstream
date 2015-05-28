@@ -20,10 +20,13 @@
 module m_helper_functions
       use m_data_parameters,only : iintegers,ireals,pi,one,imp_real,imp_int,imp_logical,mpiint,imp_comm
 
+      use mpi
+
       implicit none
 
       private
-      public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc
+      public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
+          mpi_logical_and,mpi_logical_or
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -94,6 +97,18 @@ module m_helper_functions
           else
             rel_approx = .False.
           endif
+      end function
+
+
+      function mpi_logical_and(lval)
+          logical :: mpi_logical_and
+          logical,intent(in) :: lval
+          call mpi_allreduce(lval, mpi_logical_and, 1_mpiint, imp_logical, MPI_LAND, imp_comm, mpierr)
+      end function
+      function mpi_logical_or(lval)
+          logical :: mpi_logical_or
+          logical,intent(in) :: lval
+          call mpi_allreduce(lval, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, imp_comm, mpierr)
       end function
 
       subroutine  imp_bcast_logical(val,sendid,myid)
