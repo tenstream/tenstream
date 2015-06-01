@@ -56,6 +56,7 @@ function (petsc_get_version)
       list (GET fields 2 val)
       set (${var} ${val} PARENT_SCOPE)
       set (${var} ${val})         # Also in local scope so we have access below
+      message (STATUS "PETSc Version line: ${line} :: ${var} ${val}")
     endforeach ()
     if (PETSC_VERSION_RELEASE)
       set (PETSC_VERSION "${PETSC_VERSION_MAJOR}.${PETSC_VERSION_MINOR}.${PETSC_VERSION_SUBMINOR}p${PETSC_VERSION_PATCH}" PARENT_SCOPE)
@@ -112,7 +113,10 @@ find_package_multipass (PETSc petsc_config_current
 
 # Determine whether the PETSc layout is old-style (through 2.3.3) or
 # new-style (>= 3.0.0)
-if (EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/petsc-conf/petscvariables") # > 3.5
+if (EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables") # > 3.5.4
+  set (petsc_conf_rules "${PETSC_DIR}/lib/petsc/conf/rules")
+  set (petsc_conf_variables "${PETSC_DIR}/lib/petsc/conf/variables")
+elseif (EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/petsc-conf/petscvariables") # > 3.5
   set (petsc_conf_rules "${PETSC_DIR}/lib/petsc-conf/rules")
   set (petsc_conf_variables "${PETSC_DIR}/lib/petsc-conf/variables")
 elseif (EXISTS "${PETSC_DIR}/${PETSC_ARCH}/include/petscconf.h")   # > 2.3.3
@@ -127,6 +131,7 @@ endif ()
 
 if (petsc_conf_rules AND petsc_conf_variables AND NOT petsc_config_current)
   petsc_get_version()
+message (STATUS "Found PETSc Version to be ${PETSC_VERSION}")
 
   # Put variables into environment since they are needed to get
   # configuration (petscvariables) in the PETSc makefile
