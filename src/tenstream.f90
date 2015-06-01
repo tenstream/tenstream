@@ -1757,7 +1757,7 @@ contains
       xvlocal(  idz    , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%dz
 !      xvlocal(  idz    , C_diff%ze            , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = zero
       xvlocal(  iplanck, C_diff%zs:C_diff%ze  , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%planck
-      xvlocal(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%delta_op%kabs
+      xvlocal(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%op%kabs
 !      xvlocal(  ikabs  , C_diff%ze            , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = zero
 
 
