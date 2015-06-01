@@ -57,7 +57,7 @@ module m_tenstream
       zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
 
   use m_twostream, only: delta_eddington_twostream
-  use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and
+  use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and,imp_allreduce_min
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -1592,7 +1592,7 @@ contains
       !      Vec :: nullvecs(0)
       character(len=*),optional :: prefix
 
-      PetscReal,parameter :: rtol=1e-5_ireals, atol=1e-8_ireals
+      PetscReal,parameter :: rtol=1e-5_ireals, rel_atol=1e-8_ireals
       PetscInt,parameter  :: maxiter=10000
 
       PetscInt,parameter :: ilu_default_levels=1
@@ -1601,8 +1601,13 @@ contains
       PC  :: pcbjac_sub_pc
       integer(iintegers) :: isub
 
+      PetscReal :: atol
+
       if(linit) return
       call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
+
+      call imp_allreduce_min(rel_atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)), atol)
+
       if(myid.eq.0.and.ldebug) &
           print *,'Setup KSP -- tolerances:',rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d))
 

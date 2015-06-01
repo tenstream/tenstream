@@ -26,7 +26,7 @@ module m_helper_functions
 
       private
       public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
-          mpi_logical_and,mpi_logical_or
+          mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -110,6 +110,26 @@ module m_helper_functions
           logical,intent(in) :: lval
           call mpi_allreduce(lval, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, imp_comm, mpierr)
       end function
+
+      subroutine imp_allreduce_min(v,r)
+          real(ireals),intent(in) :: v
+          real(ireals),intent(out) :: r
+          call mpi_allreduce(v,r,1,imp_real, MPI_MIN,imp_comm, mpierr)
+      end subroutine
+      subroutine imp_allreduce_max(v,r)
+          real(ireals),intent(in) :: v
+          real(ireals),intent(out) :: r
+          call mpi_allreduce(v,r,1,imp_real, MPI_MAX,imp_comm, mpierr)
+      end subroutine
+      subroutine imp_reduce_sum(v,comm,myid)
+          real(ireals),intent(inout) :: v
+          integer,intent(in) :: comm,myid
+          if(myid.eq.0) then
+            call mpi_reduce(MPI_IN_PLACE, v, 1, imp_real, MPI_SUM, 0, comm, mpierr)
+          else
+            call mpi_reduce(v, MPI_IN_PLACE, 1, imp_real, MPI_SUM, 0, comm, mpierr)
+          endif
+      end subroutine
 
       subroutine  imp_bcast_logical(val,sendid,myid)
           logical,intent(inout) :: val

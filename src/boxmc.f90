@@ -28,7 +28,7 @@ module m_boxmc
       use ieee_arithmetic 
 #define isnan ieee_is_nan
 #endif
-      use m_helper_functions, only : approx,mean,rmse,deg2rad,norm
+      use m_helper_functions, only : approx,mean,rmse,deg2rad,norm,imp_reduce_sum
       use iso_c_binding
       use m_mersenne
       use mpi
@@ -262,14 +262,14 @@ contains
       if(ldir) Sdir_out = std_Sdir%mean *k
 
       if(comm.ne.-1 .and. myid.ge.0) then
-        call mpi_reduce_sum(total_photons,comm,myid)
+        call imp_reduce_sum(total_photons,comm,myid)
         do k=1,ubound(S_out,1)
-          call mpi_reduce_sum(S_out(k),comm,myid)
+          call imp_reduce_sum(S_out(k),comm,myid)
         enddo
 
         if(ldir) then
           do k=1,ubound(Sdir_out,1)
-            call mpi_reduce_sum(Sdir_out(k),comm,myid)
+            call imp_reduce_sum(Sdir_out(k),comm,myid)
           enddo
         endif
       endif
@@ -281,9 +281,9 @@ contains
         Sdir_out=zero
       endif
 
-      if( (sum(S_out)+sum(Sdir_out)).gt.one+1e-3_ireals ) then
+      if( (sum(S_out)+sum(Sdir_out)).gt.one+1e-2_ireals ) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
-                sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),'.gt',one+1e-3_ireals,':: op',p%optprop,'eps',epsilon(one)
+                sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),'.gt',one+1e-2_ireals,':: op',p%optprop,'eps',epsilon(one)
         call print_photon(p)
         call exit
       endif
@@ -299,16 +299,6 @@ contains
         src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
       endif
   end subroutine
-
-subroutine mpi_reduce_sum(v,comm,myid)
-    real(ireals),intent(inout) :: v
-    integer,intent(in) :: comm,myid
-    if(myid.eq.0) then
-      call mpi_reduce(MPI_IN_PLACE, v, 1, imp_real, MPI_SUM, 0, comm, ierr)
-    else
-      call mpi_reduce(v, MPI_IN_PLACE, 1, imp_real, MPI_SUM, 0, comm, ierr)
-    endif
-end subroutine
 
 subroutine roulette(p)
         type(photon),intent(inout) :: p
