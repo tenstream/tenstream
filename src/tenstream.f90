@@ -1593,7 +1593,7 @@ contains
       character(len=*),optional :: prefix
 
       PetscReal,parameter :: rtol=1e-5_ireals, rel_atol=1e-8_ireals
-      PetscInt,parameter  :: maxiter=10000
+      PetscInt,parameter  :: maxiter=1000
 
       PetscInt,parameter :: ilu_default_levels=1
       PetscInt :: pcbjac_n_local, pcbjac_iglob ! number of local ksp contexts and index in global ksp-table
@@ -1607,9 +1607,10 @@ contains
       call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
 
       call imp_allreduce_min(rel_atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)), atol)
+      atol = max(1e-8_ireals, atol)
 
       if(myid.eq.0.and.ldebug) &
-          print *,'Setup KSP -- tolerances:',rtol,atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d))
+        print *,'Setup KSP -- tolerances:',rtol,atol,'::',rel_atol,(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),count(.not.atm%l1d),one*size(atm%l1d)
 
       call KSPCreate(imp_comm,ksp,ierr) ;CHKERRQ(ierr)
       if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;CHKERRQ(ierr)
@@ -1623,7 +1624,7 @@ contains
         call PCSetType (prec,PCBJACOBI,ierr);CHKERRQ(ierr)
       endif
 
-      call KSPSetTolerances(ksp,rtol,max(1e-30_ireals, atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)) ),PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
+      call KSPSetTolerances(ksp,rtol,atol,PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
 
       call KSPSetConvergenceTest(ksp,MyKSPConverged, PETSC_NULL_OBJECT,PETSC_NULL_FUNCTION,ierr)
 
