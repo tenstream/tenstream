@@ -1603,6 +1603,8 @@ contains
 
       PetscReal :: atol
 
+      logical,parameter :: lset_geometry=.False. ! this may be necessary in order to use geometric multigrid
+
       if(linit) return
       call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
 
@@ -1650,14 +1652,54 @@ contains
 
       endif
 
-      call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
+      if(lset_geometry) call set_coordinates(C,ierr);CHKERRQ(ierr)
 
       !      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, nullvecs, nullspace, ierr) ; CHKERRQ(ierr)
       !      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
 
+      call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
+
       linit = .True.
       if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+
+
+      contains
+        subroutine set_coordinates(C,ierr)
+            type(t_coord) :: C
+            PetscErrorCode,intent(out) :: ierr
+
+            Vec :: coordinates 
+            PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
+            PetscReal,pointer,dimension(:)       :: xv1d=>null()
+
+            Vec         ::   gc,global
+            DM :: coordDA
+            integer(iintegers) :: mstart,nstart,pstart,m,n,p, i,j,k
+
+            call DMDASetUniformCoordinates(C%da,zero,one, zero, atm%dx*C%glob_xm,zero, atm%dy*C%glob_ym, ierr );CHKERRQ(ierr)
+            call DMGetCoordinateDM(C%da,coordDA,ierr);CHKERRQ(ierr)
+            call DMGetCoordinates(C%da, coordinates,ierr);CHKERRQ(ierr)
+
+            call DMDAGetCorners(coordDA, mstart,nstart,pstart,m,n,p,ierr);CHKERRQ(ierr)
+            print *,'coordinates',C%xs,C%xe,mstart,nstart,pstart,m,n,p
+
+            call VecGetArrayF90(coordinates,xv1d,ierr) ;CHKERRQ(ierr)
+            xv(0:2 , mstart:mstart+m-1  , nstart:nstart+n-1   , pstart:pstart+p-1   ) => xv1d
+
+            xv(0,mstart+m-1,:,:) = zero ! surface boundary condition
+            do k=pstart,pstart+p-1
+              do j=nstart,nstart+n-1
+                do i=mstart+m-2, mstart, -1
+                  xv(0,i,j,k) = xv(0,i+1,j,k) + atm%dz(i,j,k)
+                enddo
+              enddo
+            enddo
+
+            xv => null()
+            call VecRestoreArrayF90(coordinates,xv1d,ierr) ;CHKERRQ(ierr)
+            xv1d => null()
+        end subroutine
   end subroutine
   subroutine MyKSPConverged(ksp,n,rnorm,flag,dummy,ierr)
       ! Input Parameters:
