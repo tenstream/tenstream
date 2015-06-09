@@ -2585,7 +2585,8 @@ end subroutine
   end subroutine
 
   subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
-      real(ireals),dimension(:,:,:),intent(inout),allocatable :: redir,redn,reup,rabso
+      real(ireals),dimension(:,:,:),intent(inout),allocatable :: redir
+      real(ireals),dimension(:,:,:),intent(out)               :: redn,reup,rabso
       integer(iintegers),optional,intent(in) :: opt_solution_uid
 
       integer(iintegers) :: uid
@@ -2623,7 +2624,7 @@ end subroutine
       endif
 
 
-      if(ldebug .and. myid.eq.0) print *,'calling tenstream_get_result',allocated(redir),allocated(redn),allocated(reup),allocated(rabso),'for uid',uid
+      if(ldebug .and. myid.eq.0) print *,'calling tenstream_get_result',allocated(redir),'for uid',uid
 
       if(solutions(uid)%lchanged) stop 'tried to get results from unrestored solution -- call restore_solution first'
 
@@ -2645,35 +2646,27 @@ end subroutine
         endif
       endif
 
-      if(allocated(redn).or.allocated(reup)) then
         if(solutions(uid)%lintegrated_diff) stop 'tried to get result from integrated result vector(diff)'
         call getVecPointer(solutions(uid)%ediff,C_diff,x1d,x4d,.False.)
-        if(allocated(redn) )redn = x4d(i1,:,:,:)
-        if(allocated(reup) )reup = x4d(i0,:,:,:)
+        redn = x4d(E_dn,:,:,:)
+        reup = x4d(E_up,:,:,:)
         if(ldebug) then
           if(myid.eq.0) print *,' Edn',redn(1,1,:)
           if(myid.eq.0) print *,' Eup',reup(1,1,:)
-          if(allocated(redir).and.allocated(redn)) then
-            if(any(redn.lt.-one)) then 
-              print *,'Found direct radiation smaller than 0 in edn result... that should not happen',minval(redn)
-              call exit(1)
-            endif
+          if(any(redn.lt.-one)) then 
+            print *,'Found direct radiation smaller than 0 in edn result... that should not happen',minval(redn)
+            call exit(1)
           endif
-          if(allocated(redir).and.allocated(reup)) then
-            if(any(reup.lt.-one)) then 
-              print *,'Found direct radiation smaller than 0 in eup result... that should not happen',minval(reup)
-              call exit(1)
-            endif
+          if(any(reup.lt.-one)) then 
+            print *,'Found direct radiation smaller than 0 in eup result... that should not happen',minval(reup)
+            call exit(1)
           endif
         endif!ldebug
         call restoreVecPointer(solutions(uid)%ediff,C_diff,x1d,x4d)
-      endif
 
-      if(allocated(rabso)) then
         call getVecPointer(solutions(uid)%abso,C_one,x1d,x4d)
         rabso = x4d(i0,:,:,:)
         call restoreVecPointer(solutions(uid)%abso,C_one,x1d,x4d)
-      endif
   end subroutine
 
   subroutine prepare_solution(solution, uid, lsolar)
