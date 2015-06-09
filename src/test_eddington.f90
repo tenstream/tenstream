@@ -11,6 +11,9 @@ program main
 
       print *,'Checking eddington coefficients'
 
+      inp = [ 0.4824516550E-01, 0.5542391539, 0.4550637007, 1.00000000000]
+      call calc(inp)
+
       inp = [0.2018013448, 0.3797843754, 0.4556422830, 1.00000000000]
       call calc(inp)
 

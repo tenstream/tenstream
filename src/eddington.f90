@@ -278,7 +278,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           real(ireal128) ::  alpha1_p_lambda, alpha1_m_lambda
           real(ireal128) ::  bscr
 
-          real(ireal128),parameter ::  eps_resonance=1e-6_ireal128
+          real(ireal128),parameter ::  eps_resonance=1e-5_ireal128
 
           ! Singularities -- dont use values before here
           dtau   = max( epsilon(dtau_in)   , dtau_in   )
@@ -305,10 +305,6 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           e1 = min(huge(e1)   , exp( lambda*dtau))
           e2 = max(epsilon(e2), exp(-lambda*dtau))
-
-
-!          a11 = A * 2._ireal128 * lambda / alpha_2
-!          a12 = A * ( e1 - e2 )
 
           alpha1_m_lambda = max(epsilon(alpha_1), alpha_1-lambda )
           alpha1_p_lambda = max(epsilon(alpha_1), alpha_1+lambda )
@@ -377,7 +373,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
                 .or. any([a11,a12,a13,a23,a33,g1,g2].lt.zero) &
                 .or. any(isnan([a11,a12,a13,a23,a33,g1,g2]))  ) then
             print *,'eddington ',dtau_in,omega_0_in,g_in,'::',a11,a12,a13,a23,a33,g1,g2
-            print *,'eddington ',dtau,omega_0,g,mu_0,':1:',A,lambda,alpha_1,alpha_2,e1,e2,g0
+            print *,'eddington ',dtau,omega_0,g,mu_0,':1:',A,den,lambda,alpha_1,alpha_2,e1,e2,g0
             print *,'eddington ',dtau,omega_0,g,mu_0,':2:',alpha_3,alpha_4,den,(one/mu_0)**2 - lambda**2,alpha_5,alpha_6
             print *,'eddington ',dtau,omega_0,g,mu_0,':3:',beta11,beta21,beta12,beta22,beta13,beta23
             print *,'eddington ',dtau,omega_0,g,mu_0,':4:',gamma12,gamma22
