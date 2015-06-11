@@ -1397,7 +1397,6 @@ contains
       if(.not. solution%lintegrated_diff)stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
 
       if( lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
-        !stop 'TODO: this is not supported atm -- i guess nca does not expect [W] but [W/m**2]'
         call scale_flx(solution, lWm2_to_W=.False.)
         call nca_wrapper(solution%ediff, solution%abso)
         call scale_flx(solution, lWm2_to_W=.True.)
@@ -1516,7 +1515,6 @@ contains
           enddo                             
         enddo                             
       enddo   
-
 
       if(solution%lsolar_rad) then
         call restoreVecPointer(ledir          ,C_dir ,xedir1d ,xedir )
@@ -1774,12 +1772,13 @@ contains
   subroutine nca_wrapper(ediff,abso)
       use m_ts_nca, only : ts_nca
       Vec :: ediff,abso
-      Vec :: lediff ! local ediff vector with ghost values -- in dimension 0 and 1 are fluxes followed by dz,planck,kabs
+      Vec :: gnca ! global nca vector 
+      Vec :: lnca ! local nca vector with ghost values -- in dimension 0 and 1 are fluxes followed by dz,planck,kabs
 
       PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
       PetscReal,pointer,dimension(:)       :: xv1d=>null()
-      PetscReal,pointer,dimension(:,:,:,:) :: xvlocal  =>null()
-      PetscReal,pointer,dimension(:)       :: xvlocal1d=>null()
+      PetscReal,pointer,dimension(:,:,:,:) :: xvlnca  =>null(), xvgnca  =>null()
+      PetscReal,pointer,dimension(:)       :: xvlnca1d=>null(), xvgnca1d=>null()
       PetscReal,pointer,dimension(:,:,:,:) :: xhr  =>null()
       PetscReal,pointer,dimension(:)       :: xhr1d=>null()
       integer(iintegers) :: k
@@ -1788,56 +1787,63 @@ contains
 
       integer(iintegers),parameter :: idz=i2, iplanck=i3, ikabs=i4, ihr=i5
 
+      real(ireals) :: div(2),Volume
+      integer(iintegers) :: i,j
+
       call PetscLogStagePush(logstage(12),ierr) ;CHKERRQ(ierr)
 
       ! put additional values into a local ediff vec .. TODO: this is a rather dirty hack but is straightforward
 
       ! get ghost values for dz, planck, kabs and fluxes, ready to give it to NCA
-      call DMGetLocalVector(C_diff%da ,lediff ,ierr)                   ; CHKERRQ(ierr)
-      call VecSet(lediff, zero, ierr); CHKERRQ(ierr)
+      call DMGetGlobalVector(C_diff%da ,gnca ,ierr) ; CHKERRQ(ierr)
 
-      call getVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal)
-      xvlocal(  idz    , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%dz
-!      xvlocal(  idz    , C_diff%ze            , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = zero
-      xvlocal(  iplanck, C_diff%zs:C_diff%ze  , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%planck
-      xvlocal(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%op%kabs
-!      xvlocal(  ikabs  , C_diff%ze            , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = zero
+      call getVecPointer(gnca ,C_diff ,xvgnca1d, xvgnca)
+      xvgnca(  idz    , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%dz
+      xvgnca(  iplanck, C_diff%zs:C_diff%ze  , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%planck
+      xvgnca(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%op%kabs
 
 
       ! Copy Edn and Eup to local convenience vector
       call getVecPointer(ediff ,C_diff ,xv1d, xv)
-      xvlocal( E_up,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_up,:,:,:)
-      xvlocal( E_dn,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_dn,:,:,:)
+      xvgnca( E_up,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_up,:,:,:)
+      xvgnca( E_dn,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_dn,:,:,:)
       call restoreVecPointer(ediff ,C_diff ,xv1d, xv)
 
-      call restoreVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal )
+      call restoreVecPointer(gnca ,C_diff ,xvgnca1d, xvgnca )
 
-      ! retrieve ghost values
-      call DMGlobalToLocalBegin(C_diff%da ,ediff ,ADD_VALUES,lediff ,ierr) ; CHKERRQ(ierr)
-      call DMGlobalToLocalEnd  (C_diff%da ,ediff ,ADD_VALUES,lediff ,ierr) ; CHKERRQ(ierr)
+
+      ! retrieve ghost values into l(ocal) nca vec
+      call DMGetLocalVector (C_diff%da ,lnca ,ierr) ; CHKERRQ(ierr)
+      call VecSet(lnca, zero, ierr); CHKERRQ(ierr)
+
+      call DMGlobalToLocalBegin(C_diff%da ,gnca ,ADD_VALUES,lnca ,ierr) ; CHKERRQ(ierr)
+      call DMGlobalToLocalEnd  (C_diff%da ,gnca ,ADD_VALUES,lnca ,ierr) ; CHKERRQ(ierr)
+
+      call DMRestoreGlobalVector(C_diff%da, gnca, ierr); CHKERRQ(ierr)
 
       ! call NCA
-      call getVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal)
+      call getVecPointer(lnca ,C_diff ,xvlnca1d, xvlnca)
 
-      call ts_nca( atm%dx, atm%dy,                     &
-                   xvlocal(   idz        , : , : , :), &
-                   xvlocal(   iplanck    , : , : , :), &
-                   xvlocal(   ikabs      , : , : , :), &
-                   xvlocal(   E_dn       , : , : , :), &
-                   xvlocal(   E_up       , : , : , :), &
-                   xvlocal(   ihr        , : , : , :))
+      call ts_nca( atm%dx, atm%dy,                    &
+                   xvlnca(   idz        , : , : , :), &
+                   xvlnca(   iplanck    , : , : , :), &
+                   xvlnca(   ikabs      , : , : , :), &
+                   xvlnca(   E_dn       , : , : , :), &
+                   xvlnca(   E_up       , : , : , :), &
+                   xvlnca(   ihr        , : , : , :))
                    
 
       ! return absorption
       call getVecPointer( abso, C_one ,xhr1d, xhr)
+
       do k=C_one%zs,C_one%ze
-        xhr(i0,k,:,:) = xvlocal( ihr , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) / xvlocal( idz , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
+        xhr(i0,k,:,:) = xvlnca( ihr , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) / xvlnca( idz , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
       enddo
       call restoreVecPointer( abso ,C_one ,xhr1d, xhr )
 
       !return convenience vector that holds optical properties
-      call restoreVecPointer(lediff ,C_diff ,xvlocal1d, xvlocal )
-      call DMRestoreLocalVector(C_diff%da, lediff, ierr); CHKERRQ(ierr)
+      call restoreVecPointer(lnca ,C_diff ,xvlnca1d, xvlnca )
+      call DMRestoreLocalVector(C_diff%da, lnca, ierr); CHKERRQ(ierr)
 
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
   end subroutine
@@ -2105,7 +2111,6 @@ end subroutine
 #ifdef _XLF
         call PetscPopSignalHandler(ierr); CHKERRQ(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
 #endif
-
         call init_mpi_data_parameters(PETSC_COMM_WORLD)
 
         call read_commandline_options()
