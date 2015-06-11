@@ -116,9 +116,11 @@ find_package_multipass (PETSc petsc_config_current
 if (EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables") # > 3.5.4
   set (petsc_conf_rules "${PETSC_DIR}/lib/petsc/conf/rules")
   set (petsc_conf_variables "${PETSC_DIR}/lib/petsc/conf/variables")
+  set (petsc_conf_variables_arch "${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables" )
 elseif (EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/petsc-conf/petscvariables") # > 3.5
   set (petsc_conf_rules "${PETSC_DIR}/lib/petsc-conf/rules")
   set (petsc_conf_variables "${PETSC_DIR}/lib/petsc-conf/variables")
+  set (petsc_conf_variables_arch "${PETSC_DIR}/${PETSC_ARCH}/lib/petsc-conf/petscvariables" )
 elseif (EXISTS "${PETSC_DIR}/${PETSC_ARCH}/include/petscconf.h")   # > 2.3.3
   set (petsc_conf_rules "${PETSC_DIR}/conf/rules")
   set (petsc_conf_variables "${PETSC_DIR}/conf/variables")
