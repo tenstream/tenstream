@@ -309,9 +309,9 @@ contains
 
       call mat_info(A)
 
-      !        call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-      !        call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-      !        call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
+      call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+      call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+      call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
 
       call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
       call MatSetUp(A,ierr) ;CHKERRQ(ierr)
@@ -2151,18 +2151,18 @@ end subroutine
 
       do j=C_one%ys,C_one%ye
         do i=C_one%xs,C_one%xe
+          atm%l1d(C_one%ze,i,j) = twostr_ratio*atm%dz(C_one%ze,i,j).gt.atm%dx
           do k=C_one%ze-1,C_one%zs,-1
-            if( atm%l1d(k,i,j) ) cycle ! if it was already marked 1D before, we must not change it to 3D -- otherwise have to recreate matrix routines. possible but not implemented at the moment !TODO
+!            if( atm%l1d(k,i,j) ) cycle ! if it was already marked 1D before, we must not change it to 3D -- otherwise have to recreate matrix routines. possible but not implemented at the moment !TODO
 
-            atm%l1d(C_one%ze,i,j) = twostr_ratio*atm%dz(C_one%ze,i,j).gt.atm%dx
 
-            if( atm%l1d(k+1,i,j) ) then !can only be 3D RT if below is a 3D layer
-              atm%l1d(k,i,j)=.True.
-            else
-              !TODO this does actually not really make sense. I am not sure why this might not work. i.e. if it is necessary.
+!            if( atm%l1d(k+1,i,j) ) then !can only be 3D RT if below is a 3D layer
+!              atm%l1d(k,i,j)=.True.
+!            else
+!              !TODO this does actually not really make sense. I am not sure why this might not work. i.e. if it is necessary.
               atm%l1d(k,i,j) = twostr_ratio*atm%dz(k,i,j).gt.atm%dx
-              if(atm%dz(k,i,j).lt.atm%dx/10._ireals) atm%l1d(k,i,j)=.True.
-            endif
+!              if(atm%dz(k,i,j).lt.atm%dx/10._ireals) atm%l1d(k,i,j)=.True.
+!            endif
           enddo
         enddo
       enddo
