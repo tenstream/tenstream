@@ -1,8 +1,5 @@
 ### The Tenstream solver approximately solves the radiative transfer equation in 3D and computes irradiance and heating rates from optical properties.
 
-  At the moment the conversion from physical variables like liquid water
-  to optical properties is not included.
-  
   Overview Documentation is available in the corresponding paper:
   * A three-dimensional parallel radiative transfer model for atmospheric heating rates for use in cloud resolving models—The TenStream solver
   <http://dx.doi.org/10.1016/j.jqsrt.2015.05.003>
