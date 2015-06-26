@@ -134,7 +134,7 @@ contains
   end subroutine
 
   subroutine ANN_get_diff2diff(dz, kabs, ksca, g, C)
-      real(ireals),allocatable :: C(:)
+      real(ireals),intent(out) :: C(:)
       real(ireals),intent(in) :: dz,kabs,ksca,g
       integer(iintegers) :: ierr
 
@@ -142,7 +142,6 @@ contains
         print *,'network that is about to be used for coeffs is not loaded! diffuse:'
         call exit()
       endif
-      allocate(C(diff2diff_network%out_size) )
 
       call calc_net(C, [dz,kabs,ksca,g],diff2diff_network,ierr )
       if(ierr.ne.0) then
