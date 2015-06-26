@@ -133,13 +133,13 @@ contains
           class is (t_optprop_LUT_1_2)
             OPP%dir_streams  =  Ndir_1_2
             OPP%diff_streams =  Ndiff_1_2
-            OPP%lutbasename=trim(lut_basename)//'_1_2.'
+            OPP%lutbasename=trim(lut_basename)//'_dstorder_1_2.'
             allocate(t_boxmc_1_2::OPP%bmc)
 
           class is (t_optprop_LUT_8_10)
             OPP%dir_streams  = Ndir_8_10
             OPP%diff_streams = Ndiff_8_10
-            OPP%lutbasename=trim(lut_basename)//'_8_10.'
+            OPP%lutbasename=trim(lut_basename)//'_dstorder_8_10.'
             allocate(t_boxmc_8_10::OPP%bmc)
 
           class default
@@ -408,7 +408,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
     if(myid.eq.0) then
       select type(OPP)
         class is (t_optprop_LUT_8_10)
-          call prepare_table_space(LUT%S,12_iintegers)
+          call prepare_table_space(LUT%S,OPP%diff_streams**2)
 
         class is (t_optprop_LUT_1_2)
           call prepare_table_space(LUT%S,2_iintegers)
@@ -425,6 +425,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
       subroutine fill_table(T)
           type(table) :: T
           integer(iintegers) :: idz,ikabs ,iksca,ig,total_size,cnt
+          integer(iintegers) :: isrc,idst,ind
           logical :: ldone,lstarted_calculations=.False.
 
           total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz
@@ -457,17 +458,25 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
                   select type(OPP)
                     class is (t_optprop_LUT_8_10)
-                      ! src=1
-                      call OPP%bmc_wrapper(i1,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
-                      if(myid.eq.0) T%c( 1, idz,ikabs ,iksca,ig) = S_diff(1)
-                      if(myid.eq.0) T%c( 2, idz,ikabs ,iksca,ig) = S_diff(2)
-                      if(myid.eq.0) T%c( 3, idz,ikabs ,iksca,ig) = sum(S_diff([3,4,7, 8]) )/4
-                      if(myid.eq.0) T%c( 4, idz,ikabs ,iksca,ig) = sum(S_diff([5,6,9,10]) )/4
-                      ! src=3
-                      call OPP%bmc_wrapper(i3,LUT%dx,LUT%dy,LUT%pspace%dz(idz),LUT%pspace%kabs (ikabs ),LUT%pspace%ksca(iksca),LUT%pspace%g(ig),.False.,zero,zero,comm,S_diff,T_dir)
-                      if(myid.eq.0) T%c( 5:10, idz,ikabs ,iksca,ig) = S_diff(1:6)
-                      if(myid.eq.0) T%c( 11  , idz,ikabs ,iksca,ig) = sum(S_diff(7: 8))/2
-                      if(myid.eq.0) T%c( 12  , idz,ikabs ,iksca,ig) = sum(S_diff(9:10))/2
+
+                      do isrc = 1, OPP%diff_streams
+                        call OPP%bmc_wrapper(isrc,LUT%dx,LUT%dy,      &
+                                              LUT%pspace%dz(idz),     &
+                                              LUT%pspace%kabs (ikabs),&
+                                              LUT%pspace%ksca(iksca), &
+                                              LUT%pspace%g(ig),       &
+                                              .False.,zero,zero,comm, &
+                                              S_diff,T_dir)
+
+                        if(myid.eq.0) then
+                          ! Sort coefficients into destination ordering and put em in LUT
+                          do idst = 1, OPP%diff_streams
+                            ind = (idst-1)*OPP%diff_streams + isrc
+                            T%c( ind, idz,ikabs ,iksca,ig) = S_diff(idst)
+                          enddo
+                        endif
+                        
+                      enddo
 
                     class is (t_optprop_LUT_1_2)
                       ! src=1
@@ -515,7 +524,7 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
     integer(mpiint),intent(in) :: comm
     integer(iintegers),intent(in) :: iphi,itheta
 
-    integer(iintegers) :: idz,ikabs ,iksca,ig,src,total_size,cnt,errcnt
+    integer(iintegers) :: idz,ikabs ,iksca,ig,src,total_size,cnt,errcnt,dst,ind
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     logical :: ldone,lstarted_calculations=.False., ldonearr(6)
 
@@ -593,11 +602,23 @@ subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_s
                                    OPP%dirLUT%pspace%phi(iphi)     , OPP%dirLUT%pspace%theta(itheta) ,                             &
                                    comm                            , S_diff                          , T_dir)
 
-              if(myid.eq.0) OPP%dirLUT%T(iphi,itheta)%c( (src-1)*OPP%dir_streams+1:src*OPP%dir_streams, idz,ikabs ,iksca,ig) = T_dir
-              if(myid.eq.0) OPP%dirLUT%S(iphi,itheta)%c( (src-1)*OPP%diff_streams+1:(src)*OPP%diff_streams, idz,ikabs ,iksca,ig) = S_diff
-            enddo
+              ! Sort coefficients into destination ordering and put em in LUT
+              if(myid.eq.0) then
+                do dst = 1, OPP%dir_streams
+                  ind = (dst-1)*OPP%dir_streams + src
+                  OPP%dirLUT%T(iphi,itheta)%c( ind, idz,ikabs ,iksca,ig) = T_dir (dst)
+                enddo
+                do dst = 1, OPP%diff_streams
+                  ind = (dst-1)*OPP%dir_streams + src
+                  OPP%dirLUT%S(iphi,itheta)%c( ind, idz,ikabs ,iksca,ig) = S_diff(dst)
+                enddo
+              endif
+
+            enddo !isrc
+
             if(myid.eq.0) OPP%dirLUT%S(iphi,itheta)%stddev_tol( idz,ikabs,iksca,ig) = stddev_atol
             if(myid.eq.0) OPP%dirLUT%T(iphi,itheta)%stddev_tol( idz,ikabs,iksca,ig) = stddev_atol
+
           enddo !dz
         enddo !kabs
 
@@ -942,9 +963,9 @@ subroutine LUT_get_dir2dir(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
     real(ireals),intent(in) :: in_dz, in_kabs, in_ksca,g, phi,theta
     real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams**2)
     real(ireals) :: kabs,ksca,dz
-    integer(iintegers) :: i
+    integer(iintegers) :: src
 
-    real(ireals) :: pti(6),weights(6)
+    real(ireals) :: pti(6),weights(6),norm
 
     kabs = in_kabs; ksca = in_ksca; dz=in_dz
     if(ldebug_optprop) call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
@@ -962,16 +983,20 @@ subroutine LUT_get_dir2dir(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
+
+
+
     if(ldebug_optprop) then
       !Check for energy conservation:
       iierr=0
-      do i=1,OPP%dir_streams
-        if(real(sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams))).gt.one) iierr=iierr+1
+      do src=1,OPP%dir_streams
+        norm = sum( C( src:size(C):OPP%dir_streams ) )
+        if(real(norm).gt.one) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
-        print *,'Error in dir2dir coeffs :: ierr',iierr
-        do i=1,OPP%dir_streams
-          print *,'SUM dir2dir coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)),' :: coeff',C( (i-1)*OPP%dir_streams+1:i*OPP%dir_streams)
+        print *,'Error in dir2dir coeffs :: ierr',iierr,size(C),OPP%dir_streams,'::',C
+        do src=1,OPP%dir_streams
+          print *,'SUM dir2dir coeff for src ',src,' :: sum ',sum(C( src:size(C):OPP%dir_streams)),' :: coeff',C( src:size(C):OPP%dir_streams )
         enddo
         call exit(1)
       endif
@@ -980,12 +1005,11 @@ end subroutine
 subroutine LUT_get_dir2diff(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g,phi,theta
-!    real(ireals),intent(out):: C(OPP%dir_streams*OPP%diff_streams)
-    real(ireals),intent(out):: C(:)
+    real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams*OPP%diff_streams)
 
     real(ireals) :: kabs,ksca,dz
-    real(ireals) :: pti(6),weights(6)
-    integer(iintegers) :: i
+    real(ireals) :: pti(6),weights(6),norm
+    integer(iintegers) :: src
 
     kabs = in_kabs; ksca = in_ksca; dz=in_dz
     if(ldebug_optprop) then
@@ -1000,24 +1024,27 @@ subroutine LUT_get_dir2diff(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
       ! Nearest neighbour
       C = OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
     case(2)
-      !                        print *,'linear interpolation not implemented yet!'
       weights = modulo(pti,one)
       call interp_4d(pti, weights, OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c, C)
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
 
+
+
+
     if(ldebug_optprop) then
       !Check for energy conservation:
       iierr=0
-      do i=1,OPP%dir_streams
-        if(sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)).gt.one) iierr=iierr+1
+      do src=1,OPP%diff_streams
+        norm = sum( C( src:size(C):OPP%dir_streams ) )
+        if(real(norm).gt.one) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
         print *,'Error in dir2diff coeffs :: ierr',iierr,':',dz,in_kabs ,in_ksca,g,phi,theta,'::',C,'::',shape(OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
         print *,'Error in dir2dir coeffs :: ierr',iierr,'::',OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ),'::',shape(OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
-        do i=1,OPP%dir_streams
-          print *,'SUM dir2diff coeff for src ',i,' :: sum ',sum(C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)),' :: coeff',C( (i-1)*OPP%diff_streams+1:i*OPP%diff_streams)
+        do src=1,OPP%diff_streams
+          print *,'SUM dir2diff coeff for src ',src,' :: sum ',sum(C( src:size(C):OPP%dir_streams)),' :: coeff',C( src:size(C):OPP%dir_streams )
         enddo
         call exit(1)
       endif
@@ -1026,15 +1053,15 @@ end subroutine
 subroutine LUT_get_diff2diff(OPP, in_dz,in_kabs ,in_ksca,g,C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g
-    real(ireals),allocatable,intent(out):: C(:)
+    real(ireals),intent(out):: C(:) ! dimension(OPP%diff_streams**2)
 
     real(ireals) :: kabs,ksca,dz
-    real(ireals) :: pti(4),weights(4)
+    real(ireals) :: pti(4),weights(4),norm
+    integer(iintegers) :: src
 
     kabs = in_kabs; ksca = in_ksca; dz=in_dz
     if(ldebug_optprop) call catch_limits(OPP%diffLUT%pspace,dz,kabs,ksca,g)
 
-    allocate( C(ubound(OPP%diffLUT%S%c,1) ) )
     pti = get_indices_4d(dz,kabs ,ksca,g,OPP%diffLUT%pspace)
 
     select case(OPP%interp_mode)
@@ -1048,6 +1075,25 @@ subroutine LUT_get_diff2diff(OPP, in_dz,in_kabs ,in_ksca,g,C)
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
+
+
+
+
+    if(ldebug_optprop) then
+      !Check for energy conservation:
+      iierr=0
+      do src=1,OPP%diff_streams
+        norm = sum( C( src:size(C):OPP%diff_streams ) )
+        if(real(norm).gt.one) iierr=iierr+1
+      enddo
+      if(iierr.ne.0) then
+        print *,'Error in diff2diff coeffs :: ierr',iierr,':',dz,in_kabs ,in_ksca,g,'::',C
+        do src=1,OPP%diff_streams
+          print *,'SUM diff2diff coeff for src ',src,' :: sum ',sum(C( src:size(C):OPP%diff_streams)),' :: coeff',C(src:size(C):OPP%diff_streams)
+        enddo
+        call exit(1)
+      endif
+    endif
 end subroutine 
 
 function get_indices_4d(dz,kabs ,ksca,g,ps)

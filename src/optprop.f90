@@ -146,7 +146,6 @@ contains
         real(ireals),intent(in),optional :: inp_angles(2)
         real(ireals),intent(out):: C(:)
 
-        real(ireals),allocatable :: C_diff(:)
         real(ireals) :: angles(2)
         integer(iintegers) :: isrc
 
@@ -176,11 +175,7 @@ contains
               endif
             else
               ! diff2diff
-              call OPP%OPP_LUT%LUT_get_diff2diff(dz,kabs,ksca,g,C_diff)
-              do isrc=1,OPP%OPP_LUT%diff_streams
-                C( (isrc-1)*OPP%OPP_LUT%diff_streams+i1 : isrc*OPP%OPP_LUT%diff_streams ) = OPP%coeff_symmetry(isrc, C_diff )
-              enddo
-              deallocate(C_diff)
+              call OPP%OPP_LUT%LUT_get_diff2diff(dz,kabs,ksca,g,C)
             endif
 
 
@@ -194,11 +189,7 @@ contains
               endif
             else
               ! diff2diff
-              call ANN_get_diff2diff(dz,kabs,ksca,g,C_diff)
-              do isrc=1,OPP%diff_streams
-                C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) = OPP%coeff_symmetry(isrc, C_diff )
-              enddo
-              deallocate(C_diff)
+              call ANN_get_diff2diff(dz,kabs,ksca,g,C)
             endif
 
           case default
@@ -224,6 +215,7 @@ contains
 
             !TODO: check energy conservation -- all energy conservation checks
             !TODO: should be refactored and moved here!
+            !TODO: at the moment this routine is broken since we refactored the coefficient to lie in LUT in dst-ordering instead of src-order
 
             ! ------------------------------------------------------------------------------------------------------------------
             ! ------------------ This would be so nice if we wouldnt need it! --------------------------------------------------

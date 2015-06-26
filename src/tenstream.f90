@@ -817,9 +817,6 @@ contains
         call OPP_8_10%get_coeff(dz,op%kabs,op%ksca,op%g,dir,coeff,angles)
       endif
 
-      if(ldebug) then
-        if( any(isnan(coeff)) .or. any(coeff.lt.zero) .or. any(coeff.gt.one) ) print *,'Wrong coeff',coeff,'op',op
-      endif
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
   end subroutine
   function sym_rot_phi(phi0)
@@ -889,7 +886,7 @@ contains
           integer(iintegers),intent(in) :: i,j,k
 
           MatStencil :: row(4,C%dof)  ,col(4,C%dof)
-          PetscScalar :: v(C%dof**2),coeffs(C%dof**2),norm
+          PetscScalar :: v(C%dof**2),norm
 
           PetscInt,parameter :: entries(8)=[0,8,16,24,32,40,48,56]
 
@@ -913,26 +910,22 @@ contains
           src = 7 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j+1-sun%yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
           src = 8 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j+1-sun%yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
-          call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.True., coeffs, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
+          call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
+
+          call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
           if(ldebug) then
             do src=1,C%dof
-              norm = sum( coeffs((src-1)*C%dof+1:src*C%dof) )
-              if( ldebug .and. real(norm).gt.real(one) ) then
-                print *,'sum(src==',src,') gt one',norm
+              norm = sum( v(entries+src) )
+              if( real(norm).gt.real(one) ) then
+                print *,'direct sum(dst==',dst,') gt one',norm
+                print *,'direct coeff',norm,'::',v
                 stop 'omg.. shouldnt be happening'
-                ierr=-5
+                ierr = -5
                 return
               endif
             enddo
           endif
-
-          !TODO we should really save the coefficients in another order... does not make sense that we have to revert them from
-          !source odered to destination order every time....
-          do src=1,C%dof
-            v(entries+src) = coeffs( i1+(src-i1)*C%dof : src*C%dof )
-          enddo
-          call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
       end subroutine
 
@@ -1076,27 +1069,21 @@ contains
           dst = 8; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
           dst = 9; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
-          call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., coeffs, atm%l1d(k,i,j))
+          call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., v, atm%l1d(k,i,j))
+
+          call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
           if(ldebug) then
-            do dst=1,C%dof
-              norm = sum( coeffs((dst-1)*C%dof+1:dst*C%dof) )
-              if( ldebug ) then
-                if( real(norm).gt.real(one) ) then
-                  print *,'diffuse sum(dst==',dst,') gt one',norm
-                  !                coeffs((dst-1)*C%dof+1:dst*C%dof)  = coeffs((dst-1)*C%dof+1:dst*C%dof) / (norm+1e-8_ireals)
-                  stop 'omg.. shouldnt be happening'
-                  ierr = -5
-                  return
-                endif
+            do src=1,C%dof
+              norm = sum( v(entries+src) )
+              if( real(norm).gt.real(one) ) then
+                print *,'diffuse sum(dst==',dst,') gt one',norm
+                stop 'omg.. shouldnt be happening'
+                ierr = -5
+                return
               endif
             enddo
           endif
-
-          do src=1,C%dof
-            v(entries+src) = coeffs( i1+(src-i1)*C%dof : src*C%dof )
-          enddo
-          call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
       end subroutine
 
@@ -1161,7 +1148,7 @@ contains
 
       PetscScalar,pointer,dimension(:,:,:,:) :: xsrc=>null()
       PetscScalar,pointer,dimension(:) :: xsrc1d=>null()
-      PetscInt :: k,i,j,src
+      PetscInt :: k,i,j,src,dst
 
       call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
 
@@ -1196,7 +1183,8 @@ contains
       subroutine set_thermal_source()
           PetscReal :: Ax,Ay,Az,c1,c2,c3,b0,b1,dtau
           real(ireals) :: diff2diff1d(4)
-          PetscReal :: diff2diff(C_diff%dof**2)
+          PetscReal :: diff2diff(C_diff%dof**2),v(C_diff%dof**2)
+          PetscInt,parameter :: entries(10)=[0,10,20,30,40,50,60,70,80,90]
 
           if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms'
           Az = atm%dx*atm%dy
@@ -1239,17 +1227,21 @@ contains
                   Ay = atm%dx*atm%dz(k,i,j)
 
                   call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
+                  ! reorder from destination ordering to src ordering
+                  do src=1,C_diff%dof
+                    v(entries+src) = diff2diff( i1+(src-i1)*C_diff%dof : src*C_diff%dof )
+                  enddo
                   b0 = .5_ireals*(atm%planck(k,i,j)+atm%planck(k+i1,i,j)) *pi
-                  xsrc(E_up   , k   , i   , j   ) = xsrc(E_up   , k   , i   , j   ) +  b0  *(one-sum( diff2diff( E_up  *C_diff%dof+i1 : E_up  *C_diff%dof+C_diff%dof )  )  ) *Az
-                  xsrc(E_dn   , k+1 , i   , j   ) = xsrc(E_dn   , k+1 , i   , j   ) +  b0  *(one-sum( diff2diff( E_dn  *C_diff%dof+i1 : E_dn  *C_diff%dof+C_diff%dof )  )  ) *Az
-                  xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  b0  *(one-sum( diff2diff( E_le_m*C_diff%dof+i1 : E_le_m*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
-                  xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  b0  *(one-sum( diff2diff( E_le_p*C_diff%dof+i1 : E_le_p*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
-                  xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  b0  *(one-sum( diff2diff( E_ri_m*C_diff%dof+i1 : E_ri_m*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
-                  xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  b0  *(one-sum( diff2diff( E_ri_p*C_diff%dof+i1 : E_ri_p*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
-                  xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  b0  *(one-sum( diff2diff( E_ba_m*C_diff%dof+i1 : E_ba_m*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
-                  xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  b0  *(one-sum( diff2diff( E_ba_p*C_diff%dof+i1 : E_ba_p*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
-                  xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  b0  *(one-sum( diff2diff( E_fw_m*C_diff%dof+i1 : E_fw_m*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
-                  xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  b0  *(one-sum( diff2diff( E_fw_p*C_diff%dof+i1 : E_fw_p*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
+                  xsrc(E_up   , k   , i   , j   ) = xsrc(E_up   , k   , i   , j   ) +  b0  *(one-sum( v( E_up  *C_diff%dof+i1 : E_up  *C_diff%dof+C_diff%dof )  )  ) *Az
+                  xsrc(E_dn   , k+1 , i   , j   ) = xsrc(E_dn   , k+1 , i   , j   ) +  b0  *(one-sum( v( E_dn  *C_diff%dof+i1 : E_dn  *C_diff%dof+C_diff%dof )  )  ) *Az
+                  xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  b0  *(one-sum( v( E_le_m*C_diff%dof+i1 : E_le_m*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
+                  xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  b0  *(one-sum( v( E_le_p*C_diff%dof+i1 : E_le_p*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
+                  xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  b0  *(one-sum( v( E_ri_m*C_diff%dof+i1 : E_ri_m*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
+                  xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  b0  *(one-sum( v( E_ri_p*C_diff%dof+i1 : E_ri_p*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
+                  xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  b0  *(one-sum( v( E_ba_m*C_diff%dof+i1 : E_ba_m*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
+                  xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  b0  *(one-sum( v( E_ba_p*C_diff%dof+i1 : E_ba_p*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
+                  xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  b0  *(one-sum( v( E_fw_m*C_diff%dof+i1 : E_fw_m*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
+                  xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  b0  *(one-sum( v( E_fw_p*C_diff%dof+i1 : E_fw_p*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
                 endif ! 1D or Tenstream?
 
               enddo
@@ -1330,36 +1322,38 @@ contains
                       case default
                         stop 'invalid dof for solar source term'
                       end select
-                      xsrc(E_up   , k   , i   , j   ) = xsrc(E_up   , k   , i   , j   ) +  solrad(src) *dir2diff(E_up  +i1 + (src-1)*C_diff%dof )
-                      xsrc(E_dn   , k+1 , i   , j   ) = xsrc(E_dn   , k+1 , i   , j   ) +  solrad(src) *dir2diff(E_dn  +i1 + (src-1)*C_diff%dof )
+                      xsrc(E_up   , k   , i   , j   ) = xsrc(E_up   , k   , i   , j   ) +  solrad(src) *dir2diff(E_up*C_dir%dof + src )
+                      xsrc(E_dn   , k+1 , i   , j   ) = xsrc(E_dn   , k+1 , i   , j   ) +  solrad(src) *dir2diff(E_dn*C_dir%dof + src )
 
                       if(lsun_east) then ! if sun shines from right to left, switch ''reflection'' and ''transmission'' coefficients.
-                        xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_ri_m+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_ri_p+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_le_m+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_le_p+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_ri_m*C_dir%dof + src)
+                        xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_ri_p*C_dir%dof + src)
+                        xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_le_m*C_dir%dof + src)
+                        xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_le_p*C_dir%dof + src)
                       else
-                        xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_le_m+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_le_p+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_ri_m+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_ri_p+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_le_m*C_dir%dof + src)
+                        xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_le_p*C_dir%dof + src)
+                        xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_ri_m*C_dir%dof + src)
+                        xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_ri_p*C_dir%dof + src)
                       endif
                       if(lsun_north) then ! likewise if sun shines from forward to backwards, 
-                        xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_fw_m+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_fw_p+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_ba_m+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_ba_p+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_fw_m*C_dir%dof + src)
+                        xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_fw_p*C_dir%dof + src)
+                        xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_ba_m*C_dir%dof + src)
+                        xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_ba_p*C_dir%dof + src)
                       else
-                        xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_ba_m+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_ba_p+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_fw_m+i1 + (src-1)*C_diff%dof )
-                        xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_fw_p+i1 + (src-1)*C_diff%dof )
+                        xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_ba_m*C_dir%dof + src)
+                        xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_ba_p*C_dir%dof + src)
+                        xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_fw_m*C_dir%dof + src)
+                        xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_fw_p*C_dir%dof + src)
                       endif
 
                       if(ldebug) then
-                        if(sum(dir2diff(i1+(src-1 ) *C_diff%dof : C_dir%dof+(src-1 ) *C_diff%dof ) ) .gt. one .or. &
-                           sum(dir2diff(i1+(src-1 ) *C_diff%dof : C_dir%dof+(src-1 ) *C_diff%dof ) ) .lt. zero   ) &
-                            print *,'DEBUG Found dir2diff gt one:',src,'::',sum(dir2diff(i1+(src-1 ) *C_diff%dof : C_dir%dof+(src-1 ) *C_diff%dof ) ),'::',dir2diff(i1+(src-1 ) *C_diff%dof : C_dir%dof+(src-1 ) *C_diff%dof ) 
+                        do dst=0,C_diff%dof-1
+                          if(sum(dir2diff( dst*C_dir%dof : dst*(C_dir%dof+1)-1 )) .gt. one .or. &
+                             sum(dir2diff( dst*C_dir%dof : dst*(C_dir%dof+1)-1 )) .lt. zero   ) &
+                           print *,'DEBUG Found dir2diff gt one:',src,'::',sum(dir2diff( dst*C_dir%dof : dst*(C_dir%dof+1)-1  ) ),'::',dir2diff(dst*C_dir%dof : dst*(C_dir%dof+1)-1) ,'   :::::::     ', dir2diff
+                        enddo
                       endif
                     enddo
 
@@ -2149,20 +2143,14 @@ end subroutine
         atm%l1d = .False.
       endif
 
+      !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
+      !1d box does not send anything back --> therefore huge absorption :( -- would need to introduce mirror boundary conditions for
+      !sideward fluxes in 1d boxes
       do j=C_one%ys,C_one%ye
         do i=C_one%xs,C_one%xe
           atm%l1d(C_one%ze,i,j) = twostr_ratio*atm%dz(C_one%ze,i,j).gt.atm%dx
           do k=C_one%ze-1,C_one%zs,-1
-!            if( atm%l1d(k,i,j) ) cycle ! if it was already marked 1D before, we must not change it to 3D -- otherwise have to recreate matrix routines. possible but not implemented at the moment !TODO
-
-
-!            if( atm%l1d(k+1,i,j) ) then !can only be 3D RT if below is a 3D layer
-!              atm%l1d(k,i,j)=.True.
-!            else
-!              !TODO this does actually not really make sense. I am not sure why this might not work. i.e. if it is necessary.
               atm%l1d(k,i,j) = twostr_ratio*atm%dz(k,i,j).gt.atm%dx
-!              if(atm%dz(k,i,j).lt.atm%dx/10._ireals) atm%l1d(k,i,j)=.True.
-!            endif
           enddo
         enddo
       enddo
@@ -2697,7 +2685,7 @@ end subroutine
         call getVecPointer(solutions(uid)%ediff,C_diff,x1d,x4d,.False.)
         redn = x4d(E_dn,:,:,:)
         reup = x4d(E_up,:,:,:)
-        if(ldebug) then
+        if(ldebug .and. solutions(uid)%lsolar_rad) then
           if(myid.eq.0) print *,' Edn',redn(1,1,:)
           if(myid.eq.0) print *,' Eup',reup(1,1,:)
           if(any(redn.lt.-one)) then 
