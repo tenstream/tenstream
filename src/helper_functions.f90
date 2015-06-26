@@ -124,6 +124,11 @@ module m_helper_functions
       subroutine imp_reduce_sum(v,comm,myid)
           real(ireals),intent(inout) :: v
           integer,intent(in) :: comm,myid
+          integer(mpiint) :: commsize
+
+          call MPI_Comm_size( comm, commsize, mpierr ) 
+          if(commsize.le.1) return v
+
           if(myid.eq.0) then
             call mpi_reduce(MPI_IN_PLACE, v, 1, imp_real, MPI_SUM, 0, comm, mpierr)
           else
