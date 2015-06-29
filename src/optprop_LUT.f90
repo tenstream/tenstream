@@ -61,7 +61,7 @@ module m_optprop_LUT
 
   type table
     real(ireals),allocatable :: c(:,:,:,:,:)
-    real(ireals),allocatable :: stddev_tol(:,:,:,:)
+    real(ireals),allocatable :: stddev_tol(:,:,:,:,:)
     character(len=300),allocatable :: table_name_c(:)
     character(len=300),allocatable :: table_name_tol(:)
   end type
@@ -407,6 +407,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
     integer(iintegers) :: workinput(5) !isrc, idz, ikabs, iksca, ig
     integer(iintegers) :: idummy, workindex
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
+    real(ireals) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     integer(mpiint), parameter :: READYMSG=1,HAVERESULTSMSG=2, WORKMSG=3, FINALIZEMSG=4, RESULTMSG=5
 
@@ -473,7 +474,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
             ldone = ( ( S%c( isrc, idz,ikabs ,iksca,ig ).ge.zero)              &
                 .and. ( S%c( isrc, idz,ikabs ,iksca,ig ).le.one )              &
-                .and. real(S%stddev_tol(idz,ikabs ,iksca,ig)).le.real(stddev_atol) )
+                .and. real(S%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol) )
             if(ldone) then
               cnt=cnt+1
               cycle
@@ -506,6 +507,8 @@ subroutine createLUT_diff(OPP, LUT, comm)
               call mpi_recv(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr)
               call mpi_recv(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
               call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
+              call mpi_recv(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
+!              call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
               
               ! Sort coefficients into destination ordering and put em in LUT
               isrc  = allwork(workindex, 1)
@@ -516,10 +519,9 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
               do idst = 1, OPP%diff_streams
                 ind = (idst-1)*OPP%diff_streams + isrc
-                S%c( ind, idz,ikabs ,iksca,ig) = S_diff(idst)
+                S%c         ( ind, idz, ikabs ,iksca, ig) = S_diff(idst)
+                S%stddev_tol( ind, idz, ikabs ,iksca, ig) = S_tol (idst)
               enddo
-
-              S%stddev_tol(idz,ikabs ,iksca,ig) = stddev_atol
 
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                 print *,'Calculating LUT...',workindex/(total_size/100),'%'
@@ -570,11 +572,13 @@ subroutine createLUT_diff(OPP, LUT, comm)
                     LUT%pspace%ksca(workinput(4)),  &
                     LUT%pspace%g(workinput(5)),     &
                     .False.,zero,zero,mpi_comm_self,&
-                    S_diff,T_dir)
+                    S_diff,T_dir, S_tol,T_tol)
 
                 call mpi_send(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, mpierr)
                 call mpi_send(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
                 call mpi_send(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
+                call mpi_send(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
+!                call mpi_send(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
 
                 call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr)
 
@@ -591,8 +595,8 @@ subroutine createLUT_diff(OPP, LUT, comm)
           type(table) :: S
           integer(iintegers) :: Ncoeff
           if(.not. allocated(S%stddev_tol) ) then
-            allocate(S%stddev_tol(OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
-            S%stddev_tol = one
+            allocate(S%stddev_tol(Ncoeff, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            S%stddev_tol = 1e8_ireals
             call ncwrite(S%table_name_tol, S%stddev_tol, iierr)
           endif
 
@@ -616,6 +620,7 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
     integer(iintegers) :: workinput(5) 
     integer(iintegers) :: idummy, workindex
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
+    real(ireals) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     integer(mpiint), parameter :: READYMSG=1,HAVERESULTSMSG=2, WORKMSG=3, FINALIZEMSG=4, RESULTMSG=5
 
@@ -676,8 +681,8 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
             ldonearr(2) = S%c( isrc, idz,ikabs ,iksca,ig).le.one 
             ldonearr(3) = T%c( isrc, idz,ikabs ,iksca,ig).ge.zero
             ldonearr(4) = T%c( isrc, idz,ikabs ,iksca,ig).le.one  
-            ldonearr(5) = real(S%stddev_tol(idz,ikabs ,iksca,ig)).le.real(stddev_atol)
-            ldonearr(6) = real(T%stddev_tol(idz,ikabs ,iksca,ig)).le.real(stddev_atol)
+            ldonearr(5) = real(S%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol)
+            ldonearr(6) = real(T%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol)
 
             if( all(ldonearr) ) then
               cnt=cnt+1
@@ -711,6 +716,8 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
               call mpi_recv(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr)
               call mpi_recv(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
               call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
+              call mpi_recv(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
+              call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
               
               isrc  = allwork(workindex, 1)
               idz   = allwork(workindex, 2)
@@ -719,17 +726,16 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
               ig    = allwork(workindex, 5)
 
               ! Sort coefficients into destination ordering and put em in LUT
-                do idst = 1, OPP%dir_streams
-                  ind = (idst-1)*OPP%dir_streams + isrc
-                  T%c( ind, idz,ikabs ,iksca,ig) = T_dir (idst)
-                enddo
-                do idst = 1, OPP%diff_streams
-                  ind = (idst-1)*OPP%dir_streams + isrc
-                  S%c( ind, idz,ikabs ,iksca,ig) = S_diff(idst)
-                enddo
-
-              S%stddev_tol(idz,ikabs ,iksca,ig) = stddev_atol
-              T%stddev_tol(idz,ikabs ,iksca,ig) = stddev_atol
+              do idst = 1, OPP%diff_streams
+                ind = (idst-1)*OPP%dir_streams + isrc
+                S%c         (ind, idz, ikabs ,iksca, ig) = S_diff(idst)
+                S%stddev_tol(ind, idz, ikabs ,iksca, ig) = S_tol (idst)
+              enddo
+              do idst = 1, OPP%dir_streams
+                ind = (idst-1)*OPP%dir_streams + isrc
+                T%c         (ind, idz, ikabs ,iksca, ig) = T_dir (idst)
+                T%stddev_tol(ind, idz, ikabs ,iksca, ig) = T_tol (idst)
+              enddo
 
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                 print *,'Calculating LUT...',workindex/(total_size/100),'%'
@@ -786,12 +792,14 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
                     .True. ,                        &
                     LUT%pspace%phi(iphi),           &
                     LUT%pspace%theta(itheta),       &
-                    mpi_comm_self,&
-                    S_diff,T_dir)
+                    mpi_comm_self,                  &
+                    S_diff,T_dir,S_tol,T_tol)
 
                 call mpi_send(workindex , 1_mpiint     , imp_int  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr)
                 call mpi_send(S_diff    , size(S_diff) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr)
                 call mpi_send(T_dir     , size(T_dir ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr)
+                call mpi_send(S_tol     , size(S_tol ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr)
+                call mpi_send(T_tol     , size(T_tol ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr)
 
                 call mpi_send(-i1       , 1_mpiint     , imp_int  , 0_mpiint           , READYMSG       , comm , mpierr)
 
@@ -811,13 +819,13 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
           integer(iintegers) :: errcnt
 
           if(.not.allocated(S%stddev_tol) ) then
-            allocate(S%stddev_tol(OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            allocate(S%stddev_tol(NcoeffS, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
             S%stddev_tol = 1e8_ireals
             call ncwrite(diff_stddev_atol_table_name, S%stddev_tol, iierr)
           endif
 
           if(.not.allocated(T%stddev_tol) ) then
-            allocate(T%stddev_tol( OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            allocate(T%stddev_tol(NcoeffT, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
             T%stddev_tol = 1e8_ireals 
             call ncwrite(dir_stddev_atol_table_name, T%stddev_tol, iierr)
           endif
@@ -840,7 +848,7 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
           if(errcnt.ne.0) stop 'createLUT_dir :: could somehow not write to file... exiting...'
       end subroutine
 end subroutine
-subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,phi,theta,comm,S_diff,T_dir)
+subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,phi,theta,comm,S_diff,T_dir,S_tol,T_tol)
     class(t_optprop_LUT) :: OPP
     integer(iintegers),intent(in) :: src
     integer(mpiint),intent(in) :: comm
@@ -848,6 +856,7 @@ subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,phi,theta,comm,S_diff,
     real(ireals),intent(in) :: dx,dy,dz,kabs ,ksca,g,phi,theta
 
     real(ireals),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
+    real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     real(ireals) :: bg(3)
 
@@ -859,7 +868,7 @@ subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,phi,theta,comm,S_diff,
     T_dir=nil
 
 !    print *,comm,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
-    call OPP%bmc%get_coeff(comm,bg,src,S_diff,T_dir,dir,phi,theta,dx,dy,dz)
+    call OPP%bmc%get_coeff(comm,bg,src,dir,phi,theta,dx,dy,dz,S_diff,T_dir,S_tol,T_tol)
     !        print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
 
