@@ -423,6 +423,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
       end select
     endif
 
+    if(myid.le.0 .and. numnodes.le.1) stop 'At the moment creation of diffuse Lookuptable needs at least two mpi-ranks to work... please run with more ranks.'
     if(myid.eq.0) then
       call master(LUT%S)
     else
