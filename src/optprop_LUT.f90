@@ -963,13 +963,13 @@ subroutine set_parameter_space(OPP,ps,dx)
 
     select type(OPP)
       class is (t_optprop_LUT_1_2)
-        ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , min(5e3_ireals, max( ps%range_dz(2), dx*2 ) ) ]
+        ps%range_dz      = [ min(ps%range_dz(1), dx/15._ireals )  , min(5e3_ireals, max( ps%range_dz(2), dx*2 ) ) ]
         do k=1,OPP%Ndz
           ps%dz(k)    = lin_index_to_param(one*k,ps%range_dz,OPP%Ndz )
         enddo
 
       class is (t_optprop_LUT_8_10)
-        ps%range_dz      = [ min(ps%range_dz(1), dx/10._ireals )  , min( ps%range_dz(2), dx*2 ) ]
+        ps%range_dz      = [ min(ps%range_dz(1), dx/15._ireals )  , min( ps%range_dz(2), dx*2 ) ]
         do k=1,OPP%Ndz
           ps%dz(k)    = exp_index_to_param(one*k,ps%range_dz,OPP%Ndz, ps%dz_exponent )
         enddo
