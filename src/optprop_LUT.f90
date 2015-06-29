@@ -344,7 +344,8 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
           write(varname(2),FMT='(A)') "S     "
           write(varname(3),FMT='(A)') "T_rtol"
           write(varname(4),FMT='(A)') "S_rtol"
-          call OPP%createLUT_dir([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(1)], &
+          call OPP%createLUT_dir( OPP%dirLUT, &
+                                 [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(1)], &
                                  [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(2)], &
                                  [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(3)], &
                                  [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(4)], &
@@ -432,8 +433,8 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
     if(myid.eq.0) print *,'done calculating diffuse coefficients'
     contains 
-      subroutine master(T)
-        type(table),intent(inout) :: T
+      subroutine master(S)
+        type(table),intent(inout) :: S
         integer(iintegers) :: total_size, cnt, finalizedworkers
 
         integer(iintegers),allocatable :: allwork(:,:) ! dimension (N,size(workinput)) ==> vector over work dimensions and 5 integers
@@ -470,9 +471,9 @@ subroutine createLUT_diff(OPP, LUT, comm)
             iksca = allwork(cnt, 4)
             ig    = allwork(cnt, 5)
 
-            ldone = ( ( T%c( isrc, idz,ikabs ,iksca,ig ).ge.zero)              &
-                .and. ( T%c( isrc, idz,ikabs ,iksca,ig ).le.one )              &
-                .and. real(T%stddev_tol(idz,ikabs ,iksca,ig)).le.real(stddev_atol) )
+            ldone = ( ( S%c( isrc, idz,ikabs ,iksca,ig ).ge.zero)              &
+                .and. ( S%c( isrc, idz,ikabs ,iksca,ig ).le.one )              &
+                .and. real(S%stddev_tol(idz,ikabs ,iksca,ig)).le.real(stddev_atol) )
             if(ldone) then
               cnt=cnt+1
               cycle
@@ -515,18 +516,18 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
               do idst = 1, OPP%diff_streams
                 ind = (idst-1)*OPP%diff_streams + isrc
-                T%c( ind, idz,ikabs ,iksca,ig) = S_diff(idst)
+                S%c( ind, idz,ikabs ,iksca,ig) = S_diff(idst)
               enddo
 
-              T%stddev_tol(idz,ikabs ,iksca,ig) = stddev_atol
+              S%stddev_tol(idz,ikabs ,iksca,ig) = stddev_atol
 
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                 print *,'Calculating LUT...',workindex/(total_size/100),'%'
 
               if( mod(workindex, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
                 print *,'Writing diffuse table to file...'
-                call ncwrite(T%table_name_c  , T%c         ,iierr)
-                call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
+                call ncwrite(S%table_name_c  , S%c         ,iierr)
+                call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
                 print *,'done writing!',iierr
               endif
 
@@ -540,8 +541,8 @@ subroutine createLUT_diff(OPP, LUT, comm)
         enddo
 
         print *,'Writing diffuse table to file...'
-        call ncwrite(T%table_name_c  , T%c         ,iierr)
-        call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
+        call ncwrite(S%table_name_c  , S%c         ,iierr)
+        call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
         print *,'done writing!',iierr
       end subroutine
       subroutine worker()
@@ -586,142 +587,258 @@ subroutine createLUT_diff(OPP, LUT, comm)
             endif !gotmsg
           enddo
       end subroutine
-      subroutine prepare_table_space(T,Ncoeff)
-          type(table) :: T
+      subroutine prepare_table_space(S,Ncoeff)
+          type(table) :: S
           integer(iintegers) :: Ncoeff
-          if(.not. allocated(T%stddev_tol) ) then
-            allocate(T%stddev_tol(OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
-            T%stddev_tol = one
-            call ncwrite(T%table_name_tol, T%stddev_tol, iierr)
+          if(.not. allocated(S%stddev_tol) ) then
+            allocate(S%stddev_tol(OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            S%stddev_tol = one
+            call ncwrite(S%table_name_tol, S%stddev_tol, iierr)
           endif
 
-          if(.not.allocated(T%c) ) then
-            allocate(T%c(Ncoeff, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
-            T%c = nil
-            call ncwrite(T%table_name_c,T%c,iierr)
+          if(.not.allocated(S%c) ) then
+            allocate(S%c(Ncoeff, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            S%c = nil
+            call ncwrite(S%table_name_c,S%c,iierr)
           endif
       end subroutine
 end subroutine
-subroutine createLUT_dir(OPP, dir_coeff_table_name, diff_coeff_table_name, dir_stddev_atol_table_name,diff_stddev_atol_table_name, comm, iphi,itheta)
+subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, dir_stddev_atol_table_name,diff_stddev_atol_table_name, comm, iphi,itheta)
     class(t_optprop_LUT) :: OPP
+    type(directTable) :: LUT
     character(len=*),intent(in) :: dir_coeff_table_name(:),diff_coeff_table_name(:)
     character(len=*),intent(in) :: dir_stddev_atol_table_name(:),diff_stddev_atol_table_name(:)
     integer(mpiint),intent(in) :: comm
     integer(iintegers),intent(in) :: iphi,itheta
 
-    integer(iintegers) :: idz,ikabs ,iksca,ig,src,total_size,cnt,errcnt,dst,ind
+    logical :: gotmsg
+    integer(mpiint) :: status(MPI_STATUS_SIZE)
+    integer(iintegers) :: workinput(5) 
+    integer(iintegers) :: idummy, workindex
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
-    logical :: ldone,lstarted_calculations=.False., ldonearr(6)
+
+    integer(mpiint), parameter :: READYMSG=1,HAVERESULTSMSG=2, WORKMSG=3, FINALIZEMSG=4, RESULTMSG=5
+
+    if(myid.eq.0) &
+      call prepare_table_space(LUT%S(iphi,itheta), OPP%diff_streams**2, LUT%T(iphi,itheta), OPP%dir_streams**2)
+
+    if(myid.le.0 .and. numnodes.le.1) &
+      stop 'At the moment creation of direct Lookuptable needs at least two mpi-ranks to work... please run with more ranks.'
 
     if(myid.eq.0) then
-      if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%stddev_tol) ) then
-        allocate(OPP%dirLUT%S(iphi,itheta)%stddev_tol(OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
-        OPP%dirLUT%S(iphi,itheta)%stddev_tol = one
-        call ncwrite(diff_stddev_atol_table_name,OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr)
-      endif
-
-      if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%stddev_tol) ) then
-        allocate(OPP%dirLUT%T(iphi,itheta)%stddev_tol( OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
-        OPP%dirLUT%T(iphi,itheta)%stddev_tol = one
-        call ncwrite(dir_stddev_atol_table_name ,OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr)
-      endif
+      call master( LUT%S(iphi,itheta), LUT%T(iphi,itheta) )
+      print *,'done calculating direct coefficients'
+    else
+      call worker()
     endif
 
-    if(myid.eq.0) then
-      print *,'calculating direct coefficients for ',iphi,itheta
-      errcnt=0
+    contains
+      subroutine master(S,T)
+        type(table),intent(inout) :: S,T
 
-      if(.not. allocated(OPP%dirLUT%S(iphi,itheta)%c) ) then
-        allocate(OPP%dirLUT%S(iphi,itheta)%c(OPP%dir_streams*OPP%diff_streams, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
-        OPP%dirLUT%S(iphi,itheta)%c = nil
-        call ncwrite(diff_coeff_table_name,OPP%dirLUT%S(iphi,itheta)%c,iierr); errcnt = errcnt +iierr
-      endif
+        integer(iintegers) :: total_size, cnt, finalizedworkers
 
-      if(.not. allocated(OPP%dirLUT%T(iphi,itheta)%c) ) then
-        allocate(OPP%dirLUT%T(iphi,itheta)%c(OPP%dir_streams*OPP%dir_streams, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
-        OPP%dirLUT%T(iphi,itheta)%c = nil
-        call ncwrite(dir_coeff_table_name ,OPP%dirLUT%T(iphi,itheta)%c,iierr) ;errcnt = errcnt +iierr
-      endif
+        integer(iintegers),allocatable :: allwork(:,:) ! dimension (N,size(workinput)) ==> vector over work dimensions and 5 integers
+        integer(iintegers) :: idz,ikabs ,iksca,ig
+        integer(iintegers) :: isrc,idst,ind
 
-      if(errcnt.ne.0) stop 'createLUT_dir :: could somehow not write to file... exiting...'
-    endif
+        logical :: ldonearr(6)
 
-    total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz
-    cnt=0
-    do ig    =1,OPP%Ng
-      do iksca    =1,OPP%Nksca    
-        do ikabs   =1,OPP%Nkabs    
-          do idz   =1,OPP%Ndz   
-            cnt=cnt+1
-            ! Check if we already calculated the coefficients and inform the other nodes
-            ldone=.False.
-            if(myid.eq.0) then
-              ldonearr(1) = all( OPP%dirLUT%S(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).ge.zero)
-              ldonearr(2) = all( OPP%dirLUT%S(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).le.one) 
-              ldonearr(3) = all( OPP%dirLUT%T(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).ge.zero)
-              ldonearr(4) = all( OPP%dirLUT%T(iphi,itheta)%c( :, idz,ikabs ,iksca,ig).le.one)  
-              ldonearr(5) = real(OPP%dirLUT%S(iphi,itheta)%stddev_tol(idz,ikabs ,iksca,ig)).le.real(stddev_atol)
-              ldonearr(6) = real(OPP%dirLUT%T(iphi,itheta)%stddev_tol(idz,ikabs ,iksca,ig)).le.real(stddev_atol)
-              if(all (ldonearr) ) then
-                ldone = .True.
-              else
-!                print *,'not all done:',ldonearr,' :: ',stddev_atol,' :: ',OPP%dirLUT%S(iphi,itheta)%stddev_tol(idz,ikabs ,iksca,ig),OPP%dirLUT%T(iphi,itheta)%stddev_tol(idz,ikabs ,iksca,ig)
-              endif
-            endif
-            call mpi_bcast(ldone,1_mpiint , imp_logical, 0_mpiint, comm, mpierr)
-            if(ldone) then
+        finalizedworkers=0
+        total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz *OPP%dir_streams
+
+        allocate( allwork(total_size, size(workinput) ) )
+        cnt=1
+        do ig = 1,OPP%Ng
+          do iksca = 1,OPP%Nksca    
+            do ikabs = 1,OPP%Nkabs    
+              do idz = 1,OPP%Ndz   
+                do isrc = 1,OPP%dir_streams
+                  allwork(cnt, :) = [isrc,idz,ikabs ,iksca,ig]   
+                  cnt=cnt+1
+                enddo
+              enddo
+            enddo
+          enddo
+        enddo
+
+        cnt=1
+        do
+          ! Check if we already calculated the coefficients 
+          if(cnt.le.total_size) then
+            isrc  = allwork(cnt, 1)
+            idz   = allwork(cnt, 2)
+            ikabs = allwork(cnt, 3)
+            iksca = allwork(cnt, 4)
+            ig    = allwork(cnt, 5)
+
+            ldonearr(1) = S%c( isrc, idz,ikabs ,iksca,ig).ge.zero
+            ldonearr(2) = S%c( isrc, idz,ikabs ,iksca,ig).le.one 
+            ldonearr(3) = T%c( isrc, idz,ikabs ,iksca,ig).ge.zero
+            ldonearr(4) = T%c( isrc, idz,ikabs ,iksca,ig).le.one  
+            ldonearr(5) = real(S%stddev_tol(idz,ikabs ,iksca,ig)).le.real(stddev_atol)
+            ldonearr(6) = real(T%stddev_tol(idz,ikabs ,iksca,ig)).le.real(stddev_atol)
+
+            if( all(ldonearr) ) then
+              cnt=cnt+1
               cycle
-            else
-              lstarted_calculations = .True.
             endif
+          endif
 
-            if(myid.eq.0) print *,'direct dx',OPP%dirLUT%dx,'dz',OPP%dirLUT%pspace%dz(idz),'phi0,theta0',OPP%dirLUT%pspace%phi(iphi),OPP%dirLUT%pspace%theta(itheta),' :: '&
-                ,OPP%dirLUT%pspace%kabs (ikabs ),OPP%dirLUT%pspace%ksca(iksca),OPP%dirLUT%pspace%g(ig),'(',100*cnt/total_size,'%)'
+          ! Now that we know we got something to do, lets find a suitable worker
+          gotmsg=.False.
+          call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr)
 
-            do src=1,OPP%dir_streams
+          if (gotmsg) then
 
-              call OPP%bmc_wrapper(src                             ,                                                               & 
-                                   OPP%dirLUT%dx                   , OPP%dirLUT%dy                   , OPP%dirLUT%pspace%dz(idz) , &
-                                   OPP%dirLUT%pspace%kabs (ikabs ) , OPP%dirLUT%pspace%ksca(iksca)   , OPP%dirLUT%pspace%g(ig)   , &
-                                   .True.                          ,                                                               & ! direct(y/n), delta_scale(y/n)
-                                   OPP%dirLUT%pspace%phi(iphi)     , OPP%dirLUT%pspace%theta(itheta) ,                             &
-                                   comm                            , S_diff                          , T_dir)
+            select case (status(MPI_TAG))
+
+            case(READYMSG)
+
+              ! capture the READY MSG -- we should not leave messages hanging around.
+              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), READYMSG, comm, status, mpierr) 
+
+              if(cnt.le.total_size) then ! we got something to do for a worker -- send him...
+                call mpi_send(cnt, 1_mpiint, imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr)
+                call mpi_send(allwork(cnt,:), size(allwork(cnt,:)), imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr)
+
+              else ! no more work to do... tell the worker to quit
+                call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr)
+              endif
+              cnt = cnt+1
+
+            case(HAVERESULTSMSG)
+              call mpi_recv(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr)
+              call mpi_recv(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
+              call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
+              
+              isrc  = allwork(workindex, 1)
+              idz   = allwork(workindex, 2)
+              ikabs = allwork(workindex, 3)
+              iksca = allwork(workindex, 4)
+              ig    = allwork(workindex, 5)
 
               ! Sort coefficients into destination ordering and put em in LUT
-              if(myid.eq.0) then
-                do dst = 1, OPP%dir_streams
-                  ind = (dst-1)*OPP%dir_streams + src
-                  OPP%dirLUT%T(iphi,itheta)%c( ind, idz,ikabs ,iksca,ig) = T_dir (dst)
+                do idst = 1, OPP%dir_streams
+                  ind = (idst-1)*OPP%dir_streams + isrc
+                  T%c( ind, idz,ikabs ,iksca,ig) = T_dir (idst)
                 enddo
-                do dst = 1, OPP%diff_streams
-                  ind = (dst-1)*OPP%dir_streams + src
-                  OPP%dirLUT%S(iphi,itheta)%c( ind, idz,ikabs ,iksca,ig) = S_diff(dst)
+                do idst = 1, OPP%diff_streams
+                  ind = (idst-1)*OPP%dir_streams + isrc
+                  S%c( ind, idz,ikabs ,iksca,ig) = S_diff(idst)
                 enddo
+
+              S%stddev_tol(idz,ikabs ,iksca,ig) = stddev_atol
+              T%stddev_tol(idz,ikabs ,iksca,ig) = stddev_atol
+
+              if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
+                print *,'Calculating LUT...',workindex/(total_size/100),'%'
+
+              if( mod(workindex, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
+                print *,'Writing diffuse table to file...'
+                call ncwrite(S%table_name_c  , S%c         ,iierr)
+                call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
+                call ncwrite(T%table_name_c  , T%c         ,iierr)
+                call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
+                print *,'done writing!',iierr
               endif
 
-            enddo !isrc
+            case(FINALIZEMSG)
+              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, status, mpierr)
+              finalizedworkers = finalizedworkers+1
+              if(finalizedworkers.eq.numnodes-1) exit ! all work is done
 
-            if(myid.eq.0) OPP%dirLUT%S(iphi,itheta)%stddev_tol( idz,ikabs,iksca,ig) = stddev_atol
-            if(myid.eq.0) OPP%dirLUT%T(iphi,itheta)%stddev_tol( idz,ikabs,iksca,ig) = stddev_atol
+            end select
+          endif
+        enddo
 
-          enddo !dz
-        enddo !kabs
+        print *,'Writing diffuse table to file...'
+        call ncwrite(S%table_name_c  , S%c         ,iierr)
+        call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
+        call ncwrite(T%table_name_c  , T%c         ,iierr)
+        call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
+        print *,'done writing!',iierr
+      end subroutine
+      subroutine worker()
+          ! workers send READY message to master
+          call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr)
 
-      if(myid.eq.0) print *,'Checkpointing direct table ... (',100*cnt/total_size,'%)','started?',lstarted_calculations
-      if(myid.eq.0 .and. lstarted_calculations) then
-        print *,'Writing direct table to file... (',100*cnt/total_size,'%)','started?',lstarted_calculations
-        errcnt=0
-        call ncwrite(diff_coeff_table_name, OPP%dirLUT%S(iphi,itheta)%c, iierr) ; errcnt = errcnt+int(iierr)
-        call ncwrite(dir_coeff_table_name , OPP%dirLUT%T(iphi,itheta)%c, iierr) ; errcnt = errcnt+int(iierr)
-        call ncwrite(diff_stddev_atol_table_name,OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr); errcnt = errcnt+int(iierr)
-        call ncwrite(dir_stddev_atol_table_name, OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr); errcnt = errcnt+int(iierr)
-        print *,'done writing!',errcnt
-        if(errcnt.ne.0) stop 'createLUT_dir :: could somehow not write to file... exiting...'
-      endif
+          do
+            ! ask what to do
+            gotmsg=.False.
+            call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr)
 
-      enddo !ksca
-    enddo !g
-    if(myid.eq.0) print *,'done calculating direct coefficients'
+            if (gotmsg) then
+
+              select case (status(MPI_TAG))
+
+              case(WORKMSG)
+                ! wait for work to arrive
+                call mpi_recv( workindex, 1_mpiint, imp_int, 0_mpiint, WORKMSG, comm, status, mpierr)
+                call mpi_recv( workinput , size(workinput), imp_int, 0_mpiint, WORKMSG, comm, status, mpierr)
+
+                call OPP%bmc_wrapper(workinput(1),  &
+                    LUT%dx,LUT%dy,                  &
+                    LUT%pspace%dz(workinput(2)),    &
+                    LUT%pspace%kabs (workinput(3)), &
+                    LUT%pspace%ksca(workinput(4)),  &
+                    LUT%pspace%g(workinput(5)),     &
+                    .True. ,                        &
+                    LUT%pspace%phi(iphi),           &
+                    LUT%pspace%theta(itheta),       &
+                    mpi_comm_self,&
+                    S_diff,T_dir)
+
+                call mpi_send(workindex , 1_mpiint     , imp_int  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr)
+                call mpi_send(S_diff    , size(S_diff) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr)
+                call mpi_send(T_dir     , size(T_dir ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr)
+
+                call mpi_send(-i1       , 1_mpiint     , imp_int  , 0_mpiint           , READYMSG       , comm , mpierr)
+
+              case(FINALIZEMSG)
+                call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, mpierr)
+                exit
+
+              end select
+
+            endif !gotmsg
+          enddo
+      end subroutine
+      subroutine prepare_table_space(S, NcoeffS, T, NcoeffT )
+          type(table),intent(inout) :: S,T
+          integer(iintegers),intent(in) :: NcoeffS,NcoeffT
+
+          integer(iintegers) :: errcnt
+
+          if(.not.allocated(S%stddev_tol) ) then
+            allocate(S%stddev_tol(OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            S%stddev_tol = 1e8_ireals
+            call ncwrite(diff_stddev_atol_table_name, S%stddev_tol, iierr)
+          endif
+
+          if(.not.allocated(T%stddev_tol) ) then
+            allocate(T%stddev_tol( OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            T%stddev_tol = 1e8_ireals 
+            call ncwrite(dir_stddev_atol_table_name, T%stddev_tol, iierr)
+          endif
+
+          print *,'calculating direct coefficients for ',iphi,itheta
+          errcnt=0
+
+          if(.not. allocated(S%c) ) then
+            allocate(S%c(NcoeffS*NcoeffT, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            S%c = nil
+            call ncwrite(diff_coeff_table_name, S%c,iierr); errcnt = errcnt +iierr
+          endif
+
+          if(.not. allocated(T%c) ) then
+            allocate(T%c(NcoeffT**2, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            T%c = nil
+            call ncwrite(dir_coeff_table_name, T%c,iierr); errcnt = errcnt +iierr
+          endif
+
+          if(errcnt.ne.0) stop 'createLUT_dir :: could somehow not write to file... exiting...'
+      end subroutine
 end subroutine
 subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,phi,theta,comm,S_diff,T_dir)
     class(t_optprop_LUT) :: OPP
