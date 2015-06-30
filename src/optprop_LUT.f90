@@ -473,7 +473,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
                 .and. real(S%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol) )
             if(ldone) then
               if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
-                  print *,'Calculating diffuse LUT...',cnt/(total_size/100),'%'
+                  print *,'Resuming from diffuse LUT...',cnt/(total_size/100),'%'
               cnt=cnt+1
               cycle
             endif
@@ -499,8 +499,6 @@ subroutine createLUT_diff(OPP, LUT, comm)
               else ! no more work to do... tell the worker to quit
                 call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr)
               endif
-              if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
-                  print *,'Calculating diffuse LUT...',cnt/(total_size/100),'%'
               cnt = cnt+1
 
             case(HAVERESULTSMSG)
@@ -523,8 +521,10 @@ subroutine createLUT_diff(OPP, LUT, comm)
                 S%stddev_tol( ind, idz, ikabs ,iksca, ig) = S_tol (idst)
               enddo
 
+              if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
+                  print *,'Calculated diffuse LUT...',workindex/(total_size/100),'%'
 
-              if( mod(workindex, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
+              if( mod(workindex-1, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
                 print *,'Writing diffuse table to file...'
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
@@ -683,7 +683,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
 
             if( all(ldonearr) ) then
               if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
-                  print *,'Calculating direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',cnt/(total_size/100),'%'
+                  print *,'Resuming from direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',cnt/(total_size/100),'%'
               cnt=cnt+1
               cycle
             endif
@@ -709,8 +709,6 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
               else ! no more work to do... tell the worker to quit
                 call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr)
               endif
-              if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
-                  print *,'Calculating direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',cnt/(total_size/100),'%'
               cnt = cnt+1
 
             case(HAVERESULTSMSG)
@@ -738,7 +736,10 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
                 T%stddev_tol(ind, idz, ikabs ,iksca, ig) = T_tol (idst)
               enddo
 
-              if( mod(workindex, total_size/100 ).eq.0 ) then !every 10 percent of LUT dump it.
+              if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
+                  print *,'Calculated direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',workindex/(total_size/100),'%'
+
+              if( mod(workindex-1, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
                 print *,'Writing direct table to file...'
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
