@@ -340,10 +340,10 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             write(str(7),FMT='(A)') "theta      " ; call ncwrite([OPP%dirLUT%fname , str(1),str(2),str(3),str(6),str(7) ] , OPP%dirLUT%pspace%theta       , iierr)
           endif
 
-          if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_c(7)) 
-          if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_c(7)) 
-          if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%T(iphi,itheta)%table_name_c(7)) 
-          if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%T(iphi,itheta)%table_name_c(7)) 
+          if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_c  (7)) 
+          if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_tol(7)) 
+          if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%T(iphi,itheta)%table_name_c  (7)) 
+          if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%T(iphi,itheta)%table_name_tol(7)) 
           write(varname(1),FMT='(A)') "S     "
           write(varname(2),FMT='(A)') "S_rtol"
           write(varname(3),FMT='(A)') "T     "
