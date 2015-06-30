@@ -148,7 +148,6 @@ contains
         real(ireals),intent(out):: C(:)
 
         real(ireals) :: angles(2)
-        integer(iintegers) :: isrc
 
         logical,parameter :: compute_coeff_online=.False.
 

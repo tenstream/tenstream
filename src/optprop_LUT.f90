@@ -153,17 +153,16 @@ contains
       call OPP%set_parameter_space(OPP%dirLUT%pspace ,one*idx)
       call OPP%set_parameter_space(OPP%diffLUT%pspace,one*idx)
 
-
+      ! Load diffuse LUT
       write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,ldelta_scale,delta_scale_truncate
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading diffuse LUT from ',trim(descr)
       OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.nc'
       OPP%diffLUT%dx    = idx
       OPP%diffLUT%dy    = idy
 
-      ! Load diffuse LUT
       call OPP%loadLUT_diff(comm)
 
-      ! otherwise load direct LUTS first and then the diffuse
+      ! Load direct LUT
       write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta,ldelta_scale,delta_scale_truncate
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading direct LUT from ',trim(descr),' for szas',szas,': azi :',azis
       OPP%dirLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.nc'
@@ -172,6 +171,7 @@ contains
 
       call OPP%loadLUT_dir(azis, szas, comm)
 
+      ! Copy LUT to all ranks
       if(comm_size.gt.1) call OPP%scatter_LUTtables(azis,szas)
 
       OPP%LUT_initialiazed=.True.
@@ -221,7 +221,8 @@ subroutine loadLUT_diff(OPP, comm)
           lstddev_inbounds = all(real(OPP%diffLUT%S%stddev_tol).le.real(stddev_atol)+10._ireals*epsilon(one))
       
           if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'... loading diffuse OPP%diffLUT',errcnt,lstddev_inbounds
-    endif
+    endif !master
+
     call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr) ! inform all nodes if we were able to load the LUT
     call mpi_bcast(lstddev_inbounds , 1_mpiint , imp_logical , 0_mpiint , comm , mpierr) ! and if all coefficients are valid
 
@@ -250,15 +251,17 @@ subroutine loadLUT_diff(OPP, comm)
         write(str(5),FMT='(A)') "kabs       "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%kabs ,iierr)
         write(str(5),FMT='(A)') "ksca       "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%ksca ,iierr)
         write(str(5),FMT='(A)') "g          "   ; call ncwrite([OPP%diffLUT%fname,str(1),str(2),str(3),str(4),str(5)],OPP%diffLUT%pspace%g    ,iierr)
-      endif
+      endif !master
 
       call OPP%createLUT_diff(OPP%diffLUT, comm)
+    endif !error
+
+    if(myid.eq.0) then
+      deallocate(OPP%diffLUT%S%stddev_tol)
+      if(OPP%optprop_LUT_debug) &
+          print *,'Done loading diffuse OPP%diffLUTs',errcnt
     endif
-
-    if(myid.eq.0) deallocate(OPP%diffLUT%S%stddev_tol)
-    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading diffuse OPP%diffLUTs',errcnt
 end subroutine
-
 subroutine loadLUT_dir(OPP, azis,szas, comm)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
@@ -316,7 +319,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
 
             if(OPP%optprop_LUT_debug) &
                 print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds,':',trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5))
-        endif
+        endif !master
 
         call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr)
         call mpi_bcast(lstddev_inbounds , 1_mpiint , imp_logical , 0_mpiint , comm , mpierr)
@@ -338,59 +341,40 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             write(str(7),FMT='(A)') "g          " ; call ncwrite([OPP%dirLUT%fname , str(1),str(2),str(3),str(6),str(7) ] , OPP%dirLUT%pspace%g           , iierr)
             write(str(7),FMT='(A)') "phi        " ; call ncwrite([OPP%dirLUT%fname , str(1),str(2),str(3),str(6),str(7) ] , OPP%dirLUT%pspace%phi         , iierr)
             write(str(7),FMT='(A)') "theta      " ; call ncwrite([OPP%dirLUT%fname , str(1),str(2),str(3),str(6),str(7) ] , OPP%dirLUT%pspace%theta       , iierr)
-          endif
 
-          if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_c  (7)) 
-          if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_tol(7)) 
-          if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%T(iphi,itheta)%table_name_c  (7)) 
-          if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%T(iphi,itheta)%table_name_tol(7)) 
-          write(varname(1),FMT='(A)') "S     "
-          write(varname(2),FMT='(A)') "S_rtol"
-          write(varname(3),FMT='(A)') "T     "
-          write(varname(4),FMT='(A)') "T_rtol"
+            write(varname(1),FMT='(A)') "S     "
+            write(varname(2),FMT='(A)') "S_rtol"
+            write(varname(3),FMT='(A)') "T     "
+            write(varname(4),FMT='(A)') "T_rtol"
 
-          OPP%dirLUT%S(iphi,itheta)%table_name_c   = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(1)]
-          OPP%dirLUT%S(iphi,itheta)%table_name_tol = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(2)]
-          OPP%dirLUT%T(iphi,itheta)%table_name_c   = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(3)]
-          OPP%dirLUT%T(iphi,itheta)%table_name_tol = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(4)]
+            if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_c  (7)) 
+            if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_tol(7)) 
+            if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%T(iphi,itheta)%table_name_c  (7)) 
+            if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%T(iphi,itheta)%table_name_tol(7)) 
+
+
+            OPP%dirLUT%S(iphi,itheta)%table_name_c   = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(1)]
+            OPP%dirLUT%S(iphi,itheta)%table_name_tol = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(2)]
+            OPP%dirLUT%T(iphi,itheta)%table_name_c   = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(3)]
+            OPP%dirLUT%T(iphi,itheta)%table_name_tol = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(4)]
+
+          endif !master
 
           call OPP%createLUT_dir( OPP%dirLUT, comm,iphi,itheta)
 
-!          call mpi_barrier(comm,ierr)
-!          call exit() !> \todo: We exit here in order to split the jobs for shorter runtime.
         endif
 
-        if(myid.eq.0) deallocate(OPP%dirLUT%S(iphi,itheta)%stddev_tol)
-        if(myid.eq.0) deallocate(OPP%dirLUT%T(iphi,itheta)%stddev_tol)
+        if(myid.eq.0) then
+          deallocate(OPP%dirLUT%S(iphi,itheta)%stddev_tol)
+          deallocate(OPP%dirLUT%T(iphi,itheta)%stddev_tol)
 
-        if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading direct LUT, for phi/theta:',int(OPP%dirLUT%pspace%phi(iphi)),int(OPP%dirLUT%pspace%theta(itheta)),':: shape(T)',shape(OPP%dirLUT%T(iphi,itheta)%c),':: shape(S)',shape(OPP%dirLUT%S(iphi,itheta)%c)
+          if(OPP%optprop_LUT_debug) print *,'Done loading direct LUT, for phi/theta:',int(OPP%dirLUT%pspace%phi(iphi)),int(OPP%dirLUT%pspace%theta(itheta)),':: shape(T)',shape(OPP%dirLUT%T(iphi,itheta)%c),':: shape(S)',shape(OPP%dirLUT%S(iphi,itheta)%c)
+        endif !master
+
       enddo !iphi
     enddo! itheta
 
-!    if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading direct OPP%dirLUTs'
 end subroutine
-  subroutine scatter_LUTtables(OPP, azis,szas)
-      class(t_optprop_LUT) :: OPP
-      real(ireals),intent(in) :: szas(:),azis(:) 
-      integer(iintegers) :: iphi,itheta
-      logical :: angle_mask(OPP%Nphi,OPP%Ntheta)
-
-      call determine_angles_to_load(OPP%dirLUT, azis, szas, angle_mask)
-
-      do itheta=1,OPP%Ntheta
-        do iphi  =1,OPP%Nphi
-          if(.not.angle_mask(iphi,itheta) ) cycle                               ! this LUT is not needed, skip....
-          if ( mpi_logical_and( allocated(OPP%dirLUT%T(iphi,itheta)%c)) ) cycle ! if all nodes have the LUT already, we dont need to scatter it...
-
-          call imp_bcast(OPP%dirLUT%T(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIRECT
-          call imp_bcast(OPP%dirLUT%S(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIFFUSE
-        enddo
-      enddo
-
-      ! DIFFUSE 2 DIFFUSE
-      if( mpi_logical_or(.not.allocated(OPP%diffLUT%S%c) )) & ! then ! if one or more nodes do not have it, guess we have to send it...
-        call imp_bcast(OPP%diffLUT%S%c, 0_mpiint, myid )
-  end subroutine
 
 subroutine createLUT_diff(OPP, LUT, comm)
     class(t_optprop_LUT) :: OPP
@@ -400,7 +384,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
     logical :: gotmsg
     integer(mpiint) :: status(MPI_STATUS_SIZE)
     integer(iintegers) :: workinput(5) !isrc, idz, ikabs, iksca, ig
-    integer(iintegers) :: idummy, workindex
+    integer(iintegers) :: idummy, workindex,ierr
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(ireals) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
@@ -426,8 +410,9 @@ subroutine createLUT_diff(OPP, LUT, comm)
     else
       call worker()
     endif
+    call mpi_barrier(comm,ierr)
 
-    if(myid.eq.0) print *,'done calculating diffuse coefficients'
+    if(myid.eq.0) print *,'done calculating diffuse coefficients',shape(LUT%S%c)
     contains 
       subroutine master(S)
         type(table),intent(inout) :: S
@@ -504,8 +489,8 @@ subroutine createLUT_diff(OPP, LUT, comm)
             case(HAVERESULTSMSG)
               call mpi_recv(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr)
               call mpi_recv(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
-              call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
               call mpi_recv(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
+!              call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
 !              call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
               
               ! Sort coefficients into destination ordering and put em in LUT
@@ -522,10 +507,10 @@ subroutine createLUT_diff(OPP, LUT, comm)
               enddo
 
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
-                  print *,'Calculated diffuse LUT...',workindex/(total_size/100),'%'
+                  print *,'Calculated diffuse LUT...',(100*(workindex-1)/total_size),'%'
 
-              if( mod(workindex-1, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
-                print *,'Writing diffuse table to file...'
+              if( mod(workindex-1, total_size/10).eq.0 ) then !every 10 percent of LUT dump it.
+                print *,'Writing diffuse table to file...',workindex,total_size
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
                 print *,'done writing!',iierr
@@ -534,7 +519,18 @@ subroutine createLUT_diff(OPP, LUT, comm)
             case(FINALIZEMSG)
               call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, status, mpierr)
               finalizedworkers = finalizedworkers+1
-              if(finalizedworkers.eq.numnodes-1) exit ! all work is done
+              if(finalizedworkers.eq.numnodes-1) then
+
+                gotmsg=.False.
+                call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr)
+                if(gotmsg) then
+                  print *,'Found message where I would not think there should be one',status
+                  stop 'error'
+                endif
+
+                exit ! all work is done
+              endif
+
 
             end select
           endif
@@ -574,13 +570,14 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
                 call mpi_send(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, mpierr)
                 call mpi_send(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
-                call mpi_send(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
                 call mpi_send(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
+!                call mpi_send(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
 !                call mpi_send(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
 
                 call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr)
 
               case(FINALIZEMSG)
+                call mpi_recv(idummy, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, status, mpierr)
                 call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, mpierr)
                 exit
 
@@ -614,14 +611,14 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
     logical :: gotmsg
     integer(mpiint) :: status(MPI_STATUS_SIZE)
     integer(iintegers) :: workinput(5) 
-    integer(iintegers) :: idummy, workindex
+    integer(iintegers) :: idummy, workindex,ierr
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(ireals) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     integer(mpiint), parameter :: READYMSG=1,HAVERESULTSMSG=2, WORKMSG=3, FINALIZEMSG=4, RESULTMSG=5
 
     if(myid.eq.0) &
-      call prepare_table_space(LUT%S(iphi,itheta), OPP%diff_streams**2, LUT%T(iphi,itheta), OPP%dir_streams**2)
+      call prepare_table_space(LUT%S(iphi,itheta), OPP%diff_streams, LUT%T(iphi,itheta), OPP%dir_streams)
 
     if(myid.le.0 .and. numnodes.le.1) &
       stop 'At the moment creation of direct Lookuptable needs at least two mpi-ranks to work... please run with more ranks.'
@@ -632,6 +629,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
     else
       call worker()
     endif
+    call mpi_barrier(comm,ierr)
 
     contains
       subroutine master(S,T)
@@ -737,7 +735,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
               enddo
 
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
-                  print *,'Calculated direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',workindex/(total_size/100),'%'
+                  print *,'Calculated direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')...',(100*(workindex-1))/total_size,'%'
 
               if( mod(workindex-1, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
                 print *,'Writing direct table to file...'
@@ -803,6 +801,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
                 call mpi_send(-i1       , 1_mpiint     , imp_int  , 0_mpiint           , READYMSG       , comm , mpierr)
 
               case(FINALIZEMSG)
+                call mpi_recv(idummy, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, status, mpierr)
                 call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, mpierr)
                 exit
 
@@ -817,20 +816,20 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
 
           integer(iintegers) :: errcnt
 
+          print *,'preparing space for LUT for direct coeffs at angles: ',iphi,itheta
+          errcnt=0
+
           if(.not.allocated(S%stddev_tol) ) then
             allocate(S%stddev_tol(NcoeffS*NcoeffT, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
             S%stddev_tol = 1e8_ireals
-            call ncwrite(S%table_name_tol, S%stddev_tol, iierr)
+            call ncwrite(S%table_name_tol, S%stddev_tol, iierr); errcnt = errcnt +iierr
           endif
 
           if(.not.allocated(T%stddev_tol) ) then
             allocate(T%stddev_tol(NcoeffT**2, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
             T%stddev_tol = 1e8_ireals 
-            call ncwrite(T%table_name_tol, T%stddev_tol, iierr)
+            call ncwrite(T%table_name_tol, T%stddev_tol, iierr); errcnt = errcnt +iierr
           endif
-
-          print *,'calculating direct coefficients for ',iphi,itheta
-          errcnt=0
 
           if(.not. allocated(S%c) ) then
             allocate(S%c(NcoeffS*NcoeffT, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
@@ -847,6 +846,29 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
           if(errcnt.ne.0) stop 'createLUT_dir :: could somehow not write to file... exiting...'
       end subroutine
 end subroutine
+
+  subroutine scatter_LUTtables(OPP, azis,szas)
+      class(t_optprop_LUT) :: OPP
+      real(ireals),intent(in) :: szas(:),azis(:) 
+      integer(iintegers) :: iphi,itheta
+      logical :: angle_mask(OPP%Nphi,OPP%Ntheta)
+
+      call determine_angles_to_load(OPP%dirLUT, azis, szas, angle_mask)
+
+      do itheta=1,OPP%Ntheta
+        do iphi  =1,OPP%Nphi
+          if(.not.angle_mask(iphi,itheta) ) cycle                               ! this LUT is not needed, skip....
+          if ( mpi_logical_and( allocated(OPP%dirLUT%T(iphi,itheta)%c)) ) cycle ! if all nodes have the LUT already, we dont need to scatter it...
+
+          call imp_bcast(OPP%dirLUT%T(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIRECT
+          call imp_bcast(OPP%dirLUT%S(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIFFUSE
+        enddo
+      enddo
+
+      ! DIFFUSE 2 DIFFUSE
+      if( mpi_logical_or(.not.allocated(OPP%diffLUT%S%c) )) & ! then ! if one or more nodes do not have it, guess we have to send it...
+        call imp_bcast(OPP%diffLUT%S%c, 0_mpiint, myid )
+  end subroutine
 subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,phi,theta,comm,S_diff,T_dir,S_tol,T_tol)
     class(t_optprop_LUT) :: OPP
     integer(iintegers),intent(in) :: src
