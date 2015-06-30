@@ -340,26 +340,21 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             write(str(7),FMT='(A)') "theta      " ; call ncwrite([OPP%dirLUT%fname , str(1),str(2),str(3),str(6),str(7) ] , OPP%dirLUT%pspace%theta       , iierr)
           endif
 
-          write(varname(1),FMT='(A)') "T     "
-          write(varname(2),FMT='(A)') "S     "
-          write(varname(3),FMT='(A)') "T_rtol"
-          write(varname(4),FMT='(A)') "S_rtol"
-          call OPP%createLUT_dir( OPP%dirLUT, &
-                                 [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(1)], &
-                                 [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(2)], &
-                                 [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(3)], &
-                                 [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(4)], &
-                                  comm,iphi,itheta)
+          if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_c(7)) 
+          if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_c(7)) 
+          if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%T(iphi,itheta)%table_name_c(7)) 
+          if(.not.allocated(OPP%dirLUT%T(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%T(iphi,itheta)%table_name_c(7)) 
+          write(varname(1),FMT='(A)') "S     "
+          write(varname(2),FMT='(A)') "S_rtol"
+          write(varname(3),FMT='(A)') "T     "
+          write(varname(4),FMT='(A)') "T_rtol"
 
-          if(myid.eq.0) then
-            if(OPP%optprop_LUT_debug) print *,'Final dump of LUT for phi/theta',iphi,itheta
-            call ncwrite([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(1)],OPP%dirLUT%T(iphi,itheta)%c,iierr)
-            call ncwrite([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(2)],OPP%dirLUT%S(iphi,itheta)%c,iierr)
+          OPP%dirLUT%S(iphi,itheta)%table_name_c   = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(1)]
+          OPP%dirLUT%S(iphi,itheta)%table_name_tol = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(2)]
+          OPP%dirLUT%T(iphi,itheta)%table_name_c   = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(3)]
+          OPP%dirLUT%T(iphi,itheta)%table_name_tol = [OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(4)]
 
-            call ncwrite([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(3)],OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr)
-            call ncwrite([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),varname(4)],OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr)
-            if(OPP%optprop_LUT_debug) print *,'Final dump of LUT for phi/theta',iphi,itheta,'... done'
-          endif
+          call OPP%createLUT_dir( OPP%dirLUT, comm,iphi,itheta)
 
 !          call mpi_barrier(comm,ierr)
 !          call exit() !> \todo: We exit here in order to split the jobs for shorter runtime.
@@ -607,11 +602,9 @@ subroutine createLUT_diff(OPP, LUT, comm)
           endif
       end subroutine
 end subroutine
-subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, dir_stddev_atol_table_name,diff_stddev_atol_table_name, comm, iphi,itheta)
+subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
     class(t_optprop_LUT) :: OPP
     type(directTable) :: LUT
-    character(len=*),intent(in) :: dir_coeff_table_name(:),diff_coeff_table_name(:)
-    character(len=*),intent(in) :: dir_stddev_atol_table_name(:),diff_stddev_atol_table_name(:)
     integer(mpiint),intent(in) :: comm
     integer(iintegers),intent(in) :: iphi,itheta
 
@@ -740,8 +733,8 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                 print *,'Calculating direct LUT(',LUT%pspace%phi(iphi),LUT%pspace%theta(itheta),')... ',workindex/(total_size/100),'%'
 
-              if( mod(workindex, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
-                print *,'Writing diffuse table to file...'
+              if( mod(workindex, total_size/100 ).eq.0 ) then !every 10 percent of LUT dump it.
+                print *,'Writing direct table to file...'
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
                 call ncwrite(T%table_name_c  , T%c         ,iierr)
@@ -758,7 +751,7 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
           endif
         enddo
 
-        print *,'Writing diffuse table to file...'
+        print *,'Writing direct table to file...'
         call ncwrite(S%table_name_c  , S%c         ,iierr)
         call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
         call ncwrite(T%table_name_c  , T%c         ,iierr)
@@ -819,15 +812,15 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
           integer(iintegers) :: errcnt
 
           if(.not.allocated(S%stddev_tol) ) then
-            allocate(S%stddev_tol(NcoeffS, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            allocate(S%stddev_tol(NcoeffS*NcoeffT, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
             S%stddev_tol = 1e8_ireals
-            call ncwrite(diff_stddev_atol_table_name, S%stddev_tol, iierr)
+            call ncwrite(S%table_name_tol, S%stddev_tol, iierr)
           endif
 
           if(.not.allocated(T%stddev_tol) ) then
-            allocate(T%stddev_tol(NcoeffT, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
+            allocate(T%stddev_tol(NcoeffT**2, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
             T%stddev_tol = 1e8_ireals 
-            call ncwrite(dir_stddev_atol_table_name, T%stddev_tol, iierr)
+            call ncwrite(T%table_name_tol, T%stddev_tol, iierr)
           endif
 
           print *,'calculating direct coefficients for ',iphi,itheta
@@ -836,13 +829,13 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
           if(.not. allocated(S%c) ) then
             allocate(S%c(NcoeffS*NcoeffT, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
             S%c = nil
-            call ncwrite(diff_coeff_table_name, S%c,iierr); errcnt = errcnt +iierr
+            call ncwrite(S%table_name_c, S%c,iierr); errcnt = errcnt +iierr
           endif
 
           if(.not. allocated(T%c) ) then
             allocate(T%c(NcoeffT**2, OPP%Ndz,OPP%Nkabs ,OPP%Nksca,OPP%Ng))
             T%c = nil
-            call ncwrite(dir_coeff_table_name, T%c,iierr); errcnt = errcnt +iierr
+            call ncwrite(T%table_name_c, T%c,iierr); errcnt = errcnt +iierr
           endif
 
           if(errcnt.ne.0) stop 'createLUT_dir :: could somehow not write to file... exiting...'
