@@ -524,7 +524,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
               enddo
 
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
-                print *,'Calculating LUT...',workindex/(total_size/100),'%'
+                print *,'Calculating diffuse LUT...',workindex/(total_size/100),'%'
 
               if( mod(workindex, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
                 print *,'Writing diffuse table to file...'
@@ -738,7 +738,7 @@ subroutine createLUT_dir(OPP,LUT, dir_coeff_table_name, diff_coeff_table_name, d
               enddo
 
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
-                print *,'Calculating LUT...',workindex/(total_size/100),'%'
+                print *,'Calculating direct LUT(',LUT%pspace%phi(iphi),LUT%pspace%theta(itheta),')... ',workindex/(total_size/100),'%'
 
               if( mod(workindex, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
                 print *,'Writing diffuse table to file...'
