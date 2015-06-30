@@ -459,8 +459,6 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
         cnt=1
         do
-          if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
-              print *,'Calculating diffuse LUT...',cnt/(total_size/100),'%'
 
           ! Check if we already calculated the coefficients 
           if(cnt.le.total_size) then
@@ -474,6 +472,8 @@ subroutine createLUT_diff(OPP, LUT, comm)
                 .and. ( S%c( isrc, idz,ikabs ,iksca,ig ).le.one )              &
                 .and. real(S%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol) )
             if(ldone) then
+              if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
+                  print *,'Calculating diffuse LUT...',cnt/(total_size/100),'%'
               cnt=cnt+1
               cycle
             endif
@@ -499,6 +499,8 @@ subroutine createLUT_diff(OPP, LUT, comm)
               else ! no more work to do... tell the worker to quit
                 call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr)
               endif
+              if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
+                  print *,'Calculating diffuse LUT...',cnt/(total_size/100),'%'
               cnt = cnt+1
 
             case(HAVERESULTSMSG)
@@ -663,8 +665,6 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
 
         cnt=1
         do
-          if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
-              print *,'Calculating direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',cnt/(total_size/100),'%'
 
           ! Check if we already calculated the coefficients 
           if(cnt.le.total_size) then
@@ -682,6 +682,8 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
             ldonearr(6) = real(T%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol)
 
             if( all(ldonearr) ) then
+              if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
+                  print *,'Calculating direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',cnt/(total_size/100),'%'
               cnt=cnt+1
               cycle
             endif
@@ -707,6 +709,8 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
               else ! no more work to do... tell the worker to quit
                 call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr)
               endif
+              if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
+                  print *,'Calculating direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',cnt/(total_size/100),'%'
               cnt = cnt+1
 
             case(HAVERESULTSMSG)
