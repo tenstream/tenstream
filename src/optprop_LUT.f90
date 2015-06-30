@@ -459,6 +459,9 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
         cnt=1
         do
+          if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
+              print *,'Calculating diffuse LUT...',cnt/(total_size/100),'%'
+
           ! Check if we already calculated the coefficients 
           if(cnt.le.total_size) then
             isrc  = allwork(cnt, 1)
@@ -518,8 +521,6 @@ subroutine createLUT_diff(OPP, LUT, comm)
                 S%stddev_tol( ind, idz, ikabs ,iksca, ig) = S_tol (idst)
               enddo
 
-              if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
-                print *,'Calculating diffuse LUT...',workindex/(total_size/100),'%'
 
               if( mod(workindex, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
                 print *,'Writing diffuse table to file...'
@@ -662,6 +663,9 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
 
         cnt=1
         do
+          if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
+              print *,'Calculating direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',cnt/(total_size/100),'%'
+
           ! Check if we already calculated the coefficients 
           if(cnt.le.total_size) then
             isrc  = allwork(cnt, 1)
@@ -729,9 +733,6 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
                 T%c         (ind, idz, ikabs ,iksca, ig) = T_dir (idst)
                 T%stddev_tol(ind, idz, ikabs ,iksca, ig) = T_tol (idst)
               enddo
-
-              if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
-                print *,'Calculating direct LUT(',LUT%pspace%phi(iphi),LUT%pspace%theta(itheta),')... ',workindex/(total_size/100),'%'
 
               if( mod(workindex, total_size/100 ).eq.0 ) then !every 10 percent of LUT dump it.
                 print *,'Writing direct table to file...'
