@@ -46,7 +46,7 @@ module m_optprop_parameters
       !!        this assumes you actually have a
       !!        ANN that can be queried....
       !! 
-      integer(iintegers),parameter :: coeff_mode = 0
+      integer(iintegers),parameter :: coeff_mode = 1
 
       !-----------------------------------------
       !- Define the size of the Lookuptables:  -
