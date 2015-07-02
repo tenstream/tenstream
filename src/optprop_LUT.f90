@@ -458,7 +458,6 @@ subroutine createLUT_diff(OPP, LUT, comm)
                 ldone(idst) = ( ( S%c         ( ind, idz,ikabs ,iksca,ig ).ge.zero)            &
                           .and. ( S%c         ( ind, idz,ikabs ,iksca,ig ).le.one )            &
                           .and. ( S%stddev_tol( ind, idz,ikabs ,iksca,ig ).le.stddev_atol ) )
-                if( .not. ldone(idst).and. S%stddev_tol( ind, idz,ikabs ,iksca,ig ).le.one ) print *,'master Stol',cnt,S%stddev_tol( ind, idz,ikabs ,iksca,ig )
             enddo
 
 
