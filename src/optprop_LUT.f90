@@ -218,7 +218,7 @@ subroutine loadLUT_diff(OPP, comm)
       call ncload(OPP%diffLUT%S%table_name_tol, OPP%diffLUT%S%stddev_tol,iierr) ; errcnt = errcnt+iierr
 
       if( allocated(OPP%diffLUT%S%stddev_tol) ) &
-          lstddev_inbounds = all(real(OPP%diffLUT%S%stddev_tol).le.real(stddev_atol)+10._ireals*epsilon(one))
+          lstddev_inbounds = all( OPP%diffLUT%S%stddev_tol.le.stddev_atol )
       
           if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'... loading diffuse OPP%diffLUT',errcnt,lstddev_inbounds
     endif !master
@@ -311,11 +311,11 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             lstddev_inbounds = .True. ! first assume that precision is met and then check if this is still the case...
             write(str(6),FMT='(A)') 'S_rtol' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr) 
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0 
-            if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol+1e-8_ireals))
+            if(lstddev_inbounds) lstddev_inbounds = all(OPP%dirLUT%S(iphi,itheta)%stddev_tol.le.stddev_atol)
 
             write(str(6),FMT='(A)') 'T_rtol' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr)
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0
-            if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol+1e-8_ireals))
+            if(lstddev_inbounds) lstddev_inbounds = all(OPP%dirLUT%S(iphi,itheta)%stddev_tol.le.stddev_atol)
 
             if(OPP%optprop_LUT_debug) &
                 print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds,':',trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5))
@@ -422,7 +422,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
         integer(iintegers) :: idz,ikabs ,iksca,ig
         integer(iintegers) :: isrc,idst,ind
 
-        logical :: ldone
+        logical :: ldone(OPP%diff_streams)
 
         finalizedworkers=0
         total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz *OPP%diff_streams
@@ -453,10 +453,16 @@ subroutine createLUT_diff(OPP, LUT, comm)
             iksca = allwork(cnt, 4)
             ig    = allwork(cnt, 5)
 
-            ldone = ( ( S%c( isrc, idz,ikabs ,iksca,ig ).ge.zero)              &
-                .and. ( S%c( isrc, idz,ikabs ,iksca,ig ).le.one )              &
-                .and. real(S%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol) )
-            if(ldone) then
+            do idst = 1,OPP%diff_streams
+                ind = (idst-1)*OPP%diff_streams + isrc
+                ldone(idst) = ( ( S%c         ( ind, idz,ikabs ,iksca,ig ).ge.zero)            &
+                          .and. ( S%c         ( ind, idz,ikabs ,iksca,ig ).le.one )            &
+                          .and. ( S%stddev_tol( ind, idz,ikabs ,iksca,ig ).le.stddev_atol ) )
+                if( .not. ldone(idst).and. S%stddev_tol( ind, idz,ikabs ,iksca,ig ).le.one ) print *,'master Stol',cnt,S%stddev_tol( ind, idz,ikabs ,iksca,ig )
+            enddo
+
+
+            if(all(ldone)) then
               if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Resuming from diffuse LUT...',cnt/(total_size/100),'%'
               cnt=cnt+1
@@ -539,7 +545,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
         print *,'Writing diffuse table to file...'
         call ncwrite(S%table_name_c  , S%c         ,iierr)
         call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
-        print *,'done writing!',iierr
+        print *,'done writing!',iierr,':: max_atol',maxval(S%stddev_tol)
       end subroutine
       subroutine worker()
           ! workers send READY message to master
@@ -641,7 +647,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
         integer(iintegers) :: idz,ikabs ,iksca,ig
         integer(iintegers) :: isrc,idst,ind
 
-        logical :: ldonearr(6)
+        logical :: ldoneS(OPP%diff_streams), ldoneT(OPP%dir_streams)
 
         finalizedworkers=0
         total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz *OPP%dir_streams
@@ -672,14 +678,20 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
             iksca = allwork(cnt, 4)
             ig    = allwork(cnt, 5)
 
-            ldonearr(1) = S%c( isrc, idz,ikabs ,iksca,ig).ge.zero
-            ldonearr(2) = S%c( isrc, idz,ikabs ,iksca,ig).le.one 
-            ldonearr(3) = T%c( isrc, idz,ikabs ,iksca,ig).ge.zero
-            ldonearr(4) = T%c( isrc, idz,ikabs ,iksca,ig).le.one  
-            ldonearr(5) = real(S%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol)
-            ldonearr(6) = real(T%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol)
+            do idst = 1,OPP%diff_streams
+                ind = (idst-1)*OPP%dir_streams + isrc
+                ldoneS(idst) = ( ( S%c         ( ind, idz,ikabs ,iksca,ig ).ge.zero)            &
+                           .and. ( S%c         ( ind, idz,ikabs ,iksca,ig ).le.one )            &
+                           .and. ( S%stddev_tol( ind, idz,ikabs ,iksca,ig ).le.stddev_atol ) )
+            enddo
+            do idst = 1,OPP%dir_streams
+                ind = (idst-1)*OPP%dir_streams + isrc
+                ldoneT(idst) = ( ( T%c         ( ind, idz,ikabs ,iksca,ig ).ge.zero)            &
+                           .and. ( T%c         ( ind, idz,ikabs ,iksca,ig ).le.one )            &
+                           .and. ( T%stddev_tol( ind, idz,ikabs ,iksca,ig ).le.stddev_atol ) )
+            enddo
 
-            if( all(ldonearr) ) then
+            if( all(ldoneS) .and. all(ldoneT) ) then
               if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Resuming from direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',cnt/(total_size/100),'%'
               cnt=cnt+1
@@ -760,7 +772,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
         call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
         call ncwrite(T%table_name_c  , T%c         ,iierr)
         call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
-        print *,'done writing!',iierr
+        print *,'done writing!',iierr,':: max_atol S',maxval(S%stddev_tol),'max_atol T',maxval(T%stddev_tol)
       end subroutine
       subroutine worker()
           ! workers send READY message to master

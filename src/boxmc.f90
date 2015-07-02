@@ -584,7 +584,6 @@ end subroutine
 pure subroutine std_update(std, N, numnodes)
       type(stddev),intent(inout) :: std
       integer(iintegers),intent(in) :: N, numnodes
-!      real(ireals) :: relvar(size(std%var))
       real(ireals),parameter :: relvar_limit=1e-6_ireals
 
       std%delta = std%inc   - std%mean
