@@ -514,7 +514,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Calculated diffuse LUT...',(100*(workindex-1)/total_size),'%'
 
-              if( mod(workindex-1, total_size/10).eq.0 ) then !every 10 percent of LUT dump it.
+              if( mod(workindex-1, total_size/100).eq.0 ) then !every 1 percent of LUT dump it.
                 print *,'Writing diffuse table to file...',workindex,total_size
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
@@ -748,7 +748,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Calculated direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')...',(100*(workindex-1))/total_size,'%'
 
-              if( mod(workindex-1, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
+              if( mod(workindex-1, total_size/100 ).eq.0 ) then !every 1 percent of LUT dump it.
                 print *,'Writing direct table to file...'
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
