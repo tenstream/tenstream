@@ -2140,7 +2140,6 @@ end subroutine
 
       if(.not.allocated(atm%l1d)) then
         allocate(atm%l1d( C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye ) )
-        atm%l1d = .False.
       endif
 
       !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
@@ -2154,6 +2153,7 @@ end subroutine
           enddo
         enddo
       enddo
+      if(ltwostr_only) atm%l1d = .True.
 
       call setup_suninfo(phi0,theta0,sun)
 
