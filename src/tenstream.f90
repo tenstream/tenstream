@@ -1905,7 +1905,7 @@ contains
       solution%lintegrated_dir  = .False.
       solution%lintegrated_diff = .False.
       ! and mark solution that it is not up to date
-      solution%lchanged         = .False.
+      solution%lchanged         = .True. 
 
       deallocate(S)
       deallocate(Edn)
