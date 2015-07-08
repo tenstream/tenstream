@@ -37,8 +37,6 @@ implicit none
 private
 public :: t_optprop_1_2,t_optprop_8_10
 
-integer(mpiint) :: ierr
-
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
   real(ireals) :: dx,dy

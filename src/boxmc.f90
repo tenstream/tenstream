@@ -28,6 +28,10 @@ module m_boxmc
       use ieee_arithmetic 
 #define isnan ieee_is_nan
 #endif
+
+#include "petsc/finclude/petscdef.h"
+      use petsc
+
       use m_helper_functions, only : approx,mean,rmse,deg2rad,norm,imp_reduce_sum
       use iso_c_binding
       use m_mersenne
@@ -102,7 +106,7 @@ module m_boxmc
 
       type(stddev),save :: std_Sdir, std_Sdiff, std_abso
 
-      integer(mpiint) :: ierr,myid,numnodes
+      integer(mpiint) :: mpierr,myid,numnodes
 
       logical :: lRNGseeded=.False.
       type(randomNumberSequence),save :: rndSeq
@@ -611,13 +615,13 @@ pure subroutine std_update(std, N, numnodes)
         if(comm.eq.-1) then
                 myid = -1
         else
-                call MPI_Comm_rank(comm, myid, ierr)
+                call MPI_Comm_rank(comm, myid, mpierr); CHKERRQ(mpierr)
         endif
 
         if(.not.lRNGseeded) call init_random_seed(myid+2)
 
         numnodes=1
-        if(myid.ge.0) call mpi_comm_size(comm,numnodes,ierr)
+        if(myid.ge.0) call mpi_comm_size(comm,numnodes,mpierr); CHKERRQ(mpierr)
 
         select type (bmc)
           class is (t_boxmc_8_10)
