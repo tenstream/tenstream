@@ -249,8 +249,8 @@ contains
 
           allocate(C%neighbors(0:3**C%dim-1) )
           call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;CHKERRQ(ierr)
-          if(ldebug.and.C%dim.eq.3) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
-          if(ldebug.and.C%dim.eq.2) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
+          if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
+          if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
       end subroutine
   end subroutine
 
@@ -394,92 +394,92 @@ contains
       xd(E_dn,C%zs+1:C%ze,:,:) = C%dof+i1
 
       ! Determine prealloc for E_dn and E_up
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
+      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
         ! E_le is not local
         xd(E_dn,C%zs+1:C%ze,C%xe,:) = xd(E_dn,C%zs+1:C%ze,C%xe,:) - i2
         xo(E_dn,C%zs+1:C%ze,C%xe,:) = xo(E_dn,C%zs+1:C%ze,C%xe,:) + i2
         xd(E_up,C%zs:C%ze-1,C%xe,:) = xd(E_up,C%zs:C%ze-1,C%xe,:) - i2
         xo(E_up,C%zs:C%ze-1,C%xe,:) = xo(E_up,C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0) then ! neigh north
+      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0)) then ! neigh north
         ! E_ba is not local
         xd(E_dn,C%zs+1:C%ze,:,C%ye) = xd(E_dn,C%zs+1:C%ze,:,C%ye) - i2
         xo(E_dn,C%zs+1:C%ze,:,C%ye) = xo(E_dn,C%zs+1:C%ze,:,C%ye) + i2
         xd(E_up,C%zs:C%ze-1,:,C%ye) = xd(E_up,C%zs:C%ze-1,:,C%ye) - i2
         xo(E_up,C%zs:C%ze-1,:,C%ye) = xo(E_up,C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0) then ! neigh south
+      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0)) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0) then ! neigh west
+      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0)) then ! neigh west
         ! no foreign stream dependencies
       endif
       ! Determine prealloc for E_le
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
+      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
         ! E_le is not local
         xd([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) = xd([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) - i2
         xo([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) = xo([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
+      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
         ! E_ba is not local
         xd([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) = xd([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) - i2
         xo([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) = xo([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
+      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
+      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
         ! no foreign stream dependencies
       endif
       ! Determine prealloc for E_ri
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
+      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
+      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
         ! E_ba is not local
         xd([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) = xd([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) - i2
         xo([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) = xo([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
+      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
+      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
         ! E_ri local dependencies are only self, and 2*E_le
         xd([E_ri_m,E_ri_p],C%zs:C%ze-1,C%xs,:) = i3
         xo([E_ri_m,E_ri_p],C%zs:C%ze-1,C%xs,:) = i8
       endif
       ! Determine prealloc for E_ba
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
+      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
         ! E_le is not local
         xd([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) = xd([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) - i2
         xo([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) = xo([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
+      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
         ! E_ba is not local
         xd([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) = xd([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) - i2
         xo([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) = xo([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
+      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
+      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
         ! no foreign stream dependencies
       endif
       ! Determine prealloc for E_fw
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
+      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
         ! E_le is not local
         xd([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) = xd([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) - i2
         xo([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) = xo([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
+      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
+      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
         ! E_fw local dependencies are only self, and 2*E_ba
         xd([E_fw_m,E_fw_p],C%zs:C%ze-1,:,C%ys) = i3
         xo([E_fw_m,E_fw_p],C%zs:C%ze-1,:,C%ys) = i8
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
+      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
         ! no foreign stream dependencies
       endif
 
@@ -1387,17 +1387,17 @@ contains
       PetscReal :: Volume,Ax,Ay,Az
       logical :: lhave_no_3d_layer
 
-      if(.not. solution%lintegrated_dir) stop 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!'
-      if(.not. solution%lintegrated_diff)stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
+      if(solution%lsolar_rad .and. (solution%lintegrated_dir .eqv..False.)) stop 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!'
+      if(                          (solution%lintegrated_diff.eqv..False.)) stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
 
-      if( lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
+      if( (solution%lsolar_rad.eqv..False.) .and. lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
         call scale_flx(solution, lWm2_to_W=.False.)
         call nca_wrapper(solution%ediff, solution%abso)
         call scale_flx(solution, lWm2_to_W=.True.)
         return
       endif
 
-      if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence'
+      if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence',solution%lsolar_rad.eqv..False.,lcalc_nca
       call VecSet(solution%abso,zero,ierr) ;CHKERRQ(ierr)
 
       ! if there are no 3D layers, we should skip the ghost value copying....
@@ -1853,7 +1853,9 @@ contains
       real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
       real(ireals) :: mu0,incSolar
 
-      call VecSet(solution%edir ,zero,ierr); CHKERRQ(ierr)
+      if(solution%lsolar_rad) &
+          call VecSet(solution%edir ,zero,ierr); CHKERRQ(ierr)
+
       call VecSet(solution%ediff,zero,ierr); CHKERRQ(ierr)
 
       call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
@@ -1866,17 +1868,18 @@ contains
       mu0 = sun%costheta
       incSolar = edirTOA* sun%costheta
 
-      call getVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
+      if(solution%lsolar_rad) &
+          call getVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
       call getVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff ,.False.)
 
-      allocate( S(C_dir%zm ) )
+      allocate( S  (C_diff%zm) )
       allocate( Eup(C_diff%zm) )
       allocate( Edn(C_diff%zm) )
 
       if(myid.eq.0 .and. ldebug) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM ::',sun%theta,':',incSolar
 
-      do j=C_dir%ys,C_dir%ye         
-        do i=C_dir%xs,C_dir%xe
+      do j=C_diff%ys,C_diff%ye         
+        do i=C_diff%xs,C_diff%xe
 
           kext = atm%op(:,i,j)%kabs + atm%op(:,i,j)%ksca
           dtau = atm%dz(:,i,j)* kext
@@ -1889,16 +1892,19 @@ contains
             call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo, S,Edn,Eup )
           endif
 
-          do src=i0,i3
-            xv_dir(src,:,i,j) = S(:)
-          enddo
+          if(solution%lsolar_rad) then
+            do src=i0,i3
+              xv_dir(src,:,i,j) = S(:)
+            enddo
+          endif
 
           xv_diff(E_up,:,i,j) = Eup(:) 
           xv_diff(E_dn,:,i,j) = Edn(:) 
         enddo
       enddo
 
-      call restoreVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  )
+      if(solution%lsolar_rad) &
+        call restoreVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  )
       call restoreVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff )
 
       !Twostream solver returns fluxes as [W]
@@ -2470,7 +2476,7 @@ end subroutine
         enddo
       endif
 
-      if(ldebug)then! .and. myid.eq.0) then
+      if(ldebug .and. myid.eq.0) then
         do k=C_one%zs,C_one%ze
           if(present(local_planck)) then
             print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one%xs,C_one%ys),atm%l1d(k,C_one%xs,C_one%ys),'k',&
@@ -2504,25 +2510,21 @@ end subroutine
       call prepare_solution( solutions(uid), uid, lsolar=(edirTOA.gt.zero .and. sun%theta.ge.zero) ) ! setup solution vectors
 
       ! --------- Can we get an initial guess? ---------------
-      if(ltwostr) then
-        if(ltwostr_only) then
-          twostr_uid = uid
-        else
-          twostr_uid = -1
-        endif
+      if(ltwostr .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca) ) then
 
-        call prepare_solution(solutions(twostr_uid),twostr_uid, lsolar=.True. ) ! make space for twostream solution 
-        call twostream(edirTOA,  solutions(twostr_uid) )
-        solutions(twostr_uid)%lchanged=.True.
+!        call prepare_solution(solutions(twostr_uid),twostr_uid, lsolar=.True. ) ! make space for twostream solution 
+        call twostream(edirTOA,  solutions(uid) )
+        solutions(uid)%lchanged=.True.
         if(ldebug .and. myid.eq.0) print *,'twostream calculation done'
 
         if(present(opt_solution_time) ) then 
-          call restore_solution(solutions(twostr_uid),opt_solution_time)
+          call restore_solution(solutions(uid),opt_solution_time)
         else
-          call restore_solution(solutions(twostr_uid))
+          call restore_solution(solutions(uid))
         endif
 
-        if(ltwostr_only) return
+        if( ltwostr_only ) return
+        if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca ) return
       endif
 
       ! --------- scale from [W/m**2] to [W] -----------------
@@ -2652,7 +2654,7 @@ end subroutine
             call copy_solution(solutions(uid),solutions(-uid))
           endif
 
-        endif
+        endif !time_debug_solutions
 
       else
         uid = i0 ! default solution is uid==0
