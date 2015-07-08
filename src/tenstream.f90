@@ -2470,15 +2470,15 @@ end subroutine
         enddo
       endif
 
-      if(ldebug .and. myid.eq.0) then
+      if(ldebug)then! .and. myid.eq.0) then
         do k=C_one%zs,C_one%ze
           if(present(local_planck)) then
-            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,0,0),atm%l1d(k,0,0),'k',&
+            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one%xs,C_one%ys),atm%l1d(k,C_one%xs,C_one%ys),'k',&
                 minval(atm%delta_op    (k,:,:)%kabs),minval(atm%delta_op (k, :,:)%ksca),minval(atm%delta_op (k, :,:)%g),&
                 maxval(atm%delta_op    (k,:,:)%kabs),maxval(atm%delta_op (k, :,:)%ksca),maxval(atm%delta_op (k, :,:)%g),&
                 '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
           else    
-            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,0,0),atm%l1d(k,0,0),'k',&
+            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one%xs,C_one%ys),atm%l1d(k,C_one%xs,C_one%ys),'k',&
                 minval(atm%delta_op (k, :,:)%kabs),minval(atm%delta_op (k,:,:)%ksca),minval(atm%delta_op (k,:,:)%g),&
                 maxval(atm%delta_op (k, :,:)%kabs),maxval(atm%delta_op (k,:,:)%ksca),maxval(atm%delta_op (k,:,:)%g),&
                 '::',minval(atm%a33 (k, :,:)),maxval(atm%a33           (k,:,:))
