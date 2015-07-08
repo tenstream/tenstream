@@ -138,7 +138,7 @@ module m_tenstream
 
   integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
 
-  logical,parameter :: lenable_solutions=.True.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
+  logical,parameter :: lenable_solutions_err_estimates=.False. ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
   real(ireals),parameter :: time_debug_solutions=zero ! if enabled, we calculate new solutions but do not return the update solutions to the host model.(set to zero to disable)
 
   type t_state_container
@@ -2759,6 +2759,13 @@ end subroutine
         return 
       endif
 
+      if(.not. lenable_solutions_err_estimates) then
+        need_new_solution=.True.
+        write(reason,*) 'err. estimate thresholds inifinitely small' 
+        return 
+      endif
+
+
       call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
       do k=1,Nfit
         t(k) = solutions(uid)%time(Nfit-k+1)
@@ -3005,7 +3012,7 @@ end subroutine
       if( .not. solution%lchanged ) &
           stop 'cant restore solution which was not changed'
 
-      if(present(time) ) then ! Create working vec to determine difference between old and new absorption vec
+      if(present(time) .and. lenable_solutions_err_estimates) then ! Create working vec to determine difference between old and new absorption vec
         call DMGetGlobalVector(C_one%da, abso_old, ierr) ; CHKERRQ(ierr) 
         call VecCopy( solution%abso, abso_old, ierr)     ; CHKERRQ(ierr)
       endif
@@ -3026,7 +3033,7 @@ end subroutine
           print *,'Saving Solution done'
       solution%lchanged=.False.
 
-      if(present(time) .and. lenable_solutions) then ! Compute norm between old absorption and new one
+      if(present(time) .and. lenable_solutions_err_estimates) then ! Compute norm between old absorption and new one
         call VecAXPY(abso_old , -one, solution%abso , ierr)    ; CHKERRQ(ierr) ! overwrite abso_old with difference to new one
         call VecNorm(abso_old ,  NORM_1, norm1, ierr)          ; CHKERRQ(ierr)
         call VecNorm(abso_old ,  NORM_2, norm2, ierr)          ; CHKERRQ(ierr)
@@ -3043,7 +3050,6 @@ end subroutine
         solution%twonorm( 1 ) = norm2
         solution%time( 1 )    = time
 
-        !if(myid.eq.0) &
         if(ldebug .and. myid.eq.0) &
             print *,'Updating error statistics for solution ',solution%uid,'at time ',time,'::',solution%time(1),':: norm',norm1,norm2,norm3,'[W] :: hr_norm approx:',norm3*86.1,'[K/d]'
 
