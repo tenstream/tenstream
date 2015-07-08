@@ -1584,7 +1584,7 @@ contains
       !      Vec :: nullvecs(0)
       character(len=*),optional :: prefix
 
-      PetscReal,parameter :: rtol=1e-5_ireals, rel_atol=1e-8_ireals
+      PetscReal,parameter :: rtol=1e-4_ireals, rel_atol=1e-4_ireals
       PetscInt,parameter  :: maxiter=1000
 
       PetscInt,parameter :: ilu_default_levels=1
