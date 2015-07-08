@@ -2755,13 +2755,13 @@ end subroutine
 
       if(ltwostr_only) then
         need_new_solution=.True.
-        write(reason,*) 'twostr-only -> no err.est.' 
+        write(reason,*) 'twostr-only -> no err.est.'
         return 
       endif
 
       if(.not. lenable_solutions_err_estimates) then
         need_new_solution=.True.
-        write(reason,*) 'err. estimate thresholds inifinitely small' 
+        write(reason,*) 'err.est.thresh.inf.small' 
         return 
       endif
 
