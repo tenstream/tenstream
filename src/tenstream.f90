@@ -1390,7 +1390,7 @@ contains
       if(solution%lsolar_rad .and. (solution%lintegrated_dir .eqv..False.)) stop 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!'
       if(                          (solution%lintegrated_diff.eqv..False.)) stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
 
-      if( lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
+      if( (solution%lsolar_rad.eqv..False.) .and. lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
         call scale_flx(solution, lWm2_to_W=.False.)
         call nca_wrapper(solution%ediff, solution%abso)
         call scale_flx(solution, lWm2_to_W=.True.)
@@ -2510,25 +2510,21 @@ end subroutine
       call prepare_solution( solutions(uid), uid, lsolar=(edirTOA.gt.zero .and. sun%theta.ge.zero) ) ! setup solution vectors
 
       ! --------- Can we get an initial guess? ---------------
-      if(ltwostr) then
-        if(ltwostr_only) then
-          twostr_uid = uid
-        else
-          twostr_uid = -1
-        endif
+      if(ltwostr .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca) ) then
 
-        call prepare_solution(solutions(twostr_uid),twostr_uid, lsolar=.True. ) ! make space for twostream solution 
-        call twostream(edirTOA,  solutions(twostr_uid) )
-        solutions(twostr_uid)%lchanged=.True.
+!        call prepare_solution(solutions(twostr_uid),twostr_uid, lsolar=.True. ) ! make space for twostream solution 
+        call twostream(edirTOA,  solutions(uid) )
+        solutions(uid)%lchanged=.True.
         if(ldebug .and. myid.eq.0) print *,'twostream calculation done'
 
         if(present(opt_solution_time) ) then 
-          call restore_solution(solutions(twostr_uid),opt_solution_time)
+          call restore_solution(solutions(uid),opt_solution_time)
         else
-          call restore_solution(solutions(twostr_uid))
+          call restore_solution(solutions(uid))
         endif
 
-        if(ltwostr_only) return
+        if( ltwostr_only ) return
+        if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca ) return
       endif
 
       ! --------- scale from [W/m**2] to [W] -----------------

@@ -138,7 +138,7 @@ module m_tenstream_options
 
           call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-calc_nca" , lcalc_nca , lflg , ierr) ;CHKERRQ(ierr)
           if(lcalc_nca) then
-            ltwostr_only = .True.
+            ltwostr = .True.
           endif
 
           call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-twostr_only" , ltwostr_only , lflg , ierr) ;CHKERRQ(ierr)
