@@ -29,7 +29,8 @@ module m_tenstream_options
         luse_eddington    =.True. , & ! use delta eddington coefficients for upper atmosphere            , if False , we use boxmc 2-str coeffs
         luse_hdf5_guess   =.False., & ! try loading initial guess from file
         luse_twostr_guess =.False., & ! use twostream solution as first guess
-        lcalc_nca         =.False.    ! calculate twostream and modify absorption with NCA algorithm
+        lcalc_nca         =.False., & ! calculate twostream and modify absorption with NCA algorithm
+        lskip_thermal     =.False.    ! Skip thermal calculations and just return zero for fluxes and absorption
 
       real(ireals) :: twostr_ratio, &
             ident_dx,               &
@@ -62,6 +63,7 @@ module m_tenstream_options
           print *,'-twostr_guess         :: use delta eddington twostream solution as first guess                                    '  
           print *,'-twostr_ratio <limit> :: when aspect ratio (dz/dx) is smaller than <limit> then we use twostr_coeffs(default = 1.)'  
           print *,'-calc_nca             :: calculate twostream and modify absorption with NCA algorithm (Klinger)                   '  
+          print *,'-skip_thermal         :: skip thermal calculations and just return zero for flux and absorption                   '  
           print *,'-pert_xshift <i>      :: shift optical properties in x direction by <i> pixels                                    '  
           print *,'-pert_yshift <j>      :: shift optical properties in Y direction by <j> pixels                                    '  
           print *,'-max_solution_err [W] :: if max error of solution is estimated below this value, skip calculation                 '  
@@ -148,6 +150,8 @@ module m_tenstream_options
             luse_twostr_guess=.True.
           endif
 
+          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-skip_thermal" , lskip_thermal , lflg , ierr) ;CHKERRQ(ierr)
+
           if(myid.eq.0) then
             print *,'********************************************************************'
             print *,'***   Running Job: ',ident
@@ -159,6 +163,7 @@ module m_tenstream_options
             print *,'***   twostr       ',ltwostr
             print *,'***   twostr_guess ',luse_twostr_guess
             print *,'***   calc_nca     ',lcalc_nca         
+            print *,'***   skip_thermal ',lskip_thermal         
             print *,'***   hdf5_guess   ',luse_hdf5_guess
             print *,'***   twostr_ratio ',twostr_ratio
             print *,'***   out          ',trim(output_prefix)

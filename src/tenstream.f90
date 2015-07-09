@@ -63,7 +63,7 @@ module m_tenstream
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
       options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
-      lwriteall,lcalc_nca
+      lwriteall,lcalc_nca, lskip_thermal
 
   implicit none
 
@@ -2509,10 +2509,17 @@ end subroutine
 
       call prepare_solution( solutions(uid), uid, lsolar=(edirTOA.gt.zero .and. sun%theta.ge.zero) ) ! setup solution vectors
 
-      ! --------- Can we get an initial guess? ---------------
-      if(ltwostr .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca) ) then
+      ! --------- Skip Thermal Computation (-lskip_thermal) --
+      if(lskip_thermal .and. (solutions(uid)%lsolar_rad.eqv..False.) ) then ! 
+        if(ldebug .and. myid.eq.0) print *,'skipping thermal calculation -- returning zero flux'
+        call VecSet(solutions(uid)%ediff, zero, ierr); CHKERRQ(ierr)
+        solutions(uid)%lchanged=.True.
+        call restore_solution(solutions(uid))
+        return
+      endif
 
-!        call prepare_solution(solutions(twostr_uid),twostr_uid, lsolar=.True. ) ! make space for twostream solution 
+      ! --------- Calculate Twostream Radiative Transfer -----
+      if(ltwostr .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca) ) then
         call twostream(edirTOA,  solutions(uid) )
         solutions(uid)%lchanged=.True.
         if(ldebug .and. myid.eq.0) print *,'twostream calculation done'
