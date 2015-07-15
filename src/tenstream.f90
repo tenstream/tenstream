@@ -57,13 +57,14 @@ module m_tenstream
       zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
 
   use m_twostream, only: delta_eddington_twostream
+  use m_schwarzschild, only: schwarzschild
   use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and,imp_allreduce_min
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
       options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
-      lwriteall,lcalc_nca, lskip_thermal
+      lwriteall,lcalc_nca, lskip_thermal, lschwarzschild
 
   implicit none
 
@@ -125,7 +126,7 @@ module m_tenstream
   end type
   type(t_suninfo),save :: sun
 
-  PetscLogStage,save :: logstage(12)
+  PetscLogStage,save :: logstage(13)
 
   Mat,save :: Mdir,Mdiff
 
@@ -1758,6 +1759,7 @@ contains
       call PetscLogStageRegister('write_hdf5'      , logstage(10)    , ierr) ;CHKERRQ(ierr)
       call PetscLogStageRegister('load_save_sol'   , logstage(11)    , ierr) ;CHKERRQ(ierr)
       call PetscLogStageRegister('nca'             , logstage(12)    , ierr) ;CHKERRQ(ierr)
+      call PetscLogStageRegister('schwarzschild'   , logstage(13)    , ierr) ;CHKERRQ(ierr)
 
       if(myid.eq.0 .and. ldebug) print *, 'Logging stages' , logstage
       logstage_init=.True.
@@ -1842,6 +1844,56 @@ contains
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
   end subroutine
 
+  subroutine schwarz(solution)
+      type(t_state_container) :: solution
+
+      PetscReal,pointer,dimension(:,:,:,:) :: xv_diff=>null()
+      PetscReal,pointer,dimension(:)       :: xv_diff1d=>null()
+      integer(iintegers) :: i,j,src
+
+      real(ireals),allocatable :: dtau(:),Edn(:),Eup(:)
+
+      if(solution%lsolar_rad) stop 'Tried calling schwarschild solver for solar calculation -- stopping!'
+      if( .not. allocated(atm%planck) ) stop 'Tried calling schwarschild solver but no planck was given -- stopping!' 
+
+      call PetscLogStagePush(logstage(13),ierr) ;CHKERRQ(ierr)
+
+      call VecSet(solution%ediff,zero,ierr); CHKERRQ(ierr)
+
+      allocate( dtau(C_diff%zm-1) )
+
+      call getVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff ,.False.)
+
+      allocate( Eup(C_diff%zm) )
+      allocate( Edn(C_diff%zm) )
+
+      if(myid.eq.0 .and. ldebug) print *,' CALCULATING schwarzschild ::'
+
+      do j=C_diff%ys,C_diff%ye         
+        do i=C_diff%xs,C_diff%xe
+
+          dtau = atm%dz(:,i,j)* atm%op(:,i,j)%kabs
+
+          call schwarzschild( dtau,atm%albedo, Edn,Eup, atm%planck(:,i,j) )
+
+          xv_diff(E_up,:,i,j) = Eup(:) 
+          xv_diff(E_dn,:,i,j) = Edn(:) 
+        enddo
+      enddo
+
+      call restoreVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff )
+
+      !Schwarzschild solver returns fluxes as [W/m^2]
+      solution%lintegrated_dir  = .False.
+      solution%lintegrated_diff = .False.
+      ! and mark solution that it is not up to date
+      solution%lchanged         = .True. 
+
+      deallocate(Edn)
+      deallocate(Eup)
+
+      call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+  end subroutine
   subroutine twostream(edirTOA,solution)
       real(ireals),intent(in) :: edirTOA
       type(t_state_container) :: solution
@@ -2520,11 +2572,18 @@ end subroutine
         return
       endif
 
-      ! --------- Calculate Twostream Radiative Transfer -----
-      if(ltwostr .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca) ) then
-        call twostream(edirTOA,  solutions(uid) )
-        solutions(uid)%lchanged=.True.
-        if(ldebug .and. myid.eq.0) print *,'twostream calculation done'
+      ! --------- Calculate 1D Radiative Transfer ------------
+      if(  ltwostr                                                       &
+      .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca)     &
+      .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild) ) then
+
+        if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
+          call schwarz(solutions(uid))
+        else
+          call twostream(edirTOA,  solutions(uid) )
+        endif
+
+        if(ldebug .and. myid.eq.0) print *,'1D calculation done'
 
         if(present(opt_solution_time) ) then 
           call restore_solution(solutions(uid),opt_solution_time)
@@ -2534,6 +2593,7 @@ end subroutine
 
         if( ltwostr_only ) return
         if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca ) return
+        if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) return
       endif
 
       ! --------- scale from [W/m**2] to [W] -----------------
