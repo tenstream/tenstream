@@ -14,6 +14,7 @@ set( general_sources
   "kato_data.f90"  
   "mersenne.f90"  
   "twostream.f90"
+  "schwarzschild.f90"
   "tenstream.f90"
   "tenstream_options.f90"
   "f2c_tenstream.f90"
