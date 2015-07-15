@@ -103,7 +103,7 @@ module m_tenstream
 
   type t_atmosphere
     type(t_optprop) , allocatable , dimension(:,:,:) :: op
-    type(t_optprop) , allocatable , dimension(:,:,:) :: delta_op
+!    type(t_optprop) , allocatable , dimension(:,:,:) :: delta_op
     real(ireals)    , allocatable , dimension(:,:,:) :: planck
     real(ireals)    , allocatable , dimension(:,:,:) :: a11, a12, a13, a23, a33
     real(ireals)    , allocatable , dimension(:,:,:) :: g1,g2
@@ -910,7 +910,7 @@ contains
           src = 7 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j+1-sun%yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
           src = 8 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j+1-sun%yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
-          call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
+          call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
 
           call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
@@ -940,7 +940,7 @@ contains
           if(luse_eddington) then
             v = atm%a33(k,i,j)
           else
-            call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
+            call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
           endif
 
           col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k    
@@ -1069,7 +1069,7 @@ contains
           dst = 8; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
           dst = 9; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
-          call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., v, atm%l1d(k,i,j))
+          call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., v, atm%l1d(k,i,j))
 
           call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
@@ -1098,7 +1098,7 @@ contains
           if(luse_eddington ) then
             v = [ atm%a12(k,i,j), atm%a11(k,i,j), atm%a11(k,i,j), atm%a12(k,i,j)]
           else
-            call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., twostr_coeff, atm%l1d(k,i,j)) !twostr_coeff ==> a12,a11,a12,a11
+            call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., twostr_coeff, atm%l1d(k,i,j)) !twostr_coeff ==> a12,a11,a12,a11
             v = [ twostr_coeff(1), twostr_coeff(2) , twostr_coeff(2) , twostr_coeff(1) ]
           endif
 
@@ -1214,7 +1214,7 @@ contains
 
                   else
 
-                    call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., diff2diff1d, atm%l1d(k,i,j))
+                    call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., diff2diff1d, atm%l1d(k,i,j))
 
                     b0 = .5_ireals*(atm%planck(k,i,j)+atm%planck(k+1,i,j)) *pi
                     xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
@@ -1226,7 +1226,7 @@ contains
                   Ax = atm%dy*atm%dz(k,i,j)
                   Ay = atm%dx*atm%dz(k,i,j)
 
-                  call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
+                  call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
                   ! reorder from destination ordering to src ordering
                   do src=1,C_diff%dof
                     v(entries+src) = diff2diff( i1+(src-i1)*C_diff%dof : src*C_diff%dof )
@@ -1295,7 +1295,7 @@ contains
                       enddo
 
                     else
-                      call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., twostr_coeff, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
+                      call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., twostr_coeff, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
                       do src=1,4
                         dir2diff(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
                         dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
@@ -1309,7 +1309,7 @@ contains
 
                   else ! Tenstream source terms
 
-                    call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., dir2diff,  atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
+                    call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., dir2diff,  atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
 
                     do src=1,C_dir%dof
                       select case(src)
@@ -2046,7 +2046,7 @@ end subroutine
         do i=C%xs,C%xe    
           do k=C%zs,C%ze-1 
             if( .not. atm%l1d(k,i,j) ) then
-              call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
+              call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
               do src=1,C%dof
                 xguess(E_up   , k   , i   , j   ) = xguess(E_up   , k   , i   , j   ) +  xinp(src-1 , k , i , j ) *diff2diff(E_up  +i1+(src-1 ) *C%dof )
                 xguess(E_dn   , k+1 , i   , j   ) = xguess(E_dn   , k+1 , i   , j   ) +  xinp(src-1 , k , i , j ) *diff2diff(E_dn  +i1+(src-1 ) *C%dof )
@@ -2417,15 +2417,17 @@ end subroutine
         if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%op)
       endif
 
+      call delta_scale(atm%op(:,:,:)%kabs, atm%op(:,:,:)%ksca, atm%op(:,:,:)%g ) 
+
       if(ltwostr_only) return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
 
       ! Make space for deltascaled optical properties
-      if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%zs :C_one%ze,C_one%xs :C_one%xe , C_one%ys :C_one%ye ) )
-      atm%delta_op = atm%op
-      call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
+      !if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%zs :C_one%ze,C_one%xs :C_one%xe , C_one%ys :C_one%ye ) )
+      !atm%delta_op = atm%op
+      !call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
 
       if(ldebug) then
-        if( (any([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g]))) ) then
+        if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
           print *,myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
         endif
       endif
@@ -2445,10 +2447,10 @@ end subroutine
           do i=C_one%xs,C_one%xe
             do k=C_one%zs,C_one%ze
               if( atm%l1d(k,i,j) ) then
-                kext = atm%delta_op(k,i,j)%kabs + atm%delta_op(k,i,j)%ksca
-                w0   = atm%delta_op(k,i,j)%ksca / kext
+                kext = atm%op(k,i,j)%kabs + atm%op(k,i,j)%ksca
+                w0   = atm%op(k,i,j)%ksca / kext
                 tau  = atm%dz(k,i,j)* kext
-                g    = atm%delta_op(k,i,j)%g 
+                g    = atm%op(k,i,j)%g 
                 call eddington_coeff_zdun ( tau , w0, g, sun%costheta, & 
                     atm%a11(k,i,j),          &
                     atm%a12(k,i,j),          &
@@ -2480,13 +2482,13 @@ end subroutine
         do k=C_one%zs,C_one%ze
           if(present(local_planck)) then
             print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one%xs,C_one%ys),atm%l1d(k,C_one%xs,C_one%ys),'k',&
-                minval(atm%delta_op    (k,:,:)%kabs),minval(atm%delta_op (k, :,:)%ksca),minval(atm%delta_op (k, :,:)%g),&
-                maxval(atm%delta_op    (k,:,:)%kabs),maxval(atm%delta_op (k, :,:)%ksca),maxval(atm%delta_op (k, :,:)%g),&
+                minval(atm%op    (k,:,:)%kabs),minval(atm%op (k, :,:)%ksca),minval(atm%op (k, :,:)%g),&
+                maxval(atm%op    (k,:,:)%kabs),maxval(atm%op (k, :,:)%ksca),maxval(atm%op (k, :,:)%g),&
                 '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
           else    
             print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one%xs,C_one%ys),atm%l1d(k,C_one%xs,C_one%ys),'k',&
-                minval(atm%delta_op (k, :,:)%kabs),minval(atm%delta_op (k,:,:)%ksca),minval(atm%delta_op (k,:,:)%g),&
-                maxval(atm%delta_op (k, :,:)%kabs),maxval(atm%delta_op (k,:,:)%ksca),maxval(atm%delta_op (k,:,:)%g),&
+                minval(atm%op (k, :,:)%kabs),minval(atm%op (k,:,:)%ksca),minval(atm%op (k,:,:)%g),&
+                maxval(atm%op (k, :,:)%kabs),maxval(atm%op (k,:,:)%ksca),maxval(atm%op (k,:,:)%g),&
                 '::',minval(atm%a33 (k, :,:)),maxval(atm%a33           (k,:,:))
           endif
         enddo
@@ -2605,7 +2607,7 @@ end subroutine
         enddo
 
         if(allocated(atm%op))       deallocate(atm%op)
-        if(allocated(atm%delta_op)) deallocate(atm%delta_op)
+!        if(allocated(atm%delta_op)) deallocate(atm%delta_op)
         if(allocated(atm%planck))   deallocate(atm%planck)
         if(allocated(atm%a11))      deallocate(atm%a11)
         if(allocated(atm%a12))      deallocate(atm%a12)
@@ -3062,7 +3064,7 @@ end subroutine
         if(ldebug .and. myid.eq.0) &
             print *,'Updating error statistics for solution ',solution%uid,'at time ',time,'::',solution%time(1),':: norm',norm1,norm2,norm3,'[W] :: hr_norm approx:',norm3*86.1,'[K/d]'
 
-      endif !present(time)
+      endif !present(time) .and. lenable_solutions_err_estimates
 
 
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
