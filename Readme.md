@@ -5,11 +5,11 @@
   <http://dx.doi.org/10.1016/j.jqsrt.2015.05.003>
 
 #### The solver is coupled to the software packages:
-  * LibRadtran  -- all purpose radiative transfer Library(partially free)
-  * UCLA-LES    -- Large Eddy Simulation code for cloud resolving simulations
+  * [LibRadtran](http://www.libradtran.org)  -- all purpose radiative transfer Library(partially free)
+  * [UCLA-LES](http://www.github.com/uclales/uclales)    -- Large Eddy Simulation code for cloud resolving simulations
+  * [COSMO](http://www.cosmo-model.org)       -- Numerical Weather Prediction model 
 
-Further installation instructions and quick tips are available at the 
-[Github-Wiki](https://github.com/tenstream/tenstream/wiki)
+##### Further installation instructions and quick tips are available at the [TenStream-Wiki](https://github.com/tenstream/tenstream/wiki)
 
 ##### Prerequisites for the Tenstream solver are
   * cmake
