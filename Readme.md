@@ -8,6 +8,9 @@
   * LibRadtran  -- all purpose radiative transfer Library(partially free)
   * UCLA-LES    -- Large Eddy Simulation code for cloud resolving simulations
 
+Further installation instructions and quick tips are available at the 
+[Github-Wiki](https://github.com/tenstream/tenstream/wiki)
+
 ##### Prerequisites for the Tenstream solver are
   * cmake
   * PETSc
@@ -33,6 +36,5 @@ If you found yourself go nuts because of compile errors,
 please consider providing installation instructions
 for your particular enviroment.
 
-Installation instructions and quick tips are available at the 
-[Github-Wiki](https://github.com/tenstream/tenstream/wiki)
+
 
