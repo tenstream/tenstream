@@ -19,10 +19,6 @@ hidden_layers = 100
 
 
 
-
-
-
-
 input_array  = np.load ( FilePath + ArrayFolder + InputFile  )
 target_array = np.load ( FilePath + ArrayFolder + TargetFile )
 
@@ -32,14 +28,6 @@ net = Neural_Network(input_array, target_array, hidden_layers, train_percent, tr
 
 
 ff.savenet(net, FilePath + NNFolder + NNName)
-
-
-
-
-
-
-
-
 
 
 
