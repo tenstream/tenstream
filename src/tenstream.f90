@@ -139,7 +139,7 @@ module m_tenstream
 
   integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
 
-  logical,parameter :: lenable_solutions_err_estimates=.False. ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
+  logical,parameter :: lenable_solutions_err_estimates=.True.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
   real(ireals),parameter :: time_debug_solutions=zero ! if enabled, we calculate new solutions but do not return the update solutions to the host model.(set to zero to disable)
 
   type t_state_container
@@ -2882,9 +2882,8 @@ end subroutine
 
 
       error_estimate = maxval(abs(estimate))
-!      error_estimate = abs( integ_err(Nfit)-integ_err(Nfit-1) )/ max(epsilon(time), time - t(Nfit))
 
-      if(myid.eq.0) then ! .and. error_estimate.le.zero) then
+      if(myid.eq.0 .and. ldebug) then ! .and. error_estimate.le.zero) then
         print *,'DEBUG t',t
         print *,'DEBUG tm',tm
         print *,'DEBUG dt',dt
