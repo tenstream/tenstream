@@ -133,13 +133,26 @@ endif(${_is_XLF})
 # Add Source Directories
 add_subdirectory (src)
 
+# Documentation targets
+add_custom_target(doc DEPENDS wiki doxygen)
+
+# Add `wiki` submodule
+add_custom_target(wiki 
+  git submodule init tenstream.wiki
+  COMMAND git submodule update --remote tenstream.wiki
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  COMMENT "Updating Wiki submodule" VERBATIM
+  )
+
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
   configure_file(${PROJECT_SOURCE_DIR}/doc/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/doc/Doxyfile @ONLY)
-  add_custom_target(doc
+  add_custom_target(doxygen
     ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/doc/Doxyfile
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generating API documentation with Doxygen" VERBATIM
     )
+else(FOXYGEN_FOUND)
+  message(STATUS "Could not find Doxygen to create source code documentation")
 endif(DOXYGEN_FOUND)
