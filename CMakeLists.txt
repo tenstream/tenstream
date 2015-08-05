@@ -91,6 +91,14 @@ message(STATUS "Petsc compiler: ${PETSC_COMPILER}" )
 message(STATUS "Petsc VERSION : ${PETSC_VERSION}" )
 message(STATUS "Petsc definiti: ${PETSC_DEFINITIONS}")
 
+list(APPEND CMAKE_MODULE_PATH "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/lib/petsc/conf/")
+include(PETScConfig OPTIONAL)
+
+if(PETSC_HDF5_LIB)
+  message(STATUS "Petsc HDF5:     ${PETSC_HDF5_LIB}")
+  add_definitions(-D_PETSC_HAVE_HDF5)
+endif(PETSC_HDF5_LIB)
+
 add_definitions (${PETSC_DEFINITIONS})
 include_directories (${PETSC_INCLUDES})
 list (APPEND EXTLIB "${PETSC_LIBRARIES}" )

@@ -19,6 +19,8 @@
 
 module m_optprop_LUT
 
+#include "petsc/finclude/petscdef.h"
+  use petsc
   use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
 
   use m_helper_functions, only : approx,rel_approx,imp_bcast,mpi_logical_and,mpi_logical_or
@@ -123,8 +125,8 @@ contains
       integer(iintegers) :: idx,idy
       integer(iintegers),parameter :: horiz_rounding=1 ! round LUT for various horizontal distances: e.g. horiz_rounding=10 -> dx=66.7 ==> dx=70
 
-      call MPI_Comm_rank(comm, myid, mpierr)
-      call MPI_Comm_size(comm, comm_size, mpierr)
+      call MPI_Comm_rank(comm, myid, mpierr); CHKERRQ(mpierr)
+      call MPI_Comm_size(comm, comm_size, mpierr); CHKERRQ(mpierr)
       idx = nint( dx/horiz_rounding  ) * horiz_rounding
       idy = nint( dy/horiz_rounding  ) * horiz_rounding
 
@@ -218,13 +220,13 @@ subroutine loadLUT_diff(OPP, comm)
       call ncload(OPP%diffLUT%S%table_name_tol, OPP%diffLUT%S%stddev_tol,iierr) ; errcnt = errcnt+iierr
 
       if( allocated(OPP%diffLUT%S%stddev_tol) ) &
-          lstddev_inbounds = all(real(OPP%diffLUT%S%stddev_tol).le.real(stddev_atol)+10._ireals*epsilon(one))
+          lstddev_inbounds = all( OPP%diffLUT%S%stddev_tol.le.stddev_atol )
       
           if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'... loading diffuse OPP%diffLUT',errcnt,lstddev_inbounds
     endif !master
 
-    call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr) ! inform all nodes if we were able to load the LUT
-    call mpi_bcast(lstddev_inbounds , 1_mpiint , imp_logical , 0_mpiint , comm , mpierr) ! and if all coefficients are valid
+    call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr); CHKERRQ(mpierr) ! inform all nodes if we were able to load the LUT
+    call mpi_bcast(lstddev_inbounds , 1_mpiint , imp_logical , 0_mpiint , comm , mpierr); CHKERRQ(mpierr) ! and if all coefficients are valid
 
     if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then ! something is missing... lets try to recompute missing values in LUT
       if(myid.eq.0) then
@@ -311,18 +313,18 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             lstddev_inbounds = .True. ! first assume that precision is met and then check if this is still the case...
             write(str(6),FMT='(A)') 'S_rtol' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr) 
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0 
-            if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol+1e-8_ireals))
+            if(lstddev_inbounds) lstddev_inbounds = all(OPP%dirLUT%S(iphi,itheta)%stddev_tol.le.stddev_atol)
 
             write(str(6),FMT='(A)') 'T_rtol' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr)
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0
-            if(lstddev_inbounds) lstddev_inbounds = all(real(OPP%dirLUT%S(iphi,itheta)%stddev_tol).le.real(stddev_atol+1e-8_ireals))
+            if(lstddev_inbounds) lstddev_inbounds = all(OPP%dirLUT%S(iphi,itheta)%stddev_tol.le.stddev_atol)
 
             if(OPP%optprop_LUT_debug) &
                 print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds,':',trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5))
         endif !master
 
-        call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr)
-        call mpi_bcast(lstddev_inbounds , 1_mpiint , imp_logical , 0_mpiint , comm , mpierr)
+        call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr); CHKERRQ(mpierr)
+        call mpi_bcast(lstddev_inbounds , 1_mpiint , imp_logical , 0_mpiint , comm , mpierr); CHKERRQ(mpierr)
 
         if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then
           if(myid.eq.0) then
@@ -422,7 +424,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
         integer(iintegers) :: idz,ikabs ,iksca,ig
         integer(iintegers) :: isrc,idst,ind
 
-        logical :: ldone
+        logical :: ldone(OPP%diff_streams)
 
         finalizedworkers=0
         total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz *OPP%diff_streams
@@ -453,10 +455,15 @@ subroutine createLUT_diff(OPP, LUT, comm)
             iksca = allwork(cnt, 4)
             ig    = allwork(cnt, 5)
 
-            ldone = ( ( S%c( isrc, idz,ikabs ,iksca,ig ).ge.zero)              &
-                .and. ( S%c( isrc, idz,ikabs ,iksca,ig ).le.one )              &
-                .and. real(S%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol) )
-            if(ldone) then
+            do idst = 1,OPP%diff_streams
+                ind = (idst-1)*OPP%diff_streams + isrc
+                ldone(idst) = ( ( S%c         ( ind, idz,ikabs ,iksca,ig ).ge.zero)            &
+                          .and. ( S%c         ( ind, idz,ikabs ,iksca,ig ).le.one )            &
+                          .and. ( S%stddev_tol( ind, idz,ikabs ,iksca,ig ).le.stddev_atol ) )
+            enddo
+
+
+            if(all(ldone)) then
               if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Resuming from diffuse LUT...',cnt/(total_size/100),'%'
               cnt=cnt+1
@@ -466,7 +473,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
           ! Now that we know we got something to do, lets find a suitable worker
           gotmsg=.False.
-          call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr)
+          call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr); CHKERRQ(mpierr)
 
           if (gotmsg) then
 
@@ -475,23 +482,23 @@ subroutine createLUT_diff(OPP, LUT, comm)
             case(READYMSG)
 
               ! capture the READY MSG -- we should not leave messages hanging around.
-              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), READYMSG, comm, status, mpierr) 
+              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), READYMSG, comm, status, mpierr) ; CHKERRQ(mpierr)
 
               if(cnt.le.total_size) then ! we got something to do for a worker -- send him...
-                call mpi_send(cnt, 1_mpiint, imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr)
-                call mpi_send(allwork(cnt,:), size(allwork(cnt,:)), imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr)
+                call mpi_send(cnt, 1_mpiint, imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr); CHKERRQ(mpierr)
+                call mpi_send(allwork(cnt,:), size(allwork(cnt,:)), imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr); CHKERRQ(mpierr)
 
               else ! no more work to do... tell the worker to quit
-                call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr)
+                call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr); CHKERRQ(mpierr)
               endif
               cnt = cnt+1
 
             case(HAVERESULTSMSG)
-              call mpi_recv(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr)
-              call mpi_recv(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
-              call mpi_recv(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
-!              call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
-!              call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
+              call mpi_recv(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); CHKERRQ(mpierr)
+              call mpi_recv(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); CHKERRQ(mpierr)
+              call mpi_recv(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); CHKERRQ(mpierr)
+!              call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); CHKERRQ(mpierr)
+!              call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); CHKERRQ(mpierr)
               
               ! Sort coefficients into destination ordering and put em in LUT
               isrc  = allwork(workindex, 1)
@@ -509,7 +516,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Calculated diffuse LUT...',(100*(workindex-1)/total_size),'%'
 
-              if( mod(workindex-1, total_size/10).eq.0 ) then !every 10 percent of LUT dump it.
+              if( mod(workindex-1, total_size/100).eq.0 ) then !every 1 percent of LUT dump it.
                 print *,'Writing diffuse table to file...',workindex,total_size
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
@@ -517,12 +524,12 @@ subroutine createLUT_diff(OPP, LUT, comm)
               endif
 
             case(FINALIZEMSG)
-              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, status, mpierr)
+              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, status, mpierr); CHKERRQ(mpierr)
               finalizedworkers = finalizedworkers+1
               if(finalizedworkers.eq.numnodes-1) then
 
                 gotmsg=.False.
-                call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr)
+                call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr); CHKERRQ(mpierr)
                 if(gotmsg) then
                   print *,'Found message where I would not think there should be one',status
                   stop 'error'
@@ -539,16 +546,16 @@ subroutine createLUT_diff(OPP, LUT, comm)
         print *,'Writing diffuse table to file...'
         call ncwrite(S%table_name_c  , S%c         ,iierr)
         call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
-        print *,'done writing!',iierr
+        print *,'done writing!',iierr,':: max_atol',maxval(S%stddev_tol)
       end subroutine
       subroutine worker()
           ! workers send READY message to master
-          call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr)
+          call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr); CHKERRQ(mpierr)
 
           do
             ! ask what to do
             gotmsg=.False.
-            call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr)
+            call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr); CHKERRQ(mpierr)
 
             if (gotmsg) then
 
@@ -556,8 +563,8 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
               case(WORKMSG)
                 ! wait for work to arrive
-                call mpi_recv( workindex, 1_mpiint, imp_int, 0_mpiint, WORKMSG, comm, status, mpierr)
-                call mpi_recv( workinput , size(workinput), imp_int, 0_mpiint, WORKMSG, comm, status, mpierr)
+                call mpi_recv( workindex, 1_mpiint, imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); CHKERRQ(mpierr)
+                call mpi_recv( workinput , size(workinput), imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); CHKERRQ(mpierr)
 
                 call OPP%bmc_wrapper(workinput(1),  &
                     LUT%dx,LUT%dy,                  &
@@ -568,17 +575,17 @@ subroutine createLUT_diff(OPP, LUT, comm)
                     .False.,zero,zero,mpi_comm_self,&
                     S_diff,T_dir, S_tol,T_tol)
 
-                call mpi_send(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, mpierr)
-                call mpi_send(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
-                call mpi_send(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
-!                call mpi_send(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
-!                call mpi_send(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr)
+                call mpi_send(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, mpierr); CHKERRQ(mpierr)
+                call mpi_send(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr); CHKERRQ(mpierr)
+                call mpi_send(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr); CHKERRQ(mpierr)
+!                call mpi_send(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr); CHKERRQ(mpierr)
+!                call mpi_send(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, mpierr); CHKERRQ(mpierr)
 
-                call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr)
+                call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr); CHKERRQ(mpierr)
 
               case(FINALIZEMSG)
-                call mpi_recv(idummy, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, status, mpierr)
-                call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, mpierr)
+                call mpi_recv(idummy, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, status, mpierr); CHKERRQ(mpierr)
+                call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, mpierr); CHKERRQ(mpierr)
                 exit
 
               end select
@@ -641,7 +648,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
         integer(iintegers) :: idz,ikabs ,iksca,ig
         integer(iintegers) :: isrc,idst,ind
 
-        logical :: ldonearr(6)
+        logical :: ldoneS(OPP%diff_streams), ldoneT(OPP%dir_streams)
 
         finalizedworkers=0
         total_size = OPP%Ng*OPP%Nksca*OPP%Nkabs *OPP%Ndz *OPP%dir_streams
@@ -672,14 +679,20 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
             iksca = allwork(cnt, 4)
             ig    = allwork(cnt, 5)
 
-            ldonearr(1) = S%c( isrc, idz,ikabs ,iksca,ig).ge.zero
-            ldonearr(2) = S%c( isrc, idz,ikabs ,iksca,ig).le.one 
-            ldonearr(3) = T%c( isrc, idz,ikabs ,iksca,ig).ge.zero
-            ldonearr(4) = T%c( isrc, idz,ikabs ,iksca,ig).le.one  
-            ldonearr(5) = real(S%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol)
-            ldonearr(6) = real(T%stddev_tol(isrc, idz,ikabs ,iksca,ig)).le.real(stddev_atol)
+            do idst = 1,OPP%diff_streams
+                ind = (idst-1)*OPP%dir_streams + isrc
+                ldoneS(idst) = ( ( S%c         ( ind, idz,ikabs ,iksca,ig ).ge.zero)            &
+                           .and. ( S%c         ( ind, idz,ikabs ,iksca,ig ).le.one )            &
+                           .and. ( S%stddev_tol( ind, idz,ikabs ,iksca,ig ).le.stddev_atol ) )
+            enddo
+            do idst = 1,OPP%dir_streams
+                ind = (idst-1)*OPP%dir_streams + isrc
+                ldoneT(idst) = ( ( T%c         ( ind, idz,ikabs ,iksca,ig ).ge.zero)            &
+                           .and. ( T%c         ( ind, idz,ikabs ,iksca,ig ).le.one )            &
+                           .and. ( T%stddev_tol( ind, idz,ikabs ,iksca,ig ).le.stddev_atol ) )
+            enddo
 
-            if( all(ldonearr) ) then
+            if( all(ldoneS) .and. all(ldoneT) ) then
               if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Resuming from direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')... ',cnt/(total_size/100),'%'
               cnt=cnt+1
@@ -689,7 +702,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
 
           ! Now that we know we got something to do, lets find a suitable worker
           gotmsg=.False.
-          call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr)
+          call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr); CHKERRQ(mpierr)
 
           if (gotmsg) then
 
@@ -698,23 +711,23 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
             case(READYMSG)
 
               ! capture the READY MSG -- we should not leave messages hanging around.
-              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), READYMSG, comm, status, mpierr) 
+              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), READYMSG, comm, status, mpierr) ; CHKERRQ(mpierr)
 
               if(cnt.le.total_size) then ! we got something to do for a worker -- send him...
-                call mpi_send(cnt, 1_mpiint, imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr)
-                call mpi_send(allwork(cnt,:), size(allwork(cnt,:)), imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr)
+                call mpi_send(cnt, 1_mpiint, imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr); CHKERRQ(mpierr)
+                call mpi_send(allwork(cnt,:), size(allwork(cnt,:)), imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr); CHKERRQ(mpierr)
 
               else ! no more work to do... tell the worker to quit
-                call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr)
+                call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr); CHKERRQ(mpierr)
               endif
               cnt = cnt+1
 
             case(HAVERESULTSMSG)
-              call mpi_recv(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr)
-              call mpi_recv(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
-              call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
-              call mpi_recv(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
-              call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr)
+              call mpi_recv(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); CHKERRQ(mpierr)
+              call mpi_recv(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); CHKERRQ(mpierr)
+              call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); CHKERRQ(mpierr)
+              call mpi_recv(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); CHKERRQ(mpierr)
+              call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); CHKERRQ(mpierr)
               
               isrc  = allwork(workindex, 1)
               idz   = allwork(workindex, 2)
@@ -737,7 +750,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Calculated direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')...',(100*(workindex-1))/total_size,'%'
 
-              if( mod(workindex-1, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
+              if( mod(workindex-1, total_size/100 ).eq.0 ) then !every 1 percent of LUT dump it.
                 print *,'Writing direct table to file...'
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
@@ -747,7 +760,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
               endif
 
             case(FINALIZEMSG)
-              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, status, mpierr)
+              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, status, mpierr); CHKERRQ(mpierr)
               finalizedworkers = finalizedworkers+1
               if(finalizedworkers.eq.numnodes-1) exit ! all work is done
 
@@ -760,16 +773,16 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
         call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
         call ncwrite(T%table_name_c  , T%c         ,iierr)
         call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
-        print *,'done writing!',iierr
+        print *,'done writing!',iierr,':: max_atol S',maxval(S%stddev_tol),'max_atol T',maxval(T%stddev_tol)
       end subroutine
       subroutine worker()
           ! workers send READY message to master
-          call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr)
+          call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr); CHKERRQ(mpierr)
 
           do
             ! ask what to do
             gotmsg=.False.
-            call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr)
+            call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr); CHKERRQ(mpierr)
 
             if (gotmsg) then
 
@@ -777,8 +790,8 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
 
               case(WORKMSG)
                 ! wait for work to arrive
-                call mpi_recv( workindex, 1_mpiint, imp_int, 0_mpiint, WORKMSG, comm, status, mpierr)
-                call mpi_recv( workinput , size(workinput), imp_int, 0_mpiint, WORKMSG, comm, status, mpierr)
+                call mpi_recv( workindex, 1_mpiint, imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); CHKERRQ(mpierr)
+                call mpi_recv( workinput , size(workinput), imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); CHKERRQ(mpierr)
 
                 call OPP%bmc_wrapper(workinput(1),  &
                     LUT%dx,LUT%dy,                  &
@@ -792,17 +805,17 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
                     mpi_comm_self,                  &
                     S_diff,T_dir,S_tol,T_tol)
 
-                call mpi_send(workindex , 1_mpiint     , imp_int  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr)
-                call mpi_send(S_diff    , size(S_diff) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr)
-                call mpi_send(T_dir     , size(T_dir ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr)
-                call mpi_send(S_tol     , size(S_tol ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr)
-                call mpi_send(T_tol     , size(T_tol ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr)
+                call mpi_send(workindex , 1_mpiint     , imp_int  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); CHKERRQ(mpierr)
+                call mpi_send(S_diff    , size(S_diff) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); CHKERRQ(mpierr)
+                call mpi_send(T_dir     , size(T_dir ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); CHKERRQ(mpierr)
+                call mpi_send(S_tol     , size(S_tol ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); CHKERRQ(mpierr)
+                call mpi_send(T_tol     , size(T_tol ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); CHKERRQ(mpierr)
 
-                call mpi_send(-i1       , 1_mpiint     , imp_int  , 0_mpiint           , READYMSG       , comm , mpierr)
+                call mpi_send(-i1       , 1_mpiint     , imp_int  , 0_mpiint           , READYMSG       , comm , mpierr); CHKERRQ(mpierr)
 
               case(FINALIZEMSG)
-                call mpi_recv(idummy, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, status, mpierr)
-                call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, mpierr)
+                call mpi_recv(idummy, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, status, mpierr); CHKERRQ(mpierr)
+                call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, mpierr); CHKERRQ(mpierr)
                 exit
 
               end select

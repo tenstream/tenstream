@@ -57,13 +57,14 @@ module m_tenstream
       zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
 
   use m_twostream, only: delta_eddington_twostream
+  use m_schwarzschild, only: schwarzschild
   use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and,imp_allreduce_min
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
       options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
-      lwriteall,lcalc_nca
+      lwriteall,lcalc_nca, lskip_thermal, lschwarzschild
 
   implicit none
 
@@ -103,7 +104,7 @@ module m_tenstream
 
   type t_atmosphere
     type(t_optprop) , allocatable , dimension(:,:,:) :: op
-    type(t_optprop) , allocatable , dimension(:,:,:) :: delta_op
+!    type(t_optprop) , allocatable , dimension(:,:,:) :: delta_op
     real(ireals)    , allocatable , dimension(:,:,:) :: planck
     real(ireals)    , allocatable , dimension(:,:,:) :: a11, a12, a13, a23, a33
     real(ireals)    , allocatable , dimension(:,:,:) :: g1,g2
@@ -125,7 +126,7 @@ module m_tenstream
   end type
   type(t_suninfo),save :: sun
 
-  PetscLogStage,save :: logstage(12)
+  PetscLogStage,save :: logstage(13)
 
   Mat,save :: Mdir,Mdiff
 
@@ -138,7 +139,7 @@ module m_tenstream
 
   integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
 
-  logical,parameter :: lenable_solutions=.True.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
+  logical,parameter :: lenable_solutions_err_estimates=.False. ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
   real(ireals),parameter :: time_debug_solutions=zero ! if enabled, we calculate new solutions but do not return the update solutions to the host model.(set to zero to disable)
 
   type t_state_container
@@ -249,8 +250,8 @@ contains
 
           allocate(C%neighbors(0:3**C%dim-1) )
           call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;CHKERRQ(ierr)
-          if(ldebug.and.C%dim.eq.3) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
-          if(ldebug.and.C%dim.eq.2) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
+          if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
+          if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
       end subroutine
   end subroutine
 
@@ -310,8 +311,8 @@ contains
       call mat_info(A)
 
       call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-      call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-      call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
+      !      call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
+      call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr) ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
 
       call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
       call MatSetUp(A,ierr) ;CHKERRQ(ierr)
@@ -394,92 +395,92 @@ contains
       xd(E_dn,C%zs+1:C%ze,:,:) = C%dof+i1
 
       ! Determine prealloc for E_dn and E_up
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
+      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
         ! E_le is not local
         xd(E_dn,C%zs+1:C%ze,C%xe,:) = xd(E_dn,C%zs+1:C%ze,C%xe,:) - i2
         xo(E_dn,C%zs+1:C%ze,C%xe,:) = xo(E_dn,C%zs+1:C%ze,C%xe,:) + i2
         xd(E_up,C%zs:C%ze-1,C%xe,:) = xd(E_up,C%zs:C%ze-1,C%xe,:) - i2
         xo(E_up,C%zs:C%ze-1,C%xe,:) = xo(E_up,C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0) then ! neigh north
+      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0)) then ! neigh north
         ! E_ba is not local
         xd(E_dn,C%zs+1:C%ze,:,C%ye) = xd(E_dn,C%zs+1:C%ze,:,C%ye) - i2
         xo(E_dn,C%zs+1:C%ze,:,C%ye) = xo(E_dn,C%zs+1:C%ze,:,C%ye) + i2
         xd(E_up,C%zs:C%ze-1,:,C%ye) = xd(E_up,C%zs:C%ze-1,:,C%ye) - i2
         xo(E_up,C%zs:C%ze-1,:,C%ye) = xo(E_up,C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0) then ! neigh south
+      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0)) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0) then ! neigh west
+      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0)) then ! neigh west
         ! no foreign stream dependencies
       endif
       ! Determine prealloc for E_le
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
+      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
         ! E_le is not local
         xd([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) = xd([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) - i2
         xo([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) = xo([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
+      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
         ! E_ba is not local
         xd([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) = xd([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) - i2
         xo([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) = xo([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
+      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
+      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
         ! no foreign stream dependencies
       endif
       ! Determine prealloc for E_ri
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
+      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
+      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
         ! E_ba is not local
         xd([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) = xd([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) - i2
         xo([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) = xo([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
+      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
+      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
         ! E_ri local dependencies are only self, and 2*E_le
         xd([E_ri_m,E_ri_p],C%zs:C%ze-1,C%xs,:) = i3
         xo([E_ri_m,E_ri_p],C%zs:C%ze-1,C%xs,:) = i8
       endif
       ! Determine prealloc for E_ba
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
+      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
         ! E_le is not local
         xd([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) = xd([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) - i2
         xo([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) = xo([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
+      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
         ! E_ba is not local
         xd([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) = xd([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) - i2
         xo([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) = xo([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) + i2
       endif
-      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
+      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
+      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
         ! no foreign stream dependencies
       endif
       ! Determine prealloc for E_fw
-      if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! neigh east
+      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
         ! E_le is not local
         xd([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) = xd([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) - i2
         xo([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) = xo([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) + i2
       endif
-      if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! neigh north
+      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
         ! no foreign stream dependencies
       endif
-      if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! neigh south
+      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
         ! E_fw local dependencies are only self, and 2*E_ba
         xd([E_fw_m,E_fw_p],C%zs:C%ze-1,:,C%ys) = i3
         xo([E_fw_m,E_fw_p],C%zs:C%ze-1,:,C%ys) = i8
       endif
-      if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 ) then ! neigh west
+      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
         ! no foreign stream dependencies
       endif
 
@@ -910,7 +911,7 @@ contains
           src = 7 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j+1-sun%yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
           src = 8 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j+1-sun%yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
-          call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
+          call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
 
           call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
@@ -940,7 +941,7 @@ contains
           if(luse_eddington) then
             v = atm%a33(k,i,j)
           else
-            call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
+            call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
           endif
 
           col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k    
@@ -1069,7 +1070,7 @@ contains
           dst = 8; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
           dst = 9; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
-          call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., v, atm%l1d(k,i,j))
+          call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., v, atm%l1d(k,i,j))
 
           call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
@@ -1098,7 +1099,7 @@ contains
           if(luse_eddington ) then
             v = [ atm%a12(k,i,j), atm%a11(k,i,j), atm%a11(k,i,j), atm%a12(k,i,j)]
           else
-            call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., twostr_coeff, atm%l1d(k,i,j)) !twostr_coeff ==> a12,a11,a12,a11
+            call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., twostr_coeff, atm%l1d(k,i,j)) !twostr_coeff ==> a12,a11,a12,a11
             v = [ twostr_coeff(1), twostr_coeff(2) , twostr_coeff(2) , twostr_coeff(1) ]
           endif
 
@@ -1214,7 +1215,7 @@ contains
 
                   else
 
-                    call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., diff2diff1d, atm%l1d(k,i,j))
+                    call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., diff2diff1d, atm%l1d(k,i,j))
 
                     b0 = .5_ireals*(atm%planck(k,i,j)+atm%planck(k+1,i,j)) *pi
                     xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
@@ -1226,7 +1227,7 @@ contains
                   Ax = atm%dy*atm%dz(k,i,j)
                   Ay = atm%dx*atm%dz(k,i,j)
 
-                  call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
+                  call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
                   ! reorder from destination ordering to src ordering
                   do src=1,C_diff%dof
                     v(entries+src) = diff2diff( i1+(src-i1)*C_diff%dof : src*C_diff%dof )
@@ -1295,7 +1296,7 @@ contains
                       enddo
 
                     else
-                      call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., twostr_coeff, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
+                      call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., twostr_coeff, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
                       do src=1,4
                         dir2diff(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
                         dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
@@ -1309,7 +1310,7 @@ contains
 
                   else ! Tenstream source terms
 
-                    call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., dir2diff,  atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
+                    call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., dir2diff,  atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
 
                     do src=1,C_dir%dof
                       select case(src)
@@ -1387,17 +1388,17 @@ contains
       PetscReal :: Volume,Ax,Ay,Az
       logical :: lhave_no_3d_layer
 
-      if(.not. solution%lintegrated_dir) stop 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!'
-      if(.not. solution%lintegrated_diff)stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
+      if(solution%lsolar_rad .and. (solution%lintegrated_dir .eqv..False.)) stop 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!'
+      if(                          (solution%lintegrated_diff.eqv..False.)) stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
 
-      if( lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
+      if( (solution%lsolar_rad.eqv..False.) .and. lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
         call scale_flx(solution, lWm2_to_W=.False.)
         call nca_wrapper(solution%ediff, solution%abso)
         call scale_flx(solution, lWm2_to_W=.True.)
         return
       endif
 
-      if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence'
+      if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence',solution%lsolar_rad.eqv..False.,lcalc_nca
       call VecSet(solution%abso,zero,ierr) ;CHKERRQ(ierr)
 
       ! if there are no 3D layers, we should skip the ghost value copying....
@@ -1584,7 +1585,7 @@ contains
       !      Vec :: nullvecs(0)
       character(len=*),optional :: prefix
 
-      PetscReal,parameter :: rtol=1e-5_ireals, rel_atol=1e-8_ireals
+      PetscReal,parameter :: rtol=1e-4_ireals, rel_atol=1e-4_ireals
       PetscInt,parameter  :: maxiter=1000
 
       PetscInt,parameter :: ilu_default_levels=1
@@ -1758,6 +1759,7 @@ contains
       call PetscLogStageRegister('write_hdf5'      , logstage(10)    , ierr) ;CHKERRQ(ierr)
       call PetscLogStageRegister('load_save_sol'   , logstage(11)    , ierr) ;CHKERRQ(ierr)
       call PetscLogStageRegister('nca'             , logstage(12)    , ierr) ;CHKERRQ(ierr)
+      call PetscLogStageRegister('schwarzschild'   , logstage(13)    , ierr) ;CHKERRQ(ierr)
 
       if(myid.eq.0 .and. ldebug) print *, 'Logging stages' , logstage
       logstage_init=.True.
@@ -1842,6 +1844,56 @@ contains
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
   end subroutine
 
+  subroutine schwarz(solution)
+      type(t_state_container) :: solution
+
+      PetscReal,pointer,dimension(:,:,:,:) :: xv_diff=>null()
+      PetscReal,pointer,dimension(:)       :: xv_diff1d=>null()
+      integer(iintegers) :: i,j,src
+
+      real(ireals),allocatable :: dtau(:),Edn(:),Eup(:)
+
+      if(solution%lsolar_rad) stop 'Tried calling schwarschild solver for solar calculation -- stopping!'
+      if( .not. allocated(atm%planck) ) stop 'Tried calling schwarschild solver but no planck was given -- stopping!' 
+
+      call PetscLogStagePush(logstage(13),ierr) ;CHKERRQ(ierr)
+
+      call VecSet(solution%ediff,zero,ierr); CHKERRQ(ierr)
+
+      allocate( dtau(C_diff%zm-1) )
+
+      call getVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff ,.False.)
+
+      allocate( Eup(C_diff%zm) )
+      allocate( Edn(C_diff%zm) )
+
+      if(myid.eq.0 .and. ldebug) print *,' CALCULATING schwarzschild ::'
+
+      do j=C_diff%ys,C_diff%ye         
+        do i=C_diff%xs,C_diff%xe
+
+          dtau = atm%dz(:,i,j)* atm%op(:,i,j)%kabs
+
+          call schwarzschild( dtau,atm%albedo, Edn,Eup, atm%planck(:,i,j) )
+
+          xv_diff(E_up,:,i,j) = Eup(:) 
+          xv_diff(E_dn,:,i,j) = Edn(:) 
+        enddo
+      enddo
+
+      call restoreVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff )
+
+      !Schwarzschild solver returns fluxes as [W/m^2]
+      solution%lintegrated_dir  = .False.
+      solution%lintegrated_diff = .False.
+      ! and mark solution that it is not up to date
+      solution%lchanged         = .True. 
+
+      deallocate(Edn)
+      deallocate(Eup)
+
+      call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+  end subroutine
   subroutine twostream(edirTOA,solution)
       real(ireals),intent(in) :: edirTOA
       type(t_state_container) :: solution
@@ -1853,7 +1905,9 @@ contains
       real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
       real(ireals) :: mu0,incSolar
 
-      call VecSet(solution%edir ,zero,ierr); CHKERRQ(ierr)
+      if(solution%lsolar_rad) &
+          call VecSet(solution%edir ,zero,ierr); CHKERRQ(ierr)
+
       call VecSet(solution%ediff,zero,ierr); CHKERRQ(ierr)
 
       call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
@@ -1866,17 +1920,18 @@ contains
       mu0 = sun%costheta
       incSolar = edirTOA* sun%costheta
 
-      call getVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
+      if(solution%lsolar_rad) &
+          call getVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
       call getVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff ,.False.)
 
-      allocate( S(C_dir%zm ) )
+      allocate( S  (C_diff%zm) )
       allocate( Eup(C_diff%zm) )
       allocate( Edn(C_diff%zm) )
 
       if(myid.eq.0 .and. ldebug) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM ::',sun%theta,':',incSolar
 
-      do j=C_dir%ys,C_dir%ye         
-        do i=C_dir%xs,C_dir%xe
+      do j=C_diff%ys,C_diff%ye         
+        do i=C_diff%xs,C_diff%xe
 
           kext = atm%op(:,i,j)%kabs + atm%op(:,i,j)%ksca
           dtau = atm%dz(:,i,j)* kext
@@ -1889,23 +1944,26 @@ contains
             call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo, S,Edn,Eup )
           endif
 
-          do src=i0,i3
-            xv_dir(src,:,i,j) = S(:)
-          enddo
+          if(solution%lsolar_rad) then
+            do src=i0,i3
+              xv_dir(src,:,i,j) = S(:)
+            enddo
+          endif
 
           xv_diff(E_up,:,i,j) = Eup(:) 
           xv_diff(E_dn,:,i,j) = Edn(:) 
         enddo
       enddo
 
-      call restoreVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  )
+      if(solution%lsolar_rad) &
+        call restoreVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  )
       call restoreVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff )
 
       !Twostream solver returns fluxes as [W]
       solution%lintegrated_dir  = .False.
       solution%lintegrated_diff = .False.
       ! and mark solution that it is not up to date
-      solution%lchanged         = .False.
+      solution%lchanged         = .True. 
 
       deallocate(S)
       deallocate(Edn)
@@ -2040,7 +2098,7 @@ end subroutine
         do i=C%xs,C%xe    
           do k=C%zs,C%ze-1 
             if( .not. atm%l1d(k,i,j) ) then
-              call get_coeff(atm%delta_op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
+              call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
               do src=1,C%dof
                 xguess(E_up   , k   , i   , j   ) = xguess(E_up   , k   , i   , j   ) +  xinp(src-1 , k , i , j ) *diff2diff(E_up  +i1+(src-1 ) *C%dof )
                 xguess(E_dn   , k+1 , i   , j   ) = xguess(E_dn   , k+1 , i   , j   ) +  xinp(src-1 , k , i , j ) *diff2diff(E_dn  +i1+(src-1 ) *C%dof )
@@ -2140,7 +2198,6 @@ end subroutine
 
       if(.not.allocated(atm%l1d)) then
         allocate(atm%l1d( C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye ) )
-        atm%l1d = .False.
       endif
 
       !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
@@ -2154,6 +2211,7 @@ end subroutine
           enddo
         enddo
       enddo
+      if(ltwostr_only) atm%l1d = .True.
 
       call setup_suninfo(phi0,theta0,sun)
 
@@ -2411,15 +2469,17 @@ end subroutine
         if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%op)
       endif
 
+      call delta_scale(atm%op(:,:,:)%kabs, atm%op(:,:,:)%ksca, atm%op(:,:,:)%g ) 
+
       if(ltwostr_only) return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
 
       ! Make space for deltascaled optical properties
-      if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%zs :C_one%ze,C_one%xs :C_one%xe , C_one%ys :C_one%ye ) )
-      atm%delta_op = atm%op
-      call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
+      !if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%zs :C_one%ze,C_one%xs :C_one%xe , C_one%ys :C_one%ye ) )
+      !atm%delta_op = atm%op
+      !call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
 
       if(ldebug) then
-        if( (any([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%delta_op(:,:,:)%kabs,atm%delta_op(:,:,:)%ksca,atm%delta_op(:,:,:)%g]))) ) then
+        if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
           print *,myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
         endif
       endif
@@ -2439,10 +2499,10 @@ end subroutine
           do i=C_one%xs,C_one%xe
             do k=C_one%zs,C_one%ze
               if( atm%l1d(k,i,j) ) then
-                kext = atm%delta_op(k,i,j)%kabs + atm%delta_op(k,i,j)%ksca
-                w0   = atm%delta_op(k,i,j)%ksca / kext
+                kext = atm%op(k,i,j)%kabs + atm%op(k,i,j)%ksca
+                w0   = atm%op(k,i,j)%ksca / kext
                 tau  = atm%dz(k,i,j)* kext
-                g    = atm%delta_op(k,i,j)%g 
+                g    = atm%op(k,i,j)%g 
                 call eddington_coeff_zdun ( tau , w0, g, sun%costheta, & 
                     atm%a11(k,i,j),          &
                     atm%a12(k,i,j),          &
@@ -2473,14 +2533,14 @@ end subroutine
       if(ldebug .and. myid.eq.0) then
         do k=C_one%zs,C_one%ze
           if(present(local_planck)) then
-            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,0,0),atm%l1d(k,0,0),'k',&
-                minval(atm%delta_op    (k,:,:)%kabs),minval(atm%delta_op (k, :,:)%ksca),minval(atm%delta_op (k, :,:)%g),&
-                maxval(atm%delta_op    (k,:,:)%kabs),maxval(atm%delta_op (k, :,:)%ksca),maxval(atm%delta_op (k, :,:)%g),&
+            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one%xs,C_one%ys),atm%l1d(k,C_one%xs,C_one%ys),'k',&
+                minval(atm%op    (k,:,:)%kabs),minval(atm%op (k, :,:)%ksca),minval(atm%op (k, :,:)%g),&
+                maxval(atm%op    (k,:,:)%kabs),maxval(atm%op (k, :,:)%ksca),maxval(atm%op (k, :,:)%g),&
                 '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
           else    
-            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,0,0),atm%l1d(k,0,0),'k',&
-                minval(atm%delta_op (k, :,:)%kabs),minval(atm%delta_op (k,:,:)%ksca),minval(atm%delta_op (k,:,:)%g),&
-                maxval(atm%delta_op (k, :,:)%kabs),maxval(atm%delta_op (k,:,:)%ksca),maxval(atm%delta_op (k,:,:)%g),&
+            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one%xs,C_one%ys),atm%l1d(k,C_one%xs,C_one%ys),'k',&
+                minval(atm%op (k, :,:)%kabs),minval(atm%op (k,:,:)%ksca),minval(atm%op (k,:,:)%g),&
+                maxval(atm%op (k, :,:)%kabs),maxval(atm%op (k,:,:)%ksca),maxval(atm%op (k,:,:)%g),&
                 '::',minval(atm%a33 (k, :,:)),maxval(atm%a33           (k,:,:))
           endif
         enddo
@@ -2503,26 +2563,37 @@ end subroutine
 
       call prepare_solution( solutions(uid), uid, lsolar=(edirTOA.gt.zero .and. sun%theta.ge.zero) ) ! setup solution vectors
 
-      ! --------- Can we get an initial guess? ---------------
-      if(ltwostr) then
-        if(ltwostr_only) then
-          twostr_uid = uid
+      ! --------- Skip Thermal Computation (-lskip_thermal) --
+      if(lskip_thermal .and. (solutions(uid)%lsolar_rad.eqv..False.) ) then ! 
+        if(ldebug .and. myid.eq.0) print *,'skipping thermal calculation -- returning zero flux'
+        call VecSet(solutions(uid)%ediff, zero, ierr); CHKERRQ(ierr)
+        solutions(uid)%lchanged=.True.
+        call restore_solution(solutions(uid))
+        return
+      endif
+
+      ! --------- Calculate 1D Radiative Transfer ------------
+      if(  ltwostr                                                       &
+      .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca)     &
+      .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild) ) then
+
+        if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
+          call schwarz(solutions(uid))
         else
-          twostr_uid = -1
+          call twostream(edirTOA,  solutions(uid) )
         endif
 
-        call prepare_solution(solutions(twostr_uid),twostr_uid, lsolar=.True. ) ! make space for twostream solution 
-        call twostream(edirTOA,  solutions(twostr_uid) )
-        solutions(twostr_uid)%lchanged=.True.
-        if(ldebug .and. myid.eq.0) print *,'twostream calculation done'
+        if(ldebug .and. myid.eq.0) print *,'1D calculation done'
 
         if(present(opt_solution_time) ) then 
-          call restore_solution(solutions(twostr_uid),opt_solution_time)
+          call restore_solution(solutions(uid),opt_solution_time)
         else
-          call restore_solution(solutions(twostr_uid))
+          call restore_solution(solutions(uid))
         endif
 
-        if(ltwostr_only) return
+        if( ltwostr_only ) return
+        if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca ) return
+        if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) return
       endif
 
       ! --------- scale from [W/m**2] to [W] -----------------
@@ -2596,7 +2667,7 @@ end subroutine
         enddo
 
         if(allocated(atm%op))       deallocate(atm%op)
-        if(allocated(atm%delta_op)) deallocate(atm%delta_op)
+!        if(allocated(atm%delta_op)) deallocate(atm%delta_op)
         if(allocated(atm%planck))   deallocate(atm%planck)
         if(allocated(atm%a11))      deallocate(atm%a11)
         if(allocated(atm%a12))      deallocate(atm%a12)
@@ -2652,7 +2723,7 @@ end subroutine
             call copy_solution(solutions(uid),solutions(-uid))
           endif
 
-        endif
+        endif !time_debug_solutions
 
       else
         uid = i0 ! default solution is uid==0
@@ -2755,9 +2826,16 @@ end subroutine
 
       if(ltwostr_only) then
         need_new_solution=.True.
-        write(reason,*) 'twostr-only -> no err.est.' 
+        write(reason,*) 'twostr-only -> no err.est.'
         return 
       endif
+
+      if(.not. lenable_solutions_err_estimates) then
+        need_new_solution=.True.
+        write(reason,*) 'err.est.thresh.inf.small' 
+        return 
+      endif
+
 
       call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
       do k=1,Nfit
@@ -3005,7 +3083,7 @@ end subroutine
       if( .not. solution%lchanged ) &
           stop 'cant restore solution which was not changed'
 
-      if(present(time) ) then ! Create working vec to determine difference between old and new absorption vec
+      if(present(time) .and. lenable_solutions_err_estimates) then ! Create working vec to determine difference between old and new absorption vec
         call DMGetGlobalVector(C_one%da, abso_old, ierr) ; CHKERRQ(ierr) 
         call VecCopy( solution%abso, abso_old, ierr)     ; CHKERRQ(ierr)
       endif
@@ -3026,7 +3104,7 @@ end subroutine
           print *,'Saving Solution done'
       solution%lchanged=.False.
 
-      if(present(time) .and. lenable_solutions) then ! Compute norm between old absorption and new one
+      if(present(time) .and. lenable_solutions_err_estimates) then ! Compute norm between old absorption and new one
         call VecAXPY(abso_old , -one, solution%abso , ierr)    ; CHKERRQ(ierr) ! overwrite abso_old with difference to new one
         call VecNorm(abso_old ,  NORM_1, norm1, ierr)          ; CHKERRQ(ierr)
         call VecNorm(abso_old ,  NORM_2, norm2, ierr)          ; CHKERRQ(ierr)
@@ -3043,11 +3121,10 @@ end subroutine
         solution%twonorm( 1 ) = norm2
         solution%time( 1 )    = time
 
-        !if(myid.eq.0) &
         if(ldebug .and. myid.eq.0) &
             print *,'Updating error statistics for solution ',solution%uid,'at time ',time,'::',solution%time(1),':: norm',norm1,norm2,norm3,'[W] :: hr_norm approx:',norm3*86.1,'[K/d]'
 
-      endif !present(time)
+      endif !present(time) .and. lenable_solutions_err_estimates
 
 
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
@@ -3150,12 +3227,12 @@ subroutine vec_to_hdf5(v)
         fmode = FILE_MODE_WRITE
       endif
 
-#ifdef _XLF
-      ! on ibm compiler disable debug writing of vectors because i could not bring petsc to compile with hdf5
-#else      
+#ifdef _PETSC_HAVE_HDF5
       call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
       call VecView(v, view, ierr) ;CHKERRQ(ierr)
       call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
+#else      
+      ! disable debug writing of vectors if we could not bring petsc to compile with hdf5
 #endif
 
       if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'

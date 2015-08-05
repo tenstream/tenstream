@@ -31,9 +31,6 @@ module m_eddington
       private
       public :: eddington_coeff_rb,eddington_coeff_fab,eddington_coeff_cosmo,eddington_coeff_zdun
 
-      integer(mpiint) :: VALUE_ERROR=-5
-
-!      logical,parameter :: ldelta_scale=.True.
       logical,parameter :: ldebug=.False.
 
       contains

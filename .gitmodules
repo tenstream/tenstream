@@ -1,0 +1,3 @@
+[submodule "tenstream.wiki"]
+	path = tenstream.wiki
+	url = git@github.com:tenstream/tenstream.wiki.git
