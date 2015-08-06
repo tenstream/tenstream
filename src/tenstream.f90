@@ -3017,7 +3017,7 @@ end subroutine
             print *,'dont know which lapack routine to call for reals with sizeof==',sizeof(one)
           endif
           if ( info /= 0 ) then
-            if(myid.eq.0) print *, "problem with lapack lsqr :: 1 :: info",info
+            if(myid.eq.0 .and. ldebug) print *, "problem with lapack lsqr :: 1 :: info",info
             ierr=2
             return
           end if
