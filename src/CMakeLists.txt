@@ -5,6 +5,7 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${INCLUDE_DIRS})
 
 set( general_sources 
+  "hello.F90"
   "helper_functions.f90" 
   "netcdfio.f90"  
   "data_parameters.f90"  
