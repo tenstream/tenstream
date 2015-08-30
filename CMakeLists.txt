@@ -163,7 +163,9 @@ else(FOXYGEN_FOUND)
   message(STATUS "Could not find Doxygen to create source code documentation")
 endif(DOXYGEN_FOUND)
 
-
-
-# Add pFUnit testing
-include(pFUnit)
+# Add pfUnit for testing
+if(ENABLE_PFUNIT)
+	enable_testing()
+	add_subdirectory(tests)
+	add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+endif(ENABLE_PFUNIT)
