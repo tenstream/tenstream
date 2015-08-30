@@ -164,6 +164,7 @@ else(FOXYGEN_FOUND)
 endif(DOXYGEN_FOUND)
 
 # Add pfUnit for testing
+option(ENABLE_PFUNIT "Enable pfUnit testing Framework" OFF)
 if(ENABLE_PFUNIT)
 	enable_testing()
 	add_subdirectory(tests)
