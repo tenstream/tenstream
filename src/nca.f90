@@ -18,7 +18,7 @@
 !----------------------------------------------------------------------------
 ! Neighbouring Column Approximation
 ! RTE Solver for the thermal spectral range, calculation of heating rates
-! Klinger and Mayer, 2015, **
+! Klinger and Mayer, 2015, The Neighbouring Column Approximation - A fast approach for the calculation of 3D thermal heating rates, JQSRT
 ! carolin.klinger@physik.lmu.de
 !----------------------------------------------------------------------------
 
@@ -193,18 +193,19 @@ contains
                 endif
                 
                 !### averaged transmitted flux
-                Trans = integrate_flux(B2_1, L_dn_3d(ilyr-1,ixx+1,iyy), &
+              Trans = integrate_flux((B(ilyr,ixx+1,iyy)+B(ilyr-1,ixx+1,iyy))/2._ireals, B2_1, L_dn_3d(ilyr-1,ixx+1,iyy), &
                      kabs_3d(ilyr-1,ixx+1,iyy), kabs_3d(ilyr-1,ixx,iyy),&
-                     az1, bz1, cz1, dz(ilyr-1,ixx,iyy), dy,  mu) + &
-                     integrate_flux(B2_1, L_dn_3d(ilyr-1,ixx-1,iyy),&
+                     bz1, cz1, dz(ilyr-1,ixx,iyy), dy,  mu) + &
+                     integrate_flux((B(ilyr,ixx-1,iyy)+B(ilyr-1,ixx-1,iyy))/2._ireals, B2_1, L_dn_3d(ilyr-1,ixx-1,iyy),&
                      kabs_3d(ilyr-1,ixx-1,iyy), kabs_3d(ilyr-1,ixx,iyy),&
-                     az1, bz1, cz1, dz(ilyr-1,ixx,iyy), dy, mu) + &                
-                     integrate_flux(B2_1, L_dn_3d(ilyr-1,ixx,iyy-1),&
+                     bz1, cz1, dz(ilyr-1,ixx,iyy), dy, mu) + &                
+                     integrate_flux((B(ilyr,ixx,iyy-1)+B(ilyr-1,ixx,iyy-1))/2._ireals, B2_1, L_dn_3d(ilyr-1,ixx,iyy-1),&
                      kabs_3d(ilyr-1,ixx,iyy-1), kabs_3d(ilyr-1,ixx,iyy),&
-                     az1, bz1, cz1, dz(ilyr-1,ixx,iyy), dx, mu) + &
-                     integrate_flux(B2_1, L_dn_3d(ilyr-1,ixx,iyy+1),&
+                     bz1, cz1, dz(ilyr-1,ixx,iyy), dx, mu) + &
+                     integrate_flux((B(ilyr,ixx,iyy+1)+B(ilyr-1,ixx,iyy+1))/2._ireals, B2_1, L_dn_3d(ilyr-1,ixx,iyy+1),&
                      kabs_3d(ilyr-1,ixx,iyy+1), kabs_3d(ilyr-1,ixx,iyy),&
-                     az1, bz1, cz1, dz(ilyr-1,ixx,iyy), dx, mu)
+                     bz1, cz1, dz(ilyr-1,ixx,iyy), dx, mu)
+
 
                 l = (Trans+L_dn_3d(ilyr,ixx,iyy))/5._ireals
 
@@ -221,28 +222,28 @@ contains
              Emdn = Emdn - B2*integrate_emis(kabs_3d(ilyr,ixx,iyy), ay, by, cy, dy, dz(ilyr,ixx,iyy), mu)
 
              ! #### side contribution - go to left ####     
-             Absdn_s = Absdn_s+integrate_abs (B2, L_dn_3d(ilyr,ixx+1,iyy), &
+             Absdn_s = Absdn_s+integrate_abs ((B(ilyr+1,ixx+1,iyy)+B(ilyr,ixx+1,iyy))/2, L_dn_3d(ilyr,ixx+1,iyy), &
                   kabs_3d(ilyr,ixx+1,iyy), kabs_3d(ilyr,ixx,iyy),&
                   az, bz, cz, dz(ilyr,ixx,iyy), dy, mu) 
              Emdn_s = -B2*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dy, mu)
 
 
              ! #### side contribution - go to right #### 
-             Absdn_s = Absdn_s + integrate_abs(B2,  L_dn_3d(ilyr,ixx-1,iyy), &
+             Absdn_s = Absdn_s + integrate_abs((B(ilyr+1,ixx-1,iyy)+B(ilyr,ixx-1,iyy))/2,  L_dn_3d(ilyr,ixx-1,iyy), &
                   kabs_3d(ilyr,ixx-1,iyy), kabs_3d(ilyr,ixx,iyy),&
                   az, bz, cz, dz(ilyr,ixx,iyy), dy,  mu) 
              Emdn_s = Emdn_s - B2*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dy, mu) 
 
 
              ! #### side contribution - go to front ####    
-             Absdn_s = Absdn_s + integrate_abs(B2,  L_dn_3d(ilyr,ixx,iyy-1), &
+             Absdn_s = Absdn_s + integrate_abs((B(ilyr+1,ixx,iyy-1)+B(ilyr,ixx,iyy-1))/2,  L_dn_3d(ilyr,ixx,iyy-1), &
                   kabs_3d(ilyr,ixx,iyy-1), kabs_3d(ilyr,ixx,iyy),&
                   az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)
              Emdn_s = Emdn_s - B2*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)    
 
 
              ! ##### side contribution - go to back ####           
-             Absdn_s = Absdn_s + integrate_abs(B2,  L_dn_3d(ilyr,ixx,iyy+1), &
+             Absdn_s = Absdn_s + integrate_abs((B(ilyr+1,ixx,iyy+1)+B(ilyr,ixx,iyy+1))/2,  L_dn_3d(ilyr,ixx,iyy+1), &
                   kabs_3d(ilyr,ixx,iyy+1), kabs_3d(ilyr,ixx,iyy),&
                   az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)
              Emdn_s = Emdn_s - B2*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)
@@ -273,18 +274,18 @@ contains
                 endif
 
                 !### averaged transmitted flux
-                Trans = integrate_flux(B2_1, L_up_3d(ilyr+2,ixx+1,iyy), &
+                Trans = integrate_flux((B(ilyr+1,ixx+1,iyy)+B(ilyr+2,ixx+1,iyy))/2._ireals, B2_1, L_up_3d(ilyr+2,ixx+1,iyy), &
                      kabs_3d(ilyr+1,ixx+1,iyy), kabs_3d(ilyr+1,ixx,iyy),&
-                     az1, bz1, cz1, dz(ilyr+1,ixx,iyy), dy,  mu) + &
-                     integrate_flux(B2_1, L_up_3d(ilyr+2,ixx-1,iyy), &
+                     bz1, cz1, dz(ilyr+1,ixx,iyy), dy,  mu) + &
+                     integrate_flux((B(ilyr+1,ixx-1,iyy)+B(ilyr+2,ixx-1,iyy))/2._ireals, B2_1, L_up_3d(ilyr+2,ixx-1,iyy), &
                      kabs_3d(ilyr+1,ixx-1,iyy), kabs_3d(ilyr+1,ixx,iyy),&
-                     az1, bz1, cz1, dz(ilyr+1,ixx,iyy), dy, mu) + &
-                     integrate_flux(B2_1, L_up_3d(ilyr+2,ixx,iyy+1), &
+                     bz1, cz1, dz(ilyr+1,ixx,iyy), dy, mu) + &
+                     integrate_flux((B(ilyr+1,ixx,iyy+1)+B(ilyr+2,ixx,iyy+1))/2._ireals, B2_1, L_up_3d(ilyr+2,ixx,iyy+1), &
                      kabs_3d(ilyr+1,ixx,iyy+1), kabs_3d(ilyr+1,ixx,iyy),&
-                     az1, bz1, cz1, dz(ilyr+1,ixx,iyy), dx, mu) + &
-                     integrate_flux(B2_1, L_up_3d(ilyr+2,ixx,iyy-1),&
+                     bz1, cz1, dz(ilyr+1,ixx,iyy), dx, mu) + &
+                     integrate_flux((B(ilyr+1,ixx,iyy-1)+B(ilyr+2,ixx,iyy-1))/2._ireals, B2_1, L_up_3d(ilyr+2,ixx,iyy-1),&
                      kabs_3d(ilyr+1,ixx,iyy-1), kabs_3d(ilyr+1,ixx,iyy),&
-                     az1, bz1, cz1, dz(ilyr+1,ixx,iyy), dx, mu)
+                     bz1, cz1, dz(ilyr+1,ixx,iyy), dx, mu)
                 l = (Trans+L_up_3d(ilyr+1,ixx,iyy))/5._ireals
              else
                 l=L_up_3d(nlyr+1,ixx,iyy)
@@ -298,29 +299,28 @@ contains
 
 
              ! #### side contribution - go to left ####
-             Absup_s = integrate_abs(B2, L_up_3d(ilyr+1,ixx+1,iyy), &
+            Absup_s = integrate_abs((B(ilyr+1,ixx+1,iyy)+B(ilyr,ixx+1,iyy))/2, L_up_3d(ilyr+1,ixx+1,iyy), &
                   kabs_3d(ilyr,ixx+1,iyy), kabs_3d(ilyr,ixx,iyy),&
                   az, bz, cz, dz(ilyr,ixx,iyy), dy, mu)
              Emup_s = -B2*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz,  dz(ilyr,ixx,iyy), dy, mu)
              
              ! #### side contribution - go to right #### 
-             Absup_s = Absup_s + integrate_abs(B2, L_up_3d(ilyr+1,ixx-1,iyy), &
+             Absup_s = Absup_s + integrate_abs((B(ilyr+1,ixx-1,iyy)+B(ilyr,ixx-1,iyy))/2, L_up_3d(ilyr+1,ixx-1,iyy), &
                   kabs_3d(ilyr,ixx-1,iyy), kabs_3d(ilyr,ixx,iyy),&
                   az, bz, cz, dz(ilyr,ixx,iyy), dy, mu)
              Emup_s = Emup_s - B2*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dy, mu)
             
              ! #### side contribution - go to front #### 
-             Absup_s = Absup_s + integrate_abs(B2, L_up_3d(ilyr+1,ixx,iyy+1), &
+             Absup_s = Absup_s + integrate_abs((B(ilyr+1,ixx,iyy+1)+B(ilyr,ixx,iyy+1))/2, L_up_3d(ilyr+1,ixx,iyy+1), &
                   kabs_3d(ilyr,ixx,iyy+1), kabs_3d(ilyr,ixx,iyy),&
                   az, bz, cz,dz(ilyr,ixx,iyy), dx, mu)
              Emup_s = Emup_s - B2*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)
             
              ! ##### side contribution - go to back #### 
-             Absup_s = Absup_s + integrate_abs(B2, L_up_3d(ilyr+1,ixx,iyy-1),&
+             Absup_s = Absup_s + integrate_abs((B(ilyr+1,ixx,iyy-1)+B(ilyr,ixx,iyy-1))/2, L_up_3d(ilyr+1,ixx,iyy-1),&
                   kabs_3d(ilyr,ixx,iyy-1), kabs_3d(ilyr,ixx,iyy),&
                   az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)
              Emup_s = Emup_s - B2*integrate_emis(kabs_3d(ilyr,ixx,iyy), az, bz, cz, dz(ilyr,ixx,iyy), dx, mu)
-           
 
              ! ### Correction fits
              afit1 = atan(log(dx/dz(ilyr,ixx,iyy))-0.24_ireals)*(0.39_ireals) 
@@ -435,45 +435,45 @@ end function integrate_abs
 ! ####################### Function - integrate_flux ############################### 
 ! # This function integrates the contributiong emission/absorption of a grid box #
 ! ################################################################################ 
-elemental function integrate_flux(B_planck, L, kabs1, kabs2, a, b, c, delta_1, delta_2, mu)
+elemental function integrate_flux(B_planck1, B_planck2, L, kabs1, kabs2, b, c, delta_1, delta_2, mu)
   
-  real(ireals), intent(in) ::B_planck, L, kabs1, kabs2, a, b, c, delta_1, delta_2, mu
+  real(ireals), intent(in) ::B_planck1,B_planck2, L, kabs1, kabs2, b, c, delta_1, delta_2, mu
   
   real(ireals) :: integrate_flux
-  real(ireals) :: factor1_ab
   real(ireals) :: factor1_bc
+  real(ireals) :: factor2_bc
   real(ireals) :: factor3_bc
-  real(ireals) :: factor4_bc
   real(ireals) :: sin_mu
   real(ireals) :: exp1
   real(ireals) :: LB
-  
-  factor1_ab = 0
+
   factor1_bc = 0
+  factor2_bc = 0
   factor3_bc = 0
-  factor4_bc = 0
   integrate_flux = 0 
   sin_mu = sqrt(1._ireals-mu*mu)
-  LB = L - B_planck
+  
+  LB = L - B_planck1
   
   exp1 = exp(-kabs2*delta_2/sin_mu)
   
-  factor1_bc = B_planck * (c-a)
-  
+  factor1_bc = B_planck2 * (c-b)
+
   if(kabs1.lt.1e-4_ireals)then
-     factor3_bc = - (LB) * exp1 * (b-a)
+     factor2_bc =  (B_planck1 - B_planck2) * exp1 * (c-b)
   else
-     factor3_bc = - (LB) * exp1 * mu/kabs1 * &
-          (exp(-kabs1*b/mu) - exp(-kabs1*a/mu))
+     factor2_bc =  (B_planck1 - B_planck2) * exp1 * mu/kabs2 * &
+          (exp(-kabs2*c/mu) - exp(-kabs2*b/mu))
   endif
-  if ((kabs1.lt.1e-4_ireals).or.(abs(kabs2-kabs1).lt.1e-4)) then
-     factor4_bc = (LB) * (c-b) * exp(-kabs2*delta_1/mu)
+  if ((kabs1.lt.1e-4_ireals).or.(abs(kabs2-kabs1).lt.1e-4_ireals)) then
+     factor3_bc = (LB) * (c-b) * exp(-kabs2*delta_1/mu)
   else
-     factor4_bc = (LB) * mu/(kabs2-kabs1) *&
+     factor3_bc = (LB) * mu/(kabs2-kabs1) *&
           (exp(((kabs2-kabs1)*c-(kabs2*delta_1))/mu) - exp(((kabs2-kabs1)*b-(kabs2*delta_1))/mu))
   endif
   
-  integrate_flux = (factor1_bc+factor3_bc+factor4_bc)/delta_1
+  integrate_flux = (factor1_bc+factor2_bc+factor3_bc)/(c-b)
+
 end function integrate_flux
 
 ! ################################################################################ 
