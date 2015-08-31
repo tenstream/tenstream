@@ -47,46 +47,24 @@ else()
 endif()
 
 include_directories(${PFUNIT_DIR}/mod)
+#include_directories( ${PROJECT_SOURCE_DIR} )
 
-include_directories(
-    ${PROJECT_SOURCE_DIR}
-    ${PROJECT_BINARY_DIR}/generated
-    )
-
-file(WRITE ${PROJECT_BINARY_DIR}/generated/testSuites.inc "")
-set(_test_sources)
-file(GLOB files "${PROJECT_SOURCE_DIR}/tests/*.[fF]90")
-foreach(_file ${files})
-    get_filename_component (_test     ${_file} NAME_WE)
-    get_filename_component (_test_ext ${_file} EXT    )
-    if (DEFINED PFUNIT_INSTALL)
-        set(test_dependency ${PROJECT_SOURCE_DIR}/tests/${_test}${_test_ext})
-    else()
-        set(test_dependency pfunit ${PROJECT_SOURCE_DIR}/tests/${_test}${_test_ext})
+macro(subdirlist result curdir)
+  file(GLOB children RELATIVE ${curdir} ${curdir}/*)
+  set(dirlist "")
+  foreach(child ${children})
+    if(IS_DIRECTORY ${curdir}/${child})
+        list(APPEND dirlist ${child})
     endif()
-    add_custom_command(
-        OUTPUT ${PROJECT_BINARY_DIR}/generated/${_test}${_test_ext}
-        COMMAND python ${PFUNIT_DIR}/bin/pFUnitParser.py ${PROJECT_SOURCE_DIR}/tests/${_test}${_test_ext} ${PROJECT_BINARY_DIR}/generated/${_test}${_test_ext}
-        DEPENDS ${test_dependency}
-        )
-    set(_test_sources ${_test_sources} ${PROJECT_BINARY_DIR}/generated/${_test}${_test_ext})
-    file(APPEND ${PROJECT_BINARY_DIR}/generated/testSuites.inc "ADD_TEST_SUITE(${_test}_suite)\n")
+  endforeach()
+  set(${result} ${dirlist})
+endmacro()
+
+subdirlist(subdirs ${CMAKE_CURRENT_SOURCE_DIR} )
+
+
+message(STATUS "SUBDIRLIST for tests ${subdirs} :: ${CDIR}")
+foreach(subdir ${subdirs})
+    message(STATUS "Adding ${subdir} to test directories")
+    add_subdirectory(${subdir})
 endforeach()
-
-set_source_files_properties(${PFUNIT_DIR}/include/driver.F90 PROPERTIES GENERATED 1)
-
-add_executable(
-    pftest_alltests
-    ${PFUNIT_DIR}/include/driver.F90
-    ${_test_sources}
-    )
-target_link_libraries(
-    pftest_alltests
-    ${PFUNIT_DIR}/lib/libpfunit.a
-	tenstream
-    )
-
-
-  add_test(alltests ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 16 ${PROJECT_BINARY_DIR}/bin/pftest_alltests)
-
-
