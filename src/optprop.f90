@@ -37,8 +37,6 @@ implicit none
 private
 public :: t_optprop_1_2,t_optprop_8_10
 
-integer(mpiint) :: ierr
-
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
   real(ireals) :: dx,dy
@@ -115,24 +113,25 @@ contains
       real(ireals),intent(in),optional :: angles(2)
 
       real(ireals) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
+      real(ireals) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
       integer(iintegers) :: isrc
 
       if(present(angles)) then 
         if(dir) then !dir2dir
           do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper( isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
+            call OPP%OPP_LUT%bmc_wrapper( isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir,S_tol,T_tol)
             C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams) = T_dir
           enddo
         else ! dir2diff
           do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
+            call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir,S_tol,T_tol)
             C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
           enddo
         endif
       else
         ! diff2diff
         do isrc=1,OPP%OPP_LUT%diff_streams
-          call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.False.,zero,zero,-1_mpiint,S_diff,T_dir)
+          call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.False.,zero,zero,-1_mpiint,S_diff,T_dir,S_tol,T_tol)
           C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
         enddo
       endif ! angles_present
@@ -147,7 +146,6 @@ contains
         real(ireals),intent(out):: C(:)
 
         real(ireals) :: angles(2)
-        integer(iintegers) :: isrc
 
         logical,parameter :: compute_coeff_online=.False.
 
@@ -208,6 +206,7 @@ contains
             real(ireals) :: norm
 
             real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
+            real(ireals) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
             real(ireals) :: frmse(2)
             real(ireals),parameter :: checking_limit=1e-1
             logical,parameter :: determine_coeff_error=.False. ! This enables on-line calculations of coefficients with bmc code.
@@ -249,7 +248,7 @@ contains
                 if(present(angles)) then 
                   if(dir) then !dir2dir
                     do isrc=1,OPP%OPP_LUT%dir_streams
-                      call OPP%OPP_LUT%bmc_wrapper( isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
+                      call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir, S_tol,T_tol)
                       frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams), T_dir)
                       print "('check ',i1,' dir2dir ',6e10.2,' :: RMSE ',2e13.4,' coeff ',8f7.4,' bmc ',8f7.4)",&
                           isrc,dz,kabs,ksca,g,angles(1),angles(2),frmse, C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams),T_dir
@@ -257,7 +256,7 @@ contains
                     enddo
                   else ! dir2diff
                     do isrc=1,OPP%OPP_LUT%dir_streams
-                      call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir)
+                      call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir,S_tol,T_tol)
                       frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams), S_diff)
                       print "('check ',i1,' dir2diff ',6e10.2,' :: RMSE ',2e13.4,' coeff ',10e10.2)",&
                           isrc,dz,kabs,ksca,g,angles(1),angles(2),frmse ,abs(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)-S_diff)
@@ -270,7 +269,7 @@ contains
                 else
                   ! diff2diff
                   do isrc=1,OPP%OPP_LUT%diff_streams
-                    call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.False.,zero,zero,-1_mpiint,S_diff,T_dir)
+                    call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.False.,zero,zero,-1_mpiint,S_diff,T_dir,S_tol,T_tol)
                     frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams), S_diff)
                     print "('check ',i1,' diff2diff ',4e10.2,' :: RMSE ',2e13.4,' coeff err',10e10.2)",&
                         isrc,dz,kabs,ksca,g,frmse,abs(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)-S_diff)

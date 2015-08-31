@@ -3,7 +3,10 @@ include(CMakeForceCompiler) #Necessary to change between MPI/parallel/profiler c
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
+
+
 cmake_minimum_required (VERSION 2.8.10)
+
 
 #Load system specific settings
 if (NOT SYST)
@@ -46,8 +49,8 @@ else()
 endif()
 
 # HDF5
-#find_package( HDF5 ) # use this for non-cmake install of HDF5
-FIND_PACKAGE (HDF5 NAMES hdf5 ) # or this if HDF5 was built with cmake support
+find_package( HDF5 ) # use this for non-cmake install of HDF5
+#FIND_PACKAGE (HDF5 NAMES hdf5 ) # or this if HDF5 was built with cmake support
 message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
 if(${HDF5_FOUND})
   message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
@@ -91,19 +94,30 @@ message(STATUS "Petsc compiler: ${PETSC_COMPILER}" )
 message(STATUS "Petsc VERSION : ${PETSC_VERSION}" )
 message(STATUS "Petsc definiti: ${PETSC_DEFINITIONS}")
 
+list(APPEND CMAKE_MODULE_PATH "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/lib/petsc/conf/")
+include(PETScConfig OPTIONAL)
+
+if(PETSC_HDF5_LIB)
+  message(STATUS "Petsc HDF5:     ${PETSC_HDF5_LIB}")
+  add_definitions(-D_PETSC_HAVE_HDF5)
+endif(PETSC_HDF5_LIB)
+
 add_definitions (${PETSC_DEFINITIONS})
 include_directories (${PETSC_INCLUDES})
 list (APPEND EXTLIB "${PETSC_LIBRARIES}" )
 
 # Set MPI Stuff
-#find_package( MPI )
-#if(${MPI_Fortran_FOUND})
-#  add_definitions(${MPI_Fortran_COMPILE_FLAGS})
-#  include_directories(${MPI_Fortran_INCLUDE_PATH})
-#  link_directories(${MPI_Fortran_LIBRARIES})
-#  list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
-#  include_directories(${ITAPS_INCLUDES})
-#endif(${MPI_Fortran_FOUND})
+find_package( MPI REQUIRED )
+if(${MPI_Fortran_FOUND})
+  add_definitions(${MPI_Fortran_COMPILE_FLAGS})
+  include_directories(${MPI_Fortran_INCLUDE_PATH})
+  link_directories(${MPI_Fortran_LIBRARIES})
+  list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
+  include_directories(${ITAPS_INCLUDES})
+  message(STATUS "+++++++ MPI FOUND")
+else(${MPI_Fortran_FOUND})
+  message(WARNING "!!!!!!! MPI MISSING")
+endif(${MPI_Fortran_FOUND})
 
 # Set Output Directories
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE PATH "Output directory for Dohp archives")
@@ -125,13 +139,34 @@ endif(${_is_XLF})
 # Add Source Directories
 add_subdirectory (src)
 
+# Documentation targets
+add_custom_target(doc DEPENDS wiki doxygen)
+
+# Add `wiki` submodule
+add_custom_target(wiki 
+  git submodule init tenstream.wiki
+  COMMAND git submodule update --remote tenstream.wiki
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  COMMENT "Updating Wiki submodule" VERBATIM
+  )
+
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
   configure_file(${PROJECT_SOURCE_DIR}/doc/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/doc/Doxyfile @ONLY)
-  add_custom_target(doc
+  add_custom_target(doxygen
     ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/doc/Doxyfile
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generating API documentation with Doxygen" VERBATIM
     )
+else(FOXYGEN_FOUND)
+  message(STATUS "Could not find Doxygen to create source code documentation")
 endif(DOXYGEN_FOUND)
+
+# Add pfUnit for testing
+option(ENABLE_PFUNIT "Enable pfUnit testing Framework" OFF)
+if(ENABLE_PFUNIT)
+	enable_testing()
+	add_subdirectory(tests)
+	add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+endif(ENABLE_PFUNIT)

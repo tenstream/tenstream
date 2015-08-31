@@ -35,11 +35,6 @@ module m_data_parameters
              mpiint,imp_int,imp_real,imp_logical,imp_comm,myid,numnodes,mpierr, &
              init_mpi_data_parameters
 
-!      integer,parameter :: &
-!      ireals=selected_real_kind(8,100), &
-!      ireals=selected_real_kind(16,200), &
-!      iintegers=selected_int_kind(12)
-
       integer :: mpiint_dummy
       PetscInt :: petscint_dummy
       PetscReal :: petscreal_dummy
@@ -64,18 +59,18 @@ module m_data_parameters
 contains 
 subroutine init_mpi_data_parameters(comm)
   integer,intent(in) :: comm
-  integer :: size,ierror
+  integer :: size
 
   imp_comm = comm
 
-  call MPI_COMM_RANK( imp_comm, myid, mpierr )
-  call MPI_Comm_size( imp_comm, numnodes, mpierr)
+  call MPI_COMM_RANK( imp_comm, myid, mpierr); CHKERRQ(mpierr)
+  call MPI_Comm_size( imp_comm, numnodes, mpierr); CHKERRQ(mpierr)
 
-  call MPI_SIZEOF(i0, size, ierror)    
-  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, size, imp_int, ierror)
+  call MPI_SIZEOF(i0, size, mpierr); CHKERRQ(mpierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, size, imp_int, mpierr); CHKERRQ(mpierr)
 
-  call MPI_SIZEOF(one, size, ierror)    
-  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, size, imp_real, ierror)
+  call MPI_SIZEOF(one, size, mpierr); CHKERRQ(mpierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, size, imp_real, mpierr); CHKERRQ(mpierr)
 
   imp_logical = mpi_logical
 

@@ -69,7 +69,7 @@ module m_twostream
         dtau = dtau_in
         w0   = w0_in
         g    = g_in
-        call delta_scale_optprop( dtau, w0, g  )
+!        call delta_scale_optprop( dtau, w0, g  )
 
         do k=1,ke
           call eddington_coeff_zdun (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k), g1(k),g2(k) )

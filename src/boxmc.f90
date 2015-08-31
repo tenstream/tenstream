@@ -28,6 +28,10 @@ module m_boxmc
       use ieee_arithmetic 
 #define isnan ieee_is_nan
 #endif
+
+#include "petsc/finclude/petscdef.h"
+      use petsc
+
       use m_helper_functions, only : approx,mean,rmse,deg2rad,norm,imp_reduce_sum
       use iso_c_binding
       use m_mersenne
@@ -92,7 +96,7 @@ module m_boxmc
       end type
 
       type stddev
-        real(ireals),allocatable,dimension(:) :: inc,delta,mean,mean2,var
+        real(ireals),allocatable,dimension(:) :: inc,delta,mean,mean2,var,relvar
         logical :: converged=.False.
         real(ireals) :: atol=zero, rtol=zero
       end type
@@ -102,7 +106,7 @@ module m_boxmc
 
       type(stddev),save :: std_Sdir, std_Sdiff, std_abso
 
-      integer(mpiint) :: ierr,myid,numnodes
+      integer(mpiint) :: mpierr,myid,numnodes
 
       logical :: lRNGseeded=.False.
       type(randomNumberSequence),save :: rndSeq
@@ -166,7 +170,7 @@ contains
   !> @details All MPI Nodes start photons from src stream and ray trace it including scattering events through the box until it leaves the box through one of the exit streams.\n
   !> Scattering Absorption is accounted for by carrying on a photon weight and succinctly lower it by lambert Beers Law \f$ \omega_{abso}^{'} = \omega_{abso} \cdot e^{- \rm{d}s \cdot {\rm k}_{sca}   }   \f$ \n
   !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev. Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
-  subroutine get_coeff(bmc,comm,op_bg,src,S_out,Sdir_out,ldir,phi0,theta0,dx,dy,dz)
+  subroutine get_coeff(bmc,comm,op_bg,src,ldir,phi0,theta0,dx,dy,dz, S_out,T_out, S_tol,T_tol )
       class(t_boxmc)                :: bmc                       !< @param[in] bmc Raytracer Type - determines number of streams
       real(ireals),intent(in)       :: op_bg(3)                  !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
       real(ireals),intent(in)       :: phi0                      !< @param[in] phi0 solar azimuth angle
@@ -176,7 +180,9 @@ contains
       logical,intent(in)            :: ldir                      !< @param[in] ldir determines if photons should be started with a fixed incidence angle
       real(ireals),intent(in)       :: dx,dy,dz                  !< @param[in] dx,dy,dz box with dimensions in [m]
       real(ireals),intent(out)      :: S_out(bmc%diff_streams)   !< @param[out] S_out diffuse streams transfer coefficients
-      real(ireals),intent(out)      :: Sdir_out(bmc%dir_streams) !< @param[out] Sdir_out direct streams transfer coefficients
+      real(ireals),intent(out)      :: T_out(bmc%dir_streams)    !< @param[out] T_out direct streams transfer coefficients
+      real(ireals),intent(out)      :: S_tol(bmc%diff_streams)    !< @param[out] absolute and relative tolerances of results
+      real(ireals),intent(out)      :: T_tol(bmc%dir_streams)     !< @param[out] absolute and relative tolerances of results
 
       type(photon)       :: p
       integer(iintegers) :: k,mycnt,mincnt
@@ -187,15 +193,9 @@ contains
 
       Ndir=i0;Ndiff=i0
 
-!      if(src.gt.i1) then
-        call init_stddev( std_Sdir , bmc%dir_streams  ,stddev_atol, stddev_rtol )
-        call init_stddev( std_Sdiff, bmc%diff_streams ,stddev_atol, stddev_rtol )
-        call init_stddev( std_abso , i1               ,stddev_atol, stddev_rtol )
-!      else
-!        call init_stddev( std_Sdir , bmc%dir_streams  ,stddev_atol*1e-1, stddev_rtol*1e-1 )
-!        call init_stddev( std_Sdiff, bmc%diff_streams ,stddev_atol*1e-1, stddev_rtol*1e-1 )
-!        call init_stddev( std_abso , i1               ,stddev_atol*1e-1, stddev_rtol*1e-1 )
-!      endif
+      call init_stddev( std_Sdir , bmc%dir_streams  ,stddev_atol, stddev_rtol )
+      call init_stddev( std_Sdiff, bmc%diff_streams ,stddev_atol, stddev_rtol )
+      call init_stddev( std_abso , i1               ,stddev_atol, stddev_rtol )
 
       if(.not.ldir) std_Sdir%converged=.True.
 
@@ -257,38 +257,46 @@ contains
       enddo ! k photons
 
       ! weight mean by calculated photons and compare it with results from other nodes
-      total_photons=k
-      S_out    = std_Sdiff%mean*k
-      if(ldir) Sdir_out = std_Sdir%mean *k
+      total_photons = k
 
-      if(comm.ne.-1 .and. myid.ge.0) then
+      S_out        = std_Sdiff%mean*k
+      if(ldir) &
+          T_out = std_Sdir%mean *k
+
+      if(comm.ne.-1 .and. myid.ge.0) then ! reduce results from all ranks
         call imp_reduce_sum(total_photons,comm,myid)
         do k=1,ubound(S_out,1)
           call imp_reduce_sum(S_out(k),comm,myid)
         enddo
 
         if(ldir) then
-          do k=1,ubound(Sdir_out,1)
-            call imp_reduce_sum(Sdir_out(k),comm,myid)
+          do k=1,ubound(T_out,1)
+            call imp_reduce_sum(T_out(k),comm,myid)
           enddo
         endif
       endif
 
+      ! normalize results to all sent photons
       S_out    = S_out / total_photons
       if(ldir) then
-        Sdir_out = Sdir_out / total_photons
+        T_out = T_out / total_photons
       else
-        Sdir_out=zero
+        T_out=zero
       endif
 
-      if( (sum(S_out)+sum(Sdir_out)).gt.one+1e-2_ireals ) then
+      ! tolerances that we achieved and report them back
+      S_tol = std_Sdiff%var
+      T_tol = std_Sdir%var
+
+      ! some debug output at the end...
+      if( (sum(S_out)+sum(T_out)).gt.one+1e-1_ireals ) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
-                sum(S_out),'+',sum(Sdir_out),'=',sum(S_out)+sum(Sdir_out),'.gt',one+1e-2_ireals,':: op',p%optprop,'eps',epsilon(one)
+                sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one+1e-1_ireals,':: op',p%optprop,'eps',epsilon(one)
         call print_photon(p)
         call exit
       endif
-      if( (any(isnan(S_out) )) .or. (any(isnan(Sdir_out)) ) ) then
-        print *,'Found a NaN in output! this should not happen! dir',Sdir_out,'diff',S_out
+      if( (any(isnan(S_out) )) .or. (any(isnan(T_out)) ) ) then
+        print *,'Found a NaN in output! this should not happen! dir',T_out,'diff',S_out
         call print_photon(p)
         call exit()
       endif
@@ -565,11 +573,13 @@ end subroutine
       if( allocated(std%mean    ) ) deallocate( std%mean )
       if( allocated(std%mean2   ) ) deallocate( std%mean2)
       if( allocated(std%var     ) ) deallocate( std%var  )
+      if( allocated(std%relvar  ) ) deallocate( std%relvar)
       allocate( std%inc   (N)) ; std%inc   = zero
       allocate( std%delta (N)) ; std%delta = zero
       allocate( std%mean  (N)) ; std%mean  = zero
       allocate( std%mean2 (N)) ; std%mean2 = zero
       allocate( std%var   (N)) ; std%var   = zero
+      allocate( std%relvar(N)) ; std%relvar= zero
       std%atol = atol
       std%rtol = rtol
       std%converged = .False.
@@ -578,7 +588,6 @@ end subroutine
 pure subroutine std_update(std, N, numnodes)
       type(stddev),intent(inout) :: std
       integer(iintegers),intent(in) :: N, numnodes
-      real(ireals) :: relvar(size(std%var))
       real(ireals),parameter :: relvar_limit=1e-6_ireals
 
       std%delta = std%inc   - std%mean
@@ -586,14 +595,12 @@ pure subroutine std_update(std, N, numnodes)
       std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
       std%var = sqrt( std%mean2/N ) / sqrt( one*N*numnodes )
       where(std%mean.gt.relvar_limit)
-        relvar = std%var / std%mean
+        std%relvar = std%var / std%mean
       elsewhere
-        relvar = zero
+        std%relvar = zero
       end where
 
-      !print *,'atol',std%var,'rtol',relvar
-      if( all( std%var .lt. std%atol .and. relvar .lt. std%rtol ) ) then
-!      if( all( std%var .lt. std%atol ) ) then
+      if( all( std%var .lt. std%atol .and. std%relvar .lt. std%rtol ) ) then
         std%converged = .True.
       else
         std%converged = .False.
@@ -608,13 +615,13 @@ pure subroutine std_update(std, N, numnodes)
         if(comm.eq.-1) then
                 myid = -1
         else
-                call MPI_Comm_rank(comm, myid, ierr)
+                call MPI_Comm_rank(comm, myid, mpierr); CHKERRQ(mpierr)
         endif
 
         if(.not.lRNGseeded) call init_random_seed(myid+2)
 
         numnodes=1
-        if(myid.ge.0) call mpi_comm_size(comm,numnodes,ierr)
+        if(myid.ge.0) call mpi_comm_size(comm,numnodes,mpierr); CHKERRQ(mpierr)
 
         select type (bmc)
           class is (t_boxmc_8_10)

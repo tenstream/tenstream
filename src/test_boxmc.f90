@@ -28,6 +28,7 @@ program main
       implicit none
 
       real(ireals) :: bg(3),delta_bg(3),delta1_bg(3),S(10),T(8),T3(3),phi0,theta0,dx,dy,dz
+      real(ireals) :: S_tol(10),T_tol(8),T3_tol(3),S2(2),T1(1),S2_tol(2),T1_tol(1)
 
       integer(iintegers),parameter :: Niter=10
       real(ireals) :: Siter(Niter,size(S) ), Titer(Niter,size(T) )
@@ -66,11 +67,11 @@ program main
       call bmc_1_2%init(MPI_COMM_WORLD)
 
       if(.True.) then
-        bg = [1e-3, 1e-36, .0 ]
-        call bmc_1_2%get_coeff(MPI_COMM_WORLD,bg,-1,S,T,.False.,phi0,theta0,dx,dy,dz)
+        bg = [1e-3, 1e-3, .0 ]
+        call bmc_1_2%get_coeff(MPI_COMM_WORLD,bg,-1,.False.,phi0,theta0,dx,dy,dz,S2,T1,S2_tol,T1_tol)
         if(myid.eq.0) write(*, FMT='( " diffuse emission :: ",2(es10.3),"  :: ",2(es10.3) )' ) S(1:2),one-S(1:2)
 
-        call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,-1,S,T,.False.,phi0,theta0,dx,dy,dz)
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,-1,.False.,phi0,theta0,dx,dy,dz,S,T,S_tol,T_tol)
         if(myid.eq.0) write(*, FMT='( " diffuse emission(-1)::  :: ",10(es10.3)," :: ",10(es10.3)  )' ) S,one-S
         print *,''
         print *,'sum S:',sum(S)
@@ -78,7 +79,7 @@ program main
         print *,''
 
         do src=1,3
-          call bmc_3_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T3,.True.,phi0,theta0,dx,dy,dz)
+          call bmc_3_10%get_coeff(MPI_COMM_WORLD,bg,src,.True.,phi0,theta0,dx,dy,dz,S,T3,S_tol,T3_tol)
           if(myid.eq.0) write(*, FMT='( " direct transmission chan",I3,":: ",3(es10.3)," :: diffuse ",10(es10.3)  )' ) src,T3,S
         enddo
 
@@ -86,14 +87,14 @@ program main
         print *,''
 
         do src=1,10
-          call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.False.,phi0,theta0,dx,dy,dz)
+          call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,.False.,phi0,theta0,dx,dy,dz,S,T,S_tol,T_tol)
           if(myid.eq.0) write(*, FMT='( " diffuse transmission chan",I3,":: ",10(es10.3)," :: emission ",es10.3  )' ) src,S,one-sum(S)
         enddo
 
         print *,''
         print *,''
         do src=1,8
-          call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.True.,phi0,theta0,dx,dy,dz)
+          call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,.True.,phi0,theta0,dx,dy,dz,S,T,S_tol,T_tol)
           if(myid.eq.0) write(*, FMT='( " direct transmission chan",I3,":: ",8(es10.3)," :: diffuse ",10(es10.3)  )' ) src,T,S
         enddo
 
@@ -154,17 +155,17 @@ program main
           print *,'1.5 aled optprop',delta1_bg
         endif
 
-        call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.True.,phi0,theta0,dx,dy,dz)
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,.True.,phi0,theta0,dx,dy,dz,S,T,S_tol,T_tol)
         if(myid.eq.0) write(*, FMT='( " direct normal     ", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
 
 
-        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta_bg,src,S,T,.True.,phi0,theta0,dx,dy,dz)
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta_bg,src,.True.,phi0,theta0,dx,dy,dz,S,T,S_tol,T_tol)
         if(myid.eq.0) write(*, FMT='( " direct deltascaled", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
 
-        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta1_bg,src,S,T,.True.,phi0,theta0,dx,dy,dz)
+        call bmc_8_10%get_coeff(MPI_COMM_WORLD,delta1_bg,src,.True.,phi0,theta0,dx,dy,dz,S,T,S_tol,T_tol)
         if(myid.eq.0) write(*, FMT='( " direct 1.5  scaled", 8(es10.3), "  ::  ",10(es10.3)  )' ) T,S
 
-        call OPP_8_10%get_coeff(dz,delta_bg(1),delta_bg(2),delta_bg(3),.True.,dir2dir_coeff,[phi0,theta0])
+        call OPP_8_10%get_coeff(dz,delta_bg(1),delta_bg(2),delta_bg(3),.True. ,dir2dir_coeff ,[phi0,theta0])
         call OPP_8_10%get_coeff(dz,delta_bg(1),delta_bg(2),delta_bg(3),.False.,dir2diff_coeff,[phi0,theta0])
         if(myid.eq.0) write(*, FMT='( " direct LUT        ", 8(es10.3), "  ::  ",10(es10.3)  )' ) dir2dir_coeff(1:OPP_8_10%OPP_LUT%dir_streams),dir2diff_coeff(1:OPP_8_10%OPP_LUT%diff_streams)
 
@@ -185,7 +186,7 @@ program main
           g = .0_ireals
           bg = [tau*(one-w)/dz, tau*w/dz, g ]
           bg = [1e-6,1e-6,0.]
-          call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,S,T,.True.,phi0,theta0,dx,dy,dz)
+          call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,.True.,phi0,theta0,dx,dy,dz,S,T,S_tol,T_tol)
           if(myid.le.1) write(*, FMT='( "iter ",I2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,T,S
 
           Siter(iter,:) = S
@@ -222,7 +223,7 @@ program main
 
       !        od_sca = tau*w
 !        op_bg = [tau*(one-w)/dz, od_sca*(one-g)/dz, zero ]
-!        call bmc_get_coeff_8_10(MPI_COMM_WORLD,op_bg,src,S_out,Sdir_out,.True.,delta_scale,phi0,theta0,dx,dy,dz)
+!        call bmc_get_coeff_8_10(MPI_COMM_WORLD,op_bg,src,.True.,delta_scale,phi0,theta0,dx,dy,dz,S_out,Sdir_out,S_tol,T_tol)
 !        if(myid.eq.0) write(*, FMT='( i2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,Sdir_out,S_out
 !      enddo
 !      if(myid.eq.0) write(*, FMT='( i2," direct ", 8(f10.5), "::",10(f10.5)  )' ) iter,Sdir_out,S_out

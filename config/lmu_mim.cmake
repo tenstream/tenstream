@@ -8,43 +8,48 @@
 #> TICAP=/home/opt/cosmo_tica_lib/
 #> 
 #> OMPI=1.8.1
-#> export OMPIDIR=$TICAP/ompi$OMPI/openmpi-$OMPI/install/
+#> export MPI=$TICAP/ompi$OMPI/
+#> export MPIDIR=$MPI/openmpi-$OMPI/install/
 #> 
-#> if [ -n "$OMPIDIR" ]
-#>     then # echo "setting OpenMPI environment to: $OMPIDIR"
-#>             export LD_RUN_PATH=$OMPIDIR/lib64/:$LD_RUN_PATH
-#>             export PATH=$OMPIDIR/bin/:$PATH
-#>             export LD_LIBRARY_PATH=$OMPIDIR/lib64/:$LD_LIBRARY_PATH
-#>             export MANPATH=$OMPIDIR/share/man:$MANPATH
-#>     fi      
+#> if [ -n "$MPIDIR" ]
+#> then 
+#>   #echo "setting OpenMPI environment to: $OMPIDIR"
+#>   export PATH=$MPIDIR/bin/:$PATH
+#>   export LD_RUN_PATH=$MPIDIR/lib64/:$LD_RUN_PATH
+#>   export LD_LIBRARY_PATH=$MPIDIR/lib64/:$LD_LIBRARY_PATH
+#>   export MANPATH=$MPIDIR/share/man:$MANPATH
+#> fi
 #>             
-#> 
-#> #PETSC 
-#> export PETSC_DIR=$TICAP/ompi$OMPI/petsc-maint
-#> export PETSc_DIR=$PETSC_DIR
-#> export PETSC_ARCH=fast-single
+#> # PETSC
+#> export PETSC_DIR=$MPI/petsc
+#> export PETSC_ARCH=fast_single
 #> 
 #> # NETCDF
-#> export NETCDFFROOT=$MPI/netcdf-fortran-4.2/install
-#> export NETCDFROOT=$MPI/netcdf-4.3.0/install
-#> export PATH=$NETCDFFROOT/bin:$NETCDFROOT/bin:$PATH
-#> export LD_LIBRARY_PATH=$NETCDFFROOT/lib64:$NETCDFROOT/lib64:$LD_LIBRARY_PATH
-#
-#
-#
-# and use this config file with cmake <tenstream_root_dir> -DSYST:STRING=lmu_mim
-#
+#> export NETCDFFROOT=$MPI/netcdf-latest/
+#> export NETCDFCROOT=$MPI/netcdf-latest/
+#> export NETCDFC_DIR=$NETCDFCROOT
+#> export NETCDFF_DIR=$NETCDFFROOT
+#> export PATH=$NETCDFFROOT/bin:$NETCDFCROOT/bin:$PATH
+#> export LD_LIBRARY_PATH=$NETCDFFROOT/lib64:$NETCDFCROOT/lib64:$LD_LIBRARY_PATH
+#> export LD_RUN_PATH=$NETCDFFROOT/lib64:$NETCDFCROOT/lib64:$LD_RUN_PATH
+#> 
+#> # HDF5
+#> export HDF5_DIR=$MPI/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/
+#> export HDF5_ROOT=$HDF5_DIR
+#> export PATH=$HDF5_DIR/bin:$PATH
+#> export LD_LIBRARY_PATH=$HDF5_DIR/lib:$LD_LIBRARY_PATH
+#> export LD_RUN_PATH=$HDF5_DIR/lib:$LD_RUN_PATH
 
-set(CMAKE_Fortran_COMPILER "/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90")
-set(Fortran_COMPILER_WRAPPER "/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90")
+# and use this config file with `cmake <tenstream_root_dir> -DSYST:STRING=lmu_mim`
+
+set(CMAKE_Fortran_COMPILER   "mpif90")
+set(Fortran_COMPILER_WRAPPER "mpif90")
 
 set(USER_C_FLAGS               "-cpp -W -std=c99") 
 set(USER_Fortran_FLAGS         "-cpp -ffree-line-length-none -g") 
 set(USER_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3") 
 set(USER_Fortran_FLAGS_DEBUG   "-fbacktrace -finit-real=nan -W -Wall -Wuninitialized -g -pg -fcheck=all -fbounds-check -pedantic -Wsurprising -ffpe-trap=invalid,zero,overflow ")
 
-set(USERLIB         "curl")
-
-set(NETCDF_DIR      "/home/opt/cosmo_tica_lib//ompi1.8.1/netcdf-latest/")
-set(NETCDF_DIR_F90  "/home/opt/cosmo_tica_lib//ompi1.8.1/netcdf-latest/")
-set(HDF_ROOT        "/home/opt/cosmo_tica_lib//ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/")
+set(NETCDF_DIR      "$ENV{NETCDFCROOT}")
+set(NETCDF_DIR_F90  "$ENV{NETCDFFROOT}")
+set(HDF5_DIR        "$ENV{HDF5ROOT}")
