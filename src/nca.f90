@@ -18,7 +18,7 @@
 !----------------------------------------------------------------------------
 ! Neighbouring Column Approximation
 ! RTE Solver for the thermal spectral range, calculation of heating rates
-! Klinger and Mayer, 2015, **
+! Klinger and Mayer, 2015, The Neighbouring Column Approximation - A fast approach for the calculation of 3D thermal heating rates, JQSRT
 ! carolin.klinger@physik.lmu.de
 !----------------------------------------------------------------------------
 
