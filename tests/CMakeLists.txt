@@ -8,7 +8,7 @@ enable_language(Fortran)
 
 enable_testing()
 
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fprofile-arcs -ftest-coverage")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fprofile-arcs -ftest-coverage -DUSE_MPI")
 
 if(DEFINED PFUNIT_INSTALL)
     message(STATUS "Manual setup of variable PFUNIT_INSTALL : ${PFUNIT_INSTALL}")
@@ -29,6 +29,7 @@ else()
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/external/pfunit
         -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+        -DMPI=YES
         )
     ExternalProject_Add(pfunit
         DOWNLOAD_COMMAND git submodule update
@@ -86,6 +87,6 @@ target_link_libraries(
     )
 
 
-add_test(alltests ${PROJECT_BINARY_DIR}/bin/pftest_alltests)
+  add_test(alltests ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 16 ${PROJECT_BINARY_DIR}/bin/pftest_alltests)
 
 

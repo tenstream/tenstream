@@ -1,19 +1,19 @@
-
-@test
-subroutine test_eddington()
+@test(npes =[1])
+subroutine test_eddington(this)
 
     use m_eddington
     use m_data_parameters, only: ireals,iintegers,zero,one,pi
 
     use pfunit_mod
 
-
     implicit none
+
+    class (MpiTestMethod), intent(inout) :: this
 
     real(ireals),parameter :: tol=1e-6
     real(ireals) :: inp(4) ! tau, omega0, g, mu0
     real(ireals) :: out(7) ! a11,a12,a13,a23,a33,g1,g2
-    real(ireals) :: targ(7)
+    real(ireals) :: targ(7)! target values, computed with double precision at LMU_MIM
 
     print *,'Checking some Eddington coefficient edge cases'
 
@@ -82,26 +82,24 @@ subroutine test_eddington()
 !        print *,''
     end subroutine
     subroutine check_out(inp,out,targ)
-        real(ireals),intent(in) :: inp(4)
-        real(ireals),intent(in) :: out(7),targ(7)
+        real(ireals),intent(in) :: inp(:)
+        real(ireals),intent(in) :: out(:),targ(:)
         integer(iintegers) :: i
         character(len=250) :: msg
 
-!        print *,''
-!        print *,'-----------------------'
-!        print *,'inp    ::',inp
-!        print *,'out    ::',out
-!        print *,'target ::',targ
-!        print *,''
-!        print *,'diff   ::',targ-out
-!        print *,'-----------------------'
-!        print *,''
+        print *,''
+        print *,'-----------------------'
+        print *,'inp    ::',inp
+        print *,'out    ::',out
+        print *,'target ::',targ
+        print *,''
+        print *,'diff   ::',targ-out
+        print *,'-----------------------'
+        print *,''
 
-        do i=1,7
-          write(msg,*) "Eddington coefficient not as expected for inp",inp
-          @assertEqual(targ(i) , out(i),  tol, msg)
 
-        enddo
+        write(msg,*) "Eddington coefficient not as "
+        @assertEqual(targ , out,  tol, msg)
 
     end subroutine
 end subroutine
