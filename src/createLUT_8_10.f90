@@ -63,12 +63,18 @@ program main
             read (arg,*) user_sza
             szas=user_sza
           endif
+
+          if(arg.eq.'-azi') then 
+            call get_command_argument(i+1, arg)
+            read (arg,*) user_azi
+            azis=user_azi
+          endif
         endif
       enddo
 
       if(dx.eq.-1) stop 'Need to supply option dx to create Lookuptables... stopping' 
 
-      print *,'calculating coeffs for dx',dx,'szas',szas
+      print *,'calculating coeffs for dx',dx,'szas',szas,'azimuths',azis
       call OPP%init(dx,dx,azis,szas,comm)
       print *,'loaded 8_10 coeffs for dx',dx,'szas',szas,'azis',azis
 
