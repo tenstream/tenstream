@@ -1,4 +1,4 @@
-from functions import *
+from ANN_functions import *
 import numpy as np
 import ffnet as ff
 

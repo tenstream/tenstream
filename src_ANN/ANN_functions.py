@@ -72,6 +72,14 @@ def RMSE ( array_1, array_2 ):
     
     return RMSE
 
+def rmse(a,b,weights=None):
+        import numpy as np
+        if np.shape(a)!=np.shape(b): raise ValueError('Arrays do not have same shapes :: {} .ne. {}'.format(np.shape(a),np.shape(b)) )
+
+        s= np.sqrt ( np.average( (a - b)**2, weights=weights ) )
+        return np.array([s,s/np.maximum(1e-8,abs(np.average(b,weights=weights)))*100])
+
+
 
 
 
@@ -82,7 +90,8 @@ def Export_NN_to_NetCDF ( network, FileName='neural_network.nc', FilePath='' ):
     import os as os
     
     
-    File = FilePath + FileName
+    File = FilePath +'/'+ FileName
+    print 'Exporting Network to .nc file :: ',File
     
     if not os.path.isdir(FilePath):
         os.mkdir(FilePath)
