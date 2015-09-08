@@ -39,6 +39,7 @@ module m_netcdfIO
   integer :: iwait
   character(310) :: lockfile
   logical,parameter :: ldebug=.False.
+!  logical,parameter :: ldebug=.True.
 
   interface ncwrite
     module procedure ncwrite_1d,ncwrite_2d,ncwrite_3d,ncwrite_4d,ncwrite_5d,ncwrite_7d

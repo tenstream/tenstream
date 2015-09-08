@@ -97,35 +97,54 @@ def Export_NN_to_NetCDF ( network, FileName='neural_network.nc', FilePath='' ):
         os.mkdir(FilePath)
     if os.path.isfile(File):
         os.remove(File)
+
+    # transpose arrays to fortran order
+    Tweights  = network.weights .T
+    Tconec    = network.conec   .T
+    Tunits    = network.units   .T
+    Tinno     = network.inno    .T
+    Toutno    = network.outno   .T
+    Teni      = network.eni     .T
+    Tdeo      = network.deo     .T
+    Tinlimits = network.inlimits.T
     
     dataset = nc.Dataset(File, 'w', format='NETCDF4')
     
-    dataset.createDimension ( 'weights.dim1'  )
-    dataset.createDimension ( 'conec.dim1'    ); dataset.createDimension ( 'conec.dim2'    )
-    dataset.createDimension ( 'units.dim1'    )
-    dataset.createDimension ( 'inno.dim1'     )
-    dataset.createDimension ( 'outno.dim1'    )
-    dataset.createDimension ( 'eni.dim1'      ); dataset.createDimension ( 'eni.dim2'      )
-    dataset.createDimension ( 'deo.dim1'      ); dataset.createDimension ( 'deo.dim2'      )
-    dataset.createDimension ( 'inlimits.dim1' ); dataset.createDimension ( 'inlimits.dim2' )
+    dataset.createDimension ( 'weights_dim1' , np.shape(Tweights )[0] )
+    dataset.createDimension ( 'conec_dim1'   , np.shape(Tconec   )[0] ); dataset.createDimension ( 'conec_dim2'   , np.shape(Tconec   )[1] )
+    dataset.createDimension ( 'units_dim1'   , np.shape(Tunits   )[0] )
+    dataset.createDimension ( 'inno_dim1'    , np.shape(Tinno    )[0] )
+    dataset.createDimension ( 'outno_dim1'   , np.shape(Toutno   )[0] )
+    dataset.createDimension ( 'eni_dim1'     , np.shape(Teni     )[0] ); dataset.createDimension ( 'eni_dim2'     , np.shape(Teni     )[1] )
+    dataset.createDimension ( 'deo_dim1'     , np.shape(Tdeo     )[0] ); dataset.createDimension ( 'deo_dim2'     , np.shape(Tdeo     )[1] )
+    dataset.createDimension ( 'inlimits_dim1', np.shape(Tinlimits)[0] ); dataset.createDimension ( 'inlimits_dim2', np.shape(Tinlimits)[1] )
     
-    weights  = dataset.createVariable('weights' , 'f8',  'weights.dim1'                  )
-    conec    = dataset.createVariable('conec'   , 'i' , ('conec.dim1'   , 'conec.dim2'  ))
-    units    = dataset.createVariable('units'   , 'f8',  'units.dim1'                    )
-    inno     = dataset.createVariable('inno'    , 'i' ,  'inno.dim1'                     )
-    outno    = dataset.createVariable('outno'   , 'i' ,  'outno.dim1'                    )
-    eni      = dataset.createVariable('eni'     , 'f8', ('eni.dim1'     , 'eni.dim2'    ))
-    deo      = dataset.createVariable('deo'     , 'f8', ('deo.dim1'     , 'deo.dim2'    ))
-    inlimits = dataset.createVariable('inlimits', 'f8', ('inlimits.dim1','inlimits.dim2'))
+#    weights  = dataset.createVariable('weights' , 'f8',  'weights.dim1'                  )
+#    conec    = dataset.createVariable('conec'   , 'i' , ('conec.dim1'   , 'conec.dim2'  ))
+#    units    = dataset.createVariable('units'   , 'f8',  'units.dim1'                    )
+#    inno     = dataset.createVariable('inno'    , 'i' ,  'inno.dim1'                     )
+#    outno    = dataset.createVariable('outno'   , 'i' ,  'outno.dim1'                    )
+#    eni      = dataset.createVariable('eni'     , 'f8', ('eni.dim1'     , 'eni.dim2'    ))
+#    deo      = dataset.createVariable('deo'     , 'f8', ('deo.dim1'     , 'deo.dim2'    ))
+#    inlimits = dataset.createVariable('inlimits', 'f8', ('inlimits.dim1','inlimits.dim2'))
+
+    weights  = dataset.createVariable('weights' , 'f8',  'weights_dim1'                  )
+    conec    = dataset.createVariable('conec'   , 'i' , ('conec_dim1'   , 'conec_dim2'  ))
+    units    = dataset.createVariable('units'   , 'f8',  'units_dim1'                    )
+    inno     = dataset.createVariable('inno'    , 'i' ,  'inno_dim1'                     )
+    outno    = dataset.createVariable('outno'   , 'i' ,  'outno_dim1'                    )
+    eni      = dataset.createVariable('eni'     , 'f8', ('eni_dim1'     , 'eni_dim2'    ))
+    deo      = dataset.createVariable('deo'     , 'f8', ('deo_dim1'     , 'deo_dim2'    ))
+    inlimits = dataset.createVariable('inlimits', 'f8', ('inlimits_dim1','inlimits_dim2'))
         
-    weights [:] = network.weights
-    conec   [:] = network.conec
-    units   [:] = network.units
-    inno    [:] = network.inno
-    outno   [:] = network.outno
-    eni     [:] = network.eni
-    deo     [:] = network.deo
-    inlimits[:] = network.inlimits
+    weights [:] = Tweights 
+    conec   [:] = Tconec   
+    units   [:] = Tunits   
+    inno    [:] = Tinno    
+    outno   [:] = Toutno   
+    eni     [:] = Teni     
+    deo     [:] = Tdeo     
+    inlimits[:] = Tinlimits
 
     dataset.close()
     

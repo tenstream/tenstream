@@ -305,6 +305,8 @@ def train_ANN(ANNname, Nneurons, train_dataset):
         print 'Could not load existing neural network: {0:} -- creating a new one'.format(e)
         net = create_net(np.shape(train_inp)[1], [ Nneurons, Nneurons ], np.shape(train_target)[1], mlgraph)
 
+    export_network( net, ANNname )
+
     compare_to_old_net(ANNname, net,test_inp,test_target)
 
     train_net(ANNname, net, train_inp, train_target, test_inp, test_target)
