@@ -19,13 +19,16 @@
 
 module m_optprop_ANN
   USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1
+  use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
+      Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,Ndir_8_10,Ndiff_8_10, &
+      ldelta_scale,delta_scale_truncate
   use m_netcdfio
 
   implicit none
   private
   public ANN_init,ANN_get_dir2dir,ANN_get_dir2diff,ANN_get_diff2diff
 
-  logical,parameter :: ldebug=.True.,check_input=.True.
+  logical,parameter :: check_input=.True.
 
   type ANN
     real(ireals),allocatable,dimension(:) :: weights, units
@@ -43,10 +46,11 @@ contains
 
   subroutine ANN_init(dx,dy)
       real(ireals),intent(in) :: dx,dy
-      character(300),parameter :: fname='/usr/users/jakub/cosmodata/tenstream/ANN/LUT2ANN.h5'
-      character(300) :: netname
+      integer(iintegers) :: idx,idy
+      character(len=300) :: basename, netname, descr
       integer(iintegers) :: ierr
 
+      integer(iintegers),parameter :: horiz_rounding=1 ! round LUT for various horizontal distances: e.g. horiz_rounding=10 -> dx=66.7 ==> dx=70
 !      integer(iintegers) :: phi,theta,iphi,itheta
 
       if(dx.ne.dy) then
@@ -54,41 +58,54 @@ contains
         call exit()
       endif
 
-      write(netname, FMT='("net_",I0,"/dir2diff")' ) nint(dx/10)*10
-      call loadnet(fname, netname, dir2diff_network, ierr)
+      idx = nint( dx/horiz_rounding  ) * horiz_rounding
+      idy = nint( dy/horiz_rounding  ) * horiz_rounding
 
-      write(netname, FMT='("net_",I0,"/dir2dir")' ) nint(dx/10)*10
-      call loadnet(fname, netname, dir2dir_network, ierr)
+      basename = trim(lut_basename)//'_dstorder_8_10.'
 
-      write(netname, FMT='("net_",I0,"/diffuse")' ) nint(dx/10)*10
-      call loadnet(fname, netname, diff2diff_network, ierr)
+      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') &
+          idx,Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,ldelta_scale,delta_scale_truncate
 
-      !            write(netname, FMT='("net_I0/direct")' ) nint(dx/10)*10
-      !            call loadnet(fname, netname, direct_network, ierr)
+      netname = trim(basename)//trim(descr)//'_diff2diff.ANN.nc'
+      call loadnet(netname, diff2diff_network, ierr)
+
+      write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
+          idx,Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,ldelta_scale,delta_scale_truncate
+
+      netname = trim(basename)//trim(descr)//'_dir2diff.ANN.nc'
+      call loadnet(netname, dir2diff_network, ierr)
+
+      netname = trim(basename)//trim(descr)//'_dir2dir.ANN.nc'
+      call loadnet(netname, dir2dir_network, ierr)
+
   end subroutine
 
-  subroutine loadnet(fname, netname,net,ierr)
-      character(300) :: fname, netname, varname
+  subroutine loadnet(netname,net,ierr)
+      character(300) :: netname, varname
       type(ANN) :: net
       integer(iintegers),intent(out) :: ierr
       integer(iintegers) :: errcnt,k
-      ierr=0
+      errcnt=0
       if(.not.allocated(net%weights)) then
-        write(varname,*) 'weights'  ; call ncload([fname,netname,varname],net%weights ,ierr) ; errcnt = ierr         ! ; print *,'loading weights ',ierr
-        write(varname,*) 'units'    ; call ncload([fname,netname,varname],net%units   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading units   ',ierr
-        write(varname,*) 'inno'     ; call ncload([fname,netname,varname],net%inno    ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inno    ',ierr
-        write(varname,*) 'outno'    ; call ncload([fname,netname,varname],net%outno   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading outno   ',ierr
-        write(varname,*) 'conec'    ; call ncload([fname,netname,varname],net%conec   ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading conec   ',ierr
-        write(varname,*) 'deo'      ; call ncload([fname,netname,varname],net%deo     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading deo     ',ierr
-        write(varname,*) 'eni'      ; call ncload([fname,netname,varname],net%eni     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading eni     ',ierr
-        write(varname,*) 'inlimits' ; call ncload([fname,netname,varname],net%inlimits,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inlimits',ierr
-        if(ldebug) print *,'Loading ANN from:',fname,'name of Network: ',trim(netname),' resulted in errcnt',errcnt
-        if(errcnt.ne.0) return
+        varname = 'weights'  ; call ncload([netname,trim(varname)],net%weights ,ierr) ; errcnt = ierr        !  ; print *,'loading weights ',ierr
+        varname = 'units'    ; call ncload([netname,trim(varname)],net%units   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading units   ',ierr
+        varname = 'inno'     ; call ncload([netname,trim(varname)],net%inno    ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inno    ',ierr
+        varname = 'outno'    ; call ncload([netname,trim(varname)],net%outno   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading outno   ',ierr
+        varname = 'conec'    ; call ncload([netname,trim(varname)],net%conec   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading conec   ',ierr
+        varname = 'deo'      ; call ncload([netname,trim(varname)],net%deo     ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading deo     ',ierr
+        varname = 'eni'      ; call ncload([netname,trim(varname)],net%eni     ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading eni     ',ierr
+        varname = 'inlimits' ; call ncload([netname,trim(varname)],net%inlimits,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inlimits',ierr
+        if(ldebug_optprop) print *,'Loading ANN from: ',trim(netname),' resulted in errcnt',errcnt
+        if(errcnt.ne.0) then
+          ierr = errcnt
+          stop 'Could not load ANN'
+          return
+        endif
 
         net%in_size = size(net%inno)
         net%out_size= size(net%outno)
 
-        if(ldebug) then
+        if(ldebug_optprop) then
           print *,'shape eni',shape(net%eni),'weights',shape(net%weights),'conec',shape(net%conec)
           do k=1,ubound(net%inlimits,1)
             print *,'input limits(',k,')',net%inlimits(k,:),'eni',net%eni(k,:)
@@ -176,8 +193,8 @@ contains
       !        input(   7 ) = input(   7 ) *100._ireals
 
       ! Concerning the lower limits for optprops, just take the ANN limits. Theres not happening much anyway.
-      input(1) = max(net%inlimits(1,1),input(1))
       input(2) = max(net%inlimits(2,1),input(2))
+      input(3) = max(net%inlimits(3,1),input(3))
       input(4) = max(net%inlimits(4,1),input(4))
 
 !      if(net%in_size.ge.5) then ! we should not fudge solar angles... this might confuse users...

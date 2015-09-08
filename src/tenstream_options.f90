@@ -19,7 +19,7 @@
 
 module m_tenstream_options
       use m_data_parameters, only : ireals,iintegers,myid,numnodes,one,i0,imp_comm
-      use m_optprop_parameters, only: lut_basename
+      use m_optprop_parameters, only: lut_basename, coeff_mode
       implicit none
 #include "petsc/finclude/petsc.h90"
 
@@ -153,12 +153,16 @@ module m_tenstream_options
 
           call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-schwarzschild" , lschwarzschild , lflg , ierr) ;CHKERRQ(ierr)
 
+          call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-coeff_mode",coeff_mode, lflg,ierr) ; CHKERRQ(ierr)
+          if(lflg.eqv.PETSC_FALSE) coeff_mode=0 ! use LUT by default
+
           if(myid.eq.0) then
             print *,'********************************************************************'
             print *,'***   Running Job: ',ident
             print *,'***   nr. of Nodes:',numnodes
             print *,'***   dx,dy        ',ident_dx,ident_dy
             print *,'***   eddington    ',luse_eddington
+            print *,'***   coeff_mode   ',coeff_mode    
             print *,'***   writeall     ',lwriteall
             print *,'***   twostr_only  ',ltwostr_only
             print *,'***   twostr       ',ltwostr
