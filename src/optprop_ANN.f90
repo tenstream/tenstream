@@ -124,7 +124,8 @@ contains
       real(ireals),intent(in) :: dz,kabs,ksca,g,phi,theta
       real(ireals),intent(out) :: C(:)
 
-      integer(iintegers) :: ierr
+      integer(iintegers) :: ierr,isrc
+      real(ireals) :: norm
 
       call calc_net(C, [dz,kabs,ksca,g,phi,theta] , dir2dir_network,ierr )
       if(ierr.ne.0) then
@@ -133,13 +134,23 @@ contains
       endif
 
       C = min(one, max(C,zero) )
+
+      !Check for energy conservation:
+      do isrc=1,Ndir_8_10
+        norm = sum( C( isrc:size(C):Ndir_8_10 ) )
+        if(real(norm).gt.one) then
+          C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/ ( norm+1e-6_ireals )
+!          print *,'dir2dir renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
+        endif
+      enddo
   end subroutine
 
   subroutine ANN_get_dir2diff(dz, kabs, ksca, g, phi, theta, C)
       real(ireals),intent(in) :: dz,kabs,ksca,g,phi,theta
       real(ireals),intent(out) :: C(:)
 
-      integer(iintegers) :: ierr
+      integer(iintegers) :: ierr,isrc
+      real(ireals) :: norm
 
       call calc_net(C, [dz,kabs,ksca,g,phi,theta] , dir2diff_network,ierr )
       if(ierr.ne.0) then
@@ -148,12 +159,22 @@ contains
       endif
 
       C = min(one, max(C,zero) )
+
+      !Check for energy conservation:
+      do isrc=1,Ndiff_8_10
+        norm = sum( C( isrc:size(C):Ndir_8_10 ) )
+        if(real(norm).gt.one) then
+          C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/ ( norm+1e-6_ireals )
+!          print *,'dir2diff renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
+        endif
+      enddo
   end subroutine
 
   subroutine ANN_get_diff2diff(dz, kabs, ksca, g, C)
       real(ireals),intent(out) :: C(:)
       real(ireals),intent(in) :: dz,kabs,ksca,g
-      integer(iintegers) :: ierr
+      integer(iintegers) :: ierr,isrc
+      real(ireals) :: norm
 
       if(.not.diff2diff_network%initialized) then
         print *,'network that is about to be used for coeffs is not loaded! diffuse:'
@@ -167,6 +188,15 @@ contains
       endif
 
       C = min(one, max(C,zero) )
+
+      !Check for energy conservation:
+      do isrc=1,Ndiff_8_10
+        norm = sum( C( isrc:size(C):Ndiff_8_10 ) )
+        if(real(norm).gt.one) then
+          C( isrc:size(C):Ndiff_8_10 ) = C( isrc:size(C):Ndiff_8_10 )/ ( norm+1e-6_ireals )
+!          print *,'diffuse renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndiff_8_10 ) )
+        endif
+      enddo
   end subroutine
 
   subroutine calc_net(coeffs,inp,net,ierr)
