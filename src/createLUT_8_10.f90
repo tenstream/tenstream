@@ -29,7 +29,7 @@ program main
 
       character(len=80) :: arg
       real(ireals) :: dx,user_sza
-      real(ireals) :: azis(2),szas(6)
+      real(ireals) :: azis(91),szas(82)
 
       type(t_optprop_LUT_8_10) :: OPP
 
@@ -45,8 +45,13 @@ program main
 
       call read_commandline_options()
 
-      azis = [0,90]
-      szas = [-1,0,20,40,60,80]
+      do i=0,90
+        azis(i+1) = i
+      enddo
+      do i=0,80
+        szas(i+1) = i 
+      enddo
+      szas(82) = -1
 
       dx=-1
       do i=1,10
