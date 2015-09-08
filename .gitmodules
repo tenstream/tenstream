@@ -1,3 +1,6 @@
 [submodule "tenstream.wiki"]
 	path = tenstream.wiki
 	url = git@github.com:tenstream/tenstream.wiki.git
+[submodule "pfunit"]
+	path = external/pfunit
+	url = git://git.code.sf.net/p/pfunit/code

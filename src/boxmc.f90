@@ -170,7 +170,7 @@ contains
   !> @details All MPI Nodes start photons from src stream and ray trace it including scattering events through the box until it leaves the box through one of the exit streams.\n
   !> Scattering Absorption is accounted for by carrying on a photon weight and succinctly lower it by lambert Beers Law \f$ \omega_{abso}^{'} = \omega_{abso} \cdot e^{- \rm{d}s \cdot {\rm k}_{sca}   }   \f$ \n
   !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev. Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
-  subroutine get_coeff(bmc,comm,op_bg,src,ldir,phi0,theta0,dx,dy,dz, S_out,T_out, S_tol,T_tol )
+  subroutine get_coeff(bmc,comm,op_bg,src,ldir,phi0,theta0,dx,dy,dz, S_out,T_out, S_tol,T_tol, inp_atol, inp_rtol )
       class(t_boxmc)                :: bmc                       !< @param[in] bmc Raytracer Type - determines number of streams
       real(ireals),intent(in)       :: op_bg(3)                  !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
       real(ireals),intent(in)       :: phi0                      !< @param[in] phi0 solar azimuth angle
@@ -189,13 +189,26 @@ contains
       real(ireals)   :: time(2),total_photons,initial_dir(3)
       integer(iintegers) :: Ndir(bmc%dir_streams),Ndiff(bmc%diff_streams)
 
+      real(ireals),intent(in),optional :: inp_atol,inp_rtol
+      real(ireals) :: atol,rtol
+
       if(.not. bmc%initialized ) stop 'Box Monte Carlo Ray Tracer is not initialized! - This should not happen!'
 
       Ndir=i0;Ndiff=i0
+      if(present(inp_atol)) then
+        atol = inp_atol
+      else
+        atol = stddev_atol
+      endif
+      if(present(inp_rtol)) then
+        rtol = inp_rtol
+      else
+        rtol = stddev_rtol
+      endif
 
-      call init_stddev( std_Sdir , bmc%dir_streams  ,stddev_atol, stddev_rtol )
-      call init_stddev( std_Sdiff, bmc%diff_streams ,stddev_atol, stddev_rtol )
-      call init_stddev( std_abso , i1               ,stddev_atol, stddev_rtol )
+      call init_stddev( std_Sdir , bmc%dir_streams  ,atol, rtol )
+      call init_stddev( std_Sdiff, bmc%diff_streams ,atol, rtol )
+      call init_stddev( std_abso , i1               ,atol, rtol )
 
       if(.not.ldir) std_Sdir%converged=.True.
 

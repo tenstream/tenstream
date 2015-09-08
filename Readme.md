@@ -15,7 +15,8 @@
   * cmake
   * PETSc
   * MPI
- Instructions on how to install these is beyond the scope of this text.
+
+Instructions on how to install these is beyond the scope of this text.
 
 #### The solver is currently tested and running at:
 * Linux Cluster University Munich
