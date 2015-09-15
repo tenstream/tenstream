@@ -1,12 +1,76 @@
 #!/usr/bin/python
 
-from ANN_functions import Export_NN_to_NetCDF, rmse
 import numpy as np
 import netCDF4 as NC
 import sys
 from mpl_toolkits.axes_grid1 import ImageGrid
 from plotting import *
 from matplotlib.colors import LogNorm
+
+def rmse(a,b,weights=None):
+        import numpy as np
+        if np.shape(a)!=np.shape(b): raise ValueError('Arrays do not have same shapes :: {} .ne. {}'.format(np.shape(a),np.shape(b)) )
+
+        s= np.sqrt ( np.average( (a - b)**2, weights=weights ) )
+        return np.array([s,s/np.maximum(1e-8,abs(np.average(b,weights=weights)))*100])
+
+def export_ANN_to_nc ( network, filename ):
+    
+    import netCDF4 as nc
+    import numpy as np
+    import os as os
+
+    print 'Exporting Network to .nc file :: ',filename
+    
+    if os.path.isfile(filename):
+        os.remove(filename)
+
+    # transpose arrays to fortran order
+    Tweights  = network.weights .T
+    Tconec    = network.conec   .T
+    Tunits    = network.units   .T
+    Tinno     = network.inno    .T
+    Toutno    = network.outno   .T
+    Teni      = network.eni     .T
+    Tdeo      = network.deo     .T
+    Tinlimits = network.inlimits.T
+    
+    try:
+        dataset = nc.Dataset(filename, 'w')
+        
+        dataset.createDimension ( 'weights_dim1' , np.shape(Tweights )[0] )
+        dataset.createDimension ( 'conec_dim1'   , np.shape(Tconec   )[0] ); dataset.createDimension ( 'conec_dim2'   , np.shape(Tconec   )[1] )
+        dataset.createDimension ( 'units_dim1'   , np.shape(Tunits   )[0] )
+        dataset.createDimension ( 'inno_dim1'    , np.shape(Tinno    )[0] )
+        dataset.createDimension ( 'outno_dim1'   , np.shape(Toutno   )[0] )
+        dataset.createDimension ( 'eni_dim1'     , np.shape(Teni     )[0] ); dataset.createDimension ( 'eni_dim2'     , np.shape(Teni     )[1] )
+        dataset.createDimension ( 'deo_dim1'     , np.shape(Tdeo     )[0] ); dataset.createDimension ( 'deo_dim2'     , np.shape(Tdeo     )[1] )
+        dataset.createDimension ( 'inlimits_dim1', np.shape(Tinlimits)[0] ); dataset.createDimension ( 'inlimits_dim2', np.shape(Tinlimits)[1] )
+        
+        weights  = dataset.createVariable('weights' , 'f8',  'weights_dim1'                  )
+        conec    = dataset.createVariable('conec'   , 'i' , ('conec_dim1'   , 'conec_dim2'  ))
+        units    = dataset.createVariable('units'   , 'f8',  'units_dim1'                    )
+        inno     = dataset.createVariable('inno'    , 'i' ,  'inno_dim1'                     )
+        outno    = dataset.createVariable('outno'   , 'i' ,  'outno_dim1'                    )
+        eni      = dataset.createVariable('eni'     , 'f8', ('eni_dim1'     , 'eni_dim2'    ))
+        deo      = dataset.createVariable('deo'     , 'f8', ('deo_dim1'     , 'deo_dim2'    ))
+        inlimits = dataset.createVariable('inlimits', 'f8', ('inlimits_dim1','inlimits_dim2'))
+            
+        weights [:] = Tweights 
+        conec   [:] = Tconec   
+        units   [:] = Tunits   
+        inno    [:] = Tinno    
+        outno   [:] = Toutno   
+        eni     [:] = Teni     
+        deo     [:] = Tdeo     
+        inlimits[:] = Tinlimits
+
+        dataset.nrhiddennodes = len(network.hidno)
+
+        dataset.close()
+    except Exception,e:
+        print 'Error occured when we tried to export Network to file :: ',e
+        raise(e)
 
 def scatter_to_hist(x,y,nbins=1000):
   import numpy as np
@@ -71,7 +135,7 @@ def export_network( net, ANNname, Nneurons ):
     import os
     try:
         savenet(net, ANNname+str(Nneurons))
-        Export_NN_to_NetCDF( net, FileName=os.path.basename(ANNname)+'.nc', FilePath=os.path.dirname(ANNname) )
+        export_ANN_to_nc( net, ANNname )
 
     except Exception,e:
         print 'Error when writing ffnet network file',e
@@ -328,11 +392,6 @@ def train_ANN(ANNname, Nneurons, train_dataset):
  
     output,_ = net.test(test_inp, test_target, iprint=0)
     plot_coeffs(ANNname, net, test_inp, test_target, output)
-
-
-
-
-
 
 
 
