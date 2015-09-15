@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import numpy as np
 import netCDF4 as NC
@@ -14,7 +14,7 @@ def rmse(a,b,weights=None):
         s= np.sqrt ( np.average( (a - b)**2, weights=weights ) )
         return np.array([s,s/np.maximum(1e-8,abs(np.average(b,weights=weights)))*100])
 
-def export_ANN_to_nc ( network, filename ):
+def export_ANN_to_nc ( network, filename, Nlayers, Nneurons ):
     
     import netCDF4 as nc
     import numpy as np
@@ -66,6 +66,8 @@ def export_ANN_to_nc ( network, filename ):
         inlimits[:] = Tinlimits
 
         dataset.nrhiddennodes = len(network.hidno)
+        dataset.Nlayers  = Nlayers
+        dataset.Nneurons = Nneurons
 
         dataset.close()
     except Exception,e:
@@ -117,12 +119,13 @@ def create_net(inno,layer_definitions,outno,network_function):
     print 'created new network with ',pts,'layers and', len(net.conec),'connections'
     return net
 
-def import_network( ANNname, Nneurons ):
+def import_network( ANNname, Nlayers, Nneurons ):
     from ffnet import loadnet
     import os
     try:
-        net = loadnet(ANNname+str(Nneurons))
-        print 'Loaded network from file: ',ANNname+str(Nneurons)
+        f = '{0:}_{1:}_{2:}'.format( ANNname,Nlayers,Nneurons)
+        net = loadnet(f)
+        print 'Loaded network from file: ',f
         print 'Network limits:',net.inlimits
         return net
 
@@ -130,21 +133,22 @@ def import_network( ANNname, Nneurons ):
         print 'Error when loading ffnet network file',e
         raise(e)
 
-def export_network( net, ANNname, Nneurons ):
+def export_network( net, ANNname, Nlayers, Nneurons ):
     from ffnet import savenet
     import os
     try:
-        savenet(net, ANNname+str(Nneurons))
-        export_ANN_to_nc( net, ANNname )
+        f = '{0:}_{1:}_{2:}'.format( ANNname, Nlayers, Nneurons)
+        savenet(net, f)
+        export_ANN_to_nc( net, ANNname+'.nc', Nlayers, Nneurons )
 
     except Exception,e:
         print 'Error when writing ffnet network file',e
         raise(e)
 
 
-def compare_to_old_net(ANNname, Nneurons, new_net, test_inp, test_target):
+def compare_to_old_net(ANNname, Nlayers, Nneurons, new_net, test_inp, test_target):
   try:
-    old_net = import_network(ANNname, Nneurons)
+    old_net = import_network(ANNname, Nlayers, Nneurons)
   except IOError,e:
     rmse_old_network = np.Inf
   else:
@@ -159,7 +163,7 @@ def compare_to_old_net(ANNname, Nneurons, new_net, test_inp, test_target):
   if rmse_new_network < rmse_old_network:
       try:
           print 'Saving new network to :::  ',ANNname
-          export_network( new_net, ANNname, Nneurons )
+          export_network( new_net, ANNname, Nlayers, Nneurons )
           
       except Exception,e:
           print 'Error occured when we tried to save the ANN :: ',e
@@ -167,7 +171,7 @@ def compare_to_old_net(ANNname, Nneurons, new_net, test_inp, test_target):
   else:
       print 'Already existing, old network has already lower error.. old: {} new: {}'.format(rmse_old_network,rmse_new_network)
 
-def train_net(ANNname, Nneurons, net, train_inp, train_target, test_inp, test_target):
+def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target):
   print 'training net: nr. of hidno: {} nr. of weights: {} using {} input entries'.format( len(net.hidno), np.shape(net.weights),np.shape(train_inp) )
 
   last_weights    = net.weights
@@ -225,14 +229,14 @@ def train_net(ANNname, Nneurons, net, train_inp, train_target, test_inp, test_ta
 
     if lbreak: 
       print '::','training ended!!!! -- stopping training!'
-      compare_to_old_net(ANNname,Nneurons, net, test_inp, test_target)
+      compare_to_old_net(ANNname,Nlayers, Nneurons, net, test_inp, test_target)
       return 
 
     if rmse(test_target,test_output)[1] < last_test_err:
       print '::','Updating last err. Err Increment: {}'.format(last_test_err-rmse(test_target,test_output)[1])
       last_test_err = rmse(test_target,test_output)[1]
       last_weights = net.weights
-      compare_to_old_net(ANNname,Nneurons, net, test_inp, test_target)
+      compare_to_old_net(ANNname,Nlayers, Nneurons, net, test_inp, test_target)
       index_successfull_update=iter
 
     last_train_err = rmse(train_target,train_output)[1]
@@ -375,20 +379,21 @@ def create_training_dataset(coeff_mode, LUTname):
 
     return [train_inp, train_target, test_inp, test_target]
 
-def train_ANN(ANNname, Nneurons, train_dataset):
+def train_ANN(ANNname, Nlayers, Nneurons, train_dataset):
     from ffnet import mlgraph
     train_inp, train_target, test_inp, test_target = train_dataset
     try:
-        net = import_network( ANNname, Nneurons )
+        net = import_network( ANNname, Nlayers, Nneurons )
     except Exception,e:
         print 'Could not load existing neural network: {0:} -- creating a new one'.format(e)
-        net = create_net(np.shape(train_inp)[1], [ Nneurons, Nneurons ], np.shape(train_target)[1], mlgraph)
+        hiddenlayers = [ Nneurons ] * Nlayers
+        net = create_net(np.shape(train_inp)[1], hiddenlayers, np.shape(train_target)[1], mlgraph)
 
-    export_network( net, ANNname, Nneurons )
+    export_network( net, ANNname, Nlayers, Nneurons )
 
-    compare_to_old_net(ANNname, Nneurons, net,test_inp,test_target)
+    compare_to_old_net(ANNname, Nlayers, Nneurons, net,test_inp,test_target)
 
-    train_net(ANNname, Nneurons, net, train_inp, train_target, test_inp, test_target)
+    train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target)
  
     output,_ = net.test(test_inp, test_target, iprint=0)
     plot_coeffs(ANNname, net, test_inp, test_target, output)
@@ -401,7 +406,8 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(description='Input parameters for Neural Network Generator')
   parser.add_argument('LUTname', type=str, help='LUT file which should be converted')
   parser.add_argument('coeffmode', choices=['diff2diff', 'dir2dir', 'dir2diff'])
-  parser.add_argument('-N', '--Nneurons', default=10, type=int, help='Number of Neurons in first and second hidden layer')
+  parser.add_argument('-N', '--Nneurons', default=10, type=int, help='Number of Neurons in each hidden layer')
+  parser.add_argument('-M', '--Nlayers', default=1, type=int, help='Number of hidden layers')
   parser.add_argument('-o', '--ANNname', type=str, help='ANN file name on which the net will be saved', default=None)
 
   args = parser.parse_args()
@@ -411,6 +417,7 @@ if __name__ == "__main__":
   print 'Converting LUT in file   :::   {0:}  '.format( args.LUTname   )
   print '             coeffmode   :::   {0:}  '.format( args.coeffmode )
   print '             Nneurons    :::   {0:}\n'.format( args.Nneurons  )
+  print '             Nlayers     :::   {0:}\n'.format( args.Nlayers   )
   print '             ANN file    :::   {0:}\n'.format( args.ANNname   )
 
   try:
@@ -420,7 +427,7 @@ if __name__ == "__main__":
       sys.exit(-1)
 
   try:
-      train_ANN(args.ANNname, args.Nneurons, train_dataset)
+      train_ANN(args.ANNname, args.Nlayers, args.Nneurons, train_dataset)
   except Exception,e:
       print 'Error occured when training network :',e
       sys.exit(-1)
