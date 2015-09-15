@@ -41,15 +41,24 @@ def list_ftpdir(url):
     print '\n Maybe you want one of those? \n'
 
 def get_ftp_file(url):
-    from urllib2 import urlopen
+    import ftplib
+    import urlparse
     import tempfile
 
-    req = urlopen(url)
-    print 'Downloading ',url
+    parsed_uri = urlparse.urlparse(url)
+    domain = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)    
+
+    ftp = ftplib.FTP()
+    ftp.connect( parsed_uri.netloc )
+    ftp.login()
+
+    ftp.cwd( os.path.dirname( parsed_uri.path ) )
 
     fdst = tempfile.NamedTemporaryFile()
-    shutil.copyfileobj(req, fdst)
-    req.close()
+    ftp.retrbinary('RETR %s' % os.path.basename( parsed_uri.path ), fdst.write)
+    fdst.file.flush()
+
+    ftp.quit()
     return fdst
 
 def copy_nc_var(invar, Dout):
@@ -131,10 +140,9 @@ def update_LUT(LUTpath, LUTserver):
         merge_LUT(LUTpath, serverLUTfile.name)
 
     else: # just copy serverLUT to destination
-        print 'Just downloaded LUT and save to',LUTpath
+        print 'Just downloaded LUT({0:}) and save to {1:}'.format(serverLUTfile.name,LUTpath)
         shutil.copyfile(serverLUTfile.name, LUTpath)
     
-
     serverLUTfile.close() # finally close temp file and with that, delete it
 
 if __name__ == '__main__':
