@@ -78,8 +78,6 @@ module m_tenstream_options
           logical :: lflg=.False.,lflg_ident=.False.
           PetscErrorCode :: ierr
           logical :: lshow_options=.False.
-          logical,save :: linit=.False.
-          if(linit) return
 
           call PetscOptionsGetBool(PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;CHKERRQ(ierr)
           if(lshow_options) then
@@ -185,6 +183,5 @@ module m_tenstream_options
 
           call mpi_barrier(imp_comm,ierr)
 
-          linit=.True.
       end subroutine
 end module

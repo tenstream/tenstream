@@ -18,6 +18,7 @@ module test_ANN_8_10
   real(ireals) :: S_tol(10),T_tol(8)
 
   real(ireals) :: ANN_diff2diff(100), ANN_dir2diff(8*10), ANN_dir2dir(8*8)
+  real(ireals) :: BMC_diff2diff(100), BMC_dir2diff(8*10), BMC_dir2dir(8*8)
 
   type(t_boxmc_8_10) :: bmc_8_10
 
@@ -70,10 +71,35 @@ contains
   function getParameters() result(params)
       type(peCase), allocatable :: params(:)
 
-      ! kabs,ksca,g,phi,theta
-      params = [ &
-          newPeCase(1e-1_ireals, 0e-3_ireals, zero,  zero, zero), &
-          newPeCase(1e-3_ireals, 0e-3_ireals, zero,  zero, zero)  ]
+      integer(iintegers) :: ikabs,iksca,ig,iphi,itheta
+      real(ireals)       ::  kabs, ksca, g, phi, theta
+
+      integer(iintegers) :: itest,iloop
+
+      do iloop=1,2
+        if(iloop.eq.2) allocate(params(itest))
+        itest=0
+
+        do ikabs=0,8,5
+          do iksca=1,8,5
+            do ig=0,5,5
+              do iphi=0,90,50
+                do itheta=0,80,50
+
+                  itest = itest+1
+
+                  kabs = 10.**(-ikabs)
+                  ksca = 10.**(-iksca)
+                  g    = ig/10.       
+                  phi  = 1.*iphi     
+                  theta= 1.*itheta   
+                  if(iloop.eq.2) params(itest) = newPeCase(kabs,ksca,g,phi,theta)
+                enddo
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
   end function getParameters
 
   ! Override the parent's version of pECase
@@ -81,8 +107,8 @@ contains
       class(pECase), intent(in) :: this
       character(:), allocatable :: string
       allocate(character(len=120) :: string)
-      write(string,FMT='( A, 5E8.4, A, I0 )') &
-          'ANN ::',this%kabs,this%ksca,this%g,this%phi,this%theta,':ranks',this%getNumProcessesRequested()
+      write(string,FMT='( 3E8.2, 2I0 )') &
+          this%kabs,this%ksca,this%g,int(this%phi),int(this%theta) !,':ranks',this%getNumProcessesRequested()
   end function toString
 
   @before
@@ -125,7 +151,7 @@ contains
       if(myid.eq.0) print *,'Finishing ANN tests module'
   end subroutine teardown
 
-  @test( npes=[4], testParameters={getParameters()} )
+  @test( npes=[8], testParameters={getParameters()} )
   subroutine test_ANN_direct_coeff(this)
       class (parameterized_test), intent(inout) :: this
 
@@ -155,11 +181,15 @@ contains
           call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.True.,phi,theta,dx,dy,dz,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
 
           ! Rearrange coeffs from dst_ordering to src ordering:
-          S = ANN_dir2diff(src : 10*10 : 10)
-          T = ANN_dir2dir (src : 8*8   :  8)
+!          S = ANN_dir2diff(src : 10*10 : 10)
+!          T = ANN_dir2dir (src : 8*8   :  8)
 
-          call check(S_target,T_target, S,T, msg='test_boxmc_direct_lambert_beer')
+          BMC_dir2diff(src : 10*10 : 10) = S_target
+          BMC_dir2dir (src : 8*8   :  8) = T_target
+
+!          call check(S_target,T_target, S,T, msg='test_ANN_direct_coeffs')
         enddo
+        call check(BMC_dir2diff,BMC_dir2dir,ANN_dir2diff,ANN_dir2dir, msg='test_ANN_direct_coeffs')
       end associate
   endsubroutine 
 
@@ -194,7 +224,7 @@ contains
 
         T(5:8) = zero ! hard to know that with lambert beer -- use raytracer as test instead
 
-        call check(S_target,T_target, S,T, msg='test_boxmc_direct_lambert_beer')
+        call check(S_target,T_target, S,T, msg='test_ANN_direct_lambert_beer')
       enddo
   end subroutine
 
