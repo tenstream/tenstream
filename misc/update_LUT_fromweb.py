@@ -55,6 +55,7 @@ def get_ftp_file(url):
     ftp.cwd( os.path.dirname( parsed_uri.path ) )
 
     fdst = tempfile.NamedTemporaryFile()
+    print 'Downloading file from',url,' => ',fdst.name
     ftp.retrbinary('RETR %s' % os.path.basename( parsed_uri.path ), fdst.write)
     fdst.file.flush()
 
