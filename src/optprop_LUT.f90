@@ -311,11 +311,11 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
 
             ! Check if the precision requirements are all met and if we can load the %stddev_tol array
             lstddev_inbounds = .True. ! first assume that precision is met and then check if this is still the case...
-            write(str(6),FMT='(A)') 'S_rtol' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr) 
+            write(str(6),FMT='(A)') 'S_tol' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%S(iphi,itheta)%stddev_tol,iierr) 
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0 
             if(lstddev_inbounds) lstddev_inbounds = all(OPP%dirLUT%S(iphi,itheta)%stddev_tol.le.stddev_atol)
 
-            write(str(6),FMT='(A)') 'T_rtol' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr)
+            write(str(6),FMT='(A)') 'T_tol' ; call ncload([OPP%dirLUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],OPP%dirLUT%T(iphi,itheta)%stddev_tol,iierr)
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0
             if(lstddev_inbounds) lstddev_inbounds = all(OPP%dirLUT%S(iphi,itheta)%stddev_tol.le.stddev_atol)
 
@@ -345,9 +345,9 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             write(str(7),FMT='(A)') "theta      " ; call ncwrite([OPP%dirLUT%fname , str(1),str(2),str(3),str(6),str(7) ] , OPP%dirLUT%pspace%theta       , iierr)
 
             write(varname(1),FMT='(A)') "S     "
-            write(varname(2),FMT='(A)') "S_rtol"
+            write(varname(2),FMT='(A)') "S_tol"
             write(varname(3),FMT='(A)') "T     "
-            write(varname(4),FMT='(A)') "T_rtol"
+            write(varname(4),FMT='(A)') "T_tol"
 
             if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_c  ) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_c  (7)) 
             if(.not.allocated(OPP%dirLUT%S(iphi,itheta)%table_name_tol) ) allocate(OPP%dirLUT%S(iphi,itheta)%table_name_tol(7)) 
