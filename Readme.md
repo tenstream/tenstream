@@ -12,7 +12,7 @@
 #### Note concerning the usage
 The code is distributed under the GPL, and you are therefore free to use, change and redistribute it.  
 I do however highly encourage you to participate in the development of the codebase.
-If you are using the code in your work, please consider sharing bugfixes and experiences.  
+If you are using the code in your work, please consider sharing bugfixes and experiences.
 Given the experimental status of the solver, I kindly ask that you get in touch before publishing any results concerning the TenStream solver to ensure correctness of the results.  
 It would also be appreciated to discuss co-authorship for research publications conducted with the TenStream solver.
 
