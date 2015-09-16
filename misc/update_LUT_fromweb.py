@@ -136,6 +136,8 @@ def update_LUT(LUTpath, LUTserver):
         print e
 
         list_ftpdir(url)
+        return
+
         
     if os.path.isfile(LUTpath): # merge LUT's
         merge_LUT(LUTpath, serverLUTfile.name)
