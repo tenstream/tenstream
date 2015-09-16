@@ -9,6 +9,14 @@
   * [UCLA-LES](http://www.github.com/uclales/uclales)    -- Large Eddy Simulation code for cloud resolving simulations
   * [COSMO](http://www.cosmo-model.org)       -- Numerical Weather Prediction model 
 
+#### Note concerning the usage
+  The code is distributed under the GPL, and you are therefore free to use, change and redistribute it.  
+  I do however highly encourage you to participate in the development of the codebase.
+  If you are using the code in your work, please consider sharing bugfixes and experiences.  
+  Also, given the experimental status of the solver, it would be highly appreciated to discuss co-authorship for research   publications conducted with the TenStream solver.
+
+---
+
 ##### Further installation instructions and quick tips are available at the [TenStream-Wiki](https://github.com/tenstream/tenstream/wiki)
 
 ##### Prerequisites for the Tenstream solver are
