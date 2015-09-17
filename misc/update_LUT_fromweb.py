@@ -86,8 +86,9 @@ def merge_nc_var(server,server_tol, local,local_tol):
     if Nlocal>0:
         print '      ATTENTION ::: If you have a lot of better coeffs than are available at the Server please send them to fabian@jakub.com'
     
-    new = np.choose( condition, [ local[:], server[:]  ] )
-    new_tol = np.choose( condition, [ local_tol[:], server_tol[:]  ] )
+    new     = np.choose( condition, [ server[:]    , local[:]      ] )
+    new_tol = np.choose( condition, [ server_tol[:], local_tol[:]  ] )
+    print 'max tol ( server,local ) ', np.max(server_tol), np.max(local_tol), ' :: new', np.max(new_tol)
     local[:] = new[:]
     local_tol[:] = new_tol[:]
     
