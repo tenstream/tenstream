@@ -54,6 +54,8 @@ dims = shape(arr)
 allocate(dim_ids(Ndims))
 
 inquire(file=fname, exist=file_exists)
+if(ldebug) print *,'file ',trim(fname),'exists ::', file_exists
+
 if(.not.file_exists) then
   ierr = nf90_create(fname, NF90_NOCLOBBER, ncid) ; call nccheck(ierr)
 else
