@@ -78,17 +78,24 @@ def copy_nc_var(invar, Dout):
     outVar[:] = invar[:]
 
 def merge_nc_var(server,server_tol, local,local_tol):
-    condition = server_tol[:] >= local_tol[:] # 1 if local better than server
+    cond_server = server_tol[:] <  local_tol[:] # 1 if server better than local 
+    cond_local  = server_tol[:] >  local_tol[:] # 1 if local  better than server
+    cond_same   = server_tol[:] == local_tol[:] # 1 if same
 
-    Nlocal  = np.sum(condition)
-    Nserver = np.size(condition) - Nlocal
-    print '    Using {0:} values from server and {1:} from local table'.format(Nserver,Nlocal)
+    Nlocal  = np.sum(cond_local)
+    Nserver = np.sum(cond_server)
+    Nsame   = np.sum(cond_same)
+    print '    Using {0:} values from server and {1:} from local table :: same: {2:}'.format(Nserver,Nlocal,Nsame)
     if Nlocal>0:
         print '      ATTENTION ::: If you have a lot of better coeffs than are available at the Server please send them to fabian@jakub.com'
     
-    new     = np.choose( condition, [ server[:]    , local[:]      ] )
-    new_tol = np.choose( condition, [ server_tol[:], local_tol[:]  ] )
-    print 'max tol ( server,local ) ', np.max(server_tol), np.max(local_tol), ' :: new', np.max(new_tol)
+    new     = local    [:]
+    new_tol = local_tol[:]
+
+    new    [cond_server] = server    [:][cond_server]
+    new_tol[cond_server] = server_tol[:][cond_server]
+
+    print 'max tol ( server,local ) ', np.max(server_tol[:]), np.max(local_tol[:]), ' :: new', np.max(new_tol[:])
     local[:] = new[:]
     local_tol[:] = new_tol[:]
     
