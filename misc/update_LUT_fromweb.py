@@ -86,8 +86,10 @@ def merge_nc_var(server,server_tol, local,local_tol):
     if Nlocal>0:
         print '      ATTENTION ::: If you have a lot of better coeffs than are available at the Server please send them to fabian@jakub.com'
     
-    out = np.choose( condition, [ local[:], server[:]  ] )
-    local[:] = out[:]
+    new = np.choose( condition, [ local[:], server[:]  ] )
+    new_tol = np.choose( condition, [ local_tol[:], server_tol[:]  ] )
+    local[:] = new[:]
+    local_tol[:] = new_tol[:]
     
 
 def merge_LUT(LUT, serverLUT):
