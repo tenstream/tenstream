@@ -78,7 +78,7 @@ def copy_nc_var(invar, Dout):
     outVar[:] = invar[:]
 
 def merge_nc_var(server,server_tol, local,local_tol):
-    condition = server_tol[:] > local_tol[:] # 1 if local better than server
+    condition = server_tol[:] >= local_tol[:] # 1 if local better than server
 
     Nlocal  = np.sum(condition)
     Nserver = np.size(condition) - Nlocal
