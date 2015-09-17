@@ -34,11 +34,12 @@ def list_ftpdir(url):
         else:
             raise
     
-    print 'Server Repository has the following files in it: \n'
-    for f in files:
-        print f
-
-    print '\n Maybe you want one of those? \n'
+#    print 'Server Repository has the following files in it: \n'
+#    for f in files:
+#        print f
+#
+#    print '\n Maybe you want one of those? \n'
+    return files
 
 def get_ftp_file(url):
     import ftplib
@@ -135,7 +136,12 @@ def update_LUT(LUTpath, LUTserver):
         print 'Error occured when we tried download LUT with name:',LUTname
         print e
 
-        list_ftpdir(url)
+        availfiles = list_ftpdir(url)
+        print 'Server Repository has the following files in it: \n'
+        for f in availfiles:
+            print f
+    
+        print '\n Maybe you want one of those? \n'
         return
 
         
@@ -154,7 +160,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Input parameters for LUT web downloader')
     parser.add_argument('LUTpath', type=str, help='LUT file which should be loaded/merged')
     parser.add_argument('-LUTserver', type=str, help='LUTserver which should be queried for LUTs', default='ftp.meteo.physik.uni-muenchen.de/public/TenStream_LUT/')
+    parser.add_argument('-list', action='store_const',const=True, help='list all available files at the server', default=False)
     args = parser.parse_args()
+
+    if args.list:
+      availfiles = list_ftpdir('ftp://'+args.LUTserver)
+      for f in availfiles:
+        print f
+      sys.exit(0)
+
 
     update_LUT(args.LUTpath, args.LUTserver)
 
