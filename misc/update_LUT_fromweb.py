@@ -97,8 +97,8 @@ def merge_nc_var(server,server_tol, local,local_tol):
     new    [cond_server] = server    [:][cond_server]
     new_tol[cond_server] = server_tol[:][cond_server]
 
-    print '    max  tol ( server,local ) :: {0:e15.4} {1:e15.4} '.format( np.max(server_tol[:]), np.max(local_tol[:])  ), ' :: new', np.max(new_tol[:])
-    print '    mean tol ( server,local ) :: {0:e15.4} {1:e15.4} '.format( np.mean(server_tol[:]), np.mean(local_tol[:])), ' :: new', np.mean(new_tol[:])
+    print '    max  tol ( server,local ) :: {0:15.4e} {1:15.4e} :: {2:15.4e}'.format( np.max(server_tol[:]), np.max(local_tol[:])  , np.max(new_tol[:])  )
+    print '    mean tol ( server,local ) :: {0:15.4e} {1:15.4e} :: {2:15.4e}'.format( np.mean(server_tol[:]), np.mean(local_tol[:]), np.mean(new_tol[:]) )
     local[:] = new[:]
     local_tol[:] = new_tol[:]
     
