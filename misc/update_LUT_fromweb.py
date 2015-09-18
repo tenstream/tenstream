@@ -67,12 +67,12 @@ def copy_nc_var(Din, varname, Dout):
     invar = Din.variables[varname]
 
     #Copy dimensions
-    try:
-      for dname, the_dim in Din.dimensions.iteritems():
-        print 'Copy dimension:', dname, len(the_dim)
+    for dname, the_dim in Din.dimensions.iteritems():
+      try:
+        #print 'Copy dimension:', dname, len(the_dim)
         Dout.createDimension(dname, len(the_dim) if not the_dim.isunlimited() else None)
-    except:
-      pass
+      except:
+        pass
     
     # Copy variables
     outVar = Dout.createVariable(invar.name, invar.datatype, invar.dimensions)
