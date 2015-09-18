@@ -75,7 +75,7 @@ def copy_nc_var(Din, varname, Dout):
         pass
     
     # Copy variables
-    outVar = Dout.createVariable(invar.name, invar.datatype, invar.dimensions)
+    outVar = Dout.createVariable( varname, invar.datatype, invar.dimensions )
 
     # Copy variable attributes
     outVar.setncatts({k: invar.getncattr(k) for k in invar.ncattrs()})
