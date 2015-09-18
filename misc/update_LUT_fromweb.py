@@ -63,11 +63,13 @@ def get_ftp_file(url):
     ftp.quit()
     return fdst
 
-def copy_nc_var(invar, Dout):
-#    #Copy dimensions
-#    for dname, the_dim in dsin.dimensions.iteritems():
-#        print dname, len(the_dim)
-#        dsout.createDimension(dname, len(the_dim) if not the_dim.isunlimited() else None)
+def copy_nc_var(Din, varname, Dout):
+    invar = Din.variables[varname]
+
+    #Copy dimensions
+    for dname, the_dim in Din.dimensions.iteritems():
+      print 'Copy dimension:', dname, len(the_dim)
+      Dout.createDimension(dname, len(the_dim) if not the_dim.isunlimited() else None)
     
     # Copy variables
     outVar = Dout.createVariable(invar.name, invar.datatype, invar.dimensions)
@@ -95,16 +97,26 @@ def merge_nc_var(server,server_tol, local,local_tol):
     new    [cond_server] = server    [:][cond_server]
     new_tol[cond_server] = server_tol[:][cond_server]
 
-    print 'max tol ( server,local ) ', np.max(server_tol[:]), np.max(local_tol[:]), ' :: new', np.max(new_tol[:])
+    print '    max  tol ( server,local ) :: {0:e15.4} {1:e15.4} '.format( np.max(server_tol[:]), np.max(local_tol[:])  ), ' :: new', np.max(new_tol[:])
+    print '    mean tol ( server,local ) :: {0:e15.4} {1:e15.4} '.format( np.mean(server_tol[:]), np.mean(local_tol[:])), ' :: new', np.mean(new_tol[:])
     local[:] = new[:]
     local_tol[:] = new_tol[:]
     
 
-def merge_LUT(LUT, serverLUT):
+def merge_LUT(serverLUT, LUT):
     print 'merging LUT {0:} ==> {1:}'.format(serverLUT,LUT)
 
-    Dserver = NC.Dataset(serverLUT)
-    Dlocal  = NC.Dataset(LUT, mode='a')
+    Dserver = NC.Dataset(serverLUT, mode='r')
+    if os.path.isfile(LUT):
+      fmode='a'
+    else:
+      print 'Creating new NC file:',LUT
+      fmode='w'
+
+#    Dlocal  = NC.Dataset(LUT, mode=fmode, format="NETCDF3_CLASSIC")
+#    Dlocal  = NC.Dataset(LUT, mode='a', format="NETCDF3_64BIT")
+#    Dlocal  = NC.Dataset(LUT, mode=fmode, format="NETCDF4_CLASSIC")
+    Dlocal  = NC.Dataset(LUT, mode=fmode, format="NETCDF4")
 
 #    print 'Server LUTs',Dserver.variables.keys()
 #    print 'Local  LUTs',Dlocal.variables.keys()
@@ -114,7 +126,7 @@ def merge_LUT(LUT, serverLUT):
     for k in  Dserver.variables.keys():
         if k not in Dlocal.variables:
             print 'Found var which is not in local LUT... copying it over from server LUT :: ',k
-            copy_nc_var(Dserver.variables[k], Dlocal)
+            copy_nc_var(Dserver, k, Dlocal)
         else:
             print 'already exists in local LUT :: ',k
 
@@ -154,14 +166,8 @@ def update_LUT(LUTpath, LUTserver):
         print '\n Maybe you want one of those? \n'
         return
 
-        
-    if os.path.isfile(LUTpath): # merge LUT's
-        merge_LUT(LUTpath, serverLUTfile.name)
+    merge_LUT(serverLUTfile.name, LUTpath)
 
-    else: # just copy serverLUT to destination
-        print 'Just downloaded LUT({0:}) and save to {1:}'.format(serverLUTfile.name,LUTpath)
-        shutil.copyfile(serverLUTfile.name, LUTpath)
-    
     serverLUTfile.close() # finally close temp file and with that, delete it
 
 if __name__ == '__main__':
