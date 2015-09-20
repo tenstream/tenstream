@@ -2215,6 +2215,8 @@ end subroutine
 
       call setup_suninfo(phi0,theta0,sun)
 
+      if(theta0 .gt. 80)  atm%l1d = .True. ! only compute 1d radiation if sun is too low
+
       ! init box montecarlo model
       if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm)
       if(.not.luse_eddington)      call OPP_1_2%init (atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm) 
@@ -2574,6 +2576,7 @@ end subroutine
 
       ! --------- Calculate 1D Radiative Transfer ------------
       if(  ltwostr                                                       &
+      .or. all(atm%l1d.eqv..True.)                                       &
       .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca)     &
       .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild) ) then
 
@@ -2592,6 +2595,7 @@ end subroutine
         endif
 
         if( ltwostr_only ) return
+        if( all(atm%l1d.eqv..True.) ) return
         if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca ) return
         if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) return
       endif
