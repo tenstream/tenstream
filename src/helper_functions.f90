@@ -162,7 +162,7 @@ module m_helper_functions
           if(myid.ne.sendid) allocate( arr(Ntot) )
           call mpi_bcast(arr,size(arr),imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine  imp_bcast_int_2d(arr,sendid,myid)
+      subroutine  imp_bcast_int_2d(arr,sendid,myid)!
           integer(iintegers),allocatable,intent(inout) :: arr(:,:)
           integer(mpiint),intent(in) :: sendid,myid
 
