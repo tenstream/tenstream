@@ -93,7 +93,7 @@ contains
             call OPP%OPP_LUT%init(OPP%dx,OPP%dy, azis, szas, comm)
 
           case(i1) ! ANN
-            call ANN_init(dx_inp,dy_inp)
+            call ANN_init(dx_inp,dy_inp,comm)
   !          stop 'ANN not yet implemented'
           case default
             stop 'coeff mode optprop initialization not defined ' 

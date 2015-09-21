@@ -18,17 +18,21 @@
 !-------------------------------------------------------------------------
 
 module m_optprop_ANN
-  USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1
+  USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1, mpiint
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
       Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,Ndir_8_10,Ndiff_8_10, &
       ldelta_scale,delta_scale_truncate
   use m_netcdfio
+  use mpi
+  use m_helper_functions, only : imp_bcast
 
   implicit none
   private
   public ANN_init,ANN_get_dir2dir,ANN_get_dir2diff,ANN_get_diff2diff
 
   logical,parameter :: check_input=.True.
+
+  integer(mpiint) :: myid,comm_size,mpierr
 
   type ANN
     real(ireals),allocatable,dimension(:) :: weights, units
@@ -44,40 +48,71 @@ module m_optprop_ANN
 
 contains
 
-  subroutine ANN_init(dx,dy)
+  subroutine ANN_init(dx,dy,comm)
       real(ireals),intent(in) :: dx,dy
       integer(iintegers) :: idx,idy
       character(len=300) :: basename, netname, descr
       integer(iintegers) :: ierr
 
+      integer(mpiint), intent(in) :: comm
+      
       integer(iintegers),parameter :: horiz_rounding=1 ! round LUT for various horizontal distances: e.g. horiz_rounding=10 -> dx=66.7 ==> dx=70
 !      integer(iintegers) :: phi,theta,iphi,itheta
 
-      if(dx.ne.dy) then
-        print *,'dx ne dy,  we probably dont have a network for asymmetric grid sizes!.... exiting....'
-        call exit()
-      endif
+      call MPI_Comm_rank(comm, myid, mpierr)
+      call MPI_Comm_size(comm, comm_size, mpierr)
 
-      idx = nint( dx/horiz_rounding  ) * horiz_rounding
-      idy = nint( dy/horiz_rounding  ) * horiz_rounding
+      if (myid.eq.0) then
+        if(dx.ne.dy) then
+          print *,'dx ne dy,  we probably dont have a network for asymmetric grid sizes!.... exiting....'
+          call exit()
+        endif
 
-      basename = trim(lut_basename)//'_dstorder_8_10.'
+        idx = nint( dx/horiz_rounding  ) * horiz_rounding
+        idy = nint( dy/horiz_rounding  ) * horiz_rounding
 
-      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') &
+        basename = trim(lut_basename)//'_dstorder_8_10.'
+
+        write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') &
           idx,Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,ldelta_scale,delta_scale_truncate
 
-      netname = trim(basename)//trim(descr)//'_diff2diff.ANN.nc'
-      call loadnet(netname, diff2diff_network, ierr)
+        netname = trim(basename)//trim(descr)//'_diff2diff.ANN.nc'
+        call loadnet(netname, diff2diff_network, ierr)
 
-      write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
+        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
           idx,Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,ldelta_scale,delta_scale_truncate
 
-      netname = trim(basename)//trim(descr)//'_dir2diff.ANN.nc'
-      call loadnet(netname, dir2diff_network, ierr)
+        netname = trim(basename)//trim(descr)//'_dir2diff.ANN.nc'
+        call loadnet(netname, dir2diff_network, ierr)
 
-      netname = trim(basename)//trim(descr)//'_dir2dir.ANN.nc'
-      call loadnet(netname, dir2dir_network, ierr)
+        netname = trim(basename)//trim(descr)//'_dir2dir.ANN.nc'
+        call loadnet(netname, dir2dir_network, ierr)
+      endif
 
+      if (comm_size.gt.1) then 
+        call scatter_ANN ( diff2diff_network )
+        call scatter_ANN ( dir2diff_network  )
+        call scatter_ANN ( dir2dir_network   )
+      endif
+
+  end subroutine
+
+  subroutine scatter_ANN ( net )
+      type(ANN) :: net
+
+      call imp_bcast(net%weights    , 0_mpiint, myid )
+      call imp_bcast(net%units      , 0_mpiint, myid )
+      call imp_bcast(net%inno       , 0_mpiint, myid )
+      call imp_bcast(net%outno      , 0_mpiint, myid )
+      call imp_bcast(net%conec      , 0_mpiint, myid )
+      call imp_bcast(net%deo        , 0_mpiint, myid )
+      call imp_bcast(net%eni        , 0_mpiint, myid )
+      call imp_bcast(net%inlimits   , 0_mpiint, myid )
+      call imp_bcast(net%lastcall   , 0_mpiint, myid )
+      call imp_bcast(net%lastresult , 0_mpiint, myid )
+      call imp_bcast(net%in_size    , 0_mpiint, myid )
+      call imp_bcast(net%out_size   , 0_mpiint, myid )
+      call imp_bcast(net%initialized, 0_mpiint, myid )
   end subroutine
 
   subroutine loadnet(netname,net,ierr)
