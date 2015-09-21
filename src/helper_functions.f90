@@ -31,7 +31,7 @@ module m_helper_functions
           mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum
 
       interface imp_bcast
-        module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
+        module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
       end interface
 
       integer(mpiint) :: mpierr
@@ -149,6 +149,30 @@ module m_helper_functions
           integer(mpiint),intent(in) :: sendid,myid
 
           call mpi_bcast(val,1_mpiint,imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+      end subroutine
+      subroutine  imp_bcast_int_1d(arr,sendid,myid)
+          integer(iintegers),allocatable,intent(inout) :: arr(:)
+          integer(mpiint),intent(in) :: sendid,myid
+
+          integer(iintegers) :: Ntot
+
+          if(sendid.eq.myid) Ntot = size(arr)
+          call mpi_bcast(Ntot,1_mpiint,imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+
+          if(myid.ne.sendid) allocate( arr(Ntot) )
+          call mpi_bcast(arr,size(arr),imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+      end subroutine
+      subroutine  imp_bcast_int_2d(arr,sendid,myid)
+          integer(iintegers),allocatable,intent(inout) :: arr(:,:)
+          integer(mpiint),intent(in) :: sendid,myid
+
+          integer(iintegers) :: Ntot(2)
+
+          if(sendid.eq.myid) Ntot = shape(arr)
+          call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+
+          if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
+          call mpi_bcast(arr,size(arr),imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
       end subroutine
       subroutine  imp_bcast_real(val,sendid,myid)
           real(ireals),intent(inout) :: val
