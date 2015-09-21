@@ -79,9 +79,9 @@ program main
 
       if(dx.eq.-1) stop 'Need to supply option dx to create Lookuptables... stopping' 
 
-      print *,'calculating coeffs for dx',dx,'szas',szas,'azimuths',azis
+      if(myid.eq.0) print *,'calculating coeffs for dx',dx,'szas',szas,'azimuths',azis
       call OPP%init(dx,dx,azis,szas,comm)
-      print *,'loaded 8_10 coeffs for dx',dx,'szas',szas,'azis',azis
+      if(myid.eq.0) print *,'loaded 8_10 coeffs for dx',dx,'szas',szas,'azis',azis
 
       call mpi_finalize(ierr)
 end program
