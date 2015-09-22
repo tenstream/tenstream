@@ -1581,8 +1581,8 @@ contains
       PC  :: prec
       logical :: linit
 
-      !      MatNullSpace :: nullspace
-      !      Vec :: nullvecs(0)
+      MatNullSpace :: nullspace
+      Vec :: nullvecs(0)
       character(len=*),optional :: prefix
 
       PetscReal,parameter :: rtol=1e-4_ireals, rel_atol=1e-4_ireals
@@ -1596,7 +1596,8 @@ contains
 
       PetscReal :: atol
 
-      logical,parameter :: lset_geometry=.False. ! this may be necessary in order to use geometric multigrid
+      logical,parameter :: lset_geometry=.False.  ! this may be necessary in order to use geometric multigrid
+      logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
 
       if(linit) return
       call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
@@ -1647,8 +1648,10 @@ contains
 
       if(lset_geometry) call set_coordinates(C,ierr);CHKERRQ(ierr)
 
-      !      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, nullvecs, nullspace, ierr) ; CHKERRQ(ierr)
-      !      call KSPSetNullspace(ksp, nullspace, ierr) ; CHKERRQ(ierr)
+      if(lset_nullspace) then
+        call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, nullvecs, nullspace, ierr) ; CHKERRQ(ierr)
+        call MatSetNullSpace(A, nullspace, ierr);CHKERRQ(ierr)
+      endif
 
       call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
 
