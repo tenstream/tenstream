@@ -1,0 +1,64 @@
+! ------------------------------------
+! NAMELIST parameter for UCLA-LES    
+! ------------------------------------
+
+! This experiment was used to characterize the weak and strong
+! scaling behaviour of the TenStream solver, coupled to UCLA-LES.
+! This setup is not cloud producing and has only medium wind speeds
+! The aim is to produce a minimally changing domain between
+! timesteps, so as to ensure the similarity which helps the 
+! radiation solver to faster convergence.
+
+&model
+! ---------- Grid parameters ----------
+! ------- for Image simulations -------
+
+  nxp    = 260
+  nyp    = 260
+  nzp    =  70
+  deltax =  50 
+  deltay =  50 
+  deltaz =  50
+  dzrat  = 1.01 ! grid stretch
+
+! ------- for strong-scaling runs -----
+
+  nxp     =  100 
+  nyp     =  100
+  nzp     =   50
+  deltax  =  100
+  deltay  =  100
+  deltaz  =   70
+  dzrat   = 1.02 ! grid stretch   
+! -------------------------------------
+
+! -------- Physics parameters ---------
+  level    = 2      ! warm microphysics 
+  isfctyp  = 0      ! const. surf. 
+
+  fixed_sun = .True.
+  radMcICA  = .False.! use McSI
+  u0        =   0.5  ! 60 degree zenith
+  iradtyp   =     7  ! TenStream solver    
+! -------------------------------------
+
+! ----- Atmospheric parameters --------
+  th00  =  293.15 ! basic bg. state
+  sst   =  293.15 ! surf. temp.
+
+! ----- Atmospheric parameters --------
+! -------------------------------------
+
+  ps    = 1015.4, 740.0, 3260.0, 4000.0
+  ts    =  297.9, 297.9,  312.6,  317.0
+  rts   =   10.0,  10.0,    4.0,    0.8
+  us    =   -1.0,  -2.0,   -3.0,   -4.0
+  vs    =   -1.0,  -2.0,   -3.0,   -4.0
+  vmean =    0.
+  umean =    0.
+! -------------------------------------
+
+! no temperature perturbation
+  case_name='clearsky' 
+! -------------------------------------
+
