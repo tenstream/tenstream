@@ -251,6 +251,7 @@ module m_helper_functions
           real(ireals),intent(in),optional :: factor
           real(ireals) :: f
 
+          g = min( g, one-epsilon(g)*10)
           if(present(factor)) then
             f = factor
           else
