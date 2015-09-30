@@ -46,6 +46,10 @@ module m_optprop_ANN
 
   type(ANN),save :: diff2diff_network, dir2dir_network, dir2diff_network, direct_network
 
+  real(ireals),parameter :: min_lim_coeff = zero
+  logical,parameter :: lrenormalize=.True.
+!  logical,parameter :: lrenormalize=.False.
+
 contains
 
   subroutine ANN_init(dx,dy,comm)
@@ -134,6 +138,7 @@ contains
           print *,'Loading ANN from: ',trim(netname),' resulted in errcnt',errcnt
         if(errcnt.ne.0) then
           ierr = errcnt
+          print *,'ERROR loading ANN for netname :: ',trim(netname),' ::: ',ierr
           stop 'Could not load ANN'
           return
         endif
@@ -169,17 +174,21 @@ contains
         call exit()
       endif
 
-      !Check for energy conservation:
-      do isrc=1,Ndir_8_10
-        norm = sum( C( isrc:size(C):Ndir_8_10 ) )
-        if(real(norm).gt.one) then
-          C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/norm 
-!          print *,'dir2dir renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
-        endif
-      enddo
-
       C = min(one, max(C,zero) )
+      where( C.le.min_lim_coeff )
+        C = zero
+      endwhere
 
+      !Check for energy conservation:
+      if(lrenormalize) then
+        do isrc=1,Ndir_8_10
+          norm = sum( C( isrc:size(C):Ndir_8_10 ) )
+          if(real(norm).gt.one) then
+            C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/norm 
+            !          print *,'dir2dir renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
+          endif
+        enddo
+      endif
   end subroutine
 
   subroutine ANN_get_dir2diff(dz, kabs, ksca, g, phi, theta, C)
@@ -195,16 +204,21 @@ contains
         call exit()
       endif
 
-      !Check for energy conservation:
-      do isrc=1,Ndiff_8_10
-        norm = sum( C( isrc:size(C):Ndir_8_10 ) )
-        if(real(norm).gt.one) then
-          C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/ norm
-!          print *,'dir2diff renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
-        endif
-      enddo
-
       C = min(one, max(C,zero) )
+      where( C.le.min_lim_coeff )
+        C = zero
+      endwhere
+
+      !Check for energy conservation:
+      if(lrenormalize) then
+        do isrc=1,Ndiff_8_10
+          norm = sum( C( isrc:size(C):Ndir_8_10 ) )
+          if(real(norm).gt.one) then
+            C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/ norm
+            !          print *,'dir2diff renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
+          endif
+        enddo
+      endif
   end subroutine
 
   subroutine ANN_get_diff2diff(dz, kabs, ksca, g, C)
@@ -224,16 +238,21 @@ contains
         call exit()
       endif
 
-      !Check for energy conservation:
-      do isrc=1,Ndiff_8_10
-        norm = sum( C( isrc:size(C):Ndiff_8_10 ) )
-        if(real(norm).gt.one) then
-          C( isrc:size(C):Ndiff_8_10 ) = C( isrc:size(C):Ndiff_8_10 )/ norm
-!          print *,'diffuse renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndiff_8_10 ) )
-        endif
-      enddo
-
       C = min(one, max(C,zero) )
+      where( C.le.min_lim_coeff )
+        C = zero
+      endwhere
+
+      !Check for energy conservation:
+      if(lrenormalize) then
+        do isrc=1,Ndiff_8_10
+          norm = sum( C( isrc:size(C):Ndiff_8_10 ) )
+          if(real(norm).gt.one) then
+            C( isrc:size(C):Ndiff_8_10 ) = C( isrc:size(C):Ndiff_8_10 )/ norm
+            !          print *,'diffuse renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndiff_8_10 ) )
+          endif
+        enddo
+      endif
   end subroutine
 
   subroutine calc_net(coeffs,inp,net,ierr)
