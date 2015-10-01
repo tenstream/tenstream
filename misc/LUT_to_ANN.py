@@ -241,7 +241,7 @@ def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp
 
     last_train_err = rmse(train_target,train_output)[1]
 
-def create_training_dataset(coeff_mode, LUTname):
+def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
     # Try to find out which LUT entries we have here
     try:
         D = NC.Dataset(LUTname,'r')
@@ -371,7 +371,7 @@ def create_training_dataset(coeff_mode, LUTname):
     inp = inp[permu] ; out = out[permu]
 
     # up until entries to 'divider' are used for training, the rest for testing
-    divider = int(np.round(N_entries*.8))  
+    divider = int(np.round(N_entries*training_fraction))  
     
     print ' using {} points for training and {} for testing'.format(divider, N_entries-divider)
     train_inp = inp[:divider,:] ; train_target = out[:divider,:]
