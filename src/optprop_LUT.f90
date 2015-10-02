@@ -77,7 +77,7 @@ module m_optprop_LUT
 
   type directTable
     real(ireals) :: dx,dy
-    character(len=300) :: fname
+    character(len=300),allocatable ::  fname(:,:) !dim=(phi,theta)
     type(table),allocatable :: S(:,:) !dim=(phi,theta)
     type(table),allocatable :: T(:,:) !dim=(phi,theta)
     type(parameter_space) :: pspace
@@ -134,13 +134,13 @@ contains
           class is (t_optprop_LUT_1_2)
             OPP%dir_streams  =  Ndir_1_2
             OPP%diff_streams =  Ndiff_1_2
-            OPP%lutbasename=trim(lut_basename)//'_dstorder_1_2.'
+            OPP%lutbasename=trim(lut_basename)//'_1_2.'
             allocate(t_boxmc_1_2::OPP%bmc)
 
           class is (t_optprop_LUT_8_10)
             OPP%dir_streams  = Ndir_8_10
             OPP%diff_streams = Ndiff_8_10
-            OPP%lutbasename=trim(lut_basename)//'_dstorder_8_10.'
+            OPP%lutbasename=trim(lut_basename)//'_8_10.'
             allocate(t_boxmc_8_10::OPP%bmc)
 
           class default
@@ -155,7 +155,7 @@ contains
       call OPP%set_parameter_space(OPP%diffLUT%pspace,one*idx)
 
       ! Load diffuse LUT
-      write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,ldelta_scale,delta_scale_truncate
+      write(descr,FMT='("diffuse.dx",I0,".dy",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,idy,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,ldelta_scale,delta_scale_truncate
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading diffuse LUT from ',trim(descr)
       OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.nc'
       OPP%diffLUT%dx    = idx
@@ -163,10 +163,7 @@ contains
 
       call OPP%loadLUT_diff(comm)
 
-      ! Load direct LUT
-      write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') idx,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,OPP%Nphi,OPP%Ntheta,ldelta_scale,delta_scale_truncate
-      if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading direct LUT from ',trim(descr),' for szas',szas,': azi :',azis
-      OPP%dirLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.nc'
+      ! Name will be set in loadLUT_dir, different for each sun angle
       OPP%dirLUT%dx    = idx
       OPP%dirLUT%dy    = idy
 
@@ -222,10 +219,13 @@ subroutine loadLUT_diff(OPP, comm)
       call ncload(S%table_name_tol, S%stddev_tol,iierr) ; errcnt = errcnt+iierr
 
       if( allocated(S%stddev_tol) ) &
-          lstddev_inbounds = all( S%stddev_tol.le.stddev_atol )
+          lstddev_inbounds = all( S%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10 )
+
+      if(.not.lstddev_inbounds) &
+          print *,'Loading of diffuse tables S :: failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
       
-          if(OPP%optprop_LUT_debug .and. myid.eq.0) &
-              print *,'... loading diffuse LUT',errcnt,lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol,')'
+      if(OPP%optprop_LUT_debug .and. myid.eq.0) &
+          print *,'... loading diffuse LUT',errcnt,lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')'
     endif !master
 
     call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr); CHKERRQ(mpierr) ! inform all nodes if we were able to load the LUT
@@ -274,11 +274,12 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
     real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
     integer(mpiint),intent(in) :: comm
     integer(iintegers) :: errcnt,iphi,itheta
-    character(300) :: str(7),varname(4)
+    character(len=300) :: descr,str(7),varname(4)
     logical :: angle_mask(OPP%Nphi,OPP%Ntheta),lstddev_inbounds
 
-    if(.not. allocated(OPP%dirLUT%S) ) allocate( OPP%dirLUT%S(OPP%Nphi,OPP%Ntheta) )
-    if(.not. allocated(OPP%dirLUT%T) ) allocate( OPP%dirLUT%T(OPP%Nphi,OPP%Ntheta) )
+    if(.not. allocated(OPP%dirLUT%fname) ) allocate( OPP%dirLUT%fname(OPP%Nphi,OPP%Ntheta) )
+    if(.not. allocated(OPP%dirLUT%S    ) ) allocate( OPP%dirLUT%S    (OPP%Nphi,OPP%Ntheta) )
+    if(.not. allocated(OPP%dirLUT%T    ) ) allocate( OPP%dirLUT%T    (OPP%Nphi,OPP%Ntheta) )
 
     write(str(1),FMT='(A)') 'direct'
     write(str(2),FMT='("dx",I0)') nint(OPP%dirLUT%dx)
@@ -288,50 +289,67 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
 
     do itheta=1,OPP%Ntheta
       do iphi  =1,OPP%Nphi
-      associate ( phi   => int(OPP%dirLUT%pspace%phi(iphi)),      &
-                  theta => int(OPP%dirLUT%pspace%theta(itheta)),  & 
-                  LUT   => OPP%dirLUT,                            &
-                  S     => OPP%dirLUT%S(iphi,itheta),             &
-                  T     => OPP%dirLUT%T(iphi,itheta) )
+
+        ! Set filename of LUT
+        write(descr,FMT='("direct.dx",I0,".dy",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
+            int(OPP%dirLUT%dx), int(OPP%dirLUT%dy),  &
+            OPP%Ndz, OPP%Nkabs, OPP%Nksca, OPP%Ng,   &
+            int(OPP%dirLUT%pspace%phi(iphi)),        &
+            int(OPP%dirLUT%pspace%theta(itheta)),    &
+            ldelta_scale,delta_scale_truncate
+
+        OPP%dirLUT%fname(iphi,itheta) = trim(OPP%lutbasename)//trim(descr)//'.nc'
+
+        associate ( phi   => int(OPP%dirLUT%pspace%phi(iphi)),      &
+                    theta => int(OPP%dirLUT%pspace%theta(itheta)),  & 
+                    LUT   => OPP%dirLUT,                            &
+                    fname => OPP%dirLUT%fname(iphi,itheta),         &
+                    S     => OPP%dirLUT%S(iphi,itheta),             &
+                    T     => OPP%dirLUT%T(iphi,itheta) )
 
         errcnt=0
         if( allocated(S%c) .or. .not.angle_mask(iphi,itheta) ) cycle
+
+        if(OPP%optprop_LUT_debug .and. myid.eq.0) &
+          print *,'Loading direct LUT from ',fname,' for azi',phi,': sza :',theta,':: ',descr
 
         write(str(4),FMT='("phi",I0)')   phi
         write(str(5),FMT='("theta",I0)') theta
 
         if(myid.eq.0) then
-          if(OPP%optprop_LUT_debug) print *,'Trying to load the LUT from file...'
-            write(str(6),FMT='(A)') 'S' ; call ncload([LUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],S%c,iierr) ; errcnt = errcnt+iierr
+          if(OPP%optprop_LUT_debug) print *,'Trying to load the LUT from file... ',fname
+            write(str(6),FMT='(A)') 'S' ; call ncload([fname,str(1),str(2),str(3),str(4),str(5),str(6)],S%c,iierr) ; errcnt = errcnt+iierr
 
-!            if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[trim(LUT%fname),trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5)),trim(str(6))]!,S%c
+!            if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[trim(fname),trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5)),trim(str(6))]!,S%c
             if(iierr.eq.0) then
               if(any( S%c.gt.one ).or.any(S%c.lt.zero) ) errcnt=errcnt+100
             endif
 
-            write(str(6),FMT='(A)') 'T' ; call ncload([LUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],T%c,iierr) ; errcnt = errcnt+iierr
-!            if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[trim(LUT%fname),trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5)),trim(str(6))]!,S%c
+            write(str(6),FMT='(A)') 'T' ; call ncload([fname,str(1),str(2),str(3),str(4),str(5),str(6)],T%c,iierr) ; errcnt = errcnt+iierr
+!            if(OPP%optprop_LUT_debug) print *,'loaded the LUT from file...',[trim(fname),trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5)),trim(str(6))]!,S%c
             if(iierr.eq.0) then
-              if(any( T%c.gt.one ).or.any(T%c.lt.zero) ) errcnt=errcnt+100
-              call check_dirLUT_matches_pspace(LUT)
+              if(any( T%c.gt.one ).or.any(T%c.lt.zero) ) errcnt=errcnt+200
+              call check_dirLUT_matches_pspace(LUT,fname)
             endif
 
+
             ! Check if the precision requirements are all met and if we can load the %stddev_tol array
-            write(str(6),FMT='(A)') 'S_tol' ; call ncload([LUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],S%stddev_tol,iierr) 
-            write(str(6),FMT='(A)') 'T_tol' ; call ncload([LUT%fname,str(1),str(2),str(3),str(4),str(5),str(6)],T%stddev_tol,iierr)
+            write(str(6),FMT='(A)') 'S_tol' ; call ncload([fname,str(1),str(2),str(3),str(4),str(5),str(6)],S%stddev_tol,iierr) 
 
             lstddev_inbounds = .True. ! first assume that precision is met and then check if this is still the case...
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0 
-            if(lstddev_inbounds) lstddev_inbounds = all(S%stddev_tol.le.stddev_atol)
+            if(lstddev_inbounds) lstddev_inbounds = all(S%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10)
             
             if(.not.lstddev_inbounds) &
-                print *,'Loading of direct tables S :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol,')'
+                print *,'Loading of direct tables S :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
+
+            write(str(6),FMT='(A)') 'T_tol' ; call ncload([fname,str(1),str(2),str(3),str(4),str(5),str(6)],T%stddev_tol,iierr)
 
             if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0
-            if(lstddev_inbounds) lstddev_inbounds = all(T%stddev_tol.le.stddev_atol)
+            if(lstddev_inbounds) lstddev_inbounds = all(T%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10)
 
             if(.not.lstddev_inbounds) &
-                print *,'Loading of direct tables T :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(T%stddev_tol),'(',stddev_atol,')'
+                print *,'Loading of direct tables T :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(T%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
 
             if(OPP%optprop_LUT_debug) &
                 print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds,':',trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5))
@@ -340,22 +358,22 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
         call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr); CHKERRQ(mpierr)
         call mpi_bcast(lstddev_inbounds , 1_mpiint , imp_logical , 0_mpiint , comm , mpierr); CHKERRQ(mpierr)
 
-        if(errcnt.ne.0 .or. .not.lstddev_inbounds ) then
+        if((errcnt.ne.0) .or. (.not.lstddev_inbounds) ) then
           if(myid.eq.0) then ! master -- setup netcdf files:
             write(str(6),FMT='(A)') 'pspace' 
-            write(str(7),FMT='(A)') "range_dz   " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_dz    , iierr)
-            write(str(7),FMT='(A)') "range_kabs " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_kabs  , iierr)
-            write(str(7),FMT='(A)') "range_ksca " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_ksca  , iierr)
-            write(str(7),FMT='(A)') "range_g    " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_g     , iierr)
-            write(str(7),FMT='(A)') "range_phi  " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_phi   , iierr)
-            write(str(7),FMT='(A)') "range_theta" ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_theta , iierr)
+            write(str(7),FMT='(A)') "range_dz   " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_dz    , iierr)
+            write(str(7),FMT='(A)') "range_kabs " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_kabs  , iierr)
+            write(str(7),FMT='(A)') "range_ksca " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_ksca  , iierr)
+            write(str(7),FMT='(A)') "range_g    " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_g     , iierr)
+            write(str(7),FMT='(A)') "range_phi  " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_phi   , iierr)
+            write(str(7),FMT='(A)') "range_theta" ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%range_theta , iierr)
 
-            write(str(7),FMT='(A)') "dz         " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%dz          , iierr)
-            write(str(7),FMT='(A)') "kabs       " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%kabs        , iierr)
-            write(str(7),FMT='(A)') "ksca       " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%ksca        , iierr)
-            write(str(7),FMT='(A)') "g          " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%g           , iierr)
-            write(str(7),FMT='(A)') "phi        " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%phi         , iierr)
-            write(str(7),FMT='(A)') "theta      " ; call ncwrite([LUT%fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%theta       , iierr)
+            write(str(7),FMT='(A)') "dz         " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%dz          , iierr)
+            write(str(7),FMT='(A)') "kabs       " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%kabs        , iierr)
+            write(str(7),FMT='(A)') "ksca       " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%ksca        , iierr)
+            write(str(7),FMT='(A)') "g          " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%g           , iierr)
+            write(str(7),FMT='(A)') "phi        " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%phi         , iierr)
+            write(str(7),FMT='(A)') "theta      " ; call ncwrite([fname , str(1),str(2),str(3),str(6),str(7) ] , LUT%pspace%theta       , iierr)
 
             write(varname(1),FMT='(A)') "S     "
             write(varname(2),FMT='(A)') "S_tol"
@@ -367,10 +385,10 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             if(.not.allocated(T%table_name_c  ) ) allocate(T%table_name_c  (7)) 
             if(.not.allocated(T%table_name_tol) ) allocate(T%table_name_tol(7)) 
 
-            S%table_name_c   = [LUT%fname,str(1),str(2),str(3),str(4),str(5),varname(1)]
-            S%table_name_tol = [LUT%fname,str(1),str(2),str(3),str(4),str(5),varname(2)]
-            T%table_name_c   = [LUT%fname,str(1),str(2),str(3),str(4),str(5),varname(3)]
-            T%table_name_tol = [LUT%fname,str(1),str(2),str(3),str(4),str(5),varname(4)]
+            S%table_name_c   = [fname,str(1),str(2),str(3),str(4),str(5),varname(1)]
+            S%table_name_tol = [fname,str(1),str(2),str(3),str(4),str(5),varname(2)]
+            T%table_name_c   = [fname,str(1),str(2),str(3),str(4),str(5),varname(3)]
+            T%table_name_tol = [fname,str(1),str(2),str(3),str(4),str(5),varname(4)]
           endif !master
 
           ! all call createLUT
@@ -938,8 +956,9 @@ end subroutine
 
       if(any(align.ne.0)) stop 'parameter space of direct LUT coefficients is not aligned!'
   end subroutine                                   
-  subroutine check_dirLUT_matches_pspace(LUT)
+  subroutine check_dirLUT_matches_pspace(LUT,fname)
       type(directTable),intent(in) :: LUT
+      character(len=*),intent(in) :: fname
       real(ireals),allocatable :: buf(:)
       character(300) :: str(5)
       integer(iintegers) align(6);
@@ -949,12 +968,12 @@ end subroutine
       write(str(4),FMT='(A)') "pspace"
       align=0
 
-      write(str(5),FMT='(A)') "dz      "  ; call ncload([LUT%fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%dz    )  ) align(1 ) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(5),FMT='(A)') "kabs    "  ; call ncload([LUT%fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%kabs  )  ) align(2 ) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(5),FMT='(A)') "ksca    "  ; call ncload([LUT%fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%ksca  )  ) align(3 ) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(5),FMT='(A)') "g       "  ; call ncload([LUT%fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%g     )  ) align(4 ) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(5),FMT='(A)') "phi     "  ; call ncload([LUT%fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%phi   )  ) align(5 ) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(5),FMT='(A)') "theta   "  ; call ncload([LUT%fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%theta )  ) align(6 ) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(5),FMT='(A)') "dz      "  ; call ncload([fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%dz    )  ) align(1 ) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(5),FMT='(A)') "kabs    "  ; call ncload([fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%kabs  )  ) align(2 ) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(5),FMT='(A)') "ksca    "  ; call ncload([fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%ksca  )  ) align(3 ) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(5),FMT='(A)') "g       "  ; call ncload([fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%g     )  ) align(4 ) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(5),FMT='(A)') "phi     "  ; call ncload([fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%phi   )  ) align(5 ) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(5),FMT='(A)') "theta   "  ; call ncload([fname,str(1),str(2),str(3),str(4),str(5)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%theta )  ) align(6 ) =1 ; if(allocated(buf)) deallocate(buf )
 
       if(any(align.ne.0)) stop 'parameter space of direct LUT coefficients is not aligned!'
     end subroutine                                   
@@ -965,7 +984,7 @@ end subroutine
     real(ireals),intent(in) :: a(:),b(:)
     integer(iintegers) :: k
     if( all( shape(a).ne.shape(b) ) ) then
-      print *,'compare_same : was called with differing shapes!'
+      print *,'compare_same : was called with differing shapes!', shape(a),'::',shape(b)
       compare_same = .False.
       return
     endif
