@@ -218,14 +218,15 @@ subroutine loadLUT_diff(OPP, comm)
 
       call ncload(S%table_name_tol, S%stddev_tol,iierr) ; errcnt = errcnt+iierr
 
-      if( allocated(S%stddev_tol) ) &
-          lstddev_inbounds = all( S%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10 )
+      if( allocated(S%stddev_tol) ) then
+        lstddev_inbounds = all( S%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10 )
 
-      if(.not.lstddev_inbounds) &
-          print *,'Loading of diffuse tables S :: failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
+        if(.not.lstddev_inbounds) &
+            print *,'Loading of diffuse tables S :: failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
       
-      if(OPP%optprop_LUT_debug .and. myid.eq.0) &
-          print *,'... loading diffuse LUT',errcnt,lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')'
+        if(OPP%optprop_LUT_debug .and. myid.eq.0) &
+            print *,'... loading diffuse LUT',errcnt,lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')'
+      endif
     endif !master
 
     call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr); CHKERRQ(mpierr) ! inform all nodes if we were able to load the LUT
@@ -336,23 +337,27 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
             ! Check if the precision requirements are all met and if we can load the %stddev_tol array
             write(str(6),FMT='(A)') 'S_tol' ; call ncload([fname,str(1),str(2),str(3),str(4),str(5),str(6)],S%stddev_tol,iierr) 
 
-            lstddev_inbounds = .True. ! first assume that precision is met and then check if this is still the case...
-            if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0 
-            if(lstddev_inbounds) lstddev_inbounds = all(S%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10)
-            
-            if(.not.lstddev_inbounds) &
-                print *,'Loading of direct tables S :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
+            if(iierr.ne.0) then
+              lstddev_inbounds = .False. ! if we could not load stddev...
+            else
+              lstddev_inbounds = .True. ! first assume that precision is met and then check if this is still the case...
+              if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0 
+              if(lstddev_inbounds) lstddev_inbounds = all(S%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10)
 
-            write(str(6),FMT='(A)') 'T_tol' ; call ncload([fname,str(1),str(2),str(3),str(4),str(5),str(6)],T%stddev_tol,iierr)
+              if(.not.lstddev_inbounds) &
+                  print *,'Loading of direct tables S :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
 
-            if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0
-            if(lstddev_inbounds) lstddev_inbounds = all(T%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10)
+              write(str(6),FMT='(A)') 'T_tol' ; call ncload([fname,str(1),str(2),str(3),str(4),str(5),str(6)],T%stddev_tol,iierr)
 
-            if(.not.lstddev_inbounds) &
-                print *,'Loading of direct tables T :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(T%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
+              if(lstddev_inbounds) lstddev_inbounds = iierr.eq.i0
+              if(lstddev_inbounds) lstddev_inbounds = all(T%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10)
 
-            if(OPP%optprop_LUT_debug) &
-                print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds,':',trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5))
+              if(.not.lstddev_inbounds) &
+                  print *,'Loading of direct tables T :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(T%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
+
+              if(OPP%optprop_LUT_debug) &
+                  print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds,':',trim(str(1)),trim(str(2)),trim(str(3)),trim(str(4)),trim(str(5))
+            endif
         endif !master
 
         call mpi_bcast(errcnt           , 1_mpiint , imp_int     , 0_mpiint , comm , mpierr); CHKERRQ(mpierr)
