@@ -181,8 +181,8 @@ contains
     real(ireals),intent(in)       :: dx,dy,dz                  !< @param[in] dx,dy,dz box with dimensions in [m]
     real(ireals),intent(out)      :: S_out(bmc%diff_streams)   !< @param[out] S_out diffuse streams transfer coefficients
     real(ireals),intent(out)      :: T_out(bmc%dir_streams)    !< @param[out] T_out direct streams transfer coefficients
-    real(ireals),intent(out)      :: S_tol(bmc%diff_streams)   !< @param[out] absolute and relative tolerances of results
-    real(ireals),intent(out)      :: T_tol(bmc%dir_streams)    !< @param[out] absolute and relative tolerances of results
+    real(ireals),intent(out)      :: S_tol(bmc%diff_streams)   !< @param[out] absolute tolerances of results
+    real(ireals),intent(out)      :: T_tol(bmc%dir_streams)    !< @param[out] absolute tolerances of results
     real(ireals),intent(in),optional :: inp_atol               !< @param[in] inp_atol if given, determines targeted absolute stddeviation
     real(ireals),intent(in),optional :: inp_rtol               !< @param[in] inp_rtol if given, determines targeted relative stddeviation
 
@@ -623,7 +623,7 @@ contains
       std%relvar = one/sqrt(one*N)
     end where
 
-    if( all( std%var .lt. std%atol .and. std%relvar .lt. std%rtol ) ) then
+    if( all( (std%var .lt. std%atol) .and. (std%relvar .lt. std%rtol) ) ) then
       std%converged = .True.
     else
       std%converged = .False.
