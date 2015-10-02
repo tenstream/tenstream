@@ -620,7 +620,7 @@ contains
     where(std%mean.gt.relvar_limit)
       std%relvar = std%var / std%mean
     elsewhere
-      std%relvar = zero
+      std%relvar = one/sqrt(one*N)
     end where
 
     if( all( std%var .lt. std%atol .and. std%relvar .lt. std%rtol ) ) then
