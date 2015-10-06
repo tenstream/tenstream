@@ -422,7 +422,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
     logical :: gotmsg
     integer(mpiint) :: status(MPI_STATUS_SIZE)
     integer(iintegers) :: workinput(5) !isrc, idz, ikabs, iksca, ig
-    integer(iintegers) :: idummy, workindex,ierr
+    integer(iintegers) :: idummy, workindex
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(ireals) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
@@ -448,7 +448,6 @@ subroutine createLUT_diff(OPP, LUT, comm)
     else
       call worker()
     endif
-    call mpi_barrier(comm,ierr)
 
     if(myid.eq.0) print *,'done calculating diffuse coefficients',shape(LUT%S%c)
     contains 
@@ -654,7 +653,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
     logical :: gotmsg
     integer(mpiint) :: status(MPI_STATUS_SIZE)
     integer(iintegers) :: workinput(5) 
-    integer(iintegers) :: idummy, workindex,ierr
+    integer(iintegers) :: idummy, workindex
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(ireals) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
@@ -672,7 +671,6 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
     else
       call worker()
     endif
-    call mpi_barrier(comm,ierr)
 
     contains
       subroutine master(S,T)
