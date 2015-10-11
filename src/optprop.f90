@@ -219,29 +219,29 @@ contains
             ! ------------------------------------------------------------------------------------------------------------------
             ! ------------------ This would be so nice if we wouldnt need it! --------------------------------------------------
             ! ------------------------------------------------------------------------------------------------------------------
-            if(coeff_mode.eq.i1) then ! if using ANN we really have to be carefull, not to loose system properties, e.g. positive definite, thereforce normalize to one if norm gt one
-              if(present(inp_angles)) then 
-                if(dir) then ! dir2dir
-                  do isrc=1,OPP%dir_streams
-                    norm = sum( C( (isrc-1)*OPP%dir_streams+i1 : isrc*OPP%dir_streams ) )
-                    if(norm.gt.one) C( (isrc-1)*OPP%dir_streams+i1 : isrc*OPP%dir_streams ) = C( (isrc-1)*OPP%dir_streams+i1 : isrc*OPP%dir_streams ) / norm
-                  enddo
-                else ! dir2diff
-                  do isrc=1,OPP%dir_streams
-                    norm = sum( C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) )
-                    if(norm.gt.one) C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) = C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) / norm
-                  enddo
-                endif
-              else !diff2diff
-                do isrc=1,OPP%diff_streams
-                  norm = sum( C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) )
-                  if(norm.gt.one) C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) = C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) / norm
-                enddo
-              endif ! present(angles)
-            endif ! ANN
+!           if(coeff_mode.eq.i1) then ! if using ANN we really have to be carefull, not to loose system properties, e.g. positive definite, thereforce normalize to one if norm gt one
+!             if(present(inp_angles)) then 
+!               if(dir) then ! dir2dir
+!                 do isrc=1,OPP%dir_streams
+!                   norm = sum( C( (isrc-1)*OPP%dir_streams+i1 : isrc*OPP%dir_streams ) )
+!                   if(norm.gt.one) C( (isrc-1)*OPP%dir_streams+i1 : isrc*OPP%dir_streams ) = C( (isrc-1)*OPP%dir_streams+i1 : isrc*OPP%dir_streams ) / norm
+!                 enddo
+!               else ! dir2diff
+!                 do isrc=1,OPP%dir_streams
+!                   norm = sum( C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) )
+!                   if(norm.gt.one) C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) = C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) / norm
+!                 enddo
+!               endif
+!             else !diff2diff
+!               do isrc=1,OPP%diff_streams
+!                 norm = sum( C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) )
+!                 if(norm.gt.one) C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) = C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) / norm
+!               enddo
+!             endif ! present(angles)
+!           endif ! ANN
             ! ------------------------------------------------------------------------------------------------------------------
             ! ------------------------------------------------------------------------------------------------------------------
-
+             !TODO: check for dstorder
             if(determine_coeff_error.and.allocated(OPP%OPP_LUT%bmc) ) then ! TODO at the moment only possible to online calculate coefficients if we use LUT directly... this is due to the fucked up software engineering... whole optprop stuff needs refactoring
               call random_number(T_dir(1)) 
               if(T_dir(1).le.checking_limit) then
