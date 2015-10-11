@@ -188,10 +188,10 @@ contains
 
     type(photon)       :: p
     integer(iintegers) :: k,mycnt,mincnt
-    real(ireals)   :: time(2),total_photons,initial_dir(3)
+    real(ireals)   :: time(2), initial_dir(3)
     integer(iintegers) :: Ndir(bmc%dir_streams),Ndiff(bmc%diff_streams)
 
-    real(ireals) :: atol,rtol
+    real(ireals) :: atol,rtol, coeffnorm
 
     if(.not. bmc%initialized ) stop 'Box Monte Carlo Ray Tracer is not initialized! - This should not happen!'
 
@@ -270,44 +270,35 @@ contains
       call std_update( std_Sdiff, k, i1*numnodes )
     enddo ! k photons
 
-    ! weight mean by calculated photons and compare it with results from other nodes
-    total_photons = k
-
-    S_out        = std_Sdiff%mean*k
-    if(ldir) &
-      T_out = std_Sdir%mean *k
-
-    if(comm.ne.-1 .and. myid.ge.0) then ! reduce results from all ranks
-      call imp_reduce_sum(total_photons,comm,myid)
-      do k=1,ubound(S_out,1)
-        call imp_reduce_sum(S_out(k),comm,myid)
-      enddo
-
-      if(ldir) then
-        do k=1,ubound(T_out,1)
-          call imp_reduce_sum(T_out(k),comm,myid)
-        enddo
-      endif
-    endif
-
-    ! normalize results to all sent photons
-    S_out    = S_out / total_photons
-    if(ldir) then
-      T_out = T_out / total_photons
-    else
-      T_out=zero
-    endif
+    S_out = std_Sdiff%mean
+    T_out = std_Sdir%mean 
 
     ! tolerances that we achieved and report them back
     S_tol = std_Sdiff%var
     T_tol = std_Sdir%var
 
+    if(numnodes.gt.1) then ! average reduce results from all ranks
+      call reduce_output(k,comm, S_out, T_out, S_tol, T_tol)
+    endif
+
+
     ! some debug output at the end...
-    if( (sum(S_out)+sum(T_out)).gt.one+1e-1_ireals ) then
-      print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
-      sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one+1e-1_ireals,':: op',p%optprop,'eps',epsilon(one)
-      call print_photon(p)
-      call exit
+    coeffnorm = sum(S_out)+sum(T_out)
+    if( coeffnorm.gt.one ) then
+      if(coeffnorm.ge.one+1e-1_ireals) then
+        print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
+        sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',p%optprop,'eps',epsilon(one)
+        call print_photon(p)
+        call exit
+      else
+        S_out = S_out / (coeffnorm+epsilon(coeffnorm)*10)
+        T_out = T_out / (coeffnorm+epsilon(coeffnorm)*10)
+        if(ldebug_optprop) print *,'renormalizing coefficients :: ',coeffnorm,' => ',sum(S_out)+sum(T_out)
+      endif
+      if( (sum(S_out)+sum(T_out)).gt.one ) then
+        print *,'norm still too big',sum(S_out)+sum(T_out)
+        call exit
+      endif
     endif
     if( (any(isnan(S_out) )) .or. (any(isnan(T_out)) ) ) then
       print *,'Found a NaN in output! this should not happen! dir',T_out,'diff',S_out
@@ -316,10 +307,46 @@ contains
     endif
     call cpu_time(time(2))
 
-    if(myid.le.0.and.rand().gt..99) then
-      write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') &
-        src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
-    endif
+    !    if(rand().gt..99_ireals) then
+    !      write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') &
+    !        src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
+    !    endif
+  end subroutine
+
+  !> @brief take weighted average over mpi processes
+  subroutine reduce_output(Nlocal, comm, S_out, T_out, S_tol, T_tol)
+    integer(iintegers),intent(in) :: Nlocal
+    integer(mpiint),intent(in)    :: comm
+    real(ireals),intent(inout)      :: S_out(:)
+    real(ireals),intent(inout)      :: T_out(:)
+    real(ireals),intent(inout)      :: S_tol(:)
+    real(ireals),intent(inout)      :: T_tol(:)
+
+    real(ireals) :: Nglobal
+    ! weight mean by calculated photons and compare it with results from other nodes
+    Nglobal = Nlocal
+    call imp_reduce_sum(Nglobal, comm, myid)
+
+    call reduce_var(Nlocal, Nglobal, S_out, comm)
+    call reduce_var(Nlocal, Nglobal, T_out, comm)
+    !TODO: combining stddeviation is probably not just the arithmetic mean?
+    call reduce_var(Nlocal, Nglobal, S_tol, comm)
+    call reduce_var(Nlocal, Nglobal, T_tol, comm)
+
+  contains 
+    subroutine reduce_var(Nlocal, Nglobal, arr, comm)
+      integer(iintegers),intent(in) :: Nlocal
+      real(ireals),intent(in) :: Nglobal
+      real(ireals),intent(inout) :: arr(:)
+      integer(mpiint),intent(in) :: comm
+      integer(iintegers) :: k
+
+      arr = arr*Nlocal
+      do k=1,size(arr)
+        call imp_reduce_sum(arr(k),comm,myid)
+      enddo
+      arr = arr/Nglobal
+    end subroutine
   end subroutine
 
   !> @brief russian roulette helps to reduce computations with not much weight
@@ -620,7 +647,7 @@ contains
     where(std%mean.gt.relvar_limit)
       std%relvar = std%var / std%mean
     elsewhere
-      std%relvar = one/sqrt(one*N)
+      std%relvar = .1_ireals/sqrt(one*N) ! consider adding a photon weight of .1 as worst case that could happen for the next update...
     end where
 
     if( all( (std%var .lt. std%atol) .and. (std%relvar .lt. std%rtol) ) ) then
