@@ -44,7 +44,7 @@ module m_schwarzschild
         real(ireals),parameter       :: dmu = one/Nmu
 
 
-        real(ireals) :: T(size(dtau),Nmu) ! Transmission coefficients
+        real(ireals) :: T(size(dtau)) ! Transmission coefficients
         real(ireals) :: Lup, Ldn
         real(ireals) :: mu
 
@@ -57,7 +57,7 @@ module m_schwarzschild
         ! Transmission coefficients
         do imu=1,Nmu
           mu = (imu-.5_ireals)*dmu 
-          T(:,imu) = exp(- dtau/mu)
+          T = exp(- dtau/mu)
 
           ! Boundary conditions at surface
           Lup = planck(ke1)
@@ -68,11 +68,11 @@ module m_schwarzschild
           Edn(1) = Edn(1) + Ldn*mu
 
           do k=ke,1,-1
-            Lup = Lup * T(k,imu) + planck(k)*(one-T(k,imu))
+            Lup = Lup * T(k) + planck(k)*(one-T(k))
             Eup(k) = Eup(k) + Lup*mu
           enddo
           do k=1,ke
-            Ldn = Ldn * T(k,imu) + planck(k)*(one-T(k,imu))
+            Ldn = Ldn * T(k) + planck(k)*(one-T(k))
             Edn(k+1) = Edn(k+1) + Ldn*mu
           enddo
 
