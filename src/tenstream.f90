@@ -72,7 +72,7 @@ module m_tenstream
   public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
     getVecPointer,restoreVecPointer, &
     tenstream_get_result, need_new_solution, &
-    t_coord,C_dir,C_diff,C_one
+    t_coord,C_dir,C_diff,C_one,C_one1
 
   PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
 
@@ -2512,8 +2512,8 @@ contains
   end subroutine
 
   subroutine set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
-    real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g
-    real(ireals),intent(in),dimension(:,:,:),optional :: local_planck
+    real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g ! dimensions (Nz  , Nx, Ny)
+    real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny)
     real(ireals) :: tau,kext,w0,g
     integer(iintegers) :: k,i,j
 
