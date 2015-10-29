@@ -32,8 +32,8 @@ module m_data_parameters
       private
       public pi,clight,nil,zero,one,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil, &
              iintegers,ireals,ireal128,ireal_dp,                                &
-             mpiint,imp_int,imp_real,imp_logical,imp_comm,myid,numnodes,mpierr, &
-             init_mpi_data_parameters
+             mpiint,imp_int,imp_real,imp_real_dp,imp_logical,imp_comm,          &
+             myid,numnodes,mpierr,init_mpi_data_parameters
 
       integer :: mpiint_dummy
       PetscInt :: petscint_dummy
@@ -53,7 +53,7 @@ module m_data_parameters
       integer(iintegers) ,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,i5=5,i6=6,i7=7,i8=8,i9=9,i10=10,i11=11,inil=-9999_iintegers
 
 
-      integer(mpiint) :: imp_int, imp_real, imp_logical, imp_comm
+      integer(mpiint) :: imp_int, imp_real, imp_real_dp, imp_logical, imp_comm
       integer(mpiint) :: myid,numnodes,mpierr
 
 contains 
@@ -71,6 +71,9 @@ subroutine init_mpi_data_parameters(comm)
 
   call MPI_SIZEOF(one, size, mpierr); CHKERRQ(mpierr)
   call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, size, imp_real, mpierr); CHKERRQ(mpierr)
+
+  call MPI_SIZEOF(1._ireal_dp, size, mpierr); CHKERRQ(mpierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, size, imp_real_dp, mpierr); CHKERRQ(mpierr)
 
   imp_logical = mpi_logical
 

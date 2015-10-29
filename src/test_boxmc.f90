@@ -69,7 +69,7 @@ program main
       if(.True.) then
         bg = [1e-3, 1e-3, .0 ]
         call bmc_1_2%get_coeff(MPI_COMM_WORLD,bg,-1,.False.,phi0,theta0,dx,dy,dz,S2,T1,S2_tol,T1_tol)
-        if(myid.eq.0) write(*, FMT='( " diffuse emission :: ",2(es10.3),"  :: ",2(es10.3) )' ) S(1:2),one-S(1:2)
+        if(myid.eq.0) write(*, FMT='( " diffuse emission :: ",2(es10.3),"  :: ",2(es10.3) )' ) S2(1:2),one-S2(1:2)
 
         call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,-1,.False.,phi0,theta0,dx,dy,dz,S,T,S_tol,T_tol)
         if(myid.eq.0) write(*, FMT='( " diffuse emission(-1)::  :: ",10(es10.3)," :: ",10(es10.3)  )' ) S,one-S

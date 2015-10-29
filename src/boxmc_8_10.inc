@@ -21,9 +21,9 @@
 subroutine update_dir_stream_8_10(bmc,p,S,N)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(in) :: p
-        real(ireals),intent(inout) :: S(:)
+        real(ireal_dp),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
-        real(ireals),parameter :: h=.5_ireals
+        real(ireal_dp),parameter :: h=.5_ireal_dp
 
 !            1       2
 !               3       4
@@ -96,7 +96,7 @@ end subroutine
 subroutine update_diff_stream_8_10(bmc,p,S,N)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(in) :: p
-        real(ireals),intent(inout) :: S(:)
+        real(ireal_dp),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
 
 !         _______1_______
@@ -166,11 +166,11 @@ end subroutine
 subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(inout) :: p
-        real(ireals),intent(in) :: dx,dy,dz,initial_dir(3)
+        real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
         integer(iintegers),intent(in) :: src
         logical,intent(in) :: direct
-        real(ireals),parameter :: h=.5_ireals
-        real(ireals),parameter :: e=1e-8_ireals
+        real(ireal_dp),parameter :: h=.5_ireal_dp
+        real(ireal_dp),parameter :: e=1e-8_ireal_dp
 
         p%alive = .False.
 
@@ -213,10 +213,10 @@ end subroutine
 subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(inout) :: p
-        real(ireals),intent(in) :: dx,dy,dz
+        real(ireal_dp),intent(in) :: dx,dy,dz
         integer(iintegers),intent(in) :: src
 
-        real(ireals) :: phi,mu,mu1,mu2
+        real(ireal_dp) :: phi,mu,mu1,mu2
 
         mu1= sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
         mu2 = R() ! evenly distribution between 0 and 90 degree
@@ -225,47 +225,47 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         select case(src)
         case (-1) ! thermal emission
                 p%loc = (/L(dx), L(dy), L(dz) /)
-                mu = 2._ireals*mu2 - one
-                phi= deg2rad( R()*360._ireals )
+                mu = 2._ireal_dp*mu2 - one
+                phi= deg2rad( R()*360._ireal_dp )
         case (1)
                 p%loc = (/L(dx), L(dy),    dz  /)
-                phi= deg2rad( R()*360._ireals )
+                phi= deg2rad( R()*360._ireal_dp )
         case (2)
                 p%loc = (/L(dx), L(dy),    zero /)
-                phi= deg2rad( R()*360._ireals )
+                phi= deg2rad( R()*360._ireal_dp )
         case (3)
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (4)
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                phi= deg2rad( interv_R(90._ireal_dp,270._ireal_dp) )
         case (5)
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                phi= deg2rad( interv_R(90._ireal_dp,270._ireal_dp) )
         case (6)
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (7)
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                phi= deg2rad( interv_R(0._ireal_dp,180._ireal_dp) )
         case (8)
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                phi= deg2rad( interv_R(180._ireal_dp,360._ireal_dp) )
         case (9)
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                phi= deg2rad( interv_R(180._ireal_dp,360._ireal_dp) )
         case (10)
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                phi= deg2rad( interv_R(0._ireal_dp,180._ireal_dp) )
         case default
                 print *,'Dont know what to do with source spec:',src
                 call exit
         end select
         select case(src)
           case(1:2)
-            phi= deg2rad( R()*360._ireals )
+            phi= deg2rad( R()*360._ireal_dp )
           case(3:10)
-            phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+            phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         end select
 
         p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
@@ -316,10 +316,10 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
 
         contains
           function rotate_x(v,angle)
-              real(ireals) :: rotate_x(3)
-              real(ireals),intent(in) :: v(3)
+              real(ireal_dp) :: rotate_x(3)
+              real(ireal_dp),intent(in) :: v(3)
               integer :: angle
-              real(ireals) :: M(3,3),s,c
+              real(ireal_dp) :: M(3,3),s,c
               s=sin(deg2rad(one*angle))
               c=cos(deg2rad(one*angle))
 
@@ -330,10 +330,10 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
               rotate_x = matmul(M,v)
           end function
           function rotate_y(v,angle)
-              real(ireals) :: rotate_y(3)
-              real(ireals),intent(in) :: v(3)
+              real(ireal_dp) :: rotate_y(3)
+              real(ireal_dp),intent(in) :: v(3)
               integer :: angle
-              real(ireals) :: M(3,3),s,c
+              real(ireal_dp) :: M(3,3),s,c
               s=sin(deg2rad(one*angle))
               c=cos(deg2rad(one*angle))
 
@@ -344,10 +344,10 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
               rotate_y = matmul(M,v)
           end function
           function rotate_z(v,angle)
-              real(ireals) :: rotate_z(3)
-              real(ireals),intent(in) :: v(3)
+              real(ireal_dp) :: rotate_z(3)
+              real(ireal_dp),intent(in) :: v(3)
               integer :: angle
-              real(ireals) :: M(3,3),s,c
+              real(ireal_dp) :: M(3,3),s,c
               s=sin(deg2rad(one*angle))
               c=cos(deg2rad(one*angle))
 
@@ -363,7 +363,7 @@ end subroutine
 subroutine intersect_distance_8_10(bmc,p,max_dist)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(inout) :: p
-        real(ireals),intent(out) :: max_dist
+        real(ireal_dp),intent(out) :: max_dist
 
         real(ireal_dp) :: x,y,z
         integer(iintegers) :: i,sides(3)

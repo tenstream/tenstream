@@ -21,7 +21,7 @@
 subroutine update_dir_stream_1_2(bmc,p,S,N)
     class(t_boxmc_1_2) :: bmc
     type(photon),intent(in) :: p
-    real(ireals),intent(inout) :: S(:)
+    real(ireal_dp),intent(inout) :: S(:)
     integer(iintegers),intent(inout) :: N(:)
 
     select case (p%side)
@@ -40,7 +40,7 @@ end subroutine
 subroutine update_diff_stream_1_2(bmc,p,S,N)
     class(t_boxmc_1_2) :: bmc
     type(photon),intent(in) :: p
-    real(ireals),intent(inout) :: S(:)
+    real(ireal_dp),intent(inout) :: S(:)
     integer(iintegers),intent(inout) :: N(:)
 
     !         _______1_______
@@ -73,7 +73,7 @@ end subroutine
 subroutine init_dir_photon_1_2(bmc,p,src,direct,initial_dir,dx,dy,dz)
     class(t_boxmc_1_2) :: bmc
     type(photon),intent(inout) :: p
-    real(ireals),intent(in) :: dx,dy,dz,initial_dir(3)
+    real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
     integer(iintegers),intent(in) :: src
     logical,intent(in) :: direct
 
@@ -102,26 +102,26 @@ end subroutine
 subroutine init_diff_photon_1_2(bmc,p,src,dx,dy,dz)
     class(t_boxmc_1_2) :: bmc
     type(photon),intent(inout) :: p
-    real(ireals),intent(in) :: dx,dy,dz
+    real(ireal_dp),intent(in) :: dx,dy,dz
     integer(iintegers),intent(in) :: src
 
-    real(ireals) :: phi,mu,mu1,mu2
+    real(ireal_dp) :: phi,mu,mu1,mu2
 
     mu2 = R()
     mu1 = sqrt(R())
     select case(src)
     case (-1) ! thermal emission
       p%loc = (/L(dx), L(dy), L(dz) /)
-      mu = 2._ireals*mu2 - one
-      phi= deg2rad( R()*360._ireals )
+      mu = 2._ireal_dp*mu2 - one
+      phi= deg2rad( R()*360._ireal_dp )
     case (1)
       p%loc = (/L(dx), L(dy),    dz  /)
-      mu = -mu1 !mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) 
-      phi= deg2rad( R()*360._ireals )
+      mu = -mu1 !mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp) ) 
+      phi= deg2rad( R()*360._ireal_dp )
     case (2)
       p%loc = (/L(dx), L(dy),    zero/)
-      mu = mu1 !mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) 
-      phi= deg2rad( R()*360._ireals )
+      mu = mu1 !mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp) ) 
+      phi= deg2rad( R()*360._ireal_dp )
     case default
       print *,'Dont know what to do with source spec:',src
       call exit
@@ -146,10 +146,10 @@ end subroutine
 subroutine intersect_distance_1_2(bmc,p,max_dist)
     class(t_boxmc_1_2) :: bmc
     type(photon),intent(inout) :: p
-    real(ireals),intent(out) :: max_dist
+    real(ireal_dp),intent(out) :: max_dist
 
-    real(ireals) :: x,y
-    !        real(ireals),parameter :: eps=1e-3
+    real(ireal_dp) :: x,y
+    !        real(ireal_dp),parameter :: eps=1e-3
 
     !crossing with bottom and top plane:
     if(p%dir(3).ge.zero) then
@@ -167,8 +167,8 @@ subroutine intersect_distance_1_2(bmc,p,max_dist)
       return
     endif
 
-    !print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
-    !call print_photon(p)
+    print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
+    call print_photon(p)
 
     select type(bmc)
     end select

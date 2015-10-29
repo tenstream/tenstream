@@ -21,7 +21,7 @@
 subroutine update_dir_stream_3_10(bmc,p,S,N)
         class(t_boxmc_3_10) :: bmc
         type(photon),intent(in) :: p
-        real(ireals),intent(inout) :: S(:)
+        real(ireal_dp),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
 
     select case (p%side)
@@ -66,7 +66,7 @@ end subroutine
 subroutine update_diff_stream_3_10(bmc,p,S,N)
         class(t_boxmc_3_10) :: bmc
         type(photon),intent(in) :: p
-        real(ireals),intent(inout) :: S(:)
+        real(ireal_dp),intent(inout) :: S(:)
         integer(iintegers),intent(inout) :: N(:)
 
 !         _______1_______
@@ -134,7 +134,7 @@ end subroutine
 subroutine init_dir_photon_3_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         class(t_boxmc_3_10) :: bmc
         type(photon),intent(inout) :: p
-        real(ireals),intent(in) :: dx,dy,dz,initial_dir(3)
+        real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
         integer(iintegers),intent(in) :: src
         logical,intent(in) :: direct
 
@@ -170,41 +170,41 @@ end subroutine
 subroutine init_diff_photon_3_10(bmc,p,src,dx,dy,dz)
         class(t_boxmc_3_10) :: bmc
         type(photon),intent(inout) :: p
-        real(ireals),intent(in) :: dx,dy,dz
+        real(ireal_dp),intent(in) :: dx,dy,dz
         integer(iintegers),intent(in) :: src
 
-        real(ireals) :: phi,mu
+        real(ireal_dp) :: phi,mu
 
         if(src.eq.1) then
                 p%loc = (/L(dx), L(dy),    dz  /)
-                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( R()*360._ireals )
+                mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp) ) ; phi= deg2rad( R()*360._ireal_dp )
         else if(src.eq.2) then
                 p%loc = (/L(dx), L(dy),    zero /)
-                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( R()*360._ireals )
+                mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp) ) ; phi= deg2rad( R()*360._ireal_dp )
         else if(src.eq.3) then
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp) ) ; phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         else if(src.eq.4) then
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp) ) ; phi= deg2rad( interv_R(90._ireal_dp,270._ireal_dp) )
         else if(src.eq.5) then
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp) ) ; phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         else if(src.eq.6) then
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp) ) ; phi= deg2rad( interv_R(90._ireal_dp,270._ireal_dp) )
         else if(src.eq.7) then
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp) ) ; phi= deg2rad( interv_R(0._ireal_dp,180._ireal_dp) )
         else if(src.eq.8) then
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                mu = interv_R( deg2mu(90._ireals),deg2mu(180._ireals) ) ; phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp) ) ; phi= deg2rad( interv_R(180._ireal_dp,360._ireal_dp) )
         else if(src.eq.9) then
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp) ) ; phi= deg2rad( interv_R(0._ireal_dp,180._ireal_dp) )
         else if(src.eq.10) then
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                mu = interv_R( deg2mu(0._ireals),deg2mu(90._ireals) ) ; phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp) ) ; phi= deg2rad( interv_R(180._ireal_dp,360._ireal_dp) )
         else
                 print *,'Dont know what to do with source spec:',src
                 call exit
@@ -229,12 +229,12 @@ end subroutine
 subroutine intersect_distance_3_10(bmc,p,max_dist)
         class(t_boxmc_3_10) :: bmc
         type(photon),intent(inout) :: p
-        real(ireals),intent(out) :: max_dist
+        real(ireal_dp),intent(out) :: max_dist
 
-        real(ireals) :: x,y,z
+        real(ireal_dp) :: x,y,z
         integer(iintegers) :: i,sides(3)
 
-        real(ireals) :: dist(3)
+        real(ireal_dp) :: dist(3)
 
         !crossing with bottom and top plane:
           if(p%dir(3).ge.zero) then

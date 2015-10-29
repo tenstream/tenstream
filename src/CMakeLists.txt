@@ -6,6 +6,7 @@ include_directories(${INCLUDE_DIRS})
 
 set( general_sources 
   "helper_functions.f90" 
+  "helper_functions_dp.f90" 
   "netcdfio.f90"  
   "data_parameters.f90"  
   "eddington.f90"  
