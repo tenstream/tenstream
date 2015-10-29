@@ -111,8 +111,6 @@ module m_boxmc
   end type
   ! ******************** TYPE DEFINITIONS ************************
 
-  type(stddev),save :: std_Sdir, std_Sdiff, std_abso
-
 
   ! ***************** INTERFACES ************
   abstract interface
@@ -137,22 +135,20 @@ module m_boxmc
   end interface
 
   abstract interface
-    subroutine update_diff_stream(bmc,p,S,N)
+    subroutine update_diff_stream(bmc,p,S)
       import :: t_boxmc,photon,iintegers,ireal_dp
       class(t_boxmc) :: bmc
       type(photon),intent(in) :: p
       real(ireal_dp),intent(inout) :: S(:)
-      integer(iintegers),intent(inout) :: N(:)
     end subroutine
   end interface
 
   abstract interface
-    subroutine update_dir_stream(bmc,p,S,N)
+    subroutine update_dir_stream(bmc,p,S)
       import :: t_boxmc,photon,iintegers,ireal_dp
       class(t_boxmc) :: bmc
       type(photon),intent(in) :: p
       real(ireal_dp),intent(inout) :: S(:)
-      integer(iintegers),intent(inout) :: N(:)
     end subroutine
   end interface
 
@@ -195,16 +191,17 @@ contains
     real(ireal_dp) :: S_tol(bmc%diff_streams)  
     real(ireal_dp) :: T_tol(bmc%dir_streams)   
 
-    type(photon)       :: p
-    integer(iintegers) :: k,mycnt,mincnt
-    real(ireal_dp)   :: time(2), initial_dir(3)
-    integer(iintegers) :: Ndir(bmc%dir_streams),Ndiff(bmc%diff_streams)
+    real(ireal_dp)   :: time(2)
 
     real(ireal_dp) :: atol,rtol, coeffnorm
 
+    type(stddev) :: std_Sdir, std_Sdiff, std_abso
+
+    integer(iintegers) :: Nphotons
+
+
     if(.not. bmc%initialized ) stop 'Box Monte Carlo Ray Tracer is not initialized! - This should not happen!'
 
-    Ndir=i0;Ndiff=i0
     if(present(inp_atol)) then
       atol = inp_atol
     else
@@ -222,12 +219,6 @@ contains
 
     if(.not.ldir) std_Sdir%converged=.True.
 
-
-    initial_dir  = [ sin(deg2rad(real(theta0,kind=ireal_dp)))*sin(deg2rad(real(phi0,kind=ireal_dp))) ,&
-      sin(deg2rad(real(theta0,ireal_dp)))*cos(deg2rad(real(phi0,kind=ireal_dp))) ,&
-      - cos(deg2rad(real(theta0,kind=ireal_dp))) ]
-    initial_dir = initial_dir/norm(initial_dir)
-
     if( (any(op_bg.lt.zero)) .or. (any(isnan(op_bg))) ) then
       print *,'corrupt optical properties: bg:: ',op_bg
       call exit
@@ -240,44 +231,16 @@ contains
 
     call cpu_time(time(1))
 
-    mincnt= max( 100, int( 1e4 /numnodes ) )
-    mycnt = int(1e9)/numnodes
-    mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
-    do k=1,mycnt
+    call run_photons(bmc,src,                   &
+                     real(op_bg,kind=ireal_dp), &
+                     real(dx, kind=ireal_dp),   &
+                     real(dy, kind=ireal_dp),   &
+                     real(dz, kind=ireal_dp),   &
+                     ldir,                      &
+                     real(phi0,   kind=ireal_dp), &
+                     real(theta0, kind=ireal_dp), &
+                     Nphotons, std_Sdir,std_Sdiff,std_abso)
 
-      if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
-
-      if(ldir) then
-        call bmc%init_dir_photon(p,src,ldir,initial_dir,real(dx,kind=ireal_dp),real(dy,kind=ireal_dp),real(dz,kind=ireal_dp))
-      else
-        call bmc%init_diff_photon(p,src,real(dx,kind=ireal_dp),real(dy,kind=ireal_dp),real(dz,kind=ireal_dp))
-      endif
-      p%optprop = op_bg
-
-      move: do
-        call bmc%move_photon(p)
-        call roulette(p)
-
-        if(.not.p%alive) exit move
-        call scatter_photon(p)
-      enddo move
-
-      if(ldir) call refill_direct_stream(p,initial_dir)
-
-      std_abso%inc = one-p%weight
-      std_Sdir%inc  = zero
-      std_Sdiff%inc = zero
-
-      if(p%direct) then
-        call bmc%update_dir_stream(p,std_Sdir%inc,Ndir)
-      else
-        call bmc%update_diff_stream(p,std_Sdiff%inc,Ndiff)
-      endif
-
-      if(ldir)call std_update( std_Sdir , k, i1*numnodes )
-      call std_update( std_abso , k, i1*numnodes)
-      call std_update( std_Sdiff, k, i1*numnodes )
-    enddo ! k photons
 
     S_out = std_Sdiff%mean
     T_out = std_Sdir%mean 
@@ -287,7 +250,7 @@ contains
     T_tol = std_Sdir%var
 
     if(numnodes.gt.1) then ! average reduce results from all ranks
-      call reduce_output(k,comm, S_out, T_out, S_tol, T_tol)
+      call reduce_output(Nphotons, comm, S_out, T_out, S_tol, T_tol)
     endif
 
 
@@ -296,8 +259,7 @@ contains
     if( coeffnorm.gt.one ) then
       if(coeffnorm.ge.one+1e-8_ireal_dp) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
-        sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',p%optprop,'eps',epsilon(one)
-        call print_photon(p)
+        sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',op_bg,'eps',epsilon(one)
         call exit
       else
         S_out = S_out / (coeffnorm+epsilon(coeffnorm)*10)
@@ -311,7 +273,6 @@ contains
     endif
     if( (any(isnan(S_out) )) .or. (any(isnan(T_out)) ) ) then
       print *,'Found a NaN in output! this should not happen! dir',T_out,'diff',S_out
-      call print_photon(p)
       call exit()
     endif
 
@@ -326,6 +287,64 @@ contains
     !      write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') &
     !        src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
     !    endif
+  end subroutine
+
+  subroutine run_photons(bmc,src,op,dx,dy,dz,ldir,phi0,theta0,Nphotons,std_Sdir,std_Sdiff,std_abso)
+      class(t_boxmc),intent(inout) :: bmc
+      integer(iintegers),intent(in) :: src
+      real(ireal_dp),intent(in) :: op(3),dx,dy,dz,phi0,theta0
+      logical,intent(in) :: ldir
+      integer(iintegers) :: Nphotons
+      type(stddev),intent(inout)   :: std_Sdir, std_Sdiff, std_abso
+
+      type(photon)       :: p
+      integer(iintegers) :: k,mycnt,mincnt
+      real(ireal_dp)   :: initial_dir(3)
+
+      initial_dir  = [ sin(deg2rad(theta0))*sin(deg2rad(phi0)) ,&
+                       sin(deg2rad(theta0))*cos(deg2rad(phi0)) ,&
+                     - cos(deg2rad(theta0)) ]
+      initial_dir = initial_dir/norm(initial_dir)
+
+      mincnt= max( 100, int( 1e4 /numnodes ) )
+      mycnt = int(1e9)/numnodes
+      mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
+      do k=1,mycnt
+
+          if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
+
+          if(ldir) then
+              call bmc%init_dir_photon(p,src,ldir,initial_dir,real(dx,kind=ireal_dp),real(dy,kind=ireal_dp),real(dz,kind=ireal_dp))
+          else
+              call bmc%init_diff_photon(p,src,real(dx,kind=ireal_dp),real(dy,kind=ireal_dp),real(dz,kind=ireal_dp))
+          endif
+          p%optprop = op
+
+          move: do
+              call bmc%move_photon(p)
+              call roulette(p)
+
+              if(.not.p%alive) exit move
+              call scatter_photon(p)
+          enddo move
+
+          if(ldir) call refill_direct_stream(p,initial_dir)
+
+          std_abso%inc = one-p%weight
+          std_Sdir%inc  = zero
+          std_Sdiff%inc = zero
+
+          if(p%direct) then
+              call bmc%update_dir_stream(p,std_Sdir%inc)
+          else
+              call bmc%update_diff_stream(p,std_Sdiff%inc)
+          endif
+
+          if(ldir)call std_update( std_Sdir , k, i1*numnodes )
+          call std_update( std_abso , k, i1*numnodes)
+          call std_update( std_Sdiff, k, i1*numnodes )
+      enddo ! k photons
+      Nphotons = k
   end subroutine
 
   !> @brief take weighted average over mpi processes

@@ -18,17 +18,15 @@
 !-------------------------------------------------------------------------
 
 
-subroutine update_dir_stream_3_10(bmc,p,S,N)
+subroutine update_dir_stream_3_10(bmc,p,S)
         class(t_boxmc_3_10) :: bmc
         type(photon),intent(in) :: p
         real(ireal_dp),intent(inout) :: S(:)
-        integer(iintegers),intent(inout) :: N(:)
 
     select case (p%side)
     case(1:2)
       if(p%loc(1).le.p%dx.and.p%loc(2).le.p%dy) then
         S(1) = S(1)+p%weight
-        N(1) = N(1)+i1
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -39,7 +37,6 @@ subroutine update_dir_stream_3_10(bmc,p,S,N)
 
       if(p%loc(3).le.p%dz) then
         S(2) = S(2)+p%weight
-        N(2) = N(2)+i1
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -49,7 +46,6 @@ subroutine update_dir_stream_3_10(bmc,p,S,N)
 
       if(p%loc(3).le.p%dz ) then
         S(3) = S(3)+p%weight
-        N(3) = N(3)+i1
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -63,11 +59,10 @@ subroutine update_dir_stream_3_10(bmc,p,S,N)
         end select
 
 end subroutine
-subroutine update_diff_stream_3_10(bmc,p,S,N)
+subroutine update_diff_stream_3_10(bmc,p,S)
         class(t_boxmc_3_10) :: bmc
         type(photon),intent(in) :: p
         real(ireal_dp),intent(inout) :: S(:)
-        integer(iintegers),intent(inout) :: N(:)
 
 !         _______1_______
 !        |           10  |
@@ -80,46 +75,36 @@ subroutine update_diff_stream_3_10(bmc,p,S,N)
 
         if(p%side.eq.1) then
                 S(1) = S(1)+p%weight
-                N(1) = N(1)+i1
                 return
         else if(p%side.eq.2) then
                 S(2) = S(2)+p%weight
-                N(2) = N(2)+i1
                 return
 
         else if(p%side.eq.3 .and. p%dir(3).le.zero ) then
                 S(3) = S(3)+p%weight
-                N(3) = N(3)+i1
                 return
         else if(p%side.eq.3 .and. p%dir(3).gt.zero ) then
                 S(5) = S(5)+p%weight
-                N(5) = N(5)+i1
                 return
 
         else if(p%side.eq.4 .and. p%dir(3).le.zero ) then
                 S(4) = S(4)+p%weight
-                N(4) = N(4)+i1
                 return
         else if(p%side.eq.4 .and. p%dir(3).gt.zero ) then
                 S(6) = S(6)+p%weight
-                N(6) = N(6)+i1
                 return
 
         else if(p%side.eq.5 .and. p%dir(3).le.zero ) then
                 S(7) = S(7)+p%weight
-                N(7) = N(7)+i1
                 return
         else if(p%side.eq.6 .and. p%dir(3).le.zero ) then
                 S(8) = S(8)+p%weight
-                N(8) = N(8)+i1
                 return
         else if(p%side.eq.5 .and. p%dir(3).gt.zero ) then
                 S(9) = S(9)+p%weight
-                N(9) = N(9)+i1
                 return
         else if(p%side.eq.6 .and. p%dir(3).gt.zero ) then
                 S(10) =S(10)+p%weight
-                N(10) =N(10)+i1
                 return
         else
                 print *,'Couldnt find a stream on to which I can put the photon weight on?!'
