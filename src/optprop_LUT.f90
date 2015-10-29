@@ -150,9 +150,9 @@ contains
         call OPP%bmc%init(comm)
       endif
 
-      call OPP%set_parameter_space(OPP%diffLUT%pspace,one*idx)
-      call OPP%set_parameter_space(OPP%dirLUT%pspace ,one*idx)
-      call OPP%set_parameter_space(OPP%diffLUT%pspace,one*idx)
+      call OPP%set_parameter_space(OPP%diffLUT%pspace, one*idx, one*idy)
+      call OPP%set_parameter_space(OPP%dirLUT%pspace , one*idx, one*idy)
+      call OPP%set_parameter_space(OPP%diffLUT%pspace, one*idx, one*idy)
 
       ! Load diffuse LUT
       write(descr,FMT='("diffuse.dx",I0,".dy",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,idy,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,ldelta_scale,delta_scale_truncate
@@ -1096,10 +1096,10 @@ function lin_index_to_param(index,range,N)
     endif
 end function
 
-subroutine set_parameter_space(OPP,ps,dx)
+subroutine set_parameter_space(OPP,ps,dx,dy)
     class(t_optprop_LUT) :: OPP
     type(parameter_space),intent(inout) :: ps
-    real(ireals),intent(in) :: dx
+    real(ireals),intent(in) :: dx, dy
     real(ireals) :: diameter ! diameter of max. cube size
     real(ireals),parameter :: maximum_transmission=one-1e-6_ireals !one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
     integer(iintegers) :: k
@@ -1172,7 +1172,7 @@ subroutine set_parameter_space(OPP,ps,dx)
 
     ! -------------- Setup kabs/ksca support points
 
-    diameter = sqrt(2*dx**2 +  ps%range_dz(2)**2 )
+    diameter = sqrt(dx**2 + dy**2 +  ps%range_dz(2)**2 )
 
     ps%range_kabs(1) = - log(maximum_transmission) / diameter
     ps%range_ksca(1) = - log(maximum_transmission) / diameter
