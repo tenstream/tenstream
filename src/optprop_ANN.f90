@@ -46,9 +46,9 @@ module m_optprop_ANN
 
   type(ANN),save :: diff2diff_network, dir2dir_network, dir2diff_network, direct_network
 
-  real(ireals),parameter :: min_lim_coeff = zero
+  real(ireals),parameter :: min_lim_coeff = 1.0E-8
   logical,parameter :: lrenormalize=.True.
-!  logical,parameter :: lrenormalize=.False.
+! logical,parameter :: lrenormalize=.False.
 
 contains
 
@@ -120,20 +120,30 @@ contains
   end subroutine
 
   subroutine loadnet(netname,net,ierr)
-      character(300) :: netname, varname
+      character(300) :: netname
       type(ANN) :: net
       integer(iintegers),intent(out) :: ierr
       integer(iintegers) :: errcnt,k
+
       errcnt=0
       if(.not.allocated(net%weights)) then
-        varname = 'weights'  ; call ncload([netname,trim(varname)],net%weights ,ierr) ; errcnt = ierr        !  ; print *,'loading weights ',ierr
-        varname = 'units'    ; call ncload([netname,trim(varname)],net%units   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading units   ',ierr
-        varname = 'inno'     ; call ncload([netname,trim(varname)],net%inno    ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inno    ',ierr
-        varname = 'outno'    ; call ncload([netname,trim(varname)],net%outno   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading outno   ',ierr
-        varname = 'conec'    ; call ncload([netname,trim(varname)],net%conec   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading conec   ',ierr
-        varname = 'deo'      ; call ncload([netname,trim(varname)],net%deo     ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading deo     ',ierr
-        varname = 'eni'      ; call ncload([netname,trim(varname)],net%eni     ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading eni     ',ierr
-        varname = 'inlimits' ; call ncload([netname,trim(varname)],net%inlimits,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inlimits',ierr
+        call ncload([netname,'weights' ],net%weights ,ierr) ; errcnt = ierr        !  ; print *,'loading weights ',ierr
+        call ncload([netname,'units'   ],net%units   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading units   ',ierr
+        call ncload([netname,'inno'    ],net%inno    ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inno    ',ierr
+        call ncload([netname,'outno'   ],net%outno   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading outno   ',ierr
+        call ncload([netname,'conec'   ],net%conec   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading conec   ',ierr
+        call ncload([netname,'deo'     ],net%deo     ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading deo     ',ierr
+        call ncload([netname,'eni'     ],net%eni     ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading eni     ',ierr
+        call ncload([netname,'inlimits'],net%inlimits,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inlimits',ierr
+        
+!       write(varname,*) 'weights' ; call ncload([netname,trim(varname)],net%weights ,ierr) ; errcnt = ierr        !  ; print *,'loading weights ',ierr
+!       write(varname,*) 'units'   ; call ncload([netname,trim(varname)],net%units   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading units   ',ierr
+!       write(varname,*) 'inno'    ; call ncload([netname,trim(varname)],net%inno    ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inno    ',ierr
+!       write(varname,*) 'outno'   ; call ncload([netname,trim(varname)],net%outno   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading outno   ',ierr
+!       write(varname,*) 'conec'   ; call ncload([netname,trim(varname)],net%conec   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading conec   ',ierr
+!       write(varname,*) 'deo'     ; call ncload([netname,trim(varname)],net%deo     ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading deo     ',ierr
+!       write(varname,*) 'eni'     ; call ncload([netname,trim(varname)],net%eni     ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading eni     ',ierr
+!       write(varname,*) 'inlimits'; call ncload([netname,trim(varname)],net%inlimits,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inlimits',ierr
         if(ldebug_optprop) &
           print *,'Loading ANN from: ',trim(netname),' resulted in errcnt',errcnt
         if(errcnt.ne.0) then
@@ -199,6 +209,7 @@ contains
       real(ireals) :: norm
 
       call calc_net(C, [dz,kabs,ksca,g,phi,theta] , dir2diff_network,ierr )
+      C = C/1000.0
       if(ierr.ne.0) then
         print *,'Error when calculating dir2diff_net coeffs',ierr
         call exit()
@@ -221,7 +232,7 @@ contains
       endif
   end subroutine
 
-  subroutine ANN_get_diff2diff(dz, kabs, ksca, g, C)
+   subroutine ANN_get_diff2diff(dz, kabs, ksca, g, C)
       real(ireals),intent(out) :: C(:)
       real(ireals),intent(in) :: dz,kabs,ksca,g
       integer(iintegers) :: ierr,isrc
@@ -233,6 +244,7 @@ contains
       endif
 
       call calc_net(C, [dz,kabs,ksca,g],diff2diff_network,ierr )
+      C = C/1000.0
       if(ierr.ne.0) then
         print *,'Error when calculating diff_net coeffs',ierr
         call exit()
