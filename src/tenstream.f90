@@ -72,7 +72,7 @@ module m_tenstream
   public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
     getVecPointer,restoreVecPointer, &
     tenstream_get_result, need_new_solution, &
-    t_coord,C_dir,C_diff,C_one
+    t_coord,C_dir,C_diff,C_one,C_one1
 
   PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
 
@@ -328,7 +328,9 @@ contains
 
     ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many 
     call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
-    call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr) ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
+
+    ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
+    call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr) 
 
     ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
 
@@ -924,8 +926,6 @@ contains
       MatStencil :: row(4,C%dof)  ,col(4,C%dof)
       PetscScalar :: v(C%dof**2),norm
 
-!      PetscInt,parameter :: entries(8)=[0,8,16,24,32,40,48,56]
-
       integer(iintegers) :: dst,src
 
       dst = 1 ; row(MatStencil_j,dst) = i            ; row(MatStencil_k,dst) = j            ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
@@ -962,6 +962,7 @@ contains
           endif
         enddo
       endif
+
 
     end subroutine
 
@@ -1654,7 +1655,9 @@ contains
 
     PetscReal :: atol
 
+!    logical,parameter :: lset_geometry=.True.  ! this may be necessary in order to use geometric multigrid
     logical,parameter :: lset_geometry=.False.  ! this may be necessary in order to use geometric multigrid
+!    logical,parameter :: lset_nullspace=.True. ! set constant nullspace?
     logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
 
     if(linit) return
@@ -1736,7 +1739,7 @@ contains
       call DMGetCoordinates(C%da, coordinates,ierr);CHKERRQ(ierr)
 
       call DMDAGetCorners(coordDA, mstart,nstart,pstart,m,n,p,ierr);CHKERRQ(ierr)
-      print *,'coordinates',C%xs,C%xe,mstart,nstart,pstart,m,n,p
+      !print *,'coordinates',C%xs,C%xe,mstart,nstart,pstart,m,n,p
 
       call VecGetArrayF90(coordinates,xv1d,ierr) ;CHKERRQ(ierr)
       xv(0:2 , mstart:mstart+m-1  , nstart:nstart+n-1   , pstart:pstart+p-1   ) => xv1d
@@ -2509,8 +2512,8 @@ contains
   end subroutine
 
   subroutine set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
-    real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g
-    real(ireals),intent(in),dimension(:,:,:),optional :: local_planck
+    real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g ! dimensions (Nz  , Nx, Ny)
+    real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny)
     real(ireals) :: tau,kext,w0,g
     integer(iintegers) :: k,i,j
 

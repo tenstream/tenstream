@@ -18,12 +18,11 @@
 !-------------------------------------------------------------------------
 
 
-subroutine update_dir_stream_8_10(bmc,p,S,N)
+subroutine update_dir_stream_8_10(bmc,p,S)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(in) :: p
-        real(ireals),intent(inout) :: S(:)
-        integer(iintegers),intent(inout) :: N(:)
-        real(ireals),parameter :: h=.5_ireals
+        real(ireal_dp),intent(inout) :: S(:)
+        real(ireal_dp),parameter :: h=.5_ireal_dp
 
 !            1       2
 !               3       4
@@ -38,19 +37,15 @@ subroutine update_dir_stream_8_10(bmc,p,S,N)
     case(1:2)
       if(p%loc(1).le.p%dx*h.and.p%loc(2).le.p%dy*h) then
         S(1) = S(1)+p%weight
-        N(1) = N(1)+i1
         return
       else if(p%loc(1).gt.p%dx*h.and.p%loc(2).le.p%dy*h) then
         S(2) = S(2)+p%weight
-        N(2) = N(2)+i1
         return
       else if(p%loc(1).le.p%dx*h.and.p%loc(2).gt.p%dy*h) then
         S(3) = S(3)+p%weight
-        N(3) = N(3)+i1
         return
       else if(p%loc(1).gt.p%dx*h.and.p%loc(2).gt.p%dy*h) then
         S(4) = S(4)+p%weight
-        N(4) = N(4)+i1
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -61,11 +56,9 @@ subroutine update_dir_stream_8_10(bmc,p,S,N)
 
       if(p%loc(3).le.p%dz*h ) then
         S(5) = S(5)+p%weight
-        N(5) = N(5)+i1
         return
       else if(p%loc(3).gt.p%dz*h ) then
         S(6) = S(6)+p%weight
-        N(6) = N(6)+i1
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -75,11 +68,9 @@ subroutine update_dir_stream_8_10(bmc,p,S,N)
 
       if(p%loc(3).le.p%dz*h ) then
         S(7) = S(7)+p%weight
-        N(7) = N(7)+i1
         return
       else if(p%loc(3).gt.p%dz*h ) then
         S(8) = S(8)+p%weight
-        N(8) = N(8)+i1
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -93,11 +84,10 @@ subroutine update_dir_stream_8_10(bmc,p,S,N)
         end select
 
 end subroutine
-subroutine update_diff_stream_8_10(bmc,p,S,N)
+subroutine update_diff_stream_8_10(bmc,p,S)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(in) :: p
-        real(ireals),intent(inout) :: S(:)
-        integer(iintegers),intent(inout) :: N(:)
+        real(ireal_dp),intent(inout) :: S(:)
 
 !         _______1_______
 !        |           10  |
@@ -111,47 +101,37 @@ subroutine update_diff_stream_8_10(bmc,p,S,N)
 if(p%side.eq.1) then
 
   S(1) = S(1)+p%weight
-  N(1) = N(1)+i1
   return
 else if(p%side.eq.2) then
 
   S(2) = S(2)+p%weight
-  N(2) = N(2)+i1
   return
 
 else if(p%side.eq.3 .and. p%dir(3).le.zero ) then
   S(3) = S(3)+p%weight
-  N(3) = N(3)+i1
   return
 else if(p%side.eq.3 .and. p%dir(3).gt.zero ) then
   S(5) = S(5)+p%weight
-  N(5) = N(5)+i1
   return
 
 else if(p%side.eq.4 .and. p%dir(3).le.zero ) then
   S(4) = S(4)+p%weight
-  N(4) = N(4)+i1
   return
 else if(p%side.eq.4 .and. p%dir(3).gt.zero ) then
   S(6) = S(6)+p%weight
-  N(6) = N(6)+i1
   return
 
 else if(p%side.eq.5 .and. p%dir(3).le.zero ) then
   S(7) = S(7)+p%weight
-  N(7) = N(7)+i1
   return
 else if(p%side.eq.6 .and. p%dir(3).le.zero ) then
   S(8) = S(8)+p%weight
-  N(8) = N(8)+i1
   return
 else if(p%side.eq.5 .and. p%dir(3).gt.zero ) then
   S(9) = S(9)+p%weight
-  N(9) = N(9)+i1
   return
 else if(p%side.eq.6 .and. p%dir(3).gt.zero ) then
   S(10) =S(10)+p%weight
-  N(10) =N(10)+i1
   return
 else
   print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -166,11 +146,11 @@ end subroutine
 subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(inout) :: p
-        real(ireals),intent(in) :: dx,dy,dz,initial_dir(3)
+        real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
         integer(iintegers),intent(in) :: src
         logical,intent(in) :: direct
-        real(ireals),parameter :: h=.5_ireals
-        real(ireals),parameter :: e=1e-8_ireals
+        real(ireal_dp),parameter :: h=.5_ireal_dp
+        real(ireal_dp),parameter :: e=1e-8_ireal_dp
 
         p%alive = .False.
 
@@ -213,10 +193,10 @@ end subroutine
 subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(inout) :: p
-        real(ireals),intent(in) :: dx,dy,dz
+        real(ireal_dp),intent(in) :: dx,dy,dz
         integer(iintegers),intent(in) :: src
 
-        real(ireals) :: phi,mu,mu1,mu2
+        real(ireal_dp) :: phi,mu,mu1,mu2
 
         mu1= sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
         mu2 = R() ! evenly distribution between 0 and 90 degree
@@ -225,47 +205,47 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         select case(src)
         case (-1) ! thermal emission
                 p%loc = (/L(dx), L(dy), L(dz) /)
-                mu = 2._ireals*mu2 - one
-                phi= deg2rad( R()*360._ireals )
+                mu = 2._ireal_dp*mu2 - one
+                phi= deg2rad( R()*360._ireal_dp )
         case (1)
                 p%loc = (/L(dx), L(dy),    dz  /)
-                phi= deg2rad( R()*360._ireals )
+                phi= deg2rad( R()*360._ireal_dp )
         case (2)
                 p%loc = (/L(dx), L(dy),    zero /)
-                phi= deg2rad( R()*360._ireals )
+                phi= deg2rad( R()*360._ireal_dp )
         case (3)
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (4)
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                phi= deg2rad( interv_R(90._ireal_dp,270._ireal_dp) )
         case (5)
                 p%loc = (/  zero   , L(dy), L(dz)/)
-                phi= deg2rad( interv_R(90._ireals,270._ireals) )
+                phi= deg2rad( interv_R(90._ireal_dp,270._ireal_dp) )
         case (6)
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+                phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (7)
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                phi= deg2rad( interv_R(0._ireal_dp,180._ireal_dp) )
         case (8)
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                phi= deg2rad( interv_R(180._ireal_dp,360._ireal_dp) )
         case (9)
                 p%loc = (/L(dx),   zero   , L(dz)/)
-                phi= deg2rad( interv_R(180._ireals,360._ireals) )
+                phi= deg2rad( interv_R(180._ireal_dp,360._ireal_dp) )
         case (10)
                 p%loc = (/L(dx),  dy   , L(dz)/)
-                phi= deg2rad( interv_R(0._ireals,180._ireals) )
+                phi= deg2rad( interv_R(0._ireal_dp,180._ireal_dp) )
         case default
                 print *,'Dont know what to do with source spec:',src
                 call exit
         end select
         select case(src)
           case(1:2)
-            phi= deg2rad( R()*360._ireals )
+            phi= deg2rad( R()*360._ireal_dp )
           case(3:10)
-            phi= deg2rad( interv_R(-90._ireals,90._ireals) )
+            phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         end select
 
         p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
@@ -316,10 +296,10 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
 
         contains
           function rotate_x(v,angle)
-              real(ireals) :: rotate_x(3)
-              real(ireals),intent(in) :: v(3)
+              real(ireal_dp) :: rotate_x(3)
+              real(ireal_dp),intent(in) :: v(3)
               integer :: angle
-              real(ireals) :: M(3,3),s,c
+              real(ireal_dp) :: M(3,3),s,c
               s=sin(deg2rad(one*angle))
               c=cos(deg2rad(one*angle))
 
@@ -330,10 +310,10 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
               rotate_x = matmul(M,v)
           end function
           function rotate_y(v,angle)
-              real(ireals) :: rotate_y(3)
-              real(ireals),intent(in) :: v(3)
+              real(ireal_dp) :: rotate_y(3)
+              real(ireal_dp),intent(in) :: v(3)
               integer :: angle
-              real(ireals) :: M(3,3),s,c
+              real(ireal_dp) :: M(3,3),s,c
               s=sin(deg2rad(one*angle))
               c=cos(deg2rad(one*angle))
 
@@ -344,10 +324,10 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
               rotate_y = matmul(M,v)
           end function
           function rotate_z(v,angle)
-              real(ireals) :: rotate_z(3)
-              real(ireals),intent(in) :: v(3)
+              real(ireal_dp) :: rotate_z(3)
+              real(ireal_dp),intent(in) :: v(3)
               integer :: angle
-              real(ireals) :: M(3,3),s,c
+              real(ireal_dp) :: M(3,3),s,c
               s=sin(deg2rad(one*angle))
               c=cos(deg2rad(one*angle))
 
@@ -363,7 +343,7 @@ end subroutine
 subroutine intersect_distance_8_10(bmc,p,max_dist)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(inout) :: p
-        real(ireals),intent(out) :: max_dist
+        real(ireal_dp),intent(out) :: max_dist
 
         real(ireal_dp) :: x,y,z
         integer(iintegers) :: i,sides(3)

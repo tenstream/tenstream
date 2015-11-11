@@ -140,7 +140,7 @@ contains
       ! inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) !
       !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol,inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) ! inp_atol=atol, inp_rtol=rtol)
 
-      call ANN_init(dx,dy)
+      call ANN_init(dx,dy,this%getMpiCommunicator())
 
   end subroutine setup
 
@@ -202,7 +202,7 @@ contains
 
       integer(iintegers) :: src
 
-      call ANN_init(dx,dy)
+      call ANN_init(dx,dy,this%getMpiCommunicator())
 
       ! direct tests
       bg  = [1e-2, 0., 0. ]
