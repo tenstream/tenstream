@@ -1,4 +1,4 @@
-Recipe for calculating using an ANN:
+Recipe for calculating and using an ANN:
 1. start ipython
 2. run the python script "Calc_ANN.py" :: >>> run ANN_Calc.py
 3. use the the function "Calc_ANN"     :: >>> Calc_ANN ( LUT_file, coeff_type, ANN_setup, ANN_basename="network", connectivity="standard",
