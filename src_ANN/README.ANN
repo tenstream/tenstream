@@ -20,11 +20,6 @@ Recipe for calculating and using an ANN:
       nproc        <int> or <str>              ::  number of processes spawned for training; if nproc="ncpu" nproc will be set to the number of
                                                    available processes; default is 8
       shuffle_alw  <bool>                      ::  if True dataset will be shuffled after every training step; default is True
-      netcdf       <str>  (optional)           ::  if set the ANN will be saved in NetCDF-format to <netcdf> after every training step
       info                (optional)           ::  if set <info> will be printed (any datatype)
 
-4. copy your new ANN (NetCDF4-format) to your LUT-folder; as name use for example
-           "LUT_dstorder_8_10.diffuse.dx67.pspace.dz20.kabs20.ksca20.g3.delta_T_1.000_diff2diff.ANN.nc" for your diffuse ANN,
-           "LUT_dstorder_8_10.direct.dx67.pspace.dz20.kabs20.ksca20.g3.phi10.theta19.delta_T_1.000_dir2diff.ANN.nc" for your dir2diff ANN
-           "LUT_dstorder_8_10.direct.dx67.pspace.dz20.kabs20.ksca20.g3.phi10.theta19.delta_T_1.000_dir2dir.ANN.nc" for your dir2idr ANN
-5. when you start your tenstream run use the option "-coeff_mode 1"      
+4. when you start your tenstream run use the option "-coeff_mode 1"      

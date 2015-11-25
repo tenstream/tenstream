@@ -249,8 +249,8 @@ def Print_Header ( LUT_file=None, coeff_type=None, ANN_basename=None, connectivi
   return
 
 
-def Calc_ANN ( LUT_file, coeff_type, ANN_setup, ANN_basename='network', connectivity='standard', test_perc=0.3, err_inc=0.001,
-               nproc=8, shuffle_alw=True, netcdf=None, info=None ):
+def Calc_ANN ( LUT_file, coeff_type, ANN_setup, ANN_basename='network', connectivity='standard', test_perc=0.3, err_inc=0.01,
+               nproc=8, shuffle_alw=True, info=None ):
   from ffnet import savenet, loadnet
 
   if type(ANN_setup)==str:
@@ -262,7 +262,7 @@ def Calc_ANN ( LUT_file, coeff_type, ANN_setup, ANN_basename='network', connecti
     raise ValueError('unknow ANN_setup input; use an existing ANN (saved with ffnet.savenet) or the structure for a new one')
   
   Print_Header ( LUT_file=LUT_file, coeff_type=coeff_type, ANN_basename=ANN_basename, connectivity=connectivity, 
-                 test_perc=test_perc, err_inc=err_inc, nproc=nproc, shuffle_alw=shuffle_alw, netcdf=netcdf,
+                 test_perc=test_perc, err_inc=err_inc, nproc=nproc, shuffle_alw=shuffle_alw,
                  info=info )
 
   src, trg = Getting_Arrays ( LUT_file, coeff_type )
@@ -273,7 +273,30 @@ def Calc_ANN ( LUT_file, coeff_type, ANN_setup, ANN_basename='network', connecti
   print 'err:\terr_train:\terr_test:\trel_err:\trel_err_train:\trel_err_test:'
   print '{}\t{}\t{}\t{}\t{}\t{}'.format(err[0],err[1],err[2],rel_err[0],rel_err[1],rel_err[2])
   savenet(net, ANN_basename + '_0_.net')
-  if netcdf!=None: ANN_to_NetCDF(net, netcdf, iprint=False)
+
+  if type(LUT_file)==list:
+    sl = LUT_file[0].rfind('/')
+    if sl<0:
+      path = ''
+    else:
+      path = LUT_file[0][:sl]
+  else:
+    sl = LUT_file.rfind('/')
+    if sl<0:
+      path = ''
+    else:
+      path = LUT_file[:sl]
+
+  if coeff_type=='diff2diff' or coeff_type='diffuse':
+    netcdf = path+'LUT_dstorder_8_10.diffuse.dx67.pspace.dz20.kabs20.ksca20.g3.delta_T_1.000_diff2diff.ANN.nc'
+  elif coeff_type=='dir2diff':
+    netcdf = path + 'LUT_dstorder_8_10.direct.dx67.pspace.dz20.kabs20.ksca20.g3.phi10.theta19.delta_T_1.000_dir2diff.ANN.nc'
+  elif coeff_type=='dir2dir':
+    netcdf = path + 'LUT_dstorder_8_10.direct.dx67.pspace.dz20.kabs20.ksca20.g3.phi10.theta19.delta_T_1.000_dir2dir.ANN.nc'
+  else:
+    raise ValueError ( 'bled' )
+
+  ANN_to_NetCDF(net, netcdf, iprint=False)
   
   num, err_change = 1, -1.0
   while err_change<=err_inc:
@@ -288,7 +311,7 @@ def Calc_ANN ( LUT_file, coeff_type, ANN_setup, ANN_basename='network', connecti
     print '{}\t{}\t{}\t{}\t{}\t{}'.format(err[0],err[1],err[2],rel_err[0],rel_err[1],rel_err[2])
     
     savenet(net, ANN_basename+'_{}_.net'.format(num)); num=num+1
-    if netcdf!=None: ANN_to_NetCDF(net, netcdf, iprint=False)
+    ANN_to_NetCDF(net, netcdf, iprint=False)
 
   print '\n{}-ANN was successfully calculated!!!'.format(coeff_type)
   print 'final err_change :: {}'                 .format(err_change)
