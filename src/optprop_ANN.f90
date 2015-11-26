@@ -166,6 +166,7 @@ contains
   subroutine ANN_get_dir2dir(dz, kabs, ksca, g, phi, theta, C)
       real(ireals),intent(in) :: dz,kabs,ksca,g,phi,theta
       real(ireals),intent(out) :: C(:)
+      real(ireals) :: C2(dir2diff_network%out_size)
 
       integer(iintegers) :: ierr,isrc
       real(ireals) :: norm
@@ -191,11 +192,23 @@ contains
           endif
         enddo
       endif
-  end subroutine
+
+!     if(lrenormalize) then                                                               
+!       call calc_net(C2, [dz,kabs,ksca,g,phi,theta], dir2diff_network,ierr)               
+!       do isrc=1,Ndir_8_10                                                                
+!         norm = sum( C(isrc:size(C):Ndir_8_10) ) + sum( C2(isrc:size(C2):Ndiff_8_10) )    
+!         if(real(norm).gt.one) then                                                       
+!           C(isrc:size(C):Ndir_8_10)=C( isrc:size(C):Ndir_8_10 )/norm                     
+!         endif                                                                            
+!       enddo                                                                              
+!     endif                                                                                
+
+   end subroutine
 
   subroutine ANN_get_dir2diff(dz, kabs, ksca, g, phi, theta, C)
       real(ireals),intent(in) :: dz,kabs,ksca,g,phi,theta
       real(ireals),intent(out) :: C(:)
+      real(ireals) :: C2(dir2dir_network%out_size)
 
       integer(iintegers) :: ierr,isrc
       real(ireals) :: norm
@@ -222,7 +235,16 @@ contains
           endif
         enddo
       endif
-  end subroutine
+!     if(lrenormalize) then                                                              
+!       call calc_net(C2, [dz,kabs,ksca,g,phi,theta], dir2dir_network,ierr)              
+!       do isrc=1,Ndir_8_10                                                              
+!         norm = sum( C(isrc:size(C):Ndiff_8_10) ) + sum( C2(isrc:size(C2):Ndir_8_10) )  
+!         if(real(norm).gt.one) then                                                     
+!           C(isrc:size(C):Ndiff_8_10)=C( isrc:size(C):Ndiff_8_10 )/norm                 
+!         endif                                                                          
+!       enddo                                                                            
+!     endif                                                                              
+   end subroutine 
 
    subroutine ANN_get_diff2diff(dz, kabs, ksca, g, C)
       real(ireals),intent(out) :: C(:)
@@ -236,7 +258,7 @@ contains
       endif
 
       call calc_net(C, [dz,kabs,ksca,g],diff2diff_network,ierr )
-      C = C/1000.0
+ !     C = C/1000.0
       if(ierr.ne.0) then
         print *,'Error when calculating diff_net coeffs',ierr
         call exit()
@@ -257,8 +279,8 @@ contains
           endif
         enddo
       endif
-  end subroutine
-
+    end subroutine
+ 
   subroutine calc_net(coeffs,inp,net,ierr)
       type(ANN),intent(inout) :: net
       real(ireals),intent(out):: coeffs(net%out_size )
@@ -268,6 +290,7 @@ contains
       real(ireals) :: input(net%in_size)
 
       integer(iintegers) :: k,srcnode,trgnode,ctrg,xn
+
 
       ierr=0
 
@@ -378,6 +401,6 @@ contains
         endif
     end function
 
-end subroutine
+end subroutine 
 
 end module
