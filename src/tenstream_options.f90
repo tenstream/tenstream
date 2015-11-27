@@ -79,48 +79,48 @@ module m_tenstream_options
           PetscErrorCode :: ierr
           logical :: lshow_options=.False.
 
-          call PetscOptionsGetBool(PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;CHKERRQ(ierr)
           if(lshow_options) then
             if(myid.eq.0) call show_options()
             call mpi_abort(imp_comm,ierr)
           endif
 
-          call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-ident',ident,lflg_ident,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetString(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,'-ident',ident,lflg_ident,ierr) ; CHKERRQ(ierr)
           if(lflg_ident.eqv.PETSC_FALSE) ident = 'run_test'
 
-          call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-out',output_prefix,lflg,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetString(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,'-out',output_prefix,lflg,ierr) ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) output_prefix = 'ts'
 
-          call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-basepath',basepath,lflg,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetString(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,'-basepath',basepath,lflg,ierr) ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) basepath = './'
 
-          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dx",ident_dx, lflg,ierr)  ; CHKERRQ(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-dx",ident_dx, lflg,ierr)  ; CHKERRQ(ierr)
           if( (lflg.eqv.PETSC_FALSE) .and. (lflg_ident.eqv.PETSC_TRUE) ) then
             print *,'If we run with -ident, you need to specify "-dx" commandline option e.g. -dx 70'
             call mpi_abort(imp_comm,ierr)
           endif
 
-          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-max_solution_err",options_max_solution_err, lflg,ierr)  ; CHKERRQ(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-max_solution_err",options_max_solution_err, lflg,ierr)  ; CHKERRQ(ierr)
           if (lflg.eqv.PETSC_FALSE ) options_max_solution_err=0.01
-          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-max_solution_time",options_max_solution_time, lflg,ierr)  ; CHKERRQ(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-max_solution_time",options_max_solution_time, lflg,ierr)  ; CHKERRQ(ierr)
           if (lflg.eqv.PETSC_FALSE ) options_max_solution_time=60
 
-          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
 
           options_phi=180; options_theta=-1
-          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-phi"  ,options_phi, lflg,ierr)     ; CHKERRQ(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-theta",options_theta, lflg,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-phi"  ,options_phi, lflg,ierr)     ; CHKERRQ(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-theta",options_theta, lflg,ierr) ; CHKERRQ(ierr)
 
-          call PetscOptionsGetBool(PETSC_NULL_CHARACTER,"-eddington",luse_eddington,lflg,ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-eddington",luse_eddington,lflg,ierr) ;CHKERRQ(ierr)
 
-          call PetscOptionsGetBool(PETSC_NULL_CHARACTER,"-writeall",lwriteall,lflg,ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-writeall",lwriteall,lflg,ierr) ;CHKERRQ(ierr)
 
-          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-twostr" , ltwostr , lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER , "-twostr" , ltwostr , lflg , ierr) ;CHKERRQ(ierr)
 
-          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-hdf5_guess"   , luse_hdf5_guess   , lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER , "-hdf5_guess"   , luse_hdf5_guess   , lflg , ierr) ;CHKERRQ(ierr)
 
-          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-twostr_guess" , luse_twostr_guess , lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER , "-twostr_guess" , luse_twostr_guess , lflg , ierr) ;CHKERRQ(ierr)
           if(luse_twostr_guess) ltwostr = .True.
 
           if(luse_twostr_guess.and.luse_hdf5_guess) then
@@ -128,30 +128,30 @@ module m_tenstream_options
             call mpi_abort(imp_comm,ierr)
           endif
 
-          call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-twostr_ratio",twostr_ratio, lflg,ierr)  ; CHKERRQ(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-twostr_ratio",twostr_ratio, lflg,ierr)  ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) twostr_ratio=.5_ireals
 
-          call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-pert_xshift",pert_xshift, lflg,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetInt(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-pert_xshift",pert_xshift, lflg,ierr) ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) pert_xshift=0
-          call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-pert_yshift",pert_yshift, lflg,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetInt(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-pert_yshift",pert_yshift, lflg,ierr) ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) pert_yshift=0
 
-          call PetscOptionsGetString(PETSC_NULL_CHARACTER,'-lut_basename',lut_basename,lflg,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetString(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,'-lut_basename',lut_basename,lflg,ierr) ; CHKERRQ(ierr)
 
-          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-calc_nca" , lcalc_nca , lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER , "-calc_nca" , lcalc_nca , lflg , ierr) ;CHKERRQ(ierr)
 
-          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-twostr_only" , ltwostr_only , lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER , "-twostr_only" , ltwostr_only , lflg , ierr) ;CHKERRQ(ierr)
           if(ltwostr_only) then
             twostr_ratio=1e8_ireals
             ltwostr=.True.
             luse_twostr_guess=.True.
           endif
 
-          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-skip_thermal" , lskip_thermal , lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER , "-skip_thermal" , lskip_thermal , lflg , ierr) ;CHKERRQ(ierr)
 
-          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-schwarzschild" , lschwarzschild , lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER , "-schwarzschild" , lschwarzschild , lflg , ierr) ;CHKERRQ(ierr)
 
-          call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-coeff_mode",coeff_mode, lflg,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetInt(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-coeff_mode",coeff_mode, lflg,ierr) ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) coeff_mode=0 ! use LUT by default
 
           if(myid.eq.0) then
