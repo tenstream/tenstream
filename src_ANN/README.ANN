@@ -1,0 +1,25 @@
+Recipe for calculating and using an ANN:
+1. start ipython
+2. run the python script "Calc_ANN.py" :: >>> run ANN_Calc.py
+3. use the the function "Calc_ANN"     :: >>> Calc_ANN ( LUT_file, coeff_type, ANN_setup, ANN_basename="network", connectivity="standard",
+                                                         test_perc=0.3, err_inc=0.001, nproc=8, shuffle_alw=True, netcdf=None, info=None   ) 
+
+      LUT_file     <str> or <list> of strings  ::  path and filename of LUT/LUTs for training the ANN
+      coeff_type   <str>                       ::  use "diffuse", "diff2diff", "dir2diff", or "dir2dir"
+      ANN_setup    <str> or <tuple>            ::  path and filename of an already existing ANN (saved with ffnet.savenet()) or structure for
+                                                   creating a new one (structure :: (<input nodes>, <hidden nodes>, <hidden nodes>, ...,
+                                                   <output nodes>))
+      ANN_basename <str>                       ::  after every training step ANN is saved to "<ANN_basename>_<training number>_.net";
+                                                   default is "network"
+      connectivity <str>                       ::  use "full" or "standard" to create a fully- or standard-connected ANN; ignored if an already
+                                                   existing ANN is used (see "ANN_setup"); default is "standard"
+      test_perc    <float>                     ::  percentage of the complete training dataset which is not used to train but for testing;
+                                                   default is 0.3
+      err_inc      <float>                     ::  if the error of the testing dataset increases by more then <err_inc> after a training step
+                                                   the training will be stopped; default is 0.001 (0.1%)
+      nproc        <int> or <str>              ::  number of processes spawned for training; if nproc="ncpu" nproc will be set to the number of
+                                                   available processes; default is 8
+      shuffle_alw  <bool>                      ::  if True dataset will be shuffled after every training step; default is True
+      info                (optional)           ::  if set <info> will be printed (any datatype)
+
+4. when you start your tenstream run use the option "-coeff_mode 1"      
