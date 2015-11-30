@@ -850,16 +850,16 @@ end type
 
           subroutine get_cmd_line_options()
             logical :: lflg=.False.
-            call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-poly",poly_func, lflg,ierr)  ; CHKERRQ(ierr)
+            call PetscOptionsGetInt(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-poly",poly_func, lflg,ierr)  ; CHKERRQ(ierr)
             if(lflg.eqv.PETSC_FALSE) poly_func = 2
 
-            call PetscOptionsGetInt(PETSC_NULL_CHARACTER,"-order",poly_order, lflg,ierr)  ; CHKERRQ(ierr)
+            call PetscOptionsGetInt(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-order",poly_order, lflg,ierr)  ; CHKERRQ(ierr)
             if(lflg.eqv.PETSC_FALSE) poly_order = 4
 
-            call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-err_ratio",err_ratio, lflg,ierr)  ; CHKERRQ(ierr)
+            call PetscOptionsGetReal(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-err_ratio",err_ratio, lflg,ierr)  ; CHKERRQ(ierr)
             if(lflg.eqv.PETSC_FALSE) err_ratio = .9999
 
-            call PetscOptionsGetBool(PETSC_NULL_CHARACTER,"-full_poly",lfull_poly,lflg,ierr) ;CHKERRQ(ierr)
+            call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-full_poly",lfull_poly,lflg,ierr) ;CHKERRQ(ierr)
             if(lflg.eqv.PETSC_FALSE) lfull_poly = .False.
 
             print *,' ************* poly_func is now ',poly_func,' *************'
