@@ -64,6 +64,7 @@ module m_tenstream
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
     options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
+    options_phi, lforce_phi, options_theta, lforce_theta, &
     lwriteall,lcalc_nca, lskip_thermal, lschwarzschild
 
   implicit none
@@ -856,8 +857,17 @@ contains
     real(ireals),intent(in) :: phi0,theta0
     type(t_suninfo),intent(out) :: sun
 
-    sun%phi   = phi0
-    sun%theta = theta0
+    if(lforce_phi) then 
+      sun%phi = options_phi
+    else
+      sun%phi   = phi0
+    endif
+
+    if(lforce_theta) then
+      sun%theta = options_theta
+    else
+      sun%theta = theta0
+    endif
     sun%costheta = max( cos(deg2rad(theta0)), zero)
     sun%sintheta = max( sin(deg2rad(theta0)), zero)
 

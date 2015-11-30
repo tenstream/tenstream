@@ -31,7 +31,9 @@ module m_tenstream_options
         luse_twostr_guess =.False., & ! use twostream solution as first guess
         lcalc_nca         =.False., & ! calculate twostream and modify absorption with NCA algorithm
         lschwarzschild    =.False., & ! use schwarzschild solver instead of twostream for thermal calculations
-        lskip_thermal     =.False.    ! Skip thermal calculations and just return zero for fluxes and absorption
+        lskip_thermal     =.False., & ! Skip thermal calculations and just return zero for fluxes and absorption
+        lforce_phi        =.False., & ! Force to use the phi given in options entries(overrides values given to tenstream calls
+        lforce_theta      =.False.
 
       real(ireals) :: twostr_ratio, &
             ident_dx,               &
@@ -57,6 +59,7 @@ module m_tenstream_options
           print *,'-basepath             :: output directory (default = ./)                                                          '  
           print *,'-dx -dy               :: domain size in [m] (mandatory if running with -ident <run_*> )                           '  
           print *,'-phi -theta           :: solar azimuth and zenith angle (default = (180,0) == south,overhead sun)                 '  
+          print *,'-force_phi/theta      :: force using options provided phi/theta                                                   '
           print *,'-writeall             :: dump intermediate results                                                                '  
           print *,'-twostr_only          :: only calculate twostream solution -- dont bother calculating 3D Radiation                ' 
           print *,'-twostr               :: calculate delta eddington twostream solution                                             ' 
@@ -108,9 +111,11 @@ module m_tenstream_options
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
 
-          options_phi=180; options_theta=-1
+          options_phi=180; options_theta=0
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-phi"  ,options_phi, lflg,ierr)     ; CHKERRQ(ierr)
           call PetscOptionsGetReal(PETSC_NULL_CHARACTER,"-theta",options_theta, lflg,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-force_phi", lforce_phi, lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_CHARACTER , "-force_theta", lforce_theta, lflg , ierr) ;CHKERRQ(ierr)
 
           call PetscOptionsGetBool(PETSC_NULL_CHARACTER,"-eddington",luse_eddington,lflg,ierr) ;CHKERRQ(ierr)
 
@@ -171,8 +176,8 @@ module m_tenstream_options
             print *,'***   hdf5_guess   ',luse_hdf5_guess
             print *,'***   twostr_ratio ',twostr_ratio
             print *,'***   out          ',trim(output_prefix)
-            print *,'***   solar azimuth',options_phi
-            print *,'***   solar zenith ',options_theta
+            print *,'***   solar azimuth',options_phi, lforce_phi
+            print *,'***   solar zenith ',options_theta, lforce_theta
             print *,'***   size_of ireal/iintegers',sizeof(one),sizeof(i0)
             print *,'***   max_solution_err       ',options_max_solution_err
             print *,'***   max_solution_time      ',options_max_solution_time
