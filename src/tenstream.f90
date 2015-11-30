@@ -3020,7 +3020,9 @@ function need_new_solution(uid,time)
   if(ldebug.and. myid.eq.0) then
     print *,''
     print *,''
-    print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid,' residuals _solver ::', solutions(uid)%ksp_residual_history(1:4),'    ::     est.',error_estimate,'[W]',error_estimate*86.1,'[K/d]'
+    print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid,'    ::     est.',error_estimate,'[W]',error_estimate*86.1,'[K/d]'
+    if(allocated(solutions(uid)%ksp_residual_history) ) &
+      print *,' residuals _solver ::', solutions(uid)%ksp_residual_history(1:4)
     if(uid.eq.501) then
       open (unit=out_unit,file="residuals.log",action="write",status="replace")
     else
