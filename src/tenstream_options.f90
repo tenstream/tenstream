@@ -112,10 +112,10 @@ module m_tenstream_options
           if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx
 
           options_phi=180; options_theta=0
-          call PetscOptionsGetReal(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER,"-phi"  ,options_phi, lflg,ierr)     ; CHKERRQ(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER,"-theta",options_theta, lflg,ierr) ; CHKERRQ(ierr)
-          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER , "-force_phi", lforce_phi, lflg , ierr) ;CHKERRQ(ierr)
-          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER , "-force_theta", lforce_theta, lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER, "-phi"  , options_phi, lflg,ierr)     ; CHKERRQ(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER, "-theta", options_theta, lflg,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER, "-force_phi", lforce_phi, lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER, "-force_theta", lforce_theta, lflg , ierr) ;CHKERRQ(ierr)
 
           call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER,"-eddington",luse_eddington,lflg,ierr) ;CHKERRQ(ierr)
 
