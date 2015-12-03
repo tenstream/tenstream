@@ -95,7 +95,7 @@ module m_tenstream
     PetscMPIInt,allocatable :: neighbors(:) ! all 3d neighbours( (x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
   end type
 
-  type(t_coord),save :: C_dir,C_diff,C_one,C_one1
+  type(t_coord), allocatable, save :: C_dir,C_diff,C_one,C_one1
 
   PetscErrorCode :: ierr
 
@@ -114,7 +114,7 @@ module m_tenstream
     real(ireals) :: albedo
     real(ireals) :: dx,dy
   end type
-  type(t_atmosphere),save :: atm
+  type(t_atmosphere),allocatable,save :: atm
 
 
   type(t_optprop_1_2),save  :: OPP_1_2
@@ -193,15 +193,17 @@ contains
     if(myid.eq.0.and.ldebug) print *,myid,'DMDA grid ready'
   contains
     subroutine setup_dmda(C, Nz, Nx, Ny, boundary, dof)
-      type(t_coord) :: C
+      type(t_coord),allocatable :: C
       PetscInt,intent(in) :: Nz,Nx,Ny,dof
       DMBoundaryType,intent(in) :: boundary
 
       PetscInt,parameter :: stencil_size=1
 
+      allocate(C)
+
       C%dof = i1*dof
       if(present(nxproc) .and. present(nyproc) ) then
-        call DMDACreate3d( imp_comm ,                                       &
+        call DMDACreate3d( imp_comm ,                                     &
           bn                      , boundary             , boundary     , &
           DMDA_STENCIL_STAR       ,                                       &
           i1*Nz                   , sum(nxproc)          , sum(nyproc)  , &
@@ -210,7 +212,7 @@ contains
           Nz                      , nxproc               , nyproc       , &
           C%da                    , ierr) ;CHKERRQ(ierr)
       else
-        call DMDACreate3d( imp_comm ,                                             &
+        call DMDACreate3d( imp_comm ,                                           &
           bn                      , boundary             , boundary           , &
           DMDA_STENCIL_STAR       ,                                             &
           i1*Nz                   , Nx                   , Ny                 , &
@@ -231,7 +233,7 @@ contains
     subroutine setup_coords(C)
       type(t_coord) :: C
 
-      call DMDAGetInfo(C%da,C%dim,                             &
+      call DMDAGetInfo(C%da,C%dim,                               &
         C%glob_zm,C%glob_xm,C%glob_ym,                           &
         PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
         PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
@@ -1210,9 +1212,8 @@ contains
     PetscScalar,pointer,dimension(:) :: xsrc1d=>null()
     PetscInt :: k,i,j,src,dst
 
-    call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
-
     if(myid.eq.0.and.ldebug) print *,'src Vector Assembly...'
+    call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
 
     call DMGetLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
     call VecSet(local_b,zero,ierr) ;CHKERRQ(ierr)
@@ -1822,8 +1823,6 @@ contains
 
   !> @brief assign string names to logging levels
   subroutine setup_logging()
-    logical,save :: logstage_init=.False.
-    if(logstage_init) return
     call PetscLogStageRegister('total_tenstream' , logstage(1)     , ierr) ;CHKERRQ(ierr)
     call PetscLogStageRegister('setup_edir'      , logstage(2)     , ierr) ;CHKERRQ(ierr)
     call PetscLogStageRegister('calc_edir'       , logstage(3)     , ierr) ;CHKERRQ(ierr)
@@ -1839,7 +1838,6 @@ contains
     call PetscLogStageRegister('schwarzschild'   , logstage(13)    , ierr) ;CHKERRQ(ierr)
 
     if(myid.eq.0 .and. ldebug) print *, 'Logging stages' , logstage
-    logstage_init=.True.
   end subroutine
 
   !> @brief nca wrapper to call NCA of Carolin Klinger
@@ -2081,8 +2079,8 @@ contains
       PetscReal :: Ax,Ax2,Ay,Ay2,Az,Az4
       logical,intent(in) :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
 
-      if(myid.eq.0.and.ldebug) print *,'rescaling fluxes'
-      call getVecPointer(v ,C ,xv1d, xv ,.False. )
+      if(myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
+      call getVecPointer(v ,C ,xv1d, xv)
 
       if(lWm2_to_W) then
         Az  = atm%dx*atm%dy
@@ -2252,6 +2250,7 @@ contains
     !    character(len=30),parameter :: tenstreamrc='./.tenstreamrc'
 
     if(.not.linitialized) then
+      allocate(atm)
 
       call setup_petsc_comm
       !      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
@@ -2259,7 +2258,7 @@ contains
 #ifdef _XLF
       call PetscPopSignalHandler(ierr); CHKERRQ(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
 #endif
-      call init_mpi_data_parameters(PETSC_COMM_WORLD)
+      call init_mpi_data_parameters(icomm)
 
       call read_commandline_options()
 
@@ -2547,12 +2546,12 @@ contains
           print *,myid,k,'local_ksca',local_ksca(k,:,:)
         enddo
       endif
-    endif
-    if(ldebug) then
+!    endif
+!    if(ldebug) then
       if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
         print *,myid,'set_optical_properties :: found illegal value in optical properties! abort!'
       endif
-    endif
+!    endif
 
     if(ldebug.and.myid.eq.0) then
       if(present(local_kabs) ) then 
@@ -2695,7 +2694,7 @@ contains
     endif
 
     if( ltwostr_only ) return
-    if( all(atm%l1d.eqv..True.) ) return
+!    if( all(atm%l1d.eqv..True.) ) return
     if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca ) return
     if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) return
   endif
@@ -2767,26 +2766,28 @@ subroutine destroy_tenstream(lfinalizepetsc)
           call VecDestroy(solutions(uid)%edir     , ierr) ;CHKERRQ(ierr)
         call VecDestroy(solutions(uid)%ediff    , ierr) ;CHKERRQ(ierr)
         call VecDestroy(solutions(uid)%abso     , ierr) ;CHKERRQ(ierr)
+        solutions(uid)%lset = .False.
       endif
     enddo
 
-    if(allocated(atm%op))       deallocate(atm%op)
-    !        if(allocated(atm%delta_op)) deallocate(atm%delta_op)
-    if(allocated(atm%planck))   deallocate(atm%planck)
-    if(allocated(atm%a11))      deallocate(atm%a11)
-    if(allocated(atm%a12))      deallocate(atm%a12)
-    if(allocated(atm%a13))      deallocate(atm%a13)
-    if(allocated(atm%a23))      deallocate(atm%a23)
-    if(allocated(atm%a33))      deallocate(atm%a33)
-    if(allocated(atm%dz))       deallocate(atm%dz)
-    if(allocated(atm%l1d))      deallocate(atm%l1d)
+!    if(allocated(atm%op))       deallocate(atm%op)
+!    if(allocated(atm%planck))   deallocate(atm%planck)
+!    if(allocated(atm%a11))      deallocate(atm%a11)
+!    if(allocated(atm%a12))      deallocate(atm%a12)
+!    if(allocated(atm%a13))      deallocate(atm%a13)
+!    if(allocated(atm%a23))      deallocate(atm%a23)
+!    if(allocated(atm%a33))      deallocate(atm%a33)
+!    if(allocated(atm%dz))       deallocate(atm%dz)
+!    if(allocated(atm%l1d))      deallocate(atm%l1d)
+    if(allocated(atm)) deallocate(atm)
+
     call OPP_1_2%destroy()
     call OPP_8_10%destroy()
 
-    deallocate(C_dir%neighbors)  ; call DMDestroy(C_dir%da ,ierr)
-    deallocate(C_diff%neighbors) ; call DMDestroy(C_diff%da,ierr)
-    deallocate(C_one%neighbors)  ; call DMDestroy(C_one%da ,ierr)
-    deallocate(C_one1%neighbors) ; call DMDestroy(C_one1%da,ierr)
+    call DMDestroy(C_dir%da ,ierr); deallocate(C_dir ) 
+    call DMDestroy(C_diff%da,ierr); deallocate(C_diff)
+    call DMDestroy(C_one%da ,ierr); deallocate(C_one ) 
+    call DMDestroy(C_one1%da,ierr); deallocate(C_one1)
 
     linitialized=.False.
 
