@@ -1,5 +1,4 @@
-!todo teardown of some stuff does not work correctly... need fix to use automatic parallel testing
-@test(npes =[8]) 
+@test(npes =[16,8,4]) 
 subroutine test_tenstream_ex1(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi
@@ -26,7 +25,8 @@ subroutine test_tenstream_ex1(this)
     real(ireals),parameter :: phi0=0, theta0=60
     real(ireals),parameter :: albedo=0, dz=dx
     real(ireals),parameter :: incSolar = -1
-    real(ireals),parameter :: tolerance = 1e-3
+    real(ireals),parameter :: atolerance = 1
+    real(ireals),parameter :: rtolerance = .05
     real(ireals) :: dz1d(nv)
 
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,B
@@ -58,6 +58,7 @@ subroutine test_tenstream_ex1(this)
     call read_commandline_options()
 !    print *,myid,'my local domain size:',C_one%xm, C_one%ym, C_one%zm
 
+
     allocate(kabs(C_one%zm , C_one%xm,  C_one%ym ))
     allocate(ksca(C_one%zm , C_one%xm,  C_one%ym ))
     allocate(g   (C_one%zm , C_one%xm,  C_one%ym ))
@@ -80,20 +81,20 @@ subroutine test_tenstream_ex1(this)
 
     call tenstream_get_result(fdir, fdn, fup, fdiv)
 
-!    if(myid.eq.0) then
-!        print *,'B:', B(:,1,1)
-!        print *,'kabs:', kabs(:,1,1)
-!        print *,'fdn:',  fdn (:,1,1)
-!        print *,'fup:',  fup (:,1,1)
-!        print *,'fdiv:', fdiv(:,1,1)
-!    endif
+    if(myid.eq.0) then
+        print *,'B:', B(:,1,1)*pi
+        print *,'kabs:', kabs(:,1,1)
+        print *,'fdn:',  fdn (:,1,1)
+        print *,'fup:',  fup (:,1,1)
+        print *,'fdiv:', fdiv(:,1,1)
+    endif
 
-    call destroy_tenstream()
-
-    @assertEqual(div_target, fdiv(:,1,1), tolerance, 'thermal divergence not correct')
-    @assertEqual(dn_target,  fdn (:,1,1), tolerance, 'thermal downw flux not correct')
-    @assertEqual(up_target,  fup (:,1,1), tolerance, 'thermal upward fl  not correct')
+    @assertEqual(div_target, fdiv(:,1,1), atolerance, 'thermal divergence not correct')
+    @assertEqual(dn_target,  fdn (:,1,1), atolerance, 'thermal downw flux not correct')
+    @assertEqual(up_target,  fup (:,1,1), atolerance, 'thermal upward fl  not correct')
 
     ! Check that surface emission is the one that we stick in
-    @assertEqual(B(C_one1%zm,:,:)*pi, fup (C_one1%zm,:,:), tolerance, 'Surface Emission not correct')
+    @assertEqual(B(C_one1%zm,1,1)*pi, fup (C_diff%zm,1,1), atolerance, 'Surface Emission not correct')
+
+    call destroy_tenstream()
 end subroutine
