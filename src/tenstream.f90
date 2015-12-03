@@ -203,16 +203,17 @@ contains
 
       C%dof = i1*dof
       if(present(nxproc) .and. present(nyproc) ) then
-        call DMDACreate3d( imp_comm ,                                     &
+        call DMDACreate3d( imp_comm,                                      &
           bn                      , boundary             , boundary     , &
           DMDA_STENCIL_STAR       ,                                       &
-          i1*Nz                   , sum(nxproc)          , sum(nyproc)  , &
-          i1                      , size(nxproc)         , size(nyproc) , &
+          Nz                      , i1*sum(nxproc)          , i1*sum(nyproc)  , &
+          i1                      , i1*size(nxproc)         , i1*size(nyproc) , &
           C%dof                   , stencil_size         ,                &
           Nz                      , nxproc               , nyproc       , &
-          C%da                    , ierr) ;CHKERRQ(ierr)
+          C%da                    , ierr)
+        CHKERRQ(ierr)
       else
-        call DMDACreate3d( imp_comm ,                                           &
+        call DMDACreate3d( imp_comm,                                            &
           bn                      , boundary             , boundary           , &
           DMDA_STENCIL_STAR       ,                                             &
           i1*Nz                   , Nx                   , Ny                 , &
@@ -2546,7 +2547,7 @@ contains
           print *,myid,k,'local_ksca',local_ksca(k,:,:)
         enddo
       endif
-!    endif
+    endif
 !    if(ldebug) then
       if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
         print *,myid,'set_optical_properties :: found illegal value in optical properties! abort!'
