@@ -155,9 +155,9 @@ module m_tenstream
     logical :: lintegrated_dir=.True. , lintegrated_diff=.True.  
 
     !save error statistics
-    real(ireals) :: time   (300) = -one
-    real(ireals) :: maxnorm(300) = zero
-    real(ireals) :: twonorm(300) = zero
+    real(ireals) :: time   (30) = -one
+    real(ireals) :: maxnorm(30) = zero
+    real(ireals) :: twonorm(30) = zero
     real(ireals),allocatable :: ksp_residual_history(:)
   end type
   type(t_state_container),save :: solutions(-1000:1000)
@@ -2675,7 +2675,7 @@ contains
     endif
 
     ! --------- Calculate 1D Radiative Transfer ------------
-    if(  ltwostr                                                       &
+    if(  ltwostr                                                         &
       .or. all(atm%l1d.eqv..True.)                                       &
       .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca)     &
       .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild) ) then
@@ -2695,7 +2695,7 @@ contains
     endif
 
     if( ltwostr_only ) return
-!    if( all(atm%l1d.eqv..True.) ) return
+    if( all(atm%l1d.eqv..True.) ) return
     if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca ) return
     if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) return
   endif
@@ -2919,7 +2919,7 @@ function need_new_solution(uid,time)
   real(ireals) :: t(Nfit),tm(Nfit),dt(Nfit-1),err(2, 2*(Nfit-1)), error_estimate
   real(ireals) :: polyc(Nporder+1),estimate(Nporder)
 
-  character(len=30) :: reason
+  character(len=50) :: reason
   integer, parameter :: out_unit=20
 
   integer(iintegers) :: k,ipoly
@@ -2927,18 +2927,14 @@ function need_new_solution(uid,time)
   if( .not. solutions(uid)%lset ) then !if we did not store a solution, return immediately
     need_new_solution=.True.
     write(reason,*) 'no solution yet' 
-    return 
-  endif
-
-  if(ltwostr_only) then
-    need_new_solution=.True.
-    write(reason,*) 'twostr-only -> no err.est.'
+    if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid
     return 
   endif
 
   if(.not. lenable_solutions_err_estimates) then
     need_new_solution=.True.
     write(reason,*) 'err.est.thresh.inf.small' 
+    if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid
     return 
   endif
 
@@ -2976,8 +2972,9 @@ function need_new_solution(uid,time)
     polyc(1:ipoly+1) = polyfit(err(1,:),err(2,:),ipoly, ierr) ! e.g. second order polynomial has 3 coefficients
     if(ierr.ne.0) then 
       need_new_solution=.True.
-      write(reason,*) 'problem fitting error curve'
+      write(reason,*) 'problem fitting error curve',ierr
       call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+      if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid
       return
     endif
     estimate(ipoly)=zero
@@ -3099,6 +3096,7 @@ contains
 
     do i=1,size(vx)
       if(any (approx( vx(i), vx(i+1:size(vx)) ) ) ) then ! polyfit cannot cope with same x values --> matrix gets singular
+        if(ldebug .and. myid.eq.0) print *,'polyfit cannot cope with same x values --> matrix gets singular',vx,'::',vy
         polyfit=0
         polyfit(1) = nil
         ierr=1
