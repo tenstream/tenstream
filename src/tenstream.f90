@@ -1667,8 +1667,8 @@ contains
 
     PetscReal :: atol
 
-!    logical,parameter :: lset_geometry=.True.  ! this may be necessary in order to use geometric multigrid
-    logical,parameter :: lset_geometry=.False.  ! this may be necessary in order to use geometric multigrid
+    logical,parameter :: lset_geometry=.True.  ! this may be necessary in order to use geometric multigrid
+!    logical,parameter :: lset_geometry=.False.  ! this may be necessary in order to use geometric multigrid
 !    logical,parameter :: lset_nullspace=.True. ! set constant nullspace?
     logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
 
