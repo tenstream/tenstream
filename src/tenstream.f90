@@ -875,23 +875,23 @@ contains
     sun%sintheta = max( sin(deg2rad(theta0)), zero)
 
     ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
-    sun%symmetry_phi = sym_rot_phi(phi0)
+    sun%symmetry_phi = sym_rot_phi(sun%phi)
     sun%xinc=i0 ; sun%yinc=i0
-    if(phi0.gt.180) sun%xinc=i1
-    if(phi0.gt.90.and.phi0.lt.270) sun%yinc=i1
+    if(sun%phi.gt.180) sun%xinc=i1
+    if(sun%phi.gt.90.and.phi0.lt.270) sun%yinc=i1
     if(ldebug.and.myid.eq.0) print *,'setup_dir_inc done', sun
 
-  contains
-    function sym_rot_phi(phi0)
-      real(ireals) :: sym_rot_phi
-      real(ireals),intent(in) :: phi0
-      ! ''swap'' phi axis down to the range of [0,180] 
-      sym_rot_phi = acos(cos(phi0*pi/180))
-      !  print *,'1st phi0 swap',phi0,' :: ',sym_rot_phi,'=',phi0*pi/180,cos(phi0*pi/180),acos(cos(phi0*pi/180))
-      ! and then mirror it onto range [0,90]
-      sym_rot_phi = int( asin(sin(sym_rot_phi)) /pi * 180 )
-      !  print *,'2nd phi0 swap',phi0,' :: ',sym_rot_phi,'=',sin(sym_rot_phi),asin(sin(sym_rot_phi)),asin(sin(sym_rot_phi)) /pi * 180,int(asin(sin(sym_rot_phi)) /pi * 180)
-    end function
+    contains
+        function sym_rot_phi(phi0)
+            real(ireals) :: sym_rot_phi
+            real(ireals),intent(in) :: phi0
+            ! ''swap'' phi axis down to the range of [0,180] 
+            sym_rot_phi = acos(cos(phi0*pi/180))
+            !print *,'1st phi0 swap',phi0,' :: ',sym_rot_phi,'=',phi0*pi/180,cos(phi0*pi/180),acos(cos(phi0*pi/180))
+            ! and then mirror it onto range [0,90]
+            sym_rot_phi = int( asin(sin(sym_rot_phi)) /pi * 180 )
+            !print *,'2nd phi0 swap',phi0,' :: ',sym_rot_phi,'=',sin(sym_rot_phi),asin(sin(sym_rot_phi)),asin(sin(sym_rot_phi)) /pi * 180,int(asin(sin(sym_rot_phi)) /pi * 180)
+        end function
   end subroutine
 
   !> @brief build direct radiation matrix
