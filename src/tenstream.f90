@@ -878,19 +878,19 @@ contains
     sun%symmetry_phi = sym_rot_phi(sun%phi)
     sun%xinc=i0 ; sun%yinc=i0
     if(sun%phi.gt.180) sun%xinc=i1
-    if(sun%phi.gt.90.and.phi0.lt.270) sun%yinc=i1
+    if(sun%phi.gt.90.and.sun%phi.lt.270) sun%yinc=i1
     if(ldebug.and.myid.eq.0) print *,'setup_dir_inc done', sun
 
     contains
-        function sym_rot_phi(phi0)
+        function sym_rot_phi(phi)
             real(ireals) :: sym_rot_phi
-            real(ireals),intent(in) :: phi0
+            real(ireals),intent(in) :: phi
             ! ''swap'' phi axis down to the range of [0,180] 
-            sym_rot_phi = acos(cos(phi0*pi/180))
-            !print *,'1st phi0 swap',phi0,' :: ',sym_rot_phi,'=',phi0*pi/180,cos(phi0*pi/180),acos(cos(phi0*pi/180))
+            sym_rot_phi = acos(cos(phi*pi/180))
+            !print *,'1st phi swap',phi,' :: ',sym_rot_phi,'=',phi*pi/180,cos(phi*pi/180),acos(cos(phi*pi/180))
             ! and then mirror it onto range [0,90]
             sym_rot_phi = int( asin(sin(sym_rot_phi)) /pi * 180 )
-            !print *,'2nd phi0 swap',phi0,' :: ',sym_rot_phi,'=',sin(sym_rot_phi),asin(sin(sym_rot_phi)),asin(sin(sym_rot_phi)) /pi * 180,int(asin(sin(sym_rot_phi)) /pi * 180)
+            !print *,'2nd phi swap',phi,' :: ',sym_rot_phi,'=',sin(sym_rot_phi),asin(sin(sym_rot_phi)),asin(sin(sym_rot_phi)) /pi * 180,int(asin(sin(sym_rot_phi)) /pi * 180)
         end function
   end subroutine
 
