@@ -13,7 +13,7 @@ parser.add_argument('-s', '--ANN_setup', nargs='+', type=int, required=True,
                     help='number of hidden neurons and hidden layers (e.g. use 20 20 for a (input_nodes,20,20,output_nodes)-network)')
 parser.add_argument('-c', '--coeff_type', choices=['diffuse','diff2diff','dir2diff','dir2dir'], type=str, required=True, 
                     help='use diff2diff, dir2diff, or dir2dir; if you want to calculate a diff2diff/dir2* network you have to use a diffuse/direct LUT for training')
-parser.add_argument('-t', '--test_perc', type=float, required=True, help='percentage of available training data which is used to test')
+parser.add_argument('-t', '--test_perc', type=float, required=True, help='percentage of training data which is used to test')
 parser.add_argument('-i', '--err_inc', type=float, required=True, help='maximal error increase of test data; a larger error increase leads to a stop of the training')
 parser.add_argument('-b', '--basename', type=str, required=True, help='ffnet is saved to basename_<training step>_.net after every training step')
 parser.add_argument('--full', action='store_true', help='if set a fully connected ANN will be initialized and trained')
@@ -31,7 +31,7 @@ else:
 
 try:
     nproc = int(args.nproc)
-except:
+except ValueError:
     nproc = args.nproc
 #----------------------------------------------------
 
@@ -104,6 +104,7 @@ def Getting_Arrays ( LUT_file ):
                         T_tol.append ( LUT[3][g,ksca,kabs,dz] )
 
     dic = {'index':np.array(index), 'S':np.array(S), 'S_tol':np.array(S_tol)}; src=np.array(src)
+    for ind, xvar in enumerate(var): dic[xvar]=np.array(data[ind])
     if coeff_type=='direct': 
         dic.update( {'T':np.array(T), 'T_tol':np.array(T_tol)} )
         app = np.append ( np.ones((len(src),1),dtype=float)*res['phi'], np.ones((len(src),1),dtype=float)*res['theta'], axis=1 )
@@ -128,7 +129,7 @@ def Get_Output_Name ( LUT_fname, coeff_type ):
     return out_name+'delta_T_1.000_{0:s}.ANN.nc'.format(coeff_type)
 
 
-def ANN_to_NetCDF ( net, out_file, iprint=True ):
+def ANN_to_NetCDF ( net, out_file, iprint=True, **data ):
     import netCDF4 as nc
     import numpy as np
     import ffnet as ff    
@@ -148,17 +149,19 @@ def ANN_to_NetCDF ( net, out_file, iprint=True ):
     Teni      = network.eni     .T
     Tdeo      = network.deo     .T
     Tinlimits = network.inlimits.T
-    
+    for key, val in data.iteritems(): data[key] = val.T
+
     dataset = nc.Dataset(out_file, 'w', format='NETCDF4')
     
-    dataset.createDimension ( 'weights_dim1' , np.shape(Tweights )[0] )
-    dataset.createDimension ( 'conec_dim1'   , np.shape(Tconec   )[0] ); dataset.createDimension ( 'conec_dim2'   , np.shape(Tconec   )[1] )
-    dataset.createDimension ( 'units_dim1'   , np.shape(Tunits   )[0] )
-    dataset.createDimension ( 'inno_dim1'    , np.shape(Tinno    )[0] )
-    dataset.createDimension ( 'outno_dim1'   , np.shape(Toutno   )[0] )
-    dataset.createDimension ( 'eni_dim1'     , np.shape(Teni     )[0] ); dataset.createDimension ( 'eni_dim2'     , np.shape(Teni     )[1] )
-    dataset.createDimension ( 'deo_dim1'     , np.shape(Tdeo     )[0] ); dataset.createDimension ( 'deo_dim2'     , np.shape(Tdeo     )[1] )
-    dataset.createDimension ( 'inlimits_dim1', np.shape(Tinlimits)[0] ); dataset.createDimension ( 'inlimits_dim2', np.shape(Tinlimits)[1] )
+    dataset.createDimension ( 'weights_dim1'  , np.shape(Tweights )[0] )
+    dataset.createDimension ( 'conec_dim1'    , np.shape(Tconec   )[0] ); dataset.createDimension ( 'conec_dim2'   , np.shape(Tconec   )[1] )
+    dataset.createDimension ( 'units_dim1'    , np.shape(Tunits   )[0] )
+    dataset.createDimension ( 'inno_dim1'     , np.shape(Tinno    )[0] )
+    dataset.createDimension ( 'outno_dim1'    , np.shape(Toutno   )[0] )
+    dataset.createDimension ( 'eni_dim1'      , np.shape(Teni     )[0] ); dataset.createDimension ( 'eni_dim2'     , np.shape(Teni     )[1] )
+    dataset.createDimension ( 'deo_dim1'      , np.shape(Tdeo     )[0] ); dataset.createDimension ( 'deo_dim2'     , np.shape(Tdeo     )[1] )
+    dataset.createDimension ( 'inlimits_dim1' , np.shape(Tinlimits)[0] ); dataset.createDimension ( 'inlimits_dim2', np.shape(Tinlimits)[1] )
+    for key, val in data.iteritems(): dataset.createDimension ( 'pspace.{}_dim1'.format(key), np.shape(data[key])[0])
   
     weights  = dataset.createVariable('weights' , 'f8',  'weights_dim1'                  )
     conec    = dataset.createVariable('conec'   , 'i' , ('conec_dim1'   , 'conec_dim2'  ))
@@ -168,7 +171,9 @@ def ANN_to_NetCDF ( net, out_file, iprint=True ):
     eni      = dataset.createVariable('eni'     , 'f8', ('eni_dim1'     , 'eni_dim2'    ))
     deo      = dataset.createVariable('deo'     , 'f8', ('deo_dim1'     , 'deo_dim2'    ))
     inlimits = dataset.createVariable('inlimits', 'f8', ('inlimits_dim1','inlimits_dim2'))
-        
+    dataset_list = {}
+    for key, val in data.iteritems(): dataset_list [key] = dataset.createVariable('pspace.{}'.format(key), 'f8', 'pspace.{}_dim1'.format(key))
+
     weights [:] = Tweights 
     conec   [:] = Tconec   
     units   [:] = Tunits   
@@ -177,7 +182,8 @@ def ANN_to_NetCDF ( net, out_file, iprint=True ):
     eni     [:] = Teni     
     deo     [:] = Tdeo     
     inlimits[:] = Tinlimits
-  
+    for key, var in dataset_list.iteritems(): var [:] = data[key]
+
     dataset.close()
     
     return
@@ -246,7 +252,11 @@ print '{}\t{}\t{}\t{}\t{}\t{}'.format(*err)
 
 # save network as ffnet and in netCDF4-format:
 ff.savenet( net, args.basename + '_1_.net' ); train_num = 2
-ANN_to_NetCDF ( net, netcdf_output, iprint=False )
+if args.coeff_type=='diffuse' or args.coeff_type=='diff2diff':
+    ANN_to_NetCDF ( net, netcdf_output, iprint=False, dz=LUT[0]['dz'], kabs=LUT[0]['kabs'], ksca=LUT[0]['ksca'], g=LUT[0]['g'] )
+else:
+    ANN_to_NetCDF ( net, netcdf_output, iprint=False, dz=LUT[0]['dz'], kabs=LUT[0]['kabs'], ksca=LUT[0]['ksca'], g=LUT[0]['g'],
+                    phi=LUT[0]['phi'], theta=LUT[0]['theta'] )
 
 # train the network until the error of the test data increases more than "err_inc"
 err_test_ch = -999.9
@@ -264,4 +274,8 @@ while err_test_ch<args.err_inc:
     print '{}\t{}\t{}\t{}\t{}\t{}'.format(*err)
 
     ff.savenet( net, args.basename + '_{}_.net'.format(train_num) ); train_num=train_num+1
-    ANN_to_NetCDF ( net, netcdf_output, iprint=False )
+    if args.coeff_type=='diffuse' or args.coeff_type=='diff2diff':
+        ANN_to_NetCDF ( net, netcdf_output, iprint=False, dz=LUT[0]['dz'], kabs=LUT[0]['kabs'], ksca=LUT[0]['ksca'], g=LUT[0]['g'] )
+    else:
+        ANN_to_NetCDF ( net, netcdf_output, iprint=False, dz=LUT[0]['dz'], kabs=LUT[0]['kabs'], ksca=LUT[0]['ksca'], g=LUT[0]['g'],
+                        phi=LUT[0]['phi'], theta=LUT[0]['theta'] )
