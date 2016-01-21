@@ -118,7 +118,7 @@ def Get_Output_Name ( LUT_fname, coeff_type ):
 
     path     = LUT_fname[:LUT_fname.rfind('LUT')]
     fname    = LUT_fname[LUT_fname.rfind('LUT'):]
-    dim      = Get_Dim ( LUT_file, 'dx', 'dz', 'kabs', 'ksca', 'g' )
+    dim      = Get_Dim ( LUT_fname, 'dx', 'dz', 'kabs', 'ksca', 'g' )
     out_name = path+'LUT_dstorder_8_10.diffuse.dx{0:d}.pspace.dz{1:d}.kabs{2:d}.ksca{3:d}.g{4:d}.' \
                     .format(dim['dx'],dim['dz'],dim['kabs'],dim['ksca'],dim['g']) 
     if fname.rfind('direct')>=0: 
