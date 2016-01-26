@@ -21,11 +21,11 @@ module f2c_tenstream
 
       use iso_c_binding
 
-      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr,zero
+      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr,zero, i0
 
       use m_tenstream, only : init_tenstream, set_global_optical_properties, solve_tenstream, destroy_tenstream,&
                             tenstream_get_result, getvecpointer, restorevecpointer, &
-                            t_coord,C_dir,C_diff,C_one
+                            t_coord,C_dir,C_diff,C_one,C_one_atm, C_one_atm1
 
       use m_tenstream_options, only: read_commandline_options
 
@@ -38,19 +38,20 @@ module f2c_tenstream
 
 contains
 
-      subroutine tenstr_f2c_init(comm, Nz,Nx,Ny,dx,dy,hhl, phi0, theta0, albedo ) bind(C)                                
+      subroutine tenstr_f2c_init(comm, Nz,Nx,Ny,dx,dy,hhl, phi0, theta0, albedo, collapseindex) bind(C)                                
         ! initialize tenstream environment
         ! all nodes in communicator have to call this 
         ! but only the zeroth node has to have meaningful values for the arguments except the communicator
         ! all but hhl is overwritten on nonzero nodes
 
         integer(c_int), value :: comm
+        integer(c_int),intent(inout) :: collapseindex
         integer(c_int),intent(inout) :: Nx,Ny,Nz                     
         real(c_double),intent(inout) :: dx,dy 
         real(c_float), intent(inout) :: phi0,theta0,albedo
         real(c_float), intent(in),dimension(Nz+1) :: hhl
 
-        integer(iintegers) :: oNx,oNy,oNz
+        integer(iintegers) :: oNx,oNy,oNz,ocollapseindex
         real(ireals) :: odx,ody,ophi0,otheta0,oalbedo
         real(ireals),allocatable :: ohhl(:)
 
@@ -74,6 +75,7 @@ contains
           ophi0   = phi0
           otheta0 = theta0
           oalbedo = albedo
+          ocollapseindex = collapseindex
 
           allocate( ohhl(size(hhl)) )
           ohhl = hhl
@@ -87,9 +89,11 @@ contains
         call imp_bcast(ophi0  ,0_mpiint,myid)
         call imp_bcast(otheta0,0_mpiint,myid)
         call imp_bcast(oalbedo,0_mpiint,myid)
+        call imp_bcast(ocollapseindex,0_mpiint,myid)
 
         call imp_bcast(ohhl,0_mpiint,myid)
 
+        ! and overwrite input values to propagate values back to caller...
         Nx     = oNx
         Ny     = oNy
         Nz     = oNz
@@ -98,6 +102,7 @@ contains
         phi0   = ophi0
         theta0 = otheta0
         albedo = oalbedo
+        collapseindex=ocollapseindex
 
         ! Now every process has the correct values
         !        print *,myid,'Initializing Tenstream environment from C Language :: domainshape',oNx,oNy,oNz,'::',shape(ohhl)
@@ -107,7 +112,8 @@ contains
           odz(k) = ohhl(k) - ohhl(k+1)
         enddo
 
-        call init_tenstream(imp_comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz)
+        call init_tenstream(imp_comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz, collapseindex=ocollapseindex)
+        !call init_tenstream(imp_comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz)
 
         initialized=.True.
       end subroutine                                             
@@ -166,39 +172,22 @@ contains
         real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_edn
         real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_eup
         real(c_float),intent(out),dimension(Nz  ,Nx,Ny) :: res_abso
-        real(ireals),allocatable,dimension(:,:,:,:) :: res
+        real(ireals),allocatable,dimension(:,:,:) :: res
 
-        Vec :: vec
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
-        PetscScalar,pointer,dimension(:,:,:,:) :: xinp=>null()
-        PetscScalar,pointer,dimension(:) :: xinp1d=>null()
 
-        allocate( redir(C_dir%zs :C_dir%ze  ,C_dir%xs  :C_dir%xe  , C_dir%ys :C_dir%ye   ) )
-        allocate( redn (C_diff%zs :C_diff%ze,C_diff%xs :C_diff%xe , C_diff%ys:C_diff%ye  ) )
-        allocate( reup (C_diff%zs :C_diff%ze,C_diff%xs :C_diff%xe , C_diff%ys:C_diff%ye  ) )
-        allocate( rabso(C_one%zs :C_one%ze  ,C_one%xs  :C_one%xe  , C_one%ys :C_one%ye   ) )
+        allocate( redir(C_one_atm1%zs:C_one_atm1%ze, C_dir%xs :C_dir%xe , C_dir%ys :C_dir%ye   )); redir=0
+        allocate( redn (C_one_atm1%zs:C_one_atm1%ze, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye  )); redn =0
+        allocate( reup (C_one_atm1%zs:C_one_atm1%ze, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye  )); reup =0
+        allocate( rabso(C_one_atm%zs :C_one_atm%ze , C_one%xs :C_one%xe , C_one%ys :C_one%ye   )); rabso=0
 
         call tenstream_get_result(redir,redn,reup,rabso)
 
-        call DMGetGlobalVector(C_diff%da,vec,ierr) ; CHKERRQ(ierr)
-        call getVecPointer(vec ,C_diff ,xinp1d, xinp)
-        xinp(0,:,:,:) = redir
-        xinp(1,:,:,:) = redn
-        xinp(2,:,:,:) = reup
-        xinp(3, C_one%zs :C_one%ze, C_one%xs :C_one%xe , C_one%ys :C_one%ye  ) = rabso
-        call restoreVecPointer(vec ,C_diff ,xinp1d, xinp )
-
-        call globalVec2Local(vec,C_diff,res)
-
-        call DMRestoreGlobalVector(C_diff%da,vec,ierr) ; CHKERRQ(ierr)
-
-        if(myid.eq.0) then
-          res_edir = res(1,:, 1:Nx, 1:Ny)
-          res_edn  = res(2,:, 1:Nx, 1:Ny)
-          res_eup  = res(3,:, 1:Nx, 1:Ny)
-          res_abso = res(4,C_one%zs+1 :C_one%ze+1, 1:Nx, 1:Ny)
-        endif
+        call exchange_var(C_one_atm1, redir, res_edir)
+        call exchange_var(C_one_atm1, redn , res_edn )
+        call exchange_var(C_one_atm1, reup , res_eup )
+        call exchange_var(C_one_atm , rabso, res_abso)
 
         if(myid.eq.0) then
           print *,'Retrieving results:',Nx,Ny,Nz+1
@@ -208,7 +197,33 @@ contains
           print *,sum(res_abso)/size(res_abso),'surf',res_abso(Nz,1,1),'toa',res_abso(1,1,1)
         endif
 
-        if(myid.eq.0) deallocate(res)
+        contains
+            subroutine exchange_var(C, inp, outp)
+                type(t_coord),intent(in) :: C
+                real(ireals),intent(in) :: inp(:,:,:) ! local array from get_result
+                real(ireals),intent(out) :: outp(:,:,:) ! global sized array on rank 0
+
+                real(ireals),allocatable :: tmp(:,:,:,:)
+
+
+                Vec :: vec
+                PetscScalar,pointer,dimension(:,:,:,:) :: xinp=>null()
+                PetscScalar,pointer,dimension(:) :: xinp1d=>null()
+
+                call DMGetGlobalVector(C%da,vec,ierr) ; CHKERRQ(ierr)
+                call getVecPointer(vec ,C ,xinp1d, xinp)
+                xinp(i0,:,:,:) = inp
+                call restoreVecPointer(vec ,C ,xinp1d, xinp )
+
+                call globalVec2Local(vec,C,tmp)
+
+                call DMRestoreGlobalVector(C%da,vec,ierr) ; CHKERRQ(ierr)
+
+                if(myid.eq.0) outp = tmp(lbound(tmp,1), &
+                                         lbound(tmp,2):lbound(tmp,2)+size(outp,1)-1,&
+                                         lbound(tmp,3):lbound(tmp,3)+size(outp,2)-1,&
+                                         lbound(tmp,4):lbound(tmp,4)+size(outp,3)-1)
+            end subroutine
      end subroutine
 
       subroutine globalVec2Local(vec,C,res)

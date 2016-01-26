@@ -73,7 +73,7 @@ module m_tenstream
   public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
     getVecPointer,restoreVecPointer, &
     tenstream_get_result, need_new_solution, &
-    t_coord,C_dir,C_diff,C_one,C_one1
+    t_coord,C_dir,C_diff,C_one,C_one1,C_one_atm, C_one_atm1
 
   PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
 
@@ -83,8 +83,9 @@ module m_tenstream
   logical,parameter :: lprealloc=.True.
 
   type t_coord
-    PetscInt :: xs,xe,ys              ! local domain start and end indices
-    PetscInt :: ye,zs,ze              ! 
+    PetscInt :: xs,xe                 ! local domain start and end indices
+    PetscInt :: ys,ye                 ! local domain start and end indices
+    PetscInt :: zs,ze                 ! local domain start and end indices
     PetscInt :: xm,ym,zm              ! size of local domain
     PetscInt :: gxs,gys,gzs           ! domain indices including ghost points
     PetscInt :: gxe,gye,gze           ! 
@@ -95,7 +96,7 @@ module m_tenstream
     PetscMPIInt,allocatable :: neighbors(:) ! all 3d neighbours( (x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
   end type
 
-  type(t_coord), allocatable, save :: C_dir,C_diff,C_one,C_one1
+  type(t_coord), allocatable, save :: C_dir, C_diff, C_one, C_one1, C_one_atm, C_one_atm1
 
   PetscErrorCode :: ierr
 
@@ -105,7 +106,6 @@ module m_tenstream
 
   type t_atmosphere
     type(t_optprop) , allocatable , dimension(:,:,:) :: op
-    !    type(t_optprop) , allocatable , dimension(:,:,:) :: delta_op
     real(ireals)    , allocatable , dimension(:,:,:) :: planck
     real(ireals)    , allocatable , dimension(:,:,:) :: a11, a12, a13, a23, a33
     real(ireals)    , allocatable , dimension(:,:,:) :: g1,g2
@@ -113,6 +113,8 @@ module m_tenstream
     logical         , allocatable , dimension(:,:,:) :: l1d
     real(ireals) :: albedo
     real(ireals) :: dx,dy
+    integer(iintegers) :: icollapse=1
+    logical :: lcollapse = .False.
   end type
   type(t_atmosphere),allocatable,save :: atm
 
@@ -168,11 +170,16 @@ contains
   !> @details setup DMDA grid containers for direct, diffuse and absorption grid
   !>  \n and fill user context containers(t_coord) which include local as well as global array sizes
   !>  \n every mpi rank has to call this
-  subroutine setup_grid(Nz,Nx,Ny,nxproc,nyproc)
-    PetscInt,intent(in) :: Nz,Nx,Ny !< @param[in] local number of grid boxes -- in the vertical we have Nz boxes and Nz+1 levels
+  subroutine setup_grid(Nz_in,Nx,Ny,nxproc,nyproc, collapseindex)
+    PetscInt,intent(in) :: Nz_in,Nx,Ny !< @param[in] local number of grid boxes -- in the vertical we have Nz boxes and Nz+1 levels
     integer(iintegers),optional :: nxproc(:), nyproc(:) ! size of local domains on each node
+    integer(iintegers),optional,intent(in) :: collapseindex  !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
 
     DMBoundaryType :: bp=DM_BOUNDARY_PERIODIC, bn=DM_BOUNDARY_NONE, bg=DM_BOUNDARY_GHOSTED
+    integer(iintegers) :: Nz
+
+    Nz = Nz_in
+    if(present(collapseindex)) Nz = Nz_in-collapseindex+i1
 
     if(myid.eq.0.and.ldebug) print *,myid,'Setting up the DMDA grid for ',Nz,Nx,Ny,'using ',numnodes,' nodes'
 
@@ -189,6 +196,10 @@ contains
     if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C1'
     call setup_dmda(C_one , Nz  , Nx,Ny,  bp, i1)
     call setup_dmda(C_one1, Nz+1, Nx,Ny,  bp, i1)
+
+    if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA atm'
+    call setup_dmda(C_one_atm , Nz_in  , Nx,Ny,  bp, i1)
+    call setup_dmda(C_one_atm1, Nz_in+1, Nx,Ny,  bp, i1)
 
     if(myid.eq.0.and.ldebug) print *,myid,'DMDA grid ready'
   contains
@@ -468,7 +479,7 @@ contains
       do j=C%ys,C%ye
         do i=C%xs,C%xe      
           do k=C%zs,C%ze-1
-            if( atm%l1d(k,i,j) ) then
+            if( atm%l1d(atmk(k),i,j) ) then
 
               xo(:  ,k,i,j) = i0
               xd(:  ,k,i,j) = i1
@@ -584,7 +595,7 @@ contains
       do j=C%ys,C%ye
         do i=C%xs,C%xe      
           do k=C%zs,C%ze-1
-            if( atm%l1d(k,i,j) ) then
+            if( atm%l1d(atmk(k),i,j) ) then
               xo(:  ,k,i,j) = i0
               xd(:  ,k,i,j) = i1
               xd(0:3,k,i,j) = i5
@@ -629,7 +640,7 @@ contains
       do j=C%ys,C%ye
         do i=C%xs,C%xe        
           do k=C%zs,C%ze-1
-            if( atm%l1d(k,i,j) ) then
+            if( atm%l1d(atmk(k),i,j) ) then
               do dst=i0,i3
                 call inc( xl(dst, k+1, i,j), one )
               enddo
@@ -709,7 +720,7 @@ contains
       do j=C%ys,C%ye
         do i=C%xs,C%xe        
           do k=C%zs,C%ze-1
-            if( atm%l1d(k,i,j) ) then
+            if( atm%l1d(atmk(k),i,j) ) then
               do dst=i0,i1
                 call inc( xl(dst, k+1, i,j), one )
                 call inc( xl(dst, k  , i,j), one )
@@ -913,7 +924,7 @@ contains
       do i=C%xs,C%xe        
         do k=C%zs,C%ze-1
 
-          if( atm%l1d(k,i,j) ) then
+          if( atm%l1d(atmk(k),i,j) ) then
             call set_eddington_coeff(A,k, i,j)
           else
             call set_tenstream_coeff(C, A,k,i,j)
@@ -959,7 +970,7 @@ contains
       src = 7 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j+1-sun%yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
       src = 8 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j+1-sun%yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
-      call get_coeff(atm%op(k,i,j), atm%dz(k,i,j), .True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
+      call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j), .True., v, atm%l1d(atmk(k),i,j), [sun%symmetry_phi, sun%theta])
 
       call MatSetValuesStencil(A, C%dof, row, C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
@@ -988,9 +999,9 @@ contains
       integer(iintegers) :: src
 
       if(luse_eddington) then
-        v = atm%a33(k,i,j)
+        v = atm%a33(atmk(k),i,j)
       else
-        call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.True., v, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
+        call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.True., v, atm%l1d(atmk(k),i,j), [sun%symmetry_phi, sun%theta] )
       endif
 
       col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k    
@@ -1004,6 +1015,12 @@ contains
     end subroutine
 
   end subroutine set_dir_coeff
+
+  pure function atmk(k) ! return vertical index value for DMDA grid on atmosphere grid
+      integer(iintegers) :: atmk
+      integer(iintegers),intent(in) :: k
+      atmk = k+atm%icollapse-1
+  end function
 
   !> @brief set solar incoming radiation at Top_of_Atmosphere
   !> @details todo: in case we do not have periodic boundaries, we should shine light in from the side of the domain...
@@ -1048,7 +1065,7 @@ contains
       do i=C%xs,C%xe
         do k=C%zs,C%ze-1
 
-          if( atm%l1d(k,i,j) ) then
+          if( atm%l1d(atmk(k),i,j) ) then
             call set_eddington_coeff(A, k,i,j)
           else
             call set_tenstream_coeff(C, A, k,i,j, ierr); CHKERRQ(ierr)
@@ -1123,7 +1140,7 @@ contains
       dst = 8; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
       dst = 9; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
-      call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., v, atm%l1d(k,i,j))
+      call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., v, atm%l1d(atmk(k),i,j))
 
       call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
@@ -1150,9 +1167,9 @@ contains
       integer(iintegers) :: src,dst
 
       if(luse_eddington ) then
-        v = [ atm%a12(k,i,j), atm%a11(k,i,j), atm%a11(k,i,j), atm%a12(k,i,j)]
+        v = [ atm%a12(atmk(k),i,j), atm%a11(atmk(k),i,j), atm%a11(atmk(k),i,j), atm%a12(atmk(k),i,j)]
       else
-        call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., twostr_coeff, atm%l1d(k,i,j)) !twostr_coeff ==> a12,a11,a12,a11
+        call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., twostr_coeff, atm%l1d(atmk(k),i,j)) !twostr_coeff ==> a12,a11,a12,a11
         v = [ twostr_coeff(1), twostr_coeff(2) , twostr_coeff(2) , twostr_coeff(1) ]
       endif
 
@@ -1254,45 +1271,45 @@ contains
         do i=C_diff%xs,C_diff%xe    
           do k=C_diff%zs,C_diff%ze-1 
 
-            if( atm%l1d(k,i,j) ) then
+            if( atm%l1d(atmk(k),i,j) ) then
 
               if(luse_eddington ) then
                 !see libradtran rodents
-                dtau = atm%dz(k,i,j) * ( atm%op(k,i,j)%kabs + atm%op(k,i,j)%ksca)
+                dtau = atm%dz(atmk(k),i,j) * ( atm%op(atmk(k),i,j)%kabs + atm%op(atmk(k),i,j)%ksca)
                 if( dtau.gt.0.01_ireals ) then
-                  b0 = atm%planck(k,i,j)
-                  b1 = ( atm%planck(k,i,j)-atm%planck(k+1,i,j) ) / dtau
+                  b0 = atm%planck(atmk(k),i,j)
+                  b1 = ( atm%planck(atmk(k),i,j)-atm%planck(atmk(k)+1,i,j) ) / dtau
                 else
-                  b0 = .5_ireals*(atm%planck(k,i,j)+atm%planck(k+1,i,j))
+                  b0 = .5_ireals*(atm%planck(atmk(k),i,j)+atm%planck(atmk(k)+1,i,j))
                   b1 = zero
                 endif
-                c1 = atm%g1(k,i,j) * (b0 + b1*dtau)
-                c2 = atm%g2(k,i,j) * b1
-                c3 = atm%g1(k,i,j) * b0
+                c1 = atm%g1(atmk(k),i,j) * (b0 + b1*dtau)
+                c2 = atm%g2(atmk(k),i,j) * b1
+                c3 = atm%g1(atmk(k),i,j) * b0
 
-                xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) + ( - atm%a11(k,i,j)*(c1+c2) - atm%a12(k,i,j)*(c3-c2) + c2 + c3 )*Az*pi
-                xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) + ( - atm%a12(k,i,j)*(c1+c2) - atm%a11(k,i,j)*(c3-c2) + c1 - c2 )*Az*pi
+                xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) + ( - atm%a11(atmk(k),i,j)*(c1+c2) - atm%a12(atmk(k),i,j)*(c3-c2) + c2 + c3 )*Az*pi
+                xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) + ( - atm%a12(atmk(k),i,j)*(c1+c2) - atm%a11(atmk(k),i,j)*(c3-c2) + c1 - c2 )*Az*pi
 
               else
 
-                call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., diff2diff1d, atm%l1d(k,i,j))
+                call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., diff2diff1d, atm%l1d(atmk(k),i,j))
 
-                b0 = .5_ireals*(atm%planck(k,i,j)+atm%planck(k+1,i,j)) *pi
+                b0 = .5_ireals*(atm%planck(atmk(k),i,j)+atm%planck(atmk(k)+1,i,j)) *pi
                 xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
                 xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
 
               endif
 
             else ! Tenstream source terms
-              Ax = atm%dy*atm%dz(k,i,j)
-              Ay = atm%dx*atm%dz(k,i,j)
+              Ax = atm%dy*atm%dz(atmk(k),i,j)
+              Ay = atm%dx*atm%dz(atmk(k),i,j)
 
-              call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
+              call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., diff2diff, atm%l1d(atmk(k),i,j) )
               ! reorder from destination ordering to src ordering
               do src=1,C_diff%dof
                 v(src:C_diff%dof**2:C_diff%dof) = diff2diff( i1+(src-i1)*C_diff%dof : src*C_diff%dof )
               enddo
-              b0 = .5_ireals*(atm%planck(k,i,j)+atm%planck(k+i1,i,j)) *pi
+              b0 = .5_ireals*(atm%planck(atmk(k),i,j)+atm%planck(atmk(k)+i1,i,j)) *pi
               xsrc(E_up   , k   , i   , j   ) = xsrc(E_up   , k   , i   , j   ) +  b0  *(one-sum( v( E_up  *C_diff%dof+i1 : E_up  *C_diff%dof+C_diff%dof )  )  ) *Az
               xsrc(E_dn   , k+1 , i   , j   ) = xsrc(E_dn   , k+1 , i   , j   ) +  b0  *(one-sum( v( E_dn  *C_diff%dof+i1 : E_dn  *C_diff%dof+C_diff%dof )  )  ) *Az
               xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  b0  *(one-sum( v( E_le_m*C_diff%dof+i1 : E_le_m*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
@@ -1314,7 +1331,7 @@ contains
       k = C_diff%ze
       do j=C_diff%ys,C_diff%ye         
         do i=C_diff%xs,C_diff%xe    
-          xsrc(E_up   ,k,i,j) = xsrc(E_up   ,k,i,j) + atm%planck(k,i,j)*Az *(one-atm%albedo)*pi
+          xsrc(E_up   ,k,i,j) = xsrc(E_up   ,k,i,j) + atm%planck(atmk(k),i,j)*Az *(one-atm%albedo)*pi
         enddo
       enddo
     end subroutine
@@ -1346,17 +1363,17 @@ contains
           do k=C_diff%zs,C_diff%ze-1 
 
             if( any (xedir(:,k,i,j) .gt. epsilon(one)) ) then
-              if( atm%l1d(k,i,j) ) then
+              if( atm%l1d(atmk(k),i,j) ) then
                 dir2diff = zero
                 if(luse_eddington ) then
                   ! Only transport the 4 tiles from dir0 to the Eup and Edn
                   do src=1,4
-                    dir2diff(E_up  +i1+(src-1)*C_diff%dof) = atm%a13(k,i,j)
-                    dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = atm%a23(k,i,j)
+                    dir2diff(E_up  +i1+(src-1)*C_diff%dof) = atm%a13(atmk(k),i,j)
+                    dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = atm%a23(atmk(k),i,j)
                   enddo
 
                 else
-                  call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., twostr_coeff, atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta])
+                  call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., twostr_coeff, atm%l1d(atmk(k),i,j), [sun%symmetry_phi, sun%theta])
                   do src=1,4
                     dir2diff(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
                     dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
@@ -1370,7 +1387,7 @@ contains
 
               else ! Tenstream source terms
 
-                call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., dir2diff,  atm%l1d(k,i,j), [sun%symmetry_phi, sun%theta] )
+                call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., dir2diff,  atm%l1d(atmk(k),i,j), [sun%symmetry_phi, sun%theta] )
 
                 do src=1,C_dir%dof
                   select case(src)
@@ -1479,7 +1496,7 @@ contains
       do j=C_one%ys,C_one%ye         
         do i=C_one%xs,C_one%xe      
           do k=C_one%zs,C_one%ze
-            Volume = Az     * atm%dz(k,i,j)
+            Volume = Az     * atm%dz(atmk(k),i,j)
             ! Divergence    =                       Incoming                -       Outgoing
             if(solution%lsolar_rad) then
               div(1) = sum( xedir(i0:i3, k, i, j )  - xedir(i0:i3 , k+i1 , i, j ) ) 
@@ -1528,9 +1545,9 @@ contains
       do i=C_one%xs,C_one%xe      
         do k=C_one%zs,C_one%ze
 
-          Volume = Az     * atm%dz(k,i,j)
+          Volume = Az     * atm%dz(atmk(k),i,j)
 
-          if(atm%l1d(k,i,j)) then ! one dimensional i.e. twostream
+          if(atm%l1d(atmk(k),i,j)) then ! one dimensional i.e. twostream
             ! Divergence    =                       Incoming                -       Outgoing
             if(solution%lsolar_rad) then
               div(1) = sum( xedir(i0:i3, k, i, j )  - xedir(i0:i3 , k+i1 , i, j ) ) 
@@ -1667,8 +1684,8 @@ contains
 
     PetscReal :: atol
 
-!    logical,parameter :: lset_geometry=.True.  ! this may be necessary in order to use geometric multigrid
-    logical,parameter :: lset_geometry=.False.  ! this may be necessary in order to use geometric multigrid
+    logical,parameter :: lset_geometry=.True.  ! this may be necessary in order to use geometric multigrid
+!    logical,parameter :: lset_geometry=.False.  ! this may be necessary in order to use geometric multigrid
 !    logical,parameter :: lset_nullspace=.True. ! set constant nullspace?
     logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
 
@@ -1760,7 +1777,7 @@ contains
       do k=pstart,pstart+p-1
         do j=nstart,nstart+n-1
           do i=mstart+m-2, mstart, -1
-            xv(0,i,j,k) = xv(0,i+1,j,k) + atm%dz(i,j,k)
+            xv(0,i,j,k) = xv(0,i+1,j,k) + atm%dz(atmk(i),j,k)
           enddo
         enddo
       enddo
@@ -1951,9 +1968,9 @@ contains
     do j=C_diff%ys,C_diff%ye         
       do i=C_diff%xs,C_diff%xe
 
-        dtau = atm%dz(:,i,j)* atm%op(:,i,j)%kabs
+        dtau = atm%dz(atmk(C_one%zs):C_one%ze,i,j)* atm%op(atmk(C_one%zs):C_one%ze,i,j)%kabs
 
-        call schwarzschild( dtau,atm%albedo, Edn,Eup, atm%planck(:,i,j) )
+        call schwarzschild( dtau ,atm%albedo, Edn,Eup, atm%planck(atmk(C_one1%zs):C_one1%ze,i,j) )
 
         xv_diff(E_up,:,i,j) = Eup(:) 
         xv_diff(E_dn,:,i,j) = Edn(:) 
@@ -1994,10 +2011,10 @@ contains
 
     call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
 
-    allocate( dtau(C_dir%zm-1) )
-    allocate( kext(C_dir%zm-1) )
-    allocate(   w0(C_dir%zm-1) )
-    allocate(    g(C_dir%zm-1) )
+    allocate( dtau(C_one_atm%zm) )
+    allocate( kext(C_one_atm%zm) )
+    allocate(   w0(C_one_atm%zm) )
+    allocate(    g(C_one_atm%zm) )
 
     mu0 = sun%costheta
     incSolar = edirTOA* sun%costheta
@@ -2006,14 +2023,14 @@ contains
       call getVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
     call getVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff ,.False.)
 
-    allocate( S  (C_diff%zm) )
-    allocate( Eup(C_diff%zm) )
-    allocate( Edn(C_diff%zm) )
+    allocate( S  (C_one_atm1%zs:C_one_atm1%ze) )
+    allocate( Eup(C_one_atm1%zs:C_one_atm1%ze) )
+    allocate( Edn(C_one_atm1%zs:C_one_atm1%ze) )
 
     if(myid.eq.0 .and. ldebug) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM ::',sun%theta,':',incSolar
 
-    do j=C_diff%ys,C_diff%ye         
-      do i=C_diff%xs,C_diff%xe
+    do j=C_one_atm%ys,C_one_atm%ye         
+      do i=C_one_atm%xs,C_one_atm%xe
 
         kext = atm%op(:,i,j)%kabs + atm%op(:,i,j)%ksca
         dtau = atm%dz(:,i,j)* kext
@@ -2028,12 +2045,15 @@ contains
 
         if(solution%lsolar_rad) then
           do src=i0,i3
-            xv_dir(src,:,i,j) = S(:)
+            xv_dir(src,C_dir%zs+1:C_dir%ze,i,j) = S(atmk(C_one_atm1%zs)+1:C_one_atm1%ze)
+            xv_dir(src,C_dir%zs           ,i,j) = S(C_one_atm1%zs)
           enddo
         endif
 
-        xv_diff(E_up,:,i,j) = Eup(:) 
-        xv_diff(E_dn,:,i,j) = Edn(:) 
+        xv_diff(E_up,C_diff%zs+1:C_diff%ze,i,j) = Eup(atmk(C_one_atm1%zs)+1:C_one_atm1%ze) 
+        xv_diff(E_up,C_diff%zs            ,i,j) = Eup(C_one_atm1%zs) 
+        xv_diff(E_dn,C_diff%zs+1:C_diff%ze,i,j) = Edn(atmk(C_one_atm1%zs)+1:C_one_atm1%ze) 
+        xv_diff(E_dn,C_diff%zs            ,i,j) = Edn(C_one_atm1%zs) 
       enddo
     enddo
 
@@ -2104,7 +2124,7 @@ contains
               xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
             endif
 
-            if(.not.atm%l1d(k,i,j)) then
+            if(.not.atm%l1d(atmk(k),i,j)) then
 
               if(C%dof.eq.i8) then ! This is 8 stream direct radiation
 
@@ -2231,7 +2251,7 @@ contains
   !> @details This will setup the PETSc DMDA grid and set other grid information, needed for the TenStream
   !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc) 
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
-  subroutine init_tenstream(icomm, Nz,Nx,Ny, dx,dy, phi0,theta0,albedo, dz1d, dz3d, nxproc, nyproc)
+  subroutine init_tenstream(icomm, Nz,Nx,Ny, dx,dy, phi0,theta0,albedo, dz1d, dz3d, nxproc, nyproc, collapseindex)
     integer,intent(in) :: icomm !< @param MPI_Communicator which should be used -- this will be used for PETSC_COMM_WORLD
     integer(iintegers),intent(in) :: Nz      !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
     integer(iintegers),intent(in) :: Nx      !< @param[in] Nx     number of boxes in x-direction
@@ -2246,12 +2266,13 @@ contains
     real(ireals),optional,intent(in)       :: dz3d(Nz,Nx,Ny) !< @param[in] dz3d   if given, dz3d has to be local domain size, cannot have global shape
     integer(iintegers),optional,intent(in) :: nxproc(:)      !< @param[in] nxproc if given, Nx have to local size and nxproc is size of domain on each rank
     integer(iintegers),optional,intent(in) :: nyproc(:)      !< @param[in] nyproc if given, Ny have to local size and nyproc is size of domain on each rank
+    integer(iintegers),optional,intent(in) :: collapseindex  !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
 
     integer(iintegers) :: k,i,j
     !    character(len=30),parameter :: tenstreamrc='./.tenstreamrc'
 
+
     if(.not.linitialized) then
-      allocate(atm)
 
       call setup_petsc_comm
       !      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
@@ -2266,57 +2287,24 @@ contains
       if(present(nxproc) .and. present(nyproc) ) then
         if(ldebug.and.myid.eq.0) print *,'nxproc',shape(nxproc),'::',nxproc
         if(ldebug.and.myid.eq.0) print *,'nyproc',shape(nyproc),'::',nyproc
-        call setup_grid( Nz, Nx, Ny, nxproc,nyproc)
+        if(present(collapseindex)) then
+            call setup_grid( Nz, Nx, Ny, nxproc,nyproc, collapseindex=collapseindex)
+        else
+            call setup_grid( Nz, Nx, Ny, nxproc,nyproc)
+        endif
       else
-        call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny) )
+          if(present(collapseindex)) then
+              call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny), collapseindex=collapseindex)
+          else
+              call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny) )
+          endif
       endif
 
     endif
+    call setup_atm()
 
-    atm%dx  = dx
-    atm%dy  = dy
-    atm%albedo = albedo
-
-    if(.not.allocated(atm%dz) ) allocate(atm%dz( C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye ))
-
-    if(present(dz1d)) then
-      do j=C_one%ys,C_one%ye
-        do i=C_one%xs,C_one%xe
-          atm%dz(:,i,j) = dz1d
-        enddo
-      enddo
-    else if(present(dz3d)) then
-      if( any( shape(dz3d).ne.shape(atm%dz) ) ) then
-        print *,'Whoops I got a 3D dz definition but this does not correspond to the grid definition :: shapes: ', shape(dz3d), ' vs. ',shape(atm%dz)
-        print *,'please know that providing a 3D dz profile has to be of local shape, it can not have global size'
-        call MPI_Abort(icomm,ierr,ierr)
-      endif
-      atm%dz = dz3d
-    else
-      print *,'have to give either dz1d or dz3d in routine call....'
-      call exit(1)
-    endif
-
-    if(.not.allocated(atm%l1d)) then
-      allocate(atm%l1d( C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye ) )
-    endif
-
-    !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
-    !1d box does not send anything back --> therefore huge absorption :( -- would need to introduce mirror boundary conditions for
-    !sideward fluxes in 1d boxes
-    do j=C_one%ys,C_one%ye
-      do i=C_one%xs,C_one%xe
-        atm%l1d(C_one%ze,i,j) = twostr_ratio*atm%dz(C_one%ze,i,j).gt.atm%dx
-        do k=C_one%ze-1,C_one%zs,-1
-          atm%l1d(k,i,j) = twostr_ratio*atm%dz(k,i,j).gt.atm%dx
-        enddo
-      enddo
-    enddo
-    if(ltwostr_only) atm%l1d = .True.
 
     call setup_suninfo(phi0,theta0,sun)
-
-    if(theta0 .gt. 80)  atm%l1d = .True. ! only compute 1d radiation if sun is too low
 
     ! init box montecarlo model
     if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm)
@@ -2332,37 +2320,87 @@ contains
 
     linitialized=.True.
   contains
-    subroutine setup_petsc_comm()
-      !This is the code snippet from Petsc FAQ to change from PETSC (C) domain splitting to MPI(Fortran) domain splitting 
-      ! the numbers of processors per direction are (int) x_procs, y_procs, z_procs respectively
-      ! (no parallelization in direction 'dir' means dir_procs = 1)
+      subroutine setup_atm()
+          if(.not.allocated(atm)) allocate(atm)
 
-      !        MPI_Comm :: NewComm
-      !        PetscInt :: x,y
-      !
-      !        integer(mpiint) :: orig_id,new_id,petsc_id,ierr ! id according to fortran decomposition
+          atm%dx  = dx
+          atm%dy  = dy
+          atm%albedo = albedo
 
-      PETSC_COMM_WORLD = icomm
+          if(.not.allocated(atm%dz) ) allocate(atm%dz( C_one_atm%zs:C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye ))
 
-      !        if(present(nxproc) .and. present(nyproc) ) then
-      !          call MPI_COMM_RANK( icomm, orig_id, ierr )
-      !
-      !          ! calculate coordinates of cpus in MPI ordering:
-      !          x = int(orig_id) / size(nyproc)
-      !          y = modulo(orig_id ,size(nyproc))
-      !
-      !          ! set new rank according to PETSc ordering:
-      !          petsc_id = y*size(nxproc) + x
-      !
-      !          ! create communicator with new ranks according to PETSc ordering:
-      !          call MPI_Comm_split(MPI_COMM_WORLD, i1, petsc_id, NewComm, ierr)
-      !
-      !          ! override the default communicator (was MPI_COMM_WORLD as default)
-      !          PETSC_COMM_WORLD = NewComm
-      !        endif
-      !        print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id,'PETSC_COMM_WORLD',new_id
+          if(present(dz1d)) then
+              do j=C_one_atm%ys,C_one_atm%ye
+                  do i=C_one_atm%xs,C_one_atm%xe
+                      atm%dz(:,i,j) = dz1d
+                  enddo
+              enddo
+          else if(present(dz3d)) then
+              if( any( shape(dz3d).ne.shape(atm%dz) ) ) then
+                  print *,'Whoops I got a 3D dz definition but this does not correspond to the grid definition :: shapes: ', shape(dz3d), ' vs. ',shape(atm%dz)
+                  print *,'please know that providing a 3D dz profile has to be of local shape, it can not have global size'
+                  call MPI_Abort(icomm,ierr,ierr)
+              endif
+              atm%dz = dz3d
+          else
+              print *,'have to give either dz1d or dz3d in routine call....'
+              call exit(1)
+          endif
 
-    end subroutine
+          if(.not.allocated(atm%l1d)) then
+              allocate(atm%l1d( C_one_atm%zs:C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye ) )
+          endif
+
+          !TODO if we have a horiz. staggered grid, this may lead to the point where one 3d box has a outgoing sideward flux but the adjacent
+          !1d box does not send anything back --> therefore huge absorption :( -- would need to introduce mirror boundary conditions for
+          !sideward fluxes in 1d boxes
+          do j=C_one_atm%ys,C_one_atm%ye
+              do i=C_one_atm%xs,C_one_atm%xe
+                  atm%l1d(C_one_atm%ze,i,j) = twostr_ratio*atm%dz(C_one_atm%ze,i,j).gt.atm%dx
+                  do k=C_one_atm%ze-1,C_one_atm%zs,-1
+                      atm%l1d(k,i,j) = twostr_ratio*atm%dz(k,i,j).gt.atm%dx
+                  enddo
+              enddo
+          enddo
+          if(ltwostr_only) atm%l1d = .True.
+
+          if(present(collapseindex)) then
+              atm%lcollapse=.True.
+              atm%icollapse=collapseindex
+              atm%l1d(C_one_atm%zs:atmk(C_one%zs),:,:) = .True. ! if need to be collapsed, they have to be 1D.
+          endif
+      end subroutine
+      subroutine setup_petsc_comm()
+          !This is the code snippet from Petsc FAQ to change from PETSC (C) domain splitting to MPI(Fortran) domain splitting 
+          ! the numbers of processors per direction are (int) x_procs, y_procs, z_procs respectively
+          ! (no parallelization in direction 'dir' means dir_procs = 1)
+
+          !        MPI_Comm :: NewComm
+          !        PetscInt :: x,y
+          !
+          !        integer(mpiint) :: orig_id,new_id,petsc_id,ierr ! id according to fortran decomposition
+
+          PETSC_COMM_WORLD = icomm
+
+          !        if(present(nxproc) .and. present(nyproc) ) then
+          !          call MPI_COMM_RANK( icomm, orig_id, ierr )
+          !
+          !          ! calculate coordinates of cpus in MPI ordering:
+          !          x = int(orig_id) / size(nyproc)
+          !          y = modulo(orig_id ,size(nyproc))
+          !
+          !          ! set new rank according to PETSc ordering:
+          !          petsc_id = y*size(nxproc) + x
+          !
+          !          ! create communicator with new ranks according to PETSc ordering:
+          !          call MPI_Comm_split(MPI_COMM_WORLD, i1, petsc_id, NewComm, ierr)
+          !
+          !          ! override the default communicator (was MPI_COMM_WORLD as default)
+          !          PETSC_COMM_WORLD = NewComm
+          !        endif
+          !        print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id,'PETSC_COMM_WORLD',new_id
+
+      end subroutine
 
   end subroutine
 
@@ -2414,40 +2452,40 @@ contains
       PetscReal,pointer,dimension(:)       :: xlocal_vec1d=>null()
 
       if(myid.eq.0.and.ldebug .and. lhave_kabs) &
-        print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one%xs,C_one%xe,'ys/e',C_one%ys,C_one%ye
+        print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one_atm%xs,C_one_atm%xe,'ys/e',C_one_atm%ys,C_one_atm%ye
 
-      call DMGetGlobalVector(C_one%da, local_vec, ierr) ; CHKERRQ(ierr)
+      call DMGetGlobalVector(C_one_atm%da, local_vec, ierr) ; CHKERRQ(ierr)
 
       if(lhave_kabs) then
-        call scatterZerotoDM(global_kabs,C_one,local_vec)
-        call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec,.False. )
-        local_kabs = xlocal_vec(0, C_one%zs :C_one%ze,C_one%xs :C_one%xe , C_one%ys :C_one%ye  )
-        call restoreVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
+        call scatterZerotoDM(global_kabs,C_one_atm,local_vec)
+        call getVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec,.False. )
+        local_kabs = xlocal_vec(0, C_one_atm%zs :C_one_atm%ze,C_one_atm%xs :C_one_atm%xe , C_one_atm%ys :C_one_atm%ye  )
+        call restoreVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec )
       endif
 
       if(lhave_ksca) then
-        call scatterZerotoDM(global_ksca,C_one,local_vec)
-        call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec,.False. )
+        call scatterZerotoDM(global_ksca,C_one_atm,local_vec)
+        call getVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec,.False. )
         local_ksca = xlocal_vec(0,:,:,:)
-        call restoreVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
+        call restoreVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec )
       endif
 
       if(lhave_g) then
-        call scatterZerotoDM(global_g,C_one,local_vec)
-        call getVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec,.False. )
+        call scatterZerotoDM(global_g,C_one_atm,local_vec)
+        call getVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec,.False. )
         local_g = xlocal_vec(0,:,:,:)
-        call restoreVecPointer(local_vec ,C_one ,xlocal_vec1d, xlocal_vec )
+        call restoreVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec )
       endif
 
-      call DMRestoreGlobalVector(C_one%da, local_vec, ierr) ; CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C_one_atm%da, local_vec, ierr) ; CHKERRQ(ierr)
 
       if(lhave_planck) then
-        call DMGetGlobalVector(C_one1%da, local_vec, ierr) ; CHKERRQ(ierr)
-        call scatterZerotoDM(global_planck,C_one1,local_vec)
-        call getVecPointer(local_vec ,C_one1 ,xlocal_vec1d, xlocal_vec,.False. )
+        call DMGetGlobalVector(C_one_atm1%da, local_vec, ierr) ; CHKERRQ(ierr)
+        call scatterZerotoDM(global_planck,C_one_atm1,local_vec)
+        call getVecPointer(local_vec ,C_one_atm1 ,xlocal_vec1d, xlocal_vec,.False. )
         local_planck = xlocal_vec(0,:,:,:)
-        call restoreVecPointer(local_vec ,C_one1 ,xlocal_vec1d, xlocal_vec )
-        call DMRestoreGlobalVector(C_one1%da, local_vec, ierr) ; CHKERRQ(ierr)
+        call restoreVecPointer(local_vec ,C_one_atm1 ,xlocal_vec1d, xlocal_vec )
+        call DMRestoreGlobalVector(C_one_atm1%da, local_vec, ierr) ; CHKERRQ(ierr)
       endif
     end subroutine
   end subroutine
@@ -2527,13 +2565,13 @@ contains
     real(ireals) :: tau,kext,w0,g
     integer(iintegers) :: k,i,j
 
-    if(.not.allocated(atm%op) )  allocate( atm%op       (C_one%zs :C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye) )
+    if(.not.allocated(atm%op) )  allocate( atm%op       (C_one_atm%zs :C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye) )
     if(present(local_kabs) ) atm%op(:,:,:)%kabs = local_kabs
     if(present(local_ksca) ) atm%op(:,:,:)%ksca = local_ksca
     if(present(local_g   ) ) atm%op(:,:,:)%g    = local_g   
 
     if(present(local_planck) ) then 
-      if (.not.allocated(atm%planck) ) allocate( atm%planck   (C_one1%zs:C_one1%ze, C_one1%xs:C_one1%xe, C_one1%ys:C_one1%ye ) )
+      if (.not.allocated(atm%planck) ) allocate( atm%planck   (C_one_atm1%zs:C_one_atm1%ze, C_one_atm1%xs:C_one_atm1%xe, C_one_atm1%ys:C_one_atm1%ye ) )
       atm%planck = local_planck
     else
       if(allocated(atm%planck)) deallocate(atm%planck)
@@ -2542,7 +2580,7 @@ contains
     if(ldebug) then
       if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
         print *,myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
-        do k=C_one%zs,C_one%ze
+        do k=C_one_atm%zs,C_one_atm%ze
           print *,myid,k,'local_kabs',local_kabs(k,:,:)
           print *,myid,k,'local_ksca',local_ksca(k,:,:)
         enddo
@@ -2588,19 +2626,19 @@ contains
     endif
 
     if(luse_eddington) then
-      if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one%zs:C_one%ze ,C_one%xs:C_one%xe, C_one%ys:C_one%ye))   ! allocate space for twostream coefficients
-      if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one%zs:C_one%ze ,C_one%xs:C_one%xe, C_one%ys:C_one%ye)) 
-      if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one%zs:C_one%ze ,C_one%xs:C_one%xe, C_one%ys:C_one%ye)) 
-      if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one%zs:C_one%ze ,C_one%xs:C_one%xe, C_one%ys:C_one%ye)) 
-      if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one%zs:C_one%ze ,C_one%xs:C_one%xe, C_one%ys:C_one%ye)) 
-      if(.not.allocated(atm%g1 ) ) allocate(atm%g1  (C_one%zs:C_one%ze ,C_one%xs:C_one%xe, C_one%ys:C_one%ye)) 
-      if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one%zs:C_one%ze ,C_one%xs:C_one%xe, C_one%ys:C_one%ye)) 
+      if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))   ! allocate space for twostream coefficients
+      if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
+      if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
+      if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
+      if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
+      if(.not.allocated(atm%g1 ) ) allocate(atm%g1  (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
+      if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
     endif
 
     if(luse_eddington) then
-      do j=C_one%ys,C_one%ye
-        do i=C_one%xs,C_one%xe
-          do k=C_one%zs,C_one%ze
+      do j=C_one_atm%ys,C_one_atm%ye
+        do i=C_one_atm%xs,C_one_atm%xe
+          do k=C_one_atm%zs,C_one_atm%ze
             if( atm%l1d(k,i,j) ) then
               kext = atm%op(k,i,j)%kabs + atm%op(k,i,j)%ksca
               w0   = atm%op(k,i,j)%ksca / kext
@@ -2626,29 +2664,75 @@ contains
                 atm%a33(k,i,j) = nil
                 atm%g1(k,i,j)  = nil
                 atm%g2(k,i,j)  = nil
-              endif
-            endif
-          enddo
-        enddo
-      enddo
+              endif !ldebug
+            endif !l1d
+          enddo !k
+          if(atm%lcollapse) then
+              atm%dz(atmk(C_one%zs),i,j) = sum(atm%dz(C_one_atm%zs:atmk(C_one%zs),i,j))
+              atm%dz(C_one%zs:atmk(C_one%zs)-1,i,j) = nil
+
+              call adding(atm%a11(C_one_atm%zs:atmk(C_one%zs), i, j), &
+                          atm%a12(C_one_atm%zs:atmk(C_one%zs), i, j), &
+                          atm%a13(C_one_atm%zs:atmk(C_one%zs), i, j), &
+                          atm%a23(C_one_atm%zs:atmk(C_one%zs), i, j), &
+                          atm%a33(C_one_atm%zs:atmk(C_one%zs), i, j))
+          endif !lcollapse
+        enddo !i
+      enddo !j
     endif
 
     if(ldebug .and. myid.eq.0) then
-      do k=C_one%zs,C_one%ze
+      do k=C_one_atm%zs,C_one_atm%ze
         if(present(local_planck)) then
-          print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one%xs,C_one%ys),atm%l1d(k,C_one%xs,C_one%ys),'k',&
-            minval(atm%op    (k,:,:)%kabs),minval(atm%op (k, :,:)%ksca),minval(atm%op (k, :,:)%g),&
-            maxval(atm%op    (k,:,:)%kabs),maxval(atm%op (k, :,:)%ksca),maxval(atm%op (k, :,:)%g),&
+          print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
+            minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
+            maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g),&
             '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
         else    
-          print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one%xs,C_one%ys),atm%l1d(k,C_one%xs,C_one%ys),'k',&
-            minval(atm%op (k, :,:)%kabs),minval(atm%op (k,:,:)%ksca),minval(atm%op (k,:,:)%g),&
-            maxval(atm%op (k, :,:)%kabs),maxval(atm%op (k,:,:)%ksca),maxval(atm%op (k,:,:)%g),&
-            '::',minval(atm%a33 (k, :,:)),maxval(atm%a33           (k,:,:))
+          print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
+            minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
+            maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g),&
+            '::',minval(atm%a33 (k,:,:)),maxval(atm%a33(k,:,:))
         endif
       enddo
     endif
+    contains 
+        subroutine adding(a11,a12,a13,a23,a33)
+            real(ireals),intent(inout),dimension(:) :: a11,a12,a13,a23,a33
+            real(ireals) :: t, r, rdir, sdir, tdir
 
+            integer(iintegers) :: k
+            real(ireals) :: rl
+
+
+            t = a11(1)
+            r = a12(1)
+
+            tdir = a33(1)
+            rdir = a13(1)
+            sdir = a23(1)
+
+            do k=2,size(a11)
+                rl = r
+                r = r + a12(k)*t**2 / (one - r*a12(k))
+                t = t * a11(k) / (one - rl*a12(k))
+                
+                sdir = ( a11(k) * sdir + tdir*a13(k)*rl*a11(k) ) / ( one - rl*a12(k)  ) + tdir*a13(k)
+                tdir = tdir*a33(k)
+            enddo
+
+            a11 = nil
+            a12 = nil
+            a13 = nil
+            a23 = nil
+            a33 = nil
+
+            a11(size(a11)) = t
+            a12(size(a12)) = r
+            a13(size(a13)) = rdir
+            a23(size(a23)) = sdir
+            a33(size(a33)) = tdir
+        end subroutine
   end subroutine
 
   subroutine solve_tenstream(edirTOA,opt_solution_uid,opt_solution_time)
@@ -2771,15 +2855,6 @@ subroutine destroy_tenstream(lfinalizepetsc)
       endif
     enddo
 
-!    if(allocated(atm%op))       deallocate(atm%op)
-!    if(allocated(atm%planck))   deallocate(atm%planck)
-!    if(allocated(atm%a11))      deallocate(atm%a11)
-!    if(allocated(atm%a12))      deallocate(atm%a12)
-!    if(allocated(atm%a13))      deallocate(atm%a13)
-!    if(allocated(atm%a23))      deallocate(atm%a23)
-!    if(allocated(atm%a33))      deallocate(atm%a33)
-!    if(allocated(atm%dz))       deallocate(atm%dz)
-!    if(allocated(atm%l1d))      deallocate(atm%l1d)
     if(allocated(atm)) deallocate(atm)
 
     call OPP_1_2%destroy()
@@ -2801,7 +2876,7 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
   real(ireals),dimension(:,:,:),intent(out)               :: redn,reup,rabso
   integer(iintegers),optional,intent(in) :: opt_solution_uid
 
-  integer(iintegers) :: uid
+  integer(iintegers) :: Nz, uid, lb_redir
   PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
 
@@ -2846,7 +2921,16 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
     else
       if( solutions(uid)%lintegrated_dir ) stop 'tried to get result from integrated result vector(dir)'
       call getVecPointer(solutions(uid)%edir,C_dir,x1d,x4d)
-      redir = sum(x4d(i0:i3,:,:,:),dim=1)/4 ! return average of the 4 vertical tiles
+
+      if(atm%lcollapse) then
+          print *,'shape redir',shape(redir),lbound(redir,1),ubound(redir,1)
+          lb_redir = lbound(redir,1)
+          redir(lb_redir, :, :) = sum(x4d(i0:i3,C_dir%zs, :, :),dim=1)/4 ! return average of the 4 vertical tiles
+          redir(lb_redir+1:atmk(C_dir%zs)+lb_redir, :, :) = zero
+          redir(atmk(C_dir%zs)+1+lb_redir :C_one_atm1%ze+lb_redir, :, :) = sum(x4d(i0:i3,C_dir%zs+1:C_dir%ze,:,:),dim=1)/4 ! return average of the 4 vertical tiles
+      else
+          redir = sum(x4d(i0:i3, :, :, :),dim=1)/4
+      endif
       if(ldebug) then
         if(myid.eq.0) print *,'Edir',redir(1,1,:)
         if(any(redir.lt.-one)) then 
@@ -2860,8 +2944,18 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
 
   if(solutions(uid)%lintegrated_diff) stop 'tried to get result from integrated result vector(diff)'
   call getVecPointer(solutions(uid)%ediff,C_diff,x1d,x4d,.False.)
-  redn = x4d(E_dn,:,:,:)
-  reup = x4d(E_up,:,:,:)
+
+  if(atm%lcollapse) then
+      redn(1, :, :) = x4d(E_dn, C_diff%zs, :, :)
+      reup(1, :, :) = x4d(E_up, C_diff%zs, :, :)
+      redn(2:atmk(C_diff%zs)+1, :, :) = zero
+      reup(2:atmk(C_diff%zs)+1, :, :) = zero
+      redn(atmk(C_dir%zs)+2 :C_one_atm1%ze+1, :, :) = x4d(E_dn, C_diff%zs+1:C_diff%ze, :, :)
+      reup(atmk(C_dir%zs)+2 :C_one_atm1%ze+1, :, :) = x4d(E_up, C_diff%zs+1:C_diff%ze, :, :)
+  else
+      redn = x4d(E_dn,:,:,:)
+      reup = x4d(E_up,:,:,:)
+  endif
   if(ldebug .and. solutions(uid)%lsolar_rad) then
     if(myid.eq.0) print *,' Edn',redn(1,1,:)
     if(myid.eq.0) print *,' Eup',reup(1,1,:)
@@ -2877,7 +2971,12 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
   call restoreVecPointer(solutions(uid)%ediff,C_diff,x1d,x4d)
 
   call getVecPointer(solutions(uid)%abso,C_one,x1d,x4d)
-  rabso = x4d(i0,:,:,:)
+  if(atm%lcollapse) then
+      rabso(1:atmk(C_one%zs)+1, :, :) = zero
+      rabso(atmk(C_one%zs)+2 :C_one_atm%ze+1, :, :) = x4d(i0,C_one%zs+1:C_one%ze,:,:)
+  else
+      rabso = x4d(i0,:,:,:)
+  endif
   call restoreVecPointer(solutions(uid)%abso,C_one,x1d,x4d)
 end subroutine
 
