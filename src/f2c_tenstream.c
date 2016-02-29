@@ -31,7 +31,7 @@ void tenstr_f2c_get_result(int Nz,int Nx,int Ny, float *edir, float *edn, float 
 static char help[] = "This is the C wrapper interface to the Tenstream solver environment.\n\n";
 
 static const int solveriterations = 1;
-static const int collapseindex = 5;
+int collapseindex = 5;
 
 int master(int fcomm) {
   int    Nx=5, Ny=5, Nz=5;
