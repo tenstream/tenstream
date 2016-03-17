@@ -22,7 +22,7 @@
 #include <stdlib.h>                                                                                                                    
 #include "petscsys.h" 
 
-void tenstr_f2c_init(int fcomm, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, float *albedo );
+void tenstr_f2c_init(int fcomm, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, float *albedo, int *collapseindex);
 void tenstr_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float *kabs, float *ksca, float *g, float *planck);
 void tenstr_f2c_solve(float edirTOA);
 void tenstr_f2c_destroy();
@@ -30,8 +30,11 @@ void tenstr_f2c_get_result(int Nz,int Nx,int Ny, float *edir, float *edn, float 
 
 static char help[] = "This is the C wrapper interface to the Tenstream solver environment.\n\n";
 
+static const int solveriterations = 1;
+int collapseindex = 1;
+
 int master(int fcomm) {
-  int    Nx=5, Ny=5, Nz=5;
+  int    Nx=64, Ny=64, Nz=64;
   double dx=100,dy=100, dz=40.414518843273818;
   float phi0=0, theta0=60;
   float albedo=1e-8;
@@ -54,15 +57,15 @@ int master(int fcomm) {
       for(int k=0;k<Nz;k++) {
         int ind = k + Nz*i + Nz*Nx*j; /* index for [Ny][Nx][Nz] */
 
-        kabs   [ind] = 1e-30;
-        ksca   [ind] = 1e-30;
+        kabs   [ind] = 1e-6;
+        ksca   [ind] = 1e-6;
         g      [ind] =   .0;
 
         if(k==0) {
-          kabs   [ind] = 10;
+          kabs   [ind] = 1e-8;
         }
 
-        if(k==0 && i==1 && j==1) {
+        if(k==5 && i==1 && j==1) {
           kabs   [ind] = 1e-30;
           ksca   [ind] = 1e-3;
           g      [ind] =   .0;
@@ -78,8 +81,8 @@ int master(int fcomm) {
       for(int k=0;k<Nz+1;k++) {
         int ind = k + (Nz+1)*i + (Nz+1)*Nx*j; /* index for [Ny][Nx][Nz] */
 
-        planck [ind] =  -1;/* 5.67e-8*273.*273.*273.*273./3.1415; */
-        edir   [ind] =  -1;
+        planck [ind] =  10;/* 5.67e-8*273.*273.*273.*273./3.1415; */
+        edir   [ind] =  10;
       }
     }
   }             
@@ -88,14 +91,14 @@ int master(int fcomm) {
   for(int k=Nz;k>0;k--) 
     hhl[k-1] = hhl[k]+dz;
 
-  tenstr_f2c_init(fcomm,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0,&albedo);
+  tenstr_f2c_init(fcomm,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0,&albedo, &collapseindex);
   tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, kabs, ksca, g, planck);
   tenstr_f2c_solve( 1. );
   tenstr_f2c_get_result(Nz,Nx,Ny, edir,edn,eup,abso);
 
   tenstr_f2c_destroy();
 
-  for(int j=0;j<Ny;j++){
+  for(int j=0;j<Ny/10;j++){
     int i=1;
     printf("\n %d edir ",j);
     for(int k=0;k<Nz+1;k++)
@@ -143,7 +146,7 @@ int slave(int fcomm) {
   float *eup    = NULL;
   float *abso   = NULL;
 
-  tenstr_f2c_init(fcomm,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0,&albedo);
+  tenstr_f2c_init(fcomm,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0,&albedo, &collapseindex);
   tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, kabs, ksca, g, planck);
   tenstr_f2c_solve(1.);
   tenstr_f2c_get_result(Nz,Nx,Ny, edir,edn,eup,abso);
