@@ -201,7 +201,7 @@ contains
             subroutine exchange_var(C, inp, outp)
                 type(t_coord),intent(in) :: C
                 real(ireals),intent(in) :: inp(:,:,:) ! local array from get_result
-                real(ireals),intent(out) :: outp(:,:,:) ! global sized array on rank 0
+                real(c_float),intent(out) :: outp(:,:,:) ! global sized array on rank 0
 
                 real(ireals),allocatable :: tmp(:,:,:,:)
 
