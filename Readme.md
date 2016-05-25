@@ -4,7 +4,7 @@
   * A three-dimensional parallel radiative transfer model for atmospheric heating rates for use in cloud resolving models—The TenStream solver
   <http://dx.doi.org/10.1016/j.jqsrt.2015.05.003>
   * 3-D Radiative Transfer in Large-Eddy Simulations – Experiences Coupling the TenStream Solver to the UCLA–LES
-  <http://dx.doi.org/10.5194/gmdd-8-9021-2015>
+  <http://dx.doi.org/10.5194/gmd-9-1413-2016>
 
 #### The solver is coupled to the software packages:
   * [LibRadtran](http://www.libradtran.org)  -- all purpose radiative transfer Library(partially free)
