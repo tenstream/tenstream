@@ -200,9 +200,9 @@
       real(kind=rb), intent(out) :: pnicddir(:)
       real(kind=rb), intent(out) :: pnifddir(:)
 
-      real(kind=ireals), intent(out) :: tenstr_tau(:,:)            ! (nlayers, nbands)
-      real(kind=ireals), intent(out) :: tenstr_w(:,:)              ! (nlayers, nbands)
-      real(kind=ireals), intent(out) :: tenstr_g(:,:)              ! (nlayers, nbands)
+      real(ireals), intent(out) :: tenstr_tau(:,:)            ! (nlayers, nbands)
+      real(ireals), intent(out) :: tenstr_w(:,:)              ! (nlayers, nbands)
+      real(ireals), intent(out) :: tenstr_g(:,:)              ! (nlayers, nbands)
 
 ! Output - inactive                                            !   All Dimensions: (nlayers+1)
 !      real(kind=rb), intent(out) :: puvcu(:)

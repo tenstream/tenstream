@@ -296,9 +296,9 @@
       real(kind=rb), intent(out) :: swhrc(:,:)        ! Clear sky shortwave radiative heating rate (K/d)
                                                       !    Dimensions: (ncol,nlay)
 
-      real(kind=ireals), intent(out) :: tenstr_tau(:,:,:)   ! (ncol, nlayers, nbands)
-      real(kind=ireals), intent(out) :: tenstr_w(:,:,:)     ! (ncol, nlayers, nbands)
-      real(kind=ireals), intent(out) :: tenstr_g(:,:,:)     ! (ncol, nlayers, nbands)
+      real(ireals), intent(out) :: tenstr_tau(:,:,:)   ! (ncol, nlayers, nbands)
+      real(ireals), intent(out) :: tenstr_w(:,:,:)     ! (ncol, nlayers, nbands)
+      real(ireals), intent(out) :: tenstr_g(:,:,:)     ! (ncol, nlayers, nbands)
 ! ----- Local -----
 
 ! Control
