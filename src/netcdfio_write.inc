@@ -61,7 +61,7 @@ if(.not.file_exists) then
 else
   ierr = nf90_open(fname, NF90_WRITE, ncid) ; call nccheck(ierr)
 endif
-if(ldebug) print *,'opened file: ',fname,' ::',ierr
+if(ldebug) print *,'opened file: ',trim(fname),' ::',ierr
 if(ierr.ne.NF90_NOERR) stop 'stopping because we couldnt write to file'
 ierr = nf90_redef(ncid); call nccheck(ierr); def_mode=.True.
 if(ldebug) print *,'Set NetCDF File to def_mode',ierr
