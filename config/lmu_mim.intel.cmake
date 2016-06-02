@@ -45,10 +45,10 @@
 set(CMAKE_Fortran_COMPILER   "mpiifort")
 set(Fortran_COMPILER_WRAPPER "mpiifort")
 
-set(USER_C_FLAGS       "-cpp -W -std=c99") 
-set(USER_Fortran_FLAGS "-cpp -traceback -extend_source -g -sox ")
+set(USER_C_FLAGS       " -cpp -W -std=c99 ") 
+set(USER_Fortran_FLAGS " -cpp -traceback -extend_source -g -sox -no-wrap-margin ")
 set(USER_Fortran_FLAGS_RELEASE " -O3 -fp-model source ")
-set(USER_Fortran_FLAGS_DEBUG "-fpe0 -O0 -g -check all -check nopointers -check noarg_temp_created")
+set(USER_Fortran_FLAGS_DEBUG " -fpe0 -O0 -g -check all -check nopointers -check noarg_temp_created ")
 
 #set(NETCDF_DIR      "$ENV{NETCDFCROOT}")
 #set(NETCDF_DIR_F90  "$ENV{NETCDFFROOT}")
