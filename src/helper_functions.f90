@@ -28,7 +28,8 @@ module m_helper_functions
 
       private
       public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
-          mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum
+          mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, &
+          gradient, read_ascii_file_2d, meanvec
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -42,6 +43,18 @@ module m_helper_functions
           real(ireals),intent(in) :: i
           x=x+i
       end subroutine
+
+      pure function gradient(v)
+          real(ireals),intent(in) :: v(:)
+          real(ireals) :: gradient(size(v)-1)
+          gradient = v(2:size(v))-v(1:size(v)-1)
+      end function
+
+      pure function meanvec(v)
+          real(ireals),intent(in) :: v(:)
+          real(ireals) :: meanvec(size(v)-1)
+          meanvec = (v(2:size(v))+v(1:size(v)-1))*.5_ireals
+      end function
 
       pure function norm(v)
           real(ireals) :: norm
@@ -272,5 +285,56 @@ module m_helper_functions
           enddo
       end function
 
+      subroutine read_ascii_file_2d(filename, arr, ncolumns, skiplines)
+          character(len=*),intent(in) :: filename
+          integer(iintegers),intent(in) :: ncolumns
+          integer(iintegers),intent(in),optional :: skiplines
 
-      end module
+          real(ireals),allocatable,intent(out) :: arr(:,:)
+
+          real :: line(ncolumns)
+
+          integer(iintegers) :: unit, nlines, i, io
+          logical :: file_exists=.False.
+
+          inquire(file=filename, exist=file_exists)
+
+          if(.not.file_exists) then
+            print *,'File ',trim(filename), 'does not exist!'
+            return
+          endif
+
+          open(newunit=unit, file=filename)
+          if(present(skiplines)) then
+              do i=1,skiplines
+                  read(unit,*)
+              enddo
+          endif
+
+          nlines = 0
+          do
+              read(unit, *, iostat=io) line
+              !print *,'line',line
+              if (io/=0) exit
+              nlines = nlines + 1
+          end do
+
+          rewind(unit)
+          if(present(skiplines)) then
+              do i=1,skiplines
+                  read(unit,*)
+              enddo
+          endif
+
+          allocate(arr(nlines,ncolumns))
+
+          do i=1,nlines
+              read(unit, *, iostat=io) line
+              arr(i,:) = line
+          end do
+
+          close(unit)
+          print *,'I read ',nlines,'lines'
+      end subroutine
+
+  end module

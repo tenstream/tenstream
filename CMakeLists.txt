@@ -175,3 +175,8 @@ if(ENABLE_PFUNIT)
 	add_subdirectory(tests)
 	add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
 endif(ENABLE_PFUNIT)
+
+option(ENABLE_RRTM "Enable use of RRTM" OFF)
+if(ENABLE_RRTM)
+	add_subdirectory(src_rrtmg)
+endif(ENABLE_RRTM)
