@@ -2262,8 +2262,8 @@ contains
     real(ireals),intent(in)       :: theta0  !< @param[in] theta0 solar azmiuth and zenith angle
     real(ireals),intent(in)       :: albedo  !< @param[in] albedo lambertian surface albedo
 
-    real(ireals),optional,intent(in)       :: dz1d(Nz)       !< @param[in] dz1d   if given, dz1d is used everywhere on the rank
-    real(ireals),optional,intent(in)       :: dz3d(Nz,Nx,Ny) !< @param[in] dz3d   if given, dz3d has to be local domain size, cannot have global shape
+    real(ireals),optional,intent(in)       :: dz1d(:)        !< @param[in] dz1d   if given, dz1d is used everywhere on the rank
+    real(ireals),optional,intent(in)       :: dz3d(:,:,:)    !< @param[in] dz3d   if given, dz3d has to be local domain size, cannot have global shape
     integer(iintegers),optional,intent(in) :: nxproc(:)      !< @param[in] nxproc if given, Nx have to local size and nxproc is size of domain on each rank
     integer(iintegers),optional,intent(in) :: nyproc(:)      !< @param[in] nyproc if given, Ny have to local size and nyproc is size of domain on each rank
     integer(iintegers),optional,intent(in) :: collapseindex  !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
