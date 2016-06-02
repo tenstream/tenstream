@@ -72,7 +72,7 @@ module m_tenstream
   private
   public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
     getVecPointer,restoreVecPointer, &
-    tenstream_get_result, need_new_solution, &
+    tenstream_get_result, tenstream_get_result_toZero, need_new_solution, &
     t_coord,C_dir,C_diff,C_one,C_one1,C_one_atm, C_one_atm1
 
   PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
@@ -2979,6 +2979,105 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
   endif
   call restoreVecPointer(solutions(uid)%abso,C_one,x1d,x4d)
 end subroutine
+
+      subroutine tenstream_get_result_toZero(res_edir,res_edn,res_eup,res_abso)
+        ! after solving equations -- retrieve the results for edir,edn,eup and absorption
+        ! only zeroth node gets the results back.
+
+        real(ireals),intent(out),dimension(:,:,:) :: res_edir
+        real(ireals),intent(out),dimension(:,:,:) :: res_edn
+        real(ireals),intent(out),dimension(:,:,:) :: res_eup
+        real(ireals),intent(out),dimension(:,:,:) :: res_abso
+        real(ireals),allocatable,dimension(:,:,:) :: res
+
+        real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
+
+
+        allocate( redir(C_one_atm1%zs:C_one_atm1%ze, C_dir%xs :C_dir%xe , C_dir%ys :C_dir%ye   )); redir=0
+        allocate( redn (C_one_atm1%zs:C_one_atm1%ze, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye  )); redn =0
+        allocate( reup (C_one_atm1%zs:C_one_atm1%ze, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye  )); reup =0
+        allocate( rabso(C_one_atm%zs :C_one_atm%ze , C_one%xs :C_one%xe , C_one%ys :C_one%ye   )); rabso=0
+
+        call tenstream_get_result(redir,redn,reup,rabso)
+
+        call exchange_var(C_one_atm1, redir, res_edir)
+        call exchange_var(C_one_atm1, redn , res_edn )
+        call exchange_var(C_one_atm1, reup , res_eup )
+        call exchange_var(C_one_atm , rabso, res_abso)
+
+        if(myid.eq.0) then
+          print *,'Retrieving results:',shape(res_edir)
+          print *,sum(res_edir)/size(res_edir)
+          print *,sum(res_edn) /size(res_edn)
+          print *,sum(res_eup) /size(res_eup)
+          print *,sum(res_abso)/size(res_abso)
+        endif
+
+        contains
+            subroutine exchange_var(C, inp, outp)
+                type(t_coord),intent(in) :: C
+                real(ireals),intent(in) :: inp(:,:,:) ! local array from get_result
+                real(ireals),intent(out) :: outp(:,:,:) ! global sized array on rank 0
+
+                real(ireals),allocatable :: tmp(:,:,:,:)
+
+
+                Vec :: vec
+                PetscScalar,pointer,dimension(:,:,:,:) :: xinp=>null()
+                PetscScalar,pointer,dimension(:) :: xinp1d=>null()
+
+                call DMGetGlobalVector(C%da,vec,ierr) ; CHKERRQ(ierr)
+                call getVecPointer(vec ,C ,xinp1d, xinp)
+                xinp(i0,:,:,:) = inp
+                call restoreVecPointer(vec ,C ,xinp1d, xinp )
+
+                call globalVec2Local(vec,C,tmp)
+
+                call DMRestoreGlobalVector(C%da,vec,ierr) ; CHKERRQ(ierr)
+
+                if(myid.eq.0) outp = tmp(lbound(tmp,1), &
+                                         lbound(tmp,2):lbound(tmp,2)+size(outp,1)-1,&
+                                         lbound(tmp,3):lbound(tmp,3)+size(outp,2)-1,&
+                                         lbound(tmp,4):lbound(tmp,4)+size(outp,3)-1)
+            end subroutine
+
+            subroutine globalVec2Local(vec,C,res)
+                Vec :: vec
+                real(ireals),allocatable :: res(:,:,:,:)
+                type(t_coord) :: C
+
+                Vec :: natural, local
+                VecScatter :: scatter_context
+
+                PetscScalar,Pointer :: xloc(:)
+
+                if(allocated(res)) deallocate(res)
+                if(myid.eq.0) allocate( res(C%dof,C%glob_zm,C%glob_xm,C%glob_ym) )
+
+                call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
+
+                call DMDAGlobalToNaturalBegin(C%da,vec, INSERT_VALUES, natural, ierr); CHKERRQ(ierr)
+                call DMDAGlobalToNaturalEnd  (C%da,vec, INSERT_VALUES, natural, ierr); CHKERRQ(ierr)
+
+                call VecScatterCreateToZero(natural, scatter_context, local, ierr); CHKERRQ(ierr)
+
+                call VecScatterBegin(scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+                call VecScatterEnd  (scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+
+                call VecScatterDestroy(scatter_context, ierr); CHKERRQ(ierr)
+
+                if(myid.eq.0) then
+                    call VecGetArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+
+                    res = reshape( xloc, (/ C%dof,C%glob_zm,C%glob_xm,C%glob_ym /) )
+
+                    call VecRestoreArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+                endif
+
+                call VecDestroy(local,ierr); CHKERRQ(ierr)
+                call VecDestroy(natural,ierr); CHKERRQ(ierr)
+            end subroutine
+        end subroutine
 
 subroutine prepare_solution(solution, uid, lsolar)
   type(t_state_container) :: solution
