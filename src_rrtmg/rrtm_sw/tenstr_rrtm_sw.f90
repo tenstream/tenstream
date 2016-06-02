@@ -188,6 +188,7 @@ contains
                 edir = edir + spec_edir
                 edn  = edn  + spec_edn 
                 eup  = eup  + spec_eup 
+                abso = abso + spec_abso
             endif
         enddo
 
