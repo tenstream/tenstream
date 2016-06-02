@@ -58,10 +58,12 @@ if(ldebug) print *,'file ',trim(fname),'exists ::', file_exists
 
 if(.not.file_exists) then
   ierr = nf90_create(fname, NF90_NOCLOBBER, ncid) ; call nccheck(ierr)
+  !ierr = nf90_create(fname, NF90_HDF5, ncid) ; call nccheck(ierr)
+  if(ldebug) print *,'opened file to append: ',trim(fname),' ::',ierr
 else
   ierr = nf90_open(fname, NF90_WRITE, ncid) ; call nccheck(ierr)
+  if(ldebug) print *,'opened file to write: ',trim(fname),' ::',ierr
 endif
-if(ldebug) print *,'opened file: ',trim(fname),' ::',ierr
 if(ierr.ne.NF90_NOERR) stop 'stopping because we couldnt write to file'
 ierr = nf90_redef(ncid); call nccheck(ierr); def_mode=.True.
 if(ldebug) print *,'Set NetCDF File to def_mode',ierr
@@ -80,10 +82,10 @@ enddo
 
 !Check if variable already exists
 ierr = nf90_inq_varid(ncid, varname, varid) ; call nccheck(ierr)
-var_exists = ierr.ne.NF90_NOERR
+var_exists = ierr.eq.NF90_NOERR
 if(ldebug) print *,'Check if variable exists',ierr,'::',var_exists
 
-if(ierr.ne.NF90_NOERR) then !Otherwise create it
+if(.not.var_exists) then !Otherwise create it
   if(ldebug) print *,'Create variable'
   ierr = nf90_def_var(ncid, varname, NF90_FLOAT, dim_ids, varid,deflate_level=deflate_lvl) ; call nccheck(ierr)
 endif
@@ -92,10 +94,13 @@ if(def_mode) then !if we created the file here, we need to leave define mode...
   ierr = nf90_enddef(ncid); call nccheck(ierr )
   if(ldebug) print *,'Putting netcdf file in datamode',ierr
 endif
+
 tmp=arr
 ierr = nf90_put_var(ncid, varid, tmp) ; call nccheck(ierr)
+if(ldebug) print *,'written data',ierr
 
 ierr = nf90_close(ncid) ; call nccheck(ierr)
+if(ldebug) print *,'closed file',ierr
 
 close(v,status='delete')
 return
