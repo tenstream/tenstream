@@ -180,3 +180,14 @@ option(ENABLE_RRTM "Enable use of RRTM" OFF)
 if(ENABLE_RRTM)
 	add_subdirectory(src_rrtmg)
 endif(ENABLE_RRTM)
+
+find_program(CTAGS_PATH ctags)
+if(CTAGS_PATH)
+    message(STATUS "Found ctags: ${CTAGS_PATH}")
+    set_source_files_properties( tags PROPERTIES GENERATED true)
+    add_custom_target(tags ALL
+        COMMAND ctags -R ${CMAKE_CURRENT_SOURCE_DIR}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Creating ctags" VERBATIM
+        )
+endif(CTAGS_PATH)
