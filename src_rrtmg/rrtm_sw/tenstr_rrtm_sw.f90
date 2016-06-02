@@ -1,19 +1,15 @@
 module m_tenstr_rrtm_sw
     use rrtmg_sw_init, only: rrtmg_sw_ini
     use parkind, only: im => kind_im, rb => kind_rb
-    use rrsw_wvn
+    use rrsw_wvn, only : ngc, wavenum1, wavenum2
     use parrrsw, only: ngptsw, nbndsw,naerec,jpb1, jpb2
     use rrtmg_sw_rad, only: rrtmg_sw
     use rrtmg_sw_spcvrt, only: tenstr_solsrc      
-    use iso_c_binding
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
-        tenstream_get_result, C_one
-    use m_tenstream_options, only: read_commandline_options
-
-    use m_helper_functions, only: imp_reduce_sum
+        tenstream_get_result, tenstream_get_result_toZero, C_one
 
     implicit none
 
@@ -23,8 +19,9 @@ module m_tenstr_rrtm_sw
     logical :: linit=.False.
 
 contains
+    ! Routines to call tenstream with optical properties from RRTM
 
-    subroutine tenstr_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir,edn,eup,abso)
+    subroutine tenstream_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir,edn,eup,abso)
         integer(iintegers), intent(in) :: comm
         integer(iintegers), intent(in) :: nlay, nxp, nyp
 
@@ -32,26 +29,26 @@ contains
         
         real(ireals),intent(in) :: plev   (:,:,:) ! dim(nlay+1, nxp, nyp)
 
-        real(ireals),intent(in) :: tlay   (:,:,:) ! dim(nlay  , nxp, nyp)
-        real(ireals),intent(in) :: h2ovmr (:,:,:)
-        real(ireals),intent(in) :: o3vmr  (:,:,:)
-        real(ireals),intent(in) :: co2vmr (:,:,:)
-        real(ireals),intent(in) :: ch4vmr (:,:,:)
-        real(ireals),intent(in) :: n2ovmr (:,:,:)
-        real(ireals),intent(in) :: o2vmr  (:,:,:)
-        real(ireals),intent(in) :: lwc    (:,:,:)
-        real(ireals),intent(in) :: reliq  (:,:,:)
+        real(ireals),intent(in) :: tlay   (:,:,:) ! all have
+        real(ireals),intent(in) :: h2ovmr (:,:,:) ! dim(nlay , nxp, nyp)
+        real(ireals),intent(in) :: o3vmr  (:,:,:) !
+        real(ireals),intent(in) :: co2vmr (:,:,:) !
+        real(ireals),intent(in) :: ch4vmr (:,:,:) !
+        real(ireals),intent(in) :: n2ovmr (:,:,:) !
+        real(ireals),intent(in) :: o2vmr  (:,:,:) !
+        real(ireals),intent(in) :: lwc    (:,:,:) !
+        real(ireals),intent(in) :: reliq  (:,:,:) !
 
-        real(ireals) :: col_plev   (nxp*nyp, nlay+1)
-        real(ireals) :: col_tlay   (nxp*nyp, nlay)
-        real(ireals) :: col_h2ovmr (nxp*nyp, nlay)
-        real(ireals) :: col_o3vmr  (nxp*nyp, nlay)
-        real(ireals) :: col_co2vmr (nxp*nyp, nlay)
-        real(ireals) :: col_ch4vmr (nxp*nyp, nlay)
-        real(ireals) :: col_n2ovmr (nxp*nyp, nlay)
-        real(ireals) :: col_o2vmr  (nxp*nyp, nlay)
-        real(ireals) :: col_lwc    (nxp*nyp, nlay)
-        real(ireals) :: col_reliq  (nxp*nyp, nlay)
+        real(ireals),allocatable :: col_plev   (:,:)
+        real(ireals),allocatable :: col_tlay   (:,:)
+        real(ireals),allocatable :: col_h2ovmr (:,:)
+        real(ireals),allocatable :: col_o3vmr  (:,:)
+        real(ireals),allocatable :: col_co2vmr (:,:)
+        real(ireals),allocatable :: col_ch4vmr (:,:)
+        real(ireals),allocatable :: col_n2ovmr (:,:)
+        real(ireals),allocatable :: col_o2vmr  (:,:)
+        real(ireals),allocatable :: col_lwc    (:,:)
+        real(ireals),allocatable :: col_reliq  (:,:)
 
         real(ireals) :: hhl(nlay+1, nxp, nyp)
         real(ireals) :: dz (nlay  , nxp, nyp)
@@ -59,19 +56,22 @@ contains
         integer(iintegers) :: i, j, k, icol, ib
         integer(iintegers) :: is,ie,js,je
 
-        integer(iintegers) :: nbands
-        real(ireals),allocatable,dimension(:)   :: band_lbound,band_ubound,weights ! [nbands]
-        real(ireals),allocatable,dimension(:, :, :) :: col_tau, col_w0, col_g      ! [ncol, nlyr, nbands]
-        real(ireals),allocatable, dimension(:,:,:,:) :: kabs,ksca,g                ! [nlyr, local_nx, local_ny, nbands]
-        real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
-        real(ireals),allocatable, dimension(:,:,:) :: spec_edir,spec_edn,spec_eup,spec_abso ! [nlyr(+1), local_nx, local_ny ]
+        real(ireals),dimension(ngptsw)               :: band_lbound,band_ubound,weights       ! [ngptsw]
+        real(ireals),allocatable, dimension(:, :, :) :: col_tau, col_w0, col_g                ! [ncol, nlyr, ngptsw]
+        real(ireals),allocatable, dimension(:,:,:,:) :: kabs,ksca,g                           ! [nlyr, local_nx, local_ny, ngptsw]
+        real(ireals),allocatable, dimension(:,:,:)   :: spec_edir,spec_edn,spec_eup,spec_abso ! [nlyr(+1), local_nx, local_ny ]
+
+        real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso        ! [nlyr(+1), local_nx, local_ny ]
 
         do j=1,nyp
             do i=1,nxp
-                call hydrostat_lev(plev(:,i,j),tlay(:,i,j), hhl(:,i,j))
+                call hydrostat_lev(plev(:,i,j),tlay(:,i,j), hhl(:,i,j), dz(:,i,j))
             enddo
         enddo
-        dz = hhl(2:nlay+1,:,:)-hhl(1:nlay,:,:)
+        if(myid.eq.0) then
+            print *,hhl(:,1,1)
+            print *,dz(:,1,1)
+        endif
 
         call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz1d=dz(:,1,1))
         if(myid.eq.0) print *,'dz1d',dz(:,1,1)
@@ -84,6 +84,20 @@ contains
         call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz3d=dz(:,is:ie,js:je))
 
         print *,'domain has sizes:',is,ie,js,je
+        allocate(col_plev   (C_one%xm*C_one%ym, nlay+1))
+        allocate(col_tlay   (C_one%xm*C_one%ym, nlay))
+        allocate(col_h2ovmr (C_one%xm*C_one%ym, nlay))
+        allocate(col_o3vmr  (C_one%xm*C_one%ym, nlay))
+        allocate(col_co2vmr (C_one%xm*C_one%ym, nlay))
+        allocate(col_ch4vmr (C_one%xm*C_one%ym, nlay))
+        allocate(col_n2ovmr (C_one%xm*C_one%ym, nlay))
+        allocate(col_o2vmr  (C_one%xm*C_one%ym, nlay))
+        allocate(col_lwc    (C_one%xm*C_one%ym, nlay))
+        allocate(col_reliq  (C_one%xm*C_one%ym, nlay))
+
+        allocate(col_tau  (C_one%xm*C_one%ym, nlay, ngptsw))
+        allocate(col_w0   (C_one%xm*C_one%ym, nlay, ngptsw))
+        allocate(col_g    (C_one%xm*C_one%ym, nlay, ngptsw))
 
         icol=0
         do j=js,je
@@ -107,23 +121,13 @@ contains
             col_h2ovmr, col_o3vmr , col_co2vmr,&
             col_ch4vmr, col_n2ovmr, col_o2vmr ,&
             col_lwc, col_reliq,        &
-            nbands, band_lbound, band_ubound, weights, &
+            band_lbound, band_ubound, weights, &
             col_tau, col_w0, col_g)
 
 
         allocate(kabs(nlay, is:ie, js:je, ngptsw))
         allocate(ksca(nlay, is:ie, js:je, ngptsw))
         allocate(g   (nlay, is:ie, js:je, ngptsw))
-
-        allocate(edir(nlay+1, is:ie, js:je), source=zero)
-        allocate(edn (nlay+1, is:ie, js:je), source=zero)
-        allocate(eup (nlay+1, is:ie, js:je), source=zero)
-        allocate(abso(nlay  , is:ie, js:je), source=zero)
-
-        allocate(spec_edir(nlay+1, is:ie, js:je))
-        allocate(spec_edn (nlay+1, is:ie, js:je))
-        allocate(spec_eup (nlay+1, is:ie, js:je))
-        allocate(spec_abso(nlay  , is:ie, js:je))
 
         icol=0
         do j=js,je
@@ -140,49 +144,78 @@ contains
                 g   (:,i,j,:) = g   (nlay:1:-1,i,j,:)
 
                 ! divide by thickness to convert from tau to coefficients per meter
-                do ib=1, nbands
+                do ib=1, ngptsw
                     kabs(:,i,j,ib) = kabs(:,i,j,ib) / dz(:,i,j)
                     ksca(:,i,j,ib) = ksca(:,i,j,ib) / dz(:,i,j)
                 enddo
             enddo
         enddo
 
-        do ib=1, nbands
+        ! Free up some intermediate memory
+        deallocate(col_plev  )
+        deallocate(col_tlay  )
+        deallocate(col_h2ovmr)
+        deallocate(col_o3vmr )
+        deallocate(col_co2vmr)
+        deallocate(col_ch4vmr)
+        deallocate(col_n2ovmr)
+        deallocate(col_o2vmr )
+        deallocate(col_lwc   )
+        deallocate(col_reliq )
+        deallocate(col_tau   )
+        deallocate(col_w0    )
+        deallocate(col_g     )
+
+        ! Allocate space for results -- for integrated values and for temporary spectral integration...
+        if(myid.eq.0) then
+            allocate(edir(nlay+1, C_one%glob_xm, C_one%glob_ym ), source=zero)
+            allocate(edn (nlay+1, C_one%glob_xm, C_one%glob_ym ), source=zero)
+            allocate(eup (nlay+1, C_one%glob_xm, C_one%glob_ym ), source=zero)
+            allocate(abso(nlay  , C_one%glob_xm, C_one%glob_ym ), source=zero)
+
+            allocate(spec_edir(nlay+1, C_one%glob_xm, C_one%glob_ym))
+            allocate(spec_edn (nlay+1, C_one%glob_xm, C_one%glob_ym))
+            allocate(spec_eup (nlay+1, C_one%glob_xm, C_one%glob_ym))
+            allocate(spec_abso(nlay  , C_one%glob_xm, C_one%glob_ym))
+        endif
+
+        ! Loop over spectral intervals and call solver
+        do ib=1,ngptsw 
             call set_optical_properties(kabs(:,:,:,ib), ksca(:,:,:,ib), g(:,:,:,ib))
             call solve_tenstream(weights(ib))
-            call tenstream_get_result(spec_edir, spec_edn, spec_eup, spec_abso)
-            edir = edir + spec_edir
-            edn  = edn  + spec_edn 
-            eup  = eup  + spec_eup 
+            call tenstream_get_result_toZero(spec_edir, spec_edn, spec_eup, spec_abso)
+            if(myid.eq.0) then
+                edir = edir + spec_edir
+                edn  = edn  + spec_edn 
+                eup  = eup  + spec_eup 
+            endif
         enddo
+
+        ! Tidy up the solver
+        call destroy_tenstream()
     end subroutine
 
-    subroutine optprop_rrtm_sw(ncol_in, nlay_in, plev_in, tlay_in, h2ovmr_in, o3vmr_in, co2vmr_in, ch4vmr_in, n2ovmr_in, o2vmr_in, lwp_in, reliq_in, nbands, band_lbound, band_ubound, weights, tau, w0, g)
-        integer(im),parameter :: dyofyr=0,inflgsw=2,iceflgsw=3,liqflgsw=1
-        real(rb)   ,parameter :: adjes=1, scon=1.36822e+03
-
+    subroutine optprop_rrtm_sw(ncol_in, nlay_in, plev_in, tlay_in, h2ovmr_in, o3vmr_in, co2vmr_in, ch4vmr_in, n2ovmr_in, o2vmr_in, lwp_in, reliq_in, band_lbound, band_ubound, weights, tau, w0, g)
         ! RRTM needs the arrays to start at the surface
         ! Input is however given starting from top
         ! Copy input variables from tenstream precision to rrtm precision
-        integer(iintegers),intent(in) :: ncol_in, nlay_in
 
+        integer(iintegers),intent(in)          :: ncol_in, nlay_in
         real(ireals),dimension(:,:),intent(in) :: plev_in, tlay_in, h2ovmr_in, o3vmr_in, co2vmr_in, ch4vmr_in, n2ovmr_in, o2vmr_in ! [ncol_in, nlay]
         real(ireals),dimension(:,:),intent(in) :: lwp_in, reliq_in ! [ncol_in, nlay]
 
         ! and use those without '_in' as before
         integer(im) :: ncol, nlay
 
-
         real(rb),dimension(ncol_in,nlay_in+1) :: plev 
         real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
         real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq 
 
-        integer(iintegers),intent(out) :: nbands
-        real(ireals), allocatable, dimension(:),intent(out)   :: band_lbound, band_ubound, weights ! [nbands]
-        real(ireals), allocatable, dimension(:,:,:),intent(out) :: tau, w0, g ! [ncol, nlay, nbands]
+        real(ireals), dimension(:),intent(out)   :: band_lbound, band_ubound, weights ! [ngptsw]
+
+        real(rb), dimension(:,:,:), intent(out) :: tau, w0, g ! [ncol, nlay, ngptsw]
 
         real(rb),dimension(ncol_in,nlay_in+1) :: tlev
-
         real(rb),dimension(ncol_in,nlay_in) :: play, cldfr, cicewp, reice
 
         real(rb),dimension(nbndsw, ncol_in,nlay_in) :: taucld, ssacld, asmcld, fsfcld
@@ -196,18 +229,12 @@ contains
 
         integer(im) :: iv,ig,k,icol,iw
 
+        integer(im),parameter :: dyofyr=0,inflgsw=2,iceflgsw=3,liqflgsw=1
+        real(rb)   ,parameter :: adjes=1, scon=1.36822e+03
         integer(kind=im) :: icld=2         ! Cloud overlap method
         integer(kind=im) :: iaer=0         ! Aerosol option flag
 
-        if(.not.allocated(band_lbound)) allocate(band_lbound(ngptsw))
-        if(.not.allocated(band_ubound)) allocate(band_ubound(ngptsw))
-        if(.not.allocated(weights    )) allocate(weights    (ngptsw))
-
-        if(.not.allocated(tau)) allocate(tau(ncol_in, nlay_in, ngptsw))
-        if(.not.allocated(w0 )) allocate(w0 (ncol_in, nlay_in, ngptsw))
-        if(.not.allocated(g  )) allocate(g  (ncol_in, nlay_in, ngptsw))
-
-        ! copy to correct precision:
+        ! copy from TenStream to RRTM precision:
         ncol   = ncol_in
         nlay   = nlay_in
         plev   = rev(plev_in)
@@ -221,6 +248,8 @@ contains
         lwp    = rev(lwp_in)
         reliq  = rev(reliq_in)
 
+        ! Take average pressure and temperature as mean values for voxels --
+        ! should probably use log interpolation for pressure...
         do icol=1,ncol
             play(icol,:)      = .5_rb*(plev(icol,1:nlay)+plev(icol,2:nlay+1))
 
@@ -269,8 +298,6 @@ contains
             swuflx  ,swdflx  ,swhr    ,swuflxc ,swdflxc ,swhrc, &
             tau, w0, g)
 
-        nbands = ngptsw
-
         iw=0
         do iv=1,nbndsw
             do ig=1,ngc(iv)
@@ -282,22 +309,24 @@ contains
         enddo
     end subroutine
 
-    subroutine hydrostat_lev(plev,tlay, hhl)
+    subroutine hydrostat_lev(plev,tlay, hhl, dz)
+        ! Integrate vertical height profile hydrostatically.
         real(ireals),intent(in) :: plev(:),tlay(:)
         real(ireals),intent(out) :: hhl(size(plev))
-        real(ireals) :: dp,dz,rho
+        real(ireals),intent(out) :: dz(size(tlay))
+        real(ireals) :: dp,rho
         integer(im) :: k
-        hhl(1) = zero
-        do k=1,size(tlay)
+        hhl(size(plev)) = zero
+        do k=size(tlay),1,-1
             dp  = abs( plev(k)-plev(k+1) ) 
             rho = ( plev(k)+dp/2._ireals  ) / 287.058_ireals / tlay(k)
-            dz  = dp / rho / 9.8065_ireals
-            hhl(k+1) = hhl(k) + dz
+            dz(k) = dp / rho / 9.8065_ireals
+            hhl(k) = hhl(k+1) + dz(k)
         enddo
     end subroutine
 
     function rev(inp) ! reverse second dimension
-        real(rb),intent(in) :: inp(:,:)
+        real(ireals),intent(in) :: inp(:,:)
         real(rb) :: rev(size(inp,1),size(inp,2))
         rev = inp(:,ubound(inp,2):lbound(inp,2):-1)
     end function

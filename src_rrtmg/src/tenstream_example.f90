@@ -3,26 +3,29 @@ program main
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr,zero, i0
     use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec
 
+    use m_netcdfIO, only : ncwrite
+
     use m_tenstr_rrtm_sw
     implicit none
 
-    integer(iintegers),parameter :: nxp=16, nyp=nxp
+    integer(iintegers),parameter :: nxp=64, nyp=nxp
     real(ireals),allocatable,dimension(:,:,:) :: plev                                                     ! nlay+1, nxp, nyp
     real(ireals),allocatable,dimension(:,:,:) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr       ! nlay  , nxp, nyp
     real(ireals),allocatable,dimension(:,:,:) :: lwc, reliq                                               ! nlay  , nxp, nyp
 
-    real(ireals),parameter :: dx=200, dy=dx, phi0=0, theta0=0, albedo=.0
+    real(ireals),parameter :: dx=200, dy=dx, phi0=0, theta0=0, albedo=.2
 
-    integer(iintegers) :: i,j,k, nlay
+    integer(iintegers) :: i,j,k, nlay, ncerr
+    character(len=80) :: output_filename(2)
 
     real(ireals),allocatable :: atm(:,:) ! # z(km)  p(mb)  T(K) air(cm-3) o3(cm-3) o2(cm-3)  h2o(cm-3) co2(cm-3) no2(cm-3)
 
-    real(ireals),allocatable, dimension(:,:,:) :: edir,edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:) :: edir,edn,eup,abso          ! [nlyr(+1), global_nx, global_ny ]
 
     call mpi_init(mpierr)
     call init_mpi_data_parameters(MPI_COMM_WORLD)
 
-    call read_ascii_file_2d('afglus.dat', atm, 9, 2)
+    call read_ascii_file_2d('afglus_100m.dat', atm, 9, 2)
 
     nlay = ubound(atm,1)-1
 
@@ -52,7 +55,7 @@ program main
     allocate(lwc   (nlay  ,nxp,nyp))
     allocate(reliq (nlay  ,nxp,nyp))
     lwc = 0
-    lwc(40, 1, 1) = 1e-2
+    lwc(40:45, 32-5:32+5, 32-5:32+5) = 1e-2
     reliq = 10
 
     if(myid.eq.0) then
@@ -62,13 +65,19 @@ program main
         print *,'plev',plev(nlay+1,1,1)
     endif
 
-    call tenstr_rrtm_sw(imp_comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir, edn, eup, abso)
+    call tenstream_rrtm_sw(imp_comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir, edn, eup, abso)
 
     if(myid.eq.0) then
         do k=1,nlay+1
             print *,k,'edir', edir(k,1,1), edn(k,1,1), eup(k,1,1)
         enddo
+
+    call ncwrite(['output.nc', 'edir'], edir, ncerr)
+    call ncwrite(['output.nc', 'edn'], edn, ncerr)
+    call ncwrite(['output.nc', 'eup'], eup, ncerr)
+    call ncwrite(['output.nc', 'abso'], abso, ncerr)
+    print *,'done',shape(edir)
     endif
-    print *,'done'
+    call mpi_barrier(MPI_COMM_WORLD, mpierr)
 
 end program
