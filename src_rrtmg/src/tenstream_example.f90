@@ -55,7 +55,7 @@ program main
     allocate(lwc   (nlay  ,nxp,nyp))
     allocate(reliq (nlay  ,nxp,nyp))
     lwc = 0
-    lwc(40:45, 32-5:32+5, 32-5:32+5) = 1e-2
+    lwc(70:75, 32-5:32+5, 32-5:32+5) = 1
     reliq = 10
 
     if(myid.eq.0) then
