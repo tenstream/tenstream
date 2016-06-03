@@ -214,7 +214,7 @@ contains
 
         real(ireals), dimension(:),intent(out)   :: band_lbound, band_ubound, weights ! [ngptsw]
 
-        real(rb), dimension(:,:,:), intent(out) :: tau, w0, g ! [ncol, nlay, ngptsw]
+        real(ireals), dimension(:,:,:), intent(out) :: tau, w0, g ! [ncol, nlay, ngptsw]
 
         real(rb),dimension(ncol_in,nlay_in+1) :: tlev
         real(rb),dimension(ncol_in,nlay_in) :: play, cldfr, cicewp, reice
