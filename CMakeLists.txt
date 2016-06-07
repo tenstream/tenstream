@@ -49,19 +49,19 @@ else()
 endif()
 
 # HDF5
-find_package( HDF5 ) # use this for non-cmake install of HDF5
+#find_package( HDF5 ) # use this for non-cmake install of HDF5
 #FIND_PACKAGE (HDF5 NAMES hdf5 ) # or this if HDF5 was built with cmake support
-message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
-if(${HDF5_FOUND})
-  message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
-  message(STATUS "HDF5 F90      : ${HDF5_BUILD_FORTRAN}" )
-  message(STATUS "HDF5 Library  : ${HDF5_LIBRARIES}")
-  include_directories(${HDF5_INCLUDE_DIR})
-  include_directories(${HDF5_FORTRAN_INCLUDE_DIR})
-  list (APPEND EXTLIB ${HDF5_LIBRARIES})
-else(${HDF5_FOUND})
-  message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
-endif(${HDF5_FOUND})
+#message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
+#if(${HDF5_FOUND})
+#  message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
+#  message(STATUS "HDF5 F90      : ${HDF5_BUILD_FORTRAN}" )
+#  message(STATUS "HDF5 Library  : ${HDF5_LIBRARIES}")
+#  include_directories(${HDF5_INCLUDE_DIR})
+#  include_directories(${HDF5_FORTRAN_INCLUDE_DIR})
+#  list (APPEND EXTLIB ${HDF5_LIBRARIES})
+#else(${HDF5_FOUND})
+#  message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
+#endif(${HDF5_FOUND})
 
 # NetCDF
 set (NETCDF_F90 "YES")
