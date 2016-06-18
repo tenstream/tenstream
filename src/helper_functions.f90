@@ -27,7 +27,7 @@ module m_helper_functions
       implicit none
 
       private
-      public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
+      public imp_bcast,norm,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
           mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, &
           gradient, read_ascii_file_2d, meanvec
 
@@ -66,6 +66,11 @@ module m_helper_functions
           real(ireals) :: deg2rad
           real(ireals),intent(in) :: deg
           deg2rad = deg *pi/180._ireals
+      end function
+      elemental function rad2deg(rad)
+          real(ireals) :: rad2deg
+          real(ireals),intent(in) :: rad
+          rad2deg = rad /pi*180._ireals
       end function
 
       pure function rmse(a,b)
