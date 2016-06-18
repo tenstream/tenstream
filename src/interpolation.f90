@@ -183,32 +183,6 @@ subroutine interp_6d_recursive(pti,weights,db,C)
         ! And plug bound_vals and weights into recursive interpolation...
         call interpn(Ndim,bound_vals,weights,i1, C)
 end subroutine
-pure subroutine interp_4p2d(pti,weights,db,C)
-        integer,parameter :: Ndim=6
-        real(ireals),intent(in) :: pti(Ndim),weights(Ndim) ,db(:,:,:,:,:,:,:)
-        real(ireals),intent(out) :: C(:)
-
-        integer :: indices(2,2),fpti(Ndim)
-
-        ! Instead of doing a full interpolation in 6 dimension we start out with
-        ! 4 dimensions only at the cornerstones of the 4d hypercube
-        real(ireals) :: C4(size(C),6)
-
-        ! First determine the array indices, where to look.
-        fpti = floor(pti)
-
-        indices(:,1) = max(i1, min( ubound(db,5), [0,1] +fpti(5) ) )
-        indices(:,2) = max(i1, min( ubound(db,6), [0,1] +fpti(6) ) )
-
-        call interp_4d( pti(1:4),weights(1:4), db(:, :,:,:,:, indices(1,1), indices(1,2) ), C4(:,1) ) ! differing azimuth
-        call interp_4d( pti(1:4),weights(1:4), db(:, :,:,:,:, indices(2,1), indices(1,2) ), C4(:,2) ) !        "
-        call interp_4d( pti(1:4),weights(1:4), db(:, :,:,:,:, indices(1,1), indices(2,2) ), C4(:,3) ) 
-        call interp_4d( pti(1:4),weights(1:4), db(:, :,:,:,:, indices(2,1), indices(2,2) ), C4(:,4) )
-
-        C4(:,5) = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
-        C4(:,6) = C4(:,3) + weights(5) * ( C4(:,4) - C4(:,3) )
-        C       = C4(:,5) + weights(6) * ( C4(:,6) - C4(:,5) )
-end subroutine
 pure subroutine interp_6d(pti,weights,db,C)
         integer,parameter :: Ndim=6
         real(ireals),intent(in) :: pti(Ndim),weights(Ndim) ,db(:,:,:,:,:,:,:)
