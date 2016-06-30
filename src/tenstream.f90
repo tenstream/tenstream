@@ -955,20 +955,33 @@ contains
     real(ireals), optional, intent(in) :: phi2d(:,:), theta2d(:,:)
 
     type(t_suninfo),intent(inout) :: sun
+    integer(iintegers) :: k
 
     if(.not.allocated(sun%angles)) &
         allocate(sun%angles(C_one_atm%zs:C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
 
     if(lforce_phi) then 
-      sun%angles(:,:,:)%phi = options_phi
+        sun%angles(:,:,:)%phi = options_phi
     else
-      sun%angles(:,:,:)%phi   = phi0
+        if(present(phi2d)) then
+            do k = C_one_atm%zs, C_one_atm%ze
+                sun%angles(k,:,:)%phi = phi2d
+            enddo
+        else
+            sun%angles(:,:,:)%phi   = phi0
+        endif
     endif
 
     if(lforce_theta) then
       sun%angles(:,:,:)%theta = options_theta
     else
-      sun%angles(:,:,:)%theta = theta0
+        if(present(phi2d)) then
+            do k = C_one_atm%zs, C_one_atm%ze
+                sun%angles(k,:,:)%theta = theta2d
+            enddo
+        else
+            sun%angles(:,:,:)%theta = theta0
+        endif
     endif
 
     !print *,'LUSE_TOPO?:',sun%luse_topography
@@ -1788,7 +1801,7 @@ contains
     Vec :: nullvecs(0)
     character(len=*),optional :: prefix
 
-    PetscReal,parameter :: rtol=1e-4_ireals, rel_atol=1e-5_ireals
+    PetscReal,parameter :: rtol=sqrt(epsilon(rtol))*10, rel_atol=1e-4_ireals
     PetscInt,parameter  :: maxiter=1000
 
     PetscInt,parameter :: ilu_default_levels=1
