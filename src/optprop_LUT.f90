@@ -508,7 +508,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
           ! Now that we know we got something to do, lets find a suitable worker
           gotmsg=.False.
-          call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr); CHKERRQ(mpierr)
+          call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, gotmsg, status, mpierr); CHKERRQ(mpierr)
 
           if (gotmsg) then
 
@@ -564,7 +564,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
               if(finalizedworkers.eq.numnodes-1) then
 
                 gotmsg=.False.
-                call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr); CHKERRQ(mpierr)
+                call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, gotmsg, status, mpierr); CHKERRQ(mpierr)
                 if(gotmsg) then
                   print *,'Found message where I would not think there should be one',status
                   stop 'error'
@@ -590,7 +590,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
           do
             ! ask what to do
             gotmsg=.False.
-            call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr); CHKERRQ(mpierr)
+            call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, gotmsg, status, mpierr); CHKERRQ(mpierr)
 
             if (gotmsg) then
 
@@ -736,7 +736,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
 
           ! Now that we know we got something to do, lets find a suitable worker
           gotmsg=.False.
-          call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr); CHKERRQ(mpierr)
+          call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, gotmsg, status, mpierr); CHKERRQ(mpierr)
 
           if (gotmsg) then
 
@@ -816,7 +816,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
           do
             ! ask what to do
             gotmsg=.False.
-            call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, gotmsg, status, mpierr); CHKERRQ(mpierr)
+            call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, gotmsg, status, mpierr); CHKERRQ(mpierr)
 
             if (gotmsg) then
 
