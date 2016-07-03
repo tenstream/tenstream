@@ -1,7 +1,7 @@
-@test(npes =[16,8,4]) 
+@test(npes =[4,2]) 
 subroutine test_tenstream_ex1(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi, myid
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
@@ -18,10 +18,11 @@ subroutine test_tenstream_ex1(this)
 
     class (MpiTestMethod), intent(inout) :: this
 
-    integer(iintegers) :: k, numnodes, myid, comm
+    integer(iintegers) :: k, numnodes, comm
+    !integer(iintegers) :: myid
 
     integer(iintegers),parameter :: nxp=20,nyp=20,nv=10
-    real(ireals),parameter :: dx=67,dy=dx
+    real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=0, theta0=60
     real(ireals),parameter :: albedo=0, dz=dx
     real(ireals),parameter :: incSolar = -1
@@ -38,26 +39,16 @@ subroutine test_tenstream_ex1(this)
 
     PetscErrorCode :: ierr
 
-    div_target = [-2.7829354792270369, -8.2537454026863771E-003, 1.3956358754361362E-002, 1.4644200952248162E-002, 1.5171323114716945E-002, 1.5706565902073349E-002, 1.6252617408845316E-002, 1.6796285431804895E-002, 1.5835237341535743E-002, -0.17650992850077310]
-    dn_target  = [0.0000000000000000,  202.03307328725239,  219.03714311366440,  235.46022830171623,  252.77735226449187,  271.03260893291355,  290.25932657631955,  310.49131813452840,  331.76306602630132,  354.10961761810569,  377.56656927800549]
-    up_target  = [204.07584410995435,  219.65261706673965,  236.10460087064266,  253.46395412430059,  271.76355087489213,  291.03669390961892,  311.31725943277547,  332.63978969874182,  355.03860747633070,  378.44788368251432,  390.07937341058152]
+    div_target = [-1.875366,  1.6980000E-03,  8.9445002E-03,  9.2916247E-03,  9.6176248E-03,  9.9483747E-03,  1.0287250E-02,  1.0629000E-02,  1.0525875E-02, -0.1125398]
+    dn_target  = [0.0     ,  203.0865,  219.3402,  235.7752,  253.1141,  271.3924,  290.6432,  310.9006,  332.1989,  354.5734,  378.0595]
+    up_target  = [203.7094,  219.2596,  235.6834,  253.0133,  271.2819,  290.5224,  310.7687,  332.0553,  354.4171,  377.8448,  390.0775]
     
     dz1d = dz
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
-    myid     = this%getProcessRank()
 
-!    print *,'tenstream_test',myid,'/',numnodes
-
-
-    PETSC_COMM_WORLD = comm
     call init_tenstream(comm, nv, nxp,nyp, dx,dy,phi0, theta0, albedo, dz1d=dz1d)
-
-    call init_mpi_data_parameters(comm)
-    call read_commandline_options()
-!    print *,myid,'my local domain size:',C_one%xm, C_one%ym, C_one%zm
-
 
     allocate(kabs(C_one%zm , C_one%xm,  C_one%ym ))
     allocate(ksca(C_one%zm , C_one%xm,  C_one%ym ))
@@ -69,7 +60,7 @@ subroutine test_tenstream_ex1(this)
     g    = zero
     do k=1,C_one1%zm
         B(k,:,:) = (288 - 50*(1 - float(k)/float(nv+1)) )**4 * 5.67e-8/ pi
-!        print *,'T',k,288 - 50*(1 - float(k)/float(nv+1))
+        ! print *,'T',k,288 - 50*(1 - float(k)/float(nv+1))
     enddo
 
     call set_optical_properties( kabs, ksca, g, B )
@@ -95,6 +86,6 @@ subroutine test_tenstream_ex1(this)
 
     ! Check that surface emission is the one that we stick in
     @assertEqual(B(C_one1%zm,1,1)*pi, fup (C_diff%zm,1,1), atolerance, 'Surface Emission not correct')
+    call destroy_tenstream(.True.)
 
-    call destroy_tenstream()
 end subroutine
