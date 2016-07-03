@@ -6,7 +6,7 @@ module m_tenstr_rrtm_sw
     use rrtmg_sw_rad, only: rrtmg_sw
     use rrtmg_sw_spcvrt, only: tenstr_solsrc      
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, tenstream_get_result_toZero, C_one
@@ -14,16 +14,20 @@ module m_tenstr_rrtm_sw
     use m_netcdfIO, only : ncwrite
     implicit none
 
+    private
+    public :: tenstream_rrtm_sw
+
 #include "petsc/finclude/petsc.h90"
     PetscErrorCode :: ierr
 
     logical :: linit=.False.
 
+
 contains
     ! Routines to call tenstream with optical properties from RRTM
 
     subroutine tenstream_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir,edn,eup,abso)
-        integer(iintegers), intent(in) :: comm
+        integer(mpiint), intent(in) :: comm
         integer(iintegers), intent(in) :: nlay, nxp, nyp
 
         real(ireals), intent(in) :: dx, dy, phi0, theta0, albedo
@@ -179,8 +183,8 @@ contains
         endif
 
         ! Loop over spectral intervals and call solver
-        ib = maxloc(weights, dim=1)
-        !do ib=1,ngptsw 
+        !ib = maxloc(weights, dim=1)
+        do ib=1,ngptsw 
             call set_optical_properties(kabs(:,:,:,ib), ksca(:,:,:,ib), g(:,:,:,ib))
             call solve_tenstream(weights(ib))
             call tenstream_get_result_toZero(spec_edir, spec_edn, spec_eup, spec_abso)
@@ -190,7 +194,7 @@ contains
                 eup  = eup  + spec_eup 
                 abso = abso + spec_abso
             endif
-        !enddo
+        enddo
 
         ! Tidy up the solver
         call destroy_tenstream()

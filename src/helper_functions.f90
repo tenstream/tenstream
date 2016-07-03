@@ -298,22 +298,26 @@ module m_helper_functions
           enddo
       end function
 
-      subroutine read_ascii_file_2d(filename, arr, ncolumns, skiplines)
+      subroutine read_ascii_file_2d(filename, arr, ncolumns, skiplines, ierr)
           character(len=*),intent(in) :: filename
           integer(iintegers),intent(in) :: ncolumns
           integer(iintegers),intent(in),optional :: skiplines
 
           real(ireals),allocatable,intent(out) :: arr(:,:)
 
+          integer(mpiint) :: ierr
+
           real :: line(ncolumns)
 
           integer(iintegers) :: unit, nlines, i, io
           logical :: file_exists=.False.
 
+          ierr=0
           inquire(file=filename, exist=file_exists)
 
           if(.not.file_exists) then
             print *,'File ',trim(filename), 'does not exist!'
+            ierr=1
             return
           endif
 

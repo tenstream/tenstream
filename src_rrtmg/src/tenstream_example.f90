@@ -5,7 +5,9 @@ program main
 
     use m_netcdfIO, only : ncwrite, ncload
 
-    use m_tenstr_rrtm_sw
+    use m_tenstr_rrtm_sw, only : tenstream_rrtm_sw
+
+    use mpi, only : MPI_COMM_WORLD
     implicit none
 
     !integer(iintegers),parameter :: nxp=32, nyp=nxp*2
