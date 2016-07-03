@@ -62,6 +62,7 @@ subroutine init_mpi_data_parameters(comm)
   integer :: size
 
   imp_comm = comm
+  PETSC_COMM_WORLD = comm
 
   call MPI_COMM_RANK( imp_comm, myid, mpierr); CHKERRQ(mpierr)
   call MPI_Comm_size( imp_comm, numnodes, mpierr); CHKERRQ(mpierr)

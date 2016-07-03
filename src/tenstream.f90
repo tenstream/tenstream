@@ -129,7 +129,7 @@ module m_tenstream
   end type
   type(t_suninfo),save :: sun
 
-  PetscLogStage,save :: logstage(13)
+  PetscLogStage,save,allocatable :: logstage(:)
 
   Mat,save :: Mdir,Mdiff
 
@@ -1841,21 +1841,24 @@ contains
 
   !> @brief assign string names to logging levels
   subroutine setup_logging()
-    call PetscLogStageRegister('total_tenstream' , logstage(1)     , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('setup_edir'      , logstage(2)     , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('calc_edir'       , logstage(3)     , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('setup_ediff'     , logstage(4)     , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('calc_ediff'      , logstage(5)     , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('setup_b'         , logstage(6)     , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('twostream'       , logstage(8)     , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('write_hdf5'      , logstage(10)    , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('load_save_sol'   , logstage(11)    , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('nca'             , logstage(12)    , ierr) ;CHKERRQ(ierr)
-    call PetscLogStageRegister('schwarzschild'   , logstage(13)    , ierr) ;CHKERRQ(ierr)
+      if(.not. allocated(logstage)) then
+          allocate(logstage(13))
+          call PetscLogStageRegister('total_tenstream' , logstage(1)     , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('setup_edir'      , logstage(2)     , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('calc_edir'       , logstage(3)     , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('setup_ediff'     , logstage(4)     , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('calc_ediff'      , logstage(5)     , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('setup_b'         , logstage(6)     , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('twostream'       , logstage(8)     , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('write_hdf5'      , logstage(10)    , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('load_save_sol'   , logstage(11)    , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('nca'             , logstage(12)    , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('schwarzschild'   , logstage(13)    , ierr) ;CHKERRQ(ierr)
 
-    if(myid.eq.0 .and. ldebug) print *, 'Logging stages' , logstage
+          if(myid.eq.0 .and. ldebug) print *, 'Logging stages' , logstage
+      endif
   end subroutine
 
   !> @brief nca wrapper to call NCA of Carolin Klinger
@@ -2864,10 +2867,15 @@ subroutine destroy_tenstream(lfinalizepetsc)
     call DMDestroy(C_diff%da,ierr); deallocate(C_diff)
     call DMDestroy(C_one%da ,ierr); deallocate(C_one ) 
     call DMDestroy(C_one1%da,ierr); deallocate(C_one1)
+    call DMDestroy(C_one_atm%da ,ierr); deallocate(C_one_atm)
+    call DMDestroy(C_one_atm1%da,ierr); deallocate(C_one_atm1)
 
     linitialized=.False.
 
-    if(lfinalize) call PetscFinalize(ierr) ;CHKERRQ(ierr)
+    if(lfinalize) then
+        call PetscFinalize(ierr) ;CHKERRQ(ierr)
+        deallocate(logstage)
+    endif
   endif
 end subroutine
 
