@@ -359,16 +359,16 @@ contains
     real(ireal_dp) :: Nglobal
     ! weight mean by calculated photons and compare it with results from other nodes
     Nglobal = Nlocal
-    call imp_reduce_sum(Nglobal, comm, myid)
+    call imp_reduce_sum(comm, Nglobal, myid)
 
-    call reduce_var(Nlocal, Nglobal, S_out, comm)
-    call reduce_var(Nlocal, Nglobal, T_out, comm)
+    call reduce_var(comm, Nlocal, Nglobal, S_out)
+    call reduce_var(comm, Nlocal, Nglobal, T_out)
     !TODO: combining stddeviation is probably not just the arithmetic mean?
-    call reduce_var(Nlocal, Nglobal, S_tol, comm)
-    call reduce_var(Nlocal, Nglobal, T_tol, comm)
+    call reduce_var(comm, Nlocal, Nglobal, S_tol)
+    call reduce_var(comm, Nlocal, Nglobal, T_tol)
 
   contains 
-    subroutine reduce_var(Nlocal, Nglobal, arr, comm)
+    subroutine reduce_var(comm, Nlocal, Nglobal, arr)
       integer(iintegers),intent(in) :: Nlocal
       real(ireal_dp),intent(in) :: Nglobal
       real(ireal_dp),intent(inout) :: arr(:)
@@ -377,7 +377,7 @@ contains
 
       arr = arr*Nlocal
       do k=1,size(arr)
-        call imp_reduce_sum(arr(k),comm,myid)
+        call imp_reduce_sum(comm, arr(k), myid)
       enddo
       arr = arr/Nglobal
     end subroutine

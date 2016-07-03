@@ -1482,7 +1482,7 @@ contains
     call VecSet(solution%abso,zero,ierr) ;CHKERRQ(ierr)
 
     ! if there are no 3D layers globally, we should skip the ghost value copying....
-    lhave_no_3d_layer = mpi_logical_and(all(atm%l1d.eqv..True.))
+    lhave_no_3d_layer = mpi_logical_and(imp_comm, all(atm%l1d.eqv..True.))
     if(lhave_no_3d_layer) then
 
       if(solution%lsolar_rad) call getVecPointer(solution%edir, C_dir ,xedir1d ,xedir )
@@ -1692,7 +1692,7 @@ contains
     if(linit) return
     call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
 
-    call imp_allreduce_min(rel_atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)), atol)
+    call imp_allreduce_min(imp_comm, rel_atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)), atol)
     atol = max(1e-8_ireals, atol)
 
     if(myid.eq.0.and.ldebug) &
@@ -2419,10 +2419,10 @@ contains
       call exit(1)
     endif
 
-    lhave_kabs   = present(global_kabs  ); call imp_bcast( lhave_kabs  , 0_mpiint, myid )
-    lhave_ksca   = present(global_ksca  ); call imp_bcast( lhave_ksca  , 0_mpiint, myid )
-    lhave_g      = present(global_g     ); call imp_bcast( lhave_g     , 0_mpiint, myid )
-    lhave_planck = present(global_planck); call imp_bcast( lhave_planck, 0_mpiint, myid )
+    lhave_kabs   = present(global_kabs  ); call imp_bcast(imp_comm, lhave_kabs  , 0_mpiint, myid )
+    lhave_ksca   = present(global_ksca  ); call imp_bcast(imp_comm, lhave_ksca  , 0_mpiint, myid )
+    lhave_g      = present(global_g     ); call imp_bcast(imp_comm, lhave_g     , 0_mpiint, myid )
+    lhave_planck = present(global_planck); call imp_bcast(imp_comm, lhave_planck, 0_mpiint, myid )
 
     ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
     if(myid.eq.0) then

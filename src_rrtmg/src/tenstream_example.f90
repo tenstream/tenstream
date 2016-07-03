@@ -25,8 +25,12 @@ program main
     real(ireals),allocatable :: tmp(:,:,:)
     !character(len=300) :: fname(2)
 
+    integer(mpiint) :: comm
+
+    comm = MPI_COMM_WORLD
+
     call mpi_init(mpierr)
-    call init_mpi_data_parameters(MPI_COMM_WORLD)
+    call init_mpi_data_parameters(comm)
 
     !call read_ascii_file_2d('afglus_100m.dat', atm, 9, 2)
 
@@ -56,13 +60,13 @@ program main
         if(myid.eq.0) print *,'n2ovmr shape',shape(n2ovmr)
         if(myid.eq.0) print *,'o2vmr  shape',shape(o2vmr )
     endif
-    call imp_bcast(plev  , 0_mpiint, myid)
-    call imp_bcast(tlay  , 0_mpiint, myid)
-    call imp_bcast(h2ovmr, 0_mpiint, myid)
-    call imp_bcast(o3vmr , 0_mpiint, myid)
-    call imp_bcast(co2vmr, 0_mpiint, myid)
-    call imp_bcast(n2ovmr, 0_mpiint, myid)
-    call imp_bcast(o2vmr , 0_mpiint, myid)
+    call imp_bcast(comm, plev  , 0_mpiint, myid)
+    call imp_bcast(comm, tlay  , 0_mpiint, myid)
+    call imp_bcast(comm, h2ovmr, 0_mpiint, myid)
+    call imp_bcast(comm, o3vmr , 0_mpiint, myid)
+    call imp_bcast(comm, co2vmr, 0_mpiint, myid)
+    call imp_bcast(comm, n2ovmr, 0_mpiint, myid)
+    call imp_bcast(comm, o2vmr , 0_mpiint, myid)
 
     nlay= ubound(plev,1)-1
     nxp = ubound(plev,2)

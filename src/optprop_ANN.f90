@@ -99,24 +99,25 @@ contains
         call scatter_ANN ( dir2dir_network   )
       endif
 
-  end subroutine
 
-  subroutine scatter_ANN ( net )
-      type(ANN) :: net
+      contains 
+          subroutine scatter_ANN ( net )
+              type(ANN) :: net
 
-      call imp_bcast(net%weights    , 0_mpiint, myid )
-      call imp_bcast(net%units      , 0_mpiint, myid )
-      call imp_bcast(net%inno       , 0_mpiint, myid )
-      call imp_bcast(net%outno      , 0_mpiint, myid )
-      call imp_bcast(net%conec      , 0_mpiint, myid )
-      call imp_bcast(net%deo        , 0_mpiint, myid )
-      call imp_bcast(net%eni        , 0_mpiint, myid )
-      call imp_bcast(net%inlimits   , 0_mpiint, myid )
-      call imp_bcast(net%lastcall   , 0_mpiint, myid )
-      call imp_bcast(net%lastresult , 0_mpiint, myid )
-      call imp_bcast(net%in_size    , 0_mpiint, myid )
-      call imp_bcast(net%out_size   , 0_mpiint, myid )
-      call imp_bcast(net%initialized, 0_mpiint, myid )
+              call imp_bcast(comm, net%weights    , 0_mpiint, myid )
+              call imp_bcast(comm, net%units      , 0_mpiint, myid )
+              call imp_bcast(comm, net%inno       , 0_mpiint, myid )
+              call imp_bcast(comm, net%outno      , 0_mpiint, myid )
+              call imp_bcast(comm, net%conec      , 0_mpiint, myid )
+              call imp_bcast(comm, net%deo        , 0_mpiint, myid )
+              call imp_bcast(comm, net%eni        , 0_mpiint, myid )
+              call imp_bcast(comm, net%inlimits   , 0_mpiint, myid )
+              call imp_bcast(comm, net%lastcall   , 0_mpiint, myid )
+              call imp_bcast(comm, net%lastresult , 0_mpiint, myid )
+              call imp_bcast(comm, net%in_size    , 0_mpiint, myid )
+              call imp_bcast(comm, net%out_size   , 0_mpiint, myid )
+              call imp_bcast(comm, net%initialized, 0_mpiint, myid )
+          end subroutine
   end subroutine
 
   subroutine loadnet(netname,net,ierr)

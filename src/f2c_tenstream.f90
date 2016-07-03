@@ -81,17 +81,17 @@ contains
           ohhl = hhl
         endif
 
-        call imp_bcast(oNx    ,0_mpiint,myid)
-        call imp_bcast(oNy    ,0_mpiint,myid)
-        call imp_bcast(oNz    ,0_mpiint,myid)
-        call imp_bcast(odx    ,0_mpiint,myid)
-        call imp_bcast(ody    ,0_mpiint,myid)
-        call imp_bcast(ophi0  ,0_mpiint,myid)
-        call imp_bcast(otheta0,0_mpiint,myid)
-        call imp_bcast(oalbedo,0_mpiint,myid)
-        call imp_bcast(ocollapseindex,0_mpiint,myid)
+        call imp_bcast(comm, oNx    ,0_mpiint,myid)
+        call imp_bcast(comm, oNy    ,0_mpiint,myid)
+        call imp_bcast(comm, oNz    ,0_mpiint,myid)
+        call imp_bcast(comm, odx    ,0_mpiint,myid)
+        call imp_bcast(comm, ody    ,0_mpiint,myid)
+        call imp_bcast(comm, ophi0  ,0_mpiint,myid)
+        call imp_bcast(comm, otheta0,0_mpiint,myid)
+        call imp_bcast(comm, oalbedo,0_mpiint,myid)
+        call imp_bcast(comm, ocollapseindex,0_mpiint,myid)
 
-        call imp_bcast(ohhl,0_mpiint,myid)
+        call imp_bcast(comm, ohhl,0_mpiint,myid)
 
         ! and overwrite input values to propagate values back to caller...
         Nx     = oNx
@@ -112,8 +112,8 @@ contains
           odz(k) = ohhl(k) - ohhl(k+1)
         enddo
 
-        call init_tenstream(imp_comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz, collapseindex=ocollapseindex)
-        !call init_tenstream(imp_comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz)
+        call init_tenstream(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz, collapseindex=ocollapseindex)
+        !call init_tenstream(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz)
 
         initialized=.True.
       end subroutine                                             
@@ -154,7 +154,7 @@ contains
         real(ireals) :: oedirTOA
 
         if(myid.eq.0) oedirTOA = edirTOA
-        call imp_bcast(oedirTOA    ,0_mpiint,myid)
+        call imp_bcast(imp_comm, oedirTOA    ,0_mpiint,myid)
 
         call solve_tenstream(oedirTOA)
       end subroutine
