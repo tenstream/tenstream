@@ -487,8 +487,11 @@ contains
     elemental function distance(tau,beta)
       real(ireal_dp),intent(in) :: tau,beta
       real(ireal_dp) :: distance
-      distance = tau/beta
-      if(approx(beta,zero) ) distance=huge(distance)
+      if(approx(beta,zero) ) then
+          distance = huge(distance)
+      else
+          distance = tau/beta
+      endif
     end function
 
     !> @brief throw the dice for a random optical thickness -- after the corresponding dtau it is time to do some interaction
