@@ -49,7 +49,7 @@ contains
       if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  @test(npes =[1,8,16])
+  @test(npes =[1,8])
   subroutine test_boxmc_select_cases_direct(this)
       class (MpiTestMethod), intent(inout) :: this
 
