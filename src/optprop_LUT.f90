@@ -24,7 +24,7 @@ module m_optprop_LUT
   use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
 
   use m_helper_functions, only : approx,rel_approx,imp_bcast,mpi_logical_and,mpi_logical_or
-  use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_comm,imp_logical,numnodes
+  use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_logical,numnodes
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
       Ndz_1_2,Nkabs_1_2,Nksca_1_2,Ng_1_2,Nphi_1_2,Ntheta_1_2,Ndir_1_2,Ndiff_1_2,interp_mode_1_2,   &
       Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,Ndir_8_10,Ndiff_8_10,interp_mode_8_10, &
@@ -85,16 +85,17 @@ module m_optprop_LUT
 
   type,abstract :: t_optprop_LUT
     class(t_boxmc),allocatable :: bmc
-    type(directTable) :: dirLUT
-    type(diffuseTable) :: diffLUT
+    type(directTable),allocatable :: dirLUT
+    type(diffuseTable),allocatable :: diffLUT
 
     integer(iintegers) :: Ndz,Nkabs,Nksca,Ng,Nphi,Ntheta,interp_mode
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
-    logical :: LUT_initialiazed=.False.,optprop_LUT_debug=ldebug_optprop
+    logical :: LUT_initialized=.False.,optprop_LUT_debug=ldebug_optprop
     character(len=300) :: lutbasename 
 
     contains
       procedure :: init
+      procedure :: destroy
       procedure :: LUT_get_dir2dir
       procedure :: LUT_get_dir2diff
       procedure :: LUT_get_diff2diff
@@ -113,6 +114,14 @@ module m_optprop_LUT
   end type
 
 contains
+
+  subroutine destroy(OPP)
+      class(t_optprop_LUT) :: OPP
+      if(allocated(OPP%dirLUT )) deallocate(OPP%dirLUT )
+      if(allocated(OPP%diffLUT)) deallocate(OPP%diffLUT)
+      if(allocated(OPP%bmc    )) deallocate(OPP%bmc    )
+      OPP%LUT_initialized=.False.
+  end subroutine
 
   subroutine init(OPP, dx,dy, azis,szas, comm)
       class(t_optprop_LUT) :: OPP
@@ -150,9 +159,11 @@ contains
         call OPP%bmc%init(comm)
       endif
 
+      if(.not.allocated(OPP%diffLUT)) allocate(OPP%diffLUT)
+      if(.not.allocated(OPP%dirLUT)) allocate(OPP%dirLUT)
+
       call OPP%set_parameter_space(OPP%diffLUT%pspace, one*idx, one*idy)
       call OPP%set_parameter_space(OPP%dirLUT%pspace , one*idx, one*idy)
-      call OPP%set_parameter_space(OPP%diffLUT%pspace, one*idx, one*idy)
 
       ! Load diffuse LUT
       write(descr,FMT='("diffuse.dx",I0,".dy",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') idx,idy,OPP%Ndz,OPP%Nkabs,OPP%Nksca,OPP%Ng,ldelta_scale,delta_scale_truncate
@@ -170,9 +181,9 @@ contains
       call OPP%loadLUT_dir(azis, szas, comm)
 
       ! Copy LUT to all ranks
-      if(comm_size.gt.1) call OPP%scatter_LUTtables(azis,szas)
+      if(comm_size.gt.1) call OPP%scatter_LUTtables(comm, azis,szas)
 
-      OPP%LUT_initialiazed=.True.
+      OPP%LUT_initialized=.True.
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading LUTs (shape diffLUT',shape(OPP%diffLUT%S%c),')'
   end subroutine
 
@@ -894,7 +905,8 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
       end subroutine
 end subroutine
 
-  subroutine scatter_LUTtables(OPP, azis,szas)
+  subroutine scatter_LUTtables(OPP, comm, azis, szas)
+      integer(mpiint) ,intent(in) :: comm
       class(t_optprop_LUT) :: OPP
       real(ireals),intent(in) :: szas(:),azis(:) 
       integer(iintegers) :: iphi,itheta
@@ -905,16 +917,16 @@ end subroutine
       do itheta=1,OPP%Ntheta
         do iphi  =1,OPP%Nphi
           if(.not.angle_mask(iphi,itheta) ) cycle                               ! this LUT is not needed, skip....
-          if ( mpi_logical_and(imp_comm, allocated(OPP%dirLUT%T(iphi,itheta)%c)) ) cycle ! if all nodes have the LUT already, we dont need to scatter it...
+          if ( mpi_logical_and(comm, allocated(OPP%dirLUT%T(iphi,itheta)%c)) ) cycle ! if all nodes have the LUT already, we dont need to scatter it...
 
-          call imp_bcast(imp_comm, OPP%dirLUT%T(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIRECT
-          call imp_bcast(imp_comm, OPP%dirLUT%S(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIFFUSE
+          call imp_bcast(comm, OPP%dirLUT%T(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIRECT
+          call imp_bcast(comm, OPP%dirLUT%S(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIFFUSE
         enddo
       enddo
 
       ! DIFFUSE 2 DIFFUSE
-      if( mpi_logical_or(imp_comm, .not.allocated(OPP%diffLUT%S%c) )) & ! then ! if one or more nodes do not have it, guess we have to send it...
-        call imp_bcast(imp_comm, OPP%diffLUT%S%c, 0_mpiint, myid )
+      if( mpi_logical_or(comm, .not.allocated(OPP%diffLUT%S%c) )) & ! then ! if one or more nodes do not have it, guess we have to send it...
+        call imp_bcast(comm, OPP%diffLUT%S%c, 0_mpiint, myid )
 
   end subroutine
 subroutine bmc_wrapper(OPP, src,dx,dy,dz,kabs ,ksca,g,dir,phi,theta,comm,S_diff,T_dir,S_tol,T_tol)

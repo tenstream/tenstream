@@ -102,7 +102,10 @@ contains
   end subroutine
   subroutine destroy(OPP)
       class(t_optprop) :: OPP
-      if(allocated(OPP%OPP_LUT)) deallocate(OPP%OPP_LUT)
+      if(allocated(OPP%OPP_LUT)) then
+          call OPP%OPP_LUT%destroy()
+          deallocate(OPP%OPP_LUT)
+      endif
   end subroutine
 
   subroutine get_coeff_bmc(OPP, dz,kabs,ksca,g,dir,C,angles)
