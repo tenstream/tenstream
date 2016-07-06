@@ -25,7 +25,7 @@ module test_LUT_8_10
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-2, rtol=1e-1
+  real(ireals),parameter :: atol=5e-2, rtol=2e-1
 
   integer(mpiint) :: ierr
 
@@ -238,17 +238,17 @@ contains
           write(local_msgT,*) 'Direct  boxmc coefficient not as '
         endif
 
-        print*,'---------------------'
-        write(*, FMT='( " diffuse ::  :: ",10(es12.5) )' ) S
-        write(*, FMT='( " target  ::  :: ",10(es12.5) )' ) S_target
-        write(*, FMT='( " diff    ::  :: ",10(es12.5) )' ) S_target-S
+        !print*,'---------------------'
+        !write(*, FMT='( " diffuse ::  :: ",10(es12.5) )' ) S
+        !write(*, FMT='( " target  ::  :: ",10(es12.5) )' ) S_target
+        !write(*, FMT='( " diff    ::  :: ",10(es12.5) )' ) S_target-S
         print*,'RMSE ::: ',rmse(S,S_target)
-        print*,''
-        write(*, FMT='( " direct  ::  :: ", 8(es12.5) )' ) T
-        write(*, FMT='( " target  ::  :: ", 8(es12.5) )' ) T_target
-        write(*, FMT='( " diff    ::  :: ", 8(es12.5) )' ) T_target-T
+        !print*,''
+        !write(*, FMT='( " direct  ::  :: ", 8(es12.5) )' ) T
+        !write(*, FMT='( " target  ::  :: ", 8(es12.5) )' ) T_target
+        !write(*, FMT='( " diff    ::  :: ", 8(es12.5) )' ) T_target-T
         print*,'RMSE ::: ',rmse(T,T_target)
-        print*,'---------------------'
+        !print*,'---------------------'
         print*,''
 
         @assertEqual(S_target, S, atol*sigma, local_msgS )

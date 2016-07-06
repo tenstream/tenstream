@@ -81,6 +81,7 @@ module m_tenstream_options
           logical :: lflg=.False.,lflg_ident=.False.
           PetscErrorCode :: ierr
           logical :: lshow_options=.False.
+          logical :: ltenstr_view=.False.
 
           call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;CHKERRQ(ierr)
           if(lshow_options) then
@@ -159,11 +160,10 @@ module m_tenstream_options
           call PetscOptionsGetInt(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER,"-coeff_mode",coeff_mode, lflg,ierr) ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) coeff_mode=0 ! use LUT by default
 
-          if(myid.eq.0) then
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER , "-tenstr_view" , ltenstr_view , lflg , ierr) ;CHKERRQ(ierr)
+          if(myid.eq.0.and.ltenstr_view) then
             print *,'********************************************************************'
-            print *,'***   Running Job: ',ident
             print *,'***   nr. of Nodes:',numnodes
-            print *,'***   dx,dy        ',ident_dx,ident_dy
             print *,'***   eddington    ',luse_eddington
             print *,'***   coeff_mode   ',coeff_mode    
             print *,'***   writeall     ',lwriteall
