@@ -1,4 +1,4 @@
-@test(npes =[2]) 
+@test(npes =[2,1]) 
 subroutine test_rrtm_sw(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi
@@ -24,7 +24,7 @@ subroutine test_rrtm_sw(this)
 
     integer(mpiint) :: numnodes, comm, myid
 
-    integer(iintegers),parameter :: nxp=8,nyp=3
+    integer(iintegers),parameter :: nxp=6,nyp=3
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=0, theta0=60
     real(ireals),parameter :: albedo=0.2, dz=dx

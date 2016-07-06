@@ -197,7 +197,7 @@ contains
         enddo
 
         ! Tidy up the solver
-        call destroy_tenstream()
+        call destroy_tenstream(lfinalizepetsc=.True.)
     end subroutine
 
     subroutine optprop_rrtm_sw(ncol_in, nlay_in, plev_in, tlay_in, h2ovmr_in, o3vmr_in, co2vmr_in, ch4vmr_in, n2ovmr_in, o2vmr_in, lwp_in, reliq_in, band_lbound, band_ubound, weights, tau, w0, g)

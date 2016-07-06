@@ -2849,13 +2849,20 @@ subroutine destroy_tenstream(lfinalizepetsc)
     endif
 
     do uid=lbound(solutions,1),ubound(solutions,1)
-      if( solutions(uid)%lset ) then
-        if(solutions(uid)%lsolar_rad) &
-          call VecDestroy(solutions(uid)%edir     , ierr) ;CHKERRQ(ierr)
-        call VecDestroy(solutions(uid)%ediff    , ierr) ;CHKERRQ(ierr)
-        call VecDestroy(solutions(uid)%abso     , ierr) ;CHKERRQ(ierr)
-        solutions(uid)%lset = .False.
-      endif
+        if( solutions(uid)%lset ) then
+            if(solutions(uid)%lsolar_rad) then
+                call VecDestroy(solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
+                solutions(uid)%lsolar_rad = .False.
+            endif
+
+            call VecDestroy(solutions(uid)%ediff    , ierr) ;CHKERRQ(ierr)
+            call VecDestroy(solutions(uid)%abso     , ierr) ;CHKERRQ(ierr)
+
+            if(allocated(solutions(uid)%ksp_residual_history)) &
+                deallocate(solutions(uid)%ksp_residual_history)
+
+            solutions(uid)%lset = .False.
+        endif
     enddo
 
     if(allocated(atm)) deallocate(atm)
@@ -2871,10 +2878,12 @@ subroutine destroy_tenstream(lfinalizepetsc)
     call DMDestroy(C_one_atm1%da,ierr); deallocate(C_one_atm1)
 
     linitialized=.False.
+    if(myid.eq.0 .and. ldebug)print *,'Destroyed TenStream'
 
     if(lfinalize) then
         call PetscFinalize(ierr) ;CHKERRQ(ierr)
         deallocate(logstage)
+        if(myid.eq.0 .and. ldebug)print *,'Finalized Petsc'
     endif
   endif
 end subroutine
