@@ -54,7 +54,7 @@ subroutine test_rrtm_sw(this)
     call init_mpi_data_parameters(comm)
 
     if(myid.eq.0) then
-        call read_ascii_file_2d('../tests/rrtm_sw/afglus_100m.dat', atm, 9, 2, ierr); CHKERRQ(ierr)
+        call read_ascii_file_2d('afglus_100m.dat', atm, 9, 2, ierr); CHKERRQ(ierr)
 
         nlay = ubound(atm,1)-1
 
