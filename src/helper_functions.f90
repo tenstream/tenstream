@@ -144,7 +144,6 @@ module m_helper_functions
           real(ireals),intent(inout) :: v
           integer(mpiint),intent(in) :: comm,myid
           integer(mpiint) :: commsize
-
           call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
           if(commsize.le.1) return 
 
@@ -159,6 +158,9 @@ module m_helper_functions
           integer(mpiint),intent(in) :: comm
           logical,intent(inout) :: val
           integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           call mpi_bcast(val, 1_mpiint, imp_logical, sendid, comm, mpierr); CHKERRQ(mpierr)
       end subroutine
@@ -166,6 +168,9 @@ module m_helper_functions
           integer(mpiint),intent(in) :: comm
           integer(iintegers),intent(inout) :: val
           integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           call mpi_bcast(val,1_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
       end subroutine
@@ -175,6 +180,9 @@ module m_helper_functions
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = size(arr)
           call mpi_bcast(Ntot,1_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
@@ -188,6 +196,9 @@ module m_helper_functions
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot(2)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = shape(arr)
           call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
@@ -199,6 +210,9 @@ module m_helper_functions
           integer(mpiint),intent(in) :: comm
           real(ireals),intent(inout) :: val
           integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           call mpi_bcast(val,1_mpiint,imp_real,sendid,comm,mpierr); CHKERRQ(mpierr)
       end subroutine
@@ -208,6 +222,9 @@ module m_helper_functions
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = size(arr)
           call mpi_bcast(Ntot,1_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
@@ -221,6 +238,9 @@ module m_helper_functions
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot(2)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = shape(arr)
           call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
@@ -234,6 +254,9 @@ module m_helper_functions
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot(3)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = shape(arr)
           call mpi_bcast(Ntot,3_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
@@ -247,6 +270,9 @@ module m_helper_functions
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot(5)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = shape(arr)
           call mpi_bcast(Ntot,5_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
