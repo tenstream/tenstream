@@ -29,6 +29,7 @@ else()
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/external/pfunit
         -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+        -DMPI_USE_MPIEXEC=YES
         -DMPI=YES
         )
     ExternalProject_Add(pfunit
@@ -44,6 +45,7 @@ else()
     include_directories(${PROJECT_BINARY_DIR}/external/pfunit/mod)
     add_dependencies(pfunit git_update)
     set(PFUNIT_DIR ${PROJECT_BINARY_DIR}/external/pfunit)
+    set(MPIEXEC "mpirun")
 endif()
 
 include_directories(${PFUNIT_DIR}/mod)
