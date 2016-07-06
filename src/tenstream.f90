@@ -3013,7 +3013,7 @@ end subroutine
         call exchange_var(C_one_atm1, reup , res_eup )
         call exchange_var(C_one_atm , rabso, res_abso)
 
-        if(myid.eq.0) then
+        if(myid.eq.0 .and. ldebug) then
           print *,'Retrieving results:',shape(res_edir)
           print *,sum(res_edir)/size(res_edir)
           print *,sum(res_edn) /size(res_edn)
