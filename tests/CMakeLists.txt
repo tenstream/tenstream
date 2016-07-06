@@ -8,7 +8,7 @@ enable_language(Fortran)
 
 enable_testing()
 
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fprofile-arcs -ftest-coverage -DUSE_MPI")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fprofile-arcs -ftest-coverage -DUSE_MPI -assume realloc_lhs")
 
 if(DEFINED PFUNIT_INSTALL)
     message(STATUS "Manual setup of variable PFUNIT_INSTALL : ${PFUNIT_INSTALL}")
