@@ -76,6 +76,7 @@ contains
 
       integer(iintegers) :: itest,iloop
 
+      print *,'get_parameters'
       do iloop=1,2
         if(iloop.eq.2) allocate(params(itest))
         itest=0
@@ -129,18 +130,9 @@ contains
 
       call bmc_8_10%init(comm)
 
-      phi   =  0
-      theta =  0
-
       dx = 100
       dy = dx
       dz = 50
-
-      ! computed target with stddev_atol=5e-6, stddev_rtol=1e-4 in optprop_parameters
-      ! inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) !
-      !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol,inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) ! inp_atol=atol, inp_rtol=rtol)
-
-      call ANN_init(dx,dy,this%getMpiCommunicator())
 
   end subroutine setup
 
@@ -151,7 +143,7 @@ contains
       if(myid.eq.0) print *,'Finishing ANN tests module'
   end subroutine teardown
 
-  @test( npes=[8], testParameters={getParameters()} )
+  @test( npes=[1,2], testParameters={getParameters()} )
   subroutine test_ANN_direct_coeff(this)
       class (parameterized_test), intent(inout) :: this
 
@@ -168,64 +160,69 @@ contains
             phi  => this%phi,  &
             theta=> this%theta )
 
-        if(myid.eq.0) print *,'Echo Test for :: ',kabs,ksca,g,phi,theta
-        !          @assertEqual(1,1)
-        call ANN_get_dir2dir (dz, kabs,ksca,g , phi, theta, ANN_dir2dir)
-        call ANN_get_dir2diff(dz, kabs,ksca,g , phi, theta, ANN_dir2diff)
 
-        !      print *,'dir2dir ', ANN_dir2dir
-        !      print *,'dir2diff', ANN_dir2diff
+        call ANN_init(dx, dy, comm, ierr)
+        if(myid.eq.0) print *,'Echo Test for ::',kabs,ksca,g,phi,theta,'::',ierr
+        if(ierr.eq.0) then
+            @assertEqual(0, ierr)
 
-        do src=1,8
 
-          call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.True.,phi,theta,dx,dy,dz,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+            call ANN_get_dir2dir (dz, kabs,ksca,g , phi, theta, ANN_dir2dir)
+            call ANN_get_dir2diff(dz, kabs,ksca,g , phi, theta, ANN_dir2diff)
 
-          ! Rearrange coeffs from dst_ordering to src ordering:
-!          S = ANN_dir2diff(src : 10*10 : 10)
-!          T = ANN_dir2dir (src : 8*8   :  8)
+            do src=1,8
 
-          BMC_dir2diff(src : 10*10 : 10) = S_target
-          BMC_dir2dir (src : 8*8   :  8) = T_target
+                call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,        &
+                                        .True.,phi,theta,dx,dy,dz,     &
+                                        S_target,T_target,S_tol,T_tol, &
+                                        inp_atol=atol, inp_rtol=rtol)
 
-!          call check(S_target,T_target, S,T, msg='test_ANN_direct_coeffs')
-        enddo
-        call check(BMC_dir2diff,BMC_dir2dir,ANN_dir2diff,ANN_dir2dir, msg='test_ANN_direct_coeffs')
+                ! Rearrange coeffs from dst_ordering to src ordering:
+                BMC_dir2diff(src : 8*10 : 10) = S_target
+                BMC_dir2dir (src : 8*8  :  8) = T_target
+
+            enddo
+
+            call check(BMC_dir2diff,BMC_dir2dir,ANN_dir2diff,ANN_dir2dir, msg='test_ANN_direct_coeffs')
+        endif ! loaded ANN
       end associate
   endsubroutine 
 
 
 
-  @test(npes =[1,4])
+  @test(npes =[1,2])
   subroutine test_ANN_direct_lambert_beer(this)
       !  class (MpiTestMethod), intent(inout) :: this
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
 
-      call ANN_init(dx,dy,this%getMpiCommunicator())
+      call ANN_init(dx,dy,this%getMpiCommunicator(), ierr)
 
-      ! direct tests
-      bg  = [1e-2, 0., 0. ]
-      phi = 0; theta = 0
-      S_target = zero
+      if(ierr.eq.0) then
+          ! direct tests
+          bg  = [1e-2, 0., 0. ]
+          phi = 0; theta = 0
+          S_target = zero
 
-      call ANN_get_dir2dir (dz, bg(1), bg(2), bg(3), phi, theta, ANN_dir2dir)
-      call ANN_get_dir2diff(dz, bg(1), bg(2), bg(3), phi, theta, ANN_dir2diff)
+          call ANN_get_dir2dir (dz, bg(1), bg(2), bg(3), phi, theta, ANN_dir2dir)
+          call ANN_get_dir2diff(dz, bg(1), bg(2), bg(3), phi, theta, ANN_dir2diff)
 
-      !      print *,'dir2dir ', ANN_dir2dir
-      !      print *,'dir2diff', ANN_dir2diff
+          !      print *,'dir2dir ', ANN_dir2dir
+          !      print *,'dir2diff', ANN_dir2diff
 
-      do src=1,4
-        T_target = zero
-        T_target(src) = exp(- (bg(1)+bg(2))*dz )
+          do src=1,4
+              T_target = zero
+              T_target(src) = exp(- (bg(1)+bg(2))*dz )
 
-        S = ANN_dir2diff((src-1)*10+1:src*10)
-        T = ANN_dir2dir ((src-1)*8+1:src*8)
+              S = ANN_dir2diff((src-1)*10+1:src*10)
+              T = ANN_dir2dir ((src-1)*8+1:src*8)
 
-        T(5:8) = zero ! hard to know that with lambert beer -- use raytracer as test instead
+              T(5:8) = zero ! hard to know that with lambert beer -- use raytracer as test instead
 
-        call check(S_target,T_target, S,T, msg='test_ANN_direct_lambert_beer')
-      enddo
+              call check(S_target,T_target, S,T, msg='test_ANN_direct_lambert_beer')
+          enddo
+      endif
   end subroutine
 
 

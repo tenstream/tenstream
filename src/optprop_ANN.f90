@@ -52,11 +52,11 @@ module m_optprop_ANN
 
 contains
 
-  subroutine ANN_init(dx,dy,comm)
+  subroutine ANN_init(dx, dy, comm, ierr)
       real(ireals),intent(in) :: dx,dy
       integer(iintegers) :: idx,idy
       character(len=300) :: basename, netname, descr
-      integer(iintegers) :: ierr
+      integer(mpiint) :: ierr
 
       integer(mpiint), intent(in) :: comm
       
@@ -92,8 +92,9 @@ contains
         netname = trim(basename)//trim(descr)//'_dir2dir.ANN.nc'
         call loadnet(netname, dir2dir_network, ierr)
       endif
+      call imp_bcast(comm, ierr, 0_mpiint, myid)
 
-      if (comm_size.gt.1) then 
+      if (comm_size.gt.1 .and. ierr.eq.0) then 
         call scatter_ANN ( diff2diff_network )
         call scatter_ANN ( dir2diff_network  )
         call scatter_ANN ( dir2dir_network   )
@@ -123,8 +124,8 @@ contains
   subroutine loadnet(netname,net,ierr)
       character(300) :: netname
       type(ANN) :: net
-      integer(iintegers),intent(out) :: ierr
-      integer(iintegers) :: errcnt,k
+      integer(mpiint),intent(out) :: ierr
+      integer(mpiint) :: errcnt,k
 
       errcnt=0
       if(.not.allocated(net%weights)) then
@@ -142,7 +143,6 @@ contains
         if(errcnt.ne.0) then
           ierr = errcnt
           print *,'ERROR loading ANN for netname :: ',trim(netname),' ::: ',ierr
-          stop 'Could not load ANN'
           return
         endif
 
@@ -211,7 +211,7 @@ contains
       real(ireals),intent(out) :: C(:)
       real(ireals) :: C2(dir2dir_network%out_size)
 
-      integer(iintegers) :: ierr,isrc
+      integer(mpiint) :: ierr,isrc
       real(ireals) :: norm
 
       call calc_net(C, [dz,kabs,ksca,g,phi,theta] , dir2diff_network,ierr )
@@ -250,7 +250,7 @@ contains
    subroutine ANN_get_diff2diff(dz, kabs, ksca, g, C)
       real(ireals),intent(out) :: C(:)
       real(ireals),intent(in) :: dz,kabs,ksca,g
-      integer(iintegers) :: ierr,isrc
+      integer(mpiint) :: ierr,isrc
       real(ireals) :: norm
 
       if(.not.diff2diff_network%initialized) then
@@ -286,7 +286,7 @@ contains
       type(ANN),intent(inout) :: net
       real(ireals),intent(out):: coeffs(net%out_size )
       real(ireals),intent(in) :: inp(:)
-      integer(iintegers),intent(out) :: ierr
+      integer(mpiint),intent(out) :: ierr
 
       real(ireals) :: input(net%in_size)
 

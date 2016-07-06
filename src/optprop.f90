@@ -62,6 +62,7 @@ contains
       class(t_optprop) :: OPP
       real(ireals),intent(in) :: szas(:),azis(:),dx_inp,dy_inp
       integer(mpiint) ,intent(in) :: comm
+      integer(mpiint) :: ierr
 
       OPP%dx=dx_inp
       OPP%dy=dy_inp
@@ -93,7 +94,7 @@ contains
             call OPP%OPP_LUT%init(OPP%dx,OPP%dy, azis, szas, comm)
 
           case(i1) ! ANN
-            call ANN_init(dx_inp,dy_inp,comm)
+            call ANN_init(dx_inp,dy_inp,comm, ierr)
   !          stop 'ANN not yet implemented'
           case default
             stop 'coeff mode optprop initialization not defined ' 
