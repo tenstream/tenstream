@@ -44,8 +44,11 @@ add_executable(
 target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
-  tenstream
+  tenstr_rrtm_sw tenstream
   )
 
-add_test(pfunit_${CDIR} ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 16 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR})
+execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/prep_hill_x.sh)
 
+add_test(NAME pfunit_${CDIR} 
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 16 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

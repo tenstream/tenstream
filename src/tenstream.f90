@@ -128,10 +128,10 @@ module m_tenstream
     real(ireals) :: theta, phi, costheta, sintheta 
   end type
   type t_suninfo
-    type(t_sunangles),allocatable :: angles(:,:,:)
+    type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
     logical :: luse_topography=.False.
   end type
-  type(t_suninfo),save :: sun
+  type(t_suninfo) :: sun
 
   PetscLogStage,save,allocatable :: logstage(:)
 
@@ -878,7 +878,7 @@ contains
 
     PetscScalar,Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
     integer :: i,j,k
-    real(ireals) :: maxheight, global_maxheight, newtheta, grad(3), xsun(3)
+    real(ireals) :: maxheight, global_maxheight, newtheta, newphi, grad(3), xsun(3)
 
     if(.not.allocated(sun%angles)) stop 'You called  setup_topography() &
         but the sun struct is not yet up, make sure setup_suninfo is called before'
@@ -899,7 +899,7 @@ contains
         enddo
     enddo
 
-    call imp_allreduce_max(maxval(hhl(i0,C_one1%zs,C_one1%xs:C_one1%xe,C_one1%ys:C_one1%ye)), global_maxheight)
+    call imp_allreduce_max(imp_comm, maxval(hhl(i0,C_one1%zs,C_one1%xs:C_one1%xe,C_one1%ys:C_one1%ye)), global_maxheight)
 
     do j=C_one1%ys,C_one1%ye
         do i=C_one1%xs,C_one1%xe
@@ -916,25 +916,29 @@ contains
 
     do j=C_one1%ys,C_one1%ye
         do i=C_one1%xs,C_one1%xe
-            do k=C_one%zs,C_one%ze
+            do k=C_one%ze,C_one%ze !todo should also be done for entire atmosphere but for now easier to debug
 
+                ! Gradient of height field
                 grad(1) = -(hhl(i0,k+1,i+1,j)-hhl(i0,k+1,i-1,j)) / (2._ireals*atm%dx)
                 grad(2) = -(hhl(i0,k+1,i,j+1)-hhl(i0,k+1,i,j-1)) / (2._ireals*atm%dy)
                 grad(3) = 1
 
                 grad = grad / norm(grad)
 
-                
+                ! Vector of sun direction
                 xsun(1) = sin(deg2rad(sun%angles(k,i,j)%theta))*sin(deg2rad(sun%angles(k,i,j)%phi))
                 xsun(2) = sin(deg2rad(sun%angles(k,i,j)%theta))*cos(deg2rad(sun%angles(k,i,j)%phi))
                 xsun(3) = cos(deg2rad(sun%angles(k,i,j)%theta))
 
                 xsun = xsun / norm(xsun)
 
-                newtheta = rad2deg(acos( dot_product(xsun,grad) ))
+                ! todo: compute new local theta and phi according to grid rotation
+                newtheta = sun%angles(k,i,j)%theta
+                newphi   = sun%angles(k,i,j)%phi
 
-                !if(i.eq.C_one1%xs) print *,myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', newtheta, sun%angles(k,i,j)%theta
+                if(i.eq.C_one1%xs) print *,myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
                 sun%angles(k,i,j)%theta = max(zero, min( 90._ireals, newtheta ))
+                sun%angles(k,i,j)%phi = newphi
             enddo
         enddo
     enddo
@@ -984,7 +988,6 @@ contains
         endif
     endif
 
-    !print *,'LUSE_TOPO?:',sun%luse_topography
     if(sun%luse_topography) call setup_topography(sun)
 
     sun%angles(:,:,:)%costheta = max( cos(deg2rad(theta0)), zero)
@@ -2933,7 +2936,7 @@ contains
       uid = i0 ! default solution is uid==0
     endif
 
-    lsolar = mpi_logical_and(edirTOA.gt.zero .and. any(sun%angles%theta.ge.zero))
+    lsolar = mpi_logical_and(imp_comm, edirTOA.gt.zero .and. any(sun%angles%theta.ge.zero))
 
     call prepare_solution( solutions(uid), uid, lsolar=lsolar ) ! setup solution vectors
 
@@ -3051,6 +3054,8 @@ subroutine destroy_tenstream(lfinalizepetsc)
     enddo
 
     if(allocated(atm)) deallocate(atm)
+
+    if(allocated(sun%angles)) deallocate(sun%angles)
 
     call OPP_1_2%destroy()
     call OPP_8_10%destroy()
