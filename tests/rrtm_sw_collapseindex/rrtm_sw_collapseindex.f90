@@ -3,12 +3,6 @@ subroutine test_rrtm_sw(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi
 
-    use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
-        tenstream_get_result, getvecpointer, restorevecpointer, &
-        t_coord,C_dir,C_diff,C_one,C_one1
-
-    use m_tenstream_options, only: read_commandline_options
-
     use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast
 
     use m_tenstr_rrtm_sw, only : tenstream_rrtm_sw
@@ -31,6 +25,7 @@ subroutine test_rrtm_sw(this)
     real(ireals),parameter :: incSolar = -1
     real(ireals),parameter :: atolerance = 1
     real(ireals),parameter :: rtolerance = .05
+    integer(iintegers),parameter :: icollapse=40
 
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,B
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
@@ -114,7 +109,7 @@ subroutine test_rrtm_sw(this)
         enddo
         print *,'plev',plev(nlay+1,1,1)
     endif
-    call tenstream_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir, edn, eup, abso)
+    call tenstream_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir, edn, eup, abso, icollapse=icollapse)
 
     if(myid.eq.0.and.ldebug) then
         do k=1,nlay+1

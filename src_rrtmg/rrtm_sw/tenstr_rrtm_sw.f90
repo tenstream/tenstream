@@ -26,7 +26,7 @@ module m_tenstr_rrtm_sw
 contains
     ! Routines to call tenstream with optical properties from RRTM
 
-    subroutine tenstream_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir,edn,eup,abso)
+    subroutine tenstream_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir,edn,eup,abso, icollapse)
         integer(mpiint), intent(in) :: comm
         integer(iintegers), intent(in) :: nlay, nxp, nyp
 
@@ -43,6 +43,8 @@ contains
         real(ireals),intent(in) :: o2vmr  (:,:,:) !
         real(ireals),intent(in) :: lwc    (:,:,:) !
         real(ireals),intent(in) :: reliq  (:,:,:) !
+
+        integer(iintegers),optional :: icollapse
 
         real(ireals),allocatable :: col_plev   (:,:)
         real(ireals),allocatable :: col_tlay   (:,:)
@@ -69,6 +71,7 @@ contains
 
         real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso        ! [nlyr(+1), local_nx, local_ny ]
 
+
         do j=1,nyp
             do i=1,nxp
                 call hydrostat_lev(plev(:,i,j),tlay(:,i,j), zero, hhl(:,i,j), dz(:,i,j))
@@ -78,14 +81,15 @@ contains
         if(myid.eq.0) call ncwrite(['output.nc', 'hhl'],hhl, i)
         if(myid.eq.0) call ncwrite(['output.nc', 'hsrfc'],hhl(ubound(hhl,1),:,:), i)
 
-        call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz1d=dz(:,1,1))
-
-        is = C_one%xs +1
-        ie = C_one%xe +1
-        js = C_one%ys +1
-        je = C_one%ye +1
-
-        call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz3d=dz(:,is:ie,js:je))
+        if(present(icollapse)) then 
+            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz1d=dz(:,1,1), collapseindex=icollapse)
+            is = C_one%xs +1; ie = C_one%xe +1; js = C_one%ys +1; je = C_one%ye +1
+            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz3d=dz(:,is:ie,js:je), collapseindex=icollapse)
+        else
+            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz1d=dz(:,1,1))
+            is = C_one%xs +1; ie = C_one%xe +1; js = C_one%ys +1; je = C_one%ye +1
+            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz3d=dz(:,is:ie,js:je))
+        endif
 
         allocate(col_plev   (C_one%xm*C_one%ym, nlay+1))
         allocate(col_tlay   (C_one%xm*C_one%ym, nlay))

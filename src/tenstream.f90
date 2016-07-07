@@ -107,7 +107,7 @@ module m_tenstream
   type t_atmosphere
     type(t_optprop) , allocatable , dimension(:,:,:) :: op
     real(ireals)    , allocatable , dimension(:,:,:) :: planck
-    real(ireals)    , allocatable , dimension(:,:,:) :: a11, a12, a13, a23, a33
+    real(ireals)    , allocatable , dimension(:,:,:) :: a11, a12, a21, a22, a13, a23, a33
     real(ireals)    , allocatable , dimension(:,:,:) :: g1,g2
     real(ireals)    , allocatable , dimension(:,:,:) :: dz
     logical         , allocatable , dimension(:,:,:) :: l1d
@@ -1163,14 +1163,14 @@ contains
       integer(iintegers),intent(in) :: k,i,j
 
       MatStencil :: row(4,2)  ,col(4,2)
-      PetscReal :: v(4),twostr_coeff(4) ! v ==> a12,a11,a11,a12
+      PetscReal :: v(4),twostr_coeff(4) ! v ==> a12,a11,a22,a21
       integer(iintegers) :: src,dst
 
       if(luse_eddington ) then
-        v = [ atm%a12(atmk(k),i,j), atm%a11(atmk(k),i,j), atm%a11(atmk(k),i,j), atm%a12(atmk(k),i,j)]
+        v = [ atm%a12(atmk(k),i,j), atm%a11(atmk(k),i,j), atm%a22(atmk(k),i,j), atm%a21(atmk(k),i,j)]
       else
-        call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., twostr_coeff, atm%l1d(atmk(k),i,j)) !twostr_coeff ==> a12,a11,a12,a11
-        v = [ twostr_coeff(1), twostr_coeff(2) , twostr_coeff(2) , twostr_coeff(1) ]
+          call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., twostr_coeff, atm%l1d(atmk(k),i,j)) !twostr_coeff ==> a12,a11,a12,a11 !todo: check if this is the wrong order
+          v = [ twostr_coeff(1), twostr_coeff(2) , twostr_coeff(2) , twostr_coeff(1) ]
       endif
 
       src = 1; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_dn
@@ -2274,7 +2274,6 @@ contains
     integer(iintegers) :: k,i,j
     !    character(len=30),parameter :: tenstreamrc='./.tenstreamrc'
 
-
     if(.not.linitialized) then
 
       call setup_petsc_comm
@@ -2576,6 +2575,13 @@ contains
     if(present(local_planck) ) then 
       if (.not.allocated(atm%planck) ) allocate( atm%planck   (C_one_atm1%zs:C_one_atm1%ze, C_one_atm1%xs:C_one_atm1%xe, C_one_atm1%ys:C_one_atm1%ye ) )
       atm%planck = local_planck
+      if(atm%lcollapse) then
+          !TODO: this does not work at the moment
+          print *,'You are trying to collapse the atmosphere in the thermal &
+          spectral range... this is not possible at the moment or at least not &
+          tested.'
+          CHKERRQ(1_mpiint)
+      endif
     else
       if(allocated(atm%planck)) deallocate(atm%planck)
     endif
@@ -2631,6 +2637,8 @@ contains
     if(luse_eddington) then
       if(.not.allocated(atm%a11) ) allocate(atm%a11 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))   ! allocate space for twostream coefficients
       if(.not.allocated(atm%a12) ) allocate(atm%a12 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
+      if(.not.allocated(atm%a21) ) allocate(atm%a21 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
+      if(.not.allocated(atm%a22) ) allocate(atm%a22 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
       if(.not.allocated(atm%a13) ) allocate(atm%a13 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
       if(.not.allocated(atm%a23) ) allocate(atm%a23 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
       if(.not.allocated(atm%a33) ) allocate(atm%a33 (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye)) 
@@ -2670,12 +2678,18 @@ contains
               endif !ldebug
             endif !l1d
           enddo !k
-          if(atm%lcollapse) then
-              atm%dz(atmk(C_one%zs),i,j) = sum(atm%dz(C_one_atm%zs:atmk(C_one%zs),i,j))
-              atm%dz(C_one%zs:atmk(C_one%zs)-1,i,j) = nil
 
+          ! Set symmetric up and down transport coefficients. If only for one
+          ! layer, they would be indeed symmetric. If we collapse the atmosphere
+          ! however, we have different transmission if we come from top or from
+          ! bottom.
+          atm%a21 = atm%a12
+          atm%a22 = atm%a11
+          if(atm%lcollapse) then
               call adding(atm%a11(C_one_atm%zs:atmk(C_one%zs), i, j), &
                           atm%a12(C_one_atm%zs:atmk(C_one%zs), i, j), &
+                          atm%a21(C_one_atm%zs:atmk(C_one%zs), i, j), &
+                          atm%a22(C_one_atm%zs:atmk(C_one%zs), i, j), &
                           atm%a13(C_one_atm%zs:atmk(C_one%zs), i, j), &
                           atm%a23(C_one_atm%zs:atmk(C_one%zs), i, j), &
                           atm%a33(C_one_atm%zs:atmk(C_one%zs), i, j))
@@ -2700,13 +2714,14 @@ contains
       enddo
     endif
     contains 
-        subroutine adding(a11,a12,a13,a23,a33)
-            real(ireals),intent(inout),dimension(:) :: a11,a12,a13,a23,a33
+        subroutine adding(a11,a12,a21,a22,a13,a23,a33)
+            real(ireals),intent(inout),dimension(:) :: a11,a12,a21,a22,a13,a23,a33
             real(ireals) :: t, r, rdir, sdir, tdir
 
+            integer(iintegers) :: N ! = size(a11)
             integer(iintegers) :: k
-            real(ireals) :: rl
-
+            real(ireals) :: rl, tl, Tbot, Ttop, Rbot, Rtop
+            N = size(a11)
 
             t = a11(1)
             r = a12(1)
@@ -2715,26 +2730,53 @@ contains
             rdir = a13(1)
             sdir = a23(1)
 
-            do k=2,size(a11)
+            ! Reflectivity as seen from top
+            do k=2,N
                 rl = r
-                r = r + a12(k)*t**2 / (one - r*a12(k))
-                t = t * a11(k) / (one - rl*a12(k))
+                tl = t
+
+                r = r + (a12(k) * t**2) / (one - r*a12(k))
+                t = t * a11(k) / (one - rl * a12(k))
                 
-                sdir = ( a11(k) * sdir + tdir*a13(k)*rl*a11(k) ) / ( one - rl*a12(k)  ) + tdir*a13(k)
+                sdir = (a11(k) * sdir + tdir * a13(k) * rl * a11(k)) / (one - rl * a12(k)) + tdir * a23(k)
+                rdir = rdir + ( tdir * a13(k) + sdir * a12(k) ) * tl
                 tdir = tdir*a33(k)
             enddo
 
-            a11 = nil
-            a12 = nil
-            a13 = nil
-            a23 = nil
-            a33 = nil
+            Ttop = t
+            Rtop = r
 
-            a11(size(a11)) = t
-            a12(size(a12)) = r
-            a13(size(a13)) = rdir
-            a23(size(a23)) = sdir
-            a33(size(a33)) = tdir
+            a13(N) = rdir
+            a23(N) = sdir
+            a33(N) = tdir
+
+            t = a22(N)
+            r = a21(N)
+            ! Reflectivity as seen from bottom
+            do k=N-1,1,-1
+                rl = r
+                tl = t
+
+                r = a12(k) + (r * a11(k)**2) / (one - r * a12(k))
+                t = t * a11(k) / (one - rl * a21(k))
+            enddo
+
+            Tbot = t
+            Rbot = r
+
+            a12(N) = Rtop
+            a22(N) = Ttop
+            a11(N) = Tbot
+            a21(N) = Rbot
+
+            a11(1:N-1) = nil
+            a12(1:N-1) = nil
+            a21(1:N-1) = nil
+            a22(1:N-1) = nil
+
+            a13(1:N-1) = nil
+            a23(1:N-1) = nil
+            a33(1:N-1) = nil
         end subroutine
   end subroutine
 
@@ -2940,7 +2982,7 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
       call getVecPointer(solutions(uid)%edir,C_dir,x1d,x4d)
 
       if(atm%lcollapse) then
-          print *,'shape redir',shape(redir),lbound(redir,1),ubound(redir,1)
+          if(myid.eq.0 .and. ldebug) print *,'shape redir',shape(redir),lbound(redir,1),ubound(redir,1)
           lb_redir = lbound(redir,1)
           redir(lb_redir, :, :) = sum(x4d(i0:i3,C_dir%zs, :, :),dim=1)/4 ! return average of the 4 vertical tiles
           redir(lb_redir+1:atmk(C_dir%zs)+lb_redir, :, :) = zero
