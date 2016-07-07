@@ -297,7 +297,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
     write(str(2),FMT='("dx",I0)') nint(OPP%dirLUT%dx)
     write(str(3),FMT='("dy",I0)') nint(OPP%dirLUT%dy)
 
-    call determine_angles_to_load(OPP%dirLUT, azis, szas, angle_mask)
+    call determine_angles_to_load(comm, OPP%dirLUT, azis, szas, angle_mask)
 
     do itheta=1,OPP%Ntheta
       do iphi  =1,OPP%Nphi
@@ -912,7 +912,7 @@ end subroutine
       integer(iintegers) :: iphi,itheta
       logical :: angle_mask(OPP%Nphi,OPP%Ntheta)
 
-      call determine_angles_to_load(OPP%dirLUT, azis, szas, angle_mask)
+      call determine_angles_to_load(comm, OPP%dirLUT, azis, szas, angle_mask)
 
       do itheta=1,OPP%Ntheta
         do iphi  =1,OPP%Nphi
@@ -1012,7 +1012,8 @@ end subroutine
     endif
 end function
     
-subroutine determine_angles_to_load(LUT,azis,szas, mask)
+subroutine determine_angles_to_load(comm, LUT, azis, szas, mask)
+    integer(mpiint) ,intent(in) :: comm
     type(directTable) :: LUT
     real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
     logical,intent(out) :: mask(size(LUT%pspace%phi),size(LUT%pspace%theta)) ! boolean array, which LUT entries should be loaded
@@ -1060,7 +1061,7 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
 
     do itheta=1,size(LUT%pspace%theta)
       do iphi  =1,size(LUT%pspace%phi)
-        mask(iphi  , itheta ) = mpi_logical_or(mask(iphi, itheta )) ! todo this is terrible that we send many messages instead of one bigger one...
+        mask(iphi  , itheta ) = mpi_logical_or(comm, mask(iphi, itheta )) ! todo this is terrible that we send many messages instead of one bigger one...
       enddo
     enddo
 end subroutine
