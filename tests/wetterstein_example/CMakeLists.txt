@@ -47,7 +47,8 @@ target_link_libraries(
   tenstr_rrtm_sw tenstream
   )
 
-execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/prep_wetterstein_example.sh)
+execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/prep_wetterstein_example.sh
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_test(NAME pfunit_${CDIR} 
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 16 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
