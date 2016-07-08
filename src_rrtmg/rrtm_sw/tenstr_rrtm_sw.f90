@@ -71,15 +71,19 @@ contains
 
         real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso        ! [nlyr(+1), local_nx, local_ny ]
 
+        character(len=80) :: output_path(2) ! [ filename, varname ]
 
         do j=1,nyp
             do i=1,nxp
                 call hydrostat_lev(plev(:,i,j),tlay(:,i,j), zero, hhl(:,i,j), dz(:,i,j))
             enddo
         enddo
-        if(myid.eq.0) call ncwrite(['output.nc', 'dz3d'],dz, i)
-        if(myid.eq.0) call ncwrite(['output.nc', 'hhl'],hhl, i)
-        if(myid.eq.0) call ncwrite(['output.nc', 'hsrfc'],hhl(ubound(hhl,1),:,:), i)
+        output_path(1) = 'output.nc'
+        if(myid.eq.0) then
+            output_path(2) = 'dz3d' ; call ncwrite(output_path, dz, i)
+            output_path(2) = 'hhl'  ; call ncwrite(output_path, hhl, i)
+            output_path(2) = 'hsrfc'; call ncwrite(output_path, hhl(ubound(hhl,1),:,:), i)
+        endif
 
         if(present(icollapse)) then 
             call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz1d=dz(:,1,1), collapseindex=icollapse)

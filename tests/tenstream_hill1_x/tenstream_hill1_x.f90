@@ -40,6 +40,7 @@ subroutine tenstream_hill1_x(this)
     real(ireals),allocatable,dimension(:,:,:) :: lwc, reliq, air                                    ! nlay  , nxp, nyp
     real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! nlyr(+1), global_nx, global_ny
 
+    character(len=80) :: nc_path(2) ! [ filename, varname ]
     real(ireals),allocatable :: tmp(:,:,:)
 
     integer(iintegers) :: i,j,k 
@@ -57,14 +58,15 @@ subroutine tenstream_hill1_x(this)
     call init_mpi_data_parameters(comm)
 
     if(myid.eq.0) then
-        call ncload(['./hill1_x_input.nc', 'plev']  , plev   , ncerr); CHKERRQ(ncerr)
-        call ncload(['./hill1_x_input.nc', 'tlay']  , tlay   , ncerr); CHKERRQ(ncerr)
-        call ncload(['./hill1_x_input.nc', 'air']   , air    , ncerr); CHKERRQ(ncerr)
-        call ncload(['./hill1_x_input.nc', 'h2ovmr'], h2ovmr , ncerr); CHKERRQ(ncerr)
-        call ncload(['./hill1_x_input.nc', 'o3vmr'] , o3vmr  , ncerr); CHKERRQ(ncerr)
-        call ncload(['./hill1_x_input.nc', 'co2vmr'], co2vmr , ncerr); CHKERRQ(ncerr)
-        call ncload(['./hill1_x_input.nc', 'n2ovmr'], n2ovmr , ncerr); CHKERRQ(ncerr)
-        call ncload(['./hill1_x_input.nc', 'o2vmr'] , o2vmr  , ncerr); CHKERRQ(ncerr)
+        nc_path(1) = 'hill1_x_input.nc'
+        nc_path(2)='plev'  ;call ncload(nc_path, plev   , ncerr); CHKERRQ(ncerr)
+        nc_path(2)='tlay'  ;call ncload(nc_path, tlay   , ncerr); CHKERRQ(ncerr)
+        nc_path(2)='air'   ;call ncload(nc_path, air    , ncerr); CHKERRQ(ncerr)
+        nc_path(2)='h2ovmr';call ncload(nc_path, h2ovmr , ncerr); CHKERRQ(ncerr)
+        nc_path(2)='o3vmr' ;call ncload(nc_path, o3vmr  , ncerr); CHKERRQ(ncerr)
+        nc_path(2)='co2vmr';call ncload(nc_path, co2vmr , ncerr); CHKERRQ(ncerr)
+        nc_path(2)='n2ovmr';call ncload(nc_path, n2ovmr , ncerr); CHKERRQ(ncerr)
+        nc_path(2)='o2vmr' ;call ncload(nc_path, o2vmr  , ncerr); CHKERRQ(ncerr)
         h2ovmr = h2ovmr / air
         o3vmr  = o3vmr  / air
         co2vmr = co2vmr / air
@@ -115,14 +117,15 @@ subroutine tenstream_hill1_x(this)
             enddo
         endif
 
-        print *,'writing output to file'
-        call fill_nzout(edir); call ncwrite(['output.nc', 'edir'], tmp, ncerr)
-        call fill_nzout(edn ); call ncwrite(['output.nc', 'edn'] , tmp, ncerr)
-        call fill_nzout(eup ); call ncwrite(['output.nc', 'eup'] , tmp, ncerr)
-        call fill_nzout(abso); call ncwrite(['output.nc', 'abso'], tmp, ncerr)
-        call fill_nzout(plev); call ncwrite(['output.nc', 'plev'], tmp, ncerr)
-        call ncwrite(['output.nc', 'Qnet'], edir(nlay+1,:,:)+edn(nlay+1,:,:), ncerr)
-        call ncwrite(['output.nc', 'psrfc'], plev(nlay+1,:,:), ncerr)
+        nc_path(1) = 'output.nc'
+        print *,'writing output to file', nc_path(1)
+        nc_path(2)='edir' ; call fill_nzout(edir); call ncwrite(nc_path, tmp, ncerr)
+        nc_path(2)='edn'  ; call fill_nzout(edn ); call ncwrite(nc_path, tmp, ncerr)
+        nc_path(2)='eup'  ; call fill_nzout(eup ); call ncwrite(nc_path, tmp, ncerr)
+        nc_path(2)='abso' ; call fill_nzout(abso); call ncwrite(nc_path, tmp, ncerr)
+        nc_path(2)='plev' ; call fill_nzout(plev); call ncwrite(nc_path, tmp, ncerr)
+        nc_path(2)='Qnet' ; call ncwrite(nc_path, edir(nlay+1,:,:)+edn(nlay+1,:,:), ncerr)
+        nc_path(2)='psrfc'; call ncwrite(nc_path, plev(nlay+1,:,:), ncerr)
         print *,'done',shape(edir)
 
         @assertEqual(0.0, edir(nlay+1,1,1), atolerance, 'solar at surface :: edir       not correct')
