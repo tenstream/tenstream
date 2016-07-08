@@ -1,4 +1,4 @@
-@test(npes =[2])
+@test(npes =[8])
 subroutine tenstream_hill1_x(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi
