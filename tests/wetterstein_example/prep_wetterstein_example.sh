@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
 
-rm -f wetterstein_input.nc output.nc
-python wetterstein_input.py
+rm -f output.nc
+if [ ! -f wetterstein_input.nc ]
+then
+    python wetterstein_input.py
+fi
+
