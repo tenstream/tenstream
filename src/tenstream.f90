@@ -879,6 +879,7 @@ contains
     PetscScalar,Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
     integer :: i,j,k
     real(ireals) :: maxheight, global_maxheight, newtheta, newphi, grad(3), xsun(3)
+    real(ireals) :: rotmat(3, 3), costb, sintb, cospb, sinpb, newxsun(3), boxtheta, boxphi
 
     if(.not.allocated(sun%angles)) stop 'You called  setup_topography() &
         but the sun struct is not yet up, make sure setup_suninfo is called before'
@@ -916,14 +917,7 @@ contains
 
     do j=C_one1%ys,C_one1%ye
         do i=C_one1%xs,C_one1%xe
-            do k=C_one%ze,C_one%ze !todo should also be done for entire atmosphere but for now easier to debug
-
-                ! Gradient of height field
-                grad(1) = -(hhl(i0,k+1,i+1,j)-hhl(i0,k+1,i-1,j)) / (2._ireals*atm%dx)
-                grad(2) = -(hhl(i0,k+1,i,j+1)-hhl(i0,k+1,i,j-1)) / (2._ireals*atm%dy)
-                grad(3) = 1
-
-                grad = grad / norm(grad)
+            do k=C_one%zs,C_one%ze !todo should also be done for entire atmosphere but for now easier to debug
 
                 ! Vector of sun direction
                 xsun(1) = sin(deg2rad(sun%angles(k,i,j)%theta))*sin(deg2rad(sun%angles(k,i,j)%phi))
@@ -932,11 +926,67 @@ contains
 
                 xsun = xsun / norm(xsun)
 
-                ! todo: compute new local theta and phi according to grid rotation
-                newtheta = sun%angles(k,i,j)%theta
-                newphi   = sun%angles(k,i,j)%phi
 
-                if(i.eq.C_one1%xs) print *,myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
+                ! Gradient of height field
+                grad(1) = -(hhl(i0,k+1,i+1,j)-hhl(i0,k+1,i-1,j)) / (2._ireals*atm%dx)
+                grad(2) = -(hhl(i0,k+1,i,j+1)-hhl(i0,k+1,i,j-1)) / (2._ireals*atm%dy)
+                grad(3) = 1
+
+                boxtheta = atan2(sqrt(grad(1)**2 + grad(2)**2), grad(3))
+                !boxtheta = acos(grad(3)) ! alternative for normed grad
+                !Note that boxphi is defined counterclockwise from x-axis to
+                !y-axis (mathematical definition)
+                boxphi = atan2(grad(2), grad(1))
+                !grad = grad / norm(grad)
+
+                !write(*,*) "Boxtheta, Boxphi:"
+                !write(*,*) rad2deg(boxtheta)
+                !write(*,*) rad2deg(boxphi)
+
+                costb = cos(boxtheta)
+                sintb = sin(boxtheta)
+                cospb = cos(boxphi)
+                sinpb = sin(boxphi)
+
+                rotmat = reshape( (/ sinpb**2 + costb * cospb**2,           sinpb * cospb * (costb - 1._ireals),   (-cospb) * sintb, &
+                        sinpb * cospb * (costb - 1._ireals),   cospb**2 + costb * sinpb**2,           (-sinpb) * sintb, &
+                        cospb * sintb,                         sinpb * sintb,                         costb         /), &
+                        (/3, 3/), order=(/2, 1/) )
+                !write(*,*) "Rotationmatrix"
+                !write(*,*) rotmat(1, :)
+                !write(*,*) rotmat(2, :)
+                !write(*,*) rotmat(3, :)
+
+                ! easier way using fortran-matmul:
+                ! newxsun = matmul(rotmat, xsun)
+                ! todo: need to chek for right row/column definitions for matmul
+
+
+                !do row=1, 3
+                !newxsun(row) = 0._ireals
+                !do col=1, 3
+                !newxsun(row) = newxsun(row) + (rotmat(row, col) * xsun(col))
+                !enddo
+                !enddo
+
+                !write(*,*) "New sun-vector"
+                !write(*,*) newxsun
+                !write(*,*) matmul(rotmat, xsun)
+                newxsun = matmul(rotmat, xsun)
+
+                newtheta = rad2deg(atan2(sqrt(newxsun(1)**2 + newxsun(2)**2), newxsun(3)))
+                ! alternative, as norm(xsun) = 1 also norm(newxsun) = 1
+                ! newtheta = rad2deg(acos(newxsun(3))
+
+                !newphi in meteorologiecal definitions: clockwise from y-axis
+                newphi = rad2deg(atan2(newxsun(1), newxsun(2)))
+
+
+                ! todo: compute new local theta and phi according to grid rotation
+                ! newtheta = sun%angles(k,i,j)%theta
+                ! newphi   = sun%angles(k,i,j)%phi
+
+                ! if(i.eq.C_one1%xs) print *,myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
                 sun%angles(k,i,j)%theta = max(zero, min( 90._ireals, newtheta ))
                 sun%angles(k,i,j)%phi = newphi
             enddo
