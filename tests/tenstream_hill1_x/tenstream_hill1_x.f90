@@ -27,7 +27,7 @@ subroutine tenstream_hill1_x(this)
     integer(mpiint) :: numnodes, comm, myid
 
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=0, theta0=0
+    real(ireals),parameter :: phi0=0, theta0=40
     real(ireals),parameter :: albedo=0.2, dz=dx
     real(ireals),parameter :: atolerance = 1
     real(ireals),parameter :: rtolerance = .05

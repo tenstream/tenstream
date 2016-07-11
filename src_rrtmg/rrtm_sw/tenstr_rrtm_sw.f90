@@ -62,7 +62,7 @@ contains
 
         integer(iintegers) :: i, j, k, icol, ib
         integer(iintegers) :: is,ie,js,je
-        real(ireals) :: tmp
+        real(ireals) :: tmp, global_maxheight
 
         real(ireals),dimension(ngptsw)               :: band_lbound,band_ubound,weights       ! [ngptsw]
         real(ireals),allocatable, dimension(:, :, :) :: col_tau, col_w0, col_g                ! [ncol, nlyr, ngptsw]
@@ -78,6 +78,12 @@ contains
                 call hydrostat_lev(plev(:,i,j),tlay(:,i,j), zero, hhl(:,i,j), dz(:,i,j))
             enddo
         enddo
+        global_maxheight = maxval(hhl)
+        do j=1,nyp
+            do i=1,nxp
+                hhl(:, i, j) = hhl(:, i, j) + global_maxheight - hhl(1, i, j)
+            enddo
+        enddo
         output_path(1) = 'output.nc'
         if(myid.eq.0) then
             output_path(2) = 'dz3d' ; call ncwrite(output_path, dz, i)
@@ -88,10 +94,12 @@ contains
         if(present(icollapse)) then 
             call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz1d=dz(:,1,1), collapseindex=icollapse)
             is = C_one%xs +1; ie = C_one%xe +1; js = C_one%ys +1; je = C_one%ye +1
+            call destroy_tenstream(.True.)
             call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz3d=dz(:,is:ie,js:je), collapseindex=icollapse)
         else
             call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz1d=dz(:,1,1))
             is = C_one%xs +1; ie = C_one%xe +1; js = C_one%ys +1; je = C_one%ye +1
+            call destroy_tenstream(.True.)
             call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz3d=dz(:,is:ie,js:je))
         endif
 

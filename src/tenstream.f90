@@ -70,7 +70,7 @@ module m_tenstream
   implicit none
 
   private
-  public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
+  public :: init_tenstream, set_angles, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
     getVecPointer,restoreVecPointer, &
     tenstream_get_result, tenstream_get_result_toZero, need_new_solution, &
     t_coord,C_dir,C_diff,C_one,C_one1,C_one_atm, C_one_atm1
@@ -136,6 +136,7 @@ module m_tenstream
   PetscLogStage,save,allocatable :: logstage(:)
 
   Mat,save :: Mdir,Mdiff
+  logical,save :: linit_mat=.False.
 
   Vec,save :: incSolar,b
 
@@ -1035,13 +1036,13 @@ contains
     integer(iintegers) :: k
 
     if(.not.allocated(sun%angles)) &
-        allocate(sun%angles(C_one_atm%zs:C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
+        allocate(sun%angles(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
 
     if(lforce_phi) then 
         sun%angles(:,:,:)%phi = options_phi
     else
         if(present(phi2d)) then
-            do k = C_one_atm%zs, C_one_atm%ze
+            do k = C_one%zs, C_one%ze
                 sun%angles(k,:,:)%phi = phi2d
             enddo
         else
@@ -1052,8 +1053,8 @@ contains
     if(lforce_theta) then
       sun%angles(:,:,:)%theta = options_theta
     else
-        if(present(phi2d)) then
-            do k = C_one_atm%zs, C_one_atm%ze
+        if(present(theta2d)) then
+            do k = C_one%zs, C_one%ze
                 sun%angles(k,:,:)%theta = theta2d
             enddo
         else
@@ -1063,35 +1064,36 @@ contains
 
     if(sun%luse_topography) call setup_topography(sun)
 
-    sun%angles(:,:,:)%costheta = max( cos(deg2rad(theta0)), zero)
-    sun%angles(:,:,:)%sintheta = max( sin(deg2rad(theta0)), zero)
+    sun%angles(:,:,:)%costheta = max( cos(deg2rad(sun%angles(:,:,:)%theta)), zero)
+    sun%angles(:,:,:)%sintheta = max( sin(deg2rad(sun%angles(:,:,:)%theta)), zero)
 
     ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
     sun%angles(:,:,:)%symmetry_phi = sym_rot_phi(sun%angles(:,:,:)%phi)
-    sun%angles(:,:,:)%xinc=i0 ; sun%angles(:,:,:)%yinc=i0
-    where(sun%angles%phi.gt.180) 
-        sun%angles%xinc=i1
-    else where
+    !sun%angles(:,:,:)%xinc=i0 ; sun%angles(:,:,:)%yinc=i0
+    where(sin(deg2rad(sun%angles%phi)).gt.zero ) ! phi between 0 and 180 degreee
         sun%angles%xinc=i0
+    else where
+        sun%angles%xinc=i1
     end where
 
-    where(sun%angles%phi.gt.90.and.sun%angles%phi.lt.270)
+    where(cos(deg2rad(sun%angles%phi)).lt.zero) ! phi between 90 and 270 degree
         sun%angles%yinc=i1
     else where
         sun%angles%yinc=i0
     end where
 
-    if(ldebug.and.myid.eq.0) print *,'setup_dir_inc done'
+    if(ldebug.and.myid.eq.0) print *,myid,'setup_dir_inc done',count(sun%angles%xinc.eq.0),count(sun%angles%xinc.eq.i1), count(sun%angles%yinc.eq.0),count(sun%angles%yinc.eq.i1), '::', &
+                                    minval(sun%angles%xinc), maxval(sun%angles%xinc), minval(sun%angles%yinc), maxval(sun%angles%yinc)
 
     contains
         elemental function sym_rot_phi(phi)
             real(ireals) :: sym_rot_phi
             real(ireals),intent(in) :: phi
             ! ''swap'' phi axis down to the range of [0,180] 
-            sym_rot_phi = acos(cos(phi*pi/180))
+            sym_rot_phi = acos(cos(deg2rad(phi)))
             !print *,'1st phi swap',phi,' :: ',sym_rot_phi,'=',phi*pi/180,cos(phi*pi/180),acos(cos(phi*pi/180))
             ! and then mirror it onto range [0,90]
-            sym_rot_phi = int( asin(sin(sym_rot_phi)) /pi * 180 )
+            sym_rot_phi = int( rad2deg( asin(sin(sym_rot_phi)) ) )
             !print *,'2nd phi swap',phi,' :: ',sym_rot_phi,'=',sin(sym_rot_phi),asin(sin(sym_rot_phi)),asin(sin(sym_rot_phi)) /pi * 180,int(asin(sin(sym_rot_phi)) /pi * 180)
         end function
   end subroutine
@@ -2439,9 +2441,8 @@ contains
 ! Deprecated --  end subroutine
 
   !> @brief initialize basic memory structs like PETSc vectors and matrices
-  subroutine init_memory(incSolar,b,Mdir,Mdiff)
+  subroutine init_memory(incSolar,b)
     Vec :: b,incSolar
-    Mat :: Mdiff,Mdir
 
     if(ltwostr_only) return
 
@@ -2450,16 +2451,57 @@ contains
 
     call VecSet(incSolar,zero,ierr) ; CHKERRQ(ierr)
     call VecSet(b,zero,ierr)        ; CHKERRQ(ierr)
+  end subroutine
 
-    call init_Matrix(Mdir ,C_dir )!,"dir_")
-    call init_Matrix(Mdiff,C_diff)!,"diff_")
+  subroutine init_matrices(Mdir,Mdiff)
+    Mat :: Mdiff,Mdir
+
+    ! if already initialized, tear em down -- this usually
+    ! happens when we change solar angles and need a new prealloc
+    if(linit_mat) then
+        call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
+        call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
+    endif
+
+    call init_Matrix(Mdir ,C_dir )
+    call init_Matrix(Mdiff,C_diff)
+    linit_mat = .True.
+  end subroutine
+
+  subroutine set_angles(phi0, theta0, phi2d, theta2d)
+    real(ireals),intent(in)          :: phi0           !< @param[in] phi0   solar azmiuth and zenith angle
+    real(ireals),intent(in)          :: theta0         !< @param[in] theta0 solar azmiuth and zenith angle
+    real(ireals),optional,intent(in) :: phi2d  (:,:)   !< @param[in] phi2d   if given, horizontally varying azimuth
+    real(ireals),optional,intent(in) :: theta2d(:,:)   !< @param[in] theta2d if given, and zenith angle
+
+    if(.not.linitialized) then
+        print *,myid,'You tried to set angles in the Tenstream solver.  &
+            & This should be called right after init_tenstream'
+        ierr=1; CHKERRQ(1)
+    endif
+
+    if ( present(phi2d) .and. present(theta2d) ) then
+        call setup_suninfo(phi0, theta0, sun, phi2d=phi2d, theta2d=theta2d)
+    elseif ( present(phi2d) ) then
+        call setup_suninfo(phi0, theta0, sun, phi2d=phi2d)
+    elseif ( present(theta2d) ) then
+        call setup_suninfo(phi0, theta0, sun, theta2d=theta2d)
+    else
+        call setup_suninfo(phi0, theta0, sun)
+    endif
+
+    ! init box montecarlo model
+    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
+    if(.not.luse_eddington)      call OPP_1_2%init (atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm) 
+
+    call init_matrices(Mdir, Mdiff)
   end subroutine
 
   !> @brief Main routine to setup TenStream solver
   !> @details This will setup the PETSc DMDA grid and set other grid information, needed for the TenStream
   !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc) 
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
-  subroutine init_tenstream(icomm, Nz,Nx,Ny, dx,dy, phi0,theta0,albedo, phi2d, theta2d, dz1d, dz3d, nxproc, nyproc, collapseindex)
+  subroutine init_tenstream(icomm, Nz,Nx,Ny, dx,dy, phi0,theta0,albedo, dz1d, dz3d, nxproc, nyproc, collapseindex)
     integer,intent(in) :: icomm !< @param MPI_Communicator which should be used -- this will be used for PETSC_COMM_WORLD
     integer(iintegers),intent(in) :: Nz      !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
     integer(iintegers),intent(in) :: Nx      !< @param[in] Nx     number of boxes in x-direction
@@ -2470,8 +2512,6 @@ contains
     real(ireals),intent(in)       :: theta0  !< @param[in] theta0 solar azmiuth and zenith angle
     real(ireals),intent(in)       :: albedo  !< @param[in] albedo lambertian surface albedo
 
-    real(ireals),optional,intent(in)       :: phi2d  (:,:)   !< @param[in] phi2d   if given, horizontally varying azimuth
-    real(ireals),optional,intent(in)       :: theta2d(:,:)   !< @param[in] theta2d if given, and zenith angle
     real(ireals),optional,intent(in)       :: dz1d(:)        !< @param[in] dz1d    if given, dz1d is used everywhere on the rank
     real(ireals),optional,intent(in)       :: dz3d(:,:,:)    !< @param[in] dz3d    if given, dz3d has to be local domain size, cannot have global shape
     integer(iintegers),optional,intent(in) :: nxproc(:)      !< @param[in] nxproc  if given, Nx have to local size and nxproc is size of domain on each rank
@@ -2483,55 +2523,52 @@ contains
 
     if(.not.linitialized) then
 
-      call setup_petsc_comm
-      !      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
-      call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;CHKERRQ(ierr)
+        call setup_petsc_comm
+        !      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
+        call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;CHKERRQ(ierr)
 #ifdef _XLF
-      call PetscPopSignalHandler(ierr); CHKERRQ(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
+        call PetscPopSignalHandler(ierr); CHKERRQ(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
 #endif
-      call init_mpi_data_parameters(icomm)
+        call init_mpi_data_parameters(icomm)
 
-      call read_commandline_options()
+        call read_commandline_options()
 
-      if(present(nxproc) .and. present(nyproc) ) then
-        if(ldebug.and.myid.eq.0) print *,'nxproc',shape(nxproc),'::',nxproc
-        if(ldebug.and.myid.eq.0) print *,'nyproc',shape(nyproc),'::',nyproc
-        if(present(collapseindex)) then
-            call setup_grid( Nz, Nx, Ny, nxproc,nyproc, collapseindex=collapseindex)
+        if(present(nxproc) .and. present(nyproc) ) then
+            if(ldebug.and.myid.eq.0) print *,'nxproc',shape(nxproc),'::',nxproc
+            if(ldebug.and.myid.eq.0) print *,'nyproc',shape(nyproc),'::',nyproc
+            if(present(collapseindex)) then
+                call setup_grid( Nz, Nx, Ny, nxproc,nyproc, collapseindex=collapseindex)
+            else
+                call setup_grid( Nz, Nx, Ny, nxproc,nyproc)
+            endif
         else
-            call setup_grid( Nz, Nx, Ny, nxproc,nyproc)
+            if(present(collapseindex)) then
+                call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny), collapseindex=collapseindex)
+            else
+                call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny) )
+            endif
         endif
-      else
-          if(present(collapseindex)) then
-              call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny), collapseindex=collapseindex)
-          else
-              call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny) )
-          endif
-      endif
 
-    endif
-    call setup_atm()
+        call setup_atm()
 
-    if ( present(phi2d) .and. present(theta2d) ) then
-        call setup_suninfo(phi0, theta0, sun, phi2d, theta2d)
+        ! init work vectors
+        call init_memory(incSolar,b)
+
+        ! init petsc logging facilities
+        call setup_logging()
+
+        linitialized=.True.
     else
-        call setup_suninfo(phi0, theta0, sun)
+        print *,myid,'You tried to initialize already initialized Tenstream          &
+            &solver. This should not be done. If you need to reinitialize the grids, &
+            &call destroy_tenstream() first.'
+        ierr=1; CHKERRQ(ierr)
     endif
 
+    !Todo: this is just here so that we do not break the API. User could also
+    !       directly use the set_angle routines?
+    call set_angles(phi0, theta0)
 
-    ! init box montecarlo model
-    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
-    if(.not.luse_eddington)      call OPP_1_2%init (atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm) 
-
-    if(.not.linitialized) then
-      ! init matrices & vectors
-      call init_memory(incSolar,b,Mdir,Mdiff)
-
-      ! init petsc logging facilities
-      call setup_logging()
-    endif
-
-    linitialized=.True.
   contains
       subroutine setup_atm()
           if(.not.allocated(atm)) allocate(atm)
@@ -2560,7 +2597,7 @@ contains
           endif
           if(.not.present(dz1d) .and. .not.present(dz3d)) then
               print *,'have to give either dz1d or dz3d in routine call....'
-              call exit(1)
+              ierr=1; CHKERRQ(ierr)
           endif
 
           sun%luse_topography = present(dz3d)  ! if the user supplies 3d height levels he probably wants to take topography into account
@@ -3105,8 +3142,11 @@ subroutine destroy_tenstream(lfinalizepetsc)
     if(.not. ltwostr_only) then
       call VecDestroy(incSolar , ierr) ;CHKERRQ(ierr)
       call VecDestroy(b        , ierr) ;CHKERRQ(ierr)
+    endif
+    if(linit_mat) then
       call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
       call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
+      linit_mat=.False.
     endif
 
     do uid=lbound(solutions,1),ubound(solutions,1)
