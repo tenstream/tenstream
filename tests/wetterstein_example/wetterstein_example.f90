@@ -122,6 +122,7 @@ subroutine test_rrtm_sw(this)
             nc_path(2)='abso' ; call fill_nzout(abso); call ncwrite(nc_path, tmp, ncerr)
             nc_path(2)='plev' ; call fill_nzout(plev); call ncwrite(nc_path, tmp, ncerr)
             nc_path(2)='Qnet' ; call ncwrite(nc_path, edir(nlay+1,:,:)+edn(nlay+1,:,:), ncerr)
+            nc_path(2)='Qdir' ; call ncwrite(nc_path, edir(nlay+1,:,:), ncerr)
             nc_path(2)='psrfc'; call ncwrite(nc_path, plev(nlay+1,:,:), ncerr)
             print *,'done',shape(edir)
         endif
