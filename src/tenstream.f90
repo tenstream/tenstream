@@ -510,110 +510,133 @@ contains
       PetscInt,allocatable :: o_nnz(:)
       type(t_coord) :: C
       Vec :: v_o_nnz,v_d_nnz
+      Vec :: g_o_nnz,g_d_nnz
       PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
       PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
 
-      PetscInt :: vsize,i,j,k
+      PetscInt :: vsize,i,j,k, isrc, idst, xinc, yinc, src, dst, icnt, ind(4)
 
-      logical :: lsun_east,lsun_north
+      logical :: llocal_src, llocal_dst
+
+      MatStencil :: row(4,C%dof)  ,col(4,C%dof)
 
       if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
-      call DMGetGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMGetGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
-
-      call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
-      allocate(o_nnz(0:vsize-1))
-      allocate(d_nnz(0:vsize-1))
+      call DMGetLocalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
 
       call getVecPointer(v_o_nnz,C,xo1d,xo)
       call getVecPointer(v_d_nnz,C,xd1d,xd)
 
+      
+      xd = i0 
       xo = i0
-      xd = C%dof+i1
 
-      xd( i0:i3 ,C%zs+1:C%ze  , C%xs:C%xe, C%ys:C%ye ) = C%dof+i1 ! Edir_vertical depends on 3 values Edir_vertical,xaxis,yaxis :: starting with second entries(seen from top)
-      xd( i4:i7 ,C%zs  :C%ze-1, C%xs:C%xe, C%ys:C%ye ) = C%dof+i1 ! Edir_xaxis,yaxis depends on 3 values Edir_vertical,xaxis,yaxis :: starting with first entries(seen from top)
-
+      icnt = -1
       do j=C%ys,C%ye
-        if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! real neigh east
-          lsun_east  = (sun%angles(C%zs, C%xs, j)%xinc.eq.i0)
-          if( lsun_east ) then 
-            ! if the sun is in the east, the channels in the last box are influenced by the 2nd channel which is a ghost
-            xo(i0:i3, C%zs+1:C%ze, C%xe, j) = xo(i0:i3, C%zs+1:C%ze, C%xe, j)+i2 ! channel 1 from zs+1 to ze
-            xd(i0:i3, C%zs+1:C%ze, C%xe, j) = xd(i0:i3, C%zs+1:C%ze, C%xe, j)-i2
-            !                                if(myid.eq.0.and.ldebug.and.j.eq.C%ys) print *,myid,'Dir prealloc 0:3: lsun_east :: xo',xo(i0:i3, C%xe, j, C%zs+1), 'xd',xd(i0:i3, C%xe, j, C%zs+1)
+          do i=C%xs,C%xe        
+              do k=C%zs,C%ze-1
 
-            xo(i4:i7, C%zs:C%ze-1, C%xe, j) = xo(i4:i7, C%zs:C%ze-1, C%xe, j)+i2 ! channel 2 and 3 from zs to ze-1
-            xd(i4:i7, C%zs:C%ze-1, C%xe, j) = xd(i4:i7, C%zs:C%ze-1, C%xe, j)-i2
-            !                                if(myid.eq.0.and.ldebug.and.j.eq.C%ys) print *,myid,'Dir prealloc 4:7: lsun_east :: xo',xo(i4:i7, C%xe, j, C%zs), 'xd',xd(i4:i7, C%xe, j, C%zs)
-            if(ldebug) then
-              if(any(xd.lt.i0)) print *,myid,'lsun_east :: something wrong happened, we can not have preallocation to be less than 0 in xd!'
-              if(any(xo.lt.i0)) print *,myid,'lsun_east :: something wrong happened, we can not have preallocation to be less than 0 in xo!'
-            endif
-          endif
-        endif
-      enddo
-      do i=C%xs,C%xe
-        if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! real neigh north
-          lsun_north = (sun%angles(C%zs, i, C%ys)%yinc.eq.i0 )
-          if( lsun_north ) then 
-            ! if the sun is in the north, the 3rd channel is a ghost
-            !                                if(myid.eq.0.and.ldebug.and.i.eq.C%xs) print *,myid,'before Dir prealloc 0:3: lsun_north :: xo',xo(i0:i3, i, C%ye, C%zs+1), 'xd',xd(i0:i3, i, C%ye, C%zs+1)
-            xo(i0:i3, C%zs+1:C%ze, i, C%ye) = xo(i0:i3, C%zs+1:C%ze, i, C%ye)+i2 ! channel 1 from zs+1 to ze
-            xd(i0:i3, C%zs+1:C%ze, i, C%ye) = xd(i0:i3, C%zs+1:C%ze, i, C%ye)-i2
-            !                                if(myid.eq.0.and.ldebug.and.i.eq.C%xs) print *,myid,'Dir prealloc 0:3: lsun_north :: xo',xo(i0:i3, i, C%ye, C%zs+1), 'xd',xd(i0:i3, i, C%ye, C%zs+1)
+                  if( atm%l1d(atmk(k),i,j) ) then
+                      do idst=i0,i3
+                          call inc( xd(idst, k+1, i,j), one )
+                      enddo
+                  else
+                      xinc = sun%angles(k,i,j)%xinc
+                      yinc = sun%angles(k,i,j)%yinc
 
-            xo(i4:i7, C%zs:C%ze-1,  i, C%ye) = xo(i4:i7, C%zs:C%ze-1, i, C%ye)+i2 ! channel 2 and 3 from zs
-            xd(i4:i7, C%zs:C%ze-1,  i, C%ye) = xd(i4:i7, C%zs:C%ze-1, i, C%ye)-i2
-            !                                if(myid.eq.0.and.ldebug.and.i.eq.C%xs) print *,myid,'Dir prealloc 4:7: lsun_norht :: xo',xo(i4:i7, i, C%ye, C%zs), 'xd',xd(i4:i7, i, C%ye, C%zs)
-            if(ldebug) then
-              if(any(xd.lt.i0)) print *,myid,'lsun_north :: something wrong happened, we can not have preallocation to be less than 0 in xd!'
-              if(any(xo.lt.i0)) print *,myid,'lsun_north :: something wrong happened, we can not have preallocation to be less than 0 in xo!'
-            endif
-          endif
-        endif
-      enddo
-      do j=C%ys,C%ye
-        if( C%neighbors(10).ne.myid.and. C%neighbors(10).ge.i0 ) then ! real neigh west
-          lsun_east  = (sun%angles(C%zs, C%xs, j)%xinc.eq.i0)
-          if( .not. lsun_east ) then 
-            ! if the sun is in the west, the 2nd channel is solemnly dependant on ghost values
-            xo(i4:i5, C%zs:C%ze-1, C%xs, j) = C%dof
-            xd(i4:i5, C%zs:C%ze-1, C%xs, j) = i1
-          endif
-        endif
-      enddo
-      do i=C%xs,C%xe
-        if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! real neigh south
-          lsun_north = (sun%angles(C%zs, i, C%ys)%yinc.eq.i0 )
-          if( .not. lsun_north ) then 
-            ! if the sun is in the south, the 3rd channel is solemnly dependant on ghost values
-            xo(i6:i7, C%zs:C%ze-1, i, C%ys) = C%dof
-            xd(i6:i7, C%zs:C%ze-1, i, C%ys) = i1
-          endif
-        endif
-      enddo
+                      dst = 1 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 2 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 3 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 4 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 5 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+                      dst = 6 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+                      dst = 7 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+                      dst = 8 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
 
-      do j=C%ys,C%ye
-        do i=C%xs,C%xe      
-          do k=C%zs,C%ze-1
-            if( atm%l1d(atmk(k),i,j) ) then
-              xo(:  ,k,i,j) = i0
-              xd(:  ,k,i,j) = i1
-              xd(0:3,k,i,j) = i5
-            endif
+                      src = 1 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 2 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 3 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 4 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 5 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+                      src = 6 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+                      src = 7 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+                      src = 8 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+
+                      do idst = 1,C%dof
+                          icnt = icnt+1
+                          llocal_dst = .True.
+                          if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. row(MatStencil_j,idst).lt.C%xs ) llocal_dst = .False. ! have real neighbor west  and is not local entry
+                          if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. row(MatStencil_j,idst).gt.C%xe ) llocal_dst = .False. ! have real neighbor east  and is not local entry
+                          if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. row(MatStencil_k,idst).lt.C%ys ) llocal_dst = .False. ! have real neighbor south and is not local entry
+                          if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. row(MatStencil_k,idst).gt.C%ye ) llocal_dst = .False. ! have real neighbor north and is not local entry
+
+                          do isrc = 1,C%dof
+                              llocal_src = .True.
+
+                              if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. col(MatStencil_j,isrc).lt.C%xs ) llocal_src = .False. ! have real neighbor west  and is not local entry
+                              if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. col(MatStencil_j,isrc).gt.C%xe ) llocal_src = .False. ! have real neighbor east  and is not local entry
+                              if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. col(MatStencil_k,isrc).lt.C%ys ) llocal_src = .False. ! have real neighbor south and is not local entry
+                              if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. col(MatStencil_k,isrc).gt.C%ye ) llocal_src = .False. ! have real neighbor north and is not local entry
+
+                              !if(myid.eq.0) print *,myid,icnt,k,i,j,'::',lsun_east,lsun_north,idst,isrc,'::',llocal_dst,llocal_src
+                              if(llocal_dst .and. llocal_src) then
+                                  call inc(xd(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
+                              else
+                                  call inc(xo(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
+                              endif
+                          enddo
+                      enddo
+                  endif
+              enddo
           enddo
-        enddo
       enddo
-
-      o_nnz=int(xo1d)
-      d_nnz=int(xd1d)
 
       call restoreVecPointer(v_o_nnz,C,xo1d,xo)
       call restoreVecPointer(v_d_nnz,C,xd1d,xd)
 
-      call DMRestoreGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;CHKERRQ(ierr)
+      call VecSet(g_o_nnz, zero, ierr); CHKERRQ(ierr)
+      call VecSet(g_d_nnz, zero, ierr); CHKERRQ(ierr)
+
+      call DMLocalToGlobalBegin(C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalEnd  (C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;CHKERRQ(ierr)
+
+      call DMLocalToGlobalBegin(C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalEnd  (C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;CHKERRQ(ierr)
+
+      call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+
+      call getVecPointer(g_o_nnz,C,xo1d,xo)
+      call getVecPointer(g_d_nnz,C,xd1d,xd)
+
+      !call mpi_barrier(imp_comm, ierr)
+      !icnt = -1
+      !do j=C%ys,C%ye
+      !    do i=C%xs,C%xe        
+      !        do k=C%zs,C%ze
+      !            do idst = 1,C%dof
+      !                icnt = icnt+1
+      !            enddo
+      !            print *,myid,icnt,k,i,j,'::',int(xd(:, k,i,j)),'off',int(xo(:, k,i,j))
+      !        enddo
+      !    enddo
+      !enddo
+      !call mpi_barrier(imp_comm, ierr)
+
+      call VecGetLocalSize(g_d_nnz,vsize,ierr) ;CHKERRQ(ierr)
+      allocate(o_nnz(0:vsize-1))
+      allocate(d_nnz(0:vsize-1))
+
+      o_nnz=int(xo1d)
+      d_nnz=int(xd1d) + i1  ! +1 for diagonal entries
+
+      call restoreVecPointer(g_o_nnz,C,xo1d,xo)
+      call restoreVecPointer(g_d_nnz,C,xd1d,xd)
+
+      call DMRestoreGlobalVector(C%da,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da,g_d_nnz,ierr) ;CHKERRQ(ierr)
 
       if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
     end subroutine 
