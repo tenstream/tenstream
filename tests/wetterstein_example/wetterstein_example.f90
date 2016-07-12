@@ -27,8 +27,9 @@ subroutine test_rrtm_sw(this)
     integer(mpiint) :: numnodes, comm, myid
 
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=0, theta0=0
+    real(ireals),parameter :: phi0=0, theta0=60
     real(ireals),parameter :: albedo=0.2, dz=dx
+    integer(iintegers),parameter :: icollapse=40
 
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,B
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
@@ -106,7 +107,7 @@ subroutine test_rrtm_sw(this)
         enddo
         print *,'plev',plev(nlay+1,1,1)
     endif
-    call tenstream_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir, edn, eup, abso)
+    call tenstream_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir, edn, eup, abso, icollapse=icollapse)
 
     if(myid.eq.0) then
         if(ldebug) then
@@ -132,7 +133,7 @@ subroutine test_rrtm_sw(this)
     contains 
         subroutine fill_nzout(arr)
             real(ireals), intent(in) :: arr(:,:,:)
-            integer(iintegers) :: izout = 60
+            integer(iintegers) :: izout=40
             if(.not.allocated(tmp)) allocate(tmp(nxp,nyp,izout))
             do k=1,izout
                 tmp(:,:,k) = arr(ubound(arr,1)-k+1,:,:)
