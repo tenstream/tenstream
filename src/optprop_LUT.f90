@@ -297,7 +297,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
     write(str(2),FMT='("dx",I0)') nint(OPP%dirLUT%dx)
     write(str(3),FMT='("dy",I0)') nint(OPP%dirLUT%dy)
 
-    call determine_angles_to_load(comm, OPP%dirLUT, azis, szas, angle_mask)
+    call determine_angles_to_load(comm, OPP%interp_mode, OPP%dirLUT, azis, szas, angle_mask)
 
     do itheta=1,OPP%Ntheta
       do iphi  =1,OPP%Nphi
@@ -912,7 +912,7 @@ end subroutine
       integer(iintegers) :: iphi,itheta
       logical :: angle_mask(OPP%Nphi,OPP%Ntheta)
 
-      call determine_angles_to_load(comm, OPP%dirLUT, azis, szas, angle_mask)
+      call determine_angles_to_load(comm, OPP%interp_mode, OPP%dirLUT, azis, szas, angle_mask)
 
       do itheta=1,OPP%Ntheta
         do iphi  =1,OPP%Nphi
@@ -1012,8 +1012,9 @@ end subroutine
     endif
 end function
     
-subroutine determine_angles_to_load(comm, LUT, azis, szas, mask)
+subroutine determine_angles_to_load(comm, interp_mode, LUT, azis, szas, mask)
     integer(mpiint) ,intent(in) :: comm
+    integer(iintegers),intent(in) :: interp_mode
     type(directTable) :: LUT
     real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
     logical,intent(out) :: mask(size(LUT%pspace%phi),size(LUT%pspace%theta)) ! boolean array, which LUT entries should be loaded
@@ -1033,11 +1034,31 @@ subroutine determine_angles_to_load(comm, LUT, azis, szas, mask)
         phi   = LUT%pspace%phi( [ iphi, iphi1 ] )
         theta = LUT%pspace%theta( [ itheta, itheta1 ]  )
 
-        lneed_azi(1) = any( azis .ge. phi(1)       .and. azis .le. sum(phi)/2 )
-        lneed_azi(2) = any( azis .ge. sum(phi)/2   .and. azis .le. phi(2) )
+        select case(interp_mode)
 
-        lneed_sza(1) = any( szas .ge. theta(1)     .and. szas .le. sum(theta)/2 )
-        lneed_sza(2) = any( szas .ge. sum(theta)/2 .and. szas .le. theta(2) )
+        case(1:3) ! only load nearest neighbors
+            lneed_azi(1) = any( azis .ge. phi(1)       .and. azis .le. sum(phi)/2 )
+            lneed_azi(2) = any( azis .ge. sum(phi)/2   .and. azis .le. phi(2) )
+
+        case(4) ! interpolate azimuth -- therefore also need surrounding tables
+            lneed_azi = any( azis .ge. phi(1)       .and. azis .le. phi(2) )
+
+        case default
+            stop 'interpolation mode not implemented yet! please choose something else! '
+        end select
+
+        select case(interp_mode)
+
+        case(1:2) ! only load nearest neighbors
+            lneed_sza(1) = any( szas .ge. theta(1)     .and. szas .le. sum(theta)/2 )
+            lneed_sza(2) = any( szas .ge. sum(theta)/2 .and. szas .le. theta(2) )
+
+        case(3:4) ! interpolate sza -- therefore also need surrounding tables
+            lneed_sza = any( szas .ge. theta(1)     .and. szas .le. theta(2) )
+
+        case default
+            stop 'interpolation mode not implemented yet! please choose something else! '
+        end select
 
         !print *,'determine_angles_to_load: occuring azimuths',': phi,theta',phi,theta,'need_azi',lneed_azi,'lneed_sza',lneed_sza
 
@@ -1239,6 +1260,9 @@ subroutine LUT_get_dir2dir(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
     case(3)
       weights = modulo(pti,one)
       call interp_4p1d(pti([1,2,3,4,6]), weights([1,2,3,4,6]), OPP%dirLUT%T(nint(pti(5)), :), C)
+    case(4)
+      weights = modulo(pti,one)
+      call interp_4p2d(pti, weights, OPP%dirLUT%T(:, :), C)
       
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
@@ -1292,6 +1316,10 @@ subroutine LUT_get_dir2diff(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
       weights = modulo(pti,one)
       call interp_4p1d(pti([1,2,3,4,6]), weights([1,2,3,4,6]), OPP%dirLUT%S(nint(pti(5)), :), C)
 
+    case(4)
+      weights = modulo(pti,one)
+      call interp_4p2d(pti, weights, OPP%dirLUT%S(:, :), C)
+
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
@@ -1332,7 +1360,7 @@ subroutine LUT_get_diff2diff(OPP, in_dz,in_kabs ,in_ksca,g,C)
     case(1)
       ! Nearest neighbour
       C = OPP%diffLUT%S%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
-    case(2:3)
+    case(2:4)
       ! Linear interpolation
       weights = modulo(pti,one)
       call interp_4d(pti, weights, OPP%diffLUT%S%c, C)
@@ -1372,7 +1400,7 @@ subroutine interp_4p2d(pti,weights,ctable,C)
         ! 4 dimensions only at the cornerstones of the 4d hypercube
         real(ireals) :: C4(size(C),6)
 
-        stop 'todo atm not advisable to use this function .. we dont load the neighboring LUTs'
+        !stop 'todo atm not advisable to use this function .. we dont load the neighboring LUTs'
 
         ! First determine the array indices, where to look.
         fpti = floor(pti)
@@ -1405,10 +1433,6 @@ subroutine interp_4p1d(pti,weights,ctable,C)
         fpti = floor(pti)
 
         indices(:) = max(i1, min( ubound(ctable,1), [0,1] +fpti(5) ) )
-
-        ! dirty hack to keep save if we didnt load the lookuptables at the edge range of the sims
-        if(.not.allocated(ctable(indices(1))%c)) indices(1) = indices(1)+1
-        if(.not.allocated(ctable(indices(2))%c)) indices(2) = indices(2)-1
 
         call interp_4d( pti(1:4), weights(1:4), ctable(indices(1))%c, C4(:,1) ) ! differing zenith
         call interp_4d( pti(1:4), weights(1:4), ctable(indices(2))%c, C4(:,2) ) !        "
