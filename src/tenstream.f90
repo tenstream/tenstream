@@ -350,7 +350,7 @@ contains
     call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
 
     ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
-    call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr) 
+    !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr) 
 
     ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
 
@@ -504,7 +504,7 @@ contains
       call DMRestoreGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
       call DMRestoreGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
 
-      if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
+      if(myid.eq.0 .and. ldebug) print *,myid,'diff_10 d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
     end subroutine 
     subroutine setup_dir8_preallocation(d_nnz,o_nnz,C)
       PetscInt,allocatable :: d_nnz(:)
@@ -579,7 +579,7 @@ contains
                               if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. col(MatStencil_k,isrc).lt.C%ys ) llocal_src = .False. ! have real neighbor south and is not local entry
                               if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. col(MatStencil_k,isrc).gt.C%ye ) llocal_src = .False. ! have real neighbor north and is not local entry
 
-                              !if(myid.eq.0) print *,myid,icnt,k,i,j,'::',lsun_east,lsun_north,idst,isrc,'::',llocal_dst,llocal_src
+                              !if(myid.eq.0) print *,myid,icnt,k,i,j,'::',idst,isrc,'::',llocal_dst,llocal_src
                               if(llocal_dst .and. llocal_src) then
                                   call inc(xd(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
                               else
@@ -961,11 +961,6 @@ contains
                 !Note that boxphi is defined counterclockwise from x-axis to
                 !y-axis (mathematical definition)
                 boxphi = atan2(grad(2), grad(1))
-                !grad = grad / norm(grad)
-
-                !write(*,*) "Boxtheta, Boxphi:"
-                !write(*,*) rad2deg(boxtheta)
-                !write(*,*) rad2deg(boxphi)
 
                 costb = cos(boxtheta)
                 sintb = sin(boxtheta)
@@ -976,26 +971,6 @@ contains
                         sinpb * cospb * (costb - 1._ireals),   cospb**2 + costb * sinpb**2,           (-sinpb) * sintb, &
                         cospb * sintb,                         sinpb * sintb,                         costb         /), &
                         (/3, 3/), order=(/2, 1/) )
-                !write(*,*) "Rotationmatrix"
-                !write(*,*) rotmat(1, :)
-                !write(*,*) rotmat(2, :)
-                !write(*,*) rotmat(3, :)
-
-                ! easier way using fortran-matmul:
-                ! newxsun = matmul(rotmat, xsun)
-                ! todo: need to chek for right row/column definitions for matmul
-
-
-                !do row=1, 3
-                !newxsun(row) = 0._ireals
-                !do col=1, 3
-                !newxsun(row) = newxsun(row) + (rotmat(row, col) * xsun(col))
-                !enddo
-                !enddo
-
-                !write(*,*) "New sun-vector"
-                !write(*,*) newxsun
-                !write(*,*) matmul(rotmat, xsun)
                 newxsun = matmul(rotmat, xsun)
 
                 newtheta = rad2deg(atan2(sqrt(newxsun(1)**2 + newxsun(2)**2), newxsun(3)))
@@ -1006,10 +981,6 @@ contains
                 newphi = rad2deg(atan2(newxsun(1), newxsun(2)))
 
 
-                ! todo: compute new local theta and phi according to grid rotation
-                ! newtheta = sun%angles(k,i,j)%theta
-                ! newphi   = sun%angles(k,i,j)%phi
-
                 ! if(i.eq.C_one1%xs) print *,myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
                 sun%angles(k,i,j)%theta = max(zero, min( 90._ireals, newtheta ))
                 sun%angles(k,i,j)%phi = newphi
@@ -1019,7 +990,8 @@ contains
 
     call restoreVecPointer(vhhl , C_one1, hhl1d, hhl)
 
-    if(ldebug .and. myid.eq.0) print *,'min,max theta',minval(sun%angles%theta), maxval(sun%angles%theta)
+    if(myid.eq.0 .and. ldebug) print *,'min,max theta',minval(sun%angles%theta), maxval(sun%angles%theta)
+    if(myid.eq.0 .and. ldebug) print *,'min,max phi',minval(sun%angles%phi), maxval(sun%angles%phi)
   end subroutine
 
 
@@ -1069,7 +1041,7 @@ contains
 
     ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
     sun%angles(:,:,:)%symmetry_phi = sym_rot_phi(sun%angles(:,:,:)%phi)
-    !sun%angles(:,:,:)%xinc=i0 ; sun%angles(:,:,:)%yinc=i0
+
     where(sin(deg2rad(sun%angles%phi)).gt.zero ) ! phi between 0 and 180 degreee
         sun%angles%xinc=i0
     else where
