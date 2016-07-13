@@ -52,8 +52,8 @@ def create_srtm_input():
     from scipy.ndimage.filters import gaussian_filter as gf
     from scipy.interpolate import interp1d
 
-    wetterstein = load_srtm_wetterstein(xmin=3000, xmax=3100, ymin=1100, ymax=1150)
-    wetterstein = load_srtm_wetterstein()
+    wetterstein = load_srtm_wetterstein(xmin=3000, xmax=3200, ymin=1100, ymax=1300)
+    wetterstein = gf(wetterstein,2, mode='wrap')
 
     Nx, Ny = np.shape(wetterstein)
 
