@@ -46,7 +46,7 @@ def create_hill_x_input():
     from scipy.interpolate import interp1d
 
     # Create elevation map for gaussian hill
-    Nx, Ny = 128, 128
+    Nx, Ny = 32,16
 
     elev = np.zeros((Nx, Ny))
     elev[(Nx-1)/2, :] = 1.
