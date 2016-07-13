@@ -939,9 +939,18 @@ contains
 
     call getVecPointer(vhhl , C_one1, hhl1d, hhl)
 
-    do j=C_one1%ys,C_one1%ye
-        do i=C_one1%xs,C_one1%xe
-            do k=C_one%zs,C_one%ze !todo should also be done for entire atmosphere but for now easier to debug
+    do j=C_one%ys,C_one%ye
+        do i=C_one%xs,C_one%xe
+
+            ! if we are at the global boundary we have to take that the gradient does not get too
+            ! steep. That wouldnt make sense for cyclic boundaries...
+            !if(i.eq.i0 .or. i.eq.C_one%glob_xm-i1 .or. j.eq.i0 .or. j.eq.C_one%glob_ym-i1) then
+            !   !print *,myid,'global edge at:',i,j
+            !    cycle
+            !endif
+
+            do k=C_one%zs,C_one%ze 
+
 
                 ! Vector of sun direction
                 xsun(1) = sin(deg2rad(sun%angles(k,i,j)%theta))*sin(deg2rad(sun%angles(k,i,j)%phi))
