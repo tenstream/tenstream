@@ -345,7 +345,7 @@ contains
             dz(k) = dp / rho / 9.8065_ireals
             hhl(k) = hhl(k+1) + dz(k)
         enddo
-        if(any(dz.le.one)) then
+        if(any(dz.le.zero)) then
             print *,'plev',plev
             print *,'tlay',tlay
             print *,'dz',dz
