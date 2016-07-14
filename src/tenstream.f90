@@ -2458,7 +2458,7 @@ contains
     if(.not.linitialized) then
         print *,myid,'You tried to set angles in the Tenstream solver.  &
             & This should be called right after init_tenstream'
-        ierr=1; CHKERRQ(1)
+        ierr=1; CHKERRQ(ierr)
     endif
 
     if ( present(phi2d) .and. present(theta2d) ) then
