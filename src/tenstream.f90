@@ -2348,6 +2348,11 @@ contains
       PetscReal :: Ax,Ax2,Ay,Ay2,Az,Az4
       logical,intent(in) :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
 
+      Vec :: vgrad_x, vgrad_y
+      PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
+      PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
+      real(ireals) :: grad(3), mu  ! is the cos(zenith_angle) of the tilted box in case of topography
+
       if(myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C ,xv1d, xv)
 
@@ -2422,6 +2427,34 @@ contains
           endif
         enddo
       enddo
+
+      if(sun%luse_topography .and. C%dof.eq.i8) then ! This is direct rad and we use topography !todo do we need this
+        call compute_gradient(atm, vgrad_x, vgrad_y)
+
+        call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+        call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+        do j=C%ys,C%ye
+          do i=C%xs,C%xe
+            do k=C%ze,C%ze
+              grad(1) = grad_x(i0,k,i,j)
+              grad(2) = grad_y(i0,k,i,j)
+              grad(3) = one
+              grad = grad / norm(grad)
+              mu = grad(3)
+
+              !if(mu.lt.one) print *,k,i,j,'::',mu
+              xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) * mu
+            enddo
+          enddo
+        enddo
+
+        call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+        call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+        call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  CHKERRQ(ierr)
+        call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  CHKERRQ(ierr)
+      endif
 
       call restoreVecPointer(v ,C ,xv1d, xv )
     end subroutine
