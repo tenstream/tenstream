@@ -891,45 +891,49 @@ contains
   end subroutine
 
 
-
-  !> @brief setup topography information
+  !> @brief compute gradient from dz3d
   !> @details integrate dz3d from to top of atmosphere to bottom.
-  !>   \n then build horizontal gradient of height information and
-  !>   \n tweak the local sun angles to bend the rays.
-  subroutine setup_topography(sun)
-    type(t_suninfo),intent(inout) :: sun
+  !>   \n then build horizontal gradient of height information
+  subroutine compute_gradient(atm, vgrad_x, vgrad_y)
+    type(t_atmosphere),intent(in) :: atm
+    Vec :: vgrad_x, vgrad_y
+
     Vec :: vhhl
-
     PetscScalar,Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
-    integer :: i,j,k
-    real(ireals) :: maxheight, global_maxheight, newtheta, newphi, grad(3), xsun(3)
-    real(ireals) :: rotmat(3, 3), costb, sintb, cospb, sinpb, newxsun(3), boxtheta, boxphi
+    PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
+    PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
 
-    if(.not.allocated(sun%angles)) stop 'You called  setup_topography() &
-        but the sun struct is not yet up, make sure setup_suninfo is called before'
-    if(.not.allocated(atm%dz)) stop 'You called  setup_topography() &
-        but the atm struct is not yet up, make sure we have atm%dz before'
+    integer(iintegers) :: i,j,k
+
+    real(ireals) :: zm(4), maxheight, global_maxheight 
+
+    if(.not.allocated(atm%dz)) stop 'You called  compute_gradient()&
+      but the atm struct is not yet up, make sure we have atm%dz before'
+
+    call DMGetLocalVector(C_one1%da, vhhl, ierr) ;CHKERRQ(ierr)
 
     call DMGetLocalVector(C_one1%da, vhhl, ierr) ;CHKERRQ(ierr)
     call getVecPointer(vhhl , C_one1, hhl1d, hhl)
 
-    hhl = zero
+    hhl(i0, C_one1%ze, :, :) = zero
     do j=C_one1%ys,C_one1%ye
-        do i=C_one1%xs,C_one1%xe
-            hhl(i0, C_one1%ze, i, j ) = zero
+      do i=C_one1%xs,C_one1%xe
+        hhl(i0, C_one1%ze, i, j ) = zero
 
-            do k=C_one1%ze-1,C_one1%zs,-1
-                hhl(i0,k,i,j) = hhl(i0,k+1,i,j)+atm%dz(atmk(k),i,j)
-            enddo
+        do k=C_one1%ze-1,C_one1%zs,-1
+          hhl(i0,k,i,j) = hhl(i0,k+1,i,j)+atm%dz(atmk(k),i,j)
         enddo
+      enddo
     enddo
 
-    call imp_allreduce_max(imp_comm, maxval(hhl(i0,C_one1%zs,C_one1%xs:C_one1%xe,C_one1%ys:C_one1%ye)), global_maxheight)
+
+    maxheight = maxval(hhl(i0,C_one1%zs,C_one1%xs:C_one1%xe,C_one1%ys:C_one1%ye))
+    call imp_allreduce_max(imp_comm, maxheight, global_maxheight)
 
     do j=C_one1%ys,C_one1%ye
-        do i=C_one1%xs,C_one1%xe
-            hhl(i0, :, i, j) = hhl(i0, :, i, j) + global_maxheight - hhl(i0, C_one1%zs, i, j)
-        enddo
+      do i=C_one1%xs,C_one1%xe
+        hhl(i0, :, i, j) = hhl(i0, :, i, j) + global_maxheight - hhl(i0, C_one1%zs, i, j)
+      enddo
     enddo
 
     call restoreVecPointer(vhhl , C_one1, hhl1d, hhl)
@@ -939,16 +943,80 @@ contains
 
     call getVecPointer(vhhl , C_one1, hhl1d, hhl)
 
-    rotmat = reshape( (/ one , zero, zero, &
-                         zero, one , zero, &
-                         nil , nil , one  /), &
+    call DMGetLocalVector(C_one1%da, vgrad_x, ierr) ;CHKERRQ(ierr)
+    call DMGetLocalVector(C_one1%da, vgrad_y, ierr) ;CHKERRQ(ierr)
+
+    call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+    call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+    do j=C_one1%ys,C_one1%ye
+      do i=C_one1%xs,C_one1%xe
+        do k=C_one1%zs,C_one1%ze-1
+          ! Mean heights of adjacent columns
+          zm(1) = (hhl(i0,k,i-1,j) + hhl(i0,k+1,i-1,j)) / 2
+          zm(2) = (hhl(i0,k,i+1,j) + hhl(i0,k+1,i+1,j)) / 2
+
+          zm(3) = (hhl(i0,k,i,j-1) + hhl(i0,k+1,i,j-1)) / 2
+          zm(4) = (hhl(i0,k,i,j+1) + hhl(i0,k+1,i,j+1)) / 2
+
+          ! Gradient of height field
+          grad_x(i0, k, i, j) = -(zm(2)-zm(1)) / (2._ireals*atm%dx)
+          grad_y(i0, k, i, j) = -(zm(4)-zm(3)) / (2._ireals*atm%dy)
+        enddo
+        zm(1) = hhl(i0, C_one1%ze, i-1, j)
+        zm(2) = hhl(i0, C_one1%ze, i+1, j)
+        zm(3) = hhl(i0, C_one1%ze, i, j-1)
+        zm(4) = hhl(i0, C_one1%ze, i, j+1)
+        ! Gradient of height field
+        grad_x(i0, C_one1%ze, i, j) = -(zm(2)-zm(1)) / (2._ireals*atm%dx)
+        grad_y(i0, C_one1%ze, i, j) = -(zm(4)-zm(3)) / (2._ireals*atm%dy)
+      enddo
+    enddo
+
+    call restoreVecPointer(vhhl , C_one1, hhl1d, hhl)
+    call DMRestoreLocalVector(C_one1%da ,vhhl ,ierr);  CHKERRQ(ierr)
+
+    call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+    call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+  end subroutine
+
+
+  !> @brief setup topography information
+  !> @details integrate dz3d from to top of atmosphere to bottom.
+  !>   \n then build horizontal gradient of height information and
+  !>   \n tweak the local sun angles to bend the rays.
+  subroutine setup_topography(sun)
+    type(t_suninfo),intent(inout) :: sun
+
+    Vec :: vgrad_x, vgrad_y
+    PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
+    PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
+
+    integer(iintegers) :: i,j,k
+    real(ireals) :: newtheta, newphi, xsun(3)
+    real(ireals) :: rotmat(3, 3), newxsun(3)
+
+    if(.not.allocated(sun%angles)) stop 'You called  setup_topography() &
+        but the sun struct is not yet up, make sure setup_suninfo is called before'
+    if(.not.allocated(atm%dz)) stop 'You called  setup_topography() &
+        but the atm struct is not yet up, make sure we have atm%dz before'
+
+    call compute_gradient(atm, vgrad_x, vgrad_y)
+
+    call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+    call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+
+    rotmat = reshape((/ one , zero, zero,  &
+                        zero, one , zero,  &
+                        nil , nil , one/), &
                      (/3, 3/), order=(/2, 1/) )
 
     do j=C_one%ys,C_one%ye
         do i=C_one%xs,C_one%xe
 
             ! if we are at the global boundary we have to take that the gradient does not get too
-            ! steep. That wouldnt make sense for cyclic boundaries...
+            ! steep. That wouldnt make sense for cyclic boundaries... ! todo: check what we should do?
             !if(i.eq.i0 .or. i.eq.C_one%glob_xm-i1 .or. j.eq.i0 .or. j.eq.C_one%glob_ym-i1) then
             !   !print *,myid,'global edge at:',i,j
             !    cycle
@@ -964,18 +1032,10 @@ contains
 
                 xsun = xsun / norm(xsun)
 
-
-                ! Gradient of height field
-                grad(1) = -(hhl(i0,k+1,i+1,j)-hhl(i0,k+1,i-1,j)) / (2._ireals*atm%dx)
-                grad(2) = -(hhl(i0,k+1,i,j+1)-hhl(i0,k+1,i,j-1)) / (2._ireals*atm%dy)
-                grad(3) = 1
-
-                rotmat(3, :) = grad
-                
+                rotmat(3, 1) = grad_x(i0, k, i, j)
+                rotmat(3, 2) = grad_y(i0, k, i, j)
 
                 newxsun = matmul(rotmat, xsun)
-
-
 
                 newtheta = rad2deg(atan2(sqrt(newxsun(1)**2 + newxsun(2)**2), newxsun(3)))
                 
@@ -983,13 +1043,18 @@ contains
                 newphi = rad2deg(atan2(newxsun(1), newxsun(2)))
 
                 ! if(i.eq.C_one1%xs) print *,myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
+
                 sun%angles(k,i,j)%theta = max(zero, min( 90._ireals, newtheta ))
                 sun%angles(k,i,j)%phi = newphi
             enddo
         enddo
     enddo
 
-    call restoreVecPointer(vhhl , C_one1, hhl1d, hhl)
+    call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+    call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+    call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  CHKERRQ(ierr)
+    call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  CHKERRQ(ierr)
 
     if(myid.eq.0 .and. ldebug) print *,'min,max theta',minval(sun%angles%theta), maxval(sun%angles%theta)
     if(myid.eq.0 .and. ldebug) print *,'min,max phi',minval(sun%angles%phi), maxval(sun%angles%phi)
