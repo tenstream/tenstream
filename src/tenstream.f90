@@ -124,7 +124,7 @@ module m_tenstream
 
   type t_sunangles
     real(ireals) :: symmetry_phi
-    integer(iintegers) :: yinc,xinc
+    integer(iintegers) :: yinc,xinc,kinc
     real(ireals) :: theta, phi, costheta, sintheta 
   end type
   type t_suninfo
@@ -515,7 +515,7 @@ contains
       PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
       PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
 
-      PetscInt :: vsize,i,j,k, isrc, idst, xinc, yinc, src, dst, icnt, ind(4)
+      PetscInt :: vsize,i,j,k, isrc, idst, xinc, yinc, kinc, src, dst, icnt, ind(4)
 
       logical :: llocal_src, llocal_dst
 
@@ -544,24 +544,25 @@ contains
                   else
                       xinc = sun%angles(k,i,j)%xinc
                       yinc = sun%angles(k,i,j)%yinc
+                      kinc = sun%angles(k,i,j)%kinc
 
-                      dst = 1 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-                      dst = 2 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-                      dst = 3 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-                      dst = 4 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-                      dst = 5 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
-                      dst = 6 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
-                      dst = 7 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
-                      dst = 8 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+                      dst = 1 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1-kinc ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 2 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1-kinc ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 3 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1-kinc ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 4 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1-kinc ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 5 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k        ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+                      dst = 6 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k        ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+                      dst = 7 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k        ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+                      dst = 8 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k        ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
 
-                      src = 1 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-                      src = 2 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-                      src = 3 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-                      src = 4 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-                      src = 5 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
-                      src = 6 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
-                      src = 7 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
-                      src = 8 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+                      src = 1 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k+kinc   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 2 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k+kinc   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 3 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k+kinc   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 4 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k+kinc   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 5 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k        ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+                      src = 6 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k        ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+                      src = 7 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k        ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+                      src = 8 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k        ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
                       do idst = 1,C%dof
                           icnt = icnt+1
@@ -1044,6 +1045,11 @@ contains
 
                 ! if(i.eq.C_one1%xs) print *,myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
 
+                if(newtheta.gt.90._ireals) then
+                  sun%angles(k,i,j)%kinc = i1
+                  newtheta = 180._ireals - newtheta
+                endif
+
                 sun%angles(k,i,j)%theta = max(zero, min( 90._ireals, newtheta ))
                 sun%angles(k,i,j)%phi = newphi
             enddo
@@ -1100,6 +1106,8 @@ contains
         endif
     endif
 
+    sun%angles%kinc = i0
+
     if(sun%luse_topography) call setup_topography(sun)
 
     sun%angles(:,:,:)%costheta = max( cos(deg2rad(sun%angles(:,:,:)%theta)), zero)
@@ -1120,8 +1128,12 @@ contains
         sun%angles%yinc=i0
     end where
 
-    if(ldebug.and.myid.eq.0) print *,myid,'setup_dir_inc done',count(sun%angles%xinc.eq.0),count(sun%angles%xinc.eq.i1), count(sun%angles%yinc.eq.0),count(sun%angles%yinc.eq.i1), '::', &
-                                    minval(sun%angles%xinc), maxval(sun%angles%xinc), minval(sun%angles%yinc), maxval(sun%angles%yinc)
+    !if(ldebug.and.myid.eq.0) print *,myid,'setup_dir_inc done', &
+    if(ldebug) print *,myid,'setup_dir_inc done', &
+      count(sun%angles%xinc.eq.0),count(sun%angles%xinc.eq.i1), &
+      count(sun%angles%yinc.eq.0),count(sun%angles%yinc.eq.i1), &
+      count(sun%angles%kinc.eq.0),count(sun%angles%kinc.eq.i1), &
+      '::', minval(sun%angles%xinc), maxval(sun%angles%xinc), minval(sun%angles%yinc), maxval(sun%angles%yinc)
 
     contains
         elemental function sym_rot_phi(phi)
@@ -1184,28 +1196,29 @@ contains
       MatStencil :: row(4,C%dof)  ,col(4,C%dof)
       PetscScalar :: v(C%dof**2),norm
 
-      integer(iintegers) :: dst,src, xinc, yinc
+      integer(iintegers) :: dst,src, xinc, yinc, kinc
 
       xinc = sun%angles(k,i,j)%xinc
       yinc = sun%angles(k,i,j)%yinc
+      kinc = sun%angles(k,i,j)%kinc
 
-      dst = 1 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-      dst = 2 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-      dst = 3 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-      dst = 4 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-      dst = 5 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
-      dst = 6 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
-      dst = 7 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
-      dst = 8 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+      dst = 1 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1-kinc ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 2 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1-kinc ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 3 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1-kinc ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 4 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1-kinc ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 5 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k        ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+      dst = 6 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k        ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+      dst = 7 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k        ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+      dst = 8 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k        ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
 
-      src = 1 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-      src = 2 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-      src = 3 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-      src = 4 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-      src = 5 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
-      src = 6 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
-      src = 7 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
-      src = 8 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+      src = 1 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k+kinc   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 2 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k+kinc   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 3 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k+kinc   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 4 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k+kinc   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 5 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k        ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+      src = 6 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k        ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+      src = 7 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k        ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+      src = 8 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k        ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
       call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j), .True., v, atm%l1d(atmk(k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
 
