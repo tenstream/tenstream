@@ -939,6 +939,11 @@ contains
 
     call getVecPointer(vhhl , C_one1, hhl1d, hhl)
 
+    rotmat = reshape( (/ one , zero, zero, &
+                         zero, one , zero, &
+                         nil , nil , one  /), &
+                     (/3, 3/), order=(/2, 1/) )
+
     do j=C_one%ys,C_one%ye
         do i=C_one%xs,C_one%xe
 
@@ -965,30 +970,17 @@ contains
                 grad(2) = -(hhl(i0,k+1,i,j+1)-hhl(i0,k+1,i,j-1)) / (2._ireals*atm%dy)
                 grad(3) = 1
 
-                boxtheta = atan2(sqrt(grad(1)**2 + grad(2)**2), grad(3))
-                !boxtheta = acos(grad(3)) ! alternative for normed grad
-                !Note that boxphi is defined counterclockwise from x-axis to
-                !y-axis (mathematical definition)
-                boxphi = atan2(grad(2), grad(1))
+                rotmat(3, :) = grad
+                
 
-                costb = cos(boxtheta)
-                sintb = sin(boxtheta)
-                cospb = cos(boxphi)
-                sinpb = sin(boxphi)
-
-                rotmat = reshape( (/ sinpb**2 + costb * cospb**2,           sinpb * cospb * (costb - 1._ireals),   (-cospb) * sintb, &
-                        sinpb * cospb * (costb - 1._ireals),   cospb**2 + costb * sinpb**2,           (-sinpb) * sintb, &
-                        cospb * sintb,                         sinpb * sintb,                         costb         /), &
-                        (/3, 3/), order=(/2, 1/) )
                 newxsun = matmul(rotmat, xsun)
 
-                newtheta = rad2deg(atan2(sqrt(newxsun(1)**2 + newxsun(2)**2), newxsun(3)))
-                ! alternative, as norm(xsun) = 1 also norm(newxsun) = 1
-                ! newtheta = rad2deg(acos(newxsun(3))
 
+
+                newtheta = rad2deg(atan2(sqrt(newxsun(1)**2 + newxsun(2)**2), newxsun(3)))
+                
                 !newphi in meteorologiecal definitions: clockwise from y-axis
                 newphi = rad2deg(atan2(newxsun(1), newxsun(2)))
-
 
                 ! if(i.eq.C_one1%xs) print *,myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
                 sun%angles(k,i,j)%theta = max(zero, min( 90._ireals, newtheta ))
