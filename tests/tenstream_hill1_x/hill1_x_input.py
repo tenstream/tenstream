@@ -13,7 +13,7 @@ def create_var(varname, axis, vals, newaxis, dim_prefix):
     fp = interp1d(axis, vals, kind='linear', fill_value = "extrapolate" )
     var = fp(newaxis)[:, :, ::-1]
 
-    fname = 'hill1_x_input.nc'
+    fname = 'input.nc'
     if os.path.exists(fname):
         D = NC.Dataset(fname, 'a')
     else:
@@ -46,11 +46,12 @@ def create_hill_x_input():
     from scipy.interpolate import interp1d
 
     # Create elevation map for gaussian hill
-    Nx, Ny = 3, 16
+    Nx, Ny = 3, 127
     
     elev = np.zeros((Nx, Ny))
     elev[:,(Ny-1)/2] = 1.
     elev = gf1d(elev, (Ny-1)/4, axis=1) 
+    elev /= np.max(elev) * .5  # 500m hill
 
     # Interpolate atmosphere file on new grid
     afglus = np.loadtxt('afglus_100m.dat')
@@ -66,7 +67,7 @@ def create_hill_x_input():
 
     # Create surface following sigma coordinates with coordinate stretching in the vertical
     for k in range(Nz):
-        hill[:, :, k] = hhl[:, :, k] + elev * np.exp(-hhl[:, :, k] / 4.)
+        hill[:, :, k] = hhl[:, :, k] + elev * np.exp(-hhl[:, :, k] / 1.)
 
     create_var('plev'  , afglus[:, 0], afglus[:, 1], hill, 'lev')
 

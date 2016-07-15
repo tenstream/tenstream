@@ -27,7 +27,7 @@ subroutine tenstream_hill1_x(this)
     integer(mpiint) :: numnodes, comm, myid
 
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=0, theta0=40
+    real(ireals),parameter :: phi0=0, theta0=60
     real(ireals),parameter :: albedo=0.2, dz=dx
     real(ireals),parameter :: atolerance = 1
     real(ireals),parameter :: rtolerance = .05
@@ -58,7 +58,7 @@ subroutine tenstream_hill1_x(this)
     call init_mpi_data_parameters(comm)
 
     if(myid.eq.0) then
-        nc_path(1) = 'hill1_x_input.nc'
+        nc_path(1) = 'input.nc'
         nc_path(2)='plev'  ;call ncload(nc_path, plev   , ncerr); CHKERRQ(ncerr)
         nc_path(2)='tlay'  ;call ncload(nc_path, tlay   , ncerr); CHKERRQ(ncerr)
         nc_path(2)='air'   ;call ncload(nc_path, air    , ncerr); CHKERRQ(ncerr)
