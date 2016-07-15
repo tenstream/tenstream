@@ -2441,26 +2441,48 @@ contains
         enddo
       enddo
 
-      if(sun%luse_topography .and. C%dof.eq.i8) then ! This is direct rad and we use topography !todo do we need this
+      if(sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this
         call compute_gradient(atm, vgrad_x, vgrad_y)
 
         call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
         call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
 
-        do j=C%ys,C%ye
-          do i=C%xs,C%xe
-            do k=C%ze,C%ze
-              grad(1) = grad_x(i0,k,i,j)
-              grad(2) = grad_y(i0,k,i,j)
-              grad(3) = one
-              grad = grad / norm(grad)
-              mu = grad(3)
+        select case (C%dof)
 
-              !if(mu.lt.one) print *,k,i,j,'::',mu
-              xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) * mu
+        case(i8)
+          do j=C%ys,C%ye
+            do i=C%xs,C%xe
+              do k=C%ze,C%ze
+                grad(1) = grad_x(i0,k,i,j)
+                grad(2) = grad_y(i0,k,i,j)
+                grad(3) = one
+                grad = grad / norm(grad)
+                mu = grad(3)
+
+                !if(mu.lt.one) print *,k,i,j,'::',mu
+                xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) * mu
+              enddo
             enddo
           enddo
-        enddo
+
+        case(i10)
+          do j=C%ys,C%ye
+            do i=C%xs,C%xe
+              do k=C%ze,C%ze
+                grad(1) = grad_x(i0,k,i,j)
+                grad(2) = grad_y(i0,k,i,j)
+                grad(3) = one
+                grad = grad / norm(grad)
+                mu = grad(3)
+
+                xv([E_up, E_dn],k,i,j) = xv([E_up, E_dn],k,i,j) * mu
+              enddo
+            enddo
+          enddo
+
+        case default
+          stop('Dont know how I should topography rescale this! - exiting...')
+        end select
 
         call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
         call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
