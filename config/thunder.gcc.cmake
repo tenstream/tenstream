@@ -8,7 +8,7 @@ set(CMAKE_C_COMPILER       "mpicc")
 set(CMAKE_Fortran_COMPILER "mpif90")
 
 set(USER_C_FLAGS               " -cpp --std=c99 ")
-set(USER_Fortran_FLAGS         " -cpp -fbacktrace -finit-real=nan -ffree-line-length-none ")
+set(USER_Fortran_FLAGS         " -cpp -fbacktrace -finit-real=nan -ffree-line-length-none -no-wrap-margin ")
 set(USER_Fortran_FLAGS_RELEASE " -funroll-all-loops -O3 -march=native -mtune=native ")
 set(USER_Fortran_FLAGS_DEBUG   " -W -Wall -Wuninitialized -fcheck=all -fbacktrace -O0 -g -ffpe-trap=invalid,zero,overflow ")
 
