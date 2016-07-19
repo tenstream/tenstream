@@ -27,7 +27,7 @@ subroutine test_rrtm_sw(this)
     integer(mpiint) :: numnodes, comm, myid
 
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=0, theta0=60
+    real(ireals),parameter :: phi0=180, theta0=70
     real(ireals),parameter :: albedo=0.2, dz=dx
     integer(iintegers),parameter :: icollapse=40
 
@@ -57,7 +57,7 @@ subroutine test_rrtm_sw(this)
     call init_mpi_data_parameters(comm)
 
     if(myid.eq.0) then
-        nc_path(1) = 'wetterstein_input.nc'
+        nc_path(1) = 'input.nc'
         nc_path(2)='plev'  ;call ncload(nc_path, plev   , ncerr); CHKERRQ(ncerr)
         nc_path(2)='tlay'  ;call ncload(nc_path, tlay   , ncerr); CHKERRQ(ncerr)
         nc_path(2)='air'   ;call ncload(nc_path, air    , ncerr); CHKERRQ(ncerr)
