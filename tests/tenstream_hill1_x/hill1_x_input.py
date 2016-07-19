@@ -3,15 +3,11 @@
 
 import numpy as np
 
-
-def create_var(varname, axis, vals, newaxis, dim_prefix):
+def create_var(varname, var, dim_prefix):
     """ Write regridded data to netcdf file """
     import os
     import netCDF4 as NC
     from scipy.interpolate import interp1d
-
-    fp = interp1d(axis, vals, kind='linear', fill_value = "extrapolate" )
-    var = fp(newaxis)[:, :, ::-1]
 
     fname = 'input.nc'
     if os.path.exists(fname):
@@ -39,6 +35,23 @@ def create_var(varname, axis, vals, newaxis, dim_prefix):
 
     D.close()
 
+
+def interp_var(old_pressure_grid, var, new_pressure_grid):
+   """ use afglus values and interpolate it on the hill pressure grid """
+   from scipy.interpolate import interp1d
+   p_us = old_pressure_grid
+
+   Nx, Ny, Nz = np.shape(new_pressure_grid)
+   new_var = np.zeros_like(new_pressure_grid) * np.NaN
+   for i in range(Nx):
+     for j in range(Ny):
+
+       fp = interp1d(p_us, var, kind='linear')
+
+       new_var[i,j] = fp(new_pressure_grid[i,j])
+   return new_var
+
+
 def create_hill_x_input():
     """ Create Input for TenStream caluclations on a gaussian hill"""
     from scipy.ndimage.filters import gaussian_filter as gf
@@ -48,37 +61,48 @@ def create_hill_x_input():
     # Create elevation map for gaussian hill
     Nx, Ny = 3, 127
     
+    DX = .1  # 100m horizontal resolution
+    HILL_HEIGHT = 1.5  # 500m hill
+
     elev = np.zeros((Nx, Ny))
     elev[:,(Ny-1)/2] = 1.
-    elev = gf1d(elev, (Ny-1)/4, axis=1) 
-    elev /= np.max(elev) * .5  # 500m hill
+    elev = gf1d(elev, HILL_HEIGHT/DX, axis=1)
+    elev /= np.max(elev) / HILL_HEIGHT
 
     # Interpolate atmosphere file on new grid
     afglus = np.loadtxt('afglus_100m.dat')
-    z = afglus[:,0]
-    Nz = np.shape(z)[-1]
 
+    z = afglus[:,0]
     p = afglus[:,1]
 
-    fp = interp1d(z, p, kind='linear')
+    Nz = np.shape(z)[-1]
+
+    pressure_by_height = interp1d(z, p, kind='linear')
 
     hhl = np.tile(z, Nx*Ny).reshape((Nx, Ny, Nz))[:, :, ::-1]  # hhl now begins at surface 
     hill = hhl.copy()
 
     # Create surface following sigma coordinates with coordinate stretching in the vertical
     for k in range(Nz):
-        hill[:, :, k] = hhl[:, :, k] + elev * np.exp(-hhl[:, :, k] / 1.)
+        hill[:, :, k] = hhl[:, :, k] + elev * np.exp(-hhl[:, :, k] / HILL_HEIGHT)
 
-    create_var('plev'  , afglus[:, 0], afglus[:, 1], hill, 'lev')
+    hill = np.minimum(hill, np.max(z))
+    hill = hill[:,:,::-1]  # hhl now begins at TOA
+    p_hill = pressure_by_height(hill)
 
-    create_var('tlay',   afglus[:, 0], afglus[:, 2], (hill[:, :, 1:]+hill[:, :, :-1])*.5, 'lay')
-    create_var('air',    afglus[:, 0], afglus[:, 3], (hill[:, :, 1:]+hill[:, :, :-1])*.5, 'lay')
-    create_var('o3vmr',  afglus[:, 0], afglus[:, 4], (hill[:, :, 1:]+hill[:, :, :-1])*.5, 'lay')
-    create_var('o2vmr',  afglus[:, 0], afglus[:, 5], (hill[:, :, 1:]+hill[:, :, :-1])*.5, 'lay')
-    create_var('h2ovmr', afglus[:, 0], afglus[:, 6], (hill[:, :, 1:]+hill[:, :, :-1])*.5, 'lay')
-    create_var('co2vmr', afglus[:, 0], afglus[:, 7], (hill[:, :, 1:]+hill[:, :, :-1])*.5, 'lay')
-    create_var('n2ovmr', afglus[:, 0], afglus[:, 8], (hill[:, :, 1:]+hill[:, :, :-1])*.5, 'lay')
+    lev_coord = p_hill
 
+    create_var('plev'  , interp_var(p, afglus[:, 1], lev_coord), 'lev')
+
+    lay_coord = (lev_coord[:,:,1:] + lev_coord[:,:,:-1]) / 2
+
+    create_var('tlay',   interp_var(p, afglus[:, 2], lay_coord), 'lay')
+    create_var('air',    interp_var(p, afglus[:, 3], lay_coord), 'lay')
+    create_var('o3vmr',  interp_var(p, afglus[:, 4], lay_coord), 'lay')
+    create_var('o2vmr',  interp_var(p, afglus[:, 5], lay_coord), 'lay')
+    create_var('h2ovmr', interp_var(p, afglus[:, 6], lay_coord), 'lay')
+    create_var('co2vmr', interp_var(p, afglus[:, 7], lay_coord), 'lay')
+    create_var('n2ovmr', interp_var(p, afglus[:, 8], lay_coord), 'lay')
 
 if __name__ == '__main__':
     create_hill_x_input()
