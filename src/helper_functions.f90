@@ -29,7 +29,7 @@ module m_helper_functions
       private
       public imp_bcast,norm,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
           mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, &
-          gradient, read_ascii_file_2d, meanvec
+          gradient, read_ascii_file_2d, meanvec, swap
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -38,6 +38,13 @@ module m_helper_functions
       integer(mpiint) :: mpierr
 
     contains
+      pure elemental subroutine swap(x,y)
+          real(ireals),intent(inout) :: x,y
+          real(ireals) :: tmp
+          tmp = x
+          x = y
+          y = tmp
+      end subroutine
       pure elemental subroutine inc(x,i)
           real(ireals),intent(inout) :: x
           real(ireals),intent(in) :: i
