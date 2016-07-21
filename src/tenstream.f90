@@ -2342,7 +2342,7 @@ contains
     endif
 
   contains
-    subroutine scale_flx_vec(v,C,lWm2_to_W)
+    subroutine scale_flx_vec(v, C, lWm2_to_W)
       Vec :: v
       type(t_coord) :: C
       PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
@@ -2432,14 +2432,14 @@ contains
       enddo
 
       if(sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this
-        call compute_gradient(atm, vgrad_x, vgrad_y)
-
-        call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
-        call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
-
         select case (C%dof)
 
         case(i8)
+          call compute_gradient(atm, vgrad_x, vgrad_y)
+
+          call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+          call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
           do j=C%ys,C%ye
             do i=C%xs,C%xe
               do k=C%zs,C%ze
@@ -2452,28 +2452,40 @@ contains
             enddo
           enddo
 
-        case(i10)
-          do j=C%ys,C%ye
-            do i=C%xs,C%xe
-              do k=C%zs,C%ze
-                grad(1) = grad_x(i0,k,i,j)
-                grad(2) = grad_y(i0,k,i,j)
-                grad(3) = one
+          call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+          call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
 
-                xv([E_up, E_dn],k,i,j) = xv([E_up, E_dn],k,i,j) / norm(grad)
-              enddo
-            enddo
-          enddo
+          call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  CHKERRQ(ierr)
+          call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  CHKERRQ(ierr)
+
+        case(i6)
+          ! Dont rescale diffuse fluxes
+
+        case(i10)
+
+          ! Dont rescale diffuse fluxes
+
+          ! call compute_gradient(atm, vgrad_x, vgrad_y)
+
+          ! call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+          ! call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+          !do j=C%ys,C%ye
+          !  do i=C%xs,C%xe
+          !    do k=C%zs,C%ze
+          !      grad(1) = grad_x(i0,k,i,j)
+          !      grad(2) = grad_y(i0,k,i,j)
+          !      grad(3) = one
+
+          !      xv([E_up, E_dn],k,i,j) = xv([E_up, E_dn],k,i,j) / norm(grad)
+          !    enddo
+          !  enddo
+          !enddo
 
         case default
           stop('Dont know how I should topography rescale this! - exiting...')
         end select
 
-        call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
-        call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
-
-        call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  CHKERRQ(ierr)
-        call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  CHKERRQ(ierr)
       endif
 
       call restoreVecPointer(v ,C ,xv1d, xv )
