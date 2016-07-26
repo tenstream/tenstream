@@ -1392,7 +1392,7 @@ contains
       if(ldebug) then
         do src=1,C%dof
           norm = sum( v(src:C%dof**2:C%dof) )
-          if( real(norm).gt.real(one) ) then
+          if( norm.gt.one+10._ireals*epsilon(one) ) then
             print *,'diffuse sum(dst==',dst,') gt one',norm
             stop 'omg.. shouldnt be happening'
             ierr = -5
