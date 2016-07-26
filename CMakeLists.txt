@@ -182,6 +182,11 @@ if(ENABLE_RRTM)
 	add_subdirectory(src_rrtmg)
 endif(ENABLE_RRTM)
 
+option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES" OFF)
+if(ENABLE_EXAMPLES)
+	add_subdirectory(examples)
+endif(ENABLE_EXAMPLES)
+
 find_program(CTAGS_PATH ctags)
 if(CTAGS_PATH)
     message(STATUS "Found ctags: ${CTAGS_PATH}")
