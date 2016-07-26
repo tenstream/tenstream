@@ -59,7 +59,7 @@ def create_hill_x_input():
     from scipy.interpolate import interp1d
 
     # Create elevation map for gaussian hill
-    Nx, Ny = 3, 127
+    Nx, Ny = 3, 31
     
     DX = .1  # 100m horizontal resolution
     HILL_HEIGHT = 1.5  # 500m hill

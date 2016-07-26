@@ -1,4 +1,4 @@
-@test(npes =[8])
+@test(npes =[16])
 subroutine tenstream_hill1_x(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi
@@ -38,7 +38,7 @@ subroutine tenstream_hill1_x(this)
     real(ireals),allocatable,dimension(:,:,:) :: plev                                               ! nlay+1, nxp, nyp
     real(ireals),allocatable,dimension(:,:,:) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr ! nlay  , nxp, nyp
     real(ireals),allocatable,dimension(:,:,:) :: lwc, reliq, air                                    ! nlay  , nxp, nyp
-    real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! nlyr(+1), global_nx, global_ny
+    real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso                ! nlyr(+1), global_nx, global_ny
 
     character(len=80) :: nc_path(2) ! [ filename, varname ]
     real(ireals),allocatable :: tmp(:,:,:)
@@ -48,6 +48,10 @@ subroutine tenstream_hill1_x(this)
     integer(iintegers) :: ncerr
 
     logical,parameter :: ldebug=.True.
+
+    real(ireals),allocatable :: target_edir(:)
+    real(ireals),allocatable :: target_edn(:)
+    real(ireals),allocatable :: target_abso(:)
 
     PetscErrorCode :: ierr
 
@@ -110,34 +114,52 @@ subroutine tenstream_hill1_x(this)
     endif
     call tenstream_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir, edn, eup, abso)
 
-    if(myid.eq.0.and.ldebug) then
+    if(myid.eq.0) then
         if(ldebug) then
-            do k=1,nlay+1
-                print *,k,'edir', edir(k,1,1), edn(k,1,1), eup(k,1,1), abso(min(nlay,k),1,1)
-            enddo
+          do k=1,nlay+1
+            print *,k,'edir', edir(k,1,1), edn(k,1,1), eup(k,1,1), abso(min(nlay,k),1,1)
+          enddo
+
+          nc_path(1) = 'output.nc'
+          print *,'writing output to file', nc_path(1)
+          nc_path(2)='edir' ; call fill_nzout(edir); call ncwrite(nc_path, tmp, ncerr)
+          nc_path(2)='edn'  ; call fill_nzout(edn ); call ncwrite(nc_path, tmp, ncerr)
+          nc_path(2)='eup'  ; call fill_nzout(eup ); call ncwrite(nc_path, tmp, ncerr)
+          nc_path(2)='abso' ; call fill_nzout(abso); call ncwrite(nc_path, tmp, ncerr)
+          nc_path(2)='plev' ; call fill_nzout(plev); call ncwrite(nc_path, tmp, ncerr)
+          nc_path(2)='Qnet' ; call ncwrite(nc_path, edir(nlay+1,:,:)+edn(nlay+1,:,:), ncerr)
+          nc_path(2)='psrfc'; call ncwrite(nc_path, plev(nlay+1,:,:), ncerr)
+          print *,'done',shape(edir)
+          print *,'abso _srfc',abso(nlay  ,2,:)
         endif
 
-        nc_path(1) = 'output.nc'
-        print *,'writing output to file', nc_path(1)
-        nc_path(2)='edir' ; call fill_nzout(edir); call ncwrite(nc_path, tmp, ncerr)
-        nc_path(2)='edn'  ; call fill_nzout(edn ); call ncwrite(nc_path, tmp, ncerr)
-        nc_path(2)='eup'  ; call fill_nzout(eup ); call ncwrite(nc_path, tmp, ncerr)
-        nc_path(2)='abso' ; call fill_nzout(abso); call ncwrite(nc_path, tmp, ncerr)
-        nc_path(2)='plev' ; call fill_nzout(plev); call ncwrite(nc_path, tmp, ncerr)
-        nc_path(2)='Qnet' ; call ncwrite(nc_path, edir(nlay+1,:,:)+edn(nlay+1,:,:), ncerr)
-        nc_path(2)='psrfc'; call ncwrite(nc_path, plev(nlay+1,:,:), ncerr)
-        print *,'done',shape(edir)
+        allocate( target_edir(nyp) )
+        target_edir = [ 479.4954, 469.4137, 461.5663, 453.6571, 446.9970, 442.0156,    &
+          438.7523, 437.1892, 437.4877, 439.7622, 443.9711, 450.0184, 457.4526, &
+          467.4857, 476.4721, 485.6826, 492.7633, 500.9566, 509.2136, 515.4571, &
+          520.4636, 523.8958, 525.6567, 525.7076, 524.1005, 520.9698, 516.4503, &
+          510.9528, 505.1550, 496.9903, 488.7550]
 
-        @assertEqual(0.0, edir(nlay+1,1,1), atolerance, 'solar at surface :: edir       not correct')
-        @assertEqual(0.0, edn (nlay+1,1,1), atolerance, 'solar at surface :: downw flux not correct')
-        @assertEqual(0.0, eup (nlay+1,1,1), atolerance, 'solar at surface :: upward fl  not correct')
-        @assertEqual(0.0, abso(nlay  ,1,1), atolerance, 'solar at surface :: absorption not correct')
+        allocate( target_edn(nyp) )
+        target_edn = [43.51924, 43.49717, 43.51923, 43.49463, 43.49198, &
+          43.50251, 43.52306, 43.54593, 43.57961, 43.62609, 43.67543, 43.72336, &
+          43.77139, 43.82191, 43.83408, 43.87674, 43.89641, 43.94455, 43.94963, &
+          43.94936, 43.93943, 43.91687, 43.88498, 43.85325, 43.81978, 43.77658, &
+          43.73243, 43.69201, 43.66598, 43.58746, 43.54970]
 
-        @assertEqual(0.0, edir(1,1,1), atolerance, 'solar at TOA :: edir       not correct')
-        @assertEqual(0.0, edn (1,1,1), atolerance, 'solar at TOA :: downw flux not correct')
-        @assertEqual(0.0, eup (1,1,1), atolerance, 'solar at TOA :: upward fl  not correct')
-        @assertEqual(0.0, abso(1,1,1), atolerance, 'solar at TOA :: absorption not correct')
+        allocate( target_abso(nyp) )
+        target_abso = [1.5701262E-02, 1.5620301E-02, 1.5592689E-02,   &
+          1.5966615E-02, 1.6579399E-02, 1.7405437E-02, 1.8453605E-02, &
+          1.9726738E-02, 2.1241061E-02, 2.2985294E-02, 2.4917131E-02, &
+          2.6942026E-02, 2.8901748E-02, 3.0621707E-02, 3.1606011E-02, &
+          3.2174263E-02, 3.1969056E-02, 3.1328052E-02, 2.9930128E-02, &
+          2.8154518E-02, 2.6231173E-02, 2.4317959E-02, 2.2520296E-02, &
+          2.0905165E-02, 1.9501472E-02, 1.8310279E-02, 1.7332951E-02, &
+          1.6557695E-02, 1.6030772E-02, 1.5902195E-02, 1.5793735E-02]
 
+        @assertEqual( target_edir, edir(nlay+1,2,:), atolerance, 'solar at surface :: edir       not correct')
+        @assertEqual( target_edn , edn (nlay+1,2,:), atolerance, 'solar at surface :: edn        not correct')
+        @assertEqual( target_abso, abso(nlay+1,2,:), atolerance, 'solar at surface :: absorption not correct')
     endif
 
     contains 
