@@ -28,7 +28,7 @@ module m_optprop_ANN
 
   implicit none
   private
-  public ANN_init,ANN_get_dir2dir,ANN_get_dir2diff,ANN_get_diff2diff
+  public ANN_init, ANN_destroy, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 
   logical,parameter :: check_input=.True.
 
@@ -44,13 +44,18 @@ module m_optprop_ANN
     logical :: initialized=.False.
   end type
 
-  type(ANN),save :: diff2diff_network, dir2dir_network, dir2diff_network, direct_network
+  type(ANN),allocatable,save :: diff2diff_network, dir2dir_network, dir2diff_network
 
   real(ireals),parameter :: min_lim_coeff = zero
   logical,parameter :: lrenormalize=.True.
 ! logical,parameter :: lrenormalize=.False.
 
 contains
+  subroutine ANN_destroy()
+    if(allocated(diff2diff_network)) deallocate(diff2diff_network)
+    if(allocated(dir2diff_network)) deallocate(dir2diff_network)
+    if(allocated(dir2dir_network)) deallocate(dir2dir_network)
+  end subroutine
 
   subroutine ANN_init(dx, dy, comm, ierr)
       real(ireals),intent(in) :: dx,dy
@@ -79,15 +84,18 @@ contains
         write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') &
           idx,Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,ldelta_scale,delta_scale_truncate
 
+        allocate(diff2diff_network)
         netname = trim(basename)//trim(descr)//'_diff2diff.ANN.nc'
         call loadnet(netname, diff2diff_network, ierr)
 
         write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') &
           idx, Ndz_8_10, Nkabs_8_10, Nksca_8_10, Ng_8_10, ldelta_scale, delta_scale_truncate
 
+        allocate(dir2diff_network)
         netname = trim(basename)//trim(descr)//'_dir2diff.ANN.nc'
         call loadnet(netname, dir2diff_network, ierr)
 
+        allocate(dir2dir_network)
         netname = trim(basename)//trim(descr)//'_dir2dir.ANN.nc'
         call loadnet(netname, dir2dir_network, ierr)
       endif

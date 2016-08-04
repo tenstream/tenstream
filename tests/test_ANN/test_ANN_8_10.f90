@@ -2,7 +2,7 @@ module test_ANN_8_10
   use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
   use m_data_parameters, only : mpiint,ireals,iintegers,one,zero, init_mpi_data_parameters,i1
   use m_optprop_parameters, only : stddev_atol
-  use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
+  use m_optprop_ANN, only : ANN_init, ANN_destroy, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse
 
@@ -185,6 +185,7 @@ contains
 
             call check(BMC_dir2diff,BMC_dir2dir,ANN_dir2diff,ANN_dir2dir, msg='test_ANN_direct_coeffs')
         endif ! loaded ANN
+        call ANN_destroy()
       end associate
   endsubroutine 
 
