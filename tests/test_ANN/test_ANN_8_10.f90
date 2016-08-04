@@ -76,13 +76,12 @@ contains
 
       integer(iintegers) :: itest,iloop
 
-      print *,'get_parameters'
       do iloop=1,2
         if(iloop.eq.2) allocate(params(itest))
         itest=0
 
         do ikabs=0,8,5
-          do iksca=1,8,5
+          do iksca=2,8,5
             do ig=0,5,5
               do iphi=0,0,50
                 do itheta=0,0,50
@@ -142,6 +141,50 @@ contains
       call PetscFinalize(ierr) 
       if(myid.eq.0) print *,'Finishing ANN tests module'
   end subroutine teardown
+
+  @test( npes=[8], testParameters={getParameters()} )
+  subroutine test_ANN_diffuse_coeff(this)
+      class (parameterized_test), intent(inout) :: this
+
+      integer(iintegers) :: src
+
+      comm     = this%getMpiCommunicator()
+      numnodes = this%getNumProcesses()
+      myid     = this%getProcessRank()
+
+      associate( &
+            kabs => this%kabs, &
+            ksca => this%ksca, &
+            g    => this%g,    &
+            phi  => this%phi,  &
+            theta=> this%theta )
+
+
+        call ANN_init(dx, dy, comm, ierr)
+        if(myid.eq.0) print *,'Echo Test for ::',kabs,ksca,g,'::',ierr
+        if(ierr.eq.0) then
+
+            call ANN_get_diff2diff (dz, kabs,ksca,g , ANN_diff2diff)
+
+            ANN_dir2dir = zero
+            BMC_dir2dir = zero
+
+            do src=1,10
+
+                call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,        &
+                                        .False.,phi,theta,dx,dy,dz,    &
+                                        S_target,T_target,S_tol,T_tol, &
+                                        inp_atol=atol, inp_rtol=rtol)
+
+                ! Rearrange coeffs from dst_ordering to src ordering:
+                BMC_diff2diff(src : 10*10 : 10) = S_target
+            enddo
+
+            call check(BMC_diff2diff,BMC_dir2dir,ANN_diff2diff,ANN_dir2dir, msg='test_ANN_direct_coeffs')
+        endif ! loaded ANN
+        call ANN_destroy()
+      end associate
+  endsubroutine 
 
   @test( npes=[8], testParameters={getParameters()} )
   subroutine test_ANN_direct_coeff(this)
