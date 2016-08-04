@@ -102,6 +102,11 @@ contains
       call imp_bcast(comm, ierr, 0_mpiint, myid)
 
       if (comm_size.gt.1 .and. ierr.eq.0) then 
+        if(myid.ne.0) then
+          allocate( diff2diff_network )
+          allocate( dir2diff_network  )
+          allocate( dir2dir_network   )
+        endif
         call scatter_ANN ( diff2diff_network )
         call scatter_ANN ( dir2diff_network  )
         call scatter_ANN ( dir2dir_network   )

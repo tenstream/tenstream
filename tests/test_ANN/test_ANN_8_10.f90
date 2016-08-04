@@ -143,7 +143,7 @@ contains
       if(myid.eq.0) print *,'Finishing ANN tests module'
   end subroutine teardown
 
-  @test( npes=[1,2], testParameters={getParameters()} )
+  @test( npes=[8], testParameters={getParameters()} )
   subroutine test_ANN_direct_coeff(this)
       class (parameterized_test), intent(inout) :: this
 
@@ -224,6 +224,7 @@ contains
               call check(S_target,T_target, S,T, msg='test_ANN_direct_lambert_beer')
           enddo
       endif
+      call ANN_destroy()
   end subroutine
 
 
