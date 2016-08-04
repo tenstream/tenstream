@@ -58,7 +58,7 @@ module m_tenstream
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
-  use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and,imp_allreduce_min
+  use m_helper_functions, only: norm,rad2deg,deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and,imp_allreduce_min,imp_allreduce_max
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -70,7 +70,7 @@ module m_tenstream
   implicit none
 
   private
-  public :: init_tenstream, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
+  public :: init_tenstream, set_angles, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
     getVecPointer,restoreVecPointer, &
     tenstream_get_result, tenstream_get_result_toZero, need_new_solution, &
     t_coord,C_dir,C_diff,C_one,C_one1,C_one_atm, C_one_atm1
@@ -122,16 +122,21 @@ module m_tenstream
   type(t_optprop_1_2),save  :: OPP_1_2
   type(t_optprop_8_10),save :: OPP_8_10
 
-  type t_suninfo
+  type t_sunangles
     real(ireals) :: symmetry_phi
     integer(iintegers) :: yinc,xinc
-    real(ireals) :: theta,phi,costheta,sintheta
+    real(ireals) :: theta, phi, costheta, sintheta 
   end type
-  type(t_suninfo),save :: sun
+  type t_suninfo
+    type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
+    logical :: luse_topography=.False.
+  end type
+  type(t_suninfo) :: sun
 
   PetscLogStage,save,allocatable :: logstage(:)
 
   Mat,save :: Mdir,Mdiff
+  logical,save :: linit_mat=.False.
 
   Vec,save :: incSolar,b
 
@@ -345,7 +350,7 @@ contains
     call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
 
     ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
-    call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr) 
+    !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr) 
 
     ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
 
@@ -499,119 +504,140 @@ contains
       call DMRestoreGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
       call DMRestoreGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
 
-      if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
+      if(myid.eq.0 .and. ldebug) print *,myid,'diff_10 d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
     end subroutine 
     subroutine setup_dir8_preallocation(d_nnz,o_nnz,C)
       PetscInt,allocatable :: d_nnz(:)
       PetscInt,allocatable :: o_nnz(:)
       type(t_coord) :: C
       Vec :: v_o_nnz,v_d_nnz
+      Vec :: g_o_nnz,g_d_nnz
       PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
       PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
 
-      PetscInt :: vsize,i,j,k
+      PetscInt :: vsize,i,j,k, isrc, idst, xinc, yinc, src, dst, icnt, ind(4)
 
-      logical :: lsun_east,lsun_north
-      lsun_east  = (sun%xinc.eq.i0)
-      lsun_north = (sun%yinc.eq.i0 )
+      logical :: llocal_src, llocal_dst
+
+      MatStencil :: row(4,C%dof)  ,col(4,C%dof)
 
       if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
-      call DMGetGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMGetGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
-
-      call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
-      allocate(o_nnz(0:vsize-1))
-      allocate(d_nnz(0:vsize-1))
+      call DMGetLocalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
 
       call getVecPointer(v_o_nnz,C,xo1d,xo)
       call getVecPointer(v_d_nnz,C,xd1d,xd)
 
+      
+      xd = i0 
       xo = i0
-      xd = C%dof+i1
 
-      xd( i0:i3 ,C%zs+1:C%ze  , C%xs:C%xe, C%ys:C%ye ) = C%dof+i1 ! Edir_vertical depends on 3 values Edir_vertical,xaxis,yaxis :: starting with second entries(seen from top)
-      xd( i4:i7 ,C%zs  :C%ze-1, C%xs:C%xe, C%ys:C%ye ) = C%dof+i1 ! Edir_xaxis,yaxis depends on 3 values Edir_vertical,xaxis,yaxis :: starting with first entries(seen from top)
-
+      icnt = -1
       do j=C%ys,C%ye
-        if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 ) then ! real neigh east
-          if( lsun_east ) then 
-            ! if the sun is in the east, the channels in the last box are influenced by the 2nd channel which is a ghost
-            xo(i0:i3, C%zs+1:C%ze, C%xe, j) = xo(i0:i3, C%zs+1:C%ze, C%xe, j)+i2 ! channel 1 from zs+1 to ze
-            xd(i0:i3, C%zs+1:C%ze, C%xe, j) = xd(i0:i3, C%zs+1:C%ze, C%xe, j)-i2
-            !                                if(myid.eq.0.and.ldebug.and.j.eq.C%ys) print *,myid,'Dir prealloc 0:3: lsun_east :: xo',xo(i0:i3, C%xe, j, C%zs+1), 'xd',xd(i0:i3, C%xe, j, C%zs+1)
+          do i=C%xs,C%xe        
+              do k=C%zs,C%ze-1
 
-            xo(i4:i7, C%zs:C%ze-1, C%xe, j) = xo(i4:i7, C%zs:C%ze-1, C%xe, j)+i2 ! channel 2 and 3 from zs to ze-1
-            xd(i4:i7, C%zs:C%ze-1, C%xe, j) = xd(i4:i7, C%zs:C%ze-1, C%xe, j)-i2
-            !                                if(myid.eq.0.and.ldebug.and.j.eq.C%ys) print *,myid,'Dir prealloc 4:7: lsun_east :: xo',xo(i4:i7, C%xe, j, C%zs), 'xd',xd(i4:i7, C%xe, j, C%zs)
-            if(ldebug) then
-              if(any(xd.lt.i0)) print *,myid,'lsun_east :: something wrong happened, we can not have preallocation to be less than 0 in xd!'
-              if(any(xo.lt.i0)) print *,myid,'lsun_east :: something wrong happened, we can not have preallocation to be less than 0 in xo!'
-            endif
-          endif
-        endif
-      enddo
-      do i=C%xs,C%xe
-        if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 ) then ! real neigh north
-          if( lsun_north ) then 
-            ! if the sun is in the north, the 3rd channel is a ghost
-            !                                if(myid.eq.0.and.ldebug.and.i.eq.C%xs) print *,myid,'before Dir prealloc 0:3: lsun_north :: xo',xo(i0:i3, i, C%ye, C%zs+1), 'xd',xd(i0:i3, i, C%ye, C%zs+1)
-            xo(i0:i3, C%zs+1:C%ze, i, C%ye) = xo(i0:i3, C%zs+1:C%ze, i, C%ye)+i2 ! channel 1 from zs+1 to ze
-            xd(i0:i3, C%zs+1:C%ze, i, C%ye) = xd(i0:i3, C%zs+1:C%ze, i, C%ye)-i2
-            !                                if(myid.eq.0.and.ldebug.and.i.eq.C%xs) print *,myid,'Dir prealloc 0:3: lsun_north :: xo',xo(i0:i3, i, C%ye, C%zs+1), 'xd',xd(i0:i3, i, C%ye, C%zs+1)
+                  if( atm%l1d(atmk(k),i,j) ) then
+                      do idst=i0,i3
+                          call inc( xd(idst, k+1, i,j), one )
+                      enddo
+                  else
+                      xinc = sun%angles(k,i,j)%xinc
+                      yinc = sun%angles(k,i,j)%yinc
 
-            xo(i4:i7, C%zs:C%ze-1,  i, C%ye) = xo(i4:i7, C%zs:C%ze-1, i, C%ye)+i2 ! channel 2 and 3 from zs
-            xd(i4:i7, C%zs:C%ze-1,  i, C%ye) = xd(i4:i7, C%zs:C%ze-1, i, C%ye)-i2
-            !                                if(myid.eq.0.and.ldebug.and.i.eq.C%xs) print *,myid,'Dir prealloc 4:7: lsun_norht :: xo',xo(i4:i7, i, C%ye, C%zs), 'xd',xd(i4:i7, i, C%ye, C%zs)
-            if(ldebug) then
-              if(any(xd.lt.i0)) print *,myid,'lsun_north :: something wrong happened, we can not have preallocation to be less than 0 in xd!'
-              if(any(xo.lt.i0)) print *,myid,'lsun_north :: something wrong happened, we can not have preallocation to be less than 0 in xo!'
-            endif
-          endif
-        endif
-      enddo
-      do j=C%ys,C%ye
-        lsun_east  = (sun%xinc.eq.i0)
+                      dst = 1 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 2 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 3 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 4 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+                      dst = 5 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+                      dst = 6 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+                      dst = 7 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+                      dst = 8 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
 
-        if( C%neighbors(10).ne.myid.and. C%neighbors(10).ge.i0 ) then ! real neigh west
-          if( .not. lsun_east ) then 
-            ! if the sun is in the west, the 2nd channel is solemnly dependant on ghost values
-            xo(i4:i5, C%zs:C%ze-1, C%xs, j) = C%dof
-            xd(i4:i5, C%zs:C%ze-1, C%xs, j) = i1
-          endif
-        endif
-      enddo
-      do i=C%xs,C%xe
-        lsun_north = (sun%yinc.eq.i0 )
+                      src = 1 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 2 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 3 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 4 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+                      src = 5 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+                      src = 6 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+                      src = 7 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+                      src = 8 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
-        if( C%neighbors(4).ne.myid .and. C%neighbors(4).ge.i0 ) then ! real neigh south
-          if( .not. lsun_north ) then 
-            ! if the sun is in the south, the 3rd channel is solemnly dependant on ghost values
-            xo(i6:i7, C%zs:C%ze-1, i, C%ys) = C%dof
-            xd(i6:i7, C%zs:C%ze-1, i, C%ys) = i1
-          endif
-        endif
-      enddo
+                      do idst = 1,C%dof
+                          icnt = icnt+1
+                          llocal_dst = .True.
+                          if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. row(MatStencil_j,idst).lt.C%xs ) llocal_dst = .False. ! have real neighbor west  and is not local entry
+                          if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. row(MatStencil_j,idst).gt.C%xe ) llocal_dst = .False. ! have real neighbor east  and is not local entry
+                          if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. row(MatStencil_k,idst).lt.C%ys ) llocal_dst = .False. ! have real neighbor south and is not local entry
+                          if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. row(MatStencil_k,idst).gt.C%ye ) llocal_dst = .False. ! have real neighbor north and is not local entry
 
-      do j=C%ys,C%ye
-        do i=C%xs,C%xe      
-          do k=C%zs,C%ze-1
-            if( atm%l1d(atmk(k),i,j) ) then
-              xo(:  ,k,i,j) = i0
-              xd(:  ,k,i,j) = i1
-              xd(0:3,k,i,j) = i5
-            endif
+                          do isrc = 1,C%dof
+                              llocal_src = .True.
+
+                              if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. col(MatStencil_j,isrc).lt.C%xs ) llocal_src = .False. ! have real neighbor west  and is not local entry
+                              if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. col(MatStencil_j,isrc).gt.C%xe ) llocal_src = .False. ! have real neighbor east  and is not local entry
+                              if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. col(MatStencil_k,isrc).lt.C%ys ) llocal_src = .False. ! have real neighbor south and is not local entry
+                              if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. col(MatStencil_k,isrc).gt.C%ye ) llocal_src = .False. ! have real neighbor north and is not local entry
+
+                              !if(myid.eq.0) print *,myid,icnt,k,i,j,'::',idst,isrc,'::',llocal_dst,llocal_src
+                              if(llocal_dst .and. llocal_src) then
+                                  call inc(xd(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
+                              else
+                                  call inc(xo(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
+                              endif
+                          enddo
+                      enddo
+                  endif
+              enddo
           enddo
-        enddo
       enddo
-
-      o_nnz=int(xo1d)
-      d_nnz=int(xd1d)
 
       call restoreVecPointer(v_o_nnz,C,xo1d,xo)
       call restoreVecPointer(v_d_nnz,C,xd1d,xd)
 
-      call DMRestoreGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;CHKERRQ(ierr)
+      call VecSet(g_o_nnz, zero, ierr); CHKERRQ(ierr)
+      call VecSet(g_d_nnz, zero, ierr); CHKERRQ(ierr)
+
+      call DMLocalToGlobalBegin(C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalEnd  (C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;CHKERRQ(ierr)
+
+      call DMLocalToGlobalBegin(C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalEnd  (C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;CHKERRQ(ierr)
+
+      call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+
+      call getVecPointer(g_o_nnz,C,xo1d,xo)
+      call getVecPointer(g_d_nnz,C,xd1d,xd)
+
+      !call mpi_barrier(imp_comm, ierr)
+      !icnt = -1
+      !do j=C%ys,C%ye
+      !    do i=C%xs,C%xe        
+      !        do k=C%zs,C%ze
+      !            do idst = 1,C%dof
+      !                icnt = icnt+1
+      !            enddo
+      !            print *,myid,icnt,k,i,j,'::',int(xd(:, k,i,j)),'off',int(xo(:, k,i,j))
+      !        enddo
+      !    enddo
+      !enddo
+      !call mpi_barrier(imp_comm, ierr)
+
+      call VecGetLocalSize(g_d_nnz,vsize,ierr) ;CHKERRQ(ierr)
+      allocate(o_nnz(0:vsize-1))
+      allocate(d_nnz(0:vsize-1))
+
+      o_nnz=int(xo1d)
+      d_nnz=int(xd1d) + i1  ! +1 for diagonal entries
+
+      call restoreVecPointer(g_o_nnz,C,xo1d,xo)
+      call restoreVecPointer(g_d_nnz,C,xd1d,xd)
+
+      call DMRestoreGlobalVector(C%da,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da,g_d_nnz,ierr) ;CHKERRQ(ierr)
 
       if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
     end subroutine 
@@ -624,7 +650,7 @@ contains
       PetscScalar,Pointer :: xl(:,:,:,:)=>null(),xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
       PetscScalar,Pointer :: xl1d(:)=>null(),xo1d(:)=>null(),xd1d(:)=>null()
 
-      PetscInt :: i,j,k,dst
+      PetscInt :: i,j,k,dst, xinc, yinc
 
       call DMGetGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
       call DMGetGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
@@ -645,15 +671,16 @@ contains
                 call inc( xl(dst, k+1, i,j), one )
               enddo
             else
-
-              dst = i0 ;call inc( xl(dst , k+1 , i          , j          ) , one*C%dof )
-              dst = i1 ;call inc( xl(dst , k+1 , i          , j          ) , one*C%dof )
-              dst = i2 ;call inc( xl(dst , k+1 , i          , j          ) , one*C%dof )
-              dst = i3 ;call inc( xl(dst , k+1 , i          , j          ) , one*C%dof )
-              dst = i4 ;call inc( xl(dst , k   , i+sun%xinc , j          ) , one*C%dof )
-              dst = i5 ;call inc( xl(dst , k   , i+sun%xinc , j          ) , one*C%dof )
-              dst = i6 ;call inc( xl(dst , k   , i          , j+sun%yinc ) , one*C%dof )
-              dst = i7 ;call inc( xl(dst , k   , i          , j+sun%yinc ) , one*C%dof )
+              xinc = sun%angles(k,i,j)%xinc
+              yinc = sun%angles(k,i,j)%yinc
+              dst = i0 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
+              dst = i1 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
+              dst = i2 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
+              dst = i3 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
+              dst = i4 ;call inc( xl(dst , k   , i+xinc , j      ) , one*C%dof )
+              dst = i5 ;call inc( xl(dst , k   , i+xinc , j      ) , one*C%dof )
+              dst = i6 ;call inc( xl(dst , k   , i      , j+yinc ) , one*C%dof )
+              dst = i7 ;call inc( xl(dst , k   , i      , j+yinc ) , one*C%dof )
 
             endif
 
@@ -863,47 +890,257 @@ contains
     call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
   end subroutine
 
+
+  !> @brief compute gradient from dz3d
+  !> @details integrate dz3d from to top of atmosphere to bottom.
+  !>   \n then build horizontal gradient of height information
+  subroutine compute_gradient(atm, vgrad_x, vgrad_y)
+    type(t_atmosphere),intent(in) :: atm
+    Vec :: vgrad_x, vgrad_y
+
+    Vec :: vhhl
+    PetscScalar,Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
+    PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
+    PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
+
+    integer(iintegers) :: i,j,k
+
+    real(ireals) :: zm(4), maxheight, global_maxheight 
+
+    if(.not.allocated(atm%dz)) stop 'You called  compute_gradient()&
+      but the atm struct is not yet up, make sure we have atm%dz before'
+
+    call DMGetLocalVector(C_one1%da, vhhl, ierr) ;CHKERRQ(ierr)
+
+    call DMGetLocalVector(C_one1%da, vhhl, ierr) ;CHKERRQ(ierr)
+    call getVecPointer(vhhl , C_one1, hhl1d, hhl)
+
+    hhl(i0, C_one1%ze, :, :) = zero
+    do j=C_one1%ys,C_one1%ye
+      do i=C_one1%xs,C_one1%xe
+        hhl(i0, C_one1%ze, i, j ) = zero
+
+        do k=C_one1%ze-1,C_one1%zs,-1
+          hhl(i0,k,i,j) = hhl(i0,k+1,i,j)+atm%dz(atmk(k),i,j)
+        enddo
+      enddo
+    enddo
+
+
+    maxheight = maxval(hhl(i0,C_one1%zs,C_one1%xs:C_one1%xe,C_one1%ys:C_one1%ye))
+    call imp_allreduce_max(imp_comm, maxheight, global_maxheight)
+
+    do j=C_one1%ys,C_one1%ye
+      do i=C_one1%xs,C_one1%xe
+        hhl(i0, :, i, j) = hhl(i0, :, i, j) + global_maxheight - hhl(i0, C_one1%zs, i, j)
+      enddo
+    enddo
+
+    call restoreVecPointer(vhhl , C_one1, hhl1d, hhl)
+
+    call DMLocalToLocalBegin(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;CHKERRQ(ierr)
+    call DMLocalToLocalEnd(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;CHKERRQ(ierr)
+
+    call getVecPointer(vhhl , C_one1, hhl1d, hhl)
+
+    call DMGetLocalVector(C_one1%da, vgrad_x, ierr) ;CHKERRQ(ierr)
+    call DMGetLocalVector(C_one1%da, vgrad_y, ierr) ;CHKERRQ(ierr)
+
+    call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+    call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+    do j=C_one1%ys,C_one1%ye
+      do i=C_one1%xs,C_one1%xe
+        do k=C_one1%zs,C_one1%ze-1
+          ! Mean heights of adjacent columns
+          zm(1) = (hhl(i0,k,i-1,j) + hhl(i0,k+1,i-1,j)) / 2
+          zm(2) = (hhl(i0,k,i+1,j) + hhl(i0,k+1,i+1,j)) / 2
+
+          zm(3) = (hhl(i0,k,i,j-1) + hhl(i0,k+1,i,j-1)) / 2
+          zm(4) = (hhl(i0,k,i,j+1) + hhl(i0,k+1,i,j+1)) / 2
+
+          ! Gradient of height field
+          grad_x(i0, k, i, j) = -(zm(2)-zm(1)) / (2._ireals*atm%dx)
+          grad_y(i0, k, i, j) = -(zm(4)-zm(3)) / (2._ireals*atm%dy)
+        enddo
+        zm(1) = hhl(i0, C_one1%ze, i-1, j)
+        zm(2) = hhl(i0, C_one1%ze, i+1, j)
+        zm(3) = hhl(i0, C_one1%ze, i, j-1)
+        zm(4) = hhl(i0, C_one1%ze, i, j+1)
+        ! Gradient of height field
+        grad_x(i0, C_one1%ze, i, j) = -(zm(2)-zm(1)) / (2._ireals*atm%dx)
+        grad_y(i0, C_one1%ze, i, j) = -(zm(4)-zm(3)) / (2._ireals*atm%dy)
+      enddo
+    enddo
+
+    call restoreVecPointer(vhhl , C_one1, hhl1d, hhl)
+    call DMRestoreLocalVector(C_one1%da ,vhhl ,ierr);  CHKERRQ(ierr)
+
+    call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+    call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+  end subroutine
+
+
+  !> @brief setup topography information
+  !> @details integrate dz3d from to top of atmosphere to bottom.
+  !>   \n then build horizontal gradient of height information and
+  !>   \n tweak the local sun angles to bend the rays.
+  subroutine setup_topography(sun)
+    type(t_suninfo),intent(inout) :: sun
+
+    Vec :: vgrad_x, vgrad_y
+    PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
+    PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
+
+    integer(iintegers) :: i,j,k
+    real(ireals) :: newtheta, newphi, xsun(3)
+    real(ireals) :: rotmat(3, 3), newxsun(3)
+
+    if(.not.allocated(sun%angles)) stop 'You called  setup_topography() &
+        but the sun struct is not yet up, make sure setup_suninfo is called before'
+    if(.not.allocated(atm%dz)) stop 'You called  setup_topography() &
+        but the atm struct is not yet up, make sure we have atm%dz before'
+
+    call compute_gradient(atm, vgrad_x, vgrad_y)
+
+    call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+    call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+
+    rotmat = reshape((/ one , zero, zero,  &
+                        zero, one , zero,  &
+                        nil , nil , one/), &
+                     (/3, 3/), order=(/2, 1/) )
+
+    do j=C_one%ys,C_one%ye
+        do i=C_one%xs,C_one%xe
+
+            ! if we are at the global boundary we have to take that the gradient does not get too
+            ! steep. That wouldnt make sense for cyclic boundaries... ! todo: check what we should do?
+            !if(i.eq.i0 .or. i.eq.C_one%glob_xm-i1 .or. j.eq.i0 .or. j.eq.C_one%glob_ym-i1) then
+            !   !print *,myid,'global edge at:',i,j
+            !    cycle
+            !endif
+
+            do k=C_one%zs,C_one%ze 
+
+
+                ! Vector of sun direction
+                xsun(1) = sin(deg2rad(sun%angles(k,i,j)%theta))*sin(deg2rad(sun%angles(k,i,j)%phi))
+                xsun(2) = sin(deg2rad(sun%angles(k,i,j)%theta))*cos(deg2rad(sun%angles(k,i,j)%phi))
+                xsun(3) = cos(deg2rad(sun%angles(k,i,j)%theta))
+
+                xsun = xsun / norm(xsun)
+
+                rotmat(3, 1) = grad_x(i0, k, i, j)
+                rotmat(3, 2) = grad_y(i0, k, i, j)
+
+                newxsun = matmul(rotmat, xsun)
+
+                newtheta = rad2deg(atan2(sqrt(newxsun(1)**2 + newxsun(2)**2), newxsun(3)))
+                
+                !newphi in meteorologiecal definitions: clockwise from y-axis
+                newphi = rad2deg(atan2(newxsun(1), newxsun(2)))
+
+                ! if(i.eq.C_one1%xs) print *,myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
+
+                sun%angles(k,i,j)%theta = max(zero, min( 90._ireals, newtheta ))
+                sun%angles(k,i,j)%phi = newphi
+            enddo
+        enddo
+    enddo
+
+    call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+    call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+    call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  CHKERRQ(ierr)
+    call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  CHKERRQ(ierr)
+
+    if(myid.eq.0 .and. ldebug) print *,'min,max theta',minval(sun%angles%theta), maxval(sun%angles%theta)
+    if(myid.eq.0 .and. ldebug) print *,'min,max phi',minval(sun%angles%phi), maxval(sun%angles%phi)
+  end subroutine
+
+
+
   !> @brief set direction where sun stands
   !> @details save sun azimuth and zenith angle 
   !>   \n sun azimuth is reduced to the range of [0,90] and the transmission of direct radiation is contributed for by a integer increment,
   !>   \n determining which neighbouring box is used in the horizontal direction
-  subroutine setup_suninfo(phi0,theta0,sun)
-    real(ireals),intent(in) :: phi0,theta0
-    type(t_suninfo),intent(out) :: sun
+  subroutine setup_suninfo(phi0, theta0, sun, phi2d, theta2d)
+    real(ireals),intent(in) :: phi0, theta0
+    real(ireals), optional, intent(in) :: phi2d(:,:), theta2d(:,:)
+
+    type(t_suninfo),intent(inout) :: sun
+    integer(iintegers) :: k
+
+    if(.not.allocated(sun%angles)) &
+        allocate(sun%angles(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
 
     if(lforce_phi) then 
-      sun%phi = options_phi
+        sun%angles(:,:,:)%phi = options_phi
     else
-      sun%phi   = phi0
+        if(present(phi2d)) then
+            do k = C_one%zs, C_one%ze
+                sun%angles(k,:,:)%phi = phi2d
+            enddo
+        else
+            sun%angles(:,:,:)%phi   = phi0
+        endif
     endif
 
     if(lforce_theta) then
-      sun%theta = options_theta
+      sun%angles(:,:,:)%theta = options_theta
     else
-      sun%theta = theta0
+        if(present(theta2d)) then
+            do k = C_one%zs, C_one%ze
+                sun%angles(k,:,:)%theta = theta2d
+            enddo
+        else
+            sun%angles(:,:,:)%theta = theta0
+        endif
     endif
-    sun%costheta = max( cos(deg2rad(theta0)), zero)
-    sun%sintheta = max( sin(deg2rad(theta0)), zero)
+
+    if(sun%luse_topography) call setup_topography(sun)
+
+    sun%angles(:,:,:)%costheta = max( cos(deg2rad(sun%angles(:,:,:)%theta)), zero)
+    sun%angles(:,:,:)%sintheta = max( sin(deg2rad(sun%angles(:,:,:)%theta)), zero)
 
     ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
-    sun%symmetry_phi = sym_rot_phi(sun%phi)
-    sun%xinc=i0 ; sun%yinc=i0
-    if(sun%phi.gt.180) sun%xinc=i1
-    if(sun%phi.gt.90.and.sun%phi.lt.270) sun%yinc=i1
-    if(ldebug.and.myid.eq.0) print *,'setup_dir_inc done', sun
+    sun%angles(:,:,:)%symmetry_phi = sym_rot_phi(sun%angles(:,:,:)%phi)
+
+    where(sin(deg2rad(sun%angles%phi)).gt.zero ) ! phi between 0 and 180 degreee
+        sun%angles%xinc=i0
+    else where
+        sun%angles%xinc=i1
+    end where
+
+    where(cos(deg2rad(sun%angles%phi)).lt.zero) ! phi between 90 and 270 degree
+        sun%angles%yinc=i1
+    else where
+        sun%angles%yinc=i0
+    end where
+
+    !if(ldebug.and.myid.eq.0) print *,myid,'setup_dir_inc done', &
+    if(ldebug) print *,myid,'setup_dir_inc done', &
+      count(sun%angles%xinc.eq.0),count(sun%angles%xinc.eq.i1), &
+      count(sun%angles%yinc.eq.0),count(sun%angles%yinc.eq.i1), &
+      '::', minval(sun%angles%xinc), maxval(sun%angles%xinc), minval(sun%angles%yinc), maxval(sun%angles%yinc)
 
     contains
-        function sym_rot_phi(phi)
+        elemental function sym_rot_phi(phi)
             real(ireals) :: sym_rot_phi
             real(ireals),intent(in) :: phi
             ! ''swap'' phi axis down to the range of [0,180] 
-            sym_rot_phi = acos(cos(phi*pi/180))
+            sym_rot_phi = acos(cos(deg2rad(phi)))
             !print *,'1st phi swap',phi,' :: ',sym_rot_phi,'=',phi*pi/180,cos(phi*pi/180),acos(cos(phi*pi/180))
             ! and then mirror it onto range [0,90]
-            sym_rot_phi = int( asin(sin(sym_rot_phi)) /pi * 180 )
+            sym_rot_phi = int( rad2deg( asin(sin(sym_rot_phi)) ) )
             !print *,'2nd phi swap',phi,' :: ',sym_rot_phi,'=',sin(sym_rot_phi),asin(sin(sym_rot_phi)),asin(sin(sym_rot_phi)) /pi * 180,int(asin(sin(sym_rot_phi)) /pi * 180)
         end function
   end subroutine
+
+
+
 
   !> @brief build direct radiation matrix
   !> @details will get the transfer coefficients for 1D and 3D Tenstream layers and input those into the matrix
@@ -950,34 +1187,37 @@ contains
       MatStencil :: row(4,C%dof)  ,col(4,C%dof)
       PetscScalar :: v(C%dof**2),norm
 
-      integer(iintegers) :: dst,src
+      integer(iintegers) :: dst,src, xinc, yinc
 
-      dst = 1 ; row(MatStencil_j,dst) = i            ; row(MatStencil_k,dst) = j            ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-      dst = 2 ; row(MatStencil_j,dst) = i            ; row(MatStencil_k,dst) = j            ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-      dst = 3 ; row(MatStencil_j,dst) = i            ; row(MatStencil_k,dst) = j            ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-      dst = 4 ; row(MatStencil_j,dst) = i            ; row(MatStencil_k,dst) = j            ; row(MatStencil_i,dst) = k+1 ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-      dst = 5 ; row(MatStencil_j,dst) = i+sun%xinc   ; row(MatStencil_k,dst) = j            ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
-      dst = 6 ; row(MatStencil_j,dst) = i+sun%xinc   ; row(MatStencil_k,dst) = j            ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
-      dst = 7 ; row(MatStencil_j,dst) = i            ; row(MatStencil_k,dst) = j+sun%yinc   ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
-      dst = 8 ; row(MatStencil_j,dst) = i            ; row(MatStencil_k,dst) = j+sun%yinc   ; row(MatStencil_i,dst) = k   ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+      xinc = sun%angles(k,i,j)%xinc
+      yinc = sun%angles(k,i,j)%yinc
 
-      src = 1 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j            ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-      src = 2 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j            ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-      src = 3 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j            ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-      src = 4 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j            ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-      src = 5 ; col(MatStencil_j,src) = i+1-sun%xinc ; col(MatStencil_k,src) = j            ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
-      src = 6 ; col(MatStencil_j,src) = i+1-sun%xinc ; col(MatStencil_k,src) = j            ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
-      src = 7 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j+1-sun%yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
-      src = 8 ; col(MatStencil_j,src) = i            ; col(MatStencil_k,src) = j+1-sun%yinc ; col(MatStencil_i,src) = k   ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+      dst = 1 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 2 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 3 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 4 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 5 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+      dst = 6 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+      dst = 7 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+      dst = 8 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
 
-      call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j), .True., v, atm%l1d(atmk(k),i,j), [sun%symmetry_phi, sun%theta])
+      src = 1 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 2 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 3 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 4 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 5 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+      src = 6 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+      src = 7 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+      src = 8 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+
+      call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j), .True., v, atm%l1d(atmk(k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
 
       call MatSetValuesStencil(A, C%dof, row, C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
       if(ldebug) then
         do src=1,C%dof
           norm = sum( v(src:C%dof**2:C%dof) )
-          if( norm.gt.one ) then
+          if( norm.gt.one+10._ireals*epsilon(one) ) then
             print *,'direct sum(dst==',dst,') gt one',norm
             print *,'direct coeff',norm,'::',v
             stop 'omg.. shouldnt be happening'
@@ -1001,7 +1241,7 @@ contains
       if(luse_eddington) then
         v = atm%a33(atmk(k),i,j)
       else
-        call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.True., v, atm%l1d(atmk(k),i,j), [sun%symmetry_phi, sun%theta] )
+        call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.True., v, atm%l1d(atmk(k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta] )
       endif
 
       col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k    
@@ -1031,17 +1271,22 @@ contains
     PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
     PetscReal :: Az
+    integer(iintegers) :: i,j
     Az = atm%dx*atm%dy
 
     call VecSet(incSolar,zero,ierr) ;CHKERRQ(ierr)
 
     call getVecPointer(incSolar,C_dir,x1d,x4d,.False.)
 
-    x4d(i0:i3,C_dir%zs,:,:) = edirTOA* Az * .25_ireals * sun%costheta
+    do j=C_dir%ys,C_dir%ye
+      do i=C_dir%xs,C_dir%xe
+        x4d(i0:i3,C_dir%zs,i,j) = edirTOA* Az * .25_ireals * sun%angles(C_dir%zs,i,j)%costheta
+      enddo 
+    enddo
 
     call restoreVecPointer(incSolar,C_dir,x1d,x4d)
 
-    if(myid.eq.0 .and. ldebug) print *,myid,'Setup of IncSolar done',edirTOA* sun%costheta
+    if(myid.eq.0 .and. ldebug) print *,myid,'Setup of IncSolar done',edirTOA
 
   end subroutine
 
@@ -1147,7 +1392,7 @@ contains
       if(ldebug) then
         do src=1,C%dof
           norm = sum( v(src:C%dof**2:C%dof) )
-          if( real(norm).gt.real(one) ) then
+          if( norm.gt.one+10._ireals*epsilon(one) ) then
             print *,'diffuse sum(dst==',dst,') gt one',norm
             stop 'omg.. shouldnt be happening'
             ierr = -5
@@ -1345,8 +1590,6 @@ contains
       PetscScalar,pointer,dimension(:)       :: xedir1d=>null()
 
       logical :: lsun_east,lsun_north
-      lsun_east  = (sun%xinc.eq.i0)
-      lsun_north = (sun%yinc.eq.i0 )
 
 
       ! Copy ghosted values for direct vec
@@ -1373,7 +1616,7 @@ contains
                   enddo
 
                 else
-                  call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., twostr_coeff, atm%l1d(atmk(k),i,j), [sun%symmetry_phi, sun%theta])
+                  call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., twostr_coeff, atm%l1d(atmk(k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
                   do src=1,4
                     dir2diff(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
                     dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
@@ -1386,17 +1629,19 @@ contains
                 enddo
 
               else ! Tenstream source terms
+                lsun_east  = sun%angles(k,i,j)%xinc.eq.i0
+                lsun_north = sun%angles(k,i,j)%yinc.eq.i0
 
-                call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., dir2diff,  atm%l1d(atmk(k),i,j), [sun%symmetry_phi, sun%theta] )
+                call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., dir2diff,  atm%l1d(atmk(k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta] )
 
                 do src=1,C_dir%dof
                   select case(src)
                   case (1:4)
                     solrad = xedir( : , k , i , j )
                   case (5:6)
-                    solrad = xedir( : , k , i+i1-sun%xinc , j )
+                    solrad = xedir( : , k , i+i1-sun%angles(k,i,j)%xinc , j )
                   case (7:8)
-                    solrad = xedir( : , k , i , j+i1-sun%yinc )
+                    solrad = xedir( : , k , i , j+i1-sun%angles(k,i,j)%yinc )
                   case default
                     stop 'invalid dof for solar source term'
                   end select
@@ -1462,7 +1707,7 @@ contains
     type(t_state_container) :: solution
     PetscReal,pointer,dimension(:,:,:,:) :: xediff=>null(),xedir=>null(),xabso=>null()
     PetscReal,pointer,dimension(:) :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
-    PetscInt :: i,j,k
+    PetscInt :: i,j,k, xinc,yinc
     Vec :: ledir,lediff ! local copies of vectors, including ghosts
     PetscReal :: div(3),div2(13)
     PetscReal :: Volume,Az
@@ -1564,9 +1809,11 @@ contains
 
             ! Divergence    =                 Incoming                        -                   Outgoing
             if(solution%lsolar_rad) then
-              div2( 1) = sum( xedir(i0:i3 , k, i             , j             )  - xedir(i0:i3 , k+i1 , i          , j           ) ) 
-              div2( 2) = sum( xedir(i4:i5 , k, i+i1-sun%xinc , j             )  - xedir(i4:i5 , k    , i+sun%xinc , j           ) ) 
-              div2( 3) = sum( xedir(i6:i7 , k, i             , j+i1-sun%yinc )  - xedir(i6:i7 , k    , i          , j+sun%yinc  ) ) 
+              xinc = sun%angles(k,i,j)%xinc
+              yinc = sun%angles(k,i,j)%yinc
+              div2( 1) = sum( xedir(i0:i3 , k, i         , j         )  - xedir(i0:i3 , k+i1 , i      , j       ) ) 
+              div2( 2) = sum( xedir(i4:i5 , k, i+i1-xinc , j         )  - xedir(i4:i5 , k    , i+xinc , j       ) ) 
+              div2( 3) = sum( xedir(i6:i7 , k, i         , j+i1-yinc )  - xedir(i6:i7 , k    , i      , j+yinc  ) ) 
             else 
               div2(1:3) = zero
             endif
@@ -1673,7 +1920,7 @@ contains
     Vec :: nullvecs(0)
     character(len=*),optional :: prefix
 
-    PetscReal,parameter :: rtol=1e-4_ireals, rel_atol=1e-5_ireals
+    PetscReal,parameter :: rtol=sqrt(epsilon(rtol))*10, rel_atol=1e-4_ireals
     PetscInt,parameter  :: maxiter=1000
 
     PetscInt,parameter :: ilu_default_levels=1
@@ -2019,8 +2266,6 @@ contains
     allocate(   w0(C_one_atm%zm) )
     allocate(    g(C_one_atm%zm) )
 
-    mu0 = sun%costheta
-    incSolar = edirTOA* sun%costheta
 
     if(solution%lsolar_rad) &
       call getVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
@@ -2030,10 +2275,13 @@ contains
     allocate( Eup(C_one_atm1%zs:C_one_atm1%ze) )
     allocate( Edn(C_one_atm1%zs:C_one_atm1%ze) )
 
-    if(myid.eq.0 .and. ldebug) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM ::',sun%theta,':',incSolar
 
     do j=C_one_atm%ys,C_one_atm%ye         
       do i=C_one_atm%xs,C_one_atm%xe
+
+        mu0 = sun%angles(C_one_atm1%zs,i,j)%costheta
+        incSolar = edirTOA* mu0
+        if(myid.eq.0 .and. ldebug) print *,' CALCULATING DELTA EDDINGTON TWOSTREAM ::',sun%angles(C_one_atm1%zs,i,j)%theta,':',incSolar
 
         kext = atm%op(:,i,j)%kabs + atm%op(:,i,j)%ksca
         dtau = atm%dz(:,i,j)* kext
@@ -2094,7 +2342,7 @@ contains
     endif
 
   contains
-    subroutine scale_flx_vec(v,C,lWm2_to_W)
+    subroutine scale_flx_vec(v, C, lWm2_to_W)
       Vec :: v
       type(t_coord) :: C
       PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
@@ -2102,6 +2350,11 @@ contains
       PetscInt :: i,j,k
       PetscReal :: Ax,Ax2,Ay,Ay2,Az,Az4
       logical,intent(in) :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
+
+      Vec :: vgrad_x, vgrad_y
+      PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
+      PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
+      real(ireals) :: grad(3)  ! is the cos(zenith_angle) of the tilted box in case of topography
 
       if(myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C ,xv1d, xv)
@@ -2178,6 +2431,63 @@ contains
         enddo
       enddo
 
+      if(sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this
+        select case (C%dof)
+
+        case(i8)
+          call compute_gradient(atm, vgrad_x, vgrad_y)
+
+          call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+          call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+          do j=C%ys,C%ye
+            do i=C%xs,C%xe
+              do k=C%zs,C%ze
+                grad(1) = grad_x(i0,k,i,j)
+                grad(2) = grad_y(i0,k,i,j)
+                grad(3) = one
+
+                xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) / norm(grad)
+              enddo
+            enddo
+          enddo
+
+          call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+          call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+          call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  CHKERRQ(ierr)
+          call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  CHKERRQ(ierr)
+
+        case(i6)
+          ! Dont rescale diffuse fluxes
+
+        case(i10)
+
+          ! Dont rescale diffuse fluxes
+
+          ! call compute_gradient(atm, vgrad_x, vgrad_y)
+
+          ! call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+          ! call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+
+          !do j=C%ys,C%ye
+          !  do i=C%xs,C%xe
+          !    do k=C%zs,C%ze
+          !      grad(1) = grad_x(i0,k,i,j)
+          !      grad(2) = grad_y(i0,k,i,j)
+          !      grad(3) = one
+
+          !      xv([E_up, E_dn],k,i,j) = xv([E_up, E_dn],k,i,j) / norm(grad)
+          !    enddo
+          !  enddo
+          !enddo
+
+        case default
+          stop('Dont know how I should topography rescale this! - exiting...')
+        end select
+
+      endif
+
       call restoreVecPointer(v ,C ,xv1d, xv )
     end subroutine
   end subroutine
@@ -2234,9 +2544,8 @@ contains
 ! Deprecated --  end subroutine
 
   !> @brief initialize basic memory structs like PETSc vectors and matrices
-  subroutine init_memory(incSolar,b,Mdir,Mdiff)
+  subroutine init_memory(incSolar,b)
     Vec :: b,incSolar
-    Mat :: Mdiff,Mdir
 
     if(ltwostr_only) return
 
@@ -2245,9 +2554,50 @@ contains
 
     call VecSet(incSolar,zero,ierr) ; CHKERRQ(ierr)
     call VecSet(b,zero,ierr)        ; CHKERRQ(ierr)
+  end subroutine
 
-    call init_Matrix(Mdir ,C_dir )!,"dir_")
-    call init_Matrix(Mdiff,C_diff)!,"diff_")
+  subroutine init_matrices(Mdir,Mdiff)
+    Mat :: Mdiff,Mdir
+
+    ! if already initialized, tear em down -- this usually
+    ! happens when we change solar angles and need a new prealloc
+    if(linit_mat) then
+        call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
+        call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
+    endif
+
+    call init_Matrix(Mdir ,C_dir )
+    call init_Matrix(Mdiff,C_diff)
+    linit_mat = .True.
+  end subroutine
+
+  subroutine set_angles(phi0, theta0, phi2d, theta2d)
+    real(ireals),intent(in)          :: phi0           !< @param[in] phi0   solar azmiuth and zenith angle
+    real(ireals),intent(in)          :: theta0         !< @param[in] theta0 solar azmiuth and zenith angle
+    real(ireals),optional,intent(in) :: phi2d  (:,:)   !< @param[in] phi2d   if given, horizontally varying azimuth
+    real(ireals),optional,intent(in) :: theta2d(:,:)   !< @param[in] theta2d if given, and zenith angle
+
+    if(.not.linitialized) then
+        print *,myid,'You tried to set angles in the Tenstream solver.  &
+            & This should be called right after init_tenstream'
+        ierr=1; CHKERRQ(ierr)
+    endif
+
+    if ( present(phi2d) .and. present(theta2d) ) then
+        call setup_suninfo(phi0, theta0, sun, phi2d=phi2d, theta2d=theta2d)
+    elseif ( present(phi2d) ) then
+        call setup_suninfo(phi0, theta0, sun, phi2d=phi2d)
+    elseif ( present(theta2d) ) then
+        call setup_suninfo(phi0, theta0, sun, theta2d=theta2d)
+    else
+        call setup_suninfo(phi0, theta0, sun)
+    endif
+
+    ! init box montecarlo model
+    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
+    if(.not.luse_eddington)      call OPP_1_2%init (atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm) 
+
+    call init_matrices(Mdir, Mdiff)
   end subroutine
 
   !> @brief Main routine to setup TenStream solver
@@ -2265,10 +2615,10 @@ contains
     real(ireals),intent(in)       :: theta0  !< @param[in] theta0 solar azmiuth and zenith angle
     real(ireals),intent(in)       :: albedo  !< @param[in] albedo lambertian surface albedo
 
-    real(ireals),optional,intent(in)       :: dz1d(:)        !< @param[in] dz1d   if given, dz1d is used everywhere on the rank
-    real(ireals),optional,intent(in)       :: dz3d(:,:,:)    !< @param[in] dz3d   if given, dz3d has to be local domain size, cannot have global shape
-    integer(iintegers),optional,intent(in) :: nxproc(:)      !< @param[in] nxproc if given, Nx have to local size and nxproc is size of domain on each rank
-    integer(iintegers),optional,intent(in) :: nyproc(:)      !< @param[in] nyproc if given, Ny have to local size and nyproc is size of domain on each rank
+    real(ireals),optional,intent(in)       :: dz1d(:)        !< @param[in] dz1d    if given, dz1d is used everywhere on the rank
+    real(ireals),optional,intent(in)       :: dz3d(:,:,:)    !< @param[in] dz3d    if given, dz3d has to be local domain size, cannot have global shape
+    integer(iintegers),optional,intent(in) :: nxproc(:)      !< @param[in] nxproc  if given, Nx have to local size and nxproc is size of domain on each rank
+    integer(iintegers),optional,intent(in) :: nyproc(:)      !< @param[in] nyproc  if given, Ny have to local size and nyproc is size of domain on each rank
     integer(iintegers),optional,intent(in) :: collapseindex  !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
 
     integer(iintegers) :: k,i,j
@@ -2276,51 +2626,52 @@ contains
 
     if(.not.linitialized) then
 
-      call setup_petsc_comm
-      !      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
-      call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;CHKERRQ(ierr)
+        call setup_petsc_comm
+        !      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
+        call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;CHKERRQ(ierr)
 #ifdef _XLF
-      call PetscPopSignalHandler(ierr); CHKERRQ(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
+        call PetscPopSignalHandler(ierr); CHKERRQ(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
 #endif
-      call init_mpi_data_parameters(icomm)
+        call init_mpi_data_parameters(icomm)
 
-      call read_commandline_options()
+        call read_commandline_options()
 
-      if(present(nxproc) .and. present(nyproc) ) then
-        if(ldebug.and.myid.eq.0) print *,'nxproc',shape(nxproc),'::',nxproc
-        if(ldebug.and.myid.eq.0) print *,'nyproc',shape(nyproc),'::',nyproc
-        if(present(collapseindex)) then
-            call setup_grid( Nz, Nx, Ny, nxproc,nyproc, collapseindex=collapseindex)
+        if(present(nxproc) .and. present(nyproc) ) then
+            if(ldebug.and.myid.eq.0) print *,'nxproc',shape(nxproc),'::',nxproc
+            if(ldebug.and.myid.eq.0) print *,'nyproc',shape(nyproc),'::',nyproc
+            if(present(collapseindex)) then
+                call setup_grid( Nz, Nx, Ny, nxproc,nyproc, collapseindex=collapseindex)
+            else
+                call setup_grid( Nz, Nx, Ny, nxproc,nyproc)
+            endif
         else
-            call setup_grid( Nz, Nx, Ny, nxproc,nyproc)
+            if(present(collapseindex)) then
+                call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny), collapseindex=collapseindex)
+            else
+                call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny) )
+            endif
         endif
-      else
-          if(present(collapseindex)) then
-              call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny), collapseindex=collapseindex)
-          else
-              call setup_grid( Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny) )
-          endif
-      endif
 
-    endif
-    call setup_atm()
+        call setup_atm()
 
+        ! init work vectors
+        call init_memory(incSolar,b)
 
-    call setup_suninfo(phi0,theta0,sun)
+        ! init petsc logging facilities
+        call setup_logging()
 
-    ! init box montecarlo model
-    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm)
-    if(.not.luse_eddington)      call OPP_1_2%init (atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm) 
-
-    if(.not.linitialized) then
-      ! init matrices & vectors
-      call init_memory(incSolar,b,Mdir,Mdiff)
-
-      ! init petsc logging facilities
-      call setup_logging()
+        linitialized=.True.
+    else
+        print *,myid,'You tried to initialize already initialized Tenstream          &
+            &solver. This should not be done. If you need to reinitialize the grids, &
+            &call destroy_tenstream() first.'
+        ierr=1; CHKERRQ(ierr)
     endif
 
-    linitialized=.True.
+    !Todo: this is just here so that we do not break the API. User could also
+    !       directly use the set_angle routines?
+    call set_angles(phi0, theta0)
+
   contains
       subroutine setup_atm()
           if(.not.allocated(atm)) allocate(atm)
@@ -2337,17 +2688,22 @@ contains
                       atm%dz(:,i,j) = dz1d
                   enddo
               enddo
-          else if(present(dz3d)) then
+          endif
+          if(present(dz3d)) then
               if( any( shape(dz3d).ne.shape(atm%dz) ) ) then
                   print *,'Whoops I got a 3D dz definition but this does not correspond to the grid definition :: shapes: ', shape(dz3d), ' vs. ',shape(atm%dz)
                   print *,'please know that providing a 3D dz profile has to be of local shape, it can not have global size'
                   call MPI_Abort(icomm,ierr,ierr)
               endif
               atm%dz = dz3d
-          else
-              print *,'have to give either dz1d or dz3d in routine call....'
-              call exit(1)
+
           endif
+          if(.not.present(dz1d) .and. .not.present(dz3d)) then
+              print *,'have to give either dz1d or dz3d in routine call....'
+              ierr=1; CHKERRQ(ierr)
+          endif
+
+          sun%luse_topography = present(dz3d)  ! if the user supplies 3d height levels he probably wants to take topography into account
 
           if(.not.allocated(atm%l1d)) then
               allocate(atm%l1d( C_one_atm%zs:C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye ) )
@@ -2578,9 +2934,9 @@ contains
       if(atm%lcollapse) then
           !TODO: this does not work at the moment
           print *,'You are trying to collapse the atmosphere in the thermal &
-          spectral range... this is not possible at the moment or at least not &
-          tested.'
-          ierr=1;CHKERRQ(ierr)
+                    &spectral range... this is not possible at the moment or at least not &
+                    &tested.'
+          ierr = 1; CHKERRQ(ierr)
       endif
     else
       if(allocated(atm%planck)) deallocate(atm%planck)
@@ -2655,7 +3011,7 @@ contains
               w0   = atm%op(k,i,j)%ksca / kext
               tau  = atm%dz(k,i,j)* kext
               g    = atm%op(k,i,j)%g 
-              call eddington_coeff_zdun ( tau , w0, g, sun%costheta, & 
+              call eddington_coeff_zdun ( tau , w0, g, sun%angles(C_one_atm%zs,i,j)%costheta, & 
                 atm%a11(k,i,j),          &
                 atm%a12(k,i,j),          &
                 atm%a13(k,i,j),          &
@@ -2785,6 +3141,7 @@ contains
     integer(iintegers),optional,intent(in) :: opt_solution_uid
     real(ireals),      optional,intent(in) :: opt_solution_time
     integer(iintegers) :: uid
+    logical :: lsolar
 
     if(present(opt_solution_uid)) then
       uid = opt_solution_uid
@@ -2792,7 +3149,9 @@ contains
       uid = i0 ! default solution is uid==0
     endif
 
-    call prepare_solution( solutions(uid), uid, lsolar=(edirTOA.gt.zero .and. sun%theta.ge.zero) ) ! setup solution vectors
+    lsolar = mpi_logical_and(imp_comm, edirTOA.gt.zero .and. any(sun%angles%theta.ge.zero))
+
+    call prepare_solution( solutions(uid), uid, lsolar=lsolar ) ! setup solution vectors
 
     ! --------- Skip Thermal Computation (-lskip_thermal) --
     if(lskip_thermal .and. (solutions(uid)%lsolar_rad.eqv..False.) ) then ! 
@@ -2886,8 +3245,11 @@ subroutine destroy_tenstream(lfinalizepetsc)
     if(.not. ltwostr_only) then
       call VecDestroy(incSolar , ierr) ;CHKERRQ(ierr)
       call VecDestroy(b        , ierr) ;CHKERRQ(ierr)
+    endif
+    if(linit_mat) then
       call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
       call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
+      linit_mat=.False.
     endif
 
     do uid=lbound(solutions,1),ubound(solutions,1)
@@ -2908,6 +3270,8 @@ subroutine destroy_tenstream(lfinalizepetsc)
     enddo
 
     if(allocated(atm)) deallocate(atm)
+
+    if(allocated(sun%angles)) deallocate(sun%angles)
 
     call OPP_1_2%destroy()
     call OPP_8_10%destroy()

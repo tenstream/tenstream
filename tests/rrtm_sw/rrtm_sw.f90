@@ -116,10 +116,12 @@ subroutine test_rrtm_sw(this)
     endif
     call tenstream_rrtm_sw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir, edn, eup, abso)
 
-    if(myid.eq.0.and.ldebug) then
-        do k=1,nlay+1
-            print *,k,'edir', edir(k,1,1), edn(k,1,1), eup(k,1,1), abso(min(nlay,k),1,1)
-        enddo
+    if(myid.eq.0) then
+        if(ldebug) then
+            do k=1,nlay+1
+                print *,k,'edir', edir(k,1,1), edn(k,1,1), eup(k,1,1), abso(min(nlay,k),1,1)
+            enddo
+        endif
 
         @assertEqual(452.7361, edir(nlay+1,1,1), atolerance, 'solar at surface :: divergence not correct')
         @assertEqual(49.50430, edn (nlay+1,1,1), atolerance, 'solar at surface :: downw flux not correct')

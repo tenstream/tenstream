@@ -20,7 +20,7 @@
 module m_optprop_ANN
   USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1, mpiint
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
-      Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,Ndir_8_10,Ndiff_8_10, &
+      Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Ndir_8_10,Ndiff_8_10, &
       ldelta_scale,delta_scale_truncate
   use m_netcdfio
   use mpi
@@ -61,7 +61,6 @@ contains
       integer(mpiint), intent(in) :: comm
       
       integer(iintegers),parameter :: horiz_rounding=1 ! round LUT for various horizontal distances: e.g. horiz_rounding=10 -> dx=66.7 ==> dx=70
-!      integer(iintegers) :: phi,theta,iphi,itheta
 
       call MPI_Comm_rank(comm, myid, mpierr)
       call MPI_Comm_size(comm, comm_size, mpierr)
@@ -83,8 +82,8 @@ contains
         netname = trim(basename)//trim(descr)//'_diff2diff.ANN.nc'
         call loadnet(netname, diff2diff_network, ierr)
 
-        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
-          idx,Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,ldelta_scale,delta_scale_truncate
+        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') &
+          idx, Ndz_8_10, Nkabs_8_10, Nksca_8_10, Ng_8_10, ldelta_scale, delta_scale_truncate
 
         netname = trim(basename)//trim(descr)//'_dir2diff.ANN.nc'
         call loadnet(netname, dir2diff_network, ierr)

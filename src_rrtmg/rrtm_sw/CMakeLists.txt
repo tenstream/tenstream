@@ -7,7 +7,7 @@ file( GLOB files *.f90 )
 SET_SOURCE_FILES_PROPERTIES(rrtmg_sw_k_g.f90 PROPERTIES COMPILE_FLAGS -O0)
 
 add_library( tenstr_rrtm_sw STATIC ${files} )
-TARGET_LINK_LIBRARIES( tenstr_rrtm_sw )
+TARGET_LINK_LIBRARIES( tenstr_rrtm_sw tenstream)
 
 install(TARGETS tenstr_rrtm_sw   DESTINATION lib)
 install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")

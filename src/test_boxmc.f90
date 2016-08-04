@@ -51,11 +51,19 @@ program main
       phi0 = 0.
       theta0=45.
 
-      dx=7e5
-      dy=dx
-      dz=1e3
 
-      print *,'Testing boxmc...'
+      dx=100
+      dy=dx
+      dz=50
+      bg = [1e-3, 1e-6, .0 ]
+
+      dx=200
+      dy=dx
+      dz=100
+      bg = [1e-3/2, 1e-6/2, .0 ]
+
+
+      print *,'Testing boxmc...',bg
       call MPI_Init(ierr)
       call MPI_Comm_Rank(MPI_COMM_WORLD, myid,ierr)
       call mpi_comm_size(MPI_COMM_WORLD, numnodes,ierr)
@@ -66,7 +74,16 @@ program main
       call bmc_3_10%init(MPI_COMM_WORLD)
       call bmc_1_2%init(MPI_COMM_WORLD)
 
-      if(.True.) then
+      do src=1,3
+          call bmc_3_10%get_coeff(MPI_COMM_WORLD,bg,src,.True.,phi0,theta0,dx,dy,dz,S,T3,S_tol,T3_tol)
+          if(myid.eq.0) write(*, FMT='( " direct transmission chan",I3,":: ",3(es10.3)," :: diffuse ",10(es10.3)  )' ) src,T3,S
+      enddo
+      do src=1,10
+          call bmc_8_10%get_coeff(MPI_COMM_WORLD,bg,src,.False.,phi0,theta0,dx,dy,dz,S,T,S_tol,T_tol)
+          if(myid.eq.0) write(*, FMT='( " diffuse transmission chan",I3,":: ",10(es10.3)," :: emission ",es10.3  )' ) src,S,one-sum(S)
+      enddo
+
+      if(.False.) then
         bg = [1e-3, 1e-3, .0 ]
         call bmc_1_2%get_coeff(MPI_COMM_WORLD,bg,-1,.False.,phi0,theta0,dx,dy,dz,S2,T1,S2_tol,T1_tol)
         if(myid.eq.0) write(*, FMT='( " diffuse emission :: ",2(es10.3),"  :: ",2(es10.3) )' ) S2(1:2),one-S2(1:2)

@@ -30,7 +30,7 @@ module m_optprop_LUT
       Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,Ndir_8_10,Ndiff_8_10,interp_mode_8_10, &
       ldelta_scale,delta_scale_truncate,stddev_atol
   use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
-  use m_tenstream_interpolation, only: interp_4d 
+  use m_tenstream_interpolation, only: interp_4d
   use m_netcdfio
 
 
@@ -297,7 +297,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
     write(str(2),FMT='("dx",I0)') nint(OPP%dirLUT%dx)
     write(str(3),FMT='("dy",I0)') nint(OPP%dirLUT%dy)
 
-    call determine_angles_to_load(OPP%dirLUT, azis, szas, angle_mask)
+    call determine_angles_to_load(comm, OPP%interp_mode, OPP%dirLUT, azis, szas, angle_mask)
 
     do itheta=1,OPP%Ntheta
       do iphi  =1,OPP%Nphi
@@ -912,7 +912,7 @@ end subroutine
       integer(iintegers) :: iphi,itheta
       logical :: angle_mask(OPP%Nphi,OPP%Ntheta)
 
-      call determine_angles_to_load(OPP%dirLUT, azis, szas, angle_mask)
+      call determine_angles_to_load(comm, OPP%interp_mode, OPP%dirLUT, azis, szas, angle_mask)
 
       do itheta=1,OPP%Ntheta
         do iphi  =1,OPP%Nphi
@@ -1012,7 +1012,9 @@ end subroutine
     endif
 end function
     
-subroutine determine_angles_to_load(LUT,azis,szas, mask)
+subroutine determine_angles_to_load(comm, interp_mode, LUT, azis, szas, mask)
+    integer(mpiint) ,intent(in) :: comm
+    integer(iintegers),intent(in) :: interp_mode
     type(directTable) :: LUT
     real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
     logical,intent(out) :: mask(size(LUT%pspace%phi),size(LUT%pspace%theta)) ! boolean array, which LUT entries should be loaded
@@ -1032,13 +1034,33 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
         phi   = LUT%pspace%phi( [ iphi, iphi1 ] )
         theta = LUT%pspace%theta( [ itheta, itheta1 ]  )
 
-        lneed_azi(1) = any( azis .ge. phi(1)       .and. azis .le. sum(phi)/2 )
-        lneed_azi(2) = any( azis .ge. sum(phi)/2   .and. azis .le. phi(2) )
+        select case(interp_mode)
 
-        lneed_sza(1) = any( szas .ge. theta(1)     .and. szas .le. sum(theta)/2 )
-        lneed_sza(2) = any( szas .ge. sum(theta)/2 .and. szas .le. theta(2) )
+        case(1:3) ! only load nearest neighbors
+            lneed_azi(1) = any( azis .ge. phi(1)       .and. azis .le. sum(phi)/2 )
+            lneed_azi(2) = any( azis .ge. sum(phi)/2   .and. azis .le. phi(2) )
 
-!        print *,'determine_angles_to_load: occuring azimuths',azis,'/ szas',szas,': phi,theta',phi,theta,'need_azi',lneed_azi,'lneed_sza',lneed_sza
+        case(4) ! interpolate azimuth -- therefore also need surrounding tables
+            lneed_azi = any( azis .ge. phi(1)       .and. azis .le. phi(2) )
+
+        case default
+            stop 'interpolation mode not implemented yet! please choose something else! '
+        end select
+
+        select case(interp_mode)
+
+        case(1:2) ! only load nearest neighbors
+            lneed_sza(1) = any( szas .ge. theta(1)     .and. szas .le. sum(theta)/2 )
+            lneed_sza(2) = any( szas .ge. sum(theta)/2 .and. szas .le. theta(2) )
+
+        case(3:4) ! interpolate sza -- therefore also need surrounding tables
+            lneed_sza = any( szas .ge. theta(1)     .and. szas .le. theta(2) )
+
+        case default
+            stop 'interpolation mode not implemented yet! please choose something else! '
+        end select
+
+        !print *,'determine_angles_to_load: occuring azimuths',': phi,theta',phi,theta,'need_azi',lneed_azi,'lneed_sza',lneed_sza
 
         if( lneed_azi(1) .and. lneed_sza(1) ) mask(iphi  , itheta ) = .True.
         if( lneed_azi(1) .and. lneed_sza(2) ) mask(iphi  , itheta1) = .True.
@@ -1049,14 +1071,20 @@ subroutine determine_angles_to_load(LUT,azis,szas, mask)
         !if (all( lneed_azi .and. lneed_sza )) mask([iphi],[itheta]) = .True. !todo breaks if we need either theta+1 or phi+1 i.e. uneven sza or phi=90
       enddo
     enddo
-!    if(ldebug_optprop .and. myid.eq.0) then
-!      print *,'       phis',LUT%pspace%range_phi
-!      do itheta=1,size(LUT%pspace%theta)
-!        print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
-!      enddo
-!    endif
+    if(ldebug_optprop .and. myid.eq.0) then
+      print *,'       phis',LUT%pspace%range_phi
+      do itheta=1,size(LUT%pspace%theta)
+        print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
+      enddo
+    endif
 
-  !TODO: in case ranks would require different angles, we should broadcast this here. in principal ranks may only load the LUT they need, this approach may however not be the easiest to implement?
+  ! in case ranks would require different angles, we should broadcast this here. in principal ranks may only load the LUT they need, this approach may however not be the easiest to implement?
+
+    do itheta=1,size(LUT%pspace%theta)
+      do iphi  =1,size(LUT%pspace%phi)
+        mask(iphi  , itheta ) = mpi_logical_or(comm, mask(iphi, itheta )) ! todo this is terrible that we send many messages instead of one bigger one...
+      enddo
+    enddo
 end subroutine
 
 function search_sorted_bisection(arr,val) ! return index+residula i where arr(i) .gt. val
@@ -1215,6 +1243,7 @@ subroutine LUT_get_dir2dir(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
     integer(iintegers) :: src
 
     real(ireals) :: pti(6),weights(6),norm
+    real(ireals) :: vals(OPP%dir_streams**2, 2)
 
     kabs = in_kabs; ksca = in_ksca; dz=in_dz
     if(ldebug_optprop) call catch_limits(OPP%dirLUT%pspace,dz,kabs,ksca,g)
@@ -1227,8 +1256,14 @@ subroutine LUT_get_dir2dir(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
       C = OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
     case(2)
       weights = modulo(pti,one)
-
       call interp_4d(pti, weights, OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c, C)
+    case(3)
+      weights = modulo(pti,one)
+      call interp_4p1d(pti([1,2,3,4,6]), weights([1,2,3,4,6]), OPP%dirLUT%T(nint(pti(5)), :), C)
+    case(4)
+      weights = modulo(pti,one)
+      call interp_4p2d(pti, weights, OPP%dirLUT%T(:, :), C)
+      
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
@@ -1240,7 +1275,7 @@ subroutine LUT_get_dir2dir(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
       iierr=0
       do src=1,OPP%dir_streams
         norm = sum( C( src:size(C):OPP%dir_streams ) )
-        if(real(norm).gt.one) iierr=iierr+1
+        if(real(norm).gt.one+10._ireals*epsilon(one)) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
         print *,'Error in dir2dir coeffs :: ierr',iierr,size(C),OPP%dir_streams,'::',C
@@ -1251,6 +1286,7 @@ subroutine LUT_get_dir2dir(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
       endif
     endif
 end subroutine 
+
 subroutine LUT_get_dir2diff(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: in_dz,in_kabs ,in_ksca,g,phi,theta
@@ -1275,11 +1311,18 @@ subroutine LUT_get_dir2diff(OPP, in_dz,in_kabs ,in_ksca,g,phi,theta,C)
     case(2)
       weights = modulo(pti,one)
       call interp_4d(pti, weights, OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c, C)
+
+    case(3)
+      weights = modulo(pti,one)
+      call interp_4p1d(pti([1,2,3,4,6]), weights([1,2,3,4,6]), OPP%dirLUT%S(nint(pti(5)), :), C)
+
+    case(4)
+      weights = modulo(pti,one)
+      call interp_4p2d(pti, weights, OPP%dirLUT%S(:, :), C)
+
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
-
-
 
 
     if(ldebug_optprop) then
@@ -1317,7 +1360,7 @@ subroutine LUT_get_diff2diff(OPP, in_dz,in_kabs ,in_ksca,g,C)
     case(1)
       ! Nearest neighbour
       C = OPP%diffLUT%S%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
-    case(2)
+    case(2:4)
       ! Linear interpolation
       weights = modulo(pti,one)
       call interp_4d(pti, weights, OPP%diffLUT%S%c, C)
@@ -1344,6 +1387,59 @@ subroutine LUT_get_diff2diff(OPP, in_dz,in_kabs ,in_ksca,g,C)
       endif
     endif
 end subroutine 
+
+subroutine interp_4p2d(pti,weights,ctable,C)
+        integer,parameter :: Ndim=6
+        real(ireals),intent(in) :: pti(Ndim),weights(Ndim)
+        type(table),intent(in) :: ctable(:,:)  ! contains Nphi, Ntheta databases
+        real(ireals),intent(out) :: C(:)
+
+        integer :: indices(2,2),fpti(Ndim)
+
+        ! Instead of doing a full interpolation in 6 dimension we start out with
+        ! 4 dimensions only at the cornerstones of the 4d hypercube
+        real(ireals) :: C4(size(C),6)
+
+        !stop 'todo atm not advisable to use this function .. we dont load the neighboring LUTs'
+
+        ! First determine the array indices, where to look.
+        fpti = floor(pti)
+
+        indices(:,1) = max(i1, min( ubound(ctable,1), [0,1] +fpti(5) ) )  
+        indices(:,2) = max(i1, min( ubound(ctable,2), [0,1] +fpti(6) ) )
+
+        call interp_4d( pti(1:4),weights(1:4), ctable(indices(1,1), indices(1,2) )%c, C4(:,1) ) ! differing azimuth
+        call interp_4d( pti(1:4),weights(1:4), ctable(indices(2,1), indices(1,2) )%c, C4(:,2) ) !        "
+        call interp_4d( pti(1:4),weights(1:4), ctable(indices(1,1), indices(2,2) )%c, C4(:,3) ) 
+        call interp_4d( pti(1:4),weights(1:4), ctable(indices(2,1), indices(2,2) )%c, C4(:,4) )
+
+        C4(:,5) = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
+        C4(:,6) = C4(:,3) + weights(5) * ( C4(:,4) - C4(:,3) )
+        C       = C4(:,5) + weights(6) * ( C4(:,6) - C4(:,5) )
+end subroutine
+subroutine interp_4p1d(pti,weights,ctable,C)
+        integer,parameter :: Ndim=5
+        real(ireals),intent(in) :: pti(Ndim),weights(Ndim)
+        type(table),intent(in) :: ctable(:)  ! contains N databases
+        real(ireals),intent(out) :: C(:)
+
+        integer :: indices(2),fpti(Ndim), i
+
+        ! Instead of doing a full interpolation in 6 dimension we start out with
+        ! 4 dimensions only at the cornerstones of the 4d hypercube
+        real(ireals) :: C4(size(C),2)
+
+        ! First determine the array indices, where to look.
+        fpti = floor(pti)
+
+        indices(:) = max(i1, min( ubound(ctable,1), [0,1] +fpti(5) ) )
+
+        call interp_4d( pti(1:4), weights(1:4), ctable(indices(1))%c, C4(:,1) ) ! differing zenith
+        call interp_4d( pti(1:4), weights(1:4), ctable(indices(2))%c, C4(:,2) ) !        "
+
+        C = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
+end subroutine
+
 
 function get_indices_4d(dz,kabs ,ksca,g,ps)
     real(ireals) :: get_indices_4d(4)

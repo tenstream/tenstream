@@ -84,8 +84,8 @@ contains
         do ikabs=0,8,5
           do iksca=1,8,5
             do ig=0,5,5
-              do iphi=0,90,50
-                do itheta=0,80,50
+              do iphi=0,0,50
+                do itheta=0,0,50
 
                   itest = itest+1
 

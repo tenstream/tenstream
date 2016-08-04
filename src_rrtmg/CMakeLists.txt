@@ -17,5 +17,3 @@ add_subdirectory (rrtm_sw)
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/rrtm_lw")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/rrtm_sw")
-add_subdirectory (src)
-
