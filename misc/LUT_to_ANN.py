@@ -4,7 +4,6 @@ import numpy as np
 import netCDF4 as NC
 import sys
 from mpl_toolkits.axes_grid1 import ImageGrid
-from plotting import *
 from matplotlib.colors import LogNorm
 
 def rmse(a,b,weights=None):
@@ -160,7 +159,7 @@ def compare_to_old_net(ANNname, Nlayers, Nneurons, new_net, test_inp, test_targe
 
   print 'Old network error: {0:} :: new network: {1:}'.format(rmse_old_network,rmse_new_network)
 
-  if rmse_new_network < rmse_old_network:
+  if rmse_new_network <= rmse_old_network:
       try:
           print 'Saving new network to :::  ',ANNname
           export_network( new_net, ANNname, Nlayers, Nneurons )
@@ -171,7 +170,7 @@ def compare_to_old_net(ANNname, Nlayers, Nneurons, new_net, test_inp, test_targe
   else:
       print 'Already existing, old network has already lower error.. old: {} new: {}'.format(rmse_old_network,rmse_new_network)
 
-def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target):
+def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target, ncpu='ncpu'):
   print 'training net: nr. of hidno: {} nr. of weights: {} using {} input entries'.format( len(net.hidno), np.shape(net.weights),np.shape(train_inp) )
 
   last_weights    = net.weights
@@ -197,7 +196,7 @@ def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp
 #    ipdb.set_trace()
 
     try:
-        res = net.train_tnc(train_inp,train_target,nproc='ncpu',maxfun=maxiter,disp=5)
+        res = net.train_tnc(train_inp,train_target,nproc=ncpu,maxfun=maxiter,disp=5)
 #        res = net.train_basinhopping(train_inp,train_target,niter=maxiter,disp=5)
 #        res = net.train_rprop(train_inp,train_target,maxiter=maxiter,disp=99)
 #        res = net.train_bfgs(train_inp,train_target,bounds=( (None,None), )*len(net.weights),disp=0,maxfun=maxiter)
@@ -315,6 +314,7 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
                 for ikabs in xrange(np.size(kabs)):
                     for iksca in xrange(np.size(ksca)):
                         inp.append( [ dz[idz],kabs[ikabs],ksca[iksca],g[ig] ] )
+                        # inp.append( [ idz, ikabs, iksca, ig ] )
                         out.append( S[:,idz,ikabs,iksca,ig] )
 
     if coeff_mode=='dir2dir' or coeff_mode=='dir2diff':
@@ -353,6 +353,7 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
                         for iksca in xrange(np.size(ksca)):
                             for ikabs in xrange(np.size(kabs)):
                                 inp.append( [ dz[idz],kabs[ikabs],ksca[iksca],g[ig],phi,theta ] )
+                                # inp.append( [ idz, ikabs, iksca, ig, phi, theta ] )
                                 out.append( SorT[:,idz,ikabs,iksca,ig] )
 
         except Exception,e:
@@ -377,9 +378,9 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
     train_inp = inp[:divider,:] ; train_target = out[:divider,:]
     test_inp  = inp[divider:,:] ; test_target  = out[divider:,:]
 
-    return [train_inp, train_target, test_inp, test_target]
+    return np.array([train_inp, train_target, test_inp, test_target])
 
-def train_ANN(ANNname, Nlayers, Nneurons, train_dataset):
+def train_ANN(ANNname, Nlayers, Nneurons, train_dataset, ncpu='ncpu'):
     from ffnet import mlgraph
     train_inp, train_target, test_inp, test_target = train_dataset
     try:
@@ -393,7 +394,7 @@ def train_ANN(ANNname, Nlayers, Nneurons, train_dataset):
 
     compare_to_old_net(ANNname, Nlayers, Nneurons, net,test_inp,test_target)
 
-    train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target)
+    train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target, ncpu=ncpu)
  
     output,_ = net.test(test_inp, test_target, iprint=0)
     plot_coeffs(ANNname, net, test_inp, test_target, output)
@@ -402,32 +403,42 @@ def train_ANN(ANNname, Nlayers, Nneurons, train_dataset):
 
 if __name__ == "__main__":
   import argparse
+  import glob
 
   parser = argparse.ArgumentParser(description='Input parameters for Neural Network Generator')
-  parser.add_argument('LUTname', type=str, help='LUT file which should be converted')
+  parser.add_argument('LUTfiles', type=str, nargs='+', help='LUT basename which should be converted')
   parser.add_argument('coeffmode', choices=['diff2diff', 'dir2dir', 'dir2diff'])
+  parser.add_argument('ANNname', type=str, help='ANN file name on which the net will be saved')
   parser.add_argument('-N', '--Nneurons', default=10, type=int, help='Number of Neurons in each hidden layer')
-  parser.add_argument('-M', '--Nlayers', default=1, type=int, help='Number of hidden layers')
-  parser.add_argument('-o', '--ANNname', type=str, help='ANN file name on which the net will be saved', default=None)
+  parser.add_argument('-M', '--Nlayers', default=2, type=int, help='Number of hidden layers')
+  parser.add_argument('-NCPU', default=8, type=int, help='Number of Processors for TNC')
+  parser.add_argument('--train_frac', default=.8, type=float, help='Fraction of LUT which is used to train network')
 
   args = parser.parse_args()
-  if args.ANNname is None:
-      args.ANNname = '{0:}_{1:}.ANN'.format(args.LUTname.replace('.nc',''), args.coeffmode)
 
-  print 'Converting LUT in file   :::   {0:}  '.format( args.LUTname   )
-  print '             coeffmode   :::   {0:}  '.format( args.coeffmode )
-  print '             Nneurons    :::   {0:}\n'.format( args.Nneurons  )
-  print '             Nlayers     :::   {0:}\n'.format( args.Nlayers   )
-  print '             ANN file    :::   {0:}\n'.format( args.ANNname   )
+  print 'Converting LUT in file   :::   {0:}  '.format(args.LUTfiles )
+  print '             coeffmode   :::   {0:}  '.format(args.coeffmode)
+  print '             ANN file    :::   {0:}\n'.format(args.ANNname  )
+  print '             Nneurons    :::   {0:}\n'.format(args.Nneurons )
+  print '             Nlayers     :::   {0:}\n'.format(args.Nlayers  )
+  print '             NCPU        :::   {0:}\n'.format(args.NCPU     )
+  print '             Train fract :::   {0:}\n'.format(args.train_frac)
 
   try:
-      train_dataset = create_training_dataset(args.coeffmode, args.LUTname)
+      train_dataset = [[],[],[],[]]
+      for f in args.LUTfiles:
+          for i,v in enumerate(create_training_dataset(args.coeffmode, f, training_fraction=args.train_frac)):
+            train_dataset[i].append(v)
+
+      for i,v in enumerate(train_dataset):
+          train_dataset[i] = np.vstack(v)
+
   except Exception,e:
       print 'Error occured when creating training Datasets :',e
       sys.exit(-1)
 
   try:
-      train_ANN(args.ANNname, args.Nlayers, args.Nneurons, train_dataset)
+      train_ANN(args.ANNname, args.Nlayers, args.Nneurons, train_dataset, ncpu=args.NCPU)
   except Exception,e:
       print 'Error occured when training network :',e
       sys.exit(-1)
