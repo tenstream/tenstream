@@ -2580,7 +2580,7 @@ contains
           print *,'You are trying to collapse the atmosphere in the thermal &
           spectral range... this is not possible at the moment or at least not &
           tested.'
-          CHKERRQ(1_mpiint)
+          ierr=1;CHKERRQ(ierr)
       endif
     else
       if(allocated(atm%planck)) deallocate(atm%planck)
