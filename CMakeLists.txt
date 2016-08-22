@@ -42,6 +42,7 @@ set(CMAKE_Fortran_FLAGS_DEBUG   ${USER_Fortran_FLAGS_DEBUG})
 #set(CMAKE_INCLUDE_SYSTEM_FLAG_Fortran "-I")
 
 MESSAGE(STATUS "Build Type " ${CMAKE_BUILD_TYPE})
+MESSAGE(STATUS "Compiler ID "  ${CMAKE_Fortran_COMPILER_ID})
 if (CMAKE_BUILD_TYPE STREQUAL "RELEASE")
   MESSAGE(STATUS "Compiler Flags " ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_RELEASE})
 else()
@@ -49,19 +50,19 @@ else()
 endif()
 
 # HDF5
-find_package( HDF5 ) # use this for non-cmake install of HDF5
+#find_package( HDF5 ) # use this for non-cmake install of HDF5
 #FIND_PACKAGE (HDF5 NAMES hdf5 ) # or this if HDF5 was built with cmake support
-message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
-if(${HDF5_FOUND})
-  message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
-  message(STATUS "HDF5 F90      : ${HDF5_BUILD_FORTRAN}" )
-  message(STATUS "HDF5 Library  : ${HDF5_LIBRARIES}")
-  include_directories(${HDF5_INCLUDE_DIR})
-  include_directories(${HDF5_FORTRAN_INCLUDE_DIR})
-  list (APPEND EXTLIB ${HDF5_LIBRARIES})
-else(${HDF5_FOUND})
-  message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
-endif(${HDF5_FOUND})
+#message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
+#if(${HDF5_FOUND})
+#  message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
+#  message(STATUS "HDF5 F90      : ${HDF5_BUILD_FORTRAN}" )
+#  message(STATUS "HDF5 Library  : ${HDF5_LIBRARIES}")
+#  include_directories(${HDF5_INCLUDE_DIR})
+#  include_directories(${HDF5_FORTRAN_INCLUDE_DIR})
+#  list (APPEND EXTLIB ${HDF5_LIBRARIES})
+#else(${HDF5_FOUND})
+#  message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
+#endif(${HDF5_FOUND})
 
 # NetCDF
 set (NETCDF_F90 "YES")
@@ -128,6 +129,11 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin CACHE PATH "Output d
 set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/include )
 install(DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY}/ DESTINATION include)
 
+# Set default install dir to local path
+if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "default install path" FORCE )
+endif()
+
 # Find out if the compiler is XLF and if so give this to the C preprocessor
 string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "XL" _is_XLF)
 if(${_is_XLF})
@@ -170,3 +176,24 @@ if(ENABLE_PFUNIT)
 	add_subdirectory(tests)
 	add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
 endif(ENABLE_PFUNIT)
+
+option(ENABLE_RRTM "Enable use of RRTM" OFF)
+if(ENABLE_RRTM)
+	add_subdirectory(src_rrtmg)
+endif(ENABLE_RRTM)
+
+option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES" OFF)
+if(ENABLE_EXAMPLES)
+	add_subdirectory(examples)
+endif(ENABLE_EXAMPLES)
+
+find_program(CTAGS_PATH ctags)
+if(CTAGS_PATH)
+    message(STATUS "Found ctags: ${CTAGS_PATH}")
+    set_source_files_properties( tags PROPERTIES GENERATED true)
+    add_custom_target(tags ALL
+        COMMAND ctags -R ${CMAKE_CURRENT_SOURCE_DIR}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Creating ctags" VERBATIM
+        )
+endif(CTAGS_PATH)

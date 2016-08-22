@@ -20,7 +20,7 @@
 module m_optprop_ANN
   USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1, mpiint
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
-      Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,Ndir_8_10,Ndiff_8_10, &
+      Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Ndir_8_10,Ndiff_8_10, &
       ldelta_scale,delta_scale_truncate
   use m_netcdfio
   use mpi
@@ -29,7 +29,7 @@ module m_optprop_ANN
 
   implicit none
   private
-  public ANN_init,ANN_get_dir2dir,ANN_get_dir2diff,ANN_get_diff2diff
+  public ANN_init, ANN_destroy, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 
   logical,parameter :: check_input=.True.
 
@@ -45,24 +45,28 @@ module m_optprop_ANN
     logical :: initialized=.False.
   end type
 
-  type(ANN),save :: diff2diff_network, dir2dir_network, dir2diff_network, direct_network
+  type(ANN),allocatable,save :: diff2diff_network, dir2dir_network, dir2diff_network
 
   real(ireals),parameter :: min_lim_coeff = 0.0001
 ! logical,parameter :: lrenormalize=.True.
   logical,parameter :: lrenormalize=.False.
 
 contains
+  subroutine ANN_destroy()
+    if(allocated(diff2diff_network)) deallocate(diff2diff_network)
+    if(allocated(dir2diff_network)) deallocate(dir2diff_network)
+    if(allocated(dir2dir_network)) deallocate(dir2dir_network)
+  end subroutine
 
-  subroutine ANN_init(dx,dy,comm)
+  subroutine ANN_init(dx, dy, comm, ierr)
       real(ireals),intent(in) :: dx,dy
       integer(iintegers) :: idx,idy
       character(len=300) :: basename, netname, descr
-      integer(iintegers) :: ierr
+      integer(mpiint) :: ierr
 
       integer(mpiint), intent(in) :: comm
       
       integer(iintegers),parameter :: horiz_rounding=1 ! round LUT for various horizontal distances: e.g. horiz_rounding=10 -> dx=66.7 ==> dx=70
-!      integer(iintegers) :: phi,theta,iphi,itheta
 
       call MPI_Comm_rank(comm, myid, mpierr)
       call MPI_Comm_size(comm, comm_size, mpierr)
@@ -81,26 +85,34 @@ contains
         write(descr,FMT='("diffuse.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') &
           idx,Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,ldelta_scale,delta_scale_truncate
 
+        allocate(diff2diff_network)
         netname = trim(basename)//trim(descr)//'_diff2diff.ANN.nc'
         call loadnet(netname, diff2diff_network, ierr)
 
-        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
-          idx,Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,ldelta_scale,delta_scale_truncate
+        write(descr,FMT='("direct.dx",I0,".pspace.dz",I0,".kabs",I0,".ksca",I0,".g",I0,".delta_",L1,"_",F0.3)') &
+          idx, Ndz_8_10, Nkabs_8_10, Nksca_8_10, Ng_8_10, ldelta_scale, delta_scale_truncate
 
+        allocate(dir2diff_network)
         netname = trim(basename)//trim(descr)//'_dir2diff.ANN.nc'
         call loadnet(netname, dir2diff_network, ierr)
 
+        allocate(dir2dir_network)
         netname = trim(basename)//trim(descr)//'_dir2dir.ANN.nc'
         call loadnet(netname, dir2dir_network, ierr)
       endif
+      call imp_bcast(comm, ierr, 0_mpiint, myid)
 
-      if (comm_size.gt.1) then 
+      if (comm_size.gt.1 .and. ierr.eq.0) then 
+        if(myid.ne.0) then
+          allocate( diff2diff_network )
+          allocate( dir2diff_network  )
+          allocate( dir2dir_network   )
+        endif
         call scatter_ANN ( diff2diff_network )
         call scatter_ANN ( dir2diff_network  )
         call scatter_ANN ( dir2dir_network   )
       endif
 
-  end subroutine
 
   subroutine scatter_ANN ( net )
     type(ANN) :: net
@@ -134,8 +146,8 @@ contains
   subroutine loadnet(netname,net,ierr)
       character(300) :: netname
       type(ANN) :: net
-      integer(iintegers),intent(out) :: ierr
-      integer(iintegers) :: errcnt,k
+      integer(mpiint),intent(out) :: ierr
+      integer(mpiint) :: errcnt,k
 
       errcnt=0
       if(.not.allocated(net%weights)) then
@@ -159,7 +171,6 @@ contains
         if(errcnt.ne.0) then
           ierr = errcnt
           print *,'ERROR loading ANN for netname :: ',trim(netname),' ::: ',ierr
-          stop 'Could not load ANN'
           return
         endif
 
@@ -241,7 +252,7 @@ contains
       real(ireals),intent(out) :: C(:)
       real(ireals) :: C2(dir2dir_network%out_size)
 
-      integer(iintegers) :: ierr,isrc
+      integer(mpiint) :: ierr,isrc
       real(ireals) :: norm
 
       ind_dz    = search_sorted_bisection(dir2diff_network%dz   ,dz   )   
@@ -288,7 +299,7 @@ contains
       real(ireals),intent(out) :: C(:)
       real(ireals),intent(in) :: dz,kabs,ksca,g
       real(ireals) :: ind_dz, ind_kabs, ind_ksca, ind_g
-      integer(iintegers) :: ierr,isrc
+      integer(mpiint) :: ierr,isrc
       real(ireals) :: norm
 
       if(.not.diff2diff_network%initialized) then
@@ -329,7 +340,7 @@ contains
       type(ANN),intent(inout) :: net
       real(ireals),intent(out):: coeffs(net%out_size )
       real(ireals),intent(in) :: inp(:)
-      integer(iintegers),intent(out) :: ierr
+      integer(mpiint),intent(out) :: ierr
 
       real(ireals) :: input(net%in_size)
 

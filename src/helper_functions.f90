@@ -27,8 +27,9 @@ module m_helper_functions
       implicit none
 
       private
-      public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
-          mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection
+      public imp_bcast,norm,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
+          mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
+          gradient, read_ascii_file_2d, meanvec, swap
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -37,11 +38,30 @@ module m_helper_functions
       integer(mpiint) :: mpierr
 
     contains
+      pure elemental subroutine swap(x,y)
+          real(ireals),intent(inout) :: x,y
+          real(ireals) :: tmp
+          tmp = x
+          x = y
+          y = tmp
+      end subroutine
       pure elemental subroutine inc(x,i)
           real(ireals),intent(inout) :: x
           real(ireals),intent(in) :: i
           x=x+i
       end subroutine
+
+      pure function gradient(v)
+          real(ireals),intent(in) :: v(:)
+          real(ireals) :: gradient(size(v)-1)
+          gradient = v(2:size(v))-v(1:size(v)-1)
+      end function
+
+      pure function meanvec(v)
+          real(ireals),intent(in) :: v(:)
+          real(ireals) :: meanvec(size(v)-1)
+          meanvec = (v(2:size(v))+v(1:size(v)-1))*.5_ireals
+      end function
 
       pure function norm(v)
           real(ireals) :: norm
@@ -53,6 +73,11 @@ module m_helper_functions
           real(ireals) :: deg2rad
           real(ireals),intent(in) :: deg
           deg2rad = deg *pi/180._ireals
+      end function
+      elemental function rad2deg(rad)
+          real(ireals) :: rad2deg
+          real(ireals),intent(in) :: rad
+          rad2deg = rad /pi*180._ireals
       end function
 
       pure function rmse(a,b)
@@ -102,32 +127,35 @@ module m_helper_functions
       end function
 
 
-      function mpi_logical_and(lval)
+      function mpi_logical_and(comm,lval)
+          integer(mpiint),intent(in) :: comm
           logical :: mpi_logical_and
           logical,intent(in) :: lval
-          call mpi_allreduce(lval, mpi_logical_and, 1_mpiint, imp_logical, MPI_LAND, imp_comm, mpierr); CHKERRQ(mpierr)
+          call mpi_allreduce(lval, mpi_logical_and, 1_mpiint, imp_logical, MPI_LAND, comm, mpierr); CHKERRQ(mpierr)
       end function
-      function mpi_logical_or(lval)
+      function mpi_logical_or(comm,lval)
+          integer(mpiint),intent(in) :: comm
           logical :: mpi_logical_or
           logical,intent(in) :: lval
-          call mpi_allreduce(lval, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, imp_comm, mpierr); CHKERRQ(mpierr)
+          call mpi_allreduce(lval, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, comm, mpierr); CHKERRQ(mpierr)
       end function
 
-      subroutine imp_allreduce_min(v,r)
+      subroutine imp_allreduce_min(comm,v,r)
+          integer(mpiint),intent(in) :: comm
           real(ireals),intent(in) :: v
           real(ireals),intent(out) :: r
-          call mpi_allreduce(v,r,1,imp_real, MPI_MIN,imp_comm, mpierr); CHKERRQ(mpierr)
+          call mpi_allreduce(v,r,1,imp_real, MPI_MIN,comm, mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine imp_allreduce_max(v,r)
+      subroutine imp_allreduce_max(comm,v,r)
+          integer(mpiint),intent(in) :: comm
           real(ireals),intent(in) :: v
           real(ireals),intent(out) :: r
-          call mpi_allreduce(v,r,1,imp_real, MPI_MAX,imp_comm, mpierr); CHKERRQ(mpierr)
+          call mpi_allreduce(v,r,1,imp_real, MPI_MAX,comm, mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine imp_reduce_sum(v,comm,myid)
+      subroutine imp_reduce_sum(comm,v,myid)
           real(ireals),intent(inout) :: v
-          integer,intent(in) :: comm,myid
+          integer(mpiint),intent(in) :: comm,myid
           integer(mpiint) :: commsize
-
           call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
           if(commsize.le.1) return 
 
@@ -138,95 +166,131 @@ module m_helper_functions
           endif
       end subroutine
 
-      subroutine  imp_bcast_logical(val,sendid,myid)
+      subroutine  imp_bcast_logical(comm,val,sendid,myid)
+          integer(mpiint),intent(in) :: comm
           logical,intent(inout) :: val
           integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
-          call mpi_bcast(val, 1_mpiint, imp_logical, sendid, imp_comm, mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(val, 1_mpiint, imp_logical, sendid, comm, mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine  imp_bcast_int(val,sendid,myid)
+      subroutine  imp_bcast_int(comm,val,sendid,myid)
+          integer(mpiint),intent(in) :: comm
           integer(iintegers),intent(inout) :: val
           integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
-          call mpi_bcast(val,1_mpiint,imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(val,1_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine  imp_bcast_int_1d(arr,sendid,myid)
+      subroutine  imp_bcast_int_1d(comm,arr,sendid,myid)
+          integer(mpiint),intent(in) :: comm
           integer(iintegers),allocatable,intent(inout) :: arr(:)
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = size(arr)
-          call mpi_bcast(Ntot,1_mpiint,imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(Ntot,1_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot) )
-          call mpi_bcast(arr,size(arr),imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(arr,size(arr),imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine  imp_bcast_int_2d(arr,sendid,myid)!
+      subroutine  imp_bcast_int_2d(comm,arr,sendid,myid)!
+          integer(mpiint),intent(in) :: comm
           integer(iintegers),allocatable,intent(inout) :: arr(:,:)
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot(2)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = shape(arr)
-          call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
-          call mpi_bcast(arr,size(arr),imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(arr,size(arr),imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine  imp_bcast_real(val,sendid,myid)
+      subroutine  imp_bcast_real(comm,val,sendid,myid)
+          integer(mpiint),intent(in) :: comm
           real(ireals),intent(inout) :: val
           integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
-          call mpi_bcast(val,1_mpiint,imp_real,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(val,1_mpiint,imp_real,sendid,comm,mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine  imp_bcast_real_1d(arr,sendid,myid)
+      subroutine  imp_bcast_real_1d(comm,arr,sendid,myid)
+          integer(mpiint),intent(in) :: comm
           real(ireals),allocatable,intent(inout) :: arr(:)
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = size(arr)
-          call mpi_bcast(Ntot,1_mpiint,imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(Ntot,1_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot) )
-          call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(arr,size(arr),imp_real,sendid,comm,mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine  imp_bcast_real_2d(arr,sendid,myid)
+      subroutine  imp_bcast_real_2d(comm,arr,sendid,myid)
+          integer(mpiint),intent(in) :: comm
           real(ireals),allocatable,intent(inout) :: arr(:,:)
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot(2)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = shape(arr)
-          call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
-          call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(arr,size(arr),imp_real,sendid,comm,mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine  imp_bcast_real_3d(arr,sendid,myid)
+      subroutine  imp_bcast_real_3d(comm,arr,sendid,myid)
+          integer(mpiint),intent(in) :: comm
           real(ireals),allocatable,intent(inout) :: arr(:,:,:)
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot(3)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = shape(arr)
-          call mpi_bcast(Ntot,3_mpiint,imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(Ntot,3_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3) ) )
-          call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(arr,size(arr),imp_real,sendid,comm,mpierr); CHKERRQ(mpierr)
       end subroutine
-      subroutine  imp_bcast_real_5d(arr,sendid,myid)
+      subroutine  imp_bcast_real_5d(comm,arr,sendid,myid)
+          integer(mpiint),intent(in) :: comm
           real(ireals),allocatable,intent(inout) :: arr(:,:,:,:,:)
           integer(mpiint),intent(in) :: sendid,myid
 
           integer(iintegers) :: Ntot(5)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); CHKERRQ(mpierr)
+          if(commsize.le.1) return 
 
           if(sendid.eq.myid) Ntot = shape(arr)
-          call mpi_bcast(Ntot,5_mpiint,imp_int,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(Ntot,5_mpiint,imp_int,sendid,comm,mpierr); CHKERRQ(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3), Ntot(4), Ntot(5) ) )
-          call mpi_bcast(arr,size(arr),imp_real,sendid,imp_comm,mpierr); CHKERRQ(mpierr)
+          call mpi_bcast(arr,size(arr),imp_real,sendid,comm,mpierr); CHKERRQ(mpierr)
       end subroutine
 
       elemental subroutine delta_scale( kabs,ksca,g,factor ) 
@@ -302,4 +366,60 @@ function search_sorted_bisection(arr,val) ! return index+residula i where arr(i)
   end do
 end function
 
-      end module
+      subroutine read_ascii_file_2d(filename, arr, ncolumns, skiplines, ierr)
+          character(len=*),intent(in) :: filename
+          integer(iintegers),intent(in) :: ncolumns
+          integer(iintegers),intent(in),optional :: skiplines
+
+          real(ireals),allocatable,intent(out) :: arr(:,:)
+
+          integer(mpiint) :: ierr
+
+          real :: line(ncolumns)
+
+          integer(iintegers) :: unit, nlines, i, io
+          logical :: file_exists=.False.
+
+          ierr=0
+          inquire(file=filename, exist=file_exists)
+
+          if(.not.file_exists) then
+            print *,'File ',trim(filename), 'does not exist!'
+            ierr=1
+            return
+          endif
+
+          open(newunit=unit, file=filename)
+          if(present(skiplines)) then
+              do i=1,skiplines
+                  read(unit,*)
+              enddo
+          endif
+
+          nlines = 0
+          do
+              read(unit, *, iostat=io) line
+              !print *,'line',line
+              if (io/=0) exit
+              nlines = nlines + 1
+          end do
+
+          rewind(unit)
+          if(present(skiplines)) then
+              do i=1,skiplines
+                  read(unit,*)
+              enddo
+          endif
+
+          allocate(arr(nlines,ncolumns))
+
+          do i=1,nlines
+              read(unit, *, iostat=io) line
+              arr(i,:) = line
+          end do
+
+          close(unit)
+          print *,'I read ',nlines,'lines'
+      end subroutine
+
+  end module

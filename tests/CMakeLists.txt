@@ -10,6 +10,13 @@ enable_testing()
 
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fprofile-arcs -ftest-coverage -DUSE_MPI")
 
+# Find out if the compiler is Intel and if so add compile flag for parameter tests
+string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
+if(${_is_Intel})
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -assume realloc_lhs")
+endif(${_is_Intel})
+
+
 if(DEFINED PFUNIT_INSTALL)
     message(STATUS "Manual setup of variable PFUNIT_INSTALL : ${PFUNIT_INSTALL}")
     set(PFUNIT_DIR ${PFUNIT_INSTALL})
@@ -29,6 +36,7 @@ else()
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/external/pfunit
         -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+        -DMPI_USE_MPIEXEC=YES
         -DMPI=YES
         )
     ExternalProject_Add(pfunit
@@ -44,6 +52,7 @@ else()
     include_directories(${PROJECT_BINARY_DIR}/external/pfunit/mod)
     add_dependencies(pfunit git_update)
     set(PFUNIT_DIR ${PROJECT_BINARY_DIR}/external/pfunit)
+    set(MPIEXEC "mpirun")
 endif()
 
 include_directories(${PFUNIT_DIR}/mod)
