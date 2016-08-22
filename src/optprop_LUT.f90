@@ -23,8 +23,8 @@ module m_optprop_LUT
   use petsc
   use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
 
-  use m_helper_functions, only : approx,rel_approx,imp_bcast,mpi_logical_and,mpi_logical_or
-  use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_logical,numnodes
+  use m_helper_functions, only : approx,rel_approx,imp_bcast,mpi_logical_and,mpi_logical_or, search_sorted_bisection
+  use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_comm,imp_logical,numnodes
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
       Ndz_1_2,Nkabs_1_2,Nksca_1_2,Ng_1_2,Nphi_1_2,Ntheta_1_2,Ndir_1_2,Ndiff_1_2,interp_mode_1_2,   &
       Ndz_8_10,Nkabs_8_10,Nksca_8_10,Ng_8_10,Nphi_8_10,Ntheta_8_10,Ndir_8_10,Ndiff_8_10,interp_mode_8_10, &
@@ -1087,35 +1087,6 @@ subroutine determine_angles_to_load(comm, interp_mode, LUT, azis, szas, mask)
     enddo
 end subroutine
 
-function search_sorted_bisection(arr,val) ! return index+residula i where arr(i) .gt. val
-  real(ireals) :: search_sorted_bisection
-  real(ireals),intent(in) :: arr(:)
-  real(ireals),intent(in) :: val
-  real(ireals) :: loc_increment
-  integer(iintegers) :: i,j,k
-
-  i=lbound(arr,1)
-  j=ubound(arr,1)
-
-  do
-    k=(i+j)/2
-    if (val < arr(k)) then
-      j=k
-    else
-      i=k
-    endif
-    if (i+1 >= j) then ! only single or tuple left
-      ! i is left bound and j is right bound index
-      if(i.eq.j) then
-        loc_increment = zero
-      else
-        loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
-      endif
-      search_sorted_bisection= min(max(one*lbound(arr,1), i + loc_increment), one*ubound(arr,1)) ! return `real-numbered` location of val
-      exit
-    endif
-  end do
-end function
 
 function exp_index_to_param(index,range,N,expn)
     real(ireals) :: exp_index_to_param
@@ -1208,8 +1179,8 @@ subroutine set_parameter_space(OPP,ps,dx,dy)
       ps%g(1)=zero
       ps%range_g=zero
     endif
-
-
+    
+    print *,ps%g
     ! -------------- Setup kabs/ksca support points
 
     diameter = sqrt(dx**2 + dy**2 +  ps%range_dz(2)**2 )
