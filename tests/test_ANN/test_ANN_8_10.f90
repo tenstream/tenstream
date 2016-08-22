@@ -132,7 +132,7 @@ contains
       phi   =  0
       theta =  0
 
-      dx = 100
+      dx = 67
       dy = dx
       dz = 50
 
