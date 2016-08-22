@@ -60,7 +60,7 @@ module m_tenstream
   use m_schwarzschild, only: schwarzschild
   use m_helper_functions, only: deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and,imp_allreduce_min
   use m_eddington, only : eddington_coeff_zdun
-  use m_optprop_parameters, only : ldelta_scale
+  use m_optprop_parameters, only : ldelta_scale, coeff_mode
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
     options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
@@ -2521,7 +2521,7 @@ contains
     if(any(shape(arr).lt.minimal_dimension) ) stop 'set_optprop -> extend_arr :: dimension is smaller than we support... please think of something here'
   end subroutine
 
-  subroutine set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
+   subroutine set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
     real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g ! dimensions (Nz  , Nx, Ny)
     real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny)
     real(ireals) :: tau,kext,w0,g
@@ -2720,9 +2720,12 @@ contains
   endif
 
   ! ---------------------------- Source Term -------------
+!  coeff_mode=0
   call setup_b(solutions(uid),b)
 
   ! ---------------------------- Ediff -------------------
+!  coeff_mode=1
+!  call OPP_8_10%init(atm%dx,atm%dy,[sun%symmetry_phi],[sun%theta],imp_comm)
   call set_diff_coeff(Mdiff,C_diff)
   call setup_ksp(kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
   call PetscLogStagePush(logstage(5),ierr) ;CHKERRQ(ierr)

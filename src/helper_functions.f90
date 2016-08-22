@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_helper_functions
-      use m_data_parameters,only : iintegers,ireals,pi,one,imp_real,imp_int,imp_logical,mpiint,imp_comm
+      use m_data_parameters,only : iintegers,ireals,pi,zero,one,imp_real,imp_int,imp_logical,mpiint,imp_comm
 
 #include "petsc/finclude/petscdef.h"
       use petsc
@@ -28,7 +28,7 @@ module m_helper_functions
 
       private
       public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
-          mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum
+          mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -272,5 +272,34 @@ module m_helper_functions
           enddo
       end function
 
+function search_sorted_bisection(arr,val) ! return index+residula i where arr(i) .gt. val
+  real(ireals) :: search_sorted_bisection
+  real(ireals),intent(in) :: arr(:)
+  real(ireals),intent(in) :: val
+  real(ireals) :: loc_increment
+  integer(iintegers) :: i,j,k
+
+  i=lbound(arr,1)
+  j=ubound(arr,1)
+
+  do
+    k=(i+j)/2
+    if (val < arr(k)) then
+      j=k
+    else
+      i=k
+    endif
+    if (i+1 >= j) then ! only single or tuple left
+      ! i is left bound and j is right bound index
+      if(i.eq.j) then
+        loc_increment = zero
+      else
+        loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
+      endif
+      search_sorted_bisection= min(max(one*lbound(arr,1), i + loc_increment), one*ubound(arr,1)) ! return `real-numbered` location of val
+      exit
+    endif
+  end do
+end function
 
       end module

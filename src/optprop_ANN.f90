@@ -24,7 +24,8 @@ module m_optprop_ANN
       ldelta_scale,delta_scale_truncate
   use m_netcdfio
   use mpi
-  use m_helper_functions, only : imp_bcast
+  use m_helper_functions, only : imp_bcast, search_sorted_bisection
+
 
   implicit none
   private
@@ -35,7 +36,7 @@ module m_optprop_ANN
   integer(mpiint) :: myid,comm_size,mpierr
 
   type ANN
-    real(ireals),allocatable,dimension(:) :: weights, units
+    real(ireals),allocatable,dimension(:) :: weights, units, dz, kabs, ksca, g, phi, theta
     integer(iintegers),allocatable,dimension(:) :: inno, outno
     real(ireals),allocatable,dimension(:,:) :: eni, deo, inlimits
     integer(iintegers),allocatable,dimension(:,:) :: conec
@@ -46,9 +47,9 @@ module m_optprop_ANN
 
   type(ANN),save :: diff2diff_network, dir2dir_network, dir2diff_network, direct_network
 
-  real(ireals),parameter :: min_lim_coeff = zero
-  logical,parameter :: lrenormalize=.True.
-! logical,parameter :: lrenormalize=.False.
+  real(ireals),parameter :: min_lim_coeff = 0.0001
+! logical,parameter :: lrenormalize=.True.
+  logical,parameter :: lrenormalize=.False.
 
 contains
 
@@ -102,21 +103,32 @@ contains
   end subroutine
 
   subroutine scatter_ANN ( net )
-      type(ANN) :: net
+    type(ANN) :: net
+    logical :: l_have_angles
 
-      call imp_bcast(net%weights    , 0_mpiint, myid )
-      call imp_bcast(net%units      , 0_mpiint, myid )
-      call imp_bcast(net%inno       , 0_mpiint, myid )
-      call imp_bcast(net%outno      , 0_mpiint, myid )
-      call imp_bcast(net%conec      , 0_mpiint, myid )
-      call imp_bcast(net%deo        , 0_mpiint, myid )
-      call imp_bcast(net%eni        , 0_mpiint, myid )
-      call imp_bcast(net%inlimits   , 0_mpiint, myid )
-      call imp_bcast(net%lastcall   , 0_mpiint, myid )
-      call imp_bcast(net%lastresult , 0_mpiint, myid )
-      call imp_bcast(net%in_size    , 0_mpiint, myid )
-      call imp_bcast(net%out_size   , 0_mpiint, myid )
-      call imp_bcast(net%initialized, 0_mpiint, myid )
+    call imp_bcast(net%weights    , 0_mpiint, myid )
+    call imp_bcast(net%units      , 0_mpiint, myid )
+    call imp_bcast(net%inno       , 0_mpiint, myid )
+    call imp_bcast(net%outno      , 0_mpiint, myid )
+    call imp_bcast(net%conec      , 0_mpiint, myid )
+    call imp_bcast(net%deo        , 0_mpiint, myid )
+    call imp_bcast(net%eni        , 0_mpiint, myid )
+    call imp_bcast(net%inlimits   , 0_mpiint, myid )
+    call imp_bcast(net%lastcall   , 0_mpiint, myid )
+    call imp_bcast(net%lastresult , 0_mpiint, myid )
+    call imp_bcast(net%in_size    , 0_mpiint, myid )
+    call imp_bcast(net%out_size   , 0_mpiint, myid )
+    call imp_bcast(net%initialized, 0_mpiint, myid )
+    call imp_bcast(net%dz         , 0_mpiint, myid )
+    call imp_bcast(net%kabs       , 0_mpiint, myid )
+    call imp_bcast(net%ksca       , 0_mpiint, myid )
+    call imp_bcast(net%g          , 0_mpiint, myid )
+    if (myid.eq.0) l_have_angles=allocated(net%phi) .and. allocated(net%theta)
+    call imp_bcast(l_have_angles  , 0_mpiint, myid )
+    if (l_have_angles) then
+      call imp_bcast(net%phi        , 0_mpiint, myid )
+      call imp_bcast(net%theta      , 0_mpiint, myid )
+    endif
   end subroutine
 
   subroutine loadnet(netname,net,ierr)
@@ -127,14 +139,20 @@ contains
 
       errcnt=0
       if(.not.allocated(net%weights)) then
-        call ncload([netname,'weights' ],net%weights ,ierr) ; errcnt = ierr        !  ; print *,'loading weights ',ierr
-        call ncload([netname,'units'   ],net%units   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading units   ',ierr
-        call ncload([netname,'inno'    ],net%inno    ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inno    ',ierr
-        call ncload([netname,'outno'   ],net%outno   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading outno   ',ierr
-        call ncload([netname,'conec'   ],net%conec   ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading conec   ',ierr
-        call ncload([netname,'deo'     ],net%deo     ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading deo     ',ierr
-        call ncload([netname,'eni'     ],net%eni     ,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading eni     ',ierr
-        call ncload([netname,'inlimits'],net%inlimits,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inlimits',ierr
+        call ncload([netname,'weights' ],net%weights ,ierr) ; errcnt = ierr        ! ; print *,'loading weights ',ierr
+        call ncload([netname,'units'   ],net%units   ,ierr) ; errcnt = errcnt+ierr ! ; print *,'loading units   ',ierr
+        call ncload([netname,'inno'    ],net%inno    ,ierr) ; errcnt = errcnt+ierr ! ; print *,'loading inno    ',ierr
+        call ncload([netname,'outno'   ],net%outno   ,ierr) ; errcnt = errcnt+ierr ! ; print *,'loading outno   ',ierr
+        call ncload([netname,'conec'   ],net%conec   ,ierr) ; errcnt = errcnt+ierr ! ; print *,'loading conec   ',ierr
+        call ncload([netname,'deo'     ],net%deo     ,ierr) ; errcnt = errcnt+ierr ! ; print *,'loading deo     ',ierr
+        call ncload([netname,'eni'     ],net%eni     ,ierr) ; errcnt = errcnt+ierr ! ; print *,'loading eni     ',ierr
+        call ncload([netname,'inlimits'     ],net%inlimits     ,ierr) ; errcnt = errcnt+ierr ! ; print *,'loading inlimits     ',ierr
+        call ncload([netname,'pspace.dz'],net%dz,ierr) ; errcnt = errcnt+ierr !  ; print *,'loading inlimits',ierr
+        call ncload([netname,'pspace.kabs'     ],net%kabs     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading deo     ',ierr
+        call ncload([netname,'pspace.ksca'     ],net%ksca     ,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading eni     ',ierr
+        call ncload([netname,'pspace.g'],net%g,ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inlimits',ierr
+        call ncload([netname,'pspace.phi'  ],net%phi  ,ierr) ; print *,'loading phi  ',ierr, allocated(net%phi  ), net%inlimits
+        call ncload([netname,'pspace.theta'],net%theta,ierr) ; print *,'loading theta',ierr, allocated(net%theta), net%inlimits
         
         if(ldebug_optprop) &
           print *,'Loading ANN from: ',trim(netname),' resulted in errcnt',errcnt
@@ -163,92 +181,113 @@ contains
 
   end subroutine
 
+
+
+
   subroutine ANN_get_dir2dir(dz, kabs, ksca, g, phi, theta, C)
       real(ireals),intent(in) :: dz,kabs,ksca,g,phi,theta
+      real(ireals) :: ind_dz, ind_kabs, ind_ksca, ind_g, ind_phi, ind_theta
       real(ireals),intent(out) :: C(:)
       real(ireals) :: C2(dir2diff_network%out_size)
 
       integer(iintegers) :: ierr,isrc
       real(ireals) :: norm
+        
+      ind_dz    = search_sorted_bisection(dir2dir_network%dz   ,dz   )
+      ind_kabs  = search_sorted_bisection(dir2dir_network%kabs ,kabs )   
+      ind_ksca  = search_sorted_bisection(dir2dir_network%ksca ,ksca )   
+      ind_g     = search_sorted_bisection(dir2dir_network%g    ,g    )   
+      ind_phi   = search_sorted_bisection(dir2dir_network%phi  ,phi  )   
+      ind_theta = search_sorted_bisection(dir2dir_network%theta,theta)   
 
-      call calc_net(C, [dz,kabs,ksca,g,phi,theta] , dir2dir_network,ierr )
+
+      call calc_net(C, [ind_dz,ind_kabs,ind_ksca,ind_g,ind_phi,ind_theta] , dir2dir_network,ierr )
       if(ierr.ne.0) then
         print *,'Error when calculating dir2dir_net coeffs',ierr
         call exit()
       endif
 
-      C = min(one, max(C,zero) )
-      where( C.le.min_lim_coeff )
-        C = zero
-      endwhere
+!     C = min(one, max(C,zero) )
+!     where( C.le.min_lim_coeff )
+!       C = zero
+!     endwhere
 
       !Check for energy conservation:
-      if(lrenormalize) then
-        do isrc=1,Ndir_8_10
-          norm = sum( C( isrc:size(C):Ndir_8_10 ) )
-          if(real(norm).gt.one) then
-            C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/norm 
-            !          print *,'dir2dir renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
-          endif
-        enddo
-      endif
+!      if(lrenormalize) then
+!        do isrc=1,Ndir_8_10
+!          norm = sum( C( isrc:size(C):Ndir_8_10 ) )
+!          if(real(norm).gt.one) then
+!            C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/norm 
+!            !          print *,'dir2dir renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
+!          endif
+!        enddo
+!      endif
 
-!     if(lrenormalize) then                                                               
-!       call calc_net(C2, [dz,kabs,ksca,g,phi,theta], dir2diff_network,ierr)               
-!       do isrc=1,Ndir_8_10                                                                
-!         norm = sum( C(isrc:size(C):Ndir_8_10) ) + sum( C2(isrc:size(C2):Ndiff_8_10) )    
-!         if(real(norm).gt.one) then                                                       
-!           C(isrc:size(C):Ndir_8_10)=C( isrc:size(C):Ndir_8_10 )/norm                     
-!         endif                                                                            
-!       enddo                                                                              
-!     endif                                                                                
+      if(lrenormalize) then                                                               
+        call calc_net(C2, [ind_dz,ind_kabs,ind_ksca,ind_g,ind_phi,ind_theta], dir2diff_network,ierr)               
+        do isrc=1,Ndir_8_10                                                                
+          norm = sum( C(isrc:size(C):Ndir_8_10) ) + sum( C2(isrc:size(C2):Ndiff_8_10) )    
+          if(real(norm).gt.one) then                                                       
+            C(isrc:size(C):Ndir_8_10)=C( isrc:size(C):Ndir_8_10 )/norm                     
+          endif                                                                            
+        enddo                                                                              
+      endif                                                                                
 
    end subroutine
 
   subroutine ANN_get_dir2diff(dz, kabs, ksca, g, phi, theta, C)
       real(ireals),intent(in) :: dz,kabs,ksca,g,phi,theta
+      real(ireals) :: ind_dz,ind_kabs,ind_ksca,ind_g,ind_phi,ind_theta
       real(ireals),intent(out) :: C(:)
       real(ireals) :: C2(dir2dir_network%out_size)
 
       integer(iintegers) :: ierr,isrc
       real(ireals) :: norm
 
-      call calc_net(C, [dz,kabs,ksca,g,phi,theta] , dir2diff_network,ierr )
-      C = C/1000.0
+      ind_dz    = search_sorted_bisection(dir2diff_network%dz   ,dz   )   
+      ind_kabs  = search_sorted_bisection(dir2diff_network%kabs ,kabs )   
+      ind_ksca  = search_sorted_bisection(dir2diff_network%ksca ,ksca )   
+      ind_g     = search_sorted_bisection(dir2diff_network%g    ,g    )   
+      ind_phi   = search_sorted_bisection(dir2diff_network%phi  ,phi  )   
+      ind_theta = search_sorted_bisection(dir2diff_network%theta,theta)   
+
+      call calc_net(C, [ind_dz,ind_kabs,ind_ksca,ind_g,ind_phi,ind_theta] , dir2diff_network,ierr )
+!      C = C/1000.0
       if(ierr.ne.0) then
         print *,'Error when calculating dir2diff_net coeffs',ierr
         call exit()
       endif
 
-      C = min(one, max(C,zero) )
-      where( C.le.min_lim_coeff )
-        C = zero
-      endwhere
+!     C = min(one, max(C,zero) )
+!     where( C.le.min_lim_coeff )
+!       C = zero
+!     endwhere
 
       !Check for energy conservation:
-      if(lrenormalize) then
-        do isrc=1,Ndiff_8_10
-          norm = sum( C( isrc:size(C):Ndir_8_10 ) )
-          if(real(norm).gt.one) then
-            C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/ norm
-            !          print *,'dir2diff renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
-          endif
-        enddo
-      endif
-!     if(lrenormalize) then                                                              
-!       call calc_net(C2, [dz,kabs,ksca,g,phi,theta], dir2dir_network,ierr)              
-!       do isrc=1,Ndir_8_10                                                              
-!         norm = sum( C(isrc:size(C):Ndiff_8_10) ) + sum( C2(isrc:size(C2):Ndir_8_10) )  
-!         if(real(norm).gt.one) then                                                     
-!           C(isrc:size(C):Ndiff_8_10)=C( isrc:size(C):Ndiff_8_10 )/norm                 
-!         endif                                                                          
-!       enddo                                                                            
-!     endif                                                                              
-   end subroutine 
+!     if(lrenormalize) then
+!       do isrc=1,Ndiff_8_10
+!         norm = sum( C( isrc:size(C):Ndir_8_10 ) )
+!         if(real(norm).gt.one) then
+!           C( isrc:size(C):Ndir_8_10 ) = C( isrc:size(C):Ndir_8_10 )/ norm
+!           !          print *,'dir2diff renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndir_8_10 ) )
+!         endif
+!       enddo
+!     endif
+      if(lrenormalize) then                                                              
+        call calc_net(C2, [ind_dz,ind_kabs,ind_ksca,ind_g,ind_phi,ind_theta], dir2dir_network,ierr)              
+        do isrc=1,Ndir_8_10                                                              
+          norm = sum( C(isrc:size(C):Ndiff_8_10) ) + sum( C2(isrc:size(C2):Ndir_8_10) )  
+          if(real(norm).gt.one) then                                                     
+            C(isrc:size(C):Ndiff_8_10)=C( isrc:size(C):Ndiff_8_10 )/norm                 
+          endif                                                                          
+        enddo                                                                            
+      endif                                                                              
+   end subroutine  
 
    subroutine ANN_get_diff2diff(dz, kabs, ksca, g, C)
       real(ireals),intent(out) :: C(:)
       real(ireals),intent(in) :: dz,kabs,ksca,g
+      real(ireals) :: ind_dz, ind_kabs, ind_ksca, ind_g
       integer(iintegers) :: ierr,isrc
       real(ireals) :: norm
 
@@ -257,17 +296,22 @@ contains
         call exit()
       endif
 
-      call calc_net(C, [dz,kabs,ksca,g],diff2diff_network,ierr )
+      ind_dz   = search_sorted_bisection(diff2diff_network%dz  , dz  )   
+      ind_kabs = search_sorted_bisection(diff2diff_network%kabs, kabs)   
+      ind_ksca = search_sorted_bisection(diff2diff_network%ksca, ksca)   
+      ind_g    = search_sorted_bisection(diff2diff_network%g   , g   )   
+
+      call calc_net(C, [ind_dz,ind_kabs,ind_ksca,ind_g],diff2diff_network,ierr )
  !     C = C/1000.0
       if(ierr.ne.0) then
         print *,'Error when calculating diff_net coeffs',ierr
         call exit()
       endif
 
-      C = min(one, max(C,zero) )
-      where( C.le.min_lim_coeff )
-        C = zero
-      endwhere
+!     C = min(one, max(C,zero) )
+!     where( C.le.min_lim_coeff )
+!       C = zero
+!     endwhere
 
       !Check for energy conservation:
       if(lrenormalize) then
@@ -279,7 +323,7 @@ contains
           endif
         enddo
       endif
-    end subroutine
+    end subroutine 
  
   subroutine calc_net(coeffs,inp,net,ierr)
       type(ANN),intent(inout) :: net
@@ -294,7 +338,7 @@ contains
 
       ierr=0
 
-      input = inp
+      input = inp-one
 
       if(all(approx(net%lastcall,inp) )) then
         coeffs = net%lastresult
