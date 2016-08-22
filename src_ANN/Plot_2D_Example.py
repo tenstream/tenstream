@@ -4,8 +4,11 @@ import ffnet as ff
 import matplotlib.pyplot as plt
 
 LUT_file = '/home/users/max.eckl/scratch/LUT/LUT_8_10.direct.dx67.dy67.pspace.dz20.kabs20.ksca20.g3.phi0.theta0.delta_T_1.000.nc'
+#LUT_file = '/home/users/max.eckl/scratch/LUT/LUT_8_10.diffuse.dx67.dy67.pspace.dz20.kabs20.ksca20.g3.delta_T_1.000.nc'
 
+#net_file = '/home/users/max.eckl/scratch/ANN/dx67dy67/index/dir2dir/dir2dir_31_.net'
 net_file = '/home/users/max.eckl/scratch/ANN/dx67dy67/index/dir2diff/dir2diff_10_.net'
+#net_file = '/usr/users/max.eckl/scratch/ANN/dx67dy67/index/diff2diff/bak/diff2diff_13_.net'
 
 net_res  = 51
 
@@ -21,7 +24,7 @@ const_val    = {
                 }
 
 
-dir2dir=False
+dir2dir=True
 
 
 
@@ -143,7 +146,7 @@ else:
 
 dim_ind = var.index(dim)
 
-fig, ax = plt.subplots(nplotx,nploty,sharex=True)
+fig, ax = plt.subplots(nplotx,nploty,sharex=True,squeeze=False)
 for i,xax in enumerate(ax):
     for j,yax in enumerate(xax):
         yax.plot(ind[:,dim_ind],net_out[:,i*nplotx+j],color='red',marker='D',label='ANN')

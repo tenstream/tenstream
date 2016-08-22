@@ -130,6 +130,9 @@ contains
       call bmc_8_10%init(comm)
 
       dx = 100
+      phi   =  0
+      theta =  0
+
       dy = dx
       dz = 50
 
