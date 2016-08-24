@@ -10,19 +10,20 @@ Required python modules:
 #### Usage:
 Just execute Calc_ANN.py with some arguments (use "./Calc_ANN.py --help" for further information):
 * --LUT: One or more LUTs to train the ANN
-* --ANN_setup: Number of hidden neurons and layers (e.g. "20 20" generates an ("number input nodes",20,20,"number output nodes")-ANN; "number input nodes" and "number output nodes" will be calculated automatically)
+* --ANN_setup: ANN which has been saved with ffnet.savenet() (see argument <basename>) -OR- Number of hidden neurons and layers (e.g. "20 20" generates an ("number input nodes",20,20,"number output nodes")-ANN; "number input nodes" and "number output nodes" will be calculated automatically)
 * --coeff_type: Use "diffuse", "diff2diff", "dir2diff", or "dir2dir" to calculate the corresponding network. If you use "diffuse" or "diff2diff"/"dir2diff" or "dir2dir" the LUT/s you use for training must be diffuse/direct.
 * --test_perc: Percentage of training dataset which is used for testing ( (1.0-"test_perc") is used for training). After every training step the dataset is shuffeld, hence the testing-dataset changes after every training.
 * --err_inc: If the relative error of the test-dataset after a training step increases more than "err_inc" compared to the previous training the training will be stopped (prevent overfitting).
-* --basename: After every training step the resulting ffnet is saved to "basename_"training_step"_.net".
+* --basename: After every training step the resulting ffnet is saved to "basename_"training_step"_.net" using ffnet.savenet().
 * --full (optional): If set a fully connected ANN will be initialized.
 * --nproc (optional): Number of processes used for training; use "ncpu" for maximal possible number; default is 8.
+* --index (optional): If set the input of the trained network are the indices not the values.
 
 After every training step the resulting ANN will be saved to "path/to/LUT/" as a netCDF-file. When you start the next time the tenstream-solver set the option "-coeff_mode 1" to use ANNs instead of LUTs.
 
 ##### Example:
     ./Calc_ANN.py --LUT path/to/LUT/LUT_8_10.direct.dx67.dy67.pspace.dz20.kabs20.ksca20.g3.phi0.theta0.delta_T_1.000.nc path/to/LUT/LUT_8_10.direct.dx67.dy67.pspace.dz20.kabs20.ksca20.g3.phi0.theta20.delta_T_1.000.nc 
-    --ANN_setup 20 20 --coeff_type dir2dir test_perc 0.2 err_inc 0.01 --basename path/to/ANN/ANN_prefix --nproc 4
+    --ANN_setup 20 20 --coeff_type dir2dir test_perc 0.2 err_inc 0.01 --basename path/to/ANN/ANN_prefix --nproc 4 --index
 This line calculates a network:
 * using two LUTs for training
 * has the shape (6,20,20,64)
@@ -31,4 +32,4 @@ This line calculates a network:
 * stops wenn the error increases more than 1%
 * will be saved to "path/to/ANN/ANN_prefix_"training_step"_.net" after every training step
 * using 4 processes for training
-        
+* "index-ANN"

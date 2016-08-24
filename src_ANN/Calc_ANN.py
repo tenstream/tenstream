@@ -10,7 +10,7 @@ import argparse
 parser = argparse.ArgumentParser(prog='Program which calculates and trains Artificial Neural Networks (ANN) to fit tenstream-Look-Up-Tables (LUT)')
 parser.add_argument('-l', '--LUT', nargs='+', type=str, required=True, help='LUT/LUTs which are used to train')
 parser.add_argument('-s', '--ANN_setup', nargs='+', type=int, required=True, 
-                    help='number of hidden neurons and hidden layers (e.g. use 20 20 for a (input_nodes,20,20,output_nodes)-network)')
+                    help='number of hidden neurons and hidden layers (e.g. use 20 20 for a (input_nodes,20,20,output_nodes)-network) OR existing ANN which has been saved with "ffnet.savenet"')
 parser.add_argument('-c', '--coeff_type', choices=['diffuse','diff2diff','dir2diff','dir2dir'], type=str, required=True, 
                     help='use diff2diff, dir2diff, or dir2dir; if you want to calculate a diff2diff/dir2* network you have to use a diffuse/direct LUT for training')
 parser.add_argument('-t', '--test_perc', type=float, required=True, help='percentage of training data which is used to test')
@@ -18,6 +18,7 @@ parser.add_argument('-i', '--err_inc', type=float, required=True, help='maximal 
 parser.add_argument('-b', '--basename', type=str, required=True, help='ffnet is saved to basename_<training step>_.net after every training step')
 parser.add_argument('--full', action='store_true', help='if set a fully connected ANN will be initialized and trained')
 parser.add_argument('--nproc', default=8, help='number of processes; use ncpu for maximal possible number')
+parser.add_argument('--index', action='store_true', help='calc an "index-ANN"')
 args = parser.parse_args()
 
 
@@ -86,7 +87,12 @@ def Getting_Arrays ( LUT_file ):
         LUT_names.extend(['T','T_tol'])
         LUT_prefix = LUT_prefix+'.phi{0:d}.theta{1:d}'.format(res['phi'],res['theta'])
         T, T_tol = [], []
+        var.extend( ['phi','theta'] )
+
+        phi   = LUT_data.variables['direct.dx{0:d}.dy{1:d}.pspace.phi'  .format(res['dx'],res['dy'])][:].tolist()
+        theta = LUT_data.variables['direct.dx{0:d}.dy{1:d}.pspace.theta'.format(res['dx'],res['dy'])][:].tolist()
     
+
     data = [LUT_data.variables['{0:s}.dx{1:d}.dy{2:d}.pspace.{3:s}'.format(coeff_type,res['dx'],res['dy'],xvar)][:] for xvar in var]
     LUT  = [LUT_data.variables['{0:s}.{1:s}.{2:s}'.format(coeff_type,LUT_prefix,LUT_name)][:] for LUT_name in LUT_names]
     
@@ -95,13 +101,15 @@ def Getting_Arrays ( LUT_file ):
             for ksca in range( res['ksca'] ):
                 for  g   in range( res[ 'g'  ] ):
 
-                    index.append ( [dz,kabs,ksca,g] )
                     src  .append ( [data[0][dz], data[1][kabs], data[2][ksca], data[3][g]] )
                     S    .append ( LUT[0][g,ksca,kabs,dz] )
                     S_tol.append ( LUT[1][g,ksca,kabs,dz] )
                     if coeff_type=='direct':
                         T    .append ( LUT[2][g,ksca,kabs,dz] )
                         T_tol.append ( LUT[3][g,ksca,kabs,dz] )
+                        index.append ( [dz,kabs,ksca,g,phi.index(float(res['phi'])),theta.index(float(res['theta']))] )
+                    else:
+                        index.append ( [dz,kabs,ksca,g] )
 
     dic = {'index':np.array(index), 'S':np.array(S), 'S_tol':np.array(S_tol)}; src=np.array(src)
     for ind, xvar in enumerate(var): dic[xvar]=np.array(data[ind])
@@ -109,7 +117,9 @@ def Getting_Arrays ( LUT_file ):
         dic.update( {'T':np.array(T), 'T_tol':np.array(T_tol)} )
         app = np.append ( np.ones((len(src),1),dtype=float)*res['phi'], np.ones((len(src),1),dtype=float)*res['theta'], axis=1 )
         src = np.append ( src, app, axis=1 )
+
     dic.update( {'src':src} )
+
 
     return dic
 
@@ -161,7 +171,8 @@ def ANN_to_NetCDF ( net, out_file, iprint=True, **data ):
     dataset.createDimension ( 'eni_dim1'      , np.shape(Teni     )[0] ); dataset.createDimension ( 'eni_dim2'     , np.shape(Teni     )[1] )
     dataset.createDimension ( 'deo_dim1'      , np.shape(Tdeo     )[0] ); dataset.createDimension ( 'deo_dim2'     , np.shape(Tdeo     )[1] )
     dataset.createDimension ( 'inlimits_dim1' , np.shape(Tinlimits)[0] ); dataset.createDimension ( 'inlimits_dim2', np.shape(Tinlimits)[1] )
-    for key, val in data.iteritems(): dataset.createDimension ( 'pspace.{}_dim1'.format(key), np.shape(data[key])[0])
+    for key, val in data.iteritems(): 
+        dataset.createDimension ( 'pspace.{}_dim1'.format(key), np.shape(data[key])[0])
   
     weights  = dataset.createVariable('weights' , 'f8',  'weights_dim1'                  )
     conec    = dataset.createVariable('conec'   , 'i' , ('conec_dim1'   , 'conec_dim2'  ))
@@ -172,7 +183,8 @@ def ANN_to_NetCDF ( net, out_file, iprint=True, **data ):
     deo      = dataset.createVariable('deo'     , 'f8', ('deo_dim1'     , 'deo_dim2'    ))
     inlimits = dataset.createVariable('inlimits', 'f8', ('inlimits_dim1','inlimits_dim2'))
     dataset_list = {}
-    for key, val in data.iteritems(): dataset_list [key] = dataset.createVariable('pspace.{}'.format(key), 'f8', 'pspace.{}_dim1'.format(key))
+    for key, val in data.iteritems(): 
+        dataset_list [key] = dataset.createVariable('pspace.{}'.format(key), 'f8', 'pspace.{}_dim1'.format(key))
 
     weights [:] = Tweights 
     conec   [:] = Tconec   
@@ -221,17 +233,25 @@ def Print_Header ( **info ):
 
 # load source and target array    
 LUT = [Getting_Arrays(LUT_file) for LUT_file in args.LUT]
-src = np.concatenate([xLUT[ 'src' ] for xLUT in LUT], axis=0)
+if args.index:
+    src = np.concatenate([xLUT[ 'index' ] for xLUT in LUT], axis=0)
+    src = src.astype( float )
+else:
+    src = np.concatenate([xLUT[ 'src'   ] for xLUT in LUT], axis=0)
 trg = np.concatenate([xLUT[LUT_var] for xLUT in LUT], axis=0)
 
+
 # initialize ANN
-num_inp_nodes, num_out_nodes = [src.shape[1]], [trg.shape[1]]
-setup = tuple(num_inp_nodes+args.ANN_setup+num_out_nodes)
-if args.full:
-    conec = ff.tmlgraph( setup )
+if len(args.ANN_setup)==1 and type(args.ANN_setup[0])==str:
+    net = ff.loadnet( args.ANN_setup[0] )
 else:
-    conec = ff.mlgraph ( setup )
-net = ff.ffnet( conec )
+    num_inp_nodes, num_out_nodes = [src.shape[1]], [trg.shape[1]]
+    setup = tuple(num_inp_nodes+args.ANN_setup+num_out_nodes)
+    if args.full:
+        conec = ff.tmlgraph( setup )
+    else:
+        conec = ff.mlgraph ( setup )
+    net = ff.ffnet( conec )
 
 # build up a shuffled test and train array
 ind = int( src.shape[0]*(1.0-args.test_perc) )
@@ -240,9 +260,9 @@ src_train, trg_train = s_src[:ind,:], s_trg[:ind,:]
 src_test , trg_test  = s_src[ind:,:], s_trg[ind:,:]
 
 # output
-netcdf_out = Get_Output_Name( args.LUT[0], args.coeff_type )
+netcdf_output = Get_Output_Name( args.LUT[0], args.coeff_type )
 Print_Header ( LUT_name=args.LUT, coeff_type=args.coeff_type, ANN_setup=setup, test_percentage=args.test_perc, num_of_proc=args.nproc,
-               basename=args.basename, netcdf_output=netcdf_out, err_increase=args.err_inc )
+               basename=args.basename, netcdf_output=netcdf_output, err_increase=args.err_inc )
 
 # train the network for the first time
 net.train_tnc ( src_train, trg_train, nproc=nproc )
@@ -261,7 +281,7 @@ else:
 # train the network until the error of the test data increases more than "err_inc"
 err_test_ch = -999.9
 while err_test_ch<args.err_inc:
-    err_old_test = rel_err[2]/100.0
+    err_old_test = err[-1]/100.0
 
     s_src, s_trg = Shuffle_2D_X ( src, trg )
     src_train, trg_train = s_src[:ind,:], s_trg[:ind,:]
