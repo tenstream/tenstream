@@ -9,7 +9,7 @@ import argparse
 
 parser = argparse.ArgumentParser(prog='Program which calculates and trains Artificial Neural Networks (ANN) to fit tenstream-Look-Up-Tables (LUT)')
 parser.add_argument('-l', '--LUT', nargs='+', type=str, required=True, help='LUT/LUTs which are used to train')
-parser.add_argument('-s', '--ANN_setup', nargs='+', type=int, required=True, 
+parser.add_argument('-s', '--ANN_setup', nargs='+', type=str, required=True, 
                     help='number of hidden neurons and hidden layers (e.g. use 20 20 for a (input_nodes,20,20,output_nodes)-network) OR existing ANN which has been saved with "ffnet.savenet"')
 parser.add_argument('-c', '--coeff_type', choices=['diffuse','diff2diff','dir2diff','dir2dir'], type=str, required=True, 
                     help='use diff2diff, dir2diff, or dir2dir; if you want to calculate a diff2diff/dir2* network you have to use a diffuse/direct LUT for training')
@@ -34,6 +34,11 @@ try:
     nproc = int(args.nproc)
 except ValueError:
     nproc = args.nproc
+
+try:
+    args_ANN_setup = map(int, args.ANN_setup)
+except ValueError:
+    args_ANN_setup = args.ANN_setup[0]
 #----------------------------------------------------
 
 
@@ -242,11 +247,12 @@ trg = np.concatenate([xLUT[LUT_var] for xLUT in LUT], axis=0)
 
 
 # initialize ANN
-if len(args.ANN_setup)==1 and type(args.ANN_setup[0])==str:
-    net = ff.loadnet( args.ANN_setup[0] )
+if type(args_ANN_setup)==str:
+    net = ff.loadnet( args_ANN_setup )
+    setup = "UNKNOWN"
 else:
     num_inp_nodes, num_out_nodes = [src.shape[1]], [trg.shape[1]]
-    setup = tuple(num_inp_nodes+args.ANN_setup+num_out_nodes)
+    setup = tuple(num_inp_nodes+args_ANN_setup+num_out_nodes)
     if args.full:
         conec = ff.tmlgraph( setup )
     else:
