@@ -10,7 +10,7 @@ Required python modules:
 #### Usage:
 Just execute Calc_ANN.py with some arguments (use "./Calc_ANN.py --help" for further information):
 * --LUT: One or more LUTs to train the ANN
-* --ANN_setup: ANN which has been saved with ffnet.savenet() (see argument <basename>) -OR- Number of hidden neurons and layers (e.g. "20 20" generates an ("number input nodes",20,20,"number output nodes")-ANN; "number input nodes" and "number output nodes" will be calculated automatically)
+* --ANN_setup: ANN which has been saved with ffnet.savenet() (see argument "basename") -OR- Number of hidden neurons and layers (e.g. "20 20" generates an ("number input nodes",20,20,"number output nodes")-ANN; "number input nodes" and "number output nodes" will be calculated automatically)
 * --coeff_type: Use "diffuse", "diff2diff", "dir2diff", or "dir2dir" to calculate the corresponding network. If you use "diffuse" or "diff2diff"/"dir2diff" or "dir2dir" the LUT/s you use for training must be diffuse/direct.
 * --test_perc: Percentage of training dataset which is used for testing ( (1.0-"test_perc") is used for training). After every training step the dataset is shuffeld, hence the testing-dataset changes after every training.
 * --err_inc: If the relative error of the test-dataset after a training step increases more than "err_inc" compared to the previous training the training will be stopped (prevent overfitting).
