@@ -303,7 +303,6 @@ contains
       real(ireals),intent(in) :: dz,kabs,ksca,g
       real(ireals) :: ind_dz, ind_kabs, ind_ksca, ind_g
       integer(mpiint) :: ierr,isrc
-      real(ireals) :: ind_dz, ind_kabs, ind_ksca, ind_g
       real(ireals) :: norm
 
       if(.not.diff2diff_network%initialized) then
