@@ -336,35 +336,35 @@ module m_helper_functions
           enddo
       end function
 
-function search_sorted_bisection(arr,val) ! return index+residula i where arr(i) .gt. val
-  real(ireals) :: search_sorted_bisection
-  real(ireals),intent(in) :: arr(:)
-  real(ireals),intent(in) :: val
-  real(ireals) :: loc_increment
-  integer(iintegers) :: i,j,k
+      function search_sorted_bisection(arr,val) ! return index+residula i where arr(i) .gt. val
+        real(ireals) :: search_sorted_bisection
+        real(ireals),intent(in) :: arr(:)
+        real(ireals),intent(in) :: val
+        real(ireals) :: loc_increment
+        integer(iintegers) :: i,j,k
 
-  i=lbound(arr,1)
-  j=ubound(arr,1)
+        i=lbound(arr,1)
+        j=ubound(arr,1)
 
-  do
-    k=(i+j)/2
-    if (val < arr(k)) then
-      j=k
-    else
-      i=k
-    endif
-    if (i+1 >= j) then ! only single or tuple left
-      ! i is left bound and j is right bound index
-      if(i.eq.j) then
-        loc_increment = zero
-      else
-        loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
-      endif
-      search_sorted_bisection= min(max(one*lbound(arr,1), i + loc_increment), one*ubound(arr,1)) ! return `real-numbered` location of val
-      exit
-    endif
-  end do
-end function
+        do
+          k=(i+j)/2
+          if (val < arr(k)) then
+            j=k
+          else
+            i=k
+          endif
+          if (i+1 >= j) then ! only single or tuple left
+            ! i is left bound and j is right bound index
+            if(i.eq.j) then
+              loc_increment = zero
+            else
+              loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
+            endif
+            search_sorted_bisection= min(max(one*lbound(arr,1), i + loc_increment), one*ubound(arr,1)) ! return `real-numbered` location of val
+            exit
+          endif
+        end do
+      end function
 
       subroutine read_ascii_file_2d(filename, arr, ncolumns, skiplines, ierr)
           character(len=*),intent(in) :: filename

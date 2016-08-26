@@ -313,8 +313,8 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
             for ig in xrange(np.size(g)):
                 for ikabs in xrange(np.size(kabs)):
                     for iksca in xrange(np.size(ksca)):
-                        inp.append( [ dz[idz],kabs[ikabs],ksca[iksca],g[ig] ] )
-                        # inp.append( [ idz, ikabs, iksca, ig ] )
+                        # inp.append( [ dz[idz],kabs[ikabs],ksca[iksca],g[ig] ] )
+                        inp.append( [ idz, ikabs, iksca, ig ] )
                         out.append( S[:,idz,ikabs,iksca,ig] )
 
     if coeff_mode=='dir2dir' or coeff_mode=='dir2diff':
@@ -352,8 +352,8 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
                     for ig in xrange(np.size(g)):
                         for iksca in xrange(np.size(ksca)):
                             for ikabs in xrange(np.size(kabs)):
-                                inp.append( [ dz[idz],kabs[ikabs],ksca[iksca],g[ig],phi,theta ] )
-                                # inp.append( [ idz, ikabs, iksca, ig, phi, theta ] )
+                                # inp.append( [ dz[idz],kabs[ikabs],ksca[iksca],g[ig],phi,theta ] )
+                                inp.append( [ idz, ikabs, iksca, ig, phi, theta ] )
                                 out.append( SorT[:,idz,ikabs,iksca,ig] )
 
         except Exception,e:
