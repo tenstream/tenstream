@@ -108,37 +108,43 @@ contains
           allocate( dir2diff_network  )
           allocate( dir2dir_network   )
         endif
-        call scatter_ANN ( diff2diff_network )
-        call scatter_ANN ( dir2diff_network  )
-        call scatter_ANN ( dir2dir_network   )
+        call scatter_ANN (comm, diff2diff_network)
+        call scatter_ANN (comm, dir2diff_network)
+        call scatter_ANN (comm, dir2dir_network)
       endif
 
-  subroutine scatter_ANN ( net )
+  end subroutine
+
+  subroutine scatter_ANN (comm, net)
     type(ANN) :: net
+    integer(mpiint), intent(in) :: comm
     logical :: l_have_angles
 
-    call imp_bcast(net%weights    , 0_mpiint, myid )
-    call imp_bcast(net%units      , 0_mpiint, myid )
-    call imp_bcast(net%inno       , 0_mpiint, myid )
-    call imp_bcast(net%outno      , 0_mpiint, myid )
-    call imp_bcast(net%conec      , 0_mpiint, myid )
-    call imp_bcast(net%deo        , 0_mpiint, myid )
-    call imp_bcast(net%eni        , 0_mpiint, myid )
-    call imp_bcast(net%inlimits   , 0_mpiint, myid )
-    call imp_bcast(net%lastcall   , 0_mpiint, myid )
-    call imp_bcast(net%lastresult , 0_mpiint, myid )
-    call imp_bcast(net%in_size    , 0_mpiint, myid )
-    call imp_bcast(net%out_size   , 0_mpiint, myid )
-    call imp_bcast(net%initialized, 0_mpiint, myid )
-    call imp_bcast(net%dz         , 0_mpiint, myid )
-    call imp_bcast(net%kabs       , 0_mpiint, myid )
-    call imp_bcast(net%ksca       , 0_mpiint, myid )
-    call imp_bcast(net%g          , 0_mpiint, myid )
-    if (myid.eq.0) l_have_angles=allocated(net%phi) .and. allocated(net%theta)
-    call imp_bcast(l_have_angles  , 0_mpiint, myid )
+    call imp_bcast(comm, net%weights    , 0_mpiint, myid)
+    call imp_bcast(comm, net%units      , 0_mpiint, myid)
+    call imp_bcast(comm, net%inno       , 0_mpiint, myid)
+    call imp_bcast(comm, net%outno      , 0_mpiint, myid)
+    call imp_bcast(comm, net%conec      , 0_mpiint, myid)
+    call imp_bcast(comm, net%deo        , 0_mpiint, myid)
+    call imp_bcast(comm, net%eni        , 0_mpiint, myid)
+    call imp_bcast(comm, net%inlimits   , 0_mpiint, myid)
+    call imp_bcast(comm, net%lastcall   , 0_mpiint, myid)
+    call imp_bcast(comm, net%lastresult , 0_mpiint, myid)
+    call imp_bcast(comm, net%in_size    , 0_mpiint, myid)
+    call imp_bcast(comm, net%out_size   , 0_mpiint, myid)
+    call imp_bcast(comm, net%initialized, 0_mpiint, myid)
+    call imp_bcast(comm, net%dz         , 0_mpiint, myid)
+    call imp_bcast(comm, net%kabs       , 0_mpiint, myid)
+    call imp_bcast(comm, net%ksca       , 0_mpiint, myid)
+    call imp_bcast(comm, net%g          , 0_mpiint, myid)
+    if (myid.eq.0) then
+      l_have_angles = allocated(net%phi) .and. allocated(net%theta)
+    endif
+    call imp_bcast(comm, l_have_angles  , 0_mpiint, myid)
+
     if (l_have_angles) then
-      call imp_bcast(net%phi        , 0_mpiint, myid )
-      call imp_bcast(net%theta      , 0_mpiint, myid )
+      call imp_bcast(comm, net%phi        , 0_mpiint, myid)
+      call imp_bcast(comm, net%theta      , 0_mpiint, myid)
     endif
   end subroutine
 
@@ -190,8 +196,6 @@ contains
       endif
 
   end subroutine
-
-
 
 
   subroutine ANN_get_dir2dir(dz, kabs, ksca, g, phi, theta, C)
@@ -297,12 +301,8 @@ contains
    subroutine ANN_get_diff2diff(dz, kabs, ksca, g, C)
       real(ireals),intent(out) :: C(:)
       real(ireals),intent(in) :: dz,kabs,ksca,g
-<<<<<<< HEAD
       integer(mpiint) :: ierr,isrc
-=======
       real(ireals) :: ind_dz, ind_kabs, ind_ksca, ind_g
-      integer(iintegers) :: ierr,isrc
->>>>>>> ANN - index calculation
       real(ireals) :: norm
 
       if(.not.diff2diff_network%initialized) then
