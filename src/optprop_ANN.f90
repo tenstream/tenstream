@@ -221,10 +221,10 @@ contains
         call exit()
       endif
 
-!     C = min(one, max(C,zero) )
-!     where( C.le.min_lim_coeff )
-!       C = zero
-!     endwhere
+      C = min(one, max(C,zero) )
+      where( C.le.min_lim_coeff )
+        C = zero
+      endwhere
 
       !Check for energy conservation:
 !      if(lrenormalize) then
@@ -272,10 +272,10 @@ contains
         call exit()
       endif
 
-!     C = min(one, max(C,zero) )
-!     where( C.le.min_lim_coeff )
-!       C = zero
-!     endwhere
+      C = min(one, max(C,zero) )
+      where( C.le.min_lim_coeff )
+        C = zero
+      endwhere
 
       !Check for energy conservation:
 !     if(lrenormalize) then
@@ -322,10 +322,10 @@ contains
         call exit()
       endif
 
-!     C = min(one, max(C,zero) )
-!     where( C.le.min_lim_coeff )
-!       C = zero
-!     endwhere
+      C = min(one, max(C,zero) )
+      where( C.le.min_lim_coeff )
+        C = zero
+      endwhere
 
       !Check for energy conservation:
       if(lrenormalize) then
