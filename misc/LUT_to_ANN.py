@@ -191,7 +191,7 @@ def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp
 
   while True:
     print '\n\n'
-    maxiter=int( np.minimum( 1e4, np.maximum(1e2, len(net.weights)*2) ) )
+    maxiter=int( np.minimum( 1e3, np.maximum(1e2, len(net.weights)*2) ) )
 #    import ipdb
 #    ipdb.set_trace()
 
@@ -427,6 +427,7 @@ if __name__ == "__main__":
   try:
       train_dataset = [[],[],[],[]]
       for f in args.LUTfiles:
+          print 'Loading LUT file: ',f
           for i,v in enumerate(create_training_dataset(args.coeffmode, f, training_fraction=args.train_frac)):
             train_dataset[i].append(v)
 
