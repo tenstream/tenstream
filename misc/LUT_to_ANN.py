@@ -13,7 +13,7 @@ def rmse(a,b,weights=None):
         s= np.sqrt ( np.average( (a - b)**2, weights=weights ) )
         return np.array([s,s/np.maximum(1e-8,abs(np.average(b,weights=weights)))*100])
 
-def export_ANN_to_nc ( network, filename, Nlayers, Nneurons ):
+def export_ANN_to_nc ( network, filename, Nlayers, Nneurons, pspace):
     
     import netCDF4 as nc
     import numpy as np
@@ -33,6 +33,8 @@ def export_ANN_to_nc ( network, filename, Nlayers, Nneurons ):
     Teni      = network.eni     .T
     Tdeo      = network.deo     .T
     Tinlimits = network.inlimits.T
+    for key, val in pspace.iteritems():
+      pspace[key] = val.T
     
     try:
         dataset = nc.Dataset(filename, 'w')
@@ -45,6 +47,10 @@ def export_ANN_to_nc ( network, filename, Nlayers, Nneurons ):
         dataset.createDimension ( 'eni_dim1'     , np.shape(Teni     )[0] ); dataset.createDimension ( 'eni_dim2'     , np.shape(Teni     )[1] )
         dataset.createDimension ( 'deo_dim1'     , np.shape(Tdeo     )[0] ); dataset.createDimension ( 'deo_dim2'     , np.shape(Tdeo     )[1] )
         dataset.createDimension ( 'inlimits_dim1', np.shape(Tinlimits)[0] ); dataset.createDimension ( 'inlimits_dim2', np.shape(Tinlimits)[1] )
+
+        for key, val in pspace.iteritems():
+            dataset.createDimension ( 'pspace.{}_dim1'.format(key), np.shape(pspace[key])[0])
+
         
         weights  = dataset.createVariable('weights' , 'f8',  'weights_dim1'                  )
         conec    = dataset.createVariable('conec'   , 'i' , ('conec_dim1'   , 'conec_dim2'  ))
@@ -54,6 +60,11 @@ def export_ANN_to_nc ( network, filename, Nlayers, Nneurons ):
         eni      = dataset.createVariable('eni'     , 'f8', ('eni_dim1'     , 'eni_dim2'    ))
         deo      = dataset.createVariable('deo'     , 'f8', ('deo_dim1'     , 'deo_dim2'    ))
         inlimits = dataset.createVariable('inlimits', 'f8', ('inlimits_dim1','inlimits_dim2'))
+
+        dataset_list = {}
+        for key, val in pspace.iteritems():
+            dataset_list [key] = dataset.createVariable('pspace.{}'.format(key), 'f8', 'pspace.{}_dim1'.format(key))
+
             
         weights [:] = Tweights 
         conec   [:] = Tconec   
@@ -63,6 +74,9 @@ def export_ANN_to_nc ( network, filename, Nlayers, Nneurons ):
         eni     [:] = Teni     
         deo     [:] = Tdeo     
         inlimits[:] = Tinlimits
+
+        for key, var in dataset_list.iteritems():
+            var [:] = pspace[key]
 
         dataset.nrhiddennodes = len(network.hidno)
         dataset.Nlayers  = Nlayers
@@ -99,7 +113,7 @@ def plot_coeffs(ANNname, net,input,target,output):
             colorbar()
 
             v=np.linspace(np.min([target[:,i],output[:,i]]) , np.max( [target[:,i],output[:,i]] ) )
-            plot(v,v,color='black',linestyle='-',linewidth=1)
+            plot(v,v,color='black',linestyle='-',linewidth=1, rasterized=True)
             ubound = np.minimum( v+5e-3, v*(1+.3) )
             lbound = np.maximum( v-5e-3, v*(1-.3) )
             plot(v,ubound,color='orange',linestyle='--',linewidth=1)
@@ -107,7 +121,7 @@ def plot_coeffs(ANNname, net,input,target,output):
             error = np.around( rmse(target[:,i],output[:,i])[1] ,decimals=1)
             title(str(i)+'::'+str(error ))
             tight_layout()
-    savefig('/tmp/network_plot_{}.png'.format(os.path.basename(ANNname)))
+    savefig('/tmp/network_plot_{}.pdf'.format(os.path.basename(ANNname)))
     return 
 
 
@@ -132,20 +146,20 @@ def import_network( ANNname, Nlayers, Nneurons ):
         print 'Error when loading ffnet network file',e
         raise(e)
 
-def export_network( net, ANNname, Nlayers, Nneurons ):
+def export_network( net, ANNname, Nlayers, Nneurons, pspace):
     from ffnet import savenet
     import os
     try:
         f = '{0:}_{1:}_{2:}'.format( ANNname, Nlayers, Nneurons)
         savenet(net, f)
-        export_ANN_to_nc( net, ANNname+'.nc', Nlayers, Nneurons )
+        export_ANN_to_nc( net, ANNname+'.nc', Nlayers, Nneurons, pspace)
 
     except Exception,e:
         print 'Error when writing ffnet network file',e
         raise(e)
 
 
-def compare_to_old_net(ANNname, Nlayers, Nneurons, new_net, test_inp, test_target):
+def compare_to_old_net(ANNname, Nlayers, Nneurons, new_net, test_inp, test_target, pspace):
   try:
     old_net = import_network(ANNname, Nlayers, Nneurons)
   except IOError,e:
@@ -162,7 +176,7 @@ def compare_to_old_net(ANNname, Nlayers, Nneurons, new_net, test_inp, test_targe
   if rmse_new_network <= rmse_old_network:
       try:
           print 'Saving new network to :::  ',ANNname
-          export_network( new_net, ANNname, Nlayers, Nneurons )
+          export_network( new_net, ANNname, Nlayers, Nneurons, pspace)
           
       except Exception,e:
           print 'Error occured when we tried to save the ANN :: ',e
@@ -170,7 +184,7 @@ def compare_to_old_net(ANNname, Nlayers, Nneurons, new_net, test_inp, test_targe
   else:
       print 'Already existing, old network has already lower error.. old: {} new: {}'.format(rmse_old_network,rmse_new_network)
 
-def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target, ncpu='ncpu'):
+def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target, pspace, ncpu='ncpu'):
   print 'training net: nr. of hidno: {} nr. of weights: {} using {} input entries'.format( len(net.hidno), np.shape(net.weights),np.shape(train_inp) )
 
   last_weights    = net.weights
@@ -191,7 +205,7 @@ def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp
 
   while True:
     print '\n\n'
-    maxiter=int( np.minimum( 1e3, np.maximum(1e2, len(net.weights)*2) ) )
+    maxiter = int( np.minimum( 1e3, np.maximum(1e2, len(net.weights)*2) ) )
 #    import ipdb
 #    ipdb.set_trace()
 
@@ -228,14 +242,14 @@ def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp
 
     if lbreak: 
       print '::','training ended!!!! -- stopping training!'
-      compare_to_old_net(ANNname,Nlayers, Nneurons, net, test_inp, test_target)
+      compare_to_old_net(ANNname,Nlayers, Nneurons, net, test_inp, test_target, pspace)
       return 
 
     if rmse(test_target,test_output)[1] < last_test_err:
       print '::','Updating last err. Err Increment: {}'.format(last_test_err-rmse(test_target,test_output)[1])
       last_test_err = rmse(test_target,test_output)[1]
       last_weights = net.weights
-      compare_to_old_net(ANNname,Nlayers, Nneurons, net, test_inp, test_target)
+      compare_to_old_net(ANNname,Nlayers, Nneurons, net, test_inp, test_target, pspace)
       index_successfull_update=iter
 
     last_train_err = rmse(train_target,train_output)[1]
@@ -282,7 +296,9 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
 
     print '\n Creating training and testing datasets:'
 
-    inp=[];out=[]
+    inp = []
+    out = []
+    pspace = {}
     
     if coeff_mode=='diff2diff':
         try:
@@ -302,6 +318,10 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
             kabs  = D.variables[descr+'.pspace.kabs'][:]
             ksca  = D.variables[descr+'.pspace.ksca'][:]
             dz    = D.variables[descr+'.pspace.dz'][:]
+            pspace['g'   ] = g   
+            pspace['kabs'] = kabs
+            pspace['ksca'] = ksca
+            pspace['dz'  ] = dz  
 
         except Exception,e:
             print 'Error occured reading LUTfile: ',LUTname,' because',e
@@ -348,6 +368,13 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
                 ksca  = D.variables[basedescr+'.pspace.ksca'][:]
                 dz    = D.variables[basedescr+'.pspace.dz'][:]
 
+                pspace['g'    ] = g
+                pspace['kabs' ] = kabs
+                pspace['ksca' ] = ksca
+                pspace['dz'   ] = dz
+                pspace['phi'  ] = D.variables[basedescr+'.pspace.phi'][:]
+                pspace['theta'] = D.variables[basedescr+'.pspace.theta'][:]
+
                 for idz in xrange(np.size(dz)):
                     for ig in xrange(np.size(g)):
                         for iksca in xrange(np.size(ksca)):
@@ -378,23 +405,23 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
     train_inp = inp[:divider,:] ; train_target = out[:divider,:]
     test_inp  = inp[divider:,:] ; test_target  = out[divider:,:]
 
-    return np.array([train_inp, train_target, test_inp, test_target])
+    return np.array([train_inp, train_target, test_inp, test_target]), pspace
 
-def train_ANN(ANNname, Nlayers, Nneurons, train_dataset, ncpu='ncpu'):
+def train_ANN(ANNname, Nlayers, Nneurons, train_dataset, pspace, ncpu='ncpu'):
     from ffnet import mlgraph
     train_inp, train_target, test_inp, test_target = train_dataset
     try:
-        net = import_network( ANNname, Nlayers, Nneurons )
+        net = import_network( ANNname, Nlayers, Nneurons)
     except Exception,e:
         print 'Could not load existing neural network: {0:} -- creating a new one'.format(e)
         hiddenlayers = [ Nneurons ] * Nlayers
         net = create_net(np.shape(train_inp)[1], hiddenlayers, np.shape(train_target)[1], mlgraph)
 
-    export_network( net, ANNname, Nlayers, Nneurons )
+    export_network( net, ANNname, Nlayers, Nneurons, pspace)
 
-    compare_to_old_net(ANNname, Nlayers, Nneurons, net,test_inp,test_target)
+    compare_to_old_net(ANNname, Nlayers, Nneurons, net,test_inp,test_target, pspace)
 
-    train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target, ncpu=ncpu)
+    train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target, pspace, ncpu=ncpu)
  
     output,_ = net.test(test_inp, test_target, iprint=0)
     plot_coeffs(ANNname, net, test_inp, test_target, output)
@@ -428,7 +455,8 @@ if __name__ == "__main__":
       train_dataset = [[],[],[],[]]
       for f in args.LUTfiles:
           print 'Loading LUT file: ',f
-          for i,v in enumerate(create_training_dataset(args.coeffmode, f, training_fraction=args.train_frac)):
+          tdata, pspace = create_training_dataset(args.coeffmode, f, training_fraction=args.train_frac)
+          for i,v in enumerate(tdata):
             train_dataset[i].append(v)
 
       for i,v in enumerate(train_dataset):
@@ -439,7 +467,7 @@ if __name__ == "__main__":
       sys.exit(-1)
 
   try:
-      train_ANN(args.ANNname, args.Nlayers, args.Nneurons, train_dataset, ncpu=args.NCPU)
+      train_ANN(args.ANNname, args.Nlayers, args.Nneurons, train_dataset, pspace, ncpu=args.NCPU)
   except Exception,e:
       print 'Error occured when training network :',e
       sys.exit(-1)
