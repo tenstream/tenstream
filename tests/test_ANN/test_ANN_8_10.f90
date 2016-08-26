@@ -180,7 +180,7 @@ contains
                 BMC_diff2diff(src : 10*10 : 10) = S_target
             enddo
 
-            call check(BMC_diff2diff,BMC_dir2dir,ANN_diff2diff,ANN_dir2dir, msg='test_ANN_direct_coeffs')
+            call check(BMC_diff2diff,BMC_dir2dir,ANN_diff2diff,ANN_dir2dir, msg='test_ANN_diffuse_coeffs')
         endif ! loaded ANN
         call ANN_destroy()
       end associate
@@ -234,41 +234,41 @@ contains
 
 
 
-  @test(npes =[1,2])
-  subroutine test_ANN_direct_lambert_beer(this)
-      !  class (MpiTestMethod), intent(inout) :: this
-      class (parameterized_test), intent(inout) :: this
-
-      integer(iintegers) :: src
-
-      call ANN_init(dx,dy,this%getMpiCommunicator(), ierr)
-
-      if(ierr.eq.0) then
-          ! direct tests
-          bg  = [1e-2, 0., 0. ]
-          phi = 0; theta = 0
-          S_target = zero
-
-          call ANN_get_dir2dir (dz, bg(1), bg(2), bg(3), phi, theta, ANN_dir2dir)
-          call ANN_get_dir2diff(dz, bg(1), bg(2), bg(3), phi, theta, ANN_dir2diff)
-
-          !      print *,'dir2dir ', ANN_dir2dir
-          !      print *,'dir2diff', ANN_dir2diff
-
-          do src=1,4
-              T_target = zero
-              T_target(src) = exp(- (bg(1)+bg(2))*dz )
-
-              S = ANN_dir2diff((src-1)*10+1:src*10)
-              T = ANN_dir2dir ((src-1)*8+1:src*8)
-
-              T(5:8) = zero ! hard to know that with lambert beer -- use raytracer as test instead
-
-              call check(S_target,T_target, S,T, msg='test_ANN_direct_lambert_beer')
-          enddo
-      endif
-      call ANN_destroy()
-  end subroutine
+!  @test(npes =[1,2])
+!  subroutine test_ANN_direct_lambert_beer(this)
+!      !  class (MpiTestMethod), intent(inout) :: this
+!      class (parameterized_test), intent(inout) :: this
+!
+!      integer(iintegers) :: src
+!
+!      call ANN_init(dx,dy,this%getMpiCommunicator(), ierr)
+!
+!      if(ierr.eq.0) then
+!          ! direct tests
+!          bg  = [1e-2, 0., 0. ]
+!          phi = 0; theta = 0
+!          S_target = zero
+!
+!          call ANN_get_dir2dir (dz, bg(1), bg(2), bg(3), phi, theta, ANN_dir2dir)
+!          call ANN_get_dir2diff(dz, bg(1), bg(2), bg(3), phi, theta, ANN_dir2diff)
+!
+!          !      print *,'dir2dir ', ANN_dir2dir
+!          !      print *,'dir2diff', ANN_dir2diff
+!
+!          do src=1,4
+!              T_target = zero
+!              T_target(src) = exp(- (bg(1)+bg(2))*dz )
+!
+!              S = ANN_dir2diff((src-1)*10+1:src*10)
+!              T = ANN_dir2dir ((src-1)*8+1:src*8)
+!
+!              T(5:8) = zero ! hard to know that with lambert beer -- use raytracer as test instead
+!
+!              call check(S_target,T_target, S,T, msg='test_ANN_direct_lambert_beer')
+!          enddo
+!      endif
+!      call ANN_destroy()
+!  end subroutine
 
 
   subroutine check(S_target,T_target, S,T, msg)
