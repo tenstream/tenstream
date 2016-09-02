@@ -1180,7 +1180,6 @@ subroutine set_parameter_space(OPP,ps,dx,dy)
       ps%range_g=zero
     endif
     
-    print *,ps%g
     ! -------------- Setup kabs/ksca support points
 
     diameter = sqrt(dx**2 + dy**2 +  ps%range_dz(2)**2 )

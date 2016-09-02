@@ -34,8 +34,8 @@ static const int solveriterations = 1;
 int collapseindex = 1;
 
 int master(int fcomm) {
-  int    Nx=5, Ny=5, Nz=5;
-  double dx=67,dy=67, dz=40.414518843273818;
+  int    Nx=64, Ny=64, Nz=64;
+  double dx=100,dy=100, dz=40.414518843273818;
   float phi0=0, theta0=60;
   float albedo=1e-8;
 
