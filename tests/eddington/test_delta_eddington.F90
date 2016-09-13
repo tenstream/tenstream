@@ -2,7 +2,7 @@
 subroutine test_eddington(this)
 
     use m_eddington
-    use m_data_parameters, only: ireals,iintegers,zero,one,pi
+    use m_data_parameters, only: ireals
 
     use pfunit_mod
 
@@ -90,7 +90,6 @@ subroutine test_eddington(this)
     subroutine check_out(inp,out,targ)
         real(ireals),intent(in) :: inp(:)
         real(ireals),intent(in) :: out(:),targ(:)
-        integer(iintegers) :: i
         character(len=250) :: msg
 
         print *,''
