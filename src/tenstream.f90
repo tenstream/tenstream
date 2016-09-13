@@ -452,7 +452,7 @@ contains
       PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
       PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
 
-      PetscInt :: vsize,i,j,k, isrc, idst, xinc, yinc, src, dst, icnt, ind(4)
+      PetscInt :: vsize,i,j,k, isrc, idst, xinc, yinc, src, dst, icnt
 
       logical :: llocal_src, llocal_dst
 
@@ -3861,6 +3861,7 @@ end subroutine
 
 subroutine vec_to_hdf5(v)
   Vec,intent(in) :: v
+#ifdef _PETSC_HAVE_HDF5
   character(10),parameter :: suffix='.h5'
   character(110) :: fname
   logical fexists
@@ -3884,14 +3885,15 @@ subroutine vec_to_hdf5(v)
     fmode = FILE_MODE_WRITE
   endif
 
-#ifdef _PETSC_HAVE_HDF5
   call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
   call VecView(v, view, ierr) ;CHKERRQ(ierr)
   call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
-#else      
-  ! disable debug writing of vectors if we could not bring petsc to compile with hdf5
-#endif
 
   if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'
+#else      
+  ! disable debug writing of vectors if we could not bring petsc to compile with hdf5
+  if(myid.eq.0 .and. ldebug ) print *,myid,'Petsc build does not allow writing to hdf5 files'
+#endif
+
 end subroutine
 end module
