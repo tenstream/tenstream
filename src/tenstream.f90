@@ -1203,7 +1203,7 @@ contains
 
     call VecSet(incSolar,zero,ierr) ;CHKERRQ(ierr)
 
-    call getVecPointer(incSolar,C_dir,x1d,x4d,.False.)
+    call getVecPointer(incSolar, C_dir, x1d, x4d)
 
     do j=C_dir%ys,C_dir%ye
       do i=C_dir%xs,C_dir%xe
@@ -1408,7 +1408,7 @@ contains
     call DMGetLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
     call VecSet(local_b,zero,ierr) ;CHKERRQ(ierr)
 
-    call getVecPointer(local_b,C_diff,xsrc1d,xsrc)
+    call getVecPointer(local_b, C_diff, xsrc1d, xsrc)
 
     if(solution%lsolar_rad) &
       call set_solar_source(solution%edir)
@@ -1525,7 +1525,7 @@ contains
       call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
       call DMGlobalToLocalEnd  (C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
 
-      call getVecPointer(ledir,C_dir,xedir1d,xedir)
+      call getVecPointer(ledir, C_dir, xedir1d, xedir)
 
       if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))/size(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
       do j=C_diff%ys,C_diff%ye         
@@ -2135,7 +2135,7 @@ contains
 
     allocate( dtau(C_diff%zm-1) )
 
-    call getVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff ,.False.)
+    call getVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff)
 
     allocate( Eup(C_diff%zm) )
     allocate( Edn(C_diff%zm) )
@@ -2195,8 +2195,8 @@ contains
 
 
     if(solution%lsolar_rad) &
-      call getVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir  ,.False.)
-    call getVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff ,.False.)
+      call getVecPointer(solution%edir  ,C_dir  ,xv_dir1d , xv_dir)
+    call getVecPointer(solution%ediff ,C_diff ,xv_diff1d, xv_diff)
 
     allocate( S  (C_one_atm1%zs:C_one_atm1%ze) )
     allocate( Eup(C_one_atm1%zs:C_one_atm1%ze) )
@@ -2743,21 +2743,21 @@ contains
 
       if(lhave_kabs) then
         call scatterZerotoDM(global_kabs, C_one_atm, local_vec)
-        call getVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec,.False. )
+        call getVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec)
         local_kabs = xlocal_vec(0, C_one_atm%zs :C_one_atm%ze,C_one_atm%xs :C_one_atm%xe , C_one_atm%ys :C_one_atm%ye  )
         call restoreVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec )
       endif
 
       if(lhave_ksca) then
         call scatterZerotoDM(global_ksca,C_one_atm,local_vec)
-        call getVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec,.False. )
+        call getVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec)
         local_ksca = xlocal_vec(0,:,:,:)
         call restoreVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec )
       endif
 
       if(lhave_g) then
         call scatterZerotoDM(global_g,C_one_atm,local_vec)
-        call getVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec,.False. )
+        call getVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec)
         local_g = xlocal_vec(0,:,:,:)
         call restoreVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec )
       endif
@@ -2767,7 +2767,7 @@ contains
       if(lhave_planck) then
         call DMGetGlobalVector(C_one_atm1%da, local_vec, ierr) ; CHKERRQ(ierr)
         call scatterZerotoDM(global_planck,C_one_atm1,local_vec)
-        call getVecPointer(local_vec ,C_one_atm1 ,xlocal_vec1d, xlocal_vec,.False. )
+        call getVecPointer(local_vec ,C_one_atm1 ,xlocal_vec1d, xlocal_vec)
         local_planck = xlocal_vec(0,:,:,:)
         call restoreVecPointer(local_vec ,C_one_atm1 ,xlocal_vec1d, xlocal_vec )
         call DMRestoreGlobalVector(C_one_atm1%da, local_vec, ierr) ; CHKERRQ(ierr)
@@ -3226,7 +3226,7 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
   real(ireals),dimension(:,:,:),intent(out)               :: redn,reup,rabso
   integer(iintegers),optional,intent(in) :: opt_solution_uid
 
-  integer(iintegers) :: Nz, uid, lb_redir
+  integer(iintegers) :: uid, lb_redir
   PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
 
@@ -3270,7 +3270,7 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
       redir = zero
     else
       if( solutions(uid)%lintegrated_dir ) stop 'tried to get result from integrated result vector(dir)'
-      call getVecPointer(solutions(uid)%edir,C_dir,x1d,x4d)
+      call getVecPointer(solutions(uid)%edir, C_dir, x1d, x4d)
 
       if(atm%lcollapse) then
           if(myid.eq.0 .and. ldebug) print *,'shape redir',shape(redir),lbound(redir,1),ubound(redir,1)
@@ -3293,7 +3293,7 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
   endif
 
   if(solutions(uid)%lintegrated_diff) stop 'tried to get result from integrated result vector(diff)'
-  call getVecPointer(solutions(uid)%ediff,C_diff,x1d,x4d,.False.)
+  call getVecPointer(solutions(uid)%ediff, C_diff, x1d, x4d)
 
   if(atm%lcollapse) then
       redn(1, :, :) = x4d(E_dn, C_diff%zs, :, :)
@@ -3320,7 +3320,7 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
   endif!ldebug
   call restoreVecPointer(solutions(uid)%ediff,C_diff,x1d,x4d)
 
-  call getVecPointer(solutions(uid)%abso,C_one,x1d,x4d)
+  call getVecPointer(solutions(uid)%abso, C_one, x1d, x4d)
   if(atm%lcollapse) then
       rabso(1:atmk(C_one%zs)+1, :, :) = zero
       rabso(atmk(C_one%zs)+2 :C_one_atm%ze+1, :, :) = x4d(i0,C_one%zs+1:C_one%ze,:,:)
@@ -3338,7 +3338,6 @@ end subroutine
         real(ireals),intent(out),dimension(:,:,:) :: res_edn
         real(ireals),intent(out),dimension(:,:,:) :: res_eup
         real(ireals),intent(out),dimension(:,:,:) :: res_abso
-        real(ireals),allocatable,dimension(:,:,:) :: res
 
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
@@ -3807,12 +3806,11 @@ subroutine restore_solution(solution,time)
   endif
 end subroutine
 
-subroutine getVecPointer(vec,C,x1d,x4d,local)
+subroutine getVecPointer(vec,C,x1d,x4d)
   Vec :: vec
   type(t_coord),intent(in) :: C
   PetscScalar,intent(inout),pointer,dimension(:,:,:,:) :: x4d
   PetscScalar,intent(inout),pointer,dimension(:) :: x1d
-  logical,optional,intent(in) :: local
 
   integer(iintegers) :: N
   logical :: lghosted
