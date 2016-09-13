@@ -135,8 +135,7 @@ module m_tenstream
 
   PetscLogStage,save,allocatable :: logstage(:)
 
-  Mat,save :: Mdir,Mdiff
-  logical,save :: linit_mat=.False.
+  Mat,allocatable :: Mdir,Mdiff
 
   Vec,save :: incSolar,b
 
@@ -312,13 +311,16 @@ contains
   !>  \n  at the moment preallocation routines determine nonzeros by manually checking bounadries -- 
   !>  \n  !todo we should really use some form of iterating through the entries as it is done in the matrix assembly routines and just flag the rows
   subroutine init_Matrix(A,C)!,prefix)
-    Mat :: A
+    Mat, allocatable, intent(inout) :: A
     type(t_coord) :: C
     !        character(len=*),optional :: prefix
 
     PetscInt,dimension(:),allocatable :: o_nnz,d_nnz!,dnz
 
-    call DMCreateMatrix(C%da, A, ierr) ;CHKERRQ(ierr)
+    if(.not.allocated(A)) then
+      allocate(A)
+      call DMCreateMatrix(C%da, A, ierr) ;CHKERRQ(ierr)
+    endif
 
     if(lprealloc) then
       ! Determine perfect preallocation
@@ -346,7 +348,7 @@ contains
     call mat_info(A)
 
     ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many 
-    call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+    ! call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
 
     ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
     !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr) 
@@ -2483,19 +2485,28 @@ contains
     call VecSet(b,zero,ierr)        ; CHKERRQ(ierr)
   end subroutine
 
-  subroutine init_matrices(Mdir,Mdiff)
-    Mat :: Mdiff,Mdir
-
+  subroutine init_matrices()
     ! if already initialized, tear em down -- this usually
     ! happens when we change solar angles and need a new prealloc
-    if(linit_mat) then
-        call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
-        call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
-    endif
+
+    ! Notice that you can not call destroy_matrices() and init_matrices() and get new matrices,
+    ! rather just call init_mat again and again -- PETSc somehow buffers the old matrix.
+    ! It only really gets rebuilt if we also delete the DMDA's as in destroy_tenstream()
 
     call init_Matrix(Mdir ,C_dir )
     call init_Matrix(Mdiff,C_diff)
-    linit_mat = .True.
+  end subroutine
+
+  subroutine destroy_matrices()
+    if(myid.eq.0 .and. ldebug) print *,'Trying to destroy matrices...', allocated(Mdir), allocated(Mdiff)
+    if(allocated(Mdir)) then
+      call MatDestroy(Mdir , ierr) ;CHKERRQ(ierr)
+      deallocate(Mdir)
+    endif
+    if(allocated(Mdiff)) then
+      call MatDestroy(Mdiff, ierr) ;CHKERRQ(ierr)
+      deallocate(Mdiff)
+    endif
   end subroutine
 
   subroutine set_angles(phi0, theta0, phi2d, theta2d)
@@ -2520,11 +2531,12 @@ contains
         call setup_suninfo(phi0, theta0, sun)
     endif
 
+
     ! init box montecarlo model
     if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
     if(.not.luse_eddington)      call OPP_1_2%init (atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm) 
 
-    call init_matrices(Mdir, Mdiff)
+    call init_matrices()
   end subroutine
 
   !> @brief Main routine to setup TenStream solver
@@ -3194,11 +3206,7 @@ subroutine destroy_tenstream(lfinalizepetsc)
       call VecDestroy(incSolar , ierr) ;CHKERRQ(ierr)
       call VecDestroy(b        , ierr) ;CHKERRQ(ierr)
     endif
-    if(linit_mat) then
-      call MatDestroy(Mdir     , ierr) ;CHKERRQ(ierr)
-      call MatDestroy(Mdiff    , ierr) ;CHKERRQ(ierr)
-      linit_mat=.False.
-    endif
+    call destroy_matrices()
 
     do uid=lbound(solutions,1),ubound(solutions,1)
         if( solutions(uid)%lset ) then
