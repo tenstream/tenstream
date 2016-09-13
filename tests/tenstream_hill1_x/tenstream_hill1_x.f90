@@ -1,11 +1,11 @@
 @test(npes =[16])
 subroutine tenstream_hill1_x(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
-        t_coord,C_dir,C_diff,C_one,C_one1
+        t_coord
 
     use m_tenstream_options, only: read_commandline_options
 
@@ -28,12 +28,8 @@ subroutine tenstream_hill1_x(this)
 
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=0, theta0=60
-    real(ireals),parameter :: albedo=0.2, dz=dx
+    real(ireals),parameter :: albedo=0.2
     real(ireals),parameter :: atolerance = 1
-    real(ireals),parameter :: rtolerance = .05
-
-    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,B
-    real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
     real(ireals),allocatable,dimension(:,:,:) :: plev                                               ! nlay+1, nxp, nyp
     real(ireals),allocatable,dimension(:,:,:) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr ! nlay  , nxp, nyp
@@ -43,7 +39,7 @@ subroutine tenstream_hill1_x(this)
     character(len=80) :: nc_path(2) ! [ filename, varname ]
     real(ireals),allocatable :: tmp(:,:,:)
 
-    integer(iintegers) :: i,j,k 
+    integer(iintegers) :: k 
     integer(iintegers) :: nxp,nyp,nlay
     integer(iintegers) :: ncerr
 
@@ -52,8 +48,6 @@ subroutine tenstream_hill1_x(this)
     real(ireals),allocatable :: target_edir(:)
     real(ireals),allocatable :: target_edn(:)
     real(ireals),allocatable :: target_abso(:)
-
-    PetscErrorCode :: ierr
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()

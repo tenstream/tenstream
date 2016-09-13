@@ -1,11 +1,11 @@
 @test(npes =[2,1]) 
 subroutine test_rrtm_sw(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
-        t_coord,C_dir,C_diff,C_one,C_one1
+        t_coord
 
     use m_tenstream_options, only: read_commandline_options
 
@@ -27,13 +27,8 @@ subroutine test_rrtm_sw(this)
     integer(iintegers),parameter :: nxp=6,nyp=3
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=0, theta0=60
-    real(ireals),parameter :: albedo=0.2, dz=dx
-    real(ireals),parameter :: incSolar = -1
+    real(ireals),parameter :: albedo=0.2
     real(ireals),parameter :: atolerance = 1
-    real(ireals),parameter :: rtolerance = .05
-
-    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,B
-    real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
     real(ireals),allocatable :: atm(:,:) ! # z(km)  p(mb)  T(K) air(cm-3) o3(cm-3) o2(cm-3)  h2o(cm-3) co2(cm-3) no2(cm-3)
     real(ireals),allocatable,dimension(:,:,:) :: plev                                               ! nlay+1, nxp, nyp
@@ -41,7 +36,7 @@ subroutine test_rrtm_sw(this)
     real(ireals),allocatable,dimension(:,:,:) :: lwc, reliq                                         ! nlay  , nxp, nyp
     real(ireals),allocatable, dimension(:,:,:) :: edir,edn,eup,abso          ! [nlyr(+1), global_nx, global_ny ]
 
-    integer(iintegers) :: i,j,k, nlay, icld
+    integer(iintegers) :: i,j,k, nlay
 
     logical,parameter :: ldebug=.True.
 

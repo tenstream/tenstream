@@ -60,9 +60,9 @@ contains
         real(ireals) :: hhl(nlay+1, nxp, nyp)
         real(ireals) :: dz (nlay  , nxp, nyp)
 
-        integer(iintegers) :: i, j, k, icol, ib
+        integer(iintegers) :: i, j, icol, ib
         integer(iintegers) :: is,ie,js,je
-        real(ireals) :: tmp, global_maxheight
+        real(ireals) :: global_maxheight
 
         real(ireals),dimension(ngptsw)               :: band_lbound,band_ubound,weights       ! [ngptsw]
         real(ireals),allocatable, dimension(:, :, :) :: col_tau, col_w0, col_g                ! [ncol, nlyr, ngptsw]
@@ -92,15 +92,15 @@ contains
         endif
 
         if(present(icollapse)) then 
-            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz1d=dz(:,1,1), collapseindex=icollapse)
+            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, dz1d=dz(:,1,1), collapseindex=icollapse)
             is = C_one%xs +1; ie = C_one%xe +1; js = C_one%ys +1; je = C_one%ye +1
             call destroy_tenstream(.True.)
-            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz3d=dz(:,is:ie,js:je), collapseindex=icollapse)
+            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, dz3d=dz(:,is:ie,js:je), collapseindex=icollapse)
         else
-            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz1d=dz(:,1,1))
+            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, dz1d=dz(:,1,1))
             is = C_one%xs +1; ie = C_one%xe +1; js = C_one%ys +1; je = C_one%ye +1
             call destroy_tenstream(.True.)
-            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, albedo, dz3d=dz(:,is:ie,js:je))
+            call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, dz3d=dz(:,is:ie,js:je))
         endif
 
         allocate(col_plev   (C_one%xm*C_one%ym, nlay+1))
@@ -201,7 +201,7 @@ contains
         ! Loop over spectral intervals and call solver
         !ib = maxloc(weights, dim=1)
         do ib=1,ngptsw 
-            call set_optical_properties(kabs(:,:,:,ib), ksca(:,:,:,ib), g(:,:,:,ib))
+            call set_optical_properties(albedo, kabs(:,:,:,ib), ksca(:,:,:,ib), g(:,:,:,ib))
             call solve_tenstream(weights(ib))
             call tenstream_get_result_toZero(spec_edir, spec_edn, spec_eup, spec_abso)
             if(myid.eq.0) then

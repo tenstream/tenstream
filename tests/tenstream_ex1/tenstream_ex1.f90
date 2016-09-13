@@ -1,11 +1,11 @@
 @test(npes =[4,2]) 
 subroutine test_tenstream_ex1(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi, myid
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, zero, pi, myid
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
-        t_coord,C_dir,C_diff,C_one,C_one1
+        t_coord,C_diff,C_one,C_one1
 
     use m_tenstream_options, only: read_commandline_options
 
@@ -27,7 +27,6 @@ subroutine test_tenstream_ex1(this)
     real(ireals),parameter :: albedo=0, dz=dx
     real(ireals),parameter :: incSolar = -1
     real(ireals),parameter :: atolerance = 1
-    real(ireals),parameter :: rtolerance = .05
     real(ireals) :: dz1d(nv)
 
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,B
@@ -36,8 +35,6 @@ subroutine test_tenstream_ex1(this)
     real(ireals) :: div_target(nv)
     real(ireals) :: dn_target(nv+1)
     real(ireals) :: up_target(nv+1)
-
-    PetscErrorCode :: ierr
 
     div_target = [-1.875366,  1.6980000E-03,  8.9445002E-03,  9.2916247E-03,  9.6176248E-03,  9.9483747E-03,  1.0287250E-02,  1.0629000E-02,  1.0525875E-02, -0.1125398]
     dn_target  = [0.0     ,  203.0865,  219.3402,  235.7752,  253.1141,  271.3924,  290.6432,  310.9006,  332.1989,  354.5734,  378.0595]
@@ -48,7 +45,7 @@ subroutine test_tenstream_ex1(this)
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
 
-    call init_tenstream(comm, nv, nxp,nyp, dx,dy,phi0, theta0, albedo, dz1d=dz1d)
+    call init_tenstream(comm, nv, nxp,nyp, dx,dy,phi0, theta0, dz1d=dz1d)
 
     allocate(kabs(C_one%zm , C_one%xm,  C_one%ym ))
     allocate(ksca(C_one%zm , C_one%xm,  C_one%ym ))
@@ -63,7 +60,7 @@ subroutine test_tenstream_ex1(this)
         ! print *,'T',k,288 - 50*(1 - float(k)/float(nv+1))
     enddo
 
-    call set_optical_properties( kabs, ksca, g, B )
+    call set_optical_properties(albedo, kabs, ksca, g, B )
     call solve_tenstream(incSolar)
 
     allocate(fdn  (C_diff%zm, C_diff%xm, C_diff%ym))

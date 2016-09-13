@@ -38,7 +38,7 @@ module f2c_tenstream
 
 contains
 
-      subroutine tenstr_f2c_init(comm, Nz,Nx,Ny,dx,dy,hhl, phi0, theta0, albedo, collapseindex) bind(C)                                
+      subroutine tenstr_f2c_init(comm, Nz,Nx,Ny,dx,dy,hhl, phi0, theta0, collapseindex) bind(C)                                
         ! initialize tenstream environment
         ! all nodes in communicator have to call this 
         ! but only the zeroth node has to have meaningful values for the arguments except the communicator
@@ -48,11 +48,11 @@ contains
         integer(c_int),intent(inout) :: collapseindex
         integer(c_int),intent(inout) :: Nx,Ny,Nz                     
         real(c_double),intent(inout) :: dx,dy 
-        real(c_float), intent(inout) :: phi0,theta0,albedo
+        real(c_float), intent(inout) :: phi0,theta0
         real(c_float), intent(in),dimension(Nz+1) :: hhl
 
         integer(iintegers) :: oNx,oNy,oNz,ocollapseindex
-        real(ireals) :: odx,ody,ophi0,otheta0,oalbedo
+        real(ireals) :: odx,ody,ophi0,otheta0
         real(ireals),allocatable :: ohhl(:)
 
         real(ireals),allocatable :: odz(:)
@@ -74,7 +74,6 @@ contains
           ody     = dy
           ophi0   = phi0
           otheta0 = theta0
-          oalbedo = albedo
           ocollapseindex = collapseindex
 
           allocate( ohhl(size(hhl)) )
@@ -88,7 +87,6 @@ contains
         call imp_bcast(comm, ody    ,0_mpiint,myid)
         call imp_bcast(comm, ophi0  ,0_mpiint,myid)
         call imp_bcast(comm, otheta0,0_mpiint,myid)
-        call imp_bcast(comm, oalbedo,0_mpiint,myid)
         call imp_bcast(comm, ocollapseindex,0_mpiint,myid)
 
         call imp_bcast(comm, ohhl,0_mpiint,myid)
@@ -101,7 +99,6 @@ contains
         dy     = ody
         phi0   = ophi0
         theta0 = otheta0
-        albedo = oalbedo
         collapseindex=ocollapseindex
 
         ! Now every process has the correct values
@@ -112,19 +109,23 @@ contains
           odz(k) = ohhl(k) - ohhl(k+1)
         enddo
 
-        call init_tenstream(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz, collapseindex=ocollapseindex)
-        !call init_tenstream(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, oalbedo, dz1d=odz)
+        !call init_tenstream(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, dz1d=odz, collapseindex=ocollapseindex)
+        call init_tenstream(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, dz1d=odz)
 
         initialized=.True.
       end subroutine                                             
 
-      subroutine tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, kabs, ksca, g, planck) bind(c)
+      subroutine tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, albedo, kabs, ksca, g, planck) bind(c)
         integer(c_int), value :: Nx,Ny,Nz
+        real(c_float),intent(in) :: albedo
         real(c_float),intent(in),dimension(Nz  ,Nx,Ny) :: kabs, ksca, g
         real(c_float),intent(in),dimension(Nz+1,Nx,Ny) :: planck
 
+        real(ireals) :: oalbedo
         real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og, oplanck
         
+        oalbedo = albedo
+
         if(myid.eq.0) then
           allocate( okabs  (Nz  ,Nx,Ny) ); okabs   = kabs
           allocate( oksca  (Nz  ,Nx,Ny) ); oksca   = ksca
@@ -132,9 +133,9 @@ contains
           allocate( oplanck(Nz+1,Nx,Ny) ); oplanck = planck
 
           if(any(oplanck.gt.zero)) then
-            call set_global_optical_properties(okabs, oksca, og, oplanck)
+            call set_global_optical_properties(oalbedo, okabs, oksca, og, oplanck)
           else
-            call set_global_optical_properties(okabs, oksca, og)
+            call set_global_optical_properties(oalbedo, okabs, oksca, og)
           endif
 
           print *,'mean kabs  ',sum(okabs)  /size(okabs)
@@ -142,7 +143,7 @@ contains
           print *,'mean g     ',sum(og)     /size(og)
           print *,'mean planck',sum(oplanck)/size(oplanck)
         else !slave
-          call set_global_optical_properties()
+          call set_global_optical_properties(oalbedo)
         endif
       end subroutine
 

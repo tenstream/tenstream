@@ -2531,7 +2531,7 @@ contains
   !> @details This will setup the PETSc DMDA grid and set other grid information, needed for the TenStream
   !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc) 
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
-  subroutine init_tenstream(icomm, Nz,Nx,Ny, dx,dy, phi0,theta0,albedo, dz1d, dz3d, nxproc, nyproc, collapseindex)
+  subroutine init_tenstream(icomm, Nz,Nx,Ny, dx,dy, phi0, theta0, dz1d, dz3d, nxproc, nyproc, collapseindex)
     integer,intent(in) :: icomm !< @param MPI_Communicator which should be used -- this will be used for PETSC_COMM_WORLD
     integer(iintegers),intent(in) :: Nz      !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
     integer(iintegers),intent(in) :: Nx      !< @param[in] Nx     number of boxes in x-direction
@@ -2540,7 +2540,6 @@ contains
     real(ireals),intent(in)       :: dy      !< @param[in] dy     physical size of grid in [m]
     real(ireals),intent(in)       :: phi0    !< @param[in] phi0   solar azmiuth and zenith angle
     real(ireals),intent(in)       :: theta0  !< @param[in] theta0 solar azmiuth and zenith angle
-    real(ireals),intent(in)       :: albedo  !< @param[in] albedo lambertian surface albedo
 
     real(ireals),optional,intent(in)       :: dz1d(:)        !< @param[in] dz1d    if given, dz1d is used everywhere on the rank
     real(ireals),optional,intent(in)       :: dz3d(:,:,:)    !< @param[in] dz3d    if given, dz3d has to be local domain size, cannot have global shape
@@ -2605,7 +2604,6 @@ contains
 
           atm%dx  = dx
           atm%dy  = dy
-          atm%albedo = albedo
 
           if(.not.allocated(atm%dz) ) allocate(atm%dz( C_one_atm%zs:C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye ))
 
@@ -2689,7 +2687,8 @@ contains
 
   end subroutine
 
-  subroutine set_global_optical_properties(global_kabs, global_ksca, global_g, global_planck)
+  subroutine set_global_optical_properties(albedo, global_kabs, global_ksca, global_g, global_planck)
+    real(ireals),intent(inout) :: albedo
     real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_kabs, global_ksca, global_g
     real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_planck
     real(ireals),dimension(:,:,:),allocatable :: local_kabs, local_ksca, local_g
@@ -2700,6 +2699,8 @@ contains
       print *,myid,'You tried to set global optical properties but tenstream environment seems not to be initialized.... please call init first!'
       call exit(1)
     endif
+
+    call imp_bcast(imp_comm, albedo, 0_mpiint, myid)
 
     lhave_kabs   = present(global_kabs  ); call imp_bcast(imp_comm, lhave_kabs  , 0_mpiint, myid )
     lhave_ksca   = present(global_ksca  ); call imp_bcast(imp_comm, lhave_ksca  , 0_mpiint, myid )
@@ -2724,9 +2725,9 @@ contains
     ! Now global_fields are local to mpi subdomain.
 
     if(lhave_planck) then
-      call set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
+      call set_optical_properties(albedo, local_kabs, local_ksca, local_g, local_planck)
     else
-      call set_optical_properties(local_kabs, local_ksca, local_g)
+      call set_optical_properties(albedo, local_kabs, local_ksca, local_g)
     endif
 
 
@@ -2844,13 +2845,17 @@ contains
     if(any(shape(arr).lt.minimal_dimension) ) stop 'set_optprop -> extend_arr :: dimension is smaller than we support... please think of something here'
   end subroutine
 
-  subroutine set_optical_properties(local_kabs, local_ksca, local_g, local_planck)
+  subroutine set_optical_properties(albedo, local_kabs, local_ksca, local_g, local_planck)
+    real(ireals), intent(in) :: albedo
     real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g ! dimensions (Nz  , Nx, Ny)
     real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny)
     real(ireals) :: tau,kext,w0,g
     integer(iintegers) :: k,i,j
 
     if(.not.allocated(atm%op) )  allocate( atm%op       (C_one_atm%zs :C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye) )
+
+    atm%albedo = albedo
+
     if(present(local_kabs) ) atm%op(:,:,:)%kabs = local_kabs
     if(present(local_ksca) ) atm%op(:,:,:)%ksca = local_ksca
     if(present(local_g   ) ) atm%op(:,:,:)%g    = local_g   
@@ -2904,7 +2909,23 @@ contains
 
     call delta_scale(atm%op(:,:,:)%kabs, atm%op(:,:,:)%ksca, atm%op(:,:,:)%g ) 
 
-    if(ltwostr_only) return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
+    if(ltwostr_only) then
+      if(ldebug .and. myid.eq.0) then
+        do k=C_one_atm%zs,C_one_atm%ze
+          if(present(local_planck)) then
+            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
+              minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
+              maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g),&
+              '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
+          else    
+            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
+              minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
+              maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g)
+          endif
+        enddo
+      endif
+      return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
+    endif
 
     ! Make space for deltascaled optical properties
     !if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%zs :C_one%ze,C_one%xs :C_one%xe , C_one%ys :C_one%ye ) )
@@ -3306,6 +3327,10 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
       redn = x4d(E_dn,:,:,:)
       reup = x4d(E_up,:,:,:)
   endif
+
+  if(myid.eq.0 .and. ldebug) print *,'surface Edn',redn(ubound(redn,1), 1,1)
+  if(myid.eq.0 .and. ldebug) print *,'surface Eup',reup(ubound(redn,1), 1,1)
+
   if(ldebug .and. solutions(uid)%lsolar_rad) then
     if(myid.eq.0) print *,' Edn',redn(1,1,:)
     if(myid.eq.0) print *,' Eup',reup(1,1,:)
