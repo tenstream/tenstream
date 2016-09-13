@@ -588,9 +588,7 @@ contains
       PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
       PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
 
-      PetscInt :: vsize,i,j,k, isrc, idst, src, dst, icnt
-
-      logical :: llocal_src, llocal_dst
+      PetscInt :: vsize,i,j,k, isrc, idst, src, dst, icnt, src_id, dst_id
 
       MatStencil :: row(4,C%dof)  ,col(4,C%dof)
 
@@ -660,26 +658,26 @@ contains
 
               do idst = 1,C%dof
                 icnt = icnt+1
-                llocal_dst = .True.
-                if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. row(MatStencil_j,idst).lt.C%xs ) llocal_dst = .False. ! have real neighbor west  and is not local entry
-                if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. row(MatStencil_j,idst).gt.C%xe ) llocal_dst = .False. ! have real neighbor east  and is not local entry
-                if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. row(MatStencil_k,idst).lt.C%ys ) llocal_dst = .False. ! have real neighbor south and is not local entry
-                if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. row(MatStencil_k,idst).gt.C%ye ) llocal_dst = .False. ! have real neighbor north and is not local entry
+                dst_id = myid
+                if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. row(MatStencil_j,idst).lt.C%xs ) dst_id = C%neighbors(10) ! have real neighbor west  and is not local entry
+                if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. row(MatStencil_j,idst).gt.C%xe ) dst_id = C%neighbors(16) ! have real neighbor east  and is not local entry
+                if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. row(MatStencil_k,idst).lt.C%ys ) dst_id = C%neighbors( 4) ! have real neighbor south and is not local entry
+                if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. row(MatStencil_k,idst).gt.C%ye ) dst_id = C%neighbors(22) ! have real neighbor north and is not local entry
 
                 do isrc = 1,C%dof
-                  llocal_src = .True.
+                  src_id = myid
 
-                  if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. col(MatStencil_j,isrc).lt.C%xs ) llocal_src = .False. ! have real neighbor west  and is not local entry
-                  if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. col(MatStencil_j,isrc).gt.C%xe ) llocal_src = .False. ! have real neighbor east  and is not local entry
-                  if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. col(MatStencil_k,isrc).lt.C%ys ) llocal_src = .False. ! have real neighbor south and is not local entry
-                  if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. col(MatStencil_k,isrc).gt.C%ye ) llocal_src = .False. ! have real neighbor north and is not local entry
+                  if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. col(MatStencil_j,isrc).lt.C%xs ) src_id = C%neighbors(10) ! have real neighbor west  and is not local entry
+                  if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. col(MatStencil_j,isrc).gt.C%xe ) src_id = C%neighbors(16) ! have real neighbor east  and is not local entry
+                  if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. col(MatStencil_k,isrc).lt.C%ys ) src_id = C%neighbors( 4) ! have real neighbor south and is not local entry
+                  if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. col(MatStencil_k,isrc).gt.C%ye ) src_id = C%neighbors(22) ! have real neighbor north and is not local entry
 
-                  !if(myid.eq.0 .and. k.eq.C%zs) print *,myid,icnt,k,i,j,'::',idst,isrc,'::',llocal_dst,llocal_src
-                  if(llocal_dst .eqv. llocal_src) then
+                  if(src_id .eq. dst_id) then
                     call inc(xd(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
                   else
                     call inc(xo(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
                   endif
+                  !if(myid.eq.0 .and. k.eq.C%zs) print *,myid,icnt,k,i,j,'::',idst,isrc,'::',src_id, dst_id,':: local?', src_id .eq. dst_id, '::', xd(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), xo(row(4,idst),row(3,idst),row(2,idst),row(1,idst))
 
                 enddo
               enddo
