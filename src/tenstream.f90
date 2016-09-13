@@ -198,7 +198,7 @@ contains
       call setup_dmda(C_dir, Nz+1,Nx,Ny, bg, i8)
     endif
 
-    if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C1'
+    if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C_one'
     call setup_dmda(C_one , Nz  , Nx,Ny,  bp, i1)
     call setup_dmda(C_one1, Nz+1, Nx,Ny,  bp, i1)
 
@@ -325,9 +325,8 @@ contains
       if(numnodes.gt.1) then
         select case (C%dof)
         case(i3)
-          call setup_dir_preallocation(d_nnz,o_nnz,C)
+          call setup_dir3_preallocation(d_nnz,o_nnz,C)
         case(i8)
-          !            call setup_dir_preallocation(d_nnz,o_nnz,C)
           call setup_dir8_preallocation(d_nnz,o_nnz,C)
         case(i10)
           call setup_diff10_preallocation(d_nnz,o_nnz,C)
@@ -361,151 +360,89 @@ contains
     call mat_set_diagonal(A,C)
   contains
 
-    subroutine setup_diff10_preallocation(d_nnz,o_nnz,C)
-      PetscInt,allocatable :: o_nnz(:)
+    subroutine setup_dir3_preallocation(d_nnz,o_nnz,C)
       PetscInt,allocatable :: d_nnz(:)
+      PetscInt,allocatable :: o_nnz(:)
       type(t_coord) :: C
-      Vec :: v_o_nnz,v_d_nnz
-      PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
-      PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
+      Vec :: gv_o_nnz,gv_d_nnz
+      Vec :: lv_nnz
+      PetscScalar,Pointer :: xl(:,:,:,:)=>null(),xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
+      PetscScalar,Pointer :: xl1d(:)=>null(),xo1d(:)=>null(),xd1d(:)=>null()
 
-      PetscInt :: vsize
+      PetscInt :: i,j,k,dst, xinc, yinc
 
-      PetscInt,parameter :: ind(9)=[E_up,E_le_m,E_le_p,E_ri_m,E_ri_p,E_ba_m,E_ba_p,E_fw_m,E_fw_p]
-      PetscInt :: i,j,k!d,li,lj,lk
+      call DMGetGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call VecSet(gv_d_nnz, zero, ierr) ;CHKERRQ(ierr)
+      call VecSet(gv_o_nnz, zero, ierr) ;CHKERRQ(ierr)
 
-      call DMGetGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMGetGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C%da, lv_nnz,ierr) ;CHKERRQ(ierr)
 
-      call VecGetLocalSize(v_o_nnz,vsize,ierr) ;CHKERRQ(ierr)
-      allocate(o_nnz(0:vsize-1))
-      allocate(d_nnz(0:vsize-1))
+      call getVecPointer(lv_nnz,C,xl1d,xl)
 
-      call getVecPointer(v_o_nnz,C,xo1d,xo)
-      call getVecPointer(v_d_nnz,C,xd1d,xd)
-
-      xo = i0
-      xd = i1
-      xd(E_up,C%ze,:,:) = i2 ! E_up at ground is only function of E_dn at grnd and +1 for self
-
-      xd(ind ,C%zs:C%ze-1,:,:) = C%dof+i1
-      xd(E_dn,C%zs+1:C%ze,:,:) = C%dof+i1
-
-      ! Determine prealloc for E_dn and E_up
-      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
-        ! E_le is not local
-        xd(E_dn,C%zs+1:C%ze,C%xe,:) = xd(E_dn,C%zs+1:C%ze,C%xe,:) - i2
-        xo(E_dn,C%zs+1:C%ze,C%xe,:) = xo(E_dn,C%zs+1:C%ze,C%xe,:) + i2
-        xd(E_up,C%zs:C%ze-1,C%xe,:) = xd(E_up,C%zs:C%ze-1,C%xe,:) - i2
-        xo(E_up,C%zs:C%ze-1,C%xe,:) = xo(E_up,C%zs:C%ze-1,C%xe,:) + i2
-      endif
-      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0)) then ! neigh north
-        ! E_ba is not local
-        xd(E_dn,C%zs+1:C%ze,:,C%ye) = xd(E_dn,C%zs+1:C%ze,:,C%ye) - i2
-        xo(E_dn,C%zs+1:C%ze,:,C%ye) = xo(E_dn,C%zs+1:C%ze,:,C%ye) + i2
-        xd(E_up,C%zs:C%ze-1,:,C%ye) = xd(E_up,C%zs:C%ze-1,:,C%ye) - i2
-        xo(E_up,C%zs:C%ze-1,:,C%ye) = xo(E_up,C%zs:C%ze-1,:,C%ye) + i2
-      endif
-      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0)) then ! neigh south
-        ! no foreign stream dependencies
-      endif
-      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0)) then ! neigh west
-        ! no foreign stream dependencies
-      endif
-      ! Determine prealloc for E_le
-      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
-        ! E_le is not local
-        xd([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) = xd([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) - i2
-        xo([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) = xo([E_le_m,E_le_p],C%zs:C%ze-1,C%xe,:) + i2
-      endif
-      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
-        ! E_ba is not local
-        xd([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) = xd([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) - i2
-        xo([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) = xo([E_le_m,E_le_p],C%zs:C%ze-1,:,C%ye) + i2
-      endif
-      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
-        ! no foreign stream dependencies
-      endif
-      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
-        ! no foreign stream dependencies
-      endif
-      ! Determine prealloc for E_ri
-      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
-        ! no foreign stream dependencies
-      endif
-      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
-        ! E_ba is not local
-        xd([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) = xd([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) - i2
-        xo([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) = xo([E_ri_m,E_ri_p],C%zs:C%ze-1,:,C%ye) + i2
-      endif
-      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
-        ! no foreign stream dependencies
-      endif
-      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
-        ! E_ri local dependencies are only self, and 2*E_le
-        xd([E_ri_m,E_ri_p],C%zs:C%ze-1,C%xs,:) = i3
-        xo([E_ri_m,E_ri_p],C%zs:C%ze-1,C%xs,:) = i8
-      endif
-      ! Determine prealloc for E_ba
-      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
-        ! E_le is not local
-        xd([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) = xd([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) - i2
-        xo([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) = xo([E_ba_m,E_ba_p],C%zs:C%ze-1,C%xe,:) + i2
-      endif
-      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
-        ! E_ba is not local
-        xd([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) = xd([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) - i2
-        xo([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) = xo([E_ba_m,E_ba_p],C%zs:C%ze-1,:,C%ye) + i2
-      endif
-      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
-        ! no foreign stream dependencies
-      endif
-      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
-        ! no foreign stream dependencies
-      endif
-      ! Determine prealloc for E_fw
-      if( (C%neighbors(16).ne.myid) .and. (C%neighbors(16).ge.i0) ) then ! neigh east
-        ! E_le is not local
-        xd([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) = xd([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) - i2
-        xo([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) = xo([E_fw_m,E_fw_p],C%zs:C%ze-1,C%xe,:) + i2
-      endif
-      if( (C%neighbors(22).ne.myid) .and. (C%neighbors(22).ge.i0) ) then ! neigh north
-        ! no foreign stream dependencies
-      endif
-      if( (C%neighbors(4).ne.myid) .and. (C%neighbors(4).ge.i0) ) then ! neigh south
-        ! E_fw local dependencies are only self, and 2*E_ba
-        xd([E_fw_m,E_fw_p],C%zs:C%ze-1,:,C%ys) = i3
-        xo([E_fw_m,E_fw_p],C%zs:C%ze-1,:,C%ys) = i8
-      endif
-      if( (C%neighbors(10).ne.myid) .and. (C%neighbors(10).ge.i0) ) then ! neigh west
-        ! no foreign stream dependencies
-      endif
+      xl=zero
 
       do j=C%ys,C%ye
-        do i=C%xs,C%xe      
+        do i=C%xs,C%xe        
           do k=C%zs,C%ze-1
             if( atm%l1d(atmk(k),i,j) ) then
-
-              xo(:  ,k,i,j) = i0
-              xd(:  ,k,i,j) = i1
-              xd(0:1,k,i,j) = i3
+              do dst=i0,i3
+                call inc( xl(dst, k+1, i,j), one )
+              enddo
+            else
+              xinc = sun%angles(k,i,j)%xinc
+              yinc = sun%angles(k,i,j)%yinc
+              dst = i0 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
+              dst = i1 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
+              dst = i2 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
+              dst = i3 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
+              dst = i4 ;call inc( xl(dst , k   , i+xinc , j      ) , one*C%dof )
+              dst = i5 ;call inc( xl(dst , k   , i+xinc , j      ) , one*C%dof )
+              dst = i6 ;call inc( xl(dst , k   , i      , j+yinc ) , one*C%dof )
+              dst = i7 ;call inc( xl(dst , k   , i      , j+yinc ) , one*C%dof )
 
             endif
+
+          enddo 
+        enddo 
+      enddo
+      call restoreVecPointer(lv_nnz,C,xl1d,xl)
+
+      ! Now we have a local vector with ghosts that counts all entries
+      ! We still have to seperate the diagonal and the off-diagonal part:
+      ! For that, transmit the ghost parts with ADD_VALUES to _o_nnz
+      call DMLocalToGlobalBegin(C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalEnd  (C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
+
+      call getVecPointer(lv_nnz,C,xl1d,xl)
+      call getVecPointer(gv_o_nnz,C,xo1d,xo)
+      call getVecPointer(gv_d_nnz,C,xd1d,xd)
+
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe        
+          do k=C%zs,C%ze
+            xo(:,k,i,j) = xo(:,k,i,j)-xl(:,k,i,j)
+            xd(:,k,i,j) = -xo(:,k,i,j) + C%dof+i1
+!            print *,myid,k,i,j,'off',int(xo(:,k,i,j)),'on',int(xd(:,k,i,j))
           enddo
         enddo
       enddo
 
+      allocate(o_nnz(0:C%dof*C%zm*C%xm*C%ym-1))
+      allocate(d_nnz(0:C%dof*C%zm*C%xm*C%ym-1))
       o_nnz=int(xo1d)
       d_nnz=int(xd1d)
 
-      call restoreVecPointer(v_o_nnz,C,xo1d,xo)
-      call restoreVecPointer(v_d_nnz,C,xd1d,xd)
+      call restoreVecPointer(lv_nnz,C,xl1d,xl)
+      call restoreVecPointer(gv_o_nnz,C,xo1d,xo)
+      call restoreVecPointer(gv_d_nnz,C,xd1d,xd)
 
-      call DMRestoreGlobalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreGlobalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
-
-      if(myid.eq.0 .and. ldebug) print *,myid,'diff_10 d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
+      call DMRestoreGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreLocalVector (C%da, lv_nnz  ,ierr) ;CHKERRQ(ierr)
     end subroutine 
+
+
     subroutine setup_dir8_preallocation(d_nnz,o_nnz,C)
       PetscInt,allocatable :: d_nnz(:)
       PetscInt,allocatable :: o_nnz(:)
@@ -641,179 +578,171 @@ contains
 
       if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
     end subroutine 
-    subroutine setup_dir_preallocation(d_nnz,o_nnz,C)
+    subroutine setup_diff10_preallocation(d_nnz,o_nnz,C)
       PetscInt,allocatable :: d_nnz(:)
       PetscInt,allocatable :: o_nnz(:)
       type(t_coord) :: C
-      Vec :: gv_o_nnz,gv_d_nnz
-      Vec :: lv_nnz
-      PetscScalar,Pointer :: xl(:,:,:,:)=>null(),xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
-      PetscScalar,Pointer :: xl1d(:)=>null(),xo1d(:)=>null(),xd1d(:)=>null()
 
-      PetscInt :: i,j,k,dst, xinc, yinc
+      Vec :: v_o_nnz,v_d_nnz
+      Vec :: g_o_nnz,g_d_nnz
+      PetscScalar,Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
+      PetscScalar,Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
 
-      call DMGetGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
-      call DMGetGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call VecSet(gv_d_nnz, zero, ierr) ;CHKERRQ(ierr)
-      call VecSet(gv_o_nnz, zero, ierr) ;CHKERRQ(ierr)
+      PetscInt :: vsize,i,j,k, isrc, idst, src, dst, icnt
 
-      call DMGetLocalVector(C%da, lv_nnz,ierr) ;CHKERRQ(ierr)
+      logical :: llocal_src, llocal_dst
 
-      call getVecPointer(lv_nnz,C,xl1d,xl)
+      MatStencil :: row(4,C%dof)  ,col(4,C%dof)
 
-      xl=zero
+      if(myid.eq.0.and.ldebug) print *,myid,'building diffuse o_nnz for mat with',C%dof,'dof'
+      call DMGetLocalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
 
+      call getVecPointer(v_o_nnz,C,xo1d,xo)
+      call getVecPointer(v_d_nnz,C,xd1d,xd)
+
+      
+      xd = i0 
+      xo = i0
+
+      icnt = -1
       do j=C%ys,C%ye
         do i=C%xs,C%xe        
           do k=C%zs,C%ze-1
+
             if( atm%l1d(atmk(k),i,j) ) then
-              do dst=i0,i3
-                call inc( xl(dst, k+1, i,j), one )
-              enddo
+              call inc( xd(E_dn, k+1, i,j), 2*one )
+              call inc( xd(E_up, k  , i,j), 2*one )
+
             else
-              xinc = sun%angles(k,i,j)%xinc
-              yinc = sun%angles(k,i,j)%yinc
-              dst = i0 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
-              dst = i1 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
-              dst = i2 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
-              dst = i3 ;call inc( xl(dst , k+1 , i      , j      ) , one*C%dof )
-              dst = i4 ;call inc( xl(dst , k   , i+xinc , j      ) , one*C%dof )
-              dst = i5 ;call inc( xl(dst , k   , i+xinc , j      ) , one*C%dof )
-              dst = i6 ;call inc( xl(dst , k   , i      , j+yinc ) , one*C%dof )
-              dst = i7 ;call inc( xl(dst , k   , i      , j+yinc ) , one*C%dof )
 
-            endif
+              !           Sources
+              !         ________E_dn___
+              !        |               |
+              !    E_ri|               |E_le_p
+              !        |               |  
+              !        |               |
+              !    E_ri|               |E_le_m
+              !        |_______________|  
+              !                 E_up
 
-          enddo 
-        enddo 
-      enddo
-      call restoreVecPointer(lv_nnz,C,xl1d,xl)
+              src = 1; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_dn
+              src = 2; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k+1   ; col(MatStencil_c,src) = E_up 
+              src = 3; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ri_m
+              src = 4; col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_le_m
+              src = 5; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ri_p
+              src = 6; col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_le_p
+              src = 7; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_m
+              src = 8; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_m
+              src = 9; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_p
+              src =10; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_p
 
-      ! Now we have a local vector with ghosts that counts all entries
-      ! We still have to seperate the diagonal and the off-diagonal part:
-      ! For that, transmit the ghost parts with ADD_VALUES to _o_nnz
-      call DMLocalToGlobalBegin(C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMLocalToGlobalEnd  (C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
+              !           Destinations
+              !         ________E_up___
+              !        |               |
+              !    E_le|               |E_ri_p
+              !        |               |  
+              !        |               |
+              !    E_le|               |E_ri_m
+              !        |_______________|  
+              !                 E_dn
 
-      call getVecPointer(lv_nnz,C,xl1d,xl)
-      call getVecPointer(gv_o_nnz,C,xo1d,xo)
-      call getVecPointer(gv_d_nnz,C,xd1d,xd)
+              dst =  1; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_up  
+              dst =  2; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k+1   ; row(MatStencil_c,dst) = E_dn  
+              dst =  3; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_le_m
+              dst =  4; row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ri_m
+              dst =  5; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_le_p
+              dst =  6; row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ri_p
+              dst =  7; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_m
+              dst =  8; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_m
+              dst =  9; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
+              dst = 10; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
-      do j=C%ys,C%ye
-        do i=C%xs,C%xe        
-          do k=C%zs,C%ze
-            xo(:,k,i,j) = xo(:,k,i,j)-xl(:,k,i,j)
-            xd(:,k,i,j) = -xo(:,k,i,j) + C%dof+i1
-!            print *,myid,k,i,j,'off',int(xo(:,k,i,j)),'on',int(xd(:,k,i,j))
-          enddo
+              do idst = 1,C%dof
+                icnt = icnt+1
+                llocal_dst = .True.
+                if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. row(MatStencil_j,idst).lt.C%xs ) llocal_dst = .False. ! have real neighbor west  and is not local entry
+                if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. row(MatStencil_j,idst).gt.C%xe ) llocal_dst = .False. ! have real neighbor east  and is not local entry
+                if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. row(MatStencil_k,idst).lt.C%ys ) llocal_dst = .False. ! have real neighbor south and is not local entry
+                if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. row(MatStencil_k,idst).gt.C%ye ) llocal_dst = .False. ! have real neighbor north and is not local entry
+
+                do isrc = 1,C%dof
+                  llocal_src = .True.
+
+                  if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. col(MatStencil_j,isrc).lt.C%xs ) llocal_src = .False. ! have real neighbor west  and is not local entry
+                  if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. col(MatStencil_j,isrc).gt.C%xe ) llocal_src = .False. ! have real neighbor east  and is not local entry
+                  if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. col(MatStencil_k,isrc).lt.C%ys ) llocal_src = .False. ! have real neighbor south and is not local entry
+                  if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. col(MatStencil_k,isrc).gt.C%ye ) llocal_src = .False. ! have real neighbor north and is not local entry
+
+                  !if(myid.eq.0 .and. k.eq.C%zs) print *,myid,icnt,k,i,j,'::',idst,isrc,'::',llocal_dst,llocal_src
+                  if(llocal_dst .eqv. llocal_src) then
+                    call inc(xd(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
+                  else
+                    call inc(xo(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
+                  endif
+
+                enddo
+              enddo
+
+            endif ! atm_1d / 3d?
+
+          enddo ! k
+
+          ! Surface entries E_up 
+          call inc( xd(E_up, C%ze, i,j), one )
+
         enddo
       enddo
 
-      allocate(o_nnz(0:C%dof*C%zm*C%xm*C%ym-1))
-      allocate(d_nnz(0:C%dof*C%zm*C%xm*C%ym-1))
+      call restoreVecPointer(v_o_nnz,C,xo1d,xo)
+      call restoreVecPointer(v_d_nnz,C,xd1d,xd)
+
+      call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;CHKERRQ(ierr)
+      call VecSet(g_o_nnz, zero, ierr); CHKERRQ(ierr)
+      call VecSet(g_d_nnz, zero, ierr); CHKERRQ(ierr)
+
+      call DMLocalToGlobalBegin(C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalEnd  (C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;CHKERRQ(ierr)
+
+      call DMLocalToGlobalBegin(C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalEnd  (C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;CHKERRQ(ierr)
+
+      call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+
+      call getVecPointer(g_o_nnz,C,xo1d,xo)
+      call getVecPointer(g_d_nnz,C,xd1d,xd)
+
+      !call mpi_barrier(imp_comm, ierr)
+      !icnt = 0
+      !do j=C%ys,C%ye
+      !    do i=C%xs,C%xe        
+      !        do k=C%zs,C%ze
+      !            print *,myid,icnt,k,i,j,'::',int(xd(:, k,i,j)),'off',int(xo(:, k,i,j))
+      !            do idst = 1,C%dof
+      !                icnt = icnt+1
+      !            enddo
+      !        enddo
+      !    enddo
+      !enddo
+      !call mpi_barrier(imp_comm, ierr)
+
+      call VecGetLocalSize(g_d_nnz,vsize,ierr) ;CHKERRQ(ierr)
+      allocate(o_nnz(0:vsize-1))
+      allocate(d_nnz(0:vsize-1))
+
       o_nnz=int(xo1d)
-      d_nnz=int(xd1d)
+      d_nnz=int(xd1d) + i1  ! +1 for diagonal entries
 
-      call restoreVecPointer(lv_nnz,C,xl1d,xl)
-      call restoreVecPointer(gv_o_nnz,C,xo1d,xo)
-      call restoreVecPointer(gv_d_nnz,C,xd1d,xd)
+      call restoreVecPointer(g_o_nnz,C,xo1d,xo)
+      call restoreVecPointer(g_d_nnz,C,xd1d,xd)
 
-      call DMRestoreGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreLocalVector (C%da, lv_nnz  ,ierr) ;CHKERRQ(ierr)
-    end subroutine 
-    subroutine setup_diff_preallocation(d_nnz,o_nnz,C)
-      PetscInt,allocatable :: d_nnz(:)
-      PetscInt,allocatable :: o_nnz(:)
-      type(t_coord) :: C
-      Vec :: gv_o_nnz,gv_d_nnz
-      Vec :: lv_nnz
-      PetscScalar,Pointer :: xl(:,:,:,:)=>null(),xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
-      PetscScalar,Pointer :: xl1d(:)=>null(),xo1d(:)=>null(),xd1d(:)=>null()
+      call DMRestoreGlobalVector(C%da,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da,g_d_nnz,ierr) ;CHKERRQ(ierr)
 
-      PetscInt :: i,j,k,dst
+      if(myid.eq.0 .and. ldebug) print *,myid,'diffuse d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
 
-      call DMGetGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
-      call DMGetGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call VecSet(gv_d_nnz, zero, ierr) ;CHKERRQ(ierr)
-      call VecSet(gv_o_nnz, zero, ierr) ;CHKERRQ(ierr)
-
-      call DMGetLocalVector(C%da, lv_nnz,ierr) ;CHKERRQ(ierr)
-
-      call getVecPointer(lv_nnz,C,xl1d,xl)
-
-      xl=zero
-
-      do j=C%ys,C%ye
-        do i=C%xs,C%xe        
-          do k=C%zs,C%ze-1
-            if( atm%l1d(atmk(k),i,j) ) then
-              do dst=i0,i1
-                call inc( xl(dst, k+1, i,j), one )
-                call inc( xl(dst, k  , i,j), one )
-              enddo
-            else
-
-              dst = E_up  ;call inc( xl(dst , k   , i   , j   ) , one*C%dof )
-              dst = E_dn  ;call inc( xl(dst , k+1 , i   , j   ) , one*C%dof )
-              dst = E_le_m;call inc( xl(dst , k   , i   , j   ) , one*C%dof )
-              dst = E_ri_m;call inc( xl(dst , k   , i+1 , j   ) , one*C%dof-1 )
-              dst = E_le_p;call inc( xl(dst , k   , i   , j   ) , one*C%dof )
-              dst = E_ri_p;call inc( xl(dst , k   , i+1 , j   ) , one*C%dof-1 )
-              dst = E_ba_m;call inc( xl(dst , k   , i   , j   ) , one*C%dof )
-              dst = E_fw_m;call inc( xl(dst , k   , i   , j+1 ) , one*C%dof-1 )
-              dst = E_ba_p;call inc( xl(dst , k   , i   , j   ) , one*C%dof )
-              dst = E_fw_p;call inc( xl(dst , k   , i   , j+1 ) , one*C%dof-1 )
-
-              print *,myid,'diff',k,i,j,'xl',int(xl(:,k,i,j))
-            endif
-
-          enddo 
-        enddo 
-      enddo
-      call restoreVecPointer(lv_nnz,C,xl1d,xl)
-
-      ! Now we have a local vector with ghosts that counts all entries
-      ! We still have to seperate the diagonal and the off-diagonal part:
-      ! For that, transmit the ghost parts with ADD_VALUES to _o_nnz
-      call DMLocalToGlobalBegin(C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMLocalToGlobalEnd  (C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
-
-      call getVecPointer(lv_nnz,C,xl1d,xl)
-      call getVecPointer(gv_o_nnz,C,xo1d,xo)
-      call getVecPointer(gv_d_nnz,C,xd1d,xd)
-
-      do j=C%ys,C%ye
-        do i=C%xs,C%xe        
-          do k=C%zs,C%ze
-            xo(:,k,i,j) = xo(:,k,i,j)-xl(:,k,i,j)
-            xd(:,k,i,j) = + C%dof+i1  -xo(:,k,i,j) 
-            print *,myid,'diff',k,i,j,'on',int(xd(:,k,i,j)),'off',int(xo(:,k,i,j))
-          enddo
-        enddo
-      enddo
-
-      if( C%neighbors(10) .eq. C%neighbors(13) ) then ! neighbour in x-dir is actually me again....
-        xd(:,:,C%xs,:) = C%dof+1
-        xd(:,:,C%xe,:) = C%dof+1
-      endif
-      if( C%neighbors(4) .eq. C%neighbors(13) ) then ! neighbour in y-dir is actually me again....
-        xd(:,:,:,C%ys) = C%dof+1
-        xd(:,:,:,C%ye) = C%dof+1
-      endif
-
-      allocate(o_nnz(0:C%dof*C%zm*C%xm*C%ym-1))
-      allocate(d_nnz(0:C%dof*C%zm*C%xm*C%ym-1))
-      o_nnz=int(xo1d)
-      d_nnz=int(xd1d)
-
-      call restoreVecPointer(lv_nnz,C,xl1d,xl)
-      call restoreVecPointer(gv_o_nnz,C,xo1d,xo)
-      call restoreVecPointer(gv_d_nnz,C,xd1d,xd)
-
-      call DMRestoreGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreLocalVector (C%da, lv_nnz,  ierr) ;CHKERRQ(ierr)
     end subroutine 
 
     subroutine mat_set_diagonal(A,C,vdiag)
@@ -908,7 +837,7 @@ contains
     real(ireals) :: zm(4), maxheight, global_maxheight 
 
     if(.not.allocated(atm%dz)) stop 'You called  compute_gradient()&
-      but the atm struct is not yet up, make sure we have atm%dz before'
+      &but the atm struct is not yet up, make sure we have atm%dz before'
 
     call DMGetLocalVector(C_one1%da, vhhl, ierr) ;CHKERRQ(ierr)
 
@@ -997,9 +926,9 @@ contains
     real(ireals) :: rotmat(3, 3), newxsun(3)
 
     if(.not.allocated(sun%angles)) stop 'You called  setup_topography() &
-        but the sun struct is not yet up, make sure setup_suninfo is called before'
+        &but the sun struct is not yet up, make sure setup_suninfo is called before'
     if(.not.allocated(atm%dz)) stop 'You called  setup_topography() &
-        but the atm struct is not yet up, make sure we have atm%dz before'
+        &but the atm struct is not yet up, make sure we have atm%dz before'
 
     call compute_gradient(atm, vgrad_x, vgrad_y)
 
@@ -1509,7 +1438,7 @@ contains
       real(ireals) :: diff2diff1d(4)
       PetscReal :: diff2diff(C_diff%dof**2),v(C_diff%dof**2)
 
-      if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms'
+      if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms', minval(atm%planck), maxval(atm%planck)
       Az = atm%dx*atm%dy
 
       do j=C_diff%ys,C_diff%ye         
@@ -2815,7 +2744,7 @@ contains
       call DMGetGlobalVector(C_one_atm%da, local_vec, ierr) ; CHKERRQ(ierr)
 
       if(lhave_kabs) then
-        call scatterZerotoDM(global_kabs,C_one_atm,local_vec)
+        call scatterZerotoDM(global_kabs, C_one_atm, local_vec)
         call getVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec,.False. )
         local_kabs = xlocal_vec(0, C_one_atm%zs :C_one_atm%ze,C_one_atm%xs :C_one_atm%xe , C_one_atm%ys :C_one_atm%ye  )
         call restoreVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec )
@@ -2848,7 +2777,7 @@ contains
     end subroutine
   end subroutine
 
-  subroutine scatterZerotoDM(arr,C,vec)
+  subroutine scatterZerotoDM(arr, C, vec)
     real(ireals),allocatable,dimension(:,:,:),intent(in) :: arr
     type(t_coord),intent(in) :: C
     Vec :: vec
@@ -2857,10 +2786,10 @@ contains
     Vec :: natural,local
     PetscScalar,Pointer :: xloc(:)=>null()
 
-    if(ldebug) print *,myid,'scatterZerotoDM :: start....'
-    call VecSet(vec,zero,ierr)
-
+    if(ldebug) print *,myid,'scatterZerotoDM :: Create Natural Vec'
     call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
+
+    if(ldebug) print *,myid,'scatterZerotoDM :: Create scatter ctx'
     call VecScatterCreateToZero(natural, scatter_context, local, ierr); CHKERRQ(ierr)
 
     if(myid.eq.0) then
