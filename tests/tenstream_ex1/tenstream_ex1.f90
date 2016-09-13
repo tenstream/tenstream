@@ -21,7 +21,7 @@ subroutine test_tenstream_ex1(this)
     integer(iintegers) :: k, numnodes, comm
     !integer(iintegers) :: myid
 
-    integer(iintegers),parameter :: nxp=20,nyp=20,nv=10
+    integer(iintegers),parameter :: nxp=10,nyp=10,nv=10
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=0, theta0=60
     real(ireals),parameter :: albedo=0, dz=dx
@@ -72,6 +72,8 @@ subroutine test_tenstream_ex1(this)
 
     call tenstream_get_result(fdir, fdn, fup, fdiv)
 
+    call destroy_tenstream(.True.)
+
     if(myid.eq.0) then
         print *,'B:', B(:,1,1)*pi
         print *,'kabs:', kabs(:,1,1)
@@ -85,7 +87,6 @@ subroutine test_tenstream_ex1(this)
     @assertEqual(up_target,  fup (:,1,1), atolerance, 'thermal upward fl  not correct')
 
     ! Check that surface emission is the one that we stick in
-    @assertEqual(B(C_one1%zm,1,1)*pi, fup (C_diff%zm,1,1), atolerance, 'Surface Emission not correct')
-    call destroy_tenstream(.True.)
+    @assertEqual(B(ubound(B,1),1,1)*pi, fup (ubound(fup,1),1,1), atolerance, 'Surface Emission not correct')
 
 end subroutine
