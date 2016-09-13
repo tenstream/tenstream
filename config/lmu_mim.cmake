@@ -50,6 +50,6 @@ set(USER_Fortran_FLAGS         "-cpp -ffree-line-length-none -g")
 set(USER_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3") 
 set(USER_Fortran_FLAGS_DEBUG   "-fbacktrace -finit-real=nan -W -Wall -Wuninitialized -g -pg -fcheck=all -fbounds-check -pedantic -Wsurprising -ffpe-trap=invalid,zero,overflow -fno-range-check")
 
-set(NETCDF_DIR      "$ENV{NETCDFROOT}")
-set(NETCDF_DIR_F90  "$ENV{NETCDFROOT}")
+set(NETCDF_DIR      "$ENV{NETCDF}")
+set(NETCDF_DIR_F90  "$ENV{NETCDF}")
 #set(HDF5_DIR        "$ENV{HDF5ROOT}")
