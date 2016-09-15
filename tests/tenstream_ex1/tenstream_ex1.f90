@@ -5,7 +5,7 @@ subroutine test_tenstream_ex1(this)
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
-        t_coord,C_diff,C_one,C_one1
+        t_coord,C_diff,C_one,C_one1, get_mem_footprint
 
     use m_tenstream_options, only: read_commandline_options
 
@@ -78,6 +78,7 @@ subroutine test_tenstream_ex1(this)
         print *,'fup:',  fup (:,1,1)
         print *,'fdiv:', fdiv(:,1,1)
     endif
+    print *,myid,'Memory:',get_mem_footprint()
 
     @assertEqual(div_target, fdiv(:,1,1), atolerance, 'thermal divergence not correct')
     @assertEqual(dn_target,  fdn (:,1,1), atolerance, 'thermal downw flux not correct')

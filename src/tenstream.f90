@@ -3290,7 +3290,7 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
   endif
 
 
-  if(ldebug .and. myid.eq.0) print *,'calling tenstream_get_result',allocated(redir),'for uid',uid
+  if(ldebug .and. myid.eq.0) print *,'calling tenstream_get_result',allocated(redir),'for uid',uid,'::',get_mem_footprint()
 
   if(solutions(uid)%lchanged) stop 'tried to get results from unrestored solution -- call restore_solution first'
 
@@ -3926,14 +3926,14 @@ subroutine vec_to_hdf5(v)
 
 end subroutine
 
-subroutine get_mem_footprint(mem_G)
-  real(ireals) :: mem_G
+function get_mem_footprint()
+  real(ireals) :: get_mem_footprint
   PetscLogDouble :: memory_footprint
 
   call PetscMemoryGetCurrentUsage(memory_footprint, ierr); CHKERRQ(ierr)
 
-  mem_G = memory_footprint * 2**-30 
+  get_mem_footprint = memory_footprint * 2.**(-30)
 
-  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', mem_G, 'G'
-end subroutine
+  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', get_mem_footprint, 'G'
+end function
 end module
