@@ -3925,4 +3925,15 @@ subroutine vec_to_hdf5(v)
 #endif
 
 end subroutine
+
+subroutine get_mem_footprint(mem_G)
+  real(ireals) :: mem_G
+  PetscLogDouble :: memory_footprint
+
+  call PetscMemoryGetCurrentUsage(memory_footprint, ierr); CHKERRQ(ierr)
+
+  mem_G = memory_footprint * 2**-30 
+
+  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', mem_G, 'G'
+end subroutine
 end module
