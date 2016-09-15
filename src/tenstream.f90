@@ -71,7 +71,7 @@ module m_tenstream
 
   private
   public :: init_tenstream, set_angles, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
-    getVecPointer,restoreVecPointer, &
+    getVecPointer,restoreVecPointer, get_mem_footprint, &
     tenstream_get_result, tenstream_get_result_toZero, need_new_solution, &
     t_coord,C_dir,C_diff,C_one,C_one1,C_one_atm, C_one_atm1
 
@@ -3924,5 +3924,16 @@ subroutine vec_to_hdf5(v)
   if(myid.eq.0 .and. ldebug ) print *,myid,'Petsc build does not allow writing to hdf5 files'
 #endif
 
+end subroutine
+
+subroutine get_mem_footprint(mem_G)
+  real(ireals) :: mem_G
+  PetscLogDouble :: memory_footprint
+
+  call PetscMemoryGetCurrentUsage(memory_footprint, ierr); CHKERRQ(ierr)
+
+  mem_G = memory_footprint * 2**-30 
+
+  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', mem_G, 'G'
 end subroutine
 end module
