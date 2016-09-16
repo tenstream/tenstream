@@ -3101,7 +3101,7 @@ contains
     integer(iintegers) :: uid
     logical :: lsolar
 
-    if(present(opt_solution_uid)) then
+    if(lenable_solutions_err_estimates .and. present(opt_solution_uid)) then
       uid = opt_solution_uid
     else
       uid = i0 ! default solution is uid==0
@@ -3257,7 +3257,7 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
   PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
 
-  if(present(opt_solution_uid)) then
+  if(lenable_solutions_err_estimates .and. present(opt_solution_uid)) then
     uid = opt_solution_uid
 
     ! for residual history testing: old, un-updated solution should lie in solutions(-uid), return the old solution vector
@@ -3287,8 +3287,7 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
     uid = i0 ! default solution is uid==0
   endif
 
-
-  if(ldebug .and. myid.eq.0) print *,'calling tenstream_get_result',allocated(redir),'for uid',uid,'::',get_mem_footprint()
+  if(ldebug .and. myid.eq.0) print *,'calling tenstream_get_result',allocated(redir),'for uid',uid
 
   if(solutions(uid)%lchanged) stop 'tried to get results from unrestored solution -- call restore_solution first'
 
@@ -3926,12 +3925,17 @@ end subroutine
 
 function get_mem_footprint()
   real(ireals) :: get_mem_footprint
-  PetscLogDouble :: memory_footprint
-
+  PetscLogDouble :: memory_footprint, petsc_current_mem
+  get_mem_footprint = zero
+  
+  call mpi_barrier(imp_comm, ierr)
   call PetscMemoryGetCurrentUsage(memory_footprint, ierr); CHKERRQ(ierr)
 
-  get_mem_footprint = memory_footprint * 2.**(-30)
+  get_mem_footprint = memory_footprint / 1024. / 1024. / 1024.
 
-  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', get_mem_footprint, 'G'
+!  call PetscMallocGetCurrentUsage(petsc_current_mem, ierr); CHKERRQ(ierr)
+
+!  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', get_mem_footprint, 'G'
+  return
 end function
 end module
