@@ -840,8 +840,6 @@ contains
       &but the atm struct is not yet up, make sure we have atm%dz before'
 
     call DMGetLocalVector(C_one1%da, vhhl, ierr) ;CHKERRQ(ierr)
-
-    call DMGetLocalVector(C_one1%da, vhhl, ierr) ;CHKERRQ(ierr)
     call getVecPointer(vhhl , C_one1, hhl1d, hhl)
 
     hhl(i0, C_one1%ze, :, :) = zero
