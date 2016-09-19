@@ -65,7 +65,7 @@ module m_tenstream
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
     options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
     options_phi, lforce_phi, options_theta, lforce_theta, &
-    lwriteall,lcalc_nca, lskip_thermal, lschwarzschild
+    lwriteall,lcalc_nca, lskip_thermal, lschwarzschild, ltopography
 
   implicit none
 
@@ -2638,7 +2638,7 @@ contains
               ierr=1; CHKERRQ(ierr)
           endif
 
-          sun%luse_topography = present(dz3d)  ! if the user supplies 3d height levels he probably wants to take topography into account
+          sun%luse_topography = present(dz3d) .and. ltopography  ! if the user supplies 3d height levels and has set the topography option
 
           if(.not.allocated(atm%l1d)) then
               allocate(atm%l1d( C_one_atm%zs:C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye ) )

@@ -32,6 +32,7 @@ module m_tenstream_options
         lcalc_nca         =.False., & ! calculate twostream and modify absorption with NCA algorithm
         lschwarzschild    =.False., & ! use schwarzschild solver instead of twostream for thermal calculations
         lskip_thermal     =.False., & ! Skip thermal calculations and just return zero for fluxes and absorption
+        ltopography       =.False., & ! use raybending to include surface topography
         lforce_phi        =.False., & ! Force to use the phi given in options entries(overrides values given to tenstream calls
         lforce_theta      =.False.
 
@@ -69,6 +70,7 @@ module m_tenstream_options
           print *,'-twostr_ratio <limit> :: when aspect ratio (dz/dx) is smaller than <limit> then we use twostr_coeffs(default = 1.)'  
           print *,'-calc_nca             :: calculate twostream and modify absorption with NCA algorithm (Klinger)                   '  
           print *,'-skip_thermal         :: skip thermal calculations and just return zero for flux and absorption                   '  
+          print *,'-topography           :: use raybending to include surface topography, needs a 3D dz information                  '  
           print *,'-pert_xshift <i>      :: shift optical properties in x direction by <i> pixels                                    '  
           print *,'-pert_yshift <j>      :: shift optical properties in Y direction by <j> pixels                                    '  
           print *,'-max_solution_err [W] :: if max error of solution is estimated below this value, skip calculation                 '  
@@ -153,26 +155,29 @@ module m_tenstream_options
             luse_twostr_guess=.True.
           endif
 
-          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER , "-skip_thermal" , lskip_thermal , lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER ,"-topography" , ltopography, lflg, ierr) ;CHKERRQ(ierr)
 
-          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER , "-schwarzschild" , lschwarzschild , lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER ,"-skip_thermal" , lskip_thermal, lflg , ierr) ;CHKERRQ(ierr)
 
-          call PetscOptionsGetInt(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER,"-coeff_mode",coeff_mode, lflg,ierr) ; CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER ,"-schwarzschild" , lschwarzschild, lflg , ierr) ;CHKERRQ(ierr)
+
+          call PetscOptionsGetInt(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER,"-coeff_mode", coeff_mode, lflg, ierr) ; CHKERRQ(ierr)
           if(lflg.eqv.PETSC_FALSE) coeff_mode=0 ! use LUT by default
 
-          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER , "-tenstr_view" , ltenstr_view , lflg , ierr) ;CHKERRQ(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OBJECT, PETSC_NULL_CHARACTER ,"-tenstr_view" , ltenstr_view, lflg, ierr) ;CHKERRQ(ierr)
           if(myid.eq.0.and.ltenstr_view) then
             print *,'********************************************************************'
             print *,'***   nr. of Nodes:',numnodes
             print *,'***   eddington    ',luse_eddington
-            print *,'***   coeff_mode   ',coeff_mode    
+            print *,'***   coeff_mode   ',coeff_mode
             print *,'***   writeall     ',lwriteall
             print *,'***   twostr_only  ',ltwostr_only
             print *,'***   twostr       ',ltwostr
             print *,'***   twostr_guess ',luse_twostr_guess
-            print *,'***   calc_nca     ',lcalc_nca         
+            print *,'***   calc_nca     ',lcalc_nca
             print *,'***   schwarzschild',lschwarzschild
-            print *,'***   skip_thermal ',lskip_thermal         
+            print *,'***   skip_thermal ',lskip_thermal
+            print *,'***   topography   ',ltopography
             print *,'***   hdf5_guess   ',luse_hdf5_guess
             print *,'***   twostr_ratio ',twostr_ratio
             print *,'***   out          ',trim(output_prefix)
