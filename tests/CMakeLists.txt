@@ -13,7 +13,7 @@ set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fprofile-arcs -ftest-coverag
 # Find out if the compiler is Intel and if so add compile flag for parameter tests
 string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
 if(${_is_Intel})
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -assume realloc_lhs")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -assume realloc_lhs -check nobounds")
 endif(${_is_Intel})
 
 
@@ -36,6 +36,7 @@ else()
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/external/pfunit
         -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+        -DCMAKE_Fortran_FLAGS=${CMAKE_Fortran_FLAGS}
         -DMPI_USE_MPIEXEC=YES
         -DMPI=YES
         )
