@@ -2,12 +2,12 @@
 
 include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 
-file( GLOB files *.f90 )
+file( GLOB files *.f* )
 
 SET_SOURCE_FILES_PROPERTIES(rrtmg_lw_k_g.f90 PROPERTIES COMPILE_FLAGS -O0)
 
-add_library( fpda_rrtm_lw STATIC ${files} )
-target_link_libraries( fpda_rrtm_lw )
+add_library( tenstr_rrtm_lw STATIC ${files} )
+TARGET_LINK_LIBRARIES( tenstr_rrtm_lw tenstream)
 
-install(TARGETS fpda_rrtm_lw   DESTINATION lib)
+install(TARGETS tenstr_rrtm_lw   DESTINATION lib)
 install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")

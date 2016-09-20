@@ -67,10 +67,10 @@
 
       implicit none
 
-      real(kind=rb),save,allocatable,dimension(:,:) :: fpda_taugas, fpda_planck_fracs, fpda_planck_lev
+      !real(kind=rb),save,allocatable,dimension(:,:) :: fpda_taugas, fpda_planck_fracs, fpda_planck_lev
 
 ! public interfaces/functions/subroutines
-      public :: rrtmg_lw, inatm, fpda_taugas, fpda_planck_fracs
+      public :: rrtmg_lw, inatm !, fpda_taugas, fpda_planck_fracs
 
 !------------------------------------------------------------------
       contains
@@ -89,7 +89,9 @@
              taucld  ,cicewp  ,cliqwp  ,reice   ,reliq   , &
              tauaer  , &
              uflx    ,dflx    ,hr      ,uflxc   ,dflxc,  hrc, &
+             tenstr_tau, tenstr_Bfrac, &
              duflx_dt,duflxc_dt )
+
 
 ! -------- Description --------
 
@@ -178,7 +180,9 @@
 
       use parrrtm, only : nbndlw, ngptlw, maxxsec, mxmol
       use rrlw_con, only: fluxfac, heatfac, oneminus, pi
-      use rrlw_wvn, only: ng, ngb, nspa, nspb, wavenum1, wavenum2, delwave
+      use rrlw_wvn, only: ng, ngc, ngb, nspa, nspb, wavenum1, wavenum2, delwave
+
+      use m_data_parameters, only : ireals
 
 ! ------- Declarations -------
 
@@ -293,6 +297,9 @@
       real(kind=rb), intent(out) :: hrc(:,:)          ! Clear sky longwave radiative heating rate (K/d)
                                                       !    Dimensions: (ncol,nlay)
 
+      real(ireals), intent(out) :: tenstr_tau(:,:,:)  ! (ncol, nlayers+1, ngptlw)
+      real(ireals), intent(out) :: tenstr_Bfrac(:,:,:)! (ncol, nlayers+1, ngptlw)
+
 ! ----- Optional Output -----
       real(kind=rb), intent(out), optional :: duflx_dt(:,:)     
                                                       ! change in upward longwave flux (w/m2/k)
@@ -314,7 +321,7 @@
       integer(kind=im) :: iplon               ! column loop index
       integer(kind=im) :: imca                ! flag for mcica [0=off, 1=on]
       integer(kind=im) :: k                   ! layer loop index
-      integer(kind=im) :: ig                  ! g-point loop index
+      integer(kind=im) :: ig, iw, iv          ! g-point loop index
 
 ! Atmosphere
       real(kind=rb) :: pavel(nlay+1)          ! layer pressures (mb) 
@@ -508,15 +515,6 @@
                      fracs, taug)
 
 
-         if(.not. allocated(fpda_taugas))       allocate(fpda_taugas      (nlay,ngptlw))
-         if(.not. allocated(fpda_planck_fracs)) allocate(fpda_planck_fracs(nlay,ngptlw))
-         if(.not. allocated(fpda_planck_lev  )) allocate(fpda_planck_lev  (nlay+1,nbndlw))
-         fpda_taugas(:,:) = taug(1:nlay,:)
-         fpda_planck_fracs(:,:) = fracs(1:nlay,:)
-         fpda_planck_lev=0
-         fpda_planck_lev  (:,:) = planklev(0:nlay,:) !TODO FPDA: can we get planck function from here somewhere?
-         return
-
 ! Combine gaseous and aerosol optical depths, if aerosol active
          if (iaer .eq. 0) then
             do k = 1, nlayers
@@ -531,6 +529,14 @@
                enddo
             enddo
          endif
+
+         do ig=1,ngptlw
+           tenstr_tau(iplon, :, ig) = taut(1:nlay, ig) + taucloud(1:nlay, ngb(ig)) * cldfrac(:)
+           tenstr_Bfrac(iplon, :, ig) = fracs(1:nlay,ig)
+         enddo
+
+         cycle
+
 
 ! Call the radiative transfer routine.
 ! Either routine can be called to do clear sky calculation.  If clouds
