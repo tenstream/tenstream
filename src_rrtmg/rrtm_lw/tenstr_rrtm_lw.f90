@@ -109,7 +109,7 @@ contains
       stop 'init_tenstream_rrtm_lw -- missing arguments nxproc,nyproc'
     endif
     if(present(nxproc) .and. present(nyproc)) then
-      call init_tenstream(comm, zm, xm, ym, dx,dy,phi0, theta0, nxproc=nxproc, nyproc=nxproc, dz3d=dz)
+      call init_tenstream(comm, zm, xm, ym, dx,dy,phi0, theta0, nxproc=nxproc, nyproc=nyproc, dz3d=dz)
     else ! we let petsc decide where to put stuff
       call init_tenstream(comm, zm, xm, ym, dx, dy, phi0, theta0, dz3d=dz)
     endif
