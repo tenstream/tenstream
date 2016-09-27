@@ -1,4 +1,4 @@
-@test(npes =[1]) 
+@test(npes =[2,1])
 subroutine test_rrtm_lw(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one
@@ -37,6 +37,7 @@ subroutine test_rrtm_lw(this)
     character(len=250),parameter :: atm_filename='afglus_100m.dat'
 
     integer(iintegers) :: i,j,k, nlev, icld
+    integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
     logical,parameter :: ldebug=.True.
 
@@ -45,6 +46,9 @@ subroutine test_rrtm_lw(this)
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
+
+    allocate(nxproc(numnodes), source=nxp)   ! domain decomp in x direction with all ranks
+    allocate(nyproc(1), source=nyp)          ! no domain decomposition in y direction 
 
     call init_mpi_data_parameters(comm)
 
@@ -76,11 +80,13 @@ subroutine test_rrtm_lw(this)
 !                               edir,edn,eup,abso,                            & 
 !                               plev, tlev, tlay, h2ovmr, o3vmr,              &
 !                               co2vmr, ch4vmr, n2ovmr,  o2vmr,               &
-!                               lwc, reliq)
+!                               d_lwc=lwc, d_reliq=reliq,                     &
+!                               nxproc=nxproc, nyproc=nyproc)
 
     call tenstream_rrtm_lw(comm, dx, dy, phi0, theta0, albedo, atm_filename, &
                                edir,edn,eup,abso,                            & 
-                               plev, tlev, d_lwc=lwc, d_reliq=reliq)
+                               plev, tlev, d_lwc=lwc, d_reliq=reliq,         &
+                               nxproc=nxproc, nyproc=nyproc)
 
     nlev = ubound(edn,1)
     if(myid.eq.0) then
@@ -90,17 +96,17 @@ subroutine test_rrtm_lw(this)
             enddo
         endif
 
-        @assertEqual(300.4933, edn (nlev,1,1), atolerance, 'thermal at surface :: downw flux not correct')
-        @assertEqual(391.1564, eup (nlev,1,1), atolerance, 'thermal at surface :: upward fl  not correct')
-        @assertEqual(-3.1456E-02, abso(nlev  ,1,1), atolerance, 'thermal at surface :: absorption not correct')
+        @assertEqual(377.6775, edn (nlev,1,1), atolerance, 'thermal at surface :: downw flux not correct')
+        @assertEqual(390.0707, eup (nlev,1,1), atolerance, 'thermal at surface :: upward fl  not correct')
+        @assertEqual(-1.443E-02, abso(nlev-1,1,1), atolerance, 'thermal at surface :: absorption not correct')
 
-        @assertEqual(  0.0000, edn (1,1,1), atolerance, 'thermal at TOA :: downw flux not correct')
-        @assertEqual(244.0147, eup (1,1,1), atolerance, 'thermal at TOA :: upward fl  not correct')
-        @assertEqual(-1.4760E-04, abso(1,1,1), atolerance, 'thermal at TOA :: absorption not correct')
+        @assertEqual(0             , edn (1,1,1), atolerance, 'thermal at TOA :: downw flux not correct')
+        @assertEqual(256.4602      , eup (1,1,1), atolerance, 'thermal at TOA :: upward fl  not correct')
+        @assertEqual(-2.1898020E-04, abso(1,1,1), atolerance, 'thermal at TOA :: absorption not correct')
 
-        @assertEqual(163.9768, edn (icld+1,1,1), atolerance, 'thermal at icloud :: downw flux not correct')
-        @assertEqual(270.4422, eup (icld  ,1,1), atolerance, 'thermal at icloud :: upward fl  not correct')
-        @assertEqual(-0.69361, abso(icld  ,1,1), atolerance, 'thermal at icloud :: absorption not correct')
+        @assertEqual(389.5942  , edn (nlev-icld+1,1,1), atolerance, 'thermal at icloud :: downw flux not correct')
+        @assertEqual(390.0449  , eup (nlev-icld  ,1,1), atolerance, 'thermal at icloud :: upward fl  not correct')
+        @assertEqual(-0.3934462, abso(nlev-icld  ,1,1), atolerance, 'thermal at icloud :: absorption not correct')
     endif
 
 end subroutine
