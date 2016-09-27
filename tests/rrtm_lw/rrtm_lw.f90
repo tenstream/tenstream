@@ -11,7 +11,7 @@ subroutine test_rrtm_lw(this)
 
     use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast
 
-    use m_tenstr_rrtm_lw, only : tenstream_rrtm_lw
+    use m_tenstr_rrtm_lw, only : tenstream_rrtm_lw, destroy_tenstream_rrtm_lw
 
 #include "petsc/finclude/petscdef.h"
     use petsc 
@@ -87,6 +87,7 @@ subroutine test_rrtm_lw(this)
                                edir,edn,eup,abso,                            & 
                                plev, tlev, d_lwc=lwc, d_reliq=reliq,         &
                                nxproc=nxproc, nyproc=nyproc)
+    call destroy_tenstream_rrtm_lw()
 
     nlev = ubound(edn,1)
     if(myid.eq.0) then

@@ -23,7 +23,7 @@ module m_tenstr_rrtm_lw
   implicit none
 
   private
-  public :: tenstream_rrtm_lw
+  public :: tenstream_rrtm_lw, destroy_tenstream_rrtm_lw
 
 #include "petsc/finclude/petsc.h90"
   PetscErrorCode :: ierr
@@ -332,6 +332,8 @@ contains
       endif
     enddo
 
+  end subroutine
+  subroutine destroy_tenstream_rrtm_lw()
     ! Tidy up the solver
     call destroy_tenstream(lfinalizepetsc=.True.)
     linit_tenstr = .False.
