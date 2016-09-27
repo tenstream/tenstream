@@ -392,7 +392,7 @@ module m_helper_functions
           print *,'I read ',nlines,'lines'
       end subroutine
 
-      function search_sorted_bisection(arr,val) ! return index+residula i where arr(i) .gt. val
+      function search_sorted_bisection(arr,val) ! return index+residula i where val is between arr(i) and arr(i+1)
         real(ireals) :: search_sorted_bisection
         real(ireals),intent(in) :: arr(:)
         real(ireals),intent(in) :: val
@@ -402,24 +402,46 @@ module m_helper_functions
         i=lbound(arr,1)
         j=ubound(arr,1)
 
-        do
-          k=(i+j)/2
-          if (val < arr(k)) then
-            j=k
-          else
-            i=k
-          endif
-          if (i+1 >= j) then ! only single or tuple left
-            ! i is left bound and j is right bound index
-            if(i.eq.j) then
-              loc_increment = zero
+        if(arr(i).le.arr(j)) then ! ascending order
+          do
+            k=(i+j)/2
+            if (val < arr(k)) then
+              j=k
             else
-              loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
+              i=k
             endif
-            search_sorted_bisection= min(max(one*lbound(arr,1), i + loc_increment), one*ubound(arr,1)) ! return `real-numbered` location of val
-            exit
-          endif
-        end do
+            if (i+1 >= j) then ! only single or tuple left
+              ! i is left bound and j is right bound index
+              if(i.eq.j) then
+                loc_increment = zero
+              else
+                loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
+              endif
+              search_sorted_bisection= min(max(one*lbound(arr,1), i + loc_increment), one*ubound(arr,1)) ! return `real-numbered` location of val
+              return
+            endif
+          end do
+        else !descending order
+
+          do
+            k=(i+j)/2
+            if (val > arr(k)) then
+              j=k
+            else
+              i=k
+            endif
+            if (i+1 >= j) then ! only single or tuple left
+              ! i is left bound and j is right bound index
+              if(i.eq.j) then
+                loc_increment = zero
+              else
+                loc_increment = (val - arr(j)) / ( arr(i) - arr(j) )
+              endif
+              search_sorted_bisection= min(max(one*lbound(arr,1), j - loc_increment), one*ubound(arr,1)) ! return `real-numbered` location of val
+              return
+            endif
+          end do
+        endif
       end function
 
   end module
