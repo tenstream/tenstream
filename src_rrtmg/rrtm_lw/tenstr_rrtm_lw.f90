@@ -334,6 +334,7 @@ contains
 
     ! Tidy up the solver
     call destroy_tenstream(lfinalizepetsc=.True.)
+    linit_tenstr = .False.
   end subroutine
 
   subroutine optprop_rrtm_lw(ncol_in, nlay_in, albedo, plev, tlev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwp, reliq, tau, Bfrac)
