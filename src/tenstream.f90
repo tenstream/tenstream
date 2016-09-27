@@ -142,7 +142,7 @@ module m_tenstream
   KSP,save :: kspdir, kspdiff
   logical,save :: linit_kspdir=.False., linit_kspdiff=.False.
 
-  logical,save :: linitialized=.False.
+  logical,save :: ltenstream_is_initialized=.False.
 
   integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
 
@@ -2504,7 +2504,7 @@ contains
     real(ireals),optional,intent(in) :: phi2d  (:,:)   !< @param[in] phi2d   if given, horizontally varying azimuth
     real(ireals),optional,intent(in) :: theta2d(:,:)   !< @param[in] theta2d if given, and zenith angle
 
-    if(.not.linitialized) then
+    if(.not.ltenstream_is_initialized) then
         print *,myid,'You tried to set angles in the Tenstream solver.  &
             & This should be called right after init_tenstream'
         ierr=1; CHKERRQ(ierr)
@@ -2551,7 +2551,7 @@ contains
     integer(iintegers) :: k,i,j
     !    character(len=30),parameter :: tenstreamrc='./.tenstreamrc'
 
-    if(.not.linitialized) then
+    if(.not.ltenstream_is_initialized) then
 
         call setup_petsc_comm
         !      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
@@ -2587,7 +2587,7 @@ contains
         ! init petsc logging facilities
         call setup_logging()
 
-        linitialized=.True.
+        ltenstream_is_initialized=.True.
     else
         print *,myid,'You tried to initialize already initialized Tenstream          &
             &solver. This should not be done. If you need to reinitialize the grids, &
@@ -2696,7 +2696,7 @@ contains
     real(ireals),dimension(:,:,:),allocatable :: local_planck
     logical :: lhave_planck,lhave_kabs,lhave_ksca,lhave_g
 
-    if(.not.linitialized) then
+    if(.not.ltenstream_is_initialized) then
       print *,myid,'You tried to set global optical properties but tenstream environment seems not to be initialized.... please call init first!'
       call exit(1)
     endif
@@ -3183,7 +3183,7 @@ subroutine destroy_tenstream(lfinalizepetsc)
   integer(iintegers) :: uid
   if(present(lfinalizepetsc)) lfinalize = lfinalizepetsc
 
-  if(linitialized) then 
+  if(ltenstream_is_initialized) then 
     if(linit_kspdir) then
       call KSPDestroy(kspdir , ierr) ;CHKERRQ(ierr); linit_kspdir =.False.
     endif
@@ -3228,7 +3228,7 @@ subroutine destroy_tenstream(lfinalizepetsc)
     call DMDestroy(C_one_atm%da ,ierr); deallocate(C_one_atm)
     call DMDestroy(C_one_atm1%da,ierr); deallocate(C_one_atm1)
 
-    linitialized=.False.
+    ltenstream_is_initialized=.False.
     if(myid.eq.0 .and. ldebug)print *,'Destroyed TenStream'
 
     if(lfinalize) then
