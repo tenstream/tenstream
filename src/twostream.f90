@@ -102,21 +102,11 @@ module m_twostream
         ! Setup thermal src vector
         if(present(planck) ) then
           do k=1,ke
-            if( dtau(k).gt.0.01_ireals ) then
-              b0 = planck(k)
-              b1 = ( planck(k)-planck(k+1) ) / dtau(k)
-            else
-              b0 = .5_ireals*(planck(k)+planck(k+1))
-              b1 = zero
-            endif
-            c1 = g1(k) * (b0 + b1*dtau(k))
-            c2 = g2(k) * b1
-            c3 = g1(k) * b0
-            B(2*k-1,1) = B(2*k-1,1) + ( - a11(k)*(c1+c2) - a12(k)*(c3-c2) + c2 + c3 )*pi 
-            B(2*k+2,1) = B(2*k+2,1) + ( - a12(k)*(c1+c2) - a11(k)*(c3-c2) + c1 - c2 )*pi 
+            B(2*k-1,1) = B(2*k-1,1) + (one-a11(k)-a12(k)) * planck(k) *pi
+            B(2*k+2,1) = B(2*k+2,1) + (one-a11(k)-a12(k)) * planck(k) *pi
           enddo
           ! B(2,1) = B(2,1) + zero ! no Edn at TOA
-          B(2*ke1-1,1) = B(2*ke1-1,1) + planck(ke1)*(one-albedo)*pi 
+          B(2*ke1-1,1) = B(2*ke1-1,1) + planck(ke1)*(one-albedo)*pi
         endif
 
         !diagonal entries

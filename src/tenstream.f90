@@ -1448,27 +1448,16 @@ contains
             if( atm%l1d(atmk(k),i,j) ) then
 
               if(luse_eddington ) then
-                !see libradtran rodents
-                dtau = atm%dz(atmk(k),i,j) * ( atm%op(atmk(k),i,j)%kabs + atm%op(atmk(k),i,j)%ksca)
-                if( dtau.gt.0.01_ireals ) then
-                  b0 = atm%planck(atmk(k),i,j)
-                  b1 = ( atm%planck(atmk(k),i,j)-atm%planck(atmk(k)+1,i,j) ) / dtau
-                else
-                  b0 = .5_ireals*(atm%planck(atmk(k),i,j)+atm%planck(atmk(k)+1,i,j))
-                  b1 = zero
-                endif
-                c1 = atm%g1(atmk(k),i,j) * (b0 + b1*dtau)
-                c2 = atm%g2(atmk(k),i,j) * b1
-                c3 = atm%g1(atmk(k),i,j) * b0
 
-                xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) + ( - atm%a11(atmk(k),i,j)*(c1+c2) - atm%a12(atmk(k),i,j)*(c3-c2) + c2 + c3 )*Az*pi
-                xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) + ( - atm%a12(atmk(k),i,j)*(c1+c2) - atm%a11(atmk(k),i,j)*(c3-c2) + c1 - c2 )*Az*pi
+                b0 = atm%planck(atmk(k),i,j) * (one-atm%a11(atmk(k),i,j)-atm%a12(atmk(k),i,j))
+                xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) + b0 *Az*pi
+                xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) + b0 *Az*pi
 
               else
 
                 call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., diff2diff1d, atm%l1d(atmk(k),i,j))
 
-                b0 = .5_ireals*(atm%planck(atmk(k),i,j)+atm%planck(atmk(k)+1,i,j)) *pi
+                b0 = atm%planck(atmk(k),i,j) * pi
                 xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
                 xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
 
@@ -1483,7 +1472,7 @@ contains
               do src=1,C_diff%dof
                 v(src:C_diff%dof**2:C_diff%dof) = diff2diff( i1+(src-i1)*C_diff%dof : src*C_diff%dof )
               enddo
-              b0 = .5_ireals*(atm%planck(atmk(k),i,j)+atm%planck(atmk(k)+i1,i,j)) *pi
+              b0 = atm%planck(atmk(k),i,j) * pi
               xsrc(E_up   , k   , i   , j   ) = xsrc(E_up   , k   , i   , j   ) +  b0  *(one-sum( v( E_up  *C_diff%dof+i1 : E_up  *C_diff%dof+C_diff%dof )  )  ) *Az
               xsrc(E_dn   , k+1 , i   , j   ) = xsrc(E_dn   , k+1 , i   , j   ) +  b0  *(one-sum( v( E_dn  *C_diff%dof+i1 : E_dn  *C_diff%dof+C_diff%dof )  )  ) *Az
               xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  b0  *(one-sum( v( E_le_m*C_diff%dof+i1 : E_le_m*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
@@ -2860,7 +2849,7 @@ contains
   subroutine set_optical_properties(albedo, local_kabs, local_ksca, local_g, local_planck)
     real(ireals), intent(in) :: albedo
     real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g ! dimensions (Nz  , Nx, Ny)
-    real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny)
+    real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny) layer quantity plus surface layer
     real(ireals) :: tau,kext,w0,g
     integer(iintegers) :: k,i,j
 
