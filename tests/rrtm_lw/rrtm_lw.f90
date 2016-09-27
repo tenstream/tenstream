@@ -1,7 +1,7 @@
-@test(npes =[2,1]) 
+@test(npes =[1]) 
 subroutine test_rrtm_lw(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
@@ -24,20 +24,19 @@ subroutine test_rrtm_lw(this)
 
     integer(mpiint) :: numnodes, comm, myid
 
-    integer(iintegers),parameter :: nxp=6,nyp=3
+    integer(iintegers),parameter :: nxp=3, nyp=3, nzp=10 ! local domain size for each rank
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=0, theta0=60
-    real(ireals),parameter :: albedo=0
+    real(ireals),parameter :: albedo=0, phi0=180, theta0=0
     real(ireals),parameter :: atolerance = 1
 
-    real(ireals),allocatable :: atm(:,:) ! # z(km)  p(mb)  T(K) air(cm-3) o3(cm-3) o2(cm-3)  h2o(cm-3) co2(cm-3) no2(cm-3)
-    real(ireals),allocatable,dimension(:,:,:) :: plev                                               ! nlay+1, nxp, nyp
-    real(ireals),allocatable,dimension(:,:,:) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr ! nlay  , nxp, nyp
-    real(ireals),allocatable,dimension(:,:,:) :: lwc, reliq                                         ! nlay  , nxp, nyp
-    real(ireals),allocatable,dimension(:,:)   :: tsrfc                                              ! nxp, nyp
-    real(ireals),allocatable, dimension(:,:,:) :: edir,edn,eup,abso          ! [nlyr(+1), global_nx, global_ny ]
+    real(ireals), dimension(nzp+1,nxp,nyp) :: plev, tlev
+    real(ireals), dimension(nzp,nxp,nyp) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
+    real(ireals), dimension(nzp,nxp,nyp) :: lwc, reliq                                         
+    real(ireals),allocatable, dimension(:,:,:) :: edir,edn,eup,abso ! [nlev_merged(-1), nxp, nyp]
 
-    integer(iintegers) :: i,j,k, nlay, icld
+    character(len=250),parameter :: atm_filename='afglus_100m.dat'
+
+    integer(iintegers) :: i,j,k, nlev, icld
 
     logical,parameter :: ldebug=.True.
 
@@ -49,85 +48,51 @@ subroutine test_rrtm_lw(this)
 
     call init_mpi_data_parameters(comm)
 
-    if(myid.eq.0) then
-        call read_ascii_file_2d('afglus_100m.dat', atm, 9, 2, ierr); CHKERRQ(ierr)
+    do k=1,nzp+1
+      plev(k,:,:) = 1000_ireals - (k-one)*500._ireals/(nzp)
+      tlev(k,:,:) = 288._ireals - (k-one)*50._ireals/(nzp)
+    enddo
 
-        nlay = ubound(atm,1)-1
+    tlay = (tlev(1:nzp,:,:) + tlev(2:nzp+1,:,:))/2
 
-        allocate(plev   (nlay+1, nxp, nyp))
-        allocate(tlay   (nlay  , nxp, nyp))
-        allocate(tsrfc  (nxp, nyp))
-        allocate(h2ovmr (nlay  , nxp, nyp))
-        allocate(o3vmr  (nlay  , nxp, nyp))
-        allocate(co2vmr (nlay  , nxp, nyp))
-        allocate(ch4vmr (nlay  , nxp, nyp))
-        allocate(n2ovmr (nlay  , nxp, nyp))
-        allocate(o2vmr  (nlay  , nxp, nyp))
+    h2ovmr = zero
+    o3vmr  = zero
+    co2vmr = zero
+    ch4vmr = zero
+    n2ovmr = zero
+    o2vmr  = zero
 
-        do j=1,nyp
-            do i=1,nxp
-                plev(:,i,j) = atm(:,2)
-                tlay(:,i,j) = meanvec(atm(:,3))
-                tsrfc(i,j)  = atm(nlay+1,3)
-                h2ovmr(:,i,j) = meanvec(atm(:,7)) / meanvec(atm(:,4))
-                o3vmr (:,i,j) = meanvec(atm(:,5)) / meanvec(atm(:,4))
-                co2vmr(:,i,j) = meanvec(atm(:,8)) / meanvec(atm(:,4))
-                ch4vmr(:,i,j) = co2vmr(:,i,j)/1e2        
-                n2ovmr(:,i,j) = meanvec(atm(:,9)) / meanvec(atm(:,4))
-                o2vmr (:,i,j) = meanvec(atm(:,6)) / meanvec(atm(:,4))
-            enddo
-        enddo
-
-        if(ldebug) then
-            print *,'loaded',myid
-            if(myid.eq.0) print *,'plev   shape',shape(plev)
-            if(myid.eq.0) print *,'h2ovmr shape',shape(h2ovmr)
-            if(myid.eq.0) print *,'o3vmr  shape',shape(o3vmr )
-            if(myid.eq.0) print *,'co2vmr shape',shape(co2vmr)
-            if(myid.eq.0) print *,'n2ovmr shape',shape(n2ovmr)
-            if(myid.eq.0) print *,'o2vmr  shape',shape(o2vmr )
-        endif
-    endif
-    call imp_bcast(comm, nlay  , 0_mpiint, myid)
-    call imp_bcast(comm, plev  , 0_mpiint, myid)
-    call imp_bcast(comm, tlay  , 0_mpiint, myid)
-    call imp_bcast(comm, tsrfc , 0_mpiint, myid)
-    call imp_bcast(comm, h2ovmr, 0_mpiint, myid)
-    call imp_bcast(comm, o3vmr , 0_mpiint, myid)
-    call imp_bcast(comm, co2vmr, 0_mpiint, myid)
-    call imp_bcast(comm, ch4vmr, 0_mpiint, myid)
-    call imp_bcast(comm, n2ovmr, 0_mpiint, myid)
-    call imp_bcast(comm, o2vmr , 0_mpiint, myid)
-
-    allocate(lwc   (nlay  ,nxp,nyp))
-    allocate(reliq (nlay  ,nxp,nyp))
     lwc = 0
+    reliq = 0
 
-    if(myid.eq.0) then
-      icld = minloc(abs(atm(:,1)-5.5),dim=1)
-      lwc(icld:icld+3, 1,1) = .1
-    endif
+    icld = (nzp+1)/2
+    lwc  (icld, :,:) = .1
+    reliq(icld, :,:) = 10
+    tlev (icld  , :,:) = 288
+    tlev (icld+1, :,:) = tlev (icld  , :,:)
 
-    reliq = 10
 
-    if(myid.eq.0 .and. ldebug) then
-        do k=1,nlay
-            print *,'plev',plev(k,1,1), 'T', tlay(k,1,1),'CO2',co2vmr(k,1,1),'H2O',h2ovmr(k,1,1),'::',lwc(k,1,1)
-        enddo
-        print *,'plev',plev(nlay+1,1,1), 'T', tsrfc(1,1)
-    endif
-    call tenstream_rrtm_lw(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, tsrfc, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir, edn, eup, abso)
+!    call tenstream_rrtm_lw(comm, dx, dy, phi0, theta0, albedo, atm_filename, &
+!                               edir,edn,eup,abso,                            & 
+!                               plev, tlev, tlay, h2ovmr, o3vmr,              &
+!                               co2vmr, ch4vmr, n2ovmr,  o2vmr,               &
+!                               lwc, reliq)
 
+    call tenstream_rrtm_lw(comm, dx, dy, phi0, theta0, albedo, atm_filename, &
+                               edir,edn,eup,abso,                            & 
+                               plev, tlev, d_lwc=lwc, d_reliq=reliq)
+
+    nlev = ubound(edn,1)
     if(myid.eq.0) then
         if(ldebug) then
-            do k=1,nlay+1
-                print *,k,'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlay,k),1,1)
+            do k=1,nlev
+                print *,k,'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
             enddo
         endif
 
-        @assertEqual(300.4933, edn (nlay+1,1,1), atolerance, 'thermal at surface :: downw flux not correct')
-        @assertEqual(391.1564, eup (nlay+1,1,1), atolerance, 'thermal at surface :: upward fl  not correct')
-        @assertEqual(-3.1456E-02, abso(nlay  ,1,1), atolerance, 'thermal at surface :: absorption not correct')
+        @assertEqual(300.4933, edn (nlev,1,1), atolerance, 'thermal at surface :: downw flux not correct')
+        @assertEqual(391.1564, eup (nlev,1,1), atolerance, 'thermal at surface :: upward fl  not correct')
+        @assertEqual(-3.1456E-02, abso(nlev  ,1,1), atolerance, 'thermal at surface :: absorption not correct')
 
         @assertEqual(  0.0000, edn (1,1,1), atolerance, 'thermal at TOA :: downw flux not correct')
         @assertEqual(244.0147, eup (1,1,1), atolerance, 'thermal at TOA :: upward fl  not correct')
