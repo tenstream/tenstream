@@ -274,8 +274,10 @@ contains
 
       allocate(C%neighbors(0:3**C%dim-1) )
       call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;CHKERRQ(ierr)
-      if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
-      if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
+      if(numnodes.gt.i1) then
+        if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
+        if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
+      endif
     end subroutine
   end subroutine
 
