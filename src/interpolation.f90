@@ -18,16 +18,16 @@
 !-------------------------------------------------------------------------
 
 module m_tenstream_interpolation
-      use m_data_parameters, only: ireals,zero,one
+      use m_data_parameters, only: iintegers, ireals,zero,one
       implicit none
 
       private
-      public :: interp_4d
+      public :: interp_4d, interp_1d
 
       ! a has the bounds on axes
       ! t has the distance weights
 
-      integer :: permu4d(4,2**4)
+      integer(iintegers) :: permu4d(4,2**4)
       DATA permu4d(:, 1) / 0,  0,  0,  0 /
       DATA permu4d(:, 2) / 1,  0,  0,  0 /
       DATA permu4d(:, 3) / 0,  1,  0,  0 /
@@ -45,7 +45,7 @@ module m_tenstream_interpolation
       DATA permu4d(:,15) / 0,  1,  1,  1 /
       DATA permu4d(:,16) / 1,  1,  1,  1 /
 
-      integer :: permu6d(6,2**6)
+      integer(iintegers) :: permu6d(6,2**6)
       DATA permu6d(:, 1 )  / 0,  0,  0,  0,  0,  0 /
       DATA permu6d(:, 2 )  / 1,  0,  0,  0,  0,  0 /
       DATA permu6d(:, 3 )  / 0,  1,  0,  0,  0,  0 /
@@ -111,13 +111,13 @@ module m_tenstream_interpolation
       DATA permu6d(:, 63 ) / 0,  1,  1,  1,  1,  1 /
       DATA permu6d(:, 64 ) / 1,  1,  1,  1,  1,  1 /
 
-      integer,parameter :: i1=1
+      integer(iintegers),parameter :: i1=1
 
       contains
 
       recursive subroutine interpn(n,a,t,i,res)
         real(ireals),intent(in) :: a(:,:),t(:)
-        integer,intent(in) :: n,i
+        integer(iintegers),intent(in) :: n,i
         real(ireals),intent(out) :: res(:)
 
         real(ireals) :: a0(size(res)),a1(size(res))
@@ -154,14 +154,26 @@ pure function spline(t,a0,a1)
         !      print *,'interpolating t,a0,a1',t,a0,a1,'==>',f
       end function
 
+pure function interp_1d(t,a0)
+        real(ireals),intent(in) :: t,a0(:) ! t is weighting distance from a0
+        real(ireals) :: interp_1d
+        integer(iintegers) :: i
+        real(ireals) :: offset
+
+        i = floor(t)
+        offset = modulo(t,one)
+
+        interp_1d = (one-offset) * a0(i) + offset * a0(min(i+1, size(a0)))
+      end function
+
 subroutine interp_6d_recursive(pti,weights,db,C)
-        integer,parameter :: Ndim=6
+        integer(iintegers),parameter :: Ndim=6
         real(ireals),intent(in) :: pti(Ndim),weights(Ndim) ,db(:,:,:,:,:,:,:)
         real(ireals),intent(out) :: C(:)
 
-        integer :: indices(Ndim,2**Ndim),fpti(Ndim)
+        integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
         real(ireals) :: bound_vals(size(C),2**Ndim) 
-        integer :: i,d
+        integer(iintegers) :: i,d
 
         ! First determine the array indices, where to look.
         fpti = floor(pti)
@@ -184,12 +196,12 @@ subroutine interp_6d_recursive(pti,weights,db,C)
         call interpn(Ndim,bound_vals,weights,i1, C)
 end subroutine
 pure subroutine interp_6d(pti,weights,db,C)
-        integer,parameter :: Ndim=6
+        integer(iintegers),parameter :: Ndim=6
         real(ireals),intent(in) :: pti(Ndim),weights(Ndim) ,db(:,:,:,:,:,:,:)
         real(ireals),intent(out) :: C(:)
 
-        integer :: indices(Ndim,2**Ndim),fpti(Ndim)
-        integer :: i,d,ind(6)
+        integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
+        integer(iintegers) :: i,d,ind(6)
 
         real(ireals) :: db6(size(C),2**Ndim) 
         real(ireals) :: db5(size(C),2**(Ndim-1))
@@ -240,12 +252,12 @@ pure subroutine interp_6d(pti,weights,db,C)
         C(:)  = spline( weights(6), db1(:,2), db1(:,1) )
 end subroutine
 pure subroutine interp_4d(pti,weights,db,C)
-        integer,parameter :: Ndim=4
+        integer(iintegers),parameter :: Ndim=4
         real(ireals),intent(in) :: pti(Ndim),weights(Ndim) ,db(:,:,:,:,:)
         real(ireals),intent(out) :: C(:)
 
-        integer :: indices(Ndim,2**Ndim),fpti(Ndim)
-        integer :: i,d
+        integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
+        integer(iintegers) :: i,d
         real(ireals) :: db4(size(C),2**(Ndim ))
         real(ireals) :: db3(size(C),2**(Ndim-1))
         real(ireals) :: db2(size(C),2**(Ndim-2))
@@ -280,13 +292,13 @@ pure subroutine interp_4d(pti,weights,db,C)
         C(:)        =  db1(:,2  -1) + ( db1(:,2  ) - db1(:,2  -1) ) * (weights(4))
 end subroutine
 subroutine interp_4d_recursive(pti,weights,db,C)
-        integer,parameter :: Ndim=4
+        integer(iintegers),parameter :: Ndim=4
         real(ireals),intent(in) :: pti(Ndim),weights(Ndim) ,db(:,:,:,:,:)
         real(ireals),intent(out) :: C(:)
 
-        integer :: indices(Ndim,2**Ndim),fpti(Ndim)
+        integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
         real(ireals) :: bound_vals(size(C),2**Ndim) 
-        integer :: i,d
+        integer(iintegers) :: i,d
 
         ! First determine the array indices, where to look.
         fpti = floor(pti)
@@ -312,7 +324,7 @@ end module
 !      program main
 !      use interpolation
 !
-!      integer,parameter :: Ndim=3
+!      integer(iintegers),parameter :: Ndim=3
 !      real(ireals) :: a(2**Ndim),t(Ndim)
 !
 !      a = [3,3,2,2,1,1,0,0]
