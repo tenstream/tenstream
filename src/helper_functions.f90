@@ -29,7 +29,7 @@ module m_helper_functions
       private
       public imp_bcast,norm,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
           mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
-          gradient, read_ascii_file_2d, meanvec, swap
+          gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -144,13 +144,13 @@ module m_helper_functions
           integer(mpiint),intent(in) :: comm
           real(ireals),intent(in) :: v
           real(ireals),intent(out) :: r
-          call mpi_allreduce(v,r,1,imp_real, MPI_MIN,comm, mpierr); CHKERRQ(mpierr)
+          call mpi_allreduce(v,r,1_mpiint,imp_real, MPI_MIN,comm, mpierr); CHKERRQ(mpierr)
       end subroutine
       subroutine imp_allreduce_max(comm,v,r)
           integer(mpiint),intent(in) :: comm
           real(ireals),intent(in) :: v
           real(ireals),intent(out) :: r
-          call mpi_allreduce(v,r,1,imp_real, MPI_MAX,comm, mpierr); CHKERRQ(mpierr)
+          call mpi_allreduce(v,r,1_mpiint,imp_real, MPI_MAX,comm, mpierr); CHKERRQ(mpierr)
       end subroutine
       subroutine imp_reduce_sum(comm,v,myid)
           real(ireals),intent(inout) :: v
@@ -160,10 +160,16 @@ module m_helper_functions
           if(commsize.le.1) return 
 
           if(myid.eq.0) then
-            call mpi_reduce(MPI_IN_PLACE, v, 1, imp_real, MPI_SUM, 0, comm, mpierr); CHKERRQ(mpierr)
+            call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_real, MPI_SUM, 0_mpiint, comm, mpierr); CHKERRQ(mpierr)
           else
-            call mpi_reduce(v, MPI_IN_PLACE, 1, imp_real, MPI_SUM, 0, comm, mpierr); CHKERRQ(mpierr)
+            call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_real, MPI_SUM, 0_mpiint, comm, mpierr); CHKERRQ(mpierr)
           endif
+      end subroutine
+
+      subroutine imp_allgather_int_inplace(comm,v)
+        integer(mpiint),intent(in) :: comm
+        integer(iintegers),intent(inout) :: v(:)
+        call mpi_allgather(MPI_IN_PLACE, 0_mpiint, MPI_DATATYPE_NULL, v, 1_mpiint, imp_int, comm, mpierr); CHKERRQ(mpierr)
       end subroutine
 
       subroutine  imp_bcast_logical(comm,val,sendid,myid)
