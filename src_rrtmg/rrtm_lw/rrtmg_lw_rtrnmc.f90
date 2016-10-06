@@ -3,7 +3,7 @@
 !     revision:  $Revision: 1.7 $
 !     created:   $Date: 2009/11/12 20:52:25 $
 !
-      module rrtmg_lw_rtrnmc
+      module m_tenstr_rrtmg_lw_rtrnmc
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -17,12 +17,12 @@
 
 ! --------- Modules ----------
 
-      use parkind, only : im => kind_im, rb => kind_rb
-      use parrrtm, only : mg, nbndlw, ngptlw
-      use rrlw_con, only: fluxfac, heatfac
-      use rrlw_wvn, only: delwave, ngb, ngs
-      use rrlw_tbl, only: tblint, bpade, tau_tbl, exp_tbl, tfn_tbl
-      use rrlw_vsn, only: hvrrtc, hnamrtc
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw
+      use m_tenstr_rrlw_con, only: fluxfac, heatfac
+      use m_tenstr_rrlw_wvn, only: delwave, ngb, ngs
+      use m_tenstr_rrlw_tbl, only: tblint, bpade, tau_tbl, exp_tbl, tfn_tbl
+      use m_tenstr_rrlw_vsn, only: hvrrtc, hnamrtc
 
       implicit none
 
@@ -575,5 +575,5 @@
 
       end subroutine rtrnmc
 
-      end module rrtmg_lw_rtrnmc
+      end module m_tenstr_rrtmg_lw_rtrnmc
 

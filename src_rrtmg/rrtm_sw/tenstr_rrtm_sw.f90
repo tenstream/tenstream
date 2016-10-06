@@ -1,17 +1,17 @@
 module m_tenstr_rrtm_sw
-    use rrtmg_sw_init, only: rrtmg_sw_ini
-    use parkind, only: im => kind_im, rb => kind_rb
-    use rrsw_wvn, only : ngc, wavenum1, wavenum2
-    use parrrsw, only: ngptsw, nbndsw,naerec,jpb1, jpb2
-    use rrtmg_sw_rad, only: rrtmg_sw
-    use rrtmg_sw_spcvrt, only: tenstr_solsrc      
+      use m_tenstr_rrtmg_sw_init, only: rrtmg_sw_ini
+      use m_tenstr_parkind, only: im => kind_im, rb => kind_rb
+      use m_tenstr_rrsw_wvn, only : ngc, wavenum1, wavenum2
+      use m_tenstr_parrrsw, only: ngptsw, nbndsw,naerec,jpb1, jpb2
+      use m_tenstr_rrtmg_sw_rad, only: rrtmg_sw
+      use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc      
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint
+      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint
 
-    use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
+      use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, tenstream_get_result_toZero, C_one
 
-    use m_netcdfIO, only : ncwrite
+      use m_netcdfIO, only : ncwrite
     implicit none
 
     private

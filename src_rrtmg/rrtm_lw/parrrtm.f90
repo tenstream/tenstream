@@ -1,7 +1,7 @@
 
-      module parrrtm
+      module m_tenstr_parrrtm
 
-      use parkind ,only : im => kind_im
+      use m_tenstr_parkind ,only : im => kind_im
 
       implicit none
       save
@@ -109,4 +109,4 @@
 !      integer(kind=im), parameter :: ngs15 = 240
 !      integer(kind=im), parameter :: ngs16 = 256
 
-      end module parrrtm
+      end module m_tenstr_parrrtm

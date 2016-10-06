@@ -4,7 +4,7 @@
 !     created:   $Date: 2009-05-22 18:22:22 -0400 (Fri, 22 May 2009) $
 !
 
-      module mcica_subcol_gen_sw
+      module m_tenstr_mcica_subcol_gen_sw
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -27,11 +27,11 @@
 
 ! --------- Modules ----------
 
-      use parkind, only : im => kind_im, rb => kind_rb
-      use parrrsw, only : nbndsw, ngptsw
-      use rrsw_con, only: grav
-      use rrsw_wvn, only: ngb
-      use rrsw_vsn
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrsw, only : nbndsw, ngptsw
+      use m_tenstr_rrsw_con, only: grav
+      use m_tenstr_rrsw_wvn, only: ngb
+      use m_tenstr_rrsw_vsn
 
       implicit none
 
@@ -219,9 +219,9 @@
   !   without cloud condensate or the opposite).
   !---------------------------------------------------------------------------------------------------------------
 
-      use mcica_random_numbers
+      use m_tenstr_mcica_random_numbers
 ! The Mersenne Twister random number engine
-      use MersenneTwister, only: randomNumberSequence, &   
+      use m_tenstr_MersenneTwister, only: randomNumberSequence, &   
                                  new_RandomNumberSequence, getRandomReal
 
       type(randomNumberSequence) :: randomNumbers
@@ -571,6 +571,6 @@
     
       end subroutine kissvec
 
-      end module mcica_subcol_gen_sw
+      end module m_tenstr_mcica_subcol_gen_sw
 
 

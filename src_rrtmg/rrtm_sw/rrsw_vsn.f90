@@ -1,4 +1,4 @@
-      module rrsw_vsn
+      module m_tenstr_rrsw_vsn
 
       implicit none
       save
@@ -52,5 +52,5 @@
       character*18 hvrkg
       character*20 hnamkg
 
-      end module rrsw_vsn
+      end module m_tenstr_rrsw_vsn
 

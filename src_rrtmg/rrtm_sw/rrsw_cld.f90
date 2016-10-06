@@ -1,6 +1,6 @@
-      module rrsw_cld
+      module m_tenstr_rrsw_cld
 
-      use parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
 
       implicit none
       save
@@ -43,5 +43,5 @@
       real(kind=rb) :: fdlice3(46,16:29)
       real(kind=rb) :: abari(5),bbari(5),cbari(5),dbari(5),ebari(5),fbari(5)
 
-      end module rrsw_cld
+      end module m_tenstr_rrsw_cld
 

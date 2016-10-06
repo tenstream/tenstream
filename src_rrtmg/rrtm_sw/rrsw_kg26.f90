@@ -1,7 +1,7 @@
-      module rrsw_kg26
+      module m_tenstr_rrsw_kg26
 
-      use parkind ,only : im => kind_im, rb => kind_rb
-      use parrrsw, only : ng26
+      use m_tenstr_parkind ,only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrsw, only : ng26
 
       implicit none
       save
@@ -44,5 +44,5 @@
       real(kind=rb) :: sfluxref(ng26)
       real(kind=rb) :: rayl(ng26)
 
-      end module rrsw_kg26
+      end module m_tenstr_rrsw_kg26
 

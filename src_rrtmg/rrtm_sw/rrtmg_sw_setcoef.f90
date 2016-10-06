@@ -3,7 +3,7 @@
 !     revision:  $Revision: 23308 $
 !     created:   $Date: 2013-12-27 17:23:51 -0500 (Fri, 27 Dec 2013) $
 
-      module rrtmg_sw_setcoef
+      module m_tenstr_rrtmg_sw_setcoef
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -17,10 +17,10 @@
 
 ! ------- Modules -------
 
-      use parkind, only : im => kind_im, rb => kind_rb
-      use parrrsw, only : mxmol
-      use rrsw_ref, only : pref, preflog, tref
-      use rrsw_vsn, only : hvrset, hnamset
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrsw, only : mxmol
+      use m_tenstr_rrsw_ref, only : pref, preflog, tref
+      use m_tenstr_rrsw_vsn, only : hvrset, hnamset
 
       implicit none
 
@@ -342,6 +342,6 @@
 
       end subroutine swatmref
 
-      end module rrtmg_sw_setcoef
+      end module m_tenstr_rrtmg_sw_setcoef
 
 

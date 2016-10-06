@@ -1,7 +1,7 @@
-      module rrlw_wvn
+      module m_tenstr_rrlw_wvn
 
-      use parkind, only : im => kind_im, rb => kind_rb
-      use parrrtm, only : nbndlw, mg, ngptlw, maxinpx
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrtm, only : nbndlw, mg, ngptlw, maxinpx
 
       implicit none
       save
@@ -83,4 +83,4 @@
       integer(kind=im) :: nxmol
       integer(kind=im) :: ixindx(maxinpx)
 
-      end module rrlw_wvn
+      end module m_tenstr_rrlw_wvn

@@ -2,24 +2,24 @@
 
 module m_tenstr_rrtm_lw
 
-  use mpi, only : mpi_comm_rank
+      use mpi, only : mpi_comm_rank
 
-  use rrtmg_lw_init, only: rrtmg_lw_ini
-  use parkind, only: im => kind_im, rb => kind_rb
-  use rrlw_wvn, only : ngb, wavenum1, wavenum2
-  use parrrtm, only: ngptlw, nbndlw
-  use rrtmg_lw_rad, only: rrtmg_lw
+      use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
+      use m_tenstr_parkind, only: im => kind_im, rb => kind_rb
+      use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
+      use m_tenstr_parrrtm, only: ngptlw, nbndlw
+      use m_tenstr_rrtmg_lw_rad, only: rrtmg_lw
 
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint, pi, mpierr
+      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint, pi, mpierr
 
-  use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
-    tenstream_get_result, tenstream_get_result_toZero, C_one, C_one1
+      use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
+          tenstream_get_result, tenstream_get_result_toZero, C_one, C_one1
 
-  use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-    imp_allreduce_min, imp_allreduce_max, search_sorted_bisection
-  use m_tenstream_interpolation, only : interp_1d
+      use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
+          imp_allreduce_min, imp_allreduce_max, search_sorted_bisection
+      use m_tenstream_interpolation, only : interp_1d
 
-  use m_netcdfIO, only : ncwrite
+      use m_netcdfIO, only : ncwrite
   implicit none
 
   private

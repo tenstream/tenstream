@@ -1,7 +1,7 @@
-      module rrsw_wvn
+      module m_tenstr_rrsw_wvn
 
-      use parkind, only : im => kind_im, rb => kind_rb
-      use parrrsw, only : nbndsw, mg, ngptsw, jpb1, jpb2
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrsw, only : nbndsw, mg, ngptsw, jpb1, jpb2
 
       implicit none
       save
@@ -53,4 +53,4 @@
       real(kind=rb) :: wt(mg)
       real(kind=rb) :: rwgt(nbndsw*mg)
 
-      end module rrsw_wvn
+      end module m_tenstr_rrsw_wvn

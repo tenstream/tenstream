@@ -1,6 +1,6 @@
-      module rrlw_cld
+      module m_tenstr_rrlw_cld
 
-      use parkind, only : rb => kind_rb
+      use m_tenstr_parkind, only : rb => kind_rb
 
       implicit none
       save
@@ -31,5 +31,5 @@
       real(kind=rb) :: absliq0
       real(kind=rb) , dimension(58,16) :: absliq1
 
-      end module rrlw_cld
+      end module m_tenstr_rrlw_cld
 

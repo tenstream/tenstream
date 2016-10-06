@@ -3,7 +3,7 @@
 !     revision:  $Revision: 11661 $
 !     created:   $Date: 2009-05-22 18:22:22 -0400 (Fri, 22 May 2009) $
 
-      module rrtmg_sw_spcvmc
+      module m_tenstr_rrtmg_sw_spcvmc
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -17,14 +17,14 @@
 
 ! ------- Modules -------
 
-      use parkind, only : im => kind_im, rb => kind_rb
-      use parrrsw, only : nbndsw, ngptsw, mxmol, jpband
-      use rrsw_tbl, only : tblint, bpade, od_lo, exp_tbl
-      use rrsw_vsn, only : hvrspc, hnamspc
-      use rrsw_wvn, only : ngc, ngs
-      use rrtmg_sw_reftra, only: reftra_sw
-      use rrtmg_sw_taumol, only: taumol_sw
-      use rrtmg_sw_vrtqdr, only: vrtqdr_sw
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrsw, only : nbndsw, ngptsw, mxmol, jpband
+      use m_tenstr_rrsw_tbl, only : tblint, bpade, od_lo, exp_tbl
+      use m_tenstr_rrsw_vsn, only : hvrspc, hnamspc
+      use m_tenstr_rrsw_wvn, only : ngc, ngs
+      use m_tenstr_rrtmg_sw_reftra, only: reftra_sw
+      use m_tenstr_rrtmg_sw_taumol, only: taumol_sw
+      use m_tenstr_rrtmg_sw_vrtqdr, only: vrtqdr_sw
 
       implicit none
 
@@ -623,6 +623,6 @@
 
       end subroutine spcvmc_sw
 
-      end module rrtmg_sw_spcvmc
+      end module m_tenstr_rrtmg_sw_spcvmc
 
 

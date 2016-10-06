@@ -3,7 +3,7 @@
 !     revision:  $Revision: 11661 $
 !     created:   $Date: 2009-05-22 18:22:22 -0400 (Fri, 22 May 2009) $
 !
-      module rrtmg_sw_vrtqdr
+      module m_tenstr_rrtmg_sw_vrtqdr
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -17,7 +17,7 @@
 
 ! ------- Modules -------
 
-      use parkind, only: im => kind_im, rb => kind_rb
+      use m_tenstr_parkind, only: im => kind_im, rb => kind_rb
 !      use parrrsw, only: ngptsw
 
       implicit none
@@ -151,4 +151,4 @@
 
       end subroutine vrtqdr_sw
 
-      end module rrtmg_sw_vrtqdr
+      end module m_tenstr_rrtmg_sw_vrtqdr

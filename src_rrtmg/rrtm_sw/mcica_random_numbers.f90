@@ -74,10 +74,10 @@
 !    email: matumoto@math.keio.ac.jp
 ! -------------------------------------------------------------
 
-  module MersenneTwister
+      module m_tenstr_MersenneTwister
 ! -------------------------------------------------------------
 
-  use parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
 
   implicit none
   private
@@ -102,7 +102,7 @@
   end type randomNumberSequence
 
   interface new_RandomNumberSequence
-    module procedure initialize_scalar, initialize_vector
+      module procedure initialize_scalar, initialize_vector
   end interface new_RandomNumberSequence 
 
   public :: randomNumberSequence
@@ -303,10 +303,10 @@ contains
 
   ! --------------------  
   
-  end module MersenneTwister
+      end module m_tenstr_MersenneTwister
 
 
-  module mcica_random_numbers
+      module m_tenstr_mcica_random_numbers
 
   ! Generic module to wrap random number generators. 
   !   The module defines a type that identifies the particular stream of random 
@@ -314,12 +314,12 @@ contains
   !   in the range 0 to 1. 
   ! This version uses the Mersenne Twister to generate random numbers on [0, 1]. 
   !
-  use MersenneTwister, only: randomNumberSequence, & ! The random number engine.
+      use m_tenstr_MersenneTwister, only: randomNumberSequence, & ! The random number engine.
                              new_RandomNumberSequence, getRandomReal
 !! mji
 !!  use time_manager_mod, only: time_type, get_date
 
-  use parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
 
   implicit none
   private
@@ -329,11 +329,11 @@ contains
   end type randomNumberStream
   
   interface getRandomNumbers
-    module procedure getRandomNumber_Scalar, getRandomNumber_1D, getRandomNumber_2D
+      module procedure getRandomNumber_Scalar, getRandomNumber_1D, getRandomNumber_2D
   end interface getRandomNumbers
   
   interface initializeRandomNumberStream
-    module procedure initializeRandomNumberStream_S, initializeRandomNumberStream_V
+      module procedure initializeRandomNumberStream_S, initializeRandomNumberStream_V
   end interface initializeRandomNumberStream
 
   public :: randomNumberStream,                             &
@@ -411,6 +411,6 @@ contains
 !    seed = (/ i, j, year, month, day, hour, minute, second /)
 !  end function constructSeed
 
-  end module mcica_random_numbers
+      end module m_tenstr_mcica_random_numbers
 
 

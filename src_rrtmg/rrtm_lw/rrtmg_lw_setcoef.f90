@@ -3,7 +3,7 @@
 !     revision:  $Revision: 1.6 $
 !     created:   $Date: 2011/04/08 20:25:01 $
 !
-      module rrtmg_lw_setcoef
+      module m_tenstr_rrtmg_lw_setcoef
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -17,11 +17,11 @@
 
 ! ------- Modules -------
 
-      use parkind, only : im => kind_im, rb => kind_rb
-      use parrrtm, only : nbndlw, mg, maxxsec, mxmol
-      use rrlw_wvn, only: totplnk, totplk16, totplnkderiv, totplk16deriv
-      use rrlw_ref
-      use rrlw_vsn, only: hvrset, hnamset
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrtm, only : nbndlw, mg, maxxsec, mxmol
+      use m_tenstr_rrlw_wvn, only: totplnk, totplk16, totplnkderiv, totplk16deriv
+      use m_tenstr_rrlw_ref
+      use m_tenstr_rrlw_vsn, only: hvrset, hnamset
 
       implicit none
 
@@ -1989,5 +1989,5 @@
 
       end subroutine lwavplankderiv
 
-      end module rrtmg_lw_setcoef
+      end module m_tenstr_rrtmg_lw_setcoef
 

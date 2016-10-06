@@ -3,7 +3,7 @@
 !     revision:  $Revision: 1.6 $
 !     created:   $Date: 2011/04/08 20:25:01 $
 !
-      module rrtmg_lw_init
+      module m_tenstr_rrtmg_lw_init
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -16,9 +16,9 @@
 !  --------------------------------------------------------------------------
 
 ! ------- Modules -------
-      use parkind, only : im => kind_im, rb => kind_rb
-      use rrlw_wvn
-      use rrtmg_lw_setcoef, only: lwatmref, lwavplank, lwavplankderiv
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_rrlw_wvn
+      use m_tenstr_rrtmg_lw_setcoef, only: lwatmref, lwavplank, lwavplankderiv
 
       implicit none
 
@@ -38,9 +38,9 @@
 !  spectral band are reduced from 256 g-point intervals to 140.
 ! **************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw
-      use rrlw_tbl, only: ntbl, tblint, pade, bpade, tau_tbl, exp_tbl, tfn_tbl
-      use rrlw_vsn, only: hvrini, hnamini
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw
+      use m_tenstr_rrlw_tbl, only: ntbl, tblint, pade, bpade, tau_tbl, exp_tbl, tfn_tbl
+      use m_tenstr_rrlw_vsn, only: hvrini, hnamini
 
       real(kind=rb), intent(in) :: cpdair     ! Specific heat capacity of dry air
                                               ! at constant pressure at 273 K
@@ -180,11 +180,11 @@
 
 ! --------- Modules ----------
 
-      use parrrtm, only : maxxsec, maxinpx
-      use rrlw_con, only: heatfac, grav, planck, boltz, &
+      use m_tenstr_parrrtm, only : maxxsec, maxinpx
+      use m_tenstr_rrlw_con, only: heatfac, grav, planck, boltz, &
                           clight, avogad, alosmt, gascon, radcn1, radcn2, &
                           sbcnst, secdy 
-      use rrlw_vsn
+      use m_tenstr_rrlw_vsn
 
       save 
  
@@ -384,8 +384,8 @@
 !        10-250 cm-1 (low - h2o; high - h2o)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng1
-      use rrlw_kg01, only: fracrefao, fracrefbo, kao, kbo, kao_mn2, kbo_mn2, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng1
+      use m_tenstr_rrlw_kg01, only: fracrefao, fracrefbo, kao, kbo, kao_mn2, kbo_mn2, &
                            selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, absb, kb, ka_mn2, kb_mn2, &
                            selfref, forref
@@ -484,8 +484,8 @@
 !           250 - 500 cm-1 (low - h2o; high - h2o)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng2
-      use rrlw_kg02, only: fracrefao, fracrefbo, kao, kbo, selfrefo, forrefo, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng2
+      use m_tenstr_rrlw_kg02, only: fracrefao, fracrefbo, kao, kbo, selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, absb, kb, selfref, forref
 
 ! ------- Local -------
@@ -567,8 +567,8 @@
 ! old band 3:  500-630 cm-1 (low - h2o,co2; high - h2o,co2)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng3
-      use rrlw_kg03, only: fracrefao, fracrefbo, kao, kbo, kao_mn2o, kbo_mn2o, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng3
+      use m_tenstr_rrlw_kg03, only: fracrefao, fracrefbo, kao, kbo, kao_mn2o, kbo_mn2o, &
                            selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, absb, kb, ka_mn2o, kb_mn2o, &
                            selfref, forref
@@ -696,8 +696,8 @@
 ! old band 4:  630-700 cm-1 (low - h2o,co2; high - o3,co2)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng4
-      use rrlw_kg04, only: fracrefao, fracrefbo, kao, kbo, selfrefo, forrefo, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng4
+      use m_tenstr_rrlw_kg04, only: fracrefao, fracrefbo, kao, kbo, selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, absb, kb, selfref, forref
 
 ! ------- Local -------
@@ -796,8 +796,8 @@
 ! old band 5:  700-820 cm-1 (low - h2o,co2; high - o3,co2)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng5
-      use rrlw_kg05, only: fracrefao, fracrefbo, kao, kbo, kao_mo3, ccl4o, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng5
+      use m_tenstr_rrlw_kg05, only: fracrefao, fracrefbo, kao, kbo, kao_mo3, ccl4o, &
                            selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, absb, kb, ka_mo3, ccl4, &
                            selfref, forref
@@ -922,8 +922,8 @@
 ! old band 6:  820-980 cm-1 (low - h2o; high - nothing)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng6
-      use rrlw_kg06, only: fracrefao, kao, kao_mco2, cfc11adjo, cfc12o, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng6
+      use m_tenstr_rrlw_kg06, only: fracrefao, kao, kao_mco2, cfc11adjo, cfc12o, &
                            selfrefo, forrefo, &
                            fracrefa, absa, ka, ka_mco2, cfc11adj, cfc12, &
                            selfref, forref
@@ -1011,8 +1011,8 @@
 ! old band 7:  980-1080 cm-1 (low - h2o,o3; high - o3)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng7
-      use rrlw_kg07, only: fracrefao, fracrefbo, kao, kbo, kao_mco2, kbo_mco2, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng7
+      use m_tenstr_rrlw_kg07, only: fracrefao, fracrefbo, kao, kbo, kao_mco2, kbo_mco2, &
                            selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, absb, kb, ka_mco2, kb_mco2, &
                            selfref, forref
@@ -1135,8 +1135,8 @@
 ! old band 8:  1080-1180 cm-1 (low (i.e.>~300mb) - h2o; high - o3)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng8
-      use rrlw_kg08, only: fracrefao, fracrefbo, kao, kao_mco2, kao_mn2o, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng8
+      use m_tenstr_rrlw_kg08, only: fracrefao, fracrefbo, kao, kao_mco2, kao_mn2o, &
                            kao_mo3, kbo, kbo_mco2, kbo_mn2o, selfrefo, forrefo, &
                            cfc12o, cfc22adjo, &
                            fracrefa, fracrefb, absa, ka, ka_mco2, ka_mn2o, &
@@ -1254,8 +1254,8 @@
 ! old band 9:  1180-1390 cm-1 (low - h2o,ch4; high - ch4)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng9
-      use rrlw_kg09, only: fracrefao, fracrefbo, kao, kao_mn2o, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng9
+      use m_tenstr_rrlw_kg09, only: fracrefao, fracrefbo, kao, kao_mn2o, &
                            kbo, kbo_mn2o, selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, ka_mn2o, &
                            absb, kb, kb_mn2o, selfref, forref
@@ -1378,8 +1378,8 @@
 ! old band 10:  1390-1480 cm-1 (low - h2o; high - h2o)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng10
-      use rrlw_kg10, only: fracrefao, fracrefbo, kao, kbo, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng10
+      use m_tenstr_rrlw_kg10, only: fracrefao, fracrefbo, kao, kbo, &
                            selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, absb, kb, &
                            selfref, forref
@@ -1467,8 +1467,8 @@
 !                              (high key - h2o; high minor - o2)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng11
-      use rrlw_kg11, only: fracrefao, fracrefbo, kao, kao_mo2, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng11
+      use m_tenstr_rrlw_kg11, only: fracrefao, fracrefbo, kao, kao_mo2, &
                            kbo, kbo_mo2, selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, ka_mo2, &
                            absb, kb, kb_mo2, selfref, forref
@@ -1568,8 +1568,8 @@
 ! old band 12:  1800-2080 cm-1 (low - h2o,co2; high - nothing)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng12
-      use rrlw_kg12, only: fracrefao, kao, selfrefo, forrefo, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng12
+      use m_tenstr_rrlw_kg12, only: fracrefao, kao, selfrefo, forrefo, &
                            fracrefa, absa, ka, selfref, forref
 
 ! ------- Local -------
@@ -1640,8 +1640,8 @@
 ! old band 13:  2080-2250 cm-1 (low - h2o,n2o; high - nothing)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng13
-      use rrlw_kg13, only: fracrefao, fracrefbo, kao, kao_mco2, kao_mco, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng13
+      use m_tenstr_rrlw_kg13, only: fracrefao, fracrefbo, kao, kao_mco2, kao_mco, &
                            kbo_mo3, selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, ka_mco2, ka_mco, &
                            kb_mo3, selfref, forref
@@ -1753,8 +1753,8 @@
 ! old band 14:  2250-2380 cm-1 (low - co2; high - co2)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng14
-      use rrlw_kg14, only: fracrefao, fracrefbo, kao, kbo, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng14
+      use m_tenstr_rrlw_kg14, only: fracrefao, fracrefbo, kao, kbo, &
                            selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, absb, kb, &
                            selfref, forref
@@ -1841,8 +1841,8 @@
 ! old band 15:  2380-2600 cm-1 (low - n2o,co2; high - nothing)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng15
-      use rrlw_kg15, only: fracrefao, kao, kao_mn2, selfrefo, forrefo, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng15
+      use m_tenstr_rrlw_kg15, only: fracrefao, kao, kao_mn2, selfrefo, forrefo, &
                            fracrefa, absa, ka, ka_mn2, selfref, forref
 
 ! ------- Local -------
@@ -1927,8 +1927,8 @@
 ! old band 16:  2600-3000 cm-1 (low - h2o,ch4; high - nothing)
 !***************************************************************************
 
-      use parrrtm, only : mg, nbndlw, ngptlw, ng16
-      use rrlw_kg16, only: fracrefao, fracrefbo, kao, kbo, selfrefo, forrefo, &
+      use m_tenstr_parrrtm, only : mg, nbndlw, ngptlw, ng16
+      use m_tenstr_rrlw_kg16, only: fracrefao, fracrefbo, kao, kbo, selfrefo, forrefo, &
                            fracrefa, fracrefb, absa, ka, absb, kb, selfref, forref
 
 ! ------- Local -------
@@ -2020,7 +2020,7 @@
 
 ! --------- Modules ----------
 
-      use rrlw_cld, only: abscld1, absliq0, absliq1, &
+      use m_tenstr_rrlw_cld, only: abscld1, absliq0, absliq1, &
                           absice0, absice1, absice2, absice3
 
       save
@@ -2655,5 +2655,5 @@
 
       end subroutine lwcldpr
 
-      end module rrtmg_lw_init
+      end module m_tenstr_rrtmg_lw_init
 

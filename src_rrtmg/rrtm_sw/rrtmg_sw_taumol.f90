@@ -3,7 +3,7 @@
 !     revision:  $Revision: 11661 $
 !     created:   $Date: 2009-05-22 18:22:22 -0400 (Fri, 22 May 2009) $
 
-      module rrtmg_sw_taumol
+      module m_tenstr_rrtmg_sw_taumol
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -17,11 +17,11 @@
 
 ! ------- Modules -------
 
-      use parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
 !      use parrrsw, only : mg, jpband, nbndsw, ngptsw
-      use rrsw_con, only: oneminus
-      use rrsw_wvn, only: nspa, nspb
-      use rrsw_vsn, only: hvrtau, hnamtau
+      use m_tenstr_rrsw_con, only: oneminus
+      use m_tenstr_rrsw_wvn, only: nspa, nspb
+      use m_tenstr_rrsw_vsn, only: hvrtau, hnamtau
 
       implicit none
 
@@ -249,8 +249,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng16
-      use rrsw_kg16, only : absa, ka, absb, kb, forref, selfref, &
+      use m_tenstr_parrrsw, only : ng16
+      use m_tenstr_rrsw_kg16, only : absa, ka, absb, kb, forref, selfref, &
                             sfluxref, rayl
 
 ! ------- Declarations -------
@@ -348,8 +348,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng17, ngs16
-      use rrsw_kg17, only : absa, ka, absb, kb, forref, selfref, &
+      use m_tenstr_parrrsw, only : ng17, ngs16
+      use m_tenstr_rrsw_kg17, only : absa, ka, absb, kb, forref, selfref, &
                             sfluxref, rayl
 
 ! ------- Declarations -------
@@ -471,8 +471,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng18, ngs17
-      use rrsw_kg18, only : absa, ka, absb, kb, forref, selfref, &
+      use m_tenstr_parrrsw, only : ng18, ngs17
+      use m_tenstr_rrsw_kg18, only : absa, ka, absb, kb, forref, selfref, &
                             sfluxref, rayl
 
 ! ------- Declarations -------
@@ -570,8 +570,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng19, ngs18
-      use rrsw_kg19, only : absa, ka, absb, kb, forref, selfref, &
+      use m_tenstr_parrrsw, only : ng19, ngs18
+      use m_tenstr_rrsw_kg19, only : absa, ka, absb, kb, forref, selfref, &
                             sfluxref, rayl
 
 ! ------- Declarations -------
@@ -669,8 +669,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng20, ngs19
-      use rrsw_kg20, only : absa, ka, absb, kb, forref, selfref, &
+      use m_tenstr_parrrsw, only : ng20, ngs19
+      use m_tenstr_rrsw_kg20, only : absa, ka, absb, kb, forref, selfref, &
                             sfluxref, absch4, rayl
 
       implicit none
@@ -755,8 +755,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng21, ngs20
-      use rrsw_kg21, only : absa, ka, absb, kb, forref, selfref, &
+      use m_tenstr_parrrsw, only : ng21, ngs20
+      use m_tenstr_rrsw_kg21, only : absa, ka, absb, kb, forref, selfref, &
                             sfluxref, rayl
 
 ! ------- Declarations -------
@@ -877,8 +877,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng22, ngs21
-      use rrsw_kg22, only : absa, ka, absb, kb, forref, selfref, &
+      use m_tenstr_parrrsw, only : ng22, ngs21
+      use m_tenstr_rrsw_kg22, only : absa, ka, absb, kb, forref, selfref, &
                             sfluxref, rayl
 
 ! ------- Declarations -------
@@ -986,8 +986,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng23, ngs22
-      use rrsw_kg23, only : absa, ka, forref, selfref, &
+      use m_tenstr_parrrsw, only : ng23, ngs22
+      use m_tenstr_rrsw_kg23, only : absa, ka, forref, selfref, &
                             sfluxref, rayl
 
 ! ------- Declarations -------
@@ -1060,8 +1060,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng24, ngs23
-      use rrsw_kg24, only : absa, ka, absb, kb, forref, selfref, &
+      use m_tenstr_parrrsw, only : ng24, ngs23
+      use m_tenstr_rrsw_kg24, only : absa, ka, absb, kb, forref, selfref, &
                             sfluxref, abso3a, abso3b, rayla, raylb
 
 ! ------- Declarations -------
@@ -1162,8 +1162,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng25, ngs24
-      use rrsw_kg25, only : absa, ka, &
+      use m_tenstr_parrrsw, only : ng25, ngs24
+      use m_tenstr_rrsw_kg25, only : absa, ka, &
                             sfluxref, abso3a, abso3b, rayl
 
 ! ------- Declarations -------
@@ -1226,8 +1226,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng26, ngs25
-      use rrsw_kg26, only : sfluxref, rayl
+      use m_tenstr_parrrsw, only : ng26, ngs25
+      use m_tenstr_rrsw_kg26, only : sfluxref, rayl
 
 ! ------- Declarations -------
 
@@ -1277,8 +1277,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng27, ngs26
-      use rrsw_kg27, only : absa, ka, absb, kb, sfluxref, rayl
+      use m_tenstr_parrrsw, only : ng27, ngs26
+      use m_tenstr_rrsw_kg27, only : absa, ka, absb, kb, sfluxref, rayl
 
 ! ------- Declarations -------
 
@@ -1356,8 +1356,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng28, ngs27
-      use rrsw_kg28, only : absa, ka, absb, kb, sfluxref, rayl
+      use m_tenstr_parrrsw, only : ng28, ngs27
+      use m_tenstr_rrsw_kg28, only : absa, ka, absb, kb, sfluxref, rayl
 
 ! ------- Declarations -------
 
@@ -1464,8 +1464,8 @@
 
 ! ------- Modules -------
 
-      use parrrsw, only : ng29, ngs28
-      use rrsw_kg29, only : absa, ka, absb, kb, forref, selfref, &
+      use m_tenstr_parrrsw, only : ng29, ngs28
+      use m_tenstr_rrsw_kg29, only : absa, ka, absb, kb, forref, selfref, &
                             sfluxref, absh2o, absco2, rayl
 
 ! ------- Declarations -------
@@ -1537,5 +1537,5 @@
 
       end subroutine taumol_sw
 
-      end module rrtmg_sw_taumol
+      end module m_tenstr_rrtmg_sw_taumol
 

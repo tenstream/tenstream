@@ -1,6 +1,6 @@
-      module rrsw_con
+      module m_tenstr_rrsw_con
 
-      use parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
 
       implicit none
       save
@@ -38,5 +38,5 @@
       real(kind=rb) :: radcn1, radcn2
       real(kind=rb) :: sbcnst, secdy
 
-      end module rrsw_con
+      end module m_tenstr_rrsw_con
 

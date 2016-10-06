@@ -3,7 +3,7 @@
 !     revision:  $Revision: 23308 $
 !     created:   $Date: 2013-12-27 17:23:51 -0500 (Fri, 27 Dec 2013) $
 
-      module rrtmg_sw_init
+      module m_tenstr_rrtmg_sw_init
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -16,9 +16,9 @@
 !  --------------------------------------------------------------------------
 
 ! ------- Modules -------
-      use parkind, only : im => kind_im, rb => kind_rb
-      use rrsw_wvn
-      use rrtmg_sw_setcoef, only: swatmref
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_rrsw_wvn
+      use m_tenstr_rrtmg_sw_setcoef, only: swatmref
 
       implicit none
 
@@ -37,9 +37,9 @@
 !  spectral band are reduced from 224 g-point intervals to 112.
 ! **************************************************************************
 
-      use parrrsw, only : mg, nbndsw, ngptsw
-      use rrsw_tbl, only: ntbl, tblint, pade, bpade, tau_tbl, exp_tbl
-      use rrsw_vsn, only: hvrini, hnamini
+      use m_tenstr_parrrsw, only : mg, nbndsw, ngptsw
+      use m_tenstr_rrsw_tbl, only: ntbl, tblint, pade, bpade, tau_tbl, exp_tbl
+      use m_tenstr_rrsw_vsn, only: hvrini, hnamini
 
       real(kind=rb), intent(in) :: cpdair     ! Specific heat capacity of dry air
                                               ! at constant pressure at 273 K
@@ -159,10 +159,10 @@
 
 ! --------- Modules ----------
 
-      use rrsw_con, only: heatfac, grav, planck, boltz, &
+      use m_tenstr_rrsw_con, only: heatfac, grav, planck, boltz, &
                           clight, avogad, alosmt, gascon, radcn1, radcn2, &
                           sbcnst, secdy 
-      use rrsw_vsn
+      use m_tenstr_rrsw_vsn
 
       save 
  
@@ -376,7 +376,7 @@
 ! Original: Defined for rrtmg_sw 14 spectral bands, JJMorcrette, ECMWF Feb 2003
 ! Revision: Reformatted for consistency with rrtmg_lw, MJIacono, AER, Jul 2006
 
-      use rrsw_aer, only : rsrtaua, rsrpiza, rsrasya
+      use m_tenstr_rrsw_aer, only : rsrtaua, rsrpiza, rsrasya
 
       save
 
@@ -489,7 +489,7 @@
 !
 !-----------------------------------------------------------------------
 
-      use rrsw_kg16, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_rrsw_kg16, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absa, ka, absb, kb, selfref, forref, sfluxref
 
 ! ------- Local -------
@@ -570,7 +570,7 @@
 !     band 17:  3250-4000 cm-1 (low - h2o,co2; high - h2o,co2)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg17, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_rrsw_kg17, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absa, ka, absb, kb, selfref, forref, sfluxref
 
 ! ------- Local -------
@@ -655,7 +655,7 @@
 !     band 18:  4000-4650 cm-1 (low - h2o,ch4; high - ch4)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg18, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_rrsw_kg18, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absa, ka, absb, kb, selfref, forref, sfluxref
 
 ! ------- Local -------
@@ -738,7 +738,7 @@
 !     band 19:  4650-5150 cm-1 (low - h2o,co2; high - co2)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg19, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_rrsw_kg19, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absa, ka, absb, kb, selfref, forref, sfluxref
 
 ! ------- Local -------
@@ -821,7 +821,7 @@
 !     band 20:  5150-6150 cm-1 (low - h2o; high - h2o)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg20, only : kao, kbo, selfrefo, forrefo, sfluxrefo, absch4o, &
+      use m_tenstr_rrsw_kg20, only : kao, kbo, selfrefo, forrefo, sfluxrefo, absch4o, &
                             absa, ka, absb, kb, selfref, forref, sfluxref, absch4
 
 ! ------- Local -------
@@ -900,7 +900,7 @@
 !     band 21:  6150-7700 cm-1 (low - h2o,co2; high - h2o,co2)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg21, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_rrsw_kg21, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absa, ka, absb, kb, selfref, forref, sfluxref
 
 ! ------- Local -------
@@ -985,7 +985,7 @@
 !     band 22:  7700-8050 cm-1 (low - h2o,o2; high - o2)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg22, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_rrsw_kg22, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absa, ka, absb, kb, selfref, forref, sfluxref
 
 ! ------- Local -------
@@ -1068,7 +1068,7 @@
 !     band 23:  8050-12850 cm-1 (low - h2o; high - nothing)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg23, only : kao, selfrefo, forrefo, sfluxrefo, raylo, &
+      use m_tenstr_rrsw_kg23, only : kao, selfrefo, forrefo, sfluxrefo, raylo, &
                             absa, ka, selfref, forref, sfluxref, rayl
 
 ! ------- Local -------
@@ -1136,7 +1136,7 @@
 !     band 24:  12850-16000 cm-1 (low - h2o,o2; high - o2)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg24, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_rrsw_kg24, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             abso3ao, abso3bo, raylao, raylbo, &
                             absa, ka, absb, kb, selfref, forref, sfluxref, &
                             abso3a, abso3b, rayla, raylb
@@ -1240,7 +1240,7 @@
 !     band 25:  16000-22650 cm-1 (low - h2o; high - nothing)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg25, only : kao, sfluxrefo, &
+      use m_tenstr_rrsw_kg25, only : kao, sfluxrefo, &
                             abso3ao, abso3bo, raylo, &
                             absa, ka, sfluxref, &
                             abso3a, abso3b, rayl
@@ -1292,7 +1292,7 @@
 !     band 26:  22650-29000 cm-1 (low - nothing; high - nothing)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg26, only : sfluxrefo, raylo, &
+      use m_tenstr_rrsw_kg26, only : sfluxrefo, raylo, &
                             sfluxref, rayl
 
 ! ------- Local -------
@@ -1322,7 +1322,7 @@
 !     band 27:  29000-38000 cm-1 (low - o3; high - o3)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg27, only : kao, kbo, sfluxrefo, raylo, &
+      use m_tenstr_rrsw_kg27, only : kao, kbo, sfluxrefo, raylo, &
                             absa, ka, absb, kb, sfluxref, rayl
 
 ! ------- Local -------
@@ -1377,7 +1377,7 @@
 !     band 28:  38000-50000 cm-1 (low - o3,o2; high - o3,o2)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg28, only : kao, kbo, sfluxrefo, &
+      use m_tenstr_rrsw_kg28, only : kao, kbo, sfluxrefo, &
                             absa, ka, absb, kb, sfluxref
 
 ! ------- Local -------
@@ -1438,7 +1438,7 @@
 !     band 29:  820-2600 cm-1 (low - h2o; high - co2)
 !-----------------------------------------------------------------------
 
-      use rrsw_kg29, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_rrsw_kg29, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absh2oo, absco2o, &
                             absa, ka, absb, kb, selfref, forref, sfluxref, &
                             absh2o, absco2
@@ -1525,7 +1525,7 @@
 
 ! ------- Modules -------
 
-      use rrsw_cld, only : extliq1, ssaliq1, asyliq1, &
+      use m_tenstr_rrsw_cld, only : extliq1, ssaliq1, asyliq1, &
                            extice2, ssaice2, asyice2, &
                            extice3, ssaice3, asyice3, fdlice3, &
                            abari, bbari, cbari, dbari, ebari, fbari
@@ -3340,6 +3340,6 @@
 
       end subroutine swcldpr
 
-      end module rrtmg_sw_init
+      end module m_tenstr_rrtmg_sw_init
 
 

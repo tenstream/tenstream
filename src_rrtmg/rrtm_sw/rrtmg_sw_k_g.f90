@@ -33,9 +33,9 @@
       subroutine sw_kgb16
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg16, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
-      use rrsw_vsn, only: hvrkg, hnamkg
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg16, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
+      use m_tenstr_rrsw_vsn, only: hvrkg, hnamkg
 
       implicit none
       save
@@ -4792,8 +4792,8 @@
       subroutine sw_kgb17
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg17, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg17, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
 
       implicit none
       save
@@ -15583,8 +15583,8 @@
       subroutine sw_kgb18
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg18, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg18, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
 
       implicit none
       save
@@ -20378,8 +20378,8 @@
       subroutine sw_kgb19
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg19, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg19, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
 
       implicit none
       save
@@ -25173,8 +25173,8 @@
       subroutine sw_kgb20
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg20, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg20, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absch4o, rayl
 
       implicit none
@@ -27231,8 +27231,8 @@
       subroutine sw_kgb21
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg21, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg21, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
 
       implicit none
       save
@@ -38042,8 +38042,8 @@
       subroutine sw_kgb22
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg22, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg22, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
 
       implicit none
       save
@@ -42837,8 +42837,8 @@
       subroutine sw_kgb23
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg23, only : kao, selfrefo, forrefo, sfluxrefo, raylo
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg23, only : kao, selfrefo, forrefo, sfluxrefo, raylo
 
       implicit none
       save
@@ -43373,8 +43373,8 @@
       subroutine sw_kgb24
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg24, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg24, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             raylao, raylbo, abso3ao, abso3bo
 
       implicit none
@@ -48231,8 +48231,8 @@
       subroutine sw_kgb25
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg25, only : kao, sfluxrefo, &
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg25, only : kao, sfluxrefo, &
                             raylo, abso3ao, abso3bo
 
       implicit none
@@ -48705,8 +48705,8 @@
       subroutine sw_kgb26
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg26, only : sfluxrefo, raylo
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg26, only : sfluxrefo, raylo
 
       implicit none
       save
@@ -48732,8 +48732,8 @@
       subroutine sw_kgb27
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg27, only : kao, kbo, sfluxrefo, raylo
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg27, only : kao, kbo, sfluxrefo, raylo
 
       implicit none
       save
@@ -50717,8 +50717,8 @@
       subroutine sw_kgb28
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg28, only : kao, kbo, sfluxrefo, rayl
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg28, only : kao, kbo, sfluxrefo, rayl
 
       implicit none
       save
@@ -61433,8 +61433,8 @@
       subroutine sw_kgb29
 ! **************************************************************************
 
-      use parkind, only : im => kind_im, rb => kind_rb 
-      use rrsw_kg29, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_rrsw_kg29, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absh2oo, absco2o, rayl
 
       implicit none

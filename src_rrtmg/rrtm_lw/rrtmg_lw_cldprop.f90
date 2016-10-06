@@ -3,7 +3,7 @@
 !     revision:  $Revision: 1.9 $
 !     created:   $Date: 2011/04/08 20:25:00 $
 !
-      module rrtmg_lw_cldprop
+      module m_tenstr_rrtmg_lw_cldprop
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -17,11 +17,11 @@
 
 ! --------- Modules ----------
 
-      use parkind, only : im => kind_im, rb => kind_rb
-      use parrrtm, only : nbndlw
-      use rrlw_cld, only: abscld1, absliq0, absliq1, &
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrtm, only : nbndlw
+      use m_tenstr_rrlw_cld, only: abscld1, absliq0, absliq1, &
                           absice0, absice1, absice2, absice3
-      use rrlw_vsn, only: hvrcld, hnamcld
+      use m_tenstr_rrlw_vsn, only: hvrcld, hnamcld
 
       implicit none
 
@@ -275,4 +275,4 @@
 
       end subroutine cldprop
 
-      end module rrtmg_lw_cldprop
+      end module m_tenstr_rrtmg_lw_cldprop

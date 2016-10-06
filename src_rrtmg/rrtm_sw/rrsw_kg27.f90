@@ -1,7 +1,7 @@
-      module rrsw_kg27
+      module m_tenstr_rrsw_kg27
 
-      use parkind ,only : im => kind_im, rb => kind_rb
-      use parrrsw, only : ng27
+      use m_tenstr_parkind ,only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrsw, only : ng27
 
       implicit none
       save
@@ -56,5 +56,5 @@
 
       equivalence (ka(1,1,1),absa(1,1)), (kb(1,13,1),absb(1,1))
 
-      end module rrsw_kg27
+      end module m_tenstr_rrsw_kg27
 

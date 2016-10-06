@@ -4,7 +4,7 @@
 !     created:   $Date: 2013-12-27 17:23:51 -0500 (Fri, 27 Dec 2013) $
 !
 
-       module rrtmg_sw_rad
+      module m_tenstr_rrtmg_sw_rad
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -53,14 +53,14 @@
 ! ****************************************************************************
 
 ! --------- Modules ---------
-      use parkind, only : im => kind_im, rb => kind_rb
-      use rrsw_vsn
-      use rrtmg_sw_cldprop, only: cldprop_sw
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_rrsw_vsn
+      use m_tenstr_rrtmg_sw_cldprop, only: cldprop_sw
 ! *** Move the required call to rrtmg_sw_ini below and the following 
 ! use association to GCM initialization area ***
 !      use rrtmg_sw_init, only: rrtmg_sw_ini
-      use rrtmg_sw_setcoef, only: setcoef_sw
-      use rrtmg_sw_spcvrt, only: spcvrt_sw
+      use m_tenstr_rrtmg_sw_setcoef, only: setcoef_sw
+      use m_tenstr_rrtmg_sw_spcvrt, only: spcvrt_sw
 
       implicit none
 
@@ -172,11 +172,11 @@
 
 ! --------- Modules ---------
 
-      use parrrsw, only : nbndsw, ngptsw, naerec, nstr, nmol, mxmol, &
+      use m_tenstr_parrrsw, only : nbndsw, ngptsw, naerec, nstr, nmol, mxmol, &
                           jpband, jpb1, jpb2
-      use rrsw_aer, only : rsrtaua, rsrpiza, rsrasya
-      use rrsw_con, only : heatfac, oneminus, pi
-      use rrsw_wvn, only : wavenum1, wavenum2
+      use m_tenstr_rrsw_aer, only : rsrtaua, rsrpiza, rsrasya
+      use m_tenstr_rrsw_con, only : heatfac, oneminus, pi
+      use m_tenstr_rrsw_wvn, only : wavenum1, wavenum2
 
       use m_data_parameters, only : ireals
 
@@ -737,7 +737,7 @@
 
 ! ------- Modules -------
 
-      use rrsw_con, only : pi
+      use m_tenstr_rrsw_con, only : pi
 
       integer(kind=im), intent(in) :: idn
 
@@ -771,10 +771,10 @@
 
 ! --------- Modules ----------
 
-      use parrrsw, only : nbndsw, ngptsw, nstr, nmol, mxmol, &
+      use m_tenstr_parrrsw, only : nbndsw, ngptsw, nstr, nmol, mxmol, &
                           jpband, jpb1, jpb2, rrsw_scon
-      use rrsw_con, only : fluxfac, heatfac, oneminus, pi, grav, avogad
-      use rrsw_wvn, only : ng, nspa, nspb, wavenum1, wavenum2, delwave
+      use m_tenstr_rrsw_con, only : fluxfac, heatfac, oneminus, pi, grav, avogad
+      use m_tenstr_rrsw_wvn, only : ng, nspa, nspb, wavenum1, wavenum2, delwave
 
 ! ------- Declarations -------
 
@@ -1094,6 +1094,6 @@
 
       end subroutine inatm_sw
 
-      end module rrtmg_sw_rad
+      end module m_tenstr_rrtmg_sw_rad
 
 

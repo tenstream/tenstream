@@ -1,6 +1,6 @@
-      module rrsw_tbl
+      module m_tenstr_rrsw_tbl
 
-      use parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
 
       implicit none
       save
@@ -37,5 +37,5 @@
       real(kind=rb), parameter :: pade = 0.278_rb
       real(kind=rb) :: bpade
 
-      end module rrsw_tbl
+      end module m_tenstr_rrsw_tbl
 

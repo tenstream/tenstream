@@ -1,7 +1,7 @@
 
-      module parrrsw
+      module m_tenstr_parrrsw
 
-      use parkind ,only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind ,only : im => kind_im, rb => kind_rb
 
       implicit none
       save
@@ -114,6 +114,6 @@
 ! Source function solar constant
       real(kind=rb), parameter :: rrsw_scon = 1.36822e+03     ! W/m2
  
-      end module parrrsw
+      end module m_tenstr_parrrsw
 
 

@@ -1,7 +1,7 @@
-      module rrsw_aer
+      module m_tenstr_rrsw_aer
 
-      use parkind, only : im => kind_im, rb => kind_rb
-      use parrrsw, only : nbndsw, naerec
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrsw, only : nbndsw, naerec
 
       implicit none
       save
@@ -56,5 +56,5 @@
       real(kind=rb) :: rsrpiza(nbndsw,naerec)
       real(kind=rb) :: rsrasya(nbndsw,naerec)
 
-      end module rrsw_aer
+      end module m_tenstr_rrsw_aer
 

@@ -1,5 +1,5 @@
-module rrsw_ncpar
-	use parkind ,only : im => kind_im, rb => kind_rb
+      module m_tenstr_rrsw_ncpar
+      use m_tenstr_parkind ,only : im => kind_im, rb => kind_rb
 
 	implicit none
     save
@@ -102,4 +102,4 @@ module rrsw_ncpar
 		end if
 	end subroutine getAbsorberIndex
 
-end module rrsw_ncpar
+      end module m_tenstr_rrsw_ncpar

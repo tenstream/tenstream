@@ -3,7 +3,7 @@
 !     revision:  $Revision: 23308 $
 !     created:   $Date: 2013-12-27 17:23:51 -0500 (Fri, 27 Dec 2013) $
 
-      module rrtmg_sw_cldprop
+      module m_tenstr_rrtmg_sw_cldprop
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -17,14 +17,14 @@
 
 ! ------- Modules -------
 
-      use parkind, only : im => kind_im, rb => kind_rb
-      use parrrsw, only : nbndsw, jpband, jpb1, jpb2
-      use rrsw_cld, only : extliq1, ssaliq1, asyliq1, &
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parrrsw, only : nbndsw, jpband, jpb1, jpb2
+      use m_tenstr_rrsw_cld, only : extliq1, ssaliq1, asyliq1, &
                            extice2, ssaice2, asyice2, &
                            extice3, ssaice3, asyice3, fdlice3, &
                            abari, bbari, cbari, dbari, ebari, fbari
-      use rrsw_wvn, only : wavenum1, wavenum2
-      use rrsw_vsn, only : hvrcld, hnamcld
+      use m_tenstr_rrsw_wvn, only : wavenum1, wavenum2
+      use m_tenstr_rrsw_vsn, only : hvrcld, hnamcld
 
       implicit none
 
@@ -345,6 +345,6 @@
 
       end subroutine cldprop_sw
 
-      end module rrtmg_sw_cldprop
+      end module m_tenstr_rrtmg_sw_cldprop
 
 

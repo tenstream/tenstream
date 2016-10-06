@@ -1,6 +1,6 @@
-      module rrlw_ref
+      module m_tenstr_rrlw_ref
 
-      use parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
 
       implicit none
       save
@@ -27,4 +27,4 @@
       real(kind=rb) , dimension(59) :: tref
       real(kind=rb) :: chi_mls(7,59)
 
-      end module rrlw_ref
+      end module m_tenstr_rrlw_ref

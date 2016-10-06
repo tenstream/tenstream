@@ -1,6 +1,6 @@
-      module rrsw_ref
+      module m_tenstr_rrsw_ref
 
-      use parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
 
       implicit none
       save
@@ -25,4 +25,4 @@
       real(kind=rb) , dimension(59) :: preflog
       real(kind=rb) , dimension(59) :: tref
 
-      end module rrsw_ref
+      end module m_tenstr_rrsw_ref

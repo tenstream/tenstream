@@ -1,6 +1,6 @@
-      module rrlw_kg13
+      module m_tenstr_rrlw_kg13
 
-      use parkind ,only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind ,only : im => kind_im, rb => kind_rb
 
       implicit none
       save
@@ -73,4 +73,4 @@
 
       equivalence (ka(1,1,1,1),absa(1,1))
 
-      end module rrlw_kg13
+      end module m_tenstr_rrlw_kg13

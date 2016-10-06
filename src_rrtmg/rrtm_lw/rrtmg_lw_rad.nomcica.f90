@@ -4,7 +4,7 @@
 !     created:   $Date: 2011/04/08 20:25:01 $
 !
 
-       module rrtmg_lw_rad
+       module m_tenstr_rrtmg_lw_rad
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -53,17 +53,17 @@
 ! ****************************************************************************
 
 ! -------- Modules --------
-      use parkind, only : im => kind_im, rb => kind_rb
-      use rrlw_vsn
-      use rrtmg_lw_cldprop, only: cldprop
+      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_rrlw_vsn
+      use m_tenstr_rrtmg_lw_cldprop, only: cldprop
 ! *** Move the required call to rrtmg_lw_ini below and the following 
 ! use association to the GCM initialization area ***
 !      use rrtmg_lw_init, only: rrtmg_lw_ini
-      use rrtmg_lw_rtrn, only: rtrn
-      use rrtmg_lw_rtrnmr, only: rtrnmr
-      use rrtmg_lw_setcoef, only: setcoef
-      use rrtmg_lw_taumol, only: taumol
-      use parrrtm, only: ngptlw
+      use m_tenstr_rrtmg_lw_rtrn, only: rtrn
+      use m_tenstr_rrtmg_lw_rtrnmr, only: rtrnmr
+      use m_tenstr_rrtmg_lw_setcoef, only: setcoef
+      use m_tenstr_rrtmg_lw_taumol, only: taumol
+      use m_tenstr_parrrtm, only: ngptlw
 
       implicit none
 
@@ -178,9 +178,9 @@
 
 ! --------- Modules ----------
 
-      use parrrtm, only : nbndlw, ngptlw, maxxsec, mxmol
-      use rrlw_con, only: fluxfac, heatfac, oneminus, pi
-      use rrlw_wvn, only: ng, ngc, ngb, nspa, nspb, wavenum1, wavenum2, delwave
+      use m_tenstr_parrrtm, only : nbndlw, ngptlw, maxxsec, mxmol
+      use m_tenstr_rrlw_con, only: fluxfac, heatfac, oneminus, pi
+      use m_tenstr_rrlw_wvn, only: ng, ngc, ngb, nspa, nspb, wavenum1, wavenum2, delwave
 
       use m_data_parameters, only : ireals
 
@@ -605,9 +605,9 @@
 
 ! --------- Modules ----------
 
-      use parrrtm, only : nbndlw, ngptlw, nmol, maxxsec, mxmol
-      use rrlw_con, only: fluxfac, heatfac, oneminus, pi, grav, avogad
-      use rrlw_wvn, only: ng, nspa, nspb, wavenum1, wavenum2, delwave, ixindx
+      use m_tenstr_parrrtm, only : nbndlw, ngptlw, nmol, maxxsec, mxmol
+      use m_tenstr_rrlw_con, only: fluxfac, heatfac, oneminus, pi, grav, avogad
+      use m_tenstr_rrlw_wvn, only: ng, nspa, nspb, wavenum1, wavenum2, delwave, ixindx
 
 ! ------- Declarations -------
 
@@ -918,5 +918,5 @@
       
       end subroutine inatm
 
-      end module rrtmg_lw_rad
+      end module m_tenstr_rrtmg_lw_rad
 
