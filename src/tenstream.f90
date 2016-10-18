@@ -111,7 +111,7 @@ module m_tenstream
     real(ireals)    , allocatable , dimension(:,:,:) :: g1,g2
     real(ireals)    , allocatable , dimension(:,:,:) :: dz
     logical         , allocatable , dimension(:,:,:) :: l1d
-    real(ireals) :: albedo
+    real(ireals)    , allocatable , dimension(:,:)   :: albedo
     real(ireals) :: dx,dy
     integer(iintegers) :: icollapse=1
     logical :: lcollapse = .False.
@@ -1381,7 +1381,7 @@ contains
           row(MatStencil_j,i1) = i          
           col(MatStencil_j,i1) = i        
 
-          call MatSetValuesStencil(A,i1, row, i1, col , [-atm%albedo] ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+          call MatSetValuesStencil(A,i1, row, i1, col , [-atm%albedo(i,j)] ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
 
         enddo
       enddo
@@ -1494,7 +1494,7 @@ contains
       k = C_diff%ze
       do j=C_diff%ys,C_diff%ye         
         do i=C_diff%xs,C_diff%xe    
-          xsrc(E_up   ,k,i,j) = xsrc(E_up   ,k,i,j) + atm%planck(atmk(k),i,j)*Az *(one-atm%albedo)*pi
+          xsrc(E_up   ,k,i,j) = xsrc(E_up   ,k,i,j) + atm%planck(atmk(k),i,j)*Az *(one-atm%albedo(i,j))*pi
         enddo
       enddo
     end subroutine
@@ -1609,7 +1609,7 @@ contains
       k = C_diff%ze
       do j=C_diff%ys,C_diff%ye     
         do i=C_diff%xs,C_diff%xe     
-          xsrc(E_up   ,k,i,j) = sum(xedir(i0:i3,k,i,j))*atm%albedo
+          xsrc(E_up   ,k,i,j) = sum(xedir(i0:i3,k,i,j))*atm%albedo(i,j)
         enddo
       enddo
 
@@ -2138,7 +2138,7 @@ contains
 
         dtau = atm%dz(atmk(C_one%zs):C_one%ze,i,j)* atm%op(atmk(C_one%zs):C_one%ze,i,j)%kabs
 
-        call schwarzschild( dtau ,atm%albedo, Edn,Eup, atm%planck(atmk(C_one1%zs):C_one1%ze,i,j) )
+        call schwarzschild( dtau ,atm%albedo(i,j), Edn,Eup, atm%planck(atmk(C_one1%zs):C_one1%ze,i,j) )
 
         xv_diff(E_up,:,i,j) = Eup(:) 
         xv_diff(E_dn,:,i,j) = Edn(:) 
@@ -2207,9 +2207,9 @@ contains
         g    = atm%op(:,i,j)%g
 
         if(allocated(atm%planck) ) then
-          call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo, S,Edn,Eup, planck=atm%planck(:,i,j) )
+          call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup, planck=atm%planck(:,i,j) )
         else
-          call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo, S,Edn,Eup )
+          call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
         endif
 
         if(solution%lsolar_rad) then
@@ -2846,16 +2846,19 @@ contains
     if(any(shape(arr).lt.minimal_dimension) ) stop 'set_optprop -> extend_arr :: dimension is smaller than we support... please think of something here'
   end subroutine
 
-  subroutine set_optical_properties(albedo, local_kabs, local_ksca, local_g, local_planck)
+  subroutine set_optical_properties(albedo, local_kabs, local_ksca, local_g, local_planck, local_albedo_2d)
     real(ireals), intent(in) :: albedo
     real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g ! dimensions (Nz  , Nx, Ny)
     real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny) layer quantity plus surface layer
+    real(ireals),intent(in),dimension(:,:),optional   :: local_albedo_2d                 ! dimensions (Nx, Ny)
     real(ireals) :: tau,kext,w0,g
     integer(iintegers) :: k,i,j
 
     if(.not.allocated(atm%op) )  allocate( atm%op       (C_one_atm%zs :C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye) )
 
+    if(.not.allocated(atm%albedo)) allocate(atm%albedo(C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
     atm%albedo = albedo
+    if(present(local_albedo_2d)) atm%albedo = local_albedo_2d
 
     if(present(local_kabs) ) atm%op(:,:,:)%kabs = local_kabs
     if(present(local_ksca) ) atm%op(:,:,:)%ksca = local_ksca
