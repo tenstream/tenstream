@@ -325,11 +325,9 @@ contains
       call solve_tenstream(zero)
       call tenstream_get_result(spec_edir, spec_edn, spec_eup, spec_abso)
 
-      if(myid.eq.0) then
-        edn  = edn  + spec_edn 
-        eup  = eup  + spec_eup 
-        abso = abso + spec_abso
-      endif
+      edn  = edn  + spec_edn 
+      eup  = eup  + spec_eup 
+      abso = abso + spec_abso
     enddo
 
   end subroutine
