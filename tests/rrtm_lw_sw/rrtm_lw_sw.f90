@@ -39,7 +39,7 @@ subroutine test_rrtm_lw(this)
     integer(iintegers) :: i,j,k, nlev, icld
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
-    logical,parameter :: ldebug=.True., lthermal=.True., lsolar=.True.
+    logical,parameter :: ldebug=.True., lthermal=.False., lsolar=.True.
 
     PetscErrorCode :: ierr
 
@@ -75,20 +75,12 @@ subroutine test_rrtm_lw(this)
     tlev (icld  , :,:) = 288
     tlev (icld+1, :,:) = tlev (icld  , :,:)
 
-    !call tenstream_rrtmg(comm, dx, dy, phi0, theta0, albedo_th, albedo_sol,  &
-    !                           atm_filename, lthermal, lsolar,               &
-    !                           edir,edn,eup,abso,                            & 
-    !                           plev, tlev, d_lwc=lwc, d_reliq=reliq,         &
-    !                           nxproc=nxproc, nyproc=nyproc)
+    call tenstream_rrtmg(comm, dx, dy, phi0, theta0, albedo_th, albedo_sol,  &
+      atm_filename, lthermal, lsolar,               &
+      edir,edn,eup,abso,                            & 
+      d_plev=plev, d_tlev=tlev, d_lwc=lwc, d_reliq=reliq,         &
+      nxproc=nxproc, nyproc=nyproc, opt_time=one*k)
 
-    do k=1,20
-      print *,'Calling tenstr_rrtmg',k
-      call tenstream_rrtmg(comm, dx, dy, phi0, theta0, albedo_th, albedo_sol,  &
-        atm_filename, .False., lsolar,               &
-        edir,edn,eup,abso,                            & 
-        plev, tlev, d_lwc=lwc, d_reliq=reliq,         &
-        nxproc=nxproc, nyproc=nyproc, opt_time=one*k)
-    enddo
     call destroy_tenstream_rrtmg()
 
     nlev = ubound(edn,1)
