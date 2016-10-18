@@ -2504,11 +2504,31 @@ contains
     real(ireals),optional,intent(in) :: phi2d  (:,:)   !< @param[in] phi2d   if given, horizontally varying azimuth
     real(ireals),optional,intent(in) :: theta2d(:,:)   !< @param[in] theta2d if given, and zenith angle
 
+    logical :: lchanged_theta, lchanged_phi
+
     if(.not.ltenstream_is_initialized) then
         print *,myid,'You tried to set angles in the Tenstream solver.  &
             & This should be called right after init_tenstream'
         ierr=1; CHKERRQ(ierr)
     endif
+
+    if(allocated(sun%angles)) then ! was initialized
+      if(present(theta2d)) then
+        lchanged_theta = .not. all(theta2d.eq.sun%angles(1,:,:)%theta)
+      else
+        lchanged_theta = .not. all(theta0.eq.sun%angles(1,:,:)%theta)
+      endif
+      if(present(phi2d)) then
+        lchanged_phi = .not. all(phi2d.eq.sun%angles(1,:,:)%phi)
+      else
+        lchanged_phi = .not. all(phi0.eq.sun%angles(1,:,:)%phi)
+      endif
+      if(myid.eq.0 .and. ldebug) print *,'tenstr set_angles -- changed angles?',lchanged_theta, lchanged_phi
+      if(.not. lchanged_theta .and. .not. lchanged_phi) then
+        return
+      endif
+    endif
+
 
     if ( present(phi2d) .and. present(theta2d) ) then
         call setup_suninfo(phi0, theta0, sun, phi2d=phi2d, theta2d=theta2d)

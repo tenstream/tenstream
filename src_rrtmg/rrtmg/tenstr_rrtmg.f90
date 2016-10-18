@@ -6,12 +6,9 @@ module m_tenstr_rrtmg
 
       use m_tenstr_parkind, only: im => kind_im, rb => kind_rb
 
-
-
-
       use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint, pi, mpierr
 
-      use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream, need_new_solution, &
+      use m_tenstream, only : init_tenstream, set_angles, set_optical_properties, solve_tenstream, destroy_tenstream, need_new_solution, &
           tenstream_get_result, tenstream_get_result_toZero, C_one, C_one1
 
       use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
@@ -408,10 +405,11 @@ contains
   end subroutine compute_thermal
 
   subroutine compute_solar(is, ie, js, je, ks, ke, ke1, &
+      phi0, theta0, &
       albedo, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
       col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
       col_lwp, col_reliq, &
-      edir, edn, eup, abso, opt_time, solar_albedo_2d)
+      edir, edn, eup, abso, opt_time, solar_albedo_2d, phi2d, theta2d)
 
       use m_tenstr_parrrsw, only: ngptsw, nbndsw,naerec,jpb1, jpb2
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc      
@@ -420,6 +418,8 @@ contains
     integer(iintegers),intent(in) :: is,ie, js,je, ks,ke,ke1
 
     real(ireals),intent(in) :: albedo, dz_t2b(:,:,:)
+    real(ireals),intent(in) :: phi0, theta0
+    real(ireals),intent(in),dimension(:,:),optional :: phi2d, theta2d
 
     real(rb),intent(in) :: col_plev   (:,:)
     real(rb),intent(in) :: col_tlev   (:,:)
@@ -508,6 +508,8 @@ contains
     deallocate(col_tau)
     deallocate(col_w0 )
     deallocate(col_g  )
+
+    call set_angles(phi0, theta0, phi2d=phi2d, theta2d=theta2d)
 
     ! Loop over spectral intervals and call solver
     do ib=1,ngptsw 
