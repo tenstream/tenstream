@@ -3482,7 +3482,7 @@ end subroutine
 
 function need_new_solution(uid,time)
   integer(iintegers),intent(in) :: uid
-  real(ireals),intent(in) :: time
+  real(ireals),intent(in),optional :: time
   logical :: need_new_solution
 
   integer,parameter :: Nfit=3   ! Number of used residuals
@@ -3494,6 +3494,15 @@ function need_new_solution(uid,time)
   integer, parameter :: out_unit=20
 
   integer(iintegers) :: k,ipoly
+
+  ! Make time an optional argument here for
+  ! convenience of the interface -- 
+  ! otherwise the user needs to check if he
+  ! opt_time is present and so on...
+  if(.not. present(time)) then
+    need_new_solution = .True.
+    return
+  endif
 
   if( .not. solutions(uid)%lset ) then !if we did not store a solution, return immediately
     need_new_solution=.True.
