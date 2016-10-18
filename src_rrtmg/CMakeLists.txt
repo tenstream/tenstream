@@ -14,6 +14,8 @@ set(INSTALL_INCLUDE_DIR include CACHE PATH "Installation directory for header fi
 
 add_subdirectory (rrtm_lw)
 add_subdirectory (rrtm_sw)
+add_subdirectory (rrtmg)
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/rrtm_lw")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/rrtm_sw")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/rrtmg")
