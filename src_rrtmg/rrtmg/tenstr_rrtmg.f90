@@ -241,7 +241,7 @@ contains
     if(present(tlay)) then
       do k=lbound(tlay,1), ubound(tlay,1)
         ierr = (tlay(k)-tlev(k).ge.zero) .eqv. (tlay(k)-tlev(k+1).gt.zero); errcnt = errcnt+ierr ! different sign says its in between
-        if(ierr) print *,'Layer Temperature not between level temps?', k, tlev(k),':', tlay(k), tlev(k+1)
+        if(ierr) print *,'Layer Temperature not between level temps?', k, tlev(k), '|', tlay(k), '|', tlev(k+1)
       enddo
     endif
 

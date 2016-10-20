@@ -57,8 +57,6 @@ subroutine test_rrtm_lw(this)
       tlev(k,:,:) = 288._ireals - (k-one)*50._ireals/(nzp)
     enddo
 
-    tlay = (tlev(1:nzp,:,:) + tlev(2:nzp+1,:,:))/2
-
     h2ovmr = zero
     o3vmr  = zero
     co2vmr = zero
@@ -72,13 +70,16 @@ subroutine test_rrtm_lw(this)
     icld = (nzp+1)/2
     lwc  (icld, :,:) = .1
     reliq(icld, :,:) = 10
+
     tlev (icld  , :,:) = 288
     tlev (icld+1, :,:) = tlev (icld  , :,:)
+
+    tlay = (tlev(1:nzp,:,:) + tlev(2:nzp+1,:,:))/2
 
     call tenstream_rrtmg(comm, dx, dy, phi0, theta0, albedo_th, albedo_sol,  &
       atm_filename, lthermal, lsolar,               &
       edir,edn,eup,abso,                            & 
-      d_plev=plev, d_tlev=tlev, d_lwc=lwc, d_reliq=reliq,         &
+      d_plev=plev, d_tlev=tlev, d_tlay=tlay, d_lwc=lwc, d_reliq=reliq,         &
       nxproc=nxproc, nyproc=nyproc, opt_time=one*k)
 
     call destroy_tenstream_rrtmg()
