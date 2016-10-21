@@ -26,7 +26,8 @@ module m_tenstr_rrtmg
 
   logical :: linit_tenstr=.False.
 
-  logical,parameter :: ldebug=.True.
+!  logical,parameter :: ldebug=.True.
+  logical,parameter :: ldebug=.False.
 
 
   interface
@@ -84,8 +85,8 @@ contains
     real(ireals),intent(in),optional :: d_ch4vmr (:,:,:) !
     real(ireals),intent(in),optional :: d_n2ovmr (:,:,:) !
     real(ireals),intent(in),optional :: d_o2vmr  (:,:,:) !
-    real(ireals),intent(in),optional :: d_lwc    (:,:,:) !
-    real(ireals),intent(in),optional :: d_reliq  (:,:,:) !
+    real(ireals),intent(in),optional :: d_lwc    (:,:,:) ! liq water content [g/kg]
+    real(ireals),intent(in),optional :: d_reliq  (:,:,:) ! effective radius [micron]
 
     integer(iintegers),intent(in),optional :: nxproc(:), nyproc(:), icollapse
 
