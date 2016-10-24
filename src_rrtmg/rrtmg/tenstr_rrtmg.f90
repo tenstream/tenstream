@@ -201,6 +201,7 @@ contains
     if(lsolar) then
       allocate(edir (C_one1%zm, C_one1%xm, C_one1%ym), source=zero)
       call compute_solar(is, ie, js, je, ks, ke, ke1, &
+        phi0, theta0, &
         albedo_solar, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
         col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
         col_lwp, col_reliq, &
