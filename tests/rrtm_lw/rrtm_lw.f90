@@ -1,4 +1,4 @@
-@test(npes =[2,1])
+@test(npes =[3,2,1])
 subroutine test_rrtm_lw(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one
@@ -24,7 +24,7 @@ subroutine test_rrtm_lw(this)
 
     integer(mpiint) :: numnodes, comm, myid
 
-    integer(iintegers),parameter :: nxp=3, nyp=3, nzp=10 ! local domain size for each rank
+    integer(iintegers),parameter :: nxp=6, nyp=3, nzp=10 ! local domain size for each rank
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: albedo=0, phi0=180, theta0=0
     real(ireals),parameter :: atolerance = 1
