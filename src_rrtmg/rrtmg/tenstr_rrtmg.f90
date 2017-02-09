@@ -1,16 +1,44 @@
-! Routines to call tenstream with optical properties from RRTM
+!-------------------------------------------------------------------------
+! This file is part of the TenStream solver.
+!
+! This program is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program.  If not, see <http://www.gnu.org/licenses/>.
+!
+! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
+!-------------------------------------------------------------------------
+
+!> \page Routines to call tenstream with optical properties from RRTM
+!! The function `tenstream_rrtmg` provides an easy interface to 
+!! couple the TenStream solvers to a host model.
+!!
+!! * Tasks that have to be performed:
+!!   - Radiative transfer needs to read a background profile that goes up till Top of the Atmosphere
+!!   - Interpolate or merge the provided dynamics grid variables onto the the background profile
+!!   - Compute optical properties with RRTMG
+!!   - Solve the radiative transfer equation
+!!   - And will return the fluxes on layer interfaces as well as the mean absorption in the layers
+!!
+!! Please carefully study the input and output parameters of subroutine ``tenstream_rrtmg()``
+!!
+!!
 
 module m_tenstr_rrtmg
 
       use mpi, only : mpi_comm_rank
-
       use m_tenstr_parkind, only: im => kind_im, rb => kind_rb
-
       use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint, pi, mpierr
-
       use m_tenstream, only : init_tenstream, set_angles, set_optical_properties, solve_tenstream, destroy_tenstream, need_new_solution, &
           tenstream_get_result, tenstream_get_result_toZero, C_one, C_one1
-
       use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
           imp_allreduce_min, imp_allreduce_max, search_sorted_bisection
       use m_tenstream_interpolation, only : interp_1d
@@ -21,8 +49,7 @@ module m_tenstr_rrtmg
   private
   public :: tenstream_rrtmg, destroy_tenstream_rrtmg
 
-#include "petsc/finclude/petsc.h90"
-  PetscErrorCode :: ierr
+  integer(mpiint) :: ierr
 
   logical :: linit_tenstr=.False.
 
@@ -70,28 +97,60 @@ contains
       d_lwc, d_reliq, nxproc, nyproc, icollapse,      &
       opt_time, solar_albedo_2d)
 
-    integer(mpiint), intent(in) :: comm
 
-    real(ireals), intent(in) :: dx, dy, phi0, theta0, albedo_solar, albedo_thermal
+    integer(mpiint), intent(in) :: comm ! MPI Communicator
+
+    real(ireals), intent(in) :: dx, dy       ! horizontal grid spacing in [m]
+    real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
+    real(ireals), intent(in) :: albedo_solar, albedo_thermal ! broadband ground albedo for solar and thermal spectrum
+
+    ! Filename of background atmosphere file. ASCII file with columns:
+    ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
     character(len=250), intent(in) :: atm_filename
+
+    ! Compute solar or thermal radiative transfer. Or compute both at once.
     logical, intent(in) :: lsolar, lthermal
 
-    real(ireals),intent(in) :: d_plev(:,:,:), d_tlev (:,:,:) ! dim(nlay_dynamics+1, nxp, nyp)
+    ! dim(nlay_dynamics+1, nxp, nyp)
+    real(ireals),intent(in) :: d_plev(:,:,:) ! pressure on layer interfaces [hPa]
+    real(ireals),intent(in) :: d_tlev(:,:,:) ! Temperature on layer interfaces [K]
 
-    real(ireals),intent(in),optional :: d_tlay   (:,:,:) ! all have
-    real(ireals),intent(in),optional :: d_h2ovmr (:,:,:) ! dim(nlay_dynamics, nxp, nyp)
-    real(ireals),intent(in),optional :: d_o3vmr  (:,:,:) !
-    real(ireals),intent(in),optional :: d_co2vmr (:,:,:) !
-    real(ireals),intent(in),optional :: d_ch4vmr (:,:,:) !
-    real(ireals),intent(in),optional :: d_n2ovmr (:,:,:) !
-    real(ireals),intent(in),optional :: d_o2vmr  (:,:,:) !
-    real(ireals),intent(in),optional :: d_lwc    (:,:,:) ! liq water content [g/kg]
-    real(ireals),intent(in),optional :: d_reliq  (:,:,:) ! effective radius [micron]
+    ! all have dim(nlay_dynamics, nxp, nyp)
+    real(ireals),intent(in),optional :: d_tlay   (:,:,:) ! layer mean temperature [K]
+    real(ireals),intent(in),optional :: d_h2ovmr (:,:,:) ! watervapor volume mixing ratio [e.g. 1e-3]
+    real(ireals),intent(in),optional :: d_o3vmr  (:,:,:) ! ozone volume mixing ratio      [e.g. .1e-6] 
+    real(ireals),intent(in),optional :: d_co2vmr (:,:,:) ! CO2 volume mixing ratio        [e.g. 407e-6]
+    real(ireals),intent(in),optional :: d_ch4vmr (:,:,:) ! methane volume mixing ratio    [e.g. 2e-6]
+    real(ireals),intent(in),optional :: d_n2ovmr (:,:,:) ! n2o volume mixing ratio        [e.g. .32]
+    real(ireals),intent(in),optional :: d_o2vmr  (:,:,:) ! oxygen volume mixing ratio     [e.g. .2]
+    real(ireals),intent(in),optional :: d_lwc    (:,:,:) ! liq water content              [g/kg]
+    real(ireals),intent(in),optional :: d_reliq  (:,:,:) ! effective radius               [micron]
 
-    integer(iintegers),intent(in),optional :: nxproc(:), nyproc(:), icollapse
+    ! nxproc dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
+    ! nyproc dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
+    ! if not present, we let petsc decide how to decompose the fields(probably does not fit the decomposition of a host model)
+    integer(iintegers),intent(in),optional :: nxproc(:), nyproc(:)
+   
+    integer(iintegers),intent(in),optional :: icollapse ! experimental, dont use it if you dont know what you are doing.
 
-    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
+    ! opt_time is the model time in seconds. If provided we will track the error growth of the solutions and compute new solutions only after threshold estimate is exceeded.
+    ! If solar_albedo_2d is present, we use a 2D surface albedo
+    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:) 
 
+
+    ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
+    ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
+    ! the size of the merged grid. If you only want to use heating rates on the
+    ! dynamics grid, use the lower layers, i.e.,
+    !   edn(ubound(edn,1)-nlay_dynamics : ubound(edn,1) )
+    ! or:
+    !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
+    real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
+
+    ! ---------- end of API ----------------
+
+    ! 2D arrays to work with RRTMG, expects(Ncolumn, Nlev) and handles the
+    ! vertical coordinate from bottom up
     real(rb),allocatable :: col_plev   (:,:)
     real(rb),allocatable :: col_tlev   (:,:)
     real(rb),allocatable :: col_tlay   (:,:)
@@ -105,18 +164,20 @@ contains
     real(rb),allocatable :: col_lwp    (:,:)
     real(rb),allocatable :: col_reliq  (:,:)
 
+    ! Counters
     integer(iintegers) :: i, j, k, icol
-    integer(iintegers) :: is,ie, js,je, ks, ke,ke1
+    integer(iintegers) :: is, ie, js, je, ks, ke, ke1
 
+    ! vertical thickness in [m]
     real(ireals),allocatable :: dz(:,:,:), dz_t2b(:,:,:) ! dz (t2b := top 2 bottom)
 
-    real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
-
+    ! for debug purposes, can output variables into netcdf files
     character(len=80) :: output_path(2) ! [ filename, varname ]
 
     call load_atmfile(comm, atm_filename, bg_atm)
 
     call sanitize_input(bg_atm%plev, bg_atm%tlev, bg_atm%tlay)
+
     do j=lbound(d_plev,3),ubound(d_plev,3)
       do i=lbound(d_plev,2),ubound(d_plev,2)
         if(present(d_tlay)) then
@@ -268,11 +329,11 @@ contains
 
     integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:) ! array containing xm and ym for all nodes :: dim[x-ranks, y-ranks]
 
-    if(present(nxproc) .neqv. present(nxproc)) then
+    if(present(nxproc) .neqv. present(nyproc)) then
       print *,'Wrong call to init_tenstream_rrtm_lw --    &
             & in order to work, we need both arrays for &
-            & the domain decomposition, call with nxproc AND nxproc'
-      stop 'init_tenstream_rrtm_lw -- missing arguments nxproc,nyproc'
+            & the domain decomposition, call with nxproc AND nyproc'
+      stop 'init_tenstream_rrtm_lw -- missing arguments nxproc or nyproc'
     endif
     if(present(nxproc) .and. present(nyproc)) then
       call init_tenstream(comm, zm, xm, ym, dx,dy,phi0, theta0, nxproc=nxproc, nyproc=nyproc, dz3d=dz)
@@ -771,7 +832,11 @@ contains
     allocate(atm)
 
     if(myid.eq.0) then
-      call read_ascii_file_2d(atm_filename, prof, 9, 2, ierr); CHKERRQ(ierr)
+      call read_ascii_file_2d(atm_filename, prof, 9, 2, ierr)
+      if(ierr.ne.0) then
+        print *,'************* Error occured reading the atmosphere file:', atm_filename, '::', ierr
+        call mpi_abort(comm, ierr, mpierr)
+      endif
 
       nlev = ubound(prof,1)
 
