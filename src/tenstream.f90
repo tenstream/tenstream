@@ -274,10 +274,10 @@ contains
 
       allocate(C%neighbors(0:3**C%dim-1) )
       call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;CHKERRQ(ierr)
-      if(numnodes.gt.i1) then
-        if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
-        if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
-      endif
+      !if(numnodes.gt.i1) then
+      !  if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
+      !  if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
+      !endif
     end subroutine
   end subroutine
 
@@ -2898,7 +2898,7 @@ contains
       if(allocated(atm%planck)) deallocate(atm%planck)
     endif
 
-    if(ldebug) then
+!    if(ldebug) then
       if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
         print *,myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
         do k=C_one_atm%zs,C_one_atm%ze
@@ -2906,7 +2906,7 @@ contains
           print *,myid,k,'local_ksca',local_ksca(k,:,:)
         enddo
       endif
-    endif
+!    endif
 !    if(ldebug) then
       if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
         print *,myid,'set_optical_properties :: found illegal value in optical properties! abort!'

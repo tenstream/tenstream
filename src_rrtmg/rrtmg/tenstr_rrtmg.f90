@@ -126,12 +126,6 @@ contains
         endif
       enddo
     enddo
-    !output_path(1) = 'output.nc'
-    !if(myid.eq.0) then
-    !  output_path(2) = 'dz3d' ; call ncwrite(output_path, dz, i)
-    !  output_path(2) = 'hhl'  ; call ncwrite(output_path, hhl, i)
-    !  output_path(2) = 'hsrfc'; call ncwrite(output_path, hhl(ubound(hhl,1),:,:), i)
-    !endif
 
     call merge_dyn_rad_grid(comm, bg_atm,    &
       d_plev, d_tlev, d_tlay, d_h2ovmr,      &
@@ -207,6 +201,14 @@ contains
         col_lwp, col_reliq, &
         edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d)
     endif
+
+    !output_path(1) = 'output.nc'
+    !if(myid.eq.0) then
+    !  output_path(2) = 'edir' ; call ncwrite(output_path, edir, i)
+    !  output_path(2) = 'edn'  ; call ncwrite(output_path, edn , i)
+    !  output_path(2) = 'eup'  ; call ncwrite(output_path, eup , i)
+    !  output_path(2) = 'abso' ; call ncwrite(output_path, abso, i)
+    !endif
 
     deallocate(col_plev  )
     deallocate(col_tlev  )
