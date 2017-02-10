@@ -15,16 +15,13 @@ module m_tenstr_rrtm_lw_toZero
           tenstream_get_result, tenstream_get_result_toZero, C_one
 
       use m_netcdfIO, only : ncwrite
+
     implicit none
 
     private
     public :: tenstream_rrtm_lw_toZero
 
-#include "petsc/finclude/petsc.h90"
-    PetscErrorCode :: ierr
-
     logical :: linit=.False.
-
 
     interface
       real function PLKINT(WVLLO, WVLHI, T)

@@ -9,9 +9,6 @@ subroutine test_tenstream_ex1(this)
 
     use m_tenstream_options, only: read_commandline_options
 
-#include "petsc/finclude/petscdef.h"
-    use petsc 
-
     use pfunit_mod
 
     implicit none

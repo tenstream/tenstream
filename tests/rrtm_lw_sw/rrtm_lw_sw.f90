@@ -55,8 +55,6 @@ subroutine test_rrtm_lw(this)
     logical,parameter :: ldebug=.True.
     logical :: lthermal, lsolar
 
-    integer(mpiint) :: ierr
-
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()

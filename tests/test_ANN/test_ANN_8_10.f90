@@ -6,9 +6,8 @@ module test_ANN_8_10
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse
 
-#include "petsc/finclude/petscdef.h"
+#include "petsc/finclude/petsc.h"
   use petsc
-
 
   use pfunit_mod
   implicit none

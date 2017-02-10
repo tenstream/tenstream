@@ -16,17 +16,17 @@ module m_tenstr_rrtm_lw
           tenstream_get_result, tenstream_get_result_toZero, C_one, C_one1
 
       use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-          imp_allreduce_min, imp_allreduce_max, search_sorted_bisection
+          imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR
       use m_tenstream_interpolation, only : interp_1d
 
       use m_netcdfIO, only : ncwrite
+
   implicit none
 
   private
   public :: tenstream_rrtm_lw, destroy_tenstream_rrtm_lw
 
-#include "petsc/finclude/petsc.h90"
-  PetscErrorCode :: ierr
+  integer(mpiint) :: ierr
 
   logical :: linit_tenstr=.False.
 
@@ -85,7 +85,7 @@ contains
 
     if(errcnt.gt.0) then
       print *,'Found wonky input to tenstream_rrtm_lw -- please check! -- will abort now.'
-      stop 'wonky input to tenstream_rrtm_lw'
+      call CHKERR(errcnt)
     endif
 
   end subroutine
@@ -482,7 +482,7 @@ contains
     allocate(atm)
 
     if(myid.eq.0) then
-      call read_ascii_file_2d(atm_filename, prof, 9, 2, ierr); CHKERRQ(ierr)
+      call read_ascii_file_2d(atm_filename, prof, 9, 2, ierr); call CHKERR(ierr)
 
       nlev = ubound(prof,1)
 
@@ -740,4 +740,3 @@ contains
 
   end subroutine
 end module
-

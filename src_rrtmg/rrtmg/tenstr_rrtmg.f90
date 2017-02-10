@@ -40,7 +40,7 @@ module m_tenstr_rrtmg
       use m_tenstream, only : init_tenstream, set_angles, set_optical_properties, solve_tenstream, destroy_tenstream, need_new_solution, &
           tenstream_get_result, tenstream_get_result_toZero, C_one, C_one1
       use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-          imp_allreduce_min, imp_allreduce_max, search_sorted_bisection
+          imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR
       use m_tenstream_interpolation, only : interp_1d
 
       use m_netcdfIO, only : ncwrite
@@ -288,7 +288,8 @@ contains
     real(ireals),intent(in),dimension(:) :: plev, tlev
     real(ireals),intent(in),dimension(:),optional :: tlay
 
-    integer(iintegers) :: ierr, errcnt, k
+    integer(mpiint) :: errcnt
+    integer(iintegers) :: k
 
     errcnt = 0
     ierr = maxval(plev) .gt. 1050; errcnt = errcnt+ierr
@@ -313,7 +314,7 @@ contains
 
     if(errcnt.gt.0) then
       print *,'Found wonky input to tenstream_rrtm_lw -- please check! -- will abort now.'
-      stop 'wonky input to tenstream_rrtm_lw'
+      call CHKERR(errcnt)
     endif
 
   end subroutine
@@ -835,7 +836,7 @@ contains
       call read_ascii_file_2d(atm_filename, prof, 9, 2, ierr)
       if(ierr.ne.0) then
         print *,'************* Error occured reading the atmosphere file:', atm_filename, '::', ierr
-        call mpi_abort(comm, ierr, mpierr)
+        call CHKERR(ierr)
       endif
 
       nlev = ubound(prof,1)
@@ -1094,4 +1095,3 @@ contains
 
   end subroutine
 end module
-

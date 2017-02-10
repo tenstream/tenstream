@@ -17,9 +17,6 @@ module m_tenstr_rrtm_sw
     private
     public :: tenstream_rrtm_sw
 
-#include "petsc/finclude/petsc.h90"
-    PetscErrorCode :: ierr
-
     logical :: linit=.False.
 
 

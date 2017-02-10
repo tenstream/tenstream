@@ -3,12 +3,9 @@ subroutine test_rrtm_sw(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi
 
-    use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast
+    use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, CHKERR
 
     use m_tenstr_rrtm_sw, only : tenstream_rrtm_sw
-
-#include "petsc/finclude/petscdef.h"
-    use petsc 
 
     use pfunit_mod
 
@@ -40,7 +37,7 @@ subroutine test_rrtm_sw(this)
 
     logical,parameter :: ldebug=.True.
 
-    PetscErrorCode :: ierr
+    integer(mpiint) :: ierr
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
@@ -49,7 +46,7 @@ subroutine test_rrtm_sw(this)
     call init_mpi_data_parameters(comm)
 
     if(myid.eq.0) then
-        call read_ascii_file_2d('afglus_100m.dat', atm, 9, 2, ierr); CHKERRQ(ierr)
+        call read_ascii_file_2d('afglus_100m.dat', atm, 9, 2, ierr); call CHKERR(ierr)
 
         nlay = ubound(atm,1)-1
 

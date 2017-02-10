@@ -13,9 +13,6 @@ subroutine test_rrtm_lw(this)
 
     use m_tenstr_rrtm_lw, only : tenstream_rrtm_lw, destroy_tenstream_rrtm_lw
 
-#include "petsc/finclude/petscdef.h"
-    use petsc 
-
     use pfunit_mod
 
     implicit none
@@ -41,7 +38,7 @@ subroutine test_rrtm_lw(this)
 
     logical,parameter :: ldebug=.True.
 
-    PetscErrorCode :: ierr
+    integer(mpiint) :: ierr
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
@@ -74,14 +71,6 @@ subroutine test_rrtm_lw(this)
     reliq(icld, :,:) = 10
     tlev (icld  , :,:) = 288
     tlev (icld+1, :,:) = tlev (icld  , :,:)
-
-
-!    call tenstream_rrtm_lw(comm, dx, dy, phi0, theta0, albedo, atm_filename, &
-!                               edir,edn,eup,abso,                            & 
-!                               plev, tlev, tlay, h2ovmr, o3vmr,              &
-!                               co2vmr, ch4vmr, n2ovmr,  o2vmr,               &
-!                               d_lwc=lwc, d_reliq=reliq,                     &
-!                               nxproc=nxproc, nyproc=nyproc)
 
     call tenstream_rrtm_lw(comm, dx, dy, phi0, theta0, albedo, atm_filename, &
                                edir,edn,eup,abso,                            & 

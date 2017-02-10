@@ -9,14 +9,11 @@ subroutine tenstream_hill1_x(this)
 
     use m_tenstream_options, only: read_commandline_options
 
-    use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast
+    use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, CHKERR
 
     use m_netcdfIO, only : ncwrite, ncload
 
     use m_tenstr_rrtm_sw, only : tenstream_rrtm_sw
-
-#include "petsc/finclude/petscdef.h"
-    use petsc 
 
     use pfunit_mod
 
@@ -57,14 +54,14 @@ subroutine tenstream_hill1_x(this)
 
     if(myid.eq.0) then
         nc_path(1) = 'input.nc'
-        nc_path(2)='plev'  ;call ncload(nc_path, plev   , ncerr); CHKERRQ(ncerr)
-        nc_path(2)='tlay'  ;call ncload(nc_path, tlay   , ncerr); CHKERRQ(ncerr)
-        nc_path(2)='air'   ;call ncload(nc_path, air    , ncerr); CHKERRQ(ncerr)
-        nc_path(2)='h2ovmr';call ncload(nc_path, h2ovmr , ncerr); CHKERRQ(ncerr)
-        nc_path(2)='o3vmr' ;call ncload(nc_path, o3vmr  , ncerr); CHKERRQ(ncerr)
-        nc_path(2)='co2vmr';call ncload(nc_path, co2vmr , ncerr); CHKERRQ(ncerr)
-        nc_path(2)='n2ovmr';call ncload(nc_path, n2ovmr , ncerr); CHKERRQ(ncerr)
-        nc_path(2)='o2vmr' ;call ncload(nc_path, o2vmr  , ncerr); CHKERRQ(ncerr)
+        nc_path(2)='plev'  ;call ncload(nc_path, plev   , ncerr); call CHKERR(ncerr)
+        nc_path(2)='tlay'  ;call ncload(nc_path, tlay   , ncerr); call CHKERR(ncerr)
+        nc_path(2)='air'   ;call ncload(nc_path, air    , ncerr); call CHKERR(ncerr)
+        nc_path(2)='h2ovmr';call ncload(nc_path, h2ovmr , ncerr); call CHKERR(ncerr)
+        nc_path(2)='o3vmr' ;call ncload(nc_path, o3vmr  , ncerr); call CHKERR(ncerr)
+        nc_path(2)='co2vmr';call ncload(nc_path, co2vmr , ncerr); call CHKERR(ncerr)
+        nc_path(2)='n2ovmr';call ncload(nc_path, n2ovmr , ncerr); call CHKERR(ncerr)
+        nc_path(2)='o2vmr' ;call ncload(nc_path, o2vmr  , ncerr); call CHKERR(ncerr)
         h2ovmr = h2ovmr / air
         o3vmr  = o3vmr  / air
         co2vmr = co2vmr / air
