@@ -51,7 +51,7 @@ module m_helper_functions
 
       subroutine CHKERR(ierr)
         integer(mpiint),intent(in) :: ierr
-        call mpi_abort(imp_comm, ierr, mpierr)
+        if(ierr.ne.0) call mpi_abort(imp_comm, ierr, mpierr)
       end subroutine
 
       pure function gradient(v)
