@@ -1844,7 +1844,7 @@ contains
 
     PetscInt,parameter :: ilu_default_levels=1
     PetscInt :: pcbjac_n_local, pcbjac_iglob ! number of local ksp contexts and index in global ksp-table
-    KSP,allocatable :: pcbjac_ksps(:)
+    KSP :: pcbjac_ksps(100) ! we dont have a good metric to check how many jacobi blocks there should be. in earlier versions of petsc we could let it decide. now this seems a problem at the moment. Lets just use a big number here... is only a list of pointers anyway...
     PC  :: pcbjac_sub_pc
     integer(iintegers) :: isub
 
@@ -1890,8 +1890,8 @@ contains
       call PCFactorSetLevels(prec,ilu_default_levels,ierr);call CHKERR(ierr)
     else
       call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);call CHKERR(ierr)
-      if(.not.allocated(pcbjac_ksps)) allocate(pcbjac_ksps(pcbjac_n_local))
-      call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);call CHKERR(ierr)
+      !if(.not.allocated(pcbjac_ksps)) allocate(pcbjac_ksps(pcbjac_n_local))
+      !call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);call CHKERR(ierr)
 
       do isub=1,pcbjac_n_local
         call KSPSetType(pcbjac_ksps(isub) ,KSPPREONLY,ierr)              ;call CHKERR(ierr)
