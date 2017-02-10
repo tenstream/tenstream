@@ -18,6 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_data_parameters
+      use, intrinsic :: iso_fortran_env
 
 #ifdef _XLF
         use mpi 
@@ -25,13 +26,15 @@ module m_data_parameters
         use mpi ,only:mpi_sizeof, mpi_type_match_size 
 #endif
 
+#include <petsc/finclude/petscsys.h>
+      use petscsys
+
         implicit none
-#include "petsc/finclude/petsc.h90"
 
 
       private
       public pi,clight,nil,zero,one,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil, &
-             iintegers,ireals,ireal128,ireal_dp,                                &
+             iintegers,ireals,ireal128,ireal_dp,nan32,                          &
              mpiint,imp_int,imp_real,imp_real_dp,imp_logical,imp_comm,          &
              myid,numnodes,mpierr,init_mpi_data_parameters
 
@@ -50,6 +53,7 @@ module m_data_parameters
 
       real(ireals),parameter :: pi=3.141592653589793_ireals, clight=299792458._ireals, nil=-9999._ireals
       real(ireals),parameter :: zero=0._ireals, one=1._ireals
+      real(real32), parameter :: nan32 =  transfer(-4194304_int32, 1._real32)
       integer(iintegers) ,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,i5=5,i6=6,i7=7,i8=8,i9=9,i10=10,i11=11,inil=-9999_iintegers
 
 

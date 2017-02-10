@@ -18,9 +18,12 @@
 !-------------------------------------------------------------------------
 
 program main
-#include "petsc/finclude/petscdef.h"
+
+#include "petsc/finclude/petsc.h"
       use petsc
+
       use m_data_parameters, only: mpiint, ireals, init_mpi_data_parameters
+      use m_helper_functions, only: CHKERR
       use mpi
       use m_optprop_LUT, only : t_optprop_LUT_8_10
       use m_tenstream_options, only : read_commandline_options
@@ -39,7 +42,7 @@ program main
       call mpi_init(ierr)
       comm = MPI_COMM_WORLD
       call mpi_comm_rank(comm,myid,ierr)
-      call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;CHKERRQ(ierr)
+      call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;call CHKERR(ierr)
 
       call init_mpi_data_parameters(MPI_COMM_WORLD)
 

@@ -29,12 +29,14 @@ module f2c_tenstream
 
       use m_tenstream_options, only: read_commandline_options
 
-      use m_helper_functions, only: imp_bcast,mean
+      use m_helper_functions, only: imp_bcast,mean, CHKERR
+      
+#include "petsc/finclude/petsc.h"
+      use petsc
 
       implicit none
-#include "petsc/finclude/petsc.h90"
 
-      PetscErrorCode :: ierr
+      integer(mpiint) :: ierr
 
 contains
 
@@ -211,14 +213,14 @@ contains
                 PetscScalar,pointer,dimension(:,:,:,:) :: xinp=>null()
                 PetscScalar,pointer,dimension(:) :: xinp1d=>null()
 
-                call DMGetGlobalVector(C%da,vec,ierr) ; CHKERRQ(ierr)
+                call DMGetGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
                 call getVecPointer(vec ,C ,xinp1d, xinp)
                 xinp(i0,:,:,:) = inp
                 call restoreVecPointer(vec ,C ,xinp1d, xinp )
 
                 call globalVec2Local(vec,C,tmp)
 
-                call DMRestoreGlobalVector(C%da,vec,ierr) ; CHKERRQ(ierr)
+                call DMRestoreGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
 
                 if(myid.eq.0) outp = tmp(lbound(tmp,1), &
                                          lbound(tmp,2):lbound(tmp,2)+size(outp,1)-1,&
@@ -240,28 +242,28 @@ contains
         if(allocated(res)) deallocate(res)
         if(myid.eq.0) allocate( res(C%dof,C%glob_zm,C%glob_xm,C%glob_ym) )
 
-        call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
+        call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
 
-        call DMDAGlobalToNaturalBegin(C%da,vec, INSERT_VALUES, natural, ierr); CHKERRQ(ierr)
-        call DMDAGlobalToNaturalEnd  (C%da,vec, INSERT_VALUES, natural, ierr); CHKERRQ(ierr)
+        call DMDAGlobalToNaturalBegin(C%da,vec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
+        call DMDAGlobalToNaturalEnd  (C%da,vec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
 
-        call VecScatterCreateToZero(natural, scatter_context, local, ierr); CHKERRQ(ierr)
+        call VecScatterCreateToZero(natural, scatter_context, local, ierr); call CHKERR(ierr)
 
-        call VecScatterBegin(scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-        call VecScatterEnd  (scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+        call VecScatterBegin(scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+        call VecScatterEnd  (scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
 
-        call VecScatterDestroy(scatter_context, ierr); CHKERRQ(ierr)
+        call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
 
         if(myid.eq.0) then
-          call VecGetArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+          call VecGetArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
 
           res = reshape( xloc, (/ C%dof,C%glob_zm,C%glob_xm,C%glob_ym /) )
 
-          call VecRestoreArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+          call VecRestoreArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
         endif
 
-        call VecDestroy(local,ierr); CHKERRQ(ierr)
-        call VecDestroy(natural,ierr); CHKERRQ(ierr)
+        call VecDestroy(local,ierr); call CHKERR(ierr)
+        call VecDestroy(natural,ierr); call CHKERR(ierr)
       end subroutine
         
 end module

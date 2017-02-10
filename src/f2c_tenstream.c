@@ -17,10 +17,10 @@
 /*  Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>               */
 /* -------------------------------------------------------------------------*/
 
-#include "mpi.h"
 #include <stdio.h>
-#include <stdlib.h>                                                                                                                    
-#include "petscsys.h" 
+#include <stdlib.h>
+#include <petscsys.h> 
+#include <mpi.h>
 
 void tenstr_f2c_init(int fcomm, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, float *albedo, int *collapseindex);
 void tenstr_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float *kabs, float *ksca, float *g, float *planck);

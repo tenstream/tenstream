@@ -29,10 +29,8 @@ module m_boxmc
 #define isnan ieee_is_nan
 #endif
 
-#include "petsc/finclude/petscdef.h"
-  use petsc
-
   use m_helper_functions_dp, only : approx,mean,rmse,imp_reduce_sum,norm,deg2rad
+  use m_helper_functions, only : CHKERR
   use iso_c_binding
   use m_mersenne
   use mpi
@@ -702,13 +700,13 @@ contains
     if(comm.eq.-1) then
       myid = -1
     else
-      call MPI_Comm_rank(comm, myid, mpierr); CHKERRQ(mpierr)
+      call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
     endif
 
     if(.not.lRNGseeded) call init_random_seed(myid+2)
 
     numnodes=1
-    if(myid.ge.0) call mpi_comm_size(comm,numnodes,mpierr); CHKERRQ(mpierr)
+    if(myid.ge.0) call mpi_comm_size(comm,numnodes,mpierr); call CHKERR(mpierr)
 
     select type (bmc)
     class is (t_boxmc_8_10)

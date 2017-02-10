@@ -50,15 +50,16 @@ module m_tenstream
 #define isnan ieee_is_nan
 #endif
 
-#include "petsc/finclude/petscdef.h"
+#include "petsc/finclude/petsc.h"
   use petsc
+
   use m_data_parameters, only : ireals,iintegers,       &
     imp_comm, myid, numnodes,init_mpi_data_parameters,mpiint, &
     zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
-  use m_helper_functions, only: norm,rad2deg,deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and,imp_allreduce_min,imp_allreduce_max
+  use m_helper_functions, only: norm,rad2deg,deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and,imp_allreduce_min,imp_allreduce_max,CHKERR
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -226,7 +227,7 @@ contains
           C%dof                   , stencil_size         ,                &
           Nz                      , nxproc               , nyproc       , &
           C%da                    , ierr)
-        CHKERRQ(ierr)
+        call CHKERR(ierr)
       else
         call DMDACreate3d( imp_comm,                                            &
           bn                      , boundary             , boundary           , &
@@ -235,14 +236,14 @@ contains
           i1                      , PETSC_DECIDE         , PETSC_DECIDE       , &
           C%dof                   , stencil_size         ,                      &
           Nz                      , PETSC_NULL_INTEGER   , PETSC_NULL_INTEGER , &
-          C%da                    , ierr) ;CHKERRQ(ierr)
+          C%da                    , ierr) ;call CHKERR(ierr)
       endif
 
-      call DMSetup(C%da,ierr) ;CHKERRQ(ierr)
-      call DMSetMatType(C%da, MATAIJ, ierr); CHKERRQ(ierr)
-      if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+      call DMSetup(C%da,ierr) ;call CHKERR(ierr)
+      call DMSetMatType(C%da, MATAIJ, ierr); call CHKERR(ierr)
+      if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;call CHKERR(ierr)
 
-      call DMSetFromOptions(C%da, ierr) ; CHKERRQ(ierr)
+      call DMSetFromOptions(C%da, ierr) ; call CHKERR(ierr)
       if(ldebug) call DMView(C%da, PETSC_VIEWER_STDOUT_WORLD ,ierr)
       call setup_coords(C)
     end subroutine
@@ -254,14 +255,14 @@ contains
         PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
         PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
         PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
-        ierr) ;CHKERRQ(ierr)
+        ierr) ;call CHKERR(ierr)
 
-      call DMDAGetCorners(C%da, C%zs, C%xs,C%ys, C%zm, C%xm,C%ym, ierr) ;CHKERRQ(ierr)
+      call DMDAGetCorners(C%da, C%zs, C%xs,C%ys, C%zm, C%xm,C%ym, ierr) ;call CHKERR(ierr)
       C%xe = C%xs+C%xm-1
       C%ye = C%ys+C%ym-1
       C%ze = C%zs+C%zm-1
 
-      call DMDAGetGhostCorners(C%da,C%gzs,C%gxs,C%gys,C%gzm,C%gxm,C%gym,ierr) ;CHKERRQ(ierr)
+      call DMDAGetGhostCorners(C%da,C%gzs,C%gxs,C%gys,C%gzm,C%gxm,C%gym,ierr) ;call CHKERR(ierr)
       C%gxe = C%gxs+C%gxm-1
       C%gye = C%gys+C%gym-1
       C%gze = C%gzs+C%gzm-1
@@ -273,7 +274,7 @@ contains
       endif
 
       allocate(C%neighbors(0:3**C%dim-1) )
-      call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;CHKERRQ(ierr)
+      call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;call CHKERR(ierr)
       !if(numnodes.gt.i1) then
       !  if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
       !  if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
@@ -291,7 +292,7 @@ contains
     PetscInt :: m,n
 
     return !TODO see doxy details...
-    call MatGetInfo(A,MAT_LOCAL,info,ierr) ;CHKERRQ(ierr)
+    call MatGetInfo(A,MAT_LOCAL,info,ierr) ;call CHKERR(ierr)
     mal = info(MAT_INFO_MALLOCS)
     nz_allocated = info(MAT_INFO_NZ_ALLOCATED)
     nz_used   = info(MAT_INFO_NZ_USED)
@@ -321,7 +322,7 @@ contains
 
     if(.not.allocated(A)) then
       allocate(A)
-      call DMCreateMatrix(C%da, A, ierr) ;CHKERRQ(ierr)
+      call DMCreateMatrix(C%da, A, ierr) ;call CHKERR(ierr)
     endif
 
     if(lprealloc) then
@@ -338,27 +339,27 @@ contains
           stop('Dont know which preallocation routine I shall call! - exiting...')
         end select
 
-        call MatMPIAIJSetPreallocation(A, PETSC_NULL_INTEGER,d_nnz, PETSC_NULL_INTEGER, o_nnz, ierr) ;CHKERRQ(ierr)
+        call MatMPIAIJSetPreallocation(A, C%dof+1, d_nnz, C%dof, o_nnz, ierr) ;call CHKERR(ierr)
 
         deallocate(o_nnz)
         deallocate(d_nnz)
 
       endif
-      call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr)
+      call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
     endif
 
     call mat_info(A)
 
     ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many 
-    ! call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;CHKERRQ(ierr)
+    ! call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;call CHKERR(ierr)
 
     ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
-    !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;CHKERRQ(ierr) 
+    !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;call CHKERR(ierr) 
 
-    ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;CHKERRQ(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
+    ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;call CHKERR(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
 
-    call MatSetFromOptions(A,ierr) ;CHKERRQ(ierr)
-    call MatSetUp(A,ierr) ;CHKERRQ(ierr)
+    call MatSetFromOptions(A,ierr) ;call CHKERR(ierr)
+    call MatSetUp(A,ierr) ;call CHKERR(ierr)
 
     call mat_info(A)
     call mat_set_diagonal(A,C)
@@ -375,12 +376,12 @@ contains
 
       PetscInt :: i,j,k,dst, xinc, yinc
 
-      call DMGetGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
-      call DMGetGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call VecSet(gv_d_nnz, zero, ierr) ;CHKERRQ(ierr)
-      call VecSet(gv_o_nnz, zero, ierr) ;CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da, gv_d_nnz,ierr) ;call CHKERR(ierr)
+      call DMGetGlobalVector(C%da, gv_o_nnz,ierr) ;call CHKERR(ierr)
+      call VecSet(gv_d_nnz, zero, ierr) ;call CHKERR(ierr)
+      call VecSet(gv_o_nnz, zero, ierr) ;call CHKERR(ierr)
 
-      call DMGetLocalVector(C%da, lv_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C%da, lv_nnz,ierr) ;call CHKERR(ierr)
 
       call getVecPointer(lv_nnz,C,xl1d,xl)
 
@@ -415,8 +416,8 @@ contains
       ! Now we have a local vector with ghosts that counts all entries
       ! We still have to seperate the diagonal and the off-diagonal part:
       ! For that, transmit the ghost parts with ADD_VALUES to _o_nnz
-      call DMLocalToGlobalBegin(C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMLocalToGlobalEnd  (C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalBegin(C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (C%da,lv_nnz,ADD_VALUES,gv_o_nnz,ierr) ;call CHKERR(ierr)
 
       call getVecPointer(lv_nnz,C,xl1d,xl)
       call getVecPointer(gv_o_nnz,C,xo1d,xo)
@@ -441,9 +442,9 @@ contains
       call restoreVecPointer(gv_o_nnz,C,xo1d,xo)
       call restoreVecPointer(gv_d_nnz,C,xd1d,xd)
 
-      call DMRestoreGlobalVector(C%da, gv_d_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreGlobalVector(C%da, gv_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreLocalVector (C%da, lv_nnz  ,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da, gv_d_nnz,ierr) ;call CHKERR(ierr)
+      call DMRestoreGlobalVector(C%da, gv_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMRestoreLocalVector (C%da, lv_nnz  ,ierr) ;call CHKERR(ierr)
     end subroutine 
 
 
@@ -463,8 +464,8 @@ contains
       MatStencil :: row(4,C%dof)  ,col(4,C%dof)
 
       if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
-      call DMGetLocalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMGetLocalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C%da,v_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMGetLocalVector(C%da,v_d_nnz,ierr) ;call CHKERR(ierr)
 
       call getVecPointer(v_o_nnz,C,xo1d,xo)
       call getVecPointer(v_d_nnz,C,xd1d,xd)
@@ -536,19 +537,19 @@ contains
       call restoreVecPointer(v_o_nnz,C,xo1d,xo)
       call restoreVecPointer(v_d_nnz,C,xd1d,xd)
 
-      call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;CHKERRQ(ierr)
-      call VecSet(g_o_nnz, zero, ierr); CHKERRQ(ierr)
-      call VecSet(g_d_nnz, zero, ierr); CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;call CHKERR(ierr)
+      call VecSet(g_o_nnz, zero, ierr); call CHKERR(ierr)
+      call VecSet(g_d_nnz, zero, ierr); call CHKERR(ierr)
 
-      call DMLocalToGlobalBegin(C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMLocalToGlobalEnd  (C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalBegin(C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;call CHKERR(ierr)
 
-      call DMLocalToGlobalBegin(C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;CHKERRQ(ierr)
-      call DMLocalToGlobalEnd  (C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalBegin(C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;call CHKERR(ierr)
 
-      call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;call CHKERR(ierr)
 
       call getVecPointer(g_o_nnz,C,xo1d,xo)
       call getVecPointer(g_d_nnz,C,xd1d,xd)
@@ -567,7 +568,7 @@ contains
       !enddo
       !call mpi_barrier(imp_comm, ierr)
 
-      call VecGetLocalSize(g_d_nnz,vsize,ierr) ;CHKERRQ(ierr)
+      call VecGetLocalSize(g_d_nnz,vsize,ierr) ;call CHKERR(ierr)
       allocate(o_nnz(0:vsize-1))
       allocate(d_nnz(0:vsize-1))
 
@@ -577,8 +578,8 @@ contains
       call restoreVecPointer(g_o_nnz,C,xo1d,xo)
       call restoreVecPointer(g_d_nnz,C,xd1d,xd)
 
-      call DMRestoreGlobalVector(C%da,g_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreGlobalVector(C%da,g_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da,g_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMRestoreGlobalVector(C%da,g_d_nnz,ierr) ;call CHKERR(ierr)
 
       if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
     end subroutine 
@@ -597,8 +598,8 @@ contains
       MatStencil :: row(4,C%dof)  ,col(4,C%dof)
 
       if(myid.eq.0.and.ldebug) print *,myid,'building diffuse o_nnz for mat with',C%dof,'dof'
-      call DMGetLocalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMGetLocalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMGetLocalVector(C%da,v_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMGetLocalVector(C%da,v_d_nnz,ierr) ;call CHKERR(ierr)
 
       call getVecPointer(v_o_nnz,C,xo1d,xo)
       call getVecPointer(v_d_nnz,C,xd1d,xd)
@@ -699,19 +700,19 @@ contains
       call restoreVecPointer(v_o_nnz,C,xo1d,xo)
       call restoreVecPointer(v_d_nnz,C,xd1d,xd)
 
-      call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;CHKERRQ(ierr)
-      call VecSet(g_o_nnz, zero, ierr); CHKERRQ(ierr)
-      call VecSet(g_d_nnz, zero, ierr); CHKERRQ(ierr)
+      call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;call CHKERR(ierr)
+      call VecSet(g_o_nnz, zero, ierr); call CHKERR(ierr)
+      call VecSet(g_d_nnz, zero, ierr); call CHKERR(ierr)
 
-      call DMLocalToGlobalBegin(C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMLocalToGlobalEnd  (C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalBegin(C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;call CHKERR(ierr)
 
-      call DMLocalToGlobalBegin(C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;CHKERRQ(ierr)
-      call DMLocalToGlobalEnd  (C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMLocalToGlobalBegin(C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;call CHKERR(ierr)
 
-      call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;call CHKERR(ierr)
 
       call getVecPointer(g_o_nnz,C,xo1d,xo)
       call getVecPointer(g_d_nnz,C,xd1d,xd)
@@ -730,7 +731,7 @@ contains
       !enddo
       !call mpi_barrier(imp_comm, ierr)
 
-      call VecGetLocalSize(g_d_nnz,vsize,ierr) ;CHKERRQ(ierr)
+      call VecGetLocalSize(g_d_nnz,vsize,ierr) ;call CHKERR(ierr)
       allocate(o_nnz(0:vsize-1))
       allocate(d_nnz(0:vsize-1))
 
@@ -740,8 +741,8 @@ contains
       call restoreVecPointer(g_o_nnz,C,xo1d,xo)
       call restoreVecPointer(g_d_nnz,C,xd1d,xd)
 
-      call DMRestoreGlobalVector(C%da,g_o_nnz,ierr) ;CHKERRQ(ierr)
-      call DMRestoreGlobalVector(C%da,g_d_nnz,ierr) ;CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C%da,g_o_nnz,ierr) ;call CHKERR(ierr)
+      call DMRestoreGlobalVector(C%da,g_d_nnz,ierr) ;call CHKERR(ierr)
 
       if(myid.eq.0 .and. ldebug) print *,myid,'diffuse d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
 
@@ -758,10 +759,10 @@ contains
 
       !TODO -- we should use this form... however this does somehow corrupt preallocation? - maybe fix this
       !        Vec :: diag
-      !        call DMCreateGlobalVector(C%da,diag,ierr) ;CHKERRQ(ierr)
-      !        call VecSet(diag,one,ierr) ;CHKERRQ(ierr)
-      !        call MatDiagonalSet( A, diag, INSERT_VALUES,ierr) ;CHKERRQ(ierr)
-      !        call VecDestroy(diag,ierr) ;CHKERRQ(ierr)
+      !        call DMCreateGlobalVector(C%da,diag,ierr) ;call CHKERR(ierr)
+      !        call VecSet(diag,one,ierr) ;call CHKERR(ierr)
+      !        call MatDiagonalSet( A, diag, INSERT_VALUES,ierr) ;call CHKERR(ierr)
+      !        call VecDestroy(diag,ierr) ;call CHKERR(ierr)
 
       if(present(vdiag)) then
         v(1) = vdiag
@@ -786,14 +787,14 @@ contains
               row(MatStencil_c,1) = dof
               col(MatStencil_c,1) = dof
 
-              call MatSetValuesStencil(A,i1, row,i1, col , v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr) 
+              call MatSetValuesStencil(A,i1, row,i1, col , v ,INSERT_VALUES,ierr) ;call CHKERR(ierr) 
             enddo 
           enddo 
         enddo 
       enddo
 
-      call MatAssemblyBegin(A,MAT_FLUSH_ASSEMBLY,ierr) ;CHKERRQ(ierr)
-      call MatAssemblyEnd  (A,MAT_FLUSH_ASSEMBLY,ierr) ;CHKERRQ(ierr)  
+      call MatAssemblyBegin(A,MAT_FLUSH_ASSEMBLY,ierr) ;call CHKERR(ierr)
+      call MatAssemblyEnd  (A,MAT_FLUSH_ASSEMBLY,ierr) ;call CHKERR(ierr)  
 
       if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally ... done'
     end subroutine
@@ -810,7 +811,7 @@ contains
     logical,intent(in) :: lone_dimensional
     real(ireals),intent(in),optional :: angles(2)
 
-    call PetscLogStagePush(logstage(7),ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePush(logstage(7),ierr) ;call CHKERR(ierr)
 
     if(lone_dimensional) then
       call OPP_1_2%get_coeff(dz,op%kabs,op%ksca,op%g,ldir,coeff,angles)
@@ -818,7 +819,7 @@ contains
       call OPP_8_10%get_coeff(dz,op%kabs,op%ksca,op%g,ldir,coeff,angles)
     endif
 
-    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;call CHKERR(ierr)
   end subroutine
 
 
@@ -841,7 +842,7 @@ contains
     if(.not.allocated(atm%dz)) stop 'You called  compute_gradient()&
       &but the atm struct is not yet up, make sure we have atm%dz before'
 
-    call DMGetLocalVector(C_one1%da, vhhl, ierr) ;CHKERRQ(ierr)
+    call DMGetLocalVector(C_one1%da, vhhl, ierr) ;call CHKERR(ierr)
     call getVecPointer(vhhl , C_one1, hhl1d, hhl)
 
     hhl(i0, C_one1%ze, :, :) = zero
@@ -867,13 +868,13 @@ contains
 
     call restoreVecPointer(vhhl , C_one1, hhl1d, hhl)
 
-    call DMLocalToLocalBegin(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;CHKERRQ(ierr)
-    call DMLocalToLocalEnd(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;CHKERRQ(ierr)
+    call DMLocalToLocalBegin(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
+    call DMLocalToLocalEnd(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
 
     call getVecPointer(vhhl , C_one1, hhl1d, hhl)
 
-    call DMGetLocalVector(C_one1%da, vgrad_x, ierr) ;CHKERRQ(ierr)
-    call DMGetLocalVector(C_one1%da, vgrad_y, ierr) ;CHKERRQ(ierr)
+    call DMGetLocalVector(C_one1%da, vgrad_x, ierr) ;call CHKERR(ierr)
+    call DMGetLocalVector(C_one1%da, vgrad_y, ierr) ;call CHKERR(ierr)
 
     call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
     call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
@@ -903,7 +904,7 @@ contains
     enddo
 
     call restoreVecPointer(vhhl , C_one1, hhl1d, hhl)
-    call DMRestoreLocalVector(C_one1%da ,vhhl ,ierr);  CHKERRQ(ierr)
+    call DMRestoreLocalVector(C_one1%da ,vhhl ,ierr);  call CHKERR(ierr)
 
     call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
     call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
@@ -982,8 +983,8 @@ contains
     call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
     call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
 
-    call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  CHKERRQ(ierr)
-    call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  CHKERRQ(ierr)
+    call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  call CHKERR(ierr)
+    call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  call CHKERR(ierr)
 
     if(myid.eq.0 .and. ldebug) print *,'min,max theta',minval(sun%angles%theta), maxval(sun%angles%theta)
     if(myid.eq.0 .and. ldebug) print *,'min,max phi',minval(sun%angles%phi), maxval(sun%angles%phi)
@@ -1080,10 +1081,10 @@ contains
 
     PetscInt :: i,j,k
 
-    call PetscLogStagePush(logstage(2),ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePush(logstage(2),ierr) ;call CHKERR(ierr)
     if(myid.eq.0.and.ldebug) print *,myid,'setup_direct_matrix ...'
 
-    !      call MatZeroEntries(A, ierr) ;CHKERRQ(ierr) !TODO necessary?
+    !      call MatZeroEntries(A, ierr) ;call CHKERR(ierr) !TODO necessary?
     !      call mat_set_diagonal(A,C)
 
     do j=C%ys,C%ye
@@ -1102,10 +1103,10 @@ contains
 
     if(myid.eq.0.and.ldebug) print *,myid,'setup_direct_matrix done'
 
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)  
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)  
 
-    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
   contains 
     subroutine set_tenstream_coeff(C,A,k,i,j)
@@ -1141,7 +1142,7 @@ contains
 
       call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j), .True., v, atm%l1d(atmk(k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
 
-      call MatSetValuesStencil(A, C%dof, row, C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+      call MatSetValuesStencil(A, C%dof, row, C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
 
       if(ldebug) then
         do src=1,C%dof
@@ -1179,7 +1180,7 @@ contains
       do src=1,4
         col(MatStencil_c,i1) = src-i1 ! Source may be the upper/lower lid:
         row(MatStencil_c,i1) = src-i1 ! Define transmission towards the lower/upper lid
-        call MatSetValuesStencil(A,i1, row,i1, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+        call MatSetValuesStencil(A,i1, row,i1, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
       enddo
     end subroutine
 
@@ -1203,7 +1204,7 @@ contains
     integer(iintegers) :: i,j
     Az = atm%dx*atm%dy
 
-    call VecSet(incSolar,zero,ierr) ;CHKERRQ(ierr)
+    call VecSet(incSolar,zero,ierr) ;call CHKERR(ierr)
 
     call getVecPointer(incSolar, C_dir, x1d, x4d)
 
@@ -1228,11 +1229,11 @@ contains
 
     PetscInt :: i,j,k
 
-    call PetscLogStagePush(logstage(4),ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePush(logstage(4),ierr) ;call CHKERR(ierr)
 
     if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients for diffuse Light'
 
-    !      call MatZeroEntries(A, ierr) ;CHKERRQ(ierr) !TODO necessary?
+    !      call MatZeroEntries(A, ierr) ;call CHKERR(ierr) !TODO necessary?
     !      call mat_set_diagonal(A,C)
 
     do j=C%ys,C%ye
@@ -1242,7 +1243,7 @@ contains
           if( atm%l1d(atmk(k),i,j) ) then
             call set_eddington_coeff(A, k,i,j)
           else
-            call set_tenstream_coeff(C, A, k,i,j, ierr); CHKERRQ(ierr)
+            call set_tenstream_coeff(C, A, k,i,j, ierr); call CHKERR(ierr)
           endif
 
         enddo 
@@ -1254,10 +1255,10 @@ contains
     if(myid.eq.0.and.ldebug) print *,myid,'setup_diffuse_matrix done'
 
     if(myid.eq.0.and.ldebug) print *,myid,'Final diffuse Matrix Assembly:'
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;CHKERRQ(ierr)
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
 
-    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
   contains
     subroutine set_tenstream_coeff(C,A,k,i,j,ierr)
@@ -1316,7 +1317,7 @@ contains
 
       call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., v, atm%l1d(atmk(k),i,j))
 
-      call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+      call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
 
       if(ldebug) then
         do src=1,C%dof
@@ -1353,7 +1354,7 @@ contains
       dst = 1; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_up  
       dst = 2; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k+1   ; row(MatStencil_c,dst) = E_dn  
 
-      call MatSetValuesStencil(A,i2, row, i2, col , -v ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+      call MatSetValuesStencil(A,i2, row, i2, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
 
 
     end subroutine
@@ -1381,7 +1382,7 @@ contains
           row(MatStencil_j,i1) = i          
           col(MatStencil_j,i1) = i        
 
-          call MatSetValuesStencil(A,i1, row, i1, col , [-atm%albedo(i,j)] ,INSERT_VALUES,ierr) ;CHKERRQ(ierr)
+          call MatSetValuesStencil(A,i1, row, i1, col , [-atm%albedo(i,j)] ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
 
         enddo
       enddo
@@ -1405,10 +1406,10 @@ contains
     PetscInt :: k,i,j,src,dst
 
     if(myid.eq.0.and.ldebug) print *,'src Vector Assembly...'
-    call PetscLogStagePush(logstage(6),ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePush(logstage(6),ierr) ;call CHKERR(ierr)
 
-    call DMGetLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
-    call VecSet(local_b,zero,ierr) ;CHKERRQ(ierr)
+    call DMGetLocalVector(C_diff%da,local_b,ierr) ;call CHKERR(ierr)
+    call VecSet(local_b,zero,ierr) ;call CHKERR(ierr)
 
     call getVecPointer(local_b, C_diff, xsrc1d, xsrc)
 
@@ -1422,14 +1423,14 @@ contains
 
     call restoreVecPointer(local_b, C_diff, xsrc1d , xsrc )
 
-    call VecSet(b,zero,ierr) ;CHKERRQ(ierr) ! reset global Vec
+    call VecSet(b,zero,ierr) ;call CHKERR(ierr) ! reset global Vec
 
-    call DMLocalToGlobalBegin(C_diff%da, local_b, ADD_VALUES, b,ierr) ;CHKERRQ(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
-    call DMLocalToGlobalEnd  (C_diff%da, local_b, ADD_VALUES, b,ierr) ;CHKERRQ(ierr)
+    call DMLocalToGlobalBegin(C_diff%da, local_b, ADD_VALUES, b,ierr) ;call CHKERR(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
+    call DMLocalToGlobalEnd  (C_diff%da, local_b, ADD_VALUES, b,ierr) ;call CHKERR(ierr)
 
-    call DMRestoreLocalVector(C_diff%da,local_b,ierr) ;CHKERRQ(ierr)
+    call DMRestoreLocalVector(C_diff%da,local_b,ierr) ;call CHKERR(ierr)
 
-    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;call CHKERR(ierr)
     if(myid.eq.0.and.ldebug) print *,'src Vector Assembly done'
 
   contains
@@ -1511,10 +1512,10 @@ contains
 
 
       ! Copy ghosted values for direct vec
-      call DMGetLocalVector(C_dir%da ,ledir ,ierr)                      ; CHKERRQ(ierr)
-      call VecSet(ledir ,zero,ierr)                                     ; CHKERRQ(ierr)
-      call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
-      call DMGlobalToLocalEnd  (C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
+      call DMGetLocalVector(C_dir%da ,ledir ,ierr)                      ; call CHKERR(ierr)
+      call VecSet(ledir ,zero,ierr)                                     ; call CHKERR(ierr)
+      call DMGlobalToLocalBegin(C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; call CHKERR(ierr)
+      call DMGlobalToLocalEnd  (C_dir%da ,edir ,ADD_VALUES,ledir ,ierr) ; call CHKERR(ierr)
 
       call getVecPointer(ledir, C_dir, xedir1d, xedir)
 
@@ -1614,7 +1615,7 @@ contains
       enddo
 
       call restoreVecPointer(ledir ,C_dir ,xedir1d ,xedir )
-      call DMRestoreLocalVector(C_dir%da ,ledir ,ierr)       ; CHKERRQ(ierr)
+      call DMRestoreLocalVector(C_dir%da ,ledir ,ierr)       ; call CHKERR(ierr)
     end subroutine
   end subroutine setup_b
 
@@ -1642,7 +1643,7 @@ contains
     endif
 
     if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence',solution%lsolar_rad.eqv..False.,lcalc_nca
-    call VecSet(solution%abso,zero,ierr) ;CHKERRQ(ierr)
+    call VecSet(solution%abso,zero,ierr) ;call CHKERR(ierr)
 
     ! if there are no 3D layers globally, we should skip the ghost value copying....
     lhave_no_3d_layer = mpi_logical_and(imp_comm, all(atm%l1d.eqv..True.))
@@ -1685,18 +1686,18 @@ contains
 
     if(solution%lsolar_rad) then
       ! Copy ghosted values for direct vec
-      call DMGetLocalVector(C_dir%da ,ledir ,ierr)                      ; CHKERRQ(ierr)
-      call VecSet(ledir ,zero,ierr)                                     ; CHKERRQ(ierr)
-      call DMGlobalToLocalBegin(C_dir%da ,solution%edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
-      call DMGlobalToLocalEnd  (C_dir%da ,solution%edir ,ADD_VALUES,ledir ,ierr) ; CHKERRQ(ierr)
+      call DMGetLocalVector(C_dir%da ,ledir ,ierr)                      ; call CHKERR(ierr)
+      call VecSet(ledir ,zero,ierr)                                     ; call CHKERR(ierr)
+      call DMGlobalToLocalBegin(C_dir%da ,solution%edir ,ADD_VALUES,ledir ,ierr) ; call CHKERR(ierr)
+      call DMGlobalToLocalEnd  (C_dir%da ,solution%edir ,ADD_VALUES,ledir ,ierr) ; call CHKERR(ierr)
       call getVecPointer(ledir, C_dir ,xedir1d ,xedir )
     endif
 
     ! Copy ghosted values for diffuse vec
-    call DMGetLocalVector(C_diff%da,lediff,ierr)                      ; CHKERRQ(ierr)
-    call VecSet(lediff,zero,ierr)                                     ; CHKERRQ(ierr)
-    call DMGlobalToLocalBegin(C_diff%da,solution%ediff,ADD_VALUES,lediff,ierr) ; CHKERRQ(ierr)
-    call DMGlobalToLocalEnd  (C_diff%da,solution%ediff,ADD_VALUES,lediff,ierr) ; CHKERRQ(ierr)
+    call DMGetLocalVector(C_diff%da,lediff,ierr)                      ; call CHKERR(ierr)
+    call VecSet(lediff,zero,ierr)                                     ; call CHKERR(ierr)
+    call DMGlobalToLocalBegin(C_diff%da,solution%ediff,ADD_VALUES,lediff,ierr) ; call CHKERR(ierr)
+    call DMGlobalToLocalEnd  (C_diff%da,solution%ediff,ADD_VALUES,lediff,ierr) ; call CHKERR(ierr)
     call getVecPointer(lediff, C_diff, xediff1d, xediff)
 
     call getVecPointer(solution%abso, C_one, xabso1d, xabso)
@@ -1758,11 +1759,11 @@ contains
 
     if(solution%lsolar_rad) then
       call restoreVecPointer(ledir          ,C_dir ,xedir1d ,xedir )
-      call DMRestoreLocalVector(C_dir%da ,ledir ,ierr) ; CHKERRQ(ierr)
+      call DMRestoreLocalVector(C_dir%da ,ledir ,ierr) ; call CHKERR(ierr)
     endif
 
     call restoreVecPointer(lediff         ,C_diff,xediff1d,xediff)
-    call DMRestoreLocalVector(C_diff%da,lediff,ierr) ; CHKERRQ(ierr)
+    call DMRestoreLocalVector(C_diff%da,lediff,ierr) ; call CHKERR(ierr)
 
     call restoreVecPointer(solution%abso  ,C_one ,xabso1d ,xabso )
   end subroutine
@@ -1791,9 +1792,9 @@ contains
       call KSPSetResidualHistory(ksp, solutions(solution_uid)%ksp_residual_history, 100_iintegers, .True.,ierr)
     endif
 
-    call KSPSolve(ksp,b,x,ierr) ;CHKERRQ(ierr)
-    call KSPGetIterationNumber(ksp,iter,ierr) ;CHKERRQ(ierr)
-    call KSPGetConvergedReason(ksp,reason,ierr) ;CHKERRQ(ierr)
+    call KSPSolve(ksp,b,x,ierr) ;call CHKERR(ierr)
+    call KSPGetIterationNumber(ksp,iter,ierr) ;call CHKERR(ierr)
+    call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
 
     ! if(reason.eq.KSP_DIVERGED_ITS) then
     !   if(myid.eq.0) print *,'We take our chances, that this is a meaningful output.... and just go on'
@@ -1802,18 +1803,18 @@ contains
 
     if(reason.le.0) then
       if(myid.eq.0.and.ldebug) print *,myid,'Resetted initial guess to zero and try again with gmres:'
-      call VecSet(x,zero,ierr) ;CHKERRQ(ierr)
-      call KSPGetType(ksp,old_ksp_type,ierr); CHKERRQ(ierr)
-      call KSPSetType(ksp,KSPGMRES,ierr) ;CHKERRQ(ierr)
-      call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
-      call KSPSolve(ksp,b,x,ierr) ;CHKERRQ(ierr)
-      call KSPGetIterationNumber(ksp,iter,ierr) ;CHKERRQ(ierr)
-      call KSPGetConvergedReason(ksp,reason,ierr) ;CHKERRQ(ierr)
+      call VecSet(x,zero,ierr) ;call CHKERR(ierr)
+      call KSPGetType(ksp,old_ksp_type,ierr); call CHKERR(ierr)
+      call KSPSetType(ksp,KSPGMRES,ierr) ;call CHKERR(ierr)
+      call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
+      call KSPSolve(ksp,b,x,ierr) ;call CHKERR(ierr)
+      call KSPGetIterationNumber(ksp,iter,ierr) ;call CHKERR(ierr)
+      call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
 
       ! And return to normal solver...
-      call KSPSetType(ksp,old_ksp_type,ierr) ;CHKERRQ(ierr)
-      call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
-      call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
+      call KSPSetType(ksp,old_ksp_type,ierr) ;call CHKERR(ierr)
+      call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
+      call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
       if(myid.eq.0.and.ldebug) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
     endif
 
@@ -1855,7 +1856,7 @@ contains
     !logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
 
     if(linit) return
-    call PetscLogStagePush(logstage(9),ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePush(logstage(9),ierr) ;call CHKERR(ierr)
 
     call imp_allreduce_min(imp_comm, rel_atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)), atol)
     atol = max(1e-8_ireals, atol)
@@ -1863,56 +1864,56 @@ contains
     if(myid.eq.0.and.ldebug) &
       print *,'Setup KSP -- tolerances:',rtol,atol,'::',rel_atol,(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),count(.not.atm%l1d),one*size(atm%l1d)
 
-    call KSPCreate(imp_comm,ksp,ierr) ;CHKERRQ(ierr)
-    if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;CHKERRQ(ierr)
+    call KSPCreate(imp_comm,ksp,ierr) ;call CHKERR(ierr)
+    if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;call CHKERR(ierr)
 
-    call KSPSetType(ksp,KSPBCGS,ierr)  ;CHKERRQ(ierr)
-    call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr) ;CHKERRQ(ierr) 
-    call KSPGetPC  (ksp,prec,ierr)  ;CHKERRQ(ierr)
+    call KSPSetType(ksp,KSPBCGS,ierr)  ;call CHKERR(ierr)
+    call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr) ;call CHKERR(ierr) 
+    call KSPGetPC  (ksp,prec,ierr)  ;call CHKERR(ierr)
     if(numnodes.eq.0) then
-      call PCSetType (prec,PCILU,ierr);CHKERRQ(ierr)
+      call PCSetType (prec,PCILU,ierr);call CHKERR(ierr)
     else
-      call PCSetType (prec,PCBJACOBI,ierr);CHKERRQ(ierr)
+      call PCSetType (prec,PCBJACOBI,ierr);call CHKERR(ierr)
     endif
 
-    call KSPSetTolerances(ksp,rtol,atol,PETSC_DEFAULT_REAL,maxiter,ierr);CHKERRQ(ierr)
+    call KSPSetTolerances(ksp,rtol,atol,PETSC_DEFAULT_REAL,maxiter,ierr);call CHKERR(ierr)
 
-    call KSPSetConvergenceTest(ksp,MyKSPConverged, PETSC_NULL_OBJECT,PETSC_NULL_FUNCTION,ierr)
+    call KSPSetConvergenceTest(ksp, MyKSPConverged, 0, PETSC_NULL_FUNCTION, ierr)
 
-    call KSPSetOperators(ksp,A,A,ierr) ;CHKERRQ(ierr)
-    call KSPSetDM(ksp,C%da,ierr) ;CHKERRQ(ierr)
-    call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;CHKERRQ(ierr)
+    call KSPSetOperators(ksp,A,A,ierr) ;call CHKERR(ierr)
+    call KSPSetDM(ksp,C%da,ierr) ;call CHKERR(ierr)
+    call KSPSetDMActive(ksp,PETSC_FALSE,ierr) ;call CHKERR(ierr)
 
-    call KSPSetUp(ksp,ierr) ;CHKERRQ(ierr)
+    call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
 
     if(numnodes.eq.0) then
-      call PCFactorSetLevels(prec,ilu_default_levels,ierr);CHKERRQ(ierr)
+      call PCFactorSetLevels(prec,ilu_default_levels,ierr);call CHKERR(ierr)
     else
-      call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,PETSC_NULL_OBJECT,ierr);CHKERRQ(ierr)
+      call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);call CHKERR(ierr)
       if(.not.allocated(pcbjac_ksps)) allocate(pcbjac_ksps(pcbjac_n_local))
-      call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);CHKERRQ(ierr)
+      call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);call CHKERR(ierr)
 
       do isub=1,pcbjac_n_local
-        call KSPSetType(pcbjac_ksps(isub) ,KSPPREONLY,ierr)              ;CHKERRQ(ierr)
-        call KSPGetPC  (pcbjac_ksps(isub), pcbjac_sub_pc,ierr)        ;CHKERRQ(ierr)
-        call PCSetType (pcbjac_sub_pc, PCILU,ierr)                    ;CHKERRQ(ierr)
-        call PCFactorSetLevels(pcbjac_sub_pc,ilu_default_levels,ierr) ;CHKERRQ(ierr)
+        call KSPSetType(pcbjac_ksps(isub) ,KSPPREONLY,ierr)              ;call CHKERR(ierr)
+        call KSPGetPC  (pcbjac_ksps(isub), pcbjac_sub_pc,ierr)        ;call CHKERR(ierr)
+        call PCSetType (pcbjac_sub_pc, PCILU,ierr)                    ;call CHKERR(ierr)
+        call PCFactorSetLevels(pcbjac_sub_pc,ilu_default_levels,ierr) ;call CHKERR(ierr)
       enddo
 
     endif
 
-    if(lset_geometry) call set_coordinates(C,ierr);CHKERRQ(ierr)
+    if(lset_geometry) call set_coordinates(C,ierr);call CHKERR(ierr)
 
     if(lset_nullspace) then
-      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, PETSC_NULL_INTEGER, nullvecs, nullspace, ierr) ; CHKERRQ(ierr)
-      call MatSetNearNullSpace(A, nullspace, ierr);CHKERRQ(ierr)
+      call MatNullSpaceCreate( imp_comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
+      call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
     endif
 
-    call KSPSetFromOptions(ksp,ierr) ;CHKERRQ(ierr)
+    call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
 
     linit = .True.
     if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
-    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
 
   contains
@@ -1928,14 +1929,14 @@ contains
       DM  :: coordDA
       integer(iintegers) :: mstart,nstart,pstart,m,n,p, i,j,k
 
-      call DMDASetUniformCoordinates(C%da,zero,one, zero, atm%dx*C%glob_xm,zero, atm%dy*C%glob_ym, ierr );CHKERRQ(ierr)
-      call DMGetCoordinateDM(C%da,coordDA,ierr);CHKERRQ(ierr)
-      call DMGetCoordinates(C%da, coordinates,ierr);CHKERRQ(ierr)
+      call DMDASetUniformCoordinates(C%da,zero,one, zero, atm%dx*C%glob_xm,zero, atm%dy*C%glob_ym, ierr );call CHKERR(ierr)
+      call DMGetCoordinateDM(C%da,coordDA,ierr);call CHKERR(ierr)
+      call DMGetCoordinates(C%da, coordinates,ierr);call CHKERR(ierr)
 
-      call DMDAGetCorners(coordDA, mstart,nstart,pstart,m,n,p,ierr);CHKERRQ(ierr)
+      call DMDAGetCorners(coordDA, mstart,nstart,pstart,m,n,p,ierr);call CHKERR(ierr)
       !print *,'coordinates',C%xs,C%xe,mstart,nstart,pstart,m,n,p
 
-      call VecGetArrayF90(coordinates,xv1d,ierr) ;CHKERRQ(ierr)
+      call VecGetArrayF90(coordinates,xv1d,ierr) ;call CHKERR(ierr)
       xv(0:2 , mstart:mstart+m-1  , nstart:nstart+n-1   , pstart:pstart+p-1   ) => xv1d
 
       xv(0,mstart+m-1,:,:) = zero ! surface boundary condition
@@ -1948,7 +1949,7 @@ contains
       enddo
 
       xv => null()
-      call VecRestoreArrayF90(coordinates,xv1d,ierr) ;CHKERRQ(ierr)
+      call VecRestoreArrayF90(coordinates,xv1d,ierr) ;call CHKERR(ierr)
       xv1d => null()
     end subroutine
   end subroutine
@@ -2008,19 +2009,19 @@ contains
   subroutine setup_logging()
       if(.not. allocated(logstage)) then
           allocate(logstage(13))
-          call PetscLogStageRegister('total_tenstream' , logstage(1)     , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('setup_edir'      , logstage(2)     , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('calc_edir'       , logstage(3)     , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('setup_ediff'     , logstage(4)     , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('calc_ediff'      , logstage(5)     , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('setup_b'         , logstage(6)     , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('twostream'       , logstage(8)     , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('write_hdf5'      , logstage(10)    , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('load_save_sol'   , logstage(11)    , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('nca'             , logstage(12)    , ierr) ;CHKERRQ(ierr)
-          call PetscLogStageRegister('schwarzschild'   , logstage(13)    , ierr) ;CHKERRQ(ierr)
+          call PetscLogStageRegister('total_tenstream' , logstage(1)     , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('setup_edir'      , logstage(2)     , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('calc_edir'       , logstage(3)     , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('setup_ediff'     , logstage(4)     , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('calc_ediff'      , logstage(5)     , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('setup_b'         , logstage(6)     , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('get_coeff'       , logstage(7)     , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('twostream'       , logstage(8)     , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('setup_ksp'       , logstage(9)     , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('write_hdf5'      , logstage(10)    , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('load_save_sol'   , logstage(11)    , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('nca'             , logstage(12)    , ierr) ;call CHKERR(ierr)
+          call PetscLogStageRegister('schwarzschild'   , logstage(13)    , ierr) ;call CHKERR(ierr)
 
           if(myid.eq.0 .and. ldebug) print *, 'Logging stages' , logstage
       endif
@@ -2046,12 +2047,12 @@ contains
 
     integer(iintegers),parameter :: idz=i2, iplanck=i3, ikabs=i4, ihr=i5
 
-    call PetscLogStagePush(logstage(12),ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePush(logstage(12),ierr) ;call CHKERR(ierr)
 
     ! put additional values into a local ediff vec .. TODO: this is a rather dirty hack but is straightforward
 
     ! get ghost values for dz, planck, kabs and fluxes, ready to give it to NCA
-    call DMGetGlobalVector(C_diff%da ,gnca ,ierr) ; CHKERRQ(ierr)
+    call DMGetGlobalVector(C_diff%da ,gnca ,ierr) ; call CHKERR(ierr)
 
     call getVecPointer(gnca ,C_diff ,xvgnca1d, xvgnca)
     xvgnca(  idz    , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%dz
@@ -2069,13 +2070,13 @@ contains
 
 
     ! retrieve ghost values into l(ocal) nca vec
-    call DMGetLocalVector (C_diff%da ,lnca ,ierr) ; CHKERRQ(ierr)
-    call VecSet(lnca, zero, ierr); CHKERRQ(ierr)
+    call DMGetLocalVector (C_diff%da ,lnca ,ierr) ; call CHKERR(ierr)
+    call VecSet(lnca, zero, ierr); call CHKERR(ierr)
 
-    call DMGlobalToLocalBegin(C_diff%da ,gnca ,ADD_VALUES,lnca ,ierr) ; CHKERRQ(ierr)
-    call DMGlobalToLocalEnd  (C_diff%da ,gnca ,ADD_VALUES,lnca ,ierr) ; CHKERRQ(ierr)
+    call DMGlobalToLocalBegin(C_diff%da ,gnca ,ADD_VALUES,lnca ,ierr) ; call CHKERR(ierr)
+    call DMGlobalToLocalEnd  (C_diff%da ,gnca ,ADD_VALUES,lnca ,ierr) ; call CHKERR(ierr)
 
-    call DMRestoreGlobalVector(C_diff%da, gnca, ierr); CHKERRQ(ierr)
+    call DMRestoreGlobalVector(C_diff%da, gnca, ierr); call CHKERR(ierr)
 
     ! call NCA
     call getVecPointer(lnca ,C_diff ,xvlnca1d, xvlnca)
@@ -2099,9 +2100,9 @@ contains
 
     !return convenience vector that holds optical properties
     call restoreVecPointer(lnca ,C_diff ,xvlnca1d, xvlnca )
-    call DMRestoreLocalVector(C_diff%da, lnca, ierr); CHKERRQ(ierr)
+    call DMRestoreLocalVector(C_diff%da, lnca, ierr); call CHKERR(ierr)
 
-    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;call CHKERR(ierr)
   end subroutine
 
   !> @brief simple schwarzschild solver
@@ -2120,9 +2121,9 @@ contains
     if(solution%lsolar_rad) stop 'Tried calling schwarschild solver for solar calculation -- stopping!'
     if( .not. allocated(atm%planck) ) stop 'Tried calling schwarschild solver but no planck was given -- stopping!' 
 
-    call PetscLogStagePush(logstage(13),ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePush(logstage(13),ierr) ;call CHKERR(ierr)
 
-    call VecSet(solution%ediff,zero,ierr); CHKERRQ(ierr)
+    call VecSet(solution%ediff,zero,ierr); call CHKERR(ierr)
 
     allocate( dtau(C_diff%zm-1) )
 
@@ -2156,7 +2157,7 @@ contains
     deallocate(Edn)
     deallocate(Eup)
 
-    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;call CHKERR(ierr)
   end subroutine
 
   !> @brief wrapper for the delta-eddington twostream solver
@@ -2173,11 +2174,11 @@ contains
     real(ireals) :: mu0,incSolar
 
     if(solution%lsolar_rad) &
-      call VecSet(solution%edir ,zero,ierr); CHKERRQ(ierr)
+      call VecSet(solution%edir ,zero,ierr); call CHKERR(ierr)
 
-    call VecSet(solution%ediff,zero,ierr); CHKERRQ(ierr)
+    call VecSet(solution%ediff,zero,ierr); call CHKERR(ierr)
 
-    call PetscLogStagePush(logstage(8),ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePush(logstage(8),ierr) ;call CHKERR(ierr)
 
     allocate( dtau(C_one_atm%zm) )
     allocate( kext(C_one_atm%zm) )
@@ -2240,7 +2241,7 @@ contains
     deallocate(Edn)
     deallocate(Eup)
 
-    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;call CHKERR(ierr)
   end subroutine
 
   !> @brief renormalize fluxes with the size of a face(sides or lid)
@@ -2373,8 +2374,8 @@ contains
           call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
           call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
 
-          call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  CHKERRQ(ierr)
-          call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  CHKERRQ(ierr)
+          call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  call CHKERR(ierr)
+          call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  call CHKERR(ierr)
 
         case(i6)
           ! Dont rescale diffuse fluxes
@@ -2422,8 +2423,8 @@ contains
 ! Deprecated --    PetscInt :: k,i,j,src
 ! Deprecated --
 ! Deprecated --    if(myid.eq.0.and.ldebug) print *,'setting initial guess...'
-! Deprecated --    call DMGetLocalVector(C%da,local_guess,ierr) ;CHKERRQ(ierr)
-! Deprecated --    call VecSet(local_guess,zero,ierr) ;CHKERRQ(ierr)
+! Deprecated --    call DMGetLocalVector(C%da,local_guess,ierr) ;call CHKERR(ierr)
+! Deprecated --    call VecSet(local_guess,zero,ierr) ;call CHKERR(ierr)
 ! Deprecated --
 ! Deprecated --    call getVecPointer(inp ,C ,xinp1d, xinp ,.False.)
 ! Deprecated --    call getVecPointer(local_guess ,C ,xguess1d, xguess ,.True.)
@@ -2453,12 +2454,12 @@ contains
 ! Deprecated --    call restoreVecPointer(inp ,C ,xinp1d, xinp )
 ! Deprecated --    call restoreVecPointer(local_guess ,C ,xguess1d, xguess )
 ! Deprecated --
-! Deprecated --    call VecSet(guess,zero,ierr) ;CHKERRQ(ierr) ! reset global Vec
+! Deprecated --    call VecSet(guess,zero,ierr) ;call CHKERR(ierr) ! reset global Vec
 ! Deprecated --
-! Deprecated --    call DMLocalToGlobalBegin(C%da,local_guess,ADD_VALUES, guess,ierr) ;CHKERRQ(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
-! Deprecated --    call DMLocalToGlobalEnd  (C%da,local_guess,ADD_VALUES, guess,ierr) ;CHKERRQ(ierr)
+! Deprecated --    call DMLocalToGlobalBegin(C%da,local_guess,ADD_VALUES, guess,ierr) ;call CHKERR(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
+! Deprecated --    call DMLocalToGlobalEnd  (C%da,local_guess,ADD_VALUES, guess,ierr) ;call CHKERR(ierr)
 ! Deprecated --
-! Deprecated --    call DMRestoreLocalVector(C_diff%da, local_guess, ierr); CHKERRQ(ierr)
+! Deprecated --    call DMRestoreLocalVector(C_diff%da, local_guess, ierr); call CHKERR(ierr)
 ! Deprecated --  end subroutine
 
   !> @brief initialize basic memory structs like PETSc vectors and matrices
@@ -2467,11 +2468,11 @@ contains
 
     if(ltwostr_only) return
 
-    call DMCreateGlobalVector(C_dir%da,incSolar,ierr) ; CHKERRQ(ierr)
-    call DMCreateGlobalVector(C_diff%da,b,ierr)       ; CHKERRQ(ierr)
+    call DMCreateGlobalVector(C_dir%da,incSolar,ierr) ; call CHKERR(ierr)
+    call DMCreateGlobalVector(C_diff%da,b,ierr)       ; call CHKERR(ierr)
 
-    call VecSet(incSolar,zero,ierr) ; CHKERRQ(ierr)
-    call VecSet(b,zero,ierr)        ; CHKERRQ(ierr)
+    call VecSet(incSolar,zero,ierr) ; call CHKERR(ierr)
+    call VecSet(b,zero,ierr)        ; call CHKERR(ierr)
   end subroutine
 
   subroutine init_matrices()
@@ -2489,11 +2490,11 @@ contains
   subroutine destroy_matrices()
     if(myid.eq.0 .and. ldebug) print *,'Trying to destroy matrices...', allocated(Mdir), allocated(Mdiff)
     if(allocated(Mdir)) then
-      call MatDestroy(Mdir , ierr) ;CHKERRQ(ierr)
+      call MatDestroy(Mdir , ierr) ;call CHKERR(ierr)
       deallocate(Mdir)
     endif
     if(allocated(Mdiff)) then
-      call MatDestroy(Mdiff, ierr) ;CHKERRQ(ierr)
+      call MatDestroy(Mdiff, ierr) ;call CHKERR(ierr)
       deallocate(Mdiff)
     endif
   end subroutine
@@ -2509,7 +2510,7 @@ contains
     if(.not.ltenstream_is_initialized) then
         print *,myid,'You tried to set angles in the Tenstream solver.  &
             & This should be called right after init_tenstream'
-        ierr=1; CHKERRQ(ierr)
+        ierr=1; call CHKERR(ierr)
     endif
 
     if(allocated(sun%angles)) then ! was initialized
@@ -2574,10 +2575,10 @@ contains
     if(.not.ltenstream_is_initialized) then
 
         call setup_petsc_comm
-        !      call PetscInitialize(tenstreamrc ,ierr) ;CHKERRQ(ierr)
-        call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;CHKERRQ(ierr)
+        !      call PetscInitialize(tenstreamrc ,ierr) ;call CHKERR(ierr)
+        call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;call CHKERR(ierr)
 #ifdef _XLF
-        call PetscPopSignalHandler(ierr); CHKERRQ(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
+        call PetscPopSignalHandler(ierr); call CHKERR(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
 #endif
         call init_mpi_data_parameters(icomm)
 
@@ -2612,7 +2613,7 @@ contains
         print *,myid,'You tried to initialize already initialized Tenstream          &
             &solver. This should not be done. If you need to reinitialize the grids, &
             &call destroy_tenstream() first.'
-        ierr=1; CHKERRQ(ierr)
+        ierr=1; call CHKERR(ierr)
     endif
 
     !Todo: this is just here so that we do not break the API. User could also
@@ -2646,7 +2647,7 @@ contains
           endif
           if(.not.present(dz1d) .and. .not.present(dz3d)) then
               print *,'have to give either dz1d or dz3d in routine call....'
-              ierr=1; CHKERRQ(ierr)
+              ierr=1; call CHKERR(ierr)
           endif
 
           sun%luse_topography = present(dz3d) .and. ltopography  ! if the user supplies 3d height levels and has set the topography option
@@ -2761,7 +2762,7 @@ contains
       if(myid.eq.0.and.ldebug .and. lhave_kabs) &
         print *,myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',C_one_atm%xs,C_one_atm%xe,'ys/e',C_one_atm%ys,C_one_atm%ye
 
-      call DMGetGlobalVector(C_one_atm%da, local_vec, ierr) ; CHKERRQ(ierr)
+      call DMGetGlobalVector(C_one_atm%da, local_vec, ierr) ; call CHKERR(ierr)
 
       if(lhave_kabs) then
         call scatterZerotoDM(global_kabs, C_one_atm, local_vec)
@@ -2784,15 +2785,15 @@ contains
         call restoreVecPointer(local_vec ,C_one_atm ,xlocal_vec1d, xlocal_vec )
       endif
 
-      call DMRestoreGlobalVector(C_one_atm%da, local_vec, ierr) ; CHKERRQ(ierr)
+      call DMRestoreGlobalVector(C_one_atm%da, local_vec, ierr) ; call CHKERR(ierr)
 
       if(lhave_planck) then
-        call DMGetGlobalVector(C_one_atm1%da, local_vec, ierr) ; CHKERRQ(ierr)
+        call DMGetGlobalVector(C_one_atm1%da, local_vec, ierr) ; call CHKERR(ierr)
         call scatterZerotoDM(global_planck,C_one_atm1,local_vec)
         call getVecPointer(local_vec ,C_one_atm1 ,xlocal_vec1d, xlocal_vec)
         local_planck = xlocal_vec(0,:,:,:)
         call restoreVecPointer(local_vec ,C_one_atm1 ,xlocal_vec1d, xlocal_vec )
-        call DMRestoreGlobalVector(C_one_atm1%da, local_vec, ierr) ; CHKERRQ(ierr)
+        call DMRestoreGlobalVector(C_one_atm1%da, local_vec, ierr) ; call CHKERR(ierr)
       endif
     end subroutine
   end subroutine
@@ -2807,31 +2808,31 @@ contains
     PetscScalar,Pointer :: xloc(:)=>null()
 
     if(ldebug) print *,myid,'scatterZerotoDM :: Create Natural Vec'
-    call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
+    call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
 
     if(ldebug) print *,myid,'scatterZerotoDM :: Create scatter ctx'
-    call VecScatterCreateToZero(natural, scatter_context, local, ierr); CHKERRQ(ierr)
+    call VecScatterCreateToZero(natural, scatter_context, local, ierr); call CHKERR(ierr)
 
     if(myid.eq.0) then
-      call VecGetArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+      call VecGetArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
       if(ldebug) &
         print *,myid,'scatterZerotoDM :: shape of local',shape(xloc), 'shape of arr',shape(arr)
       xloc = reshape( arr , [ size(arr) ] )
-      call VecRestoreArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+      call VecRestoreArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
     endif
 
     if(ldebug) print *,myid,'scatterZerotoDM :: scatter reverse....'
-    call VecScatterBegin(scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); CHKERRQ(ierr)
-    call VecScatterEnd  (scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); CHKERRQ(ierr)
+    call VecScatterBegin(scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+    call VecScatterEnd  (scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
     if(ldebug) print *,myid,'scatterZerotoDM :: natural to global....'
-    call DMDANaturalToGlobalBegin(C%da,natural, INSERT_VALUES, vec, ierr); CHKERRQ(ierr)
-    call DMDANaturalToGlobalEnd  (C%da,natural, INSERT_VALUES, vec, ierr); CHKERRQ(ierr)
+    call DMDANaturalToGlobalBegin(C%da,natural, INSERT_VALUES, vec, ierr); call CHKERR(ierr)
+    call DMDANaturalToGlobalEnd  (C%da,natural, INSERT_VALUES, vec, ierr); call CHKERR(ierr)
 
     if(ldebug) print *,myid,'scatterZerotoDM :: destroying contexts....'
-    call VecScatterDestroy(scatter_context, ierr); CHKERRQ(ierr)
-    call VecDestroy(local,ierr); CHKERRQ(ierr)
-    call VecDestroy(natural,ierr); CHKERRQ(ierr)
+    call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
+    call VecDestroy(local,ierr); call CHKERR(ierr)
+    call VecDestroy(natural,ierr); call CHKERR(ierr)
     if(ldebug) print *,myid,'scatterZerotoDM :: done....'
   end subroutine
 
@@ -2892,7 +2893,7 @@ contains
           print *,'You are trying to collapse the atmosphere in the thermal &
                     &spectral range... this is not possible at the moment or at least not &
                     &tested.'
-          ierr = 1; CHKERRQ(ierr)
+          ierr = 1; call CHKERR(ierr)
       endif
     else
       if(allocated(atm%planck)) deallocate(atm%planck)
@@ -3128,7 +3129,7 @@ contains
     ! --------- Skip Thermal Computation (-lskip_thermal) --
     if(lskip_thermal .and. (solutions(uid)%lsolar_rad.eqv..False.) ) then ! 
       if(ldebug .and. myid.eq.0) print *,'skipping thermal calculation -- returning zero flux'
-      call VecSet(solutions(uid)%ediff, zero, ierr); CHKERRQ(ierr)
+      call VecSet(solutions(uid)%ediff, zero, ierr); call CHKERR(ierr)
       solutions(uid)%lchanged=.True.
       call restore_solution(solutions(uid))
       return
@@ -3166,17 +3167,17 @@ contains
   ! ---------------------------- Edir  -------------------
   if( solutions(uid)%lsolar_rad ) then
 
-    call PetscLogStagePush(logstage(1),ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePush(logstage(1),ierr) ;call CHKERR(ierr)
     call setup_incSolar(incSolar,edirTOA)
     call set_dir_coeff(Mdir,C_dir)
 
     call setup_ksp(kspdir,C_dir,Mdir,linit_kspdir, "dir_")
 
-    call PetscLogStagePush(logstage(3),ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePush(logstage(3),ierr) ;call CHKERR(ierr)
     call solve(kspdir,incSolar,solutions(uid)%edir)
     solutions(uid)%lchanged=.True.
     solutions(uid)%lintegrated_dir=.True.
-    call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+    call PetscLogStagePop(ierr) ;call CHKERR(ierr)
   endif
 
   ! ---------------------------- Source Term -------------
@@ -3185,13 +3186,13 @@ contains
   ! ---------------------------- Ediff -------------------
   call set_diff_coeff(Mdiff,C_diff)
   call setup_ksp(kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
-  call PetscLogStagePush(logstage(5),ierr) ;CHKERRQ(ierr)
+  call PetscLogStagePush(logstage(5),ierr) ;call CHKERR(ierr)
 
   call solve(kspdiff, b, solutions(uid)%ediff,uid)
   solutions(uid)%lchanged=.True.
   solutions(uid)%lintegrated_diff=.True. !Tenstream solver returns fluxes as [W]
 
-  call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+  call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
   if(present(opt_solution_time) ) then 
     call restore_solution(solutions(uid),opt_solution_time)
@@ -3208,27 +3209,27 @@ subroutine destroy_tenstream(lfinalizepetsc)
 
   if(ltenstream_is_initialized) then 
     if(linit_kspdir) then
-      call KSPDestroy(kspdir , ierr) ;CHKERRQ(ierr); linit_kspdir =.False.
+      call KSPDestroy(kspdir , ierr) ;call CHKERR(ierr); linit_kspdir =.False.
     endif
     if(linit_kspdiff) then
-      call KSPDestroy(kspdiff, ierr) ;CHKERRQ(ierr); linit_kspdiff=.False.
+      call KSPDestroy(kspdiff, ierr) ;call CHKERR(ierr); linit_kspdiff=.False.
     endif
 
     if(.not. ltwostr_only) then
-      call VecDestroy(incSolar , ierr) ;CHKERRQ(ierr)
-      call VecDestroy(b        , ierr) ;CHKERRQ(ierr)
+      call VecDestroy(incSolar , ierr) ;call CHKERR(ierr)
+      call VecDestroy(b        , ierr) ;call CHKERR(ierr)
     endif
     call destroy_matrices()
 
     do uid=lbound(solutions,1),ubound(solutions,1)
         if( solutions(uid)%lset ) then
             if(solutions(uid)%lsolar_rad) then
-                call VecDestroy(solutions(uid)%edir , ierr) ;CHKERRQ(ierr)
+                call VecDestroy(solutions(uid)%edir , ierr) ;call CHKERR(ierr)
                 solutions(uid)%lsolar_rad = .False.
             endif
 
-            call VecDestroy(solutions(uid)%ediff    , ierr) ;CHKERRQ(ierr)
-            call VecDestroy(solutions(uid)%abso     , ierr) ;CHKERRQ(ierr)
+            call VecDestroy(solutions(uid)%ediff    , ierr) ;call CHKERR(ierr)
+            call VecDestroy(solutions(uid)%abso     , ierr) ;call CHKERR(ierr)
 
             if(allocated(solutions(uid)%ksp_residual_history)) &
                 deallocate(solutions(uid)%ksp_residual_history)
@@ -3255,7 +3256,7 @@ subroutine destroy_tenstream(lfinalizepetsc)
     if(myid.eq.0 .and. ldebug)print *,'Destroyed TenStream'
 
     if(lfinalize) then
-        call PetscFinalize(ierr) ;CHKERRQ(ierr)
+        call PetscFinalize(ierr) ;call CHKERR(ierr)
         deallocate(logstage)
         if(myid.eq.0 .and. ldebug)print *,'Finalized Petsc'
     endif
@@ -3419,14 +3420,14 @@ end subroutine
                 PetscScalar,pointer,dimension(:,:,:,:) :: xinp=>null()
                 PetscScalar,pointer,dimension(:) :: xinp1d=>null()
 
-                call DMGetGlobalVector(C%da,vec,ierr) ; CHKERRQ(ierr)
+                call DMGetGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
                 call getVecPointer(vec ,C ,xinp1d, xinp)
                 xinp(i0,:,:,:) = inp
                 call restoreVecPointer(vec ,C ,xinp1d, xinp )
 
                 call globalVec2Local(vec,C,tmp)
 
-                call DMRestoreGlobalVector(C%da,vec,ierr) ; CHKERRQ(ierr)
+                call DMRestoreGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
 
                 if(myid.eq.0) outp = tmp(lbound(tmp,1), &
                                          lbound(tmp,2):lbound(tmp,2)+size(outp,1)-1,&
@@ -3447,28 +3448,28 @@ end subroutine
                 if(allocated(res)) deallocate(res)
                 if(myid.eq.0) allocate( res(C%dof,C%glob_zm,C%glob_xm,C%glob_ym) )
 
-                call DMDACreateNaturalVector(C%da, natural, ierr); CHKERRQ(ierr)
+                call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
 
-                call DMDAGlobalToNaturalBegin(C%da,vec, INSERT_VALUES, natural, ierr); CHKERRQ(ierr)
-                call DMDAGlobalToNaturalEnd  (C%da,vec, INSERT_VALUES, natural, ierr); CHKERRQ(ierr)
+                call DMDAGlobalToNaturalBegin(C%da,vec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
+                call DMDAGlobalToNaturalEnd  (C%da,vec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
 
-                call VecScatterCreateToZero(natural, scatter_context, local, ierr); CHKERRQ(ierr)
+                call VecScatterCreateToZero(natural, scatter_context, local, ierr); call CHKERR(ierr)
 
-                call VecScatterBegin(scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-                call VecScatterEnd  (scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+                call VecScatterBegin(scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+                call VecScatterEnd  (scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
 
-                call VecScatterDestroy(scatter_context, ierr); CHKERRQ(ierr)
+                call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
 
                 if(myid.eq.0) then
-                    call VecGetArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+                    call VecGetArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
 
                     res = reshape( xloc, (/ C%dof,C%glob_zm,C%glob_xm,C%glob_ym /) )
 
-                    call VecRestoreArrayF90(local,xloc,ierr) ;CHKERRQ(ierr)
+                    call VecRestoreArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
                 endif
 
-                call VecDestroy(local,ierr); CHKERRQ(ierr)
-                call VecDestroy(natural,ierr); CHKERRQ(ierr)
+                call VecDestroy(local,ierr); call CHKERR(ierr)
+                call VecDestroy(natural,ierr); call CHKERR(ierr)
             end subroutine
         end subroutine
 
@@ -3482,8 +3483,8 @@ subroutine prepare_solution(solution, uid, lsolar)
   if( lsolar .and.  (solution%lsolar_rad.eqv..False.) ) then 
     ! set up the direct vectors in any case. This may be necessary even if solution was
     ! already initialized once... e.g. in case we calculated thermal before with same uid
-    call DMCreateGlobalVector(C_dir%da ,solution%edir  ,ierr)  ; CHKERRQ(ierr)
-    call VecSet(solution%edir,zero,ierr); CHKERRQ(ierr)
+    call DMCreateGlobalVector(C_dir%da ,solution%edir  ,ierr)  ; call CHKERR(ierr)
+    call VecSet(solution%edir,zero,ierr); call CHKERR(ierr)
     solution%lsolar_rad = .True.
   endif
 
@@ -3491,11 +3492,11 @@ subroutine prepare_solution(solution, uid, lsolar)
 
   if(solution%lset) return ! already set-up 
 
-  call DMCreateGlobalVector(C_diff%da,solution%ediff ,ierr)  ; CHKERRQ(ierr)
-  call DMCreateGlobalVector(C_one%da ,solution%abso  ,ierr)  ; CHKERRQ(ierr)
+  call DMCreateGlobalVector(C_diff%da,solution%ediff ,ierr)  ; call CHKERR(ierr)
+  call DMCreateGlobalVector(C_one%da ,solution%abso  ,ierr)  ; call CHKERR(ierr)
 
-  call VecSet(solution%ediff,zero,ierr)    ; CHKERRQ(ierr)
-  call VecSet(solution%abso,zero,ierr)     ; CHKERRQ(ierr)
+  call VecSet(solution%ediff,zero,ierr)    ; call CHKERR(ierr)
+  call VecSet(solution%abso,zero,ierr)     ; call CHKERR(ierr)
 
   solution%lset = .True.
 end subroutine
@@ -3539,7 +3540,7 @@ function need_new_solution(uid,time)
   endif
 
 
-  call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
+  call PetscLogStagePush(logstage(11),ierr) ;call CHKERR(ierr)
   do k=1,Nfit
     t(k) = solutions(uid)%time(Nfit-k+1)
   enddo
@@ -3573,7 +3574,7 @@ function need_new_solution(uid,time)
     if(ierr.ne.0) then 
       need_new_solution=.True.
       write(reason,*) 'problem fitting error curve',ierr
-      call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+      call PetscLogStagePop(ierr) ;call CHKERR(ierr)
       if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid
       return
     endif
@@ -3643,7 +3644,7 @@ function need_new_solution(uid,time)
     write (out_unit,*) uid,solutions(uid)%twonorm
     close (out_unit)
   endif
-  call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+  call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
 contains
   subroutine exponential(x1, y1, x2, y2, x3, y3)
@@ -3780,7 +3781,7 @@ subroutine restore_solution(solution,time)
   real(ireals) :: norm1,norm2,norm3
   Vec :: abso_old
 
-  call PetscLogStagePush(logstage(11),ierr) ;CHKERRQ(ierr)
+  call PetscLogStagePush(logstage(11),ierr) ;call CHKERR(ierr)
 
   if( .not. solution%lset ) &
     stop 'cant restore solution that was not initialized'
@@ -3789,8 +3790,8 @@ subroutine restore_solution(solution,time)
     stop 'cant restore solution which was not changed'
 
   if(present(time) .and. lenable_solutions_err_estimates) then ! Create working vec to determine difference between old and new absorption vec
-    call DMGetGlobalVector(C_one%da, abso_old, ierr) ; CHKERRQ(ierr) 
-    call VecCopy( solution%abso, abso_old, ierr)     ; CHKERRQ(ierr)
+    call DMGetGlobalVector(C_one%da, abso_old, ierr) ; call CHKERR(ierr) 
+    call VecCopy( solution%abso, abso_old, ierr)     ; call CHKERR(ierr)
   endif
 
   ! make sure to bring the fluxes into [W] for absorption calculation
@@ -3810,12 +3811,12 @@ subroutine restore_solution(solution,time)
   solution%lchanged=.False.
 
   if(present(time) .and. lenable_solutions_err_estimates) then ! Compute norm between old absorption and new one
-    call VecAXPY(abso_old , -one, solution%abso , ierr)    ; CHKERRQ(ierr) ! overwrite abso_old with difference to new one
-    call VecNorm(abso_old ,  NORM_1, norm1, ierr)          ; CHKERRQ(ierr)
-    call VecNorm(abso_old ,  NORM_2, norm2, ierr)          ; CHKERRQ(ierr)
-    call VecNorm(abso_old ,  NORM_INFINITY, norm3, ierr)   ; CHKERRQ(ierr)
+    call VecAXPY(abso_old , -one, solution%abso , ierr)    ; call CHKERR(ierr) ! overwrite abso_old with difference to new one
+    call VecNorm(abso_old ,  NORM_1, norm1, ierr)          ; call CHKERR(ierr)
+    call VecNorm(abso_old ,  NORM_2, norm2, ierr)          ; call CHKERR(ierr)
+    call VecNorm(abso_old ,  NORM_INFINITY, norm3, ierr)   ; call CHKERR(ierr)
 
-    call DMRestoreGlobalVector(C_one%da, abso_old, ierr)   ; CHKERRQ(ierr) 
+    call DMRestoreGlobalVector(C_one%da, abso_old, ierr)   ; call CHKERR(ierr) 
 
     ! Save norm for later analysis
     solution%maxnorm = eoshift ( solution%maxnorm, shift = -1) !shift all values by 1 to the right
@@ -3832,29 +3833,29 @@ subroutine restore_solution(solution,time)
   endif !present(time) .and. lenable_solutions_err_estimates
 
 
-  call PetscLogStagePop(ierr) ;CHKERRQ(ierr)
+  call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
   if(lwriteall) then
     if(solution%lsolar_rad) then
       write(vecname,FMT='("edir",I0)') solution%uid
-      call PetscObjectSetName(solution%edir,vecname,ierr) ; CHKERRQ(ierr)
+      call PetscObjectSetName(solution%edir,vecname,ierr) ; call CHKERR(ierr)
       call vec_to_hdf5(solution%edir)
     endif
 
     write(vecname,FMT='("ediff",I0)') solution%uid
-    call PetscObjectSetName(solution%ediff,vecname,ierr) ; CHKERRQ(ierr)
+    call PetscObjectSetName(solution%ediff,vecname,ierr) ; call CHKERR(ierr)
     call vec_to_hdf5(solution%ediff)
 
     write(vecname,FMT='("abso",I0)') solution%uid
-    call PetscObjectSetName(solution%abso,vecname,ierr) ; CHKERRQ(ierr)
+    call PetscObjectSetName(solution%abso,vecname,ierr) ; call CHKERR(ierr)
     call vec_to_hdf5(solution%abso)
 
     write(vecname,FMT='("b",I0)') solution%uid
-    call PetscObjectSetName(b,vecname,ierr) ; CHKERRQ(ierr)
+    call PetscObjectSetName(b,vecname,ierr) ; call CHKERR(ierr)
     call vec_to_hdf5(b)
 
     write(vecname,FMT='("incSolar",I0)') solution%uid
-    call PetscObjectSetName(incSolar,vecname,ierr) ; CHKERRQ(ierr)
+    call PetscObjectSetName(incSolar,vecname,ierr) ; call CHKERR(ierr)
     call vec_to_hdf5(incSolar)
   endif
 end subroutine
@@ -3884,7 +3885,7 @@ subroutine getVecPointer(vec,C,x1d,x4d)
     stop 'Local Vector dimensions does not conform to DMDA size'
   endif
 
-  call VecGetArrayF90(vec,x1d,ierr) ;CHKERRQ(ierr)
+  call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
   if(lghosted) then
     x4d(0:C%dof-1 , C%gzs:C%gze, C%gxs:C%gxe , C%gys:C%gye ) => x1d
   else                                                     
@@ -3904,7 +3905,7 @@ subroutine restoreVecPointer(vec,C,x1d,x4d)
   endif
 
   x4d => null()
-  call VecRestoreArrayF90(vec,x1d,ierr) ;CHKERRQ(ierr)
+  call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
   x1d => null()
 end subroutine
 
@@ -3921,7 +3922,7 @@ subroutine vec_to_hdf5(v)
 
   PetscErrorCode :: ierr
 
-  call PetscObjectGetName(v,vecname,ierr) ;CHKERRQ(ierr)
+  call PetscObjectGetName(v,vecname,ierr) ;call CHKERR(ierr)
 
   fname = 'vecdump' // trim(suffix)
   inquire(file=trim(fname), exist=fexists)
@@ -3934,9 +3935,9 @@ subroutine vec_to_hdf5(v)
     fmode = FILE_MODE_WRITE
   endif
 
-  call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;CHKERRQ(ierr)
-  call VecView(v, view, ierr) ;CHKERRQ(ierr)
-  call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
+  call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;call CHKERR(ierr)
+  call VecView(v, view, ierr) ;call CHKERR(ierr)
+  call PetscViewerDestroy(view,ierr) ;call CHKERR(ierr)
 
   if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'
 #else      
@@ -3952,11 +3953,11 @@ function get_mem_footprint()
   get_mem_footprint = zero
   
   call mpi_barrier(imp_comm, ierr)
-  call PetscMemoryGetCurrentUsage(memory_footprint, ierr); CHKERRQ(ierr)
+  call PetscMemoryGetCurrentUsage(memory_footprint, ierr); call CHKERR(ierr)
 
   get_mem_footprint = memory_footprint / 1024. / 1024. / 1024.
 
-!  call PetscMallocGetCurrentUsage(petsc_current_mem, ierr); CHKERRQ(ierr)
+!  call PetscMallocGetCurrentUsage(petsc_current_mem, ierr); call CHKERR(ierr)
 
 !  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', get_mem_footprint, 'G'
   return

@@ -24,16 +24,18 @@ module m_poly_fitLUT
 #define isnan ieee_is_nan
 #endif
 
-      use m_helper_functions, only: rmse
-      use m_data_parameters, only: ireals,iintegers, init_mpi_data_parameters,numnodes,myid,zero,one,imp_comm
+#include "petsc/finclude/petsc.h"
+      use petsc
+
+      use m_helper_functions, only: rmse, CHKERR
+      use m_data_parameters, only: ireals,iintegers, init_mpi_data_parameters,numnodes,myid,zero,one,imp_comm,mpiint,nan32
       use m_netcdfio
 
       use m_optprop_LUT, only : t_optprop_LUT_8_10
 
       implicit none
-#include "petsc/finclude/petsc.h90"
 
-      PetscErrorCode :: ierr
+      integer(mpiint) :: ierr
       PetscViewer :: view
 
 type Matrix
@@ -72,7 +74,7 @@ end type
 
         if(myid.eq.0) print *,'Maximum nr of polynomials for dimension/order',Ndim,Norder,' is',polygonal_number(Ndim,Norder)
 
-        call VecSum(train_out%v, avg, ierr); CHKERRQ(ierr)
+        call VecSum(train_out%v, avg, ierr); call CHKERR(ierr)
         avg = avg/train_out%gN
 
         call VecSet(coeff%v         , zero, ierr)
@@ -219,8 +221,8 @@ end type
           call MatCreate(imp_comm, A%A, ierr)
           call MatSetFromOptions(A%A,ierr)
           call MatSetSizes(A%A, lNrow,lNcol, gNrow,gNcol, ierr)
-          call MatMPIAIJSetPreallocation(A%A, lNcol,PETSC_NULL_INTEGER, gNcol-lNcol,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-          call MatSeqAIJSetPreallocation(A%A, lNcol, PETSC_NULL_INTEGER, ierr) ;CHKERRQ(ierr)
+          call MatMPIAIJSetPreallocation(A%A, lNcol,PETSC_NULL_INTEGER, gNcol-lNcol,PETSC_NULL_INTEGER,ierr);call CHKERR(ierr)
+          call MatSeqAIJSetPreallocation(A%A, lNcol, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
           call MatSetUp(A%A, ierr)
           call MatGetOwnershipRange(A%A,A%xs,A%xe,ierr)
           call MatGetLocalSize(A%A,A%lNrow,A%lNcol,ierr)
@@ -281,7 +283,7 @@ end type
                           endif
 
                         else
-                          poly(j) = PETSC_NULL_REAL
+                          poly(j) = nan32
                         endif
                         j=j+1
                       enddo
@@ -310,7 +312,7 @@ end type
                       endif
 
                     else
-                      poly(j) = PETSC_NULL_REAL
+                      poly(j) = nan32
                     endif
                     j=j+1
                   enddo
@@ -325,7 +327,7 @@ end type
                 if(luse_coeff(j) ) then
                   poly(j) = p(inp(1),xd) * p(inp(2),yd)
                 else
-                  poly(j) = PETSC_NULL_REAL
+                  poly(j) = nan32
                 endif
                 j=j+1
               enddo
@@ -333,7 +335,7 @@ end type
 
           case default
             print *,'did not implement poly function for ',Ndim,'dimensions'
-            call mpi_abort(imp_comm,ierr)
+            call CHKERR(1_mpiint)
           end select
 
           if(present(print_func) ) print *,''
@@ -518,10 +520,10 @@ end type
               fmode = FILE_MODE_WRITE
             endif
 
-!            call PetscViewerHDF5Open(imp_comm,fname, fmode, view, ierr) ;CHKERRQ(ierr)
-            call PetscObjectSetName(inp%v, trim(vecname)//'inp',ierr) ; CHKERRQ(ierr);   call VecView(inp%v, view, ierr) ;CHKERRQ(ierr)
-            call PetscObjectSetName(out%v, trim(vecname)//'out',ierr) ; CHKERRQ(ierr);   call VecView(out%v, view, ierr) ;CHKERRQ(ierr)
-            call PetscViewerDestroy(view,ierr) ;CHKERRQ(ierr)
+!            call PetscViewerHDF5Open(imp_comm,fname, fmode, view, ierr) ;call CHKERR(ierr)
+            call PetscObjectSetName(inp%v, trim(vecname)//'inp',ierr) ; call CHKERR(ierr);   call VecView(inp%v, view, ierr) ;call CHKERR(ierr)
+            call PetscObjectSetName(out%v, trim(vecname)//'out',ierr) ; call CHKERR(ierr);   call VecView(out%v, view, ierr) ;call CHKERR(ierr)
+            call PetscViewerDestroy(view,ierr) ;call CHKERR(ierr)
           end subroutine
 
           subroutine fitdirLUT(dx,azimuth,zenith)
@@ -850,16 +852,16 @@ end type
 
           subroutine get_cmd_line_options()
             logical :: lflg=.False.
-            call PetscOptionsGetInt(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-poly",poly_func, lflg,ierr)  ; CHKERRQ(ierr)
+            call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-poly",poly_func, lflg,ierr)  ; call CHKERR(ierr)
             if(lflg.eqv.PETSC_FALSE) poly_func = 2
 
-            call PetscOptionsGetInt(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-order",poly_order, lflg,ierr)  ; CHKERRQ(ierr)
+            call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-order",poly_order, lflg,ierr)  ; call CHKERR(ierr)
             if(lflg.eqv.PETSC_FALSE) poly_order = 4
 
-            call PetscOptionsGetReal(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-err_ratio",err_ratio, lflg,ierr)  ; CHKERRQ(ierr)
+            call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-err_ratio",err_ratio, lflg,ierr)  ; call CHKERR(ierr)
             if(lflg.eqv.PETSC_FALSE) err_ratio = .9999
 
-            call PetscOptionsGetBool(PETSC_NULL_OBJECT,PETSC_NULL_CHARACTER,"-full_poly",lfull_poly,lflg,ierr) ;CHKERRQ(ierr)
+            call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,"-full_poly",lfull_poly,lflg,ierr) ;call CHKERR(ierr)
             if(lflg.eqv.PETSC_FALSE) lfull_poly = .False.
 
             print *,' ************* poly_func is now ',poly_func,' *************'
@@ -872,12 +874,12 @@ program main
           use m_poly_fitLUT 
           implicit none
 
-          call PetscInitialize(PETSC_NULL_CHARACTER,ierr) ;CHKERRQ(ierr)
+          call PetscInitialize(PETSC_NULL_CHARACTER,ierr) ;call CHKERR(ierr)
           call init_mpi_data_parameters(PETSC_COMM_WORLD)
           call get_cmd_line_options()
 
           call fitLUT(40._ireals,zero,zero)
 
-          call PetscFinalize(ierr) ;CHKERRQ(ierr) 
+          call PetscFinalize(ierr) ;call CHKERR(ierr) 
 
 end program
