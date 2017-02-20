@@ -2,6 +2,8 @@
 !     author:    $Author: mike $
 !     revision:  $Revision: 11661 $
 !     created:   $Date: 2009-05-22 18:22:22 -0400 (Fri, 22 May 2009) $
+module m_tenstr_rrtmg_sw_k_g
+  contains
 
 !  --------------------------------------------------------------------------
 ! |                                                                          |
@@ -63492,4 +63494,5 @@
         &  0.587212e-01_rb, 0.173470e+00_rb, 0.512452e+00_rb, 0.151385e+01_rb, 0.447209e+01_rb /)
      
       end subroutine sw_kgb29
+end module m_tenstr_rrtmg_sw_k_g
 

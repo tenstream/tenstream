@@ -40,6 +40,7 @@
       use m_tenstr_parrrsw, only : mg, nbndsw, ngptsw
       use m_tenstr_rrsw_tbl, only: ntbl, tblint, pade, bpade, tau_tbl, exp_tbl
       use m_tenstr_rrsw_vsn, only: hvrini, hnamini
+      use m_tenstr_rrtmg_sw_k_g
 
       real(kind=rb), intent(in) :: cpdair     ! Specific heat capacity of dry air
                                               ! at constant pressure at 273 K
