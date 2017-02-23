@@ -155,7 +155,6 @@ contains
 
     integer(iintegers) :: i, j, k, icol, ib, ig
     integer(iintegers) :: is,ie, js,je, ks,ke,ke1
-    real(ireals) :: global_maxheight
 
     real(ireals),allocatable :: dz(:,:,:)
     real(ireals),allocatable, dimension(:,:,:)   :: col_tau, col_Bfrac                    ! [ncol, nlyr, ngptlw]
@@ -362,7 +361,7 @@ contains
     real(rb),dimension(ncol_in,nlay_in+1) :: lwuflx,lwdflx,lwuflxc,lwdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: lwhr,lwhrc
 
-    integer(im) :: iv,ig,k,icol,iw
+    integer(im) :: k,icol
     integer(im) :: ncol, nlay
 
     integer(im),parameter :: inflglw=2,iceflglw=3,liqflglw=1
@@ -588,7 +587,7 @@ contains
 
     integer(iintegers) :: ke, ke1 ! number of vertical levels of merged grid
     integer(iintegers) :: is,ie, js,je, icol
-    integer(iintegers) :: i, j, k
+    integer(iintegers) :: i, j
 
     real(ireals),allocatable :: d_hhl(:,:,:), d_dz(:)
     real(ireals) :: global_maxheight, global_minplev

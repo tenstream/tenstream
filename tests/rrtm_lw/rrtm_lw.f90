@@ -33,12 +33,10 @@ subroutine test_rrtm_lw(this)
 
     character(len=250),parameter :: atm_filename='afglus_100m.dat'
 
-    integer(iintegers) :: i,j,k, nlev, icld
+    integer(iintegers) :: k, nlev, icld
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
     logical,parameter :: ldebug=.True.
-
-    integer(mpiint) :: ierr
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
