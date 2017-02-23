@@ -94,7 +94,8 @@ contains
       edir,edn,eup,abso,                              & 
       d_plev, d_tlev, d_tlay, d_h2ovmr, d_o3vmr,      &
       d_co2vmr, d_ch4vmr, d_n2ovmr,  d_o2vmr,         &
-      d_lwc, d_reliq, nxproc, nyproc, icollapse,      &
+      d_lwc, d_reliq, d_iwc, d_reice,                 &
+      nxproc, nyproc, icollapse,                      &
       opt_time, solar_albedo_2d)
 
 
@@ -125,6 +126,8 @@ contains
     real(ireals),intent(in),optional :: d_o2vmr  (:,:,:) ! oxygen volume mixing ratio     [e.g. .2]
     real(ireals),intent(in),optional :: d_lwc    (:,:,:) ! liq water content              [g/kg]
     real(ireals),intent(in),optional :: d_reliq  (:,:,:) ! effective radius               [micron]
+    real(ireals),intent(in),optional :: d_iwc    (:,:,:) ! ice water content              [g/kg]
+    real(ireals),intent(in),optional :: d_reice  (:,:,:) ! ice effective radius           [micron]
 
     ! nxproc dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
     ! nyproc dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
@@ -163,6 +166,9 @@ contains
     real(rb),allocatable :: col_lwc    (:,:)
     real(rb),allocatable :: col_lwp    (:,:)
     real(rb),allocatable :: col_reliq  (:,:)
+    real(rb),allocatable :: col_iwc    (:,:)
+    real(rb),allocatable :: col_iwp    (:,:)
+    real(rb),allocatable :: col_reice  (:,:)
 
     ! Counters
     integer(iintegers) :: i, j, k, icol
@@ -173,6 +179,7 @@ contains
 
     ! for debug purposes, can output variables into netcdf files
     character(len=80) :: output_path(2) ! [ filename, varname ]
+    logical :: lfile_exists
 
     call load_atmfile(comm, atm_filename, bg_atm)
 
@@ -188,14 +195,14 @@ contains
       enddo
     enddo
 
-    call merge_dyn_rad_grid(comm, bg_atm,    &
-      d_plev, d_tlev, d_tlay, d_h2ovmr,      &
-      d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr, &
-      d_o2vmr, d_lwc, d_reliq,               &
-      col_plev, col_tlev, col_tlay,          &
-      col_h2ovmr, col_o3vmr , col_co2vmr,    &
-      col_ch4vmr, col_n2ovmr, col_o2vmr ,    &
-      col_lwc, col_reliq)
+    call merge_dyn_rad_grid(comm, bg_atm,      &
+      d_plev, d_tlev, d_tlay, d_h2ovmr,        &
+      d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr,   &
+      d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
+      col_plev, col_tlev, col_tlay,            &
+      col_h2ovmr, col_o3vmr , col_co2vmr,      &
+      col_ch4vmr, col_n2ovmr, col_o2vmr ,      &
+      col_lwc, col_reliq, col_iwc, col_reice)
 
 
     is = lbound(d_plev,2)  ; ie  = ubound(d_plev,2)
@@ -231,25 +238,27 @@ contains
 
     ! RRTMG use liq. water path, not mixing ratio
     allocate(col_lwp(ie*je, ke))
+    allocate(col_iwp(ie*je, ke))
     do j=js,je
       do i=is,ie
         icol =  i+(j-1)*ie
         col_lwp(icol,:) = col_lwc(icol,:) * dz(:,i,j)
+        col_iwp(icol,:) = col_iwc(icol,:) * dz(:,i,j)
       enddo
     enddo
     deallocate(col_lwc)
+    deallocate(col_iwc)
 
     ! Allocate space for results -- for integrated values and for temporary spectral integration...
     allocate(edn (C_one1%zm, C_one1%xm, C_one1%ym), source=zero)
     allocate(eup (C_one1%zm, C_one1%xm, C_one1%ym), source=zero)
     allocate(abso(C_one%zm , C_one%xm , C_one%ym ), source=zero)
 
-
     if(lthermal) then
       call compute_thermal(is, ie, js, je, ks, ke, ke1, &
         albedo_thermal, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
         col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
-        col_lwp, col_reliq, &
+        col_lwp, col_reliq, col_iwp, col_reice, &
         edn, eup, abso, opt_time=opt_time)
     endif
 
@@ -259,16 +268,29 @@ contains
         phi0, theta0, &
         albedo_solar, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
         col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
-        col_lwp, col_reliq, &
+        col_lwp, col_reliq, col_iwp, col_reice, &
         edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d)
     endif
 
-    !output_path(1) = 'output.nc'
-    !if(myid.eq.0) then
-    !  output_path(2) = 'edir' ; call ncwrite(output_path, edir, i)
-    !  output_path(2) = 'edn'  ; call ncwrite(output_path, edn , i)
-    !  output_path(2) = 'eup'  ; call ncwrite(output_path, eup , i)
-    !  output_path(2) = 'abso' ; call ncwrite(output_path, abso, i)
+    !if(myid.eq.0 .and. ldebug) then
+    !  if(present(opt_time)) then
+    !    write (output_path(1), "(A,I6.6,L1,L1,A3)") "3dout_",int(opt_time),lthermal,lsolar, '.nc'
+    !  else
+    !    write (output_path(1), "(A,L1,L1,A3)") "3dout_",lthermal,lsolar, '.nc'
+    !  endif
+    !  inquire( file=trim(output_path(1)), exist=lfile_exists )
+    !  if(.not. lfile_exists) then
+    !    output_path(2) = 'edir' ; call ncwrite(output_path, edir, i)
+    !    output_path(2) = 'edn'  ; call ncwrite(output_path, edn , i)
+    !    output_path(2) = 'eup'  ; call ncwrite(output_path, eup , i)
+    !    output_path(2) = 'abso' ; call ncwrite(output_path, abso, i)
+    !    if(present(d_lwc)) then
+    !      output_path(2) = 'lwc'  ; call ncwrite(output_path, d_lwc, i)
+    !    endif
+    !    if(present(d_iwc)) then
+    !      output_path(2) = 'iwc'  ; call ncwrite(output_path, d_iwc, i)
+    !    endif
+    !  endif
     !endif
 
     deallocate(col_plev  )
@@ -282,6 +304,8 @@ contains
     deallocate(col_o2vmr )
     deallocate(col_lwp   )
     deallocate(col_reliq )
+    deallocate(col_iwp   )
+    deallocate(col_reice )
   end subroutine
 
   subroutine sanitize_input(plev, tlev, tlay)
@@ -304,7 +328,7 @@ contains
     ierr = maxval(tlev) .gt. 400 ; errcnt = errcnt+ierr
     if(ierr) print *,'Temperature is very high -- are you sure RRTMG can handle that?', maxval(tlev)
     
-    if(present(tlay)) then
+    if(present(tlay) .and. ldebug) then
       do k=lbound(tlay,1), ubound(tlay,1)
         ierr = (tlay(k)-tlev(k).ge.zero) .eqv. (tlay(k)-tlev(k+1).gt.zero); errcnt = errcnt+ierr ! different sign says its in between
         if(ierr) print *,'Layer Temperature not between level temps?', k, tlev(k), '|', tlay(k), '|', tlev(k+1)
@@ -347,7 +371,7 @@ contains
   subroutine compute_thermal(is, ie, js, je, ks, ke, ke1, &
       albedo, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
       col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
-      col_lwp, col_reliq, &
+      col_lwp, col_reliq, col_iwp, col_reice, &
       edn, eup, abso, opt_time)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
@@ -368,6 +392,8 @@ contains
     real(rb),intent(in) :: col_o2vmr  (:,:)
     real(rb),intent(in) :: col_lwp    (:,:)
     real(rb),intent(in) :: col_reliq  (:,:)
+    real(rb),intent(in) :: col_iwp    (:,:)
+    real(rb),intent(in) :: col_reice  (:,:)
 
     real(ireals),intent(inout),dimension(:,:,:) :: edn, eup, abso
 
@@ -404,11 +430,11 @@ contains
     allocate(col_tau  (ie*je, ke, ngptlw))
     allocate(col_Bfrac(ie*je, ke, ngptlw))
 
-    call optprop_rrtm_lw(ie*je, ke, albedo, &
-      col_plev, col_tlev, col_tlay,         &
-      col_h2ovmr, col_o3vmr , col_co2vmr,   &
-      col_ch4vmr, col_n2ovmr, col_o2vmr ,   &
-      col_lwp, col_reliq,                   &
+    call optprop_rrtm_lw(ie*je, ke, albedo,   &
+      col_plev, col_tlev, col_tlay,           &
+      col_h2ovmr, col_o3vmr , col_co2vmr,     &
+      col_ch4vmr, col_n2ovmr, col_o2vmr ,     &
+      col_lwp, col_reliq, col_iwp, col_reice, &
       col_tau, col_Bfrac)
 
 
@@ -474,7 +500,7 @@ contains
       phi0, theta0, &
       albedo, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
       col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
-      col_lwp, col_reliq, &
+      col_lwp, col_reliq, col_iwp, col_reice,                   &
       edir, edn, eup, abso, opt_time, solar_albedo_2d, phi2d, theta2d)
 
       use m_tenstr_parrrsw, only: ngptsw, nbndsw,naerec,jpb1, jpb2
@@ -498,6 +524,8 @@ contains
     real(rb),intent(in) :: col_o2vmr  (:,:)
     real(rb),intent(in) :: col_lwp    (:,:)
     real(rb),intent(in) :: col_reliq  (:,:)
+    real(rb),intent(in) :: col_iwp    (:,:)
+    real(rb),intent(in) :: col_reice  (:,:)
 
     real(ireals),intent(inout),dimension(:,:,:) :: edir, edn, eup, abso
 
@@ -540,7 +568,7 @@ contains
       col_plev, col_tlev, col_tlay, &
       col_h2ovmr, col_o3vmr, col_co2vmr, &
       col_ch4vmr, col_n2ovmr, col_o2vmr, &
-      col_lwp, col_reliq, &
+      col_lwp, col_reliq, col_iwp, col_reice, &
       col_tau, col_w0, col_g)
 
     col_w0 = min(one, max(zero, col_w0))
@@ -599,7 +627,8 @@ contains
     linit_tenstr = .False.
   end subroutine
 
-  subroutine optprop_rrtm_lw(ncol_in, nlay_in, albedo, plev, tlev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwp, reliq, tau, Bfrac)
+  subroutine optprop_rrtm_lw(ncol_in, nlay_in, albedo, plev, tlev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
+      lwp, reliq, iwp, reice, tau, Bfrac)
     ! RRTM needs the arrays to start at the surface
 
     use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
@@ -611,11 +640,11 @@ contains
 
     real(rb),dimension(ncol_in,nlay_in+1) :: plev, tlev
     real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
-    real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq 
+    real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq, iwp, reice
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [ncol, nlay, ngptlw]
 
-    real(rb),dimension(ncol_in,nlay_in) :: play, cldfr, cicewp, reice
+    real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
     real(rb),dimension(nbndlw, ncol_in, nlay_in) :: taucld
     real(rb),dimension(ncol_in, nlay_in, nbndlw ) :: tauaer
@@ -649,13 +678,13 @@ contains
       tsfc(icol)   = tlev(icol,1)
     enddo
 
-    taucld   = 0; cicewp   = 0; reice    = 0;
+    taucld   = 0;
     tauaer   = 0; lwdflxc  = 0; lwuflxc  = 0;
     cfc11vmr = 0; cfc12vmr = 0; cfc22vmr = 0; ccl4vmr = 0;
 
     emis = one - albedo
 
-    where ( lwp.gt.0 )
+    where ( lwp.gt.0 .or. iwp.gt.0 )
       cldfr = 1
     elsewhere
       cldfr = 0
@@ -667,8 +696,9 @@ contains
 
       if(ldebug .and. myid.eq.0) then
         do k=nlay,1,-1
-          print *,'rrtm_optprop_lw',k,'tlev',tlev(1,k),'tlay',tlay(1,k),'plev',plev(1,k),'play',play(1,k),'lwp',lwp(1,k), &
-            'reliq',reliq(1,k), 'h2o',h2ovmr(1,k), 'o3' , o3vmr(1,k), 'co2', co2vmr(1,k), 'ch4', ch4vmr(1,k),    &
+          print *,'rrtm_optprop_lw',k,'tlev',tlev(1,k),'tlay',tlay(1,k),'plev',plev(1,k),'play',play(1,k), &
+            'lwp',lwp(1,k), 'reliq',reliq(1,k), 'iwp',iwp(1,k), 'reice',reice(1,k),&
+            'h2o',h2ovmr(1,k), 'o3' , o3vmr(1,k), 'co2', co2vmr(1,k), 'ch4', ch4vmr(1,k),    &
             'n2o', n2ovmr(1,k), 'o2' , o2vmr(1,k)
         enddo
       endif
@@ -680,13 +710,14 @@ contains
       h2ovmr  ,o3vmr   ,co2vmr  ,ch4vmr  ,n2ovmr  ,o2vmr, &
       cfc11vmr,cfc12vmr,cfc22vmr,ccl4vmr ,emis    , &
       inflglw, iceflglw, liqflglw, cldfr, &
-      taucld , cicewp  , lwp  ,reice   ,reliq      , &
+      taucld , iwp  , lwp  ,reice   ,reliq      , &
       tauaer , &
       lwuflx , lwdflx  ,lwhr    ,lwuflxc ,lwdflxc ,lwhrc, &
       tau, Bfrac)
   end subroutine
 
-  subroutine optprop_rrtm_sw(ncol_in, nlay_in, plev, tlev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwp, reliq, tau, w0, g)
+  subroutine optprop_rrtm_sw(ncol_in, nlay_in, plev, tlev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
+      lwp, reliq, iwp, reice, tau, w0, g)
     ! RRTM needs the arrays to start at the surface
     use m_tenstr_rrtmg_sw_rad, only: rrtmg_sw
     use m_tenstr_parrrsw, only: nbndsw, naerec
@@ -696,11 +727,11 @@ contains
 
     real(rb),dimension(ncol_in,nlay_in+1) :: plev, tlev
     real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
-    real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq 
+    real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq, iwp, reice
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, w0, g ! [ncol, nlay, ngptsw]
 
-    real(rb),dimension(ncol_in,nlay_in) :: play, cldfr, cicewp, reice
+    real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
     real(rb),dimension(nbndsw, ncol_in, nlay_in) :: taucld, ssacld, asmcld, fsfcld
     real(rb),dimension(ncol_in, nlay_in, nbndsw ) :: tauaer, ssaaer, asmaer
@@ -726,7 +757,7 @@ contains
     nlay   = nlay_in
 
     ! Take average pressure and temperature as mean values for voxels --
-    ! should probably use log interpolation for pressure...
+    ! Todo: should we use log interpolation for pressure...?
     do icol=1,ncol
       play(icol,:) = .5_rb*(plev(icol,1:nlay)+plev(icol,2:nlay+1))
 
@@ -734,12 +765,12 @@ contains
     enddo
 
     taucld = 0; ssacld = 0; asmcld  = 0;
-    fsfcld = 0; cicewp = 0; reice   = 0;
+    fsfcld = 0; 
     tauaer = 0; ssaaer  = 0; asmaer  = 0;
     ecaer  = 0; coszen = 1; asdir   = 0; aldir   = 0;
     asdif  = 0; aldif  = 0; swdflxc = 0; swuflxc = 0;
 
-    where ( lwp.gt.0 )
+    where ( lwp.gt.0 .or. iwp.gt.0 )
       cldfr = 1
     elsewhere
       cldfr = 0
@@ -751,8 +782,9 @@ contains
 
       if(ldebug .and. myid.eq.0) then
         do k=nlay,1,-1
-          print *,'rrtm_optprop_sw',k,'tlev',tlev(1,k),'tlay',tlay(1,k),'plev',plev(1,k),'play',play(1,k),'lwp',lwp(1,k), &
-            'reliq',reliq(1,k), 'h2o',h2ovmr(1,k), 'o3' , o3vmr(1,k), 'co2', co2vmr(1,k), 'ch4', ch4vmr(1,k),    &
+          print *,'rrtm_optprop_sw',k,'tlev',tlev(1,k),'tlay',tlay(1,k),'plev',plev(1,k),'play',play(1,k), &
+            'lwp',lwp(1,k), 'reliq',reliq(1,k), 'iwp',iwp(1,k), 'reice',reice(1,k),&
+            'h2o',h2ovmr(1,k), 'o3' , o3vmr(1,k), 'co2', co2vmr(1,k), 'ch4', ch4vmr(1,k),    &
             'n2o', n2ovmr(1,k), 'o2' , o2vmr(1,k)
         enddo
       endif
@@ -766,7 +798,7 @@ contains
             coszen  ,adjes   ,dyofyr  ,scon    , &
             inflgsw ,iceflgsw,liqflgsw,cldfr   , &
             taucld  ,ssacld  ,asmcld  ,fsfcld  , &
-            cicewp  ,lwp  ,reice   ,reliq      , &
+            iwp  ,lwp  ,reice   ,reliq         , &
             tauaer  ,ssaaer  ,asmaer  ,ecaer   , &
             swuflx  ,swdflx  ,swhr    ,swuflxc ,swdflxc ,swhrc, &
             tau, w0, g)
@@ -903,14 +935,14 @@ contains
     atm%o2_lay  = meanvec(atm%o2_lev )
   end subroutine
 
-  subroutine merge_dyn_rad_grid(comm, atm,   &
-      d_plev, d_tlev, d_tlay, d_h2ovmr,      &
-      d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr, &
-      d_o2vmr, d_lwc, d_reliq,               &
-      col_plev, col_tlev, col_tlay,          &
-      col_h2ovmr, col_o3vmr , col_co2vmr,    &
-      col_ch4vmr, col_n2ovmr, col_o2vmr ,    &
-      col_lwc, col_reliq)
+  subroutine merge_dyn_rad_grid(comm, atm,     &
+      d_plev, d_tlev, d_tlay, d_h2ovmr,        &
+      d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr,   &
+      d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
+      col_plev, col_tlev, col_tlay,            &
+      col_h2ovmr, col_o3vmr , col_co2vmr,      &
+      col_ch4vmr, col_n2ovmr, col_o2vmr ,      &
+      col_lwc, col_reliq, col_iwc, col_reice)
 
     integer(mpiint), intent(in) :: comm
     type(t_atm),intent(in) :: atm ! 1D background profile info
@@ -926,6 +958,8 @@ contains
     real(ireals),intent(in),optional :: d_o2vmr  (:,:,:) !
     real(ireals),intent(in),optional :: d_lwc    (:,:,:) !
     real(ireals),intent(in),optional :: d_reliq  (:,:,:) !
+    real(ireals),intent(in),optional :: d_iwc    (:,:,:) !
+    real(ireals),intent(in),optional :: d_reice  (:,:,:) !
 
     real(rb),intent(out),allocatable :: col_plev   (:,:)
     real(rb),intent(out),allocatable :: col_tlev   (:,:)
@@ -938,6 +972,8 @@ contains
     real(rb),intent(out),allocatable :: col_o2vmr  (:,:)
     real(rb),intent(out),allocatable :: col_lwc    (:,:)
     real(rb),intent(out),allocatable :: col_reliq  (:,:)
+    real(rb),intent(out),allocatable :: col_iwc    (:,:)
+    real(rb),intent(out),allocatable :: col_reice  (:,:)
 
     integer(iintegers) :: d_ke, d_ke1 ! number of vertical levels of dynamics grid
     integer(iintegers) :: atm_ke      ! number of vertical levels of atmosphere grid
@@ -995,6 +1031,8 @@ contains
     allocate(col_o2vmr  (ie*je, ke ))
     allocate(col_lwc    (ie*je, ke ))
     allocate(col_reliq  (ie*je, ke ))
+    allocate(col_iwc    (ie*je, ke ))
+    allocate(col_reice  (ie*je, ke ))
     do j=js,je
       do i=is,ie
         icol = i+(j-1)*ie
@@ -1022,12 +1060,23 @@ contains
         if(present(d_lwc)) then
           call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, zero*atm%tlay, zero*atm%tlev, col_lwc(icol,:), d_lwc(:,i,j))
         else
-          col_lwc(icol,:) = 0
+          col_lwc(icol,:) = zero
         endif
         if(present(d_reliq)) then
           call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, zero*atm%tlay, zero*atm%tlev, col_reliq(icol,:), d_reliq(:,i,j))
         else
           col_reliq = zero
+        endif
+
+        if(present(d_iwc)) then
+          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, zero*atm%tlay, zero*atm%tlev, col_iwc(icol,:), d_iwc(:,i,j))
+        else
+          col_iwc(icol,:) = zero
+        endif
+        if(present(d_reice)) then
+          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, zero*atm%tlay, zero*atm%tlev, col_reice(icol,:), d_reice(:,i,j))
+        else
+          col_reice = zero
         endif
 
         if(present(d_h2ovmr)) then
