@@ -41,19 +41,19 @@ module m_tenstr_rrtm_lw
 
   type t_atm
     real(ireals),allocatable :: plev   (:) ! dim(nlay+1)
-    real(ireals),allocatable :: tlev   (:) ! 
-    real(ireals),allocatable :: zt     (:) ! 
-    real(ireals),allocatable :: h2o_lev(:) ! 
+    real(ireals),allocatable :: tlev   (:) !
+    real(ireals),allocatable :: zt     (:) !
+    real(ireals),allocatable :: h2o_lev(:) !
     real(ireals),allocatable :: o3_lev (:) !
     real(ireals),allocatable :: co2_lev(:) !
     real(ireals),allocatable :: ch4_lev(:) !
     real(ireals),allocatable :: n2o_lev(:) !
     real(ireals),allocatable :: o2_lev (:) !
 
-    real(ireals),allocatable :: play   (:) ! dim(nlay) 
-    real(ireals),allocatable :: zm     (:) ! 
-    real(ireals),allocatable :: dz     (:) ! 
-    real(ireals),allocatable :: tlay   (:) ! 
+    real(ireals),allocatable :: play   (:) ! dim(nlay)
+    real(ireals),allocatable :: zm     (:) !
+    real(ireals),allocatable :: dz     (:) !
+    real(ireals),allocatable :: tlay   (:) !
     real(ireals),allocatable :: h2o_lay(:) !
     real(ireals),allocatable :: o3_lay (:) !
     real(ireals),allocatable :: co2_lay(:) !
@@ -69,19 +69,32 @@ contains
     real(ireals),intent(in),dimension(:),optional :: tlay
 
     integer(iintegers) :: ierr, errcnt
+    logical :: lerr
 
     errcnt = 0
-    ierr = maxval(plev) .gt. 1050; errcnt = errcnt+ierr
-    if(ierr) print *,'Pressure above 1050 hPa -- are you sure this is earth?', maxval(plev)
+    lerr = maxval(plev) .gt. 1050
+    if(lerr) then
+      print *,'Pressure above 1050 hPa -- are you sure this is earth?', maxval(plev)
+      errcnt = errcnt+1
+    endif
 
-    ierr = minval(plev) .lt. zero; errcnt = errcnt+ierr
-    if(ierr) print *,'Pressure negative -- are you sure this is physically correct?', minval(plev)
+    lerr = minval(plev) .lt. zero
+    if(lerr) then
+      print *,'Pressure negative -- are you sure this is physically correct?', minval(plev)
+      errcnt = errcnt+1
+    endif
 
-    ierr = minval(tlev) .lt. 180 ; errcnt = errcnt+ierr
-    if(ierr) print *,'Temperature is very low -- are you sure RRTMG can handle that?', minval(tlev)
+    lerr = minval(tlev) .lt. 180
+    if(lerr) then
+      print *,'Temperature is very low -- are you sure RRTMG can handle that?', minval(tlev)
+      errcnt = errcnt+1
+    endif
 
-    ierr = maxval(tlev) .gt. 400 ; errcnt = errcnt+ierr
-    if(ierr) print *,'Temperature is very high -- are you sure RRTMG can handle that?', maxval(tlev)
+    lerr = maxval(tlev) .gt. 400
+    if(lerr) then
+      print *,'Temperature is very high -- are you sure RRTMG can handle that?', maxval(tlev)
+      errcnt = errcnt+1
+    endif
 
     if(errcnt.gt.0) then
       print *,'Found wonky input to tenstream_rrtm_lw -- please check! -- will abort now.'

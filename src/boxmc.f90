@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -25,7 +25,7 @@ module m_boxmc
   use ifport
 #endif
 #ifdef _XLF
-  use ieee_arithmetic 
+  use ieee_arithmetic
 #define isnan ieee_is_nan
 #endif
 
@@ -58,7 +58,7 @@ module m_boxmc
     logical :: initialized=.False.
   contains
     procedure :: init
-    procedure :: get_coeff         
+    procedure :: get_coeff
     procedure :: move_photon
     procedure(intersect_distance),deferred :: intersect_distance
 
@@ -69,7 +69,7 @@ module m_boxmc
   end type
 
   type,extends(t_boxmc) :: t_boxmc_1_2
-  contains 
+  contains
     procedure :: intersect_distance => intersect_distance_1_2
     procedure :: init_dir_photon    => init_dir_photon_1_2
     procedure :: init_diff_photon   => init_diff_photon_1_2
@@ -78,7 +78,7 @@ module m_boxmc
   end type t_boxmc_1_2
 
   type,extends(t_boxmc) :: t_boxmc_8_10
-  contains 
+  contains
     procedure :: intersect_distance => intersect_distance_8_10
     procedure :: init_dir_photon    => init_dir_photon_8_10
     procedure :: init_diff_photon   => init_diff_photon_8_10
@@ -87,7 +87,7 @@ module m_boxmc
   end type t_boxmc_8_10
 
   type,extends(t_boxmc) :: t_boxmc_3_10
-  contains 
+  contains
     procedure :: intersect_distance => intersect_distance_3_10
     procedure :: init_dir_photon    => init_dir_photon_3_10
     procedure :: init_diff_photon   => init_diff_photon_3_10
@@ -184,10 +184,10 @@ contains
     real(ireals),intent(in),optional :: inp_rtol                  !< @param[in] inp_rtol if given, determines targeted relative stddeviation
 
 
-    real(ireal_dp) :: S_out(bmc%diff_streams)  
-    real(ireal_dp) :: T_out(bmc%dir_streams)   
-    real(ireal_dp) :: S_tol(bmc%diff_streams)  
-    real(ireal_dp) :: T_tol(bmc%dir_streams)   
+    real(ireal_dp) :: S_out(bmc%diff_streams)
+    real(ireal_dp) :: T_out(bmc%dir_streams)
+    real(ireal_dp) :: S_tol(bmc%diff_streams)
+    real(ireal_dp) :: T_tol(bmc%dir_streams)
 
     real(ireal_dp)   :: time(2)
 
@@ -365,7 +365,7 @@ contains
     call reduce_var(comm, Nlocal, Nglobal, S_tol)
     call reduce_var(comm, Nlocal, Nglobal, T_tol)
 
-  contains 
+  contains
     subroutine reduce_var(comm, Nlocal, Nglobal, arr)
       integer(iintegers),intent(in) :: Nlocal
       real(ireal_dp),intent(in) :: Nglobal
@@ -432,7 +432,7 @@ contains
     ub=max(a,b)
     interv_R = lb + R()*(ub-lb)
   end function
-  !> @brief return uniform random number between [0,v] with a certain cutoff at the edges to make sure that photons are started ``inside`` a box 
+  !> @brief return uniform random number between [0,v] with a certain cutoff at the edges to make sure that photons are started ``inside`` a box
   function L(v)
     real(ireal_dp) :: L
     real(ireal_dp),intent(in) ::v

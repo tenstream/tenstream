@@ -21,16 +21,15 @@ module m_data_parameters
       use, intrinsic :: iso_fortran_env
 
 #ifdef _XLF
-        use mpi 
+        use mpi
 #else
-        use mpi ,only:mpi_sizeof, mpi_type_match_size 
+        use mpi ,only:mpi_sizeof, mpi_type_match_size
 #endif
 
 #include <petsc/finclude/petscsys.h>
       use petscsys
 
-        implicit none
-
+      implicit none
 
       private
       public pi,clight,nil,zero,one,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil, &
@@ -58,27 +57,33 @@ module m_data_parameters
 
 
       integer(mpiint) :: imp_int, imp_real, imp_real_dp, imp_logical, imp_comm
-      integer(mpiint) :: myid,numnodes,mpierr
+      integer :: myid,numnodes,mpierr
 
-contains 
+contains
 subroutine init_mpi_data_parameters(comm)
   integer(mpiint),intent(in) :: comm
-  integer(mpiint) :: dtsize
+  integer(mpiint) :: dtsize, ierr
 
   imp_comm = comm
   PETSC_COMM_WORLD = comm
 
-  call MPI_COMM_RANK( imp_comm, myid, mpierr); CHKERRQ(mpierr)
-  call MPI_Comm_size( imp_comm, numnodes, mpierr); CHKERRQ(mpierr)
+  call MPI_COMM_RANK( imp_comm, myid, mpierr)
+  call MPI_Comm_size( imp_comm, numnodes, mpierr)
 
-  call MPI_SIZEOF(i0, dtsize, mpierr); CHKERRQ(mpierr)
-  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, dtsize, imp_int, mpierr); CHKERRQ(mpierr)
+  call MPI_SIZEOF(i0, dtsize, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, dtsize, imp_int, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
-  call MPI_SIZEOF(one, dtsize, mpierr); CHKERRQ(mpierr)
-  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_real, mpierr); CHKERRQ(mpierr)
+  call MPI_SIZEOF(one, dtsize, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_real, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
-  call MPI_SIZEOF(1._ireal_dp, dtsize, mpierr); CHKERRQ(mpierr)
-  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_real_dp, mpierr); CHKERRQ(mpierr)
+  call MPI_SIZEOF(1._ireal_dp, dtsize, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_real_dp, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
   imp_logical = mpi_logical
 

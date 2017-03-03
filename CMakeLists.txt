@@ -3,10 +3,7 @@ include(CMakeForceCompiler) #Necessary to change between MPI/parallel/profiler c
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
-
-
 cmake_minimum_required (VERSION 2.8.10)
-
 
 #Load system specific settings
 if (NOT SYST)
@@ -31,6 +28,9 @@ endif()
 project (tenstream)
 enable_language(C Fortran)
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
+
+# For python interfaces need -fPIC:
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -152,7 +152,7 @@ add_subdirectory (src)
 add_custom_target(doc DEPENDS wiki doxygen)
 
 # Add `wiki` submodule
-add_custom_target(wiki 
+add_custom_target(wiki
   git submodule init tenstream.wiki
   COMMAND git submodule update --remote tenstream.wiki
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -200,3 +200,11 @@ if(CTAGS_PATH)
         COMMENT "Creating ctags" VERBATIM
         )
 endif(CTAGS_PATH)
+
+option(ENABLE_PYTHON "Enable creation of Python Interfaces via f2py" OFF)
+if(ENABLE_PYTHON)
+  find_program(F2PY_PATH f2py REQUIRED)
+  message(STATUS "Found f2py: ${F2PY_PATH}")
+  add_custom_target(python_interface ALL)
+	add_subdirectory(python)
+endif(ENABLE_PYTHON)

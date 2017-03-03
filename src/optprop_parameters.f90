@@ -20,7 +20,7 @@
 module m_optprop_parameters
       use m_data_parameters,only : ireals,iintegers
       implicit none
-      
+
       !> \page optprop_parameters Parameters concerning the transport coefficients
       !! You should define some parameters about how and where to find the Look
       !! Up Tables foir the transport coefficients
@@ -42,10 +42,10 @@ module m_optprop_parameters
       !> Define the mode to calculate coeffs   -
       !!-----------------------------------------
       !! 0 :: retrieve directly from Lookuptable
-      !! 1 :: retrieve from ANN (experimental) :: 
+      !! 1 :: retrieve from ANN (experimental) ::
       !!        this assumes you actually have a
       !!        ANN that can be queried....
-      !! 
+      !!
       integer(iintegers) :: coeff_mode = 0
 
       !-----------------------------------------
@@ -74,7 +74,7 @@ module m_optprop_parameters
       !- Define precision of coefficients      -
       !-----------------------------------------
       ! absolute tolerance and relatice tolerance have to be reached for every
-      ! coefficient 
+      ! coefficient
 
 !      real(ireals),parameter :: stddev_atol=1e-2_ireals
 !      real(ireals),parameter :: stddev_atol=5e-3_ireals

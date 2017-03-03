@@ -4,14 +4,14 @@
 include_directories (${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${INCLUDE_DIRS})
 
-set( general_sources 
-  "helper_functions.f90" 
-  "helper_functions_dp.f90" 
-  "netcdfio.f90"  
-  "data_parameters.f90"  
-  "eddington.f90"  
-  "interpolation.f90"  
-  "mersenne.f90"  
+set( general_sources
+  "helper_functions.f90"
+  "helper_functions_dp.f90"
+  "netcdfio.f90"
+  "data_parameters.f90"
+  "eddington.f90"
+  "interpolation.f90"
+  "mersenne.f90"
   "twostream.f90"
   "schwarzschild.f90"
   "tenstream.f90"
@@ -29,18 +29,19 @@ set( optprop_sources
   )
 
 add_library( tenstream STATIC ${general_sources} ${optprop_sources} )
-TARGET_LINK_LIBRARIES( tenstream ${EXTLIB} ${USERLIB} ${LIBS})
+target_link_libraries( tenstream ${EXTLIB} ${USERLIB} ${LIBS})
 
 file( GLOB streams createLUT_*.f90 )
 foreach ( stream ${streams} )
   GET_FILENAME_COMPONENT(basename "${stream}" NAME_WE )
 
-  add_executable("${basename}" "${basename}.f90" )                                                                                                                                                                   
-  target_link_libraries( "${basename}" tenstream )                                                                                                                                                                  
+  add_executable("${basename}" "${basename}.f90" )
+  target_link_libraries( "${basename}" tenstream )
 
   install(TARGETS ${basename} RUNTIME DESTINATION bin)
 endforeach ()
-                                                                                                                                                                                                                         
+
+
 add_executable( "test_boxmc" "test_boxmc.f90" )
 target_link_libraries( "test_boxmc" tenstream )
 

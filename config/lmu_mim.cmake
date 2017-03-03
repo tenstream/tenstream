@@ -42,6 +42,7 @@
 
 # and use this config file with `cmake <tenstream_root_dir> -DSYST:STRING=lmu_mim`
 
+set(CMAKE_C_COMPILER   "mpicc")
 set(CMAKE_Fortran_COMPILER   "mpif90")
 set(Fortran_COMPILER_WRAPPER "mpif90")
 

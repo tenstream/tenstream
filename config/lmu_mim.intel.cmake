@@ -42,13 +42,13 @@
 
 # and use this config file with `cmake <tenstream_root_dir> -DSYST:STRING=lmu_mim`
 
-set(CMAKE_C_COMPILER   "mpicc")
+set(CMAKE_C_COMPILER   "mpiicc")
 set(CMAKE_Fortran_COMPILER   "mpiifort")
 set(Fortran_COMPILER_WRAPPER "mpiifort")
 
-set(USER_C_FLAGS       " -cpp -W -std=c99 ") 
-set(USER_Fortran_FLAGS " -cpp -traceback -extend_source -g -sox -no-wrap-margin ")
-set(USER_Fortran_FLAGS_RELEASE " -O3 -fp-model source ")
+set(USER_C_FLAGS       "-cpp -W -std=c99 ") 
+set(USER_Fortran_FLAGS "-cpp -traceback -extend_source -g -sox -no-wrap-margin ")
+set(USER_Fortran_FLAGS_RELEASE "-O3 -fp-model source ")
 set(USER_Fortran_FLAGS_DEBUG "-warn -fpe0 -O2 -g -check all -check nopointers -check noarg_temp_created ")
 
 set(NETCDF_DIR      "$ENV{NETCDF}")

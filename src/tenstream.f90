@@ -3207,7 +3207,7 @@ subroutine destroy_tenstream(lfinalizepetsc)
   integer(iintegers) :: uid
   if(present(lfinalizepetsc)) lfinalize = lfinalizepetsc
 
-  if(ltenstream_is_initialized) then 
+  if(ltenstream_is_initialized) then
     if(linit_kspdir) then
       call KSPDestroy(kspdir , ierr) ;call CHKERR(ierr); linit_kspdir =.False.
     endif
@@ -3245,9 +3245,9 @@ subroutine destroy_tenstream(lfinalizepetsc)
     call OPP_1_2%destroy()
     call OPP_8_10%destroy()
 
-    call DMDestroy(C_dir%da ,ierr); deallocate(C_dir ) 
+    call DMDestroy(C_dir%da ,ierr); deallocate(C_dir )
     call DMDestroy(C_diff%da,ierr); deallocate(C_diff)
-    call DMDestroy(C_one%da ,ierr); deallocate(C_one ) 
+    call DMDestroy(C_one%da ,ierr); deallocate(C_one )
     call DMDestroy(C_one1%da,ierr); deallocate(C_one1)
     call DMDestroy(C_one_atm%da ,ierr); deallocate(C_one_atm)
     call DMDestroy(C_one_atm1%da,ierr); deallocate(C_one_atm1)

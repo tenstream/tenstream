@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 !> \page Routines to call tenstream with optical properties from RRTM
-!! The function `tenstream_rrtmg` provides an easy interface to 
+!! The function `tenstream_rrtmg` provides an easy interface to
 !! couple the TenStream solvers to a host model.
 !!
 !! * Tasks that have to be performed:
@@ -65,19 +65,19 @@ module m_tenstr_rrtmg
 
   type t_atm
     real(ireals),allocatable :: plev   (:) ! dim(nlay+1)
-    real(ireals),allocatable :: tlev   (:) ! 
-    real(ireals),allocatable :: zt     (:) ! 
-    real(ireals),allocatable :: h2o_lev(:) ! 
+    real(ireals),allocatable :: tlev   (:) !
+    real(ireals),allocatable :: zt     (:) !
+    real(ireals),allocatable :: h2o_lev(:) !
     real(ireals),allocatable :: o3_lev (:) !
     real(ireals),allocatable :: co2_lev(:) !
     real(ireals),allocatable :: ch4_lev(:) !
     real(ireals),allocatable :: n2o_lev(:) !
     real(ireals),allocatable :: o2_lev (:) !
 
-    real(ireals),allocatable :: play   (:) ! dim(nlay) 
-    real(ireals),allocatable :: zm     (:) ! 
-    real(ireals),allocatable :: dz     (:) ! 
-    real(ireals),allocatable :: tlay   (:) ! 
+    real(ireals),allocatable :: play   (:) ! dim(nlay)
+    real(ireals),allocatable :: zm     (:) !
+    real(ireals),allocatable :: dz     (:) !
+    real(ireals),allocatable :: tlay   (:) !
     real(ireals),allocatable :: h2o_lay(:) !
     real(ireals),allocatable :: o3_lay (:) !
     real(ireals),allocatable :: co2_lay(:) !
@@ -91,7 +91,7 @@ contains
   subroutine tenstream_rrtmg(comm, dx, dy, phi0, theta0, &
       albedo_thermal, albedo_solar, atm_filename,     &
       lthermal, lsolar,                               &
-      edir,edn,eup,abso,                              & 
+      edir,edn,eup,abso,                              &
       d_plev, d_tlev, d_tlay, d_h2ovmr, d_o3vmr,      &
       d_co2vmr, d_ch4vmr, d_n2ovmr,  d_o2vmr,         &
       d_lwc, d_reliq, d_iwc, d_reice,                 &
@@ -119,7 +119,7 @@ contains
     ! all have dim(nlay_dynamics, nxp, nyp)
     real(ireals),intent(in),optional :: d_tlay   (:,:,:) ! layer mean temperature [K]
     real(ireals),intent(in),optional :: d_h2ovmr (:,:,:) ! watervapor volume mixing ratio [e.g. 1e-3]
-    real(ireals),intent(in),optional :: d_o3vmr  (:,:,:) ! ozone volume mixing ratio      [e.g. .1e-6] 
+    real(ireals),intent(in),optional :: d_o3vmr  (:,:,:) ! ozone volume mixing ratio      [e.g. .1e-6]
     real(ireals),intent(in),optional :: d_co2vmr (:,:,:) ! CO2 volume mixing ratio        [e.g. 407e-6]
     real(ireals),intent(in),optional :: d_ch4vmr (:,:,:) ! methane volume mixing ratio    [e.g. 2e-6]
     real(ireals),intent(in),optional :: d_n2ovmr (:,:,:) ! n2o volume mixing ratio        [e.g. .32]
@@ -133,12 +133,12 @@ contains
     ! nyproc dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
     ! if not present, we let petsc decide how to decompose the fields(probably does not fit the decomposition of a host model)
     integer(iintegers),intent(in),optional :: nxproc(:), nyproc(:)
-   
+
     integer(iintegers),intent(in),optional :: icollapse ! experimental, dont use it if you dont know what you are doing.
 
     ! opt_time is the model time in seconds. If provided we will track the error growth of the solutions and compute new solutions only after threshold estimate is exceeded.
     ! If solar_albedo_2d is present, we use a 2D surface albedo
-    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:) 
+    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
 
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
@@ -314,24 +314,40 @@ contains
 
     integer(mpiint) :: errcnt
     integer(iintegers) :: k
+    logical :: lerr
 
     errcnt = 0
-    ierr = maxval(plev) .gt. 1050; errcnt = errcnt+ierr
-    if(ierr) print *,'Pressure above 1050 hPa -- are you sure this is earth?', maxval(plev)
+    lerr = maxval(plev) .gt. 1050
+    if(lerr) then
+      print *,'Pressure above 1050 hPa -- are you sure this is earth?', maxval(plev)
+      errcnt = errcnt+1
+    endif
 
-    ierr = minval(plev) .lt. zero; errcnt = errcnt+ierr
-    if(ierr) print *,'Pressure negative -- are you sure this is physically correct?', minval(plev)
+    lerr = minval(plev) .lt. zero
+    if(lerr) then
+      print *,'Pressure negative -- are you sure this is physically correct?', minval(plev)
+      errcnt = errcnt+1
+    endif
 
-    ierr = minval(tlev) .lt. 180 ; errcnt = errcnt+ierr
-    if(ierr) print *,'Temperature is very low -- are you sure RRTMG can handle that?', minval(tlev)
+    lerr = minval(tlev) .lt. 180
+    if(lerr) then
+      print *,'Temperature is very low -- are you sure RRTMG can handle that?', minval(tlev)
+      errcnt = errcnt+1
+    endif
 
-    ierr = maxval(tlev) .gt. 400 ; errcnt = errcnt+ierr
-    if(ierr) print *,'Temperature is very high -- are you sure RRTMG can handle that?', maxval(tlev)
-    
+    lerr = maxval(tlev) .gt. 400
+    if(lerr) then
+      print *,'Temperature is very high -- are you sure RRTMG can handle that?', maxval(tlev)
+      errcnt = errcnt+1
+    endif
+
     if(present(tlay) .and. ldebug) then
       do k=lbound(tlay,1), ubound(tlay,1)
-        ierr = (tlay(k)-tlev(k).ge.zero) .eqv. (tlay(k)-tlev(k+1).gt.zero); errcnt = errcnt+ierr ! different sign says its in between
-        if(ierr) print *,'Layer Temperature not between level temps?', k, tlev(k), '|', tlay(k), '|', tlev(k+1)
+        lerr = (tlay(k)-tlev(k).ge.zero) .eqv. (tlay(k)-tlev(k+1).gt.zero) ! different sign says its in between
+        if(lerr) then
+          print *,'Layer Temperature not between level temps?', k, tlev(k), '|', tlay(k), '|', tlev(k+1)
+          errcnt = errcnt+1
+        endif
       enddo
     endif
 
@@ -936,7 +952,7 @@ contains
   end subroutine
 
   subroutine merge_dyn_rad_grid(comm, atm,     &
-      d_plev, d_tlev, d_tlay, d_h2ovmr,        &
+      in_d_plev, d_tlev, d_tlay, d_h2ovmr,     &
       d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr,   &
       d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
       col_plev, col_tlev, col_tlay,            &
@@ -947,7 +963,7 @@ contains
     integer(mpiint), intent(in) :: comm
     type(t_atm),intent(in) :: atm ! 1D background profile info
 
-    real(ireals),intent(in) :: d_plev (:,:,:), d_tlev(:,:,:) ! dim(nlay_dynamics+1, nxp, nyp)
+    real(ireals),intent(in) :: in_d_plev (:,:,:), d_tlev(:,:,:) ! dim(nlay_dynamics+1, nxp, nyp)
 
     real(ireals),intent(in),optional :: d_tlay   (:,:,:) ! all have
     real(ireals),intent(in),optional :: d_h2ovmr (:,:,:) ! dim(nlay_dynamics, nxp, nyp)
@@ -975,6 +991,8 @@ contains
     real(rb),intent(out),allocatable :: col_iwc    (:,:)
     real(rb),intent(out),allocatable :: col_reice  (:,:)
 
+    real(ireals) :: d_plev (ubound(in_d_plev,1), ubound(in_d_plev,2), ubound(in_d_plev,3))
+
     integer(iintegers) :: d_ke, d_ke1 ! number of vertical levels of dynamics grid
     integer(iintegers) :: atm_ke      ! number of vertical levels of atmosphere grid
 
@@ -991,6 +1009,11 @@ contains
     d_ke1 = ubound(d_plev,1); d_ke = d_ke1-1
 
     ! find out how many layers we have to put on top of the dynamics grid
+
+    ! first put a tiny increment on the top of dynamics pressure value,
+    ! to handle a cornercase where dynamics and background profile are the same
+    d_plev = in_d_plev
+    d_plev(d_ke1, :, :) = d_plev(d_ke1, :, :) - 1e-3_ireals
 
     ! First get top height of dynamics grid
     allocate(d_hhl(d_ke1, ie, je))
@@ -1020,7 +1043,6 @@ contains
     ! then from there on couple background atm data on top of that
 
     allocate(col_plev   (ie*je, ke1))
-                                     
     allocate(col_tlev   (ie*je, ke1))
     allocate(col_tlay   (ie*je, ke ))
     allocate(col_h2ovmr (ie*je, ke ))
@@ -1040,7 +1062,7 @@ contains
         ! First merge pressure levels .. pressure is always given..
         col_plev(icol, ke1-atm_ke+1:ke1) = rev1d(atm%plev(1:atm_ke))
         col_plev(icol, 1:d_ke1) = d_plev(:,i,j)
-        if(col_plev(icol, ke1-atm_ke+1) .ge. col_plev(icol,d_ke1)) then
+        if(col_plev(icol, ke1-atm_ke+1) .gt. col_plev(icol,d_ke1)) then
           print *,'background profile pressure is .ge. than uppermost pressure &
             & level of dynamics grid -- this suggests the dynamics grid is way &
             & off hydrostatic balance... please check', col_plev(icol,:)
