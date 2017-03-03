@@ -520,7 +520,7 @@ contains
       edir, edn, eup, abso, opt_time, solar_albedo_2d, phi2d, theta2d)
 
       use m_tenstr_parrrsw, only: ngptsw, nbndsw,naerec,jpb1, jpb2
-      use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc      
+      use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
 
 
     integer(iintegers),intent(in) :: is,ie, js,je, ks,ke,ke1
@@ -561,15 +561,15 @@ contains
     allocate(spec_abso(C_one%zm , C_one%xm , C_one%ym ))
 
     need_any_new_solution=.False.
-    do ib=1,ngptsw 
+    do ib=1,ngptsw
       if(need_new_solution(ib, opt_time)) need_any_new_solution=.True.
     enddo
     if(.not.need_any_new_solution) then
-      do ib=1,ngptsw 
+      do ib=1,ngptsw
         call tenstream_get_result(spec_edir, spec_edn, spec_eup, spec_abso, opt_solution_uid=ib)
         edir = edir + spec_edir
-        edn  = edn  + spec_edn 
-        eup  = eup  + spec_eup 
+        edn  = edn  + spec_edn
+        eup  = eup  + spec_eup
         abso = abso + spec_abso
       enddo
       return
@@ -622,7 +622,7 @@ contains
     call set_angles(phi0, theta0, phi2d=phi2d, theta2d=theta2d)
 
     ! Loop over spectral intervals and call solver
-    do ib=1,ngptsw 
+    do ib=1,ngptsw
 
       if(need_new_solution(ib, opt_time)) then
         call set_optical_properties(albedo, kabs(:,:,:,ib), ksca(:,:,:,ib), g(:,:,:,ib), local_albedo_2d=solar_albedo_2d)
@@ -631,8 +631,8 @@ contains
       call tenstream_get_result(spec_edir, spec_edn, spec_eup, spec_abso, opt_solution_uid=ib)
 
       edir = edir + spec_edir
-      edn  = edn  + spec_edn 
-      eup  = eup  + spec_eup 
+      edn  = edn  + spec_edn
+      eup  = eup  + spec_eup
       abso = abso + spec_abso
     enddo
   end subroutine compute_solar

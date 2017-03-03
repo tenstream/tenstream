@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -31,7 +31,7 @@
 !!    - setup the matrix structures
 !!    - setup the LUT tables or neural networks for the coefficients
 !!    - setup derivatives for sun directions
-!!    
+!!
 !!  * m_tenstream::set_optical_properties
 !!    - setup the optical properties for next calculation
 !!    - call set_global_optical_properties if only rank 0 has the global info
@@ -46,7 +46,7 @@
 module m_tenstream
 
 #ifdef _XLF
-  use ieee_arithmetic 
+  use ieee_arithmetic
 #define isnan ieee_is_nan
 #endif
 
@@ -89,7 +89,7 @@ module m_tenstream
     PetscInt :: zs,ze                 ! local domain start and end indices
     PetscInt :: xm,ym,zm              ! size of local domain
     PetscInt :: gxs,gys,gzs           ! domain indices including ghost points
-    PetscInt :: gxe,gye,gze           ! 
+    PetscInt :: gxe,gye,gze           !
     PetscInt :: gxm,gym,gzm           ! size of local domain including ghosts
     PetscInt :: glob_xm,glob_ym,glob_zm ! global domain size
     PetscInt :: dof,dim               ! degrees of freedom of Petsc Domain, dimension of dmda
@@ -126,7 +126,7 @@ module m_tenstream
   type t_sunangles
     real(ireals) :: symmetry_phi
     integer(iintegers) :: yinc,xinc
-    real(ireals) :: theta, phi, costheta, sintheta 
+    real(ireals) :: theta, phi, costheta, sintheta
   end type
   type t_suninfo
     type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
@@ -159,7 +159,7 @@ module m_tenstream
     logical :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
 
     ! save state of solution vectors... they are either in [W](true) or [W/m**2](false)
-    logical :: lintegrated_dir=.True. , lintegrated_diff=.True.  
+    logical :: lintegrated_dir=.True. , lintegrated_diff=.True.
 
     !save error statistics
     real(ireals) :: time   (30) = -one
@@ -169,7 +169,7 @@ module m_tenstream
   end type
   type(t_state_container),save :: solutions(-1000:1000)
 
-contains 
+contains
 
   !> @brief Construct PETSC grid information for regular DMDA
   !> @details setup DMDA grid containers for direct, diffuse and absorption grid

@@ -5,9 +5,6 @@ module m_py_rrtm_lw_sw
 
   implicit none
 
-  !private
-  !public :: rrtmg, destroy_rrtmg, edir, edn, eup, abso
-
   ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
   ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
   ! the size of the merged grid. If you only want to use heating rates on the
@@ -85,13 +82,14 @@ contains
 
   end subroutine
 
-  subroutine rrtmg_minimal(nlay, nxp, nyp,            &
-      comm, dx, dy, phi0, theta0,                     &
-      albedo_thermal, albedo_solar, atm_filename,     &
-      lthermal, lsolar,                               &
-      d_plev, d_tlev, d_lwc, d_reliq, d_iwc, d_reice)
+  subroutine rrtmg_minimal(nlay, nxp, nyp, nprocx, nprocy, &
+      comm, dx, dy, phi0, theta0,                          &
+      albedo_thermal, albedo_solar, atm_filename,          &
+      lthermal, lsolar,                                    &
+      d_plev, d_tlev, d_lwc, d_reliq, d_iwc, d_reice,      &
+      nxproc, nyproc)
 
-    integer(iintegers) :: nlay, nxp, nyp
+    integer(iintegers) :: nlay, nxp, nyp, nprocx, nprocy
     integer(mpiint), intent(in) :: comm ! MPI Communicator
 
     real(ireals), intent(in) :: dx, dy       ! horizontal grid spacing in [m]
@@ -115,6 +113,11 @@ contains
     real(ireals),intent(in) :: d_iwc    (nlay, nxp, nyp) ! ice water content              [g/kg]
     real(ireals),intent(in) :: d_reice  (nlay, nxp, nyp) ! ice effective radius           [micron]
 
+    ! nxproc dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
+    ! nyproc dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
+    ! if not present, we let petsc decide how to decompose the fields(probably does not fit the decomposition of a host model)
+    integer(iintegers),intent(in) :: nxproc(nprocx), nyproc(nprocy)
+
 
     call init_mpi_data_parameters(comm)
 
@@ -124,12 +127,13 @@ contains
       edir,edn,eup,abso,                              &
       d_plev=d_plev, d_tlev=d_tlev,                   &
       d_lwc=d_lwc, d_reliq=d_reliq,                   &
-      d_iwc=d_iwc, d_reice=d_reice)
-
+      d_iwc=d_iwc, d_reice=d_reice,                   &
+      nxproc=nxproc, nyproc=nyproc)
   end subroutine
 
   subroutine destroy_rrtmg
     call destroy_tenstream_rrtmg()
+    deallocate(edir, edn, eup, abso)
   end subroutine
 
 
