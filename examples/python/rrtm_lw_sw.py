@@ -4,7 +4,10 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 from mpi4py import MPI
-from py_rrtm_lw_sw import m_py_rrtm_lw_sw as RRTM
+import py_rrtm_lw_sw as RRTM
+#reload(RRTM)
+
+TS = RRTM.m_py_rrtm_lw_sw
 
 def py_rrtmg(
         comm=MPI.COMM_WORLD,
@@ -64,7 +67,7 @@ def py_rrtmg(
         reice = np.ones_like(co2) * 20
 
     # Either call with reduced interface
-    RRTM.rrtmg_minimal(fcomm,
+    TS.rrtmg_minimal(fcomm,
             dx, dy, phi0, theta0,
             albedo_thermal, albedo_solar,
             atm_filename,
@@ -73,9 +76,9 @@ def py_rrtmg(
             lwc, reliq, iwc, reice,
             nxproc, nyproc)
 
-    edir, edn, eup, abso = [ x.copy() for x in [RRTM.edir, RRTM.edn, RRTM.eup, RRTM.abso]]
+    edir, edn, eup, abso = [ x.copy() for x in [TS.edir, TS.edn, TS.eup, TS.abso]]
 
-    RRTM.destroy_rrtmg()
+    TS.destroy_rrtmg()
 
     def stitch(local):
         """ Gather values From local to global grid """
@@ -107,42 +110,43 @@ def py_rrtmg(
     #        print('{:4d} {:12.2f} {:12.2f} {:12.2f}'.format(k, dr[0,0], dn[0,0], up[0,0]))
 
 
-Nx,Ny,Nz=3,3,30
-height = 3e3
+def example():
+    Nx,Ny,Nz=3,16,30
+    height = 3e3
 
-lwc = np.zeros((Nz,Nx,Ny))
+    lwc = np.zeros((Nz,Nx,Ny))
 
-myid = MPI.COMM_WORLD.Get_rank()
+    myid = MPI.COMM_WORLD.Get_rank()
 
-if myid == 0:
-    lwc[20,:,:] = 1e-1
+    if myid == 0:
+        lwc[20,:,6:9] = 1e-1
 
-edir,edn,eup,abso = py_rrtmg(Nx=Nx, Ny=Ny, Nz=Nz, max_height=height,
-        lwc=lwc,
-        theta0=60, phi0=180,
-        N_ranks_x=1, N_ranks_y=MPI.COMM_WORLD.Get_size())
-
-if myid == 0:
-    from pylab import *
-    plt.clf()
-    plt.subplot(141); title('edir')
-    plt.imshow(edir[:,0],vmin=0)
-    plt.colorbar()
-    plt.subplot(142); title('edn')
-    plt.imshow(edn[:,0],vmin=0)
-    plt.colorbar()
-    plt.subplot(143); title('eup')
-    plt.imshow(eup[:,0],vmin=0)
-    plt.colorbar()
-    plt.subplot(144); title('abso')
-    plt.imshow(abso[:,0]*86)
-    plt.colorbar()
-
-    [sub.label_outer() for sub in gcf().get_axes()]
-    gcf().set_size_inches((7.4,8))
-    plt.tight_layout()
-
-    plt.savefig('rrtmg.pdf')
+    edir,edn,eup,abso = py_rrtmg(Nx=Nx, Ny=Ny, Nz=Nz, max_height=height,
+            lwc=lwc,
+            theta0=60, phi0=180,
+            N_ranks_x=1, N_ranks_y=MPI.COMM_WORLD.Get_size())
     np.save('rrtmg', (edir,edn,eup,abso))
 
-MPI.Finalize()
+    if myid == 0:
+        import matplotlib.pyplot as plt
+        plt.clf()
+        plt.subplot(141); plt.title('edir')
+        plt.imshow(edir[:,0],vmin=0)
+        plt.colorbar()
+        plt.subplot(142); plt.title('edn')
+        plt.imshow(edn[:,0],vmin=0)
+        plt.colorbar()
+        plt.subplot(143); plt.title('eup')
+        plt.imshow(eup[:,0],vmin=0)
+        plt.colorbar()
+        plt.subplot(144); plt.title('abso')
+        plt.imshow(abso[:,0]*86)
+        plt.colorbar()
+
+        [sub.label_outer() for sub in plt.gcf().get_axes()]
+        plt.gcf().set_size_inches((7.4,8))
+        plt.tight_layout()
+
+        plt.savefig('rrtmg.pdf')
+        return edir,edn,eup,abso
+
