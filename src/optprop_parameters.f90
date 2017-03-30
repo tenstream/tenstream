@@ -70,6 +70,8 @@ module m_optprop_parameters
 
       integer(iintegers) ,parameter :: Ndz_1_2=80, Nkabs_1_2=20, Nksca_1_2=20, Ng_1_2=3, Nphi_1_2=1, Ntheta_1_2=19, Ndiff_1_2=2, Ndir_1_2=1, interp_mode_1_2=2
 
+      integer(iintegers) ,parameter :: Ntau=50, Nw0=10
+
       !-----------------------------------------
       !- Define precision of coefficients      -
       !-----------------------------------------

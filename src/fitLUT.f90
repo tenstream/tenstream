@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -20,7 +20,7 @@
 module m_poly_fitLUT
 
 #ifdef _XLF
-      use ieee_arithmetic 
+      use ieee_arithmetic
 #define isnan ieee_is_nan
 #endif
 
@@ -413,7 +413,7 @@ end type
 !        call LPN(n,x, pn,pd)
           legendre=pn(n)
         end function
-      
+
       pure function laguerre(x,n)
         real(ireals) :: laguerre
         real(ireals),intent(in) :: x
@@ -485,8 +485,8 @@ end type
               fact = 1
             else
               fact = n * factorial(n-1)
-            endif 
-          end function          
+            endif
+          end function
           pure function polygonal_number(dim,vars)
             !http://en.wikipedia.org/wiki/Polygonal_number 
             integer(iintegers) :: polygonal_number
@@ -526,10 +526,10 @@ end type
             call PetscViewerDestroy(view,ierr) ;call CHKERR(ierr)
           end subroutine
 
-          subroutine fitdirLUT(dx,azimuth,zenith)
-            real(ireals),intent(in) :: dx,azimuth,zenith
+          subroutine fitdirLUT(azimuth,zenith)
+            real(ireals),intent(in) :: azimuth,zenith
 
-            type(t_optprop_LUT_8_10) :: OPP  
+            type(t_optprop_LUT_8_10) :: OPP
             integer(iintegers) :: Ndim,Nsample,Ncoeff
 
             type(Vector) :: train_inp, train_out
@@ -543,9 +543,9 @@ end type
 
             real(ireals),allocatable :: coords(:), dummy_inp(:), dummy_coeff(:)
 
-            integer(iintegers) :: i,j,idz,ikabs,iksca,ig,iphi,itheta,icoeff
+            integer(iintegers) :: i,j,itaux,itauz,iw0,ig,iphi,itheta,icoeff
 
-            call OPP%init(dx,dx,[azimuth],[zenith],imp_comm)
+            call OPP%init([azimuth],[zenith],imp_comm)
 
             icoeff=2
 
@@ -563,15 +563,14 @@ end type
 
             if(myid.eq.0) then
               print *,'LUT has',Ndim,'dimensions and ',Nsample,'entries and',Ncoeff,'coefficients'
-              print *,'LUT dimensions :: dz  ',OPP%dirLUT%pspace%dz
-              print *,'LUT dimensions :: kabs',OPP%dirLUT%pspace%kabs
-              print *,'LUT dimensions :: ksca',OPP%dirLUT%pspace%ksca
-              print *,'LUT dimensions :: g   ',OPP%dirLUT%pspace%g 
-              print *,'LUT dimensions :: g   ',OPP%dirLUT%pspace%phi
-              print *,'LUT dimensions :: g   ',OPP%dirLUT%pspace%theta
+              print *,'LUT dimensions :: tau  ',OPP%dirLUT%pspace%tau
+              print *,'LUT dimensions :: w0   ',OPP%dirLUT%pspace%w0
+              print *,'LUT dimensions :: g    ',OPP%dirLUT%pspace%g
+              print *,'LUT dimensions :: phi  ',OPP%dirLUT%pspace%phi
+              print *,'LUT dimensions :: theta',OPP%dirLUT%pspace%theta
             endif
 
-            call createVec(PETSC_DECIDE,Nsample,train_out)      
+            call createVec(PETSC_DECIDE,Nsample,train_out)
             call createVec(train_out%lN*Ndim ,Nsample*Ndim, train_inp)
 
             !Setup initial input and output for training dataset
@@ -583,22 +582,22 @@ end type
             do iphi=1,OPP%Nphi
               do itheta=1,OPP%Ntheta
                 if( .not. allocated(OPP%dirLUT%S(iphi,itheta)%c) ) cycle
-                do idz=1,OPP%Ndz
-                  do ikabs=1,OPP%Nkabs
-                    do iksca=1,OPP%Nksca
+                do iw0=1,OPP%Nw0
+                  do itauz=1,OPP%Ntau
+                    do itaux=1,OPP%Ntau
                       do ig=1,OPP%Ng
                         j=j+1
                         if(j.lt.train_out%xs.or.j.ge.train_out%xe) cycle
-                        coords(1) = (idz   -one)/ (OPP%Ndz   -one) !OPP%diffLUT%pspace%dz(idz)     
-                        coords(2) = (ikabs -one)/ (OPP%Nkabs -one) !OPP%diffLUT%pspace%kabs(ikabs) 
-                        coords(3) = (iksca -one)/ (OPP%Nksca -one) !OPP%diffLUT%pspace%ksca(iksca) 
-                        coords(4) = (ig    -one)/ (OPP%Ng    -one) !OPP%diffLUT%pspace%g(ig)       
-                        coords(4) = (iphi  -one)/ (OPP%Nphi  -one) !OPP%diffLUT%pspace%g(ig)       
-                        coords(4) = (itheta-one)/ (OPP%Ntheta-one) !OPP%diffLUT%pspace%g(ig)       
+                        coords(1) = (itaux -one)/ (OPP%Ntau  -one)
+                        coords(2) = (itauz -one)/ (OPP%Ntau  -one)
+                        coords(3) = (iw0   -one)/ (OPP%Nw0   -one)
+                        coords(4) = (ig    -one)/ (OPP%Ng    -one)
+                        coords(4) = (iphi  -one)/ (OPP%Nphi  -one)
+                        coords(4) = (itheta-one)/ (OPP%Ntheta-one)
 
                         xv_inp( (i-1)*Ndim + 1 : (i-1)*Ndim + Ndim ) = coords
 
-                        xv_out(i) = OPP%dirLUT%S(iphi,itheta)%c(icoeff,idz,ikabs,iksca,ig)
+                        xv_out(i) = OPP%dirLUT%S(iphi,itheta)%c(icoeff,itaux,itauz,iw0,ig)
                         i=i+1
                       enddo
                     enddo
@@ -622,7 +621,7 @@ end type
 
             ! Sample the result on same grid
 
-            call createVec(PETSC_DECIDE, Nsample, fit_out)      
+            call createVec(PETSC_DECIDE, Nsample, fit_out)
 
             call init_Mat(A,fit_out%lN,coeff%lN, fit_out%gN,coeff%gN)
 
@@ -816,10 +815,10 @@ end type
             call VecDestroy(train_inp%v,ierr)
             call VecDestroy(train_out%v,ierr)
           end subroutine
-          subroutine fitLUT(dx,azimuth,zenith)
-            real(ireals),intent(in) :: dx,azimuth,zenith
+          subroutine fitLUT(azimuth,zenith)
+            real(ireals),intent(in) :: azimuth,zenith
 
-            type(t_optprop_LUT_8_10) :: OPP  
+            type(t_optprop_LUT_8_10) :: OPP
 
             type(Vector) :: coeff
             logical,allocatable :: luse_coeff(:)
@@ -828,13 +827,13 @@ end type
             real(ireals),allocatable,dimension(:) :: x,y,z,k
             real(ireals),allocatable,dimension(:) :: xx,yy,zz,kk
 
-            call OPP%init(dx,dx,[azimuth],[zenith],imp_comm)
+            call OPP%init([azimuth],[zenith],imp_comm)
 
             icoeff = 2
 
-            allocate( x(size(OPP%diffLUT%pspace%dz  )),source=(OPP%diffLUT%pspace%dz  )**.1_ireals )
-            allocate( y(size(OPP%diffLUT%pspace%kabs)),source=(OPP%diffLUT%pspace%kabs)**.1_ireals )
-            allocate( z(size(OPP%diffLUT%pspace%ksca)),source=(OPP%diffLUT%pspace%ksca)**.1_ireals )
+            allocate( x(size(OPP%diffLUT%pspace%tau )),source=(OPP%diffLUT%pspace%tau )**.1_ireals )
+            allocate( y(size(OPP%diffLUT%pspace%tau )),source=(OPP%diffLUT%pspace%tau )**.1_ireals )
+            allocate( z(size(OPP%diffLUT%pspace%w0  )),source=(OPP%diffLUT%pspace%w0  )**.1_ireals )
             allocate( k(size(OPP%diffLUT%pspace%g   )),source=OPP%diffLUT%pspace%g )
 
             allocate( xx(2*size(x)-1 ) ) ; xx(1:size(xx):2) = x;  xx(2:size(xx):2) = [ ( (xx(i-1)+xx(i+1))/2  , i=2,size(xx),2 ) ]
@@ -871,14 +870,14 @@ end type
 end module
 
 program main
-          use m_poly_fitLUT 
+          use m_poly_fitLUT
           implicit none
 
           call PetscInitialize(PETSC_NULL_CHARACTER,ierr) ;call CHKERR(ierr)
           call init_mpi_data_parameters(PETSC_COMM_WORLD)
           call get_cmd_line_options()
 
-          call fitLUT(40._ireals,zero,zero)
+          call fitLUT(zero,zero)
 
           call PetscFinalize(ierr) ;call CHKERR(ierr) 
 

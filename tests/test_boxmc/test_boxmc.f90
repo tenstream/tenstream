@@ -29,7 +29,7 @@ contains
       call bmc_8_10%init(comm)
 
       if(myid.eq.0) print *,'Testing Box-MonteCarlo model with tolerances atol/rtol :: ',atol,rtol
-    
+
       phi   =  0
       theta = 45
 
@@ -42,7 +42,7 @@ contains
       !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol,inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) ! inp_atol=atol, inp_rtol=rtol)
 
   end subroutine setup
-  
+
   @after
   subroutine teardown(this)
       class (MpiTestMethod), intent(inout) :: this
@@ -112,7 +112,7 @@ contains
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
 
-      real(ireals),parameter :: sigma = 3 ! normal test range for coefficients 
+      real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
 
       integer(iintegers) :: i
       character(len=*),optional :: msg
@@ -120,7 +120,7 @@ contains
 
       if(myid.eq.0) then
         print*,''
-        
+
         if( present(msg) ) then
           write(local_msgS,*) trim(msg),':: Diffuse boxmc coefficient not as '
           write(local_msgT,*) trim(msg),':: Direct  boxmc coefficient not as '

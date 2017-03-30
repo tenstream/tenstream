@@ -42,9 +42,6 @@ foreach ( stream ${streams} )
 endforeach ()
 
 
-add_executable( "test_boxmc" "test_boxmc.f90" )
-target_link_libraries( "test_boxmc" tenstream )
-
 add_executable( "Cwrapper_test" "f2c_tenstream.c" )
 target_link_libraries( "Cwrapper_test" tenstream)
 

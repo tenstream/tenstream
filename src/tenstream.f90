@@ -808,15 +808,21 @@ contains
     logical,intent(in) :: ldir
     real(ireals),intent(out) :: coeff(:)
 
+    real(ireals) :: taux, tauz, w0
+
     logical,intent(in) :: lone_dimensional
     real(ireals),intent(in),optional :: angles(2)
 
     call PetscLogStagePush(logstage(7),ierr) ;call CHKERR(ierr)
 
+    taux = (op%kabs+op%ksca) * atm%dx
+    tauz = (op%kabs+op%ksca) * dz
+    w0 = op%ksca / (op%kabs+op%ksca)
+
     if(lone_dimensional) then
-      call OPP_1_2%get_coeff(dz,op%kabs,op%ksca,op%g,ldir,coeff,angles)
+      call OPP_1_2%get_coeff (taux, tauz, w0, op%g,ldir,coeff,angles)
     else
-      call OPP_8_10%get_coeff(dz,op%kabs,op%ksca,op%g,ldir,coeff,angles)
+      call OPP_8_10%get_coeff(taux, tauz, w0, op%g,ldir,coeff,angles)
     endif
 
     call PetscLogStagePop(ierr) ;call CHKERR(ierr)
@@ -2543,15 +2549,15 @@ contains
 
 
     ! init box montecarlo model
-    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
-    if(.not.luse_eddington)      call OPP_1_2%init (atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm) 
+    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
+    if(.not.luse_eddington)      call OPP_1_2%init (pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
 
     call init_matrices()
   end subroutine
 
   !> @brief Main routine to setup TenStream solver
   !> @details This will setup the PETSc DMDA grid and set other grid information, needed for the TenStream
-  !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc) 
+  !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc)
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
   subroutine init_tenstream(icomm, Nz,Nx,Ny, dx,dy, phi0, theta0, dz1d, dz3d, nxproc, nyproc, collapseindex)
     integer,intent(in) :: icomm !< @param MPI_Communicator which should be used -- this will be used for PETSC_COMM_WORLD
@@ -3911,39 +3917,6 @@ end subroutine
 
 subroutine vec_to_hdf5(v)
   Vec,intent(in) :: v
-#ifdef _PETSC_HAVE_HDF5
-  character(10),parameter :: suffix='.h5'
-  character(110) :: fname
-  logical fexists
-  PetscFileMode :: fmode
-  character(100) :: vecname
-
-  PetscViewer :: view
-
-  PetscErrorCode :: ierr
-
-  call PetscObjectGetName(v,vecname,ierr) ;call CHKERR(ierr)
-
-  fname = 'vecdump' // trim(suffix)
-  inquire(file=trim(fname), exist=fexists)
-
-  if(fexists) then
-    if(myid.eq.0 .and. ldebug)  print *,myid,'appending vector to hdf5 file ',trim(fname),' vecname: ',vecname
-    fmode = FILE_MODE_APPEND
-  else 
-    if(myid.eq.0 .and. ldebug)  print *,myid,'writing vector to hdf5 file ',trim(fname),' vecname: ',vecname
-    fmode = FILE_MODE_WRITE
-  endif
-
-  call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;call CHKERR(ierr)
-  call VecView(v, view, ierr) ;call CHKERR(ierr)
-  call PetscViewerDestroy(view,ierr) ;call CHKERR(ierr)
-
-  if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'
-#else      
-  ! disable debug writing of vectors if we could not bring petsc to compile with hdf5
-  if(myid.eq.0 .and. ldebug ) print *,myid,'Petsc build does not allow writing to hdf5 files'
-#endif
 
 end subroutine
 

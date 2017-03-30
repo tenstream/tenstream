@@ -28,12 +28,12 @@ module test_LUT_8_10
 
   integer(mpiint) :: ierr
 
-  @testParameter(constructor = newTest) 
-  type, extends(MpiTestParameter) :: peCase 
+  @testParameter(constructor = newTest)
+  type, extends(MpiTestParameter) :: peCase
     real(ireals) :: kabs,ksca,g,phi,theta
-  contains 
-    procedure :: toString 
-  end type peCase 
+  contains
+    procedure :: toString
+  end type peCase
 
   @TestCase(constructor = newTest)
   type, extends(MPITestCase) :: parameterized_Test
@@ -151,6 +151,7 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
+      real(ireals) :: taux, tauz, w0
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -164,10 +165,14 @@ contains
             theta=> this%theta )
 
         if(myid.eq.0) print *,'Echo Test for :: ',kabs,ksca,g,phi,theta
-        call OPP%init(dx, dy, [phi], [theta], comm)
+        taux = (kabs+ksca) * dx
+        tauz = (kabs+ksca) * dz
+        w0   = ksca / (kabs+ksca)
 
-        call OPP%LUT_get_dir2dir (dz, kabs,ksca,g , phi, theta, LUT_dir2dir)
-        call OPP%LUT_get_dir2diff(dz, kabs,ksca,g , phi, theta, LUT_dir2diff)
+        call OPP%init([phi], [theta], comm)
+
+        call OPP%LUT_get_dir2dir (taux, tauz, w0, g , phi, theta, LUT_dir2dir)
+        call OPP%LUT_get_dir2diff(taux, tauz, w0, g , phi, theta, LUT_dir2diff)
 
         do src=1,8
 
@@ -181,7 +186,7 @@ contains
         call check(BMC_dir2diff,BMC_dir2dir,LUT_dir2diff,LUT_dir2dir, msg='test_LUT_direct_coeffs')
 
       end associate
-  endsubroutine 
+  endsubroutine
 
 
 
@@ -191,16 +196,21 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
+      real(ireals) :: taux, tauz, w0
 
       ! direct tests
       bg  = [1e-2, 0., 0. ]
       phi = 0; theta = 0
       S_target = zero
 
-      call OPP%init(dx, dy, [phi], [theta], this%getMpiCommunicator())
+      taux = (bg(1)+bg(2)) * dx
+      tauz = (bg(1)+bg(2)) * dz
+      w0   = bg(2) / (bg(1)+bg(2))
 
-      call OPP%LUT_get_dir2dir (dz, bg(1), bg(2), bg(3), phi, theta, LUT_dir2dir)
-      call OPP%LUT_get_dir2diff(dz, bg(1), bg(2), bg(3), phi, theta, LUT_dir2diff)
+      call OPP%init([phi], [theta], this%getMpiCommunicator())
+
+      call OPP%LUT_get_dir2dir (taux, tauz, w0, bg(3), phi, theta, LUT_dir2dir)
+      call OPP%LUT_get_dir2diff(taux, tauz, w0, bg(3), phi, theta, LUT_dir2diff)
 
       do src=1,4
         T_target = zero

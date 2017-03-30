@@ -47,7 +47,7 @@ target_link_libraries(
   tenstr_rrtmg tenstream
   )
 
-add_test(NAME pfunit_${CDIR} 
-         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 16 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR} 
+add_test(NAME pfunit_${CDIR}
+         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 16 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 

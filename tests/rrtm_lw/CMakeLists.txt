@@ -44,7 +44,7 @@ add_executable(
 target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
-  tenstr_rrtm_lw tenstream
+  tenstr_rrtmg tenstr_rrtm_lw tenstream
   )
 
 add_test(NAME pfunit_${CDIR} 
