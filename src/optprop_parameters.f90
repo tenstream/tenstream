@@ -54,11 +54,13 @@ module m_optprop_parameters
       !
       ! You should not need to change this... but feel free to play around...
       ! interp_mode 1 == nearest neighbour interpolation
-      ! interp_mode 2 == linear interpolation
+      ! interp_mode 2 == linear interpolation, nearest neighbour in solar angles
+      ! interp_mode 3 == linear interpolation, nearest neighbour in solar azimuth
+      ! interp_mode 4 == linear interpolation in all dimensions
 
 !     integer(iintegers) ,parameter :: Ndz_8_10=4, Nkabs_8_10=2, Nksca_8_10=2, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=1
 !     integer(iintegers) ,parameter :: Ndz_8_10=4, Nkabs_8_10=5, Nksca_8_10=5, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=1
-      integer(iintegers) ,parameter :: Ndz_8_10=20, Nkabs_8_10=20, Nksca_8_10=20, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=19, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=4
+      integer(iintegers) ,parameter :: Ndz_8_10=20, Nkabs_8_10=20, Nksca_8_10=20, Ng_8_10=3, Nphi_8_10=10, Ntheta_8_10=19, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
 !      integer(iintegers) ,parameter :: Ndz_8_10=30, Nkabs_8_10=30, Nksca_8_10=30, Ng_8_10=4, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
 !      integer(iintegers) ,parameter :: Ndz_8_10=50, Nkabs_8_10=80, Nksca_8_10=80, Ng_8_10=5, Nphi_8_10=10, Ntheta_8_10=10, Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
 
@@ -80,18 +82,18 @@ module m_optprop_parameters
 
 !      real(ireals),parameter :: stddev_atol=1e-2_ireals
 !      real(ireals),parameter :: stddev_atol=5e-3_ireals
-!      real(ireals),parameter :: stddev_atol=2e-3_ireals
-      real(ireals),parameter :: stddev_atol=1e-4_ireals
+      real(ireals),parameter :: stddev_atol=1e-3_ireals
+!      real(ireals),parameter :: stddev_atol=1e-4_ireals
 !      real(ireals),parameter :: stddev_atol=5e-6_ireals
 
-!      real(ireals),parameter :: stddev_rtol=5e-2_ireals
-      real(ireals),parameter :: stddev_rtol=1e-3_ireals
+      real(ireals),parameter :: stddev_rtol=1e-2_ireals
+!      real(ireals),parameter :: stddev_rtol=1e-3_ireals
 !      real(ireals),parameter :: stddev_rtol=1e-4_ireals
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
       ! what to expect.
-      logical,parameter :: ldebug_optprop=.False.
-!      logical,parameter :: ldebug_optprop=.True.
+!      logical,parameter :: ldebug_optprop=.False.
+      logical,parameter :: ldebug_optprop=.True.
 
       ! Use delta scaling on optical properties? -- this significantly reduces
       ! the size of the lookuptables.

@@ -153,18 +153,18 @@ contains
       call OPP%set_parameter_space(OPP%diffLUT%pspace)
       call OPP%set_parameter_space(OPP%dirLUT%pspace )
 
+      ! Name will be set in loadLUT_dir, different for each sun angle
+
+      call OPP%loadLUT_dir(azis, szas, comm)
+
       ! Load diffuse LUT
-      write(descr,FMT='("diffuse.pspace.tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
+      write(descr,FMT='("diffuse.coarse.tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
                                       OPP%Ntau, OPP%Nw0, OPP%Ng, ldelta_scale, delta_scale_truncate
 
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading diffuse LUT from ',trim(descr)
       OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.nc'
 
       call OPP%loadLUT_diff(comm)
-
-      ! Name will be set in loadLUT_dir, different for each sun angle
-
-      call OPP%loadLUT_dir(azis, szas, comm)
 
       ! Copy LUT to all ranks
       if(comm_size.gt.1) call OPP%scatter_LUTtables(comm, azis,szas)
@@ -281,7 +281,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
       do iphi  =1,OPP%Nphi
 
         ! Set filename of LUT
-        write(descr,FMT='("direct.pspace.tau",I0,".w0",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
+        write(descr,FMT='("direct.coarse.tau",I0,".w0",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
             OPP%Ntau, OPP%Nw0, OPP%Ng,           &
             int(OPP%dirLUT%pspace%phi(iphi)),    &
             int(OPP%dirLUT%pspace%theta(itheta)),&
@@ -1082,8 +1082,8 @@ subroutine set_parameter_space(OPP,ps)
     class(t_optprop_LUT) :: OPP
     type(parameter_space),intent(inout) :: ps
     real(ireals) :: diameter ! diameter of max. cube size
-    real(ireals),parameter :: maximum_transmission=one-1e-6_ireals !one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
-    real(ireals),parameter :: minimum_transmission=1e-6_ireals
+    real(ireals),parameter :: maximum_transmission=one-1e-7_ireals !one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
+    real(ireals),parameter :: minimum_transmission=1e-7_ireals
     real(ireals) :: transmission
     integer(iintegers) :: k
 
@@ -1392,14 +1392,14 @@ subroutine catch_limits(ps, taux, tauz, w0, g)
 
     iierr=0
 
-    if( taux.lt.ps%range_tau(1) .or. taux.gt.ps%range_tau(2) ) then
-      print *,'tau is not in LookUpTable Range',taux, 'LUT range',ps%range_tau
-      iierr=iierr+1
-    endif
-    if( tauz.lt.ps%range_tau(1) .or. tauz.gt.ps%range_tau(2) ) then
-      print *,'tau is not in LookUpTable Range',tauz, 'LUT range',ps%range_tau
-      iierr=iierr+1
-    endif
+    !if( taux.lt.ps%range_tau(1) .or. taux.gt.ps%range_tau(2) ) then
+    !  print *,'tau is not in LookUpTable Range',taux, 'LUT range',ps%range_tau
+    !  iierr=iierr+1
+    !endif
+    !if( tauz.lt.ps%range_tau(1) .or. tauz.gt.ps%range_tau(2) ) then
+    !  print *,'tau is not in LookUpTable Range',tauz, 'LUT range',ps%range_tau
+    !  iierr=iierr+1
+    !endif
     if( w0.lt.ps%range_w0(1) .or. w0.gt.ps%range_w0(2) ) then
       print *,'w0 is not in LookUpTable Range',w0, 'LUT range',ps%range_w0
       iierr=iierr+1
