@@ -3,7 +3,7 @@ message(STATUS "Creating python interfaces with ${F2PY_PATH}")
 set(DEPENDENCY_LIST tenstream)
 
 list(APPEND wrappers
-  "py_boxmc.f90"
+  "py_boxmc.f90" "py_eddington.f90"
   )
 
 list(APPEND rrtm_wrappers
