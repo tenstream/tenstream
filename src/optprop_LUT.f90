@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -23,10 +23,14 @@ module m_optprop_LUT
 
   use m_helper_functions, only : approx,rel_approx,imp_bcast,mpi_logical_and,mpi_logical_or, search_sorted_bisection, CHKERR
   use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_comm,imp_logical,numnodes
-  use m_optprop_parameters, only: ldebug_optprop, lut_basename, Ntau, Nw0, &
-      Ng_1_2,Nphi_1_2,Ntheta_1_2,Ndir_1_2,Ndiff_1_2,interp_mode_1_2,   &
-      Ng_8_10,Nphi_8_10,Ntheta_8_10,Ndir_8_10,Ndiff_8_10,interp_mode_8_10, &
-      ldelta_scale,delta_scale_truncate,stddev_atol
+  use m_optprop_parameters, only:          &
+    ldebug_optprop, lut_basename,          &
+    Ntau, Nw0, Ng, Nphi, Ntheta,           &
+    Ndir_1_2,Ndiff_1_2,interp_mode_1_2,    &
+    Ndir_8_10,Ndiff_8_10,interp_mode_8_10, &
+    ldelta_scale,delta_scale_truncate,     &
+    stddev_atol, use_prescribed_LUT_dims,  &
+    preset_tau, preset_w0, preset_g, preset_theta
   use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
   use m_tenstream_interpolation, only: interp_4d
   use m_netcdfio
@@ -48,9 +52,8 @@ module m_optprop_LUT
     real(ireals),allocatable ,dimension(:) :: g
     real(ireals),allocatable ,dimension(:) :: phi
     real(ireals),allocatable ,dimension(:) :: theta
-    real(ireals) :: g_exponent
     real(ireals) , dimension(2)      :: range_tau     = [ nil        , nil           ] ! is defined in set_parameter_space, so that min and max transmissions are met
-    real(ireals) , dimension(2)      :: range_w0      = [ zero       , .99_ireals   ]
+    real(ireals) , dimension(2)      :: range_w0      = [ zero       , .999_ireals   ]
     real(ireals) , dimension(2)      :: range_g       = [ zero       , .999_ireals   ]
     real(ireals) , dimension(2)      :: range_phi     = [ zero       , 90._ireals    ]
     real(ireals) , dimension(2)      :: range_theta   = [ zero       , 90._ireals    ]
@@ -1083,35 +1086,38 @@ subroutine set_parameter_space(OPP,ps)
     type(parameter_space),intent(inout) :: ps
     real(ireals) :: diameter ! diameter of max. cube size
     real(ireals),parameter :: maximum_transmission=one-1e-7_ireals !one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
-    real(ireals),parameter :: minimum_transmission=1e-7_ireals
+    real(ireals),parameter :: minimum_transmission=1e-30_ireals
     real(ireals) :: transmission
     integer(iintegers) :: k
 
+      OPP%Ntau   = Ntau
+      OPP%Nw0    = Nw0
+      OPP%Ng     = Ng
+      OPP%Nphi   = Nphi
+      OPP%Ntheta = Ntheta
+
+
     select type(OPP)
       class is (t_optprop_LUT_1_2)
-          OPP%Ntau   = Ntau
-          OPP%Nw0    = Nw0
-          OPP%Ng     = Ng_1_2
-          OPP%Nphi   = Nphi_1_2
-          OPP%Ntheta = Ntheta_1_2
+          OPP%Nphi   = 1 ! azimithally average in 1D
           OPP%interp_mode = interp_mode_1_2
       class is (t_optprop_LUT_8_10)
-          OPP%Ntau   = Ntau
-          OPP%Nw0    = Nw0
-          OPP%Ng     = Ng_8_10
-          OPP%Nphi   = Nphi_8_10
-          OPP%Ntheta = Ntheta_8_10
           OPP%interp_mode = interp_mode_8_10
       class default
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select
+
     if(.not. allocated(ps%tau  )) allocate(ps%tau  (OPP%Ntau   ))
     if(.not. allocated(ps%w0   )) allocate(ps%w0   (OPP%Nw0    ))
     if(.not. allocated(ps%g    )) allocate(ps%g    (OPP%Ng     ))
     if(.not. allocated(ps%phi  )) allocate(ps%phi  (OPP%Nphi   ))
     if(.not. allocated(ps%theta)) allocate(ps%theta(OPP%Ntheta ))
 
-    ps%g_exponent=.25
+
+    ! determine support points over a range
+    ! ATTENTION, this is currently not good for tau...
+    ! better use preset dimensions (happens at the end of the routine
+    ! see in optprop_parameters for details
 
     ! -------------- Setup tau support points
 
@@ -1133,7 +1139,7 @@ subroutine set_parameter_space(OPP,ps)
     if(ldelta_scale) ps%range_g=[zero,.5_ireals]
 
     do k=1,OPP%Ng
-      ps%g(k)     = exp_index_to_param(one*k,ps%range_g,OPP%Ng, ps%g_exponent )
+      ps%g(k)     = exp_index_to_param(one*k,ps%range_g,OPP%Ng, .25 )
     enddo
 
     if(OPP%Ng.eq.1) then
@@ -1150,6 +1156,21 @@ subroutine set_parameter_space(OPP,ps)
     do k=1,OPP%Ntheta
       ps%theta(k) = lin_index_to_param(one*k,ps%range_theta,OPP%Ntheta)
     enddo
+
+
+    ! ------------- Overwrite dimensions with preset values
+
+    if (use_prescribed_LUT_dims) then
+      ps%tau        = preset_tau
+      ps%w0         = preset_w0
+      ps%g          = preset_g
+      ps%theta      = preset_theta
+
+      ps%range_tau  = [ps%tau  (1), ps%tau  (Ntau  )]
+      ps%range_w0   = [ps%w0   (1), ps%w0   (Nw0   )]
+      ps%range_g    = [ps%g    (1), ps%g    (Ng    )]
+      ps%range_theta= [ps%theta(1), ps%theta(Ntheta)]
+    endif
 end subroutine
 
 subroutine LUT_get_dir2dir(OPP, in_taux, in_tauz, in_w0, g, phi, theta, C)
