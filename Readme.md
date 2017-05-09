@@ -19,6 +19,9 @@ I do however highly encourage you to participate in the development of the codeb
 If you are using the code in your work, please consider sharing bugfixes and experiences.
 Given the experimental status of the solver, I kindly ask that you get in touch before publishing any results concerning the TenStream solver to ensure correctness of the results.  
 It would also be appreciated to discuss co-authorship for research publications conducted with the TenStream solver.
+#### Contact
+Don't hesitate to ask, fabian@jakub.com (<a href="http://jakub.com/" target="_blank">www.jakub.com</a>
+)
 
 ---
 
