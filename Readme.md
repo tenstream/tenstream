@@ -11,7 +11,8 @@
 #### The solver is coupled to the software packages:
   * [LibRadtran](http://www.libradtran.org)  -- all purpose radiative transfer Library(partially free)
   * [UCLA-LES](http://www.github.com/uclales/uclales)    -- Large Eddy Simulation code for cloud resolving simulations
-  * [COSMO](http://www.cosmo-model.org)       -- Numerical Weather Prediction model 
+  * [COSMO](http://www.cosmo-model.org)       -- Numerical Weather Prediction model
+  * [DALES](https://github.com/dalesteam/dales) -- Dutch Atmospheric Large-Eddy Simulation model 
 
 #### Note concerning the usage
 The code is distributed under the GPL, and you are therefore free to use, change and redistribute it.  
