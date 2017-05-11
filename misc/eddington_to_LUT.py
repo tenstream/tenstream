@@ -118,10 +118,11 @@ def check_results(a, tau, w0, g, mu, na, ntau, nw0, ng, nmu, ival=0):
     ia = interpolate.interpn((ntau, nw0, ng, nmu), na[ival], me.T, bounds_error=False)
 
     rmse = lambda a,b: np.sqrt(np.nanmean((a-b)**2))
-    rel_rmse = lambda a,b: rmse(a,b)/np.nanmean(b)
+    rel_rmse = lambda a,b: rmse(a,b)/np.nanmean(b)*1e2
     maxerr = lambda a,b: np.nanmax(np.abs(a-b))
+    bias = lambda a,b: (np.sum(a)/np.sum(b) - 1.)*1e2
 
-    error = (rel_rmse(ia, a[ival].flatten()), maxerr(ia, a[ival].flatten()))
+    error = (rel_rmse(ia, a[ival].flatten()), maxerr(ia, a[ival].flatten()), bias(ia, a[ival].flatten()))
 
     return ia.reshape((tau.size, w0.size, g.size, mu.size)), error
 
@@ -138,10 +139,10 @@ def print_fortran_code(ntau, nw0, ng, ntheta):
     print("real(ireals), parameter :: preset_theta({}) = [{}]".format(ntheta.size, ','.join([str(x) for x in ntheta])))
 
 
-def _main():
+def _main(Ntau=100, Nw0=10, Ng=3, Ntheta=19, lplot=False):
     """ run a set of new dimensions """
     a = compute_eddington_data(tau, w0, g, mu)
-    ntau = find_new_tau(a, N=100)
+    ntau = find_new_tau(a, N=Ntau)
     nw0 = find_new_w0(a, N=10)
     ng = find_new_g(a, N=3)
     ntheta = np.linspace(0, 90, 19)
@@ -149,11 +150,22 @@ def _main():
     print("New Indices:",ntau.size, nw0.size, ng.size, nmu.size)
     na = compute_eddington_data(ntau, nw0, ng, nmu)
     ia, err = check_results(a, tau, w0, g, mu, na, ntau, nw0, ng, nmu)
-    print err
+    print(Ntau, Nw0, Ng, Ntheta, "RMSE & max-error with linear interpolation:", err)
     figure(4); clf();imshow(ia[:,:,-1,-1], aspect='auto',interpolation='nearest');colorbar()
 
     print_fortran_code(ntau, nw0, ng, ntheta)
 
 
-_main()
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description='LUT support point finder')
+    parser.add_argument('Ntau'  , type=int, help='Number of supports in dimension tau')
+    parser.add_argument('Nw0'   , type=int, help='Number of supports in dimension w0')
+    parser.add_argument('Ng'    , type=int, help='Number of supports in dimension g')
+    parser.add_argument('Ntheta', type=int, help='Number of supports in dimension zenith theta')
+    parser.add_argument('-plot', action='store_const', const=True, help='create some plots to check', default=False)
+    args = parser.parse_args()
+
+    _main(args.Ntau, args.Nw0, args.Ng, args.Ntheta, args.plot)
 
