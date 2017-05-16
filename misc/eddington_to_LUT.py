@@ -40,7 +40,7 @@ def find_supports(c, N, dim):
 
     return np.sort(np.unique(support_indices))
 
-def find_new_tau(a, N=20, iw0=Nw0//1.1, ig=Ng//2, imu=Nmu//2):
+def find_new_tau(a, N=20, iw0=Nw0//1.1, ig=Ng//2, imu=Nmu//2, lplot=True, linear_supports=False):
     """ find new support points for tau axis """
     a11, a12, a13, a23, a33, b1, b2 = a
 
@@ -50,6 +50,9 @@ def find_new_tau(a, N=20, iw0=Nw0//1.1, ig=Ng//2, imu=Nmu//2):
     #support_indices = np.hstack([find_supports(c, 20, 0) for c in (a11, a12,a13,a23,a33)]).astype(int)
 
     support_indices = find_supports(a11, N, 0)
+    if linear_supports:
+        support_indices = np.linspace(0, tau.size, N)
+
     new_tau = np.interp(support_indices, np.arange(tau.size), tau)
 
     #new_tau = tau[find_supports(a11, N, 0).astype(int)]
@@ -58,20 +61,23 @@ def find_new_tau(a, N=20, iw0=Nw0//1.1, ig=Ng//2, imu=Nmu//2):
     new_a12 = [ P.m_py_eddington.py_eddington_coeff_zdun(vtau, w0[iw0], g[ig], mu[imu])[1] for vtau in new_tau ]
     new_a33 = [ P.m_py_eddington.py_eddington_coeff_zdun(vtau, w0[iw0], g[ig], mu[imu])[4] for vtau in new_tau ]
 
-    figure(1); clf()
-    plot(tau, a11[:, iw0, ig, imu], 'r.-', label='a11'); plot(new_tau, new_a11, 'ro--')
-    plot(tau, a12[:, iw0, ig, imu], 'g.-', label='a12'); plot(new_tau, new_a12, 'go--')
-    plot(tau, a33[:, iw0, ig, imu], 'b.-', label='a33'); plot(new_tau, new_a33, 'bo--')
-
-    xscale('log'); tight_layout(); legend()
+    if lplot:
+        figure(1); clf()
+        plot(tau, a11[:, iw0, ig, imu], 'r.-', label='a11'); plot(new_tau, new_a11, 'ro--')
+        plot(tau, a12[:, iw0, ig, imu], 'g.-', label='a12'); plot(new_tau, new_a12, 'go--')
+        plot(tau, a33[:, iw0, ig, imu], 'b.-', label='a33'); plot(new_tau, new_a33, 'bo--')
+        xlabel('tau'); xscale('log'); tight_layout(); legend()
 
     return new_tau
 
 
-def find_new_w0(a, N=10, itau=Ntau//1.2, ig=Ng//2, imu=Nmu//2):
+def find_new_w0(a, N=10, itau=Ntau//1.2, ig=Ng//2, imu=Nmu//2, lplot=False, linear_supports=False):
     a11, a12, a13, a23, a33, b1, b2 = a
 
     support_indices = find_supports(a11, N, 1)
+    if linear_supports:
+        support_indices = np.linspace(0, w0.size, N)
+
     new_w0 = np.interp(support_indices, np.arange(w0.size), w0)
     #new_w0 = w0[find_supports(a11, N, 1).astype(int)]
 
@@ -79,20 +85,23 @@ def find_new_w0(a, N=10, itau=Ntau//1.2, ig=Ng//2, imu=Nmu//2):
     new_a12 = [ P.m_py_eddington.py_eddington_coeff_zdun(tau[itau], vw0, g[ig], mu[imu])[1] for vw0 in new_w0 ]
     new_a33 = [ P.m_py_eddington.py_eddington_coeff_zdun(tau[itau], vw0, g[ig], mu[imu])[4] for vw0 in new_w0 ]
 
-    figure(2); clf()
-    plot(w0, a11[itau, :, ig, imu], 'r.-', label='a11'); plot(new_w0, new_a11, 'ro--')
-    plot(w0, a12[itau, :, ig, imu], 'g.-', label='a12'); plot(new_w0, new_a12, 'go--')
-    plot(w0, a33[itau, :, ig, imu], 'b.-', label='a33'); plot(new_w0, new_a33, 'bo--')
-
-    tight_layout(); legend()
+    if lplot:
+        figure(2); clf()
+        plot(w0, a11[itau, :, ig, imu], 'r.-', label='a11'); plot(new_w0, new_a11, 'ro--')
+        plot(w0, a12[itau, :, ig, imu], 'g.-', label='a12'); plot(new_w0, new_a12, 'go--')
+        plot(w0, a33[itau, :, ig, imu], 'b.-', label='a33'); plot(new_w0, new_a33, 'bo--')
+        xlabel('w0'); tight_layout(); legend()
 
     return new_w0
 
 
-def find_new_g(a, N=3, itau=Ntau//1.2, iw0=-1, imu=Nmu//2):
+def find_new_g(a, N=3, itau=Ntau//1.2, iw0=-1, imu=Nmu//2, lplot=False, linear_supports=False):
     a11, a12, a13, a23, a33, b1, b2 = a
 
     support_indices = find_supports(a11, N, 2)
+    if linear_supports:
+        support_indices = np.linspace(0, g.size, N)
+
     new_g = np.interp(support_indices, np.arange(g.size), g)
     #new_g = g[find_supports(a11, N, 2).astype(int)]
 
@@ -100,12 +109,12 @@ def find_new_g(a, N=3, itau=Ntau//1.2, iw0=-1, imu=Nmu//2):
     new_a12 = [ P.m_py_eddington.py_eddington_coeff_zdun(tau[itau], w0[iw0], vg, mu[imu])[1] for vg in new_g ]
     new_a33 = [ P.m_py_eddington.py_eddington_coeff_zdun(tau[itau], w0[iw0], vg, mu[imu])[4] for vg in new_g ]
 
-    figure(3); clf()
-    plot(g, a11[itau, iw0, :, imu], 'r.-', label='a11'); plot(new_g, new_a11, 'ro--')
-    plot(g, a12[itau, iw0, :, imu], 'g.-', label='a12'); plot(new_g, new_a12, 'go--')
-    plot(g, a33[itau, iw0, :, imu], 'b.-', label='a33'); plot(new_g, new_a33, 'bo--')
-
-    tight_layout(); legend()
+    if lplot:
+        figure(3); clf()
+        plot(g, a11[itau, iw0, :, imu], 'r.-', label='a11'); plot(new_g, new_a11, 'ro--')
+        plot(g, a12[itau, iw0, :, imu], 'g.-', label='a12'); plot(new_g, new_a12, 'go--')
+        plot(g, a33[itau, iw0, :, imu], 'b.-', label='a33'); plot(new_g, new_a33, 'bo--')
+        xlabel('g'); tight_layout(); legend()
 
     return new_g
 
@@ -139,19 +148,32 @@ def print_fortran_code(ntau, nw0, ng, ntheta):
     print("real(ireals), parameter :: preset_theta({}) = [{}]".format(ntheta.size, ','.join([str(x) for x in ntheta])))
 
 
-def _main(Ntau=100, Nw0=10, Ng=3, Ntheta=19, lplot=False):
+def _main(Ntau=20, Nw0=15, Ng=3, Ntheta=19, lplot=False):
     """ run a set of new dimensions """
     a = compute_eddington_data(tau, w0, g, mu)
-    ntau = find_new_tau(a, N=Ntau)
-    nw0 = find_new_w0(a, N=Nw0)
-    ng = find_new_g(a, N=Ng)
+
+    kwargs = {
+            'lplot' : lplot,
+            'linear_supports' : False,
+            }
+
+    ntau = find_new_tau(a, N=Ntau, **kwargs)
+    nw0  = find_new_w0 (a, N=Nw0 , **kwargs)
+    ng   = find_new_g  (a, N=Ng  , **kwargs)
     ntheta = np.linspace(0, 90, Ntheta)
     nmu = np.sort(np.cos(np.deg2rad(ntheta)))
     print("New Indices:",ntau.size, nw0.size, ng.size, nmu.size)
+
     na = compute_eddington_data(ntau, nw0, ng, nmu)
     ia, err = check_results(a, tau, w0, g, mu, na, ntau, nw0, ng, nmu)
     print(Ntau, Nw0, Ng, Ntheta, "RMSE & max-error with linear interpolation:", err)
-    figure(4); clf();imshow(ia[:,:,-1,-1], aspect='auto',interpolation='nearest');colorbar()
+
+    if lplot:
+        figure(4); clf()
+        imshow(ia[:,:,-1,-1], aspect='auto',interpolation='nearest')
+        cb = colorbar(); cb.set_label('interpolated coeffs')
+        xlabel('w0 index'); ylabel('tau index')
+        title('RMSE {:.2f} % & max-error {:.4f} & bias {:.2f} %'.format(err[0], err[1], err[2]))
 
     print_fortran_code(ntau, nw0, ng, ntheta)
 
