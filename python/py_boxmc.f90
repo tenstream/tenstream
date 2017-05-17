@@ -15,30 +15,53 @@ module m_py_boxmc
         comm, op_bg, src,      &
         ldir, phi0, theta0,    &
         dx, dy, dz,            &
-        S, T, S_tol,T_tol,     &
+        ret_S, ret_T,          &
+        ret_S_tol,ret_T_tol,   &
         inp_atol, inp_rtol)
 
-    real(ireals),intent(in)       :: op_bg(3)     !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
-    real(ireals),intent(in)       :: phi0         !< @param[in] phi0 solar azimuth angle
-    real(ireals),intent(in)       :: theta0       !< @param[in] theta0 solar zenith angle
-    integer(iintegers),intent(in) :: src          !< @param[in] src stream from which to start photons - see init_photon routines
-    integer(mpiint),intent(in)    :: comm         !< @param[in] comm MPI Communicator
-    logical,intent(in)            :: ldir         !< @param[in] ldir determines if photons should be started with a fixed incidence angle
-    real(ireals),intent(in)       :: dx,dy,dz     !< @param[in] dx,dy,dz box with dimensions in [m]
-    real(ireals),intent(out)      :: S(10)        !< @param[out] S_out diffuse streams transfer coefficients
-    real(ireals),intent(out)      :: T(8)         !< @param[out] T_out direct streams transfer coefficients
-    real(ireals),intent(out)      :: S_tol(10)    !< @param[out] absolute tolerances of results
-    real(ireals),intent(out)      :: T_tol(8)     !< @param[out] absolute tolerances of results
-    real(ireals),intent(in),optional :: inp_atol  !< @param[in] inp_atol if given, determines targeted absolute stddeviation
-    real(ireals),intent(in),optional :: inp_rtol  !< @param[in] inp_rtol if given, determines targeted relative stddeviation
+    double precision,intent(in)  :: op_bg(3)     !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
+    double precision,intent(in)  :: phi0         !< @param[in] phi0 solar azimuth angle
+    double precision,intent(in)  :: theta0       !< @param[in] theta0 solar zenith angle
+    integer,intent(in) :: src                         !< @param[in] src stream from which to start photons - see init_photon routines
+    integer(mpiint),intent(in)   :: comm         !< @param[in] comm MPI Communicator
+    logical,intent(in)           :: ldir         !< @param[in] ldir determines if photons should be started with a fixed incidence angle
+    double precision,intent(in)  :: dx,dy,dz     !< @param[in] dx,dy,dz box with dimensions in [m]
+    double precision,intent(out) :: ret_S(10)    !< @param[out] S_out diffuse streams transfer coefficients
+    double precision,intent(out) :: ret_T(8)     !< @param[out] T_out direct streams transfer coefficients
+    double precision,intent(out) :: ret_S_tol(10)!< @param[out] absolute tolerances of results
+    double precision,intent(out) :: ret_T_tol(8) !< @param[out] absolute tolerances of results
+    double precision,intent(in)  :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
+    double precision,intent(in)  :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
 
     type(t_boxmc_8_10) :: bmc
+
+    real(ireals)       :: S(10)
+    real(ireals)       :: T(8)
+    real(ireals)       :: S_tol(10)
+    real(ireals)       :: T_tol(8)
+
+    print *,'bmc wrapper input:',op_bg, ':', phi0, theta0, ':',src
 
     call init_mpi_data_parameters(comm)
     call bmc%init(comm)
 
-    call bmc%get_coeff(comm,op_bg,src,ldir,phi0,theta0,dx,dy,dz, &
-      S, T, S_tol, T_tol, inp_atol, inp_rtol )
+    call bmc%get_coeff(comm,      &
+      real(op_bg, kind=ireals),   &
+      int(src,kind=iintegers),    &
+      ldir,                       &
+      real(phi0, kind=ireals),    &
+      real(theta0, kind=ireals),  &
+      real(dx, kind=ireals),      &
+      real(dy, kind=ireals),      &
+      real(dz, kind=ireals),      &
+      S, T, S_tol, T_tol,         &
+      real(inp_atol, kind=ireals),&
+      real(inp_rtol, kind=ireals))
+
+    ret_S = S
+    ret_T = T
+    ret_S_tol = S_tol
+    ret_T_tol = T_tol
 
     end subroutine
 

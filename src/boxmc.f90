@@ -222,6 +222,11 @@ contains
       call exit
     endif
 
+    if( any([phi0,theta0].lt.0) .or. (phi0.gt.360_ireals) .or. (theta0.gt.90_ireals) ) then
+      print *,'corrupt sun angles :: ',phi0, theta0
+      call exit
+    endif
+
     if(dx.le.zero .or. dy.le.zero .or. dz.le.zero ) then
       print *,'ERROR: box dimensions have to be positive!',dx,dy,dz
       call exit()
@@ -271,6 +276,7 @@ contains
     endif
     if( (any(isnan(S_out) )) .or. (any(isnan(T_out)) ) ) then
       print *,'Found a NaN in output! this should not happen! dir',T_out,'diff',S_out
+      print *,'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', dx,dy,dz
       call exit()
     endif
 
@@ -280,11 +286,6 @@ contains
     ret_T_tol = real(T_tol, kind=ireals)
 
     call cpu_time(time(2))
-
-    !    if(rand().gt..99_ireal_dp) then
-    !      write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') &
-    !        src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
-    !    endif
   end subroutine
 
   subroutine run_photons(bmc,src,op,dx,dy,dz,ldir,phi0,theta0,Nphotons,std_Sdir,std_Sdiff,std_abso)
@@ -621,8 +622,11 @@ contains
 
   function R()
     real(ireal_dp) :: R
-    R = getRandomDouble(rndSeq)
-    !    call random_number(R)
+    real :: rvec(1)
+    ! R = getRandomDouble(rndSeq) ! mersenne twister from robert pinucs, see mersenne.f90
+    ! call random_number(R)
+    call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher
+    R = real(rvec(1), kind=ireal_dp)
   end function
 
   subroutine init_random_seed(myid)
@@ -642,11 +646,12 @@ contains
     DEALLOCATE(seed)
 
     call random_number(rn)
-    s = int(rn*1000)*myid
+    s = int(rn*1000)*(myid+1)
 
     !  s=myid
     !  print *,myid,'Seeding RNG with ',s
-    rndSeq = new_RandomNumberSequence(seed=s)
+    rndSeq = new_RandomNumberSequence(seed=s) ! seed pincus's mersenne twister
+    call RLUXGO(4, int(s), 0, 0) ! seed ranlux rng
     lRNGseeded=.True.
   end subroutine
   subroutine init_stddev( std, N, atol, rtol)

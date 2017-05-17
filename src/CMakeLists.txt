@@ -12,6 +12,7 @@ set( general_sources
   "eddington.f90"
   "interpolation.f90"
   "mersenne.f90"
+  "ranlux.for"
   "twostream.f90"
   "schwarzschild.f90"
   "tenstream.f90"

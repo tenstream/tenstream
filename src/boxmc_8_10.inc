@@ -28,11 +28,11 @@ subroutine update_dir_stream_8_10(bmc,p,S)
 !               3       4
 !         _______________
 !        |               |
-!      6 |           8   | 
+!      6 |           8   |
 !        |               |
 !        |               |
 !        |    7          |
-!      5 |_______________| 
+!      5 |_______________|
     select case (p%side)
     case(1:2)
       if(p%loc(1).le.p%dx*h.and.p%loc(2).le.p%dy*h) then
@@ -150,7 +150,7 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         integer(iintegers),intent(in) :: src
         logical,intent(in) :: direct
         real(ireal_dp),parameter :: h=.5_ireal_dp
-        real(ireal_dp),parameter :: e=1e-8_ireal_dp
+        real(ireal_dp),parameter :: e=epsilon(e)*10
 
         p%alive = .False.
 
@@ -353,7 +353,7 @@ subroutine intersect_distance_8_10(bmc,p,max_dist)
         !crossing with bottom and top plane:
           if(p%dir(3).ge.zero) then
             max_dist = hit_plane(p,[zero,zero,p%dz ],[zero,zero,one])
-            p%side=1 
+            p%side=1
             x = p%loc(1)+p%dir(1)*max_dist
             y = p%loc(2)+p%dir(2)*max_dist
             if( ( x.ge.zero .and. x.le.p%dx) .and. ( y.ge.zero .and. y.le.p%dy) ) return
