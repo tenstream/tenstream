@@ -182,8 +182,8 @@ C-----------------------------------------------------------------------
       LUXLEV = ISD
         IF (LUXLEV .LE. MAXLEV) THEN
           NSKIP = NDSKIP(LUXLEV)
-C          WRITE (6,'(A,I2)') ' RANLUX LUXURY LEVEL SET BY RLUXIN TO: ',
-C     +                         LUXLEV
+          WRITE (6,'(A,I2)') ' RANLUX LUXURY LEVEL SET BY RLUXIN TO: ',
+     +                         LUXLEV
         ELSE  IF (LUXLEV .GE. 24) THEN
           NSKIP = LUXLEV - 24
           WRITE (6,'(A,I5)') ' RANLUX P-VALUE SET BY RLUXIN TO:',LUXLEV
@@ -229,8 +229,8 @@ C                    Entry to initialize from one or three integers
          ENDIF
       IF (LUXLEV .LE. MAXLEV)  THEN
          NSKIP = NDSKIP(LUXLEV)
-         WRITE(6,'(A,I2,A,I4)') ' RANLUX LUXURY LEVEL SET BY RLUXGO :',
-     +        LUXLEV,'     P=', NSKIP+24
+C         WRITE(6,'(A,I2,A,I4)') ' RANLUX LUXURY LEVEL SET BY RLUXGO :',
+C     +        LUXLEV,'     P=', NSKIP+24
       ELSE
           NSKIP = LUXLEV - 24
           WRITE (6,'(A,I5)') ' RANLUX P-VALUE SET BY RLUXGO TO:',LUXLEV
