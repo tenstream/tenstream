@@ -1139,7 +1139,7 @@ subroutine set_parameter_space(OPP,ps)
     if(ldelta_scale) ps%range_g=[zero,.5_ireals]
 
     do k=1,OPP%Ng
-      ps%g(k)     = exp_index_to_param(one*k,ps%range_g,OPP%Ng, .25 )
+      ps%g(k)     = exp_index_to_param(one*k,ps%range_g,OPP%Ng, .25_ireals )
     enddo
 
     if(OPP%Ng.eq.1) then
