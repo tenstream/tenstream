@@ -916,7 +916,7 @@ subroutine bmc_wrapper(OPP, src, taux, tauz, w0, g, dir, phi, theta, comm, S_dif
     real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     real(ireals) :: bg(3)
-    real(ireals), parameter :: dz = 1
+    real(ireals), parameter :: dz = 10000
 
     dx = taux/tauz * dz
     dy = dx

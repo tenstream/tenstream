@@ -189,8 +189,6 @@ contains
     real(ireal_dp) :: S_tol(bmc%diff_streams)
     real(ireal_dp) :: T_tol(bmc%dir_streams)
 
-    real(ireal_dp)   :: time(2)
-
     real(ireal_dp) :: atol,rtol, coeffnorm
 
     type(stddev) :: std_Sdir, std_Sdiff, std_abso
@@ -231,8 +229,6 @@ contains
       print *,'ERROR: box dimensions have to be positive!',dx,dy,dz
       call exit()
     endif
-
-    call cpu_time(time(1))
 
     call run_photons(bmc,src,                   &
                      real(op_bg,kind=ireal_dp), &
@@ -285,7 +281,6 @@ contains
     ret_S_tol = real(S_tol, kind=ireals)
     ret_T_tol = real(T_tol, kind=ireals)
 
-    call cpu_time(time(2))
   end subroutine
 
   subroutine run_photons(bmc,src,op,dx,dy,dz,ldir,phi0,theta0,Nphotons,std_Sdir,std_Sdiff,std_abso)
@@ -299,16 +294,20 @@ contains
       type(photon)       :: p
       integer(iintegers) :: k,mycnt,mincnt
       real(ireal_dp)   :: initial_dir(3)
+      real(ireal_dp)   :: time(2)
+
+
+      call cpu_time(time(1))
 
       initial_dir  = [ sin(deg2rad(theta0))*sin(deg2rad(phi0)) ,&
                        sin(deg2rad(theta0))*cos(deg2rad(phi0)) ,&
                      - cos(deg2rad(theta0)) ]
       initial_dir = initial_dir/norm(initial_dir)
 
-      mincnt= max( 100, int( 1e4 /numnodes ) )
-      mycnt = int(1e9)/numnodes
+      mincnt= max( 100, int( 1e3 /numnodes ) )
+      mycnt = int(1e8)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
-      do k=1,mycnt
+      do k=1, mycnt
 
           if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
 
@@ -339,11 +338,18 @@ contains
               call bmc%update_diff_stream(p,std_Sdiff%inc)
           endif
 
-          if(ldir)call std_update( std_Sdir , k, i1*numnodes )
+          if (ldir) call std_update( std_Sdir , k, i1*numnodes )
           call std_update( std_abso , k, i1*numnodes)
           call std_update( std_Sdiff, k, i1*numnodes )
       enddo ! k photons
       Nphotons = k
+
+      call cpu_time(time(2))
+
+      !if(rand().gt..99_ireal_dp) then
+      !  write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec")') &
+      !    src,int(dz),op,p%optprop,int(phi0),int(theta0),Nphotons, Nphotons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
+      !endif
   end subroutine
 
   !> @brief take weighted average over mpi processes
