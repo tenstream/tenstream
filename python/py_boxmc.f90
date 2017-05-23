@@ -40,8 +40,6 @@ module m_py_boxmc
     real(ireals)       :: S_tol(10)
     real(ireals)       :: T_tol(8)
 
-    print *,'bmc wrapper input:',op_bg, ':', phi0, theta0, ':',src
-
     call init_mpi_data_parameters(comm)
     call bmc%init(comm)
 

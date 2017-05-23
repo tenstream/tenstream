@@ -22,3 +22,5 @@ S, T, Stol, Ttol = BMC.get_coeff_8_10(fcomm, optprop, src, ldir, phi0, theta0, d
 
 print(T)
 print(S)
+
+MPI.Finalize()

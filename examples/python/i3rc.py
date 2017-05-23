@@ -124,14 +124,17 @@ def example():
     lwc = lwc[:, :,  myslice]
     reff = reff[:, :, myslice]
 
+    theta = 60
+    phi = 90
+
     edir,edn,eup,abso = py_rrtmg(Nx=lwc.shape[1], Ny=lwc.shape[2], Nz=lwc.shape[0], max_height=hhl[-1],
             lwc=lwc,
-            theta0=60, phi0=0,
+            theta0=theta, phi0=phi,
             N_ranks_x=1, N_ranks_y=MPI.COMM_WORLD.Get_size(),
             lthermal=False)
 
     if myid == 0:
-        np.save('rrtmg', (edir,edn,eup,abso))
+        np.save('i3rc1_{}'.format(theta), (edir,edn,eup,abso))
         import matplotlib.pyplot as plt
         plt.clf()
         plt.subplot(141); plt.title('edir')
@@ -151,7 +154,7 @@ def example():
         plt.gcf().set_size_inches((7.4,8))
         plt.tight_layout()
 
-        plt.savefig('rrtmg.pdf')
+        plt.savefig('i3rc1_{}.pdf'.format(theta))
         return edir,edn,eup,abso
 
 
