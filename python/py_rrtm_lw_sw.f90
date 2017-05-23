@@ -1,6 +1,5 @@
 module m_py_rrtm_lw_sw
-  use m_data_parameters, only : ireals, mpiint, iintegers, &
-    init_mpi_data_parameters, myid
+  use m_data_parameters, only : ireals, mpiint, iintegers, init_mpi_data_parameters, myid, default_str_len
   use m_tenstr_rrtmg, only : tenstream_rrtmg, destroy_tenstream_rrtmg
 
   implicit none
@@ -35,7 +34,7 @@ contains
 
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
-    character(len=250), intent(in) :: atm_filename
+    character(len=*), intent(in) :: atm_filename
 
     ! Compute solar or thermal radiative transfer. Or compute both at once.
     logical, intent(in) :: lsolar, lthermal
@@ -70,12 +69,15 @@ contains
 
     real(ireals), allocatable, dimension(:,:,:) :: edir_ir,edn_ir,eup_ir,abso_ir ! [nlyr(+1), local_nx, local_ny ]
 
+    character(default_str_len) :: atmfname
+    atmfname = atm_filename
+
     call init_mpi_data_parameters(comm)
 
     call tenstream_rrtmg(comm, real(dx,kind=ireals), real(dy,kind=ireals), &
       real(phi0,kind=ireals), real(theta0,kind=ireals),                    &
       real(albedo_thermal,kind=ireals), real(albedo_solar,kind=ireals),    &
-      atm_filename,  lthermal, lsolar,                                     &
+      atmfname,  lthermal, lsolar,                                         &
       edir_ir,edn_ir,eup_ir,abso_ir,                                       &
       real(d_plev,kind=ireals), real(d_tlev,kind=ireals),                  &
       real(d_tlay,kind=ireals), real(d_h2ovmr,kind=ireals),                &
@@ -87,25 +89,26 @@ contains
       nxproc, nyproc, icollapse,                                           &
       real(opt_time,kind=ireals), real(solar_albedo_2d,kind=ireals))
 
-
     if(allocated(edir_ir)) then
       if(allocated(edir)) deallocate(edir)
-      allocate(edir(size(edir_ir,dim=1),size(edir_ir,dim=2),size(edir_ir,dim=3)), source=edir_ir)
+      allocate(edir(size(edir_ir,dim=1),size(edir_ir,dim=2),size(edir_ir,dim=3)))
+      edir = edir_ir
     endif
     if(allocated(edn_ir)) then
       if(allocated(edn)) deallocate(edn)
-      allocate(edn(size(edn_ir,dim=1),size(edn_ir,dim=2),size(edn_ir,dim=3)), source=edn_ir)
+      allocate(edn(size(edn_ir,dim=1),size(edn_ir,dim=2),size(edn_ir,dim=3)))
+      edn = edn_ir
     endif
     if(allocated(eup_ir)) then
       if(allocated(eup)) deallocate(eup)
-      allocate(eup(size(eup_ir,dim=1),size(eup_ir,dim=2),size(eup_ir,dim=3)), source=eup_ir)
+      allocate(eup(size(eup_ir,dim=1),size(eup_ir,dim=2),size(eup_ir,dim=3)))
+      eup = eup_ir
     endif
     if(allocated(abso_ir)) then
       if(allocated(abso)) deallocate(abso)
-      allocate(abso(size(abso_ir,dim=1),size(abso_ir,dim=2),size(abso_ir,dim=3)), source=abso_ir)
+      allocate(abso(size(abso_ir,dim=1),size(abso_ir,dim=2),size(abso_ir,dim=3)))
+      abso = abso_ir
     endif
-
-
   end subroutine
 
   subroutine rrtmg_minimal(nlay, nxp, nyp, nprocx, nprocy, &
@@ -124,7 +127,7 @@ contains
 
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
-    character(len=250), intent(in) :: atm_filename
+    character(len=*), intent(in) :: atm_filename
 
     ! Compute solar or thermal radiative transfer. Or compute both at once.
     logical, intent(in) :: lsolar, lthermal
@@ -146,34 +149,40 @@ contains
 
     real(ireals), allocatable, dimension(:,:,:) :: edir_ir,edn_ir,eup_ir,abso_ir ! [nlyr(+1), local_nx, local_ny ]
 
+    character(default_str_len) :: atmfname
+    atmfname = atm_filename
+
     call init_mpi_data_parameters(comm)
 
     call tenstream_rrtmg(comm, real(dx,kind=ireals), real(dy,kind=ireals), &
       real(phi0,kind=ireals), real(theta0,kind=ireals),                    &
       real(albedo_thermal,kind=ireals), real(albedo_solar,kind=ireals),    &
-      atm_filename,  lthermal, lsolar,                                     &
+      atmfname,  lthermal, lsolar,                                         &
       edir_ir,edn_ir,eup_ir,abso_ir,                                       &
       d_plev=real(d_plev,kind=ireals), d_tlev=real(d_tlev,kind=ireals),    &
       d_lwc=real(d_lwc,kind=ireals), d_reliq=real(d_reliq,kind=ireals),    &
       d_iwc=real(d_iwc,kind=ireals), d_reice=real(d_reice,kind=ireals),    &
       nxproc=nxproc, nyproc=nyproc)
 
-
     if(allocated(edir_ir)) then
       if(allocated(edir)) deallocate(edir)
-      allocate(edir(size(edir_ir,dim=1),size(edir_ir,dim=2),size(edir_ir,dim=3)), source=edir_ir)
+      allocate(edir(size(edir_ir,dim=1),size(edir_ir,dim=2),size(edir_ir,dim=3)))
+      edir = edir_ir
     endif
     if(allocated(edn_ir)) then
       if(allocated(edn)) deallocate(edn)
-      allocate(edn(size(edn_ir,dim=1),size(edn_ir,dim=2),size(edn_ir,dim=3)), source=edn_ir)
+      allocate(edn(size(edn_ir,dim=1),size(edn_ir,dim=2),size(edn_ir,dim=3)))
+      edn = edn_ir
     endif
     if(allocated(eup_ir)) then
       if(allocated(eup)) deallocate(eup)
-      allocate(eup(size(eup_ir,dim=1),size(eup_ir,dim=2),size(eup_ir,dim=3)), source=eup_ir)
+      allocate(eup(size(eup_ir,dim=1),size(eup_ir,dim=2),size(eup_ir,dim=3)))
+      eup = eup_ir
     endif
     if(allocated(abso_ir)) then
       if(allocated(abso)) deallocate(abso)
-      allocate(abso(size(abso_ir,dim=1),size(abso_ir,dim=2),size(abso_ir,dim=3)), source=abso_ir)
+      allocate(abso(size(abso_ir,dim=1),size(abso_ir,dim=2),size(abso_ir,dim=3)))
+      abso = abso_ir
     endif
   end subroutine
 

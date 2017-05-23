@@ -1314,7 +1314,7 @@ subroutine LUT_get_diff2diff(OPP, in_taux, in_tauz, in_w0, g, C)
       iierr=0
       do src=1,OPP%diff_streams
         norm = sum( C( src:size(C):OPP%diff_streams ) )
-        if(norm.gt.one+epsilon(norm)*10) iierr=iierr+1
+        if(norm.gt.one+epsilon(norm)*100) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
         print *,'Error in diff2diff coeffs :: ierr',iierr, ':', in_taux, in_tauz, in_w0, g, '::', C
