@@ -53,13 +53,15 @@ module m_tenstream
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals,iintegers,       &
-    imp_comm, myid, numnodes,init_mpi_data_parameters,mpiint, &
-    zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
+  use m_data_parameters, only : ireals, iintegers,               &
+    imp_comm, myid, numnodes, init_mpi_data_parameters, mpiint,  &
+    zero, one, nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
+    default_str_len
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
-  use m_helper_functions, only: norm,rad2deg,deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and,imp_allreduce_min,imp_allreduce_max,CHKERR
+  use m_helper_functions, only: norm, rad2deg, deg2rad, approx, rmse, delta_scale, &
+    imp_bcast, cumsum, inc, mpi_logical_and, imp_allreduce_min, imp_allreduce_max, CHKERR
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -283,7 +285,7 @@ contains
   end subroutine
 
   !> @brief print information on PETSc Mat :: size and allocated rows
-  !> @details TODO: currently broken -- need to clear what real_kind the returned values should have 
+  !> @details TODO: currently broken -- need to clear what real_kind the returned values should have
   !> \n -- petsc doc says those should be double precision irrespective of petsc real type?? check!
   subroutine mat_info(A)
     Mat :: A
@@ -308,10 +310,10 @@ contains
 
   !> @brief create PETSc matrix and inserts diagonal elements
   !> @details one important step for performance is to set preallocation of matrix structure.
-  !>  \n  i.e. determine the number of local vs. remote number of entries in each row. 
+  !>  \n  i.e. determine the number of local vs. remote number of entries in each row.
   !>  \n  DMDA actually provides a preallocation but this assumes that degrees of freedom on neighbouring boxes are fully connected to local ones.
   !>  \n  this does of course drastically overestimate non-zeros as we need only the streams that actually send radiation in the respective direction.
-  !>  \n  at the moment preallocation routines determine nonzeros by manually checking bounadries -- 
+  !>  \n  at the moment preallocation routines determine nonzeros by manually checking bounadries --
   !>  \n  !todo we should really use some form of iterating through the entries as it is done in the matrix assembly routines and just flag the rows
   subroutine init_Matrix(A,C)!,prefix)
     Mat, allocatable, intent(inout) :: A
@@ -350,11 +352,11 @@ contains
 
     call mat_info(A)
 
-    ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many 
+    ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many
     ! call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;call CHKERR(ierr)
 
     ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
-    !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;call CHKERR(ierr) 
+    !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;call CHKERR(ierr)
 
     ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;call CHKERR(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
 
@@ -2576,7 +2578,7 @@ contains
     integer(iintegers),optional,intent(in) :: collapseindex  !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
 
     integer(iintegers) :: k,i,j
-    !    character(len=30),parameter :: tenstreamrc='./.tenstreamrc'
+    !    character(default_str_len),parameter :: tenstreamrc='./.tenstreamrc'
 
     if(.not.ltenstream_is_initialized) then
 
@@ -3517,13 +3519,13 @@ function need_new_solution(uid,time)
   real(ireals) :: t(Nfit),tm(Nfit),dt(Nfit-1),err(2, 2*(Nfit-1)), error_estimate
   real(ireals) :: polyc(Nporder+1),estimate(Nporder)
 
-  character(len=50) :: reason
+  character(default_str_len) :: reason
   integer, parameter :: out_unit=20
 
   integer(iintegers) :: k,ipoly
 
   ! Make time an optional argument here for
-  ! convenience of the interface -- 
+  ! convenience of the interface --
   ! otherwise the user needs to check if he
   ! opt_time is present and so on...
   if(.not. present(time)) then
@@ -3533,16 +3535,16 @@ function need_new_solution(uid,time)
 
   if( .not. solutions(uid)%lset ) then !if we did not store a solution, return immediately
     need_new_solution=.True.
-    write(reason,*) 'no solution yet' 
+    write(reason,*) 'no solution yet'
     if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid
-    return 
+    return
   endif
 
   if(.not. lenable_solutions_err_estimates) then
     need_new_solution=.True.
-    write(reason,*) 'err.est.thresh.inf.small' 
+    write(reason,*) 'err.est.thresh.inf.small'
     if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid
-    return 
+    return
   endif
 
 
@@ -3577,7 +3579,7 @@ function need_new_solution(uid,time)
   ! try several polynomials and find max error:
   do ipoly=1,Nporder
     polyc(1:ipoly+1) = polyfit(err(1,:),err(2,:),ipoly, ierr) ! e.g. second order polynomial has 3 coefficients
-    if(ierr.ne.0) then 
+    if(ierr.ne.0) then
       need_new_solution=.True.
       write(reason,*) 'problem fitting error curve',ierr
       call PetscLogStagePop(ierr) ;call CHKERR(ierr)
@@ -3604,26 +3606,26 @@ function need_new_solution(uid,time)
 
   if(error_estimate.le.options_max_solution_err) then
     need_new_solution=.False.
-    write(reason,*) 'ERR_TOL_IN_BOUND' 
+    write(reason,*) 'ERR_TOL_IN_BOUND'
   else
     need_new_solution=.True.
-    write(reason,*) 'ERR_TOL_EXCEEDED' 
+    write(reason,*) 'ERR_TOL_EXCEEDED'
   endif
 
   if(any(t.lt.zero) ) then
     need_new_solution=.True.
-    write(reason,*) 'FEW_SOLUTIONS' 
+    write(reason,*) 'FEW_SOLUTIONS'
   endif
 
   if(time-solutions(uid)%time(1) .gt. options_max_solution_time) then
     need_new_solution=.True.
-    write(reason,*) 'MIN_TIME_EXCEEDED' 
+    write(reason,*) 'MIN_TIME_EXCEEDED'
   endif
 
   if(time_debug_solutions.gt.zero) then
     if(.not.need_new_solution) then
       need_new_solution=.True. ! overwrite it and calculate anyway
-      write(reason,*) 'MANUAL OVERRIDE' 
+      write(reason,*) 'MANUAL OVERRIDE'
       ! Hack to monitor error growth...
       ! We tell the user that he has to calculate radiation again.
       ! We will calculate and update the solution vectors...
@@ -3783,7 +3785,7 @@ subroutine restore_solution(solution,time)
   type(t_state_container) :: solution
   real(ireals),intent(in),optional :: time
 
-  character(100) :: vecname
+  character(default_str_len) :: vecname
   real(ireals) :: norm1,norm2,norm3
   Vec :: abso_old
 

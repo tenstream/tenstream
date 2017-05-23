@@ -1,6 +1,9 @@
 module test_boxmc
   use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
-  use m_data_parameters, only : mpiint,ireals,iintegers,one,zero, init_mpi_data_parameters,i1
+  use m_data_parameters, only :     &
+    mpiint, ireals, iintegers,      &
+    one, zero, i1, default_str_len, &
+    init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
 
   use pfunit_mod
@@ -116,7 +119,7 @@ contains
 
       integer(iintegers) :: i
       character(len=*),optional :: msg
-      character(len=250) :: local_msgS, local_msgT
+      character(default_str_len) :: local_msgS, local_msgT
 
       if(myid.eq.0) then
         print*,''

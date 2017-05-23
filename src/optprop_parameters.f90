@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_optprop_parameters
-      use m_data_parameters,only : ireals,iintegers
+      use m_data_parameters,only : ireals, iintegers, default_str_len
       implicit none
 
       !> \page optprop_parameters Parameters concerning the transport coefficients
@@ -36,7 +36,7 @@ module m_optprop_parameters
       !!  '/scratch/mpi/mpiaes/m300362/tenstream_LUT/LUT'
       !-----------------------------------------
 
-      character(len=300) :: lut_basename='./LUT' !'/scratch/mpi/mpiaes/m300362/tenstream_LUT/LUT'
+      character(default_str_len) :: lut_basename='./LUT' !'/scratch/mpi/mpiaes/m300362/tenstream_LUT/LUT'
 
       !-----------------------------------------
       !> Define the mode to calculate coeffs   -

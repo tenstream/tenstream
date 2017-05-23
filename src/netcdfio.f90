@@ -25,7 +25,8 @@ module m_netcdfIO
 !  use mpi
   use netcdf
   USE m_data_parameters, ONLY :   &
-      ireals,    &
+      default_str_len, &
+      ireals,          &
       iintegers
   implicit none
 
@@ -35,9 +36,9 @@ module m_netcdfIO
   integer :: u=10,v=11
   integer,parameter :: deflate_lvl=9
   real(ireals),parameter :: maxwait=600 !in seconds
-  real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds 
+  real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds
   integer :: iwait
-  character(310) :: lockfile
+  character(default_str_len+10) :: lockfile
   logical,parameter :: ldebug=.False.
 !  logical,parameter :: ldebug=.True.
 
@@ -48,7 +49,7 @@ module m_netcdfIO
     module procedure ncload_1d,ncload_2d,ncload_3d,ncload_4d,ncload_5d,ncload_7d, ncload_1dint, ncload_2dint
   end interface
 
-  contains 
+  contains
 
     subroutine ncwrite_1d(groups,arr,ierr)
         real(ireals),intent(in) :: arr(:)
@@ -103,7 +104,7 @@ module m_netcdfIO
         if(ierr.eq.0) allocate(tmp(dimsize(1),dimsize(2)))
         include 'netcdfio_read_2.inc'
     end subroutine
- 
+
      subroutine ncload_1d(groups,arr,ierr)
         real(ireals),allocatable,intent(out) :: arr(:)
         real(4)     ,allocatable             :: tmp(:)

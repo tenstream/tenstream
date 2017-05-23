@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_optprop_ANN
-  USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1, mpiint
+  USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1, mpiint, default_str_len
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
       Ntau, Nw0, Ng, Ndir_8_10, Ndiff_8_10, &
       ldelta_scale, delta_scale_truncate
@@ -59,7 +59,7 @@ contains
   end subroutine
 
   subroutine ANN_init( comm, ierr)
-      character(len=300) :: basename, netname, descr
+      character(len=default_str_len) :: basename, netname, descr
       integer(mpiint) :: ierr
 
       integer(mpiint), intent(in) :: comm
@@ -137,7 +137,7 @@ contains
   end subroutine
 
   subroutine loadnet(netname,net,ierr)
-      character(300) :: netname
+      character(default_str_len) :: netname
       type(ANN) :: net
       integer(mpiint),intent(out) :: ierr
       integer(mpiint) :: errcnt,k

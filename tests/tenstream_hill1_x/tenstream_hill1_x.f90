@@ -1,7 +1,7 @@
 @test(npes =[16])
 subroutine tenstream_hill1_x(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, default_str_len
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
@@ -33,10 +33,10 @@ subroutine tenstream_hill1_x(this)
     real(ireals),allocatable,dimension(:,:,:) :: lwc, reliq, air                                    ! nlay  , nxp, nyp
     real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso                ! nlyr(+1), global_nx, global_ny
 
-    character(len=80) :: nc_path(2) ! [ filename, varname ]
+    character(default_str_len) :: nc_path(2) ! [ filename, varname ]
     real(ireals),allocatable :: tmp(:,:,:)
 
-    integer(iintegers) :: k 
+    integer(iintegers) :: k
     integer(iintegers) :: nxp,nyp,nlay
     integer(iintegers) :: ncerr
 

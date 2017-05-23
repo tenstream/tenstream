@@ -1,6 +1,7 @@
 module test_LUT_8_10
   use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
-  use m_data_parameters, only : mpiint,ireals,iintegers,one,zero, init_mpi_data_parameters,i1
+  use m_data_parameters, only : mpiint, ireals, iintegers, &
+    one, zero, init_mpi_data_parameters, i1, default_str_len
   use m_optprop_LUT, only : t_optprop_LUT_8_10
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse
@@ -106,7 +107,7 @@ contains
   function toString(this) result(string)
       class(pECase), intent(in) :: this
       character(:), allocatable :: string
-      allocate(character(len=120) :: string)
+      allocate(character(default_str_len) :: string)
       write(string,FMT='( 3E8.2, 2I0 )') &
           this%kabs,this%ksca,this%g,int(this%phi),int(this%theta) !,':ranks',this%getNumProcessesRequested()
   end function toString
@@ -233,7 +234,7 @@ contains
 
       integer(iintegers) :: i
       character(len=*),optional :: msg
-      character(len=250) :: local_msgS, local_msgT
+      character(default_str_len) :: local_msgS, local_msgT
 
       if(myid.eq.0) then
         print*,''

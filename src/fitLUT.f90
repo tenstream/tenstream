@@ -28,7 +28,10 @@ module m_poly_fitLUT
       use petsc
 
       use m_helper_functions, only: rmse, CHKERR
-      use m_data_parameters, only: ireals,iintegers, init_mpi_data_parameters,numnodes,myid,zero,one,imp_comm,mpiint,nan32
+      use m_data_parameters, only: ireals,iintegers, &
+        init_mpi_data_parameters, numnodes, myid,    &
+        zero, one, imp_comm, mpiint, nan32,          &
+        default_str_len
       use m_netcdfio
 
       use m_optprop_LUT, only : t_optprop_LUT_8_10
@@ -503,7 +506,7 @@ end type
           subroutine write_poly_fit(inp,out,fname,prefix)
             type(Vector),intent(in) :: inp,out
             character(len=*) :: fname,prefix
-            character(300) :: vecname
+            character(default_str_len) :: vecname
 
             PetscFileMode :: fmode
             logical :: fexists

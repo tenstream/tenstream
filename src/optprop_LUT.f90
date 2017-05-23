@@ -22,7 +22,10 @@ module m_optprop_LUT
   use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
 
   use m_helper_functions, only : approx,rel_approx,imp_bcast,mpi_logical_and,mpi_logical_or, search_sorted_bisection, CHKERR
-  use m_data_parameters, only : ireals, iintegers, one,zero,i0,i1,i3,mpiint,nil,inil,imp_int,imp_real,imp_comm,imp_logical,numnodes
+  use m_data_parameters, only : ireals, iintegers,      &
+    one, zero, i0, i1, i3, mpiint, nil, inil,           &
+    imp_int, imp_real, imp_comm, imp_logical, numnodes, &
+    default_str_len
   use m_optprop_parameters, only:          &
     ldebug_optprop, lut_basename,          &
     Ntau, Nw0, Ng, Nphi, Ntheta,           &
@@ -62,18 +65,18 @@ module m_optprop_LUT
   type table
     real(ireals),allocatable :: c(:,:,:,:,:)
     real(ireals),allocatable :: stddev_tol(:,:,:,:,:)
-    character(len=300),allocatable :: table_name_c(:)
-    character(len=300),allocatable :: table_name_tol(:)
+    character(default_str_len),allocatable :: table_name_c(:)
+    character(default_str_len),allocatable :: table_name_tol(:)
   end type
 
   type diffuseTable
-    character(len=300) :: fname
+    character(default_str_len) :: fname
     type(table) :: S
     type(parameter_space) :: pspace
   end type
 
   type directTable
-    character(len=300),allocatable ::  fname(:,:) !dim=(phi,theta)
+    character(default_str_len),allocatable ::  fname(:,:) !dim=(phi,theta)
     type(table),allocatable :: S(:,:) !dim=(phi,theta)
     type(table),allocatable :: T(:,:) !dim=(phi,theta)
     type(parameter_space) :: pspace
@@ -87,7 +90,7 @@ module m_optprop_LUT
     integer(iintegers) :: Ntau, Nw0, Ng, Nphi, Ntheta, interp_mode
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
     logical :: LUT_initialized=.False.,optprop_LUT_debug=ldebug_optprop
-    character(len=300) :: lutbasename
+    character(default_str_len) :: lutbasename
 
     contains
       procedure :: init
@@ -124,7 +127,7 @@ contains
       real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
       integer(mpiint) ,intent(in) :: comm
 
-      character(len=300) :: descr
+      character(default_str_len) :: descr
 
       call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
       call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
@@ -180,7 +183,7 @@ subroutine loadLUT_diff(OPP, comm)
     class(t_optprop_LUT) :: OPP
     integer(mpiint),intent(in) :: comm
     integer(iintegers) :: errcnt
-    character(300) :: str(3)
+    character(default_str_len) :: str(3)
     logical :: lstddev_inbounds
 
     associate ( LUT => OPP%diffLUT, S => OPP%diffLUT%S )
@@ -269,7 +272,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
     real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
     integer(mpiint),intent(in) :: comm
     integer(iintegers) :: errcnt,iphi,itheta
-    character(len=300) :: descr,str(5),varname(4)
+    character(default_str_len) :: descr,str(5),varname(4)
     logical :: angle_mask(OPP%Nphi,OPP%Ntheta),lstddev_inbounds
 
     if(.not. allocated(OPP%dirLUT%fname) ) allocate( OPP%dirLUT%fname(OPP%Nphi,OPP%Ntheta) )
@@ -936,7 +939,7 @@ end subroutine
   subroutine check_diffLUT_matches_pspace(LUT)
       type(diffuseTable),intent(in) :: LUT
       real(ireals),allocatable :: buf(:)
-      character(300) :: str(3)
+      character(default_str_len) :: str(3)
       integer(iintegers) align(3);
       write(str(1),FMT='(A)') "diffuse"
       write(str(2),FMT='(A)') "pspace"
@@ -952,7 +955,7 @@ end subroutine
       type(directTable),intent(in) :: LUT
       character(len=*),intent(in) :: fname
       real(ireals),allocatable :: buf(:)
-      character(300) :: str(3)
+      character(default_str_len) :: str(3)
       integer(iintegers) align(5);
       write(str(1),FMT='(A)') "direct"
       write(str(2),FMT='(A)') "pspace"
