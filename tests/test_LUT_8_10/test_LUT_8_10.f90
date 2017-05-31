@@ -25,7 +25,7 @@ module test_LUT_8_10
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-1, rtol=2e-1
+  real(ireals),parameter :: atol=1e-3, rtol=1e-1
 
   integer(mpiint) :: ierr
 
@@ -180,8 +180,8 @@ contains
           call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.True.,phi,theta,dx,dy,dz,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
 
           ! Rearrange coeffs from dst_ordering to src ordering:
-          BMC_dir2diff(src : 8*10 : 10) = S_target
-          BMC_dir2dir (src : 8*8  :  8) = T_target
+          BMC_dir2diff(src : 8*10 : 8) = S_target
+          BMC_dir2dir (src : 8*8  : 8) = T_target
         enddo
 
         call check(BMC_dir2diff,BMC_dir2dir,LUT_dir2diff,LUT_dir2dir, msg='test_LUT_direct_coeffs')
