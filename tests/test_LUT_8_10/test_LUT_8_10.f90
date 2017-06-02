@@ -25,7 +25,7 @@ module test_LUT_8_10
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-1
+  real(ireals),parameter :: atol=5e-2, rtol=1e-1
 
   integer(mpiint) :: ierr
 
@@ -136,14 +136,13 @@ contains
       dx = 100
       dy = dx
       dz = 50
-
   end subroutine setup
 
   @after
   subroutine teardown(this)
       class (parameterized_test), intent(inout) :: this
       call OPP%destroy()
-      call PetscFinalize(ierr) 
+      call PetscFinalize(ierr)
   end subroutine teardown
 
 
@@ -230,7 +229,7 @@ contains
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
 
-      real(ireals),parameter :: sigma = 6 ! normal test range for coefficients 
+      real(ireals),parameter :: sigma = 6 ! normal test range for coefficients
 
       integer(iintegers) :: i
       character(len=*),optional :: msg

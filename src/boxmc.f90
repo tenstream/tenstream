@@ -304,7 +304,7 @@ contains
                      - cos(deg2rad(theta0)) ]
       initial_dir = initial_dir/norm(initial_dir)
 
-      mincnt= max( 100, int( 1e3 /numnodes ) )
+      mincnt= max( 1000, int( 1e3 /numnodes ) )
       mycnt = int(1e8)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
       do k=1, mycnt
@@ -614,7 +614,7 @@ contains
     real(ireal_dp) :: get_g
     type(photon),intent(in) :: p
     get_g = p%optprop(3)
-  end function    
+  end function
 
   subroutine print_photon(p)
     type(photon),intent(in) :: p
@@ -624,6 +624,7 @@ contains
     print *,'weight',p%weight,'alive,direct',p%alive,p%direct,'scatter count',p%scattercnt
     print *,'side',p%side,'src',p%src
     print *,'kabs,ksca,g',get_kabs(p),get_ksca(p),get_g(p)
+    print *,'dx,dy,dz', p%dx, p%dy, p%dz
   end subroutine
 
   function R()

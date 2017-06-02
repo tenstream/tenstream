@@ -164,7 +164,7 @@ contains
       call OPP%loadLUT_dir(azis, szas, comm)
 
       ! Load diffuse LUT
-      write(descr,FMT='("diffuse.coarse.tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
+      write(descr,FMT='("diffuse.tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
                                       OPP%Ntau, OPP%Nw0, OPP%Ng, ldelta_scale, delta_scale_truncate
 
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading diffuse LUT from ',trim(descr)
@@ -287,7 +287,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
       do iphi  =1,OPP%Nphi
 
         ! Set filename of LUT
-        write(descr,FMT='("direct.coarse.tau",I0,".w0",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
+        write(descr,FMT='("direct.tau",I0,".w0",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
             OPP%Ntau, OPP%Nw0, OPP%Ng,           &
             int(OPP%dirLUT%pspace%phi(iphi)),    &
             int(OPP%dirLUT%pspace%theta(itheta)),&
@@ -459,8 +459,8 @@ subroutine createLUT_diff(OPP, LUT, comm)
         cnt=1
         do ig = 1,OPP%Ng
           do iw0   = 1,OPP%Nw0
-            do itaux = 1,OPP%Ntau
-              do itauz = 1,OPP%Ntau
+            do itauz = 1,OPP%Ntau
+              do itaux = 1,OPP%Ntau
                 do isrc = 1,OPP%diff_streams
                   allwork(cnt, :) = [isrc,itaux, itauz, iw0, ig]
                   cnt=cnt+1
@@ -919,7 +919,7 @@ subroutine bmc_wrapper(OPP, src, taux, tauz, w0, g, dir, phi, theta, comm, S_dif
     real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     real(ireals) :: bg(3)
-    real(ireals), parameter :: dz = 10000
+    real(ireals), parameter :: dz = 1
 
     dx = taux/tauz * dz
     dy = dx
@@ -931,9 +931,9 @@ subroutine bmc_wrapper(OPP, src, taux, tauz, w0, g, dir, phi, theta, comm, S_dif
     S_diff=nil
     T_dir=nil
 
-!    print *,comm,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
+    !print *,comm,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
     call OPP%bmc%get_coeff(comm,bg,src,dir,phi,theta,dx,dy,dz,S_diff,T_dir,S_tol,T_tol)
-    !        print *,'BMC :: dir',T_dir,'diff',S_diff
+    !print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
 
   subroutine check_diffLUT_matches_pspace(LUT)
@@ -1093,12 +1093,11 @@ subroutine set_parameter_space(OPP,ps)
     real(ireals) :: transmission
     integer(iintegers) :: k
 
-      OPP%Ntau   = Ntau
-      OPP%Nw0    = Nw0
-      OPP%Ng     = Ng
-      OPP%Nphi   = Nphi
-      OPP%Ntheta = Ntheta
-
+    OPP%Ntau   = Ntau
+    OPP%Nw0    = Nw0
+    OPP%Ng     = Ng
+    OPP%Nphi   = Nphi
+    OPP%Ntheta = Ntheta
 
     select type(OPP)
       class is (t_optprop_LUT_1_2)
@@ -1314,7 +1313,7 @@ subroutine LUT_get_diff2diff(OPP, in_taux, in_tauz, in_w0, g, C)
       iierr=0
       do src=1,OPP%diff_streams
         norm = sum( C( src:size(C):OPP%diff_streams ) )
-        if(norm.gt.one+epsilon(norm)*100) iierr=iierr+1
+        if(norm.gt.one+1e-5_ireals) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
         print *,'Error in diff2diff coeffs :: ierr',iierr, ':', in_taux, in_tauz, in_w0, g, '::', C
