@@ -28,14 +28,15 @@ module m_optprop_LUT
     default_str_len
   use m_optprop_parameters, only:          &
     ldebug_optprop, lut_basename,          &
-    Ntau, Nw0, Ng, Nphi, Ntheta,           &
+    Naspect, Ntau, Nw0, Ng, Nphi, Ntheta,  &
     Ndir_1_2,Ndiff_1_2,interp_mode_1_2,    &
     Ndir_8_10,Ndiff_8_10,interp_mode_8_10, &
     ldelta_scale,delta_scale_truncate,     &
     stddev_atol, use_prescribed_LUT_dims,  &
-    preset_tau, preset_w0, preset_g, preset_theta
+    preset_aspect, preset_tau, preset_w0,  &
+    preset_g, preset_theta
   use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
-  use m_tenstream_interpolation, only: interp_4d
+  use m_tenstream_interpolation, only: interp_4d, interp_2d
   use m_netcdfio
 
   implicit none
@@ -50,11 +51,13 @@ module m_optprop_LUT
   integer(mpiint) :: myid,comm_size,mpierr
 
   type parameter_space
+    real(ireals),allocatable ,dimension(:) :: aspect
     real(ireals),allocatable ,dimension(:) :: tau
     real(ireals),allocatable ,dimension(:) :: w0
     real(ireals),allocatable ,dimension(:) :: g
     real(ireals),allocatable ,dimension(:) :: phi
     real(ireals),allocatable ,dimension(:) :: theta
+    real(ireals) , dimension(2)      :: range_aspect  = [ .01        , 5.0           ] ! is defined in set_parameter_space, so that min and max transmissions are met
     real(ireals) , dimension(2)      :: range_tau     = [ nil        , nil           ] ! is defined in set_parameter_space, so that min and max transmissions are met
     real(ireals) , dimension(2)      :: range_w0      = [ zero       , .999_ireals   ]
     real(ireals) , dimension(2)      :: range_g       = [ zero       , .999_ireals   ]
@@ -87,7 +90,7 @@ module m_optprop_LUT
     type(directTable),allocatable :: dirLUT
     type(diffuseTable),allocatable :: diffLUT
 
-    integer(iintegers) :: Ntau, Nw0, Ng, Nphi, Ntheta, interp_mode
+    integer(iintegers) :: Naspect, Ntau, Nw0, Ng, Nphi, Ntheta, interp_mode
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
     logical :: LUT_initialized=.False.,optprop_LUT_debug=ldebug_optprop
     character(default_str_len) :: lutbasename
@@ -164,8 +167,8 @@ contains
       call OPP%loadLUT_dir(azis, szas, comm)
 
       ! Load diffuse LUT
-      write(descr,FMT='("diffuse.tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
-                                      OPP%Ntau, OPP%Nw0, OPP%Ng, ldelta_scale, delta_scale_truncate
+      write(descr,FMT='("diffuse.aspect",I0,".tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
+                         OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng, ldelta_scale, delta_scale_truncate
 
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading diffuse LUT from ',trim(descr)
       OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.nc'
@@ -247,13 +250,15 @@ subroutine loadLUT_diff(OPP, comm)
           print *,''
         endif
 
-        write(str(3),FMT='(A)') "range_tau"   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%range_tau ,iierr)
-        write(str(3),FMT='(A)') "range_w0 "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%range_w0  ,iierr)
-        write(str(3),FMT='(A)') "range_g  "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%range_g   ,iierr)
+        write(str(3),FMT='(A)') "range_aspect"; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%range_aspect,iierr)
+        write(str(3),FMT='(A)') "range_tau"   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%range_tau   ,iierr)
+        write(str(3),FMT='(A)') "range_w0 "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%range_w0    ,iierr)
+        write(str(3),FMT='(A)') "range_g  "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%range_g     ,iierr)
 
-        write(str(3),FMT='(A)') "tau      "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%tau  ,iierr)
-        write(str(3),FMT='(A)') "w0       "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%w0   ,iierr)
-        write(str(3),FMT='(A)') "g        "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%g    ,iierr)
+        write(str(3),FMT='(A)') "aspect   "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%aspect,iierr)
+        write(str(3),FMT='(A)') "tau      "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%tau   ,iierr)
+        write(str(3),FMT='(A)') "w0       "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%w0    ,iierr)
+        write(str(3),FMT='(A)') "g        "   ; call ncwrite([LUT%fname,str(1),str(2),str(3)],LUT%pspace%g     ,iierr)
       endif !master
 
       call OPP%createLUT_diff(LUT, comm)
@@ -287,10 +292,10 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
       do iphi  =1,OPP%Nphi
 
         ! Set filename of LUT
-        write(descr,FMT='("direct.tau",I0,".w0",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
-            OPP%Ntau, OPP%Nw0, OPP%Ng,           &
-            int(OPP%dirLUT%pspace%phi(iphi)),    &
-            int(OPP%dirLUT%pspace%theta(itheta)),&
+        write(descr,FMT='("direct.aspect",I0,".tau",I0,".w0",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
+            OPP%Naspect,OPP%Ntau, OPP%Nw0, OPP%Ng, &
+            int(OPP%dirLUT%pspace%phi(iphi)),      &
+            int(OPP%dirLUT%pspace%theta(itheta)),  &
             ldelta_scale,delta_scale_truncate
 
         OPP%dirLUT%fname(iphi,itheta) = trim(OPP%lutbasename)//trim(descr)//'.nc'
@@ -359,12 +364,14 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
         if((errcnt.ne.0) .or. (.not.lstddev_inbounds) ) then
           if(myid.eq.0) then ! master -- setup netcdf files:
             write(str(4),FMT='(A)') 'pspace'
-            write(str(5),FMT='(A)') "range_tau  " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_tau   , iierr)
-            write(str(5),FMT='(A)') "range_w0   " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_w0    , iierr)
-            write(str(5),FMT='(A)') "range_g    " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_g     , iierr)
-            write(str(5),FMT='(A)') "range_phi  " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_phi   , iierr)
-            write(str(5),FMT='(A)') "range_theta" ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_theta , iierr)
+            write(str(5),FMT='(A)') "range_aspect" ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_aspect, iierr)
+            write(str(5),FMT='(A)') "range_tau   " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_tau   , iierr)
+            write(str(5),FMT='(A)') "range_w0    " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_w0    , iierr)
+            write(str(5),FMT='(A)') "range_g     " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_g     , iierr)
+            write(str(5),FMT='(A)') "range_phi   " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_phi   , iierr)
+            write(str(5),FMT='(A)') "range_theta " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%range_theta , iierr)
 
+            write(str(5),FMT='(A)') "aspect     " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%aspect      , iierr)
             write(str(5),FMT='(A)') "tau        " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%tau         , iierr)
             write(str(5),FMT='(A)') "w0         " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%w0          , iierr)
             write(str(5),FMT='(A)') "g          " ; call ncwrite([fname , str(1),str(4),str(5) ] , LUT%pspace%g           , iierr)
@@ -412,7 +419,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
     logical :: gotmsg
     integer(mpiint) :: status(MPI_STATUS_SIZE)
-    integer(iintegers) :: workinput(5) !isrc, itaux, itauz, iw0, ig
+    integer(iintegers) :: workinput(5) !isrc, iaspect, itauz, iw0, ig
     integer(iintegers) :: idummy, workindex
     real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(ireals) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
@@ -447,22 +454,22 @@ subroutine createLUT_diff(OPP, LUT, comm)
         integer(iintegers) :: total_size, cnt, finalizedworkers
 
         integer(iintegers),allocatable :: allwork(:,:) ! dimension (N,size(workinput)) ==> vector over work dimensions and 5 integers
-        integer(iintegers) :: itaux, itauz, iw0, ig
+        integer(iintegers) :: iaspect, itauz, iw0, ig
         integer(iintegers) :: isrc,idst,ind
 
         logical :: ldone(OPP%diff_streams)
 
         finalizedworkers=0
-        total_size = OPP%Ng*OPP%Ntau*OPP%Ntau *OPP%Nw0 *OPP%diff_streams
+        total_size = OPP%Ng*OPP%Naspect*OPP%Ntau *OPP%Nw0 *OPP%diff_streams
 
         allocate( allwork(total_size, size(workinput) ) )
         cnt=1
         do ig = 1,OPP%Ng
           do iw0   = 1,OPP%Nw0
             do itauz = 1,OPP%Ntau
-              do itaux = 1,OPP%Ntau
+              do iaspect = 1,OPP%Naspect
                 do isrc = 1,OPP%diff_streams
-                  allwork(cnt, :) = [isrc,itaux, itauz, iw0, ig]
+                  allwork(cnt, :) = [isrc,iaspect, itauz, iw0, ig]
                   cnt=cnt+1
                 enddo
               enddo
@@ -475,17 +482,17 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
           ! Check if we already calculated the coefficients
           if(cnt.le.total_size) then
-            isrc  = allwork(cnt, 1)
-            itaux = allwork(cnt, 2)
-            itauz = allwork(cnt, 3)
-            iw0   = allwork(cnt, 4)
-            ig    = allwork(cnt, 5)
+            isrc    = allwork(cnt, 1)
+            iaspect = allwork(cnt, 2)
+            itauz   = allwork(cnt, 3)
+            iw0     = allwork(cnt, 4)
+            ig      = allwork(cnt, 5)
 
             do idst = 1,OPP%diff_streams
                 ind = (idst-1)*OPP%diff_streams + isrc
-                ldone(idst) = ( ( S%c         ( ind, itaux, itauz, iw0, ig ).ge.zero)            &
-                          .and. ( S%c         ( ind, itaux, itauz, iw0, ig ).le.one )            &
-                          .and. ( S%stddev_tol( ind, itaux, itauz, iw0, ig ).le.stddev_atol ) )
+                ldone(idst) = ( ( S%c         ( ind, iaspect, itauz, iw0, ig ).ge.zero)            &
+                          .and. ( S%c         ( ind, iaspect, itauz, iw0, ig ).le.one )            &
+                          .and. ( S%stddev_tol( ind, iaspect, itauz, iw0, ig ).le.stddev_atol ) )
             enddo
 
 
@@ -527,16 +534,16 @@ subroutine createLUT_diff(OPP, LUT, comm)
 !              call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
 
               ! Sort coefficients into destination ordering and put em in LUT
-              isrc  = allwork(workindex, 1)
-              itaux = allwork(workindex, 2)
-              itauz = allwork(workindex, 3)
-              iw0   = allwork(workindex, 4)
-              ig    = allwork(workindex, 5)
+              isrc    = allwork(workindex, 1)
+              iaspect = allwork(workindex, 2)
+              itauz   = allwork(workindex, 3)
+              iw0     = allwork(workindex, 4)
+              ig      = allwork(workindex, 5)
 
               do idst = 1, OPP%diff_streams
                 ind = (idst-1)*OPP%diff_streams + isrc
-                S%c         ( ind, itaux, itauz, iw0, ig) = S_diff(idst)
-                S%stddev_tol( ind, itaux, itauz, iw0, ig) = S_tol (idst)
+                S%c         ( ind, iaspect, itauz, iw0, ig) = S_diff(idst)
+                S%stddev_tol( ind, iaspect, itauz, iw0, ig) = S_tol (idst)
               enddo
 
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
@@ -593,7 +600,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
                 call mpi_recv( workinput , size(workinput), imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
 
                 call OPP%bmc_wrapper(workinput(1),  &
-                    LUT%pspace%tau(workinput(2)),   &
+                    LUT%pspace%aspect(workinput(2)),&
                     LUT%pspace%tau(workinput(3)),   &
                     LUT%pspace%w0(workinput(4)),    &
                     LUT%pspace%g(workinput(5)),     &
@@ -622,13 +629,13 @@ subroutine createLUT_diff(OPP, LUT, comm)
           type(table) :: S
           integer(iintegers) :: Ncoeff
           if(.not. allocated(S%stddev_tol) ) then
-            allocate(S%stddev_tol(Ncoeff, OPP%Ntau,OPP%Ntau ,OPP%Nw0, OPP%Ng))
+            allocate(S%stddev_tol(Ncoeff, OPP%Naspect,OPP%Ntau ,OPP%Nw0, OPP%Ng))
             S%stddev_tol = 1e8_ireals
             call ncwrite(S%table_name_tol, S%stddev_tol, iierr)
           endif
 
           if(.not.allocated(S%c) ) then
-            allocate(S%c(Ncoeff, OPP%Ntau,OPP%Ntau ,OPP%Nw0, OPP%Ng))
+            allocate(S%c(Ncoeff, OPP%Naspect,OPP%Ntau ,OPP%Nw0, OPP%Ng))
             S%c = nil
             call ncwrite(S%table_name_c,S%c,iierr)
           endif
@@ -669,22 +676,22 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
         integer(iintegers) :: total_size, cnt, finalizedworkers
 
         integer(iintegers),allocatable :: allwork(:,:) ! dimension (N,size(workinput)) ==> vector over work dimensions and 5 integers
-        integer(iintegers) :: itaux, itauz, iw0, ig
+        integer(iintegers) :: iaspect, itauz, iw0, ig
         integer(iintegers) :: isrc,idst,ind
 
         logical :: ldoneS(OPP%diff_streams), ldoneT(OPP%dir_streams)
 
         finalizedworkers=0
-        total_size = OPP%Ng * OPP%Ntau * OPP%Ntau * OPP%Nw0 * OPP%dir_streams
+        total_size = OPP%Ng * OPP%Naspect * OPP%Ntau * OPP%Nw0 * OPP%dir_streams
 
         allocate(allwork(total_size, size(workinput)))
         cnt=1
         do ig = 1,OPP%Ng
           do iw0 = 1,OPP%Nw0
             do itauz = 1,OPP%Ntau
-              do itaux = 1,OPP%Ntau
+              do iaspect = 1,OPP%Naspect
                 do isrc = 1,OPP%dir_streams
-                  allwork(cnt, :) = [isrc, itaux, itauz ,iw0, ig]
+                  allwork(cnt, :) = [isrc, iaspect, itauz ,iw0, ig]
                   cnt=cnt+1
                 enddo
               enddo
@@ -698,22 +705,22 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
           ! Check if we already calculated the coefficients
           if(cnt.le.total_size) then
             isrc  = allwork(cnt, 1)
-            itaux = allwork(cnt, 2)
+            iaspect = allwork(cnt, 2)
             itauz = allwork(cnt, 3)
             iw0   = allwork(cnt, 4)
             ig    = allwork(cnt, 5)
 
             do idst = 1,OPP%diff_streams
                 ind = (idst-1)*OPP%dir_streams + isrc
-                ldoneS(idst) = ( ( S%c         ( ind, itaux, itauz, iw0, ig ).ge.zero)            &
-                           .and. ( S%c         ( ind, itaux, itauz, iw0, ig ).le.one )            &
-                           .and. ( S%stddev_tol( ind, itaux, itauz, iw0, ig ).le.stddev_atol ) )
+                ldoneS(idst) = ( ( S%c         ( ind, iaspect, itauz, iw0, ig ).ge.zero)            &
+                           .and. ( S%c         ( ind, iaspect, itauz, iw0, ig ).le.one )            &
+                           .and. ( S%stddev_tol( ind, iaspect, itauz, iw0, ig ).le.stddev_atol ) )
             enddo
             do idst = 1,OPP%dir_streams
                 ind = (idst-1)*OPP%dir_streams + isrc
-                ldoneT(idst) = ( ( T%c         ( ind, itaux, itauz, iw0, ig ).ge.zero)            &
-                           .and. ( T%c         ( ind, itaux, itauz, iw0, ig ).le.one )            &
-                           .and. ( T%stddev_tol( ind, itaux, itauz, iw0, ig ).le.stddev_atol ) )
+                ldoneT(idst) = ( ( T%c         ( ind, iaspect, itauz, iw0, ig ).ge.zero)            &
+                           .and. ( T%c         ( ind, iaspect, itauz, iw0, ig ).le.one )            &
+                           .and. ( T%stddev_tol( ind, iaspect, itauz, iw0, ig ).le.stddev_atol ) )
             enddo
 
             if( all(ldoneS) .and. all(ldoneT) ) then
@@ -753,23 +760,30 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
               call mpi_recv(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
               call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
 
-              isrc  = allwork(workindex, 1)
-              itaux = allwork(workindex, 2)
-              itauz = allwork(workindex, 3)
-              iw0   = allwork(workindex, 4)
-              ig    = allwork(workindex, 5)
+              isrc    = allwork(workindex, 1)
+              iaspect = allwork(workindex, 2)
+              itauz   = allwork(workindex, 3)
+              iw0     = allwork(workindex, 4)
+              ig      = allwork(workindex, 5)
+
+              !print *,myid,'Saving values for ',workindex,'::',isrc,iaspect,itauz,iw0,ig,'::',T_dir
+              !print *,myid,'supposed optprop:', LUT%pspace%aspect(iaspect),LUT%pspace%tau(itauz),LUT%pspace%w0(iw0),LUT%pspace%g(ig),LUT%pspace%phi(iphi),LUT%pspace%theta(itheta)
 
               ! Sort coefficients into destination ordering and put em in LUT
               do idst = 1, OPP%diff_streams
                 ind = (idst-1)*OPP%dir_streams + isrc
-                S%c         (ind, itaux, itauz, iw0, ig) = S_diff(idst)
-                S%stddev_tol(ind, itaux, itauz, iw0, ig) = S_tol (idst)
+                S%c         (ind, iaspect, itauz, iw0, ig) = S_diff(idst)
+                S%stddev_tol(ind, iaspect, itauz, iw0, ig) = S_tol (idst)
               enddo
               do idst = 1, OPP%dir_streams
                 ind = (idst-1)*OPP%dir_streams + isrc
-                T%c         (ind, itaux, itauz, iw0, ig) = T_dir (idst)
-                T%stddev_tol(ind, itaux, itauz, iw0, ig) = T_tol (idst)
+                T%c         (ind, iaspect, itauz, iw0, ig) = T_dir (idst)
+                T%stddev_tol(ind, iaspect, itauz, iw0, ig) = T_tol (idst)
               enddo
+
+              !do idst = 1, OPP%dir_streams
+              !  print *,myid,'T%c for idst',idst,T%c((idst-1)*OPP%dir_streams+1:idst*OPP%dir_streams, iaspect, itauz, iw0, ig)
+              !enddo
 
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Calculated direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')...',(100*(workindex-1))/total_size,'%'
@@ -818,7 +832,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
                 call mpi_recv( workinput , size(workinput), imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
 
                 call OPP%bmc_wrapper(workinput(1),  &
-                    LUT%pspace%tau(workinput(2)),   &
+                    LUT%pspace%aspect(workinput(2)),&
                     LUT%pspace%tau(workinput(3)),   &
                     LUT%pspace%w0(workinput(4)),    &
                     LUT%pspace%g(workinput(5)),     &
@@ -827,6 +841,9 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
                     LUT%pspace%theta(itheta),       &
                     mpi_comm_self,                  &
                     S_diff,T_dir,S_tol,T_tol)
+
+                  !print *,myid,'Computed values for ',workindex,'::',workinput,'::',T_dir
+                  !print *,myid,'optprop:', LUT%pspace%aspect(workinput(2)),LUT%pspace%tau(workinput(3)),LUT%pspace%w0(workinput(4)),LUT%pspace%g(workinput(5)),LUT%pspace%phi(iphi),LUT%pspace%theta(itheta)
 
                 call mpi_send(workindex , 1_mpiint     , imp_int  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
                 call mpi_send(S_diff    , size(S_diff) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
@@ -856,25 +873,25 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
           errcnt=0
 
           if(.not.allocated(S%stddev_tol) ) then
-            allocate(S%stddev_tol(NcoeffS*NcoeffT, OPP%Ntau, OPP%Ntau ,OPP%Nw0, OPP%Ng))
+            allocate(S%stddev_tol(NcoeffS*NcoeffT, OPP%Naspect, OPP%Ntau ,OPP%Nw0, OPP%Ng))
             S%stddev_tol = 1e8_ireals
             call ncwrite(S%table_name_tol, S%stddev_tol, iierr); errcnt = errcnt +iierr
           endif
 
           if(.not.allocated(T%stddev_tol) ) then
-            allocate(T%stddev_tol(NcoeffT**2, OPP%Ntau, OPP%Ntau, OPP%Nw0, OPP%Ng))
+            allocate(T%stddev_tol(NcoeffT**2, OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng))
             T%stddev_tol = 1e8_ireals
             call ncwrite(T%table_name_tol, T%stddev_tol, iierr); errcnt = errcnt +iierr
           endif
 
           if(.not. allocated(S%c) ) then
-            allocate(S%c(NcoeffS*NcoeffT, OPP%Ntau, OPP%Ntau, OPP%Nw0, OPP%Ng))
+            allocate(S%c(NcoeffS*NcoeffT, OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng))
             S%c = nil
             call ncwrite(S%table_name_c, S%c,iierr); errcnt = errcnt +iierr
           endif
 
           if(.not. allocated(T%c) ) then
-            allocate(T%c(NcoeffT**2, OPP%Ntau, OPP%Ntau, OPP%Nw0, OPP%Ng))
+            allocate(T%c(NcoeffT**2, OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng))
             T%c = nil
             call ncwrite(T%table_name_c, T%c,iierr); errcnt = errcnt +iierr
           endif
@@ -907,21 +924,21 @@ end subroutine
         call imp_bcast(comm, OPP%diffLUT%S%c, 0_mpiint, myid )
 
   end subroutine
-subroutine bmc_wrapper(OPP, src, taux, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
+subroutine bmc_wrapper(OPP, src, aspect, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
     class(t_optprop_LUT) :: OPP
     integer(iintegers),intent(in) :: src
     integer(mpiint),intent(in) :: comm
     logical,intent(in) :: dir
-    real(ireals),intent(in) :: taux, tauz, w0, g, phi, theta
-    real(ireals) :: dx,dy,kabs,ksca
+    real(ireals),intent(in) :: aspect, tauz, w0, g, phi, theta
+    real(ireals) :: dx,dy
 
     real(ireals),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     real(ireals) :: bg(3)
-    real(ireals), parameter :: dz = 1
+    real(ireals), parameter :: dz = 100
 
-    dx = taux/tauz * dz
+    dx = dz / aspect
     dy = dx
 
     bg(1) = tauz / dz * (one-w0)
@@ -945,9 +962,10 @@ end subroutine
       write(str(2),FMT='(A)') "pspace"
       align=0
 
-      write(str(3),FMT='(A)') "tau     " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%tau)  ) align(1 ) =1 ; if(allocated(buf))deallocate(buf )
-      write(str(3),FMT='(A)') "w0      " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%w0 )  ) align(2 ) =1 ; if(allocated(buf))deallocate(buf )
-      write(str(3),FMT='(A)') "g       " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%g  )  ) align(3 ) =1 ; if(allocated(buf))deallocate(buf )
+      write(str(3),FMT='(A)') "aspect  " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%aspect)) align(1 ) =1 ; if(allocated(buf))deallocate(buf )
+      write(str(3),FMT='(A)') "tau     " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%tau)   ) align(1 ) =1 ; if(allocated(buf))deallocate(buf )
+      write(str(3),FMT='(A)') "w0      " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%w0 )   ) align(2 ) =1 ; if(allocated(buf))deallocate(buf )
+      write(str(3),FMT='(A)') "g       " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%g  )   ) align(3 ) =1 ; if(allocated(buf))deallocate(buf )
 
       if(any(align.ne.0)) stop 'parameter space of direct LUT coefficients is not aligned!'
   end subroutine
@@ -961,11 +979,12 @@ end subroutine
       write(str(2),FMT='(A)') "pspace"
       align=0
 
-      write(str(3),FMT='(A)') "tau     "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%tau  )  ) align(1) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(3),FMT='(A)') "w0      "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%w0   )  ) align(2) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(3),FMT='(A)') "g       "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%g    )  ) align(3) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(3),FMT='(A)') "phi     "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%phi  )  ) align(4) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(3),FMT='(A)') "theta   "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%theta)  ) align(5) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(3),FMT='(A)') "aspect  "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%aspect)  ) align(1) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(3),FMT='(A)') "tau     "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%tau   )  ) align(1) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(3),FMT='(A)') "w0      "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%w0    )  ) align(2) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(3),FMT='(A)') "g       "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%g     )  ) align(3) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(3),FMT='(A)') "phi     "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%phi   )  ) align(4) =1 ; if(allocated(buf)) deallocate(buf )
+      write(str(3),FMT='(A)') "theta   "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%theta )  ) align(5) =1 ; if(allocated(buf)) deallocate(buf )
 
       if(any(align.ne.0)) stop 'parameter space of direct LUT coefficients is not aligned!'
     end subroutine
@@ -1055,7 +1074,7 @@ subroutine determine_angles_to_load(comm, interp_mode, LUT, azis, szas, mask)
       enddo
     endif
 
-  ! in case ranks would require different angles, we should broadcast this here. in principal ranks may only load the LUT they need, this approach may however not be the easiest to implement?
+    ! in case ranks would require different angles, we should broadcast this here. in principal ranks may only load the LUT they need, this approach may however not be the easiest to implement?
 
     do itheta=1,size(LUT%pspace%theta)
       do iphi  =1,size(LUT%pspace%phi)
@@ -1087,12 +1106,12 @@ end function
 subroutine set_parameter_space(OPP,ps)
     class(t_optprop_LUT) :: OPP
     type(parameter_space),intent(inout) :: ps
-    real(ireals) :: diameter ! diameter of max. cube size
     real(ireals),parameter :: maximum_transmission=one-1e-7_ireals !one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
     real(ireals),parameter :: minimum_transmission=1e-30_ireals
     real(ireals) :: transmission
     integer(iintegers) :: k
 
+    OPP%Naspect= Naspect
     OPP%Ntau   = Ntau
     OPP%Nw0    = Nw0
     OPP%Ng     = Ng
@@ -1109,12 +1128,18 @@ subroutine set_parameter_space(OPP,ps)
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select
 
-    if(.not. allocated(ps%tau  )) allocate(ps%tau  (OPP%Ntau   ))
-    if(.not. allocated(ps%w0   )) allocate(ps%w0   (OPP%Nw0    ))
-    if(.not. allocated(ps%g    )) allocate(ps%g    (OPP%Ng     ))
-    if(.not. allocated(ps%phi  )) allocate(ps%phi  (OPP%Nphi   ))
-    if(.not. allocated(ps%theta)) allocate(ps%theta(OPP%Ntheta ))
+    if(.not. allocated(ps%aspect)) allocate(ps%aspect(OPP%Naspect))
+    if(.not. allocated(ps%tau   )) allocate(ps%tau   (OPP%Ntau   ))
+    if(.not. allocated(ps%w0    )) allocate(ps%w0    (OPP%Nw0    ))
+    if(.not. allocated(ps%g     )) allocate(ps%g     (OPP%Ng     ))
+    if(.not. allocated(ps%phi   )) allocate(ps%phi   (OPP%Nphi   ))
+    if(.not. allocated(ps%theta )) allocate(ps%theta (OPP%Ntheta ))
 
+    ! -------------- Setup aspect support points
+
+    do k=1,OPP%Naspect
+      ps%aspect(k) = lin_index_to_param(one*k, ps%range_aspect, OPP%Naspect)
+    enddo
 
     ! determine support points over a range
     ! ATTENTION, this is currently not good for tau...
@@ -1163,40 +1188,41 @@ subroutine set_parameter_space(OPP,ps)
     ! ------------- Overwrite dimensions with preset values
 
     if (use_prescribed_LUT_dims) then
+      ps%aspect     = preset_aspect
       ps%tau        = preset_tau
       ps%w0         = preset_w0
       ps%g          = preset_g
       ps%theta      = preset_theta
 
-      ps%range_tau  = [ps%tau  (1), ps%tau  (Ntau  )]
-      ps%range_w0   = [ps%w0   (1), ps%w0   (Nw0   )]
-      ps%range_g    = [ps%g    (1), ps%g    (Ng    )]
-      ps%range_theta= [ps%theta(1), ps%theta(Ntheta)]
+      ps%range_aspect = [ps%aspect(1), ps%aspect(Naspect)]
+      ps%range_tau    = [ps%tau   (1), ps%tau   (Ntau   )]
+      ps%range_w0     = [ps%w0    (1), ps%w0    (Nw0    )]
+      ps%range_g      = [ps%g     (1), ps%g     (Ng     )]
+      ps%range_theta  = [ps%theta (1), ps%theta (Ntheta )]
     endif
 end subroutine
 
-subroutine LUT_get_dir2dir(OPP, in_taux, in_tauz, in_w0, g, phi, theta, C)
+subroutine LUT_get_dir2dir(OPP, in_aspect, in_tauz, in_w0, g, phi, theta, C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: in_taux, in_tauz, in_w0, g, phi, theta
+    real(ireals),intent(in) :: in_aspect, in_tauz, in_w0, g, phi, theta
     real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams**2)
-    real(ireals) :: taux, tauz, w0
+    real(ireals) :: aspect, tauz, w0, norm
     integer(iintegers) :: src
 
-    real(ireals) :: pti(6),weights(6),norm
-    real(ireals) :: vals(OPP%dir_streams**2, 2)
+    real(ireals) :: pti(6),weights(6)
+    !real(ireals) :: vals(OPP%dir_streams**2, 2)
 
-    taux = in_taux; tauz = in_tauz; w0 = in_w0
-    if(ldebug_optprop) call catch_limits(OPP%dirLUT%pspace,taux, tauz, w0, g)
+    aspect = in_aspect; tauz = in_tauz; w0 = in_w0
+    if(ldebug_optprop) call catch_limits(OPP%dirLUT%pspace,aspect, tauz, w0, g)
 
-    pti = get_indices_6d(taux, tauz, w0, g, phi, theta, OPP%dirLUT%pspace)
+    pti = get_indices_6d(aspect, tauz, w0, g, phi, theta, OPP%dirLUT%pspace)
 
     select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
       C = OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
     case(2)
-      weights = modulo(pti,one)
-      call interp_4d(pti, weights, OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c, C)
+      call interp_2d(pti(3:4), OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c(:, nint(pti(1)), nint(pti(2)), :, :), C)
     case(3)
       weights = modulo(pti,one)
       call interp_4p1d(pti([1,2,3,4,6]), weights([1,2,3,4,6]), OPP%dirLUT%T(nint(pti(5)), :), C)
@@ -1215,7 +1241,7 @@ subroutine LUT_get_dir2dir(OPP, in_taux, in_tauz, in_w0, g, phi, theta, C)
       iierr=0
       do src=1,OPP%dir_streams
         norm = sum(C( src:size(C):OPP%dir_streams))
-        if(real(norm).gt.one+10._ireals*epsilon(one)) iierr=iierr+1
+        if(real(norm).gt.one+1e-5_ireals) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
         print *,'Error in dir2dir coeffs :: ierr',iierr,size(C),OPP%dir_streams,'::',C
@@ -1227,30 +1253,32 @@ subroutine LUT_get_dir2dir(OPP, in_taux, in_tauz, in_w0, g, phi, theta, C)
     endif
 end subroutine
 
-subroutine LUT_get_dir2diff(OPP, in_taux, in_tauz, in_w0, g, phi, theta, C)
+subroutine LUT_get_dir2diff(OPP, in_aspect, in_tauz, in_w0, g, phi, theta, C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: in_taux, in_tauz, in_w0, g, phi, theta
+    real(ireals),intent(in) :: in_aspect, in_tauz, in_w0, g, phi, theta
     real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams*OPP%diff_streams)
 
-    real(ireals) :: taux, tauz, w0
+    real(ireals) :: aspect, tauz, w0
     real(ireals) :: pti(6),weights(6),norm
     integer(iintegers) :: src
 
-    taux = in_taux; tauz = in_tauz; w0 = in_w0
+    aspect = in_aspect; tauz = in_tauz; w0 = in_w0
     if(ldebug_optprop) then
-      call catch_limits(OPP%dirLUT%pspace,taux, tauz, w0, g)
+      call catch_limits(OPP%dirLUT%pspace,aspect, tauz, w0, g)
       if(size(C).ne.OPP%dir_streams*OPP%diff_streams) stop 'LUT_get_dir2diff called with wrong array shape'
     endif
 
-    pti = get_indices_6d(taux, tauz, w0, g, phi, theta, OPP%dirLUT%pspace)
+    pti = get_indices_6d(aspect, tauz, w0, g, phi, theta, OPP%dirLUT%pspace)
 
     select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
       C = OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
+
     case(2)
-      weights = modulo(pti,one)
-      call interp_4d(pti, weights, OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c, C)
+      !weights = modulo(pti,one)
+      !call interp_4d(pti, weights, OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c, C)
+      call interp_2d(pti(3:4), OPP%dirLUT%S(nint(pti(5)), nint(pti(6)) )%c(:, nint(pti(1)), nint(pti(2)), :, :), C)
 
     case(3)
       weights = modulo(pti,one)
@@ -1270,10 +1298,10 @@ subroutine LUT_get_dir2diff(OPP, in_taux, in_tauz, in_w0, g, phi, theta, C)
       iierr=0
       do src=1,OPP%diff_streams
         norm = sum( C( src:size(C):OPP%dir_streams ) )
-        if(real(norm).gt.one) iierr=iierr+1
+        if(real(norm).gt.one+1e-5_ireals) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
-        print *,'Error in dir2diff coeffs :: ierr',iierr,':',in_taux, in_tauz, in_w0, g, phi, theta,'::',C,'::',shape(OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
+        print *,'Error in dir2diff coeffs :: ierr',iierr,':',in_aspect, in_tauz, in_w0, g, phi, theta,'::',C,'::',shape(OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
         print *,'Error in dir2dir coeffs :: ierr',iierr,'::',OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ),'::',shape(OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
         do src=1,OPP%diff_streams
           print *,'SUM dir2diff coeff for src ',src,' :: sum ',sum(C( src:size(C):OPP%dir_streams)),' :: coeff',C( src:size(C):OPP%dir_streams )
@@ -1282,19 +1310,19 @@ subroutine LUT_get_dir2diff(OPP, in_taux, in_tauz, in_w0, g, phi, theta, C)
       endif
     endif
 end subroutine
-subroutine LUT_get_diff2diff(OPP, in_taux, in_tauz, in_w0, g, C)
+subroutine LUT_get_diff2diff(OPP, in_aspect, in_tauz, in_w0, g, C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: in_taux, in_tauz, in_w0, g
+    real(ireals),intent(in) :: in_aspect, in_tauz, in_w0, g
     real(ireals),intent(out):: C(:) ! dimension(OPP%diff_streams**2)
 
-    real(ireals) :: taux, tauz, w0
+    real(ireals) :: aspect, tauz, w0
     real(ireals) :: pti(4),weights(4),norm
     integer(iintegers) :: src
 
-    taux = in_taux; tauz = in_tauz; w0 = in_w0
-    if(ldebug_optprop) call catch_limits(OPP%diffLUT%pspace, taux, tauz, w0, g)
+    aspect = in_aspect; tauz = in_tauz; w0 = in_w0
+    if(ldebug_optprop) call catch_limits(OPP%diffLUT%pspace, aspect, tauz, w0, g)
 
-    pti = get_indices_4d(taux, tauz, w0, g, OPP%diffLUT%pspace)
+    pti = get_indices_4d(aspect, tauz, w0, g, OPP%diffLUT%pspace)
 
     select case(OPP%interp_mode)
     case(1)
@@ -1316,7 +1344,7 @@ subroutine LUT_get_diff2diff(OPP, in_taux, in_tauz, in_w0, g, C)
         if(norm.gt.one+1e-5_ireals) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
-        print *,'Error in diff2diff coeffs :: ierr',iierr, ':', in_taux, in_tauz, in_w0, g, '::', C
+        print *,'Error in diff2diff coeffs :: ierr',iierr, ':', in_aspect, in_tauz, in_w0, g, '::', C
         do src=1,OPP%diff_streams
           print *,'SUM diff2diff coeff for src ',src,' :: sum ',sum(C( src:size(C):OPP%diff_streams)),' :: coeff',C(src:size(C):OPP%diff_streams)
         enddo
@@ -1360,7 +1388,7 @@ subroutine interp_4p1d(pti,weights,ctable,C)
         type(table),intent(in) :: ctable(:)  ! contains N databases
         real(ireals),intent(out) :: C(:)
 
-        integer :: indices(2),fpti(Ndim), i
+        integer :: indices(2),fpti(Ndim)
 
         ! Instead of doing a full interpolation in 6 dimension we start out with
         ! 4 dimensions only at the cornerstones of the 4d hypercube
@@ -1378,22 +1406,22 @@ subroutine interp_4p1d(pti,weights,ctable,C)
 end subroutine
 
 
-function get_indices_4d(taux, tauz, w0, g, ps)
+function get_indices_4d(aspect, tauz, w0, g, ps)
     real(ireals) :: get_indices_4d(4)
-    real(ireals),intent(in) :: taux, tauz, w0, g
+    real(ireals),intent(in) :: aspect, tauz, w0, g
     type(parameter_space),intent(in) :: ps
 
-    get_indices_4d(1) = search_sorted_bisection(ps%tau, taux)
-    get_indices_4d(2) = search_sorted_bisection(ps%tau, tauz)
-    get_indices_4d(3) = search_sorted_bisection(ps%w0 , w0)
-    get_indices_4d(4) = search_sorted_bisection(ps%g  , g)
+    get_indices_4d(1) = search_sorted_bisection(ps%aspect, aspect)
+    get_indices_4d(2) = search_sorted_bisection(ps%tau   , tauz)
+    get_indices_4d(3) = search_sorted_bisection(ps%w0    , w0)
+    get_indices_4d(4) = search_sorted_bisection(ps%g     , g)
 end function
-function get_indices_6d(taux, tauz, w0, g, phi, theta, ps)
+function get_indices_6d(aspect, tauz, w0, g, phi, theta, ps)
     real(ireals) :: get_indices_6d(6)
-    real(ireals),intent(in) :: taux, tauz, w0, g, phi, theta
+    real(ireals),intent(in) :: aspect, tauz, w0, g, phi, theta
     type(parameter_space),intent(in) :: ps
 
-    get_indices_6d(1:4) = get_indices_4d(taux, tauz, w0, g, ps)
+    get_indices_6d(1:4) = get_indices_4d(aspect, tauz, w0, g, ps)
 
     get_indices_6d(5) = search_sorted_bisection(ps%phi  ,phi )
     get_indices_6d(6) = search_sorted_bisection(ps%theta,theta)
@@ -1409,20 +1437,20 @@ logical function valid_input(val,range)
       valid_input=.True.
     endif
 end function
-subroutine catch_limits(ps, taux, tauz, w0, g)
+subroutine catch_limits(ps, aspect, tauz, w0, g)
     type(parameter_space),intent(in) :: ps
-    real(ireals),intent(in) :: taux, tauz, w0, g
+    real(ireals),intent(in) :: aspect, tauz, w0, g
 
     iierr=0
 
-    !if( taux.lt.ps%range_tau(1) .or. taux.gt.ps%range_tau(2) ) then
-    !  print *,'tau is not in LookUpTable Range',taux, 'LUT range',ps%range_tau
-    !  iierr=iierr+1
-    !endif
-    !if( tauz.lt.ps%range_tau(1) .or. tauz.gt.ps%range_tau(2) ) then
-    !  print *,'tau is not in LookUpTable Range',tauz, 'LUT range',ps%range_tau
-    !  iierr=iierr+1
-    !endif
+    if( aspect.lt.ps%range_aspect(1) .or. aspect.gt.ps%range_aspect(2) ) then
+      print *,'aspect ratio is not in LookUpTable Range',aspect, 'LUT range',ps%range_aspect
+      iierr=iierr+1
+    endif
+    if( tauz.lt.ps%range_tau(1) .or. tauz.gt.ps%range_tau(2) ) then
+      print *,'tau is not in LookUpTable Range',tauz, 'LUT range',ps%range_tau
+      iierr=iierr+1
+    endif
     if( w0.lt.ps%range_w0(1) .or. w0.gt.ps%range_w0(2) ) then
       print *,'w0 is not in LookUpTable Range',w0, 'LUT range',ps%range_w0
       iierr=iierr+1

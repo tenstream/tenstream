@@ -106,9 +106,9 @@ contains
       endif
   end subroutine
 
-  subroutine get_coeff_bmc(OPP, taux, tauz, w0, g, dir, C, angles)
+  subroutine get_coeff_bmc(OPP, aspect, tauz, w0, g, dir, C, angles)
       class(t_optprop) :: OPP
-      real(ireals),intent(in) :: taux, tauz, w0, g
+      real(ireals),intent(in) :: aspect, tauz, w0, g
       logical,intent(in) :: dir
       real(ireals),intent(out):: C(:)
       real(ireals),intent(in),optional :: angles(2)
@@ -120,29 +120,29 @@ contains
       if(present(angles)) then
         if(dir) then !dir2dir
           do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper(isrc, taux, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
             C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams) = T_dir
           enddo
         else ! dir2diff
           do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper(isrc, taux, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
             C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
           enddo
         endif
       else
         ! diff2diff
         do isrc=1,OPP%OPP_LUT%diff_streams
-          call OPP%OPP_LUT%bmc_wrapper(isrc, taux, tauz, w0, g, .False., zero, zero, -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+          call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .False., zero, zero, -1_mpiint, S_diff, T_dir, S_tol, T_tol)
           C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
         enddo
       endif ! angles_present
 
   end subroutine
 
-  subroutine get_coeff(OPP, taux, tauz, w0, g, dir, C, inp_angles)
+  subroutine get_coeff(OPP, aspect, tauz, w0, g, dir, C, inp_angles)
         class(t_optprop) :: OPP
         logical,intent(in) :: dir
-        real(ireals),intent(in) :: taux, tauz, w0, g
+        real(ireals),intent(in) :: aspect, tauz, w0, g
         real(ireals),intent(in),optional :: inp_angles(2)
         real(ireals),intent(out):: C(:)
 
@@ -151,11 +151,11 @@ contains
         logical,parameter :: compute_coeff_online=.False.
 
         if(compute_coeff_online) then
-          call get_coeff_bmc(OPP, taux, tauz, w0, g, dir, C, inp_angles)
+          call get_coeff_bmc(OPP, aspect, tauz, w0, g, dir, C, inp_angles)
           return
         endif
 
-        if(ldebug_optprop) call check_inp(taux, tauz, w0, g, dir, C)
+        if(ldebug_optprop) call check_inp(aspect, tauz, w0, g, dir, C)
 
         if(present(inp_angles)) then
           angles = inp_angles
@@ -168,13 +168,13 @@ contains
 
             if(present(inp_angles)) then ! obviously we want the direct coefficients
               if(dir) then ! dir2dir
-                call OPP%OPP_LUT%LUT_get_dir2dir(taux, tauz, w0, g, angles(1), angles(2), C)
+                call OPP%OPP_LUT%LUT_get_dir2dir(aspect, tauz, w0, g, angles(1), angles(2), C)
               else         ! dir2diff
-                call OPP%OPP_LUT%LUT_get_dir2diff(taux, tauz, w0, g, angles(1), angles(2), C)
+                call OPP%OPP_LUT%LUT_get_dir2diff(aspect, tauz, w0, g, angles(1), angles(2), C)
               endif
             else
               ! diff2diff
-              call OPP%OPP_LUT%LUT_get_diff2diff(taux, tauz, w0, g, C)
+              call OPP%OPP_LUT%LUT_get_diff2diff(aspect, tauz, w0, g, C)
             endif
 
 
@@ -182,13 +182,13 @@ contains
 
             if(present(inp_angles)) then ! obviously we want the direct coefficients
               if(dir) then ! specifically the dir2dir
-                call ANN_get_dir2dir(taux, tauz, w0, g, angles(1), angles(2), C)
+                call ANN_get_dir2dir(aspect, tauz, w0, g, angles(1), angles(2), C)
               else ! dir2diff
-                call ANN_get_dir2diff(taux, tauz, w0, g, angles(1), angles(2), C)
+                call ANN_get_dir2diff(aspect, tauz, w0, g, angles(1), angles(2), C)
               endif
             else
               ! diff2diff
-              call ANN_get_diff2diff(taux, tauz, w0, g, C)
+              call ANN_get_diff2diff(aspect, tauz, w0, g, C)
             endif
 
           case default
@@ -197,13 +197,13 @@ contains
 
       contains
 
-        subroutine check_inp(taux, tauz, w0, g, dir, C)
-            real(ireals),intent(in) :: taux, tauz, w0, g
+        subroutine check_inp(aspect, tauz, w0, g, dir, C)
+            real(ireals),intent(in) :: aspect, tauz, w0, g
             logical,intent(in) :: dir
             real(ireals),intent(in):: C(:)
             if(OPP%optprop_debug) then
-              if( (any([taux, tauz, w0, g].lt.zero)) .or. (any(isnan([taux, tauz, w0, g]))) ) then
-                print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[taux, tauz, w0, g]
+              if( (any([aspect, tauz, w0, g].lt.zero)) .or. (any(isnan([aspect, tauz, w0, g]))) ) then
+                print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[aspect, tauz, w0, g]
                 call exit
               endif
             endif

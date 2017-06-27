@@ -810,21 +810,21 @@ contains
     logical,intent(in) :: ldir
     real(ireals),intent(out) :: coeff(:)
 
-    real(ireals) :: taux, tauz, w0
+    real(ireals) :: aspect, tauz, w0
 
     logical,intent(in) :: lone_dimensional
     real(ireals),intent(in),optional :: angles(2)
 
     call PetscLogStagePush(logstage(7),ierr) ;call CHKERR(ierr)
 
-    taux = (op%kabs+op%ksca) * atm%dx
+    aspect = dz / atm%dx
     tauz = (op%kabs+op%ksca) * dz
     w0 = op%ksca / (op%kabs+op%ksca)
 
     if(lone_dimensional) then
-      call OPP_1_2%get_coeff (taux, tauz, w0, op%g,ldir,coeff,angles)
+      call OPP_1_2%get_coeff (aspect, tauz, w0, op%g,ldir,coeff,angles)
     else
-      call OPP_8_10%get_coeff(taux, tauz, w0, op%g,ldir,coeff,angles)
+      call OPP_8_10%get_coeff(aspect, tauz, w0, op%g,ldir,coeff,angles)
     endif
 
     call PetscLogStagePop(ierr) ;call CHKERR(ierr)
@@ -845,7 +845,7 @@ contains
 
     integer(iintegers) :: i,j,k
 
-    real(ireals) :: zm(4), maxheight, global_maxheight 
+    real(ireals) :: zm(4), maxheight, global_maxheight
 
     if(.not.allocated(atm%dz)) stop 'You called  compute_gradient()&
       &but the atm struct is not yet up, make sure we have atm%dz before'
@@ -960,7 +960,7 @@ contains
             !    cycle
             !endif
 
-            do k=C_one%zs,C_one%ze 
+            do k=C_one%zs,C_one%ze
 
 
                 ! Vector of sun direction
@@ -1001,7 +1001,7 @@ contains
 
 
   !> @brief set direction where sun stands
-  !> @details save sun azimuth and zenith angle 
+  !> @details save sun azimuth and zenith angle
   !>   \n sun azimuth is reduced to the range of [0,90] and the transmission of direct radiation is contributed for by a integer increment,
   !>   \n determining which neighbouring box is used in the horizontal direction
   subroutine setup_suninfo(phi0, theta0, sun, phi2d, theta2d)
@@ -1014,7 +1014,7 @@ contains
     if(.not.allocated(sun%angles)) &
         allocate(sun%angles(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
 
-    if(lforce_phi) then 
+    if(lforce_phi) then
         sun%angles(:,:,:)%phi = options_phi
     else
         if(present(phi2d)) then
@@ -2294,8 +2294,8 @@ contains
         Az4 = one/(atm%dx*atm%dy*.25_ireals)
       endif
 
-      do j=C%ys,C%ye         
-        do i=C%xs,C%xe      
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe
           do k=C%zs,C%ze-i1
 
             if(C%dof.eq.i8) then ! This is 8 stream direct radiation
@@ -2345,8 +2345,8 @@ contains
       enddo
 
       k=C%ze
-      do j=C%ys,C%ye         
-        do i=C%xs,C%xe      
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe
 
           if(C%dof.eq.i8) then ! This is 8 stream direct radiation
             xv (i0:i3 ,k,i,j) = xv (i0:i3 ,k,i,j) * Az4
@@ -2358,7 +2358,7 @@ contains
         enddo
       enddo
 
-      if(sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this
+      if(sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this?
         select case (C%dof)
 
         case(i8)
