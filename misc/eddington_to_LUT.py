@@ -40,7 +40,7 @@ def find_supports(c, N, dim):
 
     return np.sort(np.unique(support_indices))
 
-def find_new_tau(a, N=20, iw0=Nw0//1.1, ig=Ng//2, imu=Nmu//2, lplot=True, linear_supports=False):
+def find_new_tau(a, N=20, iw0=int(Nw0//1.1), ig=Ng//2, imu=Nmu//2, lplot=True, linear_supports=False):
     """ find new support points for tau axis """
     a11, a12, a13, a23, a33, b1, b2 = a
 
@@ -71,7 +71,7 @@ def find_new_tau(a, N=20, iw0=Nw0//1.1, ig=Ng//2, imu=Nmu//2, lplot=True, linear
     return new_tau
 
 
-def find_new_w0(a, N=10, itau=Ntau//1.2, ig=Ng//2, imu=Nmu//2, lplot=False, linear_supports=False):
+def find_new_w0(a, N=10, itau=int(Ntau//1.2), ig=Ng//2, imu=Nmu//2, lplot=False, linear_supports=False):
     a11, a12, a13, a23, a33, b1, b2 = a
 
     support_indices = find_supports(a11, N, 1)
@@ -95,7 +95,7 @@ def find_new_w0(a, N=10, itau=Ntau//1.2, ig=Ng//2, imu=Nmu//2, lplot=False, line
     return new_w0
 
 
-def find_new_g(a, N=3, itau=Ntau//1.2, iw0=-1, imu=Nmu//2, lplot=False, linear_supports=False):
+def find_new_g(a, N=3, itau=int(Ntau//1.2), iw0=-1, imu=Nmu//2, lplot=False, linear_supports=False):
     a11, a12, a13, a23, a33, b1, b2 = a
 
     support_indices = find_supports(a11, N, 2)
