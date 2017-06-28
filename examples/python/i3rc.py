@@ -8,6 +8,37 @@ import py_rrtm_lw_sw as RRTM
 
 TS = RRTM.m_py_rrtm_lw_sw
 
+
+def load_cld(fname):
+    """
+        Function to read a libRadtran Cloud file
+    """
+    from numpy import loadtxt,arange,zeros,array
+    print('opening cloud file',fname)
+    f = open(fname,'r')
+    Nx,Ny,Nz = array(f.readline().split()).astype(int)[:3]
+    hhl = array(f.readline().split()).astype(float)
+    f.close()
+    geometry = {
+            'Nx' : Nx,
+            'Ny' : Ny,
+            'Nz' : Nz,
+            'dx' : hhl[0]*1e3,
+            'dy' : hhl[1]*1e3,
+            'z'  : hhl[2:]*1e3,
+            }
+    x,y,z,v1,v2 = loadtxt(fname,skiprows=2,unpack=True)
+    x=x.astype(int)
+    y=y.astype(int)
+    z=z.astype(int)
+    lwc  = zeros((Nz,Ny,Nx ))
+    reff = zeros((Nz,Ny,Nx ))
+    for i in arange(len(v1)):
+            lwc  [z[i]-1,y[i]-1,x[i]-1] = v1[i]
+            reff [z[i]-1,y[i]-1,x[i]-1] = v2[i]
+    return array([lwc, reff]), geometry
+
+
 def py_rrtmg(
         comm=MPI.COMM_WORLD,
         Nx=3, Ny=3, Nz=10, zt=None, max_height=1e4,
@@ -110,12 +141,51 @@ def py_rrtmg(
     #        print('{:4d} {:12.2f} {:12.2f} {:12.2f}'.format(k, dr[0,0], dn[0,0], up[0,0]))
 
 
-def example():
-    import load_librad as N
+def small_example(theta=60, phi=180, hhl=3e3, Nz=20, cld_z=15):
+    """
+        Small example with a liquid water cloud in at along the x-axis.
+        Size of a rank's subdomain is constant(i.e. more nodes -> bigger domain)
+
+    """
+    myid = MPI.COMM_WORLD.Get_rank()
+    nproc = MPI.COMM_WORLD.Get_size()
+    dx = dy = 5e2
+    Nx,Ny,Nz = 3, 15, Nz
+    lwc, reff = np.zeros((Nz,Nx,Ny)), np.ones((Nz,Nx,Ny))*10
+    lwc[cld_z, :, Ny//4] = 1
+
+    edir,edn,eup,abso = py_rrtmg(Nx=lwc.shape[1], Ny=lwc.shape[2], Nz=lwc.shape[0],
+            dx=dx, dy=dy, max_height=hhl,
+            lwc=lwc,
+            theta0=theta, phi0=phi,
+            N_ranks_x=1, N_ranks_y=MPI.COMM_WORLD.Get_size(),
+            lthermal=False)
+
+    import matplotlib.pyplot as plt
+    plt.figure(1); plt.clf()
+    plt.subplot(211)
+    plt.imshow(edir[-Nz:,Nx//2,:],interpolation='nearest', extent=(0,Ny*dy,0,hhl))
+    plt.colorbar()
+    plt.subplot(212)
+    plt.plot(np.linspace(0,Ny*dy, Ny), edir[-cld_z,Nx//2,:], label=r"$E_{dir} @ cloudlayer$")
+    plt.plot(np.linspace(0,Ny*dy, Ny), edir[-1,Nx//2,:], label=r"$E_{dir} @ srfc$")
+    plt.plot(np.linspace(0,Ny*dy, Ny), edn [-1,Nx//2,:], label=r"$E_{dn}  @ srfc$")
+    plt.plot(np.linspace(0,Ny*dy, Ny), eup [-1,Nx//2,:], label=r"$E_{up}  @ srfc$")
+    plt.legend(framealpha=.5)
+    plt.waitforbuttonpress()
+
+    return edir,edn,eup,abso
+
+
+def i3rc_example(theta=60, phi=180):
+    """
+        Computes the radiative transfer for a cloud field from the radiative transfer intercomparison project.
+        Domain decomposition happens only in y-direction and number of processes has to be divisor of 96
+    """
     myid = MPI.COMM_WORLD.Get_rank()
     nproc = MPI.COMM_WORLD.Get_size()
 
-    (lwc, reff), geom = N.load_cld('wcloud.i3rc1.dat')
+    (lwc, reff), geom = load_cld('wcloud.i3rc1.dat')
     Nx, Ny, Nz, dx, dy, hhl = [ geom[k] for k in ('Nx', 'Ny', 'Nz', 'dx', 'dy', 'z') ]
 
     ymin, ymax = Ny * np.array([myid, myid+1])/nproc
@@ -123,9 +193,6 @@ def example():
 
     lwc = lwc[:, :,  myslice]
     reff = reff[:, :, myslice]
-
-    theta = 60
-    phi = 90
 
     edir,edn,eup,abso = py_rrtmg(Nx=lwc.shape[1], Ny=lwc.shape[2], Nz=lwc.shape[0], max_height=hhl[-1],
             lwc=lwc,
@@ -159,5 +226,5 @@ def example():
 
 
 if __name__ == "__main__":
-    example()
+    small_example()
     pass
