@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -35,13 +35,14 @@ module m_data_parameters
       public pi,clight,nil,zero,one,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil, &
              iintegers,ireals,ireal128,ireal_dp,nan32,                          &
              mpiint,imp_int,imp_real,imp_real_dp,imp_logical,imp_comm,          &
-             myid,numnodes,mpierr,init_mpi_data_parameters
+             myid, numnodes, mpierr, init_mpi_data_parameters, default_str_len
 
       integer :: mpiint_dummy
       PetscInt :: petscint_dummy
       PetscReal :: petscreal_dummy
 
       integer,parameter :: &
+          default_str_len = 256,            &
           iintegers = kind(petscint_dummy), &
           ireals = kind(petscreal_dummy),   &
 !          ireal128 = selected_real_kind(33, 4931), &

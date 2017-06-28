@@ -279,7 +279,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           ! Singularities -- dont use values before here
           dtau   = max( epsilon(dtau_in)   , dtau_in   )
-          dtau   = min( 100._ireal128      , dtau      )
+          dtau   = min( 500._ireal128      , dtau      )
           g      = max( 1e-6_ireals        , g_in      )
           omega_0= max( epsilon(omega_0_in), omega_0_in)
 

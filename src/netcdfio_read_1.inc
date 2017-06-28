@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -20,7 +20,7 @@
 
 character(len=*) :: groups(:)
 
-character(len=300) :: fname,varname
+character(len=default_str_len) :: fname,varname
 integer :: i,ncid,varid
 integer, dimension(size(shape(arr))) :: dimIDs,dimsize
 
@@ -46,7 +46,7 @@ do iwait=1,int(maxwait/waitinterval)
   if(ldebug) print *,'reading from file: ',trim(fname)
   if(ldebug) print *,'variable: ',trim(varname),' :: Ndims',size(shape(arr))
 
-  ncerr = nf90_open(trim(fname), NF90_NOWRITE, ncid) ; call nccheck(ncerr) ; ierr = ierr+ncerr 
+  ncerr = nf90_open(trim(fname), NF90_NOWRITE, ncid) ; call nccheck(ncerr) ; ierr = ierr+ncerr
   if(ncerr.ne.NF90_NOERR) goto 100
   ncerr = nf90_inq_varid(ncid, trim(varname), varid) ; call nccheck(ncerr) ; ierr = ierr+ncerr
   if(ncerr.ne.NF90_NOERR) goto 100

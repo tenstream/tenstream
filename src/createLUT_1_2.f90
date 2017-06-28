@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -31,7 +31,7 @@ program main
       integer(mpiint) :: myid, comm, ierr
 
       character(len=32) :: arg
-      real(ireals) :: dx,user_sza
+      real(ireals) :: user_sza
       real(ireals) :: azis(2),szas(5)
 
       type(t_optprop_LUT_1_2) :: OPP
@@ -48,19 +48,15 @@ program main
       azis = [0,90]
       szas = [0,20,40,60,80]
 
-      call get_command_argument(1, arg)
-      if(len_trim(arg) == 0) call exit
-      read (arg,*) dx
-
       call get_command_argument(2, arg)
       if(len_trim(arg) .gt. 0) then
         read (arg,*) user_sza
         szas=user_sza
       endif
 
-      print *,'calculating coeffs for dx',dx
-      call OPP%init(dx,dx,azis,szas,comm)
-      print *,'loaded 1_2 coeffs for dx',dx,'szas',szas,'azis',azis
+      print *,'calculating coeffs for szas',szas,'azis',azis
+      call OPP%init(azis,szas,comm)
+      print *,'loaded 1_2 coeffs for szas',szas,'azis',azis
 
 
       call mpi_finalize(ierr)

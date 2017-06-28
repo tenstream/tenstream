@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -28,11 +28,11 @@ subroutine update_dir_stream_8_10(bmc,p,S)
 !               3       4
 !         _______________
 !        |               |
-!      6 |           8   | 
+!      6 |           8   |
 !        |               |
 !        |               |
 !        |    7          |
-!      5 |_______________| 
+!      5 |_______________|
     select case (p%side)
     case(1:2)
       if(p%loc(1).le.p%dx*h.and.p%loc(2).le.p%dy*h) then
@@ -150,27 +150,27 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         integer(iintegers),intent(in) :: src
         logical,intent(in) :: direct
         real(ireal_dp),parameter :: h=.5_ireal_dp
-        real(ireal_dp),parameter :: e=1e-8_ireal_dp
+        real(ireal_dp),parameter :: e=1e-6_ireal_dp
 
         p%alive = .False.
 
         select case(src)
         case (1)
-                p%loc = (/L(dx)*h     , L(dy)*h     ,    dz-e  /)
+                p%loc = (/L(dx)*h     , L(dy)*h     ,    dz*(one-e)  /)
         case (2)
-                p%loc = (/dx*h+L(dx)*h, L(dy)*h     ,    dz-e  /)
+                p%loc = (/dx*h+L(dx)*h, L(dy)*h     ,    dz*(one-e)  /)
         case (3)
-                p%loc = (/L(dx)*h     , dy*h+L(dy)*h,    dz-e  /)
+                p%loc = (/L(dx)*h     , dy*h+L(dy)*h,    dz*(one-e)  /)
         case (4)
-                p%loc = (/dx*h+L(dx)*h, dy*h+L(dy)*h,    dz-e  /)
+                p%loc = (/dx*h+L(dx)*h, dy*h+L(dy)*h,    dz*(one-e)  /)
         case (5)
-                p%loc = (/  zero+e      , L(dy)       , L(dz)*h/)
+                p%loc = (/  zero+dx*e      , L(dy)       , L(dz)*h/)
         case (6)
-                p%loc = (/  zero+e      , L(dy)       , dz*h+L(dz)*h/)
+                p%loc = (/  zero+dx*e      , L(dy)       , dz*h+L(dz)*h/)
         case (7)
-                p%loc = (/L(dx)       ,   zero+e      , L(dz)*h/)
+                p%loc = (/L(dx)       ,   zero+dy*e      , L(dz)*h/)
         case (8)
-                p%loc = (/L(dx)       ,   zero+e      , dz*h+L(dz)*h/)
+                p%loc = (/L(dx)       ,   zero+dy*e      , dz*h+L(dz)*h/)
         case default
                 print *,'Dont know what to do with source spec:',src
                 call exit
@@ -351,56 +351,56 @@ subroutine intersect_distance_8_10(bmc,p,max_dist)
         real(ireal_dp) :: dist(3)
 
         !crossing with bottom and top plane:
-          if(p%dir(3).ge.zero) then
+          if(p%dir(3).gt.zero) then
             max_dist = hit_plane(p,[zero,zero,p%dz ],[zero,zero,one])
-            p%side=1 
+            p%side=1
             x = p%loc(1)+p%dir(1)*max_dist
             y = p%loc(2)+p%dir(2)*max_dist
-            if( ( x.ge.zero .and. x.le.p%dx) .and. ( y.ge.zero .and. y.le.p%dy) ) return
+            if( ( x.gt.zero .and. x.lt.p%dx) .and. ( y.gt.zero .and. y.lt.p%dy) ) return
             dist(1) = max_dist; sides(1) = 1
           endif
-          if(p%dir(3).le.zero) then
+          if(p%dir(3).lt.zero) then
             max_dist = hit_plane(p,[zero,zero,zero ],[zero,zero,one])
             p%side=2
             x = p%loc(1)+p%dir(1)*max_dist
             y = p%loc(2)+p%dir(2)*max_dist
-            if( ( x.ge.zero .and. x.le.p%dx) .and. ( y.ge.zero .and. y.le.p%dy) ) return
+            if( ( x.gt.zero .and. x.lt.p%dx) .and. ( y.gt.zero .and. y.lt.p%dy) ) return
             dist(1) = max_dist; sides(1) = 2
           endif
 
           !crossing with left and right plane:
-          if(p%dir(1).le.zero) then
+          if(p%dir(1).lt.zero) then
             max_dist = hit_plane(p,[ zero ,zero,zero],[one,zero,zero])
             p%side=3
             y = p%loc(2)+p%dir(2)*max_dist
             z = p%loc(3)+p%dir(3)*max_dist
-            if( ( y.ge.zero .and. y.le.p%dy) .and. ( z.ge.zero .and. z.le.p%dz) ) return
+            if( ( y.gt.zero .and. y.lt.p%dy) .and. ( z.gt.zero .and. z.lt.p%dz) ) return
             dist(2) = max_dist; sides(2) = 3
           endif
-          if(p%dir(1).ge.zero) then
+          if(p%dir(1).gt.zero) then
             max_dist = hit_plane(p,[ p%dx ,zero,zero],[one,zero,zero])
             p%side=4
             y = p%loc(2)+p%dir(2)*max_dist
             z = p%loc(3)+p%dir(3)*max_dist
-            if( ( y.ge.zero .and. y.le.p%dy) .and. ( z.ge.zero .and. z.le.p%dz) ) return
+            if( ( y.gt.zero .and. y.lt.p%dy) .and. ( z.gt.zero .and. z.lt.p%dz) ) return
             dist(2) = max_dist; sides(2) = 4
           endif
 
           !crossing with back and forward plane:
-          if(p%dir(2).le.zero) then
+          if(p%dir(2).lt.zero) then
             max_dist = hit_plane(p,[zero, zero ,zero],[zero,one,zero])
             p%side=5
             x = p%loc(1)+p%dir(1)*max_dist
             z = p%loc(3)+p%dir(3)*max_dist
-            if( ( x.ge.zero .and. x.le.p%dx) .and. ( z.ge.zero .and. z.le.p%dz) ) return
+            if( ( x.gt.zero .and. x.lt.p%dx) .and. ( z.gt.zero .and. z.lt.p%dz) ) return
             dist(3) = max_dist; sides(3) = 5
           endif
-          if(p%dir(2).ge.zero) then
+          if(p%dir(2).gt.zero) then
             max_dist = hit_plane(p,[zero, p%dy ,zero],[zero,one,zero])
             p%side=6
             x = p%loc(1)+p%dir(1)*max_dist
             z = p%loc(3)+p%dir(3)*max_dist
-            if( ( x.ge.zero .and. x.le.p%dx) .and. ( z.ge.zero .and. z.le.p%dz) ) return
+            if( ( x.gt.zero .and. x.lt.p%dx) .and. ( z.gt.zero .and. z.lt.p%dz) ) return
             dist(3) = max_dist; sides(3) = 6
           endif
 
@@ -421,6 +421,6 @@ subroutine intersect_distance_8_10(bmc,p,max_dist)
         select type(bmc)
         end select
 
-end subroutine 
+end subroutine
   ! ******************* BOXMC 8 10 ************************
 

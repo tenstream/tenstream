@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -31,7 +31,7 @@ program main
       integer(mpiint) :: myid,comm
 
       character(len=80) :: arg
-      real(ireals) :: dx,user_sza
+      real(ireals) :: user_sza
       real(ireals) :: azis(91),szas(92)
 
       type(t_optprop_LUT_8_10) :: OPP
@@ -52,27 +52,21 @@ program main
         azis(i+1) = i
       enddo
       do i=0,90
-        szas(i+1) = i 
+        szas(i+1) = i
       enddo
       szas(92) = -1
 
-      dx=-1
       do i=1,10
         call get_command_argument(i, arg)
         if(len_trim(arg) .gt. 0) then
 
-          if(arg.eq.'-dx') then
-            call get_command_argument(i+1, arg)
-            read (arg,*) dx
-          endif
-
-          if(arg.eq.'-sza') then 
+          if(arg.eq.'-sza') then
             call get_command_argument(i+1, arg)
             read (arg,*) user_sza
             szas=user_sza
           endif
 
-          if(arg.eq.'-azi') then 
+          if(arg.eq.'-azi') then
             call get_command_argument(i+1, arg)
             read (arg,*) user_azi
             azis=user_azi
@@ -80,11 +74,9 @@ program main
         endif
       enddo
 
-      if(dx.eq.-1) stop 'Need to supply option dx to create Lookuptables... stopping' 
-
-      if(myid.eq.0) print *,'calculating coeffs for dx',dx,'szas',szas,'azimuths',azis
-      call OPP%init(dx,dx,azis,szas,comm)
-      if(myid.eq.0) print *,'loaded 8_10 coeffs for dx',dx,'szas',szas,'azis',azis
+      if(myid.eq.0) print *,'calculating coeffs for szas',szas,'azimuths',azis
+      call OPP%init(azis,szas,comm)
+      if(myid.eq.0) print *,'loaded 8_10 coeffs for szas',szas,'azis',azis
 
       call mpi_finalize(ierr)
 end program

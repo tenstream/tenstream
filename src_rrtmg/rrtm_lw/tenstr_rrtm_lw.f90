@@ -10,7 +10,9 @@ module m_tenstr_rrtm_lw
       use m_tenstr_parrrtm, only: ngptlw, nbndlw
       use m_tenstr_rrtmg_lw_rad, only: rrtmg_lw
 
-      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint, pi, mpierr
+      use m_data_parameters, only : init_mpi_data_parameters, &
+        iintegers, ireals, myid, zero, one, i0, i1,           &
+        mpiint, pi, mpierr, default_str_len
 
       use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
           tenstream_get_result, tenstream_get_result_toZero, C_one, C_one1
@@ -110,7 +112,7 @@ contains
     integer(mpiint), intent(in) :: comm
 
     real(ireals), intent(in) :: dx, dy, phi0, theta0, albedo, dz(:,:,:)
-    character(len=250), intent(in) :: atm_filename
+    character(default_str_len), intent(in) :: atm_filename
     integer(iintegers),intent(in) :: xm, ym, zm
 
     integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:) ! array containing xm and ym for all nodes :: dim[x-ranks, y-ranks]
@@ -130,14 +132,14 @@ contains
   end subroutine
 
   subroutine tenstream_rrtm_lw(comm, dx, dy, phi0, theta0, albedo, atm_filename, &
-                               edir,edn,eup,abso,                                & 
-                               d_plev, d_tlev, d_tlay, d_h2ovmr, d_o3vmr,       &
+                               edir,edn,eup,abso,                                &
+                               d_plev, d_tlev, d_tlay, d_h2ovmr, d_o3vmr,        &
                                d_co2vmr, d_ch4vmr, d_n2ovmr,  d_o2vmr,           &
                                d_lwc, d_reliq, nxproc, nyproc, icollapse)
     integer(mpiint), intent(in) :: comm
 
     real(ireals), intent(in) :: dx, dy, phi0, theta0, albedo
-    character(len=250), intent(in) :: atm_filename
+    character(default_str_len), intent(in) :: atm_filename
 
     real(ireals),intent(in) :: d_plev(:,:,:), d_tlev (:,:,:) ! dim(nlay_dynamics+1, nxp, nyp)
 
@@ -178,7 +180,7 @@ contains
 
     real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
 
-    character(len=80) :: output_path(2) ! [ filename, varname ]
+    character(default_str_len) :: output_path(2) ! [ filename, varname ]
 
     call load_atmfile(comm, atm_filename, bg_atm)
 
@@ -332,13 +334,13 @@ contains
     allocate(spec_abso(C_one%zm , C_one%xm , C_one%ym ))
 
     ! Loop over spectral intervals and call solver
-    do ib=1,ngptlw 
+    do ib=1,ngptlw
       call set_optical_properties(albedo, kabs(:,:,:,ib), ksca(:,:,:), g(:,:,:), Blev(:,:,:,ngb(ib))*Bfrac(:,:,:,ib))
       call solve_tenstream(zero)
       call tenstream_get_result(spec_edir, spec_edn, spec_eup, spec_abso)
 
-      edn  = edn  + spec_edn 
-      eup  = eup  + spec_eup 
+      edn  = edn  + spec_edn
+      eup  = eup  + spec_eup
       abso = abso + spec_abso
     enddo
 
@@ -356,8 +358,8 @@ contains
     real(ireals), intent(in) :: albedo
 
     real(rb),dimension(ncol_in,nlay_in+1) :: plev, tlev
-    real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
-    real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq 
+    real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
+    real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [ncol, nlay, ngptlw]
 
@@ -369,7 +371,7 @@ contains
 
     real(rb),dimension(ncol_in, nlay_in)   :: cfc11vmr,cfc12vmr,cfc22vmr,ccl4vmr
 
-    real(rb),dimension(ncol_in) :: tsfc 
+    real(rb),dimension(ncol_in) :: tsfc
 
     real(rb),dimension(ncol_in,nlay_in+1) :: lwuflx,lwdflx,lwuflxc,lwdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: lwhr,lwhrc
@@ -481,7 +483,7 @@ contains
 
   subroutine load_atmfile(comm, atm_filename, atm)
     integer(mpiint), intent(in) :: comm
-    character(len=250), intent(in) :: atm_filename
+    character(default_str_len), intent(in) :: atm_filename
     type(t_atm),allocatable,intent(inout) :: atm
 
     integer(mpiint) :: myid
@@ -514,7 +516,7 @@ contains
       atm%h2o_lev = prof(:,7) / prof(:,4)
       atm%o3_lev  = prof(:,5) / prof(:,4)
       atm%co2_lev = prof(:,8) / prof(:,4)
-      atm%ch4_lev = atm%co2_lev / 1e2        
+      atm%ch4_lev = atm%co2_lev / 1e2
       atm%n2o_lev = prof(:,9) / prof(:,4)
       atm%o2_lev  = prof(:,6) / prof(:,4)
 
@@ -640,7 +642,7 @@ contains
     ! then from there on couple background atm data on top of that
 
     allocate(col_plev   (ie*je, ke1))
-                                     
+
     allocate(col_tlev   (ie*je, ke1))
     allocate(col_tlay   (ie*je, ke ))
     allocate(col_h2ovmr (ie*je, ke ))

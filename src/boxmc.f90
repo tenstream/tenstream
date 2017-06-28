@@ -189,8 +189,6 @@ contains
     real(ireal_dp) :: S_tol(bmc%diff_streams)
     real(ireal_dp) :: T_tol(bmc%dir_streams)
 
-    real(ireal_dp)   :: time(2)
-
     real(ireal_dp) :: atol,rtol, coeffnorm
 
     type(stddev) :: std_Sdir, std_Sdiff, std_abso
@@ -222,12 +220,15 @@ contains
       call exit
     endif
 
+    if( any([phi0,theta0].lt.0) .or. (phi0.gt.360_ireals) .or. (theta0.gt.90_ireals) ) then
+      print *,'corrupt sun angles :: ',phi0, theta0
+      call exit
+    endif
+
     if(dx.le.zero .or. dy.le.zero .or. dz.le.zero ) then
       print *,'ERROR: box dimensions have to be positive!',dx,dy,dz
       call exit()
     endif
-
-    call cpu_time(time(1))
 
     call run_photons(bmc,src,                   &
                      real(op_bg,kind=ireal_dp), &
@@ -241,7 +242,7 @@ contains
 
 
     S_out = std_Sdiff%mean
-    T_out = std_Sdir%mean 
+    T_out = std_Sdir%mean
 
     ! tolerances that we achieved and report them back
     S_tol = std_Sdiff%var
@@ -255,7 +256,7 @@ contains
     ! some debug output at the end...
     coeffnorm = sum(S_out)+sum(T_out)
     if( coeffnorm.gt.one ) then
-      if(coeffnorm.ge.one+1e-8_ireal_dp) then
+      if(coeffnorm.ge.one+1e-5_ireal_dp) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
         sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',op_bg,'eps',epsilon(one)
         call exit
@@ -271,6 +272,7 @@ contains
     endif
     if( (any(isnan(S_out) )) .or. (any(isnan(T_out)) ) ) then
       print *,'Found a NaN in output! this should not happen! dir',T_out,'diff',S_out
+      print *,'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', dx,dy,dz
       call exit()
     endif
 
@@ -279,12 +281,6 @@ contains
     ret_S_tol = real(S_tol, kind=ireals)
     ret_T_tol = real(T_tol, kind=ireals)
 
-    call cpu_time(time(2))
-
-    !    if(rand().gt..99_ireal_dp) then
-    !      write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(,",I0,I0,") N_phot ",ES12.3," =>",ES12.3,"phot/sec/node took",ES12.3,"sec" )') &
-    !        src,int(dz),op_bg,p%optprop,int(phi0),int(theta0),total_photons,total_photons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
-    !    endif
   end subroutine
 
   subroutine run_photons(bmc,src,op,dx,dy,dz,ldir,phi0,theta0,Nphotons,std_Sdir,std_Sdiff,std_abso)
@@ -298,16 +294,20 @@ contains
       type(photon)       :: p
       integer(iintegers) :: k,mycnt,mincnt
       real(ireal_dp)   :: initial_dir(3)
+      real(ireal_dp)   :: time(2)
+
+
+      call cpu_time(time(1))
 
       initial_dir  = [ sin(deg2rad(theta0))*sin(deg2rad(phi0)) ,&
                        sin(deg2rad(theta0))*cos(deg2rad(phi0)) ,&
                      - cos(deg2rad(theta0)) ]
       initial_dir = initial_dir/norm(initial_dir)
 
-      mincnt= max( 100, int( 1e4 /numnodes ) )
-      mycnt = int(1e9)/numnodes
+      mincnt= max( 1000, int( 1e3 /numnodes ) )
+      mycnt = int(1e8)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
-      do k=1,mycnt
+      do k=1, mycnt
 
           if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
 
@@ -338,11 +338,18 @@ contains
               call bmc%update_diff_stream(p,std_Sdiff%inc)
           endif
 
-          if(ldir)call std_update( std_Sdir , k, i1*numnodes )
+          if (ldir) call std_update( std_Sdir , k, i1*numnodes )
           call std_update( std_abso , k, i1*numnodes)
           call std_update( std_Sdiff, k, i1*numnodes )
       enddo ! k photons
       Nphotons = k
+
+      call cpu_time(time(2))
+
+      !if(rand().gt..99_ireal_dp) then
+      !  write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec")') &
+      !    src,int(dz),op,p%optprop,int(phi0),int(theta0),Nphotons, Nphotons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
+      !endif
   end subroutine
 
   !> @brief take weighted average over mpi processes
@@ -607,7 +614,7 @@ contains
     real(ireal_dp) :: get_g
     type(photon),intent(in) :: p
     get_g = p%optprop(3)
-  end function    
+  end function
 
   subroutine print_photon(p)
     type(photon),intent(in) :: p
@@ -617,12 +624,16 @@ contains
     print *,'weight',p%weight,'alive,direct',p%alive,p%direct,'scatter count',p%scattercnt
     print *,'side',p%side,'src',p%src
     print *,'kabs,ksca,g',get_kabs(p),get_ksca(p),get_g(p)
+    print *,'dx,dy,dz', p%dx, p%dy, p%dz
   end subroutine
 
   function R()
     real(ireal_dp) :: R
-    R = getRandomDouble(rndSeq)
-    !    call random_number(R)
+    real :: rvec(1)
+    ! R = getRandomDouble(rndSeq) ! mersenne twister from robert pinucs, see mersenne.f90
+    ! call random_number(R)
+    call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher
+    R = real(rvec(1), kind=ireal_dp)
   end function
 
   subroutine init_random_seed(myid)
@@ -642,11 +653,12 @@ contains
     DEALLOCATE(seed)
 
     call random_number(rn)
-    s = int(rn*1000)*myid
+    s = int(rn*1000)*(myid+1)
 
     !  s=myid
     !  print *,myid,'Seeding RNG with ',s
-    rndSeq = new_RandomNumberSequence(seed=s)
+    rndSeq = new_RandomNumberSequence(seed=s) ! seed pincus's mersenne twister
+    call RLUXGO(4, int(s), 0, 0) ! seed ranlux rng
     lRNGseeded=.True.
   end subroutine
   subroutine init_stddev( std, N, atol, rtol)

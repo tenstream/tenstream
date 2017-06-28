@@ -53,13 +53,15 @@ module m_tenstream
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals,iintegers,       &
-    imp_comm, myid, numnodes,init_mpi_data_parameters,mpiint, &
-    zero,one,nil,i0,i1,i2,i3,i4,i5,i6,i7,i8,i10,pi
+  use m_data_parameters, only : ireals, iintegers,               &
+    imp_comm, myid, numnodes, init_mpi_data_parameters, mpiint,  &
+    zero, one, nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
+    default_str_len
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
-  use m_helper_functions, only: norm,rad2deg,deg2rad,approx,rmse,delta_scale,imp_bcast,cumsum,inc,mpi_logical_and,imp_allreduce_min,imp_allreduce_max,CHKERR
+  use m_helper_functions, only: norm, rad2deg, deg2rad, approx, rmse, delta_scale, &
+    imp_bcast, cumsum, inc, mpi_logical_and, imp_allreduce_min, imp_allreduce_max, CHKERR
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -283,7 +285,7 @@ contains
   end subroutine
 
   !> @brief print information on PETSc Mat :: size and allocated rows
-  !> @details TODO: currently broken -- need to clear what real_kind the returned values should have 
+  !> @details TODO: currently broken -- need to clear what real_kind the returned values should have
   !> \n -- petsc doc says those should be double precision irrespective of petsc real type?? check!
   subroutine mat_info(A)
     Mat :: A
@@ -308,10 +310,10 @@ contains
 
   !> @brief create PETSc matrix and inserts diagonal elements
   !> @details one important step for performance is to set preallocation of matrix structure.
-  !>  \n  i.e. determine the number of local vs. remote number of entries in each row. 
+  !>  \n  i.e. determine the number of local vs. remote number of entries in each row.
   !>  \n  DMDA actually provides a preallocation but this assumes that degrees of freedom on neighbouring boxes are fully connected to local ones.
   !>  \n  this does of course drastically overestimate non-zeros as we need only the streams that actually send radiation in the respective direction.
-  !>  \n  at the moment preallocation routines determine nonzeros by manually checking bounadries -- 
+  !>  \n  at the moment preallocation routines determine nonzeros by manually checking bounadries --
   !>  \n  !todo we should really use some form of iterating through the entries as it is done in the matrix assembly routines and just flag the rows
   subroutine init_Matrix(A,C)!,prefix)
     Mat, allocatable, intent(inout) :: A
@@ -350,11 +352,11 @@ contains
 
     call mat_info(A)
 
-    ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many 
+    ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many
     ! call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;call CHKERR(ierr)
 
     ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
-    !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;call CHKERR(ierr) 
+    !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;call CHKERR(ierr)
 
     ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;call CHKERR(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
 
@@ -808,15 +810,21 @@ contains
     logical,intent(in) :: ldir
     real(ireals),intent(out) :: coeff(:)
 
+    real(ireals) :: aspect, tauz, w0
+
     logical,intent(in) :: lone_dimensional
     real(ireals),intent(in),optional :: angles(2)
 
     call PetscLogStagePush(logstage(7),ierr) ;call CHKERR(ierr)
 
+    aspect = dz / atm%dx
+    tauz = (op%kabs+op%ksca) * dz
+    w0 = op%ksca / (op%kabs+op%ksca)
+
     if(lone_dimensional) then
-      call OPP_1_2%get_coeff(dz,op%kabs,op%ksca,op%g,ldir,coeff,angles)
+      call OPP_1_2%get_coeff (aspect, tauz, w0, op%g,ldir,coeff,angles)
     else
-      call OPP_8_10%get_coeff(dz,op%kabs,op%ksca,op%g,ldir,coeff,angles)
+      call OPP_8_10%get_coeff(aspect, tauz, w0, op%g,ldir,coeff,angles)
     endif
 
     call PetscLogStagePop(ierr) ;call CHKERR(ierr)
@@ -837,7 +845,7 @@ contains
 
     integer(iintegers) :: i,j,k
 
-    real(ireals) :: zm(4), maxheight, global_maxheight 
+    real(ireals) :: zm(4), maxheight, global_maxheight
 
     if(.not.allocated(atm%dz)) stop 'You called  compute_gradient()&
       &but the atm struct is not yet up, make sure we have atm%dz before'
@@ -952,7 +960,7 @@ contains
             !    cycle
             !endif
 
-            do k=C_one%zs,C_one%ze 
+            do k=C_one%zs,C_one%ze
 
 
                 ! Vector of sun direction
@@ -993,7 +1001,7 @@ contains
 
 
   !> @brief set direction where sun stands
-  !> @details save sun azimuth and zenith angle 
+  !> @details save sun azimuth and zenith angle
   !>   \n sun azimuth is reduced to the range of [0,90] and the transmission of direct radiation is contributed for by a integer increment,
   !>   \n determining which neighbouring box is used in the horizontal direction
   subroutine setup_suninfo(phi0, theta0, sun, phi2d, theta2d)
@@ -1006,7 +1014,7 @@ contains
     if(.not.allocated(sun%angles)) &
         allocate(sun%angles(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
 
-    if(lforce_phi) then 
+    if(lforce_phi) then
         sun%angles(:,:,:)%phi = options_phi
     else
         if(present(phi2d)) then
@@ -2286,8 +2294,8 @@ contains
         Az4 = one/(atm%dx*atm%dy*.25_ireals)
       endif
 
-      do j=C%ys,C%ye         
-        do i=C%xs,C%xe      
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe
           do k=C%zs,C%ze-i1
 
             if(C%dof.eq.i8) then ! This is 8 stream direct radiation
@@ -2337,8 +2345,8 @@ contains
       enddo
 
       k=C%ze
-      do j=C%ys,C%ye         
-        do i=C%xs,C%xe      
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe
 
           if(C%dof.eq.i8) then ! This is 8 stream direct radiation
             xv (i0:i3 ,k,i,j) = xv (i0:i3 ,k,i,j) * Az4
@@ -2350,7 +2358,7 @@ contains
         enddo
       enddo
 
-      if(sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this
+      if(sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this?
         select case (C%dof)
 
         case(i8)
@@ -2543,15 +2551,15 @@ contains
 
 
     ! init box montecarlo model
-    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
-    if(.not.luse_eddington)      call OPP_1_2%init (atm%dx,atm%dy,pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm) 
+    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
+    if(.not.luse_eddington)      call OPP_1_2%init (pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
 
     call init_matrices()
   end subroutine
 
   !> @brief Main routine to setup TenStream solver
   !> @details This will setup the PETSc DMDA grid and set other grid information, needed for the TenStream
-  !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc) 
+  !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc)
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
   subroutine init_tenstream(icomm, Nz,Nx,Ny, dx,dy, phi0, theta0, dz1d, dz3d, nxproc, nyproc, collapseindex)
     integer,intent(in) :: icomm !< @param MPI_Communicator which should be used -- this will be used for PETSC_COMM_WORLD
@@ -2570,7 +2578,7 @@ contains
     integer(iintegers),optional,intent(in) :: collapseindex  !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
 
     integer(iintegers) :: k,i,j
-    !    character(len=30),parameter :: tenstreamrc='./.tenstreamrc'
+    !    character(default_str_len),parameter :: tenstreamrc='./.tenstreamrc'
 
     if(.not.ltenstream_is_initialized) then
 
@@ -3511,13 +3519,13 @@ function need_new_solution(uid,time)
   real(ireals) :: t(Nfit),tm(Nfit),dt(Nfit-1),err(2, 2*(Nfit-1)), error_estimate
   real(ireals) :: polyc(Nporder+1),estimate(Nporder)
 
-  character(len=50) :: reason
+  character(default_str_len) :: reason
   integer, parameter :: out_unit=20
 
   integer(iintegers) :: k,ipoly
 
   ! Make time an optional argument here for
-  ! convenience of the interface -- 
+  ! convenience of the interface --
   ! otherwise the user needs to check if he
   ! opt_time is present and so on...
   if(.not. present(time)) then
@@ -3527,16 +3535,16 @@ function need_new_solution(uid,time)
 
   if( .not. solutions(uid)%lset ) then !if we did not store a solution, return immediately
     need_new_solution=.True.
-    write(reason,*) 'no solution yet' 
+    write(reason,*) 'no solution yet'
     if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid
-    return 
+    return
   endif
 
   if(.not. lenable_solutions_err_estimates) then
     need_new_solution=.True.
-    write(reason,*) 'err.est.thresh.inf.small' 
+    write(reason,*) 'err.est.thresh.inf.small'
     if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time,uid
-    return 
+    return
   endif
 
 
@@ -3571,7 +3579,7 @@ function need_new_solution(uid,time)
   ! try several polynomials and find max error:
   do ipoly=1,Nporder
     polyc(1:ipoly+1) = polyfit(err(1,:),err(2,:),ipoly, ierr) ! e.g. second order polynomial has 3 coefficients
-    if(ierr.ne.0) then 
+    if(ierr.ne.0) then
       need_new_solution=.True.
       write(reason,*) 'problem fitting error curve',ierr
       call PetscLogStagePop(ierr) ;call CHKERR(ierr)
@@ -3598,26 +3606,26 @@ function need_new_solution(uid,time)
 
   if(error_estimate.le.options_max_solution_err) then
     need_new_solution=.False.
-    write(reason,*) 'ERR_TOL_IN_BOUND' 
+    write(reason,*) 'ERR_TOL_IN_BOUND'
   else
     need_new_solution=.True.
-    write(reason,*) 'ERR_TOL_EXCEEDED' 
+    write(reason,*) 'ERR_TOL_EXCEEDED'
   endif
 
   if(any(t.lt.zero) ) then
     need_new_solution=.True.
-    write(reason,*) 'FEW_SOLUTIONS' 
+    write(reason,*) 'FEW_SOLUTIONS'
   endif
 
   if(time-solutions(uid)%time(1) .gt. options_max_solution_time) then
     need_new_solution=.True.
-    write(reason,*) 'MIN_TIME_EXCEEDED' 
+    write(reason,*) 'MIN_TIME_EXCEEDED'
   endif
 
   if(time_debug_solutions.gt.zero) then
     if(.not.need_new_solution) then
       need_new_solution=.True. ! overwrite it and calculate anyway
-      write(reason,*) 'MANUAL OVERRIDE' 
+      write(reason,*) 'MANUAL OVERRIDE'
       ! Hack to monitor error growth...
       ! We tell the user that he has to calculate radiation again.
       ! We will calculate and update the solution vectors...
@@ -3777,7 +3785,7 @@ subroutine restore_solution(solution,time)
   type(t_state_container) :: solution
   real(ireals),intent(in),optional :: time
 
-  character(100) :: vecname
+  character(default_str_len) :: vecname
   real(ireals) :: norm1,norm2,norm3
   Vec :: abso_old
 
@@ -3911,39 +3919,6 @@ end subroutine
 
 subroutine vec_to_hdf5(v)
   Vec,intent(in) :: v
-#ifdef _PETSC_HAVE_HDF5
-  character(10),parameter :: suffix='.h5'
-  character(110) :: fname
-  logical fexists
-  PetscFileMode :: fmode
-  character(100) :: vecname
-
-  PetscViewer :: view
-
-  PetscErrorCode :: ierr
-
-  call PetscObjectGetName(v,vecname,ierr) ;call CHKERR(ierr)
-
-  fname = 'vecdump' // trim(suffix)
-  inquire(file=trim(fname), exist=fexists)
-
-  if(fexists) then
-    if(myid.eq.0 .and. ldebug)  print *,myid,'appending vector to hdf5 file ',trim(fname),' vecname: ',vecname
-    fmode = FILE_MODE_APPEND
-  else 
-    if(myid.eq.0 .and. ldebug)  print *,myid,'writing vector to hdf5 file ',trim(fname),' vecname: ',vecname
-    fmode = FILE_MODE_WRITE
-  endif
-
-  call PetscViewerHDF5Open(imp_comm,trim(fname),fmode, view, ierr) ;call CHKERR(ierr)
-  call VecView(v, view, ierr) ;call CHKERR(ierr)
-  call PetscViewerDestroy(view,ierr) ;call CHKERR(ierr)
-
-  if(myid.eq.0 .and. ldebug ) print *,myid,'writing to hdf5 file done'
-#else      
-  ! disable debug writing of vectors if we could not bring petsc to compile with hdf5
-  if(myid.eq.0 .and. ldebug ) print *,myid,'Petsc build does not allow writing to hdf5 files'
-#endif
 
 end subroutine
 

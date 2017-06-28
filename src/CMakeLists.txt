@@ -12,6 +12,7 @@ set( general_sources
   "eddington.f90"
   "interpolation.f90"
   "mersenne.f90"
+  "ranlux.for"
   "twostream.f90"
   "schwarzschild.f90"
   "tenstream.f90"
@@ -41,9 +42,6 @@ foreach ( stream ${streams} )
   install(TARGETS ${basename} RUNTIME DESTINATION bin)
 endforeach ()
 
-
-add_executable( "test_boxmc" "test_boxmc.f90" )
-target_link_libraries( "test_boxmc" tenstream )
 
 add_executable( "Cwrapper_test" "f2c_tenstream.c" )
 target_link_libraries( "Cwrapper_test" tenstream)

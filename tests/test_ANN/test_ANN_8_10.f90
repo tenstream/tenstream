@@ -1,6 +1,8 @@
 module test_ANN_8_10
   use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
-  use m_data_parameters, only : mpiint,ireals,iintegers,one,zero, init_mpi_data_parameters,i1
+  use m_data_parameters, only :       &
+    mpiint,ireals,iintegers,one,zero, &
+    init_mpi_data_parameters,i1,default_str_len
   use m_optprop_parameters, only : stddev_atol
   use m_optprop_ANN, only : ANN_init, ANN_destroy, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
   use m_tenstream_options, only: read_commandline_options
@@ -27,12 +29,12 @@ module test_ANN_8_10
 
   PetscErrorCode :: ierr
 
-  @testParameter(constructor = newTest) 
-  type, extends(MpiTestParameter) :: peCase 
+  @testParameter(constructor = newTest)
+  type, extends(MpiTestParameter) :: peCase
     real(ireals) :: kabs,ksca,g,phi,theta
-  contains 
-    procedure :: toString 
-  end type peCase 
+  contains
+    procedure :: toString
+  end type peCase
 
   @TestCase(constructor = newTest)
   type, extends(MPITestCase) :: parameterized_Test
@@ -89,9 +91,9 @@ contains
 
                   kabs = 10.**(-ikabs)
                   ksca = 10.**(-iksca)
-                  g    = ig/10.       
-                  phi  = 1.*iphi     
-                  theta= 1.*itheta   
+                  g    = ig/10.
+                  phi  = 1.*iphi
+                  theta= 1.*itheta
                   if(iloop.eq.2) params(itest) = newPeCase(kabs,ksca,g,phi,theta)
                 enddo
               enddo
@@ -105,7 +107,7 @@ contains
   function toString(this) result(string)
       class(pECase), intent(in) :: this
       character(:), allocatable :: string
-      allocate(character(len=120) :: string)
+      allocate(character(default_str_len) :: string)
       write(string,FMT='( 3E8.2, 2I0 )') &
           this%kabs,this%ksca,this%g,int(this%phi),int(this%theta) !,':ranks',this%getNumProcessesRequested()
   end function toString
@@ -149,6 +151,7 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
+      real(ireals) :: taux, tauz, w0
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -162,8 +165,12 @@ contains
             theta=> this%theta )
 
 
-        call ANN_init(dx, dy, comm, ierr)
+        call ANN_init(comm, ierr)
         if(myid.eq.0) print *,'Echo Test for ::',kabs,ksca,g,'::',ierr
+        taux = (kabs+ksca) * dx
+        tauz = (kabs+ksca) * dz
+        w0   = ksca / (kabs+ksca)
+
         if(ierr.eq.0) then
 
             call ANN_get_diff2diff (dz, kabs,ksca,g , ANN_diff2diff)
@@ -186,13 +193,14 @@ contains
         endif ! loaded ANN
         call ANN_destroy()
       end associate
-  endsubroutine 
+  endsubroutine
 
   @test( npes=[8], testParameters={getParameters()} )
   subroutine test_ANN_direct_coeff(this)
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
+      real(ireals) :: taux, tauz, w0
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -206,14 +214,19 @@ contains
             theta=> this%theta )
 
 
-        call ANN_init(dx, dy, comm, ierr)
+        call ANN_init(comm, ierr)
         if(myid.eq.0) print *,'Echo Test for ::',kabs,ksca,g,phi,theta,'::',ierr
+
+        taux = (kabs+ksca) * dx
+        tauz = (kabs+ksca) * dz
+        w0   = ksca / (kabs+ksca)
+
         if(ierr.eq.0) then
             @assertEqual(0, ierr)
 
 
-            call ANN_get_dir2dir (dz, kabs,ksca,g , phi, theta, ANN_dir2dir)
-            call ANN_get_dir2diff(dz, kabs,ksca,g , phi, theta, ANN_dir2diff)
+            call ANN_get_dir2dir (taux, tauz, w0, g , phi, theta, ANN_dir2dir)
+            call ANN_get_dir2diff(taux, tauz, w0, g , phi, theta, ANN_dir2diff)
 
             do src=1,8
 
@@ -232,55 +245,18 @@ contains
         endif ! loaded ANN
         call ANN_destroy()
       end associate
-  endsubroutine 
+  endsubroutine
 
-
-
-!  @test(npes =[1,2])
-!  subroutine test_ANN_direct_lambert_beer(this)
-!      !  class (MpiTestMethod), intent(inout) :: this
-!      class (parameterized_test), intent(inout) :: this
-!
-!      integer(iintegers) :: src
-!
-!      call ANN_init(dx,dy,this%getMpiCommunicator(), ierr)
-!
-!      if(ierr.eq.0) then
-!          ! direct tests
-!          bg  = [1e-2, 0., 0. ]
-!          phi = 0; theta = 0
-!          S_target = zero
-!
-!          call ANN_get_dir2dir (dz, bg(1), bg(2), bg(3), phi, theta, ANN_dir2dir)
-!          call ANN_get_dir2diff(dz, bg(1), bg(2), bg(3), phi, theta, ANN_dir2diff)
-!
-!          !      print *,'dir2dir ', ANN_dir2dir
-!          !      print *,'dir2diff', ANN_dir2diff
-!
-!          do src=1,4
-!              T_target = zero
-!              T_target(src) = exp(- (bg(1)+bg(2))*dz )
-!
-!              S = ANN_dir2diff((src-1)*10+1:src*10)
-!              T = ANN_dir2dir ((src-1)*8+1:src*8)
-!
-!              T(5:8) = zero ! hard to know that with lambert beer -- use raytracer as test instead
-!
-!              call check(S_target,T_target, S,T, msg='test_ANN_direct_lambert_beer')
-!          enddo
-!      endif
-!      call ANN_destroy()
-!  end subroutine
 
 
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
 
-      real(ireals),parameter :: sigma = 3 ! normal test range for coefficients 
+      real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
 
       integer(iintegers) :: i
       character(len=*),optional :: msg
-      character(len=250) :: local_msgS, local_msgT
+      character(default_str_len) :: local_msgS, local_msgT
 
       if(myid.eq.0) then
         print*,''

@@ -4,9 +4,10 @@ module m_tenstr_rrtm_sw
       use m_tenstr_rrsw_wvn, only : ngc, wavenum1, wavenum2
       use m_tenstr_parrrsw, only: ngptsw, nbndsw,naerec,jpb1, jpb2
       use m_tenstr_rrtmg_sw_rad, only: rrtmg_sw
-      use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc      
+      use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
 
-      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint
+      use m_data_parameters, only : init_mpi_data_parameters, &
+        iintegers, ireals, myid, zero, one, i0, i1, mpiint, default_str_len
 
       use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, tenstream_get_result_toZero, C_one
@@ -28,7 +29,7 @@ contains
         integer(iintegers), intent(in) :: nlay, nxp, nyp
 
         real(ireals), intent(in) :: dx, dy, phi0, theta0, albedo
-        
+
         real(ireals),intent(in) :: plev   (:,:,:) ! dim(nlay+1, nxp, nyp)
 
         real(ireals),intent(in) :: tlay   (:,:,:) ! all have
@@ -68,7 +69,7 @@ contains
 
         real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso        ! [nlyr(+1), local_nx, local_ny ]
 
-        character(len=80) :: output_path(2) ! [ filename, varname ]
+        character(default_str_len) :: output_path(2) ! [ filename, varname ]
 
         do j=1,nyp
             do i=1,nxp

@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_tenstream_options
-      use m_data_parameters, only : ireals,iintegers,myid,numnodes,one,i0,imp_comm,mpiint
+      use m_data_parameters, only : ireals,iintegers,myid,numnodes,one,i0,imp_comm,mpiint,default_str_len
       use m_optprop_parameters, only: lut_basename, coeff_mode
       use m_helper_functions, only: CHKERR
 
@@ -49,8 +49,8 @@ module m_tenstream_options
 
       integer(iintegers) :: pert_xshift,pert_yshift
 
-      character(len=300) :: ident,output_prefix
-      character(len=300) :: basepath
+      character(len=default_str_len) :: ident,output_prefix
+      character(len=default_str_len) :: basepath
 
       contains
         subroutine show_options()

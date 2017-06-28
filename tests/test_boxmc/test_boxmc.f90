@@ -1,6 +1,9 @@
 module test_boxmc
   use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
-  use m_data_parameters, only : mpiint,ireals,iintegers,one,zero, init_mpi_data_parameters,i1
+  use m_data_parameters, only :     &
+    mpiint, ireals, iintegers,      &
+    one, zero, i1, default_str_len, &
+    init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
 
   use pfunit_mod
@@ -29,7 +32,7 @@ contains
       call bmc_8_10%init(comm)
 
       if(myid.eq.0) print *,'Testing Box-MonteCarlo model with tolerances atol/rtol :: ',atol,rtol
-    
+
       phi   =  0
       theta = 45
 
@@ -42,7 +45,7 @@ contains
       !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol,inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) ! inp_atol=atol, inp_rtol=rtol)
 
   end subroutine setup
-  
+
   @after
   subroutine teardown(this)
       class (MpiTestMethod), intent(inout) :: this
@@ -112,15 +115,15 @@ contains
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
 
-      real(ireals),parameter :: sigma = 3 ! normal test range for coefficients 
+      real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
 
       integer(iintegers) :: i
       character(len=*),optional :: msg
-      character(len=250) :: local_msgS, local_msgT
+      character(default_str_len) :: local_msgS, local_msgT
 
       if(myid.eq.0) then
         print*,''
-        
+
         if( present(msg) ) then
           write(local_msgS,*) trim(msg),':: Diffuse boxmc coefficient not as '
           write(local_msgT,*) trim(msg),':: Direct  boxmc coefficient not as '

@@ -1,7 +1,8 @@
 @test(npes =[3,2,1])
 subroutine test_rrtm_lw(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one
+    use m_data_parameters, only : init_mpi_data_parameters, &
+      iintegers, ireals, mpiint, zero, one, default_str_len
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
@@ -27,11 +28,11 @@ subroutine test_rrtm_lw(this)
     real(ireals),parameter :: atolerance = 1
 
     real(ireals), dimension(nzp+1,nxp,nyp) :: plev, tlev
-    real(ireals), dimension(nzp,nxp,nyp) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
-    real(ireals), dimension(nzp,nxp,nyp) :: lwc, reliq                                         
+    real(ireals), dimension(nzp,nxp,nyp) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
+    real(ireals), dimension(nzp,nxp,nyp) :: lwc, reliq
     real(ireals),allocatable, dimension(:,:,:) :: edir,edn,eup,abso ! [nlev_merged(-1), nxp, nyp]
 
-    character(len=250),parameter :: atm_filename='afglus_100m.dat'
+    character(default_str_len),parameter :: atm_filename='afglus_100m.dat'
 
     integer(iintegers) :: k, nlev, icld
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
@@ -43,7 +44,7 @@ subroutine test_rrtm_lw(this)
     myid     = this%getProcessRank()
 
     allocate(nxproc(numnodes), source=nxp)   ! domain decomp in x direction with all ranks
-    allocate(nyproc(1), source=nyp)          ! no domain decomposition in y direction 
+    allocate(nyproc(1), source=nyp)          ! no domain decomposition in y direction
 
     call init_mpi_data_parameters(comm)
 

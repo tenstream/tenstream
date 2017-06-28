@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -22,10 +22,16 @@ module m_tenstream_interpolation
       implicit none
 
       private
-      public :: interp_4d, interp_1d
+      public :: interp_4d, interp_4d_recursive, interp_2d, interp_1d
 
       ! a has the bounds on axes
       ! t has the distance weights
+
+      integer(iintegers) :: permu2d(2,2**2)
+      DATA permu2d(:, 1) / 0,  0 /
+      DATA permu2d(:, 2) / 1,  0 /
+      DATA permu2d(:, 3) / 0,  1 /
+      DATA permu2d(:, 4) / 1,  1 /
 
       integer(iintegers) :: permu4d(4,2**4)
       DATA permu4d(:, 1) / 0,  0,  0,  0 /
@@ -166,17 +172,20 @@ pure function interp_1d(t,a0)
         interp_1d = (one-offset) * a0(i) + offset * a0(min(i+1, size(a0)))
       end function
 
-subroutine interp_6d_recursive(pti,weights,db,C)
+subroutine interp_6d_recursive(pti, db, C)
         integer(iintegers),parameter :: Ndim=6
-        real(ireals),intent(in) :: pti(Ndim),weights(Ndim) ,db(:,:,:,:,:,:,:)
+        real(ireals),intent(in) :: pti(Ndim), db(:,:,:,:,:,:,:)
         real(ireals),intent(out) :: C(:)
 
         integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
-        real(ireals) :: bound_vals(size(C),2**Ndim) 
+        real(ireals) :: weights(Ndim)
+        real(ireals) :: bound_vals(size(C),2**Ndim)
         integer(iintegers) :: i,d
 
         ! First determine the array indices, where to look.
         fpti = floor(pti)
+        weights = modulo(pti, one)
+
 !        print *,'interp6d',pti,'weights',weights
         do i=1,2**Ndim
           indices(:,i) = permu6d(:,i) + fpti
@@ -195,15 +204,16 @@ subroutine interp_6d_recursive(pti,weights,db,C)
         ! And plug bound_vals and weights into recursive interpolation...
         call interpn(Ndim,bound_vals,weights,i1, C)
 end subroutine
-pure subroutine interp_6d(pti,weights,db,C)
+pure subroutine interp_6d(pti, db, C)
         integer(iintegers),parameter :: Ndim=6
-        real(ireals),intent(in) :: pti(Ndim),weights(Ndim) ,db(:,:,:,:,:,:,:)
+        real(ireals),intent(in) :: pti(Ndim), db(:,:,:,:,:,:,:)
         real(ireals),intent(out) :: C(:)
 
         integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
         integer(iintegers) :: i,d,ind(6)
 
-        real(ireals) :: db6(size(C),2**Ndim) 
+        real(ireals) :: weights(Ndim)
+        real(ireals) :: db6(size(C),2**Ndim)
         real(ireals) :: db5(size(C),2**(Ndim-1))
         real(ireals) :: db4(size(C),2**(Ndim-2))
         real(ireals) :: db3(size(C),2**(Ndim-3))
@@ -212,6 +222,8 @@ pure subroutine interp_6d(pti,weights,db,C)
 
         ! First determine the array indices, where to look.
         fpti = floor(pti)
+        weights = modulo(pti, one)
+
 !        print *,'interp6d',pti,'weights',weights
         do i=1,2**Ndim
           indices(:,i) = permu6d(:,i) + fpti
@@ -251,13 +263,49 @@ pure subroutine interp_6d(pti,weights,db,C)
 !        C(:)        =  db1(:,2  -1) + ( db1(:,2  ) - db1(:,2  -1) ) * spline(weights(6))
         C(:)  = spline( weights(6), db1(:,2), db1(:,1) )
 end subroutine
-pure subroutine interp_4d(pti,weights,db,C)
-        integer(iintegers),parameter :: Ndim=4
-        real(ireals),intent(in) :: pti(Ndim),weights(Ndim) ,db(:,:,:,:,:)
+pure subroutine interp_2d(pti, db, C)
+        integer(iintegers),parameter :: Ndim=2
+        real(ireals),intent(in) :: pti(Ndim), db(:,:,:)
         real(ireals),intent(out) :: C(:)
 
         integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
         integer(iintegers) :: i,d
+        real(ireals) :: weights(Ndim)
+        real(ireals) :: db2(size(C),2**(Ndim ))
+        real(ireals) :: db1(size(C),2**(Ndim-1))
+
+        ! First determine the array indices, where to look.
+        fpti = floor(pti)
+        weights = modulo(pti, one)
+
+        do i=1,2**Ndim
+          indices(:,i) = permu2d(:,i) + fpti
+        enddo
+        ! Make sure we dont recall a value outside of array dimensions
+        do d=1,Ndim
+          indices(d,:) = max( i1, min( ubound(db,d+i1), indices(d,:) ) )
+        enddo
+
+        ! Then get the corner values of hypercube
+        do i=1,2**Ndim
+          db2(:,i) = db(:, indices(1,i), indices(2,i))
+        enddo
+
+        ! Permutations for 1st axis
+        do i=1,2**(Ndim-1)
+          db1(:,i)  =  db2(:,2*i-1) + ( db2(:,2*i) - db2(:,2*i-1) ) * (weights(1))
+        enddo
+
+        C(:)        =  db1(:,2  -1) + ( db1(:,2  ) - db1(:,2  -1) ) * (weights(2))
+end subroutine
+pure subroutine interp_4d(pti, db, C)
+        integer(iintegers),parameter :: Ndim=4
+        real(ireals),intent(in) :: pti(Ndim), db(:,:,:,:,:)
+        real(ireals),intent(out) :: C(:)
+
+        integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
+        integer(iintegers) :: i,d
+        real(ireals) :: weights(Ndim)
         real(ireals) :: db4(size(C),2**(Ndim ))
         real(ireals) :: db3(size(C),2**(Ndim-1))
         real(ireals) :: db2(size(C),2**(Ndim-2))
@@ -265,6 +313,8 @@ pure subroutine interp_4d(pti,weights,db,C)
 
         ! First determine the array indices, where to look.
         fpti = floor(pti)
+        weights = modulo(pti, one)
+
         do i=1,2**Ndim
           indices(:,i) = permu4d(:,i) + fpti
         enddo
@@ -291,17 +341,20 @@ pure subroutine interp_4d(pti,weights,db,C)
 
         C(:)        =  db1(:,2  -1) + ( db1(:,2  ) - db1(:,2  -1) ) * (weights(4))
 end subroutine
-subroutine interp_4d_recursive(pti,weights,db,C)
+subroutine interp_4d_recursive(pti, db, C)
         integer(iintegers),parameter :: Ndim=4
-        real(ireals),intent(in) :: pti(Ndim),weights(Ndim) ,db(:,:,:,:,:)
+        real(ireals),intent(in) :: pti(Ndim), db(:,:,:,:,:)
         real(ireals),intent(out) :: C(:)
 
         integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
-        real(ireals) :: bound_vals(size(C),2**Ndim) 
+        real(ireals) :: weights(Ndim)
+        real(ireals) :: bound_vals(size(C),2**Ndim)
         integer(iintegers) :: i,d
 
         ! First determine the array indices, where to look.
         fpti = floor(pti)
+        weights = modulo(pti, one)
+
         do i=1,2**Ndim
           indices(:,i) = permu4d(:,i) + fpti
         enddo

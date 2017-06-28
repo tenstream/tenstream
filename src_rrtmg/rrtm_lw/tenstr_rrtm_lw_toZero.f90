@@ -9,7 +9,9 @@ module m_tenstr_rrtm_lw_toZero
       use m_tenstr_parrrtm, only: ngptlw, nbndlw
       use m_tenstr_rrtmg_lw_rad, only: rrtmg_lw
 
-      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint, pi
+      use m_data_parameters, only : init_mpi_data_parameters, &
+        iintegers, ireals, myid, zero, one, i0, i1,           &
+        mpiint, pi, default_str_len
 
       use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
           tenstream_get_result, tenstream_get_result_toZero, C_one
@@ -37,7 +39,7 @@ contains
         integer(iintegers), intent(in) :: nlay, nxp, nyp
 
         real(ireals), intent(in) :: dx, dy, phi0, theta0, albedo
-        
+
         real(ireals),intent(in) :: plev   (:,:,:) ! dim(nlay+1, nxp, nyp)
 
         real(ireals),intent(in) :: tlay   (:,:,:) ! all have
@@ -79,7 +81,7 @@ contains
 
         real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
 
-        character(len=80) :: output_path(2) ! [ filename, varname ]
+        character(default_str_len) :: output_path(2) ! [ filename, varname ]
 
         do j=1,nyp
             do i=1,nxp

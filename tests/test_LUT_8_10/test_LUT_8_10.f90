@@ -1,6 +1,7 @@
 module test_LUT_8_10
   use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
-  use m_data_parameters, only : mpiint,ireals,iintegers,one,zero, init_mpi_data_parameters,i1
+  use m_data_parameters, only : mpiint, ireals, iintegers, &
+    one, zero, init_mpi_data_parameters, i1, default_str_len
   use m_optprop_LUT, only : t_optprop_LUT_8_10
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse
@@ -24,16 +25,16 @@ module test_LUT_8_10
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-1, rtol=2e-1
+  real(ireals),parameter :: atol=5e-2, rtol=1e-1
 
   integer(mpiint) :: ierr
 
-  @testParameter(constructor = newTest) 
-  type, extends(MpiTestParameter) :: peCase 
+  @testParameter(constructor = newTest)
+  type, extends(MpiTestParameter) :: peCase
     real(ireals) :: kabs,ksca,g,phi,theta
-  contains 
-    procedure :: toString 
-  end type peCase 
+  contains
+    procedure :: toString
+  end type peCase
 
   @TestCase(constructor = newTest)
   type, extends(MPITestCase) :: parameterized_Test
@@ -106,7 +107,7 @@ contains
   function toString(this) result(string)
       class(pECase), intent(in) :: this
       character(:), allocatable :: string
-      allocate(character(len=120) :: string)
+      allocate(character(default_str_len) :: string)
       write(string,FMT='( 3E8.2, 2I0 )') &
           this%kabs,this%ksca,this%g,int(this%phi),int(this%theta) !,':ranks',this%getNumProcessesRequested()
   end function toString
@@ -135,14 +136,13 @@ contains
       dx = 100
       dy = dx
       dz = 50
-
   end subroutine setup
 
   @after
   subroutine teardown(this)
       class (parameterized_test), intent(inout) :: this
       call OPP%destroy()
-      call PetscFinalize(ierr) 
+      call PetscFinalize(ierr)
   end subroutine teardown
 
 
@@ -151,6 +151,7 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
+      real(ireals) :: taux, tauz, w0
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -164,24 +165,28 @@ contains
             theta=> this%theta )
 
         if(myid.eq.0) print *,'Echo Test for :: ',kabs,ksca,g,phi,theta
-        call OPP%init(dx, dy, [phi], [theta], comm)
+        taux = (kabs+ksca) * dx
+        tauz = (kabs+ksca) * dz
+        w0   = ksca / (kabs+ksca)
 
-        call OPP%LUT_get_dir2dir (dz, kabs,ksca,g , phi, theta, LUT_dir2dir)
-        call OPP%LUT_get_dir2diff(dz, kabs,ksca,g , phi, theta, LUT_dir2diff)
+        call OPP%init([phi], [theta], comm)
+
+        call OPP%LUT_get_dir2dir (taux, tauz, w0, g , phi, theta, LUT_dir2dir)
+        call OPP%LUT_get_dir2diff(taux, tauz, w0, g , phi, theta, LUT_dir2diff)
 
         do src=1,8
 
           call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.True.,phi,theta,dx,dy,dz,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
 
           ! Rearrange coeffs from dst_ordering to src ordering:
-          BMC_dir2diff(src : 8*10 : 10) = S_target
-          BMC_dir2dir (src : 8*8  :  8) = T_target
+          BMC_dir2diff(src : 8*10 : 8) = S_target
+          BMC_dir2dir (src : 8*8  : 8) = T_target
         enddo
 
         call check(BMC_dir2diff,BMC_dir2dir,LUT_dir2diff,LUT_dir2dir, msg='test_LUT_direct_coeffs')
 
       end associate
-  endsubroutine 
+  endsubroutine
 
 
 
@@ -191,16 +196,21 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
+      real(ireals) :: taux, tauz, w0
 
       ! direct tests
       bg  = [1e-2, 0., 0. ]
       phi = 0; theta = 0
       S_target = zero
 
-      call OPP%init(dx, dy, [phi], [theta], this%getMpiCommunicator())
+      taux = (bg(1)+bg(2)) * dx
+      tauz = (bg(1)+bg(2)) * dz
+      w0   = bg(2) / (bg(1)+bg(2))
 
-      call OPP%LUT_get_dir2dir (dz, bg(1), bg(2), bg(3), phi, theta, LUT_dir2dir)
-      call OPP%LUT_get_dir2diff(dz, bg(1), bg(2), bg(3), phi, theta, LUT_dir2diff)
+      call OPP%init([phi], [theta], this%getMpiCommunicator())
+
+      call OPP%LUT_get_dir2dir (taux, tauz, w0, bg(3), phi, theta, LUT_dir2dir)
+      call OPP%LUT_get_dir2diff(taux, tauz, w0, bg(3), phi, theta, LUT_dir2diff)
 
       do src=1,4
         T_target = zero
@@ -219,11 +229,11 @@ contains
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
 
-      real(ireals),parameter :: sigma = 6 ! normal test range for coefficients 
+      real(ireals),parameter :: sigma = 6 ! normal test range for coefficients
 
       integer(iintegers) :: i
       character(len=*),optional :: msg
-      character(len=250) :: local_msgS, local_msgT
+      character(default_str_len) :: local_msgS, local_msgT
 
       if(myid.eq.0) then
         print*,''

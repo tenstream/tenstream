@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -20,7 +20,7 @@
 module m_optprop
 
 #ifdef _XLF
-      use ieee_arithmetic 
+      use ieee_arithmetic
 #define isnan ieee_is_nan
 #endif
 
@@ -39,7 +39,6 @@ public :: t_optprop_1_2,t_optprop_8_10
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
-  real(ireals) :: dx,dy
   integer(iintegers) :: dir_streams=inil,diff_streams=inil
   class(t_optprop_LUT),allocatable :: OPP_LUT
   contains
@@ -58,14 +57,12 @@ end type
 
 contains
 
-  subroutine init(OPP, dx_inp,dy_inp, azis, szas, comm)
+  subroutine init(OPP, azis, szas, comm)
       class(t_optprop) :: OPP
-      real(ireals),intent(in) :: szas(:),azis(:),dx_inp,dy_inp
+      real(ireals),intent(in) :: szas(:),azis(:)
       integer(mpiint) ,intent(in) :: comm
       integer(mpiint) :: ierr
 
-      OPP%dx=dx_inp
-      OPP%dy=dy_inp
       select type(OPP)
         class is (t_optprop_1_2)
           OPP%dir_streams  =  Ndir_1_2
@@ -91,13 +88,13 @@ contains
               class default
                 stop ' init optprop : unexpected type for optprop object!'
             end select
-            call OPP%OPP_LUT%init(OPP%dx,OPP%dy, azis, szas, comm)
+            call OPP%OPP_LUT%init(azis, szas, comm)
 
           case(i1) ! ANN
-            call ANN_init(dx_inp,dy_inp,comm, ierr)
+            call ANN_init(comm, ierr)
   !          stop 'ANN not yet implemented'
           case default
-            stop 'coeff mode optprop initialization not defined ' 
+            stop 'coeff mode optprop initialization not defined '
         end select
 
   end subroutine
@@ -109,9 +106,9 @@ contains
       endif
   end subroutine
 
-  subroutine get_coeff_bmc(OPP, dz,kabs,ksca,g,dir,C,angles)
+  subroutine get_coeff_bmc(OPP, aspect, tauz, w0, g, dir, C, angles)
       class(t_optprop) :: OPP
-      real(ireals),intent(in) :: dz,g,kabs,ksca
+      real(ireals),intent(in) :: aspect, tauz, w0, g
       logical,intent(in) :: dir
       real(ireals),intent(out):: C(:)
       real(ireals),intent(in),optional :: angles(2)
@@ -120,32 +117,32 @@ contains
       real(ireals) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
       integer(iintegers) :: isrc
 
-      if(present(angles)) then 
+      if(present(angles)) then
         if(dir) then !dir2dir
           do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper( isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir,S_tol,T_tol)
+            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
             C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams) = T_dir
           enddo
         else ! dir2diff
           do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir,S_tol,T_tol)
+            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
             C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
           enddo
         endif
       else
         ! diff2diff
         do isrc=1,OPP%OPP_LUT%diff_streams
-          call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.False.,zero,zero,-1_mpiint,S_diff,T_dir,S_tol,T_tol)
+          call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .False., zero, zero, -1_mpiint, S_diff, T_dir, S_tol, T_tol)
           C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
         enddo
       endif ! angles_present
 
   end subroutine
 
-  subroutine get_coeff(OPP, dz,kabs,ksca,g,dir,C,inp_angles)
+  subroutine get_coeff(OPP, aspect, tauz, w0, g, dir, C, inp_angles)
         class(t_optprop) :: OPP
         logical,intent(in) :: dir
-        real(ireals),intent(in) :: dz,g,kabs,ksca
+        real(ireals),intent(in) :: aspect, tauz, w0, g
         real(ireals),intent(in),optional :: inp_angles(2)
         real(ireals),intent(out):: C(:)
 
@@ -154,11 +151,11 @@ contains
         logical,parameter :: compute_coeff_online=.False.
 
         if(compute_coeff_online) then
-          call get_coeff_bmc(OPP, dz,kabs,ksca,g,dir,C,inp_angles)
+          call get_coeff_bmc(OPP, aspect, tauz, w0, g, dir, C, inp_angles)
           return
         endif
 
-        if(ldebug_optprop) call check_inp(dz,kabs,ksca,g,dir,C)
+        if(ldebug_optprop) call check_inp(aspect, tauz, w0, g, dir, C)
 
         if(present(inp_angles)) then
           angles = inp_angles
@@ -171,13 +168,13 @@ contains
 
             if(present(inp_angles)) then ! obviously we want the direct coefficients
               if(dir) then ! dir2dir
-                call OPP%OPP_LUT%LUT_get_dir2dir(dz,kabs,ksca,g,angles(1),angles(2),C)
+                call OPP%OPP_LUT%LUT_get_dir2dir(aspect, tauz, w0, g, angles(1), angles(2), C)
               else         ! dir2diff
-                call OPP%OPP_LUT%LUT_get_dir2diff(dz,kabs,ksca,g,angles(1),angles(2),C)
+                call OPP%OPP_LUT%LUT_get_dir2diff(aspect, tauz, w0, g, angles(1), angles(2), C)
               endif
             else
               ! diff2diff
-              call OPP%OPP_LUT%LUT_get_diff2diff(dz,kabs,ksca,g,C)
+              call OPP%OPP_LUT%LUT_get_diff2diff(aspect, tauz, w0, g, C)
             endif
 
 
@@ -185,115 +182,28 @@ contains
 
             if(present(inp_angles)) then ! obviously we want the direct coefficients
               if(dir) then ! specifically the dir2dir
-                call ANN_get_dir2dir(dz,kabs,ksca,g,angles(1),angles(2),C)
+                call ANN_get_dir2dir(aspect, tauz, w0, g, angles(1), angles(2), C)
               else ! dir2diff
-                call ANN_get_dir2diff(dz,kabs,ksca,g,angles(1),angles(2),C)
+                call ANN_get_dir2diff(aspect, tauz, w0, g, angles(1), angles(2), C)
               endif
             else
               ! diff2diff
-              call ANN_get_diff2diff(dz,kabs,ksca,g,C)
+              call ANN_get_diff2diff(aspect, tauz, w0, g, C)
             endif
 
           case default
-            stop 'coeff mode optprop initialization not defined ' 
+            stop 'coeff mode optprop initialization not defined '
         end select
 
-        if(ldebug_optprop) call check_out(dz, kabs, ksca, g, dir, C, angles)
-      contains 
-        subroutine check_out(dz,kabs,ksca,g,dir,C,angles)
-            logical,intent(in) :: dir
-            real(ireals),intent(in) :: dz,g,kabs,ksca
-            real(ireals),intent(in),optional :: angles(2)
-            real(ireals),intent(inout):: C(:)
+      contains
 
-            integer(iintegers) :: isrc
-            real(ireals) :: norm
-
-            real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
-            real(ireals) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
-            real(ireals) :: frmse(2)
-            real(ireals),parameter :: checking_limit=1e-1
-            logical,parameter :: determine_coeff_error=.False. ! This enables on-line calculations of coefficients with bmc code.
-                                                               ! This takes FOREVER! - use this only to check if LUT is working correctly!
-
-            !TODO: check energy conservation -- all energy conservation checks
-            !TODO: should be refactored and moved here!
-            !TODO: at the moment this routine is broken since we refactored the coefficient to lie in LUT in dst-ordering instead of src-order
-
-            ! ------------------------------------------------------------------------------------------------------------------
-            ! ------------------ This would be so nice if we wouldnt need it! --------------------------------------------------
-            ! ------------------------------------------------------------------------------------------------------------------
-!           if(coeff_mode.eq.i1) then ! if using ANN we really have to be carefull, not to loose system properties, e.g. positive definite, thereforce normalize to one if norm gt one
-!             if(present(inp_angles)) then 
-!               if(dir) then ! dir2dir
-!                 do isrc=1,OPP%dir_streams
-!                   norm = sum( C( (isrc-1)*OPP%dir_streams+i1 : isrc*OPP%dir_streams ) )
-!                   if(norm.gt.one) C( (isrc-1)*OPP%dir_streams+i1 : isrc*OPP%dir_streams ) = C( (isrc-1)*OPP%dir_streams+i1 : isrc*OPP%dir_streams ) / norm
-!                 enddo
-!               else ! dir2diff
-!                 do isrc=1,OPP%dir_streams
-!                   norm = sum( C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) )
-!                   if(norm.gt.one) C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) = C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) / norm
-!                 enddo
-!               endif
-!             else !diff2diff
-!               do isrc=1,OPP%diff_streams
-!                 norm = sum( C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) )
-!                 if(norm.gt.one) C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) = C( (isrc-1)*OPP%diff_streams+i1 : isrc*OPP%diff_streams ) / norm
-!               enddo
-!             endif ! present(angles)
-!           endif ! ANN
-            ! ------------------------------------------------------------------------------------------------------------------
-            ! ------------------------------------------------------------------------------------------------------------------
-             !TODO: check for dstorder
-            if(determine_coeff_error.and.allocated(OPP%OPP_LUT%bmc) ) then ! TODO at the moment only possible to online calculate coefficients if we use LUT directly... this is due to the fucked up software engineering... whole optprop stuff needs refactoring
-              call random_number(T_dir(1)) 
-              if(T_dir(1).le.checking_limit) then
-                if(present(angles)) then 
-                  if(dir) then !dir2dir
-                    do isrc=1,OPP%OPP_LUT%dir_streams
-                      call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir, S_tol,T_tol)
-                      frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams), T_dir)
-                      print "('check ',i1,' dir2dir ',6e10.2,' :: RMSE ',2e13.4,' coeff ',8f7.4,' bmc ',8f7.4)",&
-                          isrc,dz,kabs,ksca,g,angles(1),angles(2),frmse, C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams),T_dir
-                      if(all(frmse.gt..1_ireals) ) stop 'Something terrible happened... I checked the coefficients and they differ more than they should!'
-                    enddo
-                  else ! dir2diff
-                    do isrc=1,OPP%OPP_LUT%dir_streams
-                      call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.True.,angles(1),angles(2),-1_mpiint,S_diff,T_dir,S_tol,T_tol)
-                      frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams), S_diff)
-                      print "('check ',i1,' dir2diff ',6e10.2,' :: RMSE ',2e13.4,' coeff ',10e10.2)",&
-                          isrc,dz,kabs,ksca,g,angles(1),angles(2),frmse ,abs(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)-S_diff)
-                      print "(a10,e13.4,10e13.4)",'C_interp',sum(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)),C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)
-                      print "(a10,e13.4,10e13.4)",'C_bmc   ',sum(S_diff),                  S_diff
-                      print *,''
-                      if(all(frmse.gt..1_ireals) ) stop 'Something terrible happened... I checked the coefficients and they differ more than they should!'
-                    enddo
-                  endif
-                else
-                  ! diff2diff
-                  do isrc=1,OPP%OPP_LUT%diff_streams
-                    call OPP%OPP_LUT%bmc_wrapper(isrc,OPP%dx,OPP%dy,dz,kabs,ksca,g,.False.,zero,zero,-1_mpiint,S_diff,T_dir,S_tol,T_tol)
-                    frmse = RMSE(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams), S_diff)
-                    print "('check ',i1,' diff2diff ',4e10.2,' :: RMSE ',2e13.4,' coeff err',10e10.2)",&
-                        isrc,dz,kabs,ksca,g,frmse,abs(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)-S_diff)
-                    print "(a10,e13.4,10e13.4)",'C_interp',sum(C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)),C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams)
-                    print "(a10,e13.4,10e13.4)",'C_bmc   ',sum(S_diff),S_diff
-                    print *,''
-                    if(all(frmse.gt..1_ireals) ) stop 'Something terrible happened... I checked the coefficients and they differ more than they should!'
-                  enddo
-                endif ! angles_present
-              endif ! is in checking_limit
-            endif ! determine_coeff_error
-        end subroutine
-
-        subroutine check_inp(dz,kabs,ksca,g,dir,C)
-            real(ireals),intent(in) :: dz,g,kabs,ksca
+        subroutine check_inp(aspect, tauz, w0, g, dir, C)
+            real(ireals),intent(in) :: aspect, tauz, w0, g
             logical,intent(in) :: dir
             real(ireals),intent(in):: C(:)
             if(OPP%optprop_debug) then
-              if( (any([dz,kabs,ksca,g].lt.zero)) .or. (any(isnan([dz,kabs,ksca,g]))) ) then
-                print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[dz,kabs,ksca,g]
+              if( (any([aspect, tauz, w0, g].lt.zero)) .or. (any(isnan([aspect, tauz, w0, g]))) ) then
+                print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[aspect, tauz, w0, g]
                 call exit
               endif
             endif
@@ -325,8 +235,8 @@ end subroutine
             !TODO: this was just a simple test if we can enhance diffusion
             !      artificially by fiddling with the transport coefficients. -- only marginally improvement for Enet(surface) but increased
             !      rmse in atmosphere...
-            real(ireals),parameter :: artificial_diffusion = zero  
-            
+            real(ireals),parameter :: artificial_diffusion = zero
+
             ! integer,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
             select type(OPP)
 

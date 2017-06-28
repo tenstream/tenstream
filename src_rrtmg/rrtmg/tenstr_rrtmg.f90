@@ -36,7 +36,9 @@ module m_tenstr_rrtmg
 
       use mpi, only : mpi_comm_rank
       use m_tenstr_parkind, only: im => kind_im, rb => kind_rb
-      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, myid, zero, one, i0, i1, mpiint, pi, mpierr
+      use m_data_parameters, only : init_mpi_data_parameters, &
+        iintegers, ireals, myid, zero, one, i0, i1, &
+        mpiint, pi, mpierr, default_str_len
       use m_tenstream, only : init_tenstream, set_angles, set_optical_properties, solve_tenstream, destroy_tenstream, need_new_solution, &
           tenstream_get_result, tenstream_get_result_toZero, C_one, C_one1
       use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
@@ -107,7 +109,7 @@ contains
 
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
-    character(len=250), intent(in) :: atm_filename
+    character(default_str_len), intent(in) :: atm_filename
 
     ! Compute solar or thermal radiative transfer. Or compute both at once.
     logical, intent(in) :: lsolar, lthermal
@@ -178,7 +180,7 @@ contains
     real(ireals),allocatable :: dz(:,:,:), dz_t2b(:,:,:) ! dz (t2b := top 2 bottom)
 
     ! for debug purposes, can output variables into netcdf files
-    character(len=80) :: output_path(2) ! [ filename, varname ]
+    character(default_str_len) :: output_path(2) ! [ filename, varname ]
     logical :: lfile_exists
 
     call load_atmfile(comm, atm_filename, bg_atm)
@@ -868,7 +870,7 @@ contains
 
   subroutine load_atmfile(comm, atm_filename, atm)
     integer(mpiint), intent(in) :: comm
-    character(len=250), intent(in) :: atm_filename
+    character(default_str_len), intent(in) :: atm_filename
     type(t_atm),allocatable,intent(inout) :: atm
 
     integer(mpiint) :: myid

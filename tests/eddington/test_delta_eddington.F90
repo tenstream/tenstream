@@ -2,7 +2,7 @@
 subroutine test_eddington(this)
 
     use m_eddington
-    use m_data_parameters, only: ireals
+    use m_data_parameters, only: ireals, default_str_len
 
     use pfunit_mod
 
@@ -90,7 +90,7 @@ subroutine test_eddington(this)
     subroutine check_out(inp,out,targ)
         real(ireals),intent(in) :: inp(:)
         real(ireals),intent(in) :: out(:),targ(:)
-        character(len=250) :: msg
+        character(default_str_len) :: msg
 
         print *,''
         print *,'-----------------------'
