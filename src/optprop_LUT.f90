@@ -36,7 +36,7 @@ module m_optprop_LUT
     preset_aspect, preset_tau, preset_w0,  &
     preset_g, preset_theta
   use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
-  use m_tenstream_interpolation, only: interp_4d, interp_2d
+  use m_tenstream_interpolation, only: interp_4d
   use m_netcdfio
 
   implicit none
@@ -1209,7 +1209,7 @@ subroutine LUT_get_dir2dir(OPP, in_aspect, in_tauz, in_w0, g, phi, theta, C)
     real(ireals) :: aspect, tauz, w0, norm
     integer(iintegers) :: src
 
-    real(ireals) :: pti(6),weights(6)
+    real(ireals) :: pti(6)
     !real(ireals) :: vals(OPP%dir_streams**2, 2)
 
     aspect = in_aspect; tauz = in_tauz; w0 = in_w0
@@ -1222,19 +1222,15 @@ subroutine LUT_get_dir2dir(OPP, in_aspect, in_tauz, in_w0, g, phi, theta, C)
       ! Nearest neighbour
       C = OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
     case(2)
-      call interp_2d(pti(3:4), OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c(:, nint(pti(1)), nint(pti(2)), :, :), C)
+      call interp_4d(pti, OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c, C)
     case(3)
-      weights = modulo(pti,one)
-      call interp_4p1d(pti([1,2,3,4,6]), weights([1,2,3,4,6]), OPP%dirLUT%T(nint(pti(5)), :), C)
+      call interp_4p1d(pti([1,2,3,4,6]), OPP%dirLUT%T(nint(pti(5)), :), C)
     case(4)
-      weights = modulo(pti,one)
-      call interp_4p2d(pti, weights, OPP%dirLUT%T(:, :), C)
+      call interp_4p2d(pti, OPP%dirLUT%T(:, :), C)
 
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
-
-
 
     if(ldebug_optprop) then
       !Check for energy conservation:
@@ -1259,7 +1255,7 @@ subroutine LUT_get_dir2diff(OPP, in_aspect, in_tauz, in_w0, g, phi, theta, C)
     real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams*OPP%diff_streams)
 
     real(ireals) :: aspect, tauz, w0
-    real(ireals) :: pti(6),weights(6),norm
+    real(ireals) :: pti(6),norm
     integer(iintegers) :: src
 
     aspect = in_aspect; tauz = in_tauz; w0 = in_w0
@@ -1276,17 +1272,13 @@ subroutine LUT_get_dir2diff(OPP, in_aspect, in_tauz, in_w0, g, phi, theta, C)
       C = OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
 
     case(2)
-      !weights = modulo(pti,one)
-      !call interp_4d(pti, weights, OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c, C)
-      call interp_2d(pti(3:4), OPP%dirLUT%S(nint(pti(5)), nint(pti(6)) )%c(:, nint(pti(1)), nint(pti(2)), :, :), C)
+      call interp_4d(pti, OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c, C)
 
     case(3)
-      weights = modulo(pti,one)
-      call interp_4p1d(pti([1,2,3,4,6]), weights([1,2,3,4,6]), OPP%dirLUT%S(nint(pti(5)), :), C)
+      call interp_4p1d(pti([1,2,3,4,6]), OPP%dirLUT%S(nint(pti(5)), :), C)
 
     case(4)
-      weights = modulo(pti,one)
-      call interp_4p2d(pti, weights, OPP%dirLUT%S(:, :), C)
+      call interp_4p2d(pti, OPP%dirLUT%S(:, :), C)
 
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
@@ -1316,7 +1308,7 @@ subroutine LUT_get_diff2diff(OPP, in_aspect, in_tauz, in_w0, g, C)
     real(ireals),intent(out):: C(:) ! dimension(OPP%diff_streams**2)
 
     real(ireals) :: aspect, tauz, w0
-    real(ireals) :: pti(4),weights(4),norm
+    real(ireals) :: pti(4),norm
     integer(iintegers) :: src
 
     aspect = in_aspect; tauz = in_tauz; w0 = in_w0
@@ -1330,8 +1322,7 @@ subroutine LUT_get_diff2diff(OPP, in_aspect, in_tauz, in_w0, g, C)
       C = OPP%diffLUT%S%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
     case(2:4)
       ! Linear interpolation
-      weights = modulo(pti,one)
-      call interp_4d(pti, weights, OPP%diffLUT%S%c, C)
+      call interp_4d(pti, OPP%diffLUT%S%c, C)
     case default
       stop 'interpolation mode not implemented yet! please choose something else! '
     end select
@@ -1353,12 +1344,13 @@ subroutine LUT_get_diff2diff(OPP, in_aspect, in_tauz, in_w0, g, C)
     endif
 end subroutine
 
-subroutine interp_4p2d(pti,weights,ctable,C)
+subroutine interp_4p2d(pti,ctable,C)
         integer,parameter :: Ndim=6
-        real(ireals),intent(in) :: pti(Ndim),weights(Ndim)
+        real(ireals),intent(in) :: pti(Ndim)
         type(table),intent(in) :: ctable(:,:)  ! contains Nphi, Ntheta databases
         real(ireals),intent(out) :: C(:)
 
+        real(ireals) :: weights(Ndim)
         integer :: indices(2,2),fpti(Ndim)
 
         ! Instead of doing a full interpolation in 6 dimension we start out with
@@ -1369,25 +1361,27 @@ subroutine interp_4p2d(pti,weights,ctable,C)
 
         ! First determine the array indices, where to look.
         fpti = floor(pti)
+        weights = modulo(pti, one)
 
         indices(:,1) = max(i1, min( ubound(ctable,1), [0,1] +fpti(5) ) )
         indices(:,2) = max(i1, min( ubound(ctable,2), [0,1] +fpti(6) ) )
 
-        call interp_4d( pti(1:4),weights(1:4), ctable(indices(1,1), indices(1,2) )%c, C4(:,1) ) ! differing azimuth
-        call interp_4d( pti(1:4),weights(1:4), ctable(indices(2,1), indices(1,2) )%c, C4(:,2) ) !        "
-        call interp_4d( pti(1:4),weights(1:4), ctable(indices(1,1), indices(2,2) )%c, C4(:,3) )
-        call interp_4d( pti(1:4),weights(1:4), ctable(indices(2,1), indices(2,2) )%c, C4(:,4) )
+        call interp_4d( pti(1:4), ctable(indices(1,1), indices(1,2) )%c, C4(:,1) ) ! differing azimuth
+        call interp_4d( pti(1:4), ctable(indices(2,1), indices(1,2) )%c, C4(:,2) ) !        "
+        call interp_4d( pti(1:4), ctable(indices(1,1), indices(2,2) )%c, C4(:,3) )
+        call interp_4d( pti(1:4), ctable(indices(2,1), indices(2,2) )%c, C4(:,4) )
 
         C4(:,5) = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
         C4(:,6) = C4(:,3) + weights(5) * ( C4(:,4) - C4(:,3) )
         C       = C4(:,5) + weights(6) * ( C4(:,6) - C4(:,5) )
 end subroutine
-subroutine interp_4p1d(pti,weights,ctable,C)
+subroutine interp_4p1d(pti,ctable,C)
         integer,parameter :: Ndim=5
-        real(ireals),intent(in) :: pti(Ndim),weights(Ndim)
+        real(ireals),intent(in) :: pti(Ndim)
         type(table),intent(in) :: ctable(:)  ! contains N databases
         real(ireals),intent(out) :: C(:)
 
+        real(ireals) :: weights(Ndim)
         integer :: indices(2),fpti(Ndim)
 
         ! Instead of doing a full interpolation in 6 dimension we start out with
@@ -1396,11 +1390,12 @@ subroutine interp_4p1d(pti,weights,ctable,C)
 
         ! First determine the array indices, where to look.
         fpti = floor(pti)
+        weights = modulo(pti, one)
 
         indices(:) = max(i1, min( ubound(ctable,1), [0,1] +fpti(5) ) )
 
-        call interp_4d( pti(1:4), weights(1:4), ctable(indices(1))%c, C4(:,1) ) ! differing zenith
-        call interp_4d( pti(1:4), weights(1:4), ctable(indices(2))%c, C4(:,2) ) !        "
+        call interp_4d( pti(1:4), ctable(indices(1))%c, C4(:,1) ) ! differing zenith
+        call interp_4d( pti(1:4), ctable(indices(2))%c, C4(:,2) ) !        "
 
         C = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
 end subroutine
