@@ -70,7 +70,6 @@ module m_optprop_parameters
       ! real(ireals), parameter :: preset_g(1)    =[0]
       ! real(ireals), parameter :: preset_theta(1)=[0]
 
-
       ! We may also pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values
       !     -- see python script: ''eddington_to_LUT.py''
       ! This way, the output of the script has to be put here... and stuff above commented out
@@ -81,12 +80,6 @@ module m_optprop_parameters
       real(ireals), parameter :: preset_w0(15) = [0.0,0.206223071171,0.384160332835,0.528227775139,0.643710500558,0.735455592396,0.806918561817,0.861885907586,0.902875161822,0.932179798039,0.949561345869,0.963194640071,0.975148542423,0.987462994037,0.99999]
       real(ireals), parameter :: preset_g(3) = [0.0,0.267018506789,0.5]
       real(ireals), parameter :: preset_theta(19) = [0.0,5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,80.0,85.0,90.0]
-
-      !integer(iintegers), parameter :: Ntau=5, Nw0=5, Ng=2, Ntheta=10
-      !real(ireals), parameter :: preset_tau(5) = [1e-10,0.0737121511108,0.405269976954,2.38195867239,100.0]
-      !real(ireals), parameter :: preset_w0(5) = [0.0,0.589262021273,0.861886820207,0.956803697972,0.99999]
-      !real(ireals), parameter :: preset_g(2) = [0.0,0.5]
-      !real(ireals), parameter :: preset_theta(10) = [0.0,10.0,20.0,30.0,40.0,50.0,60.0,70.0,80.0,90.0]
 
       integer(iintegers), parameter :: Naspect=21
       real(ireals), parameter :: preset_aspect(Naspect) = [.01, 0.25, 0.5, 0.75, 1., 1.25, 1.5, 1.75, 2.0, 2.25,  2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.]
@@ -99,13 +92,14 @@ module m_optprop_parameters
 
 !      real(ireals),parameter :: stddev_atol=1e-2_ireals
 !      real(ireals),parameter :: stddev_atol=5e-3_ireals
-      real(ireals),parameter :: stddev_atol=1e-4_ireals
+!      real(ireals),parameter :: stddev_atol=1e-3_ireals
+      real(ireals),parameter :: stddev_atol=5e-4_ireals
 !      real(ireals),parameter :: stddev_atol=1e-4_ireals
 !      real(ireals),parameter :: stddev_atol=5e-6_ireals
 
-      real(ireals),parameter :: stddev_rtol=5e-2_ireals
+!      real(ireals),parameter :: stddev_rtol=1e-1_ireals
+      real(ireals),parameter :: stddev_rtol=1e-2_ireals
 !      real(ireals),parameter :: stddev_rtol=1e-3_ireals
-!      real(ireals),parameter :: stddev_rtol=1e-4_ireals
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
       ! what to expect.
