@@ -1,4 +1,4 @@
-      module m_tenstr_parkind
+      module m_tenstr_parkind_sw
 
       implicit none
       save
@@ -27,4 +27,4 @@
       integer, parameter :: kind_rm = selected_real_kind(6)  ! 4 byte real
       integer, parameter :: kind_rn = kind(1.0)              ! native real
 
-      end module m_tenstr_parkind
+      end module m_tenstr_parkind_sw

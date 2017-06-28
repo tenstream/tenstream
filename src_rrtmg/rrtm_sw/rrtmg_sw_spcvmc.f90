@@ -17,7 +17,7 @@
 
 ! ------- Modules -------
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_parrrsw, only : nbndsw, ngptsw, mxmol, jpband
       use m_tenstr_rrsw_tbl, only : tblint, bpade, od_lo, exp_tbl
       use m_tenstr_rrsw_vsn, only : hvrspc, hnamspc

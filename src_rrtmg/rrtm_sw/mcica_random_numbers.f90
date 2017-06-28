@@ -74,10 +74,10 @@
 !    email: matumoto@math.keio.ac.jp
 ! -------------------------------------------------------------
 
-      module m_tenstr_MersenneTwister
+      module m_tenstr_MersenneTwister_sw
 ! -------------------------------------------------------------
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
 
   implicit none
   private
@@ -303,10 +303,10 @@ contains
 
   ! --------------------  
   
-      end module m_tenstr_MersenneTwister
+      end module m_tenstr_MersenneTwister_sw
 
 
-      module m_tenstr_mcica_random_numbers
+      module m_tenstr_mcica_random_numbers_sw
 
   ! Generic module to wrap random number generators. 
   !   The module defines a type that identifies the particular stream of random 
@@ -314,12 +314,12 @@ contains
   !   in the range 0 to 1. 
   ! This version uses the Mersenne Twister to generate random numbers on [0, 1]. 
   !
-      use m_tenstr_MersenneTwister, only: randomNumberSequence, & ! The random number engine.
+      use m_tenstr_MersenneTwister_sw, only: randomNumberSequence, & ! The random number engine.
                              new_RandomNumberSequence, getRandomReal
 !! mji
 !!  use time_manager_mod, only: time_type, get_date
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
 
   implicit none
   private
@@ -411,6 +411,6 @@ contains
 !    seed = (/ i, j, year, month, day, hour, minute, second /)
 !  end function constructSeed
 
-      end module m_tenstr_mcica_random_numbers
+      end module m_tenstr_mcica_random_numbers_sw
 
 

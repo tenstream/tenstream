@@ -17,7 +17,7 @@
 
 ! ------- Modules -------
 
-      use m_tenstr_parkind, only: im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
 !      use parrrsw, only: ngptsw
 
       implicit none

@@ -17,7 +17,7 @@
 
 ! ------- Modules -------
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_parrrsw, only : mxmol
       use m_tenstr_rrsw_ref, only : pref, preflog, tref
       use m_tenstr_rrsw_vsn, only : hvrset, hnamset

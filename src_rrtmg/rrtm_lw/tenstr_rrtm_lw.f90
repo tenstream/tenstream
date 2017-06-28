@@ -5,7 +5,7 @@ module m_tenstr_rrtm_lw
       use mpi, only : mpi_comm_rank
 
       use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
-      use m_tenstr_parkind, only: im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_lw, only: im => kind_im, rb => kind_rb
       use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
       use m_tenstr_parrrtm, only: ngptlw, nbndlw
       use m_tenstr_rrtmg_lw_rad, only: rrtmg_lw

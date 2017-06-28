@@ -35,7 +35,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb16
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg16, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
       use m_tenstr_rrsw_vsn, only: hvrkg, hnamkg
 
@@ -4794,7 +4794,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb17
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg17, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
 
       implicit none
@@ -15585,7 +15585,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb18
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg18, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
 
       implicit none
@@ -20380,7 +20380,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb19
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg19, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
 
       implicit none
@@ -25175,7 +25175,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb20
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg20, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absch4o, rayl
 
@@ -27233,7 +27233,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb21
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg21, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
 
       implicit none
@@ -38044,7 +38044,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb22
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg22, only : kao, kbo, selfrefo, forrefo, sfluxrefo, rayl
 
       implicit none
@@ -42839,7 +42839,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb23
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg23, only : kao, selfrefo, forrefo, sfluxrefo, raylo
 
       implicit none
@@ -43375,7 +43375,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb24
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg24, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             raylao, raylbo, abso3ao, abso3bo
 
@@ -48233,7 +48233,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb25
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg25, only : kao, sfluxrefo, &
                             raylo, abso3ao, abso3bo
 
@@ -48707,7 +48707,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb26
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg26, only : sfluxrefo, raylo
 
       implicit none
@@ -48734,7 +48734,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb27
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg27, only : kao, kbo, sfluxrefo, raylo
 
       implicit none
@@ -50719,7 +50719,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb28
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg28, only : kao, kbo, sfluxrefo, rayl
 
       implicit none
@@ -61435,7 +61435,7 @@ module m_tenstr_rrtmg_sw_k_g
       subroutine sw_kgb29
 ! **************************************************************************
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_rrsw_kg29, only : kao, kbo, selfrefo, forrefo, sfluxrefo, &
                             absh2oo, absco2o, rayl
 

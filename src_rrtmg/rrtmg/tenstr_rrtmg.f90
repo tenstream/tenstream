@@ -35,7 +35,7 @@
 module m_tenstr_rrtmg
 
       use mpi, only : mpi_comm_rank
-      use m_tenstr_parkind, only: im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
       use m_data_parameters, only : init_mpi_data_parameters, &
         iintegers, ireals, myid, zero, one, i0, i1, &
         mpiint, pi, mpierr, default_str_len

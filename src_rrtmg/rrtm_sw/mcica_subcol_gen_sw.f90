@@ -27,7 +27,7 @@
 
 ! --------- Modules ----------
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_parrrsw, only : nbndsw, ngptsw
       use m_tenstr_rrsw_con, only: grav
       use m_tenstr_rrsw_wvn, only: ngb
@@ -219,9 +219,9 @@
   !   without cloud condensate or the opposite).
   !---------------------------------------------------------------------------------------------------------------
 
-      use m_tenstr_mcica_random_numbers
+      use m_tenstr_mcica_random_numbers_sw
 ! The Mersenne Twister random number engine
-      use m_tenstr_MersenneTwister, only: randomNumberSequence, &   
+      use m_tenstr_MersenneTwister_sw, only: randomNumberSequence, &   
                                  new_RandomNumberSequence, getRandomReal
 
       type(randomNumberSequence) :: randomNumbers

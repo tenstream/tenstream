@@ -16,7 +16,7 @@
 !  --------------------------------------------------------------------------
 
 ! ------- Modules -------
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_lw, only : im => kind_im, rb => kind_rb
       use m_tenstr_rrlw_wvn
       use m_tenstr_rrtmg_lw_setcoef, only: lwatmref, lwavplank, lwavplankderiv
 

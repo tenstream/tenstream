@@ -17,7 +17,7 @@
 
 ! --------- Modules ----------
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_lw, only : im => kind_im, rb => kind_rb
       use m_tenstr_parrrtm, only : nbndlw
       use m_tenstr_rrlw_cld, only: abscld1, absliq0, absliq1, &
                           absice0, absice1, absice2, absice3

@@ -1,6 +1,6 @@
 module m_tenstr_rrtm_sw
       use m_tenstr_rrtmg_sw_init, only: rrtmg_sw_ini
-      use m_tenstr_parkind, only: im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
       use m_tenstr_rrsw_wvn, only : ngc, wavenum1, wavenum2
       use m_tenstr_parrrsw, only: ngptsw, nbndsw,naerec,jpb1, jpb2
       use m_tenstr_rrtmg_sw_rad, only: rrtmg_sw

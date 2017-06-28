@@ -1,6 +1,6 @@
       module m_tenstr_rrsw_kg24
 
-      use m_tenstr_parkind ,only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_parrrsw, only : ng24
 
       implicit none

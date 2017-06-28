@@ -53,7 +53,7 @@
 ! ****************************************************************************
 
 ! --------- Modules ---------
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_rrsw_vsn
       use m_tenstr_rrtmg_sw_cldprop, only: cldprop_sw
 ! *** Move the required call to rrtmg_sw_ini below and the following 

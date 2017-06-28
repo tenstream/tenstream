@@ -17,7 +17,7 @@
 
 ! ------- Modules -------
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb
+      use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_parrrsw, only : nbndsw, jpband, jpb1, jpb2
       use m_tenstr_rrsw_cld, only : extliq1, ssaliq1, asyliq1, &
                            extice2, ssaice2, asyice2, &

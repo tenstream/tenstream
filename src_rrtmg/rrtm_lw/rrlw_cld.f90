@@ -1,6 +1,6 @@
       module m_tenstr_rrlw_cld
 
-      use m_tenstr_parkind, only : rb => kind_rb
+      use m_tenstr_parkind_lw, only : rb => kind_rb
 
       implicit none
       save

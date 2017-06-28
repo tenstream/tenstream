@@ -17,7 +17,7 @@
 
 ! ------- Modules -------
 
-      use m_tenstr_parkind, only : im => kind_im, rb => kind_rb 
+      use m_tenstr_parkind_lw, only : im => kind_im, rb => kind_rb 
       use m_tenstr_parrrtm, only : mg, nbndlw, maxxsec, ngptlw
       use m_tenstr_rrlw_con, only: oneminus
       use m_tenstr_rrlw_wvn, only: nspa, nspb

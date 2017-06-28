@@ -1,7 +1,7 @@
 
       module m_tenstr_parrrtm
 
-      use m_tenstr_parkind ,only : im => kind_im
+      use m_tenstr_parkind_lw, only : im => kind_im
 
       implicit none
       save
