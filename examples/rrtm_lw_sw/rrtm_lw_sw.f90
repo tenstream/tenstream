@@ -8,7 +8,7 @@ contains
     ! Import datatype from the TenStream lib. Depending on how PETSC is
     ! compiled(single or double floats, or long ints), this will determine what
     ! the Tenstream uses.
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
 
     ! main entry point for solver, and desctructor
     use m_tenstr_rrtmg, only : tenstream_rrtmg, destroy_tenstream_rrtmg
@@ -46,7 +46,7 @@ contains
 
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
-    character(len=250),parameter :: atm_filename='afglus_100m.dat'
+    character(len=default_str_len),parameter :: atm_filename='afglus_100m.dat'
 
     !------------ Local vars ------------------
     integer(iintegers) :: i,j,k, nlev, icld
