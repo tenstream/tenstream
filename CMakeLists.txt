@@ -147,6 +147,7 @@ endif(${_is_XLF})
 
 # Add Source Directories
 add_subdirectory (src)
+add_subdirectory (plexrt)
 
 # Documentation targets
 add_custom_target(doc DEPENDS wiki doxygen)
