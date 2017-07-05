@@ -14,13 +14,13 @@ def rmse(a,b,weights=None):
         return np.array([s,s/np.maximum(1e-8,abs(np.average(b,weights=weights)))*100])
 
 def export_ANN_to_nc ( network, filename, Nlayers, Nneurons, pspace):
-    
+
     import netCDF4 as nc
     import numpy as np
     import os as os
 
-    print 'Exporting Network to .nc file :: ',filename
-    
+    print('Exporting Network to .nc file :: ',filename)
+
     if os.path.isfile(filename):
         os.remove(filename)
 
@@ -33,12 +33,12 @@ def export_ANN_to_nc ( network, filename, Nlayers, Nneurons, pspace):
     Teni      = network.eni     .T
     Tdeo      = network.deo     .T
     Tinlimits = network.inlimits.T
-    for key, val in pspace.iteritems():
+    for key, val in pspace.items():
       pspace[key] = val.T
-    
+
     try:
         dataset = nc.Dataset(filename, 'w')
-        
+
         dataset.createDimension ( 'weights_dim1' , np.shape(Tweights )[0] )
         dataset.createDimension ( 'conec_dim1'   , np.shape(Tconec   )[0] ); dataset.createDimension ( 'conec_dim2'   , np.shape(Tconec   )[1] )
         dataset.createDimension ( 'units_dim1'   , np.shape(Tunits   )[0] )
@@ -48,10 +48,10 @@ def export_ANN_to_nc ( network, filename, Nlayers, Nneurons, pspace):
         dataset.createDimension ( 'deo_dim1'     , np.shape(Tdeo     )[0] ); dataset.createDimension ( 'deo_dim2'     , np.shape(Tdeo     )[1] )
         dataset.createDimension ( 'inlimits_dim1', np.shape(Tinlimits)[0] ); dataset.createDimension ( 'inlimits_dim2', np.shape(Tinlimits)[1] )
 
-        for key, val in pspace.iteritems():
+        for key, val in pspace.items():
             dataset.createDimension ( 'pspace.{}_dim1'.format(key), np.shape(pspace[key])[0])
 
-        
+
         weights  = dataset.createVariable('weights' , 'f8',  'weights_dim1'                  )
         conec    = dataset.createVariable('conec'   , 'i' , ('conec_dim1'   , 'conec_dim2'  ))
         units    = dataset.createVariable('units'   , 'f8',  'units_dim1'                    )
@@ -62,20 +62,20 @@ def export_ANN_to_nc ( network, filename, Nlayers, Nneurons, pspace):
         inlimits = dataset.createVariable('inlimits', 'f8', ('inlimits_dim1','inlimits_dim2'))
 
         dataset_list = {}
-        for key, val in pspace.iteritems():
+        for key, val in pspace.items():
             dataset_list [key] = dataset.createVariable('pspace.{}'.format(key), 'f8', 'pspace.{}_dim1'.format(key))
 
-            
-        weights [:] = Tweights 
-        conec   [:] = Tconec   
-        units   [:] = Tunits   
-        inno    [:] = Tinno    
-        outno   [:] = Toutno   
-        eni     [:] = Teni     
-        deo     [:] = Tdeo     
+
+        weights [:] = Tweights
+        conec   [:] = Tconec
+        units   [:] = Tunits
+        inno    [:] = Tinno
+        outno   [:] = Toutno
+        eni     [:] = Teni
+        deo     [:] = Tdeo
         inlimits[:] = Tinlimits
 
-        for key, var in dataset_list.iteritems():
+        for key, var in dataset_list.items():
             var [:] = pspace[key]
 
         dataset.nrhiddennodes = len(network.hidno)
@@ -83,8 +83,8 @@ def export_ANN_to_nc ( network, filename, Nlayers, Nneurons, pspace):
         dataset.Nneurons = Nneurons
 
         dataset.close()
-    except Exception,e:
-        print 'Error occured when we tried to export Network to file :: ',e
+    except Exception as e:
+        print('Error occured when we tried to export Network to file :: ',e)
         raise(e)
 
 def scatter_to_hist(x,y,nbins=1000):
@@ -96,17 +96,17 @@ def scatter_to_hist(x,y,nbins=1000):
 def plot_coeffs(ANNname, net,input,target,output):
     from pylab import figure,subplot,plot,title,tight_layout,savefig,matplotlib,imshow,colorbar
     import os
-    print 'plotting coefficients'
+    print('plotting coefficients')
     fig = figure(figsize=(35,25) )
     Nstreams = np.minimum(149,np.shape(target)[1])
     nrows = int(np.sqrt(Nstreams)) ; ncols = int(np.ceil(1.*Nstreams/nrows))
 
     output = np.maximum(0., np.minimum(1., output ) )
-    
+
     for i in np.arange(Nstreams):
             subplot(nrows,ncols,i+1)
-            print '.'
-            
+            print('.')
+
             h,extent = scatter_to_hist(target[:,i],output[:,i],nbins=50)
             cmap = matplotlib.colors.LinearSegmentedColormap.from_list('white to red over green', [(0,'white'),  (.01,'yellow'),  (.1,'green'), (.3,'orange'),  (.5,'red'), (1.,'purple')])
             imshow(h,origin='lower',extent=extent,cmap=cmap,norm=LogNorm())
@@ -122,14 +122,14 @@ def plot_coeffs(ANNname, net,input,target,output):
             title(str(i)+'::'+str(error ))
             tight_layout()
     savefig('/tmp/network_plot_{}.pdf'.format(os.path.basename(ANNname)))
-    return 
+    return
 
 
 def create_net(inno,layer_definitions,outno,network_function):
     from ffnet import ffnet
     pts = [inno,] + layer_definitions + [outno,]
     conec = network_function(pts, biases=True) ; net = ffnet(conec)
-    print 'created new network with ',pts,'layers and', len(net.conec),'connections'
+    print('created new network with ',pts,'layers and', len(net.conec),'connections')
     return net
 
 def import_network( ANNname, Nlayers, Nneurons ):
@@ -138,12 +138,12 @@ def import_network( ANNname, Nlayers, Nneurons ):
     try:
         f = '{0:}_{1:}_{2:}'.format( ANNname,Nlayers,Nneurons)
         net = loadnet(f)
-        print 'Loaded network from file: ',f
-        print 'Network limits:',net.inlimits
+        print('Loaded network from file: ',f)
+        print('Network limits:',net.inlimits)
         return net
 
-    except Exception,e:
-        print 'Error when loading ffnet network file',e
+    except Exception as e:
+        print('Error when loading ffnet network file',e)
         raise(e)
 
 def export_network( net, ANNname, Nlayers, Nneurons, pspace):
@@ -154,15 +154,15 @@ def export_network( net, ANNname, Nlayers, Nneurons, pspace):
         savenet(net, f)
         export_ANN_to_nc( net, ANNname+'.nc', Nlayers, Nneurons, pspace)
 
-    except Exception,e:
-        print 'Error when writing ffnet network file',e
+    except Exception as e:
+        print('Error when writing ffnet network file',e)
         raise(e)
 
 
 def compare_to_old_net(ANNname, Nlayers, Nneurons, new_net, test_inp, test_target, pspace):
   try:
     old_net = import_network(ANNname, Nlayers, Nneurons)
-  except IOError,e:
+  except IOError as e:
     rmse_old_network = np.Inf
   else:
     output_old_network,_ = old_net.test(test_inp,test_target,iprint=0)
@@ -171,21 +171,21 @@ def compare_to_old_net(ANNname, Nlayers, Nneurons, new_net, test_inp, test_targe
   test_output,regression = new_net.test(test_inp,test_target,iprint=0)
   rmse_new_network = rmse(test_target,test_output)[1]
 
-  print 'Old network error: {0:} :: new network: {1:}'.format(rmse_old_network,rmse_new_network)
+  print('Old network error: {0:} :: new network: {1:}'.format(rmse_old_network,rmse_new_network))
 
-  if rmse_new_network <= rmse_old_network:
+  if rmse_new_network < rmse_old_network:
       try:
-          print 'Saving new network to :::  ',ANNname
+          print('Saving new network to :::  ',ANNname)
           export_network( new_net, ANNname, Nlayers, Nneurons, pspace)
-          
-      except Exception,e:
-          print 'Error occured when we tried to save the ANN :: ',e
+
+      except Exception as e:
+          print('Error occured when we tried to save the ANN :: ',e)
           raise(e)
   else:
-      print 'Already existing, old network has already lower error.. old: {} new: {}'.format(rmse_old_network,rmse_new_network)
+      print('Already existing, old network has already lower error.. old: {} new: {}'.format(rmse_old_network,rmse_new_network))
 
 def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target, pspace, ncpu='ncpu'):
-  print 'training net: nr. of hidno: {} nr. of weights: {} using {} input entries'.format( len(net.hidno), np.shape(net.weights),np.shape(train_inp) )
+  print('training net: nr. of hidno: {} nr. of weights: {} using {} input entries'.format( len(net.hidno), np.shape(net.weights),np.shape(train_inp) ))
 
   last_weights    = net.weights
   last_train_err  = np.Inf
@@ -204,7 +204,7 @@ def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp
 #TNC RC Strings  USERABORT    =  7 # User requested end of minimization
 
   while True:
-    print '\n\n'
+    print('\n\n')
     maxiter = int( np.minimum( 1e3, np.maximum(1e2, len(net.weights)*2) ) )
 #    import ipdb
 #    ipdb.set_trace()
@@ -216,12 +216,12 @@ def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp
 #        res = net.train_bfgs(train_inp,train_target,bounds=( (None,None), )*len(net.weights),disp=0,maxfun=maxiter)
 #        res = net.train_momentum(train_inp,train_target,disp=1,maxiter=100*len(net.weights))
 #        res = net.train_genetic(train_inp,train_target,verbosity=0)
-    except Exception,e:
-        print 'Error occured in ffnet training:',e
+    except Exception as e:
+        print('Error occured in ffnet training:',e)
         import traceback
-        print traceback.format_exc()
+        print(traceback.format_exc())
 
-        print '\n\n ', type(train_inp), type(train_target)
+        print('\n\n ', type(train_inp), type(train_target))
         raise(e)
 
     train_output,regression = net.test(train_inp,train_target,iprint=0)
@@ -229,24 +229,24 @@ def train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp
     test_output,regression = net.test(test_inp,test_target,iprint=0)
 
     iter = iter+1
-    print len(net.hidno),'::',iter,'RMSE train',rmse(train_target,train_output),' test ',rmse(test_target,test_output),'last:',[last_train_err,last_test_err]
+    print(len(net.hidno),'::',iter,'RMSE train',rmse(train_target,train_output),' test ',rmse(test_target,test_output),'last:',[last_train_err,last_test_err])
 
     lbreak = False
     if rmse(test_target,test_output)[1] > 1.001*last_test_err:
       lbreak = True
-      print 'error for testing set, grew by',rmse(test_target,test_output)[1]/last_test_err * 100,'%'
+      print('error for testing set, grew by',rmse(test_target,test_output)[1]/last_test_err * 100,'%')
 
     if iter - index_successfull_update > 20:
       lbreak=True
-      print 'tried to enhance result too often, its probably no use....'
+      print('tried to enhance result too often, its probably no use....')
 
-    if lbreak: 
-      print '::','training ended!!!! -- stopping training!'
+    if lbreak:
+      print('::','training ended!!!! -- stopping training!')
       compare_to_old_net(ANNname,Nlayers, Nneurons, net, test_inp, test_target, pspace)
-      return 
+      return
 
     if rmse(test_target,test_output)[1] < last_test_err:
-      print '::','Updating last err. Err Increment: {}'.format(last_test_err-rmse(test_target,test_output)[1])
+      print('::','Updating last err. Err Increment: {}'.format(last_test_err-rmse(test_target,test_output)[1]))
       last_test_err = rmse(test_target,test_output)[1]
       last_weights = net.weights
       compare_to_old_net(ANNname,Nlayers, Nneurons, net, test_inp, test_target, pspace)
@@ -261,8 +261,8 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
         diffuse_tables = {k for k, v in D.variables.items() if k.endswith('.S') }
         direct_tables  = {k for k, v in D.variables.items() if k.endswith('.T') }
 
-        for table in diffuse_tables: print ' Found diffuse Table:', table
-        for table in direct_tables:  print ' Found direct  Table:', table
+        for table in diffuse_tables: print(' Found diffuse Table:', table)
+        for table in direct_tables:  print(' Found direct  Table:', table)
 
         for table in diffuse_tables:
             # try to find sza and azi angle from table name
@@ -274,8 +274,8 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
                 if(k.find('phi')!=-1):   phi   = k[3:]
                 if(k.find('theta')!=-1): theta = k[5:]
 
-    except Exception,e:
-        print 'Error occured reading LUTfile: ',LUTname,' because',e
+    except Exception as e:
+        print('Error occured reading LUTfile: ',LUTname,' because',e)
         raise(e)
     finally:
         D.close()
@@ -294,12 +294,12 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
             raise(Exception('Although I dont use direct tables for dir2diff, I expect at least one direct LUT in the file -- something out of convention? I found {0:} direct tables for coefficients'.format(len(direct_tables))) )
 
 
-    print '\n Creating training and testing datasets:'
+    print('\n Creating training and testing datasets:')
 
     inp = []
     out = []
     pspace = {}
-    
+
     if coeff_mode=='diff2diff':
         try:
             D = NC.Dataset(LUTname,'r')
@@ -315,27 +315,27 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
 
             S     = D.variables[table][:].T
             g     = D.variables[descr+'.pspace.g'][:]
-            kabs  = D.variables[descr+'.pspace.kabs'][:]
-            ksca  = D.variables[descr+'.pspace.ksca'][:]
-            dz    = D.variables[descr+'.pspace.dz'][:]
-            pspace['g'   ] = g   
-            pspace['kabs'] = kabs
-            pspace['ksca'] = ksca
-            pspace['dz'  ] = dz  
+            aspect= D.variables[descr+'.pspace.aspect'][:]
+            tau   = D.variables[descr+'.pspace.tau'][:]
+            w0    = D.variables[descr+'.pspace.w0'][:]
+            pspace['g'     ] = g
+            pspace['aspect'] = aspect
+            pspace['tau'   ] = tau
+            pspace['w0'    ] = w0
 
-        except Exception,e:
-            print 'Error occured reading LUTfile: ',LUTname,' because',e
+        except Exception as e:
+            print('Error occured reading LUTfile: ',LUTname,' because',e)
             raise(e)
         finally:
             D.close()
 
-        for idz in xrange(np.size(dz)):
-            for ig in xrange(np.size(g)):
-                for ikabs in xrange(np.size(kabs)):
-                    for iksca in xrange(np.size(ksca)):
+        for iaspect in range(np.size(aspect)):
+            for itau in range(np.size(tau)):
+                for iw0 in range(np.size(w0)):
+                    for ig in range(np.size(g)):
                         # inp.append( [ dz[idz],kabs[ikabs],ksca[iksca],g[ig] ] )
-                        inp.append( [ idz, ikabs, iksca, ig ] )
-                        out.append( S[:,idz,ikabs,iksca,ig] )
+                        inp.append( [ iaspect, itau, iw0, ig ] )
+                        out.append( S[:, iaspect, itau,iw0, ig] )
 
     if coeff_mode=='dir2dir' or coeff_mode=='dir2diff':
         try:
@@ -358,33 +358,33 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
                     if(k.find('phi')!=-1):   phi   = k[3:]
                     if(k.find('theta')!=-1): theta = k[5:]
 
-                print 'Reading dataset from: {0:} with descr {1:}'.format(table,descr)
+                print('Reading dataset from: {0:} with descr {1:}'.format(table,descr))
 
-                basedescr = '.'.join(descr.split('.')[:3])
+                basedescr = '.'.join(descr.split('.')[:1])
 
                 SorT  = D.variables[table][:].T
+                aspect= D.variables[basedescr+'.pspace.aspect'][:]
+                tau   = D.variables[basedescr+'.pspace.tau'][:]
+                w0    = D.variables[basedescr+'.pspace.w0'][:]
                 g     = D.variables[basedescr+'.pspace.g'][:]
-                kabs  = D.variables[basedescr+'.pspace.kabs'][:]
-                ksca  = D.variables[basedescr+'.pspace.ksca'][:]
-                dz    = D.variables[basedescr+'.pspace.dz'][:]
 
-                pspace['g'    ] = g
-                pspace['kabs' ] = kabs
-                pspace['ksca' ] = ksca
-                pspace['dz'   ] = dz
+                pspace['g'     ] = aspect
+                pspace['aspect'] = tau
+                pspace['tau'   ] = w0
+                pspace['w0'    ] = g
                 pspace['phi'  ] = D.variables[basedescr+'.pspace.phi'][:]
                 pspace['theta'] = D.variables[basedescr+'.pspace.theta'][:]
 
-                for idz in xrange(np.size(dz)):
-                    for ig in xrange(np.size(g)):
-                        for iksca in xrange(np.size(ksca)):
-                            for ikabs in xrange(np.size(kabs)):
+                for iaspect in range(np.size(aspect)):
+                    for itau in range(np.size(tau)):
+                        for iw0 in range(np.size(w0)):
+                            for ig in range(np.size(g)):
                                 # inp.append( [ dz[idz],kabs[ikabs],ksca[iksca],g[ig],phi,theta ] )
-                                inp.append( [ idz, ikabs, iksca, ig, phi, theta ] )
-                                out.append( SorT[:,idz,ikabs,iksca,ig] )
+                                inp.append( [ iaspect, itau, iw0, ig, phi, theta ] )
+                                out.append( SorT[:,iaspect,itau,iw0,ig] )
 
-        except Exception,e:
-            print 'Error occured reading LUTfile: ',LUTname,' because',e
+        except Exception as e:
+            print('Error occured reading LUTfile: ',LUTname,' because',e)
             raise(e)
         finally:
             D.close()
@@ -399,9 +399,9 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
     inp = inp[permu] ; out = out[permu]
 
     # up until entries to 'divider' are used for training, the rest for testing
-    divider = int(np.round(N_entries*training_fraction))  
-    
-    print ' using {} points for training and {} for testing'.format(divider, N_entries-divider)
+    divider = int(np.round(N_entries*training_fraction))
+
+    print(' using {} points for training and {} for testing'.format(divider, N_entries-divider))
     train_inp = inp[:divider,:] ; train_target = out[:divider,:]
     test_inp  = inp[divider:,:] ; test_target  = out[divider:,:]
 
@@ -412,8 +412,8 @@ def train_ANN(ANNname, Nlayers, Nneurons, train_dataset, pspace, ncpu='ncpu'):
     train_inp, train_target, test_inp, test_target = train_dataset
     try:
         net = import_network( ANNname, Nlayers, Nneurons)
-    except Exception,e:
-        print 'Could not load existing neural network: {0:} -- creating a new one'.format(e)
+    except Exception as e:
+        print('Could not load existing neural network: {0:} -- creating a new one'.format(e))
         hiddenlayers = [ Nneurons ] * Nlayers
         net = create_net(np.shape(train_inp)[1], hiddenlayers, np.shape(train_target)[1], mlgraph)
 
@@ -422,7 +422,7 @@ def train_ANN(ANNname, Nlayers, Nneurons, train_dataset, pspace, ncpu='ncpu'):
     compare_to_old_net(ANNname, Nlayers, Nneurons, net,test_inp,test_target, pspace)
 
     train_net(ANNname, Nlayers, Nneurons, net, train_inp, train_target, test_inp, test_target, pspace, ncpu=ncpu)
- 
+
     output,_ = net.test(test_inp, test_target, iprint=0)
     plot_coeffs(ANNname, net, test_inp, test_target, output)
 
@@ -438,23 +438,23 @@ if __name__ == "__main__":
   parser.add_argument('ANNname', type=str, help='ANN file name on which the net will be saved')
   parser.add_argument('-N', '--Nneurons', default=10, type=int, help='Number of Neurons in each hidden layer')
   parser.add_argument('-M', '--Nlayers', default=2, type=int, help='Number of hidden layers')
-  parser.add_argument('-NCPU', default=8, type=int, help='Number of Processors for TNC')
+  parser.add_argument('-NCPU', default=10, type=int, help='Number of Processors for TNC')
   parser.add_argument('--train_frac', default=.8, type=float, help='Fraction of LUT which is used to train network')
 
   args = parser.parse_args()
 
-  print 'Converting LUT in file   :::   {0:}  '.format(args.LUTfiles )
-  print '             coeffmode   :::   {0:}  '.format(args.coeffmode)
-  print '             ANN file    :::   {0:}\n'.format(args.ANNname  )
-  print '             Nneurons    :::   {0:}\n'.format(args.Nneurons )
-  print '             Nlayers     :::   {0:}\n'.format(args.Nlayers  )
-  print '             NCPU        :::   {0:}\n'.format(args.NCPU     )
-  print '             Train fract :::   {0:}\n'.format(args.train_frac)
+  print('Converting LUT in file   :::   {0:}  '.format(args.LUTfiles ))
+  print('             coeffmode   :::   {0:}  '.format(args.coeffmode))
+  print('             ANN file    :::   {0:}\n'.format(args.ANNname  ))
+  print('             Nneurons    :::   {0:}\n'.format(args.Nneurons ))
+  print('             Nlayers     :::   {0:}\n'.format(args.Nlayers  ))
+  print('             NCPU        :::   {0:}\n'.format(args.NCPU     ))
+  print('             Train fract :::   {0:}\n'.format(args.train_frac))
 
   try:
       train_dataset = [[],[],[],[]]
       for f in args.LUTfiles:
-          print 'Loading LUT file: ',f
+          print('Loading LUT file: ',f)
           tdata, pspace = create_training_dataset(args.coeffmode, f, training_fraction=args.train_frac)
           for i,v in enumerate(tdata):
             train_dataset[i].append(v)
@@ -462,12 +462,12 @@ if __name__ == "__main__":
       for i,v in enumerate(train_dataset):
           train_dataset[i] = np.vstack(v)
 
-  except Exception,e:
-      print 'Error occured when creating training Datasets :',e
+  except Exception as e:
+      print('Error occured when creating training Datasets :',e)
       sys.exit(-1)
 
   try:
       train_ANN(args.ANNname, args.Nlayers, args.Nneurons, train_dataset, pspace, ncpu=args.NCPU)
-  except Exception,e:
-      print 'Error occured when training network :',e
+  except Exception as e:
+      print('Error occured when training network :',e)
       sys.exit(-1)
