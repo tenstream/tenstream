@@ -16,7 +16,7 @@ def list_ftpdir(url):
     import urlparse
 
     parsed_uri = urlparse.urlparse(url)
-    domain = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)    
+    domain = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
 
     ftp = ftplib.FTP()
     ftp.connect( parsed_uri.netloc )
@@ -33,7 +33,7 @@ def list_ftpdir(url):
             print "No files in this directory"
         else:
             raise
-    
+
 #    print 'Server Repository has the following files in it: \n'
 #    for f in files:
 #        print f
@@ -47,7 +47,7 @@ def get_ftp_file(url):
     import tempfile
 
     parsed_uri = urlparse.urlparse(url)
-    domain = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)    
+    domain = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
 
     ftp = ftplib.FTP()
     ftp.connect( parsed_uri.netloc )
@@ -73,7 +73,7 @@ def copy_nc_var(Din, varname, Dout):
         Dout.createDimension(dname, len(the_dim) if not the_dim.isunlimited() else None)
       except:
         pass
-    
+
     # Copy variables
     outVar = Dout.createVariable( varname, invar.datatype, invar.dimensions )
 
@@ -88,7 +88,7 @@ def merge_nc_var(server,server_tol, local,local_tol):
     aserver     = np.array(server    [:])
     aserver_tol = np.array(server_tol[:])
 
-    cond_server = aserver_tol <  alocal_tol # 1 if server better than local 
+    cond_server = aserver_tol <  alocal_tol # 1 if server better than local
     cond_local  = aserver_tol >  alocal_tol # 1 if local  better than server
     cond_same   = aserver_tol == alocal_tol # 1 if same
 
@@ -101,17 +101,17 @@ def merge_nc_var(server,server_tol, local,local_tol):
     print '    Using {0:} values from server and {1:} from local table :: same: {2:}'.format(Nserver,Nlocal,Nsame)
     if Nlocal>0:
         print '      ATTENTION ::: If you have a lot of better coeffs than are available at the Server please send them to fabian@jakub.com'
-    
-    new     = alocal.copy()    
+
+    new     = alocal.copy()
     new_tol = alocal_tol.copy()
 
     new    [cond_server] = aserver    [cond_server]
     new_tol[cond_server] = aserver_tol[cond_server]
 
     if (alocal[avail_local] < 0).any() or (alocal[avail_local]>1).any():
-      print 'Found illegal value in local  LUT ! min/max :: {0:} / {1:}'.format(np.min(local[avail_local]),np.max(local[avail_local]) ) 
+      print 'Found illegal value in local  LUT ! min/max :: {0:} / {1:}'.format(np.min(local[avail_local]),np.max(local[avail_local]) )
     if (aserver[avail_server] < 0).any() or (aserver[avail_server]>1).any():
-      print 'Found illegal value in server LUT ! min/max :: {0:} / {1:}'.format(np.min(server[avail_server]),np.max(server[avail_server]) ) 
+      print 'Found illegal value in server LUT ! min/max :: {0:} / {1:}'.format(np.min(server[avail_server]),np.max(server[avail_server]) )
 
     new_no_NaN = new[new_tol<1]
 
@@ -122,7 +122,7 @@ def merge_nc_var(server,server_tol, local,local_tol):
     print '    mean tol ( server,local ) :: {0:15.4e} {1:15.4e} :: {2:15.4e}'.format( np.mean(aserver_tol), np.mean(alocal_tol), np.mean(new_tol) )
     local[:]     = new
     local_tol[:] = new_tol
-    
+
 
 def merge_LUT(serverLUT, LUT):
     print 'merging LUT {0:} ==> {1:}'.format(serverLUT,LUT)
@@ -165,8 +165,8 @@ def merge_LUT(serverLUT, LUT):
 
     Dserver.close()
     Dlocal.close()
-    
-    
+
+
 def update_LUT(LUTpath, LUTserver):
 
     path,LUTname = os.path.split(LUTpath)
@@ -183,7 +183,7 @@ def update_LUT(LUTpath, LUTserver):
         print 'Server Repository has the following files in it: \n'
         for f in availfiles:
             print f
-    
+
         print '\n Maybe you want one of those? \n'
         return
 
@@ -198,6 +198,7 @@ if __name__ == '__main__':
     parser.add_argument('LUTpath', type=str, help='LUT file which should be loaded/merged')
     parser.add_argument('-LUTserver', type=str, help='LUTserver which should be queried for LUTs', default='ftp.meteo.physik.uni-muenchen.de/public/TenStream_LUT/')
     parser.add_argument('-list', action='store_const',const=True, help='list all available files at the server', default=False)
+    parser.add_argument('-all', action='store_const',const=True, help='download all available files at the server', default=False)
     args = parser.parse_args()
 
     if args.list:
@@ -206,6 +207,11 @@ if __name__ == '__main__':
         print f
       sys.exit(0)
 
+    if args.all:
+      availfiles = list_ftpdir('ftp://'+args.LUTserver)
+      for f in availfiles:
+        print f
+        update_LUT(f, args.LUTserver)
 
     update_LUT(args.LUTpath, args.LUTserver)
 
