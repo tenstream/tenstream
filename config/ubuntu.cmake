@@ -6,6 +6,7 @@
 
 message(STATUS "### Using ubuntu.cmake config ###")
 
+set(CMAKE_C_COMPILER   "mpicc")
 set(CMAKE_Fortran_COMPILER   "/usr/bin/mpif90")
 set(Fortran_COMPILER_WRAPPER "/usr/bin/mpif90")
 
