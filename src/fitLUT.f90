@@ -30,7 +30,7 @@ module m_poly_fitLUT
       use m_helper_functions, only: rmse, CHKERR
       use m_data_parameters, only: ireals,iintegers, &
         init_mpi_data_parameters, numnodes, myid,    &
-        zero, one, imp_comm, mpiint, nan32,          &
+        zero, one, imp_comm, mpiint, nil,            &
         default_str_len
       use m_netcdfio
 
@@ -286,7 +286,7 @@ end type
                           endif
 
                         else
-                          poly(j) = nan32
+                          poly(j) = nil
                         endif
                         j=j+1
                       enddo
@@ -315,7 +315,7 @@ end type
                       endif
 
                     else
-                      poly(j) = nan32
+                      poly(j) = nil
                     endif
                     j=j+1
                   enddo
@@ -330,7 +330,7 @@ end type
                 if(luse_coeff(j) ) then
                   poly(j) = p(inp(1),xd) * p(inp(2),yd)
                 else
-                  poly(j) = nan32
+                  poly(j) = nil
                 endif
                 j=j+1
               enddo
