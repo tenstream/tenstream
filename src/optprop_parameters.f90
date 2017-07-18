@@ -58,7 +58,7 @@ module m_optprop_parameters
       ! interp_mode 3 == linear interpolation, nearest neighbour in solar azimuth
       ! interp_mode 4 == linear interpolation in all dimensions
 
-      integer(iintegers) ,parameter :: Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
+      integer(iintegers) ,parameter :: Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=4
 
       integer(iintegers) ,parameter :: Ndiff_1_2=2, Ndir_1_2=1, interp_mode_1_2=2
 
