@@ -157,9 +157,6 @@ module m_tenstream_options
             twostr_ratio=1e8_ireals
             ltwostr=.True.
             luse_twostr_guess=.True.
-          else
-            ltwostr=.True.
-            luse_twostr_guess=.True.
           endif
 
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER ,"-topography" , ltopography, lflg, ierr) ;call CHKERR(ierr)
