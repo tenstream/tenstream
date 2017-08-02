@@ -25,8 +25,7 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 endif()
 
 ########################### Tenstream Project: ###################################
-project (tenstream)
-enable_language(C Fortran)
+project (tenstream C Fortran)
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 
 # For python interfaces need -fPIC:
