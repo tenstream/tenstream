@@ -60,8 +60,11 @@ module m_tenstream
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
-  use m_helper_functions, only: norm, rad2deg, deg2rad, approx, rmse, delta_scale, &
-    imp_bcast, cumsum, inc, mpi_logical_and, imp_allreduce_min, imp_allreduce_max, CHKERR
+  use m_helper_functions, only: norm, rad2deg, deg2rad, &
+    approx, rmse, delta_scale,                          &
+    imp_bcast, mpi_logical_and, imp_allreduce_min,      &
+    imp_allreduce_max, cumsum, inc, CHKERR
+
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
   use m_optprop, only : t_optprop_1_2,t_optprop_8_10
@@ -73,8 +76,10 @@ module m_tenstream
   implicit none
 
   private
-  public :: init_tenstream, set_angles, set_global_optical_properties, set_optical_properties, solve_tenstream, destroy_tenstream,&
-    getVecPointer,restoreVecPointer, get_mem_footprint, &
+  public :: init_tenstream, set_angles,                                   &
+    set_global_optical_properties, set_optical_properties,                &
+    solve_tenstream, destroy_tenstream,                                   &
+    getVecPointer,restoreVecPointer, get_mem_footprint,                   &
     tenstream_get_result, tenstream_get_result_toZero, need_new_solution, &
     t_coord,C_dir,C_diff,C_one,C_one1,C_one_atm, C_one_atm1
 
@@ -2562,7 +2567,7 @@ contains
   !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc)
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
   subroutine init_tenstream(icomm, Nz,Nx,Ny, dx,dy, phi0, theta0, dz1d, dz3d, nxproc, nyproc, collapseindex)
-    integer,intent(in) :: icomm !< @param MPI_Communicator which should be used -- this will be used for PETSC_COMM_WORLD
+    MPI_Comm, intent(in)          :: icomm   !< @param MPI_Communicator which should be used -- this will be used for PETSC_COMM_WORLD
     integer(iintegers),intent(in) :: Nz      !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
     integer(iintegers),intent(in) :: Nx      !< @param[in] Nx     number of boxes in x-direction
     integer(iintegers),intent(in) :: Ny      !< @param[in] Ny     number of boxes in y-direction
@@ -2582,7 +2587,8 @@ contains
 
     if(.not.ltenstream_is_initialized) then
 
-        call setup_petsc_comm
+        PETSC_COMM_WORLD = icomm
+
         !      call PetscInitialize(tenstreamrc ,ierr) ;call CHKERR(ierr)
         call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;call CHKERR(ierr)
 #ifdef _XLF
@@ -2682,37 +2688,6 @@ contains
               atm%icollapse=collapseindex
               atm%l1d(C_one_atm%zs:atmk(C_one%zs),:,:) = .True. ! if need to be collapsed, they have to be 1D.
           endif
-      end subroutine
-      subroutine setup_petsc_comm()
-          !This is the code snippet from Petsc FAQ to change from PETSC (C) domain splitting to MPI(Fortran) domain splitting 
-          ! the numbers of processors per direction are (int) x_procs, y_procs, z_procs respectively
-          ! (no parallelization in direction 'dir' means dir_procs = 1)
-
-          !        MPI_Comm :: NewComm
-          !        PetscInt :: x,y
-          !
-          !        integer(mpiint) :: orig_id,new_id,petsc_id,ierr ! id according to fortran decomposition
-
-          PETSC_COMM_WORLD = icomm
-
-          !        if(present(nxproc) .and. present(nyproc) ) then
-          !          call MPI_COMM_RANK( icomm, orig_id, ierr )
-          !
-          !          ! calculate coordinates of cpus in MPI ordering:
-          !          x = int(orig_id) / size(nyproc)
-          !          y = modulo(orig_id ,size(nyproc))
-          !
-          !          ! set new rank according to PETSc ordering:
-          !          petsc_id = y*size(nxproc) + x
-          !
-          !          ! create communicator with new ranks according to PETSc ordering:
-          !          call MPI_Comm_split(MPI_COMM_WORLD, i1, petsc_id, NewComm, ierr)
-          !
-          !          ! override the default communicator (was MPI_COMM_WORLD as default)
-          !          PETSC_COMM_WORLD = NewComm
-          !        endif
-          !        print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id,'PETSC_COMM_WORLD',new_id
-
       end subroutine
 
   end subroutine

@@ -5,7 +5,7 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -27,7 +27,7 @@ module m_helper_functions
       private
       public imp_bcast,norm,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
           mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
-          gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, CHKERR
+          gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -453,4 +453,31 @@ module m_helper_functions
         endif
       end function
 
+      subroutine reorder_mpi_comm(icomm, Nrank_x, Nrank_y, new_comm)
+        integer(mpiint), intent(in) :: icomm
+        integer(mpiint), intent(out) :: new_comm
+        integer(iintegers) :: Nrank_x, Nrank_y
+
+        ! This is the code snippet from Petsc FAQ to change from PETSC (C) domain splitting to MPI(Fortran) domain splitting
+        ! the numbers of processors per direction are (int) x_procs, y_procs, z_procs respectively
+        ! (no parallelization in direction 'dir' means dir_procs = 1)
+
+        integer(iintegers) :: x,y
+        integer(mpiint) :: orig_id, new_id, petsc_id, ierr ! id according to fortran decomposition
+
+        call MPI_COMM_RANK( icomm, orig_id, mpierr ); call CHKERR(mpierr)
+
+        ! calculate coordinates of cpus in MPI ordering:
+        x = int(orig_id) / Nrank_y
+        y = modulo(orig_id ,Nrank_y)
+
+        ! set new rank according to PETSc ordering:
+        petsc_id = y*Nrank_x + x
+
+        ! create communicator with new ranks according to PETSc ordering:
+        call MPI_Comm_split(MPI_COMM_WORLD, 1_iintegers, petsc_id, new_comm, mpierr)
+
+        !print *,'Reordering communicator'
+        !print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id
+      end subroutine
   end module
