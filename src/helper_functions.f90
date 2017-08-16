@@ -475,7 +475,7 @@ module m_helper_functions
         petsc_id = y*Nrank_x + x
 
         ! create communicator with new ranks according to PETSc ordering:
-        call MPI_Comm_split(MPI_COMM_WORLD, 1_iintegers, petsc_id, new_comm, mpierr)
+        call MPI_Comm_split(icomm, 1_iintegers, petsc_id, new_comm, mpierr)
 
         !print *,'Reordering communicator'
         !print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id
