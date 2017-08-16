@@ -149,15 +149,7 @@ add_subdirectory (src)
 add_subdirectory (plexrt)
 
 # Documentation targets
-add_custom_target(doc DEPENDS wiki doxygen)
-
-# Add `wiki` submodule
-add_custom_target(wiki
-  git submodule init tenstream.wiki
-  COMMAND git submodule update --remote tenstream.wiki
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "Updating Wiki submodule" VERBATIM
-  )
+add_custom_target(doc DEPENDS doxygen)
 
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
