@@ -2705,12 +2705,12 @@ contains
       call exit(1)
     endif
 
-    call imp_bcast(imp_comm, albedo, 0_mpiint, myid)
+    call imp_bcast(imp_comm, albedo, 0_mpiint)
 
-    lhave_kabs   = present(global_kabs  ); call imp_bcast(imp_comm, lhave_kabs  , 0_mpiint, myid )
-    lhave_ksca   = present(global_ksca  ); call imp_bcast(imp_comm, lhave_ksca  , 0_mpiint, myid )
-    lhave_g      = present(global_g     ); call imp_bcast(imp_comm, lhave_g     , 0_mpiint, myid )
-    lhave_planck = present(global_planck); call imp_bcast(imp_comm, lhave_planck, 0_mpiint, myid )
+    lhave_kabs   = present(global_kabs  ); call imp_bcast(imp_comm, lhave_kabs  , 0_mpiint)
+    lhave_ksca   = present(global_ksca  ); call imp_bcast(imp_comm, lhave_ksca  , 0_mpiint)
+    lhave_g      = present(global_g     ); call imp_bcast(imp_comm, lhave_g     , 0_mpiint)
+    lhave_planck = present(global_planck); call imp_bcast(imp_comm, lhave_planck, 0_mpiint)
 
     ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
     if(myid.eq.0) then

@@ -89,7 +89,7 @@ contains
             output_path(2) = 'hsrfc'; call ncwrite(output_path, hhl(ubound(hhl,1),:,:), i)
         endif
 
-        if(present(icollapse)) then 
+        if(present(icollapse)) then
             call init_tenstream(comm, nlay, nxp, nyp, dx,dy,phi0, theta0, dz1d=dz(:,1,1), collapseindex=icollapse)
             is = C_one%xs +1; ie = C_one%xe +1; js = C_one%ys +1; je = C_one%ye +1
             call destroy_tenstream(.True.)
@@ -120,7 +120,7 @@ contains
         do j=js,je
             do i=is,ie
                 icol = icol+1
-                col_plev  (icol, :) = plev  (:, i, j)  
+                col_plev  (icol, :) = plev  (:, i, j)
                 col_tlay  (icol, :) = tlay  (:, i, j)
                 col_h2ovmr(icol, :) = h2ovmr(:, i, j)
                 col_o3vmr (icol, :) = o3vmr (:, i, j)
@@ -151,8 +151,8 @@ contains
             do i=is,ie
                 icol = icol+1
                 ! copy from number columns of rrtm interface back onto regular grid
-                kabs(:,i,j,:) = max(zero, col_tau(icol,:,:) * (one-col_w0 (icol,:,:))) 
-                ksca(:,i,j,:) = max(zero, col_tau(icol,:,:) *      col_w0 (icol,:,:) ) 
+                kabs(:,i,j,:) = max(zero, col_tau(icol,:,:) * (one-col_w0 (icol,:,:)))
+                ksca(:,i,j,:) = max(zero, col_tau(icol,:,:) *      col_w0 (icol,:,:) )
                 g   (:,i,j,:) = col_g  (icol,:,:)
 
                 ! reverse output from rrtm to start at TOA again
@@ -198,14 +198,14 @@ contains
 
         ! Loop over spectral intervals and call solver
         !ib = maxloc(weights, dim=1)
-        do ib=1,ngptsw 
+        do ib=1,ngptsw
             call set_optical_properties(albedo, kabs(:,:,:,ib), ksca(:,:,:,ib), g(:,:,:,ib))
             call solve_tenstream(weights(ib))
             call tenstream_get_result_toZero(spec_edir, spec_edn, spec_eup, spec_abso)
             if(myid.eq.0) then
                 edir = edir + spec_edir
-                edn  = edn  + spec_edn 
-                eup  = eup  + spec_eup 
+                edn  = edn  + spec_edn
+                eup  = eup  + spec_eup
                 abso = abso + spec_abso
             endif
         enddo
@@ -226,9 +226,9 @@ contains
         ! and use those without '_in' as before
         integer(im) :: ncol, nlay
 
-        real(rb),dimension(ncol_in,nlay_in+1) :: plev 
-        real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
-        real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq 
+        real(rb),dimension(ncol_in,nlay_in+1) :: plev
+        real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
+        real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq
 
         real(ireals), dimension(:),intent(out)   :: band_lbound, band_ubound, weights ! [ngptsw]
 
@@ -338,7 +338,7 @@ contains
         integer(im) :: k
         hhl(size(plev)) = hsrfc
         do k=size(tlay),1,-1
-            dp  = abs( plev(k)-plev(k+1) ) 
+            dp  = abs( plev(k)-plev(k+1) )
             rho = ( plev(k)+dp/2._ireals  ) / 287.058_ireals / tlay(k)
             dz(k) = dp / rho / 9.8065_ireals
             hhl(k) = hhl(k+1) + dz(k)

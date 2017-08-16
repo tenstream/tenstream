@@ -1,4 +1,4 @@
-@test(npes =[2,1]) 
+@test(npes =[2,1])
 subroutine test_rrtm_sw(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
@@ -66,7 +66,7 @@ subroutine test_rrtm_sw(this)
                 h2ovmr(:,i,j) = meanvec(atm(:,7)) / meanvec(atm(:,4))
                 o3vmr (:,i,j) = meanvec(atm(:,5)) / meanvec(atm(:,4))
                 co2vmr(:,i,j) = meanvec(atm(:,8)) / meanvec(atm(:,4))
-                ch4vmr(:,i,j) = co2vmr(:,i,j)/1e2        
+                ch4vmr(:,i,j) = co2vmr(:,i,j)/1e2
                 n2ovmr(:,i,j) = meanvec(atm(:,9)) / meanvec(atm(:,4))
                 o2vmr (:,i,j) = meanvec(atm(:,6)) / meanvec(atm(:,4))
             enddo
@@ -82,15 +82,15 @@ subroutine test_rrtm_sw(this)
             if(myid.eq.0) print *,'o2vmr  shape',shape(o2vmr )
         endif
     endif
-    call imp_bcast(comm, nlay  , 0_mpiint, myid)
-    call imp_bcast(comm, plev  , 0_mpiint, myid)
-    call imp_bcast(comm, tlay  , 0_mpiint, myid)
-    call imp_bcast(comm, h2ovmr, 0_mpiint, myid)
-    call imp_bcast(comm, o3vmr , 0_mpiint, myid)
-    call imp_bcast(comm, co2vmr, 0_mpiint, myid)
-    call imp_bcast(comm, ch4vmr, 0_mpiint, myid)
-    call imp_bcast(comm, n2ovmr, 0_mpiint, myid)
-    call imp_bcast(comm, o2vmr , 0_mpiint, myid)
+    call imp_bcast(comm, nlay  , 0_mpiint)
+    call imp_bcast(comm, plev  , 0_mpiint)
+    call imp_bcast(comm, tlay  , 0_mpiint)
+    call imp_bcast(comm, h2ovmr, 0_mpiint)
+    call imp_bcast(comm, o3vmr , 0_mpiint)
+    call imp_bcast(comm, co2vmr, 0_mpiint)
+    call imp_bcast(comm, ch4vmr, 0_mpiint)
+    call imp_bcast(comm, n2ovmr, 0_mpiint)
+    call imp_bcast(comm, o2vmr , 0_mpiint)
 
     allocate(lwc   (nlay  ,nxp,nyp))
     allocate(reliq (nlay  ,nxp,nyp))

@@ -55,7 +55,7 @@ contains
     logical,parameter :: ldebug=.True.
     logical :: lthermal, lsolar
 
-    comm     = MPI_COMM_WORLD
+    comm = MPI_COMM_WORLD
     call MPI_COMM_SIZE(comm, numnodes, mpierr)
     call MPI_COMM_RANK(comm, myid, mpierr)
 

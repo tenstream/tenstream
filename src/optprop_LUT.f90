@@ -914,14 +914,14 @@ end subroutine
           if(.not.angle_mask(iphi,itheta) ) cycle                               ! this LUT is not needed, skip....
           if ( mpi_logical_and(comm, allocated(OPP%dirLUT%T(iphi,itheta)%c)) ) cycle ! if all nodes have the LUT already, we dont need to scatter it...
 
-          call imp_bcast(comm, OPP%dirLUT%T(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIRECT
-          call imp_bcast(comm, OPP%dirLUT%S(iphi,itheta)%c, 0_mpiint, myid )  ! DIRECT 2 DIFFUSE
+          call imp_bcast(comm, OPP%dirLUT%T(iphi,itheta)%c, 0_mpiint)  ! DIRECT 2 DIRECT
+          call imp_bcast(comm, OPP%dirLUT%S(iphi,itheta)%c, 0_mpiint)  ! DIRECT 2 DIFFUSE
         enddo
       enddo
 
       ! DIFFUSE 2 DIFFUSE
       if( mpi_logical_or(comm, .not.allocated(OPP%diffLUT%S%c) )) & ! then ! if one or more nodes do not have it, guess we have to send it...
-        call imp_bcast(comm, OPP%diffLUT%S%c, 0_mpiint, myid )
+        call imp_bcast(comm, OPP%diffLUT%S%c, 0_mpiint)
 
   end subroutine
 subroutine bmc_wrapper(OPP, src, aspect, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)

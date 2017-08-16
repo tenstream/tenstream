@@ -907,7 +907,7 @@ contains
       atm%h2o_lev = prof(:,7) / prof(:,4)
       atm%o3_lev  = prof(:,5) / prof(:,4)
       atm%co2_lev = prof(:,8) / prof(:,4)
-      atm%ch4_lev = atm%co2_lev / 1e2        
+      atm%ch4_lev = atm%co2_lev / 1e2
       atm%n2o_lev = prof(:,9) / prof(:,4)
       atm%o2_lev  = prof(:,6) / prof(:,4)
 
@@ -918,15 +918,15 @@ contains
 
       endif
     endif
-    call imp_bcast(comm, atm%plev   , 0_mpiint, myid)
-    call imp_bcast(comm, atm%zt     , 0_mpiint, myid)
-    call imp_bcast(comm, atm%tlev   , 0_mpiint, myid)
-    call imp_bcast(comm, atm%h2o_lev, 0_mpiint, myid)
-    call imp_bcast(comm, atm%o3_lev , 0_mpiint, myid)
-    call imp_bcast(comm, atm%co2_lev, 0_mpiint, myid)
-    call imp_bcast(comm, atm%ch4_lev, 0_mpiint, myid)
-    call imp_bcast(comm, atm%n2o_lev, 0_mpiint, myid)
-    call imp_bcast(comm, atm%o2_lev , 0_mpiint, myid)
+    call imp_bcast(comm, atm%plev   , 0_mpiint)
+    call imp_bcast(comm, atm%zt     , 0_mpiint)
+    call imp_bcast(comm, atm%tlev   , 0_mpiint)
+    call imp_bcast(comm, atm%h2o_lev, 0_mpiint)
+    call imp_bcast(comm, atm%o3_lev , 0_mpiint)
+    call imp_bcast(comm, atm%co2_lev, 0_mpiint)
+    call imp_bcast(comm, atm%ch4_lev, 0_mpiint)
+    call imp_bcast(comm, atm%n2o_lev, 0_mpiint)
+    call imp_bcast(comm, atm%o2_lev , 0_mpiint)
 
     nlev = size(atm%plev)
 

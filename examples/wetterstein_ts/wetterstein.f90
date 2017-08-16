@@ -37,7 +37,7 @@ contains
     character(len=80) :: nc_path(2) ! [ filename, varname ]
     real(ireals),allocatable :: tmp(:,:,:)
 
-    integer(iintegers) :: k 
+    integer(iintegers) :: k
     integer(iintegers) :: nxp,nyp,nlay
     integer(iintegers) :: ncerr
 
@@ -75,13 +75,13 @@ contains
       if(myid.eq.0) print *,'n2ovmr shape',shape(n2ovmr)
       if(myid.eq.0) print *,'o2vmr  shape',shape(o2vmr )
     endif
-    call imp_bcast(comm, plev  , 0_mpiint, myid)
-    call imp_bcast(comm, tlay  , 0_mpiint, myid)
-    call imp_bcast(comm, h2ovmr, 0_mpiint, myid)
-    call imp_bcast(comm, o3vmr , 0_mpiint, myid)
-    call imp_bcast(comm, co2vmr, 0_mpiint, myid)
-    call imp_bcast(comm, n2ovmr, 0_mpiint, myid)
-    call imp_bcast(comm, o2vmr , 0_mpiint, myid)
+    call imp_bcast(comm, plev  , 0_mpiint)
+    call imp_bcast(comm, tlay  , 0_mpiint)
+    call imp_bcast(comm, h2ovmr, 0_mpiint)
+    call imp_bcast(comm, o3vmr , 0_mpiint)
+    call imp_bcast(comm, co2vmr, 0_mpiint)
+    call imp_bcast(comm, n2ovmr, 0_mpiint)
+    call imp_bcast(comm, o2vmr , 0_mpiint)
 
     nlay= ubound(plev,1)-1
     nxp = ubound(plev,2)

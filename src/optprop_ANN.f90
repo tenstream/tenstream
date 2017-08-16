@@ -89,7 +89,7 @@ contains
         netname = trim(basename)//trim(descr)//'_dir2dir.ANN.nc'
         call loadnet(netname, dir2dir_network, ierr)
       endif
-      call imp_bcast(comm, ierr, 0_mpiint, myid)
+      call imp_bcast(comm, ierr, 0_mpiint)
 
       if (comm_size.gt.1 .and. ierr.eq.0) then
         if(myid.ne.0) then
@@ -109,30 +109,30 @@ contains
     integer(mpiint), intent(in) :: comm
     logical :: l_have_angles
 
-    call imp_bcast(comm, net%weights    , 0_mpiint, myid)
-    call imp_bcast(comm, net%units      , 0_mpiint, myid)
-    call imp_bcast(comm, net%inno       , 0_mpiint, myid)
-    call imp_bcast(comm, net%outno      , 0_mpiint, myid)
-    call imp_bcast(comm, net%conec      , 0_mpiint, myid)
-    call imp_bcast(comm, net%deo        , 0_mpiint, myid)
-    call imp_bcast(comm, net%eni        , 0_mpiint, myid)
-    call imp_bcast(comm, net%inlimits   , 0_mpiint, myid)
-    call imp_bcast(comm, net%lastcall   , 0_mpiint, myid)
-    call imp_bcast(comm, net%lastresult , 0_mpiint, myid)
-    call imp_bcast(comm, net%in_size    , 0_mpiint, myid)
-    call imp_bcast(comm, net%out_size   , 0_mpiint, myid)
-    call imp_bcast(comm, net%initialized, 0_mpiint, myid)
-    call imp_bcast(comm, net%tau        , 0_mpiint, myid)
-    call imp_bcast(comm, net%w0         , 0_mpiint, myid)
-    call imp_bcast(comm, net%g          , 0_mpiint, myid)
+    call imp_bcast(comm, net%weights    , 0_mpiint)
+    call imp_bcast(comm, net%units      , 0_mpiint)
+    call imp_bcast(comm, net%inno       , 0_mpiint)
+    call imp_bcast(comm, net%outno      , 0_mpiint)
+    call imp_bcast(comm, net%conec      , 0_mpiint)
+    call imp_bcast(comm, net%deo        , 0_mpiint)
+    call imp_bcast(comm, net%eni        , 0_mpiint)
+    call imp_bcast(comm, net%inlimits   , 0_mpiint)
+    call imp_bcast(comm, net%lastcall   , 0_mpiint)
+    call imp_bcast(comm, net%lastresult , 0_mpiint)
+    call imp_bcast(comm, net%in_size    , 0_mpiint)
+    call imp_bcast(comm, net%out_size   , 0_mpiint)
+    call imp_bcast(comm, net%initialized, 0_mpiint)
+    call imp_bcast(comm, net%tau        , 0_mpiint)
+    call imp_bcast(comm, net%w0         , 0_mpiint)
+    call imp_bcast(comm, net%g          , 0_mpiint)
     if (myid.eq.0) then
       l_have_angles = allocated(net%phi) .and. allocated(net%theta)
     endif
-    call imp_bcast(comm, l_have_angles  , 0_mpiint, myid)
+    call imp_bcast(comm, l_have_angles  , 0_mpiint)
 
     if (l_have_angles) then
-      call imp_bcast(comm, net%phi        , 0_mpiint, myid)
-      call imp_bcast(comm, net%theta      , 0_mpiint, myid)
+      call imp_bcast(comm, net%phi        , 0_mpiint)
+      call imp_bcast(comm, net%theta      , 0_mpiint)
     endif
   end subroutine
 

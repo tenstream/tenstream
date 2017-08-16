@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -30,7 +30,7 @@ module f2c_tenstream
       use m_tenstream_options, only: read_commandline_options
 
       use m_helper_functions, only: imp_bcast,mean, CHKERR
-      
+
 #include "petsc/finclude/petsc.h"
       use petsc
 
@@ -40,16 +40,16 @@ module f2c_tenstream
 
 contains
 
-      subroutine tenstr_f2c_init(comm, Nz,Nx,Ny,dx,dy,hhl, phi0, theta0, collapseindex) bind(C)                                
+      subroutine tenstr_f2c_init(comm, Nz,Nx,Ny,dx,dy,hhl, phi0, theta0, collapseindex) bind(C)
         ! initialize tenstream environment
-        ! all nodes in communicator have to call this 
+        ! all nodes in communicator have to call this
         ! but only the zeroth node has to have meaningful values for the arguments except the communicator
         ! all but hhl is overwritten on nonzero nodes
 
         integer(c_int), value :: comm
         integer(c_int),intent(inout) :: collapseindex
-        integer(c_int),intent(inout) :: Nx,Ny,Nz                     
-        real(c_double),intent(inout) :: dx,dy 
+        integer(c_int),intent(inout) :: Nx,Ny,Nz
+        real(c_double),intent(inout) :: dx,dy
         real(c_float), intent(inout) :: phi0,theta0
         real(c_float), intent(in),dimension(Nz+1) :: hhl
 
@@ -82,16 +82,16 @@ contains
           ohhl = hhl
         endif
 
-        call imp_bcast(comm, oNx    ,0_mpiint,myid)
-        call imp_bcast(comm, oNy    ,0_mpiint,myid)
-        call imp_bcast(comm, oNz    ,0_mpiint,myid)
-        call imp_bcast(comm, odx    ,0_mpiint,myid)
-        call imp_bcast(comm, ody    ,0_mpiint,myid)
-        call imp_bcast(comm, ophi0  ,0_mpiint,myid)
-        call imp_bcast(comm, otheta0,0_mpiint,myid)
-        call imp_bcast(comm, ocollapseindex,0_mpiint,myid)
+        call imp_bcast(comm, oNx    ,0_mpiint)
+        call imp_bcast(comm, oNy    ,0_mpiint)
+        call imp_bcast(comm, oNz    ,0_mpiint)
+        call imp_bcast(comm, odx    ,0_mpiint)
+        call imp_bcast(comm, ody    ,0_mpiint)
+        call imp_bcast(comm, ophi0  ,0_mpiint)
+        call imp_bcast(comm, otheta0,0_mpiint)
+        call imp_bcast(comm, ocollapseindex,0_mpiint)
 
-        call imp_bcast(comm, ohhl,0_mpiint,myid)
+        call imp_bcast(comm, ohhl,0_mpiint)
 
         ! and overwrite input values to propagate values back to caller...
         Nx     = oNx
@@ -115,7 +115,7 @@ contains
         call init_tenstream(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, dz1d=odz)
 
         initialized=.True.
-      end subroutine                                             
+      end subroutine
 
       subroutine tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, albedo, kabs, ksca, g, planck) bind(c)
         integer(c_int), value :: Nx,Ny,Nz
@@ -157,7 +157,7 @@ contains
         real(ireals) :: oedirTOA
 
         if(myid.eq.0) oedirTOA = edirTOA
-        call imp_bcast(imp_comm, oedirTOA    ,0_mpiint,myid)
+        call imp_bcast(imp_comm, oedirTOA, 0_mpiint)
 
         call solve_tenstream(oedirTOA)
       end subroutine
