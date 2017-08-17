@@ -161,10 +161,12 @@ program main
   use m_data_parameters, only : iintegers, ireals, mpiint
   use m_example_rrtm_lw_sw
 
-  integer(mpiint) :: ierr
+  integer(mpiint) :: ierr, myid
   integer(iintegers) :: Nx, Ny, Nz
   logical :: lflg
+
   call mpi_init(ierr)
+  call mpi_comm_rank(mpi_comm_world, myid, mpierr)
 
   call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
 
@@ -173,7 +175,7 @@ program main
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr)
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr)
 
-  print *,'Grid Size:', Nx, Ny, Nz
+  if (myid.eq.0) print *,'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz
 
   call example_rrtm_lw_sw(Nx, Ny, Nz)
 
