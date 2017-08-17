@@ -4,7 +4,7 @@ module m_example_rrtm_lw_sw
   implicit none
 
 contains
-  subroutine example_rrtm_lw_sw
+  subroutine example_rrtm_lw_sw(nxp, nyp, nzp)
     ! Import datatype from the TenStream lib. Depending on how PETSC is
     ! compiled(single or double floats, or long ints), this will determine what
     ! the Tenstream uses.
@@ -14,12 +14,12 @@ contains
     use m_tenstr_rrtmg, only : tenstream_rrtmg, destroy_tenstream_rrtmg
 
     implicit none
+    integer(iintegers), intent(in) :: nxp, nyp, nzp      ! local domain size for each rank
 
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, mpierr
 
-    integer(iintegers),parameter :: nxp=3, nyp=3, nzp=10 ! local domain size for each rank
-    real(ireals),parameter :: dx=100, dy=dx              ! horizontal grid spacing in [m]
+    real(ireals),parameter :: dx=500, dy=dx              ! horizontal grid spacing in [m]
     real(ireals),parameter :: phi0=180, theta0=60        ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals),parameter :: albedo_th=0, albedo_sol=.3 ! broadband ground albedo for solar and thermal spectrum
     real(ireals),parameter :: atolerance = 1             ! absolute tolerance when regression testing fluxes
@@ -155,13 +155,27 @@ contains
 end module
 
 program main
+#include "petsc/finclude/petsc.h"
+  use petsc
   use mpi
+  use m_data_parameters, only : iintegers, ireals, mpiint
   use m_example_rrtm_lw_sw
 
-  integer ierr
+  integer(mpiint) :: ierr
+  integer(iintegers) :: Nx, Ny, Nz
+  logical :: lflg
   call mpi_init(ierr)
 
-  call example_rrtm_lw_sw()
+  call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
+
+  Nx=3; Ny=3; Nz=5
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg, ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg, ierr)
+  call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr)
+
+  print *,'Grid Size:', Nx, Ny, Nz
+
+  call example_rrtm_lw_sw(Nx, Ny, Nz)
 
   call mpi_finalize(ierr)
 end program
