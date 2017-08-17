@@ -10,7 +10,7 @@ SCALING_LOG="scaling.log"
 SCALING_OUTPUT="scaling.result"
 
 REPETITIONS=3
-MPI_OPT="--bind-to core --map-by socket"
+MPI_OPT="--bind-to core --map-by numa"
 EX_OPT="-log_view -Nx 3 -Ny 3 -Nz 50"
 
 echo "Running tenstream rrtmg benchmark with $NPROC processors"
