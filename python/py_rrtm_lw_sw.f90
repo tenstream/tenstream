@@ -187,7 +187,7 @@ contains
   end subroutine
 
   subroutine destroy_rrtmg
-    call destroy_tenstream_rrtmg()
+    call destroy_tenstream_rrtmg(lfinalizepetsc=.True.)
     deallocate(edir, edn, eup, abso)
   end subroutine
 

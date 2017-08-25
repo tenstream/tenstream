@@ -216,6 +216,6 @@ subroutine test_rrtm_lw_sw_icecloud(this)
     @assertEqual(-0.2941, abso(nlev-icld  ,1,1), atolerance, 'solar+thermal at icloud :: absorption not correct')
 
     ! Tidy up
-    call destroy_tenstream_rrtmg()
+    call destroy_tenstream_rrtmg(lfinalizepetsc=.True.)
 
 end subroutine

@@ -639,9 +639,10 @@ contains
     enddo
   end subroutine compute_solar
 
-  subroutine destroy_tenstream_rrtmg()
+  subroutine destroy_tenstream_rrtmg(lfinalizepetsc)
+    logical, intent(in) :: lfinalizepetsc
     ! Tidy up the solver
-    call destroy_tenstream(lfinalizepetsc=.True.)
+    call destroy_tenstream(lfinalizepetsc=lfinalizepetsc)
     linit_tenstr = .False.
   end subroutine
 

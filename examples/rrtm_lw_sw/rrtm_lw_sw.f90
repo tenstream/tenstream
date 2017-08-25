@@ -148,7 +148,7 @@ contains
     endif
 
     ! Tidy up
-    call destroy_tenstream_rrtmg()
+    call destroy_tenstream_rrtmg(lfinalizepetsc=.True.)
   end subroutine
 
 end module
