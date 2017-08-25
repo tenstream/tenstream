@@ -476,7 +476,7 @@ module m_helper_functions
         ! (no parallelization in direction 'dir' means dir_procs = 1)
 
         integer(iintegers) :: x,y
-        integer(mpiint) :: orig_id, new_id, petsc_id, ierr ! id according to fortran decomposition
+        integer(mpiint) :: orig_id, petsc_id ! id according to fortran decomposition
 
         call MPI_COMM_RANK( icomm, orig_id, mpierr ); call CHKERR(mpierr)
 

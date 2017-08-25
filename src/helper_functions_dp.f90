@@ -142,17 +142,23 @@ module m_helper_functions_dp
           endif
       end subroutine
 
-      subroutine  imp_bcast_logical(comm, val, sendid, myid)
+      subroutine  imp_bcast_logical(comm, val, sendid)
           integer(mpiint),intent(in) :: comm
           logical,intent(inout) :: val
-          integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint),intent(in) :: sendid
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+          if(commsize.le.1) return
 
           call mpi_bcast(val, 1_mpiint, imp_logical, sendid, comm, mpierr); call CHKERR(mpierr)
       end subroutine
-      subroutine  imp_bcast_int(comm, val,sendid,myid)
+      subroutine  imp_bcast_int(comm, val,sendid)
           integer(mpiint),intent(in) :: comm
           integer(iintegers),intent(inout) :: val
-          integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint),intent(in) :: sendid
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+          if(commsize.le.1) return
 
           call mpi_bcast(val,1_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
       end subroutine
@@ -182,32 +188,46 @@ module m_helper_functions_dp
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
           call mpi_bcast(arr,size(arr),imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
       end subroutine
-      subroutine  imp_bcast_real(comm, val,sendid,myid)
+      subroutine  imp_bcast_real(comm, val,sendid)
           integer(mpiint),intent(in) :: comm
           real(ireal_dp),intent(inout) :: val
-          integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint),intent(in) :: sendid
+
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+          if(commsize.le.1) return
 
           call mpi_bcast(val,1_mpiint,imp_real_dp,sendid,comm,mpierr); call CHKERR(mpierr)
       end subroutine
-      subroutine  imp_bcast_real_1d(comm, arr,sendid,myid)
+      subroutine  imp_bcast_real_1d(comm, arr,sendid)
           integer(mpiint),intent(in) :: comm
           real(ireal_dp),allocatable,intent(inout) :: arr(:)
-          integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint),intent(in) :: sendid
+          integer(mpiint) :: myid
 
           integer(iintegers) :: Ntot
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+          if(commsize.le.1) return
+          call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
           if(sendid.eq.myid) Ntot = size(arr)
-          call imp_bcast_int(comm, Ntot, sendid, myid)
+          call imp_bcast_int(comm, Ntot, sendid)
 
           if(myid.ne.sendid) allocate( arr(Ntot) )
           call mpi_bcast(arr,size(arr),imp_real_dp,sendid,comm,mpierr); call CHKERR(mpierr)
       end subroutine
-      subroutine  imp_bcast_real_2d(comm, arr,sendid,myid)
+      subroutine  imp_bcast_real_2d(comm, arr,sendid)
           integer(mpiint),intent(in) :: comm
           real(ireal_dp),allocatable,intent(inout) :: arr(:,:)
-          integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint),intent(in) :: sendid
+          integer(mpiint) :: myid
 
           integer(iintegers) :: Ntot(2)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+          if(commsize.le.1) return
+          call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
           if(sendid.eq.myid) Ntot = shape(arr)
           call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
@@ -215,12 +235,17 @@ module m_helper_functions_dp
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
           call mpi_bcast(arr,size(arr),imp_real_dp,sendid,comm,mpierr); call CHKERR(mpierr)
       end subroutine
-      subroutine  imp_bcast_real_3d(comm, arr,sendid,myid)
+      subroutine  imp_bcast_real_3d(comm, arr,sendid)
           integer(mpiint),intent(in) :: comm
           real(ireal_dp),allocatable,intent(inout) :: arr(:,:,:)
-          integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint),intent(in) :: sendid
+          integer(mpiint) :: myid
 
           integer(iintegers) :: Ntot(3)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+          if(commsize.le.1) return
+          call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
           if(sendid.eq.myid) Ntot = shape(arr)
           call mpi_bcast(Ntot,3_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
@@ -228,12 +253,17 @@ module m_helper_functions_dp
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3) ) )
           call mpi_bcast(arr,size(arr),imp_real_dp,sendid,comm,mpierr); call CHKERR(mpierr)
       end subroutine
-      subroutine  imp_bcast_real_5d(comm, arr,sendid,myid)
+      subroutine  imp_bcast_real_5d(comm, arr,sendid)
           integer(mpiint),intent(in) :: comm
           real(ireal_dp),allocatable,intent(inout) :: arr(:,:,:,:,:)
-          integer(mpiint),intent(in) :: sendid,myid
+          integer(mpiint),intent(in) :: sendid
+          integer(mpiint) :: myid
 
           integer(iintegers) :: Ntot(5)
+          integer(mpiint) :: commsize
+          call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+          if(commsize.le.1) return
+          call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
           if(sendid.eq.myid) Ntot = shape(arr)
           call mpi_bcast(Ntot,5_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
