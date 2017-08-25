@@ -106,12 +106,12 @@ contains
   end subroutine
 
   subroutine init_tenstream_rrtm_lw(comm, dx, dy, dz, &
-                  phi0, theta0, albedo, atm_filename, &
+                  phi0, theta0, atm_filename,         &
                   xm, ym, zm, nxproc, nyproc)
 
     integer(mpiint), intent(in) :: comm
 
-    real(ireals), intent(in) :: dx, dy, phi0, theta0, albedo, dz(:,:,:)
+    real(ireals), intent(in) :: dx, dy, phi0, theta0, dz(:,:,:)
     character(default_str_len), intent(in) :: atm_filename
     integer(iintegers),intent(in) :: xm, ym, zm
 
@@ -132,7 +132,7 @@ contains
   end subroutine
 
   subroutine tenstream_rrtm_lw(comm, dx, dy, phi0, theta0, albedo, atm_filename, &
-                               edir,edn,eup,abso,                                &
+                               edn,eup,abso,                                     &
                                d_plev, d_tlev, d_tlay, d_h2ovmr, d_o3vmr,        &
                                d_co2vmr, d_ch4vmr, d_n2ovmr,  d_o2vmr,           &
                                d_lwc, d_reliq, nxproc, nyproc, icollapse)
@@ -168,7 +168,7 @@ contains
     real(rb),allocatable :: col_lwp    (:,:)
     real(rb),allocatable :: col_reliq  (:,:)
 
-    integer(iintegers) :: i, j, k, icol, ib, ig
+    integer(iintegers) :: i, j, k, icol, ib
     integer(iintegers) :: is,ie, js,je, ks,ke,ke1
 
     real(ireals),allocatable :: dz(:,:,:)
@@ -176,11 +176,11 @@ contains
     real(ireals),allocatable, dimension(:,:,:)   :: ksca,g                                ! [nlyr, local_nx, local_ny, ngptlw]
     real(ireals),allocatable, dimension(:,:,:,:) :: kabs,Bfrac                            ! [nlyr, local_nx, local_ny, ngptlw]
     real(ireals),allocatable, dimension(:,:,:,:) :: Blev                                  ! [nlyr+1, local_nx, local_ny, nbndlw]
-    real(ireals),allocatable, dimension(:,:,:)   :: spec_edir,spec_edn,spec_eup,spec_abso ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:)   :: spec_edir, spec_edn,spec_eup,spec_abso! [nlyr(+1), local_nx, local_ny ]
 
-    real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:), intent(out) :: edn,eup,abso               ! [nlyr(+1), local_nx, local_ny ]
 
-    character(default_str_len) :: output_path(2) ! [ filename, varname ]
+    ! character(default_str_len) :: output_path(2) ! [ filename, varname ]
 
     call load_atmfile(comm, atm_filename, bg_atm)
 
@@ -319,7 +319,7 @@ contains
 
 
     if(.not.linit_tenstr) then
-      call init_tenstream_rrtm_lw(comm, dx, dy, dz, phi0, theta0, albedo, atm_filename, &
+      call init_tenstream_rrtm_lw(comm, dx, dy, dz, phi0, theta0, atm_filename, &
         ie,je,ke, nxproc, nyproc)
       linit_tenstr=.True.
     endif

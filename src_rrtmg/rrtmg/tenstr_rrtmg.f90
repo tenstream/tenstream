@@ -431,14 +431,14 @@ contains
     allocate(spec_abso(C_one%zm , C_one%xm , C_one%ym ))
 
     need_any_new_solution=.False.
-    do ib=1,ngptlw 
+    do ib=1,ngptlw
       if(need_new_solution(500+ib, opt_time)) need_any_new_solution=.True.
     enddo
     if(.not.need_any_new_solution) then
-      do ib=1,ngptlw 
+      do ib=1,ngptlw
         call tenstream_get_result(spec_edir, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
-        edn  = edn  + spec_edn 
-        eup  = eup  + spec_eup 
+        edn  = edn  + spec_edn
+        eup  = eup  + spec_eup
         abso = abso + spec_abso
       enddo
       return
@@ -501,15 +501,15 @@ contains
     deallocate(col_Bfrac )
 
     ! Loop over spectral intervals and call solver
-    do ib=1,ngptlw 
+    do ib=1,ngptlw
       if(need_new_solution(500+ib, opt_time)) then
         call set_optical_properties(albedo, kabs(:,:,:,ib), ksca(:,:,:), g(:,:,:), Blev(:,:,:,ngb(ib))*Bfrac(:,:,:,ib))
         call solve_tenstream(zero, opt_solution_uid=500+ib, opt_solution_time=opt_time)
       endif
       call tenstream_get_result(spec_edir, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
 
-      edn  = edn  + spec_edn 
-      eup  = eup  + spec_eup 
+      edn  = edn  + spec_edn
+      eup  = eup  + spec_eup
       abso = abso + spec_abso
     enddo
   end subroutine compute_thermal

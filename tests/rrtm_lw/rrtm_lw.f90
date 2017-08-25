@@ -30,7 +30,7 @@ subroutine test_rrtm_lw(this)
     real(ireals), dimension(nzp+1,nxp,nyp) :: plev, tlev
     real(ireals), dimension(nzp,nxp,nyp) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
     real(ireals), dimension(nzp,nxp,nyp) :: lwc, reliq
-    real(ireals),allocatable, dimension(:,:,:) :: edir,edn,eup,abso ! [nlev_merged(-1), nxp, nyp]
+    real(ireals),allocatable, dimension(:,:,:) :: edn,eup,abso ! [nlev_merged(-1), nxp, nyp]
 
     character(default_str_len),parameter :: atm_filename='afglus_100m.dat'
 
@@ -72,7 +72,7 @@ subroutine test_rrtm_lw(this)
     tlev (icld+1, :,:) = tlev (icld  , :,:)
 
     call tenstream_rrtm_lw(comm, dx, dy, phi0, theta0, albedo, atm_filename, &
-                               edir,edn,eup,abso,                            & 
+                               edn,eup,abso,                                 &
                                plev, tlev, d_lwc=lwc, d_reliq=reliq,         &
                                nxproc=nxproc, nyproc=nyproc)
     call destroy_tenstream_rrtm_lw()
