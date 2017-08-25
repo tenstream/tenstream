@@ -180,8 +180,8 @@ contains
     real(ireals),allocatable :: dz(:,:,:), dz_t2b(:,:,:) ! dz (t2b := top 2 bottom)
 
     ! for debug purposes, can output variables into netcdf files
-    character(default_str_len) :: output_path(2) ! [ filename, varname ]
-    logical :: lfile_exists
+    !character(default_str_len) :: output_path(2) ! [ filename, varname ]
+    !logical :: lfile_exists
 
     call load_atmfile(comm, atm_filename, bg_atm)
 
@@ -521,7 +521,7 @@ contains
       col_lwp, col_reliq, col_iwp, col_reice,                   &
       edir, edn, eup, abso, opt_time, solar_albedo_2d, phi2d, theta2d)
 
-      use m_tenstr_parrrsw, only: ngptsw, nbndsw,naerec
+      use m_tenstr_parrrsw, only: ngptsw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
 
 
