@@ -71,7 +71,7 @@ module m_tenstream
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
     options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
     options_phi, lforce_phi, options_theta, lforce_theta, &
-    lwriteall,lcalc_nca, lskip_thermal, lschwarzschild, ltopography
+    lcalc_nca, lskip_thermal, lschwarzschild, ltopography
 
   implicit none
 
@@ -3818,29 +3818,27 @@ subroutine restore_solution(solution,time)
 
   call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
-  if(lwriteall) then
-    if(solution%lsolar_rad) then
-      write(vecname,FMT='("edir",I0)') solution%uid
-      call PetscObjectSetName(solution%edir,vecname,ierr) ; call CHKERR(ierr)
-      call vec_to_hdf5(solution%edir)
-    endif
-
-    write(vecname,FMT='("ediff",I0)') solution%uid
-    call PetscObjectSetName(solution%ediff,vecname,ierr) ; call CHKERR(ierr)
-    call vec_to_hdf5(solution%ediff)
-
-    write(vecname,FMT='("abso",I0)') solution%uid
-    call PetscObjectSetName(solution%abso,vecname,ierr) ; call CHKERR(ierr)
-    call vec_to_hdf5(solution%abso)
-
-    write(vecname,FMT='("b",I0)') solution%uid
-    call PetscObjectSetName(b,vecname,ierr) ; call CHKERR(ierr)
-    call vec_to_hdf5(b)
-
-    write(vecname,FMT='("incSolar",I0)') solution%uid
-    call PetscObjectSetName(incSolar,vecname,ierr) ; call CHKERR(ierr)
-    call vec_to_hdf5(incSolar)
+  if(solution%lsolar_rad) then
+    write(vecname,FMT='("edir",I0)') solution%uid
+    call PetscObjectSetName(solution%edir,vecname,ierr) ; call CHKERR(ierr)
+    call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_edir", ierr); call CHKERR(ierr)
   endif
+
+  write(vecname,FMT='("ediff",I0)') solution%uid
+  call PetscObjectSetName(solution%ediff,vecname,ierr) ; call CHKERR(ierr)
+  call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_ediff", ierr); call CHKERR(ierr)
+
+  write(vecname,FMT='("abso",I0)') solution%uid
+  call PetscObjectSetName(solution%abso,vecname,ierr) ; call CHKERR(ierr)
+  call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_abso", ierr); call CHKERR(ierr)
+
+  write(vecname,FMT='("b",I0)') solution%uid
+  call PetscObjectSetName(b,vecname,ierr) ; call CHKERR(ierr)
+  call PetscObjectViewFromOptions(b, PETSC_NULL_VEC, "-show_b", ierr); call CHKERR(ierr)
+
+  write(vecname,FMT='("incSolar",I0)') solution%uid
+  call PetscObjectSetName(incSolar,vecname,ierr) ; call CHKERR(ierr)
+  call PetscObjectViewFromOptions(incSolar, PETSC_NULL_VEC, "-show_incSolar", ierr); call CHKERR(ierr)
 end subroutine
 
 subroutine getVecPointer(vec,C,x1d,x4d)
@@ -3890,11 +3888,6 @@ subroutine restoreVecPointer(vec,C,x1d,x4d)
   x4d => null()
   call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
   x1d => null()
-end subroutine
-
-subroutine vec_to_hdf5(v)
-  Vec,intent(in) :: v
-
 end subroutine
 
 function get_mem_footprint()

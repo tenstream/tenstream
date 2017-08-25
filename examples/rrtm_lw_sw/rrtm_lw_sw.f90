@@ -22,7 +22,6 @@ contains
     real(ireals),parameter :: dx=500, dy=dx              ! horizontal grid spacing in [m]
     real(ireals),parameter :: phi0=180, theta0=60        ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals),parameter :: albedo_th=0, albedo_sol=.3 ! broadband ground albedo for solar and thermal spectrum
-    real(ireals),parameter :: atolerance = 1             ! absolute tolerance when regression testing fluxes
 
     real(ireals), dimension(nzp+1,nxp,nyp) :: plev ! pressure on layer interfaces [hPa]
     real(ireals), dimension(nzp+1,nxp,nyp) :: tlev ! Temperature on layer interfaces [K]
@@ -49,7 +48,7 @@ contains
     character(len=default_str_len),parameter :: atm_filename='afglus_100m.dat'
 
     !------------ Local vars ------------------
-    integer(iintegers) :: i,j,k, nlev, icld
+    integer(iintegers) :: k, nlev, icld
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
     logical,parameter :: ldebug=.True.
@@ -158,7 +157,7 @@ program main
 #include "petsc/finclude/petsc.h"
   use petsc
   use mpi
-  use m_data_parameters, only : iintegers, ireals, mpiint
+  use m_data_parameters, only : iintegers, mpiint
   use m_example_rrtm_lw_sw
 
   integer(mpiint) :: ierr, myid

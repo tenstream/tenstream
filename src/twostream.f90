@@ -50,8 +50,6 @@ module m_twostream
         integer,allocatable :: IPIV(:)
         integer :: N, KLU,  KL, KU, NRHS, LDAB, LDB, INFO
 
-        real(ireals) :: b0,b1,c1,c2,c3 !thermal coeffs
-
         S=zero
         Edn=zero
         Eup=zero

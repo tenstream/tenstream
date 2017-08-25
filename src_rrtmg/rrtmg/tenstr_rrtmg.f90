@@ -521,7 +521,7 @@ contains
       col_lwp, col_reliq, col_iwp, col_reice,                   &
       edir, edn, eup, abso, opt_time, solar_albedo_2d, phi2d, theta2d)
 
-      use m_tenstr_parrrsw, only: ngptsw, nbndsw,naerec,jpb1, jpb2
+      use m_tenstr_parrrsw, only: ngptsw, nbndsw,naerec
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
 
 
@@ -554,7 +554,7 @@ contains
     real(ireals),allocatable, dimension(:,:,:,:) :: kabs, ksca, g                  ! [nlyr, local_nx, local_ny, ngptsw]
     real(ireals),allocatable, dimension(:,:,:)   :: spec_edir, spec_edn,spec_eup,spec_abso    ! [nlyr(+1), local_nx, local_ny ]
 
-    integer(iintegers) :: i, j, k, icol, ib
+    integer(iintegers) :: i, j, icol, ib
     logical :: need_any_new_solution
 
     allocate(spec_edir(C_one1%zm, C_one1%xm, C_one1%ym))
@@ -657,7 +657,7 @@ contains
     real(ireals), intent(in) :: albedo
 
     real(rb),dimension(ncol_in,nlay_in+1) :: plev, tlev
-    real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
+    real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
     real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq, iwp, reice
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [ncol, nlay, ngptlw]
@@ -670,7 +670,7 @@ contains
 
     real(rb),dimension(ncol_in, nlay_in)   :: cfc11vmr,cfc12vmr,cfc22vmr,ccl4vmr
 
-    real(rb),dimension(ncol_in) :: tsfc 
+    real(rb),dimension(ncol_in) :: tsfc
 
     real(rb),dimension(ncol_in,nlay_in+1) :: lwuflx,lwdflx,lwuflxc,lwdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: lwhr,lwhrc
@@ -744,7 +744,7 @@ contains
     integer(iintegers),intent(in)          :: ncol_in, nlay_in
 
     real(rb),dimension(ncol_in,nlay_in+1) :: plev, tlev
-    real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
+    real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
     real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq, iwp, reice
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, w0, g ! [ncol, nlay, ngptsw]
@@ -783,7 +783,7 @@ contains
     enddo
 
     taucld = 0; ssacld = 0; asmcld  = 0;
-    fsfcld = 0; 
+    fsfcld = 0;
     tauaer = 0; ssaaer  = 0; asmaer  = 0;
     ecaer  = 0; coszen = 1; asdir   = 0; aldir   = 0;
     asdif  = 0; aldif  = 0; swdflxc = 0; swuflxc = 0;

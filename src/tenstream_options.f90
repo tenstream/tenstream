@@ -29,7 +29,6 @@ module m_tenstream_options
 
       logical :: ltwostr  =.False., & ! additionally calculate delta eddington twostream solution
         ltwostr_only      =.False., & ! only calculate twostream
-        lwriteall         =.False., & ! write out each and every solution -- mainly good to debug solver
         luse_eddington    =.True. , & ! use delta eddington coefficients for upper atmosphere            , if False , we use boxmc 2-str coeffs
         luse_hdf5_guess   =.False., & ! try loading initial guess from file
         luse_twostr_guess =.False., & ! use twostream solution as first guess
@@ -126,8 +125,6 @@ module m_tenstream_options
 
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-eddington",luse_eddington,lflg,ierr) ;call CHKERR(ierr)
 
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-writeall",lwriteall,lflg,ierr) ;call CHKERR(ierr)
-
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , "-twostr" , ltwostr , lflg , ierr) ;call CHKERR(ierr)
 
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , "-hdf5_guess"   , luse_hdf5_guess   , lflg , ierr) ;call CHKERR(ierr)
@@ -174,7 +171,6 @@ module m_tenstream_options
             print *,'***   nr. of Nodes:',numnodes
             print *,'***   eddington    ',luse_eddington
             print *,'***   coeff_mode   ',coeff_mode
-            print *,'***   writeall     ',lwriteall
             print *,'***   twostr_only  ',ltwostr_only
             print *,'***   twostr       ',ltwostr
             print *,'***   twostr_guess ',luse_twostr_guess
