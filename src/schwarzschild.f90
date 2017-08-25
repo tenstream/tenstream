@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -20,7 +20,7 @@
 module m_schwarzschild
 
 #ifdef _XLF
-      use ieee_arithmetic 
+      use ieee_arithmetic
 #define isnan ieee_is_nan
 #endif
 
@@ -35,7 +35,7 @@ module m_schwarzschild
       subroutine schwarzschild(dtau, albedo, Edn, Eup, planck)
         real(ireals),intent(in),dimension(:) :: dtau
         real(ireals),intent(in) :: albedo
-        real(ireals),dimension(:),intent(out):: Edn,Eup 
+        real(ireals),dimension(:),intent(out):: Edn,Eup
         real(ireals),dimension(:),intent(in) :: planck
 
         integer(iintegers) :: imu,k,ke,ke1
@@ -56,15 +56,15 @@ module m_schwarzschild
 
         ! Transmission coefficients
         do imu=1,Nmu
-          mu = (imu-.5_ireals)*dmu 
+          mu = (imu-.5_ireals)*dmu
           T = exp(- dtau/mu)
 
           ! Boundary conditions at surface
-          Lup = planck(ke1)
+          Lup = planck(ke1) * (one-albedo)
           Eup(ke1) = Eup(ke1) + Lup*mu
 
           ! zero incoming radiation at TOA
-          Ldn = zero  
+          Ldn = zero
           Edn(1) = Edn(1) + Ldn*mu
 
           do k=ke,1,-1
