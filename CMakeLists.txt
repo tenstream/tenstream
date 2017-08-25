@@ -200,3 +200,11 @@ if(ENABLE_PYTHON)
   add_custom_target(python_interface ALL)
 	add_subdirectory(python)
 endif(ENABLE_PYTHON)
+
+option(ENABLE_C_WRAPPER "Enable creation of C Wrapper " ON)
+if(ENABLE_C_WRAPPER)
+	add_subdirectory(C_wrapper)
+endif(ENABLE_C_WRAPPER)
+
+GET_DIRECTORY_PROPERTY(output INCLUDE_DIRECTORIES)
+MESSAGE(WARNING ${output})
