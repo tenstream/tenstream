@@ -531,7 +531,7 @@
          endif
 
          do ig=1,ngptlw
-           tenstr_tau(iplon, :, ig) = taut(1:nlay, ig) + taucloud(1:nlay, ngb(ig)) * cldfrac(:)
+           tenstr_tau(iplon, :, ig) = taut(1:nlay, ig) + taucloud(1:nlay, ngb(ig)) * cldfrac(1:nlay)
            tenstr_Bfrac(iplon, :, ig) = fracs(1:nlay,ig)
          enddo
 
