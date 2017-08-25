@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
   int        numprocs, myid, fcomm;
 
   int    Nx=3, Ny=3, Nz=2;
-  double dx=100,dy=100, dz=40.414518843273818;
+  double dx=1000,dy=1000, dz=150;
   double phi0=0, theta0=60;
   double albedo_th=1e-8, albedo_sol=.2;
   char   atm_filename[] = "afglus.dat";
@@ -108,10 +108,10 @@ int main(int argc, char *argv[]) {
     //}
   }
 
-  int lfinalizepetsc = 0;
-  f2c_destroy_tenstream_rrtmg(&lfinalizepetsc);
+  int lfinalizepetsc = 0; // dont drop the Petsc environment if we called initialize here in the C program
+  f2c_destroy_tenstream_rrtmg(&lfinalizepetsc); // deletes the state of the tenstream solver
 
-  PetscFinalize();
+  PetscFinalize(); // have to do it on our own...
   MPI_Finalize();
   return(0);
 

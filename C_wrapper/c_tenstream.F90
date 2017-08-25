@@ -90,7 +90,6 @@ contains
 
     atm_filename = c_to_f_string(c_atm_filename)
 
-
     lthermal = c_int_2_logical(c_lthermal)
     lsolar   = c_int_2_logical(c_lsolar)
 
