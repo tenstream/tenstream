@@ -46,9 +46,9 @@ set(CMAKE_C_COMPILER   "mpicc")
 set(CMAKE_Fortran_COMPILER   "mpif90")
 set(Fortran_COMPILER_WRAPPER "mpif90")
 
-set(USER_C_FLAGS               "-cpp -W -std=c99") 
-set(USER_Fortran_FLAGS         "-cpp -ffree-line-length-none -g") 
-set(USER_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3") 
+set(USER_C_FLAGS               "-cpp -W -std=c99")
+set(USER_Fortran_FLAGS         "-cpp -ffree-line-length-none -g")
+set(USER_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3")
 set(USER_Fortran_FLAGS_DEBUG   "-fbacktrace -finit-real=nan -W -Wall -Wuninitialized -g -pg -fcheck=all -fbounds-check -pedantic -Wsurprising -ffpe-trap=invalid,zero,overflow -fno-range-check")
 
 set(NETCDF_DIR      "$ENV{NETCDF}")
