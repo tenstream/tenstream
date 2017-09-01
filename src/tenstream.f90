@@ -145,7 +145,7 @@ module m_tenstream
 
   Mat,allocatable :: Mdir,Mdiff
 
-  Vec,save :: incSolar,b
+  Vec,allocatable,save :: incSolar,b
 
   KSP,save :: kspdir, kspdiff
   logical,save :: linit_kspdir=.False., linit_kspdiff=.False.
@@ -1224,7 +1224,7 @@ contains
     do j=C_dir%ys,C_dir%ye
       do i=C_dir%xs,C_dir%xe
         x4d(i0:i3,C_dir%zs,i,j) = edirTOA* Az * .25_ireals * sun%angles(C_dir%zs,i,j)%costheta
-      enddo 
+      enddo
     enddo
 
     call restoreVecPointer(incSolar,C_dir,x1d,x4d)
@@ -2119,9 +2119,9 @@ contains
   end subroutine
 
   !> @brief simple schwarzschild solver
-  !> @details Wrapper for the schwarzschild solver for the radiative transfer equation 
+  !> @details Wrapper for the schwarzschild solver for the radiative transfer equation
   !> \n The solver neglects the scattering term and just solves for lambert beerschen transport + emission
-  !> \n This is the simplest radiation solver but quite accurate for thermal calculations 
+  !> \n This is the simplest radiation solver but quite accurate for thermal calculations
   subroutine schwarz(solution)
     type(t_state_container) :: solution
 
@@ -2208,7 +2208,7 @@ contains
     allocate( Edn(C_one_atm1%zs:C_one_atm1%ze) )
 
 
-    do j=C_one_atm%ys,C_one_atm%ye         
+    do j=C_one_atm%ys,C_one_atm%ye
       do i=C_one_atm%xs,C_one_atm%xe
 
         mu0 = sun%angles(C_one_atm1%zs,i,j)%costheta
@@ -2442,9 +2442,9 @@ contains
 ! Deprecated --    call getVecPointer(inp ,C ,xinp1d, xinp ,.False.)
 ! Deprecated --    call getVecPointer(local_guess ,C ,xguess1d, xguess ,.True.)
 ! Deprecated --
-! Deprecated --    do j=C%ys,C%ye         
-! Deprecated --      do i=C%xs,C%xe    
-! Deprecated --        do k=C%zs,C%ze-1 
+! Deprecated --    do j=C%ys,C%ye
+! Deprecated --      do i=C%xs,C%xe
+! Deprecated --        do k=C%zs,C%ze-1
 ! Deprecated --          if( .not. atm%l1d(k,i,j) ) then
 ! Deprecated --            call get_coeff(atm%op(k,i,j), atm%dz(k,i,j),.False., diff2diff, atm%l1d(k,i,j) )
 ! Deprecated --            do src=1,C%dof
@@ -2477,9 +2477,12 @@ contains
 
   !> @brief initialize basic memory structs like PETSc vectors and matrices
   subroutine init_memory(incSolar,b)
-    Vec :: b,incSolar
+    Vec, allocatable :: b,incSolar
 
     if(ltwostr_only) return
+
+    if(.not.allocated(incSolar)) allocate(incSolar)
+    if(.not.allocated(b)) allocate(b)
 
     call DMCreateGlobalVector(C_dir%da,incSolar,ierr) ; call CHKERR(ierr)
     call DMCreateGlobalVector(C_diff%da,b,ierr)       ; call CHKERR(ierr)
@@ -3110,7 +3113,7 @@ contains
     call prepare_solution( solutions(uid), uid, lsolar=lsolar ) ! setup solution vectors
 
     ! --------- Skip Thermal Computation (-lskip_thermal) --
-    if(lskip_thermal .and. (solutions(uid)%lsolar_rad.eqv..False.) ) then ! 
+    if(lskip_thermal .and. (solutions(uid)%lsolar_rad.eqv..False.) ) then !
       if(ldebug .and. myid.eq.0) print *,'skipping thermal calculation -- returning zero flux'
       call VecSet(solutions(uid)%ediff, zero, ierr); call CHKERR(ierr)
       solutions(uid)%lchanged=.True.
@@ -3132,7 +3135,7 @@ contains
 
     if(ldebug .and. myid.eq.0) print *,'1D calculation done'
 
-    if(present(opt_solution_time) ) then 
+    if(present(opt_solution_time) ) then
       call restore_solution(solutions(uid),opt_solution_time)
     else
       call restore_solution(solutions(uid))
@@ -3177,7 +3180,7 @@ contains
 
   call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
-  if(present(opt_solution_time) ) then 
+  if(present(opt_solution_time) ) then
     call restore_solution(solutions(uid),opt_solution_time)
   else
     call restore_solution(solutions(uid))
@@ -3201,6 +3204,8 @@ subroutine destroy_tenstream(lfinalizepetsc)
     if(.not. ltwostr_only) then
       call VecDestroy(incSolar , ierr) ;call CHKERR(ierr)
       call VecDestroy(b        , ierr) ;call CHKERR(ierr)
+      deallocate(incSolar)
+      deallocate(b)
     endif
     call destroy_matrices()
 
@@ -3773,12 +3778,12 @@ subroutine restore_solution(solution,time)
     stop 'cant restore solution which was not changed'
 
   if(present(time) .and. lenable_solutions_err_estimates) then ! Create working vec to determine difference between old and new absorption vec
-    call DMGetGlobalVector(C_one%da, abso_old, ierr) ; call CHKERR(ierr) 
+    call DMGetGlobalVector(C_one%da, abso_old, ierr) ; call CHKERR(ierr)
     call VecCopy( solution%abso, abso_old, ierr)     ; call CHKERR(ierr)
   endif
 
   ! make sure to bring the fluxes into [W] for absorption calculation
-  call scale_flx(solution, lWm2_to_W=.True. ) 
+  call scale_flx(solution, lWm2_to_W=.True. )
 
   ! update absorption
   call calc_flx_div(solution)
@@ -3787,7 +3792,7 @@ subroutine restore_solution(solution,time)
     print *,'Saving Solution ',solution%uid
 
   ! make sure to bring the fluxes into [W/m**2]
-  call scale_flx(solution, lWm2_to_W=.False. ) 
+  call scale_flx(solution, lWm2_to_W=.False. )
 
   if(ldebug .and. myid.eq.0) &
     print *,'Saving Solution done'
@@ -3799,14 +3804,14 @@ subroutine restore_solution(solution,time)
     call VecNorm(abso_old ,  NORM_2, norm2, ierr)          ; call CHKERR(ierr)
     call VecNorm(abso_old ,  NORM_INFINITY, norm3, ierr)   ; call CHKERR(ierr)
 
-    call DMRestoreGlobalVector(C_one%da, abso_old, ierr)   ; call CHKERR(ierr) 
+    call DMRestoreGlobalVector(C_one%da, abso_old, ierr)   ; call CHKERR(ierr)
 
     ! Save norm for later analysis
     solution%maxnorm = eoshift ( solution%maxnorm, shift = -1) !shift all values by 1 to the right
     solution%twonorm = eoshift ( solution%twonorm, shift = -1) !shift all values by 1 to the right
     solution%time    = eoshift ( solution%time   , shift = -1) !shift all values by 1 to the right
 
-    solution%maxnorm( 1 ) = norm3 
+    solution%maxnorm( 1 ) = norm3
     solution%twonorm( 1 ) = norm2
     solution%time( 1 )    = time
 
@@ -3832,13 +3837,17 @@ subroutine restore_solution(solution,time)
   call PetscObjectSetName(solution%abso,vecname,ierr) ; call CHKERR(ierr)
   call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_abso", ierr); call CHKERR(ierr)
 
-  write(vecname,FMT='("b",I0)') solution%uid
-  call PetscObjectSetName(b,vecname,ierr) ; call CHKERR(ierr)
-  call PetscObjectViewFromOptions(b, PETSC_NULL_VEC, "-show_b", ierr); call CHKERR(ierr)
+  if(allocated(b)) then
+    write(vecname,FMT='("b",I0)') solution%uid
+    call PetscObjectSetName(b,vecname,ierr) ; call CHKERR(ierr)
+    call PetscObjectViewFromOptions(b, PETSC_NULL_VEC, "-show_b", ierr); call CHKERR(ierr)
+  endif
 
-  write(vecname,FMT='("incSolar",I0)') solution%uid
-  call PetscObjectSetName(incSolar,vecname,ierr) ; call CHKERR(ierr)
-  call PetscObjectViewFromOptions(incSolar, PETSC_NULL_VEC, "-show_incSolar", ierr); call CHKERR(ierr)
+  if(allocated(incSolar)) then
+    write(vecname,FMT='("incSolar",I0)') solution%uid
+    call PetscObjectSetName(incSolar,vecname,ierr) ; call CHKERR(ierr)
+    call PetscObjectViewFromOptions(incSolar, PETSC_NULL_VEC, "-show_incSolar", ierr); call CHKERR(ierr)
+  endif
 end subroutine
 
 subroutine getVecPointer(vec,C,x1d,x4d)
@@ -3894,7 +3903,7 @@ function get_mem_footprint()
   real(ireals) :: get_mem_footprint
   PetscLogDouble :: memory_footprint, petsc_current_mem
   get_mem_footprint = zero
-  
+
   call mpi_barrier(imp_comm, ierr)
   call PetscMemoryGetCurrentUsage(memory_footprint, ierr); call CHKERR(ierr)
 
