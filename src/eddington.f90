@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -22,7 +22,7 @@ module m_eddington
       use m_helper_functions, only: approx,delta_scale_optprop
 
 #ifdef _XLF
-  use ieee_arithmetic 
+  use ieee_arithmetic
 #define isnan ieee_is_nan
 #endif
 
@@ -276,6 +276,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           real(ireal128) ::  bscr
 
           real(ireal128),parameter ::  eps_resonance=1e-5_ireal128
+          real(ireal128),parameter :: max_exponential = log(huge(max_exponential)/1e2)
 
           ! Singularities -- dont use values before here
           dtau   = max( epsilon(dtau_in)   , dtau_in   )
@@ -291,22 +292,22 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           bbar  = 3._ireal128/8._ireal128*(one-g)
           b_minus_mu0 = .5_ireal128 - .75_ireal128 * g *mu_0
 
-          alpha_1 = ( one - omega_0*(one-bbar) ) / mubar 
+          alpha_1 = ( one - omega_0*(one-bbar) ) / mubar
           alpha_2 = omega_0*bbar/mubar
 
           bscr = 0.5_ireal128 - 0.375_ireal128 * g;
           alpha_1 = 2._ireal128 * ( 1._ireal128 - omega_0 * ( 1._ireal128 - bscr ) ) - 0.25_ireal128;
           alpha_2 = 2._ireal128 * omega_0 * bscr - 0.25_ireal128;
 
-          lambda = sqrt(alpha_1**2 - alpha_2** 2) 
+          lambda = sqrt(alpha_1**2 - alpha_2** 2)
 
-          e1 = min(huge(e1)   , exp( lambda*dtau))
-          e2 = max(epsilon(e2), exp(-lambda*dtau))
+          e1 = exp( min(max_exponential, lambda*dtau))
+          e2 = exp(-min(max_exponential, lambda*dtau))
 
           alpha1_m_lambda = max(epsilon(alpha_1), alpha_1-lambda )
           alpha1_p_lambda = max(epsilon(alpha_1), alpha_1+lambda )
 
-          A = one / ( alpha_2/(alpha1_m_lambda) *e1 - alpha_2/(alpha1_p_lambda) * e2 )
+          A = one / ( alpha_2/alpha1_m_lambda*e1 - alpha_2/alpha1_p_lambda * e2 )
 
           beta11  =  A * alpha_2/alpha1_m_lambda
           beta21  = -A * alpha_2/alpha1_p_lambda
