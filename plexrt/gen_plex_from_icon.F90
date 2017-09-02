@@ -4,6 +4,7 @@ module m_gen_plex_from_icon
   use petsc
   use m_netcdfIO, only: ncload
   use m_helper_functions, only: CHKERR
+  use m_icon_plexgrid, only: t_plexgrid, read_icon_grid_file, load_plex_from_file, TOP_BOT_FACE, SIDE_FACE
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     default_str_len, &
     i0, i1, i2, i3, i4, i5,  &
@@ -16,60 +17,7 @@ module m_gen_plex_from_icon
 
   integer(mpiint) :: ierr
 
-  type :: t_plexgrid
-    DM :: dm
-    character(len=8) :: boundary_label = 'boundary'
-
-    ! Index counters on plex:
-    integer(iintegers) :: pStart, pEnd ! points
-    integer(iintegers) :: cStart, cEnd ! cells
-    integer(iintegers) :: fStart, fEnd ! faces
-    integer(iintegers) :: eStart, eEnd ! edges
-    integer(iintegers) :: vStart, vEnd ! vertices
-
-    integer(iintegers) :: Nfaces2d, Nedges2d, Nvertices2d ! number of entries in base icon grid
-    integer(iintegers) :: Nz = 1 ! Number of layers, in 2D set to one
-
-    integer(iintegers), allocatable, dimension(:,:) :: icon_vertex_of_cell, icon_edge_of_cell, icon_edge_vertices
-    integer(iintegers), allocatable, dimension(:) :: icon_cell_index, icon_edge_index, icon_vertex_index
-    real(ireals), allocatable, dimension(:) :: icon_cartesian_x_vertices, icon_cartesian_y_vertices, icon_cartesian_z_vertices
-    integer(iintegers), allocatable, dimension(:) :: icon_cell_sea_land_mask ! "sea (-2 inner, -1 boundary) land (2 inner, 1 boundary) mask for the cell"
-  end type
-
   contains
-    subroutine read_icon_grid_file(fname, plexgrid)
-      character(len=*),intent(in) :: fname
-      type(t_plexgrid),intent(inout) :: plexgrid
-      character(default_str_len) :: varname(2)
-
-      if( allocated(plexgrid%icon_vertex_of_cell) .or. allocated(plexgrid%icon_edge_of_cell) ) then
-        print *,'Icon plexgrid already loaded...'
-      else
-        if (ldebug) print *,'Reading Icon plexgrid File:', trim(fname)
-        varname(1) = fname
-
-        varname(2) = 'vertex_of_cell'; call ncload(varname, plexgrid%icon_vertex_of_cell, ierr); call CHKERR(ierr)
-        varname(2) = 'edge_of_cell'  ; call ncload(varname, plexgrid%icon_edge_of_cell  , ierr); call CHKERR(ierr)
-        varname(2) = 'edge_vertices' ; call ncload(varname, plexgrid%icon_edge_vertices , ierr); call CHKERR(ierr)
-        varname(2) = 'cell_index'    ; call ncload(varname, plexgrid%icon_cell_index    , ierr); call CHKERR(ierr)
-        varname(2) = 'edge_index'    ; call ncload(varname, plexgrid%icon_edge_index    , ierr); call CHKERR(ierr)
-        varname(2) = 'vertex_index'  ; call ncload(varname, plexgrid%icon_vertex_index  , ierr); call CHKERR(ierr)
-        varname(2) = 'cell_sea_land_mask'  ; call ncload(varname, plexgrid%icon_cell_sea_land_mask  , ierr); call CHKERR(ierr)
-        varname(2) = 'cartesian_x_vertices'; call ncload(varname, plexgrid%icon_cartesian_x_vertices, ierr); call CHKERR(ierr)
-        varname(2) = 'cartesian_y_vertices'; call ncload(varname, plexgrid%icon_cartesian_y_vertices, ierr); call CHKERR(ierr)
-        varname(2) = 'cartesian_z_vertices'; call ncload(varname, plexgrid%icon_cartesian_z_vertices, ierr); call CHKERR(ierr)
-      endif
-
-      if (ldebug) then
-        print *,'shape vertex of cell', shape(plexgrid%icon_vertex_of_cell), size(plexgrid%icon_vertex_of_cell),'::', &
-          minval(plexgrid%icon_vertex_of_cell), maxval(plexgrid%icon_vertex_of_cell)
-
-        print *,'shape edge of cell', shape(plexgrid%icon_edge_of_cell), size(plexgrid%icon_edge_of_cell)
-        print *,'shape cell_index',   shape(plexgrid%icon_cell_index  )
-        print *,'shape edge_index',   shape(plexgrid%icon_edge_index  )
-        print *,'shape vertex_index', shape(plexgrid%icon_vertex_index)
-      endif
-    end subroutine
 
     subroutine create_dmplex_2d(plex, dmname)
       type(t_plexgrid),intent(inout) :: plex
@@ -245,6 +193,10 @@ module m_gen_plex_from_icon
       integer(iintegers) :: offset_faces_sides, offset_edges_vertical
       integer(iintegers) :: vert2(2), edge3(3), edge4(4), faces(5)
 
+      type(tDMLabel) :: faceposlabel, zindexlabel, TOAlabel
+
+      ! Create Plex
+      allocate(plex%dm)
       call DMPlexCreate(PETSC_COMM_SELF, plex%dm, ierr);call CHKERR(ierr)
 
       call PetscObjectSetName(plex%dm, trim(dmname), ierr);call CHKERR(ierr)
@@ -272,6 +224,16 @@ module m_gen_plex_from_icon
       print *,'offsets edges:', offset_edges, offset_edges_vertical
       print *,'offsets verte:', offset_vertices
       print *,'Chartsize:', chartsize
+
+      ! Create some labels ... those are handy later when setting up matrices etc
+      call DMCreateLabel(plex%dm, "Face Position", ierr); CHKERRQ(ierr)
+      call DMCreateLabel(plex%dm, "Vertical Index", ierr); CHKERRQ(ierr)
+      call DMCreateLabel(plex%dm, "TOA", ierr); CHKERRQ(ierr)
+
+      call DMGetLabel(plex%dm, "Face Position", faceposlabel, ierr); CHKERRQ(ierr)
+      call DMGetLabel(plex%dm, "Vertical Index", zindexlabel, ierr); CHKERRQ(ierr)
+      call DMGetLabel(plex%dm, "TOA", TOAlabel, ierr); CHKERRQ(ierr)
+
 
       ! Preallocation
       ! Every cell has 5 faces
@@ -309,6 +271,8 @@ module m_gen_plex_from_icon
           faces(3:5) = offset_faces_sides + (edge3-i1) + (k-1)*plex%Nedges2d
 
           call DMPlexSetCone(plex%dm, icell_icon_2_plex(plex, icell, k), faces, ierr); call CHKERR(ierr)
+
+          call DMLabelSetValue(zindexlabel, icell, k, ierr); call CHKERR(ierr)
         enddo
       enddo
 
@@ -320,6 +284,10 @@ module m_gen_plex_from_icon
 
           call DMPlexSetCone(plex%dm, offset_faces + plex%Nfaces2d*(k-1) + icell -i1, edge3, ierr); call CHKERR(ierr)
           !print *,'edges @ horizontal faces',icell,':',edge3,'petsc:', offset_faces + Nfaces2d*(k-1) + icell -i1, '::', edge3
+          call DMLabelSetValue(faceposlabel, offset_faces + plex%Nfaces2d*(k-1) + icell -i1, TOP_BOT_FACE, ierr); call CHKERR(ierr)
+          if (k.eq.i1) then
+            call DMLabelSetValue(TOAlabel, offset_faces + plex%Nfaces2d*(k-1) + icell -i1, i1, ierr); call CHKERR(ierr)
+          endif
         enddo
       enddo
 
@@ -335,6 +303,7 @@ module m_gen_plex_from_icon
 
           call DMPlexSetCone(plex%dm, offset_faces_sides + iedge-i1 + plex%Nedges2d*(k-i1),edge4, ierr); call CHKERR(ierr)
           !print *,'edges @ vertical faces',iedge,':',edge4,'petsc:', offset_faces_sides + iedge-i1 + Nedges2d*(k-i1), '::', edge4
+          call DMLabelSetValue(faceposlabel, offset_faces_sides + iedge-i1 + plex%Nedges2d*(k-i1), SIDE_FACE, ierr); call CHKERR(ierr)
         enddo
       enddo
 
@@ -362,13 +331,13 @@ module m_gen_plex_from_icon
         enddo
       enddo
 
-      !! Set cone orientations -- could traverse the DAG other way round, with values being -1
-      !do i = 0, size(plex%icon_cell_index)-1
-      !  call DMPlexSetConeOrientation(plex%dm, i, [i0,i0,i0], ierr); call CHKERR(ierr)
-      !enddo
-      !do i = offset_edges, offset_vertices-1
-      !  call DMPlexSetConeOrientation(plex%dm, i, [i0,i0], ierr); call CHKERR(ierr)
-      !enddo
+      ! Set cone orientations -- could traverse the DAG other way round, with values being -1
+      do i = 0, size(plex%icon_cell_index)-1
+        call DMPlexSetConeOrientation(plex%dm, i, [i0,i0,i0], ierr); call CHKERR(ierr)
+      enddo
+      do i = offset_edges, offset_vertices-1
+        call DMPlexSetConeOrientation(plex%dm, i, [i0,i0], ierr); call CHKERR(ierr)
+      enddo
 
       print *,'Symmetrize'
       call DMPlexSymmetrize(plex%dm, ierr); call CHKERR(ierr)
@@ -384,7 +353,7 @@ module m_gen_plex_from_icon
       call set_coords()
       !call label_domain()
 
-      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_VEC, "-show_plex", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
       contains
         subroutine label_domain()
           integer(iintegers) :: e, numcells
@@ -454,7 +423,7 @@ module m_gen_plex_from_icon
               cart_coord = [plex%icon_cartesian_x_vertices(i), plex%icon_cartesian_y_vertices(i), &
                             plex%icon_cartesian_z_vertices(i)]
 
-              cart_coord = cart_coord * (sphere_radius + k*1e4)
+              cart_coord = cart_coord * (sphere_radius + k*1e2)
               coords(voff+i1 : voff+dimEmbed) = cart_coord(i1:dimEmbed)
             enddo
           enddo
@@ -484,25 +453,6 @@ module m_gen_plex_from_icon
         print *,myid, 'eStart', plex%eStart, 'eEnd', plex%eEnd
         print *,myid, 'vStart', plex%vStart, 'vEnd', plex%vEnd
       endif
-    end subroutine
-
-    subroutine load_plex(gridfile, plex)
-      character(len=default_str_len),intent(in) :: gridfile
-      type(t_plexgrid), intent(inout) :: plex
-      PetscInt :: numnodes
-      PetscSF  :: pointSF
-      DM       :: dmdist
-
-      print *,'Loading Plex Grid from File:', trim(gridfile)
-      call DMPlexCreateFromFile(PETSC_COMM_WORLD, trim(gridfile), PETSC_FALSE, plex%dm, ierr); call CHKERR(ierr)
-      call DMView(plex%dm, PETSC_VIEWER_STDOUT_WORLD, ierr); call CHKERR(ierr)
-      call mpi_comm_size(PETSC_COMM_WORLD, numnodes, ierr); call CHKERR(ierr)
-      if (numnodes.gt.1) then
-        call DMPlexDistribute(plex%dm, i0, pointSF, dmdist, ierr); call CHKERR(ierr)
-        call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
-        plex%dm   = dmdist
-      endif
-      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_VEC, "-show_plex", ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine create_mass_vec(plex)
@@ -622,12 +572,12 @@ program main
   use m_gen_plex_from_icon
   implicit none
 
-  logical :: lflg_grid2d=.False., lflg_grid3d=.False., lflg_plex=.False.
+  logical :: lflg_grid2d=.False., lflg_grid3d=.False., lflg_plex=.False., lflg
 
   character(len=default_str_len) :: gridfile
 
   type(t_plexgrid) :: plex
-  PetscInt :: petscint
+  PetscInt :: petscint, Nz=3
   PetscScalar :: petscreal
 
   call PetscInitialize(PETSC_NULL_CHARACTER,ierr); call CHKERR(ierr)
@@ -656,16 +606,17 @@ program main
   else if (lflg_grid3d) then
     if(myid.eq.0) then
       call read_icon_grid_file(gridfile, plex)
-      call create_dmplex_3d(plex, trim('plex3d'//gridfile), 10)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-Nz', Nz, lflg, ierr); call CHKERR(ierr)
+      call create_dmplex_3d(plex, trim('plex3d'//gridfile), Nz)
     else
       call DMPlexCreate(PETSC_COMM_WORLD, plex%dm, ierr);call CHKERR(ierr)
     endif
   else if (lflg_plex) then
-    call load_plex(gridfile, plex)
+    call load_plex_from_file(PETSC_COMM_WORLD, gridfile, plex)
   endif
 
   call distribute_dmplex(PETSC_COMM_WORLD, plex)
-  call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_VEC, "-show_plex", ierr); call CHKERR(ierr)
+  call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
 
   call create_mass_vec(plex)

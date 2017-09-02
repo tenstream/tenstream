@@ -1073,7 +1073,7 @@ contains
         elemental function sym_rot_phi(phi)
             real(ireals) :: sym_rot_phi
             real(ireals),intent(in) :: phi
-            ! ''swap'' phi axis down to the range of [0,180] 
+            ! ''swap'' phi axis down to the range of [0,180]
             sym_rot_phi = acos(cos(deg2rad(phi)))
             !print *,'1st phi swap',phi,' :: ',sym_rot_phi,'=',phi*pi/180,cos(phi*pi/180),acos(cos(phi*pi/180))
             ! and then mirror it onto range [0,90]

@@ -508,7 +508,9 @@ contains
     end function
   end subroutine move_photon
 
-  pure function hit_plane(p,po_i,pn_i)
+  !> @brief determine distance where a photon p intersects with a plane
+  !> @details inputs are the location and direction of a photon aswell as the origin and surface normal of the plane
+  pure function hit_plane(p, po_i, pn_i)
     real(ireal_dp) :: hit_plane
     type(photon),intent(in) :: p
     real(ireal_dp),intent(in) :: po_i(3),pn_i(3)
@@ -519,7 +521,7 @@ contains
     discr = dot_product(p%dir,pn)
     if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.-epsilon(discr)  ) ) then
       hit_plane=huge(hit_plane)
-    else        
+    else
       hit_plane = dot_product(po-p%loc, pn) / discr
     endif
   end function
