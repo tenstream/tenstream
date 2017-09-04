@@ -243,7 +243,7 @@ module m_helper_functions
 
       call mpi_bcast(val,1_mpiint,imp_real,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
-    subroutine  imp_bcast_real_1d_allocatable(comm,arr,sendid)
+    subroutine  imp_bcast_real_1d(comm,arr,sendid)
       integer(mpiint),intent(in) :: comm
       real(ireals),allocatable,intent(inout) :: arr(:)
       integer(mpiint),intent(in) :: sendid
@@ -262,19 +262,6 @@ module m_helper_functions
       call mpi_bcast(arr,size(arr),imp_real,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
 
-    subroutine  imp_bcast_real_1d(comm,arr,sendid)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),intent(inout) :: arr(:)
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: myid
-
-      integer(mpiint) :: commsize
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
-
-      call mpi_bcast(arr,size(arr),imp_real,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
     subroutine  imp_bcast_real_2d(comm,arr,sendid)
       integer(mpiint),intent(in) :: comm
       real(ireals),allocatable,intent(inout) :: arr(:,:)

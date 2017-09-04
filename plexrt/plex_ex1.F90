@@ -92,7 +92,8 @@ module m_mpi_plex_ex1
       real(ireals) :: get_normal_of_first_TOA_face(3)
       type(tPetscSection) :: geomSection
       real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
-      real(ireals) :: cell_center(3), face_normal(3), face_center(3)
+      real(ireals) :: cell_center(3), face_center(3)
+      real(ireals),allocatable :: face_normal(:)
 
       type(tIS) :: toa_ids
       integer(iintegers), pointer :: xitoa(:), cell_support(:)
@@ -115,6 +116,7 @@ module m_mpi_plex_ex1
           call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
 
           face_center = geoms(geom_offset+1:geom_offset+3)
+          allocate(face_normal(3))
           face_normal = geoms(geom_offset+4:geom_offset+6)
 
           call DMPlexGetSupport(plex%geom_dm, iface, cell_support, ierr); CHKERRQ(ierr) ! support of face is cell
