@@ -120,6 +120,8 @@ if(AUTODETECT_MPI)
   else(${MPI_Fortran_FOUND})
     message(WARNING "!!!!!!! MPI MISSING")
   endif(${MPI_Fortran_FOUND})
+else(AUTODETECT_MPI)
+    set(MPIEXEC_NUMPROC_FLAG -np) # This is just a wild guess but needed to run tests succesfully
 endif(AUTODETECT_MPI)
 
 # Set Output Directories
