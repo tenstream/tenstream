@@ -1,5 +1,5 @@
 @test(npes =[1,2,4])
-subroutine test_dtypes(this)
+subroutine test_mpi_functions(this)
 
     use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
     use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or
@@ -121,7 +121,66 @@ subroutine test_dtypes(this)
     @assertEqual(.False., mpi_logical_or(comm, l_all_false), 'mpi_logical_or is wrong')
 
     @assertEqual(.True., mpi_logical_or(comm, l_even_true), 'mpi_logical_or is wrong')
-
-
 end subroutine
 
+@test(npes =[1])
+subroutine test_triangle_functions()
+
+    use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters, zero, one
+    use m_helper_functions, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm
+
+    use pfunit_mod
+
+    implicit none
+
+    real(ireals),parameter :: A(2) = [0,0]
+    real(ireals),parameter :: B(2) = [2,0]
+    real(ireals),parameter :: C(2) = [1,1]
+    real(ireals) :: P(2), distance
+
+    real(ireals) :: normal(3)
+    real(ireals) :: normal_target(3) = [0,0,1]
+
+    normal = compute_normal_3d([A(1),A(2),zero], [B(1),B(2),zero], [C(1),C(2),zero])
+    @assertEqual([zero,zero,one], normal, '3D normal not as expected')
+
+    normal = compute_normal_3d([A(1),A(2),zero], [C(1),C(2),zero], [B(1),B(2),zero])
+    @assertEqual([zero,zero,one], -normal, '3D normal not as expected')
+
+    @assertEqual(one, norm(normal), 'returned normal is not normed to one')
+
+    ! Check if we can determine if a point is in a triangle
+    @assertTrue(pnt_in_triangle(A,B,C, A), 'pnt_in_triangle wrong for edge case in A')
+    @assertTrue(pnt_in_triangle(A,B,C, B), 'pnt_in_triangle wrong for edge case in B')
+    @assertTrue(pnt_in_triangle(A,B,C, C), 'pnt_in_triangle wrong for edge case in C')
+    @assertTrue(pnt_in_triangle(A,B,C, [.5_ireals, .5_ireals]), 'pnt_in_triangle wrong for center of triangle')
+
+    @assertTrue(pnt_in_triangle(A,B,C, A+(C-A)/2), 'pnt_in_triangle wrong for edge case on line between A and C')
+    @assertTrue(pnt_in_triangle(A,B,C, A+(B-A)/2), 'pnt_in_triangle wrong for edge case on line between A and B')
+    @assertTrue(pnt_in_triangle(A,B,C, C+(B-C)/2), 'pnt_in_triangle wrong for edge case on line between B and C')
+
+    @assertFalse(pnt_in_triangle(A,B,C, A-[one,one ]), 'pnt_in_triangle wrong for outside case 1')
+    @assertFalse(pnt_in_triangle(A,B,C, B+[one,zero]), 'pnt_in_triangle wrong for outside case 2')
+    @assertFalse(pnt_in_triangle(A,B,C, C+[one,one] ), 'pnt_in_triangle wrong for outside case 3')
+
+
+    ! vector from C to pnt halfway between (AB):
+    P = A+(B-A)/2 - C
+    @assertTrue(pnt_in_triangle(A,B,C, C+P), 'pnt_in_triangle wrong for edge case on line between A and B')
+    @assertFalse(pnt_in_triangle(A,B,C, C+(one+epsilon(one))*P), 'pnt_in_triangle wrong for edge case epsilon after line between A and B')
+
+
+    ! Check if distance caluclations are OK
+    distance = hit_plane([A(1),A(2),one], [zero,zero,-one], [A(1),A(2),zero], normal)
+    @assertEqual(one, distance, 'distance calculation not correct 1')
+
+    distance = hit_plane([A(1),A(2),one], [zero,zero,+one], [A(1),A(2),zero], normal)
+    @assertEqual(-one, distance, 'distance calculation not correct 2')
+
+
+    distance = hit_plane([A(1),A(2),one], [zero,zero,-one], [C(1),C(2),zero], normal)
+    @assertEqual(one, distance, 'distance calculation not correct 3')
+
+    distance = hit_plane([A(1),A(2),one], [zero,zero,+one], [C(1),C(2),zero], normal)
+    @assertEqual(-one, distance, 'distance calculation not correct 4')
+end subroutine

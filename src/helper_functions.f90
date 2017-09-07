@@ -25,10 +25,11 @@ module m_helper_functions
   implicit none
 
   private
-  public imp_bcast,norm,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc,   &
+  public imp_bcast,norm,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
     mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,           &
-    compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane
+    compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,     &
+    pnt_in_triangle
 
   interface imp_bcast
     module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -558,9 +559,30 @@ module m_helper_functions
     real(ireals) :: discr
     discr = dot_product(p_dir,pn)
     if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.-epsilon(discr)  ) ) then
-      hit_plane=huge(hit_plane)
+      hit_plane = huge(hit_plane)
     else
       hit_plane = dot_product(po-p_loc, pn) / discr
     endif
+  end function
+
+  !> @brief determine if point is inside a triangle p1,p2,p3
+  pure function pnt_in_triangle(p1,p2,p3, p)
+      real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
+      logical :: pnt_in_triangle
+      real(ireals) :: a, b, c
+
+      a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
+      if(a.lt.zero) then
+          pnt_in_triangle = .False.
+          return
+      endif
+      b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
+      if(b.lt.zero) then
+          pnt_in_triangle = .False.
+          return
+      endif
+      c = one - a - b
+
+      pnt_in_triangle = c.ge.0
   end function
   end module

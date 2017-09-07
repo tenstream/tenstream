@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -26,7 +26,8 @@ module m_helper_functions_dp
 
       private
       public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
-          mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum
+          mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum,                &
+          pnt_in_triangle, compute_normal_3d, hit_plane
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -315,5 +316,56 @@ module m_helper_functions_dp
           enddo
       end function
 
+      pure function compute_normal_3d(p1,p2,p3)
+        ! for a triangle p1, p2, p3, if the vector U = p2 - p1 and the vector V = p3 - p1 then the normal
+        ! N = U X V and can be calculated by:
+        real(ireal_dp), intent(in) :: p1(3), p2(3), p3(3)
+        real(ireal_dp) :: compute_normal_3d(3)
+        real(ireal_dp) :: U(3), V(3)
 
-      end module
+        U = p2-p1
+        V = p3-p1
+
+        compute_normal_3d(1) = U(2)*V(3) - U(3)*V(2)
+        compute_normal_3d(2) = U(3)*V(1) - U(1)*V(3)
+        compute_normal_3d(3) = U(1)*V(2) - U(2)*V(1)
+
+        compute_normal_3d = compute_normal_3d / norm(compute_normal_3d)
+      end function
+
+      !> @brief determine distance where a photon p intersects with a plane
+      !> @details inputs are the location and direction of a photon aswell as the origin and surface normal of the plane
+      pure function hit_plane(p_loc, p_dir, po, pn)
+        real(ireal_dp) :: hit_plane
+        real(ireal_dp),intent(in) :: p_loc(3), p_dir(3)
+        real(ireal_dp),intent(in) :: po(3), pn(3)
+        real(ireal_dp) :: discr
+        discr = dot_product(p_dir,pn)
+        if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.-epsilon(discr)  ) ) then
+          hit_plane = huge(hit_plane)
+        else
+          hit_plane = dot_product(po-p_loc, pn) / discr
+        endif
+      end function
+
+      !> @brief determine if point is inside a triangle p1,p2,p3
+      pure function pnt_in_triangle(p1,p2,p3, p)
+        real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p
+        logical :: pnt_in_triangle
+        real(ireal_dp) :: a, b, c
+
+        a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
+        if(a.lt.zero) then
+          pnt_in_triangle = .False.
+          return
+        endif
+        b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
+        if(b.lt.zero) then
+          pnt_in_triangle = .False.
+          return
+        endif
+        c = one - a - b
+
+        pnt_in_triangle = c.ge.0
+      end function
+    end module
