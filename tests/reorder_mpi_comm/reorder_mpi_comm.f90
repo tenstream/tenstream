@@ -14,13 +14,12 @@ subroutine test_tenstream_ex1(this)
 
     class (MpiTestMethod), intent(inout) :: this
 
-    integer(iintegers) :: j, k, numnodes, orig_id
+    integer(iintegers) :: numnodes, orig_id
 
     integer(iintegers),parameter :: nxp=3,nyp=3,nv=3
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=-1, theta0=-1
     real(ireals),parameter :: dz=dx
-    real(ireals),parameter :: incSolar = -1
     real(ireals) :: dz1d(nv)
 
     integer(iintegers),parameter :: Nrank_x=3, Nrank_y=3

@@ -29,23 +29,22 @@ module m_boxmc
 #define isnan ieee_is_nan
 #endif
 
-  use m_helper_functions_dp, only : approx, mean, rmse, imp_reduce_sum, norm, deg2rad, compute_normal_3d, hit_plane
+  use m_helper_functions_dp, only : approx, mean, rmse, imp_reduce_sum, norm, deg2rad, compute_normal_3d, hit_plane, spherical_2_cartesian
   use m_helper_functions, only : CHKERR
   use iso_c_binding
   use m_mersenne
   use mpi
-  use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil
+  use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi_dp
 
   use m_optprop_parameters, only : delta_scale_truncate,stddev_atol,stddev_rtol,ldebug_optprop
 
   implicit none
 
   private
-  public :: t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
+  public :: t_boxmc, t_boxmc_8_10, t_boxmc_1_2, t_boxmc_3_10, t_boxmc_wedge_5_5
 
   integer,parameter :: fg=1,bg=2,tot=3
-  real(ireal_dp),parameter :: zero=0, one=1 ,nil=-9999 ,pi=3.141592653589793
-
+  real(ireal_dp),parameter :: zero=0, one=1 ,nil=-9999
 
   integer(mpiint) :: mpierr,myid,numnodes
 
@@ -95,6 +94,15 @@ module m_boxmc
     procedure :: update_diff_stream => update_diff_stream_3_10
   end type t_boxmc_3_10
 
+  type,extends(t_boxmc) :: t_boxmc_wedge_5_5
+  contains
+    procedure :: intersect_distance => intersect_distance_wedge_5_5
+    procedure :: init_dir_photon    => init_dir_photon_wedge_5_5
+    procedure :: init_diff_photon   => init_diff_photon_wedge_5_5
+    procedure :: update_dir_stream  => update_dir_stream_wedge_5_5
+    procedure :: update_diff_stream => update_diff_stream_wedge_5_5
+  end type t_boxmc_wedge_5_5
+
   type photon
     real(ireal_dp) :: loc(3)=nil,dir(3)=nil,weight=nil,dx=nil,dy=nil,dz=nil
     logical :: alive=.True.,direct=.False.
@@ -142,11 +150,11 @@ module m_boxmc
   end interface
 
   abstract interface
-    subroutine update_dir_stream(bmc,p,S)
+    subroutine update_dir_stream(bmc,p,T)
       import :: t_boxmc,photon,iintegers,ireal_dp
       class(t_boxmc) :: bmc
       type(photon),intent(in) :: p
-      real(ireal_dp),intent(inout) :: S(:)
+      real(ireal_dp),intent(inout) :: T(:)
     end subroutine
   end interface
 
@@ -220,7 +228,7 @@ contains
       call exit
     endif
 
-    if( any([phi0,theta0].lt.0) .or. (phi0.gt.360_ireals) .or. (theta0.gt.90_ireals) ) then
+    if( any([phi0,theta0].lt.0) .or. (phi0.gt.360_ireals) .or. (theta0.gt.180_ireals) ) then
       print *,'corrupt sun angles :: ',phi0, theta0
       call exit
     endif
@@ -299,10 +307,10 @@ contains
 
       call cpu_time(time(1))
 
-      initial_dir  = [ sin(deg2rad(theta0))*sin(deg2rad(phi0)) ,&
-                       sin(deg2rad(theta0))*cos(deg2rad(phi0)) ,&
-                     - cos(deg2rad(theta0)) ]
-      initial_dir = initial_dir/norm(initial_dir)
+      ! we turn the initial direction in x and y, against the convetion of sun angles...
+      ! i.e. here we have azimuth phi = 0, beam going towards the north
+      ! and phi = 90, beam going towards east
+      initial_dir = spherical_2_cartesian(phi0, theta0) * [-one, -one, one]
 
       mincnt= max( 1000, int( 1e3 /numnodes ) )
       mycnt = int(1e8)/numnodes
@@ -414,7 +422,7 @@ contains
 
     if(angle.gt.delta_scale_truncate) then
       p%direct = .True.
-      !          print *,'delta scaling photon initial', initial_dir,'dir',p%dir,'angle',angle,'cos', (acos(angle))*180/pi
+      !          print *,'delta scaling photon initial', initial_dir,'dir',p%dir,'angle',angle,'cos', (acos(angle))*180/pi_dp
     endif
   end subroutine
 
@@ -424,7 +432,7 @@ contains
     s = -one + 2*R()
   end function
   !> @brief return cosine of deg(in degrees)
-  function deg2mu(deg) 
+  function deg2mu(deg)
     real(ireal_dp),intent(in) :: deg
     real(ireal_dp) :: deg2mu
     deg2mu = cos(deg2rad(deg))
@@ -547,11 +555,11 @@ contains
     p%scattercnt = p%scattercnt+1
     p%direct=.False.
 
-    muxs = p%dir(1)  
-    muys = p%dir(2)  
-    muzs = p%dir(3)  
+    muxs = p%dir(1)
+    muys = p%dir(2)
+    muzs = p%dir(3)
 
-    fi = R()*pi*2.
+    fi = R()*pi_dp*2
 
     costheta = (mutheta)
     sintheta = sqrt(one-costheta**2)
@@ -713,6 +721,9 @@ contains
     class is (t_boxmc_1_2)
     bmc%dir_streams  =  1
     bmc%diff_streams =  2
+    class is (t_boxmc_wedge_5_5)
+    bmc%dir_streams  =  5
+    bmc%diff_streams =  5
     class default
     stop 'initialize: unexpected type for boxmc object!'
   end select
@@ -724,5 +735,6 @@ end subroutine
 include 'boxmc_8_10.inc'
 include 'boxmc_3_10.inc'
 include 'boxmc_1_2.inc'
+include 'boxmc_wedge_5_5.inc'
 
 end module

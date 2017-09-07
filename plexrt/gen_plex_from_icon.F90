@@ -423,7 +423,7 @@ module m_gen_plex_from_icon
               cart_coord = [plex%icon_cartesian_x_vertices(i), plex%icon_cartesian_y_vertices(i), &
                             plex%icon_cartesian_z_vertices(i)]
 
-              cart_coord = cart_coord * (sphere_radius + k*1e2)
+              cart_coord = cart_coord * (sphere_radius + k*200)
               coords(voff+i1 : voff+dimEmbed) = cart_coord(i1:dimEmbed)
             enddo
           enddo

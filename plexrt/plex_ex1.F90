@@ -68,7 +68,7 @@ module m_mpi_plex_ex1
           print *,'debug: setting only last source entry...'
           call PetscSectionGetOffset(s, xx_v(i), voff, ierr); call CHKERR(ierr)
           !print *,myid,'index:',i,xx_v(i),'off',voff+1, lbound(xv,1), ubound(xv,1)
-          xv(voff+1) = i
+          xv(voff+1) = 100 !i
         enddo
         call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
 
@@ -170,7 +170,7 @@ module m_mpi_plex_ex1
       call setup_edir_dmplex(plex, plex%edir_dm)
       plex%sunpos = get_normal_of_first_TOA_face(plex)
       print *,plex%sunpos
-      plex%sunpos = [0.65403449436133709,  0.13472543825908251,  3.74437083263075809]
+      plex%sunpos = [0.65403449436133709,  0.13472543825908251,  2.74437083263075809]
       plex%sunpos = plex%sunpos / norm(plex%sunpos)
       print *,plex%sunpos
 

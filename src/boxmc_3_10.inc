@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -18,15 +18,15 @@
 !-------------------------------------------------------------------------
 
 
-subroutine update_dir_stream_3_10(bmc,p,S)
+subroutine update_dir_stream_3_10(bmc,p,T)
         class(t_boxmc_3_10) :: bmc
         type(photon),intent(in) :: p
-        real(ireal_dp),intent(inout) :: S(:)
+        real(ireal_dp),intent(inout) :: T(:)
 
     select case (p%side)
     case(1:2)
       if(p%loc(1).le.p%dx.and.p%loc(2).le.p%dy) then
-        S(1) = S(1)+p%weight
+        T(1) = T(1)+p%weight
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -36,7 +36,7 @@ subroutine update_dir_stream_3_10(bmc,p,S)
     case(3:4)
 
       if(p%loc(3).le.p%dz) then
-        S(2) = S(2)+p%weight
+        T(2) = T(2)+p%weight
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -45,7 +45,7 @@ subroutine update_dir_stream_3_10(bmc,p,S)
     case(5:6)
 
       if(p%loc(3).le.p%dz ) then
-        S(3) = S(3)+p%weight
+        T(3) = T(3)+p%weight
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'

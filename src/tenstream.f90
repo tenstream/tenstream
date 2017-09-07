@@ -1448,16 +1448,16 @@ contains
 
   contains
     subroutine set_thermal_source()
-      PetscReal :: Ax,Ay,Az,c1,c2,c3,b0,b1,dtau
+      real(ireals) :: Ax,Ay,Az,b0 !,c1,c2,c3,b1,dtau
       real(ireals) :: diff2diff1d(4)
-      PetscReal :: diff2diff(C_diff%dof**2),v(C_diff%dof**2)
+      real(ireals) :: diff2diff(C_diff%dof**2),v(C_diff%dof**2)
 
       if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms', minval(atm%planck), maxval(atm%planck)
       Az = atm%dx*atm%dy
 
-      do j=C_diff%ys,C_diff%ye         
-        do i=C_diff%xs,C_diff%xe    
-          do k=C_diff%zs,C_diff%ze-1 
+      do j=C_diff%ys,C_diff%ye
+        do i=C_diff%xs,C_diff%xe
+          do k=C_diff%zs,C_diff%ze-1
 
             if( atm%l1d(atmk(k),i,j) ) then
 
@@ -1506,8 +1506,8 @@ contains
 
       ! Thermal emission at surface
       k = C_diff%ze
-      do j=C_diff%ys,C_diff%ye         
-        do i=C_diff%xs,C_diff%xe    
+      do j=C_diff%ys,C_diff%ye
+        do i=C_diff%xs,C_diff%xe
           xsrc(E_up   ,k,i,j) = xsrc(E_up   ,k,i,j) + atm%planck(atmk(k),i,j)*Az *(one-atm%albedo(i,j))*pi
         enddo
       enddo
@@ -1533,9 +1533,9 @@ contains
       call getVecPointer(ledir, C_dir, xedir1d, xedir)
 
       if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))/size(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
-      do j=C_diff%ys,C_diff%ye         
-        do i=C_diff%xs,C_diff%xe    
-          do k=C_diff%zs,C_diff%ze-1 
+      do j=C_diff%ys,C_diff%ye
+        do i=C_diff%xs,C_diff%xe
+          do k=C_diff%zs,C_diff%ze-1
 
             if( any (xedir(:,k,i,j) .gt. epsilon(one)) ) then
               if( atm%l1d(atmk(k),i,j) ) then
@@ -1591,7 +1591,7 @@ contains
                     xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_ri_m*C_dir%dof + src)
                     xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_ri_p*C_dir%dof + src)
                   endif
-                  if(lsun_north) then ! likewise if sun shines from forward to backwards, 
+                  if(lsun_north) then ! likewise if sun shines from forward to backwards,
                     xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_fw_m*C_dir%dof + src)
                     xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_fw_p*C_dir%dof + src)
                     xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_ba_m*C_dir%dof + src)
@@ -1621,8 +1621,8 @@ contains
 
       ! Ground Albedo reflecting direct radiation, the diffuse part is considered by the solver(Matrix)
       k = C_diff%ze
-      do j=C_diff%ys,C_diff%ye     
-        do i=C_diff%xs,C_diff%xe     
+      do j=C_diff%ys,C_diff%ye
+        do i=C_diff%xs,C_diff%xe
           xsrc(E_up   ,k,i,j) = sum(xedir(i0:i3,k,i,j))*atm%albedo(i,j)
         enddo
       enddo
@@ -1783,7 +1783,7 @@ contains
 
 
   !> @brief call PETSc Krylov Subspace Solver
-  !> @details solve with ksp and save residual history of solver 
+  !> @details solve with ksp and save residual history of solver
   !> \n -- this may be handy later to decide next time if we have to calculate radiation again
   !> \n if we did not get convergence, we try again with standard GMRES and a resetted(zero) initial guess -- if that doesnt help, we got a problem!
   subroutine solve(ksp,b,x,solution_uid)

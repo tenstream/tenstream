@@ -471,7 +471,7 @@ module m_icon_plexgrid
 
     real(ireals) :: cell_center(3), face_normal(3), face_center(3)
     real(ireals) :: ray_loc(3), ray_dir(3), distance, min_distance
-    integer(iintegers) :: min_distance_isrc
+    integer(iintegers) :: min_distance_idst
 
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
 
@@ -514,13 +514,14 @@ module m_icon_plexgrid
       !print *,'cell', icell, 'face', faces_of_cell, ' is src? ',lsrc
       !print *,'cell', icell, 'face', faces_of_cell-fStart, ' is src? ',lsrc
 
-      ! Now we have to find the contributions of all sources to each of the destination:
-      do idst = 1, size(lsrc)
-        if (lsrc(idst)) cycle ! this is not a destination
+      do isrc = 1, size(lsrc)
+        if (.not.lsrc(isrc)) cycle ! this is not a destination
+
+        ! Now we have to find the contributions of all sources to each of the destination:
         min_distance = huge(min_distance)
 
-        do isrc = 1, size(lsrc)
-          if (.not.lsrc(isrc)) cycle ! this is not a destination
+        do idst = 1, size(lsrc)
+          if (lsrc(idst)) cycle ! this is not a destination
 
           ! at this point we have a src face and a destination face
           ! lets find out if we can cast a ray from the center of the src and hit the destination
@@ -535,36 +536,35 @@ module m_icon_plexgrid
           distance = hit_plane(ray_loc, ray_dir, face_center, face_normal)
           if(distance.le.min_distance) then
             min_distance = distance
-            min_distance_isrc = isrc
+            min_distance_idst = idst
           endif
 
 
-          !call DMLabelGetValue(faceposlabel, faces_of_cell(idst), ifacepos_target, ierr); CHKERRQ(ierr)
-          !call DMLabelGetValue(faceposlabel, faces_of_cell(isrc), ifacepos_src, ierr); CHKERRQ(ierr)
-          !if(ifacepos_target.eq.TOP_BOT_FACE .and. ifacepos_src.eq.TOP_BOT_FACE) then
-          !  coeff = .5
-          !else if (ifacepos_target.eq.SIDE_FACE .and. ifacepos_src.eq.TOP_BOT_FACE) then
-          !  coeff = .1
-          !else if (ifacepos_target.eq.TOP_BOT_FACE .and. ifacepos_src.eq.SIDE_FACE) then
-          !  coeff = .1
-          !else
-          !  coeff = zero
-          !endif
+          ! call DMLabelGetValue(faceposlabel, faces_of_cell(idst), ifacepos_target, ierr); CHKERRQ(ierr)
+          ! call DMLabelGetValue(faceposlabel, faces_of_cell(isrc), ifacepos_src, ierr); CHKERRQ(ierr)
+          ! if(ifacepos_target.eq.TOP_BOT_FACE .and. ifacepos_src.eq.TOP_BOT_FACE) then
+          !   coeff = .5
+          ! else if (ifacepos_target.eq.SIDE_FACE .and. ifacepos_src.eq.TOP_BOT_FACE) then
+          !   coeff = .1
+          ! else if (ifacepos_target.eq.TOP_BOT_FACE .and. ifacepos_src.eq.SIDE_FACE) then
+          !   coeff = .1
+          ! else
+          !   coeff = zero
+          ! endif
 
-          !call PetscSectionGetOffset(s, faces_of_cell(idst), irow, ierr); CHKERRQ(ierr) ! this is the offset of the neighboring faces
-          !call PetscSectionGetOffset(s, faces_of_cell(isrc), icol, ierr); CHKERRQ(ierr) ! this is the offset of the neighboring faces
-          !!print *,idst, isrc, 'setting val @',faces_of_cell(idst), faces_of_cell(isrc),'offsets',irow,icol
+          ! call PetscSectionGetOffset(s, faces_of_cell(idst), irow, ierr); CHKERRQ(ierr) ! this is the offset of the neighboring faces
+          ! call PetscSectionGetOffset(s, faces_of_cell(isrc), icol, ierr); CHKERRQ(ierr) ! this is the offset of the neighboring faces
+          ! !print *,idst, isrc, 'setting val @',faces_of_cell(idst), faces_of_cell(isrc),'offsets',irow,icol
 
-          !call MatSetValue(A, irow, icol, -coeff, INSERT_VALUES, ierr); CHKERRQ(ierr)
-
-
+          ! call MatSetValue(A, irow, icol, -coeff, INSERT_VALUES, ierr); CHKERRQ(ierr)
         enddo
-        call PetscSectionGetOffset(s, faces_of_cell(idst), irow, ierr); CHKERRQ(ierr) ! this is the offset of the neighboring faces
-        call PetscSectionGetOffset(s, faces_of_cell(min_distance_isrc), icol, ierr); CHKERRQ(ierr) ! this is the offset of the neighboring faces
-        coeff = exp(- min_distance * 5e-3)
-        print *,'distance', min_distance_isrc, min_distance, exp(- min_distance * 1e-3), coeff
 
-        call MatSetValue(A, irow, icol, -coeff, INSERT_VALUES, ierr); CHKERRQ(ierr)
+         call PetscSectionGetOffset(s, faces_of_cell(isrc), icol, ierr); CHKERRQ(ierr) ! this is the offset of the neighboring faces
+         call PetscSectionGetOffset(s, faces_of_cell(min_distance_idst), irow, ierr); CHKERRQ(ierr) ! this is the offset of the neighboring faces
+         coeff = .9 ! exp(- min_distance * 1e-4)
+         print *,'distance', min_distance_idst, min_distance, coeff
+
+         call MatSetValue(A, irow, icol, -coeff, INSERT_VALUES, ierr); CHKERRQ(ierr)
       enddo
 
       ! Set diagonal entries

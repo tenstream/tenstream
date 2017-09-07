@@ -1,7 +1,7 @@
 @test(npes =[1,2,4])
 subroutine test_mpi_functions_dp(this)
 
-    use m_data_parameters, only: ireal_dp, iintegers, mpiint, init_mpi_data_parameters
+    use m_data_parameters, only: ireal_dp, mpiint, init_mpi_data_parameters
     use m_helper_functions_dp, only : imp_bcast
 
     use pfunit_mod
@@ -10,7 +10,7 @@ subroutine test_mpi_functions_dp(this)
 
     class (MpiTestMethod), intent(inout) :: this
 
-    integer(mpiint) :: numnodes, comm, myid, i
+    integer(mpiint) :: numnodes, comm, myid
 
     real(ireal_dp),allocatable :: bcast_1d_arr(:)
     real(ireal_dp),allocatable :: bcast_2d_arr(:,:)
@@ -65,20 +65,34 @@ end subroutine
 @test(npes =[1])
 subroutine test_triangle_functions_dp()
 
-    use m_data_parameters, only: ireal_dp, iintegers, mpiint, init_mpi_data_parameters, zero, one
-    use m_helper_functions_dp, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm
+    use m_data_parameters, only: ireal_dp
+    use m_helper_functions_dp, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge
 
     use pfunit_mod
 
     implicit none
 
-    real(ireal_dp),parameter :: A(2) = [0,0]
-    real(ireal_dp),parameter :: B(2) = [2,0]
-    real(ireal_dp),parameter :: C(2) = [1,1]
+    real(ireal_dp),parameter :: zero=0, one=1, dx = 100
+    real(ireal_dp),parameter :: A(2) = [zero, zero]
+    real(ireal_dp),parameter :: B(2) = [dx, zero]
+    real(ireal_dp),parameter :: C(2) = [dx/2.,sqrt(dx**2 - (dx/2)**2)]
     real(ireal_dp) :: P(2), distance
 
-    real(ireal_dp) :: normal(3)
-    real(ireal_dp) :: normal_target(3) = [0,0,1]
+    real(ireal_dp) :: normal(3), new_loc(3)
+
+    ! Tests determining the distance of a point to a 2D line/edge
+    @assertEqual(zero, distance_to_edge(A,B,A), 'from point on line, the distance to same line should be zero distance_to_edge1')
+    @assertEqual(zero, distance_to_edge(A,B,[dx/2,zero]), 'from point on line, the distance to same line should be zero distance_to_edge2')
+    @assertEqual(one, distance_to_edge(A,B,[dx/2,one]), 'here point line <-> distance should be one distance_to_edge3')
+    @assertEqual(sqrt(epsilon(dx)), distance_to_edge(A,B,[dx/2,sqrt(epsilon(dx))]), 'here point line <-> distance should be different distance_to_edge4')
+    @assertEqual(epsilon(dx), distance_to_edge(A,B,[dx/2,epsilon(dx)]), 'here point line <-> distance should be different distance_to_edge5')
+    @assertEqual(epsilon(dx), distance_to_edge(A,B,[dx/2,-epsilon(dx)]), 'here point line <-> distance should be different distance_to_edge6')
+    @assertEqual(one, distance_to_edge(A,B,B+[zero,one]), 'here point line <-> distance should be one test distance_to_edge7')
+
+
+    ! Checks if points lie in a triangle
+    new_loc = [0.38475394248962402_ireal_dp, zero, zero]
+    @assertTrue(pnt_in_triangle(A,B,C, [new_loc(1), new_loc(2)]), 'custom edge case point should be in triangle!')
 
     normal = compute_normal_3d([A(1),A(2),zero], [B(1),B(2),zero], [C(1),C(2),zero])
     @assertEqual([zero,zero,one], normal, '3D normal not as expected')
@@ -106,8 +120,7 @@ subroutine test_triangle_functions_dp()
     ! vector from C to pnt halfway between (AB):
     P = A+(B-A)/2 - C
     @assertTrue(pnt_in_triangle(A,B,C, C+P), 'pnt_in_triangle wrong for edge case on line between A and B')
-    @assertFalse(pnt_in_triangle(A,B,C, C+(one+epsilon(one))*P), 'pnt_in_triangle wrong for edge case epsilon after line between A and B')
-
+    @assertFalse(pnt_in_triangle(A,B,C, C+(one+sqrt(epsilon(one)))*P), 'pnt_in_triangle wrong for edge case epsilon after line between A and B')
 
     ! Check if distance caluclations are OK
     distance = hit_plane([A(1),A(2),one], [zero,zero,-one], [A(1),A(2),zero], normal)

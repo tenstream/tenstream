@@ -18,10 +18,10 @@
 !-------------------------------------------------------------------------
 
 
-subroutine update_dir_stream_8_10(bmc,p,S)
+subroutine update_dir_stream_8_10(bmc,p,T)
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(in) :: p
-        real(ireal_dp),intent(inout) :: S(:)
+        real(ireal_dp),intent(inout) :: T(:)
         real(ireal_dp),parameter :: h=.5_ireal_dp
 
 !            1       2
@@ -36,16 +36,16 @@ subroutine update_dir_stream_8_10(bmc,p,S)
     select case (p%side)
     case(1:2)
       if(p%loc(1).le.p%dx*h.and.p%loc(2).le.p%dy*h) then
-        S(1) = S(1)+p%weight
+        T(1) = T(1)+p%weight
         return
       else if(p%loc(1).gt.p%dx*h.and.p%loc(2).le.p%dy*h) then
-        S(2) = S(2)+p%weight
+        T(2) = T(2)+p%weight
         return
       else if(p%loc(1).le.p%dx*h.and.p%loc(2).gt.p%dy*h) then
-        S(3) = S(3)+p%weight
+        T(3) = T(3)+p%weight
         return
       else if(p%loc(1).gt.p%dx*h.and.p%loc(2).gt.p%dy*h) then
-        S(4) = S(4)+p%weight
+        T(4) = T(4)+p%weight
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -55,10 +55,10 @@ subroutine update_dir_stream_8_10(bmc,p,S)
     case(3:4)
 
       if(p%loc(3).le.p%dz*h ) then
-        S(5) = S(5)+p%weight
+        T(5) = T(5)+p%weight
         return
       else if(p%loc(3).gt.p%dz*h ) then
-        S(6) = S(6)+p%weight
+        T(6) = T(6)+p%weight
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'
@@ -67,10 +67,10 @@ subroutine update_dir_stream_8_10(bmc,p,S)
     case(5:6)
 
       if(p%loc(3).le.p%dz*h ) then
-        S(7) = S(7)+p%weight
+        T(7) = T(7)+p%weight
         return
       else if(p%loc(3).gt.p%dz*h ) then
-        S(8) = S(8)+p%weight
+        T(8) = T(8)+p%weight
         return
       else
         print *,'Couldnt find a stream on to which I can put the photon weight on?!'

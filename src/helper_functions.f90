@@ -29,7 +29,7 @@ module m_helper_functions
     mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,           &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,     &
-    pnt_in_triangle
+    pnt_in_triangle, distance_to_edge
 
   interface imp_bcast
     module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -77,12 +77,12 @@ module m_helper_functions
     elemental function deg2rad(deg)
       real(ireals) :: deg2rad
       real(ireals),intent(in) :: deg
-      deg2rad = deg *pi/180._ireals
+      deg2rad = deg * pi / 180
     end function
     elemental function rad2deg(rad)
       real(ireals) :: rad2deg
       real(ireals),intent(in) :: rad
-      rad2deg = rad /pi*180._ireals
+      rad2deg = rad / pi * 180
     end function
 
     pure function rmse(a,b)
@@ -550,39 +550,66 @@ module m_helper_functions
       angle_between_two_vec = acos(dot_product(p1/norm(p1), p2/norm(p2)))
     end function
 
-  !> @brief determine distance where a photon p intersects with a plane
-  !> @details inputs are the location and direction of a photon aswell as the origin and surface normal of the plane
-  pure function hit_plane(p_loc, p_dir, po, pn)
-    real(ireals) :: hit_plane
-    real(ireals),intent(in) :: p_loc(3), p_dir(3)
-    real(ireals),intent(in) :: po(3), pn(3)
-    real(ireals) :: discr
-    discr = dot_product(p_dir,pn)
-    if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.-epsilon(discr)  ) ) then
-      hit_plane = huge(hit_plane)
-    else
-      hit_plane = dot_product(po-p_loc, pn) / discr
-    endif
-  end function
+    !> @brief determine distance where a photon p intersects with a plane
+    !> @details inputs are the location and direction of a photon aswell as the origin and surface normal of the plane
+    pure function hit_plane(p_loc, p_dir, po, pn)
+      real(ireals) :: hit_plane
+      real(ireals),intent(in) :: p_loc(3), p_dir(3)
+      real(ireals),intent(in) :: po(3), pn(3)
+      real(ireals) :: discr
+      discr = dot_product(p_dir,pn)
+      if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.-epsilon(discr)  ) ) then
+        hit_plane = huge(hit_plane)
+      else
+        hit_plane = dot_product(po-p_loc, pn) / discr
+      endif
+    end function
 
-  !> @brief determine if point is inside a triangle p1,p2,p3
-  pure function pnt_in_triangle(p1,p2,p3, p)
+    !> @brief determine if point is inside a triangle p1,p2,p3
+    pure function pnt_in_triangle(p1,p2,p3, p)
       real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
       logical :: pnt_in_triangle
-      real(ireals) :: a, b, c
+      real(ireals),parameter :: eps = epsilon(eps), eps2 = 100*eps
+      real(ireals) :: a, b, c, edge_dist
 
+      ! First check on rectangular bounding box
+      if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
+        pnt_in_triangle=.False.
+        !print *,'pnt_in_triangle, bounding box check failed:', p
+        return
+      endif
+      if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
+        pnt_in_triangle=.False.
+        !print *,'pnt_in_triangle, bounding box check failed:', p
+        return
+      endif
+
+      ! Then check for sides
       a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-      if(a.lt.zero) then
-          pnt_in_triangle = .False.
-          return
-      endif
       b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-      if(b.lt.zero) then
-          pnt_in_triangle = .False.
-          return
-      endif
-      c = one - a - b
+      c = one - (a + b)
 
-      pnt_in_triangle = c.ge.0
-  end function
+      pnt_in_triangle = all([a,b,c].ge.zero)
+
+      if(.not.pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
+        edge_dist = distance_to_triangle_edges(p1,p2,p3,p)
+        if(edge_dist.le.sqrt(eps)) pnt_in_triangle=.True.
+      endif
+      !print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p,'edgedist',distance_to_triangle_edges(p1,p2,p3,p),distance_to_triangle_edges(p1,p2,p3,p).le.eps
+    end function
+
+    pure function distance_to_triangle_edges(p1,p2,p3,p)
+      real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
+      real(ireals) :: distance_to_triangle_edges
+      distance_to_triangle_edges = distance_to_edge(p1,p2,p)
+      distance_to_triangle_edges = min(distance_to_triangle_edges, distance_to_edge(p2,p3,p))
+      distance_to_triangle_edges = min(distance_to_triangle_edges, distance_to_edge(p1,p3,p))
+    end function
+
+    pure function distance_to_edge(p1,p2,p)
+      real(ireals), intent(in), dimension(2) :: p1,p2, p
+      real(ireals) :: distance_to_edge
+
+      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
+    end function
   end module
