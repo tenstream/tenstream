@@ -223,15 +223,15 @@ subroutine intersect_distance_3_10(bmc,p,max_dist)
 
         !crossing with bottom and top plane:
           if(p%dir(3).ge.zero) then
-            max_dist = hit_plane(p,[zero,zero,p%dz ],[zero,zero,one])
-            p%side=1 
+            max_dist = hit_plane(p%loc, p%dir,[zero,zero,p%dz ],[zero,zero,one])
+            p%side=1
             x = p%loc(1)+p%dir(1)*max_dist
             y = p%loc(2)+p%dir(2)*max_dist
             if( ( x.ge.zero .and. x.le.p%dx) .and. ( y.ge.zero .and. y.le.p%dy) ) return
             dist(1) = max_dist; sides(1) = 1
           endif
           if(p%dir(3).le.zero) then
-            max_dist = hit_plane(p,[zero,zero,zero ],[zero,zero,one])
+            max_dist = hit_plane(p%loc, p%dir,[zero,zero,zero ],[zero,zero,one])
             p%side=2
             x = p%loc(1)+p%dir(1)*max_dist
             y = p%loc(2)+p%dir(2)*max_dist
@@ -241,7 +241,7 @@ subroutine intersect_distance_3_10(bmc,p,max_dist)
 
           !crossing with left and right plane:
           if(p%dir(1).le.zero) then
-            max_dist = hit_plane(p,[ zero ,zero,zero],[one,zero,zero])
+            max_dist = hit_plane(p%loc, p%dir,[ zero ,zero,zero],[one,zero,zero])
             p%side=3
             y = p%loc(2)+p%dir(2)*max_dist
             z = p%loc(3)+p%dir(3)*max_dist
@@ -249,7 +249,7 @@ subroutine intersect_distance_3_10(bmc,p,max_dist)
             dist(2) = max_dist; sides(2) = 3
           endif
           if(p%dir(1).ge.zero) then
-            max_dist = hit_plane(p,[ p%dx ,zero,zero],[one,zero,zero])
+            max_dist = hit_plane(p%loc, p%dir,[ p%dx ,zero,zero],[one,zero,zero])
             p%side=4
             y = p%loc(2)+p%dir(2)*max_dist
             z = p%loc(3)+p%dir(3)*max_dist
@@ -259,7 +259,7 @@ subroutine intersect_distance_3_10(bmc,p,max_dist)
 
           !crossing with back and forward plane:
           if(p%dir(2).le.zero) then
-            max_dist = hit_plane(p,[zero, zero ,zero],[zero,one,zero])
+            max_dist = hit_plane(p%loc, p%dir,[zero, zero ,zero],[zero,one,zero])
             p%side=5
             x = p%loc(1)+p%dir(1)*max_dist
             z = p%loc(3)+p%dir(3)*max_dist
@@ -267,7 +267,7 @@ subroutine intersect_distance_3_10(bmc,p,max_dist)
             dist(3) = max_dist; sides(3) = 5
           endif
           if(p%dir(2).ge.zero) then
-            max_dist = hit_plane(p,[zero, p%dy ,zero],[zero,one,zero])
+            max_dist = hit_plane(p%loc, p%dir,[zero, p%dy ,zero],[zero,one,zero])
             p%side=6
             x = p%loc(1)+p%dir(1)*max_dist
             z = p%loc(3)+p%dir(3)*max_dist

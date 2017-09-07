@@ -148,14 +148,14 @@ subroutine intersect_distance_1_2(bmc,p,max_dist)
 
     !crossing with bottom and top plane:
     if(p%dir(3).ge.zero) then
-      max_dist = hit_plane(p,[zero,zero,p%dz ],[zero,zero,one])
-      p%side=1 
+      max_dist = hit_plane(p%loc, p%dir,[zero,zero,p%dz ],[zero,zero,one])
+      p%side=1
       x = p%loc(1)+p%dir(1)*max_dist
       y = p%loc(2)+p%dir(2)*max_dist
       return
     endif
     if(p%dir(3).le.zero) then
-      max_dist = hit_plane(p,[zero,zero,zero ],[zero,zero,one])
+      max_dist = hit_plane(p%loc, p%dir,[zero,zero,zero ],[zero,zero,one])
       p%side=2
       x = p%loc(1)+p%dir(1)*max_dist
       y = p%loc(2)+p%dir(2)*max_dist

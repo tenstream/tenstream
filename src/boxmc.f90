@@ -29,7 +29,7 @@ module m_boxmc
 #define isnan ieee_is_nan
 #endif
 
-  use m_helper_functions_dp, only : approx,mean,rmse,imp_reduce_sum,norm,deg2rad
+  use m_helper_functions_dp, only : approx, mean, rmse, imp_reduce_sum, norm, deg2rad, compute_normal_3d, hit_plane
   use m_helper_functions, only : CHKERR
   use iso_c_binding
   use m_mersenne
@@ -507,25 +507,6 @@ contains
       tau = -log(arg)
     end function
   end subroutine move_photon
-
-  !> @brief determine distance where a photon p intersects with a plane
-  !> @details inputs are the location and direction of a photon aswell as the origin and surface normal of the plane
-  pure function hit_plane(p, po_i, pn_i)
-    real(ireal_dp) :: hit_plane
-    type(photon),intent(in) :: p
-    real(ireal_dp),intent(in) :: po_i(3),pn_i(3)
-    real(ireal_dp) :: po(3),pn(3)
-    real(ireal_dp) :: discr
-    po = po_i
-    pn = pn_i
-    discr = dot_product(p%dir,pn)
-    if( ( discr.le. epsilon(discr) ) .and. ( discr.gt.-epsilon(discr)  ) ) then
-      hit_plane=huge(hit_plane)
-    else
-      hit_plane = dot_product(po-p%loc, pn) / discr
-    endif
-  end function
-
 
   !> @brief cumulative sum of henyey greenstein phase function
   elemental function hengreen(r,g)
