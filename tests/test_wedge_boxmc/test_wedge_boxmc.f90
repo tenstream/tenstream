@@ -41,6 +41,9 @@ contains
       dy = dx
       dz = 50
 
+      S_target = zero
+      T_target = zero
+
       ! computed target with stddev_atol=5e-6, stddev_rtol=1e-4 in optprop_parameters
       ! inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) !
       !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol,inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) ! inp_atol=atol, inp_rtol=rtol)
@@ -53,7 +56,7 @@ contains
       if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  @test(npes =[1,4])
+  @test(npes =[1,2])
   subroutine test_boxmc_select_cases_direct_src2(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=2
@@ -61,7 +64,6 @@ contains
 
       ! direct to diffuse tests
       bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
-
 
 
       ! outwards from face 2
@@ -84,7 +86,6 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_3')
 
 
-
       ! down along face 2
       phi = 0; theta = 0
 
@@ -105,7 +106,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_1')
   end subroutine
 
-!  @test(npes =[1,4])
+  @test(npes =[1,2])
   subroutine test_boxmc_select_cases_direct_src1(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=1
@@ -115,157 +116,212 @@ contains
 
       phi = 0; theta = 0
       T_target = zero; T_target(5) = exp(-(bg(1)+bg(2))*dz)
-      S_target = [zero, 0.008316243_ireals, 0.008316243_ireals, 0.008316243_ireals, 0.0213273_ireals]
+      S_target = [ 0.00262582, 0.0074815, 0.0074815, 0.0074815, 0.0213178]
 
       call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src1_2')
 
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
-      S_target = [0.00000E+00, 0.0123811, 0.0123811, 0.0123811, 8.77352E-03]
+      S_target = [0.0090376, 0.009520906, 0.009520906, 0.009520906, 0.00875678]
 
       call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src1_1')
   end subroutine
 
-!  @test(npes =[1,2])
-!  subroutine test_boxmc_direct_lambert_beer(this)
-!      class (MpiTestMethod), intent(inout) :: this
-!      integer(iintegers) :: src, iphi
-!      real(ireals) :: tau
-!
-!      ! direct tests
-!      bg  = [1e-3, 0., 0. ]
-!      phi = 0; theta = 0
-!      S_target = zero
-!
-!      !Should be rotationally symmetric for sza=0
-!      do iphi = 0, 360, 10
-!        phi = iphi
-!        T_target = zero
-!
-!        print *,'downward'
-!        ! Integral from top face, towards the bottom face
-!        do src=1,1
-!          T_target(5) = exp(- (bg(1)+bg(2))*dz )
-!          call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!          call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer')
-!        enddo
-!
-!        ! Integral along each of the faces, towards the bottom face
-!        do src=2,4
-!          print *,'downward along sides', src
-!          tau = bg(1) * dz
-!          T_target(5) = (sinh(tau)-cosh(tau)+1)/tau
-!          call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!          call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer')
-!        enddo
-!      enddo
-!
-!      print *,'upward'
-!      ! and the same for upward propagation
-!      theta = 180
-!      do iphi = 0, 360, 10
-!        phi = iphi
-!        T_target = zero
-!
-!        do src=5,5
-!          T_target(1) = exp(- (bg(1)+bg(2))*dz )
-!          call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!          call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_upward')
-!        enddo
-!
-!        print *,'upward Integral along each of the faces, towards the bottom face'
-!        ! Integral along each of the faces, towards the bottom face
-!        do src=2,4
-!          tau = bg(1) * dz
-!          T_target(1) = (sinh(tau)-cosh(tau)+1)/tau
-!          call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!          call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_upward')
-!        enddo
-!      enddo
-!
-!
-!      ! One check that if we start from a side face with 90 degree zenith, we should have equally much on the two opposite faces
-!      T_target = zero
-!      phi = 0; theta = 90
-!      src = 2
-!
-!      tau = bg(1) * sqrt(dy**2 - (dx/2)**2)
-!      t_target([3,4]) = (sinh(tau)-cosh(tau)+1) / tau / 2
-!      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
-!
-!      phi = 120
-!      src = 3
-!      T_target = zero
-!      T_target([2,4]) = (sinh(tau)-cosh(tau)+1) / tau / 2
-!      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
-!
-!
-!      phi = 240
-!      src = 4
-!      T_target = zero
-!      T_target([2,3]) = (sinh(tau)-cosh(tau)+1) / tau / 2
-!      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
-!
-!
-!      ! Or start the photons at the top and they should still go to the side faces
-!      T_target = zero
-!      T_target([3,4]) = (4.85805E-01+4.85883E-01)/2
-!      phi = 0; theta = 90
-!      src = 1
-!      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 101')
-!      @assertEqual(T(3), T(4), 3*atol, 'stream should be same 101')
-!
-!      T_target = zero
-!      T_target([2,4]) = (4.85805E-01+4.85883E-01)/2
-!      phi = 120; theta = 90
-!      src = 1
-!      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 102')
-!      @assertEqual(T(2), T(4), 3*atol, 'stream should be same 102')
-!
-!
-!      T_target = zero
-!      T_target([2,3]) = (4.85805E-01+4.85883E-01)/2
-!      phi = 240; theta = 90
-!      src = 1
-!      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 103')
-!      @assertEqual(T(2), T(3), 3*atol, 'stream should be same 103')
-!  end subroutine
-!
+  @test(npes =[1,2])
+  subroutine test_boxmc_direct_lambert_beer(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers) :: src, iphi
+      real(ireals) :: tau
 
-!  @test(npes =[1,8,16])
-!  subroutine test_boxmc_select_cases_diffuse(this)
-!      class (MpiTestMethod), intent(inout) :: this
-!
-!      bg = [1e-3, 1e-16, .0 ]
-!      S_target = [0.00000E+00,3.90217E-01,1.40431E-01,1.40417E-01,0.00000E+00,0.00000E+00,1.40416E-01,1.40429E-01,0.00000E+00,0.00000E+00]
-!      T_target = zero
-!
-!      call bmc_8_10%get_coeff(comm,bg,1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_diffuse')
-!! --------------------------------------------
-!
-!      bg = [1e-3, 1e-4, .5 ]
-!      S_target = [5.91803E-04,3.89499E-01,1.40297E-01,1.40317E-01,1.44767E-04,1.45072E-04,1.40312E-01,1.40306E-01,1.45083E-04,1.44973E-04]
-!
-!      call bmc_8_10%get_coeff(comm,bg,1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_diffuse')
-!! --------------------------------------------
-!
-!      bg = [1e-3, 1e-4, .999999 ]
-!      S_target = [1.85844E-09,3.90217E-01,1.40431E-01,1.40429E-01,0.00000E+00,0.00000E+00,1.40417E-01,1.40417E-01,0.00000E+00,9.64722E-10]
-!
-!      call bmc_8_10%get_coeff(comm,bg,1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-!      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_diffuse')
-!  end subroutine
-!
+      ! direct tests
+      bg  = [1e-3, 0., 0. ]
+      phi = 0; theta = 0
+      S_target = zero
+
+      !Should be rotationally symmetric for sza=0
+      do iphi = 0, 360, 10
+        phi = iphi
+        T_target = zero
+
+        print *,'downward'
+        ! Integral from top face, towards the bottom face
+        do src=1,1
+          T_target(5) = exp(- (bg(1)+bg(2))*dz )
+          call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer')
+        enddo
+
+        ! Integral along each of the faces, towards the bottom face
+        do src=2,4
+          print *,'downward along sides', src
+          tau = bg(1) * dz
+          T_target(5) = (sinh(tau)-cosh(tau)+1)/tau
+          call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer')
+        enddo
+      enddo
+
+      print *,'upward'
+      ! and the same for upward propagation
+      theta = 180
+      do iphi = 0, 360, 10
+        phi = iphi
+        T_target = zero
+
+        do src=5,5
+          T_target(1) = exp(- (bg(1)+bg(2))*dz )
+          call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_upward')
+        enddo
+
+        print *,'upward Integral along each of the faces, towards the bottom face'
+        ! Integral along each of the faces, towards the bottom face
+        do src=2,4
+          tau = bg(1) * dz
+          T_target(1) = (sinh(tau)-cosh(tau)+1)/tau
+          call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_upward')
+        enddo
+      enddo
+
+
+      ! One check that if we start from a side face with 90 degree zenith, we should have equally much on the two opposite faces
+      T_target = zero
+      phi = 0; theta = 90
+      src = 2
+
+      tau = bg(1) * sqrt(dy**2 - (dx/2)**2)
+      t_target([3,4]) = (sinh(tau)-cosh(tau)+1) / tau / 2
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
+
+      phi = 120
+      src = 3
+      T_target = zero
+      T_target([2,4]) = (sinh(tau)-cosh(tau)+1) / tau / 2
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
+
+
+      phi = 240
+      src = 4
+      T_target = zero
+      T_target([2,3]) = (sinh(tau)-cosh(tau)+1) / tau / 2
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
+
+
+      ! Or start the photons at the top and they should still go to the side faces
+      T_target = zero
+      T_target([3,4]) = (4.85805E-01+4.85883E-01)/2
+      phi = 0; theta = 90
+      src = 1
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 101')
+      @assertEqual(T(3), T(4), 3*atol, 'stream should be same 101')
+
+      T_target = zero
+      T_target([2,4]) = (4.85805E-01+4.85883E-01)/2
+      phi = 120; theta = 90
+      src = 1
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 102')
+      @assertEqual(T(2), T(4), 3*atol, 'stream should be same 102')
+
+
+      T_target = zero
+      T_target([2,3]) = (4.85805E-01+4.85883E-01)/2
+      phi = 240; theta = 90
+      src = 1
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 103')
+      @assertEqual(T(2), T(3), 3*atol, 'stream should be same 103')
+  end subroutine
+
+  @test(npes =[1,2])
+  subroutine test_boxmc_select_cases_diffuse_src1(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers),parameter :: src=1
+
+      ! ----------------------------------
+      bg = [1e-3, 1e-2, .0 ]
+      S_target = [0.090919, 0.254331, 0.254331, 0.254331, 0.111285]
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_2')
+
+
+      ! ----------------------------------
+      bg = [1e-3, 0., .0 ]
+      S_target = [ 0., 0.27299, 0.27299, 0.27299, 0.146173]
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_1')
+
+  end subroutine
+
+  @test(npes =[1,2])
+  subroutine test_boxmc_select_cases_diffuse_src2(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers),parameter :: src=2
+
+      ! ----------------------------------
+      bg = [1e-3, 1e-2, .0 ]
+      S_target = [ 0.226478, 0.0919335, 0.211099, 0.211049, 0.226539 ]
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src2_3')
+
+      ! ----------------------------------
+      bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
+      S_target = [2.41137E-01, 0.00000E+00, 2.42172E-01, 2.42070E-01, 2.41502E-01]
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src2_2')
+
+      ! ----------------------------------
+      bg = [1e-3, 0., .0 ]
+      S_target = [2.41137E-01, 0.00000E+00, 2.42172E-01, 2.42070E-01, 2.41502E-01]
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src2_1')
+  end subroutine
+
+  @test(npes =[1,2])
+  subroutine test_boxmc_select_cases_diffuse_src3(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers),parameter :: src=3
+
+      ! ----------------------------------
+      bg = [1e-3, 1e-2, .0 ]
+      S_target = [ 0.226478, 0.211099, 0.0919335, 0.211049, 0.226539 ]
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src3_2')
+
+      ! ----------------------------------
+      bg = [1e-3, 0., .0 ]
+      S_target = [2.41482E-01, 2.41252E-01, 0.00000E+00, 2.42897E-01, 2.41190E-01]
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src3_1')
+  end subroutine
+
+  @test(npes =[1,2])
+  subroutine test_boxmc_select_cases_diffuse_src4(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers),parameter :: src=4
+
+      ! ----------------------------------
+      bg = [1e-3, 1e-2, .0 ]
+      S_target = [ 0.226478, 0.211099, 0.211049, 0.0919335, 0.226539 ]
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_2')
+
+      ! ----------------------------------
+      bg = [1e-3, 0., .0 ]
+      S_target = [2.41482E-01, 2.41252E-01, 2.42897E-01, 0.00000E+00, 2.41190E-01]
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_1')
+  end subroutine
+
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
 

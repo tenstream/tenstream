@@ -438,7 +438,7 @@ contains
     deg2mu = cos(deg2rad(deg))
   end function
   !> @brief return uniform random number between a and b
-  function interv_R(a,b) 
+  function interv_R(a,b)
     real(ireal_dp),intent(in) :: a,b
     real(ireal_dp) :: interv_R
     real(ireal_dp) :: lb,ub
@@ -473,14 +473,13 @@ contains
       call update_photon_loc(p,dist)
     endif
 
-    if(p%scattercnt.gt.1e9) then 
+    if(p%scattercnt.gt.1e9) then
       print *,'Scattercnt:',p%scattercnt,' -- maybe this photon got stuck? -- I will move this one out of the box but keep in mind, that this is a dirty hack i.e. absorption will be wrong!'
       call print_photon(p)
       p%alive=.False.
       call update_photon_loc(p,intersec_dist)
       call print_photon(p)
     endif
-
 
   contains
 

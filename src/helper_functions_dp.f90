@@ -25,9 +25,9 @@ module m_helper_functions_dp
       implicit none
 
       private
-      public imp_bcast,norm,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
+      public imp_bcast,norm,deg2rad,rad2deg,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
           mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum,                &
-          pnt_in_triangle, compute_normal_3d, hit_plane, spherical_2_cartesian, distance_to_edge, distance_to_triangle_edges
+          pnt_in_triangle, compute_normal_3d, hit_plane, spherical_2_cartesian, distance_to_edge, distance_to_triangle_edges, rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -53,6 +53,11 @@ module m_helper_functions_dp
           real(ireal_dp) :: deg2rad
           real(ireal_dp),intent(in) :: deg
           deg2rad = deg * pi_dp / 180
+      end function
+      elemental function rad2deg(rad)
+        real(ireal_dp) :: rad2deg
+        real(ireal_dp),intent(in) :: rad
+        rad2deg = rad / pi_dp * 180
       end function
 
       pure function rmse(a,b)
@@ -350,6 +355,15 @@ module m_helper_functions_dp
       if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
     end function
 
+    pure function angle_between_two_vec(p1,p2)
+      real(ireal_dp),intent(in) :: p1(:), p2(:)
+      real(ireal_dp) :: angle_between_two_vec
+      real(ireal_dp) :: n1, n2
+      n1 = norm(p1)
+      n2 = norm(p2)
+      angle_between_two_vec = acos(dot_product(p1/norm(p1), p2/norm(p2)))
+    end function
+
       !> @brief determine distance where a photon p intersects with a plane
       !> @details inputs are the location and direction of a photon aswell as the origin and surface normal of the plane
       pure function hit_plane(p_loc, p_dir, po, pn)
@@ -411,5 +425,45 @@ module m_helper_functions_dp
         real(ireal_dp) :: distance_to_edge
 
         distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
+      end function
+
+      pure function rotate_angle_x(v,angle)
+        real(ireal_dp) :: rotate_angle_x(3)
+        real(ireal_dp),intent(in) :: v(3), angle
+        real(ireal_dp) :: M(3,3),s,c
+        s=sin(deg2rad(angle))
+        c=cos(deg2rad(angle))
+
+        M(1,:)=[one ,zero ,zero]
+        M(2,:)=[zero, c   , s  ]
+        M(3,:)=[zero,-s   , c  ]
+
+        rotate_angle_x = matmul(M,v)
+      end function
+      pure function rotate_angle_y(v,angle)
+        real(ireal_dp) :: rotate_angle_y(3)
+        real(ireal_dp),intent(in) :: v(3), angle
+        real(ireal_dp) :: M(3,3),s,c
+        s=sin(deg2rad(angle))
+        c=cos(deg2rad(angle))
+
+        M(1,:)=[ c  ,zero , -s ]
+        M(2,:)=[zero, one ,zero]
+        M(3,:)=[ s  , zero, c  ]
+
+        rotate_angle_y = matmul(M,v)
+      end function
+      pure function rotate_angle_z(v,angle)
+        real(ireal_dp) :: rotate_angle_z(3)
+        real(ireal_dp),intent(in) :: v(3), angle
+        real(ireal_dp) :: M(3,3),s,c
+        s=sin(deg2rad(angle))
+        c=cos(deg2rad(angle))
+
+        M(1,:)=[ c  , s   ,zero]
+        M(2,:)=[-s  , c   ,zero]
+        M(3,:)=[zero, zero, one]
+
+        rotate_angle_z = matmul(M,v)
       end function
     end module

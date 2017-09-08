@@ -184,6 +184,7 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         p%direct= direct
         p%side = int(nil)
         p%src  = src
+        p%scattercnt  = 0
         p%dir = initial_dir
         select type(bmc)
         end select
@@ -191,6 +192,7 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
 end subroutine
 
 subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
+        use m_helper_functions_dp, only : rotate_angle_x, rotate_angle_y, rotate_angle_z
         class(t_boxmc_8_10) :: bmc
         type(photon),intent(inout) :: p
         real(ireal_dp),intent(in) :: dx,dy,dz
@@ -205,14 +207,14 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         select case(src)
         case (-1) ! thermal emission
                 p%loc = (/L(dx), L(dy), L(dz) /)
-                mu = 2._ireal_dp*mu2 - one
-                phi= deg2rad( R()*360._ireal_dp )
+                mu = 2*mu2 - one
+                phi= deg2rad( R()*360 )
         case (1)
                 p%loc = (/L(dx), L(dy),    dz  /)
-                phi= deg2rad( R()*360._ireal_dp )
+                phi= deg2rad( R()*360 )
         case (2)
                 p%loc = (/L(dx), L(dy),    zero /)
-                phi= deg2rad( R()*360._ireal_dp )
+                phi= deg2rad( R()*360 )
         case (3)
                 p%loc = (/  zero   , L(dy), L(dz)/)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
@@ -243,7 +245,7 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         end select
         select case(src)
           case(1:2)
-            phi= deg2rad( R()*360._ireal_dp )
+            phi= deg2rad( R()*360 )
           case(3:10)
             phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         end select
@@ -252,31 +254,31 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
 
         select case(src)
           case(1)
-            p%dir = rotate_y(p%dir,180)
+            p%dir = rotate_angle_y(p%dir,180*one)
           case(3)
-            p%dir = rotate_y(p%dir,-90)
+            p%dir = rotate_angle_y(p%dir,-90*one)
           case(4)
-            p%dir = rotate_y(p%dir,-90)
-            p%dir = rotate_z(p%dir,180)
+            p%dir = rotate_angle_y(p%dir,-90*one)
+            p%dir = rotate_angle_z(p%dir,180*one)
           case(5)
-            p%dir = rotate_y(p%dir,90)
-            p%dir = rotate_z(p%dir,180)
+            p%dir = rotate_angle_y(p%dir, 90*one)
+            p%dir = rotate_angle_z(p%dir,180*one)
           case(6)
-            p%dir = rotate_y(p%dir,90)
+            p%dir = rotate_angle_y(p%dir, 90*one)
 
           case(7)
-            p%dir = rotate_y(p%dir,-90)
-            p%dir = rotate_z(p%dir,-90)
+            p%dir = rotate_angle_y(p%dir,-90*one)
+            p%dir = rotate_angle_z(p%dir,-90*one)
           case(8)
-            p%dir = rotate_y(p%dir,-90)
-            p%dir = rotate_z(p%dir,180)
-            p%dir = rotate_z(p%dir,-90)
+            p%dir = rotate_angle_y(p%dir,-90*one)
+            p%dir = rotate_angle_z(p%dir,180*one)
+            p%dir = rotate_angle_z(p%dir,-90*one)
           case(9)
-            p%dir = rotate_y(p%dir,90)
-            p%dir = rotate_z(p%dir,90)
+            p%dir = rotate_angle_y(p%dir, 90*one)
+            p%dir = rotate_angle_z(p%dir, 90*one)
           case(10)
-            p%dir = rotate_y(p%dir,90)
-            p%dir = rotate_z(p%dir,-90)
+            p%dir = rotate_angle_y(p%dir, 90*one)
+            p%dir = rotate_angle_z(p%dir,-90*one)
 
         end select
         p%weight=one
@@ -287,56 +289,13 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         p%direct= .False.
         p%side = int(nil)
         p%src  = src
+        p%scattercnt  = 0
         if(.not. approx( norm(p%dir) ,one ) ) then
           print *,'p%dir',p%dir,'norm',norm(p%dir)
           stop 'init_diff_photon_8_10 :: direction was not normed?!'
         endif
         select type(bmc)
         end select
-
-        contains
-          function rotate_x(v,angle)
-              real(ireal_dp) :: rotate_x(3)
-              real(ireal_dp),intent(in) :: v(3)
-              integer :: angle
-              real(ireal_dp) :: M(3,3),s,c
-              s=sin(deg2rad(one*angle))
-              c=cos(deg2rad(one*angle))
-
-              M(1,:)=[one ,zero ,zero]
-              M(2,:)=[zero, c   , s  ]
-              M(3,:)=[zero,-s   , c  ]
-
-              rotate_x = matmul(M,v)
-          end function
-          function rotate_y(v,angle)
-              real(ireal_dp) :: rotate_y(3)
-              real(ireal_dp),intent(in) :: v(3)
-              integer :: angle
-              real(ireal_dp) :: M(3,3),s,c
-              s=sin(deg2rad(one*angle))
-              c=cos(deg2rad(one*angle))
-
-              M(1,:)=[ c  ,zero , -s ]
-              M(2,:)=[zero, one ,zero]
-              M(3,:)=[ s  , zero, c  ]
-
-              rotate_y = matmul(M,v)
-          end function
-          function rotate_z(v,angle)
-              real(ireal_dp) :: rotate_z(3)
-              real(ireal_dp),intent(in) :: v(3)
-              integer :: angle
-              real(ireal_dp) :: M(3,3),s,c
-              s=sin(deg2rad(one*angle))
-              c=cos(deg2rad(one*angle))
-
-              M(1,:)=[ c  , s   ,zero]
-              M(2,:)=[-s  , c   ,zero]
-              M(3,:)=[zero, zero, one]
-
-              rotate_z = matmul(M,v)
-          end function
 
 end subroutine
 
