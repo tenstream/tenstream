@@ -529,7 +529,7 @@ module m_helper_functions
       real(ireals), intent(in) :: normal(3), center_face(3), center_cell(3)
       integer(iintegers) :: determine_normal_direction
       real(ireals) :: dot
-      dot = dot_product(normal, center_cell-center_face)
+      dot = dot_product(normal, center_cell - center_face)
       determine_normal_direction = int(sign(one, dot), kind=iintegers)
     end function
 

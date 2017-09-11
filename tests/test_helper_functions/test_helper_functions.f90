@@ -126,8 +126,8 @@ end subroutine
 @test(npes =[1])
 subroutine test_triangle_functions()
 
-    use m_data_parameters, only: ireals
-    use m_helper_functions, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge
+    use m_data_parameters, only: ireals, iintegers
+    use m_helper_functions, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction
 
     use pfunit_mod
 
@@ -138,7 +138,8 @@ subroutine test_triangle_functions()
     real(ireals),parameter :: C(2) = [dx/2.,sqrt(dx**2 - (dx/2)**2)]
     real(ireals) :: P(2), distance
 
-    real(ireals) :: normal(3), new_loc(3)
+    real(ireals), dimension(3) :: normal, new_loc, center_face, center_cell
+    integer(iintegers) :: normal_direction
 
     ! Tests determining the distance of a point to a 2D line/edge
     @assertEqual(zero, distance_to_edge(A,B,A), 'from point on line, the distance to same line should be zero distance_to_edge1')
@@ -195,4 +196,15 @@ subroutine test_triangle_functions()
 
     distance = hit_plane([A(1),A(2),one], [zero,zero,+one], [C(1),C(2),zero], normal)
     @assertEqual(-one, distance, 'distance calculation not correct 4')
+
+    ! test routines that determine direction of normal
+    normal = [zero, zero, one]
+    center_face = [zero, zero, zero]
+    center_cell = [zero, zero, one]
+    normal_direction = determine_normal_direction(normal, center_face, center_cell)
+    @assertEqual(1_iintegers, normal_direction, 'direction of normal not towards cell center (case 1)')
+
+    center_cell = [zero, zero, -one]
+    normal_direction = determine_normal_direction(normal, center_face, center_cell)
+    @assertEqual(-1_iintegers, normal_direction, 'direction of normal not towards cell center (case 2)')
 end subroutine
