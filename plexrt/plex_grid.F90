@@ -2,7 +2,7 @@ module m_icon_plexgrid
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_netcdfIO, only: ncload
-  use m_helper_functions, only: CHKERR, compute_normal_3d, spherical_2_cartesian, norm, &
+  use m_helper_functions, only: CHKERR, compute_normal_3d, spherical_2_cartesian, norm, cross, &
     determine_normal_direction, angle_between_two_vec, rad2deg, hit_plane
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, zero, one, &

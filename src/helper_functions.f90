@@ -25,10 +25,10 @@ module m_helper_functions
   implicit none
 
   private
-  public imp_bcast,norm,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
-    mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
-    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,           &
-    compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,     &
+  public imp_bcast,norm,cross,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,    &
+    inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
+    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
+    compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge
 
   interface imp_bcast
@@ -73,6 +73,16 @@ module m_helper_functions
       real(ireals),intent(in) :: v(:)
       norm = sqrt(dot_product(v,v))
     end function
+
+    function cross(a, b)
+      real(ireals), dimension(3), intent(in) :: a, b
+      real(ireals), dimension(3) :: cross
+
+      cross(1) = a(2) * b(3) - a(3) * b(2)
+      cross(2) = a(3) * b(1) - a(1) * b(3)
+      cross(3) = a(1) * b(2) - a(2) * b(1)
+    end function cross
+
 
     elemental function deg2rad(deg)
       real(ireals) :: deg2rad
@@ -130,7 +140,6 @@ module m_helper_functions
         rel_approx = .False.
       endif
     end function
-
 
     function mpi_logical_and(comm,lval)
       integer(mpiint),intent(in) :: comm
