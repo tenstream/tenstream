@@ -57,6 +57,102 @@ contains
   end subroutine teardown
 
   @test(npes =[1,2])
+  subroutine test_boxmc_select_cases_direct_src4(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers),parameter :: src=4
+      real(ireals) :: tau
+
+      ! direct to diffuse tests
+
+      ! down along face 4
+      phi = 240; theta = 0
+
+      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      tau = (bg(1)+bg(2)) * dz
+      T_target = zero
+      T_target(5) = (sinh(tau)-cosh(tau)+1)/tau
+
+      S_target = [0.00017051, 0.00039874 , 0.00066926 , 0.0208261, 0.00203671]
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_2')
+
+      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      S_target = [0.00060366,  0.00064998 ,  0.00100554,  0.0208439,  0.00097272]
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_1')
+
+      ! outwards from face 4
+      phi = 240; theta = 90
+
+      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      tau = (bg(1)+bg(2)) * sqrt(dy**2 - (dx/2)**2)
+      T_target = zero
+      T_target([2,3]) = (sinh(tau)-cosh(tau)+1)/tau/2
+
+      S_target = [ 0.00624004,  0.0124557 ,  0.0124458 ,  0.00244814,  0.00624669]
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_4')
+
+      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      S_target = [ 0.0076486 ,  0.00809211,  0.00811609,  0.00836656,  0.00764847 ]
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_3')
+  end subroutine
+
+  @test(npes =[1,2])
+  subroutine test_boxmc_select_cases_direct_src3(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers),parameter :: src=3
+      real(ireals) :: tau
+
+      ! down along face 3
+      phi = 120; theta = 0
+
+      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      tau = (bg(1)+bg(2)) * dz
+      T_target = zero
+      T_target(5) = (sinh(tau)-cosh(tau)+1)/tau
+
+      S_target = [0.00017051,  0.00039874,  0.0208261 ,  0.00066926,  0.00203671]
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_2')
+
+
+      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      S_target = [0.00060366,  0.00064998,  0.0208439 ,  0.00100554,  0.00097272]
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_1')
+
+      ! outwards from face 3
+      phi = 120; theta = 90
+
+      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      tau = (bg(1)+bg(2)) * sqrt(dy**2 - (dx/2)**2)
+      T_target = zero
+      T_target([2,4]) = (sinh(tau)-cosh(tau)+1)/tau/2
+
+      S_target = [ 0.00624004,  0.0124557 ,  0.00244814,  0.0124458 ,  0.00624669]
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_4')
+
+
+      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      S_target = [ 0.0076486 ,  0.00809211,  0.00836656,  0.00811609,  0.00764847 ]
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_3')
+
+
+  end subroutine
+
+  @test(npes =[1,2])
   subroutine test_boxmc_select_cases_direct_src2(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=2
@@ -311,13 +407,13 @@ contains
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
-      S_target = [ 0.226478, 0.211099, 0.211049, 0.0919335, 0.226539 ]
+      S_target = [ 0.226478, 0.21119225, 0.21119225, 0.0919335, 0.226539 ]
       call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_2')
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
-      S_target = [2.41482E-01, 2.41252E-01, 2.42897E-01, 0.00000E+00, 2.41190E-01]
+      S_target = [0.241484, 0.242103, 0.242103, 0., 0.241141]
       call bmc_wedge_5_5%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_1')
   end subroutine
