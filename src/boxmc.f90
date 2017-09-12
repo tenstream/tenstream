@@ -228,11 +228,6 @@ contains
       call exit
     endif
 
-    if( any([phi0,theta0].lt.0) .or. (phi0.gt.360_ireals) .or. (theta0.gt.180_ireals) ) then
-      print *,'corrupt sun angles :: ',phi0, theta0
-      call exit
-    endif
-
     if(dx.le.zero .or. dy.le.zero .or. dz.le.zero ) then
       print *,'ERROR: box dimensions have to be positive!',dx,dy,dz
       call exit()

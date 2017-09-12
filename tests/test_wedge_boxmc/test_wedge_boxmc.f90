@@ -56,6 +56,33 @@ contains
       if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
+  @test(npes =[1])
+  subroutine test_wedgemc_direct_negative_azimuth_src2(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers),parameter :: src=2
+      real(ireals) :: tau
+
+
+      bg  = [1e-3_ireals, zero, zero]
+      S_target = zero
+
+      tau = (bg(1)+bg(2)) * sqrt(dy**2 - (dx/2)**2)
+
+      phi = 60; theta = 90
+      T_target = zero
+      T_target([4]) = (sinh(tau)-cosh(tau)+1)/tau
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_2')
+
+      phi = -60; theta = 90
+      T_target = zero
+      T_target([3]) = (sinh(tau)-cosh(tau)+1)/tau
+
+      call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_2')
+  end subroutine
+
   @test(npes =[1,2])
   subroutine test_boxmc_select_cases_direct_src4(this)
       class (MpiTestMethod), intent(inout) :: this
