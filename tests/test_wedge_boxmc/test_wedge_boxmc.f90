@@ -56,7 +56,7 @@ contains
       if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  @test(npes =[1])
+  @test(npes =[1,2])
   subroutine test_wedgemc_direct_negative_azimuth_src2(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=2

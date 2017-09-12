@@ -36,27 +36,35 @@
 ! We always assume the triangle to have dx edge length along y=0 (A,B) and dy is the edge length between (A,C)
 ! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
 
-subroutine define_wedge_triangle_pts(dx,dy,A,B,C)
+subroutine define_wedge_triangle_pts(dx,dy,A,B,C, nAB, nBC, nCA)
   real(ireal_dp),intent(in) :: dx,dy
   real(ireal_dp),dimension(2),intent(out) :: A, B, C ! points on triangle [A,B,C]
+  real(ireal_dp),dimension(2),intent(out) :: nAB, nBC, nCA ! normals on triangle [A,B,C], pointing towards center
+  real(ireal_dp),dimension(2) :: center
 
   A = [zero, zero]
   B = [dx, zero]
   C = [dx/2, sqrt(dy**2 - (dx/2)**2)]
+
+  center = (A+B+C)/3
+
+  nAB = (A-B); nAB = nAB([2,1]); nAB = nAB *[one, -one] / norm(nAB)
+  nBC = (B-C); nBC = nBC([2,1]); nBC = nBC *[one, -one] / norm(nBC)
+  nCA = (C-A); nCA = nCA([2,1]); nCA = nCA *[one, -one] / norm(nCA)
+
 end subroutine
 
 subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz)
-  use m_helper_functions_dp, only: pnt_in_triangle, determine_normal_direction
+  use m_helper_functions_dp, only: pnt_in_triangle, determine_normal_direction, angle_between_two_vec, rad2deg
   class(t_boxmc_wedge_5_5) :: bmc
   type(photon),intent(inout) :: p
   real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
   integer(iintegers),intent(in) :: src
   logical,intent(in) :: direct
-  real(ireal_dp),dimension(2) :: A, B, C, PNT, CENTER ! point PNT on triangle [A,B,C]
-  real(ireal_dp) :: r1, r2
+  real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
+  real(ireal_dp) :: r1, r2, normal(3)
 
-  call define_wedge_triangle_pts(dx,dy,A,B,C)
-  CENTER = (A+B+C)/3
+  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, NBC, nCA)
 
   select case(src)
   case (1)
@@ -64,21 +72,26 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz)
     r2 = R()
     PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
     p%loc = [PNT(1), PNT(2), dz]
+    normal = [zero,zero,-one]
   case (2)
     PNT = A + (R() * (B-A))
     p%loc = [PNT(1), PNT(2), L(dz)]
+    normal = [nAB(1), nAB(2), zero]
   case (3)
     PNT = A + (R() * (C-A))
     p%loc = [PNT(1), PNT(2), L(dz)]
+    normal = [nCA(1), nCA(2), zero]
   case (4)
     PNT = C + (R() * (B-C))
     p%loc = [PNT(1), PNT(2), L(dz)]
+    normal = [nBC(1), nBC(2), zero]
 
   case (5)
     r1 = R()
     r2 = R()
     PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
     p%loc = [PNT(1), PNT(2), zero]
+    normal = [zero,zero,one]
 
   case default
     print *,'Dont know what to do with source spec:',src
@@ -98,11 +111,22 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz)
   select type(bmc)
   end select
 
-  if(.not. pnt_in_triangle(A,B,C, PNT)) then
+  !print *,''
+  !print *,'new photon:'
+  !call print_photon(p)
+
+  if(.not. pnt_in_triangle(A,B,C, p%loc)) then
     print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle :: init_dir_photon_wedge_5_5'
     call print_photon(p)
     stop 'initial location outside of the wedge triangle'
   endif
+
+  if(angle_between_two_vec(p%dir, normal).gt.pi_dp/2) then
+    print *,'UUPS, are we starting in a wrong direction?:: init_dir_photon_wedge_5_5', rad2deg(angle_between_two_vec(p%dir, normal))
+    call print_photon(p)
+    stop 'initial direction of the wedge triangle'
+  endif
+
 
 end subroutine
 
@@ -137,11 +161,11 @@ subroutine init_diff_photon_wedge_5_5(bmc,p,src,dx,dy,dz)
   integer(iintegers),intent(in) :: src
 
   real(ireal_dp) :: phi,mu
-  real(ireal_dp),dimension(2) :: A, B, C, PNT ! point PNT on triangle [A,B,C]
+  real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, NBC, nCA ! point PNT on triangle [A,B,C]
   real(ireal_dp) :: r1, r2
 
   !print *,'---------- new diffuse photon --------------'
-  call define_wedge_triangle_pts(dx,dy,A,B,C)
+  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, NBC, nCA)
 
   select case (src)
   case (1)
@@ -236,23 +260,18 @@ subroutine intersect_distance_wedge_5_5(bmc,p,max_dist)
 
   real(ireal_dp) :: dist(5) ! distances to all the faces
   real(ireal_dp) :: normals(3,5), new_loc(3)
-  real(ireal_dp),dimension(2) :: A, B, C, CENTER ! points on triangle [A,B,C]
+  real(ireal_dp),dimension(2) :: A, B, C, nAB, nBC, nCA ! points on triangle [A,B,C]
 
   logical :: l_in_triangle
 
-  call define_wedge_triangle_pts(p%dx,p%dy,A,B,C)
+  call define_wedge_triangle_pts(p%dx, p%dy, A, B, C, nAB, NBC, nCA)
 
-  CENTER = (A+B+C)/3
 
   normals(:,1) = [zero,zero,-one]
-  normals(:,2) = compute_normal_3d([A(1),A(2),zero], [A(1),A(2),p%dz], [B(1),B(2),zero])
-  normals(:,3) = compute_normal_3d([A(1),A(2),zero], [A(1),A(2),p%dz], [C(1),C(2),zero])
-  normals(:,4) = compute_normal_3d([C(1),C(2),zero], [C(1),C(2),p%dz], [B(1),B(2),zero])
+  normals(:,2) = [nAB(1), nAB(2), zero]
+  normals(:,3) = [nCA(1), nCA(2), zero]
+  normals(:,4) = [nBC(1), nBC(2), zero]
   normals(:,5) = [zero,zero, one]
-
-  i=2; normals(:,i) = normals(:,i) * determine_normal_direction(normals(1:2,i), A+(B-A)/2, CENTER)
-  i=3; normals(:,i) = normals(:,i) * determine_normal_direction(normals(1:2,i), A+(C-A)/2, CENTER)
-  i=4; normals(:,i) = normals(:,i) * determine_normal_direction(normals(1:2,i), C+(B-C)/2, CENTER)
 
   !crossing with bottom and top plane:
   dist(1) = hit_plane(p%loc, p%dir,[A(1),A(2),p%dz ],normals(:,1))

@@ -74,7 +74,7 @@ module m_helper_functions
       norm = sqrt(dot_product(v,v))
     end function
 
-    function cross_3d(a, b)
+    pure function cross_3d(a, b)
       real(ireals), dimension(3), intent(in) :: a, b
       real(ireals), dimension(3) :: cross_3d
 
@@ -83,7 +83,7 @@ module m_helper_functions
       cross_3d(3) = a(1) * b(2) - a(2) * b(1)
     end function cross_3d
 
-    function cross_2d(a, b)
+    pure function cross_2d(a, b)
       real(ireals), dimension(2), intent(in) :: a, b
       real(ireals) :: cross_2d
 
@@ -523,9 +523,7 @@ module m_helper_functions
       U = p2-p1
       V = p3-p1
 
-      compute_normal_3d(1) = U(2)*V(3) - U(3)*V(2)
-      compute_normal_3d(2) = U(3)*V(1) - U(1)*V(3)
-      compute_normal_3d(3) = U(1)*V(2) - U(2)*V(1)
+      compute_normal_3d = cross_3d(U,V)
 
       compute_normal_3d = compute_normal_3d / norm(compute_normal_3d)
     end function
