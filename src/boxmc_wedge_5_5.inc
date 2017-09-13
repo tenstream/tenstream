@@ -85,7 +85,6 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz)
     PNT = C + (R() * (B-C))
     p%loc = [PNT(1), PNT(2), L(dz)]
     normal = [nBC(1), nBC(2), zero]
-
   case (5)
     r1 = R()
     r2 = R()
@@ -111,10 +110,6 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz)
   select type(bmc)
   end select
 
-  !print *,''
-  !print *,'new photon:'
-  !call print_photon(p)
-
   if(.not. pnt_in_triangle(A,B,C, p%loc)) then
     print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle :: init_dir_photon_wedge_5_5'
     call print_photon(p)
@@ -123,8 +118,16 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz)
 
   if(angle_between_two_vec(p%dir, normal).gt.pi_dp/2) then
     print *,'UUPS, are we starting in a wrong direction?:: init_dir_photon_wedge_5_5', rad2deg(angle_between_two_vec(p%dir, normal))
+    print *,'normal',normal,'direction',p%dir
     call print_photon(p)
-    stop 'initial direction of the wedge triangle'
+    if(angle_between_two_vec(p%dir, normal).le.pi_dp/2+10*epsilon(pi_dp)) then
+      where (abs(p%dir).le.10*epsilon(pi_dp))
+        p%dir = zero
+      end where
+      print *,'the difference is really small so I will just continue but beware that this might not give the results you wish for',p%dir,'==>',rad2deg(angle_between_two_vec(p%dir, normal))
+    else
+      stop 'initial direction of the wedge triangle'
+    endif
   endif
 
 
