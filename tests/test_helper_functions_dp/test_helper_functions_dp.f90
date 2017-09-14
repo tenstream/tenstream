@@ -90,10 +90,7 @@ subroutine test_triangle_functions_dp()
     @assertEqual(one, distance_to_edge(A,B,B+[zero,one]), 'here point line <-> distance should be one test distance_to_edge7')
 
 
-    ! Checks if points lie in a triangle
-    new_loc = [0.38475394248962402_ireal_dp, zero, zero]
-    @assertTrue(pnt_in_triangle(A,B,C, [new_loc(1), new_loc(2)]), 'custom edge case point should be in triangle!')
-
+    ! Compute normals
     normal = compute_normal_3d([A(1),A(2),zero], [B(1),B(2),zero], [C(1),C(2),zero])
     @assertEqual([zero,zero,one], normal, '3D normal not as expected')
 
@@ -115,6 +112,10 @@ subroutine test_triangle_functions_dp()
     @assertFalse(pnt_in_triangle(A,B,C, A-[one,one ]), 'pnt_in_triangle wrong for outside case 1')
     @assertFalse(pnt_in_triangle(A,B,C, B+[one,zero]), 'pnt_in_triangle wrong for outside case 2')
     @assertFalse(pnt_in_triangle(A,B,C, C+[one,one] ), 'pnt_in_triangle wrong for outside case 3')
+
+    @assertTrue(pnt_in_triangle(A,B,C, [0.38475394248962402_ireal_dp, zero]), 'custom edge case point should be in triangle! case 1')
+
+    @assertFalse(pnt_in_triangle(A,B,C, [dx, dx]), 'point (dx,dy) should not be in triangle!')
 
 
     ! vector from C to pnt halfway between (AB):

@@ -25,9 +25,10 @@ module m_helper_functions_dp
       implicit none
 
       private
-      public imp_bcast,norm,deg2rad,rad2deg,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
+      public imp_bcast,norm,cross_2d, cross_3d,deg2rad,rad2deg,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
           mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum,                &
-          pnt_in_triangle, compute_normal_3d, hit_plane, spherical_2_cartesian, distance_to_edge, distance_to_triangle_edges, rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec
+          pnt_in_triangle, compute_normal_3d, hit_plane, spherical_2_cartesian, distance_to_edge, distance_to_triangle_edges,  &
+          rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, determine_normal_direction
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -44,10 +45,26 @@ module m_helper_functions_dp
       end subroutine
 
       pure function norm(v)
-          real(ireal_dp) :: norm
-          real(ireal_dp),intent(in) :: v(:)
-          norm = sqrt(dot_product(v,v))
+        real(ireal_dp) :: norm
+        real(ireal_dp),intent(in) :: v(:)
+        norm = sqrt(dot_product(v,v))
       end function
+
+      pure function cross_3d(a, b)
+        real(ireal_dp), dimension(3), intent(in) :: a, b
+        real(ireal_dp), dimension(3) :: cross_3d
+
+        cross_3d(1) = a(2) * b(3) - a(3) * b(2)
+        cross_3d(2) = a(3) * b(1) - a(1) * b(3)
+        cross_3d(3) = a(1) * b(2) - a(2) * b(1)
+      end function cross_3d
+
+      pure function cross_2d(a, b)
+        real(ireal_dp), dimension(2), intent(in) :: a, b
+        real(ireal_dp) :: cross_2d
+
+        cross_2d = a(1) * b(2) - a(2) * b(1)
+      end function cross_2d
 
       elemental function deg2rad(deg)
           real(ireal_dp) :: deg2rad
@@ -380,7 +397,7 @@ module m_helper_functions_dp
       end function
 
       !> @brief determine if point is inside a triangle p1,p2,p3
-      pure function pnt_in_triangle(p1,p2,p3, p)
+      function pnt_in_triangle(p1,p2,p3, p)
         real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p
         logical :: pnt_in_triangle
         real(ireal_dp),parameter :: eps = epsilon(eps), eps2 = 100*eps
@@ -405,12 +422,46 @@ module m_helper_functions_dp
 
         pnt_in_triangle = all([a,b,c].ge.zero)
 
+        if(.not.pnt_in_triangle) then
+          pnt_in_triangle = pnt_in_triangle_convex_hull(p1,p2,p3, p)
+        endif
+
         if(.not.pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
           edge_dist = distance_to_triangle_edges(p1,p2,p3,p)
           if(edge_dist.le.sqrt(eps)) pnt_in_triangle=.True.
         endif
-        !print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p,'edgedist',distance_to_triangle_edges(p1,p2,p3,p),distance_to_triangle_edges(p1,p2,p3,p).le.eps
+
+        !if(.not.pnt_in_triangle) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p,'edgedist',distance_to_triangle_edges(p1,p2,p3,p),distance_to_triangle_edges(p1,p2,p3,p).le.eps
       end function
+
+      function pnt_in_triangle_convex_hull(p1,p2,p3, p)
+        real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p
+        logical :: pnt_in_triangle_convex_hull
+        real(ireal_dp), dimension(2) :: v0, v1, v2
+        real(ireal_dp) :: a,b
+
+        v0 = p1
+        v1 = p2-p1
+        v2 = p3-p1
+
+        a =  (cross_2d(p, v2) - cross_2d(v0, v2)) / cross_2d(v1, v2)
+        b = -(cross_2d(p, v1) - cross_2d(v0, v1)) / cross_2d(v1, v2)
+
+        pnt_in_triangle_convex_hull = all([a,b].ge.zero) .and. (a+b).le.one
+
+        !print *,'points',p1,p2,p3,'::',p
+        !print *,'a,b',a,b,'::',a+b, '::>',pnt_in_triangle_convex_hull
+      end function
+
+    pure function determine_normal_direction(normal, center_face, center_cell)
+      ! return 1 if normal is pointing towards cell_center, -1 if its pointing
+      ! away from it
+      real(ireal_dp), intent(in) :: normal(:), center_face(:), center_cell(:)
+      integer(iintegers) :: determine_normal_direction
+      real(ireal_dp) :: dot
+      dot = dot_product(normal, center_cell - center_face)
+      determine_normal_direction = int(sign(one, dot), kind=iintegers)
+    end function
 
       pure function distance_to_triangle_edges(p1,p2,p3,p)
         real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p

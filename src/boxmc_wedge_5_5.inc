@@ -36,28 +36,35 @@
 ! We always assume the triangle to have dx edge length along y=0 (A,B) and dy is the edge length between (A,C)
 ! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
 
-subroutine define_wedge_triangle_pts(dx,dy,A,B,C)
+subroutine define_wedge_triangle_pts(dx,dy,A,B,C, nAB, nBC, nCA)
   real(ireal_dp),intent(in) :: dx,dy
   real(ireal_dp),dimension(2),intent(out) :: A, B, C ! points on triangle [A,B,C]
+  real(ireal_dp),dimension(2),intent(out) :: nAB, nBC, nCA ! normals on triangle [A,B,C], pointing towards center
+  real(ireal_dp),dimension(2) :: center
 
   A = [zero, zero]
   B = [dx, zero]
   C = [dx/2, sqrt(dy**2 - (dx/2)**2)]
+
+  center = (A+B+C)/3
+
+  nAB = (A-B); nAB = nAB([2,1]); nAB = nAB *[one, -one] / norm(nAB)
+  nBC = (B-C); nBC = nBC([2,1]); nBC = nBC *[one, -one] / norm(nBC)
+  nCA = (C-A); nCA = nCA([2,1]); nCA = nCA *[one, -one] / norm(nCA)
+
 end subroutine
 
 subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz)
-  use m_helper_functions_dp, only: pnt_in_triangle
+  use m_helper_functions_dp, only: pnt_in_triangle, determine_normal_direction, angle_between_two_vec, rad2deg
   class(t_boxmc_wedge_5_5) :: bmc
   type(photon),intent(inout) :: p
   real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
   integer(iintegers),intent(in) :: src
   logical,intent(in) :: direct
-  real(ireal_dp),dimension(2) :: A, B, C, PNT ! point PNT on triangle [A,B,C]
-  real(ireal_dp) :: r1, r2
+  real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
+  real(ireal_dp) :: r1, r2, normal(3)
 
-  p%alive = .False.
-
-  call define_wedge_triangle_pts(dx,dy,A,B,C)
+  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, NBC, nCA)
 
   select case(src)
   case (1)
@@ -65,21 +72,25 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz)
     r2 = R()
     PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
     p%loc = [PNT(1), PNT(2), dz]
+    normal = [zero,zero,-one]
   case (2)
     PNT = A + (R() * (B-A))
     p%loc = [PNT(1), PNT(2), L(dz)]
+    normal = [nAB(1), nAB(2), zero]
   case (3)
     PNT = A + (R() * (C-A))
     p%loc = [PNT(1), PNT(2), L(dz)]
+    normal = [nCA(1), nCA(2), zero]
   case (4)
     PNT = C + (R() * (B-C))
     p%loc = [PNT(1), PNT(2), L(dz)]
-
+    normal = [nBC(1), nBC(2), zero]
   case (5)
     r1 = R()
     r2 = R()
     PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
     p%loc = [PNT(1), PNT(2), zero]
+    normal = [zero,zero,one]
 
   case default
     print *,'Dont know what to do with source spec:',src
@@ -99,11 +110,26 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz)
   select type(bmc)
   end select
 
-  if(.not. pnt_in_triangle(A,B,C, PNT)) then
+  if(.not. pnt_in_triangle(A,B,C, p%loc)) then
     print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle :: init_dir_photon_wedge_5_5'
     call print_photon(p)
     stop 'initial location outside of the wedge triangle'
   endif
+
+  if(angle_between_two_vec(p%dir, normal).gt.pi_dp/2) then
+    print *,'UUPS, are we starting in a wrong direction?:: init_dir_photon_wedge_5_5', rad2deg(angle_between_two_vec(p%dir, normal))
+    print *,'normal',normal,'direction',p%dir
+    call print_photon(p)
+    if(angle_between_two_vec(p%dir, normal).le.pi_dp/2+10*epsilon(pi_dp)) then
+      where (abs(p%dir).le.10*epsilon(pi_dp))
+        p%dir = zero
+      end where
+      print *,'the difference is really small so I will just continue but beware that this might not give the results you wish for',p%dir,'==>',rad2deg(angle_between_two_vec(p%dir, normal))
+    else
+      stop 'initial direction of the wedge triangle'
+    endif
+  endif
+
 
 end subroutine
 
@@ -138,11 +164,11 @@ subroutine init_diff_photon_wedge_5_5(bmc,p,src,dx,dy,dz)
   integer(iintegers),intent(in) :: src
 
   real(ireal_dp) :: phi,mu
-  real(ireal_dp),dimension(2) :: A, B, C, PNT ! point PNT on triangle [A,B,C]
+  real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, NBC, nCA ! point PNT on triangle [A,B,C]
   real(ireal_dp) :: r1, r2
 
   !print *,'---------- new diffuse photon --------------'
-  call define_wedge_triangle_pts(dx,dy,A,B,C)
+  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, NBC, nCA)
 
   select case (src)
   case (1)
@@ -228,7 +254,7 @@ subroutine init_diff_photon_wedge_5_5(bmc,p,src,dx,dy,dz)
 end subroutine
 
 subroutine intersect_distance_wedge_5_5(bmc,p,max_dist)
-  use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, distance_to_triangle_edges
+  use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, distance_to_triangle_edges, determine_normal_direction, angle_between_two_vec
   class(t_boxmc_wedge_5_5) :: bmc
   type(photon),intent(inout) :: p
   real(ireal_dp),intent(out) :: max_dist
@@ -236,34 +262,41 @@ subroutine intersect_distance_wedge_5_5(bmc,p,max_dist)
   integer(iintegers) :: i
 
   real(ireal_dp) :: dist(5) ! distances to all the faces
-  real(ireal_dp) :: n(3), new_loc(3)
-  real(ireal_dp),dimension(2) :: A, B, C ! points on triangle [A,B,C]
+  real(ireal_dp) :: normals(3,5), new_loc(3)
+  real(ireal_dp),dimension(2) :: A, B, C, nAB, nBC, nCA ! points on triangle [A,B,C]
 
   logical :: l_in_triangle
 
-  call define_wedge_triangle_pts(p%dx,p%dy,A,B,C)
+  call define_wedge_triangle_pts(p%dx, p%dy, A, B, C, nAB, NBC, nCA)
+
+
+  normals(:,1) = [zero,zero,-one]
+  normals(:,2) = [nAB(1), nAB(2), zero]
+  normals(:,3) = [nCA(1), nCA(2), zero]
+  normals(:,4) = [nBC(1), nBC(2), zero]
+  normals(:,5) = [zero,zero, one]
 
   !crossing with bottom and top plane:
-  dist(1) = hit_plane(p%loc, p%dir,[A(1),A(2),p%dz ],[zero,zero,one])
-  dist(5) = hit_plane(p%loc, p%dir,[A(1),A(2),zero ],[zero,zero,one])
+  dist(1) = hit_plane(p%loc, p%dir,[A(1),A(2),p%dz ],normals(:,1))
+  dist(5) = hit_plane(p%loc, p%dir,[A(1),A(2),zero ],normals(:,5))
 
   !crossing with side planes:
   ! plane 2, along y=0
-  n = compute_normal_3d([A(1),A(2),zero], [A(1),A(2),p%dz], [B(1),B(2),zero])
-  dist(2) = hit_plane(p%loc, p%dir, [A(1), A(2), zero], n)
-
-  n = compute_normal_3d([A(1),A(2),zero], [A(1),A(2),p%dz], [C(1),C(2),zero])
-  dist(3) = hit_plane(p%loc, p%dir, [C(1), C(2), zero], n)
-
-  n = compute_normal_3d([B(1),B(2),zero], [B(1),B(2),p%dz], [C(1),C(2),zero])
-  dist(4) = hit_plane(p%loc, p%dir, [C(1), C(2), zero], n)
+  dist(2) = hit_plane(p%loc, p%dir, [A(1), A(2), zero], normals(:,2))
+  dist(3) = hit_plane(p%loc, p%dir, [C(1), C(2), zero], normals(:,3))
+  dist(4) = hit_plane(p%loc, p%dir, [C(1), C(2), zero], normals(:,4))
 
   max_dist = huge(dist)
   p%side = -i1
   do i=1,size(dist)
-    if(p%direct .and. i.eq.p%src) cycle ! direct beams cant have the source face be the destination... this must be due to bad numerics
-
     if(p%scattercnt.eq.0 .and. i.eq.p%src) cycle ! we just started this, dont allow that it hits the start face
+
+    if(dist(i).ge.-sqrt(epsilon(zero)) .and. dist(i).le.zero) then ! have photon that is very close to the edge, this could be a numerics issue... lets check in which direction the photon travels
+      if( angle_between_two_vec(p%dir, -normals(:,i)) .le. pi_dp/2 ) then ! photon is flying towards this edge but intersection code said that the crossing would be behind us, this can only mean that we are actually already outside of the triangle...
+        dist(i) = zero
+      endif
+    endif
+
     if(dist(i).lt.zero) cycle ! dont travel backwards
 
     if(dist(i).le.max_dist) then
@@ -272,22 +305,22 @@ subroutine intersect_distance_wedge_5_5(bmc,p,max_dist)
     endif
   enddo
 
-  !print *,'intersect_wedge dist_2_faces',dist, '::',max_dist, p%side
-
-  new_loc = p%loc + max_dist * p%dir
-  l_in_triangle = pnt_in_triangle(A,B,C, [new_loc(1), new_loc(2)])
-  if(.not.l_in_triangle) then
-    print *,'distance:', distance_to_triangle_edges(A,B,C, [new_loc(1), new_loc(2)]),':: dists to faces',dist
-    print *,'new point not in triangle', new_loc,'side',p%side,'dist',max_dist
-    call print_photon(p)
-    stop 'debug'
-  endif
-
   if(p%side.eq.-i1) then
     print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
     call print_photon(p)
     stop 'debug'
   endif
+
+  new_loc = p%loc + max_dist * p%dir
+  l_in_triangle = pnt_in_triangle(A,B,C, [new_loc(1), new_loc(2)])
+  if(.not.l_in_triangle) then
+    print *,'distance:', distance_to_triangle_edges(A,B,C, [new_loc(1), new_loc(2)]), ':: dists to faces',dist
+    print *,'called pnt_in_triangle(', A, B, C, [new_loc(1), new_loc(2)], ')'
+    print *,'new point not in triangle', new_loc, 'side', p%side, 'dist', max_dist
+    call print_photon(p)
+    stop 'debug'
+  endif
+
 
   select type(bmc)
   end select

@@ -2,7 +2,7 @@ module m_mpi_plex_ex1
 
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_helper_functions, only: CHKERR, norm, imp_bcast, determine_normal_direction
+  use m_helper_functions, only: CHKERR, norm, imp_bcast, determine_normal_direction, spherical_2_cartesian
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     default_str_len, &
     i0, i1, i2, i3, i4, i5,  &
@@ -107,7 +107,7 @@ module m_mpi_plex_ex1
         call DMGetStratumIS(plex%geom_dm, 'TOA', i1, toa_ids, ierr); call CHKERR(ierr)
 
         if (toa_ids.eq.PETSC_NULL_IS) then ! dont have TOA points
-          stop 'This didnt work, we tried to set the sunpos according to first face on rank 0 but it seems he does not have TOA faces'
+          stop 'This didnt work, we tried to set the sundir according to first face on rank 0 but it seems he does not have TOA faces'
         else
           call ISGetIndicesF90(toa_ids, xitoa, ierr); call CHKERR(ierr)
           iface = xitoa(1) ! first face of TOA faces
@@ -168,11 +168,20 @@ module m_mpi_plex_ex1
 
 
       call setup_edir_dmplex(plex, plex%edir_dm)
-      plex%sunpos = get_normal_of_first_TOA_face(plex)
-      print *,plex%sunpos
-      plex%sunpos = [0.65403449436133709,  0.13472543825908251,  2.74437083263075809]
-      plex%sunpos = plex%sunpos / norm(plex%sunpos)
-      print *,plex%sunpos
+      plex%sundir = get_normal_of_first_TOA_face(plex)
+      print *,'get_normal_of_first_TOA_face',plex%sundir
+      !plex%sundir = [-0.71184089224108049, -3.7794622710146053E-002, -0.70132311428301020] ! original zenith 0
+      plex%sundir = [-0.71184089224108049, -3.7794622710146053E-002, -0.60132311428301020] ! zenith 10 azi 1
+      !plex%sundir = [-0.51184089224108049, +0.37794622710146053, -0.00132311428301020] ! zenith 63 azi 17
+
+      !plex%sundir = [-one/100,-one/10,-one]
+      !plex%sundir = [one,one,-one]
+      !plex%sundir = spherical_2_cartesian(180*one,60*one)
+      !plex%sundir = spherical_2_cartesian(90*one,60*one)
+
+      plex%sundir = plex%sundir / norm(plex%sundir)
+      print *,'sundir',plex%sundir
+      !stop 'debug'
 
       call print_dmplex(plex%comm, plex%edir_dm)
 

@@ -69,12 +69,12 @@ module m_gen_plex_from_icon
       enddo
 
       ! Set cone orientations -- could traverse the DAG other way round, with values being -1
-      do i = 0, size(plex%icon_cell_index)-1
-        call DMPlexSetConeOrientation(plex%dm, i, [i0,i0,i0], ierr); call CHKERR(ierr)
-      enddo
-      do i = offset_edges, offset_vertices-1
-        call DMPlexSetConeOrientation(plex%dm, i, [i0,i0], ierr); call CHKERR(ierr)
-      enddo
+      !do i = 0, size(plex%icon_cell_index)-1
+      !  call DMPlexSetConeOrientation(plex%dm, i, [i0,i0,i0], ierr); call CHKERR(ierr)
+      !enddo
+      !do i = offset_edges, offset_vertices-1
+      !  call DMPlexSetConeOrientation(plex%dm, i, [i0,i0], ierr); call CHKERR(ierr)
+      !enddo
 
       call DMPlexSymmetrize(plex%dm, ierr); call CHKERR(ierr)
       call DMPlexStratify(plex%dm, ierr); call CHKERR(ierr)
@@ -332,12 +332,12 @@ module m_gen_plex_from_icon
       enddo
 
       ! Set cone orientations -- could traverse the DAG other way round, with values being -1
-      do i = 0, size(plex%icon_cell_index)-1
-        call DMPlexSetConeOrientation(plex%dm, i, [i0,i0,i0], ierr); call CHKERR(ierr)
-      enddo
-      do i = offset_edges, offset_vertices-1
-        call DMPlexSetConeOrientation(plex%dm, i, [i0,i0], ierr); call CHKERR(ierr)
-      enddo
+      !do i = 0, size(plex%icon_cell_index)-1
+      !  call DMPlexSetConeOrientation(plex%dm, i, [i0,i0,i0], ierr); call CHKERR(ierr)
+      !enddo
+      !do i = offset_edges, offset_vertices-1
+      !  call DMPlexSetConeOrientation(plex%dm, i, [i0,i0], ierr); call CHKERR(ierr)
+      !enddo
 
       print *,'Symmetrize'
       call DMPlexSymmetrize(plex%dm, ierr); call CHKERR(ierr)
@@ -423,7 +423,7 @@ module m_gen_plex_from_icon
               cart_coord = [plex%icon_cartesian_x_vertices(i), plex%icon_cartesian_y_vertices(i), &
                             plex%icon_cartesian_z_vertices(i)]
 
-              cart_coord = cart_coord * (sphere_radius + k*200)
+              cart_coord = cart_coord * (sphere_radius + (plex%Nz-k)*200)
               coords(voff+i1 : voff+dimEmbed) = cart_coord(i1:dimEmbed)
             enddo
           enddo

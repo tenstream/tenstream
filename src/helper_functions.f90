@@ -25,17 +25,18 @@ module m_helper_functions
   implicit none
 
   private
-  public imp_bcast,norm,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
-    mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
-    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,           &
-    compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,     &
-    pnt_in_triangle, distance_to_edge
+  public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,    &
+    inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
+    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
+    compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
+    pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
+    vec_proj_on_plane
 
   interface imp_bcast
     module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
-    end interface
+  end interface
 
-    integer(mpiint) :: mpierr
+  integer(mpiint) :: mpierr
 
   contains
     pure elemental subroutine swap(x,y)
@@ -73,6 +74,23 @@ module m_helper_functions
       real(ireals),intent(in) :: v(:)
       norm = sqrt(dot_product(v,v))
     end function
+
+    pure function cross_3d(a, b)
+      real(ireals), dimension(3), intent(in) :: a, b
+      real(ireals), dimension(3) :: cross_3d
+
+      cross_3d(1) = a(2) * b(3) - a(3) * b(2)
+      cross_3d(2) = a(3) * b(1) - a(1) * b(3)
+      cross_3d(3) = a(1) * b(2) - a(2) * b(1)
+    end function cross_3d
+
+    pure function cross_2d(a, b)
+      real(ireals), dimension(2), intent(in) :: a, b
+      real(ireals) :: cross_2d
+
+      cross_2d = a(1) * b(2) - a(2) * b(1)
+    end function cross_2d
+
 
     elemental function deg2rad(deg)
       real(ireals) :: deg2rad
@@ -130,7 +148,6 @@ module m_helper_functions
         rel_approx = .False.
       endif
     end function
-
 
     function mpi_logical_and(comm,lval)
       integer(mpiint),intent(in) :: comm
@@ -507,9 +524,7 @@ module m_helper_functions
       U = p2-p1
       V = p3-p1
 
-      compute_normal_3d(1) = U(2)*V(3) - U(3)*V(2)
-      compute_normal_3d(2) = U(3)*V(1) - U(1)*V(3)
-      compute_normal_3d(3) = U(1)*V(2) - U(2)*V(1)
+      compute_normal_3d = cross_3d(U,V)
 
       compute_normal_3d = compute_normal_3d / norm(compute_normal_3d)
     end function
@@ -520,7 +535,7 @@ module m_helper_functions
       real(ireals), intent(in) :: normal(3), center_face(3), center_cell(3)
       integer(iintegers) :: determine_normal_direction
       real(ireals) :: dot
-      dot = dot_product(normal, center_cell-center_face)
+      dot = dot_product(normal, center_cell - center_face)
       determine_normal_direction = int(sign(one, dot), kind=iintegers)
     end function
 
@@ -612,4 +627,41 @@ module m_helper_functions
 
       distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
     end function
+
+    pure function rotation_matrix_world_to_local_basis(ex, ey, ez)
+      real(ireals), dimension(3), intent(in) :: ex, ey, ez
+      real(ireals), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
+      real(ireals), dimension(3,3) :: rotation_matrix_world_to_local_basis
+      rotation_matrix_world_to_local_basis(1,1) = dot_product(ex, kx)
+      rotation_matrix_world_to_local_basis(1,2) = dot_product(ex, ky)
+      rotation_matrix_world_to_local_basis(1,3) = dot_product(ex, kz)
+      rotation_matrix_world_to_local_basis(2,1) = dot_product(ey, kx)
+      rotation_matrix_world_to_local_basis(2,2) = dot_product(ey, ky)
+      rotation_matrix_world_to_local_basis(2,3) = dot_product(ey, kz)
+      rotation_matrix_world_to_local_basis(3,1) = dot_product(ez, kx)
+      rotation_matrix_world_to_local_basis(3,2) = dot_product(ez, ky)
+      rotation_matrix_world_to_local_basis(3,3) = dot_product(ez, kz)
+    end function
+    pure function rotation_matrix_local_basis_to_world(ex, ey, ez)
+      real(ireals), dimension(3), intent(in) :: ex, ey, ez
+      real(ireals), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
+      real(ireals), dimension(3,3) :: rotation_matrix_local_basis_to_world
+      rotation_matrix_local_basis_to_world(1,1) = dot_product(kx, ex)
+      rotation_matrix_local_basis_to_world(1,2) = dot_product(kx, ey)
+      rotation_matrix_local_basis_to_world(1,3) = dot_product(kx, ez)
+      rotation_matrix_local_basis_to_world(2,1) = dot_product(ky, ex)
+      rotation_matrix_local_basis_to_world(2,2) = dot_product(ky, ey)
+      rotation_matrix_local_basis_to_world(2,3) = dot_product(ky, ez)
+      rotation_matrix_local_basis_to_world(3,1) = dot_product(kz, ex)
+      rotation_matrix_local_basis_to_world(3,2) = dot_product(kz, ey)
+      rotation_matrix_local_basis_to_world(3,3) = dot_product(kz, ez)
+    end function
+
+    ! https://www.maplesoft.com/support/help/maple/view.aspx?path=MathApps%2FProjectionOfVectorOntoPlane
+    pure function vec_proj_on_plane(v, plane_normal)
+      real(ireals), dimension(3), intent(in) :: v, plane_normal
+      real(ireals) :: vec_proj_on_plane(3)
+      vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm(plane_normal)**2
+    end function
+
   end module
