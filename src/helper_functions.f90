@@ -29,7 +29,8 @@ module m_helper_functions
     inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
-    pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
+    pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
+    vec_proj_on_plane
 
   interface imp_bcast
     module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -627,7 +628,7 @@ module m_helper_functions
       distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
     end function
 
-    function rotation_matrix_world_to_local_basis(ex, ey, ez)
+    pure function rotation_matrix_world_to_local_basis(ex, ey, ez)
       real(ireals), dimension(3), intent(in) :: ex, ey, ez
       real(ireals), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
       real(ireals), dimension(3,3) :: rotation_matrix_world_to_local_basis
@@ -641,7 +642,7 @@ module m_helper_functions
       rotation_matrix_world_to_local_basis(3,2) = dot_product(ez, ky)
       rotation_matrix_world_to_local_basis(3,3) = dot_product(ez, kz)
     end function
-    function rotation_matrix_local_basis_to_world(ex, ey, ez)
+    pure function rotation_matrix_local_basis_to_world(ex, ey, ez)
       real(ireals), dimension(3), intent(in) :: ex, ey, ez
       real(ireals), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
       real(ireals), dimension(3,3) :: rotation_matrix_local_basis_to_world
@@ -655,4 +656,12 @@ module m_helper_functions
       rotation_matrix_local_basis_to_world(3,2) = dot_product(kz, ey)
       rotation_matrix_local_basis_to_world(3,3) = dot_product(kz, ez)
     end function
+
+    ! https://www.maplesoft.com/support/help/maple/view.aspx?path=MathApps%2FProjectionOfVectorOntoPlane
+    pure function vec_proj_on_plane(v, plane_normal)
+      real(ireals), dimension(3), intent(in) :: v, plane_normal
+      real(ireals) :: vec_proj_on_plane(3)
+      vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm(plane_normal)**2
+    end function
+
   end module

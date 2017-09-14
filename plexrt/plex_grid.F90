@@ -4,7 +4,7 @@ module m_icon_plexgrid
   use m_netcdfIO, only: ncload
   use m_helper_functions, only: CHKERR, compute_normal_3d, spherical_2_cartesian, norm, cross_3d, &
     determine_normal_direction, angle_between_two_vec, rad2deg, deg2rad, hit_plane, &
-    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
+    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, vec_proj_on_plane
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, zero, one, pi, &
     default_str_len
@@ -426,12 +426,11 @@ module m_icon_plexgrid
 
         ! Determine the inward normal vec for the face
         face_normal = face_normal * determine_normal_direction(face_normal, face_center, cell_center)
-        !print *,'cell',icell,'norm of face', faces_of_cell(iface),'::',face_normal
 
         ! Then determine if the face is src(in line with the sun vec) or if it is destination(contra sun direction)
-        angle_to_sun = rad2deg(angle_between_two_vec(face_normal, plex%sundir))
+        angle_to_sun = angle_between_two_vec(face_normal, plex%sundir)
 
-        if(angle_to_sun.lt.90 .or. angle_to_sun.ge.270) then
+        if(angle_to_sun.lt.pi/2) then
           lsrc(iface) = .True.
           xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1)
         else
@@ -456,39 +455,25 @@ module m_icon_plexgrid
 
     integer(iintegers) :: cStart, cEnd
     integer(iintegers) :: fStart, fEnd
-    integer(iintegers) :: k1,k2
     integer(mpiint) :: ierr
 
     integer(iintegers), pointer :: faces_of_cell(:)
-    integer(iintegers) :: iface, irow, icol, icell, isrc, idst
-    type(PetscInt) :: ifacepos_target, ifacepos_src, ifacepos(5), izindex(5)
+    integer(iintegers) :: iface, irow, icol, icell, idst
 
-    real(ireals) :: coeff(1), angle_to_sun
-
-    type(tDMLabel) :: faceposlabel, zindexlabel, TOAlabel
+    type(tDMLabel) :: faceposlabel, zindexlabel
 
     type(tPetscSection) :: geomSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
-    integer(iintegers) :: geom_offset
 
-    real(ireals) :: cell_center(3)
-    real(ireals) :: src_face_normal(3), dst_face_normal(3), face_normals(3,5), face_centers(3,5)
-    real(ireals) :: side_faces_angles_to_sun(5), proj_angles_to_sun(3), proj_normal(3)
-    real(ireals) :: e_x(3), e_y(3), e_z(3) ! unit vectors of local coord system in which we compute the transfer coefficients
-    real(ireals) :: projected_sundir(3), zenith, azimuth
+    real(ireals) :: zenith, azimuth
 
-    real(ireals) :: ray_loc(3), ray_dir(3), distance, min_distance
-    integer(iintegers) :: side_faces(3), top_faces(2) ! indices in faces_of_cell which give the top/bot and side faces via labeling
-    integer(iintegers) :: iside_faces, itop_faces ! indices to fill above arrays
-    integer(iintegers) :: base_face ! index of face which is closest to sun angle, index regarding faces_of_cell
-    integer(iintegers) :: left_face, right_face ! index of face which is left/right of base face, index regarding faces_of_cell
-    integer(iintegers) :: upper_face, bottom_face ! index of face which is top/bot of base face, index regarding faces_of_cell
-    integer(iintegers) :: ibase_face !, min_distance_idst
-    real(ireals) :: MrotWorld2Local(3,3), MrotLocal2World(3,3)
+    integer(iintegers) :: base_face   ! index of face which is closest to sun angle, index regarding faces_of_cell
+    integer(iintegers) :: left_face   ! index of face which is left/right of base face, index regarding faces_of_cell
+    integer(iintegers) :: right_face  ! index of face which is left/right of base face, index regarding faces_of_cell
+    integer(iintegers) :: upper_face  ! index of face which is top/bot of base face, index regarding faces_of_cell
+    integer(iintegers) :: bottom_face ! index of face which is top/bot of base face, index regarding faces_of_cell
 
-    real(ireals) :: dir2dir(5,5), dir2diff(5,5), S(5), T(5) ! Nface**2
-    real(ireals) :: local_normal_left(3), local_normal_right(3)
-
+    real(ireals) :: dir2dir(5,5), S(5), T(5) ! Nface**2
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
 
     call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
@@ -499,194 +484,19 @@ module m_icon_plexgrid
     call DMPlexGetHeightStratum(plex%edir_dm, i1, fStart, fEnd, ierr); CHKERRQ(ierr) ! faces / edges
     call DMGetLabel(plex%edir_dm, "Face Position", faceposlabel, ierr); CHKERRQ(ierr)
     call DMGetLabel(plex%edir_dm, "Vertical Index", zindexlabel, ierr); CHKERRQ(ierr)
-    call DMGetLabel(plex%edir_dm, "TOA", TOAlabel, ierr); CHKERRQ(ierr)
 
     call DMCreateMatrix(plex%edir_dm, A, ierr); CHKERRQ(ierr)
 
-    do iface = 1, 5
-      !compute_dir2dir_coeff(iface, dir2diff(:,iface), dir2dir(:,iface))
-      dir2diff(:,iface) = [zero, zero, zero, zero, one]
-      dir2dir (:,iface) = [zero, zero, zero, zero, one]
-    enddo
-
-
     do icell = cStart, cEnd-1
-      call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); CHKERRQ(ierr)
-      cell_center = geoms(1+geom_offset:3+geom_offset)
 
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); CHKERRQ(ierr) ! Get Faces of cell
 
-      print *,'cell',icell,'faces',faces_of_cell
+      call compute_local_wedge_ordering(icell, faces_of_cell, geomSection, geoms, faceposlabel, zindexlabel, plex%sundir, &
+        zenith, azimuth, upper_face, bottom_face, base_face, left_face, right_face, lsrc)
 
       do iface = 1, size(faces_of_cell)
-        call PetscSectionGetOffset(geomSection, faces_of_cell(iface), geom_offset, ierr); CHKERRQ(ierr)
-        face_centers(:,iface) = geoms(1+geom_offset: 3+geom_offset)
-        face_normals(:,iface) = geoms(4+geom_offset: 6+geom_offset)
-        face_normals(:,iface) = face_normals(:,iface) * determine_normal_direction(face_normals(:,iface), face_centers(:, iface), cell_center)
-        ! find face whose normal is closest to sun vector:
-        side_faces_angles_to_sun(iface) = angle_between_two_vec(face_normals(:,iface), plex%sundir) ! in [rad]
-        lsrc(iface) = side_faces_angles_to_sun(iface).lt.pi/2-deg2rad(.1_ireals)
-
-        call DMLabelGetValue(faceposlabel, faces_of_cell(iface), ifacepos(iface), ierr); CHKERRQ(ierr)
-        call DMLabelGetValue(zindexlabel, faces_of_cell(iface), izindex(iface), ierr); CHKERRQ(ierr)
-      enddo
-
-      iside_faces = 1; itop_faces = 1
-      do iface = 1, size(faces_of_cell)
-        select case(ifacepos(iface))
-          case(TOP_BOT_FACE)
-            top_faces(itop_faces) = iface
-            itop_faces = itop_faces+1
-          case(SIDE_FACE)
-            side_faces(iside_faces) = iface
-            iside_faces = iside_faces+1
-          case default
-            stop 'wrong or no side face label'
-          end select
-      enddo
-      print *,'side_faces:', side_faces
-      print *,' top_faces:', top_faces
-
-      if(izindex(top_faces(1)).gt.izindex(top_faces(2))) then
-        upper_face = top_faces(2)
-        bottom_face = top_faces(1)
-      else
-        upper_face = top_faces(1)
-        bottom_face = top_faces(2)
-      endif
-
-      print *,'center of upper face', face_centers(:,upper_face)
-
-      print *,'angles to sun', rad2deg(side_faces_angles_to_sun), side_faces_angles_to_sun.lt.pi/2
-      do iface=1,size(side_faces)
-        proj_normal = vec_proj_on_plane(plex%sundir, face_normals(:,upper_face))
-        proj_angles_to_sun(iface) = angle_between_two_vec(proj_normal, face_normals(:,side_faces(iface)))
-        print *,'proj_angles_to_sun',iface, '::', proj_angles_to_sun(iface)
-      enddo
-
-      !base_face = -1
-      !do iface = 1,size(side_faces)
-      !  print *,'side_face normals', side_faces(iface), '::', face_normals(:,side_faces(iface))
-      !  if (.not.lsrc(side_faces(iface))) cycle ! cant be a src face
-
-      !  proj_normal = vec_proj_on_plane(plex%sun)
-
-      !  if(base_face.eq.-1) then
-      !    print *,'setting (', side_faces(iface),')', faces_of_cell(side_faces(iface)), 'as base_face'
-      !    base_face = side_faces(iface)
-      !    ibase_face = iface
-      !  else if (side_faces_angles_to_sun(side_faces(iface)).lt.side_faces_angles_to_sun(base_face)) then
-      !    print *,iface,side_faces(iface),'comparing',side_faces_angles_to_sun(side_faces(iface)),side_faces_angles_to_sun(base_face)
-      !    base_face = side_faces(iface)
-      !    ibase_face = iface
-      !  endif
-      !enddo
-      !if(all(.not.lsrc(side_faces(:)))) base_face = side_faces(1) ! if none of the faces are directly lit, just pick one
-      !if(base_face.eq.-1) stop 'couldnt find base face'
-
-      ibase_face = minloc(proj_angles_to_sun,dim=1)
-      base_face = side_faces(ibase_face)
-
-      e_y = face_normals(:, base_face)   ! inward facing normal -> in local wedgemc coordinates
-      e_z = -face_normals(:, upper_face) ! outward facing normal with respect to the top plate
-      e_x = cross_3d(e_y, e_z)           ! in local wedge_coords, this is y=0 coordinate
-
-      MrotWorld2Local = rotation_matrix_world_to_local_basis(e_x, e_y, e_z)
-      MrotLocal2World = rotation_matrix_local_basis_to_world(e_x, e_y, e_z)
-
-      !print *,'MrotWorld2Local',MrotWorld2Local(1,:)
-      !print *,'MrotWorld2Local',MrotWorld2Local(2,:)
-      !print *,'MrotWorld2Local',MrotWorld2Local(3,:)
-      !print *,'MrotWorld2Local*kx',matmul(MrotWorld2Local, [one,zero,zero])
-      !print *,'MrotWorld2Local*ky',matmul(MrotWorld2Local, [zero,one,zero])
-      !print *,'MrotWorld2Local*kz',matmul(MrotWorld2Local, [zero,zero,one])
-      !print *,'ex',e_x
-      !print *,'ey',e_y
-      !print *,'ez',e_z
-      !print *,'MrotWorld2Local*ex',matmul(MrotLocal2World, e_x)
-      !print *,'MrotWorld2Local*ey',matmul(MrotLocal2World, e_y)
-      !print *,'MrotWorld2Local*ez',matmul(MrotLocal2World, e_z)
-      !print *,'MrotLocal2World*ex',matmul(MrotLocal2World, e_x)
-      !print *,'MrotLocal2World*ey',matmul(MrotLocal2World, e_y)
-      !print *,'MrotLocal2World*ez',matmul(MrotLocal2World, e_z)
-
-      !print *,'base_normal:',face_normals(:, base_face),'mrot*ey',matmul(MrotWorld2Local,e_y)
-      !print *,'base_normal:',face_normals(:, base_face),'mrot*base_normal',matmul(MrotWorld2Local,face_normals(:, base_face))
-      !print *,'upper_normal:',face_normals(:, upper_face),'mrot*upper_normal',matmul(MrotWorld2Local,face_normals(:, upper_face))
-
-      left_face  = side_faces(modulo(ibase_face,size(side_faces))+1)
-      right_face = side_faces(modulo(ibase_face+1,size(side_faces))+1)
-
-      !print *,'angle between base and left  face', rad2deg(angle_between_two_vec(face_normals(:,base_face), face_normals(:,left_face)))
-      !print *,'angle between base and right face', rad2deg(angle_between_two_vec(face_normals(:,base_face), face_normals(:,right_face)))
-
-      local_normal_left  = matmul(MrotWorld2Local, face_normals(:,left_face))
-      local_normal_right = matmul(MrotWorld2Local, face_normals(:,right_face))
-
-      print *,base_face ,'local_normal_base ', face_normals(:,base_face ), '::>', matmul(MrotWorld2Local, face_normals(:,base_face))
-      print *,left_face ,'local_normal_left ', face_normals(:,left_face ), '::>', local_normal_left
-      print *,right_face,'local_normal_right', face_normals(:,right_face), '::>', local_normal_right
-      if(local_normal_left(1).lt.local_normal_right(1)) then ! switch right and left face
-        iface = right_face
-        right_face = left_face
-        left_face = iface
-      endif
-
-      print *,''
-      print *,'upper  face(', upper_face,')::', faces_of_cell(upper_face)
-      print *,'bottom face(', bottom_face,')::', faces_of_cell(bottom_face)
-      print *,'base face  (', base_face,')::', faces_of_cell(base_face)
-      print *,'left face  (', left_face,')::', faces_of_cell(left_face)
-      print *,'right face (', right_face,')::', faces_of_cell(right_face)
-
-
-      print *,'local coordinate sysytem:',e_x,';',e_y,';',e_z
-      zenith = angle_between_two_vec(plex%sundir, -e_z)
-
-      ! https://www.maplesoft.com/support/help/maple/view.aspx?path=MathApps%2FProjectionOfVectorOntoPlane
-      !projected_sundir = plex%sundir - dot_product(plex%sundir, e_z) * e_z  !/ norm(e_z)**2
-
-      projected_sundir = vec_proj_on_plane(matmul(MrotWorld2Local, plex%sundir), [zero,zero,one])
-      print *,'sundir',plex%sundir, 'projected', projected_sundir, 'norm', norm(projected_sundir)
-      if(norm(projected_sundir).eq.zero) then
-        azimuth = 0
-      else
-        projected_sundir = projected_sundir / norm(projected_sundir)
-        azimuth = angle_between_two_vec([zero,one,zero], projected_sundir) * sign(one, projected_sundir(1))
-      endif
-
-      print *,'zenith, azimuth', rad2deg(zenith), rad2deg(azimuth)
-
-      if(ldebug .and. norm(face_centers(:,upper_face)) .le. norm(face_centers(:,bottom_face))) then ! we expect the first face to be the upper one
-        print *,'norm upper_face ', norm(face_centers(:,upper_face))
-        print *,'norm bottom_face', norm(face_centers(:,bottom_face))
-        print *,'we expect the first face to be the upper one but found:',icell, faces_of_cell(1), faces_of_cell(2)
-        stop 'create_edir_mat() :: wrong zindexlabel'
-      endif
-
-      !if(ldebug .and. .not. all(ifacepos.eq.[TOP_BOT_FACE, TOP_BOT_FACE, SIDE_FACE, SIDE_FACE, SIDE_FACE])) then
-      !  print *,'Ordering of faces of cell  not as supposed... ', &
-      !  'we assume that getCone gives us first the 2 top and bot faces and then the side'
-      !  stop 'Wrong ordering of Face of Cell'
-      !endif
-
-      print *,'cell',icell, 'faces', faces_of_cell, 'angles', int(rad2deg(side_faces_angles_to_sun)),'src',lsrc, 'topface', ifacepos.eq.TOP_BOT_FACE, &
-      '::', base_face, left_face, right_face
-      !print *,'local coord', e_x, ':', e_y, ':', e_z
-      print *,'zenith/azimuth', int(rad2deg(zenith)), int(rad2deg(azimuth))
-      if(azimuth.lt.-60 .or. azimuth.gt.60) stop
-
-      do iface = 1, size(faces_of_cell)
-        ! Then determine if the face is src(in line with the sun vec) or if it is destination(contra sun direction)
-        angle_to_sun = angle_between_two_vec(face_normals(:,iface), plex%sundir)
-        print *,'angle to sun', iface, rad2deg(angle_to_sun)
 
         if(lsrc(iface)) then ! this is really a source
-          print *,'-----------------------------------------------------------------------------------------'
-          print *,'-----------------------------------------------------------------------------------------'
-          print *,'----------------------------------------------------------------------------- src: (',iface,')', faces_of_cell(iface)
-          print *,'-----------------------------------------------------------------------------------------'
-          print *,'-----------------------------------------------------------------------------------------'
 
           !retrieve coeffs:
           if (iface.eq.upper_face) then
@@ -694,31 +504,24 @@ module m_icon_plexgrid
           else if (iface.eq.bottom_face) then
             call compute_dir2dir_coeff(5*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
           else if (iface.eq.base_face) then
-            print *,'proj_sundir <--> local_normal_base', rad2deg(angle_between_two_vec([zero,one,zero], projected_sundir))
             call compute_dir2dir_coeff(2*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
           else if (iface.eq.left_face) then
-            print *,'proj_sundir <--> local_normal_left', rad2deg(angle_between_two_vec(local_normal_left, projected_sundir))
             call compute_dir2dir_coeff(3*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
           else if (iface.eq.right_face) then
-            print *,'proj_sundir <--> local_normal_right', rad2deg(angle_between_two_vec(local_normal_right, projected_sundir))
             call compute_dir2dir_coeff(4*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
           else
-            stop 'wrong ifacepos'
+            stop 'iface is not in local wedge face numbering... something must have gone terribly wrong in compute_local_wedge_ordering'
           endif
 
           dir2dir([upper_face,base_face,left_face,right_face,bottom_face], iface) = T
-          !dir2dir([upper_face,bottom_face,base_face,left_face,right_face], iface) = [zero, one*.9, zero, zero, zero]
 
           do idst=1,size(faces_of_cell)
             call PetscSectionGetOffset(sec, faces_of_cell(idst), irow, ierr); CHKERRQ(ierr) ! this is the offset of the neighboring faces
             call PetscSectionGetOffset(sec, faces_of_cell(iface), icol, ierr); CHKERRQ(ierr) ! this is the offset of the neighboring faces
-            !print *,idst, iface, 'setting val @',faces_of_cell(idst), faces_of_cell(iface),'offsets',irow,icol
 
             call MatSetValue(A, irow, icol, -dir2dir(idst, iface), INSERT_VALUES, ierr); CHKERRQ(ierr)
           enddo
 
-        else
-          cycle
         endif
 
       enddo
@@ -739,43 +542,147 @@ module m_icon_plexgrid
 
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); CHKERRQ(ierr)
 
-    contains
-      subroutine gen_boxmc_labels_for_cell()
-
-      end subroutine
-
-      function vec_proj_on_plane(v, plane_normal)
-        real(ireals), dimension(3), intent(in) :: v, plane_normal
-        real(ireals) :: vec_proj_on_plane(3)
-        vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm(plane_normal)**2
-      end function
-
   end subroutine
 
-  subroutine compute_dir2dir_coeff(src, phi, theta, S,T)
-    use m_boxmc, only : t_boxmc,t_boxmc_wedge_5_5
-    integer(iintegers), intent(in) :: src
-    real(ireals), intent(in) :: phi, theta
-    real(ireals), intent(out) :: S(5),T(5)
+  subroutine compute_local_wedge_ordering(icell, faces_of_cell, geomSection, geoms, faceposlabel, zindexlabel, sundir, &
+      zenith, azimuth, upper_face, bottom_face, base_face, left_face, right_face, lsrc)
+    integer(iintegers), intent(in) :: icell
+    integer(iintegers), intent(in), pointer :: faces_of_cell(:)
+    type(tPetscSection) :: geomSection
+    real(ireals), intent(in), pointer :: geoms(:) ! pointer to coordinates vec
+    type(tDMLabel), intent(in) :: faceposlabel, zindexlabel
+    real(ireals), intent(in) :: sundir(3)
+    real(ireals), intent(out) :: zenith, azimuth
+    integer(iintegers), intent(out) :: upper_face, bottom_face, base_face, left_face, right_face
+    logical, intent(out) :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
 
-    type(t_boxmc_wedge_5_5) :: bmc_wedge_5_5
-    real(ireals) :: bg(3), dx,dy,dz
-    real(ireals) :: S_tol(5),T_tol(5)
+    integer(iintegers) :: iface, geom_offset, ifacepos, izindex(2)
 
-    call bmc_wedge_5_5%init(PETSC_COMM_SELF)
-    print *,'computing coeffs for src/phi/theta',src,phi,theta
+    real(ireals) :: cell_center(3)
+    real(ireals) :: face_normals(3,5), face_centers(3,5)
+    real(ireals) :: side_faces_angles_to_sun(5), proj_angles_to_sun(3), proj_normal(3)
+    real(ireals) :: e_x(3), e_y(3), e_z(3) ! unit vectors of local coord system in which we compute the transfer coefficients
+    real(ireals) :: projected_sundir(3)
 
-    bg  = [1e-3_ireals, zero, one/2 ]
+    integer(iintegers) :: side_faces(3), top_faces(2) ! indices in faces_of_cell which give the top/bot and side faces via labeling
+    integer(iintegers) :: iside_faces, itop_faces, ibase_face ! indices to fill above arrays
+    real(ireals) :: MrotWorld2Local(3,3) ! Rotation Matrix into the local wedge space, (ex, ey, ez)
 
-    !phi   =  0
-    !theta = 45
+    real(ireals) :: local_normal_left(3), local_normal_right(3) ! normal vectors in local wedgemc geometry. For even sided triangles, this is smth. like left: [.5, -.8] or right [-.5, -.8]
 
-    dx = 100
-    dy = dx
-    dz = 50
+    integer(mpiint) :: ierr
 
-    call bmc_wedge_5_5%get_coeff(PETSC_COMM_SELF, bg, src, .True., &
-      phi, theta, dx, dy, dz, S, T, S_tol, T_tol, inp_atol=1e-2_ireals, inp_rtol=1e-1_ireals)
-  end subroutine
+    call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); CHKERRQ(ierr)
+    cell_center = geoms(1+geom_offset:3+geom_offset)
+
+    do iface = 1, size(faces_of_cell)
+      call PetscSectionGetOffset(geomSection, faces_of_cell(iface), geom_offset, ierr); CHKERRQ(ierr)
+      face_centers(:,iface) = geoms(1+geom_offset: 3+geom_offset)
+      face_normals(:,iface) = geoms(4+geom_offset: 6+geom_offset)
+      face_normals(:,iface) = face_normals(:,iface) * determine_normal_direction(face_normals(:,iface), face_centers(:, iface), cell_center)
+      ! to find the face whose normal is closest to sun vector:
+      side_faces_angles_to_sun(iface) = angle_between_two_vec(face_normals(:,iface), sundir) ! in [rad]
+      lsrc(iface) = side_faces_angles_to_sun(iface).lt.pi/2-deg2rad(.1_ireals) ! dont propagate energy along edges where sun is only .1 degrees off
+    enddo
+
+    ! get numbering for 2 top/bot faces and 3 side faces which indicate the position in the faces_of_cell vec
+    iside_faces = 1; itop_faces = 1
+    do iface = 1, size(faces_of_cell)
+      call DMLabelGetValue(faceposlabel, faces_of_cell(iface), ifacepos, ierr); CHKERRQ(ierr)
+      select case(ifacepos)
+      case(TOP_BOT_FACE)
+        top_faces(itop_faces) = iface
+        itop_faces = itop_faces+1
+      case(SIDE_FACE)
+        side_faces(iside_faces) = iface
+        iside_faces = iside_faces+1
+      case default
+        stop 'wrong or no side face label'
+      end select
+    enddo
+
+    call DMLabelGetValue(zindexlabel, faces_of_cell(top_faces(1)), izindex(1), ierr); CHKERRQ(ierr)
+    call DMLabelGetValue(zindexlabel, faces_of_cell(top_faces(2)), izindex(2), ierr); CHKERRQ(ierr)
+    if(izindex(1).gt.izindex(2)) then
+      upper_face = top_faces(2)
+      bottom_face = top_faces(1)
+    else
+      upper_face = top_faces(1)
+      bottom_face = top_faces(2)
+    endif
+
+    do iface=1,size(side_faces)
+      proj_normal = vec_proj_on_plane(sundir, face_normals(:,upper_face))
+      proj_angles_to_sun(iface) = angle_between_two_vec(proj_normal, face_normals(:,side_faces(iface)))
+    enddo
+
+    ibase_face = minloc(proj_angles_to_sun,dim=1)
+    base_face = side_faces(ibase_face)
+
+    e_y = face_normals(:, base_face)   ! inward facing normal -> in local wedgemc coordinates
+    e_z = -face_normals(:, upper_face) ! outward facing normal with respect to the top plate
+    e_x = cross_3d(e_y, e_z)           ! in local wedge_coords, this is y=0 coordinate
+
+    MrotWorld2Local = rotation_matrix_world_to_local_basis(e_x, e_y, e_z)
+
+    left_face  = side_faces(modulo(ibase_face,size(side_faces))+1)
+    right_face = side_faces(modulo(ibase_face+1,size(side_faces))+1)
+
+    local_normal_left  = matmul(MrotWorld2Local, face_normals(:,left_face))
+    local_normal_right = matmul(MrotWorld2Local, face_normals(:,right_face))
+
+    if(local_normal_left(1).lt.local_normal_right(1)) then ! switch right and left face
+      iface = right_face
+      right_face = left_face
+      left_face = iface
+    endif
+
+    ! Now we all the info for the local wedge calculations as we do em with the MonteCarlo raytracer
+
+    zenith = angle_between_two_vec(sundir, -e_z)
+
+    projected_sundir = vec_proj_on_plane(matmul(MrotWorld2Local, sundir), [zero,zero,one])
+    if(norm(projected_sundir).le.epsilon(zero)) then
+      azimuth = 0
+    else
+      projected_sundir = projected_sundir
+      azimuth = angle_between_two_vec([zero,one,zero], projected_sundir) * sign(one, projected_sundir(1))
+    endif
+
+    if(ldebug .and. norm(face_centers(:,upper_face)) .le. norm(face_centers(:,bottom_face))) then ! we expect the first face to be the upper one
+      print *,'norm upper_face ', norm(face_centers(:,upper_face))
+      print *,'norm bottom_face', norm(face_centers(:,bottom_face))
+      print *,'we expect the first face to be the upper one but found:',icell, faces_of_cell(1), faces_of_cell(2)
+      stop 'create_edir_mat() :: wrong zindexlabel'
+    endif
+
+    if(azimuth.lt.-60 .or. azimuth.gt.60) stop 'local azimuth greater than 60 deg. something must have gone wrong with the base face selection!'
+    end subroutine
+
+    subroutine compute_dir2dir_coeff(src, phi, theta, S,T)
+      use m_boxmc, only : t_boxmc,t_boxmc_wedge_5_5
+      integer(iintegers), intent(in) :: src
+      real(ireals), intent(in) :: phi, theta
+      real(ireals), intent(out) :: S(5),T(5)
+
+      type(t_boxmc_wedge_5_5) :: bmc_wedge_5_5
+      real(ireals) :: bg(3), dx,dy,dz
+      real(ireals) :: S_tol(5),T_tol(5)
+
+      call bmc_wedge_5_5%init(PETSC_COMM_SELF)
+      !print *,'computing coeffs for src/phi/theta',src,phi,theta
+
+      bg  = [1e-3_ireals, zero, one/2 ]
+
+      !phi   =  0
+      !theta = 45
+
+      dx = 100
+      dy = dx
+      dz = 200
+
+      call bmc_wedge_5_5%get_coeff(PETSC_COMM_SELF, bg, src, .True., &
+        phi, theta, dx, dy, dz, S, T, S_tol, T_tol, inp_atol=1e-2_ireals, inp_rtol=1e-1_ireals)
+    end subroutine
 
 end module
