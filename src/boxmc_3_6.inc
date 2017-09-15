@@ -17,25 +17,37 @@
 ! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
 !-------------------------------------------------------------------------
 
-! Distribution Code:
+! Distribution Code for direct streams/targets:
 !
-!   C  -------      
+!   C ------- D
 !   |         |
-!   |         |  
-!   |         |  
-!   |         |   
+!  3|   1     |
+!   |         |
+!   |         |
 !   A ------- B
-!         
+!        2
+! Labeling for destinations is symmetric horizontally and vertically
+!
+! Face numbering is
+! 1 -> top/bot face
+! 2 -> side face between (A,C)/(A,D)
+! 3 -> side face between (A,B)/(C,D)
+
+! Distribution Code for diffuse streams/targets:
+!        6
+!   C ------- D
+!   |         |
+!  3|   1     |4
+!   |    2    |
+!   |         |
+!   A ------- B
+!        5
 !
 ! Face numbering is
 ! 1 -> top
-! 2 -> side face between (A,B)
+! 2 -> bottom face
 ! 3 -> side face between (A,C)
-! 5 -> bottom face
-!
-! We always assume the triangle to have dx edge length along y=0 (A,B) and dy is the edge length between (A,C)
-! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
-
+! 5 -> side face between (A,B)
 
 subroutine init_dir_photon_3_6(bmc,p,src,direct,initial_dir,dx,dy,dz)
   class(t_boxmc_3_6) :: bmc
@@ -74,8 +86,6 @@ subroutine init_dir_photon_3_6(bmc,p,src,direct,initial_dir,dx,dy,dz)
   p%dir = initial_dir
   select type(bmc)
   end select
-
-
 end subroutine
 
 subroutine update_dir_stream_3_6(bmc,p,T)
@@ -90,7 +100,7 @@ subroutine update_dir_stream_3_6(bmc,p,T)
    case(5,6)
      T(3)=T(3)+p%weight
    case default
-     stop 'called update dirstream with incorrect source' 
+     stop 'called update dirstream with incorrect source'
   end select
   select type(bmc)
   end select
@@ -104,9 +114,6 @@ subroutine update_diff_stream_3_6(bmc,p,S)
   S(p%side) = S(p%side) + p%weight
   select type(bmc)
   end select
-
-  !print *,'updating S',S,'(',p%side,')','+',p%weight
-  !call print_photon(p)
 end subroutine
 
 subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
@@ -117,8 +124,6 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
   integer(iintegers),intent(in) :: src
 
   real(ireal_dp) :: phi,mu
-  real(ireal_dp),dimension(2) :: A, B, C, PNT ! point PNT on triangle [A,B,C]
-  real(ireal_dp) :: r1, r2
 
   !print *,'---------- new diffuse photon --------------'
 
@@ -145,13 +150,13 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
   mu = R() ! evenly distribution between 0 and 90 degree
 
   p%dir = [cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu]
- 
+
  select case(src)
   case(1)
-    p%dir = rotate_angle_y(p%dir, 180*one) 
- 
+    p%dir = rotate_angle_y(p%dir, 180*one)
+
   case(2)
-    continue 
+    continue
 
   case(3)
     p%dir = rotate_angle_y(p%dir, 270*one)
@@ -164,7 +169,7 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
 
   case(6)
     p%dir = rotate_angle_x(p%dir, 270*one)
-  
+
   case default
     print*,'Sont knwo what to do with source spec:',src
     call exit
@@ -186,7 +191,7 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
 end subroutine
 
 subroutine intersect_distance_3_6(bmc,p,max_dist)
-  use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, distance_to_triangle_edges
+  use m_helper_functions_dp, only: pnt_in_rectangle, distance_to_edge, distance_to_triangle_edges
   class(t_boxmc_3_6) :: bmc
   type(photon),intent(inout) :: p
   real(ireal_dp),intent(out) :: max_dist
@@ -194,9 +199,9 @@ subroutine intersect_distance_3_6(bmc,p,max_dist)
   integer(iintegers) :: i
 
   real(ireal_dp) :: dist(6) ! distances to all the faces
-  real(ireal_dp) :: n(3), new_loc(3)
+  real(ireal_dp) :: new_loc(3)
 
-
+  logical :: l_in_rectangle(2)
 
   !crossing with bottom and top plane:
   dist(1) = hit_plane(p%loc, p%dir,[zero, zero ,p%dz ],[zero,zero,one])
@@ -213,8 +218,6 @@ subroutine intersect_distance_3_6(bmc,p,max_dist)
   max_dist = huge(dist)
   p%side = -i1
   do i=1,size(dist)
-    if(p%direct .and. i.eq.p%src) cycle ! direct beams cant have the source face be the destination... this must be due to bad numerics
-
     if(p%scattercnt.eq.0 .and. i.eq.p%src) cycle ! we just started this, dont allow that it hits the start face
     if(dist(i).lt.zero) cycle ! dont travel backwards
 
@@ -230,7 +233,17 @@ subroutine intersect_distance_3_6(bmc,p,max_dist)
     stop 'debug'
   endif
 
+  new_loc = p%loc + max_dist * p%dir
+  l_in_rectangle(1) = pnt_in_rectangle([zero,zero], [p%dx,zero], [zero,p%dy], [new_loc(1), new_loc(2)])
+  l_in_rectangle(2) = pnt_in_rectangle([zero,zero], [zero,p%dz], [p%dx,p%dz], [new_loc(1), new_loc(3)])
+  if(any(.not.l_in_rectangle)) then
+    print *,'photon not in rectangle', l_in_rectangle
+    print *,'dists to faces', dist
+    print *,'new point not in triangle', new_loc, 'side', p%side, 'dist', max_dist
+    call print_photon(p)
+    stop 'debug'
+  endif
+
   select type(bmc)
   end select
-
 end subroutine

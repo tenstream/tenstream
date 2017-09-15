@@ -27,7 +27,7 @@ module m_helper_functions_dp
       private
       public imp_bcast,norm,cross_2d, cross_3d,deg2rad,rad2deg,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
           mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum,                &
-          pnt_in_triangle, compute_normal_3d, hit_plane, spherical_2_cartesian, distance_to_edge, distance_to_triangle_edges,  &
+          pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, distance_to_edge, distance_to_triangle_edges,  &
           rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, determine_normal_direction
 
       interface imp_bcast
@@ -396,24 +396,33 @@ module m_helper_functions_dp
         endif
       end function
 
+      !> @brief determine if point is inside a rectangle p1,p2,p3
+      function pnt_in_rectangle(p1,p2,p3, p)
+        real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p
+        logical :: pnt_in_rectangle
+        real(ireal_dp),parameter :: eps = epsilon(eps), eps2 = 100*eps
+
+        ! check for rectangular bounding box
+        if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
+            pnt_in_rectangle=.False.
+            return
+        endif
+        if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
+            pnt_in_rectangle=.False.
+            return
+        endif
+        pnt_in_rectangle=.True.
+      end function
+
       !> @brief determine if point is inside a triangle p1,p2,p3
       function pnt_in_triangle(p1,p2,p3, p)
         real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p
         logical :: pnt_in_triangle
-        real(ireal_dp),parameter :: eps = epsilon(eps), eps2 = 100*eps
+        real(ireal_dp),parameter :: eps = epsilon(eps)
         real(ireal_dp) :: a, b, c, edge_dist
 
-        ! First check on rectangular bounding box
-        if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
-            pnt_in_triangle=.False.
-            !print *,'pnt_in_triangle, bounding box check failed:', p
-            return
-        endif
-        if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
-            pnt_in_triangle=.False.
-            !print *,'pnt_in_triangle, bounding box check failed:', p
-            return
-        endif
+        pnt_in_triangle = pnt_in_rectangle(p1,p2,p3, p)
+        if (.not.pnt_in_triangle) return ! if pnt is not in rectangle, it is not in triangle!
 
         ! Then check for sides
         a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
