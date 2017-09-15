@@ -129,8 +129,6 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz)
       stop 'initial direction of the wedge triangle'
     endif
   endif
-
-
 end subroutine
 
 subroutine update_dir_stream_wedge_5_5(bmc,p,T)
@@ -276,13 +274,20 @@ subroutine intersect_distance_wedge_5_5(bmc,p,max_dist)
   normals(:,4) = [nBC(1), nBC(2), zero]
   normals(:,5) = [zero,zero, one]
 
+  dist = huge(dist)
+
   !crossing with bottom and top plane:
-  dist(1) = hit_plane(p%loc, p%dir,[A(1),A(2),p%dz ],normals(:,1))
-  dist(5) = hit_plane(p%loc, p%dir,[A(1),A(2),zero ],normals(:,5))
+  if(p%dir(3).gt.zero) then
+    dist(1) = hit_plane(p%loc, p%dir,[A(1),A(2),p%dz ],normals(:,1))
+  else if (p%dir(3).lt.zero) then
+    dist(5) = hit_plane(p%loc, p%dir,[A(1),A(2),zero ],normals(:,5))
+  endif
 
   !crossing with side planes:
   ! plane 2, along y=0
-  dist(2) = hit_plane(p%loc, p%dir, [A(1), A(2), zero], normals(:,2))
+  if(p%dir(2).lt.zero) then
+    dist(2) = hit_plane(p%loc, p%dir, [A(1), A(2), zero], normals(:,2))
+  endif
   dist(3) = hit_plane(p%loc, p%dir, [C(1), C(2), zero], normals(:,3))
   dist(4) = hit_plane(p%loc, p%dir, [C(1), C(2), zero], normals(:,4))
 
@@ -326,5 +331,5 @@ subroutine intersect_distance_wedge_5_5(bmc,p,max_dist)
   end select
 
 end subroutine
-! ******************* BOXMC wedge 3 5 ************************
+! ******************* BOXMC wedge 5 5 ************************
 
