@@ -24,10 +24,10 @@ module m_optprop
 #define isnan ieee_is_nan
 #endif
 
-use m_optprop_parameters, only : ldebug_optprop, Ndir_8_10,Ndiff_8_10, Ndir_1_2,Ndiff_1_2, coeff_mode
+use m_optprop_parameters, only : ldebug_optprop, Ndir_8_10,Ndiff_8_10, Ndir_1_2,Ndiff_1_2, Ndir_3_6,Ndiff_3_6, coeff_mode
 use m_helper_functions, only : rmse
 use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
-use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10
+use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
@@ -35,7 +35,7 @@ use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 implicit none
 
 private
-public :: t_optprop_1_2,t_optprop_8_10
+public :: t_optprop_1_2,t_optprop_8_10, t_optprop_3_6
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
@@ -55,9 +55,12 @@ end type
 type,extends(t_optprop) :: t_optprop_8_10
 end type
 
+type,extends(t_optprop) :: t_optprop_3_6
+end type
+
 contains
 
-  subroutine init(OPP, azis, szas, comm)
+  subroutine init(OPP, azis, szas, comm) 
       class(t_optprop) :: OPP
       real(ireals),intent(in) :: szas(:),azis(:)
       integer(mpiint) ,intent(in) :: comm
@@ -71,6 +74,10 @@ contains
         class is (t_optprop_8_10)
           OPP%dir_streams  =  Ndir_8_10
           OPP%diff_streams =  Ndiff_8_10
+        
+        class is (t_optprop_3_6)
+          OPP%dir_streams = Ndir_3_6
+          OPP%diff_streams = Ndiff_3_6
 
         class default
         stop ' init optprop : unexpected type for optprop object!'
@@ -84,6 +91,9 @@ contains
 
               class is (t_optprop_8_10)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_10::OPP%OPP_LUT)
+
+              class is (t_optprop_3_6)
+               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_6::OPP%OPP_LUT)
 
               class default
                 stop ' init optprop : unexpected type for optprop object!'
@@ -104,7 +114,7 @@ contains
           call OPP%OPP_LUT%destroy()
           deallocate(OPP%OPP_LUT)
       endif
-  end subroutine
+  end subroutine 
 
   subroutine get_coeff_bmc(OPP, aspect, tauz, w0, g, dir, C, angles)
       class(t_optprop) :: OPP
@@ -250,6 +260,7 @@ end subroutine
                           stop 'cant call coeff_symmetry with isrc -- error happened for type optprop_1_2'
                 end select
 
+              
               class is (t_optprop_8_10)
                 select case (isrc)
                   case(1)

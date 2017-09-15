@@ -31,18 +31,19 @@ module m_optprop_LUT
     Naspect, Ntau, Nw0, Ng, Nphi, Ntheta,  &
     Ndir_1_2,Ndiff_1_2,interp_mode_1_2,    &
     Ndir_8_10,Ndiff_8_10,interp_mode_8_10, &
+    Ndir_3_6,Ndiff_3_6,interp_mode_3_6,    &
     ldelta_scale,delta_scale_truncate,     &
     stddev_atol, use_prescribed_LUT_dims,  &
     preset_aspect, preset_tau, preset_w0,  &
     preset_g, preset_theta
-  use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2
+  use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6
   use m_tenstream_interpolation, only: interp_4d
   use m_netcdfio
 
   implicit none
 
   private
-  public :: t_optprop_LUT, t_optprop_LUT_8_10,t_optprop_LUT_1_2
+  public :: t_optprop_LUT, t_optprop_LUT_8_10,t_optprop_LUT_1_2,t_optprop_LUT_3_6
   ! This module loads and generates the LUT-tables for Tenstream Radiation
   ! computations.
   ! It also holds functions for interpolation on the regular LUT grid.
@@ -94,7 +95,6 @@ module m_optprop_LUT
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
     logical :: LUT_initialized=.False.,optprop_LUT_debug=ldebug_optprop
     character(default_str_len) :: lutbasename
-
     contains
       procedure :: init
       procedure :: destroy
@@ -113,6 +113,8 @@ module m_optprop_LUT
   type,extends(t_optprop_LUT) :: t_optprop_LUT_1_2
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_8_10
+  end type
+  type,extends(t_optprop_LUT) :: t_optprop_Lut_3_6
   end type
 
 contains
@@ -149,6 +151,11 @@ contains
             OPP%lutbasename=trim(lut_basename)//'_8_10.'
             allocate(t_boxmc_8_10::OPP%bmc)
 
+          class is (t_optprop_LUT_3_6)
+            OPP%dir_streams  = Ndir_3_6
+            OPP%diff_streams = Ndiff_3_6
+            OPP%lutbasename=trim(lut_basename)//'_3_6.'
+            allocate(t_boxmc_3_6::OPP%bmc)
           class default
             stop 'initialize LUT: unexpected type for optprop_LUT object!'
         end select
@@ -434,6 +441,9 @@ subroutine createLUT_diff(OPP, LUT, comm)
         class is (t_optprop_LUT_1_2)
           stop 'Twostream LUT generation is broken at the  moment -- need to write loadbalancer stuff'
           call prepare_table_space(LUT%S,2_iintegers)
+
+        class is (t_optprop_LUT_3_6)
+          call prepare_table_space(LUT%S,OPP%diff_streams**2)
 
         class default
           stop 'dont know optprop_class'
@@ -1124,6 +1134,9 @@ subroutine set_parameter_space(OPP,ps)
           OPP%interp_mode = interp_mode_1_2
       class is (t_optprop_LUT_8_10)
           OPP%interp_mode = interp_mode_8_10
+      
+      class is (t_optprop_LUT_3_6)
+          OPP%interp_mode = interp_mode_3_6
       class default
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select

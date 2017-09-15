@@ -63,6 +63,7 @@ module m_optprop_parameters
       integer(iintegers) ,parameter :: Ndiff_1_2=2, Ndir_1_2=1, interp_mode_1_2=2
 
       integer(iintegers) ,parameter :: Nphi=10
+      integer(iintegers) ,parameter :: Ndiff_3_6=6, Ndir_3_6=3, interp_mode_3_6=2
 
       ! integer(iintegers) ,parameter :: Ntau=40, Nw0=10, Ng=2, Ntheta=19
       ! real(ireals), parameter :: preset_tau(1)  =[0]
