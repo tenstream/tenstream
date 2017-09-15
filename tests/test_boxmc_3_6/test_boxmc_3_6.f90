@@ -74,7 +74,7 @@ contains
 
     do iphi=0,360,30
       phi = iphi
-      do src = 3,6
+      do src = 2,3
         call bmc_3_6%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
       enddo
@@ -104,11 +104,6 @@ contains
     call bmc_3_6%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_direct_srctopface top_to_bot')
 
-    ! from bot to top face
-    src = 2
-    theta = 180
-    call bmc_3_6%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_direct_srctopface bot_to_top')
   end subroutine
 
   @test(npes =[1,2])

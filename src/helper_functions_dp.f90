@@ -400,7 +400,7 @@ module m_helper_functions_dp
       function pnt_in_rectangle(p1,p2,p3, p)
         real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p
         logical :: pnt_in_rectangle
-        real(ireal_dp),parameter :: eps = epsilon(eps), eps2 = 100*eps
+        real(ireal_dp),parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
 
         ! check for rectangular bounding box
         if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange

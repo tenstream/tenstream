@@ -21,11 +21,11 @@
 !
 !   C ------- D
 !   |         |
-!  3|   1     |
+!  2|   1     |
 !   |         |
 !   |         |
 !   A ------- B
-!        2
+!        3
 ! Labeling for destinations is symmetric horizontally and vertically
 !
 ! Face numbering is
@@ -60,15 +60,9 @@ subroutine init_dir_photon_3_6(bmc,p,src,direct,initial_dir,dx,dy,dz)
   case (1)
     p%loc = [R()*dx,R()*dy, dz]
   case (2)
-    p%loc = [R()*dx, R()*dy, zero]
-  case (3)
     p%loc = [zero, R()*dy, R()*dz]
-  case (4)
-    p%loc = [dx, R()*dy, R()*dz]
-  case (5)
+  case (3)
     p%loc = [R()*dx, zero, R()*dz]
-  case (6)
-    p%loc = [R()*dx, dy, R()*dz]
   case default
     print *,'Dont know what to do with source spec:',src
     call exit
@@ -203,22 +197,31 @@ subroutine intersect_distance_3_6(bmc,p,max_dist)
 
   logical :: l_in_rectangle(2)
 
+  dist = huge(dist)
   !crossing with bottom and top plane:
-  dist(1) = hit_plane(p%loc, p%dir,[zero, zero ,p%dz ],[zero,zero,one])
-  dist(2) = hit_plane(p%loc, p%dir,[zero, zero, zero ],[zero,zero,one])
+  if(p%dir(3).ge.zero) then
+    dist(1) = hit_plane(p%loc, p%dir,[zero, zero ,p%dz ],[zero,zero,one])
+  else if(p%dir(3).le.zero) then
+    dist(2) = hit_plane(p%loc, p%dir,[zero, zero, zero ],[zero,zero,one])
+  endif
 
   !crossing with side planes
-  dist(3) = hit_plane(p%loc, p%dir, [zero, zero, zero], [one, zero, zero])
-  dist(4) = hit_plane(p%loc, p%dir, [p%dx, zero, zero], [one, zero, zero])
+  if(p%dir(1).le.zero) then
+    dist(3) = hit_plane(p%loc, p%dir, [zero, zero, zero], [one, zero, zero])
+  else if(p%dir(1).ge.zero) then
+    dist(4) = hit_plane(p%loc, p%dir, [p%dx, zero, zero], [one, zero, zero])
+  endif
 
   !crossing with other side planes
-  dist(5) = hit_plane(p%loc, p%dir, [zero, zero, zero], [zero, one, zero])
-  dist(6) = hit_plane(p%loc, p%dir, [zero, p%dy, zero], [zero, one, zero])
+  if(p%dir(2).le.zero) then
+    dist(5) = hit_plane(p%loc, p%dir, [zero, zero, zero], [zero, one, zero])
+  else if(p%dir(2).ge.zero) then
+    dist(6) = hit_plane(p%loc, p%dir, [zero, p%dy, zero], [zero, one, zero])
+  endif
 
   max_dist = huge(dist)
   p%side = -i1
   do i=1,size(dist)
-    if(p%scattercnt.eq.0 .and. i.eq.p%src) cycle ! we just started this, dont allow that it hits the start face
     if(dist(i).lt.zero) cycle ! dont travel backwards
 
     if(dist(i).le.max_dist) then
@@ -239,7 +242,7 @@ subroutine intersect_distance_3_6(bmc,p,max_dist)
   if(any(.not.l_in_rectangle)) then
     print *,'photon not in rectangle', l_in_rectangle
     print *,'dists to faces', dist
-    print *,'new point not in triangle', new_loc, 'side', p%side, 'dist', max_dist
+    print *,'new point not in rectangle', new_loc, 'side', p%side, 'dist', max_dist
     call print_photon(p)
     stop 'debug'
   endif
