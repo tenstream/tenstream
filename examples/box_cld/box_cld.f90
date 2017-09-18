@@ -19,7 +19,7 @@ subroutine box_cld()
 
     integer(iintegers),parameter :: nxp=30,nyp=10,nv=10
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=270, theta0=60
+    real(ireals),parameter :: phi0=90, theta0=60
     real(ireals),parameter :: albedo=0, dz=dx
     real(ireals),parameter :: incSolar = 1364
     real(ireals),parameter :: atolerance = 1
@@ -46,8 +46,8 @@ subroutine box_cld()
     ksca = 1e-3_ireals/dz
     g    = zero
 
-    kabs(nv/2,nxp/2,1:nyp) = 4/dz
-    ksca(nv/2,nxp/2,1:nyp) = 4/dz
+    kabs(nv/2,nxp/2,1:nyp) = 1/dz
+    ksca(nv/2,nxp/2,1:nyp) = 1/dz
     g   (nv/2,nxp/2,1:nyp) = .9
 
     call set_optical_properties(albedo, kabs, ksca, g)
