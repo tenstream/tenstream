@@ -73,14 +73,14 @@ contains
       T_target([4]) = (sinh(tau)-cosh(tau)+1)/tau
 
       call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_2')
+      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_negative_azimuth_src2_60')
 
       phi = -60; theta = 90
       T_target = zero
       T_target([3]) = (sinh(tau)-cosh(tau)+1)/tau
 
       call bmc_wedge_5_5%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_2')
+      call check(S_target,T_target, S,T, msg='test_wedgemc_direct_negative_azimuth_src2_-60')
   end subroutine
 
   @test(npes =[1,2])
