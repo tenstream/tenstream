@@ -185,7 +185,7 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
 end subroutine
 
 subroutine intersect_distance_3_6(bmc,p,max_dist)
-  use m_helper_functions_dp, only: pnt_in_rectangle, distance_to_edge, distance_to_triangle_edges
+  use m_helper_functions_dp, only: pnt_in_rectangle, angle_between_two_vec
   class(t_boxmc_3_6) :: bmc
   type(photon),intent(inout) :: p
   real(ireal_dp),intent(out) :: max_dist
@@ -193,35 +193,49 @@ subroutine intersect_distance_3_6(bmc,p,max_dist)
   integer(iintegers) :: i
 
   real(ireal_dp) :: dist(6) ! distances to all the faces
-  real(ireal_dp) :: new_loc(3)
+  real(ireal_dp) :: new_loc(3), normals(3,6)
 
   logical :: l_in_rectangle(2)
+
+  normals(:,1) = [zero,zero,-one]
+  normals(:,2) = [zero,zero, one]
+  normals(:,3) = [ one,zero,zero]
+  normals(:,4) = [-one,zero,zero]
+  normals(:,5) = [zero, one,zero]
+  normals(:,6) = [zero,-one,zero]
 
   dist = huge(dist)
   !crossing with bottom and top plane:
   if(p%dir(3).ge.zero) then
-    dist(1) = hit_plane(p%loc, p%dir,[zero, zero ,p%dz ],[zero,zero,one])
+    dist(1) = hit_plane(p%loc, p%dir,[zero, zero ,p%dz ],normals(:,1))
   else if(p%dir(3).le.zero) then
-    dist(2) = hit_plane(p%loc, p%dir,[zero, zero, zero ],[zero,zero,one])
+    dist(2) = hit_plane(p%loc, p%dir,[zero, zero, zero ],normals(:,2))
   endif
 
   !crossing with side planes
   if(p%dir(1).le.zero) then
-    dist(3) = hit_plane(p%loc, p%dir, [zero, zero, zero], [one, zero, zero])
+    dist(3) = hit_plane(p%loc, p%dir, [zero, zero, zero], normals(:,3))
   else if(p%dir(1).ge.zero) then
-    dist(4) = hit_plane(p%loc, p%dir, [p%dx, zero, zero], [one, zero, zero])
+    dist(4) = hit_plane(p%loc, p%dir, [p%dx, zero, zero], normals(:,4))
   endif
 
   !crossing with other side planes
   if(p%dir(2).le.zero) then
-    dist(5) = hit_plane(p%loc, p%dir, [zero, zero, zero], [zero, one, zero])
+    dist(5) = hit_plane(p%loc, p%dir, [zero, zero, zero], normals(:,5))
   else if(p%dir(2).ge.zero) then
-    dist(6) = hit_plane(p%loc, p%dir, [zero, p%dy, zero], [zero, one, zero])
+    dist(6) = hit_plane(p%loc, p%dir, [zero, p%dy, zero], normals(:,6))
   endif
 
   max_dist = huge(dist)
   p%side = -i1
   do i=1,size(dist)
+
+    if(dist(i).ge.-sqrt(epsilon(zero)) .and. dist(i).le.zero) then ! have photon that is very close to the edge, this could be a numerics issue... lets check in which direction the photon travels
+      if( angle_between_two_vec(p%dir, -normals(:,i)) .le. pi_dp/2 ) then ! photon is flying towards this edge but intersection code said that the crossing would be behind us, this can only mean that we are actually already outside of the triangle...
+        dist(i) = zero
+      endif
+    endif
+
     if(dist(i).lt.zero) cycle ! dont travel backwards
 
     if(dist(i).le.max_dist) then
