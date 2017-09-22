@@ -1299,6 +1299,7 @@ contains
 
     call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
+    call PetscObjectViewFromOptions(Mdiff, PETSC_NULL_MAT, "-show_Mdiff", ierr); call CHKERR(ierr)
   contains
     subroutine set_tenstream_coeff(C,A,k,i,j,ierr)
       type(t_coord),intent(in) :: C
@@ -1632,15 +1633,15 @@ contains
                     xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_ba_m*C_dir%dof + src)
                     xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_fw_m*C_dir%dof + src)
                   endif
+                enddo
 
                   if(ldebug) then
-                    do dst=0,C_diff%dof-1
-                      if(sum(dir2diff( dst*C_dir%dof : dst*(C_dir%dof+1)-1 )) .gt. one .or. &
-                        sum(dir2diff( dst*C_dir%dof : dst*(C_dir%dof+1)-1 )) .lt. zero   ) &
-                        print *,'DEBUG Found dir2diff gt one:',src,'::',sum(dir2diff( dst*C_dir%dof : dst*(C_dir%dof+1)-1  ) ),'::',dir2diff(dst*C_dir%dof : dst*(C_dir%dof+1)-1) ,'   :::::::     ', dir2diff
+                    do src=1,C_dir%dof
+                    if(sum(dir2diff(src : C_dir%dof*C_diff%dof : C_dir%dof)) .gt. one .or. &
+                       sum(dir2diff(src : C_dir%dof*C_diff%dof : C_dir%dof)) .lt. zero   ) &
+                       print *,'DEBUG Found dir2diff gt one:',src,'::',sum(dir2diff(src : C_dir%dof*C_diff%dof : C_dir%dof)),':',dir2diff(src : C_dir%dof*C_diff%dof : C_dir%dof) ,'   :::::::     ', dir2diff
                     enddo
                   endif
-                enddo
 
               endif ! 1D or Tenstream?
             endif ! if solar
