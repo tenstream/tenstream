@@ -35,9 +35,9 @@ use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 implicit none
 
 private
-public :: t_optprop_1_2,t_optprop_8_10, t_optprop_3_6
+public :: t_optprop, t_optprop_1_2,t_optprop_8_10, t_optprop_3_6
 
-type,abstract :: t_optprop
+type :: t_optprop
   logical :: optprop_debug=ldebug_optprop
   integer(iintegers) :: dir_streams=inil,diff_streams=inil
   class(t_optprop_LUT),allocatable :: OPP_LUT
@@ -45,7 +45,7 @@ type,abstract :: t_optprop
     procedure :: init
     procedure :: get_coeff
     procedure :: get_coeff_bmc
-    procedure :: coeff_symmetry
+    !procedure :: coeff_symmetry
     procedure :: destroy
 end type
 
@@ -60,13 +60,21 @@ end type
 
 contains
 
-  subroutine init(OPP, azis, szas, comm) 
+  subroutine init(OPP, azis, szas, comm, Ndiff, Ndir) 
       class(t_optprop) :: OPP
       real(ireals),intent(in) :: szas(:),azis(:)
       integer(mpiint) ,intent(in) :: comm
+      integer(iintegers), intent(in), optional :: Ndiff, Ndir
       integer(mpiint) :: ierr
 
       select type(OPP)
+        class is (t_optprop)
+          if(.not.present(Ndiff).or..not.present(Ndir)) then 
+            print *, 'Ndiff, Ndir not present' 
+            call exit
+          endif
+          OPP%dir_streams = Ndir
+          OPP%diff_streams = Ndiff
         class is (t_optprop_1_2)
           OPP%dir_streams  =  Ndir_1_2
           OPP%diff_streams =  Ndiff_1_2
@@ -86,6 +94,14 @@ contains
       select case (coeff_mode)
           case(i0) ! LookUpTable Mode
             select type(OPP)
+              class is (t_optprop)
+                if(Ndir.eq.1.and.Ndiff.eq.2) then  
+                  if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_1_2::OPP%OPP_LUT)
+                else if(Ndir.eq.3.and.Ndiff.eq.6) then
+                  if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_6::OPP%OPP_LUT)
+                else if(Ndir.eq.8.and.Ndiff.eq.10) then 
+                  if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_10::OPP%OPP_LUT)
+                endif
               class is (t_optprop_1_2)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_1_2::OPP%OPP_LUT)
 
@@ -235,81 +251,107 @@ contains
         end subroutine
 
 end subroutine
-        function coeff_symmetry(OPP, isrc,coeff)
-            class(t_optprop) :: OPP
-            real(ireals) :: coeff_symmetry(OPP%diff_streams)
-            real(ireals),intent(in) :: coeff(:)
-            integer(iintegers),intent(in) :: isrc
-            integer(iintegers),parameter :: l=1
-            integer(iintegers),parameter :: k=5
-            !TODO: this was just a simple test if we can enhance diffusion
-            !      artificially by fiddling with the transport coefficients. -- only marginally improvement for Enet(surface) but increased
-            !      rmse in atmosphere...
-            real(ireals),parameter :: artificial_diffusion = zero
-
-            ! integer,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
-            select type(OPP)
-
-              class is (t_optprop_1_2)
-                select case (isrc)
-                  case(1)
-                          coeff_symmetry = coeff([l+0, l+1])
-                  case(2)
-                          coeff_symmetry = coeff([l+1, l+0])
-                  case default
-                          stop 'cant call coeff_symmetry with isrc -- error happened for type optprop_1_2'
-                end select
-
-              
-              class is (t_optprop_8_10)
-                select case (isrc)
-                  case(1)
-                    coeff_symmetry = coeff([l+0, l+1, l+2, l+2, l+3, l+3, l+2, l+2, l+3, l+3])
-                  case(2)
-                    coeff_symmetry = coeff([l+1, l+0, l+3, l+3, l+2, l+2, l+3, l+3, l+2, l+2])
-                  case(3)
-                    coeff_symmetry = coeff([k+0, k+1, k+2, k+3, k+4, k+5, k+6, k+6, k+7, k+7])
-                  case(4)
-                    coeff_symmetry = coeff([k+0, k+1, k+3, k+2, k+5, k+4, k+6, k+6, k+7, k+7])
-                  case(5)
-                    coeff_symmetry = coeff([k+1, k+0, k+4, k+5, k+2, k+3, k+7, k+7, k+6, k+6])
-                  case(6)
-                    coeff_symmetry = coeff([k+1, k+0, k+5, k+4, k+3, k+2, k+7, k+7, k+6, k+6])
-                  case(7)
-                    coeff_symmetry = coeff([k+0, k+1, k+6, k+6, k+7, k+7, k+2, k+3, k+4, k+5])
-                  case(8)
-                    coeff_symmetry = coeff([k+0, k+1, k+6, k+6, k+7, k+7, k+3, k+2, k+5, k+4])
-                  case(9)
-                    coeff_symmetry = coeff([k+1, k+0, k+7, k+7, k+6, k+6, k+4, k+5, k+2, k+3])
-                  case(10)
-                    coeff_symmetry = coeff([k+1, k+0, k+7, k+7, k+6, k+6, k+5, k+4, k+3, k+2])
-                  case default
-                    stop 'cant call coeff_symmetry with isrc -- error happened for optprop_8_10'
-                end select
-
-                if(artificial_diffusion.gt.zero) then
-                  if(isrc.eq.1 .or. isrc.eq.2) then
-                    coeff_symmetry(3:4) = coeff_symmetry(3:4) + coeff_symmetry(2)*artificial_diffusion *.25_ireals
-                    coeff_symmetry(7:8) = coeff_symmetry(7:8) + coeff_symmetry(2)*artificial_diffusion *.25_ireals
-                    coeff_symmetry(2)   = coeff_symmetry(2)   - coeff_symmetry(2)*artificial_diffusion
-
-                    coeff_symmetry(5: 6) = coeff_symmetry(5: 6) + coeff_symmetry(1)*artificial_diffusion *.25_ireals
-                    coeff_symmetry(9:10) = coeff_symmetry(9:10) + coeff_symmetry(1)*artificial_diffusion *.25_ireals
-                    coeff_symmetry(1)    = coeff_symmetry(1)    - coeff_symmetry(1)*artificial_diffusion
-                  endif
-                endif
-
-              class default
-                stop 'coeff_symmetry : unexpected type for OPP !'
-            end select
-
-
-            if(ldebug_optprop) then
-              if(real(sum(coeff_symmetry)).gt.one+epsilon(one)*10._ireals) then
-                print *,'sum of diffuse coeff_symmetrys bigger one!',sum(coeff_symmetry),'for src=',isrc,'coeff_symmetry:',coeff_symmetry
-                call exit()
-              endif
-            endif
-        end function
+!        function coeff_symmetry(OPP, isrc,coeff)
+!            class(t_optprop) :: OPP
+!            real(ireals) :: coeff_symmetry(OPP%diff_streams)
+!            real(ireals),intent(in) :: coeff(:)
+!            integer(iintegers),intent(in) :: isrc
+!            integer(iintegers),parameter :: l=1
+!            integer(iintegers),parameter :: k=5
+!            !TODO: this was just a simple test if we can enhance diffusion
+!            !      artificially by fiddling with the transport coefficients. -- only marginally improvement for Enet(surface) but increased
+!            !      rmse in atmosphere...
+!            real(ireals),parameter :: artificial_diffusion = zero
+!
+!            ! integer,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
+!            select type(OPP)
+!
+!              class is (t_optprop_1_2)
+!                select case (isrc)
+!                  case(1)
+!                          coeff_symmetry = coeff([l+0, l+1])
+!                  case(2)
+!                          coeff_symmetry = coeff([l+1, l+0])
+!                  case default
+!                          stop 'cant call coeff_symmetry with isrc -- error happened for type optprop_1_2'
+!                end select
+!
+!              
+!              class is (t_optprop_8_10)
+!                select case (isrc)
+!                  case(1)
+!                    coeff_symmetry = coeff([l+0, l+1, l+2, l+2, l+3, l+3, l+2, l+2, l+3, l+3])
+!                  case(2)
+!                    coeff_symmetry = coeff([l+1, l+0, l+3, l+3, l+2, l+2, l+3, l+3, l+2, l+2])
+!                  case(3)
+!                    coeff_symmetry = coeff([k+0, k+1, k+2, k+3, k+4, k+5, k+6, k+6, k+7, k+7])
+!                  case(4)
+!                    coeff_symmetry = coeff([k+0, k+1, k+3, k+2, k+5, k+4, k+6, k+6, k+7, k+7])
+!                  case(5)
+!                    coeff_symmetry = coeff([k+1, k+0, k+4, k+5, k+2, k+3, k+7, k+7, k+6, k+6])
+!                  case(6)
+!                    coeff_symmetry = coeff([k+1, k+0, k+5, k+4, k+3, k+2, k+7, k+7, k+6, k+6])
+!                  case(7)
+!                    coeff_symmetry = coeff([k+0, k+1, k+6, k+6, k+7, k+7, k+2, k+3, k+4, k+5])
+!                  case(8)
+!                    coeff_symmetry = coeff([k+0, k+1, k+6, k+6, k+7, k+7, k+3, k+2, k+5, k+4])
+!                  case(9)
+!                    coeff_symmetry = coeff([k+1, k+0, k+7, k+7, k+6, k+6, k+4, k+5, k+2, k+3])
+!                  case(10)
+!                    coeff_symmetry = coeff([k+1, k+0, k+7, k+7, k+6, k+6, k+5, k+4, k+3, k+2])
+!                  case default
+!                    stop 'cant call coeff_symmetry with isrc -- error happened for optprop_8_10'
+!                end select
+!
+!              class is (t_optprop_3_6)                                                        !!! Puh, was sind das fuer Symmetrien? 
+!                select case (isrc)
+!                  case(1)
+!                    coeff_symmetry = coeff([l+0, l+1, l+2, l+2, l+3, l+3, l+2, l+2, l+3, l+3])
+!                  case(2)
+!                    coeff_symmetry = coeff([l+1, l+0, l+3, l+3, l+2, l+2, l+3, l+3, l+2, l+2])
+!                  case(3)
+!                    coeff_symmetry = coeff([k+0, k+1, k+2, k+3, k+4, k+5, k+6, k+6, k+7, k+7])
+!                  case(4)
+!                    coeff_symmetry = coeff([k+0, k+1, k+3, k+2, k+5, k+4, k+6, k+6, k+7, k+7])
+!                  case(5)
+!                    coeff_symmetry = coeff([k+1, k+0, k+4, k+5, k+2, k+3, k+7, k+7, k+6, k+6])
+!                  case(6)
+!                    coeff_symmetry = coeff([k+1, k+0, k+5, k+4, k+3, k+2, k+7, k+7, k+6, k+6])
+!                  case(7)
+!                    coeff_symmetry = coeff([k+0, k+1, k+6, k+6, k+7, k+7, k+2, k+3, k+4, k+5])
+!                  case(8)
+!                    coeff_symmetry = coeff([k+0, k+1, k+6, k+6, k+7, k+7, k+3, k+2, k+5, k+4])
+!                  case(9)
+!                    coeff_symmetry = coeff([k+1, k+0, k+7, k+7, k+6, k+6, k+4, k+5, k+2, k+3])
+!                  case(10)
+!                    coeff_symmetry = coeff([k+1, k+0, k+7, k+7, k+6, k+6, k+5, k+4, k+3, k+2])
+!                  case default
+!                    stop 'cant call coeff_symmetry with isrc -- error happened for optprop_3_6'
+!                end select
+!
+!                if(artificial_diffusion.gt.zero) then
+!                  if(isrc.eq.1 .or. isrc.eq.2) then
+!                    coeff_symmetry(3:4) = coeff_symmetry(3:4) + coeff_symmetry(2)*artificial_diffusion *.25_ireals
+!                    coeff_symmetry(7:8) = coeff_symmetry(7:8) + coeff_symmetry(2)*artificial_diffusion *.25_ireals
+!                    coeff_symmetry(2)   = coeff_symmetry(2)   - coeff_symmetry(2)*artificial_diffusion
+!
+!                    coeff_symmetry(5: 6) = coeff_symmetry(5: 6) + coeff_symmetry(1)*artificial_diffusion *.25_ireals
+!                    coeff_symmetry(9:10) = coeff_symmetry(9:10) + coeff_symmetry(1)*artificial_diffusion *.25_ireals
+!                    coeff_symmetry(1)    = coeff_symmetry(1)    - coeff_symmetry(1)*artificial_diffusion
+!                  endif
+!                endif
+!
+!              class default
+!                stop 'coeff_symmetry : unexpected type for OPP !'
+!            end select
+!
+!
+!            if(ldebug_optprop) then
+!              if(real(sum(coeff_symmetry)).gt.one+epsilon(one)*10._ireals) then
+!                print *,'sum of diffuse coeff_symmetrys bigger one!',sum(coeff_symmetry),'for src=',isrc,'coeff_symmetry:',coeff_symmetry
+!                call exit()
+!              endif
+!            endif
+!        end function
 
 end module

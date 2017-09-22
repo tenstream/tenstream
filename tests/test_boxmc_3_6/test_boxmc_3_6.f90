@@ -172,19 +172,23 @@ contains
 
     tau = (bg(1)+bg(2)) * dz
 
-    S_target = zero
+    T_target = zero
+
     S_target = [0.242562*one, zero, 0.177445*one, 0.177294*one, 0.177382*one, 0.177347*one]
 
 
-    T_target = zero
 
-    do src = 2,2
-      call bmc_3_6%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbottomface')
-    enddo
+    src = 2
+    call bmc_3_6%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbottomface')
+
+    S_target = [zero, 0.242562*one, 0.177445*one, 0.177294*one, 0.177382*one, 0.177347*one]
+    src = 1
+    call bmc_3_6%get_coeff(comm,bg,src,.False.,phi,theta,1e3_ireals, 1e3_ireals, 1e2_ireals,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbottomface')
   end subroutine
 
-  @test(npes =[1,2])
+  !@test(npes =[1,2])
   subroutine test_boxmc_select_cases_diff_srcsideface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
