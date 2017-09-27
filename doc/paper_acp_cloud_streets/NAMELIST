@@ -1,0 +1,46 @@
+&model
+  ! Model domain specification
+  nxp = 516
+  nyp = 516
+  nzp = 55
+  deltax  = 100.
+  deltay  = 100.
+  deltaz  = 50.
+  dzmax   = 100.
+  dzrat   = 1.01
+  dtlong  = 5.
+
+  ! Output and runtime parameters
+  timmax = 21600. ! 12h
+  wctime = 28000  ! below 8 hrs slurm time
+  runtype      = "HISTORY"
+  hfilin       = 'acor_3d90.rst'
+  filprf       = 'acor_3d90'
+  frqhis = 3600
+  frqanl = 300
+  savg_intvl=30
+  ssam_intvl=30
+
+  CCN    = 300.e6   ! cloud droplet mixing ratio
+  cntlat = 0.       ! lat for coriolis force
+  corflg = .false.  ! Dont infer coriolis forces
+  zrough = 0.001    ! momentum roughness height
+
+  level  = 2        ! warm microphysics only, without rain formation
+
+  th00   = 296      ! Atmosphere Background state... should be close to the simulation atmosphere
+  sst    = 295      ! Fixed SST -- not used ... we use the LSM
+  isfctyp= 5        ! Use the Land-Surface-Model
+
+  iradtyp = 7       ! Use 3D Radiation interface
+  fixed_sun=.true.  ! We dont have a diurnal cycle
+  radMcICA=.false.  ! MonteCarlo Spectral Integration does not work well with interactive surfaces
+  u0 = .5           ! cosine of solar zenith angle
+  sfc_albedo = 0.07 ! solar surface albedo
+
+  ! Initializations:
+  zrand = 1400     ! height below which random perturbations are added
+  vmean = 0        ! no mean background wind, we put the background wind in the environmental sounding
+  umean = 0        ! no mean background wind, we put the background wind in the environmental sounding
+  iseed = 12345678 ! pick a random number
+/
