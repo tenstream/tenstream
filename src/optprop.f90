@@ -24,7 +24,7 @@ module m_optprop
 #define isnan ieee_is_nan
 #endif
 
-use m_optprop_parameters, only : ldebug_optprop, Ndir_8_10,Ndiff_8_10, Ndir_1_2,Ndiff_1_2, Ndir_3_6,Ndiff_3_6, coeff_mode
+use m_optprop_parameters, only : ldebug_optprop, coeff_mode
 use m_helper_functions, only : rmse
 use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6
@@ -37,9 +37,8 @@ implicit none
 private
 public :: t_optprop, t_optprop_1_2,t_optprop_8_10, t_optprop_3_6
 
-type :: t_optprop
+type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
-  integer(iintegers) :: dir_streams=inil,diff_streams=inil
   class(t_optprop_LUT),allocatable :: OPP_LUT
   contains
     procedure :: init
@@ -60,48 +59,15 @@ end type
 
 contains
 
-  subroutine init(OPP, azis, szas, comm, Ndiff, Ndir) 
+  subroutine init(OPP, azis, szas, comm) 
       class(t_optprop) :: OPP
       real(ireals),intent(in) :: szas(:),azis(:)
       integer(mpiint) ,intent(in) :: comm
-      integer(iintegers), intent(in), optional :: Ndiff, Ndir
       integer(mpiint) :: ierr
-
-      select type(OPP)
-        class is (t_optprop)
-          if(.not.present(Ndiff).or..not.present(Ndir)) then 
-            print *, 'Ndiff, Ndir not present' 
-            call exit
-          endif
-          OPP%dir_streams = Ndir
-          OPP%diff_streams = Ndiff
-        class is (t_optprop_1_2)
-          OPP%dir_streams  =  Ndir_1_2
-          OPP%diff_streams =  Ndiff_1_2
-
-        class is (t_optprop_8_10)
-          OPP%dir_streams  =  Ndir_8_10
-          OPP%diff_streams =  Ndiff_8_10
-        
-        class is (t_optprop_3_6)
-          OPP%dir_streams = Ndir_3_6
-          OPP%diff_streams = Ndiff_3_6
-
-        class default
-        stop ' init optprop : unexpected type for optprop object!'
-      end select
 
       select case (coeff_mode)
           case(i0) ! LookUpTable Mode
             select type(OPP)
-              class is (t_optprop)
-                if(Ndir.eq.1.and.Ndiff.eq.2) then  
-                  if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_1_2::OPP%OPP_LUT)
-                else if(Ndir.eq.3.and.Ndiff.eq.6) then
-                  if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_6::OPP%OPP_LUT)
-                else if(Ndir.eq.8.and.Ndiff.eq.10) then 
-                  if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_10::OPP%OPP_LUT)
-                endif
               class is (t_optprop_1_2)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_1_2::OPP%OPP_LUT)
 
@@ -234,18 +200,18 @@ contains
               endif
             endif
             if(present(inp_angles)) then
-              if(dir .and. size(C).ne. OPP%dir_streams**2) then
-                print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%dir_streams**2
+              if(dir .and. size(C).ne. OPP%OPP_LUT%dir_streams**2) then
+                print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%OPP_LUT%dir_streams**2
               endif
-              if(.not.dir .and. size(C).ne. OPP%diff_streams*OPP%dir_streams) then
-                print *,'dir2diffuse called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%diff_streams*OPP%dir_streams
+              if(.not.dir .and. size(C).ne. OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams) then
+                print *,'dir2diffuse called get_coeff with wrong shaped output array:',size(C),'should be',OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams
               endif
             else
-              if(dir .and. size(C).ne. OPP%diff_streams) then
-                print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%diff_streams
+              if(dir .and. size(C).ne. OPP%OPP_LUT%diff_streams) then
+                print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%OPP_LUT%diff_streams
               endif
-              if(.not.dir .and. size(C).ne. OPP%diff_streams**2) then
-                print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%diff_streams**2
+              if(.not.dir .and. size(C).ne. OPP%OPP_LUT%diff_streams**2) then
+                print *,'diff2diff called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%OPP_LUT%diff_streams**2
               endif
             endif
         end subroutine

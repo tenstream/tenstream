@@ -29,9 +29,8 @@ module m_optprop_LUT
   use m_optprop_parameters, only:          &
     ldebug_optprop, lut_basename,          &
     Naspect, Ntau, Nw0, Ng, Nphi, Ntheta,  &
-    Ndir_1_2,Ndiff_1_2,interp_mode_1_2,    &
-    Ndir_8_10,Ndiff_8_10,interp_mode_8_10, &
-    Ndir_3_6,Ndiff_3_6,interp_mode_3_6,    &
+    interp_mode_1_2,interp_mode_8_10, &
+    interp_mode_3_6,    &
     ldelta_scale,delta_scale_truncate,     &
     stddev_atol, use_prescribed_LUT_dims,  &
     preset_aspect, preset_tau, preset_w0,  &
@@ -90,9 +89,8 @@ module m_optprop_LUT
     class(t_boxmc),allocatable :: bmc
     type(directTable),allocatable :: dirLUT
     type(diffuseTable),allocatable :: diffLUT
-
+    integer(iintegers) :: dir_streams = inil, diff_streams = inil
     integer(iintegers) :: Naspect, Ntau, Nw0, Ng, Nphi, Ntheta, interp_mode
-    integer(iintegers) :: dir_streams=inil,diff_streams=inil
     logical :: LUT_initialized=.False.,optprop_LUT_debug=ldebug_optprop
     character(default_str_len) :: lutbasename
     contains
@@ -140,20 +138,20 @@ contains
       if(.not.allocated(OPP%bmc)) then
         select type (OPP)
           class is (t_optprop_LUT_1_2)
-            OPP%dir_streams  =  Ndir_1_2
-            OPP%diff_streams =  Ndiff_1_2
+            OPP%dir_streams  =  1
+            OPP%diff_streams =  2
             OPP%lutbasename=trim(lut_basename)//'_1_2.'
             allocate(t_boxmc_1_2::OPP%bmc)
 
           class is (t_optprop_LUT_8_10)
-            OPP%dir_streams  = Ndir_8_10
-            OPP%diff_streams = Ndiff_8_10
+            OPP%dir_streams  = 8
+            OPP%diff_streams = 10
             OPP%lutbasename=trim(lut_basename)//'_8_10.'
             allocate(t_boxmc_8_10::OPP%bmc)
 
           class is (t_optprop_LUT_3_6)
-            OPP%dir_streams  = Ndir_3_6
-            OPP%diff_streams = Ndiff_3_6
+            OPP%dir_streams  = 3
+            OPP%diff_streams = 6
             OPP%lutbasename=trim(lut_basename)//'_3_6.'
             allocate(t_boxmc_3_6::OPP%bmc)
           class default
