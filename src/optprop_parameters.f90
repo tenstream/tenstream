@@ -58,13 +58,13 @@ module m_optprop_parameters
       ! interp_mode 3 == linear interpolation, nearest neighbour in solar azimuth
       ! interp_mode 4 == linear interpolation in all dimensions
 
-      integer(iintegers) ,parameter :: Ndiff_8_10=10, Ndir_8_10=8, interp_mode_8_10=2
-
-      integer(iintegers) ,parameter :: Ndiff_1_2=2, Ndir_1_2=1, interp_mode_1_2=2
-
-      integer(iintegers) ,parameter :: Ndiff_3_6=6, Ndir_3_6=3, interp_mode_3_6= 2                           !!!!!!! was macht interp_mode? 
-
-      integer(iintegers) ,parameter :: Nphi=10
+      integer(iintegers), parameter :: interp_mode_8_10=2
+                          
+      integer(iintegers), parameter :: interp_mode_1_2=2
+                          
+      integer(iintegers), parameter :: interp_mode_3_6= 2                           !!!!!!! was macht interp_mode? 
+                          
+      integer(iintegers), parameter :: Nphi=10
 
       ! integer(iintegers) ,parameter :: Ntau=40, Nw0=10, Ng=2, Ntheta=19
       ! real(ireals), parameter :: preset_tau(1)  =[0]
@@ -83,6 +83,12 @@ module m_optprop_parameters
       real(ireals), parameter :: preset_g(3) = [0.0,0.267018506789,0.5]
       real(ireals), parameter :: preset_theta(19) = [0.0,5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,80.0,85.0,90.0]
 
+!     integer(iintegers), parameter :: Ntau=2, Nw0=2, Ng=3, Ntheta=3                   !!!!!! zum testen erstmal nmnur N = 2 
+!     real(ireals), parameter :: preset_tau(Ntau) = [0.1, 1.0]
+!     real(ireals), parameter :: preset_w0(Nw0) = [0.0,0.5]
+!     real(ireals), parameter :: preset_g(Ng) = [0.0,0.25,0.5]
+!     real(ireals), parameter :: preset_theta(Ntheta) = [0.0,45.0,90.0]
+      
       integer(iintegers), parameter :: Naspect=21
       real(ireals), parameter :: preset_aspect(Naspect) = [.01, 0.25, 0.5, 0.75, 1., 1.25, 1.5, 1.75, 2.0, 2.25,  2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.]
 
@@ -94,19 +100,19 @@ module m_optprop_parameters
 
 !      real(ireals),parameter :: stddev_atol=1e-2_ireals
 !      real(ireals),parameter :: stddev_atol=5e-3_ireals
-!      real(ireals),parameter :: stddev_atol=1e-3_ireals
-      real(ireals),parameter :: stddev_atol=5e-4_ireals
+      real(ireals),parameter :: stddev_atol=1e-3_ireals
+!      real(ireals),parameter :: stddev_atol=5e-4_ireals
 !      real(ireals),parameter :: stddev_atol=1e-4_ireals
 !      real(ireals),parameter :: stddev_atol=5e-6_ireals
 
-!      real(ireals),parameter :: stddev_rtol=1e-1_ireals
-      real(ireals),parameter :: stddev_rtol=1e-2_ireals
+      real(ireals),parameter :: stddev_rtol=1e-1_ireals
+!      real(ireals),parameter :: stddev_rtol=1e-2_ireals
 !      real(ireals),parameter :: stddev_rtol=1e-3_ireals
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
       ! what to expect.
-      logical,parameter :: ldebug_optprop=.False.
-!      logical,parameter :: ldebug_optprop=.True.
+!      logical,parameter :: ldebug_optprop=.False.
+      logical,parameter :: ldebug_optprop=.True.
 
       ! Use delta scaling on optical properties? -- this significantly reduces
       ! the size of the lookuptables.

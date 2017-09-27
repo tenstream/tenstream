@@ -140,8 +140,8 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
   end select
 
   phi = deg2rad( R()*360 )
-  mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
-  !mu = R() ! evenly distribution between 0 and 90 degree
+  !mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
+  mu = R() ! evenly distribution between 0 and 90 degree
 
   p%dir = [cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu]
 

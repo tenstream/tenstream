@@ -20,7 +20,7 @@
 module m_optprop_ANN
   USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1, mpiint, default_str_len
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
-      Ntau, Nw0, Ng, Ndir_8_10, Ndiff_8_10, &
+      Ntau, Nw0, Ng,&
       ldelta_scale, delta_scale_truncate
   use m_netcdfio
   use mpi
@@ -224,15 +224,15 @@ contains
 !        enddo
 !      endif
 
-      if(lrenormalize) then
-        call calc_net(C2, [ind_taux, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta], dir2diff_network,ierr)
-        do isrc=1,Ndir_8_10
-          norm = sum( C(isrc:size(C):Ndir_8_10) ) + sum( C2(isrc:size(C2):Ndiff_8_10) )
-          if(real(norm).gt.one) then
-            C(isrc:size(C):Ndir_8_10)=C( isrc:size(C):Ndir_8_10 )/norm
-          endif
-        enddo
-      endif
+!     if(lrenormalize) then
+!       call calc_net(C2, [ind_taux, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta], dir2diff_network,ierr)
+!       do isrc=1,Ndir_8_10
+!         norm = sum( C(isrc:size(C):Ndir_8_10) ) + sum( C2(isrc:size(C2):Ndiff_8_10) )
+!         if(real(norm).gt.one) then
+!           C(isrc:size(C):Ndir_8_10)=C( isrc:size(C):Ndir_8_10 )/norm
+!         endif
+!       enddo
+!     endif
 
    end subroutine
 
@@ -274,15 +274,15 @@ contains
 !         endif
 !       enddo
 !     endif
-      if(lrenormalize) then
-        call calc_net(C2, [ind_taux, ind_tauz, ind_w0 ,ind_g, ind_phi, ind_theta], dir2dir_network, ierr)
-        do isrc=1,Ndir_8_10
-          norm = sum( C(isrc:size(C):Ndiff_8_10) ) + sum(C2(isrc:size(C2):Ndir_8_10))
-          if(real(norm).gt.one) then
-            C(isrc:size(C):Ndiff_8_10)=C( isrc:size(C):Ndiff_8_10 )/norm
-          endif
-        enddo
-      endif
+!     if(lrenormalize) then
+!       call calc_net(C2, [ind_taux, ind_tauz, ind_w0 ,ind_g, ind_phi, ind_theta], dir2dir_network, ierr)
+!       do isrc=1,Ndir_8_10
+!         norm = sum( C(isrc:size(C):Ndiff_8_10) ) + sum(C2(isrc:size(C2):Ndir_8_10))
+!         if(real(norm).gt.one) then
+!           C(isrc:size(C):Ndiff_8_10)=C( isrc:size(C):Ndiff_8_10 )/norm
+!         endif
+!       enddo
+!     endif
    end subroutine
 
    subroutine ANN_get_diff2diff(taux, tauz, w0, g, C)
@@ -315,15 +315,15 @@ contains
       endwhere
 
       !Check for energy conservation:
-      if(lrenormalize) then
-        do isrc=1,Ndiff_8_10
-          norm = sum( C( isrc:size(C):Ndiff_8_10 ) )
-          if(real(norm).gt.one) then
-            C( isrc:size(C):Ndiff_8_10 ) = C( isrc:size(C):Ndiff_8_10 )/ norm
-            !          print *,'diffuse renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndiff_8_10 ) )
-          endif
-        enddo
-      endif
+!     if(lrenormalize) then
+!       do isrc=1,Ndiff_8_10
+!         norm = sum( C( isrc:size(C):Ndiff_8_10 ) )
+!         if(real(norm).gt.one) then
+!           C( isrc:size(C):Ndiff_8_10 ) = C( isrc:size(C):Ndiff_8_10 )/ norm
+!           !          print *,'diffuse renormalization:',norm,' ::: ',sum( C( isrc:size(C):Ndiff_8_10 ) )
+!         endif
+!       enddo
+!     endif
     end subroutine
 
   subroutine calc_net(coeffs,inp,net,ierr)
