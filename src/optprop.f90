@@ -167,6 +167,7 @@ contains
             else
               ! diff2diff
               call OPP%OPP_LUT%LUT_get_diff2diff(aspect, tauz, w0, g, C)
+              print *,'called diff2diff with', aspect, tauz, w0, g, '::', C
             endif
 
 

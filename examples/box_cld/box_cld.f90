@@ -20,7 +20,7 @@ subroutine box_cld()
     integer(iintegers),parameter :: nxp=30,nyp=10,nv=10
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=90, theta0=60
-    real(ireals),parameter :: albedo=0, dz=dx
+    real(ireals),parameter :: albedo=0, dz=100
     real(ireals),parameter :: incSolar = 1364
     real(ireals),parameter :: atolerance = 1
     real(ireals) :: dz1d(nv)
@@ -43,7 +43,7 @@ subroutine box_cld()
     allocate(g   (C_one%zm , C_one%xm,  C_one%ym ))
 
     kabs = .1_ireals/(dz*nv)
-    ksca = 1e-3_ireals/dz
+    ksca = zero !1e-3_ireals/dz
     g    = zero
 
     kabs(nv/2,nxp/2,1:nyp) = 1/dz
