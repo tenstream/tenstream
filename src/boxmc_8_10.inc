@@ -99,11 +99,10 @@ subroutine update_diff_stream_8_10(bmc,p,S)
 !                2
 
 if(p%side.eq.1) then
-
   S(1) = S(1)+p%weight
   return
-else if(p%side.eq.2) then
 
+else if(p%side.eq.2) then
   S(2) = S(2)+p%weight
   return
 
@@ -203,40 +202,40 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         mu1= sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
         mu2 = R() ! evenly distribution between 0 and 90 degree
 
-        mu=mu1
+        mu=mu2
         select case(src)
         case (-1) ! thermal emission
                 p%loc = (/L(dx), L(dy), L(dz) /)
                 mu = 2*mu2 - one
                 phi= deg2rad( R()*360 )
         case (1)
-                p%loc = (/L(dx), L(dy),    dz  /)
-                phi= deg2rad( R()*360 )
-        case (2)
                 p%loc = (/L(dx), L(dy),    zero /)
                 phi= deg2rad( R()*360 )
-        case (3)
+        case (2)
+                p%loc = (/L(dx), L(dy),    dz  /)
+                phi= deg2rad( R()*360 )
+        case (4)
                 p%loc = (/  zero   , L(dy), L(dz)/)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
-        case (4)
+        case (3)
                 p%loc = (/ dx   , L(dy), L(dz)/)
-                phi= deg2rad( interv_R(90._ireal_dp,270._ireal_dp) )
-        case (5)
-                p%loc = (/  zero   , L(dy), L(dz)/)
                 phi= deg2rad( interv_R(90._ireal_dp,270._ireal_dp) )
         case (6)
+                p%loc = (/  zero   , L(dy), L(dz)/)
+                phi= deg2rad( interv_R(90._ireal_dp,270._ireal_dp) )
+        case (5)
                 p%loc = (/ dx   , L(dy), L(dz)/)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
-        case (7)
+        case (8)
                 p%loc = (/L(dx),   zero   , L(dz)/)
                 phi= deg2rad( interv_R(0._ireal_dp,180._ireal_dp) )
-        case (8)
+        case (7)
                 p%loc = (/L(dx),  dy   , L(dz)/)
                 phi= deg2rad( interv_R(180._ireal_dp,360._ireal_dp) )
-        case (9)
+        case (10)
                 p%loc = (/L(dx),   zero   , L(dz)/)
                 phi= deg2rad( interv_R(180._ireal_dp,360._ireal_dp) )
-        case (10)
+        case (9)
                 p%loc = (/L(dx),  dy   , L(dz)/)
                 phi= deg2rad( interv_R(0._ireal_dp,180._ireal_dp) )
         case default
@@ -253,30 +252,30 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
 
         select case(src)
-          case(1)
+          case(2)
             p%dir = rotate_angle_y(p%dir,180*one)
-          case(3)
-            p%dir = rotate_angle_y(p%dir,-90*one)
           case(4)
             p%dir = rotate_angle_y(p%dir,-90*one)
-            p%dir = rotate_angle_z(p%dir,180*one)
-          case(5)
-            p%dir = rotate_angle_y(p%dir, 90*one)
+          case(3)
+            p%dir = rotate_angle_y(p%dir,-90*one)
             p%dir = rotate_angle_z(p%dir,180*one)
           case(6)
             p%dir = rotate_angle_y(p%dir, 90*one)
+            p%dir = rotate_angle_z(p%dir,180*one)
+          case(5)
+            p%dir = rotate_angle_y(p%dir, 90*one)
 
-          case(7)
+          case(8)
             p%dir = rotate_angle_y(p%dir,-90*one)
             p%dir = rotate_angle_z(p%dir,-90*one)
-          case(8)
+          case(7)
             p%dir = rotate_angle_y(p%dir,-90*one)
             p%dir = rotate_angle_z(p%dir,180*one)
             p%dir = rotate_angle_z(p%dir,-90*one)
-          case(9)
+          case(10)
             p%dir = rotate_angle_y(p%dir, 90*one)
             p%dir = rotate_angle_z(p%dir, 90*one)
-          case(10)
+          case(9)
             p%dir = rotate_angle_y(p%dir, 90*one)
             p%dir = rotate_angle_z(p%dir,-90*one)
 

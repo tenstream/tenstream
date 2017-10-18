@@ -122,17 +122,17 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
   !print *,'---------- new diffuse photon --------------'
 
   select case(src)
-  case (1)
-    p%loc = [R()*dx,R()*dy, dz]
   case (2)
+    p%loc = [R()*dx,R()*dy, dz]
+  case (1)
     p%loc = [R()*dx, R()*dy, zero]
-  case (3)
-    p%loc = [zero, R()*dy, R()*dz]
   case (4)
+    p%loc = [zero, R()*dy, R()*dz]
+  case (3)
     p%loc = [dx, R()*dy, R()*dz]
-  case (5)
-    p%loc = [R()*dx, zero, R()*dz]
   case (6)
+    p%loc = [R()*dx, zero, R()*dz]
+  case (5)
     p%loc = [R()*dx, dy, R()*dz]
   case default
     print *,'Dont know what to do with source spec:',src
@@ -146,22 +146,22 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
   p%dir = [cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu]
 
  select case(src)
-  case(1)
+  case(2)
     p%dir = rotate_angle_y(p%dir, 180*one)
 
-  case(2)
+  case(1)
     continue
 
-  case(3)
+  case(4)
     p%dir = rotate_angle_y(p%dir, 270*one)
 
-  case(4)
+  case(3)
     p%dir = rotate_angle_y(p%dir, 90*one)
 
-  case(5)
+  case(6)
     p%dir = rotate_angle_x(p%dir, 90*one)
 
-  case(6)
+  case(5)
     p%dir = rotate_angle_x(p%dir, 270*one)
 
   case default
