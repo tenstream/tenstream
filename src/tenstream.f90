@@ -85,8 +85,8 @@ module m_tenstream
 
   PetscInt, parameter :: E_up=0, E_dn=1, E_le_m=2, E_ri_m=3, E_ba_m=4, E_fw_m=5 
 
-  logical,parameter :: ldebug=.False.
-!  logical,parameter :: ldebug=.True.
+!  logical,parameter :: ldebug=.False.
+  logical,parameter :: ldebug=.True.
   logical,parameter :: lcycle_dir=.True.
   logical,parameter :: lprealloc=.False.
 
@@ -847,7 +847,6 @@ contains
       call OPP_1_2%get_coeff (aspect, tauz, w0, op%g,ldir,coeff,angles)
     else
       call OPP_3_6%get_coeff(aspect, tauz, w0, op%g,ldir,coeff,angles)
-
     endif
 
     call PetscLogStagePop(ierr) ;call CHKERR(ierr)
@@ -1372,6 +1371,17 @@ contains
 !     dst = 9; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
       call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., v, atm%l1d(atmk(k),i,j))
+      !v(1:6) = zero
+      !v(13:24) = zero
+      !v(25:36) = zero
+      !v = zero
+      !v(1) = .2 ! eup <- edn
+      !v(2) = .5 ! eup <- eup
+      !v(7) = .5 ! edn <- edn
+      !v(8) = .2 ! edn <- eup
+      !do src=1,6
+      !print *,src,v(src:36:6)
+      !enddo
 
       call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
 
@@ -1571,7 +1581,7 @@ contains
 
       call getVecPointer(ledir, C_dir, xedir1d, xedir)
 
-      if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))/size(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
+      if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))/size(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
           do k=C_diff%zs,C_diff%ze-1

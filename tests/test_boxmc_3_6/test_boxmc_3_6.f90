@@ -52,7 +52,7 @@ contains
   end subroutine teardown
 
 
-  @test(npes =[1,2])
+  !@test(npes =[1,2])
   subroutine test_boxmc_select_cases_direct_srcsidefaces(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, iphi
@@ -81,7 +81,7 @@ contains
     enddo
   end subroutine
 
-  @test(npes =[1,2])
+  !@test(npes =[1,2])
   subroutine test_boxmc_select_cases_direct_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -106,7 +106,7 @@ contains
 
   end subroutine
 
-  @test(npes =[1,2])
+  !@test(npes =[1,2])
   subroutine test_boxmc_select_cases_direct_srctopface_45(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -132,7 +132,7 @@ contains
     enddo
   end subroutine
 
-  @test(npes =[1,2])
+  !@test(npes =[1,2])
   subroutine test_boxmc_select_cases_diff_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -158,7 +158,7 @@ contains
     enddo
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diff_srcbottomface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src

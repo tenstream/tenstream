@@ -22,7 +22,7 @@ subroutine test_tenstream_ex1(this)
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=0, theta0=60
     real(ireals),parameter :: albedo=0, dz=dx
-    real(ireals),parameter :: incSolar = -1
+    real(ireals),parameter :: incSolar = 1000
     real(ireals),parameter :: atolerance = 1
     real(ireals) :: dz1d(nv)
 
@@ -57,7 +57,7 @@ subroutine test_tenstream_ex1(this)
         ! print *,'T',k,288 - 50*(1 - float(k)/float(nv+1))
     enddo
 
-    call set_optical_properties(albedo, kabs, ksca, g, B )
+    call set_optical_properties(albedo, kabs, ksca, g)!, B )
     call solve_tenstream(incSolar)
 
     allocate(fdn  (C_diff%zm, C_diff%xm, C_diff%ym))
@@ -82,6 +82,6 @@ subroutine test_tenstream_ex1(this)
     @assertEqual(up_target,  fup (:,1,1), atolerance, 'thermal upward fl  not correct')
 
     ! Check that surface emission is the one that we stick in
-    @assertEqual(B(ubound(B,1),1,1)*pi, fup (ubound(fup,1),1,1), atolerance, 'Surface Emission not correct')
+    !@assertEqual(B(ubound(B,1),1,1)*pi, fup (ubound(fup,1),1,1), atolerance, 'Surface Emission not correct')
 
 end subroutine

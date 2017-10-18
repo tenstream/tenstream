@@ -48,7 +48,6 @@ subroutine update_diff_stream_1_2(bmc,p,S)
     !        |   7           |
     !      3 |_______________| 4
     !                2
-
     if(p%side.eq.1) then
       S(1) = S(1)+p%weight
       return
@@ -110,11 +109,11 @@ subroutine init_diff_photon_1_2(bmc,p,src,dx,dy,dz)
       p%loc = (/L(dx), L(dy), L(dz) /)
       mu = 2._ireal_dp*mu2 - one
       phi= deg2rad( R()*360._ireal_dp )
-    case (1)
+    case (2)
       p%loc = (/L(dx), L(dy),    dz  /)
       mu = -mu1 !mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp) ) 
       phi= deg2rad( R()*360._ireal_dp )
-    case (2)
+    case (1)
       p%loc = (/L(dx), L(dy),    zero/)
       mu = mu1 !mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp) ) 
       phi= deg2rad( R()*360._ireal_dp )

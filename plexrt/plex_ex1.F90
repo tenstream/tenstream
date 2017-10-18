@@ -155,7 +155,7 @@ module m_mpi_plex_ex1
       call KSPSetUp(ksp, ierr); CHKERRQ(ierr)
 
       call VecDuplicate(b, x, ierr); CHKERRQ(ierr)
-      call KSPSolve(ksp, b, x, ierr); CHKERRQ(ierr)
+      !call KSPSolve(ksp, b, x, ierr); CHKERRQ(ierr)
       call KSPDestroy(ksp, ierr); CHKERRQ(ierr)
     end subroutine
 

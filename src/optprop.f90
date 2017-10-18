@@ -45,6 +45,7 @@ type,abstract :: t_optprop
     procedure :: get_coeff
     procedure :: get_coeff_bmc
     !procedure :: coeff_symmetry
+    procedure :: dir2dir_coeff_symmetry
     procedure :: destroy
 end type
 
@@ -131,11 +132,12 @@ contains
 
   end subroutine
 
-  subroutine get_coeff(OPP, aspect, tauz, w0, g, dir, C, inp_angles)
+  subroutine get_coeff(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
         class(t_optprop) :: OPP
         logical,intent(in) :: dir
         real(ireals),intent(in) :: aspect, tauz, w0, g
         real(ireals),intent(in),optional :: inp_angles(2)
+        logical,intent(in),optional :: lswitch_east, lswitch_north
         real(ireals),intent(out):: C(:)
 
         real(ireals) :: angles(2)
@@ -161,13 +163,14 @@ contains
             if(present(inp_angles)) then ! obviously we want the direct coefficients
               if(dir) then ! dir2dir
                 call OPP%OPP_LUT%LUT_get_dir2dir(aspect, tauz, w0, g, angles(1), angles(2), C)
+                call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north) 
               else         ! dir2diff
                 call OPP%OPP_LUT%LUT_get_dir2diff(aspect, tauz, w0, g, angles(1), angles(2), C)
               endif
             else
               ! diff2diff
               call OPP%OPP_LUT%LUT_get_diff2diff(aspect, tauz, w0, g, C)
-              print *,'called diff2diff with', aspect, tauz, w0, g, '::', C
+              !print *,'called diff2diff with', aspect, tauz, w0, g, '::', C
             endif
 
 
@@ -217,7 +220,80 @@ contains
             endif
         end subroutine
 
-end subroutine
+  end subroutine
+
+
+  subroutine dir2diff_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
+    
+    class(t_optprop) :: OPP
+    logical, intent(in) :: lswitch_east, lswitch_north
+    real(ireals),intent(inout) :: coeff(:)
+    
+    integer(iintegers), allocatable :: dstnr(:)
+
+    select type(OPP)
+      class is (t_optprop_1_2)
+        continue
+      
+      class is (t_optprop_3_6)
+        continue
+
+      class is (t_optprop_8_10)
+        allocate( dstnr(10))
+        if(lswitch_east) then 
+          
+        else if (lswitch_north) then
+          
+        endif
+    end select
+    
+  end subroutine
+
+  subroutine dir2dir_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop) :: OPP
+    logical, intent(in) :: lswitch_east, lswitch_north
+    real(ireals),intent(inout) :: coeff(:)
+
+    integer(iintegers) :: dof
+    real(ireals)  :: newcoeff(size(coeff))
+    
+    print*, 'hier nin ich, coeff', coeff     
+    select type(OPP)
+      class is (t_optprop_1_2)
+        continue
+
+      class is (t_optprop_3_6)
+        !nothing to do because of symmetrie 
+        continue 
+
+      class is (t_optprop_8_10)
+        dof = 8
+        if(lswitch_east) then
+          newcoeff = coeff
+          coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] + dof)
+          coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8])
+          coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*3)
+          coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*2)
+          coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*4)
+          coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*5)
+          coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*6)
+          coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*7)
+        endif
+        if (lswitch_north) then
+          newcoeff = coeff
+          coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*2)
+          coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*3)
+          coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8])
+          coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof)
+          coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*4)
+          coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*5)
+          coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*6)
+          coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*7)
+        endif
+    end select
+  end subroutine
+
+
 !        function coeff_symmetry(OPP, isrc,coeff)
 !            class(t_optprop) :: OPP
 !            real(ireals) :: coeff_symmetry(OPP%diff_streams)

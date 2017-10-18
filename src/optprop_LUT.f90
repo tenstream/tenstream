@@ -172,7 +172,7 @@ contains
       call OPP%loadLUT_dir(azis, szas, comm)
 
       ! Load diffuse LUT
-      write(descr,FMT='("diffuse.aspect",I0,".tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
+      write(descr,FMT='("diffuse.outin.aspect",I0,".tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
                          OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng, ldelta_scale, delta_scale_truncate
 
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading diffuse LUT from ',trim(descr)
@@ -297,7 +297,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
       do iphi  =1,OPP%Nphi
 
         ! Set filename of LUT
-        write(descr,FMT='("direct.aspect",I0,".tau",I0,".w0",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
+        write(descr,FMT='("direct.outin.aspect",I0,".tau",I0,".w0",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
             OPP%Naspect,OPP%Ntau, OPP%Nw0, OPP%Ng, &
             int(OPP%dirLUT%pspace%phi(iphi)),      &
             int(OPP%dirLUT%pspace%theta(itheta)),  &
