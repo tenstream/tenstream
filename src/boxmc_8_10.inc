@@ -143,11 +143,12 @@ end select
 end subroutine
 
 subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
-        class(t_boxmc_8_10) :: bmc
-        type(photon),intent(inout) :: p
-        real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
+        class(t_boxmc_8_10)           :: bmc
+        type(photon),intent(inout)    :: p
+        real(ireal_dp),intent(in)     :: dx,dy,dz,initial_dir(3)
         integer(iintegers),intent(in) :: src
-        logical,intent(in) :: direct
+        logical,intent(in)            :: direct
+
         real(ireal_dp),parameter :: h=.5_ireal_dp
         real(ireal_dp),parameter :: e=1e-6_ireal_dp
 
@@ -155,21 +156,21 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
 
         select case(src)
         case (1)
-                p%loc = (/L(dx)*h     , L(dy)*h     ,    dz*(one-e)  /)
+                p%loc = [ L(dx)*h     , L(dy)*h     , dz*(one-e)   ]
         case (2)
-                p%loc = (/dx*h+L(dx)*h, L(dy)*h     ,    dz*(one-e)  /)
+                p%loc = [ dx*h+L(dx)*h, L(dy)*h     , dz*(one-e)   ]
         case (3)
-                p%loc = (/L(dx)*h     , dy*h+L(dy)*h,    dz*(one-e)  /)
+                p%loc = [ L(dx)*h     , dy*h+L(dy)*h, dz*(one-e)   ]
         case (4)
-                p%loc = (/dx*h+L(dx)*h, dy*h+L(dy)*h,    dz*(one-e)  /)
+                p%loc = [ dx*h+L(dx)*h, dy*h+L(dy)*h, dz*(one-e)   ]
         case (5)
-                p%loc = (/  zero+dx*e      , L(dy)       , L(dz)*h/)
+                p%loc = [ zero+dx*e   , L(dy)       , L(dz)*h      ]
         case (6)
-                p%loc = (/  zero+dx*e      , L(dy)       , dz*h+L(dz)*h/)
+                p%loc = [ zero+dx*e   , L(dy)       , dz*h+L(dz)*h ]
         case (7)
-                p%loc = (/L(dx)       ,   zero+dy*e      , L(dz)*h/)
+                p%loc = [ L(dx)       , zero+dy*e   , L(dz)*h      ]
         case (8)
-                p%loc = (/L(dx)       ,   zero+dy*e      , dz*h+L(dz)*h/)
+                p%loc = [ L(dx)       , zero+dy*e   , dz*h+L(dz)*h ]
         case default
                 print *,'Dont know what to do with source spec:',src
                 call exit

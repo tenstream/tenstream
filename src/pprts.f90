@@ -1395,7 +1395,19 @@ module m_pprts
 
       if(myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C ,xv1d, xv)
+      
 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !
+      !Az = atm%dx *atm%dy
+ 
+      !do j=C%ys,C%ye
+      !  do i=C%xs,C%xe
+      !    do k=C%zs,C%ze-i1
+      !    enddo
+      !  enddo
+      !enddo
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!
       if(lWm2_to_W) then
         Az  = atm%dx*atm%dy
         Az4 = atm%dx*atm%dy*.25_ireals
