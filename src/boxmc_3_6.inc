@@ -165,7 +165,7 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
     p%dir = rotate_angle_x(p%dir, 270*one)
 
   case default
-    print*,'Sont knwo what to do with source spec:',src
+    print*,'Dont know what to do with source spec:',src
     call exit
   end select
 
