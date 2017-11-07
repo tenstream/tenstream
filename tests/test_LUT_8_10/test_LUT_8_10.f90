@@ -81,11 +81,11 @@ contains
         if(iloop.eq.2) allocate(params(itest))
         itest=0
 
-        do ikabs=0,8,5
+        do ikabs=4,8,5
           do iksca=4,8,2
             do ig=0,5,5
-              do iphi=0,0,50
-                do itheta=0,5,1
+              do iphi=90,90,50
+                do itheta=20,20
 
                   itest = itest+1
 
@@ -171,11 +171,11 @@ contains
 
         call OPP%init([phi], [theta], comm)
 
-        call OPP%LUT_get_dir2dir (taux, tauz, w0, g , phi, theta, LUT_dir2dir)
-        call OPP%LUT_get_dir2diff(taux, tauz, w0, g , phi, theta, LUT_dir2diff)
-
+        call OPP%LUT_get_dir2dir (tauz/taux, tauz, w0, g , phi, theta, LUT_dir2dir)
+        call OPP%LUT_get_dir2diff(tauz/taux, tauz, w0, g , phi, theta, LUT_dir2diff)
+        print*,taux, tauz
         do src=1,8
-
+          
           call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.True.,phi,theta,dx,dy,dz,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
 
           ! Rearrange coeffs from dst_ordering to src ordering:
@@ -190,7 +190,7 @@ contains
 
 
 
-  @test( npes=[1,2] )
+  !@test( npes=[1,2] )
   subroutine test_LUT_direct_lambert_beer(this)
       !  class (MpiTestMethod), intent(inout) :: this
       class (parameterized_test), intent(inout) :: this
@@ -209,8 +209,8 @@ contains
 
       call OPP%init([phi], [theta], this%getMpiCommunicator())
 
-      call OPP%LUT_get_dir2dir (taux, tauz, w0, bg(3), phi, theta, LUT_dir2dir)
-      call OPP%LUT_get_dir2diff(taux, tauz, w0, bg(3), phi, theta, LUT_dir2diff)
+      call OPP%LUT_get_dir2dir (tauz/taux, tauz, w0, bg(3), phi, theta, LUT_dir2dir)
+      call OPP%LUT_get_dir2diff(tauz/taux, tauz, w0, bg(3), phi, theta, LUT_dir2diff)
 
       do src=1,4
         T_target = zero
