@@ -84,7 +84,7 @@ contains
     real(ireals) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, one/2 ]
+    bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
 
     ! outwards from face 2
     phi = 0; theta = 45*one
@@ -104,28 +104,28 @@ contains
 
   @test(npes =[1])
   subroutine test_boxmc_select_cases_direct_srcsidefaces(this)
-    class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src, iphi
-    real(ireals) :: tau
+    class (MpiTestMethod), intent(inout)  :: this
+    integer(iintegers)                    :: src, iphi
+    real(ireals)                          :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, one/2 ]
+    bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
 
 
     ! along each of the side faces
-    phi = 0; theta = 0
+    phi = 0; theta = 90
 
-    tau = (bg(1)+bg(2)) * dz
+    tau = (bg(1)+bg(2)) * dx
 
     S_target = zero
 
-    T_target = zero
-    T_target(1) = (sinh(tau)-cosh(tau)+1)/tau
 
     !do iphi=0,360,30
-    do iphi=180,180
+    do iphi=0,0
       phi = iphi
-      do src = 5,8
+      do src = 8,8
+        T_target = zero
+        T_target(src) = (sinh(tau)-cosh(tau)+1)/tau
         call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
       enddo
@@ -166,7 +166,7 @@ contains
     real(ireals) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, zero ]
+    bg  = [1e-3_ireals, 1e-3_ireals, zero ]
 
     ! outwards from face 2
     phi = 0; theta = 0
