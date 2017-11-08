@@ -93,7 +93,7 @@ contains
                   ksca = 10.**(-iksca)
                   g    = ig/10.       
                   phi  = 1.*iphi     
-                  theta= 1.*itheta   
+                  theta= itheta
                   if(iloop.eq.2) params(itest) = newPeCase(kabs,ksca,g,phi,theta)
                 enddo
               enddo
@@ -146,7 +146,7 @@ contains
   end subroutine teardown
 
 
-  @test( npes=[8,16], testParameters={getParameters()} )
+  @test( npes=[16], testParameters={getParameters()} )
   subroutine test_LUT_direct_coeff(this)
       class (parameterized_test), intent(inout) :: this
 

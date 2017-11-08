@@ -488,6 +488,7 @@ module m_helper_functions_dp
       end function
 
       pure function rotate_angle_x(v,angle)
+        ! left hand rule
         real(ireal_dp) :: rotate_angle_x(3)
         real(ireal_dp),intent(in) :: v(3), angle
         real(ireal_dp) :: M(3,3),s,c
@@ -501,6 +502,7 @@ module m_helper_functions_dp
         rotate_angle_x = matmul(M,v)
       end function
       pure function rotate_angle_y(v,angle)
+        ! left hand rule
         real(ireal_dp) :: rotate_angle_y(3)
         real(ireal_dp),intent(in) :: v(3), angle
         real(ireal_dp) :: M(3,3),s,c
@@ -514,6 +516,7 @@ module m_helper_functions_dp
         rotate_angle_y = matmul(M,v)
       end function
       pure function rotate_angle_z(v,angle)
+        ! left hand rule
         real(ireal_dp) :: rotate_angle_z(3)
         real(ireal_dp),intent(in) :: v(3), angle
         real(ireal_dp) :: M(3,3),s,c
