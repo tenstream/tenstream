@@ -34,20 +34,20 @@
 ! 3 -> side face between (A,B)/(C,D)
 
 ! Distribution Code for diffuse streams/targets:
-!        6
+!        5
 !   C ------- D
 !   |         |
-!  3|   1     |4
+!  4|   1     |3
 !   |    2    |
 !   |         |
 !   A ------- B
-!        5
+!        6
 !
 ! Face numbering is
-! 1 -> top
-! 2 -> bottom face
-! 3 -> side face between (A,C)
-! 5 -> side face between (A,B)
+! 2 -> top
+! 1 -> bottom face
+! 4 -> side face between (A,C)
+! 6 -> side face between (A,B)
 
 subroutine init_dir_photon_3_6(bmc,p,src,direct,initial_dir,dx,dy,dz)
   class(t_boxmc_3_6) :: bmc
@@ -104,8 +104,21 @@ subroutine update_diff_stream_3_6(bmc,p,S)
   class(t_boxmc_3_6) :: bmc
   type(photon),intent(in) :: p
   real(ireal_dp),intent(inout) :: S(:)
-
-  S(p%side) = S(p%side) + p%weight
+  
+  select case(p%side)
+    case(1)
+      S(2) = S(2) + p%weight
+    case(2)
+      S(1) = S(1) + p%weight
+    case(3)
+      S(4) = S(4) + p%weight
+    case(4)
+      S(3) = S(3) + p%weight
+    case(5)
+      S(6) = S(6) + p%weight
+    case(6)
+      S(5) = S(5) + p%weight
+  end select
   select type(bmc)
   end select
 end subroutine
@@ -143,26 +156,26 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
   !mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
   mu = R() ! evenly distribution between 0 and 90 degree
 
-  p%dir = [cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu]
+  p%dir = [sin(phi)*sin(acos(mu)) , cos(phi)*sin(acos(mu)) , mu]
 
  select case(src)
-  case(2)
-    p%dir = rotate_angle_y(p%dir, 180*one)
-
   case(1)
     continue
 
-  case(4)
-    p%dir = rotate_angle_y(p%dir, 270*one)
+  case(2)
+    p%dir = rotate_angle_y(p%dir, 180*one)
 
   case(3)
     p%dir = rotate_angle_y(p%dir, 90*one)
 
-  case(6)
-    p%dir = rotate_angle_x(p%dir, 90*one)
+  case(4)
+    p%dir = rotate_angle_y(p%dir, 270*one)
 
   case(5)
     p%dir = rotate_angle_x(p%dir, 270*one)
+
+  case(6)
+    p%dir = rotate_angle_x(p%dir, 90*one)
 
   case default
     print*,'Dont know what to do with source spec:',src

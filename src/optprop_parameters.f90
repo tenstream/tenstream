@@ -98,7 +98,7 @@ module m_optprop_parameters
       ! absolute tolerance and relatice tolerance have to be reached for every
       ! coefficient
 
-      real(ireals),parameter :: stddev_atol=2e-3_ireals
+      real(ireals),parameter :: stddev_atol=5e-3_ireals
 !      real(ireals),parameter :: stddev_atol=1e-3_ireals
 !      real(ireals),parameter :: stddev_atol=5e-4_ireals
 !      real(ireals),parameter :: stddev_atol=1e-4_ireals
