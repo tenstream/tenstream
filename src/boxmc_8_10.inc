@@ -24,9 +24,9 @@ subroutine update_dir_stream_8_10(bmc,p,T)
         real(ireal_dp),intent(inout) :: T(:)
         real(ireal_dp),parameter :: h=.5_ireal_dp
 
-!            1       2
-!               3       4
-!         _______________
+!          /     3       4 /
+!         / 1       2     /
+!        /_______________/
 !        |               |
 !      6 |           8   |
 !        |               |
@@ -155,6 +155,15 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
 
         p%alive = .False.
 
+!          /     3       4 /
+!         / 1       2     /
+!        /_______________/
+!        |               |
+!      6 |           8   |
+!        |               |
+!        |               |
+!        |    7          |
+!      5 |_______________|
         select case(src)
         case (1)
                 p%loc = [ L(dx)*h     , L(dy)*h     , dz*(one-e)   ]

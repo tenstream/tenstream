@@ -81,18 +81,18 @@ contains
         if(iloop.eq.2) allocate(params(itest))
         itest=0
 
-        do ikabs=4,8,5
+        do ikabs=1,8,5
           do iksca=4,8,2
             do ig=0,5,5
-              do iphi=90,90,50
-                do itheta=20,20
+              do iphi=0,90,30
+                do itheta=0,90,30
 
                   itest = itest+1
 
                   kabs = 10.**(-ikabs)
                   ksca = 10.**(-iksca)
                   g    = ig/10.       
-                  phi  = 1.*iphi     
+                  phi  = iphi     
                   theta= itheta
                   if(iloop.eq.2) params(itest) = newPeCase(kabs,ksca,g,phi,theta)
                 enddo
@@ -188,9 +188,51 @@ contains
       end associate
   endsubroutine
 
+  @test( npes=[16], testParameters={getParameters()} )
+  subroutine test_LUT_diff_coeff(this)
+      class (parameterized_test), intent(inout) :: this
+
+      integer(iintegers) :: src
+      real(ireals) :: taux, tauz, w0
+
+      comm     = this%getMpiCommunicator()
+      numnodes = this%getNumProcesses()
+      myid     = this%getProcessRank()
+
+      associate( &
+            kabs => this%kabs, &
+            ksca => this%ksca, &
+            g    => this%g,    &
+            phi  => this%phi,  &
+            theta=> this%theta )
+
+        if(myid.eq.0) print *,'Echo Test for :: ',kabs,ksca,g,phi,theta
+        taux = (kabs+ksca) * dx
+        tauz = (kabs+ksca) * dz
+        w0   = ksca / (kabs+ksca)
+
+        call OPP%init([phi], [theta], comm)
+
+        call OPP%LUT_get_diff2diff(tauz/taux, tauz, w0, g , LUT_diff2diff)
+        print*,taux, tauz
+        do src=1,10
+          
+          call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.False.,phi,theta,dx,dy,dz,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+
+          ! Rearrange coeffs from dst_ordering to src ordering:
+          BMC_diff2diff(src : 10*10 : 10) = S_target
+        enddo
+        BMC_dir2dir = zero
+        LUT_dir2dir = zero
+
+        call check(BMC_diff2diff,BMC_dir2dir,LUT_diff2diff,LUT_dir2dir, msg='test_LUT_diff_coeffs')
+
+      end associate
+  endsubroutine
 
 
-  !@test( npes=[1,2] )
+
+  @test( npes=[1] )
   subroutine test_LUT_direct_lambert_beer(this)
       !  class (MpiTestMethod), intent(inout) :: this
       class (parameterized_test), intent(inout) :: this
