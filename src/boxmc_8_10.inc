@@ -99,39 +99,39 @@ subroutine update_diff_stream_8_10(bmc,p,S)
 !                1
 
 if(p%side.eq.1) then
-  S(2) = S(2)+p%weight
-  return
-
-else if(p%side.eq.2) then
   S(1) = S(1)+p%weight
   return
 
-else if(p%side.eq.3 .and. p%dir(3).le.zero ) then
-  S(4) = S(4)+p%weight
-  return
-else if(p%side.eq.3 .and. p%dir(3).gt.zero ) then
-  S(6) = S(6)+p%weight
+else if(p%side.eq.2) then
+  S(2) = S(2)+p%weight
   return
 
-else if(p%side.eq.4 .and. p%dir(3).le.zero ) then
+else if(p%side.eq.3 .and. p%dir(3).le.zero ) then
   S(3) = S(3)+p%weight
   return
-else if(p%side.eq.4 .and. p%dir(3).gt.zero ) then
+else if(p%side.eq.3 .and. p%dir(3).gt.zero ) then
   S(5) = S(5)+p%weight
   return
 
+else if(p%side.eq.4 .and. p%dir(3).le.zero ) then
+  S(4) = S(4)+p%weight
+  return
+else if(p%side.eq.4 .and. p%dir(3).gt.zero ) then
+  S(6) = S(6)+p%weight
+  return
+
 else if(p%side.eq.5 .and. p%dir(3).le.zero ) then
-  S(8) = S(8)+p%weight
+  S(7) = S(7)+p%weight
   return
 else if(p%side.eq.5 .and. p%dir(3).gt.zero ) then
-  S(10) = S(10)+p%weight
+  S(9) = S(7)+p%weight
   return
 
 else if(p%side.eq.6 .and. p%dir(3).le.zero ) then
-  S(7) = S(7)+p%weight
+  S(8) = S(8)+p%weight
   return
 else if(p%side.eq.6 .and. p%dir(3).gt.zero ) then
-  S(9) =S(9)+p%weight
+  S(10) =S(10)+p%weight
   return
 else
   print *,'Couldnt find a stream on to which I can put the photon weight on?!'
