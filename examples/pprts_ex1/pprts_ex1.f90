@@ -17,7 +17,7 @@ subroutine pprts_ex1()
 
     integer(iintegers),parameter :: nxp=30,nyp=3,nv=20
     real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=90, theta0=20
+    real(ireals),parameter :: phi0=0, theta0=0
     real(ireals),parameter :: albedo=0.1, dz=100
     real(ireals),parameter :: incSolar = 1364
     real(ireals) :: dz1d(nv)
@@ -47,9 +47,9 @@ subroutine pprts_ex1()
     ksca = zero !1e-3_ireals/dz
     g    = zero
 
-    !kabs(nv/2,nxp/2,1:nyp) = 1/dz
-    !ksca(nv/2,nxp/2,1:nyp) = 1/dz
-    !g   (nv/2,nxp/2,1:nyp) = .9
+    kabs(nv/2,nxp/2,1:nyp) = 1/dz
+    ksca(nv/2,nxp/2,1:nyp) = 1/dz
+    g   (nv/2,nxp/2,1:nyp) = .9
 
     !call set_optical_properties(s1, albedo, kabs, ksca, g)
     call set_optical_properties(s2, albedo, kabs, ksca, g)
