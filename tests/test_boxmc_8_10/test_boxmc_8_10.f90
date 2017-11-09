@@ -35,7 +35,7 @@ contains
     if(myid.eq.0) print *,'Testing Box-MonteCarlo model with tolerances atol/rtol :: ',atol,rtol
 
     phi   =  0
-    theta = 45
+    theta =  0
 
     dx = 100
     dy = dx
@@ -77,7 +77,7 @@ contains
     enddo
   end subroutine
 
-  @test(npes =[1])
+  @test(npes =[1,2])
   subroutine test_boxmc_select_cases_direct_srctopface_45(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -96,7 +96,7 @@ contains
     T_target = zero
     T_target(3) = exp(-tau)
 
-    src = 3
+    src = 1
     call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_direct_srctopface_45')
   end subroutine
@@ -108,7 +108,7 @@ contains
     real(ireals)                          :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+    bg  = [1e-3_ireals, zero, one/2 ]
 
 
     ! along each of the side faces
@@ -117,13 +117,12 @@ contains
     tau = (bg(1)+bg(2)) * dx
 
     S_target = zero
+    T_target = zero
 
-
-    !do iphi=0,360,30
-    do iphi=0,0
+    do iphi=0,360,90
+    !do iphi=0,0
       phi = iphi
-      do src = 8,8
-        T_target = zero
+      do src = 5,8,1
         T_target(src) = (sinh(tau)-cosh(tau)+1)/tau
         call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
@@ -165,7 +164,7 @@ contains
     real(ireals) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+    bg  = [1e-3_ireals, zero, zero ]
 
     ! outwards from face 2
     phi = 0; theta = 0
@@ -174,9 +173,7 @@ contains
 
     T_target = zero
 
-    S_target = [0.242562*one, zero, 0.0887225*one, 0.0887225*one, 0.0887225*one, 0.0887225*one, 0.0887225*one, 0.0887225*one, 0.0887225*one, 0.0887225*one]
-
-
+    S_target = [0.0, 0.24254, 0.0, 0.0, 0.17735, 0.17735, 0.0, 0.0, 0.17735, 0.17735]
 
     src = 1
     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
