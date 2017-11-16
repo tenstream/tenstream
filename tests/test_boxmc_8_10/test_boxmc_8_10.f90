@@ -18,7 +18,7 @@ module test_boxmc_8_10
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
   real(ireals),parameter :: atol=1e-3, rtol=1e-2
-  ! real(ireals),parameter :: atol=1e-4, rtol=1e-3
+  !real(ireals),parameter :: atol=1e-4, rtol=1e-3
 contains
 
   @before

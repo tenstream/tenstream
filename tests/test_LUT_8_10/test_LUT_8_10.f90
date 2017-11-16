@@ -84,8 +84,8 @@ contains
         do ikabs=1,8,5
           do iksca=4,8,2
             do ig=0,5,5
-              do iphi=0,90,30
-                do itheta=0,90,30
+              do iphi=0,0,30
+                do itheta=0,0,30
 
                   itest = itest+1
 
@@ -289,17 +289,17 @@ contains
           write(local_msgT,*) 'Direct  boxmc coefficient not as '
         endif
 
-        !print*,'---------------------'
-        !write(*, FMT='( " diffuse ::  :: ",10(es12.5) )' ) S
-        !write(*, FMT='( " target  ::  :: ",10(es12.5) )' ) S_target
-        !write(*, FMT='( " diff    ::  :: ",10(es12.5) )' ) S_target-S
+        print*,'---------------------'
+        write(*, FMT='( " diffuse ::  :: ",10(es12.5) )' ) S
+        write(*, FMT='( " target  ::  :: ",10(es12.5) )' ) S_target
+        write(*, FMT='( " diff    ::  :: ",10(es12.5) )' ) S_target-S
         print*,'RMSE ::: ',rmse(S,S_target)
-        !print*,''
-        !write(*, FMT='( " direct  ::  :: ", 8(es12.5) )' ) T
-        !write(*, FMT='( " target  ::  :: ", 8(es12.5) )' ) T_target
-        !write(*, FMT='( " diff    ::  :: ", 8(es12.5) )' ) T_target-T
+        print*,''
+        write(*, FMT='( " direct  ::  :: ", 8(es12.5) )' ) T
+        write(*, FMT='( " target  ::  :: ", 8(es12.5) )' ) T_target
+        write(*, FMT='( " diff    ::  :: ", 8(es12.5) )' ) T_target-T
         print*,'RMSE ::: ',rmse(T,T_target)
-        !print*,'---------------------'
+        print*,'---------------------'
         print*,''
 
         @assertEqual(S_target, S, atol*sigma, local_msgS )

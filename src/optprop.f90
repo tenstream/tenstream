@@ -170,7 +170,6 @@ contains
             else
               ! diff2diff
               call OPP%OPP_LUT%LUT_get_diff2diff(aspect, tauz, w0, g, C)
-              print *,'called diff2diff with', aspect, tauz, w0, g, '::', C
             endif
 
 
@@ -257,7 +256,6 @@ contains
     integer(iintegers) :: dof
     real(ireals)  :: newcoeff(size(coeff))
     
-    print*, 'hier nin ich, coeff', coeff     
     select type(OPP)
       class is (t_optprop_1_2)
         continue
