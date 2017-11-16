@@ -107,17 +107,17 @@ subroutine update_diff_stream_3_6(bmc,p,S)
   
   select case(p%side)
     case(1)
-      S(2) = S(2) + p%weight
-    case(2)
       S(1) = S(1) + p%weight
+    case(2)
+      S(2) = S(2) + p%weight
     case(3)
-      S(4) = S(4) + p%weight
-    case(4)
       S(3) = S(3) + p%weight
+    case(4)
+      S(4) = S(4) + p%weight
     case(5)
-      S(6) = S(6) + p%weight
-    case(6)
       S(5) = S(5) + p%weight
+    case(6)
+      S(6) = S(6) + p%weight
   end select
   select type(bmc)
   end select
