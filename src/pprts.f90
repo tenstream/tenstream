@@ -65,7 +65,6 @@ module m_pprts
     logical :: lcollapse = .False.
   end type
 
-
   type t_coord
     PetscInt :: xs,xe                 ! local domain start and end indices
     PetscInt :: ys,ye                 ! local domain start and end indices
@@ -85,6 +84,7 @@ module m_pprts
     integer(iintegers) :: yinc,xinc
     real(ireals) :: theta, phi, costheta, sintheta
   end type
+
   type t_suninfo
     type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
     logical :: luse_topography=.False.
@@ -1781,7 +1781,7 @@ module m_pprts
 
     PetscReal,pointer,dimension(:,:,:,:) :: xv_diff=>null()
     PetscReal,pointer,dimension(:)       :: xv_diff1d=>null()
-    integer(iintegers) :: i,j
+    integer(iintegers) :: i,j,isrc,src
 
     real(ireals),allocatable :: dtau(:),Edn(:),Eup(:)
 
@@ -1838,21 +1838,26 @@ module m_pprts
   !> @details from gauss divergence theorem, the divergence in the volume is the integral of the flux through the surface
   !> \n we therefore sum up the incoming and outgoing fluxes to compute the divergence
   subroutine calc_flx_div(solver, solution)
-    class(t_solver)         :: solver
-    type(t_state_container) :: solution
-    PetscReal,pointer,dimension(:,:,:,:) :: xediff=>null(),xedir=>null(),xabso=>null()
-    PetscReal,pointer,dimension(:) :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
-    PetscInt :: i,j,k, xinc,yinc
-    Vec :: ledir,lediff ! local copies of vectors, including ghosts
-    PetscReal :: div(3),div2(9)
-    PetscReal :: Volume,Az
-    logical :: lhave_no_3d_layer
+    class(t_solver)                       :: solver
+    type(t_state_container)               :: solution
+
+    PetscReal,pointer,dimension(:,:,:,:)  :: xediff=>null(),xedir=>null(),xabso=>null()
+    PetscReal,pointer,dimension(:)        :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
+
+    integer(iintegers)      :: dof, isrc, src
+    PetscInt                :: i,j,k, xinc,yinc
+    Vec                     :: ledir,lediff ! local copies of vectors, including ghosts
+    PetscReal               :: div(3)
+    PetscReal, allocatable  :: div2(:)
+    PetscReal               :: Volume,Az
+    logical                 :: lhave_no_3d_layer
 
     associate(  atm     => solver%atm, &
                 C_dir   => solver%C_dir, &
                 C_diff  => solver%C_diff, &
                 C_one   => solver%C_one, &
                 C_one1  => solver%C_one1)
+
     if(solution%lsolar_rad .and. (solution%lintegrated_dir .eqv..False.)) stop 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!'
     if(                          (solution%lintegrated_diff.eqv..False.)) stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
 
@@ -1926,6 +1931,20 @@ module m_pprts
     ! calculate absorption by flux divergence
     Az = atm%dx * atm%dy
 
+    select type(solver)
+      class is (t_solver_8_10)
+        allocate(div2(18))
+
+      class is (t_solver_3_6)
+        allocate(div2(9))
+
+      !class is (t_solver_3_10)
+      !  allocate(div2(13))
+
+      class default
+        stop 'calc_flc_div : unexpected type for optprop object!'
+    end select
+
     do j=C_one%ys,C_one%ye
       do i=C_one%xs,C_one%xe
         do k=C_one%zs,C_one%ze
@@ -1945,25 +1964,77 @@ module m_pprts
 
             xabso(i0,k,i,j) = sum(div) / Volume
             !              if(xabso(i0,k,i,j).lt.zero) print *,'1D abso<0 :: ',i,j,k,'::',xabso(i0,k,i,j),'::',div
-          else
 
+
+          else                              ! 3D-radiation
             ! Divergence    =                 Incoming                        -                   Outgoing
+
+            !REMARK div(:) vectore needs the
             if(solution%lsolar_rad) then
+
               xinc = solver%sun%angles(k,i,j)%xinc
               yinc = solver%sun%angles(k,i,j)%yinc
-              div2( 1) = xedir(i0 , k, i         , j         )  - xedir(i0 , k+i1 , i      , j       )      !TODO umschreiben, schleifen ueber faces usw
-              div2( 2) = xedir(i1 , k, i+i1-xinc , j         )  - xedir(i1 , k    , i+xinc , j       )
-              div2( 3) = xedir(i2 , k, i         , j+i1-yinc )  - xedir(i2 , k    , i      , j+yinc  )
+
+              do isrc = 1,solver%dirtop%dof
+                src = isrc
+                div2(src) = xedir(src, k, i        , j         ) - xedir(src, k+i1 , i      , j      )
+              enddo
+
+              do isrc = 1, solver%dirside%dof
+                src = isrc + solver%dirtop%dof
+                div2(src) = xedir(src, k, i+1-xinc , j         ) - xedir(src, k    , i+xinc , j      )          !FABI, warum +- xinc
+              enddo
+
+
+              do isrc = 1, solver%dirside%dof
+                src = isrc + solver%dirtop%dof + solver%dirside%dof
+                div2(src) = xedir(src, k, i        , j+i1-yinc ) - xedir(src, k    , i      , j+yinc )
+              enddo
+
+              !div2( 1) = xedir(i0 , k, i         , j         )  - xedir(i0 , k+i1 , i      , j       )
+              !div2( 2) = xedir(i1 , k, i+i1-xinc , j         )  - xedir(i1 , k    , i+xinc , j       )
+              !div2( 3) = xedir(i2 , k, i         , j+i1-yinc )  - xedir(i2 , k    , i      , j+yinc  )
+
             else
-              div2(1:3) = zero
+              div2(1:solver%dirtop%dof+2*solver%dirside%dof) = zero
             endif
 
-            div2( 4) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
-            div2( 5) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
-            div2( 6) = ( xediff(E_le_m,k  ,i+1,j  )  - xediff(E_le_m,k  ,i  ,j  )  )
-            div2( 7) = ( xediff(E_ri_m,k  ,i  ,j  )  - xediff(E_ri_m,k  ,i+1,j  )  )
-            div2( 8) = ( xediff(E_ba_m,k  ,i  ,j+1)  - xediff(E_ba_m,k  ,i  ,j  )  )
-            div2( 9) = ( xediff(E_fw_m,k  ,i  ,j  )  - xediff(E_fw_m,k  ,i  ,j+1)  )
+            !TODO finish this here
+            ! diffuse part of absorption
+
+            do isrc = 1, solver%difftop%dof
+              src = isrc
+              if (solver%difftop%is_inward(isrc) .eqv. .True.) then
+                div2(src) = xediff(src, k   , i   , j   ) - xediff(src , k+1 , i   , j   )
+              else
+                div2(src) = xediff(src, k+1 , i   , j   ) - xediff(src , k   , i   , j   )
+              endif
+            enddo
+
+            do isrc = 1, solver%diffside%dof
+              src = isrc + solver%difftop%dof
+              if (solver%diffside%is_inward(isrc) .eqv. .True.) then
+                div2(src) = xediff(src, k   , i   , j   ) - xediff(src , k   , i+1 , j   )
+              else
+                div2(src) = xediff(src, k   , i+1 , j   ) - xediff(src , k   , i   , j   )
+              endif
+            enddo
+
+            do isrc = 1, solver%diffside%dof
+              src = isrc + solver%difftop%dof + solver%diffside%dof
+              if (solver%diffside%is_inward(isrc) .eqv. .True.) then
+                div2(src) = xediff(src, k   , i   , j   ) - xediff(src , k   , i   , j+1 )
+              else
+                div2(src) = xediff(src, k   , i   , j+i ) - xediff(src , k   , i   , j   )
+              endif
+            enddo
+
+            !div2( 4) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
+            !div2( 5) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
+            !div2( 6) = ( xediff(E_le_m,k  ,i+1,j  )  - xediff(E_le_m,k  ,i  ,j  )  )
+            !div2( 7) = ( xediff(E_ri_m,k  ,i  ,j  )  - xediff(E_ri_m,k  ,i+1,j  )  )
+            !div2( 8) = ( xediff(E_ba_m,k  ,i  ,j+1)  - xediff(E_ba_m,k  ,i  ,j  )  )
+            !div2( 9) = ( xediff(E_fw_m,k  ,i  ,j  )  - xediff(E_fw_m,k  ,i  ,j+1)  )
 
             xabso(i0,k,i,j) = sum(div2) / Volume
             if(ldebug) then
