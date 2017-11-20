@@ -60,7 +60,7 @@ end type
 
 contains
 
-  subroutine init(OPP, azis, szas, comm) 
+  subroutine init(OPP, azis, szas, comm)
       class(t_optprop) :: OPP
       real(ireals),intent(in) :: szas(:),azis(:)
       integer(mpiint) ,intent(in) :: comm
@@ -97,7 +97,7 @@ contains
           call OPP%OPP_LUT%destroy()
           deallocate(OPP%OPP_LUT)
       endif
-  end subroutine 
+  end subroutine
 
   subroutine get_coeff_bmc(OPP, aspect, tauz, w0, g, dir, C, angles)
       class(t_optprop) :: OPP
@@ -163,7 +163,7 @@ contains
             if(present(inp_angles)) then ! obviously we want the direct coefficients
               if(dir) then ! dir2dir
                 call OPP%OPP_LUT%LUT_get_dir2dir(aspect, tauz, w0, g, angles(1), angles(2), C)
-                call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north) 
+                call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
               else         ! dir2diff
                 call OPP%OPP_LUT%LUT_get_dir2diff(aspect, tauz, w0, g, angles(1), angles(2), C)
               endif
@@ -223,29 +223,29 @@ contains
 
 
   subroutine dir2diff_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
-    
+
     class(t_optprop) :: OPP
     logical, intent(in) :: lswitch_east, lswitch_north
     real(ireals),intent(inout) :: coeff(:)
-    
+
     integer(iintegers), allocatable :: dstnr(:)
 
     select type(OPP)
       class is (t_optprop_1_2)
         continue
-      
+
       class is (t_optprop_3_6)
         continue
 
       class is (t_optprop_8_10)
         allocate( dstnr(10))
-        if(lswitch_east) then 
-          
+        if(lswitch_east) then
+
         else if (lswitch_north) then
-          
+
         endif
     end select
-    
+
   end subroutine
 
   subroutine dir2dir_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
@@ -255,14 +255,14 @@ contains
 
     integer(iintegers) :: dof
     real(ireals)  :: newcoeff(size(coeff))
-    
+
     select type(OPP)
       class is (t_optprop_1_2)
         continue
 
       class is (t_optprop_3_6)
-        !nothing to do because of symmetrie 
-        continue 
+        !nothing to do because of symmetrie
+        continue
 
       class is (t_optprop_8_10)
         dof = 8
@@ -317,7 +317,7 @@ contains
 !                          stop 'cant call coeff_symmetry with isrc -- error happened for type optprop_1_2'
 !                end select
 !
-!              
+!
 !              class is (t_optprop_8_10)
 !                select case (isrc)
 !                  case(1)
@@ -344,7 +344,7 @@ contains
 !                    stop 'cant call coeff_symmetry with isrc -- error happened for optprop_8_10'
 !                end select
 !
-!              class is (t_optprop_3_6)                                                        !!! Puh, was sind das fuer Symmetrien? 
+!              class is (t_optprop_3_6)                                                        !!! Puh, was sind das fuer Symmetrien?
 !                select case (isrc)
 !                  case(1)
 !                    coeff_symmetry = coeff([l+0, l+1, l+2, l+2, l+3, l+3, l+2, l+2, l+3, l+3])
