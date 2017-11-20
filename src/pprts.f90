@@ -43,10 +43,10 @@ module m_pprts
   implicit none
   private
 
-  public :: t_solver_1_2, t_solver_3_6, t_solver_8_10, init_pprts, &
-            set_optical_properties, solve_tenstream 
+  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, init_pprts, &
+            set_optical_properties, solve_tenstream
 
-  PetscInt, parameter :: E_up=0, E_dn=1, E_le_m=2, E_ri_m=3, E_ba_m=4, E_fw_m=5 
+  PetscInt, parameter :: E_up=0, E_dn=1, E_le_m=2, E_ri_m=3, E_ba_m=4, E_fw_m=5
 
   type t_opticalprops
     real(ireals) :: kabs,ksca,g
@@ -135,11 +135,11 @@ module m_pprts
   end type
 
   type, extends(t_solver) :: t_solver_1_2
-  end type 
+  end type
   type, extends(t_solver) :: t_solver_8_10
-  end type 
+  end type
   type, extends(t_solver) :: t_solver_3_6
-  end type 
+  end type
 
 
   logical,parameter :: ldebug=.True.
