@@ -243,6 +243,7 @@ contains
           newcoeff = coeff
           coeff(7:9)   = newcoeff([1, 2, 3] + dof*3)
           coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
+        endif
         if(lswitch_north) then
           newcoeff = coeff
           coeff(14:16) = newcoeff([1, 2, 3] + dof*5)
@@ -255,7 +256,7 @@ contains
         if(lswitch_east) then
           newcoeff = coeff
           coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]        )
-          coeff(9:18)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*1 )
+          coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*1 )
           coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*3 )
           coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*2 )
           coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*5 )
@@ -264,11 +265,11 @@ contains
           coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*7 )
           coeff(65:72) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*8 )
           coeff(73:80) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*9 )
-
+        endif
         if (lswitch_north) then
           newcoeff =coeff
           coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]        )
-          coeff(9:18)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*1 )
+          coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*1 )
           coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*3 )
           coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*2 )
           coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*5 )
@@ -310,7 +311,7 @@ contains
           coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*5)
           coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*6)
           coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*7)
-
+        endif
         if (lswitch_north) then
           newcoeff = coeff
           coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*2)

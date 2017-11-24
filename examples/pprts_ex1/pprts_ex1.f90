@@ -6,7 +6,8 @@ module m_pprts_ex1
 subroutine pprts_ex1()
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, zero, pi, myid, numnodes
 
-    use m_pprts, only : init_pprts, set_optical_properties, t_solver, t_solver_3_6, t_solver_8_10, solve_tenstream
+    use m_pprts, only : init_pprts, set_optical_properties, t_solver, t_solver_3_6, t_solver_8_10, &
+      solve_pprts, pprts_get_result, set_angles
     use m_tenstream_options, only: read_commandline_options
 
     use mpi, only : MPI_COMM_WORLD
@@ -25,7 +26,7 @@ subroutine pprts_ex1()
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
-    class(t_solver), allocatable :: s2
+    class(t_solver), allocatable :: solver
 
     character(len=80) :: arg
 
@@ -35,9 +36,9 @@ subroutine pprts_ex1()
 
     select case(arg)
       case ('-solver_8_10')
-        allocate(t_solver_8_10::s2)
+        allocate(t_solver_8_10::solver)
       case('-solver_3_6')
-        allocate(t_solver_3_6::s2)
+        allocate(t_solver_3_6::solver)
       case default
         print *,'error, have to provide solver type as argument, e.g.'
         print *,'-solver_8_10'
@@ -48,11 +49,11 @@ subroutine pprts_ex1()
 
 
 
-    call init_pprts(MPI_Comm_World, nv, nxp, nyp, dx,dy, phi0, theta0, s2, dz1d)
+    call init_pprts(MPI_Comm_World, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
 
-    allocate(kabs(s2%C_one%zm , s2%C_one%xm,  s2%C_one%ym ))
-    allocate(ksca(s2%C_one%zm , s2%C_one%xm,  s2%C_one%ym ))
-    allocate(g   (s2%C_one%zm , s2%C_one%xm,  s2%C_one%ym ))
+    allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+    allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+    allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
 
     kabs = .1_ireals/(dz*nv)
     ksca = 1e-3_ireals/(dz*nv)
@@ -62,10 +63,22 @@ subroutine pprts_ex1()
     ksca(nv/2,nxp/2,1:nyp) = 1/dz
     g   (nv/2,nxp/2,1:nyp) = .9
 
-    call set_optical_properties(s2, albedo, kabs, ksca, g)
+    call set_optical_properties(solver, albedo, kabs, ksca, g)
+    call set_angles(solver, 0._ireals, theta0)
 
-    call solve_tenstream(s2, incSolar)
+    call solve_pprts(solver, incSolar)
 
+
+    allocate(fdir (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    allocate(fdn  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    allocate(fup  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    allocate(fdiv (solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+
+    call pprts_get_result(solver, fdir,fdn,fup,fdiv)
+
+    print *,'edir', fdir(:, nxp/2,nyp/2)
+    print *,'edn:', fdn(:, nxp/2,nyp/2)
+    print *,'eup:', fup(:, nxp/2,nyp/2)
 end subroutine
 
 !subroutine example(solver)
