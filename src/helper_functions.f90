@@ -30,10 +30,13 @@ module m_helper_functions
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane
+    vec_proj_on_plane, get_arg
 
   interface imp_bcast
     module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
+  end interface
+  interface get_arg
+    module procedure get_arg_logical, get_arg_iintegers, get_arg_ireals
   end interface
 
   integer(mpiint) :: mpierr
@@ -662,6 +665,37 @@ module m_helper_functions
       real(ireals), dimension(3), intent(in) :: v, plane_normal
       real(ireals) :: vec_proj_on_plane(3)
       vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm(plane_normal)**2
+    end function
+
+    function get_arg_logical(default_value, opt_arg) result(arg)
+      logical :: arg
+      logical, intent(in) :: default_value
+      logical, intent(in), optional :: opt_arg
+      if(present(opt_arg)) then
+        arg = opt_arg
+      else
+        arg = default_value
+      endif
+    end function
+    function get_arg_iintegers(default_value, opt_arg) result(arg)
+      integer(iintegers) :: arg
+      integer(iintegers), intent(in) :: default_value
+      integer(iintegers), intent(in), optional :: opt_arg
+      if(present(opt_arg)) then
+        arg = opt_arg
+      else
+        arg = default_value
+      endif
+    end function
+    function get_arg_ireals(default_value, opt_arg) result(arg)
+      integer(ireals) :: arg
+      integer(ireals), intent(in) :: default_value
+      integer(ireals), intent(in), optional :: opt_arg
+      if(present(opt_arg)) then
+        arg = opt_arg
+      else
+        arg = default_value
+      endif
     end function
 
   end module
