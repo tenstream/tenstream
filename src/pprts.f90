@@ -28,7 +28,7 @@ module m_pprts
     default_str_len
 
   use m_helper_functions, only : CHKERR, deg2rad, rad2deg, norm, imp_allreduce_min, &
-  imp_allreduce_max, delta_scale, mpi_logical_and
+  imp_allreduce_max, delta_scale, mpi_logical_and, mean
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
@@ -2649,7 +2649,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 lsun_east  = sun%angles(k,i,j)%xinc.eq.i0
                 lsun_north = sun%angles(k,i,j)%yinc.eq.i0
 
-                call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., dir2diff, atm%l1d(atmk(atm,k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta] )
+                call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., dir2diff, atm%l1d(atmk(atm,k),i,j), &
+                               [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta], lswitch_east=lsun_east, lswitch_north=lsun_north)
 
                 do idofdst=1,solver%difftop%dof
                   dst = idofdst
@@ -3178,8 +3179,9 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
     enddo
   endif
 
-  if(myid.eq.0 .and. ldebug) print *,'surface Edn',redn(ubound(redn,1), 1,1)
-  if(myid.eq.0 .and. ldebug) print *,'surface Eup',reup(ubound(redn,1), 1,1)
+  if(myid.eq.0 .and. ldebug .and. allocated(redir)) print *,'surface Edir',mean(redir(ubound(redir,1),:,:))
+  if(myid.eq.0 .and. ldebug) print *,'surface Edn',mean(redn(ubound(redn,1), :,:))
+  if(myid.eq.0 .and. ldebug) print *,'surface Eup',mean(reup(ubound(redn,1), :,:))
 
   if(ldebug .and. solver%solutions(uid)%lsolar_rad) then
     if(myid.eq.0) print *,' Edn',redn(1,1,:)
