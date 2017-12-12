@@ -11,11 +11,14 @@ module test_boxmc_8_10
 
   real(ireals) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(10),T(8), S_target(10), T_target(8)
-  real(ireals) :: S_tol(10),T_tol(6)
+  real(ireals) :: S_tol(10),T_tol(8)
 
   type(t_boxmc_8_10) :: bmc_8_10
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
+  character(len=120) :: msg
+
+  real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
 
   real(ireals),parameter :: atol=1e-3, rtol=1e-2
   !real(ireals),parameter :: atol=1e-4, rtol=1e-3
@@ -51,29 +54,67 @@ contains
     if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
+  @test(npes =[1,2])
+  subroutine test_boxmc_symmetry_in_phi(this)   ! Check that we have symmetry for total transmission for e.g. phi 0==90 or 10==80 etc.
+    class (MpiTestMethod), intent(inout) :: this
+    integer(iintegers) :: src, iphi, itheta
+    real(ireals) :: tau, Tsum(2)
+
+    ! direct to diffuse tests
+    bg  = [1e-3_ireals, zero, one/2 ]
+
+    ! from top to bot face
+    tau = (bg(1)+bg(2)) * dz
+
+    do iphi=0,45,20
+      do itheta=0,85,40
+        phi = iphi * one
+        theta = itheta * one
+        Tsum = zero
+
+        do src = 1,8
+          call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          Tsum(1) = Tsum(1) + sum(T)
+        enddo
+
+        phi = 90._ireals - iphi
+        do src = 1,8
+          call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          Tsum(2) = Tsum(2) + sum(T)
+        enddo
+
+        write(msg,*) 'test_boxmc_symmetry_in_phi : ',iphi, phi, theta
+        @assertEqual(Tsum(1), Tsum(2), atol*sigma, msg)
+        print *,msg, Tsum
+      enddo
+    enddo
+  end subroutine
 
   @test(npes =[1,2])
   subroutine test_boxmc_select_cases_direct_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src
+    integer(iintegers) :: src,iphi
     real(ireals) :: tau
 
     ! direct to diffuse tests
     bg  = [1e-3_ireals, zero, one/2 ]
 
     ! from top to bot face
-    phi = 0; theta = 0
+    theta = 0
 
     tau = (bg(1)+bg(2)) * dz
 
     S_target = zero
 
-
-    do src = 1,4
-      T_target = zero
-      T_target(src) = exp(-tau)
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_direct_srctopface top_to_bot')
+    do iphi=0,90,10
+      phi = iphi*one
+      do src = 1,4
+        T_target = zero
+        T_target(src) = exp(-tau)
+        call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        write(msg,*) 'test_boxmc_select_cases_direct_srctopface top_to_bot',src,':: phi',phi
+        call check(S_target,T_target, S,T, msg='')
+      enddo
     enddo
   end subroutine
 
@@ -93,12 +134,25 @@ contains
 
     S_target = zero
 
-    T_target = zero
-    T_target(3) = exp(-tau)
+    do src=1,2
+      T_target = zero
+      T_target(2+src) = exp(-tau)
+      print *,'phi,theta test',phi,theta
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      print *,'phi,theta test2',phi,theta
+      write(msg,*) ' test_boxmc_select_cases_direct_srctopface_45',src
+      call check(S_target,T_target, S,T, msg=msg)
+    enddo
 
-    src = 1
-    call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_direct_srctopface_45')
+    phi=90
+    do src=1,3,2
+      T_target = zero
+      T_target(src+1) = exp(-tau)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      write(msg,*) ' test_boxmc_select_cases_direct_srctopface_45',src
+      call check(S_target,T_target, S,T, msg=msg)
+    enddo
+
   end subroutine
 
   @test(npes =[1,2])
@@ -188,7 +242,7 @@ contains
   end subroutine
 
 
-  @test(npes =[1])
+  @test(npes =[1,2])
   subroutine test_boxmc_select_cases_diff_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -235,7 +289,7 @@ contains
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbottomface')
   end subroutine
 
-   @test(npes =[1,2])
+  @test(npes =[1,2])
    subroutine test_boxmc_select_cases_diff_srcsideface(this)
      class (MpiTestMethod), intent(inout) :: this
      integer(iintegers) :: src
@@ -295,8 +349,6 @@ contains
 
   subroutine check(S_target,T_target, S,T, msg)
     real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
-
-    real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
 
     character(len=*),optional :: msg
     character(default_str_len) :: local_msgS, local_msgT

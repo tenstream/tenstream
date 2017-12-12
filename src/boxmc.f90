@@ -185,20 +185,20 @@ contains
   !> Scattering Absorption is accounted for by carrying on a photon weight and succinctly lower it by lambert Beers Law \f$ \omega_{abso}^{'} = \omega_{abso} \cdot e^{- \rm{d}s \cdot {\rm k}_{sca}   }   \f$ \n
   !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev. Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
   subroutine get_coeff(bmc,comm,op_bg,src,ldir,phi0,theta0,dx,dy,dz, ret_S_out, ret_T_out, ret_S_tol,ret_T_tol, inp_atol, inp_rtol )
-    class(t_boxmc)                :: bmc                          !< @param[in] bmc Raytracer Type - determines number of streams
-    real(ireals),intent(in)       :: op_bg(3)                     !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
-    real(ireals),intent(in)       :: phi0                         !< @param[in] phi0 solar azimuth angle
-    real(ireals),intent(in)       :: theta0                       !< @param[in] theta0 solar zenith angle
-    integer(iintegers),intent(in) :: src                          !< @param[in] src stream from which to start photons - see init_photon routines
-    integer(mpiint),intent(in)    :: comm                         !< @param[in] comm MPI Communicator
-    logical,intent(in)            :: ldir                         !< @param[in] ldir determines if photons should be started with a fixed incidence angle
-    real(ireals),intent(in)       :: dx,dy,dz                     !< @param[in] dx,dy,dz box with dimensions in [m]
-    real(ireals),intent(out)      :: ret_S_out(bmc%diff_streams)  !< @param[out] S_out diffuse streams transfer coefficients
-    real(ireals),intent(out)      :: ret_T_out(bmc%dir_streams)   !< @param[out] T_out direct streams transfer coefficients
-    real(ireals),intent(out)      :: ret_S_tol(bmc%diff_streams)  !< @param[out] absolute tolerances of results
-    real(ireals),intent(out)      :: ret_T_tol(bmc%dir_streams)   !< @param[out] absolute tolerances of results
-    real(ireals),intent(in),optional :: inp_atol                  !< @param[in] inp_atol if given, determines targeted absolute stddeviation
-    real(ireals),intent(in),optional :: inp_rtol                  !< @param[in] inp_rtol if given, determines targeted relative stddeviation
+    class(t_boxmc)                :: bmc           !< @param[in] bmc Raytracer Type - determines number of streams
+    real(ireals),intent(in)       :: op_bg(3)      !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
+    real(ireals),intent(in)       :: phi0          !< @param[in] phi0 solar azimuth angle
+    real(ireals),intent(in)       :: theta0        !< @param[in] theta0 solar zenith angle
+    integer(iintegers),intent(in) :: src           !< @param[in] src stream from which to start photons - see init_photon routines
+    integer(mpiint),intent(in)    :: comm          !< @param[in] comm MPI Communicator
+    logical,intent(in)            :: ldir          !< @param[in] ldir determines if photons should be started with a fixed incidence angle
+    real(ireals),intent(in)       :: dx,dy,dz      !< @param[in] dx,dy,dz box with dimensions in [m]
+    real(ireals),intent(out)      :: ret_S_out(:)  !< @param[out] S_out diffuse streams transfer coefficients
+    real(ireals),intent(out)      :: ret_T_out(:)  !< @param[out] T_out direct streams transfer coefficients
+    real(ireals),intent(out)      :: ret_S_tol(:)  !< @param[out] absolute tolerances of results
+    real(ireals),intent(out)      :: ret_T_tol(:)  !< @param[out] absolute tolerances of results
+    real(ireals),intent(in),optional :: inp_atol   !< @param[in] inp_atol if given, determines targeted absolute stddeviation
+    real(ireals),intent(in),optional :: inp_rtol   !< @param[in] inp_rtol if given, determines targeted relative stddeviation
 
 
     real(ireal_dp) :: S_out(bmc%diff_streams)
@@ -211,7 +211,6 @@ contains
     type(stddev) :: std_Sdir, std_Sdiff, std_abso
 
     integer(iintegers) :: Nphotons
-
 
     if(.not. bmc%initialized ) stop 'Box Monte Carlo Ray Tracer is not initialized! - This should not happen!'
 
@@ -252,7 +251,6 @@ contains
                      real(theta0, kind=ireal_dp), &
                      Nphotons, std_Sdir,std_Sdiff,std_abso)
 
-
     S_out = std_Sdiff%mean
     T_out = std_Sdir%mean
 
@@ -263,7 +261,6 @@ contains
     if(numnodes.gt.1) then ! average reduce results from all ranks
       call reduce_output(Nphotons, comm, S_out, T_out, S_tol, T_tol)
     endif
-
 
     ! some debug output at the end...
     coeffnorm = sum(S_out)+sum(T_out)
@@ -288,11 +285,10 @@ contains
       call exit()
     endif
 
-    ret_S_out = real(S_out, kind=ireals)
     ret_T_out = real(T_out, kind=ireals)
-    ret_S_tol = real(S_tol, kind=ireals)
     ret_T_tol = real(T_tol, kind=ireals)
-
+    ret_S_out = real(S_out, kind=ireals)
+    ret_S_tol = real(S_tol, kind=ireals)
   end subroutine
 
   subroutine run_photons(bmc,src,op,dx,dy,dz,ldir,phi0,theta0,Nphotons,std_Sdir,std_Sdiff,std_abso)
@@ -307,7 +303,6 @@ contains
       integer(iintegers) :: k,mycnt,mincnt
       real(ireal_dp)   :: initial_dir(3)
       real(ireal_dp)   :: time(2)
-
 
       call cpu_time(time(1))
 
@@ -715,19 +710,19 @@ contains
     if(myid.ge.0) call mpi_comm_size(comm,numnodes,mpierr); call CHKERR(mpierr)
 
     select type (bmc)
-    class is (t_boxmc_8_10)
+    type is (t_boxmc_8_10)
     bmc%dir_streams  =  8
     bmc%diff_streams = 10
-    class is (t_boxmc_3_10)
+    type is (t_boxmc_3_10)
     bmc%dir_streams  =  3
     bmc%diff_streams = 10
-    class is (t_boxmc_1_2)
+    type is (t_boxmc_1_2)
     bmc%dir_streams  =  1
     bmc%diff_streams =  2
-    class is (t_boxmc_wedge_5_5)
+    type is (t_boxmc_wedge_5_5)
     bmc%dir_streams  =  5
     bmc%diff_streams =  5
-    class is (t_boxmc_3_6)
+    type is (t_boxmc_3_6)
     bmc%dir_streams = 3
     bmc%diff_streams = 6
     class default
