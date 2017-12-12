@@ -32,6 +32,9 @@ module m_helper_functions
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa
 
+  interface mean
+    module procedure mean_1d, mean_2d
+  end interface
   interface imp_bcast
     module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
   end interface
@@ -134,10 +137,15 @@ module m_helper_functions
       rmse(2) = rmse(1)/max( mean(b), epsilon(rmse) )
     end function
 
-    pure function mean(arr)
-      real(ireals) :: mean
+    pure function mean_1d(arr)
+      real(ireals) :: mean_1d
       real(ireals),intent(in) :: arr(:)
-      mean = sum(arr)/size(arr)
+      mean_1d = sum(arr)/size(arr)
+    end function
+    pure function mean_2d(arr)
+      real(ireals) :: mean_2d
+      real(ireals),intent(in) :: arr(:,:)
+      mean_2d = sum(arr)/size(arr)
     end function
 
     elemental logical function approx(a,b,precision)
