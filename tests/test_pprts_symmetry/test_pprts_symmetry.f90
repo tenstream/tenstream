@@ -6,7 +6,7 @@ module test_pprts_symmetry
   use petsc
 
   use m_pprts, only : init_pprts, set_optical_properties, t_solver_3_6, t_solver_8_10, &
-    solve_pprts, set_angles, pprts_get_result, destroy_pprts
+    solve_pprts, set_angles, pprts_get_result, pprts_get_result_toZero, destroy_pprts
   use m_tenstream_options, only: read_commandline_options
 
   use m_optprop, only: t_optprop, t_optprop_8_10, t_optprop_3_6
@@ -18,7 +18,6 @@ contains
 
   !@test(npes = [2])
   subroutine test_pprts_symmetry_ex2(this)
-
     class (MpiTestMethod), intent(inout) :: this
 
     integer(iintegers) :: numnodes, comm
@@ -90,7 +89,7 @@ contains
     end subroutine
 
 
-  @test(npes =[1])
+  @test(npes =[2,1])
   subroutine test_pprts_symmetry_ex1(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -111,6 +110,7 @@ contains
     real(ireals),allocatable,dimension(:,:,:) :: fdir1,fdn1,fup1,fdiv1
 
     integer(iintegers) :: i,j,k, ni,nj
+    integer(iintegers) :: cx, cy      ! global indices of cloud
 
     !type(t_solver_3_6)  :: solver
     type(t_solver_8_10) :: solver
@@ -124,16 +124,18 @@ contains
     !!!!!!!!!!!!!!!!!!!!  calculation for phi0 = 0  !!!!!!!!!!!!!!!!!!!!!!!
     call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
 
-    allocate(fdir0 (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fdn0  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fup0  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fdiv0 (solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+    if(myid.eq.0) then
+      allocate(fdir0 (nv+1, nxp, nyp))
+      allocate(fdn0  (nv+1, nxp, nyp))
+      allocate(fup0  (nv+1, nxp, nyp))
+      allocate(fdiv0 (nv, nxp, nyp))
 
-    allocate(fdir1 (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fdn1  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fup1  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fdiv1 (solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+      allocate(fdir1 (nv+1, nxp, nyp))
+      allocate(fdn1  (nv+1, nxp, nyp))
+      allocate(fup1  (nv+1, nxp, nyp))
+      allocate(fdiv1 (nv, nxp, nyp))
 
+    endif
 
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
@@ -143,9 +145,18 @@ contains
     ksca = 1._ireals/nv/dz
     g    = zero
 
-    kabs(nv/2,nxp/2+1,nyp/2+1) = 1/dz
-    ksca(nv/2,nxp/2+1,nyp/2+1) = 1/dz
-    g   (nv/2,nxp/2+1,nyp/2+1) = .9
+    cx = nxp/2+1
+    cy = nyp/2+1
+
+    if(cx.le.(solver%C_one%xe+1) .and. cx.gt.solver%C_one%xs) then
+      if(cy.le.(solver%C_one%ye+1) .and. cy.gt.solver%C_one%ys) then
+        print*, cx, cy, solver%C_one%ys, solver%C_one%ye    !DEBUG
+
+        kabs(nv/2,  cx-solver%C_one%xs,  cy-solver%C_one%ys) = 1/dz
+        ksca(nv/2,  cx-solver%C_one%xs,  cy-solver%C_one%ys) = 1/dz
+        g   (nv/2,  cx-solver%C_one%xs,  cy-solver%C_one%ys) = .9
+      endif
+    endif
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)!, B )
     call set_angles(solver, 10._ireals, theta0)
@@ -160,44 +171,48 @@ contains
     call set_angles(solver, 280._ireals, theta0)
     call solve_pprts(solver, incSolar, opt_solution_uid=280)
 
-    call pprts_get_result(solver, fdir0,fdn0,fup0,fdiv0, opt_solution_uid=10)
-    call pprts_get_result(solver, fdir1,fdn1,fup1,fdiv1, opt_solution_uid=190)
+    call pprts_get_result_toZero(solver, fdir0,fdn0,fup0,fdiv0, opt_solution_uid=10)
+    call pprts_get_result_toZero(solver, fdir1,fdn1,fup1,fdiv1, opt_solution_uid=190)
 
-    do j=lbound(fdir0,3), ubound(fdir0,3)
-      do i=lbound(fdir0,2), ubound(fdir0,2)
-        ni = ubound(fdir0,2)-i+lbound(fdir0,2)
-        nj = ubound(fdir0,3)-j+lbound(fdir0,3)
+    if(myid.eq.0) then
+      do j=lbound(fdir0,3), ubound(fdir0,3)
+        do i=lbound(fdir0,2), ubound(fdir0,2)
+          ni = ubound(fdir0,2)-i+lbound(fdir0,2)
+          nj = ubound(fdir0,3)-j+lbound(fdir0,3)
 
-        do k=lbound(fdiv0,1), ubound(fdiv0,1)
-          @assertEqual(fdiv0(k,ni,nj), fdiv1(k,i,j), atolerance, '10 -> 190: divergence not symmetric for azimuth')
-        enddo
-        do k=lbound(fdir0,1), ubound(fdir0,1)
-          @assertEqual(fdir0(k,ni,nj), fdir1(k,i,j), atolerance, '10 -> 190: Edirradiation not symmetric for azimuth')
-          @assertEqual(fdn0 (k,ni,nj), fdn1 (k,i,j), atolerance, '10 -> 190: Edn radiation not symmetric for azimuth')
-          @assertEqual(fup0 (k,ni,nj), fup1 (k,i,j), atolerance, '10 -> 190: Eup radiation not symmetric for azimuth')
-        enddo
-      enddo
-    enddo
-
-
-    call pprts_get_result(solver, fdir0,fdn0,fup0,fdiv0, opt_solution_uid=100)
-    call pprts_get_result(solver, fdir1,fdn1,fup1,fdiv1, opt_solution_uid=280)
-
-    do j=lbound(fdir0,3), ubound(fdir0,3)
-      do i=lbound(fdir0,2), ubound(fdir0,2)
-        ni = ubound(fdir0,2)-i+lbound(fdir0,2)
-        nj = ubound(fdir0,3)-j+lbound(fdir0,3)
-
-        do k=lbound(fdiv0,1), ubound(fdiv0,1)
-          @assertEqual(fdiv0(k,ni,nj), fdiv1(k,i,j), atolerance, '100 -> 280: divergence not symmetric for azimuth')
-        enddo
-        do k=lbound(fdir0,1), ubound(fdir0,1)
-          @assertEqual(fdir0(k,ni,nj), fdir1(k,i,j), atolerance, '100 -> 280: Edirradiation not symmetric for azimuth')
-          @assertEqual(fdn0 (k,ni,nj), fdn1 (k,i,j), atolerance, '100 -> 280: Edn radiation not symmetric for azimuth')
-          @assertEqual(fup0 (k,ni,nj), fup1 (k,i,j), atolerance, '100 -> 280: Eup radiation not symmetric for azimuth')
+          do k=lbound(fdiv0,1), ubound(fdiv0,1)
+            @assertEqual(fdiv0(k,ni,nj), fdiv1(k,i,j), atolerance, '10 -> 190: divergence not symmetric for azimuth')
+          enddo
+          do k=lbound(fdir0,1), ubound(fdir0,1)
+            @assertEqual(fdir0(k,ni,nj), fdir1(k,i,j), atolerance, '10 -> 190: Edirradiation not symmetric for azimuth')
+            @assertEqual(fdn0 (k,ni,nj), fdn1 (k,i,j), atolerance, '10 -> 190: Edn radiation not symmetric for azimuth')
+            @assertEqual(fup0 (k,ni,nj), fup1 (k,i,j), atolerance, '10 -> 190: Eup radiation not symmetric for azimuth')
+          enddo
         enddo
       enddo
-    enddo
+    endif
+
+
+    call pprts_get_result_toZero(solver, fdir0,fdn0,fup0,fdiv0, opt_solution_uid=100)
+    call pprts_get_result_toZero(solver, fdir1,fdn1,fup1,fdiv1, opt_solution_uid=280)
+
+    if(myid.eq.0) then
+      do j=lbound(fdir0,3), ubound(fdir0,3)
+        do i=lbound(fdir0,2), ubound(fdir0,2)
+          ni = ubound(fdir0,2)-i+lbound(fdir0,2)
+          nj = ubound(fdir0,3)-j+lbound(fdir0,3)
+
+          do k=lbound(fdiv0,1), ubound(fdiv0,1)
+            @assertEqual(fdiv0(k,ni,nj), fdiv1(k,i,j), atolerance, '100 -> 280: divergence not symmetric for azimuth')
+          enddo
+          do k=lbound(fdir0,1), ubound(fdir0,1)
+            @assertEqual(fdir0(k,ni,nj), fdir1(k,i,j), atolerance, '100 -> 280: Edirradiation not symmetric for azimuth')
+            @assertEqual(fdn0 (k,ni,nj), fdn1 (k,i,j), atolerance, '100 -> 280: Edn radiation not symmetric for azimuth')
+            @assertEqual(fup0 (k,ni,nj), fup1 (k,i,j), atolerance, '100 -> 280: Eup radiation not symmetric for azimuth')
+          enddo
+        enddo
+      enddo
+    endif
     call destroy_pprts(solver, .True.)
   end subroutine
 end module

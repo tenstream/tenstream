@@ -44,7 +44,8 @@ module m_pprts
   private
 
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, init_pprts, &
-            set_optical_properties, solve_pprts, set_angles, destroy_pprts, pprts_get_result
+            set_optical_properties, solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
+            pprts_get_result_toZero
 
   PetscInt, parameter :: E_up=0, E_dn=1, E_le_m=2, E_ri_m=3, E_ba_m=4, E_fw_m=5
 
@@ -616,6 +617,7 @@ module m_pprts
       count(sun%angles%yinc.eq.0),count(sun%angles%yinc.eq.i1), &
       '::', minval(sun%angles%xinc), maxval(sun%angles%xinc), minval(sun%angles%yinc), maxval(sun%angles%yinc)
 
+    !print *, 'phi', sun%angles(1,1,1)%phi, 'sym_phi', sun%angles(1,1,1)%symmetry_phi
     contains
         elemental function sym_rot_phi(phi)
             real(ireals) :: sym_rot_phi
@@ -3114,7 +3116,7 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
   integer(iintegers),optional,intent(in)                  :: opt_solution_uid
 
   integer(iintegers)  :: uid, lb_redir
-  integer(iintegers)  :: k, i, j, iside
+  integer(iintegers)  :: k, i, j, fi, fj, iside
   PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
 
@@ -3160,20 +3162,24 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
   else
     redn = zero
     reup = zero
+    fj = zero
+    fi = zero
 
     do j = solver%C_diff%ys, solver%C_diff%ye
+      fj = j +1 -solver%C_diff%ys
       do i = solver%C_diff%xs, solver%C_diff%xe
+        fi = i +1 -solver%C_diff%xs
         do k = solver%C_diff%zs, solver%C_diff%ze
           do iside=1,solver%difftop%dof
             if(solver%difftop%is_inward(iside)) then
-              redn(k+1,i+1,j+1) = redn(k+1,i+1,j+1) + x4d(iside-1, k, i, j)  ! C indizes in Solver%Cdiff but fortran in redn
+              redn(k+1,fi,fj) = redn(k+1,fi,fj) + x4d(iside-1, k, i, j)  ! C indizes in Solver%Cdiff but fortran in redn
             else
-              reup(k+1,i+1,j+1) = reup(k+1,i+1,j+1) + x4d(iside-1, k, i, j)  ! C indizes in Solver%Cdiff but fortran in redn
+              reup(k+1,fi,fj) = reup(k+1,fi,fj) + x4d(iside-1, k, i, j)  ! C indizes in Solver%Cdiff but fortran in redn
             endif
           enddo
 
-          reup(k+1, i+1, j+1) = reup(k+1, i+1, j+1) / (solver%difftop%dof / 2)
-          redn(k+1, i+1, j+1) = redn(k+1, i+1, j+1) / (solver%difftop%dof / 2)
+          reup(k+1, fi, fj) = reup(k+1, fi, fj) / (solver%difftop%dof / 2)
+          redn(k+1, fi, fj) = redn(k+1, fi, fj) / (solver%difftop%dof / 2)
         enddo
       enddo
     enddo
@@ -3207,7 +3213,7 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
   call restoreVecPointer(solver%solutions(uid)%abso,solver%C_one,x1d,x4d)
 end subroutine
 
-      subroutine pprts_get_result_toZero(solver,res_edir,res_edn,res_eup,res_abso)
+      subroutine pprts_get_result_toZero(solver,res_edir,res_edn,res_eup,res_abso,opt_solution_uid)
         ! after solving equations -- retrieve the results for edir,edn,eup and absorption
         ! only zeroth node gets the results back.
         class(t_solver)   :: solver
@@ -3216,6 +3222,7 @@ end subroutine
         real(ireals),intent(out),dimension(:,:,:) :: res_edn
         real(ireals),intent(out),dimension(:,:,:) :: res_eup
         real(ireals),intent(out),dimension(:,:,:) :: res_abso
+        integer(iintegers),optional,intent(in)    :: opt_solution_uid
 
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
@@ -3225,7 +3232,7 @@ end subroutine
         allocate( reup (solver%C_one_atm1%zs:solver%C_one_atm1%ze, solver%C_diff%xs:solver%C_diff%xe, solver%C_diff%ys:solver%C_diff%ye  )); reup =0
         allocate( rabso(solver%C_one_atm%zs :solver%C_one_atm%ze , solver%C_one%xs :solver%C_one%xe , solver%C_one%ys :solver%C_one%ye   )); rabso=0
 
-        call pprts_get_result(solver,redir,redn,reup,rabso)
+        call pprts_get_result(solver,redir,redn,reup,rabso,opt_solution_uid=opt_solution_uid)
 
         call exchange_var(solver%C_one_atm1, redir, res_edir)
         call exchange_var(solver%C_one_atm1, redn , res_edn )
