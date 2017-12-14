@@ -16,7 +16,7 @@ subroutine pprts_ex1()
 
     integer(iintegers) :: k
 
-    integer(iintegers),parameter :: nxp=30,nyp=3,nv=20
+    integer(iintegers),parameter :: nxp=9,nyp=9,nv=2
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=270, theta0=20
     real(ireals),parameter :: albedo=0., dz=100

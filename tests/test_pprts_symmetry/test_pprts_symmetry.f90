@@ -47,47 +47,47 @@ contains
       subroutine this_test(OPP)
         class(t_optprop)  :: OPP
 
-    PETSC_COMM_WORLD = comm
-    call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
-    call init_mpi_data_parameters(comm)
+        PETSC_COMM_WORLD = comm
+        call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
+        call init_mpi_data_parameters(comm)
 
-    call read_commandline_options()
+        call read_commandline_options()
 
-    call OPP%init([zero],[60._ireals], comm)
+        call OPP%init([zero],[60._ireals], comm)
 
-    allocate(dir2dir(OPP%OPP_LUT%dir_streams**2))
-    allocate(dir2diff(OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams))
+        allocate(dir2dir(OPP%OPP_LUT%dir_streams**2))
+        allocate(dir2diff(OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams))
 
-    do i=1,ubound(dir2dir,1)
-      dir2dir(i) = i
-    enddo
+        do i=1,ubound(dir2dir,1)
+          dir2dir(i) = i
+        enddo
 
-    do i=1,ubound(dir2diff,1)
-      dir2diff(i) = i
-    enddo
+        do i=1,ubound(dir2diff,1)
+          dir2diff(i) = i
+        enddo
 
 
-    call OPP%dir2dir_coeff_symmetry(dir2dir, .True., .True.)
-    call OPP%dir2dir_coeff_symmetry(dir2dir, .True., .True.)
+        call OPP%dir2dir_coeff_symmetry(dir2dir, .True., .True.)
+        call OPP%dir2dir_coeff_symmetry(dir2dir, .True., .True.)
 
-    do i=1,ubound(dir2dir,1)
-      @assertEqual(i,dir2dir(i), 'Coeff dir2dir not equal after switching two time north-south and east-west')
-    end do
+        do i=1,ubound(dir2dir,1)
+          @assertEqual(i,dir2dir(i), 'Coeff dir2dir not equal after switching two time north-south and east-west')
+        end do
 
-    call OPP%dir2diff_coeff_symmetry(dir2diff, .True., .True.)
-    call OPP%dir2diff_coeff_symmetry(dir2diff, .True., .True.)
+        call OPP%dir2diff_coeff_symmetry(dir2diff, .True., .True.)
+        call OPP%dir2diff_coeff_symmetry(dir2diff, .True., .True.)
 
-    do i=1,ubound(dir2diff,1)
-      @assertEqual(i,dir2diff(i), 'Coeff dir2diff not equal after switching two time north-south and east-west')
-    end do
+        do i=1,ubound(dir2diff,1)
+          @assertEqual(i,dir2diff(i), 'Coeff dir2diff not equal after switching two time north-south and east-west')
+        end do
 
-    deallocate(dir2dir)
-    deallocate(dir2diff)
-    call OPP%destroy()
+        deallocate(dir2dir)
+        deallocate(dir2diff)
+        call OPP%destroy()
 
-    call PetscFinalize(ierr)
+        call PetscFinalize(ierr)
+      end subroutine
     end subroutine
-  end subroutine
 
 
   @test(npes =[1])
@@ -151,9 +151,6 @@ contains
     call set_angles(solver, 10._ireals, theta0)
     call solve_pprts(solver, incSolar, opt_solution_uid=10)
 
-    call set_angles(solver, 80._ireals, theta0)
-    call solve_pprts(solver, incSolar, opt_solution_uid=80)
-
     call set_angles(solver, 100._ireals, theta0)
     call solve_pprts(solver, incSolar, opt_solution_uid=100)
 
@@ -182,43 +179,8 @@ contains
       enddo
     enddo
 
-    call pprts_get_result(solver, fdir1,fdn1,fup1,fdiv1, opt_solution_uid=80)
-
-    do j=lbound(fdir0,3), ubound(fdir0,3)
-      do i=lbound(fdir0,2), ubound(fdir0,2)
-        ni = j
-        nj = i
-
-        do k=lbound(fdiv0,1), ubound(fdiv0,1)
-          @assertEqual(fdiv0(k,ni,nj), fdiv1(k,i,j), atolerance, '10 -> 80: divergence not symmetric for azimuth')
-        enddo
-        do k=lbound(fdir0,1), ubound(fdir0,1)
-          @assertEqual(fdir0(k,ni,nj), fdir1(k,i,j), atolerance, '10 -> 80: Edirradiation not symmetric for azimuth')
-          @assertEqual(fdn0 (k,ni,nj), fdn1 (k,i,j), atolerance, '10 -> 80: Edn radiation not symmetric for azimuth')
-          @assertEqual(fup0 (k,ni,nj), fup1 (k,i,j), atolerance, '10 -> 80: Eup radiation not symmetric for azimuth')
-        enddo
-      enddo
-    enddo
 
     call pprts_get_result(solver, fdir0,fdn0,fup0,fdiv0, opt_solution_uid=100)
-
-    !do j=lbound(fdir0,3), ubound(fdir0,3)
-    !  do i=lbound(fdir0,2), ubound(fdir0,2)
-    !    ni = j
-    !    nj = i
-    !    nj = ubound(fdir0,3)-nj+lbound(fdir0,3)
-
-    !    do k=lbound(fdiv0,1), ubound(fdiv0,1)
-    !      @assertEqual(fdiv0(k,ni,nj), fdiv1(k,i,j), atolerance, '90: divergence not symmetric for azimuth')
-    !    enddo
-    !    do k=lbound(fdir0,1), ubound(fdir0,1)
-    !      @assertEqual(fdir0(k,ni,nj), fdir1(k,i,j), atolerance, '90: Edirradiation not symmetric for azimuth')
-    !      @assertEqual(fdn0 (k,ni,nj), fdn1 (k,i,j), atolerance, '90: Edn radiation not symmetric for azimuth')
-    !      @assertEqual(fup0 (k,ni,nj), fup1 (k,i,j), atolerance, '90: Eup radiation not symmetric for azimuth')
-    !    enddo
-    !  enddo
-    !enddo
-
     call pprts_get_result(solver, fdir1,fdn1,fup1,fdiv1, opt_solution_uid=280)
 
     do j=lbound(fdir0,3), ubound(fdir0,3)
@@ -227,12 +189,12 @@ contains
         nj = ubound(fdir0,3)-j+lbound(fdir0,3)
 
         do k=lbound(fdiv0,1), ubound(fdiv0,1)
-          @assertEqual(fdiv0(k,ni,nj), fdiv1(k,i,j), atolerance, '270: divergence not symmetric for azimuth')
+          @assertEqual(fdiv0(k,ni,nj), fdiv1(k,i,j), atolerance, '100 -> 280: divergence not symmetric for azimuth')
         enddo
         do k=lbound(fdir0,1), ubound(fdir0,1)
-          @assertEqual(fdir0(k,ni,nj), fdir1(k,i,j), atolerance, '270: Edirradiation not symmetric for azimuth')
-          @assertEqual(fdn0 (k,ni,nj), fdn1 (k,i,j), atolerance, '270: Edn radiation not symmetric for azimuth')
-          @assertEqual(fup0 (k,ni,nj), fup1 (k,i,j), atolerance, '270: Eup radiation not symmetric for azimuth')
+          @assertEqual(fdir0(k,ni,nj), fdir1(k,i,j), atolerance, '100 -> 280: Edirradiation not symmetric for azimuth')
+          @assertEqual(fdn0 (k,ni,nj), fdn1 (k,i,j), atolerance, '100 -> 280: Edn radiation not symmetric for azimuth')
+          @assertEqual(fup0 (k,ni,nj), fup1 (k,i,j), atolerance, '100 -> 280: Eup radiation not symmetric for azimuth')
         enddo
       enddo
     enddo
