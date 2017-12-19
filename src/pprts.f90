@@ -1405,12 +1405,12 @@ module m_pprts
     ! ---------------------------- Edir  -------------------
     if( solutions(uid)%lsolar_rad ) then
 
-      call setup_incSolar(solver, solver%incSolar,edirTOA)
-      call set_dir_coeff(solver, solver%sun, solver%Mdir,C_dir)
+      call setup_incSolar(solver, solver%incSolar, edirTOA)
+      call set_dir_coeff(solver, solver%sun, solver%Mdir, C_dir)
 
-      call setup_ksp(solver%atm, kspdir,C_dir,solver%Mdir,linit_kspdir, "dir_")
+      call setup_ksp(solver%atm, kspdir, C_dir, solver%Mdir, linit_kspdir, "dir_")
 
-      call solve(solver, kspdir,solver%incSolar,solutions(uid)%edir)
+      call solve(solver, kspdir, solver%incSolar, solutions(uid)%edir)
       solutions(uid)%lchanged=.True.
       solutions(uid)%lintegrated_dir=.True.
       call PetscObjectSetName(solutions(uid)%edir,'debug_edir',ierr) ; call CHKERR(ierr)
@@ -2430,7 +2430,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     call restoreVecPointer(incSolar,solver%C_dir,x1d,x4d)
 
-    if(solver%myid.eq.0 .and. ldebug) print *,solver%myid,'Setup of IncSolar done',edirTOA
+    if(solver%myid.eq.0 .and. ldebug) print *,solver%myid,'Setup of IncSolar done', edirTOA
 
   end subroutine
 
@@ -2573,14 +2573,14 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   !> \n or it may be that we have a source term due to thermal emission --
   !> \n   to determine emissivity of box, we use the forward transport coefficients backwards
   !> \n   a la: transmissivity $T = \sum(coeffs)$ and therefore emissivity $E = 1 - T$
-  subroutine setup_b(solver, solution,b)
+  subroutine setup_b(solver, solution, b)
     class(t_solver)         :: solver
     type(t_state_container) :: solution
-    Vec :: local_b,b
+    type(tVec) :: local_b, b
 
     PetscScalar,pointer,dimension(:,:,:,:) :: xsrc=>null()
     PetscScalar,pointer,dimension(:) :: xsrc1d=>null()
-    PetscInt :: k,i,j,src,dst
+    integer(iintegers) :: k,i,j,src,dst
 
     associate(  atm     => solver%atm, &
                 C_dir   => solver%C_dir, &
@@ -3257,7 +3257,7 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
         redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1)/solver%dirtop%dof  ! average of direct radiation of all fluxes through top faces
       endif
       if(ldebug) then
-        if(solver%myid.eq.0) print *,'Edir',redir(1,1,:)
+        if(solver%myid.eq.0) print *,'Edir vertically first column',redir(:,1,1)
         if(any(redir.lt.-one)) then
           print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
           call exit(1)
@@ -3301,8 +3301,6 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
   if(solver%myid.eq.0 .and. ldebug) print *,'surface Eup',mean(reup(ubound(redn,1), :,:))
 
   if(ldebug .and. solver%solutions(uid)%lsolar_rad) then
-    if(solver%myid.eq.0) print *,' Edn',redn(1,1,:)
-    if(solver%myid.eq.0) print *,' Eup',reup(1,1,:)
     if(any(redn.lt.-one)) then
       print *,'Found radiation smaller than 0 in edn result... that should not happen',minval(redn)
       call exit(1)
@@ -3487,7 +3485,7 @@ end subroutine
     !> @brief Scatter a local array on rank0 vector into a petsc global vector
     !> @details you may use this routine e.g. to scatter the optical properties from a sequential calling program.
     subroutine scatterZerotoPetscGlobal(arr, C, vec)
-      real(ireals),allocatable,dimension(:,:,:),intent(in) :: arr
+      real(ireals),allocatable,intent(in) :: arr(:,:,:)
       type(t_coord),intent(in) :: C
       type(tVec) :: vec
 
@@ -3495,6 +3493,7 @@ end subroutine
       type(tVec) :: natural,local
       real(ireals), pointer :: xloc(:)=>null()
       integer(iintegers) :: myid
+
 
       call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
 
@@ -3505,6 +3504,7 @@ end subroutine
       call VecScatterCreateToZero(natural, scatter_context, local, ierr); call CHKERR(ierr)
 
       if(myid.eq.0) then
+        if(.not. allocated(arr)) stop 'Cannot call scatterZerotoPetscGlobal with unallocated input array'
         if(ldebug) print *,myid,'scatterZerotoDM :: Copy data from Fortran array to Local Petsc Vec'
         call VecGetArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
         xloc = reshape( arr , [ size(arr) ] )
@@ -3581,14 +3581,14 @@ end subroutine
 
       integer(mpiint) :: myid, ierr
 
-      if(C%dof.ne.1) stop 'petscVecToF90_3d should only be called with DM%dof of 1'
-
-      if(allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
+      if(C%dof.ne.1) stop 'petscVecToF90_3d should only be called with anything else than DM%dof of 1'
 
       call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
       if(present(opt_l_only_on_rank0)) l_only_on_rank0 = opt_l_only_on_rank0
 
       if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
+
+      if(allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
 
       if(.not.l_only_on_rank0) then
         call getVecPointer(vec, C, x1d, x4d)

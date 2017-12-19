@@ -200,10 +200,15 @@ contains
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
         call pprts_get_result_toZero(solver,redir,redn,reup,rabso)
-        res_edir = redir(:, 1:Nx, 1:Ny)
-        res_edn  = redn (:, 1:Nx, 1:Ny)
-        res_eup  = reup (:, 1:Nx, 1:Ny)
-        res_abso = rabso(:, 1:Nx, 1:Ny)
+
+        if(solver%myid.eq.0) then
+          res_edir = redir(:, 1:Nx, 1:Ny)
+          res_edn  = redn (:, 1:Nx, 1:Ny)
+          res_eup  = reup (:, 1:Nx, 1:Ny)
+          res_abso = rabso(:, 1:Nx, 1:Ny)
+          print *,'tenstr_f2c_get_result result_edir first column', res_edir(:,1,1)
+          print *,'tenstr_f2c_get_result redir first column', redir(:,1,1)
+        endif
 
      end subroutine
 end module
