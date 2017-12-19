@@ -28,17 +28,15 @@ module m_poly_fitLUT
       use petsc
 
       use m_helper_functions, only: rmse, CHKERR
-      use m_data_parameters, only: ireals,iintegers, &
-        init_mpi_data_parameters, numnodes, myid,    &
-        zero, one, imp_comm, mpiint, nil,            &
-        default_str_len
+      use m_data_parameters, only: ireals, iintegers, init_mpi_data_parameters, &
+                                   zero, one, mpiint, nil, default_str_len
       use m_netcdfio
 
       use m_optprop_LUT, only : t_optprop_LUT_8_10
 
       implicit none
 
-      integer(mpiint) :: ierr
+      integer(mpiint) :: myid, ierr
       PetscViewer :: view
 
 type Matrix
@@ -85,7 +83,7 @@ end type
         call createVec(coeff%lN     , coeff%gN     , tmp_coeff)
         call createVec(train_out%lN , train_out%gN , tmp_out)
 
-        call KSPCreate(imp_comm, ksp, ierr)
+        call KSPCreate(PETSC_COMM_WORLD, ksp, ierr)
 
         luse_coeff=.False. ! start without any coefficients
         call init_Mat(A,train_out%lN,coeff%lN, train_out%gN,coeff%gN)
@@ -221,7 +219,7 @@ end type
         subroutine init_Mat(A,lNrow,lNcol, gNrow,gNcol)
           integer(iintegers),intent(in) :: lNrow,lNcol, gNrow,gNcol
           type(Matrix) :: A
-          call MatCreate(imp_comm, A%A, ierr)
+          call MatCreate(PETSC_COMM_WORLD, A%A, ierr)
           call MatSetFromOptions(A%A,ierr)
           call MatSetSizes(A%A, lNrow,lNcol, gNrow,gNcol, ierr)
           call MatMPIAIJSetPreallocation(A%A, lNcol,PETSC_NULL_INTEGER, gNcol-lNcol,PETSC_NULL_INTEGER,ierr);call CHKERR(ierr)
@@ -518,12 +516,12 @@ end type
             if(fexists) then
               if(myid.eq.0)  print *,myid,'appending vector to hdf5 file ',trim(fname),' vecname: ',vecname
               fmode = FILE_MODE_APPEND
-            else 
+            else
               if(myid.eq.0)  print *,myid,'writing vector to hdf5 file ',trim(fname),' vecname: ',vecname
               fmode = FILE_MODE_WRITE
             endif
 
-!            call PetscViewerHDF5Open(imp_comm,fname, fmode, view, ierr) ;call CHKERR(ierr)
+!            call PetscViewerHDF5Open(PETSC_COMM_WORLD,fname, fmode, view, ierr) ;call CHKERR(ierr)
             call PetscObjectSetName(inp%v, trim(vecname)//'inp',ierr) ; call CHKERR(ierr);   call VecView(inp%v, view, ierr) ;call CHKERR(ierr)
             call PetscObjectSetName(out%v, trim(vecname)//'out',ierr) ; call CHKERR(ierr);   call VecView(out%v, view, ierr) ;call CHKERR(ierr)
             call PetscViewerDestroy(view,ierr) ;call CHKERR(ierr)
@@ -548,7 +546,7 @@ end type
 
             integer(iintegers) :: i,j,itaux,itauz,iw0,ig,iphi,itheta,icoeff
 
-            call OPP%init([azimuth],[zenith],imp_comm)
+            call OPP%init([azimuth],[zenith],PETSC_COMM_WORLD)
 
             icoeff=2
 
@@ -830,7 +828,7 @@ end type
             real(ireals),allocatable,dimension(:) :: x,y,z,k
             real(ireals),allocatable,dimension(:) :: xx,yy,zz,kk
 
-            call OPP%init([azimuth],[zenith],imp_comm)
+            call OPP%init([azimuth],[zenith],PETSC_COMM_WORLD)
 
             icoeff = 2
 
@@ -878,10 +876,11 @@ program main
 
           call PetscInitialize(PETSC_NULL_CHARACTER,ierr) ;call CHKERR(ierr)
           call init_mpi_data_parameters(PETSC_COMM_WORLD)
+          call mpi_comm_rank(PETSC_COMM_WORLD, myid, ierr); call CHKERR(ierr)
           call get_cmd_line_options()
 
           call fitLUT(zero,zero)
 
-          call PetscFinalize(ierr) ;call CHKERR(ierr) 
+          call PetscFinalize(ierr) ;call CHKERR(ierr)
 
 end program

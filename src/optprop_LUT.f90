@@ -21,20 +21,26 @@ module m_optprop_LUT
 
   use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
 
-  use m_helper_functions, only : approx,rel_approx,imp_bcast,mpi_logical_and,mpi_logical_or, search_sorted_bisection, CHKERR
-  use m_data_parameters, only : ireals, iintegers,      &
-    one, zero, i0, i1, i3, mpiint, nil, inil,           &
-    imp_int, imp_real, imp_comm, imp_logical, numnodes, &
+  use m_helper_functions, only : approx,  &
+    rel_approx, imp_bcast,                &
+    mpi_logical_and, mpi_logical_or,      &
+    search_sorted_bisection, CHKERR
+
+  use m_data_parameters, only : ireals, iintegers, &
+    one, zero, i0, i1, i3, mpiint, nil, inil,      &
+    imp_int, imp_real, imp_logical,                &
     default_str_len
-  use m_optprop_parameters, only:          &
-    ldebug_optprop, lut_basename,          &
-    Naspect, Ntau, Nw0, Ng, Nphi, Ntheta,  &
-    interp_mode_1_2,interp_mode_8_10, &
-    interp_mode_3_6,    &
-    ldelta_scale,delta_scale_truncate,     &
-    stddev_atol, use_prescribed_LUT_dims,  &
-    preset_aspect, preset_tau, preset_w0,  &
+
+  use m_optprop_parameters, only:         &
+    ldebug_optprop, lut_basename,         &
+    Naspect, Ntau, Nw0, Ng, Nphi, Ntheta, &
+    interp_mode_1_2,interp_mode_8_10,     &
+    interp_mode_3_6,                      &
+    ldelta_scale,delta_scale_truncate,    &
+    stddev_atol, use_prescribed_LUT_dims, &
+    preset_aspect, preset_tau, preset_w0, &
     preset_g, preset_theta
+
   use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6
   use m_tenstream_interpolation, only: interp_4d
   use m_netcdfio
@@ -48,7 +54,7 @@ module m_optprop_LUT
   ! It also holds functions for interpolation on the regular LUT grid.
 
   integer(iintegers) :: iierr
-  integer(mpiint) :: myid,comm_size,mpierr
+  integer(mpiint) :: mpierr
 
   type parameter_space
     real(ireals),allocatable ,dimension(:) :: aspect
@@ -131,6 +137,7 @@ contains
       integer(mpiint) ,intent(in) :: comm
 
       character(default_str_len) :: descr
+      integer(mpiint) :: comm_size, myid
 
       call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
       call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
@@ -193,6 +200,11 @@ subroutine loadLUT_diff(OPP, comm)
     integer(iintegers) :: errcnt
     character(default_str_len) :: str(3)
     logical :: lstddev_inbounds
+
+    integer(mpiint) :: comm_size, myid
+
+    call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
+    call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
 
     associate ( LUT => OPP%diffLUT, S => OPP%diffLUT%S )
 
@@ -284,6 +296,11 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
     integer(iintegers) :: errcnt,iphi,itheta
     character(default_str_len) :: descr,str(5),varname(4)
     logical :: angle_mask(OPP%Nphi,OPP%Ntheta),lstddev_inbounds
+
+    integer(mpiint) :: comm_size, myid
+
+    call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
+    call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
 
     if(.not. allocated(OPP%dirLUT%fname) ) allocate( OPP%dirLUT%fname(OPP%Nphi,OPP%Ntheta) )
     if(.not. allocated(OPP%dirLUT%S    ) ) allocate( OPP%dirLUT%S    (OPP%Nphi,OPP%Ntheta) )
@@ -431,6 +448,11 @@ subroutine createLUT_diff(OPP, LUT, comm)
 
     integer(mpiint), parameter :: READYMSG=1,HAVERESULTSMSG=2, WORKMSG=3, FINALIZEMSG=4, RESULTMSG=5
 
+    integer(mpiint) :: comm_size, myid
+
+    call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
+    call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
+
     if(myid.eq.0) then
       select type(OPP)
         class is (t_optprop_LUT_8_10)
@@ -448,7 +470,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
       end select
     endif
 
-    if(myid.le.0 .and. numnodes.le.1) stop 'At the moment creation of diffuse Lookuptable needs at least two mpi-ranks to work... please run with more ranks.'
+    if(myid.le.0 .and. comm_size.le.1) stop 'At the moment creation of diffuse Lookuptable needs at least two mpi-ranks to work... please run with more ranks.'
     if(myid.eq.0) then
       call master(LUT%S)
     else
@@ -567,7 +589,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
             case(FINALIZEMSG)
               call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, status, mpierr); call CHKERR(mpierr)
               finalizedworkers = finalizedworkers+1
-              if(finalizedworkers.eq.numnodes-1) then
+              if(finalizedworkers.eq.comm_size-1) then
 
                 gotmsg=.False.
                 call mpi_iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, gotmsg, status, mpierr); call CHKERR(mpierr)
@@ -664,10 +686,15 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
 
     integer(mpiint), parameter :: READYMSG=1,HAVERESULTSMSG=2, WORKMSG=3, FINALIZEMSG=4, RESULTMSG=5
 
+    integer(mpiint) :: comm_size, myid
+
+    call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
+    call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
+
     if(myid.eq.0) &
       call prepare_table_space(LUT%S(iphi,itheta), OPP%diff_streams, LUT%T(iphi,itheta), OPP%dir_streams)
 
-    if(myid.le.0 .and. numnodes.le.1) &
+    if(myid.le.0 .and. comm_size.le.1) &
       stop 'At the moment creation of direct Lookuptable needs at least two mpi-ranks to work... please run with more ranks.'
 
     if(myid.eq.0) then
@@ -808,7 +835,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
             case(FINALIZEMSG)
               call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, status, mpierr); call CHKERR(mpierr)
               finalizedworkers = finalizedworkers+1
-              if(finalizedworkers.eq.numnodes-1) exit ! all work is done
+              if(finalizedworkers.eq.comm_size-1) exit ! all work is done
 
             end select
           endif
@@ -1026,6 +1053,11 @@ subroutine determine_angles_to_load(comm, interp_mode, LUT, azis, szas, mask)
     integer(iintegers) :: itheta, iphi, itheta1, iphi1
     logical :: lneed_azi(2), lneed_sza(2)
     real(ireals) :: theta(2),phi(2) ! sza and azimuth angle
+
+    integer(mpiint) :: comm_size, myid
+
+    call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
+    call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
 
     mask = .False.
     ! Check if really need to load it... i.e. we only want to load angles which are necessary for this run.

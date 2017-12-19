@@ -23,7 +23,7 @@ module m_pprts
   use petsc
 
   use m_data_parameters, only : ireals, iintegers,               &
-    imp_comm, myid, numnodes, init_mpi_data_parameters, mpiint,  &
+    init_mpi_data_parameters, mpiint,                            &
     zero, one, nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
     default_str_len
 
@@ -40,14 +40,31 @@ module m_pprts
     options_phi, lforce_phi, options_theta, lforce_theta, &
     lcalc_nca, lskip_thermal, lschwarzschild, ltopography
 
+  !use m_pprts_grid, only : t_coord, petscGlobalVecToZero, petscVecToF90
+
   implicit none
   private
 
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, init_pprts, &
             set_optical_properties, solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
-            pprts_get_result_toZero
+            pprts_get_result_toZero, t_coord, petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
 
   PetscInt, parameter :: E_up=0, E_dn=1, E_le_m=2, E_ri_m=3, E_ba_m=4, E_fw_m=5
+
+  type t_coord
+    integer(iintegers) :: xs,xe                 ! local domain start and end indices
+    integer(iintegers) :: ys,ye                 ! local domain start and end indices
+    integer(iintegers) :: zs,ze                 ! local domain start and end indices
+    integer(iintegers) :: xm,ym,zm              ! size of local domain
+    integer(iintegers) :: gxs,gys,gzs           ! domain indices including ghost points
+    integer(iintegers) :: gxe,gye,gze           !
+    integer(iintegers) :: gxm,gym,gzm           ! size of local domain including ghosts
+    integer(iintegers) :: glob_xm,glob_ym,glob_zm ! global domain size
+    integer(iintegers) :: dof,dim               ! degrees of freedom of Petsc Domain, dimension of dmda
+    type(tDM) :: da                   ! The Domain Decomposition Object
+    PetscMPIInt,allocatable :: neighbors(:) ! all 3d neighbours( (x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
+    integer(mpiint) :: comm           ! mpi communicatior for this DMDA
+  end type
 
   type t_opticalprops
     real(ireals) :: kabs,ksca,g
@@ -64,20 +81,6 @@ module m_pprts
     real(ireals) :: dx,dy
     integer(iintegers) :: icollapse=1
     logical :: lcollapse = .False.
-  end type
-
-  type t_coord
-    PetscInt :: xs,xe                 ! local domain start and end indices
-    PetscInt :: ys,ye                 ! local domain start and end indices
-    PetscInt :: zs,ze                 ! local domain start and end indices
-    PetscInt :: xm,ym,zm              ! size of local domain
-    PetscInt :: gxs,gys,gzs           ! domain indices including ghost points
-    PetscInt :: gxe,gye,gze           !
-    PetscInt :: gxm,gym,gzm           ! size of local domain including ghosts
-    PetscInt :: glob_xm,glob_ym,glob_zm ! global domain size
-    PetscInt :: dof,dim               ! degrees of freedom of Petsc Domain, dimension of dmda
-    type(tDM) :: da                   ! The Domain Decomposition Object
-    PetscMPIInt,allocatable :: neighbors(:) ! all 3d neighbours( (x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
   end type
 
   type t_sunangles
@@ -118,6 +121,7 @@ module m_pprts
   end type
 
   type, abstract :: t_solver
+    integer(mpiint)                 :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
     type(t_coord), allocatable      :: C_dir, C_diff, C_one, C_one1, C_one_atm, C_one_atm1
     type(t_atmosphere),allocatable  :: atm
     type(t_suninfo)                 :: sun
@@ -149,6 +153,9 @@ module m_pprts
 
   PetscErrorCode :: ierr
 
+  interface f90VecToPetsc
+    module procedure f90VecToPetsc_3d, f90VecToPetsc_4d
+  end interface
 
   contains
 
@@ -157,14 +164,14 @@ module m_pprts
   !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc)
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
   subroutine init_pprts(icomm, Nz,Nx,Ny, dx,dy, phi0, theta0, solver, dz1d, dz3d, nxproc, nyproc, collapseindex)
-    MPI_Comm, intent(in)          :: icomm   !< @param MPI_Communicator which should be used -- this will be used for PETSC_COMM_WORLD
-    integer(iintegers),intent(in) :: Nz      !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
-    integer(iintegers),intent(in) :: Nx      !< @param[in] Nx     number of boxes in x-direction
-    integer(iintegers),intent(in) :: Ny      !< @param[in] Ny     number of boxes in y-direction
-    real(ireals),intent(in)       :: dx      !< @param[in] dx     physical size of grid in [m]
-    real(ireals),intent(in)       :: dy      !< @param[in] dy     physical size of grid in [m]
-    real(ireals),intent(in)       :: phi0    !< @param[in] phi0   solar azmiuth and zenith angle
-    real(ireals),intent(in)       :: theta0  !< @param[in] theta0 solar azmiuth and zenith angle
+    MPI_Comm, intent(in)          :: icomm         !< @param MPI_Communicator for this solver
+    integer(iintegers),intent(in) :: Nz            !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
+    integer(iintegers),intent(in) :: Nx            !< @param[in] Nx     number of boxes in x-direction
+    integer(iintegers),intent(in) :: Ny            !< @param[in] Ny     number of boxes in y-direction
+    real(ireals),intent(in)       :: dx            !< @param[in] dx     physical size of grid in [m]
+    real(ireals),intent(in)       :: dy            !< @param[in] dy     physical size of grid in [m]
+    real(ireals),intent(in)       :: phi0          !< @param[in] phi0   solar azmiuth and zenith angle
+    real(ireals),intent(in)       :: theta0        !< @param[in] theta0 solar azmiuth and zenith angle
 
     class(t_solver), intent(inout):: solver         !< @param[inout] solver
     real(ireals),optional,intent(in)       :: dz1d(:)        !< @param[in]    dz1d    if given, dz1d is used everywhere on the rank
@@ -227,27 +234,30 @@ module m_pprts
       solver%dirtop%dof= size(solver%dirtop%is_inward)
       solver%dirside%dof= size(solver%dirside%is_inward)
 
-      if(ldebug.and.myid.eq.0) then
+      call init_mpi_data_parameters(icomm)
+
+      solver%comm = icomm
+      call mpi_comm_rank(solver%comm, solver%myid, ierr)     ; call CHKERR(ierr)
+      call mpi_comm_size(solver%comm, solver%numnodes, ierr) ; call CHKERR(ierr)
+
+      if(ldebug.and.solver%myid.eq.0) then
         print *,'Solver dirtop:', solver%dirtop%is_inward, ':', solver%dirtop%dof
         print *,'Solver dirside:', solver%dirside%is_inward, ':', solver%dirside%dof
         print *,'Solver difftop:', solver%difftop%is_inward, ':', solver%difftop%dof
         print *,'Solver diffside:', solver%diffside%is_inward, ':', solver%diffside%dof
       endif
 
-      PETSC_COMM_WORLD = icomm
-
       !      call PetscInitialize(tenstreamrc ,ierr) ;call CHKERR(ierr)
       call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;call CHKERR(ierr)
 #ifdef _XLF
       call PetscPopSignalHandler(ierr); call CHKERR(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
 #endif
-      call init_mpi_data_parameters(icomm)
 
       call read_commandline_options()
 
       if(present(nxproc) .and. present(nyproc) ) then
-        if(ldebug.and.myid.eq.0) print *,'nxproc',shape(nxproc),'::',nxproc
-        if(ldebug.and.myid.eq.0) print *,'nyproc',shape(nyproc),'::',nyproc
+        if(ldebug.and.solver%myid.eq.0) print *,'nxproc',shape(nxproc),'::',nxproc
+        if(ldebug.and.solver%myid.eq.0) print *,'nyproc',shape(nyproc),'::',nyproc
         if(present(collapseindex)) then
           call setup_grid(solver, Nz, Nx, Ny, nxproc,nyproc, collapseindex=collapseindex)
         else
@@ -272,7 +282,7 @@ module m_pprts
       !call setup_logging()
 
     else
-      print *,myid,'You tried to initialize already initialized Tenstream          &
+      print *,solver%myid,'You tried to initialize already initialized Tenstream          &
         &solver. This should not be done. If you need to reinitialize the grids, &
         &call destroy_tenstream() first.'
       ierr=1; call CHKERR(ierr)
@@ -355,29 +365,30 @@ module m_pprts
       Nz = Nz_in
       if(present(collapseindex)) Nz = Nz_in-collapseindex+i1
 
-      if(myid.eq.0.and.ldebug) print *,myid,'Setting up the DMDA grid for ',Nz,Nx,Ny,'using ',numnodes,' nodes'
+      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Setting up the DMDA grid for ',Nz,Nx,Ny,'using ',solver%numnodes,' nodes'
 
-      if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C_diff'
-      call setup_dmda(solver%C_diff, Nz+1,Nx,Ny, bp, solver%difftop%dof + 2* solver%diffside%dof)
+      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_diff'
+      call setup_dmda(solver%comm, solver%C_diff, Nz+1,Nx,Ny, bp, solver%difftop%dof + 2* solver%diffside%dof)
 
-      if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C_dir'
+      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_dir'
       if(lcycle_dir) then
-        call setup_dmda(solver%C_dir, Nz+1,Nx,Ny, bp, solver%dirtop%dof + 2* solver%dirside%dof)
+        call setup_dmda(solver%comm, solver%C_dir, Nz+1,Nx,Ny, bp, solver%dirtop%dof + 2* solver%dirside%dof)
       else
-        call setup_dmda(solver%C_dir, Nz+1,Nx,Ny, bg, solver%dirtop%dof + 2* solver%dirside%dof)
+        call setup_dmda(solver%comm, solver%C_dir, Nz+1,Nx,Ny, bg, solver%dirtop%dof + 2* solver%dirside%dof)
       endif
 
-      if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C_one'
-      call setup_dmda(solver%C_one , Nz  , Nx,Ny,  bp, i1)
-      call setup_dmda(solver%C_one1, Nz+1, Nx,Ny,  bp, i1)
+      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_one'
+      call setup_dmda(solver%comm, solver%C_one , Nz  , Nx,Ny,  bp, i1)
+      call setup_dmda(solver%comm, solver%C_one1, Nz+1, Nx,Ny,  bp, i1)
 
-      if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA atm'
-      call setup_dmda(solver%C_one_atm , Nz_in  , Nx,Ny,  bp, i1)
-      call setup_dmda(solver%C_one_atm1, Nz_in+1, Nx,Ny,  bp, i1)
+      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA atm'
+      call setup_dmda(solver%comm, solver%C_one_atm , Nz_in  , Nx,Ny,  bp, i1)
+      call setup_dmda(solver%comm, solver%C_one_atm1, Nz_in+1, Nx,Ny,  bp, i1)
 
-      if(myid.eq.0.and.ldebug) print *,myid,'DMDA grid ready'
+      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'DMDA grid ready'
     contains
-      subroutine setup_dmda(C, Nz, Nx, Ny, boundary, dof)
+      subroutine setup_dmda(icomm, C, Nz, Nx, Ny, boundary, dof)
+        integer(mpiint), intent(in) :: icomm
         type(t_coord),allocatable :: C
         PetscInt,intent(in) :: Nz,Nx,Ny,dof
         DMBoundaryType,intent(in) :: boundary
@@ -386,34 +397,36 @@ module m_pprts
 
         allocate(C)
 
+        C%comm = icomm
+
         C%dof = i1*dof
         if(present(nxproc) .and. present(nyproc) ) then
-          call DMDACreate3d( imp_comm,                                      &
-            bn                      , boundary             , boundary     , &
-            DMDA_STENCIL_STAR       ,                                       &
-            Nz                      , i1*sum(nxproc)          , i1*sum(nyproc)  , &
-            i1                      , i1*size(nxproc)         , i1*size(nyproc) , &
-            C%dof                   , stencil_size         ,                &
-            Nz                      , nxproc               , nyproc       , &
+          call DMDACreate3d( C%comm ,                                                 &
+            bn                      , boundary                 , boundary           , &
+            DMDA_STENCIL_STAR       ,                                                 &
+            Nz                      , i1*sum(nxproc)           , i1*sum(nyproc)     , &
+            i1                      , i1*size(nxproc)          , i1*size(nyproc)    , &
+            C%dof                   , stencil_size             ,                      &
+            Nz                      , nxproc                   , nyproc             , &
             C%da                    , ierr)
           call CHKERR(ierr)
         else
-          call DMDACreate3d( imp_comm,                                            &
-            bn                      , boundary             , boundary           , &
-            DMDA_STENCIL_STAR       ,                                             &
-            i1*Nz                   , Nx                   , Ny                 , &
-            i1                      , PETSC_DECIDE         , PETSC_DECIDE       , &
-            C%dof                   , stencil_size         ,                      &
-            Nz                      , PETSC_NULL_INTEGER   , PETSC_NULL_INTEGER , &
+          call DMDACreate3d( C%comm ,                                                 &
+            bn                      , boundary                 , boundary           , &
+            DMDA_STENCIL_STAR       ,                                                 &
+            i1*Nz                   , Nx                       , Ny                 , &
+            i1                      , PETSC_DECIDE             , PETSC_DECIDE       , &
+            C%dof                   , stencil_size             ,                      &
+            Nz                      , PETSC_NULL_INTEGER       , PETSC_NULL_INTEGER , &
             C%da                    , ierr) ;call CHKERR(ierr)
         endif
 
-        call DMSetup(C%da,ierr) ;call CHKERR(ierr)
-        call DMSetMatType(C%da, MATAIJ, ierr); call CHKERR(ierr)
-        if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ;call CHKERR(ierr)
+        call DMSetup(C%da,ierr)                                              ; call CHKERR(ierr)
+        call DMSetMatType(C%da, MATAIJ, ierr)                                ; call CHKERR(ierr)
+        if(lprealloc) call DMSetMatrixPreallocateOnly(C%da, PETSC_TRUE,ierr) ; call CHKERR(ierr)
 
-        call DMSetFromOptions(C%da, ierr) ; call CHKERR(ierr)
-        if(ldebug) call DMView(C%da, PETSC_VIEWER_STDOUT_WORLD ,ierr)
+        call DMSetFromOptions(C%da, ierr)                                    ; call CHKERR(ierr)
+        if(ldebug) call DMView(C%da, PETSC_VIEWER_STDOUT_WORLD ,ierr)        ; call CHKERR(ierr)
         call setup_coords(C)
       end subroutine
       subroutine setup_coords(C)
@@ -437,16 +450,16 @@ module m_pprts
         C%gze = C%gzs+C%gzm-1
 
         if(ldebug) then
-          print *,myid,'Domain Corners z:: ',C%zs,':',C%ze,' (',C%zm,' entries)','global size',C%glob_zm
-          print *,myid,'Domain Corners x:: ',C%xs,':',C%xe,' (',C%xm,' entries)','global size',C%glob_xm
-          print *,myid,'Domain Corners y:: ',C%ys,':',C%ye,' (',C%ym,' entries)','global size',C%glob_ym
+          print *,solver%myid,'Domain Corners z:: ',C%zs,':',C%ze,' (',C%zm,' entries)','global size',C%glob_zm
+          print *,solver%myid,'Domain Corners x:: ',C%xs,':',C%xe,' (',C%xm,' entries)','global size',C%glob_xm
+          print *,solver%myid,'Domain Corners y:: ',C%ys,':',C%ye,' (',C%ym,' entries)','global size',C%glob_ym
         endif
 
         allocate(C%neighbors(0:3**C%dim-1) )
         call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;call CHKERR(ierr)
         !if(numnodes.gt.i1) then
-        !  if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
-        !  if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
+        !  if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
+        !  if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
         !endif
       end subroutine
     end subroutine
@@ -478,7 +491,7 @@ module m_pprts
       logical :: lchanged_theta, lchanged_phi
 
       if(.not.solver%linitialized) then
-          print *,myid,'You tried to set angles in the Tenstream solver.  &
+          print *,solver%myid,'You tried to set angles in the Tenstream solver.  &
               & This should be called right after init_tenstream'
           ierr=1; call CHKERR(ierr)
       endif
@@ -494,21 +507,20 @@ module m_pprts
         else
           lchanged_phi = .not. all(phi0.eq.solver%sun%angles(1,:,:)%phi)
         endif
-        if(myid.eq.0 .and. ldebug) print *,'tenstr set_angles -- changed angles?',lchanged_theta, lchanged_phi
+        if(solver%myid.eq.0 .and. ldebug) print *,'tenstr set_angles -- changed angles?',lchanged_theta, lchanged_phi
         if(.not. lchanged_theta .and. .not. lchanged_phi) then
           return
         endif
       endif
 
-
       if ( present(phi2d) .and. present(theta2d) ) then
-          call setup_suninfo(phi0, theta0, solver%sun, solver%C_one, phi2d=phi2d, theta2d=theta2d)
+          call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one, phi2d=phi2d, theta2d=theta2d)
       elseif ( present(phi2d) ) then
-          call setup_suninfo(phi0, theta0, solver%sun, solver%C_one, phi2d=phi2d)
+          call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one, phi2d=phi2d)
       elseif ( present(theta2d) ) then
-          call setup_suninfo(phi0, theta0, solver%sun, solver%C_one, theta2d=theta2d)
+          call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one, theta2d=theta2d)
       else
-          call setup_suninfo(phi0, theta0, solver%sun, solver%C_one)
+          call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one)
       endif
 
 
@@ -528,16 +540,16 @@ module m_pprts
         end select
 
         call solver%OPP%init(pack(solver%sun%angles%symmetry_phi,.True.), &
-          pack(solver%sun%angles%theta,.True.),imp_comm )
+          pack(solver%sun%angles%theta,.True.),solver%comm )
 
   !     allocate(solver%OPP)
   !     call solver%OPP%init(pack(solver%sun%angles%symmetry_phi,.True.), &
-  !                          pack(solver%sun%angles%theta,.True.),imp_comm, &
+  !                          pack(solver%sun%angles%theta,.True.),solver%comm, &
   !                          Ndiff=sum(solver%dofdiff), Ndir=sum(solver%dofdir))
 
-  !     if(any(solver%atm%l1d.eqv..False.)) call OPP_3_6%init(pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),imp_comm)
-  !  !   if(any(solver%atm%l1d.eqv..False.)) call OPP_8_10%init(pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),imp_comm)
-  !     if(.not.luse_eddington)      call OPP_1_2%init (pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),imp_comm)
+  !     if(any(solver%atm%l1d.eqv..False.)) call OPP_3_6%init(pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),solver%comm)
+  !  !   if(any(solver%atm%l1d.eqv..False.)) call OPP_8_10%init(pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),solver%comm)
+  !     if(.not.luse_eddington)      call OPP_1_2%init (pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),solver%comm)
 
       call init_Matrix(solver%Mdir , solver%C_dir )
       call init_Matrix(solver%Mdiff, solver%C_diff)
@@ -548,13 +560,12 @@ module m_pprts
   !> @details save sun azimuth and zenith angle
   !>   \n sun azimuth is reduced to the range of [0,90] and the transmission of direct radiation is contributed for by a integer increment,
   !>   \n determining which neighbouring box is used in the horizontal direction
-  subroutine setup_suninfo(phi0, theta0, sun, C_one, phi2d, theta2d, solver)
+  subroutine setup_suninfo(solver, phi0, theta0, sun, C_one, phi2d, theta2d)
+    class(t_solver), intent(in) :: solver
     real(ireals),intent(in) :: phi0, theta0
     type(t_suninfo),intent(inout) :: sun
     type(t_coord), intent(in) :: C_one
     real(ireals), optional, intent(in) :: phi2d(:,:), theta2d(:,:)
-    class(t_solver), optional, intent(in) :: solver
-
 
     integer(iintegers) :: k
 
@@ -586,10 +597,6 @@ module m_pprts
     endif
 
     if(sun%luse_topography) then
-      if (.not.present(solver)) then
-        print *,'You want to use topography but didnt call setup_suninfo with solver argument'
-        call exit
-      endif
       call setup_topography(solver%atm, solver%C_one, solver%C_one1, sun)
     endif
 
@@ -611,8 +618,9 @@ module m_pprts
         sun%angles%yinc=i0
     end where
 
-    !if(ldebug.and.myid.eq.0) print *,myid,'setup_dir_inc done', &
-    if(ldebug) print *,myid,'setup_dir_inc done', &
+    print *,solver%myid,'setup_dir_inc done'
+
+    if(ldebug) print *,solver%myid,'setup_dir_inc done', &
       count(sun%angles%xinc.eq.0),count(sun%angles%xinc.eq.i1), &
       count(sun%angles%yinc.eq.0),count(sun%angles%yinc.eq.i1), &
       '::', minval(sun%angles%xinc), maxval(sun%angles%xinc), minval(sun%angles%yinc), maxval(sun%angles%yinc)
@@ -670,7 +678,7 @@ module m_pprts
             ! if we are at the global boundary we have to take that the gradient does not get too
             ! steep. That wouldnt make sense for cyclic boundaries... ! todo: check what we should do?
             !if(i.eq.i0 .or. i.eq.C_one%glob_xm-i1 .or. j.eq.i0 .or. j.eq.C_one%glob_ym-i1) then
-            !   !print *,myid,'global edge at:',i,j
+            !   !print *,solver%myid,'global edge at:',i,j
             !    cycle
             !endif
 
@@ -694,7 +702,7 @@ module m_pprts
                 !newphi in meteorologiecal definitions: clockwise from y-axis
                 newphi = rad2deg(atan2(newxsun(1), newxsun(2)))
 
-                ! if(i.eq.C_one1%xs) print *,myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
+                ! if(i.eq.C_one1%xs) print *,solver%myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
 
                 sun%angles(k,i,j)%theta = max(zero, min( 90._ireals, newtheta ))
                 sun%angles(k,i,j)%phi = newphi
@@ -707,9 +715,6 @@ module m_pprts
 
     call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  call CHKERR(ierr)
     call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  call CHKERR(ierr)
-
-    if(myid.eq.0 .and. ldebug) print *,'min,max theta',minval(sun%angles%theta), maxval(sun%angles%theta)
-    if(myid.eq.0 .and. ldebug) print *,'min,max phi',minval(sun%angles%phi), maxval(sun%angles%phi)
   end subroutine
 
   subroutine getVecPointer(vec,C,x1d,x4d)
@@ -797,7 +802,7 @@ module m_pprts
 
 
     maxheight = maxval(hhl(i0,C_one1%zs,C_one1%xs:C_one1%xe,C_one1%ys:C_one1%ye))
-    call imp_allreduce_max(imp_comm, maxheight, global_maxheight)
+    call imp_allreduce_max(C_one1%comm, maxheight, global_maxheight)
 
     do j=C_one1%ys,C_one1%ye
       do i=C_one1%xs,C_one1%xe
@@ -910,7 +915,6 @@ module m_pprts
         v(1)=one
       endif
 
-      if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally'
       do j=C%ys,C%ye
         row(MatStencil_k,1) = j
         col(MatStencil_k,1) = j
@@ -935,8 +939,6 @@ module m_pprts
 
       call MatAssemblyBegin(A,MAT_FLUSH_ASSEMBLY,ierr) ;call CHKERR(ierr)
       call MatAssemblyEnd  (A,MAT_FLUSH_ASSEMBLY,ierr) ;call CHKERR(ierr)
-
-      if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients diagonally ... done'
     end subroutine
 
   end subroutine
@@ -956,10 +958,9 @@ module m_pprts
 
     call MatGetOwnershipRange(A, m,n, ierr)
 
-    if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_MALLOCS',mal,'MAT_INFO_NZ_ALLOCATED',nz_allocated
-    if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
-    if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: Ownership range',m,n
-
+    !if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_MALLOCS',mal,'MAT_INFO_NZ_ALLOCATED',nz_allocated
+    !if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
+    !if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: Ownership range',m,n
   end subroutine
   pure function atmk(atm, k) ! return vertical index value for DMDA grid on atmosphere grid
     integer(iintegers) :: atmk
@@ -1011,20 +1012,20 @@ module m_pprts
 
   !    if(ldebug) then
       if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
-        print *,myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
+        print *,solver%myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
         do k=C_one_atm%zs,C_one_atm%ze
-          print *,myid,k,'local_kabs',local_kabs(k,:,:)
-          print *,myid,k,'local_ksca',local_ksca(k,:,:)
+          print *,solver%myid,k,'local_kabs',local_kabs(k,:,:)
+          print *,solver%myid,k,'local_ksca',local_ksca(k,:,:)
         enddo
       endif
   !    endif
   !    if(ldebug) then
       if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
-        print *,myid,'set_optical_properties :: found illegal value in optical properties! abort!'
+        print *,solver%myid,'set_optical_properties :: found illegal value in optical properties! abort!'
       endif
   !    endif
 
-    if(ldebug.and.myid.eq.0) then
+    if(ldebug.and.solver%myid.eq.0) then
       if(present(local_kabs) ) then
         print *,'atm_kabs     ',maxval(atm%op%kabs  )  ,shape(atm%op%kabs  )
       endif
@@ -1045,15 +1046,15 @@ module m_pprts
     call delta_scale(atm%op(:,:,:)%kabs, atm%op(:,:,:)%ksca, atm%op(:,:,:)%g )
 
     if(ltwostr_only) then
-      if(ldebug .and. myid.eq.0) then
+      if(ldebug .and. solver%myid.eq.0) then
         do k=C_one_atm%zs,C_one_atm%ze
           if(present(local_planck)) then
-            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
+            print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
               minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
               maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g),&
               '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
           else
-            print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
+            print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
               minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
               maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g)
           endif
@@ -1069,7 +1070,7 @@ module m_pprts
 
     if(ldebug) then
       if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
-        print *,myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
+        print *,solver%myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
       endif
     endif
 
@@ -1137,15 +1138,15 @@ module m_pprts
       enddo !j
     endif
 
-    if(ldebug .and. myid.eq.0) then
+    if(ldebug .and. solver%myid.eq.0) then
       do k=C_one_atm%zs,C_one_atm%ze
         if(present(local_planck)) then
-          print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
+          print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
             minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
             maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g),&
             '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
         else
-          print *,myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
+          print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
             minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
             maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g),&
             '::',minval(atm%a33 (k,:,:)),maxval(atm%a33(k,:,:))
@@ -1243,13 +1244,13 @@ module m_pprts
       uid = i0 ! default solution is uid==0
     endif
 
-    lsolar = mpi_logical_and(imp_comm, edirTOA.gt.zero .and. any(solver%sun%angles%theta.ge.zero))
+    lsolar = mpi_logical_and(solver%comm, edirTOA.gt.zero .and. any(solver%sun%angles%theta.ge.zero))
 
     call prepare_solution(solver,  solutions(uid), uid, lsolar=lsolar ) ! setup solution vectors
 
     ! --------- Skip Thermal Computation (-lskip_thermal) --
     if(lskip_thermal .and. (solutions(uid)%lsolar_rad.eqv..False.) ) then !
-      if(ldebug .and. myid.eq.0) print *,'skipping thermal calculation -- returning zero flux'
+      if(ldebug .and. solver%myid.eq.0) print *,'skipping thermal calculation -- returning zero flux'
       call VecSet(solutions(uid)%ediff, zero, ierr); call CHKERR(ierr)
       solutions(uid)%lchanged=.True.
       call restore_solution(solver, solutions(uid))
@@ -1268,7 +1269,7 @@ module m_pprts
         call twostream(solver, edirTOA,  solutions(uid) )
       endif
 
-      if(ldebug .and. myid.eq.0) print *,'1D calculation done'
+      if(ldebug .and. solver%myid.eq.0) print *,'1D calculation done'
 
       if(present(opt_solution_time) ) then
         call restore_solution(solver, solutions(uid),opt_solution_time)
@@ -1337,7 +1338,7 @@ module m_pprts
       solution%lsolar_rad = .True.
     endif
 
-    if(ldebug .and. myid.eq.0) print *,'Prepare solution',uid,'::',lsolar,solution%lsolar_rad,'set?',solution%lset
+    if(ldebug .and. solver%myid.eq.0) print *,'Prepare solution',uid,'::',lsolar,solution%lsolar_rad,'set?',solution%lset
 
     if(solution%lset) return ! already set-up
 
@@ -1387,7 +1388,7 @@ module m_pprts
       associate(  atm     => solver%atm,    &
                   C_one1  => solver%C_one1)
 
-      if(myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
+      if(solver%myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C ,xv1d, xv)
 
 
@@ -1606,13 +1607,13 @@ module m_pprts
     ! update absorption
     call calc_flx_div(solver, solution)
 
-    if(ldebug .and. myid.eq.0) &
+    if(ldebug .and. solver%myid.eq.0) &
       print *,'Saving Solution ',solution%uid
 
     ! make sure to bring the fluxes into [W/m**2]
     call scale_flx(solver, solution, lWm2_to_W=.False. )
 
-    if(ldebug .and. myid.eq.0) &
+    if(ldebug .and. solver%myid.eq.0) &
       print *,'Saving Solution done'
     solution%lchanged=.False.
 
@@ -1633,7 +1634,7 @@ module m_pprts
       solution%twonorm( 1 ) = norm2
       solution%time( 1 )    = time
 
-      if(ldebug .and. myid.eq.0) &
+      if(ldebug .and. solver%myid.eq.0) &
         print *,'Updating error statistics for solution ',solution%uid,'at time ',time,'::',solution%time(1),':: norm',norm1,norm2,norm3,'[W] :: hr_norm approx:',norm3*86.1,'[K/d]'
 
     endif !present(time) .and. solver%lenable_solutions_err_estimates
@@ -1712,7 +1713,7 @@ module m_pprts
 
         mu0 = solver%sun%angles(C_one_atm1%zs,i,j)%costheta
         incSolar = edirTOA* mu0
-        if(myid.eq.0 .and. ldebug) then
+        if(solver%myid.eq.0 .and. ldebug) then
           print *,' CALCULATING DELTA EDDINGTON TWOSTREAM ::',solver%sun%angles(C_one_atm1%zs,i,j)%theta,':',incSolar
         endif
 
@@ -1790,7 +1791,7 @@ module m_pprts
     allocate( Eup(C_diff%zm) )
     allocate( Edn(C_diff%zm) )
 
-    if(myid.eq.0 .and. ldebug) print *,' CALCULATING schwarzschild ::'
+    if(solver%myid.eq.0 .and. ldebug) print *,' CALCULATING schwarzschild ::'
 
     do j=C_diff%ys,C_diff%ye
       do i=C_diff%xs,C_diff%xe
@@ -1852,11 +1853,11 @@ module m_pprts
       return
     endif
 
-    if(myid.eq.0.and.ldebug) print *,'Calculating flux divergence',solution%lsolar_rad.eqv..False.,lcalc_nca
+    if(solver%myid.eq.0.and.ldebug) print *,'Calculating flux divergence',solution%lsolar_rad.eqv..False.,lcalc_nca
     call VecSet(solution%abso,zero,ierr) ;call CHKERR(ierr)
 
     ! if there are no 3D layers globally, we should skip the ghost value copying....
-    lhave_no_3d_layer = mpi_logical_and(imp_comm, all(atm%l1d.eqv..True.))
+    lhave_no_3d_layer = mpi_logical_and(solver%comm, all(atm%l1d.eqv..True.))
     if(lhave_no_3d_layer) then
 
       if(solution%lsolar_rad) call getVecPointer(solution%edir, C_dir ,xedir1d ,xedir )
@@ -2059,7 +2060,7 @@ subroutine solve(solver, ksp,b,x,solution_uid)
 
   KSPType :: old_ksp_type
 
-  if(myid.eq.0.and.ldebug) print *,'Solving Matrix'
+  if(solver%myid.eq.0.and.ldebug) print *,'Solving Matrix'
 
   if(present(solution_uid)) then
     if(.not.allocated( solver%solutions(solution_uid)%ksp_residual_history) ) allocate(solver%solutions(solution_uid)%ksp_residual_history(100) )
@@ -2072,12 +2073,12 @@ subroutine solve(solver, ksp,b,x,solution_uid)
   call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
 
   ! if(reason.eq.KSP_DIVERGED_ITS) then
-  !   if(myid.eq.0) print *,'We take our chances, that this is a meaningful output.... and just go on'
+  !   if(solver%myid.eq.0) print *,'We take our chances, that this is a meaningful output.... and just go on'
   !   return
   ! endif
 
   if(reason.le.0) then
-    if(myid.eq.0.and.ldebug) print *,myid,'Resetted initial guess to zero and try again with gmres:'
+    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Resetted initial guess to zero and try again with gmres:'
     call VecSet(x,zero,ierr) ;call CHKERR(ierr)
     call KSPGetType(ksp,old_ksp_type,ierr); call CHKERR(ierr)
     call KSPSetType(ksp,KSPGMRES,ierr) ;call CHKERR(ierr)
@@ -2090,11 +2091,11 @@ subroutine solve(solver, ksp,b,x,solution_uid)
     call KSPSetType(ksp,old_ksp_type,ierr) ;call CHKERR(ierr)
     call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
     call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
-    if(myid.eq.0.and.ldebug) print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
+    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
   endif
 
   if(reason.le.0) then
-    if(myid.eq.0) print *,'***** SOLVER did NOT converge :( ********',reason
+    if(solver%myid.eq.0) print *,'***** SOLVER did NOT converge :( ********',reason
     call exit()
   endif
 end subroutine
@@ -2118,28 +2119,32 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   PetscReal,parameter :: rtol=sqrt(epsilon(rtol))*10, rel_atol=1e-4_ireals
   PetscInt,parameter  :: maxiter=1000
 
-  PetscInt,parameter :: ilu_default_levels=1
-  PetscInt :: pcbjac_n_local, pcbjac_iglob ! number of local ksp contexts and index in global ksp-table
-  KSP :: pcbjac_ksps(100) ! we dont have a good metric to check how many jacobi blocks there should be. in earlier versions of petsc we could let it decide. now this seems a problem at the moment. Lets just use a big number here... is only a list of pointers anyway...
-  PC  :: pcbjac_sub_pc
-  integer(iintegers) :: isub
+  !PetscInt,parameter :: ilu_default_levels=1
+  !PetscInt :: pcbjac_n_local, pcbjac_iglob ! number of local ksp contexts and index in global ksp-table
+  !KSP,allocatable :: pcbjac_ksps(:) ! we dont have a good metric to check how many jacobi blocks there should be. in earlier versions of petsc we could let it decide. now this seems a problem at the moment. Lets just use a big number here... is only a list of pointers anyway...
+  !PC  :: pcbjac_sub_pc
+  !integer(iintegers) :: isub
+  integer(mpiint) :: myid, numnodes
 
   PetscReal :: atol
 
   logical,parameter :: lset_geometry=.True.  ! this may be necessary in order to use geometric multigrid
 !    logical,parameter :: lset_geometry=.False.  ! this may be necessary in order to use geometric multigrid
-  logical,parameter :: lset_nullspace=.True. ! set constant nullspace?
-  !logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
+!  logical,parameter :: lset_nullspace=.True. ! set constant nullspace?
+  logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
 
   if(linit) return
 
-  call imp_allreduce_min(imp_comm, rel_atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)), atol)
+  call mpi_comm_rank(C%comm, myid, ierr)     ; call CHKERR(ierr)
+  call mpi_comm_size(C%comm, numnodes, ierr) ; call CHKERR(ierr)
+
+  call imp_allreduce_min(C%comm, rel_atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)), atol)
   atol = max(1e-8_ireals, atol)
 
   if(myid.eq.0.and.ldebug) &
     print *,'Setup KSP -- tolerances:',rtol,atol,'::',rel_atol,(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),count(.not.atm%l1d),one*size(atm%l1d)
 
-  call KSPCreate(imp_comm,ksp,ierr) ;call CHKERR(ierr)
+  call KSPCreate(C%comm,ksp,ierr) ;call CHKERR(ierr)
   if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;call CHKERR(ierr)
 
   call KSPSetType(ksp,KSPBCGS,ierr)  ;call CHKERR(ierr)
@@ -2161,33 +2166,33 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
   call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
 
-  if(numnodes.eq.0) then
-    call PCFactorSetLevels(prec,ilu_default_levels,ierr);call CHKERR(ierr)
-  else
-    call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);call CHKERR(ierr)
-    !if(.not.allocated(pcbjac_ksps)) allocate(pcbjac_ksps(pcbjac_n_local))
-    !call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);call CHKERR(ierr)
+  !if(numnodes.eq.0) then
+  !  call PCFactorSetLevels(prec,ilu_default_levels,ierr);call CHKERR(ierr)
+  !else
+  !  call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,PETSC_NULL_KSP,ierr);call CHKERR(ierr)
+  !  if(.not.allocated(pcbjac_ksps)) allocate(pcbjac_ksps(pcbjac_n_local))
+  !  call PCBJacobiGetSubKSP(prec,pcbjac_n_local,pcbjac_iglob,pcbjac_ksps,ierr);call CHKERR(ierr)
 
-    do isub=1,pcbjac_n_local
-      call KSPSetType(pcbjac_ksps(isub) ,KSPPREONLY,ierr)              ;call CHKERR(ierr)
-      call KSPGetPC  (pcbjac_ksps(isub), pcbjac_sub_pc,ierr)        ;call CHKERR(ierr)
-      call PCSetType (pcbjac_sub_pc, PCILU,ierr)                    ;call CHKERR(ierr)
-      call PCFactorSetLevels(pcbjac_sub_pc,ilu_default_levels,ierr) ;call CHKERR(ierr)
-    enddo
+  !  do isub=1,pcbjac_n_local
+  !    call KSPSetType(pcbjac_ksps(isub) ,KSPPREONLY,ierr)              ;call CHKERR(ierr)
+  !    call KSPGetPC  (pcbjac_ksps(isub), pcbjac_sub_pc,ierr)        ;call CHKERR(ierr)
+  !    call PCSetType (pcbjac_sub_pc, PCILU,ierr)                    ;call CHKERR(ierr)
+  !    call PCFactorSetLevels(pcbjac_sub_pc,ilu_default_levels,ierr) ;call CHKERR(ierr)
+  !  enddo
 
-  endif
+  !endif
 
   if(lset_geometry) call set_coordinates(atm, C,ierr);call CHKERR(ierr)
 
   if(lset_nullspace) then
-    call MatNullSpaceCreate( imp_comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
-      call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
-    endif
+    call MatNullSpaceCreate( C%comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
+    call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
+  endif
 
-    call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
+  call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
 
-    linit = .True.
-    if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
+  linit = .True.
+  if(myid.eq.0.and.ldebug) print *,'Setup KSP done'
 
   contains
     !> @brief define physical coordinates for DMDA to allow for geometric multigrid
@@ -2309,7 +2314,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     call restoreVecPointer(incSolar,solver%C_dir,x1d,x4d)
 
-    if(myid.eq.0 .and. ldebug) print *,myid,'Setup of IncSolar done',edirTOA
+    if(solver%myid.eq.0 .and. ldebug) print *,solver%myid,'Setup of IncSolar done',edirTOA
 
   end subroutine
 
@@ -2325,7 +2330,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     PetscInt :: i,j,k
 
-    if(myid.eq.0.and.ldebug) print *,myid,'setup_direct_matrix ...'
+    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix ...'
 
     !      call MatZeroEntries(A, ierr) ;call CHKERR(ierr) !TODO necessary?
     !      call mat_set_diagonal(A,C)
@@ -2344,7 +2349,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       enddo
     enddo
 
-    if(myid.eq.0.and.ldebug) print *,myid,'setup_direct_matrix done'
+    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix done'
 
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
@@ -2465,7 +2470,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 C_dir   => solver%C_dir, &
                 C_diff  => solver%C_diff)
 
-    if(myid.eq.0.and.ldebug) print *,'src Vector Assembly...'
+    if(solver%myid.eq.0.and.ldebug) print *,'src Vector Assembly...'
 
     call DMGetLocalVector(C_diff%da,local_b,ierr) ;call CHKERR(ierr)
     call VecSet(local_b,zero,ierr) ;call CHKERR(ierr)
@@ -2478,7 +2483,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     if(allocated(atm%planck) ) &
       call set_thermal_source()
 
-    if(myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients ...done'
+    if(solver%myid.eq.0.and.ldebug) print *,'src Vector Assembly... setting coefficients ...done'
 
     call restoreVecPointer(local_b, C_diff, xsrc1d , xsrc )
 
@@ -2489,7 +2494,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     call DMRestoreLocalVector(C_diff%da,local_b,ierr) ;call CHKERR(ierr)
 
-    if(myid.eq.0.and.ldebug) print *,'src Vector Assembly done'
+    if(solver%myid.eq.0.and.ldebug) print *,'src Vector Assembly done'
   end associate
   contains
     subroutine set_thermal_source()
@@ -2502,7 +2507,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       associate(  atm     => solver%atm, &
                 C_diff  => solver%C_diff)
 
-      if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms', minval(atm%planck), maxval(atm%planck)
+      if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms', minval(atm%planck), maxval(atm%planck)
       Az = atm%dx*atm%dy
 
       do j=C_diff%ys,C_diff%ye
@@ -2616,7 +2621,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
       call getVecPointer(ledir, C_dir, xedir1d, xedir)
 
-      if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))/size(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
+      if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))/size(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
 
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
@@ -2906,7 +2911,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     PetscInt :: i,j,k
 
-    if(myid.eq.0.and.ldebug) print *,myid,'Setting coefficients for diffuse Light'
+    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Setting coefficients for diffuse Light'
 
     !      call MatZeroEntries(A, ierr) ;call CHKERR(ierr) !TODO necessary?
     !      call mat_set_diagonal(A,C)
@@ -2927,9 +2932,9 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     call set_albedo_coeff(solver, C, A )
 
-    if(myid.eq.0.and.ldebug) print *,myid,'setup_diffuse_matrix done'
+    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_diffuse_matrix done'
 
-    if(myid.eq.0.and.ldebug) print *,myid,'Final diffuse Matrix Assembly:'
+    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Final diffuse Matrix Assembly:'
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr) ;call CHKERR(ierr)
 
@@ -3127,7 +3132,7 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
     uid = i0 ! default solution is uid==0
   endif
 
-  if(ldebug .and. myid.eq.0) print *,'calling pprts_get_result',allocated(redir),'for uid',uid
+  if(ldebug .and. solver%myid.eq.0) print *,'calling pprts_get_result',allocated(redir),'for uid',uid
 
   if(solver%solutions(uid)%lchanged) stop 'tried to get results from unrestored solution -- call restore_solution first'
 
@@ -3144,7 +3149,7 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
         redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1)/solver%dirtop%dof  ! average of direct radiation of all fluxes through top faces
       endif
       if(ldebug) then
-        if(myid.eq.0) print *,'Edir',redir(1,1,:)
+        if(solver%myid.eq.0) print *,'Edir',redir(1,1,:)
         if(any(redir.lt.-one)) then
           print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
           call exit(1)
@@ -3162,8 +3167,6 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
   else
     redn = zero
     reup = zero
-    fj = zero
-    fi = zero
 
     do j = solver%C_diff%ys, solver%C_diff%ye
       fj = j +1 -solver%C_diff%ys
@@ -3185,13 +3188,13 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
     enddo
   endif
 
-  if(myid.eq.0 .and. ldebug .and. allocated(redir)) print *,'surface Edir',mean(redir(ubound(redir,1),:,:))
-  if(myid.eq.0 .and. ldebug) print *,'surface Edn',mean(redn(ubound(redn,1), :,:))
-  if(myid.eq.0 .and. ldebug) print *,'surface Eup',mean(reup(ubound(redn,1), :,:))
+  if(solver%myid.eq.0 .and. ldebug .and. allocated(redir)) print *,'surface Edir',mean(redir(ubound(redir,1),:,:))
+  if(solver%myid.eq.0 .and. ldebug) print *,'surface Edn',mean(redn(ubound(redn,1), :,:))
+  if(solver%myid.eq.0 .and. ldebug) print *,'surface Eup',mean(reup(ubound(redn,1), :,:))
 
   if(ldebug .and. solver%solutions(uid)%lsolar_rad) then
-    if(myid.eq.0) print *,' Edn',redn(1,1,:)
-    if(myid.eq.0) print *,' Eup',reup(1,1,:)
+    if(solver%myid.eq.0) print *,' Edn',redn(1,1,:)
+    if(solver%myid.eq.0) print *,' Eup',reup(1,1,:)
     if(any(redn.lt.-one)) then
       print *,'Found radiation smaller than 0 in edn result... that should not happen',minval(redn)
       call exit(1)
@@ -3239,7 +3242,7 @@ end subroutine
         call exchange_var(solver%C_one_atm1, reup , res_eup )
         call exchange_var(solver%C_one_atm , rabso, res_abso)
 
-        if(myid.eq.0 .and. ldebug) then
+        if(solver%myid.eq.0 .and. ldebug) then
           print *,'Retrieving results:',shape(res_edir)
           print *,sum(res_edir)/size(res_edir)
           print *,sum(res_edn) /size(res_edn)
@@ -3255,63 +3258,27 @@ end subroutine
 
                 real(ireals),allocatable :: tmp(:,:,:,:)
 
+                type(tVec) :: vec, lvec_on_zero
 
-                Vec :: vec
                 PetscScalar,pointer,dimension(:,:,:,:) :: xinp=>null()
                 PetscScalar,pointer,dimension(:) :: xinp1d=>null()
 
                 call DMGetGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
-                call getVecPointer(vec ,C ,xinp1d, xinp)
-                xinp(i0,:,:,:) = inp
-                call restoreVecPointer(vec ,C ,xinp1d, xinp )
-
-                call globalVec2Local(vec,C,tmp)
-
+                call f90VecToPetsc(inp, C, vec)
+                call petscGlobalVecToZero(vec, C, lvec_on_zero)
                 call DMRestoreGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
 
-                if(myid.eq.0) outp = tmp(lbound(tmp,1), &
-                                         lbound(tmp,2):lbound(tmp,2)+size(outp,1)-1,&
-                                         lbound(tmp,3):lbound(tmp,3)+size(outp,2)-1,&
-                                         lbound(tmp,4):lbound(tmp,4)+size(outp,3)-1)
-            end subroutine
-
-            subroutine globalVec2Local(vec,C,res)
-                Vec :: vec
-                real(ireals),allocatable :: res(:,:,:,:)
-                type(t_coord) :: C
-
-                Vec :: natural, local
-                VecScatter :: scatter_context
-
-                PetscScalar,Pointer :: xloc(:)
-
-                if(allocated(res)) deallocate(res)
-                if(myid.eq.0) allocate( res(C%dof,C%glob_zm,C%glob_xm,C%glob_ym) )
-
-                call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
-
-                call DMDAGlobalToNaturalBegin(C%da,vec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
-                call DMDAGlobalToNaturalEnd  (C%da,vec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
-
-                call VecScatterCreateToZero(natural, scatter_context, local, ierr); call CHKERR(ierr)
-
-                call VecScatterBegin(scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-                call VecScatterEnd  (scatter_context, natural, local, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-
-                call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
-
-                if(myid.eq.0) then
-                    call VecGetArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
-
-                    res = reshape( xloc, (/ C%dof,C%glob_zm,C%glob_xm,C%glob_ym /) )
-
-                    call VecRestoreArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
+                if(solver%myid.eq.0) then
+                  call petscVecToF90(lvec_on_zero, C, tmp, opt_l_only_on_rank0=.True.)
+                  outp = tmp(lbound(tmp,1), &
+                    lbound(tmp,2):lbound(tmp,2)+size(outp,1)-1,&
+                    lbound(tmp,3):lbound(tmp,3)+size(outp,2)-1,&
+                    lbound(tmp,4):lbound(tmp,4)+size(outp,3)-1)
                 endif
-
-                call VecDestroy(local,ierr); call CHKERR(ierr)
-                call VecDestroy(natural,ierr); call CHKERR(ierr)
             end subroutine
+
         end subroutine
+
 subroutine destroy_pprts(solver, lfinalizepetsc)
   class(t_solver)   :: solver
   logical,optional :: lfinalizepetsc
@@ -3365,18 +3332,18 @@ subroutine destroy_pprts(solver, lfinalizepetsc)
     call DMDestroy(solver%C_one_atm1%da,ierr); deallocate(solver%C_one_atm1)
 
     solver%linitialized=.False.
-    if(myid.eq.0 .and. ldebug)print *,'Destroyed TenStream'
+    if(solver%myid.eq.0 .and. ldebug)print *,'Destroyed TenStream'
 
     if(lfinalize) then
         call PetscFinalize(ierr) ;call CHKERR(ierr)
-        if(myid.eq.0 .and. ldebug)print *,'Finalized Petsc'
+        if(solver%myid.eq.0 .and. ldebug)print *,'Finalized Petsc'
     endif
   endif
 end subroutine
   subroutine destroy_matrices(solver)
     class(t_solver) :: solver
 
-    if(myid.eq.0 .and. ldebug) print *,'Trying to destroy matrices...', allocated(solver%Mdir), allocated(solver%Mdiff)
+    if(solver%myid.eq.0 .and. ldebug) print *,'Trying to destroy matrices...', allocated(solver%Mdir), allocated(solver%Mdiff)
     if(allocated(solver%Mdir)) then
       call MatDestroy(solver%Mdir , ierr) ;call CHKERR(ierr)
       deallocate(solver%Mdir)
@@ -3386,5 +3353,121 @@ end subroutine
       deallocate(solver%Mdiff)
     endif
   end subroutine
+
+
+    !> @brief Scatter a petsc global vector into a local vector on Rank 0
+    !> @details The local Vec will be in natural ordering.
+    !>  \n you may use this routine e.g. to gather the results from mpi parallel vectors into a sequential calling program.
+    !>  \n lVec will be created and you should VecDestroy it when you are done.
+    subroutine petscGlobalVecToZero(gVec, C, lVec)
+      type(tVec), intent(in)    :: gVec
+      type(t_coord), intent(in) :: C
+      type(tVec), intent(out)   :: lVec
+
+      type(tVec) :: natural
+      type(tVecScatter) :: scatter_context
+
+      integer(mpiint) :: ierr
+
+      call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
+
+      call DMDAGlobalToNaturalBegin(C%da, gVec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
+      call DMDAGlobalToNaturalEnd  (C%da, gVec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
+
+      call VecScatterCreateToZero(natural, scatter_context, lVec, ierr); call CHKERR(ierr)
+
+      call VecScatterBegin(scatter_context, natural, lVec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+      call VecScatterEnd  (scatter_context, natural, lVec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+
+      call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
+
+      call VecDestroy(natural,ierr); call CHKERR(ierr)
+    end subroutine
+
+
+    !> @brief Copies the data from a petsc vector into an allocatable array
+    !> @details if flag opt_l_only_on_rank0 is True,
+    !>     \n we assume this is just a local vector on rank 0, i.e. coming petscGlobalVecToZero()
+    subroutine petscVecToF90(vec, C, arr, opt_l_only_on_rank0)
+      type(tVec), intent(in)    :: vec
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(inout), allocatable :: arr(:,:,:,:)
+      logical, intent(in), optional :: opt_l_only_on_rank0
+      logical :: l_only_on_rank0 = .False.
+
+      integer(iintegers) :: vecsize
+      real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+
+      integer(mpiint) :: myid, ierr
+
+      if(allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
+
+      call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+      if(present(opt_l_only_on_rank0)) l_only_on_rank0 = opt_l_only_on_rank0
+
+      if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
+
+      if(.not.l_only_on_rank0) then
+        call getVecPointer(vec, C, x1d, x4d)
+        allocate(arr(C%dof,C%zm,C%xm,C%ym))
+        arr = x4d
+        call restoreVecPointer(vec, C, x1d, x4d)
+        call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+      else
+        allocate(arr(C%dof, C%glob_zm, C%glob_xm, C%glob_ym))
+        call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+        arr = reshape( x1d, (/ C%dof, C%glob_zm, C%glob_xm, C%glob_ym /) )
+        call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+        call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
+      endif
+
+      if(vecsize.ne.size(arr)) then
+        print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
+        stop 'petscVecToF90 Vecsizes dont match!'
+      endif
+    end subroutine
+
+
+    !> @brief Copies the data from a fortran vector into an petsc global vec
+    subroutine f90VecToPetsc_4d(arr, C, vec)
+      real(ireals), intent(in) :: arr(:,:,:,:)
+      type(t_coord), intent(in) :: C
+      type(tVec), intent(inout)    :: vec
+
+      integer(iintegers) :: vecsize
+      real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+
+      integer(mpiint) :: ierr
+
+      call getVecPointer(vec, C, x1d, x4d)
+      x4d = arr
+      call restoreVecPointer(vec, C, x1d, x4d)
+
+      call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+      if(vecsize.ne.size(arr)) then
+        print *,'f90VecToPetsc Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
+        stop 'f90VecToPetsc Vecsizes dont match!'
+      endif
+    end subroutine
+    subroutine f90VecToPetsc_3d(arr, C, vec)
+      real(ireals), intent(in) :: arr(:,:,:)
+      type(t_coord), intent(in) :: C
+      type(tVec), intent(inout)    :: vec
+
+      integer(iintegers) :: vecsize
+      real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+
+      integer(mpiint) :: ierr
+
+      call getVecPointer(vec, C, x1d, x4d)
+      x4d(i0,:,:,:) = arr
+      call restoreVecPointer(vec, C, x1d, x4d)
+
+      call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+      if(vecsize.ne.size(arr)) then
+        print *,'f90VecToPetsc Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
+        stop 'f90VecToPetsc Vecsizes dont match!'
+      endif
+    end subroutine
 end module
 

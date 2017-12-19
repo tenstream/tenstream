@@ -1,7 +1,7 @@
 @test(npes =[9])
 subroutine test_tenstream_ex1(this)
 
-    use m_data_parameters, only : iintegers, ireals, myid, mpierr
+    use m_data_parameters, only : iintegers, ireals, mpierr, mpiint
     use m_tenstream, only : init_tenstream, destroy_tenstream,&
         t_coord, C_one
     use m_helper_functions, only : reorder_mpi_comm
@@ -25,6 +25,7 @@ subroutine test_tenstream_ex1(this)
     integer(iintegers),parameter :: Nrank_x=3, Nrank_y=3
 
     integer(iintegers) :: neighbors_orig(4), neighbors_reorder(4)
+    integer(mpiint) :: myid
 
     MPI_Comm :: comm, reorder_comm
 
@@ -36,6 +37,7 @@ subroutine test_tenstream_ex1(this)
     call mpi_comm_rank( comm, orig_id, mpierr)
 
     call init_tenstream(comm, nv, nxp, nyp, dx, dy, phi0, theta0, dz1d=dz1d)
+    call mpi_comm_rank( comm, myid, mpierr)
     print *,'I am originally', orig_id, 'my rank is now', myid, ' and Neighbors are',C_one%neighbors([10,4,16,22])
     neighbors_orig = C_one%neighbors([10,4,16,22])
     call destroy_tenstream(.True.)
@@ -46,6 +48,7 @@ subroutine test_tenstream_ex1(this)
     call reorder_mpi_comm(comm, Nrank_x, Nrank_y, reorder_comm)
 
     call init_tenstream(reorder_comm, nv, nxp, nyp, dx, dy, phi0, theta0, dz1d=dz1d)
+    call mpi_comm_rank( comm, myid, mpierr)
     print *,'I am originally', orig_id, 'my rank is now', myid, ' and Neighbors are',C_one%neighbors([10,4,16,22])
     neighbors_reorder = C_one%neighbors([10,4,16,22])
     call destroy_tenstream(.True.)

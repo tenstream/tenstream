@@ -10,7 +10,7 @@ module m_tenstr_rrtm_lw_toZero
       use m_tenstr_rrtmg_lw_rad, only: rrtmg_lw
 
       use m_data_parameters, only : init_mpi_data_parameters, &
-        iintegers, ireals, myid, zero, one, i0, i1,           &
+        iintegers, ireals, zero, one, i0, i1,           &
         mpiint, pi, default_str_len
 
       use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
@@ -81,7 +81,11 @@ contains
 
         real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
 
+        integer(mpiint) :: myid, ierr
+
         character(default_str_len) :: output_path(2) ! [ filename, varname ]
+
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
         do j=1,nyp
             do i=1,nxp

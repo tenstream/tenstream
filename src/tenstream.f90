@@ -53,9 +53,9 @@ module m_tenstream
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers,               &
-    imp_comm, myid, numnodes, init_mpi_data_parameters, mpiint,  &
-    zero, one, nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
+  use m_data_parameters, only : ireals, iintegers,    &
+    init_mpi_data_parameters, mpiint, zero, one, nil, &
+    i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi,      &
     default_str_len
 
   use m_twostream, only: delta_eddington_twostream
@@ -67,7 +67,7 @@ module m_tenstream
 
   use m_eddington, only : eddington_coeff_zdun
   use m_optprop_parameters, only : ldelta_scale
-  use m_optprop, only : t_optprop_1_2,t_optprop_3_6
+  use m_optprop, only : t_optprop_1_2,t_optprop_8_10
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
     options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
     options_phi, lforce_phi, options_theta, lforce_theta, &
@@ -83,12 +83,12 @@ module m_tenstream
     tenstream_get_result, tenstream_get_result_toZero, need_new_solution, &
     t_coord,C_dir,C_diff,C_one,C_one1,C_one_atm, C_one_atm1
 
-  PetscInt, parameter :: E_up=0, E_dn=1, E_le_m=2, E_ri_m=3, E_ba_m=4, E_fw_m=5 
+  PetscInt,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
 
-!  logical,parameter :: ldebug=.False.
-  logical,parameter :: ldebug=.True.
+  logical,parameter :: ldebug=.False.
+!  logical,parameter :: ldebug=.True.
   logical,parameter :: lcycle_dir=.True.
-  logical,parameter :: lprealloc=.False.
+  logical,parameter :: lprealloc=.True.
 
   type t_coord
     PetscInt :: xs,xe                 ! local domain start and end indices
@@ -107,6 +107,7 @@ module m_tenstream
   type(t_coord), allocatable, save :: C_dir, C_diff, C_one, C_one1, C_one_atm, C_one_atm1
 
   PetscErrorCode :: ierr
+  integer(mpiint) :: myid, numnodes, imp_comm
 
   type t_optprop
     real(ireals) :: kabs,ksca,g
@@ -128,7 +129,7 @@ module m_tenstream
 
 
   type(t_optprop_1_2),save  :: OPP_1_2
-  type(t_optprop_3_6),save :: OPP_3_6
+  type(t_optprop_8_10),save :: OPP_8_10
 
   type t_sunangles
     real(ireals) :: symmetry_phi
@@ -196,13 +197,13 @@ contains
     if(myid.eq.0.and.ldebug) print *,myid,'Setting up the DMDA grid for ',Nz,Nx,Ny,'using ',numnodes,' nodes'
 
     if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C_diff'
-    call setup_dmda(C_diff, Nz+1,Nx,Ny, bp, i6)
+    call setup_dmda(C_diff, Nz+1,Nx,Ny, bp, i10)
 
     if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C_dir'
     if(lcycle_dir) then
-      call setup_dmda(C_dir, Nz+1,Nx,Ny, bp, i3)
+      call setup_dmda(C_dir, Nz+1,Nx,Ny, bp, i8)
     else
-      call setup_dmda(C_dir, Nz+1,Nx,Ny, bg, i3)
+      call setup_dmda(C_dir, Nz+1,Nx,Ny, bg, i8)
     endif
 
     if(myid.eq.0.and.ldebug) print *,myid,'Configuring DMDA C_one'
@@ -353,8 +354,6 @@ contains
 
       endif
       call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
-    else
-      call MatMPIAIJSetPreallocation(A, C%dof+1, PETSC_NULL_INTEGER, C%dof, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
     endif
 
     call mat_info(A)
@@ -363,7 +362,7 @@ contains
     ! call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;call CHKERR(ierr)
 
     ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
-    call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;call CHKERR(ierr)
+    !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;call CHKERR(ierr)
 
     ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;call CHKERR(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
 
@@ -642,20 +641,12 @@ contains
               src = 2; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k+1   ; col(MatStencil_c,src) = E_up 
               src = 3; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ri_m
               src = 4; col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_le_m
-              src = 5; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_m
-              src = 6; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_m
-
-!             src = 1; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_dn
-!             src = 2; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k+1   ; col(MatStencil_c,src) = E_up 
-!             src = 3; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ri_m
-!             src = 4; col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_le_m
-!             src = 5; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ri_p
-!             src = 6; col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_le_p
-!             src = 7; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_m
-!             src = 8; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_m
-!             src = 9; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_p
-!             src =10; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_p
-
+              src = 5; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ri_p
+              src = 6; col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_le_p
+              src = 7; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_m
+              src = 8; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_m
+              src = 9; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_p
+              src =10; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_p
 
               !           Destinations
               !         ________E_up___
@@ -671,20 +662,13 @@ contains
               dst =  2; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k+1   ; row(MatStencil_c,dst) = E_dn  
               dst =  3; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_le_m
               dst =  4; row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ri_m
-              dst =  5; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_m
-              dst =  6; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_m
+              dst =  5; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_le_p
+              dst =  6; row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ri_p
+              dst =  7; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_m
+              dst =  8; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_m
+              dst =  9; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
+              dst = 10; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
-!             dst =  1; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_up  
-!             dst =  2; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k+1   ; row(MatStencil_c,dst) = E_dn  
-!             dst =  3; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_le_m
-!             dst =  4; row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ri_m
-!             dst =  5; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_le_p
-!             dst =  6; row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ri_p
-!             dst =  7; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_m
-!             dst =  8; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_m
-!             dst =  9; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
-!             dst = 10; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
-              
               do idst = 1,C%dof
                 icnt = icnt+1
                 dst_id = myid
@@ -846,7 +830,7 @@ contains
     if(lone_dimensional) then
       call OPP_1_2%get_coeff (aspect, tauz, w0, op%g,ldir,coeff,angles)
     else
-      call OPP_3_6%get_coeff(aspect, tauz, w0, op%g,ldir,coeff,angles)
+      call OPP_8_10%get_coeff(aspect, tauz, w0, op%g,ldir,coeff,angles)
     endif
 
     call PetscLogStagePop(ierr) ;call CHKERR(ierr)
@@ -1153,30 +1137,22 @@ contains
       yinc = sun%angles(k,i,j)%yinc
 
       dst = 1 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-      dst = 2 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
-      dst = 3 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
-      
-!     dst = 1 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-!     dst = 2 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-!     dst = 3 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-!     dst = 4 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
-!     dst = 5 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
-!     dst = 6 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
-!     dst = 7 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
-!     dst = 8 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+      dst = 2 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 3 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 4 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+      dst = 5 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+      dst = 6 ; row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+      dst = 7 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+      dst = 8 ; row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
 
       src = 1 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-      src = 2 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
-      src = 3 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
-
-!     src = 1 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-!     src = 2 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-!     src = 3 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-!     src = 4 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
-!     src = 5 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
-!     src = 6 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
-!     src = 7 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
-!     src = 8 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+      src = 2 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 3 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 4 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the upper/lower lid:
+      src = 5 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+      src = 6 ; col(MatStencil_j,src) = i+1-xinc ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the left/right lid
+      src = 7 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
+      src = 8 ; col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Source may be the front/back lid:
 
       call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j), .True., v, atm%l1d(atmk(k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
 
@@ -1215,7 +1191,7 @@ contains
       col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k    
       row(MatStencil_j,i1) = i      ; row(MatStencil_k,i1) = j       ; row(MatStencil_i,i1) = k+1  
 
-      do src=1,1
+      do src=1,4
         col(MatStencil_c,i1) = src-i1 ! Source may be the upper/lower lid:
         row(MatStencil_c,i1) = src-i1 ! Define transmission towards the lower/upper lid
         call MatSetValuesStencil(A,i1, row,i1, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
@@ -1248,7 +1224,7 @@ contains
 
     do j=C_dir%ys,C_dir%ye
       do i=C_dir%xs,C_dir%xe
-        x4d(i0,C_dir%zs,i,j) = edirTOA* Az * sun%angles(C_dir%zs,i,j)%costheta
+        x4d(i0:i3,C_dir%zs,i,j) = edirTOA* Az * .25_ireals * sun%angles(C_dir%zs,i,j)%costheta
       enddo
     enddo
 
@@ -1298,7 +1274,6 @@ contains
 
     call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(Mdiff, PETSC_NULL_MAT, "-show_Mdiff", ierr); call CHKERR(ierr)
   contains
     subroutine set_tenstream_coeff(C,A,k,i,j,ierr)
       type(t_coord),intent(in) :: C
@@ -1326,20 +1301,12 @@ contains
       src = 1; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k+1   ; col(MatStencil_c,src) = E_up 
       src = 2; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ri_m
       src = 3; col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_le_m
-      src = 4; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_m
-      src = 5; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_m
-
-
-!     src = 0; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_dn
-!     src = 1; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k+1   ; col(MatStencil_c,src) = E_up 
-!     src = 2; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ri_m
-!     src = 3; col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_le_m
-!     src = 4; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ri_p
-!     src = 5; col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_le_p
-!     src = 6; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_m
-!     src = 7; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_m
-!     src = 8; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_p
-!     src = 9; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_p
+      src = 4; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ri_p
+      src = 5; col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_le_p
+      src = 6; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_m
+      src = 7; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_m
+      src = 8; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_fw_p
+      src = 9; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_ba_p
 
       !           Destinations
       !         ________E_up___
@@ -1355,33 +1322,14 @@ contains
       dst = 1; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k+1   ; row(MatStencil_c,dst) = E_dn  
       dst = 2; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_le_m
       dst = 3; row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ri_m
-      dst = 4; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_m
-      dst = 5; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_m
-      
-      
-!     dst = 0; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_up  
-!     dst = 1; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k+1   ; row(MatStencil_c,dst) = E_dn  
-!     dst = 2; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_le_m
-!     dst = 3; row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ri_m
-!     dst = 4; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_le_p
-!     dst = 5; row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ri_p
-!     dst = 6; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_m
-!     dst = 7; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_m
-!     dst = 8; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
-!     dst = 9; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
+      dst = 4; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_le_p
+      dst = 5; row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ri_p
+      dst = 6; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_m
+      dst = 7; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_m
+      dst = 8; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_ba_p
+      dst = 9; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_fw_p
 
       call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., v, atm%l1d(atmk(k),i,j))
-      !v(1:6) = zero
-      !v(13:24) = zero
-      !v(25:36) = zero
-      !v = zero
-      !v(1) = .2 ! eup <- edn
-      !v(2) = .5 ! eup <- eup
-      !v(7) = .5 ! edn <- edn
-      !v(8) = .2 ! edn <- eup
-      !do src=1,6
-      !print *,src,v(src:36:6)
-      !enddo
 
       call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
 
@@ -1542,10 +1490,14 @@ contains
               b0 = atm%planck(atmk(k),i,j) * pi
               xsrc(E_up   , k   , i   , j   ) = xsrc(E_up   , k   , i   , j   ) +  b0  *(one-sum( v( E_up  *C_diff%dof+i1 : E_up  *C_diff%dof+C_diff%dof )  )  ) *Az
               xsrc(E_dn   , k+1 , i   , j   ) = xsrc(E_dn   , k+1 , i   , j   ) +  b0  *(one-sum( v( E_dn  *C_diff%dof+i1 : E_dn  *C_diff%dof+C_diff%dof )  )  ) *Az
-              xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  b0  *(one-sum( v( E_le_m*C_diff%dof+i1 : E_le_m*C_diff%dof+C_diff%dof )  )  ) *Ax
-              xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  b0  *(one-sum( v( E_ri_m*C_diff%dof+i1 : E_ri_m*C_diff%dof+C_diff%dof )  )  ) *Ax
-              xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  b0  *(one-sum( v( E_ba_m*C_diff%dof+i1 : E_ba_m*C_diff%dof+C_diff%dof )  )  ) *Ay
-              xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  b0  *(one-sum( v( E_fw_m*C_diff%dof+i1 : E_fw_m*C_diff%dof+C_diff%dof )  )  ) *Ay
+              xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  b0  *(one-sum( v( E_le_m*C_diff%dof+i1 : E_le_m*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
+              xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  b0  *(one-sum( v( E_le_p*C_diff%dof+i1 : E_le_p*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
+              xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  b0  *(one-sum( v( E_ri_m*C_diff%dof+i1 : E_ri_m*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
+              xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  b0  *(one-sum( v( E_ri_p*C_diff%dof+i1 : E_ri_p*C_diff%dof+C_diff%dof )  )  ) *Ax*.5_ireals
+              xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  b0  *(one-sum( v( E_ba_m*C_diff%dof+i1 : E_ba_m*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
+              xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  b0  *(one-sum( v( E_ba_p*C_diff%dof+i1 : E_ba_p*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
+              xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  b0  *(one-sum( v( E_fw_m*C_diff%dof+i1 : E_fw_m*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
+              xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  b0  *(one-sum( v( E_fw_p*C_diff%dof+i1 : E_fw_p*C_diff%dof+C_diff%dof )  )  ) *Ay*.5_ireals
             endif ! 1D or Tenstream?
 
           enddo
@@ -1581,7 +1533,7 @@ contains
 
       call getVecPointer(ledir, C_dir, xedir1d, xedir)
 
-      if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))/size(xedir(i0,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
+      if(myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector .. setting solar source',sum(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))/size(xedir(0:3,C_dir%zs:C_dir%ze,C_dir%xs:C_dir%xe,C_dir%ys:C_dir%ye))
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
           do k=C_diff%zs,C_diff%ze-1
@@ -1591,20 +1543,20 @@ contains
                 dir2diff = zero
                 if(luse_eddington ) then
                   ! Only transport the 4 tiles from dir0 to the Eup and Edn
-                  do src=1,1
+                  do src=1,4
                     dir2diff(E_up  +i1+(src-1)*C_diff%dof) = atm%a13(atmk(k),i,j)
                     dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = atm%a23(atmk(k),i,j)
                   enddo
 
                 else
                   call get_coeff(atm%op(atmk(k),i,j), atm%dz(atmk(k),i,j),.False., twostr_coeff, atm%l1d(atmk(k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
-                  do src=1,1
+                  do src=1,4
                     dir2diff(E_up  +i1+(src-1)*C_diff%dof) = twostr_coeff(1)
                     dir2diff(E_dn  +i1+(src-1)*C_diff%dof) = twostr_coeff(2)
                   enddo
                 endif
 
-                do src=1,1
+                do src=1,C_dir%dof-4
                   xsrc(E_up   ,k,i,j)   = xsrc(E_up   ,k,i,j)   +  xedir(src-1,k,i,j)*dir2diff(E_up  +i1+(src-1)*C_diff%dof)
                   xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) +  xedir(src-1,k,i,j)*dir2diff(E_dn  +i1+(src-1)*C_diff%dof)
                 enddo
@@ -1617,11 +1569,11 @@ contains
 
                 do src=1,C_dir%dof
                   select case(src)
-                  case (1)
+                  case (1:4)
                     solrad = xedir( : , k , i , j )
-                  case (2)
+                  case (5:6)
                     solrad = xedir( : , k , i+i1-sun%angles(k,i,j)%xinc , j )
-                  case (3)
+                  case (7:8)
                     solrad = xedir( : , k , i , j+i1-sun%angles(k,i,j)%yinc )
                   case default
                     stop 'invalid dof for solar source term'
@@ -1631,27 +1583,35 @@ contains
 
                   if(lsun_east) then ! if sun shines from right to left, switch ''reflection'' and ''transmission'' coefficients.
                     xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_ri_m*C_dir%dof + src)
+                    xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_ri_p*C_dir%dof + src)
                     xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_le_m*C_dir%dof + src)
+                    xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_le_p*C_dir%dof + src)
                   else
                     xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_le_m*C_dir%dof + src)
+                    xsrc(E_le_p , k   , i   , j   ) = xsrc(E_le_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_le_p*C_dir%dof + src)
                     xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_ri_m*C_dir%dof + src)
+                    xsrc(E_ri_p , k   , i+1 , j   ) = xsrc(E_ri_p , k   , i+1 , j   ) +  solrad(src) *dir2diff(E_ri_p*C_dir%dof + src)
                   endif
                   if(lsun_north) then ! likewise if sun shines from forward to backwards,
                     xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_fw_m*C_dir%dof + src)
+                    xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_fw_p*C_dir%dof + src)
                     xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_ba_m*C_dir%dof + src)
+                    xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_ba_p*C_dir%dof + src)
                   else
                     xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  solrad(src) *dir2diff(E_ba_m*C_dir%dof + src)
+                    xsrc(E_ba_p , k   , i   , j   ) = xsrc(E_ba_p , k   , i   , j   ) +  solrad(src) *dir2diff(E_ba_p*C_dir%dof + src)
                     xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_fw_m*C_dir%dof + src)
+                    xsrc(E_fw_p , k   , i   , j+1 ) = xsrc(E_fw_p , k   , i   , j+1 ) +  solrad(src) *dir2diff(E_fw_p*C_dir%dof + src)
                   endif
-                enddo
 
                   if(ldebug) then
-                    do src=1,C_dir%dof
-                    if(sum(dir2diff(src : C_dir%dof*C_diff%dof : C_dir%dof)) .gt. one .or. &
-                       sum(dir2diff(src : C_dir%dof*C_diff%dof : C_dir%dof)) .lt. zero   ) &
-                       print *,'DEBUG Found dir2diff gt one:',src,'::',sum(dir2diff(src : C_dir%dof*C_diff%dof : C_dir%dof)),':',dir2diff(src : C_dir%dof*C_diff%dof : C_dir%dof) ,'   :::::::     ', dir2diff
+                    do dst=0,C_diff%dof-1
+                      if(sum(dir2diff( dst*C_dir%dof : dst*(C_dir%dof+1)-1 )) .gt. one .or. &
+                        sum(dir2diff( dst*C_dir%dof : dst*(C_dir%dof+1)-1 )) .lt. zero   ) &
+                        print *,'DEBUG Found dir2diff gt one:',src,'::',sum(dir2diff( dst*C_dir%dof : dst*(C_dir%dof+1)-1  ) ),'::',dir2diff(dst*C_dir%dof : dst*(C_dir%dof+1)-1) ,'   :::::::     ', dir2diff
                     enddo
                   endif
+                enddo
 
               endif ! 1D or Tenstream?
             endif ! if solar
@@ -1664,7 +1624,7 @@ contains
       k = C_diff%ze
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
-          xsrc(E_up   ,k,i,j) = xedir(i0,k,i,j)*atm%albedo(i,j)
+          xsrc(E_up   ,k,i,j) = sum(xedir(i0:i3,k,i,j))*atm%albedo(i,j)
         enddo
       enddo
 
@@ -1682,7 +1642,7 @@ contains
     PetscReal,pointer,dimension(:) :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
     PetscInt :: i,j,k, xinc,yinc
     Vec :: ledir,lediff ! local copies of vectors, including ghosts
-    PetscReal :: div(3),div2(9)
+    PetscReal :: div(3),div2(13)
     PetscReal :: Volume,Az
     logical :: lhave_no_3d_layer
 
@@ -1717,8 +1677,8 @@ contains
             Volume = Az     * atm%dz(atmk(k),i,j)
             ! Divergence    =                       Incoming                -       Outgoing
             if(solution%lsolar_rad) then
-              div(1) = xedir(i0, k, i, j )  - xedir(i0 , k+i1 , i, j )
-            else
+              div(1) = sum( xedir(i0:i3, k, i, j )  - xedir(i0:i3 , k+i1 , i, j ) ) 
+            else 
               div(1) = zero
             endif
 
@@ -1768,7 +1728,7 @@ contains
           if(atm%l1d(atmk(k),i,j)) then ! one dimensional i.e. twostream
             ! Divergence    =                       Incoming                -       Outgoing
             if(solution%lsolar_rad) then
-              div(1) = xedir(i0, k, i, j )  - xedir(i0 , k+i1 , i, j )
+              div(1) = sum( xedir(i0:i3, k, i, j )  - xedir(i0:i3 , k+i1 , i, j ) ) 
             else 
               div(1) = zero
             endif
@@ -1784,9 +1744,9 @@ contains
             if(solution%lsolar_rad) then
               xinc = sun%angles(k,i,j)%xinc
               yinc = sun%angles(k,i,j)%yinc
-              div2( 1) = xedir(i0 , k, i         , j         )  - xedir(i0 , k+i1 , i      , j       ) 
-              div2( 2) = xedir(i1 , k, i+i1-xinc , j         )  - xedir(i1 , k    , i+xinc , j       ) 
-              div2( 3) = xedir(i2 , k, i         , j+i1-yinc )  - xedir(i2 , k    , i      , j+yinc  ) 
+              div2( 1) = sum( xedir(i0:i3 , k, i         , j         )  - xedir(i0:i3 , k+i1 , i      , j       ) ) 
+              div2( 2) = sum( xedir(i4:i5 , k, i+i1-xinc , j         )  - xedir(i4:i5 , k    , i+xinc , j       ) ) 
+              div2( 3) = sum( xedir(i6:i7 , k, i         , j+i1-yinc )  - xedir(i6:i7 , k    , i      , j+yinc  ) ) 
             else 
               div2(1:3) = zero
             endif
@@ -1794,9 +1754,13 @@ contains
             div2( 4) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  ) 
             div2( 5) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  ) 
             div2( 6) = ( xediff(E_le_m,k  ,i+1,j  )  - xediff(E_le_m,k  ,i  ,j  )  ) 
-            div2( 7) = ( xediff(E_ri_m,k  ,i  ,j  )  - xediff(E_ri_m,k  ,i+1,j  )  ) 
-            div2( 8) = ( xediff(E_ba_m,k  ,i  ,j+1)  - xediff(E_ba_m,k  ,i  ,j  )  ) 
-            div2( 9) = ( xediff(E_fw_m,k  ,i  ,j  )  - xediff(E_fw_m,k  ,i  ,j+1)  ) 
+            div2( 7) = ( xediff(E_le_p,k  ,i+1,j  )  - xediff(E_le_p,k  ,i  ,j  )  ) 
+            div2( 8) = ( xediff(E_ri_m,k  ,i  ,j  )  - xediff(E_ri_m,k  ,i+1,j  )  ) 
+            div2( 9) = ( xediff(E_ri_p,k  ,i  ,j  )  - xediff(E_ri_p,k  ,i+1,j  )  ) 
+            div2(10) = ( xediff(E_ba_m,k  ,i  ,j+1)  - xediff(E_ba_m,k  ,i  ,j  )  ) 
+            div2(11) = ( xediff(E_ba_p,k  ,i  ,j+1)  - xediff(E_ba_p,k  ,i  ,j  )  ) 
+            div2(12) = ( xediff(E_fw_m,k  ,i  ,j  )  - xediff(E_fw_m,k  ,i  ,j+1)  ) 
+            div2(13) = ( xediff(E_fw_p,k  ,i  ,j  )  - xediff(E_fw_p,k  ,i  ,j+1)  ) 
 
             xabso(i0,k,i,j) = sum(div2) / Volume
             if(ldebug) then
@@ -2264,7 +2228,7 @@ contains
         endif
 
         if(solution%lsolar_rad) then
-          do src=i0,i0
+          do src=i0,i3
             xv_dir(src,C_dir%zs+1:C_dir%ze,i,j) = S(atmk(C_one_atm1%zs)+1:C_one_atm1%ze)
             xv_dir(src,C_dir%zs           ,i,j) = S(C_one_atm1%zs)
           enddo
@@ -2340,16 +2304,6 @@ contains
         do i=C%xs,C%xe
           do k=C%zs,C%ze-i1
 
-
-            if(C%dof.eq.i3) then ! This is 3 stream direct radiation
-              xv(i0,k,i,j) = xv(i0,k,i,j) * Az
-            endif
-
-            if(C%dof.eq.i6) then ! This is 6 stream diffuse radiation
-              xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-              xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-            endif
-
             if(C%dof.eq.i8) then ! This is 8 stream direct radiation
               xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) * Az4
             endif
@@ -2360,34 +2314,6 @@ contains
             endif
 
             if(.not.atm%l1d(atmk(k),i,j)) then
-
-
-              if(C%dof.eq.i3) then ! This is 3 stream direct radiation
-
-                if(lWm2_to_W) then
-                  Ax = atm%dy*atm%dz(k,i,j)
-                  Ay = atm%dx*atm%dz(k,i,j)
-                else
-                  Ax = one/(atm%dy*atm%dz(k,i,j))
-                  Ay = one/(atm%dx*atm%dz(k,i,j))
-                endif
-                xv(i1,k,i,j) = xv(i1,k,i,j) * Ax 
-                xv(i2,k,i,j) = xv(i2,k,i,j) * Ay 
-              endif
-
-              if(C%dof.eq.i6) then ! This is 6 stream diffuse radiation
-                if(lWm2_to_W) then
-                  Ax  = atm%dy*atm%dz(k,i,j)
-                  Ay  = atm%dx*atm%dz(k,i,j)
-                else
-                  Ax  = one/(atm%dy*atm%dz(k,i,j) )
-                  Ay  = one/(atm%dx*atm%dz(k,i,j) )
-                endif
-                xv(E_le_m,k,i,j) = xv(E_le_m,k,i,j) * Ax
-                xv(E_ri_m,k,i,j) = xv(E_ri_m,k,i,j) * Ax
-                xv(E_ba_m,k,i,j) = xv(E_ba_m,k,i,j) * Ay
-                xv(E_fw_m,k,i,j) = xv(E_fw_m,k,i,j) * Ay
-              endif
 
               if(C%dof.eq.i8) then ! This is 8 stream direct radiation
 
@@ -2411,9 +2337,13 @@ contains
                   Ay  = one/(atm%dx*atm%dz(k,i,j) )
                 endif
                 xv(E_le_m,k,i,j) = xv(E_le_m,k,i,j) * Ax
+                xv(E_le_p,k,i,j) = xv(E_le_p,k,i,j) * Ax
                 xv(E_ri_m,k,i,j) = xv(E_ri_m,k,i,j) * Ax
+                xv(E_ri_p,k,i,j) = xv(E_ri_p,k,i,j) * Ax
                 xv(E_ba_m,k,i,j) = xv(E_ba_m,k,i,j) * Ay
+                xv(E_ba_p,k,i,j) = xv(E_ba_p,k,i,j) * Ay
                 xv(E_fw_m,k,i,j) = xv(E_fw_m,k,i,j) * Ay
+                xv(E_fw_p,k,i,j) = xv(E_fw_p,k,i,j) * Ay
               endif
             endif
           enddo
@@ -2423,14 +2353,6 @@ contains
       k=C%ze
       do j=C%ys,C%ye
         do i=C%xs,C%xe
-
-          if(C%dof.eq.i3) then ! This is 3 stream direct radiation
-            xv (i0,k,i,j) = xv (i0 ,k,i,j) * Az
-          endif
-          if(C%dof.eq.i6) then ! This is 6 stream diffuse radiation
-            xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-            xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-          endif
 
           if(C%dof.eq.i8) then ! This is 8 stream direct radiation
             xv (i0:i3 ,k,i,j) = xv (i0:i3 ,k,i,j) * Az4
@@ -2638,9 +2560,7 @@ contains
 
 
     ! init box montecarlo model
-
-    if(any(atm%l1d.eqv..False.)) call OPP_3_6%init(pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
-   ! if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
+    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
     if(.not.luse_eddington)      call OPP_1_2%init (pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
 
     call init_matrices()
@@ -2671,6 +2591,11 @@ contains
 
     if(.not.ltenstream_is_initialized) then
 
+        imp_comm = icomm
+        call init_mpi_data_parameters(icomm)
+        call mpi_comm_rank(icomm, myid, ierr); call CHKERR(ierr)
+        call mpi_comm_size(icomm, numnodes, ierr); call CHKERR(ierr)
+
         PETSC_COMM_WORLD = icomm
 
         !      call PetscInitialize(tenstreamrc ,ierr) ;call CHKERR(ierr)
@@ -2678,8 +2603,6 @@ contains
 #ifdef _XLF
         call PetscPopSignalHandler(ierr); call CHKERR(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
 #endif
-        call init_mpi_data_parameters(icomm)
-
         call read_commandline_options()
 
         if(present(nxproc) .and. present(nyproc) ) then
@@ -3312,8 +3235,8 @@ subroutine destroy_tenstream(lfinalizepetsc)
     if(allocated(sun%angles)) deallocate(sun%angles)
 
     call OPP_1_2%destroy()
-!    call OPP_8_10%destroy()
-    call OPP_3_6%destroy()
+    call OPP_8_10%destroy()
+
     call DMDestroy(C_dir%da ,ierr); deallocate(C_dir )
     call DMDestroy(C_diff%da,ierr); deallocate(C_diff)
     call DMDestroy(C_one%da ,ierr); deallocate(C_one )
@@ -3385,11 +3308,11 @@ subroutine tenstream_get_result(redir,redn,reup,rabso, opt_solution_uid )
       if(atm%lcollapse) then
           if(myid.eq.0 .and. ldebug) print *,'shape redir',shape(redir),lbound(redir,1),ubound(redir,1)
           lb_redir = lbound(redir,1)
-          redir(lb_redir, :, :) = x4d(i0,C_dir%zs, :, :) ! return average of the 4 vertical tiles
+          redir(lb_redir, :, :) = sum(x4d(i0:i3,C_dir%zs, :, :),dim=1)/4 ! return average of the 4 vertical tiles
           redir(lb_redir+1:atmk(C_dir%zs)+lb_redir, :, :) = zero
-          redir(atmk(C_dir%zs)+1+lb_redir :C_one_atm1%ze+lb_redir, :, :) =x4d(i0,C_dir%zs+1:C_dir%ze,:,:)           ! return average of the 4 vertical tiles
+          redir(atmk(C_dir%zs)+1+lb_redir :C_one_atm1%ze+lb_redir, :, :) = sum(x4d(i0:i3,C_dir%zs+1:C_dir%ze,:,:),dim=1)/4 ! return average of the 4 vertical tiles
       else
-          redir = x4d(i0, :, :, :)
+          redir = sum(x4d(i0:i3, :, :, :),dim=1)/4
       endif
       if(ldebug) then
         if(myid.eq.0) print *,'Edir',redir(1,1,:)

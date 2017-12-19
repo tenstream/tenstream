@@ -9,7 +9,7 @@ module m_gen_plex_from_icon
     default_str_len, &
     i0, i1, i2, i3, i4, i5,  &
     zero, one,       &
-    init_mpi_data_parameters, myid
+    init_mpi_data_parameters
 
   implicit none
 
@@ -447,11 +447,11 @@ module m_gen_plex_from_icon
       call DMPlexGetDepthStratum (plex%dm, i0, plex%vStart, plex%vEnd, ierr); call CHKERR(ierr) ! vertices
 
       if(ldebug) then
-        print *,myid, 'pstart', plex%pstart, 'pEnd', plex%pEnd
-        print *,myid, 'cStart', plex%cStart, 'cEnd', plex%cEnd
-        print *,myid, 'fStart', plex%fStart, 'fEnd', plex%fEnd
-        print *,myid, 'eStart', plex%eStart, 'eEnd', plex%eEnd
-        print *,myid, 'vStart', plex%vStart, 'vEnd', plex%vEnd
+        print *,'pstart', plex%pstart, 'pEnd', plex%pEnd
+        print *,'cStart', plex%cStart, 'cEnd', plex%cEnd
+        print *,'fStart', plex%fStart, 'fEnd', plex%fEnd
+        print *,'eStart', plex%eStart, 'eEnd', plex%eEnd
+        print *,'vStart', plex%vStart, 'vEnd', plex%vEnd
       endif
     end subroutine
 
@@ -579,10 +579,13 @@ program main
   type(t_plexgrid) :: plex
   PetscInt :: petscint, Nz=3
   PetscScalar :: petscreal
+  integer(mpiint) :: myid
 
   call PetscInitialize(PETSC_NULL_CHARACTER,ierr); call CHKERR(ierr)
 
   call init_mpi_data_parameters(PETSC_COMM_WORLD)
+
+  call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
   print *,'Kind ints',kind(petscint), kind(i0)
   print *,'Kind reals',kind(petscreal), kind(one)

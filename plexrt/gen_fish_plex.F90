@@ -2,7 +2,7 @@ module m_gen_fish_plex
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers, i0, i1, myid, numnodes, init_mpi_data_parameters
+  use m_data_parameters, only : ireals, iintegers, i0, i1, init_mpi_data_parameters
 
   use m_icon_plexgrid, only : TOP_BOT_FACE, SIDE_FACE
 
@@ -61,11 +61,11 @@ module m_gen_fish_plex
       call DMPlexGetDepthStratum (dm, 1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
       call DMPlexGetDepthStratum (dm, 0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
 
-      print *,myid,'pStart,End :: ',pStart, pEnd
-      print *,myid,'cStart,End :: ',cStart, cEnd
-      print *,myid,'fStart,End :: ',fStart, fEnd
-      print *,myid,'eStart,End :: ',eStart, eEnd
-      print *,myid,'vStart,End :: ',vStart, vEnd
+      print *,'pStart,End :: ',pStart, pEnd
+      print *,'cStart,End :: ',cStart, cEnd
+      print *,'fStart,End :: ',fStart, fEnd
+      print *,'eStart,End :: ',eStart, eEnd
+      print *,'vStart,End :: ',vStart, vEnd
 
       call create_face_labels(dm)
     end subroutine
@@ -239,7 +239,7 @@ module m_gen_fish_plex
     call DMPlexGetHeightStratum(dm, 1, fStart, fEnd, ierr); CHKERRQ(ierr) ! faces / edges
     call DMPlexGetDepthStratum (dm, 1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
     call DMPlexGetDepthStratum (dm, 0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
-    print *,myid,'PLEX GetChart', pStart, pEnd, ":: fStart, fEnd", fStart, fEnd
+    print *,'PLEX GetChart', pStart, pEnd, ":: fStart, fEnd", fStart, fEnd
 
     do i=fstart, fEnd-1
       select case(i)

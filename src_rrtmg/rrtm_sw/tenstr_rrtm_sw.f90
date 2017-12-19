@@ -7,7 +7,7 @@ module m_tenstr_rrtm_sw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
 
       use m_data_parameters, only : init_mpi_data_parameters, &
-        iintegers, ireals, myid, zero, one, i0, i1, mpiint, default_str_len
+        iintegers, ireals, zero, one, i0, i1, mpiint, default_str_len
 
       use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, tenstream_get_result_toZero, C_one
@@ -70,6 +70,11 @@ contains
         real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso        ! [nlyr(+1), local_nx, local_ny ]
 
         character(default_str_len) :: output_path(2) ! [ filename, varname ]
+
+        integer(mpiint) :: myid, ierr
+
+        call init_mpi_data_parameters(comm)
+        call mpi_comm_rank(comm, myid, ierr)
 
         do j=1,nyp
             do i=1,nxp
