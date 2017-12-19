@@ -28,7 +28,7 @@ module m_pprts
     default_str_len
 
   use m_helper_functions, only : CHKERR, deg2rad, rad2deg, norm, imp_allreduce_min, &
-  imp_allreduce_max, delta_scale, mpi_logical_and, mean
+    imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, mean
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
@@ -46,7 +46,8 @@ module m_pprts
   private
 
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, init_pprts, &
-            set_optical_properties, solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
+            set_optical_properties, set_global_optical_properties, &
+            solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
             pprts_get_result_toZero, t_coord, petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
 
   PetscInt, parameter :: E_up=0, E_dn=1, E_le_m=2, E_ri_m=3, E_ba_m=4, E_fw_m=5
@@ -155,6 +156,9 @@ module m_pprts
 
   interface f90VecToPetsc
     module procedure f90VecToPetsc_3d, f90VecToPetsc_4d
+  end interface
+  interface petscVecToF90
+    module procedure petscVecToF90_3d, petscVecToF90_4d
   end interface
 
   contains
@@ -1222,8 +1226,119 @@ module m_pprts
         end subroutine
   end subroutine
 
+  subroutine set_global_optical_properties(solver, albedo, global_kabs, global_ksca, global_g, global_planck)
+    class(t_solver),intent(in) :: solver
+    real(ireals),intent(inout) :: albedo
+    real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_kabs, global_ksca, global_g
+    real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_planck
+    real(ireals),dimension(:,:,:),allocatable :: local_kabs, local_ksca, local_g
+    real(ireals),dimension(:,:,:),allocatable :: local_planck
+    logical :: lhave_planck,lhave_kabs,lhave_ksca,lhave_g
 
-  subroutine solve_pprts(solver, edirTOA,opt_solution_uid,opt_solution_time)
+    if(.not.solver%linitialized) then
+      print *,solver%myid,'You tried to set global optical properties but tenstream environment seems not to be initialized.... please call init first!'
+      call exit(1)
+    endif
+
+    call imp_bcast(solver%comm, albedo, 0_mpiint)
+
+    lhave_kabs   = present(global_kabs  ); call imp_bcast(solver%comm, lhave_kabs  , 0_mpiint)
+    lhave_ksca   = present(global_ksca  ); call imp_bcast(solver%comm, lhave_ksca  , 0_mpiint)
+    lhave_g      = present(global_g     ); call imp_bcast(solver%comm, lhave_g     , 0_mpiint)
+    lhave_planck = present(global_planck); call imp_bcast(solver%comm, lhave_planck, 0_mpiint)
+
+    ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
+    if(solver%myid.eq.0) then
+      if( lhave_kabs   ) call extend_arr(global_kabs)
+      if( lhave_ksca   ) call extend_arr(global_ksca)
+      if( lhave_g      ) call extend_arr(global_g)
+      if( lhave_planck ) call extend_arr(global_planck)
+    endif
+
+    !if( lhave_kabs   ) allocate( local_kabs   (solver%C_one%zs :solver%C_one%ze ,solver%C_one%xs :solver%C_one%xe , solver%C_one%ys :solver%C_one%ye  ) )
+    !if( lhave_ksca   ) allocate( local_ksca   (solver%C_one%zs :solver%C_one%ze ,solver%C_one%xs :solver%C_one%xe , solver%C_one%ys :solver%C_one%ye  ) )
+    !if( lhave_g      ) allocate( local_g      (solver%C_one%zs :solver%C_one%ze ,solver%C_one%xs :solver%C_one%xe , solver%C_one%ys :solver%C_one%ye  ) )
+    !if( lhave_planck ) allocate( local_planck (solver%C_one1%zs:solver%C_one1%ze,solver%C_one1%xs:solver%C_one1%xe, solver%C_one1%ys:solver%C_one1%ye ) )
+
+    ! Scatter global optical properties to MPI nodes
+    call local_optprop()
+    ! Now global_fields are local to mpi subdomain.
+
+    if(lhave_planck) then
+      call set_optical_properties(solver, albedo, local_kabs, local_ksca, local_g, local_planck)
+    else
+      call set_optical_properties(solver, albedo, local_kabs, local_ksca, local_g)
+    endif
+
+
+  contains
+    subroutine local_optprop()
+      type(tVec) :: local_vec
+
+      if(solver%myid.eq.0.and.ldebug .and. lhave_kabs) &
+        print *,solver%myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',solver%C_one_atm%xs,solver%C_one_atm%xe,'ys/e',solver%C_one_atm%ys,solver%C_one_atm%ye
+
+      call DMGetGlobalVector(solver%C_one_atm%da, local_vec, ierr) ; call CHKERR(ierr)
+
+      if(lhave_kabs) then
+        call scatterZerotoPetscGlobal(global_kabs, solver%C_one_atm, local_vec)
+        call petscVecToF90(local_vec, solver%C_one_atm, local_kabs)
+      endif
+
+      if(lhave_ksca) then
+        call scatterZerotoPetscGlobal(global_ksca, solver%C_one_atm, local_vec)
+        call petscVecToF90(local_vec, solver%C_one_atm, local_ksca)
+      endif
+
+      if(lhave_g) then
+        call scatterZerotoPetscGlobal(global_g, solver%C_one_atm, local_vec)
+        call petscVecToF90(local_vec, solver%C_one_atm, local_g)
+      endif
+
+      call DMRestoreGlobalVector(solver%C_one_atm%da, local_vec, ierr) ; call CHKERR(ierr)
+
+      if(lhave_planck) then
+        call DMGetGlobalVector(solver%C_one_atm1%da, local_vec, ierr) ; call CHKERR(ierr)
+        call scatterZerotoPetscGlobal(global_planck, solver%C_one_atm1, local_vec)
+        call petscVecToF90(local_vec, solver%C_one_atm1, local_planck)
+        call DMRestoreGlobalVector(solver%C_one_atm1%da, local_vec, ierr) ; call CHKERR(ierr)
+      endif
+    end subroutine
+    subroutine extend_arr(arr)
+      real(ireals),intent(inout),allocatable :: arr(:,:,:)
+      real(ireals),allocatable :: tmp(:,:)
+      integer(iintegers) :: dims(3),i
+
+      if(.not. allocated(arr) ) print *,solver%myid,'ERROR in SUBROUTINE extend_arr :: Cannot extend non allocated array!'
+
+      dims = shape(arr)
+      if( dims(2) .eq. 1 ) then
+        allocate( tmp(dims(1),dims(3) ), SOURCE=arr(:, 1, :) )
+        deallocate(arr)
+        allocate( arr(dims(1), minimal_dimension, dims(3) ) )
+        do i=1,minimal_dimension
+          arr(:, i, :) = tmp
+        enddo
+        deallocate(tmp)
+      endif
+
+      dims = shape(arr)
+      if( dims(3) .eq. 1 ) then
+        allocate( tmp(dims(1),dims(2) ), SOURCE=arr(:,:,1) )
+        deallocate(arr)
+        allocate( arr(dims(1), dims(2), minimal_dimension ) )
+        do i=1,minimal_dimension
+          arr(:, :, i) = tmp
+        enddo
+        deallocate(tmp)
+      endif
+      if(any(shape(arr).lt.minimal_dimension) ) stop 'set_optprop -> extend_arr :: dimension is smaller than we support... please think of something here'
+    end subroutine
+
+  end subroutine
+
+
+  subroutine solve_pprts(solver, edirTOA, opt_solution_uid, opt_solution_time)
     class(t_solver), intent(inout)          :: solver
     real(ireals),intent(in)                 :: edirTOA
     integer(iintegers),optional,intent(in)  :: opt_solution_uid
@@ -3221,10 +3336,10 @@ end subroutine
         ! only zeroth node gets the results back.
         class(t_solver)   :: solver
 
-        real(ireals),intent(out),dimension(:,:,:) :: res_edir
-        real(ireals),intent(out),dimension(:,:,:) :: res_edn
-        real(ireals),intent(out),dimension(:,:,:) :: res_eup
-        real(ireals),intent(out),dimension(:,:,:) :: res_abso
+        real(ireals),intent(out),dimension(:,:,:),allocatable :: res_edir
+        real(ireals),intent(out),dimension(:,:,:),allocatable :: res_edn
+        real(ireals),intent(out),dimension(:,:,:),allocatable :: res_eup
+        real(ireals),intent(out),dimension(:,:,:),allocatable :: res_abso
         integer(iintegers),optional,intent(in)    :: opt_solution_uid
 
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
@@ -3254,14 +3369,9 @@ end subroutine
             subroutine exchange_var(C, inp, outp)
                 type(t_coord),intent(in) :: C
                 real(ireals),intent(in) :: inp(:,:,:) ! local array from get_result
-                real(ireals),intent(out) :: outp(:,:,:) ! global sized array on rank 0
-
-                real(ireals),allocatable :: tmp(:,:,:,:)
+                real(ireals),intent(out),allocatable :: outp(:,:,:) ! global sized array on rank 0
 
                 type(tVec) :: vec, lvec_on_zero
-
-                PetscScalar,pointer,dimension(:,:,:,:) :: xinp=>null()
-                PetscScalar,pointer,dimension(:) :: xinp1d=>null()
 
                 call DMGetGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
                 call f90VecToPetsc(inp, C, vec)
@@ -3269,11 +3379,8 @@ end subroutine
                 call DMRestoreGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
 
                 if(solver%myid.eq.0) then
-                  call petscVecToF90(lvec_on_zero, C, tmp, opt_l_only_on_rank0=.True.)
-                  outp = tmp(lbound(tmp,1), &
-                    lbound(tmp,2):lbound(tmp,2)+size(outp,1)-1,&
-                    lbound(tmp,3):lbound(tmp,3)+size(outp,2)-1,&
-                    lbound(tmp,4):lbound(tmp,4)+size(outp,3)-1)
+                  call petscVecToF90(lvec_on_zero, C, outp, opt_l_only_on_rank0=.True.)
+                  call VecDestroy(lvec_on_zero, ierr); call CHKERR(ierr)
                 endif
             end subroutine
 
@@ -3384,11 +3491,49 @@ end subroutine
       call VecDestroy(natural,ierr); call CHKERR(ierr)
     end subroutine
 
+    !> @brief Scatter a local array on rank0 vector into a petsc global vector
+    !> @details you may use this routine e.g. to scatter the optical properties from a sequential calling program.
+    subroutine scatterZerotoPetscGlobal(arr, C, vec)
+      real(ireals),allocatable,dimension(:,:,:),intent(in) :: arr
+      type(t_coord),intent(in) :: C
+      type(tVec) :: vec
+
+      type(tVecScatter) :: scatter_context
+      type(tVec) :: natural,local
+      real(ireals), pointer :: xloc(:)=>null()
+      integer(iintegers) :: myid
+
+      call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+
+      if(ldebug) print *,myid,'scatterZerotoDM :: Create Natural Vec'
+      call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
+
+      if(ldebug) print *,myid,'scatterZerotoDM :: Create scatter ctx'
+      call VecScatterCreateToZero(natural, scatter_context, local, ierr); call CHKERR(ierr)
+
+      if(myid.eq.0) call f90VecToPetsc(arr, C, local)
+
+      if(ldebug) print *,myid,'scatterZerotoDM :: scatter reverse....'
+      call VecScatterBegin(scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+      call VecScatterEnd  (scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+
+      if(ldebug) print *,myid,'scatterZerotoDM :: natural to global....'
+      call DMDANaturalToGlobalBegin(C%da,natural, INSERT_VALUES, vec, ierr); call CHKERR(ierr)
+      call DMDANaturalToGlobalEnd  (C%da,natural, INSERT_VALUES, vec, ierr); call CHKERR(ierr)
+
+      if(ldebug) print *,myid,'scatterZerotoDM :: destroying contexts....'
+      call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
+      call VecDestroy(local,ierr); call CHKERR(ierr)
+      call VecDestroy(natural,ierr); call CHKERR(ierr)
+      if(ldebug) print *,myid,'scatterZerotoDM :: done....'
+    end subroutine
+
+
 
     !> @brief Copies the data from a petsc vector into an allocatable array
     !> @details if flag opt_l_only_on_rank0 is True,
     !>     \n we assume this is just a local vector on rank 0, i.e. coming petscGlobalVecToZero()
-    subroutine petscVecToF90(vec, C, arr, opt_l_only_on_rank0)
+    subroutine petscVecToF90_4d(vec, C, arr, opt_l_only_on_rank0)
       type(tVec), intent(in)    :: vec
       type(t_coord), intent(in) :: C
       real(ireals), intent(inout), allocatable :: arr(:,:,:,:)
@@ -3426,13 +3571,53 @@ end subroutine
         stop 'petscVecToF90 Vecsizes dont match!'
       endif
     end subroutine
+    subroutine petscVecToF90_3d(vec, C, arr, opt_l_only_on_rank0)
+      type(tVec), intent(in)    :: vec
+      type(t_coord), intent(in) :: C
+      real(ireals), intent(inout), allocatable :: arr(:,:,:)
+      logical, intent(in), optional :: opt_l_only_on_rank0
+      logical :: l_only_on_rank0 = .False.
+
+      integer(iintegers) :: vecsize
+      real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+
+      integer(mpiint) :: myid, ierr
+
+      if(C%dof.ne.1) stop 'petscVecToF90_3d should only be called with DM%dof of 1'
+
+      if(allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
+
+      call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+      if(present(opt_l_only_on_rank0)) l_only_on_rank0 = opt_l_only_on_rank0
+
+      if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
+
+      if(.not.l_only_on_rank0) then
+        call getVecPointer(vec, C, x1d, x4d)
+        allocate(arr(C%zm,C%xm,C%ym))
+        arr = x4d(i0,:,:,:)
+        call restoreVecPointer(vec, C, x1d, x4d)
+        call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+      else
+        allocate(arr(C%glob_zm, C%glob_xm, C%glob_ym))
+        call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+        arr = reshape( x1d, (/ C%glob_zm, C%glob_xm, C%glob_ym /) )
+        call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+        call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
+      endif
+
+      if(vecsize.ne.size(arr)) then
+        print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
+        stop 'petscVecToF90 Vecsizes dont match!'
+      endif
+    end subroutine
 
 
     !> @brief Copies the data from a fortran vector into an petsc global vec
     subroutine f90VecToPetsc_4d(arr, C, vec)
-      real(ireals), intent(in) :: arr(:,:,:,:)
+      real(ireals), intent(in)  :: arr(:,:,:,:)
       type(t_coord), intent(in) :: C
-      type(tVec), intent(inout)    :: vec
+      type(tVec), intent(inout) :: vec
 
       integer(iintegers) :: vecsize
       real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
@@ -3450,9 +3635,9 @@ end subroutine
       endif
     end subroutine
     subroutine f90VecToPetsc_3d(arr, C, vec)
-      real(ireals), intent(in) :: arr(:,:,:)
+      real(ireals), intent(in)  :: arr(:,:,:)
       type(t_coord), intent(in) :: C
-      type(tVec), intent(inout)    :: vec
+      type(tVec), intent(inout) :: vec
 
       integer(iintegers) :: vecsize
       real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
