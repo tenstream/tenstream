@@ -28,7 +28,7 @@ module m_pprts
     default_str_len
 
   use m_helper_functions, only : CHKERR, deg2rad, rad2deg, norm, imp_allreduce_min, &
-    imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, mean
+    imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, mean, get_arg
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
@@ -3574,17 +3574,19 @@ end subroutine
       type(t_coord), intent(in) :: C
       real(ireals), intent(inout), allocatable :: arr(:,:,:)
       logical, intent(in), optional :: opt_l_only_on_rank0
-      logical :: l_only_on_rank0 = .False.
+      logical :: l_only_on_rank0
 
       integer(iintegers) :: vecsize
       real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
       integer(mpiint) :: myid, ierr
 
+      l_only_on_rank0 = get_arg(.False., opt_l_only_on_rank0)
+
       if(C%dof.ne.1) stop 'petscVecToF90_3d should only be called with anything else than DM%dof of 1'
 
       call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
-      if(present(opt_l_only_on_rank0)) l_only_on_rank0 = opt_l_only_on_rank0
+
 
       if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
 
