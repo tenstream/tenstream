@@ -2553,7 +2553,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
               do iside=1,solver%diffside%dof
                 src = iside+solver%difftop%dof
-                if (solver%difftop%is_inward(iside) .eqv. .False.) then
+                if (solver%diffside%is_inward(iside) .eqv. .False.) then
                   xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  ) *Ax
                 else
                   xsrc(src-1, k, i+1, j) = xsrc(src-1, k, i+1, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  ) *Ax
@@ -2562,7 +2562,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
               do iside=1,solver%diffside%dof
                 src = iside + solver%difftop%dof + solver%diffside%dof
-                if (solver%difftop%is_inward(iside) .eqv. .False.) then
+                if (solver%diffside%is_inward(iside) .eqv. .False.) then
                   xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  ) *Ay
                 else
                   xsrc(src-1, k, i, j+1) = xsrc(src-1, k, i, j+1) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  ) *Ay
