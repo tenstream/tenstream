@@ -1,0 +1,26 @@
+&SURFNAMELIST
+local         = .True.   ! Switch to get local Obukhov length
+hetero        = .False.  ! Switch to heterogeneous surface conditions(patches)
+
+tsoilav(1)    = 291.     ! Soil Temperature
+tsoilav(2)    = 291.
+tsoilav(3)    = 291.
+tsoilav(4)    = 291.
+tsoildeepav   = 291.
+
+phiwav(1)     = .3       ! Water volume mixing ratio
+phiwav(2)     = .3
+phiwav(3)     = .3
+phiwav(4)     = .3
+
+z0mav         = 0.04     ! Roughness length for momentum [m]
+z0hav         = 0.01     ! Roughness length for heat [m]
+LAIav         = 2.96     ! Average leaf area index [-]
+cvegav        = .0       ! Vegetation cover [-]
+Qnetav        = 450.     ! Uniform Irradiance at the surface. We can do better in our simulations, we compute radiative transfer online!
+gDav          = 0.       ! Response factor vegetation to vapor pressure deficit [-]
+rsminav       = 110.     ! Minimum vegetation resistance [s/m]
+rssoilminav   = 50.      ! Minimum soil evaporation resistance [s/m]
+lambdaskinav  = 5.       ! Heat conductivity skin layer [W/m/K]
+Cskinav       = 41850    ! 50m ocean => 209275000.0  !  1m water slab => 4185e6  !  loam srfc => 20e3  !  This is used to mimic a water layer on top of the surface
+/
