@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_helper_functions
-  use m_data_parameters,only : iintegers,ireals,pi,zero,one,imp_real,imp_int,imp_logical,mpiint,imp_comm
+  use m_data_parameters,only : iintegers,ireals,pi,zero,one,imp_real,imp_int,imp_logical,mpiint
 
   use mpi
 
@@ -73,7 +73,7 @@ module m_helper_functions
 
     subroutine CHKERR(ierr)
       integer(mpiint),intent(in) :: ierr
-      if(ierr.ne.0) call mpi_abort(imp_comm, ierr, mpierr)
+      if(ierr.ne.0) call mpi_abort(mpi_comm_world, ierr, mpierr)
     end subroutine
 
     function itoa(i) result(res)

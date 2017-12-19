@@ -1,18 +1,21 @@
 module m_box_cld
+
+  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
+
+  use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
+    tenstream_get_result, getvecpointer, restorevecpointer, &
+    t_coord,C_diff,C_one,C_one1, get_mem_footprint
+
+  use m_tenstream_options, only: read_commandline_options
+
+  use mpi, only : MPI_COMM_WORLD
+
   implicit none
+
+  integer(mpiint) :: myid, ierr
 
   contains
 subroutine box_cld()
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, zero, pi, myid, numnodes
-
-    use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
-        tenstream_get_result, getvecpointer, restorevecpointer, &
-        t_coord,C_diff,C_one,C_one1, get_mem_footprint
-
-    use m_tenstream_options, only: read_commandline_options
-
-    use mpi, only : MPI_COMM_WORLD
-
     implicit none
 
     integer(iintegers) :: k
@@ -32,11 +35,10 @@ subroutine box_cld()
     real(ireals) :: dn_target(nv+1)
     real(ireals) :: up_target(nv+1)
 
-
     dz1d = dz
 
-    !call init_mpi_data_parameters(MPI_COMM_WORLD)
     call init_tenstream(MPI_COMM_WORLD, nv, nxp,nyp, dx,dy,phi0, theta0, dz1d=dz1d)
+    call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr)
 
     allocate(kabs(C_one%zm , C_one%xm,  C_one%ym ))
     allocate(ksca(C_one%zm , C_one%xm,  C_one%ym ))

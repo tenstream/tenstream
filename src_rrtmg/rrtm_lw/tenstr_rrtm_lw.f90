@@ -11,7 +11,7 @@ module m_tenstr_rrtm_lw
       use m_tenstr_rrtmg_lw_rad, only: rrtmg_lw
 
       use m_data_parameters, only : init_mpi_data_parameters, &
-        iintegers, ireals, myid, zero, one, i0, i1,           &
+        iintegers, ireals, zero, one, i0, i1,           &
         mpiint, pi, mpierr, default_str_len
 
       use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
@@ -180,7 +180,10 @@ contains
 
     real(ireals),allocatable, dimension(:,:,:), intent(out) :: edn,eup,abso               ! [nlyr(+1), local_nx, local_ny ]
 
+    integer(mpiint) :: myid, ierr
     ! character(default_str_len) :: output_path(2) ! [ filename, varname ]
+
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     call load_atmfile(comm, atm_filename, bg_atm)
 
@@ -414,13 +417,13 @@ contains
       call rrtmg_lw_ini(1006._rb)
       linit_rrtmg = .True.
 
-      if(ldebug .and. myid.eq.0) then
-        do k=nlay,1,-1
-          print *,'rrtm_optprop_lw',k,'tlev',tlev(1,k),'tlay',tlay(1,k),'plev',plev(1,k),'play',play(1,k),'lwp',lwp(1,k), &
-            'reliq',reliq(1,k), 'h2o',h2ovmr(1,k), 'o3' , o3vmr(1,k), 'co2', co2vmr(1,k), 'ch4', ch4vmr(1,k),    &
-            'n2o', n2ovmr(1,k), 'o2' , o2vmr(1,k)
-        enddo
-      endif
+      !if(ldebug .and. myid.eq.0) then
+      !  do k=nlay,1,-1
+      !    print *,'rrtm_optprop_lw',k,'tlev',tlev(1,k),'tlay',tlay(1,k),'plev',plev(1,k),'play',play(1,k),'lwp',lwp(1,k), &
+      !      'reliq',reliq(1,k), 'h2o',h2ovmr(1,k), 'o3' , o3vmr(1,k), 'co2', co2vmr(1,k), 'ch4', ch4vmr(1,k),    &
+      !      'n2o', n2ovmr(1,k), 'o2' , o2vmr(1,k)
+      !  enddo
+      !endif
     endif
 
     call rrtmg_lw &

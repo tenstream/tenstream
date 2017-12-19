@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_tenstream_options
-      use m_data_parameters, only : ireals,iintegers,myid,numnodes,one,i0,imp_comm,mpiint,default_str_len
+      use m_data_parameters, only : ireals,iintegers,one,i0,mpiint,default_str_len
       use m_optprop_parameters, only: lut_basename, coeff_mode
       use m_helper_functions, only: CHKERR
 
@@ -87,6 +87,16 @@ module m_tenstream_options
           integer(mpiint) :: ierr
           logical :: lshow_options=.False.
           logical :: ltenstr_view=.False.
+
+          logical :: lmpi_is_initialized
+          integer(mpiint) :: mpierr, myid, numnodes
+
+          call mpi_initialized( lmpi_is_initialized, ierr); call CHKERR(ierr)
+          if(.not.lmpi_is_initialized) call mpi_init(ierr); call CHKERR(ierr)
+          call MPI_COMM_RANK( mpi_comm_world, myid, mpierr)
+          if(mpierr.ne.0) call mpi_abort(mpi_comm_world, mpierr, ierr)
+          call MPI_Comm_size( mpi_comm_world, numnodes, mpierr)
+          if(mpierr.ne.0) call mpi_abort(mpi_comm_world, mpierr, ierr)
 
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;call CHKERR(ierr)
           if(lshow_options) then
@@ -190,8 +200,5 @@ module m_tenstream_options
             print *,'********************************************************************'
             print *,''
           endif
-
-          call mpi_barrier(imp_comm,ierr)
-
       end subroutine
 end module

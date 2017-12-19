@@ -1,7 +1,7 @@
-@test(npes =[2]) 
+@test(npes =[2])
 subroutine test_tenstream_ex2(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, one, zero, pi, myid
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, one, zero, pi
 
     use m_tenstream, only : init_tenstream, set_angles, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
@@ -16,7 +16,7 @@ subroutine test_tenstream_ex2(this)
     class (MpiTestMethod), intent(inout) :: this
 
     integer(iintegers) :: iter, k, numnodes, comm
-    !integer(iintegers) :: myid
+    integer(iintegers) :: myid
 
     integer(iintegers),parameter :: nxp=10,nyp=10,nv=10
     real(ireals),parameter :: dx=100,dy=dx
@@ -36,11 +36,12 @@ subroutine test_tenstream_ex2(this)
     div_target = [-1.875366,  1.6980000E-03,  8.9445002E-03,  9.2916247E-03,  9.6176248E-03,  9.9483747E-03,  1.0287250E-02,  1.0629000E-02,  1.0525875E-02, -0.1125398]
     dn_target  = [0.0     ,  203.0865,  219.3402,  235.7752,  253.1141,  271.3924,  290.6432,  310.9006,  332.1989,  354.5734,  378.0595]
     up_target  = [203.7094,  219.2596,  235.6834,  253.0133,  271.2819,  290.5224,  310.7687,  332.0553,  354.4171,  377.8448,  390.0775]
-    
+
     dz1d = dz
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
 
     call init_tenstream(comm, nv, nxp, nyp, dx, dy, phi0, theta0, dz1d=dz1d)
 

@@ -585,6 +585,8 @@ program main
   call mpi_comm_rank(PETSC_COMM_WORLD, myid, mpierr)
   call mpi_comm_size(PETSC_COMM_WORLD, numnodes, mpierr)
 
+  call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
+
   print *,'Kind ints',kind(petscint), kind(i0)
   print *,'Kind reals',kind(petscreal), kind(one)
 

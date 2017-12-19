@@ -21,7 +21,7 @@ module f2c_tenstream
 
       use iso_c_binding
 
-      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,imp_comm,myid,mpierr,zero, i0
+      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr, zero, i0
 
       use m_tenstream, only : init_tenstream, set_global_optical_properties, solve_tenstream, destroy_tenstream,&
                             tenstream_get_result, getvecpointer, restorevecpointer, &
@@ -36,7 +36,7 @@ module f2c_tenstream
 
       implicit none
 
-      integer(mpiint) :: ierr
+      integer(mpiint) :: myid, ierr
 
 contains
 
@@ -66,6 +66,7 @@ contains
 
         call init_mpi_data_parameters(comm)
         call read_commandline_options()
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
         if(myid.eq.0) then
 
@@ -125,13 +126,13 @@ contains
 
         real(ireals) :: oalbedo
         real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og, oplanck
-        
+
         oalbedo = albedo
 
         if(myid.eq.0) then
           allocate( okabs  (Nz  ,Nx,Ny) ); okabs   = kabs
           allocate( oksca  (Nz  ,Nx,Ny) ); oksca   = ksca
-          allocate( og     (Nz  ,Nx,Ny) ); og      = g   
+          allocate( og     (Nz  ,Nx,Ny) ); og      = g
           allocate( oplanck(Nz+1,Nx,Ny) ); oplanck = planck
 
           if(any(oplanck.gt.zero)) then
@@ -149,15 +150,16 @@ contains
         endif
       end subroutine
 
-      subroutine tenstr_f2c_solve(edirTOA) bind(c)
+      subroutine tenstr_f2c_solve(comm, edirTOA) bind(c)
         ! solve tenstream equations
         ! optical properties have had to be set and environment had to be initialized
         ! incoming solar radiation need only be set by zeroth node
+        integer(c_int), value :: comm
         real(c_float), value :: edirTOA
         real(ireals) :: oedirTOA
 
         if(myid.eq.0) oedirTOA = edirTOA
-        call imp_bcast(imp_comm, oedirTOA, 0_mpiint)
+        call imp_bcast(comm, oedirTOA, 0_mpiint)
 
         call solve_tenstream(oedirTOA)
       end subroutine
@@ -233,7 +235,7 @@ contains
         Vec :: vec
         real(ireals),allocatable :: res(:,:,:,:)
         type(t_coord) :: C
-        
+
         Vec :: natural, local
         VecScatter :: scatter_context
 
@@ -265,5 +267,5 @@ contains
         call VecDestroy(local,ierr); call CHKERR(ierr)
         call VecDestroy(natural,ierr); call CHKERR(ierr)
       end subroutine
-        
+
 end module

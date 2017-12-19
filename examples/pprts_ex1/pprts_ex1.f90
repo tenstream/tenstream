@@ -1,21 +1,15 @@
 module m_pprts_ex1
-
-  implicit none
-
-  contains
-subroutine pprts_ex1()
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, zero, pi, myid, numnodes
-
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
     use m_pprts, only : init_pprts, set_optical_properties, t_solver, t_solver_3_6, t_solver_8_10, &
       solve_pprts, pprts_get_result, set_angles
     use m_tenstream_options, only: read_commandline_options
 
     use mpi, only : MPI_COMM_WORLD
 
-    implicit none
+  implicit none
 
-    integer(iintegers) :: k
-
+  contains
+subroutine pprts_ex1()
     integer(iintegers),parameter :: nxp=9,nyp=9,nv=2
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=270, theta0=20
@@ -46,10 +40,7 @@ subroutine pprts_ex1()
         stop
     end select
 
-
-
-
-    call init_pprts(MPI_Comm_World, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
+    call init_pprts(mpi_comm_world, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
 
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
@@ -89,8 +80,10 @@ end module
 
 program main
   use m_pprts_ex1
+  integer(mpiint) :: myid, ierr
 
   call pprts_ex1()
+  call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
   if(myid.eq.0) then
     print *,''

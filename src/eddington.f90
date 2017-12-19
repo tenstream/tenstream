@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_eddington
-      use m_data_parameters, only: ireals,iintegers,mpiint,imp_comm,zero,one,pi,ireal128
+      use m_data_parameters, only: ireals,iintegers,zero,one,pi,ireal128
       use m_helper_functions, only: approx,delta_scale_optprop
 
 #ifdef _XLF
@@ -58,7 +58,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 !          print *,'eddington_coeff_rb dtau_in',dtau_in,'dtau',dtau
 
           mu_0_inv = 1._ireal128/mu_0;
-    
+
           b_mmu_0 = 0.5_ireal128 - 0.75_ireal128 * g * mu_0;
 
           bscr = 0.5_ireal128 - 0.375_ireal128 * g;

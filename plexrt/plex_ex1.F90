@@ -4,10 +4,8 @@ module m_mpi_plex_ex1
   use petsc
   use m_helper_functions, only: CHKERR, norm, imp_bcast, determine_normal_direction, spherical_2_cartesian
   use m_data_parameters, only : ireals, iintegers, mpiint, &
-    default_str_len, &
-    i0, i1, i2, i3, i4, i5,  &
-    zero, one,       &
-    init_mpi_data_parameters, myid
+                 default_str_len, i0, i1, i2, i3, i4, i5,  &
+                 zero, one, init_mpi_data_parameters
 
   use m_plex_grid, only: t_plexgrid, load_plex_from_file, &
                        compute_face_geometry, print_dmplex,   &
@@ -36,6 +34,9 @@ module m_mpi_plex_ex1
       integer(iintegers), pointer :: xitoa(:), cell_support(:)
       integer(iintegers) :: geom_offset, iface, icell
 
+      integer(mpiint) :: myid
+
+      call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
       if(myid.eq.0) then
         call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)

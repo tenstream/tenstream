@@ -1,7 +1,7 @@
-@test(npes =[2,1]) 
+@test(npes =[2,1])
 subroutine error_growth_tracking(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, one, zero, myid
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, one, zero
 
     use m_tenstream, only : init_tenstream, set_angles, need_new_solution, &
         set_optical_properties, solve_tenstream, destroy_tenstream, &
@@ -17,7 +17,7 @@ subroutine error_growth_tracking(this)
     class (MpiTestMethod), intent(inout) :: this
 
     integer(iintegers) :: iter, k, numnodes, comm
-    !integer(iintegers) :: myid
+    integer(iintegers) :: myid
 
     integer(iintegers),parameter :: nxp=3,nyp=3,nv=3
     real(ireals),parameter :: dx=100,dy=dx
@@ -36,6 +36,7 @@ subroutine error_growth_tracking(this)
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
 
     call init_mpi_data_parameters(comm)
     call init_tenstream(comm, nv, nxp, nyp, dx, dy, phi0, theta0, dz1d=dz1d)
