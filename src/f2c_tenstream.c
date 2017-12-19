@@ -22,9 +22,9 @@
 #include <petscsys.h>
 #include <mpi.h>
 
-void tenstr_f2c_init(int fcomm, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, float *albedo, int *collapseindex);
-void tenstr_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float *kabs, float *ksca, float *g, float *planck);
-void tenstr_f2c_solve(float edirTOA);
+void tenstr_f2c_init(int fcomm, int solver_id, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, int *collapseindex);
+void tenstr_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float albedo, float *kabs, float *ksca, float *g, float *planck);
+void tenstr_f2c_solve(int fcomm, float edirTOA);
 void tenstr_f2c_destroy();
 void tenstr_f2c_get_result(int Nz,int Nx,int Ny, float *edir, float *edn, float *eup, float *abso);
 
@@ -34,7 +34,8 @@ static const int solveriterations = 1;
 int collapseindex = 1;
 
 int master(int fcomm) {
-  int    Nx=64, Ny=64, Nz=64;
+  int Nx=3, Ny=3, Nz=64;
+  int solver_id=0;
   double dx=100,dy=100, dz=40.414518843273818;
   float phi0=0, theta0=60;
   float albedo=1e-8;
@@ -74,7 +75,7 @@ int master(int fcomm) {
 
       }
     }
-  }             
+  }
 
   for(int j=0;j<Ny;j++) {
     for(int i=0;i<Nx;i++) {
@@ -85,15 +86,15 @@ int master(int fcomm) {
         edir   [ind] =  10;
       }
     }
-  }             
+  }
 
   hhl[Nz] = 0;
-  for(int k=Nz;k>0;k--) 
+  for(int k=Nz;k>0;k--)
     hhl[k-1] = hhl[k]+dz;
 
-  tenstr_f2c_init(fcomm,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0,&albedo, &collapseindex);
-  tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, kabs, ksca, g, planck);
-  tenstr_f2c_solve( 1. );
+  tenstr_f2c_init(fcomm,solver_id,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0, &collapseindex);
+  tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, albedo, kabs, ksca, g, planck);
+  tenstr_f2c_solve(fcomm, 1. );
   tenstr_f2c_get_result(Nz,Nx,Ny, edir,edn,eup,abso);
 
   tenstr_f2c_destroy();
@@ -117,20 +118,21 @@ int master(int fcomm) {
   }
 
   free(hhl   );
-  free(kabs  ); 
-  free(ksca  ); 
-  free(g     ); 
+  free(kabs  );
+  free(ksca  );
+  free(g     );
   free(planck);
   free(edir  );
   free(edn   );
   free(eup   );
-  free(abso  ); 
+  free(abso  );
 
   printf(" finished execution success!\n");
   return 0;
 }
 int slave(int fcomm) {
   int    Nx, Ny, Nz;
+  int solver_id=0;
   double dx,dy;
   float phi0, theta0;
   float albedo;
@@ -146,16 +148,16 @@ int slave(int fcomm) {
   float *eup    = NULL;
   float *abso   = NULL;
 
-  tenstr_f2c_init(fcomm,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0,&albedo, &collapseindex);
-  tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, kabs, ksca, g, planck);
-  tenstr_f2c_solve(1.);
+  tenstr_f2c_init(fcomm,solver_id,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0, &collapseindex);
+  tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, albedo, kabs, ksca, g, planck);
+  tenstr_f2c_solve(fcomm, 1.);
   tenstr_f2c_get_result(Nz,Nx,Ny, edir,edn,eup,abso);
 
   tenstr_f2c_destroy();
   return 0;
 }
 
-int main(int argc, char *argv[]) { 
+int main(int argc, char *argv[]) {
   int        numprocs, myid, fcomm;
 
   MPI_Init(&argc,&argv);
