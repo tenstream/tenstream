@@ -738,12 +738,13 @@ module m_pprts
 
   call VecGetLocalSize(vec,N,ierr)
 
-  if( N .eq. C%dof*C%xm*C%ym*C%zm ) then
+  if( N .eq. C%dof*C%xm*C%ym*C%zm .or. N .eq. C%dof*C%glob_xm*C%glob_ym*C%glob_zm) then
     lghosted=.False.
   else if( N .eq. C%dof*C%gxm*C%gym*C%gzm ) then
     lghosted=.True.
   else
-    stop 'Local Vector dimensions does not conform to DMDA size'
+    print *,'Size N:', N, C%dof*C%xm*C%ym*C%zm, C%dof*C%glob_xm*C%glob_ym*C%glob_zm, C%dof*C%gxm*C%gym*C%gzm
+    stop 'Local Vector dimensions do not conform to DMDA size'
   endif
 
   call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
@@ -2684,14 +2685,6 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 endif
               enddo
 
-
-
-             ! xsrc(E_up   , k   , i   , j   ) = xsrc(E_up   , k   , i   , j   ) +  b0  *(one-sum( v( E_up  *C_diff%dof+i1 : E_up  *C_diff%dof+C_diff%dof )  )  ) *Az
-             ! xsrc(E_dn   , k+1 , i   , j   ) = xsrc(E_dn   , k+1 , i   , j   ) +  b0  *(one-sum( v( E_dn  *C_diff%dof+i1 : E_dn  *C_diff%dof+C_diff%dof )  )  ) *Az
-             ! xsrc(E_le_m , k   , i   , j   ) = xsrc(E_le_m , k   , i   , j   ) +  b0  *(one-sum( v( E_le_m*C_diff%dof+i1 : E_le_m*C_diff%dof+C_diff%dof )  )  ) *Ax
-             ! xsrc(E_ri_m , k   , i+1 , j   ) = xsrc(E_ri_m , k   , i+1 , j   ) +  b0  *(one-sum( v( E_ri_m*C_diff%dof+i1 : E_ri_m*C_diff%dof+C_diff%dof )  )  ) *Ax
-             ! xsrc(E_ba_m , k   , i   , j   ) = xsrc(E_ba_m , k   , i   , j   ) +  b0  *(one-sum( v( E_ba_m*C_diff%dof+i1 : E_ba_m*C_diff%dof+C_diff%dof )  )  ) *Ay
-             ! xsrc(E_fw_m , k   , i   , j+1 ) = xsrc(E_fw_m , k   , i   , j+1 ) +  b0  *(one-sum( v( E_fw_m*C_diff%dof+i1 : E_fw_m*C_diff%dof+C_diff%dof )  )  ) *Ay
             endif ! 1D or Tenstream?
 
           enddo
@@ -3505,27 +3498,32 @@ end subroutine
 
       call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
 
-      if(ldebug) print *,myid,'scatterZerotoDM :: Create Natural Vec'
+      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: Create Natural Vec'
       call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
 
-      if(ldebug) print *,myid,'scatterZerotoDM :: Create scatter ctx'
+      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: Create scatter ctx'
       call VecScatterCreateToZero(natural, scatter_context, local, ierr); call CHKERR(ierr)
 
-      if(myid.eq.0) call f90VecToPetsc(arr, C, local)
+      if(myid.eq.0) then
+        if(ldebug) print *,myid,'scatterZerotoDM :: Copy data from Fortran array to Local Petsc Vec'
+        call VecGetArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
+        xloc = reshape( arr , [ size(arr) ] )
+        call VecRestoreArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
+      endif
 
-      if(ldebug) print *,myid,'scatterZerotoDM :: scatter reverse....'
+      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: scatter reverse....'
       call VecScatterBegin(scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
       call VecScatterEnd  (scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
-      if(ldebug) print *,myid,'scatterZerotoDM :: natural to global....'
+      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: natural to global....'
       call DMDANaturalToGlobalBegin(C%da,natural, INSERT_VALUES, vec, ierr); call CHKERR(ierr)
       call DMDANaturalToGlobalEnd  (C%da,natural, INSERT_VALUES, vec, ierr); call CHKERR(ierr)
 
-      if(ldebug) print *,myid,'scatterZerotoDM :: destroying contexts....'
+      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: destroying contexts....'
       call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
       call VecDestroy(local,ierr); call CHKERR(ierr)
       call VecDestroy(natural,ierr); call CHKERR(ierr)
-      if(ldebug) print *,myid,'scatterZerotoDM :: done....'
+      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: done....'
     end subroutine
 
 
