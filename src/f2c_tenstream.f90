@@ -58,7 +58,7 @@ contains
         real(c_float), intent(inout) :: phi0,theta0
         integer(c_int),intent(inout) :: collapseindex
 
-        integer(iintegers) :: oNx,oNy,oNz,ocollapseindex
+        integer(iintegers) :: osolver_id, oNx, oNy, oNz, ocollapseindex
         real(ireals) :: odx,ody,ophi0,otheta0
         real(ireals),allocatable :: ohhl(:)
 
@@ -75,6 +75,7 @@ contains
         call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
         if(myid.eq.0) then
+          osolver_id = solver_id
           oNx     = Nx
           oNy     = Ny
           oNz     = Nz
@@ -88,6 +89,7 @@ contains
           ohhl = hhl
         endif
 
+        call imp_bcast(comm, osolver_id, 0_mpiint)
         call imp_bcast(comm, oNx    ,0_mpiint)
         call imp_bcast(comm, oNy    ,0_mpiint)
         call imp_bcast(comm, oNz    ,0_mpiint)
@@ -100,6 +102,7 @@ contains
         call imp_bcast(comm, ohhl,0_mpiint)
 
         ! and overwrite input values to propagate values back to caller...
+        solver_id = osolver_id
         Nx     = oNx
         Ny     = oNy
         Nz     = oNz
@@ -197,6 +200,10 @@ contains
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
         call pprts_get_result_toZero(solver,redir,redn,reup,rabso)
+        res_edir = redir(:, 1:Nx, 1:Ny)
+        res_edn  = redn (:, 1:Nx, 1:Ny)
+        res_eup  = reup (:, 1:Nx, 1:Ny)
+        res_abso = rabso(:, 1:Nx, 1:Ny)
 
      end subroutine
 end module
