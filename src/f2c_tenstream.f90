@@ -23,10 +23,6 @@ module f2c_tenstream
 
       use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr, zero, i0
 
-      !use m_tenstream, only : init_tenstream, set_global_optical_properties, solve_tenstream, destroy_tenstream,&
-      !                      tenstream_get_result, getvecpointer, restorevecpointer, &
-      !                      t_coord,C_dir,C_diff,C_one,C_one_atm, C_one_atm1
-
       use m_tenstream_options, only: read_commandline_options
 
       use m_helper_functions, only: imp_bcast,mean, CHKERR
@@ -76,13 +72,13 @@ contains
 
         if(myid.eq.0) then
           osolver_id = solver_id
-          oNx     = Nx
-          oNy     = Ny
-          oNz     = Nz
-          odx     = dx
-          ody     = dy
-          ophi0   = phi0
-          otheta0 = theta0
+          oNx     = int(Nx, kind=iintegers)
+          oNy     = int(Ny, kind=iintegers)
+          oNz     = int(Nz, kind=iintegers)
+          odx     = real(dx    ,kind=ireals)
+          ody     = real(dy    ,kind=ireals)
+          ophi0   = real(phi0  ,kind=ireals)
+          otheta0 = real(theta0,kind=ireals)
           ocollapseindex = collapseindex
 
           allocate( ohhl(size(hhl)) )
@@ -103,13 +99,13 @@ contains
 
         ! and overwrite input values to propagate values back to caller...
         solver_id = osolver_id
-        Nx     = oNx
-        Ny     = oNy
-        Nz     = oNz
-        dx     = odx
-        dy     = ody
-        phi0   = ophi0
-        theta0 = otheta0
+        Nx     = int(oNx, kind=c_int)
+        Ny     = int(oNy, kind=c_int)
+        Nz     = int(oNz, kind=c_int)
+        dx     = real(odx    , kind=c_double)
+        dy     = real(ody    , kind=c_double)
+        phi0   = real(ophi0  , kind=c_float)
+        theta0 = real(otheta0, kind=c_float)
         collapseindex=ocollapseindex
 
         ! Now every process has the correct values
@@ -195,17 +191,16 @@ contains
         real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_edn
         real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_eup
         real(c_float),intent(out),dimension(Nz  ,Nx,Ny) :: res_abso
-        real(ireals),allocatable,dimension(:,:,:) :: res
 
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
         call pprts_get_result_toZero(solver,redir,redn,reup,rabso)
 
         if(solver%myid.eq.0) then
-          res_edir = redir(:, 1:Nx, 1:Ny)
-          res_edn  = redn (:, 1:Nx, 1:Ny)
-          res_eup  = reup (:, 1:Nx, 1:Ny)
-          res_abso = rabso(:, 1:Nx, 1:Ny)
+          res_edir = real(redir(:, 1:Nx, 1:Ny), kind=c_float)
+          res_edn  = real(redn (:, 1:Nx, 1:Ny), kind=c_float)
+          res_eup  = real(reup (:, 1:Nx, 1:Ny), kind=c_float)
+          res_abso = real(rabso(:, 1:Nx, 1:Ny), kind=c_float)
           print *,'tenstr_f2c_get_result result_edir first column', res_edir(:,1,1)
           print *,'tenstr_f2c_get_result redir first column', redir(:,1,1)
         endif
