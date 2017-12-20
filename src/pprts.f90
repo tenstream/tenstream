@@ -3453,9 +3453,9 @@ end subroutine
 subroutine destroy_pprts(solver, lfinalizepetsc)
   class(t_solver)   :: solver
   logical,optional :: lfinalizepetsc
-  logical :: lfinalize = .True.
+  logical :: lfinalize
   integer(iintegers) :: uid
-  if(present(lfinalizepetsc)) lfinalize = lfinalizepetsc
+  lfinalize = get_arg(.False., lfinalizepetsc)
 
   if(solver%linitialized) then
     if(linit_kspdir) then
