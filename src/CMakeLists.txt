@@ -16,7 +16,6 @@ set( general_sources
   "twostream.f90"
   "schwarzschild.f90"
   "tenstream_options.f90"
-  "f2c_tenstream.f90"
   "nca.f90"
   )
 
@@ -31,7 +30,7 @@ set( optprop_sources
 add_library( tenstream STATIC "tenstream.f90" ${general_sources} ${optprop_sources} )
 target_link_libraries( tenstream ${EXTLIB} ${USERLIB} ${LIBS})
 
-add_library( pprts STATIC "pprts.f90" ${general_sources} ${optprop_sources})
+add_library( pprts STATIC "pprts.f90" "f2c_tenstream.f90" ${general_sources} ${optprop_sources})
 target_link_libraries( pprts ${EXTLIB} ${USERLIB} ${LIBS})
 
 file( GLOB streams createLUT_*.f90 )
