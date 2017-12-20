@@ -1467,7 +1467,7 @@ module m_pprts
     solution%lset = .True.
   end subroutine
 
-  !> @brief renormalize fluxes with the size of a face(sides or lid)
+  !> @brief TODO: renormalize fluxes with the size of a face(sides or lid)
   subroutine scale_flx(solver, solution, lWm2_to_W)
     class(t_solver), intent(in)           :: solver
     type(t_state_container),intent(inout) :: solution   !< @param solution container with computed fluxes
@@ -1475,7 +1475,7 @@ module m_pprts
 
     if(solution%lsolar_rad) then
       if(solution%lintegrated_dir .neqv. lWm2_to_W) then
-        call scale_flx_vec(solver, solution%edir, solver%C_dir, lWm2_to_W)
+        call scale_dir_flx_vec(solver, solution%edir, solver%C_dir, lWm2_to_W)
         solution%lintegrated_dir = lWm2_to_W
       endif
     endif
@@ -1485,6 +1485,78 @@ module m_pprts
     endif
 
   contains
+    subroutine scale_dir_flx_vec(solver, v, C, lWm2_to_W)
+      class(t_solver)      :: solver
+      type(tVec)           :: v
+      type(t_coord)        :: C
+      real(ireals),pointer :: xv  (:,:,:,:) =>null()
+      real(ireals),pointer :: xv1d(:)       =>null()
+      integer(iintegers)   :: i,j,k,d,iside
+      PetscReal            :: Ax,Ay,Az, fac
+      logical,intent(in)   :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
+
+      associate(  atm     => solver%atm,    &
+                  C_one1  => solver%C_one1)
+
+      if(solver%myid.eq.0.and.ldebug) print *,'rescaling direct fluxes',C%zm,C%xm,C%ym
+      call getVecPointer(v ,C ,xv1d, xv)
+
+      Az  = atm%dx*atm%dy / solver%dirtop%dof  ! size of a direct stream in m**2
+      if(lWm2_to_W) then
+        fac = Az
+      else
+        fac = one/Az
+      endif
+
+      ! Scaling top faces
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe
+          do k=C%zs,C%ze
+            do iside=1,solver%dirtop%dof
+              d = iside-1
+              xv(d,k,i,j) = xv(d,k,i,j) * fac
+            enddo
+          enddo
+        enddo
+      enddo
+
+      ! Scaling side faces
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe
+          do k=C%zs,C%ze-1
+            if(.not.atm%l1d(atmk(atm, k),i,j)) then
+              ! First the faces in x-direction
+              Ax = atm%dy*atm%dz(k,i,j) / (solver%dirside%dof/2)
+              if(lWm2_to_W) then
+                fac = Ax
+              else
+                fac = one/Ax
+              endif
+              do iside=1,solver%dirside%dof/2
+                d = solver%dirtop%dof + iside-1
+                xv(d,k,i,j) = xv(d,k,i,j) * fac
+              enddo
+
+              ! Then the rest of the faces in y-direction
+              Ay = atm%dy*atm%dz(k,i,j) / (solver%dirside%dof/2)
+              if(lWm2_to_W) then
+                fac = Ay
+              else
+                fac = one/Ay
+              endif
+              do iside=1,solver%dirside%dof/2
+                d = solver%dirtop%dof + solver%dirside%dof/2 + iside-1
+                xv(d,k,i,j) = xv(d,k,i,j) * fac
+              enddo
+            endif
+          enddo
+        enddo
+      enddo
+
+      call restoreVecPointer(v ,C ,xv1d, xv )
+
+      end associate
+    end subroutine
     subroutine scale_flx_vec(solver, v, C, lWm2_to_W)
       class(t_solver)                       :: solver
       Vec                                   :: v
@@ -1499,14 +1571,13 @@ module m_pprts
       PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
       PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
       real(ireals) :: grad(3)  ! is the cos(zenith_angle) of the tilted box in case of topography
-
+      integer(iintegers) :: iside
 
       associate(  atm     => solver%atm,    &
                   C_one1  => solver%C_one1)
 
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C ,xv1d, xv)
-
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!
       !
@@ -1717,7 +1788,7 @@ module m_pprts
       call VecCopy( solution%abso, abso_old, ierr)     ; call CHKERR(ierr)
     endif
 
-    ! make sure to bring the fluxes into [W] for absorption calculation
+    ! make sure to bring the fluxes into [W] before the absorption calculation
     call scale_flx(solver, solution, lWm2_to_W=.True. )
 
     ! update absorption
@@ -1845,7 +1916,7 @@ module m_pprts
         endif
 
         if(solution%lsolar_rad) then
-          do src=i0,i0
+          do src=i0,solver%dirtop%dof-1
             xv_dir(src,C_dir%zs+1:C_dir%ze,i,j) = S(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze)
             xv_dir(src,C_dir%zs           ,i,j) = S(C_one_atm1%zs)
           enddo
@@ -2412,9 +2483,10 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
-    PetscReal :: Az
+    real(ireals) :: fac
     integer(iintegers) :: i,j,src
-    Az = solver%atm%dx*solver%atm%dy/solver%dirtop%dof
+
+    fac = edirTOA * (solver%atm%dx*solver%atm%dy) / solver%dirtop%dof
 
     call VecSet(incSolar,zero,ierr) ;call CHKERR(ierr)
 
@@ -2423,7 +2495,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     do j=solver%C_dir%ys,solver%C_dir%ye
       do i=solver%C_dir%xs,solver%C_dir%xe
         do src=1, solver%dirtop%dof
-          x4d(src-1,solver%C_dir%zs,i,j) = edirTOA* Az* solver%sun%angles(solver%C_dir%zs,i,j)%costheta
+          x4d(src-1,solver%C_dir%zs,i,j) = fac * solver%sun%angles(solver%C_dir%zs,i,j)%costheta
         enddo
       enddo
     enddo
@@ -2557,7 +2629,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k
       row(MatStencil_j,i1) = i      ; row(MatStencil_k,i1) = j       ; row(MatStencil_i,i1) = k+1
 
-      do src=1,1
+      do src=i1,solver%dirtop%dof
         col(MatStencil_c,i1) = src-i1 ! Source may be the upper/lower lid:
         row(MatStencil_c,i1) = src-i1 ! Define transmission towards the lower/upper lid
         call MatSetValuesStencil(A,i1, row,i1, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
@@ -3229,7 +3301,7 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
   integer(iintegers),optional,intent(in)                  :: opt_solution_uid
 
   integer(iintegers)  :: uid, lb_redir
-  integer(iintegers)  :: k, i, j, fi, fj, iside
+  integer(iintegers)  :: k, i, j, fi, fj, fk, iside
   PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
 
@@ -3277,20 +3349,21 @@ subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
     reup = zero
 
     do j = solver%C_diff%ys, solver%C_diff%ye
-      fj = j +1 -solver%C_diff%ys
+      fj = lbound(redn,3) + j - solver%C_diff%ys
       do i = solver%C_diff%xs, solver%C_diff%xe
-        fi = i +1 -solver%C_diff%xs
+        fi = lbound(redn,2) + i - solver%C_diff%xs
         do k = solver%C_diff%zs, solver%C_diff%ze
+          fk = lbound(redn,1) + k - solver%C_diff%zs
           do iside=1,solver%difftop%dof
             if(solver%difftop%is_inward(iside)) then
-              redn(k+1,fi,fj) = redn(k+1,fi,fj) + x4d(iside-1, k, i, j)  ! C indizes in Solver%Cdiff but fortran in redn
+              redn(fk,fi,fj) = redn(fk,fi,fj) + x4d(iside-1, k, i, j)  ! C indizes in Solver%Cdiff but fortran in redn
             else
-              reup(k+1,fi,fj) = reup(k+1,fi,fj) + x4d(iside-1, k, i, j)  ! C indizes in Solver%Cdiff but fortran in redn
+              reup(fk,fi,fj) = reup(fk,fi,fj) + x4d(iside-1, k, i, j)  ! C indizes in Solver%Cdiff but fortran in redn
             endif
           enddo
 
-          reup(k+1, fi, fj) = reup(k+1, fi, fj) / (solver%difftop%dof / 2)
-          redn(k+1, fi, fj) = redn(k+1, fi, fj) / (solver%difftop%dof / 2)
+          reup(fk, fi, fj) = reup(fk, fi, fj) / (solver%difftop%dof / 2)
+          redn(fk, fi, fj) = redn(fk, fi, fj) / (solver%difftop%dof / 2)
         enddo
       enddo
     enddo
