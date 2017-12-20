@@ -192,7 +192,6 @@ contains
       enddo
     endif
 
-
     call pprts_get_result_toZero(solver, fdir0,fdn0,fup0,fdiv0, opt_solution_uid=100)
     call pprts_get_result_toZero(solver, fdir1,fdn1,fup1,fdiv1, opt_solution_uid=280)
 
