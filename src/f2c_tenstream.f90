@@ -47,8 +47,8 @@ contains
         ! but only the zeroth node has to have meaningful values for the arguments except the communicator
         ! all but hhl is overwritten on nonzero nodes
 
-        integer(c_int), value :: comm, solver_id
-        integer(c_int),intent(inout) :: Nx,Ny,Nz
+        integer(c_int), value :: comm
+        integer(c_int),intent(inout) :: solver_id, Nx, Ny, Nz
         real(c_double),intent(inout) :: dx,dy
         real(c_float), intent(in),dimension(Nz+1) :: hhl
         real(c_float), intent(inout) :: phi0,theta0
@@ -98,7 +98,7 @@ contains
         call imp_bcast(comm, ohhl,0_mpiint)
 
         ! and overwrite input values to propagate values back to caller...
-        solver_id = osolver_id
+        solver_id = int(osolver_id, kind=c_int)
         Nx     = int(oNx, kind=c_int)
         Ny     = int(oNy, kind=c_int)
         Nz     = int(oNz, kind=c_int)
@@ -133,14 +133,14 @@ contains
 
       subroutine tenstr_f2c_set_global_optical_properties(Nz, Nx, Ny, albedo, kabs, ksca, g, planck) bind(c)
         integer(c_int), value :: Nx,Ny,Nz
-        real(c_float), value :: albedo
+        real(c_float),intent(in) :: albedo
         real(c_float),intent(in),dimension(Nz  ,Nx,Ny) :: kabs, ksca, g
         real(c_float),intent(in),dimension(Nz+1,Nx,Ny) :: planck
 
         real(ireals) :: oalbedo
         real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og, oplanck
 
-        oalbedo = albedo
+        oalbedo = real(albedo, kind=ireals)
 
         if(solver%myid.eq.0) then
           allocate( okabs  (Nz  ,Nx,Ny) ); okabs   = kabs
@@ -182,19 +182,19 @@ contains
         deallocate(solver)
       end subroutine
 
-      subroutine tenstr_f2c_get_result(Nz,Nx,Ny, res_edir,res_edn,res_eup,res_abso) bind(c)
+      subroutine tenstr_f2c_get_result(Nz,Nx,Ny, res_edn, res_eup, res_abso, res_edir) bind(c)
         ! after solving equations -- retrieve the results for edir,edn,eup and absorption
         ! only zeroth node gets the results back.
 
         integer(c_int), value :: Nx,Ny,Nz
-        real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_edir
         real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_edn
         real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_eup
         real(c_float),intent(out),dimension(Nz  ,Nx,Ny) :: res_abso
+        real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_edir
 
         real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
-        call pprts_get_result_toZero(solver,redir,redn,reup,rabso)
+        call pprts_get_result_toZero(solver,redn,reup,rabso,redir)
 
         if(solver%myid.eq.0) then
           res_edir = real(redir(:, 1:Nx, 1:Ny), kind=c_float)

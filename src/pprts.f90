@@ -1256,11 +1256,6 @@ module m_pprts
       if( lhave_planck ) call extend_arr(global_planck)
     endif
 
-    !if( lhave_kabs   ) allocate( local_kabs   (solver%C_one%zs :solver%C_one%ze ,solver%C_one%xs :solver%C_one%xe , solver%C_one%ys :solver%C_one%ye  ) )
-    !if( lhave_ksca   ) allocate( local_ksca   (solver%C_one%zs :solver%C_one%ze ,solver%C_one%xs :solver%C_one%xe , solver%C_one%ys :solver%C_one%ye  ) )
-    !if( lhave_g      ) allocate( local_g      (solver%C_one%zs :solver%C_one%ze ,solver%C_one%xs :solver%C_one%xe , solver%C_one%ys :solver%C_one%ye  ) )
-    !if( lhave_planck ) allocate( local_planck (solver%C_one1%zs:solver%C_one1%ze,solver%C_one1%xs:solver%C_one1%xe, solver%C_one1%ys:solver%C_one1%ye ) )
-
     ! Scatter global optical properties to MPI nodes
     call local_optprop()
     ! Now global_fields are local to mpi subdomain.
@@ -2122,9 +2117,9 @@ module m_pprts
         do k=C_one%zs,C_one%ze
 
           Volume = Az     * atm%dz(atmk(atm, k),i,j)
+          ! Divergence = Incoming - Outgoing
 
           if(atm%l1d(atmk(atm, k),i,j)) then ! one dimensional i.e. twostream
-            ! Divergence    =                       Incoming                -       Outgoing
             if(solution%lsolar_rad) then
               div(1) = xedir(i0, k, i, j )  - xedir(i0 , k+i1 , i, j )
             else
@@ -2135,15 +2130,10 @@ module m_pprts
             div(3) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
 
             xabso(i0,k,i,j) = sum(div) / Volume
-            !              if(xabso(i0,k,i,j).lt.zero) print *,'1D abso<0 :: ',i,j,k,'::',xabso(i0,k,i,j),'::',div
 
-
-          else                              ! 3D-radiation
-            ! Divergence    =                 Incoming                        -                   Outgoing
-
+          else ! 3D-radiation
             offset = solver%dirtop%dof + solver%dirside%dof*2
 
-            !REMARK div(:) vectore needs the
             if(solution%lsolar_rad) then
 
               xinc = solver%sun%angles(k,i,j)%xinc
@@ -2164,10 +2154,6 @@ module m_pprts
                 src = isrc + solver%dirtop%dof + solver%dirside%dof
                 div2(src) = xedir(src-1, k, i        , j+i1-yinc ) - xedir(src-1, k    , i      , j+yinc )
               enddo
-
-              !div2( 1) = xedir(i0 , k, i         , j         )  - xedir(i0 , k+i1 , i      , j       )
-              !div2( 2) = xedir(i1 , k, i+i1-xinc , j         )  - xedir(i1 , k    , i+xinc , j       )
-              !div2( 3) = xedir(i2 , k, i         , j+i1-yinc )  - xedir(i2 , k    , i      , j+yinc  )
 
             else
               div2(1:offset) = zero
@@ -2201,31 +2187,24 @@ module m_pprts
               endif
             enddo
 
-            !div2( 4) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
-            !div2( 5) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
-            !div2( 6) = ( xediff(E_le_m,k  ,i+1,j  )  - xediff(E_le_m,k  ,i  ,j  )  )
-            !div2( 7) = ( xediff(E_ri_m,k  ,i  ,j  )  - xediff(E_ri_m,k  ,i+1,j  )  )
-            !div2( 8) = ( xediff(E_ba_m,k  ,i  ,j+1)  - xediff(E_ba_m,k  ,i  ,j  )  )
-            !div2( 9) = ( xediff(E_fw_m,k  ,i  ,j  )  - xediff(E_fw_m,k  ,i  ,j+1)  )
-
             xabso(i0,k,i,j) = sum(div2) / Volume
             if( isnan(xabso(i0,k,i,j)) ) then
               print *,'nan in flxdiv',k,i,j,'::',xabso(i0,k,i,j),Volume,'::',div2
             endif
-          endif
+          endif ! 1d/3D
         enddo
       enddo
     enddo
 
-  if(solution%lsolar_rad) then
-    call restoreVecPointer(ledir          ,C_dir ,xedir1d ,xedir )
-    call DMRestoreLocalVector(C_dir%da ,ledir ,ierr) ; call CHKERR(ierr)
-  endif
+    if(solution%lsolar_rad) then
+      call restoreVecPointer(ledir          ,C_dir ,xedir1d ,xedir )
+      call DMRestoreLocalVector(C_dir%da ,ledir ,ierr) ; call CHKERR(ierr)
+    endif
 
-  call restoreVecPointer(lediff         ,C_diff,xediff1d,xediff)
-  call DMRestoreLocalVector(C_diff%da,lediff,ierr) ; call CHKERR(ierr)
+    call restoreVecPointer(lediff         ,C_diff,xediff1d,xediff)
+    call DMRestoreLocalVector(C_diff%da,lediff,ierr) ; call CHKERR(ierr)
 
-  call restoreVecPointer(solution%abso  ,C_one ,xabso1d ,xabso )
+    call restoreVecPointer(solution%abso  ,C_one ,xabso1d ,xabso )
 
   end associate
 end subroutine
@@ -2711,13 +2690,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) + b0 *Az*pi
 
               else
-
                 call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., diff2diff1d, atm%l1d(atmk(atm,k),i,j))
 
                 b0 = atm%planck(atmk(atm,k),i,j) * pi
                 xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
                 xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
-
               endif
 
             else ! Tenstream source terms
