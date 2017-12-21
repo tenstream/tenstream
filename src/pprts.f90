@@ -3271,161 +3271,176 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   end subroutine
 
 
-subroutine pprts_get_result(solver, redir, redn, reup, rabso, opt_solution_uid )
-  class(t_solver) :: solver
-  real(ireals),dimension(:,:,:),intent(inout),allocatable :: redir
-  real(ireals),dimension(:,:,:),intent(out)               :: redn,reup,rabso
-  integer(iintegers),optional,intent(in)                  :: opt_solution_uid
+  subroutine pprts_get_result(solver, redn, reup, rabso, redir, opt_solution_uid )
+    class(t_solver) :: solver
+    real(ireals),dimension(:,:,:),intent(inout),allocatable          :: redn,reup,rabso
+    real(ireals),dimension(:,:,:),intent(inout),allocatable,optional :: redir
+    integer(iintegers),optional,intent(in) :: opt_solution_uid
 
-  integer(iintegers)  :: uid, lb_redir
-  integer(iintegers)  :: k, i, j, fi, fj, fk, iside
-  PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+    integer(iintegers)  :: uid
+    integer(iintegers)  :: k, iside
+    PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
+    uid = get_arg(0, opt_solution_uid)
+    if(.not.solver%lenable_solutions_err_estimates) uid = 0
 
-  if(solver%lenable_solutions_err_estimates .and. present(opt_solution_uid)) then
-    uid = opt_solution_uid
+    if(ldebug .and. solver%myid.eq.0) print *,'calling pprts_get_result',present(redir),'for uid',uid
 
-  else
-    uid = i0 ! default solution is uid==0
-  endif
+    if(solver%solutions(uid)%lchanged) stop 'tried to get results from unrestored solution -- call restore_solution first'
 
-  if(ldebug .and. solver%myid.eq.0) print *,'calling pprts_get_result',allocated(redir),'for uid',uid
+    if(allocated(redn )) stop 'pprts_get_result :: you should not call it with an allocated redn  array'
+    if(allocated(reup )) stop 'pprts_get_result :: you should not call it with an allocated reup  array'
+    if(allocated(rabso)) stop 'pprts_get_result :: you should not call it with an allocated rabso array'
 
-  if(solver%solutions(uid)%lchanged) stop 'tried to get results from unrestored solution -- call restore_solution first'
+    if(present(redir)) then
+      if(allocated(redir)) stop 'pprts_get_result :: you should not call it with an allocated redir array'
+      allocate(redir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym))
 
-  if(allocated(redir)) then
-    if( .not. solver%solutions(uid)%lsolar_rad ) then
-      redir = zero
-    else
-      if( solver%solutions(uid)%lintegrated_dir ) stop 'tried to get result from integrated result vector(dir)'
-      call getVecPointer(solver%solutions(uid)%edir, solver%C_dir, x1d, x4d)
-
-      if(solver%atm%lcollapse) then
-        stop 'pprts_get_result :: lcollapse needs to be implemented'
+      if( .not. solver%solutions(uid)%lsolar_rad ) then
+        print *,'Hey, You called pprts_get_result for uid',uid,'but in this particular band we dont have direct radiation calculated... I will return with edir=0 but are you sure this is what you intended?'
+        redir = zero
       else
-        redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1)/solver%dirtop%dof  ! average of direct radiation of all fluxes through top faces
-      endif
-      if(ldebug) then
-        if(solver%myid.eq.0) print *,'Edir vertically first column',redir(:,1,1)
-        if(any(redir.lt.-one)) then
-          print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
-          call exit(1)
+        if( solver%solutions(uid)%lintegrated_dir ) stop 'tried to get result from integrated result vector(dir)'
+        if(solver%atm%lcollapse) stop 'pprts_get_result :: lcollapse needs to be implemented'
+
+        call getVecPointer(solver%solutions(uid)%edir, solver%C_dir, x1d, x4d)
+        redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / solver%dirtop%dof  ! average of direct radiation of all fluxes through top faces
+        call restoreVecPointer(solver%solutions(uid)%edir,solver%C_dir,x1d,x4d)
+
+        if(ldebug) then
+          if(solver%myid.eq.0) print *,'Edir vertically first column',redir(:, lbound(redir,2), lbound(redir,3))
+          if(any(redir.lt.-one)) then
+            print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
+            call exit(1)
+          endif
         endif
       endif
-      call restoreVecPointer(solver%solutions(uid)%edir,solver%C_dir,x1d,x4d)
     endif
-  endif
 
-  if(solver%solutions(uid)%lintegrated_diff) stop 'tried to get result from integrated result vector(diff)'
-  call getVecPointer(solver%solutions(uid)%ediff, solver%C_diff, x1d, x4d)
+    if(solver%solutions(uid)%lintegrated_diff) stop 'tried to get result from integrated result vector(diff)'
 
-  if(solver%atm%lcollapse) then
+    allocate(redn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    allocate(reup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+
+    if(solver%atm%lcollapse) then
       stop 'pprts_get_result :: lcollapse needs to be implemented'
-  else
-    redn = zero
-    reup = zero
-
-    do j = solver%C_diff%ys, solver%C_diff%ye
-      fj = lbound(redn,3) + j - solver%C_diff%ys
-      do i = solver%C_diff%xs, solver%C_diff%xe
-        fi = lbound(redn,2) + i - solver%C_diff%xs
-        do k = solver%C_diff%zs, solver%C_diff%ze
-          fk = lbound(redn,1) + k - solver%C_diff%zs
-          do iside=1,solver%difftop%dof
-            if(solver%difftop%is_inward(iside)) then
-              redn(fk,fi,fj) = redn(fk,fi,fj) + x4d(iside-1, k, i, j)  ! C indizes in Solver%Cdiff but fortran in redn
-            else
-              reup(fk,fi,fj) = reup(fk,fi,fj) + x4d(iside-1, k, i, j)  ! C indizes in Solver%Cdiff but fortran in redn
-            endif
-          enddo
-
-          reup(fk, fi, fj) = reup(fk, fi, fj) / (solver%difftop%dof / 2)
-          redn(fk, fi, fj) = redn(fk, fi, fj) / (solver%difftop%dof / 2)
-        enddo
+    else
+      redn = zero
+      reup = zero
+      call getVecPointer(solver%solutions(uid)%ediff, solver%C_diff, x1d, x4d)
+      do iside=1,solver%difftop%dof
+        if(solver%difftop%is_inward(iside)) then
+          redn = redn + x4d(iside-1, :, :, :)
+        else
+          reup = reup + x4d(iside-1, :, :, :)
+        endif
       enddo
-    enddo
-  endif
-
-  if(solver%myid.eq.0 .and. ldebug .and. allocated(redir)) print *,'surface Edir',mean(redir(ubound(redir,1),:,:))
-  if(solver%myid.eq.0 .and. ldebug) print *,'surface Edn',mean(redn(ubound(redn,1), :,:))
-  if(solver%myid.eq.0 .and. ldebug) print *,'surface Eup',mean(reup(ubound(redn,1), :,:))
-
-  if(ldebug .and. solver%solutions(uid)%lsolar_rad) then
-    if(any(redn.lt.-one)) then
-      print *,'Found radiation smaller than 0 in edn result... that should not happen',minval(redn)
-      call exit(1)
+      call restoreVecPointer(solver%solutions(uid)%ediff,solver%C_diff,x1d,x4d)
+      reup = reup / (solver%difftop%dof / 2)
+      redn = redn / (solver%difftop%dof / 2)
     endif
-    if(any(reup.lt.-one)) then
-      print *,'Found radiation smaller than 0 in eup result... that should not happen',minval(reup)
-      call exit(1)
-    endif
-  endif!ldebug
-  call restoreVecPointer(solver%solutions(uid)%ediff,solver%C_diff,x1d,x4d)
 
-  call getVecPointer(solver%solutions(uid)%abso, solver%C_one, x1d, x4d)
-  if(solver%atm%lcollapse) then
+    if(solver%myid.eq.0 .and. ldebug .and. present(redir)) &
+      print *,'mean surface Edir',mean(redir(ubound(redir,1),:,:))
+    if(solver%myid.eq.0 .and. ldebug) print *,'mean surface Edn',mean(redn(ubound(redn,1), :,:))
+    if(solver%myid.eq.0 .and. ldebug) print *,'mean surface Eup',mean(reup(ubound(reup,1), :,:))
+
+    if(ldebug .and. solver%solutions(uid)%lsolar_rad) then
+      if(any(redn.lt.-one)) then
+        print *,'Found radiation smaller than 0 in edn result... that should not happen',minval(redn)
+        call exit(1)
+      endif
+      if(any(reup.lt.-one)) then
+        print *,'Found radiation smaller than 0 in eup result... that should not happen',minval(reup)
+        call exit(1)
+      endif
+    endif
+
+    allocate(rabso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+    call getVecPointer(solver%solutions(uid)%abso, solver%C_one, x1d, x4d)
+    if(solver%atm%lcollapse) then
       rabso(1:atmk(solver%atm, solver%C_one%zs)+1, :, :) = zero
       rabso(atmk(solver%atm, solver%C_one%zs)+2 :solver%C_one_atm%ze+1, :, :) = x4d(i0,solver%C_one%zs+1:solver%C_one%ze,:,:)
-  else
+    else
       rabso = x4d(i0,:,:,:)
-  endif
-  call restoreVecPointer(solver%solutions(uid)%abso,solver%C_one,x1d,x4d)
-end subroutine
+    endif
+    call restoreVecPointer(solver%solutions(uid)%abso,solver%C_one,x1d,x4d)
+    if(solver%myid.eq.0 .and. ldebug) print *,'get_result done'
+  end subroutine
 
-      subroutine pprts_get_result_toZero(solver,res_edir,res_edn,res_eup,res_abso,opt_solution_uid)
-        ! after solving equations -- retrieve the results for edir,edn,eup and absorption
-        ! only zeroth node gets the results back.
-        class(t_solver)   :: solver
+  subroutine pprts_get_result_toZero(solver, gedn, geup, gabso, gedir, opt_solution_uid)
+    ! after solving equations -- retrieve the results for edir,edn,eup and absorption
+    ! only zeroth node gets the results back.
+    class(t_solver)   :: solver
 
-        real(ireals),intent(out),dimension(:,:,:),allocatable :: res_edir
-        real(ireals),intent(out),dimension(:,:,:),allocatable :: res_edn
-        real(ireals),intent(out),dimension(:,:,:),allocatable :: res_eup
-        real(ireals),intent(out),dimension(:,:,:),allocatable :: res_abso
-        integer(iintegers),optional,intent(in)    :: opt_solution_uid
+    real(ireals),intent(inout),dimension(:,:,:),allocatable :: gedn
+    real(ireals),intent(inout),dimension(:,:,:),allocatable :: geup
+    real(ireals),intent(inout),dimension(:,:,:),allocatable :: gabso
+    real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: gedir
+    integer(iintegers),optional,intent(in) :: opt_solution_uid
 
-        real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
+    real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
+    if(solver%myid.eq.0) then
+      call check_arr_size(solver%C_one_atm1, gedn )
+      call check_arr_size(solver%C_one_atm1, geup )
+      call check_arr_size(solver%C_one_atm , gabso)
+      if(present(gedir)) call check_arr_size(solver%C_one_atm1, gedir)
+    endif
 
-        allocate( redir(solver%C_one_atm1%zs:solver%C_one_atm1%ze, solver%C_dir%xs :solver%C_dir%xe , solver%C_dir%ys :solver%C_dir%ye   )); redir=0
-        allocate( redn (solver%C_one_atm1%zs:solver%C_one_atm1%ze, solver%C_diff%xs:solver%C_diff%xe, solver%C_diff%ys:solver%C_diff%ye  )); redn =0
-        allocate( reup (solver%C_one_atm1%zs:solver%C_one_atm1%ze, solver%C_diff%xs:solver%C_diff%xe, solver%C_diff%ys:solver%C_diff%ye  )); reup =0
-        allocate( rabso(solver%C_one_atm%zs :solver%C_one_atm%ze , solver%C_one%xs :solver%C_one%xe , solver%C_one%ys :solver%C_one%ye   )); rabso=0
+    if(present(gedir)) then
+      call pprts_get_result(solver,redn,reup,rabso,redir=redir,opt_solution_uid=opt_solution_uid)
+      call exchange_var(solver%C_one_atm1, redir, gedir)
+    else
+      call pprts_get_result(solver,redn,reup,rabso,opt_solution_uid=opt_solution_uid)
+    endif
 
-        call pprts_get_result(solver,redir,redn,reup,rabso,opt_solution_uid=opt_solution_uid)
+    call exchange_var(solver%C_one_atm1, redn , gedn )
+    call exchange_var(solver%C_one_atm1, reup , geup )
+    call exchange_var(solver%C_one_atm , rabso, gabso)
 
-        call exchange_var(solver%C_one_atm1, redir, res_edir)
-        call exchange_var(solver%C_one_atm1, redn , res_edn )
-        call exchange_var(solver%C_one_atm1, reup , res_eup )
-        call exchange_var(solver%C_one_atm , rabso, res_abso)
+    if(solver%myid.eq.0 .and. ldebug) then
+      print *,'Retrieving results:'
+      if(present(gedir)) print *,sum(gedir)/size(gedir)
+      print *,sum(gedn) /size(gedn)
+      print *,sum(geup) /size(geup)
+      print *,sum(gabso)/size(gabso)
+    endif
 
-        if(solver%myid.eq.0 .and. ldebug) then
-          print *,'Retrieving results:',shape(res_edir)
-          print *,sum(res_edir)/size(res_edir)
-          print *,sum(res_edn) /size(res_edn)
-          print *,sum(res_eup) /size(res_eup)
-          print *,sum(res_abso)/size(res_abso)
+  contains
+    subroutine exchange_var(C, inp, outp)
+      type(t_coord),intent(in) :: C
+      real(ireals),intent(in), allocatable :: inp(:,:,:) ! local array from get_result
+      real(ireals),intent(inout),allocatable :: outp(:,:,:) ! global sized array on rank 0
+
+      type(tVec) :: vec, lvec_on_zero
+      print *,solver%myid,'exchange_var',allocated(inp), allocated(outp)
+      print *,solver%myid,'exchange_var shape',shape(inp)
+
+      call DMGetGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
+      call f90VecToPetsc(inp, C, vec)
+      call petscGlobalVecToZero(vec, C, lvec_on_zero)
+      call DMRestoreGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
+
+      if(solver%myid.eq.0) then
+        call petscVecToF90(lvec_on_zero, C, outp, opt_l_only_on_rank0=.True.)
+        call VecDestroy(lvec_on_zero, ierr); call CHKERR(ierr)
+      endif
+    end subroutine
+    subroutine check_arr_size(C,inp)
+      type(t_coord),intent(in) :: C
+      real(ireals),intent(in), allocatable :: inp(:,:,:)
+      if(allocated(inp)) then
+        if(size(inp).ne.C%dof*C%glob_zm*C%glob_xm*C%glob_ym) then
+          print *,'pprts_get_result_toZero was called with an already allocated output array but it has the wrong size.'
+          print *,'while I could just re-allocate it, this may not be just what you intended. Please do that yourself.'
+          print *,'Size of global Dimensions of simulation:',C%dof*C%glob_zm*C%glob_xm*C%glob_ym, '.vs. your input:',size(inp)
+          stop 'pprts_get_result_toZero :: should not be called with already allocated array with wrong size'
         endif
+      endif
+    end subroutine
 
-        contains
-            subroutine exchange_var(C, inp, outp)
-                type(t_coord),intent(in) :: C
-                real(ireals),intent(in) :: inp(:,:,:) ! local array from get_result
-                real(ireals),intent(out),allocatable :: outp(:,:,:) ! global sized array on rank 0
-
-                type(tVec) :: vec, lvec_on_zero
-
-                call DMGetGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
-                call f90VecToPetsc(inp, C, vec)
-                call petscGlobalVecToZero(vec, C, lvec_on_zero)
-                call DMRestoreGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
-
-                if(solver%myid.eq.0) then
-                  call petscVecToF90(lvec_on_zero, C, outp, opt_l_only_on_rank0=.True.)
-                  call VecDestroy(lvec_on_zero, ierr); call CHKERR(ierr)
-                endif
-            end subroutine
-
-        end subroutine
+  end subroutine
 
 subroutine destroy_pprts(solver, lfinalizepetsc)
   class(t_solver)   :: solver
@@ -3601,22 +3616,26 @@ end subroutine
       if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
 
       if(.not.l_only_on_rank0) then
-        call getVecPointer(vec, C, x1d, x4d)
-        allocate(arr(C%dof,C%zm,C%xm,C%ym))
-        arr = x4d
-        call restoreVecPointer(vec, C, x1d, x4d)
         call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+        if(.not.allocated(arr)) allocate(arr(C%dof, C%zm, C%xm, C%ym))
       else
-        allocate(arr(C%dof, C%glob_zm, C%glob_xm, C%glob_ym))
-        call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
-        arr = reshape( x1d, (/ C%dof, C%glob_zm, C%glob_xm, C%glob_ym /) )
-        call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
         call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
+        if(.not.allocated(arr)) allocate(arr(C%dof, C%glob_zm, C%glob_xm, C%glob_ym))
       endif
 
       if(vecsize.ne.size(arr)) then
         print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
         stop 'petscVecToF90 Vecsizes dont match!'
+      endif
+
+      if(.not.l_only_on_rank0) then
+        call getVecPointer(vec, C, x1d, x4d)
+        arr = x4d
+        call restoreVecPointer(vec, C, x1d, x4d)
+      else
+        call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+        arr = reshape( x1d, (/ C%dof, C%glob_zm, C%glob_xm, C%glob_ym /) )
+        call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
       endif
     end subroutine
     subroutine petscVecToF90_3d(vec, C, arr, opt_l_only_on_rank0)
@@ -3640,26 +3659,29 @@ end subroutine
 
       if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
 
-      if(allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
-
       if(.not.l_only_on_rank0) then
-        call getVecPointer(vec, C, x1d, x4d)
-        allocate(arr(C%zm,C%xm,C%ym))
-        arr = x4d(i0,:,:,:)
-        call restoreVecPointer(vec, C, x1d, x4d)
         call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+        if(.not.allocated(arr)) allocate(arr(C%zm,C%xm,C%ym))
       else
-        allocate(arr(C%glob_zm, C%glob_xm, C%glob_ym))
-        call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
-        arr = reshape( x1d, (/ C%glob_zm, C%glob_xm, C%glob_ym /) )
-        call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
         call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
+        if(.not.allocated(arr)) allocate(arr(C%glob_zm, C%glob_xm, C%glob_ym))
       endif
 
       if(vecsize.ne.size(arr)) then
         print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
         stop 'petscVecToF90 Vecsizes dont match!'
       endif
+
+      if(.not.l_only_on_rank0) then
+        call getVecPointer(vec, C, x1d, x4d)
+        arr = x4d(i0,:,:,:)
+        call restoreVecPointer(vec, C, x1d, x4d)
+      else
+        call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+        arr = reshape( x1d, (/ C%glob_zm, C%glob_xm, C%glob_ym /) )
+        call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+      endif
+
     end subroutine
 
 

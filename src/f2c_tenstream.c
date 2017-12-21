@@ -22,11 +22,11 @@
 #include <petscsys.h>
 #include <mpi.h>
 
-void tenstr_f2c_init(int fcomm, int solver_id, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, int *collapseindex);
-void tenstr_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float albedo, float *kabs, float *ksca, float *g, float *planck);
+void tenstr_f2c_init(int fcomm, int *solver_id, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, int *collapseindex);
+void tenstr_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float *albedo, float *kabs, float *ksca, float *g, float *planck);
 void tenstr_f2c_solve(int fcomm, float edirTOA);
 void tenstr_f2c_destroy();
-void tenstr_f2c_get_result(int Nz,int Nx,int Ny, float *edir, float *edn, float *eup, float *abso);
+void tenstr_f2c_get_result(int Nz,int Nx,int Ny, float *edn, float *eup, float *abso, float *edir);
 
 static char help[] = "This is the C wrapper interface to the Tenstream solver environment.\n\n";
 
@@ -38,7 +38,7 @@ int master(int fcomm) {
   int solver_id=0;
   double dx=100,dy=100, dz=40.414518843273818;
   float phi0=0, theta0=60;
-  float albedo=1e-8;
+  float albedo=.2;
 
   float *hhl   = (float *)malloc((Nz+1) *sizeof(float) );
 
@@ -92,10 +92,10 @@ int master(int fcomm) {
   for(int k=Nz;k>0;k--)
     hhl[k-1] = hhl[k]+dz;
 
-  tenstr_f2c_init(fcomm,solver_id,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0, &collapseindex);
-  tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, albedo, kabs, ksca, g, planck);
+  tenstr_f2c_init(fcomm,&solver_id,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0, &collapseindex);
+  tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, &albedo, kabs, ksca, g, planck);
   tenstr_f2c_solve(fcomm, 1. );
-  tenstr_f2c_get_result(Nz,Nx,Ny, edir,edn,eup,abso);
+  tenstr_f2c_get_result(Nz,Nx,Ny, edn, eup, abso, edir);
 
   tenstr_f2c_destroy();
 
@@ -131,11 +131,11 @@ int master(int fcomm) {
   return 0;
 }
 int slave(int fcomm) {
-  int    Nx, Ny, Nz;
+  int Nx, Ny, Nz;
   int solver_id=0;
   double dx,dy;
   float phi0, theta0;
-  float albedo;
+  float *albedo = NULL;
 
   float *kabs   = NULL;
   float *ksca   = NULL;
@@ -148,10 +148,10 @@ int slave(int fcomm) {
   float *eup    = NULL;
   float *abso   = NULL;
 
-  tenstr_f2c_init(fcomm,solver_id,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0, &collapseindex);
+  tenstr_f2c_init(fcomm,&solver_id,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0, &collapseindex);
   tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, albedo, kabs, ksca, g, planck);
   tenstr_f2c_solve(fcomm, 1.);
-  tenstr_f2c_get_result(Nz,Nx,Ny, edir,edn,eup,abso);
+  tenstr_f2c_get_result(Nz,Nx,Ny, edn, eup, abso, edir);
 
   tenstr_f2c_destroy();
   return 0;
