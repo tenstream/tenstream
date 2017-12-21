@@ -696,9 +696,9 @@ module m_helper_functions
       endif
     end function
     function get_arg_ireals(default_value, opt_arg) result(arg)
-      integer(ireals) :: arg
-      integer(ireals), intent(in) :: default_value
-      integer(ireals), intent(in), optional :: opt_arg
+      real(ireals) :: arg
+      real(ireals), intent(in) :: default_value
+      real(ireals), intent(in), optional :: opt_arg
       if(present(opt_arg)) then
         arg = opt_arg
       else
