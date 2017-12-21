@@ -140,9 +140,8 @@ contains
         real(ireals) :: oalbedo
         real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og, oplanck
 
-        oalbedo = real(albedo, kind=ireals)
-
         if(solver%myid.eq.0) then
+          oalbedo = real(albedo, kind=ireals)
           allocate( okabs  (Nz  ,Nx,Ny) ); okabs   = kabs
           allocate( oksca  (Nz  ,Nx,Ny) ); oksca   = ksca
           allocate( og     (Nz  ,Nx,Ny) ); og      = g
@@ -159,7 +158,7 @@ contains
           print *,'mean g     ',sum(og)     /size(og)
           print *,'mean planck',sum(oplanck)/size(oplanck)
         else !slave
-          call set_global_optical_properties(solver, oalbedo)
+          call set_global_optical_properties(solver)
         endif
       end subroutine
 

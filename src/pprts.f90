@@ -1227,21 +1227,20 @@ module m_pprts
         end subroutine
   end subroutine
 
-  subroutine set_global_optical_properties(solver, albedo, global_kabs, global_ksca, global_g, global_planck)
+  subroutine set_global_optical_properties(solver, global_albedo, global_kabs, global_ksca, global_g, global_planck)
     class(t_solver),intent(in) :: solver
-    real(ireals),intent(inout) :: albedo
+    real(ireals),intent(inout),optional :: global_albedo
     real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_kabs, global_ksca, global_g
     real(ireals),intent(inout),dimension(:,:,:),allocatable,optional :: global_planck
     real(ireals),dimension(:,:,:),allocatable :: local_kabs, local_ksca, local_g
     real(ireals),dimension(:,:,:),allocatable :: local_planck
+    real(ireals) :: local_albedo
     logical :: lhave_planck,lhave_kabs,lhave_ksca,lhave_g
 
     if(.not.solver%linitialized) then
       print *,solver%myid,'You tried to set global optical properties but tenstream environment seems not to be initialized.... please call init first!'
       call exit(1)
     endif
-
-    call imp_bcast(solver%comm, albedo, 0_mpiint)
 
     lhave_kabs   = present(global_kabs  ); call imp_bcast(solver%comm, lhave_kabs  , 0_mpiint)
     lhave_ksca   = present(global_ksca  ); call imp_bcast(solver%comm, lhave_ksca  , 0_mpiint)
@@ -1250,6 +1249,7 @@ module m_pprts
 
     ! Make sure that our domain has at least 3 entries in each dimension.... otherwise violates boundary conditions
     if(solver%myid.eq.0) then
+      if(present(global_albedo)) local_albedo = global_albedo
       if( lhave_kabs   ) call extend_arr(global_kabs)
       if( lhave_ksca   ) call extend_arr(global_ksca)
       if( lhave_g      ) call extend_arr(global_g)
@@ -1261,9 +1261,9 @@ module m_pprts
     ! Now global_fields are local to mpi subdomain.
 
     if(lhave_planck) then
-      call set_optical_properties(solver, albedo, local_kabs, local_ksca, local_g, local_planck)
+      call set_optical_properties(solver, local_albedo, local_kabs, local_ksca, local_g, local_planck)
     else
-      call set_optical_properties(solver, albedo, local_kabs, local_ksca, local_g)
+      call set_optical_properties(solver, local_albedo, local_kabs, local_ksca, local_g)
     endif
 
 
@@ -1273,6 +1273,8 @@ module m_pprts
 
       if(solver%myid.eq.0.and.ldebug .and. lhave_kabs) &
         print *,solver%myid,'copying optprop: global to local :: shape kabs',shape(global_kabs),'xstart/end',solver%C_one_atm%xs,solver%C_one_atm%xe,'ys/e',solver%C_one_atm%ys,solver%C_one_atm%ye
+
+      call imp_bcast(solver%comm, local_albedo, 0_mpiint)
 
       call DMGetGlobalVector(solver%C_one_atm%da, local_vec, ierr) ; call CHKERR(ierr)
 
