@@ -197,10 +197,10 @@ contains
         call pprts_get_result_toZero(solver,redn,reup,rabso,redir)
 
         if(solver%myid.eq.0) then
-          res_edir = real(redir(:, 1:Nx, 1:Ny), kind=c_float)
           res_edn  = real(redn (:, 1:Nx, 1:Ny), kind=c_float)
           res_eup  = real(reup (:, 1:Nx, 1:Ny), kind=c_float)
           res_abso = real(rabso(:, 1:Nx, 1:Ny), kind=c_float)
+          res_edir = real(redir(:, 1:Nx, 1:Ny), kind=c_float)
           print *,'tenstr_f2c_get_result result_edir first column', res_edir(:,1,1)
           print *,'tenstr_f2c_get_result redir first column', redir(:,1,1)
         endif

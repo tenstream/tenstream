@@ -59,13 +59,7 @@ subroutine pprts_ex1()
 
     call solve_pprts(solver, incSolar)
 
-
-    allocate(fdir (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fdn  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fup  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fdiv (solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
-
-    call pprts_get_result(solver, fdir,fdn,fup,fdiv)
+    call pprts_get_result(solver, fdn,fup,fdiv,fdir)
 
     print *,'edir', fdir(:, nxp/2,nyp/2)
     print *,'edn:', fdn(:, nxp/2,nyp/2)
