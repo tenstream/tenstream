@@ -15,7 +15,8 @@ module m_icon_plexgrid
   public :: t_plexgrid, read_icon_grid_file, load_plex_from_file, &
     compute_face_geometry, setup_edir_dmplex, print_dmplex,       &
     setup_abso_dmplex, compute_edir_absorption, create_edir_mat,  &
-    TOP_BOT_FACE, SIDE_FACE
+    TOP_BOT_FACE, SIDE_FACE,                                      &
+    decompose_icon_grid
 
 
   logical, parameter :: ldebug=.True.
@@ -69,17 +70,21 @@ module m_icon_plexgrid
         if (ldebug) print *,'Reading Icon plexgrid File:', trim(fname)
         varname(1) = fname
 
-        varname(2) = 'vertex_of_cell'; call ncload(varname, plexgrid%icon_vertex_of_cell, ierr); call CHKERR(ierr)
-        varname(2) = 'edge_of_cell'  ; call ncload(varname, plexgrid%icon_edge_of_cell  , ierr); call CHKERR(ierr)
-        varname(2) = 'edge_vertices' ; call ncload(varname, plexgrid%icon_edge_vertices , ierr); call CHKERR(ierr)
-        varname(2) = 'cell_index'    ; call ncload(varname, plexgrid%icon_cell_index    , ierr); call CHKERR(ierr)
-        varname(2) = 'edge_index'    ; call ncload(varname, plexgrid%icon_edge_index    , ierr); call CHKERR(ierr)
-        varname(2) = 'vertex_index'  ; call ncload(varname, plexgrid%icon_vertex_index  , ierr); call CHKERR(ierr)
-        varname(2) = 'cell_sea_land_mask'  ; call ncload(varname, plexgrid%icon_cell_sea_land_mask  , ierr); call CHKERR(ierr)
-        varname(2) = 'cartesian_x_vertices'; call ncload(varname, plexgrid%icon_cartesian_x_vertices, ierr); call CHKERR(ierr)
-        varname(2) = 'cartesian_y_vertices'; call ncload(varname, plexgrid%icon_cartesian_y_vertices, ierr); call CHKERR(ierr)
-        varname(2) = 'cartesian_z_vertices'; call ncload(varname, plexgrid%icon_cartesian_z_vertices, ierr); call CHKERR(ierr)
+        varname(2) = 'vertex_of_cell'       ; call ncload(varname, plexgrid%icon_vertex_of_cell, ierr)       ; call CHKERR(ierr)
+        varname(2) = 'edge_of_cell'         ; call ncload(varname, plexgrid%icon_edge_of_cell  , ierr)       ; call CHKERR(ierr)
+        varname(2) = 'edge_vertices'        ; call ncload(varname, plexgrid%icon_edge_vertices , ierr)       ; call CHKERR(ierr)
+        varname(2) = 'cell_index'           ; call ncload(varname, plexgrid%icon_cell_index    , ierr)       ; call CHKERR(ierr)
+        varname(2) = 'edge_index'           ; call ncload(varname, plexgrid%icon_edge_index    , ierr)       ; call CHKERR(ierr)
+        varname(2) = 'vertex_index'         ; call ncload(varname, plexgrid%icon_vertex_index  , ierr)       ; call CHKERR(ierr)
+        varname(2) = 'cell_sea_land_mask'   ; call ncload(varname, plexgrid%icon_cell_sea_land_mask  , ierr) ; call CHKERR(ierr)
+        varname(2) = 'cartesian_x_vertices' ; call ncload(varname, plexgrid%icon_cartesian_x_vertices, ierr) ; call CHKERR(ierr)
+        varname(2) = 'cartesian_y_vertices' ; call ncload(varname, plexgrid%icon_cartesian_y_vertices, ierr) ; call CHKERR(ierr)
+        varname(2) = 'cartesian_z_vertices' ; call ncload(varname, plexgrid%icon_cartesian_z_vertices, ierr) ; call CHKERR(ierr)
       endif
+
+      plexgrid%Nfaces2d = size(plexgrid%icon_cell_index)
+      plexgrid%Nedges2d = size(plexgrid%icon_edge_index)
+      plexgrid%Nvertices2d = size(plexgrid%icon_vertex_index)
 
       if (ldebug) then
         print *,'shape vertex of cell', shape(plexgrid%icon_vertex_of_cell), size(plexgrid%icon_vertex_of_cell),'::', &
@@ -683,6 +688,137 @@ module m_icon_plexgrid
 
       call bmc_wedge_5_5%get_coeff(PETSC_COMM_SELF, bg, src, .True., &
         phi, theta, dx, dy, dz, S, T, S_tol, T_tol, inp_atol=1e-2_ireals, inp_rtol=1e-1_ireals)
+    end subroutine
+
+    subroutine decompose_icon_grid(plex, numnodes)
+      type(t_plexgrid),intent(inout) :: plex
+      integer(iintegers), intent(in) :: numnodes
+      integer(iintegers) :: i, icell, ie, iedge, iiter
+
+      integer(iintegers) :: cellowner(plex%Nfaces2d), vertexowner(plex%Nvertices2d), edgeowner(plex%Nedges2d)
+      integer(iintegers) :: cellsofedge(2,plex%Nedges2d),neighborcells(3,plex%Nfaces2d)
+
+      integer(iintegers) :: area(numnodes), ichange
+      logical :: lwin
+
+      if(.not. allocated(plex%icon_cell_index)) stop 'decompose_icon_grid :: the grid is not loaded from an icon gridfile ... cant be decomposed with this method'
+
+      area = 0
+      cellsofedge = -1
+      neighborcells = -1
+
+      do icell=1,plex%Nfaces2d
+        print *,'icell', icell, ':: e', plex%icon_edge_of_cell(icell,:)
+
+        do ie=1,3
+          iedge=plex%icon_edge_of_cell(icell,ie)
+          if(cellsofedge(1,iedge).eq.-1) then
+            cellsofedge(1,iedge) = icell
+          else if(cellsofedge(2,iedge).eq.-1) then
+            cellsofedge(2,iedge) = icell
+          else
+            print *,cellsofedge(:,iedge)
+            stop 'should not be here?'
+          endif
+        enddo
+      enddo
+
+      do iedge=1,plex%Nedges2d
+        print *,'edge',iedge,'::',cellsofedge(:,iedge)
+        icell = cellsofedge(1,iedge)
+        if(neighborcells(1, icell).eq.-1) then
+          neighborcells(1, icell) = cellsofedge(2,iedge)
+        else if(neighborcells(2, icell).eq.-1) then
+          neighborcells(2, icell) = cellsofedge(2,iedge)
+        else if(neighborcells(3, icell).eq.-1) then
+          neighborcells(3, icell) = cellsofedge(2,iedge)
+        else
+          print *,'neighbors',icell,'::',neighborcells(:,icell)
+          stop 'should not be here?'
+        endif
+        icell = cellsofedge(2,iedge)
+        if(icell.eq.-1) cycle  ! only one edge here
+
+        if(neighborcells(1, icell).eq.-1) then
+          neighborcells(1, icell) = cellsofedge(1,iedge)
+        else if(neighborcells(2, icell).eq.-1) then
+          neighborcells(2, icell) = cellsofedge(1,iedge)
+        else if(neighborcells(3, icell).eq.-1) then
+          neighborcells(3, icell) = cellsofedge(1,iedge)
+        else
+          print *,'neighbors',icell,'::',neighborcells(:,icell)
+          stop 'should not be here?'
+        endif
+      enddo
+
+      cellowner = -1
+      ! initial conquering of cells
+      do i=1,numnodes
+        icell = plex%Nfaces2d / numnodes * (i-1) +1
+        call conquer_cell(icell, i, lwin)
+      enddo
+
+      do iiter=1,plex%Nfaces2d
+        ichange=0
+        do icell=1,plex%Nfaces2d
+          if(cellowner(icell).ne.-1) then
+            do i=1,3
+              if(neighborcells(i, icell).ne.-1) then
+                call conquer_cell(neighborcells(i, icell), cellowner(icell), lwin) ! conquer my neighbors
+                if(lwin) ichange = ichange+1
+              endif
+            enddo
+          endif
+        enddo
+        if(ichange.le.numnodes) exit
+        !print *,'iiter',iiter, ichange
+      enddo
+
+      do icell=1,plex%Nfaces2d
+        do ie=1,3
+          iedge = plex%icon_edge_of_cell(icell,ie)
+        enddo
+      enddo
+
+      do icell=1,plex%Nfaces2d
+        print *,'icell',icell,'::', cellowner(icell)
+      enddo
+      do i=1,numnodes
+        print *,'node',i, 'area', area(i)
+      enddo
+      stop 'debug'
+      contains
+
+        subroutine conquer_cell(icell, conqueror, lwin)
+          integer(iintegers),intent(in) :: icell, conqueror
+          integer(iintegers) :: old_owner, ineigh
+          real(ireals) :: wgt(2)
+          logical,intent(out) :: lwin
+          lwin=.False.
+          wgt = 0
+
+          old_owner = cellowner(icell)
+          if( old_owner.eq.-1 )then
+            lwin = .True.
+          else
+            if(old_owner.eq.conqueror) return
+            wgt(1) = (real(area(old_owner)) / real(area(conqueror)) -1) * 1
+            if(area(old_owner).eq.1) then
+              print *,conqueror,' wanted to take field ',icell,' :: but cant conquer last field of ',old_owner
+              return
+            endif
+            wgt(2) = real(count(neighborcells(:, icell).eq.conqueror) + count(neighborcells(:, icell).eq.-1)) / 3 * .5
+            lwin = sum(wgt) .gt. 0.1
+          endif
+
+          if(lwin) then
+            !print *,'conquering ',icell,old_owner,'->',conqueror
+            if( old_owner .ne. -1) area(old_owner) = area(old_owner) -1
+            cellowner(icell) = conqueror
+            area(conqueror) = area(conqueror) +1
+          endif
+        end subroutine
+
     end subroutine
 
 end module

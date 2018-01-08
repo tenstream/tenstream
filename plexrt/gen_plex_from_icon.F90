@@ -4,7 +4,7 @@ module m_gen_plex_from_icon
   use petsc
   use m_netcdfIO, only: ncload
   use m_helper_functions, only: CHKERR
-  use m_icon_plexgrid, only: t_plexgrid, read_icon_grid_file, load_plex_from_file, TOP_BOT_FACE, SIDE_FACE
+  use m_icon_plexgrid, only: t_plexgrid, read_icon_grid_file, load_plex_from_file, TOP_BOT_FACE, SIDE_FACE, decompose_icon_grid
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     default_str_len, &
     i0, i1, i2, i3, i4, i5,  &
@@ -26,6 +26,7 @@ module m_gen_plex_from_icon
       integer(iintegers) :: i, icell, iedge
       integer(iintegers) :: offset_edges, offset_vertices, vert2(2), edge3(3)
 
+      allocate(plex%dm)
       call DMPlexCreate(PETSC_COMM_WORLD, plex%dm, ierr);call CHKERR(ierr)
 
       call PetscObjectSetName(plex%dm, trim(dmname), ierr);call CHKERR(ierr)
@@ -383,6 +384,9 @@ module m_gen_plex_from_icon
           real(ireals) :: cart_coord(3)
 
           real(ireals), parameter :: sphere_radius=6371229  ! [m]
+          logical :: l_is_spherical_coords
+
+          l_is_spherical_coords = any(plex%icon_cartesian_z_vertices.ne.0)
 
           call DMGetCoordinateDim(plex%dm, dimEmbed, ierr); call CHKERR(ierr)
           print *,'dimEmbed = ', dimEmbed
@@ -401,6 +405,7 @@ module m_gen_plex_from_icon
           enddo
 
           call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(coordSection, PETSC_NULL_SECTION, "-show_coordinates_section", ierr); call CHKERR(ierr)
           call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
           print *,'Coord Section has size:', coordSize
 
@@ -423,12 +428,16 @@ module m_gen_plex_from_icon
               cart_coord = [plex%icon_cartesian_x_vertices(i), plex%icon_cartesian_y_vertices(i), &
                             plex%icon_cartesian_z_vertices(i)]
 
-              cart_coord = cart_coord * (sphere_radius + (plex%Nz-k)*200)
+              if(l_is_spherical_coords) then
+                cart_coord = cart_coord * (sphere_radius + (plex%Nz-k)*200)
+              else
+                cart_coord(3) = (plex%Nz+1-k)*200
+              endif
               coords(voff+i1 : voff+dimEmbed) = cart_coord(i1:dimEmbed)
             enddo
           enddo
 
-          !print *,'coords', shape(coords), '::', coords
+          print *,'coords', shape(coords), '::', coords
           call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
           call DMSetCoordinatesLocal(plex%dm, coordinates, ierr);call CHKERR(ierr)
@@ -598,6 +607,7 @@ program main
     stop 'Required Option missing'
   endif
 
+  print *,lflg_grid2d,' ', lflg_grid3d, ' ', lflg_plex
   if (lflg_grid2d) then
     if(myid.eq.0) then
       call read_icon_grid_file(gridfile, plex)
@@ -606,6 +616,7 @@ program main
   else if (lflg_grid3d) then
     if(myid.eq.0) then
       call read_icon_grid_file(gridfile, plex)
+      call decompose_icon_grid(plex, 2)
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-Nz', Nz, lflg, ierr); call CHKERR(ierr)
       call create_dmplex_3d(plex, trim('plex3d'//gridfile), Nz)
     else
@@ -618,9 +629,9 @@ program main
   call distribute_dmplex(PETSC_COMM_WORLD, plex)
   call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-
   call create_mass_vec(plex)
 
   call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
   call PetscFinalize(ierr)
+  print *,'m_gen_plex_from_icon... done'
 end program
