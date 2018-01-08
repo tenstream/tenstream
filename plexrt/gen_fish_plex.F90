@@ -14,8 +14,11 @@ module m_gen_fish_plex
   contains
     subroutine init()
       type(tDM) :: dmcell
+      character(len=*), parameter :: default_options = '&
+        & -show_plex hdf5:fish.h5'
 
       call PetscInitialize(PETSC_NULL_CHARACTER,ierr); CHKERRQ(ierr)
+      call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr); CHKERRQ(ierr)
 
       call init_mpi_data_parameters(PETSC_COMM_WORLD)
 
