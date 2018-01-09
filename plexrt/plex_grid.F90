@@ -770,8 +770,8 @@ module m_icon_plexgrid
             enddo
           endif
         enddo
-        if(ichange.le.numnodes) exit
-        !print *,'iiter',iiter, ichange
+        if(ichange.le.numnodes .and. check_adjacency()) exit
+        if(ldebug) print *,'iiter',iiter, ichange
       enddo
 
       do icell=1,plex%Nfaces2d
@@ -781,13 +781,29 @@ module m_icon_plexgrid
       enddo
 
       do icell=1,plex%Nfaces2d
-        print *,'icell',icell,'::', cellowner(icell)
+        if(ldebug) print *,'icell',icell,'::', cellowner(icell)
       enddo
       do i=1,numnodes
-        print *,'node',i, 'area', area(i)
+        if(ldebug) print *,'node',i, 'area', area(i)
       enddo
-      stop 'debug'
       contains
+        logical function check_adjacency()
+          integer(iintegers) :: owners(3), ineigh, ineighcell
+
+          check_adjacency=.True.
+
+          do icell=1,plex%Nfaces2d
+            owners=-1
+            do ineigh=1,3
+              ineighcell = neighborcells(ineigh, icell)
+              if(ineighcell.ne.-1) owners(ineigh) = cellowner(ineighcell)
+            enddo
+            if(.not.any(owners.eq.cellowner(icell))) then
+              print *,'adjacency not fullfilled! :( --',icell,'owned by',cellowner(icell),'neighbours',neighborcells(:, icell)
+              check_adjacency=.False.
+            endif
+          enddo
+        end
 
         subroutine conquer_cell(icell, conqueror, lwin)
           integer(iintegers),intent(in) :: icell, conqueror
