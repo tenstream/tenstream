@@ -35,20 +35,20 @@ module m_optprop_LUT
     ldebug_optprop, lut_basename,         &
     Naspect, Ntau, Nw0, Ng, Nphi, Ntheta, &
     interp_mode_1_2,interp_mode_8_10,     &
-    interp_mode_3_6,                      &
+    interp_mode_3_6,interp_mode_3_10,     &
     ldelta_scale,delta_scale_truncate,    &
     stddev_atol, use_prescribed_LUT_dims, &
     preset_aspect, preset_tau, preset_w0, &
     preset_g, preset_theta
 
-  use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6
+  use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6, t_boxmc_3_10
   use m_tenstream_interpolation, only: interp_4d
   use m_netcdfio
 
   implicit none
 
   private
-  public :: t_optprop_LUT, t_optprop_LUT_8_10,t_optprop_LUT_1_2,t_optprop_LUT_3_6
+  public :: t_optprop_LUT, t_optprop_LUT_8_10,t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10
   ! This module loads and generates the LUT-tables for Tenstream Radiation
   ! computations.
   ! It also holds functions for interpolation on the regular LUT grid.
@@ -118,6 +118,8 @@ module m_optprop_LUT
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_8_10
   end type
+  type,extends(t_optprop_LUT) :: t_optprop_LUT_3_10
+  end type
   type,extends(t_optprop_LUT) :: t_optprop_Lut_3_6
   end type
 
@@ -155,6 +157,12 @@ contains
             OPP%diff_streams = 10
             OPP%lutbasename=trim(lut_basename)//'_8_10.'
             allocate(t_boxmc_8_10::OPP%bmc)
+
+          class is (t_optprop_LUT_3_10)
+            OPP%dir_streams  = 3
+            OPP%diff_streams = 10
+            OPP%lutbasename=trim(lut_basename)//'_3_10.'
+            allocate(t_boxmc_3_10::OPP%bmc)
 
           class is (t_optprop_LUT_3_6)
             OPP%dir_streams  = 3
@@ -456,6 +464,9 @@ subroutine createLUT_diff(OPP, LUT, comm)
     if(myid.eq.0) then
       select type(OPP)
         class is (t_optprop_LUT_8_10)
+          call prepare_table_space(LUT%S,OPP%diff_streams**2)
+
+        class is (t_optprop_LUT_3_10)
           call prepare_table_space(LUT%S,OPP%diff_streams**2)
 
         class is (t_optprop_LUT_1_2)
@@ -1164,7 +1175,8 @@ subroutine set_parameter_space(OPP,ps)
           OPP%interp_mode = interp_mode_1_2
       class is (t_optprop_LUT_8_10)
           OPP%interp_mode = interp_mode_8_10
-      
+      class is (t_optprop_LUT_3_10)
+          OPP%interp_mode = interp_mode_3_10
       class is (t_optprop_LUT_3_6)
           OPP%interp_mode = interp_mode_3_6
       class default
