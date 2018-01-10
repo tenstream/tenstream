@@ -1563,15 +1563,14 @@ module m_pprts
       PetscReal,pointer,dimension(:)        :: xv1d=>null()
       logical,intent(in)                    :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
 
+      integer(iintegers)  :: iside
       PetscInt            :: i,j,k
       PetscInt            :: src
-      !PetscReal           :: Ax,Ax2,Ay,Ay2,Az,Az4
-      PetscReal           :: Az, Ax, Ay
+      PetscReal           :: Az, Ax, Ay, fac
       !Vec                 :: vgrad_x, vgrad_y
       !PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
       !PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
       !real(ireals)        :: grad(3)  ! is the cos(zenith_angle) of the tilted box in case of topography
-      integer(iintegers)  :: iside
 
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C ,xv1d, xv)
@@ -1579,175 +1578,64 @@ module m_pprts
 
       if(C%dof.eq.i3 .or. C%dof.eq.i8) then
         print *,'scale_flx_vec is just for diffuse radia'
-
-      if(lWm2_to_W) then
-        Az = solver%atm%dx*solver%atm%dy/(solver%difftop%dof/2)
-      else
-        Az = one/((solver%atm%dx*solver%atm%dy)/(solver%difftop%dof/2))
       endif
 
 
+      ! Scaling top faces
+      Az = solver%atm%dx*solver%atm%dy/(solver%difftop%dof/2)
+      if(lWm2_to_W) then
+        fac = Az
+      else
+        fac = one/Az
+      endif
+
+      do j=C%ys,C%ye
+        do i=C%xs,C%xe
+          do k=C%zs,C%ze
+            do iside=1,solver%difftop%dof
+              src = iside -1
+              xv(src ,k,i,j) = xv(src ,k,i,j) * fac                  ! diffuse radiation
+            enddo
+          enddo
+        enddo
+      enddo
+
+      ! Scaling side faces
       do j=C%ys,C%ye
         do i=C%xs,C%xe
           do k=C%zs,C%ze-i1
-
-            do iside=1,solver%difftop%dof
-              src = iside -1
-              xv(src ,k,i,j) = xv(src ,k,i,j) * Az                  ! diffuse radiation
-            enddo
-
             if(.not.solver%atm%l1d(atmk(solver%atm, k),i,j)) then
-              if(lWm2_to_W) then
-                Ax = solver%atm%dy*solver%atm%dz(k,i,j)/(solver%difftop%dof/2)
-                Ay = solver%atm%dx*solver%atm%dz(k,i,j)/(solver%difftop%dof/2)
-              else
-                Ax = one/(solver%atm%dy*solver%atm%dz(k,i,j)/(solver%difftop%dof/2))
-                Ay = one/(solver%atm%dx*solver%atm%dz(k,i,j)/(solver%difftop%dof/2))
-              endif
 
               ! faces in x-direction
+              Ax = solver%atm%dy*solver%atm%dz(k,i,j)/(solver%difftop%dof/2)
+              if(lWm2_to_W) then
+                fac = Ax
+              else
+                fac = one/Ax
+              endif
+
               do iside=1,solver%diffside%dof/2
                 src = solver%difftop%dof + iside -1
-                xv(src ,k,i,j) = xv(src ,k,i,j) * Ax
+                xv(src ,k,i,j) = xv(src ,k,i,j) * fac
               enddo
 
               ! faces in y-direction
+              Ay = solver%atm%dx*solver%atm%dz(k,i,j)/(solver%difftop%dof/2)
+              if(lWm2_to_W) then
+                fac = Ay
+              else
+                fac = one/Ay
+              endif
+
               do iside=1,solver%diffside%dof/2
                 src = solver%difftop%dof + solver%diffside%dof/2 + iside -1
-                xv(src ,k,i,j) = xv(src ,k,i,j) * Ay
+                xv(src ,k,i,j) = xv(src ,k,i,j) * fac
               enddo
+
             endif
-
           enddo
         enddo
       enddo
-
-
-      k=C%ze
-      do j=C%ys,C%ye
-        do i=C%xs,C%xe
-
-          do iside=1,solver%difftop%dof
-            src = iside - 1
-            xv(src ,k,i,j) = xv(src ,k,i,j) * Az                  ! diffuse radiation
-          enddo
-
-        enddo
-      enddo
-
-      !if(lWm2_to_W) then
-      !  Az  = atm%dx*atm%dy
-      !  Az4 = atm%dx*atm%dy*.25_ireals
-      !else
-      !  Az  = one/(atm%dx*atm%dy)
-      !  Az4 = one/(atm%dx*atm%dy*.25_ireals)
-      !endif
-
-      !do j=C%ys,C%ye
-      !  do i=C%xs,C%xe
-      !    do k=C%zs,C%ze-i1
-
-
-      !      if(C%dof.eq.i3) then ! This is 3 stream direct radiation
-      !        xv(i0,k,i,j) = xv(i0,k,i,j) * Az
-      !      endif
-
-      !      if(C%dof.eq.i6) then ! This is 6 stream diffuse radiation
-      !        xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-      !        xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-      !      endif
-
-      !      if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-      !        xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) * Az4
-      !      endif
-
-      !      if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
-      !        xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-      !        xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-      !      endif
-
-      !      if(.not.atm%l1d(atmk(atm, k),i,j)) then
-
-
-      !        if(C%dof.eq.i3) then ! This is 3 stream direct radiation
-
-      !          if(lWm2_to_W) then
-      !            Ax = atm%dy*atm%dz(k,i,j)
-      !            Ay = atm%dx*atm%dz(k,i,j)
-      !          else
-      !            Ax = one/(atm%dy*atm%dz(k,i,j))
-      !            Ay = one/(atm%dx*atm%dz(k,i,j))
-      !          endif
-      !          xv(i1,k,i,j) = xv(i1,k,i,j) * Ax
-      !          xv(i2,k,i,j) = xv(i2,k,i,j) * Ay
-      !        endif
-
-      !        if(C%dof.eq.i6) then ! This is 6 stream diffuse radiation
-      !          if(lWm2_to_W) then
-      !            Ax  = atm%dy*atm%dz(k,i,j)
-      !            Ay  = atm%dx*atm%dz(k,i,j)
-      !          else
-      !            Ax  = one/(atm%dy*atm%dz(k,i,j) )
-      !            Ay  = one/(atm%dx*atm%dz(k,i,j) )
-      !          endif
-      !          xv(E_le_m,k,i,j) = xv(E_le_m,k,i,j) * Ax
-      !          xv(E_ri_m,k,i,j) = xv(E_ri_m,k,i,j) * Ax
-      !          xv(E_ba_m,k,i,j) = xv(E_ba_m,k,i,j) * Ay
-      !          xv(E_fw_m,k,i,j) = xv(E_fw_m,k,i,j) * Ay
-      !        endif
-
-      !        if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-
-      !          if(lWm2_to_W) then
-      !            Ax2 = atm%dy*atm%dz(k,i,j)*.5_ireals
-      !            Ay2 = atm%dx*atm%dz(k,i,j)*.5_ireals
-      !          else
-      !            Ax2 = one/(atm%dy*atm%dz(k,i,j)*.5_ireals )
-      !            Ay2 = one/(atm%dx*atm%dz(k,i,j)*.5_ireals )
-      !          endif
-      !          xv(i4:i5,k,i,j) = xv(i4:i5,k,i,j) * Ax2
-      !          xv(i6:i7,k,i,j) = xv(i6:i7,k,i,j) * Ay2
-      !        endif
-
-      !        if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
-      !          if(lWm2_to_W) then
-      !            Ax  = atm%dy*atm%dz(k,i,j)
-      !            Ay  = atm%dx*atm%dz(k,i,j)
-      !          else
-      !            Ax  = one/(atm%dy*atm%dz(k,i,j) )
-      !            Ay  = one/(atm%dx*atm%dz(k,i,j) )
-      !          endif
-      !          xv(E_le_m,k,i,j) = xv(E_le_m,k,i,j) * Ax
-      !          xv(E_ri_m,k,i,j) = xv(E_ri_m,k,i,j) * Ax
-      !          xv(E_ba_m,k,i,j) = xv(E_ba_m,k,i,j) * Ay
-      !          xv(E_fw_m,k,i,j) = xv(E_fw_m,k,i,j) * Ay
-      !        endif
-      !      endif
-      !    enddo
-      !  enddo
-      !enddo
-
-      !k=C%ze
-      !do j=C%ys,C%ye
-      !  do i=C%xs,C%xe
-
-      !    if(C%dof.eq.i3) then ! This is 3 stream direct radiation
-      !      xv (i0,k,i,j) = xv (i0 ,k,i,j) * Az
-      !    endif
-      !    if(C%dof.eq.i6) then ! This is 6 stream diffuse radiation
-      !      xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-      !      xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-      !    endif
-
-      !    if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-      !      xv (i0:i3 ,k,i,j) = xv (i0:i3 ,k,i,j) * Az4
-      !    endif
-      !    if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
-      !      xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-      !      xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-      !    endif
-      !  enddo
-      !enddo
 
       if(solver%sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this?
         stop('Dont knwo how i should rescale topography! - exit...')
@@ -1804,7 +1692,6 @@ module m_pprts
         !case default
         !  stop('Dont know how I should topography rescale this! - exiting...')
         !end select
-
       endif
 
       call restoreVecPointer(v ,C ,xv1d, xv )
