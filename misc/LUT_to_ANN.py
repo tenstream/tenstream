@@ -335,7 +335,7 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
                     for ig in range(np.size(g)):
                         # inp.append( [ dz[idz],kabs[ikabs],ksca[iksca],g[ig] ] )
                         inp.append( [ iaspect, itau, iw0, ig ] )
-                        out.append( S[:, iaspect, itau,iw0, ig] )
+                        out.append( S[:, iaspect, itau, iw0, ig] )
 
     if coeff_mode=='dir2dir' or coeff_mode=='dir2diff':
         try:
@@ -368,10 +368,10 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
                 w0    = D.variables[basedescr+'.pspace.w0'][:]
                 g     = D.variables[basedescr+'.pspace.g'][:]
 
-                pspace['g'     ] = aspect
-                pspace['aspect'] = tau
-                pspace['tau'   ] = w0
-                pspace['w0'    ] = g
+                pspace['aspect'] = aspect
+                pspace['tau'   ] = tau
+                pspace['w0'    ] = w0
+                pspace['g'     ] = g
                 pspace['phi'  ] = D.variables[basedescr+'.pspace.phi'][:]
                 pspace['theta'] = D.variables[basedescr+'.pspace.theta'][:]
 
@@ -381,7 +381,7 @@ def create_training_dataset(coeff_mode, LUTname, training_fraction=.8):
                             for ig in range(np.size(g)):
                                 # inp.append( [ dz[idz],kabs[ikabs],ksca[iksca],g[ig],phi,theta ] )
                                 inp.append( [ iaspect, itau, iw0, ig, phi, theta ] )
-                                out.append( SorT[:,iaspect,itau,iw0,ig] )
+                                out.append( SorT[:, iaspect, itau, iw0, ig] )
 
         except Exception as e:
             print('Error occured reading LUTfile: ',LUTname,' because',e)

@@ -25,7 +25,7 @@ module test_ANN_8_10
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-2, rtol=1e-1
+  real(ireals),parameter :: atol=1e-3, rtol=1e-1
 
   PetscErrorCode :: ierr
 
@@ -151,7 +151,7 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
-      real(ireals) :: taux, tauz, w0
+      real(ireals) :: taux, tauz, w0, aspect
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -170,22 +170,22 @@ contains
         taux = (kabs+ksca) * dx
         tauz = (kabs+ksca) * dz
         w0   = ksca / (kabs+ksca)
+        aspect = tauz/taux
 
         if(ierr.eq.0) then
 
-            call ANN_get_diff2diff (dz, kabs,ksca,g , ANN_diff2diff)
+            call ANN_get_diff2diff (aspect, tauz, w0, g , ANN_diff2diff)
 
             ANN_dir2dir = zero
             BMC_dir2dir = zero
 
             do src=1,10
-
                 call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,        &
                                         .False.,phi,theta,dx,dy,dz,    &
                                         S_target,T_target,S_tol,T_tol, &
                                         inp_atol=atol, inp_rtol=rtol)
 
-                ! Rearrange coeffs from dst_ordering to src ordering:
+                ! Rearrange coeffs from src_ordering to dst ordering:
                 BMC_diff2diff(src : 10*10 : 10) = S_target
             enddo
 
@@ -193,14 +193,14 @@ contains
         endif ! loaded ANN
         call ANN_destroy()
       end associate
-  endsubroutine
+   endsubroutine
 
   @test( npes=[8], testParameters={getParameters()} )
   subroutine test_ANN_direct_coeff(this)
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
-      real(ireals) :: taux, tauz, w0
+      real(ireals) :: taux, tauz, w0, aspect
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -220,13 +220,14 @@ contains
         taux = (kabs+ksca) * dx
         tauz = (kabs+ksca) * dz
         w0   = ksca / (kabs+ksca)
+        aspect = tauz / taux
 
         if(ierr.eq.0) then
             @assertEqual(0, ierr)
 
 
-            call ANN_get_dir2dir (taux, tauz, w0, g , phi, theta, ANN_dir2dir)
-            call ANN_get_dir2diff(taux, tauz, w0, g , phi, theta, ANN_dir2diff)
+            call ANN_get_dir2dir (aspect, tauz, w0, g , phi, theta, ANN_dir2dir)
+            call ANN_get_dir2diff(aspect, tauz, w0, g , phi, theta, ANN_dir2diff)
 
             do src=1,8
 
@@ -235,7 +236,7 @@ contains
                                         S_target,T_target,S_tol,T_tol, &
                                         inp_atol=atol, inp_rtol=rtol)
 
-                ! Rearrange coeffs from dst_ordering to src ordering:
+                ! Rearrange coeffs from src_ordering to dst ordering:
                 BMC_dir2diff(src : 8*10 : 10) = S_target
                 BMC_dir2dir (src : 8*8  :  8) = T_target
 
