@@ -9,7 +9,7 @@ module m_gen_plex_from_icon
     default_str_len, &
     i0, i1, i2, i3, i4, i5,  &
     zero, one,       &
-    init_mpi_data_parameters, myid
+    init_mpi_data_parameters
 
   implicit none
 
@@ -473,7 +473,7 @@ module m_gen_plex_from_icon
       PetscScalar, pointer :: xv(:)
 
       integer(iintegers) :: icell_k(2)
-
+      integer(iintegers) :: cell_ownership(plex%Nfaces2d)
 
       call DMPlexGetDepth(plex%dm, depth, ierr); CHKERRQ(ierr)
       print *,'Depth of Stratum:', depth
@@ -502,11 +502,14 @@ module m_gen_plex_from_icon
       call VecGetSize(globalVec,vecsize, ierr); CHKERRQ(ierr)
       call PetscObjectSetName(globalVec, 'massVec', ierr);CHKERRQ(ierr)
 
+      call decompose_icon_grid(plex, 8, cell_ownership)
+
       call VecGetArrayF90(globalVec, xv, ierr); CHKERRQ(ierr)
       do i = plex%cStart, plex%cEnd-1
         call PetscSectionGetOffset(s, i, voff, ierr); call CHKERR(ierr)
         icell_k = icell_plex_2_icon(plex, i)
-        xv(voff+i1) = icell_k(2)*plex%Nfaces2d + icell_k(1)
+        !xv(voff+i1) = icell_k(2)*plex%Nfaces2d + icell_k(1)
+        xv(voff+i1) = cell_ownership(icell_k(1))*1000 + icell_k(1)
       enddo
       call VecRestoreArrayF90(globalVec, xv, ierr); CHKERRQ(ierr)
 
@@ -561,6 +564,12 @@ module m_gen_plex_from_icon
       PetscSF         :: pointSF
       DM              :: dmdist
 
+      if(.not.(allocated(plex%dm))) then
+        if
+        allocate(plex%dm)
+        call DMPlexCreate(PETSC_COMM_WORLD, plex%dm, ierr);call CHKERR(ierr)
+      endif
+
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
       if (numnodes.gt.1) then
         if(ldebug) then
@@ -607,29 +616,24 @@ program main
     stop 'Required Option missing'
   endif
 
-  print *,lflg_grid2d,' ', lflg_grid3d, ' ', lflg_plex
-  if (lflg_grid2d) then
-    if(myid.eq.0) then
+  if(myid.eq.0) then
+    print *,lflg_grid2d,' ', lflg_grid3d, ' ', lflg_plex
+    if (lflg_grid2d) then
       call read_icon_grid_file(gridfile, plex)
       call create_dmplex_2d(plex, trim('plex'//gridfile))
-    endif
-  else if (lflg_grid3d) then
-    if(myid.eq.0) then
+    else if (lflg_grid3d) then
       call read_icon_grid_file(gridfile, plex)
-      call decompose_icon_grid(plex, 2)
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-Nz', Nz, lflg, ierr); call CHKERR(ierr)
       call create_dmplex_3d(plex, trim('plex3d'//gridfile), Nz)
-    else
-      call DMPlexCreate(PETSC_COMM_WORLD, plex%dm, ierr);call CHKERR(ierr)
+    else if (lflg_plex) then
+      call load_plex_from_file(PETSC_COMM_WORLD, gridfile, plex)
     endif
-  else if (lflg_plex) then
-    call load_plex_from_file(PETSC_COMM_WORLD, gridfile, plex)
-  endif
+
+    call create_mass_vec(plex)
+  endif ! rank0
 
   call distribute_dmplex(PETSC_COMM_WORLD, plex)
   call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
-
-  call create_mass_vec(plex)
 
   call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
   call PetscFinalize(ierr)

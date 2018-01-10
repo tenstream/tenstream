@@ -4,7 +4,7 @@ module m_icon_plexgrid
   use m_netcdfIO, only: ncload
   use m_helper_functions, only: CHKERR, compute_normal_3d, spherical_2_cartesian, norm, cross_3d, &
     determine_normal_direction, angle_between_two_vec, rad2deg, deg2rad, hit_plane, &
-    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, vec_proj_on_plane
+    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, vec_proj_on_plane, get_arg
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, zero, one, pi, &
     default_str_len
@@ -690,16 +690,17 @@ module m_icon_plexgrid
         phi, theta, dx, dy, dz, S, T, S_tol, T_tol, inp_atol=1e-2_ireals, inp_rtol=1e-1_ireals)
     end subroutine
 
-    subroutine decompose_icon_grid(plex, numnodes)
-      type(t_plexgrid),intent(inout) :: plex
+    subroutine decompose_icon_grid(plex, numnodes, cellowner)
+      type(t_plexgrid),intent(in) :: plex
       integer(iintegers), intent(in) :: numnodes
       integer(iintegers) :: i, icell, ie, iedge, iiter
 
-      integer(iintegers) :: cellowner(plex%Nfaces2d), vertexowner(plex%Nvertices2d), edgeowner(plex%Nedges2d)
+      integer(iintegers) :: cellowner(:) ! dim=(plex%Nfaces2d)
+      integer(iintegers) :: vertexowner(plex%Nvertices2d), edgeowner(plex%Nedges2d)
       integer(iintegers) :: cellsofedge(2,plex%Nedges2d),neighborcells(3,plex%Nfaces2d)
 
       integer(iintegers) :: area(numnodes), ichange
-      logical :: lwin
+      logical :: lwin, ladjacent_check
 
       if(.not. allocated(plex%icon_cell_index)) stop 'decompose_icon_grid :: the grid is not loaded from an icon gridfile ... cant be decomposed with this method'
 
@@ -754,11 +755,11 @@ module m_icon_plexgrid
       cellowner = -1
       ! initial conquering of cells
       do i=1,numnodes
-        icell = plex%Nfaces2d / numnodes * (i-1) +1
+        icell = i !plex%Nfaces2d / numnodes * (i-1) +1
         call conquer_cell(icell, i, lwin)
       enddo
 
-      do iiter=1,plex%Nfaces2d
+      do iiter=1,plex%Nfaces2d*10
         ichange=0
         do icell=1,plex%Nfaces2d
           if(cellowner(icell).ne.-1) then
@@ -766,12 +767,14 @@ module m_icon_plexgrid
               if(neighborcells(i, icell).ne.-1) then
                 call conquer_cell(neighborcells(i, icell), cellowner(icell), lwin) ! conquer my neighbors
                 if(lwin) ichange = ichange+1
+                ladjacent_check = check_adjacency()
               endif
             enddo
           endif
         enddo
-        if(ichange.le.numnodes .and. check_adjacency()) exit
-        if(ldebug) print *,'iiter',iiter, ichange
+        ladjacent_check = check_adjacency()
+        if(ldebug) print *,'iiter',iiter, ichange, ladjacent_check
+        if(ichange.eq.0 .and. ladjacent_check) exit
       enddo
 
       do icell=1,plex%Nfaces2d
@@ -788,7 +791,8 @@ module m_icon_plexgrid
       enddo
       contains
         logical function check_adjacency()
-          integer(iintegers) :: owners(3), ineigh, ineighcell
+          integer(iintegers) :: owners(3), ineigh, ineighcell, icell, iowner
+          logical :: lwin
 
           check_adjacency=.True.
 
@@ -801,15 +805,24 @@ module m_icon_plexgrid
             if(.not.any(owners.eq.cellowner(icell))) then
               print *,'adjacency not fullfilled! :( --',icell,'owned by',cellowner(icell),'neighbours',neighborcells(:, icell)
               check_adjacency=.False.
+              do iowner=1,3
+                if(owners(iowner).ne.-1) call conquer_cell(icell, owners(iowner), lwin, lforce=.True.)
+                exit
+              enddo
             endif
           enddo
         end
 
-        subroutine conquer_cell(icell, conqueror, lwin)
+        subroutine conquer_cell(icell, conqueror, lwin, lforce)
           integer(iintegers),intent(in) :: icell, conqueror
           integer(iintegers) :: old_owner, ineigh
           real(ireals) :: wgt(2)
           logical,intent(out) :: lwin
+          logical,intent(in),optional :: lforce
+          integer(iintegers) :: ineigh_cell, neigh_owners(3)
+          integer(iintegers) :: owner_cellcnt(numnodes)
+          logical :: ladj
+
           lwin=.False.
           wgt = 0
 
@@ -818,14 +831,26 @@ module m_icon_plexgrid
             lwin = .True.
           else
             if(old_owner.eq.conqueror) return
-            wgt(1) = (real(area(old_owner)) / real(area(conqueror)) -1) * 1
+            wgt(1) = (real(area(old_owner)) / real(area(conqueror)) -1)/2
             if(area(old_owner).eq.1) then
               print *,conqueror,' wanted to take field ',icell,' :: but cant conquer last field of ',old_owner
               return
             endif
-            wgt(2) = real(count(neighborcells(:, icell).eq.conqueror) + count(neighborcells(:, icell).eq.-1)) / 3 * .5
-            lwin = sum(wgt) .gt. 0.1
+
+            !neigh_owners = -1
+            !do ineigh=1,3
+            !  ineigh_cell = neighborcells(ineigh, icell)
+            !  if(ineigh_cell.ne.-1) neigh_owners(ineigh) = cellowner(ineigh_cell)
+            !enddo
+            call count_neighbour_owners(icell, owner_cellcnt)
+            !print *,icell,'::',conqueror,':',owner_cellcnt, '=>', owner_cellcnt(conqueror)/real(sum(owner_cellcnt))
+
+            wgt(2) = owner_cellcnt(conqueror)/real(sum(owner_cellcnt)) !real(count(neigh_owners.eq.conqueror) - count(neigh_owners.eq.-1) -1.5)  ! 1 == conqueror -> negative; 2 == conqueror => positive; -1 owners dont count
+            lwin = sum(wgt) .gt. .5
+            !print *,conqueror,'neighbor cells:',neighborcells(:, icell),'::',neigh_owners, ':', count(neigh_owners.eq.conqueror), '=>', wgt(2)
           endif
+
+          if( get_arg(.False., lforce) ) lwin = .True.
 
           if(lwin) then
             !print *,'conquering ',icell,old_owner,'->',conqueror
@@ -833,6 +858,32 @@ module m_icon_plexgrid
             cellowner(icell) = conqueror
             area(conqueror) = area(conqueror) +1
           endif
+        end subroutine
+
+        subroutine count_neighbour_owners(icell, owner_cellcnt)
+          integer(iintegers),intent(in) :: icell
+          integer(iintegers),intent(out) :: owner_cellcnt(:) ! dim numnodes
+
+          integer(iintegers) :: cell_list(3*3+3), ineigh, ineigh2, ineigh_cell, ineigh_cell2, iowners, owner
+
+          owner_cellcnt = 0
+
+          do ineigh=1,3
+            ineigh_cell = neighborcells(ineigh, icell)
+            if(ineigh_cell.ne.-1) then
+              owner = cellowner(ineigh_cell)
+              if(owner.ne.-1) then
+                owner_cellcnt(owner) = owner_cellcnt(owner) + 2
+                do ineigh2=1,3
+                  ineigh_cell2 = neighborcells(ineigh2, ineigh_cell)
+                  if(ineigh_cell2.ne.-1 .and. ineigh_cell2.ne.icell) then
+                    owner = cellowner(ineigh_cell2)
+                    if(owner.ne.-1) owner_cellcnt(owner) = owner_cellcnt(owner) + 1
+                  endif
+                enddo
+              endif
+            endif
+          enddo
         end subroutine
 
     end subroutine
