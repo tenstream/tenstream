@@ -27,7 +27,7 @@ module m_optprop
 use m_optprop_parameters, only : ldebug_optprop, coeff_mode
 use m_helper_functions, only : rmse
 use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
-use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6
+use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6, t_optprop_LUT_3_10
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
@@ -35,7 +35,7 @@ use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 implicit none
 
 private
-public :: t_optprop, t_optprop_1_2,t_optprop_8_10, t_optprop_3_6
+public :: t_optprop, t_optprop_1_2,t_optprop_8_10, t_optprop_3_6, t_optprop_3_10
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
@@ -59,6 +59,9 @@ end type
 type,extends(t_optprop) :: t_optprop_3_6
 end type
 
+type,extends(t_optprop) :: t_optprop_3_10
+end type
+
 contains
 
   subroutine init(OPP, azis, szas, comm)
@@ -78,6 +81,9 @@ contains
 
               class is (t_optprop_3_6)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_6::OPP%OPP_LUT)
+
+              class is (t_optprop_3_10)
+               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_10::OPP%OPP_LUT)
 
               class default
                 stop ' init optprop : unexpected type for optprop object!'
@@ -288,6 +294,25 @@ contains
             coeff(73:80) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*9 )
           endif
         endif
+
+      class is (t_optprop_3_10)
+        !for solver_3_10 the offset is chaning and the destination order
+        dof = 3
+        if(present(lswitch_east)) then
+          if(lswitch_east) then
+            newcoeff = coeff
+            coeff(7:9)   = newcoeff([1, 2, 3] + dof*3)
+            coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
+          endif
+        endif
+        if(present(lswitch_north)) then
+          if(lswitch_north) then
+            newcoeff = coeff
+            coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
+            coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
+          endif
+        endif
+
     end select
 
   end subroutine
@@ -305,6 +330,10 @@ contains
         continue
 
       class is (t_optprop_3_6)
+        !nothing to do because of symmetrie
+        continue
+
+      class is (t_optprop_3_10)
         !nothing to do because of symmetrie
         continue
 
@@ -338,109 +367,4 @@ contains
         endif
     end select
   end subroutine
-
-
-!        function coeff_symmetry(OPP, isrc,coeff)
-!            class(t_optprop) :: OPP
-!            real(ireals) :: coeff_symmetry(OPP%diff_streams)
-!            real(ireals),intent(in) :: coeff(:)
-!            integer(iintegers),intent(in) :: isrc
-!            integer(iintegers),parameter :: l=1
-!            integer(iintegers),parameter :: k=5
-!            !TODO: this was just a simple test if we can enhance diffusion
-!            !      artificially by fiddling with the transport coefficients. -- only marginally improvement for Enet(surface) but increased
-!            !      rmse in atmosphere...
-!            real(ireals),parameter :: artificial_diffusion = zero
-!
-!            ! integer,parameter :: E_up=0, E_dn=1, E_le_m=2, E_le_p=4, E_ri_m=3, E_ri_p=5, E_ba_m=6, E_ba_p=8, E_fw_m=7, E_fw_p=9
-!            select type(OPP)
-!
-!              class is (t_optprop_1_2)
-!                select case (isrc)
-!                  case(1)
-!                          coeff_symmetry = coeff([l+0, l+1])
-!                  case(2)
-!                          coeff_symmetry = coeff([l+1, l+0])
-!                  case default
-!                          stop 'cant call coeff_symmetry with isrc -- error happened for type optprop_1_2'
-!                end select
-!
-!
-!              class is (t_optprop_8_10)
-!                select case (isrc)
-!                  case(1)
-!                    coeff_symmetry = coeff([l+0, l+1, l+2, l+2, l+3, l+3, l+2, l+2, l+3, l+3])
-!                  case(2)
-!                    coeff_symmetry = coeff([l+1, l+0, l+3, l+3, l+2, l+2, l+3, l+3, l+2, l+2])
-!                  case(3)
-!                    coeff_symmetry = coeff([k+0, k+1, k+2, k+3, k+4, k+5, k+6, k+6, k+7, k+7])
-!                  case(4)
-!                    coeff_symmetry = coeff([k+0, k+1, k+3, k+2, k+5, k+4, k+6, k+6, k+7, k+7])
-!                  case(5)
-!                    coeff_symmetry = coeff([k+1, k+0, k+4, k+5, k+2, k+3, k+7, k+7, k+6, k+6])
-!                  case(6)
-!                    coeff_symmetry = coeff([k+1, k+0, k+5, k+4, k+3, k+2, k+7, k+7, k+6, k+6])
-!                  case(7)
-!                    coeff_symmetry = coeff([k+0, k+1, k+6, k+6, k+7, k+7, k+2, k+3, k+4, k+5])
-!                  case(8)
-!                    coeff_symmetry = coeff([k+0, k+1, k+6, k+6, k+7, k+7, k+3, k+2, k+5, k+4])
-!                  case(9)
-!                    coeff_symmetry = coeff([k+1, k+0, k+7, k+7, k+6, k+6, k+4, k+5, k+2, k+3])
-!                  case(10)
-!                    coeff_symmetry = coeff([k+1, k+0, k+7, k+7, k+6, k+6, k+5, k+4, k+3, k+2])
-!                  case default
-!                    stop 'cant call coeff_symmetry with isrc -- error happened for optprop_8_10'
-!                end select
-!
-!              class is (t_optprop_3_6)                                                        !!! Puh, was sind das fuer Symmetrien?
-!                select case (isrc)
-!                  case(1)
-!                    coeff_symmetry = coeff([l+0, l+1, l+2, l+2, l+3, l+3, l+2, l+2, l+3, l+3])
-!                  case(2)
-!                    coeff_symmetry = coeff([l+1, l+0, l+3, l+3, l+2, l+2, l+3, l+3, l+2, l+2])
-!                  case(3)
-!                    coeff_symmetry = coeff([k+0, k+1, k+2, k+3, k+4, k+5, k+6, k+6, k+7, k+7])
-!                  case(4)
-!                    coeff_symmetry = coeff([k+0, k+1, k+3, k+2, k+5, k+4, k+6, k+6, k+7, k+7])
-!                  case(5)
-!                    coeff_symmetry = coeff([k+1, k+0, k+4, k+5, k+2, k+3, k+7, k+7, k+6, k+6])
-!                  case(6)
-!                    coeff_symmetry = coeff([k+1, k+0, k+5, k+4, k+3, k+2, k+7, k+7, k+6, k+6])
-!                  case(7)
-!                    coeff_symmetry = coeff([k+0, k+1, k+6, k+6, k+7, k+7, k+2, k+3, k+4, k+5])
-!                  case(8)
-!                    coeff_symmetry = coeff([k+0, k+1, k+6, k+6, k+7, k+7, k+3, k+2, k+5, k+4])
-!                  case(9)
-!                    coeff_symmetry = coeff([k+1, k+0, k+7, k+7, k+6, k+6, k+4, k+5, k+2, k+3])
-!                  case(10)
-!                    coeff_symmetry = coeff([k+1, k+0, k+7, k+7, k+6, k+6, k+5, k+4, k+3, k+2])
-!                  case default
-!                    stop 'cant call coeff_symmetry with isrc -- error happened for optprop_3_6'
-!                end select
-!
-!                if(artificial_diffusion.gt.zero) then
-!                  if(isrc.eq.1 .or. isrc.eq.2) then
-!                    coeff_symmetry(3:4) = coeff_symmetry(3:4) + coeff_symmetry(2)*artificial_diffusion *.25_ireals
-!                    coeff_symmetry(7:8) = coeff_symmetry(7:8) + coeff_symmetry(2)*artificial_diffusion *.25_ireals
-!                    coeff_symmetry(2)   = coeff_symmetry(2)   - coeff_symmetry(2)*artificial_diffusion
-!
-!                    coeff_symmetry(5: 6) = coeff_symmetry(5: 6) + coeff_symmetry(1)*artificial_diffusion *.25_ireals
-!                    coeff_symmetry(9:10) = coeff_symmetry(9:10) + coeff_symmetry(1)*artificial_diffusion *.25_ireals
-!                    coeff_symmetry(1)    = coeff_symmetry(1)    - coeff_symmetry(1)*artificial_diffusion
-!                  endif
-!                endif
-!
-!              class default
-!                stop 'coeff_symmetry : unexpected type for OPP !'
-!            end select
-!
-!
-!            if(ldebug_optprop) then
-!              if(real(sum(coeff_symmetry)).gt.one+epsilon(one)*10._ireals) then
-!                print *,'sum of diffuse coeff_symmetrys bigger one!',sum(coeff_symmetry),'for src=',isrc,'coeff_symmetry:',coeff_symmetry
-!                call exit()
-!              endif
-!            endif
-!        end function
-
 end module

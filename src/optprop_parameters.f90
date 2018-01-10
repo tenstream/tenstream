@@ -64,6 +64,8 @@ module m_optprop_parameters
 
       integer(iintegers), parameter :: interp_mode_3_6=2
 
+      integer(iintegers), parameter :: interp_mode_3_10=2
+
       integer(iintegers), parameter :: Nphi=10
 
       ! integer(iintegers) ,parameter :: Ntau=40, Nw0=10, Ng=2, Ntheta=19

@@ -36,7 +36,7 @@ module m_optprop_ANN
   integer(mpiint) :: myid,comm_size,mpierr
 
   type ANN
-    real(ireals),allocatable,dimension(:) :: weights, units, tau, w0, g, phi, theta
+    real(ireals),allocatable,dimension(:) :: weights, units, aspect, tau, w0, g, phi, theta
     integer(iintegers),allocatable,dimension(:) :: inno, outno
     real(ireals),allocatable,dimension(:,:) :: eni, deo, inlimits
     integer(iintegers),allocatable,dimension(:,:) :: conec
@@ -122,6 +122,7 @@ contains
     call imp_bcast(comm, net%in_size    , 0_mpiint)
     call imp_bcast(comm, net%out_size   , 0_mpiint)
     call imp_bcast(comm, net%initialized, 0_mpiint)
+    call imp_bcast(comm, net%aspect     , 0_mpiint)
     call imp_bcast(comm, net%tau        , 0_mpiint)
     call imp_bcast(comm, net%w0         , 0_mpiint)
     call imp_bcast(comm, net%g          , 0_mpiint)
@@ -153,11 +154,12 @@ contains
         call ncload([netname,'eni'     ],net%eni     , ierr) ; errcnt = errcnt+ierr ! ; print *,'loading eni     ',ierr
         call ncload([netname,'inlimits'],net%inlimits, ierr) ; errcnt = errcnt+ierr ! ; print *,'loading inlimits     ',ierr
 
-        call ncload([netname,'pspace.tau'  ],net%tau  , ierr) ; errcnt = errcnt+ierr   !  ; print *,'loading inlimits',ierr
-        call ncload([netname,'pspace.w0'   ],net%w0   , ierr) ; errcnt = errcnt+ierr   ! ; print *,'loading eni     ',ierr
-        call ncload([netname,'pspace.g'    ],net%g    , ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inlimits',ierr
-        call ncload([netname,'pspace.phi'  ],net%phi  , ierr) ; print *,'loading phi  ',ierr, allocated(net%phi  ), net%inlimits
-        call ncload([netname,'pspace.theta'],net%theta, ierr) ; print *,'loading theta',ierr, allocated(net%theta), net%inlimits
+        call ncload([netname,'pspace.aspect'],net%aspect, ierr) ; errcnt = errcnt+ierr   !  ; print *,'loading inlimits',ierr
+        call ncload([netname,'pspace.tau'   ],net%tau   , ierr) ; errcnt = errcnt+ierr   !  ; print *,'loading inlimits',ierr
+        call ncload([netname,'pspace.w0'    ],net%w0    , ierr) ; errcnt = errcnt+ierr   ! ; print *,'loading eni     ',ierr
+        call ncload([netname,'pspace.g'     ],net%g     , ierr) ; errcnt = errcnt+ierr  ! ; print *,'loading inlimits',ierr
+        call ncload([netname,'pspace.phi'   ],net%phi   , ierr) ; print *,'loading phi  ',ierr, allocated(net%phi  ), net%inlimits
+        call ncload([netname,'pspace.theta' ],net%theta , ierr) ; print *,'loading theta',ierr, allocated(net%theta), net%inlimits
 
         if(ldebug_optprop) &
           print *,'Loading ANN from: ',trim(netname),' resulted in errcnt',errcnt
@@ -186,23 +188,23 @@ contains
   end subroutine
 
 
-  subroutine ANN_get_dir2dir(taux, tauz, w0, g, phi, theta, C)
-      real(ireals),intent(in) :: taux, tauz, w0, g, phi, theta
-      real(ireals) :: ind_taux, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
+  subroutine ANN_get_dir2dir(aspect, tauz, w0, g, phi, theta, C)
+      real(ireals),intent(in) :: aspect, tauz, w0, g, phi, theta
+      real(ireals) :: ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
       real(ireals),intent(out) :: C(:)
       real(ireals) :: C2(dir2diff_network%out_size)
 
       integer(iintegers) :: ierr,isrc
       real(ireals) :: norm
 
-      ind_taux  = search_sorted_bisection(dir2dir_network%tau  , taux)
-      ind_tauz  = search_sorted_bisection(dir2dir_network%tau  , tauz)
-      ind_w0    = search_sorted_bisection(dir2dir_network%w0   , w0  )
-      ind_g     = search_sorted_bisection(dir2dir_network%g    ,g    )
-      ind_phi   = search_sorted_bisection(dir2dir_network%phi  ,phi  )
-      ind_theta = search_sorted_bisection(dir2dir_network%theta,theta)
+      ind_aspect  = search_sorted_bisection(dir2dir_network%aspect, aspect)
+      ind_tauz  = search_sorted_bisection(dir2dir_network%tau     , tauz)
+      ind_w0    = search_sorted_bisection(dir2dir_network%w0      , w0  )
+      ind_g     = search_sorted_bisection(dir2dir_network%g       , g    )
+      ind_phi   = search_sorted_bisection(dir2dir_network%phi     , phi  )
+      ind_theta = search_sorted_bisection(dir2dir_network%theta   , theta)
 
-      call calc_net(C, [ind_taux, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta] , dir2dir_network,ierr )
+      call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta] , dir2dir_network,ierr )
       if(ierr.ne.0) then
         print *,'Error when calculating dir2dir_net coeffs',ierr
         call exit()
@@ -225,7 +227,7 @@ contains
 !      endif
 
 !     if(lrenormalize) then
-!       call calc_net(C2, [ind_taux, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta], dir2diff_network,ierr)
+!       call calc_net(C2, [ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta], dir2diff_network,ierr)
 !       do isrc=1,Ndir_8_10
 !         norm = sum( C(isrc:size(C):Ndir_8_10) ) + sum( C2(isrc:size(C2):Ndiff_8_10) )
 !         if(real(norm).gt.one) then
@@ -236,23 +238,23 @@ contains
 
    end subroutine
 
-  subroutine ANN_get_dir2diff(taux, tauz, w0, g, phi, theta, C)
-      real(ireals),intent(in) :: taux, tauz, w0, g,phi,theta
-      real(ireals) :: ind_taux, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
+  subroutine ANN_get_dir2diff(aspect, tauz, w0, g, phi, theta, C)
+      real(ireals),intent(in) :: aspect, tauz, w0, g,phi,theta
+      real(ireals) :: ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
       real(ireals),intent(out) :: C(:)
       real(ireals) :: C2(dir2dir_network%out_size)
 
       integer(mpiint) :: ierr,isrc
       real(ireals) :: norm
 
-      ind_taux  = search_sorted_bisection(dir2diff_network%tau  , taux )
-      ind_tauz  = search_sorted_bisection(dir2diff_network%tau  , tauz )
-      ind_w0    = search_sorted_bisection(dir2diff_network%w0   , w0   )
-      ind_g     = search_sorted_bisection(dir2diff_network%g    , g    )
-      ind_phi   = search_sorted_bisection(dir2diff_network%phi  , phi  )
-      ind_theta = search_sorted_bisection(dir2diff_network%theta, theta)
+      ind_aspect  = search_sorted_bisection(dir2diff_network%aspect, aspect )
+      ind_tauz  = search_sorted_bisection(dir2diff_network%tau     , tauz )
+      ind_w0    = search_sorted_bisection(dir2diff_network%w0      , w0   )
+      ind_g     = search_sorted_bisection(dir2diff_network%g       , g    )
+      ind_phi   = search_sorted_bisection(dir2diff_network%phi     , phi  )
+      ind_theta = search_sorted_bisection(dir2diff_network%theta   , theta)
 
-      call calc_net(C, [ind_taux, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta] , dir2diff_network,ierr )
+      call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta] , dir2diff_network,ierr )
 !      C = C/1000.0
       if(ierr.ne.0) then
         print *,'Error when calculating dir2diff_net coeffs',ierr
@@ -275,7 +277,7 @@ contains
 !       enddo
 !     endif
 !     if(lrenormalize) then
-!       call calc_net(C2, [ind_taux, ind_tauz, ind_w0 ,ind_g, ind_phi, ind_theta], dir2dir_network, ierr)
+!       call calc_net(C2, [ind_aspect, ind_tauz, ind_w0 ,ind_g, ind_phi, ind_theta], dir2dir_network, ierr)
 !       do isrc=1,Ndir_8_10
 !         norm = sum( C(isrc:size(C):Ndiff_8_10) ) + sum(C2(isrc:size(C2):Ndir_8_10))
 !         if(real(norm).gt.one) then
@@ -285,10 +287,10 @@ contains
 !     endif
    end subroutine
 
-   subroutine ANN_get_diff2diff(taux, tauz, w0, g, C)
+   subroutine ANN_get_diff2diff(aspect, tauz, w0, g, C)
       real(ireals),intent(out) :: C(:)
-      real(ireals),intent(in) :: taux, tauz, w0, g
-      real(ireals) :: ind_taux, ind_tauz, ind_w0, ind_g
+      real(ireals),intent(in) :: aspect, tauz, w0, g
+      real(ireals) :: ind_aspect, ind_tauz, ind_w0, ind_g
       integer(mpiint) :: ierr,isrc
       real(ireals) :: norm
 
@@ -297,12 +299,12 @@ contains
         call exit()
       endif
 
-      ind_taux = search_sorted_bisection(diff2diff_network%tau , taux)
-      ind_tauz = search_sorted_bisection(diff2diff_network%tau , tauz)
-      ind_w0   = search_sorted_bisection(diff2diff_network%w0  , w0  )
-      ind_g    = search_sorted_bisection(diff2diff_network%g   , g   )
+      ind_aspect = search_sorted_bisection(diff2diff_network%aspect, aspect)
+      ind_tauz = search_sorted_bisection(diff2diff_network%tau     , tauz)
+      ind_w0   = search_sorted_bisection(diff2diff_network%w0      , w0  )
+      ind_g    = search_sorted_bisection(diff2diff_network%g       , g   )
 
-      call calc_net(C, [ind_taux, ind_tauz, ind_w0, ind_g], diff2diff_network, ierr )
+      call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g], diff2diff_network, ierr )
  !     C = C/1000.0
       if(ierr.ne.0) then
         print *,'Error when calculating diff_net coeffs',ierr
@@ -376,23 +378,23 @@ contains
       !       print *,'This is function: ANN_get_direct_Transmission'
       if(check_input) then
         if(inp(1).lt.net%inlimits(1,1).or.inp(1).gt.net%inlimits(1,2)) then
-          print *,'taux out of ANN range',inp(1),'limits:',net%inlimits(1,:)        ;ierr=1;! call exit()
+          print *,'aspect out of ANN range',inp(1),'limits:',net%inlimits(1,:) ;ierr=1;! call exit()
         endif
         if(input(2).lt.net%inlimits(2,1).or.input(2).gt.net%inlimits(2,2)) then
           print *,'tauz out of ANN range',input(2),'limits:',net%inlimits(2,:) ;ierr=2;! call exit()
         endif
         if(input(3).lt.net%inlimits(3,1).or.input(3).gt.net%inlimits(3,2)) then
-          print *,'w0 out of ANN range',input(3),'limits:',net%inlimits(3,:)    ;ierr=3;! call exit()
+          print *,'w0 out of ANN range',input(3),'limits:',net%inlimits(3,:)   ;ierr=3;! call exit()
         endif
         if(input(4).lt.net%inlimits(4,1).or.input(4).gt.net%inlimits(4,2)) then
-          print *,'g out of ANN range',input(4),'limits:',net%inlimits(4,:) ;ierr=4;! call exit()
+          print *,'g out of ANN range',input(4),'limits:',net%inlimits(4,:)    ;ierr=4;! call exit()
         endif
         if(net%in_size.ge.5) then
           if(input(5).lt.net%inlimits(5,1).or.input(5).gt.net%inlimits(5,2)) then
             print *,'phi out of ANN range',input(5),'limits:',net%inlimits(5,:) ;ierr=5;! call exit()
           endif
           if(input(6).lt.net%inlimits(6,1).or.input(6).gt.net%inlimits(6,2)) then
-            print *,'theta out of ANN range',input(6),'limits:',net%inlimits(6,:)    ;ierr=6;! call exit()
+            print *,'theta out of ANN range',input(6),'limits:',net%inlimits(6,:);ierr=6;! call exit()
           endif
         endif
       endif

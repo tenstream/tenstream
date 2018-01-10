@@ -53,18 +53,18 @@ module m_pprts
   PetscInt, parameter :: E_up=0, E_dn=1, E_le_m=2, E_ri_m=3, E_ba_m=4, E_fw_m=5
 
   type t_coord
-    integer(iintegers) :: xs,xe                 ! local domain start and end indices
-    integer(iintegers) :: ys,ye                 ! local domain start and end indices
-    integer(iintegers) :: zs,ze                 ! local domain start and end indices
-    integer(iintegers) :: xm,ym,zm              ! size of local domain
-    integer(iintegers) :: gxs,gys,gzs           ! domain indices including ghost points
-    integer(iintegers) :: gxe,gye,gze           !
-    integer(iintegers) :: gxm,gym,gzm           ! size of local domain including ghosts
-    integer(iintegers) :: glob_xm,glob_ym,glob_zm ! global domain size
-    integer(iintegers) :: dof,dim               ! degrees of freedom of Petsc Domain, dimension of dmda
-    type(tDM) :: da                   ! The Domain Decomposition Object
-    PetscMPIInt,allocatable :: neighbors(:) ! all 3d neighbours( (x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
-    integer(mpiint) :: comm           ! mpi communicatior for this DMDA
+    integer(iintegers)      :: xs,xe                   ! local domain start and end indices
+    integer(iintegers)      :: ys,ye                   ! local domain start and end indices
+    integer(iintegers)      :: zs,ze                   ! local domain start and end indices
+    integer(iintegers)      :: xm,ym,zm                ! size of local domain
+    integer(iintegers)      :: gxs,gys,gzs             ! domain indices including ghost points
+    integer(iintegers)      :: gxe,gye,gze             !
+    integer(iintegers)      :: gxm,gym,gzm             ! size of local domain including ghosts
+    integer(iintegers)      :: glob_xm,glob_ym,glob_zm ! global domain size
+    integer(iintegers)      :: dof,dim                 ! degrees of freedom of Petsc Domain, dimension of dmda
+    type(tDM)               :: da                      ! The Domain Decomposition Object
+    PetscMPIInt,allocatable :: neighbors(:)            ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
+    integer(mpiint)         :: comm                    ! mpi communicatior for this DMDA
   end type
 
   type t_opticalprops
@@ -73,46 +73,46 @@ module m_pprts
 
   type t_atmosphere
     type(t_opticalprops) , allocatable , dimension(:,:,:) :: op
-    real(ireals)    , allocatable , dimension(:,:,:) :: planck
-    real(ireals)    , allocatable , dimension(:,:,:) :: a11, a12, a21, a22, a13, a23, a33
-    real(ireals)    , allocatable , dimension(:,:,:) :: g1,g2
-    real(ireals)    , allocatable , dimension(:,:,:) :: dz
-    logical         , allocatable , dimension(:,:,:) :: l1d
-    real(ireals)    , allocatable , dimension(:,:)   :: albedo
-    real(ireals) :: dx,dy
-    integer(iintegers) :: icollapse=1
-    logical :: lcollapse = .False.
+    real(ireals)         , allocatable , dimension(:,:,:) :: planck
+    real(ireals)         , allocatable , dimension(:,:,:) :: a11, a12, a21, a22, a13, a23, a33
+    real(ireals)         , allocatable , dimension(:,:,:) :: g1,g2
+    real(ireals)         , allocatable , dimension(:,:,:) :: dz
+    logical              , allocatable , dimension(:,:,:) :: l1d
+    real(ireals)         , allocatable , dimension(:,:)   :: albedo
+    real(ireals)                                          :: dx,dy
+    integer(iintegers)                                    :: icollapse=1
+    logical                                               :: lcollapse = .False.
   end type
 
   type t_sunangles
-    real(ireals) :: symmetry_phi
-    integer(iintegers) :: yinc,xinc
-    real(ireals) :: theta, phi, costheta, sintheta
+    real(ireals)        :: symmetry_phi
+    integer(iintegers)  :: yinc,xinc
+    real(ireals)        :: theta, phi, costheta, sintheta
   end type
 
   type t_suninfo
     type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
-    logical :: luse_topography=.False.
+    logical                       :: luse_topography=.False.
   end type
 
   KSP,save :: kspdir, kspdiff
   logical,save :: linit_kspdir=.False., linit_kspdiff=.False.
 
   type t_state_container
-    integer(iintegers) :: uid ! dirty hack to give the solution a unique hash for example to write it out to disk -- this should be the same as the index in global solutions array
-    Vec :: edir,ediff,abso
+    integer(iintegers)  :: uid ! dirty hack to give the solution a unique hash for example to write it out to disk -- this should be the same as the index in global solutions array
+    Vec                 :: edir,ediff,abso
 
-    logical :: lset        = .False. ! initialized?
-    logical :: lsolar_rad  = .False. ! direct radiation calculated?
-    logical :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
+    logical             :: lset        = .False. ! initialized?
+    logical             :: lsolar_rad  = .False. ! direct radiation calculated?
+    logical             :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
 
     ! save state of solution vectors... they are either in [W](true) or [W/m**2](false)
-    logical :: lintegrated_dir=.True. , lintegrated_diff=.True.
+    logical             :: lintegrated_dir=.True. , lintegrated_diff=.True.
 
     !save error statistics
-    real(ireals) :: time   (30) = -one
-    real(ireals) :: maxnorm(30) = zero
-    real(ireals) :: twonorm(30) = zero
+    real(ireals)        :: time   (30) = -one
+    real(ireals)        :: maxnorm(30) = zero
+    real(ireals)        :: twonorm(30) = zero
     real(ireals),allocatable :: ksp_residual_history(:)
   end type
 
@@ -177,7 +177,7 @@ module m_pprts
     real(ireals),intent(in)       :: phi0          !< @param[in] phi0   solar azmiuth and zenith angle
     real(ireals),intent(in)       :: theta0        !< @param[in] theta0 solar azmiuth and zenith angle
 
-    class(t_solver), intent(inout):: solver         !< @param[inout] solver
+    class(t_solver), intent(inout)         :: solver         !< @param[inout] solver
     real(ireals),optional,intent(in)       :: dz1d(:)        !< @param[in]    dz1d    if given, dz1d is used everywhere on the rank
     real(ireals),optional,intent(in)       :: dz3d(:,:,:)    !< @param[in]    dz3d    if given, dz3d has to be local domain size, cannot have global shape
     integer(iintegers),optional,intent(in) :: nxproc(:)      !< @param[in]    nxproc  if given, Nx has to be the local size, dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
@@ -1476,6 +1476,7 @@ module m_pprts
         solution%lintegrated_dir = lWm2_to_W
       endif
     endif
+
     if(solution%lintegrated_diff .neqv. lWm2_to_W) then
       call scale_flx_vec(solver, solution%ediff, solver%C_diff, lWm2_to_W)
       solution%lintegrated_diff = lWm2_to_W
@@ -1498,7 +1499,7 @@ module m_pprts
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling direct fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C ,xv1d, xv)
 
-      Az  = atm%dx*atm%dy / solver%dirtop%dof  ! size of a direct stream in m**2
+      Az  = solver%atm%dx*solver%atm%dy / solver%dirtop%dof  ! size of a direct stream in m**2
       if(lWm2_to_W) then
         fac = Az
       else
@@ -1523,7 +1524,7 @@ module m_pprts
           do k=C%zs,C%ze-1
             if(.not.atm%l1d(atmk(atm, k),i,j)) then
               ! First the faces in x-direction
-              Ax = atm%dy*atm%dz(k,i,j) / (solver%dirside%dof/2)
+              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / (solver%dirside%dof/2)
               if(lWm2_to_W) then
                 fac = Ax
               else
@@ -1560,207 +1561,141 @@ module m_pprts
       type(t_coord)                         :: C
       PetscReal,pointer,dimension(:,:,:,:)  :: xv  =>null()
       PetscReal,pointer,dimension(:)        :: xv1d=>null()
-      PetscInt                              :: i,j,k
-      PetscReal                             :: Ax,Ax2,Ay,Ay2,Az,Az4
       logical,intent(in)                    :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
 
-      Vec :: vgrad_x, vgrad_y
-      PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
-      PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
-      real(ireals) :: grad(3)  ! is the cos(zenith_angle) of the tilted box in case of topography
-      integer(iintegers) :: iside
-
-      associate(  atm     => solver%atm,    &
-                  C_one1  => solver%C_one1)
+      integer(iintegers)  :: iside
+      PetscInt            :: i,j,k
+      PetscInt            :: src
+      PetscReal           :: Az, Ax, Ay, fac
+      !Vec                 :: vgrad_x, vgrad_y
+      !PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
+      !PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
+      !real(ireals)        :: grad(3)  ! is the cos(zenith_angle) of the tilted box in case of topography
 
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C ,xv1d, xv)
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !
-      !Az = atm%dx *atm%dy
 
-      !do j=C%ys,C%ye
-      !  do i=C%xs,C%xe
-      !    do k=C%zs,C%ze-i1
-      !    enddo
-      !  enddo
-      !enddo
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!
+      if(C%dof.eq.i3 .or. C%dof.eq.i8) then
+        print *,'scale_flx_vec is just for diffuse radia'
+      endif
+
+
+      ! Scaling top faces
+      Az = solver%atm%dx*solver%atm%dy/(solver%difftop%dof/2)
       if(lWm2_to_W) then
-        Az  = atm%dx*atm%dy
-        Az4 = atm%dx*atm%dy*.25_ireals
+        fac = Az
       else
-        Az  = one/(atm%dx*atm%dy)
-        Az4 = one/(atm%dx*atm%dy*.25_ireals)
+        fac = one/Az
       endif
 
       do j=C%ys,C%ye
         do i=C%xs,C%xe
-          do k=C%zs,C%ze-i1
-
-
-            if(C%dof.eq.i3) then ! This is 3 stream direct radiation
-              xv(i0,k,i,j) = xv(i0,k,i,j) * Az
-            endif
-
-            if(C%dof.eq.i6) then ! This is 6 stream diffuse radiation
-              xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-              xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-            endif
-
-            if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-              xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) * Az4
-            endif
-
-            if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
-              xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-              xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-            endif
-
-            if(.not.atm%l1d(atmk(atm, k),i,j)) then
-
-
-              if(C%dof.eq.i3) then ! This is 3 stream direct radiation
-
-                if(lWm2_to_W) then
-                  Ax = atm%dy*atm%dz(k,i,j)
-                  Ay = atm%dx*atm%dz(k,i,j)
-                else
-                  Ax = one/(atm%dy*atm%dz(k,i,j))
-                  Ay = one/(atm%dx*atm%dz(k,i,j))
-                endif
-                xv(i1,k,i,j) = xv(i1,k,i,j) * Ax
-                xv(i2,k,i,j) = xv(i2,k,i,j) * Ay
-              endif
-
-              if(C%dof.eq.i6) then ! This is 6 stream diffuse radiation
-                if(lWm2_to_W) then
-                  Ax  = atm%dy*atm%dz(k,i,j)
-                  Ay  = atm%dx*atm%dz(k,i,j)
-                else
-                  Ax  = one/(atm%dy*atm%dz(k,i,j) )
-                  Ay  = one/(atm%dx*atm%dz(k,i,j) )
-                endif
-                xv(E_le_m,k,i,j) = xv(E_le_m,k,i,j) * Ax
-                xv(E_ri_m,k,i,j) = xv(E_ri_m,k,i,j) * Ax
-                xv(E_ba_m,k,i,j) = xv(E_ba_m,k,i,j) * Ay
-                xv(E_fw_m,k,i,j) = xv(E_fw_m,k,i,j) * Ay
-              endif
-
-              if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-
-                if(lWm2_to_W) then
-                  Ax2 = atm%dy*atm%dz(k,i,j)*.5_ireals
-                  Ay2 = atm%dx*atm%dz(k,i,j)*.5_ireals
-                else
-                  Ax2 = one/(atm%dy*atm%dz(k,i,j)*.5_ireals )
-                  Ay2 = one/(atm%dx*atm%dz(k,i,j)*.5_ireals )
-                endif
-                xv(i4:i5,k,i,j) = xv(i4:i5,k,i,j) * Ax2
-                xv(i6:i7,k,i,j) = xv(i6:i7,k,i,j) * Ay2
-              endif
-
-              if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
-                if(lWm2_to_W) then
-                  Ax  = atm%dy*atm%dz(k,i,j)
-                  Ay  = atm%dx*atm%dz(k,i,j)
-                else
-                  Ax  = one/(atm%dy*atm%dz(k,i,j) )
-                  Ay  = one/(atm%dx*atm%dz(k,i,j) )
-                endif
-                xv(E_le_m,k,i,j) = xv(E_le_m,k,i,j) * Ax
-                xv(E_ri_m,k,i,j) = xv(E_ri_m,k,i,j) * Ax
-                xv(E_ba_m,k,i,j) = xv(E_ba_m,k,i,j) * Ay
-                xv(E_fw_m,k,i,j) = xv(E_fw_m,k,i,j) * Ay
-              endif
-            endif
+          do k=C%zs,C%ze
+            do iside=1,solver%difftop%dof
+              src = iside -1
+              xv(src ,k,i,j) = xv(src ,k,i,j) * fac                  ! diffuse radiation
+            enddo
           enddo
         enddo
       enddo
 
-      k=C%ze
+      ! Scaling side faces
       do j=C%ys,C%ye
         do i=C%xs,C%xe
+          do k=C%zs,C%ze-i1
+            if(.not.solver%atm%l1d(atmk(solver%atm, k),i,j)) then
 
-          if(C%dof.eq.i3) then ! This is 3 stream direct radiation
-            xv (i0,k,i,j) = xv (i0 ,k,i,j) * Az
-          endif
-          if(C%dof.eq.i6) then ! This is 6 stream diffuse radiation
-            xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-            xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-          endif
+              ! faces in x-direction
+              Ax = solver%atm%dy*solver%atm%dz(k,i,j)/(solver%difftop%dof/2)
+              if(lWm2_to_W) then
+                fac = Ax
+              else
+                fac = one/Ax
+              endif
 
-          if(C%dof.eq.i8) then ! This is 8 stream direct radiation
-            xv (i0:i3 ,k,i,j) = xv (i0:i3 ,k,i,j) * Az4
-          endif
-          if(C%dof.eq.i10) then ! This is 10 stream diffuse radiation
-            xv(E_up  ,k,i,j) = xv(E_up  ,k,i,j) * Az
-            xv(E_dn  ,k,i,j) = xv(E_dn  ,k,i,j) * Az
-          endif
+              do iside=1,solver%diffside%dof/2
+                src = solver%difftop%dof + iside -1
+                xv(src ,k,i,j) = xv(src ,k,i,j) * fac
+              enddo
+
+              ! faces in y-direction
+              Ay = solver%atm%dx*solver%atm%dz(k,i,j)/(solver%difftop%dof/2)
+              if(lWm2_to_W) then
+                fac = Ay
+              else
+                fac = one/Ay
+              endif
+
+              do iside=1,solver%diffside%dof/2
+                src = solver%difftop%dof + solver%diffside%dof/2 + iside -1
+                xv(src ,k,i,j) = xv(src ,k,i,j) * fac
+              enddo
+
+            endif
+          enddo
         enddo
       enddo
 
       if(solver%sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this?
-        select case (C%dof)
+        stop('Dont knwo how i should rescale topography! - exit...')
+        !select case (C%dof)
 
-        case(i8)
-          call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
+        !case(i8)
+        !  call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
 
-          call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
-          call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+        !  call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+        !  call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
 
-          do j=C%ys,C%ye
-            do i=C%xs,C%xe
-              do k=C%zs,C%ze
-                grad(1) = grad_x(i0,k,i,j)
-                grad(2) = grad_y(i0,k,i,j)
-                grad(3) = one
+        !  do j=C%ys,C%ye
+        !    do i=C%xs,C%xe
+        !      do k=C%zs,C%ze
+        !        grad(1) = grad_x(i0,k,i,j)
+        !        grad(2) = grad_y(i0,k,i,j)
+        !        grad(3) = one
 
-                xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) / norm(grad)
-              enddo
-            enddo
-          enddo
+        !        xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) / norm(grad)
+        !      enddo
+        !    enddo
+        !  enddo
 
-          call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
-          call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+        !  call restoreVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+        !  call restoreVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
 
-          call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  call CHKERR(ierr)
-          call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  call CHKERR(ierr)
+        !  call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  call CHKERR(ierr)
+        !  call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  call CHKERR(ierr)
 
-        case(i6)
-          ! Dont rescale diffuse fluxes
+        !case(i6)
+        !  ! Dont rescale diffuse fluxes
 
-        case(i10)
+        !case(i10)
 
-          ! Dont rescale diffuse fluxes
+        !  ! Dont rescale diffuse fluxes
 
-          ! call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
+        !  ! call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
 
-          ! call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
-          ! call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
+        !  ! call getVecPointer(vgrad_x , C_one1, grad_x1d, grad_x)
+        !  ! call getVecPointer(vgrad_y , C_one1, grad_y1d, grad_y)
 
-          !do j=C%ys,C%ye
-          !  do i=C%xs,C%xe
-          !    do k=C%zs,C%ze
-          !      grad(1) = grad_x(i0,k,i,j)
-          !      grad(2) = grad_y(i0,k,i,j)
-          !      grad(3) = one
+        !  !do j=C%ys,C%ye
+        !  !  do i=C%xs,C%xe
+        !  !    do k=C%zs,C%ze
+        !  !      grad(1) = grad_x(i0,k,i,j)
+        !  !      grad(2) = grad_y(i0,k,i,j)
+        !  !      grad(3) = one
 
-          !      xv([E_up, E_dn],k,i,j) = xv([E_up, E_dn],k,i,j) / norm(grad)
-          !    enddo
-          !  enddo
-          !enddo
+        !  !      xv([E_up, E_dn],k,i,j) = xv([E_up, E_dn],k,i,j) / norm(grad)
+        !  !    enddo
+        !  !  enddo
+        !  !enddo
 
-        case default
-          stop('Dont know how I should topography rescale this! - exiting...')
-        end select
-
+        !case default
+        !  stop('Dont know how I should topography rescale this! - exiting...')
+        !end select
       endif
 
       call restoreVecPointer(v ,C ,xv1d, xv )
 
-      end associate
     end subroutine
   end subroutine
 
@@ -3441,70 +3376,70 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
         endif
       endif
     end subroutine
-
   end subroutine
 
-subroutine destroy_pprts(solver, lfinalizepetsc)
-  class(t_solver)   :: solver
-  logical,optional :: lfinalizepetsc
-  logical :: lfinalize
-  integer(iintegers) :: uid
-  lfinalize = get_arg(.False., lfinalizepetsc)
+  subroutine destroy_pprts(solver, lfinalizepetsc)
+    class(t_solver)   :: solver
+    logical,optional :: lfinalizepetsc
+    logical :: lfinalize
+    integer(iintegers) :: uid
+    lfinalize = get_arg(.False., lfinalizepetsc)
 
-  if(solver%linitialized) then
-    if(linit_kspdir) then
-      call KSPDestroy(kspdir , ierr) ;call CHKERR(ierr); linit_kspdir =.False.
-    endif
-    if(linit_kspdiff) then
-      call KSPDestroy(kspdiff, ierr) ;call CHKERR(ierr); linit_kspdiff=.False.
-    endif
+    if(solver%linitialized) then
+      if(linit_kspdir) then
+        call KSPDestroy(kspdir , ierr) ;call CHKERR(ierr); linit_kspdir =.False.
+      endif
+      if(linit_kspdiff) then
+        call KSPDestroy(kspdiff, ierr) ;call CHKERR(ierr); linit_kspdiff=.False.
+      endif
 
-    if(.not. ltwostr_only) then
-      call VecDestroy(solver%incSolar , ierr) ;call CHKERR(ierr)
-      call VecDestroy(solver%b        , ierr) ;call CHKERR(ierr)
-      deallocate(solver%incSolar)
-      deallocate(solver%b)
-    endif
-    call destroy_matrices(solver)
+      if(.not. ltwostr_only) then
+        call VecDestroy(solver%incSolar , ierr) ;call CHKERR(ierr)
+        call VecDestroy(solver%b        , ierr) ;call CHKERR(ierr)
+        deallocate(solver%incSolar)
+        deallocate(solver%b)
+      endif
+      call destroy_matrices(solver)
 
-    do uid=lbound(solver%solutions,1),ubound(solver%solutions,1)
+      do uid=lbound(solver%solutions,1),ubound(solver%solutions,1)
         if( solver%solutions(uid)%lset ) then
-            if(solver%solutions(uid)%lsolar_rad) then
-                call VecDestroy(solver%solutions(uid)%edir , ierr) ;call CHKERR(ierr)
-                solver%solutions(uid)%lsolar_rad = .False.
-            endif
+          if(solver%solutions(uid)%lsolar_rad) then
+            call VecDestroy(solver%solutions(uid)%edir , ierr) ;call CHKERR(ierr)
+            solver%solutions(uid)%lsolar_rad = .False.
+          endif
 
-            call VecDestroy(solver%solutions(uid)%ediff    , ierr) ;call CHKERR(ierr)
-            call VecDestroy(solver%solutions(uid)%abso     , ierr) ;call CHKERR(ierr)
+          call VecDestroy(solver%solutions(uid)%ediff    , ierr) ;call CHKERR(ierr)
+          call VecDestroy(solver%solutions(uid)%abso     , ierr) ;call CHKERR(ierr)
 
-            if(allocated(solver%solutions(uid)%ksp_residual_history)) &
-                deallocate(solver%solutions(uid)%ksp_residual_history)
+          if(allocated(solver%solutions(uid)%ksp_residual_history)) &
+            deallocate(solver%solutions(uid)%ksp_residual_history)
 
-            solver%solutions(uid)%lset = .False.
+          solver%solutions(uid)%lset = .False.
         endif
-    enddo
+      enddo
 
-    if(allocated(solver%atm)) deallocate(solver%atm)
+      if(allocated(solver%atm)) deallocate(solver%atm)
 
-    if(allocated(solver%sun%angles)) deallocate(solver%sun%angles)
+      if(allocated(solver%sun%angles)) deallocate(solver%sun%angles)
 
-    call solver%OPP%destroy()
-    call DMDestroy(solver%C_dir%da ,ierr); deallocate(solver%C_dir )
-    call DMDestroy(solver%C_diff%da,ierr); deallocate(solver%C_diff)
-    call DMDestroy(solver%C_one%da ,ierr); deallocate(solver%C_one )
-    call DMDestroy(solver%C_one1%da,ierr); deallocate(solver%C_one1)
-    call DMDestroy(solver%C_one_atm%da ,ierr); deallocate(solver%C_one_atm)
-    call DMDestroy(solver%C_one_atm1%da,ierr); deallocate(solver%C_one_atm1)
+      call solver%OPP%destroy()
+      call DMDestroy(solver%C_dir%da ,ierr); deallocate(solver%C_dir )
+      call DMDestroy(solver%C_diff%da,ierr); deallocate(solver%C_diff)
+      call DMDestroy(solver%C_one%da ,ierr); deallocate(solver%C_one )
+      call DMDestroy(solver%C_one1%da,ierr); deallocate(solver%C_one1)
+      call DMDestroy(solver%C_one_atm%da ,ierr); deallocate(solver%C_one_atm)
+      call DMDestroy(solver%C_one_atm1%da,ierr); deallocate(solver%C_one_atm1)
 
-    solver%linitialized=.False.
-    if(solver%myid.eq.0 .and. ldebug)print *,'Destroyed TenStream'
+      solver%linitialized=.False.
+      if(solver%myid.eq.0 .and. ldebug)print *,'Destroyed TenStream'
 
-    if(lfinalize) then
+      if(lfinalize) then
         call PetscFinalize(ierr) ;call CHKERR(ierr)
         if(solver%myid.eq.0 .and. ldebug)print *,'Finalized Petsc'
+      endif
     endif
-  endif
-end subroutine
+  end subroutine
+
   subroutine destroy_matrices(solver)
     class(t_solver) :: solver
 
@@ -3520,213 +3455,213 @@ end subroutine
   end subroutine
 
 
-    !> @brief Scatter a petsc global vector into a local vector on Rank 0
-    !> @details The local Vec will be in natural ordering.
-    !>  \n you may use this routine e.g. to gather the results from mpi parallel vectors into a sequential calling program.
-    !>  \n lVec will be created and you should VecDestroy it when you are done.
-    subroutine petscGlobalVecToZero(gVec, C, lVec)
-      type(tVec), intent(in)    :: gVec
-      type(t_coord), intent(in) :: C
-      type(tVec), intent(out)   :: lVec
+  !> @brief Scatter a petsc global vector into a local vector on Rank 0
+  !> @details The local Vec will be in natural ordering.
+  !>  \n you may use this routine e.g. to gather the results from mpi parallel vectors into a sequential calling program.
+  !>  \n lVec will be created and you should VecDestroy it when you are done.
+  subroutine petscGlobalVecToZero(gVec, C, lVec)
+    type(tVec), intent(in)    :: gVec
+    type(t_coord), intent(in) :: C
+    type(tVec), intent(out)   :: lVec
 
-      type(tVec) :: natural
-      type(tVecScatter) :: scatter_context
+    type(tVec) :: natural
+    type(tVecScatter) :: scatter_context
 
-      integer(mpiint) :: ierr
+    integer(mpiint) :: ierr
 
-      call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
+    call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
 
-      call DMDAGlobalToNaturalBegin(C%da, gVec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
-      call DMDAGlobalToNaturalEnd  (C%da, gVec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
+    call DMDAGlobalToNaturalBegin(C%da, gVec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
+    call DMDAGlobalToNaturalEnd  (C%da, gVec, INSERT_VALUES, natural, ierr); call CHKERR(ierr)
 
-      call VecScatterCreateToZero(natural, scatter_context, lVec, ierr); call CHKERR(ierr)
+    call VecScatterCreateToZero(natural, scatter_context, lVec, ierr); call CHKERR(ierr)
 
-      call VecScatterBegin(scatter_context, natural, lVec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
-      call VecScatterEnd  (scatter_context, natural, lVec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+    call VecScatterBegin(scatter_context, natural, lVec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
+    call VecScatterEnd  (scatter_context, natural, lVec, INSERT_VALUES, SCATTER_FORWARD, ierr); call CHKERR(ierr)
 
-      call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
+    call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
 
-      call VecDestroy(natural,ierr); call CHKERR(ierr)
-    end subroutine
+    call VecDestroy(natural,ierr); call CHKERR(ierr)
+  end subroutine
 
-    !> @brief Scatter a local array on rank0 vector into a petsc global vector
-    !> @details you may use this routine e.g. to scatter the optical properties from a sequential calling program.
-    subroutine scatterZerotoPetscGlobal(arr, C, vec)
-      real(ireals),allocatable,intent(in) :: arr(:,:,:)
-      type(t_coord),intent(in) :: C
-      type(tVec) :: vec
+  !> @brief Scatter a local array on rank0 vector into a petsc global vector
+  !> @details you may use this routine e.g. to scatter the optical properties from a sequential calling program.
+  subroutine scatterZerotoPetscGlobal(arr, C, vec)
+    real(ireals),allocatable,intent(in) :: arr(:,:,:)
+    type(t_coord),intent(in) :: C
+    type(tVec) :: vec
 
-      type(tVecScatter) :: scatter_context
-      type(tVec) :: natural,local
-      real(ireals), pointer :: xloc(:)=>null()
-      integer(iintegers) :: myid
-
-
-      call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
-
-      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: Create Natural Vec'
-      call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
-
-      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: Create scatter ctx'
-      call VecScatterCreateToZero(natural, scatter_context, local, ierr); call CHKERR(ierr)
-
-      if(myid.eq.0) then
-        if(.not. allocated(arr)) stop 'Cannot call scatterZerotoPetscGlobal with unallocated input array'
-        if(ldebug) print *,myid,'scatterZerotoDM :: Copy data from Fortran array to Local Petsc Vec'
-        call VecGetArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
-        xloc = reshape( arr , [ size(arr) ] )
-        call VecRestoreArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
-      endif
-
-      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: scatter reverse....'
-      call VecScatterBegin(scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-      call VecScatterEnd  (scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-
-      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: natural to global....'
-      call DMDANaturalToGlobalBegin(C%da,natural, INSERT_VALUES, vec, ierr); call CHKERR(ierr)
-      call DMDANaturalToGlobalEnd  (C%da,natural, INSERT_VALUES, vec, ierr); call CHKERR(ierr)
-
-      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: destroying contexts....'
-      call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
-      call VecDestroy(local,ierr); call CHKERR(ierr)
-      call VecDestroy(natural,ierr); call CHKERR(ierr)
-      if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: done....'
-    end subroutine
+    type(tVecScatter) :: scatter_context
+    type(tVec) :: natural,local
+    real(ireals), pointer :: xloc(:)=>null()
+    integer(iintegers) :: myid
 
 
+    call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
 
-    !> @brief Copies the data from a petsc vector into an allocatable array
-    !> @details if flag opt_l_only_on_rank0 is True,
-    !>     \n we assume this is just a local vector on rank 0, i.e. coming petscGlobalVecToZero()
-    subroutine petscVecToF90_4d(vec, C, arr, opt_l_only_on_rank0)
-      type(tVec), intent(in)    :: vec
-      type(t_coord), intent(in) :: C
-      real(ireals), intent(inout), allocatable :: arr(:,:,:,:)
-      logical, intent(in), optional :: opt_l_only_on_rank0
-      logical :: l_only_on_rank0 = .False.
+    if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: Create Natural Vec'
+    call DMDACreateNaturalVector(C%da, natural, ierr); call CHKERR(ierr)
 
-      integer(iintegers) :: vecsize
-      real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+    if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: Create scatter ctx'
+    call VecScatterCreateToZero(natural, scatter_context, local, ierr); call CHKERR(ierr)
 
-      integer(mpiint) :: myid, ierr
+    if(myid.eq.0) then
+      if(.not. allocated(arr)) stop 'Cannot call scatterZerotoPetscGlobal with unallocated input array'
+      if(ldebug) print *,myid,'scatterZerotoDM :: Copy data from Fortran array to Local Petsc Vec'
+      call VecGetArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
+      xloc = reshape( arr , [ size(arr) ] )
+      call VecRestoreArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
+    endif
 
-      if(allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
+    if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: scatter reverse....'
+    call VecScatterBegin(scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+    call VecScatterEnd  (scatter_context, local, natural, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
-      call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
-      if(present(opt_l_only_on_rank0)) l_only_on_rank0 = opt_l_only_on_rank0
+    if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: natural to global....'
+    call DMDANaturalToGlobalBegin(C%da,natural, INSERT_VALUES, vec, ierr); call CHKERR(ierr)
+    call DMDANaturalToGlobalEnd  (C%da,natural, INSERT_VALUES, vec, ierr); call CHKERR(ierr)
 
-      if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
-
-      if(.not.l_only_on_rank0) then
-        call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
-        if(.not.allocated(arr)) allocate(arr(C%dof, C%zm, C%xm, C%ym))
-      else
-        call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
-        if(.not.allocated(arr)) allocate(arr(C%dof, C%glob_zm, C%glob_xm, C%glob_ym))
-      endif
-
-      if(vecsize.ne.size(arr)) then
-        print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
-        stop 'petscVecToF90 Vecsizes dont match!'
-      endif
-
-      if(.not.l_only_on_rank0) then
-        call getVecPointer(vec, C, x1d, x4d)
-        arr = x4d
-        call restoreVecPointer(vec, C, x1d, x4d)
-      else
-        call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
-        arr = reshape( x1d, (/ C%dof, C%glob_zm, C%glob_xm, C%glob_ym /) )
-        call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
-      endif
-    end subroutine
-    subroutine petscVecToF90_3d(vec, C, arr, opt_l_only_on_rank0)
-      type(tVec), intent(in)    :: vec
-      type(t_coord), intent(in) :: C
-      real(ireals), intent(inout), allocatable :: arr(:,:,:)
-      logical, intent(in), optional :: opt_l_only_on_rank0
-      logical :: l_only_on_rank0
-
-      integer(iintegers) :: vecsize
-      real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
-
-      integer(mpiint) :: myid, ierr
-
-      l_only_on_rank0 = get_arg(.False., opt_l_only_on_rank0)
-
-      if(C%dof.ne.1) stop 'petscVecToF90_3d should only be called with anything else than DM%dof of 1'
-
-      call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+    if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: destroying contexts....'
+    call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
+    call VecDestroy(local,ierr); call CHKERR(ierr)
+    call VecDestroy(natural,ierr); call CHKERR(ierr)
+    if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: done....'
+  end subroutine
 
 
-      if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
 
-      if(.not.l_only_on_rank0) then
-        call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
-        if(.not.allocated(arr)) allocate(arr(C%zm,C%xm,C%ym))
-      else
-        call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
-        if(.not.allocated(arr)) allocate(arr(C%glob_zm, C%glob_xm, C%glob_ym))
-      endif
+  !> @brief Copies the data from a petsc vector into an allocatable array
+  !> @details if flag opt_l_only_on_rank0 is True,
+  !>     \n we assume this is just a local vector on rank 0, i.e. coming petscGlobalVecToZero()
+  subroutine petscVecToF90_4d(vec, C, arr, opt_l_only_on_rank0)
+    type(tVec), intent(in)    :: vec
+    type(t_coord), intent(in) :: C
+    real(ireals), intent(inout), allocatable :: arr(:,:,:,:)
+    logical, intent(in), optional :: opt_l_only_on_rank0
+    logical :: l_only_on_rank0 = .False.
 
-      if(vecsize.ne.size(arr)) then
-        print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
-        stop 'petscVecToF90 Vecsizes dont match!'
-      endif
+    integer(iintegers) :: vecsize
+    real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
-      if(.not.l_only_on_rank0) then
-        call getVecPointer(vec, C, x1d, x4d)
-        arr = x4d(i0,:,:,:)
-        call restoreVecPointer(vec, C, x1d, x4d)
-      else
-        call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
-        arr = reshape( x1d, (/ C%glob_zm, C%glob_xm, C%glob_ym /) )
-        call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
-      endif
+    integer(mpiint) :: myid, ierr
 
-    end subroutine
+    if(allocated(arr)) stop 'You shall not call petscVecToF90 with an already allocated array!'
 
+    call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+    if(present(opt_l_only_on_rank0)) l_only_on_rank0 = opt_l_only_on_rank0
 
-    !> @brief Copies the data from a fortran vector into an petsc global vec
-    subroutine f90VecToPetsc_4d(arr, C, vec)
-      real(ireals), intent(in)  :: arr(:,:,:,:)
-      type(t_coord), intent(in) :: C
-      type(tVec), intent(inout) :: vec
+    if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
 
-      integer(iintegers) :: vecsize
-      real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
-
-      integer(mpiint) :: ierr
-
-      call getVecPointer(vec, C, x1d, x4d)
-      x4d = arr
-      call restoreVecPointer(vec, C, x1d, x4d)
-
+    if(.not.l_only_on_rank0) then
       call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
-      if(vecsize.ne.size(arr)) then
-        print *,'f90VecToPetsc Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
-        stop 'f90VecToPetsc Vecsizes dont match!'
-      endif
-    end subroutine
-    subroutine f90VecToPetsc_3d(arr, C, vec)
-      real(ireals), intent(in)  :: arr(:,:,:)
-      type(t_coord), intent(in) :: C
-      type(tVec), intent(inout) :: vec
+      if(.not.allocated(arr)) allocate(arr(C%dof, C%zm, C%xm, C%ym))
+    else
+      call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
+      if(.not.allocated(arr)) allocate(arr(C%dof, C%glob_zm, C%glob_xm, C%glob_ym))
+    endif
 
-      integer(iintegers) :: vecsize
-      real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+    if(vecsize.ne.size(arr)) then
+      print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
+      stop 'petscVecToF90 Vecsizes dont match!'
+    endif
 
-      integer(mpiint) :: ierr
-
+    if(.not.l_only_on_rank0) then
       call getVecPointer(vec, C, x1d, x4d)
-      x4d(i0,:,:,:) = arr
+      arr = x4d
       call restoreVecPointer(vec, C, x1d, x4d)
+    else
+      call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+      arr = reshape( x1d, (/ C%dof, C%glob_zm, C%glob_xm, C%glob_ym /) )
+      call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+    endif
+  end subroutine
+  subroutine petscVecToF90_3d(vec, C, arr, opt_l_only_on_rank0)
+    type(tVec), intent(in)    :: vec
+    type(t_coord), intent(in) :: C
+    real(ireals), intent(inout), allocatable :: arr(:,:,:)
+    logical, intent(in), optional :: opt_l_only_on_rank0
+    logical :: l_only_on_rank0
 
+    integer(iintegers) :: vecsize
+    real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+
+    integer(mpiint) :: myid, ierr
+
+    l_only_on_rank0 = get_arg(.False., opt_l_only_on_rank0)
+
+    if(C%dof.ne.1) stop 'petscVecToF90_3d should only be called with anything else than DM%dof of 1'
+
+    call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
+
+
+    if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
+
+    if(.not.l_only_on_rank0) then
       call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
-      if(vecsize.ne.size(arr)) then
-        print *,'f90VecToPetsc Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
-        stop 'f90VecToPetsc Vecsizes dont match!'
-      endif
-    end subroutine
+      if(.not.allocated(arr)) allocate(arr(C%zm,C%xm,C%ym))
+    else
+      call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
+      if(.not.allocated(arr)) allocate(arr(C%glob_zm, C%glob_xm, C%glob_ym))
+    endif
+
+    if(vecsize.ne.size(arr)) then
+      print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
+      stop 'petscVecToF90 Vecsizes dont match!'
+    endif
+
+    if(.not.l_only_on_rank0) then
+      call getVecPointer(vec, C, x1d, x4d)
+      arr = x4d(i0,:,:,:)
+      call restoreVecPointer(vec, C, x1d, x4d)
+    else
+      call VecGetArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+      arr = reshape( x1d, (/ C%glob_zm, C%glob_xm, C%glob_ym /) )
+      call VecRestoreArrayF90(vec,x1d,ierr); call CHKERR(ierr)
+    endif
+
+  end subroutine
+
+
+  !> @brief Copies the data from a fortran vector into an petsc global vec
+  subroutine f90VecToPetsc_4d(arr, C, vec)
+    real(ireals), intent(in)  :: arr(:,:,:,:)
+    type(t_coord), intent(in) :: C
+    type(tVec), intent(inout) :: vec
+
+    integer(iintegers) :: vecsize
+    real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+
+    integer(mpiint) :: ierr
+
+    call getVecPointer(vec, C, x1d, x4d)
+    x4d = arr
+    call restoreVecPointer(vec, C, x1d, x4d)
+
+    call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+    if(vecsize.ne.size(arr)) then
+      print *,'f90VecToPetsc Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
+      stop 'f90VecToPetsc Vecsizes dont match!'
+    endif
+  end subroutine
+  subroutine f90VecToPetsc_3d(arr, C, vec)
+    real(ireals), intent(in)  :: arr(:,:,:)
+    type(t_coord), intent(in) :: C
+    type(tVec), intent(inout) :: vec
+
+    integer(iintegers) :: vecsize
+    real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+
+    integer(mpiint) :: ierr
+
+    call getVecPointer(vec, C, x1d, x4d)
+    x4d(i0,:,:,:) = arr
+    call restoreVecPointer(vec, C, x1d, x4d)
+
+    call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+    if(vecsize.ne.size(arr)) then
+      print *,'f90VecToPetsc Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
+      stop 'f90VecToPetsc Vecsizes dont match!'
+    endif
+  end subroutine
 end module
 
