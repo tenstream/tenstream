@@ -2100,9 +2100,8 @@ module m_pprts
 
               do isrc = 1, solver%dirside%dof
                 src = isrc + solver%dirtop%dof
-                div2(src) = xedir(src-1, k, i+1-xinc , j         ) - xedir(src-1, k    , i+xinc , j      )          !FABI, warum +- xinc
+                div2(src) = xedir(src-1, k, i+1-xinc , j         ) - xedir(src-1, k    , i+xinc , j      )
               enddo
-
 
               do isrc = 1, solver%dirside%dof
                 src = isrc + solver%dirtop%dof + solver%dirside%dof
