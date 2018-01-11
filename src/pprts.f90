@@ -32,7 +32,7 @@ module m_pprts
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
-  use m_optprop, only: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_8_10
+  use m_optprop, only: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_8_10, t_optprop_3_10
   use m_eddington, only : eddington_coeff_zdun
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -45,7 +45,7 @@ module m_pprts
   implicit none
   private
 
-  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, init_pprts, &
+  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, init_pprts, &
             set_optical_properties, set_global_optical_properties, &
             solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
             pprts_get_result_toZero, t_coord, petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
@@ -144,7 +144,8 @@ module m_pprts
   end type
   type, extends(t_solver) :: t_solver_3_6
   end type
-
+  type, extends(t_solver) :: t_solver_3_10
+  end type
 
   logical,parameter :: ldebug=.True.
   logical,parameter :: lcycle_dir=.True.
@@ -229,6 +230,19 @@ module m_pprts
           allocate(solver%dirside%is_inward(2))
           solver%dirside%is_inward = .True.
 
+        class is (t_solver_3_10)
+
+          allocate(solver%difftop%is_inward(2))
+          solver%difftop%is_inward = [.False.,.True.]
+
+          allocate(solver%diffside%is_inward(4))
+          solver%diffside%is_inward = [.False.,.True.,.False.,.True.]
+
+          allocate(solver%dirtop%is_inward(1))
+          solver%dirtop%is_inward = [.True.]
+
+          allocate(solver%dirside%is_inward(1))
+          solver%dirside%is_inward = [.True.]
         class default
         stop 'init pprts: unexpected type for solver'
       end select
@@ -538,6 +552,9 @@ module m_pprts
 
           class is (t_solver_8_10)
              if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_10::solver%OPP)
+
+          class is (t_solver_3_10)
+             if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_10::solver%OPP)
 
           class default
           stop 'init pprts: unexpected type for solver'
@@ -2042,8 +2059,8 @@ module m_pprts
       class is (t_solver_3_6)
         allocate(div2(9))
 
-      !class is (t_solver_3_10)
-      !  allocate(div2(13))
+      class is (t_solver_3_10)
+        allocate(div2(13))
 
       class default
         stop 'calc_flc_div : unexpected type for optprop object!'
