@@ -64,11 +64,11 @@ subroutine init_dir_photon_3_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
 
   select case(src)
   case (1)
-    p%loc = [R()*dx, R()*dy, dz]
+    p%loc = [R()*dx, R()*dy, dz*(one-e)]
   case (2)
-    p%loc = [zero  , R()*dy, R()*dz]
+    p%loc = [e, R()*dy, R()*dz]
   case (3)
-    p%loc = [R()*dx, zero  , R()*dz]
+    p%loc = [R()*dx, e, R()*dz]
   case default
     print *,'Dont know what to do with source spec:',src
     call exit
