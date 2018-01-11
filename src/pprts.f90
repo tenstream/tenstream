@@ -1978,6 +1978,7 @@ module m_pprts
     ! if there are no 3D layers globally, we should skip the ghost value copying....
     lhave_no_3d_layer = mpi_logical_and(solver%comm, all(atm%l1d.eqv..True.))
     if(lhave_no_3d_layer) then
+      call scale_flx(solver, solution, lWm2_to_W=.True.)
 
       if(solution%lsolar_rad) call getVecPointer(solution%edir, C_dir ,xedir1d ,xedir )
 
@@ -1992,10 +1993,11 @@ module m_pprts
           do k=C_one%zs,C_one%ze
             Volume = Az     * atm%dz(atmk(atm, k),i,j)
             ! Divergence    =                       Incoming                -       Outgoing
+            div(1) = zero
             if(solution%lsolar_rad) then
-              div(1) = xedir(i0, k, i, j )  - xedir(i0 , k+i1 , i, j )
-            else
-              div(1) = zero
+              do src=i0,solver%dirtop%dof-1
+                div(1) = div(1) + xedir(src, k, i, j )  - xedir(src , k+i1 , i, j )
+              enddo
             endif
 
             div(2) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
@@ -2035,19 +2037,7 @@ module m_pprts
     ! calculate absorption by flux divergence
     Az = atm%dx * atm%dy
 
-    select type(solver)
-      class is (t_solver_8_10)
-        allocate(div2(18))
-
-      class is (t_solver_3_6)
-        allocate(div2(9))
-
-      !class is (t_solver_3_10)
-      !  allocate(div2(13))
-
-      class default
-        stop 'calc_flc_div : unexpected type for optprop object!'
-    end select
+    allocate(div2(solver%C_dir%dof + solver%C_diff%dof))
 
     do j=C_one%ys,C_one%ye
       do i=C_one%xs,C_one%xe
@@ -2057,10 +2047,11 @@ module m_pprts
           ! Divergence = Incoming - Outgoing
 
           if(atm%l1d(atmk(atm, k),i,j)) then ! one dimensional i.e. twostream
+            div(1) = zero
             if(solution%lsolar_rad) then
-              div(1) = xedir(i0, k, i, j )  - xedir(i0 , k+i1 , i, j )
-            else
-              div(1) = zero
+              do src=1,solver%dirtop%dof
+                div(1) = div(1) + xedir(src-1, k, i, j )  - xedir(src-1 , k+i1 , i, j )
+              enddo
             endif
 
             div(2) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
@@ -2083,7 +2074,7 @@ module m_pprts
 
               do isrc = 1, solver%dirside%dof
                 src = isrc + solver%dirtop%dof
-                div2(src) = xedir(src-1, k, i+1-xinc , j         ) - xedir(src-1, k    , i+xinc , j      )          !FABI, warum +- xinc
+                div2(src) = xedir(src-1, k, i+1-xinc , j         ) - xedir(src-1, k    , i+xinc , j      )
               enddo
 
 
