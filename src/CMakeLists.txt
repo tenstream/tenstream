@@ -27,11 +27,15 @@ set( optprop_sources
   "optprop.f90"
   )
 
-add_library( tenstream STATIC "tenstream.f90" ${general_sources} ${optprop_sources} )
-target_link_libraries( tenstream ${EXTLIB} ${USERLIB} ${LIBS})
 
-add_library( pprts STATIC "pprts.f90" "f2c_tenstream.f90" ${general_sources} ${optprop_sources})
-target_link_libraries( pprts ${EXTLIB} ${USERLIB} ${LIBS})
+add_library( pprts_base STATIC ${general_sources} ${optprop_sources} )
+target_link_libraries( pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
+
+add_library( tenstream STATIC "tenstream.f90")
+target_link_libraries( tenstream pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
+
+add_library( pprts STATIC "pprts.f90" "f2c_tenstream.f90")
+target_link_libraries( pprts pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
 file( GLOB streams createLUT_*.f90 )
 foreach ( stream ${streams} )
