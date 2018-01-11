@@ -2094,7 +2094,6 @@ module m_pprts
                 div2(src) = xedir(src-1, k, i+1-xinc , j         ) - xedir(src-1, k    , i+xinc , j      )
               enddo
 
-
               do isrc = 1, solver%dirside%dof
                 src = isrc + solver%dirtop%dof + solver%dirside%dof
                 div2(src) = xedir(src-1, k, i        , j+i1-yinc ) - xedir(src-1, k    , i      , j+yinc )
