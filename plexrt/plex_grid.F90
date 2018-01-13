@@ -709,7 +709,7 @@ module m_icon_plexgrid
       neighborcells = -1
 
       do icell=1,plex%Nfaces2d
-        print *,'icell', icell, ':: e', plex%icon_edge_of_cell(icell,:)
+        !print *,'icell', icell, ':: e', plex%icon_edge_of_cell(icell,:)
 
         do ie=1,3
           iedge=plex%icon_edge_of_cell(icell,ie)
@@ -725,7 +725,7 @@ module m_icon_plexgrid
       enddo
 
       do iedge=1,plex%Nedges2d
-        print *,'edge',iedge,'::',cellsofedge(:,iedge)
+        !print *,'edge',iedge,'::',cellsofedge(:,iedge)
         icell = cellsofedge(1,iedge)
         if(neighborcells(1, icell).eq.-1) then
           neighborcells(1, icell) = cellsofedge(2,iedge)
@@ -755,7 +755,7 @@ module m_icon_plexgrid
       cellowner = -1
       ! initial conquering of cells
       do i=1,numnodes
-        icell = i !plex%Nfaces2d / numnodes * (i-1) +1
+        icell = plex%Nfaces2d / numnodes * (i-1) +1
         call conquer_cell(icell, i, lwin)
       enddo
 
@@ -783,9 +783,9 @@ module m_icon_plexgrid
         enddo
       enddo
 
-      do icell=1,plex%Nfaces2d
-        if(ldebug) print *,'icell',icell,'::', cellowner(icell)
-      enddo
+      !do icell=1,plex%Nfaces2d
+      !  if(ldebug) print *,'icell',icell,'::', cellowner(icell)
+      !enddo
       do i=1,numnodes
         if(ldebug) print *,'node',i, 'area', area(i)
       enddo
@@ -803,7 +803,7 @@ module m_icon_plexgrid
               if(ineighcell.ne.-1) owners(ineigh) = cellowner(ineighcell)
             enddo
             if(.not.any(owners.eq.cellowner(icell))) then
-              print *,'adjacency not fullfilled! :( --',icell,'owned by',cellowner(icell),'neighbours',neighborcells(:, icell)
+              if(ldebug) print *,'adjacency not fullfilled! :( --',icell,'owned by',cellowner(icell),'neighbours',neighborcells(:, icell)
               check_adjacency=.False.
               do iowner=1,3
                 if(owners(iowner).ne.-1) call conquer_cell(icell, owners(iowner), lwin, lforce=.True.)

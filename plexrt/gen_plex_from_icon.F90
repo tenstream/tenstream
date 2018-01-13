@@ -183,10 +183,12 @@ module m_gen_plex_from_icon
     end subroutine
 
     ! Nz is number of layers
-    subroutine create_dmplex_3d(plex, dmname, Nz)
+    subroutine create_dmplex_3d(comm, plex, dmname, Nz)
+      integer(mpiint),intent(in) :: comm
       type(t_plexgrid),intent(inout) :: plex
       character(len=*), intent(in) :: dmname
       integer(iintegers), intent(in) :: Nz
+      integer(mpiint) :: myid
       integer(iintegers) :: chartsize, depth
       integer(iintegers) :: i, k, icell, ivertex, iedge
       integer(iintegers) :: Ncells, Nfaces, Nedges, Nvertices
@@ -198,10 +200,14 @@ module m_gen_plex_from_icon
 
       ! Create Plex
       allocate(plex%dm)
-      call DMPlexCreate(PETSC_COMM_SELF, plex%dm, ierr);call CHKERR(ierr)
+      plex%comm = comm
+      call DMPlexCreate(plex%comm, plex%dm, ierr);call CHKERR(ierr)
 
       call PetscObjectSetName(plex%dm, trim(dmname), ierr);call CHKERR(ierr)
       call DMSetDimension(plex%dm, i3, ierr);call CHKERR(ierr)
+
+      call mpi_comm_rank(plex%comm, myid, ierr); CHKERRQ(ierr)
+      if(myid.ne.0) return
 
       plex%Nz = Nz
       plex%Nfaces2d = size(plex%icon_cell_index) ! number of cells in plane
@@ -449,6 +455,8 @@ module m_gen_plex_from_icon
     end subroutine
     subroutine update_plex_indices(plex)
       type(t_plexgrid), intent(inout) :: plex
+      integer(mpiint) :: myid, mpierr
+
       call DMPlexGetChart(plex%dm, plex%pStart, plex%pEnd, ierr); call CHKERR(ierr)
       call DMPlexGetHeightStratum(plex%dm, i0, plex%cStart, plex%cEnd, ierr); call CHKERR(ierr) ! cells
       call DMPlexGetHeightStratum(plex%dm, i1, plex%fStart, plex%fEnd, ierr); call CHKERR(ierr) ! faces
@@ -456,6 +464,7 @@ module m_gen_plex_from_icon
       call DMPlexGetDepthStratum (plex%dm, i0, plex%vStart, plex%vEnd, ierr); call CHKERR(ierr) ! vertices
 
       if(ldebug) then
+        call mpi_comm_rank( plex%comm, myid, mpierr)
         print *,myid, 'pstart', plex%pstart, 'pEnd', plex%pEnd
         print *,myid, 'cStart', plex%cStart, 'cEnd', plex%cEnd
         print *,myid, 'fStart', plex%fStart, 'fEnd', plex%fEnd
@@ -502,7 +511,7 @@ module m_gen_plex_from_icon
       call VecGetSize(globalVec,vecsize, ierr); CHKERRQ(ierr)
       call PetscObjectSetName(globalVec, 'massVec', ierr);CHKERRQ(ierr)
 
-      call decompose_icon_grid(plex, 8, cell_ownership)
+      call decompose_icon_grid(plex, 2, cell_ownership)
 
       call VecGetArrayF90(globalVec, xv, ierr); CHKERRQ(ierr)
       do i = plex%cStart, plex%cEnd-1
@@ -560,14 +569,17 @@ module m_gen_plex_from_icon
     subroutine distribute_dmplex(comm, plex)
       integer(mpiint) :: comm                      !< @param[in] Global MPI Communicator
       type(t_plexgrid), intent(inout) :: plex      !< @param[in] dmplex mesh object, holding info about number of grid cells
-      integer(mpiint) :: numnodes
+      integer(mpiint) :: numnodes, myid, mpierr
       PetscSF         :: pointSF
       DM              :: dmdist
 
+      call mpi_comm_rank( comm, myid, mpierr)
+      call mpi_comm_size( comm, numnodes, mpierr)
+
       if(.not.(allocated(plex%dm))) then
-        if
+        if(myid.eq.0) stop 'distribute_dmplex :: rank 0 has to have an already instantiated dmplex!'
         allocate(plex%dm)
-        call DMPlexCreate(PETSC_COMM_WORLD, plex%dm, ierr);call CHKERR(ierr)
+        call DMPlexCreate(comm, plex%dm, ierr);call CHKERR(ierr)
       endif
 
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
@@ -578,6 +590,7 @@ module m_gen_plex_from_icon
         call DMPlexDistribute(plex%dm, i0, pointSF, dmdist, ierr); call CHKERR(ierr)
         call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
         plex%dm   = dmdist
+        plex%comm = comm
       endif
 
       call update_plex_indices(plex)
@@ -597,10 +610,13 @@ program main
   type(t_plexgrid) :: plex
   PetscInt :: petscint, Nz=3
   PetscScalar :: petscreal
+  integer(mpiint) :: numnodes, myid, mpierr
 
   call PetscInitialize(PETSC_NULL_CHARACTER,ierr); call CHKERR(ierr)
 
   call init_mpi_data_parameters(PETSC_COMM_WORLD)
+  call mpi_comm_rank(PETSC_COMM_WORLD, myid, mpierr)
+  call mpi_comm_size(PETSC_COMM_WORLD, numnodes, mpierr)
 
   print *,'Kind ints',kind(petscint), kind(i0)
   print *,'Kind reals',kind(petscreal), kind(one)
@@ -624,16 +640,20 @@ program main
     else if (lflg_grid3d) then
       call read_icon_grid_file(gridfile, plex)
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-Nz', Nz, lflg, ierr); call CHKERR(ierr)
-      call create_dmplex_3d(plex, trim('plex3d'//gridfile), Nz)
     else if (lflg_plex) then
       call load_plex_from_file(PETSC_COMM_WORLD, gridfile, plex)
     endif
+  endif
 
+  call create_dmplex_3d(PETSC_COMM_WORLD, plex, trim('plex3d'//gridfile), Nz)
+
+  if(myid.eq.0) then
+    call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
     call create_mass_vec(plex)
   endif ! rank0
 
   call distribute_dmplex(PETSC_COMM_WORLD, plex)
-  call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
+  call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex_dist", ierr); call CHKERR(ierr)
 
   call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
   call PetscFinalize(ierr)
