@@ -30,13 +30,15 @@ if (NETCDF_INCLUDES AND NETCDF_LIBRARIES)
   set (NETCDF_FIND_QUIETLY TRUE)
 endif (NETCDF_INCLUDES AND NETCDF_LIBRARIES)
 
-find_path (NETCDF_INCLUDES 
+find_path (NETCDF_INCLUDES
   NAMES netcdf.h
-  PATHS NETCDF_DIR "${NETCDF_DIR}/include" ENV NETCDF_DIR)
+  PATHS NETCDF_DIR "${NETCDF_DIR}/include" ENV NETCDF_DIR
+  NO_DEFAULT_PATH)
 
-find_library (NETCDF_LIBRARIES_C 
+find_library (NETCDF_LIBRARIES_C
   NAMES netcdf
-  PATHS NETCDF_DIR "${NETCDF_DIR}/lib" "${NETCDF_DIR}/lib64" ENV NETCDF_DIR)
+  PATHS NETCDF_DIR "${NETCDF_DIR}/lib" "${NETCDF_DIR}/lib64" ENV NETCDF_DIR
+  NO_DEFAULT_PATH)
 
 mark_as_advanced(NETCDF_LIBRARIES_C)
 
@@ -49,11 +51,13 @@ macro (NetCDF_check_interface lang header libs)
   if (NETCDF_${lang})
     find_path (NETCDF_INCLUDES_${lang} NAMES ${header}
       HINTS "${NETCDF_INCLUDES}"
-      PATHS NETCDF_DIR_${lang} "${NETCDF_DIR_${lang}}/include" ENV NETCDF_DIR_${lang})
+      PATHS NETCDF_DIR_${lang} "${NETCDF_DIR_${lang}}/include" ENV NETCDF_DIR_${lang}
+      NO_DEFAULT_PATH)
 
     find_library (NETCDF_LIBRARIES_${lang} NAMES ${libs}
       HINTS "${NetCDF_lib_dirs}"
-      PATHS NETCDF_DIR_${lang} "${NETCDF_DIR_${lang}}/lib" "${NETCDF_DIR_${lang}}/lib64" ENV NETCDF_DIR_${lang})
+      PATHS NETCDF_DIR_${lang} "${NETCDF_DIR_${lang}}/lib" "${NETCDF_DIR_${lang}}/lib64" ENV NETCDF_DIR_${lang}
+      NO_DEFAULT_PATH)
     mark_as_advanced (NETCDF_INCLUDES_${lang} NETCDF_LIBRARIES_${lang})
 
     if (NETCDF_INCLUDES_${lang} AND NETCDF_LIBRARIES_${lang})
@@ -62,7 +66,7 @@ macro (NetCDF_check_interface lang header libs)
     else (NETCDF_INCLUDES_${lang} AND NETCDF_LIBRARIES_${lang})
       set (NetCDF_has_interfaces "NO")
       message (STATUS "Failed to find NetCDF interface for ${lang}")
-      
+
     endif (NETCDF_INCLUDES_${lang} AND NETCDF_LIBRARIES_${lang})
 
   endif (NETCDF_${lang})
