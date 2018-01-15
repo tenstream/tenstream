@@ -306,18 +306,33 @@ contains
         if(present(lswitch_east)) then
           if(lswitch_east) then
             newcoeff = coeff
-            coeff(7:9)   = newcoeff([1, 2, 3] + dof*3)
+            coeff(1:3)   = newcoeff([1, 2, 3]        )
+            coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
+            coeff( 7: 9) = newcoeff([1, 2, 3] + dof*3)
             coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
+            coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
+            coeff(17:18) = newcoeff([1, 2, 3] + dof*4)
+            coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
+            coeff(22:24) = newcoeff([1, 2, 3] + dof*7)
+            coeff(25:27) = newcoeff([1, 2, 3] + dof*8)
+            coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
           endif
         endif
         if(present(lswitch_north)) then
           if(lswitch_north) then
             newcoeff = coeff
+            coeff(1:3)   = newcoeff([1, 2, 3]        )
+            coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
+            coeff( 7: 9) = newcoeff([1, 2, 3] + dof*3)
+            coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
             coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
-            coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
+            coeff(17:18) = newcoeff([1, 2, 3] + dof*4)
+            coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
+            coeff(22:24) = newcoeff([1, 2, 3] + dof*7)
+            coeff(25:27) = newcoeff([1, 2, 3] + dof*8)
+            coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
           endif
         endif
-
     end select
 
   end subroutine
