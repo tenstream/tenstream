@@ -9,7 +9,7 @@ module m_mpi_plex_ex1
     zero, one,       &
     init_mpi_data_parameters, myid
 
-  use m_icon_plexgrid, only: t_plexgrid, load_plex_from_file, &
+  use m_plex_grid, only: t_plexgrid, load_plex_from_file, &
                        compute_face_geometry, print_dmplex,   &
                        setup_edir_dmplex, setup_abso_dmplex,  &
                        compute_edir_absorption, create_edir_mat
@@ -171,7 +171,7 @@ module m_mpi_plex_ex1
       plex%sundir = get_normal_of_first_TOA_face(plex)
       print *,'get_normal_of_first_TOA_face',plex%sundir
       !plex%sundir = [-0.71184089224108049, -3.7794622710146053E-002, -0.70132311428301020] ! original zenith 0
-      plex%sundir = [-0.71184089224108049, -3.7794622710146053E-002, -0.60132311428301020] ! zenith 10 azi 1
+      !plex%sundir = [-0.71184089224108049, -3.7794622710146053E-002, -0.60132311428301020] ! zenith 10 azi 1
       !plex%sundir = [-0.51184089224108049, +0.37794622710146053, -0.00132311428301020] ! zenith 63 azi 17
 
       !plex%sundir = [-one/100,-one/10,-one]

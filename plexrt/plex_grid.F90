@@ -1,23 +1,24 @@
-module m_icon_plexgrid
+module m_plex_grid
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_netcdfIO, only: ncload
   use m_helper_functions, only: CHKERR, compute_normal_3d, spherical_2_cartesian, norm, cross_3d, &
     determine_normal_direction, angle_between_two_vec, rad2deg, deg2rad, hit_plane, &
-    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, vec_proj_on_plane, get_arg
+    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, vec_proj_on_plane, &
+    get_arg, imp_bcast
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, zero, one, pi, &
     default_str_len
+  use m_icon_grid, only : t_icongrid
 
   implicit none
 
   private
-  public :: t_plexgrid, read_icon_grid_file, load_plex_from_file, &
+  public :: t_plexgrid, load_plex_from_file, &
+    icell_icon_2_plex, icell_plex_2_icon, &
     compute_face_geometry, setup_edir_dmplex, print_dmplex,       &
     setup_abso_dmplex, compute_edir_absorption, create_edir_mat,  &
-    TOP_BOT_FACE, SIDE_FACE,                                      &
-    decompose_icon_grid
-
+    TOP_BOT_FACE, SIDE_FACE
 
   logical, parameter :: ldebug=.True.
 
@@ -33,11 +34,11 @@ module m_icon_plexgrid
     DM, allocatable :: edir_dm
 
     DM, allocatable :: geom_dm
-    Vec :: geomVec
+    type(tVec) :: geomVec
+
+    character(len=8) :: boundary_label='boundary'
 
     real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
-
-    character(len=8) :: boundary_label = 'boundary'
 
     ! Index counters on plex:
     integer(iintegers) :: pStart, pEnd ! points
@@ -46,55 +47,16 @@ module m_icon_plexgrid
     integer(iintegers) :: eStart, eEnd ! edges
     integer(iintegers) :: vStart, vEnd ! vertices
 
-    integer(iintegers) :: Nfaces2d, Nedges2d, Nvertices2d ! number of entries in base icon grid
     integer(iintegers) :: Nz = 1 ! Number of layers, in 2D set to one
-
-    integer(iintegers), allocatable, dimension(:,:) :: icon_vertex_of_cell, icon_edge_of_cell, icon_edge_vertices
-    integer(iintegers), allocatable, dimension(:) :: icon_cell_index, icon_edge_index, icon_vertex_index
-    real(ireals), allocatable, dimension(:) :: icon_cartesian_x_vertices, icon_cartesian_y_vertices, icon_cartesian_z_vertices
-    integer(iintegers), allocatable, dimension(:) :: icon_cell_sea_land_mask ! "sea (-2 inner, -1 boundary) land (2 inner, 1 boundary) mask for the cell"
-
-
   end type
 
   contains
-    subroutine read_icon_grid_file(fname, plexgrid)
-      character(len=*),intent(in) :: fname
-      type(t_plexgrid),intent(inout) :: plexgrid
-      character(default_str_len) :: varname(2)
-      integer(mpiint) :: ierr
 
-      if( allocated(plexgrid%icon_vertex_of_cell) .or. allocated(plexgrid%icon_edge_of_cell) ) then
-        print *,'Icon plexgrid already loaded...'
-      else
-        if (ldebug) print *,'Reading Icon plexgrid File:', trim(fname)
-        varname(1) = fname
+    subroutine create_plex_from_local_icongrid(comm, icongrid, local_icongrid, plex)
+      MPI_Comm, intent(in) :: comm
+      type(t_icongrid), allocatable, intent(in) :: icongrid, local_icongrid
+      type(t_plexgrid), allocatable, intent(out) :: plex
 
-        varname(2) = 'vertex_of_cell'       ; call ncload(varname, plexgrid%icon_vertex_of_cell, ierr)       ; call CHKERR(ierr)
-        varname(2) = 'edge_of_cell'         ; call ncload(varname, plexgrid%icon_edge_of_cell  , ierr)       ; call CHKERR(ierr)
-        varname(2) = 'edge_vertices'        ; call ncload(varname, plexgrid%icon_edge_vertices , ierr)       ; call CHKERR(ierr)
-        varname(2) = 'cell_index'           ; call ncload(varname, plexgrid%icon_cell_index    , ierr)       ; call CHKERR(ierr)
-        varname(2) = 'edge_index'           ; call ncload(varname, plexgrid%icon_edge_index    , ierr)       ; call CHKERR(ierr)
-        varname(2) = 'vertex_index'         ; call ncload(varname, plexgrid%icon_vertex_index  , ierr)       ; call CHKERR(ierr)
-        varname(2) = 'cell_sea_land_mask'   ; call ncload(varname, plexgrid%icon_cell_sea_land_mask  , ierr) ; call CHKERR(ierr)
-        varname(2) = 'cartesian_x_vertices' ; call ncload(varname, plexgrid%icon_cartesian_x_vertices, ierr) ; call CHKERR(ierr)
-        varname(2) = 'cartesian_y_vertices' ; call ncload(varname, plexgrid%icon_cartesian_y_vertices, ierr) ; call CHKERR(ierr)
-        varname(2) = 'cartesian_z_vertices' ; call ncload(varname, plexgrid%icon_cartesian_z_vertices, ierr) ; call CHKERR(ierr)
-      endif
-
-      plexgrid%Nfaces2d = size(plexgrid%icon_cell_index)
-      plexgrid%Nedges2d = size(plexgrid%icon_edge_index)
-      plexgrid%Nvertices2d = size(plexgrid%icon_vertex_index)
-
-      if (ldebug) then
-        print *,'shape vertex of cell', shape(plexgrid%icon_vertex_of_cell), size(plexgrid%icon_vertex_of_cell),'::', &
-          minval(plexgrid%icon_vertex_of_cell), maxval(plexgrid%icon_vertex_of_cell)
-
-        print *,'shape edge of cell', shape(plexgrid%icon_edge_of_cell), size(plexgrid%icon_edge_of_cell)
-        print *,'shape cell_index',   shape(plexgrid%icon_cell_index  )
-        print *,'shape edge_index',   shape(plexgrid%icon_edge_index  )
-        print *,'shape vertex_index', shape(plexgrid%icon_vertex_index)
-      endif
     end subroutine
 
     subroutine load_plex_from_file(comm, gridfile, plex)
@@ -112,10 +74,13 @@ module m_icon_plexgrid
       call DMPlexCreateFromFile(comm, trim(gridfile), PETSC_TRUE, plex%dm, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
       if (numnodes.gt.1_mpiint) then
+        call DMPlexSetAdjacencyUseCone(plex%dm, PETSC_TRUE, ierr); call CHKERR(ierr)
+        call DMPlexSetAdjacencyUseClosure(plex%dm, PETSC_TRUE, ierr); call CHKERR(ierr)
         call DMPlexDistribute(plex%dm, 0_mpiint, sf, dmdist, ierr); call CHKERR(ierr)
         call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
         plex%dm   = dmdist
       endif
+      call PetscObjectViewFromOptions(sf, PETSC_NULL_SF, "-show_plex_sf", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
     end subroutine
 
@@ -690,202 +655,36 @@ module m_icon_plexgrid
         phi, theta, dx, dy, dz, S, T, S_tol, T_tol, inp_atol=1e-2_ireals, inp_rtol=1e-1_ireals)
     end subroutine
 
-    subroutine decompose_icon_grid(plex, numnodes, cellowner)
-      type(t_plexgrid),intent(in) :: plex
-      integer(iintegers), intent(in) :: numnodes
-      integer(iintegers) :: i, icell, ie, iedge, iiter
+    !> @brief return the dmplex cell index for an icon base grid cell index
+    function icell_icon_2_plex(icon, plex, icell, k)
+      type(t_icongrid), intent(in) :: icon      !< @param[in] icon mesh object, holding info about number of grid cells
+      type(t_plexgrid), intent(in) :: plex      !< @param[in] dmplex mesh object, holding info about number of grid cells
+      integer(iintegers),intent(in) :: icell    !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+      integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+      integer(iintegers) :: icell_icon_2_plex   !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+      if(ldebug) then
+        if(k.lt.i1 .or. k.gt.plex%Nz) stop 'icell_icon_2_plex :: vertical index k out of range'
+        if(icell.lt.i1 .or. icell.gt.icon%Nfaces) stop 'icell_icon_2_plex :: icon cell index out of range'
+      endif
+      icell_icon_2_plex = (k-i1)*icon%Nfaces + icell - i1
+    end function
 
-      integer(iintegers) :: cellowner(:) ! dim=(plex%Nfaces2d)
-      integer(iintegers) :: vertexowner(plex%Nvertices2d), edgeowner(plex%Nedges2d)
-      integer(iintegers) :: cellsofedge(2,plex%Nedges2d),neighborcells(3,plex%Nfaces2d)
+    !> @brief return the vertical and icon base grid cell index for a given dmplex cell index.
+    function icell_plex_2_icon(icon, plex, icell)
+      type(t_icongrid), intent(in) :: icon      !< @param[in] icon mesh object, holding info about number of grid cells
+      type(t_plexgrid), intent(in) :: plex      !< @param[in] dmplex mesh object, holding info about number of grid cells
+      integer(iintegers),intent(in) :: icell    !< @param[in] icell, starts with 0 up to cEnd (size of DMPlex cells)
+      integer(iintegers) :: icell_plex_2_icon(2)!< @param[out] return icon cell index for base grid(starting with 1, to Nfaces) and vertical index(1 at top of domain)
+      if(ldebug) then
+        if(icell.lt.plex%cStart .or. icell.ge.plex%cEnd) stop 'icell_plex_2_icon, dmplex cell index out of range'
+      endif
+      icell_plex_2_icon(1) = modulo(icell, icon%Nfaces) + i1
+      icell_plex_2_icon(2) = icell / icon%Nfaces + i1
+      if(ldebug) then
+        if(icell_plex_2_icon(2).lt.i1 .or. icell_plex_2_icon(2).gt.plex%Nz) stop 'icell_icon_2_plex :: vertical index k out of range'
+        if(icell_plex_2_icon(1).lt.i1 .or. icell_plex_2_icon(1).gt.icon%Nfaces) stop 'icell_icon_2_plex :: icon cell index out of range'
+      endif
 
-      integer(iintegers) :: area(numnodes), ichange
-      logical :: lwin, ladjacent_check
-
-      if(.not. allocated(plex%icon_cell_index)) stop 'decompose_icon_grid :: the grid is not loaded from an icon gridfile ... cant be decomposed with this method'
-
-      area = 0
-      cellsofedge = -1
-      neighborcells = -1
-
-      do icell=1,plex%Nfaces2d
-        !print *,'icell', icell, ':: e', plex%icon_edge_of_cell(icell,:)
-
-        do ie=1,3
-          iedge=plex%icon_edge_of_cell(icell,ie)
-          if(cellsofedge(1,iedge).eq.-1) then
-            cellsofedge(1,iedge) = icell
-          else if(cellsofedge(2,iedge).eq.-1) then
-            cellsofedge(2,iedge) = icell
-          else
-            print *,cellsofedge(:,iedge)
-            stop 'should not be here?'
-          endif
-        enddo
-      enddo
-
-      do iedge=1,plex%Nedges2d
-        !print *,'edge',iedge,'::',cellsofedge(:,iedge)
-        icell = cellsofedge(1,iedge)
-        if(neighborcells(1, icell).eq.-1) then
-          neighborcells(1, icell) = cellsofedge(2,iedge)
-        else if(neighborcells(2, icell).eq.-1) then
-          neighborcells(2, icell) = cellsofedge(2,iedge)
-        else if(neighborcells(3, icell).eq.-1) then
-          neighborcells(3, icell) = cellsofedge(2,iedge)
-        else
-          print *,'neighbors',icell,'::',neighborcells(:,icell)
-          stop 'should not be here?'
-        endif
-        icell = cellsofedge(2,iedge)
-        if(icell.eq.-1) cycle  ! only one edge here
-
-        if(neighborcells(1, icell).eq.-1) then
-          neighborcells(1, icell) = cellsofedge(1,iedge)
-        else if(neighborcells(2, icell).eq.-1) then
-          neighborcells(2, icell) = cellsofedge(1,iedge)
-        else if(neighborcells(3, icell).eq.-1) then
-          neighborcells(3, icell) = cellsofedge(1,iedge)
-        else
-          print *,'neighbors',icell,'::',neighborcells(:,icell)
-          stop 'should not be here?'
-        endif
-      enddo
-
-      cellowner = -1
-      ! initial conquering of cells
-      do i=1,numnodes
-        icell = plex%Nfaces2d / numnodes * (i-1) +1
-        call conquer_cell(icell, i, lwin)
-      enddo
-
-      do iiter=1,plex%Nfaces2d*10
-        ichange=0
-        do icell=1,plex%Nfaces2d
-          if(cellowner(icell).ne.-1) then
-            do i=1,3
-              if(neighborcells(i, icell).ne.-1) then
-                call conquer_cell(neighborcells(i, icell), cellowner(icell), lwin) ! conquer my neighbors
-                if(lwin) ichange = ichange+1
-                ladjacent_check = check_adjacency()
-              endif
-            enddo
-          endif
-        enddo
-        ladjacent_check = check_adjacency()
-        if(ldebug) print *,'iiter',iiter, ichange, ladjacent_check
-        if(ichange.eq.0 .and. ladjacent_check) exit
-      enddo
-
-      do icell=1,plex%Nfaces2d
-        do ie=1,3
-          iedge = plex%icon_edge_of_cell(icell,ie)
-        enddo
-      enddo
-
-      !do icell=1,plex%Nfaces2d
-      !  if(ldebug) print *,'icell',icell,'::', cellowner(icell)
-      !enddo
-      do i=1,numnodes
-        if(ldebug) print *,'node',i, 'area', area(i)
-      enddo
-      contains
-        logical function check_adjacency()
-          integer(iintegers) :: owners(3), ineigh, ineighcell, icell, iowner
-          logical :: lwin
-
-          check_adjacency=.True.
-
-          do icell=1,plex%Nfaces2d
-            owners=-1
-            do ineigh=1,3
-              ineighcell = neighborcells(ineigh, icell)
-              if(ineighcell.ne.-1) owners(ineigh) = cellowner(ineighcell)
-            enddo
-            if(.not.any(owners.eq.cellowner(icell))) then
-              if(ldebug) print *,'adjacency not fullfilled! :( --',icell,'owned by',cellowner(icell),'neighbours',neighborcells(:, icell)
-              check_adjacency=.False.
-              do iowner=1,3
-                if(owners(iowner).ne.-1) call conquer_cell(icell, owners(iowner), lwin, lforce=.True.)
-                exit
-              enddo
-            endif
-          enddo
-        end
-
-        subroutine conquer_cell(icell, conqueror, lwin, lforce)
-          integer(iintegers),intent(in) :: icell, conqueror
-          integer(iintegers) :: old_owner, ineigh
-          real(ireals) :: wgt(2)
-          logical,intent(out) :: lwin
-          logical,intent(in),optional :: lforce
-          integer(iintegers) :: ineigh_cell, neigh_owners(3)
-          integer(iintegers) :: owner_cellcnt(numnodes)
-          logical :: ladj
-
-          lwin=.False.
-          wgt = 0
-
-          old_owner = cellowner(icell)
-          if( old_owner.eq.-1 )then
-            lwin = .True.
-          else
-            if(old_owner.eq.conqueror) return
-            wgt(1) = (real(area(old_owner)) / real(area(conqueror)) -1)/2
-            if(area(old_owner).eq.1) then
-              print *,conqueror,' wanted to take field ',icell,' :: but cant conquer last field of ',old_owner
-              return
-            endif
-
-            !neigh_owners = -1
-            !do ineigh=1,3
-            !  ineigh_cell = neighborcells(ineigh, icell)
-            !  if(ineigh_cell.ne.-1) neigh_owners(ineigh) = cellowner(ineigh_cell)
-            !enddo
-            call count_neighbour_owners(icell, owner_cellcnt)
-            !print *,icell,'::',conqueror,':',owner_cellcnt, '=>', owner_cellcnt(conqueror)/real(sum(owner_cellcnt))
-
-            wgt(2) = owner_cellcnt(conqueror)/real(sum(owner_cellcnt)) !real(count(neigh_owners.eq.conqueror) - count(neigh_owners.eq.-1) -1.5)  ! 1 == conqueror -> negative; 2 == conqueror => positive; -1 owners dont count
-            lwin = sum(wgt) .gt. .5
-            !print *,conqueror,'neighbor cells:',neighborcells(:, icell),'::',neigh_owners, ':', count(neigh_owners.eq.conqueror), '=>', wgt(2)
-          endif
-
-          if( get_arg(.False., lforce) ) lwin = .True.
-
-          if(lwin) then
-            !print *,'conquering ',icell,old_owner,'->',conqueror
-            if( old_owner .ne. -1) area(old_owner) = area(old_owner) -1
-            cellowner(icell) = conqueror
-            area(conqueror) = area(conqueror) +1
-          endif
-        end subroutine
-
-        subroutine count_neighbour_owners(icell, owner_cellcnt)
-          integer(iintegers),intent(in) :: icell
-          integer(iintegers),intent(out) :: owner_cellcnt(:) ! dim numnodes
-
-          integer(iintegers) :: cell_list(3*3+3), ineigh, ineigh2, ineigh_cell, ineigh_cell2, iowners, owner
-
-          owner_cellcnt = 0
-
-          do ineigh=1,3
-            ineigh_cell = neighborcells(ineigh, icell)
-            if(ineigh_cell.ne.-1) then
-              owner = cellowner(ineigh_cell)
-              if(owner.ne.-1) then
-                owner_cellcnt(owner) = owner_cellcnt(owner) + 2
-                do ineigh2=1,3
-                  ineigh_cell2 = neighborcells(ineigh2, ineigh_cell)
-                  if(ineigh_cell2.ne.-1 .and. ineigh_cell2.ne.icell) then
-                    owner = cellowner(ineigh_cell2)
-                    if(owner.ne.-1) owner_cellcnt(owner) = owner_cellcnt(owner) + 1
-                  endif
-                enddo
-              endif
-            endif
-          enddo
-        end subroutine
-
-    end subroutine
+    end function
 
 end module
