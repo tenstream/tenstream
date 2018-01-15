@@ -30,7 +30,7 @@ module m_helper_functions
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg
+    vec_proj_on_plane, get_arg, unique
 
   interface imp_bcast
     module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -698,4 +698,82 @@ module m_helper_functions
       endif
     end function
 
+    ! https://stackoverflow.com/questions/44198212/a-fortran-equivalent-to-unique
+    recursive subroutine mergesort(temp, begin, finish, list)
+      ! 1st 3 arguments are input, 4th is output sorted list
+      integer(iintegers),intent(inout) :: begin, list(:), temp(:)
+      integer(iintegers),intent(in) :: finish
+      integer(iintegers) :: middle
+      if (finish-begin<2) then    !if run size =1
+        return                   !it is sorted
+      else
+        ! split longer runs into halves
+        middle = (finish+begin)/2
+        ! recursively sort both halves from list into temp
+        call mergesort(list, begin, middle, temp)
+        call mergesort(list, middle, finish, temp)
+        ! merge sorted runs from temp into list
+        call merge(temp, begin, middle, finish, list)
+      endif
+    contains
+
+      subroutine merge(list, begin, middle, finish, temp)
+        integer(iintegers),intent(inout) :: list(:), temp(:)
+        integer(iintegers),intent(in) :: begin, middle, finish
+        integer(iintegers) :: kx,ky,kz
+        ky=begin
+        kz=middle
+        !! while there are elements in the left or right runs...
+        do kx=begin,finish-1
+          !! if left run head exists and is <= existing right run head.
+          if (ky.lt.middle.and.(kz.ge.finish.or.list(ky).le.list(kz))) then
+            temp(kx)=list(ky)
+            ky=ky+1
+          else
+            temp(kx)=list(kz)
+            kz = kz + 1
+          end if
+        end do
+      end subroutine merge
+    end subroutine mergesort
+
+    function unique(inp)
+      !! usage sortedlist = unique(list)
+      !! or reshape it first to 1D: sortedlist = unique(reshape(list, [size(list)]))
+      integer :: strt,fin,n
+      integer(iintegers), intent(in) :: inp(:)
+      integer(iintegers) :: list(size(inp)), work(size(inp))
+      integer(iintegers), allocatable :: unique(:)
+      logical,allocatable :: mask(:)
+
+      list = inp
+      work = list; strt=1; n=size(list); fin=n+1
+      call mergesort(work,strt,fin,list)
+      ! cull duplicate indices
+      allocate(mask(n))
+      mask = .False.
+      mask(1:n-1) = list(1:n-1) == list(2:n)
+      allocate(unique(count(.not.mask)))
+      unique = pack(list, .not.mask)
+    end function unique
+
+    !> @brief remove duplicate elements from unsorted list
+    ! https://rosettacode.org/wiki/Remove_duplicate_elements#Fortran
+    subroutine remove_duplicate_elements(list, n, res, k)
+      integer(iintegers), dimension(n), intent(in) :: list
+      integer(iintegers), dimension(n), intent(inout) :: res
+      integer(iintegers) :: n, k, i, j
+
+      k = 1
+      res(1) = list(1)
+      outer: do i=2,size(list)
+        do j=1,k
+          if (res(j) == list(i)) then
+            cycle outer
+          end if
+        end do
+        k = k + 1
+        res(k) = list(i)
+      end do outer
+    end subroutine
   end module
