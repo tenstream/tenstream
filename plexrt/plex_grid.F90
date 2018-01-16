@@ -7,15 +7,15 @@ module m_plex_grid
     rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, vec_proj_on_plane, &
     get_arg, imp_bcast
   use m_data_parameters, only : ireals, iintegers, mpiint, &
-    i0, i1, zero, one, pi, &
+    i0, i1, i2, i3, i4, i5, zero, one, pi, &
     default_str_len
   use m_icon_grid, only : t_icongrid
 
   implicit none
 
   private
-  public :: t_plexgrid, load_plex_from_file, &
-    icell_icon_2_plex, icell_plex_2_icon, &
+  public :: t_plexgrid, load_plex_from_file, create_plex_from_local_icongrid, &
+    icell_icon_2_plex, icell_plex_2_icon, update_plex_indices, &
     compute_face_geometry, setup_edir_dmplex, print_dmplex,       &
     setup_abso_dmplex, compute_edir_absorption, create_edir_mat,  &
     TOP_BOT_FACE, SIDE_FACE
@@ -52,11 +52,181 @@ module m_plex_grid
 
   contains
 
-    subroutine create_plex_from_local_icongrid(comm, icongrid, local_icongrid, plex)
+    subroutine create_plex_from_local_icongrid(comm, Nz, icongrid, local_icongrid, plex)
       MPI_Comm, intent(in) :: comm
+      integer(iintegers), intent(in) :: Nz
       type(t_icongrid), allocatable, intent(in) :: icongrid, local_icongrid
-      type(t_plexgrid), allocatable, intent(out) :: plex
+      type(t_plexgrid), allocatable, intent(inout) :: plex
 
+      integer(iintegers) :: chartsize, Ncells, Nfaces, Nedges, Nvertices
+      integer(iintegers) :: offset_faces, offset_edges, offset_vertices
+      integer(iintegers) :: offset_faces_sides, offset_edges_vertical
+      integer(iintegers) :: edge3(3), edge4(4), faces(5), vert2(2)
+
+      type(tDMLabel) :: faceposlabel, zindexlabel, TOAlabel
+
+      integer(iintegers) :: i, k, icell, iedge, ivertex
+      integer(iintegers) :: depth
+      integer(mpiint) :: myid, numnodes, ierr
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+
+      if(allocated(plex)) stop 'create_plex_from_local_icongrid :: plex should not be allocated!'
+      if(.not.allocated(icongrid)) stop 'create_plex_from_local_icongrid :: icongrid should be allocated!'
+      if(.not.allocated(local_icongrid)) stop 'create_plex_from_local_icongrid :: local_icongrid should be allocated!'
+
+      allocate(plex)
+      plex%comm = comm
+
+      plex%Nz = Nz
+
+      Ncells    = local_icongrid%Nfaces * plex%Nz
+      Nfaces    = local_icongrid%Nfaces * (plex%Nz+1) + local_icongrid%Nedges * plex%Nz
+      Nedges    = local_icongrid%Nedges * (plex%Nz+1) + local_icongrid%Nvertices * plex%Nz
+      Nvertices = local_icongrid%Nvertices * (plex%Nz+i1)
+
+      chartsize = Ncells + Nfaces + Nedges + Nvertices
+
+      allocate(plex%dm)
+      call DMPlexCreate(plex%comm, plex%dm, ierr); call CHKERR(ierr)
+      call DMSetDimension(plex%dm, i3, ierr); call CHKERR(ierr)
+
+      call DMPlexSetChart(plex%dm, i0, chartsize, ierr); call CHKERR(ierr)
+
+      offset_faces = Ncells
+      offset_faces_sides = offset_faces + (plex%Nz+1)*local_icongrid%Nfaces
+      offset_edges = Ncells + Nfaces
+      offset_edges_vertical = offset_edges + local_icongrid%Nedges * (plex%Nz+i1)
+      offset_vertices = Ncells + Nfaces + Nedges
+      print *,myid,'offsets faces:', offset_faces, offset_faces_sides
+      print *,myid,'offsets edges:', offset_edges, offset_edges_vertical
+      print *,myid,'offsets verte:', offset_vertices
+      print *,myid,'Chartsize:', chartsize
+
+      ! Create some labels ... those are handy later when setting up matrices etc
+      call DMCreateLabel(plex%dm, "Face Position", ierr); CHKERRQ(ierr)
+      call DMCreateLabel(plex%dm, "Vertical Index", ierr); CHKERRQ(ierr)
+      call DMCreateLabel(plex%dm, "TOA", ierr); CHKERRQ(ierr)
+
+      call DMGetLabel(plex%dm, "Face Position", faceposlabel, ierr); CHKERRQ(ierr)
+      call DMGetLabel(plex%dm, "Vertical Index", zindexlabel, ierr); CHKERRQ(ierr)
+      call DMGetLabel(plex%dm, "TOA", TOAlabel, ierr); CHKERRQ(ierr)
+
+      ! Preallocation
+      ! Every cell has 5 faces
+      do i = i0, offset_faces-i1
+        call DMPlexSetConeSize(plex%dm, i, i5, ierr); call CHKERR(ierr)
+      enddo
+
+      ! top/bottom faces have 3 edges
+      do i = offset_faces, offset_faces_sides-i1
+        call DMPlexSetConeSize(plex%dm, i, i3, ierr); call CHKERR(ierr)
+      enddo
+
+      ! side faces have 4 edges
+      do i = offset_faces_sides, offset_edges-i1
+        call DMPlexSetConeSize(plex%dm, i, i4, ierr); call CHKERR(ierr)
+      enddo
+
+      ! Edges have 2 vertices
+      do i = offset_edges, offset_vertices-i1
+        call DMPlexSetConeSize(plex%dm, i, i2, ierr); call CHKERR(ierr)
+      enddo
+
+      call DMSetUp(plex%dm, ierr); call CHKERR(ierr) ! Allocate space for cones
+
+      ! Setup Connections
+      ! First set five faces of cell
+      do k = 1, plex%Nz
+        do i = 1, local_icongrid%Nfaces
+          icell = i !local_icongrid%cell_index(i)
+          edge3 = local_icongrid%edge_of_cell(i,:)
+
+          faces(1) = offset_faces + local_icongrid%Nfaces*(k-1) + icell-i1  ! top face
+          faces(2) = offset_faces + local_icongrid%Nfaces*k + icell-i1      ! bot face
+
+          faces(3:5) = offset_faces_sides + (edge3-i1) + (k-1)*local_icongrid%Nedges
+
+          call DMPlexSetCone(plex%dm, icell_icon_2_plex(local_icongrid, plex, icell, k), faces, ierr); call CHKERR(ierr)
+
+          call DMLabelSetValue(zindexlabel, icell, k, ierr); call CHKERR(ierr)
+          print *,myid,'Setting cell indices', i, icell, 'edge3', edge3, 'faces', faces
+        enddo
+      enddo
+
+      ! set edges of top/bot faces
+      do k = 1, plex%Nz+1 ! levels
+        do i = 1, local_icongrid%Nfaces
+          icell = i !local_icongrid%cell_index(i)
+          edge3 = offset_edges + local_icongrid%edge_of_cell(icell,:)-i1 + local_icongrid%Nedges*(k-i1)
+
+          call DMPlexSetCone(plex%dm, offset_faces + local_icongrid%Nfaces*(k-1) + icell -i1, edge3, ierr); call CHKERR(ierr)
+          !print *,'edges @ horizontal faces',icell,':',edge3,'petsc:', offset_faces + Nfaces*(k-1) + icell -i1, '::', edge3
+          call DMLabelSetValue(faceposlabel, offset_faces + local_icongrid%Nfaces*(k-1) + icell -i1, TOP_BOT_FACE, ierr); call CHKERR(ierr)
+          if (k.eq.i1) then
+            call DMLabelSetValue(TOAlabel, offset_faces + local_icongrid%Nfaces*(k-1) + icell -i1, i1, ierr); call CHKERR(ierr)
+          endif
+        enddo
+      enddo
+
+      ! set edges of vertical faces
+      do k = 1, plex%Nz ! layers
+        do i = 1, local_icongrid%Nedges
+          iedge = i !local_icongrid%edge_index(i)
+          edge4(1) = offset_edges + iedge-i1 + local_icongrid%Nedges*(k-i1)
+          edge4(2) = offset_edges + iedge-i1 + local_icongrid%Nedges*(k)
+
+          vert2 = local_icongrid%edge_vertices(iedge,:)-i1 + local_icongrid%Nvertices*(k-i1)
+          edge4(3:4) = offset_edges_vertical + vert2
+
+          call DMPlexSetCone(plex%dm, offset_faces_sides + iedge-i1 + local_icongrid%Nedges*(k-i1),edge4, ierr); call CHKERR(ierr)
+          print *,'edges @ vertical faces',iedge,':',edge4,'petsc:', offset_faces_sides + iedge-i1 + Nedges*(k-i1), '::', edge4
+          call DMLabelSetValue(faceposlabel, offset_faces_sides + iedge-i1 + local_icongrid%Nedges*(k-i1), SIDE_FACE, ierr); call CHKERR(ierr)
+        enddo
+      enddo
+
+      if(ldebug) call mpi_barrier(comm, ierr)
+
+      ! and then set the two vertices of edges in each level
+      do k = 1, plex%Nz+1 ! levels
+        do i = 1, local_icongrid%Nedges
+          iedge = i !local_icongrid%edge_index(i)
+          vert2 = offset_vertices + local_icongrid%edge_vertices(iedge,:) + local_icongrid%Nvertices*(k-i1)
+
+          print *,'vertices @ edge2d',iedge,':',vert2,'petsc:',offset_edges + iedge-i1 + local_icongrid%Nedges*(k-i1),'::', vert2-i1
+          call DMPlexSetCone(plex%dm, offset_edges + iedge-i1 + local_icongrid%Nedges*(k-i1), vert2-i1, ierr); call CHKERR(ierr)
+        enddo
+      enddo
+
+      if(ldebug) call mpi_barrier(comm, ierr)
+
+      ! and then set the two vertices of edges in each layer
+      do k = 1, plex%Nz ! layer
+        do i = 1, local_icongrid%Nvertices
+          ivertex = i !local_icongrid%vertex_index(i)
+          vert2(1) = offset_vertices + ivertex + local_icongrid%Nvertices*(k-i1)
+          vert2(2) = offset_vertices + ivertex + local_icongrid%Nvertices*(k)
+
+          print *,'vertices @ edge_vertical',ivertex,':',vert2,'petsc:',offset_edges_vertical + ivertex-i1 + Nvertices*(k-i1),':', vert2 - i1
+          call DMPlexSetCone(plex%dm, offset_edges_vertical + ivertex-i1 + local_icongrid%Nvertices*(k-i1), vert2 - i1, ierr); call CHKERR(ierr)
+        enddo
+      enddo
+
+      if(ldebug) call mpi_barrier(comm, ierr)
+
+      print *,'Symmetrize'
+      call DMPlexSymmetrize(plex%dm, ierr); call CHKERR(ierr)
+      call DMPlexStratify(plex%dm, ierr); call CHKERR(ierr)
+
+      if(ldebug) then
+        call DMPlexGetDepth(plex%dm, depth, ierr); CHKERRQ(ierr)
+        print *,'Depth of Stratum:', depth
+      endif
+
+      call update_plex_indices(plex)
+
+      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine load_plex_from_file(comm, gridfile, plex)
@@ -687,4 +857,23 @@ module m_plex_grid
 
     end function
 
+    subroutine update_plex_indices(plex)
+      type(t_plexgrid), intent(inout) :: plex
+      integer(mpiint) :: myid, ierr
+
+      call DMPlexGetChart(plex%dm, plex%pStart, plex%pEnd, ierr); call CHKERR(ierr)
+      call DMPlexGetHeightStratum(plex%dm, i0, plex%cStart, plex%cEnd, ierr); call CHKERR(ierr) ! cells
+      call DMPlexGetHeightStratum(plex%dm, i1, plex%fStart, plex%fEnd, ierr); call CHKERR(ierr) ! faces
+      call DMPlexGetDepthStratum (plex%dm, i1, plex%eStart, plex%eEnd, ierr); call CHKERR(ierr) ! edges
+      call DMPlexGetDepthStratum (plex%dm, i0, plex%vStart, plex%vEnd, ierr); call CHKERR(ierr) ! vertices
+
+      if(ldebug) then
+        call mpi_comm_rank( plex%comm, myid, ierr)
+        print *,myid, 'pstart', plex%pstart, 'pEnd', plex%pEnd
+        print *,myid, 'cStart', plex%cStart, 'cEnd', plex%cEnd
+        print *,myid, 'fStart', plex%fStart, 'fEnd', plex%fEnd
+        print *,myid, 'eStart', plex%eStart, 'eEnd', plex%eEnd
+        print *,myid, 'vStart', plex%vStart, 'vEnd', plex%vEnd
+      endif
+    end subroutine
 end module

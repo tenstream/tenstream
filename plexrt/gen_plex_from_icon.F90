@@ -5,7 +5,7 @@ module m_gen_plex_from_icon
   use m_netcdfIO, only: ncload
   use m_helper_functions, only: CHKERR
   use m_icon_grid, only: t_icongrid, read_icon_grid_file, decompose_icon_grid
-  use m_plex_grid, only: t_plexgrid, load_plex_from_file, &
+  use m_plex_grid, only: t_plexgrid, load_plex_from_file, update_plex_indices, &
     TOP_BOT_FACE, SIDE_FACE,  icell_icon_2_plex, icell_plex_2_icon
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     default_str_len, &
@@ -454,25 +454,6 @@ module m_gen_plex_from_icon
         end subroutine
 
     end subroutine
-    subroutine update_plex_indices(plex)
-      type(t_plexgrid), intent(inout) :: plex
-      integer(mpiint) :: myid, mpierr
-
-      call DMPlexGetChart(plex%dm, plex%pStart, plex%pEnd, ierr); call CHKERR(ierr)
-      call DMPlexGetHeightStratum(plex%dm, i0, plex%cStart, plex%cEnd, ierr); call CHKERR(ierr) ! cells
-      call DMPlexGetHeightStratum(plex%dm, i1, plex%fStart, plex%fEnd, ierr); call CHKERR(ierr) ! faces
-      call DMPlexGetDepthStratum (plex%dm, i1, plex%eStart, plex%eEnd, ierr); call CHKERR(ierr) ! edges
-      call DMPlexGetDepthStratum (plex%dm, i0, plex%vStart, plex%vEnd, ierr); call CHKERR(ierr) ! vertices
-
-      if(ldebug) then
-        call mpi_comm_rank( plex%comm, myid, mpierr)
-        print *,myid, 'pstart', plex%pstart, 'pEnd', plex%pEnd
-        print *,myid, 'cStart', plex%cStart, 'cEnd', plex%cEnd
-        print *,myid, 'fStart', plex%fStart, 'fEnd', plex%fEnd
-        print *,myid, 'eStart', plex%eStart, 'eEnd', plex%eEnd
-        print *,myid, 'vStart', plex%vStart, 'vEnd', plex%vEnd
-      endif
-    end subroutine
 
     subroutine create_mass_vec(icongrid, plex)
       type(t_icongrid), intent(in) :: icongrid
@@ -525,7 +506,7 @@ module m_gen_plex_from_icon
         if(cell_ownership(icell_k(1)).eq.0) then
           xv(voff+i1) = icell_k(1)
         else
-          xv(voff+i1) = icell_k(1) !+ cell_ownership(icell_k(1))*1000
+          xv(voff+i1) = -icell_k(1) !+ cell_ownership(icell_k(1))*1000
         endif
       enddo
       call VecRestoreArrayF90(globalVec, xv, ierr); CHKERRQ(ierr)
@@ -573,7 +554,6 @@ module m_gen_plex_from_icon
 
       call update_plex_indices(plex)
     end subroutine
-
 end module
 
 
