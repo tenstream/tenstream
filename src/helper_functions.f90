@@ -38,13 +38,23 @@ module m_helper_functions
   interface get_arg
     module procedure get_arg_logical, get_arg_iintegers, get_arg_ireals
   end interface
+  interface swap
+    module procedure swap_iintegers, swap_ireals
+  end interface
 
   integer(mpiint) :: mpierr
 
   contains
-    pure elemental subroutine swap(x,y)
+    pure elemental subroutine swap_ireals(x,y)
       real(ireals),intent(inout) :: x,y
       real(ireals) :: tmp
+      tmp = x
+      x = y
+      y = tmp
+    end subroutine
+    pure elemental subroutine swap_iintegers(x,y)
+      integer(iintegers),intent(inout) :: x,y
+      integer(iintegers) :: tmp
       tmp = x
       x = y
       y = tmp
