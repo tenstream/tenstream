@@ -9,7 +9,7 @@ use m_data_parameters, only : ireals, iintegers, mpiint, &
   zero, one,       &
   init_mpi_data_parameters, myid
 
-use m_plex_grid, only: t_plexgrid, create_plex_from_local_icongrid
+use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid
 use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
   decompose_icon_grid, bcast_icongrid, distribute_icon_grid
 
@@ -40,7 +40,7 @@ logical, parameter :: ldebug=.True.
 
       call distribute_icon_grid(comm, icongrid, local_icongrid)
 
-      call create_plex_from_local_icongrid(comm, Nz, icongrid, local_icongrid, plexgrid)
+      call create_plex_from_icongrid(comm, Nz, local_icongrid, plexgrid)
 
     end subroutine
   end module

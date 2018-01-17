@@ -465,9 +465,9 @@ module m_gen_plex_from_icon
       PetscScalar, pointer :: xv(:)
 
       integer(iintegers) :: icell_k(2)
-      integer(iintegers) :: cell_ownership(plex%cEnd-plex%cStart)
-      integer(iintegers) :: edge_ownership(plex%eEnd-plex%eStart)
-      integer(iintegers) :: vertex_ownership(plex%vEnd-plex%vStart)
+      integer(iintegers),allocatable :: cell_ownership  (:)
+      integer(iintegers),allocatable :: edge_ownership  (:)
+      integer(iintegers),allocatable :: vertex_ownership(:)
 
       call DMPlexGetDepth(plex%dm, depth, ierr); CHKERRQ(ierr)
       print *,'Depth of Stratum:', depth

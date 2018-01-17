@@ -17,19 +17,31 @@ module m_icon_grid
   type :: t_icongrid
     integer(iintegers) :: Nfaces, Nedges, Nvertices ! number of entries in base icon grid
 
-    ! index of cells in parent grid :: cell_index=dim(Nfaces) and index of cells in local grid :: pcell_index=dim(Nfaces_parent)
-    integer(iintegers), allocatable :: cell_index(:), pcell_index(:)
-    integer(iintegers), allocatable :: edge_index(:), pedge_index(:)
-    integer(iintegers), allocatable :: vertex_index(:), pvertex_index(:)
-    real(ireals)      , allocatable :: cartesian_x_vertices(:)
-    real(ireals)      , allocatable :: cartesian_y_vertices(:)
-    real(ireals)      , allocatable :: cartesian_z_vertices(:)
+    ! index of cells in parent grid :: cell_index=dim(Nfaces)
+    ! and index of cells in local grids :: local_cell_index=dim(Nfaces_parent)
+    ! if the cell is not owned by the process itself, it is the local index on a neighbouring rank
+    integer(iintegers), allocatable :: cell_index(:)
+    integer(iintegers), allocatable :: edge_index(:)
+    integer(iintegers), allocatable :: vertex_index(:)
+    real(ireals)      , allocatable :: cartesian_x_vertices(:) ! dim(local_cells)
+    real(ireals)      , allocatable :: cartesian_y_vertices(:) ! dim(local_cells)
+    real(ireals)      , allocatable :: cartesian_z_vertices(:) ! dim(local_cells)
 
-    integer(iintegers), allocatable, dimension(:,:) :: vertex_of_cell  ! vertices of each cell, dim(icell, 3)
-    integer(iintegers), allocatable, dimension(:,:) :: edge_of_cell    ! edges of each cell, dim(icell, 3)
-    integer(iintegers), allocatable, dimension(:,:) :: edge_vertices   ! vertices at the end of each edge, dim(iedge, 2)
-    integer(iintegers), allocatable, dimension(:,:) :: adj_cell_of_edge  ! cells adjacent to an edge, dim(iedge, 2)
-    integer(iintegers), allocatable, dimension(:,:) :: cells_of_vertex   ! cells adjacent to an vertex, dim(ivert, 6)
+    integer(iintegers), allocatable, dimension(:,:) :: vertex_of_cell    ! vertices of each cell            , dim(local_cells, 3)
+    integer(iintegers), allocatable, dimension(:,:) :: edge_of_cell      ! edges of each cell               , dim(local_cells, 3)
+    integer(iintegers), allocatable, dimension(:,:) :: edge_vertices     ! vertices at the end of each edge , dim(local_edges, 2)
+
+    ! Following variables are defined on parent cell/edge/vertex sizes
+    integer(iintegers), allocatable :: local_cell_index(:)
+    integer(iintegers), allocatable :: local_edge_index(:)
+    integer(iintegers), allocatable :: local_vertex_index(:)
+
+    integer(iintegers), allocatable, dimension(:,:) :: adj_cell_of_edge  ! cells adjacent to an edge        , dim(parent_edges, 2)
+    integer(iintegers), allocatable, dimension(:,:) :: cells_of_vertex   ! cells adjacent to an vertex      , dim(parent_vertices, 6)
+
+    integer(iintegers), allocatable :: cellowner(:)   ! dim=(parent_Nfaces)
+    integer(iintegers), allocatable :: edgeowner(:)   ! dim=(parent_Nedges)
+    integer(iintegers), allocatable :: vertexowner(:) ! dim=(parent_Nvertices)
   end type
 
   logical, parameter :: ldebug=.True.
@@ -43,12 +55,10 @@ module m_icon_grid
 
       integer(mpiint) :: myid, numnodes, ierr
 
-      integer(iintegers) :: cellowner(icongrid%Nfaces)
-      integer(iintegers) :: edgeowner(icongrid%Nedges)
-      integer(iintegers) :: vertexowner(icongrid%Nvertices)
       integer(iintegers) :: i, j, ic, ie, iv
-      integer(iintegers) :: vcnt, ecnt
+      integer(iintegers) :: vcnt, ecnt, owner
       logical :: ladj_cell
+      integer(iintegers),allocatable :: par_cnt(:), iowner(:), unique_owner(:)
 
       if(.not.allocated(icongrid)) stop 'distribute_icon_grid :: global icongrid not allocated!'
       allocate(local_icongrid)
@@ -56,9 +66,9 @@ module m_icon_grid
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call decompose_icon_grid(icongrid, numnodes, cellowner, edgeowner, vertexowner)
+      call decompose_icon_grid(icongrid, numnodes, local_icongrid%cellowner, local_icongrid%edgeowner, local_icongrid%vertexowner)
 
-      local_icongrid%Nfaces = count(cellowner.eq.myid)
+      local_icongrid%Nfaces = count(local_icongrid%cellowner.eq.myid)
 
       ! Count edges/vertices for local grid
       ecnt=0
@@ -68,7 +78,7 @@ module m_icon_grid
         do j=1,size(icongrid%adj_cell_of_edge(ie,:))
           ic = icongrid%adj_cell_of_edge(ie,j)
           if(ic.gt.0) then
-            if(cellowner(ic).eq.myid) ladj_cell = .True.
+            if(local_icongrid%cellowner(ic).eq.myid) ladj_cell = .True.
           endif
         enddo
         if(ladj_cell) ecnt = ecnt+1
@@ -82,7 +92,7 @@ module m_icon_grid
         do j=1,size(icongrid%cells_of_vertex(iv,:))
           ic = icongrid%cells_of_vertex(iv,j)
           if(ic.gt.0) then
-            if(cellowner(ic).eq.myid) ladj_cell = .True.
+            if(local_icongrid%cellowner(ic).eq.myid) ladj_cell = .True.
           endif
         enddo
         if(ladj_cell) vcnt = vcnt+1
@@ -105,58 +115,75 @@ module m_icon_grid
       allocate(local_icongrid%edge_index  (local_icongrid%Nedges))
       allocate(local_icongrid%vertex_index(local_icongrid%Nvertices))
 
-      allocate(local_icongrid%pcell_index  (icongrid%Nfaces),    source=ICONULL)
-      allocate(local_icongrid%pedge_index  (icongrid%Nedges),    source=ICONULL)
-      allocate(local_icongrid%pvertex_index(icongrid%Nvertices), source=ICONULL)
+      allocate(local_icongrid%local_cell_index  (icongrid%Nfaces))
+      allocate(local_icongrid%local_edge_index  (icongrid%Nedges))
+      allocate(local_icongrid%local_vertex_index(icongrid%Nvertices))
 
-      i=1
-      do ic=1,size(cellowner)
-        if(cellowner(ic).eq.myid) then
-          local_icongrid%cell_index(i) = ic
-          local_icongrid%pcell_index(ic) = i
-          i = i+1
+      allocate(par_cnt(0:numnodes-1))
+      par_cnt = 0
+      do i=1,icongrid%Nfaces
+        ic = icongrid%cell_index(i)          ! parent cell index
+        owner = local_icongrid%cellowner(ic)
+        par_cnt(owner) = par_cnt(owner)+1
+        if(owner.eq.myid) then
+          local_icongrid%cell_index(par_cnt(owner)) = ic
         endif
+        local_icongrid%local_cell_index(ic) = par_cnt(owner)
       enddo
 
-      ecnt=0
+      par_cnt = 0
+      allocate(iowner(2))
       do i=1,icongrid%Nedges
         ie = icongrid%edge_index(i)
-        ladj_cell = .False.
         do j=1,size(icongrid%adj_cell_of_edge(ie,:))
           ic = icongrid%adj_cell_of_edge(ie,j)
           if(ic.gt.0) then
-            if(cellowner(ic).eq.myid) ladj_cell = .True.
+            iowner(j) = local_icongrid%cellowner(ic)
+          else
+            iowner(j) = ICONULL
           endif
         enddo
-        if(ladj_cell) then
-          ecnt = ecnt+1
-          local_icongrid%edge_index(ecnt) = ie
-          local_icongrid%pedge_index(ie) = ecnt
-        endif
+        unique_owner = unique(iowner)
+        do j=1,size(unique_owner)
+          owner = unique_owner(j)
+          if(owner.eq.ICONULL) cycle
+          par_cnt(owner) =  par_cnt(owner) +1
+          if(owner.eq.myid) local_icongrid%edge_index(par_cnt(owner)) = ie
+          local_icongrid%local_edge_index(ie) = par_cnt(owner)
+        enddo
       enddo
+      deallocate(iowner)
 
       allocate(local_icongrid%cartesian_x_vertices(local_icongrid%Nvertices))
       allocate(local_icongrid%cartesian_y_vertices(local_icongrid%Nvertices))
       allocate(local_icongrid%cartesian_z_vertices(local_icongrid%Nvertices))
-      vcnt=0
+      par_cnt = 0
+      allocate(iowner(size(icongrid%cells_of_vertex, dim=2)))
       do i=1,icongrid%Nvertices
         iv = icongrid%vertex_index(i)
-        ladj_cell = .False.
         do j=1,size(icongrid%cells_of_vertex(iv,:))
           ic = icongrid%cells_of_vertex(iv,j)
           if(ic.gt.0) then
-            if(cellowner(ic).eq.myid) ladj_cell = .True.
+            iowner(j) = local_icongrid%cellowner(ic)
+          else
+            iowner(j) = ICONULL
           endif
         enddo
-        if(ladj_cell) then
-          vcnt = vcnt+1
-          local_icongrid%vertex_index(vcnt) = iv
-          local_icongrid%pvertex_index(iv) = vcnt
-          local_icongrid%cartesian_x_vertices(vcnt) = icongrid%cartesian_x_vertices(iv)
-          local_icongrid%cartesian_y_vertices(vcnt) = icongrid%cartesian_y_vertices(iv)
-          local_icongrid%cartesian_z_vertices(vcnt) = icongrid%cartesian_z_vertices(iv)
-        endif
+        unique_owner = unique(iowner)
+        do j=1,size(unique_owner)
+          owner = unique_owner(j)
+          if(owner.eq.ICONULL) cycle
+          par_cnt(owner) =  par_cnt(owner) +1
+          if(owner.eq.myid) then
+            local_icongrid%vertex_index(par_cnt(owner)) = iv
+            local_icongrid%cartesian_x_vertices(par_cnt(owner)) = icongrid%cartesian_x_vertices(iv)
+            local_icongrid%cartesian_y_vertices(par_cnt(owner)) = icongrid%cartesian_y_vertices(iv)
+            local_icongrid%cartesian_z_vertices(par_cnt(owner)) = icongrid%cartesian_z_vertices(iv)
+          endif
+          local_icongrid%local_vertex_index(iv) = par_cnt(owner)
+        enddo
       enddo
+      deallocate(iowner)
 
       allocate(local_icongrid%edge_of_cell  (local_icongrid%Nfaces, size(icongrid%edge_of_cell  , dim=2)))
       allocate(local_icongrid%vertex_of_cell(local_icongrid%Nfaces, size(icongrid%vertex_of_cell, dim=2)))
@@ -164,39 +191,47 @@ module m_icon_grid
       do i=1,size(local_icongrid%cell_index)
         ic = local_icongrid%cell_index(i) ! cell index in parent grid
         do j=1,ubound(icongrid%edge_of_cell,2)
-          ie = icongrid%edge_of_cell(ic, j)  ! vertex index in parent grid
-          local_icongrid%edge_of_cell(i,j) = local_icongrid%pedge_index(ie)
+          ie = icongrid%edge_of_cell(ic, j)  ! edge index in parent grid
+          local_icongrid%edge_of_cell(i,j) = local_icongrid%local_edge_index(ie)
         enddo
         do j=1,ubound(icongrid%vertex_of_cell,2)
           iv = icongrid%vertex_of_cell(ic, j)  ! vertex index in parent grid
-          local_icongrid%vertex_of_cell(i,j) = local_icongrid%pvertex_index(iv)
+          local_icongrid%vertex_of_cell(i,j) = local_icongrid%local_vertex_index(iv)
         enddo
       enddo
 
       allocate(local_icongrid%edge_vertices(local_icongrid%Nedges, size(icongrid%edge_vertices, dim=2)))
       do i=1,local_icongrid%Nedges
         ie = local_icongrid%edge_index(i)  ! edge index in parent grid
+        print *,'i, ie', i, ie, '::',local_icongrid%edge_index(i)
         do j=1,size(icongrid%edge_vertices(ie,:))
           iv = icongrid%edge_vertices(ie,j)  ! vertex index in parent grid
-          local_icongrid%edge_vertices(i,j) = local_icongrid%pvertex_index(iv)
+          local_icongrid%edge_vertices(i,j) = local_icongrid%local_vertex_index(iv)
         enddo
       enddo
 
-
       if(ldebug) then
-        do iv=0,numnodes-1
-          if(iv.eq.myid) then
+        do owner=0,numnodes-1
+          if(owner.eq.myid) then
             print *,myid,'distribute_icon_grid :: my cells global indices ', local_icongrid%cell_index
             print *,myid,'distribute_icon_grid :: my edge global indices  ', local_icongrid%edge_index
             print *,myid,'distribute_icon_grid :: my vertex global indices', local_icongrid%vertex_index
 
             do i=1,size(local_icongrid%cell_index)
-              ic = local_icongrid%cell_index(i)
-              print *,myid,'edge_of_cell', ic, '::', i,'->',local_icongrid%edge_of_cell(i,:)
+              ic = local_icongrid%cell_index(i)       ! global cell index in parent grid
+              j  = local_icongrid%local_cell_index(ic) ! local cell index
+              print *,myid,'global 2 local cell', ic, '->', j, ' ::: ', i, '<-', ic
+            enddo
+
+            do i=1,size(local_icongrid%cell_index)
+              ic = local_icongrid%cell_index(i)        ! global cell index in parent grid
+              j  = local_icongrid%local_cell_index(ic) ! local cell index
+              print *,myid,'edge_of_cell', ic, ': local cell', i,'::',icongrid%edge_of_cell(ic,:),'->',local_icongrid%edge_of_cell(j,:)
             enddo
             do i=1,size(local_icongrid%cell_index)
-              ic = local_icongrid%cell_index(i)
-              print *,myid,'vertex_of_cell', ic, '::', i,'->',local_icongrid%vertex_of_cell(i,:)
+              ic = local_icongrid%cell_index(i)       ! global cell index in parent grid
+              j  = local_icongrid%local_cell_index(ic) ! local cell index
+              print *,myid,'vertex_of_cell', ic, '::', i,'->',local_icongrid%vertex_of_cell(j,:)
             enddo
           endif
           call mpi_barrier(comm, ierr)
@@ -293,9 +328,9 @@ module m_icon_grid
       type(t_icongrid),intent(in) :: icongrid
       integer(iintegers), intent(in) :: numnodes
 
-      integer(iintegers),intent(out) :: cellowner(:)   ! dim=(icongrid%Nfaces)
-      integer(iintegers),intent(out) :: edgeowner(:)   ! dim=(icongrid%Nedges)
-      integer(iintegers),intent(out) :: vertexowner(:) ! dim=(icongrid%Nvertices)
+      integer(iintegers),allocatable,intent(out) :: cellowner(:)   ! dim=(icongrid%Nfaces)
+      integer(iintegers),allocatable,intent(out) :: edgeowner(:)   ! dim=(icongrid%Nedges)
+      integer(iintegers),allocatable,intent(out) :: vertexowner(:) ! dim=(icongrid%Nvertices)
 
       integer(iintegers) :: cellsofedge(2,icongrid%Nedges),neighborcells(3,icongrid%Nfaces)
       integer(iintegers) :: area(numnodes), ichange
@@ -303,6 +338,10 @@ module m_icon_grid
       logical :: lwin, ladjacent_check
 
       if(.not. allocated(icongrid%cell_index)) stop 'decompose_icon_grid :: the grid is not loaded from an icon gridfile ... cant be decomposed with this method'
+
+      allocate(cellowner(icongrid%Nfaces))
+      allocate(edgeowner(icongrid%Nedges))
+      allocate(vertexowner(icongrid%Nvertices))
 
       area = 0
       cellsofedge   = ICONULL

@@ -14,7 +14,7 @@ module m_plex_grid
   implicit none
 
   private
-  public :: t_plexgrid, load_plex_from_file, create_plex_from_local_icongrid, &
+  public :: t_plexgrid, load_plex_from_file, create_plex_from_icongrid, &
     icell_icon_2_plex, icell_plex_2_icon, update_plex_indices, &
     compute_face_geometry, setup_edir_dmplex, print_dmplex,       &
     setup_abso_dmplex, compute_edir_absorption, create_edir_mat,  &
@@ -48,45 +48,54 @@ module m_plex_grid
     integer(iintegers) :: vStart, vEnd ! vertices
 
     integer(iintegers) :: Nz = 1 ! Number of layers, in 2D set to one
+    integer(iintegers) :: Ncells
+    integer(iintegers) :: Nfaces
+    integer(iintegers) :: Nedges
+    integer(iintegers) :: Nvertices
+
+    integer(iintegers) :: offset_faces
+    integer(iintegers) :: offset_faces_sides
+    integer(iintegers) :: offset_edges
+    integer(iintegers) :: offset_edges_vertical
+    integer(iintegers) :: offset_vertices
   end type
 
   contains
 
-    subroutine create_plex_from_local_icongrid(comm, Nz, icongrid, local_icongrid, plex)
+    subroutine create_plex_from_icongrid(comm, Nz, icongrid, plex)
       MPI_Comm, intent(in) :: comm
       integer(iintegers), intent(in) :: Nz
-      type(t_icongrid), allocatable, intent(in) :: icongrid, local_icongrid
+      type(t_icongrid), allocatable, intent(in) :: icongrid
       type(t_plexgrid), allocatable, intent(inout) :: plex
 
-      integer(iintegers) :: chartsize, Ncells, Nfaces, Nedges, Nvertices
-      integer(iintegers) :: offset_faces, offset_edges, offset_vertices
-      integer(iintegers) :: offset_faces_sides, offset_edges_vertical
+      integer(iintegers) :: chartsize
+      !integer(iintegers) :: offset_faces, offset_edges, offset_vertices
+      !integer(iintegers) :: offset_faces_sides, offset_edges_vertical
       integer(iintegers) :: edge3(3), edge4(4), faces(5), vert2(2)
 
       type(tDMLabel) :: faceposlabel, zindexlabel, TOAlabel
 
-      integer(iintegers) :: i, k, icell, iedge, ivertex
+      integer(iintegers) :: i, k, j, iedge, iface, ivertex
       integer(iintegers) :: depth
       integer(mpiint) :: myid, numnodes, ierr
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      if(allocated(plex)) stop 'create_plex_from_local_icongrid :: plex should not be allocated!'
-      if(.not.allocated(icongrid)) stop 'create_plex_from_local_icongrid :: icongrid should be allocated!'
-      if(.not.allocated(local_icongrid)) stop 'create_plex_from_local_icongrid :: local_icongrid should be allocated!'
+      if(allocated(plex)) stop 'create_plex_from_icongrid :: plex should not be allocated!'
+      if(.not.allocated(icongrid)) stop 'create_plex_from_icongrid :: icongrid should be allocated!'
 
       allocate(plex)
       plex%comm = comm
 
       plex%Nz = Nz
 
-      Ncells    = local_icongrid%Nfaces * plex%Nz
-      Nfaces    = local_icongrid%Nfaces * (plex%Nz+1) + local_icongrid%Nedges * plex%Nz
-      Nedges    = local_icongrid%Nedges * (plex%Nz+1) + local_icongrid%Nvertices * plex%Nz
-      Nvertices = local_icongrid%Nvertices * (plex%Nz+i1)
+      plex%Ncells    = icongrid%Nfaces * plex%Nz
+      plex%Nfaces    = icongrid%Nfaces * (plex%Nz+1) + icongrid%Nedges * plex%Nz
+      plex%Nedges    = icongrid%Nedges * (plex%Nz+1) + icongrid%Nvertices * plex%Nz
+      plex%Nvertices = icongrid%Nvertices * (plex%Nz+i1)
 
-      chartsize = Ncells + Nfaces + Nedges + Nvertices
+      chartsize = plex%Ncells + plex%Nfaces + plex%Nedges + plex%Nvertices
 
       allocate(plex%dm)
       call DMPlexCreate(plex%comm, plex%dm, ierr); call CHKERR(ierr)
@@ -94,14 +103,14 @@ module m_plex_grid
 
       call DMPlexSetChart(plex%dm, i0, chartsize, ierr); call CHKERR(ierr)
 
-      offset_faces = Ncells
-      offset_faces_sides = offset_faces + (plex%Nz+1)*local_icongrid%Nfaces
-      offset_edges = Ncells + Nfaces
-      offset_edges_vertical = offset_edges + local_icongrid%Nedges * (plex%Nz+i1)
-      offset_vertices = Ncells + Nfaces + Nedges
-      print *,myid,'offsets faces:', offset_faces, offset_faces_sides
-      print *,myid,'offsets edges:', offset_edges, offset_edges_vertical
-      print *,myid,'offsets verte:', offset_vertices
+      plex%offset_faces = plex%Ncells
+      plex%offset_faces_sides = plex%offset_faces + (plex%Nz+1)*icongrid%Nfaces
+      plex%offset_edges = plex%Ncells + plex%Nfaces
+      plex%offset_edges_vertical = plex%offset_edges + icongrid%Nedges * (plex%Nz+i1)
+      plex%offset_vertices = plex%Ncells + plex%Nfaces + plex%Nedges
+      print *,myid,'offsets faces:', plex%offset_faces, plex%offset_faces_sides
+      print *,myid,'offsets edges:', plex%offset_edges, plex%offset_edges_vertical
+      print *,myid,'offsets verte:', plex%offset_vertices
       print *,myid,'Chartsize:', chartsize
 
       ! Create some labels ... those are handy later when setting up matrices etc
@@ -115,22 +124,22 @@ module m_plex_grid
 
       ! Preallocation
       ! Every cell has 5 faces
-      do i = i0, offset_faces-i1
+      do i = i0, plex%offset_faces-i1
         call DMPlexSetConeSize(plex%dm, i, i5, ierr); call CHKERR(ierr)
       enddo
 
       ! top/bottom faces have 3 edges
-      do i = offset_faces, offset_faces_sides-i1
+      do i = plex%offset_faces, plex%offset_faces_sides-i1
         call DMPlexSetConeSize(plex%dm, i, i3, ierr); call CHKERR(ierr)
       enddo
 
       ! side faces have 4 edges
-      do i = offset_faces_sides, offset_edges-i1
+      do i = plex%offset_faces_sides, plex%offset_edges-i1
         call DMPlexSetConeSize(plex%dm, i, i4, ierr); call CHKERR(ierr)
       enddo
 
       ! Edges have 2 vertices
-      do i = offset_edges, offset_vertices-i1
+      do i = plex%offset_edges, plex%offset_vertices-i1
         call DMPlexSetConeSize(plex%dm, i, i2, ierr); call CHKERR(ierr)
       enddo
 
@@ -139,50 +148,55 @@ module m_plex_grid
       ! Setup Connections
       ! First set five faces of cell
       do k = 1, plex%Nz
-        do i = 1, local_icongrid%Nfaces
-          icell = i !local_icongrid%cell_index(i)
-          edge3 = local_icongrid%edge_of_cell(i,:)
+        do i = 1, icongrid%Nfaces
+          edge3 = icongrid%edge_of_cell(i,:)
 
-          faces(1) = offset_faces + local_icongrid%Nfaces*(k-1) + icell-i1  ! top face
-          faces(2) = offset_faces + local_icongrid%Nfaces*k + icell-i1      ! bot face
+          faces(1) = iface_top_icon_2_plex(icongrid, plex, i, k) ! top face
+          faces(2) = iface_top_icon_2_plex(icongrid, plex, i, k+1) ! bot face
 
-          faces(3:5) = offset_faces_sides + (edge3-i1) + (k-1)*local_icongrid%Nedges
+          do j=1,3
+            faces(2+j) = iface_side_icon_2_plex(icongrid, plex, edge3(j), k)
+          enddo
 
-          call DMPlexSetCone(plex%dm, icell_icon_2_plex(local_icongrid, plex, icell, k), faces, ierr); call CHKERR(ierr)
+          call DMPlexSetCone(plex%dm, icell_icon_2_plex(icongrid, plex, i, k), faces, ierr); call CHKERR(ierr)
 
-          call DMLabelSetValue(zindexlabel, icell, k, ierr); call CHKERR(ierr)
-          print *,myid,'Setting cell indices', i, icell, 'edge3', edge3, 'faces', faces
+          call DMLabelSetValue(zindexlabel, i, k, ierr); call CHKERR(ierr)
+          !print *,myid,'Setting cell indices', i, icongrid%cell_index(i), 'edge3', edge3, 'faces', faces
         enddo
       enddo
 
       ! set edges of top/bot faces
       do k = 1, plex%Nz+1 ! levels
-        do i = 1, local_icongrid%Nfaces
-          icell = i !local_icongrid%cell_index(i)
-          edge3 = offset_edges + local_icongrid%edge_of_cell(icell,:)-i1 + local_icongrid%Nedges*(k-i1)
+        do i = 1, icongrid%Nfaces
+          do j=1,3
+            iedge = icongrid%edge_of_cell(i,j)
+            edge3(j) = iedge_top_icon_2_plex(icongrid, plex, iedge, k)
+          enddo
+          iface = iface_top_icon_2_plex(icongrid, plex, i, k)
 
-          call DMPlexSetCone(plex%dm, offset_faces + local_icongrid%Nfaces*(k-1) + icell -i1, edge3, ierr); call CHKERR(ierr)
-          !print *,'edges @ horizontal faces',icell,':',edge3,'petsc:', offset_faces + Nfaces*(k-1) + icell -i1, '::', edge3
-          call DMLabelSetValue(faceposlabel, offset_faces + local_icongrid%Nfaces*(k-1) + icell -i1, TOP_BOT_FACE, ierr); call CHKERR(ierr)
+          call DMPlexSetCone(plex%dm, iface, edge3, ierr); call CHKERR(ierr)
+          !print *,'edges @ horizontal faces',icell,':',edge3,'petsc:', offset_faces + Nfaces*(k-1) + i-i1, '::', edge3
+          call DMLabelSetValue(faceposlabel, iface, TOP_BOT_FACE, ierr); call CHKERR(ierr)
           if (k.eq.i1) then
-            call DMLabelSetValue(TOAlabel, offset_faces + local_icongrid%Nfaces*(k-1) + icell -i1, i1, ierr); call CHKERR(ierr)
+            call DMLabelSetValue(TOAlabel, iface, i1, ierr); call CHKERR(ierr)
           endif
         enddo
       enddo
 
       ! set edges of vertical faces
       do k = 1, plex%Nz ! layers
-        do i = 1, local_icongrid%Nedges
-          iedge = i !local_icongrid%edge_index(i)
-          edge4(1) = offset_edges + iedge-i1 + local_icongrid%Nedges*(k-i1)
-          edge4(2) = offset_edges + iedge-i1 + local_icongrid%Nedges*(k)
+        do i = 1, icongrid%Nedges
+          iface = iface_side_icon_2_plex(icongrid, plex, i, k)
+          edge4(1) = iedge_top_icon_2_plex(icongrid, plex, i, k)
+          edge4(2) = iedge_top_icon_2_plex(icongrid, plex, i, k+1)
+          do j=1,2
+            ivertex = icongrid%edge_vertices(i,j)
+            edge4(2+j) = iedge_side_icon_2_plex(icongrid, plex, ivertex, k)
+          enddo
 
-          vert2 = local_icongrid%edge_vertices(iedge,:)-i1 + local_icongrid%Nvertices*(k-i1)
-          edge4(3:4) = offset_edges_vertical + vert2
-
-          call DMPlexSetCone(plex%dm, offset_faces_sides + iedge-i1 + local_icongrid%Nedges*(k-i1),edge4, ierr); call CHKERR(ierr)
-          print *,'edges @ vertical faces',iedge,':',edge4,'petsc:', offset_faces_sides + iedge-i1 + Nedges*(k-i1), '::', edge4
-          call DMLabelSetValue(faceposlabel, offset_faces_sides + iedge-i1 + local_icongrid%Nedges*(k-i1), SIDE_FACE, ierr); call CHKERR(ierr)
+          call DMPlexSetCone(plex%dm, iface, edge4, ierr); call CHKERR(ierr)
+          print *,myid,'edges @ vertical faces',i,icongrid%edge_index(i),':',edge4,'petsc:', iface
+          call DMLabelSetValue(faceposlabel, iface, SIDE_FACE, ierr); call CHKERR(ierr)
         enddo
       enddo
 
@@ -190,12 +204,17 @@ module m_plex_grid
 
       ! and then set the two vertices of edges in each level
       do k = 1, plex%Nz+1 ! levels
-        do i = 1, local_icongrid%Nedges
-          iedge = i !local_icongrid%edge_index(i)
-          vert2 = offset_vertices + local_icongrid%edge_vertices(iedge,:) + local_icongrid%Nvertices*(k-i1)
+        do i = 1, icongrid%Nedges
+          iedge = iedge_top_icon_2_plex(icongrid, plex, i, k)
+          do j=1,2
+            ivertex = icongrid%edge_vertices(i,j)
+            vert2(j) = ivertex_icon_2_plex(icongrid, plex, ivertex, k)
+          enddo
+          !vert2 = offset_vertices + icongrid%edge_vertices(i,:) + icongrid%Nvertices*(k-i1)
 
-          print *,'vertices @ edge2d',iedge,':',vert2,'petsc:',offset_edges + iedge-i1 + local_icongrid%Nedges*(k-i1),'::', vert2-i1
-          call DMPlexSetCone(plex%dm, offset_edges + iedge-i1 + local_icongrid%Nedges*(k-i1), vert2-i1, ierr); call CHKERR(ierr)
+          !print *,myid,'vertices @ edge2d',i,icongrid%edge_index(i),':',vert2,'petsc:',offset_edges + i-i1 + icongrid%Nedges*(k-i1),'::', vert2-i1
+          !call DMPlexSetCone(plex%dm, offset_edges + i-i1 + icongrid%Nedges*(k-i1), vert2-i1, ierr); call CHKERR(ierr)
+          call DMPlexSetCone(plex%dm, iedge, vert2, ierr); call CHKERR(ierr)
         enddo
       enddo
 
@@ -203,13 +222,16 @@ module m_plex_grid
 
       ! and then set the two vertices of edges in each layer
       do k = 1, plex%Nz ! layer
-        do i = 1, local_icongrid%Nvertices
-          ivertex = i !local_icongrid%vertex_index(i)
-          vert2(1) = offset_vertices + ivertex + local_icongrid%Nvertices*(k-i1)
-          vert2(2) = offset_vertices + ivertex + local_icongrid%Nvertices*(k)
+        do i = 1, icongrid%Nvertices
+          iedge = iedge_side_icon_2_plex(icongrid, plex, i, k)
+          vert2(1) = ivertex_icon_2_plex(icongrid, plex, i, k)
+          vert2(2) = ivertex_icon_2_plex(icongrid, plex, i, k+1)
+          !vert2(1) = plex%offset_vertices + i + icongrid%Nvertices*(k-i1)
+          !vert2(2) = plex%offset_vertices + i + icongrid%Nvertices*(k)
 
-          print *,'vertices @ edge_vertical',ivertex,':',vert2,'petsc:',offset_edges_vertical + ivertex-i1 + Nvertices*(k-i1),':', vert2 - i1
-          call DMPlexSetCone(plex%dm, offset_edges_vertical + ivertex-i1 + local_icongrid%Nvertices*(k-i1), vert2 - i1, ierr); call CHKERR(ierr)
+          !print *,myid,'vertices @ edge_vertical',i,icongrid%vertex_index(i),':',vert2,'petsc:',offset_edges_vertical + i-i1 + Nvertices*(k-i1),':', vert2 - i1
+          !call DMPlexSetCone(plex%dm, plex%offset_edges_vertical + i-i1 + icongrid%Nvertices*(k-i1), vert2 - i1, ierr); call CHKERR(ierr)
+          call DMPlexSetCone(plex%dm, iedge, vert2, ierr); call CHKERR(ierr)
         enddo
       enddo
 
@@ -225,8 +247,168 @@ module m_plex_grid
       endif
 
       call update_plex_indices(plex)
+      if(numnodes.gt.1) call set_sf_graph(icongrid, plex)
 
+      call set_coords()
+
+      call mpi_barrier(plex%comm, ierr)
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
+      call mpi_barrier(plex%comm, ierr)
+
+      contains
+
+        subroutine set_coords()
+          real(ireals), pointer :: coords(:)
+          type(tVec)            :: coordinates
+          integer(iintegers)    :: dimEmbed, coordSize, voff, ind
+          type(tPetscSection)   :: coordSection
+
+          real(ireals) :: cart_coord(3)
+
+          real(ireals), parameter :: sphere_radius=6371229  ! [m]
+          logical :: l_is_spherical_coords
+
+          l_is_spherical_coords = any(icongrid%cartesian_z_vertices.ne.0)
+
+          call DMGetCoordinateDim(plex%dm, dimEmbed, ierr); call CHKERR(ierr)
+          print *,'dimEmbed = ', dimEmbed
+
+          call DMGetCoordinateSection(plex%dm, coordSection, ierr); call CHKERR(ierr)
+
+          call PetscSectionSetNumFields(coordSection, i1, ierr); call CHKERR(ierr)
+          call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+          call PetscSectionSetFieldComponents(coordSection, i0, dimEmbed, ierr); call CHKERR(ierr)
+
+          call PetscSectionSetChart(coordSection, plex%vStart, plex%vEnd, ierr);call CHKERR(ierr)
+
+          do i = plex%vStart, plex%vEnd-i1
+            call PetscSectionSetDof(coordSection, i, dimEmbed, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(coordSection, i, i0, dimEmbed, ierr); call CHKERR(ierr)
+          enddo
+
+          call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(coordSection, PETSC_NULL_SECTION, "-show_coordinates_section", ierr); call CHKERR(ierr)
+          call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
+          print *,'Coord Section has size:', coordSize
+
+          call VecCreate(PETSC_COMM_SELF, coordinates, ierr); call CHKERR(ierr)
+          call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
+          call VecSetBlockSize(coordinates, dimEmbed, ierr);call CHKERR(ierr)
+          call VecSetType(coordinates, VECSTANDARD, ierr);call CHKERR(ierr)
+
+          call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
+
+          call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+          print *,'bounds coords:', lbound(coords), ubound(coords)
+
+          ! set vertices as coordinates
+          do k = 1, plex%Nz+1
+            do i = 1, icongrid%Nvertices
+              ind = plex%vStart + i - i1 + icongrid%Nvertices*(k-i1)
+              call PetscSectionGetOffset(coordSection, ind, voff, ierr); call CHKERR(ierr)
+
+              cart_coord = [icongrid%cartesian_x_vertices(i), icongrid%cartesian_y_vertices(i), &
+                            icongrid%cartesian_z_vertices(i)]
+
+              if(l_is_spherical_coords) then
+                cart_coord = cart_coord * (sphere_radius + (plex%Nz-k)*200)
+              else
+                cart_coord(3) = (plex%Nz+1-k)*200
+              endif
+              coords(voff+i1 : voff+dimEmbed) = cart_coord(i1:dimEmbed)
+            enddo
+          enddo
+
+          print *,'coords', shape(coords), '::', coords
+          call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+
+          call DMSetCoordinatesLocal(plex%dm, coordinates, ierr);call CHKERR(ierr)
+          call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
+
+          call VecDestroy(coordinates, ierr);call CHKERR(ierr)
+        end subroutine
+
+    end subroutine
+    subroutine set_sf_graph(icongrid, plexgrid)
+      type(t_icongrid), intent(in) :: icongrid
+      type(t_plexgrid), intent(inout) :: plexgrid
+
+      type(tPetscSF) :: sf
+
+      type(PetscInt) :: nroots, nleaves
+      type(PetscInt),allocatable :: ilocal_elements(:)
+      type(PetscSFNode),allocatable :: iremote_elements(:)
+      type(PetscCopyMode),parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
+
+      integer(mpiint) :: myid, numnodes, ierr
+      integer(iintegers) :: N_remote_cells, N_remote_edges, N_remote_vertices
+      integer(iintegers) :: ic, iface, k, ilocal, iparent, iremote, owner, ileaf
+      integer(iintegers) :: icell_n_k(2), remote_icell
+
+      call mpi_comm_rank(plexgrid%comm, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(plexgrid%comm, numnodes, ierr); call CHKERR(ierr)
+
+      nroots = plexgrid%pEnd
+
+      N_remote_cells = 0
+      do ilocal = 1, icongrid%Nfaces
+        iparent = icongrid%cell_index(ilocal)
+        if(icongrid%cellowner(iparent).ne.myid) N_remote_cells = N_remote_cells +1
+      enddo
+
+      N_remote_edges = 0
+      do ilocal = 1, icongrid%Nedges
+        iparent = icongrid%edge_index(ilocal)
+        if(icongrid%edgeowner(iparent).ne.myid) N_remote_edges = N_remote_edges +1
+      enddo
+
+      N_remote_vertices = 0
+      do ilocal = 1, icongrid%Nvertices
+        iparent = icongrid%vertex_index(ilocal)
+        if(icongrid%vertexowner(iparent).ne.myid) N_remote_vertices = N_remote_vertices +1
+      enddo
+
+      nleaves = N_remote_cells + N_remote_edges + N_remote_vertices ! non local elements in icongrid
+
+      print *,myid,'remote elements:',nleaves, '(',N_remote_cells, N_remote_edges, N_remote_vertices, ')'
+
+      allocate(ilocal_elements(nleaves))  ! local indices of elements
+      allocate(iremote_elements(nleaves)) ! remote indices of elements
+
+      ileaf = 0
+      do ic = plexgrid%cStart, plexgrid%cEnd-1
+        icell_n_k = icell_plex_2_icon(icongrid, plexgrid, ic)
+        iparent = icongrid%cell_index(icell_n_k(1)) ! global cell index in parent grid
+        owner = icongrid%cellowner(iparent)
+
+        if(owner.ne.myid) then
+          remote_icell = icell_icon_2_plex(icongrid, plexgrid, icell_n_k(1), icell_n_k(2), owner) ! local index of cell at neighbor
+          ileaf = ileaf + 1
+          ilocal_elements(ileaf) = ic
+          iremote_elements(ileaf)%rank = owner
+          iremote_elements(ileaf)%index = icell_icon_2_plex(icongrid, plexgrid, remote_icell, k, owner)
+
+          print *,myid, 'local cell', ic, 'parent', iparent, '@', owner, '->', remote_icell, '->', icell_icon_2_plex(icongrid, plexgrid, remote_icell, k, owner)
+        endif
+      enddo
+
+      do iface = plexgrid%fStart, plexgrid%fEnd-1
+      enddo
+
+
+      call mpi_barrier(plexgrid%comm, ierr)
+      stop 'debug'
+
+      call PetscSFSetGraph(sf,nroots,nleaves,ilocal,localmode,iremote,remotemode, ierr); CHKERRQ(ierr)
+
+      call PetscSFSetUp(sf, ierr); CHKERRQ(ierr)
+
+      call DMSetDefaultSF(plexgrid%dm, sf, ierr); CHKERRQ(ierr)
+      call DMGetDefaultSF(plexgrid%dm, sf, ierr); CHKERRQ(ierr)
+
+      call PetscObjectViewFromOptions(sf, PETSC_NULL_SF, "-show_sf", ierr); CHKERRQ(ierr)
+      call PetscSFView(sf, PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr);
+
     end subroutine
 
     subroutine load_plex_from_file(comm, gridfile, plex)
@@ -826,33 +1008,190 @@ module m_plex_grid
     end subroutine
 
     !> @brief return the dmplex cell index for an icon base grid cell index
-    function icell_icon_2_plex(icon, plex, icell, k)
+    function icell_icon_2_plex(icon, plex, icell, k, owner)
       type(t_icongrid), intent(in) :: icon      !< @param[in] icon mesh object, holding info about number of grid cells
       type(t_plexgrid), intent(in) :: plex      !< @param[in] dmplex mesh object, holding info about number of grid cells
       integer(iintegers),intent(in) :: icell    !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
       integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+      integer(iintegers),intent(in),optional :: owner !< @param[in], optional the mpi rank on which to lookup the index
       integer(iintegers) :: icell_icon_2_plex   !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+      integer(iintegers) :: Nfaces
+      if(present(owner)) then
+        Nfaces = count(icon%cellowner.eq.owner)
+      else
+        Nfaces = icon%Nfaces
+      endif
       if(ldebug) then
         if(k.lt.i1 .or. k.gt.plex%Nz) stop 'icell_icon_2_plex :: vertical index k out of range'
-        if(icell.lt.i1 .or. icell.gt.icon%Nfaces) stop 'icell_icon_2_plex :: icon cell index out of range'
+        if(icell.lt.i1 .or. icell.gt.Nfaces) stop 'icell_icon_2_plex :: icon cell index out of range'
       endif
-      icell_icon_2_plex = (k-i1)*icon%Nfaces + icell - i1
+      icell_icon_2_plex = (k-i1)*Nfaces + icell - i1
+    end function
+
+    !> @brief return the dmplex face index for an icongrid index situated at the top of a cell
+    function iface_top_icon_2_plex(icon, plex, icell, k, owner)
+      type(t_icongrid), intent(in) :: icon      !< @param[in] icon mesh object, holding info about number of grid cells
+      type(t_plexgrid), intent(in) :: plex      !< @param[in] dmplex mesh object, holding info about number of grid cells
+      integer(iintegers),intent(in) :: icell    !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+      integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+      integer(iintegers),intent(in),optional :: owner !< @param[in], optional the mpi rank on which to lookup the index
+      integer(iintegers) :: iface_top_icon_2_plex   !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+      integer(iintegers) :: Nfaces, offset
+      if(present(owner)) then
+        Nfaces = count(icon%cellowner.eq.owner)
+        offset = Nfaces * plex%Nz
+      else
+        Nfaces = icon%Nfaces
+        offset = plex%offset_faces
+      endif
+      if(ldebug) then
+        if(k.lt.i1 .or. k.gt.plex%Nz+1) stop 'iface_top_icon_2_plex :: vertical index k out of range'
+        if(icell.lt.i1 .or. icell.gt.Nfaces) stop 'iface_top_icon_2_plex :: icon cell index out of range'
+      endif
+      iface_top_icon_2_plex = offset + Nfaces*(k-1) + icell-i1
+    end function
+
+    !> @brief return the dmplex face index for an icongrid index situated at the top of a cell
+    function iface_side_icon_2_plex(icon, plex, iedge, k, owner)
+      type(t_icongrid), intent(in) :: icon      !< @param[in] icon mesh object, holding info about number of grid cells
+      type(t_plexgrid), intent(in) :: plex      !< @param[in] dmplex mesh object, holding info about number of grid cells
+      integer(iintegers),intent(in) :: iedge    !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+      integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+      integer(iintegers),intent(in),optional :: owner !< @param[in], optional the mpi rank on which to lookup the index
+      integer(iintegers) :: iface_side_icon_2_plex   !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+      integer(iintegers) :: Nfaces, Nedges, offset
+      if(present(owner)) then
+        Nfaces = count(icon%cellowner.eq.owner)
+        Nedges = count(icon%edgeowner.eq.owner)
+        offset = Nfaces * plex%Nz + (plex%Nz + 1) * Nfaces
+      else
+        Nfaces = icon%Nfaces
+        Nedges = icon%Nedges
+        offset = plex%offset_faces_sides
+      endif
+      if(ldebug) then
+        if(k.lt.i1 .or. k.gt.plex%Nz) stop 'iface_side_icon_2_plex :: vertical index k out of range'
+        if(iedge.lt.i1 .or. iedge.gt.Nedges) stop 'iface_side_icon_2_plex :: icon cell index out of range'
+      endif
+      iface_side_icon_2_plex = offset + (k-1)*Nedges + (iedge-1)
+    end function
+
+    !> @brief return the dmplex edge index for a given icon edge index, i.e. the edges on the top/bot faces of cells
+    function iedge_top_icon_2_plex(icon, plex, iedge, k, owner)
+      type(t_icongrid), intent(in) :: icon      !< @param[in] icon mesh object, holding info about number of grid cells
+      type(t_plexgrid), intent(in) :: plex      !< @param[in] dmplex mesh object, holding info about number of grid cells
+      integer(iintegers),intent(in) :: iedge    !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+      integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+      integer(iintegers),intent(in),optional :: owner !< @param[in], optional the mpi rank on which to lookup the index
+      integer(iintegers) :: iedge_top_icon_2_plex !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+      integer(iintegers) :: Nfaces, Nedges, offset
+      if(present(owner)) then
+        Nfaces = count(icon%cellowner.eq.owner)
+        Nedges = count(icon%edgeowner.eq.owner)
+        offset = Nfaces * plex%Nz + Nfaces * (plex%Nz+1) + Nedges * plex%Nz
+      else
+        Nfaces = icon%Nfaces
+        Nedges = icon%Nedges
+        offset = plex%offset_edges
+      endif
+      if(ldebug) then
+        if(k.lt.i1 .or. k.gt.plex%Nz+1) stop 'iedge_top_icon_2_plex :: vertical index k out of range'
+        if(iedge.lt.i1 .or. iedge.gt.Nedges) stop 'iedge_top_icon_2_plex :: icon cell index out of range'
+      endif
+
+      iedge_top_icon_2_plex = offset + Nedges*(k-1) + iedge-1
+    end function
+
+
+    !> @brief return the dmplex edge index for a given icon vertex index, i.e. the edges on the side faces of cells
+    function iedge_side_icon_2_plex(icon, plex, ivertex, k, owner)
+      type(t_icongrid), intent(in) :: icon      !< @param[in] icon mesh object, holding info about number of grid cells
+      type(t_plexgrid), intent(in) :: plex      !< @param[in] dmplex mesh object, holding info about number of grid cells
+      integer(iintegers),intent(in) :: ivertex  !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+      integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+      integer(iintegers),intent(in),optional :: owner !< @param[in], optional the mpi rank on which to lookup the index
+      integer(iintegers) :: iedge_side_icon_2_plex !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+      integer(iintegers) :: Nfaces, Nedges, Nvertices, offset
+      if(present(owner)) then
+        Nfaces = count(icon%cellowner.eq.owner)
+        Nedges = count(icon%edgeowner.eq.owner)
+        Nvertices = count(icon%vertexowner.eq.owner)
+        offset = Nfaces * plex%Nz + Nfaces * (plex%Nz+1) + Nedges * plex%Nz + Nedges * (plex%Nz+i1)
+      else
+        Nfaces = icon%Nfaces
+        Nedges = icon%Nedges
+        Nvertices = icon%Nvertices
+        offset = plex%offset_edges_vertical
+      endif
+      if(ldebug) then
+        if(k.lt.i1 .or. k.gt.plex%Nz) stop 'iedge_side_icon_2_plex :: vertical index k out of range'
+        if(ivertex.lt.i1 .or. ivertex.gt.Nvertices) stop 'iedge_side_icon_2_plex :: icon vertex index out of range'
+      endif
+
+      iedge_side_icon_2_plex = offset + Nvertices*(k-1) + ivertex-1
+    end function
+
+    !> @brief return the dmplex vertex index for a given icon vertex index
+    function ivertex_icon_2_plex(icon, plex, ivertex, k, owner)
+      type(t_icongrid), intent(in) :: icon      !< @param[in] icon mesh object, holding info about number of grid cells
+      type(t_plexgrid), intent(in) :: plex      !< @param[in] dmplex mesh object, holding info about number of grid cells
+      integer(iintegers),intent(in) :: ivertex  !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+      integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+      integer(iintegers),intent(in),optional :: owner !< @param[in], optional the mpi rank on which to lookup the index
+      integer(iintegers) :: ivertex_icon_2_plex !< @param[out] icell_icon_2_plex, the vertex index in the dmplex, starts from plex%vStart and goes to plex%vEnd
+      integer(iintegers) :: Nfaces, Nedges, Nvertices, offset
+      if(present(owner)) then
+        Nfaces = count(icon%cellowner.eq.owner)
+        Nedges = count(icon%edgeowner.eq.owner)
+        Nvertices = count(icon%vertexowner.eq.owner)
+        offset = Nfaces * plex%Nz + Nfaces * (plex%Nz+1) + Nedges * plex%Nz + Nedges * (plex%Nz+1) + Nvertices * plex%Nz
+      else
+        Nfaces    = icon%Nfaces
+        Nedges    = icon%Nedges
+        Nvertices = icon%Nvertices
+        offset    = plex%offset_vertices
+      endif
+      if(ldebug) then
+        if(k.lt.i1 .or. k.gt.plex%Nz+1) then
+          print *,'ivertex_icon_2_plex error! input was',ivertex, k
+          stop 'ivertex_side_icon_2_plex :: vertical index k out of range'
+        endif
+        if(ivertex.lt.i1 .or. ivertex.gt.Nvertices) stop 'ivertex_side_icon_2_plex :: icon vertex index out of range'
+      endif
+
+      ivertex_icon_2_plex = offset + Nvertices*(k-1) + ivertex-1
     end function
 
     !> @brief return the vertical and icon base grid cell index for a given dmplex cell index.
-    function icell_plex_2_icon(icon, plex, icell)
+    function icell_plex_2_icon(icon, plex, icell, owner)
       type(t_icongrid), intent(in) :: icon      !< @param[in] icon mesh object, holding info about number of grid cells
       type(t_plexgrid), intent(in) :: plex      !< @param[in] dmplex mesh object, holding info about number of grid cells
       integer(iintegers),intent(in) :: icell    !< @param[in] icell, starts with 0 up to cEnd (size of DMPlex cells)
+      integer(iintegers),intent(in),optional :: owner !< @param[in], optional the mpi rank on which to lookup the index
       integer(iintegers) :: icell_plex_2_icon(2)!< @param[out] return icon cell index for base grid(starting with 1, to Nfaces) and vertical index(1 at top of domain)
-      if(ldebug) then
-        if(icell.lt.plex%cStart .or. icell.ge.plex%cEnd) stop 'icell_plex_2_icon, dmplex cell index out of range'
+      integer(iintegers) :: Nfaces
+      if(present(owner)) then
+        Nfaces = count(icon%cellowner.eq.owner)
+      else
+        Nfaces = icon%Nfaces
       endif
-      icell_plex_2_icon(1) = modulo(icell, icon%Nfaces) + i1
-      icell_plex_2_icon(2) = icell / icon%Nfaces + i1
       if(ldebug) then
-        if(icell_plex_2_icon(2).lt.i1 .or. icell_plex_2_icon(2).gt.plex%Nz) stop 'icell_icon_2_plex :: vertical index k out of range'
-        if(icell_plex_2_icon(1).lt.i1 .or. icell_plex_2_icon(1).gt.icon%Nfaces) stop 'icell_icon_2_plex :: icon cell index out of range'
+        if(icell.lt.0 .or. icell.ge.Nfaces*(plex%Nz+1)) then
+          print *,'icell_plex_2_icon :: ', icell, ' not in valid range', Nfaces*(plex%Nz+1)
+          stop 'icell_plex_2_icon, dmplex cell index out of range'
+        endif
+      endif
+      icell_plex_2_icon(1) = modulo(icell, Nfaces) + i1
+      icell_plex_2_icon(2) = icell / Nfaces + i1
+      if(ldebug) then
+        if(icell_plex_2_icon(1).lt.i1 .or. icell_plex_2_icon(1).gt.Nfaces) then
+          print *,'icell_plex_2_icon error! input was',icell, Nfaces, 'result:', icell_plex_2_icon
+          stop 'icell_icon_2_plex :: icon cell index out of range'
+        endif
+        if(icell_plex_2_icon(2).lt.i1 .or. icell_plex_2_icon(2).gt.plex%Nz) then
+          print *,'icell_plex_2_icon error! input was',icell, Nfaces, 'result:', icell_plex_2_icon
+          stop 'icell_icon_2_plex :: vertical index k out of range'
+        endif
       endif
 
     end function
