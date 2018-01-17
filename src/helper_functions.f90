@@ -708,59 +708,47 @@ module m_helper_functions
       endif
     end function
 
-    ! https://stackoverflow.com/questions/44198212/a-fortran-equivalent-to-unique
-    recursive subroutine mergesort(temp, begin, finish, list)
-      ! 1st 3 arguments are input, 4th is output sorted list
-      integer(iintegers),intent(inout) :: begin, list(:), temp(:)
-      integer(iintegers),intent(in) :: finish
-      integer(iintegers) :: middle
-      if (finish-begin<2) then    !if run size =1
-        return                   !it is sorted
-      else
-        ! split longer runs into halves
-        middle = (finish+begin)/2
-        ! recursively sort both halves from list into temp
-        call mergesort(list, begin, middle, temp)
-        call mergesort(list, middle, finish, temp)
-        ! merge sorted runs from temp into list
-        call merge(temp, begin, middle, finish, list)
-      endif
-    contains
 
-      subroutine merge(list, begin, middle, finish, temp)
-        integer(iintegers),intent(inout) :: list(:), temp(:)
-        integer(iintegers),intent(in) :: begin, middle, finish
-        integer(iintegers) :: kx,ky,kz
-        ky=begin
-        kz=middle
-        !! while there are elements in the left or right runs...
-        do kx=begin,finish-1
-          !! if left run head exists and is <= existing right run head.
-          if (ky.lt.middle.and.(kz.ge.finish.or.list(ky).le.list(kz))) then
-            temp(kx)=list(ky)
-            ky=ky+1
-          else
-            temp(kx)=list(kz)
-            kz = kz + 1
-          end if
+    ! https://gist.github.com/t-nissie/479f0f16966925fa29ea
+    recursive subroutine quicksort(a, first, last)
+      integer(iintegers), intent(inout) :: a(:)
+      integer(iintegers), intent(in) :: first, last
+      integer(iintegers) :: i, j, x, t
+
+      x = a( (first+last) / 2 )
+      i = first
+      j = last
+      do
+        do while (a(i) < x)
+          i=i+1
         end do
-      end subroutine merge
-    end subroutine mergesort
+        do while (x < a(j))
+          j=j-1
+        end do
+        if (i >= j) exit
+        t = a(i);  a(i) = a(j);  a(j) = t
+        i=i+1
+        j=j-1
+      end do
+      if (first < i-1) call quicksort(a, first, i-1)
+      if (j+1 < last)  call quicksort(a, j+1, last)
+    end subroutine quicksort
 
+    ! https://stackoverflow.com/questions/44198212/a-fortran-equivalent-to-unique
     function unique(inp)
       !! usage sortedlist = unique(list)
       !! or reshape it first to 1D: sortedlist = unique(reshape(list, [size(list)]))
-      integer :: strt,fin,n
       integer(iintegers), intent(in) :: inp(:)
       integer(iintegers) :: list(size(inp)), work(size(inp))
       integer(iintegers), allocatable :: unique(:)
-      logical,allocatable :: mask(:)
+      integer(iintegers) :: n
+      logical :: mask(size(inp))
 
       list = inp
-      work = list; strt=1; n=size(list); fin=n+1
-      call mergesort(work,strt,fin,list)
+      n=size(list)
+      call quicksort(list,1, n)
+
       ! cull duplicate indices
-      allocate(mask(n))
       mask = .False.
       mask(1:n-1) = list(1:n-1) == list(2:n)
       allocate(unique(count(.not.mask)))
