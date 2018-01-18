@@ -80,8 +80,8 @@ module m_plex_grid
       !integer(iintegers) :: offset_faces_sides, offset_edges_vertical
       integer(iintegers) :: edge3(3), edge4(4), faces(5), vert2(2)
 
-      integer(iintegers) :: i, k, j, icell, iedge, iface, ivertex
-      integer(iintegers) :: depth
+      integer(iintegers) :: i, j, k, icell, iedge, iface, ivertex
+      integer(iintegers) :: depth, iparent, owner
       integer(mpiint) :: myid, numnodes, ierr
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -117,6 +117,19 @@ module m_plex_grid
       print *,myid,'offsets edges:', plex%offset_edges, plex%offset_edges_vertical
       print *,myid,'offsets verte:', plex%offset_vertices
       print *,myid,'Chartsize:', chartsize
+
+      plex%pStart = 0                    ; plex%pEnd = plex%offset_vertices + plex%Nvertices
+      plex%cStart = 0                    ; plex%cEnd = plex%Ncells
+      plex%fStart = plex%Ncells          ; plex%fEnd = plex%offset_edges
+      plex%eStart = plex%offset_edges    ; plex%eEnd = plex%offset_vertices
+      plex%vStart = plex%offset_vertices ; plex%vEnd = plex%offset_vertices + plex%Nvertices
+
+      print *,myid, 'pstart', plex%pstart, 'pEnd', plex%pEnd
+      print *,myid, 'cStart', plex%cStart, 'cEnd', plex%cEnd
+      print *,myid, 'fStart', plex%fStart, 'fEnd', plex%fEnd
+      print *,myid, 'eStart', plex%eStart, 'eEnd', plex%eEnd
+      print *,myid, 'vStart', plex%vStart, 'vEnd', plex%vEnd
+
 
       ! Create some labels ... those are handy later when setting up matrices etc
       call DMCreateLabel(plex%dm, "Face Position", ierr); call CHKERR(ierr)
@@ -173,7 +186,7 @@ module m_plex_grid
           call DMLabelSetValue(plex%iconindexlabel, icell, i, ierr); call CHKERR(ierr)
           call DMLabelSetValue(plex%zindexlabel, icell, k, ierr); call CHKERR(ierr)
           call DMLabelSetValue(plex%ownerlabel, icell, icongrid%cellowner(icongrid%cell_index(i)), ierr); call CHKERR(ierr)
-          !print *,myid,'Setting cell indices', i, icongrid%cell_index(i), 'edge3', edge3, 'faces', faces
+          print *,myid,'cells :: icon', i, icongrid%cell_index(i),'plex:',icell, 'edge3', edge3, 'faces', faces
         enddo
       enddo
 
@@ -185,16 +198,20 @@ module m_plex_grid
             edge3(j) = iedge_top_icon_2_plex(icongrid, plex, iedge, k)
           enddo
           iface = iface_top_icon_2_plex(icongrid, plex, i, k)
+          iparent = icongrid%cell_index(i)
+          owner = icongrid%cellowner(iparent)
 
           call DMPlexSetCone(plex%dm, iface, edge3, ierr); call CHKERR(ierr)
-          !print *,'edges @ horizontal faces',icell,':',edge3,'petsc:', offset_faces + Nfaces*(k-1) + i-i1, '::', edge3
+
           call DMLabelSetValue(plex%iconindexlabel, iface, i, ierr); call CHKERR(ierr)
           call DMLabelSetValue(plex%zindexlabel, iface, k, ierr); call CHKERR(ierr)
           call DMLabelSetValue(plex%faceposlabel, iface, TOP_BOT_FACE, ierr); call CHKERR(ierr)
-          call DMLabelSetValue(plex%ownerlabel, iface, icongrid%cellowner(icongrid%cell_index(i)), ierr); call CHKERR(ierr)
+          call DMLabelSetValue(plex%ownerlabel, iface, owner, ierr); call CHKERR(ierr)
           if (k.eq.i1) then
             call DMLabelSetValue(plex%TOAlabel, iface, i1, ierr); call CHKERR(ierr)
           endif
+
+          print *,myid,'top/bot faces :: icon face', i, iparent,'plexface:',iface, 'edge3', edge3, 'owner', owner
         enddo
       enddo
 
@@ -208,13 +225,18 @@ module m_plex_grid
             ivertex = icongrid%edge_vertices(i,j)
             edge4(2+j) = iedge_side_icon_2_plex(icongrid, plex, ivertex, k)
           enddo
+          iparent = icongrid%edge_index(i)
+          owner = icongrid%edgeowner(iparent)
 
           call DMPlexSetCone(plex%dm, iface, edge4, ierr); call CHKERR(ierr)
           !print *,myid,'edges @ vertical faces',i,icongrid%edge_index(i),':',edge4,'petsc:', iface
           call DMLabelSetValue(plex%iconindexlabel, iface, i, ierr); call CHKERR(ierr)
           call DMLabelSetValue(plex%zindexlabel, iface, k, ierr); call CHKERR(ierr)
           call DMLabelSetValue(plex%faceposlabel, iface, SIDE_FACE, ierr); call CHKERR(ierr)
-          call DMLabelSetValue(plex%ownerlabel, iface, icongrid%edgeowner(icongrid%edge_index(i)), ierr); call CHKERR(ierr)
+          call DMLabelSetValue(plex%ownerlabel, iface, owner, ierr); call CHKERR(ierr)
+          print *,myid,'side faces :: icon edge', i, iparent, 'plexface:', iface, 'edge4', edge4, 'owner', owner, &
+            'cells of edge', allocated(icongrid%adj_cell_of_edge)
+          stop 'debug... check if cell of edge makes sense...'
         enddo
       enddo
 
@@ -264,101 +286,104 @@ module m_plex_grid
         enddo
       enddo
 
+      call set_sf_graph(icongrid, plex)
+
       if(ldebug) call mpi_barrier(comm, ierr)
 
-      print *,'Symmetrize'
       call DMPlexSymmetrize(plex%dm, ierr); call CHKERR(ierr)
       call DMPlexStratify(plex%dm, ierr); call CHKERR(ierr)
+
+      call update_plex_indices(plex)
 
       if(ldebug) then
         call DMPlexGetDepth(plex%dm, depth, ierr); call CHKERR(ierr)
         print *,'Depth of Stratum:', depth
       endif
 
-      call update_plex_indices(plex)
-      !if(numnodes.gt.1) &
-        call set_sf_graph(icongrid, plex)
-
-      call set_coords()
+      call set_coords(plex, icongrid)
 
       call mpi_barrier(plex%comm, ierr)
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
       call mpi_barrier(plex%comm, ierr)
 
-      contains
+      end subroutine
 
-        subroutine set_coords()
-          real(ireals), pointer :: coords(:)
-          type(tVec)            :: coordinates
-          integer(iintegers)    :: dimEmbed, coordSize, voff, ind
-          type(tPetscSection)   :: coordSection
+      subroutine set_coords(plex, icongrid)
+        type(t_icongrid), intent(in) :: icongrid
+        type(t_plexgrid), intent(inout) :: plex
 
-          real(ireals) :: cart_coord(3)
+        real(ireals), pointer :: coords(:)
+        type(tVec)            :: coordinates
+        integer(iintegers)    :: dimEmbed, coordSize, voff
+        type(tPetscSection)   :: coordSection
 
-          real(ireals), parameter :: sphere_radius=6371229  ! [m]
-          logical :: l_is_spherical_coords
+        real(ireals) :: cart_coord(3)
 
-          l_is_spherical_coords = any(icongrid%cartesian_z_vertices.ne.0)
+        real(ireals), parameter :: sphere_radius=6371229  ! [m]
+        logical :: l_is_spherical_coords
 
-          call DMGetCoordinateDim(plex%dm, dimEmbed, ierr); call CHKERR(ierr)
-          print *,'dimEmbed = ', dimEmbed
+        integer(mpiint) :: ierr
+        integer(iintegers) :: i, k, ivertex
 
-          call DMGetCoordinateSection(plex%dm, coordSection, ierr); call CHKERR(ierr)
+        l_is_spherical_coords = any(icongrid%cartesian_z_vertices.ne.0)
 
-          call PetscSectionSetNumFields(coordSection, i1, ierr); call CHKERR(ierr)
-          call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
-          call PetscSectionSetFieldComponents(coordSection, i0, dimEmbed, ierr); call CHKERR(ierr)
+        call DMGetCoordinateDim(plex%dm, dimEmbed, ierr); call CHKERR(ierr)
+        call DMGetCoordinateSection(plex%dm, coordSection, ierr); call CHKERR(ierr)
 
-          call PetscSectionSetChart(coordSection, plex%vStart, plex%vEnd, ierr);call CHKERR(ierr)
+        call PetscSectionSetNumFields(coordSection, i1, ierr); call CHKERR(ierr)
+        call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+        call PetscSectionSetFieldComponents(coordSection, i0, dimEmbed, ierr); call CHKERR(ierr)
 
-          do i = plex%vStart, plex%vEnd-i1
-            call PetscSectionSetDof(coordSection, i, dimEmbed, ierr); call CHKERR(ierr)
-            call PetscSectionSetFieldDof(coordSection, i, i0, dimEmbed, ierr); call CHKERR(ierr)
+        call PetscSectionSetChart(coordSection, plex%vStart, plex%vEnd, ierr);call CHKERR(ierr)
+
+        do i = plex%vStart, plex%vEnd-i1
+          call PetscSectionSetDof(coordSection, i, dimEmbed, ierr); call CHKERR(ierr)
+          call PetscSectionSetFieldDof(coordSection, i, i0, dimEmbed, ierr); call CHKERR(ierr)
+        enddo
+
+        call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(coordSection, PETSC_NULL_SECTION, "-show_coordinates_section", ierr); call CHKERR(ierr)
+        call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
+        print *,'Coord Section has size:', coordSize, '(',coordSize/3,' vertices)'
+
+        call VecCreate(PETSC_COMM_SELF, coordinates, ierr); call CHKERR(ierr)
+        call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
+        call VecSetBlockSize(coordinates, dimEmbed, ierr);call CHKERR(ierr)
+        call VecSetType(coordinates, VECSTANDARD, ierr);call CHKERR(ierr)
+
+        call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
+
+        call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+        print *,'bounds coords:', lbound(coords), ubound(coords)
+
+        ! set vertices as coordinates
+        do k = 1, plex%Nz+1
+          do i = 1, icongrid%Nvertices
+            ivertex = ivertex_icon_2_plex(icongrid, plex, i, k)
+            call PetscSectionGetOffset(coordSection, ivertex, voff, ierr); call CHKERR(ierr)
+
+            cart_coord = [icongrid%cartesian_x_vertices(i), &
+                          icongrid%cartesian_y_vertices(i), &
+                          icongrid%cartesian_z_vertices(i)]
+
+            if(l_is_spherical_coords) then
+              cart_coord = cart_coord * (sphere_radius + (plex%Nz-k)*200)
+            else
+              cart_coord(3) = (plex%Nz+1-k)*200
+            endif
+            coords(voff+i1 : voff+dimEmbed) = cart_coord(i1:dimEmbed)
           enddo
+        enddo
 
-          call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(coordSection, PETSC_NULL_SECTION, "-show_coordinates_section", ierr); call CHKERR(ierr)
-          call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
-          print *,'Coord Section has size:', coordSize
+        print *,'coords', shape(coords), '::', coords
+        call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
-          call VecCreate(PETSC_COMM_SELF, coordinates, ierr); call CHKERR(ierr)
-          call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
-          call VecSetBlockSize(coordinates, dimEmbed, ierr);call CHKERR(ierr)
-          call VecSetType(coordinates, VECSTANDARD, ierr);call CHKERR(ierr)
+        call DMSetCoordinatesLocal(plex%dm, coordinates, ierr);call CHKERR(ierr)
+        call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
 
-          call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
+        call VecDestroy(coordinates, ierr);call CHKERR(ierr)
+      end subroutine
 
-          call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
-          print *,'bounds coords:', lbound(coords), ubound(coords)
-
-          ! set vertices as coordinates
-          do k = 1, plex%Nz+1
-            do i = 1, icongrid%Nvertices
-              ind = plex%vStart + i - i1 + icongrid%Nvertices*(k-i1)
-              call PetscSectionGetOffset(coordSection, ind, voff, ierr); call CHKERR(ierr)
-
-              cart_coord = [icongrid%cartesian_x_vertices(i), icongrid%cartesian_y_vertices(i), &
-                            icongrid%cartesian_z_vertices(i)]
-
-              if(l_is_spherical_coords) then
-                cart_coord = cart_coord * (sphere_radius + (plex%Nz-k)*200)
-              else
-                cart_coord(3) = (plex%Nz+1-k)*200
-              endif
-              coords(voff+i1 : voff+dimEmbed) = cart_coord(i1:dimEmbed)
-            enddo
-          enddo
-
-          print *,'coords', shape(coords), '::', coords
-          call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
-
-          call DMSetCoordinatesLocal(plex%dm, coordinates, ierr);call CHKERR(ierr)
-          call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
-
-          call VecDestroy(coordinates, ierr);call CHKERR(ierr)
-        end subroutine
-
-    end subroutine
     subroutine set_sf_graph(icongrid, plexgrid)
       type(t_icongrid), intent(in) :: icongrid
       type(t_plexgrid), intent(inout) :: plexgrid
@@ -373,7 +398,7 @@ module m_plex_grid
       integer(mpiint) :: myid, numnodes, ierr
       integer(iintegers) :: N_remote_cells, N_remote_edges, N_remote_vertices
       integer(iintegers) :: icell, iface, iedge, ivertex
-      integer(iintegers) :: facepos, k, ilocal, iparent, iremote, owner, ileaf
+      integer(iintegers) :: facepos, k, ilocal, iparent, iremote, owner, ileaf, jparent
 
       call mpi_comm_rank(plexgrid%comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(plexgrid%comm, numnodes, ierr); call CHKERR(ierr)
@@ -399,7 +424,7 @@ module m_plex_grid
       nleaves = 0
       do k=plexgrid%pStart, plexgrid%pEnd-1
         call DMLabelGetValue(plexgrid%ownerlabel, k, owner, ierr); call CHKERR(ierr)
-        print *,myid,'ownership of plex element',k,owner
+        !print *,myid,'ownership of plex element',k,owner
         if(owner.ne.myid) nleaves = nleaves + 1
       enddo
 
@@ -412,11 +437,11 @@ module m_plex_grid
 
       ileaf = 0
       do icell = plexgrid%cStart, plexgrid%cEnd-1
-        call DMLabelGetValue(plexgrid%zindexlabel, icell, k, ierr); call CHKERR(ierr)
         call DMLabelGetValue(plexgrid%ownerlabel, icell, owner, ierr); call CHKERR(ierr)
-        call DMLabelGetValue(plexgrid%iconindexlabel, icell, ilocal, ierr); call CHKERR(ierr)
-
         if(owner.ne.myid) then
+          call DMLabelGetValue(plexgrid%zindexlabel, icell, k, ierr); call CHKERR(ierr)
+          call DMLabelGetValue(plexgrid%iconindexlabel, icell, ilocal, ierr); call CHKERR(ierr)
+
           iremote = icell_icon_2_plex(icongrid, plexgrid, ilocal, k, owner) ! plex index of cell at neighbor
           ileaf = ileaf + 1
           ilocal_elements(ileaf) = icell
@@ -428,54 +453,54 @@ module m_plex_grid
       enddo
 
       do iface = plexgrid%fStart, plexgrid%fEnd-1
-        call DMLabelGetValue(plexgrid%zindexlabel, iface, k, ierr); call CHKERR(ierr)
         call DMLabelGetValue(plexgrid%ownerlabel, iface, owner, ierr); call CHKERR(ierr)
-        call DMLabelGetValue(plexgrid%iconindexlabel, iface, ilocal, ierr); call CHKERR(ierr) ! either a local index for cells or edges ...
-        call DMLabelGetValue(plexgrid%faceposlabel, iface, facepos, ierr); call CHKERR(ierr) ! ... depending on faceposition
-
-        if(facepos.eq.TOP_BOT_FACE) then
-          iparent = icongrid%cell_index(ilocal) ! global cell index in parent grid
-          iparent = icongrid%local_cell_index(iparent) ! local icon index @ neighbour
-          iremote = iface_top_icon_2_plex(icongrid, plexgrid, iparent, k, owner) ! plex index at neighbor
-          !print *,'top bot face: plex owner vs icongrid owner ::',iface, ilocal, iparent, '::', owner, icongrid%cellowner(iparent)
-        elseif(facepos.eq.SIDE_FACE) then
-          iparent = icongrid%edge_index(ilocal) ! global edge index in parent grid
-          iparent = icongrid%local_edge_index(iparent) ! local icon index @ neighbour
-          iremote = iface_side_icon_2_plex(icongrid, plexgrid, iparent, k, owner) ! plex index at neighbor
-
-          !print *,'side face: plex owner vs icongrid owner ::',iface, ilocal, iparent, '::', owner, icongrid%edgeowner(iparent)
-        else
-          stop 'wrong or no side face label'
-        endif
-
         if(owner.ne.myid) then
+          call DMLabelGetValue(plexgrid%zindexlabel, iface, k, ierr); call CHKERR(ierr)
+          call DMLabelGetValue(plexgrid%iconindexlabel, iface, ilocal, ierr); call CHKERR(ierr) ! either a local index for cells or edges ...
+          call DMLabelGetValue(plexgrid%faceposlabel, iface, facepos, ierr); call CHKERR(ierr) ! ... depending on faceposition
+
+          if(facepos.eq.TOP_BOT_FACE) then
+            iparent = icongrid%cell_index(ilocal) ! global cell index in parent grid
+            jparent = icongrid%local_cell_index(iparent) ! local icon index @ neighbour
+            iremote = iface_top_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
+            if(myid.eq.0) print *,myid,'top bot face:: plex:',iface, 'icon:', ilocal, iparent, jparent, '::', iremote,'@', owner
+          elseif(facepos.eq.SIDE_FACE) then
+            iparent = icongrid%edge_index(ilocal) ! global edge index in parent grid
+            jparent = icongrid%local_edge_index(iparent) ! local icon index @ neighbour
+            iremote = iface_side_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
+
+            if(myid.eq.0) print *,myid,'side face:: plex',iface, 'icon:', ilocal, iparent, jparent, '::', iremote,'@', owner
+          else
+            stop 'wrong or no side face label'
+          endif
+
           ileaf = ileaf + 1
           ilocal_elements(ileaf) = iface
           iremote_elements(ileaf)%rank = owner
           iremote_elements(ileaf)%index = iremote
-          print *,myid, 'local cell', iface, 'parent', iparent, '@', owner, '->', iremote
+          print *,myid, 'local iface', iface, 'parent', iparent, '@', owner, '->', iremote
         endif
       enddo
 
       do iedge = plexgrid%eStart, plexgrid%eEnd-1
-        call DMLabelGetValue(plexgrid%zindexlabel, iedge, k, ierr); call CHKERR(ierr)
         call DMLabelGetValue(plexgrid%ownerlabel, iedge, owner, ierr); call CHKERR(ierr)
-        call DMLabelGetValue(plexgrid%iconindexlabel, iedge, ilocal, ierr); call CHKERR(ierr) ! either a local index for edges or vertices ...
-        call DMLabelGetValue(plexgrid%faceposlabel, iedge, facepos, ierr); call CHKERR(ierr) ! ... depending on faceposition
-
-        if(facepos.eq.TOP_BOT_FACE) then
-          iparent = icongrid%edge_index(ilocal) ! global cell index in parent grid
-          iparent = icongrid%local_edge_index(iparent) ! local icon index @ neighbour
-          iremote = iedge_top_icon_2_plex(icongrid, plexgrid, iparent, k, owner) ! plex index at neighbor
-        elseif(facepos.eq.SIDE_FACE) then
-          iparent = icongrid%vertex_index(ilocal) ! global edge index in parent grid
-          iparent = icongrid%local_vertex_index(iparent) ! local icon index @ neighbour
-          iremote = iedge_side_icon_2_plex(icongrid, plexgrid, iparent, k, owner) ! plex index at neighbor
-        else
-          stop 'wrong or no side face label'
-        endif
-
         if(owner.ne.myid) then
+          call DMLabelGetValue(plexgrid%zindexlabel, iedge, k, ierr); call CHKERR(ierr)
+          call DMLabelGetValue(plexgrid%iconindexlabel, iedge, ilocal, ierr); call CHKERR(ierr) ! either a local index for edges or vertices ...
+          call DMLabelGetValue(plexgrid%faceposlabel, iedge, facepos, ierr); call CHKERR(ierr) ! ... depending on faceposition
+
+          if(facepos.eq.TOP_BOT_FACE) then
+            iparent = icongrid%edge_index(ilocal) ! global cell index in parent grid
+            jparent = icongrid%local_edge_index(iparent) ! local icon index @ neighbour
+            iremote = iedge_top_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
+          elseif(facepos.eq.SIDE_FACE) then
+            iparent = icongrid%vertex_index(ilocal) ! global edge index in parent grid
+            jparent = icongrid%local_vertex_index(iparent) ! local icon index @ neighbour
+            iremote = iedge_side_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
+          else
+            stop 'wrong or no side face label'
+          endif
+
           ileaf = ileaf + 1
           ilocal_elements(ileaf) = iedge
           iremote_elements(ileaf)%rank = owner
@@ -484,17 +509,16 @@ module m_plex_grid
         endif
       enddo
 
-      call mpi_barrier(plexgrid%comm, ierr)
       do ivertex = plexgrid%vStart, plexgrid%vEnd-1
-        call DMLabelGetValue(plexgrid%zindexlabel   , ivertex, k, ierr); call CHKERR(ierr)
         call DMLabelGetValue(plexgrid%ownerlabel    , ivertex, owner, ierr); call CHKERR(ierr)
-        call DMLabelGetValue(plexgrid%iconindexlabel, ivertex, ilocal, ierr); call CHKERR(ierr) ! local index for vertices ...
-
-        iparent = icongrid%vertex_index(ilocal) ! global edge index in parent grid
-        iparent = icongrid%local_vertex_index(iparent) ! local icon index @ neighbour
-        iremote = ivertex_icon_2_plex(icongrid, plexgrid, iparent, k, owner) ! plex index at neighbor
-
         if(owner.ne.myid) then
+          call DMLabelGetValue(plexgrid%zindexlabel   , ivertex, k, ierr); call CHKERR(ierr)
+          call DMLabelGetValue(plexgrid%iconindexlabel, ivertex, ilocal, ierr); call CHKERR(ierr) ! local index for vertices ...
+
+          iparent = icongrid%vertex_index(ilocal) ! global edge index in parent grid
+          jparent = icongrid%local_vertex_index(iparent) ! local icon index @ neighbour
+          iremote = ivertex_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
+
           ileaf = ileaf + 1
           ilocal_elements(ileaf) = ivertex
           iremote_elements(ileaf)%rank = owner
@@ -504,29 +528,21 @@ module m_plex_grid
       enddo
 
       if(ileaf.ne.nleaves) call abort('Seems like we forgot some remote elements?'//itoa(ileaf)//'/'//itoa(nleaves))
+      do ileaf=1,nleaves
+        print *,myid,'starforest topology',ileaf, ilocal_elements(ileaf),'-->',iremote_elements(ileaf)%index,'@',iremote_elements(ileaf)%rank
+      enddo
 
       nroots = plexgrid%pEnd
 
-      call mpi_barrier(plexgrid%comm, ierr)
-      print *,'calling sfsetgraph:',nroots,nleaves
       call DMGetPointSF(plexgrid%dm, sf, ierr); call CHKERR(ierr)
-      call PetscSFSetGraph(sf, nroots, nleaves, ilocal, localmode, iremote, remotemode, ierr); call CHKERR(ierr)
-
-      call mpi_barrier(plexgrid%comm, ierr)
-
-      call PetscObjectViewFromOptions(sf, PETSC_NULL_SF, "-show_pointsf", ierr); call CHKERR(ierr)
+      call PetscSFSetGraph(sf, nroots, nleaves, ilocal_elements, localmode, iremote_elements, remotemode, ierr); call CHKERR(ierr)
 
       call PetscSFSetUp(sf, ierr); call CHKERR(ierr)
-
-      call mpi_barrier(plexgrid%comm, ierr)
-      stop 'debug'
 
       call DMSetDefaultSF(plexgrid%dm, sf, ierr); call CHKERR(ierr)
       call DMGetDefaultSF(plexgrid%dm, sf, ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(sf, PETSC_NULL_SF, "-show_sf", ierr); call CHKERR(ierr)
-      call PetscSFView(sf, PETSC_VIEWER_STDOUT_WORLD,ierr);call CHKERR(ierr);
-
     end subroutine
 
     subroutine load_plex_from_file(comm, gridfile, plex)
