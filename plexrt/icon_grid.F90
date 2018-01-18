@@ -16,6 +16,7 @@ module m_icon_grid
 
   type :: t_icongrid
     integer(iintegers) :: Nfaces, Nedges, Nvertices ! number of entries in base icon grid
+    integer(iintegers), allocatable, dimension(:) :: parNfaces, parNedges, parNvertices ! number of entries in base icon grid on each processor, dim=(0..numnodes-1)
 
     ! index of cells in parent grid :: cell_index=dim(Nfaces)
     ! and index of cells in local grids :: local_cell_index=dim(Nfaces_parent)
@@ -56,8 +57,8 @@ module m_icon_grid
       integer(mpiint) :: myid, numnodes, ierr
 
       integer(iintegers) :: i, j, ic, ie, iv
-      integer(iintegers) :: vcnt, ecnt, owner
-      logical :: ladj_cell
+      integer(iintegers) :: owner
+      logical,allocatable :: ladj_cell(:)
       integer(iintegers),allocatable :: par_cnt(:), iowner(:), unique_owner(:)
 
       if(.not.allocated(icongrid)) stop 'distribute_icon_grid :: global icongrid not allocated!'
@@ -68,36 +69,47 @@ module m_icon_grid
 
       call decompose_icon_grid(icongrid, numnodes, local_icongrid%cellowner, local_icongrid%edgeowner, local_icongrid%vertexowner)
 
-      local_icongrid%Nfaces = count(local_icongrid%cellowner.eq.myid)
+      allocate(ladj_cell(0:numnodes-1))
+
+      allocate(local_icongrid%parNfaces(0:numnodes-1))
+      do owner=0,numnodes-1
+        local_icongrid%parNfaces(owner) = count(local_icongrid%cellowner.eq.owner)
+      enddo
+      local_icongrid%Nfaces = local_icongrid%parNfaces(myid)
 
       ! Count edges/vertices for local grid
-      ecnt=0
+      allocate(local_icongrid%parNedges(0:numnodes-1), source=0)
       do i=1,icongrid%Nedges
         ie = icongrid%edge_index(i)
         ladj_cell = .False.
         do j=1,size(icongrid%adj_cell_of_edge(ie,:))
           ic = icongrid%adj_cell_of_edge(ie,j)
           if(ic.gt.0) then
-            if(local_icongrid%cellowner(ic).eq.myid) ladj_cell = .True.
+            ladj_cell(local_icongrid%cellowner(ic)) = .True.
           endif
         enddo
-        if(ladj_cell) ecnt = ecnt+1
+        where(ladj_cell)
+          local_icongrid%parNedges = local_icongrid%parNedges+1
+        endwhere
       enddo
-      local_icongrid%Nedges = ecnt
+      local_icongrid%Nedges = local_icongrid%parNedges(myid)
 
-      vcnt=0
+      allocate(local_icongrid%parNvertices(0:numnodes-1), source=0)
       do i=1,icongrid%Nvertices
         iv = icongrid%vertex_index(i)
         ladj_cell = .False.
         do j=1,size(icongrid%cells_of_vertex(iv,:))
           ic = icongrid%cells_of_vertex(iv,j)
           if(ic.gt.0) then
-            if(local_icongrid%cellowner(ic).eq.myid) ladj_cell = .True.
+            ladj_cell(local_icongrid%cellowner(ic)) = .True.
           endif
         enddo
-        if(ladj_cell) vcnt = vcnt+1
+        where(ladj_cell)
+          local_icongrid%parNvertices = local_icongrid%parNvertices+1
+        endwhere
       enddo
-      local_icongrid%Nvertices = vcnt
+      local_icongrid%Nvertices = local_icongrid%parNvertices(myid)
+      deallocate(ladj_cell)
 
       if(ldebug) then
         do i=0,numnodes-1
