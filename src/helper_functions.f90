@@ -30,7 +30,7 @@ module m_helper_functions
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique
+    vec_proj_on_plane, get_arg, unique, itoa
 
   interface imp_bcast
     module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -69,6 +69,14 @@ module m_helper_functions
       integer(mpiint),intent(in) :: ierr
       if(ierr.ne.0) call mpi_abort(imp_comm, ierr, mpierr)
     end subroutine
+
+    function itoa(i) result(res)
+      character(:),allocatable :: res
+      integer(iintegers),intent(in) :: i
+      character(range(i)+2) :: tmp
+      write(tmp,'(i0)') i
+      res = trim(tmp)
+    end function
 
     pure function gradient(v)
       real(ireals),intent(in) :: v(:)
