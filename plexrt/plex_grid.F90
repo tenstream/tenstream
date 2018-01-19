@@ -235,8 +235,7 @@ module m_plex_grid
           call DMLabelSetValue(plex%faceposlabel, iface, SIDE_FACE, ierr); call CHKERR(ierr)
           call DMLabelSetValue(plex%ownerlabel, iface, owner, ierr); call CHKERR(ierr)
           print *,myid,'side faces :: icon edge', i, iparent, 'plexface:', iface, 'edge4', edge4, 'owner', owner, &
-            'cells of edge', allocated(icongrid%adj_cell_of_edge)
-          stop 'debug... check if cell of edge makes sense...'
+            'adj cells', icongrid%adj_cell_of_edge(i,:)
         enddo
       enddo
 
@@ -319,7 +318,7 @@ module m_plex_grid
 
         real(ireals) :: cart_coord(3)
 
-        real(ireals), parameter :: sphere_radius=6371229  ! [m]
+        real(ireals), parameter :: sphere_radius= 6371229  ! [m]
         logical :: l_is_spherical_coords
 
         integer(mpiint) :: ierr
@@ -442,7 +441,10 @@ module m_plex_grid
           call DMLabelGetValue(plexgrid%zindexlabel, icell, k, ierr); call CHKERR(ierr)
           call DMLabelGetValue(plexgrid%iconindexlabel, icell, ilocal, ierr); call CHKERR(ierr)
 
-          iremote = icell_icon_2_plex(icongrid, plexgrid, ilocal, k, owner) ! plex index of cell at neighbor
+          iparent = icongrid%cell_index(ilocal) ! global cell index in parent grid
+          jparent = icongrid%remote_cell_index(iparent) ! local icon index @ neighbour
+
+          iremote = icell_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index of cell at neighbor
           ileaf = ileaf + 1
           ilocal_elements(ileaf) = icell
           iremote_elements(ileaf)%rank = owner
@@ -461,15 +463,15 @@ module m_plex_grid
 
           if(facepos.eq.TOP_BOT_FACE) then
             iparent = icongrid%cell_index(ilocal) ! global cell index in parent grid
-            jparent = icongrid%local_cell_index(iparent) ! local icon index @ neighbour
+            jparent = icongrid%remote_cell_index(iparent) ! local icon index @ neighbour
             iremote = iface_top_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
-            if(myid.eq.0) print *,myid,'top bot face:: plex:',iface, 'icon:', ilocal, iparent, jparent, '::', iremote,'@', owner
+            !if(myid.eq.0) print *,myid,'top bot face:: plex:',iface, 'icon:', ilocal, iparent, jparent, '::', iremote,'@', owner
           elseif(facepos.eq.SIDE_FACE) then
             iparent = icongrid%edge_index(ilocal) ! global edge index in parent grid
-            jparent = icongrid%local_edge_index(iparent) ! local icon index @ neighbour
+            jparent = icongrid%remote_edge_index(iparent) ! local icon index @ neighbour
             iremote = iface_side_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
 
-            if(myid.eq.0) print *,myid,'side face:: plex',iface, 'icon:', ilocal, iparent, jparent, '::', iremote,'@', owner
+            !if(myid.eq.0) print *,myid,'side face:: plex',iface, 'icon:', ilocal, iparent, jparent, '::', iremote,'@', owner
           else
             stop 'wrong or no side face label'
           endif
@@ -478,7 +480,7 @@ module m_plex_grid
           ilocal_elements(ileaf) = iface
           iremote_elements(ileaf)%rank = owner
           iremote_elements(ileaf)%index = iremote
-          print *,myid, 'local iface', iface, 'parent', iparent, '@', owner, '->', iremote
+          print *,myid, 'local iface',facepos, iface, 'parent', iparent, jparent, '@', owner, '->', iremote
         endif
       enddo
 
@@ -491,11 +493,11 @@ module m_plex_grid
 
           if(facepos.eq.TOP_BOT_FACE) then
             iparent = icongrid%edge_index(ilocal) ! global cell index in parent grid
-            jparent = icongrid%local_edge_index(iparent) ! local icon index @ neighbour
+            jparent = icongrid%remote_edge_index(iparent) ! local icon index @ neighbour
             iremote = iedge_top_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
           elseif(facepos.eq.SIDE_FACE) then
             iparent = icongrid%vertex_index(ilocal) ! global edge index in parent grid
-            jparent = icongrid%local_vertex_index(iparent) ! local icon index @ neighbour
+            jparent = icongrid%remote_vertex_index(iparent) ! local icon index @ neighbour
             iremote = iedge_side_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
           else
             stop 'wrong or no side face label'
@@ -516,7 +518,7 @@ module m_plex_grid
           call DMLabelGetValue(plexgrid%iconindexlabel, ivertex, ilocal, ierr); call CHKERR(ierr) ! local index for vertices ...
 
           iparent = icongrid%vertex_index(ilocal) ! global edge index in parent grid
-          jparent = icongrid%local_vertex_index(iparent) ! local icon index @ neighbour
+          jparent = icongrid%remote_vertex_index(iparent) ! local icon index @ neighbour
           iremote = ivertex_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
 
           ileaf = ileaf + 1
