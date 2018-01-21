@@ -41,6 +41,9 @@ module m_helper_functions
   interface swap
     module procedure swap_iintegers, swap_ireals
   end interface
+  interface cumsum
+    module procedure cumsum_iintegers, cumsum_ireals
+  end interface
 
   integer(mpiint) :: mpierr
 
@@ -389,9 +392,18 @@ module m_helper_functions
       w0   = w0 * ( one - f ) / ( one - f * w0 )
     end subroutine
 
-    function cumsum(arr)
+    function cumsum_ireals(arr) result(cumsum)
       real(ireals),intent(in) :: arr(:)
       real(ireals) :: cumsum(size(arr))
+      integer :: i
+      cumsum(1) = arr(1)
+      do i=2,size(arr)
+        cumsum(i) = cumsum(i-1) + arr(i)
+      enddo
+    end function
+    function cumsum_iintegers(arr) result(cumsum)
+      integer(iintegers),intent(in) :: arr(:)
+      integer(iintegers) :: cumsum(size(arr))
       integer :: i
       cumsum(1) = arr(1)
       do i=2,size(arr)
@@ -577,12 +589,19 @@ module m_helper_functions
       if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
     end function
 
-    pure function angle_between_two_vec(p1,p2)
+    function angle_between_two_vec(p1, p2)
       real(ireals),intent(in) :: p1(:), p2(:)
       real(ireals) :: angle_between_two_vec
       real(ireals) :: n1, n2
+      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
+        angle_between_two_vec = 0
+        return
+      endif
       n1 = norm(p1)
       n2 = norm(p2)
+      if(any([n1,n2].eq.0)) then
+        print *,'FPE exception angle_between_two_vec :: ',p1,':',p2
+      endif
       angle_between_two_vec = acos(dot_product(p1/norm(p1), p2/norm(p2)))
     end function
 
