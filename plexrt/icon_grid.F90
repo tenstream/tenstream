@@ -6,7 +6,7 @@ module m_icon_grid
 
   use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len
 
-  use m_helper_functions, only: get_arg, imp_bcast, chkerr, unique
+  use m_helper_functions, only: get_arg, imp_bcast, chkerr, unique, cumsum
 
   implicit none
 
@@ -71,7 +71,7 @@ module m_icon_grid
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call decompose_icon_grid(icongrid, numnodes, local_icongrid%cellowner, local_icongrid%edgeowner, local_icongrid%vertexowner)
+      call decompose_icon_grid_parmetis(comm, icongrid, local_icongrid%cellowner, local_icongrid%edgeowner, local_icongrid%vertexowner)
 
       allocate(ladj_cell(0:numnodes-1))
 
@@ -452,15 +452,17 @@ module m_icon_grid
         call conquer_cell(icell, i, lwin)
       enddo
 
-      do iiter=1,icongrid%Nfaces*10
+      do iiter=1,icongrid%Nfaces
         ichange=0
         do icell=1,icongrid%Nfaces
           if(cellowner(icell).ne.ICONULL) then
             do i=1,3
               if(neighborcells(i, icell).ne.ICONULL) then
                 call conquer_cell(neighborcells(i, icell), cellowner(icell), lwin) ! conquer my neighbors
-                if(lwin) ichange = ichange+1
-                ladjacent_check = check_adjacency()
+                if(lwin) then
+                  ichange = ichange+1
+                  ladjacent_check = check_adjacency()
+                endif
               endif
             enddo
           endif
@@ -469,6 +471,7 @@ module m_icon_grid
         if(ldebug) print *,'iiter',iiter, ichange, ladjacent_check
         if(ichange.eq.0 .and. ladjacent_check) exit
       enddo
+      ladjacent_check = check_adjacency()
 
       !do icell=1,icongrid%Nfaces
       !  if(ldebug) print *,'icell',icell,'::', cellowner(icell)
@@ -619,4 +622,139 @@ module m_icon_grid
         end subroutine
 
     end subroutine
-    end module
+
+    subroutine decompose_icon_grid_parmetis(comm, icongrid, cellowner, edgeowner, vertexowner)
+      MPI_Comm, intent(in) :: comm
+      type(t_icongrid),intent(in) :: icongrid
+
+      integer(iintegers),allocatable,intent(out) :: cellowner(:)   ! dim=(icongrid%Nfaces)
+      integer(iintegers),allocatable,intent(out) :: edgeowner(:)   ! dim=(icongrid%Nedges)
+      integer(iintegers),allocatable,intent(out) :: vertexowner(:) ! dim=(icongrid%Nvertices)
+
+      integer(iintegers) :: i, icell, j, ivertex, offset
+
+      integer(iintegers) :: ncells_local, istartcell
+      integer(iintegers),allocatable :: ii(:), jj(:)
+
+      integer(iintegers),allocatable :: cells_per_proc(:), cum_cells_per_proc(:)
+
+      integer(mpiint) :: myid, numnodes, ierr
+
+      type(tMat) :: mesh, dual
+      AO         :: ao
+      type(tIS)  :: is, isg, is_my_icon_cells
+      MatPartitioning :: part
+
+
+      if(.not. allocated(icongrid%cell_index)) stop 'decompose_icon_grid :: the grid is not loaded from an icon gridfile ... cant be decomposed with this method'
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+
+      allocate(cells_per_proc(0:numnodes-1))
+      allocate(cum_cells_per_proc(0:numnodes-1))
+
+      allocate(cellowner(icongrid%Nfaces))
+      allocate(edgeowner(icongrid%Nedges))
+      allocate(vertexowner(icongrid%Nvertices))
+
+      ncells_local = icongrid%Nfaces / numnodes
+      if(myid.eq.numnodes-1) ncells_local = ncells_local + modulo(icongrid%Nfaces, numnodes)  ! last rank gets the rest
+
+      call sleep(myid)
+
+      allocate(ii(0:ncells_local), source=ICONULL)
+      allocate(jj(0:ncells_local * 3 -1), source=ICONULL)
+
+      istartcell = icongrid%Nfaces / numnodes * myid
+      print *,''
+      print *,''
+      print *,myid,'Ncells_local',ncells_local, '::', icongrid%Nfaces / numnodes, '::', istartcell
+
+      offset = 0
+      do i=1,ncells_local
+        ii(i-1) = offset
+        icell = icongrid%cell_index(istartcell + i)
+        do j=1,size(icongrid%vertex_of_cell, dim=2)
+          ivertex = icongrid%vertex_of_cell(icell, j)
+          jj(offset) = ivertex
+          offset = offset +1
+        enddo
+      enddo
+      ii(ncells_local) = offset
+
+
+      call MatCreateMPIAdj(comm, ncells_local , icongrid%Nfaces, &
+        ii, jj, PETSC_NULL_INTEGER, mesh, ierr); call CHKERR(ierr)
+
+
+      call MatMeshToCellGraph(mesh,2,dual, ierr);
+      !call MatView(dual,PETSC_VIEWER_STDOUT_WORLD, ierr);
+
+      call MatPartitioningCreate(MPI_COMM_WORLD,part, ierr);
+      call MatPartitioningSetAdjacency(part,dual, ierr);
+      call MatPartitioningSetFromOptions(part, ierr);
+
+      call MatPartitioningApply(part,is, ierr);
+      call ISPartitioningToNumbering(is, isg, ierr);
+
+      call PetscObjectViewFromOptions(is, PETSC_NULL_IS, "-show_is", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(isg, PETSC_NULL_IS, "-show_isg", ierr); call CHKERR(ierr)
+
+      call ISPartitioningCount(is, numnodes, cells_per_proc, ierr); call CHKERR(ierr)
+      cum_cells_per_proc = cumsum(cells_per_proc)
+
+      call ISInvertPermutation(isg, cells_per_proc(myid), is_my_icon_cells, ierr); call CHKERR(ierr)
+
+      call PetscObjectViewFromOptions(is_my_icon_cells, PETSC_NULL_IS, "-show_is_my_icon_cells", ierr); call CHKERR(ierr)
+
+      call AOCreateBasicIS(is_my_icon_cells,PETSC_NULL_IS, ao, ierr); call CHKERR(ierr)
+
+      do i=1,icongrid%Nfaces
+        j = i-1
+        call AOPetscToApplication(ao, 1, j, ierr); call CHKERR(ierr)
+        cellowner(j+1) = count(cum_cells_per_proc/i.eq.0)
+        !print *,'Owner of cell:',i,'->',j,'@',count(cum_cells_per_proc/i.eq.0)
+      enddo
+
+      call  ISDestroy(is, ierr);
+      call  ISDestroy(isg, ierr);
+      call  ISDestroy(is_my_icon_cells, ierr);
+      call  MatPartitioningDestroy(part, ierr);
+
+      call  MatDestroy(mesh, ierr);
+      call  MatDestroy(dual, ierr);
+
+      call distribute_edges()
+      call distribute_vertices()
+
+      contains
+        subroutine distribute_edges()
+          integer(iintegers) :: i, ic, ie, new_edge_owner
+          do ie=1,icongrid%Nedges
+            new_edge_owner = ICONULL
+            do i=1,ubound(icongrid%adj_cell_of_edge,2)
+              ic = icongrid%adj_cell_of_edge(ie,i)
+              if(ic.gt.0) then
+                if(cellowner(ic) .ge. new_edge_owner) new_edge_owner=cellowner(ic)
+              endif
+            enddo
+            edgeowner(ie) = new_edge_owner
+          enddo
+        end subroutine
+
+        subroutine distribute_vertices()
+          integer(iintegers) :: i, ic, iv, new_vertex_owner
+          do iv=1,icongrid%Nvertices
+            new_vertex_owner = ICONULL
+            do i=1,ubound(icongrid%cells_of_vertex,2)
+              ic = icongrid%cells_of_vertex(iv,i)
+              if(ic.gt.0) then
+                if(cellowner(ic) .ge. new_vertex_owner) new_vertex_owner=cellowner(ic)
+              endif
+            enddo
+            vertexowner(iv) = new_vertex_owner
+          enddo
+        end subroutine
+    end subroutine
+end module
