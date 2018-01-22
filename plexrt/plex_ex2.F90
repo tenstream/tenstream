@@ -36,6 +36,7 @@ logical, parameter :: ldebug=.True.
       type(t_plexgrid), allocatable :: plexgrid
       type(tVec) :: b, edir, abso
       type(tMat) :: A
+      AO :: cell_ao
 
       integer(iintegers), parameter :: Nz=10
       real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
@@ -48,10 +49,11 @@ logical, parameter :: ldebug=.True.
       endif
       call bcast_icongrid(comm, icongrid)
 
-      call distribute_icon_grid(comm, icongrid, local_icongrid)
+      call distribute_icon_grid(comm, icongrid, local_icongrid, cell_ao)
       deallocate(icongrid)
 
       call create_plex_from_icongrid(comm, Nz, local_icongrid, plexgrid)
+      plexgrid%cell_ao = cell_ao
       deallocate(local_icongrid)
 
       call compute_face_geometry(plexgrid) ! setup the geometry info for the plexgrid object (sets up the plexgrid%geom_dm)
@@ -84,11 +86,17 @@ logical, parameter :: ldebug=.True.
     character(len=default_str_len) :: gridfile
     logical :: lflg
     integer(mpiint) :: ierr
-    character(len=*),parameter :: default_options='-show_plex hdf5:plex_ex2_out.h5 -show_abso hdf5:plex_ex2_out.h5::append'
+    character(len=default_str_len) :: default_options
+    logical :: lexists
+
+    default_options='-show_abso hdf5:plex_ex2_out.h5::append'
+    inquire( file='plex_ex2_out.h5', exist=lexists )
+    if(.not.lexists) default_options = '-show_plex hdf5:plex_ex2_out.h5 '//trim(default_options)
 
     call PetscInitialize(PETSC_NULL_CHARACTER,ierr); call CHKERR(ierr)
     call init_mpi_data_parameters(PETSC_COMM_WORLD)
 
+    print *,'Adding default Petsc Options:', default_options, lexists
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)

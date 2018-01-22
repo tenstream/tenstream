@@ -4,7 +4,7 @@ module m_gen_fish_plex
 
   use m_data_parameters, only : ireals, iintegers, i0, i1, init_mpi_data_parameters
 
-  use m_icon_plexgrid, only : TOP_BOT_FACE, SIDE_FACE
+  use m_plex_grid, only : TOP_BOT_FACE, SIDE_FACE
 
   implicit none
 
