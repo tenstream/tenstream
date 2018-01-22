@@ -7,7 +7,7 @@ use m_data_parameters, only : ireals, iintegers, mpiint, &
   default_str_len, &
   i0, i1, i2, i3, i4, i5,  &
   zero, one,       &
-  init_mpi_data_parameters, myid
+  init_mpi_data_parameters
 
 use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
   decompose_icon_grid, bcast_icongrid, distribute_icon_grid
