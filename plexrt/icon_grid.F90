@@ -53,10 +53,12 @@ module m_icon_grid
   integer(iintegers), parameter :: ICONULL=-1
 
   contains
-    subroutine distribute_icon_grid(comm, icongrid, local_icongrid)
-      MPI_Comm, intent(in) :: comm
+    subroutine distribute_icon_grid(comm, icongrid, local_icongrid, cell_ao )
+      integer(mpiint), intent(in) :: comm
       type(t_icongrid), allocatable, intent(in) :: icongrid
       type(t_icongrid), allocatable, intent(out) :: local_icongrid
+
+      AO, intent(out) :: cell_ao
 
       integer(mpiint) :: myid, numnodes, ierr
 
@@ -71,7 +73,8 @@ module m_icon_grid
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call decompose_icon_grid_parmetis(comm, icongrid, local_icongrid%cellowner, local_icongrid%edgeowner, local_icongrid%vertexowner)
+      call decompose_icon_grid_parmetis(comm, icongrid, &
+        local_icongrid%cellowner, local_icongrid%edgeowner, local_icongrid%vertexowner, cell_ao)
 
       allocate(ladj_cell(0:numnodes-1))
 
@@ -623,13 +626,15 @@ module m_icon_grid
 
     end subroutine
 
-    subroutine decompose_icon_grid_parmetis(comm, icongrid, cellowner, edgeowner, vertexowner)
+    subroutine decompose_icon_grid_parmetis(comm, icongrid, cellowner, edgeowner, vertexowner, cell_ao)
       MPI_Comm, intent(in) :: comm
       type(t_icongrid),intent(in) :: icongrid
 
       integer(iintegers),allocatable,intent(out) :: cellowner(:)   ! dim=(icongrid%Nfaces)
       integer(iintegers),allocatable,intent(out) :: edgeowner(:)   ! dim=(icongrid%Nedges)
       integer(iintegers),allocatable,intent(out) :: vertexowner(:) ! dim=(icongrid%Nvertices)
+
+      AO, intent(out) :: cell_ao
 
       integer(iintegers) :: i, icell, j, ivertex, offset
 
@@ -641,10 +646,8 @@ module m_icon_grid
       integer(mpiint) :: myid, numnodes, ierr
 
       type(tMat) :: mesh, dual
-      AO         :: ao
       type(tIS)  :: is, isg, is_my_icon_cells
       MatPartitioning :: part
-
 
       if(.not. allocated(icongrid%cell_index)) stop 'decompose_icon_grid :: the grid is not loaded from an icon gridfile ... cant be decomposed with this method'
 
@@ -661,15 +664,10 @@ module m_icon_grid
       ncells_local = icongrid%Nfaces / numnodes
       if(myid.eq.numnodes-1) ncells_local = ncells_local + modulo(icongrid%Nfaces, numnodes)  ! last rank gets the rest
 
-      call sleep(myid)
-
       allocate(ii(0:ncells_local), source=ICONULL)
       allocate(jj(0:ncells_local * 3 -1), source=ICONULL)
 
       istartcell = icongrid%Nfaces / numnodes * myid
-      print *,''
-      print *,''
-      print *,myid,'Ncells_local',ncells_local, '::', icongrid%Nfaces / numnodes, '::', istartcell
 
       offset = 0
       do i=1,ncells_local
@@ -687,9 +685,7 @@ module m_icon_grid
       call MatCreateMPIAdj(comm, ncells_local , icongrid%Nfaces, &
         ii, jj, PETSC_NULL_INTEGER, mesh, ierr); call CHKERR(ierr)
 
-
       call MatMeshToCellGraph(mesh,2,dual, ierr);
-      !call MatView(dual,PETSC_VIEWER_STDOUT_WORLD, ierr);
 
       call MatPartitioningCreate(MPI_COMM_WORLD,part, ierr);
       call MatPartitioningSetAdjacency(part,dual, ierr);
@@ -708,22 +704,22 @@ module m_icon_grid
 
       call PetscObjectViewFromOptions(is_my_icon_cells, PETSC_NULL_IS, "-show_is_my_icon_cells", ierr); call CHKERR(ierr)
 
-      call AOCreateBasicIS(is_my_icon_cells,PETSC_NULL_IS, ao, ierr); call CHKERR(ierr)
+      call AOCreateBasicIS(is_my_icon_cells,PETSC_NULL_IS, cell_ao, ierr); call CHKERR(ierr)
 
       do i=1,icongrid%Nfaces
         j = i-1
-        call AOPetscToApplication(ao, 1, j, ierr); call CHKERR(ierr)
+        call AOPetscToApplication(cell_ao, 1, j, ierr); call CHKERR(ierr)
         cellowner(j+1) = count(cum_cells_per_proc/i.eq.0)
         !print *,'Owner of cell:',i,'->',j,'@',count(cum_cells_per_proc/i.eq.0)
       enddo
 
-      call  ISDestroy(is, ierr);
-      call  ISDestroy(isg, ierr);
-      call  ISDestroy(is_my_icon_cells, ierr);
-      call  MatPartitioningDestroy(part, ierr);
+      call ISDestroy(is, ierr);
+      call ISDestroy(isg, ierr);
+      call ISDestroy(is_my_icon_cells, ierr);
+      call MatPartitioningDestroy(part, ierr);
 
-      call  MatDestroy(mesh, ierr);
-      call  MatDestroy(dual, ierr);
+      call MatDestroy(mesh, ierr);
+      call MatDestroy(dual, ierr);
 
       call distribute_edges()
       call distribute_vertices()

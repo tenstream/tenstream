@@ -59,6 +59,8 @@ module m_plex_grid
     type(tDMLabel) :: zindexlabel          ! vertical layer / level
     type(tDMLabel) :: TOAlabel             ! 1 if top level, 0 otherwise
     type(tDMLabel) :: ownerlabel           ! rank that posses this element
+
+    AO :: cell_AO
   end type
 
   contains
@@ -542,7 +544,7 @@ module m_plex_grid
         endif
       enddo
 
-      if(ileaf.ne.nleaves) call abort('Seems like we forgot some remote elements?'//itoa(ileaf)//'/'//itoa(nleaves))
+      if(ileaf.ne.nleaves) stop 'Seems like we forgot some remote elements? ileaf .ne. nleaves'
       do ileaf=1,nleaves
         print *,myid,'starforest topology',ileaf, ilocal_elements(ileaf),'-->',iremote_elements(ileaf)%index,'@',iremote_elements(ileaf)%rank
       enddo
@@ -813,7 +815,7 @@ module m_plex_grid
         type(tVec) :: lvec, lvec2, gvec
 
         integer(mpiint) :: myid, i
-				real(ireals), pointer :: xv(:), xv2(:)
+        real(ireals), pointer :: xv(:), xv2(:)
 
         call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
@@ -979,11 +981,11 @@ module m_plex_grid
       if(ldebug) then
         if(k.lt.i1 .or. k.gt.plex%Nz) then
           print *,'iface_side_icon_2_plex :: inp', iedge, k, present(owner), '::', Nfaces, Nedges, offset
-          call abort('iface_side_icon_2_plex :: vertical index k out of range '//itoa(k))
+          stop 'iface_side_icon_2_plex :: vertical index k out of range'
         endif
         if(iedge.lt.i1 .or. iedge.gt.Nedges) then
           print *,'iface_side_icon_2_plex :: inp', iedge, k, present(owner), '::', Nfaces, Nedges, offset
-          call abort('iface_side_icon_2_plex :: icon edge index out of range '//itoa(iedge))
+          stop 'iface_side_icon_2_plex :: icon edge index out of range'
         endif
       endif
       iface_side_icon_2_plex = offset + (k-1)*Nedges + (iedge-1)

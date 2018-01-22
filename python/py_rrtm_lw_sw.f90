@@ -1,5 +1,5 @@
 module m_py_rrtm_lw_sw
-  use m_data_parameters, only : ireals, mpiint, iintegers, init_mpi_data_parameters, myid, default_str_len
+  use m_data_parameters, only : ireals, mpiint, iintegers, init_mpi_data_parameters, default_str_len
   use m_tenstr_rrtmg, only : tenstream_rrtmg, destroy_tenstream_rrtmg
 
   implicit none
