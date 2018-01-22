@@ -30,7 +30,7 @@ module m_helper_functions
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg
+    vec_proj_on_plane, get_arg, unique, itoa
 
   interface mean
     module procedure mean_1d, mean_2d
@@ -41,13 +41,26 @@ module m_helper_functions
   interface get_arg
     module procedure get_arg_logical, get_arg_iintegers, get_arg_ireals
   end interface
+  interface swap
+    module procedure swap_iintegers, swap_ireals
+  end interface
+  interface cumsum
+    module procedure cumsum_iintegers, cumsum_ireals
+  end interface
 
   integer(mpiint) :: mpierr
 
   contains
-    pure elemental subroutine swap(x,y)
+    pure elemental subroutine swap_ireals(x,y)
       real(ireals),intent(inout) :: x,y
       real(ireals) :: tmp
+      tmp = x
+      x = y
+      y = tmp
+    end subroutine
+    pure elemental subroutine swap_iintegers(x,y)
+      integer(iintegers),intent(inout) :: x,y
+      integer(iintegers) :: tmp
       tmp = x
       x = y
       y = tmp
@@ -62,6 +75,14 @@ module m_helper_functions
       integer(mpiint),intent(in) :: ierr
       if(ierr.ne.0) call mpi_abort(mpi_comm_world, ierr, mpierr)
     end subroutine
+
+    function itoa(i) result(res)
+      character(:),allocatable :: res
+      integer(iintegers),intent(in) :: i
+      character(range(i)+2) :: tmp
+      write(tmp,'(i0)') i
+      res = trim(tmp)
+    end function
 
     pure function gradient(v)
       real(ireals),intent(in) :: v(:)
@@ -379,9 +400,18 @@ module m_helper_functions
       w0   = w0 * ( one - f ) / ( one - f * w0 )
     end subroutine
 
-    function cumsum(arr)
+    function cumsum_ireals(arr) result(cumsum)
       real(ireals),intent(in) :: arr(:)
       real(ireals) :: cumsum(size(arr))
+      integer :: i
+      cumsum(1) = arr(1)
+      do i=2,size(arr)
+        cumsum(i) = cumsum(i-1) + arr(i)
+      enddo
+    end function
+    function cumsum_iintegers(arr) result(cumsum)
+      integer(iintegers),intent(in) :: arr(:)
+      integer(iintegers) :: cumsum(size(arr))
       integer :: i
       cumsum(1) = arr(1)
       do i=2,size(arr)
@@ -567,12 +597,19 @@ module m_helper_functions
       if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
     end function
 
-    pure function angle_between_two_vec(p1,p2)
+    function angle_between_two_vec(p1, p2)
       real(ireals),intent(in) :: p1(:), p2(:)
       real(ireals) :: angle_between_two_vec
       real(ireals) :: n1, n2
+      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
+        angle_between_two_vec = 0
+        return
+      endif
       n1 = norm(p1)
       n2 = norm(p2)
+      if(any([n1,n2].eq.0)) then
+        print *,'FPE exception angle_between_two_vec :: ',p1,':',p2
+      endif
       angle_between_two_vec = acos(dot_product(p1/norm(p1), p2/norm(p2)))
     end function
 
@@ -706,4 +743,70 @@ module m_helper_functions
       endif
     end function
 
+
+    ! https://gist.github.com/t-nissie/479f0f16966925fa29ea
+    recursive subroutine quicksort(a, first, last)
+      integer(iintegers), intent(inout) :: a(:)
+      integer(iintegers), intent(in) :: first, last
+      integer(iintegers) :: i, j, x, t
+
+      x = a( (first+last) / 2 )
+      i = first
+      j = last
+      do
+        do while (a(i) < x)
+          i=i+1
+        end do
+        do while (x < a(j))
+          j=j-1
+        end do
+        if (i >= j) exit
+        t = a(i);  a(i) = a(j);  a(j) = t
+        i=i+1
+        j=j-1
+      end do
+      if (first < i-1) call quicksort(a, first, i-1)
+      if (j+1 < last)  call quicksort(a, j+1, last)
+    end subroutine quicksort
+
+    ! https://stackoverflow.com/questions/44198212/a-fortran-equivalent-to-unique
+    function unique(inp)
+      !! usage sortedlist = unique(list)
+      !! or reshape it first to 1D: sortedlist = unique(reshape(list, [size(list)]))
+      integer(iintegers), intent(in) :: inp(:)
+      integer(iintegers) :: list(size(inp)), work(size(inp))
+      integer(iintegers), allocatable :: unique(:)
+      integer(iintegers) :: n
+      logical :: mask(size(inp))
+
+      list = inp
+      n=size(list)
+      call quicksort(list,1, n)
+
+      ! cull duplicate indices
+      mask = .False.
+      mask(1:n-1) = list(1:n-1) == list(2:n)
+      allocate(unique(count(.not.mask)))
+      unique = pack(list, .not.mask)
+    end function unique
+
+    !> @brief remove duplicate elements from unsorted list
+    ! https://rosettacode.org/wiki/Remove_duplicate_elements#Fortran
+    subroutine remove_duplicate_elements(list, n, res, k)
+      integer(iintegers), dimension(n), intent(in) :: list
+      integer(iintegers), dimension(n), intent(inout) :: res
+      integer(iintegers) :: n, k, i, j
+
+      k = 1
+      res(1) = list(1)
+      outer: do i=2,size(list)
+        do j=1,k
+          if (res(j) == list(i)) then
+            cycle outer
+          end if
+        end do
+        k = k + 1
+        res(k) = list(i)
+      end do outer
+    end subroutine
   end module

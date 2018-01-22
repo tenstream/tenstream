@@ -7,10 +7,11 @@ module m_mpi_plex_ex1
                  default_str_len, i0, i1, i2, i3, i4, i5,  &
                  zero, one, init_mpi_data_parameters
 
-  use m_icon_plexgrid, only: t_plexgrid, load_plex_from_file, &
+  use m_plex_grid, only: t_plexgrid, load_plex_from_file, &
                        compute_face_geometry, print_dmplex,   &
-                       setup_edir_dmplex, setup_abso_dmplex,  &
-                       compute_edir_absorption, create_edir_mat
+                       setup_edir_dmplex, setup_abso_dmplex
+
+  use m_plex_rt, only: create_edir_mat, create_src_vec, compute_edir_absorption
 
   implicit none
 
@@ -20,70 +21,6 @@ module m_mpi_plex_ex1
 
   contains
 
-    subroutine create_src_vec(dm, globalVec)
-      type(tDM),allocatable :: dm
-      type(tVec) :: globalVec
-      integer(iintegers) :: i, voff
-      type(tPetscSection) :: s
-
-      Vec :: localVec
-      real(ireals), pointer :: xv(:)
-
-      PetscInt :: cStart, cEnd
-      PetscInt :: fStart, fEnd
-
-      type(tIS) :: toa_ids
-
-      PetscInt, pointer :: xx_v(:)
-
-      if(.not.allocated(dm)) stop 'called create_src_vec but face_dm is not allocated'
-
-      call DMGetDefaultSection(dm, s, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(s, PETSC_NULL_SECTION, '-show_src_section', ierr); call CHKERR(ierr)
-      call DMPlexGetHeightStratum(dm, 0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
-      call DMPlexGetHeightStratum(dm, 1, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
-
-      ! Now lets get vectors!
-      call DMGetGlobalVector(dm, globalVec,ierr); call CHKERR(ierr)
-      call PetscObjectSetName(globalVec, 'srcVecGlobal', ierr);call CHKERR(ierr)
-      call VecSet(globalVec, zero, ierr); call CHKERR(ierr)
-
-      call DMGetLocalVector(dm, localVec,ierr); call CHKERR(ierr)
-      call PetscObjectSetName(localVec, 'srcVec', ierr);call CHKERR(ierr)
-      call VecSet(localVec, zero, ierr); call CHKERR(ierr)
-
-      call DMGetStratumIS(dm, 'TOA', i1, toa_ids, ierr); call CHKERR(ierr)
-      if (toa_ids.eq.PETSC_NULL_IS) then ! dont have TOA points
-      else
-        call PetscObjectViewFromOptions(toa_ids, PETSC_NULL_IS, '-show_IS_TOA', ierr); call CHKERR(ierr)
-
-        call ISGetIndicesF90(toa_ids, xx_v, ierr); call CHKERR(ierr)
-
-        call VecGetArrayF90(localVec, xv, ierr); call CHKERR(ierr)
-
-        !do i = 1, size(xx_v)
-        do i = size(xx_v), size(xx_v)
-          print *,'debug: setting only last source entry...'
-          call PetscSectionGetOffset(s, xx_v(i), voff, ierr); call CHKERR(ierr)
-          !print *,myid,'index:',i,xx_v(i),'off',voff+1, lbound(xv,1), ubound(xv,1)
-          xv(voff+1) = 100 !i
-        enddo
-        call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
-
-        call ISRestoreIndicesF90(toa_ids, xx_v, ierr); call CHKERR(ierr)
-      endif
-
-      call PetscObjectViewFromOptions(localVec, PETSC_NULL_VEC, '-show_src_vec_local', ierr); call CHKERR(ierr)
-
-      call DMLocalToGlobalBegin(dm, localVec, ADD_VALUES, globalVec, ierr); call CHKERR(ierr)
-      call DMLocalToGlobalEnd(dm, localVec, ADD_VALUES, globalVec, ierr); call CHKERR(ierr)
-
-      call PetscObjectViewFromOptions(globalVec, PETSC_NULL_VEC, '-show_src_vec_global', ierr); call CHKERR(ierr)
-
-      call DMRestoreLocalVector(dm, localVec, ierr); call CHKERR(ierr)
-
-      !call DMRestoreGlobalVector(dm, globalVec, ierr); call CHKERR(ierr) ! Dont destroy the output vec
-    end subroutine
 
     function get_normal_of_first_TOA_face(plex)
       type(t_plexgrid) :: plex
@@ -165,23 +102,26 @@ module m_mpi_plex_ex1
       type(tVec) :: b, abso, edir
       type(tMat) :: A
 
+      real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
+
+
       call compute_face_geometry(plex)
 
 
       call setup_edir_dmplex(plex, plex%edir_dm)
-      plex%sundir = get_normal_of_first_TOA_face(plex)
-      print *,'get_normal_of_first_TOA_face',plex%sundir
-      !plex%sundir = [-0.71184089224108049, -3.7794622710146053E-002, -0.70132311428301020] ! original zenith 0
-      plex%sundir = [-0.71184089224108049, -3.7794622710146053E-002, -0.60132311428301020] ! zenith 10 azi 1
-      !plex%sundir = [-0.51184089224108049, +0.37794622710146053, -0.00132311428301020] ! zenith 63 azi 17
+      sundir = get_normal_of_first_TOA_face(plex)
+      print *,'get_normal_of_first_TOA_face', sundir
+      !sundir = [-0.71184089224108049, -3.7794622710146053E-002, -0.70132311428301020] ! original zenith 0
+      !sundir = [-0.71184089224108049, -3.7794622710146053E-002, -0.60132311428301020] ! zenith 10 azi 1
+      !sundir = [-0.51184089224108049, +0.37794622710146053, -0.00132311428301020] ! zenith 63 azi 17
 
-      !plex%sundir = [-one/100,-one/10,-one]
-      !plex%sundir = [one,one,-one]
-      !plex%sundir = spherical_2_cartesian(180*one,60*one)
-      !plex%sundir = spherical_2_cartesian(90*one,60*one)
+      !sundir = [-one/100,-one/10,-one]
+      !sundir = [one,one,-one]
+      !sundir = spherical_2_cartesian(180*one,60*one)
+      !sundir = spherical_2_cartesian(90*one,60*one)
 
-      plex%sundir = plex%sundir / norm(plex%sundir)
-      print *,'sundir',plex%sundir
+      sundir = sundir / norm(sundir)
+      print *,'sundir',sundir
       !stop 'debug'
 
       call print_dmplex(plex%comm, plex%edir_dm)
@@ -190,13 +130,13 @@ module m_mpi_plex_ex1
 
       call setup_abso_dmplex(plex, plex%abso_dm)
 
-      call create_edir_mat(plex, A)
+      call create_edir_mat(plex, sundir, A)
 
       call solve(plex, b, A, edir)
 
       call PetscObjectViewFromOptions(edir, PETSC_NULL_VEC, '-show_edir', ierr); call CHKERR(ierr)
 
-      call compute_edir_absorption(plex, edir, abso)
+      call compute_edir_absorption(plex, edir, sundir, abso)
 
     end subroutine
 end module
