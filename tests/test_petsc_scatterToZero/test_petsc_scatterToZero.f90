@@ -3,8 +3,8 @@ module test_petsc_scatterToZero
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_data_parameters, only : iintegers, ireals, mpiint, zero, one
-  use m_pprts, only : init_pprts, t_solver_8_10, destroy_pprts, &
-    petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
+  use m_pprts, only : init_pprts, t_solver_8_10, destroy_pprts
+  use m_petsc_helpers, only : petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
   use m_helper_functions, only : CHKERR
 
   use pfunit_mod
@@ -51,25 +51,26 @@ contains
     call DMGetGlobalVector(solver%C_one%da, gvec, ierr); call CHKERR(ierr)
 
     ! copy local fortran array into global vec
-    call f90VecToPetsc(local_arr, solver%C_one, gvec)
+    print *,myid,'copy local fortran array into global vec'
+    call f90VecToPetsc(local_arr, solver%C_one%da, gvec)
 
     ! Check that we can get an local array from a global petsc vec
-    call petscVecToF90(gvec, solver%C_one, local_arr_2)
+    call petscVecToF90(gvec, solver%C_one%da, local_arr_2)
     call assert_equivalence(local_arr, local_arr_2)
 
     deallocate(local_arr_2)
 
     ! do that feat again with a 3D array
-    call f90VecToPetsc(local_arr(1,:,:,:), solver%C_one, gvec)
-    call petscVecToF90(gvec, solver%C_one, local_arr_2)
+    call f90VecToPetsc(local_arr(1,:,:,:), solver%C_one%da, gvec)
+    call petscVecToF90(gvec, solver%C_one%da, local_arr_2)
     call assert_equivalence(local_arr, local_arr_2)
 
     ! copy global vec to rank 0, lVec(full size)
-    call petscGlobalVecToZero(gVec, solver%C_one, lVec)
+    call petscGlobalVecToZero(gVec, solver%C_one%da, lVec)
 
     ! Put data from petsc vec into fortran array
     if(myid.eq.0) then
-      call petscVecToF90(lvec, solver%C_one, global_arr_on_rank0, opt_l_only_on_rank0=.True.)
+      call petscVecToF90(lvec, solver%C_one%da, global_arr_on_rank0, opt_l_only_on_rank0=.True.)
       print *,myid,' size(global_arr_on_rank0)', size(global_arr_on_rank0)
       do j=1,ubound(global_arr_on_rank0,4)
         do i=1,ubound(global_arr_on_rank0,3)

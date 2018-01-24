@@ -29,7 +29,9 @@ module f2c_tenstream
 
       use m_pprts, only : init_pprts, t_solver, t_solver_8_10, t_solver_3_6, t_solver_1_2, &
         set_global_optical_properties, solve_pprts, destroy_pprts, &
-        pprts_get_result_toZero, t_coord, petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
+        pprts_get_result_toZero, t_coord
+
+      use m_petsc_helpers, only : petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
 
 #include "petsc/finclude/petsc.h"
       use petsc
