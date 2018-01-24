@@ -41,14 +41,16 @@ module m_optprop_LUT
     preset_aspect, preset_tau, preset_w0, &
     preset_g, preset_theta
 
-  use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6, t_boxmc_3_10
+  use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6, t_boxmc_3_10, &
+    t_boxmc_wedge_5_8
   use m_tenstream_interpolation, only: interp_4d
   use m_netcdfio
 
   implicit none
 
   private
-  public :: t_optprop_LUT, t_optprop_LUT_8_10,t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10
+  public :: t_optprop_LUT, t_optprop_LUT_8_10,t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
+    t_optprop_LUT_wedge_5_8
   ! This module loads and generates the LUT-tables for Tenstream Radiation
   ! computations.
   ! It also holds functions for interpolation on the regular LUT grid.
@@ -120,7 +122,9 @@ module m_optprop_LUT
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_3_10
   end type
-  type,extends(t_optprop_LUT) :: t_optprop_Lut_3_6
+  type,extends(t_optprop_LUT) :: t_optprop_LUT_3_6
+  end type
+  type,extends(t_optprop_LUT) :: t_optprop_LUT_wedge_5_8
   end type
 
 contains
@@ -169,6 +173,13 @@ contains
             OPP%diff_streams = 6
             OPP%lutbasename=trim(lut_basename)//'_3_6.'
             allocate(t_boxmc_3_6::OPP%bmc)
+
+          class is (t_optprop_LUT_wedge_5_8)
+            OPP%dir_streams  = 5
+            OPP%diff_streams = 8
+            OPP%lutbasename=trim(lut_basename)//'_wedge_5_8.'
+            allocate(t_boxmc_wedge_5_8::OPP%bmc)
+
           class default
             stop 'initialize LUT: unexpected type for optprop_LUT object!'
         end select
