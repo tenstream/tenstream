@@ -16,6 +16,7 @@ set( general_sources
   "twostream.f90"
   "schwarzschild.f90"
   "tenstream_options.f90"
+  "petsc_helpers.f90"
   "nca.f90"
   )
 
