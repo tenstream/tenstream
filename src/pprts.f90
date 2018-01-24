@@ -3225,7 +3225,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     integer(iintegers)  :: k, iside
     PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
-    uid = get_arg(0, opt_solution_uid)
+    uid = get_arg(0_iintegers, opt_solution_uid)
     if(.not.solver%lenable_solutions_err_estimates) uid = 0
 
     if(ldebug .and. solver%myid.eq.0) print *,'calling pprts_get_result',present(redir),'for uid',uid
@@ -3501,8 +3501,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     type(tVecScatter) :: scatter_context
     type(tVec) :: natural,local
     real(ireals), pointer :: xloc(:)=>null()
-    integer(iintegers) :: myid
-
+    integer(mpiint) :: myid
 
     call mpi_comm_rank(C%comm, myid, ierr); call CHKERR(ierr)
 

@@ -55,7 +55,7 @@ module m_optprop_LUT
   ! computations.
   ! It also holds functions for interpolation on the regular LUT grid.
 
-  integer(iintegers) :: iierr
+  integer(mpiint) :: iierr
   integer(mpiint) :: mpierr
 
   type parameter_space
@@ -262,7 +262,7 @@ subroutine loadLUT_diff(OPP, comm)
         lstddev_inbounds = all( S%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10 )
 
         if(.not.lstddev_inbounds) &
-            print *,'Loading of diffuse tables S :: failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
+            print *,'Loading of diffuse tables S :: failed bc lstddev_inbounds',lstddev_inbounds,':: is ',maxval(S%stddev_tol),'(should be ',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
 
         if(OPP%optprop_LUT_debug .and. myid.eq.0) &
             print *,'... loading diffuse LUT',errcnt,lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')'
@@ -384,7 +384,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
               if(lstddev_inbounds) lstddev_inbounds = all(S%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10)
 
               if(.not.lstddev_inbounds) &
-                  print *,'Loading of direct tables S :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(S%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
+                  print *,'Loading of direct tables S :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,':: is',maxval(S%stddev_tol),'( should be',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
 
               write(str(4),FMT='(A)') 'T_tol' ; call ncload([fname,str(1),str(2),str(3),str(4)],T%stddev_tol,iierr)
 
@@ -392,7 +392,7 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
               if(lstddev_inbounds) lstddev_inbounds = all(T%stddev_tol.le.stddev_atol+epsilon(stddev_atol)*10)
 
               if(.not.lstddev_inbounds) &
-                  print *,'Loading of direct tables T :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,'::',maxval(T%stddev_tol),'(',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
+                  print *,'Loading of direct tables T :: ',phi,theta,' failed bc lstddev_inbounds',lstddev_inbounds,':: is',maxval(T%stddev_tol),'(should be',stddev_atol+epsilon(stddev_atol)*10,')',errcnt
 
               if(OPP%optprop_LUT_debug) &
                   print *,'Tried to load the LUT from file... result is errcnt:',errcnt,'lstddev_inbounds',lstddev_inbounds,':',trim(str(1)),trim(str(2)),trim(str(3))

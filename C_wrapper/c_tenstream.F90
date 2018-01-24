@@ -93,13 +93,24 @@ contains
     lthermal = c_int_2_logical(c_lthermal)
     lsolar   = c_int_2_logical(c_lsolar)
 
-    call tenstream_rrtmg(comm, dx, dy, phi0, theta0,  &
-      albedo_thermal, albedo_solar, atm_filename,     &
-      lthermal, lsolar,                               &
-      edir,edn,eup,abso,                              &
-      d_plev, d_tlev, d_lwc=d_lwc, d_reliq=d_reliq,   &
-      d_iwc=d_iwc, d_reice=d_reice,                   &
-      nxproc=nxproc, nyproc=nyproc)
+    call tenstream_rrtmg(comm,            &
+      real(dx, kind=ireals),              &
+      real(dy,kind=ireals),               &
+      real(phi0, kind=ireals),            &
+      real(theta0, kind=ireals),          &
+      real(albedo_thermal, kind=ireals),  &
+      real(albedo_solar, kind=ireals),    &
+      atm_filename,                       &
+      lthermal, lsolar,                   &
+      edir,edn,eup,abso,                  &
+      real(d_plev, kind=ireals),          &
+      real(d_tlev, kind=ireals),          &
+      d_lwc=real(d_lwc, kind=ireals),     &
+      d_reliq=real(d_reliq, kind=ireals), &
+      d_iwc=real(d_iwc, kind=ireals),     &
+      d_reice=real(d_reice, kind=ireals), &
+      nxproc=int(nxproc, kind=iintegers), &
+      nyproc=int(nyproc, kind=iintegers))
 
     cptr_edir = c_loc(edir)
     cptr_edn  = c_loc(edn )

@@ -1,7 +1,7 @@
 @test(npes =[9])
 subroutine test_tenstream_ex1(this)
 
-    use m_data_parameters, only : iintegers, ireals, mpierr, mpiint
+    use m_data_parameters, only : iintegers, ireals, mpiint
     use m_tenstream, only : init_tenstream, destroy_tenstream,&
         t_coord, C_one
     use m_helper_functions, only : reorder_mpi_comm
@@ -14,8 +14,6 @@ subroutine test_tenstream_ex1(this)
 
     class (MpiTestMethod), intent(inout) :: this
 
-    integer(iintegers) :: numnodes, orig_id
-
     integer(iintegers),parameter :: nxp=3,nyp=3,nv=3
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=-1, theta0=-1
@@ -25,7 +23,7 @@ subroutine test_tenstream_ex1(this)
     integer(iintegers),parameter :: Nrank_x=3, Nrank_y=3
 
     integer(iintegers) :: neighbors_orig(4), neighbors_reorder(4)
-    integer(mpiint) :: myid
+    integer(mpiint) :: myid, mpierr, orig_id, numnodes
 
     MPI_Comm :: comm, reorder_comm
 

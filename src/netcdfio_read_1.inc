@@ -27,7 +27,7 @@ integer, dimension(size(shape(arr))) :: dimIDs,dimsize
 logical :: var_exists
 
 integer :: ncerr
-integer(iintegers),intent(out) :: ierr
+integer(mpiint),intent(out) :: ierr
 ierr=0
 
 if(allocated(arr)) then
