@@ -367,7 +367,6 @@ module m_plex_grid
         call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
 
         call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
-        print *,'bounds coords:', lbound(coords), ubound(coords)
 
         ! set vertices as coordinates
         do k = 1, plex%Nz+1
@@ -388,7 +387,6 @@ module m_plex_grid
           enddo
         enddo
 
-        print *,'coords', shape(coords), '::', coords
         call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
         call DMSetCoordinatesLocal(plex%dm, coordinates, ierr);call CHKERR(ierr)
