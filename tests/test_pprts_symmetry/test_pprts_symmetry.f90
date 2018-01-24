@@ -38,9 +38,9 @@ contains
     call this_test(OPP)
 
     deallocate(OPP)
-    allocate (t_optprop_3_6 :: OPP)
-    call this_test(OPP)
-    deallocate(OPP)
+    !allocate (t_optprop_3_6 :: OPP)
+    !call this_test(OPP)
+    !deallocate(OPP)
 
     contains
       subroutine this_test(OPP)
