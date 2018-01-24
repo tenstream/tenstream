@@ -194,7 +194,8 @@ contains
       real(ireals),intent(out) :: C(:)
       real(ireals) :: C2(dir2diff_network%out_size)
 
-      integer(iintegers) :: ierr,isrc
+      integer(mpiint) :: ierr
+      integer(iintegers) :: isrc
       real(ireals) :: norm
 
       ind_aspect  = search_sorted_bisection(dir2dir_network%aspect, aspect)

@@ -27,7 +27,7 @@ module m_netcdfIO
   USE m_data_parameters, ONLY :   &
       default_str_len, &
       ireals,          &
-      iintegers
+      iintegers, mpiint
   implicit none
 
   private

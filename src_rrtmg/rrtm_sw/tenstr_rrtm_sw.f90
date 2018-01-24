@@ -89,9 +89,9 @@ contains
         enddo
         output_path(1) = 'output.nc'
         if(myid.eq.0) then
-            output_path(2) = 'dz3d' ; call ncwrite(output_path, dz, i)
-            output_path(2) = 'hhl'  ; call ncwrite(output_path, hhl, i)
-            output_path(2) = 'hsrfc'; call ncwrite(output_path, hhl(ubound(hhl,1),:,:), i)
+            output_path(2) = 'dz3d' ; call ncwrite(output_path, dz, ierr)
+            output_path(2) = 'hhl'  ; call ncwrite(output_path, hhl, ierr)
+            output_path(2) = 'hsrfc'; call ncwrite(output_path, hhl(ubound(hhl,1),:,:), ierr)
         endif
 
         if(present(icollapse)) then

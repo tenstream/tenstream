@@ -39,7 +39,7 @@ contains
 
     integer(iintegers) :: k
     integer(iintegers) :: nxp,nyp,nlay
-    integer(iintegers) :: ncerr
+    integer(mpiint) :: ncerr
 
     logical,parameter :: ldebug=.True.
 
