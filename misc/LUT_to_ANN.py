@@ -428,7 +428,7 @@ def train_ANN(ANNname, Nlayers, Nneurons, train_dataset, pspace, ncpu='ncpu'):
 
 
 
-if __name__ == "__main__":
+def _main():
   import argparse
   import glob
 
@@ -440,6 +440,7 @@ if __name__ == "__main__":
   parser.add_argument('-M', '--Nlayers', default=2, type=int, help='Number of hidden layers')
   parser.add_argument('-NCPU', default=10, type=int, help='Number of Processors for TNC')
   parser.add_argument('--train_frac', default=.8, type=float, help='Fraction of LUT which is used to train network')
+  parser.add_argument('--dump_training_set', type=str, help='dump the training data into an external file')
 
   args = parser.parse_args()
 
@@ -462,12 +463,19 @@ if __name__ == "__main__":
       for i,v in enumerate(train_dataset):
           train_dataset[i] = np.vstack(v)
 
+      if args.dump_training_set:
+          print('Dumping Traininset Data to file:', args.dump_training_set)
+          np.save(args.dump_training_set, train_dataset)
+          return
+
   except Exception as e:
       print('Error occured when creating training Datasets :',e)
-      sys.exit(-1)
+      return
 
   try:
       train_ANN(args.ANNname, args.Nlayers, args.Nneurons, train_dataset, pspace, ncpu=args.NCPU)
   except Exception as e:
       print('Error occured when training network :',e)
-      sys.exit(-1)
+
+if __name__ == "__main__":
+    _main()

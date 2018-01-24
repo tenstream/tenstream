@@ -2,6 +2,8 @@ include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 
 set( general_sources
   "plex_grid.F90"
+  "plex_rt.F90"
+  "icon_grid.F90"
   )
 
 add_library( plexrt ${general_sources} )
@@ -16,6 +18,11 @@ install(TARGETS gen_plex_from_icon DESTINATION bin)
 add_executable( plex_ex1 plex_ex1.F90 )
 target_link_libraries( plex_ex1 plexrt tenstream )
 install(TARGETS plex_ex1 DESTINATION bin)
+
+
+add_executable( plex_ex2 plex_ex2.F90 )
+target_link_libraries( plex_ex2 plexrt tenstream )
+install(TARGETS plex_ex2 DESTINATION bin)
 
 
 add_executable( gen_fish_plex gen_fish_plex.F90 )

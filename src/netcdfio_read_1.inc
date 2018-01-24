@@ -30,6 +30,12 @@ integer :: ncerr
 integer(mpiint),intent(out) :: ierr
 ierr=0
 
+if(allocated(arr)) then
+  print *,'Array which should have been read in is already allocated... I will not overwrite it...'
+  ierr = 100
+  return
+endif
+
 if(ldebug) print *,'Looking for lock file for reading netcdf File',trim(groups(1))//'.lock'
 lockfile=trim(groups(1))//'.lock'
 
@@ -61,4 +67,6 @@ do iwait=1,int(maxwait/waitinterval)
       ncerr = nf90_inquire_dimension(ncid, dimIDs(i), len = dimsize(i)) ; call nccheck(ncerr) ;  ierr = ierr+ncerr
     enddo
   endif
+
+  if(ldebug) print *,'Dimension of variable:',dimsize
 
