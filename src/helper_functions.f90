@@ -799,24 +799,4 @@ module m_helper_functions
       allocate(unique(count(.not.mask)))
       unique = pack(list, .not.mask)
     end function unique
-
-    !> @brief remove duplicate elements from unsorted list
-    ! https://rosettacode.org/wiki/Remove_duplicate_elements#Fortran
-    subroutine remove_duplicate_elements(list, n, res, k)
-      integer(iintegers), dimension(n), intent(in) :: list
-      integer(iintegers), dimension(n), intent(inout) :: res
-      integer(iintegers) :: n, k, i, j
-
-      k = 1
-      res(1) = list(1)
-      outer: do i=2,size(list)
-        do j=1,k
-          if (res(j) == list(i)) then
-            cycle outer
-          end if
-        end do
-        k = k + 1
-        res(k) = list(i)
-      end do outer
-    end subroutine
   end module
