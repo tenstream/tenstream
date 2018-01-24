@@ -36,7 +36,7 @@ module m_helper_functions
     module procedure mean_1d, mean_2d
   end interface
   interface imp_bcast
-    module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
+    module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_mpiint,imp_bcast_int,imp_bcast_real,imp_bcast_logical
   end interface
   interface get_arg
     module procedure get_arg_logical, get_arg_iintegers, get_arg_ireals
@@ -215,6 +215,16 @@ module m_helper_functions
       if(commsize.le.1) return
 
       call mpi_bcast(val, 1_mpiint, imp_logical, sendid, comm, mpierr); call CHKERR(mpierr)
+    end subroutine
+    subroutine  imp_bcast_mpiint(comm,val,sendid)
+      integer(mpiint),intent(in) :: comm
+      integer(mpiint),intent(inout) :: val
+      integer(mpiint),intent(in) :: sendid
+      integer(mpiint) :: commsize
+      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+      if(commsize.le.1) return
+
+      call mpi_bcast(val,1_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
     subroutine  imp_bcast_int(comm,val,sendid)
       integer(mpiint),intent(in) :: comm
@@ -519,7 +529,7 @@ module m_helper_functions
       petsc_id = y*Nrank_x + x
 
       ! create communicator with new ranks according to PETSc ordering:
-      call MPI_Comm_split(icomm, 1_iintegers, petsc_id, new_comm, mpierr)
+      call MPI_Comm_split(icomm, 1_mpiint, petsc_id, new_comm, mpierr)
 
       !print *,'Reordering communicator'
       !print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id

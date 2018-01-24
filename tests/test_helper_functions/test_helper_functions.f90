@@ -35,7 +35,7 @@ subroutine test_mpi_functions(this)
 
 
     do rep=1,repetitions
-      if(.not.allocated(arr)) allocate(arr(numnodes), source=-1)
+      if(.not.allocated(arr)) allocate(arr(numnodes), source=-1_iintegers)
       arr(myid+1) = myid
 
       call imp_allgather_int_inplace(comm, arr)
@@ -48,7 +48,7 @@ subroutine test_mpi_functions(this)
       if(myid.eq.0) then
         bcast_scalar = 1234
         bcast_real_scalar = 1234._ireals
-        if(.not.allocated(bcast_arr))    allocate(bcast_arr(10), source=1234)
+        if(.not.allocated(bcast_arr))    allocate(bcast_arr(10), source=1234_iintegers)
         if(.not.allocated(bcast_1d_arr)) allocate(bcast_1d_arr(2), source=1234._ireals)
         if(.not.allocated(bcast_2d_arr)) allocate(bcast_2d_arr(2,1), source=1234._ireals)
         if(.not.allocated(bcast_3d_arr)) allocate(bcast_3d_arr(2,1,1), source=1234._ireals)

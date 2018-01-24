@@ -53,7 +53,7 @@ module m_optprop_LUT
   ! computations.
   ! It also holds functions for interpolation on the regular LUT grid.
 
-  integer(iintegers) :: iierr
+  integer(mpiint) :: iierr
   integer(mpiint) :: mpierr
 
   type parameter_space
