@@ -43,8 +43,8 @@ module m_plex_rt
 
       call DMGetDefaultSection(dm, s, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(s, PETSC_NULL_SECTION, '-show_src_section', ierr); call CHKERR(ierr)
-      call DMPlexGetHeightStratum(dm, 0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
-      call DMPlexGetHeightStratum(dm, 1, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
+      call DMPlexGetHeightStratum(dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+      call DMPlexGetHeightStratum(dm, i1, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
 
       ! Now lets get vectors!
       call DMGetGlobalVector(dm, globalVec,ierr); call CHKERR(ierr)
@@ -107,7 +107,6 @@ module m_plex_rt
       call KSPSolve(ksp, b, x, ierr); CHKERRQ(ierr)
       call KSPDestroy(ksp, ierr); CHKERRQ(ierr)
     end subroutine
-
 
   subroutine compute_edir_absorption(plex, edir, sundir, abso)
     type(t_plexgrid), intent(inout) :: plex

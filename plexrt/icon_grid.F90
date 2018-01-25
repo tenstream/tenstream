@@ -4,7 +4,8 @@ module m_icon_grid
   use petsc
   use m_netcdfIO, only: ncload
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len
+  use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len, &
+    i1
 
   use m_helper_functions, only: get_arg, imp_bcast, chkerr, unique, cumsum
 
@@ -159,7 +160,7 @@ module m_icon_grid
       do i=1,local_icongrid%Nfaces
         ic = local_icongrid%cell_index(i)
         ilocal = local_icongrid%local_cell_index(ic)
-        print *,myid,i,'global cell', ic, ' to local ->', ilocal, 'remote', local_icongrid%remote_cell_index(ic)
+        !print *,myid,i,'global cell', ic, ' to local ->', ilocal, 'remote', local_icongrid%remote_cell_index(ic)
       enddo
 
       par_cnt = 0
@@ -191,7 +192,7 @@ module m_icon_grid
       do i=1,local_icongrid%Nedges
         ie = local_icongrid%edge_index(i)
         ilocal = local_icongrid%local_edge_index(ie)
-        print *,myid,i,'global edges', ie, ' to local ->', ilocal, 'remote', local_icongrid%remote_edge_index(ie)
+        !print *,myid,i,'global edges', ie, ' to local ->', ilocal, 'remote', local_icongrid%remote_edge_index(ie)
       enddo
 
       allocate(local_icongrid%cartesian_x_vertices(local_icongrid%Nvertices))
@@ -272,23 +273,23 @@ module m_icon_grid
             do i=1,size(local_icongrid%cell_index)
               ic = local_icongrid%cell_index(i)       ! global cell index in parent grid
               j  = local_icongrid%local_cell_index(ic) ! local cell index
-              print *,myid,'global 2 local cell', ic, '->', j, ' ::: ', i, '<-', ic
+              !print *,myid,'global 2 local cell', ic, '->', j, ' ::: ', i, '<-', ic
             enddo
             do i=1,size(local_icongrid%edge_index)
               ie = local_icongrid%edge_index(i)       ! global edge index in parent grid
               j  = local_icongrid%local_edge_index(ie) ! local edge index
-              print *,myid,'global 2 local edge', ie, '->', j, ' ::: ', i, '<-', ie
+              !print *,myid,'global 2 local edge', ie, '->', j, ' ::: ', i, '<-', ie
             enddo
 
             do i=1,size(local_icongrid%cell_index)
               ic = local_icongrid%cell_index(i)        ! global cell index in parent grid
               j  = local_icongrid%local_cell_index(ic) ! local cell index
-              print *,myid,'edge_of_cell', ic, ': local cell', i, '::',icongrid%edge_of_cell(ic,:),'->',local_icongrid%edge_of_cell(j,:)
+              !print *,myid,'edge_of_cell', ic, ': local cell', i, '::',icongrid%edge_of_cell(ic,:),'->',local_icongrid%edge_of_cell(j,:)
             enddo
             do i=1,size(local_icongrid%cell_index)
               ic = local_icongrid%cell_index(i)       ! global cell index in parent grid
               j  = local_icongrid%local_cell_index(ic) ! local cell index
-              print *,myid,'vertex_of_cell', ic, '::', i,'->',local_icongrid%vertex_of_cell(j,:)
+              !print *,myid,'vertex_of_cell', ic, '::', i,'->',local_icongrid%vertex_of_cell(j,:)
             enddo
           endif
           call mpi_barrier(comm, ierr)
@@ -708,7 +709,7 @@ module m_icon_grid
 
       do i=1,icongrid%Nfaces
         j = i-1
-        call AOPetscToApplication(cell_ao, 1, j, ierr); call CHKERR(ierr)
+        call AOPetscToApplication(cell_ao, i1, j, ierr); call CHKERR(ierr)
         cellowner(j+1) = count(cum_cells_per_proc/i.eq.0)
         !print *,'Owner of cell:',i,'->',j,'@',count(cum_cells_per_proc/i.eq.0)
       enddo
