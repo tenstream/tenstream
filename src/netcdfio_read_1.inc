@@ -24,7 +24,7 @@ character(len=default_str_len) :: fname,varname
 integer :: i,ncid,varid
 integer, dimension(size(shape(arr))) :: dimIDs,dimsize
 
-logical :: var_exists
+logical :: file_exists, var_exists
 
 integer :: ncerr
 integer(mpiint),intent(out) :: ierr
@@ -36,10 +36,19 @@ if(allocated(arr)) then
   return
 endif
 
-if(ldebug) print *,'Looking for lock file for reading netcdf File',trim(groups(1))//'.lock'
-lockfile=trim(groups(1))//'.lock'
-
 fname=trim(groups(1))
+
+inquire( file=trim(fname), exist=file_exists )
+if(.not.file_exists) then
+  print *,''
+  print *,'ERROR! NetCDF File ',trim(fname),' could not be found!'
+  print *,''
+  ierr = 101
+  return
+endif
+
+if(ldebug) print *,'Looking for lock file for reading netcdf File',trim(groups(1))//'.lock'
+lockfile=trim(fname)//'.lock'
 
 do iwait=1,int(maxwait/waitinterval)
   open(v,file=lockfile,status='new',err=99)
