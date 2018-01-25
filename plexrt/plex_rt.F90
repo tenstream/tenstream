@@ -37,9 +37,12 @@ module m_plex_rt
 
       integer(iintegers), pointer :: xx_v(:)
 
-      integer(mpiint) :: ierr
+      integer(mpiint) :: comm, myid, ierr
 
       if(.not.allocated(dm)) stop 'called create_src_vec but face_dm is not allocated'
+
+      call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       call DMGetDefaultSection(dm, s, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(s, PETSC_NULL_SECTION, '-show_src_section', ierr); call CHKERR(ierr)
@@ -66,10 +69,12 @@ module m_plex_rt
 
         !do i = 1, size(xx_v)
         do i = size(xx_v), size(xx_v)
-          print *,'debug: setting only last source entry...'
-          call PetscSectionGetOffset(s, xx_v(i), voff, ierr); call CHKERR(ierr)
-          !print *,myid,'index:',i,xx_v(i),'off',voff+1, lbound(xv,1), ubound(xv,1)
-          xv(voff+1) = 100 !i
+          if(myid.eq.0) then
+            print *,'debug: setting only last source entry...'
+            call PetscSectionGetOffset(s, xx_v(i), voff, ierr); call CHKERR(ierr)
+            !print *,myid,'index:',i,xx_v(i),'off',voff+1, lbound(xv,1), ubound(xv,1)
+            xv(voff+1) = 100 !i
+          endif
         enddo
         call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
 

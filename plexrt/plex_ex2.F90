@@ -40,11 +40,12 @@ logical, parameter :: ldebug=.True.
       type(tMat) :: A
       AO :: cell_ao
 
-      integer(iintegers), parameter :: Nz=2
+      integer(iintegers) :: Nz
       real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
       real(ireals),allocatable :: hhl(:)
 
       call ncload(['lwc.nc      ', 'height_level'], hhl, ierr)
+      Nz = size(hhl)-1
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)

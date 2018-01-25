@@ -1007,7 +1007,7 @@ module m_plex_grid
         call AOApplicationToPetsc(plexgrid%cell_ao, i1, icell_global, ierr); call CHKERR(ierr) ! icell_global is petsc index for cells from 0 to Ncells-1
 
         do k=1,size(arr, dim=2)
-          ic = icell_global + size(arr, dim=1)*(k-i1) + i1
+          ic = icell_global*size(arr, dim=2) + k
           xloc(ic) = arr(icell, k)
         enddo
       enddo
@@ -1048,7 +1048,7 @@ module m_plex_grid
           stop 'icell_icon_2_plex :: icon cell index out of range'
         endif
       endif
-      icell_icon_2_plex = (k-i1)*Nfaces + icell - i1
+      icell_icon_2_plex = (k-i1) + (icell-i1)*plex%Nz
     end function
 
     !> @brief return the dmplex face index for an icongrid index situated at the top of a cell
