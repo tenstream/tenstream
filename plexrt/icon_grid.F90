@@ -446,13 +446,12 @@ module m_icon_grid
 
       call MatMeshToCellGraph(mesh,2,dual, ierr);
 
-      call MatPartitioningCreate(MPI_COMM_WORLD,part, ierr);
-      call MatPartitioningSetAdjacency(part,dual, ierr);
-      call PetscOptionsInsertString(PETSC_NULL_OPTIONS, '-mat_partitioning_parmetis_repartition', ierr)
-      call MatPartitioningSetFromOptions(part, ierr);
+      call MatPartitioningCreate(MPI_COMM_WORLD,part, ierr); call CHKERR(ierr)
+      call MatPartitioningSetAdjacency(part,dual, ierr); call CHKERR(ierr)
+      call MatPartitioningSetFromOptions(part, ierr); call CHKERR(ierr)
 
-      call MatPartitioningApply(part,is, ierr);
-      call ISPartitioningToNumbering(is, isg, ierr);
+      call MatPartitioningApply(part,is, ierr); call CHKERR(ierr)
+      call ISPartitioningToNumbering(is, isg, ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(is, PETSC_NULL_IS, "-show_is", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(isg, PETSC_NULL_IS, "-show_isg", ierr); call CHKERR(ierr)
