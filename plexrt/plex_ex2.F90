@@ -28,9 +28,9 @@ logical, parameter :: ldebug=.True.
 
   contains
 
-    subroutine plex_ex2(comm, gridfile)
+    subroutine plex_ex2(comm, gridfile, lwcfile)
       MPI_Comm, intent(in) :: comm
-      character(len=default_str_len) :: gridfile
+      character(len=default_str_len), intent(in) :: gridfile, lwcfile
 
       type(t_icongrid),allocatable :: icongrid, local_icongrid
 
@@ -43,12 +43,17 @@ logical, parameter :: ldebug=.True.
       integer(iintegers) :: Nz
       real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
       real(ireals),allocatable :: hhl(:)
-
-      call ncload(['lwc.nc      ', 'height_level'], hhl, ierr)
-      Nz = size(hhl)-1
+      character(len=default_str_len) :: ncgroups(2)
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+
+      if(myid.eq.0) then
+        ncgroups(1) = trim(lwcfile)
+        ncgroups(2) = 'height_level'; call ncload(ncgroups, hhl, ierr)
+      endif
+      call imp_bcast(comm, hhl, 0)
+      Nz = size(hhl)-1
 
       if(myid.eq.0) then
           call read_icon_grid_file(gridfile, icongrid)
@@ -58,18 +63,19 @@ logical, parameter :: ldebug=.True.
       call distribute_icon_grid(comm, icongrid, local_icongrid, cell_ao)
       deallocate(icongrid)
 
-      call create_plex_from_icongrid(comm, Nz, hhl, local_icongrid, plexgrid)
-      plexgrid%cell_ao = cell_ao
+      call create_plex_from_icongrid(comm, Nz, hhl, cell_ao, local_icongrid, plexgrid)
       deallocate(local_icongrid)
 
-      call ncvar2d_to_globalvec(plexgrid, 'lwc.nc', 'lwc', lwcvec)
+      call ncvar2d_to_globalvec(plexgrid, lwcfile, 'lwc', lwcvec)
       call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
+
+      return
 
       call compute_face_geometry(plexgrid) ! setup the geometry info for the plexgrid object (sets up the plexgrid%geom_dm)
 
       call setup_edir_dmplex(plexgrid, plexgrid%edir_dm)
 
-      sundir = get_normal_of_first_TOA_face(plexgrid) + [0.,0.,-.3]
+      sundir = get_normal_of_first_TOA_face(plexgrid) + [0.,0.,-.0]
       sundir = sundir/norm(sundir)
       print *,myid,'Initial sundirection = ', sundir
 
@@ -92,34 +98,43 @@ logical, parameter :: ldebug=.True.
     use m_mpi_plex_ex2
     implicit none
 
-    character(len=default_str_len) :: gridfile
+    character(len=default_str_len) :: gridfile, lwcfile, outfile
     logical :: lflg
     integer(mpiint) :: ierr
     character(len=default_str_len) :: default_options
     logical :: lexists
-
-    default_options=''
-    default_options=trim(default_options)//' -show_abso hdf5:plex_ex2_out.h5::append'
-    default_options=trim(default_options)//' -show_ownership hdf5:plex_ex2_out.h5::append'
-    default_options=trim(default_options)//' -show_iconindex hdf5:plex_ex2_out.h5::append'
-    default_options=trim(default_options)//' -show_zindex hdf5:plex_ex2_out.h5::append'
-    default_options=trim(default_options)//' -show_lwc hdf5:plex_ex2_out.h5::append'
+    !character(len=*),parameter :: ex_out='plex_ex_dom1_out.h5'
+    !character(len=*),parameter :: ex_out='plex_test_out.h5'
+    !character(len=*),parameter :: lwcfile='lwc_ex_24_3.nc'
+    !character(len=*),parameter :: lwcfile='lwc_ex_dom1.nc'
 
     call PetscInitialize(PETSC_NULL_CHARACTER,ierr); call CHKERR(ierr)
     call init_mpi_data_parameters(PETSC_COMM_WORLD)
 
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
+    if(.not.lflg) stop 'need to supply a grid filename... please call with -grid <fname_of_icon_gridfile.nc>'
+
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-lwc', lwcfile, lflg, ierr); call CHKERR(ierr)
+    if(.not.lflg) stop 'need to supply a lwc filename... please call with -lwc <fname_of_icon_lwcfile.nc>'
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
+    if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
+
+    default_options=''
+    default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_lwc hdf5:'//trim(outfile)//'::append'
+
     call mpi_barrier(PETSC_COMM_WORLD, ierr); call CHKERR(ierr)
-    inquire( file='plex_ex2_out.h5', exist=lexists )
-    if(.not.lexists) default_options = '-show_plex hdf5:plex_ex2_out.h5 '//trim(default_options)
+    inquire( file=outfile, exist=lexists )
+    if(.not.lexists) default_options = '-show_plex hdf5:'//trim(outfile)//' '//trim(default_options)
     call mpi_barrier(PETSC_COMM_WORLD, ierr); call CHKERR(ierr)
 
     print *,'Adding default Petsc Options:', default_options, lexists
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
-    if(.not.lflg) stop 'need to supply a plex filename... please call with -grid <fname_of_icon_gridfile.nc>'
-
-    call plex_ex2(PETSC_COMM_WORLD, gridfile)
+    call plex_ex2(PETSC_COMM_WORLD, gridfile, lwcfile)
 
     call mpi_barrier(PETSC_COMM_WORLD, ierr)
     call PetscFinalize(ierr)

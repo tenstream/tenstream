@@ -154,7 +154,7 @@ module m_pprts
 
   integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
 
-  PetscErrorCode :: ierr
+  integer(mpiint) :: ierr
 
   contains
 
@@ -367,9 +367,9 @@ module m_pprts
   !>  \n every mpi rank has to call this
   subroutine setup_grid(solver,Nz_in,Nx,Ny,nxproc,nyproc, collapseindex)
       class(t_solver), intent(inout) :: solver
-      PetscInt,intent(in) :: Nz_in,Nx,Ny !< @param[in] local number of grid boxes -- in the vertical we have Nz boxes and Nz+1 levels
-      integer(iintegers),optional :: nxproc(:), nyproc(:) ! size of local domains on each node
-      integer(iintegers),optional,intent(in) :: collapseindex  !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
+      integer(iintegers), intent(in) :: Nz_in,Nx,Ny !< @param[in] local number of grid boxes -- in the vertical we have Nz boxes and Nz+1 levels
+      integer(iintegers), optional :: nxproc(:), nyproc(:) ! size of local domains on each node
+      integer(iintegers), optional, intent(in) :: collapseindex  !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
 
       DMBoundaryType :: bp=DM_BOUNDARY_PERIODIC, bn=DM_BOUNDARY_NONE, bg=DM_BOUNDARY_GHOSTED
       integer(iintegers) :: Nz
@@ -401,11 +401,11 @@ module m_pprts
     contains
       subroutine setup_dmda(icomm, C, Nz, Nx, Ny, boundary, dof)
         integer(mpiint), intent(in) :: icomm
-        type(t_coord),allocatable :: C
-        PetscInt,intent(in) :: Nz,Nx,Ny,dof
-        DMBoundaryType,intent(in) :: boundary
+        type(t_coord), allocatable :: C
+        integer(iintegers), intent(in) :: Nz,Nx,Ny,dof
+        DMBoundaryType, intent(in) :: boundary
 
-        PetscInt,parameter :: stencil_size=1
+        integer(iintegers), parameter :: stencil_size=1
 
         allocate(C)
 
@@ -443,13 +443,14 @@ module m_pprts
       end subroutine
       subroutine setup_coords(C)
         type(t_coord) :: C
+        DMBoundaryType :: bx, by, bz
+        DMDAStencilType :: st
+        integer(iintegers) :: stencil_width, nproc_x, nproc_y, nproc_z, Ndof
 
-        call DMDAGetInfo(C%da,C%dim,                               &
-          C%glob_zm,C%glob_xm,C%glob_ym,                           &
-          PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
-          PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
-          PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,&
-          ierr) ;call CHKERR(ierr)
+        call DMDAGetInfo(C%da, C%dim,                             &
+          C%glob_zm, C%glob_xm, C%glob_ym,                        &
+          nproc_x, nproc_y, nproc_z, Ndof, stencil_width,         &
+          bx, by, bz, st, ierr) ;call CHKERR(ierr)
 
         call DMDAGetCorners(C%da, C%zs, C%xs,C%ys, C%zm, C%xm,C%ym, ierr) ;call CHKERR(ierr)
         C%xe = C%xs+C%xm-1
