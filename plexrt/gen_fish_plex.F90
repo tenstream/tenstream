@@ -5,10 +5,9 @@ module m_gen_fish_plex
   use m_data_parameters, only : ireals, iintegers, init_mpi_data_parameters, &
     i0, i1, i2, i3, i4, i5
 
-  use m_plex_grid, only : TOP_BOT_FACE, SIDE_FACE
-
   implicit none
 
+  integer(iintegers), parameter :: TOP_BOT_FACE=1, SIDE_FACE=2
 
   PetscErrorCode :: ierr
 

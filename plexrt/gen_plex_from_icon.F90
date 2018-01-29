@@ -4,9 +4,9 @@ module m_gen_plex_from_icon
   use petsc
   use m_netcdfIO, only: ncload
   use m_helper_functions, only: CHKERR
-  use m_icon_grid, only: t_icongrid, read_icon_grid_file, decompose_icon_grid
+  use m_icon_grid, only: t_icongrid, read_icon_grid_file
   use m_plex_grid, only: t_plexgrid, load_plex_from_file, update_plex_indices, &
-    TOP_BOT_FACE, SIDE_FACE,  icell_icon_2_plex
+    icell_icon_2_plex
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     default_str_len, &
     i0, i1, i2, i3, i4, i5,  &
@@ -16,6 +16,8 @@ module m_gen_plex_from_icon
   implicit none
 
   logical, parameter :: ldebug=.True.
+
+  integer(iintegers), parameter :: TOP_BOT_FACE=1, SIDE_FACE=2
 
   integer(mpiint) :: ierr
 
@@ -501,8 +503,6 @@ module m_gen_plex_from_icon
       call VecGetSize(globalVec,vecsize, ierr); CHKERRQ(ierr)
       call PetscObjectSetName(globalVec, 'massVec', ierr);CHKERRQ(ierr)
 
-      call decompose_icon_grid(icongrid, i2, cell_ownership, edge_ownership, vertex_ownership)
-
       call VecGetArrayF90(globalVec, xv, ierr); CHKERRQ(ierr)
       do i = plex%cStart, plex%cEnd-1
         call PetscSectionGetOffset(s, i, voff, ierr); call CHKERR(ierr)
@@ -510,11 +510,10 @@ module m_gen_plex_from_icon
         call DMLabelGetValue(iconindexlabel, i, icell_k(1), ierr); call CHKERR(ierr)
         call DMLabelGetValue(zindexlabel, i, icell_k(2), ierr); call CHKERR(ierr)
 
-        !xv(voff+i1) = icell_k(2)*plex%Nfaces + icell_k(1)
         if(cell_ownership(icell_k(1)).eq.0) then
           xv(voff+i1) = icell_k(1)
         else
-          xv(voff+i1) = -icell_k(1) !+ cell_ownership(icell_k(1))*1000
+          xv(voff+i1) = -icell_k(1)
         endif
       enddo
       call VecRestoreArrayF90(globalVec, xv, ierr); CHKERRQ(ierr)

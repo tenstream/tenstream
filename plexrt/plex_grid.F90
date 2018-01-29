@@ -13,11 +13,9 @@ module m_plex_grid
   public :: t_plexgrid, load_plex_from_file, create_plex_from_icongrid, &
     icell_icon_2_plex, update_plex_indices, distribute_plexgrid_dm, &
     compute_face_geometry, setup_edir_dmplex, print_dmplex,       &
-    setup_abso_dmplex, TOP_BOT_FACE, SIDE_FACE, ncvar2d_to_globalvec
+    setup_abso_dmplex, ncvar2d_to_globalvec
 
   logical, parameter :: ldebug=.True.
-
-  integer(iintegers), parameter :: TOP_BOT_FACE=1, SIDE_FACE=2
 
   type :: t_plexgrid
     integer(mpiint) :: comm
@@ -53,7 +51,10 @@ module m_plex_grid
     integer(iintegers) :: offset_edges_vertical
     integer(iintegers) :: offset_vertices
 
-    type(tIS) :: ISfacepos        ! TOP_BOT_FACE=1, SIDE_FACE=2
+    logical,allocatable :: ltopfacepos(:)                ! TOP_BOT_FACE or SIDE_FACE of faces and edges, fStart..eEnd-1
+    integer(iintegers),allocatable :: zindex(:)          ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1
+    integer(iintegers),allocatable :: localiconindex(:)  ! local index of face, edge, vertex on icongrid, pStart, pEnd-1
+
     !type(tDMLabel) :: faceposlabel         ! TOP_BOT_FACE=1, SIDE_FACE=2
     !type(tDMLabel) :: iconindexlabel       ! index of face, edge, vertex on icongrid
     !type(tDMLabel) :: localiconindexlabel  ! local index of face, edge, vertex on icongrid
@@ -82,8 +83,6 @@ module m_plex_grid
       integer(iintegers) :: i, j, k, icell, iedge, iface, ivertex
       integer(iintegers) :: iparent, owner
       integer(mpiint)    :: myid, numnodes, ierr
-
-      integer(iintegers),allocatable :: ISfacepos(:)
 
       type(tPetscSection) :: cell_section
       type(tDM) :: clonedm
@@ -180,7 +179,9 @@ module m_plex_grid
 
       call DMSetUp(plex%dm, ierr); call CHKERR(ierr) ! Allocate space for cones
 
-      allocate(ISfacepos(plex%offset_faces:plex%offset_vertices-1))
+      allocate(plex%ltopfacepos   (plex%fStart:plex%eEnd-1))
+      allocate(plex%zindex        (plex%pStart:plex%pEnd-1))
+      allocate(plex%localiconindex(plex%pStart:plex%pEnd-1))
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections'
       ! Setup Connections
@@ -206,6 +207,8 @@ module m_plex_grid
           !call DMLabelSetValue(plex%iconindexlabel     , icell, iparent, ierr); call CHKERR(ierr)
           !call DMLabelSetValue(plex%zindexlabel        , icell, k      , ierr); call CHKERR(ierr)
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , icell, owner  , ierr); call CHKERR(ierr)
+          plex%zindex(icell) = k
+          plex%localiconindex(icell) = i
           !print *,myid,'cells :: icon', i, icongrid%cell_index(i),'plex:',icell, 'edge3', edge3, 'faces', faces
         enddo
       enddo
@@ -228,8 +231,11 @@ module m_plex_grid
           !call DMLabelSetValue(plex%localiconindexlabel, iface, i           , ierr); call CHKERR(ierr)
           !call DMLabelSetValue(plex%zindexlabel        , iface, k           , ierr); call CHKERR(ierr)
           !call DMLabelSetValue(plex%faceposlabel       , iface, TOP_BOT_FACE, ierr); call CHKERR(ierr)
-          ISfacepos(iface) = TOP_BOT_FACE
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iface, owner       , ierr); call CHKERR(ierr)
+          plex%ltopfacepos(iface) = .True.
+          plex%zindex(iface) = k
+          plex%localiconindex(iface) = i
+
           if (k.eq.i1) then
             call DMLabelSetValue(plex%TOAlabel, iface, i1, ierr); call CHKERR(ierr)
           endif
@@ -257,7 +263,9 @@ module m_plex_grid
           !call DMLabelSetValue(plex%localiconindexlabel, iface, i        , ierr); call CHKERR(ierr)
           !call DMLabelSetValue(plex%zindexlabel        , iface, k        , ierr); call CHKERR(ierr)
           !call DMLabelSetValue(plex%faceposlabel       , iface, SIDE_FACE, ierr); call CHKERR(ierr)
-          ISfacepos(iface) = SIDE_FACE
+          plex%ltopfacepos(iface) = .False.
+          plex%zindex(iface) = k
+          plex%localiconindex(iface) = i
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iface, owner    , ierr); call CHKERR(ierr)
           !print *,myid,'side faces :: icon edge', i, iparent, 'plexface:', iface, 'edge4', edge4, 'owner', owner, &
           !  'adj cells', icongrid%adj_cell_of_edge(i,:)
@@ -283,8 +291,10 @@ module m_plex_grid
           !call DMLabelSetValue(plex%localiconindexlabel, iedge, i           , ierr); call CHKERR(ierr)
           !call DMLabelSetValue(plex%zindexlabel        , iedge, k           , ierr); call CHKERR(ierr)
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iedge, owner       , ierr); call CHKERR(ierr)
+          plex%zindex(iedge) = k
+          plex%localiconindex(iedge) = i
           !call DMLabelSetValue(plex%faceposlabel       , iedge, TOP_BOT_FACE, ierr); call CHKERR(ierr)
-          ISfacepos(iedge) = TOP_BOT_FACE
+          plex%ltopfacepos(iedge) = .True.
         enddo
       enddo
 
@@ -305,8 +315,10 @@ module m_plex_grid
           !call DMLabelSetValue(plex%localiconindexlabel, iedge, i        , ierr); call CHKERR(ierr)
           !call DMLabelSetValue(plex%zindexlabel        , iedge, k        , ierr); call CHKERR(ierr)
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iedge, owner    , ierr); call CHKERR(ierr)
+          plex%zindex(iedge) = k
+          plex%localiconindex(iedge) = i
           !call DMLabelSetValue(plex%faceposlabel       , iedge, SIDE_FACE, ierr); call CHKERR(ierr)
-          ISfacepos(iedge) = SIDE_FACE
+          plex%ltopfacepos(iedge) = .False.
         enddo
       enddo
 
@@ -322,13 +334,10 @@ module m_plex_grid
           !call DMLabelSetValue(plex%localiconindexlabel, ivertex, i      , ierr); call CHKERR(ierr)
           !call DMLabelSetValue(plex%zindexlabel        , ivertex, k      , ierr); call CHKERR(ierr)
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , ivertex, owner  , ierr); call CHKERR(ierr)
+          plex%zindex(ivertex) = k
+          plex%localiconindex(ivertex) = i
         enddo
       enddo
-
-      if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : putting up index sets'
-      call ISCreateGeneral(plex%comm, int(size(ISfacepos), kind=iintegers), ISfacepos, PETSC_COPY_VALUES, plex%ISfacepos, ierr); call CHKERR(ierr)
-      deallocate(ISfacepos)
-
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : putting up sf_graph'
       call set_sf_graph(cell_ao, icongrid, plex)
@@ -359,10 +368,11 @@ module m_plex_grid
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: finished'
 
-      call dump_ownership(plex)
+      call dump_ownership(icongrid, plex)
       end subroutine
 
-      subroutine dump_ownership(plex)
+      subroutine dump_ownership(icongrid, plex)
+        type(t_icongrid), intent(in) :: icongrid
         type(t_plexgrid), intent(inout) :: plex
         type(tVec) :: globalVec
         real(ireals), pointer :: xv(:)
@@ -400,7 +410,7 @@ module m_plex_grid
         call PetscObjectSetName(globalVec, 'iconindexvec', ierr);call CHKERR(ierr)
         call VecGetArrayF90(globalVec, xv, ierr); call CHKERR(ierr)
         do icell = cStart, cEnd-1
-          !call DMLabelGetValue(plex%iconindexlabel, icell, labelval, ierr); call CHKERR(ierr) !DEBUG
+          labelval = icongrid%cell_index(plex%localiconindex(icell))
           call PetscSectionGetOffset(cellSection, icell, voff, ierr); call CHKERR(ierr)
           xv(voff+1) = labelval
         enddo
@@ -410,7 +420,7 @@ module m_plex_grid
         call PetscObjectSetName(globalVec, 'zindexlabel', ierr);call CHKERR(ierr)
         call VecGetArrayF90(globalVec, xv, ierr); call CHKERR(ierr)
         do icell = cStart, cEnd-1
-          !call DMLabelGetValue(plex%zindexlabel, icell, labelval, ierr); call CHKERR(ierr) !DEBUG
+          labelval = plex%zindex(icell)
           call PetscSectionGetOffset(cellSection, icell, voff, ierr); call CHKERR(ierr)
           xv(voff+1) = labelval
         enddo
@@ -538,6 +548,8 @@ module m_plex_grid
         if(owner.ne.myid) then
           !TODO call DMLabelGetValue(plexgrid%zindexlabel, icell, k, ierr); call CHKERR(ierr)
           !TODO call DMLabelGetValue(plexgrid%localiconindexlabel, icell, ilocal, ierr); call CHKERR(ierr)
+          k = plexgrid%zindex(icell)
+          ilocal = plexgrid%localiconindex(icell)
 
           iparent = icongrid%cell_index(ilocal) ! global cell index in parent grid
           jparent = icongrid%remote_cell_index(iparent) ! local icon index @ neighbour
@@ -558,20 +570,20 @@ module m_plex_grid
           !TODO call DMLabelGetValue(plexgrid%zindexlabel, iface, k, ierr); call CHKERR(ierr)
           !TODO call DMLabelGetValue(plexgrid%localiconindexlabel, iface, ilocal, ierr); call CHKERR(ierr) ! either a local index for cells or edges ...
           !TODO call DMLabelGetValue(plexgrid%faceposlabel, iface, facepos, ierr); call CHKERR(ierr) ! ... depending on faceposition
+          k = plexgrid%zindex(iface)
+          ilocal = plexgrid%localiconindex(iface)
 
-          if(facepos.eq.TOP_BOT_FACE) then
+          if(plexgrid%ltopfacepos(iface)) then
             iparent = icongrid%cell_index(ilocal) ! global cell index in parent grid
             jparent = icongrid%remote_cell_index(iparent) ! local icon index @ neighbour
             iremote = iface_top_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
             !if(myid.eq.0) print *,myid,'top bot face:: plex:',iface, 'icon:', ilocal, iparent, jparent, '::', iremote,'@', owner
-          elseif(facepos.eq.SIDE_FACE) then
+          else
             iparent = icongrid%edge_index(ilocal) ! global edge index in parent grid
             jparent = icongrid%remote_edge_index(iparent) ! local icon index @ neighbour
             iremote = iface_side_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
 
             !if(myid.eq.0) print *,myid,'side face:: plex',iface, 'icon:', ilocal, iparent, jparent, '::', iremote,'@', owner
-          else
-            stop 'wrong or no side face label'
           endif
 
           ileaf = ileaf + 1
@@ -588,17 +600,17 @@ module m_plex_grid
           !TODO call DMLabelGetValue(plexgrid%zindexlabel, iedge, k, ierr); call CHKERR(ierr)
           !TODO call DMLabelGetValue(plexgrid%localiconindexlabel, iedge, ilocal, ierr); call CHKERR(ierr) ! either a local index for edges or vertices ...
           !TODO call DMLabelGetValue(plexgrid%faceposlabel, iedge, facepos, ierr); call CHKERR(ierr) ! ... depending on faceposition
+          k = plexgrid%zindex(iedge)
+          ilocal = plexgrid%localiconindex(iedge)
 
-          if(facepos.eq.TOP_BOT_FACE) then
+          if(plexgrid%ltopfacepos(iedge)) then
             iparent = icongrid%edge_index(ilocal) ! global cell index in parent grid
             jparent = icongrid%remote_edge_index(iparent) ! local icon index @ neighbour
             iremote = iedge_top_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
-          elseif(facepos.eq.SIDE_FACE) then
+          else
             iparent = icongrid%vertex_index(ilocal) ! global edge index in parent grid
             jparent = icongrid%remote_vertex_index(iparent) ! local icon index @ neighbour
             iremote = iedge_side_icon_2_plex(icongrid, plexgrid, jparent, k, owner) ! plex index at neighbor
-          else
-            stop 'wrong or no side face label'
           endif
 
           ileaf = ileaf + 1
@@ -614,6 +626,8 @@ module m_plex_grid
         if(owner.ne.myid) then
           !TODO call DMLabelGetValue(plexgrid%zindexlabel   , ivertex, k, ierr); call CHKERR(ierr)
           !TODO call DMLabelGetValue(plexgrid%localiconindexlabel, ivertex, ilocal, ierr); call CHKERR(ierr) ! local index for vertices ...
+          k = plexgrid%zindex(ivertex)
+          ilocal = plexgrid%localiconindex(ivertex)
 
           iparent = icongrid%vertex_index(ilocal) ! global edge index in parent grid
           jparent = icongrid%remote_vertex_index(iparent) ! local icon index @ neighbour

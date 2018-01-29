@@ -10,7 +10,7 @@ use m_data_parameters, only : ireals, iintegers, mpiint, &
   init_mpi_data_parameters
 
 use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
-  decompose_icon_grid, bcast_icongrid, distribute_icon_grid
+  bcast_icongrid, distribute_icon_grid
 
 use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
   setup_edir_dmplex, setup_abso_dmplex, compute_face_geometry, &
