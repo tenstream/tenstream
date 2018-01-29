@@ -10,7 +10,7 @@ module m_plex_rt
     i0, i1, i2, i3, i4, i5,  &
     zero, one, pi
 
-  use m_plex_grid, only: t_plexgrid, TOP_BOT_FACE, SIDE_FACE
+  use m_plex_grid, only: t_plexgrid
 
   implicit none
 
@@ -247,7 +247,8 @@ module m_plex_rt
 
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
-      call compute_local_wedge_ordering(icell, faces_of_cell, geomSection, geoms, faceposlabel, zindexlabel, sundir, &
+      call compute_local_wedge_ordering(icell, faces_of_cell, geomSection, geoms, &
+        plex%ltopfacepos, plex%zindex, sundir, &
         zenith, azimuth, upper_face, bottom_face, base_face, left_face, right_face, lsrc)
 
       do iface = 1, size(faces_of_cell) !DEBUG
@@ -303,13 +304,16 @@ module m_plex_rt
 
   end subroutine
 
-  subroutine compute_local_wedge_ordering(icell, faces_of_cell, geomSection, geoms, faceposlabel, zindexlabel, sundir, &
+  subroutine compute_local_wedge_ordering(icell, faces_of_cell, geomSection, geoms, &
+      ltopfacepos, zindex, sundir, &
       zenith, azimuth, upper_face, bottom_face, base_face, left_face, right_face, lsrc)
     integer(iintegers), intent(in) :: icell
     integer(iintegers), intent(in), pointer :: faces_of_cell(:)
     type(tPetscSection) :: geomSection
     real(ireals), intent(in), pointer :: geoms(:) ! pointer to coordinates vec
-    type(tDMLabel), intent(in) :: faceposlabel, zindexlabel
+    !type(tDMLabel), intent(in) :: faceposlabel, zindexlabel
+    logical, intent(in) :: ltopfacepos(:)
+    integer(iintegers), intent(in) :: zindex(:)
     real(ireals), intent(in) :: sundir(3)
     real(ireals), intent(out) :: zenith, azimuth
     integer(iintegers), intent(out) :: upper_face, bottom_face, base_face, left_face, right_face
@@ -347,21 +351,18 @@ module m_plex_rt
     ! get numbering for 2 top/bot faces and 3 side faces which indicate the position in the faces_of_cell vec
     iside_faces = 1; itop_faces = 1
     do iface = 1, size(faces_of_cell)
-      call DMLabelGetValue(faceposlabel, faces_of_cell(iface), ifacepos, ierr); call CHKERR(ierr)
-      select case(ifacepos)
-      case(TOP_BOT_FACE)
+      if(ltopfacepos(faces_of_cell(iface))) then
         top_faces(itop_faces) = iface
         itop_faces = itop_faces+1
-      case(SIDE_FACE)
+      else
         side_faces(iside_faces) = iface
         iside_faces = iside_faces+1
-      case default
-        stop 'wrong or no side face label'
-      end select
+      endif
     enddo
 
-    call DMLabelGetValue(zindexlabel, faces_of_cell(top_faces(1)), izindex(1), ierr); call CHKERR(ierr)
-    call DMLabelGetValue(zindexlabel, faces_of_cell(top_faces(2)), izindex(2), ierr); call CHKERR(ierr)
+    izindex(1) = zindex(faces_of_cell(top_faces(1)))
+    izindex(2) = zindex(faces_of_cell(top_faces(2)))
+
     if(izindex(1).gt.izindex(2)) then
       upper_face = top_faces(2)
       bottom_face = top_faces(1)
