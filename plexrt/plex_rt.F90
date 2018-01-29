@@ -70,8 +70,8 @@ module m_plex_rt
         !do i = 1, size(xx_v)
         do i = size(xx_v), size(xx_v)
           if(myid.eq.0) then
-            print *,'debug: setting only last source entry...'
             call PetscSectionGetOffset(s, xx_v(i), voff, ierr); call CHKERR(ierr)
+            print *,'debug: setting only last source entry...', i,'::',xx_v(i)
             !print *,myid,'index:',i,xx_v(i),'off',voff+1, lbound(xv,1), ubound(xv,1)
             xv(voff+1) = 100 !i
           endif
@@ -279,7 +279,7 @@ module m_plex_rt
             dir2dir_coeffs(idst) = -dir2dir(idst, iface)
           enddo
 
-          call MatSetValuesLocal(A, size(faces_of_cell), irows, i1, [icol], dir2dir_coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
+          call MatSetValuesLocal(A, int(size(faces_of_cell), kind=iintegers), irows, i1, [icol], dir2dir_coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
         endif
       enddo
 
@@ -434,7 +434,7 @@ module m_plex_rt
       real(ireals) :: S_tol(5),T_tol(5)
 
       call bmc_wedge_5_5%init(PETSC_COMM_SELF)
-      !print *,'computing coeffs for src/phi/theta',src,phi,theta
+      print *,'computing coeffs for src/phi/theta',src,phi,theta
 
       bg  = [1e-3_ireals, zero, one/2 ]
 
@@ -446,7 +446,7 @@ module m_plex_rt
       dz = 200
 
       call bmc_wedge_5_5%get_coeff(PETSC_COMM_SELF, bg, src, .True., &
-        phi, theta, dx, dy, dz, S, T, S_tol, T_tol, inp_atol=5e-2_ireals, inp_rtol=2e-1_ireals)
+        phi, theta, dx, dy, dz, S, T, S_tol, T_tol, inp_atol=5e-2_ireals, inp_rtol=1e-1_ireals)
     end subroutine
 
     function get_normal_of_first_TOA_face(plex)

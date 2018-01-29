@@ -5,7 +5,7 @@ module m_icon_grid
   use m_netcdfIO, only: ncload
 
   use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len, &
-    i1
+    i0, i1
 
   use m_helper_functions, only: get_arg, imp_bcast, chkerr, unique, cumsum
 
@@ -74,6 +74,7 @@ module m_icon_grid
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
+      if(ldebug.and.myid.eq.0) print *,'distribute_icon_grid :: starting'
       call decompose_icon_grid_parmetis(comm, icongrid, &
         local_icongrid%cellowner, local_icongrid%edgeowner, local_icongrid%vertexowner, cell_ao)
 
@@ -86,7 +87,7 @@ module m_icon_grid
       local_icongrid%Nfaces = local_icongrid%parNfaces(myid)
 
       ! Count edges/vertices for local grid
-      allocate(local_icongrid%parNedges(0:numnodes-1), source=0)
+      allocate(local_icongrid%parNedges(0:numnodes-1), source=i0)
       do i=1,icongrid%Nedges
         ie = icongrid%edge_index(i)
         ladj_cell = .False.
@@ -102,7 +103,7 @@ module m_icon_grid
       enddo
       local_icongrid%Nedges = local_icongrid%parNedges(myid)
 
-      allocate(local_icongrid%parNvertices(0:numnodes-1), source=0)
+      allocate(local_icongrid%parNvertices(0:numnodes-1), source=i0)
       do i=1,icongrid%Nvertices
         iv = icongrid%vertex_index(i)
         ladj_cell = .False.
@@ -266,9 +267,9 @@ module m_icon_grid
       if(ldebug) then
         do owner=0,numnodes-1
           if(owner.eq.myid) then
-            print *,myid,'distribute_icon_grid :: my cells global indices ', local_icongrid%cell_index
-            print *,myid,'distribute_icon_grid :: my edge global indices  ', local_icongrid%edge_index
-            print *,myid,'distribute_icon_grid :: my vertex global indices', local_icongrid%vertex_index
+            !print *,myid,'distribute_icon_grid :: my cells global indices ', local_icongrid%cell_index
+            !print *,myid,'distribute_icon_grid :: my edge global indices  ', local_icongrid%edge_index
+            !print *,myid,'distribute_icon_grid :: my vertex global indices', local_icongrid%vertex_index
 
             do i=1,size(local_icongrid%cell_index)
               ic = local_icongrid%cell_index(i)       ! global cell index in parent grid
@@ -296,6 +297,7 @@ module m_icon_grid
         enddo
         call mpi_barrier(comm, ierr)
       endif
+      if(ldebug.and.myid.eq.0) print *,'distribute_icon_grid :: finished'
     end subroutine
     subroutine read_icon_grid_file(fname, icongrid)
       character(len=*),intent(in) :: fname
@@ -655,6 +657,8 @@ module m_icon_grid
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
+      if(ldebug.and.myid.eq.0) print *,'decompose_icon_grid_parmetis :: starting'
+
       allocate(cells_per_proc(0:numnodes-1))
       allocate(cum_cells_per_proc(0:numnodes-1))
 
@@ -690,6 +694,7 @@ module m_icon_grid
 
       call MatPartitioningCreate(MPI_COMM_WORLD,part, ierr);
       call MatPartitioningSetAdjacency(part,dual, ierr);
+      call PetscOptionsInsertString(PETSC_NULL_OPTIONS, '-mat_partitioning_parmetis_repartition', ierr)
       call MatPartitioningSetFromOptions(part, ierr);
 
       call MatPartitioningApply(part,is, ierr);
@@ -698,7 +703,7 @@ module m_icon_grid
       call PetscObjectViewFromOptions(is, PETSC_NULL_IS, "-show_is", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(isg, PETSC_NULL_IS, "-show_isg", ierr); call CHKERR(ierr)
 
-      call ISPartitioningCount(is, numnodes, cells_per_proc, ierr); call CHKERR(ierr)
+      call ISPartitioningCount(is, int(numnodes, kind=iintegers), cells_per_proc, ierr); call CHKERR(ierr)
       cum_cells_per_proc = cumsum(cells_per_proc)
 
       call ISInvertPermutation(isg, cells_per_proc(myid), is_my_icon_cells, ierr); call CHKERR(ierr)
@@ -725,6 +730,7 @@ module m_icon_grid
       call distribute_edges()
       call distribute_vertices()
 
+      if(ldebug.and.myid.eq.0) print *,'decompose_icon_grid_parmetis :: finished'
       contains
         subroutine distribute_edges()
           integer(iintegers) :: i, ic, ie, new_edge_owner
