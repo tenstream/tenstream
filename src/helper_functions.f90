@@ -18,7 +18,8 @@
 !-------------------------------------------------------------------------
 
 module m_helper_functions
-  use m_data_parameters,only : iintegers,ireals,pi,zero,one,imp_real,imp_int,imp_logical,mpiint
+  use m_data_parameters,only : iintegers,ireals,pi,zero,one,imp_real,imp_int,imp_logical,mpiint, &
+    i1
 
   use mpi
 
@@ -792,7 +793,7 @@ module m_helper_functions
 
       list = inp
       n=size(list)
-      call quicksort(list,1, n)
+      call quicksort(list, i1, n)
 
       ! cull duplicate indices
       mask = .False.

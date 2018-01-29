@@ -1,7 +1,7 @@
 @test(npes =[2,1])
 subroutine test_rrtm_sw(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, i2, i9
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
@@ -46,7 +46,7 @@ subroutine test_rrtm_sw(this)
     call init_mpi_data_parameters(comm)
 
     if(myid.eq.0) then
-        call read_ascii_file_2d('afglus_100m.dat', atm, 9, 2, ierr); call CHKERR(ierr)
+        call read_ascii_file_2d('afglus_100m.dat', atm, i9, i2, ierr); call CHKERR(ierr)
 
         nlay = ubound(atm,1)-1
 

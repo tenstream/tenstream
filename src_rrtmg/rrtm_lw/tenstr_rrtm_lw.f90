@@ -11,7 +11,7 @@ module m_tenstr_rrtm_lw
       use m_tenstr_rrtmg_lw_rad, only: rrtmg_lw
 
       use m_data_parameters, only : init_mpi_data_parameters, &
-        iintegers, ireals, zero, one, i0, i1,           &
+        iintegers, ireals, zero, one, i0, i1, i2, i9,         &
         mpiint, pi, mpierr, default_str_len
 
       use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
@@ -70,7 +70,7 @@ contains
     real(ireals),intent(in),dimension(:) :: plev, tlev
     real(ireals),intent(in),dimension(:),optional :: tlay
 
-    integer(iintegers) :: ierr, errcnt
+    integer(mpiint) :: ierr, errcnt
     logical :: lerr
 
     errcnt = 0
@@ -499,7 +499,7 @@ contains
     allocate(atm)
 
     if(myid.eq.0) then
-      call read_ascii_file_2d(atm_filename, prof, 9, 2, ierr); call CHKERR(ierr)
+      call read_ascii_file_2d(atm_filename, prof, i9, i2, ierr); call CHKERR(ierr)
 
       nlev = ubound(prof,1)
 

@@ -62,7 +62,7 @@ contains
       S_target = [1.16098E-02,1.13492E-02,4.69646E-03,1.11393E-03,4.61549E-03,1.08210E-03,4.70091E-03,1.11544E-03,4.61404E-03,1.08313E-03]
       T_target = [9.04842E-01,0.00000E+00,0.00000E+00,0.00000E+00,0.00000E+00,0.00000E+00,0.00000E+00,0.00000E+00]
 
-      call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,i1,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct')
   end subroutine
 
@@ -94,21 +94,21 @@ contains
       S_target = [0.00000E+00,3.90217E-01,1.40431E-01,1.40417E-01,0.00000E+00,0.00000E+00,1.40416E-01,1.40429E-01,0.00000E+00,0.00000E+00]
       T_target = zero
 
-      call bmc_8_10%get_coeff(comm,bg,1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,i1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_diffuse')
 ! --------------------------------------------
 
       bg = [1e-3, 1e-4, .5 ]
       S_target = [5.91803E-04,3.89499E-01,1.40297E-01,1.40317E-01,1.44767E-04,1.45072E-04,1.40312E-01,1.40306E-01,1.45083E-04,1.44973E-04]
 
-      call bmc_8_10%get_coeff(comm,bg,1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,i1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_diffuse')
 ! --------------------------------------------
 
       bg = [1e-3, 1e-4, .999999 ]
       S_target = [1.85844E-09,3.90217E-01,1.40431E-01,1.40429E-01,0.00000E+00,0.00000E+00,1.40417E-01,1.40417E-01,0.00000E+00,9.64722E-10]
 
-      call bmc_8_10%get_coeff(comm,bg,1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,i1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_diffuse')
   end subroutine
 
