@@ -2,8 +2,8 @@ module m_plex_grid
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_netcdfIO, only: ncload
-  use m_helper_functions, only: CHKERR, itoa, compute_normal_3d
-  use m_data_parameters, only : ireals, iintegers, mpiint, &
+  use m_helper_functions, only: CHKERR, itoa, compute_normal_3d, approx
+  use m_data_parameters, only : ireals, iintegers, mpiint, zero, &
     i0, i1, i2, i3, i4, i5, default_str_len
   use m_icon_grid, only : t_icongrid
 
@@ -340,7 +340,7 @@ module m_plex_grid
       enddo
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : putting up sf_graph'
-      call set_sf_graph(cell_ao, icongrid, plex)
+      call set_sf_graph(icongrid, plex)
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : symmetrize dm'
       call DMPlexSymmetrize(plex%dm, ierr); call CHKERR(ierr)
@@ -450,7 +450,7 @@ module m_plex_grid
 
         if(.not.allocated(plex%hhl)) stop 'plex_grid::set_coords -> plex%hhl is not allocated. Need to know the height of the grid before I can setup the coordinates!'
 
-        l_is_spherical_coords = any(icongrid%cartesian_z_vertices.ne.0)
+        l_is_spherical_coords = any(.not. approx(icongrid%cartesian_z_vertices, zero))
 
         call DMGetCoordinateDim(plex%dm, dimEmbed, ierr); call CHKERR(ierr)
         call DMGetCoordinateSection(plex%dm, coordSection, ierr); call CHKERR(ierr)
@@ -507,8 +507,7 @@ module m_plex_grid
         call VecDestroy(coordinates, ierr);call CHKERR(ierr)
       end subroutine
 
-    subroutine set_sf_graph(cell_ao, icongrid, plexgrid)
-      AO, intent(in) :: cell_ao
+    subroutine set_sf_graph(icongrid, plexgrid)
       type(t_icongrid), intent(in) :: icongrid
       type(t_plexgrid), intent(inout) :: plexgrid
 
@@ -534,11 +533,8 @@ module m_plex_grid
         if(owner.ne.myid) nleaves = nleaves + 1
       enddo
 
-      !nleaves = N_remote_cells + N_remote_edges + N_remote_vertices ! non local elements in icongrid
+      if(ldebug) print *,myid,'remote elements:',nleaves
 
-      !print *,myid,'remote elements:',nleaves, '(',N_remote_cells, N_remote_edges, N_remote_vertices, ')'
-
-      !nleaves = plexgrid%pEnd
       allocate(ilocal_elements(nleaves))  ! local indices of elements
       allocate(iremote_elements(nleaves)) ! remote indices of elements
 
@@ -546,8 +542,6 @@ module m_plex_grid
       do icell = plexgrid%cStart, plexgrid%cEnd-1
         call DMLabelGetValue(plexgrid%ownerlabel, icell, owner, ierr); call CHKERR(ierr)
         if(owner.ne.myid) then
-          !TODO call DMLabelGetValue(plexgrid%zindexlabel, icell, k, ierr); call CHKERR(ierr)
-          !TODO call DMLabelGetValue(plexgrid%localiconindexlabel, icell, ilocal, ierr); call CHKERR(ierr)
           k = plexgrid%zindex(icell)
           ilocal = plexgrid%localiconindex(icell)
 
@@ -567,9 +561,6 @@ module m_plex_grid
       do iface = plexgrid%fStart, plexgrid%fEnd-1
         call DMLabelGetValue(plexgrid%ownerlabel, iface, owner, ierr); call CHKERR(ierr)
         if(owner.ne.myid) then
-          !TODO call DMLabelGetValue(plexgrid%zindexlabel, iface, k, ierr); call CHKERR(ierr)
-          !TODO call DMLabelGetValue(plexgrid%localiconindexlabel, iface, ilocal, ierr); call CHKERR(ierr) ! either a local index for cells or edges ...
-          !TODO call DMLabelGetValue(plexgrid%faceposlabel, iface, facepos, ierr); call CHKERR(ierr) ! ... depending on faceposition
           k = plexgrid%zindex(iface)
           ilocal = plexgrid%localiconindex(iface)
 
@@ -597,9 +588,6 @@ module m_plex_grid
       do iedge = plexgrid%eStart, plexgrid%eEnd-1
         call DMLabelGetValue(plexgrid%ownerlabel, iedge, owner, ierr); call CHKERR(ierr)
         if(owner.ne.myid) then
-          !TODO call DMLabelGetValue(plexgrid%zindexlabel, iedge, k, ierr); call CHKERR(ierr)
-          !TODO call DMLabelGetValue(plexgrid%localiconindexlabel, iedge, ilocal, ierr); call CHKERR(ierr) ! either a local index for edges or vertices ...
-          !TODO call DMLabelGetValue(plexgrid%faceposlabel, iedge, facepos, ierr); call CHKERR(ierr) ! ... depending on faceposition
           k = plexgrid%zindex(iedge)
           ilocal = plexgrid%localiconindex(iedge)
 
@@ -624,8 +612,6 @@ module m_plex_grid
       do ivertex = plexgrid%vStart, plexgrid%vEnd-1
         call DMLabelGetValue(plexgrid%ownerlabel    , ivertex, owner, ierr); call CHKERR(ierr)
         if(owner.ne.myid) then
-          !TODO call DMLabelGetValue(plexgrid%zindexlabel   , ivertex, k, ierr); call CHKERR(ierr)
-          !TODO call DMLabelGetValue(plexgrid%localiconindexlabel, ivertex, ilocal, ierr); call CHKERR(ierr) ! local index for vertices ...
           k = plexgrid%zindex(ivertex)
           ilocal = plexgrid%localiconindex(ivertex)
 
