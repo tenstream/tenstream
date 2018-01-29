@@ -141,17 +141,9 @@ module m_plex_grid
 
 
       ! Create some labels ... those are handy later when setting up matrices etc
-      !call DMCreateLabel(plex%dm, "Face Position"   , ierr); call CHKERR(ierr)
-      !call DMCreateLabel(plex%dm, "Vertical Index"  , ierr); call CHKERR(ierr)
-      !call DMCreateLabel(plex%dm, "Icon Index"      , ierr); call CHKERR(ierr)
-      !call DMCreateLabel(plex%dm, "Local Icon Index", ierr); call CHKERR(ierr)
       call DMCreateLabel(plex%dm, "TOA"             , ierr); call CHKERR(ierr)
       call DMCreateLabel(plex%dm, "Owner"           , ierr); call CHKERR(ierr)
 
-      !call DMGetLabel(plex%dm, "Face Position"   , plex%faceposlabel       , ierr); call CHKERR(ierr)
-      !call DMGetLabel(plex%dm, "Vertical Index"  , plex%zindexlabel        , ierr); call CHKERR(ierr)
-      !call DMGetLabel(plex%dm, "Icon Index"      , plex%iconindexlabel     , ierr); call CHKERR(ierr)
-      !call DMGetLabel(plex%dm, "Local Icon Index", plex%localiconindexlabel, ierr); call CHKERR(ierr)
       call DMGetLabel(plex%dm, "TOA"             , plex%TOAlabel           , ierr); call CHKERR(ierr)
       call DMGetLabel(plex%dm, "Owner"           , plex%ownerlabel         , ierr); call CHKERR(ierr)
       call DMLabelSetDefaultValue(plex%ownerlabel, int(myid, kind=iintegers), ierr); call CHKERR(ierr)
@@ -203,9 +195,6 @@ module m_plex_grid
 
           call DMPlexSetCone(plex%dm, icell, faces, ierr); call CHKERR(ierr)
 
-          !call DMLabelSetValue(plex%localiconindexlabel, icell, i      , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%iconindexlabel     , icell, iparent, ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%zindexlabel        , icell, k      , ierr); call CHKERR(ierr)
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , icell, owner  , ierr); call CHKERR(ierr)
           plex%zindex(icell) = k
           plex%localiconindex(icell) = i
@@ -227,10 +216,6 @@ module m_plex_grid
 
           call DMPlexSetCone(plex%dm, iface, edge3, ierr); call CHKERR(ierr)
 
-          !call DMLabelSetValue(plex%iconindexlabel     , iface, iparent     , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%localiconindexlabel, iface, i           , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%zindexlabel        , iface, k           , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%faceposlabel       , iface, TOP_BOT_FACE, ierr); call CHKERR(ierr)
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iface, owner       , ierr); call CHKERR(ierr)
           plex%ltopfacepos(iface) = .True.
           plex%zindex(iface) = k
@@ -259,10 +244,6 @@ module m_plex_grid
 
           call DMPlexSetCone(plex%dm, iface, edge4, ierr); call CHKERR(ierr)
 
-          !call DMLabelSetValue(plex%iconindexlabel     , iface, iparent  , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%localiconindexlabel, iface, i        , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%zindexlabel        , iface, k        , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%faceposlabel       , iface, SIDE_FACE, ierr); call CHKERR(ierr)
           plex%ltopfacepos(iface) = .False.
           plex%zindex(iface) = k
           plex%localiconindex(iface) = i
@@ -287,13 +268,9 @@ module m_plex_grid
 
           call DMPlexSetCone(plex%dm, iedge, vert2, ierr); call CHKERR(ierr)
 
-          !call DMLabelSetValue(plex%iconindexlabel     , iedge, iparent     , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%localiconindexlabel, iedge, i           , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%zindexlabel        , iedge, k           , ierr); call CHKERR(ierr)
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iedge, owner       , ierr); call CHKERR(ierr)
           plex%zindex(iedge) = k
           plex%localiconindex(iedge) = i
-          !call DMLabelSetValue(plex%faceposlabel       , iedge, TOP_BOT_FACE, ierr); call CHKERR(ierr)
           plex%ltopfacepos(iedge) = .True.
         enddo
       enddo
@@ -311,13 +288,9 @@ module m_plex_grid
 
           call DMPlexSetCone(plex%dm, iedge, vert2, ierr); call CHKERR(ierr)
 
-          !call DMLabelSetValue(plex%iconindexlabel     , iedge, iparent  , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%localiconindexlabel, iedge, i        , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%zindexlabel        , iedge, k        , ierr); call CHKERR(ierr)
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iedge, owner    , ierr); call CHKERR(ierr)
           plex%zindex(iedge) = k
           plex%localiconindex(iedge) = i
-          !call DMLabelSetValue(plex%faceposlabel       , iedge, SIDE_FACE, ierr); call CHKERR(ierr)
           plex%ltopfacepos(iedge) = .False.
         enddo
       enddo
@@ -330,9 +303,6 @@ module m_plex_grid
           iparent = icongrid%vertex_index(i)
           owner = icongrid%vertexowner(iparent)
 
-          !call DMLabelSetValue(plex%iconindexlabel     , ivertex, iparent, ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%localiconindexlabel, ivertex, i      , ierr); call CHKERR(ierr)
-          !call DMLabelSetValue(plex%zindexlabel        , ivertex, k      , ierr); call CHKERR(ierr)
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , ivertex, owner  , ierr); call CHKERR(ierr)
           plex%zindex(ivertex) = k
           plex%localiconindex(ivertex) = i
@@ -1009,7 +979,7 @@ module m_plex_grid
     call PetscObjectSetName(vec, 'VecfromNC_'//trim(varname), ierr);call CHKERR(ierr)
 
     call VecScatterCreateToZero(vec, scatter_context, local, ierr); call CHKERR(ierr)
-    call AOView(plexgrid%cell_ao, PETSC_VIEWER_STDOUT_WORLD, ierr)
+    !call AOView(plexgrid%cell_ao, PETSC_VIEWER_STDOUT_WORLD, ierr)
 
     if(myid.eq.0) then
       ncgroups(1) = trim(filename)

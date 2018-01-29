@@ -215,8 +215,6 @@ module m_plex_rt
     integer(iintegers) :: irows(5)
     real(ireals) :: dir2dir_coeffs(5)
 
-    type(tDMLabel) :: faceposlabel, zindexlabel
-
     type(tPetscSection) :: geomSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
 
@@ -237,8 +235,6 @@ module m_plex_rt
     call DMGetDefaultSection(plex%edir_dm, sec, ierr); call CHKERR(ierr)
     call DMPlexGetHeightStratum(plex%edir_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
     call DMPlexGetHeightStratum(plex%edir_dm, i1, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
-    call DMGetLabel(plex%edir_dm, "Face Position", faceposlabel, ierr); call CHKERR(ierr)
-    call DMGetLabel(plex%edir_dm, "Vertical Index", zindexlabel, ierr); call CHKERR(ierr)
 
     call DMCreateMatrix(plex%edir_dm, A, ierr); call CHKERR(ierr)
     !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
@@ -247,8 +243,7 @@ module m_plex_rt
 
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
-      call compute_local_wedge_ordering(icell, faces_of_cell, geomSection, geoms, &
-        plex%ltopfacepos, plex%zindex, sundir, &
+      call compute_local_wedge_ordering(plex, icell, faces_of_cell, geomSection, geoms, sundir, &
         zenith, azimuth, upper_face, bottom_face, base_face, left_face, right_face, lsrc)
 
       do iface = 1, size(faces_of_cell) !DEBUG
@@ -304,16 +299,13 @@ module m_plex_rt
 
   end subroutine
 
-  subroutine compute_local_wedge_ordering(icell, faces_of_cell, geomSection, geoms, &
-      ltopfacepos, zindex, sundir, &
+  subroutine compute_local_wedge_ordering(plex, icell, faces_of_cell, geomSection, geoms, sundir, &
       zenith, azimuth, upper_face, bottom_face, base_face, left_face, right_face, lsrc)
+    type(t_plexgrid), intent(in) :: plex
     integer(iintegers), intent(in) :: icell
     integer(iintegers), intent(in), pointer :: faces_of_cell(:)
     type(tPetscSection) :: geomSection
     real(ireals), intent(in), pointer :: geoms(:) ! pointer to coordinates vec
-    !type(tDMLabel), intent(in) :: faceposlabel, zindexlabel
-    logical, intent(in) :: ltopfacepos(:)
-    integer(iintegers), intent(in) :: zindex(:)
     real(ireals), intent(in) :: sundir(3)
     real(ireals), intent(out) :: zenith, azimuth
     integer(iintegers), intent(out) :: upper_face, bottom_face, base_face, left_face, right_face
@@ -351,7 +343,7 @@ module m_plex_rt
     ! get numbering for 2 top/bot faces and 3 side faces which indicate the position in the faces_of_cell vec
     iside_faces = 1; itop_faces = 1
     do iface = 1, size(faces_of_cell)
-      if(ltopfacepos(faces_of_cell(iface))) then
+      if(plex%ltopfacepos(faces_of_cell(iface))) then
         top_faces(itop_faces) = iface
         itop_faces = itop_faces+1
       else
@@ -360,8 +352,8 @@ module m_plex_rt
       endif
     enddo
 
-    izindex(1) = zindex(faces_of_cell(top_faces(1)))
-    izindex(2) = zindex(faces_of_cell(top_faces(2)))
+    izindex(1) = plex%zindex(faces_of_cell(top_faces(1)))
+    izindex(2) = plex%zindex(faces_of_cell(top_faces(2)))
 
     if(izindex(1).gt.izindex(2)) then
       upper_face = top_faces(2)
@@ -390,8 +382,8 @@ module m_plex_rt
 
     MrotWorld2Local = rotation_matrix_world_to_local_basis(e_x, e_y, e_z)
 
-    left_face  = side_faces(modulo(ibase_face,size(side_faces))+1)
-    right_face = side_faces(modulo(ibase_face+1,size(side_faces))+1)
+    left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
+    right_face = side_faces(modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1)
 
     local_normal_left  = matmul(MrotWorld2Local, face_normals(:,left_face))
     local_normal_right = matmul(MrotWorld2Local, face_normals(:,right_face))
