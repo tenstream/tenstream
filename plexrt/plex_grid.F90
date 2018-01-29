@@ -483,15 +483,15 @@ module m_plex_grid
 
       type(tPetscSF) :: sf
 
-      type(PetscInt) :: nroots, nleaves
-      type(PetscInt),allocatable :: ilocal_elements(:)
+      integer(iintegers) :: nroots, nleaves
+      integer(iintegers),allocatable :: ilocal_elements(:)
       type(PetscSFNode),allocatable :: iremote_elements(:)
       type(PetscCopyMode),parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
 
       integer(mpiint) :: myid, numnodes, ierr
       !integer(iintegers) :: N_remote_cells, N_remote_edges, N_remote_vertices
       integer(iintegers) :: icell, iface, iedge, ivertex
-      integer(iintegers) :: facepos, k, ilocal, iparent, iremote, owner, ileaf, jparent
+      integer(iintegers) :: k, ilocal, iparent, iremote, owner, ileaf, jparent
 
       call mpi_comm_rank(plexgrid%comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(plexgrid%comm, numnodes, ierr); call CHKERR(ierr)
