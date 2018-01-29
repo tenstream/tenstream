@@ -1,7 +1,7 @@
 @test(npes =[4,2])
 subroutine test_tenstream_ex1(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, zero, pi
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
@@ -15,8 +15,8 @@ subroutine test_tenstream_ex1(this)
 
     class (MpiTestMethod), intent(inout) :: this
 
-    integer(iintegers) :: k, numnodes, comm
-    integer(iintegers) :: myid
+    integer(mpiint) :: myid, numnodes, comm
+    integer(iintegers) :: k
 
     integer(iintegers),parameter :: nxp=10,nyp=10,nv=10
     real(ireals),parameter :: dx=100,dy=dx

@@ -2,7 +2,8 @@ module m_gen_fish_plex
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers, i0, i1, init_mpi_data_parameters
+  use m_data_parameters, only : ireals, iintegers, init_mpi_data_parameters, &
+    i0, i1, i2, i3, i4, i5
 
   use m_plex_grid, only : TOP_BOT_FACE, SIDE_FACE
 
@@ -35,9 +36,9 @@ module m_gen_fish_plex
 
       call DMPlexCreate(PETSC_COMM_SELF, dm, ierr);CHKERRQ(ierr)
       call PetscObjectSetName(dm, 'testplex', ierr);CHKERRQ(ierr)
-      call DMSetDimension(dm, 3, ierr);CHKERRQ(ierr)
+      call DMSetDimension(dm, i3, ierr);CHKERRQ(ierr)
 
-      call DMPlexSetChart(dm, 0, 57, ierr); CHKERRQ(ierr)
+      call DMPlexSetChart(dm, i0, 57_iintegers, ierr); CHKERRQ(ierr)
 
       call setup_plex(dm)
 
@@ -59,10 +60,10 @@ module m_gen_fish_plex
       call set_coords_serial(dm)
 
       call DMPlexGetChart(dm, pStart, pEnd, ierr); CHKERRQ(ierr)
-      call DMPlexGetHeightStratum(dm, 0, cStart, cEnd, ierr); CHKERRQ(ierr) ! cells
-      call DMPlexGetHeightStratum(dm, 1, fStart, fEnd, ierr); CHKERRQ(ierr) ! faces / edges
-      call DMPlexGetDepthStratum (dm, 1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
-      call DMPlexGetDepthStratum (dm, 0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
+      call DMPlexGetHeightStratum(dm, i0, cStart, cEnd, ierr); CHKERRQ(ierr) ! cells
+      call DMPlexGetHeightStratum(dm, i1, fStart, fEnd, ierr); CHKERRQ(ierr) ! faces / edges
+      call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
+      call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
 
       print *,'pStart,End :: ',pStart, pEnd
       print *,'cStart,End :: ',cStart, cEnd
@@ -75,80 +76,80 @@ module m_gen_fish_plex
 
     subroutine set_wedge_connectivity(dm)
       DM :: dm
-      integer :: i
+      integer(iintegers) :: i
       ! Preallocation
       ! Every cell has 5 faces
       do i=0,3
-        call DMPlexSetConeSize(dm, i, 5, ierr); CHKERRQ(ierr)
+        call DMPlexSetConeSize(dm, i, i5, ierr); CHKERRQ(ierr)
       enddo
 
       ! Faces have 3 or 4 edges
       do i=4,7
-        call DMPlexSetConeSize(dm, i, 3, ierr); CHKERRQ(ierr)
+        call DMPlexSetConeSize(dm, i, i3, ierr); CHKERRQ(ierr)
       enddo
       do i=17,20
-        call DMPlexSetConeSize(dm, i, 3, ierr); CHKERRQ(ierr)
+        call DMPlexSetConeSize(dm, i, i3, ierr); CHKERRQ(ierr)
       enddo
       do i=8,16
-        call DMPlexSetConeSize(dm, i, 4, ierr); CHKERRQ(ierr)
+        call DMPlexSetConeSize(dm, i, i4, ierr); CHKERRQ(ierr)
       enddo
 
       ! Edges have 2 vertices
       do i=21,44
-        call DMPlexSetConeSize(dm, i, 2, ierr); CHKERRQ(ierr)
+        call DMPlexSetConeSize(dm, i, i2, ierr); CHKERRQ(ierr)
       enddo
 
       call DMSetUp(dm, ierr); CHKERRQ(ierr) ! Allocate space for cones
 
       ! Setup Connections
-      call DMPlexSetCone(dm,  0, [ 4, 8, 9,10,17], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  1, [ 5,10,11,12,18], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  2, [ 6,12,13,14,19], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  3, [ 7,14,15,16,20], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm,  0_iintegers, [ 4_iintegers, 8_iintegers, 9_iintegers,10_iintegers,17_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm,  1_iintegers, [ 5_iintegers,10_iintegers,11_iintegers,12_iintegers,18_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm,  2_iintegers, [ 6_iintegers,12_iintegers,13_iintegers,14_iintegers,19_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm,  3_iintegers, [ 7_iintegers,14_iintegers,15_iintegers,16_iintegers,20_iintegers], ierr); CHKERRQ(ierr)
 
-      call DMPlexSetCone(dm,  4, [21,22,23], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  5, [23,24,25], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  6, [25,26,27], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  7, [27,28,29], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 17, [36,37,38], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 18, [38,39,40], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 19, [40,41,42], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 20, [42,43,44], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm,  4_iintegers, [21_iintegers,22_iintegers,23_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm,  5_iintegers, [23_iintegers,24_iintegers,25_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm,  6_iintegers, [25_iintegers,26_iintegers,27_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm,  7_iintegers, [27_iintegers,28_iintegers,29_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 17_iintegers, [36_iintegers,37_iintegers,38_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 18_iintegers, [38_iintegers,39_iintegers,40_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 19_iintegers, [40_iintegers,41_iintegers,42_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 20_iintegers, [42_iintegers,43_iintegers,44_iintegers], ierr); CHKERRQ(ierr)
 
-      call DMPlexSetCone(dm,  8, [21,30,31,36], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  9, [22,30,32,37], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 10, [23,31,32,38], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 11, [24,31,33,39], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 12, [25,32,33,40], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 13, [26,33,34,41], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 14, [27,32,34,42], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 15, [28,32,35,43], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 16, [29,34,35,44], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm,  8_iintegers, [21_iintegers,30_iintegers,31_iintegers,36_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm,  9_iintegers, [22_iintegers,30_iintegers,32_iintegers,37_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 10_iintegers, [23_iintegers,31_iintegers,32_iintegers,38_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 11_iintegers, [24_iintegers,31_iintegers,33_iintegers,39_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 12_iintegers, [25_iintegers,32_iintegers,33_iintegers,40_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 13_iintegers, [26_iintegers,33_iintegers,34_iintegers,41_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 14_iintegers, [27_iintegers,32_iintegers,34_iintegers,42_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 15_iintegers, [28_iintegers,32_iintegers,35_iintegers,43_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 16_iintegers, [29_iintegers,34_iintegers,35_iintegers,44_iintegers], ierr); CHKERRQ(ierr)
 
-      call DMPlexSetCone(dm, 21, [45,46], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 22, [45,47], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 23, [46,47], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 24, [46,48], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 25, [47,48], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 26, [48,49], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 27, [47,49], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 28, [47,50], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 29, [49,50], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 30, [45,51], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 31, [46,52], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 32, [47,53], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 33, [48,54], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 34, [49,55], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 35, [50,56], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 36, [51,52], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 37, [51,53], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 38, [52,53], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 39, [52,54], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 40, [53,54], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 41, [54,55], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 42, [53,55], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 43, [53,56], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 44, [55,56], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 21_iintegers, [45_iintegers,46_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 22_iintegers, [45_iintegers,47_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 23_iintegers, [46_iintegers,47_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 24_iintegers, [46_iintegers,48_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 25_iintegers, [47_iintegers,48_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 26_iintegers, [48_iintegers,49_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 27_iintegers, [47_iintegers,49_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 28_iintegers, [47_iintegers,50_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 29_iintegers, [49_iintegers,50_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 30_iintegers, [45_iintegers,51_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 31_iintegers, [46_iintegers,52_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 32_iintegers, [47_iintegers,53_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 33_iintegers, [48_iintegers,54_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 34_iintegers, [49_iintegers,55_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 35_iintegers, [50_iintegers,56_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 36_iintegers, [51_iintegers,52_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 37_iintegers, [51_iintegers,53_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 38_iintegers, [52_iintegers,53_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 39_iintegers, [52_iintegers,54_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 40_iintegers, [53_iintegers,54_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 41_iintegers, [54_iintegers,55_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 42_iintegers, [53_iintegers,55_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 43_iintegers, [53_iintegers,56_iintegers], ierr); CHKERRQ(ierr)
+      call DMPlexSetCone(dm, 44_iintegers, [55_iintegers,56_iintegers], ierr); CHKERRQ(ierr)
     end subroutine
 
   subroutine set_coords_serial(dm)
@@ -166,20 +167,20 @@ module m_gen_fish_plex
 
     call DMGetCoordinateSection(dm, coordSection, ierr); CHKERRQ(ierr)
 
-    call PetscSectionSetNumFields(coordSection, 1, ierr); CHKERRQ(ierr)
+    call PetscSectionSetNumFields(coordSection, i1, ierr); CHKERRQ(ierr)
     call PetscSectionSetUp(coordSection, ierr); CHKERRQ(ierr)
-    call PetscSectionSetFieldComponents(coordSection, 0, dimEmbed, ierr); CHKERRQ(ierr)
+    call PetscSectionSetFieldComponents(coordSection, i0, dimEmbed, ierr); CHKERRQ(ierr)
 
     call DMPlexGetChart(dm, pStart, pEnd, ierr); CHKERRQ(ierr)
-    call DMPlexGetDepthStratum (dm, 0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
-    call DMPlexGetDepthStratum (dm, 1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
-    call DMPlexGetHeightStratum (dm, 0, cStart, cEnd, ierr); CHKERRQ(ierr) ! edges
+    call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
+    call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
+    call DMPlexGetHeightStratum (dm, i0, cStart, cEnd, ierr); CHKERRQ(ierr) ! edges
 
     call PetscSectionSetChart(coordSection, vStart, vEnd, ierr);CHKERRQ(ierr)
 
     do i = vStart, vEnd-1
       call PetscSectionSetDof(coordSection, i, dimEmbed, ierr); CHKERRQ(ierr)
-      call PetscSectionSetFieldDof(coordSection, i, 0, dimEmbed, ierr); CHKERRQ(ierr)
+      call PetscSectionSetFieldDof(coordSection, i, i0, dimEmbed, ierr); CHKERRQ(ierr)
     enddo
 
     call PetscSectionSetUp(coordSection, ierr); CHKERRQ(ierr)
@@ -238,10 +239,10 @@ module m_gen_fish_plex
     call DMGetDefaultSection(dm, s, ierr); CHKERRQ(ierr)
     call DMPlexGetDepth(dm, depth, ierr); CHKERRQ(ierr)
     call DMPlexGetChart(dm, pStart, pEnd, ierr); CHKERRQ(ierr)
-    call DMPlexGetHeightStratum(dm, 0, cStart, cEnd, ierr); CHKERRQ(ierr) ! cells
-    call DMPlexGetHeightStratum(dm, 1, fStart, fEnd, ierr); CHKERRQ(ierr) ! faces / edges
-    call DMPlexGetDepthStratum (dm, 1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
-    call DMPlexGetDepthStratum (dm, 0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
+    call DMPlexGetHeightStratum(dm, i0, cStart, cEnd, ierr); CHKERRQ(ierr) ! cells
+    call DMPlexGetHeightStratum(dm, i1, fStart, fEnd, ierr); CHKERRQ(ierr) ! faces / edges
+    call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
+    call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
     print *,'PLEX GetChart', pStart, pEnd, ":: fStart, fEnd", fStart, fEnd
 
     do i=fstart, fEnd-1

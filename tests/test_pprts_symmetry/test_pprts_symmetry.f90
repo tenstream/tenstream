@@ -20,9 +20,7 @@ contains
   subroutine test_pprts_symmetry_ex2(this)
     class (MpiTestMethod), intent(inout) :: this
 
-    integer(iintegers) :: numnodes, comm
-    integer(iintegers) :: myid
-    integer(mpiint) :: ierr
+    integer(mpiint) :: myid, numnodes, comm, ierr
 
     real(ireals),allocatable  :: dir2dir(:), dir2diff(:)
     integer(iintegers) :: i
@@ -93,8 +91,7 @@ contains
   subroutine test_pprts_symmetry_ex1(this)
     class (MpiTestMethod), intent(inout) :: this
 
-    integer(iintegers) :: numnodes, comm
-    integer(iintegers) :: myid
+    integer(mpiint) :: myid, numnodes, comm
 
     integer(iintegers),parameter :: nxp=9,nyp=9,nv=100
     real(ireals),parameter :: dx=100,dy=dx
@@ -144,13 +141,13 @@ contains
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call set_angles(solver, 10._ireals, theta0)
-    call solve_pprts(solver, incSolar, opt_solution_uid=10)
+    call solve_pprts(solver, incSolar, opt_solution_uid=10_iintegers)
 
     call set_angles(solver, 190._ireals, theta0)
-    call solve_pprts(solver, incSolar, opt_solution_uid=190)
+    call solve_pprts(solver, incSolar, opt_solution_uid=190_iintegers)
 
-    call pprts_get_result_toZero(solver, fdn0, fup0, fdiv0, fdir0, opt_solution_uid=10)
-    call pprts_get_result_toZero(solver, fdn1, fup1, fdiv1, fdir1, opt_solution_uid=190)
+    call pprts_get_result_toZero(solver, fdn0, fup0, fdiv0, fdir0, opt_solution_uid=10_iintegers)
+    call pprts_get_result_toZero(solver, fdn1, fup1, fdiv1, fdir1, opt_solution_uid=190_iintegers)
 
     if(myid.eq.0) then
       do j=lbound(fdir0,3), ubound(fdir0,3)
@@ -171,13 +168,13 @@ contains
     endif
 
     call set_angles(solver, 100._ireals, theta0)
-    call solve_pprts(solver, incSolar, opt_solution_uid=100)
+    call solve_pprts(solver, incSolar, opt_solution_uid=100_iintegers)
 
     call set_angles(solver, 280._ireals, theta0)
-    call solve_pprts(solver, incSolar, opt_solution_uid=280)
+    call solve_pprts(solver, incSolar, opt_solution_uid=280_iintegers)
 
-    call pprts_get_result_toZero(solver, fdn0, fup0, fdiv0, fdir0, opt_solution_uid=100)
-    call pprts_get_result_toZero(solver, fdn1, fup1, fdiv1, fdir1, opt_solution_uid=280)
+    call pprts_get_result_toZero(solver, fdn0, fup0, fdiv0, fdir0, opt_solution_uid=100_iintegers)
+    call pprts_get_result_toZero(solver, fdn1, fup1, fdiv1, fdir1, opt_solution_uid=280_iintegers)
 
     if(myid.eq.0) then
       do j=lbound(fdir0,3), ubound(fdir0,3)

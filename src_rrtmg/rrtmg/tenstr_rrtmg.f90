@@ -37,7 +37,7 @@ module m_tenstr_rrtmg
       use mpi, only : mpi_comm_rank
       use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
       use m_data_parameters, only : init_mpi_data_parameters, &
-        iintegers, ireals, zero, one, i0, i1, &
+        iintegers, ireals, zero, one, i0, i1, i2, i9,         &
         mpiint, pi, mpierr, default_str_len
       use m_tenstream, only : init_tenstream, set_angles, set_optical_properties, solve_tenstream, destroy_tenstream, need_new_solution, &
           tenstream_get_result, tenstream_get_result_toZero, C_one, C_one1
@@ -888,7 +888,7 @@ contains
     allocate(atm)
 
     if(myid.eq.0) then
-      call read_ascii_file_2d(atm_filename, prof, 9, 2, ierr)
+      call read_ascii_file_2d(atm_filename, prof, i9, i2, ierr)
       if(ierr.ne.0) then
         print *,'************* Error occured reading the atmosphere file:', atm_filename, '::', ierr
         call CHKERR(ierr)

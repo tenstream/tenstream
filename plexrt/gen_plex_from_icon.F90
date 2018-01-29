@@ -45,12 +45,12 @@ module m_gen_plex_from_icon
       ! Preallocation
       ! Every cell has three edges
       do i = 0, offset_edges-1
-        call DMPlexSetConeSize(plex%dm, i, 3, ierr); call CHKERR(ierr)
+        call DMPlexSetConeSize(plex%dm, i, i3, ierr); call CHKERR(ierr)
       enddo
 
       ! Edges have 2 vertices
       do i = offset_edges, offset_vertices-1
-        call DMPlexSetConeSize(plex%dm, i, 2, ierr); call CHKERR(ierr)
+        call DMPlexSetConeSize(plex%dm, i, i2, ierr); call CHKERR(ierr)
       enddo
 
       call DMSetUp(plex%dm, ierr); call CHKERR(ierr) ! Allocate space for cones
@@ -479,12 +479,12 @@ module m_gen_plex_from_icon
 
       ! Create Default Section
       call PetscSectionCreate(PETSC_COMM_WORLD, s, ierr); CHKERRQ(ierr)
-      call PetscSectionSetNumFields(s, 1, ierr); CHKERRQ(ierr)
+      call PetscSectionSetNumFields(s, i1, ierr); CHKERRQ(ierr)
       call PetscSectionSetChart(s, plex%cStart, plex%cEnd, ierr); CHKERRQ(ierr)
 
       do i = plex%cStart, plex%cEnd-1
-        call PetscSectionSetDof(s, i, 1, ierr); CHKERRQ(ierr)
-        call PetscSectionSetFieldDof(s, i, 0, 1, ierr); CHKERRQ(ierr)
+        call PetscSectionSetDof(s, i, i1, ierr); CHKERRQ(ierr)
+        call PetscSectionSetFieldDof(s, i, i0, i1, ierr); CHKERRQ(ierr)
       enddo
 
       call PetscSectionSetUp(s, ierr); CHKERRQ(ierr)
@@ -501,7 +501,7 @@ module m_gen_plex_from_icon
       call VecGetSize(globalVec,vecsize, ierr); CHKERRQ(ierr)
       call PetscObjectSetName(globalVec, 'massVec', ierr);CHKERRQ(ierr)
 
-      call decompose_icon_grid(icongrid, 2, cell_ownership, edge_ownership, vertex_ownership)
+      call decompose_icon_grid(icongrid, i2, cell_ownership, edge_ownership, vertex_ownership)
 
       call VecGetArrayF90(globalVec, xv, ierr); CHKERRQ(ierr)
       do i = plex%cStart, plex%cEnd-1
