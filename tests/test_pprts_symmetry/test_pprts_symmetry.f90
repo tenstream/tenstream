@@ -56,11 +56,11 @@ contains
         allocate(dir2diff(OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams))
 
         do i=1,ubound(dir2dir,1)
-          dir2dir(i) = i
+          dir2dir(i) = real(i, kind=ireals)
         enddo
 
         do i=1,ubound(dir2diff,1)
-          dir2diff(i) = i
+          dir2diff(i) = real(i, kind=ireals)
         enddo
 
 
