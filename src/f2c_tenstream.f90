@@ -81,7 +81,7 @@ contains
           ody     = real(dy    ,kind=ireals)
           ophi0   = real(phi0  ,kind=ireals)
           otheta0 = real(theta0,kind=ireals)
-          ocollapseindex = collapseindex
+          ocollapseindex = int(collapseindex, kind=iintegers)
 
           allocate( ohhl(size(hhl)) )
           ohhl = hhl
@@ -108,7 +108,7 @@ contains
         dy     = real(ody    , kind=c_double)
         phi0   = real(ophi0  , kind=c_float)
         theta0 = real(otheta0, kind=c_float)
-        collapseindex=ocollapseindex
+        collapseindex = int(ocollapseindex, kind=c_int)
 
         ! Now every process has the correct values
         print *,myid,'Initializing Tenstream environment from C Language :: domainshape',solver_id

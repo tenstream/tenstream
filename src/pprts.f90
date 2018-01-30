@@ -28,7 +28,7 @@ module m_pprts
     default_str_len
 
   use m_helper_functions, only : CHKERR, deg2rad, rad2deg, norm, imp_allreduce_min, &
-    imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, mean, get_arg
+    imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, mean, get_arg, approx
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
@@ -51,7 +51,7 @@ module m_pprts
             solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
             pprts_get_result_toZero, t_coord
 
-  PetscInt, parameter :: E_up=0, E_dn=1, E_le_m=2, E_ri_m=3, E_ba_m=4, E_fw_m=5
+  integer(iintegers), parameter :: E_up=0, E_dn=1
 
   type t_coord
     integer(iintegers)      :: xs,xe                   ! local domain start and end indices
@@ -511,14 +511,14 @@ module m_pprts
 
       if(allocated(solver%sun%angles)) then ! was initialized
         if(present(theta2d)) then
-          lchanged_theta = .not. all(theta2d.eq.solver%sun%angles(1,:,:)%theta)
+          lchanged_theta = any(.not.approx(theta2d, solver%sun%angles(1,:,:)%theta))
         else
-          lchanged_theta = .not. all(theta0.eq.solver%sun%angles(1,:,:)%theta)
+          lchanged_theta = any(.not.approx(theta0, solver%sun%angles(1,:,:)%theta))
         endif
         if(present(phi2d)) then
-          lchanged_phi = .not. all(phi2d.eq.solver%sun%angles(1,:,:)%phi)
+          lchanged_phi = any(.not.approx(phi2d, solver%sun%angles(1,:,:)%phi))
         else
-          lchanged_phi = .not. all(phi0.eq.solver%sun%angles(1,:,:)%phi)
+          lchanged_phi = any(.not.approx(phi0, solver%sun%angles(1,:,:)%phi))
         endif
         if(solver%myid.eq.0 .and. ldebug) print *,'tenstr set_angles -- changed angles?',lchanged_theta, lchanged_phi
         if(.not. lchanged_theta .and. .not. lchanged_phi) then
@@ -664,9 +664,9 @@ module m_pprts
     type(t_coord), intent(in) :: C_one, C_one1
     type(t_suninfo),intent(inout) :: sun
 
-    Vec :: vgrad_x, vgrad_y
-    PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
-    PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
+    type(tVec) :: vgrad_x, vgrad_y
+    real(ireals),Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
+    real(ireals),Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
 
     integer(iintegers) :: i,j,k
     real(ireals) :: newtheta, newphi, xsun(3)
@@ -742,9 +742,9 @@ module m_pprts
     type(tVec) :: vgrad_x, vgrad_y
 
     type(tVec) :: vhhl
-    PetscScalar,Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
-    PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
-    PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
+    real(ireals),Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
+    real(ireals),Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
+    real(ireals),Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
 
     integer(iintegers) :: i,j,k
 
@@ -829,11 +829,8 @@ module m_pprts
   !>  \n  at the moment preallocation routines determine nonzeros by manually checking bounadries --
   !>  \n  !todo we should really use some form of iterating through the entries as it is done in the matrix assembly routines and just flag the rows
   subroutine init_Matrix(A,C)!,prefix)
-    Mat, allocatable, intent(inout) :: A
+    type(tMat), allocatable, intent(inout) :: A
     type(t_coord) :: C
-    !        character(len=*),optional :: prefix
-
-    PetscInt,dimension(:),allocatable :: o_nnz,d_nnz!,dnz
 
     if(.not.allocated(A)) then
       allocate(A)
@@ -861,13 +858,13 @@ module m_pprts
     call mat_set_diagonal(A,C)
   contains
     subroutine mat_set_diagonal(A,C,vdiag)
-      Mat :: A
+      type(tMat) :: A
       type(t_coord),intent(in) :: C
       real(ireals),intent(in),optional :: vdiag
 
-      PetscInt :: i,j,k,dof
+      integer(iintegers) :: i,j,k,dof
       MatStencil :: row(4,1), col(4,1)
-      PetscScalar :: v(1)
+      real(ireals) :: v(1)
 
       !TODO -- we should use this form... however this does somehow corrupt preallocation? - maybe fix this
       !        Vec :: diag
@@ -911,10 +908,10 @@ module m_pprts
   end subroutine
 
   subroutine mat_info(A)
-    Mat :: A
+    type(tMat) :: A
     MatInfo :: info(MAT_INFO_SIZE)
     real(ireals) :: mal, nz_allocated, nz_used, nz_unneeded
-    PetscInt :: m,n
+    integer(iintegers) :: m,n
 
     return !TODO see doxy details...
     call MatGetInfo(A,MAT_LOCAL,info,ierr) ;call CHKERR(ierr)
@@ -944,8 +941,8 @@ module m_pprts
     real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny) layer quantity plus surface layer
     real(ireals),intent(in),dimension(:,:),optional   :: local_albedo_2d                 ! dimensions (Nx, Ny)
 
-    real(ireals)        :: tau,kext,w0,g
-    integer(iintegers)  :: k,i,j
+    real(ireals)        :: tau, kext, w0, g
+    integer(iintegers)  :: k, i, j
 
     associate( atm => solver%atm, &
         C_one_atm => solver%C_one_atm, &
@@ -1197,7 +1194,7 @@ module m_pprts
     real(ireals),dimension(:,:,:),allocatable :: local_kabs, local_ksca, local_g
     real(ireals),dimension(:,:,:),allocatable :: local_planck
     real(ireals) :: local_albedo
-    logical :: lhave_planck,lhave_kabs,lhave_ksca,lhave_g
+    logical :: lhave_planck, lhave_kabs, lhave_ksca, lhave_g
 
     if(.not.solver%linitialized) then
       print *,solver%myid,'You tried to set global optical properties but tenstream environment seems not to be initialized.... please call init first!'
@@ -1304,8 +1301,8 @@ module m_pprts
     integer(iintegers),optional,intent(in)  :: opt_solution_uid
     real(ireals),      optional,intent(in)  :: opt_solution_time
 
-    integer(iintegers)                      :: uid
-    logical                                 :: lsolar
+    integer(iintegers) :: uid
+    logical            :: lsolar
 
     associate(  solutions => solver%solutions, &
                 C_dir     => solver%C_dir,     &
@@ -1451,8 +1448,8 @@ module m_pprts
       type(t_coord)        :: C
       real(ireals),pointer :: xv  (:,:,:,:) =>null()
       real(ireals),pointer :: xv1d(:)       =>null()
-      integer(iintegers)   :: i,j,k,d,iside
-      PetscReal            :: Ax,Ay,Az, fac
+      integer(iintegers)   :: i, j, k, d, iside
+      real(ireals)         :: Ax, Ay, Az, fac
       logical,intent(in)   :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
 
       associate(  atm     => solver%atm,    &
@@ -1518,17 +1515,15 @@ module m_pprts
       end associate
     end subroutine
     subroutine scale_flx_vec(solver, v, C, lWm2_to_W)
-      class(t_solver)                       :: solver
-      Vec                                   :: v
-      type(t_coord)                         :: C
-      PetscReal,pointer,dimension(:,:,:,:)  :: xv  =>null()
-      PetscReal,pointer,dimension(:)        :: xv1d=>null()
-      logical,intent(in)                    :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
+      class(t_solver)      :: solver
+      type(tVec)           :: v
+      type(t_coord)        :: C
+      real(ireals),pointer :: xv(:,:,:,:)=>null()
+      real(ireals),pointer :: xv1d(:)=>null()
+      logical,intent(in)   :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
 
-      integer(iintegers)  :: iside
-      PetscInt            :: i,j,k
-      PetscInt            :: src
-      PetscReal           :: Az, Ax, Ay, fac
+      integer(iintegers)  :: iside, src, i, j, k
+      real(ireals)        :: Az, Ax, Ay, fac
       !Vec                 :: vgrad_x, vgrad_y
       !PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
       !PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
@@ -1668,8 +1663,8 @@ module m_pprts
     real(ireals),intent(in),optional :: time
 
     character(default_str_len) :: vecname
-    real(ireals) :: norm1,norm2,norm3
-    Vec :: abso_old
+    real(ireals) :: norm1, norm2, norm3
+    type(tVec) :: abso_old
 
     if( .not. solution%lset ) &
       stop 'cant restore solution that was not initialized'
@@ -1756,8 +1751,8 @@ module m_pprts
     real(ireals),intent(in)       :: edirTOA
     type(t_state_container)       :: solution
 
-    PetscReal,pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()
-    PetscReal,pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
+    real(ireals),pointer,dimension(:,:,:,:) :: xv_dir=>null(),xv_diff=>null()
+    real(ireals),pointer,dimension(:) :: xv_dir1d=>null(),xv_diff1d=>null()
     integer(iintegers) :: i,j,src
 
     real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
@@ -1848,9 +1843,9 @@ module m_pprts
     class(t_solver)         :: solver
     type(t_state_container) :: solution
 
-    PetscReal,pointer,dimension(:,:,:,:) :: xv_diff=>null()
-    PetscReal,pointer,dimension(:)       :: xv_diff1d=>null()
-    integer(iintegers) :: i,j,isrc,src
+    real(ireals),pointer,dimension(:,:,:,:) :: xv_diff=>null()
+    real(ireals),pointer,dimension(:)       :: xv_diff1d=>null()
+    integer(iintegers) :: i,j
 
     real(ireals),allocatable :: dtau(:),Edn(:),Eup(:)
 
@@ -1907,16 +1902,16 @@ module m_pprts
     class(t_solver)                       :: solver
     type(t_state_container)               :: solution
 
-    PetscReal,pointer,dimension(:,:,:,:)  :: xediff=>null(),xedir=>null(),xabso=>null()
-    PetscReal,pointer,dimension(:)        :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
+    real(ireals),pointer,dimension(:,:,:,:)  :: xediff=>null(),xedir=>null(),xabso=>null()
+    real(ireals),pointer,dimension(:)        :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
 
-    integer(iintegers)      :: dof, isrc, src, offset
-    PetscInt                :: i,j,k, xinc,yinc
-    Vec                     :: ledir,lediff ! local copies of vectors, including ghosts
-    PetscReal               :: div(3)
-    PetscReal, allocatable  :: div2(:)
-    PetscReal               :: Volume,Az
-    logical                 :: lhave_no_3d_layer
+    integer(iintegers)        :: offset, isrc, src
+    integer(iintegers)        :: i, j, k, xinc, yinc
+    type(tVec)                :: ledir,lediff ! local copies of vectors, including ghosts
+    real(ireals)              :: div(3)
+    real(ireals), allocatable :: div2(:)
+    real(ireals)              :: Volume,Az
+    logical                   :: lhave_no_3d_layer
 
     associate(  atm     => solver%atm, &
                 C_dir   => solver%C_dir, &
@@ -2105,13 +2100,13 @@ end subroutine
 !> \n if we did not get convergence, we try again with standard GMRES and a resetted(zero) initial guess -- if that doesnt help, we got a problem!
 subroutine solve(solver, ksp,b,x,solution_uid)
   class(t_solver) :: solver
-  KSP :: ksp
-  Vec:: b
-  Vec:: x
+  type(tKSP) :: ksp
+  type(tVec) :: b
+  type(tVec) :: x
   integer(iintegers),optional,intent(in) :: solution_uid
 
   KSPConvergedReason :: reason
-  PetscInt :: iter
+  integer(iintegers) :: iter
 
   KSPType :: old_ksp_type
 
@@ -2161,31 +2156,26 @@ end subroutine
 !> \n -- see documentation for details on how to do so
 subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   type(t_atmosphere) :: atm
-  KSP :: ksp
+  type(tKSP) :: ksp
   type(t_coord) :: C
-  Mat :: A
-  PC  :: prec
+  type(tMat) :: A
+  type(tPC)  :: prec
   logical :: linit
 
-  MatNullSpace :: nullspace
-  Vec :: nullvecs(0)
+  type(tMatNullSpace) :: nullspace
+  type(tVec) :: nullvecs(0)
   character(len=*),optional :: prefix
 
-  PetscReal,parameter :: rtol=sqrt(epsilon(rtol))*10, rel_atol=1e-4_ireals
-  PetscInt,parameter  :: maxiter=1000
+  real(ireals),parameter :: rtol=sqrt(epsilon(rtol))*10, rel_atol=1e-4_ireals
+  integer(iintegers),parameter  :: maxiter=1000
 
-  !PetscInt,parameter :: ilu_default_levels=1
-  !PetscInt :: pcbjac_n_local, pcbjac_iglob ! number of local ksp contexts and index in global ksp-table
-  !KSP,allocatable :: pcbjac_ksps(:) ! we dont have a good metric to check how many jacobi blocks there should be. in earlier versions of petsc we could let it decide. now this seems a problem at the moment. Lets just use a big number here... is only a list of pointers anyway...
-  !PC  :: pcbjac_sub_pc
-  !integer(iintegers) :: isub
   integer(mpiint) :: myid, numnodes
 
-  PetscReal :: atol
+  real(ireals) :: atol
 
   logical,parameter :: lset_geometry=.True.  ! this may be necessary in order to use geometric multigrid
-!    logical,parameter :: lset_geometry=.False.  ! this may be necessary in order to use geometric multigrid
-!  logical,parameter :: lset_nullspace=.True. ! set constant nullspace?
+! logical,parameter :: lset_geometry=.False.  ! this may be necessary in order to use geometric multigrid
+! logical,parameter :: lset_nullspace=.True. ! set constant nullspace?
   logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
 
   if(linit) return
@@ -2289,19 +2279,18 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   end subroutine
 
 
-
   !> @brief override convergence tests -- the normal KSPConverged returns bad solution if no iterations are needed for convergence
-  subroutine MyKSPConverged(ksp,n,rnorm,flag,dummy,ierr)
+  subroutine MyKSPConverged(ksp, n, rnorm, flag, dummy, ierr)
     ! Input Parameters:
     !    ksp   - iterative context
     !    n     - iteration number
     !    rnorm - 2-norm (preconditioned) residual value (may be estimated)
     !    dummy - optional user-defined monitor context (unused here)
-    KSP               :: ksp
-    PetscErrorCode    :: ierr
-    PetscInt          :: n,dummy
+    type(tKSP)        :: ksp
+    integer(mpiint)   :: ierr
+    integer(iintegers):: n, dummy
     KSPConvergedReason:: flag
-    PetscReal         :: rnorm
+    real(ireals)      :: rnorm
 
     real(ireals)       :: rtol,atol,dtol
     real(ireals),save  :: initial_rnorm
@@ -2339,6 +2328,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       flag=-9
       return
     endif
+    if(dummy.eq.1) print *,'DEBUG: stupid print to remove unused variable warning', dummy
   end subroutine
 
 
@@ -2346,10 +2336,10 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   !> @details todo: in case we do not have periodic boundaries, we should shine light in from the side of the domain...
   subroutine setup_incSolar(solver, incSolar,edirTOA)
     class(t_solver), intent(inout)  :: solver
-    Vec                             :: incSolar
+    type(tVec), intent(inout)       :: incSolar
     real(ireals),intent(in)         :: edirTOA
 
-    PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+    real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
     real(ireals) :: fac
     integer(iintegers) :: i,j,src
@@ -2384,7 +2374,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     type(tMat)          :: A
     type(t_coord)       :: C
 
-    PetscInt :: i,j,k
+    integer(iintegers) :: i,j,k
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'setup_direct_matrix ...'
 
@@ -2417,10 +2407,10 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       type(tMat),intent(inout)             :: A
       integer(iintegers),intent(in) :: i,j,k
 
-      MatStencil                    :: row(4,C%dof)  ,col(4,C%dof)
-      PetscScalar                   :: v(C%dof**2),norm
+      MatStencil         :: row(4,C%dof)  ,col(4,C%dof)
+      real(ireals)       :: v(C%dof**2),norm
 
-      integer(iintegers)            :: dst,src, xinc, yinc, isrc, idst
+      integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
       xinc = sun%angles(k,i,j)%xinc
       yinc = sun%angles(k,i,j)%yinc
@@ -2475,8 +2465,6 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
         enddo
       endif
 
-      !stop 'debug'
-
     end subroutine
 
     subroutine set_eddington_coeff(atm,A,k,i,j)
@@ -2484,8 +2472,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       type(tMat),intent(inout)          :: A
       integer(iintegers),intent(in)     :: i,j,k
 
-      MatStencil :: row(4,1)  ,col(4,1)
-      PetscScalar :: v(1)
+      MatStencil :: row(4,1), col(4,1)
+      real(ireals) :: v(1)
       integer(iintegers) :: src
 
       if(luse_eddington) then
@@ -2518,9 +2506,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     type(t_state_container) :: solution
     type(tVec) :: local_b, b
 
-    PetscScalar,pointer,dimension(:,:,:,:) :: xsrc=>null()
-    PetscScalar,pointer,dimension(:) :: xsrc1d=>null()
-    integer(iintegers) :: k,i,j,src,dst
+    real(ireals),pointer,dimension(:,:,:,:) :: xsrc=>null()
+    real(ireals),pointer,dimension(:) :: xsrc1d=>null()
 
     associate(  atm     => solver%atm, &
                 C_dir   => solver%C_dir, &
@@ -2558,7 +2545,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       real(ireals) :: Ax,Ay,Az,b0 !,c1,c2,c3,b1,dtau
       real(ireals) :: diff2diff1d(4)
       real(ireals) :: diff2diff(solver%C_diff%dof**2),v(solver%C_diff%dof**2)
-      integer(iintegers) :: iside
+      integer(iintegers) :: k,i,j,src,iside
 
       associate(  atm     => solver%atm, &
                 C_diff  => solver%C_diff)
@@ -2642,15 +2629,15 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     subroutine set_solar_source(solver, edir)
       class(t_solver)     :: solver
-      Vec                 :: edir
+      type(tVec)          :: edir
 
-      real(ireals)        :: twostr_coeff(2)
       real(ireals)        :: dir2diff(solver%C_dir%dof*solver%C_diff%dof), solrad
-      integer(iintegers)  :: dst, src, idof, idofdst, idiff
+      integer(iintegers)  :: idof, idofdst, idiff
+      integer(iintegers)  :: k, i, j, src, dst
 
-      Vec :: ledir
-      PetscScalar,pointer,dimension(:,:,:,:) :: xedir=>null()
-      PetscScalar,pointer,dimension(:)       :: xedir1d=>null()
+      type(tVec) :: ledir
+      real(ireals),pointer,dimension(:,:,:,:) :: xedir=>null()
+      real(ireals),pointer,dimension(:)       :: xedir1d=>null()
 
       logical :: lsun_east,lsun_north
 
@@ -2873,23 +2860,24 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   !> @details This is supposed to work on a 1D solution which has to be calculated beforehand
   !> \n the wrapper copies fluxes and optical properties on one halo and then gives that to NCA
   !> \n the result is the 3D approximation of the absorption, considering neighbouring information
-  subroutine nca_wrapper(ediff,abso)
+  subroutine nca_wrapper(ediff, abso)
     use m_ts_nca, only : ts_nca
-    Vec :: ediff,abso
-    Vec :: gnca ! global nca vector
-    Vec :: lnca ! local nca vector with ghost values -- in dimension 0 and 1 are fluxes followed by dz,planck,kabs
-
-    PetscReal,pointer,dimension(:,:,:,:) :: xv  =>null()
-    PetscReal,pointer,dimension(:)       :: xv1d=>null()
-    PetscReal,pointer,dimension(:,:,:,:) :: xvlnca  =>null(), xvgnca  =>null()
-    PetscReal,pointer,dimension(:)       :: xvlnca1d=>null(), xvgnca1d=>null()
-    PetscReal,pointer,dimension(:,:,:,:) :: xhr  =>null()
-    PetscReal,pointer,dimension(:)       :: xhr1d=>null()
-    integer(iintegers) :: k
-
-    integer(iintegers),parameter :: idz=i2, iplanck=i3, ikabs=i4, ihr=i5
+    type(tVec) :: ediff, abso
+!    type(tVec) :: gnca ! global nca vector
+!    type(tVec) :: lnca ! local nca vector with ghost values -- in dimension 0 and 1 are fluxes followed by dz,planck,kabs
+!
+!    real(ireals),pointer,dimension(:,:,:,:) :: xv  =>null()
+!    real(ireals),pointer,dimension(:)       :: xv1d=>null()
+!    real(ireals),pointer,dimension(:,:,:,:) :: xvlnca  =>null(), xvgnca  =>null()
+!    real(ireals),pointer,dimension(:)       :: xvlnca1d=>null(), xvgnca1d=>null()
+!    real(ireals),pointer,dimension(:,:,:,:) :: xhr  =>null()
+!    real(ireals),pointer,dimension(:)       :: xhr1d=>null()
+!    integer(iintegers) :: k
+!
+!    integer(iintegers),parameter :: idz=i2, iplanck=i3, ikabs=i4, ihr=i5
 
     stop 'nca_wrapper not implemented'
+    print *, 'DEBUG: Stupid print statement to prevent unused compiler warnings', ediff, abso
 
 !   ! put additional values into a local ediff vec .. TODO: this is a rather dirty hack but is straightforward
 
@@ -2952,10 +2940,10 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   !>   \n get_coeff should provide coefficients in dst_order so that we can set  coeffs for a full block(i.e. all coeffs of one box)
   subroutine set_diff_coeff(solver, A,C)
     class(t_solver) :: solver
-    Mat             :: A
+    type(tMat)      :: A
     type(t_coord)   :: C
 
-    PetscInt :: i,j,k
+    integer(iintegers) :: i,j,k
 
     if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Setting coefficients for diffuse Light'
 
@@ -2990,16 +2978,14 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     subroutine set_pprts_coeff(solver,C,A,k,i,j,ierr)
       class(t_solver)               :: solver
       type(t_coord),intent(in)      :: C
-      Mat,intent(inout)             :: A
+      type(tMat),intent(inout)      :: A
       integer(iintegers),intent(in) :: k,i,j
-      PetscErrorCode,intent(out)    :: ierr
+      integer(mpiint),intent(out)   :: ierr
 
       MatStencil :: row(4,0:C%dof-1)  ,col(4,0:C%dof-1)
-      !MatStencil :: row(4,0:1)  ,col(4,0:1)
-      PetscReal :: v(C%dof**2),norm
+      real(ireals) :: v(C%dof**2),norm
 
       integer(iintegers) :: dst,src,idof
-
 
       do idof=1, solver%difftop%dof
         src = idof-1
@@ -3056,30 +3042,10 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       enddo
 
       call get_coeff(solver, solver%atm%op(atmk(solver%atm, k),i,j), solver%atm%dz(atmk(solver%atm, k),i,j),.False., v, solver%atm%l1d(atmk(solver%atm, k),i,j))
-
-      !print *, i,j,k, 'row', row
-      !print *, i,j,k, 'col', col
-
-      !print *, v
-      !v(1:6) = zero
-      !v(13:24) = zero
-      !v(25:36) = zero
-      !v = zero
-      !v(1) = .2 ! eup <- edn
-      !v(2) = .5 ! eup <- eup
-      !v(7) = .5 ! edn <- edn
-      !v(8) = .2 ! edn <- eup
-      !do src=1,6
-      !print *,src,v(src:36:6)
-      !enddo
-
-      !v(1:4) = [0.9, 0.0, 0.0, 0.9] !DEBUG
       call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
-!      call MatSetValuesStencil(A, 2, row, 2, col , -v , INSERT_VALUES, ierr) ;call CHKERR(ierr)
 
       if(ldebug) then
         do src=1,C%dof
-          cycle! DEBUG
           norm = sum( v(src:C%dof**2:C%dof) )
           if( norm.gt.one+10._ireals*epsilon(one) ) then
             print *,'diffuse sum(src==',src,') gt one',norm
@@ -3094,12 +3060,12 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     subroutine set_eddington_coeff(atm,A,k,i,j)
       type(t_atmosphere)            :: atm
-      Mat,intent(inout)             :: A
+      type(tMat),intent(inout)      :: A
       integer(iintegers),intent(in) :: k,i,j
 
-      MatStencil                    :: row(4,2)  ,col(4,2)
-      PetscReal                     :: v(4),twostr_coeff(4) ! v ==> a12,a11,a22,a21
-      integer(iintegers)            :: src,dst
+      MatStencil         :: row(4,2)  ,col(4,2)
+      real(ireals)       :: v(4),twostr_coeff(4) ! v ==> a12,a11,a22,a21
+      integer(iintegers) :: src,dst
 
       if(luse_eddington ) then
         v = [ atm%a12(atmk(atm,k),i,j), atm%a11(atmk(atm,k),i,j), atm%a22(atmk(atm,k),i,j), atm%a21(atmk(atm,k),i,j)]
@@ -3121,9 +3087,9 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     !> @brief insert lower boundary condition, i.e. diffuse reflection of downward radiation
     subroutine set_albedo_coeff(solver,C,A)
-      class(t_solver)     :: solver
-      type(t_coord)       :: C
-      Mat,intent(inout)   :: A
+      class(t_solver), intent(in) :: solver
+      type(t_coord), intent(in)   :: C
+      type(tMat), intent(inout)   :: A
 
       MatStencil :: row(4,1) ,col(4,1)
       integer(iintegers) :: i, j, src, dst
@@ -3166,9 +3132,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     real(ireals),dimension(:,:,:),intent(inout),allocatable,optional :: redir
     integer(iintegers),optional,intent(in) :: opt_solution_uid
 
-    integer(iintegers)  :: uid
-    integer(iintegers)  :: k, iside
-    PetscScalar,pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
+    integer(iintegers)  :: uid, iside
+    real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
     uid = get_arg(0_iintegers, opt_solution_uid)
     if(.not.solver%lenable_solutions_err_estimates) uid = 0

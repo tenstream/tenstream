@@ -45,11 +45,11 @@ module m_gen_fish_plex
     subroutine setup_plex(dm)
       DM :: dm
 
-      PetscInt :: pStart, pEnd
-      PetscInt :: cStart, cEnd
-      PetscInt :: fStart, fEnd
-      PetscInt :: eStart, eEnd
-      PetscInt :: vStart, vEnd
+      integer(iintegers) :: pStart, pEnd
+      integer(iintegers) :: cStart, cEnd
+      integer(iintegers) :: fStart, fEnd
+      integer(iintegers) :: eStart, eEnd
+      integer(iintegers) :: vStart, vEnd
 
       call set_wedge_connectivity(dm)
 
@@ -215,17 +215,17 @@ module m_gen_fish_plex
 
   subroutine create_face_labels(dm)
     DM, intent(inout) :: dm
-    PetscInt    :: i, depth
+    integer(iintegers) :: i, depth
     PetscSection :: s
 
-    PetscInt :: pStart, pEnd
-    PetscInt :: cStart, cEnd
-    PetscInt :: fStart, fEnd
-    PetscInt :: eStart, eEnd
-    PetscInt :: vStart, vEnd
+    integer(iintegers) :: pStart, pEnd
+    integer(iintegers) :: cStart, cEnd
+    integer(iintegers) :: fStart, fEnd
+    integer(iintegers) :: eStart, eEnd
+    integer(iintegers) :: vStart, vEnd
 
     type(tDMLabel) :: faceposlabel, zindexlabel, TOAlabel
-    type(PetscInt) :: lval, zval
+    integer(iintegers) :: lval, zval
 
     call DMCreateLabel(dm, "Face Position", ierr); CHKERRQ(ierr)
     call DMCreateLabel(dm, "Vertical Index", ierr); CHKERRQ(ierr)
