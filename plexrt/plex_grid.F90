@@ -489,7 +489,6 @@ module m_plex_grid
       type(PetscCopyMode),parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
 
       integer(mpiint) :: myid, numnodes, ierr
-      !integer(iintegers) :: N_remote_cells, N_remote_edges, N_remote_vertices
       integer(iintegers) :: icell, iface, iedge, ivertex
       integer(iintegers) :: k, ilocal, iparent, iremote, owner, ileaf, jparent
 
