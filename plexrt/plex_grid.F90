@@ -194,6 +194,7 @@ module m_plex_grid
           owner = icongrid%cellowner(iparent)
 
           call DMPlexSetCone(plex%dm, icell, faces, ierr); call CHKERR(ierr)
+          call DMPlexSetConeOrientation(plex%dm, icell, i0*faces, ierr); call CHKERR(ierr)
 
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , icell, owner  , ierr); call CHKERR(ierr)
           plex%zindex(icell) = k
@@ -215,6 +216,7 @@ module m_plex_grid
           owner = icongrid%cellowner(iparent)
 
           call DMPlexSetCone(plex%dm, iface, edge3, ierr); call CHKERR(ierr)
+          call DMPlexSetConeOrientation(plex%dm, iface, i0*edge3, ierr); call CHKERR(ierr)
 
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iface, owner       , ierr); call CHKERR(ierr)
           plex%ltopfacepos(iface) = .True.
@@ -243,6 +245,7 @@ module m_plex_grid
           owner = icongrid%edgeowner(iparent)
 
           call DMPlexSetCone(plex%dm, iface, edge4, ierr); call CHKERR(ierr)
+          call DMPlexSetConeOrientation(plex%dm, iface, i0*edge4, ierr); call CHKERR(ierr)
 
           plex%ltopfacepos(iface) = .False.
           plex%zindex(iface) = k
@@ -267,6 +270,7 @@ module m_plex_grid
           owner = icongrid%edgeowner(iparent)
 
           call DMPlexSetCone(plex%dm, iedge, vert2, ierr); call CHKERR(ierr)
+          call DMPlexSetConeOrientation(plex%dm, iedge, i0*vert2, ierr); call CHKERR(ierr)
 
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iedge, owner       , ierr); call CHKERR(ierr)
           plex%zindex(iedge) = k
@@ -287,6 +291,7 @@ module m_plex_grid
           owner = icongrid%vertexowner(iparent)
 
           call DMPlexSetCone(plex%dm, iedge, vert2, ierr); call CHKERR(ierr)
+          call DMPlexSetConeOrientation(plex%dm, iedge, i0*vert2, ierr); call CHKERR(ierr)
 
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iedge, owner    , ierr); call CHKERR(ierr)
           plex%zindex(iedge) = k
@@ -323,13 +328,15 @@ module m_plex_grid
 
       call DMSetFromOptions(plex%dm, ierr); call CHKERR(ierr)
 
-      if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : show plex'
-      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
+      call PetscObjectSetName(plex%dm, 'Icon DMPLEX', ierr);call CHKERR(ierr)
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : clone plex'
       call DMClone(plex%dm, clonedm, ierr); call CHKERR(ierr)
       call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
       plex%dm = clonedm
+
+      if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : show plex'
+      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : create default section'
       call create_plex_section(plex%comm, plex%dm, 'cell section', i1, i0, i0, i0, cell_section)  ! Contains 1 dof for centroid on cells
@@ -372,7 +379,7 @@ module m_plex_grid
         do icell = cStart, cEnd-1
           call DMLabelGetValue(plex%ownerlabel, icell, labelval, ierr); call CHKERR(ierr)
           call PetscSectionGetOffset(cellSection, icell, voff, ierr); call CHKERR(ierr)
-          xv(voff+1) = labelval
+          xv(voff+1) = real(labelval, kind=ireals)
         enddo
         call VecRestoreArrayF90(globalVec, xv, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(globalVec, PETSC_NULL_VEC, '-show_ownership', ierr); call CHKERR(ierr)
@@ -382,7 +389,7 @@ module m_plex_grid
         do icell = cStart, cEnd-1
           labelval = icongrid%cell_index(plex%localiconindex(icell))
           call PetscSectionGetOffset(cellSection, icell, voff, ierr); call CHKERR(ierr)
-          xv(voff+1) = labelval
+          xv(voff+1) = real(labelval, kind=ireals)
         enddo
         call VecRestoreArrayF90(globalVec, xv, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(globalVec, PETSC_NULL_VEC, '-show_iconindex', ierr); call CHKERR(ierr)
@@ -392,7 +399,7 @@ module m_plex_grid
         do icell = cStart, cEnd-1
           labelval = plex%zindex(icell)
           call PetscSectionGetOffset(cellSection, icell, voff, ierr); call CHKERR(ierr)
-          xv(voff+1) = labelval
+          xv(voff+1) = real(labelval, kind=ireals)
         enddo
         call VecRestoreArrayF90(globalVec, xv, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(globalVec, PETSC_NULL_VEC, '-show_zindex', ierr); call CHKERR(ierr)
@@ -773,7 +780,7 @@ module m_plex_grid
 
       !print *,'centroid of face:',iface,'::', sum(vertex_coord,dim=1)/Nvertices
       call PetscSectionGetOffset(geomSection, iface, voff, ierr); call CHKERR(ierr)
-      geoms(i1+voff:voff+Ndim) = sum(vertex_coord,dim=2)/Nvertices
+      geoms(i1+voff:voff+Ndim) = sum(vertex_coord,dim=2) / real(Nvertices, kind=ireals)
 
       ! and use 3 coordinates to compute normal
       ! print *,'normal of face', iface,'::', compute_normal_3d(vertex_coord(1,:),vertex_coord(2,:),vertex_coord(3,:))
