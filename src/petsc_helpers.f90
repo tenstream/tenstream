@@ -257,8 +257,8 @@ module m_petsc_helpers
   subroutine getVecPointer(vec,dm,x1d,x4d)
   type(tVec) :: vec
   type(tDM), intent(in) :: dm
-  PetscScalar,intent(inout),pointer,dimension(:,:,:,:) :: x4d
-  PetscScalar,intent(inout),pointer,dimension(:) :: x1d
+  real(ireals),intent(inout),pointer,dimension(:,:,:,:) :: x4d
+  real(ireals),intent(inout),pointer,dimension(:) :: x1d
 
   integer(iintegers) :: N, dmdim, dof, glob_zm, glob_xm, glob_ym
   integer(iintegers) :: zs, ze, xs, xe, ys, ye, zm, xm, ym
@@ -289,11 +289,6 @@ module m_petsc_helpers
   gye = gys+gym-1
   gze = gzs+gzm-1
 
-  print *,'Domain Corners z:: ',zs,':',ze,' (',zm,' entries)','global size',glob_zm
-  print *,'Domain Corners x:: ',xs,':',xe,' (',xm,' entries)','global size',glob_xm
-  print *,'Domain Corners y:: ',ys,':',ye,' (',ym,' entries)','global size',glob_ym
-  print *,'DOF',dof
-
   call VecGetLocalSize(vec,N,ierr)
 
   if( N .eq. dof*xm*ym*zm .or. N .eq. dof*glob_xm*glob_ym*glob_zm) then
@@ -317,8 +312,8 @@ module m_petsc_helpers
   end subroutine
   subroutine restoreVecPointer(vec,x1d,x4d)
   type(tVec) :: vec
-  PetscScalar,intent(inout),pointer,dimension(:,:,:,:) :: x4d
-  PetscScalar,intent(inout),pointer,dimension(:) :: x1d
+  real(ireals),intent(inout),pointer,dimension(:,:,:,:) :: x4d
+  real(ireals),intent(inout),pointer,dimension(:) :: x1d
   integer(mpiint) :: ierr
 
   if(.not.associated(x1d).or..not.associated(x4d)) then
