@@ -50,9 +50,9 @@ subroutine pprts_ex1()
     ksca = 1e-3_ireals/(dz*nv)
     g    = zero
 
-    kabs(nv/2,nxp/2,1:nyp) = 1/dz
-    ksca(nv/2,nxp/2,1:nyp) = 1/dz
-    g   (nv/2,nxp/2,1:nyp) = .9
+    kabs(nv/2,nxp/2,:) = 1/dz
+    ksca(nv/2,nxp/2,:) = 1/dz
+    g   (nv/2,nxp/2,:) = .9
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call set_angles(solver, 0._ireals, theta0)
