@@ -20,14 +20,12 @@ module m_plex_grid
   type :: t_plexgrid
     integer(mpiint) :: comm
 
-    DM, allocatable :: dm
-
-    DM, allocatable :: abso_dm
-
-    DM, allocatable :: edir_dm
-
-    DM, allocatable :: geom_dm
+    type(tDM), allocatable :: dm
+    type(tDM), allocatable :: abso_dm
+    type(tDM), allocatable :: edir_dm
+    type(tDM), allocatable :: geom_dm
     type(tVec) :: geomVec
+    type(tPetscSF) :: default_sf
 
     character(len=8) :: boundary_label='boundary'
 
