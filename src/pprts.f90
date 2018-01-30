@@ -28,7 +28,8 @@ module m_pprts
     default_str_len
 
   use m_helper_functions, only : CHKERR, deg2rad, rad2deg, norm, imp_allreduce_min, &
-    imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, mean, get_arg, approx
+    imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, mean, get_arg, approx, &
+    inc
 
   use m_twostream, only: delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
@@ -150,7 +151,7 @@ module m_pprts
 
   logical,parameter :: ldebug=.True.
   logical,parameter :: lcycle_dir=.True.
-  logical,parameter :: lprealloc=.False.
+  logical,parameter :: lprealloc=.True.
 
   integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
 
@@ -567,8 +568,8 @@ module m_pprts
   !  !   if(any(solver%atm%l1d.eqv..False.)) call OPP_8_10%init(pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),solver%comm)
   !     if(.not.luse_eddington)      call OPP_1_2%init (pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),solver%comm)
 
-      call init_Matrix(solver%Mdir , solver%C_dir )
-      call init_Matrix(solver%Mdiff, solver%C_diff)
+      call init_Matrix(solver, solver%C_dir , solver%Mdir , setup_direct_preallocation)
+      call init_Matrix(solver, solver%C_diff, solver%Mdiff, setup_diffuse_preallocation)
   end subroutine
 
 
@@ -828,19 +829,36 @@ module m_pprts
   !>  \n  this does of course drastically overestimate non-zeros as we need only the streams that actually send radiation in the respective direction.
   !>  \n  at the moment preallocation routines determine nonzeros by manually checking bounadries --
   !>  \n  !todo we should really use some form of iterating through the entries as it is done in the matrix assembly routines and just flag the rows
-  subroutine init_Matrix(A,C)!,prefix)
+  subroutine init_Matrix(solver, C, A, prealloc_subroutine)
+    interface
+      subroutine preallocation_sub(solver, C, d_nnz, o_nnz)
+        import :: t_solver, t_coord, iintegers
+        class(t_solver), intent(in) :: solver
+        type(t_coord), intent(in) :: C
+        integer(iintegers),allocatable :: d_nnz(:)
+        integer(iintegers),allocatable :: o_nnz(:)
+      end subroutine
+    end interface
+
+    class(t_solver), intent(in) :: solver
+    type(t_coord), intent(in) :: C
     type(tMat), allocatable, intent(inout) :: A
-    type(t_coord) :: C
+    procedure(preallocation_sub), optional :: prealloc_subroutine
+
+    integer(iintegers),dimension(:),allocatable :: o_nnz,d_nnz
 
     if(.not.allocated(A)) then
       allocate(A)
       call DMCreateMatrix(C%da, A, ierr) ;call CHKERR(ierr)
     endif
 
+    if(lprealloc.and.present(prealloc_subroutine)) then
+      call prealloc_subroutine(solver, C, d_nnz, o_nnz)
+      call MatMPIAIJSetPreallocation(A, C%dof+1, d_nnz, C%dof, o_nnz, ierr) ;call CHKERR(ierr)
+    else ! poor mans perallocation uses way more memory...
+      call MatMPIAIJSetPreallocation(A, C%dof+1, PETSC_NULL_INTEGER, C%dof, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
+    endif
     call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
-    call MatMPIAIJSetPreallocation(A, C%dof+1, PETSC_NULL_INTEGER, C%dof, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
-
-    call mat_info(A)
 
     ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many
     ! call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;call CHKERR(ierr)
@@ -848,13 +866,11 @@ module m_pprts
     ! pressure mesh  may wiggle a bit and change atm%l1d -- keep the nonzeros flexible
     !call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE,ierr) ;call CHKERR(ierr)
 
-
     ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;call CHKERR(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
 
     call MatSetFromOptions(A,ierr) ;call CHKERR(ierr)
     call MatSetUp(A,ierr) ;call CHKERR(ierr)
 
-    call mat_info(A)
     call mat_set_diagonal(A,C)
   contains
     subroutine mat_set_diagonal(A,C,vdiag)
@@ -907,24 +923,334 @@ module m_pprts
 
   end subroutine
 
-  subroutine mat_info(A)
-    type(tMat) :: A
-    MatInfo :: info(MAT_INFO_SIZE)
-    real(ireals) :: mal, nz_allocated, nz_used, nz_unneeded
-    integer(iintegers) :: m,n
+  subroutine setup_direct_preallocation(solver, C, d_nnz, o_nnz)
+    class(t_solver), intent(in) :: solver
+    type(t_coord), intent(in) :: C
+    integer(iintegers),allocatable :: d_nnz(:)
+    integer(iintegers),allocatable :: o_nnz(:)
+    type(tVec) :: v_o_nnz,v_d_nnz
+    type(tVec) :: g_o_nnz,g_d_nnz
+    real(ireals),Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
+    real(ireals),Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
 
-    return !TODO see doxy details...
+    integer(iintegers) :: vsize, i, j, k, isrc, idst, xinc, yinc, src, dst, icnt
+
+    logical :: llocal_src, llocal_dst
+    integer(mpiint) :: myid, ierr
+    MatStencil :: row(4,C%dof), col(4,C%dof)
+
+    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+
+
+    if(myid.eq.0.and.ldebug) print *,myid,'building direct o_nnz for mat with',C%dof,'dof'
+    call DMGetLocalVector(C%da,v_o_nnz,ierr) ;call CHKERR(ierr)
+    call DMGetLocalVector(C%da,v_d_nnz,ierr) ;call CHKERR(ierr)
+
+    call getVecPointer(v_o_nnz, C%da, xo1d, xo)
+    call getVecPointer(v_d_nnz, C%da, xd1d, xd)
+
+    xd = zero
+    xo = zero
+
+    icnt = -1
+    do j=C%ys,C%ye
+      do i=C%xs,C%xe
+        do k=C%zs,C%ze-1
+
+          if( solver%atm%l1d(atmk(solver%atm,k), i, j) ) then
+            do idst = i0, solver%dirtop%dof-1
+              call inc( xd(idst, k+1, i,j), one )
+            enddo
+          else
+            xinc = solver%sun%angles(k,i,j)%xinc
+            yinc = solver%sun%angles(k,i,j)%yinc
+
+            do idst = 1, solver%dirtop%dof
+              dst = idst
+              row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k+1; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the lower/upper lid
+            enddo
+
+            do idst = 1, solver%dirside%dof
+              dst = idst + solver%dirtop%dof
+              row(MatStencil_j,dst) = i+xinc   ; row(MatStencil_k,dst) = j        ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the left/right lid
+            enddo
+
+            do idst = 1, solver%dirside%dof
+              dst = idst + solver%dirtop%dof + solver%dirside%dof
+              row(MatStencil_j,dst) = i        ; row(MatStencil_k,dst) = j+yinc   ; row(MatStencil_i,dst) = k  ; row(MatStencil_c,dst) = dst-i1 ! Define transmission towards the front/back lid
+            enddo
+
+            do isrc = 1, solver%dirtop%dof
+              src = isrc
+              col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k; col(MatStencil_c,src) = src-i1 ! Define transmission towards the lower/upper lid
+            enddo
+
+            do isrc = 1, solver%dirside%dof
+              src = isrc + solver%dirtop%dof
+              col(MatStencil_j,src) = i+1-xinc   ; col(MatStencil_k,src) = j        ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Define transmission towards the left/right lid
+            enddo
+
+            do isrc = 1, solver%dirside%dof
+              src = isrc + solver%dirtop%dof + solver%dirside%dof
+              col(MatStencil_j,src) = i        ; col(MatStencil_k,src) = j+1-yinc   ; col(MatStencil_i,src) = k  ; col(MatStencil_c,src) = src-i1 ! Define transmission towards the front/back lid
+            enddo
+
+            do idst = 1,C%dof
+              icnt = icnt+1
+              llocal_dst = .True.
+              if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. row(MatStencil_j,idst).lt.C%xs ) llocal_dst = .False. ! have real neighbor west  and is not local entry
+              if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. row(MatStencil_j,idst).gt.C%xe ) llocal_dst = .False. ! have real neighbor east  and is not local entry
+              if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. row(MatStencil_k,idst).lt.C%ys ) llocal_dst = .False. ! have real neighbor south and is not local entry
+              if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. row(MatStencil_k,idst).gt.C%ye ) llocal_dst = .False. ! have real neighbor north and is not local entry
+
+              do isrc = 1,C%dof
+                llocal_src = .True.
+
+                if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. col(MatStencil_j,isrc).lt.C%xs ) llocal_src = .False. ! have real neighbor west  and is not local entry
+                if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. col(MatStencil_j,isrc).gt.C%xe ) llocal_src = .False. ! have real neighbor east  and is not local entry
+                if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. col(MatStencil_k,isrc).lt.C%ys ) llocal_src = .False. ! have real neighbor south and is not local entry
+                if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. col(MatStencil_k,isrc).gt.C%ye ) llocal_src = .False. ! have real neighbor north and is not local entry
+
+                !if(myid.eq.0) print *,myid,icnt,k,i,j,'::',idst,isrc,'::',llocal_dst,llocal_src
+                if(llocal_dst .and. llocal_src) then
+                  call inc(xd(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
+                else
+                  call inc(xo(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
+                endif
+              enddo
+            enddo
+          endif
+        enddo
+      enddo
+    enddo
+
+    call restoreVecPointer(v_o_nnz, xo1d, xo)
+    call restoreVecPointer(v_d_nnz, xd1d, xd)
+
+    call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;call CHKERR(ierr)
+    call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;call CHKERR(ierr)
+    call VecSet(g_o_nnz, zero, ierr); call CHKERR(ierr)
+    call VecSet(g_d_nnz, zero, ierr); call CHKERR(ierr)
+
+    call DMLocalToGlobalBegin(C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;call CHKERR(ierr)
+    call DMLocalToGlobalEnd  (C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;call CHKERR(ierr)
+
+    call DMLocalToGlobalBegin(C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;call CHKERR(ierr)
+    call DMLocalToGlobalEnd  (C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;call CHKERR(ierr)
+
+    call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;call CHKERR(ierr)
+    call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;call CHKERR(ierr)
+
+    call getVecPointer(g_o_nnz, C%da, xo1d, xo)
+    call getVecPointer(g_d_nnz, C%da, xd1d, xd)
+
+    call VecGetLocalSize(g_d_nnz,vsize,ierr) ;call CHKERR(ierr)
+    allocate(o_nnz(0:vsize-1))
+    allocate(d_nnz(0:vsize-1))
+
+    o_nnz=int(xo1d, kind=iintegers)
+    d_nnz=int(xd1d, kind=iintegers) + i1  ! +1 for diagonal entries
+
+    call restoreVecPointer(g_o_nnz, xo1d, xo)
+    call restoreVecPointer(g_d_nnz, xd1d, xd)
+
+    call DMRestoreGlobalVector(C%da,g_o_nnz,ierr) ;call CHKERR(ierr)
+    call DMRestoreGlobalVector(C%da,g_d_nnz,ierr) ;call CHKERR(ierr)
+
+    if(myid.eq.0 .and. ldebug) print *,myid,'direct d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
+  end subroutine
+
+  subroutine setup_diffuse_preallocation(solver, C, d_nnz, o_nnz)
+    class(t_solver), intent(in) :: solver
+    type(t_coord), intent(in) :: C
+    integer(iintegers),allocatable :: d_nnz(:)
+    integer(iintegers),allocatable :: o_nnz(:)
+    type(tVec) :: v_o_nnz,v_d_nnz
+    type(tVec) :: g_o_nnz,g_d_nnz
+    real(ireals),Pointer :: xo(:,:,:,:)=>null(),xd(:,:,:,:)=>null()
+    real(ireals),Pointer :: xo1d(:)=>null(),xd1d(:)=>null()
+
+    integer(iintegers) :: vsize, i, j, k, isrc, idst, src, dst, icnt
+    integer(iintegers) :: dst_id, src_id, idof
+    integer(mpiint) :: myid, ierr
+    MatStencil :: row(4,0:C%dof-1), col(4,0:C%dof-1)
+
+    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+
+    if(myid.eq.0.and.ldebug) print *,myid,'building diffuse o_nnz for mat with',C%dof,'dof'
+    call DMGetLocalVector(C%da, v_o_nnz, ierr) ;call CHKERR(ierr)
+    call DMGetLocalVector(C%da, v_d_nnz, ierr) ;call CHKERR(ierr)
+
+    call getVecPointer(v_o_nnz, C%da, xo1d, xo)
+    call getVecPointer(v_d_nnz, C%da, xd1d, xd)
+
+
+    xd = zero
+    xo = zero
+
+    icnt = -1
+    do j=C%ys,C%ye
+      do i=C%xs,C%xe
+        do k=C%zs,C%ze-1
+
+          if( solver%atm%l1d(atmk(solver%atm, k),i,j) ) then
+            call inc( xd(E_dn, k+1, i,j), 2*one )
+            call inc( xd(E_up, k  , i,j), 2*one )
+          else
+
+            ! Diffuse Coefficients Code Begin
+            do idof=1, solver%difftop%dof
+              src = idof-1
+              if (solver%difftop%is_inward(idof)) then
+                col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
+              else
+                col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k+1   ; col(MatStencil_c,src) = src
+              endif
+            enddo
+
+            do idof=1, solver%diffside%dof
+              src = solver%difftop%dof + idof -1
+              if (solver%diffside%is_inward(idof)) then
+                col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
+              else
+                col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
+              endif
+            enddo
+
+            do idof=1, solver%diffside%dof
+              src = solver%difftop%dof + solver%diffside%dof + idof -1
+              if (solver%diffside%is_inward(idof)) then
+                col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
+              else
+                col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
+              endif
+            enddo
+
+            do idof=1, solver%difftop%dof
+              dst = idof-1
+              if (solver%difftop%is_inward(idof)) then
+                row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k+1   ; row(MatStencil_c,dst) = dst
+              else
+                row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
+              endif
+            enddo
+
+            do idof=1, solver%diffside%dof
+              dst = solver%difftop%dof + idof-1
+              if (solver%diffside%is_inward(idof)) then
+                row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
+              else
+                row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
+              endif
+            enddo
+
+            do idof=1, solver%diffside%dof
+              dst = solver%difftop%dof + solver%diffside%dof + idof-1
+              if (solver%diffside%is_inward(idof)) then
+                row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
+              else
+                row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
+              endif
+            enddo
+            ! Diffuse Coefficients Code End
+
+            do idst = 0,C%dof-1
+              icnt = icnt+1
+              dst_id = myid
+              if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. row(MatStencil_j,idst).lt.C%xs ) dst_id = C%neighbors(10) ! have real neighbor west  and is not local entry
+              if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. row(MatStencil_j,idst).gt.C%xe ) dst_id = C%neighbors(16) ! have real neighbor east  and is not local entry
+              if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. row(MatStencil_k,idst).lt.C%ys ) dst_id = C%neighbors( 4) ! have real neighbor south and is not local entry
+              if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. row(MatStencil_k,idst).gt.C%ye ) dst_id = C%neighbors(22) ! have real neighbor north and is not local entry
+
+              do isrc = 0,C%dof-1
+                src_id = myid
+
+                if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. col(MatStencil_j,isrc).lt.C%xs ) src_id = C%neighbors(10) ! have real neighbor west  and is not local entry
+                if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. col(MatStencil_j,isrc).gt.C%xe ) src_id = C%neighbors(16) ! have real neighbor east  and is not local entry
+                if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. col(MatStencil_k,isrc).lt.C%ys ) src_id = C%neighbors( 4) ! have real neighbor south and is not local entry
+                if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. col(MatStencil_k,isrc).gt.C%ye ) src_id = C%neighbors(22) ! have real neighbor north and is not local entry
+
+                if(src_id .eq. dst_id) then
+                  call inc(xd(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
+                else
+                  call inc(xo(row(4,idst),row(3,idst),row(2,idst),row(1,idst)), one)
+                endif
+
+              enddo
+            enddo
+
+          endif ! atm_1d / 3d?
+        enddo ! k
+
+        ! Surface entries E_up
+        do idof=1, solver%difftop%dof
+          src = idof-1
+          if (.not.solver%difftop%is_inward(idof)) then
+            call inc( xd(src, C%ze, i,j), one )
+          endif
+        enddo
+
+      enddo
+    enddo
+
+    call restoreVecPointer(v_o_nnz, xo1d, xo)
+    call restoreVecPointer(v_d_nnz, xd1d, xd)
+
+    call DMGetGlobalVector(C%da,g_o_nnz,ierr) ;call CHKERR(ierr)
+    call DMGetGlobalVector(C%da,g_d_nnz,ierr) ;call CHKERR(ierr)
+    call VecSet(g_o_nnz, zero, ierr); call CHKERR(ierr)
+    call VecSet(g_d_nnz, zero, ierr); call CHKERR(ierr)
+
+    call DMLocalToGlobalBegin(C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;call CHKERR(ierr)
+    call DMLocalToGlobalEnd  (C%da,v_o_nnz,ADD_VALUES,g_o_nnz,ierr) ;call CHKERR(ierr)
+
+    call DMLocalToGlobalBegin(C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;call CHKERR(ierr)
+    call DMLocalToGlobalEnd  (C%da,v_d_nnz,ADD_VALUES,g_d_nnz,ierr) ;call CHKERR(ierr)
+
+    call DMRestoreLocalVector(C%da,v_o_nnz,ierr) ;call CHKERR(ierr)
+    call DMRestoreLocalVector(C%da,v_d_nnz,ierr) ;call CHKERR(ierr)
+
+    call getVecPointer(g_o_nnz, C%da, xo1d, xo)
+    call getVecPointer(g_d_nnz, C%da, xd1d, xd)
+
+    call VecGetLocalSize(g_d_nnz, vsize, ierr) ;call CHKERR(ierr)
+    allocate(o_nnz(0:vsize-1))
+    allocate(d_nnz(0:vsize-1))
+
+    o_nnz=int(xo1d, kind=iintegers)
+    d_nnz=int(xd1d, kind=iintegers) + i1  ! +1 for diagonal entries
+
+    call restoreVecPointer(g_o_nnz, xo1d, xo)
+    call restoreVecPointer(g_d_nnz, xd1d, xd)
+
+    call DMRestoreGlobalVector(C%da, g_o_nnz, ierr) ;call CHKERR(ierr)
+    call DMRestoreGlobalVector(C%da, g_d_nnz, ierr) ;call CHKERR(ierr)
+
+    if(myid.eq.0 .and. ldebug) print *,myid,'diffuse d_nnz, ',sum(d_nnz),'o_nnz',sum(o_nnz),'together:',sum(d_nnz)+sum(o_nnz),'expected less than',vsize*(C%dof+1)
+
+  end subroutine
+
+  subroutine mat_info(comm, A)
+    MPI_Comm, intent(in) :: comm
+    type(tMat) :: A
+    double precision :: info(MAT_INFO_SIZE)
+    double precision :: mal, nz_allocated, nz_used, nz_unneeded
+    integer(iintegers) :: m, n
+    integer(mpiint) :: myid, ierr
+
+    call mpi_comm_rank(comm, myid, ierr)     ; call CHKERR(ierr)
+
     call MatGetInfo(A,MAT_LOCAL,info,ierr) ;call CHKERR(ierr)
-    mal = info(MAT_INFO_MALLOCS)
+    mal          = info(MAT_INFO_MALLOCS)
     nz_allocated = info(MAT_INFO_NZ_ALLOCATED)
-    nz_used   = info(MAT_INFO_NZ_USED)
-    nz_unneeded = info(MAT_INFO_NZ_UNNEEDED)
+    nz_used      = info(MAT_INFO_NZ_USED)
+    nz_unneeded  = info(MAT_INFO_NZ_UNNEEDED)
 
     call MatGetOwnershipRange(A, m,n, ierr)
 
-    !if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_MALLOCS',mal,'MAT_INFO_NZ_ALLOCATED',nz_allocated
-    !if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
-    !if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: Ownership range',m,n
+    if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_MALLOCS',mal,'MAT_INFO_NZ_ALLOCATED',nz_allocated
+    if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
+    if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: Ownership range',m,n
   end subroutine
   pure function atmk(atm, k) ! return vertical index value for DMDA grid on atmosphere grid
     integer(iintegers) :: atmk
@@ -1363,6 +1689,7 @@ module m_pprts
 
       call setup_incSolar(solver, solver%incSolar, edirTOA)
       call set_dir_coeff(solver, solver%sun, solver%Mdir, C_dir)
+      if(ldebug) call mat_info(solver%comm, solver%Mdir)
 
       call setup_ksp(solver%atm, kspdir, C_dir, solver%Mdir, linit_kspdir, "dir_")
 
@@ -1378,6 +1705,8 @@ module m_pprts
 
     ! ---------------------------- Ediff -------------------
     call set_diff_coeff(solver, Mdiff,C_diff)
+    if(ldebug) call mat_info(solver%comm, solver%Mdiff)
+
     call setup_ksp(solver%atm, kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
 
     call solve(solver, kspdiff, solver%b, solutions(uid)%ediff,uid)
@@ -2404,7 +2733,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     subroutine set_pprts_coeff(solver, C,A,k,i,j)
       class(t_solver)               :: solver
       type(t_coord),intent(in)      :: C
-      type(tMat),intent(inout)             :: A
+      type(tMat),intent(inout)      :: A
       integer(iintegers),intent(in) :: i,j,k
 
       MatStencil         :: row(4,C%dof)  ,col(4,C%dof)
@@ -3158,7 +3487,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
         if(solver%atm%lcollapse) stop 'pprts_get_result :: lcollapse needs to be implemented'
 
         call getVecPointer(solver%solutions(uid)%edir, solver%C_dir%da, x1d, x4d)
-        redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / solver%dirtop%dof  ! average of direct radiation of all fluxes through top faces
+        redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%dof, kind=ireals)  ! average of direct radiation of all fluxes through top faces
         call restoreVecPointer(solver%solutions(uid)%edir, x1d, x4d)
 
         if(ldebug) then
