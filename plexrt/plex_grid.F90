@@ -83,7 +83,6 @@ module m_plex_grid
       integer(mpiint)    :: myid, numnodes, ierr
 
       type(tPetscSection) :: cell_section
-      type(tDM) :: clonedm
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
@@ -100,7 +99,6 @@ module m_plex_grid
       plex%Nz = Nz
       if(size(hhl).ne.Nz+1) stop 'plex_grid::create_plex_from_icongrid -> hhl does not fit the size of Nz+1'
       allocate(plex%hhl(Nz+1), source=hhl)
-
 
       plex%Ncells    = icongrid%Nfaces * plex%Nz
       plex%Nfaces    = icongrid%Nfaces * (plex%Nz+1) + icongrid%Nedges * plex%Nz
@@ -312,34 +310,29 @@ module m_plex_grid
         enddo
       enddo
 
-      if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : putting up sf_graph'
-      call set_sf_graph(icongrid, plex)
-
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : symmetrize dm'
       call DMPlexSymmetrize(plex%dm, ierr); call CHKERR(ierr)
       call DMPlexStratify(plex%dm, ierr); call CHKERR(ierr)
+
+      if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : putting up sf_graph'
+      call set_sf_graph(icongrid, plex)
 
       call update_plex_indices(plex)
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : set coords'
       call set_coords(plex, icongrid)
 
-      call DMSetFromOptions(plex%dm, ierr); call CHKERR(ierr)
-
       call PetscObjectSetName(plex%dm, 'Icon DMPLEX', ierr);call CHKERR(ierr)
 
-      if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : clone plex'
-      call DMClone(plex%dm, clonedm, ierr); call CHKERR(ierr)
-      call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
-      plex%dm = clonedm
-
-      if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : show plex'
-      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
+      call DMSetFromOptions(plex%dm, ierr); call CHKERR(ierr)
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : create default section'
       call create_plex_section(plex%comm, plex%dm, 'cell section', i1, i0, i0, i0, cell_section)  ! Contains 1 dof for centroid on cells
       call DMSetDefaultSection(plex%dm, cell_section, ierr); call CHKERR(ierr)
       call PetscSectionDestroy(cell_section, ierr); call CHKERR(ierr)
+
+      if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : show plex'
+      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: finished'
 
@@ -352,7 +345,6 @@ module m_plex_grid
         type(tVec) :: globalVec
         real(ireals), pointer :: xv(:)
         type(tPetscSection) :: cellSection
-        type(tDM) :: ownershipdm
         integer(iintegers) :: icell, cStart, cEnd, voff, labelval
 
         integer(mpiint) :: myid, ierr
@@ -360,17 +352,13 @@ module m_plex_grid
         call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
         if(ldebug.and.myid.eq.0) print *,'dump_ownership :: starting'
-        call DMClone(plex%dm, ownershipdm, ierr); ; call CHKERR(ierr)
 
-        call create_plex_section(plex%comm, ownershipdm, 'Geometry Section', i1, i0, i0, i0, cellSection)
-        call DMSetDefaultSection(ownershipdm, cellSection, ierr); call CHKERR(ierr)
-        call PetscSectionDestroy(cellSection, ierr); call CHKERR(ierr)
-        call DMGetDefaultSection(ownershipdm, cellSection, ierr); call CHKERR(ierr)
+        call DMGetDefaultSection(plex%dm, cellSection, ierr); call CHKERR(ierr)
 
-        call DMPlexGetHeightStratum(ownershipdm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+        call DMPlexGetHeightStratum(plex%dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
 
         ! Now lets get vectors!
-        call DMGetGlobalVector(ownershipdm, globalVec,ierr); call CHKERR(ierr)
+        call DMGetGlobalVector(plex%dm, globalVec,ierr); call CHKERR(ierr)
 
         call PetscObjectSetName(globalVec, 'ownershipvec', ierr);call CHKERR(ierr)
         call VecGetArrayF90(globalVec, xv, ierr); call CHKERR(ierr)
@@ -402,7 +390,7 @@ module m_plex_grid
         call VecRestoreArrayF90(globalVec, xv, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(globalVec, PETSC_NULL_VEC, '-show_zindex', ierr); call CHKERR(ierr)
 
-        call DMRestoreGlobalVector(ownershipdm, globalVec, ierr); call CHKERR(ierr)
+        call DMRestoreGlobalVector(plex%dm, globalVec, ierr); call CHKERR(ierr)
         if(ldebug.and.myid.eq.0) print *,'dump_ownership :: finished'
       end subroutine
 
@@ -612,12 +600,6 @@ module m_plex_grid
       call PetscSFSetGraph(sf, nroots, nleaves, ilocal_elements, localmode, iremote_elements, remotemode, ierr); call CHKERR(ierr)
 
       call PetscSFSetUp(sf, ierr); call CHKERR(ierr)
-
-      call DMSetDefaultSF(plexgrid%dm, sf, ierr); call CHKERR(ierr)
-      call DMGetDefaultSF(plexgrid%dm, sf, ierr); call CHKERR(ierr)
-
-      call PetscObjectViewFromOptions(sf, PETSC_NULL_SF, "-show_sf", ierr); call CHKERR(ierr)
-      !stop 'debug'
     end subroutine
 
     subroutine load_plex_from_file(comm, gridfile, plex)
@@ -963,7 +945,7 @@ module m_plex_grid
   subroutine ncvar2d_to_globalvec(plexgrid, filename, varname, vec)
     type(t_plexgrid), intent(in) :: plexgrid
     character(len=*), intent(in) :: filename, varname
-    type(tVec), intent(out) :: vec
+    type(tVec), intent(inout) :: vec
 
     type(tVec) :: local
     type(tVecScatter) :: scatter_context
