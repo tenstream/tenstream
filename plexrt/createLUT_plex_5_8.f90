@@ -25,7 +25,7 @@ program main
       use m_data_parameters, only: mpiint, ireals, init_mpi_data_parameters
       use m_helper_functions, only: CHKERR
       use mpi
-      use m_optprop_LUT, only : t_optprop_LUT_wedge_5_8
+      use m_optprop_LUT, only : t_optprop_LUT_wedge_4_8
       use m_tenstream_options, only : read_commandline_options
 
       integer(mpiint) :: myid,comm
@@ -34,7 +34,7 @@ program main
       real(ireals) :: user_sza
       real(ireals) :: azis(91),szas(92)
 
-      type(t_optprop_LUT_wedge_5_8) :: OPP
+      type(t_optprop_LUT_wedge_4_8) :: OPP
 
       PetscErrorCode :: ierr
       integer :: i

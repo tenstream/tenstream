@@ -18,8 +18,8 @@
 !-------------------------------------------------------------------------
 
 module m_helper_functions
-  use m_data_parameters,only : iintegers,ireals,pi,zero,one,imp_real,imp_int,imp_logical,mpiint, &
-    i1
+  use m_data_parameters,only : iintegers, mpiint, ireals, ireal_dp, &
+    i1, pi, zero, one, imp_real, imp_int, imp_logical
 
   use mpi
 
@@ -31,7 +31,7 @@ module m_helper_functions
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique, itoa
+    vec_proj_on_plane, get_arg, unique, itoa, triangle_intersection, square_intersection
 
   interface mean
     module procedure mean_1d, mean_2d
@@ -542,13 +542,13 @@ module m_helper_functions
     subroutine reorder_mpi_comm(icomm, Nrank_x, Nrank_y, new_comm)
       integer(mpiint), intent(in) :: icomm
       integer(mpiint), intent(out) :: new_comm
-      integer(iintegers) :: Nrank_x, Nrank_y
+      integer(mpiint) :: Nrank_x, Nrank_y
 
       ! This is the code snippet from Petsc FAQ to change from PETSC (C) domain splitting to MPI(Fortran) domain splitting
       ! the numbers of processors per direction are (int) x_procs, y_procs, z_procs respectively
       ! (no parallelization in direction 'dir' means dir_procs = 1)
 
-      integer(iintegers) :: x,y
+      integer(mpiint) :: x,y
       integer(mpiint) :: orig_id, petsc_id ! id according to fortran decomposition
 
       call MPI_COMM_RANK( icomm, orig_id, mpierr ); call CHKERR(mpierr)
@@ -641,21 +641,22 @@ module m_helper_functions
     end function
 
     !> @brief determine if point is inside a triangle p1,p2,p3
-    pure function pnt_in_triangle(p1,p2,p3, p)
+    function pnt_in_triangle(p1,p2,p3, p)
       real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
       logical :: pnt_in_triangle
       real(ireals),parameter :: eps = epsilon(eps), eps2 = 100*eps
       real(ireals) :: a, b, c, edge_dist
+      logical, parameter :: ldebug=.False.
 
       ! First check on rectangular bounding box
       if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
         pnt_in_triangle=.False.
-        !print *,'pnt_in_triangle, bounding box check failed:', p
+        if(ldebug) print *,'pnt_in_triangle, bounding box check failed:', p
         return
       endif
       if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
         pnt_in_triangle=.False.
-        !print *,'pnt_in_triangle, bounding box check failed:', p
+        if(ldebug) print *,'pnt_in_triangle, bounding box check failed:', p
         return
       endif
 
@@ -670,7 +671,7 @@ module m_helper_functions
         edge_dist = distance_to_triangle_edges(p1,p2,p3,p)
         if(edge_dist.le.sqrt(eps)) pnt_in_triangle=.True.
       endif
-      !print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p,'edgedist',distance_to_triangle_edges(p1,p2,p3,p),distance_to_triangle_edges(p1,p2,p3,p).le.eps
+      if(ldebug) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p,'edgedist',distance_to_triangle_edges(p1,p2,p3,p),distance_to_triangle_edges(p1,p2,p3,p).le.eps
     end function
 
     pure function distance_to_triangle_edges(p1,p2,p3,p)
@@ -687,6 +688,149 @@ module m_helper_functions
 
       distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
     end function
+
+    subroutine square_intersection(origin, direction, tA, tB, tC, tD, lhit, hit)
+      real(ireals), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:), tD(:)
+      logical, intent(out) :: lhit
+      real(ireals), intent(out) :: hit(:)
+
+      lhit = .False.
+      hit = huge(hit)
+
+      ! 2 Triangles incorporating, cut along (AC)
+      call triangle_intersection(origin, direction, tA, tC, tB, lhit, hit)
+      if(lhit) return
+      call triangle_intersection(origin, direction, tA, tC, tD, lhit, hit)
+      if(lhit) return
+    end subroutine
+
+    ! Watertight ray -> triangle intersection code from http://jcgt.org/published/0002/01/05/
+    subroutine triangle_intersection(origin, direction, tA, tB, tC, lhit, hit)
+      real(ireals), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:)
+      logical, intent(out) :: lhit
+      real(ireals), intent(out) :: hit(:)
+
+      logical, parameter :: ldebug = .False., BACKFACE_CULLING=.False., HIT_EDGE=.True.
+
+      real(ireals) :: org(0:2), dir(0:2), A(0:2), B(0:2), C(0:2)
+      integer(iintegers) :: kx, ky, kz
+      real(ireals) :: Sx, Sy, Sz
+      real(ireals) :: Ax, Ay, Bx, By, Cx, Cy
+      real(ireals) :: Az, Bz, Cz, T
+      real(ireals) :: U, V, W
+      real(ireals) :: b0, b1, b2
+      real(ireal_dp) :: CxBy, CyBx, AxCy, AyCx, BxAy, ByAx
+      real(ireals) :: det, rcpDet
+
+      lhit = .False.
+      hit = huge(hit)
+
+      org = origin
+      dir = direction
+
+      if(ldebug) print *,'initial direction:', dir
+      if(ldebug) print *,'initial origin   :', origin
+      if(ldebug) print *,'Triangle coord   :', tA
+      if(ldebug) print *,'Triangle coord   :', tB
+      if(ldebug) print *,'Triangle coord   :', tC
+      ! calculate dimension where the ray direction is maximal (C indexing)
+      kz = maxloc(abs(dir), dim=1)-1
+      kx = kz+1; if (kx == 3) kx = 0
+      ky = kx+1; if (ky == 3) ky = 0
+      if(ldebug) print *,'max direction:', kx, ky, kz
+
+      ! swap kx and ky dimension to preserve winding direction of triangles
+      if (dir(kz) < zero) call swap(kx, ky)
+      if(ldebug) print *,'max direction after swap:', kx, ky, kz
+      if(ldebug) print *,'principal direction:', dir(kx), dir(ky), dir(kz)
+
+      ! calculate shear constants
+      Sx = dir(kx) / dir(kz)
+      Sy = dir(ky) / dir(kz)
+      Sz = one / dir(kz)
+      if(ldebug) print *,'Shear constants:', Sx, Sy, Sz
+
+      ! calculate vertices relative to ray origin
+      A = tA-origin
+      B = tB-origin
+      C = tC-origin
+      if(ldebug) print *,'relative Triangle coords A:', A
+      if(ldebug) print *,'relative Triangle coords B:', B
+      if(ldebug) print *,'relative Triangle coords C:', C
+
+
+      ! perform shear and scale of vertices
+      Ax = A(kx) - Sx*A(kz)
+      Ay = A(ky) - Sy*A(kz)
+      Bx = B(kx) - Sx*B(kz)
+      By = B(ky) - Sy*B(kz)
+      Cx = C(kx) - Sx*C(kz)
+      Cy = C(ky) - Sy*C(kz)
+      if(ldebug) print *,'local Triangle coords A:', Ax, Ay
+      if(ldebug) print *,'local Triangle coords B:', Bx, By
+      if(ldebug) print *,'local Triangle coords C:', Cx, Cy
+
+      ! calculate scaled barycentric coordinates
+      U = Cx*By - Cy*Bx;
+      V = Ax*Cy - Ay*Cx;
+      W = Bx*Ay - By*Ax;
+
+      if(ldebug) print *,'Barycentric coords:', U, V, W
+
+      ! fall back to test against edges using double precision
+      if(ireals.lt.ireal_dp) then
+        if (U.eq.zero .or. V.eq.zero .or. W.eq.zero) then
+          CxBy = real(Cx, kind=ireal_dp) * real(By, kind=ireal_dp)
+          CyBx = real(Cy, kind=ireal_dp) * real(Bx, kind=ireal_dp)
+          U = real(CxBy - CyBx, kind=ireals)
+          AxCy = real(Ax, kind=ireal_dp) * real(Cy, kind=ireal_dp)
+          AyCx = real(Ay, kind=ireal_dp) * real(Cx, kind=ireal_dp)
+          V = real(AxCy - AyCx, kind=ireals)
+          BxAy = real(Bx, kind=ireal_dp) * real(Ay, kind=ireal_dp)
+          ByAx = real(By, kind=ireal_dp) * real(Ax, kind=ireal_dp)
+          W = real(BxAy - ByAx, kind=ireals)
+        endif
+      endif
+
+      !Perform edge tests. Moving this test before and at the end of the previous conditional gives higher performance.
+      if(BACKFACE_CULLING) then
+        if (U < zero .or. V < zero .or. W < zero) return
+      else
+        if ((U < zero .or. V < zero .or. W < zero) .and. &
+          (U > zero .or. V > zero .or. W > zero)) return
+      endif
+
+      ! calculate determinant
+      det = U + V + W
+      if (.not.HIT_EDGE .and. det.eq.zero) return
+
+      !Calculate scaled z−coordinates of vertices and use them to calculate the hit distance.
+      Az = Sz * A(kz)
+      Bz = Sz * B(kz)
+      Cz = Sz * C(kz)
+      T = U * Az + V * Bz + W * Cz
+
+      if(BACKFACE_CULLING) then
+        if (T < zero .or. T > hit(4) * det) return
+      else
+        if(det < zero .and. (T >= zero .or. T < hit(4)*det)) then
+          return
+        else if(det > zero .and. (T <= zero .or. T > hit(4) * det)) then
+          return
+        endif
+      endif
+
+      ! normalize U, V, W, and T
+      rcpDet = one / det
+      b0 = U * rcpDet
+      b1 = V * rcpDet
+      b2 = W * rcpDet
+
+      hit(1:3) = b0*tA + b1*tB + b2*tC
+      hit(4) = T * rcpDet
+      lhit = .True.
+      if(ldebug) print *,'Hit triangle', lhit, '::', hit
+    end subroutine
 
     pure function rotation_matrix_world_to_local_basis(ex, ey, ez)
       real(ireals), dimension(3), intent(in) :: ex, ey, ez
@@ -786,7 +930,7 @@ module m_helper_functions
       !! usage sortedlist = unique(list)
       !! or reshape it first to 1D: sortedlist = unique(reshape(list, [size(list)]))
       integer(iintegers), intent(in) :: inp(:)
-      integer(iintegers) :: list(size(inp)), work(size(inp))
+      integer(iintegers) :: list(size(inp))
       integer(iintegers), allocatable :: unique(:)
       integer(iintegers) :: n
       logical :: mask(size(inp))
@@ -801,4 +945,5 @@ module m_helper_functions
       allocate(unique(count(.not.mask)))
       unique = pack(list, .not.mask)
     end function unique
+
   end module

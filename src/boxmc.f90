@@ -30,7 +30,7 @@ module m_boxmc
 #endif
 
   use m_helper_functions_dp, only : approx, mean, rmse, imp_reduce_sum, norm, deg2rad, compute_normal_3d, hit_plane, spherical_2_cartesian
-  use m_helper_functions, only : CHKERR
+  use m_helper_functions, only : square_intersection, triangle_intersection, CHKERR
   use iso_c_binding
   use m_mersenne
   use mpi
@@ -125,7 +125,7 @@ module m_boxmc
   type photon
     real(ireal_dp) :: loc(3)=nil,dir(3)=nil,weight=nil,dx=nil,dy=nil,dz=nil
     logical :: alive=.True.,direct=.False.
-    integer(iintegers) :: side=inil,src=inil,scattercnt=0
+    integer(iintegers) :: src_side=inil,side=inil,src=inil,scattercnt=0
     real(ireal_dp) :: optprop(3) ! kabs,ksca,g
   end type
 
@@ -295,10 +295,10 @@ contains
       call exit()
     endif
 
-    ret_T_out = real(T_out, kind=ireals)
-    ret_T_tol = real(T_tol, kind=ireals)
-    ret_S_out = real(S_out, kind=ireals)
-    ret_S_tol = real(S_tol, kind=ireals)
+    ret_T_out = real(T_out(1:size(ret_T_out)), kind=ireals)
+    ret_T_tol = real(T_tol(1:size(ret_T_tol)), kind=ireals)
+    ret_S_out = real(S_out(1:size(ret_S_out)), kind=ireals)
+    ret_S_tol = real(S_tol(1:size(ret_S_tol)), kind=ireals)
   end subroutine
 
   subroutine run_photons(bmc,src,op,dx,dy,dz,ldir,phi0,theta0,Nphotons,std_Sdir,std_Sdiff,std_abso)
@@ -617,13 +617,14 @@ contains
 
   subroutine print_photon(p)
     type(photon),intent(in) :: p
-    print *,'---------------------------'
+    print *,'S---------------------------'
     print *,'Location  of Photon:',p%loc
     print *,'Direction of Photon:',p%dir
     print *,'weight',p%weight,'alive,direct',p%alive,p%direct,'scatter count',p%scattercnt
-    print *,'side',p%side,'src',p%src
+    print *,'src_side',p%src_side,'side',p%side,'src',p%src
     print *,'kabs,ksca,g',get_kabs(p),get_ksca(p),get_g(p)
     print *,'dx,dy,dz', p%dx, p%dy, p%dz
+    print *,'E---------------------------'
   end subroutine
 
   function R()

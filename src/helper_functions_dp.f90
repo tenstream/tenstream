@@ -25,10 +25,12 @@ module m_helper_functions_dp
       implicit none
 
       private
-      public imp_bcast,norm,cross_2d, cross_3d,deg2rad,rad2deg,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,inc, &
-          mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum,                &
-          pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, distance_to_edge, distance_to_triangle_edges,  &
-          rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, determine_normal_direction
+      public imp_bcast, norm, cross_2d, cross_3d, deg2rad, rad2deg, rmse, mean, approx, rel_approx,&
+          delta_scale_optprop, delta_scale, cumsum, inc, &
+          mpi_logical_and, mpi_logical_or, imp_allreduce_min, imp_allreduce_max, imp_reduce_sum, &
+          pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, &
+          rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, determine_normal_direction, &
+          distance_to_edge, distances_to_triangle_edges
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -403,11 +405,11 @@ module m_helper_functions_dp
         real(ireal_dp),parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
 
         ! check for rectangular bounding box
-        if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
+        if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps ) then ! outside of xrange
             pnt_in_rectangle=.False.
             return
         endif
-        if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
+        if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps ) then ! outside of yrange
             pnt_in_rectangle=.False.
             return
         endif
@@ -416,12 +418,15 @@ module m_helper_functions_dp
 
       !> @brief determine if point is inside a triangle p1,p2,p3
       function pnt_in_triangle(p1,p2,p3, p)
+        !use m_helper_functions, only : triangle_intersection
         real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p
         logical :: pnt_in_triangle
         real(ireal_dp),parameter :: eps = epsilon(eps)
         real(ireal_dp) :: a, b, c, edge_dist
+        logical, parameter :: ldebug=.False.
 
         pnt_in_triangle = pnt_in_rectangle(p1,p2,p3, p)
+        if(ldebug) print *,'pnt_in_triangle::pnt in rectangle:', p1, p2, p3, p, '::', pnt_in_triangle
         if (.not.pnt_in_triangle) return ! if pnt is not in rectangle, it is not in triangle!
 
         ! Then check for sides
@@ -430,17 +435,20 @@ module m_helper_functions_dp
         c = one - (a + b)
 
         pnt_in_triangle = all([a,b,c].ge.zero)
+        if(ldebug) print *,'pnt_in_triangle::1st check:', a, b, c, '::', pnt_in_triangle
 
         if(.not.pnt_in_triangle) then
           pnt_in_triangle = pnt_in_triangle_convex_hull(p1,p2,p3, p)
+          if(ldebug) print *,'pnt_in_triangle::convex hull:', pnt_in_triangle
         endif
 
         if(.not.pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
-          edge_dist = distance_to_triangle_edges(p1,p2,p3,p)
+          edge_dist = minval(distances_to_triangle_edges(p1,p2,p3,p))
           if(edge_dist.le.sqrt(eps)) pnt_in_triangle=.True.
         endif
 
-        !if(.not.pnt_in_triangle) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p,'edgedist',distance_to_triangle_edges(p1,p2,p3,p),distance_to_triangle_edges(p1,p2,p3,p).le.eps
+        if(ldebug.and..not.pnt_in_triangle) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p, &
+          'edgedist',distances_to_triangle_edges(p1,p2,p3,p),distances_to_triangle_edges(p1,p2,p3,p).le.eps
       end function
 
       function pnt_in_triangle_convex_hull(p1,p2,p3, p)
@@ -472,12 +480,12 @@ module m_helper_functions_dp
       determine_normal_direction = int(sign(one, dot), kind=iintegers)
     end function
 
-      pure function distance_to_triangle_edges(p1,p2,p3,p)
+      pure function distances_to_triangle_edges(p1,p2,p3,p)
         real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p
-        real(ireal_dp) :: distance_to_triangle_edges
-        distance_to_triangle_edges = distance_to_edge(p1,p2,p)
-        distance_to_triangle_edges = min(distance_to_triangle_edges, distance_to_edge(p2,p3,p))
-        distance_to_triangle_edges = min(distance_to_triangle_edges, distance_to_edge(p1,p3,p))
+        real(ireal_dp) :: distances_to_triangle_edges(3)
+        distances_to_triangle_edges(1) = distance_to_edge(p1,p2,p)
+        distances_to_triangle_edges(2) = distance_to_edge(p2,p3,p)
+        distances_to_triangle_edges(3) = distance_to_edge(p1,p3,p)
       end function
 
       pure function distance_to_edge(p1,p2,p)
