@@ -252,7 +252,7 @@ subroutine init_diff_photon_wedge_5_5(bmc,p,src,dx,dy,dz)
 end subroutine
 
 subroutine intersect_distance_wedge_5_5(bmc,p,max_dist)
-  use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, distance_to_triangle_edges, determine_normal_direction, angle_between_two_vec
+  use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, distances_to_triangle_edges, determine_normal_direction, angle_between_two_vec
   class(t_boxmc_wedge_5_5) :: bmc
   type(photon),intent(inout) :: p
   real(ireal_dp),intent(out) :: max_dist
@@ -319,7 +319,7 @@ subroutine intersect_distance_wedge_5_5(bmc,p,max_dist)
   new_loc = p%loc + max_dist * p%dir
   l_in_triangle = pnt_in_triangle(A,B,C, [new_loc(1), new_loc(2)])
   if(.not.l_in_triangle) then
-    print *,'distance:', distance_to_triangle_edges(A,B,C, [new_loc(1), new_loc(2)]), ':: dists to faces',dist
+    print *,'distance:', distances_to_triangle_edges(A,B,C, [new_loc(1), new_loc(2)]), ':: dists to faces',dist
     print *,'called pnt_in_triangle(', A, B, C, [new_loc(1), new_loc(2)], ')'
     print *,'new point not in triangle', new_loc, 'side', p%side, 'dist', max_dist
     call print_photon(p)

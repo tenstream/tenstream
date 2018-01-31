@@ -59,12 +59,10 @@ module m_optprop_parameters
       ! interp_mode 4 == linear interpolation in all dimensions
 
       integer(iintegers), parameter :: interp_mode_8_10=2
-
       integer(iintegers), parameter :: interp_mode_1_2=2
-
       integer(iintegers), parameter :: interp_mode_3_6=2
-
       integer(iintegers), parameter :: interp_mode_3_10=2
+      integer(iintegers), parameter :: interp_mode_wedge_4_8=2
 
       integer(iintegers), parameter :: Nphi=10
 

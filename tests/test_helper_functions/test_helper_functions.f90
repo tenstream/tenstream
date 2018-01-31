@@ -24,7 +24,7 @@ subroutine test_mpi_functions(this)
 
     logical :: l_all_true, l_all_false, l_even_true
 
-    integer(iintegers),parameter :: repetitions=1e4
+    integer(iintegers),parameter :: repetitions=10000
     integer(iintegers) :: rep
 
     comm     = this%getMpiCommunicator()
@@ -217,4 +217,78 @@ subroutine test_triangle_functions()
     center_cell = [zero, zero, -one]
     normal_direction = determine_normal_direction(normal, center_face, center_cell)
     @assertEqual(-1_iintegers, normal_direction, 'direction of normal not towards cell center (case 2)')
+end subroutine
+
+@test(npes =[1])
+subroutine test_triangle_intersection()
+
+    use m_data_parameters, only: ireals, iintegers
+    use m_helper_functions, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, &
+      determine_normal_direction, triangle_intersection
+
+    use pfunit_mod
+
+    implicit none
+    real(ireals),parameter :: zero=0, one=1, dx = 100, atol=100*epsilon(atol)
+    real(ireals) :: A(3)
+    real(ireals) :: B(3)
+    real(ireals) :: C(3)
+    real(ireals) :: direction(3)
+    real(ireals) :: origin(3)
+    real(ireals) :: hit(4)
+    logical :: lhit
+
+    A = [zero, zero, zero]
+    B = [  dx, zero, zero]
+    C = [dx/2, zero, sqrt(dx**2 - (dx/2)**2)]
+
+    direction = [zero, one, zero]
+
+    origin    = [dx/2,-one, dx/2]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
+    print *,origin,'=>',hit
+
+    origin    = [dx/2,one, dx/2]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertFalse(lhit)
+
+    origin    = [dx/2,-epsilon(dx), dx/2]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
+
+    origin    = [dx/2,epsilon(dx), dx/2]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertFalse(lhit)
+
+    origin    = A + [zero,-epsilon(dx), zero]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
+
+    origin    = C + [zero,-epsilon(dx), zero]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
+
+    origin    = C + [zero,-epsilon(dx), zero]
+    call triangle_intersection(origin, direction, B, A, C, lhit, hit)
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
+
+    origin    = [dx/2,epsilon(dx), dx/2]
+    call triangle_intersection(origin, direction, B, A, C, lhit, hit)
+    @assertFalse(lhit)
 end subroutine
