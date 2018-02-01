@@ -488,6 +488,9 @@ subroutine createLUT_diff(OPP, LUT, comm)
         class is (t_optprop_LUT_3_6)
           call prepare_table_space(LUT%S,OPP%diff_streams**2)
 
+        class is (t_optprop_LUT_wedge_4_8)
+          call prepare_table_space(LUT%S,OPP%diff_streams**2)
+
         class default
           stop 'dont know optprop_class'
       end select
