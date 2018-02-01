@@ -40,7 +40,7 @@ module m_optprop_LUT
     ldelta_scale,delta_scale_truncate,    &
     stddev_atol, use_prescribed_LUT_dims, &
     preset_aspect, preset_tau, preset_w0, &
-    preset_g, preset_theta
+    preset_g, preset_theta, OPP_LUT_ALL_ANGLES
 
   use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6, t_boxmc_3_10, &
     t_boxmc_wedge_5_8
@@ -1129,6 +1129,8 @@ subroutine determine_angles_to_load(comm, interp_mode, LUT, azis, szas, mask)
         end select
 
         !print *,'determine_angles_to_load: occuring azimuths',': phi,theta',phi,theta,'need_azi',lneed_azi,'lneed_sza',lneed_sza
+        if(any(int(azis, kind=iintegers).eq.OPP_LUT_ALL_ANGLES)) lneed_azi = .True.
+        if(any(int(szas, kind=iintegers).eq.OPP_LUT_ALL_ANGLES)) lneed_sza = .True.
 
         if( lneed_azi(1) .and. lneed_sza(1) ) mask(iphi  , itheta ) = .True.
         if( lneed_azi(1) .and. lneed_sza(2) ) mask(iphi  , itheta1) = .True.
@@ -1139,6 +1141,7 @@ subroutine determine_angles_to_load(comm, interp_mode, LUT, azis, szas, mask)
         !if (all( lneed_azi .and. lneed_sza )) mask([iphi],[itheta]) = .True. !todo breaks if we need either theta+1 or phi+1 i.e. uneven sza or phi=90
       enddo
     enddo
+
     if(ldebug_optprop .and. myid.eq.0) then
       print *,'       phis',LUT%pspace%range_phi
       do itheta=1,size(LUT%pspace%theta)
@@ -1202,6 +1205,7 @@ subroutine set_parameter_space(OPP,ps)
           OPP%interp_mode = interp_mode_3_6
       class is (t_optprop_LUT_wedge_5_8)
           OPP%interp_mode = interp_mode_wedge_5_8
+          ps%range_phi = [-45, 45]
       class default
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select
