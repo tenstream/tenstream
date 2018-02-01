@@ -51,12 +51,13 @@
 ! 7,8 -> side faces in y-plane downwards
 ! 9,10-> side faces in y-plane upwards
 
-subroutine init_dir_photon_3_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
+subroutine init_dir_photon_3_10(bmc, p, src, direct, initial_dir, dx, dy, dz, ierr)
   class(t_boxmc_3_10)               :: bmc
   type(photon)      ,intent(inout)  :: p
   real(ireal_dp)    ,intent(in)     :: dx,dy,dz,initial_dir(3)
   integer(iintegers),intent(in)     :: src
   logical           ,intent(in)     :: direct
+  integer(mpiint)   ,intent(out)    :: ierr
 
   real(ireal_dp), parameter  :: e=1e-6_ireal_dp
 
@@ -86,6 +87,8 @@ subroutine init_dir_photon_3_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
   p%dir        = initial_dir
   select type(bmc)
   end select
+
+  ierr = 0
 end subroutine
 
 subroutine update_dir_stream_3_10(bmc,p,T)
@@ -106,12 +109,13 @@ subroutine update_dir_stream_3_10(bmc,p,T)
         end select
 end subroutine
 
-subroutine init_diff_photon_3_10(bmc,p,src,dx,dy,dz)
+subroutine init_diff_photon_3_10(bmc, p, src, dx, dy, dz, ierr)
         use m_helper_functions_dp, only : rotate_angle_x, rotate_angle_y, rotate_angle_z
         class(t_boxmc_3_10)           :: bmc
         type(photon),intent(inout)    :: p
         real(ireal_dp),intent(in)     :: dx,dy,dz
         integer(iintegers),intent(in) :: src
+        integer(mpiint),intent(out)   :: ierr
 
         real(ireal_dp) :: phi,mu,mu1,mu2
 
@@ -213,6 +217,8 @@ subroutine init_diff_photon_3_10(bmc,p,src,dx,dy,dz)
 
         select type(bmc)
         end select
+
+        ierr = 0
 end subroutine
 
 subroutine update_diff_stream_3_10(bmc,p,S)

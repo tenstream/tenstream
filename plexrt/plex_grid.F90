@@ -4,7 +4,7 @@ module m_plex_grid
   use m_netcdfIO, only: ncload
   use m_helper_functions, only: CHKERR, itoa, compute_normal_3d, approx
   use m_data_parameters, only : ireals, iintegers, mpiint, zero, &
-    i0, i1, i2, i3, i4, i5, default_str_len
+    i0, i1, i2, i3, i4, i5, i6, default_str_len
   use m_icon_grid, only : t_icongrid
 
   implicit none

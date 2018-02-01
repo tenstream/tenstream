@@ -143,12 +143,13 @@ end select
 
 end subroutine
 
-subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
+subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz,ierr)
         class(t_boxmc_8_10)           :: bmc
         type(photon),intent(inout)    :: p
         real(ireal_dp),intent(in)     :: dx,dy,dz,initial_dir(3)
         integer(iintegers),intent(in) :: src
         logical,intent(in)            :: direct
+        integer(mpiint),intent(out)   :: ierr
 
         real(ireal_dp),parameter :: h=.5_ireal_dp
         real(ireal_dp),parameter :: e=1e-6_ireal_dp
@@ -199,14 +200,16 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz)
         select type(bmc)
         end select
 
+        ierr = 0
 end subroutine
 
-subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
+subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz,ierr)
         use m_helper_functions_dp, only : rotate_angle_x, rotate_angle_y, rotate_angle_z
         class(t_boxmc_8_10)           :: bmc
         type(photon),intent(inout)    :: p
         real(ireal_dp),intent(in)     :: dx,dy,dz
         integer(iintegers),intent(in) :: src
+        integer(mpiint),intent(out)   :: ierr
 
         real(ireal_dp) :: phi,mu,mu1,mu2
 
@@ -307,6 +310,7 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz)
         select type(bmc)
         end select
 
+        ierr = 0
 end subroutine
 
 subroutine intersect_distance_8_10(bmc,p,max_dist)

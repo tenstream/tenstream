@@ -49,12 +49,13 @@
 ! 4 -> side face between (A,C)
 ! 6 -> side face between (A,B)
 
-subroutine init_dir_photon_3_6(bmc,p,src,direct,initial_dir,dx,dy,dz)
+subroutine init_dir_photon_3_6(bmc,p,src,direct,initial_dir,dx,dy,dz,ierr)
   class(t_boxmc_3_6) :: bmc
   type(photon),intent(inout) :: p
   real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
   integer(iintegers),intent(in) :: src
   logical,intent(in) :: direct
+  integer(mpiint),intent(out) :: ierr
 
   select case(src)
   case (1)
@@ -80,6 +81,7 @@ subroutine init_dir_photon_3_6(bmc,p,src,direct,initial_dir,dx,dy,dz)
   p%dir = initial_dir
   select type(bmc)
   end select
+  ierr = 0
 end subroutine
 
 subroutine update_dir_stream_3_6(bmc,p,T)
@@ -104,7 +106,7 @@ subroutine update_diff_stream_3_6(bmc,p,S)
   class(t_boxmc_3_6) :: bmc
   type(photon),intent(in) :: p
   real(ireal_dp),intent(inout) :: S(:)
-  
+
   select case(p%side)
     case(1)
       S(1) = S(1) + p%weight
@@ -123,12 +125,13 @@ subroutine update_diff_stream_3_6(bmc,p,S)
   end select
 end subroutine
 
-subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
+subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz,ierr)
   use m_helper_functions_dp, only : pnt_in_triangle,rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, rad2deg
   class(t_boxmc_3_6) :: bmc
   type(photon),intent(inout) :: p
-  real(ireal_dp),intent(in) :: dx,dy,dz
   integer(iintegers),intent(in) :: src
+  real(ireal_dp),intent(in) :: dx,dy,dz
+  integer(mpiint),intent(out) :: ierr
 
   real(ireal_dp) :: phi,mu
 
@@ -195,6 +198,8 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz)
 
   select type(bmc)
   end select
+
+  ierr = 0
 end subroutine
 
 subroutine intersect_distance_3_6(bmc,p,max_dist)

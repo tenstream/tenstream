@@ -38,7 +38,7 @@
 
 !defined in wedge_5_5 subroutine define_wedge_triangle_pts(dx,dy,A,B,C, nAB, nBC, nCA)
 
-subroutine init_dir_photon_wedge_5_8(bmc,p,src,direct,initial_dir,dx,dy,dz)
+subroutine init_dir_photon_wedge_5_8(bmc, p, src, direct, initial_dir, dx, dy, dz, ierr)
   use m_helper_functions_dp, only: pnt_in_triangle, determine_normal_direction, angle_between_two_vec, rad2deg
   class(t_boxmc_wedge_5_8) :: bmc
   type(photon),intent(inout) :: p
@@ -47,6 +47,7 @@ subroutine init_dir_photon_wedge_5_8(bmc,p,src,direct,initial_dir,dx,dy,dz)
   logical,intent(in) :: direct
   real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
   real(ireal_dp) :: r1, r2, normal(3), triangle_center(3), dir_p_to_triangle_center(3)
+  integer(mpiint),intent(out) :: ierr
 
   call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, NBC, nCA)
 
@@ -114,12 +115,17 @@ subroutine init_dir_photon_wedge_5_8(bmc,p,src,direct,initial_dir,dx,dy,dz)
 
       p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
     else
-      print *,'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
-      print *,'normal',normal,'direction',p%dir
-      call print_photon(p)
-      stop 'initial direction of the wedge triangle'
+      ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
+      if(ldebug) then
+        print *,'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
+        print *,'normal',normal,'direction',p%dir
+        call print_photon(p)
+      endif
+      !stop 'initial direction of the wedge triangle'
+      return
     endif
   endif
+  ierr = 0
 end subroutine
 
 subroutine update_dir_stream_wedge_5_8(bmc,p,T)
@@ -173,12 +179,13 @@ subroutine update_diff_stream_wedge_5_8(bmc,p,S)
   !stop 'debug update_diff_stream_wedge_5_8'
 end subroutine
 
-subroutine init_diff_photon_wedge_5_8(bmc,p,src,dx,dy,dz)
+subroutine init_diff_photon_wedge_5_8(bmc, p, src, dx, dy, dz, ierr)
   use m_helper_functions_dp, only : pnt_in_triangle,rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, rad2deg
   class(t_boxmc_wedge_5_8) :: bmc
   type(photon),intent(inout) :: p
   real(ireal_dp),intent(in) :: dx,dy,dz
   integer(iintegers),intent(in) :: src
+  integer(mpiint), intent(out) :: ierr
 
   real(ireal_dp) :: phi,mu
   real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, NBC, nCA ! point PNT on triangle [A,B,C]
@@ -276,6 +283,7 @@ subroutine init_diff_photon_wedge_5_8(bmc,p,src,dx,dy,dz)
   endif
 
 
+  ierr = 0
   !call print_photon(p)
   !print *,'--------- end new diffuse photon ----------'
   !stop 'not yet implemented :: init_diff_photon_wedge_5_8'
