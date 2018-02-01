@@ -16,18 +16,24 @@ module m_plex_rt
 
   use m_plex_grid, only: t_plexgrid, compute_face_geometry, setup_edir_dmplex, setup_abso_dmplex
 
-  use m_optprop, only : t_optprop, t_optprop_wedge_4_8
+  use m_optprop, only : t_optprop, t_optprop_wedge_5_8
 
   implicit none
 
   private
 
   public :: t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, &
-    get_normal_of_first_TOA_face, compute_face_geometry
+    get_normal_of_first_TOA_face, compute_face_geometry, &
+    set_plex_rt_optprop
+
+  type t_opticalprops
+    real(ireals) :: kabs,ksca,g
+  end type
 
   type t_plex_solver
     type(t_plexgrid), allocatable :: plex
     class(t_optprop), allocatable :: OPP
+    type(t_opticalprops), allocatable, dimension(:) :: optprop
   end type
 
   logical, parameter :: ldebug=.True.
@@ -45,8 +51,27 @@ module m_plex_rt
       allocate(solver%plex)
       solver%plex = plex
 
-      allocate(t_optprop_wedge_4_8::solver%OPP)
+      allocate(t_optprop_wedge_5_8::solver%OPP)
       call solver%OPP%init([zero, one*10 ], [zero], solver%plex%comm)
+    end subroutine
+
+    subroutine set_plex_rt_optprop(solver, vlwc)
+      type(t_plex_solver), allocatable, intent(inout) :: solver
+      type(tVec),intent(in) :: vlwc
+      real(ireals), pointer :: xlwc(:)
+      integer(mpiint) :: ierr
+
+      if(.not.allocated(solver)) stop 'run_plex_rt_solver::solver has to be allocated'
+
+      if(.not.allocated(solver%optprop)) allocate(solver%optprop(solver%plex%cStart:solver%plex%cEnd-1))
+
+      call VecGetArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
+
+      solver%optprop(:)%kabs = 1e-6_ireals
+      solver%optprop(:)%ksca = xlwc(:)*1e-3_ireals
+      solver%optprop(:)%g    = xlwc(:)/maxval(xlwc) * .85_ireals
+
+      call VecRestoreArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine run_plex_rt_solver(solver, sundir)
@@ -59,13 +84,14 @@ module m_plex_rt
 
       if(.not.allocated(solver)) stop 'run_plex_rt_solver::solver has to be allocated'
 
-      if(.not.allocated(solver%plex%geom_dm)) stop 'geom_dm not allocated'
+      if(.not.allocated(solver%plex%geom_dm)) stop 'run_plex_rt_solver::geom_dm has to be allocated first'
+      if(.not.allocated(solver%optprop)) stop 'run_plex_rt_solver::optprop has to be allocated first'
       if(.not.allocated(solver%plex%geom_dm)) call compute_face_geometry(solver%plex, solver%plex%geom_dm)
       if(.not.allocated(solver%plex%edir_dm)) call setup_edir_dmplex(solver%plex, solver%plex%edir_dm)
 
       call create_src_vec(solver%plex%edir_dm, b)
 
-      call create_edir_mat(solver%plex, solver%OPP, sundir, Mdir)
+      call create_edir_mat(solver%plex, solver%OPP, solver%optprop, sundir, Mdir)
       call solve_plex_rt(solver%plex, b, Mdir, edir)
 
       call PetscObjectViewFromOptions(edir, PETSC_NULL_VEC, '-show_edir', ierr); call CHKERR(ierr)
@@ -251,10 +277,11 @@ module m_plex_rt
     call PetscObjectViewFromOptions(abso, PETSC_NULL_VEC, '-show_abso', ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine create_edir_mat(plex, OPP, sundir, A)
+  subroutine create_edir_mat(plex, OPP, optprop, sundir, A)
     type(t_plexgrid), intent(inout) :: plex
     real(ireals), intent(in) :: sundir(3)
     class(t_optprop), intent(in) :: OPP
+    type(t_opticalprops), intent(in) :: optprop(:)
     type(tMat), intent(out) :: A
 
     type(tPetscSection) :: sec
@@ -283,6 +310,9 @@ module m_plex_rt
     real(ireals) :: dir2dir(5,5), S(5), T(5) ! Nface**2
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
 
+    integer(iintegers) :: zindex
+    real(ireals) :: dx, dz, coeff(5**2) ! coefficients for each src=[1..5] and dst[1..5]
+
     call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
@@ -300,21 +330,33 @@ module m_plex_rt
       call compute_local_wedge_ordering(plex, icell, faces_of_cell, geomSection, geoms, sundir, &
         zenith, azimuth, upper_face, bottom_face, base_face, left_face, right_face, lsrc)
 
-      do iface = 1, size(faces_of_cell) !DEBUG
+      zindex = plex%zindex(icell)
+      dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+      dx = 200 ! TODO: compute edge lengths in setup_geom_dm and use here
+
+      call get_coeff(OPP, optprop(icell+1), dz, dx, .True., coeff, angles=[rad2deg(azimuth), rad2deg(zenith)])
+
+      T = zero
+      do iface = 1, size(faces_of_cell)
 
         if(lsrc(iface)) then ! this is really a source
 
           !retrieve coeffs:
           if (iface.eq.upper_face) then
-            call compute_dir2dir_coeff(i1, rad2deg(azimuth), rad2deg(zenith), S, T)
+            !call compute_dir2dir_coeff(i1, rad2deg(azimuth), rad2deg(zenith), S, T)
+            T = coeff(1:size(coeff):5)
           else if (iface.eq.bottom_face) then
-            call compute_dir2dir_coeff(5*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
+            !call compute_dir2dir_coeff(5*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
+            T = coeff(5:size(coeff):5)
           else if (iface.eq.base_face) then
-            call compute_dir2dir_coeff(2*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
+            !call compute_dir2dir_coeff(2*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
+            T = coeff(2:size(coeff):5)
           else if (iface.eq.left_face) then
-            call compute_dir2dir_coeff(3*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
+            !call compute_dir2dir_coeff(3*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
+            T = coeff(3:size(coeff):5)
           else if (iface.eq.right_face) then
-            call compute_dir2dir_coeff(4*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
+            !call compute_dir2dir_coeff(4*i1, rad2deg(azimuth), rad2deg(zenith), S, T)
+            T = coeff(4:size(coeff):5)
           else
             stop 'iface is not in local wedge face numbering... something must have gone terribly wrong in compute_local_wedge_ordering'
           endif
@@ -329,7 +371,7 @@ module m_plex_rt
             dir2dir_coeffs(idst) = -dir2dir(idst, iface)
           enddo
 
-          call MatSetValuesLocal(A, int(size(faces_of_cell), kind=iintegers), irows, i1, [icol], dir2dir_coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
+          call MatSetValuesLocal(A, size(faces_of_cell, kind=iintegers), irows, i1, [icol], dir2dir_coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
         endif
       enddo
 
@@ -351,6 +393,29 @@ module m_plex_rt
 
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
+  end subroutine
+
+  !> @brief retrieve transport coefficients from optprop module
+  !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
+  subroutine get_coeff(OPP, op, dz, dx, ldir, coeff, angles)
+    class(t_optprop), intent(in)    :: OPP
+    type(t_opticalprops),intent(in)   :: op
+    real(ireals),intent(in)           :: dz, dx
+    logical,intent(in)                :: ldir
+    real(ireals),intent(out)          :: coeff(:)
+
+    real(ireals),intent(in),optional  :: angles(2)
+
+    real(ireals) :: aspect, tauz, w0
+
+    aspect = dz / dx
+    tauz = (op%kabs+op%ksca) * dz
+    w0 = op%ksca / (op%kabs+op%ksca)
+
+    print *,'Lookup Coeffs for', aspect, tauz, w0, op%g
+    call OPP%get_coeff(aspect, tauz, w0, op%g,ldir, coeff, angles)
+    print *,'Coeffs', coeff
+    stop 'debug'
   end subroutine
 
   subroutine compute_local_wedge_ordering(plex, icell, faces_of_cell, geomSection, geoms, sundir, &

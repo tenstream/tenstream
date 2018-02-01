@@ -21,7 +21,7 @@ use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
   distribute_plexgrid_dm, ncvar2d_to_globalvec
 
 use m_plex_rt, only: get_normal_of_first_toa_face, compute_face_geometry, &
-  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver
+  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop
 
 use m_netcdfio, only : ncload
 
@@ -86,6 +86,8 @@ logical, parameter :: ldebug=.True.
       sundir = get_normal_of_first_TOA_face(solver%plex) + [0.,0.,-.06]
       sundir = sundir/norm(sundir)
       print *,myid,'Initial sundirection = ', sundir
+
+      call set_plex_rt_optprop(solver, lwcvec)
 
       call run_plex_rt_solver(solver, sundir)
 

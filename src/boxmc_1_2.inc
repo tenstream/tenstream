@@ -64,12 +64,13 @@ subroutine update_diff_stream_1_2(bmc,p,S)
 
 end subroutine
 
-subroutine init_dir_photon_1_2(bmc,p,src,direct,initial_dir,dx,dy,dz)
+subroutine init_dir_photon_1_2(bmc, p, src, direct, initial_dir, dx, dy, dz, ierr)
     class(t_boxmc_1_2) :: bmc
     type(photon),intent(inout) :: p
     real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
     integer(iintegers),intent(in) :: src
     logical,intent(in) :: direct
+    integer(mpiint),intent(out) :: ierr
 
     if(src.eq.1) then
       p%loc = (/L(dx)     , L(dy)     ,    dz  /)
@@ -92,13 +93,15 @@ subroutine init_dir_photon_1_2(bmc,p,src,direct,initial_dir,dx,dy,dz)
     select type(bmc)
     end select
 
+    ierr = 0
 end subroutine
 
-subroutine init_diff_photon_1_2(bmc,p,src,dx,dy,dz)
+subroutine init_diff_photon_1_2(bmc, p, src, dx, dy, dz, ierr)
     class(t_boxmc_1_2) :: bmc
     type(photon),intent(inout) :: p
     real(ireal_dp),intent(in) :: dx,dy,dz
     integer(iintegers),intent(in) :: src
+    integer(mpiint),intent(out) :: ierr
 
     real(ireal_dp) :: phi,mu,mu1,mu2
 
@@ -111,11 +114,11 @@ subroutine init_diff_photon_1_2(bmc,p,src,dx,dy,dz)
       phi= deg2rad( R()*360._ireal_dp )
     case (2)
       p%loc = (/L(dx), L(dy),    dz  /)
-      mu = -mu1 !mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp) ) 
+      mu = -mu1 !mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp))
       phi= deg2rad( R()*360._ireal_dp )
     case (1)
       p%loc = (/L(dx), L(dy),    zero/)
-      mu = mu1 !mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp) ) 
+      mu = mu1 !mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp))
       phi= deg2rad( R()*360._ireal_dp )
     case default
       print *,'Dont know what to do with source spec:',src
@@ -137,6 +140,7 @@ subroutine init_diff_photon_1_2(bmc,p,src,dx,dy,dz)
     select type(bmc)
     end select
 
+    ierr = 0
 end subroutine
 
 subroutine intersect_distance_1_2(bmc,p,max_dist)

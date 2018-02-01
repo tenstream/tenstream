@@ -54,6 +54,8 @@ module m_boxmc
   logical :: lRNGseeded=.False.
   type(randomNumberSequence),save :: rndSeq
 
+  logical, parameter :: ldebug=.False.
+
   ! ******************** TYPE DEFINITIONS ************************
   type,abstract :: t_boxmc
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
@@ -141,23 +143,25 @@ module m_boxmc
 
   ! ***************** INTERFACES ************
   abstract interface
-    subroutine init_diff_photon(bmc,p,src,dx,dy,dz)
-      import :: t_boxmc,photon,iintegers,ireal_dp
+    subroutine init_diff_photon(bmc, p, src, dx, dy, dz, ierr)
+      import :: t_boxmc,photon,iintegers,ireal_dp,mpiint
       class(t_boxmc) :: bmc
       type(photon),intent(inout) :: p
       real(ireal_dp),intent(in) :: dx,dy,dz
       integer(iintegers),intent(in) :: src
+      integer(mpiint), intent(out) :: ierr
     end subroutine
   end interface
 
   abstract interface
-    subroutine init_dir_photon(bmc,p,src,direct,initial_dir,dx,dy,dz)
-      import :: t_boxmc,photon,iintegers,ireal_dp
+    subroutine init_dir_photon(bmc, p, src, direct, initial_dir, dx, dy, dz, ierr)
+      import :: t_boxmc, photon, iintegers, ireal_dp, mpiint
       class(t_boxmc) :: bmc
       type(photon),intent(inout) :: p
-      real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
+      real(ireal_dp),intent(in) :: dx, dy, dz, initial_dir(3)
       integer(iintegers),intent(in) :: src
       logical,intent(in) :: direct
+      integer(mpiint), intent(out) :: ierr
     end subroutine
   end interface
 
@@ -306,6 +310,7 @@ contains
     enddo
     ret_S_out = real(S_out, kind=ireals)
     ret_S_tol = real(S_tol, kind=ireals)
+    if(ldebug) print *,'S out', ret_S_out, 'T_out', ret_T_out
   end subroutine
 
   subroutine run_photons(bmc,src,op,dx,dy,dz,ldir,phi0,theta0,Nphotons,std_Sdir,std_Sdiff,std_abso)
@@ -317,9 +322,10 @@ contains
       type(stddev),intent(inout)   :: std_Sdir, std_Sdiff, std_abso
 
       type(photon)       :: p
+      real(ireal_dp)     :: initial_dir(3)
+      real(ireal_dp)     :: time(2)
       integer(iintegers) :: k,mycnt,mincnt
-      real(ireal_dp)   :: initial_dir(3)
-      real(ireal_dp)   :: time(2)
+      integer(mpiint)    :: ierr
 
       call cpu_time(time(1))
 
@@ -336,18 +342,21 @@ contains
           if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
 
           if(ldir) then
-              call bmc%init_dir_photon(p,src,ldir,initial_dir,real(dx,kind=ireal_dp),real(dy,kind=ireal_dp),real(dz,kind=ireal_dp))
+              call bmc%init_dir_photon(p, src, ldir, initial_dir, &
+                real(dx,kind=ireal_dp), real(dy,kind=ireal_dp), real(dz,kind=ireal_dp), ierr)
           else
-              call bmc%init_diff_photon(p,src,real(dx,kind=ireal_dp),real(dy,kind=ireal_dp),real(dz,kind=ireal_dp))
+              call bmc%init_diff_photon(p, src, &
+                real(dx,kind=ireal_dp),real(dy,kind=ireal_dp),real(dz,kind=ireal_dp), ierr)
           endif
+          if(ierr.ne.0) exit
           p%optprop = op
 
           move: do
-              call bmc%move_photon(p)
-              call roulette(p)
+            call bmc%move_photon(p)
+            call roulette(p)
 
-              if(.not.p%alive) exit move
-              call scatter_photon(p)
+            if(.not.p%alive) exit move
+            call scatter_photon(p)
           enddo move
 
           if(ldir) call refill_direct_stream(p,initial_dir)
@@ -357,9 +366,9 @@ contains
           std_Sdiff%inc = zero
 
           if(p%direct) then
-              call bmc%update_dir_stream(p,std_Sdir%inc)
+            call bmc%update_dir_stream(p,std_Sdir%inc)
           else
-              call bmc%update_diff_stream(p,std_Sdiff%inc)
+            call bmc%update_diff_stream(p,std_Sdiff%inc)
           endif
 
           if (ldir) call std_update( std_Sdir , k, i1*numnodes )

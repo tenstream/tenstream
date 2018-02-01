@@ -28,7 +28,7 @@ use m_optprop_parameters, only : ldebug_optprop, coeff_mode
 use m_helper_functions, only : rmse
 use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
-  t_optprop_LUT_wedge_4_8
+  t_optprop_LUT_wedge_5_8
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
@@ -36,7 +36,7 @@ use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 implicit none
 
 private
-public :: t_optprop, t_optprop_1_2,t_optprop_8_10, t_optprop_3_6, t_optprop_3_10, t_optprop_wedge_4_8
+public :: t_optprop, t_optprop_1_2,t_optprop_8_10, t_optprop_3_6, t_optprop_3_10, t_optprop_wedge_5_8
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
@@ -62,7 +62,7 @@ end type
 type,extends(t_optprop) :: t_optprop_3_10
 end type
 
-type,extends(t_optprop) :: t_optprop_wedge_4_8
+type,extends(t_optprop) :: t_optprop_wedge_5_8
 end type
 
 contains
@@ -88,8 +88,8 @@ contains
               class is (t_optprop_3_10)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_10::OPP%OPP_LUT)
 
-              class is (t_optprop_wedge_4_8)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_4_8::OPP%OPP_LUT)
+              class is (t_optprop_wedge_5_8)
+               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_5_8::OPP%OPP_LUT)
               class default
                 stop ' init optprop : unexpected type for optprop object!'
             end select
