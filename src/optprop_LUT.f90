@@ -934,27 +934,33 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
             allocate(S%stddev_tol(NcoeffS*NcoeffT, OPP%Naspect, OPP%Ntau ,OPP%Nw0, OPP%Ng))
             S%stddev_tol = 1e8_ireals
             call ncwrite(S%table_name_tol, S%stddev_tol, iierr); errcnt = errcnt +iierr
+            if(iierr.ne.0) print *,'createLUT_dir::ncwrite S%stddev_tol', iierr
           endif
 
           if(.not.allocated(T%stddev_tol) ) then
             allocate(T%stddev_tol(NcoeffT**2, OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng))
             T%stddev_tol = 1e8_ireals
             call ncwrite(T%table_name_tol, T%stddev_tol, iierr); errcnt = errcnt +iierr
+            if(iierr.ne.0) print *,'createLUT_dir::ncwrite T%stddev_tol', iierr
           endif
 
           if(.not. allocated(S%c) ) then
             allocate(S%c(NcoeffS*NcoeffT, OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng))
             S%c = nil
             call ncwrite(S%table_name_c, S%c,iierr); errcnt = errcnt +iierr
+            if(iierr.ne.0) print *,'createLUT_dir::ncwrite S', iierr
           endif
 
           if(.not. allocated(T%c) ) then
             allocate(T%c(NcoeffT**2, OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng))
             T%c = nil
             call ncwrite(T%table_name_c, T%c,iierr); errcnt = errcnt +iierr
+            if(iierr.ne.0) print *,'createLUT_dir::ncwrite T', iierr
           endif
 
-          if(errcnt.ne.0) stop 'createLUT_dir :: could somehow not write to file... exiting...'
+          if(errcnt.ne.0) then
+            stop 'createLUT_dir :: could somehow not write to file... exiting...'
+          endif
       end subroutine
 end subroutine
 

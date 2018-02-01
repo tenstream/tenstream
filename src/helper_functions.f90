@@ -710,7 +710,7 @@ module m_helper_functions
       logical, intent(out) :: lhit
       real(ireals), intent(out) :: hit(:)
 
-      logical, parameter :: ldebug = .False., BACKFACE_CULLING=.False., HIT_EDGE=.True.
+      logical, parameter :: ldebug = .False. , BACKFACE_CULLING=.False., HIT_EDGE=.True.
 
       real(ireals) :: org(0:2), dir(0:2), A(0:2), B(0:2), C(0:2)
       integer(iintegers) :: kx, ky, kz
@@ -811,11 +811,16 @@ module m_helper_functions
       T = U * Az + V * Bz + W * Cz
 
       if(BACKFACE_CULLING) then
-        if (T < zero .or. T > hit(4) * det) return
+        if (T < zero .or. T > hit(4) * det) then
+          if(ldebug) print *,'BACKFACE_CULLING T<0', T
+          return
+        endif
       else
         if(det < zero .and. (T >= zero .or. T < hit(4)*det)) then
+          if(ldebug) print *,'det<0 && T>0', det, T
           return
         else if(det > zero .and. (T <= zero .or. T > hit(4) * det)) then
+          if(ldebug) print *,'det>0 && T<0', det, T
           return
         endif
       endif
