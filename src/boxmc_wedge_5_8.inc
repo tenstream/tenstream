@@ -294,8 +294,10 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
   real(ireals),dimension(3) :: At, Bt, Ct ! points on triangle [A,B,C] at top
 
   logical :: l_in_triangle
-  logical :: lhit
-  real(ireals) :: hit(4)
+  logical :: lhit(5)
+  real(ireals) :: hit(5,4)
+  integer(iintegers) :: i
+
 
   call define_wedge_triangle_pts(p%dx, p%dy, A, B, C, nAB, NBC, nCA)
 
@@ -307,60 +309,78 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
   Bt = [B(1), B(2), p%dz]
   Ct = [C(1), C(2), p%dz]
 
+  lhit = .False.
+  hit = huge(hit)
   !crossing with bottom and top plane:
-  if(p%dir(3).gt.zero) then
+  if(p%dir(3).ge.zero) then
     if(p%scattercnt.gt.0 .or. p%src_side.ne.1) then
-      call triangle_intersection(p%loc, p%dir, At, Bt, Ct, lhit, hit)
-      if(lhit) p%side = 1
+      call triangle_intersection(p%loc, p%dir, At, Bt, Ct, lhit(1), hit(1,:))
+      !if(lhit(1)) p%side = 1
     endif
-  else if (p%dir(3).lt.zero) then
+  else if (p%dir(3).le.zero) then
     if(p%scattercnt.gt.0 .or. p%src_side.ne.5) then
-      call triangle_intersection(p%loc, p%dir, Ab, Bb, Cb, lhit, hit)
-      if(lhit) p%side = 5
+      call triangle_intersection(p%loc, p%dir, Ab, Bb, Cb, lhit(5), hit(5,:))
+      !if(lhit(1)) p%side = 5
     endif
   endif
 
   !crossing with side planes:
   ! plane 2, along y=0
-  if(.not.lhit) then
+  !if(.not.lhit) then
     if(p%scattercnt.gt.0 .or. p%src_side.ne.2) then
-      call square_intersection(p%loc, p%dir, Ab, Bb, Bt, At, lhit, hit)
-      if(lhit) p%side = 2
+      call square_intersection(p%loc, p%dir, Ab, Bb, Bt, At, lhit(2), hit(2,:))
+      !if(lhit(3)) p%side = 2
     endif
-  endif
-  if(.not.lhit) then
+  !endif
+  !if(.not.lhit) then
     if(p%scattercnt.gt.0 .or. p%src_side.ne.3) then
-      call square_intersection(p%loc, p%dir, Ab, Cb, Ct, At, lhit, hit)
-      if(lhit) p%side = 3
+      call square_intersection(p%loc, p%dir, Ab, Cb, Ct, At, lhit(3), hit(3,:))
+      !if(lhit(4)) p%side = 3
     endif
-  endif
-  if(.not.lhit) then
+  !endif
+  !if(.not.lhit) then
     if(p%scattercnt.gt.0 .or. p%src_side.ne.4) then
-      call square_intersection(p%loc, p%dir, Bb, Cb, Ct, Bt, lhit, hit)
-      if(lhit) p%side = 4
+      call square_intersection(p%loc, p%dir, Bb, Cb, Ct, Bt, lhit(4), hit(4,:))
+      !if(lhit(5)) p%side = 4
     endif
-  endif
+  !endif
 
-  if(.not.lhit) then
+  !max_dist = minval(hit(:,4), mask=hit(:,4).ge.zero)
+  !p%side   = minloc(hit(:,4), mask=hit(:,4).ge.zero, dim=1)
+  max_dist = huge(max_dist)
+  do i=1,5
+    if(hit(i,4).lt.zero) cycle
+    if(hit(i,4).le.max_dist) then
+      max_dist = hit(i,4)
+      p%side   = i
+    endif
+  enddo
+
+  if(count(lhit).ne.1) then
     print *,'should actually not be here at the end of crossings in intersect distance!'
+    print *,'max dist, p%side', max_dist, p%side
+    print *,'lhit', lhit
+    print *,'hit1', hit(1,:)
+    print *,'hit2', hit(2,:)
+    print *,'hit3', hit(3,:)
+    print *,'hit4', hit(4,:)
+    print *,'hit5', hit(5,:)
     call print_photon(p)
     stop 'ERROR in Raytracer, didnt hit anything!'
   endif
 
-  l_in_triangle = pnt_in_triangle(A,B,C, hit(1:2))
+  l_in_triangle = pnt_in_triangle(A,B,C, hit(p%side,1:2))
   if(.not.l_in_triangle) then
     print *,'I hit something...', p%side, '::', hit
-    print *,'distance to edges:', distances_to_triangle_edges(A,B,C, hit(1:2)), ':: dists to faces',hit(4)
-    print *,'called pnt_in_triangle(', A, B, C, hit(1:2), ')'
-    print *,'target point not in triangle', hit, 'side', p%side, 'dist', hit(4)
+    print *,'distance to edges:', distances_to_triangle_edges(A,B,C, hit(p%side,1:2)), ':: dists to faces',hit(p%side,4)
+    print *,'called pnt_in_triangle(', A, B, C, hit(p%side,1:2), ')'
+    print *,'target point not in triangle', hit, 'side', p%side, 'dist', hit(p%side,4)
     call print_photon(p)
     stop 'debug'
   endif
 
   select type(bmc)
   end select
-
-  max_dist = hit(4)
 end subroutine
 ! ******************* BOXMC wedge 5 5 ************************
 

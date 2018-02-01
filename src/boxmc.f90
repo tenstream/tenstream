@@ -29,8 +29,10 @@ module m_boxmc
 #define isnan ieee_is_nan
 #endif
 
-  use m_helper_functions_dp, only : approx, mean, rmse, imp_reduce_sum, norm, deg2rad, compute_normal_3d, hit_plane, spherical_2_cartesian
-  use m_helper_functions, only : square_intersection, triangle_intersection, CHKERR
+  use m_helper_functions_dp, only : approx, mean, rmse, imp_reduce_sum, &
+    norm, deg2rad, compute_normal_3d, spherical_2_cartesian, &
+    hit_plane, square_intersection, triangle_intersection
+  use m_helper_functions, only : CHKERR
   use iso_c_binding
   use m_mersenne
   use mpi
@@ -296,14 +298,14 @@ contains
     endif
 
     iout = 0
-    do idst = 1, size(ret_T_out)
+    do idst = 1, size(T_out)
       if(idst.eq.src .and. size(ret_T_out).eq.size(T_out)-1) cycle
       iout = iout + 1
       ret_T_out(iout) = real(T_out(idst), kind=ireals)
       ret_T_tol(iout) = real(T_tol(idst), kind=ireals)
-      ret_S_out(iout) = real(S_out(idst), kind=ireals)
-      ret_S_tol(iout) = real(S_tol(idst), kind=ireals)
     enddo
+    ret_S_out = real(S_out, kind=ireals)
+    ret_S_tol = real(S_tol, kind=ireals)
   end subroutine
 
   subroutine run_photons(bmc,src,op,dx,dy,dz,ldir,phi0,theta0,Nphotons,std_Sdir,std_Sdiff,std_abso)

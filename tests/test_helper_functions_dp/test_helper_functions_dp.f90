@@ -137,3 +137,77 @@ subroutine test_triangle_functions_dp()
     distance = hit_plane([A(1),A(2),one], [zero,zero,+one], [C(1),C(2),zero], normal)
     @assertEqual(-one, distance, 'distance calculation not correct 4')
 end subroutine
+
+@test(npes =[1])
+subroutine test_triangle_intersection()
+
+    use m_data_parameters, only: ireal_dp, iintegers
+    use m_helper_functions_dp, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, &
+      determine_normal_direction, triangle_intersection
+
+    use pfunit_mod
+
+    implicit none
+    real(ireal_dp),parameter :: zero=0, one=1, dx = 100, atol=100*epsilon(atol)
+    real(ireal_dp) :: A(3)
+    real(ireal_dp) :: B(3)
+    real(ireal_dp) :: C(3)
+    real(ireal_dp) :: direction(3)
+    real(ireal_dp) :: origin(3)
+    real(ireal_dp) :: hit(4)
+    logical :: lhit
+
+    A = [zero, zero, zero]
+    B = [  dx, zero, zero]
+    C = [dx/2, zero, sqrt(dx**2 - (dx/2)**2)]
+
+    direction = [zero, one, zero]
+
+    origin    = [dx/2,-one, dx/2]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
+    print *,origin,'=>',hit
+
+    origin    = [dx/2,one, dx/2]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertFalse(lhit)
+
+    origin    = [dx/2,-epsilon(dx), dx/2]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
+
+    origin    = [dx/2,epsilon(dx), dx/2]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertFalse(lhit)
+
+    origin    = A + [zero,-epsilon(dx), zero]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
+
+    origin    = C + [zero,-epsilon(dx), zero]
+    call triangle_intersection(origin, direction, A, B, C, lhit, hit)
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
+
+    origin    = C + [zero,-epsilon(dx), zero]
+    call triangle_intersection(origin, direction, B, A, C, lhit, hit)
+    @assertTrue(lhit)
+    @assertEqual(origin(1), hit(1), atol)
+    @assertEqual(zero,      hit(2), atol)
+    @assertEqual(origin(3), hit(3), atol)
+
+    origin    = [dx/2,epsilon(dx), dx/2]
+    call triangle_intersection(origin, direction, B, A, C, lhit, hit)
+    @assertFalse(lhit)
+end subroutine

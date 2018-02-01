@@ -26,14 +26,17 @@ module m_helper_functions_dp
 
       private
       public imp_bcast, norm, cross_2d, cross_3d, deg2rad, rad2deg, rmse, mean, approx, rel_approx,&
-          delta_scale_optprop, delta_scale, cumsum, inc, &
+          delta_scale_optprop, delta_scale, cumsum, inc, swap, &
           mpi_logical_and, mpi_logical_or, imp_allreduce_min, imp_allreduce_max, imp_reduce_sum, &
           pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, &
           rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, determine_normal_direction, &
-          distance_to_edge, distances_to_triangle_edges
+          distance_to_edge, distances_to_triangle_edges, triangle_intersection, square_intersection
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
+      end interface
+      interface swap
+        module procedure swap_iintegers, swap_ireal_dp
       end interface
 
       integer(mpiint) :: mpierr
@@ -44,6 +47,20 @@ module m_helper_functions_dp
           real(ireal_dp),intent(inout) :: x
           real(ireal_dp),intent(in) :: i
           x=x+i
+      end subroutine
+      pure elemental subroutine swap_iintegers(x,y)
+        integer(iintegers),intent(inout) :: x,y
+        integer(iintegers) :: tmp
+        tmp = x
+        x = y
+        y = tmp
+      end subroutine
+      pure elemental subroutine swap_ireal_dp(x,y)
+        real(ireal_dp),intent(inout) :: x,y
+        real(ireal_dp) :: tmp
+        tmp = x
+        x = y
+        y = tmp
       end subroutine
 
       pure function norm(v)
@@ -397,6 +414,158 @@ module m_helper_functions_dp
           hit_plane = dot_product(po-p_loc, pn) / discr
         endif
       end function
+
+    subroutine square_intersection(origin, direction, tA, tB, tC, tD, lhit, hit)
+      real(ireal_dp), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:), tD(:)
+      logical, intent(out) :: lhit
+      real(ireal_dp), intent(out) :: hit(:)
+
+      lhit = .False.
+      hit = huge(hit)
+
+      ! 2 Triangles incorporating, cut along (AC)
+      call triangle_intersection(origin, direction, tA, tC, tB, lhit, hit)
+      if(lhit) return
+      call triangle_intersection(origin, direction, tA, tC, tD, lhit, hit)
+      if(lhit) return
+    end subroutine
+
+    ! Watertight ray -> triangle intersection code from http://jcgt.org/published/0002/01/05/
+    subroutine triangle_intersection(origin, direction, tA, tB, tC, lhit, hit)
+      real(ireal_dp), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:)
+      logical, intent(out) :: lhit
+      real(ireal_dp), intent(out) :: hit(:)
+
+      logical, parameter :: ldebug = .False. , BACKFACE_CULLING=.False., HIT_EDGE=.True.
+
+      real(ireal_dp) :: org(0:2), dir(0:2), A(0:2), B(0:2), C(0:2)
+      integer(iintegers) :: kx, ky, kz
+      real(ireal_dp) :: Sx, Sy, Sz
+      real(ireal_dp) :: Ax, Ay, Bx, By, Cx, Cy
+      real(ireal_dp) :: Az, Bz, Cz, T
+      real(ireal_dp) :: U, V, W
+      real(ireal_dp) :: b0, b1, b2
+      real(ireal_dp) :: det, rcpDet
+
+
+      real(ireal_dp) :: CxBy, CyBx, AxCy, AyCx, BxAy, ByAx
+
+      lhit = .True.
+      hit = huge(hit)
+
+      org = origin
+      dir = direction
+
+      if(ldebug) print *,'initial direction:', dir
+      if(ldebug) print *,'initial origin   :', origin
+      if(ldebug) print *,'Triangle coord   :', tA
+      if(ldebug) print *,'Triangle coord   :', tB
+      if(ldebug) print *,'Triangle coord   :', tC
+      ! calculate dimension where the ray direction is maximal (C indexing)
+      kz = maxloc(abs(dir), dim=1)-1
+      kx = kz+1; if (kx == 3) kx = 0
+      ky = kx+1; if (ky == 3) ky = 0
+      if(ldebug) print *,'max direction:', kx, ky, kz
+
+      ! swap kx and ky dimension to preserve winding direction of triangles
+      if (dir(kz) < zero) call swap(kx, ky)
+      if(ldebug) print *,'max direction after swap:', kx, ky, kz
+      if(ldebug) print *,'principal direction:', dir(kx), dir(ky), dir(kz)
+
+      ! calculate shear constants
+      Sx = dir(kx) / dir(kz)
+      Sy = dir(ky) / dir(kz)
+      Sz = one / dir(kz)
+      if(ldebug) print *,'Shear constants:', Sx, Sy, Sz
+
+      ! calculate vertices relative to ray origin
+      A = tA-origin
+      B = tB-origin
+      C = tC-origin
+      if(ldebug) print *,'relative Triangle coords A:', A
+      if(ldebug) print *,'relative Triangle coords B:', B
+      if(ldebug) print *,'relative Triangle coords C:', C
+
+
+      ! perform shear and scale of vertices
+      Ax = A(kx) - Sx*A(kz)
+      Ay = A(ky) - Sy*A(kz)
+      Bx = B(kx) - Sx*B(kz)
+      By = B(ky) - Sy*B(kz)
+      Cx = C(kx) - Sx*C(kz)
+      Cy = C(ky) - Sy*C(kz)
+      if(ldebug) print *,'local Triangle coords A:', Ax, Ay
+      if(ldebug) print *,'local Triangle coords B:', Bx, By
+      if(ldebug) print *,'local Triangle coords C:', Cx, Cy
+
+      ! calculate scaled barycentric coordinates
+      U = Cx*By - Cy*Bx;
+      V = Ax*Cy - Ay*Cx;
+      W = Bx*Ay - By*Ax;
+
+      if(ldebug) print *,'Barycentric coords:', U, V, W
+
+      ! fall back to test against edges using double precision
+      if(ireal_dp.lt.ireal_dp) then
+        if (U.eq.zero .or. V.eq.zero .or. W.eq.zero) then
+          CxBy = real(Cx, kind=ireal_dp) * real(By, kind=ireal_dp)
+          CyBx = real(Cy, kind=ireal_dp) * real(Bx, kind=ireal_dp)
+          U = real(CxBy - CyBx, kind=ireal_dp)
+          AxCy = real(Ax, kind=ireal_dp) * real(Cy, kind=ireal_dp)
+          AyCx = real(Ay, kind=ireal_dp) * real(Cx, kind=ireal_dp)
+          V = real(AxCy - AyCx, kind=ireal_dp)
+          BxAy = real(Bx, kind=ireal_dp) * real(Ay, kind=ireal_dp)
+          ByAx = real(By, kind=ireal_dp) * real(Ax, kind=ireal_dp)
+          W = real(BxAy - ByAx, kind=ireal_dp)
+        endif
+      endif
+
+      !Perform edge tests. Moving this test before and at the end of the previous conditional gives higher performance.
+      if(BACKFACE_CULLING) then
+        if (U < zero .or. V < zero .or. W < zero) lhit=.False.
+      else
+        if ((U < zero .or. V < zero .or. W < zero) .and. &
+          (U > zero .or. V > zero .or. W > zero)) lhit=.False.
+      endif
+
+      ! calculate determinant
+      det = U + V + W
+      if (.not.HIT_EDGE .and. det.eq.zero) then
+        if(ldebug) print *,'determinant zero: on edge?', det
+        lhit=.False.
+      endif
+
+      !Calculate scaled z−coordinates of vertices and use them to calculate the hit distance.
+      Az = Sz * A(kz)
+      Bz = Sz * B(kz)
+      Cz = Sz * C(kz)
+      T = U * Az + V * Bz + W * Cz
+
+      if(BACKFACE_CULLING) then
+        if (T < zero .or. T > hit(4) * det) then
+          if(ldebug) print *,'BACKFACE_CULLING T<0', T
+          lhit = .False.
+        endif
+      else
+        if(det < zero .and. (T >= zero .or. T < hit(4)*det)) then
+          if(ldebug) print *,'det<0 && T>0', det, T
+          lhit = .False.
+        else if(det > zero .and. (T <= zero .or. T > hit(4) * det)) then
+          if(ldebug) print *,'det>0 && T<0', det, T
+          lhit = .False.
+        endif
+      endif
+
+      ! normalize U, V, W, and T
+      rcpDet = one / det
+      b0 = U * rcpDet
+      b1 = V * rcpDet
+      b2 = W * rcpDet
+
+      hit(1:3) = b0*tA + b1*tB + b2*tC
+      hit(4) = T * rcpDet
+      if(ldebug) print *,'Hit triangle', lhit, '::', hit
+    end subroutine
 
       !> @brief determine if point is inside a rectangle p1,p2,p3
       function pnt_in_rectangle(p1,p2,p3, p)

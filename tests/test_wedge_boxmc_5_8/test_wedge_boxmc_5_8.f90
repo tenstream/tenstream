@@ -103,7 +103,7 @@ contains
 
       S_target = [0.0006, 0.0012, 0.0007, 0.0012, 0.0007, 0.0101, 0.0021, 0.0075]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_2')
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_1')
 
       ! up along face 4
       theta=180
@@ -121,7 +121,7 @@ contains
       T_target(5) = (sinh(tau)-cosh(tau)+1)/tau
       S_target = [0.0022, 0.0012, 0.0018, 0.0012, 0.0017, 0.0061, 0.0061, 0.0036]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_1')
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_3')
 
       ! up along face 4
       theta=180
@@ -129,7 +129,7 @@ contains
       T_target(1) = (sinh(tau)-cosh(tau)+1)/tau
       S_target = [0.0036, 0.0018, 0.0012, 0.0017, 0.0012, 0.0061, 0.0061, 0.0022]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_2')
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_4')
 
 
       ! outwards from face 4
@@ -143,13 +143,13 @@ contains
       S_target = [0.0062, 0.0063, 0.0062, 0.0062, 0.0062, 0.0012, 0.0012, 0.0063]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_4')
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_5')
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
       S_target = [0.0076, 0.0041, 0.004, 0.0041, 0.004, 0.0042, 0.0042, 0.0077]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_3')
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_6')
   end subroutine
 
   @test(npes =[1,2])
