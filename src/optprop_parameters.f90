@@ -124,4 +124,7 @@ module m_optprop_parameters
 !      real(ireals),parameter :: delta_scale_truncate=.8660_ireals ! .8660 = 30 degrees delta scaling
 
 
+      ! Used to signal that all Angles possible should be loaded when initializing the LUT object -- pass this as azi and zenith
+      integer(iintegers), parameter :: OPP_LUT_ALL_ANGLES=361
+
 end module

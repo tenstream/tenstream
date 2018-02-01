@@ -17,6 +17,7 @@ module m_plex_rt
   use m_plex_grid, only: t_plexgrid, compute_face_geometry, setup_edir_dmplex, setup_abso_dmplex
 
   use m_optprop, only : t_optprop, t_optprop_wedge_5_8
+  use m_optprop_parameters, only : OPP_LUT_ALL_ANGLES
 
   implicit none
 
@@ -52,7 +53,8 @@ module m_plex_rt
       solver%plex = plex
 
       allocate(t_optprop_wedge_5_8::solver%OPP)
-      call solver%OPP%init([zero, one*10 ], [zero], solver%plex%comm)
+      call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], &
+                           [real(OPP_LUT_ALL_ANGLES, kind=ireals)], solver%plex%comm)
     end subroutine
 
     subroutine set_plex_rt_optprop(solver, vlwc)
@@ -69,7 +71,7 @@ module m_plex_rt
 
       solver%optprop(:)%kabs = 1e-6_ireals
       solver%optprop(:)%ksca = xlwc(:)*1e-3_ireals
-      solver%optprop(:)%g    = xlwc(:)/maxval(xlwc) * .85_ireals
+      solver%optprop(:)%g    = .5
 
       call VecRestoreArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
     end subroutine

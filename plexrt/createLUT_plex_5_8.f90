@@ -26,18 +26,19 @@ program main
       use m_helper_functions, only: CHKERR
       use mpi
       use m_optprop_LUT, only : t_optprop_LUT_wedge_5_8
+      use m_optprop_parameters, only : OPP_LUT_ALL_ANGLES
       use m_tenstream_options, only : read_commandline_options
 
       integer(mpiint) :: myid,comm
 
       character(len=80) :: arg
       real(ireals) :: user_sza
-      real(ireals) :: azis(91),szas(92)
+      real(ireals) :: azis(1),szas(1)
 
       type(t_optprop_LUT_wedge_5_8) :: OPP
 
       PetscErrorCode :: ierr
-      integer :: i
+      integer :: i,c
 
       call mpi_init(ierr)
       comm = MPI_COMM_WORLD
@@ -48,13 +49,8 @@ program main
 
       call read_commandline_options()
 
-      do i=0,90
-        azis(i+1) = i
-      enddo
-      do i=0,90
-        szas(i+1) = i
-      enddo
-      szas(92) = -1
+      azis = OPP_LUT_ALL_ANGLES
+      szas = OPP_LUT_ALL_ANGLES
 
       do i=1,10
         call get_command_argument(i, arg)
