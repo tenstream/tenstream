@@ -440,7 +440,6 @@ module m_icon_grid
       enddo
       ii(ncells_local) = offset
 
-
       call MatCreateMPIAdj(comm, ncells_local , icongrid%Nfaces, &
         ii, jj, PETSC_NULL_INTEGER, mesh, ierr); call CHKERR(ierr)
 

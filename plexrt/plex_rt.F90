@@ -2,24 +2,77 @@ module m_plex_rt
 
 #include "petsc/finclude/petsc.h"
   use petsc
+
+  use m_tenstream_options, only : read_commandline_options
+
   use m_helper_functions, only: CHKERR, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, &
     vec_proj_on_plane, cross_3d, norm, rotation_matrix_world_to_local_basis, &
     imp_bcast, approx
+
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5,  &
     zero, one, pi
 
-  use m_plex_grid, only: t_plexgrid
+  use m_plex_grid, only: t_plexgrid, compute_face_geometry, setup_edir_dmplex, setup_abso_dmplex
+
+  use m_optprop, only : t_optprop, t_optprop_wedge_4_8
 
   implicit none
 
   private
 
-  public :: create_src_vec, solve_plex_rt, compute_edir_absorption, create_edir_mat, get_normal_of_first_TOA_face
+  public :: t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, &
+    get_normal_of_first_TOA_face, compute_face_geometry
+
+  type t_plex_solver
+    type(t_plexgrid), allocatable :: plex
+    class(t_optprop), allocatable :: OPP
+  end type
 
   logical, parameter :: ldebug=.True.
   contains
+    subroutine init_plex_rt_solver(comm, plex, solver)
+      MPI_Comm, intent(in) :: comm
+      type(t_plexgrid), intent(in) :: plex
+      type(t_plex_solver), allocatable, intent(inout) :: solver
+
+      call read_commandline_options()
+
+      if(allocated(solver)) stop 'Should not call init_plex_rt_solver with already allocated solver object'
+      allocate(solver)
+
+      allocate(solver%plex)
+      solver%plex = plex
+
+      allocate(t_optprop_wedge_4_8::solver%OPP)
+      call solver%OPP%init([zero, one*10 ], [zero], solver%plex%comm)
+    end subroutine
+
+    subroutine run_plex_rt_solver(solver, sundir)
+      type(t_plex_solver), allocatable, intent(inout) :: solver
+      real(ireals), intent(in) :: sundir(3) ! cartesian direction of sun rays, norm of vector is the energy in W/m2
+
+      type(tVec) :: b, edir, abso
+      type(tMat) :: Mdir
+      integer(mpiint) :: ierr
+
+      if(.not.allocated(solver)) stop 'run_plex_rt_solver::solver has to be allocated'
+
+      if(.not.allocated(solver%plex%geom_dm)) stop 'geom_dm not allocated'
+      if(.not.allocated(solver%plex%geom_dm)) call compute_face_geometry(solver%plex, solver%plex%geom_dm)
+      if(.not.allocated(solver%plex%edir_dm)) call setup_edir_dmplex(solver%plex, solver%plex%edir_dm)
+
+      call create_src_vec(solver%plex%edir_dm, b)
+
+      call create_edir_mat(solver%plex, solver%OPP, sundir, Mdir)
+      call solve_plex_rt(solver%plex, b, Mdir, edir)
+
+      call PetscObjectViewFromOptions(edir, PETSC_NULL_VEC, '-show_edir', ierr); call CHKERR(ierr)
+
+      call setup_abso_dmplex(solver%plex, solver%plex%abso_dm)
+      call compute_edir_absorption(solver%plex, edir, sundir, abso)
+    end subroutine
 
     subroutine create_src_vec(dm, globalVec)
       type(tDM),allocatable :: dm
@@ -198,9 +251,10 @@ module m_plex_rt
     call PetscObjectViewFromOptions(abso, PETSC_NULL_VEC, '-show_abso', ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine create_edir_mat(plex, sundir, A)
+  subroutine create_edir_mat(plex, OPP, sundir, A)
     type(t_plexgrid), intent(inout) :: plex
     real(ireals), intent(in) :: sundir(3)
+    class(t_optprop), intent(in) :: OPP
     type(tMat), intent(out) :: A
 
     type(tPetscSection) :: sec
@@ -459,6 +513,7 @@ module m_plex_rt
       call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
       if(myid.eq.0) then
+        if(.not.allocated(plex%geom_dm)) stop 'get_normal_of_first_TOA_face::needs allocated geom_dm first'
         call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
         !call VecGetArrayReadF90(plex%geomVec, geoms, ierr); CHKERRQ(ierr)
         !call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); CHKERRQ(ierr)
