@@ -651,8 +651,9 @@ module m_plex_grid
       call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_dist_plex", ierr); call CHKERR(ierr)
     end subroutine
 
-  subroutine compute_face_geometry(plex)
+  subroutine compute_face_geometry(plex, dm)
     type(t_plexgrid), intent(inout) :: plex
+    type(tDM), intent(out), allocatable :: dm
 
     type(tVec) :: coordinates
     integer(iintegers) :: cStart, cEnd, icell
@@ -674,34 +675,34 @@ module m_plex_grid
 
     integer(mpiint) :: ierr
 
-    if(allocated(plex%geom_dm)) stop 'called compute_face_geometry on an already allocated geom_dm'
-    allocate(plex%geom_dm)
-    call DMClone(plex%dm, plex%geom_dm, ierr); ; call CHKERR(ierr)
-    call DMGetCoordinateDim(plex%geom_dm, Ndim, ierr); call CHKERR(ierr)
-    call DMGetCoordinateSection(plex%geom_dm, coordSection, ierr); call CHKERR(ierr)
+    if(allocated(dm)) stop 'called compute_face_geometry on an already allocated geom_dm'
+    allocate(dm)
+    call DMClone(plex%dm, dm, ierr); ; call CHKERR(ierr)
+    call DMGetCoordinateDim(dm, Ndim, ierr); call CHKERR(ierr)
+    call DMGetCoordinateSection(dm, coordSection, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(coordSection, PETSC_NULL_SECTION, "-show_dm_coord_section", ierr); call CHKERR(ierr)
 
-    call create_plex_section(plex%comm, plex%geom_dm, 'Geometry Section', i1*3, i1*6, i0, i0, geomSection)  ! Contains 3 dof for centroid on cells and faces plus 3 for normal vecs on faces
-    call DMSetDefaultSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call create_plex_section(plex%comm, dm, 'Geometry Section', i1*3, i1*6, i0, i0, geomSection)  ! Contains 3 dof for centroid on cells and faces plus 3 for normal vecs on faces
+    call DMSetDefaultSection(dm, geomSection, ierr); call CHKERR(ierr)
     call PetscSectionDestroy(geomSection, ierr); call CHKERR(ierr)
-    call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetDefaultSection(dm, geomSection, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(geomSection, PETSC_NULL_SECTION, "-show_dm_geom_section", ierr); call CHKERR(ierr)
 
 
-    call DMGetCoordinatesLocal(plex%geom_dm, coordinates, ierr); call CHKERR(ierr)
+    call DMGetCoordinatesLocal(dm, coordinates, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_dm_coord", ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(coordinates, coords, ierr); call CHKERR(ierr)
 
-    call DMPlexGetHeightStratum(plex%geom_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr)  ! cells
-    call DMPlexGetHeightStratum(plex%geom_dm, i1, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
-    call DMPlexGetDepthStratum (plex%geom_dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+    call DMPlexGetHeightStratum(dm, i0, cStart, cEnd, ierr); call CHKERR(ierr)  ! cells
+    call DMPlexGetHeightStratum(dm, i1, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
+    call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-    call DMGetLocalVector(plex%geom_dm, plex%geomVec,ierr); call CHKERR(ierr)
+    call DMGetLocalVector(dm, plex%geomVec,ierr); call CHKERR(ierr)
     call PetscObjectSetName(plex%geomVec, 'geomVec', ierr);call CHKERR(ierr)
     call VecGetArrayF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     do icell = cStart, cEnd-1
-      call DMPlexGetTransitiveClosure(plex%geom_dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
+      call DMPlexGetTransitiveClosure(dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
       !print *,'cell transclosure:',icell, transclosure
       if(size(transclosure).ne.21*2) then
         print *,'len of transclosure with size', size(transclosure), 'not supported -- is this a wedge?'
@@ -721,12 +722,12 @@ module m_plex_grid
       call PetscSectionGetOffset(geomSection, icell, voff, ierr); call CHKERR(ierr)
       geoms(i1+voff:voff+Ndim) = sum(vertex_coord,dim=2)/size(vertices)
 
-      call DMPlexRestoreTransitiveClosure(plex%geom_dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
+      call DMPlexRestoreTransitiveClosure(dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
       deallocate(vertex_coord)
     enddo
 
     do iface = fStart, fEnd-1
-      call DMPlexGetConeSize(plex%geom_dm, iface, Nedges, ierr); call CHKERR(ierr)
+      call DMPlexGetConeSize(dm, iface, Nedges, ierr); call CHKERR(ierr)
 
       select case(Nedges)
       case (3)
@@ -742,13 +743,13 @@ module m_plex_grid
         stop 'Invalid number of edges for face normal computation'
       end select
 
-      call DMPlexGetTransitiveClosure(plex%geom_dm, iface, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
+      call DMPlexGetTransitiveClosure(dm, iface, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
       !print *,'transclosure', iface,'::',Nedges,'::',transclosure
 
       vertices = transclosure(3+2*Nedges:size(transclosure):2) ! indices come from: 1 for faceid, Nedge, and then vertices, each with two entries, one for index, and one for orientation
       !print *,'iface',iface,'vertices', vertices
 
-      call DMPlexRestoreTransitiveClosure(plex%geom_dm, iface, PETSC_True, transclosure, ierr); call CHKERR(ierr)
+      call DMPlexRestoreTransitiveClosure(dm, iface, PETSC_True, transclosure, ierr); call CHKERR(ierr)
 
       ! Get the coordinates of vertices
       allocate(vertex_coord(Ndim, Nvertices))
