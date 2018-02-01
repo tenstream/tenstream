@@ -220,7 +220,7 @@ contains
 
     type(stddev) :: std_Sdir, std_Sdiff, std_abso
 
-    integer(iintegers) :: Nphotons
+    integer(iintegers) :: Nphotons, idst, iout
 
     if(.not. bmc%initialized ) stop 'Box Monte Carlo Ray Tracer is not initialized! - This should not happen!'
 
@@ -295,10 +295,15 @@ contains
       call exit()
     endif
 
-    ret_T_out = real(T_out(1:size(ret_T_out)), kind=ireals)
-    ret_T_tol = real(T_tol(1:size(ret_T_tol)), kind=ireals)
-    ret_S_out = real(S_out(1:size(ret_S_out)), kind=ireals)
-    ret_S_tol = real(S_tol(1:size(ret_S_tol)), kind=ireals)
+    iout = 0
+    do idst = 1, size(ret_T_out)
+      if(idst.eq.src .and. size(ret_T_out).eq.size(T_out)-1) cycle
+      iout = iout + 1
+      ret_T_out(iout) = real(T_out(idst), kind=ireals)
+      ret_T_tol(iout) = real(T_tol(idst), kind=ireals)
+      ret_S_out(iout) = real(S_out(idst), kind=ireals)
+      ret_S_tol(iout) = real(S_tol(idst), kind=ireals)
+    enddo
   end subroutine
 
   subroutine run_photons(bmc,src,op,dx,dy,dz,ldir,phi0,theta0,Nphotons,std_Sdir,std_Sdiff,std_abso)
