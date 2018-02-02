@@ -40,8 +40,7 @@ logical, parameter :: ldebug=.True.
 
       integer(mpiint) :: myid, numnodes, ierr
       type(t_plexgrid), allocatable :: plexgrid
-      type(tVec) :: b, edir, abso, lwcvec
-      type(tMat) :: A
+      type(tVec) :: lwcvec
       AO :: cell_ao
 
       integer(iintegers) :: Nz
@@ -76,31 +75,18 @@ logical, parameter :: ldebug=.True.
       call ncvar2d_to_globalvec(plexgrid, lwcfile, 'lwc', lwcvec)
       call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
 
-      !call compute_face_geometry(plexgrid, plexgrid%geom_dm) ! setup the geometry info for the plexgrid object (sets up the plexgrid%geom_dm)
-
-      !call setup_edir_dmplex(plexgrid, plexgrid%edir_dm)
-
-      call init_plex_rt_solver(comm, plexgrid, solver)
+      call init_plex_rt_solver(plexgrid, solver)
 
       call compute_face_geometry(solver%plex, solver%plex%geom_dm)
       sundir = get_normal_of_first_TOA_face(solver%plex) + [0.,0.,-.06]
+      !sundir = -[0.73324, 0.1317, 0.667094]
+      sundir = -[0.677688, 0.0758756, 0.731425]
       sundir = sundir/norm(sundir)
       print *,myid,'Initial sundirection = ', sundir
 
       call set_plex_rt_optprop(solver, lwcvec)
 
       call run_plex_rt_solver(solver, sundir)
-
-      !call create_src_vec(plexgrid%edir_dm, b)
-
-      !call setup_abso_dmplex(plexgrid, plexgrid%abso_dm)
-
-      !call create_edir_mat(plexgrid, sundir, A)
-
-      !call solve_plex_rt(plexgrid, b, A, edir)
-
-
-      !call compute_edir_absorption(plexgrid, edir, sundir, abso)
     end subroutine
 
   end module
@@ -112,7 +98,7 @@ logical, parameter :: ldebug=.True.
     character(len=default_str_len) :: gridfile, lwcfile, outfile
     logical :: lflg
     integer(mpiint) :: ierr
-    character(len=default_str_len) :: default_options
+    character(len=10*default_str_len) :: default_options
     logical :: lexists
     !character(len=*),parameter :: ex_out='plex_ex_dom1_out.h5'
     !character(len=*),parameter :: ex_out='plex_test_out.h5'
@@ -132,16 +118,13 @@ logical, parameter :: ldebug=.True.
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
     default_options=''
+    default_options=trim(default_options)//' -show_plex_dump hdf5:'//trim(outfile)
     default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_lwc hdf5:'//trim(outfile)//'::append'
-
-    call mpi_barrier(PETSC_COMM_WORLD, ierr); call CHKERR(ierr)
-    inquire( file=outfile, exist=lexists )
-    if(.not.lexists) default_options = '-show_plex hdf5:'//trim(outfile)//' '//trim(default_options)
-    call mpi_barrier(PETSC_COMM_WORLD, ierr); call CHKERR(ierr)
+    default_options=trim(default_options)//' -show_faceVec2cellVec_edir hdf5:'//trim(outfile)//'::append'
 
     print *,'Adding default Petsc Options:', default_options, lexists
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)

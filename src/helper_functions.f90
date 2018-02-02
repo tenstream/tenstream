@@ -31,7 +31,7 @@ module m_helper_functions
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique, itoa
+    vec_proj_on_plane, get_arg, unique, itoa, strF2C
 
   interface mean
     module procedure mean_1d, mean_2d
@@ -53,6 +53,14 @@ module m_helper_functions
   integer(mpiint) :: mpierr
 
   contains
+
+    function strF2C(str)
+      use iso_c_binding, only: C_NULL_CHAR
+      character(len=*), intent(in) :: str
+      character(len=len_trim(str)+1) :: strF2C
+      strF2C = trim(str)//C_NULL_CHAR
+    end function
+
     pure elemental subroutine swap_ireals(x,y)
       real(ireals),intent(inout) :: x,y
       real(ireals) :: tmp

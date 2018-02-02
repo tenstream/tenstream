@@ -31,7 +31,7 @@ module m_mpi_plex_ex1
 
       type(t_plex_solver), allocatable :: solver
 
-      call init_plex_rt_solver(plex%comm, plex, solver)
+      call init_plex_rt_solver(plex, solver)
 
       sundir = get_normal_of_first_TOA_face(plex)
       print *,'get_normal_of_first_TOA_face', sundir
