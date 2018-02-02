@@ -20,7 +20,7 @@ subroutine test_tenstream_ex1(this)
     real(ireals),parameter :: dz=dx
     real(ireals) :: dz1d(nv)
 
-    integer(iintegers),parameter :: Nrank_x=3, Nrank_y=3
+    integer(mpiint),parameter :: Nrank_x=3, Nrank_y=3
 
     integer(iintegers) :: neighbors_orig(4), neighbors_reorder(4)
     integer(mpiint) :: myid, mpierr, orig_id, numnodes
