@@ -846,19 +846,26 @@ module m_pprts
     procedure(preallocation_sub), optional :: prealloc_subroutine
 
     integer(iintegers),dimension(:),allocatable :: o_nnz,d_nnz
+    integer(mpiint) :: numnodes
 
     if(.not.allocated(A)) then
       allocate(A)
       call DMCreateMatrix(C%da, A, ierr) ;call CHKERR(ierr)
     endif
 
-    if(lprealloc.and.present(prealloc_subroutine)) then
-      call prealloc_subroutine(solver, C, d_nnz, o_nnz)
-      call MatMPIAIJSetPreallocation(A, C%dof+1, d_nnz, C%dof, o_nnz, ierr) ;call CHKERR(ierr)
-    else ! poor mans perallocation uses way more memory...
-      call MatMPIAIJSetPreallocation(A, C%dof+1, PETSC_NULL_INTEGER, C%dof, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
+    call mpi_comm_size(C%comm, numnodes, ierr) ; call CHKERR(ierr)
+
+    if(numnodes.gt.1) then
+      if(lprealloc.and.present(prealloc_subroutine)) then
+        call prealloc_subroutine(solver, C, d_nnz, o_nnz)
+        call MatMPIAIJSetPreallocation(A, C%dof+1, d_nnz, C%dof, o_nnz, ierr) ;call CHKERR(ierr)
+      else ! poor mans perallocation uses way more memory...
+        stop 'init_Matrix::setPreallocation : poor mans preallocation should really not be used...'
+        call MatMPIAIJSetPreallocation(A, C%dof+1, PETSC_NULL_INTEGER, C%dof, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
+      endif
+    else
+      call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
     endif
-    call MatSeqAIJSetPreallocation(A, C%dof+i1, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
 
     ! If matrix is resetted, keep nonzero pattern and allow to non-zero allocations -- those should not be many
     ! call MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE,ierr) ;call CHKERR(ierr)
