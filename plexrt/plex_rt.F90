@@ -6,7 +6,7 @@ module m_plex_rt
   use m_tenstream_options, only : read_commandline_options
 
   use m_helper_functions, only: CHKERR, determine_normal_direction, &
-    angle_between_two_vec, rad2deg, deg2rad, &
+    angle_between_two_vec, rad2deg, deg2rad, strF2C, &
     vec_proj_on_plane, cross_3d, norm, rotation_matrix_world_to_local_basis, &
     imp_bcast, approx
 
@@ -14,7 +14,8 @@ module m_plex_rt
     i0, i1, i2, i3, i4, i5,  &
     zero, one, pi
 
-  use m_plex_grid, only: t_plexgrid, compute_face_geometry, setup_edir_dmplex, setup_abso_dmplex
+  use m_plex_grid, only: t_plexgrid, compute_face_geometry, setup_edir_dmplex, setup_abso_dmplex, &
+    facevec2cellvec
 
   use m_optprop, only : t_optprop, t_optprop_wedge_5_8
   use m_optprop_parameters, only : OPP_LUT_ALL_ANGLES
@@ -39,8 +40,7 @@ module m_plex_rt
 
   logical, parameter :: ldebug=.True.
   contains
-    subroutine init_plex_rt_solver(comm, plex, solver)
-      MPI_Comm, intent(in) :: comm
+    subroutine init_plex_rt_solver(plex, solver)
       type(t_plexgrid), intent(in) :: plex
       type(t_plex_solver), allocatable, intent(inout) :: solver
 
@@ -91,20 +91,25 @@ module m_plex_rt
       if(.not.allocated(solver%plex%geom_dm)) call compute_face_geometry(solver%plex, solver%plex%geom_dm)
       if(.not.allocated(solver%plex%edir_dm)) call setup_edir_dmplex(solver%plex, solver%plex%edir_dm)
 
-      call create_src_vec(solver%plex%edir_dm, b)
+      call create_src_vec(solver%plex, solver%plex%edir_dm, norm(sundir), b)
 
       call create_edir_mat(solver%plex, solver%OPP, solver%optprop, sundir, Mdir)
       call solve_plex_rt(solver%plex, b, Mdir, edir)
+      call PetscObjectSetName(edir, 'edir', ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(edir, PETSC_NULL_VEC, '-show_edir', ierr); call CHKERR(ierr)
+      call facevec2cellvec(solver%plex%comm, solver%plex%edir_dm, edir)
 
       call setup_abso_dmplex(solver%plex, solver%plex%abso_dm)
       call compute_edir_absorption(solver%plex, edir, sundir, abso)
     end subroutine
 
-    subroutine create_src_vec(dm, globalVec)
-      type(tDM),allocatable :: dm
-      type(tVec) :: globalVec
+    subroutine create_src_vec(plex, dm, E0, srcVec)
+      type(t_plexgrid), intent(in) :: plex
+      type(tDM),allocatable, intent(in) :: dm
+      type(tVec),intent(out) :: srcVec
+      real(ireals), intent(in) :: E0
+
       integer(iintegers) :: i, voff
       type(tPetscSection) :: s
 
@@ -114,7 +119,9 @@ module m_plex_rt
       integer(iintegers) :: cStart, cEnd
       integer(iintegers) :: fStart, fEnd
 
-      type(tIS) :: toa_ids
+      type(tIS) :: boundary_ids
+      logical :: ltopface
+      integer(iintegers) :: iface, k
 
       integer(iintegers), pointer :: xx_v(:)
 
@@ -131,47 +138,48 @@ module m_plex_rt
       call DMPlexGetHeightStratum(dm, i1, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
 
       ! Now lets get vectors!
-      call DMGetGlobalVector(dm, globalVec,ierr); call CHKERR(ierr)
-      call PetscObjectSetName(globalVec, 'srcVecGlobal', ierr);call CHKERR(ierr)
-      call VecSet(globalVec, zero, ierr); call CHKERR(ierr)
+      call DMCreateGlobalVector(dm, srcVec,ierr); call CHKERR(ierr)
+      call PetscObjectSetName(srcVec, 'srcVecGlobal', ierr);call CHKERR(ierr)
+      call VecSet(srcVec, zero, ierr); call CHKERR(ierr)
 
       call DMGetLocalVector(dm, localVec,ierr); call CHKERR(ierr)
       call PetscObjectSetName(localVec, 'srcVec', ierr);call CHKERR(ierr)
       call VecSet(localVec, zero, ierr); call CHKERR(ierr)
 
-      call DMGetStratumIS(dm, 'TOA', i1, toa_ids, ierr); call CHKERR(ierr)
-      if (toa_ids.eq.PETSC_NULL_IS) then ! dont have TOA points
+      call DMGetStratumIS(dm, 'Boundary', i1, boundary_ids, ierr); call CHKERR(ierr)
+      if (boundary_ids.eq.PETSC_NULL_IS) then ! dont have TOA points
       else
-        call PetscObjectViewFromOptions(toa_ids, PETSC_NULL_IS, '-show_IS_TOA', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(boundary_ids, PETSC_NULL_IS, '-show_IS_Boundary', ierr); call CHKERR(ierr)
 
-        call ISGetIndicesF90(toa_ids, xx_v, ierr); call CHKERR(ierr)
+        call ISGetIndicesF90(boundary_ids, xx_v, ierr); call CHKERR(ierr)
 
         call VecGetArrayF90(localVec, xv, ierr); call CHKERR(ierr)
 
-        !do i = 1, size(xx_v)
-        do i = size(xx_v), size(xx_v)
-          if(myid.eq.0) then
-            call PetscSectionGetOffset(s, xx_v(i), voff, ierr); call CHKERR(ierr)
-            print *,'debug: setting only last source entry...', i,'::',xx_v(i)
-            !print *,myid,'index:',i,xx_v(i),'off',voff+1, lbound(xv,1), ubound(xv,1)
-            xv(voff+1) = 100 !i
+        do i = 1, size(xx_v)
+          iface = xx_v(i)
+          ltopface = plex%ltopfacepos(iface)
+          k = plex%zindex(iface)
+          if(ltopface.and.k.eq.1) then
+            call PetscSectionGetOffset(s, iface, voff, ierr); call CHKERR(ierr)
+            xv(voff+1) = E0
+          elseif(.not.ltopface) then
+            call PetscSectionGetOffset(s, iface, voff, ierr); call CHKERR(ierr)
+            xv(voff+1) = E0/(plex%Nz+2-k)
           endif
         enddo
         call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
 
-        call ISRestoreIndicesF90(toa_ids, xx_v, ierr); call CHKERR(ierr)
+        call ISRestoreIndicesF90(boundary_ids, xx_v, ierr); call CHKERR(ierr)
       endif
 
       call PetscObjectViewFromOptions(localVec, PETSC_NULL_VEC, '-show_src_vec_local', ierr); call CHKERR(ierr)
 
-      call DMLocalToGlobalBegin(dm, localVec, ADD_VALUES, globalVec, ierr); call CHKERR(ierr)
-      call DMLocalToGlobalEnd(dm, localVec, ADD_VALUES, globalVec, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalBegin(dm, localVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalEnd(dm, localVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
 
-      call PetscObjectViewFromOptions(globalVec, PETSC_NULL_VEC, '-show_src_vec_global', ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(srcVec, PETSC_NULL_VEC, '-show_src_vec_global', ierr); call CHKERR(ierr)
 
       call DMRestoreLocalVector(dm, localVec, ierr); call CHKERR(ierr)
-
-      !call DMRestoreGlobalVector(dm, globalVec, ierr); call CHKERR(ierr) ! Dont destroy the output vec
     end subroutine
 
     subroutine solve_plex_rt(plex, b, A, x)
@@ -309,7 +317,7 @@ module m_plex_rt
     integer(iintegers) :: upper_face  ! index of face which is top/bot of base face, index regarding faces_of_cell
     integer(iintegers) :: bottom_face ! index of face which is top/bot of base face, index regarding faces_of_cell
 
-    real(ireals) :: dir2dir(5,5), S(5), T(5) ! Nface**2
+    real(ireals) :: dir2dir(5,5), T(5) ! Nface**2
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
 
     integer(iintegers) :: zindex
@@ -334,7 +342,7 @@ module m_plex_rt
 
       zindex = plex%zindex(icell)
       dz = plex%hhl(zindex) - plex%hhl(zindex+1)
-      dx = 200 ! TODO: compute edge lengths in setup_geom_dm and use here
+      dx = 623 ! TODO: compute edge lengths in setup_geom_dm and use here
 
       call get_coeff(OPP, optprop(icell+1), dz, dx, .True., coeff, angles=[rad2deg(azimuth), rad2deg(zenith)])
 
@@ -414,10 +422,9 @@ module m_plex_rt
     tauz = (op%kabs+op%ksca) * dz
     w0 = op%ksca / (op%kabs+op%ksca)
 
-    print *,'Lookup Coeffs for', aspect, tauz, w0, op%g
-    call OPP%get_coeff(aspect, tauz, w0, op%g,ldir, coeff, angles)
+    !print *,'Lookup Coeffs for', aspect, tauz, w0, op%g,'::',angles
+    call OPP%get_coeff(aspect, tauz, w0, op%g,ldir, coeff, inp_angles=angles)
     print *,'Coeffs', coeff
-    stop 'debug'
   end subroutine
 
   subroutine compute_local_wedge_ordering(plex, icell, faces_of_cell, geomSection, geoms, sundir, &
@@ -432,7 +439,7 @@ module m_plex_rt
     integer(iintegers), intent(out) :: upper_face, bottom_face, base_face, left_face, right_face
     logical, intent(out) :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
 
-    integer(iintegers) :: iface, geom_offset, ifacepos, izindex(2)
+    integer(iintegers) :: iface, geom_offset, izindex(2)
 
     real(ireals) :: cell_center(3)
     real(ireals) :: face_normals(3,5), face_centers(3,5)
