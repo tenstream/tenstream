@@ -298,12 +298,12 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
 
   real(ireal_dp),dimension(2) :: nAB, nBC, nCA
   real(ireal_dp),dimension(2) :: A, B, C ! points on triangle [A,B,C]
-  real(ireals),dimension(3) :: Ab, Bb, Cb ! points on triangle [A,B,C] at bottom
-  real(ireals),dimension(3) :: At, Bt, Ct ! points on triangle [A,B,C] at top
+  real(ireal_dp),dimension(3) :: Ab, Bb, Cb ! points on triangle [A,B,C] at bottom
+  real(ireal_dp),dimension(3) :: At, Bt, Ct ! points on triangle [A,B,C] at top
 
   logical :: l_in_triangle
   logical :: lhit(5)
-  real(ireals) :: hit(5,4)
+  real(ireal_dp) :: hit(5,4)
   integer(iintegers) :: i
 
 

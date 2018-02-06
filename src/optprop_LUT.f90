@@ -1096,8 +1096,8 @@ subroutine determine_angles_to_load(comm, interp_mode, LUT, azis, szas, mask)
     do itheta=1,size(LUT%pspace%theta)
       do iphi  =1,size(LUT%pspace%phi)
 
-        iphi1   = min(size(LUT%pspace%phi),   iphi+1)
-        itheta1 = min(size(LUT%pspace%theta), itheta+1)
+        iphi1   = min(size(LUT%pspace%phi  , kind=iintegers),   iphi+i1)
+        itheta1 = min(size(LUT%pspace%theta, kind=iintegers), itheta+i1)
 
         phi   = LUT%pspace%phi( [ iphi, iphi1 ] )
         theta = LUT%pspace%theta( [ itheta, itheta1 ]  )
@@ -1433,7 +1433,7 @@ subroutine interp_4p2d(pti,ctable,C)
         real(ireals),intent(out) :: C(:)
 
         real(ireals) :: weights(Ndim)
-        integer :: indices(2,2),fpti(Ndim)
+        integer(iintegers) :: indices(2,2),fpti(Ndim)
 
         ! Instead of doing a full interpolation in 6 dimension we start out with
         ! 4 dimensions only at the cornerstones of the 4d hypercube
@@ -1445,8 +1445,8 @@ subroutine interp_4p2d(pti,ctable,C)
         fpti = floor(pti)
         weights = modulo(pti, one)
 
-        indices(:,1) = max(i1, min( ubound(ctable,1), [0,1] +fpti(5) ) )
-        indices(:,2) = max(i1, min( ubound(ctable,2), [0,1] +fpti(6) ) )
+        indices(:,1) = max(i1, min( ubound(ctable,1, kind=iintegers), [i0,i1] +fpti(5) ) )
+        indices(:,2) = max(i1, min( ubound(ctable,2, kind=iintegers), [i0,i1] +fpti(6) ) )
 
         call interp_4d( pti(1:4), ctable(indices(1,1), indices(1,2) )%c, C4(:,1) ) ! differing azimuth
         call interp_4d( pti(1:4), ctable(indices(2,1), indices(1,2) )%c, C4(:,2) ) !        "
@@ -1464,7 +1464,7 @@ subroutine interp_4p1d(pti,ctable,C)
         real(ireals),intent(out) :: C(:)
 
         real(ireals) :: weights(Ndim)
-        integer :: indices(2),fpti(Ndim)
+        integer(iintegers) :: indices(2),fpti(Ndim)
 
         ! Instead of doing a full interpolation in 6 dimension we start out with
         ! 4 dimensions only at the cornerstones of the 4d hypercube
@@ -1474,7 +1474,7 @@ subroutine interp_4p1d(pti,ctable,C)
         fpti = floor(pti)
         weights = modulo(pti, one)
 
-        indices(:) = max(i1, min( ubound(ctable,1), [0,1] +fpti(5) ) )
+        indices(:) = max(i1, min( ubound(ctable,1, kind=iintegers), [i0,i1] +fpti(5)))
 
         call interp_4d( pti(1:4), ctable(indices(1))%c, C4(:,1) ) ! differing zenith
         call interp_4d( pti(1:4), ctable(indices(2))%c, C4(:,2) ) !        "

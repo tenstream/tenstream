@@ -345,12 +345,12 @@ module m_pprts
       !1d box does not send anything back --> therefore huge absorption :( -- would need to introduce mirror boundary conditions for
       !sideward fluxes in 1d boxes
       do j=solver%C_one_atm%ys,solver%C_one_atm%ye
-      do i=solver%C_one_atm%xs,solver%C_one_atm%xe
-      solver%atm%l1d(solver%C_one_atm%ze,i,j) = twostr_ratio*solver%atm%dz(solver%C_one_atm%ze,i,j).gt.solver%atm%dx
-      do k=solver%C_one_atm%ze-1,solver%C_one_atm%zs,-1
-      solver%atm%l1d(k,i,j) = twostr_ratio*solver%atm%dz(k,i,j).gt.solver%atm%dx
-      enddo
-      enddo
+        do i=solver%C_one_atm%xs,solver%C_one_atm%xe
+          solver%atm%l1d(solver%C_one_atm%ze,i,j) = twostr_ratio*solver%atm%dz(solver%C_one_atm%ze,i,j).gt.solver%atm%dx
+          do k=solver%C_one_atm%ze-1,solver%C_one_atm%zs,-1
+            solver%atm%l1d(k,i,j) = twostr_ratio*solver%atm%dz(k,i,j).gt.solver%atm%dx
+          enddo
+        enddo
       enddo
       if(ltwostr_only) solver%atm%l1d = .True.
 
@@ -537,27 +537,28 @@ module m_pprts
           call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one)
       endif
 
+      if(ltwostr_only) return ! dont need anything here, we just compute Twostream anyway
 
       ! init box montecarlo model
-        select type(solver)
-          class is (t_solver_1_2)
-             if(.not.allocated(solver%OPP) ) allocate(t_optprop_1_2::solver%OPP)
+      select type(solver)
+        class is (t_solver_1_2)
+           if(.not.allocated(solver%OPP) ) allocate(t_optprop_1_2::solver%OPP)
 
-          class is (t_solver_3_6)
-             if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_6::solver%OPP)
+        class is (t_solver_3_6)
+           if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_6::solver%OPP)
 
-          class is (t_solver_8_10)
-             if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_10::solver%OPP)
+        class is (t_solver_8_10)
+           if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_10::solver%OPP)
 
-          class is (t_solver_3_10)
-             if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_10::solver%OPP)
+        class is (t_solver_3_10)
+           if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_10::solver%OPP)
 
-          class default
-          stop 'init pprts: unexpected type for solver'
-        end select
+        class default
+        stop 'init pprts: unexpected type for solver'
+      end select
 
-        call solver%OPP%init(pack(solver%sun%angles%symmetry_phi,.True.), &
-          pack(solver%sun%angles%theta,.True.),solver%comm )
+      call solver%OPP%init(pack(solver%sun%angles%symmetry_phi,.True.), &
+        pack(solver%sun%angles%theta,.True.),solver%comm )
 
   !     allocate(solver%OPP)
   !     call solver%OPP%init(pack(solver%sun%angles%symmetry_phi,.True.), &
