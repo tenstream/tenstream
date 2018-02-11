@@ -31,7 +31,7 @@ module m_helper_functions
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique, itoa, strF2C
+    vec_proj_on_plane, get_arg, unique, itoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices
 
   interface mean
     module procedure mean_1d, mean_2d
@@ -631,6 +631,33 @@ module m_helper_functions
         print *,'FPE exception angle_between_two_vec :: ',p1,':',p2
       endif
       angle_between_two_vec = acos(dot_product(p1/norm(p1), p2/norm(p2)))
+    end function
+
+    !> @brief Determine Edge length/ distance between two points
+    function distance(p1,p2)
+      real(ireals), intent(in) :: p1(:), p2(:)
+      real(ireals) :: distance
+      distance = abs(norm(p2-p1))
+    end function
+
+    !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
+    function triangle_area_by_edgelengths(e1,e2,e3)
+      real(ireals), intent(in) :: e1,e2,e3
+      real(ireals) :: triangle_area_by_edgelengths
+      real(ireals) :: p
+      p = (e1+e2+e3)/2
+      triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
+    end function
+
+    !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
+    function triangle_area_by_vertices(v1,v2,v3)
+      real(ireals), intent(in) :: v1(:),v2(:),v3(:)
+      real(ireals) :: triangle_area_by_vertices
+      real(ireals) :: e1, e2, e3, p
+      e1 = distance(v1,v2)
+      e2 = distance(v2,v3)
+      e3 = distance(v3,v1)
+      triangle_area_by_vertices = triangle_area_by_edgelengths(e1,e2,e3)
     end function
 
     !> @brief determine distance where a photon p intersects with a plane
