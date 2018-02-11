@@ -5,7 +5,8 @@ use petsc
 
 use m_tenstream_options, only : read_commandline_options
 
-use m_helper_functions, only: CHKERR, norm, imp_bcast, determine_normal_direction, spherical_2_cartesian
+use m_helper_functions, only: CHKERR, norm, imp_bcast, determine_normal_direction, &
+  spherical_2_cartesian, angle_between_two_vec, rad2deg
 
 use m_data_parameters, only : ireals, iintegers, mpiint, &
   default_str_len, &
@@ -44,7 +45,7 @@ logical, parameter :: ldebug=.True.
       AO :: cell_ao
 
       integer(iintegers) :: Nz
-      real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
+      real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
       real(ireals),allocatable :: hhl(:)
       character(len=default_str_len) :: ncgroups(2)
 
@@ -78,11 +79,15 @@ logical, parameter :: ldebug=.True.
       call init_plex_rt_solver(plexgrid, solver)
 
       call compute_face_geometry(solver%plex, solver%plex%geom_dm)
-      sundir = get_normal_of_first_TOA_face(solver%plex) + [0.,0.,-.06]
-      !sundir = -[0.73324, 0.1317, 0.667094]
-      sundir = -[0.677688, 0.0758756, 0.731425]
+      first_normal = get_normal_of_first_TOA_face(solver%plex)
+      sundir = first_normal
+      !sundir = -[0.677688, 0.0758756, 0.731425]
+      !sundir = -[0.826811, 0.0269913, 0.561832]
+      !sundir = -[0.775165, 0.0535335, 0.629487] ! sza 10deg
+      sundir = -[0.72362, 0.0793532, 0.685621]
+      !sundir = -[0.717145, 0.0262298, 0.696431] !further left
       sundir = sundir/norm(sundir)
-      print *,myid,'Initial sundirection = ', sundir
+      print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
 
       call set_plex_rt_optprop(solver, lwcvec)
 
@@ -99,7 +104,6 @@ logical, parameter :: ldebug=.True.
     logical :: lflg
     integer(mpiint) :: ierr
     character(len=10*default_str_len) :: default_options
-    logical :: lexists
     !character(len=*),parameter :: ex_out='plex_ex_dom1_out.h5'
     !character(len=*),parameter :: ex_out='plex_test_out.h5'
     !character(len=*),parameter :: lwcfile='lwc_ex_24_3.nc'
@@ -124,9 +128,10 @@ logical, parameter :: ldebug=.True.
     default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_lwc hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_faceVec2cellVec_edir hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
 
-    print *,'Adding default Petsc Options:', default_options, lexists
+    print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
     call plex_ex2(PETSC_COMM_WORLD, gridfile, lwcfile)

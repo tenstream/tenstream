@@ -113,17 +113,17 @@ module m_gen_plex_from_icon
           integer(iintegers), pointer :: icells(:)
           !DMLabel :: l
 
-          call DMCreateLabel(plex%dm, plex%boundary_label, ierr); call CHKERR(ierr)
+          call DMCreateLabel(plex%dm, 'Boundary', ierr); call CHKERR(ierr)
 
           do e = plex%eStart, plex%eEnd-i1
             call DMPlexGetSupportSize(plex%dm, e, numcells, ierr); call CHKERR(ierr)
             if(numcells.eq.1) then
               call DMPlexGetSupport(plex%dm, e, icells, ierr); call CHKERR(ierr)
-              call DMSetLabelValue(plex%dm, plex%boundary_label, icells(1), 1, ierr); call CHKERR(ierr)
+              call DMSetLabelValue(plex%dm, 'Boundary', icells(1), 1, ierr); call CHKERR(ierr)
             endif
           enddo
 
-          !call dmgetlabel(plex%dm, plex%boundary_label, l, ierr); call CHKERR(ierr)
+          !call dmgetlabel(plex%dm, 'Boundary', l, ierr); call CHKERR(ierr)
           !call dmlabelview(l, petsc_viewer_stdout_world, ierr); call CHKERR(ierr)
 
         end subroutine
@@ -280,7 +280,7 @@ module m_gen_plex_from_icon
 
           faces(3:5) = offset_faces_sides + (edge3-i1) + (k-1)*icongrid%Nedges
 
-          call DMPlexSetCone(plex%dm, icell_icon_2_plex(icongrid, plex, icell, k), faces, ierr); call CHKERR(ierr)
+          call DMPlexSetCone(plex%dm, icell_icon_2_plex(plex, icell, k), faces, ierr); call CHKERR(ierr)
 
           call DMLabelSetValue(zindexlabel, icell, k, ierr); call CHKERR(ierr)
         enddo
@@ -370,17 +370,17 @@ module m_gen_plex_from_icon
           integer(iintegers), pointer :: icells(:)
           !DMLabel :: l
 
-          call DMCreateLabel(plex%dm, plex%boundary_label, ierr); call CHKERR(ierr)
+          call DMCreateLabel(plex%dm, 'Boundary', ierr); call CHKERR(ierr)
 
           do e = plex%eStart, plex%eEnd-i1
             call DMPlexGetSupportSize(plex%dm, e, numcells, ierr); call CHKERR(ierr)
             if(numcells.eq.1) then
               call DMPlexGetSupport(plex%dm, e, icells, ierr); call CHKERR(ierr)
-              call DMSetLabelValue(plex%dm, plex%boundary_label, icells(1), 1, ierr); call CHKERR(ierr)
+              call DMSetLabelValue(plex%dm, 'Boundary', icells(1), 1, ierr); call CHKERR(ierr)
             endif
           enddo
 
-          !call dmgetlabel(plex%dm, plex%boundary_label, l, ierr); call CHKERR(ierr)
+          !call dmgetlabel(plex%dm, 'Boundary', l, ierr); call CHKERR(ierr)
           !call dmlabelview(l, petsc_viewer_stdout_world, ierr); call CHKERR(ierr)
 
         end subroutine

@@ -24,8 +24,6 @@ module m_mpi_plex_ex1
 
     subroutine plex_ex1(plex)
       type(t_plexgrid) :: plex
-      type(tVec) :: b, abso, edir
-      type(tMat) :: A
 
       real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
 

@@ -12,7 +12,7 @@ module m_icon_grid
   implicit none
 
   private
-  public :: t_icongrid, distribute_icon_grid, read_icon_grid_file, bcast_icongrid
+  public :: t_icongrid, distribute_icon_grid, read_icon_grid_file, bcast_icongrid, ICONULL
 
   type :: t_icongrid
     integer(iintegers) :: Nfaces, Nedges, Nvertices ! number of entries in base icon grid
