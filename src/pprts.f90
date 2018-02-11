@@ -149,7 +149,7 @@ module m_pprts
   type, extends(t_solver) :: t_solver_3_10
   end type
 
-  logical,parameter :: ldebug=.True.
+  logical,parameter :: ldebug=.False.
   logical,parameter :: lcycle_dir=.True.
   logical,parameter :: lprealloc=.True.
 
@@ -3605,8 +3605,10 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       real(ireals),intent(inout),allocatable :: outp(:,:,:) ! global sized array on rank 0
 
       type(tVec) :: vec, lvec_on_zero
-      print *,solver%myid,'exchange_var',allocated(inp), allocated(outp)
-      print *,solver%myid,'exchange_var shape',shape(inp)
+      if(ldebug) then
+        print *,solver%myid,'exchange_var',allocated(inp), allocated(outp)
+        print *,solver%myid,'exchange_var shape',shape(inp)
+      endif
 
       call DMGetGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
       call f90VecToPetsc(inp, C%da, vec)
