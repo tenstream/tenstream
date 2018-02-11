@@ -8,7 +8,7 @@ def get_z_grid():  # grid info from: https://code.mpimet.mpg.de/projects/icon-le
     return np.array(zm), np.array(dz)
 
 
-def simple_ex(Ncells=24, Nz=3):
+def simple_ex(Ncells=24, Nz=1):
     D=NC.Dataset('lwc_ex_{}_{}.nc'.format(Ncells,Nz),'w')
 
     D.createDimension('ncells', Ncells)
@@ -45,16 +45,20 @@ def icon_2_lwcfile(fname='/home/f/Fabian.Jakub/work/icon_3d_fine_day_DOM01_ML_20
     D.createDimension('hhl', Nz)
 
     zm, dz = get_z_grid()
+    szm = zm[::-1][:Nz+1][::-1]
 
     hl=D.createVariable('height_level',float32, dimensions=('hhl_level',))
-    hl[:] = zm
+    hl[:] = szm
 
     hhl=D.createVariable('height',float32, dimensions=('hhl',))
-    hhl[:] = (zm[0:-1]+zm[1:])/2
+    hhl[:] = (szm[0:-1]+szm[1:])/2
 
     lwc=D.createVariable('lwc',float32, dimensions=('hhl','ncells'))
 
-    lwc[:] = DI['clw'][0]
+    l = DI['clw'][0][::-1][:Nz][::-1]
+    #l = np.sum(DI['clw'][0], axis=0)
+
+    lwc[:] = l
 
     D.sync()
     D.close()
@@ -62,4 +66,13 @@ def icon_2_lwcfile(fname='/home/f/Fabian.Jakub/work/icon_3d_fine_day_DOM01_ML_20
     DI.close()
 
 
-simple_ex()
+import sys
+
+try:
+    icon_file = sys.argv[1]
+except:
+    icon_file = '/home/f/Fabian.Jakub/work/icon_3d_fine_day_DOM01_ML_20140729T120230Z/3d_fine_day_DOM01_ML_20140729T120230Z.nc'
+
+
+icon_2_lwcfile(fname=icon_file)
+#simple_ex()
