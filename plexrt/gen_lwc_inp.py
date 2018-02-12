@@ -53,12 +53,13 @@ def icon_2_lwcfile(fname='/home/f/Fabian.Jakub/work/icon_3d_fine_day_DOM01_ML_20
     hhl=D.createVariable('height',float32, dimensions=('hhl',))
     hhl[:] = (szm[0:-1]+szm[1:])/2
 
-    lwc=D.createVariable('lwc',float32, dimensions=('hhl','ncells'))
+    def copy_var(varname):
+        var=D.createVariable(varname, float32, dimensions=('hhl','ncells'))
+        invar = DI[varname][0][::-1][:Nz][::-1]
+        var[:] = invar
 
-    l = DI['clw'][0][::-1][:Nz][::-1]
-    #l = np.sum(DI['clw'][0], axis=0)
-
-    lwc[:] = l
+    copy_var('clw')
+    copy_var('cli')
 
     D.sync()
     D.close()
