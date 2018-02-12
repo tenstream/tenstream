@@ -33,15 +33,15 @@ logical, parameter :: ldebug=.True.
 
   contains
 
-    subroutine plex_ex2(comm, gridfile, lwcfile)
+    subroutine plex_ex2(comm, gridfile, hhlfile, icondatafile)
       MPI_Comm, intent(in) :: comm
-      character(len=default_str_len), intent(in) :: gridfile, lwcfile
+      character(len=default_str_len), intent(in) :: gridfile, hhlfile, icondatafile
 
       type(t_icongrid),allocatable :: icongrid, local_icongrid
 
       integer(mpiint) :: myid, numnodes, ierr
       type(t_plexgrid), allocatable :: plexgrid
-      type(tVec) :: lwcvec
+      type(tVec) :: lwcvec, iwcvec
       AO :: cell_ao
 
       integer(iintegers) :: Nz
@@ -63,18 +63,20 @@ logical, parameter :: ldebug=.True.
       deallocate(icongrid)
 
       if(myid.eq.0) then
-        ncgroups(1) = trim(lwcfile)
+        ncgroups(1) = trim(hhlfile)
         ncgroups(2) = 'height_level'; call ncload(ncgroups, hhl, ierr)
       endif
       call imp_bcast(comm, hhl, 0)
       Nz = size(hhl)-1
 
-
       call create_plex_from_icongrid(comm, Nz, hhl, cell_ao, local_icongrid, plexgrid)
       deallocate(local_icongrid)
 
-      call ncvar2d_to_globalvec(plexgrid, lwcfile, 'lwc', lwcvec)
+      call ncvar2d_to_globalvec(plexgrid, icondatafile, 'clw', lwcvec)
       call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
+
+      call ncvar2d_to_globalvec(plexgrid, icondatafile, 'cli', iwcvec)
+      call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
       call init_plex_rt_solver(plexgrid, solver)
 
@@ -84,12 +86,13 @@ logical, parameter :: ldebug=.True.
       !sundir = -[0.677688, 0.0758756, 0.731425]
       !sundir = -[0.826811, 0.0269913, 0.561832]
       !sundir = -[0.775165, 0.0535335, 0.629487] ! sza 10deg
-      sundir = -[0.72362, 0.0793532, 0.685621]
+      !sundir = -[0.72362, 0.0793532, 0.685621]
       !sundir = -[0.717145, 0.0262298, 0.696431] !further left
+      sundir = -[0.717607, -0.690197, -0.0930992]
       sundir = sundir/norm(sundir)
       print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
 
-      call set_plex_rt_optprop(solver, lwcvec)
+      call set_plex_rt_optprop(solver, vlwc=lwcvec, viwc=iwcvec)
 
       call run_plex_rt_solver(solver, sundir)
     end subroutine
@@ -100,7 +103,7 @@ logical, parameter :: ldebug=.True.
     use m_mpi_plex_ex2
     implicit none
 
-    character(len=default_str_len) :: gridfile, lwcfile, outfile
+    character(len=default_str_len) :: gridfile, hhlfile, icondatafile, outfile
     logical :: lflg
     integer(mpiint) :: ierr
     character(len=10*default_str_len) :: default_options
@@ -116,8 +119,12 @@ logical, parameter :: ldebug=.True.
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a grid filename... please call with -grid <fname_of_icon_gridfile.nc>'
 
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-lwc', lwcfile, lflg, ierr); call CHKERR(ierr)
-    if(.not.lflg) stop 'need to supply a lwc filename... please call with -lwc <fname_of_icon_lwcfile.nc>'
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-hhl', hhlfile, lflg, ierr); call CHKERR(ierr)
+    if(.not.lflg) stop 'need to supply a hhl filename... please call with -hhl <fname_of_hhlfile.nc>'
+
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-icondata', icondatafile, lflg, ierr); call CHKERR(ierr)
+    if(.not.lflg) stop 'need to supply a icondata filename... please call with -icondata <fname_of_icondatafile.nc>'
+
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
@@ -134,7 +141,7 @@ logical, parameter :: ldebug=.True.
     print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
-    call plex_ex2(PETSC_COMM_WORLD, gridfile, lwcfile)
+    call plex_ex2(PETSC_COMM_WORLD, gridfile, hhlfile, icondatafile)
 
     call mpi_barrier(PETSC_COMM_WORLD, ierr)
     call PetscFinalize(ierr)

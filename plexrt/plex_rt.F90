@@ -53,34 +53,68 @@ module m_plex_rt
       solver%plex = plex
 
       allocate(t_optprop_wedge_5_8::solver%OPP)
-      !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], [real(OPP_LUT_ALL_ANGLES, kind=ireals)], solver%plex%comm)
-      !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], [zero, 5._ireals, 10._ireals, 15._ireals], plex%comm)
-      call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], [zero, 5*one, 10*one], plex%comm)
+      call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], [real(OPP_LUT_ALL_ANGLES, kind=ireals)], solver%plex%comm)
+      !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], real([0,5,10,15,20,25,30,35,40,45,50,55,60,65,70],ireals), plex%comm)
+      !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], [zero, 5*one], plex%comm)
     end subroutine
 
-    subroutine set_plex_rt_optprop(solver, vlwc)
+    subroutine set_plex_rt_optprop(solver, vlwc, viwc)
+      use m_helper_functions, only : delta_scale
       type(t_plex_solver), allocatable, intent(inout) :: solver
-      type(tVec),intent(in) :: vlwc
-      real(ireals), pointer :: xlwc(:)
+      type(tVec),intent(in), optional :: vlwc, viwc
+      real(ireals), pointer :: xlwc(:), xiwc(:)
 
-      real(ireals),parameter :: w0 = .9999, reff=10, rayleigh=1e-5
+      real(ireals),parameter :: w0 = .95, reff_w=10, reff_i=30, rayleigh=1e-5
+      real(ireals) :: ksca_tot, kabs_tot, g_tot
+      real(ireals) :: ksca_cld, kabs_cld, g_cld
+
+      integer(iintegers) :: i
       integer(mpiint) :: ierr
 
-      if(.not.allocated(solver)) stop 'run_plex_rt_solver::solver has to be allocated'
+      if(.not.allocated(solver)) stop 'set_plex_rt_optprop::solver has to be allocated'
 
-      if(.not.allocated(solver%optprop)) allocate(solver%optprop(solver%plex%cStart:solver%plex%cEnd-1))
+      if(.not.allocated(solver%optprop)) allocate(solver%optprop(solver%plex%cStart+i1:solver%plex%cEnd))
 
-      call VecGetArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
+      if(present(vlwc)) call VecGetArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
+      if(present(viwc)) call VecGetArrayReadF90(viwc, xiwc, ierr); call CHKERR(ierr)
 
-      solver%optprop(:)%kabs = rayleigh/10 + 3._ireals / 2._ireals * (xlwc(:) * 1e3) / reff * (one-w0)
-      solver%optprop(:)%ksca = rayleigh    + 3._ireals / 2._ireals * (xlwc(:) * 1e3) / reff * (w0)
-      solver%optprop(:)%g    = .45
+      do i = 1,size(solver%optprop)
+        kabs_tot = rayleigh/10
+        ksca_tot = rayleigh
+        g_tot    = zero
+
+        if(present(vlwc)) then
+          kabs_cld = 3._ireals / 2._ireals * (xlwc(i) * 1e3) / reff_w * (one-w0)
+          ksca_cld = 3._ireals / 2._ireals * (xlwc(i) * 1e3) / reff_w * (w0)
+          g_cld    = .85_ireals
+          call delta_scale( kabs_cld, ksca_cld, g_cld )
+          g_tot    = g_cld * ksca_cld / (ksca_cld + ksca_tot)
+          kabs_tot = kabs_tot + kabs_cld
+          ksca_tot = ksca_tot + ksca_cld
+        endif
+
+        if(present(viwc)) then
+          kabs_cld = 3._ireals / 2._ireals * (xiwc(i) * 1e3) / reff_i * (one-w0)
+          ksca_cld = 3._ireals / 2._ireals * (xiwc(i) * 1e3) / reff_i * (w0)
+          g_cld    = .85_ireals
+          call delta_scale( kabs_cld, ksca_cld, g_cld )
+          g_tot    = (g_tot * ksca_tot + g_cld * ksca_cld) / (ksca_tot + ksca_cld)
+          kabs_tot = kabs_tot + kabs_cld
+          ksca_tot = ksca_tot + ksca_cld
+        endif
+
+        solver%optprop(i)%kabs = kabs_tot
+        solver%optprop(i)%ksca = ksca_tot
+        solver%optprop(i)%g    = g_tot
+      enddo
+
+      if(present(vlwc)) call VecRestoreArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
+      if(present(viwc)) call VecRestoreArrayReadF90(viwc, xiwc, ierr); call CHKERR(ierr)
 
       print *,'Min/Max of kabs', minval(solver%optprop(:)%kabs), maxval(solver%optprop(:)%kabs)
       print *,'Min/Max of ksca', minval(solver%optprop(:)%ksca), maxval(solver%optprop(:)%ksca)
       print *,'Min/Max of g   ', minval(solver%optprop(:)%g   ), maxval(solver%optprop(:)%g   )
 
-      call VecRestoreArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine run_plex_rt_solver(solver, sundir)
@@ -468,7 +502,7 @@ module m_plex_rt
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
     integer(iintegers) :: geom_offset, abso_offset, edir_offset
 
-    real(ireals) :: mu
+    real(ireals) :: mu, volume
 
     if(.not.allocated(plex%edir_dm) .or. .not.allocated(plex%abso_dm)) stop 'called compute_edir_absorption with a dm which is not allocated?'
 
