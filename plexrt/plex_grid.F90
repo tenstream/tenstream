@@ -993,7 +993,7 @@ module m_plex_grid
       area = (area + geoms(i1+voff+i7))/2
 
       call PetscSectionGetOffset(geomSection, icell, voff, ierr); call CHKERR(ierr)
-      geoms(i1+voff+Ndim+i1) = area * (plex%hhl(plex%zindex(icell))-plex%hhl(plex%zindex(icell)+i1))
+      geoms(voff+Ndim+i1) = area * (plex%hhl(plex%zindex(icell))-plex%hhl(plex%zindex(icell)+i1))
       !print *,'cell volume', geoms(i1+voff+Ndim+i1)
 
       call DMPlexRestoreTransitiveClosure(dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)

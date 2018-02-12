@@ -532,16 +532,17 @@ module m_plex_rt
     do icell = cStart, cEnd-1
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
 
-      call DMPlexGetCone(plex%abso_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+      call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
+      cell_center = geoms(geom_offset+i1:geom_offset+i3)
+      volume = geoms(geom_offset+i4)
+
+      call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
       do iface = 1, size(faces_of_cell)
         call PetscSectionGetOffset(edir_section, faces_of_cell(iface), edir_offset, ierr); call CHKERR(ierr)
 
-        call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
-        cell_center = geoms(1+geom_offset:3+geom_offset)
-
         call PetscSectionGetOffset(geomSection, faces_of_cell(iface), geom_offset, ierr); call CHKERR(ierr)
-        face_center = geoms(1+geom_offset: 3+geom_offset)
-        face_normal = geoms(4+geom_offset: 6+geom_offset)
+        face_center = geoms(geom_offset+i1: geom_offset+i3)
+        face_normal = geoms(geom_offset+i4: geom_offset+i6)
 
         ! Determine the inward normal vec for the face
         face_normal = face_normal * &
@@ -556,7 +557,9 @@ module m_plex_rt
           xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1)
         endif
       enddo
-      call DMPlexRestoreCone(plex%abso_dm, icell, faces_of_cell,ierr); call CHKERR(ierr)
+      call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+      xabso(abso_offset+i1) = xabso(abso_offset+i1) / volume
     enddo
 
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
