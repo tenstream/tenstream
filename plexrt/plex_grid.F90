@@ -1231,7 +1231,9 @@ module m_plex_grid
     if(myid.eq.0) then
       ncgroups(1) = trim(filename)
       ncgroups(2) = trim(varname)
-      call ncload(ncgroups, arr, ierr); call CHKERR(ierr) ! arr probably has shape ncell, hhl
+      if(ldebug) print *,'plex_grid::ncvar2d_to_globalvec : Loading file ', trim(ncgroups(1)), ':', trim(ncgroups(2))
+      call ncload(ncgroups, arr, ierr); call CHKERR(ierr, 'Could not load Data from NetCDF')
+      if(ldebug) print *,'plex_grid::ncvar2d_to_globalvec : shape ',trim(varname), shape(arr)
       Ncells = size(arr, dim=1)
 
       call VecGetArrayF90(local,xloc,ierr); call CHKERR(ierr)
@@ -1246,6 +1248,7 @@ module m_plex_grid
       enddo
       call VecRestoreArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
     endif
+    if(ldebug) call mpi_barrier(plexgrid%comm, ierr); call CHKERR(ierr)
 
     if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: scatter reverse....'
     call VecScatterBegin(scatter_context, local, vec, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)

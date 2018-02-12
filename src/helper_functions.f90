@@ -81,9 +81,14 @@ module m_helper_functions
       x=x+i
     end subroutine
 
-    subroutine CHKERR(ierr)
+    subroutine CHKERR(ierr, descr)
       integer(mpiint),intent(in) :: ierr
-      if(ierr.ne.0) call mpi_abort(mpi_comm_world, ierr, mpierr)
+      character(len=*), intent(in), optional :: descr
+      if(ierr.ne.0) then
+        if(present(descr)) print *,'Error message:', trim(descr)
+        call BACKTRACE
+        call mpi_abort(mpi_comm_world, ierr, mpierr)
+      endif
     end subroutine
 
     function itoa(i) result(res)
@@ -387,7 +392,7 @@ module m_helper_functions
       call mpi_bcast(arr,size(arr),imp_real,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
 
-    elemental subroutine delta_scale( kabs,ksca,g,factor ) 
+    elemental subroutine delta_scale( kabs,ksca,g,factor )
       real(ireals),intent(inout) :: kabs,ksca,g ! kabs, ksca, g
       real(ireals),intent(in),optional :: factor
       real(ireals) :: dtau, w0
@@ -653,7 +658,7 @@ module m_helper_functions
     function triangle_area_by_vertices(v1,v2,v3)
       real(ireals), intent(in) :: v1(:),v2(:),v3(:)
       real(ireals) :: triangle_area_by_vertices
-      real(ireals) :: e1, e2, e3, p
+      real(ireals) :: e1, e2, e3
       e1 = distance(v1,v2)
       e2 = distance(v2,v3)
       e3 = distance(v3,v1)
