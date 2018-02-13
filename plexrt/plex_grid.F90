@@ -50,12 +50,9 @@ module m_plex_grid
 
     logical,allocatable :: ltopfacepos(:)                ! TOP_BOT_FACE or SIDE_FACE of faces and edges, fStart..eEnd-1
     integer(iintegers),allocatable :: zindex(:)          ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1
-    integer(iintegers),allocatable :: localiconindex(:)  ! local index of face, edge, vertex on icongrid, pStart, pEnd-1
+    integer(iintegers),allocatable :: localiconindex(:)  ! local index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. on each rank from 1..Ncell, 1..Nedges etc..
+    integer(iintegers),allocatable :: globaliconindex(:) ! global index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. for each rank has the indices of the global icon grid as it is read from nc
 
-    !type(tDMLabel) :: faceposlabel         ! TOP_BOT_FACE=1, SIDE_FACE=2
-    !type(tDMLabel) :: iconindexlabel       ! index of face, edge, vertex on icongrid
-    !type(tDMLabel) :: localiconindexlabel  ! local index of face, edge, vertex on icongrid
-    !type(tDMLabel) :: zindexlabel          ! vertical layer / level
     type(tDMLabel) :: TOAlabel             ! 1 if top level, 0 otherwise
     type(tDMLabel) :: boundarylabel        ! 1 if top level, 2 if side face, 0 otherwise
     type(tDMLabel) :: domainboundarylabel  ! 1 if top level, 2 if side face, 0 otherwise
@@ -170,9 +167,10 @@ module m_plex_grid
 
       call DMSetUp(plex%dm, ierr); call CHKERR(ierr) ! Allocate space for cones
 
-      allocate(plex%ltopfacepos   (plex%fStart:plex%eEnd-1))
-      allocate(plex%zindex        (plex%pStart:plex%pEnd-1))
-      allocate(plex%localiconindex(plex%pStart:plex%pEnd-1))
+      allocate(plex%ltopfacepos    (plex%fStart:plex%eEnd-1))
+      allocate(plex%zindex         (plex%pStart:plex%pEnd-1))
+      allocate(plex%localiconindex (plex%pStart:plex%pEnd-1))
+      allocate(plex%globaliconindex(plex%pStart:plex%pEnd-1))
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections'
       ! Setup Connections
@@ -198,6 +196,7 @@ module m_plex_grid
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , icell, owner  , ierr); call CHKERR(ierr)
           plex%zindex(icell) = k
           plex%localiconindex(icell) = i
+          plex%globaliconindex(icell) = iparent
           !print *,myid,'cells :: icon', i, icongrid%cell_index(i),'plex:',icell, 'edge3', edge3, 'faces', faces
         enddo
       enddo
@@ -221,6 +220,7 @@ module m_plex_grid
           plex%ltopfacepos(iface) = .True.
           plex%zindex(iface) = k
           plex%localiconindex(iface) = i
+          plex%globaliconindex(iface) = iparent
 
           if (k.eq.i1) then
             call DMLabelSetValue(plex%TOAlabel, iface, i1, ierr); call CHKERR(ierr)
@@ -250,6 +250,7 @@ module m_plex_grid
           plex%ltopfacepos(iface) = .False.
           plex%zindex(iface) = k
           plex%localiconindex(iface) = i
+          plex%globaliconindex(iface) = iparent
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel, iface, owner, ierr); call CHKERR(ierr)
           if(any(icongrid%adj_cell_of_edge(i,:).eq.ICONULL)) then
             call DMLabelSetValue(plex%boundarylabel, iface, i2, ierr); call CHKERR(ierr)
@@ -279,6 +280,7 @@ module m_plex_grid
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iedge, owner       , ierr); call CHKERR(ierr)
           plex%zindex(iedge) = k
           plex%localiconindex(iedge) = i
+          plex%globaliconindex(iedge) = iparent
           plex%ltopfacepos(iedge) = .True.
         enddo
       enddo
@@ -300,6 +302,7 @@ module m_plex_grid
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iedge, owner    , ierr); call CHKERR(ierr)
           plex%zindex(iedge) = k
           plex%localiconindex(iedge) = i
+          plex%globaliconindex(iedge) = iparent
           plex%ltopfacepos(iedge) = .False.
         enddo
       enddo
@@ -315,6 +318,7 @@ module m_plex_grid
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , ivertex, owner  , ierr); call CHKERR(ierr)
           plex%zindex(ivertex) = k
           plex%localiconindex(ivertex) = i
+          plex%globaliconindex(ivertex) = iparent
         enddo
       enddo
 
