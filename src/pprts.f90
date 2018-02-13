@@ -424,13 +424,14 @@ module m_pprts
             C%da                    , ierr)
           call CHKERR(ierr)
         else
+          print *,'DMDACreate1'
           call DMDACreate3d( C%comm ,                                                   &
             bn                      , boundary                 , boundary             , &
             DMDA_STENCIL_STAR       ,                                                   &
             i1*Nz                   , Nx                       , Ny                   , &
             i1                      , PETSC_DECIDE             , PETSC_DECIDE         , &
             C%dof                   , stencil_size             ,                        &
-            [Nz]                    , [PETSC_NULL_INTEGER]     , [PETSC_NULL_INTEGER] , &
+            [Nz]                    , PETSC_NULL_INTEGER       , PETSC_NULL_INTEGER   , &
             C%da                    , ierr) ;call CHKERR(ierr)
         endif
 
