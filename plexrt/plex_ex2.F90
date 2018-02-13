@@ -135,6 +135,7 @@ logical, parameter :: ldebug=.True.
     default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_lwc hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_iwc hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
 
