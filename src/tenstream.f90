@@ -243,7 +243,7 @@ contains
           i1*Nz                     , Nx                       , Ny                   , &
           i1                        , PETSC_DECIDE             , PETSC_DECIDE         , &
           C%dof                     , stencil_size             ,                        &
-          [Nz]                      , [PETSC_NULL_INTEGER]     , [PETSC_NULL_INTEGER] , &
+          [Nz]                      , PETSC_NULL_INTEGER       , PETSC_NULL_INTEGER   , &
           C%da                      , ierr) ;call CHKERR(ierr)
       endif
 
