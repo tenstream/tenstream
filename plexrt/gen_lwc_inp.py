@@ -8,7 +8,7 @@ def get_z_grid():  # grid info from: https://code.mpimet.mpg.de/projects/icon-le
     return np.array(zm), np.array(dz)
 
 
-def simple_ex(Ncells=24, Nz=1):
+def simple_ex(Ncells=24, Nz=1, default_lwc=1e-3, default_iwc=0):
     D=NC.Dataset('lwc_ex_{}_{}.nc'.format(Ncells,Nz),'w')
 
     D.createDimension('ncells', Ncells)
@@ -25,10 +25,15 @@ def simple_ex(Ncells=24, Nz=1):
         hl[i] = 0 + 500*i
     hl[:] = hl[::-1]
 
-    lwc=D.createVariable('lwc',float32, dimensions=('hhl','ncells'))
+    lwc=D.createVariable('clw',float32, dimensions=('hhl','ncells'))
 
     lwc[:] = 0
-    lwc[Nz/2,[18,19,20,21,23]] = 1
+    lwc[Nz/2,[18,19,20,21,23]] = default_lwc
+
+    iwc=D.createVariable('cli',float32, dimensions=('hhl','ncells'))
+
+    iwc[:] = 0
+    iwc[Nz/2,[18,19,20,21,23]] = default_iwc
 
     D.sync()
     D.close()
@@ -67,13 +72,11 @@ def icon_2_lwcfile(fname='/home/f/Fabian.Jakub/work/icon_3d_fine_day_DOM01_ML_20
     DI.close()
 
 
-import sys
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('icon_file', help='icon data file, e.g. /home/f/Fabian.Jakub/work/icon_3d_fine_day_DOM01_ML_20140729T120230Z/3d_fine_day_DOM01_ML_20140729T120230Z.nc')
+args = parser.parse_args()
 
-try:
-    icon_file = sys.argv[1]
-except:
-    icon_file = '/home/f/Fabian.Jakub/work/icon_3d_fine_day_DOM01_ML_20140729T120230Z/3d_fine_day_DOM01_ML_20140729T120230Z.nc'
-
-
-icon_2_lwcfile(fname=icon_file)
+if args.icon_file:
+    icon_2_lwcfile(fname=args.icon_file)
 #simple_ex()
