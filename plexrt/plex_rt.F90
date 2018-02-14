@@ -800,14 +800,12 @@ module m_plex_rt
     real(ireals) :: cell_center(3)
     real(ireals) :: face_normals(3,5), face_centers(3,5)
     real(ireals) :: proj_angles_to_sun(3), proj_normal(3)
-    real(ireals) :: e_x(3), e_y(3), e_z(3) ! unit vectors of local coord system in which we compute the transfer coefficients
-    real(ireals) :: projected_sundir(3), mu
+    real(ireals) :: r, mu, e_x(3)! unit vectors of local coord system in which we compute the transfer coefficients
 
     integer(iintegers) :: side_faces(3), top_faces(2) ! indices in faces_of_cell which give the top/bot and side faces via labeling
     integer(iintegers) :: iside_faces, itop_faces, ibase_face ! indices to fill above arrays
-    real(ireals) :: MrotWorld2Local(3,3) ! Rotation Matrix into the local wedge space, (ex, ey, ez)
 
-    real(ireals) :: local_normal_base(3), local_normal_left(3), local_normal_right(3) ! normal vectors in local wedgemc geometry. For even sided triangles, this is smth. like left: [.5, -.8] or right [-.5, -.8]
+    real(ireals) :: side_face_normal_projected_on_upperface(3,3)
 
     integer(mpiint) :: ierr
 
@@ -861,58 +859,36 @@ module m_plex_rt
       lsrc(iface) = mu.gt.zero !side_faces_angles_to_sun(iface).le.pi/2-deg2rad(.01_ireals) ! dont propagate energy along edges where sun is only .1 degrees off
     enddo
 
-    do iface=1,size(side_faces)
-      if(all(approx(sundir, face_normals(:,upper_face)))) then
-        proj_angles_to_sun(iface) = 0
-      else
-        proj_normal = vec_proj_on_plane(sundir, face_normals(:,upper_face))
-        !print *,'vec_proj_on_plane',iface, '::', sundir, 'vs', face_normals(:,upper_face), '->', proj_normal
-        proj_angles_to_sun(iface) = angle_between_two_vec(proj_normal, face_normals(:,side_faces(iface)))
-      endif
-    enddo
+    proj_normal = vec_proj_on_plane(sundir, face_normals(:,upper_face))
+    !proj_normal = proj_normal / norm(proj_normal)
 
-    ibase_face = minloc(proj_angles_to_sun,dim=1)
+    if(.not.approx(norm(proj_normal),zero)) then
+      do iface=1,size(side_faces)
+        side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
+        proj_angles_to_sun(iface) = angle_between_two_vec(proj_normal, side_face_normal_projected_on_upperface(:, iface))
+      enddo
+      ibase_face = minloc(proj_angles_to_sun,dim=1)
+
+      azimuth = proj_angles_to_sun(ibase_face)
+
+      ! Local unit vec on upperface, pointing towards '+x'
+      e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), face_normals(:, upper_face))
+      azimuth = azimuth * sign(one, dot_product(proj_normal, e_x))
+
+    else
+      call random_number(r)
+      ibase_face = int(r*i3, iintegers)+i1 ! if sun is directly on top, i.e. zenith 0, just pick the first one
+      e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), face_normals(:, upper_face))
+      azimuth = 0
+    endif
     base_face = side_faces(ibase_face)
 
-
-    e_y = face_normals(:, base_face)   ! inward facing normal -> in local wedgemc coordinates
-    e_z = -face_normals(:, upper_face) ! outward facing normal with respect to the top plate
-    e_x = cross_3d(e_y, e_z)           ! in local wedge_coords, this is y=0 coordinate
-
-    MrotWorld2Local = rotation_matrix_world_to_local_basis(e_x, e_y, e_z)
+    zenith  = acos(dot_product(sundir, face_normals(:, upper_face)))
 
     left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
     right_face = side_faces(modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1)
 
-
-    local_normal_base  = matmul(MrotWorld2Local, face_normals(:,base_face))
-    local_normal_left  = matmul(MrotWorld2Local, face_normals(:,left_face))
-    local_normal_right = matmul(MrotWorld2Local, face_normals(:,right_face))
-
-    if(local_normal_left(1).lt.local_normal_right(1)) then ! switch right and left face
-      call swap(right_face, left_face)
-
-      if(ldebug) then
-        if(.not.lsrc(base_face)) then
-          ierr = 1; call CHKERR(ierr, 'base_face has to be a source, othewise something is really weird')
-        endif
-        if(.not.approx(local_normal_base(2), one)) then
-          ierr = 2; call CHKERR(ierr, 'base_face rotated normal should point towards y-axis, otherwise something went wrong')
-        endif
-      endif
-    endif
-
-    ! Now we have all the info for the local wedge calculations as we do em with the MonteCarlo raytracer
-    zenith = angle_between_two_vec(sundir, -e_z)
-
-    projected_sundir = vec_proj_on_plane(matmul(MrotWorld2Local, sundir), [zero,zero,one])
-    if(norm(projected_sundir).le.epsilon(zero)) then
-      azimuth = 0
-    else
-      projected_sundir = projected_sundir
-      azimuth = angle_between_two_vec([zero,one,zero], projected_sundir) * sign(one, projected_sundir(1))
-    endif
-
+    if(dot_product(e_x, face_normals(:, right_face)).lt.zero) call swap(right_face,left_face)
 
     if(ldebug) then
       if(norm(face_centers(:,upper_face)) .le. norm(face_centers(:,bottom_face))) then ! we expect the first face to be the upper one
@@ -922,7 +898,13 @@ module m_plex_rt
         stop 'create_edir_mat() :: wrong zindexlabel'
       endif
 
-      if(rad2deg(azimuth).lt.-60 .or. rad2deg(azimuth).gt.60) then
+      if(rad2deg(azimuth).lt.-90 .or. rad2deg(azimuth).gt.90) then
+        print *,'ibase_face', ibase_face
+        print *,'proj_normal', proj_normal, '::norm', norm(proj_normal)
+        print *,'face_normals(:,base_face)', face_normals(:,base_face)
+        print *,'face_normals(:,left_face)', face_normals(:,left_face)
+        print *,'face_normals(:,right_face)', face_normals(:,right_face)
+
         ierr = int(rad2deg(azimuth), mpiint)
         call CHKERR(ierr, 'local azimuth greater than 60 deg. something must have gone wrong with the base face selection!')
       endif
