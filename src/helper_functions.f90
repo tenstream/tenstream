@@ -85,7 +85,11 @@ module m_helper_functions
       integer(mpiint),intent(in) :: ierr
       character(len=*), intent(in), optional :: descr
       if(ierr.ne.0) then
-        if(present(descr)) print *,'Error message:', trim(descr)
+        if(present(descr)) then
+          print *,'Error message:', ierr, ':', trim(descr)
+        else
+          print *,'Error:', ierr
+        endif
         call BACKTRACE
         call mpi_abort(mpi_comm_world, ierr, mpierr)
       endif
@@ -625,7 +629,7 @@ module m_helper_functions
     function angle_between_two_vec(p1, p2)
       real(ireals),intent(in) :: p1(:), p2(:)
       real(ireals) :: angle_between_two_vec
-      real(ireals) :: n1, n2
+      real(ireals) :: n1, n2, dp
       if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
         angle_between_two_vec = 0
         return
@@ -635,7 +639,10 @@ module m_helper_functions
       if(any([n1,n2].eq.0)) then
         print *,'FPE exception angle_between_two_vec :: ',p1,':',p2
       endif
-      angle_between_two_vec = acos(dot_product(p1/norm(p1), p2/norm(p2)))
+
+      dp = dot_product(p1/norm(p1), p2/norm(p2))
+      if(dp.gt.one.or.dp.lt.-one) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
+      angle_between_two_vec = acos(max(-one, min(dp,one)))
     end function
 
     !> @brief Determine Edge length/ distance between two points
