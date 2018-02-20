@@ -2890,7 +2890,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 C_diff  => solver%C_diff)
 
       if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms', minval(atm%planck), maxval(atm%planck)
-      Az = atm%dx*atm%dy
+      Az = atm%dx*atm%dy/(solver%difftop%dof/2)
 
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
@@ -2913,8 +2913,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
               endif
 
             else ! Tenstream source terms
-              Ax = atm%dy*atm%dz(atmk(atm,k),i,j)
-              Ay = atm%dx*atm%dz(atmk(atm,k),i,j)
+              Ax = atm%dy*atm%dz(atmk(atm,k),i,j)/(solver%diffside%dof/2)
+              Ay = atm%dx*atm%dz(atmk(atm,k),i,j)/(solver%diffside%dof/2)
 
               call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., diff2diff, atm%l1d(atmk(atm,k),i,j) )
               ! reorder from destination ordering to src ordering
