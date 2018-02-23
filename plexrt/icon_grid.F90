@@ -5,7 +5,7 @@ module m_icon_grid
   use m_netcdfIO, only: ncload
 
   use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len, &
-    i0, i1
+    i0, i1, i2
 
   use m_helper_functions, only: get_arg, imp_bcast, chkerr, unique, cumsum
 
@@ -434,16 +434,16 @@ module m_icon_grid
         icell = icongrid%cell_index(istartcell + i)
         do j=1,size(icongrid%vertex_of_cell, dim=2)
           ivertex = icongrid%vertex_of_cell(icell, j)
-          jj(offset) = ivertex
+          jj(offset) = ivertex -1
           offset = offset +1
         enddo
       enddo
       ii(ncells_local) = offset
 
-      call MatCreateMPIAdj(comm, ncells_local , icongrid%Nfaces, &
+      call MatCreateMPIAdj(comm, ncells_local , icongrid%Nvertices, &
         ii, jj, PETSC_NULL_INTEGER, mesh, ierr); call CHKERR(ierr)
 
-      call MatMeshToCellGraph(mesh,2,dual, ierr);
+      call MatMeshToCellGraph(mesh, i2, dual, ierr);
 
       call MatPartitioningCreate(MPI_COMM_WORLD,part, ierr); call CHKERR(ierr)
       call MatPartitioningSetAdjacency(part,dual, ierr); call CHKERR(ierr)
