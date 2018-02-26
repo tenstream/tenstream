@@ -318,9 +318,8 @@ module m_plex_rt
 
       call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
 
-      call VecSet(srcVec, zero, ierr); call CHKERR(ierr)
-      call DMLocalToGlobalBegin(edirdm, localVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
-      call DMLocalToGlobalEnd  (edirdm, localVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalBegin(edirdm, localVec, INSERT_VALUES, srcVec, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (edirdm, localVec, INSERT_VALUES, srcVec, ierr); call CHKERR(ierr)
       call PetscObjectSetName(srcVec, 'srcVec', ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(srcVec, PETSC_NULL_VEC, '-show_src_vec_global', ierr); call CHKERR(ierr)
