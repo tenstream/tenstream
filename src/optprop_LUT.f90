@@ -1205,7 +1205,7 @@ subroutine set_parameter_space(OPP,ps)
           OPP%interp_mode = interp_mode_3_6
       class is (t_optprop_LUT_wedge_5_8)
           OPP%interp_mode = interp_mode_wedge_5_8
-          ps%range_phi = [-60, 60]
+          ps%range_phi = [-70, 70]
       class default
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select

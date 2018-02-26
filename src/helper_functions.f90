@@ -121,6 +121,7 @@ module m_helper_functions
       norm = sqrt(dot_product(v,v))
     end function
 
+    !> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
     pure function cross_3d(a, b)
       real(ireals), dimension(3), intent(in) :: a, b
       real(ireals), dimension(3) :: cross_3d

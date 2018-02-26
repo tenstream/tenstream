@@ -54,8 +54,8 @@ module m_plex_grid
     integer(iintegers),allocatable :: globaliconindex(:) ! global index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. for each rank has the indices of the global icon grid as it is read from nc
 
     type(tDMLabel) :: TOAlabel             ! 1 if top level, 0 otherwise
-    type(tDMLabel) :: boundarylabel        ! 1 if top level, 2 if side face, 0 otherwise
-    type(tDMLabel) :: domainboundarylabel  ! 1 if top level, 2 if side face, 0 otherwise
+    type(tDMLabel) :: boundarylabel        ! 1 if boundary of local mesh
+    type(tDMLabel) :: domainboundarylabel  ! 1 if top, 2 if side face, 3 if bot face, 0 otherwise
     type(tDMLabel) :: ownerlabel           ! rank that posses this element
 
     AO :: cell_ao
@@ -763,9 +763,11 @@ module m_plex_grid
       enddo
 
       if(ileaf.ne.nleaves) stop 'Seems like we forgot some remote elements? ileaf .ne. nleaves'
-      do ileaf=1,nleaves
-        !print *,myid,'starforest topology',ileaf, ilocal_elements(ileaf),'-->',iremote_elements(ileaf)%index,'@',iremote_elements(ileaf)%rank
-      enddo
+      !if(ldebug) then
+      !  do ileaf=1,nleaves
+      !    print *,myid,'starforest topology',ileaf, ilocal_elements(ileaf),'-->',iremote_elements(ileaf)%index,'@',iremote_elements(ileaf)%rank
+      !  enddo
+      !endif
 
       nroots = plexgrid%pEnd
 

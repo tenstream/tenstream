@@ -55,7 +55,10 @@ module m_plex_rt
       allocate(t_optprop_wedge_5_8::solver%OPP)
       call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], [real(OPP_LUT_ALL_ANGLES, kind=ireals)], solver%plex%comm)
       !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], real([0,5,10,15,20,25,30,35,40,45,50,55,60,65,70],ireals), plex%comm)
-      !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], [zero, 5*one], plex%comm)
+      !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], real([0, 5, 10, 15],ireals), plex%comm)
+      !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], real([0, 5],ireals), plex%comm)
+
+      !call solver%OPP%init([real([0], kind=ireals)], real([0],ireals), plex%comm)
     end subroutine
 
     subroutine set_plex_rt_optprop(solver, vlwc, viwc)
@@ -64,14 +67,17 @@ module m_plex_rt
       type(tVec),intent(in), optional :: vlwc, viwc
       real(ireals), pointer :: xlwc(:), xiwc(:)
 
-      real(ireals),parameter :: w0 = .95, reff_w=10, reff_i=30, rayleigh=1e-5
+      real(ireals),parameter :: w0 = .8, reff_w=10, reff_i=80, rayleigh=1e-8
       real(ireals) :: ksca_tot, kabs_tot, g_tot
       real(ireals) :: ksca_cld, kabs_cld, g_cld
 
       integer(iintegers) :: i
-      integer(mpiint) :: ierr
+      integer(mpiint) :: myid, ierr
 
-      if(.not.allocated(solver)) stop 'set_plex_rt_optprop::solver has to be allocated'
+      if(.not.allocated(solver)) call CHKERR(1_mpiint, 'set_plex_rt_optprop::solver has to be allocated')
+      if(.not.allocated(solver%plex)) call CHKERR(2_mpiint, 'set_plex_rt_optprop::solver%plex has to be allocated')
+
+      call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
 
       if(.not.allocated(solver%optprop)) allocate(solver%optprop(solver%plex%cStart+i1:solver%plex%cEnd))
 
@@ -470,9 +476,10 @@ module m_plex_rt
 
     real(ireals) :: area
 
-    integer(mpiint) :: ierr
+    integer(mpiint) :: myid, ierr
 
     if(ldebug) print *,'plex_rt::scale_facevec...'
+    call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
     call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
@@ -486,27 +493,212 @@ module m_plex_rt
 
     call VecGetArrayF90(faceVec, xv, ierr); call CHKERR(ierr)
 
+    if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
     do iface = plex%fStart, plex%fEnd-1
       call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
-      area = geoms(geom_offset+7)
+      area = geoms(geom_offset+i7)
 
       call PetscSectionGetOffset(faceSection, iface, face_offset, ierr); call CHKERR(ierr)
       if(lW_to_Wm2) then
-        xv(i1+face_offset) = xv(i1+face_offset) / area
+        xv(face_offset+i1) = xv(face_offset+i1) / area
       else
-        xv(i1+face_offset) = xv(i1+face_offset) * area
+        xv(face_offset+i1) = xv(face_offset+i1) * area
       endif
     enddo
+    if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
 
     call VecRestoreArrayF90(faceVec, xv, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    call VecSet(globalfaceVec, zero, ierr); call CHKERR(ierr)
-    call DMLocalToGlobalBegin(face_dm, faceVec, ADD_VALUES, globalfaceVec, ierr); call CHKERR(ierr)
-    call DMLocalToGlobalEnd  (face_dm, faceVec, ADD_VALUES, globalfaceVec, ierr); call CHKERR(ierr)
+    call DMLocalToGlobalBegin(face_dm, faceVec, INSERT_VALUES, globalfaceVec, ierr); call CHKERR(ierr)
+    call DMLocalToGlobalEnd  (face_dm, faceVec, INSERT_VALUES, globalfaceVec, ierr); call CHKERR(ierr)
 
     call DMRestoreLocalVector(face_dm, faceVec, ierr); call CHKERR(ierr)
     if(ldebug) print *,'plex_rt::scale_facevec... finished'
+    end subroutine
+
+    subroutine determine_if_src_of_cell(plex, sundir, is_src)
+      type(t_plexgrid), intent(inout) :: plex
+      real(ireals), intent(in) :: sundir(3)
+      type(tVec), allocatable, intent(inout) :: is_src
+
+      type(tVec) :: local_is_src, local_is_dst, global_is_src, global_is_dst
+      type(tVec) :: tmp
+      real(ireals), pointer :: xis_src(:), xis_dst(:)
+      real(ireals), pointer :: gis_src(:), gis_dst(:)
+
+      type(tPetscSection) :: edirSection, geomSection
+      real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
+      real(ireals) :: mu, cell_center(3), face_center(3), face_normal(3)
+
+      integer(iintegers) :: geom_offset, is_src_offset, larger_cell
+
+      integer(iintegers), pointer :: faces_of_cell(:), cells_of_face(:)
+
+      integer(iintegers) :: i, icell, iface, iboundary
+      logical :: lsrc
+
+      integer(mpiint) :: comm, myid, ierr
+
+      call PetscObjectGetComm(plex%edir_dm, comm, ierr); call CHKERR(ierr)
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+      call DMGetDefaultSection(plex%edir_dm, edirSection, ierr); call CHKERR(ierr)
+
+      call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+      call DMGetLocalVector(plex%edir_dm, local_is_src,ierr); call CHKERR(ierr)
+      call VecSet(local_is_src, zero, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(local_is_src, xis_src, ierr); call CHKERR(ierr)
+
+      call DMGetLocalVector(plex%edir_dm, local_is_dst,ierr); call CHKERR(ierr)
+      call VecSet(local_is_dst, zero, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(local_is_dst, xis_dst, ierr); call CHKERR(ierr)
+
+      if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+      do icell = plex%cStart, plex%cEnd-1
+        call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
+        cell_center = geoms(geom_offset+i1:geom_offset+i3)
+
+        call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+        do i = 1, size(faces_of_cell)
+          iface = faces_of_cell(i)
+          call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
+          face_center = geoms(geom_offset+i1: geom_offset+i3)
+          face_normal = geoms(geom_offset+i4: geom_offset+i6)
+          face_normal = face_normal * real(determine_normal_direction(face_normal, face_center, cell_center), ireals)
+
+          ! to find the face whose normal is closest to sun vector:
+          mu = dot_product(face_normal, sundir)
+          lsrc = mu.gt.zero
+
+          call PetscSectionGetOffset(edirSection, iface, is_src_offset, ierr); call CHKERR(ierr)
+          if(lsrc) then
+            xis_src(is_src_offset+i1) = icell+1
+          else
+            xis_dst(is_src_offset+i1) = icell+1
+          endif
+        enddo ! iface
+        call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell,ierr); call CHKERR(ierr)
+      enddo ! icell
+      if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+
+      if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+      do iface = plex%fStart, plex%fEnd-1
+        call PetscSectionGetOffset(edirSection, iface, is_src_offset, ierr); call CHKERR(ierr)
+        print *,myid,'xis_src',iface, plex%globaliconindex(iface), xis_src(is_src_offset+i1)
+      enddo
+      if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+      call VecRestoreArrayF90(local_is_src, xis_src, ierr); call CHKERR(ierr)
+      call VecRestoreArrayF90(local_is_dst, xis_dst, ierr); call CHKERR(ierr)
+
+      !if(.not.allocated(is_src)) then
+      !  allocate(is_src)
+      !  call DMCreateGlobalVector(plex%edir_dm, is_src, ierr); call CHKERR(ierr)
+      !endif
+
+      call DMGetLocalVector(plex%edir_dm, global_is_src, ierr); call CHKERR(ierr)
+      call DMGetLocalVector(plex%edir_dm, global_is_dst, ierr); call CHKERR(ierr)
+
+      call DMGetGlobalVector(plex%edir_dm, tmp, ierr); call CHKERR(ierr)
+      call VecSet(tmp, zero, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalBegin(plex%edir_dm, local_is_src, ADD_VALUES, tmp, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (plex%edir_dm, local_is_src, ADD_VALUES, tmp, ierr); call CHKERR(ierr)
+      call DMGlobalToLocalBegin(plex%edir_dm, tmp, INSERT_VALUES, global_is_src, ierr); call CHKERR(ierr)
+      call DMGlobalToLocalEnd  (plex%edir_dm, tmp, INSERT_VALUES, global_is_src, ierr); call CHKERR(ierr)
+
+      call VecSet(tmp, zero, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalBegin(plex%edir_dm, local_is_dst, ADD_VALUES, tmp, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (plex%edir_dm, local_is_dst, ADD_VALUES, tmp, ierr); call CHKERR(ierr)
+      call DMGlobalToLocalBegin(plex%edir_dm, tmp, INSERT_VALUES, global_is_dst, ierr); call CHKERR(ierr)
+      call DMGlobalToLocalEnd  (plex%edir_dm, tmp, INSERT_VALUES, global_is_dst, ierr); call CHKERR(ierr)
+      call DMRestoreGlobalVector(plex%edir_dm, tmp, ierr); call CHKERR(ierr)
+
+
+      call VecGetArrayF90(local_is_src, xis_src, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(local_is_dst, xis_dst, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(global_is_src, gis_src, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(global_is_dst, gis_dst, ierr); call CHKERR(ierr)
+
+      if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+      print *,'size of lis_src/ gis_src',size(xis_src), size(gis_src)
+      do iface = plex%fStart, plex%fEnd-1
+        call PetscSectionGetOffset(edirSection, iface, is_src_offset, ierr); call CHKERR(ierr)
+
+        ! TODO sanity checks if all src and dst entries make sense, also check if some weird stuff is going on with our faces
+        ! between ranks and then somehow define really what is src and what is dst, a face should be one of those things yes?
+        ! probably not, i.e. think of diverging radiation due to different zenith angles
+        print *,myid,'iface',iface, ': l src / dst', int([xis_src(is_src_offset+i1), xis_dst(is_src_offset+i1)],iintegers),&
+          ':', int([gis_src(is_src_offset+i1), gis_dst(is_src_offset+i1)], iintegers)
+      enddo
+      do iface = plex%fStart, plex%fEnd-1
+        call PetscSectionGetOffset(edirSection, iface, is_src_offset, ierr); call CHKERR(ierr)
+        if(int(xis_src(is_src_offset+i1)).ne.int(gis_src(is_src_offset+i1))) then
+          print *,myid, 'found different src definition', int(xis_src(is_src_offset+i1)), int(gis_src(is_src_offset+i1))
+        endif
+        if(int(xis_dst(is_src_offset+i1)).ne.int(gis_dst(is_src_offset+i1))) then
+          print *,myid, 'found different dst definition', int(xis_dst(is_src_offset+i1)), int(gis_dst(is_src_offset+i1))
+        endif
+      enddo
+
+      do iface = plex%fStart, plex%fEnd-1
+        if(int(gis_src(is_src_offset+i1)).eq.i0 .or. int(gis_dst(is_src_offset+i1)).eq.i0) then
+          call DMLabelGetValue(plex%domainboundarylabel, iface, iboundary, ierr); call CHKERR(ierr)
+          print *,'iboundary', iface, iboundary
+          if(iboundary.eq.i0) then
+            print *,myid,'iface',iface, ': l src / dst', int([xis_src(is_src_offset+i1), xis_dst(is_src_offset+i1)],iintegers),&
+              ':', int([gis_src(is_src_offset+i1), gis_dst(is_src_offset+i1)], iintegers)
+            call CHKERR(myid+1_mpiint, 'If this is not a dst for anyone ' &
+            //'and it is not at the boundary, I guess this should not happen')
+          endif
+        endif
+
+        if(int(gis_src(is_src_offset+i1)).eq.i0 .and. int(gis_dst(is_src_offset+i1)).eq.i0) then
+          print *,myid,'iface',iface, ': l src / dst', int([xis_src(is_src_offset+i1), xis_dst(is_src_offset+i1)],iintegers),&
+            ':', int([gis_src(is_src_offset+i1), gis_dst(is_src_offset+i1)], iintegers)
+          call CHKERR(myid+1, 'this face has to be either a src or dst, cannot be nothing at all')
+        endif
+      enddo
+      if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+
+      if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+      do icell = plex%cStart, plex%cEnd-1
+        call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
+        cell_center = geoms(geom_offset+i1:geom_offset+i3)
+
+        call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+        do i = 1, size(faces_of_cell)
+          iface = faces_of_cell(i)
+          call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
+          face_center = geoms(geom_offset+i1: geom_offset+i3)
+          face_normal = geoms(geom_offset+i4: geom_offset+i6)
+          face_normal = face_normal * real(determine_normal_direction(face_normal, face_center, cell_center), ireals)
+
+          ! to find the face whose normal is closest to sun vector:
+          mu = dot_product(face_normal, sundir)
+          lsrc = mu.gt.zero
+
+          call PetscSectionGetOffset(edirSection, iface, is_src_offset, ierr); call CHKERR(ierr)
+          if(lsrc) then
+            if(int(gis_src(is_src_offset+i1)).ne.icell+1) then
+              print *,'before I thought this would be a src but now, not anymore...', icell, int(gis_dst(is_src_offset+i1)), iface, mu
+            endif
+          else
+            if(int(gis_dst(is_src_offset+i1)).ne.icell+1) then
+              print *,'before I thought this would be a dst but now, not anymore...', icell, int(gis_dst(is_src_offset+i1)), iface, mu
+            endif
+          endif
+        enddo ! iface
+        call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell,ierr); call CHKERR(ierr)
+      enddo ! icell
+      if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+
+      call VecRestoreArrayF90(local_is_src, xis_src, ierr); call CHKERR(ierr)
+      call VecRestoreArrayF90(local_is_dst, xis_dst, ierr); call CHKERR(ierr)
+      call VecRestoreArrayF90(global_is_src, gis_src, ierr); call CHKERR(ierr)
+      call VecRestoreArrayF90(global_is_dst, gis_dst, ierr); call CHKERR(ierr)
+      !stop 'debug'
     end subroutine
 
   subroutine compute_edir_absorption(plex, edir, sundir, abso)
@@ -532,6 +724,16 @@ module m_plex_rt
     integer(iintegers) :: geom_offset, abso_offset, edir_offset
 
     real(ireals) :: mu, volume
+
+    integer(iintegers) :: base_face   ! index of face which is closest to sun angle, index regarding faces_of_cell
+    integer(iintegers) :: left_face   ! index of face which is left/right of base face, index regarding faces_of_cell
+    integer(iintegers) :: right_face  ! index of face which is left/right of base face, index regarding faces_of_cell
+    integer(iintegers) :: upper_face  ! index of face which is top/bot of base face, index regarding faces_of_cell
+    integer(iintegers) :: bottom_face ! index of face which is top/bot of base face, index regarding faces_of_cell
+
+    logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
+
+    real(ireals) :: zenith, azimuth, dx
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
@@ -560,35 +762,35 @@ module m_plex_rt
     call VecGetArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
     call VecGetArrayF90(local_abso, xabso, ierr); call CHKERR(ierr)
 
+    !if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+    !do iface = plex%fStart, plex%fEnd-1
+    !  call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
+    !  print *,myid,'edir for ', iface, '::', edir_offset, xedir(edir_offset+i1)
+    !enddo
+    !if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+
     if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
     do icell = cStart, cEnd-1
-      call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
+      call compute_local_wedge_ordering(plex, icell, geomSection, geoms, sundir, &
+        lsrc, zenith, azimuth, dx, &
+        upper_face, bottom_face, base_face, left_face, right_face)
 
       call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
-      cell_center = geoms(geom_offset+i1:geom_offset+i3)
       volume = geoms(geom_offset+i4)
+
+      call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
+      xabso(abso_offset+i1) = zero
 
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
       do iface = 1, size(faces_of_cell)
         call PetscSectionGetOffset(edir_section, faces_of_cell(iface), edir_offset, ierr); call CHKERR(ierr)
 
-        call PetscSectionGetOffset(geomSection, faces_of_cell(iface), geom_offset, ierr); call CHKERR(ierr)
-        face_center = geoms(geom_offset+i1: geom_offset+i3)
-        face_normal = geoms(geom_offset+i4: geom_offset+i6)
-
-        ! Determine the inward normal vec for the face
-        face_normal = face_normal * &
-          real(determine_normal_direction(face_normal, face_center, cell_center), ireals)
-
-        ! Then determine if the face is src(in line with the sun vec) or if it is destination(contra sun direction)
-        mu = dot_product(face_normal, sundir)
-
-        if(mu.gt.zero) then ! sun is shining into this face
-          !print *,myid,'absorption for ', icell, iface, faces_of_cell(iface), mu, '+',&
+        if(lsrc(iface)) then ! sun is shining into this face
+          !print *,myid,'absorption for ', icell, iface, faces_of_cell(iface), '+',&
           !  xedir(edir_offset+i1),'::',xabso(abso_offset+i1) / volume, '->', (xabso(abso_offset+i1) + xedir(edir_offset+i1))/volume
           xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1)
         else
-          !print *,myid,'absorption for ', icell, iface, faces_of_cell(iface), mu, '-',&
+          !print *,myid,'absorption for ', icell, iface, faces_of_cell(iface), '-',&
           !  xedir(edir_offset+i1),'::',xabso(abso_offset+i1) / volume, '->', (xabso(abso_offset+i1) - xedir(edir_offset+i1))/volume
           xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1)
         endif
@@ -598,6 +800,13 @@ module m_plex_rt
       xabso(abso_offset+i1) = xabso(abso_offset+i1) / volume
     enddo
     if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+
+    !if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+    !do icell = cStart, cEnd-1
+    !  call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
+    !  print *,myid,'absorption for ', icell, '::', xabso(abso_offset+i1)
+    !enddo
+    !if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
 
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
     call VecRestoreArrayF90(local_abso, xabso, ierr); call CHKERR(ierr)
@@ -634,9 +843,9 @@ module m_plex_rt
     integer(mpiint) :: myid, ierr
 
     integer(iintegers), pointer :: faces_of_cell(:)
-    integer(iintegers) :: i, icell, iface, irow, icol, idst, iwedgeface
+    integer(iintegers) :: icell, iface, irow, icol, isrc, idst, iwedgeface
 
-    integer(iintegers) :: irows(5)
+    integer(iintegers) :: irows(5), icols(5)
 
     type(tPetscSection) :: geomSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
@@ -649,9 +858,10 @@ module m_plex_rt
     integer(iintegers) :: upper_face  ! index of face which is top/bot of base face, index regarding faces_of_cell
     integer(iintegers) :: bottom_face ! index of face which is top/bot of base face, index regarding faces_of_cell
 
-    real(ireals),target :: dir2dir(5,5) ! Nface**2, dim=(ncol, nrow), i.e. dim=(isrc, idst), isrc changing quickest
-    real(ireals),pointer :: pdir2dir(:)
+    real(ireals) :: dir2dir(5)
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
+    logical,allocatable :: lset_entry(:,:)
+    integer(iintegers) :: matsize_m, matsize_n
 
     integer(iintegers) :: zindex
     real(ireals) :: dx, dz, coeff(5**2) ! coefficients for each src=[1..5] and dst[1..5]
@@ -669,8 +879,15 @@ module m_plex_rt
     call DMCreateMatrix(plex%edir_dm, A, ierr); call CHKERR(ierr)
     !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
 
-    do icell = cStart, cEnd-1
+    if(ldebug) then
+      call MatGetSize(A, matsize_m, matsize_n, ierr); call CHKERR(ierr)
+      print *, myid, 'Global rows/cols numbers of M_edir', matsize_m, matsize_n
+      allocate(lset_entry(0:matsize_m-1, 0:matsize_n-1))
+      lset_entry(:,:) = .False.
+    endif
 
+    if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+    do icell = cStart, cEnd-1
 
       call compute_local_wedge_ordering(plex, icell, geomSection, geoms, sundir, &
         lsrc, zenith, azimuth, dx, &
@@ -681,11 +898,15 @@ module m_plex_rt
 
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
-
+      !print *,'icell',icell,': foc',faces_of_cell
+      !print *,'icell',icell,':',[upper_face, base_face, left_face, right_face, bottom_face],'lsrc',lsrc
       call get_coeff(OPP, optprop(icell+1)%kabs, optprop(icell+1)%ksca, optprop(icell+1)%g, &
         dz, dx, .True., coeff, angles=[rad2deg(azimuth), rad2deg(zenith)])
 
-      dir2dir = zero
+      do isrc = 1, size(faces_of_cell)
+        print *,int([rad2deg(azimuth), rad2deg(zenith)], iintegers),'isrc', isrc, coeff(isrc:size(coeff):i5)
+      enddo
+
       do iface = 1, size(faces_of_cell)
 
         ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
@@ -704,26 +925,43 @@ module m_plex_rt
         endif
 
         if(.not.lsrc(iface)) then
-          dir2dir([upper_face,base_face,left_face,right_face,bottom_face], iface) = -coeff((iwedgeface-1)*5+1:iwedgeface*5)
+          dir2dir([upper_face, base_face, left_face, right_face, bottom_face]) = coeff((iwedgeface-1)*i5+i1:iwedgeface*i5)
+          !dir2dir([upper_face, base_face, left_face, right_face, bottom_face]) = coeff(iwedgeface:size(coeff):i5)
+          !dir2dir([base_face, left_face, right_face]) = zero
+          !print *,myid, 'Setting coeff for dst', faces_of_cell(iface), [rad2deg(azimuth), rad2deg(zenith)], '->', coeff((iwedgeface-1)*i5+i1:iwedgeface*i5)
+
+          !if(ldebug) then
+          !  if(sum(dir2dir).gt.one .or. sum(dir2dir).lt.zero) then
+          !    print *,'Sum of coeffs for iface', iface, '::', sum(dir2dir)
+          !    print *,'coeffs for iface', iface, '::', dir2dir
+          !    print *,'coeffs for icell', icell, '::', coeff
+          !    stop'debug'
+          !  endif
+          !endif
+
+          call PetscSectionGetOffset(sec, faces_of_cell(iface), irow, ierr); call CHKERR(ierr)
+
+          do isrc = 1, size(faces_of_cell)
+            if(lsrc(isrc)) then
+              call PetscSectionGetOffset(sec, faces_of_cell(isrc), icol, ierr); call CHKERR(ierr)
+              call MatSetValuesLocal(A, i1, [irow], i1, [icol], [-dir2dir(isrc)], INSERT_VALUES, ierr); call CHKERR(ierr)
+              if(ldebug) then
+                !print *,myid,'Setting ',icell, iface,':',isrc, '->', icol, irow, ':', dir2dir(isrc)
+                if(lset_entry(irow, icol)) then
+                  print *, myid, 'Mat entry already set!', irow, icol
+                  call CHKERR(1_mpiint, 'should not happen!')
+                endif
+                lset_entry(irow, icol) = .True.
+              endif
+            endif
+          enddo
+
         else ! This is a src face, no radiation gets here unless we have a boundary condition to apply
-          dir2dir(:, iface) = zero
-        endif !lsrc
-        dir2dir(iface, iface) = one ! setting diagonal entry
+        endif
 
-        call PetscSectionGetOffset(sec, faces_of_cell(iface), icol, ierr); call CHKERR(ierr)
-
-        do idst = 1, size(faces_of_cell)
-          call PetscSectionGetOffset(sec, faces_of_cell(idst), irow, ierr); call CHKERR(ierr)
-          irows(idst) = irow
-        enddo
-
-        pdir2dir(1:size(faces_of_cell)) => dir2dir(:,iface)
-        call MatSetValuesLocal(A, i5, irows, i1, [icol], pdir2dir, INSERT_VALUES, ierr); call CHKERR(ierr)
       enddo ! enddo iface
 
-      call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell,ierr); call CHKERR(ierr)
-
-      !print *,'Setting Direct Matrix values rows/cols:', irows, '::', icols
+      !print *,'Setting Direct Matrix values rows/cols:', irows
       !print *,'face order:', [upper_face,base_face,left_face,right_face,bottom_face]
       !print *,'Setting Direct Matrix values coeffs 1 :', dir2dir(:,1)
       !print *,'Setting Direct Matrix values coeffs 2 :', dir2dir(:,2)
@@ -731,18 +969,17 @@ module m_plex_rt
       !print *,'Setting Direct Matrix values coeffs 4 :', dir2dir(:,4)
       !print *,'Setting Direct Matrix values coeffs 5 :', dir2dir(:,5)
 
-      if(ldebug) then
-        do iface = 1, size(faces_of_cell)
-          if(sum(dir2dir(iface,:)).gt.one .or. sum(dir2dir(iface,:)).lt.zero) then
-            print *,'Sum of coeffs for iface', iface,'::', sum(dir2dir(iface,:))
-            do i=1, size(faces_of_cell)
-              print *,'coeffs for iface', i,'::', dir2dir(i,:)
-            enddo
-            stop'debug'
-          endif
-        enddo
-      endif
+      call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell,ierr); call CHKERR(ierr)
+    enddo
+    if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
 
+    call MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
+    call MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
+
+    ! Set Diagonal Entries
+    do iface = fStart, fEnd-1
+      call PetscSectionGetOffset(sec, iface, irow, ierr); call CHKERR(ierr)
+      call MatSetValuesLocal(A, i1, [irow], i1, [irow], [one], INSERT_VALUES, ierr); call CHKERR(ierr)
     enddo
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
@@ -752,7 +989,6 @@ module m_plex_rt
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...finished'
-    !stop 'debug'
   end subroutine
 
   !> @brief retrieve transport coefficients from optprop module
@@ -776,9 +1012,15 @@ module m_plex_rt
       w0 = ksca / (kabs+ksca)
     endif
 
-    !print *,'Lookup Coeffs for', aspect, tauz, w0, g, angles
     call OPP%get_coeff(aspect, tauz, w0, g,ldir, coeff, inp_angles=angles)
-    !print *,'Coeffs', coeff
+    !print *,'DEBUG Lookup Coeffs for', aspect, tauz, w0, g, angles,'::', coeff
+    if(ldebug) then
+      if(any(coeff.lt.zero).or.any(coeff.gt.one)) then
+        print *,'Lookup Coeffs for', aspect, tauz, w0, g, angles,'::', coeff
+        call CHKERR(i1, 'Found corrupted coefficients!')
+      endif
+    endif
+
   end subroutine
 
   subroutine compute_local_wedge_ordering(plex, icell, geomSection, geoms, sundir, &
@@ -795,7 +1037,7 @@ module m_plex_rt
 
 
     integer(iintegers), pointer :: faces_of_cell(:), edges_of_face(:)
-    integer(iintegers) :: i, iface, iedge, geom_offset, izindex(2)
+    integer(iintegers) :: i, iface, iedge, geom_offset, izindex(2), normal_direction
 
     real(ireals) :: cell_center(3)
     real(ireals) :: face_normals(3,5), face_centers(3,5)
@@ -852,15 +1094,18 @@ module m_plex_rt
       call PetscSectionGetOffset(geomSection, faces_of_cell(iface), geom_offset, ierr); call CHKERR(ierr)
       face_centers(:,iface) = geoms(geom_offset+i1: geom_offset+i3)
       face_normals(:,iface) = geoms(geom_offset+i4: geom_offset+i6)
-      face_normals(:,iface) = face_normals(:,iface) * &
-        real(determine_normal_direction(face_normals(:,iface), face_centers(:, iface), cell_center), ireals)
-      ! to find the face whose normal is closest to sun vector:
-      mu = dot_product(face_normals(:,iface), sundir)
-      lsrc(iface) = mu.gt.zero !side_faces_angles_to_sun(iface).le.pi/2-deg2rad(.01_ireals) ! dont propagate energy along edges where sun is only .1 degrees off
+      normal_direction = determine_normal_direction(face_normals(:,iface), face_centers(:, iface), cell_center)
+
+      mu = dot_product(sundir, face_normals(:,iface))
+      if(normal_direction.eq.i1) then ! normal is inward
+        lsrc(iface) = mu.ge.zero
+      else
+        lsrc(iface) = mu.le.zero
+      endif
+      face_normals(:,iface) = face_normals(:,iface) * normal_direction ! face_normals point inwards
     enddo
 
     proj_normal = vec_proj_on_plane(sundir, face_normals(:,upper_face))
-    !proj_normal = proj_normal / norm(proj_normal)
 
     if(.not.approx(norm(proj_normal),zero)) then
       do iface=1,size(side_faces)
@@ -872,23 +1117,25 @@ module m_plex_rt
       azimuth = proj_angles_to_sun(ibase_face)
 
       ! Local unit vec on upperface, pointing towards '+x'
-      e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), face_normals(:, upper_face))
+      e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), -face_normals(:, upper_face))
       azimuth = azimuth * sign(one, dot_product(proj_normal, e_x))
 
-    else
-      call random_number(r)
-      ibase_face = int(r*i3, iintegers)+i1 ! if sun is directly on top, i.e. zenith 0, just pick the first one
-      e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), face_normals(:, upper_face))
+    else ! if sun is directly on top, i.e. zenith 0, just pick the first one
+      do iface = 1, size(side_faces)
+        if(lsrc(side_faces(iface))) ibase_face = iface
+      enddo
+      e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), -face_normals(:, upper_face))
       azimuth = 0
     endif
     base_face = side_faces(ibase_face)
 
-    zenith  = acos(dot_product(sundir, face_normals(:, upper_face)))
+    zenith  = angle_between_two_vec(sundir, face_normals(:, upper_face))
 
     left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
     right_face = side_faces(modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1)
 
-    if(dot_product(e_x, face_normals(:, right_face)).lt.zero) call swap(right_face,left_face)
+    if(dot_product(e_x, face_normals(:, right_face)).ge.zero) call swap(right_face, left_face)
+
 
     if(ldebug) then
       if(norm(face_centers(:,upper_face)) .le. norm(face_centers(:,bottom_face))) then ! we expect the first face to be the upper one
@@ -911,6 +1158,7 @@ module m_plex_rt
     endif
 
     call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell,ierr); call CHKERR(ierr)
+
     end subroutine
 
     !subroutine compute_dir2dir_coeff(src, phi, theta, S,T)

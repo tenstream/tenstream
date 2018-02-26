@@ -329,7 +329,7 @@ contains
 
       call cpu_time(time(1))
 
-      ! we turn the initial direction in x and y, against the convetion of sun angles...
+      ! we turn the initial direction in x and y, against the convention of sun angles...
       ! i.e. here we have azimuth phi = 0, beam going towards the north
       ! and phi = 90, beam going towards east
       initial_dir = spherical_2_cartesian(phi0, theta0) * [-one, -one, one]
