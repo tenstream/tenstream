@@ -64,7 +64,7 @@ module m_optprop_parameters
       integer(iintegers), parameter :: interp_mode_3_10=2
       integer(iintegers), parameter :: interp_mode_wedge_5_8=4
 
-      integer(iintegers), parameter :: Nphi=10
+      integer(iintegers), parameter :: Nphi=19
 
       ! integer(iintegers) ,parameter :: Ntau=40, Nw0=10, Ng=2, Ntheta=19
       ! real(ireals), parameter :: preset_tau(1)  =[0]
