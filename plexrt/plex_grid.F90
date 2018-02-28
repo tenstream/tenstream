@@ -3,18 +3,23 @@ module m_plex_grid
   use petsc
   use m_netcdfIO, only: ncload
   use m_helper_functions, only: CHKERR, itoa, compute_normal_3d, approx, strF2C, distance, &
-    triangle_area_by_vertices, swap, norm
-  use m_data_parameters, only : ireals, iintegers, mpiint, zero, &
-    i0, i1, i2, i3, i4, i5, i6, i7, default_str_len
+    triangle_area_by_vertices, swap, norm, determine_normal_direction, &
+    vec_proj_on_plane, angle_between_two_vec, cross_3d, rad2deg
+
+  use m_data_parameters, only : ireals, iintegers, mpiint, zero, one, &
+    i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
+
   use m_icon_grid, only : t_icongrid, ICONULL
 
   implicit none
 
   private
   public :: t_plexgrid, load_plex_from_file, create_plex_from_icongrid, &
-    icell_icon_2_plex, iface_top_icon_2_plex, update_plex_indices, distribute_plexgrid_dm, &
-    compute_face_geometry, setup_edir_dmplex, print_dmplex,       &
-    setup_abso_dmplex, ncvar2d_to_globalvec, facevec2cellvec
+    icell_icon_2_plex, iface_top_icon_2_plex, update_plex_indices, &
+    distribute_plexgrid_dm, compute_face_geometry, setup_edir_dmplex, &
+    print_dmplex, setup_abso_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
+    orient_face_normals_along_sundir, compute_wedge_orientation, compute_local_wedge_ordering, &
+    TOAFACE, BOTFACE, SIDEFACE
 
   logical, parameter :: ldebug=.True.
 
@@ -25,7 +30,10 @@ module m_plex_grid
     type(tDM), allocatable :: abso_dm
     type(tDM), allocatable :: edir_dm
     type(tDM), allocatable :: geom_dm
-    type(tVec) :: geomVec
+    type(tDM), allocatable :: wedge_orientation_dm
+    type(tVec), allocatable :: geomVec ! see compute_face_geometry for details
+    type(tVec), allocatable :: wedge_orientation ! see compute_wedge_orientation
+
     type(tPetscSF) :: default_sf
 
     ! Index counters on plex:
@@ -53,15 +61,16 @@ module m_plex_grid
     integer(iintegers),allocatable :: localiconindex(:)  ! local index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. on each rank from 1..Ncell, 1..Nedges etc..
     integer(iintegers),allocatable :: globaliconindex(:) ! global index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. for each rank has the indices of the global icon grid as it is read from nc
 
-    type(tDMLabel) :: TOAlabel             ! 1 if top level, 0 otherwise
     type(tDMLabel) :: boundarylabel        ! 1 if boundary of local mesh
-    type(tDMLabel) :: domainboundarylabel  ! 1 if top, 2 if side face, 3 if bot face, 0 otherwise
+    type(tDMLabel) :: domainboundarylabel  ! TOAFACE if top, SIDEFACE if side face, BOTFACE if bot face, -1 otherwise
     type(tDMLabel) :: ownerlabel           ! rank that posses this element
 
     AO :: cell_ao
 
     real(ireals),allocatable :: hhl(:) ! vertical height of horizontal faces, i.e. height of levels, starting at TOA
   end type
+
+  integer(iintegers), parameter :: TOAFACE=1, SIDEFACE=2, BOTFACE=3
 
   contains
 
@@ -135,12 +144,7 @@ module m_plex_grid
 
 
       ! Create some labels ... those are handy later when setting up matrices etc
-      call DMCreateLabel(plex%dm, "TOA"     , ierr); call CHKERR(ierr)
-      call DMCreateLabel(plex%dm, "Boundary", ierr); call CHKERR(ierr)
       call DMCreateLabel(plex%dm, "Owner"   , ierr); call CHKERR(ierr)
-
-      call DMGetLabel(plex%dm, "TOA"     , plex%TOAlabel           , ierr); call CHKERR(ierr)
-      call DMGetLabel(plex%dm, "Boundary", plex%boundarylabel, ierr); call CHKERR(ierr)
       call DMGetLabel(plex%dm, "Owner"   , plex%ownerlabel         , ierr); call CHKERR(ierr)
       call DMLabelSetDefaultValue(plex%ownerlabel, int(myid, kind=iintegers), ierr); call CHKERR(ierr)
 
@@ -193,7 +197,7 @@ module m_plex_grid
           call DMPlexSetCone(plex%dm, icell, faces, ierr); call CHKERR(ierr)
           call DMPlexSetConeOrientation(plex%dm, icell, i0*faces, ierr); call CHKERR(ierr)
 
-          if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , icell, owner  , ierr); call CHKERR(ierr)
+          if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel, icell, owner, ierr); call CHKERR(ierr)
           plex%zindex(icell) = k
           plex%localiconindex(icell) = i
           plex%globaliconindex(icell) = iparent
@@ -216,16 +220,12 @@ module m_plex_grid
           call DMPlexSetCone(plex%dm, iface, edge3, ierr); call CHKERR(ierr)
           call DMPlexSetConeOrientation(plex%dm, iface, i0*edge3, ierr); call CHKERR(ierr)
 
-          if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iface, owner       , ierr); call CHKERR(ierr)
+          if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel, iface, owner, ierr); call CHKERR(ierr)
           plex%ltopfacepos(iface) = .True.
           plex%zindex(iface) = k
           plex%localiconindex(iface) = i
           plex%globaliconindex(iface) = iparent
 
-          if (k.eq.i1) then
-            call DMLabelSetValue(plex%TOAlabel, iface, i1, ierr); call CHKERR(ierr)
-            call DMLabelSetValue(plex%boundarylabel, iface, i1, ierr); call CHKERR(ierr)
-          endif
           !print *,myid,'top/bot faces :: icon face', i, iparent,'plexface:',iface, 'edge3', edge3, 'owner', owner
         enddo
       enddo
@@ -252,9 +252,6 @@ module m_plex_grid
           plex%localiconindex(iface) = i
           plex%globaliconindex(iface) = iparent
           if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel, iface, owner, ierr); call CHKERR(ierr)
-          if(any(icongrid%adj_cell_of_edge(i,:).eq.ICONULL)) then
-            call DMLabelSetValue(plex%boundarylabel, iface, i2, ierr); call CHKERR(ierr)
-          endif
 
           !print *,myid,'side faces :: icon edge', i, iparent, 'plexface:', iface, 'edge4', edge4, 'owner', owner, &
           !  'adj cells', icongrid%adj_cell_of_edge(i,:)
@@ -277,7 +274,7 @@ module m_plex_grid
           call DMPlexSetCone(plex%dm, iedge, vert2, ierr); call CHKERR(ierr)
           call DMPlexSetConeOrientation(plex%dm, iedge, i0*vert2, ierr); call CHKERR(ierr)
 
-          if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iedge, owner       , ierr); call CHKERR(ierr)
+          if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel, iedge, owner, ierr); call CHKERR(ierr)
           plex%zindex(iedge) = k
           plex%localiconindex(iedge) = i
           plex%globaliconindex(iedge) = iparent
@@ -299,7 +296,7 @@ module m_plex_grid
           call DMPlexSetCone(plex%dm, iedge, vert2, ierr); call CHKERR(ierr)
           call DMPlexSetConeOrientation(plex%dm, iedge, i0*vert2, ierr); call CHKERR(ierr)
 
-          if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , iedge, owner    , ierr); call CHKERR(ierr)
+          if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel, iedge, owner, ierr); call CHKERR(ierr)
           plex%zindex(iedge) = k
           plex%localiconindex(iedge) = i
           plex%globaliconindex(iedge) = iparent
@@ -315,7 +312,7 @@ module m_plex_grid
           iparent = icongrid%vertex_index(i)
           owner = icongrid%vertexowner(iparent)
 
-          if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel         , ivertex, owner  , ierr); call CHKERR(ierr)
+          if(owner.ne.myid) call DMLabelSetValue(plex%ownerlabel, ivertex, owner, ierr); call CHKERR(ierr)
           plex%zindex(ivertex) = k
           plex%localiconindex(ivertex) = i
           plex%globaliconindex(ivertex) = iparent
@@ -343,10 +340,6 @@ module m_plex_grid
       call DMSetDefaultSection(plex%dm, cell_section, ierr); call CHKERR(ierr)
       call PetscSectionDestroy(cell_section, ierr); call CHKERR(ierr)
 
-      !call DMCreateLabel(plex%dm, "Boundary", ierr); call CHKERR(ierr)
-      !call DMGetLabel(plex%dm, "Boundary", plex%boundarylabel, ierr); call CHKERR(ierr)
-      !call DMPlexMarkBoundaryFaces(plex%dm, i1, plex%boundarylabel, ierr); call CHKERR(ierr)
-      !call DMPlexLabelAddCells(plex%dm, plex%boundarylabel, ierr); call CHKERR(ierr)
       call label_domain_boundary(plex, plex%dm, plex%boundarylabel, plex%domainboundarylabel)
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : show plex'
@@ -421,12 +414,12 @@ module m_plex_grid
           if(int(xv(i1+voff), iintegers) .eq. i1) then ! if the additive val is not 2 it must be at the domain edge
             if(plex%ltopfacepos(iface)) then
               if(plex%zindex(iface).eq.1) then
-                call DMLabelSetValue(domainboundarylabel, iface, i1, ierr); call CHKERR(ierr)
+                call DMLabelSetValue(domainboundarylabel, iface, TOAFACE, ierr); call CHKERR(ierr)
               else
-                call DMLabelSetValue(domainboundarylabel, iface, i3, ierr); call CHKERR(ierr)
+                call DMLabelSetValue(domainboundarylabel, iface, BOTFACE, ierr); call CHKERR(ierr)
               endif
             else
-              call DMLabelSetValue(domainboundarylabel, iface, i2, ierr); call CHKERR(ierr)
+              call DMLabelSetValue(domainboundarylabel, iface, SIDEFACE, ierr); call CHKERR(ierr)
             endif
           endif
         enddo
@@ -442,7 +435,8 @@ module m_plex_grid
         type(tVec) :: globalVec
         real(ireals), pointer :: xv(:)
         type(tPetscSection) :: cellSection
-        integer(iintegers) :: icell, cStart, cEnd, voff, labelval
+        integer(iintegers) :: i, icell, iface, cStart, cEnd, voff, labelval
+        integer(iintegers), pointer :: faces_of_cell(:)
 
         integer(mpiint) :: myid, ierr
 
@@ -486,6 +480,25 @@ module m_plex_grid
         enddo
         call VecRestoreArrayF90(globalVec, xv, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(globalVec, PETSC_NULL_VEC, '-show_zindex', ierr); call CHKERR(ierr)
+
+        call PetscObjectSetName(globalVec, 'domainboundarylabel', ierr);call CHKERR(ierr)
+        call VecGetArrayF90(globalVec, xv, ierr); call CHKERR(ierr)
+        xv(:) = zero
+        do icell = cStart, cEnd-1
+          call PetscSectionGetOffset(cellSection, icell, voff, ierr); call CHKERR(ierr)
+
+          call DMPlexGetCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+
+          do i=1,size(faces_of_cell)
+            iface = faces_of_cell(i)
+            call DMLabelGetValue(plex%domainboundarylabel, iface, labelval, ierr); call CHKERR(ierr)
+            xv(voff+1) = xv(voff+1) + real(labelval, kind=ireals)
+          enddo
+
+          call DMPlexRestoreCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+        enddo
+        call VecRestoreArrayF90(globalVec, xv, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(globalVec, PETSC_NULL_VEC, '-show_domainboundary', ierr); call CHKERR(ierr)
 
         call DMRestoreGlobalVector(plex%dm, globalVec, ierr); call CHKERR(ierr)
         if(ldebug.and.myid.eq.0) print *,'dump_ownership :: finished'
@@ -881,8 +894,11 @@ module m_plex_grid
     call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! vertices
     call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-    call DMGetLocalVector(dm, plex%geomVec,ierr); call CHKERR(ierr)
-    call PetscObjectSetName(plex%geomVec, 'geomVec', ierr);call CHKERR(ierr)
+    if(.not.allocated(plex%geomVec)) then
+      allocate(plex%geomVec)
+      call DMCreateLocalVector(dm, plex%geomVec,ierr); call CHKERR(ierr)
+      call PetscObjectSetName(plex%geomVec, 'geomVec', ierr);call CHKERR(ierr)
+    endif
     call VecGetArrayF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     ! First Set lengths of edges
@@ -1181,6 +1197,240 @@ module m_plex_grid
     call PetscObjectViewFromOptions(s, PETSC_NULL_SECTION, '-show_abso_section', ierr); call CHKERR(ierr)
     call PetscSectionDestroy(s, ierr); call CHKERR(ierr)
   end subroutine
+
+    !> @brief reorient face normal so that they point towards the same direction as the sun does
+    subroutine orient_face_normals_along_sundir(plex, sundir)
+      type(t_plexgrid), intent(in) :: plex
+      real(ireals), intent(in) :: sundir(3)
+
+      integer(iintegers) :: iface
+
+      type(tPetscSection) :: geomSection
+      real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
+      integer(iintegers) :: geom_offset
+      real(ireals) :: face_normal(3), mu
+
+      integer(mpiint) :: ierr
+
+      call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
+      call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+      do iface = plex%fStart, plex%fEnd-1
+          call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
+          face_normal = geoms(geom_offset+i4: geom_offset+i6)
+
+          mu = dot_product(sundir, face_normal)
+          if(mu.lt.zero) then ! normal is in the opposite direction of the sun -> turn it around
+            geoms(geom_offset+i4: geom_offset+i6) = -face_normal
+          endif
+      enddo
+
+      call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    end subroutine
+
+  !> @brief create a vector that holds all the wedge orientation ordering information as well as zenith and azimuth angles
+  !> , i.e. in short, everything that we need to know to translate between DMPlex face ordering and the LUT's
+  subroutine compute_wedge_orientation(plex, sundir, wedge_orientation_dm, wedge_orientation)
+    type(t_plexgrid), intent(in) :: plex
+    real(ireals), intent(in) :: sundir(3)
+    type(tDM), allocatable, intent(inout) :: wedge_orientation_dm
+    type(tVec), allocatable, intent(inout) :: wedge_orientation
+
+    type(tPetscSection) :: geomSection, wedgeSection
+
+    integer(iintegers) :: icell, iface, wedge_offset
+    integer(iintegers) :: upper_face, base_face, left_face, right_face, bottom_face
+    logical :: lsrc(5)
+
+    real(ireals) :: dx, zenith, azimuth
+    real(ireals),pointer :: xv(:), geoms(:)
+
+    integer(mpiint) :: ierr
+
+    if(.not.allocated(wedge_orientation_dm)) then
+      allocate(wedge_orientation_dm)
+      call DMClone(plex%edir_dm, wedge_orientation_dm, ierr); ; call CHKERR(ierr)
+      ! wedge_orientation Vec Contains 3 Fields:
+      ! 3 dof on cells for zenith, azimuth, mean_edge_length(dx)
+      ! 5 dof for permutation of faces from faces_of_cell to BoxMonteCarlo face ordering
+      ! 5 dof that determine if a face is src or destination with respect to solar radiation (src=1, dst=0)
+      call create_plex_section(plex%comm, wedge_orientation_dm, 'Wedge Orientation Section', i1, &
+        [int(13, iintegers)], [i0], [i0], [i0], wedgeSection)
+      call DMSetDefaultSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+      call PetscSectionDestroy(wedgeSection, ierr); call CHKERR(ierr)
+    endif
+    if(.not.allocated(wedge_orientation)) then
+      allocate(wedge_orientation)
+      call DMCreateGlobalVector(wedge_orientation_dm, wedge_orientation, ierr); call CHKERR(ierr)
+    endif
+
+    call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call DMGetDefaultSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+
+    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+    call VecGetArrayF90(wedge_orientation, xv, ierr); call CHKERR(ierr)
+
+    do icell = plex%cStart, plex%cEnd-1
+      call compute_local_wedge_ordering(plex, icell, &
+        geomSection, geoms, sundir, &
+        lsrc, zenith, azimuth, dx, &
+        upper_face, bottom_face, &
+        base_face, left_face, right_face)
+
+      call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
+
+      xv(wedge_offset+i1: wedge_offset+i3) = [zenith, azimuth, dx]
+
+      xv(wedge_offset+i4: wedge_offset+i8) = [upper_face, base_face, left_face, right_face, bottom_face]
+      do iface = 1, size(lsrc)
+        if(lsrc(iface)) then
+          xv(wedge_offset+i8+iface) = one
+        else
+          xv(wedge_offset+i8+iface) = zero
+        endif
+      enddo
+    enddo
+
+    call VecRestoreArrayF90(wedge_orientation, xv, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+  end subroutine
+
+  !> @brief translate the ordering of faces in the DMPlex to the ordering we assume in the box-montecarlo routines
+  subroutine compute_local_wedge_ordering(plex, icell, geomSection, geoms, sundir, &
+      lsrc, zenith, azimuth, upper_edgelength, &
+      upper_face, bottom_face, base_face, left_face, right_face)
+    type(t_plexgrid), intent(in) :: plex
+    integer(iintegers), intent(in) :: icell
+    type(tPetscSection) :: geomSection
+    real(ireals), intent(in), pointer :: geoms(:) ! pointer to coordinates vec
+    real(ireals), intent(in) :: sundir(3)
+    real(ireals), intent(out) :: zenith, azimuth, upper_edgelength
+    integer(iintegers), intent(out) :: upper_face, bottom_face, base_face, left_face, right_face
+    logical, intent(out) :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
+
+
+    integer(iintegers), pointer :: faces_of_cell(:), edges_of_face(:)
+    integer(iintegers) :: i, iface, iedge, geom_offset, izindex(2), normal_direction
+
+    real(ireals) :: cell_center(3)
+    real(ireals) :: face_normals(3,5), face_centers(3,5)
+    real(ireals) :: proj_angles_to_sun(3), proj_normal(3)
+    real(ireals) :: mu, e_x(3) ! unit vectors of local coord system in which we compute the transfer coefficients
+
+    integer(iintegers) :: side_faces(3), top_faces(2) ! indices in faces_of_cell which give the top/bot and side faces via labeling
+    integer(iintegers) :: iside_faces, itop_faces, ibase_face ! indices to fill above arrays
+
+    real(ireals) :: side_face_normal_projected_on_upperface(3,3)
+
+    integer(mpiint) :: ierr
+
+    call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
+    cell_center = geoms(geom_offset+i1:geom_offset+i3)
+
+    call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+
+    ! get numbering for 2 top/bot faces and 3 side faces which indicate the position in the faces_of_cell vec
+    iside_faces = 1; itop_faces = 1
+    do iface = 1, size(faces_of_cell)
+      if(plex%ltopfacepos(faces_of_cell(iface))) then
+        top_faces(itop_faces) = iface
+        itop_faces = itop_faces+1
+      else
+        side_faces(iside_faces) = iface
+        iside_faces = iside_faces+1
+      endif
+    enddo
+
+    izindex(1) = plex%zindex(faces_of_cell(top_faces(1)))
+    izindex(2) = plex%zindex(faces_of_cell(top_faces(2)))
+
+    if(izindex(1).gt.izindex(2)) then
+      upper_face = top_faces(2)
+      bottom_face = top_faces(1)
+    else
+      upper_face = top_faces(1)
+      bottom_face = top_faces(2)
+    endif
+
+    ! Determine mean edge length of upper face triangle
+    call DMPlexGetCone(plex%edir_dm, faces_of_cell(upper_face), edges_of_face, ierr); call CHKERR(ierr) ! Get Faces of cell
+    upper_edgelength = 0
+    do i=1,size(edges_of_face)
+      iedge = edges_of_face(i)
+      call PetscSectionGetOffset(geomSection, iedge, geom_offset, ierr); call CHKERR(ierr)
+      upper_edgelength = upper_edgelength + geoms(geom_offset+i1)
+    enddo
+    upper_edgelength = upper_edgelength / size(edges_of_face)
+    call DMPlexRestoreCone(plex%edir_dm, faces_of_cell(upper_face), edges_of_face, ierr); call CHKERR(ierr)
+
+    do iface = 1, size(faces_of_cell)
+      call PetscSectionGetOffset(geomSection, faces_of_cell(iface), geom_offset, ierr); call CHKERR(ierr)
+      face_centers(:,iface) = geoms(geom_offset+i1: geom_offset+i3)
+      face_normals(:,iface) = geoms(geom_offset+i4: geom_offset+i6)
+      normal_direction = determine_normal_direction(face_normals(:,iface), face_centers(:, iface), cell_center)
+      face_normals(:,iface) = face_normals(:,iface) * normal_direction ! face_normals point inwards
+
+      mu = dot_product(sundir, face_normals(:,iface))
+      lsrc(iface) = mu.ge.zero
+    enddo
+
+    proj_normal = vec_proj_on_plane(sundir, face_normals(:,upper_face))
+
+    if(.not.approx(norm(proj_normal),zero)) then
+      do iface=1,size(side_faces)
+        side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
+        proj_angles_to_sun(iface) = angle_between_two_vec(proj_normal, side_face_normal_projected_on_upperface(:, iface))
+      enddo
+      ibase_face = minloc(proj_angles_to_sun,dim=1)
+
+      azimuth = proj_angles_to_sun(ibase_face)
+
+      ! Local unit vec on upperface, pointing towards '+x'
+      e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), -face_normals(:, upper_face))
+      azimuth = azimuth * sign(one, dot_product(proj_normal, e_x))
+
+    else ! if sun is directly on top, i.e. zenith 0, just pick the first one
+      do iface = 1, size(side_faces)
+        if(lsrc(side_faces(iface))) ibase_face = iface
+      enddo
+      e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), -face_normals(:, upper_face))
+      azimuth = 0
+    endif
+    base_face = side_faces(ibase_face)
+
+    zenith  = angle_between_two_vec(sundir, face_normals(:, upper_face))
+
+    left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
+    right_face = side_faces(modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1)
+
+    if(dot_product(e_x, face_normals(:, right_face)).ge.zero) call swap(right_face, left_face)
+
+
+    if(ldebug) then
+      if(norm(face_centers(:,upper_face)) .le. norm(face_centers(:,bottom_face))) then ! we expect the first face to be the upper one
+        print *,'norm upper_face ', norm(face_centers(:,upper_face))
+        print *,'norm bottom_face', norm(face_centers(:,bottom_face))
+        print *,'we expect the first face to be the upper one but found:',icell, faces_of_cell(1), faces_of_cell(2)
+        stop 'create_edir_mat() :: wrong zindexlabel'
+      endif
+
+      if(rad2deg(azimuth).lt.-90 .or. rad2deg(azimuth).gt.90) then
+        print *,'ibase_face', ibase_face
+        print *,'proj_normal', proj_normal, '::norm', norm(proj_normal)
+        print *,'face_normals(:,base_face)', face_normals(:,base_face)
+        print *,'face_normals(:,left_face)', face_normals(:,left_face)
+        print *,'face_normals(:,right_face)', face_normals(:,right_face)
+
+        ierr = int(rad2deg(azimuth), mpiint)
+        call CHKERR(ierr, 'local azimuth greater than 60 deg. something must have gone wrong with the base face selection!')
+      endif
+    endif
+
+    call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell,ierr); call CHKERR(ierr)
+
+    end subroutine
+
 
   subroutine print_dmplex(comm, dm)
     integer(mpiint), intent(in) :: comm
