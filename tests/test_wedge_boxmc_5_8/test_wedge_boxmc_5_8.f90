@@ -230,7 +230,7 @@ contains
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_2')
 
-      ! outwards from face 2
+      ! straight outwards from face 2
       phi = 0; theta = 90
 
       bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
@@ -250,6 +250,32 @@ contains
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_4')
 
+      ! outwards from face 2 towards the right face(4)
+      phi = 60; theta = 90
+
+      bg  = [1e-3_ireals, zero, one/2 ]
+      S_target = zero
+
+      tau = (bg(1)+bg(2)) * sqrt(dy**2 - (dx/2)**2)
+      T_target = zero
+      T_target([4]) = (sinh(tau)-cosh(tau)+1)/tau
+
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_3')
+
+
+      ! outwards from face 2 towards the right face(3)
+      phi = -60; theta = 90
+
+      bg  = [1e-3_ireals, zero, zero ]
+      S_target = zero
+
+      tau = (bg(1)+bg(2)) * sqrt(dy**2 - (dx/2)**2)
+      T_target = zero
+      T_target([3]) = (sinh(tau)-cosh(tau)+1)/tau
+
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_4')
   end subroutine
 
   @test(npes =[1,2])
