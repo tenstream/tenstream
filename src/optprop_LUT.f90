@@ -38,7 +38,8 @@ module m_optprop_LUT
     interp_mode_3_6,interp_mode_3_10,     &
     interp_mode_wedge_5_8,                &
     ldelta_scale,delta_scale_truncate,    &
-    stddev_atol, use_prescribed_LUT_dims, &
+    stddev_atol, stddev_rtol,             &
+    use_prescribed_LUT_dims,              &
     preset_aspect, preset_tau, preset_w0, &
     preset_g, preset_theta, OPP_LUT_ALL_ANGLES
 
@@ -605,7 +606,7 @@ subroutine createLUT_diff(OPP, LUT, comm)
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Calculated diffuse LUT...',(100*(workindex-1)/total_size),'%'
 
-              if( mod(workindex-1, total_size/100).eq.0 ) then !every 1 percent of LUT dump it.
+              if( mod(workindex-1, total_size/10).eq.0 ) then !every 10 percent of LUT dump it.
                 print *,'Writing diffuse table to file...',workindex,total_size
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
@@ -849,7 +850,7 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
               if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
                   print *,'Calculated direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')...',(100*(workindex-1))/total_size,'%'
 
-              if( mod(workindex-1, total_size/100 ).eq.0 ) then !every 1 percent of LUT dump it.
+              if( mod(workindex-1, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
                 print *,'Writing direct table to file...'
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
@@ -1016,7 +1017,12 @@ subroutine bmc_wrapper(OPP, src, aspect, tauz, w0, g, dir, phi, theta, comm, S_d
     T_dir=nil
 
     !print *,comm,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
-    call OPP%bmc%get_coeff(comm,bg,src,dir,phi,theta,dx,dy,dz,S_diff,T_dir,S_tol,T_tol)
+    call OPP%bmc%get_coeff(comm, bg, src, &
+      dir, phi, theta, &
+      dx, dy, dz, &
+      S_diff, T_dir, S_tol, T_tol, &
+      inp_atol=stddev_atol-epsilon(stddev_atol)*10, &
+      inp_rtol=stddev_rtol-epsilon(stddev_rtol)*10 )
     !print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
 
@@ -1439,8 +1445,6 @@ subroutine interp_4p2d(pti,ctable,C)
         ! 4 dimensions only at the cornerstones of the 4d hypercube
         real(ireals) :: C4(size(C),6)
 
-        !stop 'todo atm not advisable to use this function .. we dont load the neighboring LUTs'
-
         ! First determine the array indices, where to look.
         fpti = floor(pti)
         weights = modulo(pti, one)
@@ -1482,7 +1486,6 @@ subroutine interp_4p1d(pti,ctable,C)
         C = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
 end subroutine
 
-
 function get_indices_4d(aspect, tauz, w0, g, ps)
     real(ireals) :: get_indices_4d(4)
     real(ireals),intent(in) :: aspect, tauz, w0, g
@@ -1502,7 +1505,6 @@ function get_indices_6d(aspect, tauz, w0, g, phi, theta, ps)
 
     get_indices_6d(5) = search_sorted_bisection(ps%phi  ,phi )
     get_indices_6d(6) = search_sorted_bisection(ps%theta,theta)
-
 end function
 
 logical function valid_input(val,range)
