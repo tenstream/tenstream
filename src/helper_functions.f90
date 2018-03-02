@@ -643,7 +643,8 @@ module m_helper_functions
 
       dp = dot_product(p1/norm(p1), p2/norm(p2))
       if(dp.gt.one.or.dp.lt.-one) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
-      angle_between_two_vec = acos(max(-one, min(dp,one)))
+      dp = max( min(dp, one), -one)
+      angle_between_two_vec = acos(dp)
     end function
 
     !> @brief Determine Edge length/ distance between two points
