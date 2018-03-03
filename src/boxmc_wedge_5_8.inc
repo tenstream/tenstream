@@ -100,7 +100,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, direct, initial_dir, dx, dy, d
   if(.not. pnt_in_triangle(A,B,C, p%loc)) then
     print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle :: init_dir_photon_wedge_5_8'
     call print_photon(p)
-    stop 'initial location outside of the wedge triangle'
+    call CHKERR(1_mpiint, 'initial location outside of the wedge triangle')
   endif
 
   if(angle_between_two_vec(p%dir, normal).ge.pi_dp/2-sqrt(epsilon(pi_dp))) then
@@ -168,7 +168,7 @@ subroutine update_diff_stream_wedge_5_8(bmc,p,S)
     S(8) = S(8)+p%weight
   case default
     call print_photon(p)
-    stop 'update_diff_photon_wedge_5_8 called with unknown p%side'
+    call CHKERR(1_mpiint, 'update_diff_photon_wedge_5_8 called with unknown p%side')
   end select
 
   select type(bmc)
@@ -220,7 +220,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, dx, dy, dz, ierr)
     p%loc = [PNT(1), PNT(2), zero]
     p%src_side = 5
   case default
-    stop 'init_diff_photon_wedge_5_8 called with unknown src'
+    call CHKERR(1_mpiint, 'init_diff_photon_wedge_5_8 called with unknown src')
   end select
 
   select case(src)
@@ -274,12 +274,12 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, dx, dy, dz, ierr)
   p%side = int(nil)
   p%src  = src
   p%scattercnt = 0
-  if(.not. approx( norm(p%dir) ,one ) ) stop 'init_diff_photon_3_10 :: direction was not normed?!'
+  if(.not. approx( norm(p%dir) ,one ) ) call CHKERR(1_mpiint, 'init_diff_photon_3_10 :: direction was not normed?!')
 
   if(.not. pnt_in_triangle(A,B,C, PNT)) then
     print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle :: init_diff_photon_wedge_5_8'
     call print_photon(p)
-    stop 'initial location outside of the wedge triangle'
+    call CHKERR(1_mpiint, 'initial location outside of the wedge triangle')
   endif
 
 
@@ -364,7 +364,7 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
     endif
   enddo
 
-  if(count(lhit).ne.1) then
+  if(count(lhit).eq.0) then
     print *,'should actually not be here at the end of crossings in intersect distance!'
     print *,'max dist, p%side', max_dist, p%side
     print *,'lhit', lhit
@@ -374,7 +374,7 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
     print *,'hit4', hit(4,:)
     print *,'hit5', hit(5,:)
     call print_photon(p)
-    stop 'ERROR in Raytracer, didnt hit anything!'
+    call CHKERR(1_mpiint, 'ERROR in Raytracer, didnt hit anything!')
   endif
 
   l_in_triangle = pnt_in_triangle(A,B,C, hit(p%side,1:2))
@@ -384,7 +384,7 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
     print *,'called pnt_in_triangle(', A, B, C, hit(p%side,1:2), ')'
     print *,'target point not in triangle', hit, 'side', p%side, 'dist', hit(p%side,4)
     call print_photon(p)
-    stop 'debug'
+    call CHKERR(1_mpiint, 'Photon not inside the triangle')
   endif
 
   select type(bmc)
