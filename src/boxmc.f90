@@ -322,17 +322,21 @@ contains
       type(stddev),intent(inout)   :: std_Sdir, std_Sdiff, std_abso
 
       type(photon)       :: p
-      real(ireal_dp)     :: initial_dir(3)
+      real(ireal_dp)     :: theta, initial_dir(3)
       real(ireal_dp)     :: time(2)
       integer(iintegers) :: k,mycnt,mincnt
       integer(mpiint)    :: ierr
 
       call cpu_time(time(1))
 
+      ! dont use zero, really, this has issues if go along a face because it is not so clear where that energy should go.
+      ! In an ideal world, this should never happen in the matrix anyway but due to delta scaling and such this can very well be
+      theta = max(10*sqrt(epsilon(theta)), abs(theta0)) * sign(one, theta0)
+
       ! we turn the initial direction in x and y, against the convention of sun angles...
       ! i.e. here we have azimuth phi = 0, beam going towards the north
       ! and phi = 90, beam going towards east
-      initial_dir = spherical_2_cartesian(phi0, theta0) * [-one, -one, one]
+      initial_dir = spherical_2_cartesian(phi0, theta) * [-one, -one, one]
 
       mincnt= max( 1000, int( 1e3 /numnodes ) )
       mycnt = int(1e8)/numnodes
