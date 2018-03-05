@@ -49,7 +49,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, direct, initial_dir, dx, dy, d
   real(ireal_dp) :: r1, r2, normal(3), triangle_center(3), dir_p_to_triangle_center(3)
   integer(mpiint),intent(out) :: ierr
 
-  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, NBC, nCA)
+  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, nBC, nCA)
 
   select case(src)
   case (1)
@@ -94,6 +94,15 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, direct, initial_dir, dx, dy, d
   p%src  = src
   p%scattercnt = 0
   p%dir = initial_dir
+
+  ! always nudge the photon a little bit inside the volume
+  triangle_center(1:2) = (a+b+c)/3
+  triangle_center(3) = dz/2
+  dir_p_to_triangle_center = triangle_center - p%loc
+  dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
+
+  p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
+
   select type(bmc)
   end select
 
@@ -103,27 +112,15 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, direct, initial_dir, dx, dy, d
     call CHKERR(1_mpiint, 'initial location outside of the wedge triangle')
   endif
 
-  if(angle_between_two_vec(p%dir, normal).ge.pi_dp/2-sqrt(epsilon(pi_dp))) then
-    if(angle_between_two_vec(p%dir, normal).le.pi_dp/2+sqrt(epsilon(pi_dp))) then
-      triangle_center(1:2) = (A+B+C)/3
-      triangle_center(3) = dz/2
-      dir_p_to_triangle_center = triangle_center - p%loc
-      dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
-      !print *,'the difference is really small so I will just move the photon a bit towards the center of the triangle and continue'
-      !print *,'triangle_center', triangle_center, 'ploc', p%loc(1:2)
-      !print *,'dir',  dir_p_to_triangle_center,'::',normal, sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
-
-      p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
-    else
-      ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
-      if(ldebug) then
-        print *,'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
-        print *,'normal',normal,'direction',p%dir
-        call print_photon(p)
-      endif
-      !stop 'initial direction of the wedge triangle'
-      return
+  if(dot_product(p%dir, normal).lt.zero) then
+    ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
+    if(ldebug) then
+      print *,'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
+      print *,'normal',normal,'direction',p%dir
+      call print_photon(p)
     endif
+    !stop 'initial direction of the wedge triangle'
+    return
   endif
   ierr = 0
 end subroutine
@@ -188,11 +185,11 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, dx, dy, dz, ierr)
   integer(mpiint), intent(out) :: ierr
 
   real(ireal_dp) :: phi,mu
-  real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, NBC, nCA ! point PNT on triangle [A,B,C]
-  real(ireal_dp) :: r1, r2, intersec_dist
+  real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
+  real(ireal_dp) :: r1, r2, intersec_dist, triangle_center(3), dir_p_to_triangle_center(3)
 
   !print *,'---------- new diffuse photon --------------'
-  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, NBC, nCA)
+  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, nBC, nCA)
 
   select case (src)
   case (1)
@@ -274,6 +271,16 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, dx, dy, dz, ierr)
   p%side = int(nil)
   p%src  = src
   p%scattercnt = 0
+
+  ! always nudge the photon a little bit inside the volume
+  triangle_center(1:2) = (a+b+c)/3
+  triangle_center(3) = dz/2
+  dir_p_to_triangle_center = triangle_center - p%loc
+  dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
+
+  p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
+
+
   if(.not. approx( norm(p%dir) ,one ) ) call CHKERR(1_mpiint, 'init_diff_photon_3_10 :: direction was not normed?!')
 
   if(.not. pnt_in_triangle(A,B,C, PNT)) then
@@ -320,41 +327,15 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
   lhit = .False.
   hit = huge(hit)
   !crossing with bottom and top plane:
-  if(p%dir(3).ge.zero) then
-    if(p%scattercnt.gt.0 .or. p%src_side.ne.1) then
-      call triangle_intersection(p%loc, p%dir, At, Bt, Ct, lhit(1), hit(1,:))
-      !if(lhit(1)) p%side = 1
-    endif
-  else if (p%dir(3).le.zero) then
-    if(p%scattercnt.gt.0 .or. p%src_side.ne.5) then
-      call triangle_intersection(p%loc, p%dir, Ab, Bb, Cb, lhit(5), hit(5,:))
-      !if(lhit(1)) p%side = 5
-    endif
-  endif
+  call triangle_intersection(p%loc, p%dir, At, Bt, Ct, lhit(1), hit(1,:))
+  call triangle_intersection(p%loc, p%dir, Ab, Bb, Cb, lhit(5), hit(5,:))
 
   !crossing with side planes:
   ! plane 2, along y=0
-  !if(.not.lhit) then
-    if(p%scattercnt.gt.0 .or. p%src_side.ne.2) then
-      call square_intersection(p%loc, p%dir, Ab, Bb, Bt, At, lhit(2), hit(2,:))
-      !if(lhit(3)) p%side = 2
-    endif
-  !endif
-  !if(.not.lhit) then
-    if(p%scattercnt.gt.0 .or. p%src_side.ne.3) then
-      call square_intersection(p%loc, p%dir, Ab, Cb, Ct, At, lhit(3), hit(3,:))
-      !if(lhit(4)) p%side = 3
-    endif
-  !endif
-  !if(.not.lhit) then
-    if(p%scattercnt.gt.0 .or. p%src_side.ne.4) then
-      call square_intersection(p%loc, p%dir, Bb, Cb, Ct, Bt, lhit(4), hit(4,:))
-      !if(lhit(5)) p%side = 4
-    endif
-  !endif
+  call square_intersection(p%loc, p%dir, Ab, Bb, Bt, At, lhit(2), hit(2,:))
+  call square_intersection(p%loc, p%dir, Ab, Cb, Ct, At, lhit(3), hit(3,:))
+  call square_intersection(p%loc, p%dir, Bb, Cb, Ct, Bt, lhit(4), hit(4,:))
 
-  !max_dist = minval(hit(:,4), mask=hit(:,4).ge.zero)
-  !p%side   = minloc(hit(:,4), mask=hit(:,4).ge.zero, dim=1)
   max_dist = huge(max_dist)
   do i=1,5
     if(hit(i,4).lt.zero) cycle
@@ -363,6 +344,9 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
       p%side   = i
     endif
   enddo
+  if(p%scattercnt.eq.0 .and. p%side.eq.p%src_side) then
+    p%weight = zero ! we dont allow energy to hit the src face, at least not right after it started!
+  endif
 
   if(count(lhit).eq.0) then
     print *,'should actually not be here at the end of crossings in intersect distance!'

@@ -159,6 +159,18 @@ contains
       real(ireals) :: tau
       myid     = this%getProcessRank()
 
+      ! going towards the src face should not give any fluxes to anywhere
+      phi = 30; theta = 0
+
+      bg  = [1e-3_ireals, zero, zero ]
+      tau = (bg(1)+bg(2)) * dz
+      T_target = zero
+
+      S_target = zero
+
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_4')
+
       ! down along face 3
       phi = 120; theta = 0
 
@@ -552,7 +564,6 @@ contains
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_3')
   end subroutine
-
 
   @test(npes =[1,2])
   subroutine test_boxmc_select_cases_diffuse_src6(this)
