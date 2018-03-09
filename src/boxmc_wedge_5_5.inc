@@ -36,15 +36,28 @@
 ! We always assume the triangle to have dx edge length along y=0 (A,B) and dy is the edge length between (A,C)
 ! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
 
-subroutine define_wedge_triangle_pts(dx,dy,A,B,C, nAB, nBC, nCA)
-  real(ireal_dp),intent(in) :: dx,dy
-  real(ireal_dp),dimension(2),intent(out) :: A, B, C ! points on triangle [A,B,C]
-  real(ireal_dp),dimension(2),intent(out) :: nAB, nBC, nCA ! normals on triangle [A,B,C], pointing towards center
-  real(ireal_dp),dimension(2) :: center
+subroutine define_wedge_triangle_pts(dx, dy, A, B, C, nAB, nBC, nCA, vertices)
+  real(ireal_dp), intent(in) :: dx, dy
+  real(ireal_dp), dimension(:), intent(out) :: A, B, C ! points on triangle [A,B,C]
+  real(ireal_dp), dimension(:), intent(out) :: nAB, nBC, nCA ! normals on triangle [A,B,C], pointing towards center
+  real(ireal_dp), intent(in), optional :: vertices(:) ! if given should be the vertex coordinates for A, B, C in 2D
+  real(ireal_dp), dimension(size(A)) :: center
 
-  A = [zero, zero]
-  B = [dx, zero]
-  C = [dx/2, sqrt(dy**2 - (dx/2)**2)]
+  if(size(  A).ne.2.or.size(  B).ne.2.or.size(  C).ne.2) call CHKERR(1_mpiint, 'Coordinates have to be 2D coordinates')
+  if(size(nAB).ne.2.or.size(nBC).ne.2.or.size(nCA).ne.2) call CHKERR(1_mpiint, 'Normals have to be 2D coordinates')
+  if(present(vertices)) then
+    if(size(vertices).ne.6) call CHKERR(1_mpiint, 'Size of vertices have to be 2D coordinates for 3 points')
+  endif
+
+  if(present(vertices)) then
+    A = vertices(1:2)
+    B = vertices(3:4)
+    C = vertices(5:6)
+  else
+    A = [zero, zero]
+    B = [dx, zero]
+    C = [dx/2, sqrt(dy**2 - (dx/2)**2)]
+  endif
 
   center = (A+B+C)/3
 

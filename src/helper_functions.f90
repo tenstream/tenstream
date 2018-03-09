@@ -51,6 +51,7 @@ module m_helper_functions
   end interface
 
   integer(mpiint) :: mpierr
+  logical, parameter :: ldebug=.True.
 
   contains
 
@@ -95,7 +96,7 @@ module m_helper_functions
       endif
     end subroutine
 
-    function itoa(i) result(res)
+    pure function itoa(i) result(res)
       character(:),allocatable :: res
       integer(iintegers),intent(in) :: i
       character(range(i)+2) :: tmp
@@ -588,9 +589,13 @@ module m_helper_functions
     pure function compute_normal_3d(p1,p2,p3)
       ! for a triangle p1, p2, p3, if the vector U = p2 - p1 and the vector V = p3 - p1 then the normal
       ! N = U X V and can be calculated by:
-      real(ireals), intent(in) :: p1(3), p2(3), p3(3)
-      real(ireals) :: compute_normal_3d(3)
-      real(ireals) :: U(3), V(3)
+      real(ireals), intent(in) :: p1(:), p2(:), p3(:)
+      real(ireals) :: compute_normal_3d(size(p1))
+      real(ireals) :: U(size(p1)), V(size(p1))
+
+      if(size(p1).ne.size(p2) .or. size(p1).ne.size(p3)) then
+        compute_normal_3d = sqrt(-norm(p1))
+      endif
 
       U = p2-p1
       V = p3-p1
@@ -695,7 +700,6 @@ module m_helper_functions
       logical :: pnt_in_triangle
       real(ireals),parameter :: eps = epsilon(eps), eps2 = 100*eps
       real(ireals) :: a, b, c, edge_dist
-      logical, parameter :: ldebug=.False.
 
       ! First check on rectangular bounding box
       if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
