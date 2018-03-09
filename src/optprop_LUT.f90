@@ -1056,8 +1056,8 @@ end subroutine
       write(str(3),FMT='(A)') "tau     "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%tau   )  ) align(1) =1 ; if(allocated(buf)) deallocate(buf )
       write(str(3),FMT='(A)') "w0      "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%w0    )  ) align(2) =1 ; if(allocated(buf)) deallocate(buf )
       write(str(3),FMT='(A)') "g       "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%g     )  ) align(3) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(3),FMT='(A)') "phi     "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%phi   )  ) align(4) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(3),FMT='(A)') "theta   "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%theta )  ) align(5) =1 ; if(allocated(buf)) deallocate(buf )
+      !write(str(3),FMT='(A)') "phi     "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%phi   )  ) align(4) =1 ; if(allocated(buf)) deallocate(buf )
+      !write(str(3),FMT='(A)') "theta   "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%theta )  ) align(5) =1 ; if(allocated(buf)) deallocate(buf )
 
       if(any(align.ne.0)) stop 'parameter space of direct LUT coefficients is not aligned!'
     end subroutine
