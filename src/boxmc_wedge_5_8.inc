@@ -47,10 +47,17 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, direct, initial_dir, dx, dy, d
   logical,intent(in) :: direct
   real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
   real(ireal_dp) :: r1, r2, normal(3), triangle_center(3), dir_p_to_triangle_center(3)
+  real(ireal_dp) :: lstart
+  real(ireal_dp),parameter :: edge_start_range=.999_ireal_dp
   integer(mpiint),intent(out) :: ierr
 
-  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, nBC, nCA)
+  if(allocated(bmc%vertices)) then
+    call define_wedge_triangle_pts(dx, dy, A, B, C, nAB, nBC, nCA, bmc%vertices)
+  else
+    call define_wedge_triangle_pts(dx, dy, A, B, C, nAB, nBC, nCA)
+  endif
 
+  lstart = (one-edge_start_range)/2 + edge_start_range * R()
   select case(src)
   case (1)
     r1 = R()
@@ -59,15 +66,15 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, direct, initial_dir, dx, dy, d
     p%loc = [PNT(1), PNT(2), dz]
     normal = [zero,zero,-one]
   case (2)
-    PNT = A + (R() * (B-A))
+    PNT = A + (lstart * (B-A))
     p%loc = [PNT(1), PNT(2), L(dz)]
     normal = [nAB(1), nAB(2), zero]
   case (3)
-    PNT = A + (R() * (C-A))
+    PNT = A + (lstart * (C-A))
     p%loc = [PNT(1), PNT(2), L(dz)]
     normal = [nCA(1), nCA(2), zero]
   case (4)
-    PNT = C + (R() * (B-C))
+    PNT = C + (lstart * (B-C))
     p%loc = [PNT(1), PNT(2), L(dz)]
     normal = [nBC(1), nBC(2), zero]
   case (5)
@@ -189,7 +196,11 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, dx, dy, dz, ierr)
   real(ireal_dp) :: r1, r2, intersec_dist, triangle_center(3), dir_p_to_triangle_center(3)
 
   !print *,'---------- new diffuse photon --------------'
-  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, nBC, nCA)
+  if(allocated(bmc%vertices)) then
+    call define_wedge_triangle_pts(dx, dy, A, B, C, nAB, nBC, nCA, bmc%vertices)
+  else
+    call define_wedge_triangle_pts(dx, dy, A, B, C, nAB, nBC, nCA)
+  endif
 
   select case (src)
   case (1)
@@ -313,8 +324,11 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
   real(ireal_dp) :: hit(5,4)
   integer(iintegers) :: i
 
-
-  call define_wedge_triangle_pts(p%dx, p%dy, A, B, C, nAB, NBC, nCA)
+  if(allocated(bmc%vertices)) then
+    call define_wedge_triangle_pts(p%dx, p%dy, A, B, C, nAB, nBC, nCA, bmc%vertices)
+  else
+    call define_wedge_triangle_pts(p%dx, p%dy, A, B, C, nAB, nBC, nCA)
+  endif
 
   Ab = [A(1), A(2), zero]
   Bb = [B(1), B(2), zero]
@@ -336,15 +350,20 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
   call square_intersection(p%loc, p%dir, Ab, Cb, Ct, At, lhit(3), hit(3,:))
   call square_intersection(p%loc, p%dir, Bb, Cb, Ct, Bt, lhit(4), hit(4,:))
 
+  p%side=0
   max_dist = huge(max_dist)
   do i=1,5
     if(hit(i,4).lt.zero) cycle
-    if(hit(i,4).le.max_dist) then
+    if(p%scattercnt.eq.0 .and. p%side.eq.p%src_side) cycle
+    if(hit(i,4).lt.max_dist) then
       max_dist = hit(i,4)
       p%side   = i
     endif
   enddo
-  if(p%scattercnt.eq.0 .and. p%side.eq.p%src_side) then
+
+  if(p%scattercnt.eq.0 .and. p%side.eq.0 .and. lhit(p%src_side) ) then
+    max_dist = hit(p%src_side,4)
+    p%side = p%src_side
     p%weight = zero ! we dont allow energy to hit the src face, at least not right after it started!
   endif
 
@@ -363,7 +382,13 @@ subroutine intersect_distance_wedge_5_8(bmc,p,max_dist)
 
   l_in_triangle = pnt_in_triangle(A,B,C, hit(p%side,1:2))
   if(.not.l_in_triangle) then
-    print *,'I hit something...', p%side, '::', hit
+    print *,'max dist, p%side', max_dist, p%side
+    print *,'lhit', lhit
+    print *,'hit1', hit(1,:)
+    print *,'hit2', hit(2,:)
+    print *,'hit3', hit(3,:)
+    print *,'hit4', hit(4,:)
+    print *,'hit5', hit(5,:)
     print *,'distance to edges:', distances_to_triangle_edges(A,B,C, hit(p%side,1:2)), ':: dists to faces',hit(p%side,4)
     print *,'called pnt_in_triangle(', A, B, C, hit(p%side,1:2), ')'
     print *,'target point not in triangle', hit, 'side', p%side, 'dist', hit(p%side,4)

@@ -574,11 +574,11 @@ module m_helper_functions_dp
         real(ireal_dp),parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
 
         ! check for rectangular bounding box
-        if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps ) then ! outside of xrange
+        if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
             pnt_in_rectangle=.False.
             return
         endif
-        if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps ) then ! outside of yrange
+        if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
             pnt_in_rectangle=.False.
             return
         endif
@@ -596,15 +596,15 @@ module m_helper_functions_dp
 
         pnt_in_triangle = pnt_in_rectangle(p1,p2,p3, p)
         if(ldebug) print *,'pnt_in_triangle::pnt in rectangle:', p1, p2, p3, p, '::', pnt_in_triangle
-        if (.not.pnt_in_triangle) return ! if pnt is not in rectangle, it is not in triangle!
+        if (.not.pnt_in_triangle) then ! if pnt is not in rectangle, it is not in triangle!
+          ! Then check for sides
+          a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
+          b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
+          c = one - (a + b)
 
-        ! Then check for sides
-        a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-        b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-        c = one - (a + b)
-
-        pnt_in_triangle = all([a,b,c].ge.zero)
-        if(ldebug) print *,'pnt_in_triangle::1st check:', a, b, c, '::', pnt_in_triangle
+          pnt_in_triangle = all([a,b,c].ge.zero)
+          if(ldebug) print *,'pnt_in_triangle::1st check:', a, b, c, '::', pnt_in_triangle
+        endif
 
         if(.not.pnt_in_triangle) then
           pnt_in_triangle = pnt_in_triangle_convex_hull(p1,p2,p3, p)

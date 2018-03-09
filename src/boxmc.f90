@@ -60,6 +60,7 @@ module m_boxmc
   type,abstract :: t_boxmc
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
     logical :: initialized=.False.
+    real(ireal_dp), allocatable :: vertices(:)
   contains
     procedure :: init
     procedure :: get_coeff
@@ -200,22 +201,25 @@ contains
   !> @details All MPI Nodes start photons from src stream and ray trace it including scattering events through the box until it leaves the box through one of the exit streams.\n
   !> Scattering Absorption is accounted for by carrying on a photon weight and succinctly lower it by lambert Beers Law \f$ \omega_{abso}^{'} = \omega_{abso} \cdot e^{- \rm{d}s \cdot {\rm k}_{sca}   }   \f$ \n
   !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev. Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
-  subroutine get_coeff(bmc,comm,op_bg,src,ldir,phi0,theta0,dx,dy,dz, ret_S_out, ret_T_out, ret_S_tol,ret_T_tol, inp_atol, inp_rtol )
-    class(t_boxmc)                :: bmc           !< @param[in] bmc Raytracer Type - determines number of streams
-    real(ireals),intent(in)       :: op_bg(3)      !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
-    real(ireals),intent(in)       :: phi0          !< @param[in] phi0 solar azimuth angle
-    real(ireals),intent(in)       :: theta0        !< @param[in] theta0 solar zenith angle
-    integer(iintegers),intent(in) :: src           !< @param[in] src stream from which to start photons - see init_photon routines
-    integer(mpiint),intent(in)    :: comm          !< @param[in] comm MPI Communicator
-    logical,intent(in)            :: ldir          !< @param[in] ldir determines if photons should be started with a fixed incidence angle
-    real(ireals),intent(in)       :: dx,dy,dz      !< @param[in] dx,dy,dz box with dimensions in [m]
-    real(ireals),intent(out)      :: ret_S_out(:)  !< @param[out] S_out diffuse streams transfer coefficients
-    real(ireals),intent(out)      :: ret_T_out(:)  !< @param[out] T_out direct streams transfer coefficients
-    real(ireals),intent(out)      :: ret_S_tol(:)  !< @param[out] absolute tolerances of results
-    real(ireals),intent(out)      :: ret_T_tol(:)  !< @param[out] absolute tolerances of results
-    real(ireals),intent(in),optional :: inp_atol   !< @param[in] inp_atol if given, determines targeted absolute stddeviation
-    real(ireals),intent(in),optional :: inp_rtol   !< @param[in] inp_rtol if given, determines targeted relative stddeviation
-
+  subroutine get_coeff(bmc, comm, op_bg, src, ldir, &
+      phi0, theta0, dx, dy, dz, &
+      ret_S_out, ret_T_out, &
+      ret_S_tol,ret_T_tol, &
+      inp_atol, inp_rtol)
+    class(t_boxmc)                :: bmc             !< @param[in] bmc Raytracer Type - determines number of streams
+    real(ireals),intent(in)       :: op_bg(3)        !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
+    real(ireals),intent(in)       :: phi0            !< @param[in] phi0 solar azimuth angle
+    real(ireals),intent(in)       :: theta0          !< @param[in] theta0 solar zenith angle
+    integer(iintegers),intent(in) :: src             !< @param[in] src stream from which to start photons - see init_photon routines
+    integer(mpiint),intent(in)    :: comm            !< @param[in] comm MPI Communicator
+    logical,intent(in)            :: ldir            !< @param[in] ldir determines if photons should be started with a fixed incidence angle
+    real(ireals),intent(in)       :: dx,dy,dz        !< @param[in] dx,dy,dz box with dimensions in [m]
+    real(ireals),intent(out)      :: ret_S_out(:)    !< @param[out] S_out diffuse streams transfer coefficients
+    real(ireals),intent(out)      :: ret_T_out(:)    !< @param[out] T_out direct streams transfer coefficients
+    real(ireals),intent(out)      :: ret_S_tol(:)    !< @param[out] absolute tolerances of results
+    real(ireals),intent(out)      :: ret_T_tol(:)    !< @param[out] absolute tolerances of results
+    real(ireals),intent(in),optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
+    real(ireals),intent(in),optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
 
     real(ireal_dp) :: S_out(bmc%diff_streams)
     real(ireal_dp) :: T_out(bmc%dir_streams)
@@ -265,7 +269,8 @@ contains
                      ldir,                      &
                      real(phi0,   kind=ireal_dp), &
                      real(theta0, kind=ireal_dp), &
-                     Nphotons, std_Sdir,std_Sdiff,std_abso)
+                     Nphotons, &
+                     std_Sdir, std_Sdiff, std_abso)
 
     S_out = std_Sdiff%mean
     T_out = std_Sdir%mean
@@ -313,7 +318,9 @@ contains
     if(ldebug) print *,'S out', ret_S_out, 'T_out', ret_T_out
   end subroutine
 
-  subroutine run_photons(bmc,src,op,dx,dy,dz,ldir,phi0,theta0,Nphotons,std_Sdir,std_Sdiff,std_abso)
+  subroutine run_photons(bmc, src, op, dx, dy, dz, &
+      ldir, phi0, theta0, Nphotons, &
+      std_Sdir, std_Sdiff, std_abso)
       class(t_boxmc),intent(inout) :: bmc
       integer(iintegers),intent(in) :: src
       real(ireal_dp),intent(in) :: op(3),dx,dy,dz,phi0,theta0
@@ -332,6 +339,7 @@ contains
       ! dont use zero, really, this has issues if go along a face because it is not so clear where that energy should go.
       ! In an ideal world, this should never happen in the matrix anyway but due to delta scaling and such this can very well be
       theta = max(10*sqrt(epsilon(theta)), abs(theta0)) * sign(one, theta0)
+      theta = min(180-10*sqrt(epsilon(theta)), abs(theta)) * sign(one, theta)
 
       ! we turn the initial direction in x and y, against the convention of sun angles...
       ! i.e. here we have azimuth phi = 0, beam going towards the north
@@ -724,11 +732,11 @@ contains
     endif
   end subroutine
 
-  subroutine init(bmc, comm)
+  subroutine init(bmc, comm, vertices)
     class(t_boxmc) :: bmc
     integer(mpiint),intent(in) :: comm
+    real(ireals), intent(in), optional :: vertices(:) !< @param[in] inp_vertices if given, defines corners of box (6 entries, first 2 for coordinates of point A)
 
-    !        print *,'initializing boxmc'
     if(comm.eq.-1) then
       myid = -1
     else
@@ -764,6 +772,11 @@ contains
   end select
 
   bmc%initialized = .True.
+
+  if(present(vertices)) then
+    if(.not.allocated(bmc%vertices)) allocate(bmc%vertices(size(vertices)))
+    bmc%vertices = vertices
+  endif
 end subroutine
 
 
