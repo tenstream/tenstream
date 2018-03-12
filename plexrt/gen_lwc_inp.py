@@ -8,7 +8,7 @@ def get_z_grid():  # grid info from: https://code.mpimet.mpg.de/projects/icon-le
     return np.array(zm), np.array(dz)
 
 
-def simple_ex(Ncells=24, Nz=1, default_lwc=1e-3, default_iwc=0):
+def simple_ex(Ncells=24, Nz=1, default_lwc=1e-3, default_iwc=0, dz=100):
     D=NC.Dataset('lwc_ex_{}_{}.nc'.format(Ncells,Nz),'w')
 
     D.createDimension('ncells', Ncells)
@@ -17,23 +17,25 @@ def simple_ex(Ncells=24, Nz=1, default_lwc=1e-3, default_iwc=0):
 
     hhl=D.createVariable('height',float32, dimensions=('hhl',))
     for i in range(Nz):
-        hhl[i] = 250 + 500*i
+        hhl[i] = dz/2 + dz*i
     hhl[:] = hhl[::-1]
 
     hl=D.createVariable('height_level',float32, dimensions=('hhl_level',))
     for i in range(Nz+1):
-        hl[i] = 0 + 500*i
+        hl[i] = 0 + dz*i
     hl[:] = hl[::-1]
 
     lwc=D.createVariable('clw',float32, dimensions=('hhl','ncells'))
 
     lwc[:] = 0
-    lwc[Nz/2,[18,19,20,21,23]] = default_lwc
+    if Ncells==24:
+        lwc[Nz/2,[18,19,20,21,23]] = default_lwc
 
     iwc=D.createVariable('cli',float32, dimensions=('hhl','ncells'))
 
     iwc[:] = 0
-    iwc[Nz/2,[18,19,20,21,23]] = default_iwc
+    if Ncells==24:
+        iwc[Nz/2,[18,19,20,21,23]] = default_iwc
 
     D.sync()
     D.close()
