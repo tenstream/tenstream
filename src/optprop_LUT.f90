@@ -24,7 +24,7 @@ module m_optprop_LUT
   use m_helper_functions, only : approx,  &
     rel_approx, imp_bcast,                &
     mpi_logical_and, mpi_logical_or,      &
-    search_sorted_bisection, CHKERR
+    search_sorted_bisection, CHKERR, itoa
 
   use m_data_parameters, only : ireals, iintegers, &
     one, zero, i0, i1, i3, mpiint, nil, inil,      &
@@ -200,8 +200,9 @@ contains
       call OPP%loadLUT_dir(azis, szas, comm)
 
       ! Load diffuse LUT
-      write(descr,FMT='("diffuse.outin.aspect",I0,".tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
-                         OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng, ldelta_scale, delta_scale_truncate
+      !write(descr,FMT='("diffuse.outin.aspect",I0,".tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
+      !                   OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng, ldelta_scale, delta_scale_truncate
+      descr = gen_lut_basename('diffuse', OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng)
 
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Loading diffuse LUT from ',trim(descr)
       OPP%diffLUT%fname = trim(OPP%lutbasename)//trim(descr)//'.nc'
@@ -214,6 +215,16 @@ contains
       OPP%LUT_initialized=.True.
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Done loading LUTs (shape diffLUT',shape(OPP%diffLUT%S%c),')'
   end subroutine
+
+  function gen_lut_basename(prefix, Naspect, Ntau, Nw0, Ng, phi, theta) result(lutname)
+    character(len=default_str_len) :: lutname
+    character(len=*), intent(in) :: prefix
+    integer(iintegers), intent(in) :: Naspect, Ntau, Nw0, Ng
+    integer(iintegers), intent(in), optional :: phi, theta
+    lutname = prefix//'.aspect'//itoa(Naspect)//'.tau'//itoa(Ntau)//'.w0'//itoa(Nw0)//'.g'//itoa(Ng)
+    if(present(phi))   lutname = trim(lutname)//'.phi'//itoa(phi)
+    if(present(theta)) lutname = trim(lutname)//'.theta'//itoa(theta)
+  end function
 
 subroutine loadLUT_diff(OPP, comm)
     class(t_optprop_LUT) :: OPP
@@ -335,11 +346,8 @@ subroutine loadLUT_dir(OPP, azis,szas, comm)
       do iphi  =1,OPP%Nphi
 
         ! Set filename of LUT
-        write(descr,FMT='("direct.outin.aspect",I0,".tau",I0,".w0",I0,".g",I0,".phi",I0,".theta",I0,".delta_",L1,"_",F0.3)') &
-            OPP%Naspect,OPP%Ntau, OPP%Nw0, OPP%Ng, &
-            int(OPP%dirLUT%pspace%phi(iphi)),      &
-            int(OPP%dirLUT%pspace%theta(itheta)),  &
-            ldelta_scale,delta_scale_truncate
+        descr = gen_lut_basename('direct', OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng, &
+          int(OPP%dirLUT%pspace%phi(iphi), iintegers), int(OPP%dirLUT%pspace%theta(itheta), iintegers))
 
         OPP%dirLUT%fname(iphi,itheta) = trim(OPP%lutbasename)//trim(descr)//'.nc'
 
