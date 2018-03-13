@@ -1,5 +1,4 @@
 from pylab import *
-import py_eddington as P
 
 # Define the benchmark grid... we will use eddington coeffs on that highres grid to find suitable LUT supports
 Ntau, Nw0, Ng, Nmu = 200, 50, 20, 90
@@ -10,6 +9,52 @@ g = linspace(0, .5, Ng)
 theta = np.linspace(0, 90, Nmu)
 mu = np.cos(np.deg2rad(theta))
 
+def py_rodents(dtau, omega_0, g, mu0):
+        import numpy as np
+
+        mu_0_inv = 1.0/mu0
+        b_mmu_0 = 0.5 - 0.75 * g * mu0
+
+        bscr = 0.5 - 0.375 * g
+        alpha_1 = 2. * ( 1. - omega_0 * ( 1. - bscr ) ) - 0.25
+        alpha_2 = 2. * omega_0 * bscr - 0.25
+
+        lambd = np.sqrt ( alpha_1 * alpha_1 - alpha_2 * alpha_2 )
+
+        exp1  = np.exp( lambd * dtau )
+        term1 = alpha_2 / ( alpha_1 - lambd ) * exp1
+        A = 1.0 / ( term1 - 1. / term1 )
+        a11 = A * 2.0 * lambd / alpha_2
+        a12 = A * ( exp1 - 1. / exp1 )
+
+        mask = np.where(lambd*dtau>1e2)
+        if type(a11)==np.ndarray:
+                a11[mask] = 0.
+                a12[mask] = ( alpha_1[mask] - lambd[mask] ) / alpha_2[mask]
+        elif lambd*dtau>1e2:
+                a11 = 0
+                a12 = ( alpha_1 - lambd ) / alpha_2
+
+        alpha_3 = - omega_0 * b_mmu_0
+        alpha_4 = omega_0 + alpha_3
+
+        den1 = 1. / ( mu_0_inv**2 - lambd * lambd )
+        alpha_5 = ( ( alpha_1 - mu_0_inv ) * alpha_3 - alpha_2 * alpha_4 ) * den1
+        alpha_6 = ( alpha_2 * alpha_3 - ( alpha_1 + mu_0_inv ) * alpha_4 ) * den1
+
+        a33 = np.exp ( - dtau  * mu_0_inv )
+        a13 = + alpha_5 * ( 1.0 - a33 * a11 ) - alpha_6 * a12
+        a23 = - alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 )
+
+        return np.array([a11,a12,a13,a23,a33,0,0])
+
+try:
+    import py_eddington as P
+    eddinton_func = P.m_py_eddington.py_eddington_coeff_zdun
+except:
+    eddinton_func = py_rodents
+
+
 def compute_eddington_data(tau, w0, g, mu):
     """ compute eddington coefficients on the provided grid """
     a = np.zeros((7, tau.size, w0.size, g.size, mu.size))
@@ -19,7 +64,7 @@ def compute_eddington_data(tau, w0, g, mu):
         for iw0, vw0 in enumerate(w0):
             for ig, vg in enumerate(g):
                 for imu, vmu in enumerate(mu):
-                    a[:, itau, iw0, ig, imu] = P.m_py_eddington.py_eddington_coeff_zdun(vtau, vw0, vg, vmu)
+                    a[:, itau, iw0, ig, imu] = eddinton_func(vtau, vw0, vg, vmu)
 
     return a
 
@@ -57,9 +102,9 @@ def find_new_tau(a, N=20, iw0=int(Nw0//1.1), ig=Ng//2, imu=Nmu//2, lplot=True, l
 
     #new_tau = tau[find_supports(a11, N, 0).astype(int)]
 
-    new_a11 = [ P.m_py_eddington.py_eddington_coeff_zdun(vtau, w0[iw0], g[ig], mu[imu])[0] for vtau in new_tau ]
-    new_a12 = [ P.m_py_eddington.py_eddington_coeff_zdun(vtau, w0[iw0], g[ig], mu[imu])[1] for vtau in new_tau ]
-    new_a33 = [ P.m_py_eddington.py_eddington_coeff_zdun(vtau, w0[iw0], g[ig], mu[imu])[4] for vtau in new_tau ]
+    new_a11 = [ eddinton_func(vtau, w0[iw0], g[ig], mu[imu])[0] for vtau in new_tau ]
+    new_a12 = [ eddinton_func(vtau, w0[iw0], g[ig], mu[imu])[1] for vtau in new_tau ]
+    new_a33 = [ eddinton_func(vtau, w0[iw0], g[ig], mu[imu])[4] for vtau in new_tau ]
 
     if lplot:
         figure(1); clf()
@@ -81,9 +126,9 @@ def find_new_w0(a, N=10, itau=int(Ntau//1.2), ig=Ng//2, imu=Nmu//2, lplot=False,
     new_w0 = np.interp(support_indices, np.arange(w0.size), w0)
     #new_w0 = w0[find_supports(a11, N, 1).astype(int)]
 
-    new_a11 = [ P.m_py_eddington.py_eddington_coeff_zdun(tau[itau], vw0, g[ig], mu[imu])[0] for vw0 in new_w0 ]
-    new_a12 = [ P.m_py_eddington.py_eddington_coeff_zdun(tau[itau], vw0, g[ig], mu[imu])[1] for vw0 in new_w0 ]
-    new_a33 = [ P.m_py_eddington.py_eddington_coeff_zdun(tau[itau], vw0, g[ig], mu[imu])[4] for vw0 in new_w0 ]
+    new_a11 = [ eddinton_func(tau[itau], vw0, g[ig], mu[imu])[0] for vw0 in new_w0 ]
+    new_a12 = [ eddinton_func(tau[itau], vw0, g[ig], mu[imu])[1] for vw0 in new_w0 ]
+    new_a33 = [ eddinton_func(tau[itau], vw0, g[ig], mu[imu])[4] for vw0 in new_w0 ]
 
     if lplot:
         figure(2); clf()
@@ -105,9 +150,9 @@ def find_new_g(a, N=3, itau=int(Ntau//1.2), iw0=-1, imu=Nmu//2, lplot=False, lin
     new_g = np.interp(support_indices, np.arange(g.size), g)
     #new_g = g[find_supports(a11, N, 2).astype(int)]
 
-    new_a11 = [ P.m_py_eddington.py_eddington_coeff_zdun(tau[itau], w0[iw0], vg, mu[imu])[0] for vg in new_g ]
-    new_a12 = [ P.m_py_eddington.py_eddington_coeff_zdun(tau[itau], w0[iw0], vg, mu[imu])[1] for vg in new_g ]
-    new_a33 = [ P.m_py_eddington.py_eddington_coeff_zdun(tau[itau], w0[iw0], vg, mu[imu])[4] for vg in new_g ]
+    new_a11 = [ eddinton_func(tau[itau], w0[iw0], vg, mu[imu])[0] for vg in new_g ]
+    new_a12 = [ eddinton_func(tau[itau], w0[iw0], vg, mu[imu])[1] for vg in new_g ]
+    new_a33 = [ eddinton_func(tau[itau], w0[iw0], vg, mu[imu])[4] for vg in new_g ]
 
     if lplot:
         figure(3); clf()
