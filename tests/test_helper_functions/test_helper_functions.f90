@@ -22,6 +22,8 @@ subroutine test_mpi_functions(this)
     real(ireals),allocatable :: bcast_5d_arr(:,:,:,:,:)
     real(ireals) :: bcast_real_scalar
 
+    real(ireals),pointer :: bcast_2d_arr_ptr(:,:)=>NULL()
+
     logical :: l_all_true, l_all_false, l_even_true
 
     integer(iintegers),parameter :: repetitions=10000
@@ -53,6 +55,8 @@ subroutine test_mpi_functions(this)
         if(.not.allocated(bcast_2d_arr)) allocate(bcast_2d_arr(2,1), source=1234._ireals)
         if(.not.allocated(bcast_3d_arr)) allocate(bcast_3d_arr(2,1,1), source=1234._ireals)
         if(.not.allocated(bcast_5d_arr)) allocate(bcast_5d_arr(2,1,1,1,1), source=1234._ireals)
+
+        if(.not.associated(bcast_2d_arr_ptr)) allocate(bcast_2d_arr_ptr(2,1), source=1234._ireals)
       else
         bcast_scalar = -1
         bcast_real_scalar = -1
@@ -61,6 +65,8 @@ subroutine test_mpi_functions(this)
         if(allocated(bcast_2d_arr)) deallocate(bcast_2d_arr)
         if(allocated(bcast_3d_arr)) deallocate(bcast_3d_arr)
         if(allocated(bcast_5d_arr)) deallocate(bcast_5d_arr)
+
+        if(associated(bcast_2d_arr_ptr)) deallocate(bcast_2d_arr_ptr)
       endif
 
       call imp_bcast(comm, bcast_arr, 0_mpiint)
@@ -88,6 +94,12 @@ subroutine test_mpi_functions(this)
       @assertTrue(allocated(bcast_5d_arr), 'real array broadcast wrong, allocation failed')
       @assertEqual(1234, bcast_5d_arr(1,1,1,1,1), 'real array broadcast wrong')
       @assertEqual(1234, bcast_5d_arr(2,1,1,1,1), 'real array broadcast wrong')
+
+      ! Check pointer Bcasts:
+      call imp_bcast(comm, bcast_2d_arr_ptr, 0_mpiint)
+      @assertTrue(associated(bcast_2d_arr_ptr), 'real pointer array broadcast wrong, allocation failed')
+      @assertEqual(1234, bcast_2d_arr_ptr(1,1), 'real pointer array broadcast wrong')
+      @assertEqual(1234, bcast_2d_arr_ptr(2,1), 'real pointer array broadcast wrong')
 
 
       ! Scalar Bcasts:
