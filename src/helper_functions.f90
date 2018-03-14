@@ -31,7 +31,8 @@ module m_helper_functions
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique, itoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices
+    vec_proj_on_plane, get_arg, unique, itoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
+    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
 
   interface mean
     module procedure mean_1d, mean_2d
@@ -921,4 +922,40 @@ module m_helper_functions
       unique = pack(list, .not.mask)
     end function unique
 
+    ! @brief: map from the flattened numbering to the coefficients in Ndims
+    ! This is something like numpy.unravel
+    ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
+    function ind_1d_to_nd(offsets, ind) result(nd_indices)
+      integer(iintegers), intent(in) :: offsets(:)
+      integer(iintegers), intent(in) :: ind
+      integer(iintegers) :: nd_indices(size(offsets))
+      integer(iintegers) :: tmp
+      integer(iintegers) :: k
+
+      k = ubound(nd_indices,1) ! last dimension
+      nd_indices(k) = (ind-1) / offsets(k)+1
+
+      do k=ubound(offsets,1)-1, lbound(offsets,1), -1
+        nd_indices(k) = modulo(ind-1, offsets(k+1)) / offsets(k) +1
+      enddo
+    end function
+
+    ! @brief: map indices in N-dimensions to a flattened array
+    ! This is something like numpy.ravel
+    ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
+    function ind_nd_to_1d(offsets, nd_indices) result(i1d)
+      integer(iintegers), intent(in) :: offsets(:)
+      integer(iintegers), intent(in) :: nd_indices(:)
+      integer(iintegers) :: i1d
+      integer(iintegers) :: k
+      i1d = dot_product(nd_indices(:)-1, offsets) +1
+    end function
+
+    function ndarray_offsets(arrshape)
+      integer(iintegers),intent(in) :: arrshape(:)
+      integer(iintegers) :: ndarray_offsets(size(arrshape))
+      ndarray_offsets(1) = 1
+      ndarray_offsets(2:size(arrshape)) = arrshape(1:size(arrshape)-1)
+      ndarray_offsets = cumprod(ndarray_offsets)
+    end function
   end module
