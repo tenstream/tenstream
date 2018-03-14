@@ -1,13 +1,18 @@
-@test(npes =[1,2,4])
-subroutine test_mpi_functions(this)
-
+module test_helper_functions
     use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
-    use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or
+    use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
+      compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction, &
+      cumprod
+
 
     use pfunit_mod
 
-    implicit none
+  implicit none
 
+  contains
+
+@test(npes =[1,2,4])
+subroutine test_mpi_functions(this)
     class (MpiTestMethod), intent(inout) :: this
 
     integer(mpiint) :: numnodes, comm, myid, i
@@ -146,14 +151,9 @@ subroutine test_mpi_functions(this)
 end subroutine
 
 @test(npes =[1])
-subroutine test_triangle_functions()
+subroutine test_triangle_functions(this)
+    class (MpiTestMethod), intent(inout) :: this
 
-    use m_data_parameters, only: ireals, iintegers
-    use m_helper_functions, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction
-
-    use pfunit_mod
-
-    implicit none
     real(ireals),parameter :: zero=0, one=1, dx = 100
     real(ireals),parameter :: A(2) = [zero, zero]
     real(ireals),parameter :: B(2) = [dx, zero]
@@ -231,3 +231,12 @@ subroutine test_triangle_functions()
     @assertEqual(-1_iintegers, normal_direction, 'direction of normal not towards cell center (case 2)')
 end subroutine
 
+@test(npes=[1])
+subroutine test_cumprod(this)
+  class (MpiTestMethod), intent(inout) :: this
+  integer(iintegers),parameter :: iarr(3) = [1,2,3]
+  real(ireals),parameter :: rarr(3) = [1,2,3]
+  @assertEqual([1,2,6], cumprod(iarr))
+  @assertEqual(real([1,2,6], ireals), cumprod(rarr))
+end subroutine
+end module

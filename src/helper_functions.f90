@@ -26,7 +26,7 @@ module m_helper_functions
   implicit none
 
   private
-  public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum,    &
+  public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum, cumprod,   &
     inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
@@ -50,10 +50,14 @@ module m_helper_functions
   interface cumsum
     module procedure cumsum_iintegers, cumsum_ireals
   end interface
+  interface cumprod
+    module procedure cumprod_iintegers, cumprod_ireals
+  end interface
 
   integer(mpiint) :: mpierr
   logical, parameter :: ldebug=.True.
 
+  integer(iintegers), parameter :: npar_cumprod=8
   contains
 
     function strF2C(str)
@@ -467,6 +471,48 @@ module m_helper_functions
       do i=2,size(arr)
         cumsum(i) = cumsum(i-1) + arr(i)
       enddo
+    end function
+
+    ! From Numerical Recipes: cumulative product on an array, with optional multiplicative seed.
+    recursive function cumprod_ireals(arr,seed) result(ans)
+      real(ireals), dimension(:), intent(in) :: arr
+      real(ireals), optional, intent(in) :: seed
+      real(ireals), dimension(size(arr)) :: ans
+      integer(iintegers) :: n,j
+      real(ireals) :: sd
+      n=size(arr)
+      if (n == 0) return
+      sd = 1
+      if (present(seed)) sd=seed
+      ans(1)=arr(1)*sd
+      if (n < npar_cumprod) then
+        do j=2,n
+          ans(j)=ans(j-1)*arr(j)
+        end do
+      else
+        ans(2:n:2)=cumprod(arr(2:n:2)*arr(1:n-1:2),sd)
+        ans(3:n:2)=ans(2:n-1:2)*arr(3:n:2)
+      end if
+    end function
+    recursive function cumprod_iintegers(arr,seed) result(ans)
+      integer(iintegers), dimension(:), intent(in) :: arr
+      integer(iintegers), optional, intent(in) :: seed
+      integer(iintegers), dimension(size(arr)) :: ans
+      integer(iintegers) :: n,j
+      integer(iintegers) :: sd
+      n=size(arr)
+      if (n == 0) return
+      sd = 1
+      if (present(seed)) sd=seed
+      ans(1)=arr(1)*sd
+      if (n < npar_cumprod) then
+        do j=2,n
+          ans(j)=ans(j-1)*arr(j)
+        end do
+      else
+        ans(2:n:2)=cumprod(arr(2:n:2)*arr(1:n-1:2),sd)
+        ans(3:n:2)=ans(2:n-1:2)*arr(3:n:2)
+      end if
     end function
 
     subroutine read_ascii_file_2d(filename, arr, ncolumns, skiplines, ierr)
