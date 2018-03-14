@@ -18,6 +18,7 @@ set( general_sources
   "tenstream_options.f90"
   "petsc_helpers.f90"
   "nca.f90"
+  "mmap.f90"
   )
 
 set( optprop_sources
