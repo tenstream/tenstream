@@ -38,6 +38,7 @@ module m_helper_functions
   end interface
   interface imp_bcast
     module procedure imp_bcast_real_1d, imp_bcast_real_2d, imp_bcast_real_3d, imp_bcast_real_5d, &
+        imp_bcast_real_2d_ptr, &
         imp_bcast_int_1d, imp_bcast_int_2d, imp_bcast_int4, imp_bcast_int8, imp_bcast_real, imp_bcast_logical
   end interface
   interface get_arg
@@ -343,6 +344,24 @@ module m_helper_functions
       call mpi_bcast(arr,size(arr),imp_real,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
 
+    subroutine  imp_bcast_real_2d_ptr(comm,arr,sendid)
+      integer(mpiint),intent(in) :: comm
+      real(ireals),pointer,intent(inout) :: arr(:,:)
+      integer(mpiint),intent(in) :: sendid
+      integer(mpiint) :: myid
+
+      integer(iintegers) :: Ntot(2)
+      integer(mpiint) :: commsize
+      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+      if(commsize.le.1) return
+      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
+
+      if(sendid.eq.myid) Ntot = shape(arr)
+      call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
+
+      if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
+      call mpi_bcast(arr,size(arr),imp_real,sendid,comm,mpierr); call CHKERR(mpierr)
+    end subroutine
     subroutine  imp_bcast_real_2d(comm,arr,sendid)
       integer(mpiint),intent(in) :: comm
       real(ireals),allocatable,intent(inout) :: arr(:,:)

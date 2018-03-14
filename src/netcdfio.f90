@@ -33,7 +33,7 @@ module m_netcdfIO
   private
   public :: ncwrite,ncload
 
-  integer :: u=10,v=11
+  integer :: v=11
   integer,parameter :: deflate_lvl=9
   real(ireals),parameter :: maxwait=600 !in seconds
   real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds
@@ -46,7 +46,9 @@ module m_netcdfIO
     module procedure ncwrite_1d,ncwrite_2d,ncwrite_3d,ncwrite_4d,ncwrite_5d,ncwrite_7d
   end interface
   interface ncload
-    module procedure ncload_1d,ncload_2d,ncload_3d,ncload_4d,ncload_5d,ncload_7d, ncload_1dint, ncload_2dint
+    module procedure ncload_1d, ncload_2d, ncload_3d, ncload_4d, ncload_5d, ncload_7d, &
+        ncload_2d_ptr, &
+        ncload_1dint, ncload_2dint
   end interface
 
   contains
@@ -87,7 +89,6 @@ module m_netcdfIO
         include 'netcdfio_write.inc'
     end subroutine
 
-
     subroutine ncload_1dint(groups,arr,ierr)
         integer(iintegers),allocatable,intent(inout) :: arr(:)
         include 'netcdfio_read_1.inc'
@@ -110,6 +111,12 @@ module m_netcdfIO
     subroutine ncload_2d(groups,arr,ierr)
         real(ireals),allocatable,intent(inout) :: arr(:,:)
         include 'netcdfio_read_1.inc'
+        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
+        include 'netcdfio_read_2.inc'
+    end subroutine
+    subroutine ncload_2d_ptr(groups,arr,ierr)
+        real(ireals),pointer,intent(inout) :: arr(:,:)
+        include 'netcdfio_read_1_ptr.inc'
         if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
         include 'netcdfio_read_2.inc'
     end subroutine
