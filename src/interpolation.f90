@@ -141,19 +141,19 @@ module m_tenstream_interpolation
         endif
       end subroutine
 
-pure function spline(t,a0,a1)
-        real(ireals),intent(in) :: t,a0(:),a1(:) ! t is weighting distance from a0
-        real(ireals) :: spline(size(a1))
-        real(ireals) :: s(size(a1))
+pure elemental function spline(t,a0,a1)
+        real(ireals),intent(in) :: t,a0,a1 ! t is weighting distance from a0
+        real(ireals) :: spline
+        real(ireals) :: s
         logical,parameter :: lspline = .False.
 !        logical,parameter :: lspline = .True.
 
         if(lspline) then
-          where( a0 .gt. a1 )
+          if( a0 .gt. a1 ) then
             s = t**2
-          elsewhere(a0.le.a1)
+          else if (a0.le.a1) then
             s = sqrt(t)
-          endwhere
+          endif
 !          s = t**2*(3_ireals - 2_ireals*t)
         else
           s = t
@@ -187,13 +187,14 @@ pure function spline(t,a0,a1)
         integer(iintegers) :: i
         real(ireals) :: offset
 
-        if(t.lt.one .or. t.gt.size(a0, dim=2)) call CHKERR(1_mpiint, 'Cannot use interp_1d with weights outside of [0,1]')
+        if(t.lt.one .or. t.gt.size(a0, dim=2)) call CHKERR(1_mpiint, 'Cannot use interp_1d with weights outside of the array bounds')
         i = floor(t)
         offset = modulo(t,one)
         if(approx(offset,zero)) then
           interp_vec_1d = a0(:,i)
         else
-          interp_vec_1d = (one-offset) * a0(:,i) + offset * a0(:,min(i+1, size(a0, dim=2)))
+          !interp_vec_1d = (one-offset) * a0(:,i) + offset * a0(:,min(i+1, size(a0, dim=2)))
+          interp_vec_1d = spline(offset, a0(:,i), a0(:,i+1))
         endif
       end function
 
@@ -265,27 +266,21 @@ pure subroutine interp_6d(pti, db, C)
 
         ! Permutations for 1st axis
         do i=1,2**(Ndim-1)
-!          db5(:,i)  =  db6(:,2*i-1) + ( db6(:,2*i) - db6(:,2*i-1) ) * spline(weights(1))
           db5(:,i)  = spline( weights(1), db6(:,2*i-1), db6(:,2*i) )
         enddo
         do i=1,2**(Ndim-2)
-!          db4(:,i)  =  db5(:,2*i-1) + ( db5(:,2*i) - db5(:,2*i-1) ) * spline(weights(2))
           db4(:,i)  = spline( weights(2), db5(:,2*i-1), db5(:,2*i) )
         enddo
         do i=1,2**(Ndim-3)
-!          db3(:,i)  =  db4(:,2*i-1) + ( db4(:,2*i) - db4(:,2*i-1) ) * spline(weights(3))
           db3(:,i)  = spline( weights(3), db5(:,4*i-1), db5(:,4*i) )
         enddo
         do i=1,2**(Ndim-4)
-!          db2(:,i)  =  db3(:,2*i-1) + ( db3(:,2*i) - db3(:,2*i-1) ) * spline(weights(4))
           db2(:,i)  = spline( weights(4), db5(:,3*i-1), db3(:,2*i) )
         enddo
         do i=1,2**(Ndim-5)
-!          db1(:,i)  =  db2(:,2*i-1) + ( db2(:,2*i) - db2(:,2*i-1) ) * spline(weights(5))
           db1(:,i)  = spline( weights(5), db2(:,2*i-1), db2(:,2*i) )
         enddo
 
-!        C(:)        =  db1(:,2  -1) + ( db1(:,2  ) - db1(:,2  -1) ) * spline(weights(6))
         C(:)  = spline( weights(6), db1(:,2), db1(:,1) )
 end subroutine
 pure subroutine interp_2d(pti, db, C)
@@ -404,79 +399,68 @@ subroutine interp_vec_simplex_nd(pti, db, db_offsets, Cres)
   integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
   real(ireals),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
 
-  integer(iintegers) :: cnt_interp_dims
+  integer(iintegers), allocatable :: interp_dims(:)
 
-  cnt_interp_dims = count(dim_needs_interpolation(pti))
+  interp_dims = get_dims_that_need_interpolation(pti)
 
-  select case (cnt_interp_dims)
+  select case (size(interp_dims))
   case(0)
     Cres = db(:, ind_nd_to_1d(db_offsets, nint(pti, iintegers)))
   case(1)
-    call interp_vec_simplex_1d(pti, db, db_offsets, Cres)
+    call interp_vec_simplex_1d(pti, interp_dims(1), db, db_offsets, Cres)
   case(2)
-    call interp_vec_simplex_2d(pti, db, db_offsets, Cres)
+    call interp_vec_simplex_2d(pti, interp_dims, db, db_offsets, Cres)
   case default
-    call CHKERR(1_mpiint, 'interp_vec_simplex not implemented for '//itoa(cnt_interp_dims)//' dimensions')
+    call CHKERR(1_mpiint, 'interp_vec_simplex not implemented for '//itoa(size(interp_dims))//' dimensions')
   end select
 end subroutine
 
-pure elemental function dim_needs_interpolation(pti)
-  real(ireals),intent(in) :: pti
-  logical :: dim_needs_interpolation
-  dim_needs_interpolation = .not.approx(modulo(pti, one),zero)
-end function
-
-subroutine interp_vec_simplex_1d(pti, db, db_offsets, Cres)
+subroutine interp_vec_simplex_1d(pti, interp_dim, db, db_offsets, Cres)
   real(ireals),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db dim(Ndimensions)
+  integer(iintegers),intent(in) :: interp_dim ! dimension in which the 1D interpolation should happen
   real(ireals),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
   integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
   real(ireals),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
 
   real(ireals) :: A, B, wgt
-  integer(iintegers) :: kdim, nd_indices(size(pti)), indA, indB
+  integer(iintegers) :: nd_indices(size(pti)), indA, indB
 
   nd_indices = nint(pti, iintegers)
 
-  do kdim = 1, size(pti)
-    if(dim_needs_interpolation(pti(kdim))) then ! This is my dimensions, lets get started
-      A = floor(pti(kdim))
-      B = ceiling(pti(kdim))
-      wgt = modulo(pti(kdim), one)
+  A = floor(pti(interp_dim))
+  B = ceiling(pti(interp_dim))
+  wgt = modulo(pti(interp_dim), one)
 
-      nd_indices(kdim) = nint(A)
-      indA = ind_nd_to_1d(db_offsets, nd_indices)
+  nd_indices(interp_dim) = nint(A)
+  indA = ind_nd_to_1d(db_offsets, nd_indices)
 
-      nd_indices(kdim) = nint(B)
-      indB = ind_nd_to_1d(db_offsets, nd_indices)
-    endif
-  enddo
+  nd_indices(interp_dim) = nint(B)
+  indB = ind_nd_to_1d(db_offsets, nd_indices)
 
-  Cres = (one-wgt) * db(:,indA) + wgt * db(:,indB)
+  Cres = spline(wgt, db(:,indA), db(:,indB)) ! (one-wgt) * db(:,indA) + wgt * db(:,indB)
 end subroutine
 
-subroutine interp_vec_simplex_2d(pti, db, db_offsets, Cres)
+subroutine interp_vec_simplex_2d(pti, interp_dims, db, db_offsets, Cres)
   use m_helper_functions, only : distance, triangle_area_by_vertices
   real(ireals),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
+  integer(iintegers),intent(in) :: interp_dims(:) ! dimensions in which the interpolation should happen
   real(ireals),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
   integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
   real(ireals),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
-  real(ireals), dimension(2) :: A,B,C,D,P
-  real(ireals) :: ABP, BCP, ACP ! areas
+  real(ireals), dimension(2,5) :: points ! i.e. A, B, C, D, P
+  real(ireals) :: areas(3) ! areas between vertices ABP, BCP, ACP
 
-  integer(iintegers) :: i, kdim, current_dim
-  integer(iintegers) :: nd_indices(size(pti)), interpdims(2)
-  real(ireals) :: interp_values(size(db,dim=1),3), interp_areas(4)
+  integer(iintegers) :: i, ipnt
+  integer(iintegers) :: nd_indices(size(pti))
+  real(ireals) :: wgt_1d, interp_values(size(db,dim=1),3), interp_areas(4)
 
-  ! First find dimensions which have to be interpolated
-  current_dim = 1
-  do kdim = 1, size(pti)
-    if(dim_needs_interpolation(pti(kdim))) then
-      interpdims(current_dim) = kdim
-      current_dim = current_dim +1
-    endif
-  enddo
+  associate( A => points(:,1), &
+             B => points(:,2), &
+             C => points(:,3), &
+             D => points(:,4), &
+             P => points(:,5) )
 
-  P = [pti(interpdims(1)), pti(interpdims(2))]
+  P = [pti(interp_dims(1)), pti(interp_dims(2))]
 
   A = [floor  (P(1)), floor  (P(2))]
   B = [ceiling(P(1)), floor  (P(2))]
@@ -485,40 +469,27 @@ subroutine interp_vec_simplex_2d(pti, db, db_offsets, Cres)
 
   nd_indices = nint(pti, iintegers)
 
-  if(pnt_in_triangle(A,B,C,P)) then
-    ! at the location of interpolate dimensions, use the index of point A
-    nd_indices(interpdims) = nint(A)
-    interp_values(:,1) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
-    interp_areas(1) = triangle_area_by_vertices(B,C,P)
-
-    ! and the same for the other points
-    nd_indices(interpdims) = nint(B)
-    interp_values(:,2) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
-    interp_areas(2) = triangle_area_by_vertices(C,A,P)
-
-    nd_indices(interpdims) = nint(C)
-    interp_values(:,3) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
-    interp_areas(3) = triangle_area_by_vertices(A,B,P)
-
-    interp_areas(4) = triangle_area_by_vertices(A,B,C)
-  else if(pnt_in_triangle(B,C,D,P)) then
-    nd_indices(interpdims) = nint(B)
-    interp_values(:,1) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
-    interp_areas(1) = triangle_area_by_vertices(C,D,P)
-
-    ! and the same for the other points
-    nd_indices(interpdims) = nint(C)
-    interp_values(:,2) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
-    interp_areas(2) = triangle_area_by_vertices(B,D,P)
-
-    nd_indices(interpdims) = nint(D)
-    interp_values(:,3) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
-    interp_areas(3) = triangle_area_by_vertices(B,C,P)
-
-    interp_areas(4) = triangle_area_by_vertices(B,C,D)
-  else
-    call CHKERR(1_mpiint, 'point is is not in any triangle :(')
+  if(pnt_in_triangle(B,C,D,P)) then
+    A = D
   endif
+
+  do ipnt = 1, 3
+    nd_indices(interp_dims) = nint(points(:,ipnt))
+    interp_values(:,ipnt) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
+    interp_areas(ipnt) = triangle_area_by_vertices(points(:,modulo(ipnt,3)+1), points(:,modulo(ipnt+1,3)+1), P)
+  enddo
+  do ipnt = 1, 3
+    ! if the point lies on the newly made up line, quick exit with 1D interpolation
+    if(approx(interp_areas(ipnt), zero, 10*sqrt(epsilon(zero)))) then
+      associate( p1 => modulo(ipnt,3)+1, p2 => modulo(ipnt+1,3)+1 )
+        wgt_1d = interp_areas(p2) / (interp_areas(p1) + interp_areas(p2))
+        Cres = spline(wgt_1d, interp_values(:,p1), interp_values(:,p2))
+      end associate
+      return
+    endif
+  enddo
+
+  interp_areas(4) = triangle_area_by_vertices(A,B,C)
 
   if(sum(interp_areas(1:3))-10*sqrt(epsilon(one)).ge.interp_areas(4)) then
     print *,'interp values', int(interp_values), 'areas', interp_areas, &
@@ -529,7 +500,28 @@ subroutine interp_vec_simplex_2d(pti, db, db_offsets, Cres)
   do i = 1, size(db, dim=1)
     Cres(i) = dot_product(interp_values(i,:), interp_areas(1:3)) / interp_areas(4)
   enddo
+  end associate
 end subroutine
+
+pure function get_dims_that_need_interpolation(pti)
+  real(ireals),intent(in) :: pti(:)
+  integer(iintegers), allocatable :: get_dims_that_need_interpolation(:)
+  integer(iintegers) :: i
+  integer(iintegers) :: rank(size(pti))
+  logical :: linterp(size(pti))
+  linterp = dim_needs_interpolation(pti)
+  rank = [ (i, i=1,size(pti)) ]
+
+  allocate(get_dims_that_need_interpolation(count(linterp)))
+  get_dims_that_need_interpolation = pack(rank, mask=linterp)
+end function
+
+pure elemental function dim_needs_interpolation(pti)
+  real(ireals),intent(in) :: pti
+  logical :: dim_needs_interpolation
+  dim_needs_interpolation = .not.approx(modulo(pti, one), zero, sqrt(epsilon(zero)))
+end function
+
 
 end module
 
