@@ -175,12 +175,12 @@ module m_helper_functions
       mean_2d = sum(arr)/size(arr)
     end function
 
-    elemental logical function approx(a,b,precision)
+    elemental logical function approx(a,b,precis)
       real(ireals),intent(in) :: a,b
-      real(ireals),intent(in),optional :: precision
+      real(ireals),intent(in),optional :: precis
       real(ireals) :: factor
-      if(present(precision) ) then
-        factor = precision
+      if(present(precis) ) then
+        factor = precis
       else
         factor = 10._ireals*epsilon(b)
       endif
@@ -790,7 +790,7 @@ module m_helper_functions
         edge_dist = distance_to_triangle_edges(p1,p2,p3,p)
         if(edge_dist.le.sqrt(eps)) pnt_in_triangle=.True.
       endif
-      if(ldebug) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p,'edgedist',distance_to_triangle_edges(p1,p2,p3,p),distance_to_triangle_edges(p1,p2,p3,p).le.eps
+      !if(ldebug) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p,'edgedist',distance_to_triangle_edges(p1,p2,p3,p),distance_to_triangle_edges(p1,p2,p3,p).le.eps
     end function
 
     pure function distance_to_triangle_edges(p1,p2,p3,p)
