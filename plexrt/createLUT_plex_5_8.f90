@@ -38,7 +38,7 @@ program main
       type(t_optprop_LUT_wedge_5_8) :: OPP
 
       PetscErrorCode :: ierr
-      integer :: i,c
+      integer :: i
 
       call mpi_init(ierr)
       comm = MPI_COMM_WORLD
@@ -71,7 +71,7 @@ program main
       enddo
 
       if(myid.eq.0) print *,'calculating coeffs for szas',szas,'azimuths',azis
-      call OPP%init(azis,szas,comm)
+      call OPP%init(comm)
       if(myid.eq.0) print *,'loaded plex 8_10 coeffs for szas',szas,'azis',azis
 
       call mpi_finalize(ierr)

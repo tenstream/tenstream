@@ -81,7 +81,7 @@ module m_plex_rt
       !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], real([0, 5, 10, 15],ireals), plex%comm)
       !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], real([0],ireals), plex%comm)
 
-      call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], real([0,5],ireals), plex%comm)
+      call solver%OPP%init(plex%comm)
     end subroutine
 
     subroutine set_plex_rt_optprop(solver, vlwc, viwc)

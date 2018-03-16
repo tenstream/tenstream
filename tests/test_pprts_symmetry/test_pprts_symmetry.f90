@@ -50,7 +50,7 @@ contains
 
         call read_commandline_options()
 
-        call OPP%init([zero],[60._ireals], comm)
+        call OPP%init(comm)
 
         allocate(dir2dir(OPP%OPP_LUT%dir_streams**2))
         allocate(dir2diff(OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams))

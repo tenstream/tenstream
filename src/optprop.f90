@@ -25,7 +25,7 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, coeff_mode
-use m_helper_functions, only : rmse
+use m_helper_functions, only : rmse, CHKERR
 use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_wedge_5_8
@@ -40,7 +40,7 @@ public :: t_optprop, t_optprop_1_2,t_optprop_8_10, t_optprop_3_6, t_optprop_3_10
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
-  class(t_optprop_LUT),allocatable :: OPP_LUT
+  class(t_optprop_LUT), allocatable :: OPP_LUT
   contains
     procedure :: init
     procedure :: get_coeff
@@ -67,9 +67,8 @@ end type
 
 contains
 
-  subroutine init(OPP, azis, szas, comm)
-      class(t_optprop) :: OPP
-      real(ireals),intent(in) :: szas(:),azis(:)
+  subroutine init(OPP, comm)
+      class(t_optprop), intent(inout) :: OPP
       integer(mpiint) ,intent(in) :: comm
       integer(mpiint) :: ierr
 
@@ -93,7 +92,7 @@ contains
               class default
                 stop ' init optprop : unexpected type for optprop object!'
             end select
-            call OPP%OPP_LUT%init(azis, szas, comm)
+            call OPP%OPP_LUT%init(comm)
 
           case(i1) ! ANN
             call ANN_init(comm, ierr)
@@ -101,7 +100,6 @@ contains
           case default
             stop 'coeff mode optprop initialization not defined '
         end select
-
   end subroutine
   subroutine destroy(OPP)
       class(t_optprop) :: OPP
@@ -122,25 +120,26 @@ contains
       real(ireals) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
       integer(iintegers) :: isrc
 
-      if(present(angles)) then
-        if(dir) then !dir2dir
-          do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
-            C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams) = T_dir
-          enddo
-        else ! dir2diff
-          do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
-            C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
-          enddo
-        endif
-      else
-        ! diff2diff
-        do isrc=1,OPP%OPP_LUT%diff_streams
-          call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .False., zero, zero, -1_mpiint, S_diff, T_dir, S_tol, T_tol)
-          C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
-        enddo
-      endif ! angles_present
+      call CHKERR(1_mpiint, 'Currently not implemented because I changed the bmc_wrapper routines')
+!      if(present(angles)) then
+!        if(dir) then !dir2dir
+!          do isrc=1,OPP%OPP_LUT%dir_streams
+!            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+!            C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams) = T_dir
+!          enddo
+!        else ! dir2diff
+!          do isrc=1,OPP%OPP_LUT%dir_streams
+!            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+!            C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
+!          enddo
+!        endif
+!      else
+!        ! diff2diff
+!        do isrc=1,OPP%OPP_LUT%diff_streams
+!          call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .False., zero, zero, -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+!          C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
+!        enddo
+!      endif ! angles_present
 
   end subroutine
 
@@ -157,11 +156,11 @@ contains
         logical,parameter :: compute_coeff_online=.False.
 
         if(compute_coeff_online) then
-          call get_coeff_bmc(OPP, aspect, tauz, w0, g, dir, C, inp_angles)
+          call get_coeff_bmc(OPP, tauz, w0, g, aspect, dir, C, inp_angles)
           return
         endif
 
-        if(ldebug_optprop) call check_inp(aspect, tauz, w0, g, dir, C)
+        if(ldebug_optprop) call check_inp(tauz, w0, g, aspect, dir, C)
 
         if(present(inp_angles)) then
           angles = inp_angles
@@ -174,15 +173,15 @@ contains
 
             if(present(inp_angles)) then ! obviously we want the direct coefficients
               if(dir) then ! dir2dir
-                call OPP%OPP_LUT%LUT_get_dir2dir(aspect, tauz, w0, g, angles(1), angles(2), C)
+                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, g, aspect, angles(1), angles(2)], C)
                 call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
               else         ! dir2diff
-                call OPP%OPP_LUT%LUT_get_dir2diff(aspect, tauz, w0, g, angles(1), angles(2), C)
+                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, g, aspect, angles(1), angles(2)], C)
                 call OPP%dir2diff_coeff_symmetry(C, lswitch_east, lswitch_north)
               endif
             else
               ! diff2diff
-              call OPP%OPP_LUT%LUT_get_diff2diff(aspect, tauz, w0, g, C)
+              call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, g, aspect], C)
             endif
 
 
@@ -190,13 +189,13 @@ contains
 
             if(present(inp_angles)) then ! obviously we want the direct coefficients
               if(dir) then ! specifically the dir2dir
-                call ANN_get_dir2dir(aspect, tauz, w0, g, angles(1), angles(2), C)
+                call ANN_get_dir2dir(tauz, w0, g, aspect, angles(1), angles(2), C)
               else ! dir2diff
-                call ANN_get_dir2diff(aspect, tauz, w0, g, angles(1), angles(2), C)
+                call ANN_get_dir2diff(tauz, w0, g, aspect, angles(1), angles(2), C)
               endif
             else
               ! diff2diff
-              call ANN_get_diff2diff(aspect, tauz, w0, g, C)
+              call ANN_get_diff2diff(tauz, w0, g, aspect, C)
             endif
 
           case default
@@ -205,7 +204,7 @@ contains
 
       contains
 
-        subroutine check_inp(aspect, tauz, w0, g, dir, C)
+        subroutine check_inp(tauz, w0, g, aspect, dir, C)
             real(ireals),intent(in) :: aspect, tauz, w0, g
             logical,intent(in) :: dir
             real(ireals),intent(in):: C(:)
@@ -233,7 +232,6 @@ contains
         end subroutine
 
   end subroutine
-
 
   subroutine dir2diff_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
 

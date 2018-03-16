@@ -48,6 +48,8 @@ module m_optprop_parameters
       !!
       integer(iintegers) :: coeff_mode = 0
 
+      logical, parameter :: luse_memory_map=.True.
+
       !-----------------------------------------
       !- Define the size of the Lookuptables:  -
       !-----------------------------------------
@@ -58,13 +60,13 @@ module m_optprop_parameters
       ! interp_mode 3 == linear interpolation, nearest neighbour in solar azimuth
       ! interp_mode 4 == linear interpolation in all dimensions
 
-      integer(iintegers), parameter :: interp_mode_8_10=4
-      integer(iintegers), parameter :: interp_mode_1_2=4
-      integer(iintegers), parameter :: interp_mode_3_6=4
-      integer(iintegers), parameter :: interp_mode_3_10=4
-      integer(iintegers), parameter :: interp_mode_wedge_5_8=4
+      integer(iintegers), parameter :: interp_mode_8_10=2
+      integer(iintegers), parameter :: interp_mode_1_2=2
+      integer(iintegers), parameter :: interp_mode_3_6=2
+      integer(iintegers), parameter :: interp_mode_3_10=2
+      integer(iintegers), parameter :: interp_mode_wedge_5_8=2
 
-      integer(iintegers), parameter :: Nphi=19
+      integer(iintegers), parameter :: Nphi=10
 
       ! integer(iintegers) ,parameter :: Ntau=40, Nw0=10, Ng=2, Ntheta=19
       ! real(ireals), parameter :: preset_tau(1)  =[0]
@@ -75,13 +77,18 @@ module m_optprop_parameters
       ! We may also pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values
       !     -- see python script: ''eddington_to_LUT.py''
       ! This way, the output of the script has to be put here... and stuff above commented out
-      logical, parameter :: use_prescribed_LUT_dims=.True.
 
-      integer(iintegers), parameter :: Ntau=22, Nw0=15, Ng=3, Ntheta=19
-      real(ireals), parameter :: preset_tau(22) = [1e-10,9.01101825167e-08,0.00307841992306,0.0123699155746,0.0282161842775,0.0512938546048,0.0825084072368,0.1236142154,0.17714839488,0.247282753424,0.342437693132,0.485009163821,0.833265411384,1.29248625163,1.72141627953,2.23635589547,2.91744513386,3.92411526823,5.70630418871,10.203209312,100.0,100.0]
-      real(ireals), parameter :: preset_w0(15) = [0.0,0.206223071171,0.384160332835,0.528227775139,0.643710500558,0.735455592396,0.806918561817,0.861885907586,0.902875161822,0.932179798039,0.949561345869,0.963194640071,0.975148542423,0.987462994037,0.99999]
-      real(ireals), parameter :: preset_g(3) = [0.0,0.267018506789,0.5]
-      real(ireals), parameter :: preset_theta(19) = [0.0,5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,80.0,85.0,90.0]
+!      integer(iintegers), parameter :: Ntau=21, Nw0=15, Ng=3, Ntheta=10
+!      real(ireals), parameter :: preset_tau(21) = [1e-10,9.01101825167e-08,0.00307841992306,0.0123699155746,0.0282161842775,0.0512938546048,0.0825084072368,0.1236142154,0.17714839488,0.247282753424,0.342437693132,0.485009163821,0.833265411384,1.29248625163,1.72141627953,2.23635589547,2.91744513386,3.92411526823,5.70630418871,10.203209312,100.0]
+!      real(ireals), parameter :: preset_w0(15) = [0.0,0.206223071171,0.384160332835,0.528227775139,0.643710500558,0.735455592396,0.806918561817,0.861885907586,0.902875161822,0.932179798039,0.949561345869,0.963194640071,0.975148542423,0.987462994037,0.99999]
+!      real(ireals), parameter :: preset_g(3) = [0.0,0.267018506789,0.5]
+      !real(ireals), parameter :: preset_theta(19) = [0.0,5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,80.0,85.0,90.0]
+
+      integer(iintegers), parameter :: Ntau=10, Nw0=8, Ng=3, Ntheta=10
+			real(ireals), parameter :: preset_tau(10) = [1e-10,0.0137388296978,0.0573711123567,0.139789935148,0.285526816981,0.610418869282,1.57085127911,2.73919277554,5.41500325409,100.0]
+			real(ireals), parameter :: preset_w0(8) = [0.0,0.384011887456,0.643717368476,0.806922184345,0.902876665378,0.949561805714,0.975148725847,0.99999]
+			real(ireals), parameter :: preset_g(3) = [0.0,0.5,0.5]
+
 
 !     integer(iintegers), parameter :: Ntau=2, Nw0=2, Ng=3, Ntheta=3                   !!!!!! zum testen erstmal nmnur N = 2
 !     real(ireals), parameter :: preset_tau(Ntau) = [0.1, 1.0]

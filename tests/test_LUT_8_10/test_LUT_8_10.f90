@@ -70,31 +70,41 @@ contains
 
   ! Define the parameters over which to be cycled...
   function getParameters() result(params)
+    use m_optprop_parameters, only: Ntau, Nw0, Ng, Ntheta, Nphi, &
+      preset_tau, preset_w0, preset_g
+
       type(peCase), allocatable :: params(:)
 
-      integer(iintegers) :: ikabs,iksca,ig,iphi,itheta
+      integer(iintegers) :: itau, iw0, ig, itheta, iphi
       real(ireals)       ::  kabs, ksca, g, phi, theta
 
       integer(iintegers) :: itest,iloop
 
       do iloop=1,2
-        if(iloop.eq.2) allocate(params(itest))
+        if(iloop.eq.2) allocate(params(itest*2))
         itest=0
 
-        do ikabs=1,8,5
-          do iksca=4,8,2
-            do ig=0,5,5
-              do iphi=0,0,30
-                do itheta=0,0,30
+        do itau = 1, Ntau-1, Ntau/2
+          do iw0 = 1, Nw0-1, Nw0/2
+            do ig = 1, Ng-1, Ng/2
+              do iphi = 1, 85, 40
+                do itheta = 1, 85, 40
 
                   itest = itest+1
 
-                  kabs = 10.**(-ikabs)
-                  ksca = 10.**(-iksca)
-                  g    = ig/10.       
-                  phi  = iphi     
+                  ! Do Lookup Tests directly on supports of LUT
+                  kabs = preset_tau(itau) * (one-preset_w0(iw0))
+                  ksca = preset_tau(itau) * preset_w0(iw0)
+                  g    = preset_g(ig)
+                  phi  = iphi
                   theta= itheta
-                  if(iloop.eq.2) params(itest) = newPeCase(kabs,ksca,g,phi,theta)
+                  if(iloop.eq.2) params(2*(itest-1)+1) = newPeCase(kabs,ksca,g,phi,theta)
+
+                  ! Again, do interlaced tests between support points of LUT
+                  kabs = (preset_tau(itau)+preset_tau(itau+1))/2. * (one-(preset_w0(iw0)+preset_w0(iw0+1))/2.)
+                  ksca = (preset_tau(itau)+preset_tau(itau+1))/2. * (preset_w0(iw0)+preset_w0(iw0+1))/2.
+                  g    = (preset_g(ig)+preset_g(ig+1))/2.
+                  if(iloop.eq.2) params(2*(itest-1)+2) = newPeCase(kabs,ksca,g,phi,theta)
                 enddo
               enddo
             enddo
@@ -141,12 +151,12 @@ contains
   @after
   subroutine teardown(this)
       class (parameterized_test), intent(inout) :: this
-      call OPP%destroy()
+      !call OPP%destroy()
       call PetscFinalize(ierr)
   end subroutine teardown
 
 
-  @test( npes=[16], testParameters={getParameters()} )
+  @test( npes=[2,1], testParameters={getParameters()} )
   subroutine test_LUT_direct_coeff(this)
       class (parameterized_test), intent(inout) :: this
 
@@ -169,13 +179,13 @@ contains
         tauz = (kabs+ksca) * dz
         w0   = ksca / (kabs+ksca)
 
-        call OPP%init([phi], [theta], comm)
+        call OPP%init(comm)
 
-        call OPP%LUT_get_dir2dir (tauz/taux, tauz, w0, g , phi, theta, LUT_dir2dir)
-        call OPP%LUT_get_dir2diff(tauz/taux, tauz, w0, g , phi, theta, LUT_dir2diff)
+        call OPP%LUT_get_dir2dir ([tauz, w0, g , tauz/taux, phi, theta], LUT_dir2dir)
+        call OPP%LUT_get_dir2diff([tauz, w0, g , tauz/taux, phi, theta], LUT_dir2diff)
         print*,taux, tauz
         do src=1,8
-          
+
           call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.True.,phi,theta,dx,dy,dz,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
 
           ! Rearrange coeffs from dst_ordering to src ordering:
@@ -188,7 +198,7 @@ contains
       end associate
   endsubroutine
 
-  @test( npes=[16], testParameters={getParameters()} )
+  @test( npes=[2,1], testParameters={getParameters()} )
   subroutine test_LUT_diff_coeff(this)
       class (parameterized_test), intent(inout) :: this
 
@@ -211,12 +221,11 @@ contains
         tauz = (kabs+ksca) * dz
         w0   = ksca / (kabs+ksca)
 
-        call OPP%init([phi], [theta], comm)
+        call OPP%init(comm)
 
-        call OPP%LUT_get_diff2diff(tauz/taux, tauz, w0, g , LUT_diff2diff)
-        print*,taux, tauz
+        call OPP%LUT_get_diff2diff([tauz, w0, g, tauz/taux], LUT_diff2diff)
         do src=1,10
-          
+
           call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.False.,phi,theta,dx,dy,dz,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
 
           ! Rearrange coeffs from dst_ordering to src ordering:
@@ -249,10 +258,10 @@ contains
       tauz = (bg(1)+bg(2)) * dz
       w0   = bg(2) / (bg(1)+bg(2))
 
-      call OPP%init([phi], [theta], this%getMpiCommunicator())
+      call OPP%init(this%getMpiCommunicator())
 
-      call OPP%LUT_get_dir2dir (tauz/taux, tauz, w0, bg(3), phi, theta, LUT_dir2dir)
-      call OPP%LUT_get_dir2diff(tauz/taux, tauz, w0, bg(3), phi, theta, LUT_dir2diff)
+      call OPP%LUT_get_dir2dir ([tauz, w0, bg(3), tauz/taux, phi, theta], LUT_dir2dir)
+      call OPP%LUT_get_dir2diff([tauz, w0, bg(3), tauz/taux, phi, theta], LUT_dir2diff)
 
       do src=1,4
         T_target = zero
@@ -273,34 +282,44 @@ contains
 
       real(ireals),parameter :: sigma = 6 ! normal test range for coefficients
 
-      integer(iintegers) :: i
       character(len=*),optional :: msg
       character(default_str_len) :: local_msgS, local_msgT
+      logical, parameter :: ldetail=.True.
 
       if(myid.eq.0) then
-        print*,''
+        if(ldetail) then
+          print*,''
 
-        if( present(msg) ) then
-          write(local_msgS,*) trim(msg),':: Diffuse boxmc coefficient not as '
-          write(local_msgT,*) trim(msg),':: Direct  boxmc coefficient not as '
-          print *,msg
+          if( present(msg) ) then
+            write(local_msgS,*) trim(msg),':: Diffuse boxmc coefficient not as '
+            write(local_msgT,*) trim(msg),':: Direct  boxmc coefficient not as '
+            print *,msg
+          else
+            write(local_msgS,*) 'Diffuse boxmc coefficient not as '
+            write(local_msgT,*) 'Direct  boxmc coefficient not as '
+          endif
+
+          print*,'---------------------'
+          write(*, FMT='( " diffuse :: ",10(f12.5) )' ) S
+          print*,''
+          write(*, FMT='( " target  :: ",10(f12.5) )' ) S_target
+          print*,''
+          write(*, FMT='( " diff    :: ",10(f12.5) )' ) S_target-S
+          print*,'RMSE ::: ',rmse(S,S_target)*[one, 100._ireals],'%'
+          print*,''
+          write(*, FMT='( " direct  :: ", 8(f12.5) )' ) T
+          print*,''
+          write(*, FMT='( " target  :: ", 8(f12.5) )' ) T_target
+          print*,''
+          write(*, FMT='( " diff    :: ", 8(f12.5) )' ) T_target-T
+          print*,'RMSE ::: ',rmse(T,T_target)*[one, 100._ireals],'%'
+          print*,'---------------------'
+          print*,''
         else
-          write(local_msgS,*) 'Diffuse boxmc coefficient not as '
-          write(local_msgT,*) 'Direct  boxmc coefficient not as '
+          print*,'RMSE ::: ',rmse(S,S_target)*[one, 100._ireals],'% ', &
+                 'direct:::',rmse(T,T_target)*[one, 100._ireals],'%'
+          print *,''
         endif
-
-        print*,'---------------------'
-        write(*, FMT='( " diffuse ::  :: ",10(es12.5) )' ) S
-        write(*, FMT='( " target  ::  :: ",10(es12.5) )' ) S_target
-        write(*, FMT='( " diff    ::  :: ",10(es12.5) )' ) S_target-S
-        print*,'RMSE ::: ',rmse(S,S_target)
-        print*,''
-        write(*, FMT='( " direct  ::  :: ", 8(es12.5) )' ) T
-        write(*, FMT='( " target  ::  :: ", 8(es12.5) )' ) T_target
-        write(*, FMT='( " diff    ::  :: ", 8(es12.5) )' ) T_target-T
-        print*,'RMSE ::: ',rmse(T,T_target)
-        print*,'---------------------'
-        print*,''
 
         @assertEqual(S_target, S, atol*sigma, local_msgS )
         @assertLessThanOrEqual   (zero, S)

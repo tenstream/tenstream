@@ -2560,8 +2560,8 @@ contains
 
 
     ! init box montecarlo model
-    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
-    if(.not.luse_eddington)      call OPP_1_2%init (pack(sun%angles%symmetry_phi,.True.),pack(sun%angles%theta,.True.),imp_comm)
+    if(any(atm%l1d.eqv..False.)) call OPP_8_10%init(imp_comm)
+    if(.not.luse_eddington)      call OPP_1_2%init (imp_comm)
 
     call init_matrices()
   end subroutine
