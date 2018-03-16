@@ -48,35 +48,35 @@ program main
 
       call read_commandline_options()
 
-      do i=0,90
-        azis(i+1) = i
-      enddo
-      do i=0,90
-        szas(i+1) = i
-      enddo
-      szas(92) = -1
+      !do i=0,90
+      !  azis(i+1) = i
+      !enddo
+      !do i=0,90
+      !  szas(i+1) = i
+      !enddo
+      !szas(92) = -1
 
-      do i=1,10
-        call get_command_argument(i, arg)
-        if(len_trim(arg) .gt. 0) then
+      !do i=1,10
+      !  call get_command_argument(i, arg)
+      !  if(len_trim(arg) .gt. 0) then
 
-          if(arg.eq.'-sza') then
-            call get_command_argument(i+1, arg)
-            read (arg,*) user_sza
-            szas=user_sza
-          endif
+      !    if(arg.eq.'-sza') then
+      !      call get_command_argument(i+1, arg)
+      !      read (arg,*) user_sza
+      !      szas=user_sza
+      !    endif
 
-          if(arg.eq.'-azi') then
-            call get_command_argument(i+1, arg)
-            read (arg,*) user_azi
-            azis=user_azi
-          endif
-        endif
-      enddo
+      !    if(arg.eq.'-azi') then
+      !      call get_command_argument(i+1, arg)
+      !      read (arg,*) user_azi
+      !      azis=user_azi
+      !    endif
+      !  endif
+      !enddo
 
-      if(myid.eq.0) print *,'calculating coeffs for szas',szas,'azimuths',azis
-      call OPP%init(azis,szas,comm)
-      if(myid.eq.0) print *,'loaded 8_10 coeffs for szas',szas,'azis',azis
+      !if(myid.eq.0) print *,'calculating coeffs for szas',szas,'azimuths',azis
+      call OPP%init(comm)
+      !if(myid.eq.0) print *,'loaded 8_10 coeffs for szas',szas,'azis',azis
 
       call mpi_finalize(ierr)
 end program

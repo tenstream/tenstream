@@ -41,12 +41,15 @@ module m_optprop_LUT
     stddev_atol, stddev_rtol,             &
     use_prescribed_LUT_dims,              &
     preset_aspect, preset_tau, preset_w0, &
-    preset_g, preset_theta, OPP_LUT_ALL_ANGLES
+    preset_g,                             &
+    OPP_LUT_ALL_ANGLES, luse_memory_map
 
   use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6, t_boxmc_3_10, &
     t_boxmc_wedge_5_8
   use m_tenstream_interpolation, only: interp_4d
   use m_netcdfio
+
+  use m_mmap, only : arr_to_mmap, munmap_mmap_ptr
 
   implicit none
 
@@ -583,8 +586,11 @@ subroutine createLUT_diff(OPP, LUT, comm)
               call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), READYMSG, comm, status, mpierr) ; call CHKERR(mpierr)
 
               if(cnt.le.total_size) then ! we got something to do for a worker -- send him...
-                call mpi_send(cnt, 1_mpiint, imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
-                call mpi_send(allwork(cnt,:), size(allwork(cnt,:)), imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
+                isrc = modulo(cnt-1, Nsrc) +1
+                lutindex = (cnt-1) / Nsrc +1
+                call mpi_send(lutindex, 1_mpiint, imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
+                call mpi_send(isrc, 1_mpiint, imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
+                call mpi_send(present(T), 1_mpiint, imp_logical, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
 
               else ! no more work to do... tell the worker to quit
                 call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr); call CHKERR(mpierr)
@@ -824,46 +830,45 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
               cnt = cnt+1
 
             case(HAVERESULTSMSG)
-              call mpi_recv(workindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(lutindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(isrc, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
               call mpi_recv(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
               call mpi_recv(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
               call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-
-              isrc    = allwork(workindex, 1)
-              iaspect = allwork(workindex, 2)
-              itauz   = allwork(workindex, 3)
-              iw0     = allwork(workindex, 4)
-              ig      = allwork(workindex, 5)
-
-              !print *,myid,'Saving values for ',workindex,'::',isrc,iaspect,itauz,iw0,ig,'::',T_dir
-              !print *,myid,'supposed optprop:', LUT%pspace%aspect(iaspect),LUT%pspace%tau(itauz),LUT%pspace%w0(iw0),LUT%pspace%g(ig),LUT%pspace%phi(iphi),LUT%pspace%theta(itheta)
 
               ! Sort coefficients into destination ordering and put em in LUT
               do idst = 1, OPP%diff_streams
-                ind = (idst-1)*OPP%dir_streams + isrc
-                S%c         (ind, iaspect, itauz, iw0, ig) = S_diff(idst)
-                S%stddev_tol(ind, iaspect, itauz, iw0, ig) = S_tol (idst)
+                ind = (idst-1) * Nsrc + isrc
+                S%c         (ind, lutindex) = S_diff(idst)
+                S%stddev_tol(ind, lutindex) = S_tol (idst)
               enddo
-              do idst = 1, OPP%dir_streams
-                ind = (idst-1)*OPP%dir_streams + isrc
-                T%c         (ind, iaspect, itauz, iw0, ig) = T_dir (idst)
-                T%stddev_tol(ind, iaspect, itauz, iw0, ig) = T_tol (idst)
-              enddo
+              if(present(T)) then
+                do idst = 1, OPP%dir_streams
+                  ind = (idst-1)*OPP%dir_streams + isrc
+                  T%c         (ind, lutindex) = T_dir (idst)
+                  T%stddev_tol(ind, lutindex) = T_tol (idst)
+                enddo
+              endif
 
-              !do idst = 1, OPP%dir_streams
-              !  print *,myid,'T%c for idst',idst,T%c((idst-1)*OPP%dir_streams+1:idst*OPP%dir_streams, iaspect, itauz, iw0, ig)
+              !do idst = 1, Nsrc
+              !  print *, myid, 'S%c for isrc', isrc, 'idst', idst, S_diff(idst)
               !enddo
 
-              if( mod(workindex-1, total_size/100).eq.0 ) & !every 1 percent report status
-                  print *,'Calculated direct LUT(',int(LUT%pspace%phi(iphi)),int(LUT%pspace%theta(itheta)),')...',(100*(workindex-1))/total_size,'%'
+              if( mod(lutindex*(Nsrc-1)+isrc-1, total_size/100).eq.0 ) & !every 1 percent report status
+                  print *,'Calculated LUT...',(100*(lutindex*(Nsrc-1)+isrc-1))/total_size,'%'
 
-              if( mod(workindex-1, total_size/10 ).eq.0 ) then !every 10 percent of LUT dump it.
-                print *,'Writing direct table to file...'
+              if( mod(lutindex*(Nsrc-1)+isrc, total_size/3 ).eq.0 ) then !every 30 percent of LUT dump it.
+                print *,'Writing table to file...', S%table_name_c
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
+                print *,'Writing table to file...', S%table_name_tol
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
-                call ncwrite(T%table_name_c  , T%c         ,iierr)
-                call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
+                if(present(T)) then
+                  print *,'Writing table to file...', T%table_name_c
+                  call ncwrite(T%table_name_c  , T%c         ,iierr)
+                  print *,'Writing table to file...', T%table_name_tol
+                  call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
+                endif
                 print *,'done writing!',iierr
               endif
 
@@ -876,14 +881,22 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
           endif
         enddo
 
-        print *,'Writing direct table to file...'
+        print *,'Writing table to file...'
         call ncwrite(S%table_name_c  , S%c         ,iierr)
         call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
-        call ncwrite(T%table_name_c  , T%c         ,iierr)
-        call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
-        print *,'done writing!',iierr,':: max_atol S',maxval(S%stddev_tol),'max_atol T',maxval(T%stddev_tol)
+        if(present(T)) then
+          call ncwrite(T%table_name_c  , T%c         ,iierr)
+          call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
+          print *,'done writing!',iierr,':: max_atol S',maxval(S%stddev_tol),'max_atol T',maxval(T%stddev_tol)
+        else
+          print *,'done writing!',iierr,':: max_atol S',maxval(S%stddev_tol)
+        endif
       end subroutine
-      subroutine worker()
+      subroutine worker(config)
+          type(t_lut_config), intent(in) :: config
+          integer(iintegers) :: isrc
+          logical :: ldir
+
           ! workers send READY message to master
           call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr); call CHKERR(mpierr)
 
@@ -898,27 +911,21 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
 
               case(WORKMSG)
                 ! wait for work to arrive
-                call mpi_recv( workindex, 1_mpiint, imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
-                call mpi_recv( workinput , size(workinput), imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
+                call mpi_recv( lutindex, 1_mpiint, imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
+                call mpi_recv( isrc, 1_mpiint, imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
+                call mpi_recv( ldir, 1_mpiint, imp_logical, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
 
-                call OPP%bmc_wrapper(workinput(1),  &
-                    LUT%pspace%aspect(workinput(2)),&
-                    LUT%pspace%tau(workinput(3)),   &
-                    LUT%pspace%w0(workinput(4)),    &
-                    LUT%pspace%g(workinput(5)),     &
-                    .True. ,                        &
-                    LUT%pspace%phi(iphi),           &
-                    LUT%pspace%theta(itheta),       &
-                    mpi_comm_self,                  &
-                    S_diff,T_dir,S_tol,T_tol)
+                call OPP%LUT_bmc_wrapper(config, lutindex, isrc, ldir, &
+                  mpi_comm_self, S_diff, T_dir, S_tol, T_tol)
 
-                  !print *,myid,'Computed values for ',workindex,'::',workinput,'::',T_dir
-                  !print *,myid,'optprop:', LUT%pspace%aspect(workinput(2)),LUT%pspace%tau(workinput(3)),LUT%pspace%w0(workinput(4)),LUT%pspace%g(workinput(5)),LUT%pspace%phi(iphi),LUT%pspace%theta(itheta)
+                !print *,'Computed isrc',isrc,'aspect',aspect_zx,'tau',tau_z, w0, g,':', phi, theta
+                !print *,myid,'Computed values for ',lutindex, isrc, ldir
 
-                call mpi_send(workindex , 1_mpiint     , imp_int  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(lutindex , 1_mpiint     , imp_int  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(isrc , 1_mpiint     , imp_int  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
                 call mpi_send(S_diff    , size(S_diff) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(T_dir     , size(T_dir ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
                 call mpi_send(S_tol     , size(S_tol ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(T_dir     , size(T_dir ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
                 call mpi_send(T_tol     , size(T_tol ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
 
                 call mpi_send(-i1       , 1_mpiint     , imp_int  , 0_mpiint           , READYMSG       , comm , mpierr); call CHKERR(mpierr)
@@ -933,79 +940,108 @@ subroutine createLUT_dir(OPP,LUT, comm, iphi,itheta)
             endif !gotmsg
           enddo
       end subroutine
-      subroutine prepare_table_space(S, NcoeffS, T, NcoeffT )
-          type(table),intent(inout) :: S,T
-          integer(iintegers),intent(in) :: NcoeffS,NcoeffT
+end subroutine createLUT
 
-          integer(iintegers) :: errcnt
+subroutine prepare_table_space(OPP, config, S, T)
+  class(t_optprop_LUT) :: OPP
+  type(t_lut_config), intent(in) :: config
+  type(t_table),intent(inout) :: S
+  type(t_table),intent(inout), optional :: T
 
-          print *,'preparing space for LUT for direct coeffs at angles: ',iphi,itheta
-          errcnt=0
+  integer(iintegers) :: errcnt
 
-          if(.not.allocated(S%stddev_tol) ) then
-            allocate(S%stddev_tol(NcoeffS*NcoeffT, OPP%Naspect, OPP%Ntau ,OPP%Nw0, OPP%Ng))
-            S%stddev_tol = 1e8_ireals
-            call ncwrite(S%table_name_tol, S%stddev_tol, iierr); errcnt = errcnt +iierr
-            if(iierr.ne.0) print *,'createLUT_dir::ncwrite S%stddev_tol', iierr
-          endif
-
-          if(.not.allocated(T%stddev_tol) ) then
-            allocate(T%stddev_tol(NcoeffT**2, OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng))
-            T%stddev_tol = 1e8_ireals
-            call ncwrite(T%table_name_tol, T%stddev_tol, iierr); errcnt = errcnt +iierr
-            if(iierr.ne.0) print *,'createLUT_dir::ncwrite T%stddev_tol', iierr
-          endif
-
-          if(.not. allocated(S%c) ) then
-            allocate(S%c(NcoeffS*NcoeffT, OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng))
-            S%c = nil
-            call ncwrite(S%table_name_c, S%c,iierr); errcnt = errcnt +iierr
-            if(iierr.ne.0) print *,'createLUT_dir::ncwrite S', iierr
-          endif
-
-          if(.not. allocated(T%c) ) then
-            allocate(T%c(NcoeffT**2, OPP%Naspect, OPP%Ntau, OPP%Nw0, OPP%Ng))
-            T%c = nil
-            call ncwrite(T%table_name_c, T%c,iierr); errcnt = errcnt +iierr
-            if(iierr.ne.0) print *,'createLUT_dir::ncwrite T', iierr
-          endif
-
-          if(errcnt.ne.0) then
-            stop 'createLUT_dir :: could somehow not write to file... exiting...'
-          endif
-      end subroutine
+  print *,'Allocating Space for LUTs'
+  errcnt = 0
+  if(present(T)) then
+    if(.not.associated(S%c         )) allocate(S%c         (OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=nil)
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=1e8_ireals)
+    if(.not.associated(T%c         )) allocate(T%c         (OPP%dir_streams**2, product(config%dims(:)%N)), source=nil)
+    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(OPP%dir_streams**2, product(config%dims(:)%N)), source=1e8_ireals)
+  else
+    if(.not.associated(S%c         )) allocate(S%c         (OPP%diff_streams**2, product(config%dims(:)%N)), source=nil)
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(OPP%diff_streams**2, product(config%dims(:)%N)), source=1e8_ireals)
+  endif
 end subroutine
 
-  subroutine scatter_LUTtables(OPP, comm, azis, szas)
-      integer(mpiint) ,intent(in) :: comm
-      class(t_optprop_LUT) :: OPP
-      real(ireals),intent(in) :: szas(:),azis(:)
-      integer(iintegers) :: iphi,itheta
-      logical :: angle_mask(OPP%Nphi,OPP%Ntheta)
+! return the integer in config%dims that corresponds to the given dimension
+function find_lut_dim_by_name(config, dimname) result(kdim)
+  type(t_lut_config), intent(in) :: config
+  character(len=*), intent(in) :: dimname
+  integer(iintegers) :: kdim
 
-      call determine_angles_to_load(comm, OPP%interp_mode, OPP%dirLUT, azis, szas, angle_mask)
+  integer(iintegers) :: k
+  do k=1,size(config%dims)
+    if(trim(dimname).eq.trim(config%dims(k)%dimname)) then
+      kdim = k
+      return
+    endif
+  enddo
+  kdim=-1
+end function
 
-      do itheta=1,OPP%Ntheta
-        do iphi  =1,OPP%Nphi
-          if(.not.angle_mask(iphi,itheta) ) cycle                               ! this LUT is not needed, skip....
-          if ( mpi_logical_and(comm, allocated(OPP%dirLUT%T(iphi,itheta)%c)) ) cycle ! if all nodes have the LUT already, we dont need to scatter it...
+subroutine get_sample_pnt_by_name_and_index(config, dimname, index_1d, sample_pnt, ierr)
+  type(t_lut_config), intent(in) :: config
+  character(len=*), intent(in) :: dimname
+  integer(iintegers), intent(in) :: index_1d
+  real(ireals), intent(out) :: sample_pnt
+  integer(mpiint), intent(out) :: ierr
 
-          call imp_bcast(comm, OPP%dirLUT%T(iphi,itheta)%c, 0_mpiint)  ! DIRECT 2 DIRECT
-          call imp_bcast(comm, OPP%dirLUT%S(iphi,itheta)%c, 0_mpiint)  ! DIRECT 2 DIFFUSE
-        enddo
-      enddo
+  integer(iintegers) :: kdim, nd_indices(size(config%dims))
 
-      ! DIFFUSE 2 DIFFUSE
-      if( mpi_logical_or(comm, .not.allocated(OPP%diffLUT%S%c) )) & ! then ! if one or more nodes do not have it, guess we have to send it...
-        call imp_bcast(comm, OPP%diffLUT%S%c, 0_mpiint)
+  nd_indices = ind_1d_to_nd(config%offsets, index_1d)
 
-  end subroutine
-subroutine bmc_wrapper(OPP, src, aspect, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
+  kdim = find_lut_dim_by_name(config, trim(dimname))
+  if(kdim.lt.i1) then ! could not find the corresponding dimension
+    ierr = 1
+    sample_pnt = nil
+    return
+  endif
+  if(nd_indices(kdim).gt.size(config%dims(kdim)%v)) then
+    print *,index_1d,'nd_indices', nd_indices
+    call CHKERR(1_mpiint, 'wrong indices in kdim')
+  endif
+  sample_pnt = config%dims(kdim)%v(nd_indices(kdim))
+  ierr = 0
+end subroutine
+
+subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir, S_tol, T_tol)
+    class(t_optprop_LUT) :: OPP
+    type(t_lut_config), intent(in) :: config
+    integer(iintegers), intent(in) :: index_1d
+    integer(iintegers), intent(in) :: src
+    logical, intent(in) :: dir
+    integer(mpiint), intent(in) :: comm
+
+    real(ireals),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
+    real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
+
+    real(ireals) :: aspect_zx, aspect_zy, tauz, w0, g, phi, theta
+    integer(mpiint) :: ierr
+
+    call get_sample_pnt_by_name_and_index(config, 'aspect_zx', index_1d, aspect_zx, ierr); call CHKERR(ierr, 'aspect_zx has to be present')
+    call get_sample_pnt_by_name_and_index(config, 'tau', index_1d, tauz, ierr); call CHKERR(ierr, 'tauz has to be present')
+    call get_sample_pnt_by_name_and_index(config, 'w0', index_1d, w0, ierr); call CHKERR(ierr, 'w0 has to be present')
+    call get_sample_pnt_by_name_and_index(config, 'g', index_1d, g, ierr); call CHKERR(ierr, 'g has to be present')
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+      call get_sample_pnt_by_name_and_index(config, 'theta', index_1d, theta, ierr); call CHKERR(ierr, 'theta has to be present for direct calculations')
+    endif
+
+    call get_sample_pnt_by_name_and_index(config, 'aspect_zy', index_1d, aspect_zy, ierr)
+    if(ierr.ne.0) then
+      aspect_zy = aspect_zx ! set dy = dy
+    endif
+
+    call bmc_wrapper(OPP, src, aspect_zx, aspect_zy, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
+
+end subroutine
+
+subroutine bmc_wrapper(OPP, src, aspect_zx, aspect_zy, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
     class(t_optprop_LUT) :: OPP
     integer(iintegers),intent(in) :: src
-    integer(mpiint),intent(in) :: comm
     logical,intent(in) :: dir
-    real(ireals),intent(in) :: aspect, tauz, w0, g, phi, theta
+    integer(mpiint),intent(in) :: comm
+    real(ireals), intent(in) :: aspect_zx, aspect_zy, tauz, w0, g, phi, theta
     real(ireals) :: dx,dy
 
     real(ireals),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
@@ -1014,8 +1050,8 @@ subroutine bmc_wrapper(OPP, src, aspect, tauz, w0, g, dir, phi, theta, comm, S_d
     real(ireals) :: bg(3)
     real(ireals), parameter :: dz = 100
 
-    dx = dz / aspect
-    dy = dx
+    dx = dz / aspect_zx
+    dy = dz / aspect_zy
 
     bg(1) = tauz / dz * (one-w0)
     bg(2) = tauz / dz * w0
@@ -1033,154 +1069,6 @@ subroutine bmc_wrapper(OPP, src, aspect, tauz, w0, g, dir, phi, theta, comm, S_d
       inp_rtol=stddev_rtol-epsilon(stddev_rtol)*10 )
     !print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
-
-  subroutine check_diffLUT_matches_pspace(LUT)
-      type(diffuseTable),intent(in) :: LUT
-      real(ireals),allocatable :: buf(:)
-      character(default_str_len) :: str(3)
-      integer(iintegers) align(3);
-      write(str(1),FMT='(A)') "diffuse"
-      write(str(2),FMT='(A)') "pspace"
-      align=0
-
-      write(str(3),FMT='(A)') "aspect  " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%aspect)) align(1 ) =1 ; if(allocated(buf))deallocate(buf )
-      write(str(3),FMT='(A)') "tau     " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%tau)   ) align(1 ) =1 ; if(allocated(buf))deallocate(buf )
-      write(str(3),FMT='(A)') "w0      " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%w0 )   ) align(2 ) =1 ; if(allocated(buf))deallocate(buf )
-      write(str(3),FMT='(A)') "g       " ; call ncload([LUT%fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf, LUT%pspace%g  )   ) align(3 ) =1 ; if(allocated(buf))deallocate(buf )
-
-      if(any(align.ne.0)) stop 'parameter space of direct LUT coefficients is not aligned!'
-  end subroutine
-  subroutine check_dirLUT_matches_pspace(LUT,fname)
-      type(directTable),intent(in) :: LUT
-      character(len=*),intent(in) :: fname
-      real(ireals),allocatable :: buf(:)
-      character(default_str_len) :: str(3)
-      integer(iintegers) align(5);
-      write(str(1),FMT='(A)') "direct"
-      write(str(2),FMT='(A)') "pspace"
-      align=0
-
-      write(str(3),FMT='(A)') "aspect  "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%aspect)  ) align(1) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(3),FMT='(A)') "tau     "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%tau   )  ) align(1) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(3),FMT='(A)') "w0      "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%w0    )  ) align(2) =1 ; if(allocated(buf)) deallocate(buf )
-      write(str(3),FMT='(A)') "g       "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%g     )  ) align(3) =1 ; if(allocated(buf)) deallocate(buf )
-      !write(str(3),FMT='(A)') "phi     "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%phi   )  ) align(4) =1 ; if(allocated(buf)) deallocate(buf )
-      !write(str(3),FMT='(A)') "theta   "  ; call ncload([fname,str(1),str(2),str(3)],buf,iierr ) ; if(.not.compare_same( buf,LUT%pspace%theta )  ) align(5) =1 ; if(allocated(buf)) deallocate(buf )
-
-      if(any(align.ne.0)) stop 'parameter space of direct LUT coefficients is not aligned!'
-    end subroutine
-  function compare_same(a,b)
-    !> @brief compare 2 arrays that they are approximatly the same and
-    !> if not print them next to each other
-    logical :: compare_same
-    real(ireals),intent(in) :: a(:),b(:)
-    integer(iintegers) :: k
-    if( all( shape(a).ne.shape(b) ) ) then
-      print *,'compare_same : was called with differing shapes!', shape(a),'::',shape(b)
-      compare_same = .False.
-      return
-    endif
-    compare_same = all( rel_approx( a, b, 1e-1_ireals ) )
-    if(.not. compare_same ) then
-      print *,'Compare_Same :: Arrays do not have the same values:'
-      do k=1,size(a)
-        print *,'k=',k,'a',a(k),'b',b(k),'diff',a(k)-b(k)
-      enddo
-    endif
-end function
-
-subroutine determine_angles_to_load(comm, interp_mode, LUT, azis, szas, mask)
-    integer(mpiint) ,intent(in) :: comm
-    integer(iintegers),intent(in) :: interp_mode
-    type(directTable) :: LUT
-    real(ireals),intent(in) :: szas(:),azis(:) ! all solar zenith angles that happen in this scene
-    logical,intent(out) :: mask(size(LUT%pspace%phi),size(LUT%pspace%theta)) ! boolean array, which LUT entries should be loaded
-
-    integer(iintegers) :: itheta, iphi, itheta1, iphi1
-    logical :: lneed_azi(2), lneed_sza(2)
-    real(ireals) :: theta(2),phi(2) ! sza and azimuth angle
-
-    integer(mpiint) :: comm_size, myid
-
-    call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
-    call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
-
-    mask = .False.
-    ! Check if really need to load it... i.e. we only want to load angles which are necessary for this run.
-    do itheta=1,size(LUT%pspace%theta)
-      do iphi  =1,size(LUT%pspace%phi)
-
-        iphi1   = min(size(LUT%pspace%phi  , kind=iintegers),   iphi+i1)
-        itheta1 = min(size(LUT%pspace%theta, kind=iintegers), itheta+i1)
-
-        phi   = LUT%pspace%phi( [ iphi, iphi1 ] )
-        theta = LUT%pspace%theta( [ itheta, itheta1 ]  )
-
-        select case(interp_mode)
-
-        case(1:3) ! only load nearest neighbors
-            lneed_azi(1) = any( azis .ge. phi(1)       .and. azis .le. sum(phi)/2 )
-            lneed_azi(2) = any( azis .ge. sum(phi)/2   .and. azis .le. phi(2) )
-
-        case(4) ! interpolate azimuth -- therefore also need surrounding tables
-            lneed_azi = any( azis .ge. phi(1)       .and. azis .le. phi(2) )
-
-        case default
-            stop 'interpolation mode not implemented yet! please choose something else! '
-        end select
-
-        select case(interp_mode)
-
-        case(1:2) ! only load nearest neighbors
-            lneed_sza(1) = any( szas .ge. theta(1)     .and. szas .le. sum(theta)/2 )
-            lneed_sza(2) = any( szas .ge. sum(theta)/2 .and. szas .le. theta(2) )
-
-        case(3:4) ! interpolate sza -- therefore also need surrounding tables
-            lneed_sza = any( szas .ge. theta(1)     .and. szas .le. theta(2) )
-
-        case default
-            stop 'interpolation mode not implemented yet! please choose something else! '
-        end select
-
-        !print *,'determine_angles_to_load: occuring azimuths',': phi,theta',phi,theta,'need_azi',lneed_azi,'lneed_sza',lneed_sza
-        if(any(int(azis, kind=iintegers).eq.OPP_LUT_ALL_ANGLES)) lneed_azi = .True.
-        if(any(int(szas, kind=iintegers).eq.OPP_LUT_ALL_ANGLES)) lneed_sza = .True.
-
-        if( lneed_azi(1) .and. lneed_sza(1) ) mask(iphi  , itheta ) = .True.
-        if( lneed_azi(1) .and. lneed_sza(2) ) mask(iphi  , itheta1) = .True.
-        if( lneed_azi(2) .and. lneed_sza(1) ) mask(iphi1 , itheta ) = .True.
-        if( lneed_azi(2) .and. lneed_sza(2) ) mask(iphi1 , itheta1) = .True.
-
-        !if (all( lneed_azi .and. lneed_sza )) mask([iphi,iphi+1],[itheta,itheta+1]) = .True. !todo breaks if we need either theta+1 or phi+1 i.e. uneven sza or phi=90
-        !if (all( lneed_azi .and. lneed_sza )) mask([iphi],[itheta]) = .True. !todo breaks if we need either theta+1 or phi+1 i.e. uneven sza or phi=90
-      enddo
-    enddo
-
-    if(ldebug_optprop .and. myid.eq.0) then
-      print *,'       phis',LUT%pspace%range_phi
-      do itheta=1,size(LUT%pspace%theta)
-        print *,'theta=',LUT%pspace%theta(itheta),' :: ',mask(:,itheta)
-      enddo
-    endif
-
-    ! in case ranks would require different angles, we should broadcast this here. in principal ranks may only load the LUT they need, this approach may however not be the easiest to implement?
-
-    do itheta=1,size(LUT%pspace%theta)
-      do iphi  =1,size(LUT%pspace%phi)
-        mask(iphi  , itheta ) = mpi_logical_or(comm, mask(iphi, itheta )) ! todo this is terrible that we send many messages instead of one bigger one...
-      enddo
-    enddo
-end subroutine
-
-
-function exp_index_to_param(index,range,N,expn)
-    real(ireals) :: exp_index_to_param
-    real(ireals),intent(in) :: index,range(2),expn
-    integer(iintegers),intent(in) :: N
-    real(ireals) :: expn1
-    expn1=one/expn
-    exp_index_to_param = lin_index_to_param( index, range**expn1, N) ** expn
-end function
 function lin_index_to_param(index,range,N)
     real(ireals) :: lin_index_to_param
     real(ireals),intent(in) :: index,range(2)
@@ -1192,140 +1080,141 @@ function lin_index_to_param(index,range,N)
     endif
 end function
 
-subroutine set_parameter_space(OPP,ps)
-    class(t_optprop_LUT) :: OPP
-    type(parameter_space),intent(inout) :: ps
-    real(ireals),parameter :: maximum_transmission=one-1e-7_ireals !one-epsilon(maximum_transmission) ! this parameter defines the lambert beer transmission we want the LUT to have given a pathlength of the box diameter
-    real(ireals),parameter :: minimum_transmission=1e-30_ireals
-    real(ireals) :: transmission
-    integer(iintegers) :: k
+subroutine populate_LUT_dim(dimname, N, lut_dim, vrange, preset)
+  character(len=*),intent(in) :: dimname
+  integer(iintegers), intent(in) :: N
+  type(t_LUT_dim),intent(out) :: lut_dim
+  real(ireals), optional :: vrange(:), preset(:)
+  integer(iintegers) :: k
+  if(allocated(lut_dim%v)) return ! already done
+  allocate(lut_dim%v(N))
 
-    OPP%Naspect= Naspect
-    OPP%Ntau   = Ntau
-    OPP%Nw0    = Nw0
-    OPP%Ng     = Ng
-    OPP%Nphi   = Nphi
-    OPP%Ntheta = Ntheta
+  if(present(vrange)) then
+    do k=1,N
+      lut_dim%v(k) = lin_index_to_param(one*k, vrange, N)
+    enddo
+  elseif(present(preset)) then
+    if(size(preset).ne.N) &
+      call CHKERR(1_mpiint, 'Given preset size does not conform to proposed size N '//itoa(N)//' vs '//itoa(size(preset)))
+    lut_dim%v = preset
+  else
+    call CHKERR(1_mpiint, 'Have to provide either a number of a preset for LUT dimension')
+  endif
+
+  lut_dim%vrange = [lut_dim%v(1), lut_dim%v(N)]
+  lut_dim%dimname = trim(dimname)
+  lut_dim%N = size(lut_dim%v)
+end subroutine
+
+subroutine set_parameter_space(OPP)
+    class(t_optprop_LUT) :: OPP
+    allocate(OPP%dirconfig)
+    allocate(OPP%diffconfig)
 
     select type(OPP)
-      class is (t_optprop_LUT_1_2)
-          OPP%Nphi   = 1 ! azimithally average in 1D
-          OPP%interp_mode = interp_mode_1_2
+      !class is (t_optprop_LUT_1_2)
+      !    OPP%Nphi   = 1 ! azimithally average in 1D
+      !    OPP%interp_mode = interp_mode_1_2
       class is (t_optprop_LUT_8_10)
           OPP%interp_mode = interp_mode_8_10
-      class is (t_optprop_LUT_3_10)
-          OPP%interp_mode = interp_mode_3_10
-      class is (t_optprop_LUT_3_6)
-          OPP%interp_mode = interp_mode_3_6
-      class is (t_optprop_LUT_wedge_5_8)
-          OPP%interp_mode = interp_mode_wedge_5_8
-          ps%range_phi = [-70, 70]
+          allocate(OPP%dirconfig%dims(6))
+          call populate_LUT_dim('tau',       Ntau, OPP%dirconfig%dims(1), preset=preset_tau)
+          call populate_LUT_dim('w0',        Nw0, OPP%dirconfig%dims(2), preset=preset_w0)
+          call populate_LUT_dim('g',         Ng, OPP%dirconfig%dims(3), preset=preset_g)
+          call populate_LUT_dim('aspect_zx', Naspect, OPP%dirconfig%dims(4), preset=preset_aspect)
+          call populate_LUT_dim('phi',       Nphi, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
+          call populate_LUT_dim('theta',     Ntheta, OPP%dirconfig%dims(6), vrange=real([0,90], ireals))
+          !call populate_LUT_dim('theta', Ntheta, OPP%dirconfig%dims(6), preset=preset_theta)
+          allocate(OPP%diffconfig%dims(4))
+          call populate_LUT_dim('tau',       Ntau, OPP%diffconfig%dims(1), preset=preset_tau)
+          call populate_LUT_dim('w0',        Nw0, OPP%diffconfig%dims(2), preset=preset_w0)
+          call populate_LUT_dim('g',         Ng, OPP%diffconfig%dims(3), preset=preset_g)
+          call populate_LUT_dim('aspect_zx', Naspect, OPP%diffconfig%dims(4), preset=preset_aspect)
+
+      !class is (t_optprop_LUT_3_10)
+      !    OPP%interp_mode = interp_mode_3_10
+      !class is (t_optprop_LUT_3_6)
+      !    OPP%interp_mode = interp_mode_3_6
+      !class is (t_optprop_LUT_wedge_5_8)
+      !    OPP%interp_mode = interp_mode_wedge_5_8
+      !    ps%range_phi = [-70, 70]
       class default
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select
 
-    if(.not. allocated(ps%aspect)) allocate(ps%aspect(OPP%Naspect))
-    if(.not. allocated(ps%tau   )) allocate(ps%tau   (OPP%Ntau   ))
-    if(.not. allocated(ps%w0    )) allocate(ps%w0    (OPP%Nw0    ))
-    if(.not. allocated(ps%g     )) allocate(ps%g     (OPP%Ng     ))
-    if(.not. allocated(ps%phi   )) allocate(ps%phi   (OPP%Nphi   ))
-    if(.not. allocated(ps%theta )) allocate(ps%theta (OPP%Ntheta ))
+    ! Determine offsets
+    allocate(OPP%dirconfig%offsets(size(OPP%dirconfig%dims)))
+    OPP%dirconfig%offsets = ndarray_offsets(OPP%dirconfig%dims(:)%N)
 
-    ! -------------- Setup aspect support points
+    allocate(OPP%diffconfig%offsets(size(OPP%diffconfig%dims)))
+    OPP%diffconfig%offsets = ndarray_offsets(OPP%diffconfig%dims(:)%N)
 
-    do k=1,OPP%Naspect
-      ps%aspect(k) = lin_index_to_param(one*k, ps%range_aspect, OPP%Naspect)
-    enddo
-
-    ! determine support points over a range
-    ! ATTENTION, this is currently not good for tau...
-    ! better use preset dimensions (happens at the end of the routine
-    ! see in optprop_parameters for details
-
-    ! -------------- Setup tau support points
-
-    ps%range_tau   = [ -log(maximum_transmission), -log(minimum_transmission) ]
-
-    do k=1,OPP%Ntau
-      transmission = lin_index_to_param(one*k, [minimum_transmission, maximum_transmission], OPP%Ntau)
-      ps%tau(k)    = -log(transmission)
-    enddo
-
-    ! -------------- Setup w0 support points
-
-    do k=1,OPP%Nw0
-      ps%w0(k) = lin_index_to_param(one*k, ps%range_w0, OPP%Nw0)
-    enddo
-
-    ! -------------- Setup g support points
-
-    if(ldelta_scale) ps%range_g=[zero,.5_ireals]
-
-    do k=1,OPP%Ng
-      ps%g(k)     = exp_index_to_param(one*k,ps%range_g,OPP%Ng, .25_ireals )
-    enddo
-
-    if(OPP%Ng.eq.1) then
-      ps%g(1)=zero
-      ps%range_g=zero
-    endif
-
-
-    ! -------------- Setup phi/theta support points
-
-    do k=1,OPP%Nphi
-      ps%phi(k)   = lin_index_to_param(one*k,ps%range_phi,OPP%Nphi)
-    enddo
-    do k=1,OPP%Ntheta
-      ps%theta(k) = lin_index_to_param(one*k,ps%range_theta,OPP%Ntheta)
-    enddo
-
-
-    ! ------------- Overwrite dimensions with preset values
-
-    if (use_prescribed_LUT_dims) then
-      ps%aspect     = preset_aspect
-      ps%tau        = preset_tau
-      ps%w0         = preset_w0
-      ps%g          = preset_g
-      ps%theta      = preset_theta
-
-      ps%range_aspect = [ps%aspect(1), ps%aspect(Naspect)]
-      ps%range_tau    = [ps%tau   (1), ps%tau   (Ntau   )]
-      ps%range_w0     = [ps%w0    (1), ps%w0    (Nw0    )]
-      ps%range_g      = [ps%g     (1), ps%g     (Ng     )]
-      ps%range_theta  = [ps%theta (1), ps%theta (Ntheta )]
-    endif
+    !if(ldebug) then
+    !  print *,'set_parameter space dims:', size(OPP%diffconfig%dims), size(OPP%dirconfig%dims)
+    !  do k=1,size(OPP%dirconfig%dims)
+    !    print *,'dim ',trim(OPP%dirconfig%dims(k)%dimname), OPP%dirconfig%offsets(k), OPP%dirconfig%dims(k)%vrange, ':', OPP%dirconfig%dims(k)%v
+    !  enddo
+    !endif
 end subroutine
 
-subroutine LUT_get_dir2dir(OPP, in_aspect, in_tauz, in_w0, g, phi, theta, C)
+  subroutine scatter_LUTtables(OPP, comm)
+      use m_optprop_parameters, only: luse_memory_map
+      integer(mpiint) ,intent(in) :: comm
+      class(t_optprop_LUT) :: OPP
+
+      integer(mpiint) :: myid, ierr
+      real(ireals), pointer :: mmap_ptr(:,:)=>NULL()
+
+
+      call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
+
+      if (luse_memory_map) then
+        call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', OPP%Sdiff%c, mmap_ptr, ierr)
+        if(associated(OPP%Sdiff%c)) deallocate(OPP%Sdiff%c)
+        OPP%Sdiff%c => mmap_ptr
+
+        call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', OPP%Sdir%c, mmap_ptr, ierr)
+        if(associated(OPP%Sdir%c)) deallocate(OPP%Sdir%c)
+        OPP%Sdir%c => mmap_ptr
+
+        call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', OPP%Tdir%c, mmap_ptr, ierr)
+        if(associated(OPP%Tdir%c)) deallocate(OPP%Tdir%c)
+        OPP%Tdir%c => mmap_ptr
+
+      else
+        if( mpi_logical_or(comm, .not.associated(OPP%Sdir%c) )) &
+          call imp_bcast(comm, OPP%Sdir%c, 0_mpiint)  ! DIRECT 2 DIRECT
+
+        if( mpi_logical_or(comm, .not.associated(OPP%Tdir%c) )) &
+          call imp_bcast(comm, OPP%Tdir%c, 0_mpiint)  ! DIRECT 2 DIFFUSE
+
+        if( mpi_logical_or(comm, .not.associated(OPP%Sdiff%c) )) &
+          call imp_bcast(comm, OPP%Sdiff%c, 0_mpiint)
+
+      endif
+  end subroutine
+
+subroutine LUT_get_dir2dir(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: in_aspect, in_tauz, in_w0, g, phi, theta
+    real(ireals),intent(in) :: sample_pts(:)
     real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams**2)
-    real(ireals) :: aspect, tauz, w0, norm
-    integer(iintegers) :: src
 
-    real(ireals) :: pti(6)
-    !real(ireals) :: vals(OPP%dir_streams**2, 2)
+    integer(iintegers) :: src, kdim, ind1d
+    real(ireals) :: pti(size(sample_pts)), norm
 
-    aspect = in_aspect; tauz = in_tauz; w0 = in_w0
-    if(ldebug_optprop) call catch_limits(OPP%dirLUT%pspace,aspect, tauz, w0, g)
-
-    pti = get_indices_6d(aspect, tauz, w0, g, phi, theta, OPP%dirLUT%pspace)
+    do kdim = 1, size(sample_pts)
+      pti(kdim) = search_sorted_bisection(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
+    enddo
 
     select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
-      C = OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
+      ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti))
+      C = OPP%Tdir%c(:, ind1d)
     case(2)
-      call interp_4d(pti, OPP%dirLUT%T(nint(pti(5)), nint(pti(6)) )%c, C)
-    case(3)
-      call interp_4p1d(pti([1,2,3,4,6]), OPP%dirLUT%T(nint(pti(5)), :), C)
-    case(4)
-      call interp_4p2d(pti, OPP%dirLUT%T(:, :), C)
-
+      call interp_vec_simplex_nd(pti, OPP%Tdir%c, OPP%dirconfig%offsets, C)
     case default
-      stop 'interpolation mode not implemented yet! please choose something else! '
+      call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
     end select
 
     if(ldebug_optprop) then
@@ -1340,46 +1229,34 @@ subroutine LUT_get_dir2dir(OPP, in_aspect, in_tauz, in_w0, g, phi, theta, C)
         do src=1,OPP%dir_streams
           print *,'SUM dir2dir coeff for src ',src,' :: sum ',sum(C( src:size(C):OPP%dir_streams)),' :: coeff',C( src:size(C):OPP%dir_streams )
         enddo
-        call exit(1)
+        call CHKERR(1_mpiint, 'Check for energy conservation failed')
       endif
     endif
+    !call CHKERR(1_mpiint, 'DEBUG')
 end subroutine
 
-subroutine LUT_get_dir2diff(OPP, in_aspect, in_tauz, in_w0, g, phi, theta, C)
+subroutine LUT_get_dir2diff(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: in_aspect, in_tauz, in_w0, g, phi, theta
+    real(ireals),intent(in) :: sample_pts(:)
     real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams*OPP%diff_streams)
 
-    real(ireals) :: aspect, tauz, w0
-    real(ireals) :: pti(6),norm
-    integer(iintegers) :: src
+    integer(iintegers) :: src, kdim, ind1d
+    real(ireals) :: pti(size(sample_pts)), norm
 
-    aspect = in_aspect; tauz = in_tauz; w0 = in_w0
-    if(ldebug_optprop) then
-      call catch_limits(OPP%dirLUT%pspace,aspect, tauz, w0, g)
-      if(size(C).ne.OPP%dir_streams*OPP%diff_streams) stop 'LUT_get_dir2diff called with wrong array shape'
-    endif
-
-    pti = get_indices_6d(aspect, tauz, w0, g, phi, theta, OPP%dirLUT%pspace)
+    do kdim = 1, size(sample_pts)
+      pti(kdim) = search_sorted_bisection(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
+    enddo
 
     select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
-      C = OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
-
+      ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti))
+      C = OPP%Sdir%c(:, ind1d)
     case(2)
-      call interp_4d(pti, OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c, C)
-
-    case(3)
-      call interp_4p1d(pti([1,2,3,4,6]), OPP%dirLUT%S(nint(pti(5)), :), C)
-
-    case(4)
-      call interp_4p2d(pti, OPP%dirLUT%S(:, :), C)
-
+      call interp_vec_simplex_nd(pti, OPP%Sdir%c, OPP%dirconfig%offsets, C)
     case default
-      stop 'interpolation mode not implemented yet! please choose something else! '
+      call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
     end select
-
 
     if(ldebug_optprop) then
       !Check for energy conservation:
@@ -1389,38 +1266,35 @@ subroutine LUT_get_dir2diff(OPP, in_aspect, in_tauz, in_w0, g, phi, theta, C)
         if(real(norm).gt.one+1e-5_ireals) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
-        print *,'Error in dir2diff coeffs :: ierr',iierr,':',in_aspect, in_tauz, in_w0, g, phi, theta,'::',C,'::',shape(OPP%dirLUT%S( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
-        print *,'Error in dir2dir coeffs :: ierr',iierr,'::',OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ),'::',shape(OPP%dirLUT%T( nint(pti(5)), nint(pti(6)) )%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) ))
         do src=1,OPP%diff_streams
           print *,'SUM dir2diff coeff for src ',src,' :: sum ',sum(C( src:size(C):OPP%dir_streams)),' :: coeff',C( src:size(C):OPP%dir_streams )
         enddo
-        call exit(1)
+        call CHKERR(1_mpiint, 'Check for energy conservation failed')
       endif
     endif
 end subroutine
-subroutine LUT_get_diff2diff(OPP, in_aspect, in_tauz, in_w0, g, C)
+
+subroutine LUT_get_diff2diff(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: in_aspect, in_tauz, in_w0, g
+    real(ireals),intent(in) :: sample_pts(:)
     real(ireals),intent(out):: C(:) ! dimension(OPP%diff_streams**2)
 
-    real(ireals) :: aspect, tauz, w0
-    real(ireals) :: pti(4),norm
-    integer(iintegers) :: src
+    integer(iintegers) :: src, kdim, ind1d
+    real(ireals) :: pti(size(sample_pts)), norm
 
-    aspect = in_aspect; tauz = in_tauz; w0 = in_w0
-    if(ldebug_optprop) call catch_limits(OPP%diffLUT%pspace, aspect, tauz, w0, g)
-
-    pti = get_indices_4d(aspect, tauz, w0, g, OPP%diffLUT%pspace)
+    do kdim = 1, size(sample_pts)
+      pti(kdim) = search_sorted_bisection(OPP%diffconfig%dims(kdim)%v, sample_pts(kdim))
+    enddo
 
     select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
-      C = OPP%diffLUT%S%c(:,nint(pti(1)), nint(pti(2)), nint(pti(3)), nint(pti(4)) )
-    case(2:4)
-      ! Linear interpolation
-      call interp_4d(pti, OPP%diffLUT%S%c, C)
+      ind1d = ind_nd_to_1d(OPP%diffconfig%offsets, nint(pti))
+      C = OPP%Sdiff%c(:, ind1d)
+    case(2)
+      call interp_vec_simplex_nd(pti, OPP%Sdiff%c, OPP%diffconfig%offsets, C)
     case default
-      stop 'interpolation mode not implemented yet! please choose something else! '
+      call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
     end select
 
     if(ldebug_optprop) then
@@ -1431,122 +1305,122 @@ subroutine LUT_get_diff2diff(OPP, in_aspect, in_tauz, in_w0, g, C)
         if(norm.gt.one+1e-5_ireals) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
-        print *,'Error in diff2diff coeffs :: ierr',iierr, ':', in_aspect, in_tauz, in_w0, g, '::', C
         do src=1,OPP%diff_streams
           print *,'SUM diff2diff coeff for src ',src,' :: sum ',sum(C( src:size(C):OPP%diff_streams)),' :: coeff',C(src:size(C):OPP%diff_streams)
         enddo
-        call exit(1)
+        call CHKERR(1_mpiint, 'Check for energy conservation failed')
       endif
     endif
 end subroutine
 
-subroutine interp_4p2d(pti,ctable,C)
-        integer,parameter :: Ndim=6
-        real(ireals),intent(in) :: pti(Ndim)
-        type(table),intent(in) :: ctable(:,:)  ! contains Nphi, Ntheta databases
-        real(ireals),intent(out) :: C(:)
+!subroutine interp_4p2d(pti,ctable,C)
+!        integer,parameter :: Ndim=6
+!        real(ireals),intent(in) :: pti(Ndim)
+!        type(table),intent(in) :: ctable(:,:)  ! contains Nphi, Ntheta databases
+!        real(ireals),intent(out) :: C(:)
+!
+!        real(ireals) :: weights(Ndim)
+!        integer(iintegers) :: indices(2,2),fpti(Ndim)
+!
+!        ! Instead of doing a full interpolation in 6 dimension we start out with
+!        ! 4 dimensions only at the cornerstones of the 4d hypercube
+!        real(ireals) :: C4(size(C),6)
+!
+!        ! First determine the array indices, where to look.
+!        fpti = floor(pti)
+!        weights = modulo(pti, one)
+!
+!        indices(:,1) = max(i1, min( ubound(ctable,1, kind=iintegers), [i0,i1] +fpti(5) ) )
+!        indices(:,2) = max(i1, min( ubound(ctable,2, kind=iintegers), [i0,i1] +fpti(6) ) )
+!
+!        call interp_4d( pti(1:4), ctable(indices(1,1), indices(1,2) )%c, C4(:,1) ) ! differing azimuth
+!        call interp_4d( pti(1:4), ctable(indices(2,1), indices(1,2) )%c, C4(:,2) ) !        "
+!        call interp_4d( pti(1:4), ctable(indices(1,1), indices(2,2) )%c, C4(:,3) )
+!        call interp_4d( pti(1:4), ctable(indices(2,1), indices(2,2) )%c, C4(:,4) )
+!
+!        C4(:,5) = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
+!        C4(:,6) = C4(:,3) + weights(5) * ( C4(:,4) - C4(:,3) )
+!        C       = C4(:,5) + weights(6) * ( C4(:,6) - C4(:,5) )
+!end subroutine
+!subroutine interp_4p1d(pti,ctable,C)
+!        integer,parameter :: Ndim=5
+!        real(ireals),intent(in) :: pti(Ndim)
+!        type(table),intent(in) :: ctable(:)  ! contains N databases
+!        real(ireals),intent(out) :: C(:)
+!
+!        real(ireals) :: weights(Ndim)
+!        integer(iintegers) :: indices(2),fpti(Ndim)
+!
+!        ! Instead of doing a full interpolation in 6 dimension we start out with
+!        ! 4 dimensions only at the cornerstones of the 4d hypercube
+!        real(ireals) :: C4(size(C),2)
+!
+!        ! First determine the array indices, where to look.
+!        fpti = floor(pti)
+!        weights = modulo(pti, one)
+!
+!        indices(:) = max(i1, min( ubound(ctable,1, kind=iintegers), [i0,i1] +fpti(5)))
+!
+!        call interp_4d( pti(1:4), ctable(indices(1))%c, C4(:,1) ) ! differing zenith
+!        call interp_4d( pti(1:4), ctable(indices(2))%c, C4(:,2) ) !        "
+!
+!        C = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
+!end subroutine
+!
+!function get_indices_4d(aspect, tauz, w0, g, ps)
+!    real(ireals) :: get_indices_4d(4)
+!    real(ireals),intent(in) :: aspect, tauz, w0, g
+!    type(parameter_space),intent(in) :: ps
+!
+!    get_indices_4d(1) = search_sorted_bisection(ps%aspect, aspect)
+!    get_indices_4d(2) = search_sorted_bisection(ps%tau   , tauz)
+!    get_indices_4d(3) = search_sorted_bisection(ps%w0    , w0)
+!    get_indices_4d(4) = search_sorted_bisection(ps%g     , g)
+!end function
+!function get_indices_6d(aspect, tauz, w0, g, phi, theta, ps)
+!    real(ireals) :: get_indices_6d(6)
+!    real(ireals),intent(in) :: aspect, tauz, w0, g, phi, theta
+!    type(parameter_space),intent(in) :: ps
+!
+!    get_indices_6d(1:4) = get_indices_4d(aspect, tauz, w0, g, ps)
+!
+!    get_indices_6d(5) = search_sorted_bisection(ps%phi  ,phi )
+!    get_indices_6d(6) = search_sorted_bisection(ps%theta,theta)
+!end function
+!
+!logical function valid_input(val,range)
+!    real(ireals),intent(in) :: val,range(2)
+!    if(val.lt.range(1) .or. val.gt.range(2) ) then
+!      valid_input=.False.
+!      print *,'ohoh, this val is not in the optprop database range!',val,'not in',range
+!    else
+!      valid_input=.True.
+!    endif
+!end function
 
-        real(ireals) :: weights(Ndim)
-        integer(iintegers) :: indices(2,2),fpti(Ndim)
-
-        ! Instead of doing a full interpolation in 6 dimension we start out with
-        ! 4 dimensions only at the cornerstones of the 4d hypercube
-        real(ireals) :: C4(size(C),6)
-
-        ! First determine the array indices, where to look.
-        fpti = floor(pti)
-        weights = modulo(pti, one)
-
-        indices(:,1) = max(i1, min( ubound(ctable,1, kind=iintegers), [i0,i1] +fpti(5) ) )
-        indices(:,2) = max(i1, min( ubound(ctable,2, kind=iintegers), [i0,i1] +fpti(6) ) )
-
-        call interp_4d( pti(1:4), ctable(indices(1,1), indices(1,2) )%c, C4(:,1) ) ! differing azimuth
-        call interp_4d( pti(1:4), ctable(indices(2,1), indices(1,2) )%c, C4(:,2) ) !        "
-        call interp_4d( pti(1:4), ctable(indices(1,1), indices(2,2) )%c, C4(:,3) )
-        call interp_4d( pti(1:4), ctable(indices(2,1), indices(2,2) )%c, C4(:,4) )
-
-        C4(:,5) = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
-        C4(:,6) = C4(:,3) + weights(5) * ( C4(:,4) - C4(:,3) )
-        C       = C4(:,5) + weights(6) * ( C4(:,6) - C4(:,5) )
-end subroutine
-subroutine interp_4p1d(pti,ctable,C)
-        integer,parameter :: Ndim=5
-        real(ireals),intent(in) :: pti(Ndim)
-        type(table),intent(in) :: ctable(:)  ! contains N databases
-        real(ireals),intent(out) :: C(:)
-
-        real(ireals) :: weights(Ndim)
-        integer(iintegers) :: indices(2),fpti(Ndim)
-
-        ! Instead of doing a full interpolation in 6 dimension we start out with
-        ! 4 dimensions only at the cornerstones of the 4d hypercube
-        real(ireals) :: C4(size(C),2)
-
-        ! First determine the array indices, where to look.
-        fpti = floor(pti)
-        weights = modulo(pti, one)
-
-        indices(:) = max(i1, min( ubound(ctable,1, kind=iintegers), [i0,i1] +fpti(5)))
-
-        call interp_4d( pti(1:4), ctable(indices(1))%c, C4(:,1) ) ! differing zenith
-        call interp_4d( pti(1:4), ctable(indices(2))%c, C4(:,2) ) !        "
-
-        C = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
-end subroutine
-
-function get_indices_4d(aspect, tauz, w0, g, ps)
-    real(ireals) :: get_indices_4d(4)
-    real(ireals),intent(in) :: aspect, tauz, w0, g
-    type(parameter_space),intent(in) :: ps
-
-    get_indices_4d(1) = search_sorted_bisection(ps%aspect, aspect)
-    get_indices_4d(2) = search_sorted_bisection(ps%tau   , tauz)
-    get_indices_4d(3) = search_sorted_bisection(ps%w0    , w0)
-    get_indices_4d(4) = search_sorted_bisection(ps%g     , g)
-end function
-function get_indices_6d(aspect, tauz, w0, g, phi, theta, ps)
-    real(ireals) :: get_indices_6d(6)
-    real(ireals),intent(in) :: aspect, tauz, w0, g, phi, theta
-    type(parameter_space),intent(in) :: ps
-
-    get_indices_6d(1:4) = get_indices_4d(aspect, tauz, w0, g, ps)
-
-    get_indices_6d(5) = search_sorted_bisection(ps%phi  ,phi )
-    get_indices_6d(6) = search_sorted_bisection(ps%theta,theta)
-end function
-
-logical function valid_input(val,range)
-    real(ireals),intent(in) :: val,range(2)
-    if(val.lt.range(1) .or. val.gt.range(2) ) then
-      valid_input=.False.
-      print *,'ohoh, this val is not in the optprop database range!',val,'not in',range
-    else
-      valid_input=.True.
-    endif
-end function
-subroutine catch_limits(ps, aspect, tauz, w0, g)
-    type(parameter_space),intent(in) :: ps
-    real(ireals),intent(in) :: aspect, tauz, w0, g
-
-    iierr=0
-
-    if( aspect.lt.ps%range_aspect(1) .or. aspect.gt.ps%range_aspect(2) ) then
-      print *,'aspect ratio is not in LookUpTable Range',aspect, 'LUT range',ps%range_aspect
-      iierr=iierr+1
-    endif
-    if( tauz.lt.ps%range_tau(1) .or. tauz.gt.ps%range_tau(2) ) then
-      print *,'tau is not in LookUpTable Range',tauz, 'LUT range',ps%range_tau
-      iierr=iierr+1
-    endif
-    if( w0.lt.ps%range_w0(1) .or. w0.gt.ps%range_w0(2) ) then
-      print *,'w0 is not in LookUpTable Range',w0, 'LUT range',ps%range_w0
-      iierr=iierr+1
-    endif
-    if( g.lt.ps%range_g(1) .or. g.gt.ps%range_g(2) ) then
-      print *,'g is not in LookUpTable Range',g, 'LUT range',ps%range_g
-      iierr=iierr+1
-    endif
-    if(iierr.ne.0) print*, 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.',iierr
-end subroutine
+!subroutine catch_limits(ps, aspect, tauz, w0, g)
+!    type(parameter_space),intent(in) :: ps
+!    real(ireals),intent(in) :: aspect, tauz, w0, g
+!
+!    iierr=0
+!
+!    if( aspect.lt.ps%range_aspect(1) .or. aspect.gt.ps%range_aspect(2) ) then
+!      print *,'aspect ratio is not in LookUpTable Range',aspect, 'LUT range',ps%range_aspect
+!      iierr=iierr+1
+!    endif
+!    if( tauz.lt.ps%range_tau(1) .or. tauz.gt.ps%range_tau(2) ) then
+!      print *,'tau is not in LookUpTable Range',tauz, 'LUT range',ps%range_tau
+!      iierr=iierr+1
+!    endif
+!    if( w0.lt.ps%range_w0(1) .or. w0.gt.ps%range_w0(2) ) then
+!      print *,'w0 is not in LookUpTable Range',w0, 'LUT range',ps%range_w0
+!      iierr=iierr+1
+!    endif
+!    if( g.lt.ps%range_g(1) .or. g.gt.ps%range_g(2) ) then
+!      print *,'g is not in LookUpTable Range',g, 'LUT range',ps%range_g
+!      iierr=iierr+1
+!    endif
+!    if(iierr.ne.0) print*, 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.',iierr
+!end subroutine
 
 end module

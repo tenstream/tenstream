@@ -75,7 +75,7 @@ program main
       enddo
 
       if(myid.eq.0) print *,'calculating coeffs for szas',szas,'azimuths',azis
-      call OPP%init(azis,szas,comm)
+      call OPP%init(comm)
       if(myid.eq.0) print *,'loaded 3_10 coeffs for szas',szas,'azis',azis
 
       call mpi_finalize(ierr)
