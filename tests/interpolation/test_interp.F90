@@ -1,6 +1,6 @@
 module test_interp
     use m_data_parameters, only: iintegers, ireals, default_str_len, one, zero
-    use m_helper_functions, only: ndarray_offsets
+    use m_helper_functions, only: ndarray_offsets, mean
     use m_tenstream_interpolation, only: interp_1d, interp_vec_1d, interp_2d, &
       interp_vec_simplex_nd
 
@@ -8,10 +8,10 @@ module test_interp
 
     implicit none
 
-    real(ireals),parameter :: tol=sqrt(epsilon(one))
+    real(ireals),parameter :: tol=sqrt(epsilon(one))*10
 contains
   @test(npes =[1])
-  subroutine test_interp_vec_simplex_nd(this)
+  subroutine test_interp_vec_simplex_1d_2d(this)
     class (MpiTestMethod), intent(inout) :: this
 
     real(ireals) :: db_2d(1,2,2), db(1,4)
@@ -105,6 +105,122 @@ contains
         @assertEqual(j*.1*2 , res(1),  tol, msg)
       enddo
     enddo
+  end subroutine
+
+  @test(npes =[1])
+  subroutine test_interp_vec_simplex_3d(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    real(ireals) :: db_3d(1,2,2,2), db(1,8)
+    real(ireals) :: res(1)
+    integer(iintegers) :: db_shape(4)
+    integer(iintegers) :: db_offsets(3)
+
+    integer :: i, j, k
+
+    character(default_str_len) :: msg
+    write(msg,*) "3D linear interpolation not as expected: "
+
+    ! 2D LUT in this example @ coordinates: (1,1), (2,1), (1,2), (2,2)
+    !
+    ! 2 --- 4
+    ! |     |
+    ! |     |
+    ! 0 --- 2
+
+    db_3d(1,1,1,1) = 0
+    db_3d(1,2,1,1) = 2
+    db_3d(1,1,2,1) = 2
+    db_3d(1,2,2,1) = 4
+
+    db_3d(1,1,1,2) = 10
+    db_3d(1,2,1,2) = 12
+    db_3d(1,1,2,2) = 12
+    db_3d(1,2,2,2) = 14
+
+    db(1,:) = pack(db_3d, .True.)
+
+    db_shape = shape(db_3d, iintegers)
+    db_offsets = ndarray_offsets(shape(db_3d(1,:,:,:)))
+
+    ! 0-dim, just check corners again, this should actually not even end up in 3dim interp but just go to 0D
+    do i=1,2
+      do j=1,2
+        do k=1,2
+          call interp_vec_simplex_nd([one*i, one*j, one*k], db, db_offsets, res)
+          @assertEqual(db_3d(1,i,j,k) , res(1),  tol, msg)
+        enddo
+      enddo
+    enddo
+
+    ! Center point
+    call interp_vec_simplex_nd([one, one, one]+.5_ireals, db, db_offsets, res)
+    @assertEqual(mean(db), res(1),  tol, msg)
+
+  end subroutine
+
+  @test(npes =[1])
+  subroutine test_interp_vec_simplex_4d(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    real(ireals) :: db_4d(1,2,2,2,2), db(1,16)
+    real(ireals) :: res(1)
+    integer(iintegers) :: db_shape(5)
+    integer(iintegers) :: db_offsets(4)
+
+    integer :: i, j, k, l
+
+    character(default_str_len) :: msg
+    write(msg,*) "3D linear interpolation not as expected: "
+
+    ! 2D LUT in this example @ coordinates: (1,1), (2,1), (1,2), (2,2)
+    !
+    ! 2 --- 4
+    ! |     |
+    ! |     |
+    ! 0 --- 2
+
+    db_4d(1,1,1,1,1) = 0
+    db_4d(1,2,1,1,1) = 2
+    db_4d(1,1,2,1,1) = 2
+    db_4d(1,2,2,1,1) = 4
+
+    db_4d(1,1,1,2,1) = 10
+    db_4d(1,2,1,2,1) = 12
+    db_4d(1,1,2,2,1) = 12
+    db_4d(1,2,2,2,1) = 14
+
+    db_4d(1,1,1,1,2) = 0
+    db_4d(1,2,1,1,2) = 2
+    db_4d(1,1,2,1,2) = 2
+    db_4d(1,2,2,1,2) = 4
+
+    db_4d(1,1,1,2,2) = 10
+    db_4d(1,2,1,2,2) = 12
+    db_4d(1,1,2,2,2) = 12
+    db_4d(1,2,2,2,2) = 14
+
+    db(1,:) = pack(db_4d, .True.)
+
+    db_shape = shape(db_4d, iintegers)
+    db_offsets = ndarray_offsets(shape(db_4d(1,:,:,:,:)))
+
+    ! 0-dim, just check corners again, this should actually not even end up in 3dim interp but just go to 0D
+    do i=1,2
+      do j=1,2
+        do k=1,2
+          do l=1,2
+            call interp_vec_simplex_nd([one*i, one*j, one*k, one*l], db, db_offsets, res)
+            @assertEqual(db_4d(1,i,j,k,l) , res(1),  tol, msg)
+          enddo
+        enddo
+      enddo
+    enddo
+
+    ! Center point
+    call interp_vec_simplex_nd([one, one, one, one]+.5_ireals, db, db_offsets, res)
+    @assertEqual(mean(db), res(1),  tol, msg)
+
   end subroutine
 
   @test(npes =[1])

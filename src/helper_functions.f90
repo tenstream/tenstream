@@ -31,7 +31,7 @@ module m_helper_functions
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique, itoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
+    vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
 
   interface mean
@@ -107,6 +107,13 @@ module m_helper_functions
       integer(iintegers),intent(in) :: i
       character(range(i)+2) :: tmp
       write(tmp,'(i0)') i
+      res = trim(tmp)
+    end function
+    pure function ftoa(i) result(res)
+      character(:),allocatable :: res
+      real(ireals),intent(in) :: i
+      character(range(i)+2) :: tmp
+      write(tmp,*) i
       res = trim(tmp)
     end function
 
