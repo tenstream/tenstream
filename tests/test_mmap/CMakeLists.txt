@@ -47,5 +47,5 @@ target_link_libraries(
   tenstream
   )
 
-add_test(pfunit_${CDIR} ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 16 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR})
+add_test(pfunit_${CDIR} ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 8 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR})
 

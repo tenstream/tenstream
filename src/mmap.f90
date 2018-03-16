@@ -73,7 +73,7 @@ contains
     if(.not.lexists) call CHKERR(1_mpiint, 'Tried to create a mmap from a file that does not exist: '//fname)
 
     open(newunit=funit, file=fname, form='unformatted', access='stream')
-    mmap_c_ptr = c_mmap(0, bytesize, PROT_READ, MAP_SHARED, fnum(funit), offset)
+    mmap_c_ptr = c_mmap(0_c_int, bytesize, PROT_READ, MAP_SHARED, fnum(funit), offset)
     close(funit)
   end subroutine
 
@@ -98,15 +98,36 @@ contains
       size_of_inp_arr = int(sizeof(inp_arr), kind=iintegers)
       allocate(arrshape(size(shape(inp_arr))), source=shape(inp_arr))
     endif
+    call mpi_barrier(comm, ierr)
 
     call imp_bcast(comm, arrshape, 0_mpiint)
     call imp_bcast(comm, size_of_inp_arr, 0_mpiint)
 
-    bytesize = size_of_inp_arr
+    bytesize = int(size_of_inp_arr, kind=c_size_t)
 
     call binary_file_to_mmap(fname, bytesize, mmap_c_ptr)
 
     call c_f_pointer(mmap_c_ptr, mmap_ptr, arrshape)
+  end subroutine
+
+  subroutine munmap_mmap_ptr(mmap_ptr, ierr)
+    real(ireals), pointer, intent(inout) :: mmap_ptr(:,:)
+
+    type(c_ptr) :: mmap_c_ptr
+    integer(c_int) :: cerr
+    integer(c_size_t) :: bytesize
+
+    integer(mpiint) :: ierr
+
+
+    bytesize = int(sizeof(mmap_ptr), kind=c_size_t)
+    mmap_c_ptr = c_loc(mmap_ptr(1,1))
+
+    mmap_ptr=>NULL()
+
+    cerr = c_munmap(mmap_c_ptr, bytesize)
+    if(cerr.ne.0) call CHKERR(cerr, 'Error Unmapping the memory map')
+    ierr = cerr
   end subroutine
 
 end module

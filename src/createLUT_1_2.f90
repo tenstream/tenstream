@@ -55,7 +55,7 @@ program main
       endif
 
       print *,'calculating coeffs for szas',szas,'azis',azis
-      call OPP%init(azis,szas,comm)
+      call OPP%init(comm)
       print *,'loaded 1_2 coeffs for szas',szas,'azis',azis
 
 
