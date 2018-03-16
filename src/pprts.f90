@@ -558,8 +558,7 @@ module m_pprts
         stop 'init pprts: unexpected type for solver'
       end select
 
-      call solver%OPP%init(pack(solver%sun%angles%symmetry_phi,.True.), &
-        pack(solver%sun%angles%theta,.True.),solver%comm )
+      call solver%OPP%init(solver%comm)
 
   !     allocate(solver%OPP)
   !     call solver%OPP%init(pack(solver%sun%angles%symmetry_phi,.True.), &
