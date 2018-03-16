@@ -423,6 +423,7 @@ contains
     case(2)
       call interp_vec_simplex_2d(pti, interp_dims, db, db_offsets, Cres)
     case(3:10)
+      !call interp_vec_bilinear_recursive(size(interp_dims), pti, interp_dims, db, db_offsets, Cres)
       call interp_vec_simplex_recursive(size(interp_dims), pti, interp_dims, db, db_offsets, Cres)
     case default
       call CHKERR(1_mpiint, 'interp_vec_simplex not implemented for '//itoa(size(interp_dims))//' dimensions')
@@ -499,8 +500,7 @@ contains
             wgt_1d = interp_areas(p2) / (interp_areas(p1) + interp_areas(p2))
             Cres = spline(wgt_1d, interp_values(:,p1), interp_values(:,p2))
           end associate
-          !return
-          print *,'Quick Exit 2D -> 1D',Cres
+          return
         endif
       enddo
 
@@ -516,7 +516,42 @@ contains
         Cres(i) = dot_product(interp_values(i,:), interp_areas(1:3)) / interp_areas(4)
       enddo
     end associate
-    print *,'Interp vals', nint(interp_values), Cres
+  end subroutine
+
+  recursive subroutine interp_vec_bilinear_recursive(Ndim, pti, interp_dims, db, db_offsets, Cres)
+    use m_helper_functions, only : distance, triangle_area_by_vertices
+    integer(iintegers),intent(in) :: Ndim
+    real(ireals),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
+    integer(iintegers),intent(in) :: interp_dims(:) ! dimensions in which the interpolation should happen
+    real(ireals),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
+    integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
+    real(ireals),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
+
+    integer(iintegers) :: Ninterpdim
+    real(ireals) :: pti_intermediate(size(pti)), db_intermediate(size(db,dim=1), 2), wgt_1d
+
+    Ninterpdim=size(interp_dims)
+    ! Interpolate first two dimensions with simplex and then one 1d interpolation
+
+    ! Simplex:
+    pti_intermediate = pti
+    pti_intermediate(interp_dims(Ninterpdim)) = floor(pti(interp_dims(Ninterpdim)))
+    if(Ndim.eq.2) then
+      call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), db, db_offsets, db_intermediate(:,1))
+    else
+      call interp_vec_bilinear_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,1))
+    endif
+
+    pti_intermediate(interp_dims(Ninterpdim)) = ceiling(pti(interp_dims(Ninterpdim)))
+    if(Ndim.eq.2) then
+      call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), db, db_offsets, db_intermediate(:,2))
+    else
+      call interp_vec_bilinear_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,2))
+    endif
+
+    wgt_1d = one + modulo(pti(interp_dims(Ninterpdim)), one)
+    Cres = interp_vec_1d(wgt_1d, db_intermediate)
+
   end subroutine
 
   recursive subroutine interp_vec_simplex_recursive(Ndim, pti, interp_dims, db, db_offsets, Cres)
