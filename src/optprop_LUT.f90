@@ -504,10 +504,10 @@ subroutine createLUT(OPP, comm, config, S, T)
               !  print *, myid, 'S%c for isrc', isrc, 'idst', idst, S_diff(idst)
               !enddo
 
-              if( mod(lutindex*(Nsrc-1)+isrc-1, total_size/100).eq.0 ) & !every 1 percent report status
-                  print *,'Calculated LUT...',(100*(lutindex*(Nsrc-1)+isrc-1))/total_size,'%'
+              if( mod((lutindex*Nsrc+isrc-1)*100, total_size).eq.0 ) & !every 1 percent report status
+                  print *,'Calculated LUT...', lutindex, isrc, (lutindex*Nsrc+isrc-1)*100._ireals/total_size,'%'
 
-              if( mod(lutindex*(Nsrc-1)+isrc, total_size/3 ).eq.0 ) then !every 30 percent of LUT dump it.
+              if( mod(lutindex*Nsrc+isrc-1, total_size/3 ).eq.0 ) then !every 30 percent of LUT dump it.
                 print *,'Writing table to file...', S%table_name_c
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 print *,'Writing table to file...', S%table_name_tol
@@ -718,6 +718,7 @@ subroutine bmc_wrapper(OPP, src, aspect_zx, aspect_zy, tauz, w0, g, dir, phi, th
       inp_rtol=stddev_rtol-epsilon(stddev_rtol)*10 )
     !print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
+
 function lin_index_to_param(index,range,N)
     real(ireals) :: lin_index_to_param
     real(ireals),intent(in) :: index,range(2)
