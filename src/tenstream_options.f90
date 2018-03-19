@@ -88,7 +88,7 @@ module m_tenstream_options
           logical :: lshow_options=.False.
           logical :: ltenstr_view=.False.
 
-          logical :: lmpi_is_initialized
+          logical :: lmpi_is_initialized, lpetsc_is_initialized
           integer(mpiint) :: mpierr, myid, numnodes
 
           call mpi_initialized( lmpi_is_initialized, ierr); call CHKERR(ierr)
@@ -98,10 +98,16 @@ module m_tenstream_options
           call MPI_Comm_size( mpi_comm_world, numnodes, mpierr)
           if(mpierr.ne.0) call mpi_abort(mpi_comm_world, mpierr, ierr)
 
+          call PetscInitialized(lpetsc_is_initialized, ierr); call CHKERR(ierr)
+          if(.not.lpetsc_is_initialized) call CHKERR(1_mpiint, 'Petsc has to be initialized before you may call read_commandline_options()')
+
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;call CHKERR(ierr)
-          if(lshow_options) then
-            if(myid.eq.0) call show_options()
-            call CHKERR(1_mpiint)
+          if(lflg.eqv.PETSC_FALSE) then
+            if(lshow_options) then
+              if(myid.eq.0) call show_options()
+              call mpi_barrier(mpi_comm_world, mpierr)
+              call CHKERR(1_mpiint, 'Exiting after show_options')
+            endif
           endif
 
           call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,'-ident',ident,lflg_ident,ierr) ; call CHKERR(ierr)
@@ -116,7 +122,7 @@ module m_tenstream_options
           call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-dx",ident_dx, lflg,ierr)  ; call CHKERR(ierr)
           if( (lflg.eqv.PETSC_FALSE) .and. (lflg_ident.eqv.PETSC_TRUE) ) then
             print *,'If we run with -ident, you need to specify "-dx" commandline option e.g. -dx 70'
-            call CHKERR(1_mpiint)
+            call CHKERR(1_mpiint, 'option -ident '//trim(ident)//' requires also -dx option')
           endif
 
           call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-max_solution_err",options_max_solution_err, lflg,ierr)  ; call CHKERR(ierr)
