@@ -762,9 +762,21 @@ subroutine set_parameter_space(OPP)
     allocate(OPP%diffconfig)
 
     select type(OPP)
-      !class is (t_optprop_LUT_1_2)
-      !    OPP%Nphi   = 1 ! azimithally average in 1D
-      !    OPP%interp_mode = interp_mode_1_2
+      class is (t_optprop_LUT_1_2)
+          OPP%interp_mode = interp_mode_1_2
+          allocate(OPP%dirconfig%dims(6))
+          call populate_LUT_dim('tau',       Ntau, OPP%dirconfig%dims(1), preset=preset_tau)
+          call populate_LUT_dim('w0',        Nw0, OPP%dirconfig%dims(2), preset=preset_w0)
+          call populate_LUT_dim('g',         Ng, OPP%dirconfig%dims(3), preset=preset_g)
+          call populate_LUT_dim('aspect_zx', Naspect, OPP%dirconfig%dims(4), preset=preset_aspect)
+          call populate_LUT_dim('phi',       i1, OPP%dirconfig%dims(5), vrange=real([0], ireals)) ! azimithally average in 1D
+          call populate_LUT_dim('theta',     Ntheta, OPP%dirconfig%dims(6), vrange=real([0,90], ireals))
+          allocate(OPP%diffconfig%dims(4))
+          call populate_LUT_dim('tau',       Ntau, OPP%diffconfig%dims(1), preset=preset_tau)
+          call populate_LUT_dim('w0',        Nw0, OPP%diffconfig%dims(2), preset=preset_w0)
+          call populate_LUT_dim('g',         Ng, OPP%diffconfig%dims(3), preset=preset_g)
+          call populate_LUT_dim('aspect_zx', Naspect, OPP%diffconfig%dims(4), preset=preset_aspect)
+
       class is (t_optprop_LUT_8_10)
           OPP%interp_mode = interp_mode_8_10
           allocate(OPP%dirconfig%dims(6))
@@ -988,115 +1000,5 @@ subroutine LUT_get_diff2diff(OPP, sample_pts, C)
       endif
     endif
 end subroutine
-
-!subroutine interp_4p2d(pti,ctable,C)
-!        integer,parameter :: Ndim=6
-!        real(ireals),intent(in) :: pti(Ndim)
-!        type(table),intent(in) :: ctable(:,:)  ! contains Nphi, Ntheta databases
-!        real(ireals),intent(out) :: C(:)
-!
-!        real(ireals) :: weights(Ndim)
-!        integer(iintegers) :: indices(2,2),fpti(Ndim)
-!
-!        ! Instead of doing a full interpolation in 6 dimension we start out with
-!        ! 4 dimensions only at the cornerstones of the 4d hypercube
-!        real(ireals) :: C4(size(C),6)
-!
-!        ! First determine the array indices, where to look.
-!        fpti = floor(pti)
-!        weights = modulo(pti, one)
-!
-!        indices(:,1) = max(i1, min( ubound(ctable,1, kind=iintegers), [i0,i1] +fpti(5) ) )
-!        indices(:,2) = max(i1, min( ubound(ctable,2, kind=iintegers), [i0,i1] +fpti(6) ) )
-!
-!        call interp_4d( pti(1:4), ctable(indices(1,1), indices(1,2) )%c, C4(:,1) ) ! differing azimuth
-!        call interp_4d( pti(1:4), ctable(indices(2,1), indices(1,2) )%c, C4(:,2) ) !        "
-!        call interp_4d( pti(1:4), ctable(indices(1,1), indices(2,2) )%c, C4(:,3) )
-!        call interp_4d( pti(1:4), ctable(indices(2,1), indices(2,2) )%c, C4(:,4) )
-!
-!        C4(:,5) = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
-!        C4(:,6) = C4(:,3) + weights(5) * ( C4(:,4) - C4(:,3) )
-!        C       = C4(:,5) + weights(6) * ( C4(:,6) - C4(:,5) )
-!end subroutine
-!subroutine interp_4p1d(pti,ctable,C)
-!        integer,parameter :: Ndim=5
-!        real(ireals),intent(in) :: pti(Ndim)
-!        type(table),intent(in) :: ctable(:)  ! contains N databases
-!        real(ireals),intent(out) :: C(:)
-!
-!        real(ireals) :: weights(Ndim)
-!        integer(iintegers) :: indices(2),fpti(Ndim)
-!
-!        ! Instead of doing a full interpolation in 6 dimension we start out with
-!        ! 4 dimensions only at the cornerstones of the 4d hypercube
-!        real(ireals) :: C4(size(C),2)
-!
-!        ! First determine the array indices, where to look.
-!        fpti = floor(pti)
-!        weights = modulo(pti, one)
-!
-!        indices(:) = max(i1, min( ubound(ctable,1, kind=iintegers), [i0,i1] +fpti(5)))
-!
-!        call interp_4d( pti(1:4), ctable(indices(1))%c, C4(:,1) ) ! differing zenith
-!        call interp_4d( pti(1:4), ctable(indices(2))%c, C4(:,2) ) !        "
-!
-!        C = C4(:,1) + weights(5) * ( C4(:,2) - C4(:,1) )
-!end subroutine
-!
-!function get_indices_4d(aspect, tauz, w0, g, ps)
-!    real(ireals) :: get_indices_4d(4)
-!    real(ireals),intent(in) :: aspect, tauz, w0, g
-!    type(parameter_space),intent(in) :: ps
-!
-!    get_indices_4d(1) = search_sorted_bisection(ps%aspect, aspect)
-!    get_indices_4d(2) = search_sorted_bisection(ps%tau   , tauz)
-!    get_indices_4d(3) = search_sorted_bisection(ps%w0    , w0)
-!    get_indices_4d(4) = search_sorted_bisection(ps%g     , g)
-!end function
-!function get_indices_6d(aspect, tauz, w0, g, phi, theta, ps)
-!    real(ireals) :: get_indices_6d(6)
-!    real(ireals),intent(in) :: aspect, tauz, w0, g, phi, theta
-!    type(parameter_space),intent(in) :: ps
-!
-!    get_indices_6d(1:4) = get_indices_4d(aspect, tauz, w0, g, ps)
-!
-!    get_indices_6d(5) = search_sorted_bisection(ps%phi  ,phi )
-!    get_indices_6d(6) = search_sorted_bisection(ps%theta,theta)
-!end function
-!
-!logical function valid_input(val,range)
-!    real(ireals),intent(in) :: val,range(2)
-!    if(val.lt.range(1) .or. val.gt.range(2) ) then
-!      valid_input=.False.
-!      print *,'ohoh, this val is not in the optprop database range!',val,'not in',range
-!    else
-!      valid_input=.True.
-!    endif
-!end function
-
-!subroutine catch_limits(ps, aspect, tauz, w0, g)
-!    type(parameter_space),intent(in) :: ps
-!    real(ireals),intent(in) :: aspect, tauz, w0, g
-!
-!    iierr=0
-!
-!    if( aspect.lt.ps%range_aspect(1) .or. aspect.gt.ps%range_aspect(2) ) then
-!      print *,'aspect ratio is not in LookUpTable Range',aspect, 'LUT range',ps%range_aspect
-!      iierr=iierr+1
-!    endif
-!    if( tauz.lt.ps%range_tau(1) .or. tauz.gt.ps%range_tau(2) ) then
-!      print *,'tau is not in LookUpTable Range',tauz, 'LUT range',ps%range_tau
-!      iierr=iierr+1
-!    endif
-!    if( w0.lt.ps%range_w0(1) .or. w0.gt.ps%range_w0(2) ) then
-!      print *,'w0 is not in LookUpTable Range',w0, 'LUT range',ps%range_w0
-!      iierr=iierr+1
-!    endif
-!    if( g.lt.ps%range_g(1) .or. g.gt.ps%range_g(2) ) then
-!      print *,'g is not in LookUpTable Range',g, 'LUT range',ps%range_g
-!      iierr=iierr+1
-!    endif
-!    if(iierr.ne.0) print*, 'The LookUpTable was asked to give a coefficient, it was not defined for. Please specify a broader range.',iierr
-!end subroutine
 
 end module
