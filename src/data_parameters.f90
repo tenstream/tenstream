@@ -69,12 +69,15 @@ contains
 subroutine init_mpi_data_parameters(comm)
   integer(mpiint),intent(in) :: comm
   integer(mpiint) :: dtsize, ierr, myid, numnodes
-  logical :: lmpi_is_initialized
+  logical :: lmpi_is_initialized, lpetsc_is_initialized
 
   call mpi_initialized( lmpi_is_initialized, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
   if(.not.lmpi_is_initialized) call mpi_init(mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+
+  call PetscInitialized(lpetsc_is_initialized, ierr); call CHKERR(ierr)
+  if(.not.lpetsc_is_initialized) call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
 
   PETSC_COMM_WORLD = comm
 

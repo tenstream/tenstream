@@ -182,6 +182,7 @@ module m_pprts
 
     integer(iintegers) :: k,i,j
     !    character(default_str_len),parameter :: tenstreamrc='./.tenstreamrc'
+    logical :: lpetsc_is_initialized
 
     if(.not.solver%linitialized) then
 
@@ -260,8 +261,9 @@ module m_pprts
         print *,'Solver diffside:', solver%diffside%is_inward, ':', solver%diffside%dof
       endif
 
-      !      call PetscInitialize(tenstreamrc ,ierr) ;call CHKERR(ierr)
-      call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;call CHKERR(ierr)
+
+      call PetscInitialized(lpetsc_is_initialized, ierr); call CHKERR(ierr)
+      if(.not.lpetsc_is_initialized) call PetscInitialize(PETSC_NULL_CHARACTER, ierr); call CHKERR(ierr)
 #ifdef _XLF
       call PetscPopSignalHandler(ierr); call CHKERR(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
 #endif
