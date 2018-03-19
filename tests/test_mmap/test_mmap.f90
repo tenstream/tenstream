@@ -2,13 +2,15 @@ module test_mmap
     use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
     use m_mmap, only: arr_to_mmap, munmap_mmap_ptr
 
+    use m_helper_functions, only: CHKERR
+
     use pfunit_mod
 
   implicit none
 
   contains
 
-@test(npes =[1,2])
+@test(npes =[2,1])
 subroutine test_mpi_functions(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -18,12 +20,17 @@ subroutine test_mpi_functions(this)
     integer(iintegers) :: i, j
     integer(mpiint) :: numnodes, comm, myid, ierr
 
-    real(ireals), pointer :: arr(:,:)=>NULL()
-    real(ireals), pointer :: mmap_ptr(:,:)=>NULL()
+    real(ireals), pointer :: arr(:,:)
+    real(ireals), pointer :: mmap_ptr(:,:)
+
+    arr=>NULL()
+    mmap_ptr=>NULL()
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
+
+    print *,'Testing mmap with ', numnodes,'ranks ...'
 
     call init_mpi_data_parameters(comm)
 
@@ -36,7 +43,8 @@ subroutine test_mpi_functions(this)
       enddo
     endif
 
-    call arr_to_mmap(comm, fname, arr, mmap_ptr, ierr)
+    call arr_to_mmap(comm, fname, mmap_ptr, ierr, arr)
+    call CHKERR(ierr, 'Err creating mmap')
     if(associated(arr)) deallocate(arr)
 
     arr => mmap_ptr
@@ -47,6 +55,8 @@ subroutine test_mpi_functions(this)
     enddo
 
     call munmap_mmap_ptr(arr, ierr)
+    call CHKERR(ierr, 'Err unmapping mmap')
+    print *,'Testing mmap with ', numnodes,'ranks ... done'
 end subroutine
 
 end module

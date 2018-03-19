@@ -256,6 +256,7 @@ subroutine loadLUT_diff(OPP, comm)
 
     if(allocated(OPP%Sdiff)) return ! already loaded
     allocate(OPP%Sdiff)
+    OPP%Sdiff%c => NULL()
     errcnt = 0
 
     ! Set filename of LUT
@@ -295,6 +296,8 @@ subroutine loadLUT_dir(OPP, comm)
     if(allocated(OPP%Sdir).and.allocated(OPP%Tdir)) return ! already loaded
     allocate(OPP%Sdir)
     allocate(OPP%Tdir)
+    OPP%Sdir%c => NULL()
+    OPP%Tdir%c => NULL()
 
     errcnt = 0
 
@@ -853,19 +856,18 @@ end subroutine
       integer(mpiint) :: myid, ierr
       real(ireals), pointer :: mmap_ptr(:,:)=>NULL()
 
-
       call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
 
       if (luse_memory_map) then
-        call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', OPP%Sdiff%c, mmap_ptr, ierr)
+        call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr, OPP%Sdiff%c)
         if(associated(OPP%Sdiff%c)) deallocate(OPP%Sdiff%c)
         OPP%Sdiff%c => mmap_ptr
 
-        call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', OPP%Sdir%c, mmap_ptr, ierr)
+        call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr, OPP%Sdir%c)
         if(associated(OPP%Sdir%c)) deallocate(OPP%Sdir%c)
         OPP%Sdir%c => mmap_ptr
 
-        call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', OPP%Tdir%c, mmap_ptr, ierr)
+        call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr, OPP%Tdir%c)
         if(associated(OPP%Tdir%c)) deallocate(OPP%Tdir%c)
         OPP%Tdir%c => mmap_ptr
 

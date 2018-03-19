@@ -48,16 +48,13 @@ contains
 
     inquire(file=trim(fname), exist=lexists)
     if(lexists) then
-      ierr = 1
-      return
+      open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='replace')
+    else
+      open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='new')
     endif
-
-    !print *,'Dumping to binary file ...'
-    open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='new')
     write (unit=funit) arr
     close(funit)
     ierr = 0
-    !print *,'Dumping to binary file ... finished'
   end subroutine
 
   subroutine binary_file_to_mmap(fname, bytesize, mmap_c_ptr)
@@ -77,14 +74,14 @@ contains
     close(funit)
   end subroutine
 
-  subroutine arr_to_mmap(comm, fname, inp_arr, mmap_ptr, ierr)
+  subroutine arr_to_mmap(comm, fname, mmap_ptr, ierr, inp_arr)
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: fname
-    real(ireals), dimension(:,:), intent(in) :: inp_arr
+    real(ireals), dimension(:,:), intent(in), optional :: inp_arr
     real(ireals), pointer, intent(out) :: mmap_ptr(:,:)
     integer(mpiint), intent(out) :: ierr
-    integer(iintegers), allocatable :: arrshape(:)
 
+    integer(iintegers), allocatable :: arrshape(:)
     type(c_ptr) :: mmap_c_ptr
     integer(c_size_t) :: bytesize
     integer(mpiint) :: myid
@@ -93,6 +90,7 @@ contains
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     if(myid.eq.0) then
+      if(.not.present(inp_arr)) call CHKERR(1_mpiint, 'rank 0 has to provide an input array!')
       call arr_to_binary_datafile(inp_arr, fname, ierr)
       if(ierr.ne.0) print *,'arr_to_mmap::binary file already exists, I did not overwrite it... YOU have to make sure that the file is as expected or delete it...'
       size_of_inp_arr = int(sizeof(inp_arr), kind=iintegers)
