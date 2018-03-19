@@ -27,7 +27,7 @@ module f2c_tenstream
 
       use m_helper_functions, only: imp_bcast,mean, CHKERR
 
-      use m_pprts, only : init_pprts, t_solver, t_solver_8_10, t_solver_3_6, t_solver_1_2, &
+      use m_pprts, only : init_pprts, t_solver, t_solver_8_10, t_solver_3_10, t_solver_3_6, t_solver_1_2, &
         set_global_optical_properties, solve_pprts, destroy_pprts, &
         pprts_get_result_toZero, t_coord
 
@@ -123,8 +123,10 @@ contains
           case(0)
             allocate(t_solver_8_10::solver)
           case(1)
-            allocate(t_solver_3_6::solver)
+            allocate(t_solver_3_10::solver)
           case(2)
+            allocate(t_solver_3_6::solver)
+          case(3)
             allocate(t_solver_1_2::solver)
         end select
 
