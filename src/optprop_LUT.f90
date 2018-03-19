@@ -795,8 +795,21 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         Ng, OPP%diffconfig%dims(3), preset=preset_g)
           call populate_LUT_dim('aspect_zx', Naspect, OPP%diffconfig%dims(4), preset=preset_aspect)
 
-      !class is (t_optprop_LUT_3_6)
-      !    OPP%interp_mode = interp_mode_3_6
+      class is (t_optprop_LUT_3_6)
+          OPP%interp_mode = interp_mode_3_6
+          allocate(OPP%dirconfig%dims(6))
+          call populate_LUT_dim('tau',       Ntau, OPP%dirconfig%dims(1), preset=preset_tau)
+          call populate_LUT_dim('w0',        Nw0, OPP%dirconfig%dims(2), preset=preset_w0)
+          call populate_LUT_dim('g',         Ng, OPP%dirconfig%dims(3), preset=preset_g)
+          call populate_LUT_dim('aspect_zx', Naspect, OPP%dirconfig%dims(4), preset=preset_aspect)
+          call populate_LUT_dim('phi',       Nphi, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
+          call populate_LUT_dim('theta',     Ntheta, OPP%dirconfig%dims(6), vrange=real([0,90], ireals))
+          allocate(OPP%diffconfig%dims(4))
+          call populate_LUT_dim('tau',       Ntau, OPP%diffconfig%dims(1), preset=preset_tau)
+          call populate_LUT_dim('w0',        Nw0, OPP%diffconfig%dims(2), preset=preset_w0)
+          call populate_LUT_dim('g',         Ng, OPP%diffconfig%dims(3), preset=preset_g)
+          call populate_LUT_dim('aspect_zx', Naspect, OPP%diffconfig%dims(4), preset=preset_aspect)
+
       !class is (t_optprop_LUT_wedge_5_8)
       !    OPP%interp_mode = interp_mode_wedge_5_8
       !    ps%range_phi = [-70, 70]
