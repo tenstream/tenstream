@@ -97,7 +97,9 @@ module m_helper_functions
         else
           print *,'Error:', ierr
         endif
+#ifdef _GNU
         call BACKTRACE
+#endif
         call mpi_abort(mpi_comm_world, ierr, mpierr)
       endif
     end subroutine
