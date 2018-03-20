@@ -146,6 +146,12 @@ if(${_is_XLF})
   include_directories(${CMAKE_Fortran_MODULE_DIRECTORY})
 endif(${_is_XLF})
 
+# Set preprocessor Flag if Compiler is out of GNU Family
+string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "GNU" _is_GNU)
+if(${_is_GNU})
+    add_definitions(-D_GNU)
+endif(${_is_GNU})
+
 # Add Source Directories
 add_subdirectory (src)
 add_subdirectory (plexrt)
