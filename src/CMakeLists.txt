@@ -39,7 +39,7 @@ target_link_libraries( pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 add_library( tenstream STATIC "tenstream.f90")
 target_link_libraries( tenstream pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
-add_library( pprts STATIC "pprts.f90")
+add_library( pprts STATIC "pprts.f90" "adaptive_spectral_integration.f90")
 target_link_libraries( pprts pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
 file( GLOB streams createLUT_*.f90 )

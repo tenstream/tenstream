@@ -47,7 +47,7 @@ module m_pprts
   implicit none
   private
 
-  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, init_pprts, &
+  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, t_state_container, init_pprts, &
             set_optical_properties, set_global_optical_properties, &
             solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
             pprts_get_result_toZero, t_coord
