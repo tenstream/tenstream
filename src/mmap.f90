@@ -114,7 +114,7 @@ contains
       call arr_to_binary_datafile(inp_arr, fname, ierr)
       if(ierr.ne.0) print *,'arr_to_mmap::binary file already exists, I did not overwrite it... YOU have to make sure that the file is as expected or delete it...'
       size_of_inp_arr = int(sizeof(inp_arr(1,1)), kind=iintegers) * size(inp_arr)
-      allocate(arrshape(size(shape(inp_arr))), source=shape(inp_arr))
+      allocate(arrshape(size(shape(inp_arr))), source=shape(inp_arr, kind=iintegers))
     endif
     call mpi_barrier(comm, ierr)
 

@@ -748,7 +748,8 @@ subroutine populate_LUT_dim(dimname, N, lut_dim, vrange, preset)
     enddo
   elseif(present(preset)) then
     if(size(preset).ne.N) &
-      call CHKERR(1_mpiint, 'Given preset size does not conform to proposed size N '//itoa(N)//' vs '//itoa(size(preset)))
+      call CHKERR(1_mpiint, 'Given preset size does not conform to proposed size N ' &
+      //itoa(N)//' vs '//itoa(size(preset, kind=iintegers)))
     lut_dim%v = preset
   else
     call CHKERR(1_mpiint, 'Have to provide either a number of a preset for LUT dimension')
@@ -899,7 +900,7 @@ subroutine LUT_get_dir2dir(OPP, sample_pts, C)
     select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
-      ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti))
+      ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti, kind=iintegers))
       C = OPP%Tdir%c(:, ind1d)
     case(2)
       call interp_vec_simplex_nd(pti, OPP%Tdir%c, OPP%dirconfig%offsets, C)
@@ -940,7 +941,7 @@ subroutine LUT_get_dir2diff(OPP, sample_pts, C)
     select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
-      ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti))
+      ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti, kind=iintegers))
       C = OPP%Sdir%c(:, ind1d)
     case(2)
       call interp_vec_simplex_nd(pti, OPP%Sdir%c, OPP%dirconfig%offsets, C)
@@ -979,7 +980,7 @@ subroutine LUT_get_diff2diff(OPP, sample_pts, C)
     select case(OPP%interp_mode)
     case(1)
       ! Nearest neighbour
-      ind1d = ind_nd_to_1d(OPP%diffconfig%offsets, nint(pti))
+      ind1d = ind_nd_to_1d(OPP%diffconfig%offsets, nint(pti, kind=iintegers))
       C = OPP%Sdiff%c(:, ind1d)
     case(2)
       call interp_vec_simplex_nd(pti, OPP%Sdiff%c, OPP%diffconfig%offsets, C)
