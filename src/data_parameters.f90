@@ -36,7 +36,7 @@ module m_data_parameters
              i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil,         &
              iintegers,ireals,ireal128,ireal_dp,nan32,           &
              mpiint,imp_int,imp_real,imp_real_dp,imp_logical,    &
-             mpierr, init_mpi_data_parameters, default_str_len,  &
+             init_mpi_data_parameters, default_str_len,          &
              EXP_MINVAL, EXP_MAXVAL
 
       integer :: mpiint_dummy
@@ -63,12 +63,11 @@ module m_data_parameters
 
 
       integer(mpiint) :: imp_int, imp_real, imp_real_dp, imp_logical
-      integer :: mpierr
 
 contains
 subroutine init_mpi_data_parameters(comm)
   integer(mpiint),intent(in) :: comm
-  integer(mpiint) :: dtsize, ierr, myid, numnodes
+  integer(mpiint) :: dtsize, ierr, myid, numnodes, mpierr
   logical :: lmpi_is_initialized, lpetsc_is_initialized
 
   call mpi_initialized( lmpi_is_initialized, mpierr)

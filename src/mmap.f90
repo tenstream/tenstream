@@ -10,7 +10,8 @@ implicit none
 integer, parameter :: &
   PROT_READWRITE = 3, &
   PROT_READ = 1,      &
-  MAP_SHARED = 1
+  MAP_SHARED = 1,     &
+  O_RDONLY = 0
 
 interface
   type(c_ptr) function c_mmap(addr, length, prot, &
@@ -29,6 +30,19 @@ interface
     use iso_c_binding
     type(c_ptr), value :: addr
     integer(c_size_t), value :: length
+  end function
+end interface
+interface
+  integer(c_int) function c_open(pathname, flags) bind(c,name='open')
+    use iso_c_binding
+    character(kind=c_char, len=1) :: pathname(*)
+    integer(c_int), value :: flags
+  end function
+end interface
+interface
+  integer(c_int) function c_close(fd) bind(c,name='close')
+    use iso_c_binding
+    integer(c_int), value :: fd
   end function
 end interface
 
@@ -63,15 +77,21 @@ contains
     type(c_ptr), intent(out) :: mmap_c_ptr
     integer(c_size_t),parameter :: offset=0
 
+    integer(c_int) :: c_fd
+
     integer :: funit
     logical :: lexists
 
     inquire(file=trim(fname), exist=lexists)
     if(.not.lexists) call CHKERR(1_mpiint, 'Tried to create a mmap from a file that does not exist: '//fname)
 
-    open(newunit=funit, file=fname, form='unformatted', access='stream')
-    mmap_c_ptr = c_mmap(0_c_int, bytesize, PROT_READ, MAP_SHARED, fnum(funit), offset)
-    close(funit)
+    ! open(newunit=funit, file=fname, form='unformatted', access='stream')
+    c_fd = c_open(trim(fname)//C_NULL_CHAR, O_RDONLY)
+    if(c_fd.le.0) call CHKERR(c_fd, 'Could not open mmap file')
+    mmap_c_ptr = c_mmap(0_c_int, bytesize, PROT_READ, MAP_SHARED, c_fd, offset)
+    c_fd = c_close(c_fd)
+    if(c_fd.le.0) call CHKERR(c_fd, 'Could not close file descriptor to mmap file')
+    !close(funit)
   end subroutine
 
   subroutine arr_to_mmap(comm, fname, mmap_ptr, ierr, inp_arr)
@@ -93,7 +113,7 @@ contains
       if(.not.present(inp_arr)) call CHKERR(1_mpiint, 'rank 0 has to provide an input array!')
       call arr_to_binary_datafile(inp_arr, fname, ierr)
       if(ierr.ne.0) print *,'arr_to_mmap::binary file already exists, I did not overwrite it... YOU have to make sure that the file is as expected or delete it...'
-      size_of_inp_arr = int(sizeof(inp_arr), kind=iintegers)
+      size_of_inp_arr = int(sizeof(inp_arr(1,1)), kind=iintegers) * size(inp_arr)
       allocate(arrshape(size(shape(inp_arr))), source=shape(inp_arr))
     endif
     call mpi_barrier(comm, ierr)
