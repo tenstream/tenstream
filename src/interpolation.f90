@@ -189,7 +189,7 @@ contains
 
     if(t.lt.one .or. t.gt.size(a0, dim=2)) call CHKERR(1_mpiint, &
       'Cannot use interp_1d with weights outside of the array bounds '//ftoa(t) &
-      //' : '//itoa(size(a0,dim=1))//', '//itoa(size(a0,dim=2)))
+      //' : '//itoa(size(a0,dim=1,kind=iintegers))//','//itoa(size(a0,dim=2,kind=iintegers)))
     i = floor(t)
     offset = modulo(t,one)
     if(approx(offset,zero)) then
@@ -405,7 +405,7 @@ contains
     integer(iintegers) :: nd_indices(size(pti))
 
     if(ldebug) then
-      nd_indices = ind_1d_to_nd(db_offsets, size(db, dim=2))
+      nd_indices = ind_1d_to_nd(db_offsets, size(db, dim=2, kind=iintegers))
       if(any(pti.lt.one).or.any(pti.gt.nd_indices)) then
         print *,'db dimensions', nd_indices
         print *,'pti', pti
@@ -424,9 +424,9 @@ contains
       call interp_vec_simplex_2d(pti, interp_dims, db, db_offsets, Cres)
     case(3:10)
       !call interp_vec_bilinear_recursive(size(interp_dims), pti, interp_dims, db, db_offsets, Cres)
-      call interp_vec_simplex_recursive(size(interp_dims), pti, interp_dims, db, db_offsets, Cres)
+      call interp_vec_simplex_recursive(size(interp_dims, kind=iintegers), pti, interp_dims, db, db_offsets, Cres)
     case default
-      call CHKERR(1_mpiint, 'interp_vec_simplex not implemented for '//itoa(size(interp_dims))//' dimensions')
+      call CHKERR(1_mpiint, 'interp_vec_simplex not implemented for '//itoa(size(interp_dims, kind=iintegers))//' dimensions')
     end select
   end subroutine
 
