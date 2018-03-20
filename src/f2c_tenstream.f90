@@ -21,7 +21,7 @@ module f2c_tenstream
 
       use iso_c_binding
 
-      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr, zero, i0
+      use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint , zero, i0
 
       use m_tenstream_options, only: read_commandline_options
 

@@ -1,7 +1,7 @@
 @test(npes =[2,1])
 subroutine test_rrtm_sw(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint ,mpierr,zero,pi, i2, i9
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint , zero, pi, i2, i9
 
     use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, CHKERR
 

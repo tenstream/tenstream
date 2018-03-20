@@ -1,7 +1,7 @@
 module m_wetterstein
   use mpi
 
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, mpierr
+  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
 
   use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
     tenstream_get_result, getvecpointer, restorevecpointer, &
@@ -123,9 +123,9 @@ contains
         print *,'done',shape(edir)
       endif
     endif
-    call mpi_barrier(comm, mpierr)
+    call mpi_barrier(comm, ierr)
 
-  contains 
+  contains
     subroutine fill_nzout(arr)
       real(ireals), intent(in) :: arr(:,:,:)
       integer(iintegers) :: izout=40
