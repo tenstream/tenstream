@@ -67,40 +67,33 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           lambda = sqrt ( alpha_1 * alpha_1 - alpha_2 * alpha_2 );
 
-          if ( lambda * dtau .gt. 100._ireal128 ) then
+          if ( lambda * dtau .gt. 100._ireals ) then
             a11 = zero;
-            a12 = ( alpha_1 - lambda ) / alpha_2;
+            a12 = real(( alpha_1 - lambda ) / alpha_2, ireals)
           else
             exp1  = exp( lambda * dtau );
             term1 = alpha_2 / ( alpha_1 - lambda ) * exp1;
 
-            A = 1.0_ireal128 / ( term1 - 1._ireal128 / term1 );
+            A = one / ( term1 - one / term1 );
 
-            a11 = A * 2.0_ireal128 * lambda / alpha_2;
-            a12 = A * ( exp1 - 1._ireal128 / exp1 );
+            a11 = real(A * 2 * lambda / alpha_2, ireals)
+            a12 = real(A * ( exp1 - one / exp1 ), ireals)
           endif
 
-          den1 = 1._ireal128 / ( mu_0_inv * mu_0_inv - lambda * lambda )
+          den1 = one / ( mu_0_inv * mu_0_inv - lambda * lambda )
 
           alpha_3 = - omega_0 * b_mmu_0;
           alpha_4 = omega_0 + alpha_3;
           alpha_5 = ( ( alpha_1 - mu_0_inv ) * alpha_3 - alpha_2 * alpha_4 ) * den1;
           alpha_6 = ( alpha_2 * alpha_3 - ( alpha_1 + mu_0_inv ) * alpha_4 ) * den1;
 
-          a33     = exp ( - dtau  * mu_0_inv );   
+          a33     = real(exp ( - dtau  * mu_0_inv ), ireals)
 
-          a13 = + alpha_5 * ( 1.0_ireal128 - a33 * a11 ) - alpha_6 * a12;
-          a23 = - alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 );
+          a13 = real(+ alpha_5 * ( one - a33 * a11 ) - alpha_6 * a12, ireals)
+          a23 = real(- alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 ), ireals)
 
-          a13 = a13 * mu_0_inv !Fabian: Roberts coefficients a13 expect S to be
-          a23 = a23 * mu_0_inv !        irradiance on tilted plane... we use irradiance on z-plane
-
-!          a12 = max( zero, a12 )!min(one, )
-!          a13 = max( zero, a13 )!min(one, )
-!          a23 = max( zero, a23 )!min(one, )
-
-
-
+          a13 = a13 / mu_0 !Fabian: Roberts coefficients a13 expect S to be
+          a23 = a23 / mu_0 !        irradiance on tilted plane... we use irradiance on z-plane
       end subroutine
 
       subroutine eddington_coeff_cosmo (dtau_in,omega_0_in,g_in,mu_0_in,a11,a12,a13,a23,a33)
@@ -109,15 +102,14 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           real(ireals)            :: dtau,g,omega_0,mu_0
 
-!          real(ireals) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6;
           real(ireals) ::  bscr,ze,zeps,zm,ze1mwf,mu_0_inv,zg1,zg2,b_mmu_0,zmu0if
           real(ireals) ::  zod1,zod2,zod3,zod4,zod5
 
           real(ireals),parameter ::  eps = sqrt(epsilon(omega_0))
           REAL    (KIND=ireals   ), PARAMETER ::  &
-              zargli  = 80.0     , &  ! argument limit for EXP  
+              zargli  = 80.0     , &  ! argument limit for EXP
               ztsec   = 1.0E-35  , &  ! (=exp(-zargli) avoids ALOG(0.0)
-              zepres  = 1.0E-7  ! , &  ! for resonance case avoidance 
+              zepres  = 1.0E-7  ! , &  ! for resonance case avoidance
 !              zangfa  = 1.648721271   ! exp(0.5)
 
 
@@ -131,10 +123,10 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           call delta_scale_optprop( dtau, omega_0, g  )
 
-          
+
           mu_0_inv =  1._ireals/ mu_0;
           b_mmu_0 = 0.5_ireals - 0.75_ireals * g * mu_0;
-          bscr = 0.5_ireal128 - 0.375_ireal128 * g;
+          bscr = 0.5_ireals - 0.375_ireals * g;
 
           zod1 = 2._ireals * ( 1._ireals - omega_0 * ( 1._ireals - bscr ) ) - 0.25_ireals;
           zod2 = 2._ireals * omega_0 * bscr - 0.25_ireals;
@@ -207,7 +199,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           if ( lambda * dtau .gt. 40._ireal128 ) then
             a11 = zero;
-            a12 = ( alpha_1 - lambda ) / alpha_2;
+            a12 = real( ( alpha_1 - lambda ) / alpha_2, ireals)
           else
             exp1  = exp( lambda * dtau );
             exp2  = exp(-lambda * dtau );
@@ -217,8 +209,8 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             A = min( huge(A), 1.0_ireal128 / ( term1 - term2 ) );
 !            A = 1.0_ireal128 / ( term1 - term2 );
 
-            a11 = A * 2.0_ireal128 * lambda / alpha_2;
-            a12 = A * ( exp1 - exp2 );
+            a11 = real(A * 2.0_ireal128 * lambda / alpha_2, ireals)
+            a12 = real(A * ( exp1 - exp2 ), ireals)
           endif
 
           alpha_3 = - omega_0 * b_mmu_0;
@@ -229,13 +221,13 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             alpha_5 = ( ( alpha_1 - mu_0_inv ) * alpha_3 - alpha_2 * alpha_4 ) * den1;
             alpha_6 = ( alpha_2 * alpha_3 - ( alpha_1 + mu_0_inv ) * alpha_4 ) * den1;
 
-            a33     = exp ( - dtau  * mu_0_inv );   
+            a33     = real(exp ( - dtau  * mu_0_inv ), ireals)
 
-            a13 = + alpha_5 * ( 1.0_ireal128 - a33 * a11 ) - alpha_6 * a12;
-            a23 = - alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 );
+            a13 = real(+ alpha_5 * ( 1.0_ireal128 - a33 * a11 ) - alpha_6 * a12, ireals)
+            a23 = real(- alpha_5 * a33 * a12 + alpha_6 * ( a33 - a11 ), ireals)
 
-            a13 = a13 * mu_0_inv !Fabian: Roberts coefficients a13 expect S to be
-            a23 = a23 * mu_0_inv !        irradiance on tilted plane... we use irradiance on z-plane
+            a13 = a13 / mu_0 !Fabian: Roberts coefficients a13 expect S to be
+            a23 = a23 / mu_0 !        irradiance on tilted plane... we use irradiance on z-plane
           else
             a33=zero
             a13=zero
@@ -248,8 +240,8 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           a23 = min(one, max( zero, a23 ) )
 
           g0 = 2._ireals*(one-omega_0) ! this is alpha3/pi in zdunkowsky for thermal part
-          g1 = g0 / (alpha_1-alpha_2)
-          g2 = g0 / (lambda**2)
+          g1 = real(g0 / (alpha_1-alpha_2), ireals)
+          g2 = real(g0 / (lambda**2), ireals)
           g1 = min(one, max( zero, g1 ) )
           g2 = min(one, max( zero, g2 ) )
 
@@ -319,14 +311,14 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 !          gamma21 = one
           gamma22 = alpha_2/alpha1_m_lambda * e2
 
-          a11 = beta11 + beta21
-          a12 = beta12 + beta22
+          a11 = real(beta11 + beta21, ireals)
+          a12 = real(beta12 + beta22, ireals)
 
           a11 = max(zero,  min(one, a11) )
           a12 = max(zero,  min(one, a12) )
 
           if(mu_0.gt.epsilon(mu_0)) then
-            a33     = exp ( - dtau  / mu_0 )
+            a33     = real(exp ( - dtau  / mu_0 ), ireals)
 
             alpha_3 = -omega_0 * b_minus_mu0
             alpha_4 =  omega_0 * (one-b_minus_mu0)
@@ -346,8 +338,8 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             beta13  = -beta11*alpha_5 * a33 - beta12*alpha_6
             beta23  = -beta21*alpha_5 * a33 - beta22*alpha_6
 
-            a13 = beta13         + beta23         + alpha_5
-            a23 = beta13*gamma12 + beta23*gamma22 + alpha_6*a33
+            a13 = real(beta13         + beta23         + alpha_5, ireals)
+            a23 = real(beta13*gamma12 + beta23*gamma22 + alpha_6*a33, ireals)
 
             a13 = a13 / mu_0 !Fabian: Roberts coefficients a13 expect S to be
             a23 = a23 / mu_0 !        irradiance on tilted plane... we use irradiance on z-plane
@@ -363,8 +355,8 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           endif
 
           g0 = (one-omega_0)/mubar ! this is alpha3/pi in zdunkowsky for thermal part
-          g1 = g0 / (alpha_1-alpha_2)
-          g2 = g0 / lambda**2
+          g1 = real(g0 / (alpha_1-alpha_2), ireals)
+          g2 = real(g0 / lambda**2, ireals)
 
           if(ldebug) then
             if(      any([a11,a12,a13,a23,a33].gt.one)        &

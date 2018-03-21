@@ -193,7 +193,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, dx, dy, dz, ierr)
 
   real(ireal_dp) :: phi,mu
   real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
-  real(ireal_dp) :: r1, r2, intersec_dist, triangle_center(3), dir_p_to_triangle_center(3)
+  real(ireal_dp) :: r1, r2, triangle_center(3), dir_p_to_triangle_center(3)
 
   !print *,'---------- new diffuse photon --------------'
   if(allocated(bmc%vertices)) then

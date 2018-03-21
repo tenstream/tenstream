@@ -161,8 +161,8 @@ module m_plex_rt
       if(.not.allocated(solver%plex)) call CHKERR(1_mpiint, 'run_plex_rt_solver::plex has to be allocated first')
       call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
 
-      if(.not.allocated(solver%plex%geom_dm)) call CHKERR(myid+i1, 'run_plex_rt_solver::geom_dm has to be allocated first')
-      if(.not.allocated(solver%optprop)) call CHKERR(myid+i1, 'run_plex_rt_solver::optprop has to be allocated first')
+      if(.not.allocated(solver%plex%geom_dm)) call CHKERR(myid+1, 'run_plex_rt_solver::geom_dm has to be allocated first')
+      if(.not.allocated(solver%optprop)) call CHKERR(myid+1, 'run_plex_rt_solver::optprop has to be allocated first')
       if(.not.allocated(solver%plex%geom_dm)) call compute_face_geometry(solver%plex, solver%plex%geom_dm)
       if(.not.allocated(solver%plex%edir_dm)) call setup_edir_dmplex(solver%plex, solver%plex%edir_dm)
       if(.not.allocated(solver%plex%abso_dm)) call setup_abso_dmplex(solver%plex, solver%plex%abso_dm)
@@ -255,9 +255,9 @@ module m_plex_rt
 
       if(ldebug .and. myid.eq.0) print *,myid,'plex_rt::create_src_vec....'
 
-      if(.not.allocated(edirdm)) call CHKERR(myid+i1, 'called create_src_vec but edirdm is not allocated')
+      if(.not.allocated(edirdm)) call CHKERR(myid+1, 'called create_src_vec but edirdm is not allocated')
 
-      if(.not.allocated(plex%geom_dm)) call CHKERR(myid+i1, 'get_normal_of_first_TOA_face::needs allocated geom_dm first')
+      if(.not.allocated(plex%geom_dm)) call CHKERR(myid+1, 'get_normal_of_first_TOA_face::needs allocated geom_dm first')
 
       call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
       call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
@@ -373,7 +373,7 @@ module m_plex_rt
       integer(iintegers) :: geom_offset
       real(ireals) :: face_normal(3), face_normal_top(3)
 
-      real(ireals) :: dz, kext, dtau, mu, mu_top, mu_side
+      real(ireals) :: dz, kext, dtau, mu_top, mu_side
       real(ireals) :: area, expon, sin_alpha, transport
 
       integer(mpiint) :: ierr
@@ -562,8 +562,8 @@ module m_plex_rt
     if(.not.allocated(plex)) stop 'called compute_edir_absorption but plex is not allocated'
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
-    if(.not.allocated(plex%edir_dm)) call CHKERR(myid+i1, 'called compute_edir_absorption with a dm which is not allocated?')
-    if(.not.allocated(plex%abso_dm)) call CHKERR(myid+i1, 'called compute_edir_absorption with a dm which is not allocated?')
+    if(.not.allocated(plex%edir_dm)) call CHKERR(myid+1, 'called compute_edir_absorption with a dm which is not allocated?')
+    if(.not.allocated(plex%abso_dm)) call CHKERR(myid+1, 'called compute_edir_absorption with a dm which is not allocated?')
 
     if(ldebug) print *,'plex_rt::compute_edir_absorption....'
 
@@ -672,7 +672,7 @@ module m_plex_rt
     integer(mpiint) :: myid, ierr
 
     integer(iintegers), pointer :: faces_of_cell(:)
-    integer(iintegers) :: icell, iface, irow, icol, isrc, idst
+    integer(iintegers) :: icell, iface, irow, icol, idst
 
     type(tPetscSection) :: geomSection, wedgeSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
@@ -685,7 +685,7 @@ module m_plex_rt
 
     ! iwedge_bmc2plex :: mapping from boxmc wedge numbers to plex indices,
     ! i.e. iwedge_bmc2plex(1) gives the plex index for top face
-    integer(iintegers) :: iwedge_bmc2plex(5)
+    ! integer(iintegers) :: iwedge_bmc2plex(5)
 
     real(ireals) :: zenith, azimuth
 
@@ -726,7 +726,7 @@ module m_plex_rt
 
       do iface = 1, size(faces_of_cell)
         iwedge_plex2bmc(int(wedgeorient(wedge_offset+i3+iface), iintegers)) = iface
-        lsrc(iface) = int(wedgeorient(wedge_offset+i8+iface), iintegers) .gt. one/i2
+        lsrc(iface) = nint(wedgeorient(wedge_offset+i8+iface), iintegers) .eq. i1
       enddo
       !print *,'iwedge_plex2bmc', iwedge_plex2bmc
 
@@ -828,7 +828,7 @@ module m_plex_rt
     if(ldebug) then
       if(any(coeff.lt.zero).or.any(coeff.gt.one)) then
         print *,'Lookup Coeffs for', aspect, tauz, w0, g, angles,'::', coeff
-        call CHKERR(i1, 'Found corrupted coefficients!')
+        call CHKERR(1_mpiint, 'Found corrupted coefficients!')
       endif
     endif
 

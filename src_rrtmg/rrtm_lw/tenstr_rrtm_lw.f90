@@ -64,11 +64,10 @@ module m_tenstr_rrtm_lw
   type(t_atm),allocatable :: bg_atm
 
 contains
-  subroutine sanitize_input(plev, tlev, tlay)
+  subroutine sanitize_input(plev, tlev)
     real(ireals),intent(in),dimension(:) :: plev, tlev
-    real(ireals),intent(in),dimension(:),optional :: tlay
 
-    integer(mpiint) :: ierr, errcnt
+    integer(mpiint) :: errcnt
     logical :: lerr
 
     errcnt = 0
@@ -104,13 +103,12 @@ contains
   end subroutine
 
   subroutine init_tenstream_rrtm_lw(comm, dx, dy, dz, &
-                  phi0, theta0, atm_filename,         &
+                  phi0, theta0, &
                   xm, ym, zm, nxproc, nyproc)
 
     integer(mpiint), intent(in) :: comm
 
     real(ireals), intent(in) :: dx, dy, phi0, theta0, dz(:,:,:)
-    character(default_str_len), intent(in) :: atm_filename
     integer(iintegers),intent(in) :: xm, ym, zm
 
     integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:) ! array containing xm and ym for all nodes :: dim[x-ranks, y-ranks]
@@ -181,18 +179,16 @@ contains
     integer(mpiint) :: myid, ierr
     ! character(default_str_len) :: output_path(2) ! [ filename, varname ]
 
+    if(present(icollapse)) call CHKERR(1_mpiint, 'icollapse currently not tested for thermal RT')
+
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     call load_atmfile(comm, atm_filename, bg_atm)
 
-    call sanitize_input(bg_atm%plev, bg_atm%tlev, bg_atm%tlay)
+    call sanitize_input(bg_atm%plev, bg_atm%tlev)
     do j=lbound(d_plev,3),ubound(d_plev,3)
       do i=lbound(d_plev,2),ubound(d_plev,2)
-        if(present(d_tlay)) then
-          call sanitize_input(d_plev(:,i,j), d_tlev(:,i,j), d_tlay(:,i,j))
-        else
-          call sanitize_input(d_plev(:,i,j), d_tlev(:,i,j))
-        endif
+        call sanitize_input(d_plev(:,i,j), d_tlev(:,i,j))
       enddo
     enddo
     !output_path(1) = 'output.nc'
@@ -221,9 +217,9 @@ contains
     do j=js,je
       do i=is,ie
         icol =  i+(j-1)*ie
-        dz(:,i,j) = hydrostat_dz_rb(abs(col_plev(icol,1:ke) - col_plev(icol,2:ke1)), &
+        dz(:,i,j) = real(hydrostat_dz_rb(abs(col_plev(icol,1:ke) - col_plev(icol,2:ke1)), &
                                  (col_plev(icol,1:ke) + col_plev(icol,2:ke1))/2,  &
-                                 col_tlay(icol,:))
+                                 col_tlay(icol,:)))
       enddo
     enddo
 
@@ -320,7 +316,7 @@ contains
 
 
     if(.not.linit_tenstr) then
-      call init_tenstream_rrtm_lw(comm, dx, dy, dz, phi0, theta0, atm_filename, &
+      call init_tenstream_rrtm_lw(comm, dx, dy, dz, phi0, theta0, &
         ie,je,ke, nxproc, nyproc)
       linit_tenstr=.True.
     endif
@@ -377,19 +373,19 @@ contains
     real(rb),dimension(ncol_in,nlay_in+1) :: lwuflx,lwdflx,lwuflxc,lwdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: lwhr,lwhrc
 
-    integer(im) :: k,icol
+    integer(im) :: icol
     integer(im) :: ncol, nlay
 
     integer(im),parameter :: inflglw=2,iceflglw=3,liqflglw=1
     integer(kind=im) :: icld=2         ! Cloud overlap method
-    integer(kind=im) :: iaer=0         ! Aerosol option flag
+    !integer(kind=im) :: iaer=0         ! Aerosol option flag
     integer(kind=im) :: idrv=0         ! Flag for calculation of dFdT
 
     logical,save :: linit_rrtmg=.False.
 
     ! copy from TenStream to RRTM precision:
-    ncol   = ncol_in
-    nlay   = nlay_in
+    ncol   = int(ncol_in, kind=im)
+    nlay   = int(nlay_in, kind=im)
 
     ! Take average pressure and temperature as mean values for voxels --
     ! should probably use log interpolation for pressure...

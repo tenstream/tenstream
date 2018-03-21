@@ -17,8 +17,6 @@ endmacro()
 
 subdirlist(subdirs ${CMAKE_CURRENT_SOURCE_DIR} )
 
-message(STATUS "SUBDIRLIST for examples ${subdirs} :: ${CDIR}")
 foreach(subdir ${subdirs})
-    message(STATUS "Adding ${subdir} to examples directories")
     add_subdirectory(${subdir})
 endforeach()

@@ -192,11 +192,8 @@ contains
       real(ireals),intent(in) :: aspect, tauz, w0, g, phi, theta
       real(ireals) :: ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
       real(ireals),intent(out) :: C(:)
-      real(ireals) :: C2(dir2diff_network%out_size)
 
       integer(mpiint) :: ierr
-      integer(iintegers) :: isrc
-      real(ireals) :: norm
 
       ind_aspect  = search_sorted_bisection(dir2dir_network%aspect, aspect)
       ind_tauz  = search_sorted_bisection(dir2dir_network%tau     , tauz)
@@ -243,10 +240,8 @@ contains
       real(ireals),intent(in) :: aspect, tauz, w0, g,phi,theta
       real(ireals) :: ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
       real(ireals),intent(out) :: C(:)
-      real(ireals) :: C2(dir2dir_network%out_size)
 
-      integer(mpiint) :: ierr,isrc
-      real(ireals) :: norm
+      integer(mpiint) :: ierr
 
       ind_aspect  = search_sorted_bisection(dir2diff_network%aspect, aspect )
       ind_tauz  = search_sorted_bisection(dir2diff_network%tau     , tauz )
@@ -292,8 +287,7 @@ contains
       real(ireals),intent(out) :: C(:)
       real(ireals),intent(in) :: aspect, tauz, w0, g
       real(ireals) :: ind_aspect, ind_tauz, ind_w0, ind_g
-      integer(mpiint) :: ierr,isrc
-      real(ireals) :: norm
+      integer(mpiint) :: ierr
 
       if(.not.diff2diff_network%initialized) then
         print *,'network that is about to be used for coeffs is not loaded! diffuse:'

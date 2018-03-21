@@ -4,6 +4,10 @@
 include_directories (${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${INCLUDE_DIRS})
 
+SET_SOURCE_FILES_PROPERTIES(ranlux.for PROPERTIES COMPILE_FLAGS -Wno-error)
+SET_SOURCE_FILES_PROPERTIES(pprts.f90 PROPERTIES COMPILE_FLAGS -Wno-unused-function)
+SET_SOURCE_FILES_PROPERTIES(tenstream.f90 PROPERTIES COMPILE_FLAGS -Wno-error)
+
 set( general_sources
   "helper_functions.f90"
   "helper_functions_dp.f90"

@@ -24,16 +24,13 @@ subroutine test_rrtm_sw(this)
     real(ireals),parameter :: rtolerance = .05
     integer(iintegers),parameter :: icollapse=40
 
-    real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g,B
-    real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
-
     real(ireals),allocatable :: atm(:,:) ! # z(km)  p(mb)  T(K) air(cm-3) o3(cm-3) o2(cm-3)  h2o(cm-3) co2(cm-3) no2(cm-3)
     real(ireals),allocatable,dimension(:,:,:) :: plev                                               ! nlay+1, nxp, nyp
     real(ireals),allocatable,dimension(:,:,:) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr ! nlay  , nxp, nyp
     real(ireals),allocatable,dimension(:,:,:) :: lwc, reliq                                         ! nlay  , nxp, nyp
     real(ireals),allocatable, dimension(:,:,:) :: edir,edn,eup,abso          ! [nlyr(+1), global_nx, global_ny ]
 
-    integer(iintegers) :: i,j,k, nlay, icld
+    integer(iintegers) :: i, j, k, nlay
 
     logical,parameter :: ldebug=.True.
 

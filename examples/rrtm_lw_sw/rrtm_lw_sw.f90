@@ -58,7 +58,7 @@ contains
     call MPI_COMM_SIZE(comm, numnodes, mpierr)
     call MPI_COMM_RANK(comm, myid, mpierr)
 
-    N_ranks_y = sqrt(1.*numnodes)
+    N_ranks_y = int(sqrt(1.*numnodes))
     N_ranks_x = numnodes / N_ranks_y
     if(N_ranks_y*N_ranks_x .ne. numnodes) then
       N_ranks_x = numnodes

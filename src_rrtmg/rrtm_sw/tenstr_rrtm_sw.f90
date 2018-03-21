@@ -259,8 +259,8 @@ contains
         integer(kind=im) :: iaer=0         ! Aerosol option flag
 
         ! copy from TenStream to RRTM precision:
-        ncol   = ncol_in
-        nlay   = nlay_in
+        ncol   = int(ncol_in, im)
+        nlay   = int(nlay_in, im)
         plev   = rev(plev_in)
         tlay   = rev(tlay_in)
         h2ovmr = rev(h2ovmr_in)
@@ -326,8 +326,8 @@ contains
         do iv=1,nbndsw
             do ig=1,ngc(iv)
                 iw = iw+1
-                band_lbound(iw) = wavenum1(iv+jpb1-1)
-                band_ubound(iw) = wavenum2(iv+jpb1-1)
+                band_lbound(iw) = real(wavenum1(iv+jpb1-1), ireals)
+                band_ubound(iw) = real(wavenum2(iv+jpb1-1), ireals)
                 weights(iw)     = tenstr_solsrc(iw)
             enddo
         enddo

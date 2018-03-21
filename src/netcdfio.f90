@@ -43,10 +43,10 @@ module m_netcdfIO
 !  logical,parameter :: ldebug=.True.
 
   interface ncwrite
-    module procedure ncwrite_1d,ncwrite_2d,ncwrite_3d,ncwrite_4d,ncwrite_5d,ncwrite_7d
+    module procedure ncwrite_1d, ncwrite_2d, ncwrite_3d, ncwrite_4d, ncwrite_5d, ncwrite_6d, ncwrite_7d
   end interface
   interface ncload
-    module procedure ncload_1d, ncload_2d, ncload_3d, ncload_4d, ncload_5d, ncload_7d, &
+    module procedure ncload_1d, ncload_2d, ncload_3d, ncload_4d, ncload_5d, ncload_6d, ncload_7d, &
         ncload_2d_ptr, &
         ncload_1dint, ncload_2dint
   end interface

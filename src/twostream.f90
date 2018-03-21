@@ -5,12 +5,12 @@
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation, either version 3 of the License, or
 ! (at your option) any later version.
-! 
+!
 ! This program is distributed in the hope that it will be useful,
 ! but WITHOUT ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ! GNU General Public License for more details.
-! 
+!
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
 !
@@ -20,7 +20,7 @@
 module m_twostream
 
 #ifdef _XLF
-      use ieee_arithmetic 
+      use ieee_arithmetic
 #define isnan ieee_is_nan
 #endif
 
@@ -37,7 +37,7 @@ module m_twostream
       subroutine delta_eddington_twostream(dtau_in,w0_in,g_in,mu0,incSolar,albedo, S,Edn,Eup, planck)
         real(ireals),intent(in),dimension(:) :: dtau_in,w0_in,g_in
         real(ireals),intent(in) :: albedo,mu0,incSolar
-        real(ireals),dimension(:),intent(out):: S,Edn,Eup 
+        real(ireals),dimension(:),intent(out):: S,Edn,Eup
         real(ireals),dimension(:),intent(in),optional :: planck
 
         real(ireals),dimension(size(dtau_in)) :: dtau,w0,g
@@ -56,7 +56,7 @@ module m_twostream
 
         ke = size(dtau)
         ke1 = ke+1
-        N = 2*(ke1)
+        N = int(2*ke1, kind(N))
         KL =2
         KU =2
         NRHS=1

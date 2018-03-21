@@ -85,9 +85,9 @@ module m_optprop_parameters
       !real(ireals), parameter :: preset_theta(19) = [0.0,5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0,50.0,55.0,60.0,65.0,70.0,75.0,80.0,85.0,90.0]
 
       integer(iintegers), parameter :: Ntau=10, Nw0=8, Ng=3, Ntheta=10
-			real(ireals), parameter :: preset_tau(10) = [1e-10,0.0137388296978,0.0573711123567,0.139789935148,0.285526816981,0.610418869282,1.57085127911,2.73919277554,5.41500325409,100.0]
-			real(ireals), parameter :: preset_w0(8) = [0.0,0.384011887456,0.643717368476,0.806922184345,0.902876665378,0.949561805714,0.975148725847,0.99999]
-			real(ireals), parameter :: preset_g(3) = [0.0,0.5,0.5]
+      real(ireals), parameter :: preset_tau(10) = [1e-10,0.0137388296978,0.0573711123567,0.139789935148,0.285526816981,0.610418869282,1.57085127911,2.73919277554,5.41500325409,100.0]
+      real(ireals), parameter :: preset_w0(8) = [0.0,0.384011887456,0.643717368476,0.806922184345,0.902876665378,0.949561805714,0.975148725847,0.99999]
+      real(ireals), parameter :: preset_g(3) = [0.0,0.5,0.5]
 
 
 !     integer(iintegers), parameter :: Ntau=2, Nw0=2, Ng=3, Ntheta=3                   !!!!!! zum testen erstmal nmnur N = 2

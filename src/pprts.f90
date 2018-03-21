@@ -149,7 +149,7 @@ module m_pprts
   type, extends(t_solver) :: t_solver_3_10
   end type
 
-  logical,parameter :: ldebug=.False.
+  logical,parameter :: ldebug=.True.
   logical,parameter :: lcycle_dir=.True.
   logical,parameter :: lprealloc=.True.
 

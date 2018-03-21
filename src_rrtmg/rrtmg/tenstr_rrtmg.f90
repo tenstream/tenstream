@@ -183,6 +183,8 @@ contains
 
     integer(mpiint) :: myid, ierr
 
+    if(present(icollapse)) call CHKERR(1_mpiint, 'Icollapse currently not supported in the rrtmg routines')
+
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     call load_atmfile(comm, atm_filename, bg_atm)
@@ -219,9 +221,9 @@ contains
     do j=js,je
       do i=is,ie
         icol =  i+(j-1)*ie
-        dz(:,i,j) = hydrostat_dz_rb(abs(col_plev(icol,1:ke) - col_plev(icol,2:ke1)), &
+        dz(:,i,j) = real(hydrostat_dz_rb(abs(col_plev(icol,1:ke) - col_plev(icol,2:ke1)), &
                                  (col_plev(icol,1:ke) + col_plev(icol,2:ke1))/2,  &
-                                 col_tlay(icol,:))
+                                 col_tlay(icol,:)), ireals)
         dz_t2b(:,i,j) = rev1d(dz(:,i,j))
       enddo
     enddo
@@ -678,7 +680,7 @@ contains
     real(rb),dimension(ncol_in,nlay_in+1) :: lwuflx,lwdflx,lwuflxc,lwdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: lwhr,lwhrc
 
-    integer(im) :: k,icol
+    integer(im) :: icol
     integer(im) :: ncol, nlay
 
     integer(im),parameter :: inflglw=2,iceflglw=3,liqflglw=1
@@ -688,8 +690,8 @@ contains
     logical,save :: linit_rrtmg=.False.
 
     ! copy from TenStream to RRTM precision:
-    ncol   = ncol_in
-    nlay   = nlay_in
+    ncol   = int(ncol_in, kind=im)
+    nlay   = int(nlay_in, kind=im)
 
     ! Take average pressure and temperature as mean values for voxels --
     ! should probably use log interpolation for pressure...
@@ -763,7 +765,7 @@ contains
     real(rb),dimension(ncol_in,nlay_in+1) :: swuflx,swdflx,swuflxc,swdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: swhr,swhrc
 
-    integer(im) :: k,icol
+    integer(im) :: icol
     integer(im) :: ncol, nlay
 
     integer(im),parameter :: dyofyr=0,inflgsw=2,iceflgsw=3,liqflgsw=1
@@ -774,8 +776,8 @@ contains
     logical,save :: linit_rrtmg=.False.
 
     ! copy from TenStream to RRTM precision:
-    ncol   = ncol_in
-    nlay   = nlay_in
+    ncol   = int(ncol_in, kind=im)
+    nlay   = int(nlay_in, kind=im)
 
     ! Take average pressure and temperature as mean values for voxels --
     ! Todo: should we use log interpolation for pressure...?

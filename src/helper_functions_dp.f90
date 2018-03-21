@@ -507,7 +507,7 @@ module m_helper_functions_dp
 
       ! fall back to test against edges using double precision
       if(ireal_dp.lt.ireal_dp) then
-        if (U.eq.zero .or. V.eq.zero .or. W.eq.zero) then
+        if (any(approx([U,V,W],zero))) then
           CxBy = real(Cx, kind=ireal_dp) * real(By, kind=ireal_dp)
           CyBx = real(Cy, kind=ireal_dp) * real(Bx, kind=ireal_dp)
           U = real(CxBy - CyBx, kind=ireal_dp)
@@ -530,7 +530,7 @@ module m_helper_functions_dp
 
       ! calculate determinant
       det = U + V + W
-      if (.not.HIT_EDGE .and. det.eq.zero) then
+      if (.not.HIT_EDGE .and. approx(det, zero)) then
         if(ldebug) print *,'determinant zero: on edge?', det
         lhit=.False.
       endif

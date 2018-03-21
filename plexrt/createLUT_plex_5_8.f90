@@ -49,8 +49,8 @@ program main
 
       call read_commandline_options()
 
-      azis = OPP_LUT_ALL_ANGLES
-      szas = OPP_LUT_ALL_ANGLES
+      azis = real(OPP_LUT_ALL_ANGLES, ireals)
+      szas = real(OPP_LUT_ALL_ANGLES, ireals)
 
       do i=1,10
         call get_command_argument(i, arg)

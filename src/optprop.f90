@@ -109,9 +109,9 @@ contains
       endif
   end subroutine
 
-  subroutine get_coeff_bmc(OPP, aspect, tauz, w0, g, dir, C, angles)
+  subroutine get_coeff_bmc(OPP, tauz, w0, g, aspect_zx, aspect_zy, dir, C, angles)
       class(t_optprop) :: OPP
-      real(ireals),intent(in) :: aspect, tauz, w0, g
+      real(ireals),intent(in) :: aspect_zx, aspect_zy, tauz, w0, g
       logical,intent(in) :: dir
       real(ireals),intent(out):: C(:)
       real(ireals),intent(in),optional :: angles(2)
@@ -120,26 +120,25 @@ contains
       real(ireals) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
       integer(iintegers) :: isrc
 
-      call CHKERR(1_mpiint, 'Currently not implemented because I changed the bmc_wrapper routines')
-!      if(present(angles)) then
-!        if(dir) then !dir2dir
-!          do isrc=1,OPP%OPP_LUT%dir_streams
-!            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
-!            C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams) = T_dir
-!          enddo
-!        else ! dir2diff
-!          do isrc=1,OPP%OPP_LUT%dir_streams
-!            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
-!            C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
-!          enddo
-!        endif
-!      else
-!        ! diff2diff
-!        do isrc=1,OPP%OPP_LUT%diff_streams
-!          call OPP%OPP_LUT%bmc_wrapper(isrc, aspect, tauz, w0, g, .False., zero, zero, -1_mpiint, S_diff, T_dir, S_tol, T_tol)
-!          C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
-!        enddo
-!      endif ! angles_present
+      if(present(angles)) then
+        if(dir) then !dir2dir
+          do isrc=1,OPP%OPP_LUT%dir_streams
+            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect_zx, aspect_zy, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+            C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams) = T_dir
+          enddo
+        else ! dir2diff
+          do isrc=1,OPP%OPP_LUT%dir_streams
+            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect_zx, aspect_zy, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+            C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
+          enddo
+        endif
+      else
+        ! diff2diff
+        do isrc=1,OPP%OPP_LUT%diff_streams
+          call OPP%OPP_LUT%bmc_wrapper(isrc, aspect_zx, aspect_zy, tauz, w0, g, .False., zero, zero, -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+          C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
+        enddo
+      endif ! angles_present
 
   end subroutine
 
@@ -156,7 +155,7 @@ contains
         logical,parameter :: compute_coeff_online=.False.
 
         if(compute_coeff_online) then
-          call get_coeff_bmc(OPP, tauz, w0, g, aspect, dir, C, inp_angles)
+          call get_coeff_bmc(OPP, tauz, w0, g, aspect, aspect, dir, C, inp_angles)
           return
         endif
 

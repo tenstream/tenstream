@@ -717,7 +717,7 @@ module m_helper_functions
       endif
       n1 = norm(p1)
       n2 = norm(p2)
-      if(any([n1,n2].eq.0)) then
+      if(any(approx([n1,n2],zero))) then
         print *,'FPE exception angle_between_two_vec :: ',p1,':',p2
       endif
 
@@ -938,7 +938,6 @@ module m_helper_functions
       integer(iintegers), intent(in) :: offsets(:)
       integer(iintegers), intent(in) :: ind
       integer(iintegers) :: nd_indices(size(offsets))
-      integer(iintegers) :: tmp
       integer(iintegers) :: k
 
       k = ubound(nd_indices,1) ! last dimension
@@ -956,7 +955,6 @@ module m_helper_functions
       integer(iintegers), intent(in) :: offsets(:)
       integer(iintegers), intent(in) :: nd_indices(:)
       integer(iintegers) :: i1d
-      integer(iintegers) :: k
       i1d = dot_product(nd_indices(:)-1, offsets) +1
     end function
 

@@ -399,7 +399,7 @@ module m_plex_grid
             iface = xbndry_iface(i)
             call DMLabelGetValue(boundarylabel, iface, lv, ierr); call CHKERR(ierr)
             call PetscSectionGetOffset(facesection, iface, voff, ierr); call CHKERR(ierr)
-            xv(i1+voff) = lv
+            xv(i1+voff) = real(lv, ireals)
           enddo
           call VecRestoreArrayF90(lVec, xv, ierr); call CHKERR(ierr)
           call ISRestoreIndicesF90(boundary_ids, xbndry_iface, ierr); call CHKERR(ierr)
@@ -1149,7 +1149,7 @@ module m_plex_grid
       subroutine setup_edir_dmplex_test()
         type(tVec) :: lvec, lvec2, gvec
 
-        integer(mpiint) :: myid, i
+        integer(mpiint) :: myid
         real(ireals), pointer :: xv(:), xv2(:)
 
         call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
@@ -1274,7 +1274,7 @@ module m_plex_grid
 
     type(tPetscSection) :: geomSection, wedgeSection
 
-    integer(iintegers) :: icell, iface, wedge_offset, geom_offset
+    integer(iintegers) :: icell, iface, wedge_offset
     integer(iintegers) :: upper_face, base_face, left_face, right_face, bottom_face
     integer(iintegers), pointer :: faces_of_cell(:)
     logical :: lsrc(5)
@@ -1321,7 +1321,7 @@ module m_plex_grid
 
       xv(wedge_offset+i1: wedge_offset+i3) = [zenith, azimuth, dx]
 
-      xv(wedge_offset+i4: wedge_offset+i8) = [upper_face, base_face, left_face, right_face, bottom_face]
+      xv(wedge_offset+i4: wedge_offset+i8) = real([upper_face, base_face, left_face, right_face, bottom_face], ireals)
       do iface = 1, size(lsrc)
         if(lsrc(iface)) then
           xv(wedge_offset+i8+iface) = one
@@ -1337,7 +1337,7 @@ module m_plex_grid
               faces_of_cell(base_face), &
               faces_of_cell(left_face), &
               faces_of_cell(right_face), &
-              geomSection, geoms, coords_2d)
+              coords_2d)
       call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
       xv(wedge_offset+14: wedge_offset+19) = coords_2d
@@ -1350,11 +1350,9 @@ module m_plex_grid
   end subroutine
 
 
-  subroutine compute_local_vertex_coordinates(plex, upperface, baseface, leftface, rightface, geomSection, geoms, local_coords)
+  subroutine compute_local_vertex_coordinates(plex, upperface, baseface, leftface, rightface, local_coords)
     type(t_plexgrid), intent(in) :: plex
     integer(iintegers), intent(in) :: upperface, baseface, leftface, rightface
-    type(tPetscSection) :: geomSection
-    real(ireals), intent(in), pointer :: geoms(:) ! pointer to coordinates vec
     real(ireals), intent(out) :: local_coords(:)  ! vertex coordinates in local boxmc geometry
 
     type(tPetscSection) :: coordSection
@@ -1450,9 +1448,9 @@ module m_plex_grid
 
     real(ireals) :: face_normals(3,5)
     real(ireals) :: proj_angles_to_sun(3), proj_sundir(3)
-    real(ireals) :: e_x(3), e_y(3), e_z(3) ! unit vectors of local coord system in which we compute the transfer coefficients
-    real(ireals) :: MrotWorld2Local(3,3) ! Rotation Matrix into the local wedge space, (ex, ey, ez)
-    real(ireals) :: local_normal_base(3), local_normal_left(3), local_normal_right(3) ! normal vectors in local wedgemc geometry. For even sided triangles, this is smth. like left: [.5, -.8] or right [-.5, -.8]
+    real(ireals) :: e_x(3)!, e_y(3), e_z(3) ! unit vectors of local coord system in which we compute the transfer coefficients
+    !real(ireals) :: MrotWorld2Local(3,3) ! Rotation Matrix into the local wedge space, (ex, ey, ez)
+    !real(ireals) :: local_normal_base(3), local_normal_left(3), local_normal_right(3) ! normal vectors in local wedgemc geometry. For even sided triangles, this is smth. like left: [.5, -.8] or right [-.5, -.8]
 
     integer(iintegers) :: side_faces(3), top_faces(2) ! indices in faces_of_cell which give the top/bot and side faces via labeling
     integer(iintegers) :: iside_faces, itop_faces, ibase_face, iright_face ! indices to fill above arrays
@@ -1533,8 +1531,6 @@ module m_plex_grid
       right_face = side_faces(iright_face)
 
       if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) call swap(right_face, left_face)
-
-
 
 !!!      e_y = side_face_normal_projected_on_upperface(:, ibase_face) ! inward facing normal -> in local wedgemc coordinates
 !!!      e_z = -face_normals(:, upper_face) ! outward facing normal with respect to the top plate

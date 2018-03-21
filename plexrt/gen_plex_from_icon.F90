@@ -440,7 +440,7 @@ module m_gen_plex_from_icon
               if(l_is_spherical_coords) then
                 cart_coord = cart_coord * (sphere_radius + (plex%Nz-k)*200)
               else
-                cart_coord(3) = (plex%Nz+1-k)*200
+                cart_coord(3) = real((plex%Nz+1-k)*200, ireals)
               endif
               coords(voff+i1 : voff+dimEmbed) = cart_coord(i1:dimEmbed)
             enddo
@@ -457,8 +457,7 @@ module m_gen_plex_from_icon
 
     end subroutine
 
-    subroutine create_mass_vec(icongrid, plex)
-      type(t_icongrid), intent(in) :: icongrid
+    subroutine create_mass_vec(plex)
       type(t_plexgrid), intent(in) :: plex
       PetscInt    :: i, depth, section_size, vecsize, voff
       PetscSection :: s
@@ -468,8 +467,8 @@ module m_gen_plex_from_icon
 
       integer(iintegers) :: icell_k(2)
       integer(iintegers),allocatable :: cell_ownership  (:)
-      integer(iintegers),allocatable :: edge_ownership  (:)
-      integer(iintegers),allocatable :: vertex_ownership(:)
+      ! integer(iintegers),allocatable :: edge_ownership  (:)
+      ! integer(iintegers),allocatable :: vertex_ownership(:)
 
       type(tDMLabel) :: zindexlabel, iconindexlabel
 
@@ -511,9 +510,9 @@ module m_gen_plex_from_icon
         call DMLabelGetValue(zindexlabel, i, icell_k(2), ierr); call CHKERR(ierr)
 
         if(cell_ownership(icell_k(1)).eq.0) then
-          xv(voff+i1) = icell_k(1)
+          xv(voff+i1) = real(icell_k(1), ireals)
         else
-          xv(voff+i1) = -icell_k(1)
+          xv(voff+i1) = real(-icell_k(1), ireals)
         endif
       enddo
       call VecRestoreArrayF90(globalVec, xv, ierr); CHKERRQ(ierr)
@@ -617,7 +616,7 @@ program main
 
   if(myid.eq.0) then
     call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
-    call create_mass_vec(icongrid, plex)
+    call create_mass_vec(plex)
   endif ! rank0
 
   call distribute_dmplex(PETSC_COMM_WORLD, plex)

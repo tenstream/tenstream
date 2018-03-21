@@ -301,10 +301,10 @@ contains
 
     return !TODO see doxy details...
     call MatGetInfo(A,MAT_LOCAL,info,ierr) ;call CHKERR(ierr)
-    mal = info(MAT_INFO_MALLOCS)
-    nz_allocated = info(MAT_INFO_NZ_ALLOCATED)
-    nz_used   = info(MAT_INFO_NZ_USED)
-    nz_unneeded = info(MAT_INFO_NZ_UNNEEDED)
+    mal = real(info(MAT_INFO_MALLOCS), ireals)
+    nz_allocated = real(info(MAT_INFO_NZ_ALLOCATED), ireals)
+    nz_used   = real(info(MAT_INFO_NZ_USED), ireals)
+    nz_unneeded = real(info(MAT_INFO_NZ_UNNEEDED), ireals)
 
     call MatGetOwnershipRange(A, m,n, ierr)
 
@@ -478,13 +478,13 @@ contains
       call getVecPointer(v_o_nnz,C,xo1d,xo)
       call getVecPointer(v_d_nnz,C,xd1d,xd)
 
-      
-      xd = i0 
-      xo = i0
+
+      xd = zero
+      xo = zero
 
       icnt = -1
       do j=C%ys,C%ye
-          do i=C%xs,C%xe        
+          do i=C%xs,C%xe
               do k=C%zs,C%ze-1
 
                   if( atm%l1d(atmk(k),i,j) ) then
@@ -612,13 +612,13 @@ contains
       call getVecPointer(v_o_nnz,C,xo1d,xo)
       call getVecPointer(v_d_nnz,C,xd1d,xd)
 
-      
-      xd = i0 
-      xo = i0
+
+      xd = zero
+      xo = zero
 
       icnt = -1
       do j=C%ys,C%ye
-        do i=C%xs,C%xe        
+        do i=C%xs,C%xe
           do k=C%zs,C%ze-1
 
             if( atm%l1d(atmk(k),i,j) ) then
@@ -631,10 +631,10 @@ contains
               !         ________E_dn___
               !        |               |
               !    E_ri|               |E_le_p
-              !        |               |  
+              !        |               |
               !        |               |
               !    E_ri|               |E_le_m
-              !        |_______________|  
+              !        |_______________|
               !                 E_up
 
               src = 1; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_dn
@@ -2661,7 +2661,7 @@ contains
               if( any( shape(dz3d).ne.shape(atm%dz) ) ) then
                   print *,'Whoops I got a 3D dz definition but this does not correspond to the grid definition :: shapes: ', shape(dz3d), ' vs. ',shape(atm%dz)
                   print *,'please know that providing a 3D dz profile has to be of local shape, it can not have global size'
-                  call MPI_Abort(icomm,ierr,ierr)
+                  call MPI_Abort(icomm,1_mpiint,ierr)
               endif
               atm%dz = dz3d
 
@@ -3683,7 +3683,7 @@ contains
 
     ierr=0
 
-    n = d+1
+    n = int(d+1, kind=kind(n))
     lda = n
     lwork = n
 
@@ -3911,7 +3911,7 @@ function get_mem_footprint()
   call mpi_barrier(imp_comm, ierr)
   call PetscMemoryGetCurrentUsage(memory_footprint, ierr); call CHKERR(ierr)
 
-  get_mem_footprint = memory_footprint / 1024. / 1024. / 1024.
+  get_mem_footprint = real(memory_footprint / 1024. / 1024. / 1024., ireals)
 
 !  call PetscMallocGetCurrentUsage(petsc_current_mem, ierr); call CHKERR(ierr)
 

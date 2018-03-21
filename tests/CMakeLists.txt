@@ -56,6 +56,8 @@ else()
     set(MPIEXEC "mpirun")
 endif()
 
+SET_SOURCE_FILES_PROPERTIES(${PFUNIT_DIR}/include/driver.F90 PROPERTIES COMPILE_FLAGS "-Wno-error")
+
 include_directories(${PFUNIT_DIR}/mod)
 #include_directories( ${PROJECT_SOURCE_DIR} )
 
@@ -72,9 +74,6 @@ endmacro()
 
 subdirlist(subdirs ${CMAKE_CURRENT_SOURCE_DIR} )
 
-
-message(STATUS "SUBDIRLIST for tests ${subdirs} :: ${CDIR}")
 foreach(subdir ${subdirs})
-    message(STATUS "Adding ${subdir} to test directories")
     add_subdirectory(${subdir})
 endforeach()

@@ -34,7 +34,7 @@ module m_tenstr_rrtm_lw_toZero
 
 contains
 
-    subroutine tenstream_rrtm_lw_toZero(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, tsrfc, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edir,edn,eup,abso, icollapse)
+    subroutine tenstream_rrtm_lw_toZero(comm, nlay, nxp, nyp, dx, dy, phi0, theta0, albedo, plev, tlay, tsrfc, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, lwc, reliq, edn,eup,abso, icollapse)
         integer(mpiint), intent(in) :: comm
         integer(iintegers), intent(in) :: nlay, nxp, nyp
 
@@ -69,7 +69,7 @@ contains
         real(ireals) :: hhl(nlay+1, nxp, nyp)
         real(ireals) :: dz (nlay  , nxp, nyp)
 
-        integer(iintegers) :: i, j, k, icol, ib, ig
+        integer(iintegers) :: i, j, k, icol, ib
         integer(iintegers) :: is,ie,js,je
         real(ireals) :: global_maxheight
 
@@ -79,7 +79,7 @@ contains
         real(ireals),allocatable, dimension(:,:,:,:) :: Blev                                  ! [nlyr+1, local_nx, local_ny, nbndlw]
         real(ireals),allocatable, dimension(:,:,:)   :: spec_edir,spec_edn,spec_eup,spec_abso ! [nlyr(+1), local_nx, local_ny ]
 
-        real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
+        real(ireals),allocatable, dimension(:,:,:), intent(out) :: edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
 
         integer(mpiint) :: myid, ierr
 
@@ -252,9 +252,9 @@ contains
 
         ! and use those without '_in' as before
 
-        real(rb),dimension(ncol_in,nlay_in+1) :: plev 
-        real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
-        real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq 
+        real(rb),dimension(ncol_in,nlay_in+1) :: plev
+        real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
+        real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq
 
         real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [ncol, nlay, ngptlw]
 
@@ -267,22 +267,22 @@ contains
 
         real(rb),dimension(ncol_in, nlay_in)   :: cfc11vmr,cfc12vmr,cfc22vmr,ccl4vmr
 
-        real(rb),dimension(ncol_in) :: tsfc 
+        real(rb),dimension(ncol_in) :: tsfc
 
         real(rb),dimension(ncol_in,nlay_in+1) :: lwuflx,lwdflx,lwuflxc,lwdflxc
         real(rb),dimension(ncol_in,nlay_in  ) :: lwhr,lwhrc
 
-        integer(im) :: iv,ig,k,icol,iw
+        integer(im) :: k,icol
         integer(im) :: ncol, nlay
 
         integer(im),parameter :: inflglw=2,iceflglw=3,liqflglw=1
         integer(kind=im) :: icld=2         ! Cloud overlap method
-        integer(kind=im) :: iaer=0         ! Aerosol option flag
+        !integer(kind=im) :: iaer=0         ! Aerosol option flag
         integer(kind=im) :: idrv=0         ! Flag for calculation of dFdT
 
         ! copy from TenStream to RRTM precision:
-        ncol   = ncol_in
-        nlay   = nlay_in
+        ncol   = int(ncol_in, kind=im)
+        nlay   = int(nlay_in, kind=im)
         plev   = rev(plev_in)
         tlay   = rev(tlay_in)
         h2ovmr = rev(h2ovmr_in)

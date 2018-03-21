@@ -176,7 +176,7 @@ contains
     if(approx(offset,zero)) then
       interp_1d = a0(i)
     else
-      interp_1d = (one-offset) * a0(i) + offset * a0(min(i+1, size(a0)))
+      interp_1d = (one-offset) * a0(i) + offset * a0(min(i+1, size(a0,kind=iintegers)))
     endif
   end function
 
@@ -200,91 +200,91 @@ contains
     endif
   end function
 
-  subroutine interp_6d_recursive(pti, db, C)
-    integer(iintegers),parameter :: Ndim=6
-    real(ireals),intent(in) :: pti(Ndim), db(:,:,:,:,:,:,:)
-    real(ireals),intent(out) :: C(:)
-
-    integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
-    real(ireals) :: weights(Ndim)
-    real(ireals) :: bound_vals(size(C),2**Ndim)
-    integer(iintegers) :: i,d
-
-    ! First determine the array indices, where to look.
-    fpti = floor(pti)
-    weights = modulo(pti, one)
-
-    !        print *,'interp6d',pti,'weights',weights
-    do i=1,2**Ndim
-      indices(:,i) = permu6d(:,i) + fpti
-    enddo
-    ! Make sure we dont recall a value outside of array dimensions
-    do d=1,Ndim
-      indices(d,:) = max( i1, min( ubound(db,d+i1), indices(d,:) ) )
-    enddo
-
-    ! Then get the corner values of hypercube
-    do i=1,2**Ndim
-      bound_vals(:,i) = db(:, indices(1,i),indices(2,i),indices(3,i),indices(4,i), indices(5,i), indices(6,i) )
-      !          print *,'interp6d',i,'ind',indices(:,i),'bounds',bound_vals(:,i)
-    enddo
-
-    ! And plug bound_vals and weights into recursive interpolation...
-    call interpn(Ndim,bound_vals,weights,i1, C)
-  end subroutine
-  pure subroutine interp_6d(pti, db, C)
-    integer(iintegers),parameter :: Ndim=6
-    real(ireals),intent(in) :: pti(Ndim), db(:,:,:,:,:,:,:)
-    real(ireals),intent(out) :: C(:)
-
-    integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
-    integer(iintegers) :: i,d,ind(6)
-
-    real(ireals) :: weights(Ndim)
-    real(ireals) :: db6(size(C),2**Ndim)
-    real(ireals) :: db5(size(C),2**(Ndim-1))
-    real(ireals) :: db4(size(C),2**(Ndim-2))
-    real(ireals) :: db3(size(C),2**(Ndim-3))
-    real(ireals) :: db2(size(C),2**(Ndim-4))
-    real(ireals) :: db1(size(C),2**(Ndim-5))
-
-    ! First determine the array indices, where to look.
-    fpti = floor(pti)
-    weights = modulo(pti, one)
-
-    !        print *,'interp6d',pti,'weights',weights
-    do i=1,2**Ndim
-      indices(:,i) = permu6d(:,i) + fpti
-    enddo
-    ! Make sure we dont recall a value outside of array dimensions
-    do d=1,Ndim
-      indices(d,:) = max( i1, min( ubound(db,d+i1), indices(d,:) ) )
-    enddo
-    ! Then get the corner values of hypercube
-    do i=1,2**Ndim
-      ind = indices(:,i)
-      db6(:,i) = db(:, ind(1),ind(2),ind(3),ind(4), ind(5), ind(6) )
-    enddo
-
-    ! Permutations for 1st axis
-    do i=1,2**(Ndim-1)
-      db5(:,i)  = spline( weights(1), db6(:,2*i-1), db6(:,2*i) )
-    enddo
-    do i=1,2**(Ndim-2)
-      db4(:,i)  = spline( weights(2), db5(:,2*i-1), db5(:,2*i) )
-    enddo
-    do i=1,2**(Ndim-3)
-      db3(:,i)  = spline( weights(3), db5(:,4*i-1), db5(:,4*i) )
-    enddo
-    do i=1,2**(Ndim-4)
-      db2(:,i)  = spline( weights(4), db5(:,3*i-1), db3(:,2*i) )
-    enddo
-    do i=1,2**(Ndim-5)
-      db1(:,i)  = spline( weights(5), db2(:,2*i-1), db2(:,2*i) )
-    enddo
-
-    C(:)  = spline( weights(6), db1(:,2), db1(:,1) )
-  end subroutine
+!deprecated?  subroutine interp_6d_recursive(pti, db, C)
+!deprecated?    integer(iintegers),parameter :: Ndim=6
+!deprecated?    real(ireals),intent(in) :: pti(Ndim), db(:,:,:,:,:,:,:)
+!deprecated?    real(ireals),intent(out) :: C(:)
+!deprecated?
+!deprecated?    integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
+!deprecated?    real(ireals) :: weights(Ndim)
+!deprecated?    real(ireals) :: bound_vals(size(C),2**Ndim)
+!deprecated?    integer(iintegers) :: i,d
+!deprecated?
+!deprecated?    ! First determine the array indices, where to look.
+!deprecated?    fpti = floor(pti)
+!deprecated?    weights = modulo(pti, one)
+!deprecated?
+!deprecated?    !        print *,'interp6d',pti,'weights',weights
+!deprecated?    do i=1,2**Ndim
+!deprecated?      indices(:,i) = permu6d(:,i) + fpti
+!deprecated?    enddo
+!deprecated?    ! Make sure we dont recall a value outside of array dimensions
+!deprecated?    do d=1,Ndim
+!deprecated?      indices(d,:) = max( i1, min( ubound(db,d+i1,iintegers), indices(d,:) ) )
+!deprecated?    enddo
+!deprecated?
+!deprecated?    ! Then get the corner values of hypercube
+!deprecated?    do i=1,2**Ndim
+!deprecated?      bound_vals(:,i) = db(:, indices(1,i),indices(2,i),indices(3,i),indices(4,i), indices(5,i), indices(6,i) )
+!deprecated?      !          print *,'interp6d',i,'ind',indices(:,i),'bounds',bound_vals(:,i)
+!deprecated?    enddo
+!deprecated?
+!deprecated?    ! And plug bound_vals and weights into recursive interpolation...
+!deprecated?    call interpn(Ndim,bound_vals,weights,i1, C)
+!deprecated?  end subroutine
+!deprecated?  pure subroutine interp_6d(pti, db, C)
+!deprecated?    integer(iintegers),parameter :: Ndim=6
+!deprecated?    real(ireals),intent(in) :: pti(Ndim), db(:,:,:,:,:,:,:)
+!deprecated?    real(ireals),intent(out) :: C(:)
+!deprecated?
+!deprecated?    integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
+!deprecated?    integer(iintegers) :: i,d,ind(6)
+!deprecated?
+!deprecated?    real(ireals) :: weights(Ndim)
+!deprecated?    real(ireals) :: db6(size(C),2**Ndim)
+!deprecated?    real(ireals) :: db5(size(C),2**(Ndim-1))
+!deprecated?    real(ireals) :: db4(size(C),2**(Ndim-2))
+!deprecated?    real(ireals) :: db3(size(C),2**(Ndim-3))
+!deprecated?    real(ireals) :: db2(size(C),2**(Ndim-4))
+!deprecated?    real(ireals) :: db1(size(C),2**(Ndim-5))
+!deprecated?
+!deprecated?    ! First determine the array indices, where to look.
+!deprecated?    fpti = floor(pti)
+!deprecated?    weights = modulo(pti, one)
+!deprecated?
+!deprecated?    !        print *,'interp6d',pti,'weights',weights
+!deprecated?    do i=1,2**Ndim
+!deprecated?      indices(:,i) = permu6d(:,i) + fpti
+!deprecated?    enddo
+!deprecated?    ! Make sure we dont recall a value outside of array dimensions
+!deprecated?    do d=1,Ndim
+!deprecated?      indices(d,:) = max( i1, min( ubound(db,d+i1,iintegers), indices(d,:) ) )
+!deprecated?    enddo
+!deprecated?    ! Then get the corner values of hypercube
+!deprecated?    do i=1,2**Ndim
+!deprecated?      ind = indices(:,i)
+!deprecated?      db6(:,i) = db(:, ind(1),ind(2),ind(3),ind(4), ind(5), ind(6) )
+!deprecated?    enddo
+!deprecated?
+!deprecated?    ! Permutations for 1st axis
+!deprecated?    do i=1,2**(Ndim-1)
+!deprecated?      db5(:,i)  = spline( weights(1), db6(:,2*i-1), db6(:,2*i) )
+!deprecated?    enddo
+!deprecated?    do i=1,2**(Ndim-2)
+!deprecated?      db4(:,i)  = spline( weights(2), db5(:,2*i-1), db5(:,2*i) )
+!deprecated?    enddo
+!deprecated?    do i=1,2**(Ndim-3)
+!deprecated?      db3(:,i)  = spline( weights(3), db5(:,4*i-1), db5(:,4*i) )
+!deprecated?    enddo
+!deprecated?    do i=1,2**(Ndim-4)
+!deprecated?      db2(:,i)  = spline( weights(4), db5(:,3*i-1), db3(:,2*i) )
+!deprecated?    enddo
+!deprecated?    do i=1,2**(Ndim-5)
+!deprecated?      db1(:,i)  = spline( weights(5), db2(:,2*i-1), db2(:,2*i) )
+!deprecated?    enddo
+!deprecated?
+!deprecated?    C(:)  = spline( weights(6), db1(:,2), db1(:,1) )
+!deprecated?  end subroutine
   pure subroutine interp_2d(pti, db, C)
     integer(iintegers),parameter :: Ndim=2
     real(ireals),intent(in) :: pti(Ndim), db(:,:,:)
@@ -305,7 +305,7 @@ contains
     enddo
     ! Make sure we dont recall a value outside of array dimensions
     do d=1,Ndim
-      indices(d,:) = max( i1, min( ubound(db,d+i1), indices(d,:) ) )
+      indices(d,:) = max( i1, min( ubound(db,d+i1,iintegers), indices(d,:) ) )
     enddo
 
     ! Then get the corner values of hypercube
@@ -342,7 +342,7 @@ contains
     enddo
     ! Make sure we dont recall a value outside of array dimensions
     do d=1,Ndim
-      indices(d,:) = max( i1, min( ubound(db,d+i1), indices(d,:) ) )
+      indices(d,:) = max( i1, min( ubound(db, d+i1, iintegers), indices(d,:) ) )
     enddo
 
     ! Then get the corner values of hypercube
@@ -382,7 +382,7 @@ contains
     enddo
     ! Make sure we dont recall a value outside of array dimensions
     do d=1,Ndim
-      indices(d,:) = max( i1, min( ubound(db,d+i1), indices(d,:) ) )
+      indices(d,:) = max( i1, min( ubound(db,d+i1, iintegers), indices(d,:) ) )
     enddo
 
     ! Then get the corner values of hypercube
@@ -463,7 +463,6 @@ contains
     integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
     real(ireals),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
     real(ireals), dimension(2,5) :: points ! i.e. A, B, C, D, P
-    real(ireals) :: areas(3) ! areas between vertices ABP, BCP, ACP
 
     integer(iintegers) :: i, ipnt
     integer(iintegers) :: nd_indices(size(pti))
@@ -491,12 +490,12 @@ contains
       do ipnt = 1, 3
         nd_indices(interp_dims) = nint(points(:,ipnt))
         interp_values(:,ipnt) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
-        interp_areas(ipnt) = triangle_area_by_vertices(points(:,modulo(ipnt,3)+1), points(:,modulo(ipnt+1,3)+1), P)
+        interp_areas(ipnt) = triangle_area_by_vertices(points(:,modulo(ipnt,3_iintegers)+1), points(:,modulo(ipnt+1,3_iintegers)+1), P)
       enddo
       do ipnt = 1, 3
         ! if the point lies on the newly made up line, quick exit with 1D interpolation
         if(approx(interp_areas(ipnt), zero, 10*sqrt(epsilon(zero)))) then
-          associate( p1 => modulo(ipnt,3)+1, p2 => modulo(ipnt+1,3)+1 )
+          associate( p1 => modulo(ipnt,3_iintegers)+1, p2 => modulo(ipnt+1,3_iintegers)+1 )
             wgt_1d = interp_areas(p2) / (interp_areas(p1) + interp_areas(p2))
             Cres = spline(wgt_1d, interp_values(:,p1), interp_values(:,p2))
           end associate

@@ -11,13 +11,11 @@ file(WRITE ${TESTDIR}/testSuites.inc "")
 set(_test_sources)
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.[fF]90")
-message(STATUS "Found following test files: ${files}")
 foreach(_file ${files})
   get_filename_component (_test_NAME ${_file} NAME   )
   get_filename_component (_test_WE   ${_file} NAME_WE)
   get_filename_component (_test_EXT  ${_file} EXT    )
 
-  message(STATUS "FNAMES are: ${_test_NAME} :: ${_test_WE} :: ${_test_EXT}")
   if (DEFINED PFUNIT_INSTALL)
     set(test_dependency ${_file})
   else()
@@ -32,9 +30,9 @@ foreach(_file ${files})
   file(APPEND ${TESTDIR}/testSuites.inc "ADD_TEST_SUITE(${_test_WE}_suite)\n")
 endforeach()
 
-set_source_files_properties(${PFUNIT_DIR}/include/driver.F90 PROPERTIES GENERATED 1)
-
-message(STATUS "Source files determined as :: ${_test_sources}")
+set_source_files_properties(${PFUNIT_DIR}/include/driver.F90 PROPERTIES
+  GENERATED 1
+  COMPILE_FLAGS "-Wno-error")
 
 add_executable(
   pfunit_${CDIR}
@@ -47,7 +45,7 @@ target_link_libraries(
   tenstr_rrtmg tenstr_rrtm_lw tenstream
   )
 
-add_test(NAME pfunit_${CDIR} 
-         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 16 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR} 
+add_test(NAME pfunit_${CDIR}
+         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 16 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 

@@ -18,8 +18,6 @@ module m_box_cld
 subroutine box_cld()
     implicit none
 
-    integer(iintegers) :: k
-
     integer(iintegers),parameter :: nxp=30,nyp=10,nv=10
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=90, theta0=60
@@ -30,10 +28,6 @@ subroutine box_cld()
 
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
-
-    real(ireals) :: div_target(nv)
-    real(ireals) :: dn_target(nv+1)
-    real(ireals) :: up_target(nv+1)
 
     dz1d = dz
 

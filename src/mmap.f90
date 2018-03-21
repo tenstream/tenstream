@@ -79,7 +79,6 @@ contains
 
     integer(c_int) :: c_fd
 
-    integer :: funit
     logical :: lexists
 
     inquire(file=trim(fname), exist=lexists)
