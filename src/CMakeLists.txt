@@ -11,7 +11,6 @@ set( general_sources
   "data_parameters.f90"
   "eddington.f90"
   "interpolation.f90"
-  "mersenne.f90"
   "ranlux.for"
   "twostream.f90"
   "schwarzschild.f90"

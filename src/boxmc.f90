@@ -34,7 +34,6 @@ module m_boxmc
     hit_plane, square_intersection, triangle_intersection
   use m_helper_functions, only : CHKERR
   use iso_c_binding
-  use m_mersenne
   use mpi
   use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi_dp
 
@@ -52,7 +51,6 @@ module m_boxmc
   integer(mpiint) :: mpierr,myid,numnodes
 
   logical :: lRNGseeded=.False.
-  type(randomNumberSequence),save :: rndSeq
 
   logical, parameter :: ldebug=.False.
 
@@ -658,7 +656,6 @@ contains
   function R()
     real(ireal_dp) :: R
     real :: rvec(1)
-    ! R = getRandomDouble(rndSeq) ! mersenne twister from robert pinucs, see mersenne.f90
     ! call random_number(R)
     call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher
     R = real(rvec(1), kind=ireal_dp)
@@ -683,9 +680,6 @@ contains
     call random_number(rn)
     s = int(rn*1000)*(myid+1)
 
-    !  s=myid
-    !  print *,myid,'Seeding RNG with ',s
-    rndSeq = new_RandomNumberSequence(seed=s) ! seed pincus's mersenne twister
     call RLUXGO(4, int(s), 0, 0) ! seed ranlux rng
     lRNGseeded=.True.
   end subroutine
