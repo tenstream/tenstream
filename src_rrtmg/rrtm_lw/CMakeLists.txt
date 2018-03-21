@@ -5,7 +5,7 @@ include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 file(GLOB files *.f* )
 
 # Dont use Werror for files that are not ours
-set(WNOERRORFLG "-Wno-error -Wno-pedantic")
+set(WNOERRORFLG "-w -Wno-error -Wno-pedantic")
 file(GLOB rrtm_files *.f* )
 file(GLOB tenstr_files tenstr_*.f* )
 
