@@ -22,7 +22,7 @@
 #include <petscsys.h>
 #include <mpi.h>
 
-#include <c_tenstream.h>
+#include <f2c_tenstream.h>
 
 static char help[] = "This is the C wrapper interface to the Tenstream solver calling the RRTMG routines.\n\n";
 
@@ -103,7 +103,11 @@ int main(int argc, char *argv[]) {
       //for (int j=0; j<Ny; j++) {
         //int ind = k + i*Nz_merged + j*Nx*Nz_merged;  // `ind` gives index [k,i,j] (Fortran Order)
         //fprintf(stdout, "%d :: %d %d %d :: %d :: %f \n", myid, k, i, j, ind, edir[ind]);
-        fprintf(stdout, "%d :: %d :: %f %f %f %f\n", myid, k, edir[k], edn[k], eup[k], abso[k]);
+        if(edir) {
+            fprintf(stdout, "%d :: %d :: %f %f %f %f\n", myid, k, edir[k], edn[k], eup[k], abso[k]);
+        } else {
+            fprintf(stdout, "%d :: %d :: %f %f %f\n", myid, k, edn[k], eup[k], abso[k]);
+        }
       //}
     //}
   }

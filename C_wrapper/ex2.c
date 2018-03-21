@@ -21,12 +21,7 @@
 #include <stdlib.h>
 #include <petscsys.h>
 #include <mpi.h>
-
-void tenstr_f2c_init(int fcomm, int *solver_id, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, int *collapseindex);
-void tenstr_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float *albedo, float *kabs, float *ksca, float *g, float *planck);
-void tenstr_f2c_solve(int fcomm, float edirTOA);
-void tenstr_f2c_destroy();
-void tenstr_f2c_get_result(int Nz,int Nx,int Ny, float *edn, float *eup, float *abso, float *edir);
+#include <f2c_tenstream.h>
 
 static char help[] = "This is the C wrapper interface to the Tenstream solver environment.\n\n";
 
@@ -34,7 +29,7 @@ static const int solveriterations = 1;
 int collapseindex = 1;
 
 int master(int fcomm) {
-  int Nx=3, Ny=3, Nz=64;
+  int Nx=3, Ny=12, Nz=64;
   int solver_id=0;
   double dx=100,dy=100, dz=40.414518843273818;
   float phi0=0, theta0=60;
@@ -92,12 +87,12 @@ int master(int fcomm) {
   for(int k=Nz;k>0;k--)
     hhl[k-1] = hhl[k]+dz;
 
-  tenstr_f2c_init(fcomm,&solver_id,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0, &collapseindex);
-  tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, &albedo, kabs, ksca, g, planck);
-  tenstr_f2c_solve(fcomm, 1. );
-  tenstr_f2c_get_result(Nz,Nx,Ny, edn, eup, abso, edir);
+  pprts_f2c_init(fcomm,&solver_id,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0, &collapseindex);
+  pprts_f2c_set_global_optical_properties(Nz,Nx,Ny, &albedo, kabs, ksca, g, planck);
+  pprts_f2c_solve(fcomm, 1. );
+  pprts_f2c_get_result(Nz,Nx,Ny, edn, eup, abso, edir);
 
-  tenstr_f2c_destroy();
+  pprts_f2c_destroy();
 
   for(int j=0;j<Ny/10;j++){
     int i=1;
@@ -148,12 +143,12 @@ int slave(int fcomm) {
   float *eup    = NULL;
   float *abso   = NULL;
 
-  tenstr_f2c_init(fcomm,&solver_id,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0, &collapseindex);
-  tenstr_f2c_set_global_optical_properties(Nz,Nx,Ny, albedo, kabs, ksca, g, planck);
-  tenstr_f2c_solve(fcomm, 1.);
-  tenstr_f2c_get_result(Nz,Nx,Ny, edn, eup, abso, edir);
+  pprts_f2c_init(fcomm,&solver_id,&Nz,&Nx,&Ny, &dx,&dy, hhl, &phi0, &theta0, &collapseindex);
+  pprts_f2c_set_global_optical_properties(Nz,Nx,Ny, albedo, kabs, ksca, g, planck);
+  pprts_f2c_solve(fcomm, 1.);
+  pprts_f2c_get_result(Nz,Nx,Ny, edn, eup, abso, edir);
 
-  tenstr_f2c_destroy();
+  pprts_f2c_destroy();
   return 0;
 }
 

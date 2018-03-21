@@ -240,7 +240,7 @@ module m_pprts
           allocate(solver%dirside%is_inward(1))
           solver%dirside%is_inward = [.True.]
         class default
-        stop 'init pprts: unexpected type for solver'
+          call CHKERR(1_mpiint, 'unexpected type for solver')
       end select
 
       solver%difftop%dof= size(solver%difftop%is_inward)

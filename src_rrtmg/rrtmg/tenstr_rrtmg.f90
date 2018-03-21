@@ -256,9 +256,11 @@ contains
     deallocate(col_iwc)
 
     ! Allocate space for results -- for integrated values and for temporary spectral integration...
-    allocate(edn (C_one1%zm, C_one1%xm, C_one1%ym), source=zero)
-    allocate(eup (C_one1%zm, C_one1%xm, C_one1%ym), source=zero)
-    allocate(abso(C_one%zm , C_one%xm , C_one%ym ), source=zero)
+    if(lthermal .or. lsolar) then
+      allocate(edn (C_one1%zm, C_one1%xm, C_one1%ym), source=zero)
+      allocate(eup (C_one1%zm, C_one1%xm, C_one1%ym), source=zero)
+      allocate(abso(C_one%zm , C_one%xm , C_one%ym ), source=zero)
+    endif
 
     if(lthermal) then
       call compute_thermal(is, ie, js, je, ks, ke, ke1, &

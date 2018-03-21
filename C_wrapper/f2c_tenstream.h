@@ -17,6 +17,8 @@
 /*  Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>               */
 /* -------------------------------------------------------------------------*/
 
+#include "f2c_solver_ids.h"
+
 void f2c_tenstream_rrtmg(int fcomm,                   // MPI_Comm_c2f(MPI_COMM_WORLD)
     int *Nz, int *Nx,int *Ny,                         // size of local subdomain
     double *dx, double *dy,                           // horizontal grid spacing in [m]
@@ -40,3 +42,11 @@ void f2c_tenstream_rrtmg(int fcomm,                   // MPI_Comm_c2f(MPI_COMM_W
     );
 
 void f2c_destroy_tenstream_rrtmg(int *lfinalizepetsc);
+
+
+// Direct C wrapper of PPRTS Routines
+void pprts_f2c_init(int fcomm, int *solver_id, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, int *collapseindex);
+void pprts_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float *albedo, float *kabs, float *ksca, float *g, float *planck);
+void pprts_f2c_solve(int fcomm, float edirTOA);
+void pprts_f2c_destroy();
+void pprts_f2c_get_result(int Nz,int Nx,int Ny, float *edn, float *eup, float *abso, float *edir);

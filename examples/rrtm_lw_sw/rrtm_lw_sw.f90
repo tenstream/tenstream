@@ -160,12 +160,14 @@ program main
   use m_data_parameters, only : iintegers, mpiint
   use m_example_rrtm_lw_sw
 
+  implicit none
+
   integer(mpiint) :: ierr, myid
   integer(iintegers) :: Nx, Ny, Nz
   logical :: lflg
 
   call mpi_init(ierr)
-  call mpi_comm_rank(mpi_comm_world, myid, mpierr)
+  call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
   call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
 

@@ -29,50 +29,11 @@ program main
       use m_optprop_parameters, only : OPP_LUT_ALL_ANGLES
       use m_tenstream_options, only : read_commandline_options
 
-      integer(mpiint) :: myid,comm
-
-      character(len=80) :: arg
-      real(ireals) :: user_sza
-      real(ireals) :: azis(1),szas(1)
-
       type(t_optprop_LUT_wedge_5_8) :: OPP
 
       PetscErrorCode :: ierr
-      integer :: i
 
-      call mpi_init(ierr)
-      comm = MPI_COMM_WORLD
-      call mpi_comm_rank(comm,myid,ierr)
-      call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;call CHKERR(ierr)
-
-      call init_mpi_data_parameters(MPI_COMM_WORLD)
-
-      call read_commandline_options()
-
-      azis = real(OPP_LUT_ALL_ANGLES, ireals)
-      szas = real(OPP_LUT_ALL_ANGLES, ireals)
-
-      do i=1,10
-        call get_command_argument(i, arg)
-        if(len_trim(arg) .gt. 0) then
-
-          if(arg.eq.'-sza') then
-            call get_command_argument(i+1, arg)
-            read (arg,*) user_sza
-            szas=user_sza
-          endif
-
-          if(arg.eq.'-azi') then
-            call get_command_argument(i+1, arg)
-            read (arg,*) user_azi
-            azis=user_azi
-          endif
-        endif
-      enddo
-
-      if(myid.eq.0) print *,'calculating coeffs for szas',szas,'azimuths',azis
-      call OPP%init(comm)
-      if(myid.eq.0) print *,'loaded plex 8_10 coeffs for szas',szas,'azis',azis
+      call OPP%init(MPI_COMM_WORLD)
 
       call mpi_finalize(ierr)
 end program

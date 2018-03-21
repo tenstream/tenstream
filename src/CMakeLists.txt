@@ -39,7 +39,7 @@ target_link_libraries( pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 add_library( tenstream STATIC "tenstream.f90")
 target_link_libraries( tenstream pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
-add_library( pprts STATIC "pprts.f90" "f2c_tenstream.f90")
+add_library( pprts STATIC "pprts.f90")
 target_link_libraries( pprts pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
 file( GLOB streams createLUT_*.f90 )
@@ -51,9 +51,6 @@ foreach ( stream ${streams} )
 
   install(TARGETS ${basename} RUNTIME DESTINATION bin)
 endforeach ()
-
-add_executable( "Cwrapper_test" "f2c_tenstream.c" )
-target_link_libraries( "Cwrapper_test" pprts)
 
 install(TARGETS tenstream DESTINATION lib)
 
