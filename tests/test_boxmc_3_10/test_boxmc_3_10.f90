@@ -127,7 +127,7 @@ contains
     T_target(1) = (sinh(tau)-cosh(tau)+1)/tau
 
     do iphi=0,360,30
-      phi = iphi
+      phi = real(iphi, ireals)
       do src = 2,3
         call bmc_3_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')

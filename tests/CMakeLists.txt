@@ -56,7 +56,9 @@ else()
     set(MPIEXEC "mpirun")
 endif()
 
-SET_SOURCE_FILES_PROPERTIES(${PFUNIT_DIR}/include/driver.F90 PROPERTIES COMPILE_FLAGS "-Wno-error")
+set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-Wno-error -w")
+
+set(EXTRA_TEST_COMPILE_FLAGS "-Wno-error -Wno-unused-dummy-argument")
 
 include_directories(${PFUNIT_DIR}/mod)
 #include_directories( ${PROJECT_SOURCE_DIR} )

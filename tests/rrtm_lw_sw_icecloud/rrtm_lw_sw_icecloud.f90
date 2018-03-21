@@ -31,7 +31,7 @@ subroutine test_rrtm_lw_sw_icecloud(this)
     ! Layer values for the atmospheric constituents -- those are actually all
     ! optional and if not provided, will be taken from the background profile file (atm_filename)
     ! see interface of `tenstream_rrtmg()` for units
-    real(ireals), dimension(nzp,nxp,nyp) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr 
+    real(ireals), dimension(nzp,nxp,nyp) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
     real(ireals), dimension(nzp,nxp,nyp) :: lwc, reliq, iwc, reice
@@ -60,7 +60,7 @@ subroutine test_rrtm_lw_sw_icecloud(this)
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
 
-    N_ranks_y = sqrt(1.*numnodes)
+    N_ranks_y = int(sqrt(1.*numnodes), mpiint)
     N_ranks_x = numnodes / N_ranks_y
     if(N_ranks_y*N_ranks_x .ne. numnodes) then
       N_ranks_x = numnodes

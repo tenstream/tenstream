@@ -96,8 +96,8 @@ contains
                   kabs = preset_tau(itau) * (one-preset_w0(iw0))
                   ksca = preset_tau(itau) * preset_w0(iw0)
                   g    = preset_g(ig)
-                  phi  = iphi
-                  theta= itheta
+                  phi  = real(iphi, ireals)
+                  theta= real(itheta, ireals)
                   if(iloop.eq.2) params(2*(itest-1)+1) = newPeCase(kabs,ksca,g,phi,theta)
 
                   ! Again, do interlaced tests between support points of LUT

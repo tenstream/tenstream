@@ -329,7 +329,7 @@ contains
       if(lcheckdownward) then
         !Should be rotationally symmetric for sza=0
         do iphi = 0, 360, 10
-          phi = iphi
+          phi = real(iphi, ireals)
           T_target = zero
 
           print *,'downward phi', phi
@@ -390,7 +390,7 @@ contains
         theta = 180
         !Should be rotationally symmetric for sza=180
         do iphi = 0, 360, 10
-          phi = iphi
+          phi = real(iphi, ireals)
           T_target = zero
 
           print *,'upward phi', phi

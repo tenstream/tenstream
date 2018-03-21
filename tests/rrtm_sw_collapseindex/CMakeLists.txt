@@ -30,9 +30,10 @@ foreach(_file ${files})
   file(APPEND ${TESTDIR}/testSuites.inc "ADD_TEST_SUITE(${_test_WE}_suite)\n")
 endforeach()
 
+set_source_files_properties(${_test_sources} PROPERTIES COMPILE_FLAGS "${EXTRA_TEST_COMPILE_FLAGS}")
 set_source_files_properties(${PFUNIT_DIR}/include/driver.F90 PROPERTIES
   GENERATED 1
-  COMPILE_FLAGS "-Wno-error")
+  COMPILE_FLAGS "${EXTRA_TESTDRIVER_COMPILE_FLAGS}")
 
 add_executable(
   pfunit_${CDIR}

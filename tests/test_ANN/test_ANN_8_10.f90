@@ -255,7 +255,6 @@ contains
 
       real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
 
-      integer(iintegers) :: i
       character(len=*),optional :: msg
       character(default_str_len) :: local_msgS, local_msgT
 

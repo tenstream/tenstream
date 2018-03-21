@@ -39,7 +39,7 @@ contains
     db(1,:) = pack(db_2d, .True.)
 
     db_shape = shape(db_2d, iintegers)
-    db_offsets = ndarray_offsets(shape(db_2d(1,:,:)))
+    db_offsets = ndarray_offsets(shape(db_2d(1,:,:), iintegers))
 
     ! 0-dim
     do i=1,2
@@ -141,7 +141,7 @@ contains
     db(1,:) = pack(db_3d, .True.)
 
     db_shape = shape(db_3d, iintegers)
-    db_offsets = ndarray_offsets(shape(db_3d(1,:,:,:)))
+    db_offsets = ndarray_offsets(shape(db_3d(1,:,:,:), iintegers))
 
     ! 0-dim, just check corners again, this should actually not even end up in 3dim interp but just go to 0D
     do i=1,2
@@ -203,7 +203,7 @@ contains
     db(1,:) = pack(db_4d, .True.)
 
     db_shape = shape(db_4d, iintegers)
-    db_offsets = ndarray_offsets(shape(db_4d(1,:,:,:,:)))
+    db_offsets = ndarray_offsets(shape(db_4d(1,:,:,:,:), iintegers))
 
     ! 0-dim, just check corners again, this should actually not even end up in 3dim interp but just go to 0D
     do i=1,2
@@ -229,8 +229,6 @@ contains
 
     real(ireals) :: db_2d(1,2,2)
     real(ireals) :: res(1)
-
-    integer :: i
 
     character(default_str_len) :: msg
     write(msg,*) "2D linear interpolation not as expected: "

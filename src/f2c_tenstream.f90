@@ -73,7 +73,7 @@ contains
         call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
         if(myid.eq.0) then
-          osolver_id = solver_id
+          osolver_id = int(solver_id, kind=iintegers)
           oNx     = int(Nx, kind=iintegers)
           oNy     = int(Ny, kind=iintegers)
           oNz     = int(Nz, kind=iintegers)
@@ -146,10 +146,10 @@ contains
 
         if(solver%myid.eq.0) then
           oalbedo = real(albedo, kind=ireals)
-          allocate( okabs  (Nz  ,Nx,Ny) ); okabs   = kabs
-          allocate( oksca  (Nz  ,Nx,Ny) ); oksca   = ksca
-          allocate( og     (Nz  ,Nx,Ny) ); og      = g
-          allocate( oplanck(Nz+1,Nx,Ny) ); oplanck = planck
+          allocate( okabs  (Nz  ,Nx,Ny) ); okabs   = real(kabs, ireals)
+          allocate( oksca  (Nz  ,Nx,Ny) ); oksca   = real(ksca, ireals)
+          allocate( og     (Nz  ,Nx,Ny) ); og      = real(g, ireals)
+          allocate( oplanck(Nz+1,Nx,Ny) ); oplanck = real(planck, ireals)
 
           if(any(oplanck.gt.zero)) then
             call set_global_optical_properties(solver, oalbedo, okabs, oksca, og, oplanck)
@@ -174,7 +174,7 @@ contains
         real(c_float), value :: edirTOA
         real(ireals) :: oedirTOA
 
-        if(solver%myid.eq.0) oedirTOA = edirTOA
+        if(solver%myid.eq.0) oedirTOA = real(edirTOA, ireals)
         call imp_bcast(comm, oedirTOA, 0_mpiint)
 
         call solve_pprts(solver, oedirTOA)

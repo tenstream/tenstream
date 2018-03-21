@@ -210,7 +210,7 @@ contains
     enddo
 
     do iphi = 0,360,60
-      phi = iphi
+      phi = real(iphi, ireals)
       theta= 0
 
       tau = (bg(1)+bg(2)) * dz/2

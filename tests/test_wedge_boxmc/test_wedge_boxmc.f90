@@ -265,7 +265,7 @@ contains
 
       !Should be rotationally symmetric for sza=0
       do iphi = 0, 360, 10
-        phi = iphi
+        phi = real(iphi, ireals)
         T_target = zero
 
         print *,'downward'
@@ -290,7 +290,7 @@ contains
       ! and the same for upward propagation
       theta = 180
       do iphi = 0, 360, 10
-        phi = iphi
+        phi = real(iphi, ireals)
         T_target = zero
 
         do src=5,5

@@ -1,7 +1,7 @@
 @test(npes =[4,2])
 subroutine test_tenstream_ex1(this)
 
-    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, pi
 
     use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
         tenstream_get_result, getvecpointer, restorevecpointer, &
@@ -54,7 +54,7 @@ subroutine test_tenstream_ex1(this)
     ksca = 1e-8
     g    = zero
     do k=1,C_one1%zm
-        B(k,:,:) = (288 - 50*(1 - float(k)/float(nv+1)) )**4 * 5.67e-8/ pi
+        B(k,:,:) = (real(288,ireals) - 50*(one - real(k, ireals)/real(nv+1,ireals)) )**4 * 5.67e-8_ireals / pi
         ! print *,'T',k,288 - 50*(1 - float(k)/float(nv+1))
     enddo
 

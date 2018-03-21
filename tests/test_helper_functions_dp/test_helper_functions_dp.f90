@@ -78,7 +78,7 @@ subroutine test_triangle_functions_dp()
     real(ireal_dp),parameter :: C(2) = [dx/2.,sqrt(dx**2 - (dx/2)**2)]
     real(ireal_dp) :: P(2), distance
 
-    real(ireal_dp) :: normal(3), new_loc(3)
+    real(ireal_dp) :: normal(3)
 
     ! Tests determining the distance of a point to a 2D line/edge
     @assertEqual(zero, distance_to_edge(A,B,A), 'from point on line, the distance to same line should be zero distance_to_edge1')

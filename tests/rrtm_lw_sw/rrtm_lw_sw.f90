@@ -52,7 +52,7 @@ subroutine test_rrtm_lw(this)
     character(default_str_len),parameter :: atm_filename='afglus_100m.dat'
 
     !------------ Local vars ------------------
-    integer(iintegers) :: i,j,k, nlev, icld
+    integer(iintegers) :: k, nlev, icld
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
     logical,parameter :: ldebug=.True.
@@ -62,7 +62,7 @@ subroutine test_rrtm_lw(this)
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
 
-    N_ranks_y = sqrt(1.*numnodes)
+    N_ranks_y = int(sqrt(1.*numnodes))
     N_ranks_x = numnodes / N_ranks_y
     if(N_ranks_y*N_ranks_x .ne. numnodes) then
       N_ranks_x = numnodes

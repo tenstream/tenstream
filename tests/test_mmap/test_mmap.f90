@@ -38,7 +38,7 @@ subroutine test_mpi_functions(this)
       allocate(arr(N,N))
       do i = 1, N
         do j = 1, N
-          arr(i,j) = (i-1)*N+j
+          arr(i,j) = real((i-1)*N+j, ireals)
         enddo
       enddo
     endif
@@ -50,7 +50,7 @@ subroutine test_mpi_functions(this)
     arr => mmap_ptr
     do i = 1, N
       do j = 1, N
-        @assertEqual((i-1)*N+j, arr(i,j))
+        @assertEqual(real((i-1)*N+j, ireals), arr(i,j))
       enddo
     enddo
 
