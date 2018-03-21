@@ -21,9 +21,9 @@
 #include <stdlib.h>
 #include <petscsys.h>
 #include <mpi.h>
-#include <f2c_tenstream.h>
+#include <f2c_pprts.h>
 
-static char help[] = "This is the C wrapper interface to the Tenstream solver environment.\n\n";
+static char help[] = "This is the C wrapper interface to the pprts solver environment.\n\n";
 
 static const int solveriterations = 1;
 int collapseindex = 1;

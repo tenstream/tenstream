@@ -22,9 +22,9 @@
 #include <petscsys.h>
 #include <mpi.h>
 
-#include <f2c_tenstream.h>
+#include <f2c_pprts.h>
 
-static char help[] = "This is the C wrapper interface to the Tenstream solver calling the RRTMG routines.\n\n";
+static char help[] = "This is the C wrapper interface to the pprts solver calling the RRTMG routines.\n\n";
 
 int main(int argc, char *argv[]) {
   int        numprocs, myid, fcomm;
