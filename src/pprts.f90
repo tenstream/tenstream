@@ -600,7 +600,7 @@ module m_pprts
            if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_10::solver%OPP)
 
         class default
-        stop 'init pprts: unexpected type for solver'
+           call CHKERR(1_mpiint, 'init pprts: unexpected type for solver')
       end select
 
       call solver%OPP%init(solver%comm)
@@ -719,10 +719,10 @@ module m_pprts
     real(ireals) :: newtheta, newphi, xsun(3)
     real(ireals) :: rotmat(3, 3), newxsun(3)
 
-    if(.not.allocated(sun%angles)) stop 'You called  setup_topography() &
-        &but the sun struct is not yet up, make sure setup_suninfo is called before'
-    if(.not.allocated(atm%dz)) stop 'You called  setup_topography() &
-        &but the atm struct is not yet up, make sure we have atm%dz before'
+    if(.not.allocated(sun%angles)) call CHKERR(1_mpiint, 'You called  setup_topography() &
+        &but the sun struct is not yet up, make sure setup_suninfo is called before')
+    if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  setup_topography() &
+        &but the atm struct is not yet up, make sure we have atm%dz before')
 
     call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
 
@@ -797,8 +797,8 @@ module m_pprts
 
     real(ireals) :: zm(4), maxheight, global_maxheight
 
-    if(.not.allocated(atm%dz)) stop 'You called  compute_gradient()&
-      &but the atm struct is not yet up, make sure we have atm%dz before'
+    if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  compute_gradient()&
+      &but the atm struct is not yet up, make sure we have atm%dz before')
 
     call DMGetLocalVector(C_one1%da, vhhl, ierr) ;call CHKERR(ierr)
     call getVecPointer(vhhl, C_one1%da, hhl1d, hhl)
@@ -906,7 +906,7 @@ module m_pprts
         call prealloc_subroutine(solver, C, d_nnz, o_nnz)
         call MatMPIAIJSetPreallocation(A, C%dof+1, d_nnz, C%dof, o_nnz, ierr) ;call CHKERR(ierr)
       else ! poor mans perallocation uses way more memory...
-        stop 'init_Matrix::setPreallocation : poor mans preallocation should really not be used...'
+        call CHKERR(1_mpiint, 'init_Matrix::setPreallocation : poor mans preallocation should really not be used...')
         call MatMPIAIJSetPreallocation(A, C%dof+1, PETSC_NULL_INTEGER, C%dof, PETSC_NULL_INTEGER, ierr) ;call CHKERR(ierr)
       endif
     else
@@ -1323,6 +1323,8 @@ module m_pprts
     real(ireals)        :: tau, kext, w0, g
     integer(iintegers)  :: k, i, j
 
+    call PetscLogEventBegin(solver%logs%set_optprop, ierr); call CHKERR(ierr)
+
     associate( atm => solver%atm, &
         C_one_atm => solver%C_one_atm, &
         C_one_atm1 => solver%C_one_atm1, &
@@ -1497,6 +1499,7 @@ module m_pprts
       enddo
     endif
     end associate
+    call PetscLogEventEnd(solver%logs%set_optprop, ierr); call CHKERR(ierr)
 
     contains
         subroutine adding(a11,a12,a21,a22,a13,a23,a33)
@@ -1599,15 +1602,13 @@ module m_pprts
     ! Scatter global optical properties to MPI nodes
     call local_optprop()
     ! Now global_fields are local to mpi subdomain.
+    call PetscLogEventEnd(solver%logs%set_optprop, ierr); call CHKERR(ierr)
 
     if(lhave_planck) then
       call set_optical_properties(solver, local_albedo, local_kabs, local_ksca, local_g, local_planck)
     else
       call set_optical_properties(solver, local_albedo, local_kabs, local_ksca, local_g)
     endif
-
-    call PetscLogEventEnd(solver%logs%set_optprop, ierr); call CHKERR(ierr)
-
   contains
     subroutine local_optprop()
       type(tVec) :: local_vec
@@ -1671,7 +1672,7 @@ module m_pprts
         enddo
         deallocate(tmp)
       endif
-      if(any(shape(arr).lt.minimal_dimension) ) stop 'set_optprop -> extend_arr :: dimension is smaller than we support... please think of something here'
+      if(any(shape(arr).lt.minimal_dimension) ) call CHKERR(1_mpiint, 'set_optprop -> extend_arr :: dimension is smaller than we support... please think of something here')
     end subroutine
 
   end subroutine
@@ -2000,7 +2001,7 @@ module m_pprts
       enddo
 
       if(solver%sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this?
-        stop('Dont knwo how i should rescale topography! - exit...')
+        call CHKERR(1_mpiint, 'Dont know how i should rescale topography! - exit...')
         !select case (C%dof)
 
         !case(i8)
@@ -2052,7 +2053,7 @@ module m_pprts
         !  !enddo
 
         !case default
-        !  stop('Dont know how I should topography rescale this! - exiting...')
+        !  call CHKERR(1_mpiint, 'Dont know how I should topography rescale this! - exiting...')
         !end select
       endif
 
@@ -2071,11 +2072,9 @@ module m_pprts
     real(ireals) :: norm1, norm2, norm3
     type(tVec) :: abso_old
 
-    if( .not. solution%lset ) &
-      stop 'cant restore solution that was not initialized'
+    if( .not. solution%lset ) call CHKERR(1_mpiint, 'cant restore solution that was not initialized')
 
-    if( .not. solution%lchanged ) &
-      stop 'cant restore solution which was not changed'
+    if( .not. solution%lchanged ) call CHKERR(1_mpiint, 'cant restore solution which was not changed')
 
     if(present(time) .and. solver%lenable_solutions_err_estimates) then ! Create working vec to determine difference between old and new absorption vec
       call DMGetGlobalVector(solver%C_one%da, abso_old, ierr) ; call CHKERR(ierr)
@@ -2260,26 +2259,26 @@ module m_pprts
                 C_one   => solver%C_one, &
                 C_one1  => solver%C_one1)
 
-    if(solution%lsolar_rad) stop 'Tried calling schwarschild solver for solar calculation -- stopping!'
-    if( .not. allocated(atm%planck) ) stop 'Tried calling schwarschild solver but no planck was given -- stopping!'
+    if(solution%lsolar_rad) call CHKERR(1_mpiint, 'Tried calling schwarschild solver for solar calculation -- stopping!')
+    if( .not. allocated(atm%planck) ) call CHKERR(1_mpiint, 'Tried calling schwarschild solver but no planck was given -- stopping!')
 
-    call VecSet(solution%ediff,zero,ierr); call CHKERR(ierr)
+    call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
 
-    allocate( dtau(C_diff%zm-1) )
+    allocate(dtau(C_diff%zm-1))
 
-    call getVecPointer(solution%ediff ,C_diff%da ,xv_diff1d, xv_diff)
+    call getVecPointer(solution%ediff, C_diff%da, xv_diff1d, xv_diff)
 
     allocate( Eup(C_diff%zm) )
     allocate( Edn(C_diff%zm) )
 
     if(solver%myid.eq.0 .and. ldebug) print *,' CALCULATING schwarzschild ::'
 
-    do j=C_diff%ys,C_diff%ye
-      do i=C_diff%xs,C_diff%xe
+    do j = C_diff%ys, C_diff%ye
+      do i = C_diff%xs, C_diff%xe
 
-        dtau = atm%dz(atmk(atm, C_one%zs):C_one%ze,i,j)* atm%op(atmk(atm, C_one%zs):C_one%ze,i,j)%kabs
+        dtau = atm%dz(atmk(atm, C_one%zs):C_one%ze, i, j)* atm%op(atmk(atm, C_one%zs):C_one%ze, i, j)%kabs
 
-        call schwarzschild( dtau ,atm%albedo(i,j), Edn,Eup, atm%planck(atmk(atm, C_one1%zs):C_one1%ze,i,j) )
+        call schwarzschild(dtau, atm%albedo(i,j), Edn, Eup, atm%planck(atmk(atm, C_one1%zs):C_one1%ze, i, j))
 
         xv_diff(E_up,:,i,j) = Eup(:)
         xv_diff(E_dn,:,i,j) = Edn(:)
@@ -2324,8 +2323,8 @@ module m_pprts
                 C_one   => solver%C_one, &
                 C_one1  => solver%C_one1)
 
-    if(solution%lsolar_rad .and. (solution%lintegrated_dir .eqv..False.)) stop 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!'
-    if(                          (solution%lintegrated_diff.eqv..False.)) stop 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!'
+    if(solution%lsolar_rad .and. (solution%lintegrated_dir .eqv..False.)) call CHKERR(1_mpiint, 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!')
+    if(                          (solution%lintegrated_diff.eqv..False.)) call CHKERR(1_mpiint, 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!')
 
     if( (solution%lsolar_rad.eqv..False.) .and. lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
       call scale_flx(solver, solution, lWm2_to_W=.False.)
@@ -2864,9 +2863,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
           if( norm.gt.one+10._ireals*epsilon(one) ) then
             print *,'direct sum(dst==',dst,') gt one',norm
             print *,'direct coeff',norm,'::',v
-            stop 'omg.. shouldnt be happening'
-            ierr = -5
-            return
+            call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
           endif
         enddo
       endif
@@ -3089,7 +3086,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
                 else
                   !call get_coeff(atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., twostr_coeff, atm%l1d(atmk(atm,k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta])
-                  stop 'set solar source only implemented for use with eddington coeff'
+                  call CHKERR(1_mpiint, 'set solar source only implemented for use with eddington coeff')
                 endif
 
 
@@ -3257,7 +3254,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     w0 = op%ksca / (op%kabs+op%ksca)
 
     if(lone_dimensional) then
-      stop
+      call CHKERR(1_mpiint, 'currently, we dont support using LUT Twostream for l1d layers')
       !call OPP_1_2%get_coeff (aspect, tauz, w0, op%g,ldir,coeff,angles)
     else
       call solver%OPP%get_coeff(aspect, tauz, w0, op%g,ldir,coeff,angles, lswitch_east, lswitch_north)
@@ -3286,7 +3283,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 !
 !    integer(iintegers),parameter :: idz=i2, iplanck=i3, ikabs=i4, ihr=i5
 
-    stop 'nca_wrapper not implemented'
+    call CHKERR(1_mpiint, 'nca_wrapper not implemented')
     print *, 'DEBUG: Stupid print statement to prevent unused compiler warnings', ediff, abso
 
 !   ! put additional values into a local ediff vec .. TODO: this is a rather dirty hack but is straightforward
@@ -3462,9 +3459,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
           norm = sum( v(src:C%dof**2:C%dof) )
           if( norm.gt.one+10._ireals*epsilon(one) ) then
             print *,'diffuse sum(src==',src,') gt one',norm
-            stop 'omg.. shouldnt be happening'
-            ierr = -5
-            return
+            call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
           endif
         enddo
       endif
@@ -3559,15 +3554,15 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     if(allocated(rabso)) call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated rabso array')
 
     if(present(redir)) then
-      if(allocated(redir)) stop 'pprts_get_result :: you should not call it with an allocated redir array'
+      if(allocated(redir)) call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated redir array')
       allocate(redir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym))
 
       if( .not. solver%solutions(uid)%lsolar_rad ) then
         print *,'Hey, You called pprts_get_result for uid',uid,'but in this particular band we dont have direct radiation calculated... I will return with edir=0 but are you sure this is what you intended?'
         redir = zero
       else
-        if( solver%solutions(uid)%lintegrated_dir ) stop 'tried to get result from integrated result vector(dir)'
-        if(solver%atm%lcollapse) stop 'pprts_get_result :: lcollapse needs to be implemented'
+        if(solver%solutions(uid)%lintegrated_dir) call CHKERR(1_mpiint, 'tried to get result from integrated result vector(dir)')
+        if(solver%atm%lcollapse) call CHKERR(1_mpiint, 'pprts_get_result :: lcollapse needs to be implemented')
 
         call getVecPointer(solver%solutions(uid)%edir, solver%C_dir%da, x1d, x4d)
         redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%dof, kind=ireals)  ! average of direct radiation of all fluxes through top faces
@@ -3583,7 +3578,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       endif
     endif
 
-    if(solver%solutions(uid)%lintegrated_diff) stop 'tried to get result from integrated result vector(diff)'
+    if(solver%solutions(uid)%lintegrated_diff) call CHKERR(1_mpiint, 'tried to get result from integrated result vector(diff)')
 
     allocate(redn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
     allocate(reup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
@@ -3705,7 +3700,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
           print *,'pprts_get_result_toZero was called with an already allocated output array but it has the wrong size.'
           print *,'while I could just re-allocate it, this may not be just what you intended. Please do that yourself.'
           print *,'Size of global Dimensions of simulation:',C%dof*C%glob_zm*C%glob_xm*C%glob_ym, '.vs. your input:',size(inp)
-          stop 'pprts_get_result_toZero :: should not be called with already allocated array with wrong size'
+          call CHKERR(1_mpiint, 'pprts_get_result_toZero :: should not be called with already allocated array with wrong size')
         endif
       endif
     end subroutine
