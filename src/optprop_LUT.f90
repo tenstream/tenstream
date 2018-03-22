@@ -855,19 +855,22 @@ end subroutine
       class(t_optprop_LUT) :: OPP
 
       integer(mpiint) :: myid, ierr
-      real(ireals), pointer :: mmap_ptr(:,:)=>NULL()
+      real(ireals), pointer :: mmap_ptr(:,:)
 
       call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
 
       if (luse_memory_map) then
+        mmap_ptr => NULL()
         call arr_to_mmap(comm, trim(OPP%Sdiff%table_name_c(1))//'.Sdiff.mmap', mmap_ptr, ierr, OPP%Sdiff%c)
         if(associated(OPP%Sdiff%c)) deallocate(OPP%Sdiff%c)
         OPP%Sdiff%c => mmap_ptr
 
+        mmap_ptr => NULL()
         call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr, OPP%Sdir%c)
         if(associated(OPP%Sdir%c)) deallocate(OPP%Sdir%c)
         OPP%Sdir%c => mmap_ptr
 
+        mmap_ptr => NULL()
         call arr_to_mmap(comm, trim(OPP%Tdir%table_name_c(1))//'.Tdir.mmap', mmap_ptr, ierr, OPP%Tdir%c)
         if(associated(OPP%Tdir%c)) deallocate(OPP%Tdir%c)
         OPP%Tdir%c => mmap_ptr
