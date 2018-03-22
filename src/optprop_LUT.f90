@@ -681,7 +681,7 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
 
     call get_sample_pnt_by_name_and_index(config, 'aspect_zy', index_1d, aspect_zy, ierr)
     if(ierr.ne.0) then
-      aspect_zy = aspect_zx ! set dy = dy
+      aspect_zy = aspect_zx ! set dy = dx
     endif
 
     call bmc_wrapper(OPP, src, aspect_zx, aspect_zy, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)

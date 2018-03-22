@@ -47,7 +47,7 @@ module m_pprts
   implicit none
   private
 
-  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, init_pprts, &
+  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, t_state_container, init_pprts, &
             set_optical_properties, set_global_optical_properties, &
             solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
             pprts_get_result_toZero, t_coord
@@ -2958,7 +2958,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 C_diff  => solver%C_diff)
 
       if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms', minval(atm%planck), maxval(atm%planck)
-      Az = atm%dx*atm%dy
+      Az = atm%dx*atm%dy/(solver%difftop%dof/2)
 
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
@@ -2981,8 +2981,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
               endif
 
             else ! Tenstream source terms
-              Ax = atm%dy*atm%dz(atmk(atm,k),i,j)
-              Ay = atm%dx*atm%dz(atmk(atm,k),i,j)
+              Ax = atm%dy*atm%dz(atmk(atm,k),i,j)/(solver%diffside%dof/2)
+              Ay = atm%dx*atm%dz(atmk(atm,k),i,j)/(solver%diffside%dof/2)
 
               call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
               call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., diff2diff, atm%l1d(atmk(atm,k),i,j) )
@@ -3553,11 +3553,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     if(ldebug .and. solver%myid.eq.0) print *,'calling pprts_get_result',present(redir),'for uid',uid
 
-    if(solver%solutions(uid)%lchanged) stop 'tried to get results from unrestored solution -- call restore_solution first'
+    if(solver%solutions(uid)%lchanged) call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
 
-    if(allocated(redn )) stop 'pprts_get_result :: you should not call it with an allocated redn  array'
-    if(allocated(reup )) stop 'pprts_get_result :: you should not call it with an allocated reup  array'
-    if(allocated(rabso)) stop 'pprts_get_result :: you should not call it with an allocated rabso array'
+    if(allocated(redn )) call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated redn  array')
+    if(allocated(reup )) call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated reup  array')
+    if(allocated(rabso)) call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated rabso array')
 
     if(present(redir)) then
       if(allocated(redir)) stop 'pprts_get_result :: you should not call it with an allocated redir array'
@@ -3578,7 +3578,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
           if(solver%myid.eq.0) print *,'Edir vertically first column',redir(:, lbound(redir,2), lbound(redir,3))
           if(any(redir.lt.-one)) then
             print *,'Found direct radiation smaller than 0 in dir result... that should not happen',minval(redir)
-            call exit(1)
+            call CHKERR(1_mpiint)
           endif
         endif
       endif
@@ -3590,7 +3590,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     allocate(reup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
 
     if(solver%atm%lcollapse) then
-      stop 'pprts_get_result :: lcollapse needs to be implemented'
+      call CHKERR(1_mpiint, 'pprts_get_result :: lcollapse needs to be implemented')
     else
       redn = zero
       reup = zero
