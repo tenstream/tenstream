@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_adaptive_spectral_integration
-  use m_pprts, only: t_state_container, t_solver
+  use m_pprts, only: t_state_container
   use m_data_parameters, only: iintegers, ireals, default_str_len, mpiint, zero, one, nil
   use m_tenstream_options, only: options_max_solution_err, options_max_solution_time
   use m_helper_functions, only: approx
@@ -34,7 +34,7 @@ module m_adaptive_spectral_integration
 
   contains
 
-    function need_new_solution(solution,time, lenable_solutions_err_estimates)
+    function need_new_solution(solution, time, lenable_solutions_err_estimates)
       type(t_state_container)          :: solution
       real(ireals),intent(in),optional :: time
       logical,intent(in)               :: lenable_solutions_err_estimates
@@ -174,7 +174,7 @@ module m_adaptive_spectral_integration
         endif
 
         write (out_unit,*) solution%uid,solution%maxnorm
-        write (out_unit,*) solution%uid,solution%time
+        write (out_unit,*) solution%uid,time
         write (out_unit,*) solution%uid,solution%twonorm
         close (out_unit)
       endif

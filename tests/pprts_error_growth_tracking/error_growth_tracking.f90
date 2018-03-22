@@ -3,10 +3,10 @@ subroutine error_growth_tracking(this)
 
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, one, zero
 
-    use m_tenstream, only : init_tenstream, set_angles, need_new_solution, &
-        set_optical_properties, solve_tenstream, destroy_tenstream, &
-        tenstream_get_result, getvecpointer, restorevecpointer, &
-        t_coord,C_diff,C_one
+    use m_adaptive_spectral_integration, only: need_new_solution
+    use m_pprts, only : init_pprts, set_angles, &
+        set_optical_properties, solve_pprts, destroy_pprts, &
+        pprts_get_result, t_coord,t_solver
 
     use m_tenstream_options, only: read_commandline_options
 
@@ -15,6 +15,8 @@ subroutine error_growth_tracking(this)
     implicit none
 
     class (MpiTestMethod), intent(inout) :: this
+
+    class(t_solver), allocatable :: solver
 
     integer(iintegers) :: iter, k
     integer(mpiint) :: comm, myid, numnodes
@@ -39,11 +41,11 @@ subroutine error_growth_tracking(this)
     myid     = this%getProcessRank()
 
     call init_mpi_data_parameters(comm)
-    call init_tenstream(comm, nv, nxp, nyp, dx, dy, phi0, theta0, dz1d=dz1d)
+    call init_pprts(comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
 
-    allocate(kabs(C_one%zm , C_one%xm,  C_one%ym ))
-    allocate(ksca(C_one%zm , C_one%xm,  C_one%ym ))
-    allocate(g   (C_one%zm , C_one%xm,  C_one%ym ))
+    allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+    allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+    allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
 
     ! First solve for solar radiation
 
@@ -51,15 +53,15 @@ subroutine error_growth_tracking(this)
     ksca = 1e-8
     g    = zero
 
-    allocate(fdn  (C_diff%zm, C_diff%xm, C_diff%ym))
-    allocate(fup  (C_diff%zm, C_diff%xm, C_diff%ym))
-    allocate(fdiv (C_one%zm, C_one%xm, C_one%ym))
+    allocate(fdn  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    allocate(fup  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    allocate(fdiv (solver%C_one%zm,  solver%C_one%xm,  solver%C_one%ym))
 
     do iter=1,5
       do k=1,2
         time = iter*one
 
-        lneed = need_new_solution(k, time)
+        lneed = need_new_solution(solver%solutions(k), time, solver%lenable_solutions_err_estimates)
         print *, myid, 'Need_new_solution?', k, time, ' :: ', lneed
 
         if(iter.le.3) then
@@ -68,15 +70,15 @@ subroutine error_growth_tracking(this)
             call assertFalse(lneed)
         endif
 
-        call set_optical_properties(albedo, kabs, ksca, g)
-        call solve_tenstream(incSolar, opt_solution_uid=k, opt_solution_time=iter*one)
+        call set_optical_properties(solver, albedo, kabs, ksca, g)
+        call solve_pprts(solver, incSolar, opt_solution_uid=k, opt_solution_time=iter*one)
 
-        allocate(fdir (C_diff%zm, C_diff%xm, C_diff%ym))
-        call tenstream_get_result(fdir, fdn, fup, fdiv, opt_solution_uid=k)
+        allocate(fdir (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+        call pprts_get_result(solver, fdir, fdn, fup, fdiv, opt_solution_uid=k)
         deallocate(fdir)
 
       enddo
     enddo
 
-    call destroy_tenstream(.True.)
+    call destroy_pprts(solver, .True.)
 end subroutine
