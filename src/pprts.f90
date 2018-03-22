@@ -123,6 +123,23 @@ module m_pprts
     logical, allocatable :: is_inward(:)
   end type
 
+  type t_solver_log_events
+    PetscLogStage :: stage_solve_pprts
+    PetscLogEvent :: set_optprop
+    PetscLogEvent :: compute_edir
+    PetscLogEvent :: solve_Mdir
+    PetscLogEvent :: setup_Mdir
+    PetscLogEvent :: compute_ediff
+    PetscLogEvent :: solve_Mdiff
+    PetscLogEvent :: setup_Mdiff
+    PetscLogEvent :: solve_twostream
+    PetscLogEvent :: get_coeff_dir2dir
+    PetscLogEvent :: get_coeff_dir2diff
+    PetscLogEvent :: get_coeff_diff2diff
+    PetscLogEvent :: scatter_to_Zero
+    PetscLogEvent :: scale_flx
+  end type
+
   type, abstract :: t_solver
     integer(mpiint)                 :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
     type(t_coord), allocatable      :: C_dir, C_diff, C_one, C_one1, C_one_atm, C_one_atm1
@@ -138,6 +155,7 @@ module m_pprts
 
     logical                         :: linitialized=.False.
     type(t_state_container)         :: solutions(-1000:1000)
+    type(t_solver_log_events)       :: logs
   end type
 
   type, extends(t_solver) :: t_solver_1_2
@@ -163,7 +181,7 @@ module m_pprts
   !> @details This will setup the PETSc DMDA grid and set other grid information, needed for the TenStream
   !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc)
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
-  subroutine init_pprts(icomm, Nz,Nx,Ny, dx,dy, phi0, theta0, solver, dz1d, dz3d, nxproc, nyproc, collapseindex)
+  subroutine init_pprts(icomm, Nz,Nx,Ny, dx,dy, phi0, theta0, solver, dz1d, dz3d, nxproc, nyproc, collapseindex, solvername)
     MPI_Comm, intent(in)          :: icomm         !< @param MPI_Communicator for this solver
     integer(iintegers),intent(in) :: Nz            !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
     integer(iintegers),intent(in) :: Nx            !< @param[in] Nx     number of boxes in x-direction
@@ -179,6 +197,7 @@ module m_pprts
     integer(iintegers),optional,intent(in) :: nxproc(:)      !< @param[in]    nxproc  if given, Nx has to be the local size, dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
     integer(iintegers),optional,intent(in) :: nyproc(:)      !< @param[in]    nyproc  if given, Ny has to be the local size, dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
     integer(iintegers),optional,intent(in) :: collapseindex  !< @param[in]    collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
+    character(len=*), optional, intent(in) :: solvername     !< @param[in] primarily for logging purposes, name will be prefix to logging stages
 
     integer(iintegers) :: k,i,j
     !    character(default_str_len),parameter :: tenstreamrc='./.tenstreamrc'
@@ -294,7 +313,7 @@ module m_pprts
       call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
 
       ! init petsc logging facilities
-      !call setup_logging()
+      call setup_log_events(solvername)
 
     else
       print *,solver%myid,'You tried to initialize already initialized Tenstream          &
@@ -361,6 +380,30 @@ module m_pprts
         solver%atm%icollapse=collapseindex
         solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs),:,:) = .True. ! if need to be collapsed, they have to be 1D.
       endif
+    end subroutine
+    subroutine setup_log_events(solvername)
+      character(len=*), optional :: solvername
+      PetscClassId, parameter :: cid=0
+      integer(mpiint) :: ierr
+      character(len=default_str_len) :: s
+
+      s = get_arg('pprts.', solvername)
+
+      call PetscLogStageRegister(trim(s)//'solve_pprts', solver%logs%stage_solve_pprts, ierr); call CHKERR(ierr)
+
+      call PetscLogEventRegister(trim(s)//'set_optprop', cid, solver%logs%set_optprop, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'comp_Edir', cid, solver%logs%compute_Edir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'solve_Mdir', cid, solver%logs%solve_Mdir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'setup_Mdir', cid, solver%logs%setup_Mdir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'comp_Ediff', cid, solver%logs%compute_Ediff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'solve_Mdiff', cid, solver%logs%solve_Mdiff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'setup_Mdiff', cid, solver%logs%setup_Mdiff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'solve_twostr', cid, solver%logs%solve_twostream, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'dir2dir', cid, solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'dir2diff', cid, solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'diff2diff', cid, solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'scttr2Zero', cid, solver%logs%scatter_to_Zero, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'scale_flx', cid, solver%logs%scale_flx, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
 
@@ -1532,6 +1575,8 @@ module m_pprts
     real(ireals) :: local_albedo
     logical :: lhave_planck, lhave_kabs, lhave_ksca, lhave_g
 
+    call PetscLogEventBegin(solver%logs%set_optprop, ierr); call CHKERR(ierr)
+
     if(.not.solver%linitialized) then
       print *,solver%myid,'You tried to set global optical properties but tenstream environment seems not to be initialized.... please call init first!'
       call exit(1)
@@ -1561,6 +1606,7 @@ module m_pprts
       call set_optical_properties(solver, local_albedo, local_kabs, local_ksca, local_g)
     endif
 
+    call PetscLogEventEnd(solver%logs%set_optprop, ierr); call CHKERR(ierr)
 
   contains
     subroutine local_optprop()
@@ -1646,6 +1692,8 @@ module m_pprts
                 Mdir      => solver%Mdir,      &
                 Mdiff     => solver%Mdiff     )
 
+    call PetscLogStagePush(solver%logs%stage_solve_pprts, ierr); call CHKERR(ierr)
+
     if(solver%lenable_solutions_err_estimates .and. present(opt_solution_uid)) then
       uid = opt_solution_uid
     else
@@ -1661,15 +1709,16 @@ module m_pprts
       if(ldebug .and. solver%myid.eq.0) print *,'skipping thermal calculation -- returning zero flux'
       call VecSet(solutions(uid)%ediff, zero, ierr); call CHKERR(ierr)
       solutions(uid)%lchanged=.True.
-      call restore_solution(solver, solutions(uid))
-      return
+      goto 99 ! quick exit
     endif
 
     ! --------- Calculate 1D Radiative Transfer ------------
-    if(  ltwostr                                                         &
-      .or. all(solver%atm%l1d.eqv..True.)                                       &
-      .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca)     &
+    if(  ltwostr &
+      .or. all(solver%atm%l1d.eqv..True.) &
+      .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca) &
       .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild) ) then
+
+      call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
 
       if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
         call schwarz(solver, solutions(uid))
@@ -1679,16 +1728,12 @@ module m_pprts
 
       if(ldebug .and. solver%myid.eq.0) print *,'1D calculation done'
 
-      if(present(opt_solution_time) ) then
-        call restore_solution(solver, solutions(uid),opt_solution_time)
-      else
-        call restore_solution(solver, solutions(uid))
-      endif
+      call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
 
-        if( ltwostr_only ) return
-      if( all(solver%atm%l1d.eqv..True.) ) return
-      if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca ) return
-      if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) return
+      if( ltwostr_only ) goto 99
+      if( all(solver%atm%l1d.eqv..True.) ) goto 99
+      if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca ) goto 99
+      if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) goto 99
     endif
 
     ! --------- scale from [W/m**2] to [W] -----------------
@@ -1696,41 +1741,61 @@ module m_pprts
 
     ! ---------------------------- Edir  -------------------
     if( solutions(uid)%lsolar_rad ) then
+      call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
 
       call setup_incSolar(solver, solver%incSolar, edirTOA)
+
+      call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
       call set_dir_coeff(solver, solver%sun, solver%Mdir, C_dir)
+      call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
+
       if(ldebug) call mat_info(solver%comm, solver%Mdir)
 
+      call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
       call setup_ksp(solver%atm, kspdir, C_dir, solver%Mdir, linit_kspdir, "dir_")
-
       call solve(solver, kspdir, solver%incSolar, solutions(uid)%edir)
+      call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
+
       solutions(uid)%lchanged=.True.
       solutions(uid)%lintegrated_dir=.True.
       call PetscObjectSetName(solutions(uid)%edir,'debug_edir',ierr) ; call CHKERR(ierr)
       call PetscObjectViewFromOptions(solutions(uid)%edir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
+      call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
     endif
 
+
     ! ---------------------------- Source Term -------------
+    call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
     call setup_b(solver, solutions(uid),solver%b)
 
     ! ---------------------------- Ediff -------------------
+    call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
     call set_diff_coeff(solver, Mdiff,C_diff)
+    call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
+
     if(ldebug) call mat_info(solver%comm, solver%Mdiff)
 
-    call setup_ksp(solver%atm, kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
 
+    call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
+    call setup_ksp(solver%atm, kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
     call solve(solver, kspdiff, solver%b, solutions(uid)%ediff,uid)
+    call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
+
     solutions(uid)%lchanged=.True.
     solutions(uid)%lintegrated_diff=.True. !Tenstream solver returns fluxes as [W]
+
+    call PetscLogEventEnd(solver%logs%compute_Ediff, ierr)
+
+    99 continue ! this is the quick exit final call where we clean up before the end of the routine
 
     if(present(opt_solution_time) ) then
       call restore_solution(solver, solutions(uid),opt_solution_time)
     else
       call restore_solution(solver, solutions(uid))
     endif
+    call PetscLogStagePop(solver%logs%stage_solve_pprts, ierr); call CHKERR(ierr)
 
     end associate
-
   end subroutine
 
   subroutine prepare_solution(solver, solution, uid, lsolar)
@@ -1762,12 +1827,13 @@ module m_pprts
     solution%lset = .True.
   end subroutine
 
-  !> @brief TODO: renormalize fluxes with the size of a face(sides or lid)
+  !> @brief renormalize fluxes with the size of a face(sides or lid)
   subroutine scale_flx(solver, solution, lWm2_to_W)
     class(t_solver), intent(in)           :: solver
     type(t_state_container),intent(inout) :: solution   !< @param solution container with computed fluxes
     logical,intent(in)                    :: lWm2_to_W  !< @param determines direction of scaling, if true, scale from W/m**2 to W
 
+    call PetscLogEventBegin(solver%logs%scale_flx, ierr); call CHKERR(ierr)
     if(solution%lsolar_rad) then
       if(solution%lintegrated_dir .neqv. lWm2_to_W) then
         call scale_dir_flx_vec(solver, solution%edir, solver%C_dir, lWm2_to_W)
@@ -1779,6 +1845,7 @@ module m_pprts
       call scale_flx_vec(solver, solution%ediff, solver%C_diff, lWm2_to_W)
       solution%lintegrated_diff = lWm2_to_W
     endif
+    call PetscLogEventEnd(solver%logs%scale_flx, ierr); call CHKERR(ierr)
 
   contains
     subroutine scale_dir_flx_vec(solver, v, C, lWm2_to_W)
@@ -2703,7 +2770,6 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
   end subroutine
 
-
   !> @brief build direct radiation matrix
   !> @details will get the transfer coefficients for 1D and 3D Tenstream layers and input those into the matrix
   !>   \n get_coeff should provide coefficients in dst_order so that we can set  coeffs for a full block(i.e. all coeffs of one box)
@@ -2785,9 +2851,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
      enddo
 
 
+      call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
       call get_coeff(solver, solver%atm%op(atmk(solver%atm,k),i,j), solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
                              solver%atm%l1d(atmk(solver%atm,k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta], &
                              lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
+      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
       call MatSetValuesStencil(A, C%dof, row, C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
 
@@ -2916,7 +2984,9 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
               Ax = atm%dy*atm%dz(atmk(atm,k),i,j)
               Ay = atm%dx*atm%dz(atmk(atm,k),i,j)
 
+              call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
               call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., diff2diff, atm%l1d(atmk(atm,k),i,j) )
+              call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
               ! reorder from destination ordering to src ordering
               do src=1,C_diff%dof
                 v(src:C_diff%dof**2:C_diff%dof) = diff2diff( i1+(src-i1)*C_diff%dof : src*C_diff%dof )
@@ -3028,8 +3098,10 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 lsun_east  = sun%angles(k,i,j)%xinc.eq.i0
                 lsun_north = sun%angles(k,i,j)%yinc.eq.i0
 
+                call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
                 call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., dir2diff, atm%l1d(atmk(atm,k),i,j), &
-                               [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta], lswitch_east=lsun_east, lswitch_north=lsun_north)
+                  [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta], lswitch_east=lsun_east, lswitch_north=lsun_north)
+                call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
                 do idofdst=1,solver%difftop%dof
                   dst = idofdst
@@ -3380,7 +3452,10 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
         endif
       enddo
 
+      call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
       call get_coeff(solver, solver%atm%op(atmk(solver%atm, k),i,j), solver%atm%dz(atmk(solver%atm, k),i,j),.False., v, solver%atm%l1d(atmk(solver%atm, k),i,j))
+      call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+
       call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
 
       if(ldebug) then
@@ -3463,7 +3538,6 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     end subroutine
   end subroutine
-
 
   subroutine pprts_get_result(solver, redn, reup, rabso, redir, opt_solution_uid )
     class(t_solver) :: solver
@@ -3574,6 +3648,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
 
+    call PetscLogEventBegin(solver%logs%scatter_to_Zero, ierr); call CHKERR(ierr)
     if(solver%myid.eq.0) then
       call check_arr_size(solver%C_one_atm1, gedn )
       call check_arr_size(solver%C_one_atm1, geup )
@@ -3599,6 +3674,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       print *,sum(geup) /size(geup)
       print *,sum(gabso)/size(gabso)
     endif
+    call PetscLogEventEnd(solver%logs%scatter_to_Zero, ierr); call CHKERR(ierr)
 
   contains
     subroutine exchange_var(C, inp, outp)
@@ -3680,13 +3756,13 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
       if(allocated(solver%sun%angles)) deallocate(solver%sun%angles)
 
-      call solver%OPP%destroy()
-      call DMDestroy(solver%C_dir%da ,ierr); deallocate(solver%C_dir )
-      call DMDestroy(solver%C_diff%da,ierr); deallocate(solver%C_diff)
-      call DMDestroy(solver%C_one%da ,ierr); deallocate(solver%C_one )
-      call DMDestroy(solver%C_one1%da,ierr); deallocate(solver%C_one1)
-      call DMDestroy(solver%C_one_atm%da ,ierr); deallocate(solver%C_one_atm)
-      call DMDestroy(solver%C_one_atm1%da,ierr); deallocate(solver%C_one_atm1)
+      if(allocated(solver%OPP)) call solver%OPP%destroy()
+      if(allocated(solver%C_dir     )) call DMDestroy(solver%C_dir%da ,ierr); deallocate(solver%C_dir )
+      if(allocated(solver%C_diff    )) call DMDestroy(solver%C_diff%da,ierr); deallocate(solver%C_diff)
+      if(allocated(solver%C_one     )) call DMDestroy(solver%C_one%da ,ierr); deallocate(solver%C_one )
+      if(allocated(solver%C_one1    )) call DMDestroy(solver%C_one1%da,ierr); deallocate(solver%C_one1)
+      if(allocated(solver%C_one_atm )) call DMDestroy(solver%C_one_atm%da ,ierr); deallocate(solver%C_one_atm)
+      if(allocated(solver%C_one_atm1)) call DMDestroy(solver%C_one_atm1%da,ierr); deallocate(solver%C_one_atm1)
 
       solver%linitialized=.False.
       if(solver%myid.eq.0 .and. ldebug)print *,'Destroyed TenStream'

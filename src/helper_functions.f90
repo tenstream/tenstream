@@ -19,7 +19,7 @@
 
 module m_helper_functions
   use m_data_parameters,only : iintegers, mpiint, ireals, ireal_dp, &
-    i1, pi, zero, one, imp_real, imp_int, imp_logical
+    i1, pi, zero, one, imp_real, imp_int, imp_logical, default_str_len
 
   use mpi
 
@@ -43,7 +43,7 @@ module m_helper_functions
         imp_bcast_int_1d, imp_bcast_int_2d, imp_bcast_int4, imp_bcast_int8, imp_bcast_real, imp_bcast_logical
   end interface
   interface get_arg
-    module procedure get_arg_logical, get_arg_iintegers, get_arg_ireals
+    module procedure get_arg_logical, get_arg_iintegers, get_arg_ireals, get_arg_char
   end interface
   interface swap
     module procedure swap_iintegers, swap_ireals
@@ -881,6 +881,16 @@ module m_helper_functions
         arg = opt_arg
       else
         arg = default_value
+      endif
+    end function
+    function get_arg_char(default_value, opt_arg) result(arg)
+      character(len=default_str_len) :: arg
+      character(len=*), intent(in) :: default_value
+      character(len=*), intent(in), optional :: opt_arg
+      if(present(opt_arg)) then
+        arg = trim(opt_arg)
+      else
+        arg = trim(default_value)
       endif
     end function
 
