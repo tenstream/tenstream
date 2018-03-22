@@ -51,7 +51,7 @@ module m_pprts_rrtmg
   implicit none
 
   private
-  public :: pprts_rrtmg, destroy_pprts_rrtmg
+  public :: pprts_rrtmg, init_pprts_rrtmg, destroy_pprts_rrtmg
 
   logical :: linit_tenstr=.False.
 
@@ -186,6 +186,8 @@ contains
 
     integer(mpiint) :: myid, ierr
 
+    if(present(icollapse)) call CHKERR(1_mpiint, 'Icollapse currently not tested. Dont Use it')
+
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     call load_atmfile(comm, atm_filename, bg_atm)
@@ -222,9 +224,9 @@ contains
     do j=js,je
       do i=is,ie
         icol =  i+(j-1)*ie
-        dz(:,i,j) = hydrostat_dz_rb(abs(col_plev(icol,1:ke) - col_plev(icol,2:ke1)), &
+        dz(:,i,j) = real(hydrostat_dz_rb(abs(col_plev(icol,1:ke) - col_plev(icol,2:ke1)), &
                                  (col_plev(icol,1:ke) + col_plev(icol,2:ke1))/2,  &
-                                 col_tlay(icol,:))
+                                 col_tlay(icol,:)), ireals)
         dz_t2b(:,i,j) = rev1d(dz(:,i,j))
       enddo
     enddo
@@ -382,7 +384,7 @@ contains
       print *,'Wrong call to init_tenstream_rrtm_lw --    &
             & in order to work, we need both arrays for &
             & the domain decomposition, call with nxproc AND nyproc'
-      stop 'init_tenstream_rrtm_lw -- missing arguments nxproc or nyproc'
+      call CHKERR(1_mpiint, 'init_tenstream_rrtm_lw -- missing arguments nxproc or nyproc')
     endif
     if(present(nxproc) .and. present(nyproc)) then
       call init_pprts(comm, zm, xm, ym, dx,dy,phi0, theta0, solver, nxproc=nxproc, nyproc=nyproc, dz3d=dz)
@@ -684,8 +686,7 @@ contains
     real(rb),dimension(ncol_in,nlay_in+1) :: lwuflx,lwdflx,lwuflxc,lwdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: lwhr,lwhrc
 
-    integer(im) :: k,icol
-    integer(im) :: ncol, nlay
+    integer(im) :: icol, ncol, nlay
 
     integer(im),parameter :: inflglw=2,iceflglw=3,liqflglw=1
     integer(kind=im) :: icld=2         ! Cloud overlap method
@@ -694,8 +695,8 @@ contains
     logical,save :: linit_rrtmg=.False.
 
     ! copy from TenStream to RRTM precision:
-    ncol   = ncol_in
-    nlay   = nlay_in
+    ncol   = int(ncol_in, kind=im)
+    nlay   = int(nlay_in, kind=im)
 
     ! Take average pressure and temperature as mean values for voxels --
     ! should probably use log interpolation for pressure...
@@ -769,8 +770,7 @@ contains
     real(rb),dimension(ncol_in,nlay_in+1) :: swuflx,swdflx,swuflxc,swdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: swhr,swhrc
 
-    integer(im) :: k,icol
-    integer(im) :: ncol, nlay
+    integer(im) :: icol, ncol, nlay
 
     integer(im),parameter :: dyofyr=0,inflgsw=2,iceflgsw=3,liqflgsw=1
     real(rb)   ,parameter :: adjes=1, scon=1.36822e+03
@@ -780,8 +780,8 @@ contains
     logical,save :: linit_rrtmg=.False.
 
     ! copy from TenStream to RRTM precision:
-    ncol   = ncol_in
-    nlay   = nlay_in
+    ncol   = int(ncol_in, kind=im)
+    nlay   = int(nlay_in, kind=im)
 
     ! Take average pressure and temperature as mean values for voxels --
     ! Todo: should we use log interpolation for pressure...?

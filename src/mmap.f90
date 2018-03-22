@@ -84,13 +84,11 @@ contains
     inquire(file=trim(fname), exist=lexists)
     if(.not.lexists) call CHKERR(1_mpiint, 'Tried to create a mmap from a file that does not exist: '//fname)
 
-    ! open(newunit=funit, file=fname, form='unformatted', access='stream')
     c_fd = c_open(trim(fname)//C_NULL_CHAR, O_RDONLY)
     if(c_fd.le.0) call CHKERR(c_fd, 'Could not open mmap file')
     mmap_c_ptr = c_mmap(0_c_int, bytesize, PROT_READ, MAP_SHARED, c_fd, offset)
     c_fd = c_close(c_fd)
     if(c_fd.le.0) call CHKERR(c_fd, 'Could not close file descriptor to mmap file')
-    !close(funit)
   end subroutine
 
   subroutine arr_to_mmap(comm, fname, mmap_ptr, ierr, inp_arr)
@@ -143,8 +141,8 @@ contains
     mmap_ptr=>NULL()
 
     cerr = c_munmap(mmap_c_ptr, bytesize)
-    if(cerr.ne.0) call CHKERR(cerr, 'Error Unmapping the memory map')
     ierr = cerr
+    call CHKERR(ierr, 'Error Unmapping the memory map')
   end subroutine
 
 end module

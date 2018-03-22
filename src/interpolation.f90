@@ -55,73 +55,9 @@ module m_tenstream_interpolation
   DATA permu4d(:,15) / 0,  1,  1,  1 /
   DATA permu4d(:,16) / 1,  1,  1,  1 /
 
-  integer(iintegers) :: permu6d(6,2**6)
-  DATA permu6d(:, 1 )  / 0,  0,  0,  0,  0,  0 /
-  DATA permu6d(:, 2 )  / 1,  0,  0,  0,  0,  0 /
-  DATA permu6d(:, 3 )  / 0,  1,  0,  0,  0,  0 /
-  DATA permu6d(:, 4 )  / 1,  1,  0,  0,  0,  0 /
-  DATA permu6d(:, 5 )  / 0,  0,  1,  0,  0,  0 /
-  DATA permu6d(:, 6 )  / 1,  0,  1,  0,  0,  0 /
-  DATA permu6d(:, 7 )  / 0,  1,  1,  0,  0,  0 /
-  DATA permu6d(:, 8 )  / 1,  1,  1,  0,  0,  0 /
-  DATA permu6d(:, 9 )  / 0,  0,  0,  1,  0,  0 /
-  DATA permu6d(:, 10 ) / 1,  0,  0,  1,  0,  0 /
-  DATA permu6d(:, 11 ) / 0,  1,  0,  1,  0,  0 /
-  DATA permu6d(:, 12 ) / 1,  1,  0,  1,  0,  0 /
-  DATA permu6d(:, 13 ) / 0,  0,  1,  1,  0,  0 /
-  DATA permu6d(:, 14 ) / 1,  0,  1,  1,  0,  0 /
-  DATA permu6d(:, 15 ) / 0,  1,  1,  1,  0,  0 /
-  DATA permu6d(:, 16 ) / 1,  1,  1,  1,  0,  0 /
-  DATA permu6d(:, 17 ) / 0,  0,  0,  0,  1,  0 /
-  DATA permu6d(:, 18 ) / 1,  0,  0,  0,  1,  0 /
-  DATA permu6d(:, 19 ) / 0,  1,  0,  0,  1,  0 /
-  DATA permu6d(:, 20 ) / 1,  1,  0,  0,  1,  0 /
-  DATA permu6d(:, 21 ) / 0,  0,  1,  0,  1,  0 /
-  DATA permu6d(:, 22 ) / 1,  0,  1,  0,  1,  0 /
-  DATA permu6d(:, 23 ) / 0,  1,  1,  0,  1,  0 /
-  DATA permu6d(:, 24 ) / 1,  1,  1,  0,  1,  0 /
-  DATA permu6d(:, 25 ) / 0,  0,  0,  1,  1,  0 /
-  DATA permu6d(:, 26 ) / 1,  0,  0,  1,  1,  0 /
-  DATA permu6d(:, 27 ) / 0,  1,  0,  1,  1,  0 /
-  DATA permu6d(:, 28 ) / 1,  1,  0,  1,  1,  0 /
-  DATA permu6d(:, 29 ) / 0,  0,  1,  1,  1,  0 /
-  DATA permu6d(:, 30 ) / 1,  0,  1,  1,  1,  0 /
-  DATA permu6d(:, 31 ) / 0,  1,  1,  1,  1,  0 /
-  DATA permu6d(:, 32 ) / 1,  1,  1,  1,  1,  0 /
-  DATA permu6d(:, 33 ) / 0,  0,  0,  0,  0,  1 /
-  DATA permu6d(:, 34 ) / 1,  0,  0,  0,  0,  1 /
-  DATA permu6d(:, 35 ) / 0,  1,  0,  0,  0,  1 /
-  DATA permu6d(:, 36 ) / 1,  1,  0,  0,  0,  1 /
-  DATA permu6d(:, 37 ) / 0,  0,  1,  0,  0,  1 /
-  DATA permu6d(:, 38 ) / 1,  0,  1,  0,  0,  1 /
-  DATA permu6d(:, 39 ) / 0,  1,  1,  0,  0,  1 /
-  DATA permu6d(:, 40 ) / 1,  1,  1,  0,  0,  1 /
-  DATA permu6d(:, 41 ) / 0,  0,  0,  1,  0,  1 /
-  DATA permu6d(:, 42 ) / 1,  0,  0,  1,  0,  1 /
-  DATA permu6d(:, 43 ) / 0,  1,  0,  1,  0,  1 /
-  DATA permu6d(:, 44 ) / 1,  1,  0,  1,  0,  1 /
-  DATA permu6d(:, 45 ) / 0,  0,  1,  1,  0,  1 /
-  DATA permu6d(:, 46 ) / 1,  0,  1,  1,  0,  1 /
-  DATA permu6d(:, 47 ) / 0,  1,  1,  1,  0,  1 /
-  DATA permu6d(:, 48 ) / 1,  1,  1,  1,  0,  1 /
-  DATA permu6d(:, 49 ) / 0,  0,  0,  0,  1,  1 /
-  DATA permu6d(:, 50 ) / 1,  0,  0,  0,  1,  1 /
-  DATA permu6d(:, 51 ) / 0,  1,  0,  0,  1,  1 /
-  DATA permu6d(:, 52 ) / 1,  1,  0,  0,  1,  1 /
-  DATA permu6d(:, 53 ) / 0,  0,  1,  0,  1,  1 /
-  DATA permu6d(:, 54 ) / 1,  0,  1,  0,  1,  1 /
-  DATA permu6d(:, 55 ) / 0,  1,  1,  0,  1,  1 /
-  DATA permu6d(:, 56 ) / 1,  1,  1,  0,  1,  1 /
-  DATA permu6d(:, 57 ) / 0,  0,  0,  1,  1,  1 /
-  DATA permu6d(:, 58 ) / 1,  0,  0,  1,  1,  1 /
-  DATA permu6d(:, 59 ) / 0,  1,  0,  1,  1,  1 /
-  DATA permu6d(:, 60 ) / 1,  1,  0,  1,  1,  1 /
-  DATA permu6d(:, 61 ) / 0,  0,  1,  1,  1,  1 /
-  DATA permu6d(:, 62 ) / 1,  0,  1,  1,  1,  1 /
-  DATA permu6d(:, 63 ) / 0,  1,  1,  1,  1,  1 /
-  DATA permu6d(:, 64 ) / 1,  1,  1,  1,  1,  1 /
-
   logical, parameter :: ldebug=.True.
+
+  real(ireals), parameter :: interpolation_lattice_snapping=max(1e-3_ireals, epsilon(interpolation_lattice_snapping))
 
 contains
 
@@ -200,91 +136,6 @@ contains
     endif
   end function
 
-!deprecated?  subroutine interp_6d_recursive(pti, db, C)
-!deprecated?    integer(iintegers),parameter :: Ndim=6
-!deprecated?    real(ireals),intent(in) :: pti(Ndim), db(:,:,:,:,:,:,:)
-!deprecated?    real(ireals),intent(out) :: C(:)
-!deprecated?
-!deprecated?    integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
-!deprecated?    real(ireals) :: weights(Ndim)
-!deprecated?    real(ireals) :: bound_vals(size(C),2**Ndim)
-!deprecated?    integer(iintegers) :: i,d
-!deprecated?
-!deprecated?    ! First determine the array indices, where to look.
-!deprecated?    fpti = floor(pti)
-!deprecated?    weights = modulo(pti, one)
-!deprecated?
-!deprecated?    !        print *,'interp6d',pti,'weights',weights
-!deprecated?    do i=1,2**Ndim
-!deprecated?      indices(:,i) = permu6d(:,i) + fpti
-!deprecated?    enddo
-!deprecated?    ! Make sure we dont recall a value outside of array dimensions
-!deprecated?    do d=1,Ndim
-!deprecated?      indices(d,:) = max( i1, min( ubound(db,d+i1,iintegers), indices(d,:) ) )
-!deprecated?    enddo
-!deprecated?
-!deprecated?    ! Then get the corner values of hypercube
-!deprecated?    do i=1,2**Ndim
-!deprecated?      bound_vals(:,i) = db(:, indices(1,i),indices(2,i),indices(3,i),indices(4,i), indices(5,i), indices(6,i) )
-!deprecated?      !          print *,'interp6d',i,'ind',indices(:,i),'bounds',bound_vals(:,i)
-!deprecated?    enddo
-!deprecated?
-!deprecated?    ! And plug bound_vals and weights into recursive interpolation...
-!deprecated?    call interpn(Ndim,bound_vals,weights,i1, C)
-!deprecated?  end subroutine
-!deprecated?  pure subroutine interp_6d(pti, db, C)
-!deprecated?    integer(iintegers),parameter :: Ndim=6
-!deprecated?    real(ireals),intent(in) :: pti(Ndim), db(:,:,:,:,:,:,:)
-!deprecated?    real(ireals),intent(out) :: C(:)
-!deprecated?
-!deprecated?    integer(iintegers) :: indices(Ndim,2**Ndim),fpti(Ndim)
-!deprecated?    integer(iintegers) :: i,d,ind(6)
-!deprecated?
-!deprecated?    real(ireals) :: weights(Ndim)
-!deprecated?    real(ireals) :: db6(size(C),2**Ndim)
-!deprecated?    real(ireals) :: db5(size(C),2**(Ndim-1))
-!deprecated?    real(ireals) :: db4(size(C),2**(Ndim-2))
-!deprecated?    real(ireals) :: db3(size(C),2**(Ndim-3))
-!deprecated?    real(ireals) :: db2(size(C),2**(Ndim-4))
-!deprecated?    real(ireals) :: db1(size(C),2**(Ndim-5))
-!deprecated?
-!deprecated?    ! First determine the array indices, where to look.
-!deprecated?    fpti = floor(pti)
-!deprecated?    weights = modulo(pti, one)
-!deprecated?
-!deprecated?    !        print *,'interp6d',pti,'weights',weights
-!deprecated?    do i=1,2**Ndim
-!deprecated?      indices(:,i) = permu6d(:,i) + fpti
-!deprecated?    enddo
-!deprecated?    ! Make sure we dont recall a value outside of array dimensions
-!deprecated?    do d=1,Ndim
-!deprecated?      indices(d,:) = max( i1, min( ubound(db,d+i1,iintegers), indices(d,:) ) )
-!deprecated?    enddo
-!deprecated?    ! Then get the corner values of hypercube
-!deprecated?    do i=1,2**Ndim
-!deprecated?      ind = indices(:,i)
-!deprecated?      db6(:,i) = db(:, ind(1),ind(2),ind(3),ind(4), ind(5), ind(6) )
-!deprecated?    enddo
-!deprecated?
-!deprecated?    ! Permutations for 1st axis
-!deprecated?    do i=1,2**(Ndim-1)
-!deprecated?      db5(:,i)  = spline( weights(1), db6(:,2*i-1), db6(:,2*i) )
-!deprecated?    enddo
-!deprecated?    do i=1,2**(Ndim-2)
-!deprecated?      db4(:,i)  = spline( weights(2), db5(:,2*i-1), db5(:,2*i) )
-!deprecated?    enddo
-!deprecated?    do i=1,2**(Ndim-3)
-!deprecated?      db3(:,i)  = spline( weights(3), db5(:,4*i-1), db5(:,4*i) )
-!deprecated?    enddo
-!deprecated?    do i=1,2**(Ndim-4)
-!deprecated?      db2(:,i)  = spline( weights(4), db5(:,3*i-1), db3(:,2*i) )
-!deprecated?    enddo
-!deprecated?    do i=1,2**(Ndim-5)
-!deprecated?      db1(:,i)  = spline( weights(5), db2(:,2*i-1), db2(:,2*i) )
-!deprecated?    enddo
-!deprecated?
-!deprecated?    C(:)  = spline( weights(6), db1(:,2), db1(:,1) )
-!deprecated?  end subroutine
   pure subroutine interp_2d(pti, db, C)
     integer(iintegers),parameter :: Ndim=2
     real(ireals),intent(in) :: pti(Ndim), db(:,:,:)
@@ -420,11 +271,9 @@ contains
       Cres = db(:, ind_nd_to_1d(db_offsets, nint(pti, iintegers)))
     case(1)
       call interp_vec_simplex_1d(pti, interp_dims(1), db, db_offsets, Cres)
-    case(2)
-      call interp_vec_simplex_2d(pti, interp_dims, db, db_offsets, Cres)
-    case(3:10)
-      !call interp_vec_bilinear_recursive(size(interp_dims), pti, interp_dims, db, db_offsets, Cres)
-      call interp_vec_simplex_recursive(size(interp_dims, kind=iintegers), pti, interp_dims, db, db_offsets, Cres)
+    case(2:10)
+      call interp_vec_bilinear_recursive(size(interp_dims, kind=iintegers), pti, interp_dims, db, db_offsets, Cres)
+      !call interp_vec_simplex_recursive(size(interp_dims, kind=iintegers), pti, interp_dims, db, db_offsets, Cres)
     case default
       call CHKERR(1_mpiint, 'interp_vec_simplex not implemented for '//itoa(size(interp_dims, kind=iintegers))//' dimensions')
     end select
@@ -571,22 +420,31 @@ contains
     ! Simplex:
     pti_intermediate = pti
     pti_intermediate(interp_dims(Ninterpdim)) = floor(pti(interp_dims(Ninterpdim)))
-    if(Ndim.eq.3) then
+    select case (Ndim)
+    case(2)
+      call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), db, db_offsets, db_intermediate(:,1))
+    case(3)
       call interp_vec_simplex_2d(pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,1))
-    else
+    case(4,5,6,7)
       call interp_vec_simplex_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,1))
-    endif
+    case default
+      call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '//itoa(size(interp_dims, kind=iintegers))//' dimensions')
+    end select
 
     pti_intermediate(interp_dims(Ninterpdim)) = ceiling(pti(interp_dims(Ninterpdim)))
-    if(Ndim.eq.3) then
+    select case (Ndim)
+    case(2)
+      call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), db, db_offsets, db_intermediate(:,2))
+    case(3)
       call interp_vec_simplex_2d(pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,2))
-    else
+    case(4,5,6,7)
       call interp_vec_simplex_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,2))
-    endif
+    case default
+      call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '//itoa(size(interp_dims, kind=iintegers))//' dimensions')
+    end select
 
     wgt_1d = one + modulo(pti(interp_dims(Ninterpdim)), one)
     Cres = interp_vec_1d(wgt_1d, db_intermediate)
-
   end subroutine
 
   pure function get_dims_that_need_interpolation(pti)
@@ -605,7 +463,7 @@ contains
   pure elemental function dim_needs_interpolation(pti)
     real(ireals),intent(in) :: pti
     logical :: dim_needs_interpolation
-    dim_needs_interpolation = .not.approx(modulo(pti, one), zero, sqrt(epsilon(zero)))
+    dim_needs_interpolation = .not.approx(modulo(pti, one), zero, interpolation_lattice_snapping)
   end function
 
 

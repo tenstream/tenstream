@@ -226,7 +226,7 @@ module m_adaptive_spectral_integration
 
         ierr=0
 
-        n = d+1
+        n = int(d+1, kind(n))
         lda = n
         lwork = n
 

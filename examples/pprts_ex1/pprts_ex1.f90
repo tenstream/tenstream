@@ -23,6 +23,8 @@ subroutine pprts_ex1()
     class(t_solver), allocatable :: solver
 
     character(len=80) :: arg
+    !integer(mpiint) :: Nseed
+    !integer(mpiint), allocatable :: seed(:)
 
     dz1d = dz
 
@@ -51,6 +53,13 @@ subroutine pprts_ex1()
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+
+    !call random_seed(size=Nseed)
+    !allocate(seed(Nseed))
+    !seed=1
+    !call random_seed(put=seed)
+    !call random_number(kabs)
+    !kabs = kabs / (dz*nv)
 
     kabs = .1_ireals/(dz*nv)
     ksca = 1e-3_ireals/(dz*nv)
