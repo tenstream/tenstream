@@ -1775,7 +1775,6 @@ module m_pprts
 
     if(ldebug) call mat_info(solver%comm, solver%Mdiff)
 
-
     call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
     call setup_ksp(solver%atm, kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
     call solve(solver, kspdiff, solver%b, solutions(uid)%ediff,uid)
@@ -1793,7 +1792,7 @@ module m_pprts
     else
       call restore_solution(solver, solutions(uid))
     endif
-    call PetscLogStagePop(solver%logs%stage_solve_pprts, ierr); call CHKERR(ierr)
+    call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_solve_pprts
 
     end associate
   end subroutine
