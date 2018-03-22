@@ -1,7 +1,7 @@
 module m_pprts_ex1
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
-    use m_pprts, only : init_pprts, set_optical_properties, t_solver, t_solver_3_6, t_solver_8_10, &
-      solve_pprts, pprts_get_result, set_angles
+    use m_pprts, only : init_pprts, set_optical_properties, solve_pprts, pprts_get_result, set_angles, destroy_pprts, &
+      t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, t_solver_8_10
     use m_tenstream_options, only: read_commandline_options
 
     use mpi, only : MPI_COMM_WORLD
@@ -31,12 +31,18 @@ subroutine pprts_ex1()
     select case(arg)
       case ('-solver_8_10')
         allocate(t_solver_8_10::solver)
+      case ('-solver_3_10')
+        allocate(t_solver_3_10::solver)
       case('-solver_3_6')
         allocate(t_solver_3_6::solver)
+      case('-solver_1_2')
+        allocate(t_solver_1_2::solver)
       case default
         print *,'error, have to provide solver type as argument, e.g.'
         print *,'-solver_8_10'
+        print *,'-solver_3_10'
         print *,'-solver_3_6'
+        print *,'-solver_1_2'
         stop
     end select
 
@@ -64,6 +70,7 @@ subroutine pprts_ex1()
     print *,'edir', fdir(:, nxp/2,nyp/2)
     print *,'edn:', fdn(:, nxp/2,nyp/2)
     print *,'eup:', fup(:, nxp/2,nyp/2)
+    call destroy_pprts(solver, .True.)
 end subroutine
 
 !subroutine example(solver)

@@ -200,7 +200,7 @@ contains
   end subroutine
 
   subroutine pprts_f2c_destroy() bind(c)
-    call destroy_pprts(solver, lfinalizepetsc=.False.)
+    call destroy_pprts(solver, lfinalizepetsc=.True.)
     deallocate(solver)
   end subroutine
 
