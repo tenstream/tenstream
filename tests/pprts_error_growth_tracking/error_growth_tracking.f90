@@ -6,7 +6,7 @@ subroutine error_growth_tracking(this)
     use m_adaptive_spectral_integration, only: need_new_solution
     use m_pprts, only : init_pprts, set_angles, &
         set_optical_properties, solve_pprts, destroy_pprts, &
-        pprts_get_result, t_coord,t_solver
+        pprts_get_result, t_coord,t_solver, t_solver_3_10
 
     use m_tenstream_options, only: read_commandline_options
 
@@ -16,7 +16,7 @@ subroutine error_growth_tracking(this)
 
     class (MpiTestMethod), intent(inout) :: this
 
-    class(t_solver), allocatable :: solver
+    type(t_solver_3_10) :: solver
 
     integer(iintegers) :: iter, k
     integer(mpiint) :: comm, myid, numnodes
@@ -53,9 +53,9 @@ subroutine error_growth_tracking(this)
     ksca = 1e-8
     g    = zero
 
-    allocate(fdn  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fup  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(fdiv (solver%C_one%zm,  solver%C_one%xm,  solver%C_one%ym))
+    !allocate(fdn  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    !allocate(fup  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    !allocate(fdiv (solver%C_one%zm,  solver%C_one%xm,  solver%C_one%ym))
 
     do iter=1,5
       do k=1,2
@@ -73,9 +73,9 @@ subroutine error_growth_tracking(this)
         call set_optical_properties(solver, albedo, kabs, ksca, g)
         call solve_pprts(solver, incSolar, opt_solution_uid=k, opt_solution_time=iter*one)
 
-        allocate(fdir (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+        !allocate(fdir (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
         call pprts_get_result(solver, fdir, fdn, fup, fdiv, opt_solution_uid=k)
-        deallocate(fdir)
+        deallocate(fdir, fdn, fup, fdiv)
 
       enddo
     enddo

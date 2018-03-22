@@ -38,7 +38,7 @@ module m_pprts_rrtmg
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
   use m_data_parameters, only : init_mpi_data_parameters, &
       iintegers, ireals, zero, one, i0, i1, i2, i9,         &
-      mpiint, pi, mpierr, default_str_len
+      mpiint, pi, default_str_len
   use m_pprts, only : init_pprts, set_angles, set_optical_properties, solve_pprts, destroy_pprts,&
       pprts_get_result, pprts_get_result_toZero, t_solver !C_one, C_one1
   use m_adaptive_spectral_integration, only: need_new_solution
@@ -52,8 +52,6 @@ module m_pprts_rrtmg
 
   private
   public :: pprts_rrtmg, destroy_pprts_rrtmg
-
-  integer(mpiint) :: ierr
 
   logical :: linit_tenstr=.False.
 
@@ -884,13 +882,13 @@ contains
     character(default_str_len), intent(in) :: atm_filename
     type(t_atm),allocatable,intent(inout) :: atm
 
-    integer(mpiint) :: myid
+    integer(mpiint) :: myid, ierr
     integer(iintegers) :: k, nlev
     real(ireals),allocatable :: prof(:,:) ! # z(km)  p(mb)  T(K) air(cm-3) o3(cm-3) o2(cm-3)  h2o(cm-3) co2(cm-3) no2(cm-3)
 
     if(allocated(atm)) return
 
-    call mpi_comm_rank(comm, myid, mpierr)
+    call mpi_comm_rank(comm, myid, ierr)
     allocate(atm)
 
     if(myid.eq.0) then

@@ -21,7 +21,7 @@ module m_adaptive_spectral_integration
   use m_pprts, only: t_state_container
   use m_data_parameters, only: iintegers, ireals, default_str_len, mpiint, zero, one, nil
   use m_tenstream_options, only: options_max_solution_err, options_max_solution_time
-  use m_helper_functions, only: approx
+  use m_helper_functions, only: approx, CHKERR
 
   implicit none
 
@@ -108,7 +108,6 @@ module m_adaptive_spectral_integration
         if(ierr.ne.0) then
           need_new_solution=.True.
           write(reason,*) 'problem fitting error curve',ierr
-          call PetscLogStagePop(ierr) ;call CHKERR(ierr)
           if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time, solution%uid
           return
         endif
@@ -178,7 +177,6 @@ module m_adaptive_spectral_integration
         write (out_unit,*) solution%uid,solution%twonorm
         close (out_unit)
       endif
-      call PetscLogStagePop(ierr) ;call CHKERR(ierr)
 
     contains
       subroutine exponential(x1, y1, x2, y2, x3, y3)
