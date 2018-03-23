@@ -179,7 +179,7 @@ contains
       call OPP%loadLUT_diff(comm)
       call OPP%loadLUT_dir(comm)
 
-      if(comm_size.gt.1) call OPP%scatter_LUTtables(comm)
+      call OPP%scatter_LUTtables(comm)
 
       OPP%LUT_initialized=.True.
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Initializing LUT`s... finished'
