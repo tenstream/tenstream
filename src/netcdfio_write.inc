@@ -99,7 +99,7 @@ if(def_mode) then !if we created the file here, we need to leave define mode...
   if(ldebug) print *,'Putting netcdf file in datamode',ncerr
 endif
 
-tmp=arr
+tmp=real(arr, kind=kind(tmp))
 ncerr = nf90_put_var(ncid, varid, tmp) ; call nccheck(ncerr); ierr = ierr + ncerr
 if(ldebug) print *,'written data',ncerr
 
