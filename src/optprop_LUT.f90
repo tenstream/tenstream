@@ -508,10 +508,10 @@ subroutine createLUT(OPP, comm, config, S, T)
               !  print *, myid, 'S%c for isrc', isrc, 'idst', idst, S_diff(idst)
               !enddo
 
-              if( mod((lutindex*Nsrc+isrc-1)*100, total_size).eq.0 ) & !every 1 percent report status
-                  print *,'Calculated LUT...', lutindex, isrc, (lutindex*Nsrc+isrc-1)*100._ireals/total_size,'%'
+              if( mod(((lutindex-1)*Nsrc+isrc-1)*100, total_size).eq.0 ) & !every 1 percent report status
+                  print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._ireals/total_size,'%'
 
-              if( mod(lutindex*Nsrc+isrc-1, total_size/3 ).eq.0 ) then !every 30 percent of LUT dump it.
+              if( mod((lutindex-1)*Nsrc+isrc-1, total_size/3 ).eq.0 ) then !every 30 percent of LUT dump it.
                 print *,'Writing table to file...', S%table_name_c
                 call ncwrite(S%table_name_c  , S%c         ,iierr)
                 print *,'Writing table to file...', S%table_name_tol
