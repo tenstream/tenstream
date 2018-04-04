@@ -20,8 +20,8 @@
 module m_optprop_ANN
   USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1, mpiint, default_str_len
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
-      Ntau, Nw0, Ng,&
-      ldelta_scale, delta_scale_truncate
+    preset_tau21, preset_w015, preset_g3, &
+    ldelta_scale, delta_scale_truncate
   use m_netcdfio
   use mpi
   use m_helper_functions, only : imp_bcast, search_sorted_bisection
@@ -72,14 +72,14 @@ contains
         basename = trim(lut_basename)//'_dstorder_8_10.'
 
         write(descr,FMT='("diffuse.tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
-          Ntau, Nw0, Ng, ldelta_scale, delta_scale_truncate
+          size(preset_tau21), size(preset_w015), size(preset_g3), ldelta_scale, delta_scale_truncate
 
         allocate(diff2diff_network)
         netname = trim(basename)//trim(descr)//'_diff2diff.ANN.nc'
         call loadnet(netname, diff2diff_network, ierr)
 
         write(descr,FMT='("direct.tau",I0,".w0",I0,".g",I0,".delta_",L1,"_",F0.3)') &
-          Ntau, Nw0, Ng, ldelta_scale, delta_scale_truncate
+          size(preset_tau21), size(preset_w015), size(preset_g3), ldelta_scale, delta_scale_truncate
 
         allocate(dir2diff_network)
         netname = trim(basename)//trim(descr)//'_dir2diff.ANN.nc'

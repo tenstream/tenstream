@@ -70,8 +70,8 @@ contains
 
   ! Define the parameters over which to be cycled...
   function getParameters() result(params)
-    use m_optprop_parameters, only: Ntau, Nw0, Ng, Ntheta, Nphi, &
-      preset_tau, preset_w0, preset_g
+    use m_optprop_parameters, only: Ntheta, Nphi, &
+      preset_tau21, preset_w015, preset_g3
 
       type(peCase), allocatable :: params(:)
 
@@ -79,38 +79,48 @@ contains
       real(ireals)       ::  kabs, ksca, g, phi, theta
 
       integer(iintegers) :: itest,iloop
+      integer(iintegers) :: Ntau, Nw0, Ng
 
-      do iloop=1,2
-        if(iloop.eq.2) allocate(params(itest*2))
-        itest=0
+      associate ( preset_tau => preset_tau21, &
+          preset_w0  => preset_w015, &
+          preset_g   => preset_g3 )
 
-        do itau = 1, Ntau-1, Ntau/2
-          do iw0 = 1, Nw0-1, Nw0/2
-            do ig = 1, Ng-1, Ng/2
-              do iphi = 1, 85, 40
-                do itheta = 1, 85, 40
+        Ntau = size(preset_tau)
+        Nw0  = size(preset_w0)
+        Ng   = size(preset_g)
 
-                  itest = itest+1
+        do iloop=1,2
+          if(iloop.eq.2) allocate(params(itest*2))
+          itest=0
 
-                  ! Do Lookup Tests directly on supports of LUT
-                  kabs = preset_tau(itau) * (one-preset_w0(iw0))
-                  ksca = preset_tau(itau) * preset_w0(iw0)
-                  g    = preset_g(ig)
-                  phi  = real(iphi, ireals)
-                  theta= real(itheta, ireals)
-                  if(iloop.eq.2) params(2*(itest-1)+1) = newPeCase(kabs,ksca,g,phi,theta)
+          do itau = 1, Ntau-1, Ntau/2
+            do iw0 = 1, Nw0-1, Nw0/2
+              do ig = 1, Ng-1, Ng/2
+                do iphi = 1, 85, 40
+                  do itheta = 1, 85, 40
 
-                  ! Again, do interlaced tests between support points of LUT
-                  kabs = (preset_tau(itau)+preset_tau(itau+1))/2. * (one-(preset_w0(iw0)+preset_w0(iw0+1))/2.)
-                  ksca = (preset_tau(itau)+preset_tau(itau+1))/2. * (preset_w0(iw0)+preset_w0(iw0+1))/2.
-                  g    = (preset_g(ig)+preset_g(ig+1))/2.
-                  if(iloop.eq.2) params(2*(itest-1)+2) = newPeCase(kabs,ksca,g,phi,theta)
+                    itest = itest+1
+
+                    ! Do Lookup Tests directly on supports of LUT
+                    kabs = preset_tau(itau) * (one-preset_w0(iw0))
+                    ksca = preset_tau(itau) * preset_w0(iw0)
+                    g    = preset_g(ig)
+                    phi  = real(iphi, ireals)
+                    theta= real(itheta, ireals)
+                    if(iloop.eq.2) params(2*(itest-1)+1) = newPeCase(kabs,ksca,g,phi,theta)
+
+                    ! Again, do interlaced tests between support points of LUT
+                    kabs = (preset_tau(itau)+preset_tau(itau+1))/2. * (one-(preset_w0(iw0)+preset_w0(iw0+1))/2.)
+                    ksca = (preset_tau(itau)+preset_tau(itau+1))/2. * (preset_w0(iw0)+preset_w0(iw0+1))/2.
+                    g    = (preset_g(ig)+preset_g(ig+1))/2.
+                    if(iloop.eq.2) params(2*(itest-1)+2) = newPeCase(kabs,ksca,g,phi,theta)
+                  enddo
                 enddo
               enddo
             enddo
           enddo
         enddo
-      enddo
+      end associate
   end function getParameters
 
   ! Override the parent's version of pECase
