@@ -23,7 +23,7 @@ character(len=default_str_len) :: fname,varname
 integer :: Ndims,ncid,i,varid
 
 integer,allocatable :: dims(:),dim_ids(:)
-character(len=10) :: dimname
+character(len=default_str_len) :: dimname
 
 logical :: file_exists, var_exists, def_mode
 
@@ -53,6 +53,8 @@ allocate(dims   (Ndims))
 dims = shape(arr)
 allocate(dim_ids(Ndims))
 
+if(ldebug) print *,'Dimensions('//itoa(int(Ndims, iintegers))//') of array', dims
+
 inquire(file=fname, exist=file_exists)
 if(ldebug) print *,'file ',trim(fname),'exists ::', file_exists
 
@@ -66,7 +68,7 @@ else
   ncerr = nf90_open(fname, NF90_WRITE, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
   if(ldebug) print *,'opened file to write: ',trim(fname),' ::',ncerr
 endif
-if(ncerr.ne.NF90_NOERR) stop 'stopping because we couldnt write to file'
+if(ncerr.ne.NF90_NOERR) call CHKERR(int(ncerr, mpiint),'stopping because we couldnt write to file')
 ierr = 0
 
 ncerr = nf90_redef(ncid); call nccheck(ncerr); def_mode=.True.
@@ -77,10 +79,10 @@ do i=1,Ndims
 
   !See if we can find the dimension
   ncerr = nf90_inq_dimid(ncid, trim(varname)//'_'//trim(dimname), dim_ids(i)) ; call nccheck(ncerr)
-  if(ldebug) print *,'Check if dimension exists',ncerr
+  if(ldebug) print *,'Check if dimension '//trim(varname)//'_'//trim(dimname)//' exists',ncerr
   if(ncerr.ne.NF90_NOERR) then !Otherwise create it
     ncerr = nf90_def_dim(ncid, trim(varname)//'_'//trim(dimname), dims(i), dim_ids(i) ); call nccheck(ncerr)
-    if(ldebug) print *,'Create dimension :: ',trim(varname)//'_'//trim(dimname),' :: ',ncerr
+    if(ldebug) print *,'Create dimension :: ',i,dims(i),dim_ids(i),trim(varname)//'_'//trim(dimname),' :: ',ncerr
   endif
 enddo
 
@@ -97,6 +99,7 @@ endif
 if(def_mode) then !if we created the file here, we need to leave define mode...
   ncerr = nf90_enddef(ncid); call nccheck(ncerr )
   if(ldebug) print *,'Putting netcdf file in datamode',ncerr
+  call CHKERR(ncerr, 'Could not put netcdf file in datamode')
 endif
 
 tmp=real(arr, kind=kind(tmp))

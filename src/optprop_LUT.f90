@@ -177,8 +177,8 @@ contains
 
       call OPP%set_parameter_space()
 
-      call OPP%loadLUT_diff(comm)
       call OPP%loadLUT_dir(comm)
+      call OPP%loadLUT_diff(comm)
 
       call OPP%scatter_LUTtables(comm)
 
@@ -512,16 +512,16 @@ subroutine createLUT(OPP, comm, config, S, T)
                   print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._ireals/total_size,'%'
 
               if( mod(((lutindex-1)*Nsrc+isrc-1)*20, total_size ).eq.0 ) then !every 5 percent of LUT dump it.
-                print *,'Writing table to file...', S%table_name_c
-                call ncwrite(S%table_name_c  , S%c         ,iierr)
-                print *,'Writing table to file...', S%table_name_tol
-                call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
                 if(present(T)) then
                   print *,'Writing table to file...', T%table_name_c
-                  call ncwrite(T%table_name_c  , T%c         ,iierr)
+                  call ncwrite(T%table_name_c  , T%c         ,iierr); call CHKERR(iierr, 'Could not write Table to file')
                   print *,'Writing table to file...', T%table_name_tol
-                  call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
+                  call ncwrite(T%table_name_tol, T%stddev_tol,iierr); call CHKERR(iierr, 'Could not write Table to file')
                 endif
+                print *,'Writing table to file...', S%table_name_c
+                call ncwrite(S%table_name_c  , S%c         ,iierr); call CHKERR(iierr, 'Could not write Table to file')
+                print *,'Writing table to file...', S%table_name_tol
+                call ncwrite(S%table_name_tol, S%stddev_tol,iierr); call CHKERR(iierr, 'Could not write Table to file')
                 print *,'done writing!',iierr
               endif
 
