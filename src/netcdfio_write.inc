@@ -56,16 +56,17 @@ allocate(dim_ids(Ndims))
 if(ldebug) print *,'Dimensions('//itoa(int(Ndims, iintegers))//') of array', dims
 
 inquire(file=fname, exist=file_exists)
-if(ldebug) print *,'file ',trim(fname),'exists ::', file_exists
+if(ldebug) print *,'file '//trim(fname)//' exists :: ', file_exists
 
 ierr = 0
 
 if(.not.file_exists) then
-  ncerr = nf90_create(fname, NF90_NOCLOBBER, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
-  !ncerr = nf90_create(fname, NF90_HDF5, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
+  !ncerr = nf90_create(fname, NF90_NOCLOBBER, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
+  !ncerr = nf90_create(fname, NF90_NETCDF4, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
+  ncerr = nf90_create(fname, NF90_64BIT_OFFSET , ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
   if(ldebug) print *,'opened file to append: ',trim(fname),' ::',ncerr
 else
-  ncerr = nf90_open(fname, NF90_WRITE, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
+  ncerr = nf90_open(path=fname, mode=nf90_write, ncid=ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
   if(ldebug) print *,'opened file to write: ',trim(fname),' ::',ncerr
 endif
 if(ncerr.ne.NF90_NOERR) call CHKERR(int(ncerr, mpiint),'stopping because we couldnt write to file')
