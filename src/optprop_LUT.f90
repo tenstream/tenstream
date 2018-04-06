@@ -451,7 +451,7 @@ subroutine createLUT(OPP, comm, config, S, T)
 
             if( all(ldoneS) .and. all(ldoneT) ) then
               if( mod(cnt-1, total_size/100).eq.0 ) & !every 1 percent report status
-                  print *,'Resuming from direct LUT... ',cnt/(total_size/100),'%'
+                  print *,'Resuming from LUT... ',cnt/(total_size/100),'%'
               cnt=cnt+1
               cycle
             endif
@@ -669,6 +669,7 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     real(ireals) :: aspect_zx, aspect_zy, tauz, w0, g, phi, theta
+    real(ireals), allocatable :: coord2d(:)
     integer(mpiint) :: ierr
 
     call get_sample_pnt_by_name_and_index(config, 'aspect_zx', index_1d, aspect_zx, ierr); call CHKERR(ierr, 'aspect_zx has to be present')
@@ -684,6 +685,15 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     if(ierr.ne.0) then
       aspect_zy = aspect_zx ! set dy = dx
     endif
+
+    select type(OPP)
+      class is (t_optprop_LUT_wedge_5_8)
+      allocate(coord2d(6))
+      coord2d(1:4) = [zero, zero, one, zero]
+      call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, coord2d(5), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
+      call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, coord2d(6), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
+      call OPP%bmc%init(comm, coord2d)
+    end select
 
     call bmc_wrapper(OPP, src, aspect_zx, aspect_zy, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
 
@@ -828,9 +838,24 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g3,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_g3)
           call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_aspect21)
 
-      !class is (t_optprop_LUT_wedge_5_8)
-      !    OPP%interp_mode = interp_mode_wedge_5_8
-      !    ps%range_phi = [-70, 70]
+      class is (t_optprop_LUT_wedge_5_8)
+          OPP%interp_mode = interp_mode_wedge_5_8
+          allocate(OPP%dirconfig%dims(8))
+          call populate_LUT_dim('tau',       size(preset_tau10,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau10)
+          call populate_LUT_dim('w0',        size(preset_w08,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w08)
+          call populate_LUT_dim('g',         size(preset_g3,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_g3)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_aspect21)
+          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([.35,.65], ireals))
+          call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%dirconfig%dims(6), vrange=real([.8, .9], ireals))
+          call populate_LUT_dim('phi',       15_iintegers, OPP%dirconfig%dims(7), vrange=real([-70,70], ireals))
+          call populate_LUT_dim('theta',     Ntheta, OPP%dirconfig%dims(8), vrange=real([0,90], ireals))
+          allocate(OPP%diffconfig%dims(6))
+          call populate_LUT_dim('tau',       size(preset_tau10,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau10)
+          call populate_LUT_dim('w0',        size(preset_w08,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w08)
+          call populate_LUT_dim('g',         size(preset_g3,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_g3)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_aspect21)
+          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(5), vrange=real([.35,.65], ireals))
+          call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%diffconfig%dims(6), vrange=real([.8, .9], ireals))
       class default
         stop 'set_parameter space: unexpected type for optprop_LUT object!'
     end select
@@ -897,6 +922,11 @@ subroutine LUT_get_dir2dir(OPP, sample_pts, C)
     integer(iintegers) :: src, kdim, ind1d
     real(ireals) :: pti(size(sample_pts)), norm
 
+    if(ldebug_optprop) then
+      if(size(sample_pts).ne.OPP%dirconfig%Ndim) call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
+        //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(OPP%dirconfig%Ndim))
+    endif
+
     do kdim = 1, size(sample_pts)
       pti(kdim) = search_sorted_bisection(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
     enddo
@@ -938,6 +968,11 @@ subroutine LUT_get_dir2diff(OPP, sample_pts, C)
     integer(iintegers) :: src, kdim, ind1d
     real(ireals) :: pti(size(sample_pts)), norm
 
+    if(ldebug_optprop) then
+      if(size(sample_pts).ne.OPP%dirconfig%Ndim) call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
+        //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(OPP%dirconfig%Ndim))
+    endif
+
     do kdim = 1, size(sample_pts)
       pti(kdim) = search_sorted_bisection(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
     enddo
@@ -976,6 +1011,11 @@ subroutine LUT_get_diff2diff(OPP, sample_pts, C)
 
     integer(iintegers) :: src, kdim, ind1d
     real(ireals) :: pti(size(sample_pts)), norm
+
+    if(ldebug_optprop) then
+      if(size(sample_pts).ne.OPP%diffconfig%Ndim) call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
+        //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(OPP%dirconfig%Ndim))
+    endif
 
     do kdim = 1, size(sample_pts)
       pti(kdim) = search_sorted_bisection(OPP%diffconfig%dims(kdim)%v, sample_pts(kdim))

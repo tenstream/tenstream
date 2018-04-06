@@ -29,9 +29,21 @@ program main
       use m_optprop_parameters, only : OPP_LUT_ALL_ANGLES
       use m_tenstream_options, only : read_commandline_options
 
+      integer(mpiint) :: myid,comm
+
       type(t_optprop_LUT_wedge_5_8) :: OPP
 
       PetscErrorCode :: ierr
+
+      call mpi_init(ierr)
+      comm = MPI_COMM_WORLD
+      call mpi_comm_rank(comm,myid,ierr)
+      call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;call CHKERR(ierr)
+
+      call init_mpi_data_parameters(MPI_COMM_WORLD)
+
+      call read_commandline_options()
+
 
       call OPP%init(MPI_COMM_WORLD)
 

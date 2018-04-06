@@ -25,7 +25,7 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, coeff_mode
-use m_helper_functions, only : rmse, CHKERR
+use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx
 use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_wedge_5_8
@@ -142,31 +142,114 @@ contains
 
   end subroutine
 
-  subroutine get_coeff(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
+  subroutine get_coeff(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north, wedge_coords)
         class(t_optprop)                  :: OPP
         logical,intent(in)                :: dir
         real(ireals),intent(in)           :: aspect, tauz, w0, g
-        real(ireals),intent(in),optional  :: inp_angles(2)
+        real(ireals),intent(in),optional  :: inp_angles(:)         ! phi and azimuth in degree
         logical,intent(in),optional       :: lswitch_east, lswitch_north
+        real(ireals),intent(in),optional  :: wedge_coords(:)       ! 6 coordinates of wedge triangle, only used for wedge OPP types
         real(ireals),intent(out)          :: C(:)
 
-        real(ireals) :: angles(2)
+        select type (OPP)
+        class is (t_optprop_1_2)
+          call boxmc_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
 
-        logical,parameter :: compute_coeff_online=.False.
+        class is (t_optprop_3_6)
+          call boxmc_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
 
-        if(compute_coeff_online) then
-          call get_coeff_bmc(OPP, tauz, w0, g, aspect, aspect, dir, C, inp_angles)
-          return
-        endif
+        class is (t_optprop_3_10)
+          call boxmc_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
 
-        if(ldebug_optprop) call check_inp(tauz, w0, g, aspect, dir, C)
+        class is (t_optprop_8_10)
+          call boxmc_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
 
-        if(present(inp_angles)) then
-          angles = inp_angles
-          if(inp_angles(2).le.1e-3_ireals) angles(1) = zero ! if sza is close to 0, azimuth is symmetric -> dont need to distinguish
-        endif
+        class is (t_optprop_wedge_5_8)
+          call wedge_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north, wedge_coords)
+          call CHKERR(1_mpiint, 'get_coeff not implemented for t_optprop_LUT_wedge_5_8')
 
-        select case (coeff_mode)
+        class default
+          call CHKERR(1_mpiint, 'initialize LUT: unexpected type for optprop object!')
+      end select
+
+      contains
+        subroutine wedge_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north, wedge_coords)
+          class(t_optprop)                  :: OPP
+          logical,intent(in)                :: dir
+          real(ireals),intent(in)           :: aspect, tauz, w0, g
+          real(ireals),intent(in),optional  :: inp_angles(:)
+          logical,intent(in),optional       :: lswitch_east, lswitch_north
+          real(ireals),intent(in),optional  :: wedge_coords(:)       ! 6 coordinates of wedge triangle, only used for wedge OPP types, have to be in local coords already (i.e. A=[0,0], B=[0,1], C=[...]
+          real(ireals),intent(out)          :: C(:)
+
+          real(ireals) :: angles(2), C_pnt(2)
+
+          if(ldebug_optprop) then
+            if(.not.present(wedge_coords)) call CHKERR(1_mpiint, 'If you use an wedge OPP object, I highly recommend that you provide the wedge coordinates')
+          endif
+
+          if(ldebug_optprop) then
+            if(.not.all(approx(wedge_coords([1,2,4]), zero)) &
+              .or. .not.approx(wedge_coords(3), one)) then
+              print *,'wedge_coords:', wedge_coords
+              call CHKERR(1_mpiint, 'provided wedge coords have to in local bmc coordinate system!')
+            endif
+            if(wedge_coords(5).lt.0.35_ireals .or. wedge_coords(5).gt.0.65_ireals) &
+              call CHKERR(1_mpiint, 'wedge_coords(5) is outside the range we expected... take care of it somehow, do some magic! '//ftoa(wedge_coords(5)))
+            call check_inp(tauz, w0, g, aspect, dir, C)
+          endif
+
+          C_pnt = wedge_coords(5:6)
+
+          select case (coeff_mode)
+
+          case(i0) ! LookUpTable Mode
+
+            if(present(inp_angles)) then ! obviously we want the direct coefficients
+              if(dir) then ! dir2dir
+                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, g, aspect, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
+                call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
+              else         ! dir2diff
+                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, g, aspect, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
+                call OPP%dir2diff_coeff_symmetry(C, lswitch_east, lswitch_north)
+              endif
+            else
+              ! diff2diff
+              call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, g, aspect, C_pnt(1), C_pnt(2)], C)
+            endif
+
+          case default
+            call CHKERR(1_mpiint, 'particular value of coeff mode in optprop_parameters is not defined: '//itoa(coeff_mode))
+          end select
+
+        end subroutine
+
+
+        subroutine boxmc_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
+          class(t_optprop)                  :: OPP
+          logical,intent(in)                :: dir
+          real(ireals),intent(in)           :: aspect, tauz, w0, g
+          real(ireals),intent(in),optional  :: inp_angles(:)
+          logical,intent(in),optional       :: lswitch_east, lswitch_north
+          real(ireals),intent(out)          :: C(:)
+
+          real(ireals) :: angles(2)
+
+          logical,parameter :: compute_coeff_online=.False.
+
+          if(compute_coeff_online) then
+            call get_coeff_bmc(OPP, tauz, w0, g, aspect, aspect, dir, C, inp_angles)
+            return
+          endif
+
+          if(ldebug_optprop) call check_inp(tauz, w0, g, aspect, dir, C)
+
+          if(present(inp_angles)) then
+            angles = inp_angles
+            if(inp_angles(2).le.1e-3_ireals) angles(1) = zero ! if sza is close to 0, azimuth is symmetric -> dont need to distinguish
+          endif
+
+          select case (coeff_mode)
 
           case(i0) ! LookUpTable Mode
 
@@ -198,10 +281,10 @@ contains
             endif
 
           case default
-            stop 'coeff mode optprop initialization not defined '
-        end select
+            call CHKERR(1_mpiint, 'particular value of coeff mode in optprop_parameters is not defined: '//itoa(coeff_mode))
+          end select
 
-      contains
+        end subroutine
 
         subroutine check_inp(tauz, w0, g, aspect, dir, C)
             real(ireals),intent(in) :: aspect, tauz, w0, g
