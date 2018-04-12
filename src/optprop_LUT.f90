@@ -350,7 +350,8 @@ subroutine write_pspace(fname, config)
     if(allocated(existing_values)) deallocate(existing_values)
     call ncload(groups, existing_values, ierr)
     if(ierr.eq.0) then
-      if(.not.all(approx(existing_values, config%dims(kdim)%v))) then
+      if(.not.all(approx(existing_values, config%dims(kdim)%v, sqrt(epsilon(one))*10))) then
+        print *, kdim, trim(groups(1)), trim(groups(3)), ':existing', existing_values, ':new', config%dims(kdim)%v
         call CHKERR(1_mpiint, 'Dimensions of LUT and in optprop_parameters definition do not match!')
       endif
     else ! Otherwise, just save the current ones
