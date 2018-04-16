@@ -72,7 +72,6 @@ module m_optprop_LUT
   end type
 
   type t_LUT_config
-    integer(iintegers) :: Ndim
     type(t_LUT_dim), allocatable :: dims(:)
     integer(iintegers),allocatable :: offsets(:) ! offsets of respective dimensions (starts at 0 and next one is dim(1)%N ... etc... )
   end type
@@ -774,6 +773,8 @@ end subroutine
 
 subroutine set_parameter_space(OPP)
     class(t_optprop_LUT) :: OPP
+    integer(mpiint) :: k, myid, ierr
+
     allocate(OPP%dirconfig)
     allocate(OPP%diffconfig)
 
@@ -868,12 +869,13 @@ subroutine set_parameter_space(OPP)
     allocate(OPP%diffconfig%offsets(size(OPP%diffconfig%dims)))
     OPP%diffconfig%offsets = ndarray_offsets(OPP%diffconfig%dims(:)%N)
 
-    !if(ldebug) then
-    !  print *,'set_parameter space dims:', size(OPP%diffconfig%dims), size(OPP%dirconfig%dims)
-    !  do k=1,size(OPP%dirconfig%dims)
-    !    print *,'dim ',trim(OPP%dirconfig%dims(k)%dimname), OPP%dirconfig%offsets(k), OPP%dirconfig%dims(k)%vrange, ':', OPP%dirconfig%dims(k)%v
-    !  enddo
-    !endif
+    if(ldebug.and..False.) then
+      call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
+      print *,myid,'set_parameter space dims:', size(OPP%diffconfig%dims), size(OPP%dirconfig%dims)
+      do k=1,size(OPP%dirconfig%dims)
+        print *,myid,'dim ',trim(OPP%dirconfig%dims(k)%dimname), OPP%dirconfig%offsets(k), OPP%dirconfig%dims(k)%vrange, ':', OPP%dirconfig%dims(k)%v
+      enddo
+    endif
 end subroutine
 
   subroutine scatter_LUTtables(OPP, comm)
@@ -915,6 +917,22 @@ end subroutine
       endif
   end subroutine
 
+subroutine print_LUT_config(config)
+  type(t_LUT_config), allocatable, intent(in) :: config
+  integer(iintegers) :: i
+  integer(mpiint) :: myid, ierr
+
+  call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
+
+  print *,myid,'LUT Config initialized', allocated(config)
+  if(.not.allocated(config)) return
+
+  print *,myid,'LUT Config Ndim', size(config%dims)
+  do i = 1, size(config%dims)
+    print *,myid,'Dimension '//itoa(i)//' '//trim(config%dims(i)%dimname)//' size '//itoa(config%dims(i)%N)
+  enddo
+end subroutine
+
 subroutine LUT_get_dir2dir(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: sample_pts(:)
@@ -924,8 +942,11 @@ subroutine LUT_get_dir2dir(OPP, sample_pts, C)
     real(ireals) :: pti(size(sample_pts)), norm
 
     if(ldebug_optprop) then
-      if(size(sample_pts).ne.OPP%dirconfig%Ndim) call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
-        //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(OPP%dirconfig%Ndim))
+      if(size(sample_pts).ne.size(OPP%dirconfig%dims)) then
+        call print_LUT_config(OPP%dirconfig)
+        call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
+          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%dirconfig%dims)))
+      endif
     endif
 
     do kdim = 1, size(sample_pts)
@@ -970,8 +991,11 @@ subroutine LUT_get_dir2diff(OPP, sample_pts, C)
     real(ireals) :: pti(size(sample_pts)), norm
 
     if(ldebug_optprop) then
-      if(size(sample_pts).ne.OPP%dirconfig%Ndim) call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
-        //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(OPP%dirconfig%Ndim))
+      if(size(sample_pts).ne.size(OPP%dirconfig%dims)) then
+        call print_LUT_config(OPP%dirconfig)
+        call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
+          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%dirconfig%dims)))
+      endif
     endif
 
     do kdim = 1, size(sample_pts)
@@ -1014,8 +1038,11 @@ subroutine LUT_get_diff2diff(OPP, sample_pts, C)
     real(ireals) :: pti(size(sample_pts)), norm
 
     if(ldebug_optprop) then
-      if(size(sample_pts).ne.OPP%diffconfig%Ndim) call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
-        //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(OPP%dirconfig%Ndim))
+      if(size(sample_pts).ne.size(OPP%diffconfig%dims)) then
+        call print_LUT_config(OPP%dirconfig)
+        call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
+          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%dirconfig%dims)))
+      endif
     endif
 
     do kdim = 1, size(sample_pts)
