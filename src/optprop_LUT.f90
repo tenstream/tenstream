@@ -54,7 +54,7 @@ module m_optprop_LUT
 
   use m_mmap, only : arr_to_mmap, munmap_mmap_ptr
 
-  use m_boxmc_geometry, only : setup_default_wedge_geometry, setup_default_cube_geometry
+  use m_boxmc_geometry, only : setup_default_wedge_geometry, setup_default_unit_cube_geometry
 
   implicit none
 
@@ -676,7 +676,7 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     real(ireals) :: aspect_zx, aspect_zy, tauz, w0, g, phi, theta
-    real(ireals), dimension(2) :: A, B, C, D
+    real(ireals), dimension(2) :: wedge_C
     real(ireals), allocatable :: vertices(:)
     integer(mpiint) :: ierr
 
@@ -695,28 +695,23 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     endif
 
     ! First define Default vertices for Cube Geometry
-    A = [zero, zero]
-    B = [ one, zero]
-    C = [zero,  one]
-    D = [ one,  one]
-
     select type(OPP)
       class is (t_optprop_LUT_1_2)
-        call setup_default_cube_geometry(A, B, C, D, aspect_zx, vertices)
+        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
 
       class is (t_optprop_LUT_3_6)
-        call setup_default_cube_geometry(A, B, C, D, aspect_zx, vertices)
+        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
 
       class is (t_optprop_LUT_3_10)
-        call setup_default_cube_geometry(A, B, C, D, aspect_zx, vertices)
+        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
 
       class is (t_optprop_LUT_8_10)
-        call setup_default_cube_geometry(A, B, C, D, aspect_zx, vertices)
+        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
 
       class is (t_optprop_LUT_wedge_5_8)
-        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, C(1), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
-        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, C(2), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
-        call setup_default_wedge_geometry(A, B, C, aspect_zx, vertices)
+        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
+        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
+        call setup_default_wedge_geometry([zero, zero], [one, zero], wedge_C, aspect_zx, vertices)
 
       class default
         call CHKERR(1_mpiint, 'set_parameter space: unexpected type for optprop_LUT object!')
