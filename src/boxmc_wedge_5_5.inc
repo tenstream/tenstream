@@ -36,69 +36,38 @@
 ! We always assume the triangle to have dx edge length along y=0 (A,B) and dy is the edge length between (A,C)
 ! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
 
-subroutine define_wedge_triangle_pts(dx, dy, A, B, C, nAB, nBC, nCA, vertices)
-  real(ireal_dp), intent(in) :: dx, dy
-  real(ireal_dp), dimension(:), intent(out) :: A, B, C ! points on triangle [A,B,C]
-  real(ireal_dp), dimension(:), intent(out) :: nAB, nBC, nCA ! normals on triangle [A,B,C], pointing towards center
-  real(ireal_dp), intent(in), optional :: vertices(:) ! if given should be the vertex coordinates for A, B, C in 2D
-  real(ireal_dp), dimension(size(A)) :: center
-
-  if(size(  A).ne.2.or.size(  B).ne.2.or.size(  C).ne.2) call CHKERR(1_mpiint, 'Coordinates have to be 2D coordinates')
-  if(size(nAB).ne.2.or.size(nBC).ne.2.or.size(nCA).ne.2) call CHKERR(1_mpiint, 'Normals have to be 2D coordinates')
-  if(present(vertices)) then
-    if(size(vertices).ne.6) call CHKERR(1_mpiint, 'Size of vertices have to be 2D coordinates for 3 points')
-  endif
-
-  if(present(vertices)) then
-    A = vertices(1:2)
-    B = vertices(3:4)
-    C = vertices(5:6)
-  else
-    A = [zero, zero]
-    B = [dx, zero]
-    C = [dx/2, sqrt(dy**2 - (dx/2)**2)]
-  endif
-
-  center = (A+B+C)/3
-
-  nAB = (A-B); nAB = nAB([2,1]); nAB = nAB *[one, -one] / norm(nAB)
-  nBC = (B-C); nBC = nBC([2,1]); nBC = nBC *[one, -one] / norm(nBC)
-  nCA = (C-A); nCA = nCA([2,1]); nCA = nCA *[one, -one] / norm(nCA)
-
-end subroutine
-
-subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz,ierr)
+subroutine init_dir_photon_wedge_5_5(bmc,p,src,ldirect,initial_dir,vertices,ierr)
   use m_helper_functions_dp, only: pnt_in_triangle, determine_normal_direction, angle_between_two_vec, rad2deg
   class(t_boxmc_wedge_5_5) :: bmc
   type(photon),intent(inout) :: p
-  real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
+  real(ireal_dp),intent(in) :: initial_dir(:), vertices(:)
   integer(iintegers),intent(in) :: src
-  logical,intent(in) :: direct
+  logical,intent(in) :: ldirect
   integer(mpiint),intent(out) :: ierr
 
   real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
   real(ireal_dp) :: r1, r2, normal(3), triangle_center(3), dir_p_to_triangle_center(3)
 
-  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, NBC, nCA)
+  call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, p%dx, p%dy, p%dz)
 
   select case(src)
   case (1)
     r1 = R()
     r2 = R()
     PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-    p%loc = [PNT(1), PNT(2), dz]
+    p%loc = [PNT(1), PNT(2), p%dz]
     normal = [zero,zero,-one]
   case (2)
     PNT = A + (R() * (B-A))
-    p%loc = [PNT(1), PNT(2), L(dz)]
+    p%loc = [PNT(1), PNT(2), L(p%dz)]
     normal = [nAB(1), nAB(2), zero]
   case (3)
     PNT = A + (R() * (C-A))
-    p%loc = [PNT(1), PNT(2), L(dz)]
+    p%loc = [PNT(1), PNT(2), L(p%dz)]
     normal = [nCA(1), nCA(2), zero]
   case (4)
     PNT = C + (R() * (B-C))
-    p%loc = [PNT(1), PNT(2), L(dz)]
+    p%loc = [PNT(1), PNT(2), L(p%dz)]
     normal = [nBC(1), nBC(2), zero]
   case (5)
     r1 = R()
@@ -113,11 +82,8 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz,ierr)
   end select
 
   p%weight=one
-  p%dx   = dx
-  p%dy   = dy
-  p%dz   = dz
   p%alive = .True.
-  p%direct= direct
+  p%direct= ldirect
   p%side = int(nil)
   p%src  = src
   p%scattercnt = 0
@@ -136,7 +102,7 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,direct,initial_dir,dx,dy,dz,ierr)
     if(angle_between_two_vec(p%dir, normal).le.pi_dp/2+10*epsilon(pi_dp)) then
       !print *,'the difference is really small so I will just move the photon a bit towards the center of the triangle and continue'
       triangle_center(1:2) = (A+B+C)/3
-      triangle_center(3) = dz/2
+      triangle_center(3) = p%dz/2
       dir_p_to_triangle_center = triangle_center - p%loc
       dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
       p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
@@ -174,11 +140,11 @@ subroutine update_diff_stream_wedge_5_5(bmc,p,S)
   !call print_photon(p)
 end subroutine
 
-subroutine init_diff_photon_wedge_5_5(bmc, p, src, dx, dy, dz, ierr)
+subroutine init_diff_photon_wedge_5_5(bmc, p, src, vertices, ierr)
   use m_helper_functions_dp, only : pnt_in_triangle,rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, rad2deg
   class(t_boxmc_wedge_5_5) :: bmc
   type(photon),intent(inout) :: p
-  real(ireal_dp),intent(in) :: dx,dy,dz
+  real(ireal_dp),intent(in) :: vertices(:)
   integer(iintegers),intent(in) :: src
   integer(mpiint), intent(out) :: ierr
 
@@ -187,23 +153,23 @@ subroutine init_diff_photon_wedge_5_5(bmc, p, src, dx, dy, dz, ierr)
   real(ireal_dp) :: r1, r2
 
   !print *,'---------- new diffuse photon --------------'
-  call define_wedge_triangle_pts(dx,dy,A,B,C, nAB, NBC, nCA)
+  call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, p%dx, p%dy, p%dz)
 
   select case (src)
   case (1)
     r1 = R()
     r2 = R()
     PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-    p%loc = [PNT(1), PNT(2), dz]
+    p%loc = [PNT(1), PNT(2), p%dz]
   case (2)
     PNT = A + (B - A) * R()
-    p%loc = [PNT(1), PNT(2), R()*dz]
+    p%loc = [PNT(1), PNT(2), R()*p%dz]
   case (3)
     PNT = A + (C - A) * R()
-    p%loc = [PNT(1), PNT(2), R()*dz]
+    p%loc = [PNT(1), PNT(2), R()*p%dz]
   case (4)
     PNT = C + (B - C) * R()
-    p%loc = [PNT(1), PNT(2), R()*dz]
+    p%loc = [PNT(1), PNT(2), R()*p%dz]
   case (5)
     r1 = R()
     r2 = R()
@@ -248,9 +214,6 @@ subroutine init_diff_photon_wedge_5_5(bmc, p, src, dx, dy, dz, ierr)
   end select
 
   p%weight=one
-  p%dx   = dx
-  p%dy   = dy
-  p%dz   = dz
   p%alive = .True.
   p%direct= .False.
   p%side = int(nil)
@@ -273,81 +236,17 @@ subroutine init_diff_photon_wedge_5_5(bmc, p, src, dx, dy, dz, ierr)
   ierr = 0
 end subroutine
 
-subroutine intersect_distance_wedge_5_5(bmc,p,max_dist)
+subroutine intersect_distance_wedge_5_5(bmc,vertices,p,max_dist)
   use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, distances_to_triangle_edges, determine_normal_direction, angle_between_two_vec
+  use m_boxmc_geometry, only : intersect_wedge
   class(t_boxmc_wedge_5_5) :: bmc
-  type(photon),intent(inout) :: p
-  real(ireal_dp),intent(out) :: max_dist
-
-  integer(iintegers) :: i
-
-  real(ireal_dp) :: dist(5) ! distances to all the faces
-  real(ireal_dp) :: normals(3,5), new_loc(3)
-  real(ireal_dp),dimension(2) :: A, B, C, nAB, nBC, nCA ! points on triangle [A,B,C]
-
-  logical :: l_in_triangle
-
-  call define_wedge_triangle_pts(p%dx, p%dy, A, B, C, nAB, NBC, nCA)
+  real(ireal_dp), intent(in) :: vertices(:)
+  type(photon), intent(inout) :: p
+  real(ireal_dp), intent(out) :: max_dist
 
 
-  normals(:,1) = [zero,zero,-one]
-  normals(:,2) = [nAB(1), nAB(2), zero]
-  normals(:,3) = [nCA(1), nCA(2), zero]
-  normals(:,4) = [nBC(1), nBC(2), zero]
-  normals(:,5) = [zero,zero, one]
-
-  dist = huge(dist)
-
-  !crossing with bottom and top plane:
-  if(p%dir(3).gt.zero) then
-    dist(1) = hit_plane(p%loc, p%dir,[A(1),A(2),p%dz ],normals(:,1))
-  else if (p%dir(3).lt.zero) then
-    dist(5) = hit_plane(p%loc, p%dir,[A(1),A(2),zero ],normals(:,5))
-  endif
-
-  !crossing with side planes:
-  ! plane 2, along y=0
-  if(p%dir(2).lt.zero) then
-    dist(2) = hit_plane(p%loc, p%dir, [A(1), A(2), zero], normals(:,2))
-  endif
-  dist(3) = hit_plane(p%loc, p%dir, [C(1), C(2), zero], normals(:,3))
-  dist(4) = hit_plane(p%loc, p%dir, [C(1), C(2), zero], normals(:,4))
-
-  max_dist = huge(dist)
-  p%side = -i1
-  do i=1,size(dist)
-    if(p%scattercnt.eq.0 .and. i.eq.p%src) cycle ! we just started this, dont allow that it hits the start face
-
-    if(dist(i).ge.-sqrt(epsilon(zero)) .and. dist(i).le.zero) then ! have photon that is very close to the edge, this could be a numerics issue... lets check in which direction the photon travels
-      if( angle_between_two_vec(p%dir, -normals(:,i)) .le. pi_dp/2 ) then ! photon is flying towards this edge but intersection code said that the crossing would be behind us, this can only mean that we are actually already outside of the triangle...
-        dist(i) = zero
-      endif
-    endif
-
-    if(dist(i).lt.zero) cycle ! dont travel backwards
-
-    if(dist(i).le.max_dist) then
-      max_dist = dist(i)
-      p%side = i
-    endif
-  enddo
-
-  if(p%side.eq.-i1) then
-    print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
-    call print_photon(p)
-    stop 'debug'
-  endif
-
-  new_loc = p%loc + max_dist * p%dir
-  l_in_triangle = pnt_in_triangle(A,B,C, [new_loc(1), new_loc(2)])
-  if(.not.l_in_triangle) then
-    print *,'distance:', distances_to_triangle_edges(A,B,C, [new_loc(1), new_loc(2)]), ':: dists to faces',dist
-    print *,'called pnt_in_triangle(', A, B, C, [new_loc(1), new_loc(2)], ')'
-    print *,'new point not in triangle', new_loc, 'side', p%side, 'dist', max_dist
-    call print_photon(p)
-    stop 'debug'
-  endif
-
+  call intersect_wedge(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
+    p%side, p%weight, max_dist)
 
   select type(bmc)
   end select

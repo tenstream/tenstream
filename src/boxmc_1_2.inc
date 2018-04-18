@@ -64,27 +64,26 @@ subroutine update_diff_stream_1_2(bmc,p,S)
 
 end subroutine
 
-subroutine init_dir_photon_1_2(bmc, p, src, direct, initial_dir, dx, dy, dz, ierr)
+subroutine init_dir_photon_1_2(bmc, p, src, ldirect, initial_dir, vertices, ierr)
     class(t_boxmc_1_2) :: bmc
     type(photon),intent(inout) :: p
-    real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
+    real(ireal_dp),intent(in) :: initial_dir(:), vertices(:)
     integer(iintegers),intent(in) :: src
-    logical,intent(in) :: direct
+    logical,intent(in) :: ldirect
     integer(mpiint),intent(out) :: ierr
 
+    call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
+
     if(src.eq.1) then
-      p%loc = (/L(dx)     , L(dy)     ,    dz  /)
+      p%loc = (/L(p%dx)     , L(p%dy)     ,    p%dz  /)
     else
       print *,'Dont know what to do with source spec:',src
       call exit
     endif
 
     p%weight=one
-    p%dx   = dx
-    p%dy   = dy
-    p%dz   = dz
     p%alive = .True.
-    p%direct= direct
+    p%direct= ldirect
     p%side = int(nil)
     p%src  = src
     p%scattercnt  = 0
@@ -96,28 +95,30 @@ subroutine init_dir_photon_1_2(bmc, p, src, direct, initial_dir, dx, dy, dz, ier
     ierr = 0
 end subroutine
 
-subroutine init_diff_photon_1_2(bmc, p, src, dx, dy, dz, ierr)
+subroutine init_diff_photon_1_2(bmc, p, src, vertices, ierr)
     class(t_boxmc_1_2) :: bmc
     type(photon),intent(inout) :: p
-    real(ireal_dp),intent(in) :: dx,dy,dz
+    real(ireal_dp),intent(in) :: vertices(:)
     integer(iintegers),intent(in) :: src
     integer(mpiint),intent(out) :: ierr
 
     real(ireal_dp) :: phi,mu,mu1,mu2
 
+    call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
+
     mu2 = R()
     mu1 = sqrt(R())
     select case(src)
     case (-1) ! thermal emission
-      p%loc = (/L(dx), L(dy), L(dz) /)
+      p%loc = (/L(p%dx), L(p%dy), L(p%dz) /)
       mu = 2._ireal_dp*mu2 - one
       phi= deg2rad( R()*360._ireal_dp )
     case (2)
-      p%loc = (/L(dx), L(dy),    dz  /)
+      p%loc = (/L(p%dx), L(p%dy),    p%dz  /)
       mu = -mu1 !mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp))
       phi= deg2rad( R()*360._ireal_dp )
     case (1)
-      p%loc = (/L(dx), L(dy),    zero/)
+      p%loc = (/L(p%dx), L(p%dy),    zero/)
       mu = mu1 !mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp))
       phi= deg2rad( R()*360._ireal_dp )
     case default
@@ -127,9 +128,6 @@ subroutine init_diff_photon_1_2(bmc, p, src, dx, dy, dz, ierr)
 
     p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
     p%weight=one
-    p%dx   = dx
-    p%dy   = dy
-    p%dz   = dz
     p%alive = .True.
     p%direct= .False.
     p%side = int(nil)
@@ -143,8 +141,9 @@ subroutine init_diff_photon_1_2(bmc, p, src, dx, dy, dz, ierr)
     ierr = 0
 end subroutine
 
-subroutine intersect_distance_1_2(bmc,p,max_dist)
+subroutine intersect_distance_1_2(bmc,vertices,p,max_dist)
     class(t_boxmc_1_2) :: bmc
+    real(ireal_dp),intent(in) :: vertices(:)
     type(photon),intent(inout) :: p
     real(ireal_dp),intent(out) :: max_dist
 
@@ -167,7 +166,8 @@ subroutine intersect_distance_1_2(bmc,p,max_dist)
       return
     endif
 
-    print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
+    print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:', &
+      max_dist, ':', vertices
     call print_photon(p)
 
     select type(bmc)

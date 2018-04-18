@@ -5,6 +5,7 @@ module test_boxmc
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
+  use m_boxmc_geometry, only : setup_default_unit_cube_geometry
 
   use pfunit_mod
   implicit none
@@ -12,6 +13,7 @@ module test_boxmc
   real(ireals) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(10),T(8), S_target(10), T_target(8)
   real(ireals) :: S_tol(10),T_tol(8)
+  real(ireals), allocatable :: vertices(:)
 
   type(t_boxmc_8_10) :: bmc_8_10
 
@@ -40,9 +42,11 @@ contains
       dy = dx
       dz = 50
 
+      call setup_default_unit_cube_geometry(dx, dy, dz, vertices)
+
       ! computed target with stddev_atol=5e-6, stddev_rtol=1e-4 in optprop_parameters
       ! inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) !
-      !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol,inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) ! inp_atol=atol, inp_rtol=rtol)
+      !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,vertices,S,T,S_tol,T_tol,inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) ! inp_atol=atol, inp_rtol=rtol)
 
   end subroutine setup
 
@@ -62,7 +66,7 @@ contains
       S_target = [1.16098E-02,1.13492E-02,4.69646E-03,1.11393E-03,4.61549E-03,1.08210E-03,4.70091E-03,1.11544E-03,4.61404E-03,1.08313E-03]
       T_target = [9.04842E-01,0.00000E+00,0.00000E+00,0.00000E+00,0.00000E+00,0.00000E+00,0.00000E+00,0.00000E+00]
 
-      call bmc_8_10%get_coeff(comm,bg,i1,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,i1,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct')
   end subroutine
 
@@ -81,7 +85,7 @@ contains
         T_target = zero
         T_target(src) = exp(- (bg(1)+bg(2))*dz )
 
-        call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_boxmc_direct_lambert_beer')
       enddo
   end subroutine
@@ -94,21 +98,21 @@ contains
       S_target = [0.00000E+00,3.90217E-01,1.40431E-01,1.40417E-01,0.00000E+00,0.00000E+00,1.40416E-01,1.40429E-01,0.00000E+00,0.00000E+00]
       T_target = zero
 
-      call bmc_8_10%get_coeff(comm,bg,i1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,i1,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_diffuse')
 ! --------------------------------------------
 
       bg = [1e-3, 1e-4, .5 ]
       S_target = [5.91803E-04,3.89499E-01,1.40297E-01,1.40317E-01,1.44767E-04,1.45072E-04,1.40312E-01,1.40306E-01,1.45083E-04,1.44973E-04]
 
-      call bmc_8_10%get_coeff(comm,bg,i1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,i1,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_diffuse')
 ! --------------------------------------------
 
       bg = [1e-3, 1e-4, .999999 ]
       S_target = [1.85844E-09,3.90217E-01,1.40431E-01,1.40429E-01,0.00000E+00,0.00000E+00,1.40417E-01,1.40417E-01,0.00000E+00,9.64722E-10]
 
-      call bmc_8_10%get_coeff(comm,bg,i1,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,i1,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_diffuse')
   end subroutine
 

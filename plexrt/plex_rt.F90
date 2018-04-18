@@ -804,16 +804,17 @@ module m_plex_rt
 
   !> @brief retrieve transport coefficients from optprop module
   !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
-  subroutine get_coeff(OPP, kabs, ksca, g, dz, dx, ldir, coeff, angles)
+  subroutine get_coeff(OPP, kabs, ksca, g, dz, dx, wedge_coords, ldir, coeff, angles)
     class(t_optprop), intent(in) :: OPP
     real(ireals), intent(in)     :: kabs, ksca, g
     real(ireals),intent(in)      :: dz, dx
+    real(ireals), intent(in)     :: wedge_coords(:) ! coordinates of upper triangle pts A,B,C in in (x,y)
     logical,intent(in)           :: ldir
     real(ireals),intent(out)     :: coeff(:)
 
     real(ireals),intent(in),optional  :: angles(2)
 
-    real(ireals) :: aspect, tauz, w0
+    real(ireals) :: aspect, tauz, w0, relcoords(6)
 
     aspect = dz / dx
     tauz = (kabs+ksca) * dz
@@ -823,8 +824,10 @@ module m_plex_rt
       w0 = ksca / (kabs+ksca)
     endif
 
-    call OPP%get_coeff(aspect, tauz, w0, g, ldir, coeff, inp_angles=angles)
-    !print *,'DEBUG Lookup Coeffs for', aspect, tauz, w0, g, angles,'::', coeff
+    relcoords = wedge_coords / norm(wedge_coords(3:4)-wedge_coords(1:2))
+
+    call OPP%get_coeff(aspect, tauz, w0, g, ldir, coeff, inp_angles=angles, wedge_coords=relcoords)
+    print *,'DEBUG Lookup Coeffs for', aspect, tauz, w0, g, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
     if(ldebug) then
       if(any(coeff.lt.zero).or.any(coeff.gt.one)) then
         print *,'Lookup Coeffs for', aspect, tauz, w0, g, angles,'::', coeff
@@ -842,10 +845,10 @@ module m_plex_rt
     real(ireals), intent(in), optional :: coord2d(:)
 
     type(t_boxmc_wedge_5_8) :: bmc_wedge
-    real(ireals) :: bg(3), dy
+    real(ireals) :: bg(3), vertices(2*3*3)
     real(ireals) :: S_tol(size(S)),T_tol(size(T))
 
-    call bmc_wedge%init(PETSC_COMM_SELF, coord2d)
+    call bmc_wedge%init(PETSC_COMM_SELF)
     if(present(coord2d)) then
       print *,'computing coeffs for src/phi/theta',src,phi,theta,':',coord2d
     else
@@ -854,10 +857,11 @@ module m_plex_rt
 
     bg  = [kabs, ksca, g]
 
-    dy = dx
+    call CHKERR(1_mpiint, 'TODO implement vertices')
+    vertices = dx+dz
 
     call bmc_wedge%get_coeff(PETSC_COMM_SELF, bg, src, .True., &
-      phi, theta, dx, dy, dz, S, T, S_tol, T_tol, inp_atol=1e-3_ireals, inp_rtol=5e-2_ireals)
+      phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=1e-3_ireals, inp_rtol=5e-2_ireals)
   end subroutine
 
     function get_normal_of_first_TOA_face(plex)

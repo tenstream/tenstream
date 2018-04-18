@@ -143,16 +143,18 @@ end select
 
 end subroutine
 
-subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz,ierr)
+subroutine init_dir_photon_8_10(bmc,p,src,ldirect,initial_dir,vertices,ierr)
         class(t_boxmc_8_10)           :: bmc
         type(photon),intent(inout)    :: p
-        real(ireal_dp),intent(in)     :: dx,dy,dz,initial_dir(3)
+        real(ireal_dp),intent(in)     :: initial_dir(:), vertices(:)
         integer(iintegers),intent(in) :: src
-        logical,intent(in)            :: direct
+        logical,intent(in)            :: ldirect
         integer(mpiint),intent(out)   :: ierr
 
         real(ireal_dp),parameter :: h=.5_ireal_dp
         real(ireal_dp),parameter :: e=1e-6_ireal_dp
+
+        call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
 
         p%alive = .False.
 
@@ -167,32 +169,29 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz,ierr)
 !      5 |_______________|
         select case(src)
         case (1)
-                p%loc = [ L(dx)*h     , L(dy)*h     , dz*(one-e)   ]
+                p%loc = [ L(p%dx)*h     , L(p%dy)*h     , p%dz*(one-e)   ]
         case (2)
-                p%loc = [ dx*h+L(dx)*h, L(dy)*h     , dz*(one-e)   ]
+                p%loc = [ p%dx*h+L(p%dx)*h, L(p%dy)*h     , p%dz*(one-e)   ]
         case (3)
-                p%loc = [ L(dx)*h     , dy*h+L(dy)*h, dz*(one-e)   ]
+                p%loc = [ L(p%dx)*h     , p%dy*h+L(p%dy)*h, p%dz*(one-e)   ]
         case (4)
-                p%loc = [ dx*h+L(dx)*h, dy*h+L(dy)*h, dz*(one-e)   ]
+                p%loc = [ p%dx*h+L(p%dx)*h, p%dy*h+L(p%dy)*h, p%dz*(one-e)   ]
         case (5)
-                p%loc = [ zero+dx*e   , L(dy)       , L(dz)*h      ]
+                p%loc = [ zero+p%dx*e   , L(p%dy)       , L(p%dz)*h      ]
         case (6)
-                p%loc = [ zero+dx*e   , L(dy)       , dz*h+L(dz)*h ]
+                p%loc = [ zero+p%dx*e   , L(p%dy)       , p%dz*h+L(p%dz)*h ]
         case (7)
-                p%loc = [ L(dx)       , zero+dy*e   , L(dz)*h      ]
+                p%loc = [ L(p%dx)       , zero+p%dy*e   , L(p%dz)*h      ]
         case (8)
-                p%loc = [ L(dx)       , zero+dy*e   , dz*h+L(dz)*h ]
+                p%loc = [ L(p%dx)       , zero+p%dy*e   , p%dz*h+L(p%dz)*h ]
         case default
                 print *,'Dont know what to do with source spec:',src
                 call exit
         end select
 
         p%weight=one
-        p%dx   = dx
-        p%dy   = dy
-        p%dz   = dz
         p%alive = .True.
-        p%direct= direct
+        p%direct= ldirect
         p%side = int(nil)
         p%src  = src
         p%scattercnt  = 0
@@ -203,15 +202,17 @@ subroutine init_dir_photon_8_10(bmc,p,src,direct,initial_dir,dx,dy,dz,ierr)
         ierr = 0
 end subroutine
 
-subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz,ierr)
+subroutine init_diff_photon_8_10(bmc,p,src,vertices,ierr)
         use m_helper_functions_dp, only : rotate_angle_x, rotate_angle_y, rotate_angle_z
         class(t_boxmc_8_10)           :: bmc
         type(photon),intent(inout)    :: p
-        real(ireal_dp),intent(in)     :: dx,dy,dz
+        real(ireal_dp),intent(in)     :: vertices(:)
         integer(iintegers),intent(in) :: src
         integer(mpiint),intent(out)   :: ierr
 
         real(ireal_dp) :: phi,mu,mu1,mu2
+
+        call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
 
         mu1= sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
         mu2 = R() ! evenly distribution between 0 and 90 degree
@@ -219,38 +220,38 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz,ierr)
         mu=mu2
         select case(src)
         case (-1) ! thermal emission
-                p%loc = (/ L(dx) , L(dy) , L(dz) /)
+                p%loc = (/ L(p%dx) , L(p%dy) , L(p%dz) /)
                 mu = 2*mu2 - one
                 phi= deg2rad( R()*360 )
         case (1)
-                p%loc = (/ L(dx) , L(dy) , zero  /)
+                p%loc = (/ L(p%dx) , L(p%dy) , zero  /)
                 phi= deg2rad( R()*360 )
         case (2)
-                p%loc = (/ L(dx) , L(dy) , dz    /)
+                p%loc = (/ L(p%dx) , L(p%dy) , p%dz    /)
                 phi= deg2rad( R()*360 )
         case (3)
-                p%loc = (/ dx    , L(dy) , L(dz) /)
+                p%loc = (/ p%dx    , L(p%dy) , L(p%dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (4)
-                p%loc = (/ zero  , L(dy) , L(dz) /)
+                p%loc = (/ zero  , L(p%dy) , L(p%dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (5)
-                p%loc = (/ dx    , L(dy) , L(dz) /)
+                p%loc = (/ p%dx    , L(p%dy) , L(p%dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (6)
-                p%loc = (/ zero  , L(dy) , L(dz) /)
+                p%loc = (/ zero  , L(p%dy) , L(p%dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (7)
-                p%loc = (/ L(dx) , dy    , L(dz) /)
+                p%loc = (/ L(p%dx) , p%dy    , L(p%dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (8)
-                p%loc = (/ L(dx) , zero  , L(dz) /)
+                p%loc = (/ L(p%dx) , zero  , L(p%dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (9)
-                p%loc = (/ L(dx) , dy    , L(dz) /)
+                p%loc = (/ L(p%dx) , p%dy    , L(p%dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (10)
-                p%loc = (/ L(dx) , zero  , L(dz) /)
+                p%loc = (/ L(p%dx) , zero  , L(p%dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case default
                 print *,'Dont know what to do with source spec:',src
@@ -295,9 +296,6 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz,ierr)
 
         end select
         p%weight=one
-        p%dx   = dx
-        p%dy   = dy
-        p%dz   = dz
         p%alive = .True.
         p%direct= .False.
         p%side = int(nil)
@@ -313,83 +311,14 @@ subroutine init_diff_photon_8_10(bmc,p,src,dx,dy,dz,ierr)
         ierr = 0
 end subroutine
 
-subroutine intersect_distance_8_10(bmc,p,max_dist)
+subroutine intersect_distance_8_10(bmc,vertices,p,max_dist)
         class(t_boxmc_8_10) :: bmc
+        real(ireal_dp),intent(in) :: vertices(:)
         type(photon),intent(inout) :: p
         real(ireal_dp),intent(out) :: max_dist
 
-        real(ireal_dp) :: x,y,z
-        integer(iintegers) :: i,sides(3)
-
-        real(ireal_dp) :: dist(3)
-
-        !crossing with bottom and top plane:
-          if(p%dir(3).gt.zero) then
-            max_dist = hit_plane(p%loc, p%dir,[zero,zero,p%dz ],[zero,zero,one])
-            p%side=1
-            x = p%loc(1)+p%dir(1)*max_dist
-            y = p%loc(2)+p%dir(2)*max_dist
-            if( ( x.gt.zero .and. x.lt.p%dx) .and. ( y.gt.zero .and. y.lt.p%dy) ) return
-            dist(1) = max_dist; sides(1) = 1
-          endif
-          if(p%dir(3).lt.zero) then
-            max_dist = hit_plane(p%loc, p%dir,[zero,zero,zero ],[zero,zero,one])
-            p%side=2
-            x = p%loc(1)+p%dir(1)*max_dist
-            y = p%loc(2)+p%dir(2)*max_dist
-            if( ( x.gt.zero .and. x.lt.p%dx) .and. ( y.gt.zero .and. y.lt.p%dy) ) return
-            dist(1) = max_dist; sides(1) = 2
-          endif
-
-          !crossing with left and right plane:
-          if(p%dir(1).lt.zero) then
-            max_dist = hit_plane(p%loc, p%dir,[ zero ,zero,zero],[one,zero,zero])
-            p%side=3
-            y = p%loc(2)+p%dir(2)*max_dist
-            z = p%loc(3)+p%dir(3)*max_dist
-            if( ( y.gt.zero .and. y.lt.p%dy) .and. ( z.gt.zero .and. z.lt.p%dz) ) return
-            dist(2) = max_dist; sides(2) = 3
-          endif
-          if(p%dir(1).gt.zero) then
-            max_dist = hit_plane(p%loc, p%dir,[ p%dx ,zero,zero],[one,zero,zero])
-            p%side=4
-            y = p%loc(2)+p%dir(2)*max_dist
-            z = p%loc(3)+p%dir(3)*max_dist
-            if( ( y.gt.zero .and. y.lt.p%dy) .and. ( z.gt.zero .and. z.lt.p%dz) ) return
-            dist(2) = max_dist; sides(2) = 4
-          endif
-
-          !crossing with back and forward plane:
-          if(p%dir(2).lt.zero) then
-            max_dist = hit_plane(p%loc, p%dir,[zero, zero ,zero],[zero,one,zero])
-            p%side=5
-            x = p%loc(1)+p%dir(1)*max_dist
-            z = p%loc(3)+p%dir(3)*max_dist
-            if( ( x.gt.zero .and. x.lt.p%dx) .and. ( z.gt.zero .and. z.lt.p%dz) ) return
-            dist(3) = max_dist; sides(3) = 5
-          endif
-          if(p%dir(2).gt.zero) then
-            max_dist = hit_plane(p%loc, p%dir,[zero, p%dy ,zero],[zero,one,zero])
-            p%side=6
-            x = p%loc(1)+p%dir(1)*max_dist
-            z = p%loc(3)+p%dir(3)*max_dist
-            if( ( x.gt.zero .and. x.lt.p%dx) .and. ( z.gt.zero .and. z.lt.p%dz) ) return
-            dist(3) = max_dist; sides(3) = 6
-          endif
-
-          !Ohhh there was a problem.. maybe with numerics, seems that it may happen that we dont find a solution if norm of p%dir is not equal to one....
-          max_dist=huge(max_dist)
-          do i=1,3
-            if(.not. approx(p%dir(i),zero) ) then
-              if( dist(i).le.max_dist ) then
-                p%side = sides(i)
-                max_dist = dist(i)
-              endif
-            endif
-          enddo
-
-         !print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist,'::',dist
-         !call print_photon(p)
+        call intersect_cube(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
+          p%side, max_dist)
 
         select type(bmc)
         end select

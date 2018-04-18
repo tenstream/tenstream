@@ -25,6 +25,7 @@ set( general_sources
   )
 
 set( optprop_sources
+  "boxmc_geometry.f90"
   "boxmc.f90"
   "optprop_parameters.f90"
   "optprop_LUT.f90"
@@ -47,7 +48,7 @@ foreach ( stream ${streams} )
   GET_FILENAME_COMPONENT(basename "${stream}" NAME_WE )
 
   add_executable("${basename}" "${basename}.f90" )
-  target_link_libraries( "${basename}" tenstream )
+  target_link_libraries( "${basename}" pprts_base)
 
   install(TARGETS ${basename} RUNTIME DESTINATION bin)
 endforeach ()

@@ -49,32 +49,31 @@
 ! 4 -> side face between (A,C)
 ! 6 -> side face between (A,B)
 
-subroutine init_dir_photon_3_6(bmc,p,src,direct,initial_dir,dx,dy,dz,ierr)
+subroutine init_dir_photon_3_6(bmc,p,src,ldirect,initial_dir,vertices,ierr)
   class(t_boxmc_3_6) :: bmc
   type(photon),intent(inout) :: p
-  real(ireal_dp),intent(in) :: dx,dy,dz,initial_dir(3)
+  real(ireal_dp),intent(in) :: initial_dir(:), vertices(:)
   integer(iintegers),intent(in) :: src
-  logical,intent(in) :: direct
+  logical,intent(in) :: ldirect
   integer(mpiint),intent(out) :: ierr
+
+  call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
 
   select case(src)
   case (1)
-    p%loc = [R()*dx,R()*dy, dz]
+    p%loc = [R()*p%dx,R()*p%dy, p%dz]
   case (2)
-    p%loc = [zero, R()*dy, R()*dz]
+    p%loc = [zero, R()*p%dy, R()*p%dz]
   case (3)
-    p%loc = [R()*dx, zero, R()*dz]
+    p%loc = [R()*p%dx, zero, R()*p%dz]
   case default
     print *,'Dont know what to do with source spec:',src
     call exit
   end select
 
   p%weight=one
-  p%dx   = dx
-  p%dy   = dy
-  p%dz   = dz
   p%alive = .True.
-  p%direct= direct
+  p%direct= ldirect
   p%side = int(nil)
   p%src  = src
   p%scattercnt = 0
@@ -125,31 +124,33 @@ subroutine update_diff_stream_3_6(bmc,p,S)
   end select
 end subroutine
 
-subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz,ierr)
+subroutine init_diff_photon_3_6(bmc,p,src,vertices,ierr)
   use m_helper_functions_dp, only : pnt_in_triangle,rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, rad2deg
   class(t_boxmc_3_6) :: bmc
   type(photon),intent(inout) :: p
   integer(iintegers),intent(in) :: src
-  real(ireal_dp),intent(in) :: dx,dy,dz
+  real(ireal_dp),intent(in) :: vertices(:)
   integer(mpiint),intent(out) :: ierr
 
   real(ireal_dp) :: phi,mu
 
   !print *,'---------- new diffuse photon --------------'
 
+  call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
+
   select case(src)
   case (2)
-    p%loc = [R()*dx,R()*dy, dz]
+    p%loc = [R()*p%dx,R()*p%dy, p%dz]
   case (1)
-    p%loc = [R()*dx, R()*dy, zero]
+    p%loc = [R()*p%dx, R()*p%dy, zero]
   case (4)
-    p%loc = [zero, R()*dy, R()*dz]
+    p%loc = [zero, R()*p%dy, R()*p%dz]
   case (3)
-    p%loc = [dx, R()*dy, R()*dz]
+    p%loc = [p%dx, R()*p%dy, R()*p%dz]
   case (6)
-    p%loc = [R()*dx, zero, R()*dz]
+    p%loc = [R()*p%dx, zero, R()*p%dz]
   case (5)
-    p%loc = [R()*dx, dy, R()*dz]
+    p%loc = [R()*p%dx, p%dy, R()*p%dz]
   case default
     print *,'Dont know what to do with source spec:',src
     call exit
@@ -186,9 +187,6 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz,ierr)
   end select
 
   p%weight=one
-  p%dx   = dx
-  p%dy   = dy
-  p%dz   = dz
   p%alive = .True.
   p%direct= .False.
   p%side = int(nil)
@@ -202,82 +200,15 @@ subroutine init_diff_photon_3_6(bmc,p,src,dx,dy,dz,ierr)
   ierr = 0
 end subroutine
 
-subroutine intersect_distance_3_6(bmc,p,max_dist)
+subroutine intersect_distance_3_6(bmc,vertices,p,max_dist)
   use m_helper_functions_dp, only: pnt_in_rectangle, angle_between_two_vec
   class(t_boxmc_3_6) :: bmc
+  real(ireal_dp),intent(in) :: vertices(:)
   type(photon),intent(inout) :: p
   real(ireal_dp),intent(out) :: max_dist
 
-  integer(iintegers) :: i
-
-  real(ireal_dp) :: dist(6) ! distances to all the faces
-  real(ireal_dp) :: new_loc(3), normals(3,6)
-
-  logical :: l_in_rectangle(2)
-
-  normals(:,1) = [zero,zero,-one]
-  normals(:,2) = [zero,zero, one]
-  normals(:,3) = [ one,zero,zero]
-  normals(:,4) = [-one,zero,zero]
-  normals(:,5) = [zero, one,zero]
-  normals(:,6) = [zero,-one,zero]
-
-  dist = huge(dist)
-  !crossing with bottom and top plane:
-  if(p%dir(3).ge.zero) then
-    dist(1) = hit_plane(p%loc, p%dir,[zero, zero ,p%dz ],normals(:,1))
-  else if(p%dir(3).le.zero) then
-    dist(2) = hit_plane(p%loc, p%dir,[zero, zero, zero ],normals(:,2))
-  endif
-
-  !crossing with side planes
-  if(p%dir(1).le.zero) then
-    dist(3) = hit_plane(p%loc, p%dir, [zero, zero, zero], normals(:,3))
-  else if(p%dir(1).ge.zero) then
-    dist(4) = hit_plane(p%loc, p%dir, [p%dx, zero, zero], normals(:,4))
-  endif
-
-  !crossing with other side planes
-  if(p%dir(2).le.zero) then
-    dist(5) = hit_plane(p%loc, p%dir, [zero, zero, zero], normals(:,5))
-  else if(p%dir(2).ge.zero) then
-    dist(6) = hit_plane(p%loc, p%dir, [zero, p%dy, zero], normals(:,6))
-  endif
-
-  max_dist = huge(dist)
-  p%side = -i1
-  do i=1,size(dist)
-
-    if(dist(i).ge.-sqrt(epsilon(zero)) .and. dist(i).le.zero) then ! have photon that is very close to the edge, this could be a numerics issue... lets check in which direction the photon travels
-      if( angle_between_two_vec(p%dir, -normals(:,i)) .le. pi_dp/2 ) then ! photon is flying towards this edge but intersection code said that the crossing would be behind us, this can only mean that we are actually already outside of the triangle...
-        dist(i) = zero
-      endif
-    endif
-
-    if(dist(i).lt.zero) cycle ! dont travel backwards
-
-    if(dist(i).le.max_dist) then
-      max_dist = dist(i)
-      p%side = i
-    endif
-  enddo
-
-  if(p%side.eq.-i1) then
-    print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:',max_dist
-    call print_photon(p)
-    stop 'debug'
-  endif
-
-  new_loc = p%loc + max_dist * p%dir
-  l_in_rectangle(1) = pnt_in_rectangle([zero,zero], [p%dx,zero], [zero,p%dy], [new_loc(1), new_loc(2)])
-  l_in_rectangle(2) = pnt_in_rectangle([zero,zero], [zero,p%dz], [p%dx,p%dz], [new_loc(1), new_loc(3)])
-  if(any(.not.l_in_rectangle)) then
-    print *,'photon not in rectangle', l_in_rectangle
-    print *,'dists to faces', dist
-    print *,'new point not in rectangle', new_loc, 'side', p%side, 'dist', max_dist
-    call print_photon(p)
-    stop 'debug'
-  endif
+  call intersect_cube(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
+    p%side, max_dist)
 
   select type(bmc)
   end select

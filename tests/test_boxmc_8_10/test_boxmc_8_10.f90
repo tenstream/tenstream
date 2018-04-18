@@ -5,6 +5,7 @@ module test_boxmc_8_10
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
+  use m_boxmc_geometry, only : setup_default_unit_cube_geometry
 
   use pfunit_mod
   implicit none
@@ -12,6 +13,7 @@ module test_boxmc_8_10
   real(ireals) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(10),T(8), S_target(10), T_target(8)
   real(ireals) :: S_tol(10),T_tol(8)
+  real(ireals), allocatable :: vertices(:)
 
   type(t_boxmc_8_10) :: bmc_8_10
 
@@ -20,7 +22,7 @@ module test_boxmc_8_10
 
   real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-2
+  real(ireals),parameter :: atol=1e-3, rtol=1e-1
   !real(ireals),parameter :: atol=1e-4, rtol=1e-3
 contains
 
@@ -43,6 +45,8 @@ contains
     dx = 100
     dy = dx
     dz = 50
+
+    call setup_default_unit_cube_geometry(dx, dy, dz, vertices)
 
     S_target = zero
     T_target = zero
@@ -73,13 +77,13 @@ contains
         Tsum = zero
 
         do src = 1,8
-          call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
           Tsum(1) = Tsum(1) + sum(T)
         enddo
 
         phi = 90._ireals - iphi
         do src = 1,8
-          call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
           Tsum(2) = Tsum(2) + sum(T)
         enddo
 
@@ -111,7 +115,7 @@ contains
       do src = 1,4
         T_target = zero
         T_target(src) = exp(-tau)
-        call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         write(msg,*) 'test_boxmc_select_cases_direct_srctopface top_to_bot',src,':: phi',phi
         call check(S_target,T_target, S,T, msg='')
       enddo
@@ -138,7 +142,7 @@ contains
       T_target = zero
       T_target(2+src) = exp(-tau)
       print *,'phi,theta test',phi,theta
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       print *,'phi,theta test2',phi,theta
       write(msg,*) ' test_boxmc_select_cases_direct_srctopface_45',src
       call check(S_target,T_target, S,T, msg=msg)
@@ -148,7 +152,7 @@ contains
     do src=1,3,2
       T_target = zero
       T_target(src+1) = exp(-tau)
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       write(msg,*) ' test_boxmc_select_cases_direct_srctopface_45',src
       call check(S_target,T_target, S,T, msg=msg)
     enddo
@@ -179,7 +183,7 @@ contains
       T_target = zero
 
       T_target(src+2) =  (sinh(tau)-cosh(tau)+1)/tau
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
 
       phi = 90
@@ -187,7 +191,7 @@ contains
       T_target = zero
 
       T_target(src) =  exp(-tau)
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
     enddo
 
@@ -197,7 +201,7 @@ contains
       T_target = zero
 
       T_target(src) = exp(-tau)
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
 
       phi = 90
@@ -205,7 +209,7 @@ contains
       T_target = zero
 
       T_target(src-2) = (sinh(tau)-cosh(tau)+1)/tau
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
     enddo
 
@@ -218,25 +222,25 @@ contains
       src = 5
       T_target = zero
       T_target([1,3]) = (sinh(tau)-cosh(tau)+1)/tau/2
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
 
       src = 6
       T_target = zero
       T_target([1,3]) = (sinh(tau)-cosh(tau)+1)/tau/2 * exp(-tau)
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
 
       src = 7
       T_target = zero
       T_target([1,2]) = (sinh(tau)-cosh(tau)+1)/tau/2
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
 
       src = 8
       T_target = zero
       T_target([1,2]) = (sinh(tau)-cosh(tau)+1)/tau/2 * exp(-tau)
-      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
     enddo
   end subroutine
@@ -262,7 +266,7 @@ contains
 
 
     src = 2   !top face
-    call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface')
   end subroutine
 
@@ -285,7 +289,7 @@ contains
     S_target = [0.24254, 0.0, 0.0, 0.0, 0.17735, 0.17735, 0.0, 0.0, 0.17735, 0.17735]
 
     src = 1
-    call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+    call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbottomface')
   end subroutine
 
@@ -306,42 +310,42 @@ contains
 
      src = 3
      S_target = [0.0, 0.592867, 0.05618, 0.0, 0.0, 0.0, 0.15440, 0.15440, 0.0, 0.0]
-     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
      call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcsideface src = 3')
 
      src = 4
      S_target = [0.0, 0.592867, 0.0, 0.05618, 0.0, 0.0, 0.15440, 0.15440, 0.0, 0.0]
-     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
      call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcsideface src = 4')
 
      src = 5
      S_target = [0.592867, 0.0, 0.0, 0.0, 0.05618, 0.0, 0.0, 0.0, 0.15440, 0.15440]
-     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
      call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcsideface src = 5')
 
      src = 6
      S_target = [0.592867, 0.0, 0.0, 0.0, 0.0, 0.05618, 0.0, 0.0, 0.15440, 0.15440]
-     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
      call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcsideface src = 6')
 
      src = 7
      S_target = [0.0, 0.592867, 0.15440, 0.15440, 0.0, 0.0, 0.05618, 0.0, 0.0, 0.0]
-     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
      call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcsideface src = 7')
 
      src = 8
      S_target = [0.0, 0.592867, 0.15440, 0.15440, 0.0, 0.0, 0.0, 0.05618, 0.0, 0.0]
-     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
      call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcsideface src = 8')
 
      src = 9
      S_target = [0.592867, 0.0, 0.0, 0.0, 0.15440, 0.15440, 0.0, 0.0, 0.05618, 0.0]
-     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
      call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcsideface src = 9')
 
      src = 10
      S_target = [0.592867, 0.0, 0.0, 0.0, 0.15440, 0.15440, 0.0, 0.0, 0.0, 0.05618]
-     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+     call bmc_8_10%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
      call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcsideface src = 10')
 
    end subroutine

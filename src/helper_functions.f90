@@ -431,7 +431,7 @@ module m_helper_functions
       call mpi_bcast(arr,size(arr),imp_real,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
 
-    elemental subroutine delta_scale( kabs,ksca,g,factor )
+    elemental subroutine delta_scale(kabs, ksca, g, factor)
       real(ireals),intent(inout) :: kabs,ksca,g ! kabs, ksca, g
       real(ireals),intent(in),optional :: factor
       real(ireals) :: dtau, w0
@@ -448,17 +448,13 @@ module m_helper_functions
       kabs= dtau * (one-w0)
       ksca= dtau * w0
     end subroutine
-    elemental subroutine delta_scale_optprop( dtau, w0, g,factor) 
+    elemental subroutine delta_scale_optprop(dtau, w0, g, factor)
       real(ireals),intent(inout) :: dtau,w0,g
       real(ireals),intent(in),optional :: factor
       real(ireals) :: f
 
       g = min( g, one-epsilon(g)*10)
-      if(present(factor)) then
-        f = factor
-      else
-        f = g**2
-      endif
+      f = get_arg(g**2, factor)
       dtau = dtau * ( one - w0 * f )
       g    = ( g - f ) / ( one - f )
       w0   = w0 * ( one - f ) / ( one - f * w0 )
@@ -853,7 +849,7 @@ module m_helper_functions
       vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm(plane_normal)**2
     end function
 
-    function get_arg_logical(default_value, opt_arg) result(arg)
+    pure function get_arg_logical(default_value, opt_arg) result(arg)
       logical :: arg
       logical, intent(in) :: default_value
       logical, intent(in), optional :: opt_arg
@@ -863,7 +859,7 @@ module m_helper_functions
         arg = default_value
       endif
     end function
-    function get_arg_iintegers(default_value, opt_arg) result(arg)
+    pure function get_arg_iintegers(default_value, opt_arg) result(arg)
       integer(iintegers) :: arg
       integer(iintegers), intent(in) :: default_value
       integer(iintegers), intent(in), optional :: opt_arg
@@ -873,7 +869,7 @@ module m_helper_functions
         arg = default_value
       endif
     end function
-    function get_arg_ireals(default_value, opt_arg) result(arg)
+    pure function get_arg_ireals(default_value, opt_arg) result(arg)
       real(ireals) :: arg
       real(ireals), intent(in) :: default_value
       real(ireals), intent(in), optional :: opt_arg
@@ -883,7 +879,7 @@ module m_helper_functions
         arg = default_value
       endif
     end function
-    function get_arg_char(default_value, opt_arg) result(arg)
+    pure function get_arg_char(default_value, opt_arg) result(arg)
       character(len=default_str_len) :: arg
       character(len=*), intent(in) :: default_value
       character(len=*), intent(in), optional :: opt_arg

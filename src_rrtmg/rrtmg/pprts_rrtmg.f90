@@ -53,7 +53,7 @@ module m_pprts_rrtmg
   private
   public :: pprts_rrtmg, init_pprts_rrtmg, destroy_pprts_rrtmg
 
-  logical :: linit_tenstr=.False.
+  logical :: linit_pprts=.False.
 
 !  logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
@@ -90,6 +90,33 @@ module m_pprts_rrtmg
   type(t_atm),allocatable :: bg_atm
 
 contains
+
+  subroutine init_pprts_rrtmg(comm, solver, dx, dy, dz, &
+                  phi0, theta0, &
+                  xm, ym, zm, nxproc, nyproc)
+
+    integer(mpiint), intent(in) :: comm
+
+    real(ireals), intent(in)      :: dx, dy, phi0, theta0, dz(:,:,:)
+    integer(iintegers),intent(in) :: xm, ym, zm
+    class(t_solver),intent(inout) :: solver
+
+    integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:) ! array containing xm and ym for all nodes :: dim[x-ranks, y-ranks]
+
+    if(present(nxproc) .neqv. present(nyproc)) then
+      print *,'Wrong call to init_tenstream_rrtm_lw --    &
+            & in order to work, we need both arrays for &
+            & the domain decomposition, call with nxproc AND nyproc'
+      call CHKERR(1_mpiint, 'init_tenstream_rrtm_lw -- missing arguments nxproc or nyproc')
+    endif
+    if(present(nxproc) .and. present(nyproc)) then
+      call init_pprts(comm, zm, xm, ym, dx,dy,phi0, theta0, solver, nxproc=nxproc, nyproc=nyproc, dz3d=dz)
+    else ! we let petsc decide where to put stuff
+      call init_pprts(comm, zm, xm, ym, dx, dy, phi0, theta0, solver, dz3d=dz)
+    endif
+
+  end subroutine
+
   subroutine pprts_rrtmg(comm, solver, dx, dy, phi0, theta0, &
       albedo_thermal, albedo_solar, atm_filename,     &
       lthermal, lsolar,                               &
@@ -239,10 +266,10 @@ contains
       enddo
     endif
 
-    if(.not.linit_tenstr) then
-      call init_tenstream_rrtmg(comm, solver, dx, dy, dz_t2b, phi0, theta0, &
+    if(.not.linit_pprts) then
+      call init_pprts_rrtmg(comm, solver, dx, dy, dz_t2b, phi0, theta0, &
         ie,je,ke, nxproc, nyproc)
-      linit_tenstr=.True.
+      linit_pprts=.True.
     endif
 
     ! RRTMG use liq. water path, not mixing ratio
@@ -362,38 +389,11 @@ contains
 
 
     if(errcnt.gt.0) then
-      print *,'Found wonky input to tenstream_rrtm_lw -- please check! -- will abort now.'
+      print *,'Found wonky input to pprts_rrtm_lw -- please check! -- will abort now.'
       call CHKERR(errcnt)
     endif
 
   end subroutine
-
-  subroutine init_pprts_rrtmg(comm, solver, dx, dy, dz, &
-                  phi0, theta0, &
-                  xm, ym, zm, nxproc, nyproc)
-
-    integer(mpiint), intent(in) :: comm
-
-    real(ireals), intent(in)      :: dx, dy, phi0, theta0, dz(:,:,:)
-    integer(iintegers),intent(in) :: xm, ym, zm
-    class(t_solver),intent(inout) :: solver
-
-    integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:) ! array containing xm and ym for all nodes :: dim[x-ranks, y-ranks]
-
-    if(present(nxproc) .neqv. present(nyproc)) then
-      print *,'Wrong call to init_tenstream_rrtm_lw --    &
-            & in order to work, we need both arrays for &
-            & the domain decomposition, call with nxproc AND nyproc'
-      call CHKERR(1_mpiint, 'init_tenstream_rrtm_lw -- missing arguments nxproc or nyproc')
-    endif
-    if(present(nxproc) .and. present(nyproc)) then
-      call init_pprts(comm, zm, xm, ym, dx,dy,phi0, theta0, solver, nxproc=nxproc, nyproc=nyproc, dz3d=dz)
-    else ! we let petsc decide where to put stuff
-      call init_pprts(comm, zm, xm, ym, dx, dy, phi0, theta0, solver, dz3d=dz)
-    endif
-
-  end subroutine
-
   subroutine compute_thermal(solver, is, ie, js, je, ks, ke, ke1, &
       albedo, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
       col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
@@ -653,7 +653,7 @@ contains
     logical, intent(in) :: lfinalizepetsc
     ! Tidy up the solver
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
-    linit_tenstr = .False.
+    linit_pprts = .False.
   end subroutine
 
   subroutine optprop_rrtm_lw(ncol_in, nlay_in, albedo, plev, tlev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &

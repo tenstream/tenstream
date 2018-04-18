@@ -39,6 +39,9 @@ module m_boxmc
 
   use m_optprop_parameters, only : delta_scale_truncate,stddev_atol,stddev_rtol,ldebug_optprop
 
+  use m_boxmc_geometry, only : setup_cube_coords_from_vertices, setup_wedge_coords_from_vertices, &
+      intersect_cube, intersect_wedge
+
   implicit none
 
   private
@@ -58,7 +61,6 @@ module m_boxmc
   type,abstract :: t_boxmc
     integer(iintegers) :: dir_streams=inil,diff_streams=inil
     logical :: initialized=.False.
-    real(ireal_dp), allocatable :: vertices(:)
   contains
     procedure :: init
     procedure :: get_coeff
@@ -142,24 +144,24 @@ module m_boxmc
 
   ! ***************** INTERFACES ************
   abstract interface
-    subroutine init_diff_photon(bmc, p, src, dx, dy, dz, ierr)
+    subroutine init_diff_photon(bmc, p, src, vertices, ierr)
       import :: t_boxmc,photon,iintegers,ireal_dp,mpiint
       class(t_boxmc) :: bmc
       type(photon),intent(inout) :: p
-      real(ireal_dp),intent(in) :: dx,dy,dz
+      real(ireal_dp),intent(in) :: vertices(:)
       integer(iintegers),intent(in) :: src
       integer(mpiint), intent(out) :: ierr
     end subroutine
   end interface
 
   abstract interface
-    subroutine init_dir_photon(bmc, p, src, direct, initial_dir, dx, dy, dz, ierr)
+    subroutine init_dir_photon(bmc, p, src, ldirect, initial_dir, vertices, ierr)
       import :: t_boxmc, photon, iintegers, ireal_dp, mpiint
       class(t_boxmc) :: bmc
       type(photon),intent(inout) :: p
-      real(ireal_dp),intent(in) :: dx, dy, dz, initial_dir(3)
+      real(ireal_dp),intent(in) :: vertices(:), initial_dir(:)
       integer(iintegers),intent(in) :: src
-      logical,intent(in) :: direct
+      logical,intent(in) :: ldirect
       integer(mpiint), intent(out) :: ierr
     end subroutine
   end interface
@@ -183,9 +185,10 @@ module m_boxmc
   end interface
 
   abstract interface
-    subroutine intersect_distance(bmc,p,max_dist)
+    subroutine intersect_distance(bmc,vertices,p,max_dist)
       import :: t_boxmc,photon,ireal_dp
       class(t_boxmc) :: bmc
+      real(ireal_dp),intent(in) :: vertices(:)
       type(photon),intent(inout) :: p
       real(ireal_dp),intent(out) :: max_dist
     end subroutine
@@ -200,7 +203,7 @@ contains
   !> Scattering Absorption is accounted for by carrying on a photon weight and succinctly lower it by lambert Beers Law \f$ \omega_{abso}^{'} = \omega_{abso} \cdot e^{- \rm{d}s \cdot {\rm k}_{sca}   }   \f$ \n
   !> New Photons are started until we reach a stdvariance which is lower than the given stddev in function call init_stddev. Once this precision is reached, we exit the photon loop and build the average with all the other MPI Nodes.
   subroutine get_coeff(bmc, comm, op_bg, src, ldir, &
-      phi0, theta0, dx, dy, dz, &
+      phi0, theta0, vertices, &
       ret_S_out, ret_T_out, &
       ret_S_tol,ret_T_tol, &
       inp_atol, inp_rtol)
@@ -211,7 +214,7 @@ contains
     integer(iintegers),intent(in) :: src             !< @param[in] src stream from which to start photons - see init_photon routines
     integer(mpiint),intent(in)    :: comm            !< @param[in] comm MPI Communicator
     logical,intent(in)            :: ldir            !< @param[in] ldir determines if photons should be started with a fixed incidence angle
-    real(ireals),intent(in)       :: dx,dy,dz        !< @param[in] dx,dy,dz box with dimensions in [m]
+    real(ireals),intent(in)       :: vertices(:)     !< @param[in] vertex coordinates of box with dimensions in [m]
     real(ireals),intent(out)      :: ret_S_out(:)    !< @param[out] S_out diffuse streams transfer coefficients
     real(ireals),intent(out)      :: ret_T_out(:)    !< @param[out] T_out direct streams transfer coefficients
     real(ireals),intent(out)      :: ret_S_tol(:)    !< @param[out] absolute tolerances of results
@@ -254,20 +257,13 @@ contains
       call exit
     endif
 
-    if(dx.le.zero .or. dy.le.zero .or. dz.le.zero ) then
-      print *,'ERROR: box dimensions have to be positive!',dx,dy,dz
-      call exit()
-    endif
-
-    call run_photons(bmc,src,                   &
-                     real(op_bg,kind=ireal_dp), &
-                     real(dx, kind=ireal_dp),   &
-                     real(dy, kind=ireal_dp),   &
-                     real(dz, kind=ireal_dp),   &
-                     ldir,                      &
-                     real(phi0,   kind=ireal_dp), &
-                     real(theta0, kind=ireal_dp), &
-                     Nphotons, &
+    call run_photons(bmc,src,                      &
+                     real(op_bg,kind=ireal_dp),    &
+                     real(vertices,kind=ireal_dp), &
+                     ldir,                         &
+                     real(phi0,   kind=ireal_dp),  &
+                     real(theta0, kind=ireal_dp),  &
+                     Nphotons,                     &
                      std_Sdir, std_Sdiff, std_abso)
 
     S_out = std_Sdiff%mean
@@ -300,7 +296,7 @@ contains
     endif
     if( (any(isnan(S_out) )) .or. (any(isnan(T_out)) ) ) then
       print *,'Found a NaN in output! this should not happen! dir',T_out,'diff',S_out
-      print *,'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', dx,dy,dz
+      print *,'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', vertices
       call exit()
     endif
 
@@ -316,12 +312,12 @@ contains
     if(ldebug) print *,'S out', ret_S_out, 'T_out', ret_T_out
   end subroutine
 
-  subroutine run_photons(bmc, src, op, dx, dy, dz, &
+  subroutine run_photons(bmc, src, op, vertices, &
       ldir, phi0, theta0, Nphotons, &
       std_Sdir, std_Sdiff, std_abso)
       class(t_boxmc),intent(inout) :: bmc
       integer(iintegers),intent(in) :: src
-      real(ireal_dp),intent(in) :: op(3),dx,dy,dz,phi0,theta0
+      real(ireal_dp),intent(in) :: op(3),vertices(:),phi0,theta0
       logical,intent(in) :: ldir
       integer(iintegers) :: Nphotons
       type(stddev),intent(inout)   :: std_Sdir, std_Sdiff, std_abso
@@ -352,17 +348,15 @@ contains
           if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
 
           if(ldir) then
-              call bmc%init_dir_photon(p, src, ldir, initial_dir, &
-                real(dx,kind=ireal_dp), real(dy,kind=ireal_dp), real(dz,kind=ireal_dp), ierr)
+              call bmc%init_dir_photon(p, src, ldir, initial_dir, vertices, ierr)
           else
-              call bmc%init_diff_photon(p, src, &
-                real(dx,kind=ireal_dp),real(dy,kind=ireal_dp),real(dz,kind=ireal_dp), ierr)
+              call bmc%init_diff_photon(p, src, vertices, ierr)
           endif
           if(ierr.ne.0) exit
           p%optprop = op
 
           move: do
-            call bmc%move_photon(p)
+            call bmc%move_photon(vertices, p)
             call roulette(p)
 
             if(.not.p%alive) exit move
@@ -492,12 +486,13 @@ contains
 
   !> @brief main function for a single photon
   !> @details this routine will incrementally move a photon until it is either out of the domain or it is time for a interaction with the medium
-  subroutine move_photon(bmc,p)
+  subroutine move_photon(bmc,vertices,p)
     class(t_boxmc) :: bmc
+    real(ireal_dp), intent(in) :: vertices(:)
     type(photon),intent(inout) :: p
     real(ireal_dp) :: dist,intersec_dist
 
-    call bmc%intersect_distance(p,intersec_dist)
+    call bmc%intersect_distance(vertices,p,intersec_dist)
 
     dist = distance(tau(R() ), get_ksca(p) )
 
@@ -726,10 +721,9 @@ contains
     endif
   end subroutine
 
-  subroutine init(bmc, comm, vertices)
+  subroutine init(bmc, comm)
     class(t_boxmc) :: bmc
     integer(mpiint),intent(in) :: comm
-    real(ireals), intent(in), optional :: vertices(:) !< @param[in] inp_vertices if given, defines corners of box (6 entries, first 2 for coordinates of point A)
 
     if(comm.eq.-1) then
       myid = -1
@@ -766,11 +760,6 @@ contains
   end select
 
   bmc%initialized = .True.
-
-  if(present(vertices)) then
-    if(.not.allocated(bmc%vertices)) allocate(bmc%vertices(size(vertices)))
-    bmc%vertices = vertices
-  endif
 end subroutine
 
 

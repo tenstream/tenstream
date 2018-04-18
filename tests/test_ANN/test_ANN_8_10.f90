@@ -6,7 +6,7 @@ module test_ANN_8_10
   use m_optprop_parameters, only : stddev_atol
   use m_optprop_ANN, only : ANN_init, ANN_destroy, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
   use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: rmse
+  use m_helper_functions, only: rmse, CHKERR
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -152,10 +152,13 @@ contains
 
       integer(iintegers) :: src
       real(ireals) :: taux, tauz, w0, aspect
+      real(ireals), allocatable :: vertices(:)
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
       myid     = this%getProcessRank()
+
+      call CHKERR(1_mpiint, 'implement computation of vertices coordinates')
 
       associate( &
             kabs => this%kabs, &
@@ -181,7 +184,7 @@ contains
 
             do src=1,10
                 call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,        &
-                                        .False.,phi,theta,dx,dy,dz,    &
+                                        .False.,phi,theta,vertices,    &
                                         S_target,T_target,S_tol,T_tol, &
                                         inp_atol=atol, inp_rtol=rtol)
 
@@ -201,10 +204,13 @@ contains
 
       integer(iintegers) :: src
       real(ireals) :: taux, tauz, w0, aspect
+      real(ireals), allocatable :: vertices(:)
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
       myid     = this%getProcessRank()
+
+      call CHKERR(1_mpiint, 'implement computation of vertices coordinates')
 
       associate( &
             kabs => this%kabs, &
@@ -232,7 +238,7 @@ contains
             do src=1,8
 
                 call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,        &
-                                        .True.,phi,theta,dx,dy,dz,     &
+                                        .True.,phi,theta,vertices,     &
                                         S_target,T_target,S_tol,T_tol, &
                                         inp_atol=atol, inp_rtol=rtol)
 

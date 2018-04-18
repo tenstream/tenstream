@@ -6,6 +6,7 @@ module test_wedge_boxmc_5_8
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
   use m_helper_functions, only : itoa
+  use m_boxmc_geometry, only : setup_default_unit_wedge_geometry
 
   use pfunit_mod
   implicit none
@@ -13,6 +14,7 @@ module test_wedge_boxmc_5_8
   real(ireals) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(8),T(5), S_target(8), T_target(5)
   real(ireals) :: S_tol(8),T_tol(5)
+  real(ireals), allocatable :: vertices(:)
 
   type(t_boxmc_wedge_5_8) :: bmc_wedge_5_8
 
@@ -42,12 +44,14 @@ contains
       dy = dx
       dz = 50
 
+      call setup_default_unit_wedge_geometry(dx, dy, dz, vertices)
+
       S_target = zero
       T_target = zero
 
       ! computed target with stddev_atol=5e-6, stddev_rtol=1e-4 in optprop_parameters
       ! inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) !
-      !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol,inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) ! inp_atol=atol, inp_rtol=rtol)
+      !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,vertices,S,T,S_tol,T_tol,inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) ! inp_atol=atol, inp_rtol=rtol)
 
   end subroutine setup
 
@@ -74,14 +78,14 @@ contains
       T_target = zero
       T_target([4]) = (sinh(tau)-cosh(tau)+1)/tau
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_direct_negative_azimuth_src2_60')
 
       phi = -60; theta = 90
       T_target = zero
       T_target([3]) = (sinh(tau)-cosh(tau)+1)/tau
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_direct_negative_azimuth_src2_-60')
   end subroutine
 
@@ -103,7 +107,7 @@ contains
       T_target(5) = (sinh(tau)-cosh(tau)+1)/tau
 
       S_target = [0.0006, 0.0012, 0.0007, 0.0012, 0.0007, 0.0101, 0.0021, 0.0075]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_1')
 
       ! up along face 4
@@ -111,7 +115,7 @@ contains
       T_target = zero
       T_target(1) = (sinh(tau)-cosh(tau)+1)/tau
       S_target = [0.0075, 0.0007, 0.0012, 0.0007, 0.0012, 0.0021, 0.0101, 0.0006]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_2')
 
 
@@ -121,7 +125,7 @@ contains
       T_target = zero
       T_target(5) = (sinh(tau)-cosh(tau)+1)/tau
       S_target = [0.0022, 0.0012, 0.0018, 0.0012, 0.0017, 0.0061, 0.0061, 0.0036]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_3')
 
       ! up along face 4
@@ -129,7 +133,7 @@ contains
       T_target = zero
       T_target(1) = (sinh(tau)-cosh(tau)+1)/tau
       S_target = [0.0036, 0.0018, 0.0012, 0.0017, 0.0012, 0.0061, 0.0061, 0.0022]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_4')
 
 
@@ -143,13 +147,13 @@ contains
 
       S_target = [0.0062, 0.0063, 0.0062, 0.0062, 0.0062, 0.0012, 0.0012, 0.0063]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_5')
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
       S_target = [0.0076, 0.0041, 0.004, 0.0041, 0.004, 0.0042, 0.0042, 0.0077]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_6')
   end subroutine
 
@@ -169,7 +173,7 @@ contains
 
       S_target = zero
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_4')
 
       ! down along face 3
@@ -182,14 +186,14 @@ contains
 
       S_target = [0.0006, 0.0012, 0.0007, 0.0101, 0.0021, 0.0012, 0.0007, 0.0074]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_2')
 
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
       S_target = [0.0022, 0.0011, 0.0018, 0.0061, 0.0061, 0.0011, 0.0017, 0.0035]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_1')
 
       ! outwards from face 3
@@ -202,14 +206,14 @@ contains
 
       S_target = [0.0062, 0.0062, 0.0062, 0.0012, 0.0012, 0.0062, 0.0062, 0.0062]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_4')
 
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
       S_target = [0.0076, 0.0041, 0.004, 0.0042, 0.0042, 0.0041, 0.0041, 0.0076]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_3')
 
 
@@ -233,14 +237,14 @@ contains
       phi = 0; theta = 0
 
       S_target = [0.0006, 0.0101, 0.0021, 0.0012, 0.0007, 0.0012, 0.0007, 0.0074]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_1')
 
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
       S_target = [0.0022, 0.0061, 0.0061, 0.0011, 0.0018, 0.0011, 0.0017, 0.0035]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_2')
 
       ! straight outwards from face 2
@@ -253,14 +257,14 @@ contains
 
       S_target = [0.0062, 0.0012, 0.0012, 0.0062, 0.0062, 0.0062, 0.0062, 0.0062]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_3')
 
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
       S_target = [0.0076, 0.0042, 0.0042, 0.0041, 0.004, 0.0041, 0.0041, 0.0076]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_4')
 
       ! outwards from face 2 towards the right face(4)
@@ -273,7 +277,7 @@ contains
       T_target = zero
       T_target([4]) = (sinh(tau)-cosh(tau)+1)/tau
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_3')
 
 
@@ -287,7 +291,7 @@ contains
       T_target = zero
       T_target([3]) = (sinh(tau)-cosh(tau)+1)/tau
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_4')
   end subroutine
 
@@ -303,14 +307,14 @@ contains
       T_target = zero; T_target(5) = exp(-(bg(1)+bg(2))*dz)
       S_target = [0.0026, 0.0057, 0.0018, 0.0056, 0.0018, 0.0057, 0.0019, 0.0212]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src1_2')
 
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
       S_target = [0.009, 0.0048, 0.0047, 0.0048, 0.0047, 0.0048, 0.0047, 0.0088]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src1_1')
   end subroutine
 
@@ -336,7 +340,7 @@ contains
           ! Integral from top face, towards the bottom face
           do src=1,1
             T_target(5) = exp(- (bg(1)+bg(2))*dz )
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
             call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer phi '//itoa(iphi))
           enddo
         enddo
@@ -351,7 +355,7 @@ contains
             if(phi.gt.270._ireals.and.phi.le.360._ireals.and.src.eq.2) T_target(5)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt. 30._ireals.and.phi.lt.210._ireals.and.src.eq.3) T_target(5)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt.120._ireals.and.phi.lt.330._ireals.and.src.eq.4) T_target(5)=(sinh(tau)-cosh(tau)+1)/tau
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
             call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
           enddo
         enddo
@@ -365,7 +369,7 @@ contains
             if(phi.gt.270._ireals.and.phi.le.360._ireals.and.src.eq.2) T_target(5)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt. 30._ireals.and.phi.lt.210._ireals.and.src.eq.3) T_target(5)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt.120._ireals.and.phi.lt.330._ireals.and.src.eq.4) T_target(5)=(sinh(tau)-cosh(tau)+1)/tau
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
             call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
           enddo
         enddo
@@ -379,7 +383,7 @@ contains
             if(phi.gt.270._ireals.and.phi.le.360._ireals.and.src.eq.2) T_target(5)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt. 30._ireals.and.phi.lt.210._ireals.and.src.eq.3) T_target(5)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt.120._ireals.and.phi.lt.330._ireals.and.src.eq.4) T_target(5)=(sinh(tau)-cosh(tau)+1)/tau
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
             call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
           enddo
         enddo
@@ -397,7 +401,7 @@ contains
           ! Integral from bot face, towards the top face
           do src=5,5
             T_target(1) = exp(- (bg(1)+bg(2))*dz )
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
             call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer upward phi '//itoa(iphi))
           enddo
         enddo
@@ -411,7 +415,7 @@ contains
             if(phi.gt.270._ireals.and.phi.le.360._ireals.and.src.eq.2) T_target(1)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt. 30._ireals.and.phi.lt.210._ireals.and.src.eq.3) T_target(1)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt.120._ireals.and.phi.lt.330._ireals.and.src.eq.4) T_target(1)=(sinh(tau)-cosh(tau)+1)/tau
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
             call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
           enddo
         enddo
@@ -425,7 +429,7 @@ contains
             if(phi.gt.270._ireals.and.phi.le.360._ireals.and.src.eq.2) T_target(1)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt. 30._ireals.and.phi.lt.210._ireals.and.src.eq.3) T_target(1)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt.120._ireals.and.phi.lt.330._ireals.and.src.eq.4) T_target(1)=(sinh(tau)-cosh(tau)+1)/tau
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
             call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
           enddo
         enddo
@@ -439,7 +443,7 @@ contains
             if(phi.gt.270._ireals.and.phi.le.360._ireals.and.src.eq.2) T_target(1)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt. 30._ireals.and.phi.lt.210._ireals.and.src.eq.3) T_target(1)=(sinh(tau)-cosh(tau)+1)/tau
             if(phi.gt.120._ireals.and.phi.lt.330._ireals.and.src.eq.4) T_target(1)=(sinh(tau)-cosh(tau)+1)/tau
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
             call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
           enddo
         enddo
@@ -453,14 +457,14 @@ contains
 
         tau = bg(1) * sqrt(dy**2 - (dx/2)**2)
         t_target([3,4]) = (sinh(tau)-cosh(tau)+1) / tau / 2
-        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
 
         phi = 120
         src = 3
         T_target = zero
         T_target([2,4]) = (sinh(tau)-cosh(tau)+1) / tau / 2
-        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
 
 
@@ -468,7 +472,7 @@ contains
         src = 4
         T_target = zero
         T_target([2,3]) = (sinh(tau)-cosh(tau)+1) / tau / 2
-        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
 
 
@@ -477,7 +481,7 @@ contains
         T_target([3,4]) = 0.485865
         phi = 0; theta = 90
         src = 1
-        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 101')
         @assertEqual(T(3), T(4), 3*atol, 'stream should be same 101')
 
@@ -485,7 +489,7 @@ contains
         T_target([2,4]) = 0.485865
         phi = 120; theta = 90
         src = 1
-        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 102')
         @assertEqual(T(2), T(4), 3*atol, 'stream should be same 102')
 
@@ -494,7 +498,7 @@ contains
         T_target([2,3]) = 0.485865
         phi = 240; theta = 90
         src = 1
-        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 103')
         @assertEqual(T(2), T(3), 3*atol, 'stream should be same 103')
       endif ! lchecksideward
@@ -509,14 +513,14 @@ contains
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
       S_target = [0.0909, 0.2363, 0.018, 0.2364, 0.0179, 0.2364, 0.018, 0.1114]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_2')
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
       S_target = [0.0, 0.2730, 0.0, 0.2730, 0.0, 0.2730, 0.0, 0.1461]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_1')
   end subroutine
 
@@ -529,14 +533,14 @@ contains
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
       S_target = [0.1114, 0.0180, 0.2363, 0.0179, 0.2364, 0.0184, 0.2364, 0.0909]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src8_2')
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
       S_target = [0.1461, 0.0, 0.2730, 0.0, 0.2730, 0.0, 0.2730, 0.0]
 
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src8_1')
   end subroutine
 
@@ -549,19 +553,19 @@ contains
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
       S_target = [0.0, 0.0, 0.0, 0.2421, 0.0, 0.2421, 0.0, 0.4826]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src2_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
       S_target = [0.0347, 0.0435, 0.0484, 0.1899, 0.0212, 0.1901, 0.0212, 0.4182]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src2_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
       S_target = [0.0, 0.0, 0.0, 0.242, 0.0, 0.242, 0.0, 0.4828]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src2_3')
 
   end subroutine
@@ -575,19 +579,19 @@ contains
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
       S_target = [0.4826, 0.0, 0.0, 0.0, 0.2421, 0.0, 0.2421, 0.0]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src3_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
       S_target = [0.4182, 0.0484, 0.0435, 0.0212, 0.1899, 0.0212, 0.1901, 0.0347]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src3_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
       S_target = [0.4826, 0.0, 0.0, 0.0, 0.2421, 0.0, 0.2421, 0.0]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src3_3')
   end subroutine
 
@@ -600,19 +604,19 @@ contains
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
       S_target = [0.0, 0.2421, 0.0, 0.0, 0.0, 0.2421, 0.0, 0.4826]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
       S_target = [0.0347, 0.1899, 0.0212, 0.0435, 0.0484, 0.1901, 0.0212, 0.4182]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
       S_target = [0.0, 0.242, 0.0, 0.0, 0.0, 0.242, 0.0, 0.4828]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_3')
   end subroutine
 
@@ -625,19 +629,19 @@ contains
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
       S_target = [0.4826, 0.0, 0.2421, 0.0, 0.0, 0.0, 0.2421, 0.0]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
       S_target = [0.4182, 0.0212, 0.1899, 0.0484, 0.0435, 0.0212, 0.1901, 0.0347]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
       S_target = [0.4826, 0.0, 0.2421, 0.0, 0.0, 0.0, 0.2421, 0.0]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_3')
   end subroutine
 
@@ -650,19 +654,19 @@ contains
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
       S_target = [0.0, 0.2421, 0.0, 0.2421, 0.0, 0.0, 0.0, 0.4826]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src6_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
       S_target = [0.0347, 0.1899, 0.0212, 0.1901, 0.0212, 0.0435, 0.0484, 0.4182]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src6_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
       S_target = [0.0, 0.242, 0.0, 0.242, 0.0, 0.0, 0.0, 0.4828]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src6_3')
   end subroutine
 
@@ -675,19 +679,19 @@ contains
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
       S_target = [0.4826, 0.0, 0.2421, 0.0, 0.2421, 0.0, 0.0, 0.0]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src7_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
       S_target = [0.4182, 0.0212, 0.1899, 0.0212, 0.1901, 0.0484, 0.0435, 0.0347]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src7_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
       S_target = [0.4826, 0.0, 0.2421, 0.0, 0.2421, 0.0, 0.0, 0.0]
-      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,dx,dy,dz,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src7_3')
   end subroutine
 

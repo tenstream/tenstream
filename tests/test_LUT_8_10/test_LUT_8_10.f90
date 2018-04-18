@@ -5,6 +5,7 @@ module test_LUT_8_10
   use m_optprop_LUT, only : t_optprop_LUT_8_10
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse
+  use m_boxmc_geometry, only : setup_default_unit_cube_geometry
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -16,6 +17,7 @@ module test_LUT_8_10
   real(ireals) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(10),T(8), S_target(10), T_target(8)
   real(ireals) :: S_tol(10),T_tol(8)
+  real(ireals), allocatable :: vertices(:)
 
   real(ireals) :: BMC_diff2diff(100), BMC_dir2diff(8*10), BMC_dir2dir(8*8)
   real(ireals) :: LUT_diff2diff(100), LUT_dir2diff(8*10), LUT_dir2dir(8*8)
@@ -156,6 +158,11 @@ contains
       dx = 100
       dy = dx
       dz = 50
+
+      call setup_default_unit_cube_geometry(dx, dy, dz, vertices)
+
+      S_target = zero
+      T_target = zero
   end subroutine setup
 
   @after
@@ -196,7 +203,7 @@ contains
         print*,taux, tauz
         do src=1,8
 
-          call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.True.,phi,theta,dx,dy,dz,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.True.,phi,theta,vertices,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
 
           ! Rearrange coeffs from dst_ordering to src ordering:
           BMC_dir2diff(src : 8*10 : 8) = S_target
@@ -236,7 +243,7 @@ contains
         call OPP%LUT_get_diff2diff([tauz, w0, g, tauz/taux], LUT_diff2diff)
         do src=1,10
 
-          call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.False.,phi,theta,dx,dy,dz,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.False.,phi,theta,vertices,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
 
           ! Rearrange coeffs from dst_ordering to src ordering:
           BMC_diff2diff(src : 10*10 : 10) = S_target

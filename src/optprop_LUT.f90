@@ -40,17 +40,21 @@ module m_optprop_LUT
     interp_mode_wedge_5_8,                &
     ldelta_scale,delta_scale_truncate,    &
     stddev_atol, stddev_rtol,             &
-    preset_aspect21, preset_g3,           &
+    preset_aspect10, preset_aspect21,     &
+    preset_g1, preset_g3,                 &
     preset_tau10, preset_w08,             &
     preset_tau21, preset_w015,            &
     OPP_LUT_ALL_ANGLES, luse_memory_map
 
-  use m_boxmc, only: t_boxmc,t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6, t_boxmc_3_10, &
+  use m_boxmc, only: t_boxmc, &
+    t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6, t_boxmc_3_10, &
     t_boxmc_wedge_5_8
   use m_tenstream_interpolation, only: interp_4d, interp_vec_simplex_nd
   use m_netcdfio
 
   use m_mmap, only : arr_to_mmap, munmap_mmap_ptr
+
+  use m_boxmc_geometry, only : setup_default_wedge_geometry, setup_default_cube_geometry
 
   implicit none
 
@@ -505,13 +509,16 @@ subroutine createLUT(OPP, comm, config, S, T)
               endif
 
               !do idst = 1, Nsrc
-              !  print *, myid, 'S%c for isrc', isrc, 'idst', idst, S_diff(idst)
+              !  ind = (idst-1) * Nsrc + isrc
+              !  print *, myid, lutindex, ind, 'S%c for isrc', isrc, 'idst', idst, S_diff(idst)
               !enddo
+              if (isrc.eq.1) &
+                print *, myid, lutindex, isrc, (lutindex-1)*Nsrc+isrc-1, total_size, ':', real((lutindex-1)*Nsrc+isrc-1)*100 / real(total_size)
 
               if( mod(((lutindex-1)*Nsrc+isrc-1)*100, total_size).eq.0 ) & !every 1 percent report status
                   print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._ireals/total_size,'%'
 
-              if( mod(((lutindex-1)*Nsrc+isrc-1)*20, total_size ).eq.0 ) then !every 5 percent of LUT dump it.
+              if( mod(((lutindex-1)*Nsrc+isrc-1)*50, total_size ).eq.0 ) then !every 5 percent of LUT dump it.
                 if(present(T)) then
                   print *,'Writing table to file...', T%table_name_c
                   call ncwrite(T%table_name_c  , T%c         ,iierr); call CHKERR(iierr, 'Could not write Table to file')
@@ -669,7 +676,8 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     real(ireals) :: aspect_zx, aspect_zy, tauz, w0, g, phi, theta
-    real(ireals), allocatable :: coord2d(:)
+    real(ireals), dimension(2) :: A, B, C, D
+    real(ireals), allocatable :: vertices(:)
     integer(mpiint) :: ierr
 
     call get_sample_pnt_by_name_and_index(config, 'aspect_zx', index_1d, aspect_zx, ierr); call CHKERR(ierr, 'aspect_zx has to be present')
@@ -686,38 +694,53 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
       aspect_zy = aspect_zx ! set dy = dx
     endif
 
+    ! First define Default vertices for Cube Geometry
+    A = [zero, zero]
+    B = [ one, zero]
+    C = [zero,  one]
+    D = [ one,  one]
+
     select type(OPP)
+      class is (t_optprop_LUT_1_2)
+        call setup_default_cube_geometry(A, B, C, D, aspect_zx, vertices)
+
+      class is (t_optprop_LUT_3_6)
+        call setup_default_cube_geometry(A, B, C, D, aspect_zx, vertices)
+
+      class is (t_optprop_LUT_3_10)
+        call setup_default_cube_geometry(A, B, C, D, aspect_zx, vertices)
+
+      class is (t_optprop_LUT_8_10)
+        call setup_default_cube_geometry(A, B, C, D, aspect_zx, vertices)
+
       class is (t_optprop_LUT_wedge_5_8)
-      allocate(coord2d(6))
-      coord2d(1:4) = [zero, zero, one, zero]
-      call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, coord2d(5), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
-      call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, coord2d(6), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
-      call OPP%bmc%init(comm, coord2d)
+        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, C(1), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
+        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, C(2), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
+        call setup_default_wedge_geometry(A, B, C, aspect_zx, vertices)
+
+      class default
+        call CHKERR(1_mpiint, 'set_parameter space: unexpected type for optprop_LUT object!')
     end select
 
-    call bmc_wrapper(OPP, src, aspect_zx, aspect_zy, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
+    call bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
 
 end subroutine
 
-subroutine bmc_wrapper(OPP, src, aspect_zx, aspect_zy, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
+subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
     class(t_optprop_LUT) :: OPP
     integer(iintegers),intent(in) :: src
     logical,intent(in) :: dir
     integer(mpiint),intent(in) :: comm
-    real(ireals), intent(in) :: aspect_zx, aspect_zy, tauz, w0, g, phi, theta
-    real(ireals) :: dx,dy
+    real(ireals), intent(in) :: tauz, w0, g, phi, theta
+    real(ireals) :: vertices(:)
 
     real(ireals),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     real(ireals) :: bg(3)
-    real(ireals), parameter :: dz = 100
 
-    dx = dz / aspect_zx
-    dy = dz / aspect_zy
-
-    bg(1) = tauz / dz * (one-w0)
-    bg(2) = tauz / dz * w0
+    bg(1) = tauz * (one-w0)
+    bg(2) = tauz * w0
     bg(3) = g
 
     S_diff=nil
@@ -726,7 +749,7 @@ subroutine bmc_wrapper(OPP, src, aspect_zx, aspect_zy, tauz, w0, g, dir, phi, th
     !print *,comm,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
     call OPP%bmc%get_coeff(comm, bg, src, &
       dir, phi, theta, &
-      dx, dy, dz, &
+      vertices, &
       S_diff, T_dir, S_tol, T_tol, &
       inp_atol=stddev_atol-epsilon(stddev_atol)*10, &
       inp_rtol=stddev_rtol-epsilon(stddev_rtol)*10 )
@@ -845,8 +868,8 @@ subroutine set_parameter_space(OPP)
           allocate(OPP%dirconfig%dims(8))
           call populate_LUT_dim('tau',       size(preset_tau10,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau10)
           call populate_LUT_dim('w0',        size(preset_w08,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w08)
-          call populate_LUT_dim('g',         size(preset_g3,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_g3)
-          call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_aspect21)
+          call populate_LUT_dim('g',         size(preset_g1,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_g1)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect10,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_aspect10)
           call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([.35,.65], ireals))
           call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%dirconfig%dims(6), vrange=real([.8, .9], ireals))
           call populate_LUT_dim('phi',       15_iintegers, OPP%dirconfig%dims(7), vrange=real([-70,70], ireals))
@@ -854,12 +877,28 @@ subroutine set_parameter_space(OPP)
           allocate(OPP%diffconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau10,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau10)
           call populate_LUT_dim('w0',        size(preset_w08,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w08)
-          call populate_LUT_dim('g',         size(preset_g3,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_g3)
-          call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_aspect21)
+          call populate_LUT_dim('g',         size(preset_g1,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_g1)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect10,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_aspect10)
           call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(5), vrange=real([.35,.65], ireals))
           call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%diffconfig%dims(6), vrange=real([.8, .9], ireals))
+!          allocate(OPP%dirconfig%dims(8))
+!          call populate_LUT_dim('tau',       size(preset_tau21,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau21)
+!          call populate_LUT_dim('w0',        size(preset_w015,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w015)
+!          call populate_LUT_dim('g',         size(preset_g1,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_g1)
+!          call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_aspect21)
+!          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([.35,.65], ireals))
+!          call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%dirconfig%dims(6), vrange=real([.8, .9], ireals))
+!          call populate_LUT_dim('phi',       15_iintegers, OPP%dirconfig%dims(7), vrange=real([-70,70], ireals))
+!          call populate_LUT_dim('theta',     Ntheta, OPP%dirconfig%dims(8), vrange=real([0,90], ireals))
+!          allocate(OPP%diffconfig%dims(6))
+!          call populate_LUT_dim('tau',       size(preset_tau21,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau21)
+!          call populate_LUT_dim('w0',        size(preset_w015,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w015)
+!          call populate_LUT_dim('g',         size(preset_g1,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_g1)
+!          call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_aspect21)
+!          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(5), vrange=real([.35,.65], ireals))
+!          call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%diffconfig%dims(6), vrange=real([.8, .9], ireals))
       class default
-        stop 'set_parameter space: unexpected type for optprop_LUT object!'
+        call CHKERR(1_mpiint, 'set_parameter space: unexpected type for optprop_LUT object!')
     end select
 
     ! Determine offsets

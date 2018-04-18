@@ -119,23 +119,27 @@ contains
       real(ireals) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
       real(ireals) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
       integer(iintegers) :: isrc
+      real(ireals), allocatable :: vertices(:)
+
+      call CHKERR(1_mpiint, 'currently not implemented, have to fix vertices')
+      vertices = aspect_zx + aspect_zy ! remove unused errors
 
       if(present(angles)) then
         if(dir) then !dir2dir
           do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect_zx, aspect_zy, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+            call OPP%OPP_LUT%bmc_wrapper(isrc, vertices, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
             C((isrc-1)*OPP%OPP_LUT%dir_streams+1:isrc*OPP%OPP_LUT%dir_streams) = T_dir
           enddo
         else ! dir2diff
           do isrc=1,OPP%OPP_LUT%dir_streams
-            call OPP%OPP_LUT%bmc_wrapper(isrc, aspect_zx, aspect_zy, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+            call OPP%OPP_LUT%bmc_wrapper(isrc, vertices, tauz, w0, g, .True., angles(1), angles(2), -1_mpiint, S_diff, T_dir, S_tol, T_tol)
             C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
           enddo
         endif
       else
         ! diff2diff
         do isrc=1,OPP%OPP_LUT%diff_streams
-          call OPP%OPP_LUT%bmc_wrapper(isrc, aspect_zx, aspect_zy, tauz, w0, g, .False., zero, zero, -1_mpiint, S_diff, T_dir, S_tol, T_tol)
+          call OPP%OPP_LUT%bmc_wrapper(isrc, vertices, tauz, w0, g, .False., zero, zero, -1_mpiint, S_diff, T_dir, S_tol, T_tol)
           C((isrc-1)*OPP%OPP_LUT%diff_streams+1:isrc*OPP%OPP_LUT%diff_streams) = S_diff
         enddo
       endif ! angles_present
@@ -166,7 +170,6 @@ contains
 
         class is (t_optprop_wedge_5_8)
           call wedge_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north, wedge_coords)
-          call CHKERR(1_mpiint, 'get_coeff not implemented for t_optprop_LUT_wedge_5_8')
 
         class default
           call CHKERR(1_mpiint, 'initialize LUT: unexpected type for optprop object!')
