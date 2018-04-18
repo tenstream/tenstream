@@ -28,7 +28,7 @@ module m_optprop_LUT
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
 
   use m_data_parameters, only : ireals, iintegers, &
-    one, zero, i0, i1, i3, mpiint, nil, inil,      &
+    one, zero, i0, i1, i2, i3, mpiint, nil, inil,  &
     imp_int, imp_real, imp_logical,                &
     default_str_len
 
@@ -732,10 +732,12 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
     real(ireals),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
-    real(ireals) :: bg(3)
+    real(ireals) :: bg(3), dz
 
-    bg(1) = tauz * (one-w0)
-    bg(2) = tauz * w0
+    dz = vertices(size(vertices))
+
+    bg(1) = tauz / dz * (one-w0)
+    bg(2) = tauz / dz * w0
     bg(3) = g
 
     S_diff=nil
