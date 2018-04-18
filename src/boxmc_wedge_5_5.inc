@@ -43,13 +43,15 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,ldirect,initial_dir,vertices,ierr
   real(ireal_dp),intent(in) :: initial_dir(:), vertices(:)
   integer(iintegers),intent(in) :: src
   logical,intent(in) :: ldirect
-  integer(mpiint),intent(out) :: ierr
-
   real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
   real(ireal_dp) :: r1, r2, normal(3), triangle_center(3), dir_p_to_triangle_center(3)
+  real(ireal_dp) :: lstart
+  real(ireal_dp),parameter :: edge_start_range=.999_ireal_dp
+  integer(mpiint),intent(out) :: ierr
 
   call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, p%dx, p%dy, p%dz)
 
+  lstart = (one-edge_start_range)/2 + edge_start_range * R()
   select case(src)
   case (1)
     r1 = R()
@@ -58,15 +60,15 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,ldirect,initial_dir,vertices,ierr
     p%loc = [PNT(1), PNT(2), p%dz]
     normal = [zero,zero,-one]
   case (2)
-    PNT = A + (R() * (B-A))
+    PNT = A + (lstart * (B-A))
     p%loc = [PNT(1), PNT(2), L(p%dz)]
     normal = [nAB(1), nAB(2), zero]
   case (3)
-    PNT = A + (R() * (C-A))
+    PNT = A + (lstart * (C-A))
     p%loc = [PNT(1), PNT(2), L(p%dz)]
     normal = [nCA(1), nCA(2), zero]
   case (4)
-    PNT = C + (R() * (B-C))
+    PNT = C + (lstart * (B-C))
     p%loc = [PNT(1), PNT(2), L(p%dz)]
     normal = [nBC(1), nBC(2), zero]
   case (5)
@@ -81,6 +83,8 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,ldirect,initial_dir,vertices,ierr
     call exit
   end select
 
+  p%src_side = src
+
   p%weight=one
   p%alive = .True.
   p%direct= ldirect
@@ -88,31 +92,33 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,ldirect,initial_dir,vertices,ierr
   p%src  = src
   p%scattercnt = 0
   p%dir = initial_dir
+
+  ! always nudge the photon a little bit inside the volume
+  triangle_center(1:2) = (a+b+c)/3
+  triangle_center(3) = p%dz/2
+  dir_p_to_triangle_center = triangle_center - p%loc
+  dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
+
+  p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
+
   select type(bmc)
   end select
 
   if(.not. pnt_in_triangle(A,B,C, p%loc)) then
-    print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle :: init_dir_photon_wedge_5_5'
+    print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle :: init_dir_photon_wedge_5_8'
     call print_photon(p)
-    stop 'initial location outside of the wedge triangle'
+    call CHKERR(1_mpiint, 'initial location outside of the wedge triangle')
   endif
 
-  if(angle_between_two_vec(p%dir, normal).gt.pi_dp/2-sqrt(epsilon(pi_dp))) then
-    call print_photon(p)
-    if(angle_between_two_vec(p%dir, normal).le.pi_dp/2+10*epsilon(pi_dp)) then
-      !print *,'the difference is really small so I will just move the photon a bit towards the center of the triangle and continue'
-      triangle_center(1:2) = (A+B+C)/3
-      triangle_center(3) = p%dz/2
-      dir_p_to_triangle_center = triangle_center - p%loc
-      dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
-      p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
-    else
-      ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
-      if(ldebug) print *,'UUPS, are we starting in a wrong direction?:: init_dir_photon_wedge_5_5', rad2deg(angle_between_two_vec(p%dir, normal))
-      if(ldebug) print *,'normal',normal,'direction',p%dir
-      return
-      !stop 'initial direction of the wedge triangle'
+  if(dot_product(p%dir, normal).lt.zero) then
+    ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
+    if(ldebug) then
+      print *,'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
+      print *,'normal',normal,'direction',p%dir
+      call print_photon(p)
     endif
+    !stop 'initial direction of the wedge triangle'
+    return
   endif
   ierr = 0
 end subroutine
@@ -179,6 +185,8 @@ subroutine init_diff_photon_wedge_5_5(bmc, p, src, vertices, ierr)
     stop 'init_diff_photon_wedge_5_5 called with unknown src'
   end select
 
+  p%src_side = src
+
   phi = deg2rad( R()*360 )
   ! mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
   mu = R() ! evenly distribution between 0 and 90 degree
@@ -223,8 +231,6 @@ subroutine init_diff_photon_wedge_5_5(bmc, p, src, vertices, ierr)
 
   select type(bmc)
   end select
-
-  !call print_photon(p)
 
   if(.not. pnt_in_triangle(A,B,C, PNT)) then
     print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle :: init_diff_photon_wedge_5_5'
