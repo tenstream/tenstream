@@ -30,6 +30,7 @@ use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_wedge_5_8
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
+use m_boxmc_geometry, only : setup_default_unit_cube_geometry
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 
@@ -109,9 +110,9 @@ contains
       endif
   end subroutine
 
-  subroutine get_coeff_bmc(OPP, tauz, w0, g, aspect_zx, aspect_zy, dir, C, angles)
+  subroutine get_coeff_bmc(OPP, vertices, tauz, w0, g, dir, C, angles)
       class(t_optprop) :: OPP
-      real(ireals),intent(in) :: aspect_zx, aspect_zy, tauz, w0, g
+      real(ireals),intent(in) :: tauz, w0, g, vertices(:)
       logical,intent(in) :: dir
       real(ireals),intent(out):: C(:)
       real(ireals),intent(in),optional :: angles(2)
@@ -119,10 +120,7 @@ contains
       real(ireals) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
       real(ireals) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
       integer(iintegers) :: isrc
-      real(ireals), allocatable :: vertices(:)
 
-      call CHKERR(1_mpiint, 'currently not implemented, have to fix vertices')
-      vertices = aspect_zx + aspect_zy ! remove unused errors
 
       if(present(angles)) then
         if(dir) then !dir2dir
@@ -146,10 +144,10 @@ contains
 
   end subroutine
 
-  subroutine get_coeff(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north, wedge_coords)
+  subroutine get_coeff(OPP, tauz, w0, g, aspect_zx, dir, C, inp_angles, lswitch_east, lswitch_north, wedge_coords)
         class(t_optprop)                  :: OPP
         logical,intent(in)                :: dir
-        real(ireals),intent(in)           :: aspect, tauz, w0, g
+        real(ireals),intent(in)           :: tauz, w0, g, aspect_zx
         real(ireals),intent(in),optional  :: inp_angles(:)         ! phi and azimuth in degree
         logical,intent(in),optional       :: lswitch_east, lswitch_north
         real(ireals),intent(in),optional  :: wedge_coords(:)       ! 6 coordinates of wedge triangle, only used for wedge OPP types
@@ -157,31 +155,30 @@ contains
 
         select type (OPP)
         class is (t_optprop_1_2)
-          call boxmc_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, inp_angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_3_6)
-          call boxmc_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, inp_angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_3_10)
-          call boxmc_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, inp_angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_8_10)
-          call boxmc_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, inp_angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_wedge_5_8)
-          call wedge_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north, wedge_coords)
+          call wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, inp_angles, wedge_coords)
 
         class default
           call CHKERR(1_mpiint, 'initialize LUT: unexpected type for optprop object!')
       end select
 
       contains
-        subroutine wedge_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north, wedge_coords)
+        subroutine wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, inp_angles, wedge_coords)
           class(t_optprop)                  :: OPP
           logical,intent(in)                :: dir
-          real(ireals),intent(in)           :: aspect, tauz, w0, g
+          real(ireals),intent(in)           :: tauz, w0, g, aspect_zx
           real(ireals),intent(in),optional  :: inp_angles(:)
-          logical,intent(in),optional       :: lswitch_east, lswitch_north
           real(ireals),intent(in),optional  :: wedge_coords(:)       ! 6 coordinates of wedge triangle, only used for wedge OPP types, have to be in local coords already (i.e. A=[0,0], B=[0,1], C=[...]
           real(ireals),intent(out)          :: C(:)
 
@@ -199,7 +196,7 @@ contains
             endif
             if(wedge_coords(5).lt.0.35_ireals .or. wedge_coords(5).gt.0.65_ireals) &
               call CHKERR(1_mpiint, 'wedge_coords(5) is outside the range we expected... take care of it somehow, do some magic! '//ftoa(wedge_coords(5)))
-            call check_inp(tauz, w0, g, aspect, dir, C)
+            call check_inp(tauz, w0, g, aspect_zx, dir, C)
           endif
 
           C_pnt = wedge_coords(5:6)
@@ -210,15 +207,13 @@ contains
 
             if(present(inp_angles)) then ! obviously we want the direct coefficients
               if(dir) then ! dir2dir
-                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, g, aspect, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
-                call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
+                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, g, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
               else         ! dir2diff
-                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, g, aspect, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
-                call OPP%dir2diff_coeff_symmetry(C, lswitch_east, lswitch_north)
+                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, g, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
               endif
             else
               ! diff2diff
-              call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, g, aspect, C_pnt(1), C_pnt(2)], C)
+              call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, g, aspect_zx, C_pnt(1), C_pnt(2)], C)
             endif
 
           case default
@@ -227,60 +222,59 @@ contains
 
         end subroutine
 
-
-        subroutine boxmc_lut_call(OPP, aspect, tauz, w0, g, dir, C, inp_angles, lswitch_east, lswitch_north)
+        subroutine boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
           class(t_optprop)                  :: OPP
           logical,intent(in)                :: dir
-          real(ireals),intent(in)           :: aspect, tauz, w0, g
-          real(ireals),intent(in),optional  :: inp_angles(:)
+          real(ireals),intent(in)           :: tauz, w0, g, aspect_zx
+          real(ireals),intent(in),optional  :: angles(:)
           logical,intent(in),optional       :: lswitch_east, lswitch_north
           real(ireals),intent(out)          :: C(:)
 
-          real(ireals) :: angles(2)
-
           logical,parameter :: compute_coeff_online=.False.
+          real(ireals), allocatable :: vertices(:)
 
           if(compute_coeff_online) then
-            call get_coeff_bmc(OPP, tauz, w0, g, aspect, aspect, dir, C, inp_angles)
+            call setup_default_unit_cube_geometry(one, one, aspect_zx, vertices)
+            call get_coeff_bmc(OPP, vertices, tauz, w0, g, dir, C, inp_angles)
             return
           endif
 
-          if(ldebug_optprop) call check_inp(tauz, w0, g, aspect, dir, C)
+          if(ldebug_optprop) call check_inp(tauz, w0, g, aspect_zx, dir, C)
 
-          if(present(inp_angles)) then
-            angles = inp_angles
-            if(inp_angles(2).le.1e-3_ireals) angles(1) = zero ! if sza is close to 0, azimuth is symmetric -> dont need to distinguish
-          endif
+          !if(present(inp_angles)) then
+          !  angles = inp_angles
+          !  if(inp_angles(2).le.1e-3_ireals) angles(1) = zero ! if sza is close to 0, azimuth is symmetric -> dont need to distinguish
+          !endif
 
           select case (coeff_mode)
 
           case(i0) ! LookUpTable Mode
 
-            if(present(inp_angles)) then ! obviously we want the direct coefficients
+            if(present(angles)) then ! obviously we want the direct coefficients
               if(dir) then ! dir2dir
-                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, g, aspect, angles(1), angles(2)], C)
+                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, g, aspect_zx, angles(1), angles(2)], C)
                 call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
               else         ! dir2diff
-                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, g, aspect, angles(1), angles(2)], C)
+                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, g, aspect_zx, angles(1), angles(2)], C)
                 call OPP%dir2diff_coeff_symmetry(C, lswitch_east, lswitch_north)
               endif
             else
               ! diff2diff
-              call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, g, aspect], C)
+              call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, g, aspect_zx], C)
             endif
 
 
           case(i1) ! ANN
 
-            if(present(inp_angles)) then ! obviously we want the direct coefficients
+            if(present(angles)) then ! obviously we want the direct coefficients
               if(dir) then ! specifically the dir2dir
-                call ANN_get_dir2dir(tauz, w0, g, aspect, angles(1), angles(2), C)
+                call ANN_get_dir2dir(tauz, w0, g, aspect_zx, angles(1), angles(2), C)
               else ! dir2diff
-                call ANN_get_dir2diff(tauz, w0, g, aspect, angles(1), angles(2), C)
+                call ANN_get_dir2diff(tauz, w0, g, aspect_zx, angles(1), angles(2), C)
               endif
             else
               ! diff2diff
-              call ANN_get_diff2diff(tauz, w0, g, aspect, C)
+              call ANN_get_diff2diff(tauz, w0, g, aspect_zx, C)
             endif
 
           case default
@@ -289,13 +283,13 @@ contains
 
         end subroutine
 
-        subroutine check_inp(tauz, w0, g, aspect, dir, C)
-            real(ireals),intent(in) :: aspect, tauz, w0, g
+        subroutine check_inp(tauz, w0, g, aspect_zx, dir, C)
+            real(ireals),intent(in) :: tauz, w0, g, aspect_zx
             logical,intent(in) :: dir
             real(ireals),intent(in):: C(:)
             if(OPP%optprop_debug) then
-              if( (any([aspect, tauz, w0, g].lt.zero)) .or. (any(isnan([aspect, tauz, w0, g]))) ) then
-                print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[aspect, tauz, w0, g]
+              if( (any([aspect_zx, tauz, w0, g].lt.zero)) .or. (any(isnan([aspect_zx, tauz, w0, g]))) ) then
+                print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[aspect_zx, tauz, w0, g]
                 call exit
               endif
             endif

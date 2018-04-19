@@ -743,7 +743,8 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
     S_diff=nil
     T_dir=nil
 
-    !print *,comm,'BMC :: calling bmc_get_coeff',bg,'src',src,'phi/theta',phi,theta,dz
+    !print *,comm,'BMC :: calling bmc_get_coeff tauz',tauz,'w0,g',w0,g,phi,theta
+    !print *,comm,'BMC :: calling bmc_get_coeff dz bg',vertices(size(vertices)),bg, '=>', sum(bg(1:2))*vertices(size(vertices)),'/',tauz
     call OPP%bmc%get_coeff(comm, bg, src, &
       dir, phi, theta, &
       vertices, &
@@ -816,6 +817,13 @@ subroutine set_parameter_space(OPP)
 
       class is (t_optprop_LUT_8_10)
           OPP%interp_mode = interp_mode_8_10
+!          allocate(OPP%dirconfig%dims(6))
+!          call populate_LUT_dim('tau',       i2, OPP%dirconfig%dims(1), vrange=real([1e-5,10.], ireals))
+!          call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.1,.9], ireals))
+!          call populate_LUT_dim('g',         i2, OPP%dirconfig%dims(3), vrange=real([0.,.5], ireals))
+!          call populate_LUT_dim('aspect_zx', i2, OPP%dirconfig%dims(4), vrange=real([.1,2.], ireals))
+!          call populate_LUT_dim('phi',       i2, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
+!          call populate_LUT_dim('theta',     i2, OPP%dirconfig%dims(6), vrange=real([0,90], ireals))
           allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau21,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau21)
           call populate_LUT_dim('w0',        size(preset_w015,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w015)
