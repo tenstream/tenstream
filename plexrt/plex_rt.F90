@@ -736,7 +736,7 @@ module m_plex_rt
       !print *,'icell',icell,': foc',faces_of_cell
       !print *,'icell',icell,':',iwedge_plex2bmc,'lsrc',lsrc
       call get_coeff(OPP, optprop(icell)%kabs, optprop(icell)%ksca, optprop(icell)%g, &
-        dz, dx, .True., coeff, angles=[rad2deg(azimuth), rad2deg(zenith)])
+        dz, dx, wedgeorient(wedge_offset+14:wedge_offset+19), .True., coeff, angles=[rad2deg(azimuth), rad2deg(zenith)])
 
       !do isrc = 1, 5
       !  print *,'LUT',rad2deg(azimuth), rad2deg(zenith), isrc, coeff(isrc:size(coeff):i5)
