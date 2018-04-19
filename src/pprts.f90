@@ -2952,7 +2952,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       associate(  atm     => solver%atm, &
                 C_diff  => solver%C_diff)
 
-      if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms', minval(atm%planck), maxval(atm%planck)
+      if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms min/max planck', minval(atm%planck), maxval(atm%planck)
       Az = atm%dx*atm%dy/(solver%difftop%dof/2)
 
       do j=C_diff%ys,C_diff%ye

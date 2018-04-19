@@ -427,10 +427,14 @@ contains
     real(ireals),allocatable, dimension(:,:,:)   :: ksca,g                         ! [nlyr, local_nx, local_ny, ngptlw]
     real(ireals),allocatable, dimension(:,:,:,:) :: kabs,Bfrac                     ! [nlyr, local_nx, local_ny, ngptlw]
     real(ireals),allocatable, dimension(:,:,:,:) :: Blev                           ! [nlyr+1, local_nx, local_ny, nbndlw]
-    real(ireals),allocatable, dimension(:,:,:)   :: spec_edir, spec_edn,spec_eup,spec_abso    ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:)   :: spec_edn,spec_eup,spec_abso    ! [nlyr(+1), local_nx, local_ny ]
 
     integer(iintegers) :: i, j, k, icol, ib
     logical :: need_any_new_solution
+
+    integer(mpiint) :: myid, ierr
+
+    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
     allocate(spec_edn (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
     allocate(spec_eup (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
@@ -442,7 +446,7 @@ contains
     enddo
     if(.not.need_any_new_solution) then
       do ib=1,ngptlw
-        call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=500+ib)
+        call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
         edn  = edn  + spec_edn
         eup  = eup  + spec_eup
         abso = abso + spec_abso
@@ -502,6 +506,11 @@ contains
       enddo
     enddo
 
+    if(any(Blev.lt.zero)) then
+      print *,'Min Max Planck:', minval(Blev), maxval(Blev), 'location min', minloc(Blev)
+      call CHKERR(1_mpiint, 'Found a negative Planck emission, this is not physical! Aborting...')
+    endif
+
     ! Free up some intermediate memory
     deallocate(col_tau   )
     deallocate(col_Bfrac )
@@ -512,7 +521,7 @@ contains
         call set_optical_properties(solver, albedo, kabs(:,:,:,ib), ksca(:,:,:), g(:,:,:), Blev(:,:,:,ngb(ib))*Bfrac(:,:,:,ib))
         call solve_pprts(solver, zero, opt_solution_uid=500+ib, opt_solution_time=opt_time)
       endif
-      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=500+ib)
+      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
 
       edn  = edn  + spec_edn
       eup  = eup  + spec_eup
