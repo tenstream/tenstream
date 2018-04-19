@@ -2192,9 +2192,6 @@ module m_pprts
 
         mu0 = solver%sun%angles(C_one_atm1%zs,i,j)%costheta
         incSolar = edirTOA* mu0
-        if(solver%myid.eq.0 .and. ldebug) then
-          print *,' CALCULATING DELTA EDDINGTON TWOSTREAM ::',solver%sun%angles(C_one_atm1%zs,i,j)%theta,':',incSolar
-        endif
 
         kext = atm%op(:,i,j)%kabs + atm%op(:,i,j)%ksca
         dtau = atm%dz(:,i,j)* kext
