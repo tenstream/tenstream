@@ -177,8 +177,8 @@ module m_pprts
 
   contains
 
-  !> @brief Main routine to setup TenStream solver
-  !> @details This will setup the PETSc DMDA grid and set other grid information, needed for the TenStream
+  !> @brief Main routine to setup PPRTS solver
+  !> @details This will setup the PETSc DMDA grid and set other grid information, needed for the pprts
   !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc)
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
   subroutine init_pprts(icomm, Nz,Nx,Ny, dx,dy, phi0, theta0, solver, dz1d, dz3d, nxproc, nyproc, collapseindex, solvername)
@@ -303,8 +303,6 @@ module m_pprts
         else
           call setup_grid(solver, Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny) )
         endif
-
-        solver%linitialized = .True.
       endif
 
       call setup_atm()
@@ -315,10 +313,11 @@ module m_pprts
       ! init petsc logging facilities
       call setup_log_events(solvername)
 
+      solver%linitialized = .True.
     else
-      print *,solver%myid,'You tried to initialize already initialized Tenstream          &
+      print *,solver%myid,'You tried to initialize already initialized PPRTS     &
         &solver. This should not be done. If you need to reinitialize the grids, &
-        &call destroy_tenstream() first.'
+        &call destroy_pprts() first.'
       ierr=1; call CHKERR(ierr)
     endif
 
@@ -551,8 +550,8 @@ module m_pprts
       logical :: lchanged_theta, lchanged_phi
 
       if(.not.solver%linitialized) then
-          print *,solver%myid,'You tried to set angles in the Tenstream solver.  &
-              & This should be called right after init_tenstream'
+          print *,solver%myid,'You tried to set angles in the PPRTS solver.  &
+              & This should be called right after init_pprts'
           ierr=1; call CHKERR(ierr)
       endif
 
@@ -567,7 +566,7 @@ module m_pprts
         else
           lchanged_phi = any(.not.approx(phi0, solver%sun%angles(1,:,:)%phi))
         endif
-        if(solver%myid.eq.0 .and. ldebug) print *,'tenstr set_angles -- changed angles?',lchanged_theta, lchanged_phi
+        if(solver%myid.eq.0 .and. ldebug) print *,'pprts set_angles -- changed angles?',lchanged_theta, lchanged_phi
         if(.not. lchanged_theta .and. .not. lchanged_phi) then
           return
         endif
@@ -1581,7 +1580,7 @@ module m_pprts
     call PetscLogEventBegin(solver%logs%set_optprop, ierr); call CHKERR(ierr)
 
     if(.not.solver%linitialized) then
-      print *,solver%myid,'You tried to set global optical properties but tenstream environment seems not to be initialized.... please call init first!'
+      print *,solver%myid,'You tried to set global optical properties but pprts environment seems not to be initialized.... please call init first!'
       call exit(1)
     endif
 
@@ -3548,13 +3547,42 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     if(solver%solutions(uid)%lchanged) call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
 
-    if(allocated(redn )) call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated redn  array')
-    if(allocated(reup )) call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated reup  array')
-    if(allocated(rabso)) call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated rabso array')
+    if(allocated(redn)) then
+      if(.not.all(shape(redn).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
+        print *,'Shape redn', shape(redn), 'vs', [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym]
+        call CHKERR(1_mpiint, 'the shape of edn result array which you provided does not conform to output size. either call with unallocated object or make sure it has the correct size')
+      endif
+    else
+      allocate(redn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    endif
+
+    if(allocated(reup)) then
+      if(.not.all(shape(reup).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
+        print *,'Shape reup', shape(reup), 'vs', [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym]
+        call CHKERR(1_mpiint, 'the shape of eup result array which you provided does not conform to output size. either call with unallocated object or make sure it has the correct size')
+      endif
+    else
+      allocate(reup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    endif
+
+    if(allocated(rabso)) then
+      if(.not.all(shape(rabso).eq.[solver%C_one%zm, solver%C_one%xm, solver%C_one%ym])) then
+        print *,'Shape rabso', shape(rabso), 'vs', [solver%C_one%zm, solver%C_one%xm, solver%C_one%ym]
+        call CHKERR(1_mpiint, 'the shape of absorption result array which you provided does not conform to output size. either call with unallocated object or make sure it has the correct size')
+      endif
+    else
+      allocate(rabso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
+    endif
 
     if(present(redir)) then
-      if(allocated(redir)) call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated redir array')
-      allocate(redir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym))
+      if(allocated(redir)) then
+        if(.not.all(shape(redir).eq.[solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym])) then
+          print *,'Shape redir', shape(redir), 'vs', [solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym]
+          call CHKERR(1_mpiint, 'pprts_get_result :: you should not call it with an allocated redir array')
+        endif
+      else
+        allocate(redir(solver%C_dir%zm, solver%C_dir%xm, solver%C_dir%ym))
+      endif
 
       if( .not. solver%solutions(uid)%lsolar_rad ) then
         print *,'Hey, You called pprts_get_result for uid',uid,'but in this particular band we dont have direct radiation calculated... I will return with edir=0 but are you sure this is what you intended?'
@@ -3579,8 +3607,6 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     if(solver%solutions(uid)%lintegrated_diff) call CHKERR(1_mpiint, 'tried to get result from integrated result vector(diff)')
 
-    allocate(redn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-    allocate(reup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
 
     if(solver%atm%lcollapse) then
       call CHKERR(1_mpiint, 'pprts_get_result :: lcollapse needs to be implemented')
@@ -3616,7 +3642,6 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       endif
     endif
 
-    allocate(rabso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
     call getVecPointer(solver%solutions(uid)%abso, solver%C_one%da, x1d, x4d)
     if(solver%atm%lcollapse) then
       rabso(1:atmk(solver%atm, solver%C_one%zs)+1, :, :) = zero

@@ -51,9 +51,7 @@ module m_pprts_rrtmg
   implicit none
 
   private
-  public :: pprts_rrtmg, init_pprts_rrtmg, destroy_pprts_rrtmg
-
-  logical :: linit_pprts=.False.
+  public :: pprts_rrtmg, destroy_pprts_rrtmg
 
 !  logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
@@ -266,10 +264,9 @@ contains
       enddo
     endif
 
-    if(.not.linit_pprts) then
+    if(.not.solver%linitialized) then
       call init_pprts_rrtmg(comm, solver, dx, dy, dz_t2b, phi0, theta0, &
         ie,je,ke, nxproc, nyproc)
-      linit_pprts=.True.
     endif
 
     ! RRTMG use liq. water path, not mixing ratio
@@ -445,7 +442,7 @@ contains
     enddo
     if(.not.need_any_new_solution) then
       do ib=1,ngptlw
-        call pprts_get_result(solver, spec_edir, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
+        call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=500+ib)
         edn  = edn  + spec_edn
         eup  = eup  + spec_eup
         abso = abso + spec_abso
@@ -515,7 +512,7 @@ contains
         call set_optical_properties(solver, albedo, kabs(:,:,:,ib), ksca(:,:,:), g(:,:,:), Blev(:,:,:,ngb(ib))*Bfrac(:,:,:,ib))
         call solve_pprts(solver, zero, opt_solution_uid=500+ib, opt_solution_time=opt_time)
       endif
-      call pprts_get_result(solver, spec_edir, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
+      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=500+ib)
 
       edn  = edn  + spec_edn
       eup  = eup  + spec_eup
@@ -577,7 +574,7 @@ contains
     enddo
     if(.not.need_any_new_solution) then
       do ib=1,ngptsw
-        call pprts_get_result(solver, spec_edir, spec_edn, spec_eup, spec_abso, opt_solution_uid=ib)
+        call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)
         edir = edir + spec_edir
         edn  = edn  + spec_edn
         eup  = eup  + spec_eup
@@ -639,7 +636,7 @@ contains
         call set_optical_properties(solver, albedo, kabs(:,:,:,ib), ksca(:,:,:,ib), g(:,:,:,ib), local_albedo_2d=solar_albedo_2d)
         call solve_pprts(solver, tenstr_solsrc(ib), opt_solution_uid=ib, opt_solution_time=opt_time)
       endif
-      call pprts_get_result(solver, spec_edir, spec_edn, spec_eup, spec_abso, opt_solution_uid=ib)
+      call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)
 
       edir = edir + spec_edir
       edn  = edn  + spec_edn
@@ -653,7 +650,6 @@ contains
     logical, intent(in) :: lfinalizepetsc
     ! Tidy up the solver
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
-    linit_pprts = .False.
   end subroutine
 
   subroutine optprop_rrtm_lw(ncol_in, nlay_in, albedo, plev, tlev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &

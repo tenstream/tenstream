@@ -74,7 +74,7 @@ subroutine error_growth_tracking(this)
         call solve_pprts(solver, incSolar, opt_solution_uid=k, opt_solution_time=iter*one)
 
         !allocate(fdir (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
-        call pprts_get_result(solver, fdir, fdn, fup, fdiv, opt_solution_uid=k)
+        call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_solution_uid=k)
         deallocate(fdir, fdn, fup, fdiv)
 
       enddo
