@@ -10,7 +10,7 @@ module m_pprts_ex1
 
   contains
 subroutine pprts_ex1()
-    integer(iintegers),parameter :: nxp=9,nyp=9,nv=2
+    integer(iintegers),parameter :: nxp=9,nyp=9,nv=40
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=270, theta0=20
     real(ireals),parameter :: albedo=0., dz=100
@@ -65,12 +65,12 @@ subroutine pprts_ex1()
     ksca = 1e-3_ireals/(dz*nv)
     g    = zero
 
-    kabs(nv/2,nxp/2,:) = 1/dz
-    ksca(nv/2,nxp/2,:) = 1/dz
-    g   (nv/2,nxp/2,:) = .9
+    kabs((nv+1)/2,(nxp+1)/2,:) = 1/dz
+    ksca((nv+1)/2,(nxp+1)/2,:) = 1/dz
+    g   ((nv+1)/2,(nxp+1)/2,:) = .9
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
-    call set_angles(solver, 0._ireals, theta0)
+    call set_angles(solver, phi0, theta0)
 
     call solve_pprts(solver, incSolar)
 
