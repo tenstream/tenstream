@@ -60,7 +60,8 @@ module m_optprop_LUT
 
   private
   public :: t_optprop_LUT, t_optprop_LUT_8_10,t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
-    t_optprop_LUT_wedge_5_8
+    t_optprop_LUT_wedge_5_8, &
+    find_lut_dim_by_name
   ! This module loads and generates the LUT-tables for Tenstream Radiation
   ! computations.
   ! It also holds functions for interpolation on the regular LUT grid.
@@ -109,6 +110,7 @@ module m_optprop_LUT
       procedure :: loadLUT_dir
       procedure :: loadLUT_diff
       procedure :: set_parameter_space
+      procedure :: print_configs
   end type
 
   type,extends(t_optprop_LUT) :: t_optprop_LUT_1_2
@@ -961,23 +963,37 @@ end subroutine
       endif
   end subroutine
 
-subroutine print_LUT_config(config)
-  type(t_LUT_config), allocatable, intent(in) :: config
-  integer(iintegers) :: i
-  integer(mpiint) :: myid, ierr
+  subroutine print_configs(OPP)
+    class(t_optprop_LUT) :: OPP
+    integer(mpiint) :: myid, ierr
 
-  call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
+    call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
+    if(myid.eq.0) then
+      print *,'Diffuse LUT config:'
+      call print_LUT_config(OPP%diffconfig)
+      print *,'Direct LUT config:'
+      call print_LUT_config(OPP%dirconfig)
+      print *,'----------------------'
+    endif
+  end subroutine
 
-  print *,myid,'LUT Config initialized', allocated(config)
-  if(.not.allocated(config)) return
+  subroutine print_LUT_config(config)
+    type(t_LUT_config), allocatable, intent(in) :: config
+    integer(iintegers) :: i
+    integer(mpiint) :: myid, ierr
 
-  print *,myid,'LUT Config Ndim', size(config%dims)
-  do i = 1, size(config%dims)
-    print *,myid,'Dimension '//itoa(i)//' '//trim(config%dims(i)%dimname)//' size '//itoa(config%dims(i)%N)
-  enddo
-end subroutine
+    call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)
 
-subroutine LUT_get_dir2dir(OPP, sample_pts, C)
+    print *,myid,'LUT Config initialized', allocated(config)
+    if(.not.allocated(config)) return
+
+    print *,myid,'LUT Config Ndim', size(config%dims)
+    do i = 1, size(config%dims)
+      print *,myid,'Dimension '//itoa(i)//' '//trim(config%dims(i)%dimname)//' size '//itoa(config%dims(i)%N)
+    enddo
+  end subroutine
+
+  subroutine LUT_get_dir2dir(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: sample_pts(:)
     real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams**2)
@@ -1024,9 +1040,9 @@ subroutine LUT_get_dir2dir(OPP, sample_pts, C)
       endif
     endif
     !call CHKERR(1_mpiint, 'DEBUG')
-end subroutine
+  end subroutine
 
-subroutine LUT_get_dir2diff(OPP, sample_pts, C)
+  subroutine LUT_get_dir2diff(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: sample_pts(:)
     real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams*OPP%diff_streams)
@@ -1071,9 +1087,9 @@ subroutine LUT_get_dir2diff(OPP, sample_pts, C)
         call CHKERR(1_mpiint, 'Check for energy conservation failed')
       endif
     endif
-end subroutine
+  end subroutine
 
-subroutine LUT_get_diff2diff(OPP, sample_pts, C)
+  subroutine LUT_get_diff2diff(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: sample_pts(:)
     real(ireals),intent(out):: C(:) ! dimension(OPP%diff_streams**2)
@@ -1118,6 +1134,6 @@ subroutine LUT_get_diff2diff(OPP, sample_pts, C)
         call CHKERR(1_mpiint, 'Check for energy conservation failed')
       endif
     endif
-end subroutine
+  end subroutine
 
 end module
