@@ -993,6 +993,25 @@ end subroutine
     enddo
   end subroutine
 
+  subroutine check_if_samplepts_in_LUT_bounds(sample_pts, config)
+    real(ireals),intent(in) :: sample_pts(:)
+    type(t_LUT_config), allocatable, intent(in) :: config
+    integer(mpiint) :: ierr, kdim
+
+    ierr = 0
+    do kdim = 1,size(sample_pts)
+      if(sample_pts(kdim).lt.config%dims(kdim)%v(1).or.sample_pts(kdim).gt.config%dims(kdim)%v(2)) then
+        print *,'ERROR value in dimension '//itoa(kdim)//' is outside of LUT range', sample_pts(kdim), 'not in:', config%dims(kdim)%vrange
+        ierr = ierr +1
+      endif
+    enddo
+
+    if(ierr.ne.0) then
+      call print_LUT_config(config)
+      call CHKERR(ierr, 'Out of Bounds ERROR in LUT retrieval')
+    endif
+  end subroutine
+
   subroutine LUT_get_dir2dir(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
     real(ireals),intent(in) :: sample_pts(:)
@@ -1007,6 +1026,7 @@ end subroutine
         call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
           //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%dirconfig%dims)))
       endif
+      call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%dirconfig)
     endif
 
     do kdim = 1, size(sample_pts)
@@ -1056,6 +1076,7 @@ end subroutine
         call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
           //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%dirconfig%dims)))
       endif
+      call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%dirconfig)
     endif
 
     do kdim = 1, size(sample_pts)
@@ -1099,10 +1120,11 @@ end subroutine
 
     if(ldebug_optprop) then
       if(size(sample_pts).ne.size(OPP%diffconfig%dims)) then
-        call print_LUT_config(OPP%dirconfig)
+        call print_LUT_config(OPP%diffconfig)
         call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
-          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%dirconfig%dims)))
+          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%diffconfig%dims)))
       endif
+      call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%diffconfig)
     endif
 
     do kdim = 1, size(sample_pts)
