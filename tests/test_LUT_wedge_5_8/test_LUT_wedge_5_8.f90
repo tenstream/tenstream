@@ -3,8 +3,9 @@ module test_LUT_wedge_5_8
   use m_data_parameters, only : mpiint, ireals, iintegers, &
     one, zero, init_mpi_data_parameters, i1, default_str_len
   use m_optprop_LUT, only : t_optprop_LUT_wedge_5_8, find_lut_dim_by_name
+  use m_optprop, only : t_optprop_wedge_5_8
   use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: rmse
+  use m_helper_functions, only: rmse, CHKERR, get_arg
   use m_boxmc_geometry, only : setup_default_wedge_geometry
 
 #include "petsc/finclude/petsc.h"
@@ -21,9 +22,11 @@ module test_LUT_wedge_5_8
 
   real(ireals) :: BMC_diff2diff(Ndiff**2), BMC_dir2diff(Ndir*Ndiff), BMC_dir2dir(Ndir**2)
   real(ireals) :: LUT_diff2diff(Ndiff**2), LUT_dir2diff(Ndir*Ndiff), LUT_dir2dir(Ndir**2)
+  real(ireals) :: OPP_diff2diff(Ndiff**2), OPP_dir2diff(Ndir*Ndiff), OPP_dir2dir(Ndir**2)
 
   type(t_boxmc_wedge_5_8) :: bmc
-  type(t_optprop_LUT_wedge_5_8) :: OPP
+  type(t_optprop_wedge_5_8) :: OPP
+  type(t_optprop_LUT_wedge_5_8) :: OPPLUT
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
@@ -53,8 +56,9 @@ contains
 
       call bmc%init(comm)
       call OPP%init(comm)
+      call OPPLUT%init(comm)
 
-      call OPP%print_configs()
+      call OPPLUT%print_configs()
 
       S_target = zero
       T_target = zero
@@ -63,11 +67,11 @@ contains
   @after
   subroutine teardown(this)
       class (MpiTestMethod), intent(inout) :: this
-      !call OPP%destroy()
+      !call OPPLUT%destroy()
       call PetscFinalize(ierr)
   end subroutine teardown
 
-  !@test(npes=[2,1])
+  @test(npes=[2,1])
   subroutine test_LUT_wedge_direct_coeff_onsamplepts(this)
       class (MpiTestMethod), intent(inout) :: this
 
@@ -83,7 +87,7 @@ contains
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
       myid     = this%getProcessRank()
-      associate( LUTconfig => OPP%dirconfig )
+      associate( LUTconfig => OPPLUT%dirconfig )
 
       idim_tau    = find_lut_dim_by_name(LUTconfig, 'tau')
       idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
@@ -111,8 +115,8 @@ contains
                       Cx     = LUTconfig%dims(idim_Cx    )%v(iCx)
                       Cy     = LUTconfig%dims(idim_Cy    )%v(iCy)
 
-                      call OPP%LUT_get_dir2dir ([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2dir)
-                      call OPP%LUT_get_dir2diff([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+                      call OPPLUT%LUT_get_dir2dir ([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+                      call OPPLUT%LUT_get_dir2diff([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
                       call setup_default_wedge_geometry([zero, zero], [one, zero], [Cx, Cy], aspect, vertices)
                       vertices = vertices * dx
@@ -144,7 +148,7 @@ contains
 
   endsubroutine
 
-  !@test(npes=[2,1])
+  @test(npes=[2,1])
   subroutine test_LUT_wedge_direct_coeff_interpolate(this)
       class (MpiTestMethod), intent(inout) :: this
 
@@ -160,7 +164,7 @@ contains
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
       myid     = this%getProcessRank()
-      associate( LUTconfig => OPP%dirconfig )
+      associate( LUTconfig => OPPLUT%dirconfig )
 
       idim_tau    = find_lut_dim_by_name(LUTconfig, 'tau')
       idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
@@ -197,8 +201,8 @@ contains
                       Cx     = Cx     + LUTconfig%dims(idim_Cx    )%v(min(LUTconfig%dims(idim_Cx    )%N, iCx+1))     / 2
                       Cy     = Cy     + LUTconfig%dims(idim_Cy    )%v(min(LUTconfig%dims(idim_Cy    )%N, iCy+1))     / 2
 
-                      call OPP%LUT_get_dir2dir ([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2dir)
-                      call OPP%LUT_get_dir2diff([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+                      call OPPLUT%LUT_get_dir2dir ([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+                      call OPPLUT%LUT_get_dir2diff([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
                       call setup_default_wedge_geometry([zero, zero], [one, zero], [Cx, Cy], aspect, vertices)
                       vertices = vertices * dx
@@ -232,13 +236,98 @@ contains
 
   endsubroutine
 
+  @test(npes=[2,1])
+  subroutine test_wedge_LUT_vs_OPP_object(this)
+      class (MpiTestMethod), intent(inout) :: this
 
-  subroutine check(S_target,T_target, S,T, msg)
+      integer(iintegers) :: isrc
+      integer(iintegers) :: idim_tau, idim_w0, idim_g, idim_aspect, idim_phi, idim_theta, idim_Cx, idim_Cy
+      integer(iintegers) :: itau, iw0, ig, iaspect, iphi, itheta, iCx, iCy
+      real(ireals) :: tau, w0, g, aspect, phi, theta, Cx, Cy
+
+      real(ireals) :: kabs, ksca, dz, err(2)
+      real(ireals), allocatable :: vertices(:)
+      real(ireals), parameter :: dx = 911
+
+      comm     = this%getMpiCommunicator()
+      numnodes = this%getNumProcesses()
+      myid     = this%getProcessRank()
+      associate( LUTconfig => OPPLUT%dirconfig )
+
+      idim_tau    = find_lut_dim_by_name(LUTconfig, 'tau')
+      idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
+      idim_g      = find_lut_dim_by_name(LUTconfig, 'g')
+      idim_aspect = find_lut_dim_by_name(LUTconfig, 'aspect_zx')
+      idim_phi    = find_lut_dim_by_name(LUTconfig, 'phi')
+      idim_theta  = find_lut_dim_by_name(LUTconfig, 'theta')
+      idim_Cx     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cx')
+      idim_Cy     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cy')
+
+      do itau = 1, LUTconfig%dims(idim_tau)%N
+        do iw0  = 1, LUTconfig%dims(idim_w0)%N
+          do ig   = 1, LUTconfig%dims(idim_g)%N
+            do iaspect = 1, LUTconfig%dims(idim_aspect)%N
+              do iphi = 1, LUTconfig%dims(idim_phi)%N
+                do itheta = 1, LUTconfig%dims(idim_theta)%N
+                  do iCx = 1, LUTconfig%dims(idim_Cx)%N
+                    do iCy = 1, LUTconfig%dims(idim_Cy)%N
+                      tau    = LUTconfig%dims(idim_tau   )%v(itau)
+                      w0     = LUTconfig%dims(idim_w0    )%v(iw0)
+                      g      = LUTconfig%dims(idim_g     )%v(ig)
+                      aspect = LUTconfig%dims(idim_aspect)%v(iaspect)
+                      phi    = LUTconfig%dims(idim_phi   )%v(iphi)
+                      theta  = LUTconfig%dims(idim_theta )%v(itheta)
+                      Cx     = LUTconfig%dims(idim_Cx    )%v(iCx)
+                      Cy     = LUTconfig%dims(idim_Cy    )%v(iCy)
+
+                      call OPPLUT%LUT_get_dir2dir ([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+                      call OPPLUT%LUT_get_dir2diff([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+
+                      call OPP%get_coeff(tau, w0, g, aspect, .True., OPP_dir2dir, &
+                        inp_angles=[phi, theta], wedge_coords=[zero,zero,one,zero,Cx,Cy])
+                      call OPP%get_coeff(tau, w0, g, aspect, .False., OPP_dir2diff, &
+                        inp_angles=[phi, theta], wedge_coords=[zero,zero,one,zero,Cx,Cy])
+
+                      do isrc = 1, Ndir
+                        err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), OPP_dir2dir(isrc:Ndir**2:Ndir))
+                        if(err(1).ge.epsilon(err) .or. err(2).ge.1e-3_ireals) then
+                          print *,'Testing: ', tau, w0, g, aspect, phi, theta, Cx, Cy,':: RMSE', err
+                          print *,'LUT :::', isrc, LUT_dir2dir(isrc:Ndir**2:Ndir)
+                          print *,'OPP :::', isrc, OPP_dir2dir(isrc:Ndir**2:Ndir)
+                        endif
+                        call check(OPP_dir2diff(isrc:Ndir*Ndiff:Ndir), OPP_dir2dir(isrc:Ndir**2:Ndir), &
+                                   LUT_dir2diff(isrc:Ndir*Ndiff:Ndir), LUT_dir2dir(isrc:Ndir**2:Ndir), &
+                                   msg='test_wedge_LUT_vs_OPP_object', opt_atol=epsilon(err))
+                      enddo !isrc
+                    enddo !Cy
+                  enddo !Cx
+                enddo !theta
+              enddo !phi
+            enddo !aspect
+          enddo !g
+        enddo !w0
+      enddo !tau
+
+      end associate
+
+
+  endsubroutine
+
+  subroutine check(S_target,T_target, S,T, msg, opt_atol, opt_rtol)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
-
       character(len=*),optional :: msg
+      real(ireals), intent(in), optional :: opt_atol, opt_rtol
+
       character(default_str_len) :: local_msgS, local_msgT
-      logical, parameter :: ldetail=.True.
+      logical, parameter :: ldetail=.False.
+
+      real(ireals) :: arg_atol, arg_rtol, Terr(2), Serr(2)
+
+      arg_atol = get_arg(atol*sigma, opt_atol)
+      arg_rtol = get_arg(rtol*sigma, opt_rtol)
+
+      Terr = rmse(T,T_target)
+      Serr = rmse(S,S_target)
 
       if(myid.eq.0) then
         if(ldetail) then
@@ -259,27 +348,29 @@ contains
           write(*, FMT='( " target  :: ",10(f12.5) )' ) S_target
           print*,''
           write(*, FMT='( " diff    :: ",10(f12.5) )' ) S_target-S
-          print*,'RMSE ::: ',rmse(S,S_target)*[one, 100._ireals],'%'
+          print*,'RMSE ::: ',Serr*[one, 100._ireals],'%'
           print*,''
           write(*, FMT='( " direct  :: ", 8(f12.5) )' ) T
           print*,''
           write(*, FMT='( " target  :: ", 8(f12.5) )' ) T_target
           print*,''
           write(*, FMT='( " diff    :: ", 8(f12.5) )' ) T_target-T
-          print*,'RMSE ::: ',rmse(T,T_target)*[one, 100._ireals],'%'
+          print*,'RMSE ::: ',Terr*[one, 100._ireals],'%'
           print*,'---------------------'
           print*,''
         else
-          print*,'RMSE ::: ',rmse(S,S_target)*[one, 100._ireals],'% ', &
-                 'direct:::',rmse(T,T_target)*[one, 100._ireals],'%'
-          print *,''
+          if(Terr(1).gt.arg_atol .or. Serr(1).gt.arg_atol) then
+            print*,'RMSE ::: ',rmse(S,S_target)*[one, 100._ireals],'% ', &
+                   'direct:::',rmse(T,T_target)*[one, 100._ireals],'%'
+            print *,''
+          endif
         endif
 
-        @assertEqual(S_target, S, atol*sigma, local_msgS )
+        @assertEqual(S_target, S, arg_atol, local_msgS )
         @assertLessThanOrEqual   (zero, S)
         @assertGreaterThanOrEqual(one , S)
 
-        @assertEqual(T_target, T, atol*sigma, local_msgT )
+        @assertEqual(T_target, T, arg_atol, local_msgT )
         @assertLessThanOrEqual   (zero, T)
         @assertGreaterThanOrEqual(one , T)
       endif
