@@ -27,8 +27,8 @@ module test_LUT_wedge_5_8
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-4, rtol=1e-1
-  real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
+  real(ireals),parameter :: atol=1e-3, rtol=1e-1
+  real(ireals),parameter :: sigma = 2 ! normal test range for coefficients
 
 
   integer(mpiint) :: ierr
@@ -67,8 +67,8 @@ contains
       call PetscFinalize(ierr)
   end subroutine teardown
 
-  @test(npes=[1])
-  subroutine test_LUT_direct_coeff(this)
+  !@test(npes=[2,1])
+  subroutine test_LUT_wedge_direct_coeff_onsamplepts(this)
       class (MpiTestMethod), intent(inout) :: this
 
       integer(iintegers) :: isrc
@@ -98,9 +98,9 @@ contains
         do iw0  = 1, LUTconfig%dims(idim_w0)%N
           do ig   = 1, LUTconfig%dims(idim_g)%N
             do iaspect = 1, LUTconfig%dims(idim_aspect)%N
-              do iphi = 2, LUTconfig%dims(idim_phi)%N
-                do itheta = 3, LUTconfig%dims(idim_theta)%N
-                  do iCx = 3, LUTconfig%dims(idim_Cx)%N
+              do iphi = 1, LUTconfig%dims(idim_phi)%N
+                do itheta = 1, LUTconfig%dims(idim_theta)%N
+                  do iCx = 1, LUTconfig%dims(idim_Cx)%N
                     do iCy = 1, LUTconfig%dims(idim_Cy)%N
                       tau    = LUTconfig%dims(idim_tau   )%v(itau)
                       w0     = LUTconfig%dims(idim_w0    )%v(iw0)
@@ -117,7 +117,6 @@ contains
                       call setup_default_wedge_geometry([zero, zero], [one, zero], [Cx, Cy], aspect, vertices)
                       vertices = vertices * dx
                       do isrc = 1, Ndir
-                        !print *,'Testing: ', tau, w0, g, aspect, phi, theta, Cx, Cy,'::', err
                         dz = vertices(12)-vertices(3)
                         kabs = (one-w0) * tau / dz
                         ksca = w0 * tau / dz
@@ -128,7 +127,8 @@ contains
                           print *,'LUT :::', isrc, LUT_dir2dir(isrc:Ndir**2:Ndir)
                           print *,'dir2dir', isrc, T_target
                         endif
-                        call check(S_target, T_target, LUT_dir2diff(isrc:Ndir*Ndiff:Ndir), LUT_dir2dir(isrc:Ndir**2:Ndir), msg='test_LUT_direct_coeffs')
+                        call check(S_target, T_target, LUT_dir2diff(isrc:Ndir*Ndiff:Ndir), LUT_dir2dir(isrc:Ndir**2:Ndir), &
+                          msg='test_LUT_wedge_direct_coeff_onsamplepts')
                       enddo !isrc
                     enddo !Cy
                   enddo !Cx
@@ -143,6 +143,95 @@ contains
 
 
   endsubroutine
+
+  !@test(npes=[2,1])
+  subroutine test_LUT_wedge_direct_coeff_interpolate(this)
+      class (MpiTestMethod), intent(inout) :: this
+
+      integer(iintegers) :: isrc
+      integer(iintegers) :: idim_tau, idim_w0, idim_g, idim_aspect, idim_phi, idim_theta, idim_Cx, idim_Cy
+      integer(iintegers) :: itau, iw0, ig, iaspect, iphi, itheta, iCx, iCy
+      real(ireals) :: tau, w0, g, aspect, phi, theta, Cx, Cy
+
+      real(ireals) :: kabs, ksca, dz, err(2)
+      real(ireals), allocatable :: vertices(:)
+      real(ireals), parameter :: dx = 911
+
+      comm     = this%getMpiCommunicator()
+      numnodes = this%getNumProcesses()
+      myid     = this%getProcessRank()
+      associate( LUTconfig => OPP%dirconfig )
+
+      idim_tau    = find_lut_dim_by_name(LUTconfig, 'tau')
+      idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
+      idim_g      = find_lut_dim_by_name(LUTconfig, 'g')
+      idim_aspect = find_lut_dim_by_name(LUTconfig, 'aspect_zx')
+      idim_phi    = find_lut_dim_by_name(LUTconfig, 'phi')
+      idim_theta  = find_lut_dim_by_name(LUTconfig, 'theta')
+      idim_Cx     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cx')
+      idim_Cy     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cy')
+
+      do itau = 1,max(1, LUTconfig%dims(idim_tau)%N-1)
+        do iw0  = 1,max(1, LUTconfig%dims(idim_w0)%N-1)
+          do ig   = 1,max(1, LUTconfig%dims(idim_g)%N-1)
+            do iaspect = 1,max(1, LUTconfig%dims(idim_aspect)%N-1)
+              do iphi = 1,max(1, LUTconfig%dims(idim_phi)%N-1)
+                do itheta = 1,max(1, LUTconfig%dims(idim_theta)%N-1)
+                  do iCx = 1,max(1, LUTconfig%dims(idim_Cx)%N-1)
+                    do iCy = 1,max(1, LUTconfig%dims(idim_Cy)%N-1)
+                      tau    = LUTconfig%dims(idim_tau   )%v(itau)    / 2
+                      w0     = LUTconfig%dims(idim_w0    )%v(iw0)     / 2
+                      g      = LUTconfig%dims(idim_g     )%v(ig)      / 2
+                      aspect = LUTconfig%dims(idim_aspect)%v(iaspect) / 2
+                      phi    = LUTconfig%dims(idim_phi   )%v(iphi)    / 2
+                      theta  = LUTconfig%dims(idim_theta )%v(itheta)  / 2
+                      Cx     = LUTconfig%dims(idim_Cx    )%v(iCx)     / 2
+                      Cy     = LUTconfig%dims(idim_Cy    )%v(iCy)     / 2
+
+                      tau    = tau    + LUTconfig%dims(idim_tau   )%v(min(LUTconfig%dims(idim_tau   )%N, itau+1))    / 2
+                      w0     = w0     + LUTconfig%dims(idim_w0    )%v(min(LUTconfig%dims(idim_w0    )%N, iw0+1))     / 2
+                      g      = g      + LUTconfig%dims(idim_g     )%v(min(LUTconfig%dims(idim_g     )%N, ig+1))      / 2
+                      aspect = aspect + LUTconfig%dims(idim_aspect)%v(min(LUTconfig%dims(idim_aspect)%N, iaspect+1)) / 2
+                      phi    = phi    + LUTconfig%dims(idim_phi   )%v(min(LUTconfig%dims(idim_phi   )%N, iphi+1))    / 2
+                      theta  = theta  + LUTconfig%dims(idim_theta )%v(min(LUTconfig%dims(idim_theta )%N, itheta+1))  / 2
+                      Cx     = Cx     + LUTconfig%dims(idim_Cx    )%v(min(LUTconfig%dims(idim_Cx    )%N, iCx+1))     / 2
+                      Cy     = Cy     + LUTconfig%dims(idim_Cy    )%v(min(LUTconfig%dims(idim_Cy    )%N, iCy+1))     / 2
+
+                      call OPP%LUT_get_dir2dir ([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+                      call OPP%LUT_get_dir2diff([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+
+                      call setup_default_wedge_geometry([zero, zero], [one, zero], [Cx, Cy], aspect, vertices)
+                      vertices = vertices * dx
+                      do isrc = 1, Ndir
+                        dz = vertices(12)-vertices(3)
+                        kabs = (one-w0) * tau / dz
+                        ksca = w0 * tau / dz
+                        call bmc%get_coeff(comm,[kabs,ksca,g],isrc,.True.,phi,theta,vertices,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+                        err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), T_target)
+                        ! Not really an error if they dont match, its an interpolation in the end, discrepancies might be ok if the
+                        ! sample density of the LUT is too small, lets give output if error is large... this may hint towards an error
+                        if(err(1).ge.2*sigma*atol .or. err(2).ge.2*sigma*rtol) then
+                          print *,'Testing: ', tau, w0, g, aspect, phi, theta, Cx, Cy,':: RMSE', err
+                          print *,'LUT :::', isrc, LUT_dir2dir(isrc:Ndir**2:Ndir)
+                          print *,'dir2dir', isrc, T_target
+                        endif
+                        !call check(S_target, T_target, LUT_dir2diff(isrc:Ndir*Ndiff:Ndir), LUT_dir2dir(isrc:Ndir**2:Ndir), &
+                        !  msg='test_LUT_wedge_direct_coeff_interpolated')
+                      enddo !isrc
+                    enddo !Cy
+                  enddo !Cx
+                enddo !theta
+              enddo !phi
+            enddo !aspect
+          enddo !g
+        enddo !w0
+      enddo !tau
+
+      end associate
+
+
+  endsubroutine
+
 
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
