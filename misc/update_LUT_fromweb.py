@@ -155,11 +155,11 @@ def merge_LUT(serverLUT, LUT):
     for k in Dserver.variables.keys():
         if k.endswith('S') or k.endswith('T'):
 
-            print '\nMerging NC Variable',k, k+'_tol'
+            print '\nMerging NC Variable',k, k+'tol'
             server     = Dserver.variables[k]
-            server_tol = Dserver.variables[k+'_tol']
+            server_tol = Dserver.variables[k+'tol']
             local      = Dlocal.variables [k]
-            local_tol  = Dlocal.variables [k+'_tol']
+            local_tol  = Dlocal.variables [k+'tol']
             merge_nc_var(server,server_tol, local,local_tol)
 
 
