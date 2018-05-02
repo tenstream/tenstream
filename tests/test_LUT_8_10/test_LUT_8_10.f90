@@ -72,8 +72,7 @@ contains
 
   ! Define the parameters over which to be cycled...
   function getParameters() result(params)
-    use m_optprop_parameters, only: Ntheta, Nphi, &
-      preset_tau21, preset_w015, preset_g3
+    use m_optprop_parameters, only: preset_tau21, preset_w015, preset_g3
 
       type(peCase), allocatable :: params(:)
 

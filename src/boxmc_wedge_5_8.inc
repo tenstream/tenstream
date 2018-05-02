@@ -94,7 +94,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   p%dir = initial_dir
 
   ! always nudge the photon a little bit inside the volume
-  triangle_center(1:2) = (a+b+c)/3
+  triangle_center(1:2) = mean([A,B,C])
   triangle_center(3) = p%dz/2
   dir_p_to_triangle_center = triangle_center - p%loc
   dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)

@@ -284,9 +284,9 @@ contains
                       call OPPLUT%LUT_get_dir2diff([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
                       call OPP%get_coeff(tau, w0, g, aspect, .True., OPP_dir2dir, &
-                        inp_angles=[phi, theta], wedge_coords=[zero,zero,one,zero,Cx,Cy])
+                        angles=[phi, theta], wedge_coords=[zero,zero,one,zero,Cx,Cy])
                       call OPP%get_coeff(tau, w0, g, aspect, .False., OPP_dir2diff, &
-                        inp_angles=[phi, theta], wedge_coords=[zero,zero,one,zero,Cx,Cy])
+                        angles=[phi, theta], wedge_coords=[zero,zero,one,zero,Cx,Cy])
 
                       do isrc = 1, Ndir
                         err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), OPP_dir2dir(isrc:Ndir**2:Ndir))

@@ -57,29 +57,34 @@ subroutine init_dir_photon_3_6(bmc,p,src,ldirect,initial_dir,vertices,ierr)
   logical,intent(in) :: ldirect
   integer(mpiint),intent(out) :: ierr
 
+  real(ireal_dp), parameter  :: e=1e-6_ireal_dp
+
   call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
+
+  p%alive = .False.
 
   select case(src)
   case (1)
-    p%loc = [R()*p%dx,R()*p%dy, p%dz]
+    p%loc = [R()*p%dx, R()*p%dy, p%dz*(one-e)]
   case (2)
-    p%loc = [zero, R()*p%dy, R()*p%dz]
+    p%loc = [e, R()*p%dy, R()*p%dz]
   case (3)
-    p%loc = [R()*p%dx, zero, R()*p%dz]
+    p%loc = [R()*p%dx, e, R()*p%dz]
   case default
     print *,'Dont know what to do with source spec:',src
     call exit
   end select
 
-  p%weight=one
-  p%alive = .True.
-  p%direct= ldirect
-  p%side = int(nil)
-  p%src  = src
+  p%weight     = one
+  p%alive      = .True.
+  p%direct     = ldirect
+  p%side       = int(nil)
+  p%src        = src
   p%scattercnt = 0
-  p%dir = initial_dir
+  p%dir        = initial_dir
   select type(bmc)
   end select
+
   ierr = 0
 end subroutine
 

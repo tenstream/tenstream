@@ -1279,7 +1279,7 @@ module m_plex_grid
     integer(iintegers), pointer :: faces_of_cell(:)
     logical :: lsrc(5)
 
-    real(ireals) :: dx, zenith, azimuth, coords_2d(6)
+    real(ireals) :: mean_dx, zenith, azimuth, coords_2d(6)
     real(ireals),pointer :: xv(:), geoms(:)
 
     integer(mpiint) :: ierr
@@ -1313,13 +1313,13 @@ module m_plex_grid
     do icell = plex%cStart, plex%cEnd-1
       call compute_local_wedge_ordering(plex, icell, &
         geomSection, geoms, sundir, &
-        lsrc, zenith, azimuth, dx, &
+        lsrc, zenith, azimuth, mean_dx, &
         upper_face, bottom_face, &
         base_face, left_face, right_face)
 
       call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
 
-      xv(wedge_offset+i1: wedge_offset+i3) = [zenith, azimuth, dx]
+      xv(wedge_offset+i1: wedge_offset+i3) = [zenith, azimuth, mean_dx]
 
       xv(wedge_offset+i4: wedge_offset+i8) = real([upper_face, base_face, left_face, right_face, bottom_face], ireals)
       do iface = 1, size(lsrc)
@@ -1363,7 +1363,7 @@ module m_plex_grid
     integer(iintegers), pointer :: ppoints(:), coveredPoints(:)
     integer(iintegers) :: iedges(3), ivertices(3)
     integer(iintegers) :: i, voff
-    real(ireals) :: vertex_coord(3,3), AB(3), BC(3), AC(3), nAB(3)
+    real(ireals) :: vertex_coord(3,3), AB(3), BC(3), AC(3), a, b, c, mu
 
     integer(mpiint) :: ierr
 
@@ -1412,33 +1412,49 @@ module m_plex_grid
     AB = vertex_coord(:, 2) - vertex_coord(:, 1)
     BC = vertex_coord(:, 3) - vertex_coord(:, 2)
     AC = vertex_coord(:, 3) - vertex_coord(:, 1)
-    nAB = cross_3d(vertex_coord(:, 1)/norm(vertex_coord(:, 1)), AB/norm(AB))
-    nAB = nAB / norm(nAB)
 
-    !print *,'A', ivertices(1), vertex_coord(:, 1),':', AB
-    !print *,'B', ivertices(2), vertex_coord(:, 2),':', BC
-    !print *,'C', ivertices(3), vertex_coord(:, 3),':', AC
+    c = one
+    a = norm(BC) / norm(AB)
+    b = norm(AC) / norm(AB)
+
+    !print *,'A', ivertices(1), vertex_coord(:, 1),':AB', AB
+    !print *,'B', ivertices(2), vertex_coord(:, 2),':BC', BC
+    !print *,'C', ivertices(3), vertex_coord(:, 3),':AC', AC
+
+    !nAB = cross_3d(vertex_coord(:, 1), AB)
+    !nAB = nAB / norm(nAB)
+    !print *,'nAB', nAB
 
     local_coords(1:2) = [zero, zero]
-    local_coords(3:4) = [norm(AB), zero]
-    local_coords(5:6) = [dot_product(AC,AB/norm(AB)), dot_product(AC, nAB)]
+    local_coords(3:4) = [c, zero]
+    ! law of cosines to get angle between AB and CA
+    mu = (b**2 + c**2 - a**2) / (2*b*c)
 
-    !print *,'Local Coords', local_coords
+    local_coords(5:6) = [mu * b, sqrt(one - mu**2) * b]
+    print *,'Local Coords', local_coords
 
-    !call CHKERR(1_mpiint, 'DEBUG')
+    if(any(local_coords.lt.zero)) then
+      print *,'Local Coords', local_coords
+      call CHKERR(1_mpiint, 'Found Wrong local coordinates, cant be negative')
+    endif
+    if(any(local_coords.gt.one)) then
+      print *,'Local Coords', local_coords
+      call CHKERR(1_mpiint, 'Found Wrong local coordinates, cant be gt one')
+    endif
+    local_coords = local_coords * norm(AB)
   end subroutine
 
 
   !> @brief translate the ordering of faces in the DMPlex to the ordering we assume in the box-montecarlo routines
   subroutine compute_local_wedge_ordering(plex, icell, geomSection, geoms, sundir, &
-      lsrc, zenith, azimuth, upper_edgelength, &
+      lsrc, zenith, azimuth, mean_upper_edgelength, &
       upper_face, bottom_face, base_face, left_face, right_face)
     type(t_plexgrid), intent(in) :: plex
     integer(iintegers), intent(in) :: icell
     type(tPetscSection) :: geomSection
     real(ireals), intent(in), pointer :: geoms(:) ! pointer to coordinates vec
     real(ireals), intent(in) :: sundir(3)
-    real(ireals), intent(out) :: zenith, azimuth, upper_edgelength
+    real(ireals), intent(out) :: zenith, azimuth, mean_upper_edgelength
     integer(iintegers), intent(out) :: upper_face, bottom_face, base_face, left_face, right_face
     logical, intent(out) :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
 
@@ -1486,14 +1502,14 @@ module m_plex_grid
 
     ! Determine mean edge length of upper face triangle
     call DMPlexGetCone(plex%edir_dm, faces_of_cell(upper_face), edges_of_face, ierr); call CHKERR(ierr)
-    upper_edgelength = 0
+    mean_upper_edgelength = 0
     do i=1,size(edges_of_face)
       iedge = edges_of_face(i)
       call PetscSectionGetOffset(geomSection, iedge, geom_offset, ierr); call CHKERR(ierr)
-      upper_edgelength = upper_edgelength + geoms(geom_offset+i1)
+      mean_upper_edgelength = mean_upper_edgelength + geoms(geom_offset+i1)
       !print *,'Upper Edgelength', faces_of_cell(upper_face), ':', i, geoms(geom_offset+i1)
     enddo
-    upper_edgelength = upper_edgelength / size(edges_of_face)
+    mean_upper_edgelength = mean_upper_edgelength / size(edges_of_face)
     call DMPlexRestoreCone(plex%edir_dm, faces_of_cell(upper_face), edges_of_face, ierr); call CHKERR(ierr)
 
     ! Now we have to find the solar azimuth, zenith angles

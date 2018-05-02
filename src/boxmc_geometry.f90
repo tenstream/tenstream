@@ -334,8 +334,14 @@ module m_boxmc_geometry
         lhit = .False.
         hit = huge(hit)
         !crossing with bottom and top plane:
-        call triangle_intersection(ploc, pdir, At, Bt, Ct, lhit(1), hit(1,:))
-        call triangle_intersection(ploc, pdir, Ab, Bb, Cb, lhit(5), hit(5,:))
+        if(pdir(3).ge.zero) then
+          call triangle_intersection(ploc, pdir, At, Bt, Ct, lhit(1), hit(1,:))
+          lhit(5) = .False.
+        endif
+        if(pdir(3).le.zero) then
+          call triangle_intersection(ploc, pdir, Ab, Bb, Cb, lhit(5), hit(5,:))
+          lhit(1) = .False.
+        endif
 
         !crossing with side planes:
         ! plane 2, along y=0
