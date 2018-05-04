@@ -64,9 +64,6 @@ module m_optprop_parameters
       integer(iintegers), parameter :: interp_mode_3_10=2
       integer(iintegers), parameter :: interp_mode_wedge_5_8=2
 
-      integer(iintegers), parameter :: Nphi=10
-      integer(iintegers), parameter :: Ntheta=10
-
       ! We may also pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values
       !     -- see python script: ''eddington_to_LUT.py''
       ! This way, the output of the script has to be put here... and stuff above commented out
@@ -91,8 +88,8 @@ module m_optprop_parameters
 
 !      real(ireals),parameter :: stddev_atol=5e-3_ireals
 !      real(ireals),parameter :: stddev_atol=1e-3_ireals
-      real(ireals),parameter :: stddev_atol=5e-4_ireals
-!      real(ireals),parameter :: stddev_atol=1e-4_ireals
+!      real(ireals),parameter :: stddev_atol=5e-4_ireals
+      real(ireals),parameter :: stddev_atol=2e-4_ireals
 !      real(ireals),parameter :: stddev_atol=5e-6_ireals
 
       real(ireals),parameter :: stddev_rtol=1e-2_ireals

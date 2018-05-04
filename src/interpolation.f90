@@ -57,7 +57,7 @@ module m_tenstream_interpolation
 
   logical, parameter :: ldebug=.True.
 
-  real(ireals), parameter :: interpolation_lattice_snapping=max(1e-3_ireals, epsilon(interpolation_lattice_snapping))
+  real(ireals), parameter :: interpolation_lattice_snapping=max(1e-6_ireals, epsilon(interpolation_lattice_snapping))
 
 contains
 

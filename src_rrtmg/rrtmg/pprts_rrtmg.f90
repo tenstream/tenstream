@@ -53,8 +53,8 @@ module m_pprts_rrtmg
   private
   public :: pprts_rrtmg, destroy_pprts_rrtmg
 
-!  logical,parameter :: ldebug=.True.
-  logical,parameter :: ldebug=.False.
+  logical,parameter :: ldebug=.True.
+!  logical,parameter :: ldebug=.False.
 
 
   interface

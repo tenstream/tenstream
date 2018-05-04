@@ -2324,7 +2324,7 @@ module m_pprts
 
     if( (solution%lsolar_rad.eqv..False.) .and. lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
       call scale_flx(solver, solution, lWm2_to_W=.False.)
-      call nca_wrapper(solution%ediff, solution%abso)
+      call nca_wrapper(solver, solution%ediff, solution%abso)
       call scale_flx(solver, solution, lWm2_to_W=.True.)
       return
     endif
@@ -3262,78 +3262,84 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   !> @details This is supposed to work on a 1D solution which has to be calculated beforehand
   !> \n the wrapper copies fluxes and optical properties on one halo and then gives that to NCA
   !> \n the result is the 3D approximation of the absorption, considering neighbouring information
-  subroutine nca_wrapper(ediff, abso)
+  subroutine nca_wrapper(solver, ediff, abso)
     use m_ts_nca, only : ts_nca
+    class(t_solver) :: solver
     type(tVec) :: ediff, abso
-!    type(tVec) :: gnca ! global nca vector
-!    type(tVec) :: lnca ! local nca vector with ghost values -- in dimension 0 and 1 are fluxes followed by dz,planck,kabs
-!
-!    real(ireals),pointer,dimension(:,:,:,:) :: xv  =>null()
-!    real(ireals),pointer,dimension(:)       :: xv1d=>null()
-!    real(ireals),pointer,dimension(:,:,:,:) :: xvlnca  =>null(), xvgnca  =>null()
-!    real(ireals),pointer,dimension(:)       :: xvlnca1d=>null(), xvgnca1d=>null()
-!    real(ireals),pointer,dimension(:,:,:,:) :: xhr  =>null()
-!    real(ireals),pointer,dimension(:)       :: xhr1d=>null()
-!    integer(iintegers) :: k
-!
-!    integer(iintegers),parameter :: idz=i2, iplanck=i3, ikabs=i4, ihr=i5
+    type(tVec) :: gnca ! global nca vector
+    type(tVec) :: lnca ! local nca vector with ghost values -- in dimension 0 and 1 are fluxes followed by dz,planck,kabs
 
-    call CHKERR(1_mpiint, 'nca_wrapper not implemented')
-    print *, 'DEBUG: Stupid print statement to prevent unused compiler warnings', ediff, abso
+    real(ireals),pointer,dimension(:,:,:,:) :: xv  =>null()
+    real(ireals),pointer,dimension(:)       :: xv1d=>null()
+    real(ireals),pointer,dimension(:,:,:,:) :: xvlnca  =>null(), xvgnca  =>null()
+    real(ireals),pointer,dimension(:)       :: xvlnca1d=>null(), xvgnca1d=>null()
+    real(ireals),pointer,dimension(:,:,:,:) :: xhr  =>null()
+    real(ireals),pointer,dimension(:)       :: xhr1d=>null()
+    integer(iintegers) :: k
 
-!   ! put additional values into a local ediff vec .. TODO: this is a rather dirty hack but is straightforward
+    integer(iintegers),parameter :: idz=i2, iplanck=i3, ikabs=i4, ihr=i5
 
-!   ! get ghost values for dz, planck, kabs and fluxes, ready to give it to NCA
-!   call DMGetGlobalVector(C_diff%da ,gnca ,ierr) ; call CHKERR(ierr)
+    associate(  atm     => solver%atm, &
+                C_one   => solver%C_one, &
+                C_diff  => solver%C_diff)
 
-!   call getVecPointer(gnca ,C_diff%da ,xvgnca1d, xvgnca)
-!   xvgnca(  idz    , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%dz
-!   xvgnca(  iplanck, C_diff%zs:C_diff%ze  , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%planck
-!   xvgnca(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%op%kabs
+     !call CHKERR(1_mpiint, 'nca_wrapper not implemented')
+     !print *, 'DEBUG: Stupid print statement to prevent unused compiler warnings', ediff, abso
+     if(C_diff%dof.lt.i6) call CHKERR(1_mpiint, 'For NCA, need a solver with at least 6 diffuse streams to copy over some data')
 
+     ! put additional values into a local ediff vec .. TODO: this is a rather dirty hack but is straightforward
 
-!   ! Copy Edn and Eup to local convenience vector
-!   call getVecPointer(ediff ,C_diff%da ,xv1d, xv)
-!   xvgnca( E_up,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_up,:,:,:)
-!   xvgnca( E_dn,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_dn,:,:,:)
-!   call restoreVecPointer(ediff, xv1d, xv)
+     ! get ghost values for dz, planck, kabs and fluxes, ready to give it to NCA
+     call DMGetGlobalVector(solver%C_diff%da ,gnca ,ierr) ; call CHKERR(ierr)
 
-!   call restoreVecPointer(gnca, xvgnca1d, xvgnca )
+     call getVecPointer(gnca ,solver%C_diff%da ,xvgnca1d, xvgnca)
+     xvgnca(  idz    , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%dz
+     xvgnca(  iplanck, C_diff%zs:C_diff%ze  , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%planck
+     xvgnca(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%op%kabs
 
 
-!   ! retrieve ghost values into l(ocal) nca vec
-!   call DMGetLocalVector (C_diff%da ,lnca ,ierr) ; call CHKERR(ierr)
-!   call VecSet(lnca, zero, ierr); call CHKERR(ierr)
+     ! Copy Edn and Eup to local convenience vector
+     call getVecPointer(ediff ,C_diff%da ,xv1d, xv)
+     xvgnca( E_up,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_up,:,:,:)
+     xvgnca( E_dn,:,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) = xv( E_dn,:,:,:)
+     call restoreVecPointer(ediff, xv1d, xv)
 
-!   call DMGlobalToLocalBegin(C_diff%da ,gnca ,ADD_VALUES,lnca ,ierr) ; call CHKERR(ierr)
-!   call DMGlobalToLocalEnd  (C_diff%da ,gnca ,ADD_VALUES,lnca ,ierr) ; call CHKERR(ierr)
-
-!   call DMRestoreGlobalVector(C_diff%da, gnca, ierr); call CHKERR(ierr)
-
-!   ! call NCA
-!   call getVecPointer(lnca ,C_diff%da ,xvlnca1d, xvlnca)
-
-!   call ts_nca( atm%dx, atm%dy,                    &
-!     xvlnca(   idz        , : , : , :), &
-!     xvlnca(   iplanck    , : , : , :), &
-!     xvlnca(   ikabs      , : , : , :), &
-!     xvlnca(   E_dn       , : , : , :), &
-!     xvlnca(   E_up       , : , : , :), &
-!     xvlnca(   ihr        , : , : , :))
+     call restoreVecPointer(gnca, xvgnca1d, xvgnca )
 
 
-!   ! return absorption
-!   call getVecPointer( abso, C_one%da ,xhr1d, xhr)
+     ! retrieve ghost values into l(ocal) nca vec
+     call DMGetLocalVector (C_diff%da ,lnca ,ierr) ; call CHKERR(ierr)
+     call VecSet(lnca, zero, ierr); call CHKERR(ierr)
 
-!   do k=C_one%zs,C_one%ze
-!     xhr(i0,k,:,:) = xvlnca( ihr , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) / xvlnca( idz , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
-!   enddo
-!   call restoreVecPointer(abso, xhr1d, xhr )
+     call DMGlobalToLocalBegin(C_diff%da ,gnca ,ADD_VALUES,lnca ,ierr) ; call CHKERR(ierr)
+     call DMGlobalToLocalEnd  (C_diff%da ,gnca ,ADD_VALUES,lnca ,ierr) ; call CHKERR(ierr)
 
-!   !return convenience vector that holds optical properties
-!   call restoreVecPointer(lnca, xvlnca1d, xvlnca )
-!   call DMRestoreLocalVector(C_diff%da, lnca, ierr); call CHKERR(ierr)
+     call DMRestoreGlobalVector(C_diff%da, gnca, ierr); call CHKERR(ierr)
 
+     ! call NCA
+     call getVecPointer(lnca ,C_diff%da ,xvlnca1d, xvlnca)
+
+     call ts_nca( atm%dx, atm%dy,                    &
+       xvlnca(   idz        , : , : , :), &
+       xvlnca(   iplanck    , : , : , :), &
+       xvlnca(   ikabs      , : , : , :), &
+       xvlnca(   E_dn       , : , : , :), &
+       xvlnca(   E_up       , : , : , :), &
+       xvlnca(   ihr        , : , : , :))
+
+
+     ! return absorption
+     call getVecPointer( abso, C_one%da ,xhr1d, xhr)
+
+     do k=C_one%zs,C_one%ze
+       xhr(i0,k,:,:) = xvlnca( ihr , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye) / xvlnca( idz , k,C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye)
+     enddo
+     call restoreVecPointer(abso, xhr1d, xhr )
+
+     !return convenience vector that holds optical properties
+     call restoreVecPointer(lnca, xvlnca1d, xvlnca )
+     call DMRestoreLocalVector(C_diff%da, lnca, ierr); call CHKERR(ierr)
+   end associate
   end subroutine
 
 

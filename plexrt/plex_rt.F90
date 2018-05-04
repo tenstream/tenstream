@@ -8,7 +8,7 @@ module m_plex_rt
   use m_helper_functions, only: CHKERR, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, &
     vec_proj_on_plane, cross_3d, norm, rotation_matrix_world_to_local_basis, &
-    imp_bcast, approx, swap
+    imp_bcast, approx, swap, delta_scale
 
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, &
@@ -135,6 +135,7 @@ module m_plex_rt
         optprop(i-1)%kabs = kabs_tot
         optprop(i-1)%ksca = ksca_tot
         optprop(i-1)%g    = g_tot
+        call delta_scale(optprop(i-1)%kabs, optprop(i-1)%ksca, optprop(i-1)%g, factor=optprop(i-1)%g)
       enddo
 
       if(present(vlwc)) call VecRestoreArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
@@ -693,9 +694,9 @@ module m_plex_rt
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
 
     integer(iintegers) :: zindex
-    real(ireals) :: dx, dz, coeff(5**2) ! coefficients for each src=[1..5] and dst[1..5]
+    real(ireals) :: mean_dx, dz, coeff(5**2) ! coefficients for each src=[1..5] and dst[1..5]
 
-    logical, parameter :: lonline=.True.
+    logical, parameter :: lonline=.False.
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
     if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...'
@@ -716,13 +717,13 @@ module m_plex_rt
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
       !call compute_local_wedge_ordering(plex, icell, geomSection, geoms, sundir, &
-      !  lsrc, zenith, azimuth, dx, &
+      !  lsrc, zenith, azimuth, mean_dx, &
       !  upper_face, bottom_face, base_face, left_face, right_face)
 
       call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
       zenith  = wedgeorient(wedge_offset+i1)
       azimuth = wedgeorient(wedge_offset+i2)
-      dx      = wedgeorient(wedge_offset+i3)
+      mean_dx = wedgeorient(wedge_offset+i3)
 
       do iface = 1, size(faces_of_cell)
         iwedge_plex2bmc(int(wedgeorient(wedge_offset+i3+iface), iintegers)) = iface
@@ -735,47 +736,50 @@ module m_plex_rt
 
       !print *,'icell',icell,': foc',faces_of_cell
       !print *,'icell',icell,':',iwedge_plex2bmc,'lsrc',lsrc
+      !call get_coeff(OPP, optprop(icell)%kabs, optprop(icell)%ksca, optprop(icell)%g, &
+      !  dz, mean_dx, [zero, zero, one, zero, .5_ireals, .88_ireals], .True., coeff, angles=[rad2deg(azimuth), rad2deg(zenith)])
       call get_coeff(OPP, optprop(icell)%kabs, optprop(icell)%ksca, optprop(icell)%g, &
-        dz, dx, wedgeorient(wedge_offset+14:wedge_offset+19), .True., coeff, angles=[rad2deg(azimuth), rad2deg(zenith)])
+        dz, wedgeorient(wedge_offset+14:wedge_offset+19), .True., coeff, angles=[rad2deg(azimuth), rad2deg(zenith)])
 
       !do isrc = 1, 5
       !  print *,'LUT',rad2deg(azimuth), rad2deg(zenith), isrc, coeff(isrc:size(coeff):i5)
       !enddo
       do iface = 1, size(faces_of_cell)
 
-        !if(lsrc(iface)) then
+        if(lsrc(iface)) then
           ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
 
           !dir2dir([upper_face, base_face, left_face, right_face, bottom_face]) = coeff((iwedgeface-1)*i5+i1:iwedgeface*i5)
           dir2dir = coeff(iwedge_plex2bmc(iface):size(coeff):i5)
           if(lonline) then
             !print *,'lonline LUT0', coeff(iwedge_plex2bmc(iface):size(coeff):i5)
-            !call compute_dir2dir_coeff(iwedge_plex2bmc(iface), dz, dx, &
+            !call compute_dir2dir_coeff(iwedge_plex2bmc(iface), dz, &
             !  optprop(icell)%kabs, optprop(icell)%ksca, optprop(icell)%g, &
             !  rad2deg(azimuth), rad2deg(zenith), S, T)
             !print *,'lonline BOX1', T
-            call compute_dir2dir_coeff(iwedge_plex2bmc(iface), dz, dx, &
+            call compute_dir2dir_coeff(iwedge_plex2bmc(iface), dz, &
               optprop(icell)%kabs, optprop(icell)%ksca, optprop(icell)%g, &
               rad2deg(azimuth), rad2deg(zenith), S, T, wedgeorient(wedge_offset+14:wedge_offset+19))
-            !print *,'lonline BOX2', T
+            print *,'lonline BOX0', dir2dir
+            print *,'lonline BOX2', T
             dir2dir = T
           endif
 
           call PetscSectionGetOffset(sec, faces_of_cell(iface), icol, ierr); call CHKERR(ierr)
 
           do idst = 1, size(faces_of_cell)
-            !if(.not.lsrc(idst)) then
+            if(.not.lsrc(idst)) then
               call PetscSectionGetOffset(sec, faces_of_cell(idst), irow, ierr); call CHKERR(ierr)
               !print *,'isrc', iwedge_plex2bmc(iface), 'idst', iwedge_plex2bmc(idst), &
               !  'if', iface, 'id', idst, &
               !  'srcface->dstface', faces_of_cell(iface),faces_of_cell(idst), &
               !  'col -> row', icol, irow, dir2dir(iwedge_plex2bmc(idst))
-              call MatSetValuesLocal(A, i1, [irow], i1, [icol], [-dir2dir(iwedge_plex2bmc(idst))], ADD_VALUES, ierr); call CHKERR(ierr)
-            !endif
+              call MatSetValuesLocal(A, i1, [irow], i1, [icol], [-dir2dir(iwedge_plex2bmc(idst))], INSERT_VALUES, ierr); call CHKERR(ierr)
+            endif
           enddo
 
-        !else ! This is not a src face, no radiation comes from here
-        !endif
+        else ! This is not a src face, no radiation comes from here
+        endif
 
       enddo ! enddo iface
 
@@ -783,8 +787,8 @@ module m_plex_rt
     enddo
     !if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
 
-    call MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
-    call MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
+    !call MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
+    !call MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
 
     ! Set Diagonal Entries
     do iface = plex%fStart, plex%fEnd-1
@@ -804,17 +808,19 @@ module m_plex_rt
 
   !> @brief retrieve transport coefficients from optprop module
   !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
-  subroutine get_coeff(OPP, kabs, ksca, g, dz, dx, wedge_coords, ldir, coeff, angles)
+  subroutine get_coeff(OPP, kabs, ksca, g, dz, wedge_coords, ldir, coeff, angles)
     class(t_optprop), intent(in) :: OPP
     real(ireals), intent(in)     :: kabs, ksca, g
-    real(ireals),intent(in)      :: dz, dx
+    real(ireals),intent(in)      :: dz
     real(ireals), intent(in)     :: wedge_coords(:) ! coordinates of upper triangle pts A,B,C in in (x,y)
     logical,intent(in)           :: ldir
     real(ireals),intent(out)     :: coeff(:)
 
     real(ireals),intent(in),optional  :: angles(2)
 
-    real(ireals) :: aspect, tauz, w0, relcoords(6)
+    real(ireals) :: aspect, tauz, w0, dx, relcoords(6)
+
+    dx = wedge_coords(3)
 
     aspect = dz / dx
     tauz = (kabs+ksca) * dz
@@ -824,10 +830,11 @@ module m_plex_rt
       w0 = ksca / (kabs+ksca)
     endif
 
-    relcoords = wedge_coords / norm(wedge_coords(3:4)-wedge_coords(1:2))
+    relcoords = wedge_coords / dx
 
-    call OPP%get_coeff(aspect, tauz, w0, g, ldir, coeff, inp_angles=angles, wedge_coords=relcoords)
-    print *,'DEBUG Lookup Coeffs for', aspect, tauz, w0, g, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
+    print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
+    call OPP%get_coeff(tauz, w0, g, aspect, ldir, coeff, angles=angles, wedge_coords=relcoords)
+    print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
     if(ldebug) then
       if(any(coeff.lt.zero).or.any(coeff.gt.one)) then
         print *,'Lookup Coeffs for', aspect, tauz, w0, g, angles,'::', coeff
@@ -837,15 +844,17 @@ module m_plex_rt
 
   end subroutine
 
-  subroutine compute_dir2dir_coeff(src, dz, dx, kabs, ksca, g, phi, theta, S, T, coord2d)
+  subroutine compute_dir2dir_coeff(src, dz, kabs, ksca, g, phi, theta, S, T, coord2d)
     use m_boxmc, only : t_boxmc, t_boxmc_wedge_5_5, t_boxmc_wedge_5_8
+    use m_boxmc_geometry, only : setup_default_wedge_geometry
     integer(iintegers), intent(in) :: src
-    real(ireals), intent(in) :: dz, dx, kabs, ksca, g, phi, theta
+    real(ireals), intent(in) :: dz, kabs, ksca, g, phi, theta
     real(ireals), intent(out) :: S(:),T(:)
     real(ireals), intent(in), optional :: coord2d(:)
 
     type(t_boxmc_wedge_5_8) :: bmc_wedge
-    real(ireals) :: bg(3), vertices(2*3*3)
+    real(ireals) :: bg(3), dx
+    real(ireals), allocatable :: vertices(:)
     real(ireals) :: S_tol(size(S)),T_tol(size(T))
 
     call bmc_wedge%init(PETSC_COMM_SELF)
@@ -855,13 +864,16 @@ module m_plex_rt
       print *,'computing coeffs for src/phi/theta',src,phi,theta
     endif
 
-    bg  = [kabs, ksca, g]
+    !bg  = [kabs, ksca, g]
 
-    call CHKERR(1_mpiint, 'TODO implement vertices')
-    vertices = dx+dz
+    call setup_default_wedge_geometry(coord2d(1:2), coord2d(3:4), coord2d(5:6), dz, vertices)
+
+    dx = vertices(4)
+    vertices = vertices/dx
+    bg  = [kabs*dx, ksca*dx, g]
 
     call bmc_wedge%get_coeff(PETSC_COMM_SELF, bg, src, .True., &
-      phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=1e-3_ireals, inp_rtol=5e-2_ireals)
+      phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=2e-4_ireals, inp_rtol=1e-2_ireals)
   end subroutine
 
     function get_normal_of_first_TOA_face(plex)

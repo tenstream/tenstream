@@ -310,6 +310,8 @@ contains
     ret_S_out = real(S_out, kind=ireals)
     ret_S_tol = real(S_tol, kind=ireals)
     if(ldebug) print *,'S out', ret_S_out, 'T_out', ret_T_out
+    !print *,'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', vertices
+    !print *,'S out', ret_S_out, 'T_out', ret_T_out
   end subroutine
 
   subroutine run_photons(bmc, src, op, vertices, &
@@ -340,8 +342,8 @@ contains
       ! and phi = 90, beam going towards east
       initial_dir = spherical_2_cartesian(phi0, theta) * [-one, -one, one]
 
-      mincnt= max( 1000, int( 1e3 /numnodes ) )
-      mycnt = int(1e8)/numnodes
+      mincnt= max( 100, int( 1e3 /numnodes ) )
+      mycnt = int(1e7)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
       do k=1, mycnt
 
@@ -383,9 +385,9 @@ contains
 
       call cpu_time(time(2))
 
-      !if(rand().gt..99_ireal_dp) then
-      !  write(*,FMT='("src ",I0," dz",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec")') &
-      !    src,int(dz),op,p%optprop,int(phi0),int(theta0),Nphotons, Nphotons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
+      !if(Nphotons.gt.1)then ! .and. rand().gt..99_ireal_dp) then
+      !  write(*,FMT='("src ",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec")') &
+      !    src,op,p%optprop,int(phi0),int(theta0),Nphotons, Nphotons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
       !endif
   end subroutine
 
@@ -428,7 +430,7 @@ contains
   !> @brief russian roulette helps to reduce computations with not much weight
   subroutine roulette(p)
     type(photon),intent(inout) :: p
-    real(ireal_dp),parameter :: m=1e-3_ireal_dp,s=1e-6_ireal_dp*m
+    real(ireal_dp),parameter :: m=1e-2_ireal_dp,s=1e-3_ireal_dp*m
 
     if(p%weight.lt.s) then
       if(R().ge.p%weight/m) then
@@ -702,16 +704,16 @@ contains
   pure subroutine std_update(std, N, numnodes)
     type(stddev),intent(inout) :: std
     integer(iintegers),intent(in) :: N, numnodes
-    real(ireal_dp),parameter :: relvar_limit=1e-6_ireal_dp
+    real(ireal_dp),parameter :: relvar_limit=1e-4_ireal_dp
 
     std%delta = std%inc   - std%mean
     std%mean  = std%mean  + std%delta/N
     std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
     std%var = sqrt( std%mean2/N ) / sqrt( one*N*numnodes )
-    where(std%mean.gt.relvar_limit)
+    where(std%mean.gt.max(std%atol, relvar_limit))
       std%relvar = std%var / std%mean
     elsewhere
-      std%relvar = .1_ireal_dp/sqrt(one*N) ! consider adding a photon weight of .1 as worst case that could happen for the next update...
+      std%relvar = zero ! .1_ireal_dp/sqrt(one*N) ! consider adding a photon weight of .1 as worst case that could happen for the next update...
     end where
 
     if( all( (std%var .lt. std%atol) .and. (std%relvar .lt. std%rtol) ) ) then
