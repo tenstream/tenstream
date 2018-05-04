@@ -217,7 +217,7 @@ subroutine init_diff_photon_8_10(bmc,p,src,vertices,ierr)
         mu1= sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
         mu2 = R() ! evenly distribution between 0 and 90 degree
 
-        mu=mu2
+        mu=mu1
         select case(src)
         case (-1) ! thermal emission
                 p%loc = (/ L(p%dx) , L(p%dy) , L(p%dz) /)
