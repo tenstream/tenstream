@@ -35,7 +35,8 @@ module m_data_parameters
       public pi, pi_dp,clight,nil,zero,one,                      &
              i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil,         &
              iintegers,ireals,ireal128,ireal_dp,nan32,           &
-             mpiint,imp_int,imp_real,imp_real_dp,imp_logical,    &
+             mpiint,imp_iinteger,imp_int4, imp_int8,             &
+             imp_ireals,imp_real_dp,imp_logical,                 &
              init_mpi_data_parameters, default_str_len,          &
              EXP_MINVAL, EXP_MAXVAL
 
@@ -62,7 +63,8 @@ module m_data_parameters
       real(ireals), parameter :: EXP_MINVAL=epsilon(EXP_MINVAL), EXP_MAXVAL=-log(epsilon(EXP_MAXVAL))
 
 
-      integer(mpiint) :: imp_int, imp_real, imp_real_dp, imp_logical
+      integer(mpiint) :: imp_ireals, imp_real_dp, imp_logical
+      integer(mpiint) :: imp_iinteger, imp_int4, imp_int8
 
 contains
 subroutine init_mpi_data_parameters(comm)
@@ -89,12 +91,22 @@ subroutine init_mpi_data_parameters(comm)
 
   call MPI_SIZEOF(i0, dtsize, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
-  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, dtsize, imp_int, mpierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, dtsize, imp_iinteger, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+
+  call MPI_SIZEOF(1_4, dtsize, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, dtsize, imp_int4, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+
+  call MPI_SIZEOF(1_8, dtsize, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, dtsize, imp_int8, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
   call MPI_SIZEOF(one, dtsize, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
-  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_real, mpierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_ireals, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
   call MPI_SIZEOF(1._ireal_dp, dtsize, mpierr)
