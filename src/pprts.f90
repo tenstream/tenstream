@@ -3246,7 +3246,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     real(ireals) :: aspect_zx, tauz, w0
 
     aspect_zx = dz / solver%atm%dx
-    tauz = (op%kabs+op%ksca) * dz
+    tauz = max(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(1), &
+      min(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), (op%kabs+op%ksca) * dz))
     w0 = op%ksca / (op%kabs+op%ksca)
 
     if(lone_dimensional) then
@@ -3784,6 +3785,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       if(allocated(solver%C_one1    )) call DMDestroy(solver%C_one1%da,ierr); deallocate(solver%C_one1)
       if(allocated(solver%C_one_atm )) call DMDestroy(solver%C_one_atm%da ,ierr); deallocate(solver%C_one_atm)
       if(allocated(solver%C_one_atm1)) call DMDestroy(solver%C_one_atm1%da,ierr); deallocate(solver%C_one_atm1)
+
+      if(allocated(solver%difftop%is_inward)) deallocate(solver%difftop%is_inward)
+      if(allocated(solver%diffside%is_inward)) deallocate(solver%diffside%is_inward)
+      if(allocated(solver%dirtop%is_inward)) deallocate(solver%dirtop%is_inward)
+      if(allocated(solver%dirside%is_inward)) deallocate(solver%dirside%is_inward)
 
       solver%linitialized=.False.
       if(solver%myid.eq.0 .and. ldebug)print *,'Destroyed TenStream'

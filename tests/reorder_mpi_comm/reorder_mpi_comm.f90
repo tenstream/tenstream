@@ -2,8 +2,7 @@
 subroutine test_tenstream_ex1(this)
 
     use m_data_parameters, only : iintegers, ireals, mpiint
-    use m_tenstream, only : init_tenstream, destroy_tenstream,&
-        t_coord, C_one
+    use m_pprts, only : init_pprts, destroy_pprts, t_coord, t_solver_3_10
     use m_helper_functions, only : reorder_mpi_comm
     use m_tenstream_options, only: read_commandline_options
     use pfunit_mod
@@ -14,7 +13,7 @@ subroutine test_tenstream_ex1(this)
 
     class (MpiTestMethod), intent(inout) :: this
 
-    integer(iintegers),parameter :: nxp=3,nyp=3,nv=3
+    integer(iintegers),parameter :: nxp=9,nyp=9,nv=3
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=-1, theta0=-1
     real(ireals),parameter :: dz=dx
@@ -25,6 +24,8 @@ subroutine test_tenstream_ex1(this)
     integer(iintegers) :: neighbors_orig(4), neighbors_reorder(4)
     integer(mpiint) :: myid, mpierr, orig_id, numnodes
 
+    type(t_solver_3_10) :: solver
+
     MPI_Comm :: comm, reorder_comm
 
     dz1d = dz
@@ -34,22 +35,26 @@ subroutine test_tenstream_ex1(this)
 
     call mpi_comm_rank( comm, orig_id, mpierr)
 
-    call init_tenstream(comm, nv, nxp, nyp, dx, dy, phi0, theta0, dz1d=dz1d)
+    call init_pprts(comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
     call mpi_comm_rank( comm, myid, mpierr)
-    print *,'I am originally', orig_id, 'my rank is now', myid, ' and Neighbors are',C_one%neighbors([10,4,16,22])
-    neighbors_orig = C_one%neighbors([10,4,16,22])
-    call destroy_tenstream(.True.)
+    print *,'I am originally', orig_id, 'my rank is now', myid, &
+      ' and Neighbors are', solver%C_one%neighbors([10,4,16,22])
+
+    neighbors_orig = solver%C_one%neighbors([10,4,16,22])
+    call destroy_pprts(solver, .True.)
 
     call mpi_barrier(comm, mpierr)
 
     if (myid.eq.0) print *,'Reordering Communicator now!'
     call reorder_mpi_comm(comm, Nrank_x, Nrank_y, reorder_comm)
 
-    call init_tenstream(reorder_comm, nv, nxp, nyp, dx, dy, phi0, theta0, dz1d=dz1d)
+    call init_pprts(reorder_comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
     call mpi_comm_rank( comm, myid, mpierr)
-    print *,'I am originally', orig_id, 'my rank is now', myid, ' and Neighbors are',C_one%neighbors([10,4,16,22])
-    neighbors_reorder = C_one%neighbors([10,4,16,22])
-    call destroy_tenstream(.True.)
+    print *,'I am originally', orig_id, 'my rank is now', myid, &
+      ' and Neighbors are', solver%C_one%neighbors([10,4,16,22])
+
+    neighbors_reorder = solver%C_one%neighbors([10,4,16,22])
+    call destroy_pprts(solver, .True.)
 
 
     ! Now check if the neighbors fit:

@@ -1021,7 +1021,7 @@ end subroutine
 
     print *,myid,'LUT Config Ndim', size(config%dims)
     do i = 1, size(config%dims)
-      print *,myid,'Dimension '//itoa(i)//' '//trim(config%dims(i)%dimname)//' size '//itoa(config%dims(i)%N)
+      print *,myid,'Dimension '//itoa(i)//' '//trim(config%dims(i)%dimname)//' size '//itoa(config%dims(i)%N), '(', config%dims(i)%vrange, ')'
     enddo
   end subroutine
 

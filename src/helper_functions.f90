@@ -33,7 +33,7 @@ module m_helper_functions
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
+    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint
 
   interface mean
     module procedure mean_1d, mean_2d
@@ -989,5 +989,22 @@ module m_helper_functions
       ndarray_offsets(1) = 1
       ndarray_offsets(2:size(arrshape)) = arrshape(1:size(arrshape)-1)
       ndarray_offsets = cumprod(ndarray_offsets)
+    end function
+
+    function get_mem_footprint(comm)
+#include "petsc/finclude/petscsys.h"
+      use petsc
+      integer(mpiint),intent(in) :: comm
+      real(ireals) :: get_mem_footprint
+      PetscLogDouble :: memory_footprint
+      integer(mpiint) :: ierr
+      get_mem_footprint = zero
+
+      call mpi_barrier(comm, ierr)
+      call PetscMemoryGetCurrentUsage(memory_footprint, ierr); call CHKERR(ierr)
+
+      get_mem_footprint = real(memory_footprint / 1024. / 1024. / 1024., ireals)
+
+      !  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', get_mem_footprint, 'G'
     end function
   end module

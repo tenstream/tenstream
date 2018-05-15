@@ -7,26 +7,26 @@ set( general_sources
   )
 
 add_library( plexrt ${general_sources} )
-target_link_libraries( plexrt tenstream)
+target_link_libraries( plexrt pprts_base )
 
 
 add_executable( gen_plex_from_icon gen_plex_from_icon.F90 )
-target_link_libraries( gen_plex_from_icon plexrt tenstream )
+target_link_libraries( gen_plex_from_icon plexrt pprts_base )
 install(TARGETS gen_plex_from_icon DESTINATION bin)
 
 
 add_executable( plex_ex1 plex_ex1.F90 )
-target_link_libraries( plex_ex1 plexrt tenstream )
+target_link_libraries( plex_ex1 plexrt pprts_base )
 install(TARGETS plex_ex1 DESTINATION bin)
 
 
 add_executable( plex_ex2 plex_ex2.F90 )
-target_link_libraries( plex_ex2 plexrt tenstream )
+target_link_libraries( plex_ex2 plexrt pprts_base )
 install(TARGETS plex_ex2 DESTINATION bin)
 
 
 add_executable( gen_fish_plex gen_fish_plex.F90 )
-target_link_libraries( gen_fish_plex plexrt tenstream )
+target_link_libraries( gen_fish_plex plexrt pprts_base)
 install(TARGETS gen_fish_plex DESTINATION bin)
 
 file( GLOB streams createLUT_*.f90 )

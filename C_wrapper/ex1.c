@@ -91,8 +91,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // call rrtmg and tenstream
-  f2c_tenstream_rrtmg(fcomm, &Nz, &Nx, &Ny, &dx, &dy, &phi0, &theta0,
+  // call rrtmg and pprts
+  f2c_pprts_rrtmg(fcomm, &Nz, &Nx, &Ny, &dx, &dy, &phi0, &theta0,
       &albedo_th, &albedo_sol, atm_filename, &lthermal, &lsolar,
       &Nz_merged, &edir, &edn, &eup, &abso, d_plev, d_tlev,
       d_lwc, d_reliq, d_iwc, d_reice, &nprocx, nxproc, &nprocy, nyproc);
@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
   }
 
   int lfinalizepetsc = 0; // dont drop the Petsc environment if we called initialize here in the C program
-  f2c_destroy_tenstream_rrtmg(&lfinalizepetsc); // deletes the state of the tenstream solver
+  f2c_destroy_pprts_rrtmg(&lfinalizepetsc); // deletes the state of the pprts solver
 
   PetscFinalize(); // have to do it on our own...
   MPI_Finalize();

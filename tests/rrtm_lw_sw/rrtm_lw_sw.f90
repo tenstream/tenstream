@@ -10,7 +10,9 @@ subroutine test_rrtm_lw(this)
       zero, one, default_str_len
 
     ! main entry point for solver, and desctructor
-    use m_tenstr_rrtmg, only : tenstream_rrtmg, destroy_tenstream_rrtmg
+    use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
+
+    use m_pprts, only : t_solver_3_10
 
     use pfunit_mod
 
@@ -32,7 +34,7 @@ subroutine test_rrtm_lw(this)
 
     ! Layer values for the atmospheric constituents -- those are actually all
     ! optional and if not provided, will be taken from the background profile file (atm_filename)
-    ! see interface of `tenstream_rrtmg()` for units
+    ! see interface of `pprts_rrtmg()` for units
     real(ireals), dimension(nzp,nxp,nyp) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
@@ -52,6 +54,8 @@ subroutine test_rrtm_lw(this)
     character(default_str_len),parameter :: atm_filename='afglus_100m.dat'
 
     !------------ Local vars ------------------
+    type(t_solver_3_10) :: solver
+
     integer(iintegers) :: k, nlev, icld
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
@@ -111,10 +115,10 @@ subroutine test_rrtm_lw(this)
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation:'
     lthermal=.False.; lsolar=.True.
 
-    call tenstream_rrtmg(comm, dx, dy, phi0, theta0, albedo_th, albedo_sol, &
-      atm_filename, lthermal, lsolar,                                       &
-      edir,edn,eup,abso,                                                    &
-      d_plev=plev, d_tlev=tlev, d_tlay=tlay, d_lwc=lwc, d_reliq=reliq,      &
+    call pprts_rrtmg(comm, solver, dx, dy, phi0, theta0,                &
+      albedo_th, albedo_sol, atm_filename, lthermal, lsolar,            &
+      edir, edn, eup, abso,                                             &
+      d_plev=plev, d_tlev=tlev, d_tlay=tlay, d_lwc=lwc, d_reliq=reliq,  &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     ! Determine number of actual output levels from returned flux arrays.
@@ -149,9 +153,9 @@ subroutine test_rrtm_lw(this)
     if(myid.eq.0 .and. ldebug) print *,'Computing Thermal Radiation:'
     lthermal=.True.; lsolar=.False.
 
-    call tenstream_rrtmg(comm, dx, dy, phi0, theta0, albedo_th, albedo_sol, &
-      atm_filename, lthermal, lsolar,                                       &
-      edir,edn,eup,abso,                                                    &
+    call pprts_rrtmg(comm, solver, dx, dy, phi0, theta0,                    &
+      albedo_th, albedo_sol, atm_filename, lthermal, lsolar,                &
+      edir, edn, eup, abso,                                                 &
       d_plev=plev, d_tlev=tlev, d_tlay=tlay, d_lwc=lwc, d_reliq=reliq,      &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
@@ -181,10 +185,10 @@ subroutine test_rrtm_lw(this)
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar AND Thermal Radiation:'
     lthermal=.True.; lsolar=.True.
 
-    call tenstream_rrtmg(comm, dx, dy, phi0, theta0, albedo_th, albedo_sol, &
-      atm_filename, lthermal, lsolar,                                       &
-      edir,edn,eup,abso,                                                    &
-      d_plev=plev, d_tlev=tlev, d_tlay=tlay, d_lwc=lwc, d_reliq=reliq,      &
+    call pprts_rrtmg(comm, solver, dx, dy, phi0, theta0,               &
+      albedo_th, albedo_sol, atm_filename, lthermal, lsolar,           &
+      edir,edn,eup,abso,                                               &
+      d_plev=plev, d_tlev=tlev, d_tlay=tlay, d_lwc=lwc, d_reliq=reliq, &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     nlev = ubound(edn,1)
@@ -213,6 +217,6 @@ subroutine test_rrtm_lw(this)
     endif
 
     ! Tidy up
-    call destroy_tenstream_rrtmg(lfinalizepetsc=.True.)
+    call destroy_pprts_rrtmg(solver, lfinalizepetsc=.True.)
 
 end subroutine

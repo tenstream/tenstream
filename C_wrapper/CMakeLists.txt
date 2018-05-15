@@ -6,8 +6,8 @@ if(ENABLE_RRTM)
   target_link_libraries( f2c_pprts pprts pprts_base )
   set_target_properties( f2c_pprts PROPERTIES PUBLIC_HEADER "f2c_solver_ids.h;f2c_pprts.h")
 
-  add_library( f2c_tenstr_rrtm f2c_tenstr_rrtm.F90 )
-  target_link_libraries( f2c_tenstr_rrtm tenstr_rrtmg tenstr_rrtm_lw tenstr_rrtm_sw tenstream )
+  add_library( f2c_pprts_rrtm f2c_pprts_rrtm.F90 )
+  target_link_libraries( f2c_pprts_rrtm pprts_rrtmg pprts pprts_base )
 
   install(TARGETS f2c_pprts
     DESTINATION lib/
@@ -19,8 +19,8 @@ if(ENABLE_RRTM)
     FILES_MATCHING PATTERN "*.h" )
 
   add_executable( "Cwrapper_ex1" "ex1.c" )
-  target_link_libraries( "Cwrapper_ex1" f2c_tenstr_rrtm tenstr_rrtmg tenstr_rrtm_lw tenstr_rrtm_sw )
+  target_link_libraries( "Cwrapper_ex1" f2c_pprts_rrtm pprts_rrtmg )
 
   add_executable( "Cwrapper_ex2" "ex2.c" )
-  target_link_libraries( "Cwrapper_ex2" f2c_pprts tenstr_rrtmg tenstr_rrtm_lw tenstr_rrtm_sw )
+  target_link_libraries( "Cwrapper_ex2" f2c_pprts pprts_rrtmg )
 endif()
