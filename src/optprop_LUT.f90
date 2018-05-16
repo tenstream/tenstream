@@ -1154,7 +1154,7 @@ end subroutine
       if(size(sample_pts).ne.size(OPP%diffconfig%dims)) then
         call print_LUT_config(OPP%diffconfig)
         call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
-          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%diffconfig%dims)))
+          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%diffconfig%dims, kind=iintegers)))
       endif
       call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%diffconfig)
     endif
