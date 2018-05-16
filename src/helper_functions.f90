@@ -35,6 +35,9 @@ module m_helper_functions
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint
 
+  interface itoa
+    module procedure itoa_i4, itoa_i8
+  end interface
   interface mean
     module procedure mean_1d, mean_2d
   end interface
@@ -105,9 +108,16 @@ module m_helper_functions
       endif
     end subroutine
 
-    pure function itoa(i) result(res)
+    pure function itoa_i4(i) result(res)
       character(:),allocatable :: res
-      integer(iintegers),intent(in) :: i
+      integer(kind=4),intent(in) :: i
+      character(range(i)+2) :: tmp
+      write(tmp,'(i0)') i
+      res = trim(tmp)
+    end function
+    pure function itoa_i8(i) result(res)
+      character(:),allocatable :: res
+      integer(kind=8),intent(in) :: i
       character(range(i)+2) :: tmp
       write(tmp,'(i0)') i
       res = trim(tmp)
