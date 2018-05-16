@@ -38,7 +38,7 @@ module m_data_parameters
              mpiint,imp_iinteger,imp_int4, imp_int8,             &
              imp_ireals,imp_real_dp,imp_logical,                 &
              init_mpi_data_parameters, default_str_len,          &
-             EXP_MINVAL, EXP_MAXVAL
+             EXP_MINVAL, EXP_MAXVAL, EXP_MINVAL128, EXP_MAXVAL128
 
       integer :: mpiint_dummy
       PetscInt :: petscint_dummy
@@ -61,6 +61,7 @@ module m_data_parameters
       integer(iintegers) ,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,i5=5,i6=6,i7=7,i8=8,i9=9,i10=10,i11=11,inil=-9999_iintegers
 
       real(ireals), parameter :: EXP_MINVAL=epsilon(EXP_MINVAL), EXP_MAXVAL=-log(epsilon(EXP_MAXVAL))
+      real(ireal128), parameter :: EXP_MINVAL128=epsilon(EXP_MINVAL), EXP_MAXVAL128=-log(epsilon(EXP_MAXVAL))
 
 
       integer(mpiint) :: imp_ireals, imp_real_dp, imp_logical

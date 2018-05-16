@@ -3248,7 +3248,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     aspect_zx = dz / solver%atm%dx
     tauz = max(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(1), &
       min(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), (op%kabs+op%ksca) * dz))
-    w0 = op%ksca / (op%kabs+op%ksca)
+    w0 = max(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(1), &
+      min(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), op%ksca / (op%kabs+op%ksca)))
 
     if(lone_dimensional) then
       call CHKERR(1_mpiint, 'currently, we dont support using LUT Twostream for l1d layers')

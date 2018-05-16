@@ -832,9 +832,19 @@ module m_plex_rt
 
     relcoords = wedge_coords / dx
 
-    print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
+    tauz = max(OPP%OPP_LUT%diffconfig%dims(1)%vrange(1), &
+      min(OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), tauz))
+    w0 = max(OPP%OPP_LUT%diffconfig%dims(2)%vrange(1), &
+      min(OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), w0))
+
+    relcoords(5) = max(OPP%OPP_LUT%diffconfig%dims(5)%vrange(1), &
+      min(OPP%OPP_LUT%diffconfig%dims(5)%vrange(2), relcoords(5)))
+    relcoords(6) = max(OPP%OPP_LUT%diffconfig%dims(6)%vrange(1), &
+      min(OPP%OPP_LUT%diffconfig%dims(6)%vrange(2), relcoords(6)))
+
+    !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
     call OPP%get_coeff(tauz, w0, g, aspect, ldir, coeff, angles=angles, wedge_coords=relcoords)
-    print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
+    !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
     if(ldebug) then
       if(any(coeff.lt.zero).or.any(coeff.gt.one)) then
         print *,'Lookup Coeffs for', aspect, tauz, w0, g, angles,'::', coeff
