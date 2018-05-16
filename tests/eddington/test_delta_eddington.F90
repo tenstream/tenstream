@@ -18,7 +18,7 @@ subroutine test_eddington(this)
     print *,'Checking some Eddington coefficient edge cases'
 
     inp = [ 0.4824516550E-01, 0.5542391539, 0.4550637007, 1.00000000000]
-    targ= [ 0.95261097394214145, 5.2909331835333112E-003, 0.00000000000000000, 0.00000000000000000,  0.95290014020107339, 1.00000000000000000, 0.89152080143249124 ]
+    targ= [ 9.526110e-01, 5.290933e-03, 4.103254e-03, 2.144391e-02, 9.529001e-01, 1.00000000000000000, 0.89152080143249124 ]
     call calc(inp,out)
     call check_out(inp,out,targ)
 
@@ -84,6 +84,7 @@ subroutine test_eddington(this)
 
 !        print *,'inp ::',inp
         call eddington_coeff_zdun(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5),out(6),out(7))
+!        call eddington_coeff_bm(inp(1),inp(2),inp(3),inp(4),out(1),out(2),out(3),out(4),out(5))
 !        print *,'zdun ::',out
 !        print *,''
     end subroutine
