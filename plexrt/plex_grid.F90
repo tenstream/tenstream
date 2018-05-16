@@ -1383,8 +1383,6 @@ module m_plex_grid
     iedges(3) = coveredPoints(1)
     call DMPlexRestoreMeet(plex%edir_dm, i2, ppoints, coveredPoints, ierr); call CHKERR(ierr)
 
-    print *,'iedges', iedges
-
     points = iedges(1:2)
     call DMPlexGetMeet(plex%edir_dm, i2, ppoints, coveredPoints, ierr); call CHKERR(ierr)
     ivertices(1) = coveredPoints(1)
@@ -1431,7 +1429,6 @@ module m_plex_grid
     mu = (b**2 + c**2 - a**2) / (2*b*c)
 
     local_coords(5:6) = [mu * b, sqrt(one - mu**2) * b]
-    print *,'Local Coords', local_coords
 
     if(any(local_coords.lt.zero)) then
       print *,'Local Coords', local_coords
