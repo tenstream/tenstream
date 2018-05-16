@@ -2,7 +2,7 @@ module m_mmap
 use iso_c_binding
 
 use m_data_parameters, only : iintegers, ireals, mpiint
-use m_helper_functions, only : CHKERR, imp_bcast
+use m_helper_functions, only : CHKERR, imp_bcast, itoa
 
 implicit none
 ! Definitions from mman-linux.h
@@ -11,17 +11,19 @@ integer, parameter :: &
   PROT_READWRITE = 3, &
   PROT_READ = 1,      &
   MAP_SHARED = 1,     &
+  MAP_PRIVATE = 2,    &
+  MAP_NORESERVE = 16384, & ! X'04000'
   O_RDONLY = 0
 
 interface
   type(c_ptr) function c_mmap(addr, length, prot, &
-      flags, fildes, off) result(result) bind(c, name='mmap')
+      flags, filedes, off) result(result) bind(c, name='mmap')
     use iso_c_binding
     integer(c_int), value :: addr
     integer(c_size_t), value :: length
     integer(c_int), value :: prot
     integer(c_int), value :: flags
-    integer(c_int), value :: fildes
+    integer(c_int), value :: filedes
     integer(c_size_t), value :: off
   end function
 end interface
@@ -86,7 +88,7 @@ contains
 
     c_fd = c_open(trim(fname)//C_NULL_CHAR, O_RDONLY)
     if(c_fd.le.0) call CHKERR(c_fd, 'Could not open mmap file')
-    mmap_c_ptr = c_mmap(0_c_int, bytesize, PROT_READ, MAP_SHARED, c_fd, offset)
+    mmap_c_ptr = c_mmap(0_c_int, bytesize, PROT_READ, IOR(MAP_PRIVATE, MAP_NORESERVE), c_fd, offset)
     c_fd = c_close(c_fd)
     if(c_fd.le.0) call CHKERR(c_fd, 'Could not close file descriptor to mmap file')
   end subroutine
@@ -100,9 +102,10 @@ contains
 
     integer(iintegers), allocatable :: arrshape(:)
     type(c_ptr) :: mmap_c_ptr
-    integer(c_size_t) :: bytesize
     integer(mpiint) :: myid
-    integer(iintegers) :: size_of_inp_arr
+    integer(c_size_t) :: size_of_inp_arr
+    integer(c_size_t) :: dtype_size
+    integer(c_size_t) :: bytesize
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
@@ -110,15 +113,27 @@ contains
       if(.not.present(inp_arr)) call CHKERR(1_mpiint, 'rank 0 has to provide an input array!')
       call arr_to_binary_datafile(inp_arr, fname, ierr)
       if(ierr.ne.0) print *,'arr_to_mmap::binary file already exists, I did not overwrite it... YOU have to make sure that the file is as expected or delete it...'
-      size_of_inp_arr = int(sizeof(inp_arr(1,1)), kind=iintegers) * size(inp_arr)
+      dtype_size = c_sizeof(inp_arr(1,1))
+      size_of_inp_arr = size(inp_arr, kind=c_size_t)
+      bytesize = dtype_size * size_of_inp_arr
+      if(size_of_inp_arr.ge.huge(size_of_inp_arr)/dtype_size) then
+        print *,'dtype_size', dtype_size
+        print *,'size_of_inp_arr', size_of_inp_arr
+        print *,'bytesize', bytesize
+        call CHKERR(1_mpiint, 'size_of_inp_arr too large for c_size_t')
+      endif
       allocate(arrshape(size(shape(inp_arr))), source=shape(inp_arr, kind=iintegers))
     endif
     call mpi_barrier(comm, ierr)
 
     call imp_bcast(comm, arrshape, 0_mpiint)
-    call imp_bcast(comm, size_of_inp_arr, 0_mpiint)
+    call imp_bcast(comm, bytesize, 0_mpiint)
 
-    bytesize = int(size_of_inp_arr, kind=c_size_t)
+    if(bytesize.le.0_c_size_t) then
+      if(myid.eq.0) print *,'huge(c_size_t)', huge(size_of_inp_arr), 'shape inp_arr', shape(inp_arr)
+      call mpi_barrier(comm, ierr)
+      call CHKERR(1_mpiint, 'bytesize of mmap is wrong!'//itoa(int(bytesize,iintegers)))
+    endif
 
     call binary_file_to_mmap(fname, bytesize, mmap_c_ptr)
 

@@ -35,9 +35,10 @@ module m_data_parameters
       public pi, pi_dp,clight,nil,zero,one,                      &
              i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil,         &
              iintegers,ireals,ireal128,ireal_dp,nan32,           &
-             mpiint,imp_int,imp_real,imp_real_dp,imp_logical,    &
+             mpiint,imp_iinteger,imp_int4, imp_int8,             &
+             imp_ireals,imp_real_dp,imp_logical,                 &
              init_mpi_data_parameters, default_str_len,          &
-             EXP_MINVAL, EXP_MAXVAL
+             EXP_MINVAL, EXP_MAXVAL, EXP_MINVAL128, EXP_MAXVAL128
 
       integer :: mpiint_dummy
       PetscInt :: petscint_dummy
@@ -60,9 +61,11 @@ module m_data_parameters
       integer(iintegers) ,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,i5=5,i6=6,i7=7,i8=8,i9=9,i10=10,i11=11,inil=-9999_iintegers
 
       real(ireals), parameter :: EXP_MINVAL=epsilon(EXP_MINVAL), EXP_MAXVAL=-log(epsilon(EXP_MAXVAL))
+      real(ireal128), parameter :: EXP_MINVAL128=epsilon(EXP_MINVAL), EXP_MAXVAL128=-log(epsilon(EXP_MAXVAL))
 
 
-      integer(mpiint) :: imp_int, imp_real, imp_real_dp, imp_logical
+      integer(mpiint) :: imp_ireals, imp_real_dp, imp_logical
+      integer(mpiint) :: imp_iinteger, imp_int4, imp_int8
 
 contains
 subroutine init_mpi_data_parameters(comm)
@@ -75,12 +78,12 @@ subroutine init_mpi_data_parameters(comm)
   if(.not.lmpi_is_initialized) call mpi_init(mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
+  PETSC_COMM_WORLD = comm
+
   call PetscInitialized(lpetsc_is_initialized, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
   if(.not.lpetsc_is_initialized) call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
-
-  PETSC_COMM_WORLD = comm
 
   call MPI_COMM_RANK( comm, myid, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
@@ -89,12 +92,22 @@ subroutine init_mpi_data_parameters(comm)
 
   call MPI_SIZEOF(i0, dtsize, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
-  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, dtsize, imp_int, mpierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, dtsize, imp_iinteger, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+
+  call MPI_SIZEOF(1_4, dtsize, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, dtsize, imp_int4, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+
+  call MPI_SIZEOF(1_8, dtsize, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_INTEGER, dtsize, imp_int8, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
   call MPI_SIZEOF(one, dtsize, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
-  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_real, mpierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_ireals, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
   call MPI_SIZEOF(1._ireal_dp, dtsize, mpierr)

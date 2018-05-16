@@ -11,7 +11,9 @@ contains
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
 
     ! main entry point for solver, and desctructor
-    use m_tenstr_rrtmg, only : tenstream_rrtmg, destroy_tenstream_rrtmg
+    use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
+
+    use m_pprts, only : t_solver_3_10
 
     implicit none
     integer(iintegers), intent(in) :: nxp, nyp, nzp      ! local domain size for each rank
@@ -48,6 +50,8 @@ contains
     character(len=default_str_len),parameter :: atm_filename='afglus_100m.dat'
 
     !------------ Local vars ------------------
+    type(t_solver_3_10) :: solver
+
     integer(iintegers) :: k, nlev, icld
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
@@ -107,7 +111,7 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation:'
     lthermal=.False.; lsolar=.True.
 
-    call tenstream_rrtmg(comm, dx, dy, phi0, theta0, albedo_th, albedo_sol, &
+    call pprts_rrtmg(comm, solver, dx, dy, phi0, theta0, albedo_th, albedo_sol, &
       atm_filename, lthermal, lsolar,                                       &
       edir,edn,eup,abso,                                                    &
       d_plev=plev, d_tlev=tlev, d_tlay=tlay, d_lwc=lwc, d_reliq=reliq,      &
@@ -116,7 +120,7 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar AND Thermal Radiation:'
     lthermal=.True.; lsolar=.True.
 
-    call tenstream_rrtmg(comm, dx, dy, phi0, theta0, albedo_th, albedo_sol, &
+    call pprts_rrtmg(comm, solver, dx, dy, phi0, theta0, albedo_th, albedo_sol, &
       atm_filename, lthermal, lsolar,                                       &
       edir,edn,eup,abso,                                                    &
       d_plev=plev, d_tlev=tlev, d_tlay=tlay, d_lwc=lwc, d_reliq=reliq,      &
@@ -148,7 +152,7 @@ contains
     endif
 
     ! Tidy up
-    call destroy_tenstream_rrtmg(lfinalizepetsc=.True.)
+    call destroy_pprts_rrtmg(solver, lfinalizepetsc=.True.)
   end subroutine
 
 end module

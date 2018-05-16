@@ -80,8 +80,5 @@ module m_schwarzschild
 
         Eup = Eup*2*pi*dmu
         Edn = Edn*2*pi*dmu
-
         end subroutine
-
-
 end module

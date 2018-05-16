@@ -2,9 +2,10 @@ module m_box_cld
 
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, pi
 
-  use m_tenstream, only : init_tenstream, set_optical_properties, solve_tenstream, destroy_tenstream,&
-    tenstream_get_result, getvecpointer, restorevecpointer, &
-    t_coord,C_diff,C_one,C_one1, get_mem_footprint
+  use m_pprts, only : init_pprts, set_optical_properties, solve_pprts, destroy_pprts,&
+    pprts_get_result, t_solver_3_10
+
+  use m_helper_functions, only : get_mem_footprint
 
   use m_tenstream_options, only: read_commandline_options
 
@@ -29,14 +30,16 @@ subroutine box_cld()
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
+    type(t_solver_3_10) :: solver
+
     dz1d = dz
 
-    call init_tenstream(MPI_COMM_WORLD, nv, nxp,nyp, dx,dy,phi0, theta0, dz1d=dz1d)
+    call init_pprts(MPI_COMM_WORLD, nv, nxp,nyp, dx,dy,phi0, theta0, solver, dz1d=dz1d)
     call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr)
 
-    allocate(kabs(C_one%zm , C_one%xm,  C_one%ym ))
-    allocate(ksca(C_one%zm , C_one%xm,  C_one%ym ))
-    allocate(g   (C_one%zm , C_one%xm,  C_one%ym ))
+    allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+    allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+    allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
 
     kabs = .1_ireals/(dz*nv)
     ksca = zero !1e-3_ireals/dz
@@ -46,15 +49,15 @@ subroutine box_cld()
     ksca(nv/2,nxp/2,1:nyp) = 1/dz
     g   (nv/2,nxp/2,1:nyp) = .9
 
-    call set_optical_properties(albedo, kabs, ksca, g)
-    call solve_tenstream(incSolar)
+    call set_optical_properties(solver, albedo, kabs, ksca, g)
+    call solve_pprts(solver, incSolar)
 
-    allocate(fdir (C_diff%zm, C_diff%xm, C_diff%ym))
-    allocate(fdn  (C_diff%zm, C_diff%xm, C_diff%ym))
-    allocate(fup  (C_diff%zm, C_diff%xm, C_diff%ym))
-    allocate(fdiv (C_one%zm, C_one%xm, C_one%ym))
+    allocate(fdir (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    allocate(fdn  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    allocate(fup  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
+    allocate(fdiv (solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
 
-    call tenstream_get_result(fdir, fdn, fup, fdiv)
+    call pprts_get_result(solver, fdir, fdn, fup, fdiv)
 
     if(myid.eq.0) then
         print *,'kabs:', kabs(:,1,1)
@@ -63,9 +66,9 @@ subroutine box_cld()
         print *,'fup:',  fup (:,1,1)
         print *,'fdiv:', fdiv(:,1,1)
     endif
-    print *,myid,'Memory:',get_mem_footprint()
+    print *,myid,'Memory:',get_mem_footprint(MPI_COMM_WORLD)
 
-    call destroy_tenstream(.True.)
+    call destroy_pprts(solver, .True.)
 end subroutine
 end module
 

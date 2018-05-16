@@ -29,7 +29,7 @@ module m_optprop_LUT
 
   use m_data_parameters, only : ireals, iintegers,      &
     one, zero, i0, i1, i2, i3, i10, mpiint, nil, inil,  &
-    imp_int, imp_real, imp_logical,                     &
+    imp_iinteger, imp_ireals, imp_logical,                     &
     default_str_len
 
   use m_optprop_parameters, only:         &
@@ -278,7 +278,7 @@ subroutine loadLUT_diff(OPP, comm)
       call write_pspace(str(1), OPP%diffconfig)
     endif
 
-    call mpi_bcast(errcnt, 1_mpiint, imp_int, 0_mpiint ,comm ,mpierr); call CHKERR(mpierr)
+    call mpi_bcast(errcnt, 1_mpiint, imp_iinteger, 0_mpiint ,comm ,mpierr); call CHKERR(mpierr)
 
     if(errcnt.ne.0) then ! something went wrong loading the LUT
       call OPP%createLUT(comm, OPP%diffconfig, OPP%Sdiff)
@@ -324,7 +324,7 @@ subroutine loadLUT_dir(OPP, comm)
       call write_pspace(str(1), OPP%dirconfig)
     endif
 
-    call mpi_bcast(errcnt, 1_mpiint, imp_int, 0_mpiint ,comm ,mpierr); call CHKERR(mpierr)
+    call mpi_bcast(errcnt, 1_mpiint, imp_iinteger, 0_mpiint ,comm ,mpierr); call CHKERR(mpierr)
 
     if(errcnt.ne.0) then ! something went wrong loading the LUT
       call OPP%createLUT(comm, OPP%dirconfig, OPP%Sdir, OPP%Tdir)
@@ -486,27 +486,27 @@ subroutine createLUT(OPP, comm, config, S, T)
             case(READYMSG)
 
               ! capture the READY MSG -- we should not leave messages hanging around.
-              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), READYMSG, comm, status, mpierr) ; call CHKERR(mpierr)
+              call mpi_recv(idummy, 1_mpiint, imp_iinteger, status(MPI_SOURCE), READYMSG, comm, status, mpierr) ; call CHKERR(mpierr)
 
               if(cnt.le.total_size) then ! we got something to do for a worker -- send him...
                 isrc = modulo(cnt-1, Nsrc) +1
                 lutindex = (cnt-1) / Nsrc +1
-                call mpi_send(lutindex, 1_mpiint, imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
-                call mpi_send(isrc, 1_mpiint, imp_int, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
+                call mpi_send(lutindex, 1_mpiint, imp_iinteger, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
+                call mpi_send(isrc, 1_mpiint, imp_iinteger, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
                 call mpi_send(present(T), 1_mpiint, imp_logical, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
 
               else ! no more work to do... tell the worker to quit
-                call mpi_send(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr); call CHKERR(mpierr)
+                call mpi_send(idummy, 1_mpiint, imp_iinteger, status(MPI_SOURCE), FINALIZEMSG, comm, mpierr); call CHKERR(mpierr)
               endif
               cnt = cnt+1
 
             case(HAVERESULTSMSG)
-              call mpi_recv(lutindex, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(isrc, 1_mpiint, imp_int, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(S_diff, size(S_diff), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(S_tol , size(S_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(T_dir , size(T_dir ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(T_tol , size(T_tol ), imp_real, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(lutindex, 1_mpiint, imp_iinteger, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(isrc, 1_mpiint, imp_iinteger, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(S_diff, size(S_diff), imp_ireals, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(S_tol , size(S_tol ), imp_ireals, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(T_dir , size(T_dir ), imp_ireals, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(T_tol , size(T_tol ), imp_ireals, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
 
               ! Sort coefficients into destination ordering and put em in LUT
               do idst = 1, OPP%diff_streams
@@ -548,7 +548,7 @@ subroutine createLUT(OPP, comm, config, S, T)
               endif
 
             case(FINALIZEMSG)
-              call mpi_recv(idummy, 1_mpiint, imp_int, status(MPI_SOURCE), FINALIZEMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(idummy, 1_mpiint, imp_iinteger, status(MPI_SOURCE), FINALIZEMSG, comm, status, mpierr); call CHKERR(mpierr)
               finalizedworkers = finalizedworkers+1
               if(finalizedworkers.eq.comm_size-1) exit ! all work is done
 
@@ -573,7 +573,7 @@ subroutine createLUT(OPP, comm, config, S, T)
           logical :: ldir
 
           ! workers send READY message to master
-          call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, READYMSG, comm, mpierr); call CHKERR(mpierr)
+          call mpi_send(-i1, 1_mpiint, imp_iinteger, 0_mpiint, READYMSG, comm, mpierr); call CHKERR(mpierr)
 
           do
             ! ask what to do
@@ -586,8 +586,8 @@ subroutine createLUT(OPP, comm, config, S, T)
 
               case(WORKMSG)
                 ! wait for work to arrive
-                call mpi_recv( lutindex, 1_mpiint, imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
-                call mpi_recv( isrc, 1_mpiint, imp_int, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
+                call mpi_recv( lutindex, 1_mpiint, imp_iinteger, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
+                call mpi_recv( isrc, 1_mpiint, imp_iinteger, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
                 call mpi_recv( ldir, 1_mpiint, imp_logical, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
 
                 call OPP%LUT_bmc_wrapper(config, lutindex, isrc, ldir, &
@@ -596,18 +596,18 @@ subroutine createLUT(OPP, comm, config, S, T)
                 !print *,'Computed isrc',isrc,'aspect',aspect_zx,'tau',tau_z, w0, g,':', phi, theta
                 !print *,myid,'Computed values for ',lutindex, isrc, ldir
 
-                call mpi_send(lutindex , 1_mpiint     , imp_int  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(isrc , 1_mpiint     , imp_int  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(S_diff    , size(S_diff) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(S_tol     , size(S_tol ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(T_dir     , size(T_dir ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(T_tol     , size(T_tol ) , imp_real , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(lutindex , 1_mpiint     , imp_iinteger  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(isrc , 1_mpiint     , imp_iinteger  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(S_diff    , size(S_diff) , imp_ireals , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(S_tol     , size(S_tol ) , imp_ireals , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(T_dir     , size(T_dir ) , imp_ireals , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(T_tol     , size(T_tol ) , imp_ireals , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
 
-                call mpi_send(-i1       , 1_mpiint     , imp_int  , 0_mpiint           , READYMSG       , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(-i1       , 1_mpiint     , imp_iinteger  , 0_mpiint           , READYMSG       , comm , mpierr); call CHKERR(mpierr)
 
               case(FINALIZEMSG)
-                call mpi_recv(idummy, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, status, mpierr); call CHKERR(mpierr)
-                call mpi_send(-i1, 1_mpiint, imp_int, 0_mpiint, FINALIZEMSG, comm, mpierr); call CHKERR(mpierr)
+                call mpi_recv(idummy, 1_mpiint, imp_iinteger, 0_mpiint, FINALIZEMSG, comm, status, mpierr); call CHKERR(mpierr)
+                call mpi_send(-i1, 1_mpiint, imp_iinteger, 0_mpiint, FINALIZEMSG, comm, mpierr); call CHKERR(mpierr)
                 exit
 
               end select
@@ -848,7 +848,6 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_aspect21)
           call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
           call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], ireals))
-          !call populate_LUT_dim('theta', i10, OPP%dirconfig%dims(6), preset=preset_theta)
           allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau21,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau21)
           call populate_LUT_dim('w0',        size(preset_w015,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w015)
@@ -888,14 +887,14 @@ subroutine set_parameter_space(OPP)
       class is (t_optprop_LUT_wedge_5_8)
           OPP%interp_mode = interp_mode_wedge_5_8
           allocate(OPP%dirconfig%dims(8))
-          call populate_LUT_dim('tau',       size(preset_tau10,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau10)
-          call populate_LUT_dim('w0',        size(preset_w08,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w08)
+          call populate_LUT_dim('tau',       size(preset_tau21,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau21)
+          call populate_LUT_dim('w0',        size(preset_w015,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w015)
           call populate_LUT_dim('g',         size(preset_g1,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_g1)
-          call populate_LUT_dim('aspect_zx', size(preset_aspect10,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_aspect10)
-          call populate_LUT_dim('wedge_coord_Cx', 15_iintegers, OPP%dirconfig%dims(5), vrange=real([.35,.65], ireals))
-          call populate_LUT_dim('wedge_coord_Cy', 15_iintegers, OPP%dirconfig%dims(6), vrange=real([.8, .95], ireals))
+          call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_aspect21)
+          call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%dirconfig%dims(5), vrange=real([.35,.65], ireals))
+          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%dirconfig%dims(6), vrange=real([.8, .95], ireals))
           call populate_LUT_dim('phi',       15_iintegers, OPP%dirconfig%dims(7), vrange=real([-70,70], ireals))
-          call populate_LUT_dim('theta',     4_iintegers, OPP%dirconfig%dims(8), vrange=real([0,15], ireals))
+          call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(8), vrange=real([0,90], ireals))
 !          call populate_LUT_dim('tau',       i2, OPP%dirconfig%dims(1), vrange=real([1e-3,1.], ireals))
 !          call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.1,.999], ireals))
 !          call populate_LUT_dim('g',         i2, OPP%dirconfig%dims(3), vrange=real([0.,.5], ireals))
@@ -911,7 +910,7 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g1,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_g1)
           call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_aspect21)
           call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%diffconfig%dims(5), vrange=real([.35,.65], ireals))
-          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%diffconfig%dims(6), vrange=real([.8, .95], ireals))
+          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%diffconfig%dims(6), vrange=real([.8, .96], ireals))
           !call populate_LUT_dim('tau',       i2, OPP%diffconfig%dims(1), vrange=real([1e-3,1.], ireals))
           !call populate_LUT_dim('w0',        i2, OPP%diffconfig%dims(2), vrange=real([.1,.999], ireals))
           !call populate_LUT_dim('g',         i2, OPP%diffconfig%dims(3), vrange=real([0.,.5], ireals))
@@ -919,23 +918,6 @@ subroutine set_parameter_space(OPP)
           !call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%diffconfig%dims(5), vrange=real([.35,.65], ireals))
           !call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%diffconfig%dims(6), vrange=real([.8, .9], ireals))
 
-
-!          allocate(OPP%dirconfig%dims(8))
-!          call populate_LUT_dim('tau',       size(preset_tau21,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau21)
-!          call populate_LUT_dim('w0',        size(preset_w015,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w015)
-!          call populate_LUT_dim('g',         size(preset_g1,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_g1)
-!          call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_aspect21)
-!          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([.35,.65], ireals))
-!          call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%dirconfig%dims(6), vrange=real([.8, .9], ireals))
-!          call populate_LUT_dim('phi',       15_iintegers, OPP%dirconfig%dims(7), vrange=real([-70,70], ireals))
-!          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(8), vrange=real([0,90], ireals))
-!          allocate(OPP%diffconfig%dims(6))
-!          call populate_LUT_dim('tau',       size(preset_tau21,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau21)
-!          call populate_LUT_dim('w0',        size(preset_w015,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w015)
-!          call populate_LUT_dim('g',         size(preset_g1,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_g1)
-!          call populate_LUT_dim('aspect_zx', size(preset_aspect21,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_aspect21)
-!          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(5), vrange=real([.35,.65], ireals))
-!          call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%diffconfig%dims(6), vrange=real([.8, .9], ireals))
       class default
         call CHKERR(1_mpiint, 'set_parameter space: unexpected type for optprop_LUT object!')
     end select
@@ -1021,7 +1003,7 @@ end subroutine
 
     print *,myid,'LUT Config Ndim', size(config%dims)
     do i = 1, size(config%dims)
-      print *,myid,'Dimension '//itoa(i)//' '//trim(config%dims(i)%dimname)//' size '//itoa(config%dims(i)%N)
+      print *,myid,'Dimension '//itoa(i)//' '//trim(config%dims(i)%dimname)//' size '//itoa(config%dims(i)%N), '(', config%dims(i)%vrange, ')'
     enddo
   end subroutine
 
@@ -1154,7 +1136,7 @@ end subroutine
       if(size(sample_pts).ne.size(OPP%diffconfig%dims)) then
         call print_LUT_config(OPP%diffconfig)
         call CHKERR(1_mpiint, 'size of sample_pts array ne number of dimensions in LUT ' &
-          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%diffconfig%dims)))
+          //itoa(size(sample_pts, kind=iintegers))//'/'//itoa(size(OPP%diffconfig%dims, kind=iintegers)))
       endif
       call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%diffconfig)
     endif

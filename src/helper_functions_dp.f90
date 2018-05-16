@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_helper_functions_dp
-      use m_data_parameters,only : iintegers,ireal_dp,imp_real_dp,imp_int,imp_logical,mpiint, pi_dp
+      use m_data_parameters,only : iintegers,ireal_dp,imp_real_dp,imp_iinteger,imp_logical,mpiint, pi_dp
       use m_helper_functions, only: CHKERR
       use mpi
 
@@ -202,7 +202,7 @@ module m_helper_functions_dp
           call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
           if(commsize.le.1) return
 
-          call mpi_bcast(val,1_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
+          call mpi_bcast(val,1_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
       end subroutine
       subroutine  imp_bcast_int_1d(comm, arr,sendid,myid)
           integer(mpiint),intent(in) :: comm
@@ -212,10 +212,10 @@ module m_helper_functions_dp
           integer(iintegers) :: Ntot
 
           if(sendid.eq.myid) Ntot = size(arr)
-          call mpi_bcast(Ntot,1_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
+          call mpi_bcast(Ntot,1_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot) )
-          call mpi_bcast(arr,size(arr),imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
+          call mpi_bcast(arr,size(arr),imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
       end subroutine
       subroutine  imp_bcast_int_2d(comm, arr,sendid,myid)!
           integer(mpiint),intent(in) :: comm
@@ -225,10 +225,10 @@ module m_helper_functions_dp
           integer(iintegers) :: Ntot(2)
 
           if(sendid.eq.myid) Ntot = shape(arr)
-          call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
+          call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
-          call mpi_bcast(arr,size(arr),imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
+          call mpi_bcast(arr,size(arr),imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
       end subroutine
       subroutine  imp_bcast_real(comm, val,sendid)
           integer(mpiint),intent(in) :: comm
@@ -272,7 +272,7 @@ module m_helper_functions_dp
           call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
           if(sendid.eq.myid) Ntot = shape(arr)
-          call mpi_bcast(Ntot,2_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
+          call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
           call mpi_bcast(arr,size(arr),imp_real_dp,sendid,comm,mpierr); call CHKERR(mpierr)
@@ -290,7 +290,7 @@ module m_helper_functions_dp
           call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
           if(sendid.eq.myid) Ntot = shape(arr)
-          call mpi_bcast(Ntot,3_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
+          call mpi_bcast(Ntot,3_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3) ) )
           call mpi_bcast(arr,size(arr),imp_real_dp,sendid,comm,mpierr); call CHKERR(mpierr)
@@ -308,7 +308,7 @@ module m_helper_functions_dp
           call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
           if(sendid.eq.myid) Ntot = shape(arr)
-          call mpi_bcast(Ntot,5_mpiint,imp_int,sendid,comm,mpierr); call CHKERR(mpierr)
+          call mpi_bcast(Ntot,5_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
 
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3), Ntot(4), Ntot(5) ) )
           call mpi_bcast(arr,size(arr),imp_real_dp,sendid,comm,mpierr); call CHKERR(mpierr)

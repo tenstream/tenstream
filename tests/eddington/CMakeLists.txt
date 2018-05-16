@@ -42,7 +42,7 @@ add_executable(
 target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
-  tenstream
+  pprts_base
   )
 
 add_test(pfunit_${CDIR} ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 8 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR})

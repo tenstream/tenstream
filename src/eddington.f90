@@ -28,9 +28,6 @@ module m_eddington
 
       implicit none
 
-      private
-      public :: eddington_coeff_rb,eddington_coeff_fab,eddington_coeff_cosmo,eddington_coeff_zdun
-
       logical,parameter :: ldebug=.False.
 
       contains
@@ -94,6 +91,59 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 
           a13 = a13 / mu_0 !Fabian: Roberts coefficients a13 expect S to be
           a23 = a23 / mu_0 !        irradiance on tilted plane... we use irradiance on z-plane
+      end subroutine
+pure subroutine eddington_coeff_bm (dtau_in,omega_0_in,g_in,mu_0,c11,c12,c13,c23,c33)
+          real(ireals),intent(in) :: dtau_in,g_in,omega_0_in,mu_0
+          real(ireals),intent(out) :: c11,c12,c13,c23,c33
+
+          real(ireal128) :: dtau,g,omega0
+          real(ireal128) :: a11,a12,a13,a23,a33
+
+          real(ireal128) ::  alpha1, alpha2, alpha3, alpha4, alpha5, alpha6;
+          real(ireal128) ::  lambda, A
+          real(ireal128) ::  denom, mu0, b
+
+          real(ireal128),parameter ::  eps = sqrt(epsilon(omega0))
+
+          dtau   = max(( epsilon(dtau)  ), real(dtau_in, ireal128))
+          g      = max(( epsilon(g)     ), real(g_in, ireal128))
+          omega0 = max(( epsilon(omega0)), real(omega_0_in, ireal128))
+
+          omega0 = min(omega0, 1.0_ireal128 - eps)
+          mu0 = real(mu_0, ireal128)
+
+          alpha1= (1.0-omega0)+0.75*(1.0-omega0*g);
+          alpha2=-(1.0-omega0)+0.75*(1.0-omega0*g);
+
+          lambda=sqrt(alpha1*alpha1-alpha2*alpha2);
+
+          A=1.0/(alpha2/(alpha1-lambda)*exp(lambda*dtau)-alpha2/(alpha1+lambda)*exp(-lambda*dtau));
+
+          a11=A*2.0*lambda/alpha2;
+          a12=A*(exp(lambda*dtau)-exp(-lambda*dtau));
+
+          b=0.5-0.75*g*mu0;
+          alpha3=-omega0*b;
+          alpha4=omega0*(1-b);
+
+          denom = (1.0/mu0/mu0-lambda*lambda);
+          alpha5=((alpha1-1.0/mu0)*alpha3-alpha2*alpha4)/denom;
+          alpha6=(alpha2*alpha3-(alpha1+1.0/mu0)*alpha4)/denom;
+
+          a33=exp(-dtau/mu0);
+
+          a13=alpha5*(1.0-(a11)*(a33))-alpha6*(a12);
+          a23=-(a12)*alpha5*(a33)+alpha6*((a33)-(a11));
+
+
+          a13 = a13 / mu_0 !Fabian: Roberts coefficients a13 expect S to be
+          a23 = a23 / mu_0 !        irradiance on tilted plane... we use irradiance on z-plane
+
+          c11 = real(a11, ireals)
+          c12 = real(a12, ireals)
+          c13 = real(a13, ireals)
+          c23 = real(a23, ireals)
+          c33 = real(a33, ireals)
       end subroutine
 
       subroutine eddington_coeff_cosmo (dtau_in,omega_0_in,g_in,mu_0_in,a11,a12,a13,a23,a33)
@@ -253,11 +303,12 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 !          endif
 
       end subroutine
-     subroutine eddington_coeff_zdun(dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23,a33,g1,g2)
+     subroutine eddington_coeff_zdun(dtau_in,omega_0_in,g_in,mu_0,c11,c12,c13,c23,c33,g1,g2)
           real(ireals),intent(in) :: dtau_in,g_in,omega_0_in,mu_0
-          real(ireals),intent(out) :: a11,a12,a13,a23,a33,g1,g2
+          real(ireals),intent(out) :: c11,c12,c13,c23,c33,g1,g2
 
           real(ireal128) :: dtau,g,omega_0
+          real(ireal128) :: a11,a12,a13,a23,a33
 
           real(ireal128) ::  alpha_1, alpha_2, alpha_3, alpha_4, alpha_5, alpha_6
           real(ireal128) ::  beta11,beta21,beta12,beta22,beta13,beta23
@@ -267,7 +318,7 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           real(ireal128) ::  alpha1_p_lambda, alpha1_m_lambda
           real(ireal128) ::  bscr
 
-          real(ireal128),parameter ::  eps_resonance=1e-5_ireal128
+          real(ireal128),parameter ::  eps_resonance=1e-8_ireal128
           real(ireal128),parameter :: max_exponential = log(huge(max_exponential)/1e2)
 
           ! Singularities -- dont use values before here
@@ -311,14 +362,14 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
 !          gamma21 = one
           gamma22 = alpha_2/alpha1_m_lambda * e2
 
-          a11 = real(beta11 + beta21, ireals)
-          a12 = real(beta12 + beta22, ireals)
+          a11 = beta11 + beta21
+          a12 = beta12 + beta22
 
-          a11 = max(zero,  min(one, a11) )
-          a12 = max(zero,  min(one, a12) )
+          a11 = max(0._ireal128,  min(1._ireal128, a11) )
+          a12 = max(0._ireal128,  min(1._ireal128, a12) )
 
           if(mu_0.gt.epsilon(mu_0)) then
-            a33     = real(exp ( - dtau  / mu_0 ), ireals)
+            a33     = exp ( - dtau  / mu_0 )
 
             alpha_3 = -omega_0 * b_minus_mu0
             alpha_4 =  omega_0 * (one-b_minus_mu0)
@@ -338,14 +389,14 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             beta13  = -beta11*alpha_5 * a33 - beta12*alpha_6
             beta23  = -beta21*alpha_5 * a33 - beta22*alpha_6
 
-            a13 = real(beta13         + beta23         + alpha_5, ireals)
-            a23 = real(beta13*gamma12 + beta23*gamma22 + alpha_6*a33, ireals)
+            a13 = beta13         + beta23         + alpha_5
+            a23 = beta13*gamma12 + beta23*gamma22 + alpha_6*a33
 
             a13 = a13 / mu_0 !Fabian: Roberts coefficients a13 expect S to be
             a23 = a23 / mu_0 !        irradiance on tilted plane... we use irradiance on z-plane
 
-            a13 = max(zero, a13)
-            a23 = max(zero, a23)
+            a13 = max(0._ireal128, a13)
+            a23 = max(0._ireal128, a23)
 
           else
 
@@ -358,11 +409,18 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
           g1 = real(g0 / (alpha_1-alpha_2), ireals)
           g2 = real(g0 / lambda**2, ireals)
 
+          c11 = real(a11, ireals)
+          c12 = real(a12, ireals)
+          c13 = real(a13, ireals)
+          c23 = real(a23, ireals)
+          c33 = real(a33, ireals)
+
           if(ldebug) then
-            if(      any([a11,a12,a13,a23,a33].gt.one)        &
-                .or. any([a11,a12,a13,a23,a33,g1,g2].lt.zero) &
-                .or. any(isnan([a11,a12,a13,a23,a33,g1,g2]))  ) then
+            if(      any([c11,c12,c13,c23,c33].gt.one)        &
+                .or. any([c11,c12,c13,c23,c33,g1,g2].lt.zero) &
+                .or. any(isnan([c11,c12,c13,c23,c33,g1,g2]))  ) then
             print *,'eddington ',dtau_in,omega_0_in,g_in,'::',a11,a12,a13,a23,a33,g1,g2
+            print *,'eddington ',dtau_in,omega_0_in,g_in,'::',c11,c12,c13,c23,c33,g1,g2
             print *,'eddington ',dtau,omega_0,g,mu_0,':1:',A,den,lambda,alpha_1,alpha_2,e1,e2,g0
             print *,'eddington ',dtau,omega_0,g,mu_0,':2:',alpha_3,alpha_4,den,(one/mu_0)**2 - lambda**2,alpha_5,alpha_6
             print *,'eddington ',dtau,omega_0,g,mu_0,':3:',beta11,beta21,beta12,beta22,beta13,beta23
@@ -372,9 +430,9 @@ pure subroutine eddington_coeff_rb (dtau_in,omega_0_in,g_in,mu_0,a11,a12,a13,a23
             call exit()
           endif
 
-          if( real(a11+a12) .gt. one  .or. real(a13+a23) .gt. one ) then
-            print *,'eddington enercons',dtau_in,omega_0_in,g_in,'::',a11+a12,a13+a23,one-a33
-            print *,'eddington enercons',dtau_in,omega_0_in,g_in,'::',a11,a12,a13,a23,a33,g1,g2
+          if( real(c11+c12) .gt. one  .or. real(c13+c23) .gt. one ) then
+            print *,'eddington enercons',dtau_in,omega_0_in,g_in,'::',c11+c12,c13+c23,one-c33
+            print *,'eddington enercons',dtau_in,omega_0_in,g_in,'::',c11,c12,c13,c23,c33,g1,g2
             print *,'eddington enercons',dtau,omega_0,g,mu_0,':1:',A,lambda,alpha_1,alpha_2,e1,e2,g0
             print *,'eddington enercons',dtau,omega_0,g,mu_0,':2:',alpha_3,alpha_4,(one/mu_0)**2 - lambda**2,alpha_5,alpha_6
             print *,'eddington enercons',dtau,omega_0,g,mu_0,':3:',beta11,beta21,beta12,beta22,beta13,beta23

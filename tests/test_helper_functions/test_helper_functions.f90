@@ -1,17 +1,17 @@
 module test_helper_functions
-    use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
-    use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
-      compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction, &
-      cumprod
+  use iso_c_binding
+  use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
+  use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
+    compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction, &
+    cumprod
 
-
-    use pfunit_mod
+  use pfunit_mod
 
   implicit none
 
-  contains
+contains
 
-@test(npes =[1,2,4])
+@test(npes =[2])
 subroutine test_mpi_functions(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -34,6 +34,8 @@ subroutine test_mpi_functions(this)
     integer(iintegers),parameter :: repetitions=10000
     integer(iintegers) :: rep
 
+    integer(c_size_t) :: large_size_t_int
+
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
@@ -50,6 +52,13 @@ subroutine test_mpi_functions(this)
       do i=1,numnodes
         @assertEqual(i-1, arr(i))
       enddo
+
+      ! Check if c_size_t broadcasts work
+      if(myid.eq.0) then
+        large_size_t_int = 8589934592_c_size_t ! 2**33
+      endif
+      call imp_bcast(comm, large_size_t_int, 0_mpiint)
+      @assertEqual(8589934592_c_size_t, large_size_t_int, 'c_size_t broadcast wrong')
 
       ! Check if scalar and array bcasts work
       if(myid.eq.0) then

@@ -245,8 +245,7 @@ contains
       integer(iintegers) :: itau, iw0, ig, iaspect, iphi, itheta, iCx, iCy
       real(ireals) :: tau, w0, g, aspect, phi, theta, Cx, Cy
 
-      real(ireals) :: kabs, ksca, dz, err(2)
-      real(ireals), allocatable :: vertices(:)
+      real(ireals) :: err(2)
       real(ireals), parameter :: dx = 911
 
       comm     = this%getMpiCommunicator()

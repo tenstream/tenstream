@@ -19,7 +19,7 @@
 
 #include "f2c_solver_ids.h"
 
-void f2c_tenstream_rrtmg(int fcomm,                   // MPI_Comm_c2f(MPI_COMM_WORLD)
+void f2c_pprts_rrtmg(int fcomm,                   // MPI_Comm_c2f(MPI_COMM_WORLD)
     int *Nz, int *Nx,int *Ny,                         // size of local subdomain
     double *dx, double *dy,                           // horizontal grid spacing in [m]
     double *phi0, double *theta0,                     // Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
@@ -41,7 +41,7 @@ void f2c_tenstream_rrtmg(int fcomm,                   // MPI_Comm_c2f(MPI_COMM_W
     int *nyproc                                       // local size of subdomain along y, has size(nprocy)
     );
 
-void f2c_destroy_tenstream_rrtmg(int *lfinalizepetsc);
+void f2c_destroy_pprts_rrtmg(int *lfinalizepetsc);
 
 
 // Direct C wrapper of PPRTS Routines

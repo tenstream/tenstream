@@ -37,9 +37,6 @@ set( optprop_sources
 add_library( pprts_base STATIC ${general_sources} ${optprop_sources} )
 target_link_libraries( pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
-add_library( tenstream STATIC "tenstream.f90")
-target_link_libraries( tenstream pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
-
 add_library( pprts STATIC "pprts.f90" "adaptive_spectral_integration.f90")
 target_link_libraries( pprts pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
@@ -52,6 +49,3 @@ foreach ( stream ${streams} )
 
   install(TARGETS ${basename} RUNTIME DESTINATION bin)
 endforeach ()
-
-install(TARGETS tenstream DESTINATION lib)
-
