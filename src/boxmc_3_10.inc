@@ -53,7 +53,7 @@
 
 subroutine init_dir_photon_3_10(bmc, p, src, ldirect, initial_dir, vertices, ierr)
   class(t_boxmc_3_10)               :: bmc
-  type(photon)      ,intent(inout)  :: p
+  type(t_photon)      ,intent(inout)  :: p
   real(ireal_dp)    ,intent(in)     :: initial_dir(:), vertices(:)
   integer(iintegers),intent(in)     :: src
   logical           ,intent(in)     :: ldirect
@@ -92,7 +92,7 @@ end subroutine
 
 subroutine update_dir_stream_3_10(bmc,p,T)
         class(t_boxmc_3_10)          :: bmc
-        type(photon),intent(in)      :: p
+        type(t_photon),intent(in)      :: p
         real(ireal_dp),intent(inout) :: T(:)
         select case(p%side)
         case(1,2)
@@ -111,7 +111,7 @@ end subroutine
 subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         use m_helper_functions_dp, only : rotate_angle_x, rotate_angle_y, rotate_angle_z
         class(t_boxmc_3_10)           :: bmc
-        type(photon),intent(inout)    :: p
+        type(t_photon),intent(inout)    :: p
         real(ireal_dp),intent(in)     :: vertices(:)
         integer(iintegers),intent(in) :: src
         integer(mpiint),intent(out)   :: ierr
@@ -221,7 +221,7 @@ end subroutine
 
 subroutine update_diff_stream_3_10(bmc,p,S)
   class(t_boxmc_3_10)          :: bmc
-  type(photon),intent(in)      :: p
+  type(t_photon),intent(in)      :: p
   real(ireal_dp),intent(inout) :: S(:)
 
   !         _______2_______
@@ -283,7 +283,7 @@ end subroutine
 subroutine intersect_distance_3_10(bmc,vertices,p,max_dist)
   class(t_boxmc_3_10) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
-  type(photon),intent(inout) :: p
+  type(t_photon),intent(inout) :: p
   real(ireal_dp),intent(out) :: max_dist
 
 

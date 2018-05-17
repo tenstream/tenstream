@@ -20,7 +20,7 @@
 
 subroutine update_dir_stream_1_2(bmc,p,T)
     class(t_boxmc_1_2) :: bmc
-    type(photon),intent(in) :: p
+    type(t_photon),intent(in) :: p
     real(ireal_dp),intent(inout) :: T(:)
 
     select case (p%side)
@@ -37,7 +37,7 @@ subroutine update_dir_stream_1_2(bmc,p,T)
 end subroutine
 subroutine update_diff_stream_1_2(bmc,p,S)
     class(t_boxmc_1_2) :: bmc
-    type(photon),intent(in) :: p
+    type(t_photon),intent(in) :: p
     real(ireal_dp),intent(inout) :: S(:)
 
     !         _______1_______
@@ -66,7 +66,7 @@ end subroutine
 
 subroutine init_dir_photon_1_2(bmc, p, src, ldirect, initial_dir, vertices, ierr)
     class(t_boxmc_1_2) :: bmc
-    type(photon),intent(inout) :: p
+    type(t_photon),intent(inout) :: p
     real(ireal_dp),intent(in) :: initial_dir(:), vertices(:)
     integer(iintegers),intent(in) :: src
     logical,intent(in) :: ldirect
@@ -97,7 +97,7 @@ end subroutine
 
 subroutine init_diff_photon_1_2(bmc, p, src, vertices, ierr)
     class(t_boxmc_1_2) :: bmc
-    type(photon),intent(inout) :: p
+    type(t_photon),intent(inout) :: p
     real(ireal_dp),intent(in) :: vertices(:)
     integer(iintegers),intent(in) :: src
     integer(mpiint),intent(out) :: ierr
@@ -144,7 +144,7 @@ end subroutine
 subroutine intersect_distance_1_2(bmc,vertices,p,max_dist)
     class(t_boxmc_1_2) :: bmc
     real(ireal_dp),intent(in) :: vertices(:)
-    type(photon),intent(inout) :: p
+    type(t_photon),intent(inout) :: p
     real(ireal_dp),intent(out) :: max_dist
 
     real(ireal_dp) :: x,y

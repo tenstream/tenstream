@@ -1,7 +1,7 @@
 module m_example_pprts_rrtm_lw_sw
   use mpi
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
-  use m_pprts, only : t_solver, t_solver_3_10
+  use m_pprts_base, only : t_solver, t_solver_3_10
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what

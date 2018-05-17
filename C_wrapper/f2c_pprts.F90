@@ -29,9 +29,9 @@ module m_f2c_pprts
 
       use m_helper_functions, only: imp_bcast, mean, CHKERR
 
-      use m_pprts, only : init_pprts, t_solver, t_solver_8_10, t_solver_3_10, t_solver_3_6, t_solver_1_2, &
-        set_global_optical_properties, solve_pprts, destroy_pprts, &
-        pprts_get_result_toZero, t_coord
+      use m_pprts_base, only : t_solver, t_solver_8_10, t_solver_3_10, t_solver_3_6, t_solver_1_2, t_coord
+      use m_pprts, only : init_pprts, set_global_optical_properties, solve_pprts, destroy_pprts, &
+        pprts_get_result_toZero
 
       use m_petsc_helpers, only : petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
 

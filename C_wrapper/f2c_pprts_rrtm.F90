@@ -26,7 +26,7 @@ module m_f2c_pprts_rrtm
         zero, one
 
       use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
-      use m_pprts, only : t_solver_3_10
+      use m_pprts_base, only : t_solver_3_10
 
       use m_helper_functions, only: imp_bcast, mean, CHKERR
 

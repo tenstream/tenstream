@@ -34,6 +34,7 @@ module m_tenstream_options
         luse_twostr_guess =.False., & ! use twostream solution as first guess
         lcalc_nca         =.False., & ! calculate twostream and modify absorption with NCA algorithm
         lschwarzschild    =.False., & ! use schwarzschild solver instead of twostream for thermal calculations
+        lmcrts            =.False., & ! use monte carlo solver
         lskip_thermal     =.False., & ! Skip thermal calculations and just return zero for fluxes and absorption
         ltopography       =.False., & ! use raybending to include surface topography
         lforce_phi        =.False., & ! Force to use the phi given in options entries(overrides values given to tenstream calls
@@ -68,6 +69,7 @@ module m_tenstream_options
           print *,'-twostr_only          :: only calculate twostream solution -- dont bother calculating 3D Radiation                '
           print *,'-twostr               :: calculate delta eddington twostream solution                                             '
           print *,'-schwarzschild        :: use schwarzschild solver instead of twostream for thermal calculations                   '
+          print *,'-mcrts                :: use a montecarlo solver'
           print *,'-hdf5_guess           :: if run earlier with -writeall can now use dumped solutions as initial guess              '
           print *,'-twostr_guess         :: use delta eddington twostream solution as first guess                                    '
           print *,'-twostr_ratio <limit> :: when aspect ratio (dz/dx) is smaller than <limit> then we use twostr_coeffs(default = 1.)'
@@ -178,6 +180,8 @@ module m_tenstream_options
 
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER ,"-schwarzschild" , lschwarzschild, lflg , ierr) ;call CHKERR(ierr)
 
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER ,"-mcrts" , lmcrts, lflg , ierr) ;call CHKERR(ierr)
+
           call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-coeff_mode", coeff_mode, lflg, ierr) ; call CHKERR(ierr)
           if(lflg.eqv.PETSC_FALSE) coeff_mode=0 ! use LUT by default
 
@@ -192,6 +196,7 @@ module m_tenstream_options
             print *,'***   twostr_guess ',luse_twostr_guess
             print *,'***   calc_nca     ',lcalc_nca
             print *,'***   schwarzschild',lschwarzschild
+            print *,'***   mcrts        ',lmcrts
             print *,'***   skip_thermal ',lskip_thermal
             print *,'***   topography   ',ltopography
             print *,'***   hdf5_guess   ',luse_hdf5_guess

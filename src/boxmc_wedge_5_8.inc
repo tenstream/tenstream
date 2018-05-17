@@ -39,7 +39,7 @@
 subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices, ierr)
   use m_helper_functions_dp, only: pnt_in_triangle, determine_normal_direction, angle_between_two_vec, rad2deg
   class(t_boxmc_wedge_5_8) :: bmc
-  type(photon),intent(inout) :: p
+  type(t_photon),intent(inout) :: p
   real(ireal_dp),intent(in) :: initial_dir(:), vertices(:)
   integer(iintegers),intent(in) :: src
   logical,intent(in) :: ldirect
@@ -125,7 +125,7 @@ end subroutine
 
 subroutine update_dir_stream_wedge_5_8(bmc,p,T)
   class(t_boxmc_wedge_5_8) :: bmc
-  type(photon),intent(in) :: p
+  type(t_photon),intent(in) :: p
   real(ireal_dp),intent(inout) :: T(:)
 
   T(p%side) = T(p%side) + p%weight
@@ -135,7 +135,7 @@ end subroutine
 
 subroutine update_diff_stream_wedge_5_8(bmc,p,S)
   class(t_boxmc_wedge_5_8) :: bmc
-  type(photon),intent(in) :: p
+  type(t_photon),intent(in) :: p
   real(ireal_dp),intent(inout) :: S(:)
 
   select case (p%side)
@@ -177,7 +177,7 @@ end subroutine
 subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   use m_helper_functions_dp, only : pnt_in_triangle,rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, rad2deg
   class(t_boxmc_wedge_5_8) :: bmc
-  type(photon),intent(inout) :: p
+  type(t_photon),intent(inout) :: p
   real(ireal_dp),intent(in) :: vertices(:)
   integer(iintegers),intent(in) :: src
   integer(mpiint), intent(out) :: ierr
@@ -296,7 +296,7 @@ subroutine intersect_distance_wedge_5_8(bmc, vertices, p, max_dist)
   use m_boxmc_geometry, only : intersect_wedge
   class(t_boxmc_wedge_5_8) :: bmc
   real(ireal_dp), intent(in) :: vertices(:)
-  type(photon), intent(inout) :: p
+  type(t_photon), intent(inout) :: p
   real(ireal_dp), intent(out) :: max_dist
 
   call intersect_wedge(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &

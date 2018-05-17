@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_adaptive_spectral_integration
-  use m_pprts, only: t_state_container
+  use m_pprts_base, only: t_state_container
   use m_data_parameters, only: iintegers, ireals, default_str_len, mpiint, zero, one, nil
   use m_tenstream_options, only: options_max_solution_err, options_max_solution_time
   use m_helper_functions, only: approx, CHKERR

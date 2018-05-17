@@ -39,133 +39,28 @@ module m_pprts
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
     options_max_solution_err, options_max_solution_time, ltwostr_only, luse_twostr_guess,        &
     options_phi, lforce_phi, options_theta, lforce_theta, &
-    lcalc_nca, lskip_thermal, lschwarzschild, ltopography
+    lcalc_nca, lskip_thermal, lschwarzschild, ltopography, &
+    lmcrts
 
   use m_petsc_helpers, only : petscGlobalVecToZero, scatterZerotoPetscGlobal, &
     petscVecToF90, f90VecToPetsc, getVecPointer, restoreVecPointer
 
+  use m_mcrts_dmda, only: solve_mcrts
+
+  use m_pprts_base
+
   implicit none
   private
 
-  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, t_state_container, init_pprts, &
+  public :: init_pprts, &
             set_optical_properties, set_global_optical_properties, &
             solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
-            pprts_get_result_toZero, t_coord
+            pprts_get_result_toZero
 
   integer(iintegers), parameter :: E_up=0, E_dn=1
 
-  type t_coord
-    integer(iintegers)      :: xs,xe                   ! local domain start and end indices
-    integer(iintegers)      :: ys,ye                   ! local domain start and end indices
-    integer(iintegers)      :: zs,ze                   ! local domain start and end indices
-    integer(iintegers)      :: xm,ym,zm                ! size of local domain
-    integer(iintegers)      :: gxs,gys,gzs             ! domain indices including ghost points
-    integer(iintegers)      :: gxe,gye,gze             !
-    integer(iintegers)      :: gxm,gym,gzm             ! size of local domain including ghosts
-    integer(iintegers)      :: glob_xm,glob_ym,glob_zm ! global domain size
-    integer(iintegers)      :: dof,dim                 ! degrees of freedom of Petsc Domain, dimension of dmda
-    type(tDM)               :: da                      ! The Domain Decomposition Object
-    PetscMPIInt,allocatable :: neighbors(:)            ! all 3d neighbours((x=-1,y=-1,z=-1), (x=0,y=-1,z=-1) ...), i.e. 14 is one self.
-    integer(mpiint)         :: comm                    ! mpi communicatior for this DMDA
-  end type
-
-  type t_opticalprops
-    real(ireals) :: kabs,ksca,g
-  end type
-
-  type t_atmosphere
-    type(t_opticalprops) , allocatable , dimension(:,:,:) :: op
-    real(ireals)         , allocatable , dimension(:,:,:) :: planck
-    real(ireals)         , allocatable , dimension(:,:,:) :: a11, a12, a21, a22, a13, a23, a33
-    real(ireals)         , allocatable , dimension(:,:,:) :: g1,g2
-    real(ireals)         , allocatable , dimension(:,:,:) :: dz
-    logical              , allocatable , dimension(:,:,:) :: l1d
-    real(ireals)         , allocatable , dimension(:,:)   :: albedo
-    real(ireals)                                          :: dx,dy
-    integer(iintegers)                                    :: icollapse=1
-    logical                                               :: lcollapse = .False.
-  end type
-
-  type t_sunangles
-    real(ireals)        :: symmetry_phi
-    integer(iintegers)  :: yinc,xinc
-    real(ireals)        :: theta, phi, costheta, sintheta
-  end type
-
-  type t_suninfo
-    type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
-    logical                       :: luse_topography=.False.
-  end type
-
   KSP,save :: kspdir, kspdiff
   logical,save :: linit_kspdir=.False., linit_kspdiff=.False.
-
-  type t_state_container
-    integer(iintegers)  :: uid ! dirty hack to give the solution a unique hash for example to write it out to disk -- this should be the same as the index in global solutions array
-    Vec                 :: edir,ediff,abso
-
-    logical             :: lset        = .False. ! initialized?
-    logical             :: lsolar_rad  = .False. ! direct radiation calculated?
-    logical             :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
-
-    ! save state of solution vectors... they are either in [W](true) or [W/m**2](false)
-    logical             :: lintegrated_dir=.True. , lintegrated_diff=.True.
-
-    !save error statistics
-    real(ireals)        :: time   (30) = -one
-    real(ireals)        :: maxnorm(30) = zero
-    real(ireals)        :: twonorm(30) = zero
-    real(ireals),allocatable :: ksp_residual_history(:)
-  end type
-
-  type t_dof
-    integer(iintegers) :: dof
-    logical, allocatable :: is_inward(:)
-  end type
-
-  type t_solver_log_events
-    PetscLogStage :: stage_solve_pprts
-    PetscLogEvent :: set_optprop
-    PetscLogEvent :: compute_edir
-    PetscLogEvent :: solve_Mdir
-    PetscLogEvent :: setup_Mdir
-    PetscLogEvent :: compute_ediff
-    PetscLogEvent :: solve_Mdiff
-    PetscLogEvent :: setup_Mdiff
-    PetscLogEvent :: solve_twostream
-    PetscLogEvent :: get_coeff_dir2dir
-    PetscLogEvent :: get_coeff_dir2diff
-    PetscLogEvent :: get_coeff_diff2diff
-    PetscLogEvent :: scatter_to_Zero
-    PetscLogEvent :: scale_flx
-  end type
-
-  type, abstract :: t_solver
-    integer(mpiint)                 :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
-    type(t_coord), allocatable      :: C_dir, C_diff, C_one, C_one1, C_one_atm, C_one_atm1
-    type(t_atmosphere),allocatable  :: atm
-    type(t_suninfo)                 :: sun
-    type(tMat),allocatable          :: Mdir,Mdiff
-    class(t_optprop), allocatable   :: OPP
-
-    type(t_dof)                     :: difftop, diffside, dirtop, dirside
-
-    logical                         :: lenable_solutions_err_estimates=.True.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
-    type(tVec),allocatable          :: incSolar,b
-
-    logical                         :: linitialized=.False.
-    type(t_state_container)         :: solutions(-1000:1000)
-    type(t_solver_log_events)       :: logs
-  end type
-
-  type, extends(t_solver) :: t_solver_1_2
-  end type
-  type, extends(t_solver) :: t_solver_8_10
-  end type
-  type, extends(t_solver) :: t_solver_3_6
-  end type
-  type, extends(t_solver) :: t_solver_3_10
-  end type
 
   logical,parameter :: ldebug=.False.
   logical,parameter :: lcycle_dir=.True.
@@ -582,7 +477,7 @@ module m_pprts
           call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one)
       endif
 
-      if(ltwostr_only) return ! dont need anything here, we just compute Twostream anyway
+      if(ltwostr_only .or. lmcrts) return ! dont need anything here, we just compute Twostream anyway
 
       ! init box montecarlo model
       select type(solver)
@@ -1736,6 +1631,11 @@ module m_pprts
       if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) goto 99
     endif
 
+    if( lmcrts ) then
+      call solve_mcrts(solver, edirTOA, solutions(uid))
+      goto 99
+    endif
+
     ! --------- scale from [W/m**2] to [W] -----------------
     call scale_flx(solver, solutions(uid), lWm2_to_W=.True. )
 
@@ -2185,7 +2085,6 @@ module m_pprts
     allocate( S  (C_one_atm1%zs:C_one_atm1%ze) )
     allocate( Eup(C_one_atm1%zs:C_one_atm1%ze) )
     allocate( Edn(C_one_atm1%zs:C_one_atm1%ze) )
-
 
     do j=C_one_atm%ys,C_one_atm%ye
       do i=C_one_atm%xs,C_one_atm%xe

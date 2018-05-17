@@ -45,8 +45,10 @@ module m_boxmc
   implicit none
 
   private
-  public :: t_boxmc, t_boxmc_8_10, t_boxmc_1_2, t_boxmc_3_10, t_boxmc_3_6, &
-    t_boxmc_wedge_5_5, t_boxmc_wedge_5_8
+  public :: t_boxmc, t_boxmc_8_10, t_boxmc_1_2, &
+    t_boxmc_3_10, t_boxmc_3_6, &
+    t_boxmc_wedge_5_5, t_boxmc_wedge_5_8, &
+    t_photon
 
   integer,parameter :: fg=1,bg=2,tot=3
   real(ireal_dp),parameter :: zero=0, one=1 ,nil=-9999
@@ -127,7 +129,7 @@ module m_boxmc
     procedure :: update_diff_stream => update_diff_stream_wedge_5_8
   end type t_boxmc_wedge_5_8
 
-  type photon
+  type t_photon
     real(ireal_dp) :: loc(3)=nil,dir(3)=nil,weight=nil,dx=nil,dy=nil,dz=nil
     logical :: alive=.True.,direct=.False.
     integer(iintegers) :: src_side=inil,side=inil,src=inil,scattercnt=0
@@ -145,9 +147,9 @@ module m_boxmc
   ! ***************** INTERFACES ************
   abstract interface
     subroutine init_diff_photon(bmc, p, src, vertices, ierr)
-      import :: t_boxmc,photon,iintegers,ireal_dp,mpiint
+      import :: t_boxmc,t_photon,iintegers,ireal_dp,mpiint
       class(t_boxmc) :: bmc
-      type(photon),intent(inout) :: p
+      type(t_photon),intent(inout) :: p
       real(ireal_dp),intent(in) :: vertices(:)
       integer(iintegers),intent(in) :: src
       integer(mpiint), intent(out) :: ierr
@@ -156,9 +158,9 @@ module m_boxmc
 
   abstract interface
     subroutine init_dir_photon(bmc, p, src, ldirect, initial_dir, vertices, ierr)
-      import :: t_boxmc, photon, iintegers, ireal_dp, mpiint
+      import :: t_boxmc, t_photon, iintegers, ireal_dp, mpiint
       class(t_boxmc) :: bmc
-      type(photon),intent(inout) :: p
+      type(t_photon),intent(inout) :: p
       real(ireal_dp),intent(in) :: vertices(:), initial_dir(:)
       integer(iintegers),intent(in) :: src
       logical,intent(in) :: ldirect
@@ -168,28 +170,28 @@ module m_boxmc
 
   abstract interface
     subroutine update_diff_stream(bmc,p,S)
-      import :: t_boxmc,photon,iintegers,ireal_dp
+      import :: t_boxmc,t_photon,iintegers,ireal_dp
       class(t_boxmc) :: bmc
-      type(photon),intent(in) :: p
+      type(t_photon),intent(in) :: p
       real(ireal_dp),intent(inout) :: S(:)
     end subroutine
   end interface
 
   abstract interface
     subroutine update_dir_stream(bmc,p,T)
-      import :: t_boxmc,photon,iintegers,ireal_dp
+      import :: t_boxmc,t_photon,iintegers,ireal_dp
       class(t_boxmc) :: bmc
-      type(photon),intent(in) :: p
+      type(t_photon),intent(in) :: p
       real(ireal_dp),intent(inout) :: T(:)
     end subroutine
   end interface
 
   abstract interface
     subroutine intersect_distance(bmc,vertices,p,max_dist)
-      import :: t_boxmc,photon,ireal_dp
+      import :: t_boxmc,t_photon,ireal_dp
       class(t_boxmc) :: bmc
       real(ireal_dp),intent(in) :: vertices(:)
-      type(photon),intent(inout) :: p
+      type(t_photon),intent(inout) :: p
       real(ireal_dp),intent(out) :: max_dist
     end subroutine
   end interface
@@ -324,7 +326,7 @@ contains
       integer(iintegers) :: Nphotons
       type(stddev),intent(inout)   :: std_Sdir, std_Sdiff, std_abso
 
-      type(photon)       :: p
+      type(t_photon)       :: p
       real(ireal_dp)     :: theta, initial_dir(3)
       real(ireal_dp)     :: time(2)
       integer(iintegers) :: k,mycnt,mincnt
@@ -429,7 +431,7 @@ contains
 
   !> @brief russian roulette helps to reduce computations with not much weight
   subroutine roulette(p)
-    type(photon),intent(inout) :: p
+    type(t_photon),intent(inout) :: p
     real(ireal_dp),parameter :: m=1e-2_ireal_dp,s=1e-3_ireal_dp*m
 
     if(p%weight.lt.s) then
@@ -444,7 +446,7 @@ contains
 
   !> @brief in a ``postprocessing`` step put scattered direct radiation back into dir2dir streams
   subroutine refill_direct_stream(p,initial_dir)
-    type(photon),intent(inout) :: p
+    type(t_photon),intent(inout) :: p
     real(ireal_dp),intent(in) :: initial_dir(3)
 
     real(ireal_dp) :: angle
@@ -491,7 +493,7 @@ contains
   subroutine move_photon(bmc,vertices,p)
     class(t_boxmc) :: bmc
     real(ireal_dp), intent(in) :: vertices(:)
-    type(photon),intent(inout) :: p
+    type(t_photon),intent(inout) :: p
     real(ireal_dp) :: dist,intersec_dist
 
     call bmc%intersect_distance(vertices,p,intersec_dist)
@@ -517,7 +519,7 @@ contains
 
     !> @brief update physical location of photon and consider absorption
     subroutine update_photon_loc(p,dist)
-      type(photon),intent(inout) :: p
+      type(t_photon),intent(inout) :: p
       real(ireal_dp),intent(in) :: dist
       call absorb_photon(p,dist)
       p%loc = p%loc + (dist*p%dir)
@@ -562,7 +564,7 @@ contains
 
   !> @brief remove photon weight due to absorption
   pure subroutine absorb_photon(p,dist)
-    type(photon),intent(inout) :: p
+    type(t_photon),intent(inout) :: p
     real(ireal_dp),intent(in) :: dist
     real(ireal_dp) :: new_weight,tau
 
@@ -577,7 +579,7 @@ contains
 
   !> @brief compute new direction of photon after scattering event
   subroutine scatter_photon(p)
-    type(photon),intent(inout) :: p
+    type(t_photon),intent(inout) :: p
     real(ireal_dp) :: muxs,muys,muzs,muxd,muyd,muzd
     real(ireal_dp) :: mutheta,fi,costheta,sintheta,sinfi,cosfi,denom,muzcosfi
 
@@ -624,22 +626,22 @@ contains
 
   pure function get_kabs(p)
     real(ireal_dp) :: get_kabs
-    type(photon),intent(in) :: p
+    type(t_photon),intent(in) :: p
     get_kabs = p%optprop(1)
   end function
   pure function get_ksca(p)
     real(ireal_dp) :: get_ksca
-    type(photon),intent(in) :: p
+    type(t_photon),intent(in) :: p
     get_ksca = p%optprop(2)
   end function
   pure function get_g(p)
     real(ireal_dp) :: get_g
-    type(photon),intent(in) :: p
+    type(t_photon),intent(in) :: p
     get_g = p%optprop(3)
   end function
 
   subroutine print_photon(p)
-    type(photon),intent(in) :: p
+    type(t_photon),intent(in) :: p
     print *,'S---------------------------'
     print *,'Location  of Photon:',p%loc
     print *,'Direction of Photon:',p%dir

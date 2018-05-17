@@ -12,7 +12,7 @@ subroutine test_rrtm_lw(this)
     ! main entry point for solver, and desctructor
     use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
 
-    use m_pprts, only : t_solver_3_10
+    use m_pprts_base, only : t_solver_3_10
 
     use pfunit_mod
 

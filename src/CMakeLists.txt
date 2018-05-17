@@ -16,12 +16,15 @@ set( general_sources
   "eddington.f90"
   "interpolation.f90"
   "ranlux.for"
+  "mcrts_dmda.F90"
   "twostream.f90"
   "schwarzschild.f90"
   "tenstream_options.f90"
   "petsc_helpers.f90"
   "nca.f90"
   "mmap.f90"
+  "pprts_base.F90"
+  "adaptive_spectral_integration.f90"
   )
 
 set( optprop_sources
@@ -37,7 +40,7 @@ set( optprop_sources
 add_library( pprts_base STATIC ${general_sources} ${optprop_sources} )
 target_link_libraries( pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
-add_library( pprts STATIC "pprts.f90" "adaptive_spectral_integration.f90")
+add_library( pprts STATIC "pprts.f90")
 target_link_libraries( pprts pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
 file( GLOB streams createLUT_*.f90 )
