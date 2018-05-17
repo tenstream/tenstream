@@ -58,7 +58,7 @@ subroutine box_cld()
     allocate(fup  (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
     allocate(fdiv (solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
 
-    call pprts_get_result(solver, fdir, fdn, fup, fdiv)
+    call pprts_get_result(solver, fdn, fup, fdiv, fdir)
 
     if(myid.eq.0) then
         print *,'kabs:', kabs(:,1,1)
