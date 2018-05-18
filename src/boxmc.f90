@@ -35,7 +35,8 @@ module m_boxmc
   use m_helper_functions, only : CHKERR
   use iso_c_binding
   use mpi
-  use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi_dp
+  use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi_dp, &
+    imp_iinteger, imp_real_dp, imp_logical
 
   use m_optprop_parameters, only : delta_scale_truncate,stddev_atol,stddev_rtol,ldebug_optprop
 
@@ -45,10 +46,13 @@ module m_boxmc
   implicit none
 
   private
-  public :: t_boxmc, t_boxmc_8_10, t_boxmc_1_2, &
+  public :: t_boxmc, t_photon, &
+    t_boxmc_8_10, t_boxmc_1_2, &
     t_boxmc_3_10, t_boxmc_3_6, &
     t_boxmc_wedge_5_5, t_boxmc_wedge_5_8, &
-    t_photon
+    scatter_photon, print_photon, roulette, R, &
+    tau, distance, update_photon_loc, &
+    imp_t_photon
 
   integer,parameter :: fg=1,bg=2,tot=3
   real(ireal_dp),parameter :: zero=0, one=1 ,nil=-9999
@@ -130,11 +134,13 @@ module m_boxmc
   end type t_boxmc_wedge_5_8
 
   type t_photon
-    real(ireal_dp) :: loc(3)=nil,dir(3)=nil,weight=nil,dx=nil,dy=nil,dz=nil
+    sequence
+    real(ireal_dp) :: loc(3)=nil,dir(3)=nil,weight=nil,tau_travel=nil
     logical :: alive=.True.,direct=.False.
-    integer(iintegers) :: src_side=inil,side=inil,src=inil,scattercnt=0
-    real(ireal_dp) :: optprop(3) ! kabs,ksca,g
+    integer(iintegers) :: src_side=inil,side=inil,src=inil,scattercnt=0,cellid=inil
   end type
+
+  integer(mpiint) :: imp_t_photon
 
   type stddev
     real(ireal_dp),allocatable,dimension(:) :: inc,delta,mean,mean2,var,relvar
@@ -178,9 +184,10 @@ module m_boxmc
   end interface
 
   abstract interface
-    subroutine update_dir_stream(bmc,p,T)
+    subroutine update_dir_stream(bmc,vertices,p,T)
       import :: t_boxmc,t_photon,iintegers,ireal_dp
       class(t_boxmc) :: bmc
+      real(ireal_dp),intent(in) :: vertices(:)
       type(t_photon),intent(in) :: p
       real(ireal_dp),intent(inout) :: T(:)
     end subroutine
@@ -198,6 +205,31 @@ module m_boxmc
 ! ***************** INTERFACES ************
 
 contains
+
+  subroutine gen_mpi_photon_type()
+    type(t_photon) :: dummy
+    integer(mpiint),parameter :: block_cnt=3  ! Number of blocks
+    integer(mpiint) :: blocklengths(block_cnt) ! Number of elements in each block
+    integer(mpiint) :: dtypes(block_cnt) ! Type of elements in each block (array of handles to data-type objects)
+    integer(mpi_address_kind) :: displacements(block_cnt), base ! byte displacement of each block
+    integer(mpiint) :: ierr
+
+    blocklengths(1) = 8 ! doubles to begin with
+    blocklengths(2) = 2 ! logicals
+    blocklengths(3) = 5 ! ints
+
+    dtypes = [imp_real_dp, imp_logical, imp_iinteger]
+
+    call mpi_get_address(dummy%loc(1), displacements(1), ierr); call chkerr(ierr)
+    call mpi_get_address(dummy%alive, displacements(2), ierr); call chkerr(ierr)
+    call mpi_get_address(dummy%src_side, displacements(3), ierr); call chkerr(ierr)
+
+    base = displacements(1)
+    displacements = displacements - base
+
+    call mpi_type_create_struct(block_cnt, blocklengths, displacements, dtypes, imp_t_photon, ierr); call chkerr(ierr)
+    call mpi_type_commit(imp_t_photon, ierr); call chkerr(ierr)
+  end subroutine
 
 
   !> @brief Calculate Transfer Coefficients using MonteCarlo integration
@@ -260,7 +292,9 @@ contains
     endif
 
     call run_photons(bmc,src,                      &
-                     real(op_bg,kind=ireal_dp),    &
+                     real(op_bg(1),kind=ireal_dp), &
+                     real(op_bg(2),kind=ireal_dp), &
+                     real(op_bg(3),kind=ireal_dp), &
                      real(vertices,kind=ireal_dp), &
                      ldir,                         &
                      real(phi0,   kind=ireal_dp),  &
@@ -316,12 +350,12 @@ contains
     !print *,'S out', ret_S_out, 'T_out', ret_T_out
   end subroutine
 
-  subroutine run_photons(bmc, src, op, vertices, &
+  subroutine run_photons(bmc, src, kabs, ksca, g, vertices, &
       ldir, phi0, theta0, Nphotons, &
       std_Sdir, std_Sdiff, std_abso)
       class(t_boxmc),intent(inout) :: bmc
       integer(iintegers),intent(in) :: src
-      real(ireal_dp),intent(in) :: op(3),vertices(:),phi0,theta0
+      real(ireal_dp),intent(in) :: kabs, ksca, g, vertices(:),phi0,theta0
       logical,intent(in) :: ldir
       integer(iintegers) :: Nphotons
       type(stddev),intent(inout)   :: std_Sdir, std_Sdiff, std_abso
@@ -357,14 +391,13 @@ contains
               call bmc%init_diff_photon(p, src, vertices, ierr)
           endif
           if(ierr.ne.0) exit
-          p%optprop = op
 
           move: do
-            call bmc%move_photon(vertices, p)
+            call bmc%move_photon(vertices, kabs, ksca, p)
             call roulette(p)
 
             if(.not.p%alive) exit move
-            call scatter_photon(p)
+            call scatter_photon(p, g)
           enddo move
 
           if(ldir) call refill_direct_stream(p,initial_dir)
@@ -374,7 +407,7 @@ contains
           std_Sdiff%inc = zero
 
           if(p%direct) then
-            call bmc%update_dir_stream(p,std_Sdir%inc)
+            call bmc%update_dir_stream(vertices, p,std_Sdir%inc)
           else
             call bmc%update_diff_stream(p,std_Sdiff%inc)
           endif
@@ -490,64 +523,66 @@ contains
 
   !> @brief main function for a single photon
   !> @details this routine will incrementally move a photon until it is either out of the domain or it is time for a interaction with the medium
-  subroutine move_photon(bmc,vertices,p)
+  subroutine move_photon(bmc, vertices, kabs, ksca, p)
     class(t_boxmc) :: bmc
-    real(ireal_dp), intent(in) :: vertices(:)
+    real(ireal_dp), intent(in) :: vertices(:), kabs, ksca
     type(t_photon),intent(inout) :: p
     real(ireal_dp) :: dist,intersec_dist
 
-    call bmc%intersect_distance(vertices,p,intersec_dist)
+    call bmc%intersect_distance(vertices, p, intersec_dist)
 
-    dist = distance(tau(R() ), get_ksca(p) )
+    p%tau_travel = tau(R())
+    dist = distance(p%tau_travel, ksca)
 
     if(intersec_dist .le. dist) then
       p%alive=.False.
-      call update_photon_loc(p,intersec_dist)
+      call update_photon_loc(p, intersec_dist, kabs, ksca)
     else
-      call update_photon_loc(p,dist)
+      call update_photon_loc(p, dist, kabs, ksca)
     endif
 
     if(p%scattercnt.gt.1e9) then
       print *,'Scattercnt:',p%scattercnt,' -- maybe this photon got stuck? -- I will move this one out of the box but keep in mind, that this is a dirty hack i.e. absorption will be wrong!'
       call print_photon(p)
       p%alive=.False.
-      call update_photon_loc(p,intersec_dist)
+      call update_photon_loc(p, intersec_dist, kabs, ksca)
       call print_photon(p)
     endif
 
-  contains
-
-    !> @brief update physical location of photon and consider absorption
-    subroutine update_photon_loc(p,dist)
-      type(t_photon),intent(inout) :: p
-      real(ireal_dp),intent(in) :: dist
-      call absorb_photon(p,dist)
-      p%loc = p%loc + (dist*p%dir)
-      if(any(isnan(p%loc))) then
-        print *,'loc is now a NAN! ',p%loc,'dist',dist
-        call print_photon(p)
-        call exit
-      endif
-    end subroutine
-    !> @brief compute physical distance according to travel_tau
-    elemental function distance(tau,beta)
-      real(ireal_dp),intent(in) :: tau,beta
-      real(ireal_dp) :: distance
-      if(approx(beta,zero) ) then
-          distance = huge(distance)
-      else
-          distance = tau/beta
-      endif
-    end function
-
-    !> @brief throw the dice for a random optical thickness -- after the corresponding dtau it is time to do some interaction
-    elemental function tau(r)
-      real(ireal_dp),intent(in) :: r
-      real(ireal_dp) :: tau,arg
-      arg = max( epsilon(arg), one-r )
-      tau = -log(arg)
-    end function
   end subroutine move_photon
+
+  !> @brief compute physical distance according to travel_tau
+  elemental function distance(tau, beta)
+    real(ireal_dp),intent(in) :: tau, beta
+    real(ireal_dp) :: distance
+    if(approx(beta,zero) ) then
+      distance = huge(distance)
+    else
+      distance = tau/beta
+    endif
+  end function
+
+  !> @brief throw the dice for a random optical thickness -- after the corresponding dtau it is time to do some interaction
+  elemental function tau(r)
+    real(ireal_dp),intent(in) :: r
+    real(ireal_dp) :: tau,arg
+    arg = max( epsilon(arg), one-r )
+    tau = -log(arg)
+  end function
+
+  !> @brief update physical location of photon and consider absorption
+  subroutine update_photon_loc(p, dist, kabs, ksca)
+    type(t_photon),intent(inout) :: p
+    real(ireal_dp),intent(in) :: dist, kabs, ksca
+    call absorb_photon(p, dist, kabs)
+    p%loc = p%loc + (dist*p%dir)
+    p%tau_travel = p%tau_travel - dist * ksca
+    if(any(isnan(p%loc))) then
+      print *,'loc is now a NAN! ',p%loc,'dist',dist
+      call print_photon(p)
+      call exit
+    endif
+  end subroutine
 
   !> @brief cumulative sum of henyey greenstein phase function
   elemental function hengreen(r,g)
@@ -563,12 +598,12 @@ contains
   end function
 
   !> @brief remove photon weight due to absorption
-  pure subroutine absorb_photon(p,dist)
+  pure subroutine absorb_photon(p, dist, kabs)
     type(t_photon),intent(inout) :: p
-    real(ireal_dp),intent(in) :: dist
+    real(ireal_dp),intent(in) :: dist, kabs
     real(ireal_dp) :: new_weight,tau
 
-    tau = get_kabs(p)*dist
+    tau = kabs*dist
     if(tau.gt.30) then
       p%weight = zero
     else
@@ -578,12 +613,13 @@ contains
   end subroutine
 
   !> @brief compute new direction of photon after scattering event
-  subroutine scatter_photon(p)
+  subroutine scatter_photon(p, g)
     type(t_photon),intent(inout) :: p
+    real(ireal_dp), intent(in) :: g
     real(ireal_dp) :: muxs,muys,muzs,muxd,muyd,muzd
     real(ireal_dp) :: mutheta,fi,costheta,sintheta,sinfi,cosfi,denom,muzcosfi
 
-    mutheta = hengreen(R(),get_g(p))
+    mutheta = hengreen(R(), g)
 
     p%scattercnt = p%scattercnt+1
     p%direct=.False.
@@ -624,21 +660,21 @@ contains
 
   end subroutine
 
-  pure function get_kabs(p)
-    real(ireal_dp) :: get_kabs
-    type(t_photon),intent(in) :: p
-    get_kabs = p%optprop(1)
-  end function
-  pure function get_ksca(p)
-    real(ireal_dp) :: get_ksca
-    type(t_photon),intent(in) :: p
-    get_ksca = p%optprop(2)
-  end function
-  pure function get_g(p)
-    real(ireal_dp) :: get_g
-    type(t_photon),intent(in) :: p
-    get_g = p%optprop(3)
-  end function
+!  pure function get_kabs(p)
+!    real(ireal_dp) :: get_kabs
+!    type(t_photon),intent(in) :: p
+!    get_kabs = p%optprop(1)
+!  end function
+!  pure function get_ksca(p)
+!    real(ireal_dp) :: get_ksca
+!    type(t_photon),intent(in) :: p
+!    get_ksca = p%optprop(2)
+!  end function
+!  pure function get_g(p)
+!    real(ireal_dp) :: get_g
+!    type(t_photon),intent(in) :: p
+!    get_g = p%optprop(3)
+!  end function
 
   subroutine print_photon(p)
     type(t_photon),intent(in) :: p
@@ -647,8 +683,7 @@ contains
     print *,'Direction of Photon:',p%dir
     print *,'weight',p%weight,'alive,direct',p%alive,p%direct,'scatter count',p%scattercnt
     print *,'src_side',p%src_side,'side',p%side,'src',p%src
-    print *,'kabs,ksca,g',get_kabs(p),get_ksca(p),get_g(p)
-    print *,'dx,dy,dz', p%dx, p%dy, p%dz
+    print *,'cellid', p%cellid, 'tau_travel', p%tau_travel
     print *,'E---------------------------'
   end subroutine
 
@@ -681,6 +716,8 @@ contains
 
     call RLUXGO(4, int(s), 0, 0) ! seed ranlux rng
     lRNGseeded=.True.
+
+    call gen_mpi_photon_type()
   end subroutine
   subroutine init_stddev( std, N, atol, rtol)
     type(stddev),intent(inout) :: std

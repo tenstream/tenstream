@@ -48,8 +48,9 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   real(ireal_dp) :: lstart
   real(ireal_dp),parameter :: edge_start_range=.999_ireal_dp
   integer(mpiint),intent(out) :: ierr
+  real(ireal_dp) :: dx, dy, dz
 
-  call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, p%dx, p%dy, p%dz)
+  call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, dx, dy, dz)
 
   lstart = (one-edge_start_range)/2 + edge_start_range * R()
   select case(src)
@@ -57,19 +58,19 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     r1 = R()
     r2 = R()
     PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-    p%loc = [PNT(1), PNT(2), p%dz]
+    p%loc = [PNT(1), PNT(2), dz]
     normal = [zero,zero,-one]
   case (2)
     PNT = A + (lstart * (B-A))
-    p%loc = [PNT(1), PNT(2), L(p%dz)]
+    p%loc = [PNT(1), PNT(2), L(dz)]
     normal = [nAB(1), nAB(2), zero]
   case (3)
     PNT = A + (lstart * (C-A))
-    p%loc = [PNT(1), PNT(2), L(p%dz)]
+    p%loc = [PNT(1), PNT(2), L(dz)]
     normal = [nCA(1), nCA(2), zero]
   case (4)
     PNT = C + (lstart * (B-C))
-    p%loc = [PNT(1), PNT(2), L(p%dz)]
+    p%loc = [PNT(1), PNT(2), L(dz)]
     normal = [nBC(1), nBC(2), zero]
   case (5)
     r1 = R()
@@ -95,7 +96,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
 
   ! always nudge the photon a little bit inside the volume
   triangle_center(1:2) = mean([A,B,C])
-  triangle_center(3) = p%dz/2
+  triangle_center(3) = dz/2
   dir_p_to_triangle_center = triangle_center - p%loc
   dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
 
@@ -123,14 +124,16 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   ierr = 0
 end subroutine
 
-subroutine update_dir_stream_wedge_5_8(bmc,p,T)
+subroutine update_dir_stream_wedge_5_8(bmc,vertices,p,T)
   class(t_boxmc_wedge_5_8) :: bmc
+  real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
   real(ireal_dp),intent(inout) :: T(:)
 
   T(p%side) = T(p%side) + p%weight
   select type(bmc)
   end select
+  if(.False.) print *, 'to prevent unused warnings', vertices
 end subroutine
 
 subroutine update_diff_stream_wedge_5_8(bmc,p,S)
@@ -185,28 +188,29 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   real(ireal_dp) :: phi,mu
   real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
   real(ireal_dp) :: r1, r2, triangle_center(3), dir_p_to_triangle_center(3)
+  real(ireal_dp) :: dx, dy, dz
 
   !print *,'---------- new diffuse photon --------------'
-  call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, p%dx, p%dy, p%dz)
+  call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, dx, dy, dz)
 
   select case (src)
   case (1)
     r1 = R()
     r2 = R()
     PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-    p%loc = [PNT(1), PNT(2), p%dz]
+    p%loc = [PNT(1), PNT(2), dz]
     p%src_side = 1
   case (2:3)
     PNT = A + (B - A) * R()
-    p%loc = [PNT(1), PNT(2), R()*p%dz]
+    p%loc = [PNT(1), PNT(2), R()*dz]
     p%src_side = 2
   case (4:5)
     PNT = A + (C - A) * R()
-    p%loc = [PNT(1), PNT(2), R()*p%dz]
+    p%loc = [PNT(1), PNT(2), R()*dz]
     p%src_side = 3
   case (6:7)
     PNT = C + (B - C) * R()
-    p%loc = [PNT(1), PNT(2), R()*p%dz]
+    p%loc = [PNT(1), PNT(2), R()*dz]
     p%src_side = 4
   case (8)
     r1 = R()
@@ -269,7 +273,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
 
   ! always nudge the photon a little bit inside the volume
   triangle_center(1:2) = (a+b+c)/3
-  triangle_center(3) = p%dz/2
+  triangle_center(3) = dz/2
   dir_p_to_triangle_center = triangle_center - p%loc
   dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
 

@@ -18,11 +18,13 @@
 !-------------------------------------------------------------------------
 
 
-subroutine update_dir_stream_8_10(bmc,p,T)
+subroutine update_dir_stream_8_10(bmc,vertices,p,T)
         class(t_boxmc_8_10) :: bmc
         type(t_photon),intent(in) :: p
+        real(ireal_dp),intent(in)     :: vertices(:)
         real(ireal_dp),intent(inout) :: T(:)
         real(ireal_dp),parameter :: h=.5_ireal_dp
+        real(ireal_dp) :: dx, dy, dz
 
 !          /     3       4 /
 !         / 1       2     /
@@ -33,18 +35,21 @@ subroutine update_dir_stream_8_10(bmc,p,T)
 !        |               |
 !        |    7          |
 !      5 |_______________|
+
+    call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
+
     select case (p%side)
     case(1:2)
-      if(p%loc(1).le.p%dx*h.and.p%loc(2).le.p%dy*h) then
+      if(p%loc(1).le.dx*h.and.p%loc(2).le.dy*h) then
         T(1) = T(1)+p%weight
         return
-      else if(p%loc(1).gt.p%dx*h.and.p%loc(2).le.p%dy*h) then
+      else if(p%loc(1).gt.dx*h.and.p%loc(2).le.dy*h) then
         T(2) = T(2)+p%weight
         return
-      else if(p%loc(1).le.p%dx*h.and.p%loc(2).gt.p%dy*h) then
+      else if(p%loc(1).le.dx*h.and.p%loc(2).gt.dy*h) then
         T(3) = T(3)+p%weight
         return
-      else if(p%loc(1).gt.p%dx*h.and.p%loc(2).gt.p%dy*h) then
+      else if(p%loc(1).gt.dx*h.and.p%loc(2).gt.dy*h) then
         T(4) = T(4)+p%weight
         return
       else
@@ -54,10 +59,10 @@ subroutine update_dir_stream_8_10(bmc,p,T)
 
     case(3:4)
 
-      if(p%loc(3).le.p%dz*h ) then
+      if(p%loc(3).le.dz*h ) then
         T(5) = T(5)+p%weight
         return
-      else if(p%loc(3).gt.p%dz*h ) then
+      else if(p%loc(3).gt.dz*h ) then
         T(6) = T(6)+p%weight
         return
       else
@@ -66,10 +71,10 @@ subroutine update_dir_stream_8_10(bmc,p,T)
       endif
     case(5:6)
 
-      if(p%loc(3).le.p%dz*h ) then
+      if(p%loc(3).le.dz*h ) then
         T(7) = T(7)+p%weight
         return
-      else if(p%loc(3).gt.p%dz*h ) then
+      else if(p%loc(3).gt.dz*h ) then
         T(8) = T(8)+p%weight
         return
       else
@@ -153,8 +158,9 @@ subroutine init_dir_photon_8_10(bmc,p,src,ldirect,initial_dir,vertices,ierr)
 
         real(ireal_dp),parameter :: h=.5_ireal_dp
         real(ireal_dp),parameter :: e=1e-6_ireal_dp
+        real(ireal_dp) :: dx, dy, dz
 
-        call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
+        call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
         p%alive = .False.
 
@@ -169,21 +175,21 @@ subroutine init_dir_photon_8_10(bmc,p,src,ldirect,initial_dir,vertices,ierr)
 !      5 |_______________|
         select case(src)
         case (1)
-                p%loc = [ L(p%dx)*h     , L(p%dy)*h     , p%dz*(one-e)   ]
+                p%loc = [ L(dx)*h     , L(dy)*h     , dz*(one-e)   ]
         case (2)
-                p%loc = [ p%dx*h+L(p%dx)*h, L(p%dy)*h     , p%dz*(one-e)   ]
+                p%loc = [ dx*h+L(dx)*h, L(dy)*h     , dz*(one-e)   ]
         case (3)
-                p%loc = [ L(p%dx)*h     , p%dy*h+L(p%dy)*h, p%dz*(one-e)   ]
+                p%loc = [ L(dx)*h     , dy*h+L(dy)*h, dz*(one-e)   ]
         case (4)
-                p%loc = [ p%dx*h+L(p%dx)*h, p%dy*h+L(p%dy)*h, p%dz*(one-e)   ]
+                p%loc = [ dx*h+L(dx)*h, dy*h+L(dy)*h, dz*(one-e)   ]
         case (5)
-                p%loc = [ zero+p%dx*e   , L(p%dy)       , L(p%dz)*h      ]
+                p%loc = [ zero+dx*e   , L(dy)       , L(dz)*h      ]
         case (6)
-                p%loc = [ zero+p%dx*e   , L(p%dy)       , p%dz*h+L(p%dz)*h ]
+                p%loc = [ zero+dx*e   , L(dy)       , dz*h+L(dz)*h ]
         case (7)
-                p%loc = [ L(p%dx)       , zero+p%dy*e   , L(p%dz)*h      ]
+                p%loc = [ L(dx)       , zero+dy*e   , L(dz)*h      ]
         case (8)
-                p%loc = [ L(p%dx)       , zero+p%dy*e   , p%dz*h+L(p%dz)*h ]
+                p%loc = [ L(dx)       , zero+dy*e   , dz*h+L(dz)*h ]
         case default
                 print *,'Dont know what to do with source spec:',src
                 call exit
@@ -211,8 +217,9 @@ subroutine init_diff_photon_8_10(bmc,p,src,vertices,ierr)
         integer(mpiint),intent(out)   :: ierr
 
         real(ireal_dp) :: phi,mu,mu1,mu2
+        real(ireal_dp) :: dx, dy, dz
 
-        call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
+        call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
         mu1= sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
         mu2 = R() ! evenly distribution between 0 and 90 degree
@@ -220,38 +227,38 @@ subroutine init_diff_photon_8_10(bmc,p,src,vertices,ierr)
         mu=mu1
         select case(src)
         case (-1) ! thermal emission
-                p%loc = (/ L(p%dx) , L(p%dy) , L(p%dz) /)
+                p%loc = (/ L(dx) , L(dy) , L(dz) /)
                 mu = 2*mu2 - one
                 phi= deg2rad( R()*360 )
         case (1)
-                p%loc = (/ L(p%dx) , L(p%dy) , zero  /)
+                p%loc = (/ L(dx) , L(dy) , zero  /)
                 phi= deg2rad( R()*360 )
         case (2)
-                p%loc = (/ L(p%dx) , L(p%dy) , p%dz    /)
+                p%loc = (/ L(dx) , L(dy) , dz    /)
                 phi= deg2rad( R()*360 )
         case (3)
-                p%loc = (/ p%dx    , L(p%dy) , L(p%dz) /)
+                p%loc = (/ dx    , L(dy) , L(dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (4)
-                p%loc = (/ zero  , L(p%dy) , L(p%dz) /)
+                p%loc = (/ zero  , L(dy) , L(dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (5)
-                p%loc = (/ p%dx    , L(p%dy) , L(p%dz) /)
+                p%loc = (/ dx    , L(dy) , L(dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (6)
-                p%loc = (/ zero  , L(p%dy) , L(p%dz) /)
+                p%loc = (/ zero  , L(dy) , L(dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (7)
-                p%loc = (/ L(p%dx) , p%dy    , L(p%dz) /)
+                p%loc = (/ L(dx) , dy    , L(dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (8)
-                p%loc = (/ L(p%dx) , zero  , L(p%dz) /)
+                p%loc = (/ L(dx) , zero  , L(dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (9)
-                p%loc = (/ L(p%dx) , p%dy    , L(p%dz) /)
+                p%loc = (/ L(dx) , dy    , L(dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case (10)
-                p%loc = (/ L(p%dx) , zero  , L(p%dz) /)
+                p%loc = (/ L(dx) , zero  , L(dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
         case default
                 print *,'Dont know what to do with source spec:',src

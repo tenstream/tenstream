@@ -58,18 +58,19 @@ subroutine init_dir_photon_3_6(bmc,p,src,ldirect,initial_dir,vertices,ierr)
   integer(mpiint),intent(out) :: ierr
 
   real(ireal_dp), parameter  :: e=1e-6_ireal_dp
+  real(ireal_dp) :: dx, dy, dz
 
-  call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
+  call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
   p%alive = .False.
 
   select case(src)
   case (1)
-    p%loc = [R()*p%dx, R()*p%dy, p%dz*(one-e)]
+    p%loc = [R()*dx, R()*dy, dz*(one-e)]
   case (2)
-    p%loc = [e, R()*p%dy, R()*p%dz]
+    p%loc = [e, R()*dy, R()*dz]
   case (3)
-    p%loc = [R()*p%dx, e, R()*p%dz]
+    p%loc = [R()*dx, e, R()*dz]
   case default
     print *,'Dont know what to do with source spec:',src
     call exit
@@ -88,8 +89,9 @@ subroutine init_dir_photon_3_6(bmc,p,src,ldirect,initial_dir,vertices,ierr)
   ierr = 0
 end subroutine
 
-subroutine update_dir_stream_3_6(bmc,p,T)
+subroutine update_dir_stream_3_6(bmc,vertices,p,T)
   class(t_boxmc_3_6) :: bmc
+  real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
   real(ireal_dp),intent(inout) :: T(:)
   select case(p%side)
@@ -101,6 +103,7 @@ subroutine update_dir_stream_3_6(bmc,p,T)
      T(3)=T(3)+p%weight
    case default
      stop 'called update dirstream with incorrect source'
+     print *,'remove unused compiler warning', vertices
   end select
   select type(bmc)
   end select
@@ -138,24 +141,25 @@ subroutine init_diff_photon_3_6(bmc,p,src,vertices,ierr)
   integer(mpiint),intent(out) :: ierr
 
   real(ireal_dp) :: phi,mu
+  real(ireal_dp) :: dx, dy, dz
 
   !print *,'---------- new diffuse photon --------------'
 
-  call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
+  call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
   select case(src)
   case (2)
-    p%loc = [R()*p%dx,R()*p%dy, p%dz]
+    p%loc = [R()*dx,R()*dy, dz]
   case (1)
-    p%loc = [R()*p%dx, R()*p%dy, zero]
+    p%loc = [R()*dx, R()*dy, zero]
   case (4)
-    p%loc = [zero, R()*p%dy, R()*p%dz]
+    p%loc = [zero, R()*dy, R()*dz]
   case (3)
-    p%loc = [p%dx, R()*p%dy, R()*p%dz]
+    p%loc = [dx, R()*dy, R()*dz]
   case (6)
-    p%loc = [R()*p%dx, zero, R()*p%dz]
+    p%loc = [R()*dx, zero, R()*dz]
   case (5)
-    p%loc = [R()*p%dx, p%dy, R()*p%dz]
+    p%loc = [R()*dx, dy, R()*dz]
   case default
     print *,'Dont know what to do with source spec:',src
     call exit

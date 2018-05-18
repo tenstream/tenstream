@@ -33,7 +33,7 @@ module m_helper_functions
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint
+    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum
 
   interface itoa
     module procedure itoa_i4, itoa_i8
@@ -256,6 +256,13 @@ module m_helper_functions
       real(ireals),intent(out) :: r
       integer(mpiint) :: mpierr
       call mpi_allreduce(v,r,1_mpiint,imp_ireals, MPI_MAX,comm, mpierr); call CHKERR(mpierr)
+    end subroutine
+    subroutine imp_allreduce_sum(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      integer(iintegers),intent(in) :: v
+      integer(iintegers),intent(out) :: r
+      integer(mpiint) :: mpierr
+      call mpi_allreduce(v, r, 1_mpiint, imp_iinteger, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
     end subroutine
     subroutine imp_reduce_sum(comm,v)
       real(ireals),intent(inout) :: v
