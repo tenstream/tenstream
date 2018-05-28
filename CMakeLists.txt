@@ -154,7 +154,11 @@ endif(${_is_GNU})
 
 # Add Source Directories
 add_subdirectory (src)
-add_subdirectory (plexrt)
+
+option(ENABLE_PLEXRT "Enable PLEXRT, Radiative transfer on wedges" OFF)
+if(ENABLE_PLEXRT)
+  add_subdirectory (plexrt)
+endif(ENABLE_PLEXRT)
 
 # Documentation targets
 add_custom_target(doc DEPENDS doxygen)
