@@ -32,7 +32,7 @@ module m_boxmc
   use m_helper_functions_dp, only : approx, mean, rmse, imp_reduce_sum, &
     norm, deg2rad, compute_normal_3d, spherical_2_cartesian, &
     hit_plane, square_intersection, triangle_intersection
-  use m_helper_functions, only : CHKERR
+  use m_helper_functions, only : CHKERR, get_arg
   use iso_c_binding
   use mpi
   use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi_dp, &
@@ -57,7 +57,7 @@ module m_boxmc
   integer,parameter :: fg=1,bg=2,tot=3
   real(ireal_dp),parameter :: zero=0, one=1 ,nil=-9999
 
-  integer(mpiint) :: mpierr,myid,numnodes
+  integer(mpiint) :: mpierr
 
   logical :: lRNGseeded=.False.
 
@@ -136,8 +136,9 @@ module m_boxmc
   type t_photon
     sequence
     real(ireal_dp) :: loc(3)=nil,dir(3)=nil,weight=nil,tau_travel=nil
-    logical :: alive=.True.,direct=.False.
     integer(iintegers) :: src_side=inil,side=inil,src=inil,scattercnt=0,cellid=inil
+    integer(iintegers) :: i, j, k
+    logical :: alive=.True.,direct=.False.
   end type
 
   integer(mpiint) :: imp_t_photon
@@ -215,14 +216,14 @@ contains
     integer(mpiint) :: ierr
 
     blocklengths(1) = 8 ! doubles to begin with
-    blocklengths(2) = 2 ! logicals
-    blocklengths(3) = 5 ! ints
+    blocklengths(2) = 8 ! ints
+    blocklengths(3) = 2 ! logicals
 
-    dtypes = [imp_real_dp, imp_logical, imp_iinteger]
+    dtypes = [imp_real_dp, imp_iinteger, imp_logical]
 
-    call mpi_get_address(dummy%loc(1), displacements(1), ierr); call chkerr(ierr)
-    call mpi_get_address(dummy%alive, displacements(2), ierr); call chkerr(ierr)
-    call mpi_get_address(dummy%src_side, displacements(3), ierr); call chkerr(ierr)
+    call mpi_get_address(dummy%loc, displacements(1), ierr); call chkerr(ierr)
+    call mpi_get_address(dummy%src_side, displacements(2), ierr); call chkerr(ierr)
+    call mpi_get_address(dummy%alive, displacements(3), ierr); call chkerr(ierr)
 
     base = displacements(1)
     displacements = displacements - base
@@ -266,8 +267,11 @@ contains
     type(stddev) :: std_Sdir, std_Sdiff, std_abso
 
     integer(iintegers) :: Nphotons, idst, iout
+    integer(mpiint) :: numnodes
 
     if(.not. bmc%initialized ) stop 'Box Monte Carlo Ray Tracer is not initialized! - This should not happen!'
+
+    call mpi_comm_size(comm, numnodes, mpierr); call chkerr(mpierr)
 
     if(present(inp_atol)) then
       atol = inp_atol
@@ -291,7 +295,7 @@ contains
       call exit
     endif
 
-    call run_photons(bmc,src,                      &
+    call run_photons(bmc, comm, src,               &
                      real(op_bg(1),kind=ireal_dp), &
                      real(op_bg(2),kind=ireal_dp), &
                      real(op_bg(3),kind=ireal_dp), &
@@ -350,10 +354,11 @@ contains
     !print *,'S out', ret_S_out, 'T_out', ret_T_out
   end subroutine
 
-  subroutine run_photons(bmc, src, kabs, ksca, g, vertices, &
+  subroutine run_photons(bmc, comm, src, kabs, ksca, g, vertices, &
       ldir, phi0, theta0, Nphotons, &
       std_Sdir, std_Sdiff, std_abso)
       class(t_boxmc),intent(inout) :: bmc
+      integer(mpiint), intent(in) :: comm
       integer(iintegers),intent(in) :: src
       real(ireal_dp),intent(in) :: kabs, ksca, g, vertices(:),phi0,theta0
       logical,intent(in) :: ldir
@@ -364,8 +369,9 @@ contains
       real(ireal_dp)     :: theta, initial_dir(3)
       real(ireal_dp)     :: time(2)
       integer(iintegers) :: k,mycnt,mincnt
-      integer(mpiint)    :: ierr
+      integer(mpiint)    :: numnodes, ierr
 
+      call mpi_comm_size(comm, numnodes, mpierr); call chkerr(mpierr)
       call cpu_time(time(1))
 
       ! dont use zero, really, this has issues if go along a face because it is not so clear where that energy should go.
@@ -436,6 +442,10 @@ contains
     real(ireal_dp),intent(inout)      :: T_tol(:)
 
     real(ireal_dp) :: Nglobal
+    integer(mpiint) :: myid
+
+    call mpi_comm_rank(comm, myid, mpierr); call chkerr(mpierr)
+
     ! weight mean by calculated photons and compare it with results from other nodes
     Nglobal = Nlocal
     call imp_reduce_sum(comm, Nglobal, myid)
@@ -684,6 +694,7 @@ contains
     print *,'weight',p%weight,'alive,direct',p%alive,p%direct,'scatter count',p%scattercnt
     print *,'src_side',p%src_side,'side',p%side,'src',p%src
     print *,'cellid', p%cellid, 'tau_travel', p%tau_travel
+    print *,'i,j,k', p%i, p%j, p%k
     print *,'E---------------------------'
   end subroutine
 
@@ -695,29 +706,35 @@ contains
     R = real(rvec(1), kind=ireal_dp)
   end function
 
-  subroutine init_random_seed(myid)
+  subroutine init_random_seed(myid, luse_random_seed)
     integer,intent(in) :: myid
+    logical, intent(in), optional :: luse_random_seed
     INTEGER :: i, n, clock, s
     INTEGER, DIMENSION(:), ALLOCATABLE :: seed
     real :: rn
+    logical :: lrand_seed
 
-    CALL RANDOM_SEED(size = n)
-    ALLOCATE(seed(n))
+    lrand_seed = get_arg(.True., luse_random_seed)
 
-    CALL SYSTEM_CLOCK(COUNT=clock)
+    if(lrand_seed) then
+      CALL RANDOM_SEED(size = n)
+      ALLOCATE(seed(n))
 
-    seed = myid*3*7*11*13*17 + clock + 37 * (/ (i - 1, i = 1, n) /)
-    CALL RANDOM_SEED(PUT = seed)
+      CALL SYSTEM_CLOCK(COUNT=clock)
 
-    DEALLOCATE(seed)
+      seed = myid*3*7*11*13*17 + clock + 37 * (/ (i - 1, i = 1, n) /)
+      CALL RANDOM_SEED(PUT = seed)
 
-    call random_number(rn)
-    s = int(rn*1000)*(myid+1)
+      DEALLOCATE(seed)
 
-    call RLUXGO(4, int(s), 0, 0) ! seed ranlux rng
+      call random_number(rn)
+      s = int(rn*1000)*(myid+1)
+
+      call RLUXGO(4, int(s), 0, 0) ! seed ranlux rng
+    else
+      call RLUXGO(4, int(myid), 0, 0) ! seed ranlux rng
+    endif
     lRNGseeded=.True.
-
-    call gen_mpi_photon_type()
   end subroutine
   subroutine init_stddev( std, N, atol, rtol)
     type(stddev),intent(inout) :: std
@@ -762,9 +779,12 @@ contains
     endif
   end subroutine
 
-  subroutine init(bmc, comm)
+  subroutine init(bmc, comm, rngseed, luse_random_seed)
     class(t_boxmc) :: bmc
     integer(mpiint),intent(in) :: comm
+    integer(mpiint),intent(in), optional :: rngseed
+    logical, intent(in), optional :: luse_random_seed
+    integer(mpiint) :: myid, seed
 
     if(comm.eq.-1) then
       myid = -1
@@ -772,10 +792,9 @@ contains
       call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
     endif
 
-    if(.not.lRNGseeded) call init_random_seed(myid+2)
+    seed = get_arg(myid+2, rngseed)
 
-    numnodes=1
-    if(myid.ge.0) call mpi_comm_size(comm,numnodes,mpierr); call CHKERR(mpierr)
+    if(.not.lRNGseeded) call init_random_seed(seed, luse_random_seed)
 
     select type (bmc)
     type is (t_boxmc_8_10)
@@ -799,6 +818,8 @@ contains
     class default
     stop 'initialize: unexpected type for boxmc object!'
   end select
+
+  call gen_mpi_photon_type()
 
   bmc%initialized = .True.
 end subroutine

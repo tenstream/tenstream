@@ -256,7 +256,7 @@ contains
     integer(iintegers) :: nd_indices(size(pti))
 
     if(ldebug) then
-      nd_indices = ind_1d_to_nd(db_offsets, size(db, dim=2, kind=iintegers))
+      call ind_1d_to_nd(db_offsets, size(db, dim=2, kind=iintegers), nd_indices)
       if(any(pti.lt.one).or.any(pti.gt.nd_indices)) then
         print *,'db dimensions', nd_indices
         print *,'pti', pti

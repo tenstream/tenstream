@@ -47,7 +47,7 @@ module m_tenstream_options
             options_theta,          &
             options_max_solution_err, options_max_solution_time
 
-      integer(iintegers) :: pert_xshift,pert_yshift
+      integer(iintegers) :: pert_xshift, pert_yshift, mcrts_photons_per_pixel
 
       character(len=default_str_len) :: ident,output_prefix
       character(len=default_str_len) :: basepath
@@ -70,6 +70,7 @@ module m_tenstream_options
           print *,'-twostr               :: calculate delta eddington twostream solution                                             '
           print *,'-schwarzschild        :: use schwarzschild solver instead of twostream for thermal calculations                   '
           print *,'-mcrts                :: use a montecarlo solver'
+          print *,'-mcrts_photons_per_px :: number of photons per pixel'
           print *,'-hdf5_guess           :: if run earlier with -writeall can now use dumped solutions as initial guess              '
           print *,'-twostr_guess         :: use delta eddington twostream solution as first guess                                    '
           print *,'-twostr_ratio <limit> :: when aspect ratio (dz/dx) is smaller than <limit> then we use twostr_coeffs(default = 1.)'
@@ -181,6 +182,10 @@ module m_tenstream_options
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER ,"-schwarzschild" , lschwarzschild, lflg , ierr) ;call CHKERR(ierr)
 
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER ,"-mcrts" , lmcrts, lflg , ierr) ;call CHKERR(ierr)
+
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-mcrts_photons_per_px", mcrts_photons_per_pixel, lflg,ierr) ; call CHKERR(ierr)
+          if(lflg.eqv.PETSC_FALSE) mcrts_photons_per_pixel=1000
+
 
           call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-coeff_mode", coeff_mode, lflg, ierr) ; call CHKERR(ierr)
           if(lflg.eqv.PETSC_FALSE) coeff_mode=0 ! use LUT by default

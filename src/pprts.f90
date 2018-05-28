@@ -57,8 +57,6 @@ module m_pprts
             solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
             pprts_get_result_toZero
 
-  integer(iintegers), parameter :: E_up=0, E_dn=1
-
   KSP,save :: kspdir, kspdiff
   logical,save :: linit_kspdir=.False., linit_kspdiff=.False.
 
@@ -293,6 +291,7 @@ module m_pprts
       call PetscLogEventRegister(trim(s)//'solve_Mdiff', cid, solver%logs%solve_Mdiff, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'setup_Mdiff', cid, solver%logs%setup_Mdiff, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'solve_twostr', cid, solver%logs%solve_twostream, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'solve_mcrts', cid, solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'dir2dir', cid, solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'dir2diff', cid, solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'diff2diff', cid, solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
@@ -390,7 +389,7 @@ module m_pprts
 
         call DMDAGetInfo(C%da, C%dim,                             &
           C%glob_zm, C%glob_xm, C%glob_ym,                        &
-          nproc_x, nproc_y, nproc_z, Ndof, stencil_width,         &
+          nproc_z, nproc_x, nproc_y, Ndof, stencil_width,         &
           bx, by, bz, st, ierr) ;call CHKERR(ierr)
 
         call DMDAGetCorners(C%da, C%zs, C%xs,C%ys, C%zm, C%xm,C%ym, ierr) ;call CHKERR(ierr)
@@ -1632,7 +1631,9 @@ module m_pprts
     endif
 
     if( lmcrts ) then
+      call PetscLogEventBegin(solver%logs%solve_mcrts, ierr)
       call solve_mcrts(solver, edirTOA, solutions(uid))
+      call PetscLogEventEnd(solver%logs%solve_mcrts, ierr)
       goto 99
     endif
 
