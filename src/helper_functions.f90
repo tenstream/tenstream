@@ -33,7 +33,7 @@ module m_helper_functions
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint
+    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum
 
   interface itoa
     module procedure itoa_i4, itoa_i8
@@ -94,12 +94,14 @@ module m_helper_functions
     subroutine CHKERR(ierr, descr)
       integer(mpiint),intent(in) :: ierr
       character(len=*), intent(in), optional :: descr
-      integer(mpiint) :: mpierr
+      integer(mpiint) :: myid, mpierr
+
       if(ierr.ne.0) then
+        call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
         if(present(descr)) then
-          print *,'Error message:', ierr, ':', trim(descr)
+          print *,myid, 'Error message:', ierr, ':', trim(descr)
         else
-          print *,'Error:', ierr
+          print *,myid, 'Error:', ierr
         endif
 #ifdef _GNU
         call BACKTRACE
@@ -256,6 +258,13 @@ module m_helper_functions
       real(ireals),intent(out) :: r
       integer(mpiint) :: mpierr
       call mpi_allreduce(v,r,1_mpiint,imp_ireals, MPI_MAX,comm, mpierr); call CHKERR(mpierr)
+    end subroutine
+    subroutine imp_allreduce_sum(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      integer(iintegers),intent(in) :: v
+      integer(iintegers),intent(out) :: r
+      integer(mpiint) :: mpierr
+      call mpi_allreduce(v, r, 1_mpiint, imp_iinteger, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
     end subroutine
     subroutine imp_reduce_sum(comm,v)
       real(ireals),intent(inout) :: v
@@ -508,7 +517,7 @@ module m_helper_functions
     end function
 
     ! From Numerical Recipes: cumulative product on an array, with optional multiplicative seed.
-    recursive function cumprod_ireals(arr,seed) result(ans)
+    pure recursive function cumprod_ireals(arr,seed) result(ans)
       real(ireals), dimension(:), intent(in) :: arr
       real(ireals), optional, intent(in) :: seed
       real(ireals), dimension(size(arr)) :: ans
@@ -528,7 +537,7 @@ module m_helper_functions
         ans(3:n:2)=ans(2:n-1:2)*arr(3:n:2)
       end if
     end function
-    recursive function cumprod_iintegers(arr,seed) result(ans)
+    pure recursive function cumprod_iintegers(arr,seed) result(ans)
       integer(iintegers), dimension(:), intent(in) :: arr
       integer(iintegers), optional, intent(in) :: seed
       integer(iintegers), dimension(size(arr)) :: ans
@@ -969,37 +978,37 @@ module m_helper_functions
     ! @brief: map from the flattened numbering to the coefficients in Ndims
     ! This is something like numpy.unravel
     ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
-    function ind_1d_to_nd(offsets, ind) result(nd_indices)
+    pure subroutine ind_1d_to_nd(offsets, ind, nd_indices)
       integer(iintegers), intent(in) :: offsets(:)
       integer(iintegers), intent(in) :: ind
-      integer(iintegers) :: nd_indices(size(offsets))
+      integer(iintegers), intent(out) :: nd_indices(size(offsets))
       integer(iintegers) :: k
 
       k = ubound(nd_indices,1) ! last dimension
-      nd_indices(k) = (ind-1) / offsets(k)+1
+      nd_indices(k) = (ind-1) / offsets(k) +1
 
       do k=ubound(offsets,1)-1, lbound(offsets,1), -1
         nd_indices(k) = modulo(ind-1, offsets(k+1)) / offsets(k) +1
       enddo
-    end function
+    end subroutine
 
     ! @brief: map indices in N-dimensions to a flattened array
     ! This is something like numpy.ravel
     ! offset could usually look like [1, size(arr, dim=1), size(arr, dim=1)*size(arr, dim=2), ...]
-    function ind_nd_to_1d(offsets, nd_indices) result(i1d)
+    pure function ind_nd_to_1d(offsets, nd_indices) result (i1d)
       integer(iintegers), intent(in) :: offsets(:)
       integer(iintegers), intent(in) :: nd_indices(:)
       integer(iintegers) :: i1d
       i1d = dot_product(nd_indices(:)-1, offsets) +1
     end function
 
-    function ndarray_offsets(arrshape)
+    pure subroutine ndarray_offsets(arrshape, offsets)
       integer(iintegers),intent(in) :: arrshape(:)
-      integer(iintegers) :: ndarray_offsets(size(arrshape))
-      ndarray_offsets(1) = 1
-      ndarray_offsets(2:size(arrshape)) = arrshape(1:size(arrshape)-1)
-      ndarray_offsets = cumprod(ndarray_offsets)
-    end function
+      integer(iintegers),intent(out) :: offsets(size(arrshape))
+      offsets(1) = 1
+      offsets(2:size(arrshape)) = arrshape(1:size(arrshape)-1)
+      offsets = cumprod(offsets)
+    end subroutine
 
     function get_mem_footprint(comm)
 #include "petsc/finclude/petscsys.h"

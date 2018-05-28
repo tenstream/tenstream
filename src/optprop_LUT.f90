@@ -663,7 +663,7 @@ subroutine get_sample_pnt_by_name_and_index(config, dimname, index_1d, sample_pn
 
   integer(iintegers) :: kdim, nd_indices(size(config%dims))
 
-  nd_indices = ind_1d_to_nd(config%offsets, index_1d)
+  call ind_1d_to_nd(config%offsets, index_1d, nd_indices)
 
   kdim = find_lut_dim_by_name(config, trim(dimname))
   if(kdim.lt.i1) then ! could not find the corresponding dimension
@@ -924,10 +924,10 @@ subroutine set_parameter_space(OPP)
 
     ! Determine offsets
     allocate(OPP%dirconfig%offsets(size(OPP%dirconfig%dims)))
-    OPP%dirconfig%offsets = ndarray_offsets(OPP%dirconfig%dims(:)%N)
+    call ndarray_offsets(OPP%dirconfig%dims(:)%N, OPP%dirconfig%offsets)
 
     allocate(OPP%diffconfig%offsets(size(OPP%diffconfig%dims)))
-    OPP%diffconfig%offsets = ndarray_offsets(OPP%diffconfig%dims(:)%N)
+    call ndarray_offsets(OPP%diffconfig%dims(:)%N, OPP%diffconfig%offsets)
 
     if(ldebug.and..False.) then
       call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr); call CHKERR(ierr)

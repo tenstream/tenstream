@@ -18,8 +18,9 @@
 !-------------------------------------------------------------------------
 
 
-subroutine update_dir_stream_1_2(bmc,p,T)
+subroutine update_dir_stream_1_2(bmc,vertices,p,T)
     class(t_boxmc_1_2) :: bmc
+    real(ireal_dp),intent(in) :: vertices(:)
     type(t_photon),intent(in) :: p
     real(ireal_dp),intent(inout) :: T(:)
 
@@ -28,12 +29,11 @@ subroutine update_dir_stream_1_2(bmc,p,T)
       T(1) = T(1)+p%weight
       return
     case default
-      print *,'Dont know what to do with this p%side'
-      call print_photon(p)
+      call CHKERR(1_mpiint, 'Dont know what to do with this p%side')
+      print *,'remove unused compiler warning', vertices
     end select
     select type(bmc)
     end select
-
 end subroutine
 subroutine update_diff_stream_1_2(bmc,p,S)
     class(t_boxmc_1_2) :: bmc
@@ -71,11 +71,12 @@ subroutine init_dir_photon_1_2(bmc, p, src, ldirect, initial_dir, vertices, ierr
     integer(iintegers),intent(in) :: src
     logical,intent(in) :: ldirect
     integer(mpiint),intent(out) :: ierr
+    real(ireal_dp) :: dx, dy, dz
 
-    call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
+    call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
     if(src.eq.1) then
-      p%loc = (/L(p%dx)     , L(p%dy)     ,    p%dz  /)
+      p%loc = (/L(dx), L(dy), dz/)
     else
       print *,'Dont know what to do with source spec:',src
       call exit
@@ -103,22 +104,23 @@ subroutine init_diff_photon_1_2(bmc, p, src, vertices, ierr)
     integer(mpiint),intent(out) :: ierr
 
     real(ireal_dp) :: phi,mu,mu1,mu2
+    real(ireal_dp) :: dx, dy, dz
 
-    call setup_cube_coords_from_vertices(vertices, p%dx, p%dy, p%dz)
+    call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
     mu2 = R()
     mu1 = sqrt(R())
     select case(src)
     case (-1) ! thermal emission
-      p%loc = (/L(p%dx), L(p%dy), L(p%dz) /)
+      p%loc = (/L(dx), L(dy), L(dz) /)
       mu = 2._ireal_dp*mu2 - one
       phi= deg2rad( R()*360._ireal_dp )
     case (2)
-      p%loc = (/L(p%dx), L(p%dy),    p%dz  /)
+      p%loc = (/L(dx), L(dy),    dz  /)
       mu = -mu1 !mu = interv_R( deg2mu(90._ireal_dp),deg2mu(180._ireal_dp))
       phi= deg2rad( R()*360._ireal_dp )
     case (1)
-      p%loc = (/L(p%dx), L(p%dy),    zero/)
+      p%loc = (/L(dx), L(dy),    zero/)
       mu = mu1 !mu = interv_R( deg2mu(0._ireal_dp),deg2mu(90._ireal_dp))
       phi= deg2rad( R()*360._ireal_dp )
     case default
@@ -148,11 +150,15 @@ subroutine intersect_distance_1_2(bmc,vertices,p,max_dist)
     real(ireal_dp),intent(out) :: max_dist
 
     real(ireal_dp) :: x,y
-    !        real(ireal_dp),parameter :: eps=1e-3
+    real(ireal_dp) :: dx, dy, dz
+
+    dx = 0; dy = 0
+
+    call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
     !crossing with bottom and top plane:
     if(p%dir(3).ge.zero) then
-      max_dist = hit_plane(p%loc, p%dir,[zero,zero,p%dz ],[zero,zero,one])
+      max_dist = hit_plane(p%loc, p%dir,[zero,zero,dz ],[zero,zero,one])
       p%side=1
       x = p%loc(1)+p%dir(1)*max_dist
       y = p%loc(2)+p%dir(2)*max_dist

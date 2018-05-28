@@ -175,14 +175,14 @@ contains
       idim_Cx     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cx')
       idim_Cy     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cy')
 
-      do itau = 1,max(1, LUTconfig%dims(idim_tau)%N-1)
-        do iw0  = 1,max(1, LUTconfig%dims(idim_w0)%N-1)
-          do ig   = 1,max(1, LUTconfig%dims(idim_g)%N-1)
-            do iaspect = 1,max(1, LUTconfig%dims(idim_aspect)%N-1)
-              do iphi = 1,max(1, LUTconfig%dims(idim_phi)%N-1)
-                do itheta = 1,max(1, LUTconfig%dims(idim_theta)%N-1)
-                  do iCx = 1,max(1, LUTconfig%dims(idim_Cx)%N-1)
-                    do iCy = 1,max(1, LUTconfig%dims(idim_Cy)%N-1)
+      do itau = 1,max(i1, LUTconfig%dims(idim_tau)%N-1)
+        do iw0  = 1,max(i1, LUTconfig%dims(idim_w0)%N-1)
+          do ig   = 1,max(i1, LUTconfig%dims(idim_g)%N-1)
+            do iaspect = 1,max(i1, LUTconfig%dims(idim_aspect)%N-1)
+              do iphi = 1,max(i1, LUTconfig%dims(idim_phi)%N-1)
+                do itheta = 1,max(i1, LUTconfig%dims(idim_theta)%N-1)
+                  do iCx = 1,max(i1, LUTconfig%dims(idim_Cx)%N-1)
+                    do iCy = 1,max(i1, LUTconfig%dims(idim_Cy)%N-1)
                       tau    = LUTconfig%dims(idim_tau   )%v(itau)    / 2
                       w0     = LUTconfig%dims(idim_w0    )%v(iw0)     / 2
                       g      = LUTconfig%dims(idim_g     )%v(ig)      / 2

@@ -47,35 +47,50 @@ module m_boxmc_geometry
       real(ireal_dp), intent(in) :: vertices(:)
       real(ireal_dp), intent(out) :: dx, dy, dz
       real(ireal_dp), dimension(3) :: A, B, C, D, E, F, G, H
+      logical :: ladvanced=.False.
 
-      if(size(vertices).eq.4*2) then ! given are vertices on the top of a cube(x,y)
-        A(1:2) = vertices(1:2); A(3) = 0
-        B(1:2) = vertices(3:4); B(3) = 0
-        C(1:2) = vertices(5:6); C(3) = 0
-        D(1:2) = vertices(7:8); D(3) = 0
+      if(ladvanced) then
+        if(size(vertices).eq.4*2) then ! given are vertices on the top of a cube(x,y)
+          A(1:2) = vertices(1:2); A(3) = 0
+          B(1:2) = vertices(3:4); B(3) = 0
+          C(1:2) = vertices(5:6); C(3) = 0
+          D(1:2) = vertices(7:8); D(3) = 0
 
-        dx = mean([norm(B-A), norm(D-C)])
-        dy = mean([norm(C-A), norm(D-B)])
-        dz = one
-      elseif(size(vertices).eq.2*4*3) then ! 3D coords
-        A = vertices( 1: 3)
-        B = vertices( 4: 6)
-        C = vertices( 7: 9)
-        D = vertices(10:12)
-        E = vertices(13:15)
-        F = vertices(16:18)
-        G = vertices(19:21)
-        H = vertices(22:24)
+          dx = mean([norm(B-A), norm(D-C)])
+          dy = mean([norm(C-A), norm(D-B)])
+          dz = one
+        elseif(size(vertices).eq.2*4*3) then ! 3D coords
+          A = vertices( 1: 3)
+          B = vertices( 4: 6)
+          C = vertices( 7: 9)
+          D = vertices(10:12)
+          E = vertices(13:15)
+          F = vertices(16:18)
+          G = vertices(19:21)
+          H = vertices(22:24)
 
-        dx = mean([norm(B-A), norm(D-C), norm(F-E), norm(H-G)])
-        dy = mean([norm(C-A), norm(D-B), norm(G-E), norm(H-F)])
-        dz = mean([norm(E-A), norm(F-B), norm(H-D), norm(G-C)])
+          dx = mean([norm(B-A), norm(D-C), norm(F-E), norm(H-G)])
+          dy = mean([norm(C-A), norm(D-B), norm(G-E), norm(H-F)])
+          dz = mean([norm(E-A), norm(F-B), norm(H-D), norm(G-C)])
+        else
+          call CHKERR(1_mpiint, 'dont know how to handle coords with '//itoa(size(vertices, kind=iintegers))//' vertex entries')
+        endif
       else
-        call CHKERR(1_mpiint, 'dont know how to handle coords with '//itoa(size(vertices, kind=iintegers))//' vertex entries')
+        if(size(vertices).eq.4*2) then ! given are vertices on the top of a cube(x,y)
+          dx = vertices(3) - vertices(1)
+          dy = vertices(6) - vertices(2)
+          dz = one
+        elseif(size(vertices).eq.2*4*3) then ! 3D coords
+          dx = vertices(4) - vertices(1)
+          dy = vertices(8) - vertices(2)
+          dz = vertices(15) - vertices(3)
+        else
+          call CHKERR(1_mpiint, 'dont know how to handle coords with '//itoa(size(vertices, kind=iintegers))//' vertex entries')
+        endif
       endif
     end subroutine
 
-    subroutine setup_default_cube_geometry(A, B, C, D, dz, vertices)
+    pure subroutine setup_default_cube_geometry(A, B, C, D, dz, vertices)
       real(ireals), intent(in) :: A(2), B(2), C(2), D(2), dz
       real(ireals), allocatable, intent(inout) :: vertices(:)
 
@@ -93,13 +108,20 @@ module m_boxmc_geometry
       vertices(22:23) = D
       vertices([15,18,21,24]) = dz
     end subroutine
-    subroutine setup_default_unit_cube_geometry(dx, dy, dz, vertices)
+    pure subroutine setup_default_unit_cube_geometry(dx, dy, dz, vertices)
       real(ireals), intent(in) :: dx, dy, dz
       real(ireals), allocatable, intent(inout) :: vertices(:)
 
-      if(allocated(vertices)) deallocate(vertices)
-      allocate(vertices(2*4*3))
+      if(allocated(vertices)) then
+        if(size(vertices).ne.2*4*3) then
+          deallocate(vertices)
+          allocate(vertices(2*4*3))
+        endif
+      else
+        allocate(vertices(2*4*3))
+      endif
       vertices( 1: 2) = [zero,zero]
+
       vertices( 4: 5) = [  dx,zero]
       vertices( 7: 8) = [zero,  dy]
       vertices(10:11) = [  dx,  dy]

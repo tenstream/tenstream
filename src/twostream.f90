@@ -91,11 +91,11 @@ module m_twostream
 
         ! Setup solar src vector
         do k=1,ke
-          B(2*k-1,1) = S(k) * a13(k) ! Eup 
-          B(2*k+2,1) = S(k) * a23(k) ! Edn 
+          B(2*k-1,1) = S(k) * a13(k) ! Eup
+          B(2*k+2,1) = S(k) * a23(k) ! Edn
         enddo
         B(2,1) = zero ! no Edn at TOA
-        B(2*ke1-1,1) = S(ke1) * albedo 
+        B(2*ke1-1,1) = S(ke1) * albedo
 
         ! Setup thermal src vector
         if(present(planck) ) then
@@ -110,7 +110,7 @@ module m_twostream
         !diagonal entries
         do i=1,N
           j=i
-          bi= KLU+i-j 
+          bi= KLU+i-j
           AB( bi,j ) = one
         enddo
 
@@ -134,7 +134,7 @@ module m_twostream
             call exit()
           endif
         enddo
-        
+
         INFO=-1
         if(kind(one).eq.kind(real(one)) ) then !single_precision
           call SGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
