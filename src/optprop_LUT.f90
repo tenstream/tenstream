@@ -43,6 +43,7 @@ module m_optprop_LUT
     preset_g1, preset_g3,                 &
     preset_tau10, preset_w08,             &
     preset_tau21, preset_w015,            &
+    preset_tau31, preset_w020,            &
     OPP_LUT_ALL_ANGLES, luse_memory_map
 
   use m_boxmc, only: t_boxmc, &
