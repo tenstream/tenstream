@@ -18,6 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_helper_functions
+  use iso_fortran_env, only: INT32, INT64
   use m_data_parameters,only : iintegers, mpiint, ireals, ireal_dp, &
     i1, pi, zero, one, imp_ireals, imp_logical, default_str_len, &
     imp_int4, imp_int8, imp_iinteger
@@ -47,7 +48,7 @@ module m_helper_functions
         imp_bcast_int_1d, imp_bcast_int_2d, imp_bcast_int4, imp_bcast_int8, imp_bcast_real, imp_bcast_logical
   end interface
   interface get_arg
-    module procedure get_arg_logical, get_arg_iintegers, get_arg_ireals, get_arg_char
+    module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_ireals, get_arg_char
   end interface
   interface swap
     module procedure swap_iintegers, swap_ireals
@@ -897,10 +898,20 @@ module m_helper_functions
         arg = default_value
       endif
     end function
-    pure function get_arg_iintegers(default_value, opt_arg) result(arg)
-      integer(iintegers) :: arg
-      integer(iintegers), intent(in) :: default_value
-      integer(iintegers), intent(in), optional :: opt_arg
+    pure function get_arg_i32(default_value, opt_arg) result(arg)
+      integer(INT32) :: arg
+      integer(INT32), intent(in) :: default_value
+      integer(INT32), intent(in), optional :: opt_arg
+      if(present(opt_arg)) then
+        arg = opt_arg
+      else
+        arg = default_value
+      endif
+    end function
+    pure function get_arg_i64(default_value, opt_arg) result(arg)
+      integer(INT64) :: arg
+      integer(INT64), intent(in) :: default_value
+      integer(INT64), intent(in), optional :: opt_arg
       if(present(opt_arg)) then
         arg = opt_arg
       else
