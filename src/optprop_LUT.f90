@@ -423,6 +423,9 @@ subroutine createLUT(OPP, comm, config, S, T)
 
         logical :: ldoneS(OPP%diff_streams), ldoneT(OPP%dir_streams)
 
+        real :: starttime, now
+        call cpu_time(starttime)
+
         finalizedworkers=0
         if(present(T)) then
           Nsrc = OPP%dir_streams
@@ -534,7 +537,10 @@ subroutine createLUT(OPP, comm, config, S, T)
               if( mod((lutindex-1)*Nsrc+isrc-1, total_size*1/1000).eq.0 ) & !every .1 percent report status
                   print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._ireals/total_size,'%'
 
-              if( mod((lutindex-1)*Nsrc+isrc-1, total_size*2/100 ).eq.0 ) then !every 2 percent of LUT dump it.
+              call cpu_time(now)
+              if( (now-starttime).gt.1800 ) then !every 30 minutes wall clock time, dump the LUT.
+                print *,'Dumping LUT after ',(now-starttime)/60,'minutes'
+                starttime = now ! reset the countdown
                 if(present(T)) then
                   print *,'Writing table to file...', T%table_name_c
                   call ncwrite(T%table_name_c  , T%c         ,iierr); call CHKERR(iierr, 'Could not write Table to file')
