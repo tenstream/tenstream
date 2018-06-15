@@ -275,8 +275,8 @@ contains
 
     atol = get_arg(stddev_atol, inp_atol)
     rtol = get_arg(stddev_rtol, inp_rtol)
-    if(sum(op_bg(1:2))*vertices(15) .lt. .1_ireals) then
-      tau_roulette = get_arg(.95_ireal_dp, inp_tau_roulette)
+    if(op_bg(2)*vertices(15) .lt. one) then
+      tau_roulette = get_arg(.95_ireals, inp_tau_roulette)
     else
       tau_roulette = get_arg(one, inp_tau_roulette)
     endif
