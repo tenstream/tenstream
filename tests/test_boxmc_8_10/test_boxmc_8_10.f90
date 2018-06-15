@@ -58,7 +58,7 @@ contains
     if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_symmetry_in_phi(this)   ! Check that we have symmetry for total transmission for e.g. phi 0==90 or 10==80 etc.
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, iphi, itheta
@@ -94,7 +94,7 @@ contains
     enddo
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_direct_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src,iphi
@@ -122,7 +122,7 @@ contains
     enddo
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_direct_srctopface_45(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -159,7 +159,7 @@ contains
 
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_direct_srcsidefaces(this)
     class (MpiTestMethod), intent(inout)  :: this
     integer(iintegers)                    :: src, iphi
@@ -246,7 +246,7 @@ contains
   end subroutine
 
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diff_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -270,7 +270,7 @@ contains
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diff_srcbottomface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
@@ -293,7 +293,7 @@ contains
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbottomface')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
    subroutine test_boxmc_select_cases_diff_srcsideface(this)
      class (MpiTestMethod), intent(inout) :: this
      integer(iintegers) :: src
