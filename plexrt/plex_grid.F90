@@ -20,7 +20,7 @@ module m_plex_grid
     distribute_plexgrid_dm, compute_face_geometry, setup_edir_dmplex, &
     print_dmplex, setup_abso_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
-    get_inward_face_normal, &
+    get_inward_face_normal, create_plex_section, &
     TOAFACE, BOTFACE, SIDEFACE
 
   logical, parameter :: ldebug=.True.
@@ -1648,16 +1648,16 @@ module m_plex_grid
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
-    call DMPlexGetHeightStratum(dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
-    call DMPlexGetHeightStratum(dm, i1, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
-    call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
-    call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+    call DMPlexGetDepthStratum(dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+    call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
+    call DMPlexGetDepthStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
+    call DMPlexGetDepthStratum(dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-    !print *,myid,'pStart,End :: ',pStart, pEnd
-    !print *,myid,'cStart,End :: ',cStart, cEnd
-    !print *,myid,'fStart,End :: ',fStart, fEnd
-    !print *,myid,'eStart,End :: ',eStart, eEnd
-    !print *,myid,'vStart,End :: ',vStart, vEnd
+    print *,myid,'pStart,End :: ',pStart, pEnd
+    print *,myid,'cStart,End :: ',cStart, cEnd
+    print *,myid,'fStart,End :: ',fStart, fEnd
+    print *,myid,'eStart,End :: ',eStart, eEnd
+    print *,myid,'vStart,End :: ',vStart, vEnd
 
   end subroutine
 

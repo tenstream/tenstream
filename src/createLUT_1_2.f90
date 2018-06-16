@@ -30,10 +30,6 @@ program main
 
       integer(mpiint) :: myid, comm, ierr
 
-      character(len=32) :: arg
-      real(ireals) :: user_sza
-      real(ireals) :: azis(2),szas(5)
-
       type(t_optprop_LUT_1_2) :: OPP
 
       call mpi_init(ierr)
@@ -45,19 +41,7 @@ program main
 
       call read_commandline_options()
 
-      azis = [0,90]
-      szas = [0,20,40,60,80]
-
-      call get_command_argument(2, arg)
-      if(len_trim(arg) .gt. 0) then
-        read (arg,*) user_sza
-        szas=user_sza
-      endif
-
-      print *,'calculating coeffs for szas',szas,'azis',azis
       call OPP%init(comm)
-      print *,'loaded 1_2 coeffs for szas',szas,'azis',azis
-
 
       call mpi_finalize(ierr)
 end program

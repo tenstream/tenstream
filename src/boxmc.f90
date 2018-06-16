@@ -54,7 +54,6 @@ module m_boxmc
     tau, distance, update_photon_loc, &
     imp_t_photon
 
-  integer,parameter :: fg=1,bg=2,tot=3
   real(ireal_dp),parameter :: zero=0, one=1 ,nil=-9999
 
   integer(mpiint) :: mpierr
@@ -241,7 +240,7 @@ contains
       phi0, theta0, vertices, &
       ret_S_out, ret_T_out, &
       ret_S_tol,ret_T_tol, &
-      inp_atol, inp_rtol)
+      inp_atol, inp_rtol, inp_tau_scaling)
     class(t_boxmc)                :: bmc             !< @param[in] bmc Raytracer Type - determines number of streams
     real(ireals),intent(in)       :: op_bg(3)        !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
     real(ireals),intent(in)       :: phi0            !< @param[in] phi0 solar azimuth angle
@@ -256,13 +255,14 @@ contains
     real(ireals),intent(out)      :: ret_T_tol(:)    !< @param[out] absolute tolerances of results
     real(ireals),intent(in),optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
     real(ireals),intent(in),optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
+    real(ireals),intent(in),optional :: inp_tau_scaling !< @param[in] inp_tau_scaling if given, determines a roulette factor which may be used to enhance unlikely paths, e.g. to force diffuse radiation computations for low optical thicknesses
 
     real(ireal_dp) :: S_out(bmc%diff_streams)
     real(ireal_dp) :: T_out(bmc%dir_streams)
     real(ireal_dp) :: S_tol(bmc%diff_streams)
     real(ireal_dp) :: T_tol(bmc%dir_streams)
 
-    real(ireal_dp) :: atol,rtol, coeffnorm
+    real(ireal_dp) :: atol,rtol, tau_scaling, coeffnorm
 
     type(stddev) :: std_Sdir, std_Sdiff, std_abso
 
@@ -273,15 +273,12 @@ contains
 
     call mpi_comm_size(comm, numnodes, mpierr); call chkerr(mpierr)
 
-    if(present(inp_atol)) then
-      atol = inp_atol
+    atol = get_arg(stddev_atol, inp_atol)
+    rtol = get_arg(stddev_rtol, inp_rtol)
+    if(op_bg(2)*vertices(15) .lt. one) then
+      tau_scaling = get_arg(.95_ireals, inp_tau_scaling)
     else
-      atol = stddev_atol
-    endif
-    if(present(inp_rtol)) then
-      rtol = inp_rtol
-    else
-      rtol = stddev_rtol
+      tau_scaling = get_arg(one, inp_tau_scaling)
     endif
 
     call init_stddev( std_Sdir , bmc%dir_streams  ,atol, rtol )
@@ -303,7 +300,7 @@ contains
                      ldir,                         &
                      real(phi0,   kind=ireal_dp),  &
                      real(theta0, kind=ireal_dp),  &
-                     Nphotons,                     &
+                     Nphotons, tau_scaling,       &
                      std_Sdir, std_Sdiff, std_abso)
 
     S_out = std_Sdiff%mean
@@ -320,7 +317,7 @@ contains
     ! some debug output at the end...
     coeffnorm = sum(S_out)+sum(T_out)
     if( coeffnorm.gt.one ) then
-      if(coeffnorm.ge.one+1e-5_ireal_dp) then
+      if(coeffnorm.ge.one+1e-2_ireal_dp) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
         sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',op_bg,'eps',epsilon(one)
         call exit
@@ -355,14 +352,15 @@ contains
   end subroutine
 
   subroutine run_photons(bmc, comm, src, kabs, ksca, g, vertices, &
-      ldir, phi0, theta0, Nphotons, &
+      ldir, phi0, theta0, Nphotons, tau_scaling, &
       std_Sdir, std_Sdiff, std_abso)
       class(t_boxmc),intent(inout) :: bmc
       integer(mpiint), intent(in) :: comm
       integer(iintegers),intent(in) :: src
-      real(ireal_dp),intent(in) :: kabs, ksca, g, vertices(:),phi0,theta0
+      real(ireal_dp),intent(in) :: kabs, ksca, g, vertices(:), phi0, theta0
       logical,intent(in) :: ldir
       integer(iintegers) :: Nphotons
+      real(ireal_dp),intent(in) :: tau_scaling
       type(stddev),intent(inout)   :: std_Sdir, std_Sdiff, std_abso
 
       type(t_photon)       :: p
@@ -371,8 +369,20 @@ contains
       integer(iintegers) :: k,mycnt,mincnt
       integer(mpiint)    :: numnodes, ierr
 
+      !real(ireal_dp) :: fe, w_i, kext_i, kabs_i, ksca_i
+
       call mpi_comm_size(comm, numnodes, mpierr); call chkerr(mpierr)
       call cpu_time(time(1))
+
+      ! scaling transformation: https://journals.ametsoc.org/doi/pdf/10.1175/JAS3755.1
+      !fe = one / tau_scaling
+      !kext_i = (kabs + ksca) / fe
+      !w_i = one - (one - ksca / (ksca+kabs)) * fe
+
+      !kabs_i = (one-w_i) * kext_i
+      !ksca_i = w_i * kext_i
+      !print *,'w0', fe, kext_i, w_i, 'kabs, ksca', kabs, ksca, '=>', kabs_i, ksca_i
+      ! end of scaling transformation, from here on, use the dashed _i values
 
       ! dont use zero, really, this has issues if go along a face because it is not so clear where that energy should go.
       ! In an ideal world, this should never happen in the matrix anyway but due to delta scaling and such this can very well be
@@ -384,7 +394,7 @@ contains
       ! and phi = 90, beam going towards east
       initial_dir = spherical_2_cartesian(phi0, theta) * [-one, -one, one]
 
-      mincnt= max( 100, int( 1e3 /numnodes ) )
+      mincnt= max( 1000, int( 1e4 /numnodes ) )
       mycnt = int(1e7)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
       do k=1, mycnt
@@ -403,7 +413,9 @@ contains
             call roulette(p)
 
             if(.not.p%alive) exit move
-            call scatter_photon(p, g)
+            !if(R().lt.fe) then ! adhere to delta scaling forward peak concerning the tau_scaling transformation
+              call scatter_photon(p, g)
+            !endif
           enddo move
 
           if(ldir) call refill_direct_stream(p,initial_dir)
@@ -427,8 +439,8 @@ contains
       call cpu_time(time(2))
 
       !if(Nphotons.gt.1)then ! .and. rand().gt..99_ireal_dp) then
-      !  write(*,FMT='("src ",I0," op ",3(ES12.3),"(delta",3(ES12.3),") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec")') &
-      !    src,op,p%optprop,int(phi0),int(theta0),Nphotons, Nphotons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
+        write(*,FMT='("src ",I0,") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec")') &
+          src,int(phi0),int(theta0),Nphotons, Nphotons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
       !endif
   end subroutine
 
@@ -537,7 +549,7 @@ contains
     class(t_boxmc) :: bmc
     real(ireal_dp), intent(in) :: vertices(:), kabs, ksca
     type(t_photon),intent(inout) :: p
-    real(ireal_dp) :: dist,intersec_dist
+    real(ireal_dp) :: dist, intersec_dist
 
     call bmc%intersect_distance(vertices, p, intersec_dist)
 
@@ -669,22 +681,6 @@ contains
     p%dir(3) = muzd
 
   end subroutine
-
-!  pure function get_kabs(p)
-!    real(ireal_dp) :: get_kabs
-!    type(t_photon),intent(in) :: p
-!    get_kabs = p%optprop(1)
-!  end function
-!  pure function get_ksca(p)
-!    real(ireal_dp) :: get_ksca
-!    type(t_photon),intent(in) :: p
-!    get_ksca = p%optprop(2)
-!  end function
-!  pure function get_g(p)
-!    real(ireal_dp) :: get_g
-!    type(t_photon),intent(in) :: p
-!    get_g = p%optprop(3)
-!  end function
 
   subroutine print_photon(p)
     type(t_photon),intent(in) :: p

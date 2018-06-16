@@ -89,10 +89,12 @@ logical, parameter :: ldebug=.True.
       !sundir = -[0.72362, 0.0793532, 0.685621]
       !sundir = -[0.717145, 0.0262298, 0.696431] !further left
       sundir = -[0.717607, -0.690197, -0.0930992]
+      sundir = -[0.88119, -0.0874145, 0.46461]
       sundir = sundir/norm(sundir)
       print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
 
-      call set_plex_rt_optprop(solver, vlwc=lwcvec, viwc=iwcvec)
+      !call set_plex_rt_optprop(solver, vlwc=lwcvec, viwc=iwcvec)
+      call set_plex_rt_optprop(solver)
 
       call run_plex_rt_solver(solver, sundir)
     end subroutine
