@@ -375,8 +375,8 @@ contains
       ! and phi = 90, beam going towards east
       initial_dir = spherical_2_cartesian(phi0, theta) * [-one, -one, one]
 
-      mincnt= max( 1000, int( 1e4 /numnodes ) )
-      mycnt = int(1e7)/numnodes
+      mincnt= max( int(one/ksca), int(1e4_ireal_dp) )
+      mycnt = int(1e8)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
       do k=1, mycnt
 
