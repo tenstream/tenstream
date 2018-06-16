@@ -1,4 +1,4 @@
-module test_boxmc_3_6_low_tau_roulette
+module test_boxmc_3_6_tau_scaling
   use m_boxmc, only : t_boxmc, t_boxmc_3_6
   use m_data_parameters, only :     &
     mpiint, ireals, iintegers,      &
@@ -23,7 +23,7 @@ module test_boxmc_3_6_low_tau_roulette
 
   real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
 
-  real(ireals),parameter :: atol=1e-4, rtol=1e-2
+  real(ireals),parameter :: atol=1e-3, rtol=1e-2
   !real(ireals),parameter :: atol=1e-5, rtol=1e-3
 contains
 
@@ -59,10 +59,10 @@ contains
   end subroutine teardown
 
   @test(npes =[1])
-  subroutine test_boxmc_tau_roulette1(this)
+  subroutine test_boxmc_tau_scaling1(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src, itau_roulette
-    real(ireals) :: tau, tau_roulette
+    integer(iintegers) :: src, itau_scaling
+    real(ireals) :: tau, tau_scaling
 
     ! from top to bot face
     phi = 0; theta = 0
@@ -79,21 +79,21 @@ contains
     T_target(1) = exp(-tau)
 
     src = 1
-    do itau_roulette=0,9
-      tau_roulette = one - itau_roulette/10.
-      print *,'Tau Roulette', tau_roulette
+    do itau_scaling=0,2
+      tau_scaling = 10.**itau_scaling
+      print *,'Tau Roulette', tau_scaling
       call bmc_3_6%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, &
-        inp_atol=atol, inp_rtol=rtol, inp_tau_roulette=tau_roulette)
-      call check(S_target,T_target, S,T, msg=' test_boxmc_tau_roulette_1_'//itoa(itau_roulette))
+        inp_atol=atol, inp_rtol=rtol, inp_tau_scaling=tau_scaling)
+      call check(S_target,T_target, S,T, msg=' test_boxmc_tau_scaling_1_'//itoa(itau_scaling))
     enddo
 
   end subroutine
 
   @test(npes =[1])
-  subroutine test_boxmc_tau_roulette2(this)
+  subroutine test_boxmc_tau_scaling2(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(iintegers) :: src, itau_roulette
-    real(ireals) :: tau, tau_roulette
+    integer(iintegers) :: src, itau_scaling
+    real(ireals) :: tau, tau_scaling
 
     ! from top to bot face
     phi = 0; theta = 0
@@ -111,12 +111,12 @@ contains
     T_target(1) = exp(-tau)
 
     src = 1
-    do itau_roulette=0,9
-      tau_roulette = one - itau_roulette/100.
-      print *,'Tau Roulette', tau_roulette
+    do itau_scaling=0,9
+      tau_scaling = 10.**itau_scaling
+      print *,'Tau Roulette', tau_scaling
       call bmc_3_6%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, &
-        inp_atol=atol, inp_rtol=rtol, inp_tau_roulette=tau_roulette)
-      call check(S_target,T_target, S,T, msg=' test_boxmc_tau_roulette_2_'//itoa(itau_roulette))
+        inp_atol=atol, inp_rtol=rtol, inp_tau_scaling=tau_scaling)
+      call check(S_target,T_target, S,T, msg=' test_boxmc_tau_scaling_2_'//itoa(itau_scaling))
     enddo
   end subroutine
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

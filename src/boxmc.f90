@@ -240,7 +240,7 @@ contains
       phi0, theta0, vertices, &
       ret_S_out, ret_T_out, &
       ret_S_tol,ret_T_tol, &
-      inp_atol, inp_rtol, inp_tau_roulette)
+      inp_atol, inp_rtol, inp_tau_scaling)
     class(t_boxmc)                :: bmc             !< @param[in] bmc Raytracer Type - determines number of streams
     real(ireals),intent(in)       :: op_bg(3)        !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
     real(ireals),intent(in)       :: phi0            !< @param[in] phi0 solar azimuth angle
@@ -255,14 +255,14 @@ contains
     real(ireals),intent(out)      :: ret_T_tol(:)    !< @param[out] absolute tolerances of results
     real(ireals),intent(in),optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
     real(ireals),intent(in),optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
-    real(ireals),intent(in),optional :: inp_tau_roulette !< @param[in] inp_tau_roulette if given, determines a roulette factor which may be used to enhance unlikely paths, e.g. to force diffuse radiation computations for low optical thicknesses
+    real(ireals),intent(in),optional :: inp_tau_scaling !< @param[in] inp_tau_scaling if given, determines a roulette factor which may be used to enhance unlikely paths, e.g. to force diffuse radiation computations for low optical thicknesses
 
     real(ireal_dp) :: S_out(bmc%diff_streams)
     real(ireal_dp) :: T_out(bmc%dir_streams)
     real(ireal_dp) :: S_tol(bmc%diff_streams)
     real(ireal_dp) :: T_tol(bmc%dir_streams)
 
-    real(ireal_dp) :: atol,rtol, tau_roulette, coeffnorm
+    real(ireal_dp) :: atol,rtol, tau_scaling, coeffnorm
 
     type(stddev) :: std_Sdir, std_Sdiff, std_abso
 
@@ -276,9 +276,9 @@ contains
     atol = get_arg(stddev_atol, inp_atol)
     rtol = get_arg(stddev_rtol, inp_rtol)
     if(op_bg(2)*vertices(15) .lt. one) then
-      tau_roulette = get_arg(.95_ireals, inp_tau_roulette)
+      tau_scaling = get_arg(.95_ireals, inp_tau_scaling)
     else
-      tau_roulette = get_arg(one, inp_tau_roulette)
+      tau_scaling = get_arg(one, inp_tau_scaling)
     endif
 
     call init_stddev( std_Sdir , bmc%dir_streams  ,atol, rtol )
@@ -300,7 +300,7 @@ contains
                      ldir,                         &
                      real(phi0,   kind=ireal_dp),  &
                      real(theta0, kind=ireal_dp),  &
-                     Nphotons, tau_roulette,       &
+                     Nphotons, tau_scaling,       &
                      std_Sdir, std_Sdiff, std_abso)
 
     S_out = std_Sdiff%mean
@@ -352,7 +352,7 @@ contains
   end subroutine
 
   subroutine run_photons(bmc, comm, src, kabs, ksca, g, vertices, &
-      ldir, phi0, theta0, Nphotons, tau_roulette, &
+      ldir, phi0, theta0, Nphotons, tau_scaling, &
       std_Sdir, std_Sdiff, std_abso)
       class(t_boxmc),intent(inout) :: bmc
       integer(mpiint), intent(in) :: comm
@@ -360,7 +360,7 @@ contains
       real(ireal_dp),intent(in) :: kabs, ksca, g, vertices(:), phi0, theta0
       logical,intent(in) :: ldir
       integer(iintegers) :: Nphotons
-      real(ireal_dp),intent(in) :: tau_roulette
+      real(ireal_dp),intent(in) :: tau_scaling
       type(stddev),intent(inout)   :: std_Sdir, std_Sdiff, std_abso
 
       type(t_photon)       :: p
@@ -369,8 +369,20 @@ contains
       integer(iintegers) :: k,mycnt,mincnt
       integer(mpiint)    :: numnodes, ierr
 
+      !real(ireal_dp) :: fe, w_i, kext_i, kabs_i, ksca_i
+
       call mpi_comm_size(comm, numnodes, mpierr); call chkerr(mpierr)
       call cpu_time(time(1))
+
+      ! scaling transformation: https://journals.ametsoc.org/doi/pdf/10.1175/JAS3755.1
+      !fe = one / tau_scaling
+      !kext_i = (kabs + ksca) / fe
+      !w_i = one - (one - ksca / (ksca+kabs)) * fe
+
+      !kabs_i = (one-w_i) * kext_i
+      !ksca_i = w_i * kext_i
+      !print *,'w0', fe, kext_i, w_i, 'kabs, ksca', kabs, ksca, '=>', kabs_i, ksca_i
+      ! end of scaling transformation, from here on, use the dashed _i values
 
       ! dont use zero, really, this has issues if go along a face because it is not so clear where that energy should go.
       ! In an ideal world, this should never happen in the matrix anyway but due to delta scaling and such this can very well be
@@ -397,11 +409,13 @@ contains
           if(ierr.ne.0) exit
 
           move: do
-            call bmc%move_photon(vertices, kabs, ksca, tau_roulette, p)
+            call bmc%move_photon(vertices, kabs, ksca, p)
             call roulette(p)
 
             if(.not.p%alive) exit move
-            call scatter_photon(p, g)
+            !if(R().lt.fe) then ! adhere to delta scaling forward peak concerning the tau_scaling transformation
+              call scatter_photon(p, g)
+            !endif
           enddo move
 
           if(ldir) call refill_direct_stream(p,initial_dir)
@@ -425,8 +439,8 @@ contains
       call cpu_time(time(2))
 
       !if(Nphotons.gt.1)then ! .and. rand().gt..99_ireal_dp) then
-      !  write(*,FMT='("src ",I0,") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec")') &
-      !    src,int(phi0),int(theta0),Nphotons, Nphotons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
+        write(*,FMT='("src ",I0,") sun(",I0,",",I0,") N_phot ",I0 ,"=>",ES12.3,"phot/sec/node took",ES12.3,"sec")') &
+          src,int(phi0),int(theta0),Nphotons, Nphotons/max(epsilon(time),time(2)-time(1))/numnodes,time(2)-time(1)
       !endif
   end subroutine
 
@@ -485,25 +499,6 @@ contains
     endif
   end subroutine
 
-  !> @brief roulette for tau helps to emphasize diffuse radiation computations in case of optically thin media
-  !> @brief i.e. we enforce more scatterings
-  subroutine roulette_tau(tau_roulette, r_for_tau, p)
-    real(ireal_dp), intent(in) :: tau_roulette ! coefficient which determines the strength of the roulette
-    real(ireal_dp), intent(inout) :: r_for_tau    ! random number that was selected to compute the travelling tau, we will fudge this one
-    type(t_photon), intent(inout) :: p ! we have to reduce/ increase the photon weight
-    real(ireal_dp) :: m ! chance to shorten tau
-
-    m = one-tau_roulette
-
-    if(R().lt.m) then
-      r_for_tau = r_for_tau * tau_roulette
-      p%weight = p%weight * m
-    else
-      !r_for_tau = r_for_tau * (one+m)
-      p%weight = p%weight * (one+m)
-    endif
-  end subroutine
-
   !> @brief in a ``postprocessing`` step put scattered direct radiation back into dir2dir streams
   subroutine refill_direct_stream(p,initial_dir)
     type(t_photon),intent(inout) :: p
@@ -550,18 +545,15 @@ contains
 
   !> @brief main function for a single photon
   !> @details this routine will incrementally move a photon until it is either out of the domain or it is time for a interaction with the medium
-  subroutine move_photon(bmc, vertices, kabs, ksca, tau_roulette, p)
+  subroutine move_photon(bmc, vertices, kabs, ksca, p)
     class(t_boxmc) :: bmc
-    real(ireal_dp), intent(in) :: vertices(:), kabs, ksca, tau_roulette
+    real(ireal_dp), intent(in) :: vertices(:), kabs, ksca
     type(t_photon),intent(inout) :: p
-    real(ireal_dp) :: r_for_tau, dist, intersec_dist
+    real(ireal_dp) :: dist, intersec_dist
 
     call bmc%intersect_distance(vertices, p, intersec_dist)
 
-    r_for_tau = R()
-    call roulette_tau(tau_roulette, r_for_tau, p)
-
-    p%tau_travel = tau(r_for_tau)
+    p%tau_travel = tau(R())
     dist = distance(p%tau_travel, ksca)
 
     if(intersec_dist .le. dist) then
@@ -689,22 +681,6 @@ contains
     p%dir(3) = muzd
 
   end subroutine
-
-!  pure function get_kabs(p)
-!    real(ireal_dp) :: get_kabs
-!    type(t_photon),intent(in) :: p
-!    get_kabs = p%optprop(1)
-!  end function
-!  pure function get_ksca(p)
-!    real(ireal_dp) :: get_ksca
-!    type(t_photon),intent(in) :: p
-!    get_ksca = p%optprop(2)
-!  end function
-!  pure function get_g(p)
-!    real(ireal_dp) :: get_g
-!    type(t_photon),intent(in) :: p
-!    get_g = p%optprop(3)
-!  end function
 
   subroutine print_photon(p)
     type(t_photon),intent(in) :: p

@@ -20,10 +20,10 @@ module m_box_cld
 subroutine box_cld()
     implicit none
 
-    integer(iintegers),parameter :: nxp=30,nyp=10,nv=10
-    real(ireals),parameter :: dx=100,dy=dx
-    real(ireals),parameter :: phi0=90, theta0=60
-    real(ireals),parameter :: albedo=0, dz=100
+    integer(iintegers),parameter :: nxp=3,nyp=3,nv=20
+    real(ireals),parameter :: dx=500,dy=dx
+    real(ireals),parameter :: phi0=90, theta0=0
+    real(ireals),parameter :: albedo=0, dz=10
     real(ireals),parameter :: incSolar = 1364
     real(ireals),parameter :: atolerance = 1
     real(ireals) :: dz1d(nv)
@@ -42,13 +42,13 @@ subroutine box_cld()
     allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(g   (solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
 
-    kabs = .1_ireals/(dz*nv)
-    ksca = zero !1e-3_ireals/dz
+    kabs = .0001_ireals/(dz*nv)
+    ksca = .005_ireals/(dz*nv)
     g    = zero
 
-    kabs(nv/2,nxp/2,1:nyp) = 1/dz
-    ksca(nv/2,nxp/2,1:nyp) = 1/dz
-    g   (nv/2,nxp/2,1:nyp) = .9
+    !kabs(nv/2,nxp/2,1:nyp) = 1/dz
+    !ksca(nv/2,nxp/2,1:nyp) = 1/dz
+    !g   (nv/2,nxp/2,1:nyp) = .9
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call solve_pprts(solver, incSolar)

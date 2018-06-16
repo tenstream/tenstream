@@ -4,6 +4,7 @@ set( general_sources
   "plex_grid.F90"
   "plex_rt.F90"
   "icon_grid.F90"
+  "icon_plex_utils.F90"
   )
 
 add_library( plexrt ${general_sources} )
