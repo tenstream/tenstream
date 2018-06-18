@@ -78,10 +78,10 @@ subroutine init_mpi_data_parameters(comm)
   if(.not.lmpi_is_initialized) call mpi_init(mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
-  PETSC_COMM_WORLD = comm
-
   call PetscInitialized(lpetsc_is_initialized, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+
+  PETSC_COMM_WORLD = comm
   if(.not.lpetsc_is_initialized) call PetscInitialize(PETSC_NULL_CHARACTER, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 

@@ -32,7 +32,7 @@ module m_boxmc
   use m_helper_functions_dp, only : approx, mean, rmse, imp_reduce_sum, &
     norm, deg2rad, compute_normal_3d, spherical_2_cartesian, &
     hit_plane, square_intersection, triangle_intersection
-  use m_helper_functions, only : CHKERR, get_arg
+  use m_helper_functions, only : CHKERR, get_arg, itoa
   use iso_c_binding
   use mpi
   use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi_dp, &
@@ -146,6 +146,7 @@ module m_boxmc
     real(ireal_dp),allocatable,dimension(:) :: inc,delta,mean,mean2,var,relvar
     logical :: converged=.False.
     real(ireal_dp) :: atol=zero, rtol=zero
+    logical :: active ! are we checking for convergence at all?
   end type
   ! ******************** TYPE DEFINITIONS ************************
 
@@ -256,12 +257,82 @@ contains
     real(ireals),intent(in),optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
     real(ireals),intent(in),optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
 
+    real(ireals) :: tmp_S_out(size(ret_S_out))
+    real(ireals) :: tmp_T_out(size(ret_T_out))
+    real(ireals) :: tmp_S_tol(size(ret_S_tol))
+    real(ireals) :: tmp_T_tol(size(ret_T_tol))
+
+    real(ireals) :: tau_scaling
+    logical :: check_tol_dir, check_tol_diff
+    integer i
+
+    if(ldir) then
+      check_tol_dir=.True.
+      check_tol_diff=.False.
+      tau_scaling = 10
+
+      call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
+        phi0, theta0, vertices, &
+        ret_S_out, ret_T_out, &
+        ret_S_tol, ret_T_tol, &
+        inp_atol, inp_rtol, &
+        tau_scaling, check_tol_dir, check_tol_diff)
+
+      !print *,'Tdir', ret_T_out
+      !print *,'Sdir', ret_S_out
+      !print *,'Ttol', ret_T_tol
+      !print *,'Stol', ret_S_tol
+    else
+      ret_T_out = zero
+      ret_T_tol = zero
+    endif
+
+    check_tol_dir=.False.
+    check_tol_diff=.True.
+    tau_scaling = max(.5_ireals, min(one, one-(log10(vertices(size(vertices))*op_bg(2))/-10._ireals) ))
+    !print *,'tauscaling:', tau_scaling
+    call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
+      phi0, theta0, vertices, &
+      ret_S_out, tmp_T_out, &
+      ret_S_tol, tmp_T_tol, &
+      inp_atol, inp_rtol, tau_scaling, check_tol_dir, check_tol_diff)
+
+    !print *,'Tdir', tmp_T_out
+    !print *,'Sdir', ret_S_out
+    !print *,'Ttol', tmp_T_tol
+    !print *,'Stol', ret_S_tol
+
+  end subroutine
+  subroutine get_coeff_internal(bmc, comm, op_bg, src, ldir, &
+      phi0, theta0, vertices, &
+      ret_S_out, ret_T_out, &
+      ret_S_tol,ret_T_tol, &
+      inp_atol, inp_rtol, inp_tau_scaling, &
+      inp_check_tol_dir, inp_check_tol_diff)
+    class(t_boxmc)                :: bmc             !< @param[in] bmc Raytracer Type - determines number of streams
+    real(ireals),intent(in)       :: op_bg(3)        !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
+    real(ireals),intent(in)       :: phi0            !< @param[in] phi0 solar azimuth angle
+    real(ireals),intent(in)       :: theta0          !< @param[in] theta0 solar zenith angle
+    integer(iintegers),intent(in) :: src             !< @param[in] src stream from which to start photons - see init_photon routines
+    integer(mpiint),intent(in)    :: comm            !< @param[in] comm MPI Communicator
+    logical,intent(in)            :: ldir            !< @param[in] ldir determines if photons should be started with a fixed incidence angle
+    real(ireals),intent(in)       :: vertices(:)     !< @param[in] vertex coordinates of box with dimensions in [m]
+    real(ireals),intent(out)      :: ret_S_out(:)    !< @param[out] S_out diffuse streams transfer coefficients
+    real(ireals),intent(out)      :: ret_T_out(:)    !< @param[out] T_out direct streams transfer coefficients
+    real(ireals),intent(out)      :: ret_S_tol(:)    !< @param[out] absolute tolerances of results
+    real(ireals),intent(out)      :: ret_T_tol(:)    !< @param[out] absolute tolerances of results
+    real(ireals),intent(in),optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
+    real(ireals),intent(in),optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
+    real(ireals),intent(in),optional :: inp_tau_scaling !< @param[in] inp_tau_scaling if given, determines a roulette factor which may be used to enhance unlikely paths, e.g. to force diffuse radiation computations for low optical thicknesses
+    logical, intent(in), optional :: inp_check_tol_dir, inp_check_tol_diff ! default: True, adhere to the tolerance checks for direct or diffuse tolerances
+
     real(ireal_dp) :: S_out(bmc%diff_streams)
     real(ireal_dp) :: T_out(bmc%dir_streams)
     real(ireal_dp) :: S_tol(bmc%diff_streams)
     real(ireal_dp) :: T_tol(bmc%dir_streams)
 
-    real(ireal_dp) :: atol, rtol, coeffnorm
+    real(ireal_dp) :: atol,rtol, tau_scaling, coeffnorm
+    logical :: check_tol_dir, check_tol_diff
 
     type(stddev) :: std_Sdir, std_Sdiff, std_abso
 
@@ -275,11 +346,17 @@ contains
     atol = get_arg(stddev_atol, inp_atol)
     rtol = get_arg(stddev_rtol, inp_rtol)
 
+    tau_scaling = get_arg(one, inp_tau_scaling)
+    check_tol_dir = get_arg(.True., inp_check_tol_dir)
+    check_tol_diff = get_arg(.True., inp_check_tol_diff)
+
     call init_stddev( std_Sdir , bmc%dir_streams  ,atol, rtol )
     call init_stddev( std_Sdiff, bmc%diff_streams ,atol, rtol )
     call init_stddev( std_abso , i1               ,atol, rtol )
 
-    if(.not.ldir) std_Sdir%converged=.True.
+    if(.not.ldir) std_Sdir%active = .False.
+    if(.not.check_tol_dir) std_Sdir%active = .False.
+    if(.not.check_tol_diff) std_Sdiff%active = .False.
 
     if( (any(op_bg.lt.zero)) .or. (any(isnan(op_bg))) ) then
       print *,'corrupt optical properties: bg:: ',op_bg
@@ -294,7 +371,7 @@ contains
                      ldir,                         &
                      real(phi0,   kind=ireal_dp),  &
                      real(theta0, kind=ireal_dp),  &
-                     Nphotons,                     &
+                     Nphotons, tau_scaling,        &
                      std_Sdir, std_Sdiff, std_abso)
 
     S_out = std_Sdiff%mean
@@ -346,12 +423,12 @@ contains
   end subroutine
 
   subroutine run_photons(bmc, comm, src, kabs, ksca, g, vertices, &
-      ldir, phi0, theta0, Nphotons, &
+      ldir, phi0, theta0, Nphotons, tau_scaling, &
       std_Sdir, std_Sdiff, std_abso)
       class(t_boxmc),intent(inout) :: bmc
       integer(mpiint), intent(in) :: comm
       integer(iintegers),intent(in) :: src
-      real(ireal_dp),intent(in) :: kabs, ksca, g, vertices(:), phi0, theta0
+      real(ireal_dp),intent(in) :: kabs, ksca, g, vertices(:), phi0, theta0, tau_scaling
       logical,intent(in) :: ldir
       integer(iintegers) :: Nphotons
       type(stddev),intent(inout)   :: std_Sdir, std_Sdiff, std_abso
@@ -375,8 +452,8 @@ contains
       ! and phi = 90, beam going towards east
       initial_dir = spherical_2_cartesian(phi0, theta) * [-one, -one, one]
 
-      mincnt= max( int(one/ksca), int(1e4_ireal_dp) )
-      mycnt = int(1e8)/numnodes
+      mincnt= max( 100, int( 1e3 /numnodes ) )
+      mycnt = int(1e7)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
       do k=1, mycnt
 
@@ -390,7 +467,7 @@ contains
           if(ierr.ne.0) exit
 
           move: do
-            call bmc%move_photon(vertices, kabs, ksca, p)
+            call bmc%move_photon(vertices, kabs, ksca, tau_scaling, p)
             call roulette(p)
 
             if(.not.p%alive) exit move
@@ -489,7 +566,7 @@ contains
 
     if(angle.gt.delta_scale_truncate) then
       p%direct = .True.
-      !          print *,'delta scaling photon initial', initial_dir,'dir',p%dir,'angle',angle,'cos', (acos(angle))*180/pi_dp
+      !print *,'delta scaling photon initial', initial_dir,'dir',p%dir,'angle',angle,'cos', (acos(angle))*180/pi_dp
     endif
   end subroutine
 
@@ -524,15 +601,30 @@ contains
 
   !> @brief main function for a single photon
   !> @details this routine will incrementally move a photon until it is either out of the domain or it is time for a interaction with the medium
-  subroutine move_photon(bmc, vertices, kabs, ksca, p)
+  subroutine move_photon(bmc, vertices, kabs, ksca, tau_scaling, p)
+    use m_data_parameters, only: EXP_MINVAL, EXP_MAXVAL
     class(t_boxmc) :: bmc
-    real(ireal_dp), intent(in) :: vertices(:), kabs, ksca
+    real(ireal_dp), intent(in) :: vertices(:), kabs, ksca, tau_scaling
     type(t_photon),intent(inout) :: p
-    real(ireal_dp) :: dist, intersec_dist
+    real(ireal_dp) :: dist, intersec_dist, travel_tau, wgt
 
     call bmc%intersect_distance(vertices, p, intersec_dist)
 
-    p%tau_travel = tau(R())
+    if(tau_scaling.gt.one) then ! just lamber beer direct radiation
+      travel_tau = EXP_MAXVAL
+      p%weight = p%weight * exp(-ksca*intersec_dist)
+    else
+      if(p%direct) then
+        travel_tau = - tau_scaling * log(one - R())
+        wgt = tau_scaling * exp(travel_tau/tau_scaling - travel_tau)
+        p%weight = p%weight * wgt
+      else
+        travel_tau = tau(R())
+      endif
+      !print *,'scaling', tau_scaling, 'tau',travel_tau, 'wgt',wgt
+    endif
+
+    p%tau_travel = travel_tau
     dist = distance(p%tau_travel, ksca)
 
     if(intersec_dist .le. dist) then
@@ -730,6 +822,7 @@ contains
     std%atol = atol
     std%rtol = rtol
     std%converged = .False.
+    std%active = .True.
   end subroutine
 
   pure subroutine std_update(std, N, numnodes)
@@ -739,18 +832,22 @@ contains
 
     std%delta = std%inc   - std%mean
     std%mean  = std%mean  + std%delta/N
-    std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
-    std%var = sqrt( std%mean2/N ) / sqrt( one*N*numnodes )
-    where(std%mean.gt.max(std%atol, relvar_limit))
-      std%relvar = std%var / std%mean
-    elsewhere
-      std%relvar = zero ! .1_ireal_dp/sqrt(one*N) ! consider adding a photon weight of .1 as worst case that could happen for the next update...
-    end where
+    if(std%active) then
+      std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
+      std%var = sqrt( std%mean2/N ) / sqrt( one*N*numnodes )
+      where(std%mean.gt.max(std%atol, relvar_limit))
+        std%relvar = std%var / std%mean
+      elsewhere
+        std%relvar = zero ! .1_ireal_dp/sqrt(one*N) ! consider adding a photon weight of .1 as worst case that could happen for the next update...
+      end where
 
-    if( all( (std%var .lt. std%atol) .and. (std%relvar .lt. std%rtol) ) ) then
-      std%converged = .True.
+      if( all( (std%var .lt. std%atol) .and. (std%relvar .lt. std%rtol) ) ) then
+        std%converged = .True.
+      else
+        std%converged = .False.
+      endif
     else
-      std%converged = .False.
+      std%converged = .True.
     endif
   end subroutine
 
