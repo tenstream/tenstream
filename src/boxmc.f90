@@ -303,6 +303,8 @@ contains
     !print *,'Stol', ret_S_tol
 
   end subroutine
+
+
   subroutine get_coeff_internal(bmc, comm, op_bg, src, ldir, &
       phi0, theta0, vertices, &
       ret_S_out, ret_T_out, &
@@ -334,7 +336,7 @@ contains
     real(ireal_dp) :: atol,rtol, tau_scaling, coeffnorm
     logical :: check_tol_dir, check_tol_diff
 
-    type(stddev) :: std_Sdir, std_Sdiff, std_abso
+    type(stddev) :: std_Sdir, std_Sdiff
 
     integer(iintegers) :: Nphotons, idst, iout
     integer(mpiint) :: numnodes
@@ -352,7 +354,6 @@ contains
 
     call init_stddev( std_Sdir , bmc%dir_streams  ,atol, rtol )
     call init_stddev( std_Sdiff, bmc%diff_streams ,atol, rtol )
-    call init_stddev( std_abso , i1               ,atol, rtol )
 
     if(.not.ldir) std_Sdir%active = .False.
     if(.not.check_tol_dir) std_Sdir%active = .False.
@@ -372,7 +373,7 @@ contains
                      real(phi0,   kind=ireal_dp),  &
                      real(theta0, kind=ireal_dp),  &
                      Nphotons, tau_scaling,        &
-                     std_Sdir, std_Sdiff, std_abso)
+                     std_Sdir, std_Sdiff)
 
     S_out = std_Sdiff%mean
     T_out = std_Sdir%mean
@@ -385,12 +386,25 @@ contains
       call reduce_output(Nphotons, comm, S_out, T_out, S_tol, T_tol)
     endif
 
+    if(.not.check_tol_dir) then
+      T_out = zero
+      T_tol = zero
+    endif
+    if(.not.check_tol_diff) then
+      S_out = zero
+      S_tol = zero
+    endif
+
     ! some debug output at the end...
     coeffnorm = sum(S_out)+sum(T_out)
     if( coeffnorm.gt.one ) then
-      if(coeffnorm.ge.one+1e-2_ireal_dp) then
+      if(coeffnorm.ge.one+1e-4_ireal_dp) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
         sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',op_bg,'eps',epsilon(one)
+        print *,'S   ',S_out
+        print *,'Stol',S_tol
+        print *,'T   ',T_out
+        print *,'Ttol',T_tol
         call exit
       else
         S_out = S_out / (coeffnorm+epsilon(coeffnorm)*10)
@@ -424,14 +438,14 @@ contains
 
   subroutine run_photons(bmc, comm, src, kabs, ksca, g, vertices, &
       ldir, phi0, theta0, Nphotons, tau_scaling, &
-      std_Sdir, std_Sdiff, std_abso)
+      std_Sdir, std_Sdiff)
       class(t_boxmc),intent(inout) :: bmc
       integer(mpiint), intent(in) :: comm
       integer(iintegers),intent(in) :: src
       real(ireal_dp),intent(in) :: kabs, ksca, g, vertices(:), phi0, theta0, tau_scaling
       logical,intent(in) :: ldir
       integer(iintegers) :: Nphotons
-      type(stddev),intent(inout)   :: std_Sdir, std_Sdiff, std_abso
+      type(stddev),intent(inout)   :: std_Sdir, std_Sdiff
 
       type(t_photon)       :: p
       real(ireal_dp)     :: theta, initial_dir(3)
@@ -452,12 +466,12 @@ contains
       ! and phi = 90, beam going towards east
       initial_dir = spherical_2_cartesian(phi0, theta) * [-one, -one, one]
 
-      mincnt= max( 100, int( 1e3 /numnodes ) )
+      mincnt= max( 100, int( 1e4 /numnodes ) )
       mycnt = int(1e7)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
       do k=1, mycnt
 
-          if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged, std_abso%converged ]) ) exit
+          if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged]) ) exit
 
           if(ldir) then
               call bmc%init_dir_photon(p, src, ldir, initial_dir, vertices, ierr)
@@ -476,7 +490,6 @@ contains
 
           if(ldir) call refill_direct_stream(p,initial_dir)
 
-          std_abso%inc = one-p%weight
           std_Sdir%inc  = zero
           std_Sdiff%inc = zero
 
@@ -487,7 +500,6 @@ contains
           endif
 
           if (ldir) call std_update( std_Sdir , k, i1*numnodes )
-          call std_update( std_abso , k, i1*numnodes)
           call std_update( std_Sdiff, k, i1*numnodes )
       enddo ! k photons
       Nphotons = k
@@ -821,7 +833,7 @@ contains
     allocate( std%relvar(N)) ; std%relvar= zero
     std%atol = atol
     std%rtol = rtol
-    std%converged = .False.
+    std%converged = .True.
     std%active = .True.
   end subroutine
 

@@ -23,7 +23,6 @@ module test_boxmc_3_10
   real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
 
   real(ireals),parameter :: atol=1e-3, rtol=1e-2
-  !real(ireals),parameter :: atol=1e-4, rtol=1e-3
 contains
 
   @before
