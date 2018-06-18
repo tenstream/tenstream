@@ -462,19 +462,6 @@ subroutine createLUT(OPP, comm, config, S, T)
             endif
 
             if( all(ldoneS) .and. all(ldoneT) ) then
-              if( mod((cnt-1), total_size*10/100).eq.0 ) then !every 10 percent of LUT dump it.
-                if(present(T)) then
-                  print *,'Writing table to file...', T%table_name_c
-                  call ncwrite(T%table_name_c  , T%c         ,iierr); call CHKERR(iierr, 'Could not write Table to file')
-                  print *,'Writing table to file...', T%table_name_tol
-                  call ncwrite(T%table_name_tol, T%stddev_tol,iierr); call CHKERR(iierr, 'Could not write Table to file')
-                endif
-                print *,'Writing table to file...', S%table_name_c
-                call ncwrite(S%table_name_c  , S%c         ,iierr); call CHKERR(iierr, 'Could not write Table to file')
-                print *,'Writing table to file...', S%table_name_tol
-                call ncwrite(S%table_name_tol, S%stddev_tol,iierr); call CHKERR(iierr, 'Could not write Table to file')
-                print *,'done writing!',iierr
-              endif
               if( mod(cnt-1, total_size*1/100).eq.0 ) & !every 1 percent report status
                   print *,'Resuming from LUT... ',cnt/(total_size/100),'%'
               cnt=cnt+1
@@ -528,14 +515,6 @@ subroutine createLUT(OPP, comm, config, S, T)
                   T%stddev_tol(ind, lutindex) = T_tol (idst)
                 enddo
               endif
-
-              !do idst = 1, Nsrc
-              !  ind = (idst-1) * Nsrc + isrc
-              !  print *, myid, lutindex, ind, 'S%c for isrc', isrc, 'idst', idst, S_diff(idst)
-              !enddo
-
-              !if (isrc.eq.1) &
-              !  print *, myid, lutindex, isrc, (lutindex-1)*Nsrc+isrc-1, total_size, ':', real((lutindex-1)*Nsrc+isrc-1)*100 / real(total_size)
 
               if( mod((lutindex-1)*Nsrc+isrc-1, total_size*1/1000).eq.0 ) & !every .1 percent report status
                   print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._ireals/total_size,'%'
