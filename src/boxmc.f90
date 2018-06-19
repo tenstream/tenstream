@@ -277,8 +277,8 @@ contains
         phi0, theta0, vertices, &
         ret_S_out, ret_T_out, &
         ret_S_tol, ret_T_tol, &
-        inp_atol, inp_rtol, &
-        tau_scaling, check_tol_dir, check_tol_diff)
+        inp_atol=inp_atol, inp_rtol=inp_rtol, inp_tau_scaling=tau_scaling, &
+        inp_check_tol_dir=check_tol_dir, inp_check_tol_diff=check_tol_diff)
 
       !print *,'Tdir', ret_T_out
       !print *,'Sdir', ret_S_out
@@ -291,13 +291,14 @@ contains
 
     check_tol_dir=.False.
     check_tol_diff=.True.
-    tau_scaling = max(.5_ireals, min(one, one-(log10(vertices(size(vertices))*op_bg(2))/-10._ireals) ))
+    tau_scaling = max(.6_ireals, min(one, one-(log10(vertices(size(vertices))*op_bg(2))/-10._ireals) ))
     !print *,'tauscaling:', tau_scaling
     call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
       phi0, theta0, vertices, &
       ret_S_out, tmp_T_out, &
       ret_S_tol, tmp_T_tol, &
-      inp_atol, inp_rtol, tau_scaling, check_tol_dir, check_tol_diff)
+      inp_atol=inp_atol, inp_rtol=inp_rtol, inp_tau_scaling=tau_scaling, &
+      inp_check_tol_dir=check_tol_dir, inp_check_tol_diff=check_tol_diff)
 
     !print *,'Tdir', tmp_T_out
     !print *,'Sdir', ret_S_out
@@ -855,7 +856,9 @@ contains
       std%delta(i) = std%inc(i)  - std%mean(i)
       std%mean(i)  = std%mean(i) + std%delta(i)/N
       std%mean2(i) = std%mean2(i) + std%delta(i) * ( std%inc(i) - std%mean(i) )
+    enddo
 
+    do i = 1,size(std%relvar)
       if(std%mean(i).gt.max(std%atol, relvar_limit)) then
         std%var(i) = sqrt( std%mean2(i)/N ) / sqrt( one*N*numnodes )
         std%relvar(i) = std%var(i) / std%mean(i)
