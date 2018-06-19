@@ -841,17 +841,22 @@ contains
     type(stddev),intent(inout) :: std
     integer(iintegers),intent(in) :: N, numnodes
     real(ireal_dp),parameter :: relvar_limit=1e-4_ireal_dp
+    integer :: i
 
-    std%delta = std%inc   - std%mean
-    std%mean  = std%mean  + std%delta/N
+    do i = 1,size(std%relvar)
+      std%delta(i) = std%inc(i)  - std%mean(i)
+      std%mean(i)  = std%mean(i) + std%delta(i)/N
+    enddo
     if(std%active) then
-      std%mean2 = std%mean2 + std%delta * ( std%inc - std%mean )
-      std%var = sqrt( std%mean2/N ) / sqrt( one*N*numnodes )
-      where(std%mean.gt.max(std%atol, relvar_limit))
-        std%relvar = std%var / std%mean
-      elsewhere
-        std%relvar = zero ! .1_ireal_dp/sqrt(one*N) ! consider adding a photon weight of .1 as worst case that could happen for the next update...
-      end where
+      do i = 1,size(std%relvar)
+        std%mean2(i) = std%mean2(i) + std%delta(i) * ( std%inc(i) - std%mean(i) )
+        std%var(i) = sqrt( std%mean2(i)/N ) / sqrt( one*N*numnodes )
+        if(std%mean(i).gt.max(std%atol, relvar_limit)) then
+          std%relvar(i) = std%var(i) / std%mean(i)
+        else
+          std%relvar(i) = zero
+        endif
+      enddo
 
       if( all( (std%var .lt. std%atol) .and. (std%relvar .lt. std%rtol) ) ) then
         std%converged = .True.
