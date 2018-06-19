@@ -783,9 +783,9 @@ contains
     real(ireal_dp) :: R
     real :: rvec(1)
     ! call random_number(R)
-    ! call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher, slow but good
-    !R = real(rvec(1), kind=ireal_dp)
-    call kiss_real(R) ! good but faster
+    call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher, slow but good
+    R = real(rvec(1), kind=ireal_dp)
+    !call kiss_real(R) ! good but faster
   end function
 
   subroutine init_random_seed(myid, luse_random_seed)
@@ -812,11 +812,11 @@ contains
       call random_number(rn)
       s = int(rn*1000)*(myid+1)
 
-      !call RLUXGO(4, int(s), 0, 0) ! seed ranlux rng
-      call kiss_init(s)
+      call RLUXGO(2, int(s), 0, 0) ! seed ranlux rng
+      !call kiss_init(s)
     else
-      !call RLUXGO(4, int(myid+1), 0, 0) ! seed ranlux rng
-      call kiss_init(myid+1)
+      call RLUXGO(2, int(myid+1), 0, 0) ! seed ranlux rng
+      !call kiss_init(myid+1)
     endif
     lRNGseeded=.True.
   end subroutine
