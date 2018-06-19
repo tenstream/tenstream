@@ -291,7 +291,7 @@ contains
 
     check_tol_dir=.False.
     check_tol_diff=.True.
-    tau_scaling = max(.6_ireals, min(one, one-(log10(vertices(size(vertices))*op_bg(2))/-10._ireals) ))
+    tau_scaling = max(.6_ireals, min(2._ireals, one-(log10(vertices(size(vertices))*op_bg(2))/-10._ireals) ))
     !print *,'tauscaling:', tau_scaling
     call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
       phi0, theta0, vertices, &
@@ -625,17 +625,13 @@ contains
 
     call bmc%intersect_distance(vertices, p, intersec_dist)
 
-    if(tau_scaling.gt.one) then ! just lamber beer direct radiation
+    if(tau_scaling.gt.5) then ! just lamber beer direct radiation
       travel_tau = EXP_MAXVAL
       p%weight = p%weight * exp(-ksca*intersec_dist)
     else
-      if(p%direct) then
-        travel_tau = - tau_scaling * log(one - R())
-        wgt = tau_scaling * exp(travel_tau/tau_scaling - travel_tau)
-        p%weight = p%weight * wgt
-      else
-        travel_tau = tau(R())
-      endif
+      travel_tau = - tau_scaling * log(one - R())
+      wgt = tau_scaling * exp(travel_tau/tau_scaling - travel_tau)
+      p%weight = p%weight * wgt
       !print *,'scaling', tau_scaling, 'tau',travel_tau, 'wgt',wgt
     endif
 
