@@ -15,7 +15,7 @@ set( general_sources
   "data_parameters.f90"
   "eddington.f90"
   "interpolation.f90"
-  "ranlux.for"
+  "ranlux.for" "kiss.F90"
   "mcrts_dmda.F90"
   "twostream.f90"
   "schwarzschild.f90"

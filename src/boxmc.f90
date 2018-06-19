@@ -43,6 +43,8 @@ module m_boxmc
   use m_boxmc_geometry, only : setup_cube_coords_from_vertices, setup_wedge_coords_from_vertices, &
       intersect_cube, intersect_wedge
 
+  use m_kiss_rng, only: kiss_real, kiss_init
+
   implicit none
 
   private
@@ -781,8 +783,9 @@ contains
     real(ireal_dp) :: R
     real :: rvec(1)
     ! call random_number(R)
-    call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher
-    R = real(rvec(1), kind=ireal_dp)
+    ! call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher, slow but good
+    !R = real(rvec(1), kind=ireal_dp)
+    call kiss_real(R) ! good but faster
   end function
 
   subroutine init_random_seed(myid, luse_random_seed)
@@ -809,9 +812,11 @@ contains
       call random_number(rn)
       s = int(rn*1000)*(myid+1)
 
-      call RLUXGO(4, int(s), 0, 0) ! seed ranlux rng
+      !call RLUXGO(4, int(s), 0, 0) ! seed ranlux rng
+      call kiss_init(s)
     else
-      call RLUXGO(4, int(myid), 0, 0) ! seed ranlux rng
+      !call RLUXGO(4, int(myid+1), 0, 0) ! seed ranlux rng
+      call kiss_init(myid+1)
     endif
     lRNGseeded=.True.
   end subroutine
@@ -843,29 +848,25 @@ contains
     real(ireal_dp),parameter :: relvar_limit=1e-4_ireal_dp
     integer :: i
 
+    std%converged = .True.
+    if(.not.std%active) return
+
     do i = 1,size(std%relvar)
       std%delta(i) = std%inc(i)  - std%mean(i)
       std%mean(i)  = std%mean(i) + std%delta(i)/N
-    enddo
-    if(std%active) then
-      do i = 1,size(std%relvar)
-        std%mean2(i) = std%mean2(i) + std%delta(i) * ( std%inc(i) - std%mean(i) )
-        std%var(i) = sqrt( std%mean2(i)/N ) / sqrt( one*N*numnodes )
-        if(std%mean(i).gt.max(std%atol, relvar_limit)) then
-          std%relvar(i) = std%var(i) / std%mean(i)
-        else
-          std%relvar(i) = zero
-        endif
-      enddo
+      std%mean2(i) = std%mean2(i) + std%delta(i) * ( std%inc(i) - std%mean(i) )
 
-      if( all( (std%var .lt. std%atol) .and. (std%relvar .lt. std%rtol) ) ) then
-        std%converged = .True.
+      if(std%mean(i).gt.max(std%atol, relvar_limit)) then
+        std%var(i) = sqrt( std%mean2(i)/N ) / sqrt( one*N*numnodes )
+        std%relvar(i) = std%var(i) / std%mean(i)
       else
-        std%converged = .False.
+        std%relvar(i) = zero
       endif
-    else
-      std%converged = .True.
-    endif
+      if( (std%var(i).gt.std%atol).or.(std%relvar(i).gt.std%rtol)) then
+        std%converged = .False.
+        return
+      endif
+    enddo
   end subroutine
 
   subroutine init(bmc, comm, rngseed, luse_random_seed)
