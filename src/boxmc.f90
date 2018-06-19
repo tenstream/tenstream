@@ -401,7 +401,7 @@ contains
     ! some debug output at the end...
     coeffnorm = sum(S_out)+sum(T_out)
     if( coeffnorm.gt.one ) then
-      if(coeffnorm.ge.one+1e-4_ireal_dp) then
+      if(coeffnorm.ge.one+1e-1_ireal_dp) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
         sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',op_bg,'eps',epsilon(one)
         print *,'S   ',S_out
