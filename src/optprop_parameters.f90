@@ -100,10 +100,10 @@ module m_optprop_parameters
 !      real(ireals),parameter :: stddev_atol=1e-2_ireals
 !      real(ireals),parameter :: stddev_atol=1e-3_ireals
 !      real(ireals),parameter :: stddev_atol=5e-4_ireals
-      real(ireals),parameter :: stddev_atol=1e-4_ireals
+      real(ireals),parameter :: stddev_atol=1e-3_ireals
 !      real(ireals),parameter :: stddev_atol=5e-6_ireals
 
-      real(ireals),parameter :: stddev_rtol=1e-2_ireals
+      real(ireals),parameter :: stddev_rtol=5e-1_ireals
 !      real(ireals),parameter :: stddev_rtol=1e-3_ireals
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
