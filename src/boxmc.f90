@@ -291,7 +291,7 @@ contains
 
     check_tol_dir=.False.
     check_tol_diff=.True.
-    tau_scaling = one ! max(.6_ireals, min(2._ireals, one-(log10(vertices(size(vertices))*op_bg(2))/-10._ireals) ))
+    tau_scaling = one ! max(.6_ireals, min(2._ireals, one-(log10(vertices(size(vertices))*op_bg(2))/-10._ireals) )) ! Turns out this is not such a good idea because with Importance Sampling we get values gt one which violates energy conservation constraints
     !print *,'tauscaling:', tau_scaling
     call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
       phi0, theta0, vertices, &

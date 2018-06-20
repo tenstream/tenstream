@@ -72,7 +72,7 @@ contains
 
   ! Define the parameters over which to be cycled...
   function getParameters() result(params)
-    use m_optprop_parameters, only: preset_tau21, preset_w015, preset_g3
+    use m_optprop_parameters, only: preset_tau31, preset_w010, preset_g3
 
       type(peCase), allocatable :: params(:)
 
@@ -82,8 +82,8 @@ contains
       integer(iintegers) :: itest,iloop
       integer(iintegers) :: Ntau, Nw0, Ng
 
-      associate ( preset_tau => preset_tau21, &
-          preset_w0  => preset_w015, &
+      associate ( preset_tau => preset_tau31, &
+          preset_w0  => preset_w010, &
           preset_g   => preset_g3 )
 
         Ntau = size(preset_tau)
