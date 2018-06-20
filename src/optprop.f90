@@ -221,15 +221,15 @@ contains
 
       if(present(angles)) then ! obviously we want the direct coefficients
         if(dir) then ! dir2dir
-          call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, g, aspect_zx, angles(1), angles(2)], C)
+          call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, angles(1), angles(2)], C)
           call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
         else         ! dir2diff
-          call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, g, aspect_zx, angles(1), angles(2)], C)
+          call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, angles(1), angles(2)], C)
           call OPP%dir2diff_coeff_symmetry(C, lswitch_east, lswitch_north)
         endif
       else
         ! diff2diff
-        call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, g, aspect_zx], C)
+        call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, aspect_zx], C)
       endif
 
 
@@ -300,11 +300,12 @@ contains
     logical,intent(in) :: dir
     real(ireals),intent(in):: C(:)
     real(ireals),intent(in),optional  :: angles(:)
-    if(OPP%optprop_debug) then
-      if( (any([aspect_zx, tauz, w0, g].lt.zero)) .or. (any(isnan([aspect_zx, tauz, w0, g]))) ) then
-        print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[aspect_zx, tauz, w0, g]
-        call exit
-      endif
+    if( (any([aspect_zx, tauz, w0, g].lt.zero)) .or. (any(isnan([aspect_zx, tauz, w0, g]))) ) then
+      print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[aspect_zx, tauz, w0, g]
+      call exit
+    endif
+    if(.not.approx(g,zero)) then
+      call CHKERR(1_mpiint, 'currently the LUT calls do not have a dimensions for assym param g. has to be zero')
     endif
     if(present(angles)) then
       if(dir .and. size(C).ne. OPP%OPP_LUT%dir_streams**2) then

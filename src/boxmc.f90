@@ -259,14 +259,11 @@ contains
     real(ireals),intent(in),optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
     real(ireals),intent(in),optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
 
-    real(ireals) :: tmp_S_out(size(ret_S_out))
     real(ireals) :: tmp_T_out(size(ret_T_out))
-    real(ireals) :: tmp_S_tol(size(ret_S_tol))
     real(ireals) :: tmp_T_tol(size(ret_T_tol))
 
     real(ireals) :: tau_scaling
     logical :: check_tol_dir, check_tol_diff
-    integer i
 
     if(ldir) then
       check_tol_dir=.True.
@@ -778,10 +775,10 @@ contains
 
   function R()
     real(ireal_dp) :: R
-    real :: rvec(1)
+    ! real :: rvec(1)
     ! call random_number(R)
-    !call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher, slow but good
-    !R = real(rvec(1), kind=ireal_dp)
+    ! call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher, slow but good
+    ! R = real(rvec(1), kind=ireal_dp)
     call kiss_real(R) ! good but faster
   end function
 

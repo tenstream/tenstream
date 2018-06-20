@@ -103,7 +103,7 @@ module m_optprop_parameters
       real(ireals),parameter :: stddev_atol=1e-4_ireals
 !      real(ireals),parameter :: stddev_atol=5e-6_ireals
 
-      real(ireals),parameter :: stddev_rtol=1e-1_ireals
+      real(ireals),parameter :: stddev_rtol=5e-1_ireals
 !      real(ireals),parameter :: stddev_rtol=1e-3_ireals
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
@@ -117,9 +117,9 @@ module m_optprop_parameters
 
       ! Treat direct2diffuse radiation in a cone around solar angle as direct
       ! radiation.
-!      real(ireals),parameter :: delta_scale_truncate=.9848_ireals ! .9848 = 10 degrees delta scaling
+      real(ireals),parameter :: delta_scale_truncate=.9848_ireals ! .9848 = 10 degrees delta scaling
 !      real(ireals),parameter :: delta_scale_truncate=.9962_ireals ! .9962 = 5 degrees delta scaling
-      real(ireals),parameter :: delta_scale_truncate=1.0_ireals   !1.     = 0 degrees delta scaling
+!      real(ireals),parameter :: delta_scale_truncate=1.0_ireals   !1.     = 0 degrees delta scaling
 !      real(ireals),parameter :: delta_scale_truncate=.8660_ireals ! .8660 = 30 degrees delta scaling
 
 

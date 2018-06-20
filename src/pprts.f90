@@ -1281,7 +1281,7 @@ module m_pprts
       if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%op)
     endif
 
-    call delta_scale(atm%op(:,:,:)%kabs, atm%op(:,:,:)%ksca, atm%op(:,:,:)%g )
+    call delta_scale(atm%op(:,:,:)%kabs, atm%op(:,:,:)%ksca, atm%op(:,:,:)%g, factor=atm%op(:,:,:)%g)
 
     if(ltwostr_only) then
       if(ldebug .and. solver%myid.eq.0) then
