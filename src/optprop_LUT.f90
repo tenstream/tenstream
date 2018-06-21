@@ -752,8 +752,8 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
 
     vertices = vertices * scale_coords
 
-    atol = get_arg(stddev_atol-epsilon(stddev_atol)*10, inp_atol)
-    rtol = get_arg(stddev_rtol-epsilon(stddev_rtol)*10, inp_rtol)
+    atol = get_arg(stddev_atol-epsilon(atol)*10, inp_atol)
+    rtol = get_arg(stddev_rtol-epsilon(rtol)*10, inp_rtol)
 
     dz = vertices(size(vertices))
 

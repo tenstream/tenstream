@@ -386,15 +386,6 @@ contains
       call reduce_output(Nphotons, comm, S_out, T_out, S_tol, T_tol)
     endif
 
-    if(.not.check_tol_dir) then
-      T_out = zero
-      T_tol = zero
-    endif
-    if(.not.check_tol_diff) then
-      S_out = zero
-      S_tol = zero
-    endif
-
     ! some debug output at the end...
     coeffnorm = sum(S_out)+sum(T_out)
     if( coeffnorm.gt.one ) then
@@ -432,8 +423,15 @@ contains
     ret_S_out = real(S_out, kind=ireals)
     ret_S_tol = real(S_tol, kind=ireals)
     if(ldebug) print *,'S out', ret_S_out, 'T_out', ret_T_out
-    !print *,'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', vertices
-    !print *,'S out', ret_S_out, 'T_out', ret_T_out
+    if((maxval(ret_S_tol).ge.atol).or.(maxval(ret_T_tol).ge.atol)) then
+      print *,'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', vertices
+      print *,'T_out', ret_T_out
+      print *,'S out', ret_S_out
+      print *,'Tolerances:', atol, rtol, ':', std_Sdiff%atol, std_Sdir%atol
+      print *,'T_tol', ret_T_tol
+      print *,'S tol', ret_S_tol
+      call CHKERR(1_mpiint, 'BOXMC violates stddev constraints!')
+    endif
   end subroutine
 
   subroutine run_photons(bmc, comm, src, kabs, ksca, g, vertices, &
@@ -467,11 +465,11 @@ contains
       initial_dir = spherical_2_cartesian(phi0, theta) * [-one, -one, one]
 
       mincnt= max( 100, int( 1e4 /numnodes ) )
-      mycnt = int(1e7)/numnodes
+      mycnt = int(1e8)/numnodes
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
       do k=1, mycnt
 
-          if(k.gt.mincnt .and. all([std_Sdir%converged, std_Sdiff%converged]) ) exit
+          if((k.gt.mincnt) .and. std_Sdir%converged .and. std_Sdiff%converged) exit
 
           if(ldir) then
               call bmc%init_dir_photon(p, src, ldir, initial_dir, vertices, ierr)
@@ -775,11 +773,11 @@ contains
 
   function R()
     real(ireal_dp) :: R
-    ! real :: rvec(1)
-    ! call random_number(R)
-    ! call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher, slow but good
-    ! R = real(rvec(1), kind=ireal_dp)
-    call kiss_real(R) ! good but faster
+    real :: rvec(1)
+    call RANLUX(rvec,1)  ! use Luxury Pseudorandom Numbers from M. Luscher, slow but good
+    R = real(rvec(1), kind=ireal_dp)
+    ! call random_number(R) ! bad
+    ! call kiss_real(R) ! good but faster
   end function
 
   subroutine init_random_seed(myid, luse_random_seed)
@@ -806,11 +804,11 @@ contains
       call random_number(rn)
       s = int(rn*1000)*(myid+1)
 
-      !call RLUXGO(2, int(s), 0, 0) ! seed ranlux rng
-      call kiss_init(s)
+      call RLUXGO(2, int(s), 0, 0) ! seed ranlux rng
+      !call kiss_init(s)
     else
-      !call RLUXGO(2, int(myid+1), 0, 0) ! seed ranlux rng
-      call kiss_init(myid+1)
+      call RLUXGO(2, int(myid+1), 0, 0) ! seed ranlux rng
+      !call kiss_init(myid+1)
     endif
     lRNGseeded=.True.
   end subroutine
@@ -845,23 +843,21 @@ contains
     std%converged = .True.
     if(.not.std%active) return
 
-    do i = 1,size(std%relvar)
+    do i = 1,size(std%mean)
       std%delta(i) = std%inc(i)  - std%mean(i)
       std%mean(i)  = std%mean(i) + std%delta(i)/N
       std%mean2(i) = std%mean2(i) + std%delta(i) * ( std%inc(i) - std%mean(i) )
-    enddo
-
-    do i = 1,size(std%relvar)
       std%var(i) = sqrt( std%mean2(i)/N ) / sqrt( one*N*numnodes )
 
-      if(std%mean(i).gt.max(std%atol, relvar_limit)) then
+      if(std%mean(i).ge.relvar_limit) then
         std%relvar(i) = std%var(i) / std%mean(i)
       else
         std%relvar(i) = zero
       endif
-      if( (std%var(i).gt.std%atol).or.(std%relvar(i).gt.std%rtol)) then
+    enddo
+    do i = 1,size(std%var)
+      if( (std%var(i).ge.std%atol).or.(std%relvar(i).ge.std%rtol)) then
         std%converged = .False.
-        return
       endif
     enddo
   end subroutine
