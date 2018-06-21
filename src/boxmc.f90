@@ -375,12 +375,12 @@ contains
                      Nphotons, tau_scaling,        &
                      std_Sdir, std_Sdiff)
 
-    S_out = std_Sdiff%mean
     T_out = std_Sdir%mean
+    S_out = std_Sdiff%mean
 
     ! tolerances that we achieved and report them back
-    S_tol = std_Sdiff%var
     T_tol = std_Sdir%var
+    S_tol = std_Sdiff%var
 
     if(numnodes.gt.1) then ! average reduce results from all ranks
       call reduce_output(Nphotons, comm, S_out, T_out, S_tol, T_tol)
@@ -836,10 +836,10 @@ contains
     std%active = .True.
   end subroutine
 
-  pure subroutine std_update(std, N, numnodes)
+  subroutine std_update(std, N, numnodes)
     type(stddev),intent(inout) :: std
     integer(iintegers),intent(in) :: N, numnodes
-    real(ireal_dp),parameter :: relvar_limit=1e-4_ireal_dp
+    real(ireal_dp),parameter :: relvar_limit=1e-5_ireal_dp
     integer :: i
 
     std%converged = .True.
@@ -852,8 +852,9 @@ contains
     enddo
 
     do i = 1,size(std%relvar)
+      std%var(i) = sqrt( std%mean2(i)/N ) / sqrt( one*N*numnodes )
+
       if(std%mean(i).gt.max(std%atol, relvar_limit)) then
-        std%var(i) = sqrt( std%mean2(i)/N ) / sqrt( one*N*numnodes )
         std%relvar(i) = std%var(i) / std%mean(i)
       else
         std%relvar(i) = zero

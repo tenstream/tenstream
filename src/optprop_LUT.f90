@@ -582,6 +582,12 @@ subroutine createLUT(OPP, comm, config, S, T)
                 call OPP%LUT_bmc_wrapper(config, lutindex, isrc, ldir, &
                   mpi_comm_self, S_diff, T_dir, S_tol, T_tol)
 
+                if(maxval(S_tol).gt.stddev_atol .or. maxval(T_tol).gt.stddev_atol) then
+                  print *,'Ttol', T_tol
+                  print *,'Stol', S_tol
+                  call CHKERR(1_mpiint, 'BOXMC violated stddev constraints!')
+                endif
+
                 !print *,'Computed isrc',isrc,'aspect',aspect_zx,'tau',tau_z, w0, g,':', phi, theta
                 !print *,myid,'Computed values for ',lutindex, isrc, ldir
 
@@ -757,6 +763,8 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
 
     S_diff=nil
     T_dir=nil
+    S_tol=nil
+    T_tol=nil
 
     !print *,comm,'BMC :: calling bmc_get_coeff tauz',tauz,'w0,g',w0,g,phi,theta
     !print *,comm,'BMC :: calling bmc_get_coeff dz bg',vertices(size(vertices)),bg, '=>', sum(bg(1:2))*vertices(size(vertices)),'/',tauz
