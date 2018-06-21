@@ -265,43 +265,48 @@ contains
     real(ireals) :: tau_scaling
     logical :: check_tol_dir, check_tol_diff
 
-    if(ldir) then
-      check_tol_dir=.True.
-      check_tol_diff=.False.
-      tau_scaling = 10
+    !if(ldir) then
+    !  check_tol_dir=.True.
+    !  check_tol_diff=.False.
+    !  tau_scaling = 10
 
-      call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
-        phi0, theta0, vertices, &
-        ret_S_out, ret_T_out, &
-        ret_S_tol, ret_T_tol, &
-        inp_atol=inp_atol, inp_rtol=inp_rtol, inp_tau_scaling=tau_scaling, &
-        inp_check_tol_dir=check_tol_dir, inp_check_tol_diff=check_tol_diff)
+    !  call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
+    !    phi0, theta0, vertices, &
+    !    ret_S_out, ret_T_out, &
+    !    ret_S_tol, ret_T_tol, &
+    !    inp_atol=inp_atol, inp_rtol=inp_rtol, inp_tau_scaling=tau_scaling, &
+    !    inp_check_tol_dir=check_tol_dir, inp_check_tol_diff=check_tol_diff)
 
-      !print *,'Tdir', ret_T_out
-      !print *,'Sdir', ret_S_out
-      !print *,'Ttol', ret_T_tol
-      !print *,'Stol', ret_S_tol
-    else
-      ret_T_out = zero
-      ret_T_tol = zero
-    endif
+    !  !print *,'Tdir', ret_T_out
+    !  !print *,'Sdir', ret_S_out
+    !  !print *,'Ttol', ret_T_tol
+    !  !print *,'Stol', ret_S_tol
+    !else
+    !  ret_T_out = zero
+    !  ret_T_tol = zero
+    !endif
 
-    check_tol_dir=.False.
-    check_tol_diff=.True.
-    tau_scaling = one ! max(.6_ireals, min(2._ireals, one-(log10(vertices(size(vertices))*op_bg(2))/-10._ireals) )) ! Turns out this is not such a good idea because with Importance Sampling we get values gt one which violates energy conservation constraints
-    !print *,'tauscaling:', tau_scaling
-    call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
-      phi0, theta0, vertices, &
-      ret_S_out, tmp_T_out, &
-      ret_S_tol, tmp_T_tol, &
-      inp_atol=inp_atol, inp_rtol=inp_rtol, inp_tau_scaling=tau_scaling, &
-      inp_check_tol_dir=check_tol_dir, inp_check_tol_diff=check_tol_diff)
+    !check_tol_dir=.False.
+    !check_tol_diff=.True.
+    !tau_scaling = one ! max(.6_ireals, min(2._ireals, one-(log10(vertices(size(vertices))*op_bg(2))/-10._ireals) )) ! Turns out this is not such a good idea because with Importance Sampling we get values gt one which violates energy conservation constraints
+    !!print *,'tauscaling:', tau_scaling
+    !call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
+    !  phi0, theta0, vertices, &
+    !  ret_S_out, tmp_T_out, &
+    !  ret_S_tol, tmp_T_tol, &
+    !  inp_atol=inp_atol, inp_rtol=inp_rtol, inp_tau_scaling=tau_scaling, &
+    !  inp_check_tol_dir=check_tol_dir, inp_check_tol_diff=check_tol_diff)
 
     !print *,'Tdir', tmp_T_out
     !print *,'Sdir', ret_S_out
     !print *,'Ttol', tmp_T_tol
     !print *,'Stol', ret_S_tol
 
+    call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
+      phi0, theta0, vertices, &
+      ret_S_out, tmp_T_out, &
+      ret_S_tol, tmp_T_tol, &
+      inp_atol=inp_atol, inp_rtol=inp_rtol)
   end subroutine
 
 
