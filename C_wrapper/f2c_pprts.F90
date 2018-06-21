@@ -130,7 +130,7 @@ contains
     collapseindex = int(ocollapseindex, kind=c_int)
 
     ! Now every process has the correct values
-    print *,myid,'Initializing pprts environment from C Language :: domainshape',solver_id
+    print *,myid,'Initializing pprts environment from C Language :: solver_id', solver_id
     print *,myid,'Initializing pprts environment from C Language :: domainshape',oNx,oNy,oNz,'::',shape(ohhl)
 
     allocate(odz(oNz))
