@@ -518,7 +518,7 @@ subroutine antialiased_photon_start(Nmax, ip, x, y, tilt_angle)
   integer(iintegers) :: Nx, Ny ! number of pixels in x and y direction
   integer(iintegers) :: i, j
 
-  tilt_grid = get_arg(deg2rad(26.6_ireals), tilt_angle)
+  tilt_grid = get_arg(deg2rad(26.6_ireal_dp), tilt_angle)
 
   if(Nmax.eq.i1) then
     x = .5_ireals

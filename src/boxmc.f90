@@ -348,7 +348,7 @@ contains
     atol = get_arg(stddev_atol, inp_atol)
     rtol = get_arg(stddev_rtol, inp_rtol)
 
-    tau_scaling = get_arg(one, inp_tau_scaling)
+    tau_scaling = get_arg(1._ireals, inp_tau_scaling)
     check_tol_dir = get_arg(.True., inp_check_tol_dir)
     check_tol_diff = get_arg(.True., inp_check_tol_diff)
 
