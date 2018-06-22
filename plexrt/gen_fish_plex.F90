@@ -2,8 +2,10 @@ module m_gen_fish_plex
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers, init_mpi_data_parameters, &
-    i0, i1, i2, i3, i4, i5
+  use m_data_parameters, only : ireals, iintegers, mpiint, init_mpi_data_parameters, &
+    zero, i0, i1, i2, i3, i4, i5
+
+  use m_helper_functions, only: itoa, CHKERR
 
   implicit none
 
@@ -13,260 +15,294 @@ module m_gen_fish_plex
 
   contains
     subroutine init()
-      type(tDM) :: dmcell
+      type(tDM) :: dm
       character(len=*), parameter :: default_options = '&
-        & -show_plex hdf5:fish.h5'
+        & -default_option_show_plex hdf5:fish.h5'
+
+      integer(mpiint) :: myid, numnodes
+      integer(iintegers) :: Nx, Ny
+      PetscBool :: lflg
 
       call PetscInitialize(PETSC_NULL_CHARACTER,ierr); CHKERRQ(ierr)
-      call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr); CHKERRQ(ierr)
+      call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr); call CHKERR(ierr)
 
       call init_mpi_data_parameters(PETSC_COMM_WORLD)
 
-      call create_plex_serial(dmcell)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg,ierr) ; call CHKERR(ierr)
+      if(lflg.eqv.PETSC_FALSE) Nx = 2
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg,ierr) ; call CHKERR(ierr)
+      if(lflg.eqv.PETSC_FALSE) Ny = 3
 
-      call PetscObjectViewFromOptions(dmcell, PETSC_NULL_VEC, "-show_plex", ierr); CHKERRQ(ierr)
+      call mpi_comm_rank(PETSC_COMM_WORLD, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(PETSC_COMM_WORLD, numnodes, ierr); call CHKERR(ierr)
 
-      call DMDestroy(dmcell, ierr);CHKERRQ(ierr)
+      call create_2d_fish_plex(dm, Nx, Ny, .False.)
+
+      call PetscObjectViewFromOptions(dm, PETSC_NULL_VEC, "-default_option_show_plex", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(dm, PETSC_NULL_VEC, "-show_plex", ierr); call CHKERR(ierr)
+
+      call DMDestroy(dm, ierr);CHKERRQ(ierr)
       call PetscFinalize(ierr)
     end subroutine
 
-    subroutine create_plex_serial(dm)
-      DM :: dm
+    subroutine create_2d_fish_plex(dm, Nx, Ny, lcyclic)
+      type(tDM) :: dm, dmdist
+      integer(iintegers), intent(in) :: Nx, Ny
+      logical, intent(in) :: lcyclic
 
-      call DMPlexCreate(PETSC_COMM_SELF, dm, ierr);CHKERRQ(ierr)
-      call PetscObjectSetName(dm, 'testplex', ierr);CHKERRQ(ierr)
-      call DMSetDimension(dm, i3, ierr);CHKERRQ(ierr)
-
-      call DMPlexSetChart(dm, i0, 57_iintegers, ierr); CHKERRQ(ierr)
-
-      call setup_plex(dm)
-
-    end subroutine
-    subroutine setup_plex(dm)
-      DM :: dm
+      integer(iintegers) :: chartsize, Nfaces, Nedges, Nvertices
 
       integer(iintegers) :: pStart, pEnd
-      integer(iintegers) :: cStart, cEnd
       integer(iintegers) :: fStart, fEnd
       integer(iintegers) :: eStart, eEnd
       integer(iintegers) :: vStart, vEnd
 
-      call set_wedge_connectivity(dm)
+      integer(mpiint) :: myid, numnodes
+
+      call mpi_comm_rank(PETSC_COMM_WORLD, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(PETSC_COMM_WORLD, numnodes, ierr); call CHKERR(ierr)
+
+      call DMPlexCreate(PETSC_COMM_WORLD, dm, ierr); call CHKERR(ierr)
+      call PetscObjectSetName(dm, 'testplex Nx'//itoa(Nx)//'_Ny'//itoa(Ny), ierr); call CHKERR(ierr)
+      call DMSetDimension(dm, i2, ierr); call CHKERR(ierr)
+
+      if(modulo(Nx,2).ne.0) call CHKERR(1_mpiint, 'Nx has to be even, e.g. 2,4,6...')
+      if(modulo(Ny,2).eq.0) call CHKERR(1_mpiint, 'Nx has to be uneven, e.g. 3,5...')
+
+      if(myid.eq.0) then
+        if(lcyclic) then
+          Nfaces = (Nx-1) * (Ny-1) * 2        ! Number of faces
+          Nedges = (Nx-1) * (Ny-1)            ! Number of edges on full height (y = 0, ...)
+          Nedges = Nedges + (Nx*2-2) * (Ny-1) ! Number of edges on half height (y = {} + .5)
+          Nvertices = (Nx-1) * (Ny-1)         ! Number of vertices
+        else
+          Nfaces = (Nx-1) * (Ny-1) * 2        ! Number of faces
+          Nedges = (Nx-1) * Ny                ! Number of edges on full height (y = 0, ...)
+          Nedges = Nedges + (Nx*2-1) * (Ny-1) ! Number of edges on half height (y = {} + .5)
+          Nvertices = Nx * Ny                 ! Number of vertices
+        endif
+      else
+        Nfaces = 0
+        Nedges = 0
+        Nvertices = 0
+      endif
+      print *, myid, 'Nfaces', Nfaces
+      print *, myid, 'Nedges', Nedges
+      print *, myid, 'Nverts', Nvertices
+
+      chartsize = Nfaces + Nedges + Nvertices
+      call DMPlexSetChart(dm, i0, chartsize, ierr); call CHKERR(ierr)
+
+      call set_wedge_connectivity(dm, Nx, Ny, Nfaces, Nedges, Nvertices, lcyclic)
 
       call DMPlexSymmetrize(dm, ierr); CHKERRQ(ierr)
       call DMPlexStratify(dm, ierr); CHKERRQ(ierr)
 
-      call set_coords_serial(dm)
+      call set_coords_serial(dm, Nx, Ny, lcyclic)
 
-      call DMPlexGetChart(dm, pStart, pEnd, ierr); CHKERRQ(ierr)
-      call DMPlexGetHeightStratum(dm, i0, cStart, cEnd, ierr); CHKERRQ(ierr) ! cells
-      call DMPlexGetHeightStratum(dm, i1, fStart, fEnd, ierr); CHKERRQ(ierr) ! faces / edges
-      call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
-      call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
+      call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
+      call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+      call DMPlexGetHeightStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
+      call DMPlexGetHeightStratum(dm, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-      print *,'pStart,End :: ',pStart, pEnd
-      print *,'cStart,End :: ',cStart, cEnd
-      print *,'fStart,End :: ',fStart, fEnd
-      print *,'eStart,End :: ',eStart, eEnd
-      print *,'vStart,End :: ',vStart, vEnd
+      if(myid.eq.0) then
+        print *,'pStart,End :: ',pStart, pEnd
+        print *,'fStart,End :: ',fStart, fEnd
+        print *,'eStart,End :: ',eStart, eEnd
+        print *,'vStart,End :: ',vStart, vEnd
+      endif
 
-      call create_face_labels(dm)
-    end subroutine
+      call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
+      call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
 
-    subroutine set_wedge_connectivity(dm)
-      DM :: dm
-      integer(iintegers) :: i
-      ! Preallocation
-      ! Every cell has 5 faces
-      do i=0,3
-        call DMPlexSetConeSize(dm, i, i5, ierr); CHKERRQ(ierr)
-      enddo
+      call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
+      if(dmdist.ne.PETSC_NULL_DM) then
+        call DMDestroy(dm, ierr); call CHKERR(ierr)
+        dm   = dmdist
+      endif
 
-      ! Faces have 3 or 4 edges
-      do i=4,7
-        call DMPlexSetConeSize(dm, i, i3, ierr); CHKERRQ(ierr)
-      enddo
-      do i=17,20
-        call DMPlexSetConeSize(dm, i, i3, ierr); CHKERRQ(ierr)
-      enddo
-      do i=8,16
-        call DMPlexSetConeSize(dm, i, i4, ierr); CHKERRQ(ierr)
-      enddo
+      contains
 
-      ! Edges have 2 vertices
-      do i=21,44
-        call DMPlexSetConeSize(dm, i, i2, ierr); CHKERRQ(ierr)
-      enddo
+        subroutine set_wedge_connectivity(dm, Nx, Ny, Nfaces, Nedges, Nvertices, lcyclic)
+          type(tDM) :: dm
+          integer(iintegers) :: Nx, Ny, Nfaces, Nedges, Nvertices
+          logical, intent(in) :: lcyclic
 
-      call DMSetUp(dm, ierr); CHKERRQ(ierr) ! Allocate space for cones
+          integer(iintegers) :: k, i, j, ioff, cone3(3), cone2(2)
+          ! Preallocation
+          ! Faces have 3 edges
+          ioff = 0
+          do k = 1, Nfaces
+            call DMPlexSetConeSize(dm, ioff, i3, ierr); call CHKERR(ierr)
+            ioff = ioff + 1
+          enddo
+          ! Edges have 2 vertices
+          do k = 1, Nedges
+            call DMPlexSetConeSize(dm, ioff, i2, ierr); call CHKERR(ierr)
+            ioff = ioff + 1
+          enddo
 
-      ! Setup Connections
-      call DMPlexSetCone(dm,  0_iintegers, [ 4_iintegers, 8_iintegers, 9_iintegers,10_iintegers,17_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  1_iintegers, [ 5_iintegers,10_iintegers,11_iintegers,12_iintegers,18_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  2_iintegers, [ 6_iintegers,12_iintegers,13_iintegers,14_iintegers,19_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  3_iintegers, [ 7_iintegers,14_iintegers,15_iintegers,16_iintegers,20_iintegers], ierr); CHKERRQ(ierr)
+          call DMSetUp(dm, ierr); call CHKERR(ierr) ! Allocate space for cones
 
-      call DMPlexSetCone(dm,  4_iintegers, [21_iintegers,22_iintegers,23_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  5_iintegers, [23_iintegers,24_iintegers,25_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  6_iintegers, [25_iintegers,26_iintegers,27_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  7_iintegers, [27_iintegers,28_iintegers,29_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 17_iintegers, [36_iintegers,37_iintegers,38_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 18_iintegers, [38_iintegers,39_iintegers,40_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 19_iintegers, [40_iintegers,41_iintegers,42_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 20_iintegers, [42_iintegers,43_iintegers,44_iintegers], ierr); CHKERRQ(ierr)
+          ioff = 0
+          do k = 1, Nfaces
+            j = (k-1) / (2*(Nx-1)) ! row of faces
+            i = k-1 - j*(2*(Nx-1)) ! col of faces
+            !print *,'faces',k,': i,j', i, j
 
-      call DMPlexSetCone(dm,  8_iintegers, [21_iintegers,30_iintegers,31_iintegers,36_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm,  9_iintegers, [22_iintegers,30_iintegers,32_iintegers,37_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 10_iintegers, [23_iintegers,31_iintegers,32_iintegers,38_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 11_iintegers, [24_iintegers,31_iintegers,33_iintegers,39_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 12_iintegers, [25_iintegers,32_iintegers,33_iintegers,40_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 13_iintegers, [26_iintegers,33_iintegers,34_iintegers,41_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 14_iintegers, [27_iintegers,32_iintegers,34_iintegers,42_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 15_iintegers, [28_iintegers,32_iintegers,35_iintegers,43_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 16_iintegers, [29_iintegers,34_iintegers,35_iintegers,44_iintegers], ierr); CHKERRQ(ierr)
+            ! determine edges of a face
+            if(modulo(i+modulo(j,2),2).eq.0) then ! this has a bot edge
+              if(lcyclic) then
+                cone3(1) = Nfaces + j*(Nx-1) + j*(Nx*2-2) + i/2  ! Nfaces offset + number of edges of full height + number of edges of half heights + i offset
+                cone3(2) = Nfaces + (j+1)*(Nx-1) + j*(Nx*2-2) + i  ! left edge  ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
+                cone3(3) = Nfaces + (j+1)*(Nx-1) + j*(Nx*2-2) + i +1 ! right edge ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
+                if(i.eq.(Nx-1)*2-1) cone3(3) = Nfaces + (j+1)*(Nx-1) + j*(Nx*2-2)
+              else
+                cone3(1) = Nfaces + j*(Nx-1) + j*(Nx*2-1) + i/2  ! Nfaces offset + number of edges of full height + number of edges of half heights + i offset
+                cone3(2) = Nfaces + (j+1)*(Nx-1) + j*(Nx*2-1) + i  ! left edge  ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
+                cone3(3) = Nfaces + (j+1)*(Nx-1) + j*(Nx*2-1) + i +1 ! right edge ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
+              endif
+              print *,'upward edge of face', k-1, ':', cone3
+            else
+              if(lcyclic) then
+                cone3(1) = Nfaces + (j+1)*(Nx-1) + (j+1)*(Nx*2-2) + i/2
+                cone3(2) = Nfaces + (j+1)*(Nx-1) + (j+0)*(Nx*2-2) + i
+                cone3(3) = Nfaces + (j+1)*(Nx-1) + (j+0)*(Nx*2-2) + i +1
+                if(i.eq.(Nx-1)*2-1) cone3(3) = Nfaces + (j+1)*(Nx-1) + (j+0)*(Nx*2-2)
+                if(j.eq.Ny-2) cone3(1) = Nfaces + i/2
+              else
+                cone3(1) = Nfaces + (j+1)*(Nx-1) + (j+1)*(Nx*2-1) + i/2
+                cone3(2) = Nfaces + (j+1)*(Nx-1) + (j+0)*(Nx*2-1) + i
+                cone3(3) = Nfaces + (j+1)*(Nx-1) + (j+0)*(Nx*2-1) + i +1
+              endif
+              print *,'                                                                            downward edge of face', k-1, ':', i, j,':', cone3
+            endif
 
-      call DMPlexSetCone(dm, 21_iintegers, [45_iintegers,46_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 22_iintegers, [45_iintegers,47_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 23_iintegers, [46_iintegers,47_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 24_iintegers, [46_iintegers,48_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 25_iintegers, [47_iintegers,48_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 26_iintegers, [48_iintegers,49_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 27_iintegers, [47_iintegers,49_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 28_iintegers, [47_iintegers,50_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 29_iintegers, [49_iintegers,50_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 30_iintegers, [45_iintegers,51_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 31_iintegers, [46_iintegers,52_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 32_iintegers, [47_iintegers,53_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 33_iintegers, [48_iintegers,54_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 34_iintegers, [49_iintegers,55_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 35_iintegers, [50_iintegers,56_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 36_iintegers, [51_iintegers,52_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 37_iintegers, [51_iintegers,53_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 38_iintegers, [52_iintegers,53_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 39_iintegers, [52_iintegers,54_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 40_iintegers, [53_iintegers,54_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 41_iintegers, [54_iintegers,55_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 42_iintegers, [53_iintegers,55_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 43_iintegers, [53_iintegers,56_iintegers], ierr); CHKERRQ(ierr)
-      call DMPlexSetCone(dm, 44_iintegers, [55_iintegers,56_iintegers], ierr); CHKERRQ(ierr)
-    end subroutine
+            call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
+            ioff = ioff + 1
+          enddo
+          ! Edges have 2 vertices
+          do k = 1, Nedges
+            if(lcyclic) then
+              j = (k-1) / (Nx-1 + Nx*2-2) ! row of edge ! goes up to Ny
+              i = k-1 - j*(Nx-1 + Nx*2-2) ! col of edge
+              if(i.lt.Nx-1) then ! bottom edge
+                cone2(1) = Nfaces + Nedges + j*(Nx-1) + i
+                cone2(2) = Nfaces + Nedges + j*(Nx-1) + i +1
+                if(i.eq.Nx-2) cone2(2) = Nfaces + Nedges + j*(Nx-1)
+                print *,'bot edge',k,ioff,': i,j', i, j, ':', cone2
+              else ! sideward edge
+                if(modulo(i+j,2).ne.0) then ! slash
+                  cone2(1) = Nfaces + Nedges + j*(Nx-1) + (i-Nx+1)/2
+                  cone2(2) = Nfaces + Nedges + (j+1)*(Nx-1) + (i-Nx+1)/2 + modulo(j,2)
+                  if(i.eq.(Nx-1+Nx*2-2-1)) cone2(2) = Nfaces + Nedges + (j+1)*(Nx-1)
+                  if(j.eq.Ny-2) then
+                    cone2(2) = Nfaces + Nedges + (i-Nx+1)/2 + modulo(j,2)
+                    if(i.eq.(Nx-1+Nx*2-2-1)) cone2(2) = Nfaces + Nedges
+                  endif
+                  print *,'                                                                            slash side edge',k,ioff,': i,j', i, j, ':', cone2
+                else ! backslash
+                  cone2(1) = Nfaces + Nedges + j*(Nx-1) + (i-Nx+1)/2 + modulo(j+1,2)
+                  cone2(2) = Nfaces + Nedges + (j+1)*(Nx-1) + (i-Nx+1)/2
+                  if(i.eq.(Nx-1+Nx*2-2-1)) cone2(1) = Nfaces + Nedges + j*(Nx-1)
+                  if(j.eq.Ny-2) cone2(2) = Nfaces + Nedges + (i-Nx+1)/2
+                  print *,'                                                                            backs side edge',k,ioff,': i,j', i, j, ':', cone2
+                endif
+              endif
+            else
+              j = (k-1) / (Nx-1 + Nx*2-1) ! row of edge ! goes up to Ny
+              i = k-1 - j*(Nx-1 + Nx*2-1) ! col of edge
+              if(i.lt.Nx-1) then ! bottom edge
+                cone2(1) = Nfaces + Nedges + j*Nx + i
+                cone2(2) = Nfaces + Nedges + j*Nx + i +1
+                print *,'bot edge',k,ioff,': i,j', i, j, ':', cone2
+              else ! sideward edge
+                if(modulo(i+j,2).ne.0) then ! slash
+                  cone2(1) = Nfaces + Nedges + j*Nx + (i-Nx+1)/2
+                  cone2(2) = Nfaces + Nedges + (j+1)*Nx + (i-Nx+1)/2 + modulo(j,2)
+                  !print *,'                                                                            slash side edge',k,ioff,': i,j', i, j, ':', cone2
+                else ! backslash
+                  cone2(1) = Nfaces + Nedges + j*Nx + (i-Nx+1)/2 + modulo(j+1,2)
+                  cone2(2) = Nfaces + Nedges + (j+1)*Nx + (i-Nx+1)/2
+                  !print *,'                                                                            backs side edge',k,ioff,': i,j', i, j, ':', cone2
+                endif
+              endif
+            endif
+            call DMPlexSetCone(dm,  ioff, cone2, ierr); call CHKERR(ierr)
+            ioff = ioff + 1
+          enddo
+        end subroutine
 
-  subroutine set_coords_serial(dm)
-    type(tDM) :: dm
-    real(ireals), pointer:: coords(:)
-    type(tVec)           :: coordinates
-    integer(iintegers)   :: dimEmbed, coordSize, vStart, vEnd, pStart, pEnd, eStart, eEnd, voff, cStart, cEnd
-    type(tPetscSection)  :: coordSection
-    integer(iintegers)   :: i
+        subroutine set_coords_serial(dm, Nx, Ny, lcyclic)
+          type(tDM) :: dm
+          integer(iintegers), intent(in) :: Nx, Ny
+          logical, intent(in) :: lcyclic
+          real(ireals), pointer:: coords(:)
+          type(tVec)           :: coordinates
+          integer(iintegers)   :: dimEmbed, coordSize, vStart, vEnd, pStart, pEnd, eStart, eEnd, voff, cStart, cEnd
+          type(tPetscSection)  :: coordSection
+          integer(iintegers)   :: iv, i, j
 
-    real(ireals), parameter :: dx=2, dy=2, dz=.5
-    real(ireals), parameter :: ds=sqrt(dy**2 - (dx/2)**2)
+          real(ireals), parameter :: dx=1, dy=1
+          real(ireals), parameter :: ds=sqrt(dy**2 - (dx/2)**2)
+          real(ireals) :: x, y, z
 
-    call DMGetCoordinateDim(dm, dimEmbed, ierr); CHKERRQ(ierr)
+          call DMGetCoordinateDim(dm, dimEmbed, ierr); CHKERRQ(ierr)
+          dimEmbed = 3
 
-    call DMGetCoordinateSection(dm, coordSection, ierr); CHKERRQ(ierr)
+          call DMGetCoordinateSection(dm, coordSection, ierr); CHKERRQ(ierr)
 
-    call PetscSectionSetNumFields(coordSection, i1, ierr); CHKERRQ(ierr)
-    call PetscSectionSetUp(coordSection, ierr); CHKERRQ(ierr)
-    call PetscSectionSetFieldComponents(coordSection, i0, dimEmbed, ierr); CHKERRQ(ierr)
+          call PetscSectionSetNumFields(coordSection, i1, ierr); CHKERRQ(ierr)
+          call PetscSectionSetUp(coordSection, ierr); CHKERRQ(ierr)
+          call PetscSectionSetFieldComponents(coordSection, i0, dimEmbed, ierr); CHKERRQ(ierr)
 
-    call DMPlexGetChart(dm, pStart, pEnd, ierr); CHKERRQ(ierr)
-    call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
-    call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
-    call DMPlexGetHeightStratum (dm, i0, cStart, cEnd, ierr); CHKERRQ(ierr) ! edges
+          call DMPlexGetChart(dm, pStart, pEnd, ierr); CHKERRQ(ierr)
+          call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
+          call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
+          call DMPlexGetHeightStratum (dm, i0, cStart, cEnd, ierr); CHKERRQ(ierr) ! edges
 
-    call PetscSectionSetChart(coordSection, vStart, vEnd, ierr);CHKERRQ(ierr)
+          call PetscSectionSetChart(coordSection, vStart, vEnd, ierr);CHKERRQ(ierr)
 
-    do i = vStart, vEnd-1
-      call PetscSectionSetDof(coordSection, i, dimEmbed, ierr); CHKERRQ(ierr)
-      call PetscSectionSetFieldDof(coordSection, i, i0, dimEmbed, ierr); CHKERRQ(ierr)
-    enddo
+          do i = vStart, vEnd-1
+            call PetscSectionSetDof(coordSection, i, dimEmbed, ierr); CHKERRQ(ierr)
+            call PetscSectionSetFieldDof(coordSection, i, i0, dimEmbed, ierr); CHKERRQ(ierr)
+          enddo
 
-    call PetscSectionSetUp(coordSection, ierr); CHKERRQ(ierr)
-    call PetscSectionGetStorageSize(coordSection, coordSize, ierr); CHKERRQ(ierr)
+          call PetscSectionSetUp(coordSection, ierr); CHKERRQ(ierr)
+          call PetscSectionGetStorageSize(coordSection, coordSize, ierr); CHKERRQ(ierr)
 
-    call VecCreate(PETSC_COMM_SELF, coordinates, ierr); CHKERRQ(ierr)
-    call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);CHKERRQ(ierr)
-    call VecSetBlockSize(coordinates, dimEmbed, ierr);CHKERRQ(ierr)
-    call VecSetType(coordinates, VECSTANDARD, ierr);CHKERRQ(ierr)
+          call VecCreate(PETSC_COMM_SELF, coordinates, ierr); CHKERRQ(ierr)
+          call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);CHKERRQ(ierr)
+          call VecSetBlockSize(coordinates, dimEmbed, ierr);CHKERRQ(ierr)
+          call VecSetType(coordinates, VECSTANDARD, ierr);CHKERRQ(ierr)
 
-    call PetscObjectSetName(coordinates, "coordinates", ierr); CHKERRQ(ierr)
+          call PetscObjectSetName(coordinates, "coordinates", ierr); CHKERRQ(ierr)
 
-    call VecGetArrayF90(coordinates, coords, ierr); CHKERRQ(ierr)
+          call VecGetArrayF90(coordinates, coords, ierr); CHKERRQ(ierr)
 
-    i = 45; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [0*dx,0*ds,0*dz]
-    i = 46; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [2*dx,0*ds,0*dz]
-    i = 47; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [1*dx,2*ds,0*dz]
-    i = 48; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [3*dx,2*ds,0*dz]
-    i = 49; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [2*dx,4*ds,0*dz]
-    i = 50; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [0*dx,4*ds,0*dz]
-    i = 51; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [0*dx,0*ds,1*dz]
-    i = 52; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [2*dx,0*ds,1*dz]
-    i = 53; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [1*dx,2*ds,1*dz]
-    i = 54; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [3*dx,2*ds,1*dz]
-    i = 55; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [2*dx,4*ds,1*dz]
-    i = 56; call PetscSectionGetOffset(coordSection, i, voff, ierr); coords(voff+1:voff+3) = [0*dx,4*ds,1*dz]
+          do iv = vStart, vEnd-1
+            if(lcyclic) then
+              j = (iv-vStart) / (Nx-1)
+              i = (iv-vStart) - j*(Nx-1)
+              z = sqrt(x**2 + y**2)
+            else
+              j = (iv-vStart) / Nx
+              i = (iv-vStart) - j*Nx
+              z = 0
+            endif
+            x = (i+.5*modulo(j,2))*dx
+            y = j*ds
+            print *,'iv',iv,':', i, j,'=>', x, y, z
 
-    call VecRestoreArrayF90(coordinates, coords, ierr); CHKERRQ(ierr)
-    call DMSetCoordinatesLocal(dm, coordinates, ierr);CHKERRQ(ierr)
-    call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); CHKERRQ(ierr)
-    call VecDestroy(coordinates, ierr);CHKERRQ(ierr)
-  end subroutine
+            call PetscSectionGetOffset(coordSection, iv, voff, ierr); coords(voff+1:voff+3) = [x, y, z]
+          enddo
 
-  subroutine create_face_labels(dm)
-    DM, intent(inout) :: dm
-    integer(iintegers) :: i, depth
-    PetscSection :: s
-
-    integer(iintegers) :: pStart, pEnd
-    integer(iintegers) :: cStart, cEnd
-    integer(iintegers) :: fStart, fEnd
-    integer(iintegers) :: eStart, eEnd
-    integer(iintegers) :: vStart, vEnd
-
-    type(tDMLabel) :: faceposlabel, zindexlabel, TOAlabel
-    integer(iintegers) :: lval, zval
-
-    call DMCreateLabel(dm, "Face Position", ierr); CHKERRQ(ierr)
-    call DMCreateLabel(dm, "Vertical Index", ierr); CHKERRQ(ierr)
-    call DMCreateLabel(dm, "TOA", ierr); CHKERRQ(ierr)
-
-    call DMGetLabel(dm, "Face Position", faceposlabel, ierr); CHKERRQ(ierr)
-    call DMGetLabel(dm, "Vertical Index", zindexlabel, ierr); CHKERRQ(ierr)
-    call DMGetLabel(dm, "TOA", TOAlabel, ierr); CHKERRQ(ierr)
-
-    call DMGetDefaultSection(dm, s, ierr); CHKERRQ(ierr)
-    call DMPlexGetDepth(dm, depth, ierr); CHKERRQ(ierr)
-    call DMPlexGetChart(dm, pStart, pEnd, ierr); CHKERRQ(ierr)
-    call DMPlexGetHeightStratum(dm, i0, cStart, cEnd, ierr); CHKERRQ(ierr) ! cells
-    call DMPlexGetHeightStratum(dm, i1, fStart, fEnd, ierr); CHKERRQ(ierr) ! faces / edges
-    call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
-    call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
-    print *,'PLEX GetChart', pStart, pEnd, ":: fStart, fEnd", fStart, fEnd
-
-    do i=fstart, fEnd-1
-      select case(i)
-      case (4:7)
-        lval = TOP_BOT_FACE
-        zval = 2
-      case (17:20)
-        lval = TOP_BOT_FACE
-        zval = 1
-      case default
-        lval = SIDE_FACE
-        zval = 1
-      end select
-
-      call DMLabelSetValue(faceposlabel, i, lval, ierr); CHKERRQ(ierr)
-      call DMLabelSetValue(zindexlabel, i, zval, ierr); CHKERRQ(ierr)
-
-      if (zval.eq.1 .and. lval.eq.TOP_BOT_FACE) call DMLabelSetValue(TOAlabel, i, zval, ierr); CHKERRQ(ierr)
-    enddo
-    do i=fstart, fEnd-1
-      !call DMLabelGetValue(faceposlabel, i, lval, ierr); CHKERRQ(ierr)
-      call DMLabelGetValue(TOAlabel, i, lval, ierr); CHKERRQ(ierr)
-    enddo
-  end subroutine
+          call VecRestoreArrayF90(coordinates, coords, ierr); CHKERRQ(ierr)
+          call DMSetCoordinatesLocal(dm, coordinates, ierr);CHKERRQ(ierr)
+          call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); CHKERRQ(ierr)
+          call VecDestroy(coordinates, ierr);CHKERRQ(ierr)
+        end subroutine
+      end subroutine
 
   end module
 
