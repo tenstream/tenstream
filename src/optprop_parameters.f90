@@ -85,7 +85,7 @@ module m_optprop_parameters
       !real(ireals), parameter :: preset_w08(8) = [0.0,0.384011887456,0.643717368476,0.806922184345,0.902876665378,0.949561805714,0.975148725847,0.99999]
 			real(ireals), parameter :: preset_w010(10) = [0.0,0.146844960107,0.299864348265,0.441659869071,0.571826424536,0.689506880372,0.793582370219,0.882074852633,0.94968540101,0.99999]
       !real(ireals), parameter :: preset_w015(15) = [0.0,0.206223071171,0.384160332835,0.528227775139,0.643710500558,0.735455592396,0.806918561817,0.861885907586,0.902875161822,0.932179798039,0.949561345869,0.963194640071,0.975148542423,0.987462994037,0.99999]
-      !real(ireals), parameter :: preset_w020(20) = [0.0,0.152960717624,0.295085090042,0.416951893959,0.521358613652,0.610087211908,0.684967634054,0.747886390181,0.800286677013,0.84336972609,0.878674797098,0.906377786525,0.928097831502,0.943463164595,0.954135786554,0.963824066888,0.972632134967,0.981529289348,0.990759644674,0.99999]
+      real(ireals), parameter :: preset_w020(20) = [0.0,0.152960717624,0.295085090042,0.416951893959,0.521358613652,0.610087211908,0.684967634054,0.747886390181,0.800286677013,0.84336972609,0.878674797098,0.906377786525,0.928097831502,0.943463164595,0.954135786554,0.963824066888,0.972632134967,0.981529289348,0.990759644674,0.99999]
 
 
       real(ireals), parameter :: preset_g1(1) = [0.0]
@@ -100,7 +100,7 @@ module m_optprop_parameters
 !      real(ireals),parameter :: stddev_atol=1e-2_ireals
 !      real(ireals),parameter :: stddev_atol=1e-3_ireals
 !      real(ireals),parameter :: stddev_atol=5e-4_ireals
-      real(ireals),parameter :: stddev_atol=1e-4_ireals
+      real(ireals),parameter :: stddev_atol=5e-4_ireals
 !      real(ireals),parameter :: stddev_atol=5e-6_ireals
 
       real(ireals),parameter :: stddev_rtol=5e-1_ireals
@@ -117,10 +117,10 @@ module m_optprop_parameters
 
       ! Treat direct2diffuse radiation in a cone around solar angle as direct
       ! radiation.
-      real(ireals),parameter :: delta_scale_truncate=.9848_ireals ! .9848 = 10 degrees delta scaling
+!      real(ireals),parameter :: delta_scale_truncate=.9848_ireals ! .9848 = 10 degrees delta scaling
 !      real(ireals),parameter :: delta_scale_truncate=.9962_ireals ! .9962 = 5 degrees delta scaling
 !      real(ireals),parameter :: delta_scale_truncate=1.0_ireals   !1.     = 0 degrees delta scaling
-!      real(ireals),parameter :: delta_scale_truncate=.8660_ireals ! .8660 = 30 degrees delta scaling
+      real(ireals),parameter :: delta_scale_truncate=.8660_ireals ! .8660 = 30 degrees delta scaling
 
 
       ! Used to signal that all Angles possible should be loaded when initializing the LUT object -- pass this as azi and zenith
