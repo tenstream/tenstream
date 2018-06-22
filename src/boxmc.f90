@@ -854,7 +854,7 @@ contains
       std%mean2(i) = std%mean2(i) + std%delta(i) * ( std%inc(i) - std%mean(i) )
       std%var(i) = sqrt( std%mean2(i)/N ) / sqrt( one*N*numnodes )
 
-      if(std%mean(i).ge.relvar_limit) then
+      if(std%mean(i).ge.max(std%atol, relvar_limit)) then
         std%relvar(i) = std%var(i) / std%mean(i)
       else
         std%relvar(i) = zero
