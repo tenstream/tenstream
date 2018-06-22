@@ -304,8 +304,8 @@ contains
 
     call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
       phi0, theta0, vertices, &
-      ret_S_out, tmp_T_out, &
-      ret_S_tol, tmp_T_tol, &
+      ret_S_out, ret_T_out, &
+      ret_S_tol, ret_T_tol, &
       inp_atol=inp_atol, inp_rtol=inp_rtol)
   end subroutine
 
