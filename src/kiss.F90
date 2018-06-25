@@ -13,7 +13,7 @@ contains
   end subroutine
   subroutine kiss_real32(r)
     real(real32), intent(out) :: r
-    r = rkiss()
+    r = real(rkiss(), real32)
   end subroutine
 
   !function KISS()
@@ -76,8 +76,8 @@ contains
     integer,parameter :: i4b= selected_int_kind(8)            ! 4-byte integers
 
     integer(i4b) idum,ia,im,iq,ir,iinit
-    integer(i4b) k,x,y,z,w,c1,c2,c3,c4
-    real(r8b)    rkiss05,rdum
+    integer(i4b) k,x,y,z,w,c1
+    real(r8b)    rdum
     parameter (ia=16807,im=2147483647,iq=127773,ir=2836)
     common /kisscom/x,y,z,w
 

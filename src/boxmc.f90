@@ -259,11 +259,11 @@ contains
     real(ireals),intent(in),optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
     real(ireals),intent(in),optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
 
-    real(ireals) :: tmp_T_out(size(ret_T_out))
-    real(ireals) :: tmp_T_tol(size(ret_T_tol))
+    !real(ireals) :: tmp_T_out(size(ret_T_out))
+    !real(ireals) :: tmp_T_tol(size(ret_T_tol))
 
-    real(ireals) :: tau_scaling
-    logical :: check_tol_dir, check_tol_diff
+    !real(ireals) :: tau_scaling
+    !logical :: check_tol_dir, check_tol_diff
 
     !if(ldir) then
     !  check_tol_dir=.True.

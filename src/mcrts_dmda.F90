@@ -514,7 +514,7 @@ subroutine antialiased_photon_start(Nmax, ip, x, y, tilt_angle)
   real(ireal_dp), intent(in), optional :: tilt_angle ! angle by which the grid is rotated in [rad], default: 30deg
   real(ireal_dp), intent(out) :: x, y ! gives x and y position for a regularly sampled tilted grid
 
-  real(ireals) :: tilt_grid, rot_x, rot_y
+  real(ireal_dp) :: tilt_grid, rot_x, rot_y
   integer(iintegers) :: Nx, Ny ! number of pixels in x and y direction
   integer(iintegers) :: i, j
 
@@ -548,8 +548,8 @@ subroutine antialiased_photon_start(Nmax, ip, x, y, tilt_angle)
   rot_x = x * cos(tilt_grid) - y * sin(tilt_grid) + .5_ireals
   rot_y = x * sin(tilt_grid) + y * cos(tilt_grid) + .5_ireals
 
-  x = modulo(rot_x, one)
-  y = modulo(rot_y, one)
+  x = modulo(rot_x, 1._ireal_dp)
+  y = modulo(rot_y, 1._ireal_dp)
 
   !print *,'plot(', x,',',y,',"o") #',ip
 end subroutine
