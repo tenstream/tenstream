@@ -84,12 +84,12 @@ module m_icon_plex_utils
       chartsize = Nfaces + Nedges + Nvertices
       call DMPlexSetChart(dm, i0, chartsize, ierr); call CHKERR(ierr)
 
-      call set_wedge_connectivity(dm, Nx, Ny, Nfaces, Nedges, Nvertices, lcyclic)
+      call set_wedge_connectivity(dm, Nx, Ny, Nfaces, Nedges, lcyclic)
 
       call DMPlexSymmetrize(dm, ierr); CHKERRQ(ierr)
       call DMPlexStratify(dm, ierr); CHKERRQ(ierr)
 
-      call set_coords_serial(dm, Nx, Ny, lcyclic)
+      call set_coords_serial(dm, Nx, lcyclic)
 
       call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
       call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
@@ -114,9 +114,9 @@ module m_icon_plex_utils
 
       contains
 
-        subroutine set_wedge_connectivity(dm, Nx, Ny, Nfaces, Nedges, Nvertices, lcyclic)
+        subroutine set_wedge_connectivity(dm, Nx, Ny, Nfaces, Nedges, lcyclic)
           type(tDM) :: dm
-          integer(iintegers) :: Nx, Ny, Nfaces, Nedges, Nvertices
+          integer(iintegers) :: Nx, Ny, Nfaces, Nedges
           logical, intent(in) :: lcyclic
 
           integer(iintegers) :: k, i, j, ioff, cone3(3), cone2(2)
@@ -224,9 +224,9 @@ module m_icon_plex_utils
           enddo
         end subroutine
 
-        subroutine set_coords_serial(dm, Nx, Ny, lcyclic)
+        subroutine set_coords_serial(dm, Nx, lcyclic)
           type(tDM) :: dm
-          integer(iintegers), intent(in) :: Nx, Ny
+          integer(iintegers), intent(in) :: Nx
           logical, intent(in) :: lcyclic
           real(ireals), pointer:: coords(:)
           type(tVec)           :: coordinates

@@ -135,7 +135,7 @@ module m_plex_rt
         optprop(i-1)%kabs = kabs_tot
         optprop(i-1)%ksca = ksca_tot
         optprop(i-1)%g    = g_tot
-        call delta_scale(optprop(i-1)%kabs, optprop(i-1)%ksca, optprop(i-1)%g, factor=optprop(i-1)%g)
+        call delta_scale(optprop(i-1)%kabs, optprop(i-1)%ksca, optprop(i-1)%g)
       enddo
 
       if(present(vlwc)) call VecRestoreArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)

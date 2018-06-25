@@ -469,30 +469,24 @@ module m_helper_functions
       call mpi_bcast(arr,size(arr),imp_ireals,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
 
-    elemental subroutine delta_scale(kabs, ksca, g, factor)
+    elemental subroutine delta_scale(kabs, ksca, g)
       real(ireals),intent(inout) :: kabs,ksca,g ! kabs, ksca, g
-      real(ireals),intent(in),optional :: factor
       real(ireals) :: dtau, w0
       dtau = max( kabs+ksca, epsilon(dtau) )
       w0   = ksca/dtau
       g    = g
 
-      if(present(factor)) then
-        call delta_scale_optprop( dtau, w0, g, factor)
-      else
-        call delta_scale_optprop( dtau, w0, g)
-      endif
+      call delta_scale_optprop( dtau, w0, g)
 
       kabs= dtau * (one-w0)
       ksca= dtau * w0
     end subroutine
-    elemental subroutine delta_scale_optprop(dtau, w0, g, factor)
+    elemental subroutine delta_scale_optprop(dtau, w0, g)
       real(ireals),intent(inout) :: dtau,w0,g
-      real(ireals),intent(in),optional :: factor
       real(ireals) :: f
 
       g = min( g, one-epsilon(g)*10)
-      f = get_arg(g**2, factor)
+      f = g**2
       dtau = dtau * ( one - w0 * f )
       g    = ( g - f ) / ( one - f )
       w0   = w0 * ( one - f ) / ( one - f * w0 )
