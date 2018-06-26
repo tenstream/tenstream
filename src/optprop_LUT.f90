@@ -41,7 +41,7 @@ module m_optprop_LUT
     stddev_atol, stddev_rtol,             &
     !preset_aspect10, preset_aspect21,     &
     preset_aspect23,                      &
-    !preset_g1, preset_g3,                 &
+    preset_g1, preset_g3,                 &
     !preset_tau10, preset_w08,             &
     !preset_tau15,                         &
     !preset_tau21, preset_w015,            &
@@ -225,6 +225,7 @@ contains
     do k=1,size(config%dims)
       lutname = trim(lutname)//'.'//trim(config%dims(k)%dimname)//itoa(config%dims(k)%N)
     enddo
+    lutname = trim(lutname)//'.ds'//itoa(int(delta_scale_truncate*1000))
   end function
 
 subroutine load_table_from_netcdf(table, istat)
@@ -823,16 +824,18 @@ subroutine set_parameter_space(OPP)
     select type(OPP)
       class is (t_optprop_LUT_1_2)
           OPP%interp_mode = interp_mode_1_2
-          allocate(OPP%dirconfig%dims(5))
+          allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-          call populate_LUT_dim('phi',       i1, OPP%dirconfig%dims(4), vrange=real([0], ireals)) ! azimithally average in 1D
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
-          allocate(OPP%diffconfig%dims(3))
+          call populate_LUT_dim('g',         size(preset_g3), OPP%dirconfig%dims(4), preset=preset_g3)
+          call populate_LUT_dim('phi',       i1, OPP%dirconfig%dims(5), vrange=real([0], ireals)) ! azimithally average in 1D
+          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], ireals))
+          allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
+          call populate_LUT_dim('g',         size(preset_g3), OPP%diffconfig%dims(4), preset=preset_g3)
 
       class is (t_optprop_LUT_8_10)
           OPP%interp_mode = interp_mode_8_10
@@ -843,42 +846,48 @@ subroutine set_parameter_space(OPP)
 !          call populate_LUT_dim('aspect_zx', i2, OPP%dirconfig%dims(4), vrange=real([.1,2.], ireals))
 !          call populate_LUT_dim('phi',       i2, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
 !          call populate_LUT_dim('theta',     i2, OPP%dirconfig%dims(6), vrange=real([0,90], ireals))
-          allocate(OPP%dirconfig%dims(5))
+          allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(4), vrange=real([0,90], ireals))
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
-          allocate(OPP%diffconfig%dims(3))
+          call populate_LUT_dim('g',         size(preset_g3), OPP%dirconfig%dims(4), preset=preset_g3)
+          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
+          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], ireals))
+          allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
+          call populate_LUT_dim('g',         size(preset_g3), OPP%diffconfig%dims(4), preset=preset_g3)
 
       class is (t_optprop_LUT_3_10)
           OPP%interp_mode = interp_mode_3_10
-          allocate(OPP%dirconfig%dims(5))
+          allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(4), vrange=real([0,90], ireals))
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
-          allocate(OPP%diffconfig%dims(3))
+          call populate_LUT_dim('g',         size(preset_g3), OPP%dirconfig%dims(4), preset=preset_g3)
+          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
+          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], ireals))
+          allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
+          call populate_LUT_dim('g',         size(preset_g3), OPP%diffconfig%dims(4), preset=preset_g3)
 
       class is (t_optprop_LUT_3_6)
           OPP%interp_mode = interp_mode_3_6
-          allocate(OPP%dirconfig%dims(5))
+          allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
-          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(4), vrange=real([0,90], ireals))
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
-          allocate(OPP%diffconfig%dims(3))
+          call populate_LUT_dim('g',         size(preset_g3), OPP%dirconfig%dims(4), preset=preset_g3)
+          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(5), vrange=real([0,90], ireals))
+          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], ireals))
+          allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
+          call populate_LUT_dim('g',         size(preset_g3), OPP%diffconfig%dims(4), preset=preset_g3)
 
       class is (t_optprop_LUT_wedge_5_8)
           OPP%interp_mode = interp_mode_wedge_5_8
