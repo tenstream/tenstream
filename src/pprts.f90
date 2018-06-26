@@ -31,7 +31,7 @@ module m_pprts
     imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, mean, get_arg, approx, &
     inc
 
-  use m_twostream, only: delta_eddington_twostream
+  use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
   use m_optprop, only: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_8_10, t_optprop_3_10
   use m_eddington, only : eddington_coeff_zdun
@@ -2112,7 +2112,7 @@ module m_pprts
         if(allocated(atm%planck) ) then
           call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup, planck=atm%planck(:,i,j) )
         else
-          call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
+          call adding_delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
         endif
 
         if(solution%lsolar_rad) then
