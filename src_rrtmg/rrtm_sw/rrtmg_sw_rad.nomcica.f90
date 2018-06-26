@@ -86,7 +86,7 @@
              cicewp  ,cliqwp  ,reice   ,reliq   , &
              tauaer  ,ssaaer  ,asmaer  ,ecaer   , &
              swuflx  ,swdflx  ,swhr    ,swuflxc ,swdflxc ,swhrc, &
-             tenstr_tau, tenstr_w, tenstr_g)
+             tenstr_tau, tenstr_w, tenstr_g, loptprop_only)
 
 ! ------- Description -------
 
@@ -299,6 +299,7 @@
       real(ireals), intent(out) :: tenstr_tau(:,:,:)   ! (ncol, nlayers, nbands)
       real(ireals), intent(out) :: tenstr_w(:,:,:)     ! (ncol, nlayers, nbands)
       real(ireals), intent(out) :: tenstr_g(:,:,:)     ! (ncol, nlayers, nbands)
+      logical, intent(in) :: loptprop_only
 ! ----- Local -----
 
 ! Control
@@ -682,7 +683,7 @@
               selffac, selffrac, indself, forfac, forfrac, indfor, &
               zbbfd, zbbfu, zbbcd, zbbcu, zuvfd, zuvcd, znifd, znicd, &
               zbbfddir, zbbcddir, zuvfddir, zuvcddir, znifddir, znicddir, &
-              tenstr_tau(iplon, :, :), tenstr_w(iplon, :, :), tenstr_g(iplon, :, :))
+              tenstr_tau(iplon, :, :), tenstr_w(iplon, :, :), tenstr_g(iplon, :, :), loptprop_only)
 
 ! Transfer up and down, clear and total sky fluxes to output arrays.
 ! Vertical indexing goes from bottom to top; reverse here for GCM if necessary.

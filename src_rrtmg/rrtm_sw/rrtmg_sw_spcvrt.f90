@@ -52,7 +52,7 @@
              selffac, selffrac, indself, forfac, forfrac, indfor, &
              pbbfd, pbbfu, pbbcd, pbbcu, puvfd, puvcd, pnifd, pnicd, &
              pbbfddir, pbbcddir, puvfddir, puvcddir, pnifddir, pnicddir, &
-             tenstr_tau, tenstr_w, tenstr_g)
+             tenstr_tau, tenstr_w, tenstr_g, loptprop_only)
 ! ---------------------------------------------------------------------------
 !
 ! Purpose: Contains spectral loop to compute the shortwave radiative fluxes, 
@@ -203,6 +203,8 @@
       real(ireals), intent(out) :: tenstr_tau(:,:)            ! (nlayers, nbands)
       real(ireals), intent(out) :: tenstr_w(:,:)              ! (nlayers, nbands)
       real(ireals), intent(out) :: tenstr_g(:,:)              ! (nlayers, nbands)
+
+      logical, intent(in) :: loptprop_only
 
 ! Output - inactive                                            !   All Dimensions: (nlayers+1)
 !      real(kind=rb), intent(out) :: puvcu(:)
@@ -510,7 +512,7 @@
 ! End of layer loop
             enddo
 
-            cycle !Tenstream only needs optical properties -- RTE will be solved later
+            if(loptprop_only) cycle !Tenstream only needs optical properties -- RTE will be solved later
 
 ! Clear sky reflectivities
             call reftra_sw (klev, &

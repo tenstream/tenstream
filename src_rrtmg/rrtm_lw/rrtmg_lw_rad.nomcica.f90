@@ -89,8 +89,8 @@
              taucld  ,cicewp  ,cliqwp  ,reice   ,reliq   , &
              tauaer  , &
              uflx    ,dflx    ,hr      ,uflxc   ,dflxc,  hrc, &
-             tenstr_tau, tenstr_Bfrac, &
-             duflx_dt,duflxc_dt )
+             tenstr_tau, tenstr_Bfrac, loptprop_only, &
+             duflx_dt, duflxc_dt )
 
 
 ! -------- Description --------
@@ -299,6 +299,7 @@
 
       real(ireals), intent(out) :: tenstr_tau(:,:,:)  ! (ncol, nlayers+1, ngptlw)
       real(ireals), intent(out) :: tenstr_Bfrac(:,:,:)! (ncol, nlayers+1, ngptlw)
+      logical, intent(in) :: loptprop_only
 
 ! ----- Optional Output -----
       real(kind=rb), intent(out), optional :: duflx_dt(:,:)     
@@ -535,7 +536,7 @@
            tenstr_Bfrac(iplon, :, ig) = fracs(1:nlay,ig)
          enddo
 
-         cycle
+         if(loptprop_only) cycle
 
 
 ! Call the radiative transfer routine.

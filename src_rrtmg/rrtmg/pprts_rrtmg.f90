@@ -44,7 +44,7 @@ module m_pprts_rrtmg
       pprts_get_result, pprts_get_result_toZero
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-      imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR
+      imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR, deg2rad
   use m_tenstream_interpolation, only : interp_1d
 
   use m_netcdfIO, only : ncwrite
@@ -54,9 +54,11 @@ module m_pprts_rrtmg
   private
   public :: pprts_rrtmg, destroy_pprts_rrtmg
 
-  logical,parameter :: ldebug=.True.
-!  logical,parameter :: ldebug=.False.
+!  logical,parameter :: ldebug=.True.
+  logical,parameter :: ldebug=.False.
 
+!  logical, parameter :: lrrtm_only=.True.
+  logical, parameter :: lrrtm_only=.False.
 
   interface
     real function PLKINT(WVLLO, WVLHI, T)
@@ -425,6 +427,7 @@ contains
     real(ireals), optional, intent(in) :: opt_time
 
     real(ireals),allocatable, dimension(:,:,:)   :: col_tau, col_Bfrac             ! [ncol, nlyr, ngptlw]
+    real(ireals),allocatable, dimension(:,:)     :: col_Edn, col_Eup, col_hr       ! [ncol, nlyr(+1)]
     real(ireals),allocatable, dimension(:,:,:)   :: ksca,g                         ! [nlyr, local_nx, local_ny, ngptlw]
     real(ireals),allocatable, dimension(:,:,:,:) :: kabs,Bfrac                     ! [nlyr, local_nx, local_ny, ngptlw]
     real(ireals),allocatable, dimension(:,:,:,:) :: Blev                           ! [nlyr+1, local_nx, local_ny, nbndlw]
@@ -459,13 +462,36 @@ contains
     allocate(col_tau  (ie*je, ke, ngptlw))
     allocate(col_Bfrac(ie*je, ke, ngptlw))
 
-    call optprop_rrtm_lw(ie*je, ke, albedo,   &
-      col_plev, col_tlev, col_tlay,           &
-      col_h2ovmr, col_o3vmr , col_co2vmr,     &
-      col_ch4vmr, col_n2ovmr, col_o2vmr ,     &
-      col_lwp, col_reliq, col_iwp, col_reice, &
-      col_tau, col_Bfrac)
+    if(lrrtm_only) then
+      allocate(col_Edn  (ie*je, ke+1))
+      allocate(col_Eup  (ie*je, ke+1))
+      allocate(col_hr   (ie*je, ke))
 
+      call optprop_rrtm_lw(ie*je, ke, albedo,   &
+        col_plev, col_tlev, col_tlay,           &
+        col_h2ovmr, col_o3vmr , col_co2vmr,     &
+        col_ch4vmr, col_n2ovmr, col_o2vmr ,     &
+        col_lwp, col_reliq, col_iwp, col_reice, &
+        col_tau, col_Bfrac, col_Edn, col_Eup, col_hr)
+
+      do j=js,je
+        do i=is,ie
+          icol =  i+(j-1)*ie
+          eup(:,i,j) = rev1d(col_Eup(icol, :))
+          edn(:,i,j) = rev1d(col_Edn(icol, :))
+          abso(:,i,j) = rev1d(col_hr(icol, :))
+        enddo
+      enddo
+      return
+    else
+      call optprop_rrtm_lw(ie*je, ke, albedo,   &
+        col_plev, col_tlev, col_tlay,           &
+        col_h2ovmr, col_o3vmr , col_co2vmr,     &
+        col_ch4vmr, col_n2ovmr, col_o2vmr ,     &
+        col_lwp, col_reliq, col_iwp, col_reice, &
+        col_tau, col_Bfrac)
+
+    endif
 
     allocate(kabs (ke , is:ie, js:je, ngptlw))
     allocate(Bfrac(ke1, is:ie, js:je, ngptlw))
@@ -567,6 +593,7 @@ contains
 
 
     real(ireals),allocatable, dimension(:,:,:)   :: col_tau, col_w0, col_g         ! [ncol, nlyr, ngptsw]
+    real(ireals),allocatable, dimension(:,:)     :: col_Edn, col_Eup, col_hr       ! [ncol, nlyr(+1)]
     real(ireals),allocatable, dimension(:,:,:,:) :: kabs, ksca, g                  ! [nlyr, local_nx, local_ny, ngptsw]
     real(ireals),allocatable, dimension(:,:,:)   :: spec_edir, spec_edn,spec_eup,spec_abso    ! [nlyr(+1), local_nx, local_ny ]
 
@@ -598,12 +625,40 @@ contains
     allocate(col_w0   (ie*je, ke, ngptsw))
     allocate(col_g    (ie*je, ke, ngptsw))
 
-    call optprop_rrtm_sw(ie*je, ke, &
-      col_plev, col_tlev, col_tlay, &
-      col_h2ovmr, col_o3vmr, col_co2vmr, &
-      col_ch4vmr, col_n2ovmr, col_o2vmr, &
-      col_lwp, col_reliq, col_iwp, col_reice, &
-      col_tau, col_w0, col_g)
+    if(lrrtm_only) then
+      allocate(col_Edn  (ie*je, ke+1))
+      allocate(col_Eup  (ie*je, ke+1))
+      allocate(col_hr   (ie*je, ke))
+
+      call optprop_rrtm_sw(ie*je, ke, &
+        theta0, albedo, &
+        col_plev, col_tlev, col_tlay, &
+        col_h2ovmr, col_o3vmr, col_co2vmr, &
+        col_ch4vmr, col_n2ovmr, col_o2vmr, &
+        col_lwp, col_reliq, col_iwp, col_reice, &
+        col_tau, col_w0, col_g, &
+        col_Eup, col_Edn, col_hr)
+      do j=js,je
+        do i=is,ie
+          icol =  i+(j-1)*ie
+          edir(:,i,j) = zero
+          eup(:,i,j) = rev1d(col_Eup(icol, :))
+          edn(:,i,j) = rev1d(col_Edn(icol, :))
+          abso(:,i,j) = rev1d(col_hr(icol, :))
+        enddo
+      enddo
+      return
+
+    else
+
+      call optprop_rrtm_sw(ie*je, ke, &
+        theta0, albedo, &
+        col_plev, col_tlev, col_tlay, &
+        col_h2ovmr, col_o3vmr, col_co2vmr, &
+        col_ch4vmr, col_n2ovmr, col_o2vmr, &
+        col_lwp, col_reliq, col_iwp, col_reice, &
+        col_tau, col_w0, col_g)
+    endif
 
     col_w0 = min(one, max(zero, col_w0))
 
@@ -662,8 +717,11 @@ contains
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
   end subroutine
 
-  subroutine optprop_rrtm_lw(ncol_in, nlay_in, albedo, plev, tlev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
-      lwp, reliq, iwp, reice, tau, Bfrac)
+  subroutine optprop_rrtm_lw(ncol_in, nlay_in, &
+      albedo, plev, tlev, tlay, &
+      h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
+      lwp, reliq, iwp, reice, tau, Bfrac, &
+      opt_lwuflx, opt_lwdflx, opt_lwhr)
     ! RRTM needs the arrays to start at the surface
 
     use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
@@ -678,6 +736,7 @@ contains
     real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq, iwp, reice
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [ncol, nlay, ngptlw]
+    real(ireals), dimension(:,:), intent(out), optional :: opt_lwuflx, opt_lwdflx, opt_lwhr ! [ncol, nlay+1]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -738,32 +797,54 @@ contains
       !endif
     endif
 
-    call rrtmg_lw &
-      (ncol    ,nlay    ,icld    ,idrv   , &
-      play    ,plev    ,tlay    ,tlev    ,tsfc    , &
-      h2ovmr  ,o3vmr   ,co2vmr  ,ch4vmr  ,n2ovmr  ,o2vmr, &
-      cfc11vmr,cfc12vmr,cfc22vmr,ccl4vmr ,emis    , &
-      inflglw, iceflglw, liqflglw, cldfr, &
-      taucld , iwp  , lwp  ,reice   ,reliq      , &
-      tauaer , &
-      lwuflx , lwdflx  ,lwhr    ,lwuflxc ,lwdflxc ,lwhrc, &
-      tau, Bfrac)
+    if (present(opt_lwuflx).and.present(opt_lwdflx).and.present(opt_lwhr)) then
+      call rrtmg_lw &
+        (ncol, nlay, icld, idrv, &
+        play, plev, tlay, tlev, tsfc    , &
+        h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
+        cfc11vmr, cfc12vmr, cfc22vmr, ccl4vmr, emis, &
+        inflglw, iceflglw, liqflglw, cldfr, &
+        taucld, iwp, lwp, reice, reliq, &
+        tauaer, &
+        lwuflx, lwdflx  ,lwhr ,lwuflxc ,lwdflxc ,lwhrc, &
+        tau, Bfrac, loptprop_only=.False.)
+      opt_lwuflx = real(lwuflx, ireals)
+      opt_lwdflx = real(lwdflx, ireals)
+      opt_lwhr   = real(lwhr, ireals)
+    else
+      call rrtmg_lw &
+        (ncol    ,nlay    ,icld    ,idrv   , &
+        play    ,plev    ,tlay    ,tlev    ,tsfc    , &
+        h2ovmr  ,o3vmr   ,co2vmr  ,ch4vmr  ,n2ovmr  ,o2vmr, &
+        cfc11vmr,cfc12vmr,cfc22vmr,ccl4vmr ,emis    , &
+        inflglw, iceflglw, liqflglw, cldfr, &
+        taucld , iwp  , lwp  ,reice   ,reliq      , &
+        tauaer , &
+        lwuflx , lwdflx  ,lwhr    ,lwuflxc ,lwdflxc ,lwhrc, &
+        tau, Bfrac, loptprop_only=.True.)
+    endif
   end subroutine
 
-  subroutine optprop_rrtm_sw(ncol_in, nlay_in, plev, tlev, tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
-      lwp, reliq, iwp, reice, tau, w0, g)
+  subroutine optprop_rrtm_sw(ncol_in, nlay_in, &
+      theta0, albedo, &
+      plev, tlev, tlay, &
+      h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
+      lwp, reliq, iwp, reice, tau, w0, g, &
+      opt_swuflx, opt_swdflx, opt_swhr)
     ! RRTM needs the arrays to start at the surface
     use m_tenstr_rrtmg_sw_rad, only: rrtmg_sw
     use m_tenstr_parrrsw, only: nbndsw, naerec
     use m_tenstr_rrtmg_sw_init, only: rrtmg_sw_ini
 
     integer(iintegers),intent(in)          :: ncol_in, nlay_in
+    real(ireals), intent(in) :: theta0, albedo
 
     real(rb),dimension(ncol_in,nlay_in+1) :: plev, tlev
     real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
     real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq, iwp, reice
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, w0, g ! [ncol, nlay, ngptsw]
+    real(ireals), dimension(:,:), intent(out), optional :: opt_swuflx, opt_swdflx, opt_swhr ! [ncol, nlay+1]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -800,8 +881,9 @@ contains
     taucld = 0; ssacld = 0; asmcld  = 0;
     fsfcld = 0;
     tauaer = 0; ssaaer  = 0; asmaer  = 0;
-    ecaer  = 0; coszen = 1; asdir   = 0; aldir   = 0;
-    asdif  = 0; aldif  = 0; swdflxc = 0; swuflxc = 0;
+    ecaer  = 0; asdir   = albedo; aldir   = albedo;
+    asdif  = albedo; aldif  = albedo; swdflxc = 0; swuflxc = 0;
+    coszen = cos(deg2rad(theta0));
 
     where ( lwp.gt.0 .or. iwp.gt.0 )
       cldfr = 1
@@ -823,18 +905,38 @@ contains
       !endif
     endif
 
-        call rrtmg_sw &
-            (ncol    ,nlay    ,icld    ,iaer    , &
-            play    ,plev    ,tlay    ,tlev    ,tsfc    , &
-            h2ovmr  ,o3vmr   ,co2vmr  ,ch4vmr  ,n2ovmr  ,o2vmr, &
-            asdir   ,asdif   ,aldir   ,aldif   , &
-            coszen  ,adjes   ,dyofyr  ,scon    , &
-            inflgsw ,iceflgsw,liqflgsw,cldfr   , &
-            taucld  ,ssacld  ,asmcld  ,fsfcld  , &
-            iwp  ,lwp  ,reice   ,reliq         , &
-            tauaer  ,ssaaer  ,asmaer  ,ecaer   , &
-            swuflx  ,swdflx  ,swhr    ,swuflxc ,swdflxc ,swhrc, &
-            tau, w0, g)
+    if (present(opt_swuflx).and.present(opt_swdflx).and.present(opt_swhr)) then
+      call rrtmg_sw &
+        (ncol    ,nlay    ,icld    ,iaer    , &
+        play    ,plev    ,tlay    ,tlev    ,tsfc    , &
+        h2ovmr  ,o3vmr   ,co2vmr  ,ch4vmr  ,n2ovmr  ,o2vmr, &
+        asdir   ,asdif   ,aldir   ,aldif   , &
+        coszen  ,adjes   ,dyofyr  ,scon    , &
+        inflgsw ,iceflgsw,liqflgsw,cldfr   , &
+        taucld  ,ssacld  ,asmcld  ,fsfcld  , &
+        iwp  ,lwp  ,reice   ,reliq         , &
+        tauaer, ssaaer, asmaer, ecaer      , &
+        swuflx, swdflx, swhr, swuflxc, swdflxc, swhrc, &
+        tau, w0, g, loptprop_only=.False.)
+
+      opt_swuflx = real(swuflx, ireals)
+      opt_swdflx = real(swdflx, ireals)
+      opt_swhr   = real(swhr, ireals)
+    else
+
+      call rrtmg_sw &
+        (ncol    ,nlay    ,icld    ,iaer    , &
+        play    ,plev    ,tlay    ,tlev    ,tsfc    , &
+        h2ovmr  ,o3vmr   ,co2vmr  ,ch4vmr  ,n2ovmr  ,o2vmr, &
+        asdir   ,asdif   ,aldir   ,aldif   , &
+        coszen  ,adjes   ,dyofyr  ,scon    , &
+        inflgsw ,iceflgsw,liqflgsw,cldfr   , &
+        taucld  ,ssacld  ,asmcld  ,fsfcld  , &
+        iwp  ,lwp  ,reice   ,reliq         , &
+        tauaer, ssaaer, asmaer, ecaer      , &
+        swuflx, swdflx, swhr, swuflxc, swdflxc, swhrc, &
+        tau, w0, g, loptprop_only=.True.)
+    endif
   end subroutine
 
   subroutine hydrostat_lev(plev,tlay, hsrfc, hhl, dz)
