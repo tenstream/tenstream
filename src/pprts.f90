@@ -1224,15 +1224,20 @@ module m_pprts
         sun => solver%sun, &
         C_one => solver%C_one)
 
-    if(.not.allocated(atm%op) )  allocate( atm%op       (C_one_atm%zs :C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye) )
+    if(.not.allocated(atm%kabs) )  &
+      allocate( atm%kabs(C_one_atm%zs :C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye) )
+    if(.not.allocated(atm%ksca) )  &
+      allocate( atm%ksca(C_one_atm%zs :C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye) )
+    if(.not.allocated(atm%g) )     &
+      allocate( atm%g   (C_one_atm%zs :C_one_atm%ze, C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye) )
 
     if(.not.allocated(atm%albedo)) allocate(atm%albedo(C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
     atm%albedo = albedo
     if(present(local_albedo_2d)) atm%albedo = local_albedo_2d
 
-    if(present(local_kabs) ) atm%op(:,:,:)%kabs = local_kabs
-    if(present(local_ksca) ) atm%op(:,:,:)%ksca = local_ksca
-    if(present(local_g   ) ) atm%op(:,:,:)%g    = local_g
+    if(present(local_kabs) ) atm%kabs = local_kabs
+    if(present(local_ksca) ) atm%ksca = local_ksca
+    if(present(local_g   ) ) atm%g    = local_g
 
     if(present(local_planck) ) then
       if (.not.allocated(atm%planck) ) allocate( atm%planck   (C_one_atm1%zs:C_one_atm1%ze, C_one_atm1%xs:C_one_atm1%xe, C_one_atm1%ys:C_one_atm1%ye ) )
@@ -1258,56 +1263,51 @@ module m_pprts
       endif
   !    endif
   !    if(ldebug) then
-      if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
+      if( (any([atm%kabs,atm%ksca,atm%g].lt.zero)) .or. (any(isnan([atm%kabs,atm%ksca,atm%g]))) ) then
         print *,solver%myid,'set_optical_properties :: found illegal value in optical properties! abort!'
       endif
   !    endif
 
     if(ldebug.and.solver%myid.eq.0) then
       if(present(local_kabs) ) then
-        print *,'atm_kabs     ',maxval(atm%op%kabs  )  ,shape(atm%op%kabs  )
+        print *,'atm_kabs     ',maxval(atm%kabs  )  ,shape(atm%kabs  )
       endif
       if(present(local_ksca) ) then
-        print *,'atm_ksca     ',maxval(atm%op%ksca  )  ,shape(atm%op%ksca  )
+        print *,'atm_ksca     ',maxval(atm%ksca  )  ,shape(atm%ksca  )
       endif
       if(present(local_g) ) then
-        print *,'atm_g        ',maxval(atm%op%g     )  ,shape(atm%op%g     )
+        print *,'atm_g        ',maxval(atm%g     )  ,shape(atm%g     )
       endif
       if(present(local_planck) ) then
         print *,'atm_planck   ',maxval(atm%planck   )  ,shape(atm%planck   )
       endif
 
       print *,'Number of 1D layers: ', count(atm%l1d) , size(atm%l1d),'(',(100._ireals* count(atm%l1d) )/size(atm%l1d),'%)'
-      if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%op)
+      if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%kabs)
     endif
 
-    call delta_scale(atm%op(:,:,:)%kabs, atm%op(:,:,:)%ksca, atm%op(:,:,:)%g, factor=atm%op(:,:,:)%g)
+    call delta_scale(atm%kabs, atm%ksca, atm%g)
 
     if(ltwostr_only) then
       if(ldebug .and. solver%myid.eq.0) then
         do k=C_one_atm%zs,C_one_atm%ze
           if(present(local_planck)) then
             print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
-              minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
-              maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g),&
+              minval(atm%kabs), minval(atm%ksca), minval(atm%g),&
+              maxval(atm%kabs), maxval(atm%ksca), maxval(atm%g),&
               '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
           else
             print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
-              minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
-              maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g)
+              minval(atm%kabs), minval(atm%ksca), minval(atm%g),&
+              maxval(atm%kabs), maxval(atm%ksca), maxval(atm%g)
           endif
         enddo
       endif
       return ! twostream should not depend on eddington coeffs... it will have to calculate it on its own.
     endif
 
-    ! Make space for deltascaled optical properties
-    !if(.not.allocated(atm%delta_op) ) allocate( atm%delta_op (C_one%zs :C_one%ze,C_one%xs :C_one%xe , C_one%ys :C_one%ye ) )
-    !atm%delta_op = atm%op
-    !call delta_scale(atm%delta_op(:,:,:)%kabs, atm%delta_op(:,:,:)%ksca, atm%delta_op(:,:,:)%g ) !todo should we instead use strong deltascaling? -- what gives better results? or is it as good?
-
     if(ldebug) then
-      if( (any([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g].lt.zero)) .or. (any(isnan([atm%op(:,:,:)%kabs,atm%op(:,:,:)%ksca,atm%op(:,:,:)%g]))) ) then
+      if( (any([atm%kabs,atm%ksca,atm%g].lt.zero)) .or. (any(isnan([atm%kabs,atm%ksca,atm%g]))) ) then
         print *,solver%myid,'set_optical_properties :: found illegal value in delta_scaled optical properties! abort!'
       endif
     endif
@@ -1329,10 +1329,10 @@ module m_pprts
         do i=C_one_atm%xs,C_one_atm%xe
           do k=C_one_atm%zs,C_one_atm%ze
             if( atm%l1d(k,i,j) ) then
-              kext = atm%op(k,i,j)%kabs + atm%op(k,i,j)%ksca
-              w0   = atm%op(k,i,j)%ksca / kext
+              kext = atm%kabs(k,i,j) + atm%ksca(k,i,j)
+              w0   = atm%ksca(k,i,j) / kext
               tau  = atm%dz(k,i,j)* kext
-              g    = atm%op(k,i,j)%g
+              g    = atm%g(k,i,j)
               call eddington_coeff_zdun ( tau , w0, g, sun%angles(C_one_atm%zs,i,j)%costheta, &
                 atm%a11(k,i,j),          &
                 atm%a12(k,i,j),          &
@@ -1380,13 +1380,13 @@ module m_pprts
       do k=C_one_atm%zs,C_one_atm%ze
         if(present(local_planck)) then
           print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
-            minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
-            maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g),&
+            minval(atm%kabs(k,:,:)), minval(atm%ksca(k,:,:)), minval(atm%g(k,:,:)),&
+            maxval(atm%kabs(k,:,:)), maxval(atm%ksca(k,:,:)), maxval(atm%g(k,:,:)),&
             '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
         else
           print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
-            minval(atm%op(k,:,:)%kabs), minval(atm%op(k,:,:)%ksca), minval(atm%op(k,:,:)%g),&
-            maxval(atm%op(k,:,:)%kabs), maxval(atm%op(k,:,:)%ksca), maxval(atm%op(k,:,:)%g),&
+            minval(atm%kabs(k,:,:)), minval(atm%ksca(k,:,:)), minval(atm%g(k,:,:)),&
+            maxval(atm%kabs(k,:,:)), maxval(atm%ksca(k,:,:)), maxval(atm%g(k,:,:)),&
             '::',minval(atm%a33 (k,:,:)),maxval(atm%a33(k,:,:))
         endif
       enddo
@@ -2093,10 +2093,10 @@ module m_pprts
         mu0 = solver%sun%angles(C_one_atm1%zs,i,j)%costheta
         incSolar = edirTOA* mu0
 
-        kext = atm%op(:,i,j)%kabs + atm%op(:,i,j)%ksca
+        kext = atm%kabs(:,i,j) + atm%ksca(:,i,j)
         dtau = atm%dz(:,i,j)* kext
-        w0   = atm%op(:,i,j)%ksca / kext
-        g    = atm%op(:,i,j)%g
+        w0   = atm%ksca(:,i,j) / kext
+        g    = atm%g(:,i,j)
 
         if(allocated(atm%planck) ) then
           call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup, planck=atm%planck(:,i,j) )
@@ -2172,7 +2172,7 @@ module m_pprts
     do j = C_diff%ys, C_diff%ye
       do i = C_diff%xs, C_diff%xe
 
-        dtau = atm%dz(atmk(atm, C_one%zs):C_one%ze, i, j)* atm%op(atmk(atm, C_one%zs):C_one%ze, i, j)%kabs
+        dtau = atm%dz(atmk(atm, C_one%zs):C_one%ze, i, j)* atm%kabs(atmk(atm, C_one%zs):C_one%ze, i, j)
 
         call schwarzschild(dtau, atm%albedo(i,j), Edn, Eup, atm%planck(atmk(atm, C_one1%zs):C_one1%ze, i, j))
 
@@ -2746,9 +2746,14 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
 
       call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
-      call get_coeff(solver, solver%atm%op(atmk(solver%atm,k),i,j), solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
-                             solver%atm%l1d(atmk(solver%atm,k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta], &
-                             lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
+      call get_coeff(solver, &
+        solver%atm%kabs(atmk(solver%atm,k),i,j), &
+        solver%atm%ksca(atmk(solver%atm,k),i,j), &
+        solver%atm%g(atmk(solver%atm,k),i,j), &
+        solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
+        solver%atm%l1d(atmk(solver%atm,k),i,j), &
+        [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta], &
+        lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
       call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
       call MatSetValuesStencil(A, C%dof, row, C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
@@ -2778,7 +2783,13 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       if(luse_eddington) then
         v = atm%a33(atmk(atm,k),i,j)
       else
-        call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.True., v, atm%l1d(atmk(atm,k),i,j), [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta] )
+        call get_coeff(solver, &
+          atm%kabs(atmk(atm,k),i,j), &
+          atm%ksca(atmk(atm,k),i,j), &
+          atm%g(atmk(atm,k),i,j), &
+          atm%dz(atmk(atm,k),i,j),.True., v, &
+          atm%l1d(atmk(atm,k),i,j), &
+          [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta] )
       endif
 
       col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k
@@ -2865,7 +2876,13 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) + b0 *Az*pi
 
               else
-                call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., diff2diff1d, atm%l1d(atmk(atm,k),i,j))
+                call get_coeff(solver, &
+                  atm%kabs(atmk(atm,k),i,j), &
+                  atm%ksca(atmk(atm,k),i,j), &
+                  atm%g(atmk(atm,k),i,j), &
+                  atm%dz(atmk(atm,k),i,j), &
+                  .False., diff2diff1d, &
+                  atm%l1d(atmk(atm,k),i,j))
 
                 b0 = atm%planck(atmk(atm,k),i,j) * pi
                 xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
@@ -2877,7 +2894,13 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
               Ay = atm%dx*atm%dz(atmk(atm,k),i,j)/(solver%diffside%dof/2)
 
               call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
-              call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., diff2diff, atm%l1d(atmk(atm,k),i,j) )
+              call get_coeff(solver, &
+                atm%kabs(atmk(atm,k),i,j), &
+                atm%ksca(atmk(atm,k),i,j), &
+                atm%g(atmk(atm,k),i,j), &
+                atm%dz(atmk(atm,k),i,j), &
+                .False., diff2diff, &
+                atm%l1d(atmk(atm,k),i,j) )
               call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
               ! reorder from destination ordering to src ordering
               do src=1,C_diff%dof
@@ -2991,8 +3014,15 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 lsun_north = sun%angles(k,i,j)%yinc.eq.i0
 
                 call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
-                call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., dir2diff, atm%l1d(atmk(atm,k),i,j), &
-                  [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta], lswitch_east=lsun_east, lswitch_north=lsun_north)
+                call get_coeff(solver, &
+                  atm%kabs(atmk(atm,k),i,j), &
+                  atm%ksca(atmk(atm,k),i,j), &
+                  atm%g(atmk(atm,k),i,j), &
+                  atm%dz(atmk(atm,k),i,j), &
+                  .False., dir2diff, &
+                  atm%l1d(atmk(atm,k),i,j), &
+                  [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta], &
+                  lswitch_east=lsun_east, lswitch_north=lsun_north)
                 call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
                 do idofdst=1,solver%difftop%dof
@@ -3132,10 +3162,10 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
   !> @brief retrieve transport coefficients from optprop module
   !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
-  subroutine get_coeff(solver, op,dz,ldir,coeff,lone_dimensional,angles, lswitch_east, lswitch_north)
+  subroutine get_coeff(solver, kabs, ksca, g, dz, ldir, coeff, &
+      lone_dimensional, angles, lswitch_east, lswitch_north)
     class(t_solver), intent(inout)    :: solver
-    type(t_opticalprops),intent(in)   :: op
-    real(ireals),intent(in)           :: dz
+    real(ireals),intent(in)           :: kabs, ksca, g, dz
     logical,intent(in)                :: ldir
     real(ireals),intent(out)          :: coeff(:)
 
@@ -3147,15 +3177,15 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     aspect_zx = dz / solver%atm%dx
     tauz = max(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(1), &
-      min(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), (op%kabs+op%ksca) * dz))
+      min(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), (kabs+ksca) * dz))
     w0 = max(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(1), &
-      min(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), op%ksca / (op%kabs+op%ksca)))
+      min(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), ksca / (kabs+ksca)))
 
     if(lone_dimensional) then
       call CHKERR(1_mpiint, 'currently, we dont support using LUT Twostream for l1d layers')
-      !call OPP_1_2%get_coeff (aspect, tauz, w0, op%g,ldir,coeff,angles)
+      !call OPP_1_2%get_coeff (aspect, tauz, w0, g,ldir,coeff,angles)
     else
-      call solver%OPP%get_coeff(tauz, w0, op%g, aspect_zx, ldir, coeff, angles, lswitch_east, lswitch_north)
+      call solver%OPP%get_coeff(tauz, w0, g, aspect_zx, ldir, coeff, angles, lswitch_east, lswitch_north)
     endif
   end subroutine
 
@@ -3197,7 +3227,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
      call getVecPointer(gnca ,solver%C_diff%da ,xvgnca1d, xvgnca)
      xvgnca(  idz    , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%dz
      xvgnca(  iplanck, C_diff%zs:C_diff%ze  , C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%planck
-     xvgnca(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%op%kabs
+     xvgnca(  ikabs  , C_diff%zs:C_diff%ze-1, C_diff%xs:C_diff%xe, C_diff%ys:C_diff%ye ) = atm%kabs
 
 
      ! Copy Edn and Eup to local convenience vector
@@ -3352,7 +3382,12 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       enddo
 
       call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-      call get_coeff(solver, solver%atm%op(atmk(solver%atm, k),i,j), solver%atm%dz(atmk(solver%atm, k),i,j),.False., v, solver%atm%l1d(atmk(solver%atm, k),i,j))
+      call get_coeff(solver, &
+        solver%atm%kabs(atmk(solver%atm, k),i,j), &
+        solver%atm%ksca(atmk(solver%atm, k),i,j), &
+        solver%atm%g(atmk(solver%atm, k),i,j), &
+        solver%atm%dz(atmk(solver%atm, k),i,j), &
+        .False., v, solver%atm%l1d(atmk(solver%atm, k),i,j))
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
       call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
@@ -3381,7 +3416,13 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       if(luse_eddington ) then
         v = [ atm%a12(atmk(atm,k),i,j), atm%a11(atmk(atm,k),i,j), atm%a22(atmk(atm,k),i,j), atm%a21(atmk(atm,k),i,j)]
       else
-          call get_coeff(solver, atm%op(atmk(atm,k),i,j), atm%dz(atmk(atm,k),i,j),.False., twostr_coeff, atm%l1d(atmk(atm,k),i,j)) !twostr_coeff ==> a12,a11,a12,a11 !todo: check if this is the wrong order
+          call get_coeff(solver, &
+            atm%kabs(atmk(atm,k),i,j), &
+            atm%ksca(atmk(atm,k),i,j), &
+            atm%g(atmk(atm,k),i,j), &
+            atm%dz(atmk(atm,k),i,j), &
+            .False., twostr_coeff, &
+            atm%l1d(atmk(atm,k),i,j)) !twostr_coeff ==> a12,a11,a12,a11 !todo: check if this is the wrong order
           v = [ twostr_coeff(1), twostr_coeff(2) , twostr_coeff(2) , twostr_coeff(1) ]
       endif
 

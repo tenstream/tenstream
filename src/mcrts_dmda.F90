@@ -302,8 +302,8 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
 
       call check_if_photon_is_in_domain(solver%C_one, p)
 
-      kabs = solver%atm%op(p%k, p%i, p%j)%kabs
-      ksca = solver%atm%op(p%k, p%i, p%j)%ksca
+      kabs = solver%atm%kabs(p%k, p%i, p%j)
+      ksca = solver%atm%ksca(p%k, p%i, p%j)
 
       call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
         solver%atm%dz(p%k, p%i, p%j), vertices)
@@ -320,7 +320,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
       ! Define new cellindex and update local position
 
       if(.not.lexit_cell) then
-        g = solver%atm%op(p%k,p%i,p%j)%g
+        g = solver%atm%g(p%k,p%i,p%j)
         call scatter_photon(p, g)
         p%tau_travel = tau(R())
         if(ldebug) print *,myid,'******************************************************************** SCATTERING',p%k,p%i,p%j

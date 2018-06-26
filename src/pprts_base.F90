@@ -29,13 +29,8 @@ module m_pprts_base
     integer(mpiint)         :: comm                    ! mpi communicatior for this DMDA
   end type
 
-  type t_opticalprops
-    real(ireals) :: kabs,ksca,g
-  end type
-
   type t_atmosphere
-    type(t_opticalprops) , allocatable , dimension(:,:,:) :: op
-    real(ireals)         , allocatable , dimension(:,:,:) :: planck
+    real(ireals)         , allocatable , dimension(:,:,:) :: planck, kabs, ksca, g
     real(ireals)         , allocatable , dimension(:,:,:) :: a11, a12, a21, a22, a13, a23, a33
     real(ireals)         , allocatable , dimension(:,:,:) :: g1,g2
     real(ireals)         , allocatable , dimension(:,:,:) :: dz
