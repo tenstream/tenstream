@@ -104,7 +104,10 @@ module m_pprts_base
     type(t_dof)                     :: difftop, diffside, dirtop, dirside
 
     logical                         :: lenable_solutions_err_estimates=.True.  ! if enabled, we can save and load solutions.... just pass an unique identifer to solve()... beware, this may use lots of memory
-    type(tVec),allocatable          :: incSolar,b
+    type(tVec),allocatable          :: incSolar, b
+    type(tVec),allocatable          :: dir_scalevec_Wm2_to_W, diff_scalevec_Wm2_to_W
+    type(tVec),allocatable          :: dir_scalevec_W_to_Wm2, diff_scalevec_W_to_Wm2
+    type(tVec),allocatable          :: abso_scalevec
 
     logical                         :: linitialized=.False.
     type(t_state_container)         :: solutions(-1000:1000)

@@ -1729,26 +1729,63 @@ module m_pprts
 
   !> @brief renormalize fluxes with the size of a face(sides or lid)
   subroutine scale_flx(solver, solution, lWm2_to_W)
-    class(t_solver), intent(in)           :: solver
+    class(t_solver), intent(inout)        :: solver
     type(t_state_container),intent(inout) :: solution   !< @param solution container with computed fluxes
     logical,intent(in)                    :: lWm2_to_W  !< @param determines direction of scaling, if true, scale from W/m**2 to W
 
     call PetscLogEventBegin(solver%logs%scale_flx, ierr); call CHKERR(ierr)
     if(solution%lsolar_rad) then
+      if(.not.allocated(solver%dir_scalevec_Wm2_to_W)) then
+        allocate(solver%dir_scalevec_Wm2_to_W)
+        call VecDuplicate(solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        call gen_scale_dir_flx_vec(solver, solver%dir_scalevec_Wm2_to_W, solver%C_dir)
+      endif
+      if(.not.allocated(solver%dir_scalevec_W_to_Wm2)) then
+        allocate(solver%dir_scalevec_W_to_Wm2)
+        call VecDuplicate(solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        call VecSet(solver%dir_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
+        call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
+          solver%dir_scalevec_W_to_Wm2, &
+          solver%dir_scalevec_W_to_Wm2, &
+          solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+      endif
       if(solution%lintegrated_dir .neqv. lWm2_to_W) then
-        call scale_dir_flx_vec(solver, solution%edir, solver%C_dir, lWm2_to_W)
+        if(lWm2_to_W) then
+          call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        else
+          call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        endif
         solution%lintegrated_dir = lWm2_to_W
       endif
     endif
 
+    if(.not.allocated(solver%diff_scalevec_Wm2_to_W)) then
+      allocate(solver%diff_scalevec_Wm2_to_W)
+      call VecDuplicate(solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+      call gen_scale_diff_flx_vec(solver, solver%diff_scalevec_Wm2_to_W, solver%C_diff)
+    endif
+    if(.not.allocated(solver%diff_scalevec_W_to_Wm2)) then
+      allocate(solver%diff_scalevec_W_to_Wm2)
+      call VecDuplicate(solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+      call VecSet(solver%diff_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
+      call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
+        solver%diff_scalevec_W_to_Wm2, &
+        solver%diff_scalevec_W_to_Wm2, &
+        solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+    endif
+
     if(solution%lintegrated_diff .neqv. lWm2_to_W) then
-      call scale_flx_vec(solver, solution%ediff, solver%C_diff, lWm2_to_W)
+      if(lWm2_to_W) then
+        call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+      else
+        call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+      endif
       solution%lintegrated_diff = lWm2_to_W
     endif
     call PetscLogEventEnd(solver%logs%scale_flx, ierr); call CHKERR(ierr)
 
   contains
-    subroutine scale_dir_flx_vec(solver, v, C, lWm2_to_W)
+    subroutine gen_scale_dir_flx_vec(solver, v, C)
       class(t_solver)      :: solver
       type(tVec)           :: v
       type(t_coord)        :: C
@@ -1756,7 +1793,6 @@ module m_pprts
       real(ireals),pointer :: xv1d(:)       =>null()
       integer(iintegers)   :: i, j, k, d, iside
       real(ireals)         :: Ax, Ay, Az, fac
-      logical,intent(in)   :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
 
       associate(  atm     => solver%atm,    &
                   C_one1  => solver%C_one1)
@@ -1765,11 +1801,7 @@ module m_pprts
       call getVecPointer(v ,C%da ,xv1d, xv)
 
       Az  = solver%atm%dx*solver%atm%dy / solver%dirtop%dof  ! size of a direct stream in m**2
-      if(lWm2_to_W) then
-        fac = Az
-      else
-        fac = one/Az
-      endif
+      fac = Az
 
       ! Scaling top faces
       do j=C%ys,C%ye
@@ -1777,7 +1809,7 @@ module m_pprts
           do k=C%zs,C%ze
             do iside=1,solver%dirtop%dof
               d = iside-1
-              xv(d,k,i,j) = xv(d,k,i,j) * fac
+              xv(d,k,i,j) = fac
             enddo
           enddo
         enddo
@@ -1790,26 +1822,18 @@ module m_pprts
             if(.not.atm%l1d(atmk(atm, k),i,j)) then
               ! First the faces in x-direction
               Ax = solver%atm%dy*solver%atm%dz(k,i,j) / (solver%dirside%dof/2)
-              if(lWm2_to_W) then
-                fac = Ax
-              else
-                fac = one/Ax
-              endif
+              fac = Ax
               do iside=1,solver%dirside%dof/2
                 d = solver%dirtop%dof + iside-1
-                xv(d,k,i,j) = xv(d,k,i,j) * fac
+                xv(d,k,i,j) = fac
               enddo
 
               ! Then the rest of the faces in y-direction
               Ay = atm%dy*atm%dz(k,i,j) / (solver%dirside%dof/2)
-              if(lWm2_to_W) then
-                fac = Ay
-              else
-                fac = one/Ay
-              endif
+              fac = Ay
               do iside=1,solver%dirside%dof/2
                 d = solver%dirtop%dof + solver%dirside%dof/2 + iside-1
-                xv(d,k,i,j) = xv(d,k,i,j) * fac
+                xv(d,k,i,j) = fac
               enddo
             endif
           enddo
@@ -1820,13 +1844,12 @@ module m_pprts
 
       end associate
     end subroutine
-    subroutine scale_flx_vec(solver, v, C, lWm2_to_W)
+    subroutine gen_scale_diff_flx_vec(solver, v, C)
       class(t_solver)      :: solver
       type(tVec)           :: v
       type(t_coord)        :: C
       real(ireals),pointer :: xv(:,:,:,:)=>null()
       real(ireals),pointer :: xv1d(:)=>null()
-      logical,intent(in)   :: lWm2_to_W ! determines direction of scaling, if true, scale from W/m**2 to W
 
       integer(iintegers)  :: iside, src, i, j, k
       real(ireals)        :: Az, Ax, Ay, fac
@@ -1846,18 +1869,14 @@ module m_pprts
 
       ! Scaling top faces
       Az = solver%atm%dx*solver%atm%dy/(solver%difftop%dof/2)
-      if(lWm2_to_W) then
-        fac = Az
-      else
-        fac = one/Az
-      endif
+      fac = Az
 
       do j=C%ys,C%ye
         do i=C%xs,C%xe
           do k=C%zs,C%ze
             do iside=1,solver%difftop%dof
               src = iside -1
-              xv(src ,k,i,j) = xv(src ,k,i,j) * fac                  ! diffuse radiation
+              xv(src ,k,i,j) = fac                  ! diffuse radiation
             enddo
           enddo
         enddo
@@ -1871,28 +1890,20 @@ module m_pprts
 
               ! faces in x-direction
               Ax = solver%atm%dy*solver%atm%dz(k,i,j)/(solver%difftop%dof/2)
-              if(lWm2_to_W) then
-                fac = Ax
-              else
-                fac = one/Ax
-              endif
+              fac = Ax
 
               do iside=1,solver%diffside%dof/2
                 src = solver%difftop%dof + iside -1
-                xv(src ,k,i,j) = xv(src ,k,i,j) * fac
+                xv(src ,k,i,j) = fac
               enddo
 
               ! faces in y-direction
               Ay = solver%atm%dx*solver%atm%dz(k,i,j)/(solver%difftop%dof/2)
-              if(lWm2_to_W) then
-                fac = Ay
-              else
-                fac = one/Ay
-              endif
+              fac = Ay
 
               do iside=1,solver%diffside%dof/2
                 src = solver%difftop%dof + solver%diffside%dof/2 + iside -1
-                xv(src ,k,i,j) = xv(src ,k,i,j) * fac
+                xv(src ,k,i,j) = fac
               enddo
 
             endif
@@ -2208,8 +2219,6 @@ module m_pprts
     integer(iintegers)        :: offset, isrc, src
     integer(iintegers)        :: i, j, k, xinc, yinc
     type(tVec)                :: ledir,lediff ! local copies of vectors, including ghosts
-    real(ireals)              :: div(3)
-    real(ireals), allocatable :: div2(:)
     real(ireals)              :: Volume,Az
     logical                   :: lhave_no_3d_layer
 
@@ -2218,6 +2227,24 @@ module m_pprts
                 C_diff  => solver%C_diff, &
                 C_one   => solver%C_one, &
                 C_one1  => solver%C_one1)
+
+    if(.not.allocated(solver%abso_scalevec)) then
+      allocate(solver%abso_scalevec)
+      call VecDuplicate(solution%abso, solver%abso_scalevec, ierr); call CHKERR(ierr)
+      call getVecPointer(solver%abso_scalevec, C_one%da, xabso1d, xabso)
+      Az = atm%dx * atm%dy
+
+      do j=C_one%ys,C_one%ye
+        do i=C_one%xs,C_one%xe
+          do k=C_one%zs,C_one%ze
+            Volume = Az * atm%dz(atmk(atm, k),i,j)
+            xabso(i0,k,i,j) = one / Volume
+          enddo
+        enddo
+      enddo
+
+      call restoreVecPointer(solver%abso_scalevec, xabso1d ,xabso)
+    endif
 
     if(solution%lsolar_rad .and. (solution%lintegrated_dir .eqv..False.)) call CHKERR(1_mpiint, 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!')
     if(                          (solution%lintegrated_diff.eqv..False.)) call CHKERR(1_mpiint, 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!')
@@ -2243,24 +2270,19 @@ module m_pprts
       call getVecPointer(solution%abso, C_one%da, xabso1d, xabso)
 
       ! calculate absorption by flux divergence
-      Az = atm%dx * atm%dy
 
       do j=C_one%ys,C_one%ye
         do i=C_one%xs,C_one%xe
           do k=C_one%zs,C_one%ze
-            Volume = Az     * atm%dz(atmk(atm, k),i,j)
-            ! Divergence    =                       Incoming                -       Outgoing
-            div(1) = zero
             if(solution%lsolar_rad) then
               do src=i0,solver%dirtop%dof-1
-                div(1) = div(1) + xedir(src, k, i, j )  - xedir(src , k+i1 , i, j )
+                xabso(i0,k,i,j) = xedir(src, k, i, j )  - xedir(src , k+i1 , i, j )
               enddo
             endif
 
-            div(2) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
-            div(3) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
+            xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
+            xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
 
-            xabso(i0,k,i,j) = sum(div) / Volume
           enddo
         enddo
       enddo
@@ -2270,6 +2292,7 @@ module m_pprts
       call restoreVecPointer(solution%ediff, xediff1d, xediff)
       call restoreVecPointer(solution%abso, xabso1d ,xabso)
 
+      call VecPointwiseMult(solution%abso, solution%abso, solver%abso_scalevec, ierr); call CHKERR(ierr)
       return
     endif
 
@@ -2292,29 +2315,22 @@ module m_pprts
     call getVecPointer(solution%abso, C_one%da, xabso1d, xabso)
 
     ! calculate absorption by flux divergence
-    Az = atm%dx * atm%dy
-
-    allocate(div2(solver%C_dir%dof + solver%C_diff%dof))
 
     do j=C_one%ys,C_one%ye
       do i=C_one%xs,C_one%xe
         do k=C_one%zs,C_one%ze
 
-          Volume = Az     * atm%dz(atmk(atm, k),i,j)
           ! Divergence = Incoming - Outgoing
 
           if(atm%l1d(atmk(atm, k),i,j)) then ! one dimensional i.e. twostream
-            div(1) = zero
             if(solution%lsolar_rad) then
               do src=1,solver%dirtop%dof
-                div(1) = div(1) + xedir(src-1, k, i, j )  - xedir(src-1 , k+i1 , i, j )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src-1, k, i, j )  - xedir(src-1 , k+i1 , i, j ))
               enddo
             endif
 
-            div(2) = ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
-            div(3) = ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
-
-            xabso(i0,k,i,j) = sum(div) / Volume
+            xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
+            xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
 
           else ! 3D-radiation
             offset = solver%dirtop%dof + solver%dirside%dof*2
@@ -2326,54 +2342,50 @@ module m_pprts
 
               do isrc = 1,solver%dirtop%dof
                 src = isrc
-                div2(src) = xedir(src-1, k, i        , j         ) - xedir(src-1, k+i1 , i      , j      )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src-1, k, i, j) - xedir(src-1, k+i1, i, j))
               enddo
 
               do isrc = 1, solver%dirside%dof
                 src = isrc + solver%dirtop%dof
-                div2(src) = xedir(src-1, k, i+1-xinc , j         ) - xedir(src-1, k    , i+xinc , j      )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src-1, k, i+1-xinc, j) - xedir(src-1, k, i+xinc, j))
               enddo
 
               do isrc = 1, solver%dirside%dof
                 src = isrc + solver%dirtop%dof + solver%dirside%dof
-                div2(src) = xedir(src-1, k, i        , j+i1-yinc ) - xedir(src-1, k    , i      , j+yinc )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src-1, k, i, j+i1-yinc) - xedir(src-1, k, i, j+yinc))
               enddo
-
-            else
-              div2(1:offset) = zero
             endif
 
             ! diffuse part of absorption
             do isrc = 1, solver%difftop%dof
               src = isrc
               if (solver%difftop%is_inward(isrc) .eqv. .True.) then
-                div2(offset+src) = xediff(src-1, k   , i   , j   ) - xediff(src-1, k+1 , i   , j   )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i, j) - xediff(src-1, k+1, i, j))
               else
-                div2(offset+src) = xediff(src-1, k+1 , i   , j   ) - xediff(src-1, k   , i   , j   )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k+1, i, j) - xediff(src-1, k, i, j))
               endif
             enddo
 
             do isrc = 1, solver%diffside%dof
               src = isrc + solver%difftop%dof
               if (solver%diffside%is_inward(isrc) .eqv. .True.) then
-                div2(offset+src) = xediff(src-1, k   , i   , j   ) - xediff(src-1, k   , i+1 , j   )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i, j) - xediff(src-1, k, i+1, j))
               else
-                div2(offset+src) = xediff(src-1, k   , i+1 , j   ) - xediff(src-1, k   , i   , j   )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i+1, j) - xediff(src-1, k, i, j))
               endif
             enddo
 
             do isrc = 1, solver%diffside%dof
               src = isrc + solver%difftop%dof + solver%diffside%dof
               if (solver%diffside%is_inward(isrc) .eqv. .True.) then
-                div2(offset+src) = xediff(src-1, k   , i   , j   ) - xediff(src-1, k   , i   , j+1 )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i, j) - xediff(src-1, k, i, j+1))
               else
-                div2(offset+src) = xediff(src-1, k   , i   , j+1 ) - xediff(src-1, k   , i   , j   )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i, j+1) - xediff(src-1, k, i, j))
               endif
             enddo
 
-            xabso(i0,k,i,j) = sum(div2) / Volume
             if( isnan(xabso(i0,k,i,j)) ) then
-              print *,'nan in flxdiv',k,i,j,'::',xabso(i0,k,i,j),Volume,'::',div2
+              print *,'nan in flxdiv',k,i,j,'::',xabso(i0,k,i,j)
             endif
           endif ! 1d/3D
         enddo
@@ -2389,6 +2401,7 @@ module m_pprts
     call DMRestoreLocalVector(C_diff%da, lediff, ierr) ; call CHKERR(ierr)
 
     call restoreVecPointer(solution%abso, xabso1d ,xabso)
+    call VecPointwiseMult(solution%abso, solution%abso, solver%abso_scalevec, ierr); call CHKERR(ierr)
 
   end associate
 end subroutine
@@ -3715,6 +3728,31 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
           solver%solutions(uid)%lset = .False.
         endif
       enddo
+
+      if(allocated(solver%dir_scalevec_Wm2_to_W)) then
+        call VecDestroy(solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        deallocate(solver%dir_scalevec_Wm2_to_W)
+      endif
+
+      if(allocated(solver%diff_scalevec_Wm2_to_W)) then
+        call VecDestroy(solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        deallocate(solver%diff_scalevec_Wm2_to_W)
+      endif
+
+      if(allocated(solver%dir_scalevec_W_to_Wm2)) then
+        call VecDestroy(solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        deallocate(solver%dir_scalevec_W_to_Wm2)
+      endif
+
+      if(allocated(solver%diff_scalevec_W_to_Wm2)) then
+        call VecDestroy(solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        deallocate(solver%diff_scalevec_W_to_Wm2)
+      endif
+
+      if(allocated(solver%abso_scalevec)) then
+        call VecDestroy(solver%abso_scalevec, ierr); call CHKERR(ierr)
+        deallocate(solver%abso_scalevec)
+      endif
 
       if(allocated(solver%atm)) deallocate(solver%atm)
 
