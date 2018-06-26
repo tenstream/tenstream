@@ -20,145 +20,152 @@
 module m_twostream
 
 #ifdef _XLF
-      use ieee_arithmetic
+  use ieee_arithmetic
 #define isnan ieee_is_nan
 #endif
+  use iso_fortran_env, only: REAL32, REAL64
 
-      use m_data_parameters, only: ireals,iintegers,zero,one,pi
-      use m_eddington, only: eddington_coeff_zdun
-      use m_helper_functions, only : delta_scale_optprop
-      implicit none
+  use m_data_parameters, only: ireals,iintegers,mpiint,zero,one,pi
+  use m_eddington, only: eddington_coeff_zdun
+  use m_helper_functions, only : delta_scale_optprop, CHKERR, itoa
+  implicit none
 
-      private
-      public delta_eddington_twostream
+  private
+  public delta_eddington_twostream
 
-    contains
+  logical, parameter :: ldebug=.False.
 
-      subroutine delta_eddington_twostream(dtau_in,w0_in,g_in,mu0,incSolar,albedo, S,Edn,Eup, planck)
-        real(ireals),intent(in),dimension(:) :: dtau_in,w0_in,g_in
-        real(ireals),intent(in) :: albedo,mu0,incSolar
-        real(ireals),dimension(:),intent(out):: S,Edn,Eup
-        real(ireals),dimension(:),intent(in),optional :: planck
+contains
 
-        real(ireals),dimension(size(dtau_in)) :: dtau,w0,g
-        real(ireals),dimension(size(dtau_in)) :: a11,a12,a13,a23,a33,g1,g2
+  subroutine delta_eddington_twostream(dtau_in,w0_in,g_in,mu0,incSolar,albedo, S,Edn,Eup, planck)
+    real(ireals),intent(in),dimension(:) :: dtau_in,w0_in,g_in
+    real(ireals),intent(in) :: albedo,mu0,incSolar
+    real(ireals),dimension(:),intent(out):: S,Edn,Eup
+    real(ireals),dimension(:),intent(in),optional :: planck
 
-        integer(iintegers) :: i,j,k,ke,ke1,bi
-        real(ireals) :: R,T
-        real(ireals),allocatable :: AB (:,:)
-        real(ireals),allocatable :: B (:,:)
-        integer,allocatable :: IPIV(:)
-        integer :: N, KLU,  KL, KU, NRHS, LDAB, LDB, INFO
+    real(ireals),dimension(size(dtau_in)) :: dtau,w0,g
+    real(ireals),dimension(size(dtau_in)) :: a11,a12,a13,a23,a33,g1,g2
 
-        S=zero
-        Edn=zero
-        Eup=zero
+    integer(iintegers) :: i,j,k,ke,ke1,bi
+    real(ireals) :: R,T
+    real(ireals),allocatable :: AB (:,:)
+    real(ireals),allocatable :: B (:,:)
+    integer,allocatable :: IPIV(:)
+    integer :: N, KLU,  KL, KU, NRHS, LDAB, LDB, INFO
 
-        ke = size(dtau)
-        ke1 = ke+1
-        N = int(2*ke1, kind(N))
-        KL =2
-        KU =2
-        NRHS=1
-        LDAB = 2*KL+KU+1
-        LDB  = N
-        KLU = KL+KU+1
+    S=zero
+    Edn=zero
+    Eup=zero
 
-        dtau = dtau_in
-        w0   = w0_in
-        g    = g_in
-!        call delta_scale_optprop( dtau, w0, g  )
+    ke = size(dtau)
+    ke1 = ke+1
+    N = int(2*ke1, kind(N))
+    KL =2
+    KU =2
+    NRHS=1
+    LDAB = 2*KL+KU+1
+    LDB  = N
+    KLU = KL+KU+1
 
-        do k=1,ke
-          call eddington_coeff_zdun (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k), g1(k),g2(k) )
-          if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k),g1(k),g2(k)] )) ) then
-            print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k),'::',g1(k),g2(k)
-            call exit()
-          endif
-        enddo
+    dtau = dtau_in
+    w0   = w0_in
+    g    = g_in
 
-        S(1) = incSolar ! irradiance on tilted plane
-        do k=1,ke
-          S(k+1) = S(k) * a33(k)
-        enddo
-
-        allocate( IPIV(N) )
-        allocate( AB (LDAB,N) )
-        allocate( B (LDB,NRHS)   )
-        AB   = zero
-        B    = zero
-        IPIV = 0
-
-        ! Setup solar src vector
-        do k=1,ke
-          B(2*k-1,1) = S(k) * a13(k) ! Eup
-          B(2*k+2,1) = S(k) * a23(k) ! Edn
-        enddo
-        B(2,1) = zero ! no Edn at TOA
-        B(2*ke1-1,1) = S(ke1) * albedo
-
-        ! Setup thermal src vector
-        if(present(planck) ) then
-          do k=1,ke
-            B(2*k-1,1) = B(2*k-1,1) + (one-a11(k)-a12(k)) * planck(k) *pi
-            B(2*k+2,1) = B(2*k+2,1) + (one-a11(k)-a12(k)) * planck(k) *pi
-          enddo
-          ! B(2,1) = B(2,1) + zero ! no Edn at TOA
-          B(2*ke1-1,1) = B(2*ke1-1,1) + planck(ke1)*(one-albedo)*pi
+    do k=1,ke
+      call eddington_coeff_zdun (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k), g1(k),g2(k) )
+      if(ldebug) then
+        if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k),g1(k),g2(k)] )) ) then
+          print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k),'::',g1(k),g2(k)
+          call exit()
         endif
+      endif
+    enddo
 
-        !diagonal entries
-        do i=1,N
-          j=i
-          bi= KLU+i-j
-          AB( bi,j ) = one
-        enddo
+    S(1) = incSolar ! irradiance on tilted plane
+    do k=1,ke
+      S(k+1) = S(k) * a33(k)
+    enddo
 
-        do k=1,ke
-          T = a11(k)
-          R = a12(k)
+    allocate( IPIV(N))
+    allocate( AB (LDAB,N), source=zero)
+    allocate( B (LDB,NRHS))
+    !AB   = zero
+    !B    = zero
+    !IPIV = 0
 
-        ! setting Eup coeffs
-          i=2*k-1 ; j=i+2 ; bi= KLU+i-j ; AB(bi,j) = -T
-          i=2*k-1 ; j=i+1 ; bi= KLU+i-j ; AB(bi,j) = -R
+    ! Setup solar src vector
+    do k=1,ke
+      B(2*k-1,1) = S(k) * a13(k) ! Eup
+      B(2*k+2,1) = S(k) * a23(k) ! Edn
+    enddo
+    B(2,1) = zero ! no Edn at TOA
+    B(2*ke1-1,1) = S(ke1) * albedo
 
-        ! setting Edn coeffs
-          i=2*(k+1) ; j=i-2 ; bi= KLU+i-j ; AB(bi,j) = -T
-          i=2*(k+1) ; j=i-1 ; bi= KLU+i-j ; AB(bi,j) = -R
-        enddo
-        i=2*ke1-1 ; j=i+1 ; bi= KLU+i-j ; AB(bi,j) = -albedo ! Eup at surface is Edn*albedo
+    ! Setup thermal src vector
+    if(present(planck) ) then
+      do k=1,ke
+        B(2*k-1,1) = B(2*k-1,1) + (one-a11(k)-a12(k)) * planck(k) *pi
+        B(2*k+2,1) = B(2*k+2,1) + (one-a11(k)-a12(k)) * planck(k) *pi
+      enddo
+      ! B(2,1) = B(2,1) + zero ! no Edn at TOA
+      B(2*ke1-1,1) = B(2*ke1-1,1) + planck(ke1)*(one-albedo)*pi
+    endif
 
-        do k=1,ke
-          if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k)] )) ) then
-            print *,'eddington coefficients',k,' source',B(2*k-1,1),B(2*k,1), 'eddington',a11(k),a12(k),' :: ',a13(k),a23(k), ' :: ',a33(k), ' :: ',dtau(k),w0(k),g(k),mu0,'S=',S(k)
-            call exit()
-          endif
-        enddo
+    !diagonal entries
+    do i=1,N
+      j=i
+      bi= KLU+i-j
+      AB( bi,j ) = one
+    enddo
 
-        INFO=-1
-        if(kind(one).eq.kind(real(one)) ) then !single_precision
-          call SGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
-        else if(kind(one).eq.kind(dble(one)) ) then !double_precision
-          call DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
-        else
-          print *,'Dont know which LAPACK routine to call for real kind',kind(one)
-          call exit(-5)
+    do k=1,ke
+      T = a11(k)
+      R = a12(k)
+
+      ! setting Eup coeffs
+      i=2*k-1 ; j=i+2 ; bi= KLU+i-j ; AB(bi,j) = -T
+      i=2*k-1 ; j=i+1 ; bi= KLU+i-j ; AB(bi,j) = -R
+
+      ! setting Edn coeffs
+      i=2*(k+1) ; j=i-2 ; bi= KLU+i-j ; AB(bi,j) = -T
+      i=2*(k+1) ; j=i-1 ; bi= KLU+i-j ; AB(bi,j) = -R
+    enddo
+    i=2*ke1-1 ; j=i+1 ; bi= KLU+i-j ; AB(bi,j) = -albedo ! Eup at surface is Edn*albedo
+
+    if(ldebug) then
+      do k=1,ke
+        if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k)] )) ) then
+          print *,'eddington coefficients',k,' source',B(2*k-1,1),B(2*k,1), 'eddington',a11(k),a12(k),' :: ',a13(k),a23(k), ' :: ',a33(k), ' :: ',dtau(k),w0(k),g(k),mu0,'S=',S(k)
+          call exit()
         endif
+      enddo
+    endif
 
-        if(INFO.ne.0) then
-          print *,'INFO',INFO
-          stop 'Error in twostream calculation - lapack returned Error'
-        endif
+    INFO=-1
+    if(ireals.eq.REAL32) then !single_precision
+      call SGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
+      info=0
+    else if(ireals.eq.REAL64) then !double_precision
+      call DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
+    else
+      call CHKERR(-5_mpiint, 'Dont know which LAPACK routine to call for real kind'//itoa(ireals))
+    endif
+    !print *,'LAPACK SOLVE'
 
-        ! retrieve result from solver
-        do k=1,ke1
-          Eup(k) = B(2*k-1,NRHS) ! Eup
-          Edn(k) = B(2*k,NRHS) ! Edn
-          if(any(isnan( [Eup(k),Edn(k)] )) ) &
-              print *,'setting value for Eup,Edn',k,' LAPACK entries',B(2*k-1,1),B(2*k,1),'Eup/dn', Eup(k),Edn(k),'IPIV',IPIV(2*k-1:2*k)
-        enddo
+    call CHKERR(INFO, 'Error in twostream calculation - lapack returned Error')
 
-        end subroutine
+    ! retrieve result from solver
+    do k=1,ke1
+      Eup(k) = B(2*k-1,NRHS) ! Eup
+      Edn(k) = B(2*k,NRHS) ! Edn
+    enddo
+    if(ldebug) then
+      do k=1,ke1
+        if(any(isnan( [Eup(k),Edn(k)] )) ) &
+          print *,'setting value for Eup,Edn',k,' LAPACK entries',B(2*k-1,1),B(2*k,1),'Eup/dn', Eup(k),Edn(k),'IPIV',IPIV(2*k-1:2*k)
+      enddo
+    endif
 
+  end subroutine
 
 end module

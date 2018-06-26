@@ -40,7 +40,7 @@ module m_schwarzschild
 
         integer(iintegers) :: imu,k,ke,ke1
 
-        integer(iintegers),parameter :: Nmu = 20
+        integer(iintegers),parameter :: Nmu = 5
         real(ireals),parameter       :: dmu = one/Nmu
 
 
