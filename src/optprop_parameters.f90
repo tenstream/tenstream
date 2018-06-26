@@ -70,7 +70,7 @@ module m_optprop_parameters
 
       !real(ireals), parameter :: preset_aspect10(10) = [0.01, 0.56, 1.12, 1.67, 2.23, 2.78, 3.34, 3.89, 4.45, 5.0]
       !real(ireals), parameter :: preset_aspect21(21) = [0.01, 0.25, 0.5, 0.75, 1., 1.25, 1.5, 1.75, 2.0, 2.25,  2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.]
-			real(ireals), parameter :: preset_aspect23(23) = [0.02, 0.032, 0.042, 0.056, 0.075, 0.1, 0.133, 0.178, 0.237, 0.316, 0.422, 0.562, 0.75, 1., 1.25, 1.562, 1.953, 2.441, 3.052, 3.815, 4.768, 5.96, 7.451]
+      real(ireals), parameter :: preset_aspect23(23) = [0.02, 0.032, 0.042, 0.056, 0.075, 0.1, 0.133, 0.178, 0.237, 0.316, 0.422, 0.562, 0.75, 1., 1.25, 1.562, 1.953, 2.441, 3.052, 3.815, 4.768, 5.96, 7.451]
 
       !real(ireals), parameter :: preset_tau10(10) = [1e-10,0.0137388296978,0.0573711123567,0.139789935148,0.285526816981,0.610418869282,1.57085127911,2.73919277554,5.41500325409,100.0]
       !real(ireals), parameter :: preset_tau15(15) = [1e-10,9.60528972228e-06,0.00023849409901,0.00166198651975,0.00673267911551,0.0202911873538,0.0511713576613,0.11623968405,0.258968664233,0.568687940597,1.2527762873,2.64735111809,5.53090672088,14.5233716971,100.0]
@@ -83,7 +83,7 @@ module m_optprop_parameters
 
 
       !real(ireals), parameter :: preset_w08(8) = [0.0,0.384011887456,0.643717368476,0.806922184345,0.902876665378,0.949561805714,0.975148725847,0.99999]
-			real(ireals), parameter :: preset_w010(10) = [0.0,0.146844960107,0.299864348265,0.441659869071,0.571826424536,0.689506880372,0.793582370219,0.882074852633,0.94968540101,0.99999]
+      real(ireals), parameter :: preset_w010(10) = [0.0,0.146844960107,0.299864348265,0.441659869071,0.571826424536,0.689506880372,0.793582370219,0.882074852633,0.94968540101,0.99999]
       !real(ireals), parameter :: preset_w015(15) = [0.0,0.206223071171,0.384160332835,0.528227775139,0.643710500558,0.735455592396,0.806918561817,0.861885907586,0.902875161822,0.932179798039,0.949561345869,0.963194640071,0.975148542423,0.987462994037,0.99999]
       real(ireals), parameter :: preset_w020(20) = [0.0,0.152960717624,0.295085090042,0.416951893959,0.521358613652,0.610087211908,0.684967634054,0.747886390181,0.800286677013,0.84336972609,0.878674797098,0.906377786525,0.928097831502,0.943463164595,0.954135786554,0.963824066888,0.972632134967,0.981529289348,0.990759644674,0.99999]
 
@@ -108,8 +108,8 @@ module m_optprop_parameters
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
       ! what to expect.
-!      logical,parameter :: ldebug_optprop=.False.
-      logical,parameter :: ldebug_optprop=.True.
+      logical,parameter :: ldebug_optprop=.False.
+!      logical,parameter :: ldebug_optprop=.True.
 
       ! Use delta scaling on optical properties? -- this significantly reduces
       ! the size of the lookuptables.
@@ -119,8 +119,8 @@ module m_optprop_parameters
       ! radiation.
 !      real(ireals),parameter :: delta_scale_truncate=.9848_ireals ! .9848 = 10 degrees delta scaling
 !      real(ireals),parameter :: delta_scale_truncate=.9962_ireals ! .9962 = 5 degrees delta scaling
-!      real(ireals),parameter :: delta_scale_truncate=1.0_ireals   !1.     = 0 degrees delta scaling
-      real(ireals),parameter :: delta_scale_truncate=.8660_ireals ! .8660 = 30 degrees delta scaling
+      real(ireals),parameter :: delta_scale_truncate=1.0_ireals   !1.     = 0 degrees delta scaling
+!      real(ireals),parameter :: delta_scale_truncate=.8660_ireals ! .8660 = 30 degrees delta scaling
 
 
       ! Used to signal that all Angles possible should be loaded when initializing the LUT object -- pass this as azi and zenith
