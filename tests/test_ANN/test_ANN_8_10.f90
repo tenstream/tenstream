@@ -146,7 +146,7 @@ contains
       if(myid.eq.0) print *,'Finishing ANN tests module'
   end subroutine teardown
 
-  @test( npes=[8], testParameters={getParameters()} )
+  @test( npes=[1], testParameters={getParameters()} )
   subroutine test_ANN_diffuse_coeff(this)
       class (parameterized_test), intent(inout) :: this
 
@@ -198,7 +198,7 @@ contains
       end associate
    endsubroutine
 
-  @test( npes=[8], testParameters={getParameters()} )
+  @test( npes=[1], testParameters={getParameters()} )
   subroutine test_ANN_direct_coeff(this)
       class (parameterized_test), intent(inout) :: this
 

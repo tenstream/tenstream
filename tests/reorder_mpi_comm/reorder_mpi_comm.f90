@@ -4,7 +4,7 @@ subroutine test_tenstream_ex1(this)
     use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
     use m_pprts_base, only : t_coord, t_solver_3_10
     use m_pprts, only : init_pprts, destroy_pprts
-    use m_helper_functions, only : reorder_mpi_comm
+    use m_helper_functions, only : reorder_mpi_comm, chkerr
     use m_tenstream_options, only: read_commandline_options
     use pfunit_mod
 #include "petsc/finclude/petsc.h"
@@ -37,6 +37,8 @@ subroutine test_tenstream_ex1(this)
     call mpi_comm_rank( comm, orig_id, mpierr)
 
     call init_mpi_data_parameters(comm)
+
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, "-twostr_only", mpierr); call CHKERR(mpierr)
     call init_pprts(comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
     call mpi_comm_rank( comm, myid, mpierr)
     print *,'I am originally', orig_id, 'my rank is now', myid, &

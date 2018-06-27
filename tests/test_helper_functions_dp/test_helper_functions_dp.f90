@@ -1,4 +1,4 @@
-@test(npes =[1,2,4])
+@test(npes =[1,4])
 subroutine test_mpi_functions_dp(this)
 
     use m_data_parameters, only: ireal_dp, mpiint, init_mpi_data_parameters

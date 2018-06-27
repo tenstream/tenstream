@@ -11,7 +11,7 @@ module test_helper_functions
 
 contains
 
-@test(npes =[2])
+@test(npes =[1,2])
 subroutine test_mpi_functions(this)
     class (MpiTestMethod), intent(inout) :: this
 

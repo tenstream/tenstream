@@ -14,7 +14,7 @@ module test_petsc_scatterToZero
 
 contains
 
-  @test(npes =[2])
+  @test(npes =[2,3])
   subroutine petsc_scatterToZero(this)
     class (MpiTestMethod), intent(inout) :: this
 
