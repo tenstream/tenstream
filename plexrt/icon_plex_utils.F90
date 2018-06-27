@@ -29,6 +29,8 @@ module m_icon_plex_utils
 
       call print_dmplex(comm, dm2d)
 
+      print *,hhl
+
     end subroutine
 
     ! Create a 2D Torus grid with Nx vertices horizontally and Ny rows of Vertices vertically

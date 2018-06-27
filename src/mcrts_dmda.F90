@@ -701,7 +701,7 @@ subroutine send_photon_to_neighbor(solver, C, p_in, pqueue)
     !call mpi_send(p, 1_mpiint, imp_t_photon, &
     !  pqueue%owner, tag, solver%comm, ierr); call CHKERR(ierr, 'mpi isend failed')
 
-    call pqueue_set_status(pqueue, iphoton, PQ_SENDING)
+    call pqueue_set_status(pqueue, int(iphoton, iintegers), PQ_SENDING)
 
     if(ldebug) then
       print *,'Sending the following photon to', pqueue%owner,':tag', tag
@@ -715,7 +715,8 @@ subroutine finalize_msgs(pqueue, lwait)
   type(t_photon_queue), intent(inout) :: pqueue
   logical, intent(in) :: lwait
 
-  integer(mpiint) :: i, iter, mpi_status(mpi_status_size), ierr
+  integer(iintegers) :: i
+  integer(mpiint) :: iter, mpi_status(mpi_status_size), ierr
   integer(mpiint) :: cnt_finished_msgs
   logical :: lcomm_finished
 
@@ -779,7 +780,7 @@ subroutine exchange_photons(solver, pqueues)
       call mpi_recv(pqueues(ipq)%photons(pqueues(ipq)%current)%p, 1_mpiint, imp_t_photon, &
         mpi_status(MPI_SOURCE), mpi_status(MPI_TAG), solver%comm, mpi_status, ierr); call CHKERR(ierr)
 
-      call pqueue_set_status(pqueues(ipq), pqueues(ipq)%current, PQ_READY_TO_RUN)
+      call pqueue_set_status(pqueues(ipq), int(pqueues(ipq)%current, iintegers), PQ_READY_TO_RUN)
 
       if(ldebug) then
         print *,myid, 'Got Message from:', mpi_status(MPI_SOURCE), 'Receiving ipq', ipq
