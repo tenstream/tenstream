@@ -60,8 +60,6 @@ module m_helper_functions
     module procedure cumprod_iintegers, cumprod_ireals
   end interface
 
-  logical, parameter :: ldebug=.True.
-
   integer(iintegers), parameter :: npar_cumprod=8
   contains
 
@@ -808,12 +806,10 @@ module m_helper_functions
       ! First check on rectangular bounding box
       if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
         pnt_in_triangle=.False.
-        if(ldebug) print *,'pnt_in_triangle, bounding box check failed:', p
         return
       endif
       if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
         pnt_in_triangle=.False.
-        if(ldebug) print *,'pnt_in_triangle, bounding box check failed:', p
         return
       endif
 

@@ -590,12 +590,12 @@ module m_helper_functions_dp
         !use m_helper_functions, only : triangle_intersection
         real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p
         logical :: pnt_in_triangle
-        real(ireal_dp),parameter :: eps = epsilon(eps)
+        real(ireal_dp),parameter :: eps = epsilon(eps)*10
         real(ireal_dp) :: a, b, c, edge_dist
         logical, parameter :: ldebug=.False.
 
         pnt_in_triangle = pnt_in_rectangle(p1,p2,p3, p)
-        if(ldebug) print *,'pnt_in_triangle::pnt in rectangle:', p1, p2, p3, p, '::', pnt_in_triangle
+        if(ldebug) print *,'pnt_in_triangle::pnt in rectangle:', p1, p2, p3, 'p', p, '::', pnt_in_triangle
         if (.not.pnt_in_triangle) then ! if pnt is not in rectangle, it is not in triangle!
           ! Then check for sides
           a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
@@ -613,7 +613,8 @@ module m_helper_functions_dp
 
         if(.not.pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
           edge_dist = minval(distances_to_triangle_edges(p1,p2,p3,p))
-          if(edge_dist.le.sqrt(eps)) pnt_in_triangle=.True.
+          if(edge_dist.le.eps) pnt_in_triangle=.True.
+          if(ldebug) print *,'pnt_in_triangle edgedist:',edge_dist,'=>', pnt_in_triangle
         endif
 
         if(ldebug.and..not.pnt_in_triangle) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p, &
@@ -662,6 +663,11 @@ module m_helper_functions_dp
         real(ireal_dp) :: distance_to_edge
 
         distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
+        if(distance_to_edge.le.epsilon(distance_to_edge)) then ! if we are on the line, check if we are inside the segment
+          if((p(1).lt.min(p1(1),p2(1))) .or. (p(1).gt.max(p1(1),p2(1))) ) then
+            distance_to_edge = min(norm(p1-p), norm(p2-p))
+          endif
+        endif
       end function
 
       pure function rotate_angle_x(v,angle)

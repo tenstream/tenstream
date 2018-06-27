@@ -1,4 +1,4 @@
-@test(npes =[1,4])
+@test(npes =[2,1])
 subroutine test_mpi_functions_dp(this)
 
     use m_data_parameters, only: ireal_dp, mpiint, init_mpi_data_parameters
@@ -59,7 +59,6 @@ subroutine test_mpi_functions_dp(this)
     ! Scalar Bcasts:
     call imp_bcast(comm, bcast_real_scalar, 0_mpiint)
     @assertEqual(1234, bcast_real_scalar, 'real scalar broadcast wrong')
-
 end subroutine
 
 @test(npes =[1])
@@ -110,7 +109,7 @@ subroutine test_triangle_functions_dp()
     @assertTrue(pnt_in_triangle(A,B,C, C+(B-C)/2), 'pnt_in_triangle wrong for edge case on line between B and C')
 
     @assertFalse(pnt_in_triangle(A,B,C, A-[one,one ]), 'pnt_in_triangle wrong for outside case 1')
-    @assertFalse(pnt_in_triangle(A,B,C, B+[one,zero]), 'pnt_in_triangle wrong for outside case 2')
+    @assertFalse(pnt_in_triangle(A,B,C, B+[one,zero]), 'pnt_in_triangle wrong for outside case 22')
     @assertFalse(pnt_in_triangle(A,B,C, C+[one,one] ), 'pnt_in_triangle wrong for outside case 3')
 
     @assertTrue(pnt_in_triangle(A,B,C, [0.38475394248962402_ireal_dp, zero]), 'custom edge case point should be in triangle! case 1')

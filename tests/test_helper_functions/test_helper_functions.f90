@@ -11,7 +11,7 @@ module test_helper_functions
 
 contains
 
-@test(npes =[1,2])
+@test(npes =[2,1])
 subroutine test_mpi_functions(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -41,7 +41,6 @@ subroutine test_mpi_functions(this)
     myid     = this%getProcessRank()
 
     call init_mpi_data_parameters(comm)
-
 
     do rep=1,repetitions
       if(.not.allocated(arr)) allocate(arr(numnodes), source=-1_iintegers)
