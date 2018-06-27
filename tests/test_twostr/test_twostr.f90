@@ -28,7 +28,8 @@ contains
     real(ireals) :: mu0, incSolar, albedo
     integer(iintegers) :: k
 
-    integer(iintegers), parameter :: iter = 10000
+    integer(iintegers), parameter :: iter = 1000
+    real(ireals) :: starttime, now
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
@@ -39,13 +40,12 @@ contains
     w0 = .5
     g = .5
 
+    call cpu_time(starttime)
     do k=1,iter
       call delta_eddington_twostream(dtau, w0, g, mu0, incSolar, albedo, S, Edn, Eup)
     enddo
-
-    print *,'S', S
-    print *,'Edn', Edn
-    print *,'Eup', Eup
+    call cpu_time(now)
+    print *,'Time for delta_eddington_twostream:', now-starttime
 
     @assertEqual(incSolar, S(1))
     @assertEqual(exp(-sum(dtau)/mu0)*incSolar, S(ke1), sqrt(epsilon(one)))
@@ -63,9 +63,6 @@ contains
 
     call petsc_delta_eddington_twostream(dtau, w0, g, mu0, incSolar, albedo, pS, pEdn, pEup)
 
-    print *,'pS', pS
-    print *,'pEdn', pEdn
-    print *,'pEup', pEup
     do k=1,size(S)
       @assertEqual(S(k), pS(k), sqrt(epsilon(one)))
       @assertEqual(Edn(k), pEdn(k), sqrt(epsilon(one)))
@@ -74,13 +71,13 @@ contains
     call PetscFinalize(ierr)
 
 
+    call cpu_time(starttime)
     do k=1,iter
       call adding_delta_eddington_twostream(dtau, w0, g, mu0, incSolar, albedo, pS, pEdn, pEup)
     enddo
+    call cpu_time(now)
+    print *,'Time for adding_delta_eddington_twostream:', now-starttime
 
-    print *,'aS', pS
-    print *,'aEdn', pEdn
-    print *,'aEup', pEup
     do k=1,size(S)
       @assertEqual(S(k), pS(k), sqrt(epsilon(one)))
       @assertEqual(Edn(k), pEdn(k), sqrt(epsilon(one)))

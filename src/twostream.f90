@@ -41,14 +41,13 @@ module m_twostream
 
 contains
 
-  subroutine delta_eddington_twostream(dtau_in,w0_in,g_in,mu0,incSolar,albedo, S,Edn,Eup, planck)
-    real(ireals),intent(in),dimension(:) :: dtau_in,w0_in,g_in
+  subroutine delta_eddington_twostream(dtau,w0,g,mu0,incSolar,albedo, S,Edn,Eup, planck)
+    real(ireals),intent(in),dimension(:) :: dtau,w0,g
     real(ireals),intent(in) :: albedo,mu0,incSolar
     real(ireals),dimension(:),intent(out):: S,Edn,Eup
     real(ireals),dimension(:),intent(in),optional :: planck
 
-    real(ireals),dimension(size(dtau_in)) :: dtau,w0,g
-    real(ireals),dimension(size(dtau_in)) :: a11,a12,a13,a23,a33,g1,g2
+    real(ireals),dimension(size(dtau)) :: a11,a12,a13,a23,a33,g1,g2
 
     integer(iintegers) :: i,j,k,ke,ke1,bi
     real(ireals) :: R,T
@@ -56,10 +55,6 @@ contains
     real(ireals),allocatable :: B (:,:)
     integer,allocatable :: IPIV(:)
     integer :: N, KLU,  KL, KU, NRHS, LDAB, LDB, INFO
-
-    S=zero
-    Edn=zero
-    Eup=zero
 
     ke = size(dtau)
     ke1 = ke+1
@@ -70,10 +65,6 @@ contains
     LDAB = 2*KL+KU+1
     LDB  = N
     KLU = KL+KU+1
-
-    dtau = dtau_in
-    w0   = w0_in
-    g    = g_in
 
     do k=1,ke
       call eddington_coeff_zdun (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k), g1(k),g2(k) )
@@ -93,9 +84,6 @@ contains
     allocate( IPIV(N))
     allocate( AB (LDAB,N), source=zero)
     allocate( B (LDB,NRHS))
-    !AB   = zero
-    !B    = zero
-    !IPIV = 0
 
     ! Setup solar src vector
     do k=1,ke
@@ -111,7 +99,6 @@ contains
         B(2*k-1,1) = B(2*k-1,1) + (one-a11(k)-a12(k)) * planck(k) *pi
         B(2*k+2,1) = B(2*k+2,1) + (one-a11(k)-a12(k)) * planck(k) *pi
       enddo
-      ! B(2,1) = B(2,1) + zero ! no Edn at TOA
       B(2*ke1-1,1) = B(2*ke1-1,1) + planck(ke1)*(one-albedo)*pi
     endif
 
