@@ -34,6 +34,9 @@
 
 module m_pprts_rrtmg
 
+#include "petsc/finclude/petsc.h"
+  use petsc
+
   use mpi, only : mpi_comm_rank
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
   use m_data_parameters, only : init_mpi_data_parameters, &
@@ -56,9 +59,6 @@ module m_pprts_rrtmg
 
 !  logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
-
-!  logical, parameter :: lrrtm_only=.True.
-  logical, parameter :: lrrtm_only=.False.
 
   interface
     real function PLKINT(WVLLO, WVLHI, T)
@@ -127,7 +127,6 @@ contains
       d_lwc, d_reliq, d_iwc, d_reice,                 &
       nxproc, nyproc, icollapse,                      &
       opt_time, solar_albedo_2d)
-
 
     integer(mpiint), intent(in)     :: comm ! MPI Communicator
 
@@ -213,6 +212,7 @@ contains
     !logical :: lfile_exists
 
     integer(mpiint) :: myid, ierr
+    logical :: lrrtmg_only, lflg
 
     if(present(icollapse)) call CHKERR(1_mpiint, 'Icollapse currently not tested. Dont Use it')
 
@@ -270,6 +270,9 @@ contains
     if(.not.solver%linitialized) then
       call init_pprts_rrtmg(comm, solver, dx, dy, dz_t2b, phi0, theta0, &
         ie,je,ke, nxproc, nyproc)
+
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
+      if(.not.lflg) lrrtmg_only=.False. ! by default use normal tenstream solver
     endif
 
     ! RRTMG use liq. water path, not mixing ratio
@@ -295,7 +298,7 @@ contains
         albedo_thermal, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
         col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
         col_lwp, col_reliq, col_iwp, col_reice, &
-        edn, eup, abso, opt_time=opt_time)
+        edn, eup, abso, opt_time=opt_time, lrrtmg_only=lrrtmg_only)
     endif
 
     if(lsolar) then
@@ -305,7 +308,8 @@ contains
         albedo_solar, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
         col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
         col_lwp, col_reliq, col_iwp, col_reice, &
-        edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d)
+        edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
+        lrrtmg_only=lrrtmg_only)
     endif
 
     !if(myid.eq.0 .and. ldebug) then
@@ -394,11 +398,12 @@ contains
     endif
 
   end subroutine
+
   subroutine compute_thermal(solver, is, ie, js, je, ks, ke, ke1, &
       albedo, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
       col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
       col_lwp, col_reliq, col_iwp, col_reice, &
-      edn, eup, abso, opt_time)
+      edn, eup, abso, opt_time, lrrtmg_only)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
     use m_tenstr_parrrtm, only: ngptlw, nbndlw
@@ -425,6 +430,7 @@ contains
     real(ireals),intent(inout),dimension(:,:,:) :: edn, eup, abso
 
     real(ireals), optional, intent(in) :: opt_time
+    logical, optional, intent(in) :: lrrtmg_only
 
     real(ireals),allocatable, dimension(:,:,:)   :: col_tau, col_Bfrac             ! [ncol, nlyr, ngptlw]
     real(ireals),allocatable, dimension(:,:)     :: col_Edn, col_Eup, col_hr       ! [ncol, nlyr(+1)]
@@ -462,7 +468,7 @@ contains
     allocate(col_tau  (ie*je, ke, ngptlw))
     allocate(col_Bfrac(ie*je, ke, ngptlw))
 
-    if(lrrtm_only) then
+    if(lrrtmg_only) then
       allocate(col_Edn  (ie*je, ke+1))
       allocate(col_Eup  (ie*je, ke+1))
       allocate(col_hr   (ie*je, ke))
@@ -561,7 +567,8 @@ contains
       albedo, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
       col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
       col_lwp, col_reliq, col_iwp, col_reice,                   &
-      edir, edn, eup, abso, opt_time, solar_albedo_2d, phi2d, theta2d)
+      edir, edn, eup, abso, opt_time, solar_albedo_2d, lrrtmg_only, &
+      phi2d, theta2d)
 
       use m_tenstr_parrrsw, only: ngptsw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
@@ -590,6 +597,7 @@ contains
     real(ireals),intent(inout),dimension(:,:,:) :: edir, edn, eup, abso
 
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
+    logical, optional, intent(in) :: lrrtmg_only
 
 
     real(ireals),allocatable, dimension(:,:,:)   :: col_tau, col_w0, col_g         ! [ncol, nlyr, ngptsw]
@@ -625,7 +633,7 @@ contains
     allocate(col_w0   (ie*je, ke, ngptsw))
     allocate(col_g    (ie*je, ke, ngptsw))
 
-    if(lrrtm_only) then
+    if(lrrtmg_only) then
       allocate(col_Edn  (ie*je, ke+1))
       allocate(col_Eup  (ie*je, ke+1))
       allocate(col_hr   (ie*je, ke))
