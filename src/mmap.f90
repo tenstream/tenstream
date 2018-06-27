@@ -149,7 +149,6 @@ contains
 
     integer(mpiint) :: ierr
 
-
     bytesize = int(sizeof(mmap_ptr), kind=c_size_t)
     mmap_c_ptr = c_loc(mmap_ptr(1,1))
 

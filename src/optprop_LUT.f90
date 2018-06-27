@@ -47,7 +47,7 @@ module m_optprop_LUT
     !preset_tau21, preset_w015,            &
     preset_w020,                          &
     preset_tau31, preset_w010,            &
-    OPP_LUT_ALL_ANGLES, luse_memory_map
+    OPP_LUT_ALL_ANGLES
 
   use m_boxmc, only: t_boxmc, &
     t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6, t_boxmc_3_10, &
@@ -195,18 +195,25 @@ contains
   end subroutine
 
   subroutine destroy(OPP)
+      use m_optprop_parameters, only: luse_memory_map
       class(t_optprop_LUT) :: OPP
       integer(mpiint) :: ierr
-      if(allocated(OPP%Tdir )) then
-        if(luse_memory_map) call munmap_mmap_ptr(OPP%Tdir%c, ierr); call CHKERR(ierr)
+      if(allocated(OPP%Tdir)) then
+        if(luse_memory_map) then
+          call munmap_mmap_ptr(OPP%Tdir%c, ierr); call CHKERR(ierr)
+        endif
         deallocate(OPP%Tdir)
       endif
       if(allocated(OPP%Sdir )) then
-        if(luse_memory_map) call munmap_mmap_ptr(OPP%Sdir%c, ierr); call CHKERR(ierr)
+        if(luse_memory_map) then
+          call munmap_mmap_ptr(OPP%Sdir%c, ierr); call CHKERR(ierr)
+        endif
         deallocate(OPP%Sdir)
       endif
       if(allocated(OPP%Sdiff)) then
-        if(luse_memory_map) call munmap_mmap_ptr(OPP%Sdiff%c, ierr); call CHKERR(ierr)
+        if(luse_memory_map) then
+          call munmap_mmap_ptr(OPP%Sdiff%c, ierr); call CHKERR(ierr)
+        endif
         deallocate(OPP%Sdiff)
       endif
       if(allocated(OPP%bmc  )) deallocate(OPP%bmc)
