@@ -97,7 +97,6 @@ contains
 
     !        spline = s*a1 + (one-s)*a0
     spline = a0 + s * ( a1-a0 )
-    !      print *,'interpolating t,a0,a1',t,a0,a1,'==>',f
   end function
 
   function interp_1d(t,a0)
@@ -264,7 +263,7 @@ contains
       endif
     endif
 
-    interp_dims = get_dims_that_need_interpolation(pti)
+    call get_dims_that_need_interpolation(pti, interp_dims)
 
     select case (size(interp_dims))
     case(0)
@@ -447,20 +446,20 @@ contains
     Cres = interp_vec_1d(wgt_1d, db_intermediate)
   end subroutine
 
-  pure function get_dims_that_need_interpolation(pti)
+  pure subroutine get_dims_that_need_interpolation(pti, interpdims)
     real(ireals),intent(in) :: pti(:)
-    integer(iintegers), allocatable :: get_dims_that_need_interpolation(:)
+    integer(iintegers), allocatable, intent(out) :: interpdims(:)
     integer(iintegers) :: i
     integer(iintegers) :: rank(size(pti))
     logical :: linterp(size(pti))
     linterp = dim_needs_interpolation(pti)
     rank = [ (i, i=1,size(pti)) ]
 
-    allocate(get_dims_that_need_interpolation(count(linterp)))
-    get_dims_that_need_interpolation = pack(rank, mask=linterp)
-  end function
+    allocate(interpdims(count(linterp)))
+    interpdims = pack(rank, mask=linterp)
+  end subroutine
 
-  pure elemental function dim_needs_interpolation(pti)
+  elemental function dim_needs_interpolation(pti)
     real(ireals),intent(in) :: pti
     logical :: dim_needs_interpolation
     dim_needs_interpolation = .not.approx(modulo(pti, one), zero, interpolation_lattice_snapping)
