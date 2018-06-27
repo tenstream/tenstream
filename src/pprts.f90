@@ -362,7 +362,6 @@ module m_pprts
             C%da                    , ierr)
           call CHKERR(ierr)
         else
-          print *,'DMDACreate1'
           call DMDACreate3d( C%comm ,                                                   &
             bn                      , boundary                 , boundary             , &
             DMDA_STENCIL_STAR       ,                                                   &
@@ -573,8 +572,6 @@ module m_pprts
     else where
         sun%angles%yinc=i0
     end where
-
-    print *,solver%myid,'setup_dir_inc done'
 
     if(ldebug) print *,solver%myid,'setup_dir_inc done', &
       count(sun%angles%xinc.eq.0),count(sun%angles%xinc.eq.i1), &

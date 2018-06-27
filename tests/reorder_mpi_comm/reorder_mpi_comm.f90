@@ -1,7 +1,7 @@
 @test(npes =[9])
 subroutine test_tenstream_ex1(this)
 
-    use m_data_parameters, only : iintegers, ireals, mpiint
+    use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint
     use m_pprts_base, only : t_coord, t_solver_3_10
     use m_pprts, only : init_pprts, destroy_pprts
     use m_helper_functions, only : reorder_mpi_comm
@@ -15,9 +15,9 @@ subroutine test_tenstream_ex1(this)
     class (MpiTestMethod), intent(inout) :: this
 
     integer(iintegers),parameter :: nxp=9,nyp=9,nv=3
-    real(ireals),parameter :: dx=100,dy=dx
+    real(ireals),parameter :: dx=10000,dy=dx
     real(ireals),parameter :: phi0=-1, theta0=-1
-    real(ireals),parameter :: dz=dx
+    real(ireals),parameter :: dz=dx/1000
     real(ireals) :: dz1d(nv)
 
     integer(mpiint),parameter :: Nrank_x=3, Nrank_y=3
@@ -36,6 +36,7 @@ subroutine test_tenstream_ex1(this)
 
     call mpi_comm_rank( comm, orig_id, mpierr)
 
+    call init_mpi_data_parameters(comm)
     call init_pprts(comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
     call mpi_comm_rank( comm, myid, mpierr)
     print *,'I am originally', orig_id, 'my rank is now', myid, &
@@ -49,6 +50,7 @@ subroutine test_tenstream_ex1(this)
     if (myid.eq.0) print *,'Reordering Communicator now!'
     call reorder_mpi_comm(comm, Nrank_x, Nrank_y, reorder_comm)
 
+    call init_mpi_data_parameters(reorder_comm)
     call init_pprts(reorder_comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
     call mpi_comm_rank( comm, myid, mpierr)
     print *,'I am originally', orig_id, 'my rank is now', myid, &
