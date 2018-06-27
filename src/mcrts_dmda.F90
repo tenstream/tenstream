@@ -538,8 +538,8 @@ subroutine antialiased_photon_start(Nmax, ip, x, y, tilt_angle)
   j = (ip-1) / Nx ! zero based offsets
   i = (ip-1) - j*Nx
 
-  x = real(i+1, ireals)/(Nx+1) * sqrt(5._ireals)/2._ireals
-  y = real(j+1, ireals)/(Ny+1) * sqrt(5._ireals)/2._ireals
+  x = real(i+1, ireals)/real(Nx+1, ireals) * sqrt(5._ireals)/2._ireals
+  y = real(j+1, ireals)/real(Ny+1, ireals) * sqrt(5._ireals)/2._ireals
 
   ! Translate to center (0,0)
   x = x - .5_ireals
@@ -643,7 +643,7 @@ subroutine setup_photon_queue(pq, N, owner, queue_index)
   pq%current = 0
   pq%owner = owner
   pq%queue_index = queue_index
-  pq%current_size = N
+  pq%current_size = int(N, mpiint)
   pq%emptyslots = pq%current_size
 end subroutine
 

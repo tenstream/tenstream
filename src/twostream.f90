@@ -307,7 +307,7 @@ contains
     real(ireals),intent(in) :: Ag, mu0, S0
     real(ireals),dimension(:),intent(out):: Edir, Edn, Eup
 
-    integer(iintegers) :: ilev, ilyr, k, ke, ke1
+    integer(iintegers) :: k, ke, ke1
 
     real(ireals),dimension(size(dtau)) :: a11,a12,a13,a23,a33,g1,g2
     real(ireals),dimension(size(dtau)) :: T, R, Tdir, Sdir
@@ -356,40 +356,40 @@ contains
 
 
   end subroutine
-  subroutine eddington_bernhard_v2(dtau, g, omega0, mu0, &
-      t, r, rdir, sdir, tdir)
-    real(ireals),intent(in) :: dtau, g, omega0, mu0
-    real(ireals),intent(out) :: t, r, rdir, sdir, tdir
-    real(ireals) :: alpha1, alpha2, alpha3, alpha4, alpha5, alpha6
-    real(ireals) :: a11, a12, a13, a23, a33
-    real(ireals) :: lambda, b, A, denom
-
-    alpha1= (one-omega0)+0.75_ireals*(one-omega0*g)
-    alpha2=-(one-omega0)+0.75_ireals*(one-omega0*g)
-
-    lambda=sqrt(alpha1*alpha1-alpha2*alpha2)
-
-    A=one/(alpha2/(alpha1-lambda)*exp(lambda*dtau)-alpha2/(alpha1+lambda)*exp(-lambda*dtau))
-
-    a11=A*2.0_ireals*lambda/alpha2
-    a12=A*(exp(lambda*dtau)-exp(-lambda*dtau))
-
-    b=0.5-0.75*g*mu0
-    alpha3=-omega0*b
-    alpha4=omega0*(one-b)
-    denom = (one/mu0/mu0-lambda*lambda)
-    alpha5=((alpha1-one/mu0)*alpha3-alpha2*alpha4)/denom
-    alpha6=(alpha2*alpha3-(alpha1+one/mu0)*alpha4)/denom
-
-    a33=exp(-dtau/mu0)
-
-    a13=alpha5*(one-(a11)*(a33))-alpha6*(a12)
-    a23=-(a12)*alpha5*(a33)+alpha6*((a33)-(a11))
-
-    t    = a11
-    r    = a12
-    tdir = a33
-    rdir = a13 / mu0;
-    sdir = a23 / mu0;
-  end subroutine
+!  subroutine eddington_bernhard_v2(dtau, g, omega0, mu0, &
+!      t, r, rdir, sdir, tdir)
+!    real(ireals),intent(in) :: dtau, g, omega0, mu0
+!    real(ireals),intent(out) :: t, r, rdir, sdir, tdir
+!    real(ireals) :: alpha1, alpha2, alpha3, alpha4, alpha5, alpha6
+!    real(ireals) :: a11, a12, a13, a23, a33
+!    real(ireals) :: lambda, b, A, denom
+!
+!    alpha1= (one-omega0)+0.75_ireals*(one-omega0*g)
+!    alpha2=-(one-omega0)+0.75_ireals*(one-omega0*g)
+!
+!    lambda=sqrt(alpha1*alpha1-alpha2*alpha2)
+!
+!    A=one/(alpha2/(alpha1-lambda)*exp(lambda*dtau)-alpha2/(alpha1+lambda)*exp(-lambda*dtau))
+!
+!    a11=A*2.0_ireals*lambda/alpha2
+!    a12=A*(exp(lambda*dtau)-exp(-lambda*dtau))
+!
+!    b=0.5-0.75*g*mu0
+!    alpha3=-omega0*b
+!    alpha4=omega0*(one-b)
+!    denom = (one/mu0/mu0-lambda*lambda)
+!    alpha5=((alpha1-one/mu0)*alpha3-alpha2*alpha4)/denom
+!    alpha6=(alpha2*alpha3-(alpha1+one/mu0)*alpha4)/denom
+!
+!    a33=exp(-dtau/mu0)
+!
+!    a13=alpha5*(one-(a11)*(a33))-alpha6*(a12)
+!    a23=-(a12)*alpha5*(a33)+alpha6*((a33)-(a11))
+!
+!    t    = a11
+!    r    = a12
+!    tdir = a33
+!    rdir = a13 / mu0;
+!    sdir = a23 / mu0;
+!  end subroutine
 end module
