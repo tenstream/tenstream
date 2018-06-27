@@ -1821,18 +1821,18 @@ module m_pprts
           do k=C%zs,C%ze-1
             if(.not.atm%l1d(atmk(atm, k),i,j)) then
               ! First the faces in x-direction
-              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / (solver%dirside%dof/2)
+              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / solver%dirside%dof
               fac = Ax
-              do iside=1,solver%dirside%dof/2
+              do iside=1,solver%dirside%dof
                 d = solver%dirtop%dof + iside-1
                 xv(d,k,i,j) = fac
               enddo
 
               ! Then the rest of the faces in y-direction
-              Ay = atm%dy*atm%dz(k,i,j) / (solver%dirside%dof/2)
+              Ay = atm%dy*atm%dz(k,i,j) / solver%dirside%dof
               fac = Ay
-              do iside=1,solver%dirside%dof/2
-                d = solver%dirtop%dof + solver%dirside%dof/2 + iside-1
+              do iside=1,solver%dirside%dof
+                d = solver%dirtop%dof + solver%dirside%dof + iside-1
                 xv(d,k,i,j) = fac
               enddo
             endif
