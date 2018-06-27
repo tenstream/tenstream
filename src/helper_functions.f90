@@ -798,33 +798,17 @@ module m_helper_functions
 
     !> @brief determine if point is inside a triangle p1,p2,p3
     function pnt_in_triangle(p1,p2,p3, p)
+      use m_helper_functions_dp, only: pnt_in_triangle_dp => pnt_in_triangle
       real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
       logical :: pnt_in_triangle
       real(ireals),parameter :: eps = epsilon(eps), eps2 = 100*eps
       real(ireals) :: a, b, c, edge_dist
 
-      ! First check on rectangular bounding box
-      if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
-        pnt_in_triangle=.False.
-        return
-      endif
-      if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
-        pnt_in_triangle=.False.
-        return
-      endif
-
-      ! Then check for sides
-      a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-      b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-      c = one - (a + b)
-
-      pnt_in_triangle = all([a,b,c].ge.zero)
-
-      if(.not.pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
-        edge_dist = distance_to_triangle_edges(p1,p2,p3,p)
-        if(edge_dist.le.sqrt(eps)) pnt_in_triangle=.True.
-      endif
-      !if(ldebug) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p,'edgedist',distance_to_triangle_edges(p1,p2,p3,p),distance_to_triangle_edges(p1,p2,p3,p).le.eps
+      pnt_in_triangle = pnt_in_triangle_dp(&
+        real(p1, ireal_dp),&
+        real(p2, ireal_dp),&
+        real(p3, ireal_dp),&
+        real(p,  ireal_dp))
     end function
 
     pure function distance_to_triangle_edges(p1,p2,p3,p)

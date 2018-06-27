@@ -87,7 +87,8 @@ subroutine test_triangle_functions_dp()
     @assertEqual(epsilon(dx), distance_to_edge(A,B,[dx/2,epsilon(dx)]), 'here point line <-> distance should be different distance_to_edge5')
     @assertEqual(epsilon(dx), distance_to_edge(A,B,[dx/2,-epsilon(dx)]), 'here point line <-> distance should be different distance_to_edge6')
     @assertEqual(one, distance_to_edge(A,B,B+[zero,one]), 'here point line <-> distance should be one test distance_to_edge7')
-
+    @assertEqual(zero, distance_to_edge(A,B,[-one,zero]), 'from point on line, the distance to same line should be one distance_to_edge8')
+    @assertEqual(zero, distance_to_edge(A,B,[dx+one,zero]), 'from point on line, the distance to same line should be one distance_to_edge9')
 
     ! Compute normals
     normal = compute_normal_3d([A(1),A(2),zero], [B(1),B(2),zero], [C(1),C(2),zero])
