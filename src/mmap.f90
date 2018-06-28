@@ -3,6 +3,7 @@ use iso_c_binding
 
 use m_data_parameters, only : iintegers, ireals, mpiint
 use m_helper_functions, only : CHKERR, imp_bcast, itoa
+use m_netcdfIO, only: acquire_file_lock, release_file_lock
 
 implicit none
 ! Definitions from mman-linux.h
@@ -59,12 +60,14 @@ contains
     character(len=*), intent(in) :: fname
     integer(mpiint), intent(out) :: ierr
 
-    integer :: funit
+    integer :: funit, flock_unit
     logical :: lexists
 
+    call acquire_file_lock(fname, flock_unit, ierr); call CHKERR(ierr)
     ierr = 0
     inquire(file=trim(fname), exist=lexists)
     if(lexists) then
+      call release_file_lock(flock_unit, ierr); call CHKERR(ierr)
       return
       open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='replace')
     else
@@ -72,6 +75,7 @@ contains
     endif
     write (unit=funit) arr
     close(funit)
+    call release_file_lock(flock_unit, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine binary_file_to_mmap(fname, bytesize, mmap_c_ptr)
