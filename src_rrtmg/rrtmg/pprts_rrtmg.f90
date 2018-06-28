@@ -270,10 +270,9 @@ contains
     if(.not.solver%linitialized) then
       call init_pprts_rrtmg(comm, solver, dx, dy, dz_t2b, phi0, theta0, &
         ie,je,ke, nxproc, nyproc)
-
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
-      if(.not.lflg) lrrtmg_only=.False. ! by default use normal tenstream solver
     endif
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
+    if(.not.lflg) lrrtmg_only=.False. ! by default use normal tenstream solver
 
     ! RRTMG use liq. water path, not mixing ratio
     allocate(col_lwp(ie*je, ke))
