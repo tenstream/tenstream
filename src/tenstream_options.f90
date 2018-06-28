@@ -19,7 +19,7 @@
 
 module m_tenstream_options
 
-      use mpi_f08, only: MPI_Comm
+      use mpi
 
       use m_data_parameters, only : init_mpi_data_parameters, ireals,iintegers,one,i0,mpiint,default_str_len
       use m_optprop_parameters, only: lut_basename, coeff_mode
@@ -89,7 +89,7 @@ module m_tenstream_options
           print *,'------------------------------------------------------------------------------------------------------------------'
         end subroutine
         subroutine read_commandline_options(comm)
-          type(MPI_Comm), intent(in) :: comm
+          integer(mpiint), intent(in) :: comm
           logical :: lflg=.False.,lflg_ident=.False.
           integer(mpiint) :: ierr
           logical :: lshow_options=.False.
