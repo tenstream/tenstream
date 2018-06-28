@@ -62,15 +62,16 @@ contains
     integer :: funit
     logical :: lexists
 
+    ierr = 0
     inquire(file=trim(fname), exist=lexists)
     if(lexists) then
+      return
       open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='replace')
     else
       open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='new')
     endif
     write (unit=funit) arr
     close(funit)
-    ierr = 0
   end subroutine
 
   subroutine binary_file_to_mmap(fname, bytesize, mmap_c_ptr)
