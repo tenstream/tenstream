@@ -28,14 +28,10 @@ character(len=default_str_len) :: dimname
 logical :: file_exists, var_exists, def_mode
 
 integer(mpiint),intent(out) :: ierr
-integer(mpiint) :: ncerr
-lockfile=trim(groups(1))//'.lock'
-
+integer(mpiint) :: ncerr, flock_unit
 fname=trim(groups(1))
 
-do iwait=1,int(maxwait/waitinterval)
-open(v,file=lockfile,status='new',err=99)
-write(v,*) 'file is locked by process: ',get_pid_macro()
+call acquire_file_lock(fname, flock_unit, ierr); call CHKERR(ierr, 'Could not obtain file lock')
 
 varname=trim(groups(2))
 do i=3,size(groups)
@@ -110,12 +106,4 @@ if(ldebug) print *,'written data',ncerr
 ncerr = nf90_close(ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
 if(ldebug) print *,'closed file',ncerr
 
-close(v,status='delete')
-return
-99 continue
-if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
-call cpusleep(waitinterval)
-enddo
-stop 'Couldnt write file .. waited now for quite a while but we couldnt write to it :('
-
-
+call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release filelock')

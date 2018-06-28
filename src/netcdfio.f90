@@ -28,18 +28,18 @@ module m_netcdfIO
       default_str_len, &
       ireals,          &
       iintegers, mpiint
-  use m_helper_functions, only : CHKERR, itoa
+  use m_helper_functions, only : CHKERR, itoa, get_arg
   implicit none
 
   private
-  public :: ncwrite,ncload
+  public :: ncwrite, ncload, acquire_file_lock, release_file_lock
 
-  integer :: v=11
+!  integer :: v=11
   integer,parameter :: deflate_lvl=9
-  real(ireals),parameter :: maxwait=600 !in seconds
-  real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds
-  integer :: iwait
-  character(default_str_len+10) :: lockfile
+!  real(ireals),parameter :: maxwait=600 !in seconds
+!  real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds
+!  integer :: iwait
+!  character(default_str_len+10) :: lockfile
   logical,parameter :: ldebug=.False.
 !  logical,parameter :: ldebug=.True.
 
@@ -181,6 +181,59 @@ module m_netcdfIO
         get_pid_macro=getpid()
 #endif
     end function
+
+    subroutine acquire_file_lock(fname, flock_unit, ierr, lock_fname, blocking, waittime)
+      character(len=*), intent(in) :: fname
+      integer(mpiint), intent(out) :: flock_unit, ierr
+
+      character(len=*), intent(in), optional :: lock_fname
+      logical, intent(in), optional :: blocking
+      integer(mpiint), intent(in), optional :: waittime
+
+      logical :: lblocking
+      character(len=default_str_len+5) :: lockfile
+
+      real(ireals),parameter :: waitinterval=.1 ! amount of cpu time to wait before trying anew in seconds
+      integer(mpiint) :: iwait, maxwait
+
+      lockfile = trim(get_arg(trim(fname)//'.lock', lock_fname))
+      lblocking = get_arg(.True., blocking)
+      maxwait = get_arg(30, waittime)
+
+      do iwait=1,int(maxwait/waitinterval)
+        open(newunit=flock_unit,file=lockfile,status='new',err=99)
+        write(flock_unit,*) 'file is locked by process: ',get_pid_macro()
+        ierr = 0
+        return
+
+        99 continue
+        if(lblocking) then
+          call cpusleep(waitinterval)
+        endif
+      enddo
+      ierr = iwait
+      if(lblocking) then
+        call CHKERR(1_mpiint, 'Couldnt lock file '//fname//&
+          ' .. waited now for quite a while but we couldnt open the lock: '//lockfile)
+      endif
+    end subroutine
+
+    subroutine release_file_lock(flock_unit, ierr)
+      integer, intent(inout) :: flock_unit
+      integer, intent(out) :: ierr
+      logical :: lexist
+      inquire(unit=flock_unit, exist=lexist)
+      if(.not. lexist) then
+        ierr=2
+        return
+      endif
+      close(unit=flock_unit,status='delete',err=99)
+      ierr = 0
+      return
+      99 continue
+      ierr = 1
+      !call CHKERR(1_mpiint, 'Error releasing file lock for unit '//itoa(flock_unit))
+    end subroutine
 
   end module
 

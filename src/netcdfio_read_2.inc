@@ -21,17 +21,7 @@
   ncerr = nf90_close(ncid)               ; call nccheck(ncerr) ; ierr = ierr+ncerr
 
   100 continue
-  close(v,status='delete')
   if(ldebug) print *,'Reading Netcdf file returned with ierr: ',ierr
+  call release_file_lock(flock_unit, ierr); call CHKERR(ierr, 'Could not release file lock')
 
-  !if(allocated(tmp) ) then
-  !  arr=tmp
-  !  deallocate(tmp)
-  !endif
   return
-
-  99 if(rand() .gt. .999) write(*,*) 'lock file already exists: ',lockfile
-  call cpusleep(waitinterval)
-enddo
-stop 'Couldnt read file .. waited now for quite a while but we couldnt open it :('
-
