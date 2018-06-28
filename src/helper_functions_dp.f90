@@ -587,7 +587,6 @@ module m_helper_functions_dp
 
       !> @brief determine if point is inside a triangle p1,p2,p3
       function pnt_in_triangle(p1,p2,p3, p)
-        !use m_helper_functions, only : triangle_intersection
         real(ireal_dp), intent(in), dimension(2) :: p1,p2,p3, p
         logical :: pnt_in_triangle
         real(ireal_dp),parameter :: eps = epsilon(eps)*10

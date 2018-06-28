@@ -798,17 +798,45 @@ module m_helper_functions
 
     !> @brief determine if point is inside a triangle p1,p2,p3
     function pnt_in_triangle(p1,p2,p3, p)
-      use m_helper_functions_dp, only: pnt_in_triangle_dp => pnt_in_triangle
       real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
       logical :: pnt_in_triangle
       real(ireals),parameter :: eps = epsilon(eps), eps2 = 100*eps
       real(ireals) :: a, b, c, edge_dist
 
-      pnt_in_triangle = pnt_in_triangle_dp(&
-        real(p1, ireal_dp),&
-        real(p2, ireal_dp),&
-        real(p3, ireal_dp),&
-        real(p,  ireal_dp))
+      logical, parameter :: ldebug=.False.
+
+      pnt_in_triangle = pnt_in_rectangle(p1,p2,p3, p)
+      if(ldebug) print *,'pnt_in_triangle::pnt in rectangle:', p1, p2, p3, 'p', p, '::', pnt_in_triangle
+      if (.not.pnt_in_triangle) then ! if pnt is not in rectangle, it is not in triangle!
+        ! Then check for sides
+        a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
+        b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
+        c = one - (a + b)
+
+        pnt_in_triangle = all([a,b,c].ge.zero)
+        if(ldebug) print *,'pnt_in_triangle::1st check:', a, b, c, '::', pnt_in_triangle
+      endif
+
+      if(.not.pnt_in_triangle) then
+        pnt_in_triangle = pnt_in_triangle_convex_hull(p1,p2,p3, p)
+        if(ldebug) print *,'pnt_in_triangle::convex hull:', pnt_in_triangle
+      endif
+
+      if(.not.pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
+        edge_dist = minval(distances_to_triangle_edges(p1,p2,p3,p))
+        if(edge_dist.le.eps) then
+          if((p(1).lt.min(p1(1),p2(1))) .or. (p(1).gt.max(p1(1),p2(1)) )) then
+            ! is on line but ouside of segment
+            continue
+          else
+            pnt_in_triangle=.True.
+          endif
+          if(ldebug) print *,'pnt_in_triangle edgedist:',edge_dist,'=>', pnt_in_triangle
+        endif
+      endif
+
+      if(ldebug.and..not.pnt_in_triangle) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p, &
+        'edgedist',distances_to_triangle_edges(p1,p2,p3,p),distances_to_triangle_edges(p1,p2,p3,p).le.eps
     end function
 
     pure function distance_to_triangle_edges(p1,p2,p3,p)
