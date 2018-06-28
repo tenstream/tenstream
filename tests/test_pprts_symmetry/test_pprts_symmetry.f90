@@ -5,12 +5,12 @@ module test_pprts_symmetry
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_pprts_base, only : t_solver_3_6, t_solver_8_10
+  use m_pprts_base, only : t_solver_3_10, t_solver_8_10
   use m_pprts, only : init_pprts, set_optical_properties, &
     solve_pprts, set_angles, pprts_get_result_toZero, destroy_pprts
   use m_tenstream_options, only: read_commandline_options
 
-  use m_optprop, only: t_optprop, t_optprop_8_10, t_optprop_3_6
+  use m_optprop, only: t_optprop, t_optprop_8_10, t_optprop_3_10
   use pfunit_mod
 
   implicit none
@@ -32,7 +32,7 @@ contains
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
 
-    allocate (t_optprop_8_10 :: OPP)
+    allocate (t_optprop_3_10 :: OPP)
 
     call this_test(OPP)
 
@@ -110,8 +110,8 @@ contains
     integer(iintegers) :: i,j,k, ni,nj
     integer(iintegers) :: cx, cy      ! global indices of cloud
 
-    !type(t_solver_3_6)  :: solver
-    type(t_solver_8_10) :: solver
+    type(t_solver_3_10)  :: solver
+    !type(t_solver_8_10) :: solver
 
     dz1d = dz
 
