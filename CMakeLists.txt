@@ -152,6 +152,14 @@ if(${_is_GNU})
     add_definitions(-D_GNU)
 endif(${_is_GNU})
 
+option(ENABLE_ALL "Enable use of all additional modules " OFF)
+if(ENABLE_ALL)
+  set(ENABLE_PLEXRT ON CACHE BOOL "Enable PLEXRT" FORCE)
+  set(ENABLE_PFUNIT ON CACHE BOOL "Enable PFUNIT" FORCE)
+  set(ENABLE_RRTM   ON CACHE BOOL "Enable RRTM" FORCE)
+  set(ENABLE_C_WRAPPER ON CACHE BOOL "Enable C_WRAPPER" FORCE)
+endif(ENABLE_ALL)
+
 # Add Source Directories
 add_subdirectory (src)
 
