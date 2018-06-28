@@ -3,7 +3,7 @@ module test_petsc_scatterToZero
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_data_parameters, only : iintegers, ireals, mpiint, zero, one
-  use m_pprts_base, only : t_solver_8_10
+  use m_pprts_base, only : t_solver_3_10
   use m_pprts, only : init_pprts, destroy_pprts
   use m_petsc_helpers, only : petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
   use m_helper_functions, only : CHKERR
@@ -32,7 +32,7 @@ contains
 
     integer(iintegers) :: i,j,k,d
 
-    type(t_solver_8_10) :: solver
+    type(t_solver_3_10) :: solver
 
     type(tVec) :: gvec, lvec
 

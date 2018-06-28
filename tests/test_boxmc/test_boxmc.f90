@@ -56,7 +56,7 @@ contains
       if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_direct(this)
       class (MpiTestMethod), intent(inout) :: this
 
@@ -70,7 +70,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_direct_lambert_beer(this)
       class (MpiTestMethod), intent(inout) :: this
 
@@ -90,7 +90,7 @@ contains
       enddo
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diffuse(this)
       class (MpiTestMethod), intent(inout) :: this
 
