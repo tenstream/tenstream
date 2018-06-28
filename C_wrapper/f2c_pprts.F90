@@ -88,7 +88,7 @@ contains
     endif
 
     call init_mpi_data_parameters(comm)
-    call read_commandline_options()
+    call read_commandline_options(comm)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     if(myid.eq.0) then

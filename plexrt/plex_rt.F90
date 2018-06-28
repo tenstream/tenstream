@@ -67,7 +67,7 @@ module m_plex_rt
       type(t_plexgrid), intent(in) :: plex
       type(t_plex_solver), allocatable, intent(inout) :: solver
 
-      call read_commandline_options()
+      call read_commandline_options(plex%comm)
 
       if(allocated(solver)) stop 'Should not call init_plex_rt_solver with already allocated solver object'
       allocate(solver)

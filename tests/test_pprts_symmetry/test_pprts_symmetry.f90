@@ -49,7 +49,7 @@ contains
         call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
         call init_mpi_data_parameters(comm)
 
-        call read_commandline_options()
+        call read_commandline_options(comm)
 
         call OPP%init(comm)
 

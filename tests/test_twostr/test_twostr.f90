@@ -59,7 +59,7 @@ contains
     call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
     call init_mpi_data_parameters(comm)
 
-    call read_commandline_options()
+    call read_commandline_options(comm)
 
     call petsc_delta_eddington_twostream(dtau, w0, g, mu0, incSolar, albedo, pS, pEdn, pEup)
 

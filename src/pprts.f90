@@ -166,6 +166,8 @@ module m_pprts
       call mpi_comm_rank(solver%comm, solver%myid, ierr)     ; call CHKERR(ierr)
       call mpi_comm_size(solver%comm, solver%numnodes, ierr) ; call CHKERR(ierr)
 
+      call read_commandline_options(solver%comm)
+
       if(ldebug.and.solver%myid.eq.0) then
         print *,'Solver dirtop:', solver%dirtop%is_inward, ':', solver%dirtop%dof
         print *,'Solver dirside:', solver%dirside%is_inward, ':', solver%dirside%dof
@@ -179,8 +181,6 @@ module m_pprts
 #ifdef _XLF
       call PetscPopSignalHandler(ierr); call CHKERR(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
 #endif
-
-      call read_commandline_options()
 
       if(present(nxproc) .and. present(nyproc) ) then
         if(ldebug.and.solver%myid.eq.0) print *,'nxproc',shape(nxproc),'::',nxproc

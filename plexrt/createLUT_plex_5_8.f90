@@ -40,9 +40,9 @@ program main
       call mpi_comm_rank(comm,myid,ierr)
       call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;call CHKERR(ierr)
 
-      call init_mpi_data_parameters(MPI_COMM_WORLD)
+      call init_mpi_data_parameters(comm)
 
-      call read_commandline_options()
+      call read_commandline_options(comm)
 
 
       call OPP%init(MPI_COMM_WORLD)

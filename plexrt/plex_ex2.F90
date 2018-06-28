@@ -116,7 +116,7 @@ logical, parameter :: ldebug=.True.
 
     call PetscInitialize(PETSC_NULL_CHARACTER,ierr); call CHKERR(ierr)
     call init_mpi_data_parameters(PETSC_COMM_WORLD)
-    call read_commandline_options()
+    call read_commandline_options(PETSC_COMM_WORLD)
 
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a grid filename... please call with -grid <fname_of_icon_gridfile.nc>'

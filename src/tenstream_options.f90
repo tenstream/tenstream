@@ -18,7 +18,10 @@
 !-------------------------------------------------------------------------
 
 module m_tenstream_options
-      use m_data_parameters, only : ireals,iintegers,one,i0,mpiint,default_str_len
+
+      use mpi_f08, only: MPI_Comm
+
+      use m_data_parameters, only : init_mpi_data_parameters, ireals,iintegers,one,i0,mpiint,default_str_len
       use m_optprop_parameters, only: lut_basename, coeff_mode
       use m_helper_functions, only: CHKERR
 
@@ -85,30 +88,27 @@ module m_tenstream_options
           print *,'------------------------------------------------------------------------------------------------------------------'
           print *,'------------------------------------------------------------------------------------------------------------------'
         end subroutine
-        subroutine read_commandline_options()
+        subroutine read_commandline_options(comm)
+          type(MPI_Comm), intent(in) :: comm
           logical :: lflg=.False.,lflg_ident=.False.
           integer(mpiint) :: ierr
           logical :: lshow_options=.False.
           logical :: ltenstr_view=.False.
 
           logical :: lmpi_is_initialized, lpetsc_is_initialized
-          integer(mpiint) :: mpierr, myid, numnodes
+          integer(mpiint) :: myid, numnodes
 
-          call mpi_initialized( lmpi_is_initialized, ierr); call CHKERR(ierr)
-          if(.not.lmpi_is_initialized) call mpi_init(ierr); call CHKERR(ierr)
-          call MPI_COMM_RANK( mpi_comm_world, myid, mpierr)
-          if(mpierr.ne.0) call mpi_abort(mpi_comm_world, mpierr, ierr)
-          call MPI_Comm_size( mpi_comm_world, numnodes, mpierr)
-          if(mpierr.ne.0) call mpi_abort(mpi_comm_world, mpierr, ierr)
 
-          call PetscInitialized(lpetsc_is_initialized, ierr); call CHKERR(ierr)
-          if(.not.lpetsc_is_initialized) call CHKERR(1_mpiint, 'Petsc has to be initialized before you may call read_commandline_options()')
+          call init_mpi_data_parameters(comm)
+
+          call MPI_COMM_RANK( comm, myid, ierr); call CHKERR(ierr)
+          call MPI_Comm_size( comm, numnodes, ierr); call CHKERR(ierr)
 
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-show_options",lshow_options,lflg,ierr) ;call CHKERR(ierr)
           if(lflg.eqv.PETSC_FALSE) then
             if(lshow_options) then
               if(myid.eq.0) call show_options()
-              call mpi_barrier(mpi_comm_world, mpierr)
+              call mpi_barrier(comm, ierr)
               call CHKERR(1_mpiint, 'Exiting after show_options')
             endif
           endif
