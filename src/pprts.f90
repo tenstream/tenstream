@@ -3768,6 +3768,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       if(allocated(solver%dirtop%is_inward)) deallocate(solver%dirtop%is_inward)
       if(allocated(solver%dirside%is_inward)) deallocate(solver%dirside%is_inward)
 
+      solver%comm = -1
       solver%linitialized=.False.
       if(solver%myid.eq.0 .and. ldebug)print *,'Destroyed TenStream'
 

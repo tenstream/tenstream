@@ -77,11 +77,7 @@ contains
         do i=1,ubound(global_arr_on_rank0,3)
           do k=1,ubound(global_arr_on_rank0,2)
             do d=1,ubound(global_arr_on_rank0,1)
-              if(d.le.solver%C_one%dof .and. k.le.solver%C_one%zm .and. i.le.solver%C_one%xm .and. j.le.solver%C_one%ym) then
-                @assertEqual(zero, global_arr_on_rank0(d,k,i,j))
-              else
-                @assertEqual(one, global_arr_on_rank0(d,k,i,j))
-              endif
+              @assertEqual(real((j-1)/solver%C_one%ym), global_arr_on_rank0(d,k,i,j))
             enddo
           enddo
         enddo
@@ -91,14 +87,13 @@ contains
     ! Debug Output
     call PetscObjectSetName(gvec, 'VecGlobal', ierr);call CHKERR(ierr)
     call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_gvec', ierr); call CHKERR(ierr)
-    call mpi_barrier(solver%comm, ierr); call CHKERR(ierr)
     call PetscObjectSetName(lvec, 'VecLocal', ierr);call CHKERR(ierr)
     call PetscObjectViewFromOptions(lvec, PETSC_NULL_VEC, '-show_lvec', ierr); call CHKERR(ierr)
     ! Debug Output
 
     call DMRestoreGlobalVector(solver%C_one%da, gvec, ierr); call CHKERR(ierr)
     call VecDestroy(lvec, ierr); call CHKERR(ierr)
-    call destroy_pprts(solver, .True.)
+    call destroy_pprts(solver, lfinalizepetsc=.True.)
   end subroutine
 
   subroutine assert_equivalence(a,b)
