@@ -796,6 +796,24 @@ module m_helper_functions
       endif
     end function
 
+    !> @brief determine if point is inside a rectangle p1,p2,p3
+    function pnt_in_rectangle(p1,p2,p3, p)
+      real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
+      logical :: pnt_in_rectangle
+      real(ireals),parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
+
+      ! check for rectangular bounding box
+      if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
+        pnt_in_rectangle=.False.
+        return
+      endif
+      if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
+        pnt_in_rectangle=.False.
+        return
+      endif
+      pnt_in_rectangle=.True.
+    end function
+
     !> @brief determine if point is inside a triangle p1,p2,p3
     function pnt_in_triangle(p1,p2,p3, p)
       real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
@@ -839,12 +857,31 @@ module m_helper_functions
         'edgedist',distances_to_triangle_edges(p1,p2,p3,p),distances_to_triangle_edges(p1,p2,p3,p).le.eps
     end function
 
-    pure function distance_to_triangle_edges(p1,p2,p3,p)
+    function pnt_in_triangle_convex_hull(p1,p2,p3, p)
       real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
-      real(ireals) :: distance_to_triangle_edges
-      distance_to_triangle_edges = distance_to_edge(p1,p2,p)
-      distance_to_triangle_edges = min(distance_to_triangle_edges, distance_to_edge(p2,p3,p))
-      distance_to_triangle_edges = min(distance_to_triangle_edges, distance_to_edge(p1,p3,p))
+      logical :: pnt_in_triangle_convex_hull
+      real(ireals), dimension(2) :: v0, v1, v2
+      real(ireals) :: a,b
+
+      v0 = p1
+      v1 = p2-p1
+      v2 = p3-p1
+
+      a =  (cross_2d(p, v2) - cross_2d(v0, v2)) / cross_2d(v1, v2)
+      b = -(cross_2d(p, v1) - cross_2d(v0, v1)) / cross_2d(v1, v2)
+
+      pnt_in_triangle_convex_hull = all([a,b].ge.zero) .and. (a+b).le.one
+
+      !print *,'points',p1,p2,p3,'::',p
+      !print *,'a,b',a,b,'::',a+b, '::>',pnt_in_triangle_convex_hull
+    end function
+
+    pure function distances_to_triangle_edges(p1,p2,p3,p)
+      real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
+      real(ireals) :: distances_to_triangle_edges(3)
+      distances_to_triangle_edges(1) = distance_to_edge(p1,p2,p)
+      distances_to_triangle_edges(2) = distance_to_edge(p2,p3,p)
+      distances_to_triangle_edges(3) = distance_to_edge(p1,p3,p)
     end function
 
     pure function distance_to_edge(p1,p2,p)
