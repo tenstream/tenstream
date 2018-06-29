@@ -67,6 +67,8 @@ contains
     ierr = 0
     inquire(file=trim(fname), exist=lexists)
     if(lexists) then
+      call release_file_lock(flock_unit, ierr); call CHKERR(ierr)
+      return
       open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='replace')
     else
       open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='new')
@@ -103,6 +105,7 @@ contains
     real(ireals), pointer, intent(out) :: mmap_ptr(:,:)
     integer(mpiint), intent(out) :: ierr
 
+    character(len=len_trim(fname)+2) :: fname_fpsuffix
     integer(iintegers), allocatable :: arrshape(:)
     type(c_ptr) :: mmap_c_ptr
     integer(mpiint) :: myid
@@ -112,9 +115,11 @@ contains
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
+    fname_fpsuffix = trim(fname)//itoa(ireals)
+
     if(myid.eq.0) then
       if(.not.present(inp_arr)) call CHKERR(1_mpiint, 'rank 0 has to provide an input array!')
-      call arr_to_binary_datafile(inp_arr, fname, ierr)
+      call arr_to_binary_datafile(inp_arr, fname_fpsuffix, ierr)
       if(ierr.ne.0) print *,'arr_to_mmap::binary file already exists, I did not overwrite it... YOU have to make sure that the file is as expected or delete it...'
       dtype_size = c_sizeof(inp_arr(1,1))
       size_of_inp_arr = size(inp_arr, kind=c_size_t)
@@ -138,7 +143,7 @@ contains
       call CHKERR(1_mpiint, 'bytesize of mmap is wrong!'//itoa(int(bytesize,iintegers)))
     endif
 
-    call binary_file_to_mmap(fname, bytesize, mmap_c_ptr)
+    call binary_file_to_mmap(fname_fpsuffix, bytesize, mmap_c_ptr)
 
     call c_f_pointer(mmap_c_ptr, mmap_ptr, arrshape)
   end subroutine
