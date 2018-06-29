@@ -1,23 +1,36 @@
-@test(npes =[2,1])
-subroutine test_rrtm_lw(this)
+module test_rrtm_lw_sw
+  use m_data_parameters, only : &
+    init_mpi_data_parameters,   &
+    iintegers, ireals, mpiint,  &
+    zero, one, default_str_len
 
-    ! Import datatype from the TenStream lib. Depending on how PETSC is
-    ! compiled(single or double floats, or long ints), this will determine what
-    ! the Tenstream uses.
-    use m_data_parameters, only : &
-      init_mpi_data_parameters,   &
-      iintegers, ireals, mpiint,  &
-      zero, one, default_str_len
+  ! main entry point for solver, and desctructor
+  use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
 
-    ! main entry point for solver, and desctructor
-    use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
+  use m_pprts_base, only : t_solver_3_10
 
-    use m_pprts_base, only : t_solver_3_10
+  use pfunit_mod
 
-    use pfunit_mod
+  implicit none
 
-    implicit none
+  type(t_solver_3_10) :: solver
+contains
 
+  @before
+  subroutine setup(this)
+    class (MpiTestMethod), intent(inout) :: this
+    call init_mpi_data_parameters(this%getMpiCommunicator())
+  end subroutine setup
+
+  @after
+  subroutine teardown(this)
+    class (MpiTestMethod), intent(inout) :: this
+    ! Tidy up
+    call destroy_pprts_rrtmg(solver, lfinalizepetsc=.True.)
+  end subroutine teardown
+
+  @test(npes =[2,1])
+  subroutine rrtm_lw_sw(this)
     class (MpiTestMethod), intent(inout) :: this
 
     ! MPI variables and domain decomposition sizes
@@ -54,8 +67,6 @@ subroutine test_rrtm_lw(this)
     character(default_str_len),parameter :: atm_filename='afglus_100m.dat'
 
     !------------ Local vars ------------------
-    type(t_solver_3_10) :: solver
-
     integer(iintegers) :: k, nlev, icld
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
@@ -126,28 +137,28 @@ subroutine test_rrtm_lw(this)
     ! grid (dynamics + background profile)
     nlev = ubound(edn,1)
     if(myid.eq.0) then
-        if(ldebug) then
-            do k=1,nlev
-                print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-            enddo
-        endif
-
-        @assertEqual(313.47, edir(nlev,1,1), atolerance, 'solar at surface :: direct flux not correct')
-        @assertEqual(143.32, edn (nlev,1,1), atolerance, 'solar at surface :: downw flux not correct')
-        @assertEqual(137.04, eup (nlev,1,1), atolerance, 'solar at surface :: upward fl  not correct')
-        @assertEqual(-1.395E-02, abso(nlev-1,1,1), atolerance, 'solar at surface :: absorption not correct')
-
-        @assertEqual(684.1109, edir(1,1,1), atolerance, 'solar at TOA :: direct flux not correct')
-        @assertEqual(0       , edn (1,1,1), atolerance, 'solar at TOA :: downw flux not correct')
-        @assertEqual(207.18  , eup (1,1,1), atolerance, 'solar at TOA :: upward fl  not correct')
-        @assertEqual(-2.063E-04, abso(1,1,1), atolerance, 'solar at TOA :: absorption not correct')
-
-        @assertEqual(502.23 , edir(nlev-icld  ,1,1), atolerance, 'solar at icloud :: direct flux not correct')
-        @assertEqual(339.22 , edir(nlev-icld+1,1,1), atolerance, 'solar at icloud+1 :: direct flux not correct')
-        @assertEqual(143.68 , edn (nlev-icld+1,1,1), atolerance, 'solar at icloud :: downw flux not correct')
-        @assertEqual(190.29 , eup (nlev-icld  ,1,1), atolerance, 'solar at icloud :: upward fl  not correct')
-        @assertEqual(-0.0242, abso(nlev-icld  ,1,1), atolerance, 'solar at icloud :: absorption not correct')
+      if(ldebug) then
+        do k=1,nlev
+          print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
+        enddo
+      endif
     endif
+
+    @mpiassertEqual(313.47, edir(nlev,1,1), atolerance, 'solar at surface :: direct flux not correct')
+    @mpiassertEqual(143.32, edn (nlev,1,1), atolerance, 'solar at surface :: downw flux not correct')
+    @mpiassertEqual(137.04, eup (nlev,1,1), atolerance, 'solar at surface :: upward fl  not correct')
+    @mpiassertEqual(1.395E-02, abso(nlev-1,1,1), atolerance*1e-2, 'solar at surface :: absorption not correct')
+
+    @mpiassertEqual(684.1109, edir(1,1,1), atolerance, 'solar at TOA :: direct flux not correct')
+    @mpiassertEqual(0       , edn (1,1,1), atolerance, 'solar at TOA :: downw flux not correct')
+    @mpiassertEqual(207.18  , eup (1,1,1), atolerance, 'solar at TOA :: upward fl  not correct')
+    @mpiassertEqual(2.063E-04, abso(1,1,1), atolerance*1e-2, 'solar at TOA :: absorption not correct')
+
+    @mpiassertEqual(502.23 , edir(nlev-icld  ,1,1), atolerance, 'solar at icloud :: direct flux not correct')
+    @mpiassertEqual(339.22 , edir(nlev-icld+1,1,1), atolerance, 'solar at icloud+1 :: direct flux not correct')
+    @mpiassertEqual(143.68 , edn (nlev-icld+1,1,1), atolerance, 'solar at icloud :: downw flux not correct')
+    @mpiassertEqual(190.29 , eup (nlev-icld  ,1,1), atolerance, 'solar at icloud :: upward fl  not correct')
+    @mpiassertEqual(0.0242, abso(nlev-icld  ,1,1), atolerance*1e-2, 'solar at icloud :: absorption not correct')
 
 
     if(myid.eq.0 .and. ldebug) print *,'Computing Thermal Radiation:'
@@ -163,24 +174,24 @@ subroutine test_rrtm_lw(this)
 
     nlev = ubound(edn,1)
     if(myid.eq.0) then
-        if(ldebug) then
-            do k=1,nlev
-                print *,k,'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-            enddo
-        endif
-
-        @assertEqual(325.29, edn (nlev,1,1), atolerance, 'thermal at surface :: downw flux not correct')
-        @assertEqual(390.07, eup (nlev,1,1), atolerance, 'thermal at surface :: upward fl  not correct')
-        @assertEqual(-2.321E-02, abso(nlev-1,1,1), atolerance, 'thermal at surface :: absorption not correct')
-
-        @assertEqual(  0.0     , edn (1,1,1), atolerance, 'thermal at TOA :: downw flux not correct')
-        @assertEqual(254.90    , eup (1,1,1), atolerance, 'thermal at TOA :: upward fl  not correct')
-        @assertEqual(-2.193E-04, abso(1,1,1), atolerance, 'thermal at TOA :: absorption not correct')
-
-        @assertEqual(318.18, edn (nlev-icld+1,1,1), atolerance, 'thermal at icloud :: downw flux not correct')
-        @assertEqual(386.69, eup (nlev-icld  ,1,1), atolerance, 'thermal at icloud :: upward fl  not correct')
-        @assertEqual(-0.255, abso(nlev-icld  ,1,1), atolerance, 'thermal at icloud :: absorption not correct')
+      if(ldebug) then
+        do k=1,nlev
+          print *,k,'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
+        enddo
+      endif
     endif
+
+    @mpiassertEqual(325.29, edn (nlev,1,1), atolerance, 'thermal at surface :: downw flux not correct')
+    @mpiassertEqual(390.07, eup (nlev,1,1), atolerance, 'thermal at surface :: upward fl  not correct')
+    @mpiassertEqual(-2.321E-02, abso(nlev-1,1,1), atolerance*1e-2, 'thermal at surface :: absorption not correct')
+
+    @mpiassertEqual(  0.0     , edn (1,1,1), atolerance, 'thermal at TOA :: downw flux not correct')
+    @mpiassertEqual(254.90    , eup (1,1,1), atolerance, 'thermal at TOA :: upward fl  not correct')
+    @mpiassertEqual(-2.193E-04, abso(1,1,1), atolerance*1e-2, 'thermal at TOA :: absorption not correct')
+
+    @mpiassertEqual(318.18, edn (nlev-icld+1,1,1), atolerance, 'thermal at icloud :: downw flux not correct')
+    @mpiassertEqual(386.69, eup (nlev-icld  ,1,1), atolerance, 'thermal at icloud :: upward fl  not correct')
+    @mpiassertEqual(-0.255, abso(nlev-icld  ,1,1), atolerance*1e-2, 'thermal at icloud :: absorption not correct')
 
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar AND Thermal Radiation:'
     lthermal=.True.; lsolar=.True.
@@ -193,30 +204,28 @@ subroutine test_rrtm_lw(this)
 
     nlev = ubound(edn,1)
     if(myid.eq.0) then
-        if(ldebug) then
-            do k=1,nlev
-                print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-            enddo
-        endif
-
-        @assertEqual(313.47, edir(nlev,1,1), atolerance, 'solar+thermal at surface :: direct flux not correct')
-        @assertEqual(468.61, edn (nlev,1,1), atolerance, 'solar+thermal at surface :: downw flux not correct')
-        @assertEqual(527.11, eup (nlev,1,1), atolerance, 'solar+thermal at surface :: upward fl  not correct')
-        @assertEqual(-0.03716, abso(nlev-1,1,1), atolerance, 'solar+thermal at surface :: absorption not correct')
-
-        @assertEqual(684.1109, edir(1,1,1), atolerance, 'solar+thermal at TOA :: direct flux not correct')
-        @assertEqual(0       , edn (1,1,1), atolerance, 'solar+thermal at TOA :: downw flux not correct')
-        @assertEqual(462.08  , eup (1,1,1), atolerance, 'solar+thermal at TOA :: upward fl  not correct')
-        @assertEqual(-4.4256e-4, abso(1,1,1), atolerance, 'solar+thermal at TOA :: absorption not correct')
-
-        @assertEqual(502.23 , edir(nlev-icld  ,1,1), atolerance, 'solar+thermal at icloud :: direct flux not correct')
-        @assertEqual(339.22 , edir(nlev-icld+1,1,1), atolerance, 'solar+thermal at icloud+1 :: direct flux not correct')
-        @assertEqual(461.86 , edn (nlev-icld+1,1,1), atolerance, 'solar+thermal at icloud :: downw flux not correct')
-        @assertEqual(576.98 , eup (nlev-icld  ,1,1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
-        @assertEqual(-0.2792, abso(nlev-icld  ,1,1), atolerance, 'solar+thermal at icloud :: absorption not correct')
+      if(ldebug) then
+        do k=1,nlev
+          print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
+        enddo
+      endif
     endif
 
-    ! Tidy up
-    call destroy_pprts_rrtmg(solver, lfinalizepetsc=.True.)
+    @mpiassertEqual(313.47, edir(nlev,1,1), atolerance, 'solar+thermal at surface :: direct flux not correct')
+    @mpiassertEqual(468.61, edn (nlev,1,1), atolerance, 'solar+thermal at surface :: downw flux not correct')
+    @mpiassertEqual(527.11, eup (nlev,1,1), atolerance, 'solar+thermal at surface :: upward fl  not correct')
+    @mpiassertEqual(-9.26E-3, abso(nlev-1,1,1), atolerance*1e-2, 'solar+thermal at surface :: absorption not correct')
 
-end subroutine
+    @mpiassertEqual(684.11, edir(1,1,1), atolerance, 'solar+thermal at TOA :: direct flux not correct')
+    @mpiassertEqual(0     , edn (1,1,1), atolerance, 'solar+thermal at TOA :: downw flux not correct')
+    @mpiassertEqual(462.10, eup (1,1,1), atolerance, 'solar+thermal at TOA :: upward fl  not correct')
+    @mpiassertEqual(-1.e-5, abso(1,1,1), atolerance*1e-2, 'solar+thermal at TOA :: absorption not correct')
+
+    @mpiassertEqual(502.23, edir(nlev-icld  ,1,1), atolerance, 'solar+thermal at icloud :: direct flux not correct')
+    @mpiassertEqual(339.22, edir(nlev-icld+1,1,1), atolerance, 'solar+thermal at icloud+1 :: direct flux not correct')
+    @mpiassertEqual(461.94, edn (nlev-icld+1,1,1), atolerance, 'solar+thermal at icloud :: downw flux not correct')
+    @mpiassertEqual(576.98, eup (nlev-icld  ,1,1), atolerance, 'solar+thermal at icloud :: upward fl  not correct')
+    @mpiassertEqual(-0.232, abso(nlev-icld  ,1,1), atolerance*1e-2, 'solar+thermal at icloud :: absorption not correct')
+
+  end subroutine
+end module
