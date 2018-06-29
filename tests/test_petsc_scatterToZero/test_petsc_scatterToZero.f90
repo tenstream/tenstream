@@ -12,7 +12,27 @@ module test_petsc_scatterToZero
 
   implicit none
 
+  type(t_solver_3_10) :: solver
+  type(tVec) :: gvec, lvec
+
 contains
+
+  @before
+  subroutine setup(this)
+    class (MpiTestMethod), intent(inout) :: this
+    continue
+  end subroutine setup
+
+  @after
+  subroutine teardown(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: ierr
+    ! Tidy up
+    call DMRestoreGlobalVector(solver%C_one%da, gvec, ierr); call CHKERR(ierr)
+    call VecDestroy(lvec, ierr); call CHKERR(ierr)
+    call destroy_pprts(solver, lfinalizepetsc=.True.)
+  end subroutine teardown
+
 
   @test(npes =[2,3])
   subroutine petsc_scatterToZero(this)
@@ -31,10 +51,6 @@ contains
     real(ireals),allocatable,dimension(:,:,:,:) :: global_arr_on_rank0
 
     integer(iintegers) :: i,j,k,d
-
-    type(t_solver_3_10) :: solver
-
-    type(tVec) :: gvec, lvec
 
     dz1d = dz
 
@@ -91,9 +107,6 @@ contains
     call PetscObjectViewFromOptions(lvec, PETSC_NULL_VEC, '-show_lvec', ierr); call CHKERR(ierr)
     ! Debug Output
 
-    call DMRestoreGlobalVector(solver%C_one%da, gvec, ierr); call CHKERR(ierr)
-    call VecDestroy(lvec, ierr); call CHKERR(ierr)
-    call destroy_pprts(solver, lfinalizepetsc=.True.)
   end subroutine
 
   subroutine assert_equivalence(a,b)

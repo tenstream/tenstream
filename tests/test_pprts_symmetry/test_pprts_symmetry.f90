@@ -15,7 +15,30 @@ module test_pprts_symmetry
 
   implicit none
 
+  class(t_optprop),allocatable :: OPP
+  type(t_solver_3_10)  :: solver
+  !type(t_solver_8_10) :: solver
+
 contains
+  @before
+  subroutine setup(this)
+    class (MpiTestMethod), intent(inout) :: this
+    continue
+  end subroutine setup
+
+  @after
+  subroutine teardown(this)
+    class (MpiTestMethod), intent(inout) :: this
+    if(allocated(OPP)) then
+      call OPP%destroy()
+      deallocate(OPP)
+    endif
+
+    if(solver%linitialized) then
+      call destroy_pprts(solver, lfinalizepetsc=.True.)
+    endif
+  end subroutine teardown
+
 
   @test(npes = [2])
   subroutine test_pprts_symmetry_ex2(this)
@@ -26,7 +49,6 @@ contains
     real(ireals),allocatable  :: dir2dir(:), dir2diff(:)
     integer(iintegers) :: i
 
-    class(t_optprop),allocatable :: OPP
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
@@ -109,9 +131,6 @@ contains
 
     integer(iintegers) :: i,j,k, ni,nj
     integer(iintegers) :: cx, cy      ! global indices of cloud
-
-    type(t_solver_3_10)  :: solver
-    !type(t_solver_8_10) :: solver
 
     dz1d = dz
 
