@@ -198,7 +198,7 @@ module m_netcdfIO
 
       lockfile = trim(get_arg(trim(fname)//'.lock', lock_fname))
       lblocking = get_arg(.True., blocking)
-      maxwait = get_arg(30, waittime)
+      maxwait = get_arg(120, waittime)
 
       do iwait=1,int(maxwait/waitinterval)
         open(newunit=flock_unit,file=lockfile,status='new',err=99)
