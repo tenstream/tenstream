@@ -67,8 +67,6 @@ contains
     ierr = 0
     inquire(file=trim(fname), exist=lexists)
     if(lexists) then
-      call release_file_lock(flock_unit, ierr); call CHKERR(ierr)
-      return
       open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='replace')
     else
       open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='new')
