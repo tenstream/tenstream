@@ -445,7 +445,7 @@ module m_helper_functions_dp
       real(ireal_dp) :: Az, Bz, Cz, T
       real(ireal_dp) :: U, V, W
       real(ireal_dp) :: b0, b1, b2
-      real(ireal_dp) :: det, rcpDet
+      real(ireal_dp) :: det, rcpDet, dist_times_det
 
 
       real(ireal_dp) :: CxBy, CyBx, AxCy, AyCx, BxAy, ByAx
@@ -547,10 +547,15 @@ module m_helper_functions_dp
           lhit = .False.
         endif
       else
-        if(det < zero .and. (T >= zero .or. T < hit(4)*det)) then
+        if(hit(4).ge.huge(hit)) then
+          dist_times_det = sign(huge(det), det)
+        else
+          dist_times_det = hit(4)*det
+        endif
+        if(det < zero .and. ((T >= zero) .or. (T < dist_times_det))) then
           if(ldebug) print *,'det<0 && T>0', det, T
           lhit = .False.
-        else if(det > zero .and. (T <= zero .or. T > hit(4) * det)) then
+        else if(det > zero .and. ((T <= zero) .or. (T > dist_times_det))) then
           if(ldebug) print *,'det>0 && T<0', det, T
           lhit = .False.
         endif
