@@ -190,6 +190,7 @@ if(ENABLE_PFUNIT)
 	enable_testing()
 	add_subdirectory(tests)
 	add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+  set(CTEST_MPIRUN_FLAGS "" CACHE STRING "Additional mpiexec flags to run tests with")
 endif(ENABLE_PFUNIT)
 
 option(ENABLE_RRTM "Enable use of RRTM" OFF)

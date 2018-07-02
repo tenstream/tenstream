@@ -46,5 +46,5 @@ target_link_libraries(
   pprts pprts_base
   )
 
-add_test(pfunit_${CDIR} ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 3 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR})
+add_test(pfunit_${CDIR} ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR})
 
