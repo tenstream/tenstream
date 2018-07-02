@@ -223,12 +223,13 @@ module m_netcdfIO
       integer, intent(out) :: ierr
       integer :: i, ios
       logical :: lexist, lnamed, lopened
+      real(ireals),parameter :: waitinterval=.1 ! amount of cpu time to wait before trying anew in seconds
       inquire(unit=flock_unit, exist=lexist)
       if(.not. lexist) then
         ierr=2
         return
       else
-        call cpusleep(.1)
+        call cpusleep(waitinterval)
       endif
       inquire(unit=flock_unit, iostat=ios)
       call CHKERR(ios, 'IOSTAT not 0... is =>'//itoa(ios))
@@ -244,7 +245,7 @@ module m_netcdfIO
         ierr = 0
         return
         99 continue
-        call cpusleep(.1)
+        call cpusleep(waitinterval)
       enddo
       ierr = 1
       call CHKERR(1_mpiint, 'Error releasing file lock for unit '//itoa(flock_unit))
