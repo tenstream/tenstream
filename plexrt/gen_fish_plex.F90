@@ -3,11 +3,11 @@ module m_gen_fish_plex
   use petsc
 
   use m_data_parameters, only : ireals, iintegers, mpiint, init_mpi_data_parameters, &
-    zero, i0, i1, i2, i3, i4, i5
+    zero, one, i0, i1, i2, i3, i4, i5
 
   use m_helper_functions, only: itoa, CHKERR
 
-  use m_icon_plex_utils, only: create_2d_fish_plex
+  use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D
 
   implicit none
 
@@ -17,10 +17,12 @@ module m_gen_fish_plex
 
   contains
     subroutine init()
-      type(tDM) :: dm
+      type(tDM) :: dm2d, dm3d
       character(len=*), parameter :: default_options = '&
-        & -default_option_show_plex hdf5:fish.h5'
+        & -default_option_show_plex hdf5:fish.h5 &
+        & -default_option_show_plex3d hdf5:fish3d.h5'
 
+      real(ireals), parameter :: hhl(2) = [zero, one]
       integer(mpiint) :: myid, numnodes
       integer(iintegers) :: Nx, Ny
       PetscBool :: lflg
@@ -38,12 +40,16 @@ module m_gen_fish_plex
       call mpi_comm_rank(PETSC_COMM_WORLD, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(PETSC_COMM_WORLD, numnodes, ierr); call CHKERR(ierr)
 
-      call create_2d_fish_plex(dm, Nx, Ny, .False.)
+      call create_2d_fish_plex(dm2d, Nx, Ny, .False.)
+      call dmplex_2D_to_3D(dm2d, hhl, dm3d)
 
-      call PetscObjectViewFromOptions(dm, PETSC_NULL_VEC, "-default_option_show_plex", ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(dm, PETSC_NULL_VEC, "-show_plex", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(dm2d, PETSC_NULL_VEC, "-default_option_show_plex", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(dm2d, PETSC_NULL_VEC, "-show_plex", ierr); call CHKERR(ierr)
 
-      call DMDestroy(dm, ierr);CHKERRQ(ierr)
+      call PetscObjectViewFromOptions(dm3d, PETSC_NULL_VEC, "-default_option_show_plex3d", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(dm3d, PETSC_NULL_VEC, "-show_plex3d", ierr); call CHKERR(ierr)
+
+      call DMDestroy(dm2d, ierr);CHKERRQ(ierr)
       call PetscFinalize(ierr)
     end subroutine
 
