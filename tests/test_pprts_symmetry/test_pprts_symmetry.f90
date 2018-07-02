@@ -39,7 +39,6 @@ contains
     endif
   end subroutine teardown
 
-
   @test(npes = [2])
   subroutine test_pprts_symmetry_ex2(this)
     class (MpiTestMethod), intent(inout) :: this
@@ -55,10 +54,9 @@ contains
     myid     = this%getProcessRank()
 
     allocate (t_optprop_3_10 :: OPP)
-
     call this_test(OPP)
-
     deallocate(OPP)
+
     !allocate (t_optprop_3_6 :: OPP)
     !call this_test(OPP)
     !deallocate(OPP)
@@ -67,8 +65,6 @@ contains
       subroutine this_test(OPP)
         class(t_optprop)  :: OPP
 
-        PETSC_COMM_WORLD = comm
-        call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)
         call init_mpi_data_parameters(comm)
 
         call read_commandline_options(comm)
@@ -86,19 +82,18 @@ contains
           dir2diff(i) = real(i, kind=ireals)
         enddo
 
-
         call OPP%dir2dir_coeff_symmetry(dir2dir, .True., .True.)
         call OPP%dir2dir_coeff_symmetry(dir2dir, .True., .True.)
 
         do i=1,ubound(dir2dir,1)
-          @assertEqual(i,dir2dir(i), 'Coeff dir2dir not equal after switching two time north-south and east-west')
+          @mpiassertEqual(i,dir2dir(i), 'Coeff dir2dir not equal after switching two time north-south and east-west')
         end do
 
         call OPP%dir2diff_coeff_symmetry(dir2diff, .True., .True.)
         call OPP%dir2diff_coeff_symmetry(dir2diff, .True., .True.)
 
         do i=1,ubound(dir2diff,1)
-          @assertEqual(i,dir2diff(i), 'Coeff dir2diff not equal after switching two time north-south and east-west')
+          @mpiassertEqual(i,dir2diff(i), 'Coeff dir2diff not equal after switching two time north-south and east-west')
         end do
 
         deallocate(dir2dir)
@@ -108,7 +103,6 @@ contains
         call PetscFinalize(ierr)
       end subroutine
     end subroutine
-
 
   @test(npes =[2])
   subroutine test_pprts_symmetry_ex1(this)
@@ -126,8 +120,9 @@ contains
 
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir0,fdn0,fup0,fdiv0
-
     real(ireals),allocatable,dimension(:,:,:) :: fdir1,fdn1,fup1,fdiv1
+    real(ireals),allocatable,dimension(:,:,:) :: fdir2,fdn2,fup2,fdiv2
+    real(ireals),allocatable,dimension(:,:,:) :: fdir3,fdn3,fup3,fdiv3
 
     integer(iintegers) :: i,j,k, ni,nj
     integer(iintegers) :: cx, cy      ! global indices of cloud
@@ -169,6 +164,16 @@ contains
     call pprts_get_result_toZero(solver, fdn0, fup0, fdiv0, fdir0, opt_solution_uid=10_iintegers)
     call pprts_get_result_toZero(solver, fdn1, fup1, fdiv1, fdir1, opt_solution_uid=190_iintegers)
 
+    call set_angles(solver, 100._ireals, theta0)
+    call solve_pprts(solver, incSolar, opt_solution_uid=100_iintegers)
+
+    call set_angles(solver, 280._ireals, theta0)
+    call solve_pprts(solver, incSolar, opt_solution_uid=280_iintegers)
+
+    call pprts_get_result_toZero(solver, fdn2, fup2, fdiv2, fdir2, opt_solution_uid=100_iintegers)
+    call pprts_get_result_toZero(solver, fdn3, fup3, fdiv3, fdir3, opt_solution_uid=280_iintegers)
+
+
     if(myid.eq.0) then
       do j=lbound(fdir0,3), ubound(fdir0,3)
         do i=lbound(fdir0,2), ubound(fdir0,2)
@@ -185,30 +190,19 @@ contains
           enddo
         enddo
       enddo
-    endif
 
-    call set_angles(solver, 100._ireals, theta0)
-    call solve_pprts(solver, incSolar, opt_solution_uid=100_iintegers)
+      do j=lbound(fdir2,3), ubound(fdir2,3)
+        do i=lbound(fdir2,2), ubound(fdir2,2)
+          ni = ubound(fdir2,2)-i+lbound(fdir2,2)
+          nj = ubound(fdir2,3)-j+lbound(fdir2,3)
 
-    call set_angles(solver, 280._ireals, theta0)
-    call solve_pprts(solver, incSolar, opt_solution_uid=280_iintegers)
-
-    call pprts_get_result_toZero(solver, fdn0, fup0, fdiv0, fdir0, opt_solution_uid=100_iintegers)
-    call pprts_get_result_toZero(solver, fdn1, fup1, fdiv1, fdir1, opt_solution_uid=280_iintegers)
-
-    if(myid.eq.0) then
-      do j=lbound(fdir0,3), ubound(fdir0,3)
-        do i=lbound(fdir0,2), ubound(fdir0,2)
-          ni = ubound(fdir0,2)-i+lbound(fdir0,2)
-          nj = ubound(fdir0,3)-j+lbound(fdir0,3)
-
-          do k=lbound(fdiv0,1), ubound(fdiv0,1)
-            @assertEqual(fdiv0(k,ni,nj), fdiv1(k,i,j), atolerance, '100 -> 280: divergence not symmetric for azimuth')
+          do k=lbound(fdiv2,1), ubound(fdiv2,1)
+            @assertEqual(fdiv2(k,ni,nj), fdiv3(k,i,j), atolerance, '100 -> 280: divergence not symmetric for azimuth')
           enddo
           do k=lbound(fdir0,1), ubound(fdir0,1)
-            @assertEqual(fdir0(k,ni,nj), fdir1(k,i,j), atolerance, '100 -> 280: Edirradiation not symmetric for azimuth')
-            @assertEqual(fdn0 (k,ni,nj), fdn1 (k,i,j), atolerance, '100 -> 280: Edn radiation not symmetric for azimuth')
-            @assertEqual(fup0 (k,ni,nj), fup1 (k,i,j), atolerance, '100 -> 280: Eup radiation not symmetric for azimuth')
+            @assertEqual(fdir2(k,ni,nj), fdir3(k,i,j), atolerance, '100 -> 280: Edirradiation not symmetric for azimuth')
+            @assertEqual(fdn2 (k,ni,nj), fdn3 (k,i,j), atolerance, '100 -> 280: Edn radiation not symmetric for azimuth')
+            @assertEqual(fup2 (k,ni,nj), fup3 (k,i,j), atolerance, '100 -> 280: Eup radiation not symmetric for azimuth')
           enddo
         enddo
       enddo

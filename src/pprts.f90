@@ -2475,7 +2475,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   type(tVec) :: nullvecs(0)
   character(len=*),optional :: prefix
 
-  real(ireals),parameter :: rtol=sqrt(epsilon(rtol))*10, rel_atol=1e-4_ireals
+  real(ireals),parameter :: rtol=1e-4_ireals, rel_atol=1e-4_ireals
   integer(iintegers),parameter  :: maxiter=1000
 
   integer(mpiint) :: myid, numnodes
