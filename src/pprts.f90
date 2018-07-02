@@ -811,7 +811,6 @@ module m_pprts
 
     ! call MatSetOption(A,MAT_IGNORE_ZERO_ENTRIES,PETSC_TRUE,ierr) ;call CHKERR(ierr) ! dont throw away the zero -- this completely destroys preallocation performance
 
-    call MatSetFromOptions(A,ierr) ;call CHKERR(ierr)
     call MatSetUp(A,ierr) ;call CHKERR(ierr)
 
     call mat_set_diagonal(A,C)

@@ -16,8 +16,6 @@ module test_netcdfio
 @test(npes =[2])
 subroutine test_file_locks(this)
     class (MpiTestMethod), intent(inout) :: this
-
-
     integer(mpiint) :: numnodes, comm, myid, ierr, flockunit
 
     comm     = this%getMpiCommunicator()
