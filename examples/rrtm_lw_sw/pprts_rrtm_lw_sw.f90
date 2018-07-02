@@ -32,7 +32,7 @@ contains
     ! Layer values for the atmospheric constituents -- those are actually all
     ! optional and if not provided, will be taken from the background profile file (atm_filename)
     ! see interface of `tenstream_rrtmg()` for units
-    real(ireals), dimension(nzp,nxp,nyp) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
+    ! real(ireals), dimension(nzp,nxp,nyp) :: h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
     real(ireals), dimension(nzp,nxp,nyp) :: lwc, reliq
@@ -87,12 +87,12 @@ contains
     ! Not much going on in the dynamics grid, we actually don't supply trace
     ! gases to the TenStream solver... this will then be interpolated from the
     ! background profile (read from `atm_filename`)
-    h2ovmr = zero
-    o3vmr  = zero
-    co2vmr = zero
-    ch4vmr = zero
-    n2ovmr = zero
-    o2vmr  = zero
+    ! h2ovmr = zero
+    ! o3vmr  = zero
+    ! co2vmr = zero
+    ! ch4vmr = zero
+    ! n2ovmr = zero
+    ! o2vmr  = zero
 
     ! define a cloud, with liquid water content and effective radius 10 micron
     lwc = 0
@@ -105,9 +105,6 @@ contains
     tlev (icld  , :,:) = 288
     tlev (icld+1, :,:) = tlev (icld  , :,:)
 
-    ! mean layer temperature is approx. arithmetic mean between layer interfaces
-    tlay = (tlev(1:nzp,:,:) + tlev(2:nzp+1,:,:))/2
-
     ! For comparison, compute lw and sw separately
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation:'
     lthermal=.False.; lsolar=.True.
@@ -116,7 +113,7 @@ contains
       phi0, theta0, albedo_th, albedo_sol,           &
       atm_filename, lthermal, lsolar,                &
       edir, edn, eup, abso,                          &
-      d_plev=plev, d_tlev=tlev, d_tlay=tlay,         &
+      d_plev=plev, d_tlev=tlev,                      &
       d_lwc=lwc, d_reliq=reliq,                      &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
@@ -127,7 +124,7 @@ contains
       phi0, theta0, albedo_th, albedo_sol,           &
       atm_filename, lthermal, lsolar,                &
       edir, edn, eup, abso,                          &
-      d_plev=plev, d_tlev=tlev, d_tlay=tlay,         &
+      d_plev=plev, d_tlev=tlev,                      &
       d_lwc=lwc, d_reliq=reliq,                      &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
