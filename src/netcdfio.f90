@@ -221,18 +221,33 @@ module m_netcdfIO
     subroutine release_file_lock(flock_unit, ierr)
       integer, intent(inout) :: flock_unit
       integer, intent(out) :: ierr
-      logical :: lexist
+      integer :: i, ios
+      logical :: lexist, lnamed, lopened
       inquire(unit=flock_unit, exist=lexist)
       if(.not. lexist) then
         ierr=2
         return
+      else
+        call cpusleep(.1)
       endif
-      close(unit=flock_unit,status='delete',err=99)
-      ierr = 0
-      return
-      99 continue
+      inquire(unit=flock_unit, iostat=ios)
+      call CHKERR(ios, 'IOSTAT not 0... is =>'//itoa(ios))
+
+      inquire(unit=flock_unit, named=lnamed)
+      if(.not.lnamed) call CHKERR(4_mpiint, 'Release lock file not named')
+
+      inquire(unit=flock_unit, opened=lopened)
+      if(.not.lopened) call CHKERR(4_mpiint, 'Release lock file not opened')
+
+      do i=1,10
+        close(unit=flock_unit,status='delete',err=99)
+        ierr = 0
+        return
+        99 continue
+        call cpusleep(.1)
+      enddo
       ierr = 1
-      !call CHKERR(1_mpiint, 'Error releasing file lock for unit '//itoa(flock_unit))
+      call CHKERR(1_mpiint, 'Error releasing file lock for unit '//itoa(flock_unit))
     end subroutine
 
   end module

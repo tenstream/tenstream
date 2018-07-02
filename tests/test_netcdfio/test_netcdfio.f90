@@ -23,18 +23,18 @@ subroutine test_file_locks(this)
     myid     = this%getProcessRank()
 
     if(myid.eq.0) then
-      call acquire_file_lock(fname, flockunit, ierr); call CHKERR(ierr)
+      call acquire_file_lock(fname, flockunit, ierr, waittime=1); call CHKERR(ierr)
       call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 1
       call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 2
       call release_file_lock(flockunit, ierr); call CHKERR(ierr)
       call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 3
     else
       call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 1
-      call acquire_file_lock(fname, flockunit, ierr, blocking=.False.)
+      call acquire_file_lock(fname, flockunit, ierr, waittime=1, blocking=.False.)
       @assertFalse(ierr.eq.0)
       call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 2
       call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 3
-      call acquire_file_lock(fname, flockunit, ierr, blocking=.False.)
+      call acquire_file_lock(fname, flockunit, ierr, waittime=1, blocking=.False.)
       @assertTrue(ierr.eq.0)
       call release_file_lock(flockunit, ierr); call CHKERR(ierr)
     endif
@@ -61,8 +61,8 @@ subroutine test_netcdf_load_write(this)
     do rank= 0, numnodes-1
       deallocate(a1d)
       call ncload([fname, 'rank'//itoa(rank), 'a1d'], a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file')
-      @assertEqual(real(rank, ireals), a1d(1))
-      @assertEqual(N, size(a1d))
+      @mpiassertEqual(real(rank, ireals), a1d(1))
+      @mpiassertEqual(N, size(a1d))
     enddo
 
     allocate(a2d(N,N), source=real(myid, ireals))
@@ -71,9 +71,9 @@ subroutine test_netcdf_load_write(this)
     do rank= 0, numnodes-1
       deallocate(a2d)
       call ncload([fname, 'rank'//itoa(rank), 'a2d'], a2d, ierr); call CHKERR(ierr, 'Could not read 2d array from nc file')
-      @assertEqual(real(rank, ireals), a2d(1,1))
-      @assertEqual(N, size(a2d, dim=1))
-      @assertEqual(N, size(a2d, dim=2))
+      @mpiassertEqual(real(rank, ireals), a2d(1,1))
+      @mpiassertEqual(N, size(a2d, dim=1))
+      @mpiassertEqual(N, size(a2d, dim=2))
     enddo
 end subroutine
 
