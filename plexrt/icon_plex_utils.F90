@@ -108,6 +108,8 @@ module m_icon_plex_utils
 
 ! call PetscSFDestroy(sf,ierr);CHKERRA(ierr);
 
+        call DMGetPointSF(dm3d, sf3d, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(sf3d, PETSC_NULL_SF, "-show_plex_sf3d", ierr); call CHKERR(ierr)
       end subroutine
 
       subroutine set_connectivity(dm2d, dm3d)
@@ -616,7 +618,7 @@ module m_icon_plex_utils
               i = (iv-vStart) - j*Nx
               z = 100
             endif
-            x = (i+.5*modulo(j,i2))*dx
+            x = (real(modulo(j,i2),ireals)*.5_ireals + real(i, ireals))*dx
             y = j*ds
             if(ldebug) print *,'iv',iv,':', i, j,'=>', x, y, z
 
