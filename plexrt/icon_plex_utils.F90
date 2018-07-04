@@ -3,9 +3,9 @@ module m_icon_plex_utils
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, i0, i1, i2, i3
+  use m_data_parameters, only : ireals, iintegers, mpiint, i0, i1, i2, i3, i4, i5, one
 
-  use m_helper_functions, only: chkerr, itoa
+  use m_helper_functions, only: chkerr, itoa, norm
 
   use m_plex_grid, only: print_dmplex
 
@@ -23,14 +23,306 @@ module m_icon_plex_utils
       real(ireals), intent(in) :: hhl(:) ! height levels of interfaces, those will be added to base height of 2D elements
       type(tDM), intent(out) :: dm3d
 
+      integer(iintegers) :: p2dStart, p2dEnd
+      integer(iintegers) :: f2dStart, f2dEnd
+      integer(iintegers) :: e2dStart, e2dEnd
+      integer(iintegers) :: v2dStart, v2dEnd
+      integer(iintegers) :: ke, ke1, chartsize
+      integer(iintegers) :: Nfaces2d, Nedges2d, Nverts2d
+      integer(iintegers) :: Ncells, Nfaces, Nedges, Nverts
+      integer(iintegers) :: i, j, k
+      integer(iintegers) :: icell, iface, iedge, ivert
+      integer(iintegers), pointer :: cone(:)
+
+      integer(iintegers) :: edge3(3), edge4(4), faces(5), vert2(2)
+
       integer(mpiint) :: comm, ierr
+      logical, parameter :: ldebug=.False.
+
+      ke1 = size(hhl)
+      ke = ke1-1
 
       call PetscObjectGetComm(dm2d, comm, ierr); call CHKERR(ierr)
 
       call print_dmplex(comm, dm2d)
 
-      print *,hhl
+      call DMPlexGetChart(dm2d, p2dStart, p2dEnd, ierr); call CHKERR(ierr)
+      call DMPlexGetHeightStratum(dm2d, i0, f2dStart, f2dEnd, ierr); call CHKERR(ierr) ! faces
+      call DMPlexGetHeightStratum(dm2d, i1, e2dStart, e2dEnd, ierr); call CHKERR(ierr) ! edges
+      call DMPlexGetHeightStratum(dm2d, i2, v2dStart, v2dEnd, ierr); call CHKERR(ierr) ! vertices
 
+      Nfaces2d = f2dEnd - f2dStart
+      Nedges2d = e2dEnd - e2dStart
+      Nverts2d = v2dEnd - v2dStart
+      print *,'Nfaces2d', Nfaces2d
+      print *,'Nedges2d', Nedges2d
+      print *,'Nverts2d', Nverts2d
+
+      Ncells = Nfaces2d * ke
+      Nfaces = Nfaces2d * ke1 + Nedges2d * ke
+      Nedges = Nedges2d * ke1 + Nverts2d * ke
+      Nverts = Nverts2d * ke1
+
+      chartsize = Ncells + Nfaces + Nedges + Nverts
+
+      print *,'Ncells', Ncells
+      print *,'Nfaces', Nfaces
+      print *,'Nedges', Nedges
+      print *,'Nverts', Nverts
+      print *,'Chartsize', chartsize
+
+      call DMPlexCreate(comm, dm3d, ierr); call CHKERR(ierr)
+      call DMSetDimension(dm3d, i3, ierr); call CHKERR(ierr)
+      call DMPlexSetChart(dm3d, i0, chartsize, ierr); call CHKERR(ierr)
+
+      ! Preallocation
+      k = 0 ! k is running index for elements in DAG
+
+      ! Every cell has 5 faces
+      do i = 1, Ncells
+        call DMPlexSetConeSize(dm3d, k, i5, ierr); call CHKERR(ierr)
+        k = k+1
+      enddo
+
+      ! top/bottom faces have 3 edges
+      do i = 1, Nfaces2d * ke1
+        call DMPlexSetConeSize(dm3d, k, i3, ierr); call CHKERR(ierr)
+        k = k+1
+      enddo
+
+      ! side faces have 4 edges
+      do i = 1, Nedges2d * ke
+        call DMPlexSetConeSize(dm3d, k, i4, ierr); call CHKERR(ierr)
+        k = k+1
+      enddo
+
+      ! Edges have 2 vertices
+      do i = 1, Nedges
+        call DMPlexSetConeSize(dm3d, k, i2, ierr); call CHKERR(ierr)
+        k = k+1
+      enddo
+      call CHKERR((chartsize-Nverts)-k, 'This does not add up, we forgot something?')
+
+      call DMSetUp(dm3d, ierr); call CHKERR(ierr) ! Allocate space for cones
+
+      ! Setup Connections
+      ! First set five faces of cell
+      do k = 0, ke-1
+        do i = 0, Nfaces2d-1
+          icell = icell_icon_2_plex(i, k)
+          faces(1) = iface_top_icon_2_plex(i, k)
+          faces(2) = iface_top_icon_2_plex(i, k+1)
+
+          call DMPlexGetCone(dm2d, i, cone, ierr); call CHKERR(ierr) ! edges of face
+          if(ldebug) print *,'iface2d', i, 'has edges', cone
+          do j=1,size(cone)
+            faces(2+j) = iface_side_icon_2_plex(cone(j), k)
+          enddo
+          call DMPlexRestoreCone(dm2d, i, cone, ierr); call CHKERR(ierr)
+
+          call DMPlexSetCone(dm3d, icell, faces, ierr); call CHKERR(ierr)
+          if(ldebug) print *,'icell',icell,'has faces:',faces
+        enddo
+      enddo
+
+      ! set edges of top/bot faces
+      do k = 0, ke1-1
+        do i = 0, Nfaces2d-1
+          iface = iface_top_icon_2_plex(i, k)
+
+          call DMPlexGetCone(dm2d, i, cone, ierr); call CHKERR(ierr) ! edges of face
+          do j=1,size(cone)
+            edge3(j) = iedge_top_icon_2_plex(cone(j), k)
+          enddo
+          call DMPlexRestoreCone(dm2d, i, cone, ierr); call CHKERR(ierr)
+
+          call DMPlexSetCone(dm3d, iface, edge3, ierr); call CHKERR(ierr)
+          if(ldebug) print *,'iface', iface, 'gets edges', edge3
+        enddo
+      enddo
+
+      ! set edges of vertical faces
+      do k = 0, ke-1
+        do i = 0, Nedges2d-1
+          iedge = e2dStart+i
+          iface = iface_side_icon_2_plex(iedge, k)
+          edge4(1) = iedge_top_icon_2_plex(iedge, k)
+          edge4(2) = iedge_top_icon_2_plex(iedge, k+1)
+
+          call DMPlexGetCone(dm2d, iedge, cone, ierr); call CHKERR(ierr) ! vertices of 2d edge
+          do j=1,size(cone)
+            edge4(2+j) = iedge_side_icon_2_plex(cone(j), k)
+          enddo
+          call DMPlexRestoreCone(dm2d, iedge, cone, ierr); call CHKERR(ierr)
+          if(ldebug) print *,'iface', iface, 'gets edges', edge4
+          call DMPlexSetCone(dm3d, iface, edge4, ierr); call CHKERR(ierr)
+        enddo
+      enddo
+
+      ! and then set the two vertices of edges in each level, i.e. vertices for edges in horizontal plane
+      do k = 0, ke1-1
+        do i = 0, Nedges2d-1
+          iedge = e2dStart+i
+          call DMPlexGetCone(dm2d, iedge, cone, ierr); call CHKERR(ierr) ! vertices of 2d edge
+          do j=1,size(cone)
+            vert2(j) = ivertex_icon_2_plex(cone(j), k)
+          enddo
+          call DMPlexRestoreCone(dm2d, iedge, cone, ierr); call CHKERR(ierr)
+          if(ldebug) print *,'iedge', iedge_top_icon_2_plex(iedge, k), 'gets verts', vert2
+          call DMPlexSetCone(dm3d, iedge_top_icon_2_plex(iedge, k), vert2, ierr); call CHKERR(ierr)
+        enddo
+      enddo
+
+      ! and then set the two vertices of edges in each layer, i.e. vertices at the end of vertical edges
+      do k = 0, ke-1
+        do i = 0, Nverts2d-1
+          ivert = v2dStart+i
+          iedge = iedge_side_icon_2_plex(ivert, k)
+          vert2(1) = ivertex_icon_2_plex(ivert, k)
+          vert2(2) = ivertex_icon_2_plex(ivert, k+1)
+
+          if(ldebug) print *,'edge', iedge, 'gets verts', vert2
+          call DMPlexSetCone(dm3d, iedge, vert2, ierr); call CHKERR(ierr)
+        enddo
+      enddo
+
+      call DMPlexSymmetrize(dm3d, ierr); call CHKERR(ierr)
+      call DMPlexStratify(dm3d, ierr); call CHKERR(ierr)
+
+      !call set_sf_graph(dm2d, dm3d)
+
+      call set_coords(dm2d, dm3d)
+
+    contains
+      subroutine set_coords(dm2d, dm3d)
+        type(tDM), intent(in) :: dm2d
+        type(tDM), intent(inout) :: dm3d
+
+        real(ireals), pointer :: coords2d(:), coords3d(:)
+        type(tVec)            :: vec_coord2d, vec_coord3d
+        type(tPetscSection)   :: coordSection2d, coordSection3d
+        integer(iintegers)    :: coordsize, voff2d, voff3d
+        integer(iintegers)    :: v2dStart, v2dEnd
+        integer(iintegers)    :: v3dStart, v3dEnd
+
+        real(ireals) :: distance, inv_distance
+        integer(mpiint) :: ierr
+        integer(iintegers) :: i, k, ivertex
+
+        call DMPlexGetDepthStratum (dm3d, i0, v3dStart, v3dEnd, ierr); call CHKERR(ierr) ! 3D vertices
+        call DMPlexGetDepthStratum (dm2d, i0, v2dStart, v2dEnd, ierr); call CHKERR(ierr) ! 2D vertices
+
+        ! Create Coordinate stuff for 3D DM
+        call DMGetCoordinateSection(dm3d, coordSection3d, ierr); call CHKERR(ierr)
+        call PetscSectionSetNumFields(coordSection3d, i1, ierr); call CHKERR(ierr) ! just 1 field for spherical coords
+        call PetscSectionSetUp(coordSection3d, ierr); call CHKERR(ierr)
+        call PetscSectionSetFieldComponents(coordSection3d, i0, i3, ierr); call CHKERR(ierr)
+
+        call PetscSectionSetChart(coordSection3d, v3dStart, v3dEnd, ierr);call CHKERR(ierr)
+        do i = v3dStart, v3dEnd-1
+          call PetscSectionSetDof(coordSection3d, i, i3, ierr); call CHKERR(ierr)
+          call PetscSectionSetFieldDof(coordSection3d, i, i0, i3, ierr); call CHKERR(ierr)
+        enddo
+        call PetscSectionSetUp(coordSection3d, ierr); call CHKERR(ierr)
+        call PetscSectionGetStorageSize(coordSection3d, coordSize, ierr); call CHKERR(ierr)
+
+        ! Create New Vec to hold 3D coordinates
+        call VecCreate(PETSC_COMM_SELF, vec_coord3d, ierr); call CHKERR(ierr)
+        call VecSetSizes(vec_coord3d, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
+        call VecSetBlockSize(vec_coord3d, i3, ierr);call CHKERR(ierr)
+        call VecSetType(vec_coord3d, VECSTANDARD, ierr);call CHKERR(ierr)
+
+        call PetscObjectSetName(vec_coord3d, "coordinates", ierr); call CHKERR(ierr)
+
+        ! Fill 3D Coord Vec
+        call VecGetArrayF90(vec_coord3d, coords3d, ierr); call CHKERR(ierr)
+
+        ! Get Coordinates from 2D DMPLEX
+        call DMGetCoordinateSection(dm2d, coordSection2d, ierr); call CHKERR(ierr)
+        call DMGetCoordinatesLocal(dm2d, vec_coord2d, ierr); call CHKERR(ierr)
+        call VecGetArrayReadF90(vec_coord2d, coords2d, ierr); call CHKERR(ierr)
+
+        do i = v2dStart, v2dEnd-1
+          call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
+          distance = norm(coords2d(voff2d+i1 : voff2d+i3))
+          inv_distance = one / distance
+          do k = 0, ke1-1
+            ivertex = ivertex_icon_2_plex(i, k)
+            call PetscSectionGetOffset(coordSection3d, ivertex, voff3d, ierr); call CHKERR(ierr)
+            coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) * (distance + hhl(k+1)) * inv_distance
+            if(ldebug) print *,'Setting coord for 2d', i, '3d vert', ivertex,':', &
+              coords2d(voff2d+1:voff2d+3), '=>', &
+              coords3d(voff3d+1:voff3d+3), &
+              '(',(distance + hhl(k+1)) * inv_distance,')'
+          enddo
+        enddo
+
+        call VecRestoreArrayReadF90(vec_coord2d, coords2d, ierr); call CHKERR(ierr)
+        call VecRestoreArrayF90(vec_coord3d, coords3d, ierr); call CHKERR(ierr)
+
+        call DMSetCoordinatesLocal(dm3d, vec_coord3d, ierr);call CHKERR(ierr)
+        call PetscObjectViewFromOptions(vec_coord2d, PETSC_NULL_VEC, "-show_plex_coordinates2d", ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(vec_coord3d, PETSC_NULL_VEC, "-show_plex_coordinates3d", ierr); call CHKERR(ierr)
+        call VecDestroy(vec_coord3d, ierr);call CHKERR(ierr)
+      end subroutine
+
+      !> @brief return the dmplex cell index for an  2d grid face index
+      function icell_icon_2_plex(iface, k)
+        integer(iintegers),intent(in) :: iface    !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+        integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+        integer(iintegers) :: icell_icon_2_plex   !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+        icell_icon_2_plex = k + iface*ke
+      end function
+
+      !> @brief return the dmplex face index for an 2d face index situated at the top of a cell
+      function iface_top_icon_2_plex(iface, k)
+        integer(iintegers),intent(in) :: iface    !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+        integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+        integer(iintegers) :: iface_top_icon_2_plex   !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+        integer(iintegers) :: offset
+        offset = Ncells
+        iface_top_icon_2_plex = offset + k + iface*ke1
+      end function
+
+      !> @brief return the dmplex face index for an 2d edge index situated at the side of a cell, i.e. below a certain edge
+      function iface_side_icon_2_plex(iedge, k)
+        integer(iintegers),intent(in) :: iedge    !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+        integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+        integer(iintegers) :: iface_side_icon_2_plex   !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+        integer(iintegers) :: offset
+        offset = Ncells + Nfaces2d*ke1
+        iface_side_icon_2_plex = offset + k + (iedge-e2dStart)*ke
+      end function
+
+      !> @brief return the dmplex edge index for a given 2d edge index, i.e. the edges on the top/bot faces of cells
+      function iedge_top_icon_2_plex(iedge, k)
+        integer(iintegers),intent(in) :: iedge    !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+        integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+        integer(iintegers) :: iedge_top_icon_2_plex !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+        integer(iintegers) :: offset
+        offset = Ncells + Nfaces
+        iedge_top_icon_2_plex = offset + k + (iedge-e2dStart)*ke1
+      end function
+
+      !> @brief return the dmplex edge index for a given 2d vertex index, i.e. the edges on the side faces of cells
+      function iedge_side_icon_2_plex(ivertex, k)
+        integer(iintegers),intent(in) :: ivertex  !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+        integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+        integer(iintegers) :: iedge_side_icon_2_plex !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
+        integer(iintegers) :: offset
+        offset = Ncells + Nfaces + Nedges2d*ke1
+        iedge_side_icon_2_plex = offset + k + (ivertex-v2dStart)*ke
+      end function
+
+      !> @brief return the dmplex vertex index for a given 2d vertex index
+      function ivertex_icon_2_plex(ivertex, k)
+        integer(iintegers),intent(in) :: ivertex  !< @param[in] icell, starts with 1 up to Nfaces (size of icon base grid)
+        integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
+        integer(iintegers) :: ivertex_icon_2_plex !< @param[out] icell_icon_2_plex, the vertex index in the dmplex, starts from plex%vStart and goes to plex%vEnd
+        integer(iintegers) :: offset
+        offset    = Ncells + Nfaces + Nedges
+        ivertex_icon_2_plex = offset + k + (ivertex-v2dStart)*ke1
+      end function
     end subroutine
 
     ! Create a 2D Torus grid with Nx vertices horizontally and Ny rows of Vertices vertically
@@ -281,7 +573,7 @@ module m_icon_plex_utils
             else
               j = (iv-vStart) / Nx
               i = (iv-vStart) - j*Nx
-              z = 0
+              z = 100
             endif
             x = (i+.5*modulo(j,2))*dx
             y = j*ds

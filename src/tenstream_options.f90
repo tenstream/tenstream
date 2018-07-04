@@ -95,9 +95,7 @@ module m_tenstream_options
           logical :: lshow_options=.False.
           logical :: ltenstr_view=.False.
 
-          logical :: lmpi_is_initialized, lpetsc_is_initialized
           integer(mpiint) :: myid, numnodes
-
 
           call init_mpi_data_parameters(comm)
 
