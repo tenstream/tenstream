@@ -667,7 +667,6 @@ module m_helper_functions_dp
       pure function distance_to_edge(p1,p2,p)
         real(ireal_dp), intent(in), dimension(2) :: p1,p2, p
         real(ireal_dp) :: distance_to_edge
-        real(ireal_dp) :: d1, d2
 
         distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
       end function
