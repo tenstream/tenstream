@@ -1,5 +1,5 @@
 module test_netcdfio
-    use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
+    use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters, default_str_len
 
     use m_helper_functions, only: CHKERR, itoa
 
@@ -50,27 +50,37 @@ subroutine test_netcdf_load_write(this)
     real(ireals),allocatable :: a2d(:,:)
 
     integer(mpiint),parameter :: N=10
+    character(len=default_str_len) :: groups(3)
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
 
+    groups(1) = trim(fname)
+    groups(2) = 'rank'//itoa(myid)
+    groups(3) = 'a1d'
+
     allocate(a1d(N), source=real(myid, ireals))
-    call ncwrite([fname, 'rank'//itoa(myid), 'a1d'], a1d, ierr); call CHKERR(ierr, 'Could not write 1d array to nc file')
+    call ncwrite(groups, a1d, ierr); call CHKERR(ierr, 'Could not write 1d array to nc file')
     call mpi_barrier(comm, ierr); call CHKERR(ierr)
     do rank= 0, numnodes-1
       deallocate(a1d)
-      call ncload([fname, 'rank'//itoa(rank), 'a1d'], a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file')
+      groups(2) = 'rank'//itoa(rank)
+      call ncload(groups, a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file')
       @mpiassertEqual(real(rank, ireals), a1d(1))
       @mpiassertEqual(N, size(a1d))
     enddo
 
     allocate(a2d(N,N), source=real(myid, ireals))
-    call ncwrite([fname, 'rank'//itoa(myid), 'a2d'], a2d, ierr); call CHKERR(ierr, 'Could not write 2d array to nc file')
+    groups(1) = trim(fname)
+    groups(2) = 'rank'//itoa(myid)
+    groups(3) = 'a2d'
+    call ncwrite(groups, a2d, ierr); call CHKERR(ierr, 'Could not write 2d array to nc file')
     call mpi_barrier(comm, ierr); call CHKERR(ierr)
     do rank= 0, numnodes-1
       deallocate(a2d)
-      call ncload([fname, 'rank'//itoa(rank), 'a2d'], a2d, ierr); call CHKERR(ierr, 'Could not read 2d array from nc file')
+      groups(2) = 'rank'//itoa(rank)
+      call ncload(groups, a2d, ierr); call CHKERR(ierr, 'Could not read 2d array from nc file')
       @mpiassertEqual(real(rank, ireals), a2d(1,1))
       @mpiassertEqual(N, size(a2d, dim=1))
       @mpiassertEqual(N, size(a2d, dim=2))
