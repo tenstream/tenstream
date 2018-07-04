@@ -225,7 +225,11 @@ module m_pprts
       solver%atm%dx  = dx
       solver%atm%dy  = dy
 
-      if(.not.allocated(solver%atm%dz) ) allocate(solver%atm%dz( solver%C_one_atm%zs:solver%C_one_atm%ze, solver%C_one_atm%xs:solver%C_one_atm%xe, solver%C_one_atm%ys:solver%C_one_atm%ye ))
+      if(.not.allocated(solver%atm%dz) ) then
+        allocate(solver%atm%dz(solver%C_one_atm%zs:solver%C_one_atm%ze, &
+                               solver%C_one_atm%xs:solver%C_one_atm%xe, &
+                               solver%C_one_atm%ys:solver%C_one_atm%ye ), stat=ierr)
+      endif
 
       if(present(dz1d)) then
         do j=solver%C_one_atm%ys,solver%C_one_atm%ye
