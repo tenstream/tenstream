@@ -7,7 +7,8 @@ module m_gen_fish_plex
 
   use m_helper_functions, only: itoa, CHKERR
 
-  use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D
+  use m_icon_plex_utils, only: create_2d_fish_plex, &
+    dmplex_2D_to_3D, dump_ownership
 
   implicit none
 
@@ -48,6 +49,8 @@ module m_gen_fish_plex
 
       call PetscObjectViewFromOptions(dm3d, PETSC_NULL_VEC, "-default_option_show_plex3d", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(dm3d, PETSC_NULL_VEC, "-show_plex3d", ierr); call CHKERR(ierr)
+
+      call dump_ownership(dm3d, '-show_plex3d_ownership')
 
       call DMDestroy(dm2d, ierr);CHKERRQ(ierr)
       call PetscFinalize(ierr)
