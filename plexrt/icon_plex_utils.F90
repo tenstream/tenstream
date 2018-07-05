@@ -32,7 +32,6 @@ module m_icon_plex_utils
       integer(iintegers) :: Ncells, Nfaces, Nedges, Nverts
       integer(mpiint) :: comm, ierr
       logical, parameter :: ldebug=.False.
-      type(tDMLabel) :: boundarylabel
 
       ke1 = size(hhl)
       ke = ke1-1
@@ -136,10 +135,10 @@ module m_icon_plex_utils
           if(voff.lt.zero) then ! only add my local idx number if it belongs to me
             call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
             do k = 0, ke1-1
-              xv(i1+voff+k) = iedge_top_icon_2_plex(i, k)
+              xv(i1+voff+k) = real(iedge_top_icon_2_plex(i, k), ireals)
             enddo
             do k = 0, ke-1
-              xv(i1+ke1+voff+k) = iface_side_icon_2_plex(i, k)
+              xv(i1+ke1+voff+k) = real(iface_side_icon_2_plex(i, k), ireals)
             enddo
           endif
         enddo
@@ -148,10 +147,10 @@ module m_icon_plex_utils
           if(voff.lt.zero) then
             call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
             do k = 0, ke1-1
-              xv(i1+voff+k) = ivertex_icon_2_plex(i, k)
+              xv(i1+voff+k) = real(ivertex_icon_2_plex(i, k), ireals)
             enddo
             do k = 0, ke-1
-              xv(i1+ke1+voff+k) = iedge_side_icon_2_plex(i, k)
+              xv(i1+ke1+voff+k) = real(iedge_side_icon_2_plex(i, k), ireals)
             enddo
           endif
         enddo
@@ -178,7 +177,7 @@ module m_icon_plex_utils
             do k = 0, ke1-1
               ilocal_elements(ileaf) = iedge_top_icon_2_plex(i, k)
               iremote_elements(ileaf)%rank = owner
-              iremote_elements(ileaf)%index = xv(i1+voff+k)
+              iremote_elements(ileaf)%index = int(xv(i1+voff+k), iintegers)
               if(ldebug) print *,myid,' 2dEdge top', i,'::', k,' local edge index', iedge_top_icon_2_plex(i, k), &
                 'remote idx', xv(i1+voff+k)
               ileaf = ileaf+1
@@ -186,7 +185,7 @@ module m_icon_plex_utils
             do k = 0, ke-1
               ilocal_elements(ileaf) = iface_side_icon_2_plex(i, k)
               iremote_elements(ileaf)%rank = owner
-              iremote_elements(ileaf)%index = xv(i1+ke1+voff+k)
+              iremote_elements(ileaf)%index = int(xv(i1+ke1+voff+k), iintegers)
               if(ldebug) print *,myid,' 2dEdge fac', i,'::', k,' local face index', ilocal_elements(ileaf), &
                 'remote idx', xv(i1+ke1+voff+k)
               ileaf = ileaf+1
@@ -201,7 +200,7 @@ module m_icon_plex_utils
             do k = 0, ke1-1
               ilocal_elements(ileaf) = ivertex_icon_2_plex(i, k)
               iremote_elements(ileaf)%rank = owner
-              iremote_elements(ileaf)%index = xv(i1+voff+k)
+              iremote_elements(ileaf)%index = int(xv(i1+voff+k), iintegers)
               if(ldebug) print *,myid,' 2dVert ver', i,'::', k,' local vert index', ilocal_elements(ileaf), &
                 'remote idx', xv(i1+voff+k)
               ileaf = ileaf+1
@@ -209,7 +208,7 @@ module m_icon_plex_utils
             do k = 0, ke-1
               ilocal_elements(ileaf) = iedge_side_icon_2_plex(i, k)
               iremote_elements(ileaf)%rank = owner
-              iremote_elements(ileaf)%index = xv(i1+ke1+voff+k)
+              iremote_elements(ileaf)%index = int(xv(i1+ke1+voff+k), iintegers)
               if(ldebug) print *,myid,' 2dVert edg', i,'::', k,' local face index', ilocal_elements(ileaf), &
                 'remote idx', xv(i1+ke1+voff+k)
               ileaf = ileaf+1
