@@ -3,16 +3,16 @@ module m_icon_plex_utils
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, i0, i1, i2, i3, i4, i5, one
+  use m_data_parameters, only : ireals, iintegers, mpiint, i0, i1, i2, i3, i4, i5, zero, one
 
   use m_helper_functions, only: chkerr, itoa, norm
 
-  use m_plex_grid, only: print_dmplex
+  use m_plex_grid, only: print_dmplex, create_plex_section
 
   implicit none
 
   private
-  public :: dmplex_2D_to_3D, create_2d_fish_plex
+  public :: dmplex_2D_to_3D, create_2d_fish_plex, dump_ownership
 
   logical, parameter :: ldebug=.True.
 
@@ -32,6 +32,7 @@ module m_icon_plex_utils
       integer(iintegers) :: Ncells, Nfaces, Nedges, Nverts
       integer(mpiint) :: comm, ierr
       logical, parameter :: ldebug=.False.
+      type(tDMLabel) :: boundarylabel
 
       ke1 = size(hhl)
       ke = ke1-1
@@ -82,33 +83,152 @@ module m_icon_plex_utils
 
         integer(mpiint) :: myid, ierr
 
+        type(tDM) :: dmsf2d
         type(tPetscSF) :: sf2d, sf3d
 
-        type(PetscSFNode), pointer  :: remote(:)
-        integer(iintegers), pointer :: mine(:)
-        integer(iintegers) :: nroots   ! number of root vertices on the current process (possible targets for leaves)
-        integer(iintegers) :: nleaves  ! number of leaf vertices on the current process, references roots on any process
-        integer(iintegers) :: i
+        type(tPetscSection) :: section_2d_to_3d
+        type(tVec) :: lVec, gVec
+        real(ireals), pointer :: xv(:)
+
+        integer(iintegers), pointer :: myidx(:) ! list of my indices that we do not own
+        type(PetscSFNode), pointer  :: remote(:) ! rank and remote idx of those points
+        integer(iintegers) :: nroots2d   ! number of root vertices on the current process (possible targets for leaves)
+        integer(iintegers) :: nleaves2d  ! number of leaf vertices on the current process, references roots on any process
+        integer(iintegers) :: nroots3d, nleaves3d
+        integer(iintegers),allocatable :: ilocal_elements(:)
+        type(PetscSFNode),allocatable :: iremote_elements(:)
+        type(PetscCopyMode),parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
+
+        integer(iintegers) :: i, k, voff, ileaf, owner
+        integer(iintegers), parameter :: idx_offset=0
+
+        call DMClone(dm2d, dmsf2d, ierr); call CHKERR(ierr)
 
         call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-        call DMGetPointSF(dm2d, sf2d, ierr); call CHKERR(ierr)
+        call DMGetPointSF(dmsf2d, sf2d, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(sf2d, PETSC_NULL_SF, "-show_plex_sf2d", ierr); call CHKERR(ierr)
 
-        call PetscSFGetGraph(sf2d, nroots, nleaves, mine, remote, ierr); call CHKERR(ierr)
+        call PetscSFGetGraph(sf2d, nroots2d, nleaves2d, myidx, remote, ierr); call CHKERR(ierr)
 
-        print *, myid, 'shape mine', shape(mine)
-        print *, myid, 'shape remote', shape(remote)
-        print *,''
-        do i = 1, nleaves
+        call create_plex_section(comm, dmsf2d, 'plex_2d_to_3d_sf_graph_info', i1, &
+          [i0], [i0], [ke1+ke], [ke1+ke], section_2d_to_3d)
+
+        call DMSetDefaultSection(dmsf2d, section_2d_to_3d, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(section_2d_to_3d, PETSC_NULL_SECTION, &
+          '-show_dm2d_section_2d_to_3d', ierr); call CHKERR(ierr)
+
+        call DMGetLocalVector(dmsf2d, lVec, ierr); call CHKERR(ierr)
+        call DMGetGlobalVector(dmsf2d, gVec, ierr); call CHKERR(ierr)
+        call VecSet(lVec, zero, ierr); call CHKERR(ierr)
+
+        if(ldebug) then
+          print *, myid, 'nroots', nroots2d, 'shape myidx', shape(myidx)
+          print *, myid, 'nleaves', nleaves2d, 'shape remote', shape(remote)
+          print *, myid, 'myidx', myidx
+          print *, myid, 'remote', remote
+        endif
+
+        ! Distribute Info for 2D edges,
+        call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+        do i = e2dStart, e2dEnd-1
+          call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+          if(voff.lt.zero) then ! only add my local idx number if it belongs to me
+            call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
+            do k = 0, ke1-1
+              xv(i1+voff+k) = iedge_top_icon_2_plex(i, k)
+            enddo
+            do k = 0, ke-1
+              xv(i1+ke1+voff+k) = iface_side_icon_2_plex(i, k)
+            enddo
+          endif
         enddo
-! do i=1,nleaves
-!    if (gremote(i)%index .ne. remote(i)%index) then; SETERRA(PETSC_COMM_WORLD,PETSC_ERR_PLIB,'Leaf from PetscSFGetGraph() does not match that set with PetscSFSetGraph()'); endif
-! enddo
+        do i = v2dStart, v2dEnd-1
+          call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+          if(voff.lt.zero) then
+            call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
+            do k = 0, ke1-1
+              xv(i1+voff+k) = ivertex_icon_2_plex(i, k)
+            enddo
+            do k = 0, ke-1
+              xv(i1+ke1+voff+k) = iedge_side_icon_2_plex(i, k)
+            enddo
+          endif
+        enddo
+        call VecRestoreArrayF90(lVec, xv, ierr); call CHKERR(ierr)
 
-! call PetscSFDestroy(sf,ierr);CHKERRA(ierr);
+        call VecSet(gVec, zero, ierr); call CHKERR(ierr)
+        call DMLocalToGlobalBegin(dmsf2d, lVec, ADD_VALUES, gVec, ierr); call CHKERR(ierr)
+        call DMLocalToGlobalEnd(dmsf2d, lVec, ADD_VALUES, gVec, ierr); call CHKERR(ierr)
+        call DMGlobalToLocalBegin(dmsf2d, gVec, INSERT_VALUES, lVec, ierr); call CHKERR(ierr)
+        call DMGlobalToLocalEnd(dmsf2d, gVec, INSERT_VALUES, lVec, ierr); call CHKERR(ierr)
+
+        nroots3d = chartsize
+        nleaves3d = nleaves2d * (ke+ke1)
+        allocate(ilocal_elements(nleaves3d))
+        allocate(iremote_elements(nleaves3d))
+
+        ileaf = 1
+        call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+        do i = e2dStart, e2dEnd-1
+          call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+          if(voff.ge.zero) then ! this is owned by someone else
+            owner = remote(i1+voff)%rank
+            call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
+            do k = 0, ke1-1
+              ilocal_elements(ileaf) = iedge_top_icon_2_plex(i, k)
+              iremote_elements(ileaf)%rank = owner
+              iremote_elements(ileaf)%index = xv(i1+voff+k)
+              if(ldebug) print *,myid,' 2dEdge top', i,'::', k,' local edge index', iedge_top_icon_2_plex(i, k), &
+                'remote idx', xv(i1+voff+k)
+              ileaf = ileaf+1
+            enddo
+            do k = 0, ke-1
+              ilocal_elements(ileaf) = iface_side_icon_2_plex(i, k)
+              iremote_elements(ileaf)%rank = owner
+              iremote_elements(ileaf)%index = xv(i1+ke1+voff+k)
+              if(ldebug) print *,myid,' 2dEdge fac', i,'::', k,' local face index', ilocal_elements(ileaf), &
+                'remote idx', xv(i1+ke1+voff+k)
+              ileaf = ileaf+1
+            enddo
+          endif
+        enddo
+        do i = v2dStart, v2dEnd-1
+          call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+          if(voff.ge.zero) then ! this is owned by someone else
+            owner = remote(i1+voff)%rank
+            call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
+            do k = 0, ke1-1
+              ilocal_elements(ileaf) = ivertex_icon_2_plex(i, k)
+              iremote_elements(ileaf)%rank = owner
+              iremote_elements(ileaf)%index = xv(i1+voff+k)
+              if(ldebug) print *,myid,' 2dVert ver', i,'::', k,' local vert index', ilocal_elements(ileaf), &
+                'remote idx', xv(i1+voff+k)
+              ileaf = ileaf+1
+            enddo
+            do k = 0, ke-1
+              ilocal_elements(ileaf) = iedge_side_icon_2_plex(i, k)
+              iremote_elements(ileaf)%rank = owner
+              iremote_elements(ileaf)%index = xv(i1+ke1+voff+k)
+              if(ldebug) print *,myid,' 2dVert edg', i,'::', k,' local face index', ilocal_elements(ileaf), &
+                'remote idx', xv(i1+ke1+voff+k)
+              ileaf = ileaf+1
+            enddo
+          endif
+        enddo
+        call VecRestoreArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+        if(ldebug) call CHKERR(int(ileaf-1-nleaves3d, mpiint), 'Does not add up... something is wrong')
+
+        call PetscObjectViewFromOptions(lVec, PETSC_NULL_VEC, "-show_dm2d_sf_vec", ierr); call CHKERR(ierr)
+        call DMRestoreLocalVector(dmsf2d, lVec, ierr); call CHKERR(ierr)
+        call DMRestoreGlobalVector(dmsf2d, gVec, ierr); call CHKERR(ierr)
+        call PetscSectionDestroy(section_2d_to_3d, ierr); call CHKERR(ierr)
+        call DMDestroy(dmsf2d, ierr); call CHKERR(ierr)
 
         call DMGetPointSF(dm3d, sf3d, ierr); call CHKERR(ierr)
+        call PetscSFSetGraph(sf3d, nroots3d, nleaves3d, ilocal_elements, localmode, &
+          iremote_elements, remotemode, ierr); call CHKERR(ierr)
+        call PetscSFSetUp(sf3d, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(sf3d, PETSC_NULL_SF, "-show_plex_sf3d", ierr); call CHKERR(ierr)
       end subroutine
 
@@ -368,6 +488,70 @@ module m_icon_plex_utils
       end function
     end subroutine
 
+    subroutine dump_ownership(dm, cmd_string)
+      type(tDM), intent(in) :: dm
+      character(len=*), intent(in) :: cmd_string
+
+      type(tPetscSF) :: sf
+      integer(iintegers) :: nroots, nleaves
+      integer(iintegers), pointer :: myidx(:) ! list of my indices that we do not own
+      type(PetscSFNode), pointer  :: remote(:) ! rank and remote idx of those points
+
+      type(tDM) :: owner_dm
+      type(tPetscSection) :: sec
+      type(tVec) :: gVec
+      real(ireals), pointer :: xv(:)
+      integer(iintegers), pointer :: faces_of_cell(:)
+
+      integer(iintegers) :: cStart, cEnd
+      integer(iintegers) :: i, icell, idx, voff
+
+      integer(mpiint) :: comm, myid, ierr
+
+      call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      call DMClone(dm, owner_dm, ierr); call CHKERR(ierr)
+
+      call DMGetPointSF(owner_dm, sf, ierr); call CHKERR(ierr)
+      call PetscSFGetGraph(sf, nroots, nleaves, myidx, remote, ierr); call CHKERR(ierr)
+
+      call create_plex_section(comm, owner_dm, 'dmplex_ownership info', i1, &
+        [i1], [i0], [i0], [i0], sec)
+      call DMSetDefaultSection(owner_dm, sec, ierr); call CHKERR(ierr)
+
+      call DMGetGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
+
+      ! Dump Cell Ownership
+      call PetscObjectSetName(gVec, 'ownership_cells', ierr);call CHKERR(ierr)
+      call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+      xv(:) = myid*one
+      call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string, ierr); call CHKERR(ierr)
+
+      ! Dump Face Ownership
+      call PetscObjectSetName(gVec, 'ownership_non_local_faces', ierr);call CHKERR(ierr)
+
+      call DMPlexGetHeightStratum(owner_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+      call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+      do icell = cStart, cEnd-1
+        call PetscSectionGetOffset(sec, icell, voff, ierr); call CHKERR(ierr)
+        xv(i1+voff) = zero
+        call DMPlexGetCone(owner_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+        do i=1,size(faces_of_cell)
+          call PetscFindInt(faces_of_cell(i), nleaves, myidx, idx, ierr); call CHKERR(ierr)
+          if(idx.ge.i0) then ! not a local element
+            xv(i1+voff) = xv(i1+voff) + i1
+          endif
+        enddo
+      enddo
+      call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string, ierr); call CHKERR(ierr)
+
+      call DMRestoreGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
+      call PetscSectionDestroy(sec, ierr); call CHKERR(ierr)
+      call DMDestroy(owner_dm, ierr); call CHKERR(ierr)
+    end subroutine
+
     ! Create a 2D Torus grid with Nx vertices horizontally and Ny rows of Vertices vertically
     subroutine create_2d_fish_plex(dm, Nx, Ny, lcyclic)
       type(tDM) :: dm, dmdist
@@ -440,8 +624,11 @@ module m_icon_plex_utils
         print *,'vStart,End :: ',vStart, vEnd
       endif
 
+      ! True True is edges and vertices
+      ! True False
       call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
       call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
+      !call DMPlexSetAdjacencyUseClosure(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
 
       call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
       if(dmdist.ne.PETSC_NULL_DM) then
