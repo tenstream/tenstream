@@ -363,8 +363,9 @@ module m_plex_grid
         real(ireals), pointer :: xv(:)
         type(tIS) :: boundary_ids
         integer(iintegers), pointer :: xbndry_iface(:)
+        integer(iintegers) :: fStart, fEnd
         integer(iintegers) :: i, iface, voff, lv
-        integer(mpiint) :: myid, ierr
+        integer(mpiint) :: comm, myid, ierr
 
         call DMCreateLabel(dm, "DomainBoundary", ierr); call CHKERR(ierr)
         call DMGetLabel(dm, "DomainBoundary", domainboundarylabel, ierr); call CHKERR(ierr)
@@ -374,11 +375,12 @@ module m_plex_grid
         call DMPlexMarkBoundaryFaces(dm, i1, boundarylabel, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_Boundary_DM', ierr); call CHKERR(ierr)
 
-        call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
+        call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
         call DMClone(dm, facedm, ierr); call CHKERR(ierr)
 
-        call create_plex_section(plex%comm, facedm, 'Face Section', i1, [i0], [i1], [i0], [i0], facesection)  ! Contains 1 dof on each side
+        call create_plex_section(comm, facedm, 'Face Section', i1, [i0], [i1], [i0], [i0], facesection)  ! Contains 1 dof on each side
         call DMSetDefaultSection(facedm, facesection, ierr); call CHKERR(ierr)
         call PetscSectionDestroy(facesection, ierr); call CHKERR(ierr)
         call DMGetDefaultSection(facedm, facesection, ierr); call CHKERR(ierr)
@@ -410,8 +412,10 @@ module m_plex_grid
         call DMGlobalToLocalBegin(facedm, gVec, INSERT_VALUES, lVec, ierr); call CHKERR(ierr)
         call DMGlobalToLocalEnd  (facedm, gVec, INSERT_VALUES, lVec, ierr); call CHKERR(ierr)
 
+        call DMPlexGetDepthStratum (facedm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
+
         call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
-        do iface = plex%fStart, plex%fEnd-1
+        do iface = fStart, fEnd-1
           call PetscSectionGetOffset(facesection, iface, voff, ierr); call CHKERR(ierr)
           if(int(xv(i1+voff), iintegers) .eq. i1) then ! if the additive val is not 2 it must be at the domain edge
             if(plex%ltopfacepos(iface)) then
@@ -1068,10 +1072,10 @@ module m_plex_grid
     sum_vdof = sum(vdof)
 
     call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
-    call DMPlexGetHeightStratum(dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
-    call DMPlexGetHeightStratum(dm, i1, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
-    call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
-    call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+    call DMPlexGetDepthStratum(dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+    call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
+    call DMPlexGetDepthStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
+    call DMPlexGetDepthStratum(dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
     ! Create Default Section
     call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
