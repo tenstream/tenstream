@@ -98,6 +98,8 @@ module m_icon_plex_utils
         type(PetscSFNode),allocatable :: iremote_elements(:)
         type(PetscCopyMode),parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
 
+        integer(iintegers), target :: empty_list(0)
+
         integer(iintegers) :: i, k, voff, ileaf, owner
         integer(iintegers), parameter :: idx_offset=0
 
@@ -109,6 +111,7 @@ module m_icon_plex_utils
         call PetscObjectViewFromOptions(sf2d, PETSC_NULL_SF, "-show_plex_sf2d", ierr); call CHKERR(ierr)
 
         call PetscSFGetGraph(sf2d, nroots2d, nleaves2d, myidx, remote, ierr); call CHKERR(ierr)
+        if(nroots2d.eq.-i1) myidx => empty_list
         call PetscSortIntWithArrayPair(nleaves2d, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
 
         call create_plex_section(comm, dmsf2d, 'plex_2d_to_3d_sf_graph_info', i1, &
@@ -164,7 +167,7 @@ module m_icon_plex_utils
         call DMGlobalToLocalEnd(dmsf2d, gVec, INSERT_VALUES, lVec, ierr); call CHKERR(ierr)
 
         nroots3d = chartsize
-        nleaves3d = nleaves2d * (ke+ke1)
+        nleaves3d = max(i0, nleaves2d * (ke+ke1))
         allocate(ilocal_elements(nleaves3d))
         allocate(iremote_elements(nleaves3d))
 
