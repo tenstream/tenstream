@@ -109,6 +109,7 @@ module m_icon_plex_utils
         call PetscObjectViewFromOptions(sf2d, PETSC_NULL_SF, "-show_plex_sf2d", ierr); call CHKERR(ierr)
 
         call PetscSFGetGraph(sf2d, nroots2d, nleaves2d, myidx, remote, ierr); call CHKERR(ierr)
+        call PetscSortIntWithArrayPair(nleaves2d, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
 
         call create_plex_section(comm, dmsf2d, 'plex_2d_to_3d_sf_graph_info', i1, &
           [i0], [i0], [ke1+ke], [ke1+ke], section_2d_to_3d)
@@ -513,6 +514,7 @@ module m_icon_plex_utils
 
       call DMGetPointSF(owner_dm, sf, ierr); call CHKERR(ierr)
       call PetscSFGetGraph(sf, nroots, nleaves, myidx, remote, ierr); call CHKERR(ierr)
+      call PetscSortIntWithArrayPair(nleaves, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
 
       call create_plex_section(comm, owner_dm, 'dmplex_ownership info', i1, &
         [i1], [i0], [i0], [i0], sec)
@@ -544,6 +546,7 @@ module m_icon_plex_utils
         enddo
       enddo
       call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+
       call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string, ierr); call CHKERR(ierr)
 
       call DMRestoreGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
