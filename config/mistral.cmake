@@ -1,24 +1,24 @@
 # Mistral supercomputer at DKRZ Hamburg
 # modules loaded:
 
-# module add intel/16.0.2 mxm/3.3.3002 fca/2.5.2393 bullxmpi_mlx/bullxmpi_mlx-1.2.8.3
+# module add intel/17.0.2 intelmpi/2017.3.196
 #
-# export OMPI_MCA_pml=cm         # sets the point-to-point management layer
-# export OMPI_MCA_mtl=mxm        # sets the matching transport layer (MPI-2 one-sided comm.)
-# export MXM_RDMA_PORTS=mlx5_0:1
-# export OMPI_MCA_coll=^ghc             # disable BULLs GHC algorithm for collectives
-# export OMPI_MCA_coll_fca_priority=95
-# export OMPI_MCA_coll_fca_enable=1
-#
-# export MPIMODE=bullxmpi
-# export MYmpif90=mpif90
-# export MYmpicc=mpicc
-# export MYmpicxx=mpicxx
-#
+# export I_MPI_FABRICS=shm:dapl
+# export I_MPI_FALLBACK=disable
+# export I_MPI_SLURM_EXT=1
+# export I_MPI_DYNAMIC_CONNECTION=1
+# export I_MPI_CHECK_DAPL_PROVIDER_COMPATIBILITY=0
+# export I_MPI_HARD_FINALIZE=1
+# 
+# export MPIMODE=impi
+# export MYmpif90=mpiifort
+# export MYmpicc=mpiicc
+# export MYmpicxx=mpiicpc
+# 
 # # NETCDF LIBPATH
-# export NETCDFCROOT=/sw/rhel6-x64/netcdf/netcdf_c-4.3.2-parallel-$MPIMODE-intel14/
-# export NETCDFFROOT=/sw/rhel6-x64/netcdf/netcdf_fortran-4.4.2-parallel-$MPIMODE-intel14/
-# export HDF5ROOT=/sw/rhel6-x64/hdf5/hdf5-1.8.14-parallel-$MPIMODE-intel14/
+# export NETCDFCROOT=/sw/rhel6-x64/netcdf/netcdf_c-4.4.1.1-parallel-$MPIMODE-intel14/
+# export NETCDFFROOT=/sw/rhel6-x64/netcdf/netcdf_fortran-4.4.3-parallel-$MPIMODE-intel14/
+# export HDF5ROOT=/sw/rhel6-x64/hdf5/hdf5-1.8.18-parallel-$MPIMODE-intel14/
 # export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$NETCDFFROOT/lib:$NETCDFCROOT/lib:
 # export PATH=$PATH:$NETCDFFROOT/bin:$NETCDFCROOT/bin
 # 
