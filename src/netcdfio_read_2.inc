@@ -22,6 +22,6 @@
 
   100 continue
   if(ldebug) print *,'Reading Netcdf file returned with ierr: ',ierr
-  call release_file_lock(flock_unit, ierr); call CHKERR(ierr, 'Could not release file lock')
+  call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release file lock')
 
   return
