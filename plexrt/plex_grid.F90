@@ -1071,22 +1071,29 @@ module m_plex_grid
     sum_edof = sum(edof)
     sum_vdof = sum(vdof)
 
+    call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
     call DMPlexGetDepth(dm, depth, ierr); call CHKERR(ierr)
 
     call DMPlexGetDepthStratum(dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
     call DMPlexGetDepthStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
     call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
     call DMPlexGetDepthStratum(dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+    !print *,'vStart, vEnd,', vStart, vEnd
+    !print *,'eStart, eEnd,', eStart, eEnd
+    !print *,'fStart, fEnd,', fStart, fEnd
+    !print *,'cStart, cEnd,', cStart, cEnd
 
-    if(sum_cdof.gt.i0) pEnd = cEnd
-    if(sum_fdof.gt.i0) pEnd = fEnd
-    if(sum_edof.gt.i0) pEnd = eEnd
-    if(sum_vdof.gt.i0) pEnd = vEnd
+    pEnd = pStart
+    if(sum_cdof.gt.i0) pEnd = max(pEnd, cEnd)
+    if(sum_fdof.gt.i0) pEnd = max(pEnd, fEnd)
+    if(sum_edof.gt.i0) pEnd = max(pEnd, eEnd)
+    if(sum_vdof.gt.i0) pEnd = max(pEnd, vEnd)
 
-    if(sum_vdof.gt.i0) pStart = vStart
-    if(sum_edof.gt.i0) pStart = eStart
-    if(sum_fdof.gt.i0) pStart = fStart
-    if(sum_cdof.gt.i0) pStart = cStart
+    pStart = pEnd
+    if(sum_vdof.gt.i0) pStart = min(pStart, vStart)
+    if(sum_edof.gt.i0) pStart = min(pStart, eStart)
+    if(sum_fdof.gt.i0) pStart = min(pStart, fStart)
+    if(sum_cdof.gt.i0) pStart = min(pStart, cStart)
 
     if(depth.lt.i1) &
       call CHKERR(int(sum_edof, mpiint), 'DMPlex does not have edges in the stratum.. cant create section')
