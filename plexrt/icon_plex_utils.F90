@@ -75,6 +75,7 @@ module m_icon_plex_utils
 
       call set_coords(dm2d, dm3d)
 
+      call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, "-show_iconplex_3d", ierr); call CHKERR(ierr)
     contains
       subroutine set_sf_graph(dm2d, dm3d)
         type(tDM), intent(in) :: dm2d
