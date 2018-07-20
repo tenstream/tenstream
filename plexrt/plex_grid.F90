@@ -1071,7 +1071,6 @@ module m_plex_grid
     sum_edof = sum(edof)
     sum_vdof = sum(vdof)
 
-    call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
     call DMPlexGetDepth(dm, depth, ierr); call CHKERR(ierr)
 
     call DMPlexGetDepthStratum(dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
@@ -1079,8 +1078,6 @@ module m_plex_grid
     call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
     call DMPlexGetDepthStratum(dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
 
-    call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
-    call PetscSectionSetNumFields(section, numfields, ierr); call CHKERR(ierr)
     if(sum_cdof.gt.i0) pEnd = cEnd
     if(sum_fdof.gt.i0) pEnd = fEnd
     if(sum_edof.gt.i0) pEnd = eEnd
@@ -1090,8 +1087,6 @@ module m_plex_grid
     if(sum_edof.gt.i0) pStart = eStart
     if(sum_fdof.gt.i0) pStart = fStart
     if(sum_cdof.gt.i0) pStart = cStart
-
-    call PetscSectionSetChart(section, pStart, pEnd, ierr); call CHKERR(ierr)
 
     if(depth.lt.i1) &
       call CHKERR(int(sum_edof, mpiint), 'DMPlex does not have edges in the stratum.. cant create section')
