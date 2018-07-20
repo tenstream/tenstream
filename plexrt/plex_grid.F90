@@ -1055,7 +1055,7 @@ module m_plex_grid
     type(tPetscSection), intent(out) :: section
     character(len=*), intent(in), optional :: fieldnames(:)
 
-    integer(iintegers)    :: i, ifield, section_size, sum_cdof, sum_fdof, sum_edof, sum_vdof
+    integer(iintegers) :: i, depth, ifield, section_size, sum_cdof, sum_fdof, sum_edof, sum_vdof
 
     integer(iintegers) :: pStart, pEnd
     integer(iintegers) :: cStart, cEnd
@@ -1072,10 +1072,35 @@ module m_plex_grid
     sum_vdof = sum(vdof)
 
     call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
-    call DMPlexGetDepthStratum(dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
-    call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces / edges
-    call DMPlexGetDepthStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
+    call DMPlexGetDepth(dm, depth, ierr); call CHKERR(ierr)
+
     call DMPlexGetDepthStratum(dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+    call DMPlexGetDepthStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
+    call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+    call DMPlexGetDepthStratum(dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+
+    call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
+    call PetscSectionSetNumFields(section, numfields, ierr); call CHKERR(ierr)
+    if(sum_cdof.gt.i0) pEnd = cEnd
+    if(sum_fdof.gt.i0) pEnd = fEnd
+    if(sum_edof.gt.i0) pEnd = eEnd
+    if(sum_vdof.gt.i0) pEnd = vEnd
+
+    if(sum_vdof.gt.i0) pStart = vStart
+    if(sum_edof.gt.i0) pStart = eStart
+    if(sum_fdof.gt.i0) pStart = fStart
+    if(sum_cdof.gt.i0) pStart = cStart
+
+    call PetscSectionSetChart(section, pStart, pEnd, ierr); call CHKERR(ierr)
+
+    if(depth.lt.i1) &
+      call CHKERR(int(sum_edof, mpiint), 'DMPlex does not have edges in the stratum.. cant create section')
+
+    if(depth.lt.i2) &
+      call CHKERR(int(sum_fdof, mpiint), 'DMPlex does not have faces in the stratum.. cant create section')
+
+    if(depth.lt.i3) &
+      call CHKERR(int(sum_cdof, mpiint), 'DMPlex does not have cells in the stratum.. cant create section')
 
     ! Create Default Section
     call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
@@ -1083,7 +1108,7 @@ module m_plex_grid
     call PetscSectionSetChart(section, pStart, pEnd, ierr); call CHKERR(ierr)
 
     if(sum_cdof.gt.i0) then
-      do i = cStart, cEnd-1
+      do i = cStart, cEnd-i1
         call PetscSectionSetDof(section, i, sum_cdof, ierr); call CHKERR(ierr)
         do ifield = 1, numfields
           call PetscSectionSetFieldDof(section, i, ifield-1, cdof(ifield), ierr); call CHKERR(ierr)
@@ -1091,7 +1116,7 @@ module m_plex_grid
       enddo
     endif
     if(sum_fdof.gt.i0) then
-      do i = fStart, fEnd-1
+      do i = fStart, fEnd-i1
         call PetscSectionSetDof(section, i, sum_fdof, ierr); call CHKERR(ierr)
         do ifield = 1, numfields
           call PetscSectionSetFieldDof(section, i, ifield-1, fdof(ifield), ierr); call CHKERR(ierr)
@@ -1099,7 +1124,7 @@ module m_plex_grid
       enddo
     endif
     if(sum_edof.gt.i0) then
-      do i = eStart, eEnd-1
+      do i = eStart, eEnd-i1
         call PetscSectionSetDof(section, i, sum_edof, ierr); call CHKERR(ierr)
         do ifield = 1, numfields
           call PetscSectionSetFieldDof(section, i, ifield-1, edof(ifield), ierr); call CHKERR(ierr)
@@ -1107,7 +1132,7 @@ module m_plex_grid
       enddo
     endif
     if(sum_vdof.gt.i0) then
-      do i = vStart, vEnd-1
+      do i = vStart, vEnd-i1
         call PetscSectionSetDof(section, i, sum_vdof, ierr); call CHKERR(ierr)
         do ifield = 1, numfields
           call PetscSectionSetFieldDof(section, i, ifield-1, vdof(ifield), ierr); call CHKERR(ierr)
