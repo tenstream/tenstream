@@ -26,6 +26,7 @@ module m_gen_fish_plex
       real(ireals), parameter :: hhl(2) = [zero, one]
       integer(mpiint) :: myid, numnodes
       integer(iintegers) :: Nx, Ny
+      logical :: lcyclic
       PetscBool :: lflg
 
       call PetscInitialize(PETSC_NULL_CHARACTER,ierr); CHKERRQ(ierr)
@@ -37,11 +38,13 @@ module m_gen_fish_plex
       if(lflg.eqv.PETSC_FALSE) Nx = 2
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg,ierr) ; call CHKERR(ierr)
       if(lflg.eqv.PETSC_FALSE) Ny = 3
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-cyclic", lcyclic, lflg,ierr) ; call CHKERR(ierr)
+      if(lflg.eqv.PETSC_FALSE) lcyclic = .False.
 
       call mpi_comm_rank(PETSC_COMM_WORLD, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(PETSC_COMM_WORLD, numnodes, ierr); call CHKERR(ierr)
 
-      call create_2d_fish_plex(dm2d, Nx, Ny, .False.)
+      call create_2d_fish_plex(dm2d, Nx, Ny, lcyclic)
       call dmplex_2D_to_3D(dm2d, hhl, dm3d)
 
       call PetscObjectViewFromOptions(dm2d, PETSC_NULL_VEC, "-default_option_show_plex", ierr); call CHKERR(ierr)
