@@ -48,9 +48,6 @@ module m_icon_plex_utils
       Nfaces2d = f2dEnd - f2dStart
       Nedges2d = e2dEnd - e2dStart
       Nverts2d = v2dEnd - v2dStart
-      print *,'Nfaces2d', Nfaces2d
-      print *,'Nedges2d', Nedges2d
-      print *,'Nverts2d', Nverts2d
 
       Ncells = Nfaces2d * ke
       Nfaces = Nfaces2d * ke1 + Nedges2d * ke
@@ -59,11 +56,17 @@ module m_icon_plex_utils
 
       chartsize = Ncells + Nfaces + Nedges + Nverts
 
-      print *,'Ncells', Ncells
-      print *,'Nfaces', Nfaces
-      print *,'Nedges', Nedges
-      print *,'Nverts', Nverts
-      print *,'Chartsize', chartsize
+      if(ldebug) then
+        print *,'Nfaces2d', Nfaces2d
+        print *,'Nedges2d', Nedges2d
+        print *,'Nverts2d', Nverts2d
+
+        print *,'Ncells3d', Ncells
+        print *,'Nfaces3d', Nfaces
+        print *,'Nedges3d', Nedges
+        print *,'Nverts3d', Nverts
+        print *,'Chartsize3d', chartsize
+      endif
 
       call DMPlexCreate(comm, dm3d, ierr); call CHKERR(ierr)
       call DMSetDimension(dm3d, i3, ierr); call CHKERR(ierr)
@@ -583,7 +586,7 @@ module m_icon_plex_utils
       call DMSetDimension(dm, i2, ierr); call CHKERR(ierr)
 
       if(modulo(Nx,i2).ne.0) call CHKERR(1_mpiint, 'Nx has to be even, e.g. 2,4,6...')
-      if(modulo(Ny,i2).eq.0) call CHKERR(1_mpiint, 'Nx has to be uneven, e.g. 3,5...')
+      if(modulo(Ny,i2).eq.0) call CHKERR(1_mpiint, 'Ny has to be uneven, e.g. 3,5...')
 
       if(myid.eq.0) then
         if(lcyclic) then

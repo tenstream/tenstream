@@ -1078,10 +1078,6 @@ module m_plex_grid
     call DMPlexGetDepthStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
     call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
     call DMPlexGetDepthStratum(dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
-    !print *,'vStart, vEnd,', vStart, vEnd
-    !print *,'eStart, eEnd,', eStart, eEnd
-    !print *,'fStart, fEnd,', fStart, fEnd
-    !print *,'cStart, cEnd,', cStart, cEnd
 
     pEnd = pStart
     if(sum_cdof.gt.i0) pEnd = max(pEnd, cEnd)
