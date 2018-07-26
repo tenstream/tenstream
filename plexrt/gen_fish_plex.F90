@@ -24,6 +24,7 @@ module m_gen_fish_plex
         & -default_option_show_plex3d hdf5:fish3d.h5'
 
       real(ireals), parameter :: hhl(2) = [zero, one]
+      integer(iintegers), allocatable :: zindex(:)
       integer(mpiint) :: myid, numnodes
       integer(iintegers) :: Nx, Ny
       logical :: lcyclic
@@ -45,13 +46,13 @@ module m_gen_fish_plex
       call mpi_comm_size(PETSC_COMM_WORLD, numnodes, ierr); call CHKERR(ierr)
 
       call create_2d_fish_plex(dm2d, Nx, Ny, lcyclic)
-      call dmplex_2D_to_3D(dm2d, hhl, dm3d)
+      call dmplex_2D_to_3D(dm2d, hhl, dm3d, zindex)
 
-      call PetscObjectViewFromOptions(dm2d, PETSC_NULL_VEC, "-default_option_show_plex", ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(dm2d, PETSC_NULL_VEC, "-show_plex", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(dm2d, PETSC_NULL_DM, "-default_option_show_plex", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(dm2d, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-      call PetscObjectViewFromOptions(dm3d, PETSC_NULL_VEC, "-default_option_show_plex3d", ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(dm3d, PETSC_NULL_VEC, "-show_plex3d", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, "-default_option_show_plex3d", ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, "-show_plex3d", ierr); call CHKERR(ierr)
 
       call dump_ownership(dm3d, '-show_plex3d_ownership')
 
