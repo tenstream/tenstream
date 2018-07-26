@@ -545,9 +545,10 @@ module m_icon_plex_utils
       end function
     end subroutine
 
-    subroutine dump_ownership(dm, cmd_string)
+    subroutine dump_ownership(dm, cmd_string_dump_ownership, cmd_string_dump_plex)
       type(tDM), intent(in) :: dm
-      character(len=*), intent(in) :: cmd_string
+      character(len=*), intent(in) :: cmd_string_dump_ownership
+      character(len=*), intent(in), optional :: cmd_string_dump_plex
 
       type(tPetscSF) :: sf
       integer(iintegers) :: nroots, nleaves
@@ -570,6 +571,9 @@ module m_icon_plex_utils
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call DMClone(dm, owner_dm, ierr); call CHKERR(ierr)
+      if(present(cmd_string_dump_plex)) then
+        call PetscObjectViewFromOptions(owner_dm, PETSC_NULL_DM, cmd_string_dump_plex, ierr); call CHKERR(ierr)
+      endif
 
       call DMGetPointSF(owner_dm, sf, ierr); call CHKERR(ierr)
       call PetscSFGetGraph(sf, nroots, nleaves, pmyidx, premote, ierr); call CHKERR(ierr)
@@ -595,11 +599,10 @@ module m_icon_plex_utils
       call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
       xv(:) = myid*one
       call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string_dump_ownership, ierr); call CHKERR(ierr)
 
       ! Dump Face Ownership
       call PetscObjectSetName(gVec, 'ownership_non_local_faces', ierr);call CHKERR(ierr)
-
       call DMPlexGetHeightStratum(owner_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
       call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
       do icell = cStart, cEnd-1
@@ -614,8 +617,15 @@ module m_icon_plex_utils
         enddo
       enddo
       call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string_dump_ownership, ierr); call CHKERR(ierr)
 
-      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string, ierr); call CHKERR(ierr)
+      ! Dump Sum of cell Ownership
+      call PetscObjectSetName(gVec, 'ownership_sum_cells', ierr);call CHKERR(ierr)
+      call DMPlexGetHeightStratum(owner_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+      call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+      xv(:) = cEnd-cStart-i1
+      call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string_dump_ownership, ierr); call CHKERR(ierr)
 
       call DMRestoreGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
       call DMDestroy(owner_dm, ierr); call CHKERR(ierr)
