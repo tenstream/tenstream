@@ -200,9 +200,9 @@ module m_netcdfIO
       lockfile = trim(get_arg(trim(fname)//'.lock', lock_fname))
       lblocking = get_arg(.True., blocking)
       maxwait = get_arg(120, waittime)
-      winterval = get_arg(.5_ireals, waitinterval
+      winterval = get_arg(.5_ireals, waitinterval)
 
-      do iwait=1,int(maxwait/waitinterval)
+      do iwait=1,int(maxwait/winterval)
         open(newunit=flock_unit,file=lockfile,status='new',err=99)
         write(flock_unit,*) 'file is locked by process: ',get_pid_macro()
         ierr = 0
@@ -210,7 +210,7 @@ module m_netcdfIO
 
         99 continue
         if(lblocking) then
-          call cpusleep(waitinterval)
+          call cpusleep(winterval)
         endif
       enddo
       ierr = iwait
