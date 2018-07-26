@@ -871,16 +871,17 @@ module m_icon_plex_utils
                 cone2(1) = Nfaces + Nedges + j*vert_per_row + i
                 cone2(2) = Nfaces + Nedges + j*vert_per_row + i + i1
               else ! sideward edge
-                if(modulo(i+j,i2).eq.0) then ! slash
+                if(modulo((i-Nx/2)+j,i2).eq.0) then ! slash
                   cone2(1) = Nfaces + Nedges + j*vert_per_row + (i-Nx/2)/2
                   cone2(2) = Nfaces + Nedges + (j+1)*vert_per_row + (i-Nx/2)/2 + modulo(j,i2)
+                  if(ldebug) print *,k,'edge',ioff,':',i,j,'s',(i-Nx/2)/2,'cone',cone2
                 else ! backslash
                   cone2(1) = Nfaces + Nedges + j*vert_per_row + (i+i1-Nx/2)/2
                   cone2(2) = Nfaces + Nedges + (j+1)*vert_per_row + (i-i1-Nx/2)/2 + modulo(j,i2)
+                  if(ldebug) print *,k,'edge',ioff,':',i,j,'b',(i+i1-Nx/2)/2,'cone',cone2
                 endif
               endif
             !endif
-            if(ldebug) print *,k,'edge',ioff,':',i,j,'cone',cone2
             call DMPlexSetCone(dm,  ioff, cone2, ierr); call CHKERR(ierr)
             ioff = ioff + 1
           enddo
