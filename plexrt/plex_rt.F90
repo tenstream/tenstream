@@ -16,7 +16,8 @@ module m_plex_rt
 
   use m_plex_grid, only: t_plexgrid, compute_face_geometry, setup_edir_dmplex, setup_abso_dmplex, &
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, get_inward_face_normal, &
-    facevec2cellvec, icell_icon_2_plex, iface_top_icon_2_plex, &
+    facevec2cellvec, icell_icon_2_plex, iface_top_icon_2_plex, get_vertical_cell_idx, &
+    get_top_bot_face_of_cell, &
     TOAFACE, BOTFACE, SIDEFACE
 
   use m_optprop, only : t_optprop, t_optprop_wedge_5_8
@@ -94,20 +95,22 @@ module m_plex_rt
       real(ireals) :: ksca_tot, kabs_tot, g_tot
       real(ireals) :: ksca_cld, kabs_cld, g_cld
 
-      integer(iintegers) :: i
+      integer(iintegers) :: i, cStart, cEnd
       integer(mpiint) :: myid, ierr
 
       if(.not.allocated(solver)) call CHKERR(1_mpiint, 'set_plex_rt_optprop::solver has to be allocated')
       if(.not.allocated(solver%plex)) call CHKERR(1_mpiint, 'set_plex_rt_optprop::solver%plex has to be allocated')
       call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
 
-      if(.not.allocated(solver%optprop)) allocate(solver%optprop(solver%plex%cStart:solver%plex%cEnd-1))
+      call DMPlexGetDepthStratum(solver%plex%dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+
+      if(.not.allocated(solver%optprop)) allocate(solver%optprop(cStart:cEnd-1))
       associate( optprop => solver%optprop )
 
       if(present(vlwc)) call VecGetArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
       if(present(viwc)) call VecGetArrayReadF90(viwc, xiwc, ierr); call CHKERR(ierr)
 
-      do i = 1,size(optprop)
+      do i = cStart, cEnd-1
         kabs_tot = rayleigh*(one-w0)
         ksca_tot = rayleigh*w0
         g_tot    = zero
@@ -132,10 +135,10 @@ module m_plex_rt
           ksca_tot = ksca_tot + ksca_cld
         endif
 
-        optprop(i-1)%kabs = kabs_tot
-        optprop(i-1)%ksca = ksca_tot
-        optprop(i-1)%g    = g_tot
-        call delta_scale(optprop(i-1)%kabs, optprop(i-1)%ksca, optprop(i-1)%g)
+        optprop(i)%kabs = kabs_tot
+        optprop(i)%ksca = ksca_tot
+        optprop(i)%g    = g_tot
+        call delta_scale(optprop(i)%kabs, optprop(i)%ksca, optprop(i)%g)
       enddo
 
       if(present(vlwc)) call VecRestoreArrayReadF90(vlwc, xlwc, ierr); call CHKERR(ierr)
@@ -354,7 +357,9 @@ module m_plex_rt
       call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
       if(ldebug .and. myid.eq.0) print *,myid,'plex_rt::create_src_vec....finished'
-      if(ldebug) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+      if(ldebug) then
+        call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
+      endif
     end subroutine
 
     subroutine compute_lambert_beer(plex, itopcell, E0, sundir, optprop, lambertVec)
@@ -367,7 +372,8 @@ module m_plex_rt
       type(tPetscSection) :: s
       real(ireals), pointer :: xv(:) ! vertical entries are the direct radiation flux through the tilted plane
       integer(iintegers), pointer :: faces_of_cell(:)
-      integer(iintegers) :: i, iconcell, icell, iface_side, iface_top, iface_bot, k, voff
+      integer(iintegers) :: i, icell, iface_side, iface_top, iface_bot, k, voff
+      integer(iintegers), allocatable :: cell_idx(:)
 
       type(tPetscSection) :: geomSection
       real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
@@ -385,12 +391,14 @@ module m_plex_rt
       call DMGetDefaultSection(plex%edir_dm, s, ierr); call CHKERR(ierr)
       call VecGetArrayF90(lambertVec, xv, ierr); call CHKERR(ierr)
 
-      iconcell = plex%localiconindex(itopcell)
-      k = plex%zindex(itopcell)
+      call get_vertical_cell_idx(plex%geom_dm, itopcell, plex%Nz-i1, cell_idx)
+      print *,'itopcell', itopcell, 'cell_idx', cell_idx
 
-      iface_top = iface_top_icon_2_plex(plex, iconcell, k)
+      call get_top_bot_face_of_cell(plex%edir_dm, itopcell, iface_top, iface_bot)
 
       call get_inward_face_normal(iface_top, itopcell, geomSection, geoms, face_normal_top)
+      call get_inward_face_normal(iface_bot, itopcell, geomSection, geoms, face_normal)
+      print *,'iface_top, iface_bot', iface_top, iface_bot,'normal_top', face_normal_top,'normal_bot',face_normal
 
       if(is_solar_src(face_normal_top, sundir)) then ! if sun actually shines on top of the column
         mu_top = dot_product(sundir, face_normal_top)
@@ -400,23 +408,20 @@ module m_plex_rt
         !call PetscSectionGetOffset(s, iface_top, voff, ierr); call CHKERR(ierr)
         !xv(voff+1) = E0 * mu_top
 
-        do k = 1, plex%Nz
-          iface_top = iface_top_icon_2_plex(plex, iconcell, k)
-          iface_bot = iface_top_icon_2_plex(plex, iconcell, k+1)
-
-          icell = icell_icon_2_plex(plex, iconcell, k)
+        do k = 1, plex%Nz-1
+          icell = cell_idx(k)
+          call get_top_bot_face_of_cell(plex%edir_dm, icell, iface_top, iface_bot)
 
           call get_inward_face_normal(iface_top, icell, geomSection, geoms, face_normal_top)
-          call get_inward_face_normal(iface_bot, icell, geomSection, geoms, face_normal)
 
           if(.not.is_solar_src(-face_normal, sundir)) cycle ! if the bot face is not sunlit... we dont allow the sun to shine from below
 
           call PetscSectionGetOffset(s, iface_top, voff, ierr); call CHKERR(ierr)
 
           !mu_top = dot_product(sundir, face_normal_top)
-          dz = plex%hhl(k) - plex%hhl(k+1)
+          dz = abs(plex%hhl(k) - plex%hhl(k+1))
           kext = (optprop(icell)%kabs + optprop(icell)%ksca)
-          !print *,'k',k,'tau increment', icell, optprop(icell)%kabs , optprop(icell)%ksca , dz , ':', dtau, '->', dtau + kext * dz
+          print *,'k',k,'tau increment', icell, optprop(icell)%kabs , optprop(icell)%ksca , dz , ':', dtau, '->', dtau + kext * dz
 
           call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
@@ -441,7 +446,7 @@ module m_plex_rt
 
                 call PetscSectionGetOffset(s, iface_side, voff, ierr); call CHKERR(ierr)
                 xv(voff+i1) = E0 * transport * area * mu_top * mu_side
-                !print *,'solar_src', iface_side, E0, dtau, transport, mu_side, area, '->', E0 * transport * mu_side, xv(voff+i1)
+                print *,'solar_src', iface_side, E0, dtau, transport, mu_side, area, '->', E0 * transport * mu_side, xv(voff+i1)
               endif
             endif
           enddo
@@ -668,7 +673,7 @@ module m_plex_rt
     type(t_opticalprops), allocatable, intent(in) :: optprop(:)
     type(tMat), intent(out) :: A
 
-    type(tPetscSection) :: sec
+    type(tPetscSection) :: sec, edirglobsection
 
     integer(mpiint) :: myid, ierr
 
@@ -701,6 +706,12 @@ module m_plex_rt
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
     if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...'
 
+    if(.not.allocated(plex%edir_dm)) call CHKERR(1_mpiint, 'edir_dm has to allocated in order to create an Edir Matrix')
+
+    call DMGetDefaultGlobalSection(plex%edir_dm, edirglobsection, ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(edirglobSection, PETSC_NULL_SECTION, '-show_edir_glob_section', ierr); call CHKERR(ierr)
+
+
     call DMGetDefaultSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
@@ -708,6 +719,7 @@ module m_plex_rt
     call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
     call DMGetDefaultSection(plex%edir_dm, sec, ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(sec, PETSC_NULL_SECTION, '-show_edir_loc_section', ierr); call CHKERR(ierr)
 
     call DMCreateMatrix(plex%edir_dm, A, ierr); call CHKERR(ierr)
     !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
