@@ -117,8 +117,10 @@ module m_icon_plex_utils
         type(tVec) :: lVec, gVec
         real(ireals), pointer :: xv(:)
 
-        integer(iintegers), pointer :: myidx(:) ! list of my indices that we do not own
-        type(PetscSFNode), pointer  :: remote(:) ! rank and remote idx of those points
+        integer(iintegers), pointer :: pmyidx(:) ! list of my indices that we do not own
+        type(PetscSFNode), pointer  :: premote(:) ! rank and remote idx of those points
+        integer(iintegers), allocatable :: myidx(:)
+        type(PetscSFNode), allocatable :: remote(:)
         integer(iintegers) :: nroots2d   ! number of root vertices on the current process (possible targets for leaves)
         integer(iintegers) :: nleaves2d  ! number of leaf vertices on the current process, references roots on any process
         integer(iintegers) :: nroots3d, nleaves3d
@@ -138,8 +140,15 @@ module m_icon_plex_utils
         call DMGetPointSF(dmsf2d, sf2d, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(sf2d, PETSC_NULL_SF, "-show_plex_sf2d", ierr); call CHKERR(ierr)
 
-        call PetscSFGetGraph(sf2d, nroots2d, nleaves2d, myidx, remote, ierr); call CHKERR(ierr)
-        if(nroots2d.eq.-i1) myidx => empty_list
+        call PetscSFGetGraph(sf2d, nroots2d, nleaves2d, pmyidx, premote, ierr); call CHKERR(ierr)
+        if(nroots2d.eq.-i1) then
+          allocate(myidx(0))
+          allocate(remote(0))
+        else
+          allocate(myidx(nleaves2d), source=pmyidx)
+          allocate(remote(nleaves2d), source=premote)
+        endif
+        pmyidx => NULL(); premote=>NULL()
         call PetscSortIntWithArrayPair(nleaves2d, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
 
         call create_plex_section(dmsf2d, 'plex_2d_to_3d_sf_graph_info', i1, &
