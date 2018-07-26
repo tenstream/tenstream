@@ -34,7 +34,8 @@ module m_helper_functions
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum
+    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, &
+    resize_arr
 
   interface itoa
     module procedure itoa_i4, itoa_i8
@@ -59,6 +60,10 @@ module m_helper_functions
   interface cumprod
     module procedure cumprod_iintegers, cumprod_ireals
   end interface
+  interface resize_arr
+    module procedure resize_arr_int32, resize_arr_int64
+  end interface
+
 
   integer(iintegers), parameter :: npar_cumprod=8
   contains
@@ -166,6 +171,24 @@ module m_helper_functions
       cross_2d = a(1) * b(2) - a(2) * b(1)
     end function cross_2d
 
+    subroutine resize_arr_int32(N, arr)
+      integer(INT32), intent(in) :: N
+      integer(INT32), allocatable, intent(inout) :: arr(:)
+      integer(INT32), allocatable :: tmp(:)
+      if(size(arr).eq.N) return
+      allocate(tmp(lbound(arr,1):lbound(arr,1)+N-1))
+      tmp(:) = arr(1:N)
+      call move_alloc(tmp, arr)
+    end subroutine
+    subroutine resize_arr_int64(N, arr)
+      integer(INT64), intent(in) :: N
+      integer(INT64), allocatable, intent(inout) :: arr(:)
+      integer(INT64), allocatable :: tmp(:)
+      if(size(arr).eq.N) return
+      allocate(tmp(lbound(arr,1):lbound(arr,1)+N-1))
+      tmp(:) = arr(1:N)
+      call move_alloc(tmp, arr)
+    end subroutine
 
     elemental function deg2rad(deg)
       real(ireals) :: deg2rad
