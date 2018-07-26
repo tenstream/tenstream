@@ -182,23 +182,25 @@ module m_netcdfIO
 #endif
     end function
 
-    subroutine acquire_file_lock(fname, flock_unit, ierr, lock_fname, blocking, waittime)
+    subroutine acquire_file_lock(fname, flock_unit, ierr, lock_fname, blocking, waittime, waitinterval)
       character(len=*), intent(in) :: fname
       integer(mpiint), intent(out) :: flock_unit, ierr
 
       character(len=*), intent(in), optional :: lock_fname
-      logical, intent(in), optional :: blocking
-      integer(mpiint), intent(in), optional :: waittime
+      logical, intent(in), optional :: blocking          ! if the call blocks until we get the lock or return immediately
+      integer(mpiint), intent(in), optional :: waittime  ! if blocking, wait fopr waittime seconds before exiting with error
+      real(ireals), intent(in), optional :: waitinterval ! amount of cpu time to wait before trying anew in seconds
 
       logical :: lblocking
       character(len=default_str_len+5) :: lockfile
 
-      real(ireals),parameter :: waitinterval=.1 ! amount of cpu time to wait before trying anew in seconds
       integer(mpiint) :: iwait, maxwait
+      real(ireals) :: winterval
 
       lockfile = trim(get_arg(trim(fname)//'.lock', lock_fname))
       lblocking = get_arg(.True., blocking)
       maxwait = get_arg(120, waittime)
+      winterval = get_arg(.5_ireals, waitinterval
 
       do iwait=1,int(maxwait/waitinterval)
         open(newunit=flock_unit,file=lockfile,status='new',err=99)
