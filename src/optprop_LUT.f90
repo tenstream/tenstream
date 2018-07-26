@@ -39,14 +39,13 @@ module m_optprop_LUT
     interp_mode_wedge_5_8,                &
     ldelta_scale,delta_scale_truncate,    &
     stddev_atol, stddev_rtol,             &
-    !preset_aspect10, preset_aspect21,     &
+    preset_g2, preset_g3,                 &
+    preset_aspect13,                      &
     preset_aspect23,                      &
-    preset_g1, preset_g3,                 &
-    !preset_tau10, preset_w08,             &
-    !preset_tau15,                         &
-    !preset_tau21, preset_w015,            &
+    preset_w010,                          &
     preset_w020,                          &
-    preset_tau31, preset_w010,            &
+    preset_tau15,                         &
+    preset_tau31,                         &
     OPP_LUT_ALL_ANGLES
 
   use m_boxmc, only: t_boxmc, &
@@ -351,10 +350,11 @@ subroutine write_pspace(fname, config)
   type(t_lut_config), intent(in) :: config
   character(len=default_str_len) :: groups(4)
 
-  integer(iintegers) :: kdim
+  integer(iintegers) :: kdim, i
   integer(mpiint) :: ierr
   real(ireals), allocatable :: existing_values(:)
 
+  if(ldebug) print *,'write_pspace...'
   groups(1) = trim(fname)
   groups(2) = 'pspace'
 
@@ -371,7 +371,8 @@ subroutine write_pspace(fname, config)
         call CHKERR(1_mpiint, 'Dimensions of LUT and in optprop_parameters definition do not match!')
       endif
     else ! Otherwise, just save the current ones
-      if(ldebug) print *,kdim,'Writing pspace for ',trim(groups(1)),':',trim(groups(2)),':',trim(groups(3))
+      if(ldebug) print *,kdim,'Writing pspace for ',trim(groups(1)),':', trim(groups(2)), &
+        ':',trim(groups(3)), trim(groups(4)), '::', config%dims(kdim)%v 
       call ncwrite(groups, config%dims(kdim)%v, ierr); call CHKERR(ierr)
     endif
 
@@ -379,13 +380,16 @@ subroutine write_pspace(fname, config)
     if(allocated(existing_values)) deallocate(existing_values)
     call ncload(groups, existing_values, ierr)
     if(ierr.eq.0) then
-      if(.not.all(approx(existing_values, config%dims(kdim)%vrange))) then
+      if(.not.all(approx(existing_values, config%dims(kdim)%vrange, sqrt(epsilon(one))*10))) then
         call CHKERR(1_mpiint, 'Range of dimensions of LUT and in optprop_parameters definition do not match!')
       endif
     else ! Otherwise, just save the current ones
+      if(ldebug) print *,kdim,'Writing pspace for ',trim(groups(1)),':', trim(groups(2)), &
+        ':',trim(groups(3)), trim(groups(4)), '::', config%dims(kdim)%vrange
       call ncwrite(groups, config%dims(kdim)%vrange, ierr); call CHKERR(ierr)
     endif
   enddo
+  if(ldebug) print *,'write_pspace... done'
 end subroutine
 
 subroutine createLUT(OPP, comm, config, S, T)
@@ -899,11 +903,11 @@ subroutine set_parameter_space(OPP)
       class is (t_optprop_LUT_wedge_5_8)
           OPP%interp_mode = interp_mode_wedge_5_8
           allocate(OPP%dirconfig%dims(7))
-          call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
-          call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
+          call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
+          call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect13,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect13)
           call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], ireals))
-          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%dirconfig%dims(5), vrange=real([.8, .95], ireals))
+          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%dirconfig%dims(5), vrange=real([.8, .93], ireals))
           call populate_LUT_dim('phi',       15_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], ireals))
           call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], ireals))
 !          call populate_LUT_dim('tau',       i2, OPP%dirconfig%dims(1), vrange=real([1e-3,1.], ireals))
@@ -916,11 +920,11 @@ subroutine set_parameter_space(OPP)
 !          call populate_LUT_dim('theta',     i3, OPP%dirconfig%dims(8), vrange=real([0,20], ireals))
 
           allocate(OPP%diffconfig%dims(5))
-          call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
-          call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
+          call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau15)
+          call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w010)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect13,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect13)
           call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], ireals))
-          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .95], ireals))
+          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .93], ireals))
           !call populate_LUT_dim('tau',       i2, OPP%diffconfig%dims(1), vrange=real([1e-3,1.], ireals))
           !call populate_LUT_dim('w0',        i2, OPP%diffconfig%dims(2), vrange=real([.1,.999], ireals))
           !call populate_LUT_dim('g',         i2, OPP%diffconfig%dims(3), vrange=real([0.,.5], ireals))

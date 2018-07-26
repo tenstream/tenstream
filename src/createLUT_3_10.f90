@@ -29,21 +29,21 @@ program main
       use m_tenstream_options, only : read_commandline_options
 
       integer(mpiint) :: myid,comm
+      integer :: ierr
 
       type(t_optprop_LUT_3_10) :: OPP
 
-      PetscErrorCode :: ierr
 
       call mpi_init(ierr)
+      if(ierr.ne.0) print *,'error in mpi_init', ierr
       comm = MPI_COMM_WORLD
-      call mpi_comm_rank(comm,myid,ierr)
-      call PetscInitialize(PETSC_NULL_CHARACTER ,ierr) ;call CHKERR(ierr)
-
-      call init_mpi_data_parameters(MPI_COMM_WORLD)
+      call init_mpi_data_parameters(comm)
+      call mpi_comm_rank(comm,myid,ierr); call CHKERR(ierr)
 
       call read_commandline_options(comm)
 
       call OPP%init(comm)
 
       call mpi_finalize(ierr)
+      if(ierr.ne.0) print *,'error in mpi_finalize', ierr
 end program
