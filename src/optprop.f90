@@ -180,13 +180,13 @@ contains
 
         if(present(angles)) then ! obviously we want the direct coefficients
           if(dir) then ! dir2dir
-            call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, g, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
+            call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
           else         ! dir2diff
-            call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, g, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
+            call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
           endif
         else
           ! diff2diff
-          call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, g, aspect_zx, C_pnt(1), C_pnt(2)], C)
+          call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2)], C)
         endif
 
       case default

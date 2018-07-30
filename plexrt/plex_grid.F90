@@ -1346,12 +1346,14 @@ module m_plex_grid
       face_center = geoms(geom_offset+i1: geom_offset+i3)
       face_normal = geoms(geom_offset+i4: geom_offset+i6)
 
-      face_normal = face_normal * &
-          real(determine_normal_direction(face_normal, face_center, cell_center), ireals)
+      n = determine_normal_direction(face_normal, face_center, cell_center)
+
+      face_normal = face_normal * real(n, ireals)
     end subroutine
 
 
-  !> @brief create a vector that holds all the wedge orientation ordering information as well as zenith and azimuth angles
+  !> @brief create a vector that holds all the wedge orientation ordering information
+  !> as well as zenith and azimuth angles
   !> , i.e. in short, everything that we need to know to translate between DMPlex face ordering and the LUT's
   subroutine compute_wedge_orientation(plex, sundir, wedge_orientation_dm, wedge_orientation)
     type(t_plexgrid), intent(in) :: plex
@@ -1435,7 +1437,6 @@ module m_plex_grid
 
     call PetscObjectViewFromOptions(wedge_orientation, PETSC_NULL_VEC, '-show_WedgeOrient', ierr); call CHKERR(ierr)
   end subroutine
-
 
   subroutine compute_local_vertex_coordinates(plex, upperface, baseface, leftface, rightface, local_coords)
     type(t_plexgrid), intent(in) :: plex
@@ -2031,7 +2032,7 @@ module m_plex_grid
           if(any(neigh_cells(i).eq.idx(max(i1,[k-i1, k-i2])))) cycle ! already have this neigh cell in index set
           if(ldebug) then
             if(k.gt.idx_maxsize) call CHKERR(int(k, mpiint), 'found more cells than we space to store in idx('//itoa(idx_maxsize)//')')
-            print *,'Adding new cell ', neigh_cells(i), '=>', idx
+            !print *,'Adding new cell ', neigh_cells(i), '=>', idx
           endif
           idx(k) = neigh_cells(i)
           k = k+1
@@ -2043,7 +2044,7 @@ module m_plex_grid
       enddo
       call resize_arr(k-1, idx)
       !call PetscSortInt(k-1, idx, ierr); call CHKERR(ierr)
-      print *,'cell idx in column of cell',startcell,':',idx
+      !print *,'cell idx in column of cell',startcell,':',idx
     end subroutine
 
     function neighboring_cells_of_cell(dm, icell)
@@ -2189,6 +2190,5 @@ module m_plex_grid
 
       deallocate(vertex_coord)
       call VecRestoreArrayReadF90(coordinates, coords, ierr); call CHKERR(ierr)
-
     end subroutine
 end module

@@ -88,7 +88,8 @@ logical, parameter :: ldebug=.True.
       call compute_face_geometry(solver%plex, solver%plex%geom_dm)
       first_normal = get_normal_of_first_TOA_face(solver%plex)
       sundir = first_normal + [zero, .001_ireals, zero]
-      sundir = -[0.238434, -0.406052, 0.882197]
+      !sundir = -[0.688915, -0.422213, 0.589179]
+      !sundir = -[-0.003132140126484546, -0.9198186384401722, 0.3923313167162367]
       !!sundir = -[0.677688, 0.0758756, 0.731425]
       !!sundir = -[0.826811, 0.0269913, 0.561832]
       !!sundir = -[0.775165, 0.0535335, 0.629487] ! sza 10deg

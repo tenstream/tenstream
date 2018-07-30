@@ -67,6 +67,8 @@ module m_plex_rt
     subroutine init_plex_rt_solver(plex, solver)
       type(t_plexgrid), intent(in) :: plex
       type(t_plex_solver), allocatable, intent(inout) :: solver
+      logical :: lskip_load_LUT, lflg
+      integer(mpiint) :: ierr
 
       call read_commandline_options(plex%comm)
 
@@ -82,7 +84,11 @@ module m_plex_rt
       !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], real([0, 5, 10, 15],ireals), plex%comm)
       !call solver%OPP%init([real(OPP_LUT_ALL_ANGLES, kind=ireals)], real([0],ireals), plex%comm)
 
-      call solver%OPP%init(plex%comm)
+      lskip_load_LUT = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
+      if(.not.lskip_load_LUT) then
+        call solver%OPP%init(plex%comm)
+      endif
     end subroutine
 
     subroutine set_plex_rt_optprop(solver, vlwc, viwc)
@@ -179,9 +185,11 @@ module m_plex_rt
 
       if(solution%lsolar_rad) then
         call orient_face_normals_along_sundir(solver%plex, sundir)
-        call compute_wedge_orientation(solver%plex, sundir, solver%plex%wedge_orientation_dm, solver%plex%wedge_orientation)
+        call compute_wedge_orientation(solver%plex, sundir, solver%plex%wedge_orientation_dm, &
+                                       solver%plex%wedge_orientation)
         ! Output of wedge_orient vec
-        call create_edir_src_vec(solver%plex, solver%plex%edir_dm, norm(sundir), solver%optprop, sundir/norm(sundir), solver%incSolar)
+        call create_edir_src_vec(solver%plex, solver%plex%edir_dm, norm(sundir), &
+                                 solver%optprop, sundir/norm(sundir), solver%incSolar)
 
         ! Output of srcVec
         if(ldebug) then
@@ -190,14 +198,15 @@ module m_plex_rt
           call scale_facevec(solver%plex, solver%plex%edir_dm, solver%incSolar, lW_to_Wm2=.False.)
         endif
 
-        !return!DEBUG
+        ! call CHKERR(1_mpiint,'DEBUG')
         ! Create Direct Matrix
         call create_edir_mat(solver%plex, solver%OPP, solver%optprop, solver%Mdir)
 
         ! Solve Direct Matrix
         call solve_plex_rt(solver%plex, solver%incSolar, solver%Mdir, solution%edir)
         call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, '-show_edir_vec_global', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
+                                        '-show_edir_vec_global', ierr); call CHKERR(ierr)
         solution%lWm2_dir = .False.
 
         ! Output of Edir
@@ -334,11 +343,13 @@ module m_plex_rt
           call DMPlexGetSupport(edirdm, iface, cell_support, ierr); CHKERRQ(ierr) ! support of face is cell
           icell = cell_support(1)
           call DMPlexRestoreSupport(edirdm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+          !print *,'Face', iface, 'is SIDEFACE cell:',icell
 
           call get_inward_face_normal(iface, icell, geomSection, geoms, face_normal)
 
           if(is_solar_src(face_normal, sundir)) then
             call PetscSectionGetOffset(s, iface, voff, ierr); call CHKERR(ierr)
+            !print *,'Face', iface, 'and Solar SOURCE', xlambert(voff+i1)
             xv(i1+voff) = xlambert(voff+i1)
           endif
         endif
@@ -392,36 +403,38 @@ module m_plex_rt
       call VecGetArrayF90(lambertVec, xv, ierr); call CHKERR(ierr)
 
       call get_vertical_cell_idx(plex%geom_dm, itopcell, plex%Nz-i1, cell_idx)
-      print *,'itopcell', itopcell, 'cell_idx', cell_idx
+      !print *,''
+      !print *,'----------------------------------------------'
+      !print *,'itopcell', itopcell, 'cell_idx', cell_idx
 
       call get_top_bot_face_of_cell(plex%edir_dm, itopcell, iface_top, iface_bot)
 
       call get_inward_face_normal(iface_top, itopcell, geomSection, geoms, face_normal_top)
       call get_inward_face_normal(iface_bot, itopcell, geomSection, geoms, face_normal)
-      print *,'iface_top, iface_bot', iface_top, iface_bot,'normal_top', face_normal_top,'normal_bot',face_normal
+      !print *,'iface_top, iface_bot', iface_top, iface_bot,'normal_top', face_normal_top,'normal_bot',face_normal
 
       if(is_solar_src(face_normal_top, sundir)) then ! if sun actually shines on top of the column
         mu_top = dot_product(sundir, face_normal_top)
 
         dtau = zero
 
-        !call PetscSectionGetOffset(s, iface_top, voff, ierr); call CHKERR(ierr)
-        !xv(voff+1) = E0 * mu_top
-
-        do k = 1, plex%Nz-1
+        do k = 1, size(cell_idx)
           icell = cell_idx(k)
           call get_top_bot_face_of_cell(plex%edir_dm, icell, iface_top, iface_bot)
 
           call get_inward_face_normal(iface_top, icell, geomSection, geoms, face_normal_top)
+          call get_inward_face_normal(iface_bot, icell, geomSection, geoms, face_normal)
 
-          if(.not.is_solar_src(-face_normal, sundir)) cycle ! if the bot face is not sunlit... we dont allow the sun to shine from below
+          if(.not.is_solar_src(-face_normal, sundir)) then
+            cycle ! if the bot face is not sunlit... we dont allow the sun to shine from below
+          endif
 
           call PetscSectionGetOffset(s, iface_top, voff, ierr); call CHKERR(ierr)
 
-          !mu_top = dot_product(sundir, face_normal_top)
           dz = abs(plex%hhl(k) - plex%hhl(k+1))
           kext = (optprop(icell)%kabs + optprop(icell)%ksca)
-          print *,'k',k,'tau increment', icell, optprop(icell)%kabs , optprop(icell)%ksca , dz , ':', dtau, '->', dtau + kext * dz
+          !print *,'k',k,'tau increment', icell, optprop(icell)%kabs , optprop(icell)%ksca , dz, &
+          !        '->', dtau + kext * dz
 
           call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
@@ -831,6 +844,7 @@ module m_plex_rt
     real(ireals),intent(in),optional  :: angles(2)
 
     real(ireals) :: aspect, tauz, w0, dx, relcoords(6)
+    integer, parameter :: iC1=4, iC2=5
 
     dx = wedge_coords(3)
 
@@ -849,10 +863,10 @@ module m_plex_rt
     w0 = max(OPP%OPP_LUT%diffconfig%dims(2)%vrange(1), &
       min(OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), w0))
 
-    relcoords(5) = max(OPP%OPP_LUT%diffconfig%dims(5)%vrange(1), &
-      min(OPP%OPP_LUT%diffconfig%dims(5)%vrange(2), relcoords(5)))
-    relcoords(6) = max(OPP%OPP_LUT%diffconfig%dims(6)%vrange(1), &
-      min(OPP%OPP_LUT%diffconfig%dims(6)%vrange(2), relcoords(6)))
+    !relcoords(5) = max(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(1), &
+    !               min(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(2), relcoords(5)))
+    !relcoords(6) = max(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(1), &
+    !               min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6)))
 
     !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
     call OPP%get_coeff(tauz, w0, g, aspect, ldir, coeff, angles=angles, wedge_coords=relcoords)

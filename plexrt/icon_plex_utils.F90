@@ -14,8 +14,8 @@ module m_icon_plex_utils
   private
   public :: dmplex_2D_to_3D, create_2d_fish_plex, dump_ownership
 
-  logical, parameter :: ldebug=.True.
-  !logical, parameter :: ldebug=.False.
+  !logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug=.False.
 
   contains
 
@@ -322,14 +322,14 @@ module m_icon_plex_utils
             faces(2) = iface_top_icon_2_plex(i, k+1)
 
             call DMPlexGetCone(dm2d, i, cone, ierr); call CHKERR(ierr) ! edges of face
-            if(ldebug) print *,'iface2d', i, 'has edges', cone
+            !if(ldebug) print *,'iface2d', i, 'has edges', cone
             do j=1,size(cone)
               faces(2+j) = iface_side_icon_2_plex(cone(j), k)
             enddo
             call DMPlexRestoreCone(dm2d, i, cone, ierr); call CHKERR(ierr)
 
             call DMPlexSetCone(dm3d, icell, faces, ierr); call CHKERR(ierr)
-            if(ldebug) print *,'icell',icell,'has faces:',faces
+            !if(ldebug) print *,'icell',icell,'has faces:',faces
             zindex(icell) = k+1
           enddo
         enddo
@@ -346,7 +346,7 @@ module m_icon_plex_utils
             call DMPlexRestoreCone(dm2d, i, cone, ierr); call CHKERR(ierr)
 
             call DMPlexSetCone(dm3d, iface, edge3, ierr); call CHKERR(ierr)
-            if(ldebug) print *,'iface2d', i, 'iface3d', iface, 'gets edges3', edge3
+            !if(ldebug) print *,'iface2d', i, 'iface3d', iface, 'gets edges3', edge3
             zindex(iface) = k+1
           enddo
         enddo
@@ -363,7 +363,7 @@ module m_icon_plex_utils
             do j=1,size(cone)
               edge4(2+j) = iedge_side_icon_2_plex(cone(j), k)
             enddo
-            if(ldebug) print *,'below_edge2d', iedge, 'iface3d', iface, 'gets edges', edge4, 'cone',cone
+            !if(ldebug) print *,'below_edge2d', iedge, 'iface3d', iface, 'gets edges', edge4, 'cone',cone
             call DMPlexRestoreCone(dm2d, iedge, cone, ierr); call CHKERR(ierr)
             call DMPlexSetCone(dm3d, iface, edge4, ierr); call CHKERR(ierr)
             zindex(iface) = k+1
@@ -380,7 +380,7 @@ module m_icon_plex_utils
             enddo
             call DMPlexRestoreCone(dm2d, iedge, cone, ierr); call CHKERR(ierr)
             iedge = iedge_top_icon_2_plex(iedge, k)
-            if(ldebug) print *,'iedge', iedge, 'gets verts', vert2
+            !if(ldebug) print *,'iedge', iedge, 'gets verts', vert2
             call DMPlexSetCone(dm3d, iedge, vert2, ierr); call CHKERR(ierr)
             zindex(iedge) = k+1
           enddo
@@ -394,7 +394,7 @@ module m_icon_plex_utils
             vert2(1) = ivertex_icon_2_plex(ivert, k)
             vert2(2) = ivertex_icon_2_plex(ivert, k+1)
 
-            if(ldebug) print *,'edge', iedge, 'gets verts', vert2
+            !if(ldebug) print *,'edge', iedge, 'gets verts', vert2
             call DMPlexSetCone(dm3d, iedge, vert2, ierr); call CHKERR(ierr)
             zindex(iedge) = k+1
           enddo
@@ -433,9 +433,13 @@ module m_icon_plex_utils
         real(ireals) :: distance, inv_distance
         integer(mpiint) :: ierr
         integer(iintegers) :: i, k, ivertex
+        logical :: lpolar, lflg
 
         call DMPlexGetDepthStratum (dm3d, i0, v3dStart, v3dEnd, ierr); call CHKERR(ierr) ! 3D vertices
         call DMPlexGetDepthStratum (dm2d, i0, v2dStart, v2dEnd, ierr); call CHKERR(ierr) ! 2D vertices
+
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-polar_coords', lpolar, lflg, ierr); call CHKERR(ierr)
+        if(.not.lflg) lpolar=.True.
 
         ! Create Coordinate stuff for 3D DM
         call DMGetCoordinateSection(dm3d, coordSection3d, ierr); call CHKERR(ierr)
@@ -467,20 +471,31 @@ module m_icon_plex_utils
         call DMGetCoordinatesLocal(dm2d, vec_coord2d, ierr); call CHKERR(ierr)
         call VecGetArrayReadF90(vec_coord2d, coords2d, ierr); call CHKERR(ierr)
 
-        do i = v2dStart, v2dEnd-1
-          call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
-          distance = norm(coords2d(voff2d+i1 : voff2d+i3))
-          inv_distance = one / distance
-          do k = 0, ke1-1
-            ivertex = ivertex_icon_2_plex(i, k)
-            call PetscSectionGetOffset(coordSection3d, ivertex, voff3d, ierr); call CHKERR(ierr)
-            coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) * (distance + hhl(i1+k)) * inv_distance
-            if(ldebug) print *,'Setting coord for 2d', i, '3d vert', ivertex,':', &
-              coords2d(voff2d+1:voff2d+3), '=>', &
-              coords3d(voff3d+1:voff3d+3), &
-              '(',(distance + hhl(k+1)) * inv_distance,')'
+        if(lpolar) then
+          do i = v2dStart, v2dEnd-1
+            call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
+            distance = norm(coords2d(voff2d+i1 : voff2d+i3))
+            inv_distance = one / distance
+            do k = 0, ke1-1
+              ivertex = ivertex_icon_2_plex(i, k)
+              call PetscSectionGetOffset(coordSection3d, ivertex, voff3d, ierr); call CHKERR(ierr)
+              coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) * (distance + hhl(i1+k)) * inv_distance
+              if(ldebug) print *,'Setting coord for 2d', i, '3d vert', ivertex,':', &
+                coords2d(voff2d+1:voff2d+3), '=>', &
+                coords3d(voff3d+1:voff3d+3), &
+                '(',(distance + hhl(k+1)) * inv_distance,')'
+            enddo
           enddo
-        enddo
+        else
+          do i = v2dStart, v2dEnd-1
+            call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
+            do k = 0, ke1-1
+              ivertex = ivertex_icon_2_plex(i, k)
+              call PetscSectionGetOffset(coordSection3d, ivertex, voff3d, ierr); call CHKERR(ierr)
+              coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) + [zero, zero, hhl(i1+k)]
+            enddo
+          enddo
+        endif
 
         call VecRestoreArrayReadF90(vec_coord2d, coords2d, ierr); call CHKERR(ierr)
         call VecRestoreArrayF90(vec_coord3d, coords3d, ierr); call CHKERR(ierr)
@@ -653,7 +668,7 @@ module m_icon_plex_utils
 
       integer(mpiint) :: myid, numnodes, ierr
 
-      logical, parameter :: ldebug=.True., lfromcelllist=.False.
+      logical, parameter :: lfromcelllist=.False.
 
       call mpi_comm_rank(PETSC_COMM_WORLD, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(PETSC_COMM_WORLD, numnodes, ierr); call CHKERR(ierr)
@@ -810,19 +825,19 @@ module m_icon_plex_utils
           do k = 0, Nfaces-1
             j = k / Nx ! row of faces
             i = k - j*Nx ! col of faces
-            print *,'faces',k,': i,j', i, j
+            !print *,'faces',k,': i,j', i, j
 
             ! determine edges of a face
             if(modulo(i+modulo(j,i2),i2).eq.0) then ! this has a bot edge
                 cone3(1) = Nfaces + j*edge_per_row + i/2           ! Nfaces offset + number of edges of full height + number of edges of half heights + i offset
                 cone3(2) = Nfaces + j*edge_per_row + base_edges_per_row + i      ! left edge  ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
                 cone3(3) = Nfaces + j*edge_per_row + base_edges_per_row + i +1   ! right edge ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
-              if(ldebug) print *,'upward edge of face', ioff, ':', cone3
+              !if(ldebug) print *,'upward edge of face', ioff, ':', cone3
             else
                 cone3(1) = Nfaces + (j+1)*edge_per_row + i/2
                 cone3(2) = Nfaces + j*edge_per_row + base_edges_per_row + i
                 cone3(3) = Nfaces + j*edge_per_row + base_edges_per_row + i +1
-              if(ldebug) print *,'downward edge of face', ioff, ':', i, j,':', cone3
+              !if(ldebug) print *,'downward edge of face', ioff, ':', i, j,':', cone3
             endif
 
             call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
@@ -835,17 +850,17 @@ module m_icon_plex_utils
               if(i.lt.Nx/2) then ! bottom edge
                 cone2(1) = Nfaces + Nedges + j*vert_per_row + i
                 cone2(2) = Nfaces + Nedges + j*vert_per_row + i + i1
-                if(ldebug) print *,k,'- edge',ioff,':',i,j,'            cone',cone2
+                !if(ldebug) print *,k,'- edge',ioff,':',i,j,'            cone',cone2
               else ! sideward edge
                 l = i - Nx/2 ! index for vertical edges, i.e. edges that bridge rows
                 if(modulo(l+j,i2).eq.0) then ! slash
                   cone2(1) = Nfaces + Nedges + j*vert_per_row + l/2
                   cone2(2) = Nfaces + Nedges + (j+1)*vert_per_row + (l+1)/2
-                  if(ldebug) print *,k,'s edge',ioff,':',i,j,l,'cone',cone2
+                  !if(ldebug) print *,k,'s edge',ioff,':',i,j,l,'cone',cone2
                 else ! backslash
                   cone2(1) = Nfaces + Nedges + j*vert_per_row + (l+1)/2
                   cone2(2) = Nfaces + Nedges + (j+1)*vert_per_row + l/2
-                  if(ldebug) print *,k,'b edge',ioff,':',i,j,l,'cone',cone2
+                  !if(ldebug) print *,k,'b edge',ioff,':',i,j,l,'cone',cone2
                 endif
               endif
             call DMPlexSetCone(dm,  ioff, cone2, ierr); call CHKERR(ierr)
@@ -908,7 +923,7 @@ module m_icon_plex_utils
               z = 100
             x = (real(modulo(j,i2),ireals)*.5_ireals + real(i, ireals))*dx
             y = j*ds
-            if(ldebug) print *,'iv',iv,':', i, j,'=>', x, y, z
+            !if(ldebug) print *,'iv',iv,':', i, j,'=>', x, y, z
 
             call PetscSectionGetOffset(coordSection, iv, voff, ierr); coords(voff+1:voff+3) = [x, y, z]
           enddo
