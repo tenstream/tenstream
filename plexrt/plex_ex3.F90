@@ -35,11 +35,10 @@ logical, parameter :: ldebug=.True.
 
   contains
 
-    subroutine plex_ex3(comm, Nx, Ny, Nz, dz, lcyclic)
+    subroutine plex_ex3(comm, Nx, Ny, Nz, dz)
       MPI_Comm, intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny, Nz
       real(ireals), intent(in) :: dz
-      logical, intent(in) :: lcyclic
 
       type(tDM) :: dm2d, dm3d
       real(ireals) :: hhl(Nz)
@@ -59,7 +58,7 @@ logical, parameter :: ldebug=.True.
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call create_2d_fish_plex(dm2d, Nx, Ny, lcyclic)
+      call create_2d_fish_plex(dm2d, Nx, Ny)
 
       hhl(1) = zero
       do k=2,Nz
@@ -113,7 +112,7 @@ logical, parameter :: ldebug=.True.
     implicit none
 
     character(len=default_str_len) :: outfile
-    logical :: lflg, lcyclic
+    logical :: lflg
     integer(mpiint) :: ierr
     character(len=10*default_str_len) :: default_options
     integer(iintegers) :: Nx, Ny, Nz
@@ -136,8 +135,6 @@ logical, parameter :: ldebug=.True.
     if(lflg.eqv.PETSC_FALSE) Nz = 2
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dz", dz, lflg,ierr) ; call CHKERR(ierr)
     if(lflg.eqv.PETSC_FALSE) dz = one/Nz
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-cyclic", lcyclic, lflg,ierr) ; call CHKERR(ierr)
-    if(lflg.eqv.PETSC_FALSE) lcyclic = .False.
 
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
@@ -158,7 +155,7 @@ logical, parameter :: ldebug=.True.
     print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
-    call plex_ex3(PETSC_COMM_WORLD, Nx, Ny, Nz, dz, lcyclic)
+    call plex_ex3(PETSC_COMM_WORLD, Nx, Ny, Nz, dz)
 
     call mpi_barrier(PETSC_COMM_WORLD, ierr)
     call PetscFinalize(ierr)

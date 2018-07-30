@@ -350,7 +350,7 @@ subroutine write_pspace(fname, config)
   type(t_lut_config), intent(in) :: config
   character(len=default_str_len) :: groups(4)
 
-  integer(iintegers) :: kdim, i
+  integer(iintegers) :: kdim
   integer(mpiint) :: ierr
   real(ireals), allocatable :: existing_values(:)
 
@@ -372,7 +372,7 @@ subroutine write_pspace(fname, config)
       endif
     else ! Otherwise, just save the current ones
       if(ldebug) print *,kdim,'Writing pspace for ',trim(groups(1)),':', trim(groups(2)), &
-        ':',trim(groups(3)), trim(groups(4)), '::', config%dims(kdim)%v 
+        ':',trim(groups(3)), trim(groups(4)), '::', config%dims(kdim)%v
       call ncwrite(groups, config%dims(kdim)%v, ierr); call CHKERR(ierr)
     endif
 

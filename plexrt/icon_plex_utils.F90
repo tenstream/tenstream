@@ -35,8 +35,6 @@ module m_icon_plex_utils
       integer(iintegers) :: Ncells, Nfaces, Nedges, Nverts
       integer(mpiint) :: comm, ierr
 
-      type(tPetscSection) :: sec
-
       ke1 = size(hhl)
       ke = ke1-1
 
@@ -100,8 +98,8 @@ module m_icon_plex_utils
         call DMSetDefaultSection(dm, sec, ierr); call CHKERR(ierr)
         call PetscSectionDestroy(sec, ierr); call CHKERR(ierr)
 
-
         call DMCreateMatrix(dm, A, ierr); call CHKERR(ierr)
+        call MatDestroy(A, ierr); call CHKERR(ierr)
       end subroutine
 
       subroutine set_sf_graph(dm2d, dm3d)
@@ -127,8 +125,6 @@ module m_icon_plex_utils
         integer(iintegers),allocatable :: ilocal_elements(:)
         type(PetscSFNode),allocatable :: iremote_elements(:)
         type(PetscCopyMode),parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
-
-        integer(iintegers), target :: empty_list(0)
 
         integer(iintegers) :: i, k, voff, ileaf, owner
         integer(iintegers), parameter :: idx_offset=0
@@ -350,7 +346,7 @@ module m_icon_plex_utils
             call DMPlexRestoreCone(dm2d, i, cone, ierr); call CHKERR(ierr)
 
             call DMPlexSetCone(dm3d, iface, edge3, ierr); call CHKERR(ierr)
-            if(ldebug) print *,'iface', iface, 'gets edges', edge3
+            if(ldebug) print *,'iface2d', i, 'iface3d', iface, 'gets edges3', edge3
             zindex(iface) = k+1
           enddo
         enddo
@@ -367,8 +363,8 @@ module m_icon_plex_utils
             do j=1,size(cone)
               edge4(2+j) = iedge_side_icon_2_plex(cone(j), k)
             enddo
+            if(ldebug) print *,'below_edge2d', iedge, 'iface3d', iface, 'gets edges', edge4, 'cone',cone
             call DMPlexRestoreCone(dm2d, iedge, cone, ierr); call CHKERR(ierr)
-            if(ldebug) print *,'iface', iface, 'gets edges', edge4
             call DMPlexSetCone(dm3d, iface, edge4, ierr); call CHKERR(ierr)
             zindex(iface) = k+1
           enddo
@@ -641,11 +637,10 @@ module m_icon_plex_utils
     end subroutine
 
     ! Create a 2D Torus grid with Nx vertices horizontally and Ny rows of Vertices vertically
-    subroutine create_2d_fish_plex(dm, Nx, Ny, lcyclic)
+    subroutine create_2d_fish_plex(dm, Nx, Ny)
       type(tDM), intent(inout) :: dm
       type(tDM) :: dmdist
       integer(iintegers), intent(in) :: Nx, Ny
-      logical, intent(in) :: lcyclic
 
       integer(iintegers) :: chartsize, Nfaces, Nedges, Nvertices
       integer(iintegers), allocatable :: cellslist(:)
@@ -667,16 +662,9 @@ module m_icon_plex_utils
       if(modulo(Ny,i2).eq.0) call CHKERR(1_mpiint, 'Ny has to be uneven, e.g. 3,5...')
 
       if(myid.eq.0) then
-        if(lcyclic) then
-          Nfaces = Nx * (Ny-1)                ! Number of faces
-          Nedges = (Nx-1) * (Ny-1)            ! Number of edges on full height (y = 0, ...)
-          Nedges = Nedges + (Nx*2-2) * (Ny-1) ! Number of edges on half height (y = {} + .5)
-          Nvertices = (Nx-1) * (Ny-1)         ! Number of vertices
-        else
           Nfaces = Nx * (Ny-1)                ! Number of faces
           Nvertices = (Nx/2+1) * Ny           ! Number of vertices
           Nedges = Nvertices + Nfaces - 1
-        endif
       else
         Nfaces = 0
         Nedges = 0
@@ -689,7 +677,7 @@ module m_icon_plex_utils
       endif
 
       if(lfromcelllist) then
-        call gen_cellslist_array(Nx, Ny, Nfaces, Nvertices, cellslist, vertexCoords)
+        call gen_cellslist_array(Nx, Nfaces, Nvertices, cellslist, vertexCoords)
         print *,Nfaces, Nvertices, 'cells',cellslist,'vcord',vertexCoords
         call DMPlexCreateFromCellList(PETSC_COMM_WORLD, i2, Nfaces, Nvertices, &
                           i3, PETSC_TRUE, cellslist, i3, vertexCoords, dm, ierr); call CHKERR(ierr)
@@ -701,12 +689,12 @@ module m_icon_plex_utils
         chartsize = Nfaces + Nedges + Nvertices
         call DMPlexSetChart(dm, i0, chartsize, ierr); call CHKERR(ierr)
 
-        call set_wedge_connectivity(dm, Nx, Ny, Nfaces, Nedges, lcyclic)
+        call set_wedge_connectivity(dm, Nx, Nfaces, Nedges)
 
         call DMPlexSymmetrize(dm, ierr); CHKERRQ(ierr)
         call DMPlexStratify(dm, ierr); CHKERRQ(ierr)
 
-        call set_coords_serial(dm, Nx, lcyclic)
+        call set_coords_serial(dm, Nx)
       endif
       call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_2d_fish", ierr); call CHKERR(ierr)
 
@@ -747,8 +735,8 @@ module m_icon_plex_utils
       !call CHKERR(1_mpiint, 'DEBUG')
 
       contains
-        subroutine gen_cellslist_array(Nx, Ny, Nfaces, Nverts, cellslist, vertexCoords)
-          integer(iintegers), intent(in) :: Nx, Ny, Nfaces, Nverts
+        subroutine gen_cellslist_array(Nx, Nfaces, Nverts, cellslist, vertexCoords)
+          integer(iintegers), intent(in) :: Nx, Nfaces, Nverts
           integer(iintegers), allocatable, intent(out) :: cellslist(:)
           double precision, allocatable, intent(out) :: vertexCoords(:)
 
@@ -792,16 +780,16 @@ module m_icon_plex_utils
           endif
         end subroutine
 
-        subroutine set_wedge_connectivity(dm, Nx, Ny, Nfaces, Nedges, lcyclic)
+        subroutine set_wedge_connectivity(dm, Nx, Nfaces, Nedges)
           type(tDM) :: dm
-          integer(iintegers) :: Nx, Ny, Nfaces, Nedges
-          logical, intent(in) :: lcyclic
+          integer(iintegers) :: Nx, Nfaces, Nedges
 
-          integer(iintegers) :: k, i, j, ioff, cone3(3), cone2(2)
-          integer(iintegers) :: vert_per_row, edge_per_row
+          integer(iintegers) :: k, i, j, l, ioff, cone3(3), cone2(2)
+          integer(iintegers) :: vert_per_row, edge_per_row, base_edges_per_row
 
           vert_per_row = Nx/2 + 1
-          edge_per_row = Nx/2 + (Nx + 1)
+          base_edges_per_row = Nx/2
+          edge_per_row = base_edges_per_row + (Nx + 1)
 
           ! Preallocation
           ! Faces have 3 edges
@@ -822,33 +810,18 @@ module m_icon_plex_utils
           do k = 0, Nfaces-1
             j = k / Nx ! row of faces
             i = k - j*Nx ! col of faces
-            !print *,'faces',k,': i,j', i, j
+            print *,'faces',k,': i,j', i, j
 
             ! determine edges of a face
             if(modulo(i+modulo(j,i2),i2).eq.0) then ! this has a bot edge
-              !if(lcyclic) then
-              !  cone3(1) = Nfaces + j*(Nx-1) + j*(Nx*2-2) + i/2  ! Nfaces offset + number of edges of full height + number of edges of half heights + i offset
-              !  cone3(2) = Nfaces + (j+1)*(Nx-1) + j*(Nx*2-2) + i  ! left edge  ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
-              !  cone3(3) = Nfaces + (j+1)*(Nx-1) + j*(Nx*2-2) + i +1 ! right edge ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
-              !  if(i.eq.(Nx-1)*2-1) cone3(3) = Nfaces + (j+1)*(Nx-1) + j*(Nx*2-2)
-              !else
                 cone3(1) = Nfaces + j*edge_per_row + i/2           ! Nfaces offset + number of edges of full height + number of edges of half heights + i offset
-                cone3(2) = Nfaces + j*edge_per_row + Nx/2 + i      ! left edge  ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
-                cone3(3) = Nfaces + j*edge_per_row + Nx/2 + i +1   ! right edge ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
-              !endif
+                cone3(2) = Nfaces + j*edge_per_row + base_edges_per_row + i      ! left edge  ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
+                cone3(3) = Nfaces + j*edge_per_row + base_edges_per_row + i +1   ! right edge ! Nfaces offset + number of edges of full height + number of edges of half heights + Nedges full heigths on this row + i offset
               if(ldebug) print *,'upward edge of face', ioff, ':', cone3
             else
-              !if(lcyclic) then
-              !  cone3(1) = Nfaces + (j+1)*(Nx-1) + (j+1)*(Nx*2-2) + i/2
-              !  cone3(2) = Nfaces + (j+1)*(Nx-1) + (j+0)*(Nx*2-2) + i
-              !  cone3(3) = Nfaces + (j+1)*(Nx-1) + (j+0)*(Nx*2-2) + i +1
-              !  if(i.eq.(Nx-1)*2-1) cone3(3) = Nfaces + (j+1)*(Nx-1) + (j+0)*(Nx*2-2)
-              !  if(j.eq.Ny-2) cone3(1) = Nfaces + i/2
-              !else
                 cone3(1) = Nfaces + (j+1)*edge_per_row + i/2
-                cone3(2) = Nfaces + j*edge_per_row + Nx/2 + i
-                cone3(3) = Nfaces + j*edge_per_row + Nx/2 + i +1
-              !endif
+                cone3(2) = Nfaces + j*edge_per_row + base_edges_per_row + i
+                cone3(3) = Nfaces + j*edge_per_row + base_edges_per_row + i +1
               if(ldebug) print *,'downward edge of face', ioff, ':', i, j,':', cone3
             endif
 
@@ -857,59 +830,32 @@ module m_icon_plex_utils
           enddo
           ! Edges have 2 vertices
           do k = 0, Nedges-1
-            !if(lcyclic) then
-            !  j = (k-1) / (Nx-1 + Nx*2-2) ! row of edge ! goes up to Ny
-            !  i = k-1 - j*(Nx-1 + Nx*2-2) ! col of edge
-            !  if(i.lt.Nx-1) then ! bottom edge
-            !    cone2(1) = Nfaces + Nedges + j*(Nx-1) + i
-            !    cone2(2) = Nfaces + Nedges + j*(Nx-1) + i +1
-            !    if(i.eq.Nx-2) cone2(2) = Nfaces + Nedges + j*(Nx-1)
-            !    if(ldebug) print *,'bot edge',k,ioff,': i,j', i, j, ':', cone2
-            !  else ! sideward edge
-            !    if(modulo(i+j,i2).ne.0) then ! slash
-            !      cone2(1) = Nfaces + Nedges + j*(Nx-1) + (i-Nx+1)/2
-            !      cone2(2) = Nfaces + Nedges + (j+1)*(Nx-1) + (i-Nx+1)/2 + modulo(j,i2)
-            !      if(i.eq.(Nx-1+Nx*2-2-1)) cone2(2) = Nfaces + Nedges + (j+1)*(Nx-1)
-            !      if(j.eq.Ny-2) then
-            !        cone2(2) = Nfaces + Nedges + (i-Nx+1)/2 + modulo(j,i2)
-            !        if(i.eq.(Nx-1+Nx*2-2-1)) cone2(2) = Nfaces + Nedges
-            !      endif
-            !      if(ldebug) print *,'                                                                            slash side edge',k,ioff,': i,j', i, j, ':', cone2
-            !    else ! backslash
-            !      cone2(1) = Nfaces + Nedges + j*(Nx-1) + (i-Nx+1)/2 + modulo(j+1,i2)
-            !      cone2(2) = Nfaces + Nedges + (j+1)*(Nx-1) + (i-Nx+1)/2
-            !      if(i.eq.(Nx-1+Nx*2-2-1)) cone2(1) = Nfaces + Nedges + j*(Nx-1)
-            !      if(j.eq.Ny-2) cone2(2) = Nfaces + Nedges + (i-Nx+1)/2
-            !      if(ldebug) print *,'                                                                            backs side edge',k,ioff,': i,j', i, j, ':', cone2
-            !    endif
-            !  endif
-            !else
               j = k / edge_per_row   ! row of edge ! goes up to Ny
               i = k - j*edge_per_row ! col of edge
               if(i.lt.Nx/2) then ! bottom edge
                 cone2(1) = Nfaces + Nedges + j*vert_per_row + i
                 cone2(2) = Nfaces + Nedges + j*vert_per_row + i + i1
+                if(ldebug) print *,k,'- edge',ioff,':',i,j,'            cone',cone2
               else ! sideward edge
-                if(modulo((i-Nx/2)+j,i2).eq.0) then ! slash
-                  cone2(1) = Nfaces + Nedges + j*vert_per_row + (i-Nx/2)/2
-                  cone2(2) = Nfaces + Nedges + (j+1)*vert_per_row + (i-Nx/2)/2 + modulo(j,i2)
-                  if(ldebug) print *,k,'edge',ioff,':',i,j,'s',(i-Nx/2)/2,'cone',cone2
+                l = i - Nx/2 ! index for vertical edges, i.e. edges that bridge rows
+                if(modulo(l+j,i2).eq.0) then ! slash
+                  cone2(1) = Nfaces + Nedges + j*vert_per_row + l/2
+                  cone2(2) = Nfaces + Nedges + (j+1)*vert_per_row + (l+1)/2
+                  if(ldebug) print *,k,'s edge',ioff,':',i,j,l,'cone',cone2
                 else ! backslash
-                  cone2(1) = Nfaces + Nedges + j*vert_per_row + (i+i1-Nx/2)/2
-                  cone2(2) = Nfaces + Nedges + (j+1)*vert_per_row + (i-i1-Nx/2)/2 + modulo(j,i2)
-                  if(ldebug) print *,k,'edge',ioff,':',i,j,'b',(i+i1-Nx/2)/2,'cone',cone2
+                  cone2(1) = Nfaces + Nedges + j*vert_per_row + (l+1)/2
+                  cone2(2) = Nfaces + Nedges + (j+1)*vert_per_row + l/2
+                  if(ldebug) print *,k,'b edge',ioff,':',i,j,l,'cone',cone2
                 endif
               endif
-            !endif
             call DMPlexSetCone(dm,  ioff, cone2, ierr); call CHKERR(ierr)
             ioff = ioff + 1
           enddo
         end subroutine
 
-        subroutine set_coords_serial(dm, Nx, lcyclic)
+        subroutine set_coords_serial(dm, Nx)
           type(tDM) :: dm
           integer(iintegers), intent(in) :: Nx
-          logical, intent(in) :: lcyclic
           real(ireals), pointer:: coords(:)
           type(tVec)           :: coordinates
           integer(iintegers)   :: dimEmbed, coordSize, vStart, vEnd, pStart, pEnd, eStart, eEnd, voff, cStart, cEnd
@@ -957,15 +903,9 @@ module m_icon_plex_utils
           call VecGetArrayF90(coordinates, coords, ierr); CHKERRQ(ierr)
 
           do iv = vStart, vEnd-1
-            if(lcyclic) then
-              j = (iv-vStart) / (vert_per_row-1)
-              i = (iv-vStart) - j*(vert_per_row-1)
-              z = sqrt(x**2 + y**2)
-            else
               j = (iv-vStart) / vert_per_row
               i = (iv-vStart) - j*vert_per_row
               z = 100
-            endif
             x = (real(modulo(j,i2),ireals)*.5_ireals + real(i, ireals))*dx
             y = j*ds
             if(ldebug) print *,'iv',iv,':', i, j,'=>', x, y, z

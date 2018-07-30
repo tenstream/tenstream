@@ -1186,7 +1186,6 @@ module m_plex_grid
     type(tDM), allocatable, intent(inout) :: dm
     type(tPetscSection) :: edirSection
     integer(mpiint) :: ierr
-    type(tMat) :: A
 
     if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_edir_dmplex on an already allocated DM')
     allocate(dm)
@@ -1337,7 +1336,7 @@ module m_plex_grid
       real(ireals),intent(out) :: face_normal(:)
 
       real(ireals) :: cell_center(3), face_center(3)
-      integer(iintegers) :: geom_offset
+      integer(iintegers) :: geom_offset, n
       integer(mpiint) :: ierr
 
       call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
