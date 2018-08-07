@@ -58,7 +58,9 @@ contains
   @after
   subroutine teardown(this)
       class (MpiTestMethod), intent(inout) :: this
+      integer(mpiint) :: ierr
       myid     = this%getProcessRank()
+      call PetscFinalize(ierr)
       if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 

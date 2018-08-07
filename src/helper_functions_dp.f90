@@ -560,6 +560,11 @@ module m_helper_functions_dp
           lhit = .False.
         endif
       endif
+      if(det.eq.zero) then
+        lhit = .False.
+        hit(:) = huge(one)
+        return
+      endif
 
       ! normalize U, V, W, and T
       rcpDet = one / det

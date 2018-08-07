@@ -95,7 +95,7 @@ module m_icon_plex_utils
         type(tMat) :: A
 
         call create_plex_section(dm, 'face_test_section', i1, [i0], [i1], [i0], [i0], sec)
-        call DMSetDefaultSection(dm, sec, ierr); call CHKERR(ierr)
+        call DMSetSection(dm, sec, ierr); call CHKERR(ierr)
         call PetscSectionDestroy(sec, ierr); call CHKERR(ierr)
 
         call DMCreateMatrix(dm, A, ierr); call CHKERR(ierr)
@@ -150,7 +150,7 @@ module m_icon_plex_utils
         call create_plex_section(dmsf2d, 'plex_2d_to_3d_sf_graph_info', i1, &
           [i0], [i0], [ke1+ke], [ke1+ke], section_2d_to_3d)
 
-        call DMSetDefaultSection(dmsf2d, section_2d_to_3d, ierr); call CHKERR(ierr)
+        call DMSetSection(dmsf2d, section_2d_to_3d, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(section_2d_to_3d, PETSC_NULL_SECTION, &
           '-show_dm2d_section_2d_to_3d', ierr); call CHKERR(ierr)
 
@@ -607,10 +607,10 @@ module m_icon_plex_utils
 
       call create_plex_section(owner_dm, 'dmplex_ownership info', i1, &
         [i1], [i0], [i0], [i0], sec)
-      call DMSetDefaultSection(owner_dm, sec, ierr); call CHKERR(ierr)
+      call DMSetSection(owner_dm, sec, ierr); call CHKERR(ierr)
       call PetscSectionDestroy(sec, ierr); call CHKERR(ierr)
 
-      call DMGetDefaultSection(owner_dm, sec, ierr); call CHKERR(ierr)
+      call DMGetSection(owner_dm, sec, ierr); call CHKERR(ierr)
 
       call DMGetGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
 

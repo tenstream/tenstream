@@ -1,11 +1,12 @@
 module test_LUT_wedge_5_8
   use m_boxmc, only : t_boxmc_wedge_5_8
   use m_data_parameters, only : mpiint, ireals, iintegers, &
-    one, zero, init_mpi_data_parameters, i1, default_str_len
+    one, zero, init_mpi_data_parameters, default_str_len, &
+    i1, i2, i3, i4, i5
   use m_optprop_LUT, only : t_optprop_LUT_wedge_5_8, find_lut_dim_by_name
   use m_optprop, only : t_optprop_wedge_5_8
   use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: rmse, CHKERR, get_arg
+  use m_helper_functions, only: rmse, CHKERR, get_arg, itoa
   use m_boxmc_geometry, only : setup_default_wedge_geometry
 
 #include "petsc/finclude/petsc.h"
@@ -32,6 +33,8 @@ module test_LUT_wedge_5_8
 
   real(ireals),parameter :: atol=1e-3, rtol=1e-1
   real(ireals),parameter :: sigma = 2 ! normal test range for coefficients
+
+  integer(iintegers), parameter :: NSLICE = 3
 
 
   integer(mpiint) :: ierr
@@ -83,6 +86,7 @@ contains
       real(ireals) :: kabs, ksca, dz, err(2)
       real(ireals), allocatable :: vertices(:)
       real(ireals), parameter :: dx = 911
+      real(ireals),allocatable :: g_dim(:)
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -92,31 +96,36 @@ contains
       idim_tau    = find_lut_dim_by_name(LUTconfig, 'tau')
       idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
       idim_g      = find_lut_dim_by_name(LUTconfig, 'g')
+      if(idim_g.eq.-1) then
+        allocate(g_dim(1), source=zero)
+      else
+        allocate(g_dim(LUTconfig%dims(idim_g)%N), source=LUTconfig%dims(idim_g     )%v(:))
+      endif
       idim_aspect = find_lut_dim_by_name(LUTconfig, 'aspect_zx')
       idim_phi    = find_lut_dim_by_name(LUTconfig, 'phi')
       idim_theta  = find_lut_dim_by_name(LUTconfig, 'theta')
       idim_Cx     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cx')
       idim_Cy     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cy')
 
-      do itau = 1, LUTconfig%dims(idim_tau)%N
-        do iw0  = 1, LUTconfig%dims(idim_w0)%N
-          do ig   = 1, LUTconfig%dims(idim_g)%N
-            do iaspect = 1, LUTconfig%dims(idim_aspect)%N
-              do iphi = 1, LUTconfig%dims(idim_phi)%N
-                do itheta = 1, LUTconfig%dims(idim_theta)%N
-                  do iCx = 1, LUTconfig%dims(idim_Cx)%N
-                    do iCy = 1, LUTconfig%dims(idim_Cy)%N
+      do itau = 1, LUTconfig%dims(idim_tau)%N, NSLICE
+        do iw0  = 1, LUTconfig%dims(idim_w0)%N, NSLICE
+          do ig   = 1, size(g_dim), NSLICE
+            do iaspect = 1, LUTconfig%dims(idim_aspect)%N, NSLICE
+              do iphi = 1, LUTconfig%dims(idim_phi)%N, NSLICE
+                do itheta = 1, LUTconfig%dims(idim_theta)%N, NSLICE
+                  do iCx = 1, LUTconfig%dims(idim_Cx)%N, NSLICE
+                    do iCy = 1, LUTconfig%dims(idim_Cy)%N, NSLICE
                       tau    = LUTconfig%dims(idim_tau   )%v(itau)
                       w0     = LUTconfig%dims(idim_w0    )%v(iw0)
-                      g      = LUTconfig%dims(idim_g     )%v(ig)
+                      g      = g_dim(ig)
                       aspect = LUTconfig%dims(idim_aspect)%v(iaspect)
                       phi    = LUTconfig%dims(idim_phi   )%v(iphi)
                       theta  = LUTconfig%dims(idim_theta )%v(itheta)
                       Cx     = LUTconfig%dims(idim_Cx    )%v(iCx)
                       Cy     = LUTconfig%dims(idim_Cy    )%v(iCy)
 
-                      call OPPLUT%LUT_get_dir2dir ([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2dir)
-                      call OPPLUT%LUT_get_dir2diff([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+                      call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+                      call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
                       call setup_default_wedge_geometry([zero, zero], [one, zero], [Cx, Cy], aspect, vertices)
                       vertices = vertices * dx
@@ -160,6 +169,7 @@ contains
       real(ireals) :: kabs, ksca, dz, err(2)
       real(ireals), allocatable :: vertices(:)
       real(ireals), parameter :: dx = 911
+      real(ireals),allocatable :: g_dim(:)
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -169,6 +179,11 @@ contains
       idim_tau    = find_lut_dim_by_name(LUTconfig, 'tau')
       idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
       idim_g      = find_lut_dim_by_name(LUTconfig, 'g')
+      if(idim_g.eq.-1) then
+        allocate(g_dim(1), source=zero)
+      else
+        allocate(g_dim(LUTconfig%dims(idim_g)%N), source=LUTconfig%dims(idim_g     )%v(:))
+      endif
       idim_aspect = find_lut_dim_by_name(LUTconfig, 'aspect_zx')
       idim_phi    = find_lut_dim_by_name(LUTconfig, 'phi')
       idim_theta  = find_lut_dim_by_name(LUTconfig, 'theta')
@@ -177,7 +192,7 @@ contains
 
       do itau = 1,max(i1, LUTconfig%dims(idim_tau)%N-1)
         do iw0  = 1,max(i1, LUTconfig%dims(idim_w0)%N-1)
-          do ig   = 1,max(i1, LUTconfig%dims(idim_g)%N-1)
+          do ig   = 1,max(i1, size(g_dim)-1)
             do iaspect = 1,max(i1, LUTconfig%dims(idim_aspect)%N-1)
               do iphi = 1,max(i1, LUTconfig%dims(idim_phi)%N-1)
                 do itheta = 1,max(i1, LUTconfig%dims(idim_theta)%N-1)
@@ -185,7 +200,7 @@ contains
                     do iCy = 1,max(i1, LUTconfig%dims(idim_Cy)%N-1)
                       tau    = LUTconfig%dims(idim_tau   )%v(itau)    / 2
                       w0     = LUTconfig%dims(idim_w0    )%v(iw0)     / 2
-                      g      = LUTconfig%dims(idim_g     )%v(ig)      / 2
+                      g      = g_dim(ig)      / 2
                       aspect = LUTconfig%dims(idim_aspect)%v(iaspect) / 2
                       phi    = LUTconfig%dims(idim_phi   )%v(iphi)    / 2
                       theta  = LUTconfig%dims(idim_theta )%v(itheta)  / 2
@@ -194,15 +209,15 @@ contains
 
                       tau    = tau    + LUTconfig%dims(idim_tau   )%v(min(LUTconfig%dims(idim_tau   )%N, itau+1))    / 2
                       w0     = w0     + LUTconfig%dims(idim_w0    )%v(min(LUTconfig%dims(idim_w0    )%N, iw0+1))     / 2
-                      g      = g      + LUTconfig%dims(idim_g     )%v(min(LUTconfig%dims(idim_g     )%N, ig+1))      / 2
+                      g      = g      + g_dim(ig+1)      / 2
                       aspect = aspect + LUTconfig%dims(idim_aspect)%v(min(LUTconfig%dims(idim_aspect)%N, iaspect+1)) / 2
                       phi    = phi    + LUTconfig%dims(idim_phi   )%v(min(LUTconfig%dims(idim_phi   )%N, iphi+1))    / 2
                       theta  = theta  + LUTconfig%dims(idim_theta )%v(min(LUTconfig%dims(idim_theta )%N, itheta+1))  / 2
                       Cx     = Cx     + LUTconfig%dims(idim_Cx    )%v(min(LUTconfig%dims(idim_Cx    )%N, iCx+1))     / 2
                       Cy     = Cy     + LUTconfig%dims(idim_Cy    )%v(min(LUTconfig%dims(idim_Cy    )%N, iCy+1))     / 2
 
-                      call OPPLUT%LUT_get_dir2dir ([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2dir)
-                      call OPPLUT%LUT_get_dir2diff([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+                      call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+                      call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
                       call setup_default_wedge_geometry([zero, zero], [one, zero], [Cx, Cy], aspect, vertices)
                       vertices = vertices * dx
@@ -247,6 +262,7 @@ contains
 
       real(ireals) :: err(2)
       real(ireals), parameter :: dx = 911
+      real(ireals),allocatable :: g_dim(:)
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -256,6 +272,11 @@ contains
       idim_tau    = find_lut_dim_by_name(LUTconfig, 'tau')
       idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
       idim_g      = find_lut_dim_by_name(LUTconfig, 'g')
+      if(idim_g.eq.-1) then
+        allocate(g_dim(2), source=zero)
+      else
+        allocate(g_dim(LUTconfig%dims(idim_g)%N), source=LUTconfig%dims(idim_g     )%v(:))
+      endif
       idim_aspect = find_lut_dim_by_name(LUTconfig, 'aspect_zx')
       idim_phi    = find_lut_dim_by_name(LUTconfig, 'phi')
       idim_theta  = find_lut_dim_by_name(LUTconfig, 'theta')
@@ -264,7 +285,7 @@ contains
 
       do itau = 1, LUTconfig%dims(idim_tau)%N
         do iw0  = 1, LUTconfig%dims(idim_w0)%N
-          do ig   = 1, LUTconfig%dims(idim_g)%N
+          do ig   = 1, size(g_dim)
             do iaspect = 1, LUTconfig%dims(idim_aspect)%N
               do iphi = 1, LUTconfig%dims(idim_phi)%N
                 do itheta = 1, LUTconfig%dims(idim_theta)%N
@@ -272,15 +293,15 @@ contains
                     do iCy = 1, LUTconfig%dims(idim_Cy)%N
                       tau    = LUTconfig%dims(idim_tau   )%v(itau)
                       w0     = LUTconfig%dims(idim_w0    )%v(iw0)
-                      g      = LUTconfig%dims(idim_g     )%v(ig)
+                      g      = g_dim(ig)
                       aspect = LUTconfig%dims(idim_aspect)%v(iaspect)
                       phi    = LUTconfig%dims(idim_phi   )%v(iphi)
                       theta  = LUTconfig%dims(idim_theta )%v(itheta)
                       Cx     = LUTconfig%dims(idim_Cx    )%v(iCx)
                       Cy     = LUTconfig%dims(idim_Cy    )%v(iCy)
 
-                      call OPPLUT%LUT_get_dir2dir ([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2dir)
-                      call OPPLUT%LUT_get_dir2diff([tau, w0, g , aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+                      call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+                      call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
                       call OPP%get_coeff(tau, w0, g, aspect, .True., OPP_dir2dir, &
                         angles=[phi, theta], wedge_coords=[zero,zero,one,zero,Cx,Cy])

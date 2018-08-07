@@ -19,6 +19,9 @@
 
 module m_optprop_LUT
 
+#include "petsc/finclude/petsc.h"
+  use petsc
+
   use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
 
   use m_helper_functions, only : approx,  &
@@ -134,7 +137,8 @@ contains
       class(t_optprop_LUT) :: OPP
       integer(mpiint) ,intent(in) :: comm
 
-      integer(mpiint) :: comm_size, myid
+      integer(mpiint) :: comm_size, myid, ierr
+      logical :: lskip_load_LUT, lflg
 
       if(OPP%LUT_initialized) return
 
@@ -184,10 +188,15 @@ contains
 
       call OPP%set_parameter_space()
 
-      call OPP%loadLUT_dir(comm)
-      call OPP%loadLUT_diff(comm)
+      lskip_load_LUT = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+                               '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
+      if(.not.lskip_load_LUT) then
+        call OPP%loadLUT_dir(comm)
+        call OPP%loadLUT_diff(comm)
 
-      call OPP%scatter_LUTtables(comm)
+        call OPP%scatter_LUTtables(comm)
+      endif
 
       OPP%LUT_initialized=.True.
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Initializing LUT`s... finished'
@@ -354,7 +363,6 @@ subroutine write_pspace(fname, config)
   integer(mpiint) :: ierr
   real(ireals), allocatable :: existing_values(:)
 
-  if(ldebug) print *,'write_pspace...'
   groups(1) = trim(fname)
   groups(2) = 'pspace'
 
@@ -389,7 +397,6 @@ subroutine write_pspace(fname, config)
       call ncwrite(groups, config%dims(kdim)%vrange, ierr); call CHKERR(ierr)
     endif
   enddo
-  if(ldebug) print *,'write_pspace... done'
 end subroutine
 
 subroutine createLUT(OPP, comm, config, S, T)

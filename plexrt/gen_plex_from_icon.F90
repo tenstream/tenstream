@@ -493,7 +493,7 @@ module m_gen_plex_from_icon
       call PetscSectionGetStorageSize(s, section_size, ierr);
       print *,'Section has size:', section_size
 
-      call DMSetDefaultSection(plex%dm, s, ierr); CHKERRQ(ierr)
+      call DMSetSection(plex%dm, s, ierr); CHKERRQ(ierr)
       call PetscObjectSetName(s, 'CellSection', ierr);CHKERRQ(ierr)
 
       ! Now lets get vectors!

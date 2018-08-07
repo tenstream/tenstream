@@ -37,8 +37,6 @@ module m_plex_grid
     type(tVec), allocatable :: geomVec ! see compute_face_geometry for details
     type(tVec), allocatable :: wedge_orientation ! see compute_wedge_orientation
 
-    type(tPetscSF) :: default_sf
-
     ! Index counters on plex:
     integer(iintegers) :: pStart, pEnd ! points
     integer(iintegers) :: cStart, cEnd ! cells

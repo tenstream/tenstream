@@ -6,10 +6,13 @@ module m_pprts_base
     zero, one, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
     default_str_len
 
+  use m_helper_functions, only : CHKERR
+
   use m_optprop, only: t_optprop
 
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, &
-    t_state_container, t_coord, t_opticalprops, t_sunangles, t_suninfo, &
+    t_coord, t_opticalprops, t_sunangles, t_suninfo, &
+    t_state_container, destroy_solution, &
     t_dof, t_solver_log_events, E_up, E_dn
 
   type t_coord
@@ -54,14 +57,14 @@ module m_pprts_base
 
   type t_state_container
     integer(iintegers)  :: uid ! dirty hack to give the solution a unique hash for example to write it out to disk -- this should be the same as the index in global solutions array
-    Vec                 :: edir,ediff,abso
+    type(tVec), allocatable    :: edir,ediff,abso
 
     logical             :: lset        = .False. ! initialized?
     logical             :: lsolar_rad  = .False. ! direct radiation calculated?
     logical             :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
 
-    ! save state of solution vectors... they are either in [W](true) or [W/m**2](false)
-    logical             :: lintegrated_dir=.True. , lintegrated_diff=.True.
+    ! save state of solution vectors... they are either in [W](false) or [W/m**2](true)
+    logical             :: lWm2_dir=.False. , lWm2_diff=.False.
 
     !save error statistics
     real(ireals)        :: time   (30) = -one
@@ -125,5 +128,33 @@ module m_pprts_base
 
 
   integer(iintegers), parameter :: E_up=0, E_dn=1 ! for 1D Solvers
+
+  contains
+    subroutine destroy_solution(solution)
+      type(t_state_container), intent(inout) :: solution
+      if( solution%lset ) then
+        if(solution%lsolar_rad) then
+          if(allocated(solution%edir)) then
+            call VecDestroy(solution%edir , ierr) ;call CHKERR(ierr)
+            deallocate(solution%edir)
+          endif
+          solution%lsolar_rad = .False.
+        endif
+
+        if(allocated(solution%ediff)) then
+          call VecDestroy(solution%ediff    , ierr) ;call CHKERR(ierr)
+          deallocate(solution%ediff)
+        endif
+        if(allocated(solution%abso)) then
+          call VecDestroy(solution%abso     , ierr) ;call CHKERR(ierr)
+          deallocate(solution%abso)
+        endif
+
+        if(allocated(solution%ksp_residual_history)) &
+          deallocate(solution%ksp_residual_history)
+
+        solution%lset = .False.
+      endif
+    end subroutine
 
 end module

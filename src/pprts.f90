@@ -1638,7 +1638,7 @@ module m_pprts
     endif
 
     ! --------- scale from [W/m**2] to [W] -----------------
-    call scale_flx(solver, solutions(uid), lWm2_to_W=.True. )
+    call scale_flx(solver, solutions(uid), lWm2=.False. )
 
     ! ---------------------------- Edir  -------------------
     if( solutions(uid)%lsolar_rad ) then
@@ -1658,7 +1658,7 @@ module m_pprts
       call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
 
       solutions(uid)%lchanged=.True.
-      solutions(uid)%lintegrated_dir=.True.
+      solutions(uid)%lWm2_dir=.False.
       call PetscObjectSetName(solutions(uid)%edir,'debug_edir',ierr) ; call CHKERR(ierr)
       call PetscObjectViewFromOptions(solutions(uid)%edir, PETSC_NULL_VEC, "-show_debug_edir", ierr); call CHKERR(ierr)
       call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
@@ -1682,7 +1682,7 @@ module m_pprts
     call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
 
     solutions(uid)%lchanged=.True.
-    solutions(uid)%lintegrated_diff=.True. !Tenstream solver returns fluxes as [W]
+    solutions(uid)%lWm2_diff=.False. !Tenstream solver returns fluxes as [W]
 
     call PetscLogEventEnd(solver%logs%compute_Ediff, ierr)
 
@@ -1709,6 +1709,7 @@ module m_pprts
     if( lsolar .and.  (solution%lsolar_rad.eqv..False.) ) then
       ! set up the direct vectors in any case. This may be necessary even if solution was
       ! already initialized once... e.g. in case we calculated thermal before with same uid
+      if(.not.allocated(solution%edir)) allocate(solution%edir)
       call DMCreateGlobalVector(solver%C_dir%da ,solution%edir  ,ierr)  ; call CHKERR(ierr)
       call VecSet(solution%edir,zero,ierr); call CHKERR(ierr)
       solution%lsolar_rad = .True.
@@ -1718,20 +1719,22 @@ module m_pprts
 
     if(solution%lset) return ! already set-up
 
+    if(.not.allocated(solution%ediff)) allocate(solution%ediff)
     call DMCreateGlobalVector(solver%C_diff%da,solution%ediff ,ierr)  ; call CHKERR(ierr)
-    call DMCreateGlobalVector(solver%C_one%da ,solution%abso  ,ierr)  ; call CHKERR(ierr)
-
     call VecSet(solution%ediff,zero,ierr)    ; call CHKERR(ierr)
+
+    if(.not.allocated(solution%abso)) allocate(solution%abso)
+    call DMCreateGlobalVector(solver%C_one%da ,solution%abso  ,ierr)  ; call CHKERR(ierr)
     call VecSet(solution%abso,zero,ierr)     ; call CHKERR(ierr)
 
     solution%lset = .True.
   end subroutine
 
   !> @brief renormalize fluxes with the size of a face(sides or lid)
-  subroutine scale_flx(solver, solution, lWm2_to_W)
+  subroutine scale_flx(solver, solution, lWm2)
     class(t_solver), intent(inout)        :: solver
     type(t_state_container),intent(inout) :: solution   !< @param solution container with computed fluxes
-    logical,intent(in)                    :: lWm2_to_W  !< @param determines direction of scaling, if true, scale from W/m**2 to W
+    logical,intent(in)                    :: lWm2  !< @param determines direction of scaling, if true, scale to W/m**2
 
     call PetscLogEventBegin(solver%logs%scale_flx, ierr); call CHKERR(ierr)
     if(solution%lsolar_rad) then
@@ -1749,13 +1752,13 @@ module m_pprts
           solver%dir_scalevec_W_to_Wm2, &
           solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
       endif
-      if(solution%lintegrated_dir .neqv. lWm2_to_W) then
-        if(lWm2_to_W) then
-          call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-        else
+      if(solution%lWm2_dir .neqv. lWm2) then
+        if(lWm2) then
           call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        else
+          call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
         endif
-        solution%lintegrated_dir = lWm2_to_W
+        solution%lWm2_dir = lWm2
       endif
     endif
 
@@ -1774,13 +1777,13 @@ module m_pprts
         solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
     endif
 
-    if(solution%lintegrated_diff .neqv. lWm2_to_W) then
-      if(lWm2_to_W) then
-        call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-      else
+    if(solution%lWm2_diff .neqv. lWm2) then
+      if(lWm2) then
         call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+      else
+        call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
       endif
-      solution%lintegrated_diff = lWm2_to_W
+      solution%lWm2_diff = lWm2
     endif
     call PetscLogEventEnd(solver%logs%scale_flx, ierr); call CHKERR(ierr)
 
@@ -1993,7 +1996,7 @@ module m_pprts
     endif
 
     ! make sure to bring the fluxes into [W] before the absorption calculation
-    call scale_flx(solver, solution, lWm2_to_W=.True. )
+    call scale_flx(solver, solution, lWm2=.False.)
 
     ! update absorption
     call calc_flx_div(solver, solution)
@@ -2002,7 +2005,7 @@ module m_pprts
       print *,'Saving Solution ',solution%uid
 
     ! make sure to bring the fluxes into [W/m**2]
-    call scale_flx(solver, solution, lWm2_to_W=.False. )
+    call scale_flx(solver, solution, lWm2=.True. )
 
     if(ldebug .and. solver%myid.eq.0) &
       print *,'Saving Solution done'
@@ -2133,9 +2136,9 @@ module m_pprts
       call restoreVecPointer(solution%edir, xv_dir1d, xv_dir  )
     call restoreVecPointer(solution%ediff, xv_diff1d, xv_diff )
 
-    !Twostream solver returns fluxes as [W]
-    solution%lintegrated_dir  = .False.
-    solution%lintegrated_diff = .False.
+    !Twostream solver returns fluxes as [W m^-2]
+    solution%lWm2_dir  = .True.
+    solution%lWm2_diff = .True.
     ! and mark solution that it is not up to date
     solution%lchanged         = .True.
 
@@ -2195,8 +2198,8 @@ module m_pprts
     call restoreVecPointer(solution%ediff, xv_diff1d, xv_diff )
 
     !Schwarzschild solver returns fluxes as [W/m^2]
-    solution%lintegrated_dir  = .False.
-    solution%lintegrated_diff = .False.
+    solution%lWm2_dir  = .True.
+    solution%lWm2_diff = .True.
     ! and mark solution that it is not up to date
     solution%lchanged         = .True.
 
@@ -2246,13 +2249,13 @@ module m_pprts
       call restoreVecPointer(solver%abso_scalevec, xabso1d ,xabso)
     endif
 
-    if(solution%lsolar_rad .and. (solution%lintegrated_dir .eqv..False.)) call CHKERR(1_mpiint, 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!')
-    if(                          (solution%lintegrated_diff.eqv..False.)) call CHKERR(1_mpiint, 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!')
+    if(solution%lsolar_rad .and. (solution%lWm2_dir .eqv..True.)) call CHKERR(1_mpiint, 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!')
+    if(                          (solution%lWm2_diff.eqv..True.)) call CHKERR(1_mpiint, 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!')
 
     if( (solution%lsolar_rad.eqv..False.) .and. lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
-      call scale_flx(solver, solution, lWm2_to_W=.False.)
+      call scale_flx(solver, solution, lWm2=.True.)
       call nca_wrapper(solver, solution%ediff, solution%abso)
-      call scale_flx(solver, solution, lWm2_to_W=.True.)
+      call scale_flx(solver, solution, lWm2=.False.)
       return
     endif
 
@@ -2262,7 +2265,7 @@ module m_pprts
     ! if there are no 3D layers globally, we should skip the ghost value copying....
     lhave_no_3d_layer = mpi_logical_and(solver%comm, all(atm%l1d.eqv..True.))
     if(lhave_no_3d_layer) then
-      call scale_flx(solver, solution, lWm2_to_W=.True.)
+      call scale_flx(solver, solution, lWm2=.False.)
 
       if(solution%lsolar_rad) call getVecPointer(solution%edir, C_dir%da ,xedir1d ,xedir )
 
@@ -3547,7 +3550,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
         print *,'Hey, You called pprts_get_result for uid',uid,'but in this particular band we dont have direct radiation calculated... I will return with edir=0 but are you sure this is what you intended?'
         redir = zero
       else
-        if(solver%solutions(uid)%lintegrated_dir) call CHKERR(1_mpiint, 'tried to get result from integrated result vector(dir)')
+        if(.not.solver%solutions(uid)%lWm2_dir) call CHKERR(1_mpiint, 'tried to get result from a result vector(dir) which is not in [W/m2]')
         if(solver%atm%lcollapse) call CHKERR(1_mpiint, 'pprts_get_result :: lcollapse needs to be implemented')
 
         call getVecPointer(solver%solutions(uid)%edir, solver%C_dir%da, x1d, x4d)
@@ -3564,7 +3567,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       endif
     endif
 
-    if(solver%solutions(uid)%lintegrated_diff) call CHKERR(1_mpiint, 'tried to get result from integrated result vector(diff)')
+    if(.not.solver%solutions(uid)%lWm2_diff) call CHKERR(1_mpiint, 'tried to get result from a result vector(diff) which is not in [W/m2]')
 
 
     if(solver%atm%lcollapse) then
@@ -3713,20 +3716,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       call destroy_matrices(solver)
 
       do uid=lbound(solver%solutions,1),ubound(solver%solutions,1)
-        if( solver%solutions(uid)%lset ) then
-          if(solver%solutions(uid)%lsolar_rad) then
-            call VecDestroy(solver%solutions(uid)%edir , ierr) ;call CHKERR(ierr)
-            solver%solutions(uid)%lsolar_rad = .False.
-          endif
-
-          call VecDestroy(solver%solutions(uid)%ediff    , ierr) ;call CHKERR(ierr)
-          call VecDestroy(solver%solutions(uid)%abso     , ierr) ;call CHKERR(ierr)
-
-          if(allocated(solver%solutions(uid)%ksp_residual_history)) &
-            deallocate(solver%solutions(uid)%ksp_residual_history)
-
-          solver%solutions(uid)%lset = .False.
-        endif
+        call destroy_solution(solver%solutions(uid))
       enddo
 
       if(allocated(solver%dir_scalevec_Wm2_to_W)) then
