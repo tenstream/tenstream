@@ -74,7 +74,54 @@ contains
       call PetscFinalize(ierr)
   end subroutine teardown
 
-  @test(npes=[2,1])
+  @test(npes=[1])
+  subroutine test_LUT_wedge_custom1(this)
+    class (MpiTestMethod), intent(inout) :: this
+    real(ireals) :: tau, w0, g, aspect, phi, theta, Cx, Cy
+    real(ireals) :: d2d1(5**2), d2d2(5**2)
+
+    tau = 1e-3_ireals
+    w0  = .5_ireals
+    g   = 0._ireals
+    aspect = 1._ireals
+    theta = 20._ireals
+    Cx = .5_ireals
+    Cy = 0.8660254037844386_ireals
+
+    phi = -27._ireals
+    call print_dir2dir()
+    call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], d2d1)
+
+    phi = +27._ireals
+    call print_dir2dir()
+    call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], d2d2)
+
+    @assertEqual(d2d1(srcdst_2_idx(i1, i3)), d2d2(srcdst_2_idx(i1, i4)))
+    @assertEqual(d2d1(srcdst_2_idx(i1, i4)), d2d2(srcdst_2_idx(i1, i3)))
+    @assertEqual(d2d1(srcdst_2_idx(i1, i5)), d2d2(srcdst_2_idx(i1, i5)))
+
+    @assertEqual(d2d1(srcdst_2_idx(i2, i3)), d2d2(srcdst_2_idx(i2, i4)))
+    @assertEqual(d2d1(srcdst_2_idx(i2, i4)), d2d2(srcdst_2_idx(i2, i3)))
+    @assertEqual(d2d1(srcdst_2_idx(i2, i5)), d2d2(srcdst_2_idx(i2, i5)))
+
+    @assertEqual(d2d1(srcdst_2_idx(i4, i3)), d2d2(srcdst_2_idx(i3, i4)))
+
+    contains
+      integer(iintegers) function srcdst_2_idx(src, dst)
+        integer(iintegers),intent(in) :: src, dst
+        srcdst_2_idx = (src-1)*5+dst
+      end function
+      subroutine print_dir2dir()
+        integer(iintegers) :: isrc
+        call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
+        print *,'INPUT:', [tau, w0, aspect, Cx, Cy, phi, theta]
+        do isrc = i1, i5
+          print *,': src '//itoa(isrc), LUT_dir2dir(isrc:size(LUT_dir2dir):i5)
+        enddo
+      end subroutine
+  end subroutine
+
+  !@test(npes=[2,1])
   subroutine test_LUT_wedge_direct_coeff_onsamplepts(this)
       class (MpiTestMethod), intent(inout) :: this
 
@@ -157,7 +204,7 @@ contains
 
   endsubroutine
 
-  @test(npes=[2,1])
+  !@test(npes=[2,1])
   subroutine test_LUT_wedge_direct_coeff_interpolate(this)
       class (MpiTestMethod), intent(inout) :: this
 
@@ -180,7 +227,7 @@ contains
       idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
       idim_g      = find_lut_dim_by_name(LUTconfig, 'g')
       if(idim_g.eq.-1) then
-        allocate(g_dim(1), source=zero)
+        allocate(g_dim(2), source=zero)
       else
         allocate(g_dim(LUTconfig%dims(idim_g)%N), source=LUTconfig%dims(idim_g     )%v(:))
       endif
@@ -251,7 +298,7 @@ contains
 
   endsubroutine
 
-  @test(npes=[2,1])
+  !@test(npes=[2,1])
   subroutine test_wedge_LUT_vs_OPP_object(this)
       class (MpiTestMethod), intent(inout) :: this
 
@@ -273,7 +320,7 @@ contains
       idim_w0     = find_lut_dim_by_name(LUTconfig, 'w0')
       idim_g      = find_lut_dim_by_name(LUTconfig, 'g')
       if(idim_g.eq.-1) then
-        allocate(g_dim(2), source=zero)
+        allocate(g_dim(1), source=zero)
       else
         allocate(g_dim(LUTconfig%dims(idim_g)%N), source=LUTconfig%dims(idim_g     )%v(:))
       endif
