@@ -17,8 +17,9 @@ module m_plex_grid
   private
   public :: t_plexgrid, load_plex_from_file, create_plex_from_icongrid, &
     icell_icon_2_plex, iface_top_icon_2_plex, update_plex_indices, &
-    distribute_plexgrid_dm, compute_face_geometry, setup_edir_dmplex, &
-    print_dmplex, setup_abso_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
+    distribute_plexgrid_dm, compute_face_geometry, &
+    setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
+    print_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
     get_inward_face_normal, create_plex_section, setup_plexgrid, &
     get_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
@@ -30,8 +31,9 @@ module m_plex_grid
     integer(mpiint) :: comm
 
     type(tDM), allocatable :: dm
-    type(tDM), allocatable :: abso_dm
     type(tDM), allocatable :: edir_dm
+    type(tDM), allocatable :: ediff_dm
+    type(tDM), allocatable :: abso_dm
     type(tDM), allocatable :: geom_dm
     type(tDM), allocatable :: wedge_orientation_dm
     type(tVec), allocatable :: geomVec ! see compute_face_geometry for details
@@ -481,6 +483,7 @@ module m_plex_grid
 
         call PetscObjectGetComm(dm, plex%comm, ierr); call CHKERR(ierr)
 
+        allocate(plex%dm)
         plex%dm = dm
         call DMPlexGetChart(plex%dm, pStart, pEnd, ierr); call CHKERR(ierr)
 
@@ -518,7 +521,7 @@ module m_plex_grid
         type(tDM), intent(in) :: dm
         logical, allocatable, intent(in) :: ltopfacepos(:)
         integer(iintegers), allocatable, intent(in) :: zindex(:)
-        type(tDMLabel), intent(out) :: boundarylabel, domainboundarylabel
+        type(tDMLabel), allocatable, intent(out) :: boundarylabel, domainboundarylabel
 
         type(tDM) :: facedm
         type(tPetscSection) :: facesection
@@ -534,9 +537,11 @@ module m_plex_grid
         if(.not.allocated(zindex)) call CHKERR(1_mpiint, 'zindex has to be allocated')
 
         call DMCreateLabel(dm, "DomainBoundary", ierr); call CHKERR(ierr)
+        if(.not.allocated(domainboundarylabel)) allocate(domainboundarylabel)
         call DMGetLabel(dm, "DomainBoundary", domainboundarylabel, ierr); call CHKERR(ierr)
 
         call DMCreateLabel(dm, "Boundary", ierr); call CHKERR(ierr)
+        if(.not.allocated(boundarylabel)) allocate(boundarylabel)
         call DMGetLabel(dm, "Boundary", boundarylabel, ierr); call CHKERR(ierr)
         call DMPlexMarkBoundaryFaces(dm, i1, boundarylabel, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_Boundary_DM', ierr); call CHKERR(ierr)
@@ -1348,6 +1353,49 @@ module m_plex_grid
         call mpi_barrier(plex%comm, ierr)
         stop 'debug'
 
+      end subroutine
+  end subroutine
+
+  subroutine setup_ediff_dmplex(plex, dm)
+    type(t_plexgrid), intent(inout) :: plex
+    type(tDM), allocatable, intent(inout) :: dm
+    type(tPetscSection) :: section
+    integer(mpiint) :: ierr
+
+    if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_ediff_dmplex on an already allocated DM')
+    allocate(dm)
+
+    call DMClone(plex%dm, dm, ierr); call CHKERR(ierr)
+
+    call PetscObjectSetName(dm, 'plex_ediff', ierr);call CHKERR(ierr)
+    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex_ediff", ierr); call CHKERR(ierr)
+
+    call gen_section(section, Nstreams_top=i2, Nstreams_side=i4)
+
+    call DMSetSection(dm, Section, ierr); call CHKERR(ierr)
+    call PetscSectionDestroy(Section, ierr); call CHKERR(ierr)
+    contains
+      subroutine gen_section(section, Nstreams_top, Nstreams_side)
+        type(tPetscSection), intent(inout) :: section
+        integer(iintegers), intent(in) :: Nstreams_top, Nstreams_side
+        integer(iintegers) :: iface, fStart, fEnd
+        integer(mpiint) :: comm, ierr
+        call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+        call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
+        call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+        call PetscSectionSetNumFields(section, i1, ierr); call CHKERR(ierr)
+        call PetscSectionSetFieldComponents(section, i0, i1, ierr); call CHKERR(ierr)
+        call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
+        do iface = fStart,  fEnd-1
+          if(plex%ltopfacepos(iface)) then
+            call PetscSectionSetDof(section, iface, Nstreams_top, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(section, iface, i0, Nstreams_top, ierr); call CHKERR(ierr)
+          else
+            call PetscSectionSetDof(section, iface, Nstreams_side, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(section, iface, i0, Nstreams_side, ierr); call CHKERR(ierr)
+          endif
+        enddo
+        call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
       end subroutine
   end subroutine
 

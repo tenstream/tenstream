@@ -14,7 +14,8 @@ module m_plex_rt
     i0, i1, i2, i3, i4, i5, i6, i7, i8, &
     zero, one, pi, EXP_MINVAL, EXP_MAXVAL
 
-  use m_plex_grid, only: t_plexgrid, compute_face_geometry, setup_edir_dmplex, setup_abso_dmplex, &
+  use m_plex_grid, only: t_plexgrid, compute_face_geometry, &
+    setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, get_inward_face_normal, &
     facevec2cellvec, icell_icon_2_plex, iface_top_icon_2_plex, get_vertical_cell_idx, &
     get_top_bot_face_of_cell, destroy_plexgrid, &
@@ -23,7 +24,7 @@ module m_plex_rt
   use m_optprop, only : t_optprop, t_optprop_wedge_5_8
   use m_optprop_parameters, only : OPP_LUT_ALL_ANGLES
 
-  use m_pprts_base, only : t_state_container, destroy_solution
+  use m_pprts_base, only : t_state_container, prepare_solution, destroy_solution
 
   implicit none
 
@@ -72,7 +73,7 @@ module m_plex_rt
 
       call read_commandline_options(plex%comm)
 
-      if(allocated(solver)) stop 'Should not call init_plex_rt_solver with already allocated solver object'
+      if(allocated(solver)) call CHKERR(1_mpiint, 'Should not call init_plex_rt_solver with already allocated solver object')
       allocate(solver)
 
       allocate(solver%plex)
@@ -217,19 +218,22 @@ module m_plex_rt
       if(.not.allocated(solver%plex)) call CHKERR(1_mpiint, 'run_plex_rt_solver::plex has to be allocated first')
       call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
 
-      if(.not.allocated(solver%plex%geom_dm)) call CHKERR(myid+1, 'run_plex_rt_solver::geom_dm has to be allocated first')
-      if(.not.allocated(solver%kabs)) call CHKERR(myid+1, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
-      if(.not.allocated(solver%ksca)) call CHKERR(myid+1, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
-      if(.not.allocated(solver%g   )) call CHKERR(myid+1, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
-      if(.not.allocated(solver%plex%geom_dm)) call compute_face_geometry(solver%plex, solver%plex%geom_dm)
-      if(.not.allocated(solver%plex%edir_dm)) call setup_edir_dmplex(solver%plex, solver%plex%edir_dm)
-      if(.not.allocated(solver%plex%abso_dm)) call setup_abso_dmplex(solver%plex, solver%plex%abso_dm)
+      if(.not.allocated(solver%plex%geom_dm)) call CHKERR(1_mpiint, 'run_plex_rt_solver::geom_dm has to be allocated first')
+      if(.not.allocated(solver%kabs)) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
+      if(.not.allocated(solver%ksca)) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
+      if(.not.allocated(solver%g   )) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
+      if(.not.allocated(solver%plex%geom_dm))  call compute_face_geometry(solver%plex, solver%plex%geom_dm)
+      if(.not.allocated(solver%plex%edir_dm))  call setup_edir_dmplex(solver%plex, solver%plex%edir_dm)
+      if(.not.allocated(solver%plex%ediff_dm)) call setup_ediff_dmplex(solver%plex, solver%plex%ediff_dm)
+      if(.not.allocated(solver%plex%abso_dm))  call setup_abso_dmplex(solver%plex, solver%plex%abso_dm)
 
       ! Prepare the space for the solution
       suid = get_arg(i0, opt_solutions_uid)
-      associate( solution => solver%solutions(suid) )
 
-      solution%lsolar_rad = norm(sundir).gt.zero
+      call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
+        lsolar=norm(sundir).gt.zero, solution=solver%solutions(suid))
+
+      associate( solution => solver%solutions(suid) )
 
       if(solution%lsolar_rad) then
         call orient_face_normals_along_sundir(solver%plex, sundir)
@@ -252,7 +256,7 @@ module m_plex_rt
         call create_edir_mat(solver%plex, solver%OPP, solver%kabs, solver%ksca, solver%g, solver%Mdir)
 
         ! Solve Direct Matrix
-        call solve_plex_rt(solver%plex, solver%incSolar, solver%Mdir, solution%edir)
+        call solve_plex_rt(solver%plex, solver%incSolar, solver%Mdir, solver%kspdir, solution%edir)
         call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
                                         '-show_edir_vec_global', ierr); call CHKERR(ierr)
@@ -523,21 +527,28 @@ module m_plex_rt
       call VecRestoreArrayF90(lambertVec, xv, ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine solve_plex_rt(plex, b, A, x)
+    subroutine solve_plex_rt(plex, b, A, ksp, x)
       type(t_plexgrid) :: plex
-      type(tVec), intent(in) :: b
+      type(tVec), allocatable, intent(in) :: b
+      type(tMat), allocatable, intent(in) :: A
+      type(tKSP), allocatable, intent(inout) :: ksp
       type(tVec), allocatable, intent(inout) :: x
-      type(tMat), intent(in) :: A
 
-      type(tKSP) :: ksp
       integer(mpiint) :: ierr
 
-      if(ldebug) print *,'plex_rt::solve Matrix...'
-      call KSPCreate(plex%comm, ksp, ierr); CHKERRQ(ierr)
-      call KSPSetOperators(ksp, A, A, ierr); CHKERRQ(ierr)
+      !if(.not.allocated(ksp)) call CHKERR(1_mpiint, 'KSP has to be allocated before running solve')
+      if(.not.allocated(b)) call CHKERR(1_mpiint, 'Src Vector has to be allocated before running solve')
+      if(.not.allocated(A)) call CHKERR(1_mpiint, 'System Matrix has to be allocated before running solve')
 
-      call KSPSetFromOptions(ksp, ierr); CHKERRQ(ierr)
-      call KSPSetUp(ksp, ierr); CHKERRQ(ierr)
+      if(ldebug) print *,'plex_rt::solve Matrix...'
+      if(.not.allocated(ksp)) then
+        allocate(ksp)
+        call KSPCreate(plex%comm, ksp, ierr); CHKERRQ(ierr)
+        call KSPSetOperators(ksp, A, A, ierr); CHKERRQ(ierr)
+
+        call KSPSetFromOptions(ksp, ierr); CHKERRQ(ierr)
+        call KSPSetUp(ksp, ierr); CHKERRQ(ierr)
+      endif
 
       if(.not.allocated(x)) then
         allocate(x)
@@ -734,7 +745,7 @@ module m_plex_rt
     type(t_plexgrid), intent(inout) :: plex
     class(t_optprop), intent(in) :: OPP
     real(ireals), allocatable, intent(in) :: kabs(:), ksca(:), g(:)
-    type(tMat), intent(out) :: A
+    type(tMat), allocatable, intent(inout) :: A
 
     type(tPetscSection) :: sec, edirglobsection
 
@@ -784,8 +795,11 @@ module m_plex_rt
     call DMGetSection(plex%edir_dm, sec, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(sec, PETSC_NULL_SECTION, '-show_edir_loc_section', ierr); call CHKERR(ierr)
 
-    call DMCreateMatrix(plex%edir_dm, A, ierr); call CHKERR(ierr)
-    !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
+    if(.not.allocated(A)) then
+      allocate(A)
+      call DMCreateMatrix(plex%edir_dm, A, ierr); call CHKERR(ierr)
+      !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
+    endif
 
     !if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
     do icell = plex%cStart, plex%cEnd-1

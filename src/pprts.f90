@@ -45,9 +45,12 @@ module m_pprts
   use m_petsc_helpers, only : petscGlobalVecToZero, scatterZerotoPetscGlobal, &
     petscVecToF90, f90VecToPetsc, getVecPointer, restoreVecPointer
 
-  use m_mcrts_dmda, only: solve_mcrts
+  use m_mcrts_dmda, only : solve_mcrts
 
-  use m_pprts_base
+  use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, &
+    t_coord, t_opticalprops, t_sunangles, t_suninfo, t_atmosphere, &
+    t_state_container, prepare_solution, destroy_solution, &
+    t_dof, t_solver_log_events, E_up, E_dn
 
   implicit none
   private
@@ -1596,7 +1599,10 @@ module m_pprts
 
     lsolar = mpi_logical_and(solver%comm, edirTOA.gt.zero .and. any(solver%sun%angles%theta.ge.zero))
 
-    call prepare_solution(solver,  solutions(uid), uid, lsolar=lsolar ) ! setup solution vectors
+    if(.not.solutions(uid)%lset) then
+      call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
+        lsolar=lsolar, solution=solutions(uid))
+    endif
 
     ! --------- Skip Thermal Computation (-lskip_thermal) --
     if(lskip_thermal .and. (solutions(uid)%lsolar_rad.eqv..False.) ) then !
@@ -1696,38 +1702,6 @@ module m_pprts
     call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_solve_pprts
 
     end associate
-  end subroutine
-
-  subroutine prepare_solution(solver, solution, uid, lsolar)
-    class(t_solver)               :: solver
-    type(t_state_container)       :: solution
-    integer(iintegers),intent(in) :: uid
-    logical,intent(in)            :: lsolar
-
-    solver%solutions(uid)%uid = uid ! dirty hack to give the solution a unique hash for example to write it out to disk
-
-    if( lsolar .and.  (solution%lsolar_rad.eqv..False.) ) then
-      ! set up the direct vectors in any case. This may be necessary even if solution was
-      ! already initialized once... e.g. in case we calculated thermal before with same uid
-      if(.not.allocated(solution%edir)) allocate(solution%edir)
-      call DMCreateGlobalVector(solver%C_dir%da ,solution%edir  ,ierr)  ; call CHKERR(ierr)
-      call VecSet(solution%edir,zero,ierr); call CHKERR(ierr)
-      solution%lsolar_rad = .True.
-    endif
-
-    if(ldebug .and. solver%myid.eq.0) print *,'Prepare solution',uid,'::',lsolar,solution%lsolar_rad,'set?',solution%lset
-
-    if(solution%lset) return ! already set-up
-
-    if(.not.allocated(solution%ediff)) allocate(solution%ediff)
-    call DMCreateGlobalVector(solver%C_diff%da,solution%ediff ,ierr)  ; call CHKERR(ierr)
-    call VecSet(solution%ediff,zero,ierr)    ; call CHKERR(ierr)
-
-    if(.not.allocated(solution%abso)) allocate(solution%abso)
-    call DMCreateGlobalVector(solver%C_one%da ,solution%abso  ,ierr)  ; call CHKERR(ierr)
-    call VecSet(solution%abso,zero,ierr)     ; call CHKERR(ierr)
-
-    solution%lset = .True.
   end subroutine
 
   !> @brief renormalize fluxes with the size of a face(sides or lid)

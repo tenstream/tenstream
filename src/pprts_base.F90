@@ -130,6 +130,32 @@ module m_pprts_base
   integer(iintegers), parameter :: E_up=0, E_dn=1 ! for 1D Solvers
 
   contains
+    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, solution)
+      type(tDM), intent(in) :: edir_dm, ediff_dm, abso_dm
+      logical, intent(in) :: lsolar
+      type(t_state_container), intent(inout) :: solution
+
+      if(solution%lset) call CHKERR(1_mpiint, 'solution has already been prepared before')
+
+      solution%lset = .True.
+      solution%lsolar_rad = lsolar
+
+      solution%lchanged = .True.
+
+      if(solution%lsolar_rad) then
+        allocate(solution%edir)
+        call DMCreateGlobalVector(edir_dm, solution%edir, ierr)  ; call CHKERR(ierr)
+        call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+      endif
+
+      allocate(solution%ediff)
+      call DMCreateGlobalVector(ediff_dm, solution%ediff, ierr)  ; call CHKERR(ierr)
+      call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+
+      allocate(solution%abso)
+      call DMCreateGlobalVector(abso_dm, solution%abso, ierr)  ; call CHKERR(ierr)
+      call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
+    end subroutine
     subroutine destroy_solution(solution)
       type(t_state_container), intent(inout) :: solution
       if( solution%lset ) then

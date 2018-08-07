@@ -23,7 +23,8 @@ use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
   gen_test_mat
 
 use m_plex_rt, only: get_normal_of_first_toa_face, compute_face_geometry, &
-  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop
+  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
+  destroy_plexrt_solver
 
 use m_netcdfio, only : ncload
 
@@ -104,6 +105,7 @@ logical, parameter :: ldebug=.True.
       call set_plex_rt_optprop(solver)
 
       call run_plex_rt_solver(solver, sundir)
+      call destroy_plexrt_solver(solver, lfinalizepetsc=.False.)
     end subroutine
 
   end module
