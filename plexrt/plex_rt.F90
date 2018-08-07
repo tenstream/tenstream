@@ -230,8 +230,10 @@ module m_plex_rt
       ! Prepare the space for the solution
       suid = get_arg(i0, opt_solutions_uid)
 
-      call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
-        lsolar=norm(sundir).gt.zero, solution=solver%solutions(suid))
+      if(.not.solver%solutions(suid)%lset) then
+        call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
+          lsolar=norm(sundir).gt.zero, solution=solver%solutions(suid))
+      endif
 
       associate( solution => solver%solutions(suid) )
 
@@ -555,7 +557,6 @@ module m_plex_rt
         call VecDuplicate(b, x, ierr); CHKERRQ(ierr)
       endif
       call KSPSolve(ksp, b, x, ierr); CHKERRQ(ierr)
-      call KSPDestroy(ksp, ierr); CHKERRQ(ierr)
       if(ldebug) print *,'plex_rt::solve Matrix...finished'
     end subroutine
 

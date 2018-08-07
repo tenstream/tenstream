@@ -48,9 +48,11 @@ module m_pprts_rrtmg
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
       imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR, deg2rad
-  use m_tenstream_interpolation, only : interp_1d
 
   use m_netcdfIO, only : ncwrite
+
+  use m_dyn_atm_to_rrtmg, only: t_atm, hydrostat_dz, plkint, sanitize_input, &
+    hydrostat_lev, rev_last_dim, merge_grid_var
 
   implicit none
 
@@ -60,34 +62,6 @@ module m_pprts_rrtmg
 !  logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
 
-  interface
-    real function PLKINT(WVLLO, WVLHI, T)
-      real :: WVLLO, WVLHI, T
-    end function
-  end interface
-
-  type t_atm
-    real(ireals),allocatable :: plev   (:) ! dim(nlay+1)
-    real(ireals),allocatable :: tlev   (:) !
-    real(ireals),allocatable :: zt     (:) !
-    real(ireals),allocatable :: h2o_lev(:) !
-    real(ireals),allocatable :: o3_lev (:) !
-    real(ireals),allocatable :: co2_lev(:) !
-    real(ireals),allocatable :: ch4_lev(:) !
-    real(ireals),allocatable :: n2o_lev(:) !
-    real(ireals),allocatable :: o2_lev (:) !
-
-    real(ireals),allocatable :: play   (:) ! dim(nlay)
-    real(ireals),allocatable :: zm     (:) !
-    real(ireals),allocatable :: dz     (:) !
-    real(ireals),allocatable :: tlay   (:) !
-    real(ireals),allocatable :: h2o_lay(:) !
-    real(ireals),allocatable :: o3_lay (:) !
-    real(ireals),allocatable :: co2_lay(:) !
-    real(ireals),allocatable :: ch4_lay(:) !
-    real(ireals),allocatable :: n2o_lay(:) !
-    real(ireals),allocatable :: o2_lay (:) !
-  end type
   type(t_atm),allocatable :: bg_atm
 
 contains
@@ -252,10 +226,10 @@ contains
     do j=js,je
       do i=is,ie
         icol =  i+(j-1)*ie
-        dz(:,i,j) = real(hydrostat_dz_rb(abs(col_plev(icol,1:ke) - col_plev(icol,2:ke1)), &
+        dz(:,i,j) = real(hydrostat_dz(abs(col_plev(icol,1:ke) - col_plev(icol,2:ke1)), &
                                  (col_plev(icol,1:ke) + col_plev(icol,2:ke1))/2,  &
                                  col_tlay(icol,:)), ireals)
-        dz_t2b(:,i,j) = rev1d(dz(:,i,j))
+        dz_t2b(:,i,j) = rev_last_dim(dz(:,i,j))
       enddo
     enddo
 
@@ -347,57 +321,6 @@ contains
     deallocate(col_reice )
   end subroutine
 
-  subroutine sanitize_input(plev, tlev, tlay)
-    real(ireals),intent(in),dimension(:) :: plev, tlev
-    real(ireals),intent(in),dimension(:),optional :: tlay
-
-    integer(mpiint) :: errcnt
-    integer(iintegers) :: k
-    logical :: lerr
-
-    errcnt = 0
-    lerr = maxval(plev) .gt. 1050
-    if(lerr) then
-      print *,'Pressure above 1050 hPa -- are you sure this is earth?', maxval(plev)
-      errcnt = errcnt+1
-    endif
-
-    lerr = minval(plev) .lt. zero
-    if(lerr) then
-      print *,'Pressure negative -- are you sure this is physically correct?', minval(plev)
-      errcnt = errcnt+1
-    endif
-
-    lerr = minval(tlev) .lt. 180
-    if(lerr) then
-      print *,'Temperature is very low -- are you sure RRTMG can handle that?', minval(tlev)
-      errcnt = errcnt+1
-    endif
-
-    lerr = maxval(tlev) .gt. 400
-    if(lerr) then
-      print *,'Temperature is very high -- are you sure RRTMG can handle that?', maxval(tlev)
-      errcnt = errcnt+1
-    endif
-
-    if(present(tlay) .and. ldebug) then
-      do k=lbound(tlay,1), ubound(tlay,1)
-        lerr = (tlay(k)-tlev(k).ge.zero) .eqv. (tlay(k)-tlev(k+1).gt.zero) ! different sign says its in between
-        if(lerr) then
-          print *,'Layer Temperature not between level temps?', k, tlev(k), '|', tlay(k), '|', tlev(k+1)
-          errcnt = errcnt+1
-        endif
-      enddo
-    endif
-
-
-    if(errcnt.gt.0) then
-      print *,'Found wonky input to pprts_rrtm_lw -- please check! -- will abort now.'
-      call CHKERR(errcnt)
-    endif
-
-  end subroutine
-
   subroutine compute_thermal(solver, is, ie, js, je, ks, ke, ke1, &
       albedo, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
       col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
@@ -482,9 +405,9 @@ contains
       do j=js,je
         do i=is,ie
           icol =  i+(j-1)*ie
-          eup(:,i,j) = rev1d(col_Eup(icol, :))
-          edn(:,i,j) = rev1d(col_Edn(icol, :))
-          abso(:,i,j) = rev1d(col_hr(icol, :))
+          eup(:,i,j) = rev_last_dim(col_Eup(icol, :))
+          edn(:,i,j) = rev_last_dim(col_Edn(icol, :))
+          abso(:,i,j) = rev_last_dim(col_hr(icol, :))
         enddo
       enddo
       return
@@ -515,12 +438,12 @@ contains
 
         ! divide by thickness to convert from tau to coefficients per meter
         do ib=1, ngptlw
-          kabs(:,i,j,ib) = rev1d(kabs(:,i,j,ib)) / dz_t2b(:,i,j)
+          kabs(:,i,j,ib) = rev_last_dim(kabs(:,i,j,ib)) / dz_t2b(:,i,j)
 
           Bfrac(2:ke1,i,j,ib) = col_Bfrac(icol,:,ib)
           Bfrac(1,i,j,ib) = Bfrac(2,i,j,ib) ! surface weights are the same as lowest layer
 
-          Bfrac(:,i,j,ib) = rev1d(Bfrac(:,i,j,ib))
+          Bfrac(:,i,j,ib) = rev_last_dim(Bfrac(:,i,j,ib))
         enddo
 
         ! Compute source term(planck function)
@@ -532,7 +455,7 @@ contains
 
           ! col_tlxx starts at surface but tenstream takes planck function
           ! starting at top --> reverse
-          Blev(:,i,j,ib) = rev1d(Blev(:,i,j,ib))
+          Blev(:,i,j,ib) = rev_last_dim(Blev(:,i,j,ib))
         enddo
 
       enddo
@@ -649,9 +572,9 @@ contains
         do i=is,ie
           icol =  i+(j-1)*ie
           edir(:,i,j) = zero
-          eup(:,i,j) = rev1d(col_Eup(icol, :))
-          edn(:,i,j) = rev1d(col_Edn(icol, :))
-          abso(:,i,j) = rev1d(col_hr(icol, :))
+          eup(:,i,j) = rev_last_dim(col_Eup(icol, :))
+          edn(:,i,j) = rev_last_dim(col_Edn(icol, :))
+          abso(:,i,j) = rev_last_dim(col_hr(icol, :))
         enddo
       enddo
       return
@@ -686,9 +609,9 @@ contains
 
         ! divide by thickness to convert from tau to coefficients per meter
         do ib=1, ngptsw
-          kabs(:,i,j,ib) = rev1d(kabs(:,i,j,ib)) / dz_t2b(:,i,j)
-          ksca(:,i,j,ib) = rev1d(ksca(:,i,j,ib)) / dz_t2b(:,i,j)
-          g   (:,i,j,ib) = rev1d(g   (:,i,j,ib))
+          kabs(:,i,j,ib) = rev_last_dim(kabs(:,i,j,ib)) / dz_t2b(:,i,j)
+          ksca(:,i,j,ib) = rev_last_dim(ksca(:,i,j,ib)) / dz_t2b(:,i,j)
+          g   (:,i,j,ib) = rev_last_dim(g   (:,i,j,ib))
         enddo
 
       enddo
@@ -946,52 +869,6 @@ contains
     endif
   end subroutine
 
-  subroutine hydrostat_lev(plev,tlay, hsrfc, hhl, dz)
-    ! Integrate vertical height profile hydrostatically. arrays start at bottom(surface)
-    real(ireals),intent(in) :: plev(:),tlay(:)
-    real(ireals),intent(in) :: hsrfc
-    real(ireals),intent(out) :: hhl(size(plev))
-    real(ireals),intent(out) :: dz(size(tlay))
-    integer(im) :: k
-    hhl(1) = hsrfc
-    do k=1,size(tlay)
-      dz(k) = hydrostat_dz_ireal(abs(plev(k+1)-plev(k)), (plev(k+1)+plev(k))/2, tlay(k))
-      hhl(k+1) = hhl(k) + dz(k)
-    enddo
-    if(any(dz.le.zero)) then
-      print *,'plev',plev
-      print *,'tlay',tlay
-      print *,'dz',dz
-      print *,'hhl',hhl
-      stop 'error in dz'
-    endif
-  end subroutine
-
-  pure elemental function hydrostat_dz_ireal(dp, p, T)
-    real(ireals), intent(in) :: dp, p, T
-    real(ireals) :: hydrostat_dz_ireal, rho
-    rho = p / 287.058_ireals / T
-    hydrostat_dz_ireal = dp / rho / 9.8065_ireals
-  end function
-  pure elemental function hydrostat_dz_rb(dp, p, T)
-    real(rb), intent(in) :: dp, p, T
-    real(rb) :: hydrostat_dz_rb, rho
-    rho = p / 287.058_rb / T
-    hydrostat_dz_rb = dp / rho / 9.8065_rb
-  end function
-
-  function rev2d(inp) ! reverse second dimension
-    real(ireals),intent(in) :: inp(:,:)
-    real(rb) :: rev2d(size(inp,1),size(inp,2))
-    rev2d = inp(:,ubound(inp,2):lbound(inp,2):-1)
-  end function
-
-  function rev1d(inp) ! reverse array
-    real(ireals),intent(in) :: inp(:)
-    real(ireals) :: rev1d(size(inp,1))
-    rev1d = inp(ubound(inp,1):lbound(inp,1):-1)
-  end function
-
   subroutine load_atmfile(comm, atm_filename, atm)
     integer(mpiint), intent(in) :: comm
     character(default_str_len), intent(in) :: atm_filename
@@ -1186,7 +1063,7 @@ contains
         icol = i+(j-1)*ie
 
         ! First merge pressure levels .. pressure is always given..
-        col_plev(icol, ke1-atm_ke+1:ke1) = rev1d(atm%plev(1:atm_ke))
+        col_plev(icol, ke1-atm_ke+1:ke1) = rev_last_dim(atm%plev(1:atm_ke))
         col_plev(icol, 1:d_ke1) = d_plev(:,i,j)
         if(col_plev(icol, ke1-atm_ke+1) .gt. col_plev(icol,d_ke1)) then
           print *,'background profile pressure is .ge. than uppermost pressure &
@@ -1196,7 +1073,7 @@ contains
         endif
 
         ! And also Tlev has to be present always
-        col_tlev(icol, ke1-atm_ke+1:ke1) = rev1d(atm%tlev(1:atm_ke))
+        col_tlev(icol, ke1-atm_ke+1:ke1) = rev_last_dim(atm%tlev(1:atm_ke))
         col_tlev(icol, 1:d_ke1) = d_tlev(:,i,j)
 
         if(present(d_tlay)) then
@@ -1260,35 +1137,6 @@ contains
         endif
       enddo
     enddo
-
-  end subroutine
-
-  ! merge the dynamics grid and the background profile together at lvl atm_ke
-  ! NOTE! Only use with variables on layer
-  subroutine merge_grid_var(a_hhl, d_hhl, atm_ke, a_lay, a_lev, col_var, d_var)
-    integer(iintegers),intent(in) :: atm_ke
-    real(ireals),intent(in) :: a_hhl(:), d_hhl(:), a_lay(:), a_lev(:) ! a_arr is from atm%, d_arr corresponds to dynamics grids
-    real(rb),intent(out) :: col_var(:)
-    real(ireals),intent(in),optional :: d_var(:)
-    integer(iintegers) :: k, kt ! kt is reverse index
-    real(ireals) :: h
-
-    ! Top of atmosphere layers are always given by background profile
-    do k=1,atm_ke
-      kt = size(col_var)-k+1
-      col_var(kt) = a_lay(k)
-    enddo
-
-    if(present(d_var)) then ! dynamics grid variable is provided, use that
-      do k=1,size(d_var)
-        col_var(k) = d_var(k)
-      enddo
-    else ! we may still use atmospheric grid file instead...
-      do k=1,size(col_var)-atm_ke
-        h = (d_hhl(k+1) + d_hhl(k)) / 2
-        col_var(k) = interp_1d(search_sorted_bisection(a_hhl, h), a_lev)
-      enddo
-    endif
 
   end subroutine
 end module
