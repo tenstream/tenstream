@@ -3,7 +3,7 @@ module test_helper_functions
   use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
   use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
     compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction, &
-    cumprod
+    cumprod, reverse
 
   use pfunit_mod
 
@@ -246,5 +246,26 @@ subroutine test_cumprod(this)
   real(ireals),parameter :: rarr(3) = [1,2,3]
   @assertEqual([1,2,6], cumprod(iarr))
   @assertEqual(real([1,2,6], ireals), cumprod(rarr))
+end subroutine
+
+@test(npes=[1])
+subroutine test_reverse(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals),parameter :: arr(3) = [1,2,3]
+  real(ireals) :: arr2d(2,3)
+  @assertEqual([3,2,1], reverse(arr))
+
+  arr2d(1,:) = arr
+  arr2d(2,:) = arr+1
+
+  arr2d = reverse(arr2d)
+
+  @assertEqual(arr+1, arr2d(1,:))
+  @assertEqual(arr, arr2d(2,:))
+
+  arr2d = reverse(arr2d, dim=2)
+
+  @assertEqual(reverse(arr+1), arr2d(1,:))
+  @assertEqual(reverse(arr), arr2d(2,:))
 end subroutine
 end module

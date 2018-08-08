@@ -35,7 +35,7 @@ module m_helper_functions
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, &
-    resize_arr
+    resize_arr, reverse
 
   interface itoa
     module procedure itoa_i4, itoa_i8
@@ -62,6 +62,9 @@ module m_helper_functions
   end interface
   interface resize_arr
     module procedure resize_arr_int32, resize_arr_int64
+  end interface
+  interface reverse
+    module procedure reverse_1d_real32, reverse_2d_real32, reverse_1d_real64, reverse_2d_real64
   end interface
 
 
@@ -1108,5 +1111,46 @@ module m_helper_functions
       get_mem_footprint = real(memory_footprint / 1024. / 1024. / 1024., ireals)
 
       !  if(ldebug) print *,myid,'Memory Footprint',memory_footprint, 'B', get_mem_footprint, 'G'
+    end function
+
+    function reverse_1d_real32(inp) result(rev)
+      real(real32),intent(in) :: inp(:)
+      real(real32) :: rev(size(inp,1))
+      rev = inp(ubound(inp,1):lbound(inp,1):-1)
+    end function
+    function reverse_1d_real64(inp) result(rev)
+      real(real64),intent(in) :: inp(:)
+      real(real64) :: rev(size(inp,1))
+      rev = inp(ubound(inp,1):lbound(inp,1):-1)
+    end function
+    function reverse_2d_real32(inp, dim) result(rev)
+      real(real32),intent(in) :: inp(:,:)
+      integer(iintegers), optional, intent(in) :: dim
+      real(real32) :: rev(size(inp,1),size(inp,2))
+      integer(iintegers) :: rdim
+      rdim = get_arg(i1, dim)
+      select case(rdim)
+      case(1)
+        rev = inp(ubound(inp,1):lbound(inp,1):-1, :)
+      case(2)
+        rev = inp(:, ubound(inp,2):lbound(inp,2):-1)
+      case default
+        call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
+      end select
+    end function
+    function reverse_2d_real64(inp, dim) result(rev)
+      real(real64),intent(in) :: inp(:,:)
+      integer(iintegers), optional, intent(in) :: dim
+      real(real64) :: rev(size(inp,1),size(inp,2))
+      integer(iintegers) :: rdim
+      rdim = get_arg(i1, dim)
+      select case(rdim)
+      case(1)
+        rev = inp(ubound(inp,1):lbound(inp,1):-1, :)
+      case(2)
+        rev = inp(:, ubound(inp,2):lbound(inp,2):-1)
+      case default
+        call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
+      end select
     end function
   end module

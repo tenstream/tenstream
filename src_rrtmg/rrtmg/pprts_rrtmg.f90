@@ -47,12 +47,13 @@ module m_pprts_rrtmg
       pprts_get_result, pprts_get_result_toZero
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-      imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR, deg2rad
+      imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR, deg2rad, &
+      reverse
 
   use m_netcdfIO, only : ncwrite
 
-  use m_dyn_atm_to_rrtmg, only: t_atm, hydrostat_dz, plkint, sanitize_input, &
-    hydrostat_lev, rev_last_dim, merge_grid_var
+  use m_dyn_atm_to_rrtmg, only: t_bg_atm, hydrostat_dz, plkint, sanitize_input, &
+    hydrostat_lev, merge_grid_var, load_atmfile
 
   implicit none
 
@@ -62,7 +63,7 @@ module m_pprts_rrtmg
 !  logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
 
-  type(t_atm),allocatable :: bg_atm
+  type(t_bg_atm),allocatable :: bg_atm
 
 contains
 
@@ -229,7 +230,7 @@ contains
         dz(:,i,j) = real(hydrostat_dz(abs(col_plev(icol,1:ke) - col_plev(icol,2:ke1)), &
                                  (col_plev(icol,1:ke) + col_plev(icol,2:ke1))/2,  &
                                  col_tlay(icol,:)), ireals)
-        dz_t2b(:,i,j) = rev_last_dim(dz(:,i,j))
+        dz_t2b(:,i,j) = reverse(dz(:,i,j))
       enddo
     enddo
 
@@ -405,9 +406,9 @@ contains
       do j=js,je
         do i=is,ie
           icol =  i+(j-1)*ie
-          eup(:,i,j) = rev_last_dim(col_Eup(icol, :))
-          edn(:,i,j) = rev_last_dim(col_Edn(icol, :))
-          abso(:,i,j) = rev_last_dim(col_hr(icol, :))
+          eup(:,i,j) = reverse(col_Eup(icol, :))
+          edn(:,i,j) = reverse(col_Edn(icol, :))
+          abso(:,i,j) = reverse(col_hr(icol, :))
         enddo
       enddo
       return
@@ -438,12 +439,12 @@ contains
 
         ! divide by thickness to convert from tau to coefficients per meter
         do ib=1, ngptlw
-          kabs(:,i,j,ib) = rev_last_dim(kabs(:,i,j,ib)) / dz_t2b(:,i,j)
+          kabs(:,i,j,ib) = reverse(kabs(:,i,j,ib)) / dz_t2b(:,i,j)
 
           Bfrac(2:ke1,i,j,ib) = col_Bfrac(icol,:,ib)
           Bfrac(1,i,j,ib) = Bfrac(2,i,j,ib) ! surface weights are the same as lowest layer
 
-          Bfrac(:,i,j,ib) = rev_last_dim(Bfrac(:,i,j,ib))
+          Bfrac(:,i,j,ib) = reverse(Bfrac(:,i,j,ib))
         enddo
 
         ! Compute source term(planck function)
@@ -455,7 +456,7 @@ contains
 
           ! col_tlxx starts at surface but tenstream takes planck function
           ! starting at top --> reverse
-          Blev(:,i,j,ib) = rev_last_dim(Blev(:,i,j,ib))
+          Blev(:,i,j,ib) = reverse(Blev(:,i,j,ib))
         enddo
 
       enddo
@@ -572,9 +573,9 @@ contains
         do i=is,ie
           icol =  i+(j-1)*ie
           edir(:,i,j) = zero
-          eup(:,i,j) = rev_last_dim(col_Eup(icol, :))
-          edn(:,i,j) = rev_last_dim(col_Edn(icol, :))
-          abso(:,i,j) = rev_last_dim(col_hr(icol, :))
+          eup(:,i,j)  = reverse(col_Eup(icol, :))
+          edn(:,i,j)  = reverse(col_Edn(icol, :))
+          abso(:,i,j) = reverse(col_hr(icol, :))
         enddo
       enddo
       return
@@ -609,9 +610,9 @@ contains
 
         ! divide by thickness to convert from tau to coefficients per meter
         do ib=1, ngptsw
-          kabs(:,i,j,ib) = rev_last_dim(kabs(:,i,j,ib)) / dz_t2b(:,i,j)
-          ksca(:,i,j,ib) = rev_last_dim(ksca(:,i,j,ib)) / dz_t2b(:,i,j)
-          g   (:,i,j,ib) = rev_last_dim(g   (:,i,j,ib))
+          kabs(:,i,j,ib) = reverse(kabs(:,i,j,ib)) / dz_t2b(:,i,j)
+          ksca(:,i,j,ib) = reverse(ksca(:,i,j,ib)) / dz_t2b(:,i,j)
+          g   (:,i,j,ib) = reverse(g   (:,i,j,ib))
         enddo
 
       enddo
@@ -869,91 +870,6 @@ contains
     endif
   end subroutine
 
-  subroutine load_atmfile(comm, atm_filename, atm)
-    integer(mpiint), intent(in) :: comm
-    character(default_str_len), intent(in) :: atm_filename
-    type(t_atm),allocatable,intent(inout) :: atm
-
-    integer(mpiint) :: myid, ierr
-    integer(iintegers) :: k, nlev
-    real(ireals),allocatable :: prof(:,:) ! # z(km)  p(mb)  T(K) air(cm-3) o3(cm-3) o2(cm-3)  h2o(cm-3) co2(cm-3) no2(cm-3)
-
-    if(allocated(atm)) return
-
-    call mpi_comm_rank(comm, myid, ierr)
-    allocate(atm)
-
-    if(myid.eq.0) then
-      call read_ascii_file_2d(atm_filename, prof, i9, i2, ierr)
-      if(ierr.ne.0) then
-        print *,'************* Error occured reading the atmosphere file:', atm_filename, '::', ierr
-        call CHKERR(ierr)
-      endif
-
-      nlev = ubound(prof,1)
-
-      allocate(atm%plev   (nlev))
-      allocate(atm%zt     (nlev))
-      allocate(atm%tlev   (nlev))
-      allocate(atm%h2o_lev(nlev))
-      allocate(atm%o3_lev (nlev))
-      allocate(atm%co2_lev(nlev))
-      allocate(atm%ch4_lev(nlev))
-      allocate(atm%n2o_lev(nlev))
-      allocate(atm%o2_lev (nlev))
-
-      atm%zt   = prof(:,1)*1e3
-      atm%plev = prof(:,2)
-      atm%tlev = prof(:,3)
-      atm%h2o_lev = prof(:,7) / prof(:,4)
-      atm%o3_lev  = prof(:,5) / prof(:,4)
-      atm%co2_lev = prof(:,8) / prof(:,4)
-      atm%ch4_lev = atm%co2_lev / 1e2
-      atm%n2o_lev = prof(:,9) / prof(:,4)
-      atm%o2_lev  = prof(:,6) / prof(:,4)
-
-      if(ldebug .and. myid.eq.0) then
-        do k=1, nlev
-          print *,k,'zt', atm%zt(k), 'plev', atm%plev(k), 'T', atm%tlev(k), 'CO2', atm%co2_lev(k), 'H2O', atm%h2o_lev(k), 'O3', atm%o3_lev(k),'N2O' , atm%n2o_lev(k), 'O2', atm%o2_lev(k)
-        enddo
-
-      endif
-    endif
-    call imp_bcast(comm, atm%plev   , 0_mpiint)
-    call imp_bcast(comm, atm%zt     , 0_mpiint)
-    call imp_bcast(comm, atm%tlev   , 0_mpiint)
-    call imp_bcast(comm, atm%h2o_lev, 0_mpiint)
-    call imp_bcast(comm, atm%o3_lev , 0_mpiint)
-    call imp_bcast(comm, atm%co2_lev, 0_mpiint)
-    call imp_bcast(comm, atm%ch4_lev, 0_mpiint)
-    call imp_bcast(comm, atm%n2o_lev, 0_mpiint)
-    call imp_bcast(comm, atm%o2_lev , 0_mpiint)
-
-    nlev = size(atm%plev)
-
-    allocate(atm%play   (nlev-1))
-    allocate(atm%zm     (nlev-1))
-    allocate(atm%dz     (nlev-1))
-    allocate(atm%tlay   (nlev-1))
-    allocate(atm%h2o_lay(nlev-1))
-    allocate(atm%o3_lay (nlev-1))
-    allocate(atm%co2_lay(nlev-1))
-    allocate(atm%ch4_lay(nlev-1))
-    allocate(atm%n2o_lay(nlev-1))
-    allocate(atm%o2_lay (nlev-1))
-
-    atm%play    = meanvec(atm%plev   )
-    atm%zm      = meanvec(atm%zt     )
-    atm%dz      = atm%zt(1:nlev-1) - atm%zt(2:nlev)
-    atm%tlay    = meanvec(atm%tlev   )
-    atm%h2o_lay = meanvec(atm%h2o_lev)
-    atm%o3_lay  = meanvec(atm%o3_lev )
-    atm%co2_lay = meanvec(atm%co2_lev)
-    atm%ch4_lay = meanvec(atm%ch4_lev)
-    atm%n2o_lay = meanvec(atm%n2o_lev)
-    atm%o2_lay  = meanvec(atm%o2_lev )
-  end subroutine
-
   subroutine merge_dyn_rad_grid(comm, atm,     &
       in_d_plev, d_tlev, d_tlay, d_h2ovmr,     &
       d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr,   &
@@ -964,7 +880,7 @@ contains
       col_lwc, col_reliq, col_iwc, col_reice)
 
     integer(mpiint), intent(in) :: comm
-    type(t_atm),intent(in) :: atm ! 1D background profile info
+    type(t_bg_atm),intent(in) :: atm ! 1D background profile info
 
     real(ireals),intent(in) :: in_d_plev (:,:,:), d_tlev(:,:,:) ! dim(nlay_dynamics+1, nxp, nyp)
 
@@ -1063,7 +979,7 @@ contains
         icol = i+(j-1)*ie
 
         ! First merge pressure levels .. pressure is always given..
-        col_plev(icol, ke1-atm_ke+1:ke1) = rev_last_dim(atm%plev(1:atm_ke))
+        col_plev(icol, ke1-atm_ke+1:ke1) = reverse(atm%plev(1:atm_ke))
         col_plev(icol, 1:d_ke1) = d_plev(:,i,j)
         if(col_plev(icol, ke1-atm_ke+1) .gt. col_plev(icol,d_ke1)) then
           print *,'background profile pressure is .ge. than uppermost pressure &
@@ -1073,7 +989,7 @@ contains
         endif
 
         ! And also Tlev has to be present always
-        col_tlev(icol, ke1-atm_ke+1:ke1) = rev_last_dim(atm%tlev(1:atm_ke))
+        col_tlev(icol, ke1-atm_ke+1:ke1) = reverse(atm%tlev(1:atm_ke))
         col_tlev(icol, 1:d_ke1) = d_tlev(:,i,j)
 
         if(present(d_tlay)) then
