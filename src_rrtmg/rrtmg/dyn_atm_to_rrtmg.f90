@@ -566,4 +566,3 @@ module m_dyn_atm_to_rrtmg
   end subroutine
 
 end module
-
