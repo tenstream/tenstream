@@ -275,7 +275,9 @@ module m_dyn_atm_to_rrtmg
     ! then from there on couple background atm data on top of that
     if(.not.allocated(atm%plev   )) allocate(atm%plev   (ke1, ie))
     if(.not.allocated(atm%tlev   )) allocate(atm%tlev   (ke1, ie))
+    if(.not.allocated(atm%zt     )) allocate(atm%zt     (ke1, ie))
     if(.not.allocated(atm%tlay   )) allocate(atm%tlay   (ke,  ie))
+    if(.not.allocated(atm%dz     )) allocate(atm%dz     (ke1, ie))
     if(.not.allocated(atm%h2o_lay)) allocate(atm%h2o_lay(ke,  ie))
     if(.not.allocated(atm%o3_lay )) allocate(atm%o3_lay (ke,  ie))
     if(.not.allocated(atm%co2_lay)) allocate(atm%co2_lay(ke,  ie))
@@ -309,6 +311,9 @@ module m_dyn_atm_to_rrtmg
         call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%tlay, bg_atm%tlev, atm%tlay(:, icol), &
           (d_tlev(1:d_ke,icol)+d_tlev(2:d_ke1,icol))/2)
       endif
+
+      ! compute dz
+      call hydrostat_lev(atm%plev(:,icol),atm%tlay(:,icol), zero, atm%zt(:, icol), atm%dz(:, icol))
 
       if(present(d_lwc)) then
         call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%lwc(:,icol), d_lwc(:,icol))
