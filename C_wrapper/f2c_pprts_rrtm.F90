@@ -19,25 +19,28 @@
 
 module m_f2c_pprts_rrtm
 
+#include "petsc/finclude/petsc.h"
+      use petsc
+
       use iso_c_binding
 
       use m_data_parameters, only : init_mpi_data_parameters, &
         iintegers, ireals, mpiint, default_str_len, &
         zero, one
 
-      use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
-      use m_pprts_base, only : t_solver_3_10
-
       use m_helper_functions, only: imp_bcast, mean, CHKERR
 
-#include "petsc/finclude/petsc.h"
-      use petsc
+      use m_pprts_base, only : t_solver_3_10
+      use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
+      use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+
       implicit none
 
       private
       public ::f2c_pprts_rrtmg, f2c_destroy_pprts_rrtmg
 
       type(t_solver_3_10) :: solver
+      type(t_tenstr_atm) :: atm
 contains
 
   subroutine f2c_pprts_rrtmg(comm, Nz, Nx, Ny, dx, dy, &
@@ -64,12 +67,15 @@ contains
     type(c_ptr), intent(out) :: cptr_edir, cptr_edn, cptr_eup      ! fluxes edir, edn, eup have shape(Nz_merged+1, Nx, Ny)
     type(c_ptr), intent(out) :: cptr_abso                          ! abso just (Nz_merged, Nx, Ny)
 
-    real(c_double), dimension(Nz+1, Nx, Ny), intent(in) :: d_plev  ! pressure on layer interfaces    [hPa]
-    real(c_double), dimension(Nz+1, Nx, Ny), intent(in) :: d_tlev  ! Temperature on layer interfaces [K]
-    real(c_double), dimension(Nz, Nx, Ny), intent(in)   :: d_lwc   ! liq water content               [g/kg]
-    real(c_double), dimension(Nz, Nx, Ny), intent(in)   :: d_reliq ! effective radius                [micron]
-    real(c_double), dimension(Nz, Nx, Ny), intent(in)   :: d_iwc   ! ice water content               [g/kg]
-    real(c_double), dimension(Nz, Nx, Ny), intent(in)   :: d_reice ! ice effective radius            [micron]
+    real(c_double), dimension(Nz+1, Nx, Ny), target, intent(in) :: d_plev  ! pressure on layer interfaces    [hPa]
+    real(c_double), dimension(Nz+1, Nx, Ny), target, intent(in) :: d_tlev  ! Temperature on layer interfaces [K]
+    real(c_double), dimension(Nz, Nx, Ny),   target, intent(in) :: d_lwc   ! liq water content               [g/kg]
+    real(c_double), dimension(Nz, Nx, Ny),   target, intent(in) :: d_reliq ! effective radius                [micron]
+    real(c_double), dimension(Nz, Nx, Ny),   target, intent(in) :: d_iwc   ! ice water content               [g/kg]
+    real(c_double), dimension(Nz, Nx, Ny),   target, intent(in) :: d_reice ! ice effective radius            [micron]
+
+    ! reshape pointer to convert i,j vecs to column vecs
+    real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq, piwc, preice
 
     integer(c_int), intent(in) :: nprocx, nprocy                  ! number of processors in x and y
     integer(c_int), intent(in) :: nxproc(nprocx), nyproc(nprocy)  ! local size of subdomain along x and y
@@ -86,26 +92,31 @@ contains
 
     atm_filename = c_to_f_string(c_atm_filename)
 
+    pplev (1:size(d_plev,1) ,1:size(d_plev,2) *size(d_plev,3))  => d_plev
+    ptlev (1:size(d_tlev,1) ,1:size(d_tlev,2) *size(d_tlev,3))  => d_tlev
+    plwc  (1:size(d_lwc ,1) ,1:size(d_lwc ,2) *size(d_lwc ,3))  => d_lwc
+    preliq(1:size(d_reliq,1),1:size(d_reliq,2)*size(d_reliq,3)) => d_reliq
+    piwc  (1:size(d_iwc ,1) ,1:size(d_iwc ,2) *size(d_iwc ,3))  => d_iwc
+    preice(1:size(d_reice,1),1:size(d_reice,2)*size(d_reice,3)) => d_reice
+
+    call setup_tenstr_atm(comm, .False., atm_filename, &
+      pplev, ptlev, atm, &
+      d_lwc=real(plwc, ireals), d_reliq=real(preliq, ireals), &
+      d_iwc=real(piwc, ireals), d_reice=real(preice, ireals))
+
     lthermal = c_int_2_logical(c_lthermal)
     lsolar   = c_int_2_logical(c_lsolar)
 
     call pprts_rrtmg(comm,                &
-      solver,                             &
+      solver, atm, Nx, Ny,                &
       real(dx, kind=ireals),              &
       real(dy,kind=ireals),               &
       real(phi0, kind=ireals),            &
       real(theta0, kind=ireals),          &
       real(albedo_thermal, kind=ireals),  &
       real(albedo_solar, kind=ireals),    &
-      atm_filename,                       &
       lthermal, lsolar,                   &
       edir,edn,eup,abso,                  &
-      real(d_plev, kind=ireals),          &
-      real(d_tlev, kind=ireals),          &
-      d_lwc=real(d_lwc, kind=ireals),     &
-      d_reliq=real(d_reliq, kind=ireals), &
-      d_iwc=real(d_iwc, kind=ireals),     &
-      d_reice=real(d_reice, kind=ireals), &
       nxproc=int(nxproc, kind=iintegers), &
       nyproc=int(nyproc, kind=iintegers))
 
@@ -148,6 +159,7 @@ contains
   subroutine f2c_destroy_pprts_rrtmg(c_lfinalizepetsc) bind(C) ! Tidy up the solver
     integer(c_int), intent(in) :: c_lfinalizepetsc  ! determines if we drop the Petsc Environment. If you called petsc initialize in the C program, say False, i.e. 0
     call destroy_pprts_rrtmg(solver, c_int_2_logical(c_lfinalizepetsc))
+    call destroy_tenstr_atm(atm)
   end subroutine
 
   function c_to_f_string(s) result(str)

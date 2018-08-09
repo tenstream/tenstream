@@ -33,6 +33,7 @@
 !!
 
 module m_pprts_rrtmg
+  use, intrinsic :: iso_c_binding
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -52,8 +53,8 @@ module m_pprts_rrtmg
 
   use m_netcdfIO, only : ncwrite
 
-  use m_dyn_atm_to_rrtmg, only: t_bg_atm, hydrostat_dz, plkint, sanitize_input, &
-    hydrostat_lev, merge_grid_var, load_atmfile
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, hydrostat_dz, plkint, sanitize_input, &
+    hydrostat_lev, merge_grid_var, load_atmfile, print_tenstr_atm
 
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw
 
@@ -64,8 +65,6 @@ module m_pprts_rrtmg
 
 !  logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
-
-  type(t_bg_atm),allocatable :: bg_atm
 
 contains
 
@@ -79,7 +78,8 @@ contains
     integer(iintegers),intent(in) :: xm, ym, zm
     class(t_solver),intent(inout) :: solver
 
-    integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:) ! array containing xm and ym for all nodes :: dim[x-ranks, y-ranks]
+    ! arrays containing xm and ym for all nodes :: dim[x-ranks, y-ranks]
+    integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:)
 
     if(present(nxproc) .neqv. present(nyproc)) then
       print *,'Wrong call to init_tenstream_rrtm_lw --    &
@@ -95,46 +95,25 @@ contains
 
   end subroutine
 
-  subroutine pprts_rrtmg(comm, solver, dx, dy, phi0, theta0, &
-      albedo_thermal, albedo_solar, atm_filename,     &
+  subroutine pprts_rrtmg(comm, solver, atm, ie, je, &
+      dx, dy, phi0, theta0, &
+      albedo_thermal, albedo_solar,                   &
       lthermal, lsolar,                               &
       edir,edn,eup,abso,                              &
-      d_plev, d_tlev, d_tlay, d_h2ovmr, d_o3vmr,      &
-      d_co2vmr, d_ch4vmr, d_n2ovmr,  d_o2vmr,         &
-      d_lwc, d_reliq, d_iwc, d_reice,                 &
       nxproc, nyproc, icollapse,                      &
       opt_time, solar_albedo_2d)
 
     integer(mpiint), intent(in)     :: comm ! MPI Communicator
 
     class(t_solver), intent(inout)  :: solver                       ! solver type (e.g. t_solver_8_10)
+    type(t_tenstr_atm), intent(in)  :: atm                          ! contains info on atmospheric constituents
+    integer(iintegers), intent(in)  :: ie, je                       ! local domain size in x and y direction
     real(ireals), intent(in)        :: dx, dy                       ! horizontal grid spacing in [m]
     real(ireals), intent(in)        :: phi0, theta0                 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals), intent(in)        :: albedo_solar, albedo_thermal ! broadband ground albedo for solar and thermal spectrum
 
-    ! Filename of background atmosphere file. ASCII file with columns:
-    ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
-    character(default_str_len), intent(in) :: atm_filename
-
     ! Compute solar or thermal radiative transfer. Or compute both at once.
     logical, intent(in) :: lsolar, lthermal
-
-    ! dim(nlay_dynamics+1, nxp, nyp)
-    real(ireals),intent(in) :: d_plev(:,:,:) ! pressure on layer interfaces [hPa]
-    real(ireals),intent(in) :: d_tlev(:,:,:) ! Temperature on layer interfaces [K]
-
-    ! all have dim(nlay_dynamics, nxp, nyp)
-    real(ireals),intent(in),optional :: d_tlay   (:,:,:) ! layer mean temperature [K]
-    real(ireals),intent(in),optional :: d_h2ovmr (:,:,:) ! watervapor volume mixing ratio [e.g. 1e-3]
-    real(ireals),intent(in),optional :: d_o3vmr  (:,:,:) ! ozone volume mixing ratio      [e.g. .1e-6]
-    real(ireals),intent(in),optional :: d_co2vmr (:,:,:) ! CO2 volume mixing ratio        [e.g. 407e-6]
-    real(ireals),intent(in),optional :: d_ch4vmr (:,:,:) ! methane volume mixing ratio    [e.g. 2e-6]
-    real(ireals),intent(in),optional :: d_n2ovmr (:,:,:) ! n2o volume mixing ratio        [e.g. .32]
-    real(ireals),intent(in),optional :: d_o2vmr  (:,:,:) ! oxygen volume mixing ratio     [e.g. .2]
-    real(ireals),intent(in),optional :: d_lwc    (:,:,:) ! liq water content              [g/kg]
-    real(ireals),intent(in),optional :: d_reliq  (:,:,:) ! effective radius               [micron]
-    real(ireals),intent(in),optional :: d_iwc    (:,:,:) ! ice water content              [g/kg]
-    real(ireals),intent(in),optional :: d_reice  (:,:,:) ! ice effective radius           [micron]
 
     ! nxproc dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
     ! nyproc dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
@@ -143,10 +122,10 @@ contains
 
     integer(iintegers),intent(in),optional :: icollapse ! experimental, dont use it if you dont know what you are doing.
 
-    ! opt_time is the model time in seconds. If provided we will track the error growth of the solutions and compute new solutions only after threshold estimate is exceeded.
+    ! opt_time is the model time in seconds. If provided we will track the error growth of the solutions
+    ! and compute new solutions only after threshold estimate is exceeded.
     ! If solar_albedo_2d is present, we use a 2D surface albedo
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
-
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -155,34 +134,17 @@ contains
     !   edn(ubound(edn,1)-nlay_dynamics : ubound(edn,1) )
     ! or:
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
-    real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir,edn,eup,abso          ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir, edn, eup  ! [nlyr+1, local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:), intent(out) :: abso            ! [nlyr  , local_nx, local_ny ]
 
     ! ---------- end of API ----------------
 
-    ! 2D arrays to work with RRTMG, expects(Ncolumn, Nlev) and handles the
-    ! vertical coordinate from bottom up
-    real(rb),allocatable :: col_plev   (:,:)
-    real(rb),allocatable :: col_tlev   (:,:)
-    real(rb),allocatable :: col_tlay   (:,:)
-    real(rb),allocatable :: col_h2ovmr (:,:)
-    real(rb),allocatable :: col_o3vmr  (:,:)
-    real(rb),allocatable :: col_co2vmr (:,:)
-    real(rb),allocatable :: col_ch4vmr (:,:)
-    real(rb),allocatable :: col_n2ovmr (:,:)
-    real(rb),allocatable :: col_o2vmr  (:,:)
-    real(rb),allocatable :: col_lwc    (:,:)
-    real(rb),allocatable :: col_lwp    (:,:)
-    real(rb),allocatable :: col_reliq  (:,:)
-    real(rb),allocatable :: col_iwc    (:,:)
-    real(rb),allocatable :: col_iwp    (:,:)
-    real(rb),allocatable :: col_reice  (:,:)
-
     ! Counters
-    integer(iintegers) :: i, j, k, icol
-    integer(iintegers) :: is, ie, js, je, ks, ke, ke1
+    integer(iintegers) :: i, j, icol
+    integer(iintegers) :: ke, ke1
 
     ! vertical thickness in [m]
-    real(ireals),allocatable :: dz(:,:,:), dz_t2b(:,:,:) ! dz (t2b := top 2 bottom)
+    real(ireals),allocatable :: dz_t2b(:,:,:) ! dz (t2b := top 2 bottom)
 
     ! for debug purposes, can output variables into netcdf files
     !character(default_str_len) :: output_path(2) ! [ filename, varname ]
@@ -195,74 +157,28 @@ contains
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    call load_atmfile(comm, atm_filename, bg_atm)
+    ke1 = ubound(atm%plev,1)
+    ke = ubound(atm%tlay,1)
 
-    call sanitize_input(bg_atm%plev, bg_atm%tlev, bg_atm%tlay)
-
-    do j=lbound(d_plev,3),ubound(d_plev,3)
-      do i=lbound(d_plev,2),ubound(d_plev,2)
-        if(present(d_tlay)) then
-          call sanitize_input(d_plev(:,i,j), d_tlev(:,i,j), d_tlay(:,i,j))
-        else
-          call sanitize_input(d_plev(:,i,j), d_tlev(:,i,j))
-        endif
-      enddo
-    enddo
-
-    call merge_dyn_rad_grid(comm, bg_atm,      &
-      d_plev, d_tlev, d_tlay, d_h2ovmr,        &
-      d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr,   &
-      d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
-      col_plev, col_tlev, col_tlay,            &
-      col_h2ovmr, col_o3vmr , col_co2vmr,      &
-      col_ch4vmr, col_n2ovmr, col_o2vmr ,      &
-      col_lwc, col_reliq, col_iwc, col_reice)
-
-
-    is = lbound(d_plev,2)  ; ie  = ubound(d_plev,2)
-    js = lbound(d_plev,3)  ; je  = ubound(d_plev,3)
-    ks = lbound(col_plev,2); ke1 = ubound(col_plev,2); ke=ke1-1
-
-    ! Compute dz on merged grid
-    allocate(dz(ke, ie, je))
     allocate(dz_t2b(ke, ie, je))
-    do j=js,je
-      do i=is,ie
+    do j=i1,je
+      do i=i1,ie
         icol =  i+(j-1)*ie
-        dz(:,i,j) = real(hydrostat_dz(abs(col_plev(icol,1:ke) - col_plev(icol,2:ke1)), &
-                                 (col_plev(icol,1:ke) + col_plev(icol,2:ke1))/2,  &
-                                 col_tlay(icol,:)), ireals)
-        dz_t2b(:,i,j) = reverse(dz(:,i,j))
+        dz_t2b(:,i,j) = reverse(atm%dz(:,icol))
       enddo
     enddo
 
     if(ldebug .and. myid.eq.0) then
-      print *,ke1,'plev', col_plev(1, ke1), 'Tlev', col_tlev(1, ke1)
-      do k=ke,ks,-1
-        print *,k,'dz',dz(k,is,js), 'plev', col_plev(1, k), 'Tlev', col_tlev(1, k), 'Tlay', col_tlay(1, k), 'H2O', col_h2ovmr(1, k), &
-          'CO2', col_co2vmr(1, k),'O3', col_o3vmr(1, k),'N2O', col_n2ovmr(1,k),'O2', col_o2vmr(1, k)
-      enddo
+      call print_tenstr_atm(atm)
     endif
 
     if(.not.solver%linitialized) then
       call init_pprts_rrtmg(comm, solver, dx, dy, dz_t2b, phi0, theta0, &
         ie,je,ke, nxproc, nyproc)
     endif
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
     if(.not.lflg) lrrtmg_only=.False. ! by default use normal tenstream solver
-
-    ! RRTMG use liq. water path, not mixing ratio
-    allocate(col_lwp(ie*je, ke))
-    allocate(col_iwp(ie*je, ke))
-    do j=js,je
-      do i=is,ie
-        icol =  i+(j-1)*ie
-        col_lwp(icol,:) = col_lwc(icol,:) * dz(:,i,j)
-        col_iwp(icol,:) = col_iwc(icol,:) * dz(:,i,j)
-      enddo
-    enddo
-    deallocate(col_lwc)
-    deallocate(col_iwc)
 
     ! Allocate space for results -- for integrated values and for temporary spectral integration...
     allocate(edn (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym), source=zero)
@@ -270,20 +186,15 @@ contains
     allocate(abso(solver%C_one%zm , solver%C_one%xm , solver%C_one%ym ), source=zero)
 
     if(lthermal) then
-      call compute_thermal(solver, is, ie, js, je, ks, ke, ke1, &
-        albedo_thermal, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
-        col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
-        col_lwp, col_reliq, col_iwp, col_reice, &
+      call compute_thermal(solver, atm, ie, je, ke, ke1, &
+        albedo_thermal, &
         edn, eup, abso, opt_time=opt_time, lrrtmg_only=lrrtmg_only)
     endif
 
     if(lsolar) then
       allocate(edir (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym), source=zero)
-      call compute_solar(solver, is, ie, js, je, ke, &
-        phi0, theta0, &
-        albedo_solar, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
-        col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
-        col_lwp, col_reliq, col_iwp, col_reice, &
+      call compute_solar(solver, atm, ie, je, ke, &
+        phi0, theta0, albedo_solar, &
         edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
         lrrtmg_only=lrrtmg_only)
     endif
@@ -308,63 +219,35 @@ contains
     !    endif
     !  endif
     !endif
-
-    deallocate(col_plev  )
-    deallocate(col_tlev  )
-    deallocate(col_tlay  )
-    deallocate(col_h2ovmr)
-    deallocate(col_o3vmr )
-    deallocate(col_co2vmr)
-    deallocate(col_ch4vmr)
-    deallocate(col_n2ovmr)
-    deallocate(col_o2vmr )
-    deallocate(col_lwp   )
-    deallocate(col_reliq )
-    deallocate(col_iwp   )
-    deallocate(col_reice )
   end subroutine
 
-  subroutine compute_thermal(solver, is, ie, js, je, ks, ke, ke1, &
-      albedo, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
-      col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
-      col_lwp, col_reliq, col_iwp, col_reice, &
+  subroutine compute_thermal(solver, atm, ie, je, ke, ke1, &
+      albedo, &
       edn, eup, abso, opt_time, lrrtmg_only)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
     use m_tenstr_parrrtm, only: ngptlw, nbndlw
 
-    class(t_solver),   intent(inout) :: solver
-    integer(iintegers),intent(in)    :: is,ie, js,je, ks,ke,ke1
+    class(t_solver),    intent(inout) :: solver
+    type(t_tenstr_atm), intent(in), target :: atm
+    integer(iintegers), intent(in)    :: ie, je, ke,ke1
 
-    real(ireals),intent(in) :: albedo, dz_t2b(:,:,:)
+    real(ireals),intent(in) :: albedo
 
-    real(rb),intent(in) :: col_plev   (:,:)
-    real(rb),intent(in) :: col_tlev   (:,:)
-    real(rb),intent(in) :: col_tlay   (:,:)
-    real(rb),intent(in) :: col_h2ovmr (:,:)
-    real(rb),intent(in) :: col_o3vmr  (:,:)
-    real(rb),intent(in) :: col_co2vmr (:,:)
-    real(rb),intent(in) :: col_ch4vmr (:,:)
-    real(rb),intent(in) :: col_n2ovmr (:,:)
-    real(rb),intent(in) :: col_o2vmr  (:,:)
-    real(rb),intent(in) :: col_lwp    (:,:)
-    real(rb),intent(in) :: col_reliq  (:,:)
-    real(rb),intent(in) :: col_iwp    (:,:)
-    real(rb),intent(in) :: col_reice  (:,:)
-
-    real(ireals),intent(inout),dimension(:,:,:) :: edn, eup, abso
+    real(ireals),intent(inout),dimension(:,:,:), target :: edn, eup, abso
 
     real(ireals), optional, intent(in) :: opt_time
     logical, optional, intent(in) :: lrrtmg_only
 
-    real(ireals),allocatable, dimension(:,:,:)   :: col_tau, col_Bfrac             ! [ncol, nlyr, ngptlw]
-    real(ireals),allocatable, dimension(:,:)     :: col_Edn, col_Eup, col_hr       ! [ncol, nlyr(+1)]
-    real(ireals),allocatable, dimension(:,:,:)   :: ksca,g                         ! [nlyr, local_nx, local_ny, ngptlw]
-    real(ireals),allocatable, dimension(:,:,:,:) :: kabs,Bfrac                     ! [nlyr, local_nx, local_ny, ngptlw]
-    real(ireals),allocatable, dimension(:,:,:,:) :: Blev                           ! [nlyr+1, local_nx, local_ny, nbndlw]
-    real(ireals),allocatable, dimension(:,:,:)   :: spec_edn,spec_eup,spec_abso    ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, target, dimension(:,:,:,:) :: tau, Bfrac           ! [nlyr, ie, je, ngptlw]
+    real(ireals),allocatable, dimension(:,:,:)   :: kabs, ksca, g, Blev          ! [nlyr(+1), local_nx, local_ny]
+    real(ireals),allocatable, dimension(:,:,:)   :: spec_edn,spec_eup,spec_abso  ! [nlyr(+1), local_nx, local_ny ]
 
-    integer(iintegers) :: i, j, k, icol, ib
+    real(ireals), allocatable, dimension(:,:,:) :: ptau, pBfrac
+    real(ireals), pointer, dimension(:,:,:) :: patm_dz
+    real(ireals), pointer, dimension(:,:) :: pedn, peup, pabso
+
+    integer(iintegers) :: i, j, k, icol, ib, current_ibnd
     logical :: need_any_new_solution
 
     integer(mpiint) :: myid, ierr
@@ -377,7 +260,8 @@ contains
 
     need_any_new_solution=.False.
     do ib=1,ngptlw
-      if(need_new_solution(solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) need_any_new_solution=.True.
+      if(need_new_solution(solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) &
+        need_any_new_solution=.True.
     enddo
     if(.not.need_any_new_solution) then
       do ib=1,ngptlw
@@ -390,108 +274,108 @@ contains
     endif
 
     ! Compute optical properties with RRTMG
-    allocate(col_tau  (ie*je, ke, ngptlw))
-    allocate(col_Bfrac(ie*je, ke, ngptlw))
+    allocate(tau  (ke, i1:ie, i1:je, ngptlw))
+    allocate(Bfrac(ke1, i1:ie, i1:je, ngptlw))
+    allocate(ptau  (ke, i1, ngptlw))
+    allocate(pBfrac(ke,i1, ngptlw))
 
     if(lrrtmg_only) then
-      allocate(col_Edn  (ie*je, ke+1))
-      allocate(col_Eup  (ie*je, ke+1))
-      allocate(col_hr   (ie*je, ke))
-
-      call optprop_rrtm_lw(ie*je, ke, albedo,   &
-        col_plev, col_tlev, col_tlay,           &
-        col_h2ovmr, col_o3vmr , col_co2vmr,     &
-        col_ch4vmr, col_n2ovmr, col_o2vmr ,     &
-        col_lwp, col_reliq, col_iwp, col_reice, &
-        col_tau, col_Bfrac, col_Edn, col_Eup, col_hr)
-
-      do j=js,je
-        do i=is,ie
+      do j=i1,je
+        do i=i1,ie
           icol =  i+(j-1)*ie
-          eup(:,i,j) = reverse(col_Eup(icol, :))
-          edn(:,i,j) = reverse(col_Edn(icol, :))
-          abso(:,i,j) = reverse(col_hr(icol, :))
+
+          pedn (1:1, 1:ke1) => edn (:,i,j)
+          peup (1:1, 1:ke1) => eup (:,i,j)
+          pabso(1:1, 1:ke ) => abso(:,i,j)
+
+          call optprop_rrtm_lw(i1, ke, albedo,      &
+            atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
+            atm%h2o_lay(:, icol), atm%o3_lay(:, icol) , atm%co2_lay(:, icol),     &
+            atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
+            atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq(:, icol), &
+            atm%iwc(:,icol)*atm%dz(:,icol), atm%reice(:, icol), &
+            ptau, pBfrac, pedn, peup, pabso)
+
+          tau  (:,i,j,:) = ptau(:,i1,:)
+          Bfrac(:,i,j,:) = pBfrac(:,i1,:)
+
+          eup(:,i,j)  = reverse(eup (:,i,j))
+          edn(:,i,j)  = reverse(edn (:,i,j))
+          abso(:,i,j) = reverse(abso(:,i,j))
         enddo
       enddo
       return
     else
-      call optprop_rrtm_lw(ie*je, ke, albedo,   &
-        col_plev, col_tlev, col_tlay,           &
-        col_h2ovmr, col_o3vmr , col_co2vmr,     &
-        col_ch4vmr, col_n2ovmr, col_o2vmr ,     &
-        col_lwp, col_reliq, col_iwp, col_reice, &
-        col_tau, col_Bfrac)
+      do j=i1,je
+        do i=i1,ie
+          icol =  i+(j-1)*ie
+          call optprop_rrtm_lw(i1, ke, albedo, &
+            atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
+            atm%h2o_lay(:, icol), atm%o3_lay(:, icol) , atm%co2_lay(:, icol),     &
+            atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
+            atm%lwc(:, icol)*atm%dz(:, icol), atm%reliq(:, icol), &
+            atm%iwc(:, icol)*atm%dz(:, icol), atm%reice(:, icol), &
+            tau=ptau, Bfrac=pBfrac)
 
+          tau  (:,i,j,:) = ptau(:,i1,:)
+          Bfrac(2:ke1,i,j,:) = pBfrac(:,i1,:)
+        enddo
+      enddo
     endif
+    Bfrac(1,:,:,:) = Bfrac(2,:,:,:)
 
-    allocate(kabs (ke , is:ie, js:je, ngptlw))
-    allocate(Bfrac(ke1, is:ie, js:je, ngptlw))
-    allocate(Blev (ke1, is:ie, js:je, nbndlw))
+    allocate(kabs (ke , i1:ie, i1:je))
+    allocate(Blev (ke1, i1:ie, i1:je))
 
     ! rrtmg_lw does not support thermal scattering... set to zero
-    allocate(ksca (ke , is:ie, js:je), source=zero)
-    allocate(g    (ke , is:ie, js:je), source=zero)
+    allocate(ksca (ke , i1:ie, i1:je), source=zero)
+    allocate(g    (ke , i1:ie, i1:je), source=zero)
 
-    do j=js,je
-      do i=is,ie
-        icol =  i+(j-1)*ie
-
-        ! copy from number columns of rrtm interface back onto regular grid
-        kabs(:,i,j,:) = max(zero, col_tau(icol,:,:))
-
-        ! divide by thickness to convert from tau to coefficients per meter
-        do ib=1, ngptlw
-          kabs(:,i,j,ib) = reverse(kabs(:,i,j,ib)) / dz_t2b(:,i,j)
-
-          Bfrac(2:ke1,i,j,ib) = col_Bfrac(icol,:,ib)
-          Bfrac(1,i,j,ib) = Bfrac(2,i,j,ib) ! surface weights are the same as lowest layer
-
-          Bfrac(:,i,j,ib) = reverse(Bfrac(:,i,j,ib))
-        enddo
-
-        ! Compute source term(planck function)
-        do ib=1,nbndlw
-          do k=ks,ke
-            Blev(k+1,i,j,ib) = plkint(real(wavenum1(ib)), real(wavenum2(ib)), real(col_tlay(icol,k)))
-          enddo
-          Blev(1,i,j,ib) = plkint(real(wavenum1(ib)), real(wavenum2(ib)), real(col_tlev(icol,1)))
-
-          ! col_tlxx starts at surface but tenstream takes planck function
-          ! starting at top --> reverse
-          Blev(:,i,j,ib) = reverse(Blev(:,i,j,ib))
-        enddo
-
-      enddo
-    enddo
-
-    if(any(Blev.lt.zero)) then
-      print *,'Min Max Planck:', minval(Blev), maxval(Blev), 'location min', minloc(Blev)
-      call CHKERR(1_mpiint, 'Found a negative Planck emission, this is not physical! Aborting...')
-    endif
-
-    ! Free up some intermediate memory
-    deallocate(col_tau   )
-    deallocate(col_Bfrac )
-
-    ! Loop over spectral intervals and call solver
-    do ib=1,ngptlw
+    current_ibnd = -1 ! current lw band
+    do ib = 1, ngptlw ! spectral integration
       if(need_new_solution(solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
-        call set_optical_properties(solver, albedo, kabs(:,:,:,ib), ksca(:,:,:), g(:,:,:), Blev(:,:,:,ngb(ib))*Bfrac(:,:,:,ib))
+        ! divide by thickness to convert from tau to coefficients per meter
+        patm_dz(1:ke, i1:ie, i1:je) => atm%dz
+        kabs = max(zero, tau(:,:,:,ib)) / patm_dz
+        kabs = reverse(kabs)
+
+        !Compute Plank Emission for nbndlw
+        if(current_ibnd.eq.ngb(ib)) then ! still the same band, dont need to upgrade the plank emission
+          continue
+        else
+          do j=i1,je
+            do i=i1,ie
+              do k=i1,ke
+                Blev(k+1,i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlay(k, icol)))
+              enddo
+              Blev(1,i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(1, icol)))
+            enddo ! i
+          enddo ! j
+          current_ibnd = ngb(ib)
+
+          if(ldebug)then
+            if(any(Blev.lt.zero)) then
+              print *,'Min Max Planck:', minval(Blev), maxval(Blev), 'location min', minloc(Blev)
+              call CHKERR(1_mpiint, 'Found a negative Planck emission, this is not physical! Aborting...')
+            endif
+          endif
+        endif
+
+        call set_optical_properties(solver, albedo, kabs, ksca, g, reverse(Blev*Bfrac(:,:,:,ib)))
         call solve_pprts(solver, zero, opt_solution_uid=500+ib, opt_solution_time=opt_time)
       endif
+
       call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
 
       edn  = edn  + spec_edn
       eup  = eup  + spec_eup
       abso = abso + spec_abso
-    enddo
+
+    enddo ! ib 1 -> nbndlw , i.e. spectral integration
   end subroutine compute_thermal
 
-  subroutine compute_solar(solver, is, ie, js, je, ke, &
-      phi0, theta0, &
-      albedo, dz_t2b, col_plev, col_tlev, col_tlay, col_h2ovmr, &
-      col_o3vmr, col_co2vmr, col_ch4vmr, col_n2ovmr, col_o2vmr, &
-      col_lwp, col_reliq, col_iwp, col_reice,                   &
+  subroutine compute_solar(solver, atm, ie, je, ke, &
+      phi0, theta0, albedo, &
       edir, edn, eup, abso, opt_time, solar_albedo_2d, lrrtmg_only, &
       phi2d, theta2d)
 
@@ -499,36 +383,26 @@ contains
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
 
     class(t_solver), intent(inout)  :: solver
-    integer(iintegers),intent(in)   :: is,ie, js,je, ke
+    type(t_tenstr_atm), intent(in), target :: atm
+    integer(iintegers),intent(in)   :: ie, je, ke
 
-    real(ireals),intent(in) :: albedo, dz_t2b(:,:,:)
+    real(ireals),intent(in) :: albedo
     real(ireals),intent(in) :: phi0, theta0
     real(ireals),intent(in),dimension(:,:),optional :: phi2d, theta2d
 
-    real(rb),intent(in) :: col_plev   (:,:)
-    real(rb),intent(in) :: col_tlev   (:,:)
-    real(rb),intent(in) :: col_tlay   (:,:)
-    real(rb),intent(in) :: col_h2ovmr (:,:)
-    real(rb),intent(in) :: col_o3vmr  (:,:)
-    real(rb),intent(in) :: col_co2vmr (:,:)
-    real(rb),intent(in) :: col_ch4vmr (:,:)
-    real(rb),intent(in) :: col_n2ovmr (:,:)
-    real(rb),intent(in) :: col_o2vmr  (:,:)
-    real(rb),intent(in) :: col_lwp    (:,:)
-    real(rb),intent(in) :: col_reliq  (:,:)
-    real(rb),intent(in) :: col_iwp    (:,:)
-    real(rb),intent(in) :: col_reice  (:,:)
-
-    real(ireals),intent(inout),dimension(:,:,:) :: edir, edn, eup, abso
+    real(ireals),intent(inout),dimension(:,:,:),target :: edir, edn, eup, abso
 
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
 
+    real(ireals),allocatable, dimension(:,:,:,:) :: tau, w0, g          ! [nlyr, ie, je, ngptsw]
+    real(ireals),allocatable, dimension(:,:,:)   :: kabs, ksca, kg      ! [nlyr, local_nx, local_ny]
+    real(ireals),allocatable, dimension(:,:,:)   :: spec_edir,spec_abso ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:)   :: spec_edn, spec_eup  ! [nlyr(+1), local_nx, local_ny ]
 
-    real(ireals),allocatable, dimension(:,:,:)   :: col_tau, col_w0, col_g         ! [ncol, nlyr, ngptsw]
-    real(ireals),allocatable, dimension(:,:)     :: col_Edn, col_Eup, col_hr       ! [ncol, nlyr(+1)]
-    real(ireals),allocatable, dimension(:,:,:,:) :: kabs, ksca, g                  ! [nlyr, local_nx, local_ny, ngptsw]
-    real(ireals),allocatable, dimension(:,:,:)   :: spec_edir, spec_edn,spec_eup,spec_abso    ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals), allocatable, dimension(:,:,:) :: ptau, pw0, pg
+    real(ireals), pointer, dimension(:,:,:) :: patm_dz
+    real(ireals), pointer, dimension(:,:) :: pedn, peup, pabso
 
     integer(iintegers) :: i, j, icol, ib
     logical :: need_any_new_solution
@@ -540,7 +414,8 @@ contains
 
     need_any_new_solution=.False.
     do ib=1,ngptsw
-      if(need_new_solution(solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) need_any_new_solution=.True.
+      if(need_new_solution(solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) &
+        need_any_new_solution=.True.
     enddo
     if(.not.need_any_new_solution) then
       do ib=1,ngptsw
@@ -554,85 +429,84 @@ contains
     endif
 
     ! Compute optical properties with RRTMG
-    allocate(col_tau  (ie*je, ke, ngptsw))
-    allocate(col_w0   (ie*je, ke, ngptsw))
-    allocate(col_g    (ie*je, ke, ngptsw))
+    allocate(tau(ke, i1:ie, i1:je, ngptsw))
+    allocate(w0 (ke, i1:ie, i1:je, ngptsw))
+    allocate(g  (ke, i1:ie, i1:je, ngptsw))
+    allocate(ptau(ke, i1, ngptsw))
+    allocate(pw0 (ke, i1, ngptsw))
+    allocate(pg  (ke, i1, ngptsw))
 
     if(lrrtmg_only) then
-      allocate(col_Edn  (ie*je, ke+1))
-      allocate(col_Eup  (ie*je, ke+1))
-      allocate(col_hr   (ie*je, ke))
-
-      call optprop_rrtm_sw(ie*je, ke, &
-        theta0, albedo, &
-        col_plev, col_tlev, col_tlay, &
-        col_h2ovmr, col_o3vmr, col_co2vmr, &
-        col_ch4vmr, col_n2ovmr, col_o2vmr, &
-        col_lwp, col_reliq, col_iwp, col_reice, &
-        col_tau, col_w0, col_g, &
-        col_Eup, col_Edn, col_hr)
-      do j=js,je
-        do i=is,ie
+      do j=1,je
+        do i=1,ie
           icol =  i+(j-1)*ie
+
+          pEdn (1:1, 1:size(edn ,1)) => edn (:,i,j)
+          pEup (1:1, 1:size(eup ,1)) => eup (:,i,j)
+          pabso(1:1, 1:size(abso,1)) => abso(:,i,j)
+
+          call optprop_rrtm_sw(i1, ke, &
+            theta0, albedo, &
+            atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
+            atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
+            atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
+            atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq, &
+            atm%iwc(:,icol)*atm%dz(:,icol), atm%reice, &
+            ptau, pw0, pg, &
+            pEup, pEdn, pabso)
+
+          tau(:,i,j,:) = ptau(:,i1,:)
+          w0 (:,i,j,:) = pw0(:,i1,:)
+          g  (:,i,j,:) = pg(:,i1,:)
+
           edir(:,i,j) = zero
-          eup(:,i,j)  = reverse(col_Eup(icol, :))
-          edn(:,i,j)  = reverse(col_Edn(icol, :))
-          abso(:,i,j) = reverse(col_hr(icol, :))
+          eup (:,i,j) = reverse(eup (:, i, j))
+          edn (:,i,j) = reverse(edn (:, i, j))
+          abso(:,i,j) = reverse(abso(:, i, j))
         enddo
       enddo
       return
-
     else
+      do j=1,je
+        do i=1,ie
+          icol =  i+(j-1)*ie
+          call optprop_rrtm_sw(i1, ke, &
+            theta0, albedo, &
+            atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
+            atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
+            atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
+            atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq, &
+            atm%iwc(:,icol)*atm%dz(:,icol), atm%reice, &
+            ptau, pw0, pg)
 
-      call optprop_rrtm_sw(ie*je, ke, &
-        theta0, albedo, &
-        col_plev, col_tlev, col_tlay, &
-        col_h2ovmr, col_o3vmr, col_co2vmr, &
-        col_ch4vmr, col_n2ovmr, col_o2vmr, &
-        col_lwp, col_reliq, col_iwp, col_reice, &
-        col_tau, col_w0, col_g)
-    endif
-
-    col_w0 = min(one, max(zero, col_w0))
-
-    allocate(kabs (ke , is:ie, js:je, ngptsw))
-    allocate(ksca (ke , is:ie, js:je, ngptsw))
-    allocate(g    (ke , is:ie, js:je, ngptsw))
-
-
-    do j=js,je
-      do i=is,ie
-        icol =  i+(j-1)*ie
-
-
-        ! copy from number columns of rrtm interface back onto regular grid
-        kabs(:,i,j,:) = max(zero, col_tau(icol,:,:)) * (one - col_w0(icol, :, :))
-        ksca(:,i,j,:) = max(zero, col_tau(icol,:,:)) * col_w0(icol, :, :)
-        g   (:,i,j,:) = min(one, max(zero, col_g  (icol,:,:)))
-
-        ! divide by thickness to convert from tau to coefficients per meter
-        do ib=1, ngptsw
-          kabs(:,i,j,ib) = reverse(kabs(:,i,j,ib)) / dz_t2b(:,i,j)
-          ksca(:,i,j,ib) = reverse(ksca(:,i,j,ib)) / dz_t2b(:,i,j)
-          g   (:,i,j,ib) = reverse(g   (:,i,j,ib))
+          tau(:,i,j,:) = ptau(:,i1,:)
+          w0 (:,i,j,:) = pw0(:,i1,:)
+          g  (:,i,j,:) = pg(:,i1,:)
         enddo
-
       enddo
-    enddo
+    endif
+    w0 = min(one, max(zero, w0))
 
-    ! Free up some intermediate memory
-    deallocate(col_tau)
-    deallocate(col_w0 )
-    deallocate(col_g  )
+    allocate(kabs(ke , i1:ie, i1:je))
+    allocate(ksca(ke , i1:ie, i1:je))
+    allocate(kg  (ke , i1:ie, i1:je))
 
     call set_angles(solver, phi0, theta0, phi2d=phi2d, theta2d=theta2d)
 
-    ! Loop over spectral intervals and call solver
     do ib=1,ngptsw
 
       if(need_new_solution(solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) then
-        call set_optical_properties(solver, albedo, kabs(:,:,:,ib), ksca(:,:,:,ib), g(:,:,:,ib), local_albedo_2d=solar_albedo_2d)
+        patm_dz(1:ke, i1:ie, i1:je) => atm%dz
+        kabs = max(zero, tau(:,:,:,ib)) * (one - w0(:,:,:,ib))
+        ksca = max(zero, tau(:,:,:,ib)) * w0(:,:,:,ib)
+        kg   = min(one, max(zero, g(:,:,:,ib)))
+        kabs = reverse(kabs / patm_dz)
+        ksca = reverse(ksca / patm_dz)
+        kg   = reverse(kg)
+
+        call set_optical_properties(solver, albedo, kabs, ksca, kg, local_albedo_2d=solar_albedo_2d)
         call solve_pprts(solver, tenstr_solsrc(ib), opt_solution_uid=ib, opt_solution_time=opt_time)
+
       endif
       call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)
 
@@ -640,7 +514,8 @@ contains
       edn  = edn  + spec_edn
       eup  = eup  + spec_eup
       abso = abso + spec_abso
-    enddo
+
+    enddo ! ib 1 -> nbndsw , i.e. spectral integration
   end subroutine compute_solar
 
   subroutine destroy_pprts_rrtmg(solver, lfinalizepetsc)
@@ -648,191 +523,5 @@ contains
     logical, intent(in) :: lfinalizepetsc
     ! Tidy up the solver
     call destroy_pprts(solver, lfinalizepetsc=lfinalizepetsc)
-  end subroutine
-
-  subroutine merge_dyn_rad_grid(comm, atm,     &
-      in_d_plev, d_tlev, d_tlay, d_h2ovmr,     &
-      d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr,   &
-      d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
-      col_plev, col_tlev, col_tlay,            &
-      col_h2ovmr, col_o3vmr , col_co2vmr,      &
-      col_ch4vmr, col_n2ovmr, col_o2vmr ,      &
-      col_lwc, col_reliq, col_iwc, col_reice)
-
-    integer(mpiint), intent(in) :: comm
-    type(t_bg_atm),intent(in) :: atm ! 1D background profile info
-
-    real(ireals),intent(in) :: in_d_plev (:,:,:), d_tlev(:,:,:) ! dim(nlay_dynamics+1, nxp, nyp)
-
-    real(ireals),intent(in),optional :: d_tlay   (:,:,:) ! all have
-    real(ireals),intent(in),optional :: d_h2ovmr (:,:,:) ! dim(nlay_dynamics, nxp, nyp)
-    real(ireals),intent(in),optional :: d_o3vmr  (:,:,:) !
-    real(ireals),intent(in),optional :: d_co2vmr (:,:,:) !
-    real(ireals),intent(in),optional :: d_ch4vmr (:,:,:) !
-    real(ireals),intent(in),optional :: d_n2ovmr (:,:,:) !
-    real(ireals),intent(in),optional :: d_o2vmr  (:,:,:) !
-    real(ireals),intent(in),optional :: d_lwc    (:,:,:) !
-    real(ireals),intent(in),optional :: d_reliq  (:,:,:) !
-    real(ireals),intent(in),optional :: d_iwc    (:,:,:) !
-    real(ireals),intent(in),optional :: d_reice  (:,:,:) !
-
-    real(rb),intent(out),allocatable :: col_plev   (:,:)
-    real(rb),intent(out),allocatable :: col_tlev   (:,:)
-    real(rb),intent(out),allocatable :: col_tlay   (:,:)
-    real(rb),intent(out),allocatable :: col_h2ovmr (:,:)
-    real(rb),intent(out),allocatable :: col_o3vmr  (:,:)
-    real(rb),intent(out),allocatable :: col_co2vmr (:,:)
-    real(rb),intent(out),allocatable :: col_ch4vmr (:,:)
-    real(rb),intent(out),allocatable :: col_n2ovmr (:,:)
-    real(rb),intent(out),allocatable :: col_o2vmr  (:,:)
-    real(rb),intent(out),allocatable :: col_lwc    (:,:)
-    real(rb),intent(out),allocatable :: col_reliq  (:,:)
-    real(rb),intent(out),allocatable :: col_iwc    (:,:)
-    real(rb),intent(out),allocatable :: col_reice  (:,:)
-
-    real(ireals) :: d_plev (ubound(in_d_plev,1), ubound(in_d_plev,2), ubound(in_d_plev,3))
-
-    integer(iintegers) :: d_ke, d_ke1 ! number of vertical levels of dynamics grid
-    integer(iintegers) :: atm_ke      ! number of vertical levels of atmosphere grid
-
-    integer(iintegers) :: ke, ke1 ! number of vertical levels of merged grid
-    integer(iintegers) :: is,ie, js,je, icol
-    integer(iintegers) :: i, j
-
-    real(ireals),allocatable :: d_hhl(:,:,:), d_dz(:)
-    real(ireals) :: global_maxheight, global_minplev
-
-    is = lbound(d_plev,2); ie = ubound(d_plev,2)
-    js = lbound(d_plev,3); je = ubound(d_plev,3)
-
-    d_ke1 = ubound(d_plev,1); d_ke = d_ke1-1
-
-    ! find out how many layers we have to put on top of the dynamics grid
-
-    ! first put a tiny increment on the top of dynamics pressure value,
-    ! to handle a cornercase where dynamics and background profile are the same
-    d_plev = in_d_plev
-    d_plev(d_ke1, :, :) = d_plev(d_ke1, :, :) - 1e-3_ireals
-
-    ! First get top height of dynamics grid
-    allocate(d_hhl(d_ke1, ie, je))
-    allocate(d_dz(d_ke))
-
-    do j=js,je
-      do i=is,ie
-        if(present(d_tlay)) then
-          call hydrostat_lev(d_plev(:,i,j),d_tlay(:,i,j), zero, d_hhl(:, i,j), d_dz)
-        else
-          call hydrostat_lev(d_plev(:,i,j),(d_tlev(1:d_ke,i,j)+d_tlev(2:d_ke1,i,j))/2, zero, d_hhl(:, i,j), d_dz)
-        endif
-      enddo
-    enddo
-
-    ! index of lowermost layer in atm: search for level where height is bigger and
-    ! pressure is lower
-    call imp_allreduce_max(comm, maxval(d_hhl), global_maxheight)
-    call imp_allreduce_min(comm, minval(d_plev), global_minplev)
-
-    i = floor(search_sorted_bisection(atm%zt, global_maxheight))
-    j = floor(search_sorted_bisection(atm%plev, global_minplev))
-    atm_ke = min(i,j)
-    ke  = atm_ke + d_ke
-    ke1 = atm_ke + d_ke1
-
-    ! then from there on couple background atm data on top of that
-
-    allocate(col_plev   (ie*je, ke1))
-    allocate(col_tlev   (ie*je, ke1))
-    allocate(col_tlay   (ie*je, ke ))
-    allocate(col_h2ovmr (ie*je, ke ))
-    allocate(col_o3vmr  (ie*je, ke ))
-    allocate(col_co2vmr (ie*je, ke ))
-    allocate(col_ch4vmr (ie*je, ke ))
-    allocate(col_n2ovmr (ie*je, ke ))
-    allocate(col_o2vmr  (ie*je, ke ))
-    allocate(col_lwc    (ie*je, ke ))
-    allocate(col_reliq  (ie*je, ke ))
-    allocate(col_iwc    (ie*je, ke ))
-    allocate(col_reice  (ie*je, ke ))
-    do j=js,je
-      do i=is,ie
-        icol = i+(j-1)*ie
-
-        ! First merge pressure levels .. pressure is always given..
-        col_plev(icol, ke1-atm_ke+1:ke1) = reverse(atm%plev(1:atm_ke))
-        col_plev(icol, 1:d_ke1) = d_plev(:,i,j)
-        if(col_plev(icol, ke1-atm_ke+1) .gt. col_plev(icol,d_ke1)) then
-          print *,'background profile pressure is .ge. than uppermost pressure &
-            & level of dynamics grid -- this suggests the dynamics grid is way &
-            & off hydrostatic balance... please check', col_plev(icol,:)
-          stop 'error in rrtm_lw merging grids'
-        endif
-
-        ! And also Tlev has to be present always
-        col_tlev(icol, ke1-atm_ke+1:ke1) = reverse(atm%tlev(1:atm_ke))
-        col_tlev(icol, 1:d_ke1) = d_tlev(:,i,j)
-
-        if(present(d_tlay)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%tlay, atm%tlev, col_tlay(icol,:), d_tlay(:,i,j))
-        else
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%tlay, atm%tlev, col_tlay(icol,:), (d_tlev(1:d_ke,i,j)+d_tlev(2:d_ke1,i,j))/2)
-        endif
-
-        if(present(d_lwc)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, zero*atm%tlay, zero*atm%tlev, col_lwc(icol,:), d_lwc(:,i,j))
-        else
-          col_lwc(icol,:) = zero
-        endif
-        if(present(d_reliq)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, zero*atm%tlay, zero*atm%tlev, col_reliq(icol,:), d_reliq(:,i,j))
-        else
-          col_reliq = zero
-        endif
-
-        if(present(d_iwc)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, zero*atm%tlay, zero*atm%tlev, col_iwc(icol,:), d_iwc(:,i,j))
-        else
-          col_iwc(icol,:) = zero
-        endif
-        if(present(d_reice)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, zero*atm%tlay, zero*atm%tlev, col_reice(icol,:), d_reice(:,i,j))
-        else
-          col_reice = zero
-        endif
-
-        if(present(d_h2ovmr)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%h2o_lay, atm%h2o_lev, col_h2ovmr(icol,:), d_h2ovmr(:,i,j))
-        else
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%h2o_lay, atm%h2o_lev, col_h2ovmr(icol,:))
-        endif
-        if(present(d_o3vmr)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%o3_lay, atm%o3_lev, col_o3vmr(icol,:), d_o3vmr(:,i,j))
-        else
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%o3_lay, atm%o3_lev, col_o3vmr(icol,:))
-        endif
-
-        if(present(d_co2vmr)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%co2_lay, atm%co2_lev, col_co2vmr(icol,:), d_co2vmr(:,i,j))
-        else
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%co2_lay, atm%co2_lev, col_co2vmr(icol,:))
-        endif
-        if(present(d_ch4vmr)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%ch4_lay, atm%ch4_lev, col_ch4vmr(icol,:), d_ch4vmr(:,i,j))
-        else
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%ch4_lay, atm%ch4_lev, col_ch4vmr(icol,:))
-        endif
-        if(present(d_n2ovmr)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%n2o_lay, atm%n2o_lev, col_n2ovmr(icol,:), d_n2ovmr(:,i,j))
-        else
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%n2o_lay, atm%n2o_lev, col_n2ovmr(icol,:))
-        endif
-        if(present(d_o2vmr)) then
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%o2_lay, atm%o2_lev, col_o2vmr(icol,:), d_o2vmr(:,i,j))
-        else
-          call merge_grid_var(atm%zt, d_hhl(:,i,j), atm_ke, atm%o2_lay, atm%o2_lev, col_o2vmr(icol,:))
-        endif
-      enddo
-    enddo
-
   end subroutine
 end module

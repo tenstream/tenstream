@@ -11,6 +11,8 @@ module m_example_pprts_rrtm_lw_sw
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
 
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+
   implicit none
 
 contains
@@ -22,12 +24,12 @@ contains
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, mpierr
 
-    real(ireals),parameter :: dx=500, dy=dx              ! horizontal grid spacing in [m]
-    real(ireals),parameter :: phi0=180, theta0=60        ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
+    real(ireals),parameter :: dx=500, dy=dx       ! horizontal grid spacing in [m]
+    real(ireals),parameter :: phi0=180, theta0=60 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals),parameter :: albedo_th=0, albedo_sol=.3 ! broadband ground albedo for solar and thermal spectrum
 
-    real(ireals), dimension(nzp+1,nxp,nyp) :: plev ! pressure on layer interfaces [hPa]
-    real(ireals), dimension(nzp+1,nxp,nyp) :: tlev ! Temperature on layer interfaces [K]
+    real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
+    real(ireals), dimension(nzp+1,nxp,nyp), target :: tlev ! Temperature on layer interfaces [K]
 
     ! Layer values for the atmospheric constituents -- those are actually all
     ! optional and if not provided, will be taken from the background profile file (atm_filename)
@@ -35,7 +37,7 @@ contains
     ! real(ireals), dimension(nzp,nxp,nyp) :: h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
-    real(ireals), dimension(nzp,nxp,nyp) :: lwc, reliq
+    real(ireals), dimension(nzp,nxp,nyp), target :: lwc, reliq
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -54,10 +56,14 @@ contains
     integer(iintegers) :: k, nlev, icld
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
+    ! reshape pointer to convert i,j vecs to column vecs
+    real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
+
     logical,parameter :: ldebug=.True.
     logical :: lthermal, lsolar
 
     type(t_solver_3_10) :: pprts_solver
+    type(t_tenstr_atm) :: atm
 
     comm = MPI_COMM_WORLD
     call MPI_COMM_SIZE(comm, numnodes, mpierr)
@@ -69,7 +75,7 @@ contains
       N_ranks_x = numnodes
       N_ranks_y = 1
     endif
-    if(myid.eq.0) print *, myid, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
+    if(ldebug .and. myid.eq.0) print *, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
 
     allocate(nxproc(N_ranks_x), source=nxp) ! dimension will determine how many ranks are used along the axis
     allocate(nyproc(N_ranks_y), source=nyp) ! values have to define the local domain sizes on each rank (here constant on all processes)
@@ -80,8 +86,8 @@ contains
     ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
     ! Temperature difference of 50K
     do k=1,nzp+1
-      plev(k,:,:) = 1000_ireals - (k-one)*500._ireals/(nzp)
-      tlev(k,:,:) = 288._ireals - (k-one)*50._ireals/(nzp)
+      plev(k,:,:) = 1000_ireals - ((k-one)*500._ireals)/(nzp)
+      tlev(k,:,:) = 288._ireals - ((k-one)*32.5_ireals)/(nzp)
     enddo
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
@@ -102,30 +108,50 @@ contains
     lwc  (icld, :,:) = 1e-2
     reliq(icld, :,:) = 10
 
-    tlev (icld  , :,:) = 288
+    !tlev (icld  , :,:) = 288
     tlev (icld+1, :,:) = tlev (icld  , :,:)
 
+    if(myid.eq.0 .and. ldebug) print *,'Setup Atmosphere...'
+
+    pplev(1:size(plev,1),1:size(plev,2)*size(plev,3)) => plev
+    ptlev(1:size(tlev,1),1:size(tlev,2)*size(tlev,3)) => tlev
+    plwc (1:size(lwc ,1),1:size(lwc ,2)*size(lwc ,3)) => lwc
+    preliq(1:size(reliq,1),1:size(reliq,2)*size(reliq,3)) => reliq
+
+    call setup_tenstr_atm(comm, .False., atm_filename, &
+      pplev, ptlev, atm, &
+      d_lwc=plwc, d_reliq=preliq)
+
     ! For comparison, compute lw and sw separately
-    if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation:'
+    if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation...'
     lthermal=.False.; lsolar=.True.
 
-    call pprts_rrtmg(comm, pprts_solver, dx, dy,     &
-      phi0, theta0, albedo_th, albedo_sol,           &
-      atm_filename, lthermal, lsolar,                &
-      edir, edn, eup, abso,                          &
-      d_plev=plev, d_tlev=tlev,                      &
-      d_lwc=lwc, d_reliq=reliq,                      &
+    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
+      dx, dy, phi0, theta0,   &
+      albedo_th, albedo_sol,  &
+      lthermal, lsolar,       &
+      edir, edn, eup, abso,   &
+      nxproc=nxproc, nyproc=nyproc, &
+      opt_time=zero)
+
+    if(myid.eq.0 .and. ldebug) print *,'Computing Thermal Radiation...'
+    lthermal=.True.; lsolar=.False.
+
+    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
+      dx, dy, phi0, theta0,                    &
+      albedo_th, albedo_sol,                   &
+      lthermal, lsolar,                        &
+      edir, edn, eup, abso,                    &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
-    if(myid.eq.0 .and. ldebug) print *,'Computing Solar AND Thermal Radiation:'
+    if(myid.eq.0 .and. ldebug) print *,'Computing Solar AND Thermal Radiation...'
     lthermal=.True.; lsolar=.True.
 
-    call pprts_rrtmg(comm, pprts_solver, dx, dy,     &
-      phi0, theta0, albedo_th, albedo_sol,           &
-      atm_filename, lthermal, lsolar,                &
-      edir, edn, eup, abso,                          &
-      d_plev=plev, d_tlev=tlev,                      &
-      d_lwc=lwc, d_reliq=reliq,                      &
+    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
+      dx, dy, phi0, theta0,                    &
+      albedo_th, albedo_sol,                   &
+      lthermal, lsolar,                        &
+      edir, edn, eup, abso,                    &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     nlev = ubound(edn,1)
@@ -155,6 +181,7 @@ contains
 
     ! Tidy up
     call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
+    call destroy_tenstr_atm(atm)
   end subroutine
 
 end module

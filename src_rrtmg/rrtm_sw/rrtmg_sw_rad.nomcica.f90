@@ -56,7 +56,7 @@
       use m_tenstr_parkind_sw, only : im => kind_im, rb => kind_rb
       use m_tenstr_rrsw_vsn
       use m_tenstr_rrtmg_sw_cldprop, only: cldprop_sw
-! *** Move the required call to rrtmg_sw_ini below and the following 
+! *** Move the required call to rrtmg_sw_ini below and the following
 ! use association to GCM initialization area ***
 !      use rrtmg_sw_init, only: rrtmg_sw_ini
       use m_tenstr_rrtmg_sw_setcoef, only: setcoef_sw
@@ -296,9 +296,9 @@
       real(kind=rb), intent(out) :: swhrc(:,:)        ! Clear sky shortwave radiative heating rate (K/d)
                                                       !    Dimensions: (ncol,nlay)
 
-      real(ireals), intent(out) :: tenstr_tau(:,:,:)   ! (ncol, nlayers, nbands)
-      real(ireals), intent(out) :: tenstr_w(:,:,:)     ! (ncol, nlayers, nbands)
-      real(ireals), intent(out) :: tenstr_g(:,:,:)     ! (ncol, nlayers, nbands)
+      real(ireals), intent(out) :: tenstr_tau(:,:,:)   ! (nlayers, ncol, nbands)
+      real(ireals), intent(out) :: tenstr_w(:,:,:)     ! (nlayers, ncol, nbands)
+      real(ireals), intent(out) :: tenstr_g(:,:,:)     ! (nlayers, ncol, nbands)
       logical, intent(in) :: loptprop_only
 ! ----- Local -----
 
@@ -683,7 +683,7 @@
               selffac, selffrac, indself, forfac, forfrac, indfor, &
               zbbfd, zbbfu, zbbcd, zbbcu, zuvfd, zuvcd, znifd, znicd, &
               zbbfddir, zbbcddir, zuvfddir, zuvcddir, znifddir, znicddir, &
-              tenstr_tau(iplon, :, :), tenstr_w(iplon, :, :), tenstr_g(iplon, :, :), loptprop_only)
+              tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), tenstr_g(:, iplon, :), loptprop_only)
 
 ! Transfer up and down, clear and total sky fluxes to output arrays.
 ! Vertical indexing goes from bottom to top; reverse here for GCM if necessary.

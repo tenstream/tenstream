@@ -297,8 +297,8 @@
       real(kind=rb), intent(out) :: hrc(:,:)          ! Clear sky longwave radiative heating rate (K/d)
                                                       !    Dimensions: (ncol,nlay)
 
-      real(ireals), intent(out) :: tenstr_tau(:,:,:)  ! (ncol, nlayers+1, ngptlw)
-      real(ireals), intent(out) :: tenstr_Bfrac(:,:,:)! (ncol, nlayers+1, ngptlw)
+      real(ireals), intent(out) :: tenstr_tau(:,:,:)  ! (nlayers+1, ncol, ngptlw)
+      real(ireals), intent(out) :: tenstr_Bfrac(:,:,:)! (nlayers, ncol, ngptlw)
       logical, intent(in) :: loptprop_only
 
 ! ----- Optional Output -----
@@ -532,8 +532,8 @@
          endif
 
          do ig=1,ngptlw
-           tenstr_tau(iplon, :, ig) = taut(1:nlay, ig) + taucloud(1:nlay, ngb(ig)) * cldfrac(1:nlay)
-           tenstr_Bfrac(iplon, :, ig) = fracs(1:nlay,ig)
+           tenstr_tau(:, iplon, ig) = taut(1:nlay, ig) + taucloud(1:nlay, ngb(ig)) * cldfrac(1:nlay)
+           tenstr_Bfrac(:, iplon, ig) = fracs(1:nlay,ig)
          enddo
 
          if(loptprop_only) cycle

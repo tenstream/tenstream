@@ -6,12 +6,14 @@ module m_pprts_base
     zero, one, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
     default_str_len
 
-  use m_helper_functions, only : CHKERR
+  use m_helper_functions, only : CHKERR, get_arg, itoa
 
   use m_optprop, only: t_optprop
 
+  implicit none
+
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, &
-    t_coord, t_opticalprops, t_sunangles, t_suninfo, &
+    t_coord, t_sunangles, t_suninfo, &
     t_state_container, destroy_solution, &
     t_dof, t_solver_log_events, E_up, E_dn
 
@@ -130,10 +132,12 @@ module m_pprts_base
   integer(iintegers), parameter :: E_up=0, E_dn=1 ! for 1D Solvers
 
   contains
-    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, solution)
+    subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, solution, uid)
       type(tDM), intent(in) :: edir_dm, ediff_dm, abso_dm
       logical, intent(in) :: lsolar
       type(t_state_container), intent(inout) :: solution
+      integer(iintegers), optional, intent(in) :: uid
+      integer(mpiint) :: ierr
 
       if(solution%lset) call CHKERR(1_mpiint, 'solution has already been prepared before')
 
@@ -142,22 +146,32 @@ module m_pprts_base
 
       solution%lchanged = .True.
 
+      solution%uid = get_arg(i0, uid)
+
       if(solution%lsolar_rad) then
         allocate(solution%edir)
         call DMCreateGlobalVector(edir_dm, solution%edir, ierr)  ; call CHKERR(ierr)
+        call PetscObjectSetName(solution%edir,'initialized_edir_vec uid='//itoa(solution%uid),ierr) ; call CHKERR(ierr)
         call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_init_edir", ierr); call CHKERR(ierr)
       endif
 
       allocate(solution%ediff)
       call DMCreateGlobalVector(ediff_dm, solution%ediff, ierr)  ; call CHKERR(ierr)
+      call PetscObjectSetName(solution%ediff,'initialized_ediff_vec uid='//itoa(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_init_ediff", ierr); call CHKERR(ierr)
 
       allocate(solution%abso)
       call DMCreateGlobalVector(abso_dm, solution%abso, ierr)  ; call CHKERR(ierr)
+      call PetscObjectSetName(solution%abso,'initialized_abso_vec uid='//itoa(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_init_abso", ierr); call CHKERR(ierr)
+
     end subroutine
     subroutine destroy_solution(solution)
       type(t_state_container), intent(inout) :: solution
+      integer(mpiint) :: ierr
       if( solution%lset ) then
         if(solution%lsolar_rad) then
           if(allocated(solution%edir)) then

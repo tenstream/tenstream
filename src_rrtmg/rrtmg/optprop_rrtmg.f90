@@ -40,6 +40,8 @@ module m_optprop_rrtmg
   private
   public :: optprop_rrtm_lw, optprop_rrtm_sw
 
+  logical,parameter :: ldebug=.False.
+
 contains
   subroutine optprop_rrtm_lw(ncol_in, nlay_in, &
       albedo, plev, tlev, tlay, &
@@ -55,8 +57,8 @@ contains
     real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
     real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq, iwp, reice
 
-    real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [ncol, nlay, ngptlw]
-    real(ireals), dimension(:,:), intent(out), optional :: opt_lwuflx, opt_lwdflx, opt_lwhr ! [ncol, nlay+1]
+    real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [nlay, ncol, ngptlw]
+    real(ireals), dimension(:,:), intent(out), optional :: opt_lwuflx, opt_lwdflx, opt_lwhr ! [nlay+1, ncol]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -128,9 +130,9 @@ contains
         tauaer, &
         lwuflx, lwdflx  ,lwhr ,lwuflxc ,lwdflxc ,lwhrc, &
         tau, Bfrac, loptprop_only=.False.)
-      opt_lwuflx = real(lwuflx, ireals)
-      opt_lwdflx = real(lwdflx, ireals)
-      opt_lwhr   = real(lwhr, ireals)
+      opt_lwuflx = transpose(real(lwuflx, ireals))
+      opt_lwdflx = transpose(real(lwdflx, ireals))
+      opt_lwhr   = transpose(real(lwhr, ireals))
     else
       call rrtmg_lw &
         (ncol    ,nlay    ,icld    ,idrv   , &
@@ -160,8 +162,8 @@ contains
     real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
     real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq, iwp, reice
 
-    real(ireals), dimension(:,:,:), intent(out) :: tau, w0, g ! [ncol, nlay, ngptsw]
-    real(ireals), dimension(:,:), intent(out), optional :: opt_swuflx, opt_swdflx, opt_swhr ! [ncol, nlay+1]
+    real(ireals), dimension(:,:,:), intent(out) :: tau, w0, g ! [nlay, ncol, ngptsw]
+    real(ireals), dimension(:,:), intent(out), optional :: opt_swuflx, opt_swdflx, opt_swhr ! [nlay+1, ncol]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -174,7 +176,7 @@ contains
     real(rb),dimension(ncol_in,nlay_in+1) :: swuflx,swdflx,swuflxc,swdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: swhr,swhrc
 
-    integer(im) :: icol, ncol, nlay
+    integer(im) :: icol, ncol, nlay, k
 
     integer(im),parameter :: dyofyr=0,inflgsw=2,iceflgsw=3,liqflgsw=1
     real(rb)   ,parameter :: adjes=1, scon=1.36822e+03
@@ -212,14 +214,14 @@ contains
       call rrtmg_sw_ini(1006._rb)
       linit_rrtmg = .True.
 
-      !if(ldebug .and. myid.eq.0) then
-      !  do k=nlay,1,-1
-      !    print *,'rrtm_optprop_sw',k,'tlev',tlev(1,k),'tlay',tlay(1,k),'plev',plev(1,k),'play',play(1,k), &
-      !      'lwp',lwp(1,k), 'reliq',reliq(1,k), 'iwp',iwp(1,k), 'reice',reice(1,k),&
-      !      'h2o',h2ovmr(1,k), 'o3' , o3vmr(1,k), 'co2', co2vmr(1,k), 'ch4', ch4vmr(1,k),    &
-      !      'n2o', n2ovmr(1,k), 'o2' , o2vmr(1,k)
-      !  enddo
-      !endif
+      if(ldebug) then
+        do k=nlay,1,-1
+          print *,'rrtm_optprop_sw',k,'tlev',tlev(1,k),'tlay',tlay(1,k),'plev',plev(1,k),'play',play(1,k), &
+            'lwp',lwp(1,k), 'reliq',reliq(1,k), 'iwp',iwp(1,k), 'reice',reice(1,k),&
+            'h2o',h2ovmr(1,k), 'o3' , o3vmr(1,k), 'co2', co2vmr(1,k), 'ch4', ch4vmr(1,k),    &
+            'n2o', n2ovmr(1,k), 'o2' , o2vmr(1,k)
+        enddo
+      endif
     endif
 
     if (present(opt_swuflx).and.present(opt_swdflx).and.present(opt_swhr)) then
@@ -236,9 +238,9 @@ contains
         swuflx, swdflx, swhr, swuflxc, swdflxc, swhrc, &
         tau, w0, g, loptprop_only=.False.)
 
-      opt_swuflx = real(swuflx, ireals)
-      opt_swdflx = real(swdflx, ireals)
-      opt_swhr   = real(swhr, ireals)
+      opt_swuflx = transpose(real(swuflx, ireals))
+      opt_swdflx = transpose(real(swdflx, ireals))
+      opt_swhr   = transpose(real(swhr, ireals))
     else
 
       call rrtmg_sw &

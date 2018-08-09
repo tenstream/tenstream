@@ -29,7 +29,7 @@ module m_pprts
 
   use m_helper_functions, only : CHKERR, deg2rad, rad2deg, norm, imp_allreduce_min, &
     imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, mean, get_arg, approx, &
-    inc
+    inc, itoa
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
@@ -48,7 +48,7 @@ module m_pprts
   use m_mcrts_dmda, only : solve_mcrts
 
   use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, &
-    t_coord, t_opticalprops, t_sunangles, t_suninfo, t_atmosphere, &
+    t_coord, t_sunangles, t_suninfo, t_atmosphere, &
     t_state_container, prepare_solution, destroy_solution, &
     t_dof, t_solver_log_events, E_up, E_dn
 
@@ -1296,13 +1296,13 @@ module m_pprts
         do k=C_one_atm%zs,C_one_atm%ze
           if(present(local_planck)) then
             print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
-              minval(atm%kabs), minval(atm%ksca), minval(atm%g),&
-              maxval(atm%kabs), maxval(atm%ksca), maxval(atm%g),&
+              minval(atm%kabs(k,:,:)), minval(atm%ksca(k,:,:)), minval(atm%g(k,:,:)),&
+              maxval(atm%kabs(k,:,:)), maxval(atm%ksca(k,:,:)), maxval(atm%g(k,:,:)),&
               '::',minval(atm%planck (k,:,:)),maxval(atm%planck        (k, :,:))
           else
             print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
-              minval(atm%kabs), minval(atm%ksca), minval(atm%g),&
-              maxval(atm%kabs), maxval(atm%ksca), maxval(atm%g)
+              minval(atm%kabs(k,:,:)), minval(atm%ksca(k,:,:)), minval(atm%g(k,:,:)),&
+              maxval(atm%kabs(k,:,:)), maxval(atm%ksca(k,:,:)), maxval(atm%g(k,:,:))
           endif
         enddo
       endif
@@ -1601,7 +1601,7 @@ module m_pprts
 
     if(.not.solutions(uid)%lset) then
       call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
-        lsolar=lsolar, solution=solutions(uid))
+        lsolar=lsolar, solution=solutions(uid), uid=uid)
     endif
 
     ! --------- Skip Thermal Computation (-lskip_thermal) --
@@ -1961,6 +1961,7 @@ module m_pprts
     type(tVec) :: abso_old
 
     if( .not. solution%lset ) call CHKERR(1_mpiint, 'cant restore solution that was not initialized')
+    if( .not. allocated(solution%abso) ) call CHKERR(1_mpiint, 'cant restore solution that was not initialized')
 
     if( .not. solution%lchanged ) call CHKERR(1_mpiint, 'cant restore solution which was not changed')
 
@@ -1981,15 +1982,16 @@ module m_pprts
     ! make sure to bring the fluxes into [W/m**2]
     call scale_flx(solver, solution, lWm2=.True. )
 
+
     if(ldebug .and. solver%myid.eq.0) &
       print *,'Saving Solution done'
     solution%lchanged=.False.
 
     if(present(time) .and. solver%lenable_solutions_err_estimates) then ! Compute norm between old absorption and new one
-      call VecAXPY(abso_old , -one, solution%abso , ierr)    ; call CHKERR(ierr) ! overwrite abso_old with difference to new one
-      call VecNorm(abso_old ,  NORM_1, norm1, ierr)          ; call CHKERR(ierr)
-      call VecNorm(abso_old ,  NORM_2, norm2, ierr)          ; call CHKERR(ierr)
-      call VecNorm(abso_old ,  NORM_INFINITY, norm3, ierr)   ; call CHKERR(ierr)
+      call VecAXPY(abso_old, -one, solution%abso, ierr); call CHKERR(ierr) ! overwrite abso_old with difference to new one
+      call VecNorm(abso_old, NORM_1, norm1, ierr)       ; call CHKERR(ierr)
+      call VecNorm(abso_old, NORM_2, norm2, ierr)       ; call CHKERR(ierr)
+      call VecNorm(abso_old, NORM_INFINITY, norm3, ierr); call CHKERR(ierr)
 
       call DMRestoreGlobalVector(solver%C_one%da, abso_old, ierr)   ; call CHKERR(ierr)
 
@@ -2008,19 +2010,23 @@ module m_pprts
     endif !present(time) .and. solver%lenable_solutions_err_estimates
 
 
-    if(solution%lsolar_rad) then
+    if(allocated(solution%edir)) then
       write(vecname,FMT='("edir",I0)') solution%uid
       call PetscObjectSetName(solution%edir,vecname,ierr) ; call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_edir", ierr); call CHKERR(ierr)
     endif
 
-    write(vecname,FMT='("ediff",I0)') solution%uid
-    call PetscObjectSetName(solution%ediff,vecname,ierr) ; call CHKERR(ierr)
-    call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_ediff", ierr); call CHKERR(ierr)
+    if(allocated(solution%ediff)) then
+      write(vecname,FMT='("ediff",I0)') solution%uid
+      call PetscObjectSetName(solution%ediff,vecname,ierr) ; call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_ediff", ierr); call CHKERR(ierr)
+    endif
 
-    write(vecname,FMT='("abso",I0)') solution%uid
-    call PetscObjectSetName(solution%abso,vecname,ierr) ; call CHKERR(ierr)
-    call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_abso", ierr); call CHKERR(ierr)
+    if(allocated(solution%abso)) then
+      write(vecname,FMT='("abso",I0)') solution%uid
+      call PetscObjectSetName(solution%abso,vecname,ierr) ; call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_abso", ierr); call CHKERR(ierr)
+    endif
 
     if(allocated(solver%b)) then
       write(vecname,FMT='("b",I0)') solution%uid
@@ -2056,16 +2062,18 @@ module m_pprts
               C_one_atm   => solver%C_one_atm, &
               C_one_atm1  => solver%C_one_atm1)
 
-    if(solution%lsolar_rad) &
+    if(solution%lsolar_rad) then
+      call PetscObjectSetName(solution%edir,'twostream_edir_vec uid='//itoa(solution%uid),ierr) ; call CHKERR(ierr)
       call VecSet(solution%edir ,zero,ierr); call CHKERR(ierr)
+    endif
 
+    call PetscObjectSetName(solution%ediff,'twostream_ediff_vec uid='//itoa(solution%uid),ierr) ; call CHKERR(ierr)
     call VecSet(solution%ediff,zero,ierr); call CHKERR(ierr)
 
     allocate( dtau(C_one_atm%zm) )
     allocate( kext(C_one_atm%zm) )
     allocate(   w0(C_one_atm%zm) )
     allocate(    g(C_one_atm%zm) )
-
 
     if(solution%lsolar_rad) &
       call getVecPointer(solution%edir  ,C_dir%da  ,xv_dir1d , xv_dir)
@@ -2099,10 +2107,15 @@ module m_pprts
           enddo
         endif
 
-        xv_diff(E_up,C_diff%zs+1:C_diff%ze,i,j) = Eup(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze)
-        xv_diff(E_up,C_diff%zs            ,i,j) = Eup(C_one_atm1%zs)
-        xv_diff(E_dn,C_diff%zs+1:C_diff%ze,i,j) = Edn(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze)
-        xv_diff(E_dn,C_diff%zs            ,i,j) = Edn(C_one_atm1%zs)
+        do src = 1, solver%difftop%dof
+          if (solver%difftop%is_inward(src) .eqv. .True.) then
+            xv_diff(src-1,C_diff%zs+1:C_diff%ze,i,j) = Edn(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze)
+            xv_diff(src-1,C_diff%zs            ,i,j) = Edn(C_one_atm1%zs)
+          else
+            xv_diff(src-1,C_diff%zs+1:C_diff%ze,i,j) = Eup(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze)
+            xv_diff(src-1,C_diff%zs            ,i,j) = Eup(C_one_atm1%zs)
+          endif
+        enddo
       enddo
     enddo
 
@@ -2114,7 +2127,7 @@ module m_pprts
     solution%lWm2_dir  = .True.
     solution%lWm2_diff = .True.
     ! and mark solution that it is not up to date
-    solution%lchanged         = .True.
+    solution%lchanged  = .True.
 
     deallocate(S)
     deallocate(Edn)
@@ -2187,17 +2200,22 @@ module m_pprts
   !> @details from gauss divergence theorem, the divergence in the volume is the integral of the flux through the surface
   !> \n we therefore sum up the incoming and outgoing fluxes to compute the divergence
   subroutine calc_flx_div(solver, solution)
-    class(t_solver)                       :: solver
-    type(t_state_container)               :: solution
+    class(t_solver)         :: solver
+    type(t_state_container) :: solution
 
-    real(ireals),pointer,dimension(:,:,:,:)  :: xediff=>null(),xedir=>null(),xabso=>null()
-    real(ireals),pointer,dimension(:)        :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
+    real(ireals),pointer,dimension(:,:,:,:) :: xediff=>null(),xedir=>null(),xabso=>null()
+    real(ireals),pointer,dimension(:)       :: xediff1d=>null(),xedir1d=>null(),xabso1d=>null()
 
-    integer(iintegers)        :: offset, isrc, src
-    integer(iintegers)        :: i, j, k, xinc, yinc
-    type(tVec)                :: ledir,lediff ! local copies of vectors, including ghosts
-    real(ireals)              :: Volume,Az
-    logical                   :: lhave_no_3d_layer
+    integer(iintegers) :: offset, isrc, src
+    integer(iintegers) :: i, j, k, xinc, yinc
+    type(tVec)         :: ledir,lediff ! local copies of vectors, including ghosts
+    real(ireals)       :: Volume,Az
+    logical            :: lhave_no_3d_layer
+
+    if(allocated(solution%edir)) then
+      call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_flxdiv_edir", ierr); call CHKERR(ierr)
+    endif
+    call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, "-show_flxdiv_ediff", ierr); call CHKERR(ierr)
 
     associate(  atm     => solver%atm, &
                 C_dir   => solver%C_dir, &
@@ -2233,12 +2251,13 @@ module m_pprts
       return
     endif
 
-    if(solver%myid.eq.0.and.ldebug) print *,'Calculating flux divergence',solution%lsolar_rad.eqv..False.,lcalc_nca
+    if(solver%myid.eq.0.and.ldebug) print *,'Calculating flux divergence',solution%lsolar_rad,lcalc_nca
     call VecSet(solution%abso,zero,ierr) ;call CHKERR(ierr)
 
     ! if there are no 3D layers globally, we should skip the ghost value copying....
     lhave_no_3d_layer = mpi_logical_and(solver%comm, all(atm%l1d.eqv..True.))
     if(lhave_no_3d_layer) then
+      if(ldebug.and.solver%myid.eq.0) print *,'lhave_no_3d_layer => will use 1D absorption computation'
       call scale_flx(solver, solution, lWm2=.False.)
 
       if(solution%lsolar_rad) call getVecPointer(solution%edir, C_dir%da ,xedir1d ,xedir )
@@ -2246,7 +2265,7 @@ module m_pprts
       call getVecPointer(solution%ediff, C_diff%da, xediff1d, xediff)
       call getVecPointer(solution%abso, C_one%da, xabso1d, xabso)
 
-      ! calculate absorption by flux divergence
+      !! calculate absorption by flux divergence
 
       do j=C_one%ys,C_one%ye
         do i=C_one%xs,C_one%xe
@@ -2255,10 +2274,20 @@ module m_pprts
               do src=i0,solver%dirtop%dof-1
                 xabso(i0,k,i,j) = xedir(src, k, i, j )  - xedir(src , k+i1 , i, j )
               enddo
+            else
+              xabso(i0,k,i,j) = zero
             endif
 
-            xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
-            xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
+            !xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
+            !xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
+            do isrc = 1, solver%difftop%dof
+              src = isrc
+              if (solver%difftop%is_inward(isrc) .eqv. .True.) then
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i, j) - xediff(src-1, k+1, i, j))
+              else
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k+1, i, j) - xediff(src-1, k, i, j))
+              endif
+            enddo
 
           enddo
         enddo
@@ -3384,10 +3413,20 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
       if(ldebug) then
         do src=1,C%dof
-          norm = sum( v(src:C%dof**2:C%dof) )
-          if( norm.gt.one+10._ireals*epsilon(one) ) then
-            print *,'diffuse sum(src==',src,') gt one',norm
-            call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
+          norm = sum( v(src:C%dof**2:C%dof))
+          if(norm.gt.one+10._ireals*epsilon(one)) then
+            if(norm.gt.one+10._ireals*sqrt(epsilon(one))) then
+              print *,'diffuse sum(src==',src,') gt one',norm,'=>', v(src:C%dof**2:C%dof)
+              print *,'get_coeff', solver%atm%kabs(atmk(solver%atm, k),i,j), &
+                solver%atm%ksca(atmk(solver%atm, k),i,j), &
+                solver%atm%g(atmk(solver%atm, k),i,j), &
+                solver%atm%dz(atmk(solver%atm, k),i,j), &
+                .False., solver%atm%l1d(atmk(solver%atm, k),i,j), '=>', v
+              call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
+            else
+              ! rescale values
+              v(src:C%dof**2:C%dof) = v(src:C%dof**2:C%dof) / norm
+            endif
           endif
         enddo
       endif

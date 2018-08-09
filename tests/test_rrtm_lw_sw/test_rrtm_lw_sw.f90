@@ -8,6 +8,8 @@ module test_rrtm_lw_sw
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
 
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+
   use m_pprts_base, only : t_solver_3_10
 
   use pfunit_mod
@@ -15,6 +17,7 @@ module test_rrtm_lw_sw
   implicit none
 
   type(t_solver_3_10) :: solver
+  type(t_tenstr_atm) :: atm
 contains
 
   @before
@@ -28,6 +31,7 @@ contains
     class (MpiTestMethod), intent(inout) :: this
     ! Tidy up
     call destroy_pprts_rrtmg(solver, lfinalizepetsc=.True.)
+    call destroy_tenstr_atm(atm)
   end subroutine teardown
 
   @test(npes =[2,1])
@@ -43,8 +47,8 @@ contains
     real(ireals),parameter :: albedo_th=0, albedo_sol=.3 ! broadband ground albedo for solar and thermal spectrum
     real(ireals),parameter :: atolerance = 1             ! absolute tolerance when regression testing fluxes
 
-    real(ireals), dimension(nzp+1,nxp,nyp) :: plev ! pressure on layer interfaces [hPa]
-    real(ireals), dimension(nzp+1,nxp,nyp) :: tlev ! Temperature on layer interfaces [K]
+    real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
+    real(ireals), dimension(nzp+1,nxp,nyp), target :: tlev ! Temperature on layer interfaces [K]
 
     ! Layer values for the atmospheric constituents -- those are actually all
     ! optional and if not provided, will be taken from the background profile file (atm_filename)
@@ -52,7 +56,7 @@ contains
     ! real(ireals), dimension(nzp,nxp,nyp) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
 
     ! Liquid water cloud content [g/kg] and effective radius in micron
-    real(ireals), dimension(nzp,nxp,nyp) :: lwc, reliq
+    real(ireals), dimension(nzp,nxp,nyp), target :: lwc, reliq
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -70,6 +74,8 @@ contains
     !------------ Local vars ------------------
     integer(iintegers) :: k, nlev, icld
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
+
+    real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
 
     logical,parameter :: ldebug=.True.
     logical :: lthermal, lsolar
@@ -114,18 +120,27 @@ contains
     tlev (icld  , :,:) = 288._ireals
     tlev (icld+1, :,:) = tlev (icld  , :,:)
 
-    ! mean layer temperature is approx. arithmetic mean between layer interfaces
-    ! tlay = (tlev(1:nzp,:,:) + tlev(2:nzp+1,:,:))/2
+    ! Setup Atmosphere
+    pplev(1:size(plev,1),1:size(plev,2)*size(plev,3)) => plev
+    ptlev(1:size(plev,1),1:size(tlev,2)*size(tlev,3)) => tlev
+    plwc (1:size(lwc ,1),1:size(lwc ,2)*size(lwc ,3)) => lwc
+    preliq(1:size(reliq,1),1:size(reliq,2)*size(reliq,3)) => reliq
+
+    call setup_tenstr_atm(comm, .False., atm_filename, &
+      pplev, ptlev, atm, &
+      d_lwc=plwc, d_reliq=preliq)
 
     ! For comparison, compute lw and sw separately
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation:'
     lthermal=.False.; lsolar=.True.
 
-    call pprts_rrtmg(comm, solver, dx, dy, phi0, theta0,      &
-      albedo_th, albedo_sol, atm_filename, lthermal, lsolar,  &
-      edir, edn, eup, abso,                                   &
-      d_plev=plev, d_tlev=tlev, d_lwc=lwc, d_reliq=reliq,     &
-      nxproc=nxproc, nyproc=nyproc, opt_time=zero)
+    call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
+      dx, dy, phi0, theta0,   &
+      albedo_th, albedo_sol,  &
+      lthermal, lsolar,       &
+      edir, edn, eup, abso,   &
+      nxproc=nxproc, nyproc=nyproc, &
+      opt_time=zero)
 
     ! Determine number of actual output levels from returned flux arrays.
     ! We dont know the size before hand because we get the fluxes on the merged
@@ -180,10 +195,10 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Thermal Radiation:'
     lthermal=.True.; lsolar=.False.
 
-    call pprts_rrtmg(comm, solver, dx, dy, phi0, theta0,       &
-      albedo_th, albedo_sol, atm_filename, lthermal, lsolar,   &
-      edir, edn, eup, abso,                                    &
-      d_plev=plev, d_tlev=tlev, d_lwc=lwc, d_reliq=reliq,      &
+    call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
+      dx, dy, phi0, theta0, albedo_th, albedo_sol,      &
+      lthermal, lsolar,                                 &
+      edir, edn, eup, abso,                             &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     if(myid.eq.0 .and. ldebug) print *,'Computing Thermal Radiation done'
@@ -227,10 +242,10 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar AND Thermal Radiation:'
     lthermal=.True.; lsolar=.True.
 
-    call pprts_rrtmg(comm, solver, dx, dy, phi0, theta0,     &
-      albedo_th, albedo_sol, atm_filename, lthermal, lsolar, &
-      edir,edn,eup,abso,                                     &
-      d_plev=plev, d_tlev=tlev, d_lwc=lwc, d_reliq=reliq,    &
+    call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
+      dx, dy, phi0, theta0, albedo_th, albedo_sol,      &
+      lthermal, lsolar,                                 &
+      edir, edn, eup, abso,                             &
       nxproc=nxproc, nyproc=nyproc, opt_time=zero)
 
     nlev = ubound(edn,1)

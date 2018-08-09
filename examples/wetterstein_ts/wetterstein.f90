@@ -11,6 +11,7 @@ module m_wetterstein
 
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
   use m_pprts_base, only : t_solver_3_10
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm
 
   implicit none
 
@@ -20,6 +21,7 @@ contains
     implicit none
 
     type(t_solver_3_10) :: solver
+    type(t_tenstr_atm)  :: atm
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y
 
@@ -28,10 +30,10 @@ contains
     real(ireals),parameter :: albedo_sol=0.2, albedo_th=0
     integer(iintegers),parameter :: icollapse=40
 
-    real(ireals),allocatable,dimension(:,:,:) :: plev, tlev                                         ! nlay+1, nxp, nyp
-    real(ireals),allocatable,dimension(:,:,:) :: tlay                                               ! nlay  , nxp, nyp
-    real(ireals),allocatable,dimension(:,:,:) :: lwc, reliq, air                                    ! nlay  , nxp, nyp
-    real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso                              ! nlyr(+1), global_nx, global_ny
+    real(ireals),allocatable,dimension(:,:,:), target :: plev, tlev    ! nlay+1, nxp, nyp
+    real(ireals),allocatable,dimension(:,:,:), target :: lwc, reliq    ! nlay  , nxp, nyp
+    real(ireals),pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq ! reshape pointers to convert to column vecs
+    real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! nlyr(+1), global_nx, global_ny
 
     character(len=default_str_len), parameter :: atm_filename='afglus_100m.dat'
     character(len=80) :: nc_path(2) ! [ filename, varname ]
@@ -40,13 +42,10 @@ contains
     integer(iintegers) :: k
     integer(iintegers) :: nxp,nyp,nlay
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
-    integer(mpiint) :: ncerr
+    integer(mpiint) :: ncerr, ierr
 
     logical, parameter :: lthermal=.False., lsolar=.True.
-
     logical, parameter :: ldebug=.True.
-
-    integer(mpiint) :: ierr
 
     comm = MPI_COMM_WORLD
     call mpi_comm_size(comm, numnodes, ierr)
@@ -68,14 +67,12 @@ contains
     if(myid.eq.0) then
       nc_path(1) = 'input.nc'
       nc_path(2)='plev'  ;call ncload(nc_path, plev   , ncerr); call CHKERR(ncerr)
-      nc_path(2)='tlay'  ;call ncload(nc_path, tlay   , ncerr); call CHKERR(ncerr)
-      nc_path(2)='air'   ;call ncload(nc_path, air    , ncerr); call CHKERR(ncerr)
-      deallocate(air)
+      nc_path(2)='tlev'  ;call ncload(nc_path, tlev   , ncerr); call CHKERR(ncerr)
 
       if(myid.eq.0) print *,'plev shape',shape(plev)
     endif
     call imp_bcast(comm, plev  , 0_mpiint)
-    call imp_bcast(comm, tlay  , 0_mpiint)
+    call imp_bcast(comm, tlev  , 0_mpiint)
 
     nlay= ubound(plev,1)-1
     nxp = ubound(plev,2)
@@ -90,16 +87,25 @@ contains
     reliq = 10
 
     if(myid.eq.0 .and. ldebug) then
-      do k=1,nlay
-        print *,'plev',plev(k,1,1), 'T', tlay(k,1,1)
+      do k=1,nlay+1
+        print *,'plev',plev(k,1,1), 'T', tlev(k,1,1)
       enddo
-      print *,'plev',plev(nlay+1,1,1)
     endif
 
-    call pprts_rrtmg(comm, solver, dx, dy, phi0, theta0, albedo_th, albedo_sol, &
-      atm_filename, lthermal, lsolar,                                       &
-      edir,edn,eup,abso,                                                    &
-      d_plev=plev, d_tlev=tlev, d_tlay=tlay, d_lwc=lwc, d_reliq=reliq,      &
+    pplev(1:size(plev,1),1:size(plev,2)*size(plev,3)) => plev
+    ptlev(1:size(tlev,1),1:size(tlev,2)*size(tlev,3)) => tlev
+    plwc (1:size(lwc ,1),1:size(lwc ,2)*size(lwc ,3)) => lwc
+    preliq(1:size(reliq,1),1:size(reliq,2)*size(reliq,3)) => reliq
+
+    call setup_tenstr_atm(comm, .False., atm_filename, &
+      pplev, ptlev, atm, &
+      d_lwc=plwc, d_reliq=preliq)
+
+    call pprts_rrtmg(comm, solver, atm, nxp, nyp, &
+      dx, dy, phi0, theta0,   &
+      albedo_th, albedo_sol,  &
+      lthermal, lsolar,       &
+      edir, edn, eup, abso,   &
       nxproc=nxproc, nyproc=nyproc)
 
     if(myid.eq.0) then
