@@ -5,7 +5,7 @@ module m_plex_grid
   use m_helper_functions, only: CHKERR, itoa, compute_normal_3d, approx, strF2C, distance, &
     triangle_area_by_vertices, swap, norm, determine_normal_direction, &
     vec_proj_on_plane, angle_between_two_vec, cross_3d, rad2deg, &
-    rotation_matrix_world_to_local_basis, resize_arr
+    rotation_matrix_world_to_local_basis, resize_arr, get_arg
 
   use m_data_parameters, only : ireals, iintegers, mpiint, zero, one, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
@@ -67,8 +67,6 @@ module m_plex_grid
     type(tDMLabel), allocatable :: boundarylabel        ! 1 if boundary of local mesh
     type(tDMLabel), allocatable :: domainboundarylabel  ! TOAFACE if top, SIDEFACE if side face, BOTFACE if bot face, -1 otherwise
     type(tDMLabel), allocatable :: ownerlabel           ! rank that posses this element
-
-    AO, allocatable :: cell_ao
 
     real(ireals),allocatable :: hhl(:) ! vertical height of horizontal faces, i.e. height of levels, starting at TOA
   end type
@@ -145,21 +143,15 @@ module m_plex_grid
         deallocate(plex%ownerlabel)
       endif
 
-      if(allocated(plex%cell_ao)) then
-        call AODestroy(plex%cell_ao, ierr); call CHKERR(ierr)
-        deallocate(plex%cell_ao)
-      endif
-
       if(allocated(plex%hhl)) deallocate(plex%hhl)
 
       plex%comm = -1
     end subroutine
 
-    subroutine create_plex_from_icongrid(comm, Nz, hhl, cell_ao, icongrid, plex)
+    subroutine create_plex_from_icongrid(comm, Nz, hhl, icongrid, plex)
       MPI_Comm, intent(in) :: comm
       integer(iintegers), intent(in) :: Nz
       real(ireals), intent(in) :: hhl(:)
-      AO, intent(in) :: cell_ao
       type(t_icongrid), allocatable, intent(in) :: icongrid
       type(t_plexgrid), allocatable, intent(inout) :: plex
 
@@ -182,7 +174,6 @@ module m_plex_grid
 
       allocate(plex)
       plex%comm = comm
-      plex%cell_ao = cell_ao
 
       plex%Nz = Nz
       if(size(hhl).ne.Nz+1) stop 'plex_grid::create_plex_from_icongrid -> hhl does not fit the size of Nz+1'
@@ -1871,26 +1862,39 @@ module m_plex_grid
 
   end subroutine
 
-  subroutine ncvar2d_to_globalvec(plexgrid, filename, varname, vec)
+  subroutine ncvar2d_to_globalvec(plexgrid, filename, varname, vec, timeidx, cell_ao_2d, cell_ao_3d)
     type(t_plexgrid), intent(in) :: plexgrid
     character(len=*), intent(in) :: filename, varname
     type(tVec), intent(inout) :: vec
+    integer(iintegers), intent(in), optional :: timeidx
+    type(AO), optional, intent(in), target :: cell_ao_2d, cell_ao_3d ! mapping into 2D or 3D plex cells on rank0
 
+    type(tDM) :: celldm
+    type(tPetscSection) :: cellsection
     type(tVec) :: local
     type(tVecScatter) :: scatter_context
     real(ireals), pointer :: xloc(:)=>null()
     integer(mpiint) :: myid, ierr
-    integer(iintegers) :: ic, icell, icell_global, k, Ncells
+    integer(iintegers) :: ic, icell, icell_global, k
     real(ireals), allocatable :: arr(:,:)
+    real(ireals), allocatable :: arr3d(:,:,:)
     character(len=default_str_len) :: ncgroups(2)
+
+    if(.not.(present(cell_ao_2d) .or. present(cell_ao_3d))) call CHKERR(1_mpiint, 'have to provide one of cell AO`s')
+    if(present(cell_ao_2d) .and. present(cell_ao_3d)) call CHKERR(1_mpiint, 'please provide only one cell AO')
 
     call mpi_comm_rank(plexgrid%comm, myid, ierr); call CHKERR(ierr)
     if(ldebug.and.myid.eq.0) print *,'Loading from nc file: ',trim(filename), ' varname: ', trim(varname)
 
     call print_dmplex(plexgrid%comm, plexgrid%dm)
 
+    call DMClone(plexgrid%dm, celldm, ierr); call CHKERR(ierr)
+    call create_plex_section(celldm, 'Cell_Section', i1, [i1], [i0], [i0], [i0], cellsection)
+    call DMSetSection(celldm, cellsection, ierr); call CHKERR(ierr)
+    call PetscSectionDestroy(cellsection, ierr); call CHKERR(ierr)
+
     ! Now lets get vectors!
-    call DMCreateGlobalVector(plexgrid%dm, vec, ierr); call CHKERR(ierr)
+    call DMCreateGlobalVector(celldm, vec, ierr); call CHKERR(ierr)
     call PetscObjectSetName(vec, 'VecfromNC_'//trim(varname), ierr);call CHKERR(ierr)
 
     call VecScatterCreateToZero(vec, scatter_context, local, ierr); call CHKERR(ierr)
@@ -1900,22 +1904,43 @@ module m_plex_grid
       ncgroups(1) = trim(filename)
       ncgroups(2) = trim(varname)
       if(ldebug) print *,'plex_grid::ncvar2d_to_globalvec : Loading file ', trim(ncgroups(1)), ':', trim(ncgroups(2))
-      call ncload(ncgroups, arr, ierr); call CHKERR(ierr, 'Could not load Data from NetCDF')
+      call ncload(ncgroups, arr, ierr)
+      if(ierr.ne.0) then !try to load 3D data
+        print *,'Could not load 2D array Data, trying 3D var'
+        call ncload(ncgroups, arr3d, ierr); call CHKERR(ierr, 'Could not load Data from NetCDF')
+
+        k = get_arg(i1, timeidx)
+        if(k.lt.i1 .or. k.gt.ubound(arr3d,3)) &
+            call CHKERR(1_mpiint, 'invalid time index, shape of arr:' &
+                        //itoa(size(arr3d,1))//itoa(size(arr3d,2))//itoa(size(arr3d,3)))
+
+        allocate(arr(size(arr3d,1), size(arr3d,2)), source=arr3d(:,:,k))
+        deallocate(arr3d)
+      endif
+
       if(ldebug) print *,'plex_grid::ncvar2d_to_globalvec : shape ',trim(varname), shape(arr)
-      Ncells = size(arr, dim=1)
 
       call VecGetArrayF90(local,xloc,ierr); call CHKERR(ierr)
-      do icell=1,Ncells
-        icell_global = icell-1
-        call AOApplicationToPetsc(plexgrid%cell_ao, i1, icell_global, ierr); call CHKERR(ierr) ! icell_global is petsc index for cells from 0 to Ncells-1
-
-        do k=1,size(arr, dim=2)
-          ic = icell_global*size(arr, dim=2) + k
-          xloc(ic) = arr(icell, k)
-        enddo
+      do icell=1, size(arr, dim=1)
+        if(present(cell_ao_2d)) then
+          icell_global = icell-1
+          ! icell_global will be mapped to petsc index assuming the AO maps cells in C ordering from 0 to Ncells-1
+          call AOApplicationToPetsc(cell_ao_2d, i1, icell_global, ierr); call CHKERR(ierr)
+          do k=1,size(arr, dim=2)
+            ic = icell_global*size(arr, dim=2) + k
+            xloc(ic) = arr(icell,k)
+          enddo
+        else
+          do k=1,size(arr, dim=2)
+            icell_global = icell*size(arr, dim=2) + k -i1
+            call AOApplicationToPetsc(cell_ao_3d, i1, icell_global, ierr); call CHKERR(ierr)
+            xloc(icell_global) = arr(icell,k)
+          enddo
+        endif
       enddo
       call VecRestoreArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
-    endif
+
+    endif ! rank 0
     if(ldebug) call mpi_barrier(plexgrid%comm, ierr); call CHKERR(ierr)
 
     if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: scatter reverse....'

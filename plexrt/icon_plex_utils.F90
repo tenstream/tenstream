@@ -3,19 +3,25 @@ module m_icon_plex_utils
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, i0, i1, i2, i3, i4, i5, zero, one
+  use m_data_parameters, only : ireals, iintegers, mpiint, &
+    i0, i1, i2, i3, i4, i5, zero, one, default_str_len
 
   use m_helper_functions, only: chkerr, itoa, norm
 
   use m_plex_grid, only: print_dmplex, create_plex_section
 
+  use m_netcdfio, only: ncload
+
   implicit none
 
   private
-  public :: dmplex_2D_to_3D, create_2d_fish_plex, dump_ownership
+  public :: dmplex_2D_to_3D, create_2d_fish_plex, dump_ownership, gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl
 
   !logical, parameter :: ldebug=.True.
   logical, parameter :: ldebug=.False.
+
+  real(ireals), parameter :: icon_hdcp2_default_hhl(151) = &
+    [21000.000   , 20617.792   , 20290.235   , 19982.347   , 19687.435   , 19402.393   , 19125.412   , 18855.302   , 18591.217   , 18332.527   , 18078.737   , 17829.452   , 17584.349   , 17343.154   , 17105.635   , 16871.593   , 16640.853   , 16413.261   , 16188.679   , 15966.985   , 15748.067   , 15531.826   , 15318.170   , 15107.015   , 14898.282   , 14691.901   , 14487.805   , 14285.932   , 14086.225   , 13888.630   , 13693.095   , 13499.575   , 13308.022   , 13118.397   , 12930.657   , 12744.766   , 12560.687   , 12378.386   , 12197.831   , 12018.990   , 11841.834   , 11666.334   , 11492.464   , 11320.198   , 11149.510   , 10980.378   , 10812.778   , 10646.689   , 10482.089   , 10318.958   , 10157.277   , 9997.027    , 9838.190    , 9680.749    , 9524.686    , 9369.987    , 9216.635    , 9064.616    , 8913.914    , 8764.517    , 8616.410    , 8469.580    , 8324.016    , 8179.704    , 8036.633    , 7894.793    , 7754.171    , 7614.758    , 7476.543    , 7339.516    , 7203.669    , 7068.992    , 6935.476    , 6803.113    , 6671.895    , 6541.813    , 6412.861    , 6285.031    , 6158.317    , 6032.711    , 5908.207    , 5784.800    , 5662.484    , 5541.252    , 5421.100    , 5302.024    , 5184.017    , 5067.077    , 4951.198    , 4836.377    , 4722.610    , 4609.895    , 4498.227    , 4387.605    , 4278.026    , 4169.487    , 4061.987    , 3955.525    , 3850.098    , 3745.707    , 3642.350    , 3540.027    , 3438.738    , 3338.483    , 3239.264    , 3141.081    , 3043.935    , 2947.829    , 2852.765    , 2758.746    , 2665.774    , 2573.854    , 2482.990    , 2393.185    , 2304.447    , 2216.779    , 2130.190    , 2044.686    , 1960.274    , 1876.965    , 1794.766    , 1713.690    , 1633.747    , 1554.949    , 1477.311    , 1400.848    , 1325.575    , 1251.512    , 1178.678    , 1107.095    , 1036.786    , 967.780     , 900.104     , 833.792     , 768.881     , 705.412     , 643.431     , 582.990     , 524.151     , 466.982     , 411.564     , 357.994     , 306.385     , 256.878     , 209.648     , 164.919     , 122.997     , 84.314      , 49.554      , 20.000      , 0.000 ]
 
   contains
 
@@ -934,4 +940,175 @@ module m_icon_plex_utils
           call VecDestroy(coordinates, ierr);CHKERRQ(ierr)
         end subroutine
       end subroutine
+
+    subroutine gen_2d_plex_from_icongridfile(comm, gridfile, dm, cell_ao_2d)
+      integer(mpiint), intent(in) :: comm
+      character(len=*), intent(in) :: gridfile
+      type(tDM), intent(out) :: dm
+      type(AO), allocatable, intent(out), optional :: cell_ao_2d
+
+      type(tDM) :: dmdist
+
+      integer(iintegers) :: Nfaces, Nedges, Nverts ! number of entries in base icon grid
+      integer(iintegers), allocatable :: cell_index(:)
+      integer(iintegers), allocatable :: edge_index(:)
+      integer(iintegers), allocatable :: vert_index(:)
+      real(ireals)      , allocatable :: cartesian_x_vertices(:) ! dim(local_cells)
+      real(ireals)      , allocatable :: cartesian_y_vertices(:) ! dim(local_cells)
+      real(ireals)      , allocatable :: cartesian_z_vertices(:) ! dim(local_cells)
+
+      integer(iintegers), allocatable, dimension(:,:) :: edges_of_cell ! edges of each cell, dim(local_cells, 3)
+      integer(iintegers), allocatable, dimension(:,:) :: edge_verts    ! vertices at edge  , dim(local_edges, 2)
+
+      integer(iintegers), allocatable :: dmplex_idx(:)
+
+      character(len=default_str_len) :: varname(2)
+      integer(iintegers) :: chartsize, i, k, icell, iedge, edge3(3), vert2(2)
+      integer(mpiint) :: myid, ierr
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+      if(myid.eq.0) then
+        if (ldebug) print *,'Reading Icon icongrid File:', trim(gridfile)
+        varname(1) = trim(gridfile)
+
+        varname(2) = 'cell_index'           ; call ncload(varname, cell_index   , ierr); call CHKERR(ierr);
+        varname(2) = 'edge_index'           ; call ncload(varname, edge_index   , ierr); call CHKERR(ierr);
+        varname(2) = 'vertex_index'         ; call ncload(varname, vert_index   , ierr); call CHKERR(ierr);
+        varname(2) = 'edge_of_cell'         ; call ncload(varname, edges_of_cell, ierr); call CHKERR(ierr)
+        varname(2) = 'edge_vertices'        ; call ncload(varname, edge_verts   , ierr); call CHKERR(ierr)
+        varname(2) = 'cartesian_x_vertices' ; call ncload(varname, cartesian_x_vertices, ierr) ; call CHKERR(ierr);
+        varname(2) = 'cartesian_y_vertices' ; call ncload(varname, cartesian_y_vertices, ierr) ; call CHKERR(ierr);
+        varname(2) = 'cartesian_z_vertices' ; call ncload(varname, cartesian_z_vertices, ierr) ; call CHKERR(ierr);
+
+        Nfaces = size(cell_index)
+        Nedges = size(edge_index)
+        Nverts = size(vert_index)
+      else
+        Nfaces = i0
+        Nedges = i0
+        Nverts = i0
+      endif
+
+      call DMPlexCreate(comm, dm, ierr);call CHKERR(ierr)
+      call PetscObjectSetName(dm, 'DMPLEX_read_from_'//trim(gridfile), ierr);call CHKERR(ierr)
+      call DMSetDimension(dm, i2, ierr);call CHKERR(ierr)
+
+      chartsize = Nfaces + Nedges + Nverts
+      call DMPlexSetChart(dm, i0, chartsize, ierr); call CHKERR(ierr)
+
+      ! Preallocation
+      ! Every cell has three edges
+      k = 0
+      do i = 1, Nfaces
+        call DMPlexSetConeSize(dm, k, i3, ierr); call CHKERR(ierr)
+        k = k+1
+      enddo
+
+      ! Edges have 2 vertices
+      do i = 1, Nedges
+        call DMPlexSetConeSize(dm, k, i2, ierr); call CHKERR(ierr)
+        k = k+1
+      enddo
+
+      call DMSetUp(dm, ierr); call CHKERR(ierr) ! Allocate space for cones
+
+      ! Setup Connections
+      ! First set three edges of cell
+      do i = 1, Nfaces
+        icell = cell_index(i)
+        edge3 = edges_of_cell(icell,:)
+
+        call DMPlexSetCone(dm, icell-i1, Nfaces-i1 + edge3, ierr); call CHKERR(ierr)
+      enddo
+
+      !! and then set the two vertices of edge
+      do i = 1, Nedges
+        iedge = edge_index(i)
+        vert2 = edge_verts(iedge,:)
+
+        call DMPlexSetCone(dm, Nfaces-i1 + iedge, Nfaces+Nedges-i1 + vert2, ierr); call CHKERR(ierr)
+      enddo
+
+      call DMPlexSymmetrize(dm, ierr); call CHKERR(ierr)
+      call DMPlexStratify(dm, ierr); call CHKERR(ierr)
+
+      call set_coords()
+
+      if(present(cell_ao_2d)) then
+        allocate(cell_ao_2d)
+        if(.not.allocated(cell_index)) allocate(cell_index(Nfaces))
+        allocate(dmplex_idx(Nfaces), source=(/ (i, i=0,Nfaces-1) /))
+        call AOCreateMapping(comm, Nfaces, cell_index-1, dmplex_idx, cell_ao_2d, ierr); call CHKERR(ierr)
+        !call AOView(cell_ao_2d, PETSC_VIEWER_STDOUT_WORLD, ierr)
+      endif
+
+      call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
+      !call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
+      call DMPlexSetAdjacencyUseClosure(dm, PETSC_True, ierr); call CHKERR(ierr)
+
+      call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
+      if(dmdist.ne.PETSC_NULL_DM) then
+        call DMDestroy(dm, ierr); call CHKERR(ierr)
+        dm = dmdist
+      endif
+
+      contains
+        subroutine set_coords()
+          real(ireals),pointer :: coords(:)
+          type(tVec)           :: coordinates
+          integer(iintegers)   :: coordSize, voff, ind
+          PetscSection         :: coordSection
+          integer(iintegers)   :: vStart, vEnd
+
+          real(ireals) :: cart_coord(3)
+          real(ireals), parameter :: sphere_radius = 6371229._ireals
+
+          call DMGetCoordinateSection(dm, coordSection, ierr); call CHKERR(ierr)
+
+          call PetscSectionSetNumFields(coordSection, i1, ierr); call CHKERR(ierr)
+          call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+          call PetscSectionSetFieldComponents(coordSection, i0, i3, ierr); call CHKERR(ierr)
+
+          call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+          call PetscSectionSetChart(coordSection, vStart, vEnd, ierr);call CHKERR(ierr)
+
+          do i = vStart, vEnd-i1
+            call PetscSectionSetDof(coordSection, i, i3, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(coordSection, i, i0, i3, ierr); call CHKERR(ierr)
+          enddo
+
+          call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+          call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
+          print *,'Coord Section has size:', coordSize
+
+          call VecCreate(comm, coordinates, ierr); call CHKERR(ierr)
+          call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
+          call VecSetBlockSize(coordinates, i3, ierr);call CHKERR(ierr)
+          call VecSetType(coordinates, VECSTANDARD, ierr);call CHKERR(ierr)
+
+          call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
+
+          call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+          print *,'bounds coords:', lbound(coords), ubound(coords)
+
+          ! set vertices as coordinates
+          do i = i1, Nverts
+            ind = vStart + i - i1
+            call PetscSectionGetOffset(coordSection, ind, voff, ierr); call CHKERR(ierr)
+
+            cart_coord = [cartesian_x_vertices(i), cartesian_y_vertices(i), cartesian_z_vertices(i)]
+            !cart_coord = [icongrid%cartesian_x_vertices(i), icongrid%cartesian_y_vertices(i)]
+            coords(voff+i1 : voff+i3) = cart_coord * sphere_radius
+            !print *,'setting coords',cart_coord,'to',voff+i1 , voff+dimEmbed
+          enddo
+
+          !print *,'coords', shape(coords), '::', coords
+          call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+
+          call DMSetCoordinatesLocal(dm, coordinates, ierr);call CHKERR(ierr)
+          call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
+          call VecDestroy(coordinates, ierr);call CHKERR(ierr)
+        end subroutine
+    end subroutine
 end module

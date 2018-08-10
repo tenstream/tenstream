@@ -118,21 +118,21 @@ module m_helper_functions
       endif
     end subroutine
 
-    pure function itoa_i4(i) result(res)
+    pure elemental function itoa_i4(i) result(res)
       character(:),allocatable :: res
       integer(kind=4),intent(in) :: i
       character(range(i)+2) :: tmp
       write(tmp,'(i0)') i
       res = trim(tmp)
     end function
-    pure function itoa_i8(i) result(res)
+    pure elemental function itoa_i8(i) result(res)
       character(:),allocatable :: res
       integer(kind=8),intent(in) :: i
       character(range(i)+2) :: tmp
       write(tmp,'(i0)') i
       res = trim(tmp)
     end function
-    pure function ftoa(i) result(res)
+    pure elemental function ftoa(i) result(res)
       character(:),allocatable :: res
       real(ireals),intent(in) :: i
       character(range(i)+2) :: tmp

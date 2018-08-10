@@ -69,7 +69,7 @@ logical, parameter :: ldebug=.True.
       call imp_bcast(comm, hhl, 0)
       Nz = size(hhl)-1
 
-      call create_plex_from_icongrid(comm, Nz, hhl, cell_ao, local_icongrid, plexgrid)
+      call create_plex_from_icongrid(comm, Nz, hhl, local_icongrid, plexgrid)
       deallocate(local_icongrid)
 
       call ncvar2d_to_globalvec(plexgrid, icondatafile, 'clw', lwcvec)
