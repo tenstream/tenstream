@@ -53,8 +53,7 @@ module m_pprts_rrtmg
 
   use m_netcdfIO, only : ncwrite
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, hydrostat_dz, plkint, sanitize_input, &
-    hydrostat_lev, merge_grid_var, load_atmfile, print_tenstr_atm
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm
 
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw
 
@@ -234,14 +233,14 @@ contains
 
     real(ireals),intent(in) :: albedo
 
-    real(ireals),intent(inout),dimension(:,:,:), target :: edn, eup, abso
+    real(ireals),intent(inout),dimension(:,:,:) :: edn, eup, abso
 
     real(ireals), optional, intent(in) :: opt_time
     logical, optional, intent(in) :: lrrtmg_only
 
-    real(ireals),allocatable, target, dimension(:,:,:,:) :: tau, Bfrac           ! [nlyr, ie, je, ngptlw]
-    real(ireals),allocatable, dimension(:,:,:)   :: kabs, ksca, g, Blev          ! [nlyr(+1), local_nx, local_ny]
-    real(ireals),allocatable, dimension(:,:,:)   :: spec_edn,spec_eup,spec_abso  ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, target, dimension(:,:,:,:) :: tau, Bfrac  ! [nlyr, ie, je, ngptlw]
+    real(ireals),allocatable, dimension(:,:,:) :: kabs, ksca, g, Blev   ! [nlyr(+1), local_nx, local_ny]
+    real(ireals),allocatable, dimension(:,:,:), target :: spec_edn,spec_eup,spec_abso  ! [nlyr(+1), local_nx, local_ny ]
 
     real(ireals), allocatable, dimension(:,:,:) :: ptau, pBfrac
     real(ireals), pointer, dimension(:,:,:) :: patm_dz
@@ -277,16 +276,16 @@ contains
     allocate(tau  (ke, i1:ie, i1:je, ngptlw))
     allocate(Bfrac(ke1, i1:ie, i1:je, ngptlw))
     allocate(ptau  (ke, i1, ngptlw))
-    allocate(pBfrac(ke,i1, ngptlw))
+    allocate(pBfrac(ke, i1, ngptlw))
 
     if(lrrtmg_only) then
       do j=i1,je
         do i=i1,ie
           icol =  i+(j-1)*ie
 
-          pedn (1:1, 1:ke1) => edn (:,i,j)
-          peup (1:1, 1:ke1) => eup (:,i,j)
-          pabso(1:1, 1:ke ) => abso(:,i,j)
+          pedn (1:ke1, 1:1) => spec_edn (:,i,j)
+          peup (1:ke1, 1:1) => spec_eup (:,i,j)
+          pabso(1:ke , 1:1) => spec_abso(:,i,j)
 
           call optprop_rrtm_lw(i1, ke, albedo,      &
             atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
@@ -294,14 +293,14 @@ contains
             atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
             atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq(:, icol), &
             atm%iwc(:,icol)*atm%dz(:,icol), atm%reice(:, icol), &
-            ptau, pBfrac, pedn, peup, pabso)
+            ptau, pBfrac, peup, pedn, pabso)
 
           tau  (:,i,j,:) = ptau(:,i1,:)
-          Bfrac(:,i,j,:) = pBfrac(:,i1,:)
+          Bfrac(2:ke1,i,j,:) = pBfrac(:,i1,:)
 
-          eup(:,i,j)  = reverse(eup (:,i,j))
-          edn(:,i,j)  = reverse(edn (:,i,j))
-          abso(:,i,j) = reverse(abso(:,i,j))
+          eup(:,i,j)  = eup(:,i,j)  + reverse(spec_eup (:,i,j))
+          edn(:,i,j)  = edn(:,i,j)  + reverse(spec_edn (:,i,j))
+          abso(:,i,j) = abso(:,i,j) + reverse(spec_abso(:,i,j))
         enddo
       enddo
       return
@@ -390,15 +389,15 @@ contains
     real(ireals),intent(in) :: phi0, theta0
     real(ireals),intent(in),dimension(:,:),optional :: phi2d, theta2d
 
-    real(ireals),intent(inout),dimension(:,:,:),target :: edir, edn, eup, abso
+    real(ireals),intent(inout),dimension(:,:,:) :: edir, edn, eup, abso
 
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
 
     real(ireals),allocatable, dimension(:,:,:,:) :: tau, w0, g          ! [nlyr, ie, je, ngptsw]
     real(ireals),allocatable, dimension(:,:,:)   :: kabs, ksca, kg      ! [nlyr, local_nx, local_ny]
-    real(ireals),allocatable, dimension(:,:,:)   :: spec_edir,spec_abso ! [nlyr(+1), local_nx, local_ny ]
-    real(ireals),allocatable, dimension(:,:,:)   :: spec_edn, spec_eup  ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:), target   :: spec_edir,spec_abso ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:), target   :: spec_edn, spec_eup  ! [nlyr(+1), local_nx, local_ny ]
 
     real(ireals), allocatable, dimension(:,:,:) :: ptau, pw0, pg
     real(ireals), pointer, dimension(:,:,:) :: patm_dz
@@ -441,9 +440,9 @@ contains
         do i=1,ie
           icol =  i+(j-1)*ie
 
-          pEdn (1:1, 1:size(edn ,1)) => edn (:,i,j)
-          pEup (1:1, 1:size(eup ,1)) => eup (:,i,j)
-          pabso(1:1, 1:size(abso,1)) => abso(:,i,j)
+          pEdn (1:size(edn ,1), 1:1) => spec_edn (:,i,j)
+          pEup (1:size(eup ,1), 1:1) => spec_eup (:,i,j)
+          pabso(1:size(abso,1), 1:1) => spec_abso(:,i,j)
 
           call optprop_rrtm_sw(i1, ke, &
             theta0, albedo, &
@@ -459,10 +458,10 @@ contains
           w0 (:,i,j,:) = pw0(:,i1,:)
           g  (:,i,j,:) = pg(:,i1,:)
 
-          edir(:,i,j) = zero
-          eup (:,i,j) = reverse(eup (:, i, j))
-          edn (:,i,j) = reverse(edn (:, i, j))
-          abso(:,i,j) = reverse(abso(:, i, j))
+          edir(:,i,j) = edir(:,i,j) + zero
+          eup (:,i,j) = eup (:,i,j) + reverse(spec_eup (:, i, j))
+          edn (:,i,j) = edn (:,i,j) + reverse(spec_edn (:, i, j))
+          abso(:,i,j) = abso(:,i,j) + reverse(spec_abso(:, i, j))
         enddo
       enddo
       return

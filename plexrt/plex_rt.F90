@@ -34,20 +34,6 @@ module m_plex_rt
     get_normal_of_first_TOA_face, compute_face_geometry, &
     set_plex_rt_optprop, destroy_plexrt_solver
 
-!  type t_state_container
-!    integer(iintegers)  :: uid ! dirty hack to give the solution a unique hash for example to write it out to disk -- this should be the same as the index in global solutions array
-!    type(tVec), allocatable :: edir, ediff, abso
-!
-!    logical             :: lset        = .False. ! initialized?
-!    logical             :: lsolar_rad  = .False. ! direct radiation calculated?
-!    logical             :: lchanged    = .True.  ! did the flux change recently? -- call restore_solution to bring it in a coherent state
-!
-!    ! save state of solution vectors... they are either in [W](true) or [W/m**2](false)
-!    logical             :: lWm2_dir=.False. , lWm2_diff=.False.
-!
-!    real(ireals),allocatable :: ksp_residual_history(:)
-!  end type
-
   type t_plex_solver
     type(t_plexgrid), allocatable :: plex
     class(t_optprop), allocatable :: OPP

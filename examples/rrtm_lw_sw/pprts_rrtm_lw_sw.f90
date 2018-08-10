@@ -158,22 +158,30 @@ contains
     if(myid.eq.0) then
       if(ldebug) then
         do k=1,nlev
+          if(allocated(edir)) then
           print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
+        else
+          print *,k, 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
+        endif
         enddo
       endif
 
-      print *,'surface :: direct flux', edir(nlev,1,1)
+      if(allocated(edir)) &
+        print *,'surface :: direct flux', edir(nlev,1,1)
       print *,'surface :: downw flux ', edn (nlev,1,1)
       print *,'surface :: upward fl  ', eup (nlev,1,1)
       print *,'surface :: absorption ', abso(nlev-1,1,1)
 
-      print *,'TOA :: direct flux', edir(1,1,1)
+      if(allocated(edir)) &
+        print *,'TOA :: direct flux', edir(1,1,1)
       print *,'TOA :: downw flux ', edn (1,1,1)
       print *,'TOA :: upward fl  ', eup (1,1,1)
       print *,'TOA :: absorption ', abso(1,1,1)
 
-      print *,'icloud :: direct flux  ', edir(nlev-icld  ,1,1)
-      print *,'icloud+1 :: direct flux', edir(nlev-icld+1,1,1)
+      if(allocated(edir)) &
+        print *,'icloud :: direct flux  ', edir(nlev-icld  ,1,1)
+      if(allocated(edir)) &
+        print *,'icloud+1 :: direct flux', edir(nlev-icld+1,1,1)
       print *,'icloud :: downw flux   ', edn (nlev-icld+1,1,1)
       print *,'icloud :: upward fl    ', eup (nlev-icld  ,1,1)
       print *,'icloud :: absorption   ', abso(nlev-icld  ,1,1)
