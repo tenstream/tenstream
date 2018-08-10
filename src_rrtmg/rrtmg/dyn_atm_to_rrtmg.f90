@@ -96,8 +96,15 @@ module m_dyn_atm_to_rrtmg
       real(ireals),allocatable :: reice  (:,:)
 
       logical :: lTOA_to_srfc
+
       ! index of lowermost layer in atm: search for level where height is bigger and pressure is lower:
-      integer(iintegers), allocatable :: atm_ke ! number of vertical levels of background profile, i.e. 1:atm_ke will be put on top of the dynamics grid
+      ! number of vertical levels of background profile, i.e. 1:atm_ke will be put on top of the dynamics grid
+      ! indexing into the atmosphere grid:
+      ! 1:d_ke / 1:d_ke1 gives dynamics portion for layer/level variables
+      ! d_ke+1: / d_ke1+1: gives background portion for layer/level variables
+      ! size(x)-atm_ke: gives background portion
+      integer(iintegers), allocatable :: atm_ke
+      integer(iintegers) :: d_ke, d_ke1
     end type
 
   contains
@@ -131,7 +138,7 @@ module m_dyn_atm_to_rrtmg
       real(ireals),intent(in),optional :: d_iwc    (:,:) ! ice water content              [g/kg]
       real(ireals),intent(in),optional :: d_reice  (:,:) ! ice effective radius           [micron]
 
-      integer(iintegers) :: i
+      integer(iintegers) :: icol
 
       if(lTOA_to_srfc) call CHKERR(1_mpiint, 'currently not possible to supply dynamics input starting at the TOP, input should be starting at the surface')
 
@@ -140,11 +147,11 @@ module m_dyn_atm_to_rrtmg
         call sanitize_input(atm%bg_atm%plev, atm%bg_atm%tlev, atm%bg_atm%tlay)
       endif
 
-      do i=lbound(d_plev,2),ubound(d_plev,2)
+      do icol=lbound(d_plev,2),ubound(d_plev,2)
         if(present(d_tlay)) then
-          call sanitize_input(d_plev(:,i), d_tlev(:,i), d_tlay(:,i))
+          call sanitize_input(d_plev(:,icol), d_tlev(:,icol), d_tlay(:,icol))
         else
-          call sanitize_input(d_plev(:,i), d_tlev(:,i))
+          call sanitize_input(d_plev(:,icol), d_tlev(:,icol))
         endif
       enddo
 
@@ -281,39 +288,42 @@ module m_dyn_atm_to_rrtmg
 
       real(ireals) :: d_plev (ubound(in_d_plev,1), ubound(in_d_plev,2))
 
-      integer(iintegers) :: d_ke, d_ke1 ! number of vertical levels of dynamics grid
-
       integer(iintegers) :: ke, ke1 ! number of vertical levels of merged grid
       integer(iintegers) :: is, ie, icol, l,m
 
       real(ireals),allocatable :: d_hhl(:,:), d_dz(:)
       real(ireals) :: global_maxheight, global_minplev
+      logical :: lupdate_bg_entries
 
       if(.not.allocated(atm%bg_atm)) call CHKERR(1_mpiint, 'bg_atm has to be allocated before merging with dynamics grid variables')
       associate( bg_atm => atm%bg_atm )
 
         is = lbound(d_plev,2); ie = ubound(d_plev,2)
 
-        d_ke1 = ubound(d_plev,1); d_ke = d_ke1-1
-
+        if(ldebug) then
+          call CHKERR(int(atm%d_ke1-ubound(d_plev,1),mpiint), &
+            'Seems you changed the vertical dimension of the input between calls. You have to destroy the atmosphere first and recreate')
+        endif
         ! find out how many layers we have to put on top of the dynamics grid
         if(.not.allocated(atm%atm_ke)) then
+          atm%d_ke1 = ubound(d_plev,1); atm%d_ke = atm%d_ke1-1
+
           ! first put a tiny increment on the top of dynamics pressure value,
           ! to handle a cornercase where dynamics and background profile are the same
           ! because sometimes it happens that the layer between dynamics grid and profile
           ! is so small that dz is very small and consequently not in LUT's
           d_plev = in_d_plev
-          d_plev(d_ke1, :) = 2* d_plev(d_ke1, :) - d_plev(d_ke, :)
+          d_plev(atm%d_ke1, :) = 2* d_plev(atm%d_ke1, :) - d_plev(atm%d_ke, :)
 
           ! First get top height of dynamics grid
-          allocate(d_hhl(d_ke1, ie))
-          allocate(d_dz(d_ke))
+          allocate(d_hhl(atm%d_ke1, ie))
+          allocate(d_dz(atm%d_ke))
 
           do icol = is, ie
             if(present(d_tlay)) then
               call hydrostat_lev(d_plev(:,icol),d_tlay(:,icol), zero, d_hhl(:, icol), d_dz)
             else
-              call hydrostat_lev(d_plev(:,icol),(d_tlev(1:d_ke,icol)+d_tlev(2:d_ke1,icol))/2, zero, d_hhl(:, icol), d_dz)
+              call hydrostat_lev(d_plev(:,icol),(d_tlev(1:atm%d_ke,icol)+d_tlev(2:atm%d_ke1,icol))/2, zero, d_hhl(:, icol), d_dz)
             endif
           enddo
 
@@ -326,11 +336,8 @@ module m_dyn_atm_to_rrtmg
           m = floor(search_sorted_bisection(bg_atm%plev, global_minplev))
           allocate(atm%atm_ke)
           atm%atm_ke = min(l,m)
-        endif
-
-        associate(atm_ke => atm%atm_ke)
-          ke  = atm_ke + d_ke
-          ke1 = atm_ke + d_ke1
+          ke  = atm%atm_ke + atm%d_ke
+          ke1 = atm%atm_ke + atm%d_ke1
 
           ! then from there on couple background atm data on top of that
           if(.not.allocated(atm%plev   )) allocate(atm%plev   (ke1, ie))
@@ -349,12 +356,23 @@ module m_dyn_atm_to_rrtmg
           if(.not.allocated(atm%iwc    )) allocate(atm%iwc    (ke,  ie))
           if(.not.allocated(atm%reice  )) allocate(atm%reice  (ke,  ie))
 
+          lupdate_bg_entries = .True.
+        else
+          lupdate_bg_entries = .False.
+        endif
+
+        associate(atm_ke => atm%atm_ke)
+          ke  = atm_ke + atm%d_ke
+          ke1 = atm_ke + atm%d_ke1
+
           do icol=is,ie
 
             ! First merge pressure levels .. pressure is always given..
-            atm%plev(ke1-atm_ke+1:ke1, icol) = reverse(bg_atm%plev(1:atm_ke))
-            atm%plev(1:d_ke1, icol) = in_d_plev(:, icol)
-            if(atm%plev(ke1-atm_ke+1, icol) .gt. atm%plev(d_ke1, icol)) then
+            if(lupdate_bg_entries) then
+              atm%plev(ke1-atm_ke+1:ke1, icol) = reverse(bg_atm%plev(1:atm_ke))
+            endif
+            atm%plev(1:atm%d_ke1, icol) = in_d_plev(:, icol)
+            if(atm%plev(ke1-atm_ke+1, icol) .gt. atm%plev(atm%d_ke1, icol)) then
               print *,'background profile pressure is .ge. than uppermost pressure &
                 & level of dynamics grid -- this suggests the dynamics grid is way &
                 & off hydrostatic balance... please check', atm%plev(:, icol)
@@ -362,71 +380,77 @@ module m_dyn_atm_to_rrtmg
             endif
 
             ! And also Tlev has to be present always
-            atm%tlev(ke1-atm_ke+1:ke1, icol) = reverse(bg_atm%tlev(1:atm_ke))
-            atm%tlev(1:d_ke1, icol) = d_tlev(:,icol)
+            if(lupdate_bg_entries) then
+              atm%tlev(ke1-atm_ke+1:ke1, icol) = reverse(bg_atm%tlev(1:atm_ke))
+            endif
+            atm%tlev(1:atm%d_ke1, icol) = d_tlev(:,icol)
 
             if(present(d_tlay)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%tlay, bg_atm%tlev, atm%tlay(:, icol), d_tlay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%tlay, bg_atm%tlev, atm%tlay(:, icol), d_tlay(:,icol))
             else
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%tlay, bg_atm%tlev, atm%tlay(:, icol), &
-                (d_tlev(1:d_ke,icol)+d_tlev(2:d_ke1,icol))/2)
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%tlay, bg_atm%tlev, atm%tlay(:, icol), &
+                (d_tlev(1:atm%d_ke,icol)+d_tlev(2:atm%d_ke1,icol))/2)
             endif
 
             ! compute dz
-            call hydrostat_lev(atm%plev(:,icol),atm%tlay(:,icol), zero, atm%zt(:, icol), atm%dz(:, icol))
+            if(lupdate_bg_entries) then
+              call hydrostat_lev(atm%plev(:,icol),atm%tlay(:,icol), zero, atm%zt(:, icol), atm%dz(:, icol))
+            else
+              call hydrostat_lev(atm%plev(1:atm%d_ke1,icol),atm%tlay(1:atm%d_ke,icol), zero, atm%zt(1:atm%d_ke1, icol), atm%dz(1:atm%d_ke, icol))
+            endif
 
             if(present(d_lwc)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%lwc(:,icol), d_lwc(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%lwc(:,icol), d_lwc(:,icol))
             else
               atm%lwc(:,icol) = zero
             endif
             if(present(d_reliq)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reliq(:,icol), d_reliq(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reliq(:,icol), d_reliq(:,icol))
             else
               atm%reliq = zero
             endif
 
             if(present(d_iwc)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%iwc(:,icol), d_iwc(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%iwc(:,icol), d_iwc(:,icol))
             else
               atm%iwc(:,icol) = zero
             endif
             if(present(d_reice)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reice(:,icol), d_reice(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reice(:,icol), d_reice(:,icol))
             else
               atm%reice = zero
             endif
 
             if(present(d_h2ovmr)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%h2o_lay, bg_atm%h2o_lev, atm%h2o_lay(:,icol), d_h2ovmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%h2o_lay, bg_atm%h2o_lev, atm%h2o_lay(:,icol), d_h2ovmr(:,icol))
             else
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%h2o_lay, bg_atm%h2o_lev, atm%h2o_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%h2o_lay, bg_atm%h2o_lev, atm%h2o_lay(:,icol))
             endif
             if(present(d_o3vmr)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o3_lay, bg_atm%o3_lev, atm%o3_lay(:,icol), d_o3vmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o3_lay, bg_atm%o3_lev, atm%o3_lay(:,icol), d_o3vmr(:,icol))
             else
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o3_lay, bg_atm%o3_lev, atm%o3_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o3_lay, bg_atm%o3_lev, atm%o3_lay(:,icol))
             endif
 
             if(present(d_co2vmr)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%co2_lay, bg_atm%co2_lev, atm%co2_lay(:,icol), d_co2vmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%co2_lay, bg_atm%co2_lev, atm%co2_lay(:,icol), d_co2vmr(:,icol))
             else
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%co2_lay, bg_atm%co2_lev, atm%co2_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%co2_lay, bg_atm%co2_lev, atm%co2_lay(:,icol))
             endif
             if(present(d_ch4vmr)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%ch4_lay, bg_atm%ch4_lev, atm%ch4_lay(:,icol), d_ch4vmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%ch4_lay, bg_atm%ch4_lev, atm%ch4_lay(:,icol), d_ch4vmr(:,icol))
             else
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%ch4_lay, bg_atm%ch4_lev, atm%ch4_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%ch4_lay, bg_atm%ch4_lev, atm%ch4_lay(:,icol))
             endif
             if(present(d_n2ovmr)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%n2o_lay, bg_atm%n2o_lev, atm%n2o_lay(:,icol), d_n2ovmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%n2o_lay, bg_atm%n2o_lev, atm%n2o_lay(:,icol), d_n2ovmr(:,icol))
             else
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%n2o_lay, bg_atm%n2o_lev, atm%n2o_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%n2o_lay, bg_atm%n2o_lev, atm%n2o_lay(:,icol))
             endif
             if(present(d_o2vmr)) then
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o2_lay, bg_atm%o2_lev, atm%o2_lay(:,icol), d_o2vmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o2_lay, bg_atm%o2_lev, atm%o2_lay(:,icol), d_o2vmr(:,icol))
             else
-              call merge_grid_var(bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o2_lay, bg_atm%o2_lev, atm%o2_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o2_lay, bg_atm%o2_lev, atm%o2_lay(:,icol))
             endif
           enddo
         end associate
@@ -436,7 +460,8 @@ module m_dyn_atm_to_rrtmg
 
     ! merge the dynamics grid and the background profile together at lvl atm_ke
     ! NOTE! Only use with variables on layer
-    subroutine merge_grid_var(a_hhl, d_hhl, atm_ke, a_lay, a_lev, col_var, d_var)
+    subroutine merge_grid_var(lupdate_bg_entries, a_hhl, d_hhl, atm_ke, a_lay, a_lev, col_var, d_var)
+      logical, intent(in) :: lupdate_bg_entries
       integer(iintegers),intent(in) :: atm_ke
       real(ireals),intent(in) :: a_hhl(:), d_hhl(:), a_lay(:), a_lev(:) ! a_arr is from atm%, d_arr corresponds to dynamics grids
       real(rb),intent(out) :: col_var(:)
@@ -445,20 +470,24 @@ module m_dyn_atm_to_rrtmg
       real(ireals) :: h
 
       ! Top of atmosphere layers are always given by background profile
-      do k=1,atm_ke
-        kt = size(col_var)-k+1
-        col_var(kt) = a_lay(k)
-      enddo
+      if(lupdate_bg_entries) then
+        do k=1,atm_ke
+          kt = size(col_var)-k+1
+          col_var(kt) = a_lay(k)
+        enddo
+      endif
 
       if(present(d_var)) then ! dynamics grid variable is provided, use that
         do k=1,size(d_var)
           col_var(k) = d_var(k)
         enddo
       else ! we may still use atmospheric grid file instead...
-        do k=1,size(col_var)-atm_ke
-          h = (d_hhl(k+1) + d_hhl(k)) / 2
-          col_var(k) = interp_1d(search_sorted_bisection(a_hhl, h), a_lev)
-        enddo
+        if(lupdate_bg_entries) then
+          do k=1,size(col_var)-atm_ke
+            h = (d_hhl(k+1) + d_hhl(k)) / 2
+            col_var(k) = interp_1d(search_sorted_bisection(a_hhl, h), a_lev)
+          enddo
+        endif
       endif
     end subroutine
 
