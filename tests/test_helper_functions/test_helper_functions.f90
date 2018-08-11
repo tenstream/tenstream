@@ -263,7 +263,7 @@ subroutine test_reverse(this)
   @assertEqual(arr+1, arr2d(1,:))
   @assertEqual(arr, arr2d(2,:))
 
-  arr2d = reverse(arr2d, dim=2)
+  arr2d = reverse(arr2d, dim=2_iintegers)
 
   @assertEqual(reverse(arr+1), arr2d(1,:))
   @assertEqual(reverse(arr), arr2d(2,:))

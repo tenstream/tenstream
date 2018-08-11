@@ -649,7 +649,7 @@ module m_icon_plex_utils
       call PetscObjectSetName(gVec, 'ownership_sum_cells', ierr);call CHKERR(ierr)
       call DMPlexGetHeightStratum(owner_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
       call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
-      xv(:) = cEnd-cStart-i1
+      xv(:) = real(cEnd-cStart-i1, ireals)
       call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string_dump_ownership, ierr); call CHKERR(ierr)
 
@@ -793,7 +793,7 @@ module m_icon_plex_utils
           do k=0,Nverts-1
             j = k / Nx ! row of verts
             i = k - j*Nx ! col of verts
-            vertexCoords(i1+k*i3:(k+i1)*i3) = [i*dx + modulo(j,i2)*dx/2, j*ds, dz]
+            vertexCoords(i1+k*i3:(k+i1)*i3) = [i*dx + real(modulo(j,i2),ireals)*dx/2, j*ds, dz]
             if(ldebug) print *,k,':',i,j,'vcoord', vertexCoords(i1+k*i3:(k+i1)*i3)
           enddo
           if(ldebug) then

@@ -126,7 +126,8 @@ contains
     integer(iintegers), pointer :: transclosure(:)
 
     call DMPlexGetTransitiveClosure(dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
-    call PetscSortInt(size(transclosure(1:size(transclosure):2)), transclosure(1:size(transclosure):2), ierr); call CHKERR(ierr)
+    call PetscSortInt(size(transclosure(1:size(transclosure):2), kind=iintegers), &
+                      transclosure(1:size(transclosure):2), ierr); call CHKERR(ierr)
 
     if(size(transclosure).ne.size(target_closure)) then
       print *,'cell transclosure ', icell, ':', transclosure  (1:size(transclosure):2)

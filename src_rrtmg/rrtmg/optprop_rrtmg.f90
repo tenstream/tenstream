@@ -53,9 +53,9 @@ contains
     integer(iintegers),intent(in) :: ncol_in, nlay_in
     real(ireals), intent(in) :: albedo
 
-    real(rb),dimension(ncol_in,nlay_in+1) :: plev, tlev
-    real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
-    real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq, iwp, reice
+    real(ireals),dimension(ncol_in,nlay_in+1), intent(in) :: plev, tlev
+    real(ireals),dimension(ncol_in,nlay_in)  , intent(in) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
+    real(ireals),dimension(ncol_in,nlay_in)  , intent(in) :: lwp, reliq, iwp, reice
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [nlay, ncol, ngptlw]
     real(ireals), dimension(:,:), intent(out), optional :: opt_lwuflx, opt_lwdflx, opt_lwhr ! [nlay+1, ncol]
@@ -122,11 +122,13 @@ contains
     if (present(opt_lwuflx).and.present(opt_lwdflx).and.present(opt_lwhr)) then
       call rrtmg_lw &
         (ncol, nlay, icld, idrv, &
-        play, plev, tlay, tlev, tsfc    , &
-        h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
+        real(play,rb), real(plev,rb), &
+        real(tlay,rb), real(tlev,rb), tsfc, &
+        real(h2ovmr,rb), real(o3vmr,rb), real(co2vmr,rb), &
+        real(ch4vmr,rb), real(n2ovmr,rb), real(o2vmr,rb), &
         cfc11vmr, cfc12vmr, cfc22vmr, ccl4vmr, emis, &
-        inflglw, iceflglw, liqflglw, cldfr, &
-        taucld, iwp, lwp, reice, reliq, &
+        inflglw, iceflglw, liqflglw, cldfr, taucld, &
+        real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
         tauaer, &
         lwuflx, lwdflx  ,lwhr ,lwuflxc ,lwdflxc ,lwhrc, &
         tau, Bfrac, loptprop_only=.False.)
@@ -135,14 +137,16 @@ contains
       opt_lwhr   = transpose(real(lwhr, ireals))
     else
       call rrtmg_lw &
-        (ncol    ,nlay    ,icld    ,idrv   , &
-        play    ,plev    ,tlay    ,tlev    ,tsfc    , &
-        h2ovmr  ,o3vmr   ,co2vmr  ,ch4vmr  ,n2ovmr  ,o2vmr, &
-        cfc11vmr,cfc12vmr,cfc22vmr,ccl4vmr ,emis    , &
-        inflglw, iceflglw, liqflglw, cldfr, &
-        taucld , iwp  , lwp  ,reice   ,reliq      , &
-        tauaer , &
-        lwuflx , lwdflx  ,lwhr    ,lwuflxc ,lwdflxc ,lwhrc, &
+        (ncol, nlay, icld, idrv, &
+        real(play,rb), real(plev,rb), &
+        real(tlay,rb), real(tlev,rb), tsfc, &
+        real(h2ovmr,rb), real(o3vmr,rb), real(co2vmr,rb), &
+        real(ch4vmr,rb), real(n2ovmr,rb), real(o2vmr,rb), &
+        cfc11vmr, cfc12vmr, cfc22vmr, ccl4vmr, emis, &
+        inflglw, iceflglw, liqflglw, cldfr, taucld, &
+        real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
+        tauaer, &
+        lwuflx, lwdflx  ,lwhr ,lwuflxc ,lwdflxc ,lwhrc, &
         tau, Bfrac, loptprop_only=.True.)
     endif
   end subroutine
@@ -158,9 +162,9 @@ contains
     integer(iintegers),intent(in)          :: ncol_in, nlay_in
     real(ireals), intent(in) :: theta0, albedo
 
-    real(rb),dimension(ncol_in,nlay_in+1) :: plev, tlev
-    real(rb),dimension(ncol_in,nlay_in)   :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
-    real(rb),dimension(ncol_in,nlay_in)   :: lwp, reliq, iwp, reice
+    real(ireals),dimension(ncol_in,nlay_in+1), intent(in) :: plev, tlev
+    real(ireals),dimension(ncol_in,nlay_in)  , intent(in) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
+    real(ireals),dimension(ncol_in,nlay_in)  , intent(in) :: lwp, reliq, iwp, reice
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, w0, g ! [nlay, ncol, ngptsw]
     real(ireals), dimension(:,:), intent(out), optional :: opt_swuflx, opt_swdflx, opt_swhr ! [nlay+1, ncol]
@@ -226,15 +230,16 @@ contains
 
     if (present(opt_swuflx).and.present(opt_swdflx).and.present(opt_swhr)) then
       call rrtmg_sw &
-        (ncol    ,nlay    ,icld    ,iaer    , &
-        play    ,plev    ,tlay    ,tlev    ,tsfc    , &
-        h2ovmr  ,o3vmr   ,co2vmr  ,ch4vmr  ,n2ovmr  ,o2vmr, &
-        asdir   ,asdif   ,aldir   ,aldif   , &
-        coszen  ,adjes   ,dyofyr  ,scon    , &
-        inflgsw ,iceflgsw,liqflgsw,cldfr   , &
-        taucld  ,ssacld  ,asmcld  ,fsfcld  , &
-        iwp  ,lwp  ,reice   ,reliq         , &
-        tauaer, ssaaer, asmaer, ecaer      , &
+        (ncol, nlay, icld, iaer, real(play,rb), real(plev,rb), &
+        real(tlay,rb), real(tlev,rb), tsfc,                    &
+        real(h2ovmr,rb), real(o3vmr,rb), real(co2vmr,rb),      &
+        real(ch4vmr,rb), real(n2ovmr,rb), real(o2vmr,rb),      &
+        asdir, asdif, aldir, aldif, &
+        coszen, adjes, dyofyr, scon, &
+        inflgsw, iceflgsw, liqflgsw, cldfr, &
+        taucld, ssacld, asmcld, fsfcld, &
+        real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
+        tauaer, ssaaer, asmaer, ecaer, &
         swuflx, swdflx, swhr, swuflxc, swdflxc, swhrc, &
         tau, w0, g, loptprop_only=.False.)
 
@@ -244,15 +249,16 @@ contains
     else
 
       call rrtmg_sw &
-        (ncol    ,nlay    ,icld    ,iaer    , &
-        play    ,plev    ,tlay    ,tlev    ,tsfc    , &
-        h2ovmr  ,o3vmr   ,co2vmr  ,ch4vmr  ,n2ovmr  ,o2vmr, &
-        asdir   ,asdif   ,aldir   ,aldif   , &
-        coszen  ,adjes   ,dyofyr  ,scon    , &
-        inflgsw ,iceflgsw,liqflgsw,cldfr   , &
-        taucld  ,ssacld  ,asmcld  ,fsfcld  , &
-        iwp  ,lwp  ,reice   ,reliq         , &
-        tauaer, ssaaer, asmaer, ecaer      , &
+        (ncol, nlay, icld, iaer, real(play,rb), real(plev,rb), &
+        real(tlay,rb), real(tlev,rb), tsfc,                    &
+        real(h2ovmr,rb), real(o3vmr,rb), real(co2vmr,rb),      &
+        real(ch4vmr,rb), real(n2ovmr,rb), real(o2vmr,rb),      &
+        asdir, asdif, aldir, aldif, &
+        coszen, adjes, dyofyr, scon, &
+        inflgsw, iceflgsw, liqflgsw, cldfr, &
+        taucld, ssacld, asmcld, fsfcld, &
+        real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
+        tauaer, ssaaer, asmaer, ecaer, &
         swuflx, swdflx, swhr, swuflxc, swdflxc, swhrc, &
         tau, w0, g, loptprop_only=.True.)
     endif

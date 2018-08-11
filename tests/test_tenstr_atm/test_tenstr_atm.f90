@@ -109,8 +109,8 @@ contains
       enddo
     endif
 
-    @mpiassertEqual([113], shape(atm%bg_atm%plev), 'background pressure profile has wrong shape')
-    @mpiassertEqual([54+nzp,3], shape(atm%plev), 'merged pressure grid has wrong shape')
+    @mpiassertEqual(113_iintegers, size(atm%bg_atm%plev, kind=iintegers), 'background pressure profile has wrong shape')
+    @mpiassertEqual([54_iintegers+nzp, 3_iintegers], shape(atm%plev, kind=iintegers), 'merged pressure grid has wrong shape')
 
 
     do k = 1, size(plev,1)
@@ -183,7 +183,7 @@ contains
     character(default_str_len),parameter :: atm_filename='afglus_100m.dat'
 
     !------------ Local vars ------------------
-    integer(iintegers) :: k, kt, icld
+    integer(iintegers) :: k, icld
 
     type(t_tenstr_atm) :: atm, atm2
     logical, parameter :: lverbose=.True.
@@ -266,7 +266,7 @@ contains
 
     ! Update atm2
     call setup_tenstr_atm(comm, .False., atm_filename, plev+one, tlev+one, atm2, &
-      d_tlay=tlay+one, d_lwc=lwc*-one, d_reliq=reliq*-one)
+      d_tlay=tlay+one, d_lwc=-lwc, d_reliq=-reliq)
 
     ! and make sure that the background profile values have not changed
     @mpiassertEqual(atm%plev(atm%d_ke1+1:ubound(atm%plev,1),:), atm2%plev(atm2%d_ke1+1:ubound(atm%plev,1),:))

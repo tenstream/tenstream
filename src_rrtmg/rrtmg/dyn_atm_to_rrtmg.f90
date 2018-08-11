@@ -464,7 +464,7 @@ module m_dyn_atm_to_rrtmg
       logical, intent(in) :: lupdate_bg_entries
       integer(iintegers),intent(in) :: atm_ke
       real(ireals),intent(in) :: a_hhl(:), d_hhl(:), a_lay(:), a_lev(:) ! a_arr is from atm%, d_arr corresponds to dynamics grids
-      real(rb),intent(out) :: col_var(:)
+      real(ireals),intent(out) :: col_var(:)
       real(ireals),intent(in),optional :: d_var(:)
       integer(iintegers) :: k, kt ! kt is reverse index
       real(ireals) :: h

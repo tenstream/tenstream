@@ -75,7 +75,7 @@ contains
     real(c_double), dimension(Nz, Nx, Ny),   target, intent(in) :: d_reice ! ice effective radius            [micron]
 
     ! reshape pointer to convert i,j vecs to column vecs
-    real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq, piwc, preice
+    real(c_double), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq, piwc, preice
 
     integer(c_int), intent(in) :: nprocx, nprocy                  ! number of processors in x and y
     integer(c_int), intent(in) :: nxproc(nprocx), nyproc(nprocy)  ! local size of subdomain along x and y
@@ -100,7 +100,7 @@ contains
     preice(1:size(d_reice,1),1:size(d_reice,2)*size(d_reice,3)) => d_reice
 
     call setup_tenstr_atm(comm, .False., atm_filename, &
-      pplev, ptlev, atm, &
+      real(pplev, ireals), real(ptlev, ireals), atm, &
       d_lwc=real(plwc, ireals), d_reliq=real(preliq, ireals), &
       d_iwc=real(piwc, ireals), d_reice=real(preice, ireals))
 
@@ -108,9 +108,10 @@ contains
     lsolar   = c_int_2_logical(c_lsolar)
 
     call pprts_rrtmg(comm,                &
-      solver, atm, Nx, Ny,                &
+      solver, atm,                        &
+      int(Nx,iintegers),int(Ny,iintegers),&
       real(dx, kind=ireals),              &
-      real(dy,kind=ireals),               &
+      real(dy, kind=ireals),              &
       real(phi0, kind=ireals),            &
       real(theta0, kind=ireals),          &
       real(albedo_thermal, kind=ireals),  &
