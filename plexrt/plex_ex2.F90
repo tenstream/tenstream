@@ -14,12 +14,10 @@ use m_data_parameters, only : ireals, iintegers, mpiint, &
   zero, one,       &
   init_mpi_data_parameters
 
-use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
-  bcast_icongrid, distribute_icon_grid
+use m_icon_plex_utils, only: gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl, &
+  dump_ownership, dmplex_2D_to_3D
 
-use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
-  setup_edir_dmplex, setup_abso_dmplex, compute_face_geometry, &
-  distribute_plexgrid_dm, ncvar2d_to_globalvec
+use m_plex_grid, only: t_plexgrid, setup_plexgrid, ncvar2d_to_globalvec
 
 use m_plex_rt, only: get_normal_of_first_toa_face, compute_face_geometry, &
   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop
@@ -33,52 +31,40 @@ logical, parameter :: ldebug=.True.
 
   contains
 
-    subroutine plex_ex2(comm, gridfile, hhlfile, icondatafile)
+    subroutine plex_ex2(comm, gridfile, icondatafile)
       MPI_Comm, intent(in) :: comm
-      character(len=default_str_len), intent(in) :: gridfile, hhlfile, icondatafile
-
-      type(t_icongrid),allocatable :: icongrid, local_icongrid
+      character(len=default_str_len), intent(in) :: gridfile, icondatafile
 
       integer(mpiint) :: myid, numnodes, ierr
-      type(t_plexgrid), allocatable :: plexgrid
+      type(tDM) :: dm2d, dm3d
+      type(AO), allocatable :: cell_ao_2d
+      type(t_plexgrid), allocatable :: plex
       type(tVec) :: lwcvec, iwcvec
-      AO :: cell_ao
 
-      integer(iintegers) :: Nz
+      integer(iintegers), allocatable :: zindex(:)
+
       real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
-      real(ireals),allocatable :: hhl(:)
-      character(len=default_str_len) :: ncgroups(2)
 
       type(t_plex_solver), allocatable :: solver
 
+      call init_mpi_data_parameters(comm)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      if(myid.eq.0) then
-          call read_icon_grid_file(gridfile, icongrid)
-      endif
-      call bcast_icongrid(comm, icongrid)
+      call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, cell_ao_2d)
+      call dmplex_2D_to_3D(dm2d, icon_hdcp2_default_hhl, dm3d, zindex)
+      call DMDestroy(dm2d, ierr); call CHKERR(ierr)
 
-      call distribute_icon_grid(comm, icongrid, local_icongrid, cell_ao)
-      deallocate(icongrid)
+      call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
+      call setup_plexgrid(dm3d, zindex, icon_hdcp2_default_hhl, plex)
 
-      if(myid.eq.0) then
-        ncgroups(1) = trim(hhlfile)
-        ncgroups(2) = 'height_level'; call ncload(ncgroups, hhl, ierr)
-      endif
-      call imp_bcast(comm, hhl, 0)
-      Nz = size(hhl)-1
-
-      call create_plex_from_icongrid(comm, Nz, hhl, local_icongrid, plexgrid)
-      deallocate(local_icongrid)
-
-      call ncvar2d_to_globalvec(plexgrid, icondatafile, 'clw', lwcvec)
+      call ncvar2d_to_globalvec(plex, icondatafile, 'clw', lwcvec, cell_ao_2d=cell_ao_2d)
       call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
 
-      call ncvar2d_to_globalvec(plexgrid, icondatafile, 'cli', iwcvec)
+      call ncvar2d_to_globalvec(plex, icondatafile, 'cli', iwcvec, cell_ao_2d=cell_ao_2d)
       call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
-      call init_plex_rt_solver(plexgrid, solver)
+      call init_plex_rt_solver(plex, solver)
 
       call compute_face_geometry(solver%plex, solver%plex%geom_dm)
       first_normal = get_normal_of_first_TOA_face(solver%plex)
@@ -93,8 +79,8 @@ logical, parameter :: ldebug=.True.
       sundir = sundir/norm(sundir)
       print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
 
-      !call set_plex_rt_optprop(solver, vlwc=lwcvec, viwc=iwcvec)
-      call set_plex_rt_optprop(solver)
+      call set_plex_rt_optprop(solver, vlwc=lwcvec, viwc=iwcvec)
+      !call set_plex_rt_optprop(solver)
 
       call run_plex_rt_solver(solver, sundir)
     end subroutine
@@ -105,7 +91,7 @@ logical, parameter :: ldebug=.True.
     use m_mpi_plex_ex2
     implicit none
 
-    character(len=default_str_len) :: gridfile, hhlfile, icondatafile, outfile
+    character(len=default_str_len) :: gridfile, icondatafile, outfile
     logical :: lflg
     integer(mpiint) :: ierr
     character(len=10*default_str_len) :: default_options
@@ -121,18 +107,14 @@ logical, parameter :: ldebug=.True.
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-grid', gridfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a grid filename... please call with -grid <fname_of_icon_gridfile.nc>'
 
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-hhl', hhlfile, lflg, ierr); call CHKERR(ierr)
-    if(.not.lflg) stop 'need to supply a hhl filename... please call with -hhl <fname_of_hhlfile.nc>'
-
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-icondata', icondatafile, lflg, ierr); call CHKERR(ierr)
-    if(.not.lflg) stop 'need to supply a icondata filename... please call with -icondata <fname_of_icondatafile.nc>'
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-data', icondatafile, lflg, ierr); call CHKERR(ierr)
+    if(.not.lflg) stop 'need to supply a icondata filename... please call with -data <fname_of_icondatafile.nc>'
 
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
     default_options=''
-    default_options=trim(default_options)//' -show_plex_dump hdf5:'//trim(outfile)
-    default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
     default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
@@ -142,11 +124,12 @@ logical, parameter :: ldebug=.True.
     default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
 
     print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
-    call plex_ex2(PETSC_COMM_WORLD, gridfile, hhlfile, icondatafile)
+    call plex_ex2(PETSC_COMM_WORLD, gridfile, icondatafile)
 
     call mpi_barrier(PETSC_COMM_WORLD, ierr)
     call PetscFinalize(ierr)
