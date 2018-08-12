@@ -153,6 +153,7 @@ logical, parameter :: ldebug=.True.
     default_options=trim(default_options)//' -show_iwc hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_fV2cV_DiffSrcVec hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
 
     print *,'Adding default Petsc Options:', trim(default_options)

@@ -18,7 +18,7 @@ module m_plex_rt
     setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, get_inward_face_normal, &
     facevec2cellvec, icell_icon_2_plex, iface_top_icon_2_plex, get_vertical_cell_idx, &
-    get_top_bot_face_of_cell, destroy_plexgrid, &
+    get_top_bot_face_of_cell, destroy_plexgrid, determine_incoming_outgoing_diff_streams, &
     TOAFACE, BOTFACE, SIDEFACE
 
   use m_optprop, only : t_optprop, t_optprop_wedge_5_8
@@ -44,7 +44,7 @@ module m_plex_rt
 
     type(t_state_container) :: solutions(-1000:1000)
 
-    type(tVec), allocatable :: incSolar
+    type(tVec), allocatable :: dirsrc, diffsrc
     type(tMat), allocatable :: Mdir
     type(tMat), allocatable :: Mdiff
     type(tKSP), allocatable :: kspdir
@@ -122,7 +122,7 @@ module m_plex_rt
       type(tVec),intent(in), optional :: vlwc, viwc
       real(ireals), pointer :: xlwc(:), xiwc(:)
 
-      real(ireals),parameter :: w0 = .8, reff_w=10, reff_i=20, rayleigh=1e-2
+      real(ireals),parameter :: w0 = .8, reff_w=10, reff_i=20, rayleigh=5e-5
       real(ireals) :: ksca_tot, kabs_tot, g_tot
       real(ireals) :: ksca_cld, kabs_cld, g_cld
 
@@ -152,8 +152,8 @@ module m_plex_rt
         g_tot    = zero
 
         if(present(vlwc)) then
-          kabs_cld = 3._ireals / 2._ireals * (xlwc(i) * 1e3) / reff_w * (one-w0)
-          ksca_cld = 3._ireals / 2._ireals * (xlwc(i) * 1e3) / reff_w * (w0)
+          kabs_cld = 3._ireals / 2._ireals * (xlwc(i+1) * 1e3) / reff_w * (one-w0)
+          ksca_cld = 3._ireals / 2._ireals * (xlwc(i+1) * 1e3) / reff_w * (w0)
           g_cld    = .5_ireals
           call delta_scale( kabs_cld, ksca_cld, g_cld )
           g_tot    = g_cld * ksca_cld / (ksca_cld + ksca_tot)
@@ -162,8 +162,8 @@ module m_plex_rt
         endif
 
         if(present(viwc)) then
-          kabs_cld = 3._ireals / 2._ireals * (xiwc(i) * 1e3) / reff_i * (one-w0)
-          ksca_cld = 3._ireals / 2._ireals * (xiwc(i) * 1e3) / reff_i * (w0)
+          kabs_cld = 3._ireals / 2._ireals * (xiwc(i+1) * 1e3) / reff_i * (one-w0)
+          ksca_cld = 3._ireals / 2._ireals * (xiwc(i+1) * 1e3) / reff_i * (w0)
           g_cld    = .3_ireals
           call delta_scale( kabs_cld, ksca_cld, g_cld )
           g_tot    = (g_tot * ksca_tot + g_cld * ksca_cld) / (ksca_tot + ksca_cld)
@@ -230,13 +230,13 @@ module m_plex_rt
         ! Output of wedge_orient vec
         call create_edir_src_vec(solver%plex, solver%plex%edir_dm, norm(sundir), &
                                  solver%kabs, solver%ksca, &
-                                 sundir/norm(sundir), solver%incSolar)
+                                 sundir/norm(sundir), solver%dirsrc)
 
         ! Output of srcVec
         if(ldebug) then
-          call scale_facevec(solver%plex, solver%plex%edir_dm, solver%incSolar, lW_to_Wm2=.True.)
-          call facevec2cellvec(solver%plex, solver%plex%edir_dm, solver%incSolar)
-          call scale_facevec(solver%plex, solver%plex%edir_dm, solver%incSolar, lW_to_Wm2=.False.)
+          call scale_facevec(solver%plex, solver%plex%edir_dm, solver%dirsrc, lW_to_Wm2=.True.)
+          call facevec2cellvec(solver%plex, solver%plex%edir_dm, solver%dirsrc)
+          call scale_facevec(solver%plex, solver%plex%edir_dm, solver%dirsrc, lW_to_Wm2=.False.)
         endif
 
         ! call CHKERR(1_mpiint,'DEBUG')
@@ -244,7 +244,7 @@ module m_plex_rt
         call create_edir_mat(solver%plex, solver%OPP, solver%kabs, solver%ksca, solver%g, solver%Mdir)
 
         ! Solve Direct Matrix
-        call solve_plex_rt(solver%plex, solver%incSolar, solver%Mdir, solver%kspdir, solution%edir)
+        call solve_plex_rt(solver%plex, solver%dirsrc, solver%Mdir, solver%kspdir, solution%edir)
         call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
                                         '-show_edir_vec_global', ierr); call CHKERR(ierr)
@@ -258,25 +258,21 @@ module m_plex_rt
         endif
       endif
 
+      call create_ediff_src_vec(solver%plex, solver%OPP, solver%plex%ediff_dm, &
+        solver%kabs, solver%ksca, solver%g, solver%diffsrc, &
+        solver%plex%edir_dm, solution%edir)
+
+      ! Output of Diffuse Src Vec
+      if(ldebug) then
+        call scale_facevec(solver%plex, solver%plex%ediff_dm, solver%diffsrc, lW_to_Wm2=.True.)
+        call facevec2cellvec(solver%plex, solver%plex%ediff_dm, solver%diffsrc)
+        call scale_facevec(solver%plex, solver%plex%ediff_dm, solver%diffsrc, lW_to_Wm2=.False.)
+      endif
+
       call compute_edir_absorption(solver%plex, solution%edir, solution%abso)
 
       end associate
     end subroutine
-
-    !> @brief setup source term for diffuse radiation
-    !> @details this is either direct radiation scattered into one of the diffuse coeffs:
-    !> \n direct source term is
-    !> \n   direct radiation times the dir2diff coeffs
-    !> \n or it may be that we have a source term due to thermal emission --
-    !> \n   to determine emissivity of box, we use the forward transport coefficients backwards
-    !> \n   a la: transmissivity $T = \sum(coeffs)$ and therefore emissivity $E = 1 - T$
-    !subroutine setup_b(plex, OPP, optprop, solution, srcVec)
-    !  type(t_plexgrid), intent(in) :: plex
-    !  class(t_optprop), intent(in) :: OPP
-    !  type(t_opticalprops), intent(in) :: optprop(:)
-    !  type(t_state_container), intent(in) :: solution
-    !  type(tVec), allocatable, intent(inout) :: srcVec
-    !end subroutine
 
     subroutine create_edir_src_vec(plex, edirdm, E0, kabs, ksca, sundir, srcVec)
       type(t_plexgrid), allocatable, intent(in) :: plex
@@ -413,6 +409,142 @@ module m_plex_rt
         call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
       endif
     end subroutine
+
+    !> @brief setup source term for diffuse radiation
+    !> @details this is either direct radiation scattered into one of the diffuse coeffs:
+    !> \n direct source term is
+    !> \n   direct radiation times the dir2diff coeffs
+    !> \n or it may be that we have a source term due to thermal emission --
+    !> \n   to determine emissivity of box, we use the forward transport coefficients backwards
+    !> \n   a la: transmissivity $T = \sum(coeffs)$ and therefore emissivity $E = 1 - T$
+    subroutine create_ediff_src_vec(plex, OPP, ediffdm, kabs, ksca, g, srcVec, &
+        edirdm, edirVec, celldm, planckVec)
+      type(t_plexgrid), intent(in) :: plex
+      class(t_optprop), intent(in) :: OPP
+      type(tDM), allocatable, intent(in) :: ediffdm
+      real(ireals), allocatable, intent(in) :: kabs(:), ksca(:), g(:)
+      type(tVec), allocatable, intent(inout) :: srcVec
+
+      type(tDM), allocatable, intent(in), optional :: edirdm, celldm
+      type(tVec), allocatable, intent(in), optional :: edirVec, planckVec
+
+      type(tPetscSection) :: geomSection, wedgeSection, ediffSection
+      real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
+      real(ireals), pointer :: wedgeorient(:) ! pointer to orientation vec
+
+      real(ireals), pointer :: xb(:)
+
+      integer(mpiint) :: ierr
+
+      if(.not.allocated(ediffdm)) call CHKERR(1_mpiint, 'ediff dm has to be allocated before')
+
+      if(.not.allocated(srcVec)) then
+        allocate(srcVec)
+        call DMCreateGlobalVector(ediffdm, srcVec, ierr); call CHKERR(ierr)
+        call PetscObjectSetName(srcVec, 'DiffSrcVec', ierr);call CHKERR(ierr)
+      endif
+
+      call DMGetSection(ediffdm, ediffSection, ierr); call CHKERR(ierr)
+      call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+      call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+
+      call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(srcVec, xb, ierr); call CHKERR(ierr)
+
+      call set_solar_source()
+      call set_thermal_source()
+
+      call VecRestoreArrayF90(srcVec, xb, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+      contains
+        subroutine set_solar_source()
+          type(tPetscSection) :: edirSection
+
+          integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
+
+          integer(iintegers), pointer :: faces_of_cell(:)
+          integer(iintegers) :: icell, iface, isrc, idst, irow
+
+          integer(iintegers) :: iwedge_plex2bmc(5), wedge_offset
+          real(ireals), pointer :: xedir(:)
+          real(ireals) :: zenith, azimuth
+          real(ireals) :: dir2diff(8)
+          logical :: lsrc(5)
+
+          integer(iintegers) :: zindex
+          real(ireals) :: mean_dx, dz, coeff(5*8)
+
+          if(any([present(edirdm),present(edirVec)]).and. &
+            .not.all([present(edirdm),present(edirVec)])) &
+            call CHKERR(1_mpiint, 'either provide all vars for direct radiation or none')
+
+          call DMGetSection(edirdm, edirSection, ierr); call CHKERR(ierr)
+          call VecGetArrayReadF90(edirVec, xedir, ierr); call CHKERR(ierr)
+
+          do icell = plex%cStart, plex%cEnd-1
+            call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+
+            call determine_incoming_outgoing_diff_streams(ediffdm, icell, incoming_offsets, outgoing_offsets)
+            print *,'icell', icell, 'faces_of_cell', faces_of_cell
+            print *,'icell', icell, 'incoming_offsets', incoming_offsets
+            print *,'icell', icell, 'outgoing_offsets', outgoing_offsets
+
+
+            call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
+            zenith  = wedgeorient(wedge_offset+i1)
+            azimuth = wedgeorient(wedge_offset+i2)
+            mean_dx = wedgeorient(wedge_offset+i3)
+
+            do iface = 1, size(faces_of_cell)
+              iwedge_plex2bmc(int(wedgeorient(wedge_offset+i3+iface), iintegers)) = iface
+              lsrc(iface) = nint(wedgeorient(wedge_offset+i8+iface), iintegers) .eq. i1
+            enddo
+
+            zindex = plex%zindex(icell)
+            dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+
+            call get_coeff(OPP, kabs(icell), ksca(icell), g(icell), &
+              dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, &
+              angles=[rad2deg(azimuth), rad2deg(zenith)])
+
+            do iface = 1, size(faces_of_cell)
+              print *,'icell '//itoa(icell)//' iface '//itoa(iface)//' face ',itoa(faces_of_cell(iface))
+
+              if(lsrc(iface)) then
+                dir2diff = coeff(iwedge_plex2bmc(iface):size(coeff):i5)
+                call PetscSectionGetOffset(edirSection, faces_of_cell(iface), isrc, ierr); call CHKERR(ierr)
+                do idst = 1, size(faces_of_cell)
+                  if(.not.lsrc(idst)) then
+                    call PetscSectionGetOffset(ediffSection, faces_of_cell(idst), irow, ierr); call CHKERR(ierr)
+                    xb(i1+irow) = xb(i1+irow) + xedir(i1+isrc) * dir2diff(iwedge_plex2bmc(idst))
+                  endif
+                enddo
+              endif
+            enddo ! enddo iface
+
+            call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+          enddo
+          call VecRestoreArrayReadF90(edirVec, xedir, ierr); call CHKERR(ierr)
+        end subroutine
+
+        subroutine set_thermal_source()
+          real(ireals), pointer :: xplanck(:)
+          if(any([present(celldm),present(planckVec)]).and. &
+            .not.all([present(celldm),present(planckVec)])) &
+            call CHKERR(1_mpiint, 'either provide all vars for thermal radiation or none')
+
+          if(.not.present(planckVec)) return
+
+          call VecGetArrayF90(planckVec, xplanck, ierr); call CHKERR(ierr)
+
+          call CHKERR(1_mpiint, 'TODO: thermal src term not yet implemented')
+          xb(:) = xb(:) + xplanck(1)
+
+          call VecRestoreArrayF90(planckVec, xplanck, ierr); call CHKERR(ierr)
+        end subroutine
+      end subroutine
 
     subroutine compute_lambert_beer(plex, itopcell, E0, sundir, kabs, ksca, lambertVec)
       type(t_plexgrid), intent(in) :: plex
@@ -557,7 +689,7 @@ module m_plex_rt
 
     type(tPetscSection) :: geomSection, faceSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
-    integer(iintegers) :: geom_offset, face_offset, iface
+    integer(iintegers) :: geom_offset, face_offset, iface, idof, num_dof
 
     real(ireals) :: area
 
@@ -584,10 +716,15 @@ module m_plex_rt
       area = geoms(geom_offset+i7)
 
       call PetscSectionGetOffset(faceSection, iface, face_offset, ierr); call CHKERR(ierr)
+      call PetscSectionGetDof(faceSection, iface, num_dof, ierr); call CHKERR(ierr)
       if(lW_to_Wm2) then
-        xv(face_offset+i1) = xv(face_offset+i1) / area
+        do idof = 1, num_dof
+          xv(face_offset+idof) = xv(face_offset+idof) / area
+        enddo
       else
-        xv(face_offset+i1) = xv(face_offset+i1) * area
+        do idof = 1, num_dof
+          xv(face_offset+idof) = xv(face_offset+idof) * area
+        enddo
       endif
     enddo
     if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
@@ -734,7 +871,7 @@ module m_plex_rt
     real(ireals), allocatable, intent(in) :: kabs(:), ksca(:), g(:)
     type(tMat), allocatable, intent(inout) :: A
 
-    type(tPetscSection) :: sec, edirglobsection
+    type(tPetscSection) :: sec
 
     integer(mpiint) :: myid, ierr
 
@@ -768,10 +905,6 @@ module m_plex_rt
     if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...'
 
     if(.not.allocated(plex%edir_dm)) call CHKERR(1_mpiint, 'edir_dm has to allocated in order to create an Edir Matrix')
-
-    call DMGetGlobalSection(plex%edir_dm, edirglobsection, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(edirglobSection, PETSC_NULL_SECTION, '-show_edir_glob_section', ierr); call CHKERR(ierr)
-
 
     call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)

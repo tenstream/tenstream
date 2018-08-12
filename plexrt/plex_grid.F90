@@ -23,7 +23,7 @@ module m_plex_grid
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
     get_inward_face_normal, create_plex_section, setup_plexgrid, &
     get_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
-    TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid
+    TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, determine_incoming_outgoing_diff_streams
 
   logical, parameter :: ldebug=.True.
 
@@ -686,6 +686,7 @@ module m_plex_grid
         type(tPetscSection) :: cellSection, faceVecSection
         integer(iintegers) :: icell, cStart, cEnd, cell_offset, iface, faceVec_offset
         integer(iintegers),pointer :: faces_of_cell(:)
+        integer(iintegers) :: idof, num_dof
 
         integer(mpiint) :: myid, ierr
         character(len=default_str_len) :: faceVecname, cellVecname
@@ -697,17 +698,27 @@ module m_plex_grid
 
         call DMClone(plex%dm, celldm, ierr); ; call CHKERR(ierr)
 
-        call create_plex_section(celldm, 'Faces_to_Cells_Section', i1, [i5], [i0], [i0], [i0], cellSection)
-        call DMSetSection(celldm, cellSection, ierr); call CHKERR(ierr)
-        call PetscSectionDestroy(cellSection, ierr); call CHKERR(ierr)
-
-        call DMGetSection(celldm, cellSection, ierr); call CHKERR(ierr)
         call DMGetSection(faceVec_dm, faceVecSection, ierr); call CHKERR(ierr)
 
         call DMGetLocalVector(faceVec_dm, faceVec, ierr); call CHKERR(ierr)
         call DMGlobalToLocalBegin(faceVec_dm, global_faceVec, INSERT_VALUES, faceVec, ierr); call CHKERR(ierr)
         call DMGlobalToLocalEnd  (faceVec_dm, global_faceVec, INSERT_VALUES, faceVec, ierr); call CHKERR(ierr)
 
+        ! count number of dof on faces
+        call DMPlexGetHeightStratum(celldm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+        call DMPlexGetCone(celldm, cStart, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+        num_dof = 0
+        do iface = 1, size(faces_of_cell)
+          call PetscSectionGetDof(faceVecSection, faces_of_cell(iface), idof, ierr); call CHKERR(ierr)
+          num_dof = num_dof + idof
+        enddo
+        call DMPlexRestoreCone(celldm, icell, faces_of_cell,ierr); call CHKERR(ierr)
+
+        call create_plex_section(celldm, 'Faces_to_Cells_Section', i1, [num_dof], [i0], [i0], [i0], cellSection)
+        call DMSetSection(celldm, cellSection, ierr); call CHKERR(ierr)
+        call PetscSectionDestroy(cellSection, ierr); call CHKERR(ierr)
+
+        call DMGetSection(celldm, cellSection, ierr); call CHKERR(ierr)
         call DMGetLocalVector(celldm, cellVec, ierr); call CHKERR(ierr)
         call VecSet(cellVec, zero, ierr); call CHKERR(ierr)
 
@@ -721,7 +732,11 @@ module m_plex_grid
           call DMPlexGetCone(celldm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
           do iface = 1, size(faces_of_cell)
             call PetscSectionGetOffset(faceVecSection, faces_of_cell(iface), faceVec_offset, ierr); call CHKERR(ierr)
-            xcellVec(cell_offset+iface) = xfaceVec(i1+faceVec_offset)
+            call PetscSectionGetDof(faceVecSection, faces_of_cell(iface), num_dof, ierr); call CHKERR(ierr)
+            do idof = 1, num_dof
+              cell_offset = cell_offset+1
+              xcellVec(cell_offset) = xfaceVec(faceVec_offset+idof)
+            enddo
           enddo
           call DMPlexRestoreCone(celldm, icell, faces_of_cell,ierr); call CHKERR(ierr)
         enddo
@@ -1347,6 +1362,12 @@ module m_plex_grid
       end subroutine
   end subroutine
 
+  !> @brief setup the section on which diffuse radiation lives, e.g. 2 dof on top/bot faces and 4 dof on side faces
+  !> @details the section has 2 fields, one for incoming radiation and one for outgoing.
+  !    The direction for the fields is given as:
+  !      * field 0: radiation travelling from cell_a to cell_b
+  !      * field 1: radiation going from cell_b to cell_a
+  !      where id of cell_b is larger id(cell_a)
   subroutine setup_ediff_dmplex(plex, dm)
     type(t_plexgrid), intent(inout) :: plex
     type(tDM), allocatable, intent(inout) :: dm
@@ -1363,8 +1384,8 @@ module m_plex_grid
 
     call gen_section(section, Nstreams_top=i2, Nstreams_side=i4)
 
-    call DMSetSection(dm, Section, ierr); call CHKERR(ierr)
-    call PetscSectionDestroy(Section, ierr); call CHKERR(ierr)
+    call DMSetSection(dm, section, ierr); call CHKERR(ierr)
+    call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
     contains
       subroutine gen_section(section, Nstreams_top, Nstreams_side)
         type(tPetscSection), intent(inout) :: section
@@ -1374,20 +1395,90 @@ module m_plex_grid
         call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
         call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
         call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-        call PetscSectionSetNumFields(section, i1, ierr); call CHKERR(ierr)
+        call PetscSectionSetNumFields(section, i2, ierr); call CHKERR(ierr)
         call PetscSectionSetFieldComponents(section, i0, i1, ierr); call CHKERR(ierr)
         call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
         do iface = fStart,  fEnd-1
           if(plex%ltopfacepos(iface)) then
             call PetscSectionSetDof(section, iface, Nstreams_top, ierr); call CHKERR(ierr)
-            call PetscSectionSetFieldDof(section, iface, i0, Nstreams_top, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(section, iface, i0, Nstreams_top/2, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(section, iface, i1, Nstreams_top/2, ierr); call CHKERR(ierr)
           else
             call PetscSectionSetDof(section, iface, Nstreams_side, ierr); call CHKERR(ierr)
-            call PetscSectionSetFieldDof(section, iface, i0, Nstreams_side, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(section, iface, i0, Nstreams_side/2, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(section, iface, i1, Nstreams_side/2, ierr); call CHKERR(ierr)
           endif
         enddo
         call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, "-show_plex_ediff_section", ierr); call CHKERR(ierr)
       end subroutine
+  end subroutine
+
+  subroutine determine_incoming_outgoing_diff_streams(ediffdm, icell, incoming_offsets, outgoing_offsets)
+    type(tDM), intent(in) :: ediffdm
+    integer(iintegers), intent(in) :: icell
+    integer(iintegers), allocatable, intent(inout) :: incoming_offsets(:), outgoing_offsets(:)
+
+    integer(iintegers), pointer :: faces_of_cell(:)
+    integer(iintegers), pointer :: cells_of_face(:)
+    integer(iintegers) :: i, iface, neigh_cell, offset_a, offset_b
+    integer(iintegers) :: j_incoming, j_outgoing, num_dof, idof
+    type(tPetscSection) :: section
+    integer(mpiint) :: ierr
+    call DMGetSection(ediffdm, section, ierr); call CHKERR(ierr)
+
+    call DMPlexGetCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+
+    if(.not.allocated(incoming_offsets).or..not.allocated(outgoing_offsets)) then
+    num_dof = 0
+    do i = 1, size(faces_of_cell)
+      iface = faces_of_cell(i)
+      call PetscSectionGetDof(section, iface, idof, ierr); call CHKERR(ierr)
+      num_dof = num_dof + idof
+    enddo
+
+    if(.not.allocated(incoming_offsets)) allocate(incoming_offsets(num_dof/2))
+    if(.not.allocated(outgoing_offsets)) allocate(outgoing_offsets(num_dof/2))
+    endif
+
+    j_incoming = 1; j_outgoing = 1
+
+    do i = 1, size(faces_of_cell)
+      iface = faces_of_cell(i)
+      call DMPlexGetSupport(ediffdm, iface, cells_of_face, ierr); call CHKERR(ierr) ! Get Faces of cell
+      if(size(cells_of_face).eq.1) then
+        neigh_cell = -1
+      else
+        if(cells_of_face(1).eq.icell) then
+          neigh_cell = cells_of_face(2)
+        else
+          neigh_cell = cells_of_face(1)
+        endif
+      endif
+      call DMPlexRestoreSupport(ediffdm, iface, cells_of_face, ierr); call CHKERR(ierr) ! Get Faces of cell
+
+
+      call PetscSectionGetFieldOffset(section, iface, i0, offset_a, ierr); call CHKERR(ierr)
+      call PetscSectionGetFieldOffset(section, iface, i1, offset_b, ierr); call CHKERR(ierr)
+
+      call PetscSectionGetFieldDof(section, iface, i0, num_dof, ierr); call CHKERR(ierr)
+
+      do idof = 0, num_dof-1
+        if(neigh_cell.lt.icell) then ! see definition of directions in setup_ediff_dmplex
+          incoming_offsets(j_incoming) = offset_a+idof
+          j_incoming = j_incoming + 1
+          outgoing_offsets(j_outgoing) = offset_b+idof
+          j_outgoing = j_outgoing + 1
+        else
+          incoming_offsets(j_incoming) = offset_b+idof
+          j_incoming = j_incoming + 1
+          outgoing_offsets(j_outgoing) = offset_a+idof
+          j_outgoing = j_outgoing + 1
+        endif
+      enddo
+    enddo
+
+    call DMPlexRestoreCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
   end subroutine
 
   subroutine setup_abso_dmplex(plex, dm)
