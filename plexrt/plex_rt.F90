@@ -474,7 +474,7 @@ module m_plex_rt
       type(tDM), allocatable, intent(in), optional :: edirdm, celldm
       type(tVec), allocatable, intent(in), optional :: edirVec, planckVec
 
-      type(tVec) :: lVec
+      type(tVec) :: lsrcVec
 
       type(tPetscSection) :: geomSection, wedgeSection, ediffSection, srfcSection
       real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
@@ -511,14 +511,14 @@ module m_plex_rt
       call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
-      call DMGetLocalVector(ediffdm, lVec, ierr); call CHKERR(ierr)
-      call VecSet(lVec, zero, ierr); call CHKERR(ierr)
-      call VecGetArrayF90(lVec, xb, ierr); call CHKERR(ierr)
+      call DMGetLocalVector(ediffdm, lsrcVec, ierr); call CHKERR(ierr)
+      call VecSet(lsrcVec, zero, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(lsrcVec, xb, ierr); call CHKERR(ierr)
 
       call set_solar_source()
       call set_thermal_source()
 
-      call VecRestoreArrayF90(lVec, xb, ierr); call CHKERR(ierr)
+      call VecRestoreArrayF90(lsrcVec, xb, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
@@ -528,14 +528,15 @@ module m_plex_rt
       call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
 
       call VecSet(srcVec, zero, ierr); call CHKERR(ierr)
-      call DMLocalToGlobalBegin(ediffdm, lVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
-      call DMLocalToGlobalEnd  (ediffdm, lVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
-      call DMRestoreLocalVector(ediffdm, lVec, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalBegin(ediffdm, lsrcVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (ediffdm, lsrcVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
+      call DMRestoreLocalVector(ediffdm, lsrcVec, ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(srcVec, PETSC_NULL_VEC, '-show_diff_src_vec', ierr); call CHKERR(ierr)
 
       contains
         subroutine set_solar_source()
+          type(tVec) :: ledirVec
           type(tPetscSection) :: edirSection
 
           integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
@@ -560,7 +561,12 @@ module m_plex_rt
             call CHKERR(1_mpiint, 'either provide all vars for direct radiation or none')
 
           call DMGetSection(edirdm, edirSection, ierr); call CHKERR(ierr)
-          call VecGetArrayReadF90(edirVec, xedir, ierr); call CHKERR(ierr)
+          call DMGetLocalVector(edirdm, ledirVec, ierr); call CHKERR(ierr)
+
+          call DMGlobalToLocalBegin(edirdm, edirVec, INSERT_VALUES, ledirVec, ierr); call CHKERR(ierr)
+          call DMGlobalToLocalEnd  (edirdm, edirVec, INSERT_VALUES, ledirVec, ierr); call CHKERR(ierr)
+
+          call VecGetArrayReadF90(ledirVec, xedir, ierr); call CHKERR(ierr)
 
           do icell = plex%cStart, plex%cEnd-1
             call DMPlexGetCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
@@ -609,7 +615,8 @@ module m_plex_rt
 
           call set_Edir_srfc_reflection(edirSection, xedir)
 
-          call VecRestoreArrayReadF90(edirVec, xedir, ierr); call CHKERR(ierr)
+          call VecRestoreArrayReadF90(ledirVec, xedir, ierr); call CHKERR(ierr)
+          call DMRestoreLocalVector(edirdm, ledirVec, ierr); call CHKERR(ierr)
         end subroutine
 
         subroutine set_Edir_srfc_reflection(edirSection, xedir)
