@@ -23,7 +23,7 @@ module m_plex_grid
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
     get_inward_face_normal, create_plex_section, setup_plexgrid, &
     get_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
-    TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, determine_incoming_outgoing_diff_streams
+    TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, determine_diff_incoming_outgoing_offsets
 
   logical, parameter :: ldebug=.True.
 
@@ -31,11 +31,13 @@ module m_plex_grid
     integer(mpiint) :: comm
 
     type(tDM), allocatable :: dm
+    type(tDM), allocatable :: cell1_dm
     type(tDM), allocatable :: edir_dm
     type(tDM), allocatable :: ediff_dm
     type(tDM), allocatable :: abso_dm
     type(tDM), allocatable :: geom_dm
     type(tDM), allocatable :: wedge_orientation_dm
+    type(tDM), allocatable :: srfc_boundary_dm
     type(tVec), allocatable :: geomVec ! see compute_face_geometry for details
     type(tVec), allocatable :: wedge_orientation ! see compute_wedge_orientation
 
@@ -412,7 +414,8 @@ module m_plex_grid
       call DMSetSection(plex%dm, cell_section, ierr); call CHKERR(ierr)
       call PetscSectionDestroy(cell_section, ierr); call CHKERR(ierr)
 
-      call label_domain_boundary(plex%dm, plex%ltopfacepos, plex%zindex, plex%boundarylabel, plex%domainboundarylabel)
+      call label_domain_boundary(plex%dm, plex%ltopfacepos, plex%zindex, &
+        plex%boundarylabel, plex%domainboundarylabel, plex%ownerlabel)
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : show plex'
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex_dump", ierr); call CHKERR(ierr)
@@ -489,8 +492,15 @@ module m_plex_grid
         if(size(hhl).lt.2) call CHKERR(1_mpiint, 'need at least two height levels to construct a PLEXRT mesh')
         if(hhl(1).lt.hhl(2)) call CHKERR(1_mpiint, 'hhl has to be from TOA to surface')
 
+        call compute_face_geometry(plex, plex%geom_dm)
+
         call plex_set_ltopfacepos(plex%dm, plex%ltopfacepos)
-        call label_domain_boundary(plex%dm, plex%ltopfacepos, plex%zindex, plex%boundarylabel, plex%domainboundarylabel)
+        call label_domain_boundary(plex%dm, plex%ltopfacepos, plex%zindex, &
+          plex%boundarylabel, plex%domainboundarylabel, plex%ownerlabel)
+        call setup_srfc_boundary_dm(plex, plex%srfc_boundary_dm)
+
+        call setup_cell1_dmplex(plex, plex%cell1_dm)
+
       end subroutine
 
       subroutine gen_test_mat(dm)
@@ -508,17 +518,23 @@ module m_plex_grid
         call CHKERR(1_mpiint, 'DEBUG')
       end subroutine
 
-      subroutine label_domain_boundary(dm, ltopfacepos, zindex, boundarylabel, domainboundarylabel)
+      subroutine label_domain_boundary(dm, ltopfacepos, zindex, boundarylabel, domainboundarylabel, ownerlabel)
         type(tDM), intent(in) :: dm
         logical, allocatable, intent(in) :: ltopfacepos(:)
         integer(iintegers), allocatable, intent(in) :: zindex(:)
-        type(tDMLabel), allocatable, intent(out) :: boundarylabel, domainboundarylabel
+        type(tDMLabel), allocatable, intent(inout) :: boundarylabel, domainboundarylabel, ownerlabel
 
         type(tDM) :: facedm
         type(tPetscSection) :: facesection
         type(tVec) :: lVec, gVec
         real(ireals), pointer :: xv(:)
         type(tIS) :: boundary_ids
+
+        type(tPetscSF) :: sf
+        integer(iintegers) :: nleaves, nroots
+        integer(iintegers), pointer :: myidx(:) ! list of my indices that we do not own
+        type(PetscSFNode), pointer  :: remote(:) ! rank and remote idx of those points
+
         integer(iintegers), pointer :: xbndry_iface(:)
         integer(iintegers) :: fStart, fEnd
         integer(iintegers) :: i, iface, voff, lv
@@ -527,18 +543,37 @@ module m_plex_grid
         if(.not.allocated(ltopfacepos)) call CHKERR(1_mpiint, 'ltopfacepos has to be allocated')
         if(.not.allocated(zindex)) call CHKERR(1_mpiint, 'zindex has to be allocated')
 
-        call DMCreateLabel(dm, "DomainBoundary", ierr); call CHKERR(ierr)
-        if(.not.allocated(domainboundarylabel)) allocate(domainboundarylabel)
+        if(.not.allocated(domainboundarylabel)) then
+          allocate(domainboundarylabel)
+          call DMCreateLabel(dm, "DomainBoundary", ierr); call CHKERR(ierr)
+        endif
         call DMGetLabel(dm, "DomainBoundary", domainboundarylabel, ierr); call CHKERR(ierr)
 
-        call DMCreateLabel(dm, "Boundary", ierr); call CHKERR(ierr)
-        if(.not.allocated(boundarylabel)) allocate(boundarylabel)
+        if(.not.allocated(boundarylabel)) then
+          allocate(boundarylabel)
+          call DMCreateLabel(dm, "Boundary", ierr); call CHKERR(ierr)
+        endif
         call DMGetLabel(dm, "Boundary", boundarylabel, ierr); call CHKERR(ierr)
         call DMPlexMarkBoundaryFaces(dm, i1, boundarylabel, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_Boundary_DM', ierr); call CHKERR(ierr)
 
         call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
         call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+        if(.not.allocated(ownerlabel)) then
+          allocate(ownerlabel)
+          call DMCreateLabel(dm, "Owner", ierr); call CHKERR(ierr)
+        endif
+        call DMGetLabel(dm, "Owner", ownerlabel, ierr); call CHKERR(ierr)
+        call DMLabelSetDefaultValue(ownerlabel, int(myid, kind=iintegers), ierr); call CHKERR(ierr)
+
+        call DMGetPointSF(dm, sf, ierr); call CHKERR(ierr)
+        call PetscSFGetGraph(sf, nroots, nleaves, myidx, remote, ierr); call CHKERR(ierr)
+
+        do i = 1, nleaves
+          call DMLabelSetValue(ownerlabel, myidx(i), remote(i)%rank, ierr); call CHKERR(ierr)
+        enddo
+        myidx=>NULL(); remote=>NULL()
 
         call DMClone(dm, facedm, ierr); call CHKERR(ierr)
 
@@ -554,20 +589,21 @@ module m_plex_grid
         call VecSet(lVec, zero, ierr); call CHKERR(ierr)
 
         call DMGetStratumIS(dm, "Boundary", i1, boundary_ids, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
 
         if (boundary_ids.ne.PETSC_NULL_IS) then
           call ISGetIndicesF90(boundary_ids, xbndry_iface, ierr); call CHKERR(ierr)
-
-          call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
           do i = 1, size(xbndry_iface)
             iface = xbndry_iface(i)
+
             call DMLabelGetValue(boundarylabel, iface, lv, ierr); call CHKERR(ierr)
             call PetscSectionGetOffset(facesection, iface, voff, ierr); call CHKERR(ierr)
             xv(i1+voff) = real(lv, ireals)
           enddo
-          call VecRestoreArrayF90(lVec, xv, ierr); call CHKERR(ierr)
           call ISRestoreIndicesF90(boundary_ids, xbndry_iface, ierr); call CHKERR(ierr)
         endif
+
+        call VecRestoreArrayF90(lVec, xv, ierr); call CHKERR(ierr)
 
         call DMLocalToGlobalBegin(facedm, lVec, ADD_VALUES, gVec, ierr); call CHKERR(ierr)
         call DMLocalToGlobalEnd  (facedm, lVec, ADD_VALUES, gVec, ierr); call CHKERR(ierr)
@@ -576,7 +612,7 @@ module m_plex_grid
 
         call DMPlexGetDepthStratum (facedm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
 
-        call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+        call VecGetArrayReadF90(lVec, xv, ierr); call CHKERR(ierr)
         do iface = fStart, fEnd-1
           call PetscSectionGetOffset(facesection, iface, voff, ierr); call CHKERR(ierr)
           if(int(xv(i1+voff), iintegers) .eq. i1) then ! if the additive val is not 2 it must be at the domain edge
@@ -591,7 +627,8 @@ module m_plex_grid
             endif
           endif
         enddo
-        call VecRestoreArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+        call VecRestoreArrayReadF90(lVec, xv, ierr); call CHKERR(ierr)
+
 
         call DMRestoreLocalVector(facedm, lVec, ierr); call CHKERR(ierr)
         call DMRestoreGlobalVector(facedm, gVec, ierr); call CHKERR(ierr)
@@ -1268,6 +1305,23 @@ module m_plex_grid
     call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_'//trim(sectionname), ierr); call CHKERR(ierr)
   end subroutine
 
+  subroutine setup_cell1_dmplex(plex, dm)
+    type(t_plexgrid), intent(inout) :: plex
+    type(tDM), allocatable, intent(inout) :: dm
+    type(tPetscSection) :: edirSection
+    integer(mpiint) :: ierr
+
+    if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_cell1_dmplex on an already allocated DM')
+    allocate(dm)
+
+    call DMClone(plex%dm, dm, ierr); call CHKERR(ierr)
+
+    call PetscObjectSetName(dm, 'plex_cell1_dm', ierr);call CHKERR(ierr)
+    call create_plex_section(dm, 'face_section', i1, [i1], [i0], [i0], [i0], edirSection)
+    call DMSetSection(dm, edirSection, ierr); call CHKERR(ierr)
+    call PetscSectionDestroy(edirSection, ierr); call CHKERR(ierr)
+  end subroutine
+
   subroutine setup_edir_dmplex(plex, dm)
     type(t_plexgrid), intent(inout) :: plex
     type(tDM), allocatable, intent(inout) :: dm
@@ -1414,7 +1468,58 @@ module m_plex_grid
       end subroutine
   end subroutine
 
-  subroutine determine_incoming_outgoing_diff_streams(ediffdm, icell, incoming_offsets, outgoing_offsets)
+  subroutine setup_srfc_boundary_dm(plex, dm)
+    type(t_plexgrid), intent(inout) :: plex
+    type(tDM), allocatable, intent(inout) :: dm
+    type(tPetscSection) :: section
+    integer(mpiint) :: ierr
+
+    if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_srfc_boundary_dm on an already allocated DM')
+    if(.not.allocated(plex%geom_dm)) call CHKERR(1_mpiint, 'plex%geom_dm has to be allocated first')
+    allocate(dm)
+
+    call DMClone(plex%dm, dm, ierr); call CHKERR(ierr)
+
+    call PetscObjectSetName(dm, 'srfc_boundary_dm', ierr);call CHKERR(ierr)
+
+    call gen_section(section, Ndof=i1)
+
+    call DMSetSection(dm, section, ierr); call CHKERR(ierr)
+    call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
+    contains
+      subroutine gen_section(section, Ndof)
+        type(tPetscSection), intent(inout) :: section
+        integer(iintegers), intent(in) :: Ndof
+        type(tIS) :: srfc_ids
+        integer(iintegers), pointer :: xi(:)
+        integer(iintegers) :: i, iface, fStart, fEnd
+        integer(mpiint) :: comm, ierr
+
+        call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+        call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
+        call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+        call PetscSectionSetNumFields(section, i1, ierr); call CHKERR(ierr)
+        call PetscSectionSetFieldComponents(section, i0, i1, ierr); call CHKERR(ierr)
+        call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
+
+        call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
+        if (srfc_ids.eq.PETSC_NULL_IS) then ! dont have surface points
+        else
+          call ISGetIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
+          do i = 1, size(xi)
+            iface = xi(i)
+            call PetscSectionSetDof(section, iface, Ndof, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(section, iface, i0, Ndof, ierr); call CHKERR(ierr)
+          enddo
+          call ISRestoreIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
+        endif
+        call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, "-show_plex_srfc_boundary_section", ierr); call CHKERR(ierr)
+      end subroutine
+  end subroutine
+
+  subroutine determine_diff_incoming_outgoing_offsets(plex, ediffdm, icell, incoming_offsets, outgoing_offsets)
+    type(t_plexgrid), intent(in) :: plex
     type(tDM), intent(in) :: ediffdm
     integer(iintegers), intent(in) :: icell
     integer(iintegers), allocatable, intent(inout) :: incoming_offsets(:), outgoing_offsets(:)
@@ -1423,22 +1528,23 @@ module m_plex_grid
     integer(iintegers), pointer :: cells_of_face(:)
     integer(iintegers) :: i, iface, neigh_cell, offset_a, offset_b
     integer(iintegers) :: j_incoming, j_outgoing, num_dof, idof
+    integer(iintegers) :: boundarylabelval, owner
     type(tPetscSection) :: section
-    integer(mpiint) :: ierr
+    integer(mpiint) :: comm, myid, ierr
     call DMGetSection(ediffdm, section, ierr); call CHKERR(ierr)
 
     call DMPlexGetCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
     if(.not.allocated(incoming_offsets).or..not.allocated(outgoing_offsets)) then
-    num_dof = 0
-    do i = 1, size(faces_of_cell)
-      iface = faces_of_cell(i)
-      call PetscSectionGetDof(section, iface, idof, ierr); call CHKERR(ierr)
-      num_dof = num_dof + idof
-    enddo
+      num_dof = 0
+      do i = 1, size(faces_of_cell)
+        iface = faces_of_cell(i)
+        call PetscSectionGetDof(section, iface, idof, ierr); call CHKERR(ierr)
+        num_dof = num_dof + idof
+      enddo
 
-    if(.not.allocated(incoming_offsets)) allocate(incoming_offsets(num_dof/2))
-    if(.not.allocated(outgoing_offsets)) allocate(outgoing_offsets(num_dof/2))
+      if(.not.allocated(incoming_offsets)) allocate(incoming_offsets(num_dof/2))
+      if(.not.allocated(outgoing_offsets)) allocate(outgoing_offsets(num_dof/2))
     endif
 
     j_incoming = 1; j_outgoing = 1
@@ -1447,7 +1553,20 @@ module m_plex_grid
       iface = faces_of_cell(i)
       call DMPlexGetSupport(ediffdm, iface, cells_of_face, ierr); call CHKERR(ierr) ! Get Faces of cell
       if(size(cells_of_face).eq.1) then
-        neigh_cell = -1
+        ! This is either because we are at the outer domain or this is a local mesh boundary with a neighboring process
+        call DMLabelGetValue(plex%domainboundarylabel, iface, boundarylabelval, ierr); call CHKERR(ierr)
+        if(boundarylabelval.ne.-i1) then ! This is a global boundary face, i.e. at the side top or bottom of the domain
+          neigh_cell = -1
+        else
+          call DMLabelGetValue(plex%ownerlabel, iface, owner, ierr); call CHKERR(ierr)
+          call PetscObjectGetComm(ediffdm, comm, ierr); call CHKERR(ierr)
+          call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+          if(owner.eq.myid) then
+            neigh_cell = -1
+          else
+            neigh_cell = huge(icell)
+          endif
+        endif
       else
         if(cells_of_face(1).eq.icell) then
           neigh_cell = cells_of_face(2)
@@ -1457,25 +1576,26 @@ module m_plex_grid
       endif
       call DMPlexRestoreSupport(ediffdm, iface, cells_of_face, ierr); call CHKERR(ierr) ! Get Faces of cell
 
-
       call PetscSectionGetFieldOffset(section, iface, i0, offset_a, ierr); call CHKERR(ierr)
       call PetscSectionGetFieldOffset(section, iface, i1, offset_b, ierr); call CHKERR(ierr)
 
       call PetscSectionGetFieldDof(section, iface, i0, num_dof, ierr); call CHKERR(ierr)
 
-      do idof = 0, num_dof-1
-        if(neigh_cell.lt.icell) then ! see definition of directions in setup_ediff_dmplex
+      if(neigh_cell.lt.icell) then ! see definition of directions in setup_ediff_dmplex
+        do idof = 0, num_dof-1
           incoming_offsets(j_incoming) = offset_a+idof
           j_incoming = j_incoming + 1
           outgoing_offsets(j_outgoing) = offset_b+idof
           j_outgoing = j_outgoing + 1
-        else
+        enddo
+      else
+        do idof = 0, num_dof-1
           incoming_offsets(j_incoming) = offset_b+idof
           j_incoming = j_incoming + 1
           outgoing_offsets(j_outgoing) = offset_a+idof
           j_outgoing = j_outgoing + 1
-        endif
-      enddo
+        enddo
+      endif
     enddo
 
     call DMPlexRestoreCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
@@ -1616,6 +1736,7 @@ module m_plex_grid
 
       xv(wedge_offset+i1: wedge_offset+i3) = [zenith, azimuth, mean_dx]
 
+      ! set iwedge_plex2bmc, index mapping from plex faces_of_cell to bmc
       xv(wedge_offset+i4: wedge_offset+i8) = real([upper_face, base_face, left_face, right_face, bottom_face], ireals)
       do iface = 1, size(lsrc)
         if(lsrc(iface)) then

@@ -36,10 +36,10 @@ logical, parameter :: ldebug=.True.
 
   contains
 
-    subroutine plex_ex3(comm, Nx, Ny, Nz, dz)
+    subroutine plex_ex3(comm, Nx, Ny, Nz, dz, Ag)
       MPI_Comm, intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny, Nz
-      real(ireals), intent(in) :: dz
+      real(ireals), intent(in) :: dz, Ag
 
       type(tDM) :: dm2d, dm3d
       real(ireals) :: hhl(Nz)
@@ -103,6 +103,11 @@ logical, parameter :: ldebug=.True.
 
       !!call set_plex_rt_optprop(solver, vlwc=lwcvec, viwc=iwcvec)
       call set_plex_rt_optprop(solver)
+      if(.not.allocated(solver%albedo)) then
+        allocate(solver%albedo)
+        call DMCreateGlobalVector(solver%plex%srfc_boundary_dm, solver%albedo, ierr); call CHKERR(ierr)
+      endif
+      call VecSet(solver%albedo, Ag, ierr); call CHKERR(ierr)
 
       call run_plex_rt_solver(solver, sundir)
       call destroy_plexrt_solver(solver, lfinalizepetsc=.False.)
@@ -119,7 +124,7 @@ logical, parameter :: ldebug=.True.
     integer(mpiint) :: ierr
     character(len=10*default_str_len) :: default_options
     integer(iintegers) :: Nx, Ny, Nz
-    real(ireals) :: dz
+    real(ireals) :: dz, Ag
 
     !character(len=*),parameter :: ex_out='plex_ex_dom1_out.h5'
     !character(len=*),parameter :: ex_out='plex_test_out.h5'
@@ -138,6 +143,8 @@ logical, parameter :: ldebug=.True.
     if(lflg.eqv.PETSC_FALSE) Nz = 2
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dz", dz, lflg,ierr) ; call CHKERR(ierr)
     if(lflg.eqv.PETSC_FALSE) dz = one/Nz
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
+    if(lflg.eqv.PETSC_FALSE) Ag = .1_ireals
 
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
@@ -154,12 +161,13 @@ logical, parameter :: ldebug=.True.
     default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_fV2cV_DiffSrcVec hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_fV2cV_ediff hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
 
     print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
-    call plex_ex3(PETSC_COMM_WORLD, Nx, Ny, Nz, dz)
+    call plex_ex3(PETSC_COMM_WORLD, Nx, Ny, Nz, dz, Ag)
 
     call mpi_barrier(PETSC_COMM_WORLD, ierr)
     call PetscFinalize(ierr)

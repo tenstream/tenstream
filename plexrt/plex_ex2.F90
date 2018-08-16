@@ -20,7 +20,9 @@ use m_icon_plex_utils, only: gen_2d_plex_from_icongridfile, icon_hdcp2_default_h
 use m_plex_grid, only: t_plexgrid, setup_plexgrid, ncvar2d_to_globalvec
 
 use m_plex_rt, only: get_normal_of_first_toa_face, compute_face_geometry, &
-  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop
+  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
+  destroy_plexrt_solver
+
 
 use m_netcdfio, only : ncload
 
@@ -40,6 +42,7 @@ logical, parameter :: ldebug=.True.
       type(AO), allocatable :: cell_ao_2d
       type(t_plexgrid), allocatable :: plex
       type(tVec) :: lwcvec, iwcvec
+      real(ireals), parameter :: Ag=.15
 
       integer(iintegers), allocatable :: zindex(:)
 
@@ -66,7 +69,6 @@ logical, parameter :: ldebug=.True.
 
       call init_plex_rt_solver(plex, solver)
 
-      call compute_face_geometry(solver%plex, solver%plex%geom_dm)
       first_normal = get_normal_of_first_TOA_face(solver%plex)
       sundir = first_normal
       !sundir = -[0.677688, 0.0758756, 0.731425]
@@ -80,9 +82,15 @@ logical, parameter :: ldebug=.True.
       print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
 
       call set_plex_rt_optprop(solver, vlwc=lwcvec, viwc=iwcvec)
-      !call set_plex_rt_optprop(solver)
+
+      if(.not.allocated(solver%albedo)) then
+        allocate(solver%albedo)
+        call DMCreateGlobalVector(solver%plex%srfc_boundary_dm, solver%albedo, ierr); call CHKERR(ierr)
+      endif
+      call VecSet(solver%albedo, Ag, ierr); call CHKERR(ierr)
 
       call run_plex_rt_solver(solver, sundir)
+      call destroy_plexrt_solver(solver, lfinalizepetsc=.False.)
     end subroutine
 
   end module

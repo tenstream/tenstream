@@ -133,7 +133,6 @@ module m_icon_plex_utils
         type(PetscCopyMode),parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
 
         integer(iintegers) :: i, k, voff, ileaf, owner
-        integer(iintegers), parameter :: idx_offset=0
 
         call DMClone(dm2d, dmsf2d, ierr); call CHKERR(ierr)
 

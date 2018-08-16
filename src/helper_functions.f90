@@ -30,7 +30,7 @@ module m_helper_functions
   private
   public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum, cumprod,   &
     inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
-    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR,                &
+    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR, assertEqual,   &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
@@ -66,6 +66,9 @@ module m_helper_functions
   interface reverse
     module procedure reverse_1d_real32, reverse_2d_real32, reverse_1d_real64, reverse_2d_real64, &
         reverse_3d_real32, reverse_3d_real64, reverse_4d_real32, reverse_4d_real64
+  end interface
+  interface assertEqual
+    module procedure assertEqual_i32, assertEqual_i64
   end interface
 
 
@@ -115,6 +118,29 @@ module m_helper_functions
         call BACKTRACE
 #endif
         call mpi_abort(mpi_comm_world, ierr, mpierr)
+      endif
+    end subroutine
+
+    subroutine assertEqual_i32(t, i, msg)
+      integer(INT32),intent(in) :: t, i
+      character(len=*), intent(in), optional :: msg
+      if(t.ne.i) then
+        if(present(msg)) then
+          call CHKERR(int(t-i, mpiint), itoa(i)//'.ne.'//itoa(t)//' :: '//msg)
+        else
+          call CHKERR(int(t-i, mpiint), itoa(i)//'.ne.'//itoa(t))
+        endif
+      endif
+    end subroutine
+    subroutine assertEqual_i64(t, i, msg)
+      integer(INT64),intent(in) :: t, i
+      character(len=*), intent(in), optional :: msg
+      if(t.ne.i) then
+        if(present(msg)) then
+          call CHKERR(int(t-i, mpiint), itoa(i)//'.ne.'//itoa(t)//' :: '//msg)
+        else
+          call CHKERR(int(t-i, mpiint), itoa(i)//'.ne.'//itoa(t))
+        endif
       endif
     end subroutine
 
