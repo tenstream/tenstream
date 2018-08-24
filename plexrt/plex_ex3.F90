@@ -20,9 +20,9 @@ use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
 use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
   setup_edir_dmplex, setup_abso_dmplex, compute_face_geometry, &
   distribute_plexgrid_dm, ncvar2d_to_globalvec, setup_plexgrid, &
-  gen_test_mat
+  gen_test_mat, get_normal_of_first_toa_face
 
-use m_plex_rt, only: get_normal_of_first_toa_face, compute_face_geometry, &
+use m_plex_rt, only: compute_face_geometry, &
   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   destroy_plexrt_solver
 
@@ -86,7 +86,6 @@ logical, parameter :: ldebug=.True.
 
       call init_plex_rt_solver(plex, solver)
 
-      call compute_face_geometry(solver%plex, solver%plex%geom_dm)
       first_normal = get_normal_of_first_TOA_face(solver%plex)
       sundir = first_normal + [zero, .001_ireals, zero]
       !sundir = -[0.688915, -0.422213, 0.589179]

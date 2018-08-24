@@ -2,10 +2,12 @@ module m_plex_grid
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_netcdfIO, only: ncload
+
   use m_helper_functions, only: CHKERR, itoa, compute_normal_3d, approx, strF2C, distance, &
     triangle_area_by_vertices, swap, norm, determine_normal_direction, &
     vec_proj_on_plane, angle_between_two_vec, cross_3d, rad2deg, &
-    rotation_matrix_world_to_local_basis, resize_arr, get_arg
+    rotation_matrix_world_to_local_basis, resize_arr, get_arg, &
+    imp_bcast
 
   use m_data_parameters, only : ireals, iintegers, mpiint, zero, one, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
@@ -23,7 +25,8 @@ module m_plex_grid
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
     get_inward_face_normal, create_plex_section, setup_plexgrid, &
     get_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
-    TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, determine_diff_incoming_outgoing_offsets
+    TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, &
+    determine_diff_incoming_outgoing_offsets, get_normal_of_first_TOA_face
 
   logical, parameter :: ldebug=.True.
 
@@ -1195,7 +1198,6 @@ module m_plex_grid
     call VecRestoreArrayF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
     call PetscObjectViewFromOptions(plex%geomVec, PETSC_NULL_VEC, "-show_dm_geom_vec", ierr); call CHKERR(ierr)
-    if(ldebug) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine create_plex_section(dm, sectionname, numfields, cdof, fdof, edof, vdof, section, fieldnames)
@@ -2074,16 +2076,16 @@ module m_plex_grid
 
   end subroutine
 
-  subroutine ncvar2d_to_globalvec(plexgrid, filename, varname, vec, timeidx, cell_ao_2d, cell_ao_3d)
+  subroutine ncvar2d_to_globalvec(plexgrid, filename, varname, gvec, timeidx, cell_ao_2d, cell_ao_3d)
     type(t_plexgrid), intent(in) :: plexgrid
     character(len=*), intent(in) :: filename, varname
-    type(tVec), intent(inout) :: vec
+    type(tVec), allocatable, intent(inout) :: gvec
     integer(iintegers), intent(in), optional :: timeidx
     type(AO), optional, intent(in), target :: cell_ao_2d, cell_ao_3d ! mapping into 2D or 3D plex cells on rank0
 
     type(tDM) :: celldm
     type(tPetscSection) :: cellsection
-    type(tVec) :: local
+    type(tVec) :: rank0Vec
     type(tVecScatter) :: scatter_context
     real(ireals), pointer :: xloc(:)=>null()
     integer(mpiint) :: myid, ierr
@@ -2106,11 +2108,16 @@ module m_plex_grid
     call PetscSectionDestroy(cellsection, ierr); call CHKERR(ierr)
 
     ! Now lets get vectors!
-    call DMCreateGlobalVector(celldm, vec, ierr); call CHKERR(ierr)
-    call PetscObjectSetName(vec, 'VecfromNC_'//trim(varname), ierr);call CHKERR(ierr)
+    if(.not.allocated(gvec)) then
+      allocate(gvec)
+      call DMCreateGlobalVector(celldm, gvec, ierr); call CHKERR(ierr)
+      call PetscObjectSetName(gvec, 'VecfromNC_'//trim(varname), ierr);call CHKERR(ierr)
+    endif
 
-    call VecScatterCreateToZero(vec, scatter_context, local, ierr); call CHKERR(ierr)
-    !call AOView(plexgrid%cell_ao, PETSC_VIEWER_STDOUT_WORLD, ierr)
+    call VecScatterCreateToZero(gvec, scatter_context, rank0Vec, ierr); call CHKERR(ierr)
+    if(ldebug.and.present(cell_ao_2d)) then
+      call AOView(cell_ao_2d, PETSC_VIEWER_STDOUT_WORLD, ierr); call CHKERR(ierr)
+    endif
 
     if(myid.eq.0) then
       ncgroups(1) = trim(filename)
@@ -2132,7 +2139,7 @@ module m_plex_grid
 
       if(ldebug) print *,'plex_grid::ncvar2d_to_globalvec : shape ',trim(varname), shape(arr)
 
-      call VecGetArrayF90(local,xloc,ierr); call CHKERR(ierr)
+      call VecGetArrayF90(rank0Vec,xloc,ierr); call CHKERR(ierr)
       do icell=1, size(arr, dim=1)
         if(present(cell_ao_2d)) then
           icell_global = icell-1
@@ -2150,20 +2157,18 @@ module m_plex_grid
           enddo
         endif
       enddo
-      call VecRestoreArrayF90(local,xloc,ierr) ;call CHKERR(ierr)
+      call VecRestoreArrayF90(rank0Vec,xloc,ierr) ;call CHKERR(ierr)
 
     endif ! rank 0
-    if(ldebug) call mpi_barrier(plexgrid%comm, ierr); call CHKERR(ierr)
 
     if(ldebug.and.myid.eq.0) print *,myid,'scatterZerotoDM :: scatter reverse....'
-    call VecScatterBegin(scatter_context, local, vec, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
-    call VecScatterEnd  (scatter_context, local, vec, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+    call VecScatterBegin(scatter_context, rank0Vec, gvec, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
+    call VecScatterEnd  (scatter_context, rank0Vec, gvec, INSERT_VALUES, SCATTER_REVERSE, ierr); call CHKERR(ierr)
 
     call VecScatterDestroy(scatter_context, ierr); call CHKERR(ierr)
-    call VecDestroy(local,ierr); call CHKERR(ierr)
+    call VecDestroy(rank0Vec, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(vec, PETSC_NULL_VEC, '-show_ncvar_to_globalvec', ierr); call CHKERR(ierr)
-    if(ldebug) call mpi_barrier(plexgrid%comm, ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_ncvar_to_globalvec', ierr); call CHKERR(ierr)
   end subroutine
 
     !> @brief return the dmplex cell index for an icon base grid cell index
@@ -2456,6 +2461,7 @@ module m_plex_grid
         call compute_face_geometry_info(dm, topface, centroid_top, normal, area)
         call compute_face_geometry_info(dm, botface, centroid_bot, normal, area)
         if(norm(centroid_top).lt.norm(centroid_bot)) then
+          print *,'Centroid top/bot', centroid_top, ':', centroid_bot, '=>', norm(centroid_top), norm(centroid_bot)
           call CHKERR(1_mpiint, 'Hmpf, I guessed wrong, I confused top and bot face of cell')
         endif
       endif
@@ -2552,4 +2558,61 @@ module m_plex_grid
       deallocate(vertex_coord)
       call VecRestoreArrayReadF90(coordinates, coords, ierr); call CHKERR(ierr)
     end subroutine
+
+    function get_normal_of_first_TOA_face(plex)
+      type(t_plexgrid) :: plex
+      real(ireals) :: get_normal_of_first_TOA_face(3)
+      type(tPetscSection) :: geomSection
+      real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
+      real(ireals) :: cell_center(3), face_center(3)
+      real(ireals),allocatable :: face_normal(:)
+
+      type(tIS) :: toa_ids
+      integer(iintegers), pointer :: xitoa(:), cell_support(:)
+      integer(iintegers) :: geom_offset, iface, icell
+
+      integer(mpiint) :: myid, ierr
+
+      call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
+
+      if(myid.eq.0) then
+        if(.not.allocated(plex%geom_dm)) stop 'get_normal_of_first_TOA_face::needs allocated geom_dm first'
+        call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
+        !call VecGetArrayReadF90(plex%geomVec, geoms, ierr); CHKERRQ(ierr)
+        !call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); CHKERRQ(ierr)
+        call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
+
+        if (toa_ids.eq.PETSC_NULL_IS) then ! dont have TOA points
+          stop 'This didnt work, we tried to set the sundir according to first face on rank 0 but it seems he does not have TOA faces'
+        else
+          call ISGetIndicesF90(toa_ids, xitoa, ierr); call CHKERR(ierr)
+          iface = xitoa(1) ! first face of TOA faces
+
+          call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+          call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
+
+          face_center = geoms(geom_offset+1:geom_offset+3)
+          allocate(face_normal(3))
+          face_normal = geoms(geom_offset+4:geom_offset+6)
+
+          call DMPlexGetSupport(plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+          icell = cell_support(1)
+          call DMPlexRestoreSupport(plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+
+          call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
+          cell_center = geoms(1+geom_offset:3+geom_offset)
+
+          ! Determine the inward normal vec for the face
+          face_normal = face_normal * real(determine_normal_direction(face_normal, face_center, cell_center), kind=ireals)
+
+          call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+          call ISRestoreIndicesF90(toa_ids, xitoa, ierr); call CHKERR(ierr)
+        endif
+      endif
+
+      call imp_bcast(plex%comm, face_normal, 0_mpiint)
+      get_normal_of_first_TOA_face = face_normal
+
+    end function
 end module

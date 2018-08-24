@@ -15,11 +15,11 @@ use m_data_parameters, only : ireals, iintegers, mpiint, &
   init_mpi_data_parameters
 
 use m_icon_plex_utils, only: gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl, &
-  dump_ownership, dmplex_2D_to_3D
+  dump_ownership, dmplex_2D_to_3D, icon_ncvec_to_plex
 
-use m_plex_grid, only: t_plexgrid, setup_plexgrid, ncvar2d_to_globalvec
+use m_plex_grid, only: t_plexgrid, setup_plexgrid, get_normal_of_first_toa_face
 
-use m_plex_rt, only: get_normal_of_first_toa_face, compute_face_geometry, &
+use m_plex_rt, only: compute_face_geometry, &
   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   destroy_plexrt_solver
 
@@ -38,10 +38,11 @@ logical, parameter :: ldebug=.True.
       character(len=default_str_len), intent(in) :: gridfile, icondatafile
 
       integer(mpiint) :: myid, numnodes, ierr
-      type(tDM) :: dm2d, dm3d
+      type(tDM) :: dm2d, dm2d_dist, dm3d
+      type(tPetscSF) :: migration_sf
       type(AO), allocatable :: cell_ao_2d
       type(t_plexgrid), allocatable :: plex
-      type(tVec) :: lwcvec, iwcvec
+      type(tVec), allocatable :: lwcvec, iwcvec
       real(ireals), parameter :: Ag=.15
 
       integer(iintegers), allocatable :: zindex(:)
@@ -54,18 +55,21 @@ logical, parameter :: ldebug=.True.
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, cell_ao_2d)
-      call dmplex_2D_to_3D(dm2d, icon_hdcp2_default_hhl, dm3d, zindex)
-      call DMDestroy(dm2d, ierr); call CHKERR(ierr)
+      call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, dm2d_dist, &
+        migration_sf, cell_ao_2d)
+      call dmplex_2D_to_3D(dm2d_dist, icon_hdcp2_default_hhl, dm3d, zindex)
 
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
       call setup_plexgrid(dm3d, zindex, icon_hdcp2_default_hhl, plex)
 
-      call ncvar2d_to_globalvec(plex, icondatafile, 'clw', lwcvec, cell_ao_2d=cell_ao_2d)
+      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'clw', lwcvec, dm3d=dm3d)
       call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
 
-      call ncvar2d_to_globalvec(plex, icondatafile, 'cli', iwcvec, cell_ao_2d=cell_ao_2d)
+      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'cli', iwcvec, dm3d=dm3d)
       call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
+
+      call DMDestroy(dm2d, ierr); call CHKERR(ierr)
+      call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
 
       call init_plex_rt_solver(plex, solver)
 
@@ -131,6 +135,8 @@ logical, parameter :: ldebug=.True.
     default_options=trim(default_options)//' -show_iwc hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_fV2cV_DiffSrcVec hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_fV2cV_ediff hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
 

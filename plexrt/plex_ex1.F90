@@ -9,10 +9,10 @@ module m_mpi_plex_ex1
 
   use m_plex_grid, only: t_plexgrid, load_plex_from_file, &
                        compute_face_geometry, print_dmplex,   &
-                       setup_edir_dmplex, setup_abso_dmplex
+                       setup_edir_dmplex, setup_abso_dmplex, &
+                       get_normal_of_first_toa_face
 
-  use m_plex_rt, only: get_normal_of_first_toa_face, &
-   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver
+  use m_plex_rt, only: t_plex_solver, init_plex_rt_solver, run_plex_rt_solver
 
   implicit none
 

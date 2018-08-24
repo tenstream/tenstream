@@ -23,12 +23,13 @@ module m_gen_plex_from_icon
       logical :: lflg
       character(len=default_str_len) :: gridfile, datafile
 
-      type(tDM) :: dm2d, dm3d
+      type(tDM) :: dm2d, dm2d_dist, dm3d
+      type(tPetscSF) :: distribute_point_sf
       type(AO), allocatable :: cell_ao_2d
       type(t_plexgrid), allocatable :: plex
       integer(mpiint) :: comm, myid, ierr
 
-      type(tVec) :: clw
+      type(tVec), allocatable :: clw
 
       integer(iintegers), allocatable :: zindex(:)
 
@@ -52,9 +53,8 @@ module m_gen_plex_from_icon
         call CHKERR(1_mpiint, 'Required Option missing')
       endif
 
-      call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, cell_ao_2d)
-      call dmplex_2D_to_3D(dm2d, icon_hdcp2_default_hhl, dm3d, zindex)
-      call DMDestroy(dm2d, ierr); call CHKERR(ierr)
+      call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, dm2d_dist, distribute_point_sf, cell_ao_2d)
+      call dmplex_2D_to_3D(dm2d_dist, icon_hdcp2_default_hhl, dm3d, zindex)
 
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
       call setup_plexgrid(dm3d, zindex, icon_hdcp2_default_hhl, plex)
@@ -62,6 +62,8 @@ module m_gen_plex_from_icon
       call ncvar2d_to_globalvec(plex, datafile, 'clw', clw, cell_ao_2d=cell_ao_2d)
       call PetscObjectViewFromOptions(clw, PETSC_NULL_VEC, '-show_clw', ierr); call CHKERR(ierr)
 
+      call DMDestroy(dm2d, ierr); call CHKERR(ierr)
+      call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
       call DMDestroy(dm3d, ierr); call CHKERR(ierr)
       call PetscFinalize(ierr)
       print *,'m_gen_plex_from_icon... done'

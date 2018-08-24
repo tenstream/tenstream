@@ -8,7 +8,7 @@ module m_plex_rt
   use m_helper_functions, only: CHKERR, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, &
     vec_proj_on_plane, cross_3d, norm, rotation_matrix_world_to_local_basis, &
-    imp_bcast, approx, swap, delta_scale, itoa
+    approx, swap, delta_scale, itoa
 
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, &
@@ -31,8 +31,7 @@ module m_plex_rt
   private
 
   public :: t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, &
-    get_normal_of_first_TOA_face, compute_face_geometry, &
-    set_plex_rt_optprop, destroy_plexrt_solver
+    compute_face_geometry, set_plex_rt_optprop, destroy_plexrt_solver
 
   type t_plex_solver
     type(t_plexgrid), allocatable :: plex
@@ -51,9 +50,12 @@ module m_plex_rt
     type(tMat), allocatable :: Mdiff
     type(tKSP), allocatable :: kspdir
     type(tKSP), allocatable :: kspdiff
+
+    type(tVec), allocatable :: dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2
+    type(tVec), allocatable :: diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2
   end type
 
-  logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug=.False.
   contains
     subroutine init_plex_rt_solver(plex, solver)
       type(t_plexgrid), intent(in) :: plex
@@ -265,7 +267,7 @@ module m_plex_rt
         call create_edir_mat(solver%plex, solver%OPP, solver%kabs, solver%ksca, solver%g, solver%Mdir)
 
         ! Solve Direct Matrix
-        call solve_plex_rt(solver%plex, solver%dirsrc, solver%Mdir, solver%kspdir, solution%edir)
+        call solve_plex_rt(solver%plex%edir_dm, solver%dirsrc, solver%Mdir, solver%kspdir, solution%edir, 'dir_')
         call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
                                         '-show_edir_vec_global', ierr); call CHKERR(ierr)
@@ -292,7 +294,7 @@ module m_plex_rt
       endif
 
       call create_ediff_mat(solver%plex, solver%OPP, solver%kabs, solver%ksca, solver%g, solver%albedo, solver%Mdiff)
-      call solve_plex_rt(solver%plex, solver%diffsrc, solver%Mdiff, solver%kspdiff, solution%ediff)
+      call solve_plex_rt(solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%kspdiff, solution%ediff, 'diff_')
       call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, &
         '-show_ediff_vec_global', ierr); call CHKERR(ierr)
@@ -306,9 +308,8 @@ module m_plex_rt
         call scale_facevec(solver%plex, solver%plex%ediff_dm, solution%ediff, lW_to_Wm2=.False.)
       endif
 
-      ! Compute Absorption
-      call compute_edir_absorption(solver%plex, solution%edir, solution%abso)
-
+      ! Bring solution into a coherent state, i.e. update absorption etc.
+      call restore_solution(solver, solution)
       end associate
     end subroutine
 
@@ -802,14 +803,20 @@ module m_plex_rt
       call VecRestoreArrayF90(lambertVec, xv, ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine solve_plex_rt(plex, b, A, ksp, x)
-      type(t_plexgrid) :: plex
+    subroutine solve_plex_rt(dm, b, A, ksp, x, prefix)
+      type(tDM), intent(inout) :: dm
       type(tVec), allocatable, intent(in) :: b
       type(tMat), allocatable, intent(in) :: A
       type(tKSP), allocatable, intent(inout) :: ksp
       type(tVec), allocatable, intent(inout) :: x
+      character(len=*),optional :: prefix
 
-      integer(mpiint) :: ierr
+      type(tMatNullSpace) :: nullspace
+      type(tVec) :: nullvecs(0)
+
+      integer(mpiint) :: comm, ierr
+
+      call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
 
       !if(.not.allocated(ksp)) call CHKERR(1_mpiint, 'KSP has to be allocated before running solve')
       if(.not.allocated(b)) call CHKERR(1_mpiint, 'Src Vector has to be allocated before running solve')
@@ -818,12 +825,22 @@ module m_plex_rt
       if(ldebug) print *,'plex_rt::solve Matrix...'
       if(.not.allocated(ksp)) then
         allocate(ksp)
-        call KSPCreate(plex%comm, ksp, ierr); CHKERRQ(ierr)
-        call KSPSetOperators(ksp, A, A, ierr); CHKERRQ(ierr)
-
-        call KSPSetFromOptions(ksp, ierr); CHKERRQ(ierr)
-        call KSPSetUp(ksp, ierr); CHKERRQ(ierr)
+        call KSPCreate(comm, ksp, ierr); call CHKERR(ierr)
+        if(present(prefix)) then
+          call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
+        endif
       endif
+
+      call MatNullSpaceCreate(comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
+      call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
+      call MatNullSpaceDestroy(nullspace, ierr); call CHKERR(ierr)
+
+      call KSPSetDM(ksp, dm, ierr); call CHKERR(ierr)
+      call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
+      call KSPSetOperators(ksp, A, A, ierr); CHKERRQ(ierr)
+
+      call KSPSetFromOptions(ksp, ierr); CHKERRQ(ierr)
+      call KSPSetUp(ksp, ierr); call CHKERR(ierr)
 
       if(.not.allocated(x)) then
         allocate(x)
@@ -865,7 +882,6 @@ module m_plex_rt
 
     call VecGetArrayF90(faceVec, xv, ierr); call CHKERR(ierr)
 
-    if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
     do iface = plex%fStart, plex%fEnd-1
       call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
       area = geoms(geom_offset+i7)
@@ -882,7 +898,6 @@ module m_plex_rt
         enddo
       endif
     enddo
-    if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
 
     call VecRestoreArrayF90(faceVec, xv, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
@@ -893,132 +908,6 @@ module m_plex_rt
     call DMRestoreLocalVector(face_dm, faceVec, ierr); call CHKERR(ierr)
     if(ldebug) print *,'plex_rt::scale_facevec... finished'
     end subroutine
-
-  subroutine compute_edir_absorption(plex, edir, abso)
-    type(t_plexgrid), allocatable, intent(inout) :: plex
-    type(tVec), intent(in) :: edir
-    type(tVec), allocatable, intent(inout) :: abso
-
-    type(tVec) :: local_edir, local_abso
-
-    real(ireals), pointer :: xedir(:), xabso(:)
-
-    type(tPetscSection) :: abso_section, edir_section
-
-    integer(iintegers) :: cStart, cEnd
-    integer(iintegers) :: icell, iface
-    integer(iintegers),pointer :: faces_of_cell(:)
-    integer(mpiint) :: myid, ierr
-
-    type(tPetscSection) :: geomSection, wedgeSection
-    real(ireals), pointer :: geoms(:), wedgeorient(:) ! pointer to coordinates and orientation vec
-    integer(iintegers) :: geom_offset, abso_offset, edir_offset, wedge_offset
-
-    real(ireals) :: volume
-
-    logical :: lsrc ! is src or destination of solar beam
-
-    if(.not.allocated(plex)) stop 'called compute_edir_absorption but plex is not allocated'
-    call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
-
-    if(.not.allocated(plex%edir_dm)) call CHKERR(myid+1, 'called compute_edir_absorption with a dm which is not allocated?')
-    if(.not.allocated(plex%abso_dm)) call CHKERR(myid+1, 'called compute_edir_absorption with a dm which is not allocated?')
-
-    if(ldebug) print *,'plex_rt::compute_edir_absorption....'
-
-    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-
-    call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
-    call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
-
-    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-
-    call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
-
-    ! Now lets get vectors!
-
-    call DMGetLocalVector(plex%abso_dm, local_abso,ierr); call CHKERR(ierr)
-    call VecSet(local_abso, zero, ierr); call CHKERR(ierr)
-
-    call DMGetLocalVector(plex%edir_dm, local_edir,ierr); call CHKERR(ierr)
-    call VecSet(local_edir, zero, ierr); call CHKERR(ierr)
-    call DMGlobalToLocalBegin(plex%edir_dm, edir, INSERT_VALUES, local_edir, ierr); call CHKERR(ierr)
-    call DMGlobalToLocalEnd  (plex%edir_dm, edir, INSERT_VALUES, local_edir, ierr); call CHKERR(ierr)
-
-    call VecGetArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(local_abso, xabso, ierr); call CHKERR(ierr)
-
-    !if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
-    !do iface = plex%fStart, plex%fEnd-1
-    !  call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
-    !  print *,myid,'edir for ', iface, '::', edir_offset, xedir(edir_offset+i1)
-    !enddo
-    !if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
-
-    if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
-    do icell = cStart, cEnd-1
-
-      call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
-      volume = geoms(geom_offset+i4)
-
-      call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
-      xabso(abso_offset+i1) = zero
-
-      call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
-
-      call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
-
-      do iface = 1, size(faces_of_cell)
-        lsrc = int(wedgeorient(wedge_offset+i8+iface), iintegers) .eq. i1
-
-        call PetscSectionGetOffset(edir_section, faces_of_cell(iface), edir_offset, ierr); call CHKERR(ierr)
-
-        if(lsrc) then ! sun is shining into this face
-          !print *,myid,'absorption for ', icell, iface, faces_of_cell(iface), '+',&
-          !  xedir(edir_offset+i1),'::',xabso(abso_offset+i1) / volume, '->', (xabso(abso_offset+i1) + xedir(edir_offset+i1))/volume
-          xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1)
-        else
-          !print *,myid,'absorption for ', icell, iface, faces_of_cell(iface), '-',&
-          !  xedir(edir_offset+i1),'::',xabso(abso_offset+i1) / volume, '->', (xabso(abso_offset+i1) - xedir(edir_offset+i1))/volume
-          xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1)
-        endif
-      enddo
-      call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-
-      xabso(abso_offset+i1) = xabso(abso_offset+i1) / volume
-    enddo
-    if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
-
-    !if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
-    !do icell = cStart, cEnd-1
-    !  call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
-    !  print *,myid,'absorption for ', icell, '::', xabso(abso_offset+i1)
-    !enddo
-    !if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
-
-    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-    call VecRestoreArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
-    call VecRestoreArrayF90(local_abso, xabso, ierr); call CHKERR(ierr)
-
-    call DMRestoreLocalVector(plex%abso_dm, local_edir, ierr); call CHKERR(ierr)
-
-    if(.not.allocated(abso)) then
-      allocate(abso)
-      call DMCreateGlobalVector(plex%abso_dm, abso, ierr); call CHKERR(ierr)
-      call PetscObjectSetName(abso, 'absoVecGlobal', ierr);call CHKERR(ierr)
-    endif
-    call VecSet(abso, zero, ierr); call CHKERR(ierr)
-    call DMLocalToGlobalBegin(plex%abso_dm, local_abso, ADD_VALUES, abso, ierr); call CHKERR(ierr)
-    call DMLocalToGlobalEnd  (plex%abso_dm, local_abso, ADD_VALUES, abso, ierr); call CHKERR(ierr)
-
-    call DMRestoreLocalVector(plex%abso_dm, local_abso, ierr); call CHKERR(ierr)
-
-    call PetscObjectViewFromOptions(abso, PETSC_NULL_VEC, '-show_abso', ierr); call CHKERR(ierr)
-    if(ldebug) print *,'plex_rt::compute_edir_absorption....finished'
-  end subroutine
 
   subroutine create_edir_mat(plex, OPP, kabs, ksca, g, A)
     type(t_plexgrid), intent(inout) :: plex
@@ -1081,7 +970,6 @@ module m_plex_rt
       !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
     endif
 
-    !if(ldebug .and. myid.ne.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
     do icell = plex%cStart, plex%cEnd-1
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
@@ -1147,7 +1035,6 @@ module m_plex_rt
 
       call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     enddo
-    !if(ldebug .and. myid.eq.0) call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
 
     !call MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
     !call MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY, ierr); call CHKERR(ierr)
@@ -1426,60 +1313,286 @@ module m_plex_rt
       phi, theta, vertices, S, T, S_tol, T_tol, inp_atol=2e-4_ireals, inp_rtol=1e-2_ireals)
   end subroutine
 
-    function get_normal_of_first_TOA_face(plex)
-      type(t_plexgrid) :: plex
-      real(ireals) :: get_normal_of_first_TOA_face(3)
-      type(tPetscSection) :: geomSection
-      real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
-      real(ireals) :: cell_center(3), face_center(3)
-      real(ireals),allocatable :: face_normal(:)
+  subroutine restore_solution(solver, solution)
+    type(t_plex_solver), allocatable, intent(inout) :: solver
+    type(t_state_container), intent(inout) :: solution
 
-      type(tIS) :: toa_ids
-      integer(iintegers), pointer :: xitoa(:), cell_support(:)
-      integer(iintegers) :: geom_offset, iface, icell
+    call compute_absorption(solver, solution)
+  end subroutine
 
-      integer(mpiint) :: myid, ierr
+  subroutine compute_absorption(solver, solution)
+    type(t_plex_solver), allocatable, intent(inout) :: solver
+    type(t_state_container), intent(inout) :: solution
 
-      call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
+    integer(mpiint) :: ierr
 
-      if(myid.eq.0) then
-        if(.not.allocated(plex%geom_dm)) stop 'get_normal_of_first_TOA_face::needs allocated geom_dm first'
-        call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
-        !call VecGetArrayReadF90(plex%geomVec, geoms, ierr); CHKERRQ(ierr)
-        !call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); CHKERRQ(ierr)
-        call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
+    if(.not.solution%lset) call CHKERR(1_mpiint, 'compute_absorption needs to get an initialized solution obj')
 
-        if (toa_ids.eq.PETSC_NULL_IS) then ! dont have TOA points
-          stop 'This didnt work, we tried to set the sundir according to first face on rank 0 but it seems he does not have TOA faces'
+    if(.not.solution%lchanged) return
+    if(solution%lsolar_rad .and. .not.allocated(solution%edir)) &
+      call CHKERR(1_mpiint, 'solution%lsolar_rad true but edir not allocated')
+    if(.not.allocated(solution%ediff)) call CHKERR(1_mpiint, 'ediff vec not allocated')
+
+    ! Make sure we have the radiation vecs in plain energy units
+    call scale_flx(solver, solution, lWm2=.False.)
+
+    if(.not.allocated(solution%abso)) then
+      allocate(solution%abso)
+      call DMCreateGlobalVector(solver%plex%abso_dm, solution%abso, ierr); call CHKERR(ierr)
+      call PetscObjectSetName(solution%abso, 'absoVecGlobal', ierr);call CHKERR(ierr)
+    endif
+    call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
+
+    if(solution%lsolar_rad) then
+      call compute_edir_absorption(solver%plex, solution%edir, solution%abso)
+    endif
+    call compute_ediff_absorption(solver%plex, solution%ediff, solution%abso)
+
+    call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-show_abso', ierr); call CHKERR(ierr)
+  end subroutine
+
+  subroutine compute_edir_absorption(plex, edir, abso)
+    type(t_plexgrid), allocatable, intent(inout) :: plex
+    type(tVec), intent(in) :: edir
+    type(tVec), allocatable, intent(inout) :: abso
+
+    type(tVec) :: local_edir, local_abso
+
+    real(ireals), pointer :: xedir(:), xabso(:)
+
+    type(tPetscSection) :: abso_section, edir_section
+
+    integer(iintegers) :: cStart, cEnd
+    integer(iintegers) :: icell, iface
+    integer(iintegers),pointer :: faces_of_cell(:)
+    integer(mpiint) :: myid, ierr
+
+    type(tPetscSection) :: geomSection, wedgeSection
+    real(ireals), pointer :: geoms(:), wedgeorient(:) ! pointer to coordinates and orientation vec
+    integer(iintegers) :: geom_offset, abso_offset, edir_offset, wedge_offset
+
+    real(ireals) :: volume
+
+    logical :: lsrc ! is src or destination of solar beam
+
+    if(.not.allocated(plex)) stop 'called compute_edir_absorption but plex is not allocated'
+    call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
+
+    if(.not.allocated(plex%edir_dm)) call CHKERR(myid+1, 'called compute_edir_absorption with a dm which is not allocated?')
+    if(.not.allocated(plex%abso_dm)) call CHKERR(myid+1, 'called compute_edir_absorption with a dm which is not allocated?')
+    if(.not.allocated(abso)) call CHKERR(myid+1, 'called compute_edir_absorption with an unallocated abso vec')
+
+    if(ldebug) print *,'plex_rt::compute_edir_absorption....'
+
+    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+    call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+    call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+
+    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+
+    call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+
+    ! Now lets get vectors!
+
+    call DMGetLocalVector(plex%abso_dm, local_abso, ierr); call CHKERR(ierr)
+    call VecSet(local_abso, zero, ierr); call CHKERR(ierr)
+
+    call DMGetLocalVector(plex%edir_dm, local_edir, ierr); call CHKERR(ierr)
+    call VecSet(local_edir, zero, ierr); call CHKERR(ierr)
+    call DMGlobalToLocalBegin(plex%edir_dm, edir, INSERT_VALUES, local_edir, ierr); call CHKERR(ierr)
+    call DMGlobalToLocalEnd  (plex%edir_dm, edir, INSERT_VALUES, local_edir, ierr); call CHKERR(ierr)
+
+    call VecGetArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
+    call VecGetArrayF90(local_abso, xabso, ierr); call CHKERR(ierr)
+
+    do icell = cStart, cEnd-1
+
+      call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
+      volume = geoms(geom_offset+i4)
+
+      call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
+      xabso(abso_offset+i1) = zero
+
+      call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+
+      call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
+
+      do iface = 1, size(faces_of_cell)
+        lsrc = int(wedgeorient(wedge_offset+i8+iface), iintegers) .eq. i1
+
+        call PetscSectionGetOffset(edir_section, faces_of_cell(iface), edir_offset, ierr); call CHKERR(ierr)
+
+        if(lsrc) then ! sun is shining into this face
+          xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1)
         else
-          call ISGetIndicesF90(toa_ids, xitoa, ierr); call CHKERR(ierr)
-          iface = xitoa(1) ! first face of TOA faces
-
-          call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-          call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
-
-          face_center = geoms(geom_offset+1:geom_offset+3)
-          allocate(face_normal(3))
-          face_normal = geoms(geom_offset+4:geom_offset+6)
-
-          call DMPlexGetSupport(plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
-          icell = cell_support(1)
-          call DMPlexRestoreSupport(plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
-
-          call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
-          cell_center = geoms(1+geom_offset:3+geom_offset)
-
-          ! Determine the inward normal vec for the face
-          face_normal = face_normal * real(determine_normal_direction(face_normal, face_center, cell_center), kind=ireals)
-
-          call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-
-          call ISRestoreIndicesF90(toa_ids, xitoa, ierr); call CHKERR(ierr)
+          xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1)
         endif
+      enddo
+      call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+      xabso(abso_offset+i1) = xabso(abso_offset+i1) / volume
+    enddo
+
+    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
+    call VecRestoreArrayF90(local_abso, xabso, ierr); call CHKERR(ierr)
+
+    call DMRestoreLocalVector(plex%edir_dm, local_edir, ierr); call CHKERR(ierr)
+
+    call DMLocalToGlobalBegin(plex%abso_dm, local_abso, ADD_VALUES, abso, ierr); call CHKERR(ierr)
+    call DMLocalToGlobalEnd  (plex%abso_dm, local_abso, ADD_VALUES, abso, ierr); call CHKERR(ierr)
+
+    call DMRestoreLocalVector(plex%abso_dm, local_abso, ierr); call CHKERR(ierr)
+
+    call PetscObjectViewFromOptions(abso, PETSC_NULL_VEC, '-show_edir_abso', ierr); call CHKERR(ierr)
+    if(ldebug) print *,'plex_rt::compute_edir_absorption....finished'
+  end subroutine
+
+  subroutine compute_ediff_absorption(plex, ediff, abso)
+    type(t_plexgrid), allocatable, intent(inout) :: plex
+    type(tVec), intent(in) :: ediff
+    type(tVec), allocatable, intent(inout) :: abso
+
+    type(tVec) :: local_ediff, local_abso
+
+    real(ireals), pointer :: xediff(:), xabso(:)
+
+    type(tPetscSection) :: abso_section, ediff_section
+
+    integer(iintegers) :: cStart, cEnd
+    integer(iintegers) :: icell, iface
+    integer(mpiint) :: myid, ierr
+
+    integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
+
+    type(tPetscSection) :: geomSection
+    real(ireals), pointer :: geoms(:) ! pointer to coordinates and orientation vec
+    integer(iintegers) :: geom_offset, abso_offset
+
+    real(ireals) :: volume
+
+    if(.not.allocated(plex)) stop 'called compute_ediff_absorption but plex is not allocated'
+    call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
+
+    if(.not.allocated(plex%ediff_dm)) call CHKERR(myid+1, 'called compute_ediff_absorption with a dm which is not allocated?')
+    if(.not.allocated(plex%abso_dm)) call CHKERR(myid+1, 'called compute_ediff_absorption with a dm which is not allocated?')
+    if(.not.allocated(abso)) call CHKERR(myid+1, 'called compute_ediff_absorption with an unallocated abso vec')
+
+    if(ldebug) print *,'plex_rt::compute_ediff_absorption....'
+
+    call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+    call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+    call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+
+    call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+
+    ! Now lets get vectors!
+    call DMGetLocalVector(plex%abso_dm, local_abso, ierr); call CHKERR(ierr)
+
+    call DMGetLocalVector(plex%ediff_dm, local_ediff, ierr); call CHKERR(ierr)
+    call VecSet(local_ediff, zero, ierr); call CHKERR(ierr)
+    call DMGlobalToLocalBegin(plex%ediff_dm, ediff, INSERT_VALUES, local_ediff, ierr); call CHKERR(ierr)
+    call DMGlobalToLocalEnd  (plex%ediff_dm, ediff, INSERT_VALUES, local_ediff, ierr); call CHKERR(ierr)
+
+    call VecGetArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
+    call VecGetArrayF90(local_abso, xabso, ierr); call CHKERR(ierr)
+
+    do icell = cStart, cEnd-1
+
+      call determine_diff_incoming_outgoing_offsets(plex, plex%ediff_dm, icell, incoming_offsets, outgoing_offsets)
+
+      call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
+      volume = geoms(geom_offset+i4)
+
+      call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
+      xabso(i1+abso_offset) = zero
+
+      do iface = 1, size(incoming_offsets)
+        xabso(i1+abso_offset) = xabso(i1+abso_offset) + xediff(i1+incoming_offsets(iface))
+        xabso(i1+abso_offset) = xabso(i1+abso_offset) + xediff(i1+outgoing_offsets(iface))
+      enddo
+
+      xabso(abso_offset+i1) = xabso(abso_offset+i1) / volume
+    enddo
+
+    call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
+    call VecRestoreArrayF90(local_abso, xabso, ierr); call CHKERR(ierr)
+
+    call DMRestoreLocalVector(plex%ediff_dm, local_ediff, ierr); call CHKERR(ierr)
+
+    call DMLocalToGlobalBegin(plex%abso_dm, local_abso, ADD_VALUES, abso, ierr); call CHKERR(ierr)
+    call DMLocalToGlobalEnd  (plex%abso_dm, local_abso, ADD_VALUES, abso, ierr); call CHKERR(ierr)
+
+    call DMRestoreLocalVector(plex%abso_dm, local_abso, ierr); call CHKERR(ierr)
+
+    call PetscObjectViewFromOptions(abso, PETSC_NULL_VEC, '-show_ediff_abso', ierr); call CHKERR(ierr)
+    if(ldebug) print *,'plex_rt::compute_ediff_absorption....finished'
+  end subroutine
+
+
+  !> @brief renormalize fluxes with the size of a face(sides or lid)
+  subroutine scale_flx(solver, solution, lWm2)
+    class(t_plex_solver), intent(inout)   :: solver
+    type(t_state_container),intent(inout) :: solution  !< @param solution container with computed fluxes
+    logical,intent(in)                    :: lWm2      !< @param determines direction of scaling, if true, scale to W/m**2
+    integer(mpiint) :: ierr
+
+    if(solution%lsolar_rad) then
+      if(.not.allocated(solver%dir_scalevec_Wm2_to_W)) then
+        allocate(solver%dir_scalevec_Wm2_to_W)
+        call VecDuplicate(solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        call VecSet(solver%dir_scalevec_Wm2_to_W, one, ierr); call CHKERR(ierr)
+        call scale_facevec(solver%plex, solver%plex%edir_dm, solver%dir_scalevec_Wm2_to_W, lW_to_Wm2=.False.)
       endif
+      if(.not.allocated(solver%dir_scalevec_W_to_Wm2)) then
+        allocate(solver%dir_scalevec_W_to_Wm2)
+        call VecDuplicate(solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        call VecSet(solver%dir_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
+        call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
+          solver%dir_scalevec_W_to_Wm2, &
+          solver%dir_scalevec_W_to_Wm2, &
+          solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+      endif
+      if(solution%lWm2_dir .neqv. lWm2) then
+        if(lWm2) then
+          call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        else
+          call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        endif
+        solution%lWm2_dir = lWm2
+      endif
+    endif
 
-      call imp_bcast(plex%comm, face_normal, 0_mpiint)
-      get_normal_of_first_TOA_face = face_normal
+    if(.not.allocated(solver%diff_scalevec_Wm2_to_W)) then
+      allocate(solver%diff_scalevec_Wm2_to_W)
+      call VecDuplicate(solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+      call VecSet(solver%diff_scalevec_Wm2_to_W, one, ierr); call CHKERR(ierr)
+      call scale_facevec(solver%plex, solver%plex%ediff_dm, solver%diff_scalevec_Wm2_to_W, lW_to_Wm2=.False.)
+    endif
+    if(.not.allocated(solver%diff_scalevec_W_to_Wm2)) then
+      allocate(solver%diff_scalevec_W_to_Wm2)
+      call VecDuplicate(solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+      call VecSet(solver%diff_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
+      call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
+        solver%diff_scalevec_W_to_Wm2, &
+        solver%diff_scalevec_W_to_Wm2, &
+        solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+    endif
 
-    end function
+    if(solution%lWm2_diff .neqv. lWm2) then
+      if(lWm2) then
+        call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+      else
+        call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+      endif
+      solution%lWm2_diff = lWm2
+    endif
+  end subroutine
 end module

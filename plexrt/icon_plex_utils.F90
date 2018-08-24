@@ -6,7 +6,7 @@ module m_icon_plex_utils
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, zero, one, default_str_len
 
-  use m_helper_functions, only: chkerr, itoa, norm
+  use m_helper_functions, only: chkerr, itoa, norm, get_arg, imp_bcast
 
   use m_plex_grid, only: print_dmplex, create_plex_section
 
@@ -15,7 +15,9 @@ module m_icon_plex_utils
   implicit none
 
   private
-  public :: dmplex_2D_to_3D, create_2d_fish_plex, dump_ownership, gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl
+  public :: dmplex_2D_to_3D, create_2d_fish_plex, dump_ownership, &
+    gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl, &
+    icon_ncvec_to_plex
 
   !logical, parameter :: ldebug=.True.
   logical, parameter :: ldebug=.False.
@@ -731,8 +733,8 @@ module m_icon_plex_utils
       endif
 
       call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
-      !call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
-      call DMPlexSetAdjacencyUseClosure(dm, PETSC_True, ierr); call CHKERR(ierr)
+      call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
+      !call DMPlexSetAdjacencyUseClosure(dm, PETSC_True, ierr); call CHKERR(ierr)
 
       call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
       if(dmdist.ne.PETSC_NULL_DM) then
@@ -940,13 +942,12 @@ module m_icon_plex_utils
         end subroutine
       end subroutine
 
-    subroutine gen_2d_plex_from_icongridfile(comm, gridfile, dm, cell_ao_2d)
+    subroutine gen_2d_plex_from_icongridfile(comm, gridfile, dm, dmdist, migration_sf, cell_ao_2d)
       integer(mpiint), intent(in) :: comm
       character(len=*), intent(in) :: gridfile
-      type(tDM), intent(out) :: dm
+      type(tDM), intent(out) :: dm, dmdist
+      type(tPetscSF), intent(out) :: migration_sf
       type(AO), allocatable, intent(out), optional :: cell_ao_2d
-
-      type(tDM) :: dmdist
 
       integer(iintegers) :: Nfaces, Nedges, Nverts ! number of entries in base icon grid
       integer(iintegers), allocatable :: cell_index(:)
@@ -1043,15 +1044,12 @@ module m_icon_plex_utils
       endif
 
       call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
-      !call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
-      call DMPlexSetAdjacencyUseClosure(dm, PETSC_True, ierr); call CHKERR(ierr)
+      call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
 
-      call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
-      if(dmdist.ne.PETSC_NULL_DM) then
-        call DMDestroy(dm, ierr); call CHKERR(ierr)
-        dm = dmdist
-      endif
+      call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
 
+      call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
+        '-show_migration_sf', ierr); call CHKERR(ierr)
       contains
         subroutine set_coords()
           real(ireals),pointer :: coords(:)
@@ -1109,5 +1107,98 @@ module m_icon_plex_utils
           call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
           call VecDestroy(coordinates, ierr);call CHKERR(ierr)
         end subroutine
+    end subroutine
+
+    subroutine icon_ncvec_to_plex(dm2d_serial, dm2d_parallel, migration_sf, &
+        filename, varname, gVec, timeidx, dm3d)
+      type(tDM), intent(in) :: dm2d_serial, dm2d_parallel
+      type(tPetscSF), intent(in) :: migration_sf
+      character(len=*), intent(in) :: filename, varname
+      type(tVec), allocatable, intent(inout) :: gvec
+      integer(iintegers), intent(in), optional :: timeidx
+      type(tDM), optional :: dm3d
+
+      type(tVec) :: rank0vec, newVec
+      type(tPetscSection) :: rank0section, newSection, dm3dSection
+
+      real(ireals), allocatable :: arr(:,:)
+      real(ireals), allocatable :: arr3d(:,:,:)
+      character(len=default_str_len) :: ncgroups(2)
+
+      real(ireals), pointer :: xloc(:)
+
+      integer(iintegers) :: i, k, voff, ke
+
+      integer(mpiint) :: comm, myid, ierr
+
+      if(allocated(gVec)) call CHKERR(1_mpiint, 'gVec already allocated')
+
+      call PetscObjectGetComm(dm2d_serial, comm, ierr); call CHKERR(ierr)
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+      if(myid.eq.0) then
+        ncgroups(1) = trim(filename)
+        ncgroups(2) = trim(varname)
+        if(ldebug) print *,'plex_grid::ncvar2d_to_globalvec : Loading file ', trim(ncgroups(1)), ':', trim(ncgroups(2))
+        call ncload(ncgroups, arr, ierr)
+        if(ierr.ne.0) then !try to load 3D data
+          call ncload(ncgroups, arr3d, ierr); call CHKERR(ierr, 'Could not load Data from NetCDF')
+
+          k = get_arg(i1, timeidx)
+          if(k.lt.i1 .or. k.gt.ubound(arr3d,3)) &
+            call CHKERR(1_mpiint, 'invalid time index, shape of arr:' &
+            //itoa(size(arr3d,1))//itoa(size(arr3d,2))//itoa(size(arr3d,3)))
+
+          allocate(arr(size(arr3d,1), size(arr3d,2)), source=arr3d(:,:,k))
+          deallocate(arr3d)
+        endif
+        ke = size(arr, dim=2)
+      endif ! rank 0
+      call imp_bcast(comm, ke, 0_mpiint); call CHKERR(ierr)
+
+      call create_plex_section(dm2d_serial, 'face_section', i1, [i0], [ke], [i0], [i0], rank0section)
+      call DMSetSection(dm2d_serial, rank0section, ierr); call CHKERR(ierr)
+
+      call DMGetGlobalVector(dm2d_serial, rank0vec, ierr); call CHKERR(ierr)
+
+      if(myid.eq.0) then
+        call VecGetArrayF90(rank0Vec, xloc,ierr); call CHKERR(ierr)
+        do i = 0, size(arr, dim=1)-1
+          call PetscSectionGetOffset(rank0Section, i, voff, ierr); call CHKERR(ierr)
+          do k = 0, size(arr, dim=2)-1
+            xloc(i1+voff+k) = arr(i1+i, i1+k)
+          enddo
+        enddo
+        call VecRestoreArrayF90(rank0Vec, xloc,ierr) ;call CHKERR(ierr)
+      endif ! rank 0
+
+      !call create_plex_section(dm2d_parallel, 'face_section', i1, [i0], [ke], [i0], [i0], newsection)
+      !call DMSetSection(dm2d_parallel, newsection, ierr); call CHKERR(ierr)
+      !call DMCreateGlobalVector(dm2d_parallel, newVec, ierr); call CHKERR(ierr)
+      call PetscSectionCreate(comm, newSection, ierr); call CHKERR(ierr)
+      call VecCreate(PETSC_COMM_SELF, newVec, ierr); call CHKERR(ierr)
+
+      call DMPlexDistributeField(dm2d_serial, migration_sf, rank0section, rank0vec, newsection, newVec, ierr); call CHKERR(ierr)
+
+      call DMRestoreGlobalVector(dm2d_serial, rank0vec, ierr); call CHKERR(ierr)
+      call PetscSectionDestroy(rank0section, ierr); call CHKERR(ierr)
+
+      allocate(gVec)
+      if(present(dm3d)) then
+        call create_plex_section(dm3d, 'cell_section', i1, [i1], [i0], [i0], [i0], dm3dSection)
+        call DMSetSection(dm3d, dm3dSection, ierr); call CHKERR(ierr)
+        call DMCreateGlobalVector(dm3d, gVec, ierr); call CHKERR(ierr)
+        call PetscObjectSetName(gvec, 'VecfromNC_'//trim(varname), ierr);call CHKERR(ierr)
+        call VecCopy(newVec, gVec, ierr); call CHKERR(ierr)
+        call PetscSectionDestroy(dm3dSection, ierr); call CHKERR(ierr)
+      else
+        call DMSetSection(dm2d_parallel, newsection, ierr); call CHKERR(ierr)
+        call VecDuplicate(newVec, gVec, ierr); call CHKERR(ierr)
+        call PetscObjectSetName(gvec, 'VecfromNC_'//trim(varname), ierr);call CHKERR(ierr)
+        call VecCopy(newVec, gVec, ierr); call CHKERR(ierr)
+      endif
+      call VecDestroy(newVec, ierr); call CHKERR(ierr)
+      call PetscSectionDestroy(newsection, ierr); call CHKERR(ierr)
+
     end subroutine
 end module
