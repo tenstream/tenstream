@@ -133,8 +133,8 @@ contains
     !   edn(ubound(edn,1)-nlay_dynamics : ubound(edn,1) )
     ! or:
     !   abso(ubound(abso,1)-nlay_dynamics+1 : ubound(abso,1) )
-    real(ireals),allocatable, dimension(:,:,:), intent(out) :: edir, edn, eup  ! [nlyr+1, local_nx, local_ny ]
-    real(ireals),allocatable, dimension(:,:,:), intent(out) :: abso            ! [nlyr  , local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:), intent(inout) :: edir, edn, eup  ! [nlyr+1, local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:,:,:), intent(inout) :: abso            ! [nlyr  , local_nx, local_ny ]
 
     ! ---------- end of API ----------------
 
@@ -179,10 +179,13 @@ contains
       "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
     if(.not.lflg) lrrtmg_only=.False. ! by default use normal tenstream solver
 
-    ! Allocate space for results -- for integrated values and for temporary spectral integration...
-    allocate(edn (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym), source=zero)
-    allocate(eup (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym), source=zero)
-    allocate(abso(solver%C_one%zm , solver%C_one%xm , solver%C_one%ym ), source=zero)
+    ! Allocate space for results -- for integrated values...
+    if(.not.allocated(edn )) allocate(edn (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
+    if(.not.allocated(eup )) allocate(eup (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
+    if(.not.allocated(abso)) allocate(abso(solver%C_one%zm , solver%C_one%xm , solver%C_one%ym ))
+    edn = zero
+    eup = zero
+    abso= zero
 
     if(lthermal) then
       call compute_thermal(solver, atm, ie, je, ke, ke1, &
@@ -191,7 +194,8 @@ contains
     endif
 
     if(lsolar) then
-      allocate(edir (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym), source=zero)
+      if(.not.allocated(edir)) allocate(edir (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
+      edir = zero
       call compute_solar(solver, atm, ie, je, ke, &
         phi0, theta0, albedo_solar, &
         edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
