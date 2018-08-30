@@ -20,7 +20,7 @@ foreach ( plex_ex ${plex_examples} )
   GET_FILENAME_COMPONENT(basename "${plex_ex}" NAME_WE )
 
   add_executable("${basename}" "${basename}.F90" )
-  target_link_libraries( "${basename}" plexrt pprts_base)
+  target_link_libraries( "${basename}" plexrt pprts_base pprts_rrtmg  pprts_rrtm_lw  pprts_rrtm_sw)
 
   install(TARGETS ${basename} RUNTIME DESTINATION bin)
 endforeach ()

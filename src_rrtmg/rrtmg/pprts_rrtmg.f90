@@ -453,8 +453,8 @@ contains
             atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
             atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
             atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-            atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq, &
-            atm%iwc(:,icol)*atm%dz(:,icol), atm%reice, &
+            atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq(:,icol), &
+            atm%iwc(:,icol)*atm%dz(:,icol), atm%reice(:,icol), &
             ptau, pw0, pg, &
             pEup, pEdn, pabso)
 
@@ -478,8 +478,8 @@ contains
             atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
             atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
             atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-            atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq, &
-            atm%iwc(:,icol)*atm%dz(:,icol), atm%reice, &
+            atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq(:,icol), &
+            atm%iwc(:,icol)*atm%dz(:,icol), atm%reice(:,icol), &
             ptau, pw0, pg)
 
           tau(:,i,j,:) = ptau(:,i1,:)

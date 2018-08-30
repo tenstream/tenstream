@@ -1694,11 +1694,7 @@ module m_pprts
 
     99 continue ! this is the quick exit final call where we clean up before the end of the routine
 
-    if(present(opt_solution_time) ) then
-      call restore_solution(solver, solutions(uid),opt_solution_time)
-    else
-      call restore_solution(solver, solutions(uid))
-    endif
+    call restore_solution(solver, solutions(uid), opt_solution_time)
     call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_solve_pprts
 
     end associate
@@ -1950,7 +1946,7 @@ module m_pprts
     end subroutine
   end subroutine
 
-  subroutine restore_solution(solver, solution,time)
+  subroutine restore_solution(solver, solution, time)
     ! restore_solution:: if flux have changed, we need to update absorption, save the residual history
     class(t_solver)         :: solver
     type(t_state_container) :: solution

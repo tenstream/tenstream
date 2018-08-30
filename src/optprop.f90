@@ -25,12 +25,13 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, coeff_mode
-use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx
+use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad
 use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_wedge_5_8
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
+use m_eddington, only: eddington_coeff_zdun
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 
@@ -140,9 +141,9 @@ contains
       end select
   end subroutine
 
-  subroutine wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, wedge_coords)
+  subroutine wedge_lut_call(OPP, tauz, w0, g, aspect_zx, ldir, C, angles, wedge_coords)
     class(t_optprop)                  :: OPP
-    logical,intent(in)                :: dir
+    logical,intent(in)                :: ldir
     real(ireals),intent(in)           :: tauz, w0, g, aspect_zx
     real(ireals),intent(in),optional  :: angles(:)
     real(ireals),intent(in),optional  :: wedge_coords(:)       ! 6 coordinates of wedge triangle, only used for wedge OPP types, have to be in local coords already (i.e. A=[0,0], B=[0,1], C=[...]
@@ -153,7 +154,7 @@ contains
 
     if(compute_coeff_online) then
       call setup_default_wedge_geometry( wedge_coords(1:2), wedge_coords(3:4), wedge_coords(5:6), aspect_zx, vertices)
-      call get_coeff_bmc(OPP, vertices, tauz, w0, g, dir, C, angles)
+      call get_coeff_bmc(OPP, vertices, tauz, w0, g, ldir, C, angles)
       return
     endif
 
@@ -169,8 +170,11 @@ contains
       endif
       if(wedge_coords(5).lt.0.35_ireals .or. wedge_coords(5).gt.0.65_ireals) &
         call CHKERR(1_mpiint, 'wedge_coords(5) is outside the range we expected... take care of it somehow, do some magic! '//ftoa(wedge_coords(5)))
-      call check_inp(OPP, tauz, w0, g, aspect_zx, dir, C, angles)
+      call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, angles)
     endif
+
+
+    if(handle_aspect_zx_1D_case()) return
 
     associate( C_pnt => wedge_coords(5:6) )
 
@@ -179,7 +183,7 @@ contains
       case(i0) ! LookUpTable Mode
 
         if(present(angles)) then ! obviously we want the direct coefficients
-          if(dir) then ! dir2dir
+          if(ldir) then ! dir2dir
             call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
           else         ! dir2diff
             call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
@@ -194,6 +198,49 @@ contains
       end select
     end associate
 
+    contains
+      logical function handle_aspect_zx_1D_case()
+        real(ireals) :: c11,c12,c13,c23,c33,g1,g2
+        logical :: l1d
+
+        handle_aspect_zx_1D_case = .False.
+
+        !TODO: here we may have incoming radiation at the sides and we just drop that
+        ! this has to be fixed for anisotropic grids
+
+        if(present(angles)) then
+          l1d = aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1) &
+            .or.aspect_zx.gt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(2)
+
+          if(l1d) then
+            call eddington_coeff_zdun(tauz, w0, zero, cos(deg2rad(angles(2))), &
+              c11,c12,c13,c23,c33,g1,g2)
+            C(:) = zero
+            if(ldir) then
+              C(21) = c33
+            else
+              C(1) = c13
+              C(7*5+1) = c23
+            endif
+            handle_aspect_zx_1D_case = .True.
+          endif
+        else
+          l1d = aspect_zx.lt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(1) &
+            .or.aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)
+
+          if(l1d) then
+            call eddington_coeff_zdun(tauz, w0, zero, zero, &
+              c11,c12,c13,c23,c33,g1,g2)
+            C(:) = zero
+            C(1) = c12
+            C(8) = c11
+            C(8*7+1) = c11
+            C(8*7+8) = c12
+
+            handle_aspect_zx_1D_case = .True.
+          endif
+        endif
+      end function
   end subroutine
 
   subroutine boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)

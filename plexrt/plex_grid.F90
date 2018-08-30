@@ -2397,7 +2397,7 @@ module m_plex_grid
           if(neigh_cells(i).lt.i0) cycle
           if(any(neigh_cells(i).eq.idx(max(i1,[k-i1, k-i2])))) cycle ! already have this neigh cell in index set
           if(ldebug) then
-            if(k.gt.idx_maxsize) call CHKERR(int(k, mpiint), 'found more cells than we space to store in idx('//itoa(idx_maxsize)//')')
+            if(k.gt.idx_maxsize) call CHKERR(int(k, mpiint), 'found more cells than we have space to store in idx('//itoa(idx_maxsize)//')')
             !print *,'Adding new cell ', neigh_cells(i), '=>', idx
           endif
           idx(k) = neigh_cells(i)
@@ -2577,9 +2577,7 @@ module m_plex_grid
 
       if(myid.eq.0) then
         if(.not.allocated(plex%geom_dm)) stop 'get_normal_of_first_TOA_face::needs allocated geom_dm first'
-        call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
-        !call VecGetArrayReadF90(plex%geomVec, geoms, ierr); CHKERRQ(ierr)
-        !call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); CHKERRQ(ierr)
+        call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
         call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
 
         if (toa_ids.eq.PETSC_NULL_IS) then ! dont have TOA points

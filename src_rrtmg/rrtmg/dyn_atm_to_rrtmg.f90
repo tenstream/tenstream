@@ -29,7 +29,7 @@ module m_dyn_atm_to_rrtmg
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
 
   use m_data_parameters, only : iintegers, mpiint, ireals, default_str_len, &
-    zero, i1, i2, i9
+    zero, i1, i2, i9, init_mpi_data_parameters
 
   use m_helper_functions, only: CHKERR, search_sorted_bisection, reverse, &
     imp_allreduce_min, imp_allreduce_max, meanvec, imp_bcast, read_ascii_file_2d, &
@@ -50,7 +50,10 @@ module m_dyn_atm_to_rrtmg
 
   interface hydrostat_dz
     module procedure hydrostat_dz_real32, hydrostat_dz_real64
-    end interface
+  end interface
+  interface hydrostat_dp
+    module procedure hydrostat_dp_real32, hydrostat_dp_real64
+  end interface
 
     type t_bg_atm
       real(ireals),allocatable :: plev   (:) ! dim(nlay+1 of background profile)
@@ -141,6 +144,8 @@ module m_dyn_atm_to_rrtmg
       integer(iintegers) :: icol
 
       if(lTOA_to_srfc) call CHKERR(1_mpiint, 'currently not possible to supply dynamics input starting at the TOP, input should be starting at the surface')
+
+      call init_mpi_data_parameters(comm)
 
       if(.not.allocated(atm%bg_atm)) then
         call load_atmfile(comm, atm_filename, atm%bg_atm)
@@ -642,8 +647,7 @@ module m_dyn_atm_to_rrtmg
       ! Integrate vertical height profile hydrostatically. arrays start at bottom(surface)
       real(ireals),intent(in) :: plev(:),tlay(:)
       real(ireals),intent(in) :: hsrfc
-      real(ireals),intent(out) :: hhl(size(plev))
-      real(ireals),intent(out) :: dz(size(tlay))
+      real(ireals),intent(out) :: hhl(:), dz(:)
       integer(im) :: k
       hhl(1) = hsrfc
       do k=1,size(tlay)
@@ -656,6 +660,40 @@ module m_dyn_atm_to_rrtmg
         print *,'dz',dz
         print *,'hhl',hhl
         stop 'error in dz'
+      endif
+    end subroutine
+
+    pure elemental function hydrostat_dp_real32(dz, p, T)
+      real(REAL32), intent(in) :: dz, p, T
+      real(REAL32) :: hydrostat_dp_real32, rho
+      rho = p / 287.058_REAL32 / T
+      hydrostat_dp_real32 = dz * rho * 9.8065_REAL32
+    end function
+    pure elemental function hydrostat_dp_real64(dz, p, T)
+      real(REAL64), intent(in) :: dz, p, T
+      real(REAL64) :: hydrostat_dp_real64, rho
+      rho = p / 287.058_REAL64 / T
+      hydrostat_dp_real64 = dz * rho * 9.8065_REAL64
+    end function
+
+    subroutine hydrostat_plev(psrfc, tlay, hhl, plev, dp)
+      ! Integrate vertical height profile hydrostatically. arrays start at bottom(surface)
+      real(ireals),intent(in) :: psrfc, tlay(:), hhl(:)
+      real(ireals),intent(out) :: plev(:), dp(:)
+      integer(im) :: k
+      plev(1:2) = psrfc
+      dp(1) = zero
+      do k=1,size(tlay)
+        dp(k) = hydrostat_dp(abs(hhl(k+1)-hhl(k)), plev(k)-dp(max(1,k-1))/2, tlay(k))
+        plev(k+1) = plev(k) - dp(k)
+      enddo
+      if(any(dp.le.zero)) then
+        do k = 1, size(tlay)
+          print *,'k', k, 'hhl',hhl(k), 'plev',plev(k), 'tlay',tlay(k), 'dp',dp(k)
+        enddo
+        k = size(hhl)
+        print *,'k', k, 'hhl', hhl(k), 'plev', plev(k)
+        stop 'error in dp'
       endif
     end subroutine
 
