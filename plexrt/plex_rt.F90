@@ -38,8 +38,13 @@ module m_plex_rt
     type(t_plexgrid), allocatable :: plex
     class(t_optprop), allocatable :: OPP
 
-    type(tVec), allocatable :: kabs, ksca, g ! in each cell [pStart..pEnd-1]
-    type(tVec), allocatable :: albedo        ! on each surface face [defined on plex%srfc_boundary_dm]
+    type(tVec), allocatable :: kabs, ksca, g       ! in each cell [pStart..pEnd-1]
+    type(tVec), allocatable :: albedo              ! on each surface face [defined on plex%srfc_boundary_dm]
+
+    type(tVec), allocatable :: plck ! Planck Radiation in cell in each cell [W] [pStart..pEnd-1]
+    ! srfc_emission is needed if plck is allocated:
+    ! defined as planck(T_srfc) [plex%srfc_boundary_dm]
+    type(tVec), allocatable :: srfc_emission
 
     type(t_state_container) :: solutions(-1000:1000)
 
@@ -92,6 +97,7 @@ module m_plex_rt
       if(allocated(solver%kabs)) deallocate(solver%kabs)
       if(allocated(solver%ksca)) deallocate(solver%ksca)
       if(allocated(solver%g   )) deallocate(solver%g   )
+      if(allocated(solver%plck)) deallocate(solver%plck)
 
       if(allocated(solver%Mdir)) then
         call MatDestroy(solver%Mdir, ierr); call CHKERR(ierr)
@@ -211,8 +217,9 @@ module m_plex_rt
       call VecRestoreArrayF90(solver%g   , xg   , ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine run_plex_rt_solver(solver, sundir, opt_solution_uid, opt_solution_time)
+    subroutine run_plex_rt_solver(solver, lthermal, lsolar, sundir, opt_solution_uid, opt_solution_time)
       type(t_plex_solver), allocatable, intent(inout) :: solver
+      logical, intent(in) :: lthermal, lsolar
       real(ireals), intent(in) :: sundir(3) ! cartesian direction of sun rays, norm of vector is the energy in W/m2
       integer(iintegers), intent(in), optional :: opt_solution_uid
       real(ireals), intent(in), optional :: opt_solution_time
@@ -232,6 +239,10 @@ module m_plex_rt
       if(.not.allocated(solver%ksca  )) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
       if(.not.allocated(solver%g     )) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
       if(.not.allocated(solver%albedo)) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, albedo has to be allocated first')
+      if(lthermal) then
+        if(.not.allocated(solver%plck)) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, planck radiation vec has to be allocated first')
+        if(.not.allocated(solver%srfc_emission)) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, srfc emission vec has to be allocated first')
+      endif
 
       if(.not.allocated(solver%plex%geom_dm))  call compute_face_geometry(solver%plex, solver%plex%geom_dm)
       if(.not.allocated(solver%plex%edir_dm))  call setup_edir_dmplex(solver%plex, solver%plex%edir_dm)
@@ -243,15 +254,18 @@ module m_plex_rt
 
       if(.not.solver%solutions(suid)%lset) then
         call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
-          lsolar=norm(sundir).gt.zero, solution=solver%solutions(suid))
+          lsolar=lsolar, solution=solver%solutions(suid))
       endif
+
+
+      ! Wedge Orientation is used in solar and thermal case alike
+      call orient_face_normals_along_sundir(solver%plex, sundir)
+      call compute_wedge_orientation(solver%plex, sundir, solver%plex%wedge_orientation_dm, &
+                                     solver%plex%wedge_orientation)
 
       associate( solution => solver%solutions(suid) )
 
       if(solution%lsolar_rad) then
-        call orient_face_normals_along_sundir(solver%plex, sundir)
-        call compute_wedge_orientation(solver%plex, sundir, solver%plex%wedge_orientation_dm, &
-                                       solver%plex%wedge_orientation)
         ! Output of wedge_orient vec
         call create_edir_src_vec(solver%plex, solver%plex%edir_dm, norm(sundir), &
                                  solver%kabs, solver%ksca, &
@@ -284,8 +298,8 @@ module m_plex_rt
       endif
 
       call create_ediff_src_vec(solver%plex, solver%OPP, solver%plex%ediff_dm, &
-        solver%kabs, solver%ksca, solver%g, solver%albedo, solver%diffsrc, &
-        solver%plex%edir_dm, solution%edir)
+        solver%kabs, solver%ksca, solver%g, solver%plck, solver%albedo, solver%srfc_emission, &
+        solver%diffsrc, solver%plex%edir_dm, solution%edir)
 
       ! Output of Diffuse Src Vec
       if(ldebug) then
@@ -464,17 +478,17 @@ module m_plex_rt
     !> \n or it may be that we have a source term due to thermal emission --
     !> \n   to determine emissivity of box, we use the forward transport coefficients backwards
     !> \n   a la: transmissivity $T = \sum(coeffs)$ and therefore emissivity $E = 1 - T$
-    subroutine create_ediff_src_vec(plex, OPP, ediffdm, kabs, ksca, g, albedo, srcVec, &
-        edirdm, edirVec, celldm, planckVec)
+    subroutine create_ediff_src_vec(plex, OPP, ediffdm, kabs, ksca, g, plckVec, &
+      albedo, srfc_emission, srcVec, edirdm, edirVec)
       type(t_plexgrid), intent(in) :: plex
       class(t_optprop), intent(in) :: OPP
       type(tDM), allocatable, intent(in) :: ediffdm
-      type(tVec), allocatable, intent(in) :: kabs, ksca, g ! cell1_dm
-      type(tVec), allocatable, intent(in) :: albedo        ! srfc_boundary_dm
+      type(tVec), allocatable, intent(in) :: kabs, ksca, g, plckVec ! cell1_dm
+      type(tVec), allocatable, intent(in) :: albedo, srfc_emission  ! srfc_boundary_dm
       type(tVec), allocatable, intent(inout) :: srcVec
 
-      type(tDM), allocatable, intent(in), optional :: edirdm, celldm
-      type(tVec), allocatable, intent(in), optional :: edirVec, planckVec
+      type(tDM), allocatable, intent(in), optional :: edirdm
+      type(tVec), allocatable, intent(in), optional :: edirVec
 
       type(tVec) :: lsrcVec
 
@@ -483,7 +497,6 @@ module m_plex_rt
       real(ireals), pointer :: wedgeorient(:) ! pointer to orientation vec
 
       real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
-      real(ireals), pointer :: xalbedo(:)
 
       real(ireals), pointer :: xb(:)
 
@@ -508,7 +521,6 @@ module m_plex_rt
       call VecGetArrayReadF90(kabs  , xkabs  , ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(ksca  , xksca  , ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(g     , xg     , ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
 
       call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
@@ -527,7 +539,6 @@ module m_plex_rt
       call VecRestoreArrayReadF90(kabs  , xkabs  , ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(ksca  , xksca  , ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(g     , xg     , ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
 
       call VecSet(srcVec, zero, ierr); call CHKERR(ierr)
       call DMLocalToGlobalBegin(ediffdm, lsrcVec, ADD_VALUES, srcVec, ierr); call CHKERR(ierr)
@@ -556,6 +567,8 @@ module m_plex_rt
           real(ireals) :: dz, coeff(5*8)
 
           integer(mpiint) :: myid
+
+          if(.not.allocated(edirVec)) return
 
           call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
           if(any([present(edirdm),present(edirVec)]).and. &
@@ -627,6 +640,9 @@ module m_plex_rt
           type(tIS) :: srfc_ids
           integer(iintegers), pointer :: xi(:)
           integer(iintegers) :: i, iface, offset_Eup, offset_Edir, offset_srfc
+          real(ireals), pointer :: xalbedo(:)
+
+          call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
 
           call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
           if (srfc_ids.eq.PETSC_NULL_IS) then ! dont have surface points
@@ -648,22 +664,146 @@ module m_plex_rt
             enddo
             call ISRestoreIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
           endif
+          call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+
         end subroutine
 
         subroutine set_thermal_source()
-          real(ireals), pointer :: xplanck(:)
-          if(any([present(celldm),present(planckVec)]).and. &
-            .not.all([present(celldm),present(planckVec)])) &
-            call CHKERR(1_mpiint, 'either provide all vars for thermal radiation or none')
+          type(tVec) :: thermal_src_vec
+          real(ireals), pointer :: xplanck(:), xsrc(:)
+          real(ireals) :: diff2diff(8), emissivity
 
-          if(.not.present(planckVec)) return
+          integer(iintegers), pointer :: faces_of_cell(:)
+          integer(iintegers) :: face_plex2bmc(5)
+          integer(iintegers) :: diff_plex2bmc(8)
+          integer(iintegers) :: geom_offset, wedge_offset, face_offset
 
-          call VecGetArrayF90(planckVec, xplanck, ierr); call CHKERR(ierr)
+          integer(iintegers) :: i, idof, zindex, icell, icol, iface, num_dof
+          integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
+          real(ireals) :: area, dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
 
-          call CHKERR(1_mpiint, 'TODO: thermal src term not yet implemented')
-          xb(:) = xb(:) + xplanck(1)
 
-          call VecRestoreArrayF90(planckVec, xplanck, ierr); call CHKERR(ierr)
+          if(.not.allocated(plckVec)) return
+
+          call DMGetLocalVector(ediffdm, thermal_src_vec, ierr); call CHKERR(ierr)
+          call VecSet(thermal_src_vec, zero, ierr); call CHKERR(ierr)
+          call VecGetArrayF90(thermal_src_vec, xsrc, ierr); call CHKERR(ierr)
+
+          call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
+
+          do icell = plex%cStart, plex%cEnd-1
+
+            call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+            call determine_diff_incoming_outgoing_offsets(plex, plex%ediff_dm, icell, incoming_offsets, outgoing_offsets)
+
+            call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
+
+            do iface = 1, size(faces_of_cell)
+              face_plex2bmc(int(wedgeorient(wedge_offset+i3+iface), iintegers)) = iface
+            enddo
+            call face_idx_to_diff_bmc_idx(face_plex2bmc, diff_plex2bmc)
+
+            zindex = plex%zindex(icell)
+            dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+
+            call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
+              dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff)
+
+            do i = 1, size(outgoing_offsets)
+              icol = outgoing_offsets(i)
+
+              ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
+              diff2diff = coeff(diff_plex2bmc(i):size(coeff):i8)
+
+              emissivity = one - sum(diff2diff)
+              print *,'icell', icell, ' iface', i, 'col', icol, 'emis', emissivity, 'B', xplanck(i1+icell) * pi
+
+              xsrc(i1+icol) = xplanck(i1+icell) * pi * emissivity
+            enddo
+          enddo ! icell
+          call VecRestoreArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
+
+          call thermal_srfc_emission(xsrc)
+          call thermal_horizontal_boundary_mirror(xsrc)
+
+          ! Scaling from [W/m2] to Energy [W]
+          do iface = plex%fStart, plex%fEnd-1
+            call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
+            area = geoms(geom_offset+i7)
+
+            call PetscSectionGetOffset(ediffSection, iface, face_offset, ierr); call CHKERR(ierr)
+            call PetscSectionGetDof(ediffSection, iface, num_dof, ierr); call CHKERR(ierr)
+            do idof = 1, num_dof
+              xsrc(face_offset+idof) = xsrc(face_offset+idof) * area
+            enddo
+          enddo
+
+          xb = xb + xsrc
+
+          call VecRestoreArrayF90(thermal_src_vec, xsrc, ierr); call CHKERR(ierr)
+          call DMRestoreLocalVector(ediffdm, thermal_src_vec, ierr); call CHKERR(ierr)
+        end subroutine
+
+        subroutine thermal_srfc_emission(xsrc)
+          real(ireals), pointer :: xsrc(:)
+          real(ireals), pointer :: xalbedo(:), xsrfc_emission(:)
+          type(tIS) :: srfc_ids
+          integer(iintegers), pointer :: xi(:)
+          integer(iintegers) :: i, iface, offset_Eup, offset_srfc
+
+          if(.not.allocated(srfc_emission)) &
+            call CHKERR(1_mpiint, 'srfc emission has to be allocated to compute thermal radiation')
+          call VecGetArrayReadF90(srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
+
+          call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+          call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
+          if (srfc_ids.eq.PETSC_NULL_IS) then ! dont have surface points
+          else
+            call ISGetIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
+            do i = 1, size(xi)
+              iface = xi(i)
+              ! field offset for field 0 gives Eup because field 0 is flux from lower cell id to higher cell id
+              ! in case of boundary faces: from cell_id -1 (boundary face) to some icell
+              call PetscSectionGetFieldOffset(ediffSection, iface, i0, offset_Eup, ierr); call CHKERR(ierr)
+
+              call PetscSectionGetOffset(srfcSection, iface, offset_srfc, ierr); call CHKERR(ierr)
+
+              xsrc(i1+offset_Eup) = xsrfc_emission(i1+offset_srfc) * (one-xalbedo(i1+offset_srfc)) * pi
+            enddo
+            call ISRestoreIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
+          endif
+
+          call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+          call VecRestoreArrayReadF90(srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
+        end subroutine
+
+        subroutine thermal_horizontal_boundary_mirror(xsrc)
+          real(ireals), pointer :: xsrc(:)
+          type(tIS) :: bc_ids
+          integer(iintegers), pointer :: xi(:)
+          integer(iintegers) :: i, idof, iface, offset_Ein, offset_Eout, numDof, offset_srfc
+
+          call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', SIDEFACE, bc_ids, ierr); call CHKERR(ierr)
+          if (bc_ids.eq.PETSC_NULL_IS) then ! dont have boundary points
+          else
+            call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
+            do i = 1, size(xi)
+              iface = xi(i)
+              ! field offset for field 0 gives Eup because field 0 is flux from lower cell id to higher cell id
+              ! in case of boundary faces: from cell_id -1 (boundary face) to some icell
+              call PetscSectionGetFieldOffset(ediffSection, iface, i0, offset_Ein, ierr); call CHKERR(ierr)
+              call PetscSectionGetFieldOffset(ediffSection, iface, i1, offset_Eout, ierr); call CHKERR(ierr)
+              call PetscSectionGetFieldDof(ediffSection, iface, i0, numDof, ierr); call CHKERR(ierr)
+
+              call PetscSectionGetOffset(srfcSection, iface, offset_srfc, ierr); call CHKERR(ierr)
+
+              do idof = 1, numDof
+                xsrc(offset_Ein+idof) = xsrc(offset_Eout+idof) ! mirror the outgoing emission
+              enddo
+            enddo
+            call ISRestoreIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
+          endif
+
         end subroutine
       end subroutine
 

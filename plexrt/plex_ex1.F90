@@ -47,7 +47,7 @@ module m_mpi_plex_ex1
 
       call print_dmplex(plex%comm, plex%edir_dm)
 
-      call run_plex_rt_solver(solver, sundir)
+      call run_plex_rt_solver(solver, lthermal=.False., lsolar=.True., sundir=sundir)
 
       !call PetscObjectViewFromOptions(edir, PETSC_NULL_VEC, '-show_edir', ierr); call CHKERR(ierr)
 

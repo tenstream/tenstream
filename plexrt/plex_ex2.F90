@@ -93,7 +93,7 @@ logical, parameter :: ldebug=.True.
       endif
       call VecSet(solver%albedo, Ag, ierr); call CHKERR(ierr)
 
-      call run_plex_rt_solver(solver, sundir)
+      call run_plex_rt_solver(solver, lthermal=.False., lsolar=.True., sundir=sundir)
       call destroy_plexrt_solver(solver, lfinalizepetsc=.False.)
     end subroutine
 
