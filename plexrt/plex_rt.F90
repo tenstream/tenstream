@@ -742,10 +742,9 @@ module m_plex_rt
             do i = 1, size(outgoing_offsets)
               icol = outgoing_offsets(i)
 
-              ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
-              diff2diff = coeff(diff_plex2bmc(i):size(coeff):i8)
+              diff2diff = coeff(diff_plex2bmc(i): size(coeff): i8)
 
-              emissivity = one - sum(diff2diff)
+              emissivity = max(zero, one - sum(diff2diff))
 
               xsrc(i1+icol) = xplanck(i1+icell) * pi * emissivity
             enddo

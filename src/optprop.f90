@@ -176,31 +176,35 @@ contains
 
     if(handle_aspect_zx_1D_case()) return
 
-    associate( C_pnt => wedge_coords(5:6) )
-
-      select case (coeff_mode)
-
-      case(i0) ! LookUpTable Mode
-
-        if(present(angles)) then ! obviously we want the direct coefficients
-          if(ldir) then ! dir2dir
-            call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
-          else         ! dir2diff
-            call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
-          endif
-        else
-          ! diff2diff
-          call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2)], C)
-        endif
-
-      case default
-        call CHKERR(1_mpiint, 'particular value of coeff mode in optprop_parameters is not defined: '//itoa(coeff_mode))
-      end select
-    end associate
+    call do_lookup(tauz, w0, aspect_zx)
 
     contains
+      subroutine do_lookup(tauz, w0, aspect_zx)
+        real(ireals), intent(in) :: tauz, w0, aspect_zx
+        associate( C_pnt => wedge_coords(5:6) )
+
+          select case (coeff_mode)
+
+          case(i0) ! LookUpTable Mode
+
+            if(present(angles)) then ! obviously we want the direct coefficients
+              if(ldir) then ! dir2dir
+                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
+              else         ! dir2diff
+                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
+              endif
+            else
+              ! diff2diff
+              call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2)], C)
+            endif
+
+          case default
+            call CHKERR(1_mpiint, 'particular value of coeff mode in optprop_parameters is not defined: '//itoa(coeff_mode))
+          end select
+        end associate
+      end subroutine
       logical function handle_aspect_zx_1D_case()
-        real(ireals) :: c11,c12,c13,c23,c33,g1,g2
+        real(ireals) :: c11,c12,c13,c23,c33,g1,g2, restricted_aspect_zx
         logical :: l1d
 
         handle_aspect_zx_1D_case = .False.
@@ -213,9 +217,16 @@ contains
             .or.aspect_zx.gt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(2)
 
           if(l1d) then
+            restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
+                                                      OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
+            call do_lookup(tauz, w0, restricted_aspect_zx)
+
             call eddington_coeff_zdun(tauz, w0, zero, cos(deg2rad(angles(2))), &
               c11,c12,c13,c23,c33,g1,g2)
-            C(:) = zero
+
+            ! set the transport coeffs for src top to zero, leave the rest.
+            C(1:size(C):size(C)/5) = zero
+
             if(ldir) then
               C(21) = c33
             else
@@ -229,13 +240,22 @@ contains
             .or.aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)
 
           if(l1d) then
-            call eddington_coeff_zdun(tauz, w0, zero, zero, &
-              c11,c12,c13,c23,c33,g1,g2)
-            C(:) = zero
-            C(1) = c12
-            C(8) = c11
-            C(8*7+1) = c11
-            C(8*7+8) = c12
+            restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
+                                                      OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
+            call do_lookup(tauz, w0, restricted_aspect_zx)
+
+            if(aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)) then
+              ! set the transport coeffs for src top and bottom to zero, leave the rest.
+              C(1:size(C):8) = zero
+              C(8:size(C):8) = zero
+
+              call eddington_coeff_zdun(tauz, w0, zero, zero, &
+                c11,c12,c13,c23,c33,g1,g2)
+              C(1) = c12
+              C(8) = c11
+              C(8*7+1) = c11
+              C(8*7+8) = c12
+            endif
 
             handle_aspect_zx_1D_case = .True.
           endif
