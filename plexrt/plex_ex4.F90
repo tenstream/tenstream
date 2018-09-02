@@ -125,15 +125,9 @@ logical, parameter :: ldebug=.True.
       sundir = sundir/norm(sundir)
       print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
 
-      if(.not.allocated(solver%albedo)) then
-        allocate(solver%albedo)
-        call DMCreateGlobalVector(solver%plex%srfc_boundary_dm, solver%albedo, ierr); call CHKERR(ierr)
-      endif
-      call VecSet(solver%albedo, Ag, ierr); call CHKERR(ierr)
-
       call plexrt_rrtmg(solver, atm, sundir, &
         albedo_thermal=zero, albedo_solar=Ag, &
-        lthermal=.False., lsolar=.True., &
+        lthermal=.True., lsolar=.False., &
         edir=edir, edn=edn, eup=eup, abso=abso)
 
       call destroy_plexrt_rrtmg(solver, lfinalizepetsc=.False.)

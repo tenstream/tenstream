@@ -24,7 +24,7 @@ use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
 
 use m_plex_rt, only: compute_face_geometry, &
   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
-  destroy_plexrt_solver
+  plexrt_get_result, destroy_plexrt_solver
 
 use m_netcdfio, only : ncload
 
@@ -55,6 +55,8 @@ logical, parameter :: ldebug=.True.
       type(t_plexgrid), allocatable :: plex
       integer(iintegers), allocatable :: zindex(:)
       type(t_plex_solver), allocatable :: solver
+
+      real(ireals), allocatable, dimension(:,:) :: edn, eup, abso
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
@@ -87,9 +89,9 @@ logical, parameter :: ldebug=.True.
       call init_plex_rt_solver(plex, solver)
 
       first_normal = get_normal_of_first_TOA_face(solver%plex)
-      sundir = first_normal + [zero, .001_ireals, zero]
+      !sundir = first_normal + [zero, -.001_ireals, zero]
       !sundir = -[0.688915, -0.422213, 0.589179]
-      !sundir = -[-0.003132140126484546, -0.9198186384401722, 0.3923313167162367]
+      sundir = -[0.1674986798086554, -0.2833506736583789, 0.9442756949110258]
       !!sundir = -[0.677688, 0.0758756, 0.731425]
       !!sundir = -[0.826811, 0.0269913, 0.561832]
       !!sundir = -[0.775165, 0.0535335, 0.629487] ! sza 10deg
@@ -121,7 +123,15 @@ logical, parameter :: ldebug=.True.
       call VecSet(solver%srfc_emission, 400._ireals/3.1415_ireals, ierr); call CHKERR(ierr)
 
       call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=sundir)
+
+      call plexrt_get_result(solver, edn, eup, abso)
       call destroy_plexrt_solver(solver, lfinalizepetsc=.False.)
+
+      print *,'k       Edn       Eup          abso'
+      do k = 1, ubound(abso,1)
+        print *,k, edn(k,1), eup(k,1), abso(k,1)
+      enddo
+      print *,k, edn(k,1), eup(k,1)
     end subroutine
 
   end module

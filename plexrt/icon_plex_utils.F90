@@ -68,6 +68,7 @@ module m_icon_plex_utils
       chartsize = Ncells + Nfaces + Nedges + Nverts
 
       if(ldebug) then
+        print *,'size hhl', ke1
         print *,'Nfaces2d', Nfaces2d
         print *,'Nedges2d', Nedges2d
         print *,'Nverts2d', Nverts2d
@@ -489,10 +490,10 @@ module m_icon_plex_utils
               ivertex = ivertex_icon_2_plex(i, k)
               call PetscSectionGetOffset(coordSection3d, ivertex, voff3d, ierr); call CHKERR(ierr)
               coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) * (distance + hhl(i1+k)) * inv_distance
-              if(ldebug) print *,'Setting coord for 2d', i, '3d vert', ivertex,':', &
-                coords2d(voff2d+1:voff2d+3), '=>', &
-                coords3d(voff3d+1:voff3d+3), &
-                '(',(distance + hhl(k+1)) * inv_distance,')'
+              !if(ldebug) print *,'Setting coord for 2d', i, '3d vert', ivertex,':', &
+              !  coords2d(voff2d+1:voff2d+3), '=>', &
+              !  coords3d(voff3d+1:voff3d+3), &
+              !  '(',(distance + hhl(k+1)) * inv_distance,')'
             enddo
           enddo
         else

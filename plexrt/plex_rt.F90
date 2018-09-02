@@ -670,18 +670,12 @@ module m_plex_rt
 
         subroutine set_thermal_source()
           type(tVec) :: thermal_src_vec
-          real(ireals), pointer :: xplanck(:), xsrc(:)
-          real(ireals) :: diff2diff(8), emissivity
+          real(ireals), pointer :: xsrc(:)
 
-          integer(iintegers), pointer :: faces_of_cell(:)
-          integer(iintegers) :: face_plex2bmc(5)
-          integer(iintegers) :: diff_plex2bmc(8)
-          integer(iintegers) :: geom_offset, wedge_offset, face_offset
+          integer(iintegers) :: geom_offset, face_offset
 
-          integer(iintegers) :: i, idof, zindex, icell, icol, iface, num_dof
-          integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
-          real(ireals) :: area, dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
-
+          integer(iintegers) :: idof, iface, num_dof
+          real(ireals) :: area
 
           if(.not.allocated(plckVec)) return
 
@@ -689,40 +683,7 @@ module m_plex_rt
           call VecSet(thermal_src_vec, zero, ierr); call CHKERR(ierr)
           call VecGetArrayF90(thermal_src_vec, xsrc, ierr); call CHKERR(ierr)
 
-          call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
-
-          do icell = plex%cStart, plex%cEnd-1
-
-            call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
-            call determine_diff_incoming_outgoing_offsets(plex, plex%ediff_dm, icell, incoming_offsets, outgoing_offsets)
-
-            call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
-
-            do iface = 1, size(faces_of_cell)
-              face_plex2bmc(int(wedgeorient(wedge_offset+i3+iface), iintegers)) = iface
-            enddo
-            call face_idx_to_diff_bmc_idx(face_plex2bmc, diff_plex2bmc)
-
-            zindex = plex%zindex(icell)
-            dz = plex%hhl(zindex) - plex%hhl(zindex+1)
-
-            call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
-              dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff)
-
-            do i = 1, size(outgoing_offsets)
-              icol = outgoing_offsets(i)
-
-              ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
-              diff2diff = coeff(diff_plex2bmc(i):size(coeff):i8)
-
-              emissivity = one - sum(diff2diff)
-              print *,'icell', icell, ' iface', i, 'col', icol, 'emis', emissivity, 'B', xplanck(i1+icell) * pi
-
-              xsrc(i1+icol) = xplanck(i1+icell) * pi * emissivity
-            enddo
-          enddo ! icell
-          call VecRestoreArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
-
+          call set_cell_emissions(xsrc)
           call thermal_srfc_emission(xsrc)
           call thermal_horizontal_boundary_mirror(xsrc)
 
@@ -742,6 +703,54 @@ module m_plex_rt
 
           call VecRestoreArrayF90(thermal_src_vec, xsrc, ierr); call CHKERR(ierr)
           call DMRestoreLocalVector(ediffdm, thermal_src_vec, ierr); call CHKERR(ierr)
+        end subroutine
+        subroutine set_cell_emissions(xsrc)
+          real(ireals), pointer :: xsrc(:)
+
+          integer(iintegers), pointer :: faces_of_cell(:)
+          integer(iintegers) :: face_plex2bmc(5)
+          integer(iintegers) :: diff_plex2bmc(8)
+          integer(iintegers) :: wedge_offset
+
+          integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
+          integer(iintegers) :: i, zindex, icell, icol
+          real(ireals) :: dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
+
+          real(ireals), pointer :: xplanck(:)
+          real(ireals) :: diff2diff(8), emissivity
+
+          call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
+
+          do icell = plex%cStart, plex%cEnd-1
+
+            call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+            call determine_diff_incoming_outgoing_offsets(plex, plex%ediff_dm, icell, incoming_offsets, outgoing_offsets)
+
+            call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
+
+            do i = 1, size(faces_of_cell)
+              face_plex2bmc(int(wedgeorient(wedge_offset+i3+i), iintegers)) = i
+            enddo
+            call face_idx_to_diff_bmc_idx(face_plex2bmc, diff_plex2bmc)
+
+            zindex = plex%zindex(icell)
+            dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+
+            call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
+              dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff)
+
+            do i = 1, size(outgoing_offsets)
+              icol = outgoing_offsets(i)
+
+              ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
+              diff2diff = coeff(diff_plex2bmc(i):size(coeff):i8)
+
+              emissivity = one - sum(diff2diff)
+
+              xsrc(i1+icol) = xplanck(i1+icell) * pi * emissivity
+            enddo
+          enddo ! icell
+          call VecRestoreArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
         end subroutine
 
         subroutine thermal_srfc_emission(xsrc)
@@ -1771,7 +1780,7 @@ module m_plex_rt
     type(tPetscSection) :: abso_section, ediff_section, edir_section
     real(ireals), pointer :: xediff(:), xedir(:), xabso(:)
 
-    integer(mpiint) :: ierr
+    integer(mpiint) :: myid, ierr
 
     uid = get_arg(0_iintegers, opt_solution_uid)
     if(.not.solver%solutions(uid)%lset) &
@@ -1784,8 +1793,8 @@ module m_plex_rt
 
     call check_size_or_allocate(redn , [ke1, Ncol])
     call check_size_or_allocate(reup , [ke1, Ncol])
-    call check_size_or_allocate(redir, [ke1, Ncol])
     call check_size_or_allocate(rabso, [ke1-1, Ncol])
+    if(present(redir)) call check_size_or_allocate(redir, [ke1, Ncol])
 
     associate(solution => solver%solutions(uid))
 
@@ -1849,6 +1858,24 @@ module m_plex_rt
     call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
     call VecRestoreArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
     end associate
+    if(ldebug) then
+      call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
+      if(myid.eq.0) then
+        if(present(redir)) then
+          print *,'Get Result, k        Edir                Edn                 Eup                abso'
+          do k = 1, ke1-1
+            print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)
+          enddo
+          print *,k, redir(k,1), redn(k,1), reup(k,1)
+        else
+          print *,'Get Result, k        Edn                 Eup                abso'
+          do k = 1, ke1-1
+            print *,k, redn(k,1), reup(k,1), rabso(k,1)
+          enddo
+          print *,k, redn(k,1), reup(k,1)
+        endif
+      endif
+    endif
 
     contains
       subroutine check_size_or_allocate(arr, expected_shape)
@@ -1861,7 +1888,11 @@ module m_plex_rt
             call CHKERR(1_mpiint, 'Wrong shape for results array Edn')
           endif
         else
-          if(size(expected_shape).eq.2) allocate(redn(expected_shape(1),expected_shape(2)))
+          if(size(expected_shape).eq.2) then
+            allocate(arr(expected_shape(1),expected_shape(2)))
+          else
+            call CHKERR(1_mpiint, 'here is a place where the code is not yet implemented.. but its easy.. go ahead')
+          endif
         endif
       end subroutine
   end subroutine
