@@ -3,7 +3,7 @@ module m_plex_rt
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_tenstream_options, only : read_commandline_options
+  use m_tenstream_options, only : read_commandline_options, ltwostr_only, lschwarzschild
 
   use m_helper_functions, only: CHKERR, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, &
@@ -25,6 +25,7 @@ module m_plex_rt
   use m_optprop_parameters, only : OPP_LUT_ALL_ANGLES
 
   use m_schwarzschild, only: schwarzschild
+  use m_twostream, only: delta_eddington_twostream
 
   use m_pprts_base, only : t_state_container, prepare_solution, destroy_solution, &
     t_solver_log_events, setup_log_events
@@ -225,23 +226,34 @@ module m_plex_rt
       call VecRestoreArrayF90(solver%g   , xg   , ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine get_in_out_dof_offsets(IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets)
+    subroutine get_in_out_dof_offsets(IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, opt_xv)
       type(tIS), intent(in) :: IS_diff_in_out_dof
       integer(iintegers), intent(in) :: icell
       integer(iintegers), allocatable, intent(inout) :: incoming_offsets(:), outgoing_offsets(:)
+      integer(iintegers), pointer, intent(in), optional :: opt_xv(:)
       integer(iintegers), pointer :: xv(:)
       integer(iintegers) :: bs, idx_offset
       integer(mpiint) :: ierr
 
-      call ISGetIndicesF90(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
-      bs = xv(size(xv))
-      if(.not.allocated(incoming_offsets)) allocate(incoming_offsets(bs))
-      if(.not.allocated(outgoing_offsets)) allocate(outgoing_offsets(bs))
+      if(present(opt_xv)) then
+        bs = opt_xv(size(opt_xv))
+        if(.not.allocated(incoming_offsets)) allocate(incoming_offsets(bs))
+        if(.not.allocated(outgoing_offsets)) allocate(outgoing_offsets(bs))
 
-      idx_offset = icell*bs
-      incoming_offsets = xv(i1+idx_offset:idx_offset+bs/2)
-      outgoing_offsets = xv(i1+idx_offset+bs/2:idx_offset+bs)
-      call ISRestoreIndicesF90(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
+        idx_offset = icell*bs
+        incoming_offsets = opt_xv(i1+idx_offset:idx_offset+bs/2)
+        outgoing_offsets = opt_xv(i1+idx_offset+bs/2:idx_offset+bs)
+      else
+        call ISGetIndicesF90(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
+        bs = xv(size(xv))
+        if(.not.allocated(incoming_offsets)) allocate(incoming_offsets(bs))
+        if(.not.allocated(outgoing_offsets)) allocate(outgoing_offsets(bs))
+
+        idx_offset = icell*bs
+        incoming_offsets = xv(i1+idx_offset:idx_offset+bs/2)
+        outgoing_offsets = xv(i1+idx_offset+bs/2:idx_offset+bs)
+        call ISRestoreIndicesF90(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
+      endif
     end subroutine
 
     subroutine setup_IS_diff_in_out_dof(plex, ediffdm, IS_diff_in_out_dof)
@@ -288,7 +300,6 @@ module m_plex_rt
       real(ireals), intent(in), optional :: opt_solution_time
 
       integer(iintegers) :: suid
-      logical :: lflg, l1d
 
       integer(mpiint) :: myid, ierr
 
@@ -320,9 +331,6 @@ module m_plex_rt
       if(.not.allocated(solver%IS_diff_in_out_dof)) &
         call setup_IS_diff_in_out_dof(solver%plex, solver%plex%ediff_dm, solver%IS_diff_in_out_dof)
 
-      l1d = .False.
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-twostr_only', l1d, lflg, ierr); call CHKERR(ierr)
-
       ! Prepare the space for the solution
       suid = get_arg(i0, opt_solution_uid)
 
@@ -348,17 +356,16 @@ module m_plex_rt
       associate( solution => solver%solutions(suid) )
 
         ! --------- Calculate 1D Radiative Transfer ------------
-        if(l1d) then
+        if(ltwostr_only) then
           call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
-          if( (solution%lsolar_rad.eqv..False.) ) then
+          if( (solution%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
             call schwarz(solver, solution)
           else
-            !call twostream(solver, edirTOA,  solutions(uid) )
-            call CHKERR(1_mpiint, 'plexrt twostream has yet to be programmed')
+            call twostream(solver, sundir, solution )
           endif
           call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
 
-          if(ldebug) print *,'1D calculation done'
+          ! if(ldebug) print *,'1D calculation done', suid
           goto 99
         endif
 
@@ -692,6 +699,7 @@ module m_plex_rt
 
           integer(iintegers) :: zindex
           real(ireals) :: dz, coeff(5*8)
+          integer(iintegers), pointer :: xinoutdof(:)
 
           integer(mpiint) :: myid
 
@@ -708,12 +716,14 @@ module m_plex_rt
           call DMGlobalToLocalBegin(edirdm, edirVec, INSERT_VALUES, ledirVec, ierr); call CHKERR(ierr)
           call DMGlobalToLocalEnd  (edirdm, edirVec, INSERT_VALUES, ledirVec, ierr); call CHKERR(ierr)
 
+
+          call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
           call VecGetArrayReadF90(ledirVec, xedir, ierr); call CHKERR(ierr)
 
           do icell = plex%cStart, plex%cEnd-1
             call DMPlexGetCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
-            call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets)
+            call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
             !print *,myid,'icell', icell, 'faces_of_cell', faces_of_cell
             !print *,myid,'icell', icell, 'incoming_offsets', incoming_offsets
             !print *,myid,'icell', icell, 'outgoing_offsets', outgoing_offsets
@@ -760,6 +770,7 @@ module m_plex_rt
           call set_Edir_srfc_reflection(edirSection, xedir)
 
           call VecRestoreArrayReadF90(ledirVec, xedir, ierr); call CHKERR(ierr)
+          call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
           call DMRestoreLocalVector(edirdm, ledirVec, ierr); call CHKERR(ierr)
         end subroutine
 
@@ -845,15 +856,17 @@ module m_plex_rt
           integer(iintegers) :: i, zindex, icell, icol
           real(ireals) :: dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
 
+          integer(iintegers), pointer :: xinoutdof(:)
           real(ireals), pointer :: xplanck(:)
           real(ireals) :: diff2diff(8), emissivity
 
+          call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
           call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
 
           do icell = plex%cStart, plex%cEnd-1
 
             call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
-            call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets)
+            call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
 
             call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
 
@@ -881,6 +894,7 @@ module m_plex_rt
             enddo
           enddo ! icell
           call VecRestoreArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
+          call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
         end subroutine
 
         subroutine thermal_srfc_emission(xsrc)
@@ -1377,6 +1391,7 @@ module m_plex_rt
 
     integer(iintegers) :: zindex
     real(ireals) :: dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
+    integer(iintegers), pointer :: xinoutdof(:)
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
     if(ldebug.and.myid.eq.0) print *,'plex_rt::create_ediff_mat...'
@@ -1405,9 +1420,10 @@ module m_plex_rt
       !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
     endif
 
+    call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
     do icell = plex%cStart, plex%cEnd-1
       call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
-      call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets)
+      call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
       !print *,'icell', icell, 'faces_of_cell', faces_of_cell
       !print *,'icell', icell, 'incoming_offsets', incoming_offsets
       !print *,'icell', icell, 'outgoing_offsets', outgoing_offsets
@@ -1451,6 +1467,7 @@ module m_plex_rt
 
       call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     enddo
+    call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
 
     call set_boundary_conditions()
 
@@ -1693,7 +1710,7 @@ module m_plex_rt
     if(.not.allocated(plex%abso_dm)) call CHKERR(myid+1, 'called compute_edir_absorption with a dm which is not allocated?')
     if(.not.allocated(abso)) call CHKERR(myid+1, 'called compute_edir_absorption with an unallocated abso vec')
 
-    if(ldebug) print *,'plex_rt::compute_edir_absorption....'
+    !if(ldebug) print *,'plex_rt::compute_edir_absorption....'
 
     call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
@@ -1760,7 +1777,7 @@ module m_plex_rt
     call DMRestoreLocalVector(plex%abso_dm, local_abso, ierr); call CHKERR(ierr)
 
     call PetscObjectViewFromOptions(abso, PETSC_NULL_VEC, '-show_edir_abso', ierr); call CHKERR(ierr)
-    if(ldebug) print *,'plex_rt::compute_edir_absorption....finished'
+    !if(ldebug) print *,'plex_rt::compute_edir_absorption....finished'
   end subroutine
 
   subroutine compute_ediff_absorption(plex, IS_diff_in_out_dof, ediff, abso)
@@ -1785,6 +1802,8 @@ module m_plex_rt
     real(ireals), pointer :: geoms(:) ! pointer to coordinates and orientation vec
     integer(iintegers) :: geom_offset, abso_offset
 
+    integer(iintegers), pointer :: xinoutdof(:)
+
     real(ireals) :: volume
 
     if(.not.allocated(plex)) stop 'called compute_ediff_absorption but plex is not allocated'
@@ -1794,7 +1813,7 @@ module m_plex_rt
     if(.not.allocated(plex%abso_dm)) call CHKERR(myid+1, 'called compute_ediff_absorption with a dm which is not allocated?')
     if(.not.allocated(abso)) call CHKERR(myid+1, 'called compute_ediff_absorption with an unallocated abso vec')
 
-    if(ldebug) print *,'plex_rt::compute_ediff_absorption....'
+    !if(ldebug) print *,'plex_rt::compute_ediff_absorption....'
 
     call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
@@ -1815,9 +1834,10 @@ module m_plex_rt
     call VecGetArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
     call VecGetArrayF90(local_abso, xabso, ierr); call CHKERR(ierr)
 
+    call ISGetIndicesF90(IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
     do icell = cStart, cEnd-1
 
-      call get_in_out_dof_offsets(IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets)
+      call get_in_out_dof_offsets(IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
 
       call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
       volume = geoms(geom_offset+i4)
@@ -1832,6 +1852,7 @@ module m_plex_rt
 
       xabso(abso_offset+i1) = xabso(abso_offset+i1) / volume
     enddo
+    call ISRestoreIndicesF90(IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
 
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
@@ -1845,7 +1866,7 @@ module m_plex_rt
     call DMRestoreLocalVector(plex%abso_dm, local_abso, ierr); call CHKERR(ierr)
 
     call PetscObjectViewFromOptions(abso, PETSC_NULL_VEC, '-show_ediff_abso', ierr); call CHKERR(ierr)
-    if(ldebug) print *,'plex_rt::compute_ediff_absorption....finished'
+    !if(ldebug) print *,'plex_rt::compute_ediff_absorption....finished'
   end subroutine
 
   !> @brief simple schwarzschild solver
@@ -1934,6 +1955,150 @@ module m_plex_rt
 
 
       !Schwarzschild solver returns fluxes as [W/m^2]
+      solution%lWm2_dir  = .True.
+      solution%lWm2_diff = .True.
+      ! and mark solution that it is not up to date
+      solution%lchanged         = .True.
+    endif ! TOA boundary ids
+
+    end associate
+  end subroutine
+
+  !> @brief wrapper for the delta-eddington twostream solver
+  !> @details solve the radiative transfer equation for infinite horizontal slabs
+  subroutine twostream(solver, sundir, solution)
+    class(t_plex_solver)    :: solver
+    real(ireals), intent(in) :: sundir(:)
+    type(t_state_container) :: solution
+
+    real(ireals),allocatable :: dtau(:), w0(:), g(:), Blev(:), Edir(:), Edn(:),Eup(:)
+
+    type(tIS) :: boundary_ids
+    integer(iintegers), pointer :: xitoa(:), cell_support(:)
+    integer(iintegers), allocatable :: cell_idx(:)
+    integer(iintegers) :: i, k, icell, iface, zindex, voff, ke1
+    real(ireals) :: dz, theta0
+    real(ireals), pointer :: xksca(:), xkabs(:), xg(:), xalbedo(:), xplck(:), xsrfc_emission(:)
+    real(ireals), pointer :: xedir(:), xediff(:), xgeoms(:)
+    type(tPetscSection) :: edir_section, ediff_section, geom_section
+
+    real(ireals) :: face_normal(3)
+    logical :: lthermal, lsolar
+
+    integer(mpiint) :: ierr
+
+    if(solution%lsolar_rad .and. norm(sundir).le.zero) then
+      call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+      call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+      return
+    endif
+
+    lsolar = solution%lsolar_rad
+    lthermal = .not.solution%lsolar_rad
+
+    associate( plex => solver%plex )
+
+    call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
+    if (boundary_ids.eq.PETSC_NULL_IS) then ! dont have TOA boundary faces
+    else
+      allocate(dtau(plex%Nlay))
+      allocate(w0  (plex%Nlay))
+      allocate(g   (plex%Nlay))
+      allocate(Edir(plex%Nlay+1))
+      allocate(Edn (plex%Nlay+1))
+      allocate(Eup (plex%Nlay+1))
+
+      call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+      call DMGetSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
+
+      call VecGetArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(solver%g   , xg   , ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(solver%plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+
+
+      if(lthermal) then
+        allocate(Blev(plex%Nlay+1))
+        call VecGetArrayReadF90(solver%plck, xplck, ierr); call CHKERR(ierr)
+        call VecGetArrayReadF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
+      endif
+
+      call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      if(lsolar) then
+        call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+      endif
+
+      call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+      do i = 1, size(xitoa)
+        iface = xitoa(i)
+
+        call DMPlexGetSupport(plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+        icell = cell_support(1)
+        call DMPlexRestoreSupport(plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+        call get_inward_face_normal(iface, icell, geom_section, xgeoms, face_normal)
+        theta0 = angle_between_two_vec(face_normal, sundir)
+
+        call get_consecutive_vertical_cell_idx(plex, icell, cell_idx)
+        ke1 = size(cell_idx)+1
+        do k=1,ke1-1
+          icell = cell_idx(k)
+
+          zindex = plex%zindex(icell)
+          dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+
+          dtau(k) = (xkabs(i1+icell) + xksca(i1+icell)) * dz
+          w0(k)   = xksca(i1+icell) / max(epsilon(w0), xkabs(i1+icell) + xksca(i1+icell))
+          g(k)    = xg(i1+icell)
+
+          if(lthermal) Blev(k) = xplck(i1+icell)
+        enddo
+        if(lthermal) Blev(k) = xsrfc_emission(i)
+
+        if(solution%lsolar_rad) then
+          call delta_eddington_twostream(dtau,w0,g,cos(theta0),norm(sundir),xalbedo(i), Edir, Edn, Eup )
+        else
+          call delta_eddington_twostream(dtau,w0,g,cos(theta0),norm(sundir),xalbedo(i), Edir, Edn, Eup, Blev)
+        endif
+
+        if(lsolar) then
+          do k = 0, ke1-2
+            call PetscSectionGetOffset(edir_section, iface+k, voff, ierr); call CHKERR(ierr)
+            xedir(i1+voff) = edir(i1+k)
+          enddo
+          call PetscSectionGetOffset(edir_section, iface+k, voff, ierr); call CHKERR(ierr)
+          xedir(i1+voff) = edir(i1+k)
+        endif
+
+        do k = 0, ke1-2
+          call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+          xediff(i1+voff) = Edn(i1+k)
+          xediff(i1+voff+i1) = Eup(i1+k)
+        enddo
+        ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
+        call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+        xediff(i1+voff) = Eup(i1+k)
+        xediff(i1+voff+i1) = Edn(i1+k)
+      enddo
+      call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+
+      call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(solver%g   , xg   , ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(solver%plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+
+      if(lsolar) then
+        call VecRestoreArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
+      endif
+      if(lthermal) then
+        call VecRestoreArrayReadF90(solver%plck, xplck, ierr); call CHKERR(ierr)
+        call VecRestoreArrayReadF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
+      endif
+
+      !Twostream solver returns fluxes as [W/m^2]
       solution%lWm2_dir  = .True.
       solution%lWm2_diff = .True.
       ! and mark solution that it is not up to date
@@ -2102,19 +2267,19 @@ module m_plex_rt
     if(ldebug) then
       call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
       if(myid.eq.0) then
-        if(present(redir)) then
-          print *,'Get Result, k        Edir                Edn                 Eup                abso'
-          do k = 1, ke1-1
-            print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)
-          enddo
-          print *,k, redir(k,1), redn(k,1), reup(k,1)
-        else
-          print *,'Get Result, k        Edn                 Eup                abso'
-          do k = 1, ke1-1
-            print *,k, redn(k,1), reup(k,1), rabso(k,1)
-          enddo
-          print *,k, redn(k,1), reup(k,1)
-        endif
+    !    if(present(redir)) then
+    !      print *,'Get Result, k        Edir                Edn                 Eup                abso'
+    !      do k = 1, ke1-1
+    !        print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)
+    !      enddo
+    !      print *,k, redir(k,1), redn(k,1), reup(k,1)
+    !    else
+    !      print *,'Get Result, k        Edn                 Eup                abso'
+    !      do k = 1, ke1-1
+    !        print *,k, redn(k,1), reup(k,1), rabso(k,1)
+    !      enddo
+    !      print *,k, redn(k,1), reup(k,1)
+    !    endif
       endif
     endif
 

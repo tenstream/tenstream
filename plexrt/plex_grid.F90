@@ -28,7 +28,7 @@ module m_plex_grid
     TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, &
     determine_diff_incoming_outgoing_offsets, get_normal_of_first_TOA_face
 
-  logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug=.False.
 
   type :: t_plexgrid
     integer(mpiint) :: comm

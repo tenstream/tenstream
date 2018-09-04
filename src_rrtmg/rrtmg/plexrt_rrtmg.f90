@@ -45,7 +45,7 @@ module m_plexrt_rrtmg
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
       imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR, deg2rad, &
-      reverse, itoa, angle_between_two_vec, norm
+      reverse, itoa, angle_between_two_vec, norm, rad2deg
   use m_tenstream_interpolation, only : interp_1d
 
   use m_plex_grid, only: TOAFACE, get_inward_face_normal
@@ -117,9 +117,10 @@ contains
                              "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
     if(.not.lflg) lrrtmg_only=.False. ! by default use normal tenstream solver
 
-    if(ldebug.and.myid.eq.0) &
+    if(ldebug.and.myid.eq.0) then
       call print_tenstr_atm(atm)
-    print *,'debug', sundir, albedo_thermal, albedo_solar, lthermal, lsolar
+      print *,'debug', sundir, albedo_thermal, albedo_solar, lthermal, lsolar
+    endif
     if(present(opt_time)) print *,'time', opt_time
 
     ke1 = solver%plex%Nlay+1
@@ -127,8 +128,6 @@ contains
 
     call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
     call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
-
-    print *,'Ncol of toa_ids', Ncol
 
     if(.not.allocated(edn )) allocate(edn (ke1, Ncol))
     if(.not.allocated(eup )) allocate(eup (ke1, Ncol))
@@ -393,7 +392,7 @@ contains
           call DMPlexGetSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
-          theta0 = angle_between_two_vec(face_normal, sundir)
+          theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
 
           call optprop_rrtm_sw(i1, ke1-i1, &
             theta0, albedo, &
@@ -417,7 +416,7 @@ contains
           call DMPlexGetSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
-          theta0 = angle_between_two_vec(face_normal, sundir)
+          theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
 
           call optprop_rrtm_sw(i1, ke1-i1, &
             theta0, albedo, &
@@ -429,6 +428,7 @@ contains
             tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:))
         enddo
     endif
+    if(ldebug) print *,'DEBUG theta0', theta0, 'deg'
     w0 = min(one, max(zero, w0))
     call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)

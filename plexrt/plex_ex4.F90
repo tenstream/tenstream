@@ -127,6 +127,11 @@ logical, parameter :: ldebug=.True.
 
       call plexrt_rrtmg(solver, atm, sundir, &
         albedo_thermal=zero, albedo_solar=Ag, &
+        lthermal=.False., lsolar=.True., &
+        edir=edir, edn=edn, eup=eup, abso=abso)
+
+      call plexrt_rrtmg(solver, atm, sundir, &
+        albedo_thermal=zero, albedo_solar=Ag, &
         lthermal=.True., lsolar=.False., &
         edir=edir, edn=edn, eup=eup, abso=abso)
 
