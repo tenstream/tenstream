@@ -15,7 +15,8 @@ module m_pprts_base
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, &
     t_coord, t_sunangles, t_suninfo, &
     t_state_container, destroy_solution, &
-    t_dof, t_solver_log_events, E_up, E_dn
+    t_dof, t_solver_log_events, setup_log_events, &
+    E_up, E_dn
 
   type t_coord
     integer(iintegers)      :: xs,xe                   ! local domain start and end indices
@@ -81,21 +82,30 @@ module m_pprts_base
   end type
 
   type t_solver_log_events
-    PetscLogStage :: stage_solve_pprts
+    PetscLogStage :: stage_solve
     PetscLogEvent :: set_optprop
+    PetscLogEvent :: setup_dir_src
     PetscLogEvent :: compute_edir
     PetscLogEvent :: solve_Mdir
     PetscLogEvent :: setup_Mdir
+    PetscLogEvent :: setup_diff_src
     PetscLogEvent :: compute_ediff
     PetscLogEvent :: solve_Mdiff
     PetscLogEvent :: setup_Mdiff
+    PetscLogEvent :: compute_absorption
+
     PetscLogEvent :: solve_twostream
     PetscLogEvent :: solve_mcrts
     PetscLogEvent :: get_coeff_dir2dir
     PetscLogEvent :: get_coeff_dir2diff
     PetscLogEvent :: get_coeff_diff2diff
+    PetscLogEvent :: get_result
+
     PetscLogEvent :: scatter_to_Zero
     PetscLogEvent :: scale_flx
+    PetscLogEvent :: compute_orientation
+    PetscLogEvent :: orient_face_normals
+    PetscLogEvent :: debug_output
   end type
 
   type, abstract :: t_solver
@@ -197,4 +207,39 @@ module m_pprts_base
       endif
     end subroutine
 
+    subroutine setup_log_events(logs, solvername)
+      type(t_solver_log_events), intent(inout) :: logs
+      character(len=*), optional :: solvername
+      PetscClassId, parameter :: cid=0
+      integer(mpiint) :: ierr
+      character(len=default_str_len) :: s
+
+      s = get_arg('pprts.', solvername)
+
+      call PetscLogStageRegister(trim(s)//'solve_stage', logs%stage_solve, ierr); call CHKERR(ierr)
+
+      call PetscLogEventRegister(trim(s)//'set_optprop', cid, logs%set_optprop, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'setup_dir_src', cid, logs%setup_dir_src, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'comp_Edir', cid, logs%compute_Edir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'solve_Mdir', cid, logs%solve_Mdir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'setup_Mdir', cid, logs%setup_Mdir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'setup_diff_src', cid, logs%setup_diff_src, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'comp_Ediff', cid, logs%compute_Ediff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'solve_Mdiff', cid, logs%solve_Mdiff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'setup_Mdiff', cid, logs%setup_Mdiff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'compute_absorption', cid, logs%compute_absorption, ierr); call CHKERR(ierr)
+
+      call PetscLogEventRegister(trim(s)//'solve_twostr', cid, logs%solve_twostream, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'solve_mcrts', cid, logs%solve_mcrts, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'dir2dir', cid, logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'dir2diff', cid, logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'diff2diff', cid, logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'get_result', cid, logs%get_result, ierr); call CHKERR(ierr)
+
+      call PetscLogEventRegister(trim(s)//'scttr2Zero', cid, logs%scatter_to_Zero, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'scale_flx', cid, logs%scale_flx, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'compute_orientation', cid, logs%compute_orientation, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'orient_face_normals', cid, logs%orient_face_normals, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'debug_output', cid, logs%debug_output, ierr); call CHKERR(ierr)
+    end subroutine
 end module

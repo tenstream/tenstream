@@ -50,7 +50,7 @@ module m_pprts
   use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, &
     t_coord, t_sunangles, t_suninfo, t_atmosphere, &
     t_state_container, prepare_solution, destroy_solution, &
-    t_dof, t_solver_log_events, E_up, E_dn
+    t_dof, t_solver_log_events, setup_log_events, E_up, E_dn
 
   implicit none
   private
@@ -207,7 +207,7 @@ module m_pprts
       call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
 
       ! init petsc logging facilities
-      call setup_log_events(solvername)
+      call setup_log_events(solver%logs, solvername)
 
       solver%linitialized = .True.
     else
@@ -279,31 +279,6 @@ module m_pprts
         solver%atm%icollapse=collapseindex
         solver%atm%l1d(solver%C_one_atm%zs:atmk(solver%atm, solver%C_one%zs),:,:) = .True. ! if need to be collapsed, they have to be 1D.
       endif
-    end subroutine
-    subroutine setup_log_events(solvername)
-      character(len=*), optional :: solvername
-      PetscClassId, parameter :: cid=0
-      integer(mpiint) :: ierr
-      character(len=default_str_len) :: s
-
-      s = get_arg('pprts.', solvername)
-
-      call PetscLogStageRegister(trim(s)//'solve_pprts', solver%logs%stage_solve_pprts, ierr); call CHKERR(ierr)
-
-      call PetscLogEventRegister(trim(s)//'set_optprop', cid, solver%logs%set_optprop, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'comp_Edir', cid, solver%logs%compute_Edir, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'solve_Mdir', cid, solver%logs%solve_Mdir, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'setup_Mdir', cid, solver%logs%setup_Mdir, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'comp_Ediff', cid, solver%logs%compute_Ediff, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'solve_Mdiff', cid, solver%logs%solve_Mdiff, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'setup_Mdiff', cid, solver%logs%setup_Mdiff, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'solve_twostr', cid, solver%logs%solve_twostream, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'solve_mcrts', cid, solver%logs%solve_mcrts, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'dir2dir', cid, solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'dir2diff', cid, solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'diff2diff', cid, solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'scttr2Zero', cid, solver%logs%scatter_to_Zero, ierr); call CHKERR(ierr)
-      call PetscLogEventRegister(trim(s)//'scale_flx', cid, solver%logs%scale_flx, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
 
@@ -1589,7 +1564,7 @@ module m_pprts
                 Mdir      => solver%Mdir,      &
                 Mdiff     => solver%Mdiff     )
 
-    call PetscLogStagePush(solver%logs%stage_solve_pprts, ierr); call CHKERR(ierr)
+    call PetscLogStagePush(solver%logs%stage_solve, ierr); call CHKERR(ierr)
 
     if(solver%lenable_solutions_err_estimates .and. present(opt_solution_uid)) then
       uid = opt_solution_uid
@@ -1695,7 +1670,7 @@ module m_pprts
     99 continue ! this is the quick exit final call where we clean up before the end of the routine
 
     call restore_solution(solver, solutions(uid), opt_solution_time)
-    call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_solve_pprts
+    call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_solve
 
     end associate
   end subroutine

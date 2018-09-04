@@ -24,7 +24,7 @@ module m_plex_grid
     print_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
     get_inward_face_normal, create_plex_section, setup_plexgrid, &
-    get_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
+    get_consecutive_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
     TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, &
     determine_diff_incoming_outgoing_offsets, get_normal_of_first_TOA_face
 
@@ -51,7 +51,7 @@ module m_plex_grid
     integer(iintegers) :: eStart, eEnd ! edges
     integer(iintegers) :: vStart, vEnd ! vertices
 
-    integer(iintegers) :: Nz = 1   ! Number of layers
+    integer(iintegers) :: Nlay = 1 ! Number of layers
     integer(iintegers) :: Ncells   ! Number of cells in DMPlex (wedge form)
     integer(iintegers) :: Nfaces   ! Number of faces (for each cell 2 for top/bottom and 3 sideward-faces)
     integer(iintegers) :: Nedges   ! Number of edges (each cell has 3 at top/bottom faces plus 3 vertically)
@@ -118,7 +118,7 @@ module m_plex_grid
       plex%fStart = -1; plex%fEnd = -1
       plex%eStart = -1; plex%eEnd = -1
       plex%vStart = -1; plex%vEnd = -1
-      plex%Nz = -1
+      plex%Nlay = -1
       plex%Ncells = -1
       plex%Nverts = -1
       plex%Nedges = -1
@@ -153,9 +153,9 @@ module m_plex_grid
       plex%comm = -1
     end subroutine
 
-    subroutine create_plex_from_icongrid(comm, Nz, hhl, icongrid, plex)
+    subroutine create_plex_from_icongrid(comm, Nlay, hhl, icongrid, plex)
       MPI_Comm, intent(in) :: comm
-      integer(iintegers), intent(in) :: Nz
+      integer(iintegers), intent(in) :: Nlay
       real(ireals), intent(in) :: hhl(:)
       type(t_icongrid), allocatable, intent(in) :: icongrid
       type(t_plexgrid), allocatable, intent(inout) :: plex
@@ -180,14 +180,14 @@ module m_plex_grid
       allocate(plex)
       plex%comm = comm
 
-      plex%Nz = Nz
-      if(size(hhl).ne.Nz+1) stop 'plex_grid::create_plex_from_icongrid -> hhl does not fit the size of Nz+1'
-      allocate(plex%hhl(Nz+1), source=hhl)
+      plex%Nlay = Nlay
+      if(size(hhl).ne.Nlay+1) stop 'plex_grid::create_plex_from_icongrid -> hhl does not fit the size of Nlay+1'
+      allocate(plex%hhl(Nlay+1), source=hhl)
 
-      plex%Ncells    = icongrid%Nfaces * plex%Nz
-      plex%Nfaces    = icongrid%Nfaces * (plex%Nz+1) + icongrid%Nedges * plex%Nz
-      plex%Nedges    = icongrid%Nedges * (plex%Nz+1) + icongrid%Nvertices * plex%Nz
-      plex%Nverts = icongrid%Nvertices * (plex%Nz+i1)
+      plex%Ncells    = icongrid%Nfaces * plex%Nlay
+      plex%Nfaces    = icongrid%Nfaces * (plex%Nlay+1) + icongrid%Nedges * plex%Nlay
+      plex%Nedges    = icongrid%Nedges * (plex%Nlay+1) + icongrid%Nvertices * plex%Nlay
+      plex%Nverts = icongrid%Nvertices * (plex%Nlay+i1)
 
       chartsize = plex%Ncells + plex%Nfaces + plex%Nedges + plex%Nverts
 
@@ -198,9 +198,9 @@ module m_plex_grid
       call DMPlexSetChart(plex%dm, i0, chartsize, ierr); call CHKERR(ierr)
 
       plex%offset_faces = plex%Ncells
-      plex%offset_faces_sides = plex%offset_faces + (plex%Nz+1)*icongrid%Nfaces
+      plex%offset_faces_sides = plex%offset_faces + (plex%Nlay+1)*icongrid%Nfaces
       plex%offset_edges = plex%Ncells + plex%Nfaces
-      plex%offset_edges_vertical = plex%offset_edges + icongrid%Nedges * (plex%Nz+i1)
+      plex%offset_edges_vertical = plex%offset_edges + icongrid%Nedges * (plex%Nlay+i1)
       plex%offset_vertices = plex%Ncells + plex%Nfaces + plex%Nedges
       print *,myid,'offsets faces:', plex%offset_faces, plex%offset_faces_sides
       print *,myid,'offsets edges:', plex%offset_edges, plex%offset_edges_vertical
@@ -256,7 +256,7 @@ module m_plex_grid
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections'
       ! Setup Connections
       ! First set five faces of cell
-      do k = 1, plex%Nz
+      do k = 1, plex%Nlay
         do i = 1, icongrid%Nfaces
           edge3 = icongrid%edge_of_cell(i,:)
 
@@ -284,7 +284,7 @@ module m_plex_grid
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : edges of top/bot faces'
       ! set edges of top/bot faces
-      do k = 1, plex%Nz+1 ! levels
+      do k = 1, plex%Nlay+1 ! levels
         do i = 1, icongrid%Nfaces
           do j=1,3
             iedge = icongrid%edge_of_cell(i,j)
@@ -309,7 +309,7 @@ module m_plex_grid
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : edges of vertical faces'
       ! set edges of vertical faces
-      do k = 1, plex%Nz ! layers
+      do k = 1, plex%Nlay ! layers
         do i = 1, icongrid%Nedges
           iface = iface_side_icon_2_plex(icongrid, plex, i, k)
           edge4(1) = iedge_top_icon_2_plex(icongrid, plex, i, k)
@@ -337,7 +337,7 @@ module m_plex_grid
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : vertices of horizontal edges'
       ! and then set the two vertices of edges in each level, i.e. vertices for edges in horizontal plane
-      do k = 1, plex%Nz+1 ! levels
+      do k = 1, plex%Nlay+1 ! levels
         do i = 1, icongrid%Nedges
           iedge = iedge_top_icon_2_plex(icongrid, plex, i, k)
           do j=1,2
@@ -361,7 +361,7 @@ module m_plex_grid
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : vertices of vertical edges'
       ! and then set the two vertices of edges in each layer, i.e. vertices at the end of vertical edges
-      do k = 1, plex%Nz ! layer
+      do k = 1, plex%Nlay ! layer
         do i = 1, icongrid%Nvertices
           iedge = iedge_side_icon_2_plex(icongrid, plex, i, k)
           vert2(1) = ivertex_icon_2_plex(icongrid, plex, i, k)
@@ -382,7 +382,7 @@ module m_plex_grid
       enddo
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : labels of vertices'
-      do k = 1, plex%Nz+1 ! levels
+      do k = 1, plex%Nlay+1 ! levels
         do i = 1, icongrid%Nvertices
           ivertex = ivertex_icon_2_plex(icongrid, plex, i, k)
 
@@ -489,7 +489,7 @@ module m_plex_grid
         call DMPlexGetDepthStratum(plex%dm, i1, plex%eStart, plex%eEnd, ierr); call CHKERR(ierr) ! edges
         call DMPlexGetDepthStratum(plex%dm, i0, plex%vStart, plex%vEnd, ierr); call CHKERR(ierr) ! vertices
 
-        plex%Nz = size(hhl, kind=iintegers)
+        plex%Nlay = size(hhl, kind=iintegers)-1
         allocate(plex%zindex(pStart:pEnd-1), source=zindex)
         allocate(plex%hhl(size(hhl)), source=hhl)
         if(size(hhl).lt.2) call CHKERR(1_mpiint, 'need at least two height levels to construct a PLEXRT mesh')
@@ -854,7 +854,7 @@ module m_plex_grid
         call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
         ! set vertices as coordinates
-        do k = 1, plex%Nz+1
+        do k = 1, plex%Nlay+1
           do i = 1, icongrid%Nvertices
             ivertex = ivertex_icon_2_plex(icongrid, plex, i, k)
             call PetscSectionGetOffset(coordSection, ivertex, voff, ierr); call CHKERR(ierr)
@@ -1097,9 +1097,9 @@ module m_plex_grid
     call DMGetCoordinateSection(dm, coordSection, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(coordSection, PETSC_NULL_SECTION, "-show_dm_coord_section", ierr); call CHKERR(ierr)
     ! Geometry Vec Contains 3 Fields:
-    ! 1: 3 dof for centroid on cells and faces
-    ! 2: 3 for normal vecs on faces
-    ! 3: and 1 cell, face and edge entry for volume, area, length
+    ! field 0: 3 dof for centroid on cells and faces
+    ! field 1: 3 for normal vecs on faces
+    ! field 2: and 1 cell, face and edge entry for volume, area, length
     call create_plex_section(dm, 'Geometry Section', i3, &
       [i3, i0, i1], [i3, i3, i1], [i0, i0, i1], [i0, i0, i0], geomSection)
     call DMSetSection(dm, geomSection, ierr); call CHKERR(ierr)
@@ -2178,7 +2178,7 @@ module m_plex_grid
       integer(iintegers),intent(in) :: k        !< @param[in] k, vertical index
       integer(iintegers) :: icell_icon_2_plex   !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
       if(ldebug) then
-        if(k.lt.i1 .or. k.gt.plex%Nz) then
+        if(k.lt.i1 .or. k.gt.plex%Nlay) then
           print *,'icell_icon_2_plex :: inp',icell, k
           stop 'icell_icon_2_plex :: vertical index k out of range'
         endif
@@ -2187,7 +2187,7 @@ module m_plex_grid
           stop 'icell_icon_2_plex :: icon cell index out of range'
         endif
       endif
-      icell_icon_2_plex = (k-i1) + (icell-i1)*plex%Nz
+      icell_icon_2_plex = (k-i1) + (icell-i1)*plex%Nlay
     end function
 
     !> @brief return the dmplex face index for an icongrid index situated at the top of a cell
@@ -2200,12 +2200,12 @@ module m_plex_grid
       integer(iintegers) :: iface_top_icon_2_plex   !< @param[out] icell_icon_2_plex, the cell index in the dmplex, starts from 0 and goes to plex%cEnd
       integer(iintegers) :: offset
       if(present(owner)) then
-        offset = icon%parNfaces(owner) * plex%Nz
+        offset = icon%parNfaces(owner) * plex%Nlay
       else
         offset = plex%offset_faces
       endif
       if(ldebug) then
-        if(k.lt.i1 .or. k.gt.plex%Nz+1) then
+        if(k.lt.i1 .or. k.gt.plex%Nlay+1) then
           print *,'iface_top_icon_2_plex :: inp', icell, k, present(owner)
           stop 'iface_top_icon_2_plex :: vertical index k out of range'
         endif
@@ -2214,7 +2214,7 @@ module m_plex_grid
           stop 'iface_top_icon_2_plex :: icon cell index out of range'
         endif
       endif
-      iface_top_icon_2_plex = offset + (k-i1) + (icell-i1)*(plex%Nz+1)
+      iface_top_icon_2_plex = offset + (k-i1) + (icell-i1)*(plex%Nlay+1)
     end function
 
     !> @brief return the dmplex face index for an icongrid index situated at the side of a cell, i.e. below a certain edge
@@ -2230,14 +2230,14 @@ module m_plex_grid
       if(present(owner)) then
         Nfaces = icon%parNfaces(owner)
         Nedges = icon%parNedges(owner)
-        offset = Nfaces * plex%Nz + (plex%Nz + 1) * Nfaces
+        offset = Nfaces * plex%Nlay + (plex%Nlay + 1) * Nfaces
       else
         Nfaces = icon%Nfaces
         Nedges = icon%Nedges
         offset = plex%offset_faces_sides
       endif
       if(ldebug) then
-        if(k.lt.i1 .or. k.gt.plex%Nz) then
+        if(k.lt.i1 .or. k.gt.plex%Nlay) then
           print *,'iface_side_icon_2_plex :: inp', iedge, k, present(owner), '::', Nfaces, Nedges, offset
           stop 'iface_side_icon_2_plex :: vertical index k out of range'
         endif
@@ -2246,7 +2246,7 @@ module m_plex_grid
           stop 'iface_side_icon_2_plex :: icon edge index out of range'
         endif
       endif
-      iface_side_icon_2_plex = offset + (k-i1) + (iedge-i1)*plex%Nz
+      iface_side_icon_2_plex = offset + (k-i1) + (iedge-i1)*plex%Nlay
     end function
 
     !> @brief return the dmplex edge index for a given icon edge index, i.e. the edges on the top/bot faces of cells
@@ -2261,18 +2261,18 @@ module m_plex_grid
       if(present(owner)) then
         Nfaces = icon%parNfaces(owner)
         Nedges = icon%parNedges(owner)
-        offset = Nfaces * plex%Nz + Nfaces * (plex%Nz+1) + Nedges * plex%Nz
+        offset = Nfaces * plex%Nlay + Nfaces * (plex%Nlay+1) + Nedges * plex%Nlay
       else
         Nfaces = icon%Nfaces
         Nedges = icon%Nedges
         offset = plex%offset_edges
       endif
       if(ldebug) then
-        if(k.lt.i1 .or. k.gt.plex%Nz+1) stop 'iedge_top_icon_2_plex :: vertical index k out of range'
+        if(k.lt.i1 .or. k.gt.plex%Nlay+1) stop 'iedge_top_icon_2_plex :: vertical index k out of range'
         if(iedge.lt.i1 .or. iedge.gt.Nedges) stop 'iedge_top_icon_2_plex :: icon cell index out of range'
       endif
 
-      iedge_top_icon_2_plex = offset + (k-i1) + (iedge-i1)*(plex%Nz+i1)
+      iedge_top_icon_2_plex = offset + (k-i1) + (iedge-i1)*(plex%Nlay+i1)
     end function
 
     !> @brief return the dmplex edge index for a given icon vertex index, i.e. the edges on the side faces of cells
@@ -2288,7 +2288,7 @@ module m_plex_grid
         Nfaces = icon%parNfaces(owner)
         Nedges = icon%parNedges(owner)
         Nvertices = icon%parNvertices(owner)
-        offset = Nfaces * plex%Nz + Nfaces * (plex%Nz+1) + Nedges * plex%Nz + Nedges * (plex%Nz+i1)
+        offset = Nfaces * plex%Nlay + Nfaces * (plex%Nlay+1) + Nedges * plex%Nlay + Nedges * (plex%Nlay+i1)
       else
         Nfaces = icon%Nfaces
         Nedges = icon%Nedges
@@ -2296,11 +2296,11 @@ module m_plex_grid
         offset = plex%offset_edges_vertical
       endif
       if(ldebug) then
-        if(k.lt.i1 .or. k.gt.plex%Nz) stop 'iedge_side_icon_2_plex :: vertical index k out of range'
+        if(k.lt.i1 .or. k.gt.plex%Nlay) stop 'iedge_side_icon_2_plex :: vertical index k out of range'
         if(ivertex.lt.i1 .or. ivertex.gt.Nvertices) stop 'iedge_side_icon_2_plex :: icon vertex index out of range'
       endif
 
-      iedge_side_icon_2_plex = offset + (k-i1) + (ivertex-i1)*plex%Nz
+      iedge_side_icon_2_plex = offset + (k-i1) + (ivertex-i1)*plex%Nlay
     end function
 
     !> @brief return the dmplex vertex index for a given icon vertex index
@@ -2316,7 +2316,7 @@ module m_plex_grid
         Nfaces = icon%parNfaces(owner)
         Nedges = icon%parNedges(owner)
         Nvertices = icon%parNvertices(owner)
-        offset = Nfaces * plex%Nz + Nfaces * (plex%Nz+1) + Nedges * plex%Nz + Nedges * (plex%Nz+1) + Nvertices * plex%Nz
+        offset = Nfaces * plex%Nlay + Nfaces * (plex%Nlay+1) + Nedges * plex%Nlay + Nedges * (plex%Nlay+1) + Nvertices * plex%Nlay
       else
         Nfaces    = icon%Nfaces
         Nedges    = icon%Nedges
@@ -2324,14 +2324,14 @@ module m_plex_grid
         offset    = plex%offset_vertices
       endif
       if(ldebug) then
-        if(k.lt.i1 .or. k.gt.plex%Nz+1) then
+        if(k.lt.i1 .or. k.gt.plex%Nlay+1) then
           print *,'ivertex_icon_2_plex error! input was',ivertex, k
           stop 'ivertex_side_icon_2_plex :: vertical index k out of range'
         endif
         if(ivertex.lt.i1 .or. ivertex.gt.Nvertices) stop 'ivertex_side_icon_2_plex :: icon vertex index out of range'
       endif
 
-      ivertex_icon_2_plex = offset + (k-i1) + (ivertex-i1)*(plex%Nz+i1)
+      ivertex_icon_2_plex = offset + (k-i1) + (ivertex-i1)*(plex%Nlay+i1)
     end function
 
     subroutine update_plex_indices(plex)
@@ -2351,6 +2351,37 @@ module m_plex_grid
         print *,myid, 'fStart', plex%fStart, 'fEnd', plex%fEnd
         print *,myid, 'eStart', plex%eStart, 'eEnd', plex%eEnd
         print *,myid, 'vStart', plex%vStart, 'vEnd', plex%vEnd
+      endif
+    end subroutine
+
+    subroutine get_consecutive_vertical_cell_idx(plex, startcell, idx)
+      type(t_plexgrid), intent(in) :: plex
+      integer(iintegers), intent(in) :: startcell
+      integer(iintegers), allocatable, intent(inout) :: idx(:)
+      integer(iintegers), allocatable :: dbg_idx(:)
+      integer(iintegers) :: k
+
+      if(.not.allocated(idx)) then
+        allocate(idx(plex%Nlay))
+      else
+        call CHKERR(int(size(idx)-plex%Nlay, mpiint), 'wrong size of cell idx')
+      endif
+
+      idx(1) = startcell
+      do k=2,plex%Nlay
+        idx(k) = idx(k-1) + 1
+      enddo
+
+      if(ldebug) then
+        ! make sure that startcell is at TOA
+        call CHKERR(int(plex%zindex(startcell)-1, mpiint), 'startcell has to be at TOA to use this routine')
+
+        call get_vertical_cell_idx(plex%dm, startcell, plex%Nlay, dbg_idx)
+        if(.not.all(idx.eq.dbg_idx)) then
+          print *,'consecutive idx', idx
+          print *,'plex_scan   idx', dbg_idx
+          call CHKERR(1_mpiint, 'consecutive and dmplex scan vertical cell idx set does not give the same results')
+        endif
       endif
     end subroutine
 

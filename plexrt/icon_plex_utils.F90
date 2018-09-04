@@ -1230,8 +1230,8 @@ module m_icon_plex_utils
       call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
       ke = vecsize/Ncol
 
-      call CHKERR(int(ke - (plex%Nz-1), mpiint), &
-        'vertical vec sizes do not match '//itoa(ke)//' vs '//itoa(plex%Nz-1)//' => '//itoa(ke - (plex%Nz-1)))
+      call CHKERR(int(ke - (plex%Nlay), mpiint), &
+        'vertical vec sizes do not match '//itoa(ke)//' vs '//itoa(plex%Nlay)//' => '//itoa(ke - (plex%Nlay)))
 
       call DMGetSection(plex%cell1_dm, sec, ierr); call CHKERR(ierr)
 
@@ -1267,8 +1267,8 @@ module m_icon_plex_utils
       call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
       ke = vecsize/Ncol
 
-      call CHKERR(int(ke - plex%Nz-1, mpiint), &
-        'vertical vec sizes do not match'//itoa(ke)//' vs '//itoa(plex%Nz-1))
+      call CHKERR(int(ke - plex%Nlay, mpiint), &
+        'vertical vec sizes do not match'//itoa(ke)//' vs '//itoa(plex%Nlay))
 
       if(.not.allocated(arr)) then
         allocate(arr(ke, Ncol))

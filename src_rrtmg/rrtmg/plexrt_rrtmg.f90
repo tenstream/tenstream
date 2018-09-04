@@ -122,7 +122,7 @@ contains
     print *,'debug', sundir, albedo_thermal, albedo_solar, lthermal, lsolar
     if(present(opt_time)) print *,'time', opt_time
 
-    ke1 = solver%plex%Nz
+    ke1 = solver%plex%Nlay+1
     call CHKERR(int(ke1 - size(atm%plev,dim=1),mpiint), 'Vertical Size of atm and plex solver dont match')
 
     call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
@@ -199,13 +199,12 @@ contains
     real(ireals),allocatable, dimension(:,:,:) :: tau, Bfrac          ! [nlyr, ncol, ngptlw]
     real(ireals),allocatable, dimension(:,:)   :: spec_abso           ! [nlyr(+1), ncol ]
     real(ireals),allocatable, dimension(:,:)   :: spec_edn, spec_eup  ! [nlyr(+1), ncol ]
-    real(ireals),allocatable, dimension(:,:)   :: tmp  ! [nlyr, ncol ]
+    real(ireals),allocatable, dimension(:,:)   :: tmp, plck           ! [nlyr, ncol ]
 
     real(ireals), pointer :: xalbedo(:), xsrfc_emission(:)
 
     integer(iintegers) :: i, ib, icol, k, current_ibnd
     logical :: need_any_new_solution
-
 
     integer(mpiint) :: ierr
 
@@ -276,6 +275,7 @@ contains
 
     ! tmp space for transformations of cell properties
     allocate(tmp(ke1-1, Ncol))
+    allocate(plck(ke1-1, Ncol))
 
     current_ibnd = -1 ! current lw band
     do ib=1, ngptlw
@@ -291,24 +291,24 @@ contains
         else
           do icol=i1,Ncol
             do k=i1,ke1-1
-              tmp(ke1-k,icol) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlay(k,icol))) &
-                * Bfrac(k,icol,ib)
+              plck(k,icol) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlay(k,icol)))
             enddo
           enddo
-          call Nz_Ncol_vec_to_celldm1(solver%plex, tmp, solver%plck)
-
-          call VecGetArrayF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
-          do icol = i1, Ncol
-            xsrfc_emission(icol) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(1,icol))) &
-              * Bfrac(1,icol,ib)
-          enddo
-          call VecRestoreArrayF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
-
           current_ibnd = ngb(ib)
         endif
 
+        tmp = reverse(plck * Bfrac(:,:,ib))
+        call Nz_Ncol_vec_to_celldm1(solver%plex, tmp, solver%plck)
+
+        call VecGetArrayF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
+        do icol = i1, Ncol
+          xsrfc_emission(icol) = plck(1,icol) * Bfrac(1,icol,ib)
+        enddo
+        call VecRestoreArrayF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
+
         call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=[zero, zero, one], &
           opt_solution_uid=500+ib, opt_solution_time=opt_time)
+
       endif
       call plexrt_get_result(solver, spec_edn, spec_eup, spec_abso, opt_solution_uid=500+ib)
 
