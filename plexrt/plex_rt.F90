@@ -1583,10 +1583,10 @@ module m_plex_rt
         min(OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), w0))
     endif
 
-    !relcoords(5) = max(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(1), &
-    !               min(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(2), relcoords(5)))
-    !relcoords(6) = max(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(1), &
-    !               min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6)))
+    relcoords(5) = max(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(1), &
+                   min(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(2), relcoords(5)))
+    relcoords(6) = max(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(1), &
+                   min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6)))
 
     !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
     call OPP%get_coeff(tauz, w0, g, aspect, ldir, coeff, angles=angles, wedge_coords=relcoords)

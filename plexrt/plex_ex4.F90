@@ -56,8 +56,7 @@ logical, parameter :: ldebug=.True.
       integer(iintegers) :: k, fStart, fEnd, Ncol, Nlev, Nlay
       real(ireals), allocatable, dimension(:,:) :: edir,edn,eup,abso
 
-      real(ireals) :: first_normal(3)
-      real(ireals), allocatable :: sundir(:) ! cartesian direction of sun rays in a global reference system
+      real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
 
       class(t_plex_solver), allocatable :: solver
 
@@ -119,25 +118,21 @@ logical, parameter :: ldebug=.True.
 
       call init_plex_rt_solver(plex, solver)
 
-      if(myid.eq.0) then
-        allocate(sundir(3))
-        first_normal = get_normal_of_first_TOA_face(solver%plex)
-        sundir = first_normal + [zero, zero, 1e-4_ireals]
-        !sundir = -[0.717607, -0.690197, -0.0930992]
-        !sundir = -[0.88119, -0.0874145, 0.46461]
-        sundir = sundir/norm(sundir)
-      endif
-      call imp_bcast(comm, sundir, 0_mpiint)
+      first_normal = get_normal_of_first_TOA_face(solver%plex)
+      sundir = first_normal + [zero, zero, 1e-2_ireals]
+      !sundir = -[0.717607, -0.690197, -0.0930992]
+      !sundir = -[0.88119, -0.0874145, 0.46461]
+      sundir = sundir/norm(sundir)
       print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
 
       call plexrt_rrtmg(solver, atm, sundir, &
         albedo_thermal=zero, albedo_solar=Ag, &
-        lthermal=.True., lsolar=.False., &
+        lthermal=.False., lsolar=.True., &
         edir=edir, edn=edn, eup=eup, abso=abso)
 
       call plexrt_rrtmg(solver, atm, sundir, &
         albedo_thermal=zero, albedo_solar=Ag, &
-        lthermal=.False., lsolar=.True., &
+        lthermal=.True., lsolar=.False., &
         edir=edir, edn=edn, eup=eup, abso=abso)
 
       call destroy_plexrt_rrtmg(solver, lfinalizepetsc=.False.)
