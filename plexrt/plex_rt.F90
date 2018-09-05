@@ -1161,7 +1161,7 @@ module m_plex_rt
 
     integer(mpiint) :: myid, ierr
 
-    if(ldebug) print *,'plex_rt::scale_facevec...'
+    !if(ldebug) print *,'plex_rt::scale_facevec...'
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
     call DMGetSection(plex%geom_dm, geomSection, ierr); CHKERRQ(ierr)
@@ -1200,7 +1200,7 @@ module m_plex_rt
     call DMLocalToGlobalEnd  (face_dm, faceVec, INSERT_VALUES, globalfaceVec, ierr); call CHKERR(ierr)
 
     call DMRestoreLocalVector(face_dm, faceVec, ierr); call CHKERR(ierr)
-    if(ldebug) print *,'plex_rt::scale_facevec... finished'
+    !if(ldebug) print *,'plex_rt::scale_facevec... finished'
     end subroutine
 
   subroutine create_edir_mat(solver, plex, OPP, kabs, ksca, g, A)
@@ -2057,9 +2057,11 @@ module m_plex_rt
         if(lthermal) Blev(k) = xsrfc_emission(i)
 
         if(solution%lsolar_rad) then
-          call delta_eddington_twostream(dtau,w0,g,cos(theta0),norm(sundir),xalbedo(i), Edir, Edn, Eup )
+          call delta_eddington_twostream(dtau,w0,g,cos(theta0),norm(sundir)*cos(theta0),xalbedo(i), &
+            Edir, Edn, Eup )
         else
-          call delta_eddington_twostream(dtau,w0,g,cos(theta0),norm(sundir),xalbedo(i), Edir, Edn, Eup, Blev)
+          call delta_eddington_twostream(dtau,w0,g,cos(theta0),norm(sundir)*cos(theta0),xalbedo(i), &
+            Edir, Edn, Eup, Blev)
         endif
 
         if(lsolar) then
