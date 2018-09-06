@@ -15,16 +15,6 @@ add_executable( gen_plex_from_icon gen_plex_from_icon.F90 )
 target_link_libraries( gen_plex_from_icon plexrt pprts_base ${LIB} ${EXTLIB} )
 install(TARGETS gen_plex_from_icon DESTINATION bin)
 
-file( GLOB plex_examples plex_ex*.F90 )
-foreach ( plex_ex ${plex_examples} )
-  GET_FILENAME_COMPONENT(basename "${plex_ex}" NAME_WE )
-
-  add_executable("${basename}" "${basename}.F90" )
-  target_link_libraries( "${basename}" plexrt pprts_base pprts_rrtmg  pprts_rrtm_lw  pprts_rrtm_sw)
-
-  install(TARGETS ${basename} RUNTIME DESTINATION bin)
-endforeach ()
-
 add_executable( gen_fish_plex gen_fish_plex.F90 )
 target_link_libraries( gen_fish_plex plexrt pprts_base)
 install(TARGETS gen_fish_plex DESTINATION bin)

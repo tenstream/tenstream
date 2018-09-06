@@ -125,14 +125,15 @@ logical, parameter :: ldebug=.True.
       sundir = sundir/norm(sundir)
       print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
 
-      call plexrt_rrtmg(solver, atm, sundir, &
-        albedo_thermal=zero, albedo_solar=Ag, &
-        lthermal=.False., lsolar=.True., &
-        edir=edir, edn=edn, eup=eup, abso=abso)
+      !call plexrt_rrtmg(solver, atm, sundir, &
+      !  albedo_thermal=zero, albedo_solar=Ag, &
+      !  lthermal=.True., lsolar=.False., &
+      !  edir=edir, edn=edn, eup=eup, abso=abso)
+
 
       call plexrt_rrtmg(solver, atm, sundir, &
         albedo_thermal=zero, albedo_solar=Ag, &
-        lthermal=.True., lsolar=.False., &
+        lthermal=.False., lsolar=.True., &
         edir=edir, edn=edn, eup=eup, abso=abso)
 
       call destroy_plexrt_rrtmg(solver, lfinalizepetsc=.False.)
@@ -167,19 +168,19 @@ logical, parameter :: ldebug=.True.
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
     default_options=''
-    default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
-    default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_domainboundary hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_lwc hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_iwc hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_fV2cV_DiffSrcVec hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_fV2cV_ediff hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
-    default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
+    !default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_domainboundary hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_lwc hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_iwc hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_fV2cV_DiffSrcVec hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_fV2cV_ediff hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
 
     print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
