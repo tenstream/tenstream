@@ -73,7 +73,8 @@ module m_pprts_base
     real(ireals)        :: time   (30) = -one
     real(ireals)        :: maxnorm(30) = zero
     real(ireals)        :: twonorm(30) = zero
-    real(ireals),allocatable :: ksp_residual_history(:)
+    real(ireals),allocatable :: dir_ksp_residual_history(:)
+    real(ireals),allocatable :: diff_ksp_residual_history(:)
   end type
 
   type t_dof
@@ -200,8 +201,10 @@ module m_pprts_base
           deallocate(solution%abso)
         endif
 
-        if(allocated(solution%ksp_residual_history)) &
-          deallocate(solution%ksp_residual_history)
+        if(allocated(solution%dir_ksp_residual_history)) &
+          deallocate(solution%dir_ksp_residual_history)
+        if(allocated(solution%diff_ksp_residual_history)) &
+          deallocate(solution%diff_ksp_residual_history)
 
         solution%lset = .False.
       endif

@@ -1635,7 +1635,7 @@ module m_pprts
 
       call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
       call setup_ksp(solver%atm, kspdir, C_dir, solver%Mdir, linit_kspdir, "dir_")
-      call solve(solver, kspdir, solver%incSolar, solutions(uid)%edir)
+      call solve(solver, kspdir, solver%incSolar, solutions(uid)%edir, solutions(uid)%dir_ksp_residual_history)
       call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
 
       solutions(uid)%lchanged=.True.
@@ -1659,7 +1659,7 @@ module m_pprts
 
     call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
     call setup_ksp(solver%atm, kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
-    call solve(solver, kspdiff, solver%b, solutions(uid)%ediff,uid)
+    call solve(solver, kspdiff, solver%b, solutions(uid)%ediff, solutions(uid)%diff_ksp_residual_history)
     call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
 
     solutions(uid)%lchanged=.True.
@@ -2395,12 +2395,12 @@ end subroutine
 !> @details solve with ksp and save residual history of solver
 !> \n -- this may be handy later to decide next time if we have to calculate radiation again
 !> \n if we did not get convergence, we try again with standard GMRES and a resetted(zero) initial guess -- if that doesnt help, we got a problem!
-subroutine solve(solver, ksp,b,x,solution_uid)
+subroutine solve(solver, ksp, b, x, ksp_residual_history)
   class(t_solver) :: solver
   type(tKSP) :: ksp
   type(tVec) :: b
   type(tVec) :: x
-  integer(iintegers),optional,intent(in) :: solution_uid
+  real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
 
   KSPConvergedReason :: reason
   integer(iintegers) :: iter
@@ -2409,10 +2409,10 @@ subroutine solve(solver, ksp,b,x,solution_uid)
 
   if(solver%myid.eq.0.and.ldebug) print *,'Solving Matrix'
 
-  if(present(solution_uid)) then
-    if(.not.allocated( solver%solutions(solution_uid)%ksp_residual_history) ) allocate(solver%solutions(solution_uid)%ksp_residual_history(100) )
-    solver%solutions(solution_uid)%ksp_residual_history = -1
-    call KSPSetResidualHistory(ksp, solver%solutions(solution_uid)%ksp_residual_history, 100_iintegers, .True.,ierr)
+  if(present(ksp_residual_history)) then
+    if(.not.allocated( ksp_residual_history) ) allocate(ksp_residual_history(100) )
+    ksp_residual_history = -1
+    call KSPSetResidualHistory(ksp, ksp_residual_history, 100_iintegers, PETSC_TRUE, ierr); call CHKERR(ierr)
   endif
 
   call KSPSolve(ksp,b,x,ierr) ;call CHKERR(ierr)

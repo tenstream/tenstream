@@ -393,7 +393,8 @@ module m_plex_rt
 
         ! Solve Direct Matrix
         call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-        call solve_plex_rt(solver%plex%edir_dm, solver%dirsrc, solver%Mdir, solver%kspdir, solution%edir, 'dir_')
+        call solve_plex_rt(solver%plex%edir_dm, solver%dirsrc, solver%Mdir, solver%kspdir, solution%edir, &
+          ksp_residual_history=solution%dir_ksp_residual_history, prefix='dir_')
         call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
         call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
@@ -435,7 +436,8 @@ module m_plex_rt
 
       ! Solve Diffuse Matrix
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
-      call solve_plex_rt(solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%kspdiff, solution%ediff, 'diff_')
+      call solve_plex_rt(solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%kspdiff, solution%ediff, &
+        ksp_residual_history=solution%diff_ksp_residual_history, prefix='diff_')
       call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
       call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, &
@@ -491,7 +493,7 @@ module m_plex_rt
       if(.not.allocated(plex)) stop 'called create_src_vec but plex is not allocated'
       call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
-      if(ldebug .and. myid.eq.0) print *,myid,'plex_rt::create_src_vec....'
+      !if(ldebug .and. myid.eq.0) print *,myid,'plex_rt::create_src_vec....'
 
       if(.not.allocated(edirdm)) call CHKERR(myid+1, 'called create_src_vec but edirdm is not allocated')
 
@@ -598,10 +600,7 @@ module m_plex_rt
       call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
 
-      if(ldebug .and. myid.eq.0) print *,myid,'plex_rt::create_src_vec....finished'
-      if(ldebug) then
-        call mpi_barrier(plex%comm, ierr); call CHKERR(ierr)
-      endif
+      !if(ldebug .and. myid.eq.0) print *,myid,'plex_rt::create_src_vec....finished'
     end subroutine
 
     !> @brief setup source term for diffuse radiation
@@ -1097,51 +1096,105 @@ module m_plex_rt
       call VecRestoreArrayF90(lambertVec, xv, ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine solve_plex_rt(dm, b, A, ksp, x, prefix)
+    subroutine solve_plex_rt(dm, b, A, ksp, x, ksp_residual_history, prefix)
       type(tDM), intent(inout) :: dm
       type(tVec), allocatable, intent(in) :: b
       type(tMat), allocatable, intent(in) :: A
       type(tKSP), allocatable, intent(inout) :: ksp
       type(tVec), allocatable, intent(inout) :: x
+      real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
       character(len=*),optional :: prefix
 
       type(tMatNullSpace) :: nullspace
       type(tVec) :: nullvecs(0)
+      integer(iintegers) :: Niterations
 
+      integer(iintegers), parameter :: Nmaxhistory=1000
       integer(mpiint) :: comm, ierr
 
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
 
-      !if(.not.allocated(ksp)) call CHKERR(1_mpiint, 'KSP has to be allocated before running solve')
       if(.not.allocated(b)) call CHKERR(1_mpiint, 'Src Vector has to be allocated before running solve')
       if(.not.allocated(A)) call CHKERR(1_mpiint, 'System Matrix has to be allocated before running solve')
 
-      if(ldebug) print *,'plex_rt::solve Matrix...'
+      !if(ldebug) print *,'plex_rt::solve Matrix...'
       if(.not.allocated(ksp)) then
         allocate(ksp)
         call KSPCreate(comm, ksp, ierr); call CHKERR(ierr)
         if(present(prefix)) then
           call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
         endif
+
+        call MatNullSpaceCreate(comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
+        call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
+        call MatNullSpaceDestroy(nullspace, ierr); call CHKERR(ierr)
+
+        call KSPSetDM(ksp, dm, ierr); call CHKERR(ierr)
+        call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
+        call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
+        call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
+        call KSPSetUp(ksp, ierr); call CHKERR(ierr)
       endif
 
-      call MatNullSpaceCreate(comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
-      call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
-      call MatNullSpaceDestroy(nullspace, ierr); call CHKERR(ierr)
-
-      call KSPSetDM(ksp, dm, ierr); call CHKERR(ierr)
-      call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
-      call KSPSetOperators(ksp, A, A, ierr); CHKERRQ(ierr)
-
-      call KSPSetFromOptions(ksp, ierr); CHKERRQ(ierr)
-      call KSPSetUp(ksp, ierr); call CHKERR(ierr)
+      if(present(ksp_residual_history)) then
+        if(.not.allocated(ksp_residual_history)) &
+          allocate(ksp_residual_history(Nmaxhistory), source=-one)
+        call KSPSetResidualHistory(ksp, ksp_residual_history, Nmaxhistory, PETSC_TRUE, ierr); call CHKERR(ierr)
+      endif
 
       if(.not.allocated(x)) then
         allocate(x)
-        call VecDuplicate(b, x, ierr); CHKERRQ(ierr)
+        call VecDuplicate(b, x, ierr); call CHKERR(ierr)
       endif
-      call KSPSolve(ksp, b, x, ierr); CHKERRQ(ierr)
-      if(ldebug) print *,'plex_rt::solve Matrix...finished'
+      call KSPSolve(ksp, b, x, ierr); call CHKERR(ierr)
+
+      call handle_diverged_solve()
+
+      !if(ldebug) print *,'plex_rt::solve Matrix...finished'
+      call KSPGetIterationNumber(ksp, Niterations, ierr); call CHKERR(ierr)
+      if(Niterations.gt.50) then
+        call KSPSetReusePreconditioner(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
+      else
+        call KSPSetReusePreconditioner(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
+      endif
+
+      contains
+        subroutine handle_diverged_solve()
+          KSPConvergedReason :: reason
+          KSPType :: old_ksp_type
+          integer(iintegers) :: iter
+          integer(mpiint) :: myid
+
+          call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
+          if(reason.le.0) then
+            call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+            if(myid.eq.0.and.ldebug) &
+              print *,myid,'Resetted initial guess to zero and try again with gmres:'
+            call VecSet(x,zero,ierr) ;call CHKERR(ierr)
+            call KSPGetType(ksp,old_ksp_type,ierr); call CHKERR(ierr)
+            call KSPSetType(ksp,KSPFGMRES,ierr) ;call CHKERR(ierr)
+            call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
+            call KSPSolve(ksp,b,x,ierr) ;call CHKERR(ierr)
+            call KSPGetIterationNumber(ksp,iter,ierr) ;call CHKERR(ierr)
+            call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
+
+            ! And return to normal solver...
+            call KSPSetType(ksp,old_ksp_type,ierr) ;call CHKERR(ierr)
+            call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
+            call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
+            if(myid.eq.0.and.ldebug) &
+              print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
+          endif
+
+          if(reason.le.0) then
+            call PetscObjectViewFromOptions(b  , PETSC_NULL_VEC, '-show_diverged_b', ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(x  , PETSC_NULL_VEC, '-show_diverged_x', ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(A  , PETSC_NULL_MAT, '-show_diverged_A', ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(ksp, PETSC_NULL_KSP, '-show_diverged_ksp', ierr); call CHKERR(ierr)
+            call CHKERR(1_mpiint, '***** SOLVER did NOT converge :( ********'//itoa(reason))
+          endif
+        end subroutine
+
     end subroutine
 
     subroutine scale_facevec(plex, face_dm, globalfaceVec, lW_to_Wm2)
@@ -1240,7 +1293,7 @@ module m_plex_rt
     logical, parameter :: lonline=.False.
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
-    if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...'
+    !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...'
 
     if(.not.allocated(plex%edir_dm)) call CHKERR(1_mpiint, 'edir_dm has to allocated in order to create an Edir Matrix')
     if(.not.allocated(kabs  )) call CHKERR(1_mpiint, 'kabs   has to be allocated')
@@ -1323,7 +1376,7 @@ module m_plex_rt
                 !print *,'isrc', face_plex2bmc(iface), 'idst', face_plex2bmc(idst), &
                 !  'if', iface, 'id', idst, &
                 !  'srcface->dstface', faces_of_cell(iface),faces_of_cell(idst), &
-                !  'col -> row', icol, irow, dir2dir(face_plex2bmc(idst))
+                !  'col -> row', icols, irows, coeffs
                 call MatSetValuesLocal(A, i1, irows, i1, icols, coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
               endif
             endif
@@ -1348,7 +1401,7 @@ module m_plex_rt
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, '-show_Medir', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, '-show_Mdir', ierr); call CHKERR(ierr)
 
     call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
@@ -1357,7 +1410,7 @@ module m_plex_rt
     call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
 
-    if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...finished'
+    !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...finished'
   end subroutine
 
   subroutine create_ediff_mat(solver, plex, OPP, kabs, ksca, g, albedo, A)
@@ -1394,7 +1447,7 @@ module m_plex_rt
     integer(iintegers), pointer :: xinoutdof(:)
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
-    if(ldebug.and.myid.eq.0) print *,'plex_rt::create_ediff_mat...'
+    !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_ediff_mat...'
 
     if(.not.allocated(plex%ediff_dm)) call CHKERR(1_mpiint, 'ediff_dm has to allocated in order to create an Ediff Matrix')
     if(.not.allocated(kabs  )) call CHKERR(1_mpiint, 'kabs   has to be allocated')
@@ -1484,7 +1537,7 @@ module m_plex_rt
     call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-    if(ldebug.and.myid.eq.0) print *,'plex_rt::create_ediff_mat...finished'
+    !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_ediff_mat...finished'
     contains
       subroutine set_boundary_conditions()
         type(tIS) :: bc_ids
