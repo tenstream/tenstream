@@ -204,9 +204,11 @@ module m_boxmc_geometry
       endif
     end subroutine
 
-    subroutine setup_default_wedge_geometry(A, B, C, dz, vertices)
+    subroutine setup_default_wedge_geometry(A, B, C, dz, vertices, sphere_radius)
       real(ireals), intent(in) :: A(2), B(2), C(2), dz
       real(ireals), allocatable, intent(inout) :: vertices(:)
+      real(ireals), intent(in), optional :: sphere_radius
+      real(ireals) :: s
 
       if(allocated(vertices)) deallocate(vertices)
       allocate(vertices(2*3*3))
@@ -219,6 +221,17 @@ module m_boxmc_geometry
       vertices(13:14) = B
       vertices(16:17) = C
       vertices([12,15,18]) = dz
+
+      if(present(sphere_radius)) then
+        s = one - (sphere_radius + dz) / sphere_radius
+        vertices(1:2) = A - s/4 * (B-A) - s/4 * (C-A)
+        vertices(4:5) = B - s/4 * (A-B) - s/4 * (C-B)
+        vertices(7:8) = C - s/4 * (A-C) - s/4 * (B-C)
+
+        vertices(10:11) = A + s/4 * (B-A) + s/4 * (C-A)
+        vertices(13:14) = B + s/4 * (A-B) + s/4 * (C-B)
+        vertices(16:17) = C + s/4 * (A-C) + s/4 * (B-C)
+      endif
     end subroutine
     subroutine setup_default_unit_wedge_geometry(dx, dy, dz, vertices)
       real(ireals), intent(in) :: dx, dy, dz
