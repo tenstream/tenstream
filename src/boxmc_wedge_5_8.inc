@@ -259,8 +259,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
     phi= deg2rad( interv_R(0._ireal_dp, 180._ireal_dp) ) ! from +x to -x through +y
   end select
 
-  ! mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu=1 --> Lambertian
-  mu = R() ! evenly distribution between 0 and 90 degree
+  mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu --> Lambertian
 
   p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
 

@@ -514,13 +514,13 @@ contains
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
-      S_target = [0.0909, 0.2363, 0.018, 0.2364, 0.0179, 0.2364, 0.018, 0.1114]
+      S_target = [0.0833, 0.2107, 0.0226, 0.2107, 0.0226, 0.2107, 0.0226, 0.1791]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_2')
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
-      S_target = [0.0, 0.2730, 0.0, 0.2730, 0.0, 0.2730, 0.0, 0.1461]
+      S_target = [0.0, 0.2374, 0.0, 0.2374, 0.0, 0.2374, 0.0, 0.2511]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_1')
@@ -534,13 +534,13 @@ contains
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
-      S_target = [0.1114, 0.0180, 0.2363, 0.0179, 0.2364, 0.0184, 0.2364, 0.0909]
+      S_target = [0.1792, 0.0226, 0.2107, 0.0226, 0.2107, 0.0226, 0.2107, 0.0833]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src8_2')
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
-      S_target = [0.1461, 0.0, 0.2730, 0.0, 0.2730, 0.0, 0.2730, 0.0]
+      S_target = [0.2511, 0.0, 0.2374, 0.0, 0.2274, 0.0, 0.2274, 0.0]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src8_1')
@@ -550,23 +550,24 @@ contains
   subroutine test_boxmc_select_cases_diffuse_src2(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=2
+      real,parameter :: c1=0.2772, c2=0.4107, c3=0.3651, c4=0.0237, c5=0.2155, c6=0.0437, c7=0.0389, c8=0.0390
       myid     = this%getProcessRank()
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
-      S_target = [0.0, 0.0, 0.0, 0.2421, 0.0, 0.2421, 0.0, 0.4826]
+      S_target = [0.0, 0.0, 0.0, c1, 0.0, c1, 0.0, c2]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src2_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
-      S_target = [0.0347, 0.0435, 0.0484, 0.1899, 0.0212, 0.1901, 0.0212, 0.4182]
+      S_target = [c8, c7, c6, c5, c4, c5, c4, c3]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src2_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
-      S_target = [0.0, 0.0, 0.0, 0.242, 0.0, 0.242, 0.0, 0.4828]
+      S_target = [0.0, 0.0, 0.0, c1, 0.0, c1, 0.0, c2]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src2_3')
 
@@ -576,23 +577,24 @@ contains
   subroutine test_boxmc_select_cases_diffuse_src3(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=3
+      real,parameter :: c1=0.2772, c2=0.4107, c3=0.3651, c4=0.0237, c5=0.2155, c6=0.0437, c7=0.0389, c8=0.0390
       myid     = this%getProcessRank()
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
-      S_target = [0.4826, 0.0, 0.0, 0.0, 0.2421, 0.0, 0.2421, 0.0]
+      S_target = [c2, 0.0, 0.0, 0.0, c1, 0.0, c1, 0.0]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src3_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
-      S_target = [0.4182, 0.0484, 0.0435, 0.0212, 0.1899, 0.0212, 0.1901, 0.0347]
+      S_target = [c3, c6, c7, c4, c5, c4, c5, c8]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src3_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
-      S_target = [0.4826, 0.0, 0.0, 0.0, 0.2421, 0.0, 0.2421, 0.0]
+      S_target = [c2, 0.0, 0.0, 0.0, c1, 0.0, c1, 0.0]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src3_3')
   end subroutine
@@ -601,23 +603,24 @@ contains
   subroutine test_boxmc_select_cases_diffuse_src4(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=4
+      real,parameter :: c1=0.2772, c2=0.4107, c3=0.3651, c4=0.0237, c5=0.2155, c6=0.0437, c7=0.0389, c8=0.0390
       myid     = this%getProcessRank()
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
-      S_target = [0.0, 0.2421, 0.0, 0.0, 0.0, 0.2421, 0.0, 0.4826]
+      S_target = [0.0, c1, 0.0, 0.0, 0.0, c1, 0.0, c2]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
-      S_target = [0.0347, 0.1899, 0.0212, 0.0435, 0.0484, 0.1901, 0.0212, 0.4182]
+      S_target = [c8, c5, c4, c7, c6, c5, c4, c3]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
-      S_target = [0.0, 0.242, 0.0, 0.0, 0.0, 0.242, 0.0, 0.4828]
+      S_target = [0.0, c1, 0.0, 0.0, 0.0, c1, 0.0, c2]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_3')
   end subroutine
@@ -626,23 +629,24 @@ contains
   subroutine test_boxmc_select_cases_diffuse_src5(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=5
+      real,parameter :: c1=0.2772, c2=0.4107, c3=0.3651, c4=0.0237, c5=0.2155, c6=0.0437, c7=0.0389, c8=0.0390
       myid     = this%getProcessRank()
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
-      S_target = [0.4826, 0.0, 0.2421, 0.0, 0.0, 0.0, 0.2421, 0.0]
+      S_target = [c2, 0.0, 0.0, 0.0, c1, 0.0, c1, 0.0]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
-      S_target = [0.4182, 0.0212, 0.1899, 0.0484, 0.0435, 0.0212, 0.1901, 0.0347]
+      S_target = [c3, c4, c5, c6, c7, c4, c5, c8]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
-      S_target = [0.4826, 0.0, 0.2421, 0.0, 0.0, 0.0, 0.2421, 0.0]
+      S_target = [c2, 0.0, 0.0, 0.0, c1, 0.0, c1, 0.0]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_3')
   end subroutine
@@ -651,23 +655,24 @@ contains
   subroutine test_boxmc_select_cases_diffuse_src6(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=6
+      real,parameter :: c1=0.2772, c2=0.4107, c3=0.3651, c4=0.0237, c5=0.2155, c6=0.0437, c7=0.0389, c8=0.0390
       myid     = this%getProcessRank()
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
-      S_target = [0.0, 0.2421, 0.0, 0.2421, 0.0, 0.0, 0.0, 0.4826]
+      S_target = [0.0, c1, 0.0, c1, 0.0, 0.0, 0.0, c2]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src6_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
-      S_target = [0.0347, 0.1899, 0.0212, 0.1901, 0.0212, 0.0435, 0.0484, 0.4182]
+      S_target = [c8, c5, c4, c5, c4, c7, c6, c3]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src6_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
-      S_target = [0.0, 0.242, 0.0, 0.242, 0.0, 0.0, 0.0, 0.4828]
+      S_target = [0.0, c1, 0.0, c1, 0.0, 0.0, 0.0, c2]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src6_3')
   end subroutine
@@ -676,23 +681,24 @@ contains
   subroutine test_boxmc_select_cases_diffuse_src7(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=7
+      real,parameter :: c1=0.2772, c2=0.4107, c3=0.3651, c4=0.0237, c5=0.2155, c6=0.0437, c7=0.0389, c8=0.0390
       myid     = this%getProcessRank()
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
-      S_target = [0.4826, 0.0, 0.2421, 0.0, 0.2421, 0.0, 0.0, 0.0]
+      S_target = [c2, 0.0, c1, 0.0, c1, 0.0, 0.0, 0.0]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src7_1')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
-      S_target = [0.4182, 0.0212, 0.1899, 0.0212, 0.1901, 0.0484, 0.0435, 0.0347]
+      S_target = [c3, c4, c5, c4, c5, c6, c7, c8]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src7_2')
 
       ! ----------------------------------
       bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
-      S_target = [0.4826, 0.0, 0.2421, 0.0, 0.2421, 0.0, 0.0, 0.0]
+      S_target = [c2, 0.0, c1, 0.0, c1, 0.0, 0.0, 0.0]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src7_3')
   end subroutine
