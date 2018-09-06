@@ -35,6 +35,14 @@
 !
 ! We always assume the triangle to have dx edge length along y=0 (A,B) and dy is the edge length between (A,C)
 ! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
+function rand_pnt_on_triangle(A,B,C) result(pnt)
+  real(ireal_dp), dimension(:), intent(in) :: A, B, C
+  real(ireal_dp) :: pnt(size(A))
+  real(ireal_dp) :: r1, r2
+  r1 = R()
+  r2 = R()
+  pnt = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
+end function
 
 subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices, ierr)
   use m_helper_functions_dp, only: pnt_in_triangle, determine_normal_direction, angle_between_two_vec, rad2deg
@@ -43,46 +51,56 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   real(ireal_dp),intent(in) :: initial_dir(:), vertices(:)
   integer(iintegers),intent(in) :: src
   logical,intent(in) :: ldirect
-  real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
-  real(ireal_dp) :: r1, r2, normal(3), triangle_center(3), dir_p_to_triangle_center(3)
-  real(ireal_dp) :: lstart
+  real(ireal_dp) :: normal(3), triangle_center(3), dir_p_to_triangle_center(3)
   real(ireal_dp),parameter :: edge_start_range=.999_ireal_dp
   integer(mpiint),intent(out) :: ierr
-  real(ireal_dp) :: dx, dy, dz
 
-  call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, dx, dy, dz)
+  associate( &
+    pA => vertices(1:3), &
+    pB => vertices(4:6), &
+    pC => vertices(7:9), &
+    pD => vertices(10:12), &
+    pE => vertices(13:15), &
+    pF => vertices(16:18) )
 
-  lstart = (one-edge_start_range)/2 + edge_start_range * R()
   select case(src)
   case (1)
-    r1 = R()
-    r2 = R()
-    PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-    p%loc = [PNT(1), PNT(2), dz]
-    normal = [zero,zero,-one]
+    p%loc = rand_pnt_on_triangle(pD,pE,pF)
+    normal = compute_normal_3d(pD,pF,pE)
   case (2)
-    PNT = A + (lstart * (B-A))
-    p%loc = [PNT(1), PNT(2), L(dz)]
-    normal = [nAB(1), nAB(2), zero]
+    if(R().le..5_ireals) then
+      p%loc = rand_pnt_on_triangle(pA,pB,pD)
+      normal = compute_normal_3d(pA,pD,pB)
+    else
+      p%loc = rand_pnt_on_triangle(pB,pD,pE)
+      normal = compute_normal_3d(pD,pE,pB)
+    endif
   case (3)
-    PNT = A + (lstart * (C-A))
-    p%loc = [PNT(1), PNT(2), L(dz)]
-    normal = [nCA(1), nCA(2), zero]
+    if(R().le..5_ireals) then
+      p%loc = rand_pnt_on_triangle(pA,pC,pD)
+      normal = compute_normal_3d(pA,pC,pD)
+    else
+      p%loc = rand_pnt_on_triangle(pC,pD,pF)
+      normal = compute_normal_3d(pC,pF,pD)
+    endif
   case (4)
-    PNT = C + (lstart * (B-C))
-    p%loc = [PNT(1), PNT(2), L(dz)]
-    normal = [nBC(1), nBC(2), zero]
+    if(R().le..5_ireals) then
+      p%loc = rand_pnt_on_triangle(pB,pC,pE)
+      normal = compute_normal_3d(pB,pE,pC)
+    else
+      p%loc = rand_pnt_on_triangle(pC,pE,pF)
+      normal = compute_normal_3d(pC,pE,pF)
+    endif
   case (5)
-    r1 = R()
-    r2 = R()
-    PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-    p%loc = [PNT(1), PNT(2), zero]
-    normal = [zero,zero,one]
-
+    p%loc = rand_pnt_on_triangle(pA,pB,pC)
+    normal = compute_normal_3d(pA,pC,pB)
   case default
-    print *,'Dont know what to do with source spec:',src
+    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
     call exit
   end select
+
+  triangle_center = mean([pA,pB,pC,pD,pE,pF])
+  end associate
 
   p%src_side = src
 
@@ -95,8 +113,6 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   p%dir = initial_dir
 
   ! always nudge the photon a little bit inside the volume
-  triangle_center(1:2) = mean([A,B,C])
-  triangle_center(3) = dz/2
   dir_p_to_triangle_center = triangle_center - p%loc
   dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
 
@@ -105,11 +121,9 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   select type(bmc)
   end select
 
-  if(.not. pnt_in_triangle(A,B,C, p%loc)) then
-    print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle :: init_dir_photon_wedge_5_8'
-    call print_photon(p)
-    call CHKERR(1_mpiint, 'initial location outside of the wedge triangle')
-  endif
+  !print *,'triangle center', triangle_center
+  !print *,'normal', normal
+  !call print_photon(p)
 
   if(dot_product(p%dir, normal).lt.zero) then
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
@@ -122,6 +136,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     return
   endif
   ierr = 0
+
 end subroutine
 
 subroutine update_dir_stream_wedge_5_8(bmc,vertices,p,T)
@@ -186,41 +201,56 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   integer(mpiint), intent(out) :: ierr
 
   real(ireal_dp) :: phi,mu
-  real(ireal_dp),dimension(2) :: A, B, C, PNT, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
-  real(ireal_dp) :: r1, r2, triangle_center(3), dir_p_to_triangle_center(3)
-  real(ireal_dp) :: dx, dy, dz
+  real(ireal_dp),dimension(2) :: A, B, C, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
+  real(ireal_dp) :: triangle_center(3), dir_p_to_triangle_center(3)
+  real(ireal_dp) :: r1, dx, dy, dz
+
+  associate( &
+    pA => vertices(1:3), &
+    pB => vertices(4:6), &
+    pC => vertices(7:9), &
+    pD => vertices(10:12), &
+    pE => vertices(13:15), &
+    pF => vertices(16:18) )
+
+  select case(src)
+  case (1)
+    p%loc = rand_pnt_on_triangle(pD,pE,pF)
+    p%src_side = 1
+  case (2:3)
+    if(R().le..5_ireals) then
+      p%loc = rand_pnt_on_triangle(pA,pB,pD)
+    else
+      p%loc = rand_pnt_on_triangle(pB,pD,pE)
+    endif
+    p%src_side = 2
+  case (4:5)
+    if(R().le..5_ireals) then
+      p%loc = rand_pnt_on_triangle(pA,pC,pD)
+    else
+      p%loc = rand_pnt_on_triangle(pC,pD,pF)
+    endif
+    p%src_side = 3
+  case (6:7)
+    if(R().le..5_ireals) then
+      p%loc = rand_pnt_on_triangle(pB,pC,pE)
+    else
+      p%loc = rand_pnt_on_triangle(pC,pE,pF)
+    endif
+    p%src_side = 4
+  case (8)
+    p%loc = rand_pnt_on_triangle(pA,pB,pC)
+    p%src_side = 5
+  case default
+    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+    call exit
+  end select
+
+  triangle_center = mean([pA,pB,pC,pD,pE,pF])
+  end associate
 
   !print *,'---------- new diffuse photon --------------'
   call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, dx, dy, dz)
-
-  select case (src)
-  case (1)
-    r1 = R()
-    r2 = R()
-    PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-    p%loc = [PNT(1), PNT(2), dz]
-    p%src_side = 1
-  case (2:3)
-    PNT = A + (B - A) * R()
-    p%loc = [PNT(1), PNT(2), R()*dz]
-    p%src_side = 2
-  case (4:5)
-    PNT = A + (C - A) * R()
-    p%loc = [PNT(1), PNT(2), R()*dz]
-    p%src_side = 3
-  case (6:7)
-    PNT = C + (B - C) * R()
-    p%loc = [PNT(1), PNT(2), R()*dz]
-    p%src_side = 4
-  case (8)
-    r1 = R()
-    r2 = R()
-    PNT = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-    p%loc = [PNT(1), PNT(2), zero]
-    p%src_side = 5
-  case default
-    call CHKERR(1_mpiint, 'init_diff_photon_wedge_5_8 called with unknown src')
-  end select
 
   select case(src)
   case(1,8)
@@ -272,21 +302,12 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   p%scattercnt = 0
 
   ! always nudge the photon a little bit inside the volume
-  triangle_center(1:2) = (a+b+c)/3
-  triangle_center(3) = dz/2
   dir_p_to_triangle_center = triangle_center - p%loc
   dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
 
   p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
 
-
   if(.not. approx( norm(p%dir) ,one ) ) call CHKERR(1_mpiint, 'init_diff_photon_3_10 :: direction was not normed?!')
-
-  if(.not. pnt_in_triangle(A,B,C, PNT)) then
-    print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle :: init_diff_photon_wedge_5_8'
-    call print_photon(p)
-    call CHKERR(1_mpiint, 'initial location outside of the wedge triangle')
-  endif
 
   ierr = 0
   !call print_photon(p)

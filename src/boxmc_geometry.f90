@@ -159,7 +159,7 @@ module m_boxmc_geometry
     ! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
 
     subroutine setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, nBC, nCA, dx, dy, dz)
-      real(ireal_dp), intent(in) :: vertices(:) ! should be the vertex coordinates for A, B, C in 3D
+      real(ireal_dp), intent(in) :: vertices(:) ! should be the vertex coordinates for A, B, C, D, E, F in 3D
       real(ireal_dp), dimension(:), intent(out) :: A, B, C ! points on triangle [A,B,C]
       real(ireal_dp), dimension(:), intent(out) :: nAB, nBC, nCA ! normals on triangle [A,B,C], pointing towards center
       real(ireal_dp), intent(out) :: dx, dy, dz
