@@ -173,6 +173,9 @@ contains
       call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, angles)
     endif
 
+    if(ldebug_optprop) then
+      if(.not.approx(g,zero)) call CHKERR(1_mpiint, 'wedge LUT does not have values for other than g==0')
+    endif
 
     if(handle_aspect_zx_1D_case()) return
 

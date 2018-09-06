@@ -1609,17 +1609,23 @@ module m_plex_rt
 
     real(ireals),intent(in),optional  :: angles(2)
 
+    real(ireals) :: dkabs, dksca, dg
     real(ireals) :: aspect, tauz, w0, dx, relcoords(6)
     integer, parameter :: iC1=4, iC2=5
 
     dx = wedge_coords(3)
 
+    dkabs = kabs
+    dksca = ksca
+    dg    = g
+    call delta_scale( dkabs, dksca, dg, opt_f=dg)
+
     aspect = dz / dx
-    tauz = (kabs+ksca) * dz
+    tauz = (dkabs+dksca) * dz
     if(approx(tauz,zero)) then
       w0 = zero
     else
-      w0 = ksca / (kabs+ksca)
+      w0 = dksca / (dkabs+dksca)
     endif
 
     relcoords = wedge_coords / dx
@@ -1642,11 +1648,11 @@ module m_plex_rt
                    min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6)))
 
     !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
-    call OPP%get_coeff(tauz, w0, g, aspect, ldir, coeff, angles=angles, wedge_coords=relcoords)
+    call OPP%get_coeff(tauz, w0, dg, aspect, ldir, coeff, angles=angles, wedge_coords=relcoords)
     !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
     if(ldebug) then
       if(any(coeff.lt.zero).or.any(coeff.gt.one)) then
-        print *,'Lookup Coeffs for', aspect, tauz, w0, g, angles,'::', coeff
+        print *,'Lookup Coeffs for', aspect, tauz, w0, dg, angles,'::', coeff
         call CHKERR(1_mpiint, 'Found corrupted coefficients!')
       endif
     endif
