@@ -138,7 +138,8 @@ module m_boxmc
   type t_photon
     sequence
     real(ireal_dp) :: loc(3)=nil,dir(3)=nil,weight=nil,tau_travel=nil
-    integer(iintegers) :: src_side=inil,side=inil,src=inil,scattercnt=0,cellid=inil
+    integer(iintegers) :: src_side=inil, side=inil, &
+      src=inil, scattercnt=0, cellid=inil, subface=inil
     integer(iintegers) :: i, j, k
     logical :: alive=.True.,direct=.False.
   end type
@@ -179,9 +180,10 @@ module m_boxmc
   end interface
 
   abstract interface
-    subroutine update_diff_stream(bmc,p,S)
+    subroutine update_diff_stream(bmc,vertices,p,S)
       import :: t_boxmc,t_photon,iintegers,ireal_dp
       class(t_boxmc) :: bmc
+      real(ireal_dp),intent(in) :: vertices(:)
       type(t_photon),intent(in) :: p
       real(ireal_dp),intent(inout) :: S(:)
     end subroutine
@@ -500,7 +502,7 @@ contains
           if(p%direct) then
             call bmc%update_dir_stream(vertices, p,std_Sdir%inc)
           else
-            call bmc%update_diff_stream(p,std_Sdiff%inc)
+            call bmc%update_diff_stream(vertices, p,std_Sdiff%inc)
           endif
 
           if (ldir) call std_update( std_Sdir , k, i1*numnodes )

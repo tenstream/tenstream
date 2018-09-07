@@ -43,9 +43,10 @@ function rand_pnt_on_triangle(A,B,C) result(pnt)
   r2 = R()
   pnt = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
 end function
-subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal)
+subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal, U,V)
+  use m_helper_functions_dp, only: cross_3d
   real(ireal_dp), dimension(:), intent(in) :: A, B, C, D
-  real(ireal_dp), intent(out) :: pnt(size(A)), normal(size(A))
+  real(ireal_dp), dimension(size(A)), intent(out) :: pnt, normal, U, V
   real(ireal_dp) :: area(2)
 
   area(1) = triangle_area_by_vertices(A,B,C)
@@ -54,9 +55,13 @@ subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal)
   if(R().lt.area(1)/sum(area)) then
     pnt = rand_pnt_on_triangle(A,B,C)
     normal = compute_normal_3d(A,B,C)
+    U = (C-B)/norm(C-B)
+    V = -cross_3d(U,normal)
   else
     pnt = rand_pnt_on_triangle(A,C,D)
     normal = compute_normal_3d(A,C,D)
+    U = (D-A)/norm(D-A)
+    V = -cross_3d(U,normal)
   endif
 end subroutine
 
@@ -67,7 +72,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   real(ireal_dp),intent(in) :: initial_dir(:), vertices(:)
   integer(iintegers),intent(in) :: src
   logical,intent(in) :: ldirect
-  real(ireal_dp) :: normal(3), triangle_center(3), dir_p_to_triangle_center(3)
+  real(ireal_dp), dimension(3) :: normal, triangle_center, dir_p_to_triangle_center, U, V
   real(ireal_dp),parameter :: edge_start_range=.999_ireal_dp
   integer(mpiint),intent(out) :: ierr
 
@@ -84,14 +89,14 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     p%loc = rand_pnt_on_triangle(pD,pE,pF)
     normal = compute_normal_3d(pD,pF,pE)
   case (2)
-    call rand_pnt_on_plane(pA,pD,pE,pB, p%loc, normal)
+    call rand_pnt_on_plane(pA,pD,pE,pB, p%loc, normal, U, V)
   case (3)
-    call rand_pnt_on_plane(pA,pC,pF,pD, p%loc, normal)
+    call rand_pnt_on_plane(pA,pC,pF,pD, p%loc, normal, U, V)
   case (4)
-    call rand_pnt_on_plane(pB,pE,pF,pC, p%loc, normal)
+    call rand_pnt_on_plane(pB,pE,pF,pC, p%loc, normal, U, V)
   case (5)
     p%loc = rand_pnt_on_triangle(pA,pB,pC)
-    normal = compute_normal_3d(pA,pC,pB)
+    normal = compute_normal_3d(pA,pB,pC)
   case default
     call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
     call exit
@@ -146,38 +151,56 @@ subroutine update_dir_stream_wedge_5_8(bmc,vertices,p,T)
   if(.False.) print *, 'to prevent unused warnings', vertices
 end subroutine
 
-subroutine update_diff_stream_wedge_5_8(bmc,p,S)
+subroutine update_diff_stream_wedge_5_8(bmc,vertices,p,S)
   class(t_boxmc_wedge_5_8) :: bmc
+  real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
   real(ireal_dp),intent(inout) :: S(:)
+  real(ireal_dp) :: normal(3)
 
-  select case (p%side)
-  case (1)
-    S(1) = S(1)+p%weight
-  case (2)
-    if(p%dir(3).le.zero) then
-      S(2) = S(2)+p%weight
-    else
-      S(3) = S(3)+p%weight
-    endif
-  case (3)
-    if(p%dir(3).le.zero) then
-      S(4) = S(4)+p%weight
-    else
-      S(5) = S(5)+p%weight
-    endif
-  case (4)
-    if(p%dir(3).le.zero) then
-      S(6) = S(6)+p%weight
-    else
-      S(7) = S(7)+p%weight
-    endif
-  case (5)
-    S(8) = S(8)+p%weight
-  case default
-    call print_photon(p)
-    call CHKERR(1_mpiint, 'update_diff_photon_wedge_5_8 called with unknown p%side')
-  end select
+  ! in case of spherically distorted elements,
+  ! we should probably use the tilting angle of the side planes
+  ! to separate streams instead of z-component of direction
+
+  associate( &
+      pA => vertices(1:3), &
+      pB => vertices(4:6), &
+      pC => vertices(7:9), &
+      pD => vertices(10:12), &
+      pE => vertices(13:15), &
+      pF => vertices(16:18) )
+
+    select case (p%side)
+    case (1)
+      S(1) = S(1)+p%weight
+    case (2)
+      normal = determine_normal(pA,pB,pE,pD)
+      if(p%dir(3).le.normal(3)) then
+        S(2) = S(2)+p%weight
+      else
+        S(3) = S(3)+p%weight
+      endif
+    case (3)
+      normal = -determine_normal(pA,pC,pF,pD)
+      if(p%dir(3).le.normal(3)) then
+        S(4) = S(4)+p%weight
+      else
+        S(5) = S(5)+p%weight
+      endif
+    case (4)
+      normal = determine_normal(pB,pC,pF,pE)
+      if(p%dir(3).le.normal(3)) then
+        S(6) = S(6)+p%weight
+      else
+        S(7) = S(7)+p%weight
+      endif
+    case (5)
+      S(8) = S(8)+p%weight
+    case default
+      call print_photon(p)
+      call CHKERR(1_mpiint, 'update_diff_photon_wedge_5_8 called with unknown p%side')
+    end select
+  end associate
 
   select type(bmc)
   end select
@@ -185,10 +208,24 @@ subroutine update_diff_stream_wedge_5_8(bmc,p,S)
   !print *,'updating S',S,'(',p%side,')','+',p%weight
   !call print_photon(p)
   !stop 'debug update_diff_stream_wedge_5_8'
+  contains
+    function determine_normal(A,B,C,D)
+      real(ireal_dp), intent(in) :: A(:), B(:), C(:), D(:)
+      real(ireal_dp) :: determine_normal(size(A))
+
+      if(p%subface.eq.1) then
+        determine_normal = compute_normal_3d(A,B,C)
+      elseif(p%subface.eq.2) then
+        determine_normal = compute_normal_3d(A,C,D)
+      else
+        call CHKERR(1_mpiint, 'subface not determined?'//itoa(p%subface))
+      endif
+    end function
 end subroutine
 
 subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   use m_helper_functions_dp, only : pnt_in_triangle,rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, rad2deg
+  use m_helper_functions, only : rotation_matrix_local_basis_to_world
   class(t_boxmc_wedge_5_8) :: bmc
   type(t_photon),intent(inout) :: p
   real(ireal_dp),intent(in) :: vertices(:)
@@ -196,9 +233,9 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   integer(mpiint), intent(out) :: ierr
 
   real(ireal_dp) :: phi,mu
-  real(ireal_dp),dimension(2) :: A, B, C, nAB, nBC, nCA ! point PNT on triangle [A,B,C]
-  real(ireal_dp) :: triangle_center(3), dir_p_to_triangle_center(3)
-  real(ireal_dp) :: r1, dx, dy, dz
+  real(ireal_dp), dimension(3) :: normal, triangle_center, dir_p_to_triangle_center, rotvec, U, V
+  real(ireal_dp) :: r1
+  real(ireals) :: Mrot(3,3)
 
   associate( &
     pA => vertices(1:3), &
@@ -211,30 +248,19 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   select case(src)
   case (1)
     p%loc = rand_pnt_on_triangle(pD,pE,pF)
-    p%src_side = 1
+    normal = compute_normal_3d(pD,pF,pE)
   case (2:3)
-    if(R().le..5_ireals) then
-      p%loc = rand_pnt_on_triangle(pA,pB,pD)
-    else
-      p%loc = rand_pnt_on_triangle(pB,pD,pE)
-    endif
+    call rand_pnt_on_plane(pA,pD,pE,pB, p%loc, normal, U, V)
     p%src_side = 2
   case (4:5)
-    if(R().le..5_ireals) then
-      p%loc = rand_pnt_on_triangle(pA,pC,pD)
-    else
-      p%loc = rand_pnt_on_triangle(pC,pD,pF)
-    endif
+    call rand_pnt_on_plane(pA,pD,pF,pC, p%loc, normal, U, V)
     p%src_side = 3
   case (6:7)
-    if(R().le..5_ireals) then
-      p%loc = rand_pnt_on_triangle(pB,pC,pE)
-    else
-      p%loc = rand_pnt_on_triangle(pC,pE,pF)
-    endif
+    call rand_pnt_on_plane(pB,pE,pF,pC, p%loc, normal, U, V)
     p%src_side = 4
   case (8)
     p%loc = rand_pnt_on_triangle(pA,pB,pC)
+    normal = compute_normal_3d(pA,pB,pC)
     p%src_side = 5
   case default
     call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
@@ -242,10 +268,6 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   end select
 
   triangle_center = mean([pA,pB,pC,pD,pE,pF])
-  end associate
-
-  !print *,'---------- new diffuse photon --------------'
-  call setup_wedge_coords_from_vertices(vertices, A, B, C, nAB, NBC, nCA, dx, dy, dz)
 
   select case(src)
   case(1,8)
@@ -255,6 +277,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   end select
 
   mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu --> Lambertian
+  mu = max(cos(deg2rad(89.9_ireals)), mu)
 
   p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
 
@@ -262,31 +285,43 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   case(1)
     p%dir = rotate_angle_y(p%dir,180*one) ! flip from upward to downward direction
 
-  case(2:3)
-    if(src.eq.3) p%dir = rotate_angle_z(p%dir, 180*one) ! rotate by 180 so that phi looks towards the other direction
-    p%dir = rotate_angle_x(p%dir, 90*one)
-    ! rotate towards horizon, pointing in +y and tilt the angle a bit more in accordance to plane defined from (AB).
-    ! the trick with 90 deg back helps to retain direction because
-    ! arccos does not distinguish between postitive or negative angles
-    r1 = rad2deg(angle_between_two_vec([zero, one], B-A)) - 90
-    p%dir = rotate_angle_z(p%dir, r1)
+  case(2)
+    Mrot = rotation_matrix_local_basis_to_world( U, V, normal )
+    p%dir = matmul(real(Mrot,ireal_dp), p%dir)
 
-  case(4:5)
-    if(src.eq.5) p%dir = rotate_angle_z(p%dir, 180*one) ! rotate by 180 so that phi looks towards the other direction
-    p%dir = rotate_angle_x(p%dir, 90*one)
-    r1 = rad2deg(angle_between_two_vec([zero, one], C-A)) + 90
-    p%dir = rotate_angle_z(p%dir, r1)
+  case(3)
+    !print *,'normal dir', rotate_angle_x(rotate_angle_z(p%dir, 180*one), 90*one)
+    Mrot = rotation_matrix_local_basis_to_world( -U, -V, normal )
+    p%dir = matmul(real(Mrot,ireal_dp), p%dir)
 
-  case(6:7)
-    if(src.eq.7) p%dir = rotate_angle_z(p%dir, 180*one) ! rotate by 180 so that phi looks towards the other direction
-    p%dir = rotate_angle_x(p%dir, 90*one)
-    r1 = rad2deg(angle_between_two_vec([zero, one], B-C)) + 90
-    p%dir = rotate_angle_z(p%dir, r1)
+  case(4)
+    !print *,'simple dir', rotate_angle_z(rotate_angle_x(p%dir, 90*one), 120*one)
+    Mrot = rotation_matrix_local_basis_to_world( -U, V, -normal )
+    p%dir = matmul(real(Mrot,ireal_dp), p%dir)
+
+  case(5)
+    !print *,'simple dir', rotate_angle_z(rotate_angle_x(rotate_angle_z(p%dir, 180*one), 90*one), 120*one)
+    Mrot = rotation_matrix_local_basis_to_world( U, -V, -normal )
+    p%dir = matmul(real(Mrot,ireal_dp), p%dir)
+
+  case(6)
+    !print *,'simple dir', rotate_angle_z(rotate_angle_x(rotate_angle_z(p%dir, 0*one), 90*one), 240*one)
+    !print *, 'U          ', U
+    !print *, 'V          ', V
+    !print *, 'face normal', normal
+    Mrot = rotation_matrix_local_basis_to_world( U, V, normal )
+    p%dir = matmul(real(Mrot,ireal_dp), p%dir)
+    !print *,'rot dir', p%dir
+
+  case(7)
+    Mrot = rotation_matrix_local_basis_to_world( -U, -V, normal )
+    p%dir = matmul(real(Mrot,ireal_dp), p%dir)
 
   case (8)
     continue ! already in correct direction
 
   end select
+  end associate
 
   p%weight=one
   p%alive = .True.
@@ -319,7 +354,7 @@ subroutine intersect_distance_wedge_5_8(bmc, vertices, p, max_dist)
   real(ireal_dp), intent(out) :: max_dist
 
   call intersect_wedge(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
-    p%side, p%weight, max_dist)
+    p%side, p%weight, max_dist, p%subface)
 
   select type(bmc)
   end select

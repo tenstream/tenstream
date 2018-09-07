@@ -136,8 +136,9 @@ subroutine update_dir_stream_wedge_5_5(bmc,vertices,p,T)
   if(.False.) print *, 'to prevent unused warnings', vertices
 end subroutine
 
-subroutine update_diff_stream_wedge_5_5(bmc,p,S)
+subroutine update_diff_stream_wedge_5_5(bmc,vertices,p,S)
   class(t_boxmc_wedge_5_5) :: bmc
+  real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
   real(ireal_dp),intent(inout) :: S(:)
 
@@ -256,7 +257,7 @@ subroutine intersect_distance_wedge_5_5(bmc,vertices,p,max_dist)
 
 
   call intersect_wedge(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
-    p%side, p%weight, max_dist)
+    p%side, p%weight, max_dist, p%subface)
 
   select type(bmc)
   end select

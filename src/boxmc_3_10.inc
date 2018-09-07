@@ -223,9 +223,10 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         ierr = 0
 end subroutine
 
-subroutine update_diff_stream_3_10(bmc,p,S)
+subroutine update_diff_stream_3_10(bmc,vertices,p,S)
   class(t_boxmc_3_10)          :: bmc
-  type(t_photon),intent(in)      :: p
+  real(ireal_dp),intent(in)    :: vertices(:)
+  type(t_photon),intent(in)    :: p
   real(ireal_dp),intent(inout) :: S(:)
 
   !         _______2_______

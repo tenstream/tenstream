@@ -342,23 +342,21 @@ module m_boxmc_geometry
     end subroutine
 
     subroutine intersect_wedge(vertices, ploc, pdir, pscattercnt, psrc_side, &
-        pside, pweight, max_dist)
+        pside, pweight, max_dist, psubface)
       real(ireal_dp),intent(in) :: vertices(:)
       real(ireal_dp),intent(in) :: pdir(:), ploc(:)
       integer(iintegers),intent(in) :: pscattercnt, psrc_side
       integer(iintegers),intent(inout) :: pside
       real(ireal_dp),intent(inout) :: pweight
       real(ireal_dp),intent(out) :: max_dist
+      integer(iintegers), intent(out) :: psubface
 
       logical :: l_in_triangle
       logical :: lhit(5)
       real(ireal_dp) :: hit(5,4)
-      integer(iintegers) :: i
+      integer(iintegers) :: i, iface(5)
 
       associate( &
-          !A  => vertices( 1: 2), &
-          !B  => vertices( 4: 5), &
-          !C  => vertices( 7: 8), &
           Ab => vertices( 1: 3), &
           Bb => vertices( 4: 6), &
           Cb => vertices( 7: 9), &
@@ -368,6 +366,7 @@ module m_boxmc_geometry
 
         lhit = .False.
         hit = huge(hit)
+        iface = [1,-1,-1,-1,1]
         !crossing with bottom and top plane:
         if(pdir(3).ge.zero) then
           call triangle_intersection(ploc, pdir, At, Bt, Ct, lhit(1), hit(1,:))
@@ -380,33 +379,38 @@ module m_boxmc_geometry
 
         !crossing with side planes:
         ! plane 2, along y=0
-        call square_intersection(ploc, pdir, Ab, Bb, Bt, At, lhit(2), hit(2,:))
-        call square_intersection(ploc, pdir, Ab, Cb, Ct, At, lhit(3), hit(3,:))
-        call square_intersection(ploc, pdir, Bb, Cb, Ct, Bt, lhit(4), hit(4,:))
+        call square_intersection(ploc, pdir, Ab, Bb, Bt, At, lhit(2), hit(2,:), iface(2))
+        call square_intersection(ploc, pdir, Ab, Cb, Ct, At, lhit(3), hit(3,:), iface(3))
+        call square_intersection(ploc, pdir, Bb, Cb, Ct, Bt, lhit(4), hit(4,:), iface(4))
 
         pside=0
         max_dist = huge(max_dist)
         do i=1,5
           if(hit(i,4).lt.zero) cycle
-          if(pscattercnt.eq.0 .and. pside.eq.psrc_side) cycle
+          if(pscattercnt.eq.0 .and. i.eq.psrc_side) cycle
           if(hit(i,4).lt.max_dist) then
             max_dist = hit(i,4)
             pside   = i
+            psubface = iface(i)
           endif
         enddo
 
         ! If we did not hit anything else, I assume that we point towards the src side.
         ! We collect it there but set energy to 0
-        if(pscattercnt.eq.0 .and. pside.eq.0 .and. lhit(psrc_side) ) then
+        if(pscattercnt.eq.0 .and. pside.eq.psrc_side .and. lhit(psrc_side) ) then
           max_dist = hit(psrc_side,4)
           pside = psrc_side
           pweight = zero ! we dont allow energy to hit the src face, at least not right after it started!
+          psubface = iface(psrc_side)
         endif
+
+        !print *,pside,'hit',hit(pside,1:3)
 
         if(count(lhit).eq.0) then
           print *,'should actually not be here at the end of crossings in intersect distance!'
           print *,'max dist, pside', max_dist, pside, 'src_side', psrc_side
           print *,'ploc', ploc
+          print *,'pdir', pdir
           print *,'At', At
           print *,'Bt', Bt
           print *,'Ct', Ct
@@ -432,7 +436,15 @@ module m_boxmc_geometry
         end select
         if(.not.l_in_triangle) then
           print *,'max dist, pside', max_dist, pside, 'src_side', psrc_side
+          print *,'scattercnt', pscattercnt
           print *,'ploc', ploc
+          print *,'pdir', pdir
+          print *,'At', At
+          print *,'Bt', Bt
+          print *,'Ct', Ct
+          print *,'Ab', Ab
+          print *,'Bb', Bb
+          print *,'Cb', Cb
           print *,'lhit', lhit
           print *,'hit1', hit(1,:)
           print *,'hit2', hit(2,:)

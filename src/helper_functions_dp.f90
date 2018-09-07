@@ -416,15 +416,17 @@ module m_helper_functions_dp
         endif
       end function
 
-    subroutine square_intersection(origin, direction, tA, tB, tC, tD, lhit, hit)
+      subroutine square_intersection(origin, direction, tA, tB, tC, tD, lhit, hit, iface)
       real(ireal_dp), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:), tD(:)
       logical, intent(out) :: lhit
       real(ireal_dp), intent(out) :: hit(:)
+      integer(iintegers), intent(out) :: iface
       logical :: lhit1, lhit2
       real(ireal_dp) :: hit1(size(hit)), hit2(size(hit))
 
       lhit = .False.
       hit = huge(hit)
+      iface = -1
 
       ! 2 Triangles incorporating, cut along (AC)
       call triangle_intersection(origin, direction, tA, tB, tC, lhit1, hit1)
@@ -432,10 +434,12 @@ module m_helper_functions_dp
       if(lhit1) then
         lhit = lhit1
         hit = hit1
+        iface = 1
       endif
       if(lhit2 .and. (hit2(4).le.hit(4))) then
         lhit = lhit2
         hit = hit2
+        iface = 2
       endif
     end subroutine
 

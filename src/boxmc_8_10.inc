@@ -89,8 +89,9 @@ subroutine update_dir_stream_8_10(bmc,vertices,p,T)
         end select
 
 end subroutine
-subroutine update_diff_stream_8_10(bmc,p,S)
+subroutine update_diff_stream_8_10(bmc,vertices,p,S)
         class(t_boxmc_8_10) :: bmc
+        real(ireal_dp),intent(in) :: vertices(:)
         type(t_photon),intent(in) :: p
         real(ireal_dp),intent(inout) :: S(:)
 

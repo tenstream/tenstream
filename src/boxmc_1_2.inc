@@ -35,8 +35,9 @@ subroutine update_dir_stream_1_2(bmc,vertices,p,T)
     select type(bmc)
     end select
 end subroutine
-subroutine update_diff_stream_1_2(bmc,p,S)
+subroutine update_diff_stream_1_2(bmc,vertices,p,S)
     class(t_boxmc_1_2) :: bmc
+    real(ireal_dp),intent(in) :: vertices(:)
     type(t_photon),intent(in) :: p
     real(ireal_dp),intent(inout) :: S(:)
 
