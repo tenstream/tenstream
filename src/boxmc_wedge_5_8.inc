@@ -43,6 +43,22 @@ function rand_pnt_on_triangle(A,B,C) result(pnt)
   r2 = R()
   pnt = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
 end function
+subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal)
+  real(ireal_dp), dimension(:), intent(in) :: A, B, C, D
+  real(ireal_dp), intent(out) :: pnt(size(A)), normal(size(A))
+  real(ireal_dp) :: area(2)
+
+  area(1) = triangle_area_by_vertices(A,B,C)
+  area(2) = triangle_area_by_vertices(A,C,D)
+
+  if(R().lt.area(1)/sum(area)) then
+    pnt = rand_pnt_on_triangle(A,B,C)
+    normal = compute_normal_3d(A,B,C)
+  else
+    pnt = rand_pnt_on_triangle(A,C,D)
+    normal = compute_normal_3d(A,C,D)
+  endif
+end subroutine
 
 subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices, ierr)
   use m_helper_functions_dp, only: pnt_in_triangle, determine_normal_direction, angle_between_two_vec, rad2deg
@@ -68,29 +84,11 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     p%loc = rand_pnt_on_triangle(pD,pE,pF)
     normal = compute_normal_3d(pD,pF,pE)
   case (2)
-    if(R().le..5_ireals) then
-      p%loc = rand_pnt_on_triangle(pA,pB,pD)
-      normal = compute_normal_3d(pA,pD,pB)
-    else
-      p%loc = rand_pnt_on_triangle(pB,pD,pE)
-      normal = compute_normal_3d(pD,pE,pB)
-    endif
+    call rand_pnt_on_plane(pA,pD,pE,pB, p%loc, normal)
   case (3)
-    if(R().le..5_ireals) then
-      p%loc = rand_pnt_on_triangle(pA,pC,pD)
-      normal = compute_normal_3d(pA,pC,pD)
-    else
-      p%loc = rand_pnt_on_triangle(pC,pD,pF)
-      normal = compute_normal_3d(pC,pF,pD)
-    endif
+    call rand_pnt_on_plane(pA,pC,pF,pD, p%loc, normal)
   case (4)
-    if(R().le..5_ireals) then
-      p%loc = rand_pnt_on_triangle(pB,pC,pE)
-      normal = compute_normal_3d(pB,pE,pC)
-    else
-      p%loc = rand_pnt_on_triangle(pC,pE,pF)
-      normal = compute_normal_3d(pC,pE,pF)
-    endif
+    call rand_pnt_on_plane(pB,pE,pF,pC, p%loc, normal)
   case (5)
     p%loc = rand_pnt_on_triangle(pA,pB,pC)
     normal = compute_normal_3d(pA,pC,pB)
@@ -100,7 +98,6 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   end select
 
   triangle_center = mean([pA,pB,pC,pD,pE,pF])
-  end associate
 
   p%src_side = src
 
@@ -118,12 +115,10 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
 
   p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
 
+  end associate
+
   select type(bmc)
   end select
-
-  !print *,'triangle center', triangle_center
-  !print *,'normal', normal
-  !call print_photon(p)
 
   if(dot_product(p%dir, normal).lt.zero) then
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)

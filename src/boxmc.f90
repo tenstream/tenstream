@@ -31,7 +31,8 @@ module m_boxmc
 
   use m_helper_functions_dp, only : approx, mean, rmse, imp_reduce_sum, &
     norm, deg2rad, compute_normal_3d, spherical_2_cartesian, &
-    hit_plane, square_intersection, triangle_intersection
+    hit_plane, square_intersection, triangle_intersection, &
+    triangle_area_by_vertices
   use m_helper_functions, only : CHKERR, get_arg, itoa
   use iso_c_binding
   use mpi

@@ -829,7 +829,7 @@ module m_helper_functions
       triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
     end function
 
-    !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
+    !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
     function triangle_area_by_vertices(v1,v2,v3)
       real(ireals), intent(in) :: v1(:),v2(:),v3(:)
       real(ireals) :: triangle_area_by_vertices

@@ -30,7 +30,8 @@ module m_helper_functions_dp
           mpi_logical_and, mpi_logical_or, imp_allreduce_min, imp_allreduce_max, imp_reduce_sum, &
           pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, &
           rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, determine_normal_direction, &
-          distance_to_edge, distances_to_triangle_edges, triangle_intersection, square_intersection
+          distance_to_edge, distances_to_triangle_edges, triangle_intersection, square_intersection, &
+          triangle_area_by_vertices
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -419,15 +420,23 @@ module m_helper_functions_dp
       real(ireal_dp), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:), tD(:)
       logical, intent(out) :: lhit
       real(ireal_dp), intent(out) :: hit(:)
+      logical :: lhit1, lhit2
+      real(ireal_dp) :: hit1(size(hit)), hit2(size(hit))
 
       lhit = .False.
       hit = huge(hit)
 
       ! 2 Triangles incorporating, cut along (AC)
-      call triangle_intersection(origin, direction, tA, tC, tB, lhit, hit)
-      if(lhit) return
-      call triangle_intersection(origin, direction, tA, tC, tD, lhit, hit)
-      if(lhit) return
+      call triangle_intersection(origin, direction, tA, tB, tC, lhit1, hit1)
+      call triangle_intersection(origin, direction, tA, tC, tD, lhit2, hit2)
+      if(lhit1) then
+        lhit = lhit1
+        hit = hit1
+      endif
+      if(lhit2 .and. (hit2(4).le.hit(4))) then
+        lhit = lhit2
+        hit = hit2
+      endif
     end subroutine
 
     ! Watertight ray -> triangle intersection code from http://jcgt.org/published/0002/01/05/
@@ -680,6 +689,33 @@ module m_helper_functions_dp
 
         distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
       end function
+
+    !> @brief Determine Edge length/ distance between two points
+    function distance(p1,p2)
+      real(ireal_dp), intent(in) :: p1(:), p2(:)
+      real(ireal_dp) :: distance
+      distance = abs(norm(p2-p1))
+    end function
+
+    !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
+    function triangle_area_by_edgelengths(e1,e2,e3)
+      real(ireal_dp), intent(in) :: e1,e2,e3
+      real(ireal_dp) :: triangle_area_by_edgelengths
+      real(ireal_dp) :: p
+      p = (e1+e2+e3)/2
+      triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
+    end function
+
+    !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
+    function triangle_area_by_vertices(v1,v2,v3)
+      real(ireal_dp), intent(in) :: v1(:),v2(:),v3(:)
+      real(ireal_dp) :: triangle_area_by_vertices
+      real(ireal_dp) :: e1, e2, e3
+      e1 = distance(v1,v2)
+      e2 = distance(v2,v3)
+      e3 = distance(v3,v1)
+      triangle_area_by_vertices = triangle_area_by_edgelengths(e1,e2,e3)
+    end function
 
       pure function rotate_angle_x(v,angle)
         ! left hand rule

@@ -356,9 +356,9 @@ module m_boxmc_geometry
       integer(iintegers) :: i
 
       associate( &
-          A  => vertices( 1: 2), &
-          B  => vertices( 4: 5), &
-          C  => vertices( 7: 8), &
+          !A  => vertices( 1: 2), &
+          !B  => vertices( 4: 5), &
+          !C  => vertices( 7: 8), &
           Ab => vertices( 1: 3), &
           Bb => vertices( 4: 6), &
           Cb => vertices( 7: 9), &
@@ -422,17 +422,23 @@ module m_boxmc_geometry
           call CHKERR(1_mpiint, 'ERROR in Raytracer, didnt hit anything!')
         endif
 
-        l_in_triangle = pnt_in_triangle(A,B,C, hit(pside,1:2))
+        select case(pside)
+        case(1)
+          l_in_triangle = pnt_in_triangle(At,Bt,Ct, hit(pside,1:2))
+        case(5)
+          l_in_triangle = pnt_in_triangle(Ab,Bb,Cb, hit(pside,1:2))
+        case default
+          l_in_triangle = .True.
+        end select
         if(.not.l_in_triangle) then
           print *,'max dist, pside', max_dist, pside, 'src_side', psrc_side
+          print *,'ploc', ploc
           print *,'lhit', lhit
           print *,'hit1', hit(1,:)
           print *,'hit2', hit(2,:)
           print *,'hit3', hit(3,:)
           print *,'hit4', hit(4,:)
           print *,'hit5', hit(5,:)
-          print *,'distance to edges:', distances_to_triangle_edges(A,B,C, hit(pside,1:2)), ':: dists to faces',hit(pside,4)
-          print *,'called pnt_in_triangle(', A, B, C, hit(pside,1:2), ')'
           print *,'target point not in triangle', hit, 'side', pside, 'dist', hit(pside,4)
           call CHKERR(1_mpiint, 'Photon not inside the triangle')
         endif
