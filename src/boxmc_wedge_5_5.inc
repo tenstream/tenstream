@@ -146,6 +146,7 @@ subroutine update_diff_stream_wedge_5_5(bmc,vertices,p,S)
   select type(bmc)
   end select
 
+  if(.False.) print *,vertices
   !print *,'updating S',S,'(',p%side,')','+',p%weight
   !call print_photon(p)
 end subroutine

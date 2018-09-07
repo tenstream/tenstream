@@ -233,8 +233,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   integer(mpiint), intent(out) :: ierr
 
   real(ireal_dp) :: phi,mu
-  real(ireal_dp), dimension(3) :: normal, triangle_center, dir_p_to_triangle_center, rotvec, U, V
-  real(ireal_dp) :: r1
+  real(ireal_dp), dimension(3) :: normal, triangle_center, dir_p_to_triangle_center, U, V
   real(ireals) :: Mrot(3,3)
 
   associate( &

@@ -143,6 +143,7 @@ else
   print *,'Couldnt find a stream on to which I can put the photon weight on?!'
   call print_photon(p)
   call exit
+  print *,'remove unused compiler warning', vertices
 endif
 select type(bmc)
 end select

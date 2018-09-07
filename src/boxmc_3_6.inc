@@ -128,6 +128,11 @@ subroutine update_diff_stream_3_6(bmc,vertices,p,S)
       S(5) = S(5) + p%weight
     case(6)
       S(6) = S(6) + p%weight
+    case default
+      print *,'Couldnt find a stream on to which I can put the photon weight on?!'
+      call print_photon(p)
+      call exit
+      print *,'remove unused compiler warning', vertices
   end select
   select type(bmc)
   end select
