@@ -342,7 +342,7 @@ module m_boxmc_geometry
     end subroutine
 
     subroutine intersect_wedge(vertices, ploc, pdir, pscattercnt, psrc_side, &
-        pside, pweight, max_dist, psubface)
+        pside, pweight, max_dist, psubface, ierr)
       real(ireal_dp),intent(in) :: vertices(:)
       real(ireal_dp),intent(in) :: pdir(:), ploc(:)
       integer(iintegers),intent(in) :: pscattercnt, psrc_side
@@ -350,11 +350,13 @@ module m_boxmc_geometry
       real(ireal_dp),intent(inout) :: pweight
       real(ireal_dp),intent(out) :: max_dist
       integer(iintegers), intent(out) :: psubface
+      integer(mpiint) :: ierr
 
       logical :: l_in_triangle
       logical :: lhit(5)
       real(ireal_dp) :: hit(5,4)
       integer(iintegers) :: i, iface(5)
+      ierr = 0
 
       associate( &
           Ab => vertices( 1: 3), &
@@ -423,7 +425,8 @@ module m_boxmc_geometry
           print *,'hit3', hit(3,:)
           print *,'hit4', hit(4,:)
           print *,'hit5', hit(5,:)
-          call CHKERR(1_mpiint, 'ERROR in Raytracer, didnt hit anything!')
+          ierr = 1_mpiint
+          !call CHKERR(1_mpiint, 'ERROR in Raytracer, didnt hit anything!')
         endif
 
         select case(pside)
@@ -452,7 +455,8 @@ module m_boxmc_geometry
           print *,'hit4', hit(4,:)
           print *,'hit5', hit(5,:)
           print *,'target point not in triangle', hit, 'side', pside, 'dist', hit(pside,4)
-          call CHKERR(1_mpiint, 'Photon not inside the triangle')
+          ierr = 2_mpiint
+          !call CHKERR(1_mpiint, 'Photon not inside the triangle')
         endif
       end associate
     end subroutine

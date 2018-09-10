@@ -773,7 +773,7 @@ contains
     print *,'Location  of Photon:',p%loc
     print *,'Direction of Photon:',p%dir
     print *,'weight',p%weight,'alive,direct',p%alive,p%direct,'scatter count',p%scattercnt
-    print *,'src_side',p%src_side,'side',p%side,'src',p%src
+    print *,'src_side',p%src_side,'side',p%side,'src',p%src, 'subface', p%subface
     print *,'cellid', p%cellid, 'tau_travel', p%tau_travel
     print *,'i,j,k', p%i, p%j, p%k
     print *,'E---------------------------'

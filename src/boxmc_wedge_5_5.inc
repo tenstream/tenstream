@@ -98,7 +98,6 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,ldirect,initial_dir,vertices,ierr
   triangle_center(1:2) = (a+b+c)/3
   triangle_center(3) = dz/2
   dir_p_to_triangle_center = triangle_center - p%loc
-  dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
 
   p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
 
@@ -255,10 +254,16 @@ subroutine intersect_distance_wedge_5_5(bmc,vertices,p,max_dist)
   real(ireal_dp), intent(in) :: vertices(:)
   type(t_photon), intent(inout) :: p
   real(ireal_dp), intent(out) :: max_dist
+  integer(mpiint) :: ierr
 
 
   call intersect_wedge(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
-    p%side, p%weight, max_dist, p%subface)
+    p%side, p%weight, max_dist, p%subface, ierr)
+
+  if(ierr.ne.0_mpiint) then
+    call print_photon(p)
+  endif
+  call CHKERR(ierr, 'Error in intersect_wedge')
 
   select type(bmc)
   end select

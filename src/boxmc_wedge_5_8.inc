@@ -86,12 +86,13 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
 
   select case(src)
   case (1)
-    p%loc = rand_pnt_on_triangle(pD,pE,pF)
+    p%loc = rand_pnt_on_triangle(pD,pF,pE)
     normal = compute_normal_3d(pD,pF,pE)
   case (2)
     call rand_pnt_on_plane(pA,pD,pE,pB, p%loc, normal, U, V)
   case (3)
-    call rand_pnt_on_plane(pA,pC,pF,pD, p%loc, normal, U, V)
+    call rand_pnt_on_plane(pA,pD,pF,pC, p%loc, normal, U, V)
+    normal = -normal
   case (4)
     call rand_pnt_on_plane(pB,pE,pF,pC, p%loc, normal, U, V)
   case (5)
@@ -102,7 +103,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     call exit
   end select
 
-  triangle_center = mean([pA,pB,pC,pD,pE,pF])
+  triangle_center = (pA+pB+pC+pD+pE+pF)/6._ireals
 
   p%src_side = src
 
@@ -116,7 +117,6 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
 
   ! always nudge the photon a little bit inside the volume
   dir_p_to_triangle_center = triangle_center - p%loc
-  dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
 
   p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
 
@@ -129,6 +129,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
     if(ldebug) then
       print *,'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
+      print *,'src', src, 'initial_dir', initial_dir
       print *,'normal',normal,'direction',p%dir
       call print_photon(p)
     endif
@@ -136,7 +137,6 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     return
   endif
   ierr = 0
-
 end subroutine
 
 subroutine update_dir_stream_wedge_5_8(bmc,vertices,p,T)
@@ -266,7 +266,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
     call exit
   end select
 
-  triangle_center = mean([pA,pB,pC,pD,pE,pF])
+  triangle_center = (pA+pB+pC+pD+pE+pF)/6._ireals
 
   select case(src)
   case(1,8)
@@ -331,7 +331,6 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
 
   ! always nudge the photon a little bit inside the volume
   dir_p_to_triangle_center = triangle_center - p%loc
-  dir_p_to_triangle_center = dir_p_to_triangle_center / norm(dir_p_to_triangle_center)
 
   p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
 
@@ -351,9 +350,15 @@ subroutine intersect_distance_wedge_5_8(bmc, vertices, p, max_dist)
   real(ireal_dp), intent(in) :: vertices(:)
   type(t_photon), intent(inout) :: p
   real(ireal_dp), intent(out) :: max_dist
+  integer(mpiint) :: ierr
 
   call intersect_wedge(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
-    p%side, p%weight, max_dist, p%subface)
+    p%side, p%weight, max_dist, p%subface, ierr)
+
+  if(ierr.ne.0_mpiint) then
+    call print_photon(p)
+  endif
+  call CHKERR(ierr, 'Error in intersect_wedge')
 
   select type(bmc)
   end select
