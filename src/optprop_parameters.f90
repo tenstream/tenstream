@@ -135,4 +135,5 @@ module m_optprop_parameters
       ! Used to signal that all Angles possible should be loaded when initializing the LUT object -- pass this as azi and zenith
       integer(iintegers), parameter :: OPP_LUT_ALL_ANGLES=361
 
+      real(ireals), parameter :: LUT_dump_interval=600
 end module

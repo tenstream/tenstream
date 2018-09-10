@@ -37,6 +37,7 @@ module m_optprop_LUT
 
   use m_optprop_parameters, only:         &
     ldebug_optprop, lut_basename,         &
+    LUT_dump_interval,                    &
     interp_mode_1_2,interp_mode_8_10,     &
     interp_mode_3_6,interp_mode_3_10,     &
     interp_mode_wedge_5_8,                &
@@ -539,7 +540,7 @@ subroutine createLUT(OPP, comm, config, S, T)
                   print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._ireals/total_size,'%'
 
               call cpu_time(now)
-              if( (now-starttime).gt.1800 ) then !every 30 minutes wall clock time, dump the LUT.
+              if( (now-starttime).gt.LUT_dump_interval ) then !every 30 minutes wall clock time, dump the LUT.
                 print *,'Dumping LUT after ',(now-starttime)/60,'minutes'
                 starttime = now ! reset the countdown
                 if(present(T)) then
