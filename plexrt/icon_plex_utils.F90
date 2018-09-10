@@ -662,9 +662,8 @@ module m_icon_plex_utils
     end subroutine
 
     ! Create a 2D Torus grid with Nx vertices horizontally and Ny rows of Vertices vertically
-    subroutine create_2d_fish_plex(dm, Nx, Ny)
-      type(tDM), intent(inout) :: dm
-      type(tDM) :: dmdist
+    subroutine create_2d_fish_plex(Nx, Ny, dm, dmdist)
+      type(tDM), intent(inout) :: dm, dmdist
       integer(iintegers), intent(in) :: Nx, Ny
 
       integer(iintegers) :: chartsize, Nfaces, Nedges, Nvertices
@@ -740,21 +739,19 @@ module m_icon_plex_utils
       !call DMPlexSetAdjacencyUseClosure(dm, PETSC_True, ierr); call CHKERR(ierr)
 
       call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
-      if(dmdist.ne.PETSC_NULL_DM) then
-        call DMDestroy(dm, ierr); call CHKERR(ierr)
-        dm = dmdist
-      endif
+      if(dmdist%v.ne.-i1) then
 
-      call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
-      call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-      call DMPlexGetHeightStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
-      call DMPlexGetHeightStratum(dm, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+        call DMPlexGetChart(dmdist, pStart, pEnd, ierr); call CHKERR(ierr)
+        call DMPlexGetHeightStratum(dmdist, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+        call DMPlexGetHeightStratum(dmdist, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
+        call DMPlexGetHeightStratum(dmdist, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-      if(ldebug) then
-        print *,myid,'pStart,End distributed:: ',pStart, pEnd
-        print *,myid,'fStart,End distributed:: ',fStart, fEnd
-        print *,myid,'eStart,End distributed:: ',eStart, eEnd
-        print *,myid,'vStart,End distributed:: ',vStart, vEnd
+        if(ldebug) then
+          print *,myid,'pStart,End distributed:: ',pStart, pEnd
+          print *,myid,'fStart,End distributed:: ',fStart, fEnd
+          print *,myid,'eStart,End distributed:: ',eStart, eEnd
+          print *,myid,'vStart,End distributed:: ',vStart, vEnd
+        endif
       endif
 
       !call CHKERR(1_mpiint, 'DEBUG')
@@ -1051,7 +1048,7 @@ module m_icon_plex_utils
 
       call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
 
-      if(dmdist.ne.PETSC_NULL_DM) then
+      if(dmdist%v.ne.-i1) then
         call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
           '-show_migration_sf', ierr); call CHKERR(ierr)
       else

@@ -1054,7 +1054,7 @@ module m_plex_grid
       call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
 
       call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
-      if(dmdist.ne.PETSC_NULL_DM) then
+      if(dmdist%v.ne.-i1) then
         call DMDestroy(dm, ierr); call CHKERR(ierr)
         dm   = dmdist
       endif
