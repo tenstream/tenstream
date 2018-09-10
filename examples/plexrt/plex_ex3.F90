@@ -54,7 +54,7 @@ logical, parameter :: ldebug=.True.
 
       type(t_plexgrid), allocatable :: plex
       integer(iintegers), allocatable :: zindex(:)
-      type(t_plex_solver), allocatable :: solver
+      class(t_plex_solver), allocatable :: solver
 
       real(ireals), allocatable, dimension(:,:) :: edn, eup, abso
 

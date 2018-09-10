@@ -75,7 +75,7 @@ contains
       opt_time, solar_albedo_2d, thermal_albedo_2d)
 
     class(t_plex_solver), allocatable, intent(inout)  :: solver ! solver type -- includes a dmplex and more
-    class(t_tenstr_atm), intent(in) :: atm                      ! atmosphere construct, which describes physical properties on layers and levels up till TOA
+    type(t_tenstr_atm), intent(in)  :: atm                      ! atmosphere construct, which describes physical properties on layers and levels up till TOA
     real(ireals), intent(in)        :: sundir(:)                ! cartesian direction of sun rays
     real(ireals), intent(in)        :: albedo_solar, albedo_thermal ! broadband ground albedo for solar and thermal spectrum
 
@@ -184,7 +184,7 @@ contains
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
     use m_tenstr_parrrtm, only: ngptlw, nbndlw
 
-    type(t_plex_solver), allocatable, intent(inout)  :: solver
+    class(t_plex_solver), allocatable, intent(inout)  :: solver
     type(t_tenstr_atm), intent(in), target :: atm
     integer(iintegers),intent(in)   :: Ncol, ke1
 
@@ -325,7 +325,7 @@ contains
       use m_tenstr_parrrsw, only: ngptsw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
 
-    type(t_plex_solver), allocatable, intent(inout)  :: solver
+    class(t_plex_solver), allocatable, intent(inout)  :: solver
     type(t_tenstr_atm), intent(in), target :: atm
     integer(iintegers),intent(in)   :: Ncol, ke1
 

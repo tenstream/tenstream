@@ -49,7 +49,7 @@ logical, parameter :: ldebug=.True.
 
       real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
 
-      type(t_plex_solver), allocatable :: solver
+      class(t_plex_solver), allocatable :: solver
 
       call init_mpi_data_parameters(comm)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)

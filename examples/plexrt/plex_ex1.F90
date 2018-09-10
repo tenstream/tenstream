@@ -27,7 +27,7 @@ module m_mpi_plex_ex1
 
       real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
 
-      type(t_plex_solver), allocatable :: solver
+      class(t_plex_solver), allocatable :: solver
 
       call init_plex_rt_solver(plex, solver)
 

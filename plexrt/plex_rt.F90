@@ -71,7 +71,7 @@ module m_plex_rt
   contains
     subroutine init_plex_rt_solver(plex, solver)
       type(t_plexgrid), intent(in) :: plex
-      type(t_plex_solver), allocatable, intent(inout) :: solver
+      class(t_plex_solver), allocatable, intent(inout) :: solver
 
       call read_commandline_options(plex%comm)
 
@@ -88,7 +88,7 @@ module m_plex_rt
     end subroutine
 
     subroutine destroy_plexrt_solver(solver, lfinalizepetsc)
-      type(t_plex_solver), intent(inout) :: solver
+      class(t_plex_solver), intent(inout) :: solver
       logical, intent(in) :: lfinalizepetsc
 
       integer(iintegers) :: uid
@@ -137,7 +137,7 @@ module m_plex_rt
 
     subroutine set_plex_rt_optprop(solver, vlwc, viwc)
       use m_helper_functions, only : delta_scale
-      type(t_plex_solver), allocatable, intent(inout) :: solver
+      class(t_plex_solver), allocatable, intent(inout) :: solver
       type(tVec),intent(in), optional :: vlwc, viwc
       real(ireals), pointer :: xlwc(:), xiwc(:)
       real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
@@ -293,7 +293,7 @@ module m_plex_rt
     end subroutine
 
     subroutine run_plex_rt_solver(solver, lthermal, lsolar, sundir, opt_solution_uid, opt_solution_time)
-      type(t_plex_solver), allocatable, intent(inout) :: solver
+      class(t_plex_solver), allocatable, intent(inout) :: solver
       logical, intent(in) :: lthermal, lsolar
       real(ireals), intent(in) :: sundir(3) ! cartesian direction of sun rays, norm of vector is the energy in W/m2
       integer(iintegers), intent(in), optional :: opt_solution_uid
@@ -612,7 +612,7 @@ module m_plex_rt
     !> \n   a la: transmissivity $T = \sum(coeffs)$ and therefore emissivity $E = 1 - T$
     subroutine create_ediff_src_vec(solver, plex, OPP, ediffdm, kabs, ksca, g, plckVec, &
       albedo, srfc_emission, srcVec, edirdm, edirVec)
-      type(t_plex_solver), allocatable, intent(in) :: solver
+      class(t_plex_solver), allocatable, intent(in) :: solver
       type(t_plexgrid), intent(in) :: plex
       class(t_optprop), intent(in) :: OPP
       type(tDM), allocatable, intent(in) :: ediffdm
@@ -1257,7 +1257,7 @@ module m_plex_rt
     end subroutine
 
   subroutine create_edir_mat(solver, plex, OPP, kabs, ksca, g, A)
-    type(t_plex_solver), intent(in) :: solver
+    class(t_plex_solver), intent(in) :: solver
     type(t_plexgrid), intent(inout) :: plex
     class(t_optprop), intent(in) :: OPP
     type(tVec), allocatable, intent(in) :: kabs, ksca, g
@@ -1414,7 +1414,7 @@ module m_plex_rt
   end subroutine
 
   subroutine create_ediff_mat(solver, plex, OPP, kabs, ksca, g, albedo, A)
-    type(t_plex_solver), intent(in) :: solver
+    class(t_plex_solver), intent(in) :: solver
     type(t_plexgrid), intent(in) :: plex
     class(t_optprop), intent(in) :: OPP
     type(tVec), allocatable, intent(in) :: kabs, ksca, g ! cell1_dm
@@ -1692,7 +1692,7 @@ module m_plex_rt
   end subroutine
 
   subroutine restore_solution(solver, solution, time)
-    type(t_plex_solver), allocatable, intent(inout) :: solver
+    class(t_plex_solver), allocatable, intent(inout) :: solver
     type(t_state_container), intent(inout) :: solution
     real(ireals),intent(in),optional :: time
 
@@ -1704,7 +1704,7 @@ module m_plex_rt
   end subroutine
 
   subroutine compute_absorption(solver, solution)
-    type(t_plex_solver), allocatable, intent(inout) :: solver
+    class(t_plex_solver), allocatable, intent(inout) :: solver
     type(t_state_container), intent(inout) :: solution
 
     integer(mpiint) :: ierr
@@ -2231,7 +2231,7 @@ module m_plex_rt
   end subroutine
 
   subroutine plexrt_get_result(solver, redn, reup, rabso, redir, opt_solution_uid)
-    type(t_plex_solver), intent(inout) :: solver
+    class(t_plex_solver), intent(inout) :: solver
     real(ireals), allocatable, dimension(:,:), intent(inout) :: redn,reup,rabso
     real(ireals), allocatable, dimension(:,:), intent(inout), optional :: redir
     integer(iintegers),optional,intent(in) :: opt_solution_uid
