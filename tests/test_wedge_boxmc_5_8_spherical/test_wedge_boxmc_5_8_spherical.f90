@@ -68,17 +68,8 @@ contains
       call setup_default_wedge_geometry([zero, zero], [dx, zero], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
-      print *,'Vertices A', sverts(1:3)
-      print *,'Vertices B', sverts(4:6)
-      print *,'Vertices C', sverts(7:9)
-      print *,'Vertices D', sverts(10:12)
-      print *,'Vertices E', sverts(13:15)
-      print *,'Vertices F', sverts(16:18)
-
       Abot = triangle_area_by_vertices(sverts(1:3), sverts(4:6), sverts(7:9))
       Atop = triangle_area_by_vertices(sverts(10:12), sverts(13:15), sverts(16:18))
-
-      print *,'Area bot vs. top', Abot, 'vs', Atop, ':', Abot / Atop
 
       ! direct to diffuse tests, straight down
       bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
@@ -110,17 +101,8 @@ contains
       call setup_default_wedge_geometry([zero, zero], [dx, zero], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
-      print *,'Vertices A', sverts(1:3)
-      print *,'Vertices B', sverts(4:6)
-      print *,'Vertices C', sverts(7:9)
-      print *,'Vertices D', sverts(10:12)
-      print *,'Vertices E', sverts(13:15)
-      print *,'Vertices F', sverts(16:18)
-
       Abot = triangle_area_by_vertices(sverts(1:3), sverts(4:6), sverts(7:9))
       Atop = triangle_area_by_vertices(sverts(10:12), sverts(13:15), sverts(16:18))
-
-      print *,'Area bot vs. top', Abot, 'vs', Atop, ':', Abot / Atop
 
       ! direct to diffuse tests, straight down
       bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
@@ -158,14 +140,14 @@ contains
       T_target = zero
       T_target([3,4]) = 0.4548_ireals
 
-      S_target = [0.0131, 0.0024, 0.0007, 0.0091, 0.0041, 0.0091, 0.0041, 0.0012]
+      S_target = [0.0131, 0.0012, 0.0018, 0.0024, 0.0108, 0.0024, 0.0108, 0.0012]
 
       call bmc_wedge_5_8%get_coeff(comm, bg, src, .True., phi, theta, sverts, &
         S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_direct_src2_2')
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
-      S_target = [0.015, 0.0070, 0.0024, 0.0067, 0.0024, 0.0067, 0.0024, 0.0015]
+      S_target = [0.015, 0.0029, 0.0065, 0.0063, 0.0027, 0.0063, 0.0027, 0.0015]
 
       call bmc_wedge_5_8%get_coeff(comm, bg, src, .True., phi, theta, sverts, &
         S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
@@ -189,14 +171,14 @@ contains
       T_target = zero
       T_target([2,4]) = 0.4548_ireals
 
-      S_target = [0.0131, 0.0091, 0.0041, 0.0024, 0.0007, 0.0091, 0.0041, 0.0012]
+      S_target = [0.0131, 0.0024, 0.0108, 0.0012, 0.0018, 0.0024, 0.0108, 0.0012]
 
       call bmc_wedge_5_8%get_coeff(comm, bg, src, .True., phi, theta, sverts, &
         S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_direct_src3_2')
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
-      S_target = [0.015, 0.0067, 0.0024, 0.0070, 0.0024, 0.0067, 0.0024, 0.0015]
+      S_target = [0.015, 0.0063, 0.0027, 0.0029, 0.0065, 0.0063, 0.0027, 0.0015]
 
       call bmc_wedge_5_8%get_coeff(comm, bg, src, .True., phi, theta, sverts, &
         S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
@@ -220,14 +202,14 @@ contains
       T_target = zero
       T_target([2,3]) = 0.4548_ireals
 
-      S_target = [0.0131, 0.0091, 0.0041, 0.0091, 0.0041, 0.0024, 0.0007, 0.0012]
+      S_target = [0.0131, 0.0024, 0.0108, 0.0024, 0.0108, 0.0012, 0.0018, 0.0012]
 
       call bmc_wedge_5_8%get_coeff(comm, bg, src, .True., phi, theta, sverts, &
         S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_direct_src4_2')
 
       bg  = [1e-3_ireals, 1e-3_ireals, zero ]
-      S_target = [0.015, 0.0067, 0.0024, 0.0067, 0.0024, 0.0070, 0.0024, 0.0015]
+      S_target = [0.015, 0.0063, 0.0027, 0.0063, 0.0027, 0.0029, 0.0065, 0.0015]
 
       call bmc_wedge_5_8%get_coeff(comm, bg, src, .True., phi, theta, sverts, &
         S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
@@ -239,30 +221,17 @@ contains
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=1
       real(ireals), allocatable :: sverts(:)
-      real(ireals) :: Atop, Abot
       real(ireals),parameter :: R = 6374e1_ireals
 
       call setup_default_wedge_geometry([zero, zero], [dx, zero], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
-
-      print *,'Vertices A', sverts(1:3)
-      print *,'Vertices B', sverts(4:6)
-      print *,'Vertices C', sverts(7:9)
-      print *,'Vertices D', sverts(10:12)
-      print *,'Vertices E', sverts(13:15)
-      print *,'Vertices F', sverts(16:18)
-
-      Abot = triangle_area_by_vertices(sverts(1:3), sverts(4:6), sverts(7:9))
-      Atop = triangle_area_by_vertices(sverts(10:12), sverts(13:15), sverts(16:18))
-
-      print *,'Area bot vs. top', Abot, 'vs', Atop, ':', Abot / Atop
 
       T_target = zero
 
       ! direct to diffuse tests, straight down
       bg  = [1e-3_ireals, zero, one/2 ]
 
-      S_target = [0.0000, 0.247, 0.0000, 0.247, 0.0000, 0.247, 0.0000, 0.2222]
+      S_target = [0.0000, 0.2455, 0.0015, 0.2455, 0.0015, 0.2455, 0.0015, 0.2220]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src1_1')
@@ -276,7 +245,7 @@ contains
       ! with strict forward scattering the same as without ksca
       bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
 
-      S_target = [0.0041, 0.2455, 0.0015, 0.2455, 0.0015, 0.2455, 0.0015, 0.2179]
+      S_target = [0.0041, 0.2437, 0.0033, 0.2437, 0.0033, 0.2437, 0.0033, 0.2179]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src1_3')
