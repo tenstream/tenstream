@@ -41,7 +41,7 @@ logical, parameter :: ldebug=.True.
       integer(iintegers), intent(in) :: Nx, Ny, Nz
       real(ireals), intent(in) :: dz, Ag
 
-      type(tDM) :: dm2d, dm3d
+      type(tDM) :: dm2d, dm2ddist, dm3d
       real(ireals) :: hhl(Nz)
 
       integer(mpiint) :: myid, numnodes, ierr
@@ -61,14 +61,14 @@ logical, parameter :: ldebug=.True.
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call create_2d_fish_plex(dm2d, Nx, Ny)
+      call create_2d_fish_plex(Nx, Ny, dm2d, dm2ddist)
 
       hhl(1) = zero
       do k=2,Nz
         hhl(k) = hhl(k-1) - dz
       enddo
 
-      call dmplex_2D_to_3D(dm2d, hhl, dm3d, zindex)
+      call dmplex_2D_to_3D(dm2ddist, hhl, dm3d, zindex)
 
       call setup_plexgrid(dm3d, zindex, hhl, plex)
       deallocate(zindex)
