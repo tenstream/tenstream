@@ -31,7 +31,7 @@ module m_helper_functions_dp
           pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, &
           rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, determine_normal_direction, &
           distance_to_edge, distances_to_triangle_edges, triangle_intersection, square_intersection, &
-          triangle_area_by_vertices
+          triangle_area_by_vertices, rotation_matrix_local_basis_to_world
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -719,6 +719,21 @@ module m_helper_functions_dp
       e2 = distance(v2,v3)
       e3 = distance(v3,v1)
       triangle_area_by_vertices = triangle_area_by_edgelengths(e1,e2,e3)
+    end function
+
+    pure function rotation_matrix_local_basis_to_world(ex, ey, ez)
+      real(ireal_dp), dimension(3), intent(in) :: ex, ey, ez
+      real(ireal_dp), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
+      real(ireal_dp), dimension(3,3) :: rotation_matrix_local_basis_to_world
+      rotation_matrix_local_basis_to_world(1,1) = dot_product(kx, ex)
+      rotation_matrix_local_basis_to_world(1,2) = dot_product(kx, ey)
+      rotation_matrix_local_basis_to_world(1,3) = dot_product(kx, ez)
+      rotation_matrix_local_basis_to_world(2,1) = dot_product(ky, ex)
+      rotation_matrix_local_basis_to_world(2,2) = dot_product(ky, ey)
+      rotation_matrix_local_basis_to_world(2,3) = dot_product(ky, ez)
+      rotation_matrix_local_basis_to_world(3,1) = dot_product(kz, ex)
+      rotation_matrix_local_basis_to_world(3,2) = dot_product(kz, ey)
+      rotation_matrix_local_basis_to_world(3,3) = dot_product(kz, ez)
     end function
 
       pure function rotate_angle_x(v,angle)

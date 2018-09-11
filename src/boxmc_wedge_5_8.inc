@@ -103,7 +103,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     call exit
   end select
 
-  triangle_center = (pA+pB+pC+pD+pE+pF)/6._ireals
+  triangle_center = (pA+pB+pC+pD+pE+pF)/6._ireal_dp
 
   p%src_side = src
 
@@ -225,7 +225,7 @@ end subroutine
 
 subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   use m_helper_functions_dp, only : pnt_in_triangle,rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, rad2deg
-  use m_helper_functions, only : rotation_matrix_local_basis_to_world
+  use m_helper_functions_dp, only : rotation_matrix_local_basis_to_world
   class(t_boxmc_wedge_5_8) :: bmc
   type(t_photon),intent(inout) :: p
   real(ireal_dp),intent(in) :: vertices(:)
@@ -234,7 +234,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
 
   real(ireal_dp) :: phi,mu
   real(ireal_dp), dimension(3) :: normal, triangle_center, dir_p_to_triangle_center, U, V
-  real(ireals) :: Mrot(3,3)
+  real(ireal_dp) :: Mrot(3,3)
 
   associate( &
     pA => vertices(1:3), &
@@ -266,7 +266,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
     call exit
   end select
 
-  triangle_center = (pA+pB+pC+pD+pE+pF)/6._ireals
+  triangle_center = (pA+pB+pC+pD+pE+pF)/6._ireal_dp
 
   select case(src)
   case(1,8)
@@ -276,7 +276,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   end select
 
   mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu --> Lambertian
-  mu = max(cos(deg2rad(89.9_ireals)), mu)
+  mu = max(cos(deg2rad(89.9_ireal_dp)), mu)
 
   p%dir = (/cos(phi)*sin(acos(mu)) , sin(phi)*sin(acos(mu)) , mu  /)
 
