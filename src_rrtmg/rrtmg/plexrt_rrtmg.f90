@@ -245,9 +245,9 @@ contains
           eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
           edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
           !abso(:,i) = abso(:,i) + reverse(spec_abso(:,i)) ! This would be in K/day
-          abso(:,i) = abso(:,i) + reverse( &
-              +spec_edn(1:ke1-1,i) - spec_edn(2:ke1,i) &
-              -spec_eup(1:ke1-1,i) + spec_eup(2:ke1,i) )*atm%dz(:,i)
+          abso(:,i) = abso(:,i) + reverse( ( &
+              + spec_edn(1:ke1-1,i) - spec_edn(2:ke1,i) &
+              - spec_eup(1:ke1-1,i) + spec_eup(2:ke1,i) ) / atm%dz(:,i) )
         enddo
       return
     else
@@ -411,9 +411,9 @@ contains
           eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
           edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
           !abso(:,i) = abso(:,i) + reverse(spec_abso(:,i)) ! This would be in K/day
-          abso(:,i) = abso(:,i) + reverse( &
-              +spec_edn(1:ke1-1,i) - spec_edn(2:ke1,i) &
-              -spec_eup(1:ke1-1,i) + spec_eup(2:ke1,i) )*atm%dz(:,i)
+          abso(:,i) = abso(:,i) + reverse( ( &
+              - spec_edn(1:ke1-1,i) + spec_edn(2:ke1,i) &
+              + spec_eup(1:ke1-1,i) - spec_eup(2:ke1,i) ) / atm%dz(:,i) )
         enddo
       return
     else
