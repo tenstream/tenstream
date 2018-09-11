@@ -100,7 +100,8 @@ contains
       lthermal, lsolar,                               &
       edir,edn,eup,abso,                              &
       nxproc, nyproc, icollapse,                      &
-      opt_time, solar_albedo_2d)
+      opt_time, solar_albedo_2d, thermal_albedo_2d,   &
+      phi2d, theta2d)
 
     integer(mpiint), intent(in)     :: comm ! MPI Communicator
 
@@ -125,6 +126,8 @@ contains
     ! and compute new solutions only after threshold estimate is exceeded.
     ! If solar_albedo_2d is present, we use a 2D surface albedo
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
+
+    real(ireals), optional, intent(in) :: phi2d(:,:), theta2d(:,:)
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -199,7 +202,7 @@ contains
       call compute_solar(solver, atm, ie, je, ke, &
         phi0, theta0, albedo_solar, &
         edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
-        lrrtmg_only=lrrtmg_only)
+        lrrtmg_only=lrrtmg_only, phi2d=phi2d, theta2d=theta2d)
     endif
 
     !if(myid.eq.0 .and. ldebug) then
