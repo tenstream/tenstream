@@ -739,7 +739,7 @@ module m_icon_plex_utils
       !call DMPlexSetAdjacencyUseClosure(dm, PETSC_True, ierr); call CHKERR(ierr)
 
       call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
-      if(dmdist%v.ne.-i1) then
+      if(dmdist.ne.PETSC_NULL_DM) then
 
         call DMPlexGetChart(dmdist, pStart, pEnd, ierr); call CHKERR(ierr)
         call DMPlexGetHeightStratum(dmdist, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
@@ -1048,7 +1048,7 @@ module m_icon_plex_utils
 
       call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
 
-      if(dmdist%v.ne.-i1) then
+      if(dmdist.ne.PETSC_NULL_DM) then
         call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
           '-show_migration_sf', ierr); call CHKERR(ierr)
       else

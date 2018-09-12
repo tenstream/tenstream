@@ -936,7 +936,7 @@ module m_plex_rt
           integer(iintegers) :: i, idof, iface, offset_Ein, offset_Eout, numDof, offset_srfc
 
           call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', SIDEFACE, bc_ids, ierr); call CHKERR(ierr)
-          if (bc_ids.eq.PETSC_NULL_IS) then ! dont have boundary points
+          if (bc_ids.eq.PETSC_NULL_IS) then ! dont have sidewards boundary points
           else
             call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
             do i = 1, size(xi)
