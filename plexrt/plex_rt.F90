@@ -535,8 +535,8 @@ module m_plex_rt
           icell = cell_support(1)
           call DMPlexRestoreSupport(edirdm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
 
-          call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
-          area = geoms(geom_offset+i7)
+          call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
+          area = geoms(i1+geom_offset)
 
           call get_inward_face_normal(iface, icell, geomSection, geoms, face_normal)
 
@@ -828,8 +828,8 @@ module m_plex_rt
 
           ! Scaling from [W/m2] to Energy [W]
           do iface = plex%fStart, plex%fEnd-1
-            call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
-            area = geoms(geom_offset+i7)
+            call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
+            area = geoms(i1+geom_offset)
 
             call PetscSectionGetOffset(ediffSection, iface, face_offset, ierr); call CHKERR(ierr)
             call PetscSectionGetDof(ediffSection, iface, num_dof, ierr); call CHKERR(ierr)
@@ -1230,8 +1230,8 @@ module m_plex_rt
     call VecGetArrayF90(faceVec, xv, ierr); call CHKERR(ierr)
 
     do iface = plex%fStart, plex%fEnd-1
-      call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
-      area = geoms(geom_offset+i7)
+      call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
+      area = geoms(i1+geom_offset)
 
       call PetscSectionGetOffset(faceSection, iface, face_offset, ierr); call CHKERR(ierr)
       call PetscSectionGetDof(faceSection, iface, num_dof, ierr); call CHKERR(ierr)
@@ -1800,8 +1800,8 @@ module m_plex_rt
 
     do icell = cStart, cEnd-1
 
-      call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
-      volume = geoms(geom_offset+i4)
+      call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr)
+      volume = geoms(i1+geom_offset)
 
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
       xabso(abso_offset+i1) = zero
@@ -1901,8 +1901,8 @@ module m_plex_rt
 
       call get_in_out_dof_offsets(IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
 
-      call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
-      volume = geoms(geom_offset+i4)
+      call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr)
+      volume = geoms(i1+geom_offset)
 
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
       xabso(i1+abso_offset) = zero
@@ -2049,7 +2049,9 @@ module m_plex_rt
 
     integer(mpiint) :: ierr
 
-    call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+    if(solution%lsolar_rad) then
+      call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+    endif
     call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
 
     if(solution%lsolar_rad .and. norm(sundir).le.zero) then
@@ -2192,6 +2194,17 @@ module m_plex_rt
       call PetscLogEventBegin(logevent, ierr); call CHKERR(ierr)
     endif
 
+    if(solution%lsolar_rad) then
+      if(solution%lWm2_dir .neqv. lWm2) then
+        if(lWm2) then
+          call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        else
+          call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        endif
+        solution%lWm2_dir = lWm2
+      endif
+    endif
+
     if(solution%lWm2_diff .neqv. lWm2) then
       if(lWm2) then
         call VecPointwiseMult(solution%ediff, solution%ediff, diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
@@ -2221,14 +2234,6 @@ module m_plex_rt
               dir_scalevec_W_to_Wm2, &
               dir_scalevec_W_to_Wm2, &
               dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-          endif
-          if(solution%lWm2_dir .neqv. lWm2) then
-            if(lWm2) then
-              call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-            else
-              call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-            endif
-            solution%lWm2_dir = lWm2
           endif
         endif
 
@@ -2322,7 +2327,7 @@ module m_plex_rt
       call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
       reup(i1+k, i) = xediff(i1+voff)
 
-      ! Fill Aborption Vec
+      ! Fill Absorption Vec
       call DMPlexGetSupport(solver%plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr)
       icell = cell_support(1)
       call DMPlexRestoreSupport(solver%plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr)
@@ -2351,19 +2356,21 @@ module m_plex_rt
     if(ldebug) then
       call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
       if(myid.eq.0) then
-    !    if(present(redir)) then
-    !      print *,'Get Result, k        Edir                Edn                 Eup                abso'
-    !      do k = 1, ke1-1
-    !        print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)
-    !      enddo
-    !      print *,k, redir(k,1), redn(k,1), reup(k,1)
-    !    else
-    !      print *,'Get Result, k        Edn                 Eup                abso'
-    !      do k = 1, ke1-1
-    !        print *,k, redn(k,1), reup(k,1), rabso(k,1)
-    !      enddo
-    !      print *,k, redn(k,1), reup(k,1)
-    !    endif
+        if(present(redir)) then
+          print *,'Get Result, k     Edir                   Edn                      Eup                  abso'
+          do k = 1, ke1-1
+            print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)!, &
+              !redir(k,1)-redir(k+1,1)+redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
+          enddo
+          print *,k, redir(k,1), redn(k,1), reup(k,1)
+        else
+          print *,'Get Result, k     Edn                    Eup                      abso'
+          do k = 1, ke1-1
+            print *,k, redn(k,1), reup(k,1), rabso(k,1)!, &
+              !redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
+          enddo
+          print *,k, redn(k,1), reup(k,1)
+        endif
       endif
     endif
 

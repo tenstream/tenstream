@@ -503,7 +503,6 @@ module m_plex_grid
         call setup_srfc_boundary_dm(plex, plex%srfc_boundary_dm)
 
         call setup_cell1_dmplex(plex, plex%cell1_dm)
-        call compute_face_geometry(plex, plex%geom_dm)
         call setup_edir_dmplex(plex, plex%edir_dm)
         call setup_ediff_dmplex(plex, plex%ediff_dm)
         call setup_abso_dmplex(plex, plex%abso_dm)
@@ -1068,7 +1067,7 @@ module m_plex_grid
 
   subroutine compute_face_geometry(plex, dm)
     type(t_plexgrid), intent(inout) :: plex
-    type(tDM), intent(out), allocatable :: dm
+    type(tDM), intent(inout), allocatable :: dm
 
     type(tVec) :: coordinates
     integer(iintegers) :: cStart, cEnd, icell
@@ -1083,12 +1082,13 @@ module m_plex_grid
     integer(iintegers), pointer :: vertices(:)
 
     type(tPetscSection) :: coordSection, geomSection
-    integer(iintegers) :: Ndim, voff
+    integer(iintegers) :: Ndim, voff0, voff1, voff2
 
     real(ireals), allocatable :: vertex_coord(:,:) ! shape (Nvertices, dims)
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
 
-    real(ireals) :: area
+    real(ireals) :: area_top, area_bot, volume
+    real(ireals) :: centroid_top_face(3), centroid_bot_face(3), height
     integer(iintegers) :: iface_up, iface_dn
 
     integer(mpiint) :: ierr
@@ -1134,13 +1134,13 @@ module m_plex_grid
 
       ! Get the coordinates of vertices
       do ivert=1,size(vertices)
-        call PetscSectionGetOffset(coordSection, vertices(ivert), voff, ierr); call CHKERR(ierr)
-        vertex_coord(:, ivert) = coords(i1+voff:voff+Ndim)
+        call PetscSectionGetOffset(coordSection, vertices(ivert), voff0, ierr); call CHKERR(ierr)
+        vertex_coord(:, ivert) = coords(i1+voff0:voff0+Ndim)
       enddo
 
       !print *,'edge length:',iedge,'::', distance(vertex_coord(:,1), vertex_coord(:,2))
-      call PetscSectionGetOffset(geomSection, iedge, voff, ierr); call CHKERR(ierr)
-      geoms(i1+voff) = distance(vertex_coord(:,1), vertex_coord(:,2))
+      call PetscSectionGetFieldOffset(geomSection, iedge, i2, voff2, ierr); call CHKERR(ierr)
+      geoms(i1+voff2) = distance(vertex_coord(:,1), vertex_coord(:,2))
 
       call DMPlexRestoreCone(dm, iedge, vertices, ierr); call CHKERR(ierr)
     enddo
@@ -1148,12 +1148,17 @@ module m_plex_grid
 
     ! Then define geom info for faces
     do iface = fStart, fEnd-1
-      call PetscSectionGetOffset(geomSection, iface, voff, ierr); call CHKERR(ierr)
+      call PetscSectionGetFieldOffset(geomSection, iface, i0, voff0, ierr); call CHKERR(ierr)
+      call PetscSectionGetFieldOffset(geomSection, iface, i1, voff1, ierr); call CHKERR(ierr)
+      call PetscSectionGetFieldOffset(geomSection, iface, i2, voff2, ierr); call CHKERR(ierr)
 
       call compute_face_geometry_info(dm, iface, &
-        centroid=geoms(i1+voff:voff+Ndim), &
-        normal=geoms(voff+Ndim+i1: voff+Ndim*2), &
-        area=geoms(i1+voff+Ndim*2))
+        centroid=geoms(i1+voff0:voff0+Ndim), &
+        normal=geoms(i1+voff1:voff1+Ndim), &
+        area=geoms(i1+voff2))
+      !print *,'iface', iface, 'center', geoms(i1+voff0:voff0+Ndim)
+      !print *,'iface', iface, 'normal', geoms(i1+voff1:voff1+Ndim)
+      !print *,'iface', iface, 'area  ', geoms(i1+voff2)
     enddo
 
     ! Last but not least define geom info for cells
@@ -1171,27 +1176,37 @@ module m_plex_grid
 
       allocate(vertex_coord(Ndim, size(vertices)))
       do ivert=1,size(vertices)
-        call PetscSectionGetOffset(coordSection, vertices(ivert), voff, ierr); call CHKERR(ierr)
-        vertex_coord(:, ivert) = coords(i1+voff:Ndim+voff)
+        call PetscSectionGetOffset(coordSection, vertices(ivert), voff0, ierr); call CHKERR(ierr)
+        vertex_coord(:, ivert) = coords(i1+voff0:Ndim+voff0)
       enddo
 
       !print *,'centroid of cell:',icell,'::', sum(vertex_coord,dim=2)/size(vertices)
-      call PetscSectionGetOffset(geomSection, icell, voff, ierr); call CHKERR(ierr)
-      geoms(i1+voff:voff+Ndim) = sum(vertex_coord,dim=2)/size(vertices)
+      call PetscSectionGetOffset(geomSection, icell, voff0, ierr); call CHKERR(ierr)
+      geoms(i1+voff0:voff0+Ndim) = sum(vertex_coord,dim=2)/size(vertices)
 
       ! Compute volume of wedges
       iface_up = transclosure(3)
       iface_dn = transclosure(5)
 
-      call PetscSectionGetOffset(geomSection, iface_dn, voff, ierr); call CHKERR(ierr)
-      area = geoms(i1+voff+i7)
-      call PetscSectionGetOffset(geomSection, iface_dn, voff, ierr); call CHKERR(ierr)
-      !print *,'cell top area', area, 'down_area', geoms(i1+voff+i7)
-      area = (area + geoms(i1+voff+i7))/2
+      call PetscSectionGetFieldOffset(geomSection, iface_up, i2, voff2, ierr); call CHKERR(ierr)
+      area_top = geoms(i1+voff2)
+      call PetscSectionGetFieldOffset(geomSection, iface_dn, i2, voff2, ierr); call CHKERR(ierr)
+      area_bot = geoms(i1+voff2)
 
-      call PetscSectionGetOffset(geomSection, icell, voff, ierr); call CHKERR(ierr)
-      geoms(voff+Ndim+i1) = area * (plex%hhl(plex%zindex(icell))-plex%hhl(plex%zindex(icell)+i1))
-      !print *,'cell volume', geoms(i1+voff+Ndim+i1)
+      call PetscSectionGetFieldOffset(geomSection, iface_up, i0, voff0, ierr); call CHKERR(ierr)
+      centroid_top_face = geoms(i1+voff0:voff0+Ndim)
+      call PetscSectionGetFieldOffset(geomSection, iface_dn, i0, voff0, ierr); call CHKERR(ierr)
+      centroid_bot_face = geoms(i1+voff0:voff0+Ndim)
+      height = distance(centroid_top_face, centroid_bot_face)
+
+      !print *,'cell top area', area_top, 'down_area', area_bot, 'height', height
+
+      ! Volume of a "Pyramidenstumpf" -- de.wikipedia.org/wiki/Pyramidenstumpf
+      volume = height/3._ireals * (area_top + sqrt(area_top*area_bot) + area_bot)
+
+      call PetscSectionGetFieldOffset(geomSection, icell, i2, voff2, ierr); call CHKERR(ierr)
+      geoms(i1+voff2) = volume
+      !print *,'cell volume', geoms(i1+voff2)
 
       call DMPlexRestoreTransitiveClosure(dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
       deallocate(vertex_coord)
@@ -2621,18 +2636,19 @@ module m_plex_grid
           iface = xitoa(1) ! first face of TOA faces
 
           call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
-          call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
+          call PetscSectionGetFieldOffset(geomSection, iface, i0, geom_offset, ierr); call CHKERR(ierr)
 
-          face_center = geoms(geom_offset+1:geom_offset+3)
+          face_center = geoms(i1+geom_offset:geom_offset+i3)
           allocate(face_normal(3))
-          face_normal = geoms(geom_offset+4:geom_offset+6)
+          call PetscSectionGetFieldOffset(geomSection, iface, i1, geom_offset, ierr); call CHKERR(ierr)
+          face_normal = geoms(i1+geom_offset:geom_offset+3)
 
           call DMPlexGetSupport(plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
           icell = cell_support(1)
           call DMPlexRestoreSupport(plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
 
-          call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
-          cell_center = geoms(1+geom_offset:3+geom_offset)
+          call PetscSectionGetFieldOffset(geomSection, icell, i0, geom_offset, ierr); call CHKERR(ierr)
+          cell_center = geoms(i1+geom_offset:geom_offset+i3)
 
           ! Determine the inward normal vec for the face
           face_normal = face_normal * real(determine_normal_direction(face_normal, face_center, cell_center), kind=ireals)
