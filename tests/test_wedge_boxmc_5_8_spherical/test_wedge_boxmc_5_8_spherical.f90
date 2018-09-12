@@ -326,7 +326,6 @@ contains
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=4
       real(ireals), allocatable :: sverts(:)
-      real(ireals) :: Atop, Abot
       real(ireals),parameter :: R = 6374e1_ireals
 
       call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
@@ -397,7 +396,6 @@ contains
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=6
       real(ireals), allocatable :: sverts(:)
-      real(ireals) :: Atop, Abot
       real(ireals),parameter :: R = 6374e1_ireals
 
       call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
