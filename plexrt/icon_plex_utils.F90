@@ -662,8 +662,10 @@ module m_icon_plex_utils
     end subroutine
 
     ! Create a 2D Torus grid with Nx vertices horizontally and Ny rows of Vertices vertically
-    subroutine create_2d_fish_plex(Nx, Ny, dm, dmdist)
-      type(tDM), intent(inout) :: dm, dmdist
+    subroutine create_2d_fish_plex(Nx, Ny, dm, dmserial)
+      type(tDM), intent(inout) :: dm
+      type(tDM), intent(inout), optional :: dmserial
+      type(tDM) :: dmdist
       integer(iintegers), intent(in) :: Nx, Ny
 
       integer(iintegers) :: chartsize, Nfaces, Nedges, Nvertices
@@ -736,15 +738,20 @@ module m_icon_plex_utils
 
       call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
       call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
-      !call DMPlexSetAdjacencyUseClosure(dm, PETSC_True, ierr); call CHKERR(ierr)
+
+      if(present(dmserial)) then
+        call DMClone(dm, dmserial, ierr); call CHKERR(ierr)
+      endif
 
       call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
       if(dmdist.ne.PETSC_NULL_DM) then
+        call DMDestroy(dm, ierr); call CHKERR(ierr)
+        dm = dmdist
 
-        call DMPlexGetChart(dmdist, pStart, pEnd, ierr); call CHKERR(ierr)
-        call DMPlexGetHeightStratum(dmdist, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-        call DMPlexGetHeightStratum(dmdist, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
-        call DMPlexGetHeightStratum(dmdist, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+        call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
+        call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+        call DMPlexGetHeightStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
+        call DMPlexGetHeightStratum(dm, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
         if(ldebug) then
           print *,myid,'pStart,End distributed:: ',pStart, pEnd

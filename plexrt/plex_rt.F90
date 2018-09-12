@@ -36,7 +36,7 @@ module m_plex_rt
 
   public :: t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, &
     compute_face_geometry, set_plex_rt_optprop, destroy_plexrt_solver, &
-    plexrt_get_result
+    plexrt_get_result, scale_flx
 
   type t_plex_solver
     type(t_plexgrid), allocatable :: plex
@@ -1717,7 +1717,10 @@ module m_plex_rt
     if(.not.allocated(solution%ediff)) call CHKERR(1_mpiint, 'ediff vec not allocated')
 
     ! Make sure we have the radiation vecs in plain energy units
-    call scale_flx(solver, solution, lWm2=.False.)
+    call scale_flx(solver%plex, &
+      solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+      solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+      solution, lWm2=.False., logevent=solver%logs%scale_flx)
 
     call PetscLogEventBegin(solver%logs%compute_absorption, ierr)
     if(.not.allocated(solution%abso)) then
@@ -2046,9 +2049,10 @@ module m_plex_rt
 
     integer(mpiint) :: ierr
 
+    call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+    call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+
     if(solution%lsolar_rad .and. norm(sundir).le.zero) then
-      call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
-      call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
       return
     endif
 
@@ -2163,71 +2167,87 @@ module m_plex_rt
       solution%lWm2_dir  = .True.
       solution%lWm2_diff = .True.
       ! and mark solution that it is not up to date
-      solution%lchanged         = .True.
+      solution%lchanged  = .True.
     endif ! TOA boundary ids
 
     end associate
   end subroutine
 
   !> @brief renormalize fluxes with the size of a face(sides or lid)
-  subroutine scale_flx(solver, solution, lWm2)
-    class(t_plex_solver), intent(inout)   :: solver
-    type(t_state_container),intent(inout) :: solution  !< @param solution container with computed fluxes
-    logical,intent(in)                    :: lWm2      !< @param determines direction of scaling, if true, scale to W/m**2
+  subroutine scale_flx(plex, &
+      dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
+      diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
+      solution, lWm2, logevent)
+    type(t_plexgrid), intent(in) :: plex
+    type(tVec), allocatable, intent(inout) :: dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2
+    type(tVec), allocatable, intent(inout) :: diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2
+    type(t_state_container),intent(inout)  :: solution  !< @param solution container with computed fluxes
+    logical,intent(in)                     :: lWm2      !< @param determines direction of scaling, if true, scale to W/m**2
+    PetscLogEvent, intent(in), optional    :: logevent
     integer(mpiint) :: ierr
 
-    call PetscLogEventBegin(solver%logs%scale_flx, ierr)
-    if(solution%lsolar_rad) then
-      if(.not.allocated(solver%dir_scalevec_Wm2_to_W)) then
-        allocate(solver%dir_scalevec_Wm2_to_W)
-        call VecDuplicate(solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-        call VecSet(solver%dir_scalevec_Wm2_to_W, one, ierr); call CHKERR(ierr)
-        call scale_facevec(solver%plex, solver%plex%edir_dm, solver%dir_scalevec_Wm2_to_W, lW_to_Wm2=.False.)
-      endif
-      if(.not.allocated(solver%dir_scalevec_W_to_Wm2)) then
-        allocate(solver%dir_scalevec_W_to_Wm2)
-        call VecDuplicate(solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-        call VecSet(solver%dir_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
-        call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
-          solver%dir_scalevec_W_to_Wm2, &
-          solver%dir_scalevec_W_to_Wm2, &
-          solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-      endif
-      if(solution%lWm2_dir .neqv. lWm2) then
-        if(lWm2) then
-          call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-        else
-          call VecPointwiseMult(solution%edir, solution%edir, solver%dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-        endif
-        solution%lWm2_dir = lWm2
-      endif
-    endif
+    call gen_scale_vecs()
 
-    if(.not.allocated(solver%diff_scalevec_Wm2_to_W)) then
-      allocate(solver%diff_scalevec_Wm2_to_W)
-      call VecDuplicate(solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
-      call VecSet(solver%diff_scalevec_Wm2_to_W, one, ierr); call CHKERR(ierr)
-      call scale_facevec(solver%plex, solver%plex%ediff_dm, solver%diff_scalevec_Wm2_to_W, lW_to_Wm2=.False.)
-    endif
-    if(.not.allocated(solver%diff_scalevec_W_to_Wm2)) then
-      allocate(solver%diff_scalevec_W_to_Wm2)
-      call VecDuplicate(solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-      call VecSet(solver%diff_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
-      call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
-        solver%diff_scalevec_W_to_Wm2, &
-        solver%diff_scalevec_W_to_Wm2, &
-        solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+    if(present(logevent)) then
+      call PetscLogEventBegin(logevent, ierr); call CHKERR(ierr)
     endif
 
     if(solution%lWm2_diff .neqv. lWm2) then
       if(lWm2) then
-        call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        call VecPointwiseMult(solution%ediff, solution%ediff, diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
       else
-        call VecPointwiseMult(solution%ediff, solution%ediff, solver%diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        call VecPointwiseMult(solution%ediff, solution%ediff, diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
       endif
       solution%lWm2_diff = lWm2
     endif
-    call PetscLogEventEnd(solver%logs%scale_flx, ierr)
+    if(present(logevent)) then
+      call PetscLogEventEnd(logevent, ierr); call CHKERR(ierr)
+    endif
+
+    contains
+      subroutine gen_scale_vecs()
+        if(solution%lsolar_rad) then
+          if(.not.allocated(dir_scalevec_Wm2_to_W)) then
+            allocate(dir_scalevec_Wm2_to_W)
+            call VecDuplicate(solution%edir, dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+            call VecSet(dir_scalevec_Wm2_to_W, one, ierr); call CHKERR(ierr)
+            call scale_facevec(plex, plex%edir_dm, dir_scalevec_Wm2_to_W, lW_to_Wm2=.False.)
+          endif
+          if(.not.allocated(dir_scalevec_W_to_Wm2)) then
+            allocate(dir_scalevec_W_to_Wm2)
+            call VecDuplicate(dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+            call VecSet(dir_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
+            call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
+              dir_scalevec_W_to_Wm2, &
+              dir_scalevec_W_to_Wm2, &
+              dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+          endif
+          if(solution%lWm2_dir .neqv. lWm2) then
+            if(lWm2) then
+              call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+            else
+              call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+            endif
+            solution%lWm2_dir = lWm2
+          endif
+        endif
+
+        if(.not.allocated(diff_scalevec_Wm2_to_W)) then
+          allocate(diff_scalevec_Wm2_to_W)
+          call VecDuplicate(solution%ediff, diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+          call VecSet(diff_scalevec_Wm2_to_W, one, ierr); call CHKERR(ierr)
+          call scale_facevec(plex, plex%ediff_dm, diff_scalevec_Wm2_to_W, lW_to_Wm2=.False.)
+        endif
+        if(.not.allocated(diff_scalevec_W_to_Wm2)) then
+          allocate(diff_scalevec_W_to_Wm2)
+          call VecDuplicate(diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+          call VecSet(diff_scalevec_W_to_Wm2, one, ierr); call CHKERR(ierr)
+          call VecPointwiseDivide( &  ! Computes 1./scalevec_Wm2_to_W
+            diff_scalevec_W_to_Wm2, &
+            diff_scalevec_W_to_Wm2, &
+            diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        endif
+      end subroutine
   end subroutine
 
   subroutine plexrt_get_result(solver, redn, reup, rabso, redir, opt_solution_uid)
@@ -2270,7 +2290,10 @@ module m_plex_rt
     if(present(redir) .and. .not.solution%lsolar_rad) &
       call CHKERR(1_mpiint, 'you asked for direct radiation but solution does not have it')
 
-    call scale_flx(solver, solution, lWm2=.True.)
+    call scale_flx(solver%plex, &
+      solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+      solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+      solution, lWm2=.True., logevent=solver%logs%scale_flx)
 
     if(present(redir)) then
       call DMGetSection(solver%plex%edir_dm, edir_section, ierr); call CHKERR(ierr)

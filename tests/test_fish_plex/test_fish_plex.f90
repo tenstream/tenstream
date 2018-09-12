@@ -38,12 +38,12 @@ contains
   @test(npes =[1])
   subroutine test_connec_serial_fish_Nx2_Ny3(this)
       class (MpiTestMethod), intent(inout) :: this
-      type(tDM) :: dm, dmdist
+      type(tDM) :: dm
       integer(iintegers), parameter :: Nx=2, Ny=3
       integer(iintegers) :: pStart, pEnd, fStart, fEnd, eStart, eEnd, vStart, vEnd
       integer(iintegers) :: target_closure(14)
 
-      call create_2d_fish_plex(Nx, Ny, dm, dmdist)
+      call create_2d_fish_plex(Nx, Ny, dm)
 
       call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
       call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
@@ -77,12 +77,12 @@ contains
   @test(npes =[1])
   subroutine test_connec_serial_fish_Nx4_Ny5(this)
       class (MpiTestMethod), intent(inout) :: this
-      type(tDM) :: dm, dmdist
+      type(tDM) :: dm
       integer(iintegers), parameter :: Nx=4, Ny=5
       integer(iintegers) :: pStart, pEnd, fStart, fEnd, eStart, eEnd, vStart, vEnd
       integer(iintegers) :: target_closure(14)
 
-      call create_2d_fish_plex(Nx, Ny, dm, dmdist)
+      call create_2d_fish_plex(Nx, Ny, dm)
 
       call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
       call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces

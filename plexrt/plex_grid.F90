@@ -503,7 +503,10 @@ module m_plex_grid
         call setup_srfc_boundary_dm(plex, plex%srfc_boundary_dm)
 
         call setup_cell1_dmplex(plex, plex%cell1_dm)
-
+        call compute_face_geometry(plex, plex%geom_dm)
+        call setup_edir_dmplex(plex, plex%edir_dm)
+        call setup_ediff_dmplex(plex, plex%ediff_dm)
+        call setup_abso_dmplex(plex, plex%abso_dm)
       end subroutine
 
       subroutine gen_test_mat(dm)
@@ -2582,7 +2585,7 @@ module m_plex_grid
           call swap(vertex_coord(:,1),vertex_coord(:,2))
         endif
         area = triangle_area_by_vertices(vertex_coord(:,1), vertex_coord(:,2), vertex_coord(:,3)) + &
-                                triangle_area_by_vertices(vertex_coord(:,3), vertex_coord(:,4), vertex_coord(:,1))
+               triangle_area_by_vertices(vertex_coord(:,3), vertex_coord(:,4), vertex_coord(:,1))
         !print *,'face rectangle area:', geoms(i1+voff+Ndim*2)
       endif
 
