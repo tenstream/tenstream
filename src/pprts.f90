@@ -3171,6 +3171,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     logical,intent(in),optional       :: lswitch_east, lswitch_north
 
     real(ireals) :: aspect_zx, tauz, w0
+    integer(mpiint) :: ierr
 
     aspect_zx = dz / solver%atm%dx
     tauz = max(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(1), &
@@ -3182,7 +3183,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       call CHKERR(1_mpiint, 'currently, we dont support using LUT Twostream for l1d layers')
       !call OPP_1_2%get_coeff (aspect, tauz, w0, g,ldir,coeff,angles)
     else
-      call solver%OPP%get_coeff(tauz, w0, g, aspect_zx, ldir, coeff, angles, lswitch_east, lswitch_north)
+      call solver%OPP%get_coeff(tauz, w0, g, aspect_zx, ldir, coeff, ierr, &
+        angles, lswitch_east, lswitch_north); call CHKERR(ierr)
     endif
   end subroutine
 

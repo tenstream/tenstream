@@ -310,6 +310,7 @@ contains
       real(ireals) :: err(2)
       real(ireals), parameter :: dx = 911
       real(ireals),allocatable :: g_dim(:)
+      integer(mpiint) :: ierr
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -350,9 +351,9 @@ contains
                       call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
                       call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
-                      call OPP%get_coeff(tau, w0, g, aspect, .True., OPP_dir2dir, &
+                      call OPP%get_coeff(tau, w0, g, aspect, .True., OPP_dir2dir, ierr, &
                         angles=[phi, theta], wedge_coords=[zero,zero,one,zero,Cx,Cy])
-                      call OPP%get_coeff(tau, w0, g, aspect, .False., OPP_dir2diff, &
+                      call OPP%get_coeff(tau, w0, g, aspect, .False., OPP_dir2diff, ierr, &
                         angles=[phi, theta], wedge_coords=[zero,zero,one,zero,Cx,Cy])
 
                       do isrc = 1, Ndir

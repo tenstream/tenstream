@@ -38,7 +38,8 @@ use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 implicit none
 
 private
-public :: t_optprop, t_optprop_1_2,t_optprop_8_10, t_optprop_3_6, t_optprop_3_10, t_optprop_wedge_5_8
+public :: t_optprop, t_optprop_1_2,t_optprop_8_10, t_optprop_3_6, t_optprop_3_10, t_optprop_wedge_5_8, &
+  OPP_1D_RETCODE
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
@@ -66,6 +67,8 @@ end type
 
 type,extends(t_optprop) :: t_optprop_wedge_5_8
 end type
+
+integer(mpiint), parameter :: OPP_1D_RETCODE = -1_mpiint
 
 contains
 
@@ -111,7 +114,7 @@ contains
       endif
   end subroutine
 
-  subroutine get_coeff(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north, wedge_coords)
+  subroutine get_coeff(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north, wedge_coords)
         class(t_optprop)                  :: OPP
         logical,intent(in)                :: dir
         real(ireals),intent(in)           :: tauz, w0, g, aspect_zx
@@ -119,6 +122,9 @@ contains
         logical,intent(in),optional       :: lswitch_east, lswitch_north
         real(ireals),intent(in),optional  :: wedge_coords(:)       ! 6 coordinates of wedge triangle, only used for wedge OPP types
         real(ireals),intent(out)          :: C(:)
+        integer(mpiint), intent(out) :: ierr
+
+        ierr = 0
 
         select type (OPP)
         class is (t_optprop_1_2)
@@ -134,23 +140,26 @@ contains
           call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_wedge_5_8)
-          call wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, wedge_coords)
+          call wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, wedge_coords)
 
         class default
           call CHKERR(1_mpiint, 'initialize LUT: unexpected type for optprop object!')
       end select
   end subroutine
 
-  subroutine wedge_lut_call(OPP, tauz, w0, g, aspect_zx, ldir, C, angles, wedge_coords)
+  subroutine wedge_lut_call(OPP, tauz, w0, g, aspect_zx, ldir, C, ierr, angles, wedge_coords)
     class(t_optprop)                  :: OPP
     logical,intent(in)                :: ldir
     real(ireals),intent(in)           :: tauz, w0, g, aspect_zx
     real(ireals),intent(in),optional  :: angles(:)
-    real(ireals),intent(in),optional  :: wedge_coords(:)       ! 6 coordinates of wedge triangle, only used for wedge OPP types, have to be in local coords already (i.e. A=[0,0], B=[0,1], C=[...]
+    real(ireals),intent(in),optional  :: wedge_coords(:) ! 6 coordinates of wedge triangle, only used for wedge OPP types, have to be in local coords already (i.e. A=[0,0], B=[0,1], C=[...])
     real(ireals),intent(out)          :: C(:)
+    integer(mpiint), intent(out) :: ierr
 
     logical,parameter :: compute_coeff_online=.False.
     real(ireals), allocatable :: vertices(:)
+
+    ierr = 0
 
     if(compute_coeff_online) then
       call setup_default_wedge_geometry( wedge_coords(1:2), wedge_coords(3:4), wedge_coords(5:6), aspect_zx, vertices)
@@ -177,7 +186,10 @@ contains
       if(.not.approx(g,zero)) call CHKERR(1_mpiint, 'wedge LUT does not have values for other than g==0')
     endif
 
-    if(handle_aspect_zx_1D_case()) return
+    if(handle_aspect_zx_1D_case()) then
+      ierr = OPP_1D_RETCODE
+      return
+    endif
 
     call do_lookup(tauz, w0, aspect_zx)
 
@@ -187,7 +199,6 @@ contains
         associate( C_pnt => wedge_coords(5:6) )
 
           select case (coeff_mode)
-
           case(i0) ! LookUpTable Mode
 
             if(present(angles)) then ! obviously we want the direct coefficients
@@ -227,15 +238,16 @@ contains
             call eddington_coeff_zdun(tauz, w0, zero, cos(deg2rad(angles(2))), &
               c11,c12,c13,c23,c33,g1,g2)
 
-            ! set the transport coeffs for src top to zero, leave the rest.
-            C(1:size(C):size(C)/5) = zero
 
-            if(ldir) then
-              C(21) = c33
-            else
-              C(1) = c13
-              C(7*5+1) = c23
-            endif
+             if(ldir) then
+               ! set the transport coeffs for src top to zero, leave the rest.
+               C(1:size(C):5) = zero
+               C(21) = c33
+             else
+               C(:) = zero
+               C(1) = c13
+               C(7*5+1) = c23
+             endif
             handle_aspect_zx_1D_case = .True.
           endif
         else

@@ -21,7 +21,7 @@ module m_plex_rt
     get_top_bot_face_of_cell, destroy_plexgrid, determine_diff_incoming_outgoing_offsets, &
     TOAFACE, BOTFACE, SIDEFACE
 
-  use m_optprop, only : t_optprop, t_optprop_wedge_5_8
+  use m_optprop, only : t_optprop, t_optprop_wedge_5_8, OPP_1D_RETCODE
   use m_optprop_parameters, only : OPP_LUT_ALL_ANGLES
 
   use m_schwarzschild, only: schwarzschild
@@ -740,11 +740,12 @@ module m_plex_rt
             zindex = plex%zindex(icell)
             dz = plex%hhl(zindex) - plex%hhl(zindex+1)
 
-            call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr)
+            call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
             call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
-              dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, &
+              dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, ierr, &
               angles=[rad2deg(azimuth), rad2deg(zenith)])
-            call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr)
+
+            call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
             do i = 1, size(faces_of_cell)
               iface = faces_of_cell(i)
@@ -1284,13 +1285,13 @@ module m_plex_rt
     type(tPetscSection) :: geomSection, wedgeSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
     real(ireals), pointer :: wedgeorient(:) ! pointer to orientation vec
-    integer(iintegers) :: wedge_offset
+    integer(iintegers) :: geom_offset, wedge_offset
 
     ! face_plex2bmc :: mapping from plex_indices, i.e. iface(1..5) to boxmc wedge numbers,
     ! i.e. face_plex2bmc(1) gives the wedge boxmc position of first dmplex face
     integer(iintegers) :: face_plex2bmc(5)
 
-    real(ireals) :: zenith, azimuth
+    real(ireals) :: zenith, azimuth, area_top, area_bot
 
     real(ireals) :: dir2dir(5), T(5), S(8)
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
@@ -1345,10 +1346,22 @@ module m_plex_rt
 
       !print *,'icell',icell,': foc',faces_of_cell
       !print *,'icell',icell,':',face_plex2bmc,'lsrc',lsrc
-      call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr)
+      call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
       call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
-        dz, wedgeorient(wedge_offset+14:wedge_offset+19), .True., coeff, angles=[rad2deg(azimuth), rad2deg(zenith)])
-      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr)
+        dz, wedgeorient(wedge_offset+14:wedge_offset+19), .True., coeff, ierr, &
+        angles=[rad2deg(azimuth), rad2deg(zenith)])
+
+      if(ierr.eq.OPP_1D_RETCODE) then
+        call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
+        area_top = geoms(i1+geom_offset)
+        call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
+        area_bot = geoms(i1+geom_offset)
+        coeff(21:25) = coeff(21:25) * area_bot / area_top
+        print *, icell, 'area_bot/area_top', area_bot / area_top
+      endif
+      call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
+
+
 
       !do isrc = 1, 5
       !  print *,'LUT',rad2deg(azimuth), rad2deg(zenith), 'src '//itoa(isrc), coeff(isrc:size(coeff):i5)
@@ -1501,10 +1514,10 @@ module m_plex_rt
 
       !print *,'icell',icell,': foc',faces_of_cell
       !print *,'icell',icell,':',face_plex2bmc
-      call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr)
+      call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
       call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
-        dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff)
-      call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr)
+        dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, ierr)
+      call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
       !do isrc = 1, 8
       !  print *,'LUT src '//itoa(isrc), coeff(isrc:size(coeff):i8)
@@ -1607,13 +1620,14 @@ module m_plex_rt
   end subroutine
   !> @brief retrieve transport coefficients from optprop module
   !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
-  subroutine get_coeff(OPP, kabs, ksca, g, dz, wedge_coords, ldir, coeff, angles)
+  subroutine get_coeff(OPP, kabs, ksca, g, dz, wedge_coords, ldir, coeff, ierr, angles)
     class(t_optprop), intent(in) :: OPP
     real(ireals), intent(in)     :: kabs, ksca, g
     real(ireals),intent(in)      :: dz
     real(ireals), intent(in)     :: wedge_coords(:) ! coordinates of upper triangle pts A,B,C in in (x,y)
     logical,intent(in)           :: ldir
     real(ireals),intent(out)     :: coeff(:)
+    integer(mpiint), intent(out) :: ierr
 
     real(ireals),intent(in),optional  :: angles(2)
 
@@ -1656,7 +1670,7 @@ module m_plex_rt
                    min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6)))
 
     !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
-    call OPP%get_coeff(tauz, w0, dg, aspect, ldir, coeff, angles=angles, wedge_coords=relcoords)
+    call OPP%get_coeff(tauz, w0, dg, aspect, ldir, coeff, ierr, angles=angles, wedge_coords=relcoords)
     !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
     if(ldebug) then
       if(any(coeff.lt.zero).or.any(coeff.gt.one)) then
