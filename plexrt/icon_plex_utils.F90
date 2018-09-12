@@ -448,8 +448,8 @@ module m_icon_plex_utils
         call DMPlexGetDepthStratum (dm3d, i0, v3dStart, v3dEnd, ierr); call CHKERR(ierr) ! 3D vertices
         call DMPlexGetDepthStratum (dm2d, i0, v2dStart, v2dEnd, ierr); call CHKERR(ierr) ! 2D vertices
 
+        lpolar=.True.
         call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-polar_coords', lpolar, lflg, ierr); call CHKERR(ierr)
-        if(.not.lflg) lpolar=.True.
 
         ! Create Coordinate stuff for 3D DM
         call DMGetCoordinateSection(dm3d, coordSection3d, ierr); call CHKERR(ierr)
@@ -760,6 +760,7 @@ module m_icon_plex_utils
           print *,myid,'vStart,End distributed:: ',vStart, vEnd
         endif
       endif
+
 
       !call CHKERR(1_mpiint, 'DEBUG')
 

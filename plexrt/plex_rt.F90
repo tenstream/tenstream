@@ -852,7 +852,7 @@ module m_plex_rt
           integer(iintegers) :: wedge_offset
 
           integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
-          integer(iintegers) :: i, zindex, icell, icol
+          integer(iintegers) :: i, j, zindex, icell, icol, iface, idof, numDof
           real(ireals) :: dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
 
           integer(iintegers), pointer :: xinoutdof(:)
@@ -877,20 +877,28 @@ module m_plex_rt
             zindex = plex%zindex(icell)
             dz = plex%hhl(zindex) - plex%hhl(zindex+1)
 
-            call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr)
+            call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
             call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
-              dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff)
-            call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr)
+              dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, ierr)
+            call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
-            do i = 1, size(outgoing_offsets)
-              icol = outgoing_offsets(i)
+            i = 1
+            do j = 1, size(faces_of_cell)
+              iface = faces_of_cell(j)
+              call PetscSectionGetDof(ediffSection, iface, numDof, ierr); call CHKERR(ierr)
 
-              diff2diff = coeff(diff_plex2bmc(i): size(coeff): i8)
+              do idof = 1, numDof/2
+                icol = outgoing_offsets(i)
 
-              emissivity = max(zero, one - sum(diff2diff))
+                diff2diff = coeff(diff_plex2bmc(i): size(coeff): i8)
 
-              xsrc(i1+icol) = xplanck(i1+icell) * pi * emissivity
+                emissivity = max(zero, one - sum(diff2diff))
+
+                xsrc(i1+icol) = xplanck(i1+icell) * pi * emissivity / (numDof/2)
+                i = i+1
+              enddo
             enddo
+            call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
           enddo ! icell
           call VecRestoreArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
           call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
@@ -1855,7 +1863,7 @@ module m_plex_rt
     type(tPetscSection) :: abso_section, ediff_section
 
     integer(iintegers) :: cStart, cEnd
-    integer(iintegers) :: icell, iface
+    integer(iintegers) :: icell, iface, i, j, idof, numDof
     integer(mpiint) :: myid, ierr
 
     integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
@@ -1864,7 +1872,7 @@ module m_plex_rt
     real(ireals), pointer :: geoms(:) ! pointer to coordinates and orientation vec
     integer(iintegers) :: geom_offset, abso_offset
 
-    integer(iintegers), pointer :: xinoutdof(:)
+    integer(iintegers), pointer :: faces_of_cell(:), xinoutdof(:)
 
     real(ireals) :: volume
 
@@ -1907,11 +1915,24 @@ module m_plex_rt
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
       xabso(i1+abso_offset) = zero
 
-      do iface = 1, size(incoming_offsets)
-        xabso(i1+abso_offset) = xabso(i1+abso_offset) + xediff(i1+incoming_offsets(iface))
-        xabso(i1+abso_offset) = xabso(i1+abso_offset) + xediff(i1+outgoing_offsets(iface))
+      call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+      i = 1
+      do j = 1, size(faces_of_cell)
+        iface = faces_of_cell(j)
+        call PetscSectionGetDof(ediff_section, iface, numDof, ierr); call CHKERR(ierr)
+        do idof = 1, numDof/2
+          xabso(i1+abso_offset) = xabso(i1+abso_offset) + xediff(i1+incoming_offsets(i)) / (numDof/2)
+          xabso(i1+abso_offset) = xabso(i1+abso_offset) - xediff(i1+outgoing_offsets(i)) / (numDof/2)
+          !print *,'iface', iface, numDof, 'abso', &
+          !  '+', xediff(i1+incoming_offsets(i)), &
+          !  '-', xediff(i1+outgoing_offsets(i)), &
+          !  '=', xabso(i1+abso_offset)
+          i = i+1
+        enddo
       enddo
+      call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
 
+      !print *,icell, 'Abso', xabso(i1+abso_offset), volume, '->', xabso(abso_offset+i1) / volume
       xabso(abso_offset+i1) = xabso(abso_offset+i1) / volume
     enddo
     call ISRestoreIndicesF90(IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)

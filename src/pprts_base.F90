@@ -156,6 +156,8 @@ module m_pprts_base
       solution%lsolar_rad = lsolar
 
       solution%lchanged = .True.
+      solution%lWm2_dir = .True.
+      solution%lWm2_diff= .True.
 
       solution%uid = get_arg(i0, uid)
 
