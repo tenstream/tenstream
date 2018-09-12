@@ -43,6 +43,7 @@ module m_optprop_LUT
     interp_mode_wedge_5_8,                &
     ldelta_scale,delta_scale_truncate,    &
     stddev_atol, stddev_rtol,             &
+    wedge_sphere_radius,                  &
     preset_g2, preset_g3,                 &
     preset_aspect13,                      &
     preset_aspect23,                      &
@@ -745,7 +746,8 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
       class is (t_optprop_LUT_wedge_5_8)
         call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
         call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
-        call setup_default_wedge_geometry([zero, zero], [one, zero], wedge_C, aspect_zx, vertices)
+        call setup_default_wedge_geometry([zero, zero], [one, zero], wedge_C, aspect_zx, vertices, &
+          sphere_radius=wedge_sphere_radius)
 
       class default
         call CHKERR(1_mpiint, 'unexpected type for optprop_LUT object!')
@@ -768,7 +770,7 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
     real(ireals),intent(in),optional :: inp_atol, inp_rtol
 
     real(ireals) :: bg(3), dz, atol, rtol
-    real(ireals) :: scale_coords = 10000
+    real(ireals) :: scale_coords = 1
 
     vertices = vertices * scale_coords
 
@@ -788,6 +790,10 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
 
     !print *,comm,'BMC :: calling bmc_get_coeff tauz',tauz,'w0,g',w0,g,phi,theta
     !print *,comm,'BMC :: calling bmc_get_coeff dz bg',vertices(size(vertices)),bg, '=>', sum(bg(1:2))*vertices(size(vertices)),'/',tauz
+    !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(1:3) ,':', vertices(10:12)
+    !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(4:6) ,':', vertices(13:15)
+    !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(7:9) ,':', vertices(16:18)
+    !call CHKERR(1_mpiint, 'DEBUG')
     call OPP%bmc%get_coeff(comm, bg, src, &
       dir, phi, theta, vertices,   &
       S_diff, T_dir, S_tol, T_tol, &
