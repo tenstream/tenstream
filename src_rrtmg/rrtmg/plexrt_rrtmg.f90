@@ -180,6 +180,39 @@ contains
         print *,k, edn(k,i1), eup(k,i1)
       endif
     endif
+
+    if(lsolar) then
+      call dump_vec(edir(1:ke1-1,:), '-plexrt_dump_Edir_1_ke')
+      call dump_vec(edir(2:ke1,:),   '-plexrt_dump_Edir_2_ke1')
+    endif
+    call dump_vec(edn(1:ke1-1,:), '-plexrt_dump_Edn_1_ke')
+    call dump_vec(edn(2:ke1,:) ,  '-plexrt_dump_Edn_2_ke1')
+    call dump_vec(eup(1:ke1-1,:), '-plexrt_dump_Eup_1_ke')
+    call dump_vec(eup(2:ke1,:),   '-plexrt_dump_Eup_2_ke1')
+
+    call dump_vec(abso, '-plexrt_dump_abso')
+
+    call dump_vec(atm%lwc, '-plexrt_dump_lwc')
+    call dump_vec(atm%tlay, '-plexrt_dump_temp')
+
+    contains
+      subroutine dump_vec(inp, vecshow_string)
+        real(ireals), intent(in) :: inp(:,:) ! Nlay, Ncol
+        character(len=*), intent(in) :: vecshow_string
+        type(tVec) :: vec
+        logical :: lflg
+
+        lflg = .False.
+        call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, vecshow_string, lflg, ierr); call CHKERR(ierr)
+        if(lflg) then
+          if(.not.allocated(solver%plex%cell1_dm)) return
+          call DMGetGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
+          call Nz_Ncol_vec_to_celldm1(solver%plex, inp, vec)
+          call PetscObjectSetName(vec, 'dump_vec'//trim(vecshow_string), ierr);call CHKERR(ierr)
+          call PetscObjectViewFromOptions(vec, PETSC_NULL_VEC, trim(vecshow_string), ierr); call CHKERR(ierr)
+          call DMRestoreGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
+        endif
+      end subroutine
   end subroutine
 
   subroutine compute_thermal(solver, atm, Ncol, ke1, albedo, &

@@ -33,7 +33,7 @@ module m_dyn_atm_to_rrtmg
 
   use m_helper_functions, only: CHKERR, search_sorted_bisection, reverse, &
     imp_allreduce_min, imp_allreduce_max, meanvec, imp_bcast, read_ascii_file_2d, &
-    gradient, get_arg
+    gradient, get_arg, itoa
 
   use m_tenstream_interpolation, only : interp_1d
 
@@ -165,6 +165,27 @@ module m_dyn_atm_to_rrtmg
         d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr, &
         d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice )
 
+      call check_shape(d_tlay  , atm%d_ke)
+      call check_shape(d_h2ovmr, atm%d_ke)
+      call check_shape(d_o3vmr , atm%d_ke)
+      call check_shape(d_co2vmr, atm%d_ke)
+      call check_shape(d_ch4vmr, atm%d_ke)
+      call check_shape(d_n2ovmr, atm%d_ke)
+      call check_shape(d_o2vmr , atm%d_ke)
+      call check_shape(d_lwc   , atm%d_ke)
+      call check_shape(d_reliq , atm%d_ke)
+      call check_shape(d_iwc   , atm%d_ke)
+      call check_shape(d_reice , atm%d_ke)
+
+      contains
+        subroutine check_shape(d_arr, k)
+          real(ireals), intent(in), optional :: d_arr(:,:)
+          integer(iintegers), intent(in) :: k
+
+          if(present(d_arr)) then
+            call CHKERR(int(size(d_arr,1)-k, mpiint), 'bad vert size. got'//itoa(size(d_arr,1))//' expect '//itoa(k))
+          endif
+        end subroutine
     end subroutine
 
     subroutine print_tenstr_atm(atm, icol)
