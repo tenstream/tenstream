@@ -242,6 +242,7 @@ contains
              if(ldir) then
                ! set the transport coeffs for src top to zero, leave the rest.
                C(1:size(C):5) = zero
+               C(5) = c33
                C(21) = c33
              else
                C(:) = zero

@@ -770,9 +770,6 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
     real(ireals),intent(in),optional :: inp_atol, inp_rtol
 
     real(ireals) :: bg(3), dz, atol, rtol
-    real(ireals) :: scale_coords = 1
-
-    vertices = vertices * scale_coords
 
     atol = get_arg(stddev_atol-epsilon(atol)*10, inp_atol)
     rtol = get_arg(stddev_rtol-epsilon(rtol)*10, inp_rtol)

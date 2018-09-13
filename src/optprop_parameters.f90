@@ -136,8 +136,8 @@ module m_optprop_parameters
       integer(iintegers), parameter :: OPP_LUT_ALL_ANGLES=361
 
       ! spherical correction for wedge computations,
-      ! this is tuned towards earth radius and average dx = 1km sized elements
-      real(ireals), parameter :: wedge_sphere_radius = 6378e3_ireals/1e3_ireals
+      ! this is tuned towards earth radius and average dx = 100m sized elements
+      real(ireals), parameter :: wedge_sphere_radius = 6378e3_ireals/1e2_ireals
 
       real(ireals), parameter :: LUT_dump_interval=600
 end module

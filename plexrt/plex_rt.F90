@@ -690,9 +690,9 @@ module m_plex_rt
           integer(iintegers), pointer :: faces_of_cell(:)
           integer(iintegers) :: i, icell, iface, isrc, idst
 
-          integer(iintegers) :: face_plex2bmc(5), wedge_offset, diff_plex2bmc(8)
+          integer(iintegers) :: face_plex2bmc(5), wedge_offset, geom_offset, diff_plex2bmc(8)
           real(ireals), pointer :: xedir(:)
-          real(ireals) :: zenith, azimuth
+          real(ireals) :: zenith, azimuth, area_bot, area_top
           real(ireals) :: dir2diff(8)
           logical :: lsrc(5)
 
@@ -744,6 +744,14 @@ module m_plex_rt
             call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
               dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, ierr, &
               angles=[rad2deg(azimuth), rad2deg(zenith)])
+
+            if(ierr.eq.OPP_1D_RETCODE) then
+              call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
+              area_top = geoms(i1+geom_offset)
+              call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
+              area_bot = geoms(i1+geom_offset)
+              coeff(7*5+1) = coeff(7*5+1) * area_bot / area_top
+            endif
 
             call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
@@ -850,7 +858,7 @@ module m_plex_rt
           integer(iintegers), pointer :: faces_of_cell(:)
           integer(iintegers) :: face_plex2bmc(5)
           integer(iintegers) :: diff_plex2bmc(8)
-          integer(iintegers) :: wedge_offset
+          integer(iintegers) :: wedge_offset, geom_offset
 
           integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
           integer(iintegers) :: i, j, zindex, icell, icol, iface, idof, numDof
@@ -858,7 +866,7 @@ module m_plex_rt
 
           integer(iintegers), pointer :: xinoutdof(:)
           real(ireals), pointer :: xplanck(:)
-          real(ireals) :: diff2diff(8), emissivity
+          real(ireals) :: diff2diff(8), emissivity, area_bot, area_top
 
           call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
           call VecGetArrayReadF90(plckVec, xplanck, ierr); call CHKERR(ierr)
@@ -881,6 +889,14 @@ module m_plex_rt
             call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
             call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
               dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, ierr)
+            if(ierr.eq.OPP_1D_RETCODE) then
+              call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
+              area_top = geoms(i1+geom_offset)
+              call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
+              area_bot = geoms(i1+geom_offset)
+              coeff(8) = coeff(8) * area_top / area_bot ! transmission from bot to top face
+              coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top ! transmission from top to bot face
+            endif
             call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
             i = 1
@@ -1356,8 +1372,9 @@ module m_plex_rt
         area_top = geoms(i1+geom_offset)
         call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
         area_bot = geoms(i1+geom_offset)
-        coeff(21:25) = coeff(21:25) * area_bot / area_top
-        print *, icell, 'area_bot/area_top', area_bot / area_top
+        coeff(21) = coeff(21) * area_bot / area_top
+        coeff(5) = coeff(5) * area_top / area_bot
+        !print *, icell, 'area_bot/area_top', area_bot / area_top
       endif
       call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
@@ -1452,7 +1469,7 @@ module m_plex_rt
     type(tPetscSection) :: ediffSection, geomSection, wedgeSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
     real(ireals), pointer :: wedgeorient(:) ! pointer to orientation vec
-    integer(iintegers) :: wedge_offset
+    integer(iintegers) :: wedge_offset, geom_offset
 
     integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
 
@@ -1466,6 +1483,7 @@ module m_plex_rt
     integer(iintegers) :: zindex
     real(ireals) :: dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
     integer(iintegers), pointer :: xinoutdof(:)
+    real(ireals) :: area_top, area_bot
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
     !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_ediff_mat...'
@@ -1517,6 +1535,15 @@ module m_plex_rt
       call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
       call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
         dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, ierr)
+
+      if(ierr.eq.OPP_1D_RETCODE) then
+        call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
+        area_top = geoms(i1+geom_offset)
+        call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
+        area_bot = geoms(i1+geom_offset)
+        coeff(8) = coeff(8) * area_top / area_bot ! transmission from bot to top face
+        coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top ! transmission from top to bot face
+      endif
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
       !do isrc = 1, 8
