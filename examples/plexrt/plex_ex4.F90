@@ -35,9 +35,10 @@ logical, parameter :: ldebug=.True.
 
   contains
 
-    subroutine plex_ex4(comm, gridfile, icondatafile)
+    subroutine plex_ex4(comm, gridfile, icondatafile, Ag)
       MPI_Comm, intent(in) :: comm
       character(len=default_str_len), intent(in) :: gridfile, icondatafile
+      real(ireals), intent(in) :: Ag
 
       integer(mpiint) :: myid, numnodes, ierr
       type(tDM) :: dm2d, dm2d_dist, dm3d
@@ -48,7 +49,7 @@ logical, parameter :: ldebug=.True.
       real(ireals), allocatable :: col_plev(:,:), col_tlev(:,:), dp(:)
       real(ireals), allocatable :: col_lwc(:,:), col_reliq(:,:)
       real(ireals), allocatable :: col_iwc(:,:), col_reice(:,:)
-      real(ireals), parameter :: Ag=.15, lapse_rate=6.5e-3, Tsrfc=288.3, minTemp=Tsrfc-50._ireals
+      real(ireals), parameter :: lapse_rate=6.5e-3, Tsrfc=288.3, minTemp=Tsrfc-50._ireals
 
       character(len=default_str_len),parameter :: atm_filename='afglus_100m.dat'
       type(t_tenstr_atm) :: atm
@@ -149,6 +150,7 @@ logical, parameter :: ldebug=.True.
     logical :: lflg
     integer(mpiint) :: ierr
     character(len=10*default_str_len) :: default_options
+    real(ireals) :: Ag
     !character(len=*),parameter :: ex_out='plex_ex_dom1_out.h5'
     !character(len=*),parameter :: ex_out='plex_test_out.h5'
     !character(len=*),parameter :: lwcfile='lwc_ex_24_3.nc'
@@ -166,6 +168,9 @@ logical, parameter :: ldebug=.True.
 
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
+
+    Ag = .1
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
 
     default_options=''
     !default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
@@ -185,7 +190,7 @@ logical, parameter :: ldebug=.True.
     print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
-    call plex_ex4(PETSC_COMM_WORLD, gridfile, icondatafile)
+    call plex_ex4(PETSC_COMM_WORLD, gridfile, icondatafile, Ag)
 
     call mpi_barrier(PETSC_COMM_WORLD, ierr)
     call PetscFinalize(ierr)
