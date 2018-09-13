@@ -148,7 +148,9 @@ contains
 
       call compute_thermal(solver, atm, Ncol, ke1, &
         albedo_thermal, &
-        edn, eup, abso, opt_time=opt_time, thermal_albedo_2d=thermal_albedo_2d, &
+        edn, eup, abso, &
+        opt_time=opt_time, &
+        thermal_albedo_2d=thermal_albedo_2d, &
         lrrtmg_only=lrrtmg_only)
     endif
 
@@ -157,7 +159,9 @@ contains
       edir = zero
       call compute_solar(solver, atm, Ncol, ke1, &
         sundir, albedo_solar, &
-        edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
+        edir, edn, eup, abso, &
+        opt_time=opt_time, &
+        solar_albedo_2d=solar_albedo_2d, &
         lrrtmg_only=lrrtmg_only)
     endif
 

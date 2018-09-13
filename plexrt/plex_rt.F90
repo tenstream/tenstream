@@ -442,7 +442,7 @@ module m_plex_rt
       call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, &
         '-show_ediff_vec_global', ierr); call CHKERR(ierr)
-      solution%lWm2_dir = .False.
+      solution%lWm2_diff = .False.
       solution%lchanged = .True.
 
       ! Output of Ediff
