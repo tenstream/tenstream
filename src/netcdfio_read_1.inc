@@ -22,11 +22,11 @@ character(len=*) :: groups(:)
 
 character(len=default_str_len) :: fname,varname
 integer :: i,ncid,varid
-integer, dimension(size(shape(arr))) :: dimIDs,dimsize
+integer, dimension(size(shape(arr))) :: dimIDs, dimsize
 
 logical :: file_exists, var_exists
 
-integer :: ncerr, flock_unit
+integer :: ncerr, flock_unit, ndims
 integer(mpiint),intent(out) :: ierr
 ierr=0
 
@@ -65,8 +65,14 @@ var_exists = ncerr.eq.NF90_NOERR
 if(ldebug) print *,'Reading NetCDF :: varname: ',trim(varname), ' :: exists?',var_exists
 
 if(var_exists) then ! How big are the data dimensions?
-  ncerr = nf90_inquire_variable(ncid, varid, dimids = dimIDs) ; call nccheck(ncerr) ; ierr = ierr+ncerr
+  ncerr = nf90_inquire_variable(ncid, varid, ndims = ndims) ; call nccheck(ncerr) ; ierr = ierr+ncerr
+  if(ndims.ne.size(shape(arr))) then
+    if(ldebug) print *,'Input and NC variable have different number dimensions '//itoa(size(shape(arr)))//' vs '//itoa(ndims)
+    ierr = ierr + 100 * size(shape(arr)) + ndims
+    goto 100
+  endif
 
+  ncerr = nf90_inquire_variable(ncid, varid, dimids = dimIDs) ; call nccheck(ncerr) ; ierr = ierr+ncerr
   do i=1,size(shape(arr))
     ncerr = nf90_inquire_dimension(ncid, dimIDs(i), len = dimsize(i)) ; call nccheck(ncerr) ;  ierr = ierr+ncerr
   enddo
