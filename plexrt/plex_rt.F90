@@ -8,7 +8,7 @@ module m_plex_rt
   use m_helper_functions, only: CHKERR, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, &
     vec_proj_on_plane, cross_3d, norm, rotation_matrix_world_to_local_basis, &
-    approx, swap, delta_scale, itoa
+    approx, swap, delta_scale, delta_scale_optprop, itoa
 
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, &
@@ -2151,6 +2151,8 @@ module m_plex_rt
           dtau(k) = (xkabs(i1+icell) + xksca(i1+icell)) * dz
           w0(k)   = xksca(i1+icell) / max(epsilon(w0), xkabs(i1+icell) + xksca(i1+icell))
           g(k)    = xg(i1+icell)
+
+          call delta_scale_optprop(dtau(k), w0(k), g(k), g(k))
 
           if(lthermal) Blev(k) = xplck(i1+icell)
         enddo
