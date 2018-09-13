@@ -18,7 +18,7 @@ module m_icon_plex_utils
   public :: dmplex_2D_to_3D, create_2d_fish_plex, dump_ownership, &
     gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl, &
     icon_ncvec_to_plex, Nz_Ncol_vec_to_celldm1, celldm1_vec_to_Nz_Ncol, &
-    celldm_veccopy
+    celldm_veccopy, dm2d_vec_to_Nz_Ncol
 
   !logical, parameter :: ldebug=.True.
   logical, parameter :: ldebug=.False.
@@ -1129,8 +1129,9 @@ module m_icon_plex_utils
       character(len=*), intent(in) :: filename, varname
       type(tVec), allocatable, intent(inout) :: gvec
       integer(iintegers), intent(in), optional :: timeidx
-      type(tDM), optional :: dm3d
+      type(tDM), intent(in), optional :: dm3d
 
+      type(tDM) :: dm3dcopy
       type(tVec) :: rank0vec, newVec
       type(tPetscSection) :: rank0section, newSection, dm3dSection
 
@@ -1146,7 +1147,7 @@ module m_icon_plex_utils
 
       if(allocated(gVec)) call CHKERR(1_mpiint, 'gVec already allocated')
 
-      call PetscObjectGetComm(dm2d_serial, comm, ierr); call CHKERR(ierr)
+      call PetscObjectGetComm(dm2d_parallel, comm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       if(myid.eq.0) then
@@ -1200,12 +1201,14 @@ module m_icon_plex_utils
 
       allocate(gVec)
       if(present(dm3d)) then
-        call create_plex_section(dm3d, 'cell_section', i1, [i1], [i0], [i0], [i0], dm3dSection)
-        call DMSetSection(dm3d, dm3dSection, ierr); call CHKERR(ierr)
-        call DMCreateGlobalVector(dm3d, gVec, ierr); call CHKERR(ierr)
+        call DMClone(dm3d, dm3dcopy, ierr); call CHKERR(ierr)
+        call create_plex_section(dm3dcopy, 'cell_section', i1, [i1], [i0], [i0], [i0], dm3dSection)
+        call DMSetSection(dm3dcopy, dm3dSection, ierr); call CHKERR(ierr)
+        call DMCreateGlobalVector(dm3dcopy, gVec, ierr); call CHKERR(ierr)
         call PetscObjectSetName(gvec, 'VecfromNC_'//trim(varname), ierr);call CHKERR(ierr)
         call VecCopy(newVec, gVec, ierr); call CHKERR(ierr)
         call PetscSectionDestroy(dm3dSection, ierr); call CHKERR(ierr)
+        call DMDestroy(dm3dcopy, ierr); call CHKERR(ierr)
       else
         call DMSetSection(dm2d_parallel, newsection, ierr); call CHKERR(ierr)
         call VecDuplicate(newVec, gVec, ierr); call CHKERR(ierr)
@@ -1273,11 +1276,13 @@ module m_icon_plex_utils
       ke = vecsize/Ncol
 
       call CHKERR(int(ke - plex%Nlay, mpiint), &
-        'vertical vec sizes do not match'//itoa(ke)//' vs '//itoa(plex%Nlay))
+        'vertical vec sizes do not match '//itoa(ke)//' vs '//itoa(plex%Nlay))
 
       if(.not.allocated(arr)) then
+
         allocate(arr(ke, Ncol))
       else
+        ke = min(vecsize/Ncol, size(arr,1))
         if(.not.all(shape(arr).eq.[ke, Ncol])) then
           print *,'shape cell1dm', [ke, Ncol], 'shape out_arr', shape(arr)
           call CHKERR(1_mpiint, 'shape of out_arr does not conform to cell1dm sizes')
@@ -1292,9 +1297,45 @@ module m_icon_plex_utils
       do i = 1, size(xitoa_faces)
         iface = xitoa_faces(i)
         call PetscSectionGetOffset(sec, iface, voff, ierr); call CHKERR(ierr)
-        arr(:, i) = xv(i1+voff: voff+ke)
+        arr(i1:ke, i) = xv(i1+voff: voff+ke)
       enddo
       call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+
+      call VecRestoreArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
+    end subroutine
+
+    subroutine dm2d_vec_to_Nz_Ncol(dm, vec, arr)
+      type(tDM), intent(in)  :: dm
+      type(tVec), intent(in) :: vec
+      real(ireals), allocatable, intent(inout) :: arr(:,:)
+
+      type(tPetscSection) :: sec
+      real(ireals), pointer :: xv(:)
+      integer(iintegers) :: fStart, fEnd
+      integer(iintegers) :: iface, Ncol, ke, voff
+      integer(mpiint) :: ierr
+
+      call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+      call DMGetSection(dm, sec, ierr); call CHKERR(ierr)
+      call PetscSectionGetDof(sec, fStart, ke, ierr); call CHKERR(ierr)
+      Ncol = fEnd - fStart
+
+      if(.not.allocated(arr)) then
+        allocate(arr(ke, Ncol))
+      else
+        ke = min(ke, size(arr,1))
+        if(.not.all(shape(arr).eq.[ke, Ncol])) then
+          print *,'shape cell1dm', [ke, Ncol], 'shape out_arr', shape(arr)
+          call CHKERR(1_mpiint, 'shape of out_arr does not conform to cell1dm sizes')
+        endif
+      endif
+
+      call VecGetArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
+
+      do iface = fStart, fEnd-1
+        call PetscSectionGetOffset(sec, iface, voff, ierr); call CHKERR(ierr)
+        arr(i1:ke, i1+iface-fStart) = xv(i1+voff: voff+ke)
+      enddo
 
       call VecRestoreArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
     end subroutine

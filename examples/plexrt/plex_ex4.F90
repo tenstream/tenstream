@@ -15,7 +15,8 @@ use m_data_parameters, only : ireals, iintegers, mpiint, &
   init_mpi_data_parameters
 
 use m_icon_plex_utils, only: gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl, &
-  dump_ownership, dmplex_2D_to_3D, icon_ncvec_to_plex
+  dump_ownership, dmplex_2D_to_3D, icon_ncvec_to_plex, celldm_veccopy, celldm1_vec_to_nz_ncol, &
+  dm2d_vec_to_Nz_Ncol
 
 use m_plex_grid, only: t_plexgrid, setup_plexgrid, get_normal_of_first_toa_face
 
@@ -61,19 +62,14 @@ logical, parameter :: ldebug=.True.
 
       class(t_plex_solver), allocatable :: solver
 
+      type(tVec), allocatable :: lwcvec, iwcvec
+
       call init_mpi_data_parameters(comm)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
       call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, dm2d_dist, &
         migration_sf, cell_ao_2d)
-
-      if(myid.eq.0) print *,'Could read data from icondatafile', trim(icondatafile)
-      !call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'clw', lwcvec2d)
-      !call PetscObjectViewFromOptions(lwcvec2d, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
-
-      !call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'cli', iwcvec2d)
-      !call PetscObjectViewFromOptions(iwcvec2d, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
       call DMPlexGetHeightStratum(dm2d_dist, i0, fStart, fEnd, ierr); call CHKERR(ierr)
       Ncol = fEnd - fStart
@@ -99,23 +95,39 @@ logical, parameter :: ldebug=.True.
         col_tlev(:, k) =  col_tlev(:, i1)
       enddo
 
-      allocate(col_lwc(Nlay, Ncol), col_reliq(Nlay, Ncol), &
-               col_iwc(Nlay, Ncol), col_reice(Nlay, Ncol), source=zero)
-
-      call setup_tenstr_atm(comm, .False., atm_filename, &
-        col_plev, col_tlev, atm, &
-        d_lwc=col_lwc, d_reliq=col_reliq, &
-        d_iwc=col_iwc, d_reice=col_reice)
+      call setup_tenstr_atm(comm, .False., atm_filename, col_plev, col_tlev, atm)
 
       !call print_tenstr_atm(atm)
 
+      ! Setup 3D DMPLEX grid
       call dmplex_2D_to_3D(dm2d_dist, reverse(atm%zt(:, i1)), dm3d, zindex)
 
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
       call setup_plexgrid(dm3d, zindex, reverse(atm%zt(:, i1)), plex)
 
+      !Load Data from iconfile and distribute it
+      if(myid.eq.0) print *,'Read data from icondatafile', trim(icondatafile)
+      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'clw', lwcvec)
+      call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
+
+      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'cli', iwcvec)
+      call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
+
+      allocate(col_lwc(Nlay, Ncol), col_reliq(Nlay, Ncol), &
+               col_iwc(Nlay, Ncol), col_reice(Nlay, Ncol), source=zero)
+
+      call dm2d_vec_to_Nz_Ncol(dm2d_dist, lwcvec, col_lwc)
+      call dm2d_vec_to_Nz_Ncol(dm2d_dist, iwcvec, col_iwc)
+      col_reliq(:,:) = 2.5_ireals
+      col_reice(:,:) = 10._ireals
+
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)
       call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
+
+      call setup_tenstr_atm(comm, .False., atm_filename, &
+        col_plev, col_tlev, atm, &
+        d_lwc=col_lwc, d_reliq=col_reliq, &
+        d_iwc=col_iwc, d_reice=col_reice)
 
       call init_plex_rt_solver(plex, solver)
 
@@ -173,19 +185,23 @@ logical, parameter :: ldebug=.True.
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
 
     default_options=''
-    !default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
+    default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
     !default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_domainboundary hdf5:'//trim(outfile)//'::append'
-    !default_options=trim(default_options)//' -show_lwc hdf5:'//trim(outfile)//'::append'
-    !default_options=trim(default_options)//' -show_iwc hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_fV2cV_DiffSrcVec hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_fV2cV_ediff hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -plexrt_dump_Edir_2_ke1 hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -plexrt_dump_Edn_2_ke1 hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -plexrt_dump_Eup_2_ke1 hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -plexrt_dump_abso hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -plexrt_dump_lwc hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -plexrt_dump_temp hdf5:'//trim(outfile)//'::append'
 
     print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
