@@ -715,10 +715,11 @@ module m_plex_grid
         if(ldebug.and.myid.eq.0) print *,'dump_ownership :: finished'
       end subroutine
 
-      subroutine facevec2cellvec(plex, faceVec_dm, global_faceVec)
+      subroutine facevec2cellvec(plex, faceVec_dm, global_faceVec, vecshow_string)
         type(t_plexgrid), intent(in) :: plex
         type(tDM), intent(in) :: faceVec_dm
         type(tVec),intent(in) :: global_faceVec
+        character(len=*), intent(in), optional :: vecshow_string
 
         type(tVec) :: cellVec, global_cellVec, faceVec
         real(ireals), pointer :: xcellVec(:)
@@ -800,6 +801,9 @@ module m_plex_grid
         call PetscObjectGetName(global_cellVec, cellVecname, ierr); call CHKERR(ierr)
 
         call PetscObjectViewFromOptions(global_cellVec, PETSC_NULL_VEC, '-show_'//trim(cellVecname), ierr); call CHKERR(ierr)
+        if(present(vecshow_string)) then
+          call PetscObjectViewFromOptions(global_cellVec, PETSC_NULL_VEC, trim(vecshow_string), ierr); call CHKERR(ierr)
+        endif
 
         call DMRestoreGlobalVector(celldm, global_cellVec, ierr); call CHKERR(ierr)
         call DMDestroy(celldm, ierr); call CHKERR(ierr)
