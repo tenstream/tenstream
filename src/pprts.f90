@@ -2890,7 +2890,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
               Ax = atm%dy*atm%dz(atmk(atm,k),i,j)/(solver%diffside%dof/2)
               Ay = atm%dx*atm%dz(atmk(atm,k),i,j)/(solver%diffside%dof/2)
 
-              call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
+              call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
               call get_coeff(solver, &
                 atm%kabs(atmk(atm,k),i,j), &
                 atm%ksca(atmk(atm,k),i,j), &
@@ -2898,7 +2898,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 atm%dz(atmk(atm,k),i,j), &
                 .False., diff2diff, &
                 atm%l1d(atmk(atm,k),i,j) )
-              call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
+              call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
               ! reorder from destination ordering to src ordering
               do src=1,C_diff%dof
                 v(src:C_diff%dof**2:C_diff%dof) = diff2diff( i1+(src-i1)*C_diff%dof : src*C_diff%dof )
