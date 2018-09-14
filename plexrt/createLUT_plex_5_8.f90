@@ -44,8 +44,7 @@ program main
 
       call read_commandline_options(comm)
 
-
-      call OPP%init(MPI_COMM_WORLD)
+      call OPP%init(comm)
 
       call mpi_finalize(ierr)
 end program
