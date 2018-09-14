@@ -36,10 +36,11 @@ logical, parameter :: ldebug=.True.
 
   contains
 
-    subroutine plex_ex4(comm, gridfile, icondatafile, Ag)
+    subroutine plex_ex4(comm, gridfile, icondatafile, Ag, lthermal, lsolar)
       MPI_Comm, intent(in) :: comm
       character(len=default_str_len), intent(in) :: gridfile, icondatafile
       real(ireals), intent(in) :: Ag
+      logical, intent(in) :: lthermal, lsolar
 
       integer(mpiint) :: myid, numnodes, ierr
       type(tDM) :: dm2d, dm2d_dist, dm3d
@@ -118,6 +119,8 @@ logical, parameter :: ldebug=.True.
 
       call dm2d_vec_to_Nz_Ncol(dm2d_dist, lwcvec, col_lwc)
       call dm2d_vec_to_Nz_Ncol(dm2d_dist, iwcvec, col_iwc)
+      col_lwc = col_lwc * 1e3_ireals ! kg to g
+      col_iwc = col_iwc * 1e3_ireals
       col_reliq(:,:) = 2.5_ireals
       col_reice(:,:) = 10._ireals
 
@@ -138,16 +141,19 @@ logical, parameter :: ldebug=.True.
       sundir = sundir/norm(sundir)
       print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
 
-      !call plexrt_rrtmg(solver, atm, sundir, &
-      !  albedo_thermal=zero, albedo_solar=Ag, &
-      !  lthermal=.True., lsolar=.False., &
-      !  edir=edir, edn=edn, eup=eup, abso=abso)
+      if(lthermal) then
+        call plexrt_rrtmg(solver, atm, sundir, &
+          albedo_thermal=zero, albedo_solar=Ag, &
+          lthermal=.True., lsolar=.False., &
+          edir=edir, edn=edn, eup=eup, abso=abso)
+      endif
 
-
-      call plexrt_rrtmg(solver, atm, sundir, &
-        albedo_thermal=zero, albedo_solar=Ag, &
-        lthermal=.False., lsolar=.True., &
-        edir=edir, edn=edn, eup=eup, abso=abso)
+      if(lsolar) then
+        call plexrt_rrtmg(solver, atm, sundir, &
+          albedo_thermal=zero, albedo_solar=Ag, &
+          lthermal=.False., lsolar=.True., &
+          edir=edir, edn=edn, eup=eup, abso=abso)
+      endif
 
       call destroy_plexrt_rrtmg(solver, lfinalizepetsc=.False.)
     end subroutine
@@ -163,6 +169,7 @@ logical, parameter :: ldebug=.True.
     integer(mpiint) :: ierr
     character(len=10*default_str_len) :: default_options
     real(ireals) :: Ag
+    logical :: lthermal, lsolar
     !character(len=*),parameter :: ex_out='plex_ex_dom1_out.h5'
     !character(len=*),parameter :: ex_out='plex_test_out.h5'
     !character(len=*),parameter :: lwcfile='lwc_ex_24_3.nc'
@@ -184,29 +191,38 @@ logical, parameter :: ldebug=.True.
     Ag = .1
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
 
+    lsolar = .True.
+    lthermal = .True.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
+
     default_options=''
     default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
     !default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_domainboundary hdf5:'//trim(outfile)//'::append'
-    !default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
-    !default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
-    !default_options=trim(default_options)//' -show_fV2cV_DiffSrcVec hdf5:'//trim(outfile)//'::append'
-    !default_options=trim(default_options)//' -show_fV2cV_ediff hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_fV2cV_edir hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_fV2cV_srcVec hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_fV2cV_DiffSrcVec hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_fV2cV_ediff hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -plexrt_dump_thermal_Edn_2_ke1 hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -plexrt_dump_thermal_Eup_2_ke1 hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -plexrt_dump_thermal_abso hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -plexrt_dump_Edir_2_ke1 hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -plexrt_dump_Edn_2_ke1 hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -plexrt_dump_Eup_2_ke1 hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -plexrt_dump_abso hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -plexrt_dump_lwc hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -plexrt_dump_iwc hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -plexrt_dump_temp hdf5:'//trim(outfile)//'::append'
 
     print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
-    call plex_ex4(PETSC_COMM_WORLD, gridfile, icondatafile, Ag)
+    call plex_ex4(PETSC_COMM_WORLD, gridfile, icondatafile, Ag, lthermal, lsolar)
 
     call mpi_barrier(PETSC_COMM_WORLD, ierr)
     call PetscFinalize(ierr)
