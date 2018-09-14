@@ -196,7 +196,7 @@ endif(ENABLE_PFUNIT)
 
 option(ENABLE_RRTM "Enable use of RRTM" OFF)
 if(ENABLE_RRTM)
-	add_subdirectory(src_rrtmg)
+	add_subdirectory(rrtmg)
 endif(ENABLE_RRTM)
 
 option(ENABLE_EXAMPLES "Enable compilation of EXAMPLES" OFF)
