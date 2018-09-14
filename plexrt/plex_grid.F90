@@ -1953,17 +1953,18 @@ module m_plex_grid
     proj_sundir = vec_proj_on_plane(sundir, face_normals(:,upper_face))
     proj_sundir = proj_sundir / norm(proj_sundir)
 
-    if(zenith.gt..017_ireals) then ! only do use azimuth computation if zenith is larger than 1 deg
-      do iface=1,size(side_faces)
-        side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
-        side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
-          norm(side_face_normal_projected_on_upperface(:, iface))
-        proj_angles_to_sun(iface) = angle_between_two_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
+    do iface=1,size(side_faces)
+      side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
+      side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
+        norm(side_face_normal_projected_on_upperface(:, iface))
+      proj_angles_to_sun(iface) = angle_between_two_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
 
-        lsrc(side_faces(iface)) = is_solar_src(side_face_normal_projected_on_upperface(:, iface), proj_sundir)
+      lsrc(side_faces(iface)) = is_solar_src(side_face_normal_projected_on_upperface(:, iface), proj_sundir)
 
-        !print *,'iface',iface, ':', '->', rad2deg(proj_angles_to_sun(iface))
-      enddo
+      !print *,'iface',iface, ':', '->', rad2deg(proj_angles_to_sun(iface))
+    enddo
+
+    if(zenith.gt.epsilon(zenith)) then ! only do use azimuth computation if zenith is larger than 0 deg
       ibase_face = minloc(proj_angles_to_sun,dim=1)
 
       ! Local unit vec on upperface, pointing towards '+x'
@@ -2030,7 +2031,13 @@ module m_plex_grid
       iright_face = modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1
       right_face = side_faces(iright_face)
 
-      if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) call swap(right_face, left_face)
+      !print *,'side_face_normal_projected_on_upperface ibase_face', side_face_normal_projected_on_upperface(:, ibase_face)
+      !print *,'face normal upper face', -face_normals(:, upper_face)
+      !print *,'e_x', e_x
+      !print *,'side_face_normal_projected_on_upperface', side_face_normal_projected_on_upperface(:, iright_face)
+      if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
+        call swap(right_face, left_face)
+      endif
 
       azimuth = zero
       zenith = zero
