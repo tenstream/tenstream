@@ -225,16 +225,16 @@ module m_icon_plex_utils
               ilocal_elements(ileaf) = iedge_top_icon_2_plex(i, k)
               iremote_elements(ileaf)%rank = owner
               iremote_elements(ileaf)%index = int(xv(i1+voff+k), iintegers)
-              if(ldebug) print *,myid,' 2dEdge top', i,'::', k,' local edge index', iedge_top_icon_2_plex(i, k), &
-                'remote idx', xv(i1+voff+k)
+              !if(ldebug) print *,myid,' 2dEdge top', i,'::', k,' local edge index', iedge_top_icon_2_plex(i, k), &
+              !  'remote idx', xv(i1+voff+k)
               ileaf = ileaf+1
             enddo
             do k = 0, ke-1
               ilocal_elements(ileaf) = iface_side_icon_2_plex(i, k)
               iremote_elements(ileaf)%rank = owner
               iremote_elements(ileaf)%index = int(xv(i1+ke1+voff+k), iintegers)
-              if(ldebug) print *,myid,' 2dEdge fac', i,'::', k,' local face index', ilocal_elements(ileaf), &
-                'remote idx', xv(i1+ke1+voff+k)
+              !if(ldebug) print *,myid,' 2dEdge fac', i,'::', k,' local face index', ilocal_elements(ileaf), &
+              !  'remote idx', xv(i1+ke1+voff+k)
               ileaf = ileaf+1
             enddo
           endif
@@ -248,16 +248,16 @@ module m_icon_plex_utils
               ilocal_elements(ileaf) = ivertex_icon_2_plex(i, k)
               iremote_elements(ileaf)%rank = owner
               iremote_elements(ileaf)%index = int(xv(i1+voff+k), iintegers)
-              if(ldebug) print *,myid,' 2dVert ver', i,'::', k,' local vert index', ilocal_elements(ileaf), &
-                'remote idx', xv(i1+voff+k)
+              !if(ldebug) print *,myid,' 2dVert ver', i,'::', k,' local vert index', ilocal_elements(ileaf), &
+              !  'remote idx', xv(i1+voff+k)
               ileaf = ileaf+1
             enddo
             do k = 0, ke-1
               ilocal_elements(ileaf) = iedge_side_icon_2_plex(i, k)
               iremote_elements(ileaf)%rank = owner
               iremote_elements(ileaf)%index = int(xv(i1+ke1+voff+k), iintegers)
-              if(ldebug) print *,myid,' 2dVert edg', i,'::', k,' local face index', ilocal_elements(ileaf), &
-                'remote idx', xv(i1+ke1+voff+k)
+              !if(ldebug) print *,myid,' 2dVert edg', i,'::', k,' local face index', ilocal_elements(ileaf), &
+              !  'remote idx', xv(i1+ke1+voff+k)
               ileaf = ileaf+1
             enddo
           endif
@@ -1124,7 +1124,8 @@ module m_icon_plex_utils
 
     subroutine icon_ncvec_to_plex(dm2d_serial, dm2d_parallel, migration_sf, &
         filename, varname, gVec, timeidx, dm3d)
-      type(tDM), intent(in) :: dm2d_serial, dm2d_parallel
+      type(tDM), intent(in) :: dm2d_serial
+      type(tDM), intent(inout) :: dm2d_parallel
       type(tPetscSF), intent(in) :: migration_sf
       character(len=*), intent(in) :: filename, varname
       type(tVec), allocatable, intent(inout) :: gvec
@@ -1180,7 +1181,7 @@ module m_icon_plex_utils
         do i = 0, size(arr, dim=1)-1
           call PetscSectionGetOffset(rank0Section, i, voff, ierr); call CHKERR(ierr)
           do k = 0, size(arr, dim=2)-1
-            xloc(i1+voff+k) = arr(i1+i, i1+k)
+            xloc(i1+voff+k) = arr(i1+i, ke-k)
           enddo
         enddo
         call VecRestoreArrayF90(rank0Vec, xloc,ierr) ;call CHKERR(ierr)
@@ -1192,6 +1193,8 @@ module m_icon_plex_utils
       if(migration_sf.ne.PETSC_NULL_SF) then
         call DMPlexDistributeField(dm2d_serial, migration_sf, rank0section, rank0vec, newsection, newVec, ierr); call CHKERR(ierr)
       else
+        newsection = rank0section
+        call PetscSectionClone(rank0section, newsection, ierr); call CHKERR(ierr)
         call VecDuplicate(rank0vec, newVec, ierr); call CHKERR(ierr)
         call VecCopy(rank0vec, newVec, ierr); call CHKERR(ierr)
       endif
@@ -1211,6 +1214,7 @@ module m_icon_plex_utils
         call DMDestroy(dm3dcopy, ierr); call CHKERR(ierr)
       else
         call DMSetSection(dm2d_parallel, newsection, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(newsection, PETSC_NULL_SECTION, "-show_icon_ncvec_to_plex_section", ierr); call CHKERR(ierr)
         call VecDuplicate(newVec, gVec, ierr); call CHKERR(ierr)
         call PetscObjectSetName(gvec, 'VecfromNC_'//trim(varname), ierr);call CHKERR(ierr)
         call VecCopy(newVec, gVec, ierr); call CHKERR(ierr)
