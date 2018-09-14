@@ -207,7 +207,11 @@ logical, parameter :: ldebug=.True.
     default_options=trim(default_options)//' -show_fV2cV_DiffSrcVec hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_fV2cV_ediff hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
-    !default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
+
+    default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_abso_direct hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_abso_diffuse hdf5:'//trim(outfile)//'::append'
+
     default_options=trim(default_options)//' -plexrt_dump_thermal_Edn_2_ke1 hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -plexrt_dump_thermal_Eup_2_ke1 hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -plexrt_dump_thermal_abso hdf5:'//trim(outfile)//'::append'

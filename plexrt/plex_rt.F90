@@ -336,7 +336,7 @@ module m_plex_rt
 
       if(.not.solver%solutions(suid)%lset) then
         call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, &
-          lsolar=lsolar, solution=solver%solutions(suid))
+          lsolar=lsolar, solution=solver%solutions(suid), uid=suid)
       endif
 
 
@@ -402,14 +402,6 @@ module m_plex_rt
         solution%lWm2_dir = .False.
         solution%lchanged = .True.
 
-        ! Output of Edir
-        if(ldebug) then
-          call PetscLogEventBegin(solver%logs%debug_output, ierr)
-          call scale_facevec(solver%plex, solver%plex%edir_dm, solution%edir, lW_to_Wm2=.True.)
-          call facevec2cellvec(solver%plex, solver%plex%edir_dm, solution%edir)
-          call scale_facevec(solver%plex, solver%plex%edir_dm, solution%edir, lW_to_Wm2=.False.)
-          call PetscLogEventEnd(solver%logs%debug_output, ierr)
-        endif
       endif
 
       ! Create Diffuse Src
@@ -444,15 +436,6 @@ module m_plex_rt
         '-show_ediff_vec_global', ierr); call CHKERR(ierr)
       solution%lWm2_diff = .False.
       solution%lchanged = .True.
-
-      ! Output of Ediff
-      if(ldebug) then
-        call PetscLogEventBegin(solver%logs%debug_output, ierr)
-        call scale_facevec(solver%plex, solver%plex%ediff_dm, solution%ediff, lW_to_Wm2=.True.)
-        call facevec2cellvec(solver%plex, solver%plex%ediff_dm, solution%ediff)
-        call scale_facevec(solver%plex, solver%plex%ediff_dm, solution%ediff, lW_to_Wm2=.False.)
-        call PetscLogEventEnd(solver%logs%debug_output, ierr)
-      endif
 
       99 continue ! this is the quick exit final call where we clean up before the end of the routine
 
@@ -1775,17 +1758,22 @@ module m_plex_rt
     if(.not.allocated(solution%abso)) then
       allocate(solution%abso)
       call DMCreateGlobalVector(solver%plex%abso_dm, solution%abso, ierr); call CHKERR(ierr)
-      call PetscObjectSetName(solution%abso, 'absoVecGlobal', ierr);call CHKERR(ierr)
     endif
     call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
 
     if(solution%lsolar_rad) then
       call compute_edir_absorption(solver%plex, solution%edir, solution%abso)
+      call PetscObjectSetName(solution%abso, 'abso_direct_'//itoa(solution%uid), ierr);call CHKERR(ierr)
+      call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-show_abso_direct', ierr); call CHKERR(ierr)
     endif
     call compute_ediff_absorption(solver%plex, solver%IS_diff_in_out_dof, solution%ediff, solution%abso)
+    call PetscObjectSetName(solution%abso, 'abso_diffuse_'//itoa(solution%uid), ierr);call CHKERR(ierr)
+    call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-show_abso_diffuse', ierr); call CHKERR(ierr)
+
     call PetscLogEventEnd(solver%logs%compute_absorption, ierr)
 
     call PetscLogEventBegin(solver%logs%debug_output, ierr)
+    call PetscObjectSetName(solution%abso, 'abso_'//itoa(solution%uid), ierr);call CHKERR(ierr)
     call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, '-show_abso', ierr); call CHKERR(ierr)
     call PetscLogEventEnd(solver%logs%debug_output, ierr)
   end subroutine
@@ -1802,7 +1790,7 @@ module m_plex_rt
     type(tPetscSection) :: abso_section, edir_section
 
     integer(iintegers) :: cStart, cEnd
-    integer(iintegers) :: icell, iface
+    integer(iintegers) :: i, icell, iface
     integer(iintegers),pointer :: faces_of_cell(:)
     integer(mpiint) :: myid, ierr
 
@@ -1853,16 +1841,14 @@ module m_plex_rt
       volume = geoms(i1+geom_offset)
 
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
-      xabso(abso_offset+i1) = zero
-
+      call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
-      call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
+      do i = 1, size(faces_of_cell)
+        iface = faces_of_cell(i)
+        lsrc = int(wedgeorient(wedge_offset+i8+i), iintegers) .eq. i1
 
-      do iface = 1, size(faces_of_cell)
-        lsrc = int(wedgeorient(wedge_offset+i8+iface), iintegers) .eq. i1
-
-        call PetscSectionGetOffset(edir_section, faces_of_cell(iface), edir_offset, ierr); call CHKERR(ierr)
+        call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
 
         if(lsrc) then ! sun is shining into this face
           xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1)
@@ -1885,9 +1871,9 @@ module m_plex_rt
     call DMLocalToGlobalBegin(plex%abso_dm, local_abso, ADD_VALUES, abso, ierr); call CHKERR(ierr)
     call DMLocalToGlobalEnd  (plex%abso_dm, local_abso, ADD_VALUES, abso, ierr); call CHKERR(ierr)
 
-    call DMRestoreLocalVector(plex%abso_dm, local_abso, ierr); call CHKERR(ierr)
 
-    call PetscObjectViewFromOptions(abso, PETSC_NULL_VEC, '-show_edir_abso', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(local_abso, PETSC_NULL_VEC, '-show_edir_abso', ierr); call CHKERR(ierr)
+    call DMRestoreLocalVector(plex%abso_dm, local_abso, ierr); call CHKERR(ierr)
     !if(ldebug) print *,'plex_rt::compute_edir_absorption....finished'
   end subroutine
 
@@ -1962,9 +1948,9 @@ module m_plex_rt
         iface = faces_of_cell(j)
         call PetscSectionGetDof(ediff_section, iface, numDof, ierr); call CHKERR(ierr)
         do idof = 1, numDof/2
-          xabso(i1+abso_offset) = xabso(i1+abso_offset) + xediff(i1+incoming_offsets(i)) / (numDof/2)
-          xabso(i1+abso_offset) = xabso(i1+abso_offset) - xediff(i1+outgoing_offsets(i)) / (numDof/2)
-          !print *,'iface', iface, numDof, 'abso', &
+          xabso(i1+abso_offset) = xabso(i1+abso_offset) + (xediff(i1+incoming_offsets(i)) / numDof*2)
+          xabso(i1+abso_offset) = xabso(i1+abso_offset) - (xediff(i1+outgoing_offsets(i)) / numDof*2)
+          !print *,'iface', iface, numDof, incoming_offsets(i), outgoing_offsets(i), 'abso', &
           !  '+', xediff(i1+incoming_offsets(i)), &
           !  '-', xediff(i1+outgoing_offsets(i)), &
           !  '=', xabso(i1+abso_offset)
@@ -1982,14 +1968,13 @@ module m_plex_rt
     call VecRestoreArrayReadF90(local_ediff, xediff, ierr); call CHKERR(ierr)
     call VecRestoreArrayF90(local_abso, xabso, ierr); call CHKERR(ierr)
 
-    call DMRestoreLocalVector(plex%ediff_dm, local_ediff, ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(local_abso, PETSC_NULL_VEC, '-show_ediff_abso', ierr); call CHKERR(ierr)
 
     call DMLocalToGlobalBegin(plex%abso_dm, local_abso, ADD_VALUES, abso, ierr); call CHKERR(ierr)
     call DMLocalToGlobalEnd  (plex%abso_dm, local_abso, ADD_VALUES, abso, ierr); call CHKERR(ierr)
 
+    call DMRestoreLocalVector(plex%ediff_dm, local_ediff, ierr); call CHKERR(ierr)
     call DMRestoreLocalVector(plex%abso_dm, local_abso, ierr); call CHKERR(ierr)
-
-    call PetscObjectViewFromOptions(abso, PETSC_NULL_VEC, '-show_ediff_abso', ierr); call CHKERR(ierr)
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....finished'
   end subroutine
 
@@ -2194,12 +2179,10 @@ module m_plex_rt
         endif
 
         if(lsolar) then
-          do k = 0, ke1-2
+          do k = 0, ke1-1
             call PetscSectionGetOffset(edir_section, iface+k, voff, ierr); call CHKERR(ierr)
             xedir(i1+voff) = edir(i1+k)
           enddo
-          call PetscSectionGetOffset(edir_section, iface+k, voff, ierr); call CHKERR(ierr)
-          xedir(i1+voff) = edir(i1+k)
         endif
 
         do k = 0, ke1-2
@@ -2332,7 +2315,7 @@ module m_plex_rt
     type(tPetscSection) :: abso_section, ediff_section, edir_section
     real(ireals), pointer :: xediff(:), xedir(:), xabso(:)
 
-    integer(mpiint) :: myid, ierr
+    integer(mpiint) :: ierr
 
     call PetscLogEventBegin(solver%logs%get_result, ierr)
 
@@ -2414,29 +2397,30 @@ module m_plex_rt
     endif
     call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
     call VecRestoreArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
+
+    !if(ldebug) then
+    !  call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
+    !  if(myid.eq.0) then
+    !    if(present(redir)) then
+    !      print *,'Get Result, k     Edir                   Edn                      Eup                  abso'
+    !      do k = 1, ke1-1
+    !        print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)!, &
+    !          !redir(k,1)-redir(k+1,1)+redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
+    !      enddo
+    !      print *,k, redir(k,1), redn(k,1), reup(k,1)
+    !    else
+    !      print *,'Get Result, k     Edn                    Eup                      abso'
+    !      do k = 1, ke1-1
+    !        print *,k, redn(k,1), reup(k,1), rabso(k,1)!, &
+    !          !redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
+    !      enddo
+    !      print *,k, redn(k,1), reup(k,1)
+    !    endif
+    !  endif
+    !endif
+
     end associate
     call PetscLogEventEnd(solver%logs%get_result, ierr)
-
-    if(ldebug) then
-      call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
-      if(myid.eq.0) then
-        if(present(redir)) then
-          print *,'Get Result, k     Edir                   Edn                      Eup                  abso'
-          do k = 1, ke1-1
-            print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)!, &
-              !redir(k,1)-redir(k+1,1)+redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
-          enddo
-          print *,k, redir(k,1), redn(k,1), reup(k,1)
-        else
-          print *,'Get Result, k     Edn                    Eup                      abso'
-          do k = 1, ke1-1
-            print *,k, redn(k,1), reup(k,1), rabso(k,1)!, &
-              !redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
-          enddo
-          print *,k, redn(k,1), reup(k,1)
-        endif
-      endif
-    endif
 
     contains
       subroutine check_size_or_allocate(arr, expected_shape)
