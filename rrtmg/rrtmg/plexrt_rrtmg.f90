@@ -45,7 +45,7 @@ module m_plexrt_rrtmg
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
       imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR, deg2rad, &
-      reverse, itoa, angle_between_two_vec, norm, rad2deg
+      reverse, itoa, angle_between_two_vec, norm, rad2deg, get_arg
   use m_tenstream_interpolation, only : interp_1d
 
   use m_plex_grid, only: TOAFACE, get_inward_face_normal
@@ -152,6 +152,12 @@ contains
         opt_time=opt_time, &
         thermal_albedo_2d=thermal_albedo_2d, &
         lrrtmg_only=lrrtmg_only)
+
+      call dump_vec(edn(1:ke1-1,:), '-plexrt_dump_thermal_Edn_1_ke')
+      call dump_vec(edn(2:ke1,:) ,  '-plexrt_dump_thermal_Edn_2_ke1')
+      call dump_vec(eup(1:ke1-1,:), '-plexrt_dump_thermal_Eup_1_ke')
+      call dump_vec(eup(2:ke1,:),   '-plexrt_dump_thermal_Eup_2_ke1')
+      call dump_vec(abso, '-plexrt_dump_thermal_abso')
     endif
 
     if(lsolar) then
@@ -163,6 +169,9 @@ contains
         opt_time=opt_time, &
         solar_albedo_2d=solar_albedo_2d, &
         lrrtmg_only=lrrtmg_only)
+
+      call dump_vec(edir(1:ke1-1,:),'-plexrt_dump_Edir_1_ke')
+      call dump_vec(edir(2:ke1,:),  '-plexrt_dump_Edir_2_ke1')
     endif
 
     if(ldebug.and.myid.eq.0) then
@@ -181,10 +190,6 @@ contains
       endif
     endif
 
-    if(lsolar) then
-      call dump_vec(edir(1:ke1-1,:), '-plexrt_dump_Edir_1_ke')
-      call dump_vec(edir(2:ke1,:),   '-plexrt_dump_Edir_2_ke1')
-    endif
     call dump_vec(edn(1:ke1-1,:), '-plexrt_dump_Edn_1_ke')
     call dump_vec(edn(2:ke1,:) ,  '-plexrt_dump_Edn_2_ke1')
     call dump_vec(eup(1:ke1-1,:), '-plexrt_dump_Eup_1_ke')
@@ -192,22 +197,30 @@ contains
 
     call dump_vec(abso, '-plexrt_dump_abso')
 
-    call dump_vec(atm%lwc, '-plexrt_dump_lwc')
-    call dump_vec(atm%tlay, '-plexrt_dump_temp')
+    if(allocated(atm%lwc )) call dump_vec(atm%lwc, '-plexrt_dump_lwc', lreverse=.True.)
+    if(allocated(atm%iwc )) call dump_vec(atm%iwc, '-plexrt_dump_iwc', lreverse=.True.)
+    if(allocated(atm%tlay)) call dump_vec(atm%tlay, '-plexrt_dump_temp', lreverse=.True.)
 
     contains
-      subroutine dump_vec(inp, vecshow_string)
+      subroutine dump_vec(inp, vecshow_string, lreverse)
         real(ireals), intent(in) :: inp(:,:) ! Nlay, Ncol
         character(len=*), intent(in) :: vecshow_string
+        logical, intent(in), optional :: lreverse
         type(tVec) :: vec
-        logical :: lflg
+        logical :: lflg, lrev
+
+        lrev = get_arg(.False., lreverse)
 
         lflg = .False.
         call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, vecshow_string, lflg, ierr); call CHKERR(ierr)
         if(lflg) then
           if(.not.allocated(solver%plex%cell1_dm)) return
           call DMGetGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
-          call Nz_Ncol_vec_to_celldm1(solver%plex, inp, vec)
+          if(lrev) then
+            call Nz_Ncol_vec_to_celldm1(solver%plex, reverse(inp), vec)
+          else
+            call Nz_Ncol_vec_to_celldm1(solver%plex, inp, vec)
+          endif
           call PetscObjectSetName(vec, 'dump_vec'//trim(vecshow_string), ierr);call CHKERR(ierr)
           call PetscObjectViewFromOptions(vec, PETSC_NULL_VEC, trim(vecshow_string), ierr); call CHKERR(ierr)
           call DMRestoreGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
@@ -283,8 +296,8 @@ contains
           edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
           !abso(:,i) = abso(:,i) + reverse(spec_abso(:,i)) ! This would be in K/day
           abso(:,i) = abso(:,i) + reverse( ( &
-              + spec_edn(1:ke1-1,i) - spec_edn(2:ke1,i) &
-              - spec_eup(1:ke1-1,i) + spec_eup(2:ke1,i) ) / atm%dz(:,i) )
+              - spec_edn(1:ke1-1,i) + spec_edn(2:ke1,i) &
+              + spec_eup(1:ke1-1,i) - spec_eup(2:ke1,i) ) / atm%dz(:,i) )
         enddo
       return
     else
