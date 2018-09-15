@@ -191,11 +191,14 @@ contains
       return
     endif
 
-    call do_lookup(tauz, w0, aspect_zx)
+    call do_wedge_lookup(tauz, w0, aspect_zx, ldir, angles)
 
     contains
-      subroutine do_lookup(tauz, w0, aspect_zx)
+      subroutine do_wedge_lookup(tauz, w0, aspect_zx, ldir, angles)
         real(ireals), intent(in) :: tauz, w0, aspect_zx
+        logical,intent(in)       :: ldir
+        real(ireals),intent(in),optional :: angles(:)
+
         associate( C_pnt => wedge_coords(5:6) )
 
           select case (coeff_mode)
@@ -204,7 +207,7 @@ contains
             if(present(angles)) then ! obviously we want the direct coefficients
               if(ldir) then ! dir2dir
                 call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
-              else         ! dir2diff
+              else ! dir2diff
                 call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
               endif
             else
@@ -217,9 +220,9 @@ contains
           end select
         end associate
       end subroutine
+
       logical function handle_aspect_zx_1D_case()
         real(ireals) :: c11,c12,c13,c23,c33,g1,g2, restricted_aspect_zx
-        logical :: l1d
 
         handle_aspect_zx_1D_case = .False.
 
@@ -227,54 +230,60 @@ contains
         ! this has to be fixed for anisotropic grids
 
         if(present(angles)) then
-          l1d = aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1) &
-            .or.aspect_zx.gt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(2)
+          if(aspect_zx.gt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(2)) then
+            C = zero
 
-          if(l1d) then
-            restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
-                                                      OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
-            call do_lookup(tauz, w0, restricted_aspect_zx)
-
-            call eddington_coeff_zdun(tauz, w0, zero, cos(deg2rad(angles(2))), &
+            call eddington_coeff_zdun(tauz, w0, g, cos(deg2rad(angles(2))), &
               c11,c12,c13,c23,c33,g1,g2)
 
-
-             if(ldir) then
-               ! set the transport coeffs for src top to zero, leave the rest.
-               C(1:size(C):5) = zero
-               C(5) = c33
-               C(21) = c33
-             else
-               C(:) = zero
-               C(1) = c13
-               C(7*5+1) = c23
-             endif
-            handle_aspect_zx_1D_case = .True.
-          endif
-        else
-          l1d = aspect_zx.lt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(1) &
-            .or.aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)
-
-          if(l1d) then
-            restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
-                                                      OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
-            call do_lookup(tauz, w0, restricted_aspect_zx)
-
-            if(aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)) then
-              ! set the transport coeffs for src top and bottom to zero, leave the rest.
-              C(1:size(C):8) = zero
-              C(8:size(C):8) = zero
-
-              call eddington_coeff_zdun(tauz, w0, zero, zero, &
-                c11,c12,c13,c23,c33,g1,g2)
-              C(1) = c12
-              C(8) = c11
-              C(8*7+1) = c11
-              C(8*7+8) = c12
+            if(ldir) then
+              ! set the transport coeffs for src top to zero, leave the rest.
+              C(21) = c33 ! from top to bot
+              C(5) = c33  ! from bot to top
+            else
+              C(1) = c13
+              C(7*5+1) = c23
             endif
+            handle_aspect_zx_1D_case = .True.
+
+          elseif(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
+            restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
+              OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
+
+            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
+
+            call CHKERR(1_mpiint, 'direct aspect_zx too small')
+            handle_aspect_zx_1D_case = .True.
+
+          endif
+
+        else ! diffuse
+
+          if(aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)) then
+            ! set the transport coeffs for src top and bottom to zero, leave the rest.
+            C(1:size(C):8) = zero
+            C(8:size(C):8) = zero
+            C(9:7*8) = zero
+            C = zero
+
+            call eddington_coeff_zdun(tauz, w0, g, one, &
+              c11,c12,c13,c23,c33,g1,g2)
+            C(1) = c12
+            C(8) = c11
+            C(7*8+1) = c11
+            C(8*8) = c12
 
             handle_aspect_zx_1D_case = .True.
+
+          elseif(aspect_zx.lt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)) then
+            restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)), &
+              OPP%OPP_LUT%diffconfig%dims(3)%vrange(2))
+            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
+
+            call CHKERR(1_mpiint, 'diffuse aspect_zx too small')
+            handle_aspect_zx_1D_case = .True.
           endif
+
         endif
       end function
   end subroutine
