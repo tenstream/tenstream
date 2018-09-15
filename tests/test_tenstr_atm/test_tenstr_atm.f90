@@ -5,7 +5,7 @@ module test_tenstr_atm
     iintegers, ireals, mpiint,  &
     zero, one, default_str_len
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, reff_from_lwc_and_N
 
   use pfunit_mod
 
@@ -310,5 +310,17 @@ contains
         print *,'Tlay on Merged Grid', k,':', atm2%tlay(k,1), 'cld', atm2%lwc(k,1), atm2%reliq(k,1),':dz', atm2%dz(k,1)
       enddo
     endif
+  end subroutine
+
+  @test(npes =[1])
+  subroutine test_compute_reff(this)
+    class (MpiTestMethod), intent(inout) :: this
+    real(ireals) :: lwc, N, reff
+
+    @assertEqual(6.827840_ireals, reff_from_lwc_and_N(.1_ireals, 100._ireals), 1e-4_ireals, 'Wrong reff')
+    @assertEqual(14.71014_ireals, reff_from_lwc_and_N(1._ireals, 100._ireals), 1e-4_ireals, 'Wrong reff')
+
+    @assertEqual(5.419261_ireals, reff_from_lwc_and_N(.1_ireals, 200._ireals), 1e-4_ireals, 'Wrong reff')
+    @assertEqual(11.67544_ireals, reff_from_lwc_and_N(1._ireals, 200._ireals), 1e-4_ireals, 'Wrong reff')
   end subroutine
 end module

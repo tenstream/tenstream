@@ -29,7 +29,7 @@ module m_dyn_atm_to_rrtmg
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
 
   use m_data_parameters, only : iintegers, mpiint, ireals, default_str_len, &
-    zero, i1, i2, i9, init_mpi_data_parameters
+    zero, one, pi, i1, i2, i9, init_mpi_data_parameters
 
   use m_helper_functions, only: CHKERR, search_sorted_bisection, reverse, &
     imp_allreduce_min, imp_allreduce_max, meanvec, imp_bcast, read_ascii_file_2d, &
@@ -718,4 +718,23 @@ module m_dyn_atm_to_rrtmg
       endif
     end subroutine
 
+    ! Compute effective radius from liquid water content and droplet density
+    ! after Martin et al (1993)
+    ! and Bugliaro et al (2011)
+    pure elemental function reff_from_lwc_and_N(lwc, N, k) result(reff)
+      real(ireals), intent(in) :: lwc ! liquid water content [g m-3],  typically .1
+      real(ireals), intent(in) :: N   ! droplet density      [1 cm-3], typically 100
+      real(ireals), intent(in), optional :: k   ! airmass factor (maritime ~ .8 +- 0.07) (continental ~ .67 +- 0.07)
+      real(ireals) :: reff            ! effective radius [1e-6 m]
+
+      real(ireals), parameter :: &
+        rho = 1e3_ireals, & ! water density @ 4degC
+        default_k = .75     ! airmass factor in between
+
+      if(present(k)) then
+        reff = 1e3 * (3 * lwc / (4*pi*rho*k*N)) ** (one/3)
+      else
+        reff = 1e3 * (3 * lwc / (4*pi*rho*default_k*N)) ** (one/3)
+      endif
+    end function
   end module
