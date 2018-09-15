@@ -1955,12 +1955,12 @@ module m_plex_grid
 
     zenith = angle_between_two_vec(sundir, face_normals(:, upper_face))
     proj_sundir = vec_proj_on_plane(sundir, face_normals(:,upper_face))
-    proj_sundir = proj_sundir / norm(proj_sundir)
+    proj_sundir = proj_sundir / max(epsilon(proj_sundir), norm(proj_sundir))
 
     do iface=1,size(side_faces)
       side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
       side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
-        norm(side_face_normal_projected_on_upperface(:, iface))
+        max(epsilon(side_face_normal_projected_on_upperface), norm(side_face_normal_projected_on_upperface(:, iface)))
       proj_angles_to_sun(iface) = angle_between_two_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
 
       lsrc(side_faces(iface)) = is_solar_src(side_face_normal_projected_on_upperface(:, iface), proj_sundir)
@@ -1968,7 +1968,7 @@ module m_plex_grid
       !print *,'iface',iface, ':', '->', rad2deg(proj_angles_to_sun(iface))
     enddo
 
-    if(zenith.gt.epsilon(zenith)) then ! only do use azimuth computation if zenith is larger than 0 deg
+    if(zenith.gt.10*epsilon(zenith)) then ! only do use azimuth computation if zenith is larger than 0 deg
       ibase_face = minloc(proj_angles_to_sun,dim=1)
 
       ! Local unit vec on upperface, pointing towards '+x'
@@ -1982,7 +1982,9 @@ module m_plex_grid
       iright_face = modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1
       right_face = side_faces(iright_face)
 
-      if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) call swap(right_face, left_face)
+      if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
+        call swap(right_face, left_face)
+      endif
 
 !!!      e_y = side_face_normal_projected_on_upperface(:, ibase_face) ! inward facing normal -> in local wedgemc coordinates
 !!!      e_z = -face_normals(:, upper_face) ! outward facing normal with respect to the top plate
