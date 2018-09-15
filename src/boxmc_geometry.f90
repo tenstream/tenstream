@@ -223,14 +223,16 @@ module m_boxmc_geometry
       vertices([12,15,18]) = dz
 
       if(present(sphere_radius)) then
-        s = one - (sphere_radius + dz) / sphere_radius
-        vertices(1:2) = A - s/4 * (B-A) - s/4 * (C-A)
-        vertices(4:5) = B - s/4 * (A-B) - s/4 * (C-B)
-        vertices(7:8) = C - s/4 * (A-C) - s/4 * (B-C)
+        if(sphere_radius.gt.zero) then
+          s = one - (sphere_radius + dz) / sphere_radius
+          vertices(1:2) = A - s/4 * ((B-A) + (C-A))
+          vertices(4:5) = B - s/4 * ((A-B) + (C-B))
+          vertices(7:8) = C - s/4 * ((A-C) + (B-C))
 
-        vertices(10:11) = A + s/4 * (B-A) + s/4 * (C-A)
-        vertices(13:14) = B + s/4 * (A-B) + s/4 * (C-B)
-        vertices(16:17) = C + s/4 * (A-C) + s/4 * (B-C)
+          vertices(10:11) = A + s/4 * ((B-A) + (C-A))
+          vertices(13:14) = B + s/4 * ((A-B) + (C-B))
+          vertices(16:17) = C + s/4 * ((A-C) + (B-C))
+        endif
       endif
     end subroutine
     subroutine setup_default_unit_wedge_geometry(dx, dy, dz, vertices)
