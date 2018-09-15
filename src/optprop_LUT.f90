@@ -28,6 +28,7 @@ module m_optprop_LUT
     rel_approx, imp_bcast, get_arg,       &
     mpi_logical_and, mpi_logical_or,      &
     search_sorted_bisection, CHKERR, itoa,&
+    triangle_area_by_vertices,            &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
 
   use m_data_parameters, only : ireals, iintegers,      &
@@ -790,6 +791,10 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
     !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(1:3) ,':', vertices(10:12)
     !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(4:6) ,':', vertices(13:15)
     !print *,comm,'BMC :: calling bmc_get_coeff verts', vertices(7:9) ,':', vertices(16:18)
+    !print *,'area bot', triangle_area_by_vertices(vertices(1:3), vertices(4:6), vertices(7:9))
+    !print *,'area top', triangle_area_by_vertices(vertices(10:12), vertices(13:15), vertices(16:18))
+    !print *,'area_ratio:', triangle_area_by_vertices(vertices(1:3), vertices(4:6), vertices(7:9)) &
+    !  / triangle_area_by_vertices(vertices(10:12), vertices(13:15), vertices(16:18))
     !call CHKERR(1_mpiint, 'DEBUG')
     call OPP%bmc%get_coeff(comm, bg, src, &
       dir, phi, theta, vertices,   &

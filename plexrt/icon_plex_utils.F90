@@ -704,7 +704,7 @@ module m_icon_plex_utils
 
       if(lfromcelllist) then
         call gen_cellslist_array(Nx, Nfaces, Nvertices, cellslist, vertexCoords)
-        print *,Nfaces, Nvertices, 'cells',cellslist,'vcord',vertexCoords
+        !print *,Nfaces, Nvertices, 'cells',cellslist,'vcord',vertexCoords
         call DMPlexCreateFromCellList(PETSC_COMM_WORLD, i2, Nfaces, Nvertices, &
                           i3, PETSC_TRUE, cellslist, i3, vertexCoords, dm, ierr); call CHKERR(ierr)
       else
@@ -1090,7 +1090,7 @@ module m_icon_plex_utils
 
           call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
           call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
-          print *,'Coord Section has size:', coordSize
+          !print *,'Coord Section has size:', coordSize
 
           call VecCreate(comm, coordinates, ierr); call CHKERR(ierr)
           call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
@@ -1100,7 +1100,7 @@ module m_icon_plex_utils
           call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
 
           call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
-          print *,'bounds coords:', lbound(coords), ubound(coords)
+          !print *,'bounds coords:', lbound(coords), ubound(coords)
 
           ! set vertices as coordinates
           do i = i1, Nverts

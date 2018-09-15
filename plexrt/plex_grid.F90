@@ -438,7 +438,7 @@ module m_plex_grid
         integer(mpiint) :: ierr
 
         if(allocated(ltopfacepos)) call CHKERR(1_mpiint, 'Dont call plex_set_ltopfacepos on already allocated array!')
-        print *,'plex_set_ltopfacepos... start'
+        if(ldebug) print *,'plex_set_ltopfacepos... start'
 
         call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
         call DMPlexGetDepthStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr)
@@ -463,7 +463,7 @@ module m_plex_grid
           call DMPlexRestoreCone(dm, iface, edges_of_face, ierr); call CHKERR(ierr)
         enddo
 
-        print *,'plex_set_ltopfacepos... end'
+        if(ldebug) print *,'plex_set_ltopfacepos... end'
       end subroutine
 
       subroutine setup_plexgrid(dm, zindex, hhl, plex)
@@ -848,7 +848,7 @@ module m_plex_grid
         call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(coordSection, PETSC_NULL_SECTION, "-show_coordinates_section", ierr); call CHKERR(ierr)
         call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
-        print *,'Coord Section has size:', coordSize, '(',coordSize/3,' vertices)'
+        if(ldebug) print *,'Coord Section has size:', coordSize, '(',coordSize/3,' vertices)'
 
         call VecCreate(PETSC_COMM_SELF, coordinates, ierr); call CHKERR(ierr)
         call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
@@ -2102,7 +2102,6 @@ module m_plex_grid
     print *,myid,'fStart,End :: ',fStart, fEnd
     print *,myid,'eStart,End :: ',eStart, eEnd
     print *,myid,'vStart,End :: ',vStart, vEnd
-
   end subroutine
 
   subroutine ncvar2d_to_globalvec(plexgrid, filename, varname, gvec, timeidx, cell_ao_2d, cell_ao_3d)
@@ -2154,7 +2153,7 @@ module m_plex_grid
       if(ldebug) print *,'plex_grid::ncvar2d_to_globalvec : Loading file ', trim(ncgroups(1)), ':', trim(ncgroups(2))
       call ncload(ncgroups, arr, ierr)
       if(ierr.ne.0) then !try to load 3D data
-        print *,'Could not load 2D array Data, trying 3D var'
+        if(ldebug) print *,'Could not load 2D array Data, trying 3D var'
         call ncload(ncgroups, arr3d, ierr); call CHKERR(ierr, 'Could not load Data from NetCDF')
 
         k = get_arg(i1, timeidx)
