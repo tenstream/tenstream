@@ -23,7 +23,8 @@ use m_plex_grid, only: t_plexgrid, setup_plexgrid, get_normal_of_first_toa_face
 use m_plex_rt, only: compute_face_geometry, &
   t_plex_solver, init_plex_rt_solver
 
-use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, hydrostat_plev, print_tenstr_atm
+use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, print_tenstr_atm, &
+  reff_from_lwc_and_N, hydrostat_plev
 
 use m_plexrt_rrtmg, only: plexrt_rrtmg, destroy_plexrt_rrtmg
 
@@ -49,8 +50,8 @@ logical, parameter :: ldebug=.True.
       type(t_plexgrid), allocatable :: plex
       !type(tVec), allocatable :: lwcvec2d, iwcvec2d
       real(ireals), allocatable :: col_plev(:,:), col_tlev(:,:), dp(:)
-      real(ireals), allocatable :: col_lwc(:,:), col_reliq(:,:)
-      real(ireals), allocatable :: col_iwc(:,:), col_reice(:,:)
+      real(ireals), allocatable :: col_lwc(:,:), col_reliq(:,:), col_qnc(:,:)
+      real(ireals), allocatable :: col_iwc(:,:), col_reice(:,:), col_qni(:,:)
       real(ireals), parameter :: lapse_rate=6.5e-3, Tsrfc=288.3, minTemp=Tsrfc-50._ireals
 
       character(len=default_str_len),parameter :: atm_filename='afglus_100m.dat'
@@ -63,7 +64,7 @@ logical, parameter :: ldebug=.True.
 
       class(t_plex_solver), allocatable :: solver
 
-      type(tVec), allocatable :: lwcvec, iwcvec
+      type(tVec), allocatable :: lwcvec, iwcvec, qncvec, qnivec
 
       call init_mpi_data_parameters(comm)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -91,6 +92,11 @@ logical, parameter :: ldebug=.True.
         col_plev(:,i1), dp)
       deallocate(dp)
 
+      print *,'Dynamics Grid Pressure and Temperature'
+      do k = 1, Nlev
+        print *,k, col_plev(k, i1), col_tlev(k, i1)
+      enddo
+
       do k = 2, Ncol
         col_plev(:, k) =  col_plev(:, i1)
         col_tlev(:, k) =  col_tlev(:, i1)
@@ -108,21 +114,29 @@ logical, parameter :: ldebug=.True.
 
       !Load Data from iconfile and distribute it
       if(myid.eq.0) print *,'Read data from icondatafile', trim(icondatafile)
+
+      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'qnc', qncvec)
       call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'clw', lwcvec)
       call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
 
+      call dm2d_vec_to_Nz_Ncol(dm2d_dist, lwcvec, col_lwc); col_lwc = col_lwc * 1e3
+      call dm2d_vec_to_Nz_Ncol(dm2d_dist, qncvec, col_qnc); col_qnc = col_qnc * 1e-3
+      allocate(col_reliq(Nlay, Ncol))
+      col_reliq = min(40._ireals, max(2.5_ireals, reff_from_lwc_and_N(col_lwc, col_qnc)))
+      deallocate(col_qnc)
+      print *,'Min/Max Liquid effective Radius', minval(col_reliq), maxval(col_reliq)
+
+      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'qni', qnivec)
       call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'cli', iwcvec)
       call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
-      allocate(col_lwc(Nlay, Ncol), col_reliq(Nlay, Ncol), &
-               col_iwc(Nlay, Ncol), col_reice(Nlay, Ncol), source=zero)
-
-      call dm2d_vec_to_Nz_Ncol(dm2d_dist, lwcvec, col_lwc)
-      call dm2d_vec_to_Nz_Ncol(dm2d_dist, iwcvec, col_iwc)
-      col_lwc = col_lwc * 1e3_ireals ! kg to g
-      col_iwc = col_iwc * 1e3_ireals
-      col_reliq(:,:) = 2.5_ireals
-      col_reice(:,:) = 10._ireals
+      call dm2d_vec_to_Nz_Ncol(dm2d_dist, iwcvec, col_iwc); col_iwc = col_iwc * 1e3
+      call dm2d_vec_to_Nz_Ncol(dm2d_dist, qnivec, col_qni); col_qni = col_qni * 1e-3
+      allocate(col_reice(Nlay, Ncol))
+      ! k == .8 is for clean air
+      col_reice = min(120._ireals, max(5._ireals, reff_from_lwc_and_N(col_iwc, col_qni, k=.8_ireals)))
+      deallocate(col_qni)
+      print *,'Min/Max Ice effective Radius', minval(col_reice), maxval(col_reice)
 
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)
       call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)

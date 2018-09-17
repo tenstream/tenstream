@@ -165,25 +165,27 @@ module m_dyn_atm_to_rrtmg
         d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr, &
         d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice )
 
-      call check_shape(d_tlay  , atm%d_ke)
-      call check_shape(d_h2ovmr, atm%d_ke)
-      call check_shape(d_o3vmr , atm%d_ke)
-      call check_shape(d_co2vmr, atm%d_ke)
-      call check_shape(d_ch4vmr, atm%d_ke)
-      call check_shape(d_n2ovmr, atm%d_ke)
-      call check_shape(d_o2vmr , atm%d_ke)
-      call check_shape(d_lwc   , atm%d_ke)
-      call check_shape(d_reliq , atm%d_ke)
-      call check_shape(d_iwc   , atm%d_ke)
-      call check_shape(d_reice , atm%d_ke)
+      call check_shape(d_tlev  , atm%d_ke1,size(d_plev, 2))
+      call check_shape(d_tlay  , atm%d_ke, size(d_plev, 2))
+      call check_shape(d_h2ovmr, atm%d_ke, size(d_plev, 2))
+      call check_shape(d_o3vmr , atm%d_ke, size(d_plev, 2))
+      call check_shape(d_co2vmr, atm%d_ke, size(d_plev, 2))
+      call check_shape(d_ch4vmr, atm%d_ke, size(d_plev, 2))
+      call check_shape(d_n2ovmr, atm%d_ke, size(d_plev, 2))
+      call check_shape(d_o2vmr , atm%d_ke, size(d_plev, 2))
+      call check_shape(d_lwc   , atm%d_ke, size(d_plev, 2))
+      call check_shape(d_reliq , atm%d_ke, size(d_plev, 2))
+      call check_shape(d_iwc   , atm%d_ke, size(d_plev, 2))
+      call check_shape(d_reice , atm%d_ke, size(d_plev, 2))
 
       contains
-        subroutine check_shape(d_arr, k)
+        subroutine check_shape(d_arr, k, ncol)
           real(ireals), intent(in), optional :: d_arr(:,:)
-          integer(iintegers), intent(in) :: k
+          integer(iintegers), intent(in) :: k, ncol
 
           if(present(d_arr)) then
             call CHKERR(int(size(d_arr,1)-k, mpiint), 'bad vert size. got'//itoa(size(d_arr,1))//' expect '//itoa(k))
+            call CHKERR(int(size(d_arr,2)-ncol, mpiint), 'bad nr cols got'//itoa(size(d_arr,2))//' expect '//itoa(ncol))
           endif
         end subroutine
     end subroutine
@@ -728,13 +730,13 @@ module m_dyn_atm_to_rrtmg
       real(ireals) :: reff            ! effective radius [1e-6 m]
 
       real(ireals), parameter :: &
-        rho = 1e3_ireals, & ! water density @ 4degC
-        default_k = .75     ! airmass factor in between
+        rho = 1e3_ireals, &    ! water density @ 4degC
+        default_k = .75_ireals ! airmass factor in between
 
       if(present(k)) then
-        reff = 1e3 * (3 * lwc / (4*pi*rho*k*N)) ** (one/3)
+        reff = 1e3_ireals * (3._ireals * lwc / (4._ireals*pi*rho*k*max(epsilon(N),N))) ** (one/3._ireals)
       else
-        reff = 1e3 * (3 * lwc / (4*pi*rho*default_k*N)) ** (one/3)
+        reff = 1e3_ireals * (3._ireals * lwc / (4._ireals*pi*rho*default_k*max(epsilon(N),N))) ** (one/3._ireals)
       endif
     end function
   end module

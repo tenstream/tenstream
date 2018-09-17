@@ -23,6 +23,7 @@ module m_plex_grid
     setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
     print_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
+    compute_local_wedge_ordering, compute_local_vertex_coordinates, &
     get_inward_face_normal, create_plex_section, setup_plexgrid, &
     get_consecutive_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
     TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, &
@@ -1850,13 +1851,13 @@ module m_plex_grid
     BC = vertex_coord(:, 3) - vertex_coord(:, 2)
     AC = vertex_coord(:, 3) - vertex_coord(:, 1)
 
-    c = one
-    a = norm(BC) / norm(AB)
-    b = norm(AC) / norm(AB)
+    c = norm(AB)
+    a = norm(BC)
+    b = norm(AC)
 
-    !print *,'A', ivertices(1), vertex_coord(:, 1),':AB', AB
-    !print *,'B', ivertices(2), vertex_coord(:, 2),':BC', BC
-    !print *,'C', ivertices(3), vertex_coord(:, 3),':AC', AC
+    !print *,'A', ivertices(1), vertex_coord(:, 1),':AB', AB,' ::', a
+    !print *,'B', ivertices(2), vertex_coord(:, 2),':BC', BC,' ::', b
+    !print *,'C', ivertices(3), vertex_coord(:, 3),':AC', AC,' ::', c
 
     !nAB = cross_3d(vertex_coord(:, 1), AB)
     !nAB = nAB / norm(nAB)
@@ -1869,15 +1870,9 @@ module m_plex_grid
 
     local_coords(5:6) = [mu * b, sqrt(one - mu**2) * b]
 
-    if(any(local_coords.lt.zero)) then
-      print *,'Local Coords', local_coords
-      call CHKERR(1_mpiint, 'Found Wrong local coordinates, cant be negative')
-    endif
-    if(any(local_coords.gt.one)) then
-      print *,'Local Coords', local_coords
-      call CHKERR(1_mpiint, 'Found Wrong local coordinates, cant be gt one')
-    endif
-    local_coords = local_coords * norm(AB)
+    !print *,'local_coords A', local_coords(1:2)
+    !print *,'local_coords B', local_coords(3:4)
+    !print *,'local_coords C', local_coords(5:6)
   end subroutine
 
   !> @brief translate the ordering of faces in the DMPlex to the ordering we assume in the box-montecarlo routines

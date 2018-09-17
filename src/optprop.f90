@@ -177,8 +177,6 @@ contains
         print *,'wedge_coords:', wedge_coords
         call CHKERR(1_mpiint, 'provided wedge coords have to in local bmc coordinate system!')
       endif
-      if(wedge_coords(5).lt.0.35_ireals .or. wedge_coords(5).gt.0.65_ireals) &
-        call CHKERR(1_mpiint, 'wedge_coords(5) is outside the range we expected... take care of it somehow, do some magic! '//ftoa(wedge_coords(5)))
       call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, angles)
     endif
 
