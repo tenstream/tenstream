@@ -10,7 +10,6 @@ set( general_sources
 add_library( plexrt ${general_sources} )
 target_link_libraries( plexrt pprts_base ${LIB} ${EXTLIB} )
 
-
 add_executable( gen_plex_from_icon gen_plex_from_icon.F90 )
 target_link_libraries( gen_plex_from_icon plexrt pprts_base ${LIB} ${EXTLIB} )
 install(TARGETS gen_plex_from_icon DESTINATION bin)
