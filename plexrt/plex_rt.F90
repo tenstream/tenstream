@@ -362,7 +362,7 @@ module m_plex_rt
             call schwarz(solver, solution)
           else
             call twostream(solver%plex, solver%kabs, solver%ksca, solver%g, &
-              solver%albedo, sundir, solution)
+              solver%albedo, sundir, solution, plck=solver%plck, srfc_emission=solver%srfc_emission)
           endif
           call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
 
@@ -2012,6 +2012,8 @@ module m_plex_rt
 
 
       if(lthermal) then
+        if(.not.present(plck)) call CHKERR(1_mpiint, 'have to provide planck vec to compute thermal rad with twostr')
+        if(.not.present(srfc_emission)) call CHKERR(1_mpiint, 'have to provide srfc_emission to compute thermal rad with twostr')
         allocate(Blev(plex%Nlay+1))
         call VecGetArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
         call VecGetArrayReadF90(srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
