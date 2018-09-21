@@ -188,17 +188,17 @@ contains
     subroutine init_data_strings()
       logical :: lflg
       lwc_data_string = 'clw'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, 'lwc_data_string', lwc_data_string, lflg, ierr); call CHKERR(ierr)
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-lwc_data_string', lwc_data_string, lflg, ierr); call CHKERR(ierr)
       iwc_data_string = 'cli'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, 'iwc_data_string', iwc_data_string, lflg, ierr); call CHKERR(ierr)
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-iwc_data_string', iwc_data_string, lflg, ierr); call CHKERR(ierr)
       qnc_data_string = 'qnc'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, 'qnc_data_string', qnc_data_string, lflg, ierr); call CHKERR(ierr)
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qnc_data_string', qnc_data_string, lflg, ierr); call CHKERR(ierr)
       qni_data_string = 'qni'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, 'qni_data_string', qni_data_string, lflg, ierr); call CHKERR(ierr)
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qni_data_string', qni_data_string, lflg, ierr); call CHKERR(ierr)
       qv_data_string = 'qv'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, 'qv_data_string', qv_data_string, lflg, ierr); call CHKERR(ierr)
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qv_data_string', qv_data_string, lflg, ierr); call CHKERR(ierr)
       atm_filename='afglus_100m.dat'
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, 'atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
     end subroutine
   end subroutine
 end module
