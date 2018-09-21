@@ -38,7 +38,7 @@ module m_optprop_LUT
 
   use m_optprop_parameters, only:         &
     ldebug_optprop, lut_basename,         &
-    LUT_dump_interval,                    &
+    LUT_dump_interval, LUT_max_create_jobtime, &
     interp_mode_1_2,interp_mode_8_10,     &
     interp_mode_3_6,interp_mode_3_10,     &
     interp_mode_wedge_5_8,                &
@@ -448,8 +448,9 @@ subroutine createLUT(OPP, comm, config, S, T)
 
         logical :: ldoneS(OPP%diff_streams), ldoneT(OPP%dir_streams)
 
-        real :: starttime, now
+        real :: starttime, lastsavetime, now
         call cpu_time(starttime)
+        lastsavetime = starttime
 
         finalizedworkers=0
         if(present(T)) then
@@ -542,9 +543,8 @@ subroutine createLUT(OPP, comm, config, S, T)
                   print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._ireals/total_size,'%'
 
               call cpu_time(now)
-              if( (now-starttime).gt.LUT_dump_interval ) then !every 30 minutes wall clock time, dump the LUT.
-                print *,'Dumping LUT after ',(now-starttime)/60,'minutes'
-                starttime = now ! reset the countdown
+              if( (now-lastsavetime).gt.LUT_dump_interval .or. (now-starttime).gt.LUT_max_create_jobtime ) then !every 30 minutes wall clock time, dump the LUT.
+                print *,'Dumping LUT after ',(now-lastsavetime)/60,'minutes'
                 if(present(T)) then
                   print *,'Writing table to file...', T%table_name_c
                   call ncwrite(T%table_name_c  , T%c         ,iierr); call CHKERR(iierr, 'Could not write Table to file')
@@ -556,6 +556,10 @@ subroutine createLUT(OPP, comm, config, S, T)
                 print *,'Writing table to file...', S%table_name_tol
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr); call CHKERR(iierr, 'Could not write Table to file')
                 print *,'done writing!',iierr
+                lastsavetime = now ! reset the countdown
+                if((now-starttime).gt.LUT_max_create_jobtime) then
+                  call CHKERR(int(now-starttime, mpiint),'Maximum duration of create_LUT reached ... exiting')
+                endif
               endif
 
             case(FINALIZEMSG)
