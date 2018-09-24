@@ -125,7 +125,7 @@ contains
     ! opt_time is the model time in seconds. If provided we will track the error growth of the solutions
     ! and compute new solutions only after threshold estimate is exceeded.
     ! If solar_albedo_2d is present, we use a 2D surface albedo
-    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
+    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:), thermal_albedo_2d(:,:)
 
     real(ireals), optional, intent(in) :: phi2d(:,:), theta2d(:,:)
 
@@ -193,7 +193,8 @@ contains
     if(lthermal) then
       call compute_thermal(solver, atm, ie, je, ke, ke1, &
         albedo_thermal, &
-        edn, eup, abso, opt_time=opt_time, lrrtmg_only=lrrtmg_only)
+        edn, eup, abso, opt_time=opt_time, lrrtmg_only=lrrtmg_only, &
+        thermal_albedo_2d=thermal_albedo_2d)
     endif
 
     if(lsolar) then
@@ -229,7 +230,8 @@ contains
 
   subroutine compute_thermal(solver, atm, ie, je, ke, ke1, &
       albedo, &
-      edn, eup, abso, opt_time, lrrtmg_only)
+      edn, eup, abso, opt_time, lrrtmg_only, &
+      thermal_albedo_2d)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
     use m_tenstr_parrrtm, only: ngptlw, nbndlw
@@ -242,7 +244,7 @@ contains
 
     real(ireals),intent(inout),dimension(:,:,:) :: edn, eup, abso
 
-    real(ireals), optional, intent(in) :: opt_time
+    real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
 
     real(ireals),allocatable, target, dimension(:,:,:,:) :: tau, Bfrac  ! [nlyr, ie, je, ngptlw]
@@ -367,7 +369,8 @@ contains
           endif
         endif
 
-        call set_optical_properties(solver, albedo, kabs, ksca, g, reverse(Blev*Bfrac(:,:,:,ib)))
+        call set_optical_properties(solver, albedo, kabs, ksca, g, reverse(Blev*Bfrac(:,:,:,ib)), &
+            local_albedo_2d=thermal_albedo_2d)
         call solve_pprts(solver, zero, opt_solution_uid=500+ib, opt_solution_time=opt_time)
       endif
 
