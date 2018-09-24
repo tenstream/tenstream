@@ -59,21 +59,22 @@ module m_schwarzschild
           mu = (imu-.5_ireals)*dmu
           T = exp(- dtau/mu)
 
-          ! Boundary conditions at surface
-          Lup = planck(ke1) * (one-albedo)
-          Eup(ke1) = Eup(ke1) + Lup*mu
-
           ! zero incoming radiation at TOA
           Ldn = zero
           Edn(1) = Edn(1) + Ldn*mu
 
-          do k=ke,1,-1
-            Lup = Lup * T(k) + planck(k)*(one-T(k))
-            Eup(k) = Eup(k) + Lup*mu
-          enddo
           do k=1,ke
             Ldn = Ldn * T(k) + planck(k)*(one-T(k))
             Edn(k+1) = Edn(k+1) + Ldn*mu
+          enddo
+
+          ! Boundary conditions at surface
+          Lup = planck(ke1) * (one-albedo) + albedo*Ldn
+          Eup(ke1) = Eup(ke1) + Lup*mu
+
+          do k=ke,1,-1
+            Lup = Lup * T(k) + planck(k)*(one-T(k))
+            Eup(k) = Eup(k) + Lup*mu
           enddo
 
         enddo
