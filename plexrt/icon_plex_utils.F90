@@ -4,9 +4,9 @@ module m_icon_plex_utils
   use petsc
 
   use m_data_parameters, only : ireals, iintegers, mpiint, &
-    i0, i1, i2, i3, i4, i5, zero, one, default_str_len
+    i0, i1, i2, i3, i4, i5, zero, one, default_str_len, pi
 
-  use m_helper_functions, only: chkerr, itoa, norm, get_arg, imp_bcast
+  use m_helper_functions, only: chkerr, itoa, norm, get_arg, imp_bcast, deg2rad
 
   use m_plex_grid, only: t_plexgrid, print_dmplex, create_plex_section, TOAFACE
 
@@ -18,7 +18,7 @@ module m_icon_plex_utils
   public :: dmplex_2D_to_3D, create_2d_fish_plex, dump_ownership, &
     gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl, &
     icon_ncvec_to_plex, Nz_Ncol_vec_to_celldm1, celldm1_vec_to_Nz_Ncol, &
-    celldm_veccopy, dm2d_vec_to_Nz_Ncol
+    celldm_veccopy, dm2d_vec_to_Nz_Ncol, date_to_julian_day, get_sun_vector
 
   !logical, parameter :: ldebug=.True.
   logical, parameter :: ldebug=.False.
@@ -1356,5 +1356,89 @@ module m_icon_plex_utils
       endif
       call VecCopy(vin, vout, ierr); call CHKERR(ierr)
     end subroutine
+
+
+    !Convert a date to Julian Day.
+    !
+    ! Algorithm from 'Practical Astronomy with your Calculator or Spreadsheet',
+    !    4th ed., Duffet-Smith and Zwart, 2011.
+    !
+    !Parameters
+    !----------
+    !year : int
+    !    Year as integer. Years preceding 1 A.D. should be 0 or negative.
+    !    The year before 1 A.D. is 0, 10 B.C. is year -9.
+    !month : int
+    !    Month as integer, Jan = 1, Feb. = 2, etc.
+    !day : float
+    !    Day, may contain fractional part.
+    !Returns
+    !-------
+    !jd : float
+    !    Julian Day
+    !Examples
+    !--------
+    !Convert 6 a.m., February 17, 1985 to Julian Day
+    !
+    !>>> date_to_jd(1985,2,17.25)
+    !2446113.75
+    function date_to_julian_day(year,month,day) result(jd)
+    integer(iintegers), intent(in) :: year, month
+    real(ireals), intent(in) :: day
+    real(ireals) :: jd
+
+    integer(iintegers) :: yearp, monthp, A, B, C, D
+    if(month.eq.1 .or. month.eq.2) then
+      yearp = year - 1
+      monthp = month + 12
+    else
+      yearp = year
+      monthp = month
+    endif
+
+    ! this checks where we are in relation to October 15, 1582, the beginning
+    ! of the Gregorian calendar.
+    if ((year .lt. 1582) .or. &
+      (year .eq. 1582 .and. month .lt. 10) .or. &
+      (year .eq. 1582 .and. month .eq. 10 .and. day .lt. 15._ireals)) then
+      ! before start of Gregorian calendar
+      B = 0
+    else
+      ! after start of Gregorian calendar
+      A = int(yearp / 100._ireals)
+      B = 2 - A + int(A / 4._ireals)
+    endif
+
+    if(yearp .lt. 0) then
+      C = int((365.25_ireals * yearp) - 0.75_ireals)
+    else
+      C = int(365.25_ireals * yearp)
+    endif
+    D = int(30.6001_ireals * (monthp + 1))
+    jd = B + C + D + day + 1720994.5_ireals
+  end function
+
+  ! after the wiki page: https://en.wikipedia.org/wiki/Position_of_the_Sun
+  function get_sun_vector(year, month, day) result(sundir)
+    integer(iintegers), intent(in) :: year, month
+    real(ireals), intent(in) :: day
+    real(ireals) :: sundir(3)
+
+    real(ireals) :: n, L, g, lambda, delta, eps
+
+    n = date_to_julian_day(year,month,day) - 2451545.0_ireals
+    L = 280.460_ireals + 0.9856474_ireals * n
+    g = 357.528_ireals + 0.9856003_ireals * n
+
+    lambda = L + 1.915_ireals * sin(deg2rad(g)) + 0.020_ireals * sin(deg2rad(2*g))
+
+    eps = 23.439_ireals - 4e-7_ireals * n
+
+    delta = asin(sin(deg2rad(eps)) * sin(deg2rad(lambda)))
+
+    sundir = [ -cos(2*pi*day) * cos(delta), &
+                sin(2*pi*day) * cos(delta), &
+                sin(delta) ]
+  end function
 
 end module
