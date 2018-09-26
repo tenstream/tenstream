@@ -28,7 +28,7 @@ module m_pprts
     default_str_len
 
   use m_helper_functions, only : CHKERR, deg2rad, rad2deg, norm, imp_allreduce_min, &
-    imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, mean, get_arg, approx, &
+    imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
     inc, itoa
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
@@ -3582,9 +3582,9 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     endif
 
     if(solver%myid.eq.0 .and. ldebug .and. present(redir)) &
-      print *,'mean surface Edir',mean(redir(ubound(redir,1),:,:))
-    if(solver%myid.eq.0 .and. ldebug) print *,'mean surface Edn',mean(redn(ubound(redn,1), :,:))
-    if(solver%myid.eq.0 .and. ldebug) print *,'mean surface Eup',mean(reup(ubound(reup,1), :,:))
+      print *,'mean surface Edir',meanval(redir(ubound(redir,1),:,:))
+    if(solver%myid.eq.0 .and. ldebug) print *,'mean surface Edn',meanval(redn(ubound(redn,1), :,:))
+    if(solver%myid.eq.0 .and. ldebug) print *,'mean surface Eup',meanval(reup(ubound(reup,1), :,:))
 
     if(ldebug .and. solver%solutions(uid)%lsolar_rad) then
       if(any(redn.lt.-one)) then

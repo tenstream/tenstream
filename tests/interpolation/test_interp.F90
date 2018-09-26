@@ -1,6 +1,6 @@
 module test_interp
     use m_data_parameters, only: iintegers, ireals, default_str_len, one, zero
-    use m_helper_functions, only: ndarray_offsets, mean
+    use m_helper_functions, only: ndarray_offsets, meanval
     use m_tenstream_interpolation, only: interp_1d, interp_vec_1d, interp_2d, &
       interp_vec_simplex_nd
 
@@ -155,7 +155,7 @@ contains
 
     ! Center point
     call interp_vec_simplex_nd([one, one, one]+.5_ireals, db, db_offsets, res)
-    @assertEqual(mean(db), res(1),  tol, msg)
+    @assertEqual(meanval(db), res(1),  tol, msg)
 
   end subroutine
 
@@ -219,7 +219,7 @@ contains
 
     ! Center point
     call interp_vec_simplex_nd([one, one, one, one]+.5_ireals, db, db_offsets, res)
-    @assertEqual(mean(db), res(1),  tol, msg)
+    @assertEqual(meanval(db), res(1),  tol, msg)
 
   end subroutine
 

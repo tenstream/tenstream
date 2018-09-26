@@ -28,7 +28,7 @@ module m_helper_functions
   implicit none
 
   private
-  public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,mean,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum, cumprod,   &
+  public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum, cumprod,   &
     inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR, assertEqual,   &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
@@ -40,8 +40,8 @@ module m_helper_functions
   interface itoa
     module procedure itoa_i4, itoa_i8
   end interface
-  interface mean
-    module procedure mean_1d, mean_2d
+  interface meanval
+    module procedure meanval_1d, meanval_2d, meanval_3d
   end interface
   interface imp_bcast
     module procedure imp_bcast_real_1d, imp_bcast_real_2d, imp_bcast_real_3d, imp_bcast_real_5d, &
@@ -234,19 +234,24 @@ module m_helper_functions
     pure function rmse(a,b)
       real(ireals) :: rmse(2)
       real(ireals),intent(in) :: a(:),b(:)
-      rmse(1) = sqrt( mean( (a-b)**2 ) )
-      rmse(2) = rmse(1)/max( mean(b), epsilon(rmse) )
+      rmse(1) = sqrt( meanval( (a-b)**2 ) )
+      rmse(2) = rmse(1)/max( meanval(b), epsilon(rmse) )
     end function
 
-    pure function mean_1d(arr)
-      real(ireals) :: mean_1d
+    pure function meanval_1d(arr) result(mean)
+      real(ireals) :: mean
       real(ireals),intent(in) :: arr(:)
-      mean_1d = sum(arr)/size(arr)
+      mean = sum(arr)/size(arr)
     end function
-    pure function mean_2d(arr)
-      real(ireals) :: mean_2d
+    pure function meanval_2d(arr) result(mean)
+      real(ireals) :: mean
       real(ireals),intent(in) :: arr(:,:)
-      mean_2d = sum(arr)/size(arr)
+      mean = sum(arr)/size(arr)
+    end function
+    pure function meanval_3d(arr) result(mean)
+      real(ireals) :: mean
+      real(ireals),intent(in) :: arr(:,:,:)
+      mean = sum(arr)/size(arr)
     end function
 
     elemental logical function approx(a,b,precis)

@@ -27,7 +27,7 @@ module m_f2c_pprts
 
       use m_tenstream_options, only: read_commandline_options
 
-      use m_helper_functions, only: imp_bcast, mean, CHKERR
+      use m_helper_functions, only: imp_bcast, meanval, CHKERR
 
       use m_pprts_base, only : t_solver, t_solver_8_10, t_solver_3_10, t_solver_3_6, t_solver_1_2, t_coord
       use m_pprts, only : init_pprts, set_global_optical_properties, solve_pprts, destroy_pprts, &
@@ -176,10 +176,10 @@ contains
         call set_global_optical_properties(solver, oalbedo, okabs, oksca, og)
       endif
 
-      print *,'mean kabs  ',sum(okabs)  /size(okabs)
-      print *,'mean ksca  ',sum(oksca)  /size(oksca)
-      print *,'mean g     ',sum(og)     /size(og)
-      print *,'mean planck',sum(oplanck)/size(oplanck)
+      print *,'mean kabs  ',meanval(okabs)
+      print *,'mean ksca  ',meanval(oksca)
+      print *,'mean g     ',meanval(og)
+      print *,'mean planck',meanval(oplanck)
     else !slave
       call set_global_optical_properties(solver)
     endif
