@@ -282,9 +282,9 @@ contains
     @mpiassertEqual(atm%plev(1:atm%d_ke1, :) + one, atm2%plev(1:atm%d_ke1, :))
     @mpiassertEqual(atm%tlev(1:atm%d_ke1, :) + one, atm2%tlev(1:atm%d_ke1, :))
 
-    @mpiassertEqual(atm%tlay (1:atm%d_ke, :) + one, atm2%tlay (1:atm%d_ke, :))
-    @mpiassertEqual(atm%lwc  (1:atm%d_ke, :) *-one, atm2%lwc  (1:atm%d_ke, :))
-    @mpiassertEqual(atm%reliq(1:atm%d_ke, :) *-one, atm2%reliq(1:atm%d_ke, :))
+    @mpiassertEqual(atm%tlay (1:atm%d_ke, :) + one  , atm2%tlay (1:atm%d_ke, :))
+    @mpiassertEqual(atm%lwc  (1:atm%d_ke, :) *(-one), atm2%lwc  (1:atm%d_ke, :))
+    @mpiassertEqual(atm%reliq(1:atm%d_ke, :) *(-one), atm2%reliq(1:atm%d_ke, :))
 
     if(lverbose .and. myid.eq.0) then
       do k = 1,size(atm2%bg_atm%plev,1)
@@ -315,7 +315,6 @@ contains
   @test(npes =[1])
   subroutine test_compute_reff(this)
     class (MpiTestMethod), intent(inout) :: this
-    real(ireals) :: lwc, N, reff
 
     @assertEqual(6.827840_ireals, reff_from_lwc_and_N(.1_ireals, 100._ireals), 1e-4_ireals, 'Wrong reff')
     @assertEqual(14.71014_ireals, reff_from_lwc_and_N(1._ireals, 100._ireals), 1e-4_ireals, 'Wrong reff')
@@ -341,7 +340,7 @@ contains
     character(default_str_len),parameter :: atm_filename='afglus_100m.dat'
 
     !------------ Local vars ------------------
-    integer(iintegers) :: k, kt, icld
+    integer(iintegers) :: k
 
     type(t_tenstr_atm) :: atm
     logical, parameter :: lverbose=.True.
