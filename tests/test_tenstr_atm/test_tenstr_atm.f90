@@ -323,4 +323,71 @@ contains
     @assertEqual(5.419261_ireals, reff_from_lwc_and_N(.1_ireals, 200._ireals), 1e-4_ireals, 'Wrong reff')
     @assertEqual(11.67544_ireals, reff_from_lwc_and_N(1._ireals, 200._ireals), 1e-4_ireals, 'Wrong reff')
   end subroutine
+
+  @test(npes =[1])
+  subroutine test_3D_surface_heights(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    ! MPI variables and domain decomposition sizes
+    integer(mpiint) :: numnodes, comm, myid
+
+    integer(iintegers),parameter :: ncol=2, nzp=3
+    real(ireals), dimension(nzp+1, ncol) :: plev ! pressure on layer interfaces [hPa]
+    real(ireals), dimension(nzp+1, ncol) :: tlev ! Temperature on layer interfaces [K]
+    real(ireals), dimension(ncol) :: hsrfc
+
+    ! Filename of background atmosphere file. ASCII file with columns:
+    ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
+    character(default_str_len),parameter :: atm_filename='afglus_100m.dat'
+
+    !------------ Local vars ------------------
+    integer(iintegers) :: k, kt, icld
+
+    type(t_tenstr_atm) :: atm
+    logical, parameter :: lverbose=.True.
+
+    real(ireals), parameter :: srfc_offset = 1e3_ireals
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    ! Have to call init_mpi_data_parameters() to define datatypes
+    call init_mpi_data_parameters(comm)
+
+    ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
+    ! Temperature difference of 32.5K
+    do k=1,nzp+1
+      plev(k,:) = 1000_ireals - (k-one)*500._ireals/(nzp)
+      tlev(k,:) = 288._ireals - (k-one)*(5*6.5_ireals)/(nzp)
+    enddo
+    hsrfc = [zero, srfc_offset]
+
+    call setup_tenstr_atm(comm, .False., atm_filename, plev, tlev, atm, d_surface_height=hsrfc )
+
+    if(lverbose .and. myid.eq.0) then
+      print *,'Shape of background profile:', shape(atm%bg_atm%plev)
+      print *,'Shape of dynamics grid:', shape(plev)
+      print *,'Shape of merged grid:', shape(atm%plev)
+      print *,'atm_ke', atm%atm_ke
+    endif
+
+    if(lverbose .and. myid.eq.0) then
+      do k = 1,size(atm%bg_atm%plev,1)
+        print *,'Pressure on Background', k,':', atm%bg_atm%plev(k), 'Tlev', atm%bg_atm%tlev(k)
+      enddo
+
+      do k = size(plev,1),1,-1
+        print *,'Pressure on Dynamics Grid', k,':', plev(k,1), 'Tlev', tlev(k,1)
+      enddo
+
+      do k = size(atm%plev,1), 1, -1
+        print *,'Pressure on Merged Grid', k,':', atm%plev(k,1),'Tlev', atm%tlev(k,1)
+      enddo
+    endif
+
+    do k = 1, size(plev,1)
+      @mpiassertEqual(atm%zt(k,1), atm%zt(k,2)-srfc_offset, 1e-8_ireals)
+    enddo
+  end subroutine
 end module

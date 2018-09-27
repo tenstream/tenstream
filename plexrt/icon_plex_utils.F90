@@ -31,7 +31,7 @@ module m_icon_plex_utils
     subroutine dmplex_2D_to_3D(dm2d, ke1, hhl, dm3d, zindex)
       type(tDM), intent(in) :: dm2d
       integer(iintegers), intent(in) :: ke1 ! number of levels for the 3D DMPlex
-      real(ireals), intent(in) :: hhl(:) ! height levels of interfaces, those will be added to base height of 2D elements, starting at Top of Atmosphere, either of shape(nlev) or shape(nlev*nverts)
+      real(ireals), intent(in) :: hhl(:) ! height levels of interfaces, those will be added to base height of 2D elements, either of shape(nlev) or shape(nlev*nverts)
       type(tDM), intent(out) :: dm3d
       ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1, fortran indexing, i.e. start with k=1
       integer(iintegers), allocatable, intent(out) :: zindex(:)

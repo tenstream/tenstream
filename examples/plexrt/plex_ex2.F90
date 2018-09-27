@@ -45,6 +45,7 @@ logical, parameter :: ldebug=.True.
       type(tVec), allocatable :: lwcvec, iwcvec
       real(ireals), parameter :: Ag=.15
 
+      integer(iintegers) :: Nlev
       integer(iintegers), allocatable :: zindex(:)
 
       real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
@@ -57,10 +58,11 @@ logical, parameter :: ldebug=.True.
 
       call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, dm2d_dist, &
         migration_sf, cell_ao_2d)
-      call dmplex_2D_to_3D(dm2d_dist, size(icon_hdcp2_default_hhl, kind=iintegers), icon_hdcp2_default_hhl, dm3d, zindex)
+      Nlev = size(icon_hdcp2_default_hhl, kind=iintegers)
+      call dmplex_2D_to_3D(dm2d_dist, Nlev, icon_hdcp2_default_hhl, dm3d, zindex)
 
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
-      call setup_plexgrid(dm3d, zindex, icon_hdcp2_default_hhl, plex)
+      call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
 
       call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'clw', lwcvec, dm3d=dm3d)
       call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)

@@ -31,6 +31,7 @@ module m_gen_plex_from_icon
 
       type(tVec), allocatable :: clw
 
+      integer(iintegers) :: Nlev
       integer(iintegers), allocatable :: zindex(:)
 
       call PetscInitialize(PETSC_NULL_CHARACTER,ierr); call CHKERR(ierr)
@@ -54,10 +55,11 @@ module m_gen_plex_from_icon
       endif
 
       call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, dm2d_dist, distribute_point_sf, cell_ao_2d)
-      call dmplex_2D_to_3D(dm2d_dist, size(icon_hdcp2_default_hhl, kind=iintegers), icon_hdcp2_default_hhl, dm3d, zindex)
+      Nlev = size(icon_hdcp2_default_hhl, kind=iintegers)
+      call dmplex_2D_to_3D(dm2d_dist, Nlev, icon_hdcp2_default_hhl, dm3d, zindex)
 
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
-      call setup_plexgrid(dm3d, zindex, icon_hdcp2_default_hhl, plex)
+      call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
 
       call ncvar2d_to_globalvec(plex, datafile, 'clw', clw, cell_ao_2d=cell_ao_2d)
       call PetscObjectViewFromOptions(clw, PETSC_NULL_VEC, '-show_clw', ierr); call CHKERR(ierr)

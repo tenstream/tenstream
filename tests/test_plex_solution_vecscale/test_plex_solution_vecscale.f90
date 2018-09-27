@@ -66,7 +66,7 @@ implicit none
 
       call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex)
 
-      call setup_plexgrid(dm3d, zindex, hhl, plex)
+      call setup_plexgrid(dm3d, Nz-1, zindex, plex)
       deallocate(zindex)
 
       call prepare_solution(plex%edir_dm, plex%ediff_dm, plex%abso_dm, lsolar=.True., solution=solution)

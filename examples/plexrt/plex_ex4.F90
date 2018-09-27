@@ -58,7 +58,7 @@ contains
 
     type(t_tenstr_atm) :: atm
     integer(iintegers), allocatable :: zindex(:)
-    integer(iintegers) :: k, fStart, fEnd, Ncol, Nlev, Nlay
+    integer(iintegers) :: k, fStart, fEnd, Ncol, dNlev, dNlay, Nlev
     real(ireals), allocatable, dimension(:,:) :: edir,edn,eup,abso
 
     real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
@@ -76,26 +76,26 @@ contains
 
     call DMPlexGetHeightStratum(dm2d_dist, i0, fStart, fEnd, ierr); call CHKERR(ierr)
     Ncol = fEnd - fStart
-    Nlev = size(icon_hdcp2_default_hhl); Nlay = Nlev-1
+    dNlev = size(icon_hdcp2_default_hhl); dNlay = dNlev-1
 
-    if(myid.eq.0) print *,'Dynamics Grid has Size Nlev, Ncol:', Nlev, Ncol
+    if(myid.eq.0) print *,'Dynamics Grid has Size Nlev, Ncol:', dNlev, Ncol
 
     ! prepare atmosphere
-    allocate(col_tlev(Nlev, Ncol))
-    allocate(col_plev(Nlev, Ncol))
+    allocate(col_tlev(dNlev, Ncol))
+    allocate(col_plev(dNlev, Ncol))
 
-    do k = 1, Nlev
-      col_tlev(k, i1) = max(minTemp, Tsrfc - (lapse_rate * icon_hdcp2_default_hhl(Nlev-(k-1))))
+    do k = 1, dNlev
+      col_tlev(k, i1) = max(minTemp, Tsrfc - (lapse_rate * icon_hdcp2_default_hhl(dNlev-(k-1))))
     enddo
 
-    allocate(dp(Nlay))
+    allocate(dp(dNlay))
     call hydrostat_plev(1013._ireals, meanvec(col_tlev(:,i1)), reverse(icon_hdcp2_default_hhl), &
       col_plev(:,i1), dp)
     deallocate(dp)
 
     if(myid.eq.0) then
       print *,'Dynamics Grid Pressure and Temperature'
-      do k = 1, Nlev
+      do k = 1, dNlev
         print *,k, col_plev(k, i1), col_tlev(k, i1)
       enddo
     endif
@@ -108,6 +108,7 @@ contains
     call init_data_strings()
 
     call setup_tenstr_atm(comm, .False., atm_filename, col_plev, col_tlev, atm)
+    Nlev = size(atm%plev,1,kind=iintegers)
 
     !call print_tenstr_atm(atm)
 
@@ -115,7 +116,7 @@ contains
     call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
 
     call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
-    call setup_plexgrid(dm3d, zindex, reverse(atm%zt(:, i1)), plex)
+    call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
 
     !Load Data from iconfile and distribute it
     if(myid.eq.0) print *,'Read data from icondatafile', trim(icondatafile)
@@ -128,7 +129,7 @@ contains
     call VecDestroy(lwcvec, ierr); call CHKERR(ierr)
     call dm2d_vec_to_Nz_Ncol(dm2d_dist, qncvec, col_qnc); col_qnc = col_qnc * 1e-3
     call VecDestroy(qncvec, ierr); call CHKERR(ierr)
-    allocate(col_reliq(Nlay, Ncol))
+    allocate(col_reliq(dNlay, Ncol))
     col_reliq = min(40._ireals, max(2.5_ireals, reff_from_lwc_and_N(col_lwc, col_qnc)))
     deallocate(col_qnc)
     if(myid.eq.0) print *,'Min/Max Liquid effective Radius', minval(col_reliq), maxval(col_reliq)
@@ -141,7 +142,7 @@ contains
     call VecDestroy(iwcvec, ierr); call CHKERR(ierr)
     call dm2d_vec_to_Nz_Ncol(dm2d_dist, qnivec, col_qni); col_qni = col_qni * 1e-3
     call VecDestroy(qnivec, ierr); call CHKERR(ierr)
-    allocate(col_reice(Nlay, Ncol))
+    allocate(col_reice(dNlay, Ncol))
     ! k == .8 is for clean air
     col_reice = min(120._ireals, max(5._ireals, reff_from_lwc_and_N(col_iwc, col_qni, k=.8_ireals)))
     deallocate(col_qni)

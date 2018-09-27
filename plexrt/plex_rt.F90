@@ -648,7 +648,6 @@ module m_plex_rt
           real(ireals) :: dir2diff(8)
           logical :: lsrc(5)
 
-          integer(iintegers) :: zindex
           real(ireals) :: dz, coeff(5*8)
           integer(iintegers), pointer :: xinoutdof(:)
 
@@ -689,8 +688,8 @@ module m_plex_rt
             enddo
             call face_idx_to_diff_bmc_idx(face_plex2bmc, diff_plex2bmc)
 
-            zindex = plex%zindex(icell)
-            dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+            call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+            dz = geoms(i1+geom_offset)
 
             call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
             call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
@@ -813,7 +812,7 @@ module m_plex_rt
           integer(iintegers) :: wedge_offset, geom_offset
 
           integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
-          integer(iintegers) :: i, j, zindex, icell, icol, iface, idof, numDof
+          integer(iintegers) :: i, j, icell, icol, iface, idof, numDof
           real(ireals) :: dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
 
           integer(iintegers), pointer :: xinoutdof(:)
@@ -835,8 +834,8 @@ module m_plex_rt
             enddo
             call face_idx_to_diff_bmc_idx(face_plex2bmc, diff_plex2bmc)
 
-            zindex = plex%zindex(icell)
-            dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+            call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+            dz = geoms(i1+geom_offset)
 
             call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
             call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
@@ -1135,7 +1134,6 @@ module m_plex_rt
     real(ireals) :: dir2dir(5)
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
 
-    integer(iintegers) :: zindex
     real(ireals) :: dz, coeff(5**2) ! coefficients for each src=[1..5] and dst[1..5]
 
     logical, parameter :: lonline=.False.
@@ -1181,8 +1179,8 @@ module m_plex_rt
         lsrc(iface) = nint(wedgeorient(wedge_offset+i8+iface), iintegers) .eq. i1
       enddo
 
-      zindex = plex%zindex(icell)
-      dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+      call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+      dz = geoms(i1+geom_offset)
 
       call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
       call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
@@ -1250,7 +1248,7 @@ module m_plex_rt
         use m_plex_grid, only: compute_local_wedge_ordering, compute_local_vertex_coordinates
         type(tIS) :: IS_side_faces
         integer(iintegers), pointer :: iside_faces(:), cell_support(:)
-        real(ireals) :: center_top(3), dz
+        real(ireals) :: dz
         integer(iintegers) :: o, i, j, icell, iface_top, iface_side, irow, icol, idst, isrc
         real(ireals) :: dir2dir(5)
         real(ireals) :: inv_sundir(3), mean_dx
@@ -1305,17 +1303,14 @@ module m_plex_rt
               faces_of_cell(right_face), &
               coords_2d)
 
-            call PetscSectionGetFieldOffset(geomSection, faces_of_cell(upper_face), i0, geom_offset, ierr); call CHKERR(ierr)
-            center_top = geoms(i1+geom_offset:geom_offset+i3)
-            call PetscSectionGetFieldOffset(geomSection, faces_of_cell(bottom_face), i0, geom_offset, ierr); call CHKERR(ierr)
-            dz = norm(center_top - geoms(i1+geom_offset:geom_offset+i3))
+            call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+            dz = geoms(i1+geom_offset)
 
             !print *,'az', rad2deg(azimuth), rad2deg(zenith), dz
             !print *,'upper_face, bottom_face', upper_face, bottom_face
             !print *,'base_face, left_face, right_face', base_face, left_face, right_face
             !print *,'coords2d', coords_2d
             !print *,'face_plex2bmc', face_plex2bmc
-
 
             call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
               dz, coords_2d, .True., coeff, ierr, &
@@ -1388,7 +1383,6 @@ module m_plex_rt
 
     real(ireals) :: diff2diff(8)
 
-    integer(iintegers) :: zindex
     real(ireals) :: dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
     integer(iintegers), pointer :: xinoutdof(:)
     real(ireals) :: area_top, area_bot
@@ -1435,8 +1429,8 @@ module m_plex_rt
       enddo
       call face_idx_to_diff_bmc_idx(face_plex2bmc, diff_plex2bmc)
 
-      zindex = plex%zindex(icell)
-      dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+      call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+      dz = geoms(i1+geom_offset)
 
       !print *,'icell',icell,': foc',faces_of_cell
       !print *,'icell',icell,':',face_plex2bmc
@@ -1872,10 +1866,10 @@ module m_plex_rt
     type(tIS) :: boundary_ids
     integer(iintegers), pointer :: xitoa(:), cell_support(:)
     integer(iintegers), allocatable :: cell_idx(:)
-    integer(iintegers) :: i, k, icell, iface, zindex, voff, ke1
+    integer(iintegers) :: i, k, icell, iface, voff, ke1, geom_offset
     real(ireals) :: dz
-    real(ireals), pointer :: xkabs(:), xalbedo(:), xplck(:), xsrfc_emission(:), xediff(:)
-    type(tPetscSection) :: ediff_section
+    real(ireals), pointer :: xkabs(:), xalbedo(:), xplck(:), xsrfc_emission(:), xediff(:), xgeoms(:)
+    type(tPetscSection) :: ediff_section, geom_section
 
     integer(mpiint) :: ierr
 
@@ -1893,6 +1887,8 @@ module m_plex_rt
       allocate(Eup (plex%Nlay+1))
 
       call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+      call DMGetSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
       call VecGetArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
@@ -1912,11 +1908,10 @@ module m_plex_rt
         do k=1,ke1-1
           icell = cell_idx(k)
 
-          zindex = plex%zindex(icell)
-          dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+          call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          dz = xgeoms(i1+geom_offset)
 
           dtau(k) = xkabs(i1+icell) * dz
-
           Blev(k) = xplck(i1+icell)
         enddo
         Blev(k) = xsrfc_emission(i)
@@ -1968,7 +1963,7 @@ module m_plex_rt
     type(tIS) :: boundary_ids
     integer(iintegers), pointer :: xitoa(:), cell_support(:)
     integer(iintegers), allocatable :: cell_idx(:)
-    integer(iintegers) :: i, k, icell, iface, zindex, voff, ke1
+    integer(iintegers) :: i, k, icell, iface, voff, ke1, geom_offset
     real(ireals) :: dz, theta0
     real(ireals), pointer :: xksca(:), xkabs(:), xg(:), xalbedo(:), xplck(:), xsrfc_emission(:)
     real(ireals), pointer :: xedir(:), xediff(:), xgeoms(:)
@@ -2040,8 +2035,8 @@ module m_plex_rt
         do k=1,ke1-1
           icell = cell_idx(k)
 
-          zindex = plex%zindex(icell)
-          dz = plex%hhl(zindex) - plex%hhl(zindex+1)
+          call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          dz = xgeoms(i1+geom_offset)
 
           vdtau(k) = (xkabs(i1+icell) + xksca(i1+icell)) * dz
           vw0(k)   = xksca(i1+icell) / max(epsilon(vw0), xkabs(i1+icell) + xksca(i1+icell))

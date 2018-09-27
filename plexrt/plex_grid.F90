@@ -27,7 +27,8 @@ module m_plex_grid
     get_inward_face_normal, create_plex_section, setup_plexgrid, &
     get_consecutive_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
     TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, &
-    determine_diff_incoming_outgoing_offsets, get_normal_of_first_TOA_face
+    determine_diff_incoming_outgoing_offsets, get_normal_of_first_TOA_face, &
+    interpolate_horizontal_face_var_onto_vertices, get_horizontal_faces_around_vertex
 
   logical, parameter :: ldebug=.False.
 
@@ -73,8 +74,6 @@ module m_plex_grid
     type(tDMLabel), allocatable :: boundarylabel        ! 1 if boundary of local mesh
     type(tDMLabel), allocatable :: domainboundarylabel  ! TOAFACE if top, SIDEFACE if side face, BOTFACE if bot face, -1 otherwise
     type(tDMLabel), allocatable :: ownerlabel           ! rank that posses this element
-
-    real(ireals),allocatable :: hhl(:) ! vertical height of horizontal faces, i.e. height of levels, starting at TOA
   end type
 
   integer(iintegers), parameter :: TOAFACE=1, SIDEFACE=2, BOTFACE=3
@@ -149,7 +148,7 @@ module m_plex_grid
         deallocate(plex%ownerlabel)
       endif
 
-      if(allocated(plex%hhl)) deallocate(plex%hhl)
+      !if(allocated(plex%hhl)) deallocate(plex%hhl)
 
       plex%comm = -1
     end subroutine
@@ -183,7 +182,6 @@ module m_plex_grid
 
       plex%Nlay = Nlay
       if(size(hhl).ne.Nlay+1) stop 'plex_grid::create_plex_from_icongrid -> hhl does not fit the size of Nlay+1'
-      allocate(plex%hhl(Nlay+1), source=hhl)
 
       plex%Ncells    = icongrid%Nfaces * plex%Nlay
       plex%Nfaces    = icongrid%Nfaces * (plex%Nlay+1) + icongrid%Nedges * plex%Nlay
@@ -407,7 +405,7 @@ module m_plex_grid
       call update_plex_indices(plex)
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : set coords'
-      call set_coords(plex, icongrid)
+      call set_coords(plex, icongrid, hhl)
 
       call PetscObjectSetName(plex%dm, 'Icon DMPLEX', ierr);call CHKERR(ierr)
 
@@ -467,10 +465,9 @@ module m_plex_grid
         if(ldebug) print *,'plex_set_ltopfacepos... end'
       end subroutine
 
-      subroutine setup_plexgrid(dm, zindex, hhl, plex)
+      subroutine setup_plexgrid(dm, Nlay, zindex, plex)
         type(tDM), intent(in) :: dm
-        integer(iintegers), intent(in) :: zindex(:)
-        real(ireals), intent(in) :: hhl(:)
+        integer(iintegers), intent(in) :: Nlay, zindex(:)
         type(t_plexgrid), allocatable, intent(inout) :: plex
 
         integer(iintegers) :: pStart, pEnd
@@ -490,11 +487,8 @@ module m_plex_grid
         call DMPlexGetDepthStratum(plex%dm, i1, plex%eStart, plex%eEnd, ierr); call CHKERR(ierr) ! edges
         call DMPlexGetDepthStratum(plex%dm, i0, plex%vStart, plex%vEnd, ierr); call CHKERR(ierr) ! vertices
 
-        plex%Nlay = size(hhl, kind=iintegers)-1
+        plex%Nlay = Nlay
         allocate(plex%zindex(pStart:pEnd-1), source=zindex)
-        allocate(plex%hhl(size(hhl)), source=hhl)
-        if(size(hhl).lt.2) call CHKERR(1_mpiint, 'need at least two height levels to construct a PLEXRT mesh')
-        if(hhl(1).lt.hhl(2)) call CHKERR(1_mpiint, 'hhl has to be from TOA to surface')
 
         call compute_face_geometry(plex, plex%geom_dm)
 
@@ -811,9 +805,10 @@ module m_plex_grid
         if(ldebug.and.myid.eq.0) print *,'facevec2cellvec :: end'//trim(faceVecname)
       end subroutine
 
-      subroutine set_coords(plex, icongrid)
+      subroutine set_coords(plex, icongrid, hhl)
         type(t_icongrid), intent(in) :: icongrid
         type(t_plexgrid), intent(inout) :: plex
+        real(ireals), intent(in) :: hhl(:)
 
         real(ireals), pointer :: coords(:)
         type(tVec)            :: coordinates
@@ -828,7 +823,7 @@ module m_plex_grid
         integer(mpiint) :: ierr
         integer(iintegers) :: i, k, ivertex
 
-        if(.not.allocated(plex%hhl)) stop 'plex_grid::set_coords -> plex%hhl is not allocated. Need to know the height of the grid before I can setup the coordinates!'
+        !if(.not.allocated(plex%hhl)) stop 'plex_grid::set_coords -> plex%hhl is not allocated. Need to know the height of the grid before I can setup the coordinates!'
 
         l_is_spherical_coords = any(.not. approx(icongrid%cartesian_z_vertices, zero))
 
@@ -871,9 +866,9 @@ module m_plex_grid
                           icongrid%cartesian_z_vertices(i)]
 
             if(l_is_spherical_coords) then
-              cart_coord = cart_coord * (sphere_radius + plex%hhl(k))
+              cart_coord = cart_coord * (sphere_radius + hhl(k))
             else
-              cart_coord(3) = plex%hhl(k)
+              cart_coord(3) = hhl(k)
             endif
             coords(voff+i1 : voff+dimEmbed) = cart_coord(i1:dimEmbed)
           enddo
@@ -1087,7 +1082,7 @@ module m_plex_grid
     integer(iintegers), pointer :: vertices(:)
 
     type(tPetscSection) :: coordSection, geomSection
-    integer(iintegers) :: Ndim, voff0, voff1, voff2
+    integer(iintegers) :: Ndim, voff0, voff1, voff2, voff3
 
     real(ireals), allocatable :: vertex_coord(:,:) ! shape (Nvertices, dims)
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
@@ -1108,8 +1103,9 @@ module m_plex_grid
     ! field 0: 3 dof for centroid on cells and faces
     ! field 1: 3 for normal vecs on faces
     ! field 2: and 1 cell, face and edge entry for volume, area, length
-    call create_plex_section(dm, 'Geometry Section', i3, &
-      [i3, i0, i1], [i3, i3, i1], [i0, i0, i1], [i0, i0, i0], geomSection)
+    ! field 3: dz on cells
+    call create_plex_section(dm, 'Geometry Section', i4, &
+      [i3, i0, i1, i1], [i3, i3, i1, i0], [i0, i0, i1, i0], [i0, i0, i0, i0], geomSection)
     call DMSetSection(dm, geomSection, ierr); call CHKERR(ierr)
     call PetscSectionDestroy(geomSection, ierr); call CHKERR(ierr)
     call DMGetSection(dm, geomSection, ierr); call CHKERR(ierr)
@@ -1215,6 +1211,10 @@ module m_plex_grid
 
       call DMPlexRestoreTransitiveClosure(dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
       deallocate(vertex_coord)
+
+      ! dz as the distance between top and bot face centroids
+      call PetscSectionGetFieldOffset(geomSection, icell, i3, voff3, ierr); call CHKERR(ierr)
+      geoms(i1+voff3) = height
     enddo
 
     call VecRestoreArrayReadF90(coordinates, coords, ierr); call CHKERR(ierr)
@@ -2670,4 +2670,76 @@ module m_plex_grid
       get_normal_of_first_TOA_face = face_normal
 
     end function
+
+    ! takes the average of horizontal face values around a vertex and builds the mean
+    subroutine interpolate_horizontal_face_var_onto_vertices(facedm, facevec, vertdm, vertvec)
+      type(tDM), intent(in) :: facedm, vertdm
+      type(tVec), intent(in) :: facevec
+      type(tVec), allocatable, intent(inout) :: vertvec ! Local vector on vertices
+
+      type(tPetscSection) :: face_section, vert_section
+
+      integer(iintegers) :: ivert, vStart, vEnd
+
+      real(ireals), pointer :: xface(:), xvert(:)
+      integer(mpiint) :: ierr
+
+      call DMGetSection(facedm, face_section, ierr); call CHKERR(ierr)
+      call DMGetSection(vertdm, vert_section, ierr); call CHKERR(ierr)
+
+      if(.not.allocated(vertvec)) then
+        allocate(vertvec)
+        call DMCreateLocalVector(vertdm, vertvec, ierr); call CHKERR(ierr)
+      endif
+
+      call DMPlexGetDepthStratum(vertdm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+
+      call VecGetArrayReadF90(facevec, xface, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(vertvec, xvert, ierr); call CHKERR(ierr)
+
+      do ivert = vStart, vEnd-1
+      enddo
+
+      call VecRestoreArrayF90(vertvec, xvert, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(facevec, xface, ierr); call CHKERR(ierr)
+    end subroutine
+
+    subroutine get_horizontal_faces_around_vertex(dm, ivert, idx)
+      type(tDM), intent(in) :: dm
+      integer(iintegers),intent(in) :: ivert
+      integer(iintegers), allocatable, intent(out) :: idx(:)
+
+      type(tDMLabel) :: depthlabel
+      integer(iintegers) :: i, j, numfaces, numSupport
+      logical :: lcontains
+      integer(iintegers), pointer :: transclosure(:)
+      integer(mpiint) :: ierr
+
+      call DMPlexGetDepthLabel(dm, depthLabel, ierr); call CHKERR(ierr)
+
+      call DMPlexGetTransitiveClosure(dm, ivert, PETSC_FALSE, transclosure, ierr); call CHKERR(ierr)
+      numfaces = 0
+      do i=1,size(transclosure),2
+        call DMLabelStratumHasPoint(depthlabel, i2, transclosure(i), lcontains, ierr); call CHKERR(ierr)
+        if(lcontains) then
+          call DMPlexGetConeSize(dm, transclosure(i), numSupport, ierr); call CHKERR(ierr)
+          if(numSupport.eq.i3) then ! if face has 3 edges
+            numfaces = numfaces + 1
+          else
+            transclosure(i) = -transclosure(i)
+          endif
+        else
+          transclosure(i) = -transclosure(i)
+        endif
+      enddo
+      allocate(idx(numfaces))
+      j=1
+      do i=1,size(transclosure),2
+        if(transclosure(i).gt.0) then
+          idx(j) = transclosure(i)
+          j = j+1
+        endif
+      enddo
+      call DMPlexRestoreTransitiveClosure(dm, ivert, PETSC_FALSE, transclosure, ierr); call CHKERR(ierr)
+    end subroutine
 end module

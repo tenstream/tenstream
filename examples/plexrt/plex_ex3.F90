@@ -20,7 +20,7 @@ use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
 use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
   setup_edir_dmplex, setup_abso_dmplex, compute_face_geometry, &
   distribute_plexgrid_dm, ncvar2d_to_globalvec, setup_plexgrid, &
-  gen_test_mat, get_normal_of_first_toa_face
+  gen_test_mat, get_normal_of_first_toa_face, get_horizontal_faces_around_vertex
 
 use m_plex_rt, only: compute_face_geometry, &
   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
@@ -46,7 +46,7 @@ logical, parameter :: ldebug=.True.
       real(ireals), allocatable :: hhl_3d(:)
 
       integer(mpiint) :: myid, numnodes, ierr
-      integer(iintegers) :: i,k, v2dStart, v2dEnd
+      integer(iintegers) :: i,k, vStart, vEnd
       !type(tVec) :: lwcvec, iwcvec
 
       real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
@@ -54,7 +54,7 @@ logical, parameter :: ldebug=.True.
       !character(len=default_str_len) :: ncgroups(2)
 
       type(t_plexgrid), allocatable :: plex
-      integer(iintegers), allocatable :: zindex(:)
+      integer(iintegers), allocatable :: zindex(:), faces_around_vert(:)
       class(t_plex_solver), allocatable :: solver
 
       real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
@@ -72,19 +72,26 @@ logical, parameter :: ldebug=.True.
       enddo
       hhl = reverse(hhl)
 
-      call DMPlexGetDepthStratum(dm2d, i0, v2dStart, v2dEnd, ierr); call CHKERR(ierr) ! 2D vertices
+      call DMPlexGetDepthStratum(dm2d, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! 2D vertices
 
-      allocate(hhl_3d(Nz*(v2dEnd-v2dStart)))
-      do i=v2dStart, v2dEnd-1
-          do k=1,Nz
-            hhl_3d( (i-v2dStart)*Nz + k) = hhl(k) + real(i, ireals)/Nx/Ny
+      allocate(hhl_3d(Nz*(vEnd-vStart)))
+      do i=vStart, vEnd-1
+        !call get_horizontal_faces_around_vertex(dm2d, i, faces_around_vert)
+        do k=1,Nz
+            hhl_3d( (i-vStart)*Nz + k) = hhl(k) + real(i, ireals)/Nx/Ny
         enddo
       enddo
-      print *,'hhl_3d', hhl_3d
+      !print *,'hhl_3d', hhl_3d
 
       call dmplex_2D_to_3D(dm2d, Nz, hhl_3d, dm3d, zindex)
 
-      call setup_plexgrid(dm3d, zindex, hhl, plex)
+      call DMPlexGetDepthStratum(dm3d, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! 2D vertices
+      do i=vStart, vEnd-1
+        call get_horizontal_faces_around_vertex(dm3d, i, faces_around_vert)
+      enddo
+      call CHKERR(1_mpiint, 'DEBUG')
+
+      call setup_plexgrid(dm3d, Nz-1, zindex, plex)
       deallocate(zindex)
 
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : show plex'
