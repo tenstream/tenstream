@@ -338,6 +338,8 @@ module m_dyn_atm_to_rrtmg
       logical :: lupdate_bg_entries
       real(ireals) :: hsrfc
 
+      hsrfc = zero ! default value
+
       if(.not.allocated(atm%bg_atm)) call CHKERR(1_mpiint, 'bg_atm has to be allocated before merging with dynamics grid variables')
       associate( bg_atm => atm%bg_atm )
 
@@ -362,7 +364,6 @@ module m_dyn_atm_to_rrtmg
           allocate(d_hhl(atm%d_ke1, ie))
           allocate(d_dz(atm%d_ke))
 
-          hsrfc = zero
           do icol = is, ie
             if(present(d_surface_height)) then
               hsrfc = d_surface_height(icol)
@@ -432,72 +433,94 @@ module m_dyn_atm_to_rrtmg
             endif
             atm%tlev(1:atm%d_ke1, icol) = d_tlev(:,icol)
 
-            if(present(d_tlay)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%tlay, bg_atm%tlev, atm%tlay(:, icol), d_tlay(:,icol))
+            ! compute dz
+            if(present(d_surface_height)) hsrfc = d_surface_height(icol)
+            if(lupdate_bg_entries) then
+              call hydrostat_lev(atm%plev(:,icol),(atm%tlev(1:ke,icol)+atm%tlev(2:ke1,icol))/2, &
+                hsrfc, atm%zt(:, icol), atm%dz(:, icol))
             else
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%tlay, bg_atm%tlev, atm%tlay(:, icol), &
+              call hydrostat_lev(atm%plev(1:atm%d_ke1,icol),(d_tlev(1:atm%d_ke,icol)+d_tlev(2:atm%d_ke1,icol))/2, &
+                hsrfc, atm%zt(1:atm%d_ke1, icol), atm%dz(1:atm%d_ke, icol))
+            endif
+
+
+            if(present(d_tlay)) then
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%tlay, bg_atm%tlev, atm%tlay(:, icol), d_tlay(:,icol))
+            else
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%tlay, bg_atm%tlev, atm%tlay(:, icol), &
                 (d_tlev(1:atm%d_ke,icol)+d_tlev(2:atm%d_ke1,icol))/2)
             endif
 
-            ! compute dz
-            if(lupdate_bg_entries) then
-              call hydrostat_lev(atm%plev(:,icol),atm%tlay(:,icol), zero, atm%zt(:, icol), atm%dz(:, icol))
-            else
-              call hydrostat_lev(atm%plev(1:atm%d_ke1,icol),atm%tlay(1:atm%d_ke,icol), zero, atm%zt(1:atm%d_ke1, icol), atm%dz(1:atm%d_ke, icol))
-            endif
-
             if(present(d_lwc)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%lwc(:,icol), d_lwc(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                zero*bg_atm%tlay, zero*bg_atm%tlev, atm%lwc(:,icol), d_lwc(:,icol))
             else
               atm%lwc(:,icol) = zero
             endif
             if(present(d_reliq)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reliq(:,icol), d_reliq(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reliq(:,icol), d_reliq(:,icol))
             else
               atm%reliq = zero
             endif
 
             if(present(d_iwc)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%iwc(:,icol), d_iwc(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                zero*bg_atm%tlay, zero*bg_atm%tlev, atm%iwc(:,icol), d_iwc(:,icol))
             else
               atm%iwc(:,icol) = zero
             endif
             if(present(d_reice)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reice(:,icol), d_reice(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reice(:,icol), d_reice(:,icol))
             else
               atm%reice = zero
             endif
 
             if(present(d_h2ovmr)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%h2o_lay, bg_atm%h2o_lev, atm%h2o_lay(:,icol), d_h2ovmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%h2o_lay, bg_atm%h2o_lev, atm%h2o_lay(:,icol), d_h2ovmr(:,icol))
             else
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%h2o_lay, bg_atm%h2o_lev, atm%h2o_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+              bg_atm%h2o_lay, bg_atm%h2o_lev, atm%h2o_lay(:,icol))
             endif
             if(present(d_o3vmr)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o3_lay, bg_atm%o3_lev, atm%o3_lay(:,icol), d_o3vmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%o3_lay, bg_atm%o3_lev, atm%o3_lay(:,icol), d_o3vmr(:,icol))
             else
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o3_lay, bg_atm%o3_lev, atm%o3_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%o3_lay, bg_atm%o3_lev, atm%o3_lay(:,icol))
             endif
 
             if(present(d_co2vmr)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%co2_lay, bg_atm%co2_lev, atm%co2_lay(:,icol), d_co2vmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%co2_lay, bg_atm%co2_lev, atm%co2_lay(:,icol), d_co2vmr(:,icol))
             else
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%co2_lay, bg_atm%co2_lev, atm%co2_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%co2_lay, bg_atm%co2_lev, atm%co2_lay(:,icol))
             endif
             if(present(d_ch4vmr)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%ch4_lay, bg_atm%ch4_lev, atm%ch4_lay(:,icol), d_ch4vmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%ch4_lay, bg_atm%ch4_lev, atm%ch4_lay(:,icol), d_ch4vmr(:,icol))
             else
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%ch4_lay, bg_atm%ch4_lev, atm%ch4_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%ch4_lay, bg_atm%ch4_lev, atm%ch4_lay(:,icol))
             endif
             if(present(d_n2ovmr)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%n2o_lay, bg_atm%n2o_lev, atm%n2o_lay(:,icol), d_n2ovmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%n2o_lay, bg_atm%n2o_lev, atm%n2o_lay(:,icol), d_n2ovmr(:,icol))
             else
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%n2o_lay, bg_atm%n2o_lev, atm%n2o_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%n2o_lay, bg_atm%n2o_lev, atm%n2o_lay(:,icol))
             endif
             if(present(d_o2vmr)) then
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o2_lay, bg_atm%o2_lev, atm%o2_lay(:,icol), d_o2vmr(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%o2_lay, bg_atm%o2_lev, atm%o2_lay(:,icol), d_o2vmr(:,icol))
             else
-              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, d_hhl(:,icol), atm_ke, bg_atm%o2_lay, bg_atm%o2_lev, atm%o2_lay(:,icol))
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                bg_atm%o2_lay, bg_atm%o2_lev, atm%o2_lay(:,icol))
             endif
           enddo
         end associate
