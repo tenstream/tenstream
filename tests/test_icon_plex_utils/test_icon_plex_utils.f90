@@ -35,8 +35,6 @@ contains
   @test(npes =[1])
   subroutine test_gregorian_date_to_julian_day(this)
       class (MpiTestMethod), intent(inout) :: this
-      real(ireals) :: day
-      integer(iintegers) :: year, month
 
       @assertEqual(2451545.0_ireals, date_to_julian_day(2000, 1, 1.5_ireals), 'Greenwich Noon')
 
