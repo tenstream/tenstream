@@ -76,10 +76,14 @@ contains
       endif
     enddo
 
-    S(1) = incSolar ! irradiance on tilted plane
-    do k=1,ke
-      S(k+1) = S(k) * a33(k)
-    enddo
+    if(mu0.gt.zero) then
+      S(1) = incSolar ! irradiance on tilted plane
+      do k=1,ke
+        S(k+1) = S(k) * a33(k)
+      enddo
+    else
+      S = zero
+    endif
 
     allocate( IPIV(N))
     allocate( AB (LDAB,N), source=zero)
