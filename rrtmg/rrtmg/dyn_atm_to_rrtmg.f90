@@ -114,7 +114,7 @@ module m_dyn_atm_to_rrtmg
 
     subroutine setup_tenstr_atm(comm, lTOA_to_srfc, atm_filename, d_plev, d_tlev, atm, &
         d_tlay, d_h2ovmr, d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr,  d_o2vmr, &
-        d_lwc, d_reliq, d_iwc, d_reice)
+        d_lwc, d_reliq, d_iwc, d_reice, d_surface_height)
       integer(mpiint), intent(in) :: comm
       logical, intent(in) :: lTOA_to_srfc    ! True if provided variables go from TOA to srfc or False if starting at surface
 
@@ -140,6 +140,8 @@ module m_dyn_atm_to_rrtmg
       real(ireals),intent(in),optional :: d_reliq  (:,:) ! effective radius               [micron]
       real(ireals),intent(in),optional :: d_iwc    (:,:) ! ice water content              [g/kg]
       real(ireals),intent(in),optional :: d_reice  (:,:) ! ice effective radius           [micron]
+      real(ireals),intent(in),optional :: d_surface_height(:) ! surface height above sea  [m]
+
 
       integer(iintegers) :: icol
 
@@ -163,29 +165,39 @@ module m_dyn_atm_to_rrtmg
       call merge_dyn_rad_grid(comm, atm, &
         d_plev, d_tlev, d_tlay, d_h2ovmr, &
         d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr, &
-        d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice )
+        d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
+        d_surface_height)
 
-      call check_shape(d_tlev  , atm%d_ke1,size(d_plev, 2))
-      call check_shape(d_tlay  , atm%d_ke, size(d_plev, 2))
-      call check_shape(d_h2ovmr, atm%d_ke, size(d_plev, 2))
-      call check_shape(d_o3vmr , atm%d_ke, size(d_plev, 2))
-      call check_shape(d_co2vmr, atm%d_ke, size(d_plev, 2))
-      call check_shape(d_ch4vmr, atm%d_ke, size(d_plev, 2))
-      call check_shape(d_n2ovmr, atm%d_ke, size(d_plev, 2))
-      call check_shape(d_o2vmr , atm%d_ke, size(d_plev, 2))
-      call check_shape(d_lwc   , atm%d_ke, size(d_plev, 2))
-      call check_shape(d_reliq , atm%d_ke, size(d_plev, 2))
-      call check_shape(d_iwc   , atm%d_ke, size(d_plev, 2))
-      call check_shape(d_reice , atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_tlev  , atm%d_ke1,size(d_plev, 2))
+      call check_shape_2d(d_tlay  , atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_h2ovmr, atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_o3vmr , atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_co2vmr, atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_ch4vmr, atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_n2ovmr, atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_o2vmr , atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_lwc   , atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_reliq , atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_iwc   , atm%d_ke, size(d_plev, 2))
+      call check_shape_2d(d_reice , atm%d_ke, size(d_plev, 2))
+      call check_shape_1d(d_surface_height , ncol=size(d_plev, 2))
 
       contains
-        subroutine check_shape(d_arr, k, ncol)
-          real(ireals), intent(in), optional :: d_arr(:,:)
-          integer(iintegers), intent(in) :: k, ncol
+        subroutine check_shape_1d(d_arr, ncol)
+          real(ireals), intent(in), optional :: d_arr(:)
+          integer(iintegers), intent(in), optional :: ncol
 
           if(present(d_arr)) then
-            call CHKERR(int(size(d_arr,1)-k, mpiint), 'bad vert size. got'//itoa(size(d_arr,1))//' expect '//itoa(k))
-            call CHKERR(int(size(d_arr,2)-ncol, mpiint), 'bad nr cols got'//itoa(size(d_arr,2))//' expect '//itoa(ncol))
+            if(present(ncol)) call CHKERR(int(size(d_arr,1)-ncol, mpiint), 'bad nr cols got'//itoa(size(d_arr,1))//' expect '//itoa(ncol))
+          endif
+        end subroutine
+        subroutine check_shape_2d(d_arr, k, ncol)
+          real(ireals), intent(in), optional :: d_arr(:,:)
+          integer(iintegers), intent(in), optional :: k, ncol
+
+          if(present(d_arr)) then
+            if(present(k))    call CHKERR(int(size(d_arr,1)-k, mpiint), 'bad vert size. got'//itoa(size(d_arr,1))//' expect '//itoa(k))
+            if(present(ncol)) call CHKERR(int(size(d_arr,2)-ncol, mpiint), 'bad nr cols got'//itoa(size(d_arr,2))//' expect '//itoa(ncol))
           endif
         end subroutine
     end subroutine
@@ -295,7 +307,8 @@ module m_dyn_atm_to_rrtmg
     subroutine merge_dyn_rad_grid(comm, atm,   &
         in_d_plev, d_tlev, d_tlay, d_h2ovmr,   &
         d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr, &
-        d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice )
+        d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
+        d_surface_height)
 
       integer(mpiint), intent(in) :: comm
       type(t_tenstr_atm),intent(inout) :: atm
@@ -313,6 +326,7 @@ module m_dyn_atm_to_rrtmg
       real(ireals),intent(in),optional :: d_reliq  (:,:) !
       real(ireals),intent(in),optional :: d_iwc    (:,:) !
       real(ireals),intent(in),optional :: d_reice  (:,:) !
+      real(ireals),intent(in),optional :: d_surface_height(:)
 
       real(ireals) :: d_plev (ubound(in_d_plev,1), ubound(in_d_plev,2))
 
@@ -322,6 +336,7 @@ module m_dyn_atm_to_rrtmg
       real(ireals),allocatable :: d_hhl(:,:), d_dz(:)
       real(ireals) :: global_maxheight, global_minplev
       logical :: lupdate_bg_entries
+      real(ireals) :: hsrfc
 
       if(.not.allocated(atm%bg_atm)) call CHKERR(1_mpiint, 'bg_atm has to be allocated before merging with dynamics grid variables')
       associate( bg_atm => atm%bg_atm )
@@ -347,11 +362,15 @@ module m_dyn_atm_to_rrtmg
           allocate(d_hhl(atm%d_ke1, ie))
           allocate(d_dz(atm%d_ke))
 
+          hsrfc = zero
           do icol = is, ie
+            if(present(d_surface_height)) then
+              hsrfc = d_surface_height(icol)
+            endif
             if(present(d_tlay)) then
-              call hydrostat_lev(d_plev(:,icol),d_tlay(:,icol), zero, d_hhl(:, icol), d_dz)
+              call hydrostat_lev(d_plev(:,icol),d_tlay(:,icol), hsrfc, d_hhl(:, icol), d_dz)
             else
-              call hydrostat_lev(d_plev(:,icol),(d_tlev(1:atm%d_ke,icol)+d_tlev(2:atm%d_ke1,icol))/2, zero, d_hhl(:, icol), d_dz)
+              call hydrostat_lev(d_plev(:,icol),(d_tlev(1:atm%d_ke,icol)+d_tlev(2:atm%d_ke1,icol))/2, hsrfc, d_hhl(:, icol), d_dz)
             endif
           enddo
 

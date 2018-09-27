@@ -64,7 +64,7 @@ implicit none
         hhl(k) = hhl(k-1) - dz
       enddo
 
-      call dmplex_2D_to_3D(dm2d, hhl, dm3d, zindex)
+      call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex)
 
       call setup_plexgrid(dm3d, zindex, hhl, plex)
       deallocate(zindex)

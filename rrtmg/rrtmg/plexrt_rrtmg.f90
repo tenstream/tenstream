@@ -181,12 +181,19 @@ contains
           print *,k, edir(k,i1), edn(k,i1), eup(k,i1), abso(k,i1)
         enddo
         print *,k, edir(ke1,i1), edn(ke1,i1), eup(ke1,i1)
+
+        if(present(solar_albedo_2d)) then
+          print *,'MinMax Albedo', minval(solar_albedo_2d), maxval(solar_albedo_2d)
+        endif
       else
         print *,'vert level    edn              eup          abso'
         do k = 1, ke1-1
           print *,k, edn(k,i1), eup(k,i1), abso(k,i1)
         enddo
         print *,k, edn(k,i1), eup(k,i1)
+        if(present(thermal_albedo_2d)) then
+          print *,'MinMax Albedo', minval(thermal_albedo_2d), maxval(thermal_albedo_2d)
+        endif
       endif
     endif
 

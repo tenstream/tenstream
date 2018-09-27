@@ -28,9 +28,10 @@ module m_icon_plex_utils
 
   contains
 
-    subroutine dmplex_2D_to_3D(dm2d, hhl, dm3d, zindex)
+    subroutine dmplex_2D_to_3D(dm2d, ke1, hhl, dm3d, zindex)
       type(tDM), intent(in) :: dm2d
-      real(ireals), intent(in) :: hhl(:) ! height levels of interfaces, those will be added to base height of 2D elements, starting at Top of Atmosphere
+      integer(iintegers), intent(in) :: ke1 ! number of levels for the 3D DMPlex
+      real(ireals), intent(in) :: hhl(:) ! height levels of interfaces, those will be added to base height of 2D elements, starting at Top of Atmosphere, either of shape(nlev) or shape(nlev*nverts)
       type(tDM), intent(out) :: dm3d
       ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1, fortran indexing, i.e. start with k=1
       integer(iintegers), allocatable, intent(out) :: zindex(:)
@@ -39,12 +40,11 @@ module m_icon_plex_utils
       integer(iintegers) :: f2dStart, f2dEnd
       integer(iintegers) :: e2dStart, e2dEnd
       integer(iintegers) :: v2dStart, v2dEnd
-      integer(iintegers) :: ke, ke1, chartsize
+      integer(iintegers) :: ke, chartsize
       integer(iintegers) :: Nfaces2d, Nedges2d, Nverts2d
       integer(iintegers) :: Ncells, Nfaces, Nedges, Nverts
       integer(mpiint) :: comm, ierr
 
-      ke1 = size(hhl)
       ke = ke1-1
 
       call PetscObjectGetComm(dm2d, comm, ierr); call CHKERR(ierr)
@@ -68,7 +68,8 @@ module m_icon_plex_utils
       chartsize = Ncells + Nfaces + Nedges + Nverts
 
       if(ldebug) then
-        print *,'size hhl', ke1
+        print *,'Nlev    ', ke1
+        print *,'size hhl', size(hhl)
         print *,'Nfaces2d', Nfaces2d
         print *,'Nedges2d', Nedges2d
         print *,'Nverts2d', Nverts2d
@@ -93,8 +94,10 @@ module m_icon_plex_utils
       call PetscObjectViewFromOptions(dm2d, PETSC_NULL_DM, "-show_iconplex_2d", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, "-show_iconplex_3d", ierr); call CHKERR(ierr)
 
-      call gen_test_mat(dm3d)
-      call gen_test_mat(dm2d)
+      if(ldebug) then
+        call gen_test_mat(dm3d)
+        call gen_test_mat(dm2d)
+      endif
       !call CHKERR(1_mpiint, 'DEBUG')
 
     contains
@@ -440,10 +443,20 @@ module m_icon_plex_utils
         integer(iintegers)    :: v2dStart, v2dEnd
         integer(iintegers)    :: v3dStart, v3dEnd
 
-        real(ireals) :: distance, inv_distance
+        real(ireals) :: distance, inv_distance, vert_height
         integer(mpiint) :: ierr
         integer(iintegers) :: i, k, ivertex
-        logical :: lpolar, lflg
+        logical :: lpolar, lflg, lhave_3d_surface_heights
+
+        if(size(hhl).eq.ke1) then
+          lhave_3d_surface_heights = .False.
+        else if(size(hhl).eq.ke1*Nverts2d) then
+          lhave_3d_surface_heights = .True.
+        else
+          call CHKERR(1_mpiint, 'heights array has the wrong shape: is' &
+            //itoa(size(hhl))//' should be '//itoa(ke1)//' or '//itoa(ke1*Nverts2d))
+        endif
+        !print *,'size(hhl)', size(hhl), ':', ke1*Nverts2d, ':', lhave_3d_surface_heights
 
         call DMPlexGetDepthStratum (dm3d, i0, v3dStart, v3dEnd, ierr); call CHKERR(ierr) ! 3D vertices
         call DMPlexGetDepthStratum (dm2d, i0, v2dStart, v2dEnd, ierr); call CHKERR(ierr) ! 2D vertices
@@ -481,31 +494,33 @@ module m_icon_plex_utils
         call DMGetCoordinatesLocal(dm2d, vec_coord2d, ierr); call CHKERR(ierr)
         call VecGetArrayReadF90(vec_coord2d, coords2d, ierr); call CHKERR(ierr)
 
-        if(lpolar) then
-          do i = v2dStart, v2dEnd-1
-            call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
-            distance = norm(coords2d(voff2d+i1 : voff2d+i3))
-            inv_distance = one / distance
-            do k = 0, ke1-1
-              ivertex = ivertex_icon_2_plex(i, k)
-              call PetscSectionGetOffset(coordSection3d, ivertex, voff3d, ierr); call CHKERR(ierr)
-              coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) * (distance + hhl(i1+k)) * inv_distance
+        do i = v2dStart, v2dEnd-1
+          call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
+
+          do k = 0, ke1-1
+            ivertex = ivertex_icon_2_plex(i, k)
+            call PetscSectionGetOffset(coordSection3d, ivertex, voff3d, ierr); call CHKERR(ierr)
+
+            if(lhave_3d_surface_heights) then
+              vert_height = hhl(i1 + (i-v2dStart)*ke1 + k)
+            else
+              vert_height = hhl(i1+k)
+            endif
+
+            if(lpolar) then
+              distance = norm(coords2d(voff2d+i1 : voff2d+i3))
+              inv_distance = one / distance
+
+              coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) * (distance + vert_height) * inv_distance
               !if(ldebug) print *,'Setting coord for 2d', i, '3d vert', ivertex,':', &
               !  coords2d(voff2d+1:voff2d+3), '=>', &
               !  coords3d(voff3d+1:voff3d+3), &
               !  '(',(distance + hhl(k+1)) * inv_distance,')'
-            enddo
+            else
+              coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) + [zero, zero, vert_height]
+            endif
           enddo
-        else
-          do i = v2dStart, v2dEnd-1
-            call PetscSectionGetOffset(coordSection2d, i, voff2d, ierr); call CHKERR(ierr)
-            do k = 0, ke1-1
-              ivertex = ivertex_icon_2_plex(i, k)
-              call PetscSectionGetOffset(coordSection3d, ivertex, voff3d, ierr); call CHKERR(ierr)
-              coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) + [zero, zero, hhl(i1+k)]
-            enddo
-          enddo
-        endif
+        enddo
 
         call VecRestoreArrayReadF90(vec_coord2d, coords2d, ierr); call CHKERR(ierr)
         call VecRestoreArrayF90(vec_coord3d, coords3d, ierr); call CHKERR(ierr)

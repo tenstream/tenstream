@@ -57,7 +57,7 @@ logical, parameter :: ldebug=.True.
 
       call gen_2d_plex_from_icongridfile(comm, gridfile, dm2d, dm2d_dist, &
         migration_sf, cell_ao_2d)
-      call dmplex_2D_to_3D(dm2d_dist, icon_hdcp2_default_hhl, dm3d, zindex)
+      call dmplex_2D_to_3D(dm2d_dist, size(icon_hdcp2_default_hhl, kind=iintegers), icon_hdcp2_default_hhl, dm3d, zindex)
 
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
       call setup_plexgrid(dm3d, zindex, icon_hdcp2_default_hhl, plex)

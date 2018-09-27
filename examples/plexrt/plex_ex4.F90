@@ -112,7 +112,7 @@ contains
     !call print_tenstr_atm(atm)
 
     ! Setup 3D DMPLEX grid
-    call dmplex_2D_to_3D(dm2d_dist, reverse(atm%zt(:, i1)), dm3d, zindex)
+    call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
 
     call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
     call setup_plexgrid(dm3d, zindex, reverse(atm%zt(:, i1)), plex)

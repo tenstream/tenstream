@@ -43,9 +43,10 @@ logical, parameter :: ldebug=.True.
 
       type(tDM) :: dm2d, dm3d
       real(ireals) :: hhl(Nz)
+      real(ireals), allocatable :: hhl_3d(:)
 
       integer(mpiint) :: myid, numnodes, ierr
-      integer(iintegers) :: k
+      integer(iintegers) :: i,k, v2dStart, v2dEnd
       !type(tVec) :: lwcvec, iwcvec
 
       real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
@@ -71,7 +72,17 @@ logical, parameter :: ldebug=.True.
       enddo
       hhl = reverse(hhl)
 
-      call dmplex_2D_to_3D(dm2d, hhl, dm3d, zindex)
+      call DMPlexGetDepthStratum(dm2d, i0, v2dStart, v2dEnd, ierr); call CHKERR(ierr) ! 2D vertices
+
+      allocate(hhl_3d(Nz*(v2dEnd-v2dStart)))
+      do i=v2dStart, v2dEnd-1
+          do k=1,Nz
+            hhl_3d( (i-v2dStart)*Nz + k) = hhl(k) + real(i, ireals)/Nx/Ny
+        enddo
+      enddo
+      print *,'hhl_3d', hhl_3d
+
+      call dmplex_2D_to_3D(dm2d, Nz, hhl_3d, dm3d, zindex)
 
       call setup_plexgrid(dm3d, zindex, hhl, plex)
       deallocate(zindex)
@@ -156,16 +167,16 @@ logical, parameter :: ldebug=.True.
     call init_mpi_data_parameters(PETSC_COMM_WORLD)
     call read_commandline_options(PETSC_COMM_WORLD)
 
+    Nx = 2
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nx", Nx, lflg,ierr) ; call CHKERR(ierr)
-    if(lflg.eqv.PETSC_FALSE) Nx = 2
+    Ny = 3
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg,ierr) ; call CHKERR(ierr)
-    if(lflg.eqv.PETSC_FALSE) Ny = 3
+    Nz = 2
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg,ierr) ; call CHKERR(ierr)
-    if(lflg.eqv.PETSC_FALSE) Nz = 2
+    dz = one/Nz
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dz", dz, lflg,ierr) ; call CHKERR(ierr)
-    if(lflg.eqv.PETSC_FALSE) dz = one/Nz
+    Ag = .1_ireals
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
-    if(lflg.eqv.PETSC_FALSE) Ag = .1_ireals
 
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
