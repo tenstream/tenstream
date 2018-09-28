@@ -55,48 +55,35 @@ module m_dyn_atm_to_rrtmg
     module procedure hydrostat_dp_real32, hydrostat_dp_real64
   end interface
 
-    type t_bg_atm
-      real(ireals),allocatable :: plev   (:) ! dim(nlay+1 of background profile)
-      real(ireals),allocatable :: tlev   (:) !
-      real(ireals),allocatable :: zt     (:) !
-      real(ireals),allocatable :: h2o_lev(:) !
-      real(ireals),allocatable :: o3_lev (:) !
-      real(ireals),allocatable :: co2_lev(:) !
-      real(ireals),allocatable :: ch4_lev(:) !
-      real(ireals),allocatable :: n2o_lev(:) !
-      real(ireals),allocatable :: o2_lev (:) !
+  type t_bg_atm
+    real(ireals),allocatable, dimension(:) :: plev, tlev, zt, h2o_lev, &
+      o3_lev, co2_lev, ch4_lev, n2o_lev, o2_lev, &
+      play, zm, dz, tlay, &
+      h2o_lay, o3_lay, co2_lay, ch4_lay, n2o_lay, o2_lay
+  end type
 
-      real(ireals),allocatable :: play   (:) ! dim(nlay of background profile)
-      real(ireals),allocatable :: zm     (:) !
-      real(ireals),allocatable :: dz     (:) !
-      real(ireals),allocatable :: tlay   (:) !
-      real(ireals),allocatable :: h2o_lay(:) !
-      real(ireals),allocatable :: o3_lay (:) !
-      real(ireals),allocatable :: co2_lay(:) !
-      real(ireals),allocatable :: ch4_lay(:) !
-      real(ireals),allocatable :: n2o_lay(:) !
-      real(ireals),allocatable :: o2_lay (:) !
-    end type
 
     type t_tenstr_atm
       type(t_bg_atm),allocatable :: bg_atm
-      real(ireals),allocatable :: plev   (:,:) ! dim(nlay+1 of merged grid, ncol)
-      real(ireals),allocatable :: tlev   (:,:) !
-      real(ireals),allocatable :: zt     (:,:) !
+      ! level quantities dim(nlay+1 of merged grid, ncol)
+      real(ireals),allocatable :: plev   (:,:) ! interface pressure     [hPa]
+      real(ireals),allocatable :: tlev   (:,:) ! interface temperature  [K]
+      real(ireals),allocatable :: zt     (:,:) ! interface heights      [m]
 
-      real(ireals),allocatable :: zm     (:,:) ! dim(nlay of merged grid, ncol)
-      real(ireals),allocatable :: dz     (:,:) !
-      real(ireals),allocatable :: tlay   (:,:) !
-      real(ireals),allocatable :: h2o_lay(:,:) !
-      real(ireals),allocatable :: o3_lay (:,:) !
-      real(ireals),allocatable :: co2_lay(:,:) !
-      real(ireals),allocatable :: ch4_lay(:,:) !
-      real(ireals),allocatable :: n2o_lay(:,:) !
-      real(ireals),allocatable :: o2_lay (:,:) !
-      real(ireals),allocatable :: lwc    (:,:)
-      real(ireals),allocatable :: reliq  (:,:)
-      real(ireals),allocatable :: iwc    (:,:)
-      real(ireals),allocatable :: reice  (:,:)
+      ! layer quantities dim(nlay of merged grid, ncol)
+      real(ireals),allocatable :: zm     (:,:) ! layer mean height        [m]
+      real(ireals),allocatable :: dz     (:,:) ! vertical layer thickness [m]
+      real(ireals),allocatable :: tlay   (:,:) ! layer mean temperature   [K]
+      real(ireals),allocatable :: h2o_lay(:,:) ! watervapor volume mixing ratio [e.g. 1e-3]
+      real(ireals),allocatable :: o3_lay (:,:) ! ozone volume mixing ratio      [e.g. .1e-6]
+      real(ireals),allocatable :: co2_lay(:,:) ! CO2 volume mixing ratio        [e.g. 407e-6]
+      real(ireals),allocatable :: ch4_lay(:,:) ! methane volume mixing ratio    [e.g. 2e-6]
+      real(ireals),allocatable :: n2o_lay(:,:) ! n2o volume mixing ratio        [e.g. .32]
+      real(ireals),allocatable :: o2_lay (:,:) ! oxygen volume mixing ratio     [e.g. .2]
+      real(ireals),allocatable :: lwc    (:,:) ! liq water content              [g/kg]
+      real(ireals),allocatable :: reliq  (:,:) ! effective radius               [micron]
+      real(ireals),allocatable :: iwc    (:,:) ! ice water content              [g/kg]
+      real(ireals),allocatable :: reice  (:,:) ! ice effective radius           [micron]
 
       logical :: lTOA_to_srfc
 
@@ -129,18 +116,18 @@ module m_dyn_atm_to_rrtmg
       type(t_tenstr_atm), intent(inout) :: atm
 
       ! all have dim(nlay_dynamics, ncol)
-      real(ireals),intent(in),optional :: d_tlay   (:,:) ! layer mean temperature [K]
-      real(ireals),intent(in),optional :: d_h2ovmr (:,:) ! watervapor volume mixing ratio [e.g. 1e-3]
-      real(ireals),intent(in),optional :: d_o3vmr  (:,:) ! ozone volume mixing ratio      [e.g. .1e-6]
-      real(ireals),intent(in),optional :: d_co2vmr (:,:) ! CO2 volume mixing ratio        [e.g. 407e-6]
-      real(ireals),intent(in),optional :: d_ch4vmr (:,:) ! methane volume mixing ratio    [e.g. 2e-6]
-      real(ireals),intent(in),optional :: d_n2ovmr (:,:) ! n2o volume mixing ratio        [e.g. .32]
-      real(ireals),intent(in),optional :: d_o2vmr  (:,:) ! oxygen volume mixing ratio     [e.g. .2]
-      real(ireals),intent(in),optional :: d_lwc    (:,:) ! liq water content              [g/kg]
-      real(ireals),intent(in),optional :: d_reliq  (:,:) ! effective radius               [micron]
-      real(ireals),intent(in),optional :: d_iwc    (:,:) ! ice water content              [g/kg]
-      real(ireals),intent(in),optional :: d_reice  (:,:) ! ice effective radius           [micron]
-      real(ireals),intent(in),optional :: d_surface_height(:) ! surface height above sea  [m]
+      real(ireals),intent(in),optional :: d_tlay   (:,:)      ! layer mean temperature         [K]
+      real(ireals),intent(in),optional :: d_h2ovmr (:,:)      ! watervapor volume mixing ratio [e.g. 1e-3]
+      real(ireals),intent(in),optional :: d_o3vmr  (:,:)      ! ozone volume mixing ratio      [e.g. .1e-6]
+      real(ireals),intent(in),optional :: d_co2vmr (:,:)      ! CO2 volume mixing ratio        [e.g. 407e-6]
+      real(ireals),intent(in),optional :: d_ch4vmr (:,:)      ! methane volume mixing ratio    [e.g. 2e-6]
+      real(ireals),intent(in),optional :: d_n2ovmr (:,:)      ! n2o volume mixing ratio        [e.g. .32]
+      real(ireals),intent(in),optional :: d_o2vmr  (:,:)      ! oxygen volume mixing ratio     [e.g. .2]
+      real(ireals),intent(in),optional :: d_lwc    (:,:)      ! liq water content              [g/kg]
+      real(ireals),intent(in),optional :: d_reliq  (:,:)      ! effective radius               [micron]
+      real(ireals),intent(in),optional :: d_iwc    (:,:)      ! ice water content              [g/kg]
+      real(ireals),intent(in),optional :: d_reice  (:,:)      ! ice effective radius           [micron]
+      real(ireals),intent(in),optional :: d_surface_height(:) ! surface height above sea       [m]
 
 
       integer(iintegers) :: icol
@@ -781,4 +768,26 @@ module m_dyn_atm_to_rrtmg
         reff = 1e3_ireals * (3._ireals * lwc / (4._ireals*pi*rho*default_k*max(epsilon(N),N))) ** (one/3._ireals)
       endif
     end function
+
+
+    ! convert e.g. from lwc [g/kg] to lwp[g/m2] with: lwp = lwc * vert_integral_coeff(p0, p1, T)
+    elemental function vert_integral_coeff(p0, p1, T) result(c)
+      real(ireals), intent(in) :: p0, p1 ! pressure at bottom/top of layer [hPa]
+      real(ireals), intent(in) :: T      ! temperature of layer            [K]
+      real(ireals) :: c                  ! coeff to convert from [g/kg] to [g m**-2]
+
+      real(ireals), parameter :: Ra = 287.058_ireals ! specific gas constant for dry air [J kg−1 K−1]
+      real(ireals) :: rho ! air density     [kg/m**-3]
+      real(ireals) :: dz  ! vertical height [m]
+      real(ireals) :: pmean, dp
+
+      pmean = .5_ireals * (p0+p1) * 1e2_ireals
+      dp    = abs(p1-p0) * 1e2_ireals
+
+      rho = pmean / (2 * Ra * T)
+      dz = hydrostat_dz(dp, pmean, T)
+
+      c = rho * dz
+    end function
+
   end module

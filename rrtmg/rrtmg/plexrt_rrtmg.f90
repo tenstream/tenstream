@@ -52,7 +52,7 @@ module m_plexrt_rrtmg
   use m_plex_rt, only: t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, destroy_plexrt_solver, &
     plexrt_get_result
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw
   use m_icon_plex_utils, only: Nz_Ncol_vec_to_celldm1
 
@@ -256,6 +256,7 @@ contains
     real(ireals),allocatable, dimension(:,:)   :: spec_abso           ! [nlyr(+1), ncol ]
     real(ireals),allocatable, dimension(:,:)   :: spec_edn, spec_eup  ! [nlyr(+1), ncol ]
     real(ireals),allocatable, dimension(:,:)   :: tmp, plck           ! [nlyr, ncol ]
+    real(ireals),allocatable, dimension(:)     :: integral_coeff      ! [nlyr]
 
     real(ireals), pointer :: xalbedo(:), xsrfc_emission(:)
 
@@ -286,16 +287,18 @@ contains
     ! Compute optical properties with RRTMG
     allocate(tau  (ke1-i1, Ncol, ngptlw))
     allocate(Bfrac(ke1-i1, Ncol, ngptlw))
+    allocate(integral_coeff(ke1-i1))
 
     if(lrrtmg_only) then
         do i = 1, Ncol
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i), atm%tlay(:,i))
 
           call optprop_rrtm_lw(i1, ke1-i1, albedo, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
-            atm%lwc(:,i)*atm%dz(:,i), atm%reliq(:,i), &
-            atm%iwc(:,i)*atm%dz(:,i), atm%reice(:,i), &
+            atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+            atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
             tau(:,i:i,:), Bfrac(:,i:i,:), &
             spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i))
 
@@ -309,13 +312,14 @@ contains
       return
     else
         do i = 1, Ncol
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i), atm%tlay(:,i))
 
           call optprop_rrtm_lw(i1, ke1-i1, albedo, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
-            atm%lwc(:,i)*atm%dz(:,i), atm%reliq(:,i), &
-            atm%iwc(:,i)*atm%dz(:,i), atm%reice(:,i), &
+            atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+            atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
             tau(:,i:i,:), Bfrac(:,i:i,:))
         enddo
     endif
@@ -401,6 +405,7 @@ contains
     real(ireals),allocatable, dimension(:,:)   :: spec_edir,spec_abso ! [nlyr(+1), ncol ]
     real(ireals),allocatable, dimension(:,:)   :: spec_edn, spec_eup  ! [nlyr(+1), ncol ]
     real(ireals),allocatable, dimension(:,:)   :: tmp  ! [nlyr, ncol ]
+    real(ireals),allocatable, dimension(:)     :: integral_coeff  ! [nlyr]
 
     real(ireals), pointer :: xalbedo(:)
 
@@ -445,6 +450,7 @@ contains
     allocate(tau(ke1-i1, Ncol, ngptsw))
     allocate(w0 (ke1-i1, Ncol, ngptsw))
     allocate(g  (ke1-i1, Ncol, ngptsw))
+    allocate(integral_coeff(ke1-i1))
 
     if(lrrtmg_only) then
         do i = 1, Ncol
@@ -454,13 +460,15 @@ contains
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
 
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i), atm%tlay(:,i))
+
           call optprop_rrtm_sw(i1, ke1-i1, &
             theta0, albedo, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
-            atm%lwc(:,i)*atm%dz(:,i), atm%reliq(:,i), &
-            atm%iwc(:,i)*atm%dz(:,i), atm%reice(:,i), &
+            atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+            atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
             tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
             spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i))
 
@@ -481,13 +489,15 @@ contains
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
 
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i), atm%tlay(:,i))
+
           call optprop_rrtm_sw(i1, ke1-i1, &
             theta0, albedo, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
-            atm%lwc(:,i)*atm%dz(:,i), atm%reliq(:,i), &
-            atm%iwc(:,i)*atm%dz(:,i), atm%reice(:,i), &
+            atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+            atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
             tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:))
         enddo
     endif
@@ -547,7 +557,6 @@ contains
       call VecSet(vec, val, ierr); call CHKERR(ierr)
     endif
   end subroutine
-
 
   subroutine destroy_plexrt_rrtmg(solver, lfinalizepetsc)
     class(t_plex_solver) :: solver

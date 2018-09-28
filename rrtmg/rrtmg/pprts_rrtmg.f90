@@ -53,7 +53,7 @@ module m_pprts_rrtmg
 
   use m_netcdfIO, only : ncwrite
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
 
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw
 
@@ -250,6 +250,7 @@ contains
     real(ireals),allocatable, target, dimension(:,:,:,:) :: tau, Bfrac  ! [nlyr, ie, je, ngptlw]
     real(ireals),allocatable, dimension(:,:,:) :: kabs, ksca, g, Blev   ! [nlyr(+1), local_nx, local_ny]
     real(ireals),allocatable, dimension(:,:,:), target :: spec_edn,spec_eup,spec_abso  ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:) :: integral_coeff            ! [nlyr]
 
     real(ireals), allocatable, dimension(:,:,:) :: ptau, pBfrac
     real(ireals), pointer, dimension(:,:,:) :: patm_dz
@@ -296,12 +297,14 @@ contains
           peup (1:ke1, 1:1) => spec_eup (:,i,j)
           pabso(1:ke , 1:1) => spec_abso(:,i,j)
 
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol), atm%tlay(:,icol))
+
           call optprop_rrtm_lw(i1, ke, albedo,      &
             atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
             atm%h2o_lay(:, icol), atm%o3_lay(:, icol) , atm%co2_lay(:, icol),     &
             atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
-            atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq(:, icol), &
-            atm%iwc(:,icol)*atm%dz(:,icol), atm%reice(:, icol), &
+            atm%lwc(:,icol)*integral_coeff, atm%reliq(:, icol), &
+            atm%iwc(:,icol)*integral_coeff, atm%reice(:, icol), &
             ptau, pBfrac, peup, pedn, pabso)
 
           tau  (:,i,j,:) = ptau(:,i1,:)
@@ -317,12 +320,13 @@ contains
       do j=i1,je
         do i=i1,ie
           icol =  i+(j-1)*ie
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol), atm%tlay(:,icol))
           call optprop_rrtm_lw(i1, ke, albedo, &
             atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
             atm%h2o_lay(:, icol), atm%o3_lay(:, icol) , atm%co2_lay(:, icol),     &
             atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
-            atm%lwc(:, icol)*atm%dz(:, icol), atm%reliq(:, icol), &
-            atm%iwc(:, icol)*atm%dz(:, icol), atm%reice(:, icol), &
+            atm%lwc(:, icol)*integral_coeff, atm%reliq(:, icol), &
+            atm%iwc(:, icol)*integral_coeff, atm%reice(:, icol), &
             tau=ptau, Bfrac=pBfrac)
 
           tau  (:,i,j,:) = ptau(:,i1,:)
@@ -408,6 +412,7 @@ contains
     real(ireals),allocatable, dimension(:,:,:)   :: kabs, ksca, kg      ! [nlyr, local_nx, local_ny]
     real(ireals),allocatable, dimension(:,:,:), target   :: spec_edir,spec_abso ! [nlyr(+1), local_nx, local_ny ]
     real(ireals),allocatable, dimension(:,:,:), target   :: spec_edn, spec_eup  ! [nlyr(+1), local_nx, local_ny ]
+    real(ireals),allocatable, dimension(:) :: integral_coeff            ! [nlyr]
 
     real(ireals), allocatable, dimension(:,:,:) :: ptau, pw0, pg
     real(ireals), pointer, dimension(:,:,:) :: patm_dz
@@ -454,13 +459,15 @@ contains
           pEup (1:size(eup ,1), 1:1) => spec_eup (:,i,j)
           pabso(1:size(abso,1), 1:1) => spec_abso(:,i,j)
 
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol), atm%tlay(:,icol))
+
           call optprop_rrtm_sw(i1, ke, &
             theta0, albedo, &
             atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
             atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
             atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-            atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq(:,icol), &
-            atm%iwc(:,icol)*atm%dz(:,icol), atm%reice(:,icol), &
+            atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
+            atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
             ptau, pw0, pg, &
             pEup, pEdn, pabso)
 
@@ -479,13 +486,14 @@ contains
       do j=1,je
         do i=1,ie
           icol =  i+(j-1)*ie
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol), atm%tlay(:,icol))
           call optprop_rrtm_sw(i1, ke, &
             theta0, albedo, &
             atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
             atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
             atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-            atm%lwc(:,icol)*atm%dz(:,icol), atm%reliq(:,icol), &
-            atm%iwc(:,icol)*atm%dz(:,icol), atm%reice(:,icol), &
+            atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
+            atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
             ptau, pw0, pg)
 
           tau(:,i,j,:) = ptau(:,i1,:)
