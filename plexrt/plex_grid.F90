@@ -2680,10 +2680,10 @@ module m_plex_grid
 
     end function
 
-    subroutine atm_dz_to_vertex_heights(atm_dz, dm3d, srfc_height)
+    subroutine atm_dz_to_vertex_heights(atm_dz, dm3d, TOA_height)
       real(ireals), intent(in) :: atm_dz(:,:)              ! shape(Nlay, Ncol) values start at the surface
-      real(ireals), intent(in), optional :: srfc_height(:) ! shape(Ncol)
       type(tDM), intent(inout) :: dm3d
+      real(ireals), intent(in), optional :: TOA_height
 
       type(tDM) :: facedm, vertdm
       type(tPetscSection) :: face_section, vert_section, coord_section
@@ -2694,12 +2694,14 @@ module m_plex_grid
 
       integer(iintegers) :: Nlay, Ncol, Nvert, face_section_size
       integer(iintegers) :: vStart, vEnd, fStart, fEnd
-      integer(iintegers) :: k, icol, srfc_face, iface, srfc_vert
+      integer(iintegers) :: k, icol, iface, srfc_vert, toa_face
       integer(iintegers) :: voff, coff
 
-      real(ireals) :: srfc_distance
+      real(ireals) :: srfc_distance, max_TOA_height
 
       integer(mpiint) :: ierr
+
+      max_TOA_height = get_arg(120e3_ireals, TOA_height) ! height at which the mesh is homogenized, from there counting down
 
       call DMClone(dm3d, facedm, ierr); call CHKERR(ierr)
       call gen_face_section(facedm, [i1], [i0], face_section)
@@ -2725,18 +2727,14 @@ module m_plex_grid
       call VecGetArrayF90    (level_heights_vec, xlvl_hgt, ierr); call CHKERR(ierr)
 
       do icol = 1, Ncol
-        srfc_face = fStart + (icol-i1)*(Nlay+1) + Nlay
+        toa_face = fStart + (icol-i1)*(Nlay+1)
 
-        call PetscSectionGetOffset(face_section, srfc_face, voff, ierr); call CHKERR(ierr)
-        if(present(srfc_height)) then
-          xlvl_hgt(i1+voff) = srfc_height(icol)
-        else
-          xlvl_hgt(i1+voff) = zero
-        endif
+        call PetscSectionGetOffset(face_section, toa_face, voff, ierr); call CHKERR(ierr)
+        xlvl_hgt(i1+voff) = max_TOA_height
 
         do k = 1, Nlay
-          iface = srfc_face - k
-          xlvl_hgt(i1+voff-k) = xlvl_hgt(i1+voff-k+1) + atm_dz(k,icol)
+          iface = toa_face + k
+          xlvl_hgt(i1+voff+k) = xlvl_hgt(i1+voff+k-1) - atm_dz(Nlay-(k-1),icol)
         enddo
         !print *,'srfc_face', srfc_face, icol,':', xlvl_hgt(i1+voff:i1+voff-Nlay:-1)
       enddo
@@ -2767,7 +2765,7 @@ module m_plex_grid
           call PetscSectionGetOffset(coord_section, srfc_vert-k, coff, ierr); call CHKERR(ierr)
           coords(i1+coff:coff+i3) = coords(i1+coff:coff+i3) / norm(coords(i1+coff:coff+i3)) &
             * (srfc_distance + xvert(i1+voff-k))
-          !print *,'xvert', srfc_vert, xvert(i1+voff-k), ':coords', coords(i1+coff:coff+i3)
+          !print *,'xvert', srfc_vert, xvert(i1+voff-k), ':coords', coords(i1+coff:coff+i3),'fac',(srfc_distance + xvert(i1+voff-k))
         enddo
       enddo
 
