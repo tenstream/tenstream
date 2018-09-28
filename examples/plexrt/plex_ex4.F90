@@ -18,7 +18,7 @@ module m_mpi_plex_ex4
     dump_ownership, dmplex_2D_to_3D, icon_ncvec_to_plex, celldm_veccopy, celldm1_vec_to_nz_ncol, &
     dm2d_vec_to_Nz_Ncol
 
-  use m_plex_grid, only: t_plexgrid, setup_plexgrid, get_normal_of_first_toa_face
+  use m_plex_grid, only: t_plexgrid, setup_plexgrid, get_normal_of_first_toa_face, atm_dz_to_vertex_heights
 
   use m_plex_rt, only: compute_face_geometry, &
     t_plex_solver, init_plex_rt_solver
@@ -114,6 +114,7 @@ contains
 
     ! Setup 3D DMPLEX grid
     call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
+    call atm_dz_to_vertex_heights(atm%dz, dm3d)
 
     call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
     call setup_plexgrid(dm3d, Nlev-1, zindex, plex)

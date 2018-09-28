@@ -28,7 +28,8 @@ module m_plex_grid
     get_consecutive_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
     TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, &
     determine_diff_incoming_outgoing_offsets, get_normal_of_first_TOA_face, &
-    interpolate_horizontal_face_var_onto_vertices, get_horizontal_faces_around_vertex
+    interpolate_horizontal_face_var_onto_vertices, get_horizontal_faces_around_vertex, &
+    atm_dz_to_vertex_heights
 
   logical, parameter :: ldebug=.False.
 
@@ -497,10 +498,10 @@ module m_plex_grid
           plex%boundarylabel, plex%domainboundarylabel, plex%ownerlabel)
         call setup_srfc_boundary_dm(plex, plex%srfc_boundary_dm)
 
-        call setup_cell1_dmplex(plex, plex%cell1_dm)
-        call setup_edir_dmplex(plex, plex%edir_dm)
-        call setup_ediff_dmplex(plex, plex%ediff_dm)
-        call setup_abso_dmplex(plex, plex%abso_dm)
+        call setup_cell1_dmplex(plex%dm, plex%cell1_dm)
+        call setup_edir_dmplex(plex%dm, plex%edir_dm)
+        call setup_ediff_dmplex(plex%dm, plex%ediff_dm)
+        call setup_abso_dmplex(plex%dm, plex%abso_dm)
       end subroutine
 
       subroutine gen_test_mat(dm)
@@ -710,9 +711,8 @@ module m_plex_grid
         if(ldebug.and.myid.eq.0) print *,'dump_ownership :: finished'
       end subroutine
 
-      subroutine facevec2cellvec(plex, faceVec_dm, global_faceVec, vecshow_string)
-        type(t_plexgrid), intent(in) :: plex
-        type(tDM), intent(in) :: faceVec_dm
+      subroutine facevec2cellvec(cellVec_dm, faceVec_dm, global_faceVec, vecshow_string)
+        type(tDM), intent(in) :: cellVec_dm, faceVec_dm
         type(tVec),intent(in) :: global_faceVec
         character(len=*), intent(in), optional :: vecshow_string
 
@@ -726,15 +726,16 @@ module m_plex_grid
         integer(iintegers),pointer :: faces_of_cell(:)
         integer(iintegers) :: idof, num_dof
 
-        integer(mpiint) :: myid, ierr
+        integer(mpiint) :: myid, comm, ierr
         character(len=default_str_len) :: faceVecname, cellVecname
 
-        call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
+        call PetscObjectGetComm(cellVec_dm, comm, ierr); call CHKERR(ierr)
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
         call PetscObjectGetName(global_faceVec, faceVecname, ierr); call CHKERR(ierr)
         if(ldebug.and.myid.eq.0) print *,'facevec2cellvec :: starting..'//trim(faceVecname)
 
-        call DMClone(plex%dm, celldm, ierr); ; call CHKERR(ierr)
+        call DMClone(cellVec_dm, celldm, ierr); ; call CHKERR(ierr)
 
         call DMGetSection(faceVec_dm, faceVecSection, ierr); call CHKERR(ierr)
 
@@ -1330,8 +1331,8 @@ module m_plex_grid
     call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_'//trim(sectionname), ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine setup_cell1_dmplex(plex, dm)
-    type(t_plexgrid), intent(inout) :: plex
+  subroutine setup_cell1_dmplex(orig_dm, dm)
+    type(tDM), intent(in) :: orig_dm
     type(tDM), allocatable, intent(inout) :: dm
     type(tPetscSection) :: edirSection
     integer(mpiint) :: ierr
@@ -1339,7 +1340,7 @@ module m_plex_grid
     if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_cell1_dmplex on an already allocated DM')
     allocate(dm)
 
-    call DMClone(plex%dm, dm, ierr); call CHKERR(ierr)
+    call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
 
     call PetscObjectSetName(dm, 'plex_cell1_dm', ierr);call CHKERR(ierr)
     call create_plex_section(dm, 'face_section', i1, [i1], [i0], [i0], [i0], edirSection)
@@ -1347,8 +1348,8 @@ module m_plex_grid
     call PetscSectionDestroy(edirSection, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine setup_edir_dmplex(plex, dm)
-    type(t_plexgrid), intent(inout) :: plex
+  subroutine setup_edir_dmplex(orig_dm, dm)
+    type(tDM), intent(in) :: orig_dm
     type(tDM), allocatable, intent(inout) :: dm
     type(tPetscSection) :: edirSection
     integer(mpiint) :: ierr
@@ -1356,7 +1357,7 @@ module m_plex_grid
     if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_edir_dmplex on an already allocated DM')
     allocate(dm)
 
-    call DMClone(plex%dm, dm, ierr); call CHKERR(ierr)
+    call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
 
     call PetscObjectSetName(dm, 'plex_edir', ierr);call CHKERR(ierr)
     call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex_edir", ierr); call CHKERR(ierr)
@@ -1388,12 +1389,13 @@ module m_plex_grid
       subroutine setup_edir_dmplex_test()
         type(tVec) :: lvec, lvec2, gvec
 
-        integer(mpiint) :: myid
+        integer(mpiint) :: myid, comm
         real(ireals), pointer :: xv(:), xv2(:)
 
         type(tPetscSection) :: sec
 
-        call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
+        call PetscObjectGetComm(orig_dm, comm, ierr); call CHKERR(ierr)
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
         call DMGetSection(dm, sec, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(sec, PETSC_NULL_SECTION, '-show_edir_section', ierr); call CHKERR(ierr)
@@ -1424,7 +1426,7 @@ module m_plex_grid
         call VecRestoreArrayReadF90(lvec,xv,ierr)
 
         call PetscObjectSetName(gvec, 'edir_test_gVec', ierr); call CHKERR(ierr)
-        call facevec2cellvec(plex, dm, gvec)
+        call facevec2cellvec(orig_dm, dm, gvec)
 
         call PetscObjectViewFromOptions(lvec , PETSC_NULL_VEC, '-show_edir_dmplex_lvec ', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(lvec2, PETSC_NULL_VEC, '-show_edir_dmplex_lvec2', ierr); call CHKERR(ierr)
@@ -1435,7 +1437,7 @@ module m_plex_grid
         call DMRestoreLocalVector(dm, lvec2,ierr); call CHKERR(ierr)
         call VecDestroy(gvec,ierr); call CHKERR(ierr)
 
-        call mpi_barrier(plex%comm, ierr)
+        call mpi_barrier(comm, ierr)
         stop 'debug'
 
       end subroutine
@@ -1447,8 +1449,8 @@ module m_plex_grid
   !      * field 0: radiation travelling from cell_a to cell_b
   !      * field 1: radiation going from cell_b to cell_a
   !      where id of cell_b is larger id(cell_a)
-  subroutine setup_ediff_dmplex(plex, dm)
-    type(t_plexgrid), intent(inout) :: plex
+  subroutine setup_ediff_dmplex(orig_dm, dm)
+    type(tDM), intent(in) :: orig_dm
     type(tDM), allocatable, intent(inout) :: dm
     type(tPetscSection) :: section
     integer(mpiint) :: ierr
@@ -1456,41 +1458,48 @@ module m_plex_grid
     if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_ediff_dmplex on an already allocated DM')
     allocate(dm)
 
-    call DMClone(plex%dm, dm, ierr); call CHKERR(ierr)
+    call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
 
     call PetscObjectSetName(dm, 'plex_ediff', ierr);call CHKERR(ierr)
     call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex_ediff", ierr); call CHKERR(ierr)
 
-    call gen_section(section, Nstreams_top=i2, Nstreams_side=i4)
+    call gen_face_section(dm, fields_top=[i1,i1], fields_side=[i2,i2], section=section)
 
     call DMSetSection(dm, section, ierr); call CHKERR(ierr)
     call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
-    contains
-      subroutine gen_section(section, Nstreams_top, Nstreams_side)
-        type(tPetscSection), intent(inout) :: section
-        integer(iintegers), intent(in) :: Nstreams_top, Nstreams_side
-        integer(iintegers) :: iface, fStart, fEnd
-        integer(mpiint) :: comm, ierr
-        call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
-        call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
-        call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-        call PetscSectionSetNumFields(section, i2, ierr); call CHKERR(ierr)
-        call PetscSectionSetFieldComponents(section, i0, i1, ierr); call CHKERR(ierr)
-        call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
-        do iface = fStart,  fEnd-1
-          if(plex%ltopfacepos(iface)) then
-            call PetscSectionSetDof(section, iface, Nstreams_top, ierr); call CHKERR(ierr)
-            call PetscSectionSetFieldDof(section, iface, i0, Nstreams_top/2, ierr); call CHKERR(ierr)
-            call PetscSectionSetFieldDof(section, iface, i1, Nstreams_top/2, ierr); call CHKERR(ierr)
-          else
-            call PetscSectionSetDof(section, iface, Nstreams_side, ierr); call CHKERR(ierr)
-            call PetscSectionSetFieldDof(section, iface, i0, Nstreams_side/2, ierr); call CHKERR(ierr)
-            call PetscSectionSetFieldDof(section, iface, i1, Nstreams_side/2, ierr); call CHKERR(ierr)
-          endif
+  end subroutine
+
+  subroutine gen_face_section(dm, fields_top, fields_side, section)
+    type(tDM), intent(in) :: dm
+    integer(iintegers), intent(in) :: fields_top(:), fields_side(:)
+    type(tPetscSection), intent(inout) :: section
+    integer(iintegers) :: iface, fStart, fEnd, ifield, num_edges_of_face
+    integer(mpiint) :: comm, ierr
+    call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+    call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
+    call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+    call PetscSectionSetNumFields(section, size(fields_top), ierr); call CHKERR(ierr)
+    call PetscSectionSetFieldComponents(section, i0, i1, ierr); call CHKERR(ierr)
+    call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
+    do iface = fStart,  fEnd-1
+      call DMPlexGetConeSize(dm, iface, num_edges_of_face, ierr); call CHKERR(ierr)
+      if(num_edges_of_face.eq.i3) then
+        call PetscSectionSetDof(section, iface, int(sum(fields_top), iintegers), ierr); call CHKERR(ierr)
+        do ifield=1,size(fields_top)
+          call PetscSectionSetFieldDof(section, iface, ifield-1, fields_top(ifield), ierr); call CHKERR(ierr)
         enddo
-        call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, "-show_plex_ediff_section", ierr); call CHKERR(ierr)
-      end subroutine
+        !call PetscSectionSetFieldDof(section, iface, i0, Ndof_top/2, ierr); call CHKERR(ierr)
+        !call PetscSectionSetFieldDof(section, iface, i1, Ndof_top/2, ierr); call CHKERR(ierr)
+      else
+        call PetscSectionSetDof(section, iface, int(sum(fields_side), iintegers), ierr); call CHKERR(ierr)
+        do ifield=1,size(fields_side)
+          call PetscSectionSetFieldDof(section, iface, ifield-1, fields_side(ifield), ierr); call CHKERR(ierr)
+        enddo
+        !call PetscSectionSetFieldDof(section, iface, i0, Ndof_side/2, ierr); call CHKERR(ierr)
+        !call PetscSectionSetFieldDof(section, iface, i1, Ndof_side/2, ierr); call CHKERR(ierr)
+      endif
+    enddo
+    call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine setup_srfc_boundary_dm(plex, dm)
@@ -1626,9 +1635,9 @@ module m_plex_grid
     call DMPlexRestoreCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
   end subroutine
 
-  subroutine setup_abso_dmplex(plex, dm)
-    type(t_plexgrid), intent(inout) :: plex
-    type(tDM), allocatable :: dm
+  subroutine setup_abso_dmplex(orig_dm, dm)
+    type(tDM), intent(in) :: orig_dm
+    type(tDM), allocatable, intent(inout) :: dm
     type(tPetscSection) :: s
     integer(mpiint) :: ierr
 
@@ -1636,7 +1645,7 @@ module m_plex_grid
     if(allocated(dm)) stop 'called setup_abso_dmplex on an already allocated DM'
     allocate(dm)
 
-    call DMClone(plex%dm, dm, ierr); call CHKERR(ierr)
+    call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
 
     call PetscObjectSetName(dm, 'plex_abso', ierr);call CHKERR(ierr)
     call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex_abso", ierr); call CHKERR(ierr)
@@ -1701,7 +1710,6 @@ module m_plex_grid
 
       face_normal = face_normal * real(n, ireals)
     end subroutine
-
 
   !> @brief create a vector that holds all the wedge orientation ordering information
   !> as well as zenith and azimuth angles
@@ -2627,9 +2635,10 @@ module m_plex_grid
       integer(iintegers), pointer :: xitoa(:), cell_support(:)
       integer(iintegers) :: geom_offset, iface, icell
 
-      integer(mpiint) :: myid, ierr
+      integer(mpiint) :: myid, comm, ierr
 
-      call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
+      call PetscObjectGetComm(plex%dm, comm, ierr); call CHKERR(ierr)
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       if(myid.eq.0) then
         if(.not.allocated(plex%geom_dm)) stop 'get_normal_of_first_TOA_face::needs allocated geom_dm first'
@@ -2671,18 +2680,122 @@ module m_plex_grid
 
     end function
 
+    subroutine atm_dz_to_vertex_heights(atm_dz, dm3d, srfc_height)
+      real(ireals), intent(in) :: atm_dz(:,:)              ! shape(Nlay, Ncol) values start at the surface
+      real(ireals), intent(in), optional :: srfc_height(:) ! shape(Ncol)
+      type(tDM), intent(inout) :: dm3d
+
+      type(tDM) :: facedm, vertdm
+      type(tPetscSection) :: face_section, vert_section, coord_section
+      type(tVec) :: level_heights_vec, coordinates
+      type(tVec), allocatable :: vertvec
+
+      real(ireals), pointer :: xlvl_hgt(:), xvert(:), coords(:)
+
+      integer(iintegers) :: Nlay, Ncol, Nvert, face_section_size
+      integer(iintegers) :: vStart, vEnd, fStart, fEnd
+      integer(iintegers) :: k, icol, srfc_face, iface, srfc_vert
+      integer(iintegers) :: voff, coff
+
+      real(ireals) :: srfc_distance
+
+      integer(mpiint) :: ierr
+
+      call DMClone(dm3d, facedm, ierr); call CHKERR(ierr)
+      call gen_face_section(facedm, [i1], [i0], face_section)
+
+      call DMSetSection(facedm, face_section, ierr); call CHKERR(ierr)
+
+      call DMClone(dm3d, vertdm, ierr); call CHKERR(ierr)
+      call create_plex_section(vertdm, 'vert_section', i1, [i0], [i0], [i0], [i1], vert_section)
+      call DMSetSection(vertdm, vert_section, ierr); call CHKERR(ierr)
+
+      Nlay = size(atm_dz, 1)
+      Ncol = size(atm_dz, 2)
+      call DMPlexGetDepthStratum(facedm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! vertices
+      call PetscSectionGetStorageSize(face_section, face_section_size, ierr); call CHKERR(ierr)
+
+      call CHKERR(int(face_section_size-Ncol*(Nlay+1), mpiint), &
+        'bad face section size or bad atm_dz size '//itoa(face_section_size)//' vs '//itoa(Ncol*(Nlay+1)))
+
+      call DMPlexGetDepthStratum(vertdm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+      Nvert = vEnd - vStart
+
+      call DMGetLocalVector(facedm, level_heights_vec, ierr); call CHKERR(ierr)
+      call VecGetArrayF90    (level_heights_vec, xlvl_hgt, ierr); call CHKERR(ierr)
+
+      do icol = 1, Ncol
+        srfc_face = fStart + (icol-i1)*(Nlay+1) + Nlay
+
+        call PetscSectionGetOffset(face_section, srfc_face, voff, ierr); call CHKERR(ierr)
+        if(present(srfc_height)) then
+          xlvl_hgt(i1+voff) = srfc_height(icol)
+        else
+          xlvl_hgt(i1+voff) = zero
+        endif
+
+        do k = 1, Nlay
+          iface = srfc_face - k
+          xlvl_hgt(i1+voff-k) = xlvl_hgt(i1+voff-k+1) + atm_dz(k,icol)
+        enddo
+        !print *,'srfc_face', srfc_face, icol,':', xlvl_hgt(i1+voff:i1+voff-Nlay:-1)
+      enddo
+      ! lvl_hgt has now the height starting from srfc height and add up the atm_dz's
+
+      call VecRestoreArrayF90(level_heights_vec, xlvl_hgt, ierr); call CHKERR(ierr)
+
+      call interpolate_horizontal_face_var_onto_vertices(facedm, level_heights_vec, vertdm, vertvec)
+
+      call DMRestoreLocalVector(facedm, level_heights_vec, ierr); call CHKERR(ierr)
+      call PetscSectionDestroy(face_section, ierr); call CHKERR(ierr)
+      call DMDestroy(facedm, ierr); call CHKERR(ierr)
+
+      ! Now generate new coordinates for 3D DMPlex
+      call DMGetCoordinateSection(dm3d, coord_section, ierr); call CHKERR(ierr)
+      call DMGetCoordinatesLocal(dm3d, coordinates, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+
+      call VecGetArrayF90(vertvec, xvert, ierr); call CHKERR(ierr)
+      do srfc_vert = vStart+Nlay, vEnd-1, Nlay+1
+        call PetscSectionGetOffset(coord_section, srfc_vert, coff, ierr); call CHKERR(ierr)
+
+        call PetscSectionGetOffset(vert_section, srfc_vert, voff, ierr); call CHKERR(ierr)
+
+        srfc_distance = norm(coords(i1+coff:coff+i3)) ! distance from origin till vertex at surface
+
+        do k = Nlay, 0, -1
+          call PetscSectionGetOffset(coord_section, srfc_vert-k, coff, ierr); call CHKERR(ierr)
+          coords(i1+coff:coff+i3) = coords(i1+coff:coff+i3) / norm(coords(i1+coff:coff+i3)) &
+            * (srfc_distance + xvert(i1+voff-k))
+          !print *,'xvert', srfc_vert, xvert(i1+voff-k), ':coords', coords(i1+coff:coff+i3)
+        enddo
+      enddo
+
+      call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+      call VecRestoreArrayF90(vertvec, xvert, ierr); call CHKERR(ierr)
+      call PetscSectionDestroy(vert_section, ierr); call CHKERR(ierr)
+      call DMDestroy(vertdm, ierr); call CHKERR(ierr)
+    end subroutine
+
     ! takes the average of horizontal face values around a vertex and builds the mean
     subroutine interpolate_horizontal_face_var_onto_vertices(facedm, facevec, vertdm, vertvec)
       type(tDM), intent(in) :: facedm, vertdm
       type(tVec), intent(in) :: facevec
       type(tVec), allocatable, intent(inout) :: vertvec ! Local vector on vertices
 
+      type(tVec) :: Numvec, gVec
+
       type(tPetscSection) :: face_section, vert_section
 
-      integer(iintegers) :: ivert, vStart, vEnd
+      integer(iintegers) :: ivert, vStart, vEnd, j, iface, voff, foff
+      integer(iintegers), allocatable :: faces_around_vert(:)
 
-      real(ireals), pointer :: xface(:), xvert(:)
+      real(ireals), pointer :: xface(:), xvert(:), xNum(:)
       integer(mpiint) :: ierr
+
+!      integer(mpiint) :: comm, myid
+!      call PetscObjectGetComm(facedm, comm, ierr); call CHKERR(ierr)
+!      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       call DMGetSection(facedm, face_section, ierr); call CHKERR(ierr)
       call DMGetSection(vertdm, vert_section, ierr); call CHKERR(ierr)
@@ -2691,17 +2804,56 @@ module m_plex_grid
         allocate(vertvec)
         call DMCreateLocalVector(vertdm, vertvec, ierr); call CHKERR(ierr)
       endif
+      call VecSet(vertvec, zero, ierr); call CHKERR(ierr)
+
+      call DMGetLocalVector(vertdm, Numvec, ierr); call CHKERR(ierr)
+      call VecSet(Numvec, zero, ierr); call CHKERR(ierr)
 
       call DMPlexGetDepthStratum(vertdm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
       call VecGetArrayReadF90(facevec, xface, ierr); call CHKERR(ierr)
       call VecGetArrayF90(vertvec, xvert, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(Numvec, xNum, ierr); call CHKERR(ierr)
 
       do ivert = vStart, vEnd-1
+        call get_horizontal_faces_around_vertex(facedm, ivert, faces_around_vert)
+
+        ! add to Nsumvec, this will be used to take the average in the end
+        call PetscSectionGetOffset(vert_section, ivert, voff, ierr); call CHKERR(ierr)
+        xNum(i1+voff) = size(faces_around_vert)
+
+        do j=1,size(faces_around_vert)
+          iface = faces_around_vert(j)
+          call PetscSectionGetOffset(face_section, iface, foff, ierr); call CHKERR(ierr)
+          xvert(i1+voff) = xvert(i1+voff) + xface(i1+foff)
+          !print *,myid,'ivert', ivert, 'adding', iface, xface(i1+foff), '=', xvert(i1+voff), 'xnum', xNum(i1+voff)
+        enddo
       enddo
 
+      call VecRestoreArrayF90(Numvec, xNum, ierr); call CHKERR(ierr)
       call VecRestoreArrayF90(vertvec, xvert, ierr); call CHKERR(ierr)
+
       call VecRestoreArrayReadF90(facevec, xface, ierr); call CHKERR(ierr)
+
+      call DMGetGlobalVector(vertdm, gVec, ierr); call CHKERR(ierr)
+
+      call VecSet(gVec, zero, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalBegin(vertdm, Numvec, ADD_VALUES, gVec, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (vertdm, Numvec, ADD_VALUES, gVec, ierr)
+      call DMGlobalToLocalBegin(vertdm, gVec, INSERT_VALUES, Numvec, ierr); call CHKERR(ierr)
+      call DMGlobalToLocalEnd  (vertdm, gVec, INSERT_VALUES, Numvec, ierr)
+
+      call VecSet(gVec, zero, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalBegin(vertdm, vertvec, ADD_VALUES, gVec, ierr); call CHKERR(ierr)
+      call DMLocalToGlobalEnd  (vertdm, vertvec, ADD_VALUES, gVec, ierr)
+      call DMGlobalToLocalBegin(vertdm, gVec, INSERT_VALUES, vertvec, ierr); call CHKERR(ierr)
+      call DMGlobalToLocalEnd  (vertdm, gVec, INSERT_VALUES, vertvec, ierr)
+
+      call DMRestoreGlobalVector(vertdm, gVec, ierr); call CHKERR(ierr)
+
+      call VecPointwiseDivide(vertvec, vertvec, Numvec, ierr); call CHKERR(ierr)
+
+      call DMRestoreLocalVector(vertdm, Numvec, ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine get_horizontal_faces_around_vertex(dm, ivert, idx)
@@ -2726,16 +2878,16 @@ module m_plex_grid
           if(numSupport.eq.i3) then ! if face has 3 edges
             numfaces = numfaces + 1
           else
-            transclosure(i) = -transclosure(i)
+            transclosure(i) = -100 -transclosure(i)
           endif
         else
-          transclosure(i) = -transclosure(i)
+          transclosure(i) = -100 -transclosure(i)
         endif
       enddo
       allocate(idx(numfaces))
       j=1
       do i=1,size(transclosure),2
-        if(transclosure(i).gt.0) then
+        if(transclosure(i).ge.0) then
           idx(j) = transclosure(i)
           j = j+1
         endif

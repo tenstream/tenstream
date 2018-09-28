@@ -8,7 +8,8 @@ module m_icon_plex_utils
 
   use m_helper_functions, only: chkerr, itoa, norm, get_arg, imp_bcast, deg2rad
 
-  use m_plex_grid, only: t_plexgrid, print_dmplex, create_plex_section, TOAFACE
+  use m_plex_grid, only: t_plexgrid, print_dmplex, create_plex_section, TOAFACE, &
+    get_horizontal_faces_around_vertex
 
   use m_netcdfio, only: ncload
 
@@ -976,6 +977,7 @@ module m_icon_plex_utils
       integer(iintegers), allocatable :: cell_index(:)
       integer(iintegers), allocatable :: edge_index(:)
       integer(iintegers), allocatable :: vert_index(:)
+      real(ireals)      , allocatable :: cell_elevation(:)       ! dim(local_cells)
       real(ireals)      , allocatable :: cartesian_x_vertices(:) ! dim(local_cells)
       real(ireals)      , allocatable :: cartesian_y_vertices(:) ! dim(local_cells)
       real(ireals)      , allocatable :: cartesian_z_vertices(:) ! dim(local_cells)
@@ -1000,6 +1002,7 @@ module m_icon_plex_utils
         varname(2) = 'vertex_index'         ; call ncload(varname, vert_index   , ierr); call CHKERR(ierr);
         varname(2) = 'edge_of_cell'         ; call ncload(varname, edges_of_cell, ierr); call CHKERR(ierr)
         varname(2) = 'edge_vertices'        ; call ncload(varname, edge_verts   , ierr); call CHKERR(ierr)
+        varname(2) = 'cell_elevation'       ; call ncload(varname, cell_elevation,ierr) ; call CHKERR(ierr);
         varname(2) = 'cartesian_x_vertices' ; call ncload(varname, cartesian_x_vertices, ierr) ; call CHKERR(ierr);
         varname(2) = 'cartesian_y_vertices' ; call ncload(varname, cartesian_y_vertices, ierr) ; call CHKERR(ierr);
         varname(2) = 'cartesian_z_vertices' ; call ncload(varname, cartesian_z_vertices, ierr) ; call CHKERR(ierr);
@@ -1084,9 +1087,10 @@ module m_icon_plex_utils
           type(tVec)           :: coordinates
           integer(iintegers)   :: coordSize, voff, ind
           PetscSection         :: coordSection
-          integer(iintegers)   :: vStart, vEnd
+          integer(iintegers)   :: vStart, vEnd, i, j
+          integer(iintegers), allocatable :: faces_around_vertex(:)
 
-          real(ireals) :: cart_coord(3)
+          real(ireals) :: cart_coord(3), vert_elevation
           real(ireals), parameter :: sphere_radius = 6371229._ireals
 
           call DMGetCoordinateSection(dm, coordSection, ierr); call CHKERR(ierr)
@@ -1122,9 +1126,16 @@ module m_icon_plex_utils
             ind = vStart + i - i1
             call PetscSectionGetOffset(coordSection, ind, voff, ierr); call CHKERR(ierr)
 
+            call get_horizontal_faces_around_vertex(dm, ind, faces_around_vertex)
+            vert_elevation = zero
+            do j = 1, size(faces_around_vertex)
+              vert_elevation = vert_elevation + cell_elevation(i1+faces_around_vertex(j))
+            enddo
+            vert_elevation = vert_elevation / size(faces_around_vertex)
+
             cart_coord = [cartesian_x_vertices(i), cartesian_y_vertices(i), cartesian_z_vertices(i)]
             !cart_coord = [icongrid%cartesian_x_vertices(i), icongrid%cartesian_y_vertices(i)]
-            coords(voff+i1 : voff+i3) = cart_coord * sphere_radius
+            coords(voff+i1 : voff+i3) = cart_coord * (sphere_radius + vert_elevation)
             !print *,'setting coords',cart_coord,'to',voff+i1 , voff+dimEmbed
           enddo
 

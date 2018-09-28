@@ -324,9 +324,9 @@ module m_plex_rt
       call PetscLogStagePush(solver%logs%stage_solve, ierr); call CHKERR(ierr)
 
       if(.not.allocated(solver%plex%geom_dm))  call compute_face_geometry(solver%plex, solver%plex%geom_dm)
-      if(.not.allocated(solver%plex%edir_dm))  call setup_edir_dmplex(solver%plex, solver%plex%edir_dm)
-      if(.not.allocated(solver%plex%ediff_dm)) call setup_ediff_dmplex(solver%plex, solver%plex%ediff_dm)
-      if(.not.allocated(solver%plex%abso_dm))  call setup_abso_dmplex(solver%plex, solver%plex%abso_dm)
+      if(.not.allocated(solver%plex%edir_dm))  call setup_edir_dmplex(solver%plex%dm, solver%plex%edir_dm)
+      if(.not.allocated(solver%plex%ediff_dm)) call setup_ediff_dmplex(solver%plex%dm, solver%plex%ediff_dm)
+      if(.not.allocated(solver%plex%abso_dm))  call setup_abso_dmplex(solver%plex%dm, solver%plex%abso_dm)
 
       if(.not.allocated(solver%IS_diff_in_out_dof)) &
         call setup_IS_diff_in_out_dof(solver%plex, solver%plex%ediff_dm, solver%IS_diff_in_out_dof)
@@ -382,7 +382,7 @@ module m_plex_rt
         if(ldebug) then
           call PetscLogEventBegin(solver%logs%debug_output, ierr)
           call scale_facevec(solver%plex, solver%plex%edir_dm, solver%dirsrc, lW_to_Wm2=.True.)
-          call facevec2cellvec(solver%plex, solver%plex%edir_dm, solver%dirsrc)
+          call facevec2cellvec(solver%plex%dm, solver%plex%edir_dm, solver%dirsrc)
           call scale_facevec(solver%plex, solver%plex%edir_dm, solver%dirsrc, lW_to_Wm2=.False.)
           call PetscLogEventEnd(solver%logs%debug_output, ierr)
         endif
@@ -407,7 +407,7 @@ module m_plex_rt
         if(ldebug) then
           call PetscLogEventBegin(solver%logs%debug_output, ierr)
           call scale_facevec(solver%plex, solver%plex%edir_dm, solution%edir, lW_to_Wm2=.True.)
-          call facevec2cellvec(solver%plex, solver%plex%edir_dm, solution%edir)
+          call facevec2cellvec(solver%plex%dm, solver%plex%edir_dm, solution%edir)
           call scale_facevec(solver%plex, solver%plex%edir_dm, solution%edir, lW_to_Wm2=.False.)
           call PetscLogEventEnd(solver%logs%debug_output, ierr)
         endif
@@ -424,7 +424,7 @@ module m_plex_rt
       if(ldebug) then
         call PetscLogEventBegin(solver%logs%debug_output, ierr)
         call scale_facevec(solver%plex, solver%plex%ediff_dm, solver%diffsrc, lW_to_Wm2=.True.)
-        call facevec2cellvec(solver%plex, solver%plex%ediff_dm, solver%diffsrc)
+        call facevec2cellvec(solver%plex%dm, solver%plex%ediff_dm, solver%diffsrc)
         call scale_facevec(solver%plex, solver%plex%ediff_dm, solver%diffsrc, lW_to_Wm2=.False.)
         call PetscLogEventEnd(solver%logs%debug_output, ierr)
       endif

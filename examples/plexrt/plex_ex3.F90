@@ -20,7 +20,8 @@ use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
 use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
   setup_edir_dmplex, setup_abso_dmplex, compute_face_geometry, &
   distribute_plexgrid_dm, ncvar2d_to_globalvec, setup_plexgrid, &
-  gen_test_mat, get_normal_of_first_toa_face, get_horizontal_faces_around_vertex
+  gen_test_mat, get_normal_of_first_toa_face, get_horizontal_faces_around_vertex, &
+  atm_dz_to_vertex_heights
 
 use m_plex_rt, only: compute_face_geometry, &
   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
@@ -43,10 +44,10 @@ logical, parameter :: ldebug=.True.
 
       type(tDM) :: dm2d, dm3d
       real(ireals) :: hhl(Nz)
-      real(ireals), allocatable :: hhl_3d(:)
+      !real(ireals), allocatable :: atm_dz(:,:)
 
       integer(mpiint) :: myid, numnodes, ierr
-      integer(iintegers) :: i,k, vStart, vEnd
+      integer(iintegers) :: k, vStart, vEnd!, fStart, fEnd
       !type(tVec) :: lwcvec, iwcvec
 
       real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
@@ -54,7 +55,7 @@ logical, parameter :: ldebug=.True.
       !character(len=default_str_len) :: ncgroups(2)
 
       type(t_plexgrid), allocatable :: plex
-      integer(iintegers), allocatable :: zindex(:), faces_around_vert(:)
+      integer(iintegers), allocatable :: zindex(:)
       class(t_plex_solver), allocatable :: solver
 
       real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
@@ -74,22 +75,11 @@ logical, parameter :: ldebug=.True.
 
       call DMPlexGetDepthStratum(dm2d, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! 2D vertices
 
-      allocate(hhl_3d(Nz*(vEnd-vStart)))
-      do i=vStart, vEnd-1
-        !call get_horizontal_faces_around_vertex(dm2d, i, faces_around_vert)
-        do k=1,Nz
-            hhl_3d( (i-vStart)*Nz + k) = hhl(k) + real(i, ireals)/Nx/Ny
-        enddo
-      enddo
-      !print *,'hhl_3d', hhl_3d
+      call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex)
 
-      call dmplex_2D_to_3D(dm2d, Nz, hhl_3d, dm3d, zindex)
-
-      call DMPlexGetDepthStratum(dm3d, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! 2D vertices
-      do i=vStart, vEnd-1
-        call get_horizontal_faces_around_vertex(dm3d, i, faces_around_vert)
-      enddo
-      call CHKERR(1_mpiint, 'DEBUG')
+      !call DMPlexGetDepthStratum(dm2d, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 2D vertices
+      !allocate(atm_dz(Nz-1, fEnd-fStart), source=one)
+      !call atm_dz_to_vertex_heights(atm_dz, dm3d)
 
       call setup_plexgrid(dm3d, Nz-1, zindex, plex)
       deallocate(zindex)
