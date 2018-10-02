@@ -357,6 +357,7 @@ contains
         else
           do j=i1,je
             do i=i1,ie
+              icol = i+(j-1)*ie
               do k=i1,ke
                 Blev(k+1,i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlay(k, icol)))
               enddo
