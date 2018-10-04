@@ -297,7 +297,7 @@ contains
           peup (1:ke1, 1:1) => spec_eup (:,i,j)
           pabso(1:ke , 1:1) => spec_abso(:,i,j)
 
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol), atm%tlay(:,icol))
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol))
 
           call optprop_rrtm_lw(i1, ke, albedo,      &
             atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
@@ -320,7 +320,7 @@ contains
       do j=i1,je
         do i=i1,ie
           icol =  i+(j-1)*ie
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol), atm%tlay(:,icol))
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol))
           call optprop_rrtm_lw(i1, ke, albedo, &
             atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
             atm%h2o_lay(:, icol), atm%o3_lay(:, icol) , atm%co2_lay(:, icol),     &
@@ -460,7 +460,7 @@ contains
           pEup (1:size(eup ,1), 1:1) => spec_eup (:,i,j)
           pabso(1:size(abso,1), 1:1) => spec_abso(:,i,j)
 
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol), atm%tlay(:,icol))
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol))
 
           call optprop_rrtm_sw(i1, ke, &
             theta0, albedo, &
@@ -487,7 +487,7 @@ contains
       do j=1,je
         do i=1,ie
           icol =  i+(j-1)*ie
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol), atm%tlay(:,icol))
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol))
           call optprop_rrtm_sw(i1, ke, &
             theta0, albedo, &
             atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &

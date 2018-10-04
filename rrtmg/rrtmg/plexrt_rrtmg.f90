@@ -113,21 +113,22 @@ contains
     call PetscObjectGetComm(solver%plex%dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
+    lrrtmg_only=.False. ! by default use normal tenstream solver
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
                              "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
-    if(.not.lflg) lrrtmg_only=.False. ! by default use normal tenstream solver
-
-    if(ldebug.and.myid.eq.0) then
-      call print_tenstr_atm(atm)
-      print *,'debug', sundir, albedo_thermal, albedo_solar, lthermal, lsolar
-    endif
-    if(present(opt_time)) print *,'time', opt_time
 
     ke1 = solver%plex%Nlay+1
     call CHKERR(int(ke1 - size(atm%plev,dim=1),mpiint), 'Vertical Size of atm and plex solver dont match')
 
     call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
     call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
+
+
+    if(ldebug.and.myid.eq.0) then
+      call print_tenstr_atm(atm,Ncol)
+      print *,'debug sundir:', sundir, 'albedo th,sol',albedo_thermal, albedo_solar,'lth/lsol', lthermal, lsolar
+    endif
+    if(present(opt_time)) print *,'time', opt_time
 
     if(.not.allocated(edn )) allocate(edn (ke1, Ncol))
     if(.not.allocated(eup )) allocate(eup (ke1, Ncol))
@@ -291,7 +292,7 @@ contains
 
     if(lrrtmg_only) then
         do i = 1, Ncol
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i), atm%tlay(:,i))
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i))
 
           call optprop_rrtm_lw(i1, ke1-i1, albedo, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
@@ -312,7 +313,7 @@ contains
       return
     else
         do i = 1, Ncol
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i), atm%tlay(:,i))
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i))
 
           call optprop_rrtm_lw(i1, ke1-i1, albedo, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
@@ -322,6 +323,17 @@ contains
             atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
             tau(:,i:i,:), Bfrac(:,i:i,:))
         enddo
+    endif
+
+    if(allocated(atm%opt_tau)) then
+      if(.not.all( shape(atm%opt_tau) .eq. shape(tau(1:atm%d_ke,:,:)) )) then
+        print *,'shape atm%opt_tau', shape(atm%opt_tau)
+        print *,'shape tau', shape(tau)
+        print *,'shape(tau(1:atm%d_ke)', shape(tau(1:atm%d_ke,:,:))
+        call CHKERR(1_mpiint, 'Bad shape of atm%opt_tau; is: '// &
+          itoa(shape(atm%opt_tau))//' should be '//itoa(shape(tau(1:atm%d_ke,:,:))))
+      endif
+        tau(1:atm%d_ke,:,:) = tau(1:atm%d_ke,:,:) + atm%opt_tau
     endif
 
     ! then fill in data, first the spectrally invariant properties
@@ -338,7 +350,7 @@ contains
 
     ! tmp space for transformations of cell properties
     allocate(tmp(ke1-1, Ncol))
-    allocate(plck(ke1-1, Ncol))
+    allocate(plck(ke1, Ncol)) ! actually have ke entries for layers plus one for surface. the srfc plck val is put at the end of the vert. axis
 
     current_ibnd = -1 ! current lw band
     do ib=1, ngptlw
@@ -356,6 +368,7 @@ contains
             do k=i1,ke1-1
               plck(k,icol) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlay(k,icol)))
             enddo
+            plck(k,icol) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(1,icol)))
           enddo
           current_ibnd = ngb(ib)
         endif
@@ -365,7 +378,7 @@ contains
 
         call VecGetArrayF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
         do icol = i1, Ncol
-          xsrfc_emission(icol) = plck(1,icol) * Bfrac(1,icol,ib)
+          xsrfc_emission(icol) = plck(ke1,icol) * Bfrac(1,icol,ib)
         enddo
         call VecRestoreArrayF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
 
@@ -460,25 +473,32 @@ contains
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
 
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i), atm%tlay(:,i))
+          if(theta0.lt.90._ireals) then
+            integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i))
 
-          call optprop_rrtm_sw(i1, ke1-i1, &
-            theta0, albedo, &
-            atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
-            atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
-            atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
-            atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
-            atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
-            tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
-            spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i))
+            call optprop_rrtm_sw(i1, ke1-i1, &
+              theta0, albedo, &
+              atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
+              atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
+              atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
+              atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
+              atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
+              tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
+              spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i))
 
-          edir(:,i) = edir(:,i) + zero
-          eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
-          edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
-          !abso(:,i) = abso(:,i) + reverse(spec_abso(:,i)) ! This would be in K/day
-          abso(:,i) = abso(:,i) + reverse( ( &
+            edir(:,i) = edir(:,i) + zero
+            eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
+            edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
+            !abso(:,i) = abso(:,i) + reverse(spec_abso(:,i)) ! This would be in K/day
+            abso(:,i) = abso(:,i) + reverse( ( &
               - spec_edn(1:ke1-1,i) + spec_edn(2:ke1,i) &
               + spec_eup(1:ke1-1,i) - spec_eup(2:ke1,i) ) / atm%dz(:,i) )
+          else
+            edir(:,i) = edir(:,i) + zero
+            eup (:,i) = eup (:,i) + zero
+            edn (:,i) = edn (:,i) + zero
+            abso(:,i) = abso(:,i) + zero
+          endif
         enddo
       return
     else
@@ -489,7 +509,7 @@ contains
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
 
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i), atm%tlay(:,i))
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i))
 
           call optprop_rrtm_sw(i1, ke1-i1, &
             theta0, albedo, &

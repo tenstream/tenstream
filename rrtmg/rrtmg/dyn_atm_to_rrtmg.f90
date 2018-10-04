@@ -42,6 +42,9 @@ module m_dyn_atm_to_rrtmg
   !logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
 
+  ! specific gas constant for dry air [J kg−1 K−1] and standard gravity on earth
+  real(ireals), parameter :: Ra=287.058_ireals, grav=9.80665_ireals
+
   interface
     real function PLKINT(WVLLO, WVLHI, T)
       real :: WVLLO, WVLHI, T
@@ -84,6 +87,10 @@ module m_dyn_atm_to_rrtmg
       real(ireals),allocatable :: reliq  (:,:) ! effective radius               [micron]
       real(ireals),allocatable :: iwc    (:,:) ! ice water content              [g/kg]
       real(ireals),allocatable :: reice  (:,:) ! ice effective radius           [micron]
+
+      real(ireals),allocatable :: opt_tau(:,:,:) ! optional optical properties: tau, w0, g dim (Nlay_dynamics, Ncol, Nbands(solar or thermal))
+      real(ireals),allocatable :: opt_w0 (:,:,:) ! will be added to the rrtmg optical properties
+      real(ireals),allocatable :: opt_g  (:,:,:) ! if only tau is allocated, assume it is absorption only
 
       logical :: lTOA_to_srfc
 
@@ -132,7 +139,10 @@ module m_dyn_atm_to_rrtmg
 
       integer(iintegers) :: icol
 
-      if(lTOA_to_srfc) call CHKERR(1_mpiint, 'currently not possible to supply dynamics input starting at the TOP, input should be starting at the surface')
+      if(lTOA_to_srfc) then
+        call CHKERR(1_mpiint, 'currently not possible to supply dynamics input starting at the TOP,'// &
+          'input should be starting at the surface')
+      endif
 
       call init_mpi_data_parameters(comm)
 
@@ -358,7 +368,8 @@ module m_dyn_atm_to_rrtmg
             if(present(d_tlay)) then
               call hydrostat_lev(d_plev(:,icol),d_tlay(:,icol), hsrfc, d_hhl(:, icol), d_dz)
             else
-              call hydrostat_lev(d_plev(:,icol),(d_tlev(1:atm%d_ke,icol)+d_tlev(2:atm%d_ke1,icol))/2, hsrfc, d_hhl(:, icol), d_dz)
+              call hydrostat_lev(d_plev(:,icol),(d_tlev(1:atm%d_ke,icol)+d_tlev(2:atm%d_ke1,icol))/2, &
+                hsrfc, d_hhl(:, icol), d_dz)
             endif
           enddo
 
@@ -685,14 +696,14 @@ module m_dyn_atm_to_rrtmg
     pure elemental function hydrostat_dz_real32(dp, p, T)
       real(REAL32), intent(in) :: dp, p, T
       real(REAL32) :: hydrostat_dz_real32, rho
-      rho = p / 287.058_REAL32 / T
-      hydrostat_dz_real32 = dp / rho / 9.8065_REAL32
+      rho = p / real(Ra, REAL32) / T
+      hydrostat_dz_real32 = dp / rho / real(grav, REAL32)
     end function
     pure elemental function hydrostat_dz_real64(dp, p, T)
       real(REAL64), intent(in) :: dp, p, T
       real(REAL64) :: hydrostat_dz_real64, rho
-      rho = p / 287.058_REAL64 / T
-      hydrostat_dz_real64 = dp / rho / 9.8065_REAL64
+      rho = p / real(Ra, REAL64) / T
+      hydrostat_dz_real64 = dp / rho / real(grav, REAL64)
     end function
 
     subroutine hydrostat_lev(plev,tlay, hsrfc, hhl, dz)
@@ -718,14 +729,14 @@ module m_dyn_atm_to_rrtmg
     pure elemental function hydrostat_dp_real32(dz, p, T)
       real(REAL32), intent(in) :: dz, p, T
       real(REAL32) :: hydrostat_dp_real32, rho
-      rho = p / 287.058_REAL32 / T
-      hydrostat_dp_real32 = dz * rho * 9.8065_REAL32
+      rho = p / real(Ra, REAL32) / T
+      hydrostat_dp_real32 = dz * rho * real(grav, REAL32)
     end function
     pure elemental function hydrostat_dp_real64(dz, p, T)
       real(REAL64), intent(in) :: dz, p, T
       real(REAL64) :: hydrostat_dp_real64, rho
-      rho = p / 287.058_REAL64 / T
-      hydrostat_dp_real64 = dz * rho * 9.8065_REAL64
+      rho = p / real(Ra, REAL64) / T
+      hydrostat_dp_real64 = dz * rho * real(grav, REAL64)
     end function
 
     subroutine hydrostat_plev(psrfc, tlay, hhl, plev, dp)
@@ -769,25 +780,42 @@ module m_dyn_atm_to_rrtmg
       endif
     end function
 
+    ! Compute effective radius from liquid water content and droplet density
+    ! from the implementation in ICON/newcld_optics
+    ! see ECHAM5 documentation (Roeckner et al, MPI report 349)
+    pure elemental function reff_from_lwc_and_N_after_ICON(lwc, N, l_liquid, zkap) result(reff)
+      real(ireals), intent(in) :: lwc ! liquid water content [g m-3],  typically .1
+      real(ireals), intent(in) :: N   ! droplet density      [1 cm-3], typically 100
+      logical, intent(in) :: l_liquid
+      ! zkap => breadth parameter e.g. continental=1.143 (Martin et al.), maritime=1.077(Martin et al.)
+      real(ireals), intent(in), optional :: zkap
+
+      real(ireals) :: reff            ! effective radius [1e-6 m]
+
+      real(ireals), parameter :: &
+        rho = 1e3_ireals, &       ! water density @ 4degC
+        zfact = 1e6_ireals * (3e-9_ireals / (4*pi*rho))**(1._ireals/3._ireals) ! conversion factor
+
+      real(ireals) :: zkap_default
+
+      if(l_liquid) then
+        zkap_default = 1.1_ireals
+        if(present(zkap)) zkap_default = zkap
+        reff = zfact * zkap_default * (lwc / max(epsilon(N),N) )**(1._ireals/3._ireals)
+      else
+        reff = 83.8_ireals*lwc**0.216_ireals
+      endif
+    end function
 
     ! convert e.g. from lwc [g/kg] to lwp[g/m2] with: lwp = lwc * vert_integral_coeff(p0, p1, T)
-    elemental function vert_integral_coeff(p0, p1, T) result(c)
+    elemental function vert_integral_coeff(p0, p1) result(c)
       real(ireals), intent(in) :: p0, p1 ! pressure at bottom/top of layer [hPa]
-      real(ireals), intent(in) :: T      ! temperature of layer            [K]
       real(ireals) :: c                  ! coeff to convert from [g/kg] to [g m**-2]
 
-      real(ireals), parameter :: Ra = 287.058_ireals ! specific gas constant for dry air [J kg−1 K−1]
-      real(ireals) :: rho ! air density     [kg/m**-3]
-      real(ireals) :: dz  ! vertical height [m]
-      real(ireals) :: pmean, dp
+      real(ireals) :: dp
 
-      pmean = .5_ireals * (p0+p1) * 1e2_ireals
       dp    = abs(p1-p0) * 1e2_ireals
-
-      rho = pmean / (2 * Ra * T)
-      dz = hydrostat_dz(dp, pmean, T)
-
-      c = rho * dz
+      c = dp / grav
     end function
 
   end module

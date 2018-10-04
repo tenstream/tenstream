@@ -2742,6 +2742,11 @@ module m_plex_grid
 
       call VecRestoreArrayF90(level_heights_vec, xlvl_hgt, ierr); call CHKERR(ierr)
 
+      if(ldebug) then
+        call PetscObjectSetName(level_heights_vec, 'level_heights_vec', ierr); call CHKERR(ierr)
+        call facevec2cellvec(facedm, facedm, level_heights_vec)
+      endif
+
       call interpolate_horizontal_face_var_onto_vertices(facedm, level_heights_vec, vertdm, vertvec)
 
       call DMRestoreLocalVector(facedm, level_heights_vec, ierr); call CHKERR(ierr)

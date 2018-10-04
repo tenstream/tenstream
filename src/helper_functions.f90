@@ -38,7 +38,7 @@ module m_helper_functions
     resize_arr, reverse
 
   interface itoa
-    module procedure itoa_i4, itoa_i8
+    module procedure itoa_i4, itoa_i8, itoa_1d_i4, itoa_1d_i8
   end interface
   interface meanval
     module procedure meanval_1d, meanval_2d, meanval_3d
@@ -157,6 +157,30 @@ module m_helper_functions
       character(range(i)+2) :: tmp
       write(tmp,'(i0)') i
       res = trim(tmp)
+    end function
+    pure function itoa_1d_i4(i) result(res)
+      character(:),allocatable :: res
+      integer(kind=4),intent(in) :: i(:)
+      character(range(i)+2) :: tmp
+      integer :: digit
+      res = ''
+      do digit = 1, size(i)
+        write(tmp,'(i0)') i(digit)
+        res = res//trim(tmp)//' '
+      enddo
+      res = trim(res)
+    end function
+    pure function itoa_1d_i8(i) result(res)
+      character(:),allocatable :: res
+      integer(kind=8),intent(in) :: i(:)
+      character(range(i)+2) :: tmp
+      integer :: digit
+      res = ''
+      do digit = 1, size(i)
+        write(tmp,'(i0)') i(digit)
+        res = res//trim(tmp)//' '
+      enddo
+      res = trim(res)
     end function
     pure function ftoa(i) result(res)
       character(:),allocatable :: res

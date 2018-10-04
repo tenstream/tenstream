@@ -38,9 +38,10 @@ module m_optprop_rrtmg
   implicit none
 
   private
-  public :: optprop_rrtm_lw, optprop_rrtm_sw
+  public :: optprop_rrtm_lw, optprop_rrtm_sw, linit_rrtmg_lw
 
   logical,parameter :: ldebug=.False.
+  logical,save :: linit_rrtmg_lw=.False.
 
 contains
   subroutine optprop_rrtm_lw(ncol_in, nlay_in, &
@@ -75,11 +76,9 @@ contains
 
     integer(im) :: icol, ncol, nlay
 
-    integer(im),parameter :: inflglw=2,iceflglw=3,liqflglw=1
+    integer(im),parameter :: inflglw=2,liqflglw=1,iceflglw=3
     integer(kind=im) :: icld=2         ! Cloud overlap method
     integer(kind=im) :: idrv=0         ! Flag for calculation of dFdT
-
-    logical,save :: linit_rrtmg=.False.
 
     ! copy from TenStream to RRTM precision:
     ncol   = int(ncol_in, kind=im)
@@ -105,9 +104,9 @@ contains
       cldfr = 0
     endwhere
 
-    if(.not.linit_rrtmg) then
+    if(.not.linit_rrtmg_lw) then
       call rrtmg_lw_ini(1006._rb)
-      linit_rrtmg = .True.
+      linit_rrtmg_lw = .True.
 
       !if(ldebug .and. myid.eq.0) then
       !  do k=nlay,1,-1
