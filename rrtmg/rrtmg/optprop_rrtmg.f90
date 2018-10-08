@@ -155,7 +155,7 @@ contains
       plev, tlev, tlay, &
       h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
       lwp, reliq, iwp, reice, tau, w0, g, &
-      opt_swuflx, opt_swdflx, opt_swhr)
+      opt_swuflx, opt_swdflx, opt_swhr, opt_solar_constant)
     ! RRTM needs the arrays to start at the surface
 
     integer(iintegers),intent(in)          :: ncol_in, nlay_in
@@ -167,6 +167,7 @@ contains
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, w0, g ! [nlay, ncol, ngptsw]
     real(ireals), dimension(:,:), intent(out), optional :: opt_swuflx, opt_swdflx, opt_swhr ! [nlay+1, ncol]
+    real(ireals), intent(in), optional :: opt_solar_constant
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -183,10 +184,17 @@ contains
 
     integer(im),parameter :: dyofyr=0,inflgsw=2,iceflgsw=3,liqflgsw=1
     real(rb)   ,parameter :: adjes=1, scon=1.36822e+03
+    real(rb) :: solar_const
     integer(kind=im) :: icld=2         ! Cloud overlap method
     integer(kind=im) :: iaer=0         ! Aerosol option flag
 
     logical,save :: linit_rrtmg=.False.
+
+    if(present(opt_solar_constant)) then
+      solar_const = opt_solar_constant
+    else
+      solar_const = scon
+    endif
 
     ! copy from TenStream to RRTM precision:
     ncol   = int(ncol_in, kind=im)

@@ -72,7 +72,8 @@ contains
       albedo_thermal, albedo_solar,                &
       lthermal, lsolar,                            &
       edir,edn,eup,abso,                           &
-      opt_time, solar_albedo_2d, thermal_albedo_2d)
+      opt_time, solar_albedo_2d, thermal_albedo_2d, &
+      opt_solar_constant)
 
     class(t_plex_solver), allocatable, intent(inout)  :: solver ! solver type -- includes a dmplex and more
     type(t_tenstr_atm), intent(in)  :: atm                      ! atmosphere construct, which describes physical properties on layers and levels up till TOA
@@ -87,7 +88,7 @@ contains
     ! TODO: introduce solar diffuse albedo.
     ! Or hack something together ala Ritter/Geleyn -> see:
     ! icon-lem/src/atm_phy_nwp/mo_nwp_rrtm_interface.f90 l.1371
-    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:), thermal_albedo_2d(:)
+    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:), thermal_albedo_2d(:), opt_solar_constant
 
     ! Fluxes and absorption in [W/m2] and [W/m3] respectively.
     ! Dimensions will probably be bigger than the dynamics grid, i.e. will have
@@ -169,7 +170,8 @@ contains
         edir, edn, eup, abso, &
         opt_time=opt_time, &
         solar_albedo_2d=solar_albedo_2d, &
-        lrrtmg_only=lrrtmg_only)
+        lrrtmg_only=lrrtmg_only, &
+        opt_solar_constant=opt_solar_constant)
 
       call dump_vec(edir(1:ke1-1,:),'-plexrt_dump_Edir_1_ke')
       call dump_vec(edir(2:ke1,:),  '-plexrt_dump_Edir_2_ke1')
@@ -184,7 +186,7 @@ contains
         print *,k, edir(ke1,i1), edn(ke1,i1), eup(ke1,i1)
 
         if(present(solar_albedo_2d)) then
-          print *,'MinMax Albedo', minval(solar_albedo_2d), maxval(solar_albedo_2d)
+          print *,'MinMax Solar Albedo', minval(solar_albedo_2d), maxval(solar_albedo_2d)
         endif
       else
         print *,'vert level    edn              eup          abso'
@@ -193,7 +195,7 @@ contains
         enddo
         print *,k, edn(k,i1), eup(k,i1)
         if(present(thermal_albedo_2d)) then
-          print *,'MinMax Albedo', minval(thermal_albedo_2d), maxval(thermal_albedo_2d)
+          print *,'MinMax Thermal Albedo', minval(thermal_albedo_2d), maxval(thermal_albedo_2d)
         endif
       endif
     endif
@@ -397,7 +399,8 @@ contains
 
   subroutine compute_solar(solver, atm, Ncol, ke1, &
       sundir, albedo, &
-      edir, edn, eup, abso, opt_time, solar_albedo_2d, lrrtmg_only)
+      edir, edn, eup, abso, opt_time, solar_albedo_2d, &
+      lrrtmg_only, opt_solar_constant)
 
       use m_tenstr_parrrsw, only: ngptsw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
@@ -411,8 +414,9 @@ contains
 
     real(ireals),intent(inout),dimension(:,:) :: edir, edn, eup, abso
 
-    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:)
-    logical, optional, intent(in) :: lrrtmg_only
+    real(ireals), intent(in), optional :: opt_time, solar_albedo_2d(:)
+    logical, intent(in), optional :: lrrtmg_only
+    real(ireals), intent(in), optional :: opt_solar_constant
 
     real(ireals),allocatable, dimension(:,:,:) :: tau, w0, g          ! [nlyr, ncol, ngptsw]
     real(ireals),allocatable, dimension(:,:)   :: spec_edir,spec_abso ! [nlyr(+1), ncol ]
@@ -424,7 +428,7 @@ contains
 
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
     type(tPetscSection) :: geomSection
-    real(ireals) :: face_normal(3), theta0
+    real(ireals) :: face_normal(3), theta0, Ag, rescaled_sundir(3)
 
     type(tIS) :: toa_ids
     integer(iintegers) :: i, ib, iface
@@ -472,19 +476,23 @@ contains
           call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
+          Ag = albedo
+          if(present(solar_albedo_2d)) Ag = solar_albedo_2d(i)
+
 
           if(theta0.lt.90._ireals) then
             integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i))
 
             call optprop_rrtm_sw(i1, ke1-i1, &
-              theta0, albedo, &
+              theta0, Ag, &
               atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
               atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
               atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
               atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
               atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
               tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
-              spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i))
+              spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i), &
+              opt_solar_constant=opt_solar_constant)
 
             edir(:,i) = edir(:,i) + zero
             eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
@@ -508,20 +516,23 @@ contains
           call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
+          Ag = albedo
+          if(present(solar_albedo_2d)) Ag = solar_albedo_2d(i)
 
           integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i))
 
           call optprop_rrtm_sw(i1, ke1-i1, &
-            theta0, albedo, &
+            theta0, Ag, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
             atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
             atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
-            tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:))
+            tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
+            opt_solar_constant=opt_solar_constant)
         enddo
     endif
-    if(ldebug) print *,'DEBUG theta0', theta0, 'deg'
+    if(ldebug) print *,'DEBUG theta0', theta0, 'deg; 2d albedo?', present(solar_albedo_2d)
     w0 = min(one, max(zero, w0))
     call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
@@ -549,8 +560,14 @@ contains
         tmp    = reverse(min(one, max(zero, g(:,:,ib))))
         call Nz_Ncol_vec_to_celldm1(solver%plex, tmp, solver%g)
 
+        if(present(opt_solar_constant)) then
+          rescaled_sundir = sundir/norm(sundir) * tenstr_solsrc(ib) / sum(tenstr_solsrc) * opt_solar_constant
+        else
+          rescaled_sundir = sundir/norm(sundir) * tenstr_solsrc(ib)
+        endif
+
         call run_plex_rt_solver(solver, lthermal=.False., lsolar=.True., &
-          sundir=sundir/norm(sundir)*tenstr_solsrc(ib), &
+          sundir=rescaled_sundir, &
           opt_solution_uid=ib, opt_solution_time=opt_time)
       endif
       call plexrt_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)
