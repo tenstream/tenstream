@@ -41,7 +41,8 @@ module m_helper_functions
     module procedure itoa_i4, itoa_i8, itoa_1d_i4, itoa_1d_i8
   end interface
   interface meanval
-    module procedure meanval_1d, meanval_2d, meanval_3d
+    module procedure meanval_1d_r4, meanval_2d_r4, meanval_3d_r4, &
+        meanval_1d_r8, meanval_2d_r8, meanval_3d_r8
   end interface
   interface imp_bcast
     module procedure imp_bcast_real_1d, imp_bcast_real_2d, imp_bcast_real_3d, imp_bcast_real_5d, &
@@ -262,19 +263,34 @@ module m_helper_functions
       rmse(2) = rmse(1)/max( meanval(b), epsilon(rmse) )
     end function
 
-    pure function meanval_1d(arr) result(mean)
-      real(ireals) :: mean
-      real(ireals),intent(in) :: arr(:)
+    pure function meanval_1d_r4(arr) result(mean)
+      real(REAL32) :: mean
+      real(REAL32),intent(in) :: arr(:)
       mean = sum(arr)/size(arr)
     end function
-    pure function meanval_2d(arr) result(mean)
-      real(ireals) :: mean
-      real(ireals),intent(in) :: arr(:,:)
+    pure function meanval_2d_r4(arr) result(mean)
+      real(REAL32) :: mean
+      real(REAL32),intent(in) :: arr(:,:)
       mean = sum(arr)/size(arr)
     end function
-    pure function meanval_3d(arr) result(mean)
-      real(ireals) :: mean
-      real(ireals),intent(in) :: arr(:,:,:)
+    pure function meanval_3d_r4(arr) result(mean)
+      real(REAL32) :: mean
+      real(REAL32),intent(in) :: arr(:,:,:)
+      mean = sum(arr)/size(arr)
+    end function
+    pure function meanval_1d_r8(arr) result(mean)
+      real(REAL64) :: mean
+      real(REAL64),intent(in) :: arr(:)
+      mean = sum(arr)/size(arr)
+    end function
+    pure function meanval_2d_r8(arr) result(mean)
+      real(REAL64) :: mean
+      real(REAL64),intent(in) :: arr(:,:)
+      mean = sum(arr)/size(arr)
+    end function
+    pure function meanval_3d_r8(arr) result(mean)
+      real(REAL64) :: mean
+      real(REAL64),intent(in) :: arr(:,:,:)
       mean = sum(arr)/size(arr)
     end function
 
@@ -837,7 +853,7 @@ module m_helper_functions
         print *,'FPE exception angle_between_two_vec :: ',p1,':',p2
       endif
 
-      dp = dot_product(p1/norm(p1), p2/norm(p2))
+      dp = dot_product(p1/n1, p2/n2)
       if(dp.gt.one.or.dp.lt.-one) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
       dp = max( min(dp, one), -one)
       angle_between_two_vec = acos(dp)
