@@ -92,6 +92,8 @@ module m_icon_plex_utils
 
       call set_coords(dm2d, dm3d)
 
+      call DMSetFromOptions(dm3d, ierr); call CHKERR(ierr)
+
       call PetscObjectViewFromOptions(dm2d, PETSC_NULL_DM, "-show_iconplex_2d", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(dm3d, PETSC_NULL_DM, "-show_iconplex_3d", ierr); call CHKERR(ierr)
 
@@ -113,6 +115,7 @@ module m_icon_plex_utils
         call PetscSectionDestroy(sec, ierr); call CHKERR(ierr)
 
         call DMCreateMatrix(dm, A, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, "-show_dmplex_2D_to_3D_test_mat", ierr); call CHKERR(ierr)
         call MatDestroy(A, ierr); call CHKERR(ierr)
       end subroutine
 
