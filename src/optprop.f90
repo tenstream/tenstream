@@ -25,7 +25,7 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, coeff_mode
-use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad
+use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, swap
 use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_wedge_5_8
@@ -147,23 +147,24 @@ contains
       end select
   end subroutine
 
-  subroutine wedge_lut_call(OPP, tauz, w0, g, aspect_zx, ldir, C, ierr, angles, wedge_coords)
+  subroutine wedge_lut_call(OPP, tauz, w0, g, aspect_zx, ldir, C, ierr, in_angles, wedge_coords)
     class(t_optprop)                  :: OPP
     logical,intent(in)                :: ldir
     real(ireals),intent(in)           :: tauz, w0, g, aspect_zx
-    real(ireals),intent(in),optional  :: angles(:)
+    real(ireals),intent(in),optional  :: in_angles(:)
     real(ireals),intent(in),optional  :: wedge_coords(:) ! 6 coordinates of wedge triangle, only used for wedge OPP types, have to be in local coords already (i.e. A=[0,0], B=[0,1], C=[...])
     real(ireals),intent(out)          :: C(:)
     integer(mpiint), intent(out) :: ierr
 
     logical,parameter :: compute_coeff_online=.False.
     real(ireals), allocatable :: vertices(:)
+    real(ireals), allocatable :: angles(:)
 
     ierr = 0
 
     if(compute_coeff_online) then
       call setup_default_wedge_geometry( wedge_coords(1:2), wedge_coords(3:4), wedge_coords(5:6), aspect_zx, vertices)
-      call get_coeff_bmc(OPP, vertices, tauz, w0, g, ldir, C, angles)
+      call get_coeff_bmc(OPP, vertices, tauz, w0, g, ldir, C, in_angles)
       return
     endif
 
@@ -177,7 +178,7 @@ contains
         print *,'wedge_coords:', wedge_coords
         call CHKERR(1_mpiint, 'provided wedge coords have to in local bmc coordinate system!')
       endif
-      call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, angles)
+      call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, in_angles)
     endif
 
     if(ldebug_optprop) then
@@ -189,25 +190,31 @@ contains
       return
     endif
 
-    call do_wedge_lookup(tauz, w0, aspect_zx, ldir, angles)
+    call do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
 
     contains
-      subroutine do_wedge_lookup(tauz, w0, aspect_zx, ldir, angles)
+      subroutine do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
         real(ireals), intent(in) :: tauz, w0, aspect_zx
         logical,intent(in)       :: ldir
-        real(ireals),intent(in),optional :: angles(:)
+        real(ireals),intent(in),optional :: in_angles(:)
+        real(ireals) :: save_theta
 
         associate( C_pnt => wedge_coords(5:6) )
 
           select case (coeff_mode)
           case(i0) ! LookUpTable Mode
-
-            if(present(angles)) then ! obviously we want the direct coefficients
-              if(ldir) then ! dir2dir
-                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
-              else ! dir2diff
-                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), angles(1), angles(2)], C)
+            if(present(in_angles)) then ! obviously we want the direct coefficients
+              if(in_angles(2).gt.90._ireals) then
+                save_theta = 180._ireals - in_angles(2)
+              else
+                save_theta = in_angles(2)
               endif
+              if(ldir) then ! dir2dir
+                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), in_angles(1), save_theta], C)
+              else ! dir2diff
+                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), in_angles(1), save_theta], C)
+              endif
+              call handle_sza_gt_90_case()
             else
               ! diff2diff
               call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2)], C)
@@ -220,18 +227,25 @@ contains
       end subroutine
 
       logical function handle_aspect_zx_1D_case()
-        real(ireals) :: c11,c12,c13,c23,c33,g1,g2, restricted_aspect_zx
+        real(ireals) :: c11,c12,c13,c23,c33,g1,g2
+        real(ireals) :: restricted_aspect_zx
+        real(ireals) :: save_theta
 
         handle_aspect_zx_1D_case = .False.
 
         !TODO: here we may have incoming radiation at the sides and we just drop that
         ! this has to be fixed for anisotropic grids
 
-        if(present(angles)) then
+        if(present(in_angles)) then
+          if(in_angles(2).gt.90._ireals) then
+            save_theta = 180._ireals - in_angles(2)
+          else
+            save_theta = in_angles(2)
+          endif
           if(aspect_zx.gt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(2)) then
             C = zero
 
-            call eddington_coeff_zdun(tauz, w0, g, cos(deg2rad(angles(2))), &
+            call eddington_coeff_zdun(tauz, w0, g, cos(deg2rad(save_theta)), &
               c11,c12,c13,c23,c33,g1,g2)
 
             if(ldir) then
@@ -247,12 +261,8 @@ contains
           elseif(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
             restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
               OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
-
             call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
-
-            call CHKERR(1_mpiint, 'direct aspect_zx too small')
             handle_aspect_zx_1D_case = .True.
-
           endif
 
         else ! diffuse
@@ -277,13 +287,36 @@ contains
             restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)), &
               OPP%OPP_LUT%diffconfig%dims(3)%vrange(2))
             call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
-
-            call CHKERR(1_mpiint, 'diffuse aspect_zx too small')
             handle_aspect_zx_1D_case = .True.
           endif
 
         endif
       end function
+
+      subroutine handle_sza_gt_90_case()
+        if(in_angles(2).gt.90._ireals) then
+          if(ldir) then
+            call swap(C( 1: 5),C(21:25))
+            call swap(C( 6), C(10))
+            call swap(C(11), C(15))
+            call swap(C(16), C(20))
+          else
+            call swap(C( 1: 5), C(36:40))
+
+            call swap(C( 6:10), C(11:15))
+            call swap(C( 6), C(10))
+            call swap(C(11), C(15))
+
+            call swap(C(16:20), C(21:25))
+            call swap(C(16), C(20))
+            call swap(C(21), C(25))
+
+            call swap(C(26:30), C(31:35))
+            call swap(C(26), C(30))
+            call swap(C(31), C(35))
+          endif
+        endif
+      end subroutine
   end subroutine
 
   subroutine boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
