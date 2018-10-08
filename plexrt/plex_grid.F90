@@ -1351,7 +1351,7 @@ module m_plex_grid
   subroutine setup_edir_dmplex(orig_dm, dm)
     type(tDM), intent(in) :: orig_dm
     type(tDM), allocatable, intent(inout) :: dm
-    type(tPetscSection) :: edirSection
+    type(tPetscSection) :: section
     integer(mpiint) :: ierr
 
     if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_edir_dmplex on an already allocated DM')
@@ -1359,88 +1359,17 @@ module m_plex_grid
 
     call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
 
-    call PetscObjectSetName(dm, 'plex_edir', ierr);call CHKERR(ierr)
-    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex_edir", ierr); call CHKERR(ierr)
 
-    call create_plex_section(dm, 'face_section', i1, [i0], [i1], [i0], [i0], edirSection)
+    call PetscObjectSetName(dm, 'plex_direct_radiation', ierr);call CHKERR(ierr)
+    call DMSetOptionsPrefix(dm, 'dir', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-    call DMSetSection(dm, edirSection, ierr); call CHKERR(ierr)
-    call PetscSectionDestroy(edirSection, ierr); call CHKERR(ierr)
+    call create_plex_section(dm, 'face_section', i1, [i0], [i1], [i0], [i0], section)
 
-    !call gen_section(edirSection)
-    !call setup_edir_dmplex_test()
-    contains
-      subroutine gen_section(section)
-        type(tPetscSection), intent(inout) :: section
-        integer(iintegers) :: iface, fStart, fEnd
-        integer(mpiint) :: comm, ierr
-        call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
-        call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
-        call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-        call PetscSectionSetNumFields(section, i1, ierr); call CHKERR(ierr)
-        call PetscSectionSetFieldComponents(section, i0, i1, ierr); call CHKERR(ierr)
-        call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
-        do iface = fStart,  fEnd-1
-          call PetscSectionSetDof(section, iface, i1, ierr); call CHKERR(ierr)
-          call PetscSectionSetFieldDof(section, iface, i0, i1, ierr); call CHKERR(ierr)
-        enddo
-        call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
-      end subroutine
-      subroutine setup_edir_dmplex_test()
-        type(tVec) :: lvec, lvec2, gvec
-
-        integer(mpiint) :: myid, comm
-        real(ireals), pointer :: xv(:), xv2(:)
-
-        type(tPetscSection) :: sec
-
-        call PetscObjectGetComm(orig_dm, comm, ierr); call CHKERR(ierr)
-        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
-
-        call DMGetSection(dm, sec, ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(sec, PETSC_NULL_SECTION, '-show_edir_section', ierr); call CHKERR(ierr)
-
-        call DMGetLocalVector(dm, lvec, ierr); call CHKERR(ierr)
-        call DMGetLocalVector(dm, lvec2, ierr); call CHKERR(ierr)
-        call DMCreateGlobalVector(dm, gvec, ierr); call CHKERR(ierr)
-
-        call VecGetArrayF90(lvec,xv,ierr)
-        xv(:) = real(myid,kind=ireals)
-        call VecRestoreArrayF90(lvec,xv,ierr)
-
-        call VecSet(lvec2, real(-1,kind=ireals), ierr); call CHKERR(ierr)
-        call VecSet(gvec, real(-1,kind=ireals), ierr); call CHKERR(ierr)
-
-        call DMLocalToGlobalBegin(dm,lvec,ADD_VALUES,gvec, ierr); call CHKERR(ierr)
-        call DMLocalToGlobalEnd  (dm,lvec,ADD_VALUES,gvec, ierr); call CHKERR(ierr)
-
-        call DMGlobalToLocalBegin(dm,gvec,INSERT_VALUES,lvec2, ierr); call CHKERR(ierr)
-        call DMGlobalToLocalEnd  (dm,gvec,INSERT_VALUES,lvec2, ierr); call CHKERR(ierr)
-
-        call VecGetArrayReadF90(lvec,xv,ierr)
-        call VecGetArrayReadF90(lvec2,xv2,ierr)
-        !do i=lbound(xv,1), ubound(xv,1)
-        !  print *,myid,'xv/xv2 ::',i, int(xv(i)), int(xv2(i))
-        !enddo
-        call VecRestoreArrayReadF90(lvec2,xv2,ierr)
-        call VecRestoreArrayReadF90(lvec,xv,ierr)
-
-        call PetscObjectSetName(gvec, 'edir_test_gVec', ierr); call CHKERR(ierr)
-        call facevec2cellvec(orig_dm, dm, gvec)
-
-        call PetscObjectViewFromOptions(lvec , PETSC_NULL_VEC, '-show_edir_dmplex_lvec ', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(lvec2, PETSC_NULL_VEC, '-show_edir_dmplex_lvec2', ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(gvec , PETSC_NULL_VEC, '-show_edir_dmplex_gvec ', ierr); call CHKERR(ierr)
-
-
-        call DMRestoreLocalVector(dm, lvec,ierr); call CHKERR(ierr)
-        call DMRestoreLocalVector(dm, lvec2,ierr); call CHKERR(ierr)
-        call VecDestroy(gvec,ierr); call CHKERR(ierr)
-
-        call mpi_barrier(comm, ierr)
-        stop 'debug'
-
-      end subroutine
+    call DMSetSection(dm, section, ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_section', ierr); call CHKERR(ierr)
+    call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
+    call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
   end subroutine
 
   !> @brief setup the section on which diffuse radiation lives, e.g. 2 dof on top/bot faces and 4 dof on side faces
@@ -1461,12 +1390,15 @@ module m_plex_grid
     call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
 
     call PetscObjectSetName(dm, 'plex_ediff', ierr);call CHKERR(ierr)
-    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex_ediff", ierr); call CHKERR(ierr)
+    call DMSetOptionsPrefix(dm, 'diff', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
     call gen_face_section(dm, fields_top=[i1,i1], fields_side=[i2,i2], section=section)
 
     call DMSetSection(dm, section, ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_section', ierr); call CHKERR(ierr)
     call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
+    call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine gen_face_section(dm, fields_top, fields_side, section)
@@ -1648,12 +1580,14 @@ module m_plex_grid
     call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
 
     call PetscObjectSetName(dm, 'plex_abso', ierr);call CHKERR(ierr)
-    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex_abso", ierr); call CHKERR(ierr)
+    call DMSetOptionsPrefix(dm, 'abso', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
     call create_plex_section(dm, 'Absorption Section', i1, [i1], [i0], [i0], [i0], s)  ! Contains 1 dof on each cell
     call DMSetSection(dm, s, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(s, PETSC_NULL_SECTION, '-show_abso_section', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(s, PETSC_NULL_SECTION, '-show_section', ierr); call CHKERR(ierr)
     call PetscSectionDestroy(s, ierr); call CHKERR(ierr)
+    call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
   end subroutine
 
     !> @brief reorient face normal so that they point towards the same direction as the sun does
@@ -2623,8 +2557,9 @@ module m_plex_grid
       call VecRestoreArrayReadF90(coordinates, coords, ierr); call CHKERR(ierr)
     end subroutine
 
-    function get_normal_of_first_TOA_face(plex)
-      type(t_plexgrid) :: plex
+    function get_normal_of_first_TOA_face(plex, facenr)
+      type(t_plexgrid), intent(in) :: plex
+      integer(iintegers), intent(in), optional :: facenr
       real(ireals) :: get_normal_of_first_TOA_face(3)
       type(tPetscSection) :: geomSection
       real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
@@ -2649,7 +2584,12 @@ module m_plex_grid
           stop 'This didnt work, we tried to set the sundir according to first face on rank 0 but it seems he does not have TOA faces'
         else
           call ISGetIndicesF90(toa_ids, xitoa, ierr); call CHKERR(ierr)
-          iface = xitoa(1) ! first face of TOA faces
+          if(present(facenr)) then
+            if(facenr.lt.1.or.facenr.gt.size(xitoa)) call CHKERR(1_mpiint, 'bad facenr: has to be in range '//itoa(shape(xitoa)))
+            iface = xitoa(facenr)
+          else
+            iface = xitoa(1) ! first face of TOA faces
+          endif
 
           call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
           call PetscSectionGetFieldOffset(geomSection, iface, i0, geom_offset, ierr); call CHKERR(ierr)
