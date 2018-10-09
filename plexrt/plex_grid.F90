@@ -408,7 +408,7 @@ module m_plex_grid
       if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : set coords'
       call set_coords(plex, icongrid, hhl)
 
-      call PetscObjectSetName(plex%dm, 'Icon DMPLEX', ierr);call CHKERR(ierr)
+      call PetscObjectSetName(plex%dm, 'IconDMPLEX', ierr);call CHKERR(ierr)
 
       call DMSetFromOptions(plex%dm, ierr); call CHKERR(ierr)
 
