@@ -1898,10 +1898,13 @@ module m_plex_grid
       side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
       side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
         max(epsilon(side_face_normal_projected_on_upperface), norm(side_face_normal_projected_on_upperface(:, iface)))
-      proj_angles_to_sun(iface) = angle_between_two_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
-
-      lsrc(side_faces(iface)) = is_solar_src(side_face_normal_projected_on_upperface(:, iface), proj_sundir)
-
+      if(norm(proj_sundir).eq.zero) then
+        proj_angles_to_sun(iface) = zero
+        lsrc(side_faces(iface)) = .False.
+      else
+        proj_angles_to_sun(iface) = angle_between_two_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
+        lsrc(side_faces(iface)) = is_solar_src(side_face_normal_projected_on_upperface(:, iface), proj_sundir)
+      endif
       !print *,'iface',iface, ':', '->', rad2deg(proj_angles_to_sun(iface))
     enddo
 
