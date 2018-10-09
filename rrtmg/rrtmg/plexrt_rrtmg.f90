@@ -375,7 +375,7 @@ contains
           current_ibnd = ngb(ib)
         endif
 
-        tmp = reverse(plck * Bfrac(:,:,ib))
+        tmp = reverse(plck(1:ke1-1,:) * Bfrac(:,:,ib))
         call Nz_Ncol_vec_to_celldm1(solver%plex, tmp, solver%plck)
 
         call VecGetArrayF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
