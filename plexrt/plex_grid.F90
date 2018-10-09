@@ -2584,7 +2584,8 @@ module m_plex_grid
         call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
 
         if (toa_ids.eq.PETSC_NULL_IS) then ! dont have TOA points
-          stop 'This didnt work, we tried to set the sundir according to first face on rank 0 but it seems he does not have TOA faces'
+          call CHKERR(1_mpiint, 'This didnt work, we tried to set the sundir according to first face on rank 0'// &
+                                'but it seems he does not have TOA faces')
         else
           call ISGetIndicesF90(toa_ids, xitoa, ierr); call CHKERR(ierr)
           if(present(facenr)) then
