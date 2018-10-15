@@ -685,6 +685,7 @@ module m_icon_plex_utils
       type(tDM), intent(inout) :: dm
       type(tDM), intent(inout), optional :: dmserial
       type(tDM) :: dmdist
+      type(tPetscSF) :: psf
       integer(iintegers), intent(in) :: Nx, Ny
 
       integer(iintegers) :: chartsize, Nfaces, Nedges, Nvertices
@@ -762,7 +763,7 @@ module m_icon_plex_utils
         call DMClone(dm, dmserial, ierr); call CHKERR(ierr)
       endif
 
-      call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
+      call DMPlexDistribute(dm, i0, psf, dmdist, ierr); call CHKERR(ierr)
       if(dmdist.ne.PETSC_NULL_DM) then
         call DMDestroy(dm, ierr); call CHKERR(ierr)
         dm = dmdist
@@ -778,10 +779,8 @@ module m_icon_plex_utils
           print *,myid,'eStart,End distributed:: ',eStart, eEnd
           print *,myid,'vStart,End distributed:: ',vStart, vEnd
         endif
+        call PetscSFDestroy(psf, ierr); call CHKERR(ierr)
       endif
-
-
-      !call CHKERR(1_mpiint, 'DEBUG')
 
       contains
         subroutine gen_cellslist_array(Nx, Nfaces, Nverts, cellslist, vertexCoords)
