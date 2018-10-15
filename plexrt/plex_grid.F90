@@ -1926,46 +1926,6 @@ module m_plex_grid
         call swap(right_face, left_face)
       endif
 
-!!!      e_y = side_face_normal_projected_on_upperface(:, ibase_face) ! inward facing normal -> in local wedgemc coordinates
-!!!      e_z = -face_normals(:, upper_face) ! outward facing normal with respect to the top plate
-!!!      e_y = e_y / norm(e_y)
-!!!      e_z = e_z / norm(e_z)
-!!!      e_x = cross_3d(e_y, e_z)           ! in local wedge_coords, this is y=0 coordinate
-!!!      print *,'norm of local coord vecs', norm(e_x), norm(e_y), norm(e_z)
-!!!
-!!!      MrotWorld2Local = rotation_matrix_world_to_local_basis(e_x, e_y, e_z)
-!!!
-!!!      base_face  = side_faces(ibase_face)
-!!!      left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
-!!!      right_face = side_faces(modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1)
-!!!
-!!!      local_normal_base  = matmul(MrotWorld2Local, face_normals(:,base_face))
-!!!      local_normal_left  = matmul(MrotWorld2Local, face_normals(:,left_face))
-!!!      local_normal_right = matmul(MrotWorld2Local, face_normals(:,right_face))
-!!!
-!!!      if(local_normal_left(1).lt.local_normal_right(1)) then ! switch right and left face
-!!!        call swap(right_face, left_face)
-!!!        call swap(local_normal_left, local_normal_right)
-!!!        print *,'swapping left_right'
-!!!      endif
-!!!
-!!!      zenith = angle_between_two_vec(sundir, -e_z)
-!!!
-!!!      proj_sundir = vec_proj_on_plane(matmul(MrotWorld2Local, sundir), [zero,zero,one])
-!!!      azimuth = angle_between_two_vec([zero,one,zero], proj_sundir) * sign(one, proj_sundir(1))
-
-      !print *,'azi', rad2deg(azimuth), ':', rad2deg(zenith)
-      !print *,'lsrc', lsrc
-      !print *,'upper ', upper_face  , '(', faces_of_cell(upper_face) , ')'
-      !print *,'bottom', bottom_face , '(', faces_of_cell(bottom_face), ')'
-      !print *,'base  ', base_face   , '(', faces_of_cell(base_face)  , ')'
-      !print *,'left  ', left_face   , '(', faces_of_cell(left_face)  , ')'
-      !print *,'right ', right_face  , '(', faces_of_cell(right_face) , ')'
-
-      !print *,'angle_between base and left:', rad2deg(angle_between_two_vec(face_normals(:,base_face), face_normals(:,left_face)))
-      !print *,'angle_between base and righ:', rad2deg(angle_between_two_vec(face_normals(:,base_face), face_normals(:,right_face)))
-      !print *,'------------------'
-
     else ! if sun is directly on top, i.e. zenith 0, just pick the first one
       ibase_face = 1
       do iface = 2, size(side_faces)
@@ -1993,7 +1953,7 @@ module m_plex_grid
     !  '::',norm(e_x), norm(side_face_normal_projected_on_upperface(:, iright_face))
 
     if(ldebug) then
-      if(zenith.gt.0.0087_ireals .and. .not.lsrc(base_face)) call CHKERR(1_mpiint, 'base face is not a src! this should not be the case!')
+      if(zenith.gt.10*epsilon(zenith) .and. .not.lsrc(base_face)) call CHKERR(1_mpiint, 'base face is not a src! this should not be the case!')
       if(rad2deg(azimuth).lt.-90 .or. rad2deg(azimuth).gt.90) then
         print *,'ibase_face', ibase_face
         print *,'proj_normal', proj_sundir, '::norm', norm(proj_sundir)
@@ -2002,7 +1962,7 @@ module m_plex_grid
         print *,'face_normals(:,right_face)', face_normals(:,right_face)
 
         ierr = int(rad2deg(azimuth), mpiint)
-        call CHKERR(ierr, 'local azimuth greater than 60 deg. something must have gone wrong with the base face selection!')
+        call CHKERR(ierr, 'local azimuth greater than 90 deg. something must have gone wrong with the base face selection!')
       endif
     endif
 

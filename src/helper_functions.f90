@@ -30,7 +30,7 @@ module m_helper_functions
   private
   public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum, cumprod,   &
     inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
-    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR, assertEqual,   &
+    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR, CHKWARN, assertEqual,   &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
@@ -39,6 +39,9 @@ module m_helper_functions
 
   interface itoa
     module procedure itoa_i4, itoa_i8, itoa_1d_i4, itoa_1d_i8
+  end interface
+  interface ftoa
+    module procedure ftoa, ftoa_1d
   end interface
   interface meanval
     module procedure meanval_1d_r4, meanval_2d_r4, meanval_3d_r4, &
@@ -106,19 +109,29 @@ module m_helper_functions
     subroutine CHKERR(ierr, descr)
       integer(mpiint),intent(in) :: ierr
       character(len=*), intent(in), optional :: descr
+      integer(mpiint) :: mpierr
+
+      if(ierr.ne.0) then
+        call CHKWARN(ierr, descr)
+        call mpi_abort(mpi_comm_world, ierr, mpierr)
+      endif
+    end subroutine
+
+    subroutine CHKWARN(ierr, descr)
+      integer(mpiint),intent(in) :: ierr
+      character(len=*), intent(in), optional :: descr
       integer(mpiint) :: myid, mpierr
 
       if(ierr.ne.0) then
         call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
         if(present(descr)) then
-          print *,myid, 'Error message:', ierr, ':', trim(descr)
+          print *,myid, 'Warning:', ierr, ':', trim(descr)
         else
-          print *,myid, 'Error:', ierr
+          print *,myid, 'Warning:', ierr
         endif
 #ifdef _GNU
         call BACKTRACE
 #endif
-        call mpi_abort(mpi_comm_world, ierr, mpierr)
       endif
     end subroutine
 
@@ -147,21 +160,21 @@ module m_helper_functions
 
     pure function itoa_i4(i) result(res)
       character(:),allocatable :: res
-      integer(kind=4),intent(in) :: i
+      integer(kind=INT32),intent(in) :: i
       character(range(i)+2) :: tmp
       write(tmp,'(i0)') i
       res = trim(tmp)
     end function
     pure function itoa_i8(i) result(res)
       character(:),allocatable :: res
-      integer(kind=8),intent(in) :: i
+      integer(kind=INT64),intent(in) :: i
       character(range(i)+2) :: tmp
       write(tmp,'(i0)') i
       res = trim(tmp)
     end function
     pure function itoa_1d_i4(i) result(res)
       character(:),allocatable :: res
-      integer(kind=4),intent(in) :: i(:)
+      integer(kind=INT32),intent(in) :: i(:)
       character(range(i)+2) :: tmp
       integer :: digit
       res = ''
@@ -173,7 +186,7 @@ module m_helper_functions
     end function
     pure function itoa_1d_i8(i) result(res)
       character(:),allocatable :: res
-      integer(kind=8),intent(in) :: i(:)
+      integer(kind=INT64),intent(in) :: i(:)
       character(range(i)+2) :: tmp
       integer :: digit
       res = ''
@@ -189,6 +202,19 @@ module m_helper_functions
       character(range(i)+2) :: tmp
       write(tmp,*) i
       res = trim(tmp)
+    end function
+    pure function ftoa_1d(i) result(res)
+      character(:),allocatable :: res
+      real(ireals),intent(in) :: i(:)
+      character(range(i)+2) :: tmp
+      integer :: digit
+      res = ''
+      res = ''
+      do digit = 1, size(i)
+        write(tmp,'(i0)') i(digit)
+        res = res//trim(tmp)//' '
+      enddo
+      res = trim(res)
     end function
 
     pure function gradient(v)
@@ -850,7 +876,7 @@ module m_helper_functions
       n1 = norm(p1)
       n2 = norm(p2)
       if(any(approx([n1,n2],zero))) then
-        print *,'FPE exception angle_between_two_vec :: ',p1,':',p2
+        call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
       endif
 
       dp = dot_product(p1/n1, p2/n2)
@@ -863,7 +889,7 @@ module m_helper_functions
     function distance(p1,p2)
       real(ireals), intent(in) :: p1(:), p2(:)
       real(ireals) :: distance
-      distance = abs(norm(p2-p1))
+      distance = norm(p2-p1)
     end function
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
