@@ -3,11 +3,11 @@ module m_plex_grid
   use petsc
   use m_netcdfIO, only: ncload
 
-  use m_helper_functions, only: CHKERR, itoa, compute_normal_3d, approx, strF2C, distance, &
+  use m_helper_functions, only: CHKERR, compute_normal_3d, approx, strF2C, distance, &
     triangle_area_by_vertices, swap, norm, determine_normal_direction, &
     vec_proj_on_plane, angle_between_two_vec, cross_3d, rad2deg, &
     rotation_matrix_world_to_local_basis, resize_arr, get_arg, &
-    imp_bcast
+    imp_bcast, itoa, ftoa
 
   use m_data_parameters, only : ireals, iintegers, mpiint, zero, one, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
@@ -1045,25 +1045,24 @@ module m_plex_grid
     subroutine distribute_plexgrid_dm(plex, dm)
       type(t_plexgrid), intent(inout) :: plex
       type(tDM), intent(inout) :: dm
-      integer(mpiint) :: numnodes, ierr
-
-      type(tDM)       :: dmdist
+      !integer(mpiint) :: numnodes, ierr
+      !type(tDM)       :: dmdist
 
       stop 'distribute_plexgrid_dm :: this is not really useful for plexrt,  we setup the topology ourselves.'
 
-      call mpi_comm_size(plex%comm, numnodes, ierr); call CHKERR(ierr)
-
-      call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
-      call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
-
-      call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
-      if(dmdist.ne.PETSC_NULL_DM) then
-        call DMDestroy(dm, ierr); call CHKERR(ierr)
-        dm   = dmdist
-      endif
-
-      call update_plex_indices(plex)
-      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_dist_plex", ierr); call CHKERR(ierr)
+!      call mpi_comm_size(plex%comm, numnodes, ierr); call CHKERR(ierr)
+!
+!      call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
+!      call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
+!
+!      call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
+!      if(dmdist.ne.PETSC_NULL_DM) then
+!        call DMDestroy(dm, ierr); call CHKERR(ierr)
+!        dm   = dmdist
+!      endif
+!
+!      call update_plex_indices(plex)
+!      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_dist_plex", ierr); call CHKERR(ierr)
     end subroutine
 
   subroutine compute_face_geometry(plex, dm)
@@ -1627,18 +1626,26 @@ module m_plex_grid
       integer(iintegers), intent(in) :: iface, icell
       type(tPetscSection), intent(in) :: geomSection
       real(ireals), intent(in), pointer :: geoms(:)
-      real(ireals),intent(out) :: face_normal(:)
+      real(ireals), intent(out) :: face_normal(:)
 
       real(ireals) :: cell_center(3), face_center(3)
-      integer(iintegers) :: geom_offset, n
+      integer(iintegers) :: voff0, voff1, n
       integer(mpiint) :: ierr
 
-      call PetscSectionGetOffset(geomSection, icell, geom_offset, ierr); call CHKERR(ierr)
-      cell_center = geoms(geom_offset+i1: geom_offset+i3)
+      call PetscSectionGetFieldOffset(geomSection, icell, i0, voff0, ierr); call CHKERR(ierr)
+      cell_center = geoms(voff0+i1: voff0+i3)
 
-      call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
-      face_center = geoms(geom_offset+i1: geom_offset+i3)
-      face_normal = geoms(geom_offset+i4: geom_offset+i6)
+      call PetscSectionGetFieldOffset(geomSection, iface, i0, voff0, ierr); call CHKERR(ierr)
+      call PetscSectionGetFieldOffset(geomSection, iface, i1, voff1, ierr); call CHKERR(ierr)
+      face_center = geoms(voff0+i1: voff0+i3)
+      face_normal = geoms(voff1+i1: voff1+i3)
+
+      if(ldebug) then
+        if(.not.approx(one, norm(face_normal))) then
+          print *,'cell', icell, 'face', iface, 'Face Normal:', face_normal
+          call CHKERR(1_mpiint, 'face_normal not normed :( '//ftoa(face_normal))
+        endif
+      endif
 
       n = determine_normal_direction(face_normal, face_center, cell_center)
 
@@ -2486,19 +2493,21 @@ module m_plex_grid
       centroid = sum(vertex_coord,dim=2) / real(Nvertices, kind=ireals)
 
       ! and use 3 coordinates to compute normal
-      normals(:,1) = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,2),vertex_coord(:,3))
-      if(Nvertices.gt.3) then
-        normals(:,2) = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,3),vertex_coord(:,Nvertices))
-        if(dot_product(normals(:,1),normals(:,2)).le.zero) normals(:,2) = -normals(:,2)
-        normals(:,1) = (normals(:,1) + normals(:,2))/2
-        normals(:,1) = normals(:,1) / norm(normals(:,1))
-        !print *,'normal of face', iface,'::', normals(:,2)
-      endif
-
-      !normals(:,2) = normals(:,2) * sign(one, normals(:,1)
+      !normals(:,1) = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,2),vertex_coord(:,3))
+      !if(Nvertices.gt.3) then
+      !  normals(:,2) = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,3),vertex_coord(:,Nvertices))
+      !  if(dot_product(normals(:,1),normals(:,2)).le.zero) normals(:,2) = -normals(:,2)
+      !  normals(:,1) = (normals(:,1) + normals(:,2))/2
+      !  normals(:,1) = normals(:,1) / norm(normals(:,1))
+      !  !print *,'normal of face', iface,'::', normals(:,2)
+      !endif
+      !
+      !normals(:,2) = normals(:,2) * sign(one, normals(:,1))
       !print *,'normal of face', iface,'::', normals(:,1)
       !print *,'-------------------------------'
-      normal = normals(:,1) !compute_normal_3d(vertex_coord(:,1),vertex_coord(:,2),vertex_coord(:,3))
+
+      normal = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,2),vertex_coord(:,3))
+      if(.not.approx(norm(normal), one)) call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal))
 
       if(Nvertices.eq.3) then
         area = triangle_area_by_vertices(vertex_coord(:,1), vertex_coord(:,2), vertex_coord(:,3))
@@ -2700,9 +2709,9 @@ module m_plex_grid
       real(ireals), pointer :: xface(:), xvert(:), xNum(:)
       integer(mpiint) :: ierr
 
-!      integer(mpiint) :: comm, myid
-!      call PetscObjectGetComm(facedm, comm, ierr); call CHKERR(ierr)
-!      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      !integer(mpiint) :: comm, myid
+      !call PetscObjectGetComm(facedm, comm, ierr); call CHKERR(ierr)
+      !call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       call DMGetSection(facedm, face_section, ierr); call CHKERR(ierr)
       call DMGetSection(vertdm, vert_section, ierr); call CHKERR(ierr)
@@ -2758,7 +2767,12 @@ module m_plex_grid
 
       call DMRestoreGlobalVector(vertdm, gVec, ierr); call CHKERR(ierr)
 
-      call VecPointwiseDivide(vertvec, vertvec, Numvec, ierr); call CHKERR(ierr)
+      ! Take the average
+      call VecGetArrayF90(vertvec, xvert, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(Numvec, xNum, ierr); call CHKERR(ierr)
+      xvert = xvert / xNum
+      call VecRestoreArrayReadF90(Numvec, xNum, ierr); call CHKERR(ierr)
+      call VecRestoreArrayF90(vertvec, xvert, ierr); call CHKERR(ierr)
 
       call DMRestoreLocalVector(vertdm, Numvec, ierr); call CHKERR(ierr)
     end subroutine
