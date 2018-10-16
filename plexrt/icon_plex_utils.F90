@@ -763,6 +763,7 @@ module m_icon_plex_utils
         call DMClone(dm, dmserial, ierr); call CHKERR(ierr)
       endif
 
+      psf = PETSC_NULL_SF
       call DMPlexDistribute(dm, i0, psf, dmdist, ierr); call CHKERR(ierr)
       if(dmdist.ne.PETSC_NULL_DM) then
         call DMDestroy(dm, ierr); call CHKERR(ierr)

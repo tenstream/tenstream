@@ -16,7 +16,7 @@ use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
 
 use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
   setup_edir_dmplex, setup_abso_dmplex, compute_face_geometry, &
-  distribute_plexgrid_dm, ncvar2d_to_globalvec, setup_plexgrid, &
+  ncvar2d_to_globalvec, setup_plexgrid, &
   gen_test_mat, get_normal_of_first_toa_face
 
 use m_plex_rt, only: compute_face_geometry, &

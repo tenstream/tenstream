@@ -211,7 +211,7 @@ module m_helper_functions
       res = ''
       res = ''
       do digit = 1, size(i)
-        write(tmp,'(i0)') i(digit)
+        write(tmp,*) i(digit)
         res = res//trim(tmp)//' '
       enddo
       res = trim(res)

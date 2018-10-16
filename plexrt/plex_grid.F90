@@ -19,7 +19,7 @@ module m_plex_grid
   private
   public :: t_plexgrid, load_plex_from_file, create_plex_from_icongrid, &
     icell_icon_2_plex, iface_top_icon_2_plex, update_plex_indices, &
-    distribute_plexgrid_dm, compute_face_geometry, &
+    compute_face_geometry, &
     setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
     print_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
@@ -1040,29 +1040,6 @@ module m_plex_grid
       endif
       call PetscObjectViewFromOptions(sf, PETSC_NULL_SF, "-show_plex_sf", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
-    end subroutine
-
-    subroutine distribute_plexgrid_dm(plex, dm)
-      type(t_plexgrid), intent(inout) :: plex
-      type(tDM), intent(inout) :: dm
-      !integer(mpiint) :: numnodes, ierr
-      !type(tDM)       :: dmdist
-
-      stop 'distribute_plexgrid_dm :: this is not really useful for plexrt,  we setup the topology ourselves.'
-
-!      call mpi_comm_size(plex%comm, numnodes, ierr); call CHKERR(ierr)
-!
-!      call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
-!      call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
-!
-!      call DMPlexDistribute(dm, i0, PETSC_NULL_SF, dmdist, ierr); call CHKERR(ierr)
-!      if(dmdist.ne.PETSC_NULL_DM) then
-!        call DMDestroy(dm, ierr); call CHKERR(ierr)
-!        dm   = dmdist
-!      endif
-!
-!      call update_plex_indices(plex)
-!      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_dist_plex", ierr); call CHKERR(ierr)
     end subroutine
 
   subroutine compute_face_geometry(plex, dm)
@@ -2446,7 +2423,7 @@ module m_plex_grid
       integer(iintegers), target :: vertices3(3), vertices4(4)
       integer(iintegers), pointer :: vertices(:)
       real(ireals), allocatable :: vertex_coord(:,:) ! shape (Nvertices, dims)
-      real(ireals) :: AB(3), CD(3), dotp, normals(3,2)
+      real(ireals) :: AB(3), CD(3), dotp!, normals(3,2)
 
       type(tVec) :: coordinates
       type(tPetscSection) :: coordSection
