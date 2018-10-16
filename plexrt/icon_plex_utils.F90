@@ -780,7 +780,6 @@ module m_icon_plex_utils
           print *,myid,'eStart,End distributed:: ',eStart, eEnd
           print *,myid,'vStart,End distributed:: ',vStart, vEnd
         endif
-        call PetscSFDestroy(psf, ierr); call CHKERR(ierr)
       endif
 
       contains
