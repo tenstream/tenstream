@@ -66,7 +66,7 @@ contains
         @assertEqual(one, norm(sundir), sqrt(epsilon(sundir)))
       enddo
 
-      do hour = 1,12
+      do hour = 1,10
         day = 5 + hour/24._ireals
         sundir = get_sun_vector(year, month, day)
 
@@ -74,7 +74,7 @@ contains
         @assertEqual(one, norm(sundir), sqrt(epsilon(sundir)))
       enddo
 
-      do hour = 13,24
+      do hour = 13,23
         day = 5 + hour/24._ireals
         sundir = get_sun_vector(year, month, day)
 
@@ -112,6 +112,6 @@ contains
       enddo
 
       sundir = get_sun_vector(2018, 9, 3._ireals+real(19*3600+8*60+23, ireals)/86400._ireals)
-      @assertEqual([-0.29155451713720204_ireals, -0.94795805644649656_ireals, 0.12795111080046895_ireals], sundir)
+      @assertEqual([-0.29155451713720204_ireals, -0.94795805644649656_ireals, 0.12795111080046895_ireals], sundir, sqrt(epsilon(sundir)))
   end subroutine
 end module

@@ -386,7 +386,7 @@ contains
     endif
 
     do k = 1, size(plev,1)
-      @mpiassertEqual(atm%zt(k,1), atm%zt(k,2)-srfc_offset, 1e-8_ireals)
+      @mpiassertEqual(atm%zt(k,1), atm%zt(k,2)-srfc_offset, 1e-3_ireals)
     enddo
   end subroutine
 end module
