@@ -158,7 +158,6 @@ contains
 
     logical,parameter :: compute_coeff_online=.False.
     real(ireals), allocatable :: vertices(:)
-    real(ireals), allocatable :: angles(:)
 
     ierr = 0
 
@@ -256,12 +255,13 @@ contains
               C(1) = c13
               C(7*5+1) = c23
             endif
+
             handle_aspect_zx_1D_case = .True.
 
           elseif(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
             restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
               OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
-            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
+            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, in_angles)
             handle_aspect_zx_1D_case = .True.
           endif
 
@@ -286,7 +286,7 @@ contains
           elseif(aspect_zx.lt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)) then
             restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)), &
               OPP%OPP_LUT%diffconfig%dims(3)%vrange(2))
-            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
+            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, in_angles)
             handle_aspect_zx_1D_case = .True.
           endif
 
@@ -415,7 +415,6 @@ contains
       endif ! angles_present
 
   end subroutine
-
 
   subroutine check_inp(OPP, tauz, w0, g, aspect_zx, dir, C, angles)
     class(t_optprop) :: OPP
