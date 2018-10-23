@@ -95,7 +95,7 @@ contains
       s = t
     endif
 
-    !        spline = s*a1 + (one-s)*a0
+    ! spline = s*a1 + (one-s)*a0
     spline = a0 + s * ( a1-a0 )
   end function
 

@@ -48,7 +48,7 @@ module m_plexrt_rrtmg
       reverse, itoa, angle_between_two_vec, norm, rad2deg, get_arg
   use m_tenstream_interpolation, only : interp_1d
 
-  use m_plex_grid, only: TOAFACE, get_inward_face_normal
+  use m_plex_grid, only: TOAFACE, get_inward_face_normal, compute_face_geometry
   use m_plex_rt, only: t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, destroy_plexrt_solver, &
     plexrt_get_result
 
@@ -123,7 +123,6 @@ contains
 
     call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
     call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
-
 
     if(ldebug.and.myid.eq.0) then
       call print_tenstr_atm(atm,Ncol)

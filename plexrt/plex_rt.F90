@@ -774,7 +774,7 @@ module m_plex_rt
 
           integer(iintegers) :: geom_offset, face_offset
 
-          integer(iintegers) :: idof, iface, num_dof
+          integer(iintegers) :: fStart, fEnd, idof, iface, num_dof
           real(ireals) :: area
 
           if(.not.allocated(plckVec)) return
@@ -787,7 +787,8 @@ module m_plex_rt
           call thermal_srfc_emission(xsrc)
 
           ! Scaling from [W/m2] to Energy [W]
-          do iface = plex%fStart, plex%fEnd-1
+          call DMPlexGetDepthStratum(ediffdm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
+          do iface = fStart, fEnd-1
             call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
             area = geoms(i1+geom_offset)
 
@@ -951,9 +952,13 @@ module m_plex_rt
       real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
       character(len=*),optional :: prefix
 
-      type(tMatNullSpace) :: nullspace
-      type(tVec) :: nullvecs(0)
+      !type(tMatNullSpace) :: nullspace
+      !type(tVec) :: nullvecs(0)
       integer(iintegers) :: Niterations
+
+      !integer(iintegers) :: fStart, fEnd
+      !type(tIS) :: IS_boundary, IS_interior
+      !type(tPC) :: pc
 
       integer(iintegers), parameter :: Nmaxhistory=1000
       integer(mpiint) :: comm, ierr
@@ -971,15 +976,22 @@ module m_plex_rt
           call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
         endif
 
-        call MatNullSpaceCreate(comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
-        call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
-        call MatNullSpaceDestroy(nullspace, ierr); call CHKERR(ierr)
+        !call MatNullSpaceCreate(comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
+        !call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
+        !call MatNullSpaceDestroy(nullspace, ierr); call CHKERR(ierr)
 
         call KSPSetDM(ksp, dm, ierr); call CHKERR(ierr)
         call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
         call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
         call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
         call KSPSetUp(ksp, ierr); call CHKERR(ierr)
+
+        !call KSPGetPC(ksp, pc, ierr); call CHKERR(ierr)
+        !call DMGetStratumIS(dm, 'DomainBoundary', SIDEFACE, IS_boundary, ierr); call CHKERR(ierr)
+        !call PCFieldSplitSetIS(pc, 'boundary', IS_boundary, ierr); call CHKERR(ierr)
+        !call DMPlexGetDepthStratum (dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
+        !call ISComplement(IS_boundary, fStart, fEnd-1, IS_interior, ierr); call CHKERR(ierr)
+        !call PCFieldSplitSetIS(pc, 'interior', IS_interior, ierr); call CHKERR(ierr)
       endif
 
       if(present(ksp_residual_history)) then
@@ -1054,7 +1066,7 @@ module m_plex_rt
 
     type(tPetscSection) :: geomSection, faceSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
-    integer(iintegers) :: geom_offset, face_offset, iface, idof, num_dof
+    integer(iintegers) :: fStart, fEnd, geom_offset, face_offset, iface, idof, num_dof
 
     real(ireals) :: area
 
@@ -1075,7 +1087,8 @@ module m_plex_rt
 
     call VecGetArrayF90(faceVec, xv, ierr); call CHKERR(ierr)
 
-    do iface = plex%fStart, plex%fEnd-1
+    call DMPlexGetDepthStratum(face_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
+    do iface = fStart, fEnd-1
       call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
       area = geoms(i1+geom_offset)
 
@@ -1117,7 +1130,7 @@ module m_plex_rt
     real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
 
     integer(iintegers), pointer :: faces_of_cell(:)
-    integer(iintegers) :: icell, iface, irows(1), icols(1), idst
+    integer(iintegers) :: icell, iface, irow, icol, idst, fStart, fEnd
     real(ireals) :: coeffs(1)
 
     type(tPetscSection) :: geomSection, wedgeSection
@@ -1202,19 +1215,25 @@ module m_plex_rt
         if(lsrc(iface)) then
           ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
           dir2dir = coeff(face_plex2bmc(iface):size(coeff):i5)
+          if(sum(dir2dir).gt.one) then
+            print *,iface,': bmcface', face_plex2bmc(iface), 'dir2dir gt one', dir2dir
+            call CHKERR(1_mpiint, 'energy conservation violated!')
+          endif
 
-          call PetscSectionGetOffset(sec, faces_of_cell(iface), icols(1), ierr); call CHKERR(ierr)
+          call PetscSectionGetOffset(sec, faces_of_cell(iface), icol, ierr); call CHKERR(ierr)
 
           do idst = 1, size(faces_of_cell)
             if(.not.lsrc(idst)) then
               coeffs(1) = -dir2dir(face_plex2bmc(idst))
               if(coeffs(1).lt.zero) then
-                call PetscSectionGetOffset(sec, faces_of_cell(idst), irows(1), ierr); call CHKERR(ierr)
+                call PetscSectionGetOffset(sec, faces_of_cell(idst), irow, ierr); call CHKERR(ierr)
                 !print *,'isrc', face_plex2bmc(iface), 'idst', face_plex2bmc(idst), &
                 !  'if', iface, 'id', idst, &
                 !  'srcface->dstface', faces_of_cell(iface),faces_of_cell(idst), &
-                !  'col -> row', icols, irows, coeffs
-                call MatSetValuesLocal(A, i1, irows, i1, icols, coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
+                !  'col -> row', icol, irow, coeffs
+                call MatSetValuesLocal(A, i1, irow, i1, icol, coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
+                if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
+                  'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
               endif
             endif
           enddo
@@ -1225,10 +1244,13 @@ module m_plex_rt
       call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     enddo
 
+    call set_side_incoming_boundary_condition()
+
     ! Set Diagonal Entries
-    do iface = plex%fStart, plex%fEnd-1
-      call PetscSectionGetOffset(sec, iface, irows(1), ierr); call CHKERR(ierr)
-      call MatSetValuesLocal(A, i1, irows, i1, irows, [one], INSERT_VALUES, ierr); call CHKERR(ierr)
+    call DMPlexGetDepthStratum(plex%edir_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
+    do iface = fStart, fEnd-1
+      call PetscSectionGetOffset(sec, iface, irow, ierr); call CHKERR(ierr)
+      call MatSetValuesLocal(A, i1, irow, i1, irow, [one], INSERT_VALUES, ierr); call CHKERR(ierr)
     enddo
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
@@ -1292,7 +1314,7 @@ module m_plex_rt
               base_face, left_face, right_face)
 
             forient = [upper_face, base_face, left_face, right_face, bottom_face]
-            do i=1,5
+            do i=1, size(faces_of_cell)
               face_plex2bmc(forient(i)) = i
             enddo
 
@@ -1342,8 +1364,9 @@ module m_plex_rt
                   !  call CHKERR(1_mpiint, 'encountered a small value... weird')
                   !endif
                   if(dir2dir(isrc).gt.zero) then
-                    if(irow.eq.icol) call CHKERR(1_mpiint, 'src and dst are the same :( ... should not happen here')
                     call MatSetValuesLocal(A, i1, irow, i1, icol, -dir2dir(isrc), INSERT_VALUES, ierr); call CHKERR(ierr)
+                    if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
+                      'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
                   endif
                 enddo
 
@@ -1366,7 +1389,7 @@ module m_plex_rt
 
     real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
     integer(iintegers), pointer :: faces_of_cell(:)
-    integer(iintegers) :: i, j, icell, iface, irows(1), icols(1)
+    integer(iintegers) :: i, j, icell, iface, irow, icol
     real(ireals) :: coeffs(1)
 
     type(tPetscSection) :: ediffSection, geomSection, wedgeSection
@@ -1452,18 +1475,20 @@ module m_plex_rt
       !  print *,'LUT src '//itoa(i), coeff(i:size(coeff):i8)
       !enddo
       do i = 1, size(incoming_offsets)
-        icols(1) = incoming_offsets(i)
+        icol = incoming_offsets(i)
 
         ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
         diff2diff = coeff(diff_plex2bmc(i):size(coeff):i8)
 
         do j = 1, size(outgoing_offsets)
           coeffs(1) = -diff2diff(diff_plex2bmc(j))
-          !if(coeffs(1).lt.zero) then
-            irows(1) = outgoing_offsets(j)
-            !print *,'icell',icell,'i,j',i,j,'icol', icols, 'irow', irows, '=>', coeffs
-            call MatSetValuesLocal(A, i1, irows, i1, icols, coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
-          !endif
+          if(coeffs(1).lt.zero) then
+            irow = outgoing_offsets(j)
+            !print *,'icell',icell,'i,j',i,j,'icol', icol, 'irow', irow, '=>', coeffs
+            call MatSetValuesLocal(A, i1, irow, i1, icol, coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
+            if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
+              'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
+          endif
         enddo
 
       enddo ! enddo iface
@@ -1534,6 +1559,10 @@ module m_plex_rt
 
             do idof = 0, numDof-1
               call MatSetValuesLocal(A, i1, [offset_Ein+idof], i1, [offset_Eout+idof], [-one], INSERT_VALUES, ierr); call CHKERR(ierr)
+              if(ldebug.and.offset_Ein+idof.eq.offset_Eout+idof) call CHKERR(1_mpiint, &
+                'src and dst are the same :( ... should not happen here'// &
+                ' row '//itoa(offset_Ein+idof)// &
+                ' col '//itoa(offset_Eout+idof))
             enddo
           enddo
           call ISRestoreIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)

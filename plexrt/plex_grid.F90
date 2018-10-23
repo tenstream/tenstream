@@ -2744,6 +2744,7 @@ module m_plex_grid
 
       call DMRestoreGlobalVector(vertdm, gVec, ierr); call CHKERR(ierr)
 
+      ! call VecPointwiseDivide(vertvec, vertvec, Numvec, ierr); call CHKERR(ierr)
       ! Take the average
       call VecGetArrayF90(vertvec, xvert, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(Numvec, xNum, ierr); call CHKERR(ierr)

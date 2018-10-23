@@ -264,6 +264,7 @@ program main
   default_options=trim(default_options)//' -plexrt_dump_lwc hdf5:'//trim(outfile)//'::append'
   default_options=trim(default_options)//' -plexrt_dump_iwc hdf5:'//trim(outfile)//'::append'
   default_options=trim(default_options)//' -plexrt_dump_temp hdf5:'//trim(outfile)//'::append'
+  default_options=trim(default_options)//' -show_fV2cV_level_heights_vec hdf5:lvl_'//trim(outfile)//''
 
   if(myid.eq.0) print *,'Adding default Petsc Options:', trim(default_options)
   call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
