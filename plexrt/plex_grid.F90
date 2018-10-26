@@ -1034,7 +1034,7 @@ module m_plex_grid
       if (numnodes.gt.1_mpiint) then
         call DMPlexSetAdjacencyUseCone(plex%dm, PETSC_TRUE, ierr); call CHKERR(ierr)
         call DMPlexSetAdjacencyUseClosure(plex%dm, PETSC_TRUE, ierr); call CHKERR(ierr)
-        call DMPlexDistribute(plex%dm, 0_mpiint, sf, dmdist, ierr); call CHKERR(ierr)
+        call DMPlexDistribute(plex%dm, i0, sf, dmdist, ierr); call CHKERR(ierr)
         call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
         plex%dm   = dmdist
       endif
@@ -1129,7 +1129,6 @@ module m_plex_grid
       call PetscSectionGetFieldOffset(geomSection, iface, i0, voff0, ierr); call CHKERR(ierr)
       call PetscSectionGetFieldOffset(geomSection, iface, i1, voff1, ierr); call CHKERR(ierr)
       call PetscSectionGetFieldOffset(geomSection, iface, i2, voff2, ierr); call CHKERR(ierr)
-
       call compute_face_geometry_info(dm, iface, &
         centroid=geoms(i1+voff0:voff0+Ndim), &
         normal=geoms(i1+voff1:voff1+Ndim), &
@@ -1386,7 +1385,7 @@ module m_plex_grid
     call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
     call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
     call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-    call PetscSectionSetNumFields(section, size(fields_top), ierr); call CHKERR(ierr)
+    call PetscSectionSetNumFields(section, size(fields_top, kind=iintegers), ierr); call CHKERR(ierr)
     call PetscSectionSetFieldComponents(section, i0, i1, ierr); call CHKERR(ierr)
     call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
     do iface = fStart,  fEnd-1
