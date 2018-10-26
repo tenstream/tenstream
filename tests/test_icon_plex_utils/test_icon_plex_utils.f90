@@ -36,11 +36,11 @@ contains
   subroutine test_gregorian_date_to_julian_day(this)
       class (MpiTestMethod), intent(inout) :: this
 
-      @assertEqual(2451545.0_ireals, date_to_julian_day(2000, 1, 1.5_ireals), 'Greenwich Noon')
+      @assertEqual(2451545.0_ireals, date_to_julian_day(2000_iintegers, i1, 1.5_ireals), 'Greenwich Noon')
 
-      @assertEqual(2446113.75_ireals, date_to_julian_day(1985, 2, 17.25_ireals))
-      @assertEqual(0._ireals, date_to_julian_day(-4712, 1, 1.5_ireals))
-      @assertEqual(2458365.29749_ireals, date_to_julian_day(2018, 9, 3._ireals+real(19*3600+8*60+23, ireals)/86400._ireals), 1e-4_ireals)
+      @assertEqual(2446113.75_ireals, date_to_julian_day(1985_iintegers, i2, 17.25_ireals))
+      @assertEqual(0._ireals, date_to_julian_day(-4712_iintegers, i1, 1.5_ireals))
+      @assertEqual(2458365.29749_ireals, date_to_julian_day(2018_iintegers, 9_iintegers, 3._ireals+real(19*3600+8*60+23, ireals)/86400._ireals), 1e-4_ireals)
 
   end subroutine
 
@@ -111,7 +111,7 @@ contains
         enddo
       enddo
 
-      sundir = get_sun_vector(2018, 9, 3._ireals+real(19*3600+8*60+23, ireals)/86400._ireals)
+      sundir = get_sun_vector(2018_iintegers, 9_iintegers, 3._ireals+real(19*3600+8*60+23, ireals)/86400._ireals)
       @assertEqual([-0.29155451713720204_ireals, -0.94795805644649656_ireals, 0.12795111080046895_ireals], sundir, sqrt(epsilon(sundir)))
   end subroutine
 end module

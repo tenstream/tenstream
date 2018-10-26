@@ -1314,7 +1314,7 @@ module m_icon_plex_utils
 
         allocate(arr(ke, Ncol))
       else
-        ke = min(vecsize/Ncol, size(arr,1))
+        ke = min(vecsize/Ncol, size(arr,dim=1,kind=iintegers))
         if(.not.all(shape(arr).eq.[ke, Ncol])) then
           print *,'shape cell1dm', [ke, Ncol], 'shape out_arr', shape(arr)
           call CHKERR(1_mpiint, 'shape of out_arr does not conform to cell1dm sizes')
@@ -1355,7 +1355,7 @@ module m_icon_plex_utils
       if(.not.allocated(arr)) then
         allocate(arr(ke, Ncol))
       else
-        ke = min(ke, size(arr,1))
+        ke = min(ke, size(arr, dim=1, kind=iintegers))
         if(.not.all(shape(arr).eq.[ke, Ncol])) then
           print *,'shape cell1dm', [ke, Ncol], 'shape out_arr', shape(arr)
           call CHKERR(1_mpiint, 'shape of out_arr does not conform to cell1dm sizes')

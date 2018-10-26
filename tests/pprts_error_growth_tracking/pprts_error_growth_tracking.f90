@@ -36,12 +36,12 @@ contains
     integer(iintegers) :: iter, k
     integer(mpiint) :: comm, myid, numnodes
 
-    integer(iintegers),parameter :: nxp=3,nyp=3,nv=3
+    integer(iintegers),parameter :: nxp=3,nyp=3,nlyr=3
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=0, theta0=60
     real(ireals),parameter :: albedo=0, dz=dx
     real(ireals),parameter :: incSolar = 1000
-    real(ireals) :: dz1d(nv)
+    real(ireals) :: dz1d(nlyr)
 
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
@@ -56,7 +56,7 @@ contains
     myid     = this%getProcessRank()
 
     call init_mpi_data_parameters(comm)
-    call init_pprts(comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
+    call init_pprts(comm, nlyr, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
 
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
     allocate(ksca(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
@@ -64,7 +64,7 @@ contains
 
     ! First solve for solar radiation
 
-    kabs = 1._ireals/nv
+    kabs = 1._ireals/nlyr
     ksca = 1e-8
     g    = zero
 
