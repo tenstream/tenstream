@@ -728,11 +728,18 @@ module m_plex_grid
 
         integer(mpiint) :: myid, comm, ierr
         character(len=default_str_len) :: faceVecname, cellVecname
+        logical :: option_is_set
 
         call PetscObjectGetComm(cellVec_dm, comm, ierr); call CHKERR(ierr)
         call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
         call PetscObjectGetName(global_faceVec, faceVecname, ierr); call CHKERR(ierr)
+        cellVecname = 'fV2cV_'//trim(faceVecname)
+
+        call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-show_'//trim(cellVecname), &
+          option_is_set, ierr); call CHKERR(ierr)
+        if(.not.option_is_set) return
+
         if(ldebug.and.myid.eq.0) print *,'facevec2cellvec :: starting..'//trim(faceVecname)
 
         call DMClone(cellVec_dm, celldm, ierr); ; call CHKERR(ierr)
@@ -791,7 +798,6 @@ module m_plex_grid
 
         call DMRestoreLocalVector(celldm, cellVec, ierr); call CHKERR(ierr)
 
-        cellVecname = 'fV2cV_'//trim(faceVecname)
         call PetscObjectSetName(global_cellVec, cellVecname, ierr); call CHKERR(ierr)
 
         call PetscObjectGetName(global_cellVec, cellVecname, ierr); call CHKERR(ierr)

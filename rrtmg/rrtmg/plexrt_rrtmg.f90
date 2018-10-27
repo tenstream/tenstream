@@ -438,7 +438,7 @@ contains
     integer(iintegers), pointer :: cell_support(:), xitoa_faces(:)
     logical :: need_any_new_solution
 
-    integer(mpiint) :: ierr
+    integer(mpiint) :: myid,ierr
 
     allocate(spec_edir(ke1, Ncol))
     allocate(spec_edn (ke1, Ncol))
@@ -535,7 +535,10 @@ contains
             opt_solar_constant=opt_solar_constant)
         enddo
     endif
-    if(ldebug) print *,'DEBUG theta0', theta0, 'deg; 2d albedo?', present(solar_albedo_2d)
+    if(ldebug) then
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      if(myid.eq.0) print *,'DEBUG theta0', theta0, 'deg; 2d albedo?', present(solar_albedo_2d)
+    endif
     w0 = min(one, max(zero, w0))
     call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
