@@ -269,7 +269,7 @@ contains
 
     need_any_new_solution=.False.
     do ib=1,ngptlw
-      if(need_new_solution(solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) &
+      if(need_new_solution(solver%comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) &
         need_any_new_solution=.True.
     enddo
     if(.not.need_any_new_solution) then
@@ -345,7 +345,7 @@ contains
 
     current_ibnd = -1 ! current lw band
     do ib = 1, ngptlw ! spectral integration
-      if(need_new_solution(solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
+      if(need_new_solution(solver%comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
         ! divide by thickness to convert from tau to coefficients per meter
         patm_dz(1:ke, i1:ie, i1:je) => atm%dz
         kabs = max(zero, tau(:,:,:,ib)) / patm_dz
@@ -429,7 +429,7 @@ contains
 
     need_any_new_solution=.False.
     do ib=1,ngptsw
-      if(need_new_solution(solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) &
+      if(need_new_solution(solver%comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) &
         need_any_new_solution=.True.
     enddo
     if(.not.need_any_new_solution) then
@@ -513,7 +513,7 @@ contains
 
     do ib=1,ngptsw
 
-      if(need_new_solution(solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) then
+      if(need_new_solution(solver%comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) then
         patm_dz(1:ke, i1:ie, i1:je) => atm%dz
         kabs = max(zero, tau(:,:,:,ib)) * (one - w0(:,:,:,ib))
         ksca = max(zero, tau(:,:,:,ib)) * w0(:,:,:,ib)

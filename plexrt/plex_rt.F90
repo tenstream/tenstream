@@ -8,7 +8,7 @@ module m_plex_rt
   use m_helper_functions, only: CHKERR, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, &
     vec_proj_on_plane, cross_3d, norm, rotation_matrix_world_to_local_basis, &
-    approx, swap, delta_scale, delta_scale_optprop, itoa
+    approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa
 
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, &
@@ -1025,6 +1025,13 @@ module m_plex_rt
 
           call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
           if(reason.le.0) then
+            call PetscObjectViewFromOptions(b  , PETSC_NULL_VEC, '-show_diverged_b', ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(x  , PETSC_NULL_VEC, '-show_diverged_x', ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(A  , PETSC_NULL_MAT, '-show_diverged_A', ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(ksp, PETSC_NULL_KSP, '-show_diverged_ksp', ierr); call CHKERR(ierr)
+          endif
+
+          if(reason.le.0) then
             call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
             if(myid.eq.0.and.ldebug) &
               print *,myid,'Resetted initial guess to zero and try again with gmres:'
@@ -1045,10 +1052,6 @@ module m_plex_rt
           endif
 
           if(reason.le.0) then
-            call PetscObjectViewFromOptions(b  , PETSC_NULL_VEC, '-show_diverged_b', ierr); call CHKERR(ierr)
-            call PetscObjectViewFromOptions(x  , PETSC_NULL_VEC, '-show_diverged_x', ierr); call CHKERR(ierr)
-            call PetscObjectViewFromOptions(A  , PETSC_NULL_MAT, '-show_diverged_A', ierr); call CHKERR(ierr)
-            call PetscObjectViewFromOptions(ksp, PETSC_NULL_KSP, '-show_diverged_ksp', ierr); call CHKERR(ierr)
             call CHKERR(1_mpiint, '***** SOLVER did NOT converge :( ********'//itoa(reason))
           endif
         end subroutine
@@ -1178,8 +1181,6 @@ module m_plex_rt
       !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
     endif
 
-    call set_side_incoming_boundary_condition()
-
     do icell = plex%cStart, plex%cEnd-1
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
@@ -1200,13 +1201,29 @@ module m_plex_rt
         dz, wedgeorient(wedge_offset+14:wedge_offset+19), .True., coeff, ierr, &
         angles=[rad2deg(azimuth), rad2deg(zenith)])
 
+      if(ldebug) then
+        do iface=1,i5
+          dir2dir = coeff(face_plex2bmc(iface):size(coeff):i5)
+          if(sum(dir2dir).gt.one+10*sqrt(epsilon(one))) then
+            print *,iface,': bmcface', face_plex2bmc(iface), 'dir2dir gt one', dir2dir,':',sum(dir2dir)
+            call CHKERR(1_mpiint, 'energy conservation violated! '//ftoa(sum(dir2dir)))
+          endif
+        enddo
+      endif
+
       if(ierr.eq.OPP_1D_RETCODE) then
+        ! for the case of 1D spherical radiative transfer,
+        ! need to consider the change in area between upper and lower face
+        ! we could make the transmission bigger but that results in a indefinite matrix (coeffs gt 1)
+        ! rather we put the excess energy into the side faces and propagate em through that.
         call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
         area_top = geoms(i1+geom_offset)
         call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
         area_bot = geoms(i1+geom_offset)
-        coeff(21) = coeff(21) * area_bot / area_top
-        coeff(5) = coeff(5) * area_top / area_bot
+        if(area_bot.lt.area_top) then
+          coeff(21) = coeff(21) * (area_bot / area_top)
+          coeff([6,11,16]) = coeff(21) * (one - area_bot / area_top) / 3
+        endif
       endif
       call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
@@ -1215,10 +1232,6 @@ module m_plex_rt
         if(lsrc(iface)) then
           ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
           dir2dir = coeff(face_plex2bmc(iface):size(coeff):i5)
-          if(sum(dir2dir).gt.one) then
-            print *,iface,': bmcface', face_plex2bmc(iface), 'dir2dir gt one', dir2dir
-            call CHKERR(1_mpiint, 'energy conservation violated!')
-          endif
 
           call PetscSectionGetOffset(sec, faces_of_cell(iface), icol, ierr); call CHKERR(ierr)
 
@@ -1636,7 +1649,7 @@ module m_plex_rt
     relcoords(6) = max(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(1), &
                    min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6)))
 
-    !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
+    !print *,'DEBUG Coeffs', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
     call OPP%get_coeff(tauz, w0, dg, aspect, ldir, coeff, ierr, angles=angles, wedge_coords=relcoords)
     !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
     if(ldebug) then

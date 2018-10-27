@@ -18,6 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_adaptive_spectral_integration
+  use mpi, only : mpi_comm_rank
   use m_pprts_base, only: t_state_container
   use m_data_parameters, only: iintegers, ireals, default_str_len, mpiint, zero, one, nil
   use m_tenstream_options, only: options_max_solution_err, options_max_solution_time
@@ -34,7 +35,8 @@ module m_adaptive_spectral_integration
 
   contains
 
-    function need_new_solution(solution, time, lenable_solutions_err_estimates)
+    function need_new_solution(comm, solution, time, lenable_solutions_err_estimates)
+      integer(mpiint), intent(in)      :: comm
       type(t_state_container)          :: solution
       real(ireals),intent(in),optional :: time
       logical,intent(in)               :: lenable_solutions_err_estimates
@@ -50,6 +52,8 @@ module m_adaptive_spectral_integration
 
       integer(iintegers) :: k,ipoly
       integer(mpiint) :: ierr, myid
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       ! Make time an optional argument here for
       ! convenience of the interface --

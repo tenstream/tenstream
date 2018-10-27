@@ -76,7 +76,7 @@ contains
       do k=1,2
         time = iter*one
 
-        lneed = need_new_solution(solver%solutions(k), time, solver%lenable_solutions_err_estimates)
+        lneed = need_new_solution(comm, solver%solutions(k), time, solver%lenable_solutions_err_estimates)
         print *, myid, 'Need_new_solution?', k, time, ' :: ', lneed
 
         if(iter.le.3) then

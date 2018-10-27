@@ -126,7 +126,7 @@ contains
 
     if(ldebug.and.myid.eq.0) then
       call print_tenstr_atm(atm,Ncol)
-      print *,'debug sundir:', sundir, 'albedo th,sol',albedo_thermal, albedo_solar,'lth/lsol', lthermal, lsolar
+      print *,'m_plexrt_rrtmg sundir:', sundir, 'albedo th,sol',albedo_thermal, albedo_solar,'lth/lsol', lthermal, lsolar
     endif
     if(present(opt_time)) print *,'time', opt_time
 
@@ -147,7 +147,8 @@ contains
       call allocate_optprop_vec(solver%plex%cell1_dm, solver%plck)
       call allocate_optprop_vec(solver%plex%srfc_boundary_dm, solver%srfc_emission)
 
-      call compute_thermal(solver, atm, Ncol, ke1, &
+      call compute_thermal(comm, solver, atm, &
+        Ncol, ke1, &
         albedo_thermal, &
         edn, eup, abso, &
         opt_time=opt_time, &
@@ -164,7 +165,8 @@ contains
     if(lsolar) then
       if(.not.allocated(edir)) allocate(edir(ke1, Ncol))
       edir = zero
-      call compute_solar(solver, atm, Ncol, ke1, &
+      call compute_solar(comm, solver, atm, &
+        Ncol, ke1, &
         sundir, albedo_solar, &
         edir, edn, eup, abso, &
         opt_time=opt_time, &
@@ -237,12 +239,13 @@ contains
       end subroutine
   end subroutine
 
-  subroutine compute_thermal(solver, atm, Ncol, ke1, albedo, &
+  subroutine compute_thermal(comm, solver, atm, Ncol, ke1, albedo, &
       edn, eup, abso, opt_time, thermal_albedo_2d, lrrtmg_only)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
     use m_tenstr_parrrtm, only: ngptlw, nbndlw
 
+    integer(mpiint), intent(in) :: comm
     class(t_plex_solver), allocatable, intent(inout)  :: solver
     type(t_tenstr_atm), intent(in), target :: atm
     integer(iintegers),intent(in)   :: Ncol, ke1
@@ -273,7 +276,7 @@ contains
 
     need_any_new_solution=.False.
     do ib=1,ngptlw
-      if(need_new_solution(solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) &
+      if(need_new_solution(comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) &
         need_any_new_solution=.True.
     enddo
     if(.not.need_any_new_solution) then
@@ -356,7 +359,7 @@ contains
     current_ibnd = -1 ! current lw band
     do ib=1, ngptlw
 
-      if(need_new_solution(solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
+      if(need_new_solution(comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
 
         tmp = reverse(max(zero, tau(:,:,ib)) / atm%dz)
         call Nz_Ncol_vec_to_celldm1(solver%plex, tmp, solver%kabs)
@@ -396,7 +399,7 @@ contains
     enddo ! ib 1 -> nbndlw , i.e. spectral integration
   end subroutine compute_thermal
 
-  subroutine compute_solar(solver, atm, Ncol, ke1, &
+  subroutine compute_solar(comm, solver, atm, Ncol, ke1, &
       sundir, albedo, &
       edir, edn, eup, abso, opt_time, solar_albedo_2d, &
       lrrtmg_only, opt_solar_constant)
@@ -404,6 +407,7 @@ contains
       use m_tenstr_parrrsw, only: ngptsw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
 
+    integer(mpiint), intent(in) :: comm
     class(t_plex_solver), allocatable, intent(inout)  :: solver
     type(t_tenstr_atm), intent(in), target :: atm
     integer(iintegers),intent(in)   :: Ncol, ke1
@@ -443,7 +447,7 @@ contains
 
     need_any_new_solution=.False.
     do ib=1,ngptsw
-      if(need_new_solution(solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) &
+      if(need_new_solution(comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) &
         need_any_new_solution=.True.
     enddo
     if(.not.need_any_new_solution) then
@@ -548,7 +552,7 @@ contains
 
     do ib=1, ngptsw
 
-      if(need_new_solution(solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) then
+      if(need_new_solution(comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) then
 
         tmp = reverse(max(zero, tau(:,:,ib)) * (one - w0(:,:,ib)) / atm%dz)
         call Nz_Ncol_vec_to_celldm1(solver%plex, tmp, solver%kabs)

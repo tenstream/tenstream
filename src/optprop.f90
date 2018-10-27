@@ -250,7 +250,8 @@ contains
             if(ldir) then
               ! set the transport coeffs for src top to zero, leave the rest.
               C(21) = c33 ! from top to bot
-              C(5) = c33  ! from bot to top
+              C(22:24) = one ! from sides to bot
+              !C(5) = c33  ! from bot to top
             else
               C(1) = c13
               C(7*5+1) = c23
