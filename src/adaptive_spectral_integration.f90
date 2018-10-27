@@ -67,14 +67,14 @@ module m_adaptive_spectral_integration
       if( .not. solution%lset ) then !if we did not store a solution, return immediately
         need_new_solution=.True.
         write(reason,*) 'no solution yet'
-        if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time,solution%uid
+        if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid
         return
       endif
 
       if(.not. lenable_solutions_err_estimates) then
         need_new_solution=.True.
         write(reason,*) 'err.est.thresh.inf.small'
-        if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time,solution%uid
+        if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid
         return
       endif
 
@@ -112,7 +112,7 @@ module m_adaptive_spectral_integration
         if(ierr.ne.0) then
           need_new_solution=.True.
           write(reason,*) 'problem fitting error curve',ierr
-          if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',reason,' t',time, solution%uid
+          if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time, solution%uid
           return
         endif
         estimate(ipoly)=zero
@@ -167,7 +167,7 @@ module m_adaptive_spectral_integration
       if(ldebug.and. myid.eq.0) then
         print *,''
         print *,''
-        print *,'new calc',need_new_solution,' bc ',reason,' t',time,solution%uid,'    ::     est.',error_estimate,'[W]',error_estimate*86.1,'[K/d]'
+        print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid,'    ::     est.',error_estimate,'[W]',error_estimate*86.1,'[K/d]'
         if(allocated(solution%dir_ksp_residual_history) ) &
           print *,' dir residuals _solver ::', solution%dir_ksp_residual_history(1:4)
         if(allocated(solution%diff_ksp_residual_history) ) &
