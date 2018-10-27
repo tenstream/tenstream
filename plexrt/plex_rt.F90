@@ -1665,11 +1665,44 @@ module m_plex_rt
     type(t_state_container), intent(inout) :: solution
     real(ireals),intent(in),optional :: time
 
-    if(present(time)) then
-      print *,'Adaptive Time Integration not yet fully implemented'
-    endif
     call compute_absorption(solver, solution)
     solution%lchanged = .False.
+
+    call update_absorption_norms_for_adaptive_spectral_integration()
+
+    contains
+      subroutine update_absorption_norms_for_adaptive_spectral_integration()
+        real(ireals) :: norm1, norm2, norm3
+        type(tVec) :: abso_old
+        integer(mpiint) :: myid, comm, ierr
+        if(present(time) .and. solver%lenable_solutions_err_estimates) then ! Compute norm between old absorption and new one
+          call DMGetGlobalVector(solver%plex%abso_dm, abso_old, ierr)   ; call CHKERR(ierr)
+          call VecAXPY(abso_old, -one, solution%abso, ierr); call CHKERR(ierr) ! overwrite abso_old with difference to new one
+          call VecNorm(abso_old, NORM_1, norm1, ierr)       ; call CHKERR(ierr)
+          call VecNorm(abso_old, NORM_2, norm2, ierr)       ; call CHKERR(ierr)
+          call VecNorm(abso_old, NORM_INFINITY, norm3, ierr); call CHKERR(ierr)
+
+          call DMRestoreGlobalVector(solver%plex%abso_dm, abso_old, ierr)   ; call CHKERR(ierr)
+
+          ! Save norm for later analysis
+          solution%maxnorm = eoshift ( solution%maxnorm, shift = -1) !shift all values by 1 to the right
+          solution%twonorm = eoshift ( solution%twonorm, shift = -1) !shift all values by 1 to the right
+          solution%time    = eoshift ( solution%time   , shift = -1) !shift all values by 1 to the right
+
+          solution%maxnorm( 1 ) = norm3
+          solution%twonorm( 1 ) = norm2
+          solution%time( 1 )    = time
+
+          if(ldebug) then
+            call PetscObjectGetComm(solver%plex%abso_dm, comm, ierr); call CHKERR(ierr)
+            call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+            if(myid.eq.0) &
+              print *,'Updating error statistics for solution',solution%uid,'at time', &
+                      solution%time(1),':: norm 1,2,inf',norm1,norm2,norm3,'[W] :: ', &
+                      'hr_norm approx:',norm3*86.1,'[K/d]'
+          endif
+        endif !present(time) .and. solver%lenable_solutions_err_estimates
+      end subroutine
   end subroutine
 
   subroutine compute_absorption(solver, solution)
