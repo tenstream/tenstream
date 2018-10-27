@@ -127,8 +127,8 @@ contains
     if(ldebug.and.myid.eq.0) then
       call print_tenstr_atm(atm,Ncol)
       print *,'m_plexrt_rrtmg sundir:', sundir, 'albedo th,sol',albedo_thermal, albedo_solar,'lth/lsol', lthermal, lsolar
+      if(present(opt_time)) print *,'time', opt_time
     endif
-    if(present(opt_time)) print *,'time', opt_time
 
     if(.not.allocated(edn )) allocate(edn (ke1, Ncol))
     if(.not.allocated(eup )) allocate(eup (ke1, Ncol))
