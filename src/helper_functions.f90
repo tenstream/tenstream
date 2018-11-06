@@ -41,7 +41,7 @@ module m_helper_functions
     module procedure itoa_i4, itoa_i8, itoa_1d_i4, itoa_1d_i8
   end interface
   interface ftoa
-    module procedure ftoa, ftoa_1d
+    module procedure ftoa_r32, ftoa_r64, ftoa_1d
   end interface
   interface meanval
     module procedure meanval_1d_r4, meanval_2d_r4, meanval_3d_r4, &
@@ -196,9 +196,16 @@ module m_helper_functions
       enddo
       res = trim(res)
     end function
-    pure function ftoa(i) result(res)
+    pure function ftoa_r32(i) result(res)
       character(:),allocatable :: res
-      real(ireals),intent(in) :: i
+      real(REAL32),intent(in) :: i
+      character(range(i)+2) :: tmp
+      write(tmp,*) i
+      res = trim(tmp)
+    end function
+    pure function ftoa_r64(i) result(res)
+      character(:),allocatable :: res
+      real(REAL64),intent(in) :: i
       character(range(i)+2) :: tmp
       write(tmp,*) i
       res = trim(tmp)
