@@ -100,14 +100,11 @@ logical, parameter :: ldebug=.True.
       call init_plex_rt_solver(plex, solver)
 
       first_normal = get_normal_of_first_TOA_face(solver%plex)
-      sundir = first_normal !+ [zero, -.00001_ireals, zero]
-
+      sundir = first_normal + [zero, -.5_ireals, zero]
       sundir = sundir/norm(sundir)
-      print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
+      print *,myid,'Initial sundirection = ', sundir, 'zenith angle', rad2deg(angle_between_two_vec(sundir, first_normal)),'(deg)'
 
-      !!call set_plex_rt_optprop(solver, vlwc=lwcvec, viwc=iwcvec)
-      call set_plex_rt_optprop(solver)
-
+      call set_plex_rt_optprop(solver, vert_integrated_kabs=one, vert_integrated_ksca=zero)
 
       if(.not.allocated(solver%albedo)) then
         allocate(solver%albedo)
