@@ -88,47 +88,50 @@ module m_plex_rt
     end subroutine
 
     subroutine destroy_plexrt_solver(solver, lfinalizepetsc)
-      class(t_plex_solver), intent(inout) :: solver
+      class(t_plex_solver), allocatable,  intent(inout) :: solver
       logical, intent(in) :: lfinalizepetsc
 
       integer(iintegers) :: uid
       integer(mpiint) :: ierr
 
-      if(allocated(solver%plex)) then
-        call destroy_plexgrid(solver%plex)
-      endif
+      if(allocated(solver)) then
+        if(allocated(solver%plex)) then
+          call destroy_plexgrid(solver%plex)
+        endif
 
-      if(allocated(solver%OPP)) then
-        call solver%OPP%destroy()
-        deallocate(solver%OPP)
-      endif
+        if(allocated(solver%OPP)) then
+          call solver%OPP%destroy()
+          deallocate(solver%OPP)
+        endif
 
-      if(allocated(solver%kabs)) deallocate(solver%kabs)
-      if(allocated(solver%ksca)) deallocate(solver%ksca)
-      if(allocated(solver%g   )) deallocate(solver%g   )
-      if(allocated(solver%plck)) deallocate(solver%plck)
+        if(allocated(solver%kabs)) deallocate(solver%kabs)
+        if(allocated(solver%ksca)) deallocate(solver%ksca)
+        if(allocated(solver%g   )) deallocate(solver%g   )
+        if(allocated(solver%plck)) deallocate(solver%plck)
 
-      if(allocated(solver%Mdir)) then
-        call MatDestroy(solver%Mdir, ierr); call CHKERR(ierr)
-        deallocate(solver%Mdir)
-      endif
+        if(allocated(solver%Mdir)) then
+          call MatDestroy(solver%Mdir, ierr); call CHKERR(ierr)
+          deallocate(solver%Mdir)
+        endif
 
-      if(allocated(solver%Mdiff)) then
-        call MatDestroy(solver%Mdiff, ierr); call CHKERR(ierr)
-        deallocate(solver%Mdiff)
-      endif
-      if(allocated(solver%kspdir)) then
-        call KSPDestroy(solver%kspdir, ierr); call CHKERR(ierr)
-        deallocate(solver%kspdir)
-      endif
-      if(allocated(solver%kspdiff)) then
-        call KSPDestroy(solver%kspdiff, ierr); call CHKERR(ierr)
-        deallocate(solver%kspdiff)
-      endif
+        if(allocated(solver%Mdiff)) then
+          call MatDestroy(solver%Mdiff, ierr); call CHKERR(ierr)
+          deallocate(solver%Mdiff)
+        endif
+        if(allocated(solver%kspdir)) then
+          call KSPDestroy(solver%kspdir, ierr); call CHKERR(ierr)
+          deallocate(solver%kspdir)
+        endif
+        if(allocated(solver%kspdiff)) then
+          call KSPDestroy(solver%kspdiff, ierr); call CHKERR(ierr)
+          deallocate(solver%kspdiff)
+        endif
 
-      do uid=lbound(solver%solutions,1),ubound(solver%solutions,1)
-        call destroy_solution(solver%solutions(uid))
-      enddo
+        do uid=lbound(solver%solutions,1),ubound(solver%solutions,1)
+          call destroy_solution(solver%solutions(uid))
+        enddo
+        deallocate(solver)
+      endif
 
       if(lfinalizepetsc) then
         call PetscFinalize(ierr) ;call CHKERR(ierr)

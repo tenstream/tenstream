@@ -33,7 +33,7 @@ contains
     class (MpiTestMethod), intent(inout) :: this
   end subroutine teardown
 
-  @test(npes =[1])
+  @test(npes =[2,1])
   subroutine error_growth_tracking(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -101,7 +101,6 @@ contains
           opt_solution_uid=k, opt_solution_time=time)
 
         call plexrt_get_result(solver, fdn, fup, fdiv, fdir, opt_solution_uid=k)
-        print *,'fdir', fdir
         deallocate(fdir, fdn, fup, fdiv)
 
       enddo
