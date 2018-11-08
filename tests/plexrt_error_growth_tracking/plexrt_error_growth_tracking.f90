@@ -78,6 +78,8 @@ contains
     deallocate(zindex)
 
     call init_plex_rt_solver(plex, solver)
+    deallocate(plex)
+
     call set_plex_rt_optprop(solver, vert_integrated_kabs=one, vert_integrated_ksca=.5_ireals)
 
     allocate(solver%albedo)

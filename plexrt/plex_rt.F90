@@ -97,6 +97,7 @@ module m_plex_rt
       if(allocated(solver)) then
         if(allocated(solver%plex)) then
           call destroy_plexgrid(solver%plex)
+          deallocate(solver%plex)
         endif
 
         if(allocated(solver%OPP)) then
@@ -379,7 +380,8 @@ module m_plex_rt
 
 
       ! Wedge Orientation is used in solar and thermal case alike
-      if(any(last_sundir.ne.sundir)) then
+      if(any(last_sundir.ne.sundir).or.&                       ! update wedge orientations if sundir has changed
+        .not.allocated(solver%plex%wedge_orientation_dm)) then ! or if we lost the info somehow... e.g. happens after destroy_solver
         call PetscLogEventBegin(solver%logs%orient_face_normals, ierr)
         call orient_face_normals_along_sundir(solver%plex, sundir)
         call PetscLogEventEnd(solver%logs%orient_face_normals, ierr)
@@ -1195,6 +1197,8 @@ module m_plex_rt
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
     !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...'
 
+    if(.not.allocated(plex%geom_dm)) call CHKERR(1_mpiint, 'geom_dm has to allocated in order to create an Edir Matrix')
+    if(.not.allocated(plex%wedge_orientation_dm)) call CHKERR(1_mpiint, 'wedge_orientation_dm has to allocated in order to create an Edir Matrix')
     if(.not.allocated(plex%edir_dm)) call CHKERR(1_mpiint, 'edir_dm has to allocated in order to create an Edir Matrix')
     if(.not.allocated(kabs  )) call CHKERR(1_mpiint, 'kabs   has to be allocated')
     if(.not.allocated(ksca  )) call CHKERR(1_mpiint, 'ksca   has to be allocated')
