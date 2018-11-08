@@ -1576,6 +1576,8 @@ module m_plex_rt
         type(tPetscSection) :: srfcSection
 
         real(ireals), pointer :: xalbedo(:)
+        real(ireals) :: sideward_bc_coeff
+        logical :: lflg
 
         call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, bc_ids, ierr); call CHKERR(ierr)
         if (bc_ids.eq.PETSC_NULL_IS) then ! dont have surface points
@@ -1598,8 +1600,12 @@ module m_plex_rt
           call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
         endif
 
+
+        sideward_bc_coeff = one
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-sideward_bc_coeff", sideward_bc_coeff, lflg, ierr)  ; call CHKERR(ierr)
+
         call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', SIDEFACE, bc_ids, ierr); call CHKERR(ierr)
-        if (bc_ids.eq.PETSC_NULL_IS) then ! dont have surface points
+        if (bc_ids.eq.PETSC_NULL_IS.or.sideward_bc_coeff.le.zero) then ! dont have surface points
         else
           call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
           do i = 1, size(xi)
@@ -1613,7 +1619,7 @@ module m_plex_rt
             call PetscSectionGetOffset(srfcSection, iface, offset_srfc, ierr); call CHKERR(ierr)
 
             do idof = 0, numDof-1
-              call MatSetValuesLocal(A, i1, [offset_Ein+idof], i1, [offset_Eout+idof], [-one], INSERT_VALUES, ierr); call CHKERR(ierr)
+              call MatSetValuesLocal(A, i1, offset_Ein+idof, i1, offset_Eout+idof, -sideward_bc_coeff, INSERT_VALUES, ierr); call CHKERR(ierr)
               if(ldebug.and.offset_Ein+idof.eq.offset_Eout+idof) call CHKERR(1_mpiint, &
                 'src and dst are the same :( ... should not happen here'// &
                 ' row '//itoa(offset_Ein+idof)// &
