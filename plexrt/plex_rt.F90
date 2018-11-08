@@ -104,10 +104,24 @@ module m_plex_rt
           deallocate(solver%OPP)
         endif
 
-        if(allocated(solver%kabs)) deallocate(solver%kabs)
-        if(allocated(solver%ksca)) deallocate(solver%ksca)
-        if(allocated(solver%g   )) deallocate(solver%g   )
-        if(allocated(solver%plck)) deallocate(solver%plck)
+        call dealloc_vec(solver%kabs)
+        call dealloc_vec(solver%ksca)
+        call dealloc_vec(solver%g   )
+        call dealloc_vec(solver%albedo)
+        call dealloc_vec(solver%plck)
+        call dealloc_vec(solver%srfc_emission)
+        call dealloc_vec(solver%dirsrc)
+        call dealloc_vec(solver%diffsrc)
+
+        call dealloc_vec(solver%dir_scalevec_Wm2_to_W)
+        call dealloc_vec(solver%dir_scalevec_W_to_Wm2)
+        call dealloc_vec(solver%diff_scalevec_Wm2_to_W)
+        call dealloc_vec(solver%diff_scalevec_W_to_Wm2)
+
+        if(allocated(solver%IS_diff_in_out_dof)) then
+          call ISDestroy(solver%IS_diff_in_out_dof, ierr); call CHKERR(ierr)
+          deallocate(solver%IS_diff_in_out_dof)
+        endif
 
         if(allocated(solver%Mdir)) then
           call MatDestroy(solver%Mdir, ierr); call CHKERR(ierr)
@@ -136,6 +150,14 @@ module m_plex_rt
       if(lfinalizepetsc) then
         call PetscFinalize(ierr) ;call CHKERR(ierr)
       endif
+    contains
+      subroutine dealloc_vec(v)
+        type(tVec), allocatable, intent(inout) :: v
+        if(allocated(v)) then
+          call VecDestroy(v, ierr); call CHKERR(ierr)
+          deallocate(v)
+        endif
+      end subroutine
     end subroutine
 
     subroutine set_plex_rt_optprop(solver, vlwc, viwc, vert_integrated_kabs, vert_integrated_ksca)
