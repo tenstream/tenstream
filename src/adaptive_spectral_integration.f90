@@ -61,6 +61,15 @@ module m_adaptive_spectral_integration
       ! opt_time is present and so on...
       if(.not. present(time)) then
         need_new_solution = .True.
+        write(reason,*) 'time not provided'
+        if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid
+        return
+      endif
+
+      if( .not. lenable_solutions_err_estimates ) then
+        need_new_solution=.True.
+        write(reason,*) 'solutions_err_estimates disabled'
+        if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid
         return
       endif
 
