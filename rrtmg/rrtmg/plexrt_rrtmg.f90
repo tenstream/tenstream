@@ -602,7 +602,7 @@ contains
   end subroutine
 
   subroutine destroy_plexrt_rrtmg(solver, lfinalizepetsc)
-    class(t_plex_solver) :: solver
+    class(t_plex_solver), allocatable, intent(inout) :: solver
     logical, intent(in) :: lfinalizepetsc
     ! Tidy up the solver
     call destroy_plexrt_solver(solver, lfinalizepetsc=lfinalizepetsc)
