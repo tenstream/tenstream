@@ -66,18 +66,10 @@ module m_adaptive_spectral_integration
 
       if( .not. solution%lset ) then !if we did not store a solution, return immediately
         need_new_solution=.True.
-        write(reason,*) 'no solution yet'
+        write(reason,*) 'no solution yet -- not initialized'
         if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid
         return
       endif
-
-      if(.not. lenable_solutions_err_estimates) then
-        need_new_solution=.True.
-        write(reason,*) 'err.est.thresh.inf.small'
-        if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid
-        return
-      endif
-
 
       do k=1,Nfit
         t(k) = solution%time(Nfit-k+1)

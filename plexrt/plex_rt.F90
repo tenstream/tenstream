@@ -135,12 +135,18 @@ module m_plex_rt
       endif
     end subroutine
 
-    subroutine set_plex_rt_optprop(solver, vlwc, viwc)
+    subroutine set_plex_rt_optprop(solver, vlwc, viwc, vert_integrated_kabs, vert_integrated_ksca)
       use m_helper_functions, only : delta_scale
       class(t_plex_solver), allocatable, intent(inout) :: solver
       type(tVec),intent(in), optional :: vlwc, viwc
+      real(ireals), optional :: vert_integrated_kabs, vert_integrated_ksca
       real(ireals), pointer :: xlwc(:), xiwc(:)
       real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
+
+      type(tPetscSection) :: geomSection
+      real(ireals), pointer :: geoms(:)
+      integer(iintegers) :: geom_offset
+      real(ireals) :: dz
 
       real(ireals),parameter :: w0 = .99, reff_w=10, reff_i=20, rayleigh=1e-4
       real(ireals) :: ksca_tot, kabs_tot, g_tot
@@ -176,12 +182,19 @@ module m_plex_rt
         call VecGetArrayReadF90(viwc, xiwc, ierr); call CHKERR(ierr)
       endif
 
+      call DMGetSection(solver%plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
       call VecGetArrayF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
       call VecGetArrayF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
       call VecGetArrayF90(solver%g   , xg   , ierr); call CHKERR(ierr)
       do i = cStart, cEnd-1
-        kabs_tot = rayleigh*(one-w0)
-        ksca_tot = rayleigh*w0
+        call PetscSectionGetFieldOffset(geomSection, i, i3, geom_offset, ierr); call CHKERR(ierr)
+        dz = geoms(i1+geom_offset)
+
+        kabs_tot = get_arg(rayleigh*(one-w0)*dz, vert_integrated_kabs/solver%plex%Nlay/dz)
+        ksca_tot = get_arg(rayleigh*     w0 *dz, vert_integrated_ksca/solver%plex%Nlay/dz)
+
         g_tot    = zero
 
         if(present(vlwc)) then
@@ -1665,6 +1678,14 @@ module m_plex_rt
     type(t_state_container), intent(inout) :: solution
     real(ireals),intent(in),optional :: time
 
+    integer(mpiint) :: ierr
+    type(tVec) :: abso_old
+
+    if(present(time) .and. solver%lenable_solutions_err_estimates) then ! Create working vec to determine difference between old and new absorption vec
+      call DMGetGlobalVector(solver%plex%abso_dm, abso_old, ierr)   ; call CHKERR(ierr)
+      call VecCopy( solution%abso, abso_old, ierr)     ; call CHKERR(ierr)
+    endif
+
     call compute_absorption(solver, solution)
     solution%lchanged = .False.
 
@@ -1673,10 +1694,8 @@ module m_plex_rt
     contains
       subroutine update_absorption_norms_for_adaptive_spectral_integration()
         real(ireals) :: norm1, norm2, norm3
-        type(tVec) :: abso_old
         integer(mpiint) :: myid, comm, ierr
         if(present(time) .and. solver%lenable_solutions_err_estimates) then ! Compute norm between old absorption and new one
-          call DMGetGlobalVector(solver%plex%abso_dm, abso_old, ierr)   ; call CHKERR(ierr)
           call VecAXPY(abso_old, -one, solution%abso, ierr); call CHKERR(ierr) ! overwrite abso_old with difference to new one
           call VecNorm(abso_old, NORM_1, norm1, ierr)       ; call CHKERR(ierr)
           call VecNorm(abso_old, NORM_2, norm2, ierr)       ; call CHKERR(ierr)

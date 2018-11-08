@@ -122,9 +122,11 @@ contains
     integer(iintegers) :: i
     real(ireals) :: offset
 
-    if(t.lt.one .or. t.gt.size(a0, dim=2)) call CHKERR(1_mpiint, &
-      'Cannot use interp_1d with weights outside of the array bounds '//ftoa(t) &
-      //' : '//itoa(size(a0,dim=1,kind=iintegers))//','//itoa(size(a0,dim=2,kind=iintegers)))
+    if(ldebug) then
+      if(t.lt.one .or. t.gt.size(a0, dim=2)) call CHKERR(1_mpiint, &
+        'Cannot use interp_1d with weights outside of the array bounds '//ftoa(t) &
+        //' : '//itoa(size(a0,dim=1,kind=iintegers))//','//itoa(size(a0,dim=2,kind=iintegers)))
+    endif
     i = floor(t)
     offset = modulo(t,one)
     if(approx(offset,zero)) then
