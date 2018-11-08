@@ -1,7 +1,7 @@
 from pylab import *
 
 # Define the benchmark grid... we will use eddington coeffs on that highres grid to find suitable LUT supports
-Ntau, Nw0, Ng, Nmu = 200, 50, 10, 30
+Ntau, Nw0, Ng, Nmu = 80, 30, 10, 20
 #transmission = linspace(1.-1e-10, 1e-10, Ntau)
 #tau = -log(transmission)
 tau = logspace(-10, 2, Ntau)
@@ -10,6 +10,9 @@ g = linspace(0, .5, Ng)
 
 theta = np.linspace(0, 90, Nmu)
 mu = np.cos(np.deg2rad(theta))
+
+EDDINGTON_DATA = None
+
 
 def py_rodents(dtau, omega_0, g, mu0):
         import numpy as np
@@ -73,7 +76,7 @@ def compute_eddington_data(tau, w0, g, mu):
 
 def find_supports(c, N, dim, axvalues=None):
     """ find support points that minimize the curvature along the remaining dimension with about N points or less """
-    reduc_dims = tuple([x for x in xrange(len(c.shape)) if x != dim])
+    reduc_dims = tuple([x for x in range(len(c.shape)) if x != dim])
 
     dxnd = np.ones_like(c)
     dx = np.ones(np.shape(c)[dim])
@@ -226,7 +229,10 @@ def print_fortran_code(ntau, nw0, ng, ntheta):
 
 def _main(Ntau=15, Nw0=10, Ng=3, Ntheta=10, lplot=False):
     """ run a set of new dimensions """
-    a = compute_eddington_data(tau, w0, g, mu)
+    global EDDINGTON_DATA
+    if EDDINGTON_DATA is None:
+        EDDINGTON_DATA = compute_eddington_data(tau, w0, g, mu)
+    a = EDDINGTON_DATA
 
     kwargs = {
             'lplot' : lplot,
@@ -242,7 +248,7 @@ def _main(Ntau=15, Nw0=10, Ng=3, Ntheta=10, lplot=False):
 
     na = compute_eddington_data(ntau, nw0, ng, nmu)
     ia, err = check_results(a, tau, w0, g, mu, na, ntau, nw0, ng, nmu)
-    print(Ntau, Nw0, Ng, Ntheta, "RMSE & max-error with linear interpolation:", err)
+    print(Ntau, Nw0, Ng, Ntheta, "RMSE[%], max-error, bias[%] with linear interpolation:", err)
 
     if lplot:
         figure(4); clf()
@@ -252,6 +258,8 @@ def _main(Ntau=15, Nw0=10, Ng=3, Ntheta=10, lplot=False):
         title('RMSE {:.2f} % & max-error {:.4f} & bias {:.2f} %'.format(err[0], err[1], err[2]))
 
     print_fortran_code(ntau, nw0, ng, ntheta)
+
+    return err
 
 
 if __name__ == '__main__':
