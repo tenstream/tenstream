@@ -22,7 +22,8 @@ module m_netcdfIO
       use ifport
 #endif
 
-!  use mpi
+  use iso_fortran_env, only: REAL32, REAL64
+
   use netcdf
   use m_data_parameters, only :   &
       default_str_len, &
@@ -44,48 +45,87 @@ module m_netcdfIO
 !  logical,parameter :: ldebug=.True.
 
   interface ncwrite
-    module procedure ncwrite_1d, ncwrite_2d, ncwrite_3d, ncwrite_4d, ncwrite_5d, ncwrite_6d, ncwrite_7d
+    module procedure ncwrite_1d_r32, ncwrite_2d_r32, ncwrite_3d_r32, ncwrite_4d_r32, ncwrite_5d_r32, ncwrite_6d_r32, ncwrite_7d_r32, &
+                     ncwrite_1d_r64, ncwrite_2d_r64, ncwrite_3d_r64, ncwrite_4d_r64, ncwrite_5d_r64, ncwrite_6d_r64, ncwrite_7d_r64
   end interface
   interface ncload
-    module procedure ncload_1d, ncload_2d, ncload_3d, ncload_4d, ncload_5d, ncload_6d, ncload_7d, &
-        ncload_2d_ptr, &
+    module procedure &
+        ncload_1d_r32, ncload_2d_r32, ncload_3d_r32, ncload_4d_r32, ncload_5d_r32, ncload_6d_r32, ncload_7d_r32, &
+        ncload_1d_r64, ncload_2d_r64, ncload_3d_r64, ncload_4d_r64, ncload_5d_r64, ncload_6d_r64, ncload_7d_r64, &
+        ncload_2d_r32_ptr, ncload_2d_r64_ptr, &
         ncload_1dint, ncload_2dint
   end interface
 
   contains
 
-    subroutine ncwrite_1d(groups,arr,ierr)
-        real(ireals),intent(in) :: arr(:)
+    subroutine ncwrite_1d_r32(groups,arr,ierr)
+        real(REAL32),intent(in) :: arr(:)
         real(4)     :: tmp(size(arr))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_2d(groups,arr,ierr)
-        real(ireals),intent(in) :: arr(:,:)
+    subroutine ncwrite_2d_r32(groups,arr,ierr)
+        real(REAL32),intent(in) :: arr(:,:)
         real(4)     :: tmp(size(arr,1),size(arr,2))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_3d(groups,arr,ierr)
-        real(ireals),intent(in) :: arr(:,:,:)
+    subroutine ncwrite_3d_r32(groups,arr,ierr)
+        real(REAL32),intent(in) :: arr(:,:,:)
         real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_4d(groups,arr,ierr)
-        real(ireals),intent(in) :: arr(:,:,:,:)
+    subroutine ncwrite_4d_r32(groups,arr,ierr)
+        real(REAL32),intent(in) :: arr(:,:,:,:)
         real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_5d(groups,arr,ierr)
-        real(ireals),intent(in) :: arr(:,:,:,:,:)
+    subroutine ncwrite_5d_r32(groups,arr,ierr)
+        real(REAL32),intent(in) :: arr(:,:,:,:,:)
         real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_6d(groups,arr,ierr)
-        real(ireals),intent(in) :: arr(:,:,:,:,:,:)
+    subroutine ncwrite_6d_r32(groups,arr,ierr)
+        real(REAL32),intent(in) :: arr(:,:,:,:,:,:)
         real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5),size(arr,6))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_7d(groups,arr,ierr)
-        real(ireals),intent(in) :: arr(:,:,:,:,:,:,:)
+    subroutine ncwrite_7d_r32(groups,arr,ierr)
+        real(REAL32),intent(in) :: arr(:,:,:,:,:,:,:)
+        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5),size(arr,6),size(arr,7))
+        include 'netcdfio_write.inc'
+    end subroutine
+
+    subroutine ncwrite_1d_r64(groups,arr,ierr)
+        real(REAL64),intent(in) :: arr(:)
+        real(4)     :: tmp(size(arr))
+        include 'netcdfio_write.inc'
+    end subroutine
+    subroutine ncwrite_2d_r64(groups,arr,ierr)
+        real(REAL64),intent(in) :: arr(:,:)
+        real(4)     :: tmp(size(arr,1),size(arr,2))
+        include 'netcdfio_write.inc'
+    end subroutine
+    subroutine ncwrite_3d_r64(groups,arr,ierr)
+        real(REAL64),intent(in) :: arr(:,:,:)
+        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3))
+        include 'netcdfio_write.inc'
+    end subroutine
+    subroutine ncwrite_4d_r64(groups,arr,ierr)
+        real(REAL64),intent(in) :: arr(:,:,:,:)
+        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4))
+        include 'netcdfio_write.inc'
+    end subroutine
+    subroutine ncwrite_5d_r64(groups,arr,ierr)
+        real(REAL64),intent(in) :: arr(:,:,:,:,:)
+        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5))
+        include 'netcdfio_write.inc'
+    end subroutine
+    subroutine ncwrite_6d_r64(groups,arr,ierr)
+        real(REAL64),intent(in) :: arr(:,:,:,:,:,:)
+        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5),size(arr,6))
+        include 'netcdfio_write.inc'
+    end subroutine
+    subroutine ncwrite_7d_r64(groups,arr,ierr)
+        real(REAL64),intent(in) :: arr(:,:,:,:,:,:,:)
         real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5),size(arr,6),size(arr,7))
         include 'netcdfio_write.inc'
     end subroutine
@@ -103,50 +143,98 @@ module m_netcdfIO
         include 'netcdfio_read_2.inc'
     end subroutine
 
-     subroutine ncload_1d(groups,arr,ierr)
-        real(ireals),allocatable,intent(inout) :: arr(:)
+     subroutine ncload_1d_r32(groups,arr,ierr)
+        real(REAL32),allocatable,intent(inout) :: arr(:)
         include 'netcdfio_read_1.inc'
         if(ierr.eq.0) allocate(arr(dimsize(1)))
         include 'netcdfio_read_2.inc'
     end subroutine
-    subroutine ncload_2d(groups,arr,ierr)
-        real(ireals),allocatable,intent(inout) :: arr(:,:)
+    subroutine ncload_2d_r32(groups,arr,ierr)
+        real(REAL32),allocatable,intent(inout) :: arr(:,:)
         include 'netcdfio_read_1.inc'
         if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
         include 'netcdfio_read_2.inc'
     end subroutine
-    subroutine ncload_2d_ptr(groups,arr,ierr)
-        real(ireals),pointer,intent(inout) :: arr(:,:)
+    subroutine ncload_2d_r32_ptr(groups,arr,ierr)
+        real(REAL32),pointer,intent(inout) :: arr(:,:)
         include 'netcdfio_read_1_ptr.inc'
         if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
         include 'netcdfio_read_2.inc'
     end subroutine
-    subroutine ncload_3d(groups,arr,ierr)
-        real(ireals),allocatable,intent(inout) :: arr(:,:,:)
+    subroutine ncload_3d_r32(groups,arr,ierr)
+        real(REAL32),allocatable,intent(inout) :: arr(:,:,:)
         include 'netcdfio_read_1.inc'
         if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3)))
         include 'netcdfio_read_2.inc'
     end subroutine
-    subroutine ncload_4d(groups,arr,ierr)
-        real(ireals),allocatable,intent(inout) :: arr(:,:,:,:)
+    subroutine ncload_4d_r32(groups,arr,ierr)
+        real(REAL32),allocatable,intent(inout) :: arr(:,:,:,:)
         include 'netcdfio_read_1.inc'
         if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4)))
         include 'netcdfio_read_2.inc'
     end subroutine
-    subroutine ncload_5d(groups,arr,ierr)
-        real(ireals),allocatable,intent(inout) :: arr(:,:,:,:,:)
+    subroutine ncload_5d_r32(groups,arr,ierr)
+        real(REAL32),allocatable,intent(inout) :: arr(:,:,:,:,:)
         include 'netcdfio_read_1.inc'
         if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5)))
         include 'netcdfio_read_2.inc'
     end subroutine
-    subroutine ncload_6d(groups,arr,ierr)
-        real(ireals),allocatable,intent(inout) :: arr(:,:,:,:,:,:)
+    subroutine ncload_6d_r32(groups,arr,ierr)
+        real(REAL32),allocatable,intent(inout) :: arr(:,:,:,:,:,:)
         include 'netcdfio_read_1.inc'
         if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5),dimsize(6)))
         include 'netcdfio_read_2.inc'
     end subroutine
-    subroutine ncload_7d(groups,arr,ierr)
-        real(ireals),allocatable,intent(inout) :: arr(:,:,:,:,:,:,:)
+    subroutine ncload_7d_r32(groups,arr,ierr)
+        real(REAL32),allocatable,intent(inout) :: arr(:,:,:,:,:,:,:)
+        include 'netcdfio_read_1.inc'
+        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5),dimsize(6),dimsize(7)))
+        include 'netcdfio_read_2.inc'
+    end subroutine
+     subroutine ncload_1d_r64(groups,arr,ierr)
+        real(REAL64),allocatable,intent(inout) :: arr(:)
+        include 'netcdfio_read_1.inc'
+        if(ierr.eq.0) allocate(arr(dimsize(1)))
+        include 'netcdfio_read_2.inc'
+    end subroutine
+    subroutine ncload_2d_r64(groups,arr,ierr)
+        real(REAL64),allocatable,intent(inout) :: arr(:,:)
+        include 'netcdfio_read_1.inc'
+        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
+        include 'netcdfio_read_2.inc'
+    end subroutine
+    subroutine ncload_2d_r64_ptr(groups,arr,ierr)
+        real(REAL64),pointer,intent(inout) :: arr(:,:)
+        include 'netcdfio_read_1_ptr.inc'
+        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2)))
+        include 'netcdfio_read_2.inc'
+    end subroutine
+    subroutine ncload_3d_r64(groups,arr,ierr)
+        real(REAL64),allocatable,intent(inout) :: arr(:,:,:)
+        include 'netcdfio_read_1.inc'
+        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3)))
+        include 'netcdfio_read_2.inc'
+    end subroutine
+    subroutine ncload_4d_r64(groups,arr,ierr)
+        real(REAL64),allocatable,intent(inout) :: arr(:,:,:,:)
+        include 'netcdfio_read_1.inc'
+        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4)))
+        include 'netcdfio_read_2.inc'
+    end subroutine
+    subroutine ncload_5d_r64(groups,arr,ierr)
+        real(REAL64),allocatable,intent(inout) :: arr(:,:,:,:,:)
+        include 'netcdfio_read_1.inc'
+        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5)))
+        include 'netcdfio_read_2.inc'
+    end subroutine
+    subroutine ncload_6d_r64(groups,arr,ierr)
+        real(REAL64),allocatable,intent(inout) :: arr(:,:,:,:,:,:)
+        include 'netcdfio_read_1.inc'
+        if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5),dimsize(6)))
+        include 'netcdfio_read_2.inc'
+    end subroutine
+    subroutine ncload_7d_r64(groups,arr,ierr)
+        real(REAL64),allocatable,intent(inout) :: arr(:,:,:,:,:,:,:)
         include 'netcdfio_read_1.inc'
         if(ierr.eq.0) allocate(arr(dimsize(1),dimsize(2),dimsize(3),dimsize(4),dimsize(5),dimsize(6),dimsize(7)))
         include 'netcdfio_read_2.inc'

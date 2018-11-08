@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_optprop_ANN
-  USE m_data_parameters, ONLY : ireals, iintegers, zero,one,i1, mpiint, default_str_len
+  USE m_data_parameters, ONLY : ireals, irealLUT, iintegers, zero,one,i1, mpiint, default_str_len
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
     preset_tau31, preset_w010, preset_g3, &
     ldelta_scale, delta_scale_truncate
@@ -189,18 +189,18 @@ contains
 
 
   subroutine ANN_get_dir2dir(aspect, tauz, w0, g, phi, theta, C)
-      real(ireals),intent(in) :: aspect, tauz, w0, g, phi, theta
-      real(ireals) :: ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
-      real(ireals),intent(out) :: C(:)
+      real(irealLUT),intent(in) :: aspect, tauz, w0, g, phi, theta
+      real(irealLUT) :: ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
+      real(irealLUT),intent(out) :: C(:)
 
       integer(mpiint) :: ierr
 
-      ind_aspect  = search_sorted_bisection(dir2dir_network%aspect, aspect)
-      ind_tauz  = search_sorted_bisection(dir2dir_network%tau     , tauz)
-      ind_w0    = search_sorted_bisection(dir2dir_network%w0      , w0  )
-      ind_g     = search_sorted_bisection(dir2dir_network%g       , g    )
-      ind_phi   = search_sorted_bisection(dir2dir_network%phi     , phi  )
-      ind_theta = search_sorted_bisection(dir2dir_network%theta   , theta)
+      ind_aspect  = search_sorted_bisection(real(dir2dir_network%aspect,irealLUT), aspect)
+      ind_tauz    = search_sorted_bisection(real(dir2dir_network%tau   ,irealLUT), tauz)
+      ind_w0      = search_sorted_bisection(real(dir2dir_network%w0    ,irealLUT), w0  )
+      ind_g       = search_sorted_bisection(real(dir2dir_network%g     ,irealLUT), g    )
+      ind_phi     = search_sorted_bisection(real(dir2dir_network%phi   ,irealLUT), phi  )
+      ind_theta   = search_sorted_bisection(real(dir2dir_network%theta ,irealLUT), theta)
 
       call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta] , dir2dir_network,ierr )
       if(ierr.ne.0) then
@@ -237,18 +237,18 @@ contains
    end subroutine
 
   subroutine ANN_get_dir2diff(aspect, tauz, w0, g, phi, theta, C)
-      real(ireals),intent(in) :: aspect, tauz, w0, g,phi,theta
-      real(ireals) :: ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
-      real(ireals),intent(out) :: C(:)
+      real(irealLUT),intent(in) :: aspect, tauz, w0, g,phi,theta
+      real(irealLUT) :: ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta
+      real(irealLUT),intent(out) :: C(:)
 
       integer(mpiint) :: ierr
 
-      ind_aspect  = search_sorted_bisection(dir2diff_network%aspect, aspect )
-      ind_tauz  = search_sorted_bisection(dir2diff_network%tau     , tauz )
-      ind_w0    = search_sorted_bisection(dir2diff_network%w0      , w0   )
-      ind_g     = search_sorted_bisection(dir2diff_network%g       , g    )
-      ind_phi   = search_sorted_bisection(dir2diff_network%phi     , phi  )
-      ind_theta = search_sorted_bisection(dir2diff_network%theta   , theta)
+      ind_aspect  = search_sorted_bisection(real(dir2diff_network%aspect,irealLUT), aspect )
+      ind_tauz    = search_sorted_bisection(real(dir2diff_network%tau   ,irealLUT), tauz )
+      ind_w0      = search_sorted_bisection(real(dir2diff_network%w0    ,irealLUT), w0   )
+      ind_g       = search_sorted_bisection(real(dir2diff_network%g     ,irealLUT), g    )
+      ind_phi     = search_sorted_bisection(real(dir2diff_network%phi   ,irealLUT), phi  )
+      ind_theta   = search_sorted_bisection(real(dir2diff_network%theta ,irealLUT), theta)
 
       call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta] , dir2diff_network,ierr )
 !      C = C/1000.0
@@ -284,9 +284,9 @@ contains
    end subroutine
 
    subroutine ANN_get_diff2diff(aspect, tauz, w0, g, C)
-      real(ireals),intent(out) :: C(:)
-      real(ireals),intent(in) :: aspect, tauz, w0, g
-      real(ireals) :: ind_aspect, ind_tauz, ind_w0, ind_g
+      real(irealLUT),intent(out) :: C(:)
+      real(irealLUT),intent(in) :: aspect, tauz, w0, g
+      real(irealLUT) :: ind_aspect, ind_tauz, ind_w0, ind_g
       integer(mpiint) :: ierr
 
       if(.not.diff2diff_network%initialized) then
@@ -294,10 +294,10 @@ contains
         call exit()
       endif
 
-      ind_aspect = search_sorted_bisection(diff2diff_network%aspect, aspect)
-      ind_tauz = search_sorted_bisection(diff2diff_network%tau     , tauz)
-      ind_w0   = search_sorted_bisection(diff2diff_network%w0      , w0  )
-      ind_g    = search_sorted_bisection(diff2diff_network%g       , g   )
+      ind_aspect = search_sorted_bisection(real(diff2diff_network%aspect,irealLUT), aspect)
+      ind_tauz   = search_sorted_bisection(real(diff2diff_network%tau   ,irealLUT), tauz)
+      ind_w0     = search_sorted_bisection(real(diff2diff_network%w0    ,irealLUT), w0  )
+      ind_g      = search_sorted_bisection(real(diff2diff_network%g     ,irealLUT), g   )
 
       call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g], diff2diff_network, ierr )
  !     C = C/1000.0
@@ -325,11 +325,11 @@ contains
 
   subroutine calc_net(coeffs,inp,net,ierr)
       type(ANN),intent(inout) :: net
-      real(ireals),intent(out):: coeffs(net%out_size )
-      real(ireals),intent(in) :: inp(:)
+      real(irealLUT),intent(out):: coeffs(net%out_size )
+      real(irealLUT),intent(in) :: inp(:)
       integer(mpiint),intent(out) :: ierr
 
-      real(ireals) :: input(net%in_size)
+      real(irealLUT) :: input(net%in_size)
 
       integer(iintegers) :: k,srcnode,trgnode,ctrg,xn
 
@@ -338,7 +338,7 @@ contains
 
       input = inp-one
 
-      if(all(approx(net%lastcall,inp) )) then
+      if(all(approx(real(net%lastcall, irealLUT),inp) )) then
         coeffs = net%lastresult
         return
       endif
@@ -434,8 +434,8 @@ contains
       net%lastresult = coeffs(:)
     contains
       pure elemental logical function approx(a,b)
-        real(ireals),intent(in) :: a,b
-        real(ireals),parameter :: eps=1e-5
+        real(irealLUT),intent(in) :: a,b
+        real(irealLUT),parameter :: eps=1e-5
         if( a.le.b+eps .and. a.ge.b-eps ) then
           approx = .True.
         else

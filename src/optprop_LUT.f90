@@ -31,9 +31,9 @@ module m_optprop_LUT
     triangle_area_by_vertices,            &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
 
-  use m_data_parameters, only : ireals, iintegers,      &
-    one, zero, i0, i1, i2, i3, i10, mpiint, nil, inil,  &
-    imp_iinteger, imp_ireals, imp_logical,                     &
+  use m_data_parameters, only : ireals, iintegers, irealLUT, &
+    one, zero, i0, i1, i2, i3, i10, mpiint, nil, inil,       &
+    imp_iinteger, imp_ireals, imp_logical,                   &
     default_str_len
 
   use m_optprop_parameters, only:         &
@@ -81,8 +81,8 @@ module m_optprop_LUT
   type t_LUT_dim
     integer(iintegers) :: N      ! size of dimension
     character(len=default_str_len) :: dimname
-    real(ireals) :: vrange(2) ! min / max of dimension
-    real(ireals), allocatable :: v(:) ! sampling points of dimension, size N
+    real(irealLUT) :: vrange(2) ! min / max of dimension
+    real(irealLUT), allocatable :: v(:) ! sampling points of dimension, size N
   end type
 
   type t_LUT_config
@@ -91,8 +91,8 @@ module m_optprop_LUT
   end type
 
   type t_table
-    real(ireals), pointer :: c(:,:) => NULL() ! depending on config has Ndim_1*Ndim_2*etc. many entries
-    real(ireals), allocatable :: stddev_tol(:,:)
+    real(irealLUT), pointer :: c(:,:) => NULL() ! depending on config has Ndim_1*Ndim_2*etc. many entries
+    real(irealLUT), allocatable :: stddev_tol(:,:)
     character(default_str_len), allocatable :: table_name_c(:)
     character(default_str_len), allocatable :: table_name_tol(:)
   end type
@@ -365,7 +365,7 @@ subroutine write_pspace(fname, config)
 
   integer(iintegers) :: kdim
   integer(mpiint) :: ierr
-  real(ireals), allocatable :: existing_values(:)
+  real(irealLUT), allocatable :: existing_values(:)
 
   groups(1) = trim(fname)
   groups(2) = 'pspace'
@@ -378,7 +378,7 @@ subroutine write_pspace(fname, config)
     if(allocated(existing_values)) deallocate(existing_values)
     call ncload(groups, existing_values, ierr)
     if(ierr.eq.0) then
-      if(.not.all(approx(existing_values, config%dims(kdim)%v, sqrt(epsilon(one))*10))) then
+      if(.not.all(approx(existing_values, config%dims(kdim)%v, sqrt(epsilon(1._irealLUT))*10))) then
         print *, kdim, trim(groups(1)), trim(groups(3)), ':existing', existing_values, ':new', config%dims(kdim)%v
         call CHKERR(1_mpiint, 'Dimensions of LUT and in optprop_parameters definition do not match!')
       endif
@@ -392,7 +392,7 @@ subroutine write_pspace(fname, config)
     if(allocated(existing_values)) deallocate(existing_values)
     call ncload(groups, existing_values, ierr)
     if(ierr.eq.0) then
-      if(.not.all(approx(existing_values, config%dims(kdim)%vrange, sqrt(epsilon(one))*10))) then
+      if(.not.all(approx(existing_values, config%dims(kdim)%vrange, sqrt(epsilon(1._irealLUT))*10))) then
         call CHKERR(1_mpiint, 'Range of dimensions of LUT and in optprop_parameters definition do not match!')
       endif
     else ! Otherwise, just save the current ones
@@ -548,14 +548,14 @@ subroutine createLUT(OPP, comm, config, S, T)
                 print *,'Dumping LUT after ',(now-lastsavetime)/60,'minutes'
                 if(present(T)) then
                   print *,'Writing table to file...', T%table_name_c
-                  call ncwrite(T%table_name_c  , T%c         ,iierr); call CHKERR(iierr, 'Could not write Table to file')
+                  call ncwrite(T%table_name_c, real(T%c, ireals), iierr); call CHKERR(iierr, 'Could not write Table to file')
                   print *,'Writing table to file...', T%table_name_tol
-                  call ncwrite(T%table_name_tol, T%stddev_tol,iierr); call CHKERR(iierr, 'Could not write Table to file')
+                  call ncwrite(T%table_name_tol, real(T%stddev_tol,ireals), iierr); call CHKERR(iierr, 'Could not write Table to file')
                 endif
                 print *,'Writing table to file...', S%table_name_c
-                call ncwrite(S%table_name_c  , S%c         ,iierr); call CHKERR(iierr, 'Could not write Table to file')
+                call ncwrite(S%table_name_c, real(S%c, ireals), iierr); call CHKERR(iierr, 'Could not write Table to file')
                 print *,'Writing table to file...', S%table_name_tol
-                call ncwrite(S%table_name_tol, S%stddev_tol,iierr); call CHKERR(iierr, 'Could not write Table to file')
+                call ncwrite(S%table_name_tol, real(S%stddev_tol,ireals) ,iierr); call CHKERR(iierr, 'Could not write Table to file')
                 print *,'done writing!',iierr
                 lastsavetime = now ! reset the countdown
                 if((now-starttime).gt.LUT_max_create_jobtime) then
@@ -573,11 +573,11 @@ subroutine createLUT(OPP, comm, config, S, T)
         enddo
 
         print *,'Writing table to file...'
-        call ncwrite(S%table_name_c  , S%c         ,iierr)
-        call ncwrite(S%table_name_tol, S%stddev_tol,iierr)
+        call ncwrite(S%table_name_c  , real(S%c         ,ireals), iierr)
+        call ncwrite(S%table_name_tol, real(S%stddev_tol,ireals), iierr)
         if(present(T)) then
-          call ncwrite(T%table_name_c  , T%c         ,iierr)
-          call ncwrite(T%table_name_tol, T%stddev_tol,iierr)
+          call ncwrite(T%table_name_c  , real(T%c         ,ireals), iierr)
+          call ncwrite(T%table_name_tol, real(T%stddev_tol,ireals), iierr)
           print *,'done writing!',iierr,':: max_atol S',maxval(S%stddev_tol),'max_atol T',maxval(T%stddev_tol)
         else
           print *,'done writing!',iierr,':: max_atol S',maxval(S%stddev_tol)
@@ -650,13 +650,13 @@ subroutine prepare_table_space(OPP, config, S, T)
   print *,'Allocating Space for LUTs'
   errcnt = 0
   if(present(T)) then
-    if(.not.associated(S%c         )) allocate(S%c         (OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=nil)
-    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=1e8_ireals)
-    if(.not.associated(T%c         )) allocate(T%c         (OPP%dir_streams**2, product(config%dims(:)%N)), source=nil)
-    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(OPP%dir_streams**2, product(config%dims(:)%N)), source=1e8_ireals)
+    if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=real(nil,irealLUT))
+    if(.not.associated(T%c)) allocate(T%c(OPP%dir_streams**2              , product(config%dims(:)%N)), source=real(nil,irealLUT))
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=1e8_irealLUT)
+    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(OPP%dir_streams**2,               product(config%dims(:)%N)), source=1e8_irealLUT)
   else
-    if(.not.associated(S%c         )) allocate(S%c         (OPP%diff_streams**2, product(config%dims(:)%N)), source=nil)
-    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(OPP%diff_streams**2, product(config%dims(:)%N)), source=1e8_ireals)
+    if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams**2, product(config%dims(:)%N)), source=real(nil,irealLUT))
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(OPP%diff_streams**2, product(config%dims(:)%N)), source=1e8_irealLUT)
   endif
 end subroutine
 
@@ -979,7 +979,7 @@ end subroutine
       class(t_optprop_LUT) :: OPP
 
       integer(mpiint) :: myid, ierr
-      real(ireals), pointer :: mmap_ptr(:,:)
+      real(irealLUT), pointer :: mmap_ptr(:,:)
 
       call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
 
@@ -1043,7 +1043,7 @@ end subroutine
   end subroutine
 
   subroutine check_if_samplepts_in_LUT_bounds(sample_pts, config)
-    real(ireals),intent(in) :: sample_pts(:)
+    real(irealLUT),intent(in) :: sample_pts(:)
     type(t_LUT_config), allocatable, intent(in) :: config
     integer(mpiint) :: ierr, kdim
 
@@ -1063,11 +1063,11 @@ end subroutine
 
   subroutine LUT_get_dir2dir(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: sample_pts(:)
-    real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams**2)
+    real(irealLUT),intent(in) :: sample_pts(:)
+    real(irealLUT),intent(out):: C(:) ! dimension(OPP%dir_streams**2)
 
     integer(iintegers) :: src, kdim, ind1d
-    real(ireals) :: pti(size(sample_pts)), norm
+    real(irealLUT) :: pti(size(sample_pts)), norm
 
     if(ldebug_optprop) then
       if(size(sample_pts).ne.size(OPP%dirconfig%dims)) then
@@ -1113,11 +1113,11 @@ end subroutine
 
   subroutine LUT_get_dir2diff(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: sample_pts(:)
-    real(ireals),intent(out):: C(:) ! dimension(OPP%dir_streams*OPP%diff_streams)
+    real(irealLUT),intent(in) :: sample_pts(:)
+    real(irealLUT),intent(out):: C(:) ! dimension(OPP%dir_streams*OPP%diff_streams)
 
     integer(iintegers) :: src, kdim, ind1d
-    real(ireals) :: pti(size(sample_pts)), norm
+    real(irealLUT) :: pti(size(sample_pts)), norm
 
     if(ldebug_optprop) then
       if(size(sample_pts).ne.size(OPP%dirconfig%dims)) then
@@ -1161,11 +1161,11 @@ end subroutine
 
   subroutine LUT_get_diff2diff(OPP, sample_pts, C)
     class(t_optprop_LUT) :: OPP
-    real(ireals),intent(in) :: sample_pts(:)
-    real(ireals),intent(out):: C(:) ! dimension(OPP%diff_streams**2)
+    real(irealLUT),intent(in) :: sample_pts(:)
+    real(irealLUT),intent(out):: C(:) ! dimension(OPP%diff_streams**2)
 
     integer(iintegers) :: src, kdim, ind1d
-    real(ireals) :: pti(size(sample_pts)), norm
+    real(irealLUT) :: pti(size(sample_pts)), norm
 
     if(ldebug_optprop) then
       if(size(sample_pts).ne.size(OPP%diffconfig%dims)) then
@@ -1196,7 +1196,7 @@ end subroutine
       iierr=0
       do src=1,OPP%diff_streams
         norm = sum( C( src:size(C):OPP%diff_streams ) )
-        if(norm.gt.one+1e-5_ireals) iierr=iierr+1
+        if(norm.gt.one+1e-5_irealLUT) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
         do src=1,OPP%diff_streams

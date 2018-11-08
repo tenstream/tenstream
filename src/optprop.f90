@@ -26,7 +26,7 @@ module m_optprop
 
 use m_optprop_parameters, only : ldebug_optprop, coeff_mode
 use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, swap
-use m_data_parameters, only: ireals,iintegers,one,zero,i0,i1,inil,mpiint
+use m_data_parameters, only: ireals,irealLUT,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_wedge_5_8
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff

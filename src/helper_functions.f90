@@ -19,8 +19,8 @@
 
 module m_helper_functions
   use iso_fortran_env, only: INT32, INT64, REAL32, REAL64
-  use m_data_parameters,only : iintegers, mpiint, ireals, ireal_dp, &
-    i1, pi, zero, one, imp_ireals, imp_logical, default_str_len, &
+  use m_data_parameters,only : iintegers, mpiint, ireals, irealLUT, ireal_dp, &
+    i1, pi, zero, one, imp_ireals, imp_REAL32, imp_REAL64, imp_logical, default_str_len, &
     imp_int4, imp_int8, imp_iinteger
 
   use mpi
@@ -37,6 +37,15 @@ module m_helper_functions
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, &
     resize_arr, reverse
 
+  interface norm
+    module procedure norm_r32, norm_r64
+  end interface
+  interface approx
+    module procedure approx_r32, approx_r64
+  end interface
+  interface distance
+    module procedure distance_r32, distance_r64
+  end interface
   interface itoa
     module procedure itoa_i4, itoa_i8, itoa_1d_i4, itoa_1d_i8
   end interface
@@ -48,8 +57,8 @@ module m_helper_functions
         meanval_1d_r8, meanval_2d_r8, meanval_3d_r8
   end interface
   interface imp_bcast
-    module procedure imp_bcast_real_1d, imp_bcast_real_2d, imp_bcast_real_3d, imp_bcast_real_5d, &
-        imp_bcast_real_2d_ptr, &
+    module procedure imp_bcast_real_1d, imp_bcast_real_3d, imp_bcast_real_5d, &
+        imp_bcast_real32_2d, imp_bcast_real64_2d, imp_bcast_real32_2d_ptr, imp_bcast_real64_2d_ptr, &
         imp_bcast_int_1d, imp_bcast_int_2d, imp_bcast_int4, imp_bcast_int8, imp_bcast_real, imp_bcast_logical
   end interface
   interface get_arg
@@ -75,6 +84,31 @@ module m_helper_functions
     module procedure assertEqual_i32, assertEqual_i64
   end interface
 
+  interface pnt_in_triangle
+    module procedure pnt_in_triangle_r32, pnt_in_triangle_r64
+  end interface
+  interface pnt_in_rectangle
+    module procedure pnt_in_rectangle_r32, pnt_in_rectangle_r64
+  end interface
+  interface pnt_in_triangle_convex_hull
+    module procedure pnt_in_triangle_convex_hull_r32, pnt_in_triangle_convex_hull_r64
+  end interface
+  interface cross_2d
+    module procedure cross_2d_r32, cross_2d_r64
+  end interface
+
+  interface distances_to_triangle_edges
+    module procedure distances_to_triangle_edges_r32, distances_to_triangle_edges_r64
+  end interface
+  interface distance_to_edge
+    module procedure distance_to_edge_r32, distance_to_edge_r64
+  end interface
+  interface triangle_area_by_vertices
+    module procedure triangle_area_by_vertices_r32, triangle_area_by_vertices_r64
+  end interface
+  interface triangle_area_by_edgelengths
+    module procedure triangle_area_by_edgelengths_r32, triangle_area_by_edgelengths_r64
+  end interface
 
   integer(iintegers), parameter :: npar_cumprod=8
   contains
@@ -236,9 +270,14 @@ module m_helper_functions
       meanvec = (v(2:size(v))+v(1:size(v)-1))*.5_ireals
     end function
 
-    pure function norm(v)
-      real(ireals) :: norm
-      real(ireals),intent(in) :: v(:)
+    pure function norm_r32(v) result(norm)
+      real(REAL32) :: norm
+      real(REAL32),intent(in) :: v(:)
+      norm = sqrt(dot_product(v,v))
+    end function
+    pure function norm_r64(v) result(norm)
+      real(REAL64) :: norm
+      real(REAL64),intent(in) :: v(:)
       norm = sqrt(dot_product(v,v))
     end function
 
@@ -252,12 +291,18 @@ module m_helper_functions
       cross_3d(3) = a(1) * b(2) - a(2) * b(1)
     end function cross_3d
 
-    pure function cross_2d(a, b)
-      real(ireals), dimension(2), intent(in) :: a, b
-      real(ireals) :: cross_2d
+    pure function cross_2d_r32(a, b) result(cross_2d)
+      real(REAL32), dimension(2), intent(in) :: a, b
+      real(REAL32) :: cross_2d
 
       cross_2d = a(1) * b(2) - a(2) * b(1)
-    end function cross_2d
+    end function
+    pure function cross_2d_r64(a, b) result(cross_2d)
+      real(REAL64), dimension(2), intent(in) :: a, b
+      real(REAL64) :: cross_2d
+
+      cross_2d = a(1) * b(2) - a(2) * b(1)
+    end function
 
     subroutine resize_arr_int32(N, arr)
       integer(INT32), intent(in) :: N
@@ -327,14 +372,29 @@ module m_helper_functions
       mean = sum(arr)/size(arr)
     end function
 
-    elemental logical function approx(a,b,precis)
-      real(ireals),intent(in) :: a,b
-      real(ireals),intent(in),optional :: precis
-      real(ireals) :: factor
+    elemental logical function approx_r64(a,b,precis) result(approx)
+      real(REAL64),intent(in) :: a,b
+      real(REAL64),intent(in),optional :: precis
+      real(REAL64) :: factor
       if(present(precis) ) then
         factor = precis
       else
-        factor = 10._ireals*epsilon(b)
+        factor = 10._REAL64*epsilon(b)
+      endif
+      if( a.le.b+factor .and. a.ge.b-factor ) then
+        approx = .True.
+      else
+        approx = .False.
+      endif
+    end function
+    elemental logical function approx_r32(a,b,precis) result(approx)
+      real(REAL32),intent(in) :: a,b
+      real(REAL32),intent(in),optional :: precis
+      real(REAL32) :: factor
+      if(present(precis) ) then
+        factor = precis
+      else
+        factor = 10._REAL32*epsilon(b)
       endif
       if( a.le.b+factor .and. a.ge.b-factor ) then
         approx = .True.
@@ -521,9 +581,9 @@ module m_helper_functions
       call mpi_bcast(arr,size(arr),imp_ireals,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
 
-    subroutine  imp_bcast_real_2d_ptr(comm,arr,sendid)
+    subroutine  imp_bcast_real32_2d_ptr(comm,arr,sendid)
       integer(mpiint),intent(in) :: comm
-      real(ireals),pointer,intent(inout) :: arr(:,:)
+      real(REAL32),pointer,intent(inout) :: arr(:,:)
       integer(mpiint),intent(in) :: sendid
       integer(mpiint) :: myid
 
@@ -538,11 +598,11 @@ module m_helper_functions
       call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
 
       if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
-      call mpi_bcast(arr,size(arr),imp_ireals,sendid,comm,mpierr); call CHKERR(mpierr)
+      call mpi_bcast(arr,size(arr),imp_REAL32,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
-    subroutine  imp_bcast_real_2d(comm,arr,sendid)
+    subroutine  imp_bcast_real64_2d_ptr(comm,arr,sendid)
       integer(mpiint),intent(in) :: comm
-      real(ireals),allocatable,intent(inout) :: arr(:,:)
+      real(REAL64),pointer,intent(inout) :: arr(:,:)
       integer(mpiint),intent(in) :: sendid
       integer(mpiint) :: myid
 
@@ -557,7 +617,45 @@ module m_helper_functions
       call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
 
       if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
-      call mpi_bcast(arr,size(arr),imp_ireals,sendid,comm,mpierr); call CHKERR(mpierr)
+      call mpi_bcast(arr,size(arr),imp_REAL64,sendid,comm,mpierr); call CHKERR(mpierr)
+    end subroutine
+    subroutine  imp_bcast_real32_2d(comm,arr,sendid)
+      integer(mpiint),intent(in) :: comm
+      real(REAL32),allocatable,intent(inout) :: arr(:,:)
+      integer(mpiint),intent(in) :: sendid
+      integer(mpiint) :: myid
+
+      integer(iintegers) :: Ntot(2)
+      integer(mpiint) :: commsize
+      integer(mpiint) :: mpierr
+      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+      if(commsize.le.1) return
+      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
+
+      if(sendid.eq.myid) Ntot = shape(arr)
+      call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
+
+      if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
+      call mpi_bcast(arr,size(arr),imp_REAL32,sendid,comm,mpierr); call CHKERR(mpierr)
+    end subroutine
+    subroutine  imp_bcast_real64_2d(comm,arr,sendid)
+      integer(mpiint),intent(in) :: comm
+      real(REAL64),allocatable,intent(inout) :: arr(:,:)
+      integer(mpiint),intent(in) :: sendid
+      integer(mpiint) :: myid
+
+      integer(iintegers) :: Ntot(2)
+      integer(mpiint) :: commsize
+      integer(mpiint) :: mpierr
+      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+      if(commsize.le.1) return
+      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
+
+      if(sendid.eq.myid) Ntot = shape(arr)
+      call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
+
+      if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
+      call mpi_bcast(arr,size(arr),imp_REAL64,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
     subroutine  imp_bcast_real_3d(comm,arr,sendid)
       integer(mpiint),intent(in) :: comm
@@ -745,10 +843,10 @@ module m_helper_functions
     end subroutine
 
     function search_sorted_bisection(arr,val) ! return index+residula i where val is between arr(i) and arr(i+1)
-      real(ireals) :: search_sorted_bisection
-      real(ireals),intent(in) :: arr(:)
-      real(ireals),intent(in) :: val
-      real(ireals) :: loc_increment
+      real(irealLUT) :: search_sorted_bisection
+      real(irealLUT),intent(in) :: arr(:)
+      real(irealLUT),intent(in) :: val
+      real(irealLUT) :: loc_increment
       integer(iintegers) :: i,j,k
 
       i=lbound(arr,1)
@@ -893,26 +991,47 @@ module m_helper_functions
     end function
 
     !> @brief Determine Edge length/ distance between two points
-    function distance(p1,p2)
-      real(ireals), intent(in) :: p1(:), p2(:)
-      real(ireals) :: distance
+    function distance_r32(p1,p2) result(distance)
+      real(REAL32), intent(in) :: p1(:), p2(:)
+      real(REAL32) :: distance
+      distance = norm(p2-p1)
+    end function
+    function distance_r64(p1,p2) result(distance)
+      real(REAL64), intent(in) :: p1(:), p2(:)
+      real(REAL64) :: distance
       distance = norm(p2-p1)
     end function
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
-    function triangle_area_by_edgelengths(e1,e2,e3)
-      real(ireals), intent(in) :: e1,e2,e3
-      real(ireals) :: triangle_area_by_edgelengths
-      real(ireals) :: p
+    function triangle_area_by_edgelengths_r32(e1,e2,e3) result(triangle_area_by_edgelengths)
+      real(REAL32), intent(in) :: e1,e2,e3
+      real(REAL32) :: triangle_area_by_edgelengths
+      real(REAL32) :: p
+      p = (e1+e2+e3)/2
+      triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
+    end function
+    function triangle_area_by_edgelengths_r64(e1,e2,e3) result(triangle_area_by_edgelengths)
+      real(REAL64), intent(in) :: e1,e2,e3
+      real(REAL64) :: triangle_area_by_edgelengths
+      real(REAL64) :: p
       p = (e1+e2+e3)/2
       triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
     end function
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
-    function triangle_area_by_vertices(v1,v2,v3)
-      real(ireals), intent(in) :: v1(:),v2(:),v3(:)
-      real(ireals) :: triangle_area_by_vertices
-      real(ireals) :: e1, e2, e3
+    function triangle_area_by_vertices_r32(v1,v2,v3) result(triangle_area_by_vertices)
+      real(REAL32), intent(in) :: v1(:),v2(:),v3(:)
+      real(REAL32) :: triangle_area_by_vertices
+      real(REAL32) :: e1, e2, e3
+      e1 = distance(v1,v2)
+      e2 = distance(v2,v3)
+      e3 = distance(v3,v1)
+      triangle_area_by_vertices = triangle_area_by_edgelengths(e1,e2,e3)
+    end function
+    function triangle_area_by_vertices_r64(v1,v2,v3) result(triangle_area_by_vertices)
+      real(REAL64), intent(in) :: v1(:),v2(:),v3(:)
+      real(REAL64) :: triangle_area_by_vertices
+      real(REAL64) :: e1, e2, e3
       e1 = distance(v1,v2)
       e2 = distance(v2,v3)
       e3 = distance(v3,v1)
@@ -935,10 +1054,26 @@ module m_helper_functions
     end function
 
     !> @brief determine if point is inside a rectangle p1,p2,p3
-    function pnt_in_rectangle(p1,p2,p3, p)
-      real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
+    function pnt_in_rectangle_r32(p1,p2,p3, p) result(pnt_in_rectangle)
+      real(REAL32), intent(in), dimension(2) :: p1,p2,p3, p
       logical :: pnt_in_rectangle
-      real(ireals),parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
+      real(REAL32),parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
+
+      ! check for rectangular bounding box
+      if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
+        pnt_in_rectangle=.False.
+        return
+      endif
+      if ( p(2).lt.minval([p1(2),p2(2),p3(2)])-eps2 .or. p(2).gt.maxval([p1(2),p2(2),p3(2)])+eps2 ) then ! outside of yrange
+        pnt_in_rectangle=.False.
+        return
+      endif
+      pnt_in_rectangle=.True.
+    end function
+    function pnt_in_rectangle_r64(p1,p2,p3, p) result(pnt_in_rectangle)
+      real(REAL64), intent(in), dimension(2) :: p1,p2,p3, p
+      logical :: pnt_in_rectangle
+      real(REAL64),parameter :: eps = epsilon(eps), eps2 = sqrt(eps)
 
       ! check for rectangular bounding box
       if ( p(1).lt.minval([p1(1),p2(1),p3(1)])-eps2 .or. p(1).gt.maxval([p1(1),p2(1),p3(1)])+eps2 ) then ! outside of xrange
@@ -953,11 +1088,52 @@ module m_helper_functions
     end function
 
     !> @brief determine if point is inside a triangle p1,p2,p3
-    function pnt_in_triangle(p1,p2,p3, p)
-      real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
+    function pnt_in_triangle_r32(p1,p2,p3, p) result(pnt_in_triangle)
+      real(REAL32), intent(in), dimension(2) :: p1,p2,p3, p
       logical :: pnt_in_triangle
-      real(ireals),parameter :: eps = epsilon(eps), eps2 = 100*eps
-      real(ireals) :: a, b, c, edge_dist
+      real(REAL32),parameter :: eps = epsilon(eps), eps2 = 100*eps
+      real(REAL32) :: a, b, c, edge_dist
+
+      logical, parameter :: ldebug=.False.
+
+      pnt_in_triangle = pnt_in_rectangle(p1,p2,p3, p)
+      if(ldebug) print *,'pnt_in_triangle::pnt in rectangle:', p1, p2, p3, 'p', p, '::', pnt_in_triangle
+      if (.not.pnt_in_triangle) then ! if pnt is not in rectangle, it is not in triangle!
+        ! Then check for sides
+        a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
+        b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
+        c = one - (a + b)
+
+        pnt_in_triangle = all([a,b,c].ge.zero)
+        if(ldebug) print *,'pnt_in_triangle::1st check:', a, b, c, '::', pnt_in_triangle
+      endif
+
+      if(.not.pnt_in_triangle) then
+        pnt_in_triangle = pnt_in_triangle_convex_hull(p1,p2,p3, p)
+        if(ldebug) print *,'pnt_in_triangle::convex hull:', pnt_in_triangle
+      endif
+
+      if(.not.pnt_in_triangle) then ! Compute distances to each edge and allow the check to be positive if the distance is small
+        edge_dist = minval(distances_to_triangle_edges(p1,p2,p3,p))
+        if(edge_dist.le.eps) then
+          if((p(1).lt.min(p1(1),p2(1))) .or. (p(1).gt.max(p1(1),p2(1)) )) then
+            ! is on line but ouside of segment
+            continue
+          else
+            pnt_in_triangle=.True.
+          endif
+          if(ldebug) print *,'pnt_in_triangle edgedist:',edge_dist,'=>', pnt_in_triangle
+        endif
+      endif
+
+      if(ldebug.and..not.pnt_in_triangle) print *,'pnt_in_triangle final:', pnt_in_triangle,'::',a,b,c,':',p, &
+        'edgedist',distances_to_triangle_edges(p1,p2,p3,p),distances_to_triangle_edges(p1,p2,p3,p).le.eps
+    end function
+    function pnt_in_triangle_r64(p1,p2,p3, p) result(pnt_in_triangle)
+      real(REAL64), intent(in), dimension(2) :: p1,p2,p3, p
+      logical :: pnt_in_triangle
+      real(REAL64),parameter :: eps = epsilon(eps), eps2 = 100*eps
+      real(REAL64) :: a, b, c, edge_dist
 
       logical, parameter :: ldebug=.False.
 
@@ -995,11 +1171,11 @@ module m_helper_functions
         'edgedist',distances_to_triangle_edges(p1,p2,p3,p),distances_to_triangle_edges(p1,p2,p3,p).le.eps
     end function
 
-    function pnt_in_triangle_convex_hull(p1,p2,p3, p)
-      real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
+    function pnt_in_triangle_convex_hull_r32(p1,p2,p3, p) result(pnt_in_triangle_convex_hull)
+      real(REAL32), intent(in), dimension(2) :: p1,p2,p3, p
       logical :: pnt_in_triangle_convex_hull
-      real(ireals), dimension(2) :: v0, v1, v2
-      real(ireals) :: a,b
+      real(REAL32), dimension(2) :: v0, v1, v2
+      real(REAL32) :: a,b
 
       v0 = p1
       v1 = p2-p1
@@ -1008,23 +1184,54 @@ module m_helper_functions
       a =  (cross_2d(p, v2) - cross_2d(v0, v2)) / cross_2d(v1, v2)
       b = -(cross_2d(p, v1) - cross_2d(v0, v1)) / cross_2d(v1, v2)
 
-      pnt_in_triangle_convex_hull = all([a,b].ge.zero) .and. (a+b).le.one
+      pnt_in_triangle_convex_hull = all([a,b].ge.0._REAL32) .and. (a+b).le.1._REAL32
+
+      !print *,'points',p1,p2,p3,'::',p
+      !print *,'a,b',a,b,'::',a+b, '::>',pnt_in_triangle_convex_hull
+    end function
+    function pnt_in_triangle_convex_hull_r64(p1,p2,p3, p) result(pnt_in_triangle_convex_hull)
+      real(REAL64), intent(in), dimension(2) :: p1,p2,p3, p
+      logical :: pnt_in_triangle_convex_hull
+      real(REAL64), dimension(2) :: v0, v1, v2
+      real(REAL64) :: a,b
+
+      v0 = p1
+      v1 = p2-p1
+      v2 = p3-p1
+
+      a =  (cross_2d(p, v2) - cross_2d(v0, v2)) / cross_2d(v1, v2)
+      b = -(cross_2d(p, v1) - cross_2d(v0, v1)) / cross_2d(v1, v2)
+
+      pnt_in_triangle_convex_hull = all([a,b].ge.0._REAL64) .and. (a+b).le.1._REAL64
 
       !print *,'points',p1,p2,p3,'::',p
       !print *,'a,b',a,b,'::',a+b, '::>',pnt_in_triangle_convex_hull
     end function
 
-    pure function distances_to_triangle_edges(p1,p2,p3,p)
-      real(ireals), intent(in), dimension(2) :: p1,p2,p3, p
-      real(ireals) :: distances_to_triangle_edges(3)
+    pure function distances_to_triangle_edges_r32(p1,p2,p3,p) result(distances_to_triangle_edges)
+      real(REAL32), intent(in), dimension(2) :: p1,p2,p3, p
+      real(REAL32) :: distances_to_triangle_edges(3)
+      distances_to_triangle_edges(1) = distance_to_edge(p1,p2,p)
+      distances_to_triangle_edges(2) = distance_to_edge(p2,p3,p)
+      distances_to_triangle_edges(3) = distance_to_edge(p1,p3,p)
+    end function
+    pure function distances_to_triangle_edges_r64(p1,p2,p3,p) result(distances_to_triangle_edges)
+      real(REAL64), intent(in), dimension(2) :: p1,p2,p3, p
+      real(REAL64) :: distances_to_triangle_edges(3)
       distances_to_triangle_edges(1) = distance_to_edge(p1,p2,p)
       distances_to_triangle_edges(2) = distance_to_edge(p2,p3,p)
       distances_to_triangle_edges(3) = distance_to_edge(p1,p3,p)
     end function
 
-    pure function distance_to_edge(p1,p2,p)
-      real(ireals), intent(in), dimension(2) :: p1,p2, p
-      real(ireals) :: distance_to_edge
+    pure function distance_to_edge_r32(p1,p2,p) result(distance_to_edge)
+      real(REAL32), intent(in), dimension(2) :: p1,p2, p
+      real(REAL32) :: distance_to_edge
+
+      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
+    end function
+    pure function distance_to_edge_r64(p1,p2,p) result(distance_to_edge)
+      real(REAL64), intent(in), dimension(2) :: p1,p2, p
+      real(REAL64) :: distance_to_edge
 
       distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
     end function

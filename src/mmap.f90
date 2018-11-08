@@ -1,7 +1,7 @@
 module m_mmap
 use iso_c_binding
 
-use m_data_parameters, only : iintegers, ireals, mpiint
+use m_data_parameters, only : iintegers, irealLUT, mpiint
 use m_helper_functions, only : CHKERR, imp_bcast, itoa
 use m_netcdfIO, only: acquire_file_lock, release_file_lock
 
@@ -56,7 +56,7 @@ end interface
 contains
 
   subroutine arr_to_binary_datafile_2d(arr, fname, ierr)
-    real(ireals), dimension(:,:), intent(in) :: arr
+    real(irealLUT), dimension(:,:), intent(in) :: arr
     character(len=*), intent(in) :: fname
     integer(mpiint), intent(out) :: ierr
 
@@ -101,8 +101,8 @@ contains
   subroutine arr_to_mmap(comm, fname, mmap_ptr, ierr, inp_arr)
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: fname
-    real(ireals), dimension(:,:), intent(in), optional :: inp_arr
-    real(ireals), pointer, intent(out) :: mmap_ptr(:,:)
+    real(irealLUT), dimension(:,:), intent(in), optional :: inp_arr
+    real(irealLUT), pointer, intent(out) :: mmap_ptr(:,:)
     integer(mpiint), intent(out) :: ierr
 
     character(len=len_trim(fname)+2) :: fname_fpsuffix
@@ -115,7 +115,7 @@ contains
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    fname_fpsuffix = trim(fname)//itoa(ireals)
+    fname_fpsuffix = trim(fname)//itoa(irealLUT)
 
     if(myid.eq.0) then
       if(.not.present(inp_arr)) call CHKERR(1_mpiint, 'rank 0 has to provide an input array!')
@@ -149,7 +149,7 @@ contains
   end subroutine
 
   subroutine munmap_mmap_ptr(mmap_ptr, ierr)
-    real(ireals), pointer, intent(inout) :: mmap_ptr(:,:)
+    real(irealLUT), pointer, intent(inout) :: mmap_ptr(:,:)
 
     type(c_ptr) :: mmap_c_ptr
     integer(c_int) :: cerr
