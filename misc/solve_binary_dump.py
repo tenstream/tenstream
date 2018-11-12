@@ -5,6 +5,7 @@ petsc4py.init(sys.argv)
 from petsc4py import PETSc as P
 import numpy as np
 from mpi4py import MPI
+import time
 
 comm = MPI.COMM_WORLD
 myid = comm.Get_rank()
@@ -22,6 +23,7 @@ viewer = P.Viewer().createBinary(fname_mat, 'r')
 A = P.Mat().load(viewer)
 A = A.setUp()
 if check_matrows:
+    print("Checking Matrix rows if they are OK")
     rStart, rEnd = A.getOwnershipRange()
     for i in range(rStart, rEnd):
         col_idx, coeff = A.getRow(i)
@@ -35,7 +37,7 @@ if check_matrows:
             print("Have coeffs lt -1", coeff)
 
         cv = A.getColumnVector(i)
-        if np.sum(cv.array)<0:
+        if np.sum(cv.array) < -1e-8:
             print("Have column vector with sum lt 1: icol", i, np.where(cv.array!=0), \
                     ':', cv.array[cv.array!=0]), 'sum', np.sum(cv.array)
 
@@ -44,15 +46,22 @@ if myid==0:
 viewer = P.Viewer().createBinary(fname_b, 'r')
 b = P.Vec().load(viewer)
 b = b.setUp()
-if not np.isfinite(b.array).all():
-    print(myid,"Have NaN in src term")
+if check_matrows:
+    if not np.isfinite(b.array).all():
+        print(myid,"Have NaN in src term")
 
 x = b.duplicate()
 
 ksp = P.KSP().create()
 ksp.setOperators(A)
 ksp.setFromOptions()
+
+if myid==0:
+    print("Solving System")
+solve_start = time.time()
 ksp.solve(b, x)
+if myid==0:
+    print('Solve took about {} s'.format(time.time()-solve_start))
 
 fname_plot = OptDB.getString('-plot', '')
 if fname_plot is not '':
