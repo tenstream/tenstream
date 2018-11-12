@@ -1461,8 +1461,8 @@ module m_plex_rt
 
     real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
     integer(iintegers), pointer :: faces_of_cell(:)
-    integer(iintegers) :: i, j, icell, iface, irow, icol
-    real(ireals) :: coeffs(1)
+    integer(iintegers) :: j, icell, iface, irow, icol
+    real(ireals) :: c
 
     type(tPetscSection) :: ediffSection, geomSection, wedgeSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
@@ -1481,6 +1481,7 @@ module m_plex_rt
     real(ireals) :: dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
     integer(iintegers), pointer :: xinoutdof(:)
     real(ireals) :: area_top, area_bot
+    real(ireals), parameter :: coeff_norm_err_tolerance=one+10*sqrt(epsilon(one))
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
     !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_ediff_mat...'
@@ -1536,9 +1537,10 @@ module m_plex_rt
       if(ldebug) then
         do iface=1,i8
           diff2diff = coeff(diff_plex2bmc(iface):size(coeff):i8)
-          if(sum(diff2diff).gt.one+10*sqrt(epsilon(one))) then
-            print *,iface,': bmcface', diff_plex2bmc(i), 'diff2diff gt one', diff2diff,':',sum(diff2diff)
-            call CHKERR(1_mpiint, 'energy conservation violated! '//ftoa(sum(diff2diff)))
+          if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
+            print *,iface,': bmcface', diff_plex2bmc(iface), 'diff2diff gt one', diff2diff, &
+              ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE
+            call CHKERR(1_mpiint, '1 energy conservation violated! '//ftoa(sum(diff2diff)))
           endif
         enddo
       endif
@@ -1565,21 +1567,27 @@ module m_plex_rt
       endif
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
-      !do i = 1, 8
-      !  print *,'LUT src '//itoa(i), coeff(i:size(coeff):i8)
-      !enddo
-      do i = 1, size(incoming_offsets)
-        icol = incoming_offsets(i)
+      do iface = 1, size(incoming_offsets)
+        icol = incoming_offsets(iface)
 
         ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
-        diff2diff = coeff(diff_plex2bmc(i):size(coeff):i8)
+        diff2diff = coeff(diff_plex2bmc(iface):size(coeff):i8)
+        if(ldebug) then
+          if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
+            print *,iface,': bmcface', diff_plex2bmc(iface), 'diff2diff gt one', diff2diff,':',sum(diff2diff)
+            call CHKERR(1_mpiint, '2 energy conservation violated! '//ftoa(sum(diff2diff)))
+          endif
+        endif
+        if(sum(diff2diff).gt.one)then
+          diff2diff = diff2diff/(sum(diff2diff)+10*epsilon(diff2diff))
+        endif
 
         do j = 1, size(outgoing_offsets)
-          coeffs(1) = -diff2diff(diff_plex2bmc(j))
-          if(coeffs(1).lt.zero) then
+          c = -diff2diff(diff_plex2bmc(j))
+          if(c.lt.zero) then
             irow = outgoing_offsets(j)
-            !print *,'icell',icell,'i,j',i,j,'icol', icol, 'irow', irow, '=>', coeffs
-            call MatSetValuesLocal(A, i1, irow, i1, icol, coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
+            !print *,'icell',icell,'iface,j',iface,j,'icol', icol, 'irow', irow, '=>', c
+            call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
             if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
               'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
           endif
@@ -1669,10 +1677,10 @@ module m_plex_rt
         endif
       end subroutine
       subroutine set_diagonal_entries()
-        integer(iintegers) :: irow
-        call PetscSectionGetOffsetRange(ediffSection, i, j, ierr); call CHKERR(ierr)
-        do irow = i, j-1
-          call MatSetValuesLocal(A, i1, [irow], i1, [irow], [one], INSERT_VALUES, ierr); call CHKERR(ierr)
+        integer(iintegers) :: irow, is, ie
+        call PetscSectionGetOffsetRange(ediffSection, is, ie, ierr); call CHKERR(ierr)
+        do irow = is, ie-1
+          call MatSetValuesLocal(A, i1, irow, i1, irow, one, INSERT_VALUES, ierr); call CHKERR(ierr)
         enddo
       end subroutine
   end subroutine
