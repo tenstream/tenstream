@@ -11,7 +11,7 @@ module m_plex_rt
     approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa
 
   use m_data_parameters, only : ireals, iintegers, mpiint, &
-    i0, i1, i2, i3, i4, i5, i6, i7, i8, &
+    i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
     zero, one, pi, EXP_MINVAL, EXP_MAXVAL
 
   use m_plex_grid, only: t_plexgrid, compute_face_geometry, &
@@ -1071,6 +1071,8 @@ module m_plex_rt
           KSPType :: old_ksp_type
           integer(iintegers) :: iter
           integer(mpiint) :: myid
+          character(len=*), parameter :: alternate_prefix='diverged_alternate_'
+          character(len=default_str_len) :: old_prefix
 
           call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
           if(reason.le.0) then
@@ -1087,15 +1089,21 @@ module m_plex_rt
             call VecSet(x,zero,ierr) ;call CHKERR(ierr)
             call KSPGetType(ksp,old_ksp_type,ierr); call CHKERR(ierr)
             call KSPSetType(ksp,KSPFGMRES,ierr) ;call CHKERR(ierr)
+
+            call KSPGetOptionsPrefix(ksp, old_prefix, ierr); call CHKERR(ierr)
+            call KSPAppendOptionsPrefix(ksp, trim(alternate_prefix), ierr); call CHKERR(ierr)
+            call KSPSetFromOptions(ksp, ierr) ;call CHKERR(ierr)
+
             call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
             call KSPSolve(ksp,b,x,ierr) ;call CHKERR(ierr)
             call KSPGetIterationNumber(ksp,iter,ierr) ;call CHKERR(ierr)
             call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
 
             ! And return to normal solver...
-            call KSPSetType(ksp,old_ksp_type,ierr) ;call CHKERR(ierr)
-            call KSPSetFromOptions(ksp,ierr) ;call CHKERR(ierr)
-            call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
+            call KSPSetOptionsPrefix(ksp, trim(old_prefix), ierr); call CHKERR(ierr)
+            call KSPSetType(ksp, old_ksp_type,ierr) ;call CHKERR(ierr)
+            call KSPSetFromOptions(ksp, ierr) ;call CHKERR(ierr)
+            call KSPSetUp(ksp, ierr) ;call CHKERR(ierr)
             if(myid.eq.0.and.ldebug) &
               print *,myid,'Solver took ',iter,' iterations and converged',reason.gt.0,'because',reason
           endif
