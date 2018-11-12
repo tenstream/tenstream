@@ -886,8 +886,17 @@ module m_plex_rt
               area_top = geoms(i1+geom_offset)
               call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
               area_bot = geoms(i1+geom_offset)
-              coeff(8) = coeff(8) * area_top / area_bot ! transmission from bot to top face
-              coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top ! transmission from top to bot face
+              if(area_top.gt.area_bot) then
+                ! send overhanging energy to side faces
+                coeff(7*8+[2,4,6]) = coeff(7*8+[2,4,6]) + coeff(7*8+1) * (one - area_bot / area_top) / i3
+                ! reduce transmission bc receiver is smaller than top face
+                coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top
+              else
+                ! send overhanging energy to side faces
+                coeff([3,5,7]) = coeff([3,5,7]) + coeff(8) * (one - area_top / area_bot) / i3
+                ! transmission from bot to top face
+                coeff(8) = coeff(8) * area_top / area_bot
+              endif
             endif
             call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
@@ -1516,13 +1525,35 @@ module m_plex_rt
       call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
         dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, ierr)
 
+      if(ldebug) then
+        do iface=1,i8
+          diff2diff = coeff(diff_plex2bmc(iface):size(coeff):i8)
+          if(sum(diff2diff).gt.one+10*sqrt(epsilon(one))) then
+            print *,iface,': bmcface', diff_plex2bmc(i), 'diff2diff gt one', diff2diff,':',sum(diff2diff)
+            call CHKERR(1_mpiint, 'energy conservation violated! '//ftoa(sum(diff2diff)))
+          endif
+        enddo
+      endif
+
       if(ierr.eq.OPP_1D_RETCODE) then
         call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
         area_top = geoms(i1+geom_offset)
         call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
         area_bot = geoms(i1+geom_offset)
-        coeff(8) = coeff(8) * area_top / area_bot ! transmission from bot to top face
-        coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top ! transmission from top to bot face
+        !coeff(8) = coeff(8) * area_top / area_bot ! transmission from bot to top face
+        !coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top ! transmission from top to bot face
+
+        if(area_top.gt.area_bot) then
+          ! send overhanging energy to side faces
+          coeff(7*8+[2,4,6]) = coeff(7*8+[2,4,6]) + coeff(7*8+1) * (one - area_bot / area_top) / i3
+          ! reduce transmission bc receiver is smaller than top face
+          coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top
+        else
+          ! send overhanging energy to side faces
+          coeff([3,5,7]) = coeff([3,5,7]) + coeff(8) * (one - area_top / area_bot) / i3
+          ! transmission from bot to top face
+          coeff(8) = coeff(8) * area_top / area_bot
+        endif
       endif
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
