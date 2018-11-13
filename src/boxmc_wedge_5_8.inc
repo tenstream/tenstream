@@ -248,6 +248,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
   case (1)
     p%loc = rand_pnt_on_triangle(pD,pE,pF)
     normal = compute_normal_3d(pD,pF,pE)
+    p%src_side = 1
   case (2:3)
     call rand_pnt_on_plane(pA,pD,pE,pB, p%loc, normal, U, V)
     p%src_side = 2
