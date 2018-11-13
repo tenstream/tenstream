@@ -434,7 +434,7 @@ module m_plex_rt
 
         ! Solve Direct Matrix
         call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-        call solve_plex_rt(solver%plex%edir_dm, solver%dirsrc, solver%Mdir, solver%kspdir, solution%edir, &
+        call solve_plex_rt(solver%plex, solver%plex%edir_dm, solver%dirsrc, solver%Mdir, solver%kspdir, solution%edir, &
           ksp_residual_history=solution%dir_ksp_residual_history, prefix='dir_')
         call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
         call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
@@ -477,7 +477,7 @@ module m_plex_rt
 
       ! Solve Diffuse Matrix
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
-      call solve_plex_rt(solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%kspdiff, solution%ediff, &
+      call solve_plex_rt(solver%plex, solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%kspdiff, solution%ediff, &
         ksp_residual_history=solution%diff_ksp_residual_history, prefix='diff_')
       call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
       call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
@@ -992,7 +992,8 @@ module m_plex_rt
         enddo
       end subroutine
 
-    subroutine solve_plex_rt(dm, b, A, ksp, x, ksp_residual_history, prefix)
+    subroutine solve_plex_rt(plex, dm, b, A, ksp, x, ksp_residual_history, prefix)
+      type(t_plexgrid), intent(in) :: plex
       type(tDM), intent(inout) :: dm
       type(tVec), allocatable, intent(in) :: b
       type(tMat), allocatable, intent(in) :: A
@@ -1004,10 +1005,6 @@ module m_plex_rt
       !type(tMatNullSpace) :: nullspace
       !type(tVec) :: nullvecs(0)
       integer(iintegers) :: Niterations
-
-      !integer(iintegers) :: fStart, fEnd
-      !type(tIS) :: IS_boundary, IS_interior
-      !type(tPC) :: pc
 
       integer(iintegers), parameter :: Nmaxhistory=1000
       integer(mpiint) :: comm, ierr
@@ -1033,14 +1030,9 @@ module m_plex_rt
         call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
         call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
         call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
+        call setup_fieldsplits()
         call KSPSetUp(ksp, ierr); call CHKERR(ierr)
 
-        !call KSPGetPC(ksp, pc, ierr); call CHKERR(ierr)
-        !call DMGetStratumIS(dm, 'DomainBoundary', SIDEFACE, IS_boundary, ierr); call CHKERR(ierr)
-        !call PCFieldSplitSetIS(pc, 'boundary', IS_boundary, ierr); call CHKERR(ierr)
-        !call DMPlexGetDepthStratum (dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
-        !call ISComplement(IS_boundary, fStart, fEnd-1, IS_interior, ierr); call CHKERR(ierr)
-        !call PCFieldSplitSetIS(pc, 'interior', IS_interior, ierr); call CHKERR(ierr)
       endif
 
       if(present(ksp_residual_history)) then
@@ -1066,6 +1058,45 @@ module m_plex_rt
       endif
 
       contains
+        subroutine setup_fieldsplits()
+          integer(iintegers) :: iface, fStart, fEnd
+          type(tPC) :: pc
+          type(tPetscSection) :: faceSection
+          type(tIS) :: horizontal_face_dofs, vertical_face_dofs
+          !type(tIS) :: IS_boundary, IS_interior
+
+          integer(iintegers) :: min_dof, max_dof, voff, numDof
+
+          call KSPGetPC(ksp, pc, ierr); call CHKERR(ierr)
+
+          ! Determine the dofs of horizontal faces
+          call DMPlexGetDepthStratum (dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
+          call DMGetSection(dm, faceSection, ierr); call CHKERR(ierr)
+          call PetscSectionGetOffset(faceSection, fStart, min_dof, ierr); call CHKERR(ierr)
+          max_dof = min_dof
+          do iface = fStart, fEnd-1
+            if(plex%ltopfacepos(iface)) then
+              call PetscSectionGetDof(faceSection, iface, numDof, ierr); call CHKERR(ierr)
+              call PetscSectionGetOffset(faceSection, iface, voff, ierr); call CHKERR(ierr)
+              max_dof = max(max_dof, voff+numDof-1)
+            endif
+          enddo
+
+          call ISCreateStride(comm, max_dof-min_dof+1, min_dof, i1, horizontal_face_dofs, ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(horizontal_face_dofs, PETSC_NULL_IS, '-horizontal_face_dofs', ierr); call CHKERR(ierr)
+          call PCFieldSplitSetIS(pc, 'Ev', horizontal_face_dofs, ierr); call CHKERR(ierr)
+
+          call PetscSectionGetOffsetRange(faceSection, min_dof, max_dof, ierr); call CHKERR(ierr)
+          call ISComplement(horizontal_face_dofs, min_dof, max_dof, vertical_face_dofs, ierr); call CHKERR(ierr)
+          call PetscObjectViewFromOptions(vertical_face_dofs, PETSC_NULL_IS, '-vertical_face_dofs', ierr); call CHKERR(ierr)
+          call PCFieldSplitSetIS(pc, 'Eh', vertical_face_dofs, ierr); call CHKERR(ierr)
+
+          !call DMGetStratumIS(dm, 'DomainBoundary', SIDEFACE, IS_boundary, ierr); call CHKERR(ierr)
+          !call PCFieldSplitSetIS(pc, 'boundary', IS_boundary, ierr); call CHKERR(ierr)
+          !call DMPlexGetDepthStratum (dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
+          !call ISComplement(IS_boundary, fStart, fEnd-1, IS_interior, ierr); call CHKERR(ierr)
+          !call PCFieldSplitSetIS(pc, 'interior', IS_interior, ierr); call CHKERR(ierr)
+        end subroutine
         subroutine handle_diverged_solve()
           KSPConvergedReason :: reason
           KSPType :: old_ksp_type
