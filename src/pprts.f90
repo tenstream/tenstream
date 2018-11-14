@@ -367,6 +367,7 @@ module m_pprts
         DMBoundaryType :: bx, by, bz
         DMDAStencilType :: st
         integer(iintegers) :: stencil_width, nproc_x, nproc_y, nproc_z, Ndof
+        integer(mpiint) :: numnodes
 
         call DMDAGetInfo(C%da, C%dim,                             &
           C%glob_zm, C%glob_xm, C%glob_ym,                        &
@@ -391,10 +392,11 @@ module m_pprts
 
         allocate(C%neighbors(0:3**C%dim-1) )
         call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;call CHKERR(ierr)
-        !if(numnodes.gt.i1) then
-        !  if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
-        !  if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
-        !endif
+        call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
+        if(numnodes.gt.i1) then
+          if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
+          if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
+        endif
       end subroutine
     end subroutine
 
