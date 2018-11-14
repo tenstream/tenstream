@@ -2752,11 +2752,12 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       if(ldebug) then
         do src=1,C%dof
           norm = sum( v(src:C%dof**2:C%dof) )
-          if( norm.gt.one+10._ireals*epsilon(one) ) then
+          if( norm.gt.one+10._ireals*sqrt(epsilon(one)) ) then
             print *,'direct sum(dst==',dst,') gt one',norm
             print *,'direct coeff',norm,'::',v
             call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
           endif
+          v(src:C%dof**2:C%dof) = v(src:C%dof**2:C%dof) / norm
         enddo
       endif
 
