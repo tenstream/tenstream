@@ -447,15 +447,7 @@ module m_pprts
         endif
       endif
 
-      if ( present(phi2d) .and. present(theta2d) ) then
-          call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one, phi2d=phi2d, theta2d=theta2d)
-      elseif ( present(phi2d) ) then
-          call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one, phi2d=phi2d)
-      elseif ( present(theta2d) ) then
-          call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one, theta2d=theta2d)
-      else
-          call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one)
-      endif
+      call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one, phi2d=phi2d, theta2d=theta2d)
 
       if(ltwostr_only .or. lmcrts) return ! dont need anything here, we just compute Twostream anyway
 
