@@ -540,7 +540,7 @@ subroutine createLUT(OPP, comm, config, S, T)
                 enddo
               endif
 
-              if( mod((lutindex-1)*Nsrc+isrc-1, total_size*1/1000).eq.0 ) & !every .1 percent report status
+              if( mod((lutindex-1)*Nsrc+isrc-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
                   print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._ireals/total_size,'%'
 
               call cpu_time(now)
