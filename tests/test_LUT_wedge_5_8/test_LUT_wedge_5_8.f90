@@ -1,7 +1,7 @@
 module test_LUT_wedge_5_8
   use m_boxmc, only : t_boxmc_wedge_5_8
-  use m_data_parameters, only : mpiint, ireals, iintegers, &
-    one, zero, init_mpi_data_parameters, default_str_len, &
+  use m_data_parameters, only : mpiint, ireals, irealLUT, iintegers, &
+    init_mpi_data_parameters, default_str_len, &
     i1, i2, i3, i4, i5
   use m_optprop_LUT, only : t_optprop_LUT_wedge_5_8, find_lut_dim_by_name
   use m_optprop, only : t_optprop_wedge_5_8
@@ -17,13 +17,14 @@ module test_LUT_wedge_5_8
 
   integer(iintegers),parameter :: Ndir=5, Ndiff=8
 
-  real(ireals) :: bg(3)
-  real(ireals) :: S(Ndiff),T(Ndir), S_target(Ndiff), T_target(Ndir)
-  real(ireals) :: S_tol(Ndiff),T_tol(Ndir)
+  real(irealLUT) :: bg(3)
+  real(irealLUT) :: S(Ndiff),T(Ndir)
+  real(ireals)   :: S_target(Ndiff), T_target(Ndir)
+  real(ireals)   :: S_tol(Ndiff),T_tol(Ndir)
 
-  real(ireals) :: BMC_diff2diff(Ndiff**2), BMC_dir2diff(Ndir*Ndiff), BMC_dir2dir(Ndir**2)
-  real(ireals) :: LUT_diff2diff(Ndiff**2), LUT_dir2diff(Ndir*Ndiff), LUT_dir2dir(Ndir**2)
-  real(ireals) :: OPP_diff2diff(Ndiff**2), OPP_dir2diff(Ndir*Ndiff), OPP_dir2dir(Ndir**2)
+  real(ireals)   :: BMC_diff2diff(Ndiff**2), BMC_dir2diff(Ndir*Ndiff), BMC_dir2dir(Ndir**2)
+  real(irealLUT) :: LUT_diff2diff(Ndiff**2), LUT_dir2diff(Ndir*Ndiff), LUT_dir2dir(Ndir**2)
+  real(irealLUT) :: OPP_diff2diff(Ndiff**2), OPP_dir2diff(Ndir*Ndiff), OPP_dir2dir(Ndir**2)
 
   type(t_boxmc_wedge_5_8) :: bmc
   type(t_optprop_wedge_5_8) :: OPP
@@ -31,8 +32,8 @@ module test_LUT_wedge_5_8
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-1
-  real(ireals),parameter :: sigma = 2 ! normal test range for coefficients
+  real(irealLUT),parameter :: atol=1e-3, rtol=1e-1, one=1, zero=0
+  real(irealLUT),parameter :: sigma = 2 ! normal test range for coefficients
 
   integer(iintegers), parameter :: NSLICE = 3
 
@@ -77,22 +78,22 @@ contains
   @test(npes=[1])
   subroutine test_LUT_wedge_custom1(this)
     class (MpiTestMethod), intent(inout) :: this
-    real(ireals) :: tau, w0, g, aspect, phi, theta, Cx, Cy
-    real(ireals) :: d2d1(5**2), d2d2(5**2)
+    real(irealLUT) :: tau, w0, g, aspect, phi, theta, Cx, Cy
+    real(irealLUT) :: d2d1(5**2), d2d2(5**2)
 
-    tau = 1e-3_ireals
-    w0  = .5_ireals
-    g   = 0._ireals
-    aspect = 1._ireals
-    theta = 20._ireals
-    Cx = .5_ireals
-    Cy = 0.8660254037844386_ireals
+    tau = 1e-3_irealLUT
+    w0  = .5_irealLUT
+    g   = 0._irealLUT
+    aspect = 1._irealLUT
+    theta = 20._irealLUT
+    Cx = .5_irealLUT
+    Cy = 0.8660254037844386_irealLUT
 
-    phi = -27._ireals
+    phi = -27._irealLUT
     call print_dir2dir()
     call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], d2d1)
 
-    phi = +27._ireals
+    phi = +27._irealLUT
     call print_dir2dir()
     call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], d2d2)
 
@@ -128,12 +129,12 @@ contains
       integer(iintegers) :: isrc
       integer(iintegers) :: idim_tau, idim_w0, idim_g, idim_aspect, idim_phi, idim_theta, idim_Cx, idim_Cy
       integer(iintegers) :: itau, iw0, ig, iaspect, iphi, itheta, iCx, iCy
-      real(ireals) :: tau, w0, g, aspect, phi, theta, Cx, Cy
+      real(irealLUT) :: tau, w0, g, aspect, phi, theta, Cx, Cy
 
-      real(ireals) :: kabs, ksca, dz, err(2)
+      real(irealLUT) :: kabs, ksca, dz, err(2)
       real(ireals), allocatable :: vertices(:)
-      real(ireals), parameter :: dx = 911
-      real(ireals),allocatable :: g_dim(:)
+      real(irealLUT), parameter :: dx = 911
+      real(irealLUT),allocatable :: g_dim(:)
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -174,14 +175,28 @@ contains
                       call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
                       call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
-                      call setup_default_wedge_geometry([zero, zero], [one, zero], [Cx, Cy], aspect, vertices)
+                      call setup_default_wedge_geometry(&
+                        [0._ireals, 0._ireals], &
+                        [1._ireals, 0._ireals], &
+                        real([Cx, Cy], ireals), &
+                        real(aspect, ireals), vertices)
+
                       vertices = vertices * dx
                       do isrc = 1, Ndir
                         dz = vertices(12)-vertices(3)
                         kabs = (one-w0) * tau / dz
                         ksca = w0 * tau / dz
-                        call bmc%get_coeff(comm,[kabs,ksca,g],isrc,.True.,phi,theta,vertices,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-                        err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), T_target)
+
+                        call bmc%get_coeff(comm,&
+                          real([kabs,ksca,g], ireals), &
+                          isrc, .True., &
+                          real(phi, ireals), &
+                          real(theta, ireals), &
+                          real(vertices,ireals), &
+                          S_target,T_target,S_tol,T_tol, &
+                          inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
+
+                        err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), real(T_target, irealLUT))
                         if(err(1).ge.sigma*atol .or. err(2).ge.sigma*rtol) then
                           print *,'Testing: ', tau, w0, g, aspect, phi, theta, Cx, Cy,':: RMSE', err
                           print *,'LUT :::', isrc, LUT_dir2dir(isrc:Ndir**2:Ndir)
@@ -211,12 +226,12 @@ contains
       integer(iintegers) :: isrc
       integer(iintegers) :: idim_tau, idim_w0, idim_g, idim_aspect, idim_phi, idim_theta, idim_Cx, idim_Cy
       integer(iintegers) :: itau, iw0, ig, iaspect, iphi, itheta, iCx, iCy
-      real(ireals) :: tau, w0, g, aspect, phi, theta, Cx, Cy
+      real(irealLUT) :: tau, w0, g, aspect, phi, theta, Cx, Cy
 
-      real(ireals) :: kabs, ksca, dz, err(2)
+      real(irealLUT) :: kabs, ksca, dz, err(2)
       real(ireals), allocatable :: vertices(:)
-      real(ireals), parameter :: dx = 911
-      real(ireals),allocatable :: g_dim(:)
+      real(irealLUT), parameter :: dx = 911
+      real(irealLUT),allocatable :: g_dim(:)
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -266,14 +281,28 @@ contains
                       call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
                       call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
 
-                      call setup_default_wedge_geometry([zero, zero], [one, zero], [Cx, Cy], aspect, vertices)
+                      call setup_default_wedge_geometry(&
+                        [0._ireals, 0._ireals], &
+                        [1._ireals, 0._ireals], &
+                        real([Cx, Cy], ireals), &
+                        real(aspect, ireals), vertices)
+
                       vertices = vertices * dx
                       do isrc = 1, Ndir
                         dz = vertices(12)-vertices(3)
                         kabs = (one-w0) * tau / dz
                         ksca = w0 * tau / dz
-                        call bmc%get_coeff(comm,[kabs,ksca,g],isrc,.True.,phi,theta,vertices,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-                        err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), T_target)
+
+                        call bmc%get_coeff(comm,&
+                          real([kabs,ksca,g], ireals), &
+                          isrc, .True., &
+                          real(phi, ireals), &
+                          real(theta, ireals), &
+                          real(vertices,ireals), &
+                          S_target,T_target,S_tol,T_tol, &
+                          inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
+
+                        err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), real(T_target, irealLUT))
                         ! Not really an error if they dont match, its an interpolation in the end, discrepancies might be ok if the
                         ! sample density of the LUT is too small, lets give output if error is large... this may hint towards an error
                         if(err(1).ge.2*sigma*atol .or. err(2).ge.2*sigma*rtol) then
@@ -305,11 +334,11 @@ contains
       integer(iintegers) :: isrc
       integer(iintegers) :: idim_tau, idim_w0, idim_g, idim_aspect, idim_phi, idim_theta, idim_Cx, idim_Cy
       integer(iintegers) :: itau, iw0, ig, iaspect, iphi, itheta, iCx, iCy
-      real(ireals) :: tau, w0, g, aspect, phi, theta, Cx, Cy
+      real(irealLUT) :: tau, w0, g, aspect, phi, theta, Cx, Cy
 
-      real(ireals) :: err(2)
-      real(ireals), parameter :: dx = 911
-      real(ireals),allocatable :: g_dim(:)
+      real(irealLUT) :: err(2)
+      real(irealLUT), parameter :: dx = 911
+      real(irealLUT),allocatable :: g_dim(:)
       integer(mpiint) :: ierr
 
       comm     = this%getMpiCommunicator()
@@ -358,12 +387,13 @@ contains
 
                       do isrc = 1, Ndir
                         err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), OPP_dir2dir(isrc:Ndir**2:Ndir))
-                        if(err(1).ge.epsilon(err) .or. err(2).ge.1e-3_ireals) then
+                        if(err(1).ge.epsilon(err) .or. err(2).ge.1e-3_irealLUT) then
                           print *,'Testing: ', tau, w0, g, aspect, phi, theta, Cx, Cy,':: RMSE', err
                           print *,'LUT :::', isrc, LUT_dir2dir(isrc:Ndir**2:Ndir)
                           print *,'OPP :::', isrc, OPP_dir2dir(isrc:Ndir**2:Ndir)
                         endif
-                        call check(OPP_dir2diff(isrc:Ndir*Ndiff:Ndir), OPP_dir2dir(isrc:Ndir**2:Ndir), &
+                        call check(real(OPP_dir2diff(isrc:Ndir*Ndiff:Ndir), ireals), &
+                                   real(OPP_dir2dir(isrc:Ndir**2:Ndir), ireals), &
                                    LUT_dir2diff(isrc:Ndir*Ndiff:Ndir), LUT_dir2dir(isrc:Ndir**2:Ndir), &
                                    msg='test_wedge_LUT_vs_OPP_object', opt_atol=epsilon(err))
                       enddo !isrc
@@ -382,20 +412,21 @@ contains
   endsubroutine
 
   subroutine check(S_target,T_target, S,T, msg, opt_atol, opt_rtol)
-      real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
+      real(ireals),intent(in),dimension(:) :: S_target,T_target
+      real(irealLUT),intent(in),dimension(:) :: S,T
       character(len=*),optional :: msg
-      real(ireals), intent(in), optional :: opt_atol, opt_rtol
+      real(irealLUT), intent(in), optional :: opt_atol, opt_rtol
 
       character(default_str_len) :: local_msgS, local_msgT
       logical, parameter :: ldetail=.False.
 
-      real(ireals) :: arg_atol, arg_rtol, Terr(2), Serr(2)
+      real(irealLUT) :: arg_atol, arg_rtol, Terr(2), Serr(2)
 
       arg_atol = get_arg(atol*sigma, opt_atol)
       arg_rtol = get_arg(rtol*sigma, opt_rtol)
 
-      Terr = rmse(T,T_target)
-      Serr = rmse(S,S_target)
+      Terr = rmse(T,real(T_target, irealLUT))
+      Serr = rmse(S,real(S_target, irealLUT))
 
       if(myid.eq.0) then
         if(ldetail) then
@@ -416,29 +447,29 @@ contains
           write(*, FMT='( " target  :: ",10(f12.5) )' ) S_target
           print*,''
           write(*, FMT='( " diff    :: ",10(f12.5) )' ) S_target-S
-          print*,'RMSE ::: ',Serr*[one, 100._ireals],'%'
+          print*,'RMSE ::: ',Serr*[one, 100._irealLUT],'%'
           print*,''
           write(*, FMT='( " direct  :: ", 8(f12.5) )' ) T
           print*,''
           write(*, FMT='( " target  :: ", 8(f12.5) )' ) T_target
           print*,''
           write(*, FMT='( " diff    :: ", 8(f12.5) )' ) T_target-T
-          print*,'RMSE ::: ',Terr*[one, 100._ireals],'%'
+          print*,'RMSE ::: ',Terr*[one, 100._irealLUT],'%'
           print*,'---------------------'
           print*,''
         else
           if(Terr(1).gt.arg_atol .or. Serr(1).gt.arg_atol) then
-            print*,'RMSE ::: ',rmse(S,S_target)*[one, 100._ireals],'% ', &
-                   'direct:::',rmse(T,T_target)*[one, 100._ireals],'%'
+            print*,'RMSE ::: ',rmse(S,real(S_target, irealLUT))*[one, 100._irealLUT],'% ', &
+                   'direct:::',rmse(T,real(T_target, irealLUT))*[one, 100._irealLUT],'%'
             print *,''
           endif
         endif
 
-        @assertEqual(S_target, S, arg_atol, local_msgS )
+        @assertEqual(real(S_target, irealLUT), S, arg_atol, local_msgS )
         @assertLessThanOrEqual   (zero, S)
         @assertGreaterThanOrEqual(one , S)
 
-        @assertEqual(T_target, T, arg_atol, local_msgT )
+        @assertEqual(real(T_target, irealLUT), T, arg_atol, local_msgT )
         @assertLessThanOrEqual   (zero, T)
         @assertGreaterThanOrEqual(one , T)
       endif

@@ -1,5 +1,5 @@
 module test_interp
-    use m_data_parameters, only: iintegers, ireals, default_str_len, one, zero
+    use m_data_parameters, only: iintegers, irealLUT, default_str_len
     use m_helper_functions, only: ndarray_offsets, meanval
     use m_tenstream_interpolation, only: interp_1d, interp_vec_1d, interp_2d, &
       interp_vec_simplex_nd
@@ -8,14 +8,15 @@ module test_interp
 
     implicit none
 
-    real(ireals),parameter :: tol=sqrt(epsilon(one))*10
+    real(irealLUT),parameter :: one=1, zero=0, tol=sqrt(epsilon(one))*10
+
 contains
   @test(npes =[1])
   subroutine test_interp_vec_simplex_1d_2d(this)
     class (MpiTestMethod), intent(inout) :: this
 
-    real(ireals) :: db_2d(1,2,2), db(1,4)
-    real(ireals) :: res(1)
+    real(irealLUT) :: db_2d(1,2,2), db(1,4)
+    real(irealLUT) :: res(1)
     integer(iintegers) :: db_shape(3)
     integer(iintegers) :: db_offsets(2)
 
@@ -50,25 +51,25 @@ contains
     enddo
 
     ! 1-dim
-    call interp_vec_simplex_nd([1.5_ireals, 1._ireals], db, db_offsets, res)
-    @assertEqual(.5_ireals , res(1),  tol, msg)
-    call interp_vec_simplex_nd([1.75_ireals, 1._ireals], db, db_offsets, res)
-    @assertEqual(.75_ireals , res(1),  tol, msg)
+    call interp_vec_simplex_nd([1.5_irealLUT, 1._irealLUT], db, db_offsets, res)
+    @assertEqual(.5_irealLUT , res(1),  tol, msg)
+    call interp_vec_simplex_nd([1.75_irealLUT, 1._irealLUT], db, db_offsets, res)
+    @assertEqual(.75_irealLUT , res(1),  tol, msg)
 
-    call interp_vec_simplex_nd([1.5_ireals, 2._ireals], db, db_offsets, res)
-    @assertEqual(3._ireals , res(1),  tol, msg)
-    call interp_vec_simplex_nd([1.75_ireals, 2._ireals], db, db_offsets, res)
-    @assertEqual(3.5_ireals , res(1),  tol, msg)
+    call interp_vec_simplex_nd([1.5_irealLUT, 2._irealLUT], db, db_offsets, res)
+    @assertEqual(3._irealLUT , res(1),  tol, msg)
+    call interp_vec_simplex_nd([1.75_irealLUT, 2._irealLUT], db, db_offsets, res)
+    @assertEqual(3.5_irealLUT , res(1),  tol, msg)
 
-    call interp_vec_simplex_nd([1._ireals, 1.5_ireals], db, db_offsets, res)
-    @assertEqual(1._ireals , res(1),  tol, msg)
-    call interp_vec_simplex_nd([1._ireals, 1.75_ireals], db, db_offsets, res)
-    @assertEqual(1.5_ireals , res(1),  tol, msg)
+    call interp_vec_simplex_nd([1._irealLUT, 1.5_irealLUT], db, db_offsets, res)
+    @assertEqual(1._irealLUT , res(1),  tol, msg)
+    call interp_vec_simplex_nd([1._irealLUT, 1.75_irealLUT], db, db_offsets, res)
+    @assertEqual(1.5_irealLUT , res(1),  tol, msg)
 
-    call interp_vec_simplex_nd([2._ireals, 1.5_ireals], db, db_offsets, res)
-    @assertEqual(2.5_ireals , res(1),  tol, msg)
-    call interp_vec_simplex_nd([2._ireals, 1.75_ireals], db, db_offsets, res)
-    @assertEqual(3.25_ireals , res(1),  tol, msg)
+    call interp_vec_simplex_nd([2._irealLUT, 1.5_irealLUT], db, db_offsets, res)
+    @assertEqual(2.5_irealLUT , res(1),  tol, msg)
+    call interp_vec_simplex_nd([2._irealLUT, 1.75_irealLUT], db, db_offsets, res)
+    @assertEqual(3.25_irealLUT , res(1),  tol, msg)
 
     ! 2-dim Checks:
 
@@ -83,8 +84,8 @@ contains
     db_2d(1,2,2) = 4
     db(1,:) = pack(db_2d, .True.)
 
-    call interp_vec_simplex_nd([1.5_ireals, 1.5_ireals], db, db_offsets, res)
-    @assertEqual(2._ireals , res(1),  tol, msg)
+    call interp_vec_simplex_nd([1.5_irealLUT, 1.5_irealLUT], db, db_offsets, res)
+    @assertEqual(2._irealLUT , res(1),  tol, msg)
 
     ! 2D LUT in this example @ coordinates: (1,1), (2,1), (1,2), (2,2)
     !
@@ -111,8 +112,8 @@ contains
   subroutine test_interp_vec_simplex_3d(this)
     class (MpiTestMethod), intent(inout) :: this
 
-    real(ireals) :: db_3d(1,2,2,2), db(1,8)
-    real(ireals) :: res(1)
+    real(irealLUT) :: db_3d(1,2,2,2), db(1,8)
+    real(irealLUT) :: res(1)
     integer(iintegers) :: db_shape(4)
     integer(iintegers) :: db_offsets(3)
 
@@ -154,7 +155,7 @@ contains
     enddo
 
     ! Center point
-    call interp_vec_simplex_nd([one, one, one]+.5_ireals, db, db_offsets, res)
+    call interp_vec_simplex_nd([one, one, one]+.5_irealLUT, db, db_offsets, res)
     @assertEqual(meanval(db), res(1),  tol, msg)
 
   end subroutine
@@ -163,8 +164,8 @@ contains
   subroutine test_interp_vec_simplex_4d(this)
     class (MpiTestMethod), intent(inout) :: this
 
-    real(ireals) :: db_4d(1,2,2,2,2), db(1,16)
-    real(ireals) :: res(1)
+    real(irealLUT) :: db_4d(1,2,2,2,2), db(1,16)
+    real(irealLUT) :: res(1)
     integer(iintegers) :: db_shape(5)
     integer(iintegers) :: db_offsets(4)
 
@@ -218,7 +219,7 @@ contains
     enddo
 
     ! Center point
-    call interp_vec_simplex_nd([one, one, one, one]+.5_ireals, db, db_offsets, res)
+    call interp_vec_simplex_nd([one, one, one, one]+.5_irealLUT, db, db_offsets, res)
     @assertEqual(meanval(db), res(1),  tol, msg)
 
   end subroutine
@@ -227,8 +228,8 @@ contains
   subroutine test_interp2d(this)
     class (MpiTestMethod), intent(inout) :: this
 
-    real(ireals) :: db_2d(1,2,2)
-    real(ireals) :: res(1)
+    real(irealLUT) :: db_2d(1,2,2)
+    real(irealLUT) :: res(1)
 
     character(default_str_len) :: msg
     write(msg,*) "2D linear interpolation not as expected: "
@@ -245,28 +246,28 @@ contains
     !  print *,'2D LUT Data:',i , db_2d(1,i,:)
     !enddo
 
-    call interp_2d([1._ireals, 1.5_ireals], db_2d, res)
-    @assertEqual(1_ireals , res(1),  tol, msg)
+    call interp_2d([1._irealLUT, 1.5_irealLUT], db_2d, res)
+    @assertEqual(1_irealLUT , res(1),  tol, msg)
 
-    call interp_2d([2._ireals, 1.5_ireals], db_2d, res)
-    @assertEqual(2.5_ireals , res(1),  tol, msg)
+    call interp_2d([2._irealLUT, 1.5_irealLUT], db_2d, res)
+    @assertEqual(2.5_irealLUT , res(1),  tol, msg)
 
-    call interp_2d([1.5_ireals, 1._ireals], db_2d, res)
-    @assertEqual(0.5_ireals , res(1),  tol, msg)
+    call interp_2d([1.5_irealLUT, 1._irealLUT], db_2d, res)
+    @assertEqual(0.5_irealLUT , res(1),  tol, msg)
 
-    call interp_2d([1.5_ireals, 2._ireals], db_2d, res)
-    @assertEqual(3_ireals , res(1),  tol, msg)
+    call interp_2d([1.5_irealLUT, 2._irealLUT], db_2d, res)
+    @assertEqual(3_irealLUT , res(1),  tol, msg)
 
-    call interp_2d([1.5_ireals, 1.5_ireals], db_2d, res)
-    @assertEqual(1.75_ireals , res(1),  tol, msg)
+    call interp_2d([1.5_irealLUT, 1.5_irealLUT], db_2d, res)
+    @assertEqual(1.75_irealLUT , res(1),  tol, msg)
   end subroutine
 
   @test(npes =[1])
   subroutine test_interp1d(this)
     class (MpiTestMethod), intent(inout) :: this
 
-    real(ireals) :: db_1d(1,5)
-    real(ireals) :: res
+    real(irealLUT) :: db_1d(1,5)
+    real(irealLUT) :: res
 
     integer :: i
 
@@ -287,27 +288,27 @@ contains
 
     db_1d(1,:) = [ -1, 1, 1, 10, -1 ]
 
-    res = interp_1d(1.5_ireals, db_1d(1,:))
+    res = interp_1d(1.5_irealLUT, db_1d(1,:))
     @assertEqual(zero , res,  tol, msg)
 
-    res = interp_1d(2.4_ireals, db_1d(1,:))
+    res = interp_1d(2.4_irealLUT, db_1d(1,:))
     @assertEqual(one , res,  tol, msg)
-    res = interp_1d(2.5_ireals, db_1d(1,:))
+    res = interp_1d(2.5_irealLUT, db_1d(1,:))
     @assertEqual(one , res,  tol, msg)
-    res = interp_1d(2.6_ireals, db_1d(1,:))
+    res = interp_1d(2.6_irealLUT, db_1d(1,:))
     @assertEqual(one , res,  tol, msg)
 
-    res = interp_1d(3.5_ireals, db_1d(1,:))
-    @assertEqual(5.5_ireals, res,  tol, msg)
+    res = interp_1d(3.5_irealLUT, db_1d(1,:))
+    @assertEqual(5.5_irealLUT, res,  tol, msg)
 
-    res = interp_1d(3.7_ireals, db_1d(1,:))
-    @assertEqual(7.3_ireals, res,  tol, msg)
+    res = interp_1d(3.7_irealLUT, db_1d(1,:))
+    @assertEqual(7.3_irealLUT, res,  tol, msg)
 
-    res = interp_1d(4.1_ireals, db_1d(1,:))
-    @assertEqual(8.9_ireals, res,  tol, msg)
+    res = interp_1d(4.1_irealLUT, db_1d(1,:))
+    @assertEqual(8.9_irealLUT, res,  tol, msg)
 
-    res = interp_1d(4.9_ireals, db_1d(1,:))
-    @assertEqual(0.1_ireals, res,  tol, msg)
+    res = interp_1d(4.9_irealLUT, db_1d(1,:))
+    @assertEqual(0.1_irealLUT, res,  tol, msg)
 
     do i=1,size(db_1d, dim=2)
       res = interp_1d(one*i, db_1d(1,:))
@@ -326,8 +327,8 @@ contains
   subroutine test_interp1d_vec(this)
     class (MpiTestMethod), intent(inout) :: this
 
-    real(ireals) :: db_1d(2,5)
-    real(ireals) :: res(2)
+    real(irealLUT) :: db_1d(2,5)
+    real(irealLUT) :: res(2)
 
     integer :: i
 
@@ -349,27 +350,27 @@ contains
     db_1d(1,:) = [ -1, 1, 1, 10, -1 ]
     db_1d(2,:) = db_1d(1,:)
 
-    res = interp_vec_1d(1.5_ireals, db_1d)
+    res = interp_vec_1d(1.5_irealLUT, db_1d)
     @assertEqual(zero , res,  tol, msg)
 
-    res = interp_vec_1d(2.4_ireals, db_1d)
+    res = interp_vec_1d(2.4_irealLUT, db_1d)
     @assertEqual(one , res,  tol, msg)
-    res = interp_vec_1d(2.5_ireals, db_1d)
+    res = interp_vec_1d(2.5_irealLUT, db_1d)
     @assertEqual(one , res,  tol, msg)
-    res = interp_vec_1d(2.6_ireals, db_1d)
+    res = interp_vec_1d(2.6_irealLUT, db_1d)
     @assertEqual(one , res,  tol, msg)
 
-    res = interp_vec_1d(3.5_ireals, db_1d)
-    @assertEqual(5.5_ireals, res,  tol, msg)
+    res = interp_vec_1d(3.5_irealLUT, db_1d)
+    @assertEqual(5.5_irealLUT, res,  tol, msg)
 
-    res = interp_vec_1d(3.7_ireals, db_1d)
-    @assertEqual(7.3_ireals, res,  tol, msg)
+    res = interp_vec_1d(3.7_irealLUT, db_1d)
+    @assertEqual(7.3_irealLUT, res,  tol, msg)
 
-    res = interp_vec_1d(4.1_ireals, db_1d)
-    @assertEqual(8.9_ireals, res,  tol, msg)
+    res = interp_vec_1d(4.1_irealLUT, db_1d)
+    @assertEqual(8.9_irealLUT, res,  tol, msg)
 
-    res = interp_vec_1d(4.9_ireals, db_1d)
-    @assertEqual(0.1_ireals, res,  tol, msg)
+    res = interp_vec_1d(4.9_irealLUT, db_1d)
+    @assertEqual(0.1_irealLUT, res,  tol, msg)
 
     do i=1,size(db_1d, dim=2)
       res = interp_vec_1d(one*i, db_1d)

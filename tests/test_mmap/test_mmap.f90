@@ -1,5 +1,5 @@
 module test_mmap
-    use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
+    use m_data_parameters, only: irealLUT, iintegers, mpiint, init_mpi_data_parameters
     use m_mmap, only: arr_to_mmap, munmap_mmap_ptr
 
     use m_helper_functions, only: CHKERR
@@ -20,8 +20,8 @@ subroutine test_mpi_functions(this)
     integer(iintegers) :: i, j
     integer(mpiint) :: numnodes, comm, myid, ierr
 
-    real(ireals), pointer :: arr(:,:)
-    real(ireals), pointer :: mmap_ptr(:,:)
+    real(irealLUT), pointer :: arr(:,:)
+    real(irealLUT), pointer :: mmap_ptr(:,:)
 
     arr=>NULL()
     mmap_ptr=>NULL()
@@ -38,7 +38,7 @@ subroutine test_mpi_functions(this)
       allocate(arr(N,N))
       do i = 1, N
         do j = 1, N
-          arr(i,j) = real((i-1)*N+j, ireals)
+          arr(i,j) = real((i-1)*N+j, irealLUT)
         enddo
       enddo
     endif
@@ -50,7 +50,7 @@ subroutine test_mpi_functions(this)
     arr => mmap_ptr
     do i = 1, N
       do j = 1, N
-        @assertEqual(real((i-1)*N+j, ireals), arr(i,j))
+        @assertEqual(real((i-1)*N+j, irealLUT), arr(i,j))
       enddo
     enddo
 

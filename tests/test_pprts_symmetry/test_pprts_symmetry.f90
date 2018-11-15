@@ -1,6 +1,6 @@
 module test_pprts_symmetry
 
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, zero, one, pi, mpiint
+  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, irealLUT, zero, one, pi, mpiint
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -45,7 +45,7 @@ contains
 
     integer(mpiint) :: myid, numnodes, comm, ierr
 
-    real(ireals),allocatable  :: dir2dir(:), dir2diff(:)
+    real(irealLUT),allocatable  :: dir2dir(:), dir2diff(:)
     integer(iintegers) :: i
 
 
@@ -75,11 +75,11 @@ contains
         allocate(dir2diff(OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams))
 
         do i=1,ubound(dir2dir,1)
-          dir2dir(i) = real(i, kind=ireals)
+          dir2dir(i) = real(i, kind=irealLUT)
         enddo
 
         do i=1,ubound(dir2diff,1)
-          dir2diff(i) = real(i, kind=ireals)
+          dir2diff(i) = real(i, kind=irealLUT)
         enddo
 
         call OPP%dir2dir_coeff_symmetry(dir2dir, .True., .True.)

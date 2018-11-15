@@ -1,7 +1,7 @@
 module test_LUT_8_10
   use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
-  use m_data_parameters, only : mpiint, ireals, iintegers, &
-    one, zero, init_mpi_data_parameters, i1, default_str_len
+  use m_data_parameters, only : mpiint, ireals, irealLUT, iintegers, &
+    init_mpi_data_parameters, i1, default_str_len
   use m_optprop_LUT, only : t_optprop_LUT_8_10
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse
@@ -14,33 +14,34 @@ module test_LUT_8_10
   use pfunit_mod
   implicit none
 
-  real(ireals) :: bg(3), phi,theta,dx,dy,dz
-  real(ireals) :: S(10),T(8), S_target(10), T_target(8)
+  real(irealLUT) :: bg(3), phi,theta,dx,dy,dz
+  real(irealLUT) :: S(10),T(8)
+  real(ireals) :: S_target(10), T_target(8)
   real(ireals) :: S_tol(10),T_tol(8)
   real(ireals), allocatable :: vertices(:)
 
   real(ireals) :: BMC_diff2diff(100), BMC_dir2diff(8*10), BMC_dir2dir(8*8)
-  real(ireals) :: LUT_diff2diff(100), LUT_dir2diff(8*10), LUT_dir2dir(8*8)
+  real(irealLUT) :: LUT_diff2diff(100), LUT_dir2diff(8*10), LUT_dir2dir(8*8)
 
   type(t_boxmc_8_10) :: bmc_8_10
   type(t_optprop_LUT_8_10) :: OPP
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=5e-2, rtol=1e-1
+  real(irealLUT),parameter :: atol=5e-2, rtol=1e-1, zero=0, one=1
 
   integer(mpiint) :: ierr
 
   @testParameter(constructor = newTest)
   type, extends(MpiTestParameter) :: peCase
-    real(ireals) :: kabs,ksca,g,phi,theta
+    real(irealLUT) :: kabs,ksca,g,phi,theta
   contains
     procedure :: toString
   end type peCase
 
   @TestCase(constructor = newTest)
   type, extends(MPITestCase) :: parameterized_Test
-    real(ireals) :: kabs,ksca,g,phi,theta
+    real(irealLUT) :: kabs,ksca,g,phi,theta
   contains
     procedure :: setUp
     procedure :: teardown
@@ -62,7 +63,7 @@ contains
 
   function newPeCase(kabs,ksca,g,phi,theta)
       type (peCase) :: newPeCase
-      real(ireals) :: kabs,ksca,g,phi,theta
+      real(irealLUT) :: kabs,ksca,g,phi,theta
       newPeCase%kabs  = kabs
       newPeCase%ksca  = ksca
       newPeCase%g     = g
@@ -77,7 +78,7 @@ contains
       type(peCase), allocatable :: params(:)
 
       integer(iintegers) :: itau, iw0, ig, itheta, iphi
-      real(ireals)       ::  kabs, ksca, g, phi, theta
+      real(irealLUT)       ::  kabs, ksca, g, phi, theta
 
       integer(iintegers) :: itest,iloop
       integer(iintegers) :: Ntau, Nw0, Ng
@@ -106,8 +107,8 @@ contains
                     kabs = preset_tau(itau) * (one-preset_w0(iw0))
                     ksca = preset_tau(itau) * preset_w0(iw0)
                     g    = preset_g(ig)
-                    phi  = real(iphi, ireals)
-                    theta= real(itheta, ireals)
+                    phi  = real(iphi, irealLUT)
+                    theta= real(itheta, irealLUT)
                     if(iloop.eq.2) params(2*(itest-1)+1) = newPeCase(kabs,ksca,g,phi,theta)
 
                     ! Again, do interlaced tests between support points of LUT
@@ -158,7 +159,7 @@ contains
       dy = dx
       dz = 50
 
-      call setup_default_unit_cube_geometry(dx, dy, dz, vertices)
+      call setup_default_unit_cube_geometry(real(dx, ireals), real(dy, ireals), real(dz, ireals), vertices)
 
       S_target = zero
       T_target = zero
@@ -177,7 +178,7 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
-      real(ireals) :: taux, tauz, w0
+      real(irealLUT) :: taux, tauz, w0
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -202,7 +203,13 @@ contains
         print*,taux, tauz
         do src=1,8
 
-          call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.True.,phi,theta,vertices,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          call bmc_8_10%get_coeff(comm,real([kabs,ksca,g], ireals), &
+            src, .True., &
+            real(phi, ireals), &
+            real(theta, ireals), &
+            real(vertices,ireals), &
+            S_target,T_target,S_tol,T_tol, &
+            inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
 
           ! Rearrange coeffs from dst_ordering to src ordering:
           BMC_dir2diff(src : 8*10 : 8) = S_target
@@ -219,7 +226,7 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
-      real(ireals) :: taux, tauz, w0
+      real(irealLUT) :: taux, tauz, w0
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -242,7 +249,13 @@ contains
         call OPP%LUT_get_diff2diff([tauz, w0, g, tauz/taux], LUT_diff2diff)
         do src=1,10
 
-          call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,.False.,phi,theta,vertices,S_target,T_target,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          call bmc_8_10%get_coeff(comm,real([kabs,ksca,g], ireals), &
+            src, .False., &
+            real(phi, ireals), &
+            real(theta, ireals), &
+            real(vertices,ireals), &
+            S_target,T_target,S_tol,T_tol, &
+            inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
 
           ! Rearrange coeffs from dst_ordering to src ordering:
           BMC_diff2diff(src : 10*10 : 10) = S_target
@@ -263,7 +276,7 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
-      real(ireals) :: taux, tauz, w0
+      real(irealLUT) :: taux, tauz, w0
 
       ! direct tests
       bg  = [1e-2, 0., 0. ]
@@ -294,9 +307,10 @@ contains
 
 
   subroutine check(S_target,T_target, S,T, msg)
-      real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
+      real(ireals),intent(in),dimension(:) :: S_target,T_target
+      real(irealLUT),intent(in),dimension(:) :: S,T
 
-      real(ireals),parameter :: sigma = 6 ! normal test range for coefficients
+      real(irealLUT),parameter :: sigma = 6 ! normal test range for coefficients
 
       character(len=*),optional :: msg
       character(default_str_len) :: local_msgS, local_msgT
@@ -321,27 +335,27 @@ contains
           write(*, FMT='( " target  :: ",10(f12.5) )' ) S_target
           print*,''
           write(*, FMT='( " diff    :: ",10(f12.5) )' ) S_target-S
-          print*,'RMSE ::: ',rmse(S,S_target)*[one, 100._ireals],'%'
+          print*,'RMSE ::: ',rmse(S,real(S_target, irealLUT))*[one, 100._irealLUT],'%'
           print*,''
           write(*, FMT='( " direct  :: ", 8(f12.5) )' ) T
           print*,''
           write(*, FMT='( " target  :: ", 8(f12.5) )' ) T_target
           print*,''
           write(*, FMT='( " diff    :: ", 8(f12.5) )' ) T_target-T
-          print*,'RMSE ::: ',rmse(T,T_target)*[one, 100._ireals],'%'
+          print*,'RMSE ::: ',rmse(T,real(T_target, irealLUT))*[one, 100._irealLUT],'%'
           print*,'---------------------'
           print*,''
         else
-          print*,'RMSE ::: ',rmse(S,S_target)*[one, 100._ireals],'% ', &
-                 'direct:::',rmse(T,T_target)*[one, 100._ireals],'%'
+          print*,'RMSE ::: ',rmse(S,real(S_target, irealLUT))*[one, 100._irealLUT],'% ', &
+                 'direct:::',rmse(T,real(T_target, irealLUT))*[one, 100._irealLUT],'%'
           print *,''
         endif
 
-        @assertEqual(S_target, S, atol*sigma, local_msgS )
+        @assertEqual(real(S_target, irealLUT), S, atol*sigma, local_msgS )
         @assertLessThanOrEqual   (zero, S)
         @assertGreaterThanOrEqual(one , S)
 
-        @assertEqual(T_target, T, atol*sigma, local_msgT )
+        @assertEqual(real(T_target, irealLUT), T, atol*sigma, local_msgT )
         @assertLessThanOrEqual   (zero, T)
         @assertGreaterThanOrEqual(one , T)
       endif

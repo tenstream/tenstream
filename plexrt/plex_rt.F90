@@ -10,7 +10,7 @@ module m_plex_rt
     vec_proj_on_plane, cross_3d, norm, rotation_matrix_world_to_local_basis, &
     approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, &
+  use m_data_parameters, only : ireals, iintegers, mpiint, irealLUT, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
     zero, one, pi, EXP_MINVAL, EXP_MAXVAL
 
@@ -734,7 +734,7 @@ module m_plex_rt
             call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
             call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
               dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, ierr, &
-              angles=[rad2deg(azimuth), rad2deg(zenith)])
+              angles=[real(rad2deg(azimuth), irealLUT), real(rad2deg(zenith), irealLUT)])
 
             if(ierr.eq.OPP_1D_RETCODE) then
               call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
@@ -1293,7 +1293,7 @@ module m_plex_rt
       call PetscLogEventBegin(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
       call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
         dz, wedgeorient(wedge_offset+14:wedge_offset+19), .True., coeff, ierr, &
-        angles=[rad2deg(azimuth), rad2deg(zenith)])
+        angles=[real(rad2deg(azimuth), irealLUT), real(rad2deg(zenith), irealLUT)])
 
       if(ldebug) then
         do iface=1,i5
@@ -1443,7 +1443,7 @@ module m_plex_rt
 
             call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
               dz, coords_2d, .True., coeff, ierr, &
-              angles=[rad2deg(azimuth), rad2deg(zenith)])
+              angles=[real(rad2deg(azimuth),irealLUT), real(rad2deg(zenith),irealLUT)])
 
             !do i=1,5
             !  print *,'coeff for bmc dst',i, coeff((i-1)*5+1:i*5), ':', sum(coeff((i-1)*5+1:i*5))
@@ -1739,10 +1739,10 @@ module m_plex_rt
     real(ireals),intent(out)     :: coeff(:)
     integer(mpiint), intent(out) :: ierr
 
-    real(ireals),intent(in),optional  :: angles(2)
+    real(irealLUT),intent(in),optional  :: angles(2)
 
     real(ireals) :: dkabs, dksca, dg
-    real(ireals) :: aspect, tauz, w0, dx, relcoords(6)
+    real(irealLUT) :: aspect, tauz, w0, dx, relcoords(6), CC(size(coeff))
     integer, parameter :: iC1=4, iC2=5
     real(ireals), parameter :: dither=.0_ireals ! add dither on relcoords
     real(ireals) :: Rdither
@@ -1757,8 +1757,8 @@ module m_plex_rt
 
     aspect = dz / dx
     tauz = (dkabs+dksca) * dz
-    if(approx(tauz,zero)) then
-      w0 = zero
+    if(approx(tauz,0._irealLUT)) then
+      w0 = 0
     else
       w0 = dksca / (dkabs+dksca)
     endif
@@ -1789,8 +1789,9 @@ module m_plex_rt
                    min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6)))
 
     !print *,'DEBUG Coeffs', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
-    call OPP%get_coeff(tauz, w0, dg, aspect, ldir, coeff, ierr, angles=angles, wedge_coords=relcoords)
+    call OPP%get_coeff(tauz, w0, real(dg, irealLUT), aspect, ldir, CC, ierr, angles=angles, wedge_coords=relcoords)
     !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
+    coeff = CC
     if(ldebug) then
       if(any(coeff.lt.zero).or.any(coeff.gt.one)) then
         print *,'Lookup Coeffs for', aspect, tauz, w0, dg, angles,'::', coeff

@@ -1,8 +1,8 @@
 module test_ANN_8_10
   use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
   use m_data_parameters, only :       &
-    mpiint,ireals,iintegers,one,zero, &
-    init_mpi_data_parameters,i1,default_str_len
+    mpiint, ireals, irealLUT, iintegers, &
+    init_mpi_data_parameters, i1, default_str_len
   use m_optprop_parameters, only : stddev_atol
   use m_optprop_ANN, only : ANN_init, ANN_destroy, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
   use m_tenstream_options, only: read_commandline_options
@@ -14,31 +14,32 @@ module test_ANN_8_10
   use pfunit_mod
   implicit none
 
-  real(ireals) :: bg(3), phi,theta,dx,dy,dz
-  real(ireals) :: S(10),T(8), S_target(10), T_target(8)
-  real(ireals) :: S_tol(10),T_tol(8)
+  real(irealLUT) :: bg(3), phi,theta,dx,dy,dz
+  real(irealLUT) :: S(10),T(8)
+  real(ireals)   :: S_target(10), T_target(8)
+  real(ireals)   :: S_tol(10),T_tol(8)
 
-  real(ireals) :: ANN_diff2diff(100), ANN_dir2diff(8*10), ANN_dir2dir(8*8)
-  real(ireals) :: BMC_diff2diff(100), BMC_dir2diff(8*10), BMC_dir2dir(8*8)
+  real(irealLUT) :: ANN_diff2diff(100), ANN_dir2diff(8*10), ANN_dir2dir(8*8)
+  real(irealLUT) :: BMC_diff2diff(100), BMC_dir2diff(8*10), BMC_dir2dir(8*8)
 
   type(t_boxmc_8_10) :: bmc_8_10
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-1
+  real(irealLUT),parameter :: atol=1e-3, rtol=1e-1, one=1, zero=0
 
   PetscErrorCode :: ierr
 
   @testParameter(constructor = newTest)
   type, extends(MpiTestParameter) :: peCase
-    real(ireals) :: kabs,ksca,g,phi,theta
+    real(irealLUT) :: kabs,ksca,g,phi,theta
   contains
     procedure :: toString
   end type peCase
 
   @TestCase(constructor = newTest)
   type, extends(MPITestCase) :: parameterized_Test
-    real(ireals) :: kabs,ksca,g,phi,theta
+    real(irealLUT) :: kabs,ksca,g,phi,theta
   contains
     procedure :: setUp
     procedure :: teardown
@@ -60,7 +61,7 @@ contains
 
   function newPeCase(kabs,ksca,g,phi,theta)
       type (peCase) :: newPeCase
-      real(ireals) :: kabs,ksca,g,phi,theta
+      real(irealLUT) :: kabs,ksca,g,phi,theta
       newPeCase%kabs  = kabs
       newPeCase%ksca  = ksca
       newPeCase%g     = g
@@ -73,7 +74,7 @@ contains
       type(peCase), allocatable :: params(:)
 
       integer(iintegers) :: ikabs,iksca,ig,iphi,itheta
-      real(ireals)       ::  kabs, ksca, g, phi, theta
+      real(irealLUT)       ::  kabs, ksca, g, phi, theta
 
       integer(iintegers) :: itest,iloop
 
@@ -151,8 +152,8 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
-      real(ireals) :: taux, tauz, w0, aspect
-      real(ireals), allocatable :: vertices(:)
+      real(irealLUT) :: taux, tauz, w0, aspect
+      real(irealLUT), allocatable :: vertices(:)
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -183,10 +184,13 @@ contains
             BMC_dir2dir = zero
 
             do src=1,10
-                call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,        &
-                                        .False.,phi,theta,vertices,    &
+                call bmc_8_10%get_coeff(comm,real([kabs,ksca,g], ireals), &
+                                        src, .False., &
+                                        real(phi, ireals), &
+                                        real(theta, ireals), &
+                                        real(vertices,ireals), &
                                         S_target,T_target,S_tol,T_tol, &
-                                        inp_atol=atol, inp_rtol=rtol)
+                                        inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
 
                 ! Rearrange coeffs from src_ordering to dst ordering:
                 BMC_diff2diff(src : 10*10 : 10) = S_target
@@ -203,8 +207,8 @@ contains
       class (parameterized_test), intent(inout) :: this
 
       integer(iintegers) :: src
-      real(ireals) :: taux, tauz, w0, aspect
-      real(ireals), allocatable :: vertices(:)
+      real(irealLUT) :: taux, tauz, w0, aspect
+      real(irealLUT), allocatable :: vertices(:)
 
       comm     = this%getMpiCommunicator()
       numnodes = this%getNumProcesses()
@@ -237,10 +241,13 @@ contains
 
             do src=1,8
 
-                call bmc_8_10%get_coeff(comm,[kabs,ksca,g],src,        &
-                                        .True.,phi,theta,vertices,     &
+                call bmc_8_10%get_coeff(comm,real([kabs,ksca,g], ireals), &
+                                        src, .True., &
+                                        real(phi, ireals), &
+                                        real(theta, ireals), &
+                                        real(vertices,ireals), &
                                         S_target,T_target,S_tol,T_tol, &
-                                        inp_atol=atol, inp_rtol=rtol)
+                                        inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
 
                 ! Rearrange coeffs from src_ordering to dst ordering:
                 BMC_dir2diff(src : 8*10 : 10) = S_target
@@ -255,11 +262,10 @@ contains
   endsubroutine
 
 
-
   subroutine check(S_target,T_target, S,T, msg)
-      real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
+      real(irealLUT),intent(in),dimension(:) :: S_target,T_target, S,T
 
-      real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
+      real(irealLUT),parameter :: sigma = 3 ! normal test range for coefficients
 
       character(len=*),optional :: msg
       character(default_str_len) :: local_msgS, local_msgT

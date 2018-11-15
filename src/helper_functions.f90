@@ -37,6 +37,18 @@ module m_helper_functions
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, &
     resize_arr, reverse
 
+  interface rmse
+    module procedure rmse_r32, rmse_r64
+  end interface
+  interface search_sorted_bisection
+    module procedure search_sorted_bisection_r32, search_sorted_bisection_r64
+  end interface
+  interface rad2deg
+    module procedure rad2deg_r32, rad2deg_r64
+  end interface
+  interface deg2rad
+    module procedure deg2rad_r32, deg2rad_r64
+  end interface
   interface norm
     module procedure norm_r32, norm_r64
   end interface
@@ -65,7 +77,7 @@ module m_helper_functions
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
   end interface
   interface swap
-    module procedure swap_iintegers, swap_ireals
+    module procedure swap_iintegers, swap_r32, swap_r64
   end interface
   interface cumsum
     module procedure cumsum_iintegers, cumsum_ireals
@@ -120,12 +132,15 @@ module m_helper_functions
       strF2C = trim(str)//C_NULL_CHAR
     end function
 
-    pure elemental subroutine swap_ireals(x,y)
-      real(ireals),intent(inout) :: x,y
-      real(ireals) :: tmp
-      tmp = x
-      x = y
-      y = tmp
+    pure elemental subroutine swap_r32(x,y)
+      real(REAL32),intent(inout) :: x,y
+      real(REAL32) :: tmp
+      tmp = x; x = y; y = tmp
+    end subroutine
+    pure elemental subroutine swap_r64(x,y)
+      real(REAL64),intent(inout) :: x,y
+      real(REAL64) :: tmp
+      tmp = x; x = y; y = tmp
     end subroutine
     pure elemental subroutine swap_iintegers(x,y)
       integer(iintegers),intent(inout) :: x,y
@@ -323,20 +338,36 @@ module m_helper_functions
       call move_alloc(tmp, arr)
     end subroutine
 
-    elemental function deg2rad(deg)
-      real(ireals) :: deg2rad
-      real(ireals),intent(in) :: deg
-      deg2rad = deg * pi / 180
+    elemental function deg2rad_r32(deg) result(r)
+      real(REAL32) :: r
+      real(REAL32),intent(in) :: deg
+      r = deg * pi / 180
     end function
-    elemental function rad2deg(rad)
-      real(ireals) :: rad2deg
-      real(ireals),intent(in) :: rad
-      rad2deg = rad / pi * 180
+    elemental function deg2rad_r64(deg) result(r)
+      real(REAL64) :: r
+      real(REAL64),intent(in) :: deg
+      r = deg * pi / 180
+    end function
+    elemental function rad2deg_r32(rad) result(r)
+      real(REAL32) :: r
+      real(REAL32),intent(in) :: rad
+      r = rad / pi * 180
+    end function
+    elemental function rad2deg_r64(rad) result(r)
+      real(REAL64) :: r
+      real(REAL64),intent(in) :: rad
+      r = rad / pi * 180
     end function
 
-    pure function rmse(a,b)
-      real(ireals) :: rmse(2)
-      real(ireals),intent(in) :: a(:),b(:)
+    pure function rmse_r32(a,b) result(rmse)
+      real(REAL32) :: rmse(2)
+      real(REAL32),intent(in) :: a(:),b(:)
+      rmse(1) = sqrt( meanval( (a-b)**2 ) )
+      rmse(2) = rmse(1)/max( meanval(b), epsilon(rmse) )
+    end function
+    pure function rmse_r64(a,b) result(rmse)
+      real(REAL64) :: rmse(2)
+      real(REAL64),intent(in) :: a(:),b(:)
       rmse(1) = sqrt( meanval( (a-b)**2 ) )
       rmse(2) = rmse(1)/max( meanval(b), epsilon(rmse) )
     end function
@@ -842,11 +873,12 @@ module m_helper_functions
       print *,'I read ',nlines,'lines'
     end subroutine
 
-    function search_sorted_bisection(arr,val) ! return index+residula i where val is between arr(i) and arr(i+1)
-      real(irealLUT) :: search_sorted_bisection
-      real(irealLUT),intent(in) :: arr(:)
-      real(irealLUT),intent(in) :: val
-      real(irealLUT) :: loc_increment
+    ! return index+residula i where val is between arr(i) and arr(i+1)
+    function search_sorted_bisection_r32(arr,val) result(res)
+      real(REAL32),intent(in) :: arr(:)
+      real(REAL32),intent(in) :: val
+      real(REAL32) :: res
+      real(REAL32) :: loc_increment
       integer(iintegers) :: i,j,k
 
       i=lbound(arr,1)
@@ -863,16 +895,15 @@ module m_helper_functions
           if (i+1 >= j) then ! only single or tuple left
             ! i is left bound and j is right bound index
             if(i.eq.j) then
-              loc_increment = zero
+              loc_increment = 0
             else
               loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
             endif
-            search_sorted_bisection= min(max(one*lbound(arr,1), i + loc_increment), one*ubound(arr,1)) ! return `real-numbered` location of val
+            res= min(max(1._REAL32*lbound(arr,1), i + loc_increment), 1._REAL32*ubound(arr,1)) ! return `real-numbered` location of val
             return
           endif
         end do
       else !descending order
-
         do
           k=(i+j)/2
           if (val > arr(k)) then
@@ -883,11 +914,61 @@ module m_helper_functions
           if (i+1 >= j) then ! only single or tuple left
             ! i is left bound and j is right bound index
             if(i.eq.j) then
-              loc_increment = zero
+              loc_increment = 0
             else
               loc_increment = (val - arr(j)) / ( arr(i) - arr(j) )
             endif
-            search_sorted_bisection= min(max(one*lbound(arr,1), j - loc_increment), one*ubound(arr,1)) ! return `real-numbered` location of val
+            res = min(max(1._REAL32*lbound(arr,1), j - loc_increment), 1._REAL32*ubound(arr,1)) ! return `real-numbered` location of val
+            return
+          endif
+        end do
+      endif
+    end function
+    function search_sorted_bisection_r64(arr,val) result(res)
+      real(REAL64),intent(in) :: arr(:)
+      real(REAL64),intent(in) :: val
+      real(REAL64) :: res
+      real(REAL64) :: loc_increment
+      integer(iintegers) :: i,j,k
+
+      i=lbound(arr,1)
+      j=ubound(arr,1)
+
+      if(arr(i).le.arr(j)) then ! ascending order
+        do
+          k=(i+j)/2
+          if (val < arr(k)) then
+            j=k
+          else
+            i=k
+          endif
+          if (i+1 >= j) then ! only single or tuple left
+            ! i is left bound and j is right bound index
+            if(i.eq.j) then
+              loc_increment = 0
+            else
+              loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
+            endif
+            res= min(max(1._REAL64*lbound(arr,1), i + loc_increment), 1._REAL64*ubound(arr,1)) ! return `real-numbered` location of val
+            return
+          endif
+        end do
+      else !descending order
+        do
+          k=(i+j)/2
+          if (val > arr(k)) then
+            j=k
+          else
+            i=k
+          endif
+          if (i+1 >= j) then ! only single or tuple left
+            ! i is left bound and j is right bound index
+            if(i.eq.j) then
+              loc_increment = 0
+            else
+              loc_increment = (val - arr(j)) / ( arr(i) - arr(j) )
+            endif
+            res = min(max(1._REAL64*lbound(arr,1), j - loc_increment), 1._REAL64*ubound(arr,1)) ! return `real-numbered` location of val
             return
           endif
         end do

@@ -22,7 +22,7 @@ module m_pprts
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_data_parameters, only : ireals, iintegers,               &
+  use m_data_parameters, only : ireals, iintegers, irealLUT,     &
     init_mpi_data_parameters, mpiint,                            &
     zero, one, nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
     default_str_len
@@ -2743,7 +2743,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
         solver%atm%g(atmk(solver%atm,k),i,j), &
         solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
         solver%atm%l1d(atmk(solver%atm,k),i,j), &
-        [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta], &
+        [real(sun%angles(k,i,j)%symmetry_phi, irealLUT), real(sun%angles(k,i,j)%theta, irealLUT)], &
         lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
       call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
@@ -2781,7 +2781,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
           atm%g(atmk(atm,k),i,j), &
           atm%dz(atmk(atm,k),i,j),.True., v, &
           atm%l1d(atmk(atm,k),i,j), &
-          [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta] )
+          [real(sun%angles(k,i,j)%symmetry_phi, irealLUT), real(sun%angles(k,i,j)%theta, irealLUT)] )
       endif
 
       col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k
@@ -3013,7 +3013,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                   atm%dz(atmk(atm,k),i,j), &
                   .False., dir2diff, &
                   atm%l1d(atmk(atm,k),i,j), &
-                  [sun%angles(k,i,j)%symmetry_phi, sun%angles(k,i,j)%theta], &
+                  [real(sun%angles(k,i,j)%symmetry_phi, irealLUT), real(sun%angles(k,i,j)%theta,irealLUT)], &
                   lswitch_east=lsun_east, lswitch_north=lsun_north)
                 call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
@@ -3162,10 +3162,10 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     real(ireals),intent(out)          :: coeff(:)
 
     logical,intent(in)                :: lone_dimensional
-    real(ireals),intent(in),optional  :: angles(2)
+    real(irealLUT),intent(in),optional:: angles(2)
     logical,intent(in),optional       :: lswitch_east, lswitch_north
 
-    real(ireals) :: aspect_zx, tauz, w0
+    real(irealLUT) :: aspect_zx, tauz, w0, CC(size(coeff))
     integer(mpiint) :: ierr
 
     aspect_zx = dz / solver%atm%dx
@@ -3178,8 +3178,9 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       call CHKERR(1_mpiint, 'currently, we dont support using LUT Twostream for l1d layers')
       !call OPP_1_2%get_coeff (aspect, tauz, w0, g,ldir,coeff,angles)
     else
-      call solver%OPP%get_coeff(tauz, w0, g, aspect_zx, ldir, coeff, ierr, &
+      call solver%OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, CC, ierr, &
         angles, lswitch_east, lswitch_north); call CHKERR(ierr)
+      coeff = CC
     endif
   end subroutine
 

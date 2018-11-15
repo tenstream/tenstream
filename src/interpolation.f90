@@ -18,6 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_tenstream_interpolation
+  use iso_fortran_env, only: REAL32, REAL64
   use m_data_parameters, only: iintegers, irealLUT, mpiint, zero,one, i1
   use m_helper_functions, only: approx, CHKERR, itoa, ftoa, &
     triangle_area_by_vertices, ind_nd_to_1d, ind_1d_to_nd, pnt_in_triangle
@@ -59,6 +60,10 @@ module m_tenstream_interpolation
 
   real(irealLUT), parameter :: interpolation_lattice_snapping=max(1e-6_irealLUT, epsilon(interpolation_lattice_snapping))
 
+  interface interp_1d
+    module procedure interp_1d_r32, interp_1d_r64
+  end interface
+
 contains
 
   recursive subroutine interpn(n,a,t,i,res)
@@ -99,19 +104,34 @@ contains
     spline = a0 + s * ( a1-a0 )
   end function
 
-  function interp_1d(t,a0)
-    real(irealLUT),intent(in) :: t, a0(:) ! t is weighting distance from [1, size(a0)]
-    real(irealLUT) :: interp_1d
+  function interp_1d_r32(t,a0) result(res)
+    real(REAL32),intent(in) :: t, a0(:) ! t is weighting distance from [1, size(a0)]
+    real(REAL32) :: res
     integer(iintegers) :: i
-    real(irealLUT) :: offset
+    real(REAL32) :: offset
 
-    if(t.lt.one .or. t.gt.size(a0)) call CHKERR(1_mpiint, 'Cannot use interp_1d with weights outside of [0,1]')
+    if(t.lt.1._REAL32 .or. t.gt.size(a0)) call CHKERR(1_mpiint, 'Cannot use interp_1d with weights outside of [0,1]')
     i = floor(t)
-    offset = modulo(t,1._irealLUT)
-    if(approx(offset,0._irealLUT)) then
-      interp_1d = a0(i)
+    offset = modulo(t,1._REAL32)
+    if(approx(offset,0._REAL32)) then
+      res = a0(i)
     else
-      interp_1d = (1._irealLUT-offset) * a0(i) + offset * a0(min(i+1, size(a0,kind=iintegers)))
+      res = (1._REAL32-offset) * a0(i) + offset * a0(min(i+1, size(a0,kind=iintegers)))
+    endif
+  end function
+  function interp_1d_r64(t,a0) result(res)
+    real(REAL64),intent(in) :: t, a0(:) ! t is weighting distance from [1, size(a0)]
+    real(REAL64) :: res
+    integer(iintegers) :: i
+    real(REAL64) :: offset
+
+    if(t.lt.1._REAL64 .or. t.gt.size(a0)) call CHKERR(1_mpiint, 'Cannot use interp_1d with weights outside of [0,1]')
+    i = floor(t)
+    offset = modulo(t,1._REAL64)
+    if(approx(offset,0._REAL64)) then
+      res = a0(i)
+    else
+      res = (1._REAL64-offset) * a0(i) + offset * a0(min(i+1, size(a0,kind=iintegers)))
     endif
   end function
 
