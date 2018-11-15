@@ -287,6 +287,7 @@ contains
     allocate(Bfrac(ke1, i1:ie, i1:je, ngptlw))
     allocate(ptau  (ke, i1, ngptlw))
     allocate(pBfrac(ke, i1, ngptlw))
+    allocate(integral_coeff(ke))
 
     if(lrrtmg_only) then
       do j=i1,je
@@ -297,7 +298,9 @@ contains
           peup (1:ke1, 1:1) => spec_eup (:,i,j)
           pabso(1:ke , 1:1) => spec_abso(:,i,j)
 
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol))
+          do k=1,ke
+            integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
+          enddo
 
           call optprop_rrtm_lw(i1, ke, albedo,      &
             atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
@@ -320,7 +323,9 @@ contains
       do j=i1,je
         do i=i1,ie
           icol =  i+(j-1)*ie
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol))
+          do k=1,ke
+            integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
+          enddo
           call optprop_rrtm_lw(i1, ke, albedo, &
             atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
             atm%h2o_lay(:, icol), atm%o3_lay(:, icol) , atm%co2_lay(:, icol),     &
@@ -419,7 +424,7 @@ contains
     real(ireals), pointer, dimension(:,:,:) :: patm_dz
     real(ireals), pointer, dimension(:,:) :: pedn, peup, pabso
 
-    integer(iintegers) :: i, j, icol, ib
+    integer(iintegers) :: i, j, k, icol, ib
     logical :: need_any_new_solution
 
     allocate(spec_edir(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
@@ -451,6 +456,8 @@ contains
     allocate(pw0 (ke, i1, ngptsw))
     allocate(pg  (ke, i1, ngptsw))
 
+    allocate(integral_coeff(ke))
+
     if(lrrtmg_only) then
       do j=1,je
         do i=1,ie
@@ -460,7 +467,9 @@ contains
           pEup (1:size(eup ,1), 1:1) => spec_eup (:,i,j)
           pabso(1:size(abso,1), 1:1) => spec_abso(:,i,j)
 
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol))
+          do k=1,ke
+            integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
+          enddo
 
           call optprop_rrtm_sw(i1, ke, &
             theta0, albedo, &
@@ -487,7 +496,9 @@ contains
       do j=1,je
         do i=1,ie
           icol =  i+(j-1)*ie
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke,icol), atm%plev(2:ke+1,icol))
+          do k=1,ke
+            integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
+          enddo
           call optprop_rrtm_sw(i1, ke, &
             theta0, albedo, &
             atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &

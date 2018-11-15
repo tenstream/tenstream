@@ -342,10 +342,14 @@ module m_dyn_atm_to_rrtmg
 
         is = lbound(d_plev,2); ie = ubound(d_plev,2)
 
-        if(ldebug) then
+        if(allocated(atm%atm_ke)) then
+          if(ldebug) then
+            print *,'atm_d_ke1', atm%d_ke1, ': ub d_plev', ubound(d_plev,1)
+          endif
           call CHKERR(int(atm%d_ke1-ubound(d_plev,1),mpiint), &
-            'Seems you changed the vertical dimension of the input between calls. You have to destroy the atmosphere first and recreate')
+               'Seems you changed the vertical dimension of the input between calls. You have to destroy the atmosphere first and recreate')
         endif
+
         ! find out how many layers we have to put on top of the dynamics grid
         if(.not.allocated(atm%atm_ke)) then
           atm%d_ke1 = ubound(d_plev,1); atm%d_ke = atm%d_ke1-1
