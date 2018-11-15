@@ -61,9 +61,17 @@ subroutine test_netcdf_load_write(this)
     groups(3) = 'a1d'
 
     allocate(a1d(N), source=real(myid, ireals))
-    call ncwrite(groups, a1d, ierr); call CHKERR(ierr, 'Could not write 1d array to nc file')
+    do rank = 0, numnodes-1
+      if(rank.eq.myid) then
+        call ncwrite(groups, a1d, ierr); call CHKERR(ierr, 'Could not write 1d array to nc file')
+      endif
+      call mpi_barrier(comm, ierr); call CHKERR(ierr)
+    enddo
+    ! Now everyone has written his stuff into the netcdf file
     call mpi_barrier(comm, ierr); call CHKERR(ierr)
-    do rank= 0, numnodes-1
+
+    ! Try reading it without barriers
+    do rank = 0, numnodes-1
       deallocate(a1d)
       groups(2) = 'rank'//itoa(rank)
       call ncload(groups, a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file')
@@ -75,8 +83,15 @@ subroutine test_netcdf_load_write(this)
     groups(1) = trim(fname)
     groups(2) = 'rank'//itoa(myid)
     groups(3) = 'a2d'
-    call ncwrite(groups, a2d, ierr); call CHKERR(ierr, 'Could not write 2d array to nc file')
+
+    do rank = 0, numnodes-1
+      if(rank.eq.myid) then
+        call ncwrite(groups, a2d, ierr); call CHKERR(ierr, 'Could not write 2d array to nc file')
+      endif
+      call mpi_barrier(comm, ierr); call CHKERR(ierr)
+    enddo
     call mpi_barrier(comm, ierr); call CHKERR(ierr)
+
     do rank= 0, numnodes-1
       deallocate(a2d)
       groups(2) = 'rank'//itoa(rank)
