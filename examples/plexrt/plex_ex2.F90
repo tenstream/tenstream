@@ -40,7 +40,7 @@ logical, parameter :: ldebug=.True.
       integer(mpiint) :: myid, numnodes, ierr
       type(tDM) :: dm2d, dm2d_dist, dm3d
       type(tPetscSF) :: migration_sf
-      type(AO), allocatable :: cell_ao_2d
+      AO, allocatable :: cell_ao_2d
       type(t_plexgrid), allocatable :: plex
       type(tVec), allocatable :: lwcvec, iwcvec
       real(ireals), parameter :: Ag=.15

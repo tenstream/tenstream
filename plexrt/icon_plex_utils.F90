@@ -141,7 +141,7 @@ module m_icon_plex_utils
         integer(iintegers) :: nroots3d, nleaves3d
         integer(iintegers),allocatable :: ilocal_elements(:)
         type(PetscSFNode),allocatable :: iremote_elements(:)
-        type(PetscCopyMode),parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
+        PetscCopyMode,parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
 
         integer(iintegers) :: i, k, voff, ileaf, owner
 
@@ -973,7 +973,7 @@ module m_icon_plex_utils
       character(len=*), intent(in) :: gridfile
       type(tDM), intent(out) :: dm, dmdist
       type(tPetscSF), intent(out) :: migration_sf
-      type(AO), allocatable, intent(out), optional :: cell_ao_2d
+      AO, allocatable, intent(out), optional :: cell_ao_2d
 
       integer(iintegers) :: Nfaces, Nedges, Nverts ! number of entries in base icon grid
       integer(iintegers), allocatable :: cell_index(:)

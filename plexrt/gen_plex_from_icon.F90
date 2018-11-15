@@ -25,7 +25,7 @@ module m_gen_plex_from_icon
 
       type(tDM) :: dm2d, dm2d_dist, dm3d
       type(tPetscSF) :: distribute_point_sf
-      type(AO), allocatable :: cell_ao_2d
+      AO, allocatable :: cell_ao_2d
       type(t_plexgrid), allocatable :: plex
       integer(mpiint) :: comm, myid, ierr
 

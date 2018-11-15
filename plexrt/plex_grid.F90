@@ -898,7 +898,7 @@ module m_plex_grid
       integer(iintegers) :: nroots, nleaves
       integer(iintegers),allocatable :: ilocal_elements(:)
       type(PetscSFNode),allocatable :: iremote_elements(:)
-      type(PetscCopyMode),parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
+      PetscCopyMode,parameter :: localmode=PETSC_COPY_VALUES, remotemode=PETSC_COPY_VALUES
 
       integer(mpiint) :: myid, numnodes, ierr
       integer(iintegers) :: icell, iface, iedge, ivertex
@@ -2016,7 +2016,7 @@ module m_plex_grid
     character(len=*), intent(in) :: filename, varname
     type(tVec), allocatable, intent(inout) :: gvec
     integer(iintegers), intent(in), optional :: timeidx
-    type(AO), optional, intent(in), target :: cell_ao_2d, cell_ao_3d ! mapping into 2D or 3D plex cells on rank0
+    AO, optional, intent(in), target :: cell_ao_2d, cell_ao_3d ! mapping into 2D or 3D plex cells on rank0
 
     type(tDM) :: celldm
     type(tPetscSection) :: cellsection
