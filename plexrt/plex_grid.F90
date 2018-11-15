@@ -1356,8 +1356,10 @@ module m_plex_grid
   !> @brief setup the section on which diffuse radiation lives, e.g. 2 dof on top/bot faces and 4 dof on side faces
   !> @details the section has 2 fields, one for incoming radiation and one for outgoing.
   !    The direction for the fields is given as:
-  !      * field 0: radiation travelling from cell_a to cell_b
-  !      * field 1: radiation going from cell_b to cell_a
+  !      * field 0: radiation travelling vertical
+  !      * field 1: radiation travelling horizontally
+  !        * component 0: radiation travelling from cell_a to cell_b
+  !        * component 1: radiation going from cell_b to cell_a
   !      where id of cell_b is larger id(cell_a)
   subroutine setup_ediff_dmplex(orig_dm, dm)
     type(tDM), intent(in) :: orig_dm
@@ -1374,42 +1376,54 @@ module m_plex_grid
     call DMSetOptionsPrefix(dm, 'diff', ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-    call gen_face_section(dm, fields_top=[i1,i1], fields_side=[i2,i2], section=section)
+    call gen_face_section(dm, top_streams=i1, side_streams=i2, dof_per_stream=i2, section=section)
 
     call DMSetSection(dm, section, ierr); call CHKERR(ierr)
-    call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_section', ierr); call CHKERR(ierr)
+    call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_diff_section', ierr); call CHKERR(ierr)
     call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
     call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine gen_face_section(dm, fields_top, fields_side, section)
+  subroutine gen_face_section(dm, top_streams, side_streams, dof_per_stream, section)
     type(tDM), intent(in) :: dm
-    integer(iintegers), intent(in) :: fields_top(:), fields_side(:)
+    integer(iintegers), intent(in) :: top_streams, side_streams, dof_per_stream ! number of streams
     type(tPetscSection), intent(inout) :: section
-    integer(iintegers) :: iface, fStart, fEnd, ifield, num_edges_of_face
+    integer(iintegers) :: iface, fStart, fEnd, istream, num_edges_of_face, tot_top_dof, tot_side_dof
     integer(mpiint) :: comm, ierr
     call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
     call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
     call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-    call PetscSectionSetNumFields(section, size(fields_top, kind=iintegers), ierr); call CHKERR(ierr)
-    call PetscSectionSetFieldComponents(section, i0, i1, ierr); call CHKERR(ierr)
+    call PetscSectionSetNumFields(section, top_streams+side_streams, ierr); call CHKERR(ierr)
+
+    do istream = 1, top_streams
+      call PetscSectionSetFieldName(section, istream-i1, 'Etop'//itoa(istream), ierr); call CHKERR(ierr)
+    enddo
+    do istream = 1, side_streams
+      call PetscSectionSetFieldName(section, top_streams+istream-i1, 'Eside'//itoa(istream), ierr); call CHKERR(ierr)
+    enddo
+
+    tot_top_dof = top_streams*dof_per_stream
+    tot_side_dof = side_streams*dof_per_stream
+
+    do istream = 1, top_streams+side_streams
+      call PetscSectionSetFieldComponents(section, istream-i1, dof_per_stream, ierr); call CHKERR(ierr)
+    enddo
+
     call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
     do iface = fStart,  fEnd-1
       call DMPlexGetConeSize(dm, iface, num_edges_of_face, ierr); call CHKERR(ierr)
+
       if(num_edges_of_face.eq.i3) then
-        call PetscSectionSetDof(section, iface, int(sum(fields_top), iintegers), ierr); call CHKERR(ierr)
-        do ifield=1,size(fields_top)
-          call PetscSectionSetFieldDof(section, iface, ifield-1, fields_top(ifield), ierr); call CHKERR(ierr)
+        call PetscSectionSetDof(section, iface, tot_top_dof, ierr); call CHKERR(ierr)
+        do istream = 1, top_streams
+          call PetscSectionSetFieldDof(section, iface, istream-i1, dof_per_stream, ierr); call CHKERR(ierr)
         enddo
-        !call PetscSectionSetFieldDof(section, iface, i0, Ndof_top/2, ierr); call CHKERR(ierr)
-        !call PetscSectionSetFieldDof(section, iface, i1, Ndof_top/2, ierr); call CHKERR(ierr)
+
       else
-        call PetscSectionSetDof(section, iface, int(sum(fields_side), iintegers), ierr); call CHKERR(ierr)
-        do ifield=1,size(fields_side)
-          call PetscSectionSetFieldDof(section, iface, ifield-1, fields_side(ifield), ierr); call CHKERR(ierr)
+        call PetscSectionSetDof(section, iface, tot_side_dof, ierr); call CHKERR(ierr)
+        do istream = 1, side_streams
+          call PetscSectionSetFieldDof(section, iface, top_streams+istream-i1, dof_per_stream, ierr); call CHKERR(ierr)
         enddo
-        !call PetscSectionSetFieldDof(section, iface, i0, Ndof_side/2, ierr); call CHKERR(ierr)
-        !call PetscSectionSetFieldDof(section, iface, i1, Ndof_side/2, ierr); call CHKERR(ierr)
       endif
     enddo
     call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
@@ -1473,12 +1487,14 @@ module m_plex_grid
 
     integer(iintegers), pointer :: faces_of_cell(:)
     integer(iintegers), pointer :: cells_of_face(:)
-    integer(iintegers) :: i, iface, neigh_cell, offset_a, offset_b
-    integer(iintegers) :: j_incoming, j_outgoing, num_dof, idof
+    integer(iintegers) :: i, iface, istream, neigh_cell, offset_a, offset_b
+    integer(iintegers) :: j_incoming, j_outgoing, num_dof, num_fields, idof
     integer(iintegers) :: boundarylabelval, owner
     type(tPetscSection) :: section
     integer(mpiint) :: comm, myid, ierr
+
     call DMGetSection(ediffdm, section, ierr); call CHKERR(ierr)
+    call PetscSectionGetNumFields(section, num_fields, ierr); call CHKERR(ierr)
 
     call DMPlexGetCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
@@ -1523,26 +1539,26 @@ module m_plex_grid
       endif
       call DMPlexRestoreSupport(ediffdm, iface, cells_of_face, ierr); call CHKERR(ierr) ! Get Faces of cell
 
-      call PetscSectionGetFieldOffset(section, iface, i0, offset_a, ierr); call CHKERR(ierr)
-      call PetscSectionGetFieldOffset(section, iface, i1, offset_b, ierr); call CHKERR(ierr)
+      do istream = 1, num_fields
+        call PetscSectionGetFieldDof(section, iface, istream-i1, num_dof, ierr); call CHKERR(ierr)
+        if(num_dof.eq.2) then
+          call PetscSectionGetFieldOffset(section, iface, istream-i1, offset_a, ierr); call CHKERR(ierr)
+          offset_b = offset_a+1
+          !print *,icell,'iface', iface, 'stream', istream, 'offset', offset_a, offset_b
 
-      call PetscSectionGetFieldDof(section, iface, i0, num_dof, ierr); call CHKERR(ierr)
-
-      if(neigh_cell.lt.icell) then ! see definition of directions in setup_ediff_dmplex
-        do idof = 0, num_dof-1
-          incoming_offsets(j_incoming) = offset_a+idof
-          j_incoming = j_incoming + 1
-          outgoing_offsets(j_outgoing) = offset_b+idof
-          j_outgoing = j_outgoing + 1
-        enddo
-      else
-        do idof = 0, num_dof-1
-          incoming_offsets(j_incoming) = offset_b+idof
-          j_incoming = j_incoming + 1
-          outgoing_offsets(j_outgoing) = offset_a+idof
-          j_outgoing = j_outgoing + 1
-        enddo
-      endif
+          if(neigh_cell.lt.icell) then ! see definition of directions in setup_ediff_dmplex
+            incoming_offsets(j_incoming) = offset_a
+            j_incoming = j_incoming + 1
+            outgoing_offsets(j_outgoing) = offset_b
+            j_outgoing = j_outgoing + 1
+          else
+            incoming_offsets(j_incoming) = offset_b
+            j_incoming = j_incoming + 1
+            outgoing_offsets(j_outgoing) = offset_a
+            j_outgoing = j_outgoing + 1
+          endif
+        endif
+      enddo
     enddo
 
     call DMPlexRestoreCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
@@ -2599,7 +2615,7 @@ module m_plex_grid
       max_TOA_height = get_arg(120e3_ireals, TOA_height) ! height at which the mesh is homogenized, from there counting down
 
       call DMClone(dm3d, facedm, ierr); call CHKERR(ierr)
-      call gen_face_section(facedm, [i1], [i0], face_section)
+      call gen_face_section(facedm, i1, i0, i1, face_section)
 
       call DMSetSection(facedm, face_section, ierr); call CHKERR(ierr)
 

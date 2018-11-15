@@ -1062,7 +1062,7 @@ module m_plex_rt
           integer(iintegers) :: iface, fStart, fEnd
           type(tPC) :: pc
           type(tPetscSection) :: faceSection
-          type(tIS) :: horizontal_face_dofs, vertical_face_dofs
+          !type(tIS) :: horizontal_face_dofs!, vertical_face_dofs!, all_dofs
           !type(tIS) :: IS_boundary, IS_interior
 
           integer(iintegers) :: min_dof, max_dof, voff, numDof
@@ -1082,14 +1082,18 @@ module m_plex_rt
             endif
           enddo
 
-          call ISCreateStride(comm, max_dof-min_dof+1, min_dof, i1, horizontal_face_dofs, ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(horizontal_face_dofs, PETSC_NULL_IS, '-horizontal_face_dofs', ierr); call CHKERR(ierr)
-          call PCFieldSplitSetIS(pc, 'Ev', horizontal_face_dofs, ierr); call CHKERR(ierr)
+          !call ISCreateStride(comm, max_dof-min_dof+1, min_dof, i1, horizontal_face_dofs, ierr); call CHKERR(ierr)
+          !call PetscObjectViewFromOptions(horizontal_face_dofs, PETSC_NULL_IS, '-fieldsplit_horizontal_face_dofs', ierr); call CHKERR(ierr)
+          !call PCFieldSplitSetIS(pc, 'Eh', horizontal_face_dofs, ierr); call CHKERR(ierr)
 
-          call PetscSectionGetOffsetRange(faceSection, min_dof, max_dof, ierr); call CHKERR(ierr)
-          call ISComplement(horizontal_face_dofs, min_dof, max_dof, vertical_face_dofs, ierr); call CHKERR(ierr)
-          call PetscObjectViewFromOptions(vertical_face_dofs, PETSC_NULL_IS, '-vertical_face_dofs', ierr); call CHKERR(ierr)
-          call PCFieldSplitSetIS(pc, 'Eh', vertical_face_dofs, ierr); call CHKERR(ierr)
+          !call PetscSectionGetOffsetRange(faceSection, min_dof, max_dof, ierr); call CHKERR(ierr)
+          !call ISComplement(horizontal_face_dofs, min_dof, max_dof, vertical_face_dofs, ierr); call CHKERR(ierr)
+          !call PetscObjectViewFromOptions(vertical_face_dofs, PETSC_NULL_IS, '-fieldsplit_vertical_face_dofs', ierr); call CHKERR(ierr)
+          !call PCFieldSplitSetIS(pc, 'Ev', vertical_face_dofs, ierr); call CHKERR(ierr)
+
+          !call PetscSectionGetOffsetRange(faceSection, min_dof, max_dof, ierr); call CHKERR(ierr)
+          !call ISCreateStride(comm, max_dof-min_dof+1, min_dof, i1, all_dofs, ierr); call CHKERR(ierr)
+          !call PCFieldSplitSetIS(pc, 'Ea', all_dofs, ierr); call CHKERR(ierr)
 
           !call DMGetStratumIS(dm, 'DomainBoundary', SIDEFACE, IS_boundary, ierr); call CHKERR(ierr)
           !call PCFieldSplitSetIS(pc, 'boundary', IS_boundary, ierr); call CHKERR(ierr)
@@ -1650,12 +1654,15 @@ module m_plex_rt
       subroutine set_boundary_conditions()
         type(tIS) :: bc_ids
         integer(iintegers), pointer :: xi(:)
-        integer(iintegers) :: i, iface, offset_Ein, offset_Eout, offset_srfc, idof, numDof
+        integer(iintegers) :: i, iface, istream, offset_Ein, offset_Eout, offset_srfc
+        integer(iintegers) :: num_fields, numDof
         type(tPetscSection) :: srfcSection
 
         real(ireals), pointer :: xalbedo(:)
         real(ireals) :: sideward_bc_coeff
         logical :: lflg
+
+        call PetscSectionGetNumFields(ediffSection, num_fields, ierr); call CHKERR(ierr)
 
         call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, bc_ids, ierr); call CHKERR(ierr)
         if (bc_ids.eq.PETSC_NULL_IS) then ! dont have surface points
@@ -1665,14 +1672,19 @@ module m_plex_rt
           call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
           do i = 1, size(xi)
             iface = xi(i)
-            ! field offset for field 0 gives Eup because field 0 is flux from lower cell id to higher cell id
-            ! in case of boundary faces: from cell_id -1 (boundary face) to some icell
-            call PetscSectionGetFieldOffset(ediffSection, iface, i0, offset_Ein, ierr); call CHKERR(ierr)
-            call PetscSectionGetFieldOffset(ediffSection, iface, i1, offset_Eout, ierr); call CHKERR(ierr)
-
             call PetscSectionGetOffset(srfcSection, iface, offset_srfc, ierr); call CHKERR(ierr)
 
-            call MatSetValuesLocal(A, i1, [offset_Ein], i1, [offset_Eout], [-xalbedo(i1+offset_srfc)], INSERT_VALUES, ierr); call CHKERR(ierr)
+            do istream = 1, num_fields
+              call PetscSectionGetFieldDof(ediffSection, iface, istream-i1, numDof, ierr); call CHKERR(ierr)
+              if(numDof.eq.i2) then
+                ! field offset for field 0 gives Eup because field 0 is flux from lower cell id to higher cell id
+                ! in case of boundary faces: from cell_id -1 (boundary face) to some icell
+                call PetscSectionGetFieldOffset(ediffSection, iface, istream-i1, offset_Ein, ierr); call CHKERR(ierr)
+                offset_Eout = offset_Ein+i1
+
+                call MatSetValuesLocal(A, i1, offset_Ein, i1, offset_Eout, -xalbedo(i1+offset_srfc), INSERT_VALUES, ierr); call CHKERR(ierr)
+              endif
+            enddo
           enddo
           call ISRestoreIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
           call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
@@ -1688,20 +1700,21 @@ module m_plex_rt
           call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
           do i = 1, size(xi)
             iface = xi(i)
-            ! field offset for field 0 gives Eup because field 0 is flux from lower cell id to higher cell id
-            ! in case of boundary faces: from cell_id -1 (boundary face) to some icell
-            call PetscSectionGetFieldOffset(ediffSection, iface, i0, offset_Ein, ierr); call CHKERR(ierr)
-            call PetscSectionGetFieldOffset(ediffSection, iface, i1, offset_Eout, ierr); call CHKERR(ierr)
-            call PetscSectionGetFieldDof(ediffSection, iface, i0, numDof, ierr); call CHKERR(ierr)
-
             call PetscSectionGetOffset(srfcSection, iface, offset_srfc, ierr); call CHKERR(ierr)
+            do istream = 1, num_fields
+              call PetscSectionGetFieldDof(ediffSection, iface, istream-i1, numDof, ierr); call CHKERR(ierr)
+              if(numDof.eq.i2) then
+                ! field offset for field 0 gives Eup because field 0 is flux from lower cell id to higher cell id
+                ! in case of boundary faces: from cell_id -1 (boundary face) to some icell
+                call PetscSectionGetFieldOffset(ediffSection, iface, istream-i1, offset_Ein, ierr); call CHKERR(ierr)
+                offset_Eout = offset_Ein+i1
 
-            do idof = 0, numDof-1
-              call MatSetValuesLocal(A, i1, offset_Ein+idof, i1, offset_Eout+idof, -sideward_bc_coeff, INSERT_VALUES, ierr); call CHKERR(ierr)
-              if(ldebug.and.offset_Ein+idof.eq.offset_Eout+idof) call CHKERR(1_mpiint, &
-                'src and dst are the same :( ... should not happen here'// &
-                ' row '//itoa(offset_Ein+idof)// &
-                ' col '//itoa(offset_Eout+idof))
+                call MatSetValuesLocal(A, i1, offset_Ein, i1, offset_Eout, -sideward_bc_coeff, INSERT_VALUES, ierr); call CHKERR(ierr)
+                if(ldebug.and.offset_Ein.eq.offset_Eout) call CHKERR(1_mpiint, &
+                  'src and dst are the same :( ... should not happen here'// &
+                  ' row '//itoa(offset_Ein)// &
+                  ' col '//itoa(offset_Eout))
+              endif
             enddo
           enddo
           call ISRestoreIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
@@ -2128,14 +2141,12 @@ module m_plex_rt
         do k = 0, ke1-2
           call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
           xediff(i1+voff) = Edn(i1+k)
-          call PetscSectionGetFieldOffset(ediff_section, iface+k, i1, voff, ierr); call CHKERR(ierr)
-          xediff(i1+voff) = Eup(i1+k)
+          xediff(i2+voff) = Eup(i1+k)
         enddo
         ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
-        call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i1, voff, ierr); call CHKERR(ierr)
-        xediff(i1+voff) = Edn(i1+k)
         call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
         xediff(i1+voff) = Eup(i1+k)
+        xediff(i2+voff) = Edn(i1+k)
       enddo
       call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
 
@@ -2448,13 +2459,11 @@ module m_plex_rt
       do k = 0, ke1-2
         call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
         redn(i1+k, i) = xediff(i1+voff)
-        call PetscSectionGetFieldOffset(ediff_section, iface+k, i1, voff, ierr); call CHKERR(ierr)
-        reup(i1+k, i) = xediff(i1+voff)
+        reup(i1+k, i) = xediff(i2+voff)
       enddo
       ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
-      call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i1, voff, ierr); call CHKERR(ierr)
-      redn(i1+k, i) = xediff(i1+voff)
       call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
+      redn(i1+k, i) = xediff(i2+voff)
       reup(i1+k, i) = xediff(i1+voff)
 
       ! Fill Absorption Vec
