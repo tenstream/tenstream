@@ -46,7 +46,6 @@ module m_data_parameters
       PetscInt :: petscint_dummy
       PetscReal :: petscreal_dummy
       real(REAL32) :: real32_dummy
-      real(REAL64) :: real64_dummy
 
       integer,parameter :: &
           default_str_len = 256,            &
