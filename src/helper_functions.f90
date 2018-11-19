@@ -34,7 +34,7 @@ module m_helper_functions
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, &
+    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean, &
     resize_arr, reverse
 
   interface rmse
@@ -67,6 +67,12 @@ module m_helper_functions
   interface meanval
     module procedure meanval_1d_r4, meanval_2d_r4, meanval_3d_r4, &
         meanval_1d_r8, meanval_2d_r8, meanval_3d_r8
+  end interface
+  interface imp_allreduce_mean
+    module procedure imp_allreduce_mean_2d, imp_allreduce_mean_3d
+  end interface
+  interface imp_allreduce_sum
+    module procedure imp_allreduce_sum_ireals, imp_allreduce_sum_i32, imp_allreduce_sum_i64
   end interface
   interface imp_bcast
     module procedure imp_bcast_real_1d, imp_bcast_real_3d, imp_bcast_real_5d, &
@@ -480,12 +486,50 @@ module m_helper_functions
       integer(mpiint) :: mpierr
       call mpi_allreduce(v,r,1_mpiint,imp_ireals, MPI_MAX,comm, mpierr); call CHKERR(mpierr)
     end subroutine
-    subroutine imp_allreduce_sum(comm,v,r)
+    subroutine imp_allreduce_sum_ireals(comm,v,r)
       integer(mpiint),intent(in) :: comm
-      integer(iintegers),intent(in) :: v
-      integer(iintegers),intent(out) :: r
+      real(ireals),intent(in) :: v
+      real(ireals),intent(out) :: r
       integer(mpiint) :: mpierr
-      call mpi_allreduce(v, r, 1_mpiint, imp_iinteger, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
+      call mpi_allreduce(v, r, 1_mpiint, imp_ireals, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
+    end subroutine
+    subroutine imp_allreduce_sum_i32(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      integer(INT32),intent(in) :: v
+      integer(INT32),intent(out) :: r
+      integer(mpiint) :: mpierr
+      call mpi_allreduce(v, r, 1_mpiint, imp_int4, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
+    end subroutine
+    subroutine imp_allreduce_sum_i64(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      integer(INT64),intent(in) :: v
+      integer(INT64),intent(out) :: r
+      integer(mpiint) :: mpierr
+      call mpi_allreduce(v, r, 1_mpiint, imp_int8, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
+    end subroutine
+    subroutine imp_allreduce_mean_2d(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      real(ireals),intent(in) :: v(:,:)
+      real(ireals),intent(out) :: r
+      integer(INT64)  :: global_size
+      real(ireals) :: my_avg
+
+      call imp_allreduce_sum(comm, size(v, kind=INT64), global_size)
+      my_avg = meanval(v) * size(v)
+      call imp_allreduce_sum(comm, my_avg, r)
+      r = r/global_size
+    end subroutine
+    subroutine imp_allreduce_mean_3d(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      real(ireals),intent(in) :: v(:,:,:)
+      real(ireals),intent(out) :: r
+      integer(INT64)  :: global_size
+      real(ireals) :: my_avg
+
+      call imp_allreduce_sum(comm, size(v, kind=INT64), global_size)
+      my_avg = meanval(v) * size(v)
+      call imp_allreduce_sum(comm, my_avg, r)
+      r = r/global_size
     end subroutine
     subroutine imp_reduce_sum(comm,v)
       real(ireals),intent(inout) :: v
