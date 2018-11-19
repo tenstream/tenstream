@@ -90,6 +90,8 @@ contains
     c_pagesize = c_sysconf(SC_PAGESIZE)
 
     allocate(header(c_pagesize/bytesize_header))
+    if(size(header).lt.3+size(shape(arr))) &
+      call CHKERR(1_mpiint, 'Pagesize of this system is so small that we cant fit mmap header in first page element')
     header(:) = 0
     header(1) = dtype_size
     header(2) = size_of_inp_arr
@@ -101,6 +103,8 @@ contains
     ierr = 0
     inquire(file=trim(fname), exist=lexists)
     if(lexists) then
+      call release_file_lock(flock_unit, ierr); call CHKERR(ierr)
+      return
       open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='replace')
     else
       open(newunit=funit, file=trim(fname), form='unformatted', access='stream', status='new')
@@ -183,17 +187,15 @@ contains
 
     character(len=len_trim(fname)+2) :: fname_fpsuffix
     integer(iintegers), allocatable :: arrshape(:)
-    type(c_ptr) :: mmap_c_ptr
     integer(mpiint) :: myid
     integer(c_size_t), parameter :: dtype_size=c_sizeof(1._irealLUT) ! size of the supplied irealLUT type
-    integer(c_size_t) :: size_of_inp_arr, dtype_size_mmap_data, bytesize
+    integer(c_size_t) :: size_of_inp_arr, bytesize
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     fname_fpsuffix = trim(fname)//itoa(irealLUT)
 
-    if(myid.eq.0) then
-      if(.not.present(inp_arr)) call CHKERR(1_mpiint, 'rank 0 has to provide an input array!')
+    if(myid.eq.0.and.present(inp_arr)) then
       call arr_to_binary_datafile(inp_arr, fname_fpsuffix, ierr)
       if(ierr.ne.0) print *,'arr_to_mmap::binary file already exists, I did not overwrite it... YOU have to make sure that the file is as expected or delete it...'
       size_of_inp_arr = size(inp_arr, kind=c_size_t)
@@ -208,21 +210,7 @@ contains
     endif
     call mpi_barrier(comm, ierr)
 
-    call imp_bcast(comm, arrshape, 0_mpiint)
-    call imp_bcast(comm, bytesize, 0_mpiint)
-
-    if(bytesize.le.0_c_size_t) then
-      if(myid.eq.0) print *,'huge(c_size_t)', huge(size_of_inp_arr), 'shape inp_arr', shape(inp_arr)
-      call mpi_barrier(comm, ierr)
-      call CHKERR(1_mpiint, 'bytesize of mmap is wrong!'//itoa(int(bytesize,iintegers)))
-    endif
-
-    call binary_file_to_mmap(fname_fpsuffix, mmap_c_ptr, dtype_size_mmap_data)
-    if(dtype_size.ne.dtype_size_mmap_data) &
-      call CHKERR(1_mpiint, 'size type of binary data '//itoa(dtype_size)// &
-        ' does not match inp_arr_dtype '//itoa(dtype_size_mmap_data))
-
-    call c_f_pointer(mmap_c_ptr, mmap_ptr, arrshape)
+    call load_mmap_array_2d(fname_fpsuffix, mmap_ptr)
   end subroutine
 
   subroutine munmap_mmap_ptr(mmap_ptr, ierr)

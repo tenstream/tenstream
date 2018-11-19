@@ -19,7 +19,7 @@
 
 module m_tenstream_interpolation
   use iso_fortran_env, only: REAL32, REAL64
-  use m_data_parameters, only: iintegers, irealLUT, mpiint, zero,one, i1
+  use m_data_parameters, only: iintegers, irealLUT, mpiint, i1
   use m_helper_functions, only: approx, CHKERR, itoa, ftoa, &
     triangle_area_by_vertices, ind_nd_to_1d, ind_1d_to_nd, pnt_in_triangle
   implicit none
@@ -59,6 +59,7 @@ module m_tenstream_interpolation
   logical, parameter :: ldebug=.True.
 
   real(irealLUT), parameter :: interpolation_lattice_snapping=max(1e-6_irealLUT, epsilon(interpolation_lattice_snapping))
+  real(irealLUT), parameter :: zero=0, one=1
 
   interface interp_1d
     module procedure interp_1d_r32, interp_1d_r64

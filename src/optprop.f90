@@ -259,12 +259,11 @@ contains
 
             if(ldir) then
               ! set the transport coeffs for src top to zero, leave the rest.
-              C(21) = c33 ! from top to bot
-              C(22:24) = one ! from sides to bot
-              !C(5) = c33  ! from bot to top
+              C(21) = real(c33, irealLUT) ! from top to bot
+              C(22:24) = 1 ! from sides to bot
             else
-              C(1) = c13
-              C(7*5+1) = c23
+              C(1) = real(c13, irealLUT)
+              C(7*5+1) = real(c23, irealLUT)
             endif
 
             handle_aspect_zx_1D_case = .True.
@@ -291,10 +290,10 @@ contains
               real(g, ireals), &
               one, &
               c11,c12,c13,c23,c33,g1,g2)
-            C(1) = c12
-            C(8) = c11
-            C(7*8+1) = c11
-            C(8*8) = c12
+            C(1)     = real(c12, irealLUT)
+            C(8)     = real(c11, irealLUT)
+            C(7*8+1) = real(c11, irealLUT)
+            C(8*8)   = real(c12, irealLUT)
 
             handle_aspect_zx_1D_case = .True.
 
@@ -419,7 +418,7 @@ contains
             if(dir) then !dir2dir
               C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams) = real(T_dir, irealLUT)
             else ! dir2diff
-              C(isrc:OPP%OPP_LUT%dir_streams*OPP%OPP_LUT%diff_streams:OPP%OPP_LUT%dir_streams) = S_diff
+              C(isrc:OPP%OPP_LUT%dir_streams*OPP%OPP_LUT%diff_streams:OPP%OPP_LUT%dir_streams) = real(S_diff, irealLUT)
             endif
           enddo
       else
@@ -435,7 +434,7 @@ contains
               mpi_comm_self, &
               S_diff, T_dir, S_tol, T_tol, &
               inp_atol=atol, inp_rtol=rtol)
-          C(isrc:OPP%OPP_LUT%diff_streams**2:OPP%OPP_LUT%diff_streams) = S_diff
+          C(isrc:OPP%OPP_LUT%diff_streams**2:OPP%OPP_LUT%diff_streams) = real(S_diff, irealLUT)
         enddo
       endif ! angles_present
 

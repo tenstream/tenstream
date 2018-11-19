@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_optprop_parameters
-      use m_data_parameters,only : ireals, iintegers, default_str_len
+      use m_data_parameters,only : ireals, irealLUT, iintegers, default_str_len
       implicit none
 
       !> \page optprop_parameters Parameters concerning the transport coefficients
@@ -67,25 +67,25 @@ module m_optprop_parameters
       ! We pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values
       !     -- see python script: ''eddington_to_LUT.py''
 
-      real(ireals), parameter :: preset_aspect13(13) = [0.02, 0.042, 0.075, 0.133, 0.237, 0.422, 0.75, 1., 1.25, &
+      real(irealLUT), parameter :: preset_aspect13(13) = [0.02, 0.042, 0.075, 0.133, 0.237, 0.422, 0.75, 1., 1.25, &
                                                         1.953, 3.052, 4.768, 7.451]
-      real(ireals), parameter :: preset_aspect23(23) = [0.02, 0.032, 0.042, 0.056, 0.075, 0.1, 0.133, 0.178, 0.237, &
+      real(irealLUT), parameter :: preset_aspect23(23) = [0.02, 0.032, 0.042, 0.056, 0.075, 0.1, 0.133, 0.178, 0.237, &
                                                         0.316, 0.422, 0.562, 0.75, 1., 1.25, 1.562, 1.953, 2.441,   &
                                                         3.052, 3.815, 4.768, 5.96, 7.451]
 
-      real(ireals), parameter :: preset_tau15(15) = [1e-10,9.60528972228e-06,0.00023849409901,0.00166198651975,   &
+      real(irealLUT), parameter :: preset_tau15(15) = [1e-10,9.60528972228e-06,0.00023849409901,0.00166198651975,   &
                                                      0.00673267911551,0.0202911873538,0.051171357661,0.116239684, &
                                                      0.258968664233,0.568687940597,1.2527762873,2.64735111809,    &
                                                      5.53090672088,14.5233716971,100.0]
 
-      real(ireals), parameter :: preset_tau20(20) = [1e-10,2.33773213401e-06,5.40185638224e-05,0.000365962943669, &
+      real(irealLUT), parameter :: preset_tau20(20) = [1e-10,2.33773213401e-06,5.40185638224e-05,0.000365962943669, &
                                                      0.00145415861897,0.00431514105527,0.0105306225135,           &
                                                      0.0225104907999,0.044534085216,0.0835690735283,              &
                                                      0.152160041198,0.271322429414,0.492503225042,                &
                                                      0.91860742252,1.60959133986,2.79337830498,4.89077663742,     &
                                                      9.35922562367,21.643468069,100.0]
 
-      real(ireals), parameter :: preset_tau31(31) = [1e-10,3.62266272998e-07,7.04565803675e-06,4.47545500233e-05, &
+      real(irealLUT), parameter :: preset_tau31(31) = [1e-10,3.62266272998e-07,7.04565803675e-06,4.47545500233e-05, &
                                                      0.000172126759821,0.000495994753047,0.00119161313679,        &
                                                      0.00251026980343,0.00480799264297,0.00856221891924,          &
                                                      0.0143961482731,0.0231530284254,0.0358868239775,             &
@@ -95,17 +95,17 @@ module m_optprop_parameters
                                                      4.27145477454,6.16953841432,9.43719309835,15.7335501106,     &
                                                      29.5819342206,100.0]
 
-      real(ireals), parameter :: preset_w010(10) = [0.0,0.146844960107,0.299864348265,0.441659869071,0.571826424536, &
+      real(irealLUT), parameter :: preset_w010(10) = [0.0,0.146844960107,0.299864348265,0.441659869071,0.571826424536, &
                                                     0.689506880372,0.793582370219,0.882074852633,0.94968540101,0.99999]
-      real(ireals), parameter :: preset_w020(20) = [0.0,0.152960717624,0.295085090042,0.416951893959,0.521358613652, &
+      real(irealLUT), parameter :: preset_w020(20) = [0.0,0.152960717624,0.295085090042,0.416951893959,0.521358613652, &
                                                     0.610087211908,0.684967634054,0.747886390181,0.800286677013,     &
                                                     0.84336972609,0.878674797098,0.906377786525,0.928097831502,      &
                                                     0.943463164595,0.954135786554,0.963824066888,0.972632134967,     &
                                                     0.981529289348,0.990759644674,0.99999]
 
 
-      real(ireals), parameter :: preset_g2(2) = [0.0,0.5]
-      real(ireals), parameter :: preset_g3(3) = [0.0,0.267018506789,0.5]
+      real(irealLUT), parameter :: preset_g2(2) = [0.0,0.5]
+      real(irealLUT), parameter :: preset_g3(3) = [0.0,0.267018506789,0.5]
 
       !-----------------------------------------
       !- Define precision of coefficients      -
@@ -133,10 +133,10 @@ module m_optprop_parameters
 
       ! Treat direct2diffuse radiation in a cone around solar angle as direct
       ! radiation.
-!      real(ireals),parameter :: delta_scale_truncate=.9848_ireals ! .9848 = 10 degrees delta scaling
-!      real(ireals),parameter :: delta_scale_truncate=.9962_ireals ! .9962 = 5 degrees delta scaling
-      real(ireals),parameter :: delta_scale_truncate=1.0_ireals   !1.     = 0 degrees delta scaling
-!      real(ireals),parameter :: delta_scale_truncate=.8660_ireals ! .8660 = 30 degrees delta scaling
+!      real(irealLUT),parameter :: delta_scale_truncate=.9848_irealLUT ! .9848 = 10 degrees delta scaling
+!      real(irealLUT),parameter :: delta_scale_truncate=.9962_irealLUT ! .9962 = 5 degrees delta scaling
+      real(irealLUT),parameter :: delta_scale_truncate=1.0_irealLUT   !1.     = 0 degrees delta scaling
+!      real(irealLUT),parameter :: delta_scale_truncate=.8660_irealLUT ! .8660 = 30 degrees delta scaling
 
 
       ! Used to signal that all Angles possible should be loaded when initializing the LUT object -- pass this as azi and zenith
@@ -144,8 +144,8 @@ module m_optprop_parameters
 
       ! spherical correction for wedge computations,
       ! this is tuned towards earth radius and average dx = 100m sized elements
-      real(ireals), parameter :: wedge_sphere_radius = -1._ireals ! 6378e3_ireals
+      real(irealLUT), parameter :: wedge_sphere_radius = -1._irealLUT ! 6378e3_irealLUT
 
-      real(ireals), parameter :: LUT_dump_interval=3600
-      real(ireals), parameter :: LUT_max_create_jobtime=3600*6 ! after 6hrs, cancel the createLUT jobs in any case
+      real(irealLUT), parameter :: LUT_dump_interval=3600
+      real(irealLUT), parameter :: LUT_max_create_jobtime=3600*6 ! after 6hrs, cancel the createLUT jobs in any case
 end module

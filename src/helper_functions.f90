@@ -347,7 +347,7 @@ module m_helper_functions
     elemental function deg2rad_r32(deg) result(r)
       real(REAL32) :: r
       real(REAL32),intent(in) :: deg
-      r = deg * pi / 180
+      r = deg * real(pi, REAL32) / 180
     end function
     elemental function deg2rad_r64(deg) result(r)
       real(REAL64) :: r
@@ -357,7 +357,7 @@ module m_helper_functions
     elemental function rad2deg_r32(rad) result(r)
       real(REAL32) :: r
       real(REAL32),intent(in) :: rad
-      r = rad / pi * 180
+      r = rad / real(pi, REAL32) * 180
     end function
     elemental function rad2deg_r64(rad) result(r)
       real(REAL64) :: r
@@ -1227,9 +1227,9 @@ module m_helper_functions
         ! Then check for sides
         a = ((p2(2)- p3(2))*(p(1) - p3(1)) + (p3(1) - p2(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
         b = ((p3(2) - p1(2))*(p(1) - p3(1)) + (p1(1) - p3(1))*(p(2) - p3(2))) / ((p2(2) - p3(2))*(p1(1) - p3(1)) + (p3(1) - p2(1))*(p1(2) - p3(2)))
-        c = one - (a + b)
+        c = 1._REAL32 - (a + b)
 
-        pnt_in_triangle = all([a,b,c].ge.zero)
+        pnt_in_triangle = all([a,b,c].ge.0._REAL32)
         if(ldebug) print *,'pnt_in_triangle::1st check:', a, b, c, '::', pnt_in_triangle
       endif
 

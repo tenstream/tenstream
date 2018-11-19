@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_optprop_ANN
-  USE m_data_parameters, ONLY : ireals, irealLUT, iintegers, zero,one,i1, mpiint, default_str_len
+  USE m_data_parameters, ONLY : ireals, irealLUT, iintegers, i1, mpiint, default_str_len
   use m_optprop_parameters, only: ldebug_optprop, lut_basename, &
     preset_tau31, preset_w010, preset_g3, &
     ldelta_scale, delta_scale_truncate
@@ -47,7 +47,7 @@ module m_optprop_ANN
 
   type(ANN),allocatable,save :: diff2diff_network, dir2dir_network, dir2diff_network
 
-  real(ireals),parameter :: min_lim_coeff = 0.0001
+  real(irealLUT),parameter :: min_lim_coeff = 0.0001, zero=0, one=1
 ! logical,parameter :: lrenormalize=.True.
   logical,parameter :: lrenormalize=.False.
 
@@ -339,7 +339,7 @@ contains
       input = inp-one
 
       if(all(approx(real(net%lastcall, irealLUT),inp) )) then
-        coeffs = net%lastresult
+        coeffs = real(net%lastresult, irealLUT)
         return
       endif
 
@@ -348,9 +348,9 @@ contains
       !        input(   7 ) = input(   7 ) *100._ireals
 
       ! Concerning the lower limits for optprops, just take the ANN limits. Theres not happening much anyway.
-      input(2) = max(net%inlimits(2,1),input(2))
-      input(3) = max(net%inlimits(3,1),input(3))
-      input(4) = max(net%inlimits(4,1),input(4))
+      input(2) = max(real(net%inlimits(2,1), irealLUT),input(2))
+      input(3) = max(real(net%inlimits(3,1), irealLUT),input(3))
+      input(4) = max(real(net%inlimits(4,1), irealLUT),input(4))
 
 !      if(net%in_size.ge.5) then ! we should not fudge solar angles... this might confuse users...
 !        input(5) = max(net%inlimits(5,1),input(5))
@@ -427,7 +427,7 @@ contains
 
       ! Denormalize output
       do k=1,ubound(net%outno,1)
-        coeffs(k) = net%deo(k,1) * net%units(net%outno(k)) + net%deo(k,2)
+        coeffs(k) = real(net%deo(k,1) * net%units(net%outno(k)) + net%deo(k,2), irealLUT)
       enddo
 
       net%lastcall = input

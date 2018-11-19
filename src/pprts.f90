@@ -3177,11 +3177,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     real(irealLUT) :: aspect_zx, tauz, w0, CC(size(coeff))
     integer(mpiint) :: ierr
 
-    aspect_zx = dz / solver%atm%dx
+    aspect_zx = real(dz / solver%atm%dx, irealLUT)
     tauz = max(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(1), &
-      min(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), (kabs+ksca) * dz))
+      min(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), real((kabs+ksca) * dz, irealLUT)))
     w0 = max(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(1), &
-      min(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), ksca / (kabs+ksca)))
+      min(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), real(ksca / (kabs+ksca), irealLUT)))
 
     if(lone_dimensional) then
       call CHKERR(1_mpiint, 'currently, we dont support using LUT Twostream for l1d layers')

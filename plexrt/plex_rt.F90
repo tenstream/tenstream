@@ -1748,22 +1748,22 @@ module m_plex_rt
     real(ireals) :: Rdither
 
 
-    dx = wedge_coords(3)
+    dx = real(wedge_coords(3), irealLUT)
 
     dkabs = kabs
     dksca = ksca
     dg    = g
     call delta_scale( dkabs, dksca, dg, opt_f=dg)
 
-    aspect = dz / dx
-    tauz = (dkabs+dksca) * dz
+    aspect = real(dz / dx, irealLUT)
+    tauz = real((dkabs+dksca) * dz, irealLUT)
     if(approx(tauz,0._irealLUT)) then
       w0 = 0
     else
-      w0 = dksca / (dkabs+dksca)
+      w0 = real(dksca / (dkabs+dksca), irealLUT)
     endif
 
-    relcoords = wedge_coords / dx
+    relcoords = real(wedge_coords / dx, irealLUT)
 
     if(present(angles)) then
       tauz = max(OPP%OPP_LUT%dirconfig%dims(1)%vrange(1), &
@@ -1779,8 +1779,8 @@ module m_plex_rt
 
     if(dither.gt.zero) then
       call random_number(Rdither)
-      relcoords(5) = relcoords(5) * (one+(dither*(-one+2*Rdither)))
-      relcoords(6) = relcoords(6) * (one+(dither*(-one+2*Rdither)))
+      relcoords(5) = relcoords(5) * real((one+(dither*(-one+2*Rdither))), irealLUT)
+      relcoords(6) = relcoords(6) * real((one+(dither*(-one+2*Rdither))), irealLUT)
     endif
 
     relcoords(5) = max(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(1), &
