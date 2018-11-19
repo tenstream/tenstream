@@ -29,7 +29,7 @@ module m_pprts
 
   use m_helper_functions, only : CHKERR, deg2rad, rad2deg, norm, imp_allreduce_min, &
     imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
-    inc, itoa
+    inc, itoa, imp_allreduce_mean
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
@@ -498,33 +498,42 @@ module m_pprts
     type(t_coord), intent(in) :: C_one
     real(ireals), optional, intent(in) :: phi2d(:,:), theta2d(:,:)
 
+    real(ireals) :: avgphi
+    logical :: use_avg_phi, lflg
+    integer(mpiint) :: ierr
     integer(iintegers) :: k
 
     if(.not.allocated(sun%angles)) &
         allocate(sun%angles(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
 
     if(lforce_phi) then
-        sun%angles(:,:,:)%phi = options_phi
+      sun%angles(:,:,:)%phi = options_phi
     else
-        if(present(phi2d)) then
-            do k = C_one%zs, C_one%ze
-                sun%angles(k,:,:)%phi = phi2d
-            enddo
-        else
-            sun%angles(:,:,:)%phi   = phi0
-        endif
+      if(present(phi2d)) then
+        do k = C_one%zs, C_one%ze
+          sun%angles(k,:,:)%phi = phi2d
+        enddo
+      else
+        sun%angles(:,:,:)%phi   = phi0
+      endif
+      use_avg_phi=.False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-use_avg_phi", use_avg_phi, lflg , ierr) ;call CHKERR(ierr)
+      if(use_avg_phi) then
+        call imp_allreduce_mean(solver%comm, sun%angles%phi, avgphi)
+        sun%angles%phi = avgphi
+      endif
     endif
 
     if(lforce_theta) then
       sun%angles(:,:,:)%theta = options_theta
     else
-        if(present(theta2d)) then
-            do k = C_one%zs, C_one%ze
-                sun%angles(k,:,:)%theta = theta2d
-            enddo
-        else
-            sun%angles(:,:,:)%theta = theta0
-        endif
+      if(present(theta2d)) then
+        do k = C_one%zs, C_one%ze
+          sun%angles(k,:,:)%theta = theta2d
+        enddo
+      else
+        sun%angles(:,:,:)%theta = theta0
+      endif
     endif
 
     if(sun%luse_topography) then
