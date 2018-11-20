@@ -30,12 +30,13 @@ contains
     logical :: lexists
 
     integer(c_size_t), allocatable :: header(:)
-    integer(c_size_t), parameter :: bytesize_header=c_sizeof(bytesize_header)
+    integer(c_size_t) :: bytesize_header
     integer(c_long) :: c_pagesize
 
-    integer(c_size_t) :: size_of_inp_arr, bytesize
-    integer(c_size_t), parameter :: dtype_size=c_sizeof(arr(1,1))
+    integer(c_size_t) :: size_of_inp_arr, bytesize, dtype_size
 
+    dtype_size=c_sizeof(arr(1,1))
+    bytesize_header = c_sizeof(bytesize_header)
     size_of_inp_arr = size(arr, kind=c_size_t)
     bytesize = dtype_size * size_of_inp_arr
 
@@ -81,8 +82,9 @@ contains
     integer(c_size_t) :: bytesize_data
     integer(c_long) :: c_pagesize
     integer(c_size_t), allocatable :: header(:)
-    integer(c_size_t), parameter :: bytesize_header=c_sizeof(bytesize_header)
+    integer(c_size_t) :: bytesize_header
 
+    bytesize_header = c_sizeof(bytesize_header)
     c_pagesize = c_sysconf(SC_PAGESIZE)
     offset = c_pagesize
 
@@ -140,9 +142,10 @@ contains
     character(len=len_trim(fname)+2) :: fname_fpsuffix
     integer(iintegers), allocatable :: arrshape(:)
     integer(mpiint) :: myid
-    integer(c_size_t), parameter :: dtype_size=c_sizeof(1._irealLUT) ! size of the supplied irealLUT type
+    integer(c_size_t) :: dtype_size ! size of the supplied irealLUT type
     integer(c_size_t) :: size_of_inp_arr, bytesize
 
+    dtype_size = c_sizeof(1._irealLUT)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     fname_fpsuffix = trim(fname)//itoa(irealLUT)
