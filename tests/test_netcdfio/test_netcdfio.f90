@@ -4,6 +4,7 @@ module test_netcdfio
     use m_helper_functions, only: CHKERR, itoa
 
     use m_netcdfIO, only: ncwrite, ncload, acquire_file_lock, release_file_lock
+    use m_c_syscall_wrappers, only: acquire_flock_lock, release_flock_lock
 
     use pfunit_mod
 
@@ -12,6 +13,35 @@ module test_netcdfio
   character(len=*), parameter :: fname='pfunit_test.nc'
 
   contains
+
+@test(npes =[2])
+subroutine test_c_lockf(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: numnodes, comm, myid, ierr
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    if(myid.eq.0) then
+      call acquire_flock_lock(fname, ierr)
+      @assertEqual(0,ierr)
+      call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 1
+      call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 2
+      call release_flock_lock(fname, ierr)
+      call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 3
+    else
+      call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 1
+      call acquire_flock_lock(fname, ierr)
+      @assertEqual(0,ierr)
+      call release_flock_lock(fname, ierr)
+      @assertEqual(0,ierr)
+      call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 2
+      call mpi_barrier(comm, ierr); call CHKERR(ierr) ! 3
+    endif
+    call release_flock_lock(fname, ierr)
+    @assertEqual(0,ierr)
+end subroutine
 
 @test(npes =[2])
 subroutine test_file_locks(this)

@@ -7,10 +7,13 @@ include_directories(${INCLUDE_DIRS})
 SET_SOURCE_FILES_PROPERTIES(ranlux.for PROPERTIES COMPILE_FLAGS -Wno-error)
 SET_SOURCE_FILES_PROPERTIES(pprts.f90 PROPERTIES COMPILE_FLAGS -Wno-unused-function)
 SET_SOURCE_FILES_PROPERTIES(tenstream.f90 PROPERTIES COMPILE_FLAGS -Wno-error)
+SET_SOURCE_FILES_PROPERTIES(c_syscall_constants.c PROPERTIES COMPILE_FLAGS "-D_BSD_SOURCE")
 
 set( general_sources
   "helper_functions.f90"
   "helper_functions_dp.f90"
+  "c_syscall_wrappers.f90"
+  "c_syscall_constants.c"
   "netcdfio.f90"
   "data_parameters.f90"
   "eddington.f90"

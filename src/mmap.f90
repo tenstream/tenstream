@@ -6,59 +6,11 @@ module m_mmap
   use m_helper_functions, only : CHKERR, imp_bcast, itoa, resize_arr
   use m_netcdfIO, only: acquire_file_lock, release_file_lock
 
+  use m_c_syscall_wrappers, only: c_sysconf, c_mmap, c_munmap, &
+    c_open, c_close, c_lockf, &
+    MAP_NORESERVE, MAP_PRIVATE, PROT_READ, SC_PAGESIZE, O_RDONLY
+
   implicit none
-  !Posix Standard Definition for sysconf
-  integer, parameter :: &
-    SC_PAGESIZE = 30
-
-  ! Definitions from mman-linux.h
-  integer, parameter :: &
-    PROT_READWRITE = 3, &
-    PROT_READ = 1,      &
-    MAP_SHARED = 1,     &
-    MAP_PRIVATE = 2,    &
-    MAP_NORESERVE = 16384, & ! X'04000'
-    O_RDONLY = 0
-
-interface
-  type(c_ptr) function c_mmap(addr, length, prot, &
-      flags, filedes, off) result(result) bind(c, name='mmap')
-    use iso_c_binding
-    integer(c_int), value :: addr
-    integer(c_size_t), value :: length
-    integer(c_int), value :: prot
-    integer(c_int), value :: flags
-    integer(c_int), value :: filedes
-    integer(c_size_t), value :: off
-  end function
-end interface
-interface
-  integer(c_int) function c_munmap(addr, length) bind(c,name='munmap')
-    use iso_c_binding
-    type(c_ptr), value :: addr
-    integer(c_size_t), value :: length
-  end function
-end interface
-interface
-  integer(c_int) function c_open(pathname, flags) bind(c,name='open')
-    use iso_c_binding
-    character(kind=c_char, len=1) :: pathname(*)
-    integer(c_int), value :: flags
-  end function
-end interface
-interface
-  integer(c_int) function c_close(fd) bind(c,name='close')
-    use iso_c_binding
-    integer(c_int), value :: fd
-  end function
-end interface
-interface
-  integer(c_long) function c_sysconf(name) bind(c,name='sysconf')
-    use iso_c_binding
-    integer(c_int), value :: name
-  end function
-end interface
-
 
 interface load_mmap_array
   module procedure load_mmap_array_2d
