@@ -266,9 +266,9 @@ module m_pprts
       !sideward fluxes in 1d boxes
       do j=solver%C_one_atm%ys,solver%C_one_atm%ye
         do i=solver%C_one_atm%xs,solver%C_one_atm%xe
-          solver%atm%l1d(solver%C_one_atm%ze,i,j) = twostr_ratio*solver%atm%dz(solver%C_one_atm%ze,i,j).gt.solver%atm%dx
+          solver%atm%l1d(solver%C_one_atm%ze,i,j) = (solver%atm%dz(solver%C_one_atm%ze,i,j) / solver%atm%dx) .gt. twostr_ratio
           do k=solver%C_one_atm%ze-1,solver%C_one_atm%zs,-1
-            solver%atm%l1d(k,i,j) = twostr_ratio*solver%atm%dz(k,i,j).gt.solver%atm%dx
+            solver%atm%l1d(k,i,j) = (solver%atm%dz(k,i,j) / solver%atm%dx) .gt. twostr_ratio
           enddo
         enddo
       enddo

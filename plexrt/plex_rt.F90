@@ -302,18 +302,33 @@ module m_plex_rt
 
       integer(iintegers) :: icell, bs, N, idx_offset
       integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:), idx(:)
-      integer(mpiint) :: comm, ierr
+      integer(mpiint) :: comm, myid, ierr
+
+      integer(iintegers),pointer :: faces_of_cell(:)
+      type(tPetscSection) :: ediffSection
+      integer(iintegers) :: ndof, num_dof, max_num_dof, iface
 
       if(allocated(IS_diff_in_out_dof)) call CHKERR(1_mpiint, 'IS_diff_in_out_dof already allocated')
       if(.not.allocated(ediffdm)) call CHKERR(1_mpiint, 'ediffdm has to be allocated')
       if(.not.allocated(plex)) call CHKERR(1_mpiint, 'plex has to be allocated')
 
       call PetscObjectGetComm(ediffdm, comm, ierr); call CHKERR(ierr)
+      call DMGetSection(ediffdm, ediffSection, ierr); call CHKERR(ierr)
 
-      ! Get it for the first cell to determine number of dof
-      call determine_diff_incoming_outgoing_offsets(plex, ediffdm, plex%cStart, incoming_offsets, outgoing_offsets)
+      ! Compute maximum number of dof per cell
+      max_num_dof = 0
+      do icell = plex%cStart, plex%cEnd-1
+        call DMPlexGetCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+        num_dof = 0
+        do iface = 1, size(faces_of_cell)
+          call PetscSectionGetDof(ediffSection, faces_of_cell(iface), ndof, ierr); call CHKERR(ierr)
+          num_dof = num_dof + ndof
+        enddo
+        call DMPlexRestoreCone(ediffdm, icell, faces_of_cell,ierr); call CHKERR(ierr)
+        max_num_dof = max(max_num_dof, num_dof)
+      enddo
+      bs = max_num_dof
 
-      bs = size(incoming_offsets) + size(outgoing_offsets)
       N = (plex%cEnd - plex%cStart) * bs +1 ! plus one for the blocksize, we will write that to the end of the IS
       allocate(idx(N))
 
@@ -322,13 +337,23 @@ module m_plex_rt
       do icell = plex%cStart, plex%cEnd-1
         call determine_diff_incoming_outgoing_offsets(plex, ediffdm, icell, incoming_offsets, outgoing_offsets)
         idx_offset = icell*bs
-        idx(i1+idx_offset:idx_offset+bs/2) = incoming_offsets
-        idx(i1+idx_offset+bs/2:idx_offset+bs) = outgoing_offsets
+        do ndof = 1, size(incoming_offsets)
+          idx(idx_offset+ndof)      = incoming_offsets(ndof)
+          idx(idx_offset+bs/2+ndof) = outgoing_offsets(ndof)
+        enddo
+        idx(idx_offset+ndof     :idx_offset+bs/2) = -i1
+        idx(idx_offset+bs/2+ndof:idx_offset+bs  ) = -i1
+        !print *,bs, 'icell', icell, 'incoming', incoming_offsets, 'out', outgoing_offsets, &
+        !            'idx_offset',idx(i1+idx_offset:idx_offset+bs)
       enddo
 
       allocate(IS_diff_in_out_dof)
       call ISCreateGeneral(comm, N, idx, PETSC_COPY_VALUES, IS_diff_in_out_dof, ierr); call CHKERR(ierr)
       deallocate(idx)
+      if(ldebug) then
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+        if(myid.eq.0) print *,'IS_diff_in_out_dof blocksize = '//itoa(bs)
+      endif
     end subroutine
 
     subroutine run_plex_rt_solver(solver, lthermal, lsolar, sundir, opt_solution_uid, opt_solution_time)
@@ -363,8 +388,8 @@ module m_plex_rt
       call PetscLogStagePush(solver%logs%stage_solve, ierr); call CHKERR(ierr)
 
       if(.not.allocated(solver%plex%geom_dm))  call compute_face_geometry(solver%plex, solver%plex%geom_dm)
-      if(.not.allocated(solver%plex%edir_dm))  call setup_edir_dmplex(solver%plex%dm, solver%plex%edir_dm)
-      if(.not.allocated(solver%plex%ediff_dm)) call setup_ediff_dmplex(solver%plex%dm, solver%plex%ediff_dm)
+      if(.not.allocated(solver%plex%edir_dm))  call setup_edir_dmplex(solver%plex, solver%plex%dm, solver%plex%edir_dm)
+      if(.not.allocated(solver%plex%ediff_dm)) call setup_ediff_dmplex(solver%plex, solver%plex%dm, solver%plex%ediff_dm)
       if(.not.allocated(solver%plex%abso_dm))  call setup_abso_dmplex(solver%plex%dm, solver%plex%abso_dm)
 
       if(.not.allocated(solver%IS_diff_in_out_dof)) &
@@ -680,7 +705,7 @@ module m_plex_rt
           integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
 
           integer(iintegers), pointer :: faces_of_cell(:)
-          integer(iintegers) :: i, icell, iface, isrc, idst
+          integer(iintegers) :: i, icell, iface, isrc, idst, numDof
 
           integer(iintegers) :: face_plex2bmc(5), wedge_offset, geom_offset, diff_plex2bmc(8)
           real(ireals), pointer :: xedir(:)
@@ -749,17 +774,22 @@ module m_plex_rt
             do i = 1, size(faces_of_cell)
               iface = faces_of_cell(i)
               !print *,'icell '//itoa(icell)//' i '//itoa(i)//' face ',iface, ':plex2bmc', face_plex2bmc
+              call PetscSectionGetFieldDof(edirSection, iface, i0, numDof, ierr); call CHKERR(ierr)
+              if(numDof.eq.i0) cycle ! dont have dofs on this incoming face
 
               if(lsrc(i)) then
                 dir2diff = coeff(face_plex2bmc(i):size(coeff):i5) ! dir2diff in src ordering
-                !print *,'isrc',i,'dir2diff ', dir2diff
                 call PetscSectionGetOffset(edirSection, iface, isrc, ierr); call CHKERR(ierr)
 
-                do idst = 1, size(dir2diff)
+                do idst = 1, size(outgoing_offsets)
+                  if(dir2diff(diff_plex2bmc(idst)).gt.zero) then
+                    if(outgoing_offsets(idst).lt.0) cycle
+
                     !print *,'Setting diffsrc for dst', outgoing_offsets(idst),'= src, edir', isrc, xedir(i1+isrc),&
                     !  '* idst, p2bmc coeff', idst, diff_plex2bmc(idst), dir2diff(diff_plex2bmc(idst))
                     xb(i1+outgoing_offsets(idst)) = xb(i1+outgoing_offsets(idst)) + &
                       xedir(i1+isrc) * dir2diff(diff_plex2bmc(idst))
+                  endif
                 enddo
               endif
             enddo ! enddo iface
@@ -1241,6 +1271,7 @@ module m_plex_rt
 
     real(ireals) :: dir2dir(5)
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
+    integer(iintegers) :: numSrc, numDst
 
     real(ireals) :: dz, coeff(5**2) ! coefficients for each src=[1..5] and dst[1..5]
 
@@ -1272,6 +1303,7 @@ module m_plex_rt
     if(.not.allocated(A)) then
       allocate(A)
       call DMCreateMatrix(plex%edir_dm, A, ierr); call CHKERR(ierr)
+      call MatSetBlockSize(A,i1,ierr); call CHKERR(ierr)
       !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
     endif
 
@@ -1327,12 +1359,19 @@ module m_plex_rt
           ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
           dir2dir = coeff(face_plex2bmc(iface):size(coeff):i5)
 
+          call PetscSectionGetDof(sec, faces_of_cell(iface), numSrc, ierr); call CHKERR(ierr)
+          if(numSrc.eq.i0) cycle
+          if(ldebug.and.numSrc.gt.i1) call CHKERR(1_mpiint, 'direct dof more than 1 is not implemented')
           call PetscSectionGetOffset(sec, faces_of_cell(iface), icol, ierr); call CHKERR(ierr)
 
           do idst = 1, size(faces_of_cell)
             if(.not.lsrc(idst)) then
               coeffs(1) = -dir2dir(face_plex2bmc(idst))
               if(coeffs(1).lt.zero) then
+
+                call PetscSectionGetDof(sec, faces_of_cell(idst), numDst, ierr); call CHKERR(ierr)
+                if(numDst.eq.i0) cycle
+
                 call PetscSectionGetOffset(sec, faces_of_cell(idst), irow, ierr); call CHKERR(ierr)
                 !print *,'isrc', face_plex2bmc(iface), 'idst', face_plex2bmc(idst), &
                 !  'if', iface, 'id', idst, &
@@ -1356,8 +1395,11 @@ module m_plex_rt
     ! Set Diagonal Entries
     call DMPlexGetDepthStratum(plex%edir_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
     do iface = fStart, fEnd-1
-      call PetscSectionGetOffset(sec, iface, irow, ierr); call CHKERR(ierr)
-      call MatSetValuesLocal(A, i1, irow, i1, irow, [one], INSERT_VALUES, ierr); call CHKERR(ierr)
+      call PetscSectionGetDof(sec, iface, numDst, ierr); call CHKERR(ierr)
+      do idst = 0, numDst-1
+        call PetscSectionGetOffset(sec, iface+idst, irow, ierr); call CHKERR(ierr)
+        call MatSetValuesLocal(A, i1, irow, i1, irow, [one], INSERT_VALUES, ierr); call CHKERR(ierr)
+      enddo
     enddo
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
@@ -1391,6 +1433,10 @@ module m_plex_rt
 
         do o = 1, size(iside_faces)
           iface_side = iside_faces(o)
+
+          call PetscSectionGetDof(sec, iface_side, numDst, ierr); call CHKERR(ierr)
+          if(numDst.eq.i0) cycle
+
           call DMPlexGetSupport(plex%edir_dm, iface_side, cell_support, ierr); call CHKERR(ierr)
           icell = cell_support(1)
           call DMPlexRestoreSupport(plex%edir_dm, iface_side, cell_support, ierr); call CHKERR(ierr)
@@ -1458,6 +1504,7 @@ module m_plex_rt
                 !print *,'dir2dir', dir2dir
                 do j = 1, 5
                   isrc = face_plex2bmc(j)
+
                   call PetscSectionGetOffset(sec, faces_of_cell(j), icol, ierr); call CHKERR(ierr)
 
                   !call get_inward_face_normal(faces_of_cell(j), icell, geomSection, geoms, side_face_normal)
@@ -1542,6 +1589,7 @@ module m_plex_rt
     if(.not.allocated(A)) then
       allocate(A)
       call DMCreateMatrix(plex%ediff_dm, A, ierr); call CHKERR(ierr)
+      call MatSetBlockSize(A,i2,ierr); call CHKERR(ierr)
       !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
     endif
 
@@ -1605,6 +1653,7 @@ module m_plex_rt
 
       do iface = 1, size(incoming_offsets)
         icol = incoming_offsets(iface)
+        if(icol.lt.0) cycle
 
         ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
         diff2diff = coeff(diff_plex2bmc(iface):size(coeff):i8)
@@ -1622,6 +1671,7 @@ module m_plex_rt
           c = -diff2diff(diff_plex2bmc(j))
           if(c.lt.zero) then
             irow = outgoing_offsets(j)
+            if(irow.lt.0) cycle
             !print *,'icell',icell,'iface,j',iface,j,'icol', icol, 'irow', irow, '=>', c
             call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
             if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
@@ -1909,7 +1959,7 @@ module m_plex_rt
 
     type(tPetscSection) :: abso_section, edir_section
 
-    integer(iintegers) :: cStart, cEnd
+    integer(iintegers) :: cStart, cEnd, idof, numDof
     integer(iintegers) :: i, icell, iface
     integer(iintegers),pointer :: faces_of_cell(:)
     integer(mpiint) :: myid, ierr
@@ -1964,15 +2014,18 @@ module m_plex_rt
         iface = faces_of_cell(i)
         lsrc = int(wedgeorient(wedge_offset+i8+i), iintegers) .eq. i1
 
-        call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
+        call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
+        do idof = 0, numDof-1
+          call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
 
-        if(lsrc) then ! sun is shining into this face
-          xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1) * inv_volume
-          !print *,icell,'Dir Abso',abso_offset,'=',xabso(abso_offset+i1),'( did +',xedir(edir_offset+i1)*inv_volume,')'
-        else
-          xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1) * inv_volume
-          !print *,icell,'Dir Abso',abso_offset,'=',xabso(abso_offset+i1),'( did -',xedir(edir_offset+i1)*inv_volume,')'
-        endif
+          if(lsrc) then ! sun is shining into this face
+            xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1) * inv_volume
+            !print *,icell,'Dir Abso',abso_offset,'=',xabso(abso_offset+i1),'( did +',xedir(edir_offset+i1)*inv_volume,')'
+          else
+            xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1) * inv_volume
+            !print *,icell,'Dir Abso',abso_offset,'=',xabso(abso_offset+i1),'( did -',xedir(edir_offset+i1)*inv_volume,')'
+          endif
+        enddo
       enddo
       call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     enddo

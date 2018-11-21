@@ -76,7 +76,7 @@ module m_tenstream_options
           print *,'-mcrts_photons_per_px :: number of photons per pixel'
           print *,'-hdf5_guess           :: if run earlier with -writeall can now use dumped solutions as initial guess              '
           print *,'-twostr_guess         :: use delta eddington twostream solution as first guess                                    '
-          print *,'-twostr_ratio <limit> :: when aspect ratio (dz/dx) is smaller than <limit> then we use twostr_coeffs(default = 1.)'
+          print *,'-twostr_ratio <limit> :: when aspect ratio (dz/dx) is larger than <limit> then we use twostr_coeffs(default = 2.)'
           print *,'-calc_nca             :: calculate twostream and modify absorption with NCA algorithm (Klinger)                   '
           print *,'-skip_thermal         :: skip thermal calculations and just return zero for flux and absorption                   '
           print *,'-topography           :: use raybending to include surface topography, needs a 3D dz information                  '
@@ -156,8 +156,8 @@ module m_tenstream_options
             call CHKERR(1_mpiint)
           endif
 
+          twostr_ratio=2._ireals
           call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-twostr_ratio",twostr_ratio, lflg,ierr)  ; call CHKERR(ierr)
-          if(lflg.eqv.PETSC_FALSE) twostr_ratio=.5_ireals
 
           call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pert_xshift",pert_xshift, lflg,ierr) ; call CHKERR(ierr)
           if(lflg.eqv.PETSC_FALSE) pert_xshift=0

@@ -14,6 +14,8 @@ module m_plex_grid
 
   use m_icon_grid, only : t_icongrid, ICONULL
 
+  use m_tenstream_options, only: twostr_ratio
+
   implicit none
 
   private
@@ -499,8 +501,8 @@ module m_plex_grid
         call setup_srfc_boundary_dm(plex, plex%srfc_boundary_dm)
 
         call setup_cell1_dmplex(plex%dm, plex%cell1_dm)
-        call setup_edir_dmplex(plex%dm, plex%edir_dm)
-        call setup_ediff_dmplex(plex%dm, plex%ediff_dm)
+        call setup_edir_dmplex(plex, plex%dm, plex%edir_dm)
+        call setup_ediff_dmplex(plex, plex%dm, plex%ediff_dm)
         call setup_abso_dmplex(plex%dm, plex%abso_dm)
       end subroutine
 
@@ -1085,7 +1087,7 @@ module m_plex_grid
     ! Geometry Vec Contains 3 Fields:
     ! field 0: 3 dof for centroid on cells and faces
     ! field 1: 3 for normal vecs on faces
-    ! field 2: and 1 cell, face and edge entry for volume, area, length
+    ! field 2: 1 dof on cells, faces and edges for volume, area, length
     ! field 3: dz on cells
     call create_plex_section(dm, 'Geometry Section', i4, &
       [i3, i0, i1, i1], [i3, i3, i1, i0], [i0, i0, i1, i0], [i0, i0, i0, i0], geomSection)
@@ -1329,7 +1331,8 @@ module m_plex_grid
     call PetscSectionDestroy(edirSection, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine setup_edir_dmplex(orig_dm, dm)
+  subroutine setup_edir_dmplex(plex, orig_dm, dm)
+    type(t_plexgrid), intent(in) :: plex
     type(tDM), intent(in) :: orig_dm
     type(tDM), allocatable, intent(inout) :: dm
     type(tPetscSection) :: section
@@ -1345,7 +1348,8 @@ module m_plex_grid
     call DMSetOptionsPrefix(dm, 'dir', ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-    call create_plex_section(dm, 'face_section', i1, [i0], [i1], [i0], [i0], section)
+    call gen_face_section(dm, top_streams=i1, side_streams=i1, dof_per_stream=i1, section=section, &
+      geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
 
     call DMSetSection(dm, section, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_section', ierr); call CHKERR(ierr)
@@ -1361,7 +1365,8 @@ module m_plex_grid
   !        * component 0: radiation travelling from cell_a to cell_b
   !        * component 1: radiation going from cell_b to cell_a
   !      where id of cell_b is larger id(cell_a)
-  subroutine setup_ediff_dmplex(orig_dm, dm)
+  subroutine setup_ediff_dmplex(plex, orig_dm, dm)
+    type(t_plexgrid), intent(in) :: plex
     type(tDM), intent(in) :: orig_dm
     type(tDM), allocatable, intent(inout) :: dm
     type(tPetscSection) :: section
@@ -1376,7 +1381,8 @@ module m_plex_grid
     call DMSetOptionsPrefix(dm, 'diff', ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-    call gen_face_section(dm, top_streams=i1, side_streams=i2, dof_per_stream=i2, section=section)
+    call gen_face_section(dm, top_streams=i1, side_streams=i2, dof_per_stream=i2, section=section, &
+      geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
 
     call DMSetSection(dm, section, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_diff_section', ierr); call CHKERR(ierr)
@@ -1384,12 +1390,36 @@ module m_plex_grid
     call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine gen_face_section(dm, top_streams, side_streams, dof_per_stream, section)
+  subroutine gen_face_section(dm, top_streams, side_streams, dof_per_stream, section, &
+      geomdm, geomVec, aspect_constraint)
     type(tDM), intent(in) :: dm
     integer(iintegers), intent(in) :: top_streams, side_streams, dof_per_stream ! number of streams
     type(tPetscSection), intent(inout) :: section
+    type(tDM), intent(in), optional :: geomdm
+    type(tVec), intent(in), optional :: geomVec
+    real(ireals), intent(in), optional :: aspect_constraint
+
+    logical :: l1d
+    type(tPetscSection) :: geomSection
+    real(ireals), pointer :: geoms(:)
+    real(ireals) :: face_area, dx, dz, aspect
+    integer(iintegers) :: ic, geom_offset, num_constrained
+    integer(iintegers), pointer :: cells_of_face(:)
+
     integer(iintegers) :: iface, fStart, fEnd, istream, num_edges_of_face, tot_top_dof, tot_side_dof
     integer(mpiint) :: comm, ierr
+
+    if(    any([present(geomdm), present(geomVec), present(aspect_constraint)]) .and. &
+      .not.all([present(geomdm), present(geomVec), present(aspect_constraint)])) then
+      call CHKERR(1_mpiint, 'if you want to constraint dofs with the aspect ratio '// &
+                            'you have to provide both, the geom dm and a value for the constraint')
+    endif
+
+    if(present(aspect_constraint)) then
+      call DMGetSection(geomdm, geomSection, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(geomVec, geoms, ierr); call CHKERR(ierr)
+    endif
+
     call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
     call PetscSectionCreate(comm, section, ierr); call CHKERR(ierr)
     call DMPlexGetDepthStratum(dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
@@ -1409,6 +1439,7 @@ module m_plex_grid
       call PetscSectionSetFieldComponents(section, istream-i1, dof_per_stream, ierr); call CHKERR(ierr)
     enddo
 
+    num_constrained = 0
     call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
     do iface = fStart,  fEnd-1
       call DMPlexGetConeSize(dm, iface, num_edges_of_face, ierr); call CHKERR(ierr)
@@ -1420,13 +1451,42 @@ module m_plex_grid
         enddo
 
       else
-        call PetscSectionSetDof(section, iface, tot_side_dof, ierr); call CHKERR(ierr)
-        do istream = 1, side_streams
-          call PetscSectionSetFieldDof(section, iface, top_streams+istream-i1, dof_per_stream, ierr); call CHKERR(ierr)
-        enddo
+        if(present(aspect_constraint)) then
+          l1d = .True.
+
+          call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
+          face_area = geoms(i1+geom_offset)
+
+          call DMPlexGetSupport(geomdm, iface, cells_of_face, ierr); call CHKERR(ierr)
+          do ic = 1, size(cells_of_face)
+            call PetscSectionGetFieldOffset(geomSection, cells_of_face(ic), i3, geom_offset, ierr); call CHKERR(ierr)
+            dz = geoms(i1+geom_offset)
+            dx = face_area / dz
+            aspect = dz/dx
+            if(aspect.lt.aspect_constraint) l1d=.False.
+          enddo
+          call DMPlexRestoreSupport(geomdm, iface, cells_of_face, ierr); call CHKERR(ierr) ! Get Faces of cell
+        endif
+
+        if(.not.l1d) then
+          call PetscSectionSetDof(section, iface, tot_side_dof, ierr); call CHKERR(ierr)
+          do istream = 1, side_streams
+            call PetscSectionSetFieldDof(section, iface, top_streams+istream-i1, dof_per_stream, ierr); call CHKERR(ierr)
+          enddo
+        else
+          !print *,'Have 1D aspect constraint on face', iface
+          num_constrained = num_constrained + 1
+        endif
       endif
     enddo
     call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
+    if(ldebug) then
+      print *,'Have '//itoa(num_constrained)//' constrained dofs : '//ftoa(num_constrained*100._ireals/real(fEnd-fStart))//' %'
+    endif
+
+    if(present(aspect_constraint)) then
+      call VecRestoreArrayReadF90(geomVec, geoms, ierr); call CHKERR(ierr)
+    endif
   end subroutine
 
   subroutine setup_srfc_boundary_dm(plex, dm)
@@ -1497,6 +1557,9 @@ module m_plex_grid
     call PetscSectionGetNumFields(section, num_fields, ierr); call CHKERR(ierr)
 
     call DMPlexGetCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+
+    if(allocated(incoming_offsets)) deallocate(incoming_offsets)
+    if(allocated(outgoing_offsets)) deallocate(outgoing_offsets)
 
     if(.not.allocated(incoming_offsets).or..not.allocated(outgoing_offsets)) then
       num_dof = 0

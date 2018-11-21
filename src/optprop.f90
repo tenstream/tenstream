@@ -32,6 +32,7 @@ use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
 use m_eddington, only: eddington_coeff_zdun
+use m_tenstream_options, only: twostr_ratio
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 
@@ -247,7 +248,8 @@ contains
           else
             save_theta = in_angles(2)
           endif
-          if(aspect_zx.gt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(2)) then
+          !if(aspect_zx.gt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(2)) then
+          if(aspect_zx.gt.twostr_ratio) then
             C = zero
 
             call eddington_coeff_zdun(&
@@ -277,7 +279,8 @@ contains
 
         else ! diffuse
 
-          if(aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)) then
+          !if(aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)) then
+          if(aspect_zx.gt.twostr_ratio) then
             ! set the transport coeffs for src top and bottom to zero, leave the rest.
             C(1:size(C):8) = zero
             C(8:size(C):8) = zero
