@@ -403,6 +403,8 @@ module m_plex_rt
           lsolar=lsolar, solution=solver%solutions(suid), uid=suid)
       endif
 
+      call dump_optical_properties(solver%kabs, solver%ksca, solver%g, solver%albedo, &
+        plck=solver%plck, srfc_emission=solver%srfc_emission, postfix='_'//itoa(suid))
 
       ! Wedge Orientation is used in solar and thermal case alike
       if(any(last_sundir.ne.sundir).or.&                       ! update wedge orientations if sundir has changed
@@ -518,6 +520,29 @@ module m_plex_rt
       end associate
 
       call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_solve
+    end subroutine
+
+    subroutine dump_optical_properties(kabs, ksca, g, albedo, plck, srfc_emission, postfix)
+      character(len=*), intent(in) :: postfix
+      type(tVec), allocatable, intent(in) :: kabs, ksca, g, albedo, plck, srfc_emission
+      call dump_var(kabs, 'kabs')
+      call dump_var(ksca, 'ksca')
+      call dump_var(g, 'g')
+      call dump_var(plck, 'plck')
+      call dump_var(srfc_emission, 'srfc_emission')
+      call dump_var(albedo, 'albedo')
+    contains
+      subroutine dump_var(var, varname)
+        type(tVec), allocatable, intent(in) :: var
+        character(len=*), intent(in) :: varname
+        character(len=default_str_len) :: oldname
+        integer(mpiint) :: ierr
+        if(.not.allocated(var)) return
+        call PetscObjectGetName(var, oldname, ierr); call CHKERR(ierr)
+        call PetscObjectSetName(var, trim(varname)//trim(postfix), ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(var, PETSC_NULL_VEC, '-dump_optprop_'//trim(varname), ierr); call CHKERR(ierr)
+        call PetscObjectSetName(var, trim(oldname), ierr); call CHKERR(ierr)
+      end subroutine
     end subroutine
 
     subroutine create_edir_src_vec(plex, edirdm, E0, kabs, ksca, g, sundir, srcVec)
