@@ -1516,7 +1516,7 @@ module m_plex_rt
     real(ireals) :: dz, coeff(8**2) ! coefficients for each src=[1..8] and dst[1..8]
     integer(iintegers), pointer :: xinoutdof(:)
     real(ireals) :: area_top, area_bot
-    real(ireals), parameter :: coeff_norm_err_tolerance=one+10*sqrt(epsilon(one))
+    real(ireals), parameter :: coeff_norm_err_tolerance=one+100*sqrt(epsilon(one))
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
     !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_ediff_mat...'
@@ -1574,9 +1574,10 @@ module m_plex_rt
           diff2diff = coeff(diff_plex2bmc(iface):size(coeff):i8)
           if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
             print *,iface,': bmcface', diff_plex2bmc(iface), 'diff2diff gt one', diff2diff, &
-              ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE
+              ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE, 'tol', coeff_norm_err_tolerance
             call CHKERR(1_mpiint, '1 energy conservation violated! '//ftoa(sum(diff2diff)))
           endif
+          if(sum(diff2diff).gt.one) diff2diff = diff2diff / (sum(diff2diff) + 10*epsilon(diff2diff))
         enddo
       endif
 
