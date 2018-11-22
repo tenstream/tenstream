@@ -14,7 +14,7 @@ module m_plex_grid
 
   use m_icon_grid, only : t_icongrid, ICONULL
 
-  use m_tenstream_options, only: twostr_ratio
+  use m_tenstream_options, only: read_commandline_options, twostr_ratio
 
   implicit none
 
@@ -476,10 +476,12 @@ module m_plex_grid
         integer(iintegers) :: pStart, pEnd
         integer(mpiint) :: ierr
 
+
         if(allocated(plex)) call CHKERR(1_mpiint, 'Dont call setup_plexgrid on already allocated object')
         allocate(plex)
 
         call PetscObjectGetComm(dm, plex%comm, ierr); call CHKERR(ierr)
+        call read_commandline_options(plex%comm)
 
         allocate(plex%dm)
         plex%dm = dm
@@ -1403,7 +1405,7 @@ module m_plex_grid
     type(tPetscSection) :: geomSection
     real(ireals), pointer :: geoms(:)
     real(ireals) :: face_area, dx, dz, aspect
-    integer(iintegers) :: ic, geom_offset, num_constrained
+    integer(iintegers) :: ic, geom_offset, num_constrained, num_unconstrained
     integer(iintegers), pointer :: cells_of_face(:)
 
     integer(iintegers) :: iface, fStart, fEnd, istream, num_edges_of_face, tot_top_dof, tot_side_dof
@@ -1440,6 +1442,7 @@ module m_plex_grid
     enddo
 
     num_constrained = 0
+    num_unconstrained = 0
     call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
     do iface = fStart,  fEnd-1
       call DMPlexGetConeSize(dm, iface, num_edges_of_face, ierr); call CHKERR(ierr)
@@ -1451,6 +1454,7 @@ module m_plex_grid
         enddo
 
       else
+        l1d = .False.
         if(present(aspect_constraint)) then
           l1d = .True.
 
@@ -1473,15 +1477,17 @@ module m_plex_grid
           do istream = 1, side_streams
             call PetscSectionSetFieldDof(section, iface, top_streams+istream-i1, dof_per_stream, ierr); call CHKERR(ierr)
           enddo
+          num_unconstrained = num_unconstrained + 1
         else
-          !print *,'Have 1D aspect constraint on face', iface
+          !print *,'Have 1D aspect constraint on face', iface, ':', face_area, dz, dx, '=>', aspect, aspect_constraint, l1d
           num_constrained = num_constrained + 1
         endif
       endif
     enddo
     call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
     if(ldebug) then
-      print *,'Have '//itoa(num_constrained)//' constrained dofs : '//ftoa(num_constrained*100._ireals/real(fEnd-fStart))//' %'
+      print *,'Have '//itoa(num_constrained)//' constrained dofs :'//&
+        ftoa(num_constrained*100._ireals/real(num_unconstrained,ireals))//' %'
     endif
 
     if(present(aspect_constraint)) then
