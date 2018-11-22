@@ -8,7 +8,8 @@ module m_plex_rt
   use m_helper_functions, only: CHKERR, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, &
     vec_proj_on_plane, cross_3d, norm, rotation_matrix_world_to_local_basis, &
-    approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa
+    approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa, &
+    imp_allreduce_min
 
   use m_data_parameters, only : ireals, iintegers, mpiint, irealLUT, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
@@ -1057,19 +1058,21 @@ module m_plex_rt
       real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
       character(len=*),optional :: prefix
 
-      !type(tMatNullSpace) :: nullspace
-      !type(tVec) :: nullvecs(0)
-      integer(iintegers) :: Niterations
+      real(ireals),parameter :: rtol=1e-5_ireals, rel_atol=1e-5_ireals
+      integer(iintegers),parameter  :: maxiter=1000
+      real(ireals) :: atol
+      type(tPC) :: prec
+
+      integer(iintegers) :: Niterations, Nrows_global
 
       integer(iintegers), parameter :: Nmaxhistory=1000
-      integer(mpiint) :: comm, ierr
+      integer(mpiint) :: comm, myid, numnodes, ierr
 
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
 
       if(.not.allocated(b)) call CHKERR(1_mpiint, 'Src Vector has to be allocated before running solve')
       if(.not.allocated(A)) call CHKERR(1_mpiint, 'System Matrix has to be allocated before running solve')
 
-      !if(ldebug) print *,'plex_rt::solve Matrix...'
       if(.not.allocated(ksp)) then
         allocate(ksp)
         call KSPCreate(comm, ksp, ierr); call CHKERR(ierr)
@@ -1077,9 +1080,26 @@ module m_plex_rt
           call KSPAppendOptionsPrefix(ksp, trim(prefix), ierr); call CHKERR(ierr)
         endif
 
-        !call MatNullSpaceCreate(comm, PETSC_TRUE, i0, nullvecs, nullspace, ierr) ; call CHKERR(ierr)
-        !call MatSetNearNullSpace(A, nullspace, ierr);call CHKERR(ierr)
-        !call MatNullSpaceDestroy(nullspace, ierr); call CHKERR(ierr)
+        call MatGetSize(A, Nrows_global, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
+        call imp_allreduce_min(comm, rel_atol*Nrows_global, atol)
+        atol = max(1e-8_ireals, atol)
+
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+        call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+
+        if(myid.eq.0.and.ldebug) &
+          print *,'Setup KSP -- tolerances:',rtol,atol,'::',rel_atol, Nrows_global
+
+        call KSPSetType(ksp,KSPFGMRES,ierr); call CHKERR(ierr)
+        call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
+        call KSPGetPC(ksp,prec,ierr); call CHKERR(ierr)
+        if(numnodes.eq.0) then
+          call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
+        else
+          call PCSetType(prec, PCBJACOBI, ierr); call CHKERR(ierr)
+        endif
+
+        call KSPSetTolerances(ksp, rtol, atol, PETSC_DEFAULT_REAL, maxiter, ierr); call CHKERR(ierr)
 
         call KSPSetDM(ksp, dm, ierr); call CHKERR(ierr)
         call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
