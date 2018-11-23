@@ -394,8 +394,17 @@ module m_pprts
         call DMDAGetNeighbors(C%da,C%neighbors,ierr) ;call CHKERR(ierr)
         call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
         if(numnodes.gt.i1) then
-          if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors([10,4,16,22]),'while I am ',C%neighbors(13)
-          if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors([1,3,7,5]),'while I am ',C%neighbors(4)
+          if(ldebug.and.(C%dim.eq.3)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors(10),  &
+                                                                                           C%neighbors(4) ,  &
+                                                                                           C%neighbors(16),  &
+                                                                                           C%neighbors(22),  &
+                                                                             'while I am ',C%neighbors(13)
+
+          if(ldebug.and.(C%dim.eq.2)) print *,'PETSC id',solver%myid,C%dim,'Neighbors are',C%neighbors(1), &
+                                                                                           C%neighbors(3), &
+                                                                                           C%neighbors(7), &
+                                                                                           C%neighbors(5), &
+                                                                             'while I am ',C%neighbors(4)
         endif
       end subroutine
     end subroutine
