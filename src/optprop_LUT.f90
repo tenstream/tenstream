@@ -52,8 +52,7 @@ module m_optprop_LUT
     preset_w020,                          &
     preset_tau15,                         &
     preset_tau20,                         &
-    preset_tau31,                         &
-    OPP_LUT_ALL_ANGLES
+    preset_tau31
 
   use m_boxmc, only: t_boxmc, &
     t_boxmc_8_10,t_boxmc_1_2, t_boxmc_3_6, t_boxmc_3_10, &

@@ -138,10 +138,6 @@ module m_optprop_parameters
       real(irealLUT),parameter :: delta_scale_truncate=1.0_irealLUT   !1.     = 0 degrees delta scaling
 !      real(irealLUT),parameter :: delta_scale_truncate=.8660_irealLUT ! .8660 = 30 degrees delta scaling
 
-
-      ! Used to signal that all Angles possible should be loaded when initializing the LUT object -- pass this as azi and zenith
-      integer(iintegers), parameter :: OPP_LUT_ALL_ANGLES=361
-
       ! spherical correction for wedge computations,
       ! this is tuned towards earth radius and average dx = 100m sized elements
       real(irealLUT), parameter :: wedge_sphere_radius = -1._irealLUT ! 6378e3_irealLUT

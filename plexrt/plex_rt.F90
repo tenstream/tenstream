@@ -23,7 +23,7 @@ module m_plex_rt
     TOAFACE, BOTFACE, SIDEFACE
 
   use m_optprop, only : t_optprop, t_optprop_wedge_5_8, OPP_1D_RETCODE
-  use m_optprop_parameters, only : OPP_LUT_ALL_ANGLES
+  use m_optprop_parameters, only : ldebug_optprop
 
   use m_schwarzschild, only: schwarzschild
   use m_twostream, only: delta_eddington_twostream
@@ -1662,7 +1662,7 @@ module m_plex_rt
       call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
         dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, ierr)
 
-      if(ldebug) then
+      if(ldebug_optprop) then
         do iface=1,i8
           diff2diff = coeff(diff_plex2bmc(iface):size(coeff):i8)
           if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
@@ -1670,7 +1670,6 @@ module m_plex_rt
               ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE, 'tol', coeff_norm_err_tolerance
             call CHKERR(1_mpiint, '1 energy conservation violated! '//ftoa(sum(diff2diff)))
           endif
-          if(sum(diff2diff).gt.one) diff2diff = diff2diff / (sum(diff2diff) + 10*epsilon(diff2diff))
         enddo
       endif
 
@@ -1679,8 +1678,6 @@ module m_plex_rt
         area_top = geoms(i1+geom_offset)
         call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
         area_bot = geoms(i1+geom_offset)
-        !coeff(8) = coeff(8) * area_top / area_bot ! transmission from bot to top face
-        !coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top ! transmission from top to bot face
 
         if(area_top.gt.area_bot) then
           ! send overhanging energy to side faces
@@ -1702,15 +1699,14 @@ module m_plex_rt
 
         ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
         diff2diff = coeff(diff_plex2bmc(iface):size(coeff):i8)
-        if(ldebug) then
+        if(ldebug_optprop) then
           if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
             print *,iface,': bmcface', diff_plex2bmc(iface), 'diff2diff gt one', diff2diff,':',sum(diff2diff)
             call CHKERR(1_mpiint, '2 energy conservation violated! '//ftoa(sum(diff2diff)))
           endif
         endif
-        if(sum(diff2diff).gt.one)then
+        if(sum(diff2diff).gt.one) &
           diff2diff = diff2diff/(sum(diff2diff)+10*epsilon(diff2diff))
-        endif
 
         do j = 1, size(outgoing_offsets)
           c = -diff2diff(diff_plex2bmc(j))

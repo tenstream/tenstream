@@ -281,10 +281,6 @@ contains
 
           !if(aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)) then
           if(aspect_zx.gt.twostr_ratio) then
-            ! set the transport coeffs for src top and bottom to zero, leave the rest.
-            C(1:size(C):8) = zero
-            C(8:size(C):8) = zero
-            C(9:7*8) = zero
             C = zero
 
             call eddington_coeff_zdun(&
@@ -293,8 +289,11 @@ contains
               real(g, ireals), &
               one, &
               c11,c12,c13,c23,c33,g1,g2)
+
+            ! transmission & reflection towards top plate
             C(1)     = real(c12, irealLUT)
             C(8)     = real(c11, irealLUT)
+            ! and bot plate
             C(7*8+1) = real(c11, irealLUT)
             C(8*8)   = real(c12, irealLUT)
 
