@@ -26,7 +26,6 @@ program main
       use m_helper_functions, only: CHKERR
       use mpi
       use m_optprop_LUT, only : t_optprop_LUT_wedge_5_8
-      use m_optprop_parameters, only : OPP_LUT_ALL_ANGLES
       use m_tenstream_options, only : read_commandline_options
 
       integer(mpiint) :: myid,comm
