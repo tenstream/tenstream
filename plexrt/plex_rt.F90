@@ -1301,7 +1301,7 @@ module m_plex_rt
 
     integer(iintegers), pointer :: faces_of_cell(:)
     integer(iintegers) :: icell, iface, irow, icol, idst, fStart, fEnd
-    real(ireals) :: coeffs(1)
+    real(ireals) :: c
 
     type(tPetscSection) :: geomSection, wedgeSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
@@ -1385,16 +1385,13 @@ module m_plex_rt
       if(ierr.eq.OPP_1D_RETCODE) then
         ! for the case of 1D spherical radiative transfer,
         ! need to consider the change in area between upper and lower face
-        ! we could make the transmission bigger but that results in a indefinite matrix (coeffs gt 1)
-        ! rather we put the excess energy into the side faces and propagate em through that.
         call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
         area_top = geoms(i1+geom_offset)
         call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
         area_bot = geoms(i1+geom_offset)
-        if(area_bot.lt.area_top) then
-          coeff(21) = coeff(21) * (area_bot / area_top)
-          coeff([6,11,16]) = coeff(21) * (one - area_bot / area_top) / 3
-        endif
+
+        ! super compensate direct radiation
+        coeff(21) = coeff(21) * (area_top / area_bot)
       endif
       call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
@@ -1411,8 +1408,8 @@ module m_plex_rt
 
           do idst = 1, size(faces_of_cell)
             if(.not.lsrc(idst)) then
-              coeffs(1) = -dir2dir(face_plex2bmc(idst))
-              if(coeffs(1).lt.zero) then
+              c = -dir2dir(face_plex2bmc(idst))
+              if(c.lt.zero) then
 
                 call PetscSectionGetDof(sec, faces_of_cell(idst), numDst, ierr); call CHKERR(ierr)
                 if(numDst.eq.i0) cycle
@@ -1421,8 +1418,8 @@ module m_plex_rt
                 !print *,'isrc', face_plex2bmc(iface), 'idst', face_plex2bmc(idst), &
                 !  'if', iface, 'id', idst, &
                 !  'srcface->dstface', faces_of_cell(iface),faces_of_cell(idst), &
-                !  'col -> row', icol, irow, coeffs
-                call MatSetValuesLocal(A, i1, irow, i1, icol, coeffs, INSERT_VALUES, ierr); call CHKERR(ierr)
+                !  'col -> row', icol, irow, c
+                call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
                 if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
                   'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
               endif
@@ -1588,7 +1585,7 @@ module m_plex_rt
 
     real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
     integer(iintegers), pointer :: faces_of_cell(:)
-    integer(iintegers) :: j, icell, iface, irow, icol
+    integer(iintegers) :: j, icell, iface, irow, icol, i_inoff
     real(ireals) :: c
 
     type(tPetscSection) :: ediffSection, geomSection, wedgeSection
@@ -1663,10 +1660,10 @@ module m_plex_rt
         dz, wedgeorient(wedge_offset+14:wedge_offset+19), .False., coeff, ierr)
 
       if(ldebug_optprop) then
-        do iface=1,i8
-          diff2diff = coeff(diff_plex2bmc(iface):size(coeff):i8)
+        do i_inoff = 1, size(incoming_offsets)
+          diff2diff = coeff(diff_plex2bmc(i_inoff):size(coeff):i8)
           if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
-            print *,iface,': bmcface', diff_plex2bmc(iface), 'diff2diff gt one', diff2diff, &
+            print *,i_inoff,': bmcface', diff_plex2bmc(i_inoff), 'diff2diff gt one', diff2diff, &
               ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE, 'tol', coeff_norm_err_tolerance
             call CHKERR(1_mpiint, '1 energy conservation violated! '//ftoa(sum(diff2diff)))
           endif
@@ -1679,29 +1676,29 @@ module m_plex_rt
         call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
         area_bot = geoms(i1+geom_offset)
 
-        if(area_top.gt.area_bot) then
-          ! send overhanging energy to side faces
-          coeff(7*8+[2,4,6]) = coeff(7*8+[2,4,6]) + coeff(7*8+1) * (one - area_bot / area_top) / i3
-          ! reduce transmission bc receiver is smaller than top face
-          coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top
-        else
-          ! send overhanging energy to side faces
-          coeff([3,5,7]) = coeff([3,5,7]) + coeff(8) * (one - area_top / area_bot) / i3
-          ! transmission from bot to top face
-          coeff(8) = coeff(8) * area_top / area_bot
-        endif
+        !if(area_top.gt.area_bot) then
+        !  ! send overhanging energy to side faces
+        !  coeff(7*8+[2,4,6]) = coeff(7*8+[2,4,6]) + coeff(7*8+1) * (one - area_bot / area_top) / i3
+        !  ! reduce transmission bc receiver is smaller than top face
+        !  coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top
+        !else
+        !  ! send overhanging energy to side faces
+        !  coeff([3,5,7]) = coeff([3,5,7]) + coeff(8) * (one - area_top / area_bot) / i3
+        !  ! transmission from bot to top face
+        !  coeff(8) = coeff(8) * area_top / area_bot
+        !endif
       endif
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
-      do iface = 1, size(incoming_offsets)
-        icol = incoming_offsets(iface)
+      do i_inoff = 1, size(incoming_offsets)
+        icol = incoming_offsets(i_inoff)
         if(icol.lt.0) cycle
 
         ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
-        diff2diff = coeff(diff_plex2bmc(iface):size(coeff):i8)
+        diff2diff = coeff(diff_plex2bmc(i_inoff):size(coeff):i8)
         if(ldebug_optprop) then
           if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
-            print *,iface,': bmcface', diff_plex2bmc(iface), 'diff2diff gt one', diff2diff,':',sum(diff2diff)
+            print *,i_inoff,': bmcface', diff_plex2bmc(i_inoff), 'diff2diff gt one', diff2diff,':',sum(diff2diff)
             call CHKERR(1_mpiint, '2 energy conservation violated! '//ftoa(sum(diff2diff)))
           endif
         endif
@@ -1713,14 +1710,15 @@ module m_plex_rt
           if(c.lt.zero) then
             irow = outgoing_offsets(j)
             if(irow.lt.0) cycle
-            !print *,'icell',icell,'iface,j',iface,j,'icol', icol, 'irow', irow, '=>', c
+
+            !print *,'icell',icell,'isrc,jdst',i_inoff,j,'icol', icol, 'irow', irow, '=>', c
             call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
             if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
               'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
           endif
         enddo
 
-      enddo ! enddo iface
+      enddo ! enddo i_inoff
 
       call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     enddo

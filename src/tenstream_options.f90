@@ -21,7 +21,8 @@ module m_tenstream_options
 
       use mpi
 
-      use m_data_parameters, only : init_mpi_data_parameters, ireals,iintegers,one,i0,mpiint,default_str_len
+      use m_data_parameters, only : init_mpi_data_parameters, ireals, iintegers, mpiint, &
+        zero, one, i0, default_str_len
       use m_optprop_parameters, only: lut_basename, coeff_mode
       use m_helper_functions, only: CHKERR
 
@@ -156,7 +157,7 @@ module m_tenstream_options
             call CHKERR(1_mpiint)
           endif
 
-          twostr_ratio=2._ireals
+          twostr_ratio = 2._ireals
           call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-twostr_ratio",twostr_ratio, lflg,ierr)  ; call CHKERR(ierr)
 
           call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pert_xshift",pert_xshift, lflg,ierr) ; call CHKERR(ierr)
