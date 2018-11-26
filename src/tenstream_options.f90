@@ -170,7 +170,7 @@ module m_tenstream_options
 
           call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , "-twostr_only" , ltwostr_only , lflg , ierr) ;call CHKERR(ierr)
           if(ltwostr_only) then
-            twostr_ratio=1e8_ireals
+            twostr_ratio=zero
             ltwostr=.True.
             luse_twostr_guess=.True.
           endif
