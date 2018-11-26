@@ -249,7 +249,7 @@ contains
             save_theta = in_angles(2)
           endif
           !if(aspect_zx.gt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(2)) then
-          if(aspect_zx.gt.twostr_ratio) then
+          if(aspect_zx.ge.twostr_ratio) then
             C = zero
 
             call eddington_coeff_zdun(&
@@ -280,7 +280,7 @@ contains
         else ! diffuse
 
           !if(aspect_zx.gt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(2)) then
-          if(aspect_zx.gt.twostr_ratio) then
+          if(aspect_zx.ge.twostr_ratio) then
             C = zero
 
             call eddington_coeff_zdun(&
