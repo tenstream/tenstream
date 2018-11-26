@@ -15,6 +15,7 @@ fname_mat = OptDB.getString('-mat', 'mat.bin')
 fname_b   = OptDB.getString('-b', 'b.bin')
 
 check_matrows = OptDB.getBool('-check_matrows', False)
+info = OptDB.getBool('-info', False)
 
 if myid==0:
     print("Loading Matrix File: {}".format(fname_mat))
@@ -22,8 +23,29 @@ if myid==0:
 viewer = P.Viewer().createBinary(fname_mat, 'r')
 A = P.Mat().load(viewer)
 A = A.setUp()
+
 if check_matrows:
-    print("Checking Matrix rows if they are OK")
+    if myid==0:
+        print("Building Transpose...")
+    At = A.duplicate()
+    A.transpose(At)
+    if myid==0:
+        print("Building Transpose... done")
+
+    rStart, rEnd = At.getOwnershipRange()
+    for i in range(rStart, rEnd):
+        col_idx, coeff = At.getRow(i)
+        if np.sum(coeff) < -1e-8:
+            print("Have column vector with sum lt 1: icol", i, np.where(coeff!=0), \
+                    ':', coeff, 'sum', np.sum(coeff))
+        else:
+            if info:
+                print("Col Vec {:8d} seems OK:".format(i), ' '.join(['{:+0.2f}'.format(c) for c in coeff]))
+
+
+if check_matrows:
+    if myid==0:
+        print("Checking Matrix rows if they are OK")
     rStart, rEnd = A.getOwnershipRange()
     for i in range(rStart, rEnd):
         col_idx, coeff = A.getRow(i)
@@ -36,19 +58,13 @@ if check_matrows:
         if any(coeff<-1):
             print("Have coeffs lt -1", coeff)
 
-        cv = A.getColumnVector(i)
-        if np.sum(cv.array) < -1e-8:
-            print("Have column vector with sum lt 1: icol", i, np.where(cv.array!=0), \
-                    ':', cv.array[cv.array!=0]), 'sum', np.sum(cv.array)
-
 if myid==0:
     print("Loading src Vec: {}".format(fname_b))
 viewer = P.Viewer().createBinary(fname_b, 'r')
 b = P.Vec().load(viewer)
 b = b.setUp()
-if check_matrows:
-    if not np.isfinite(b.array).all():
-        print(myid,"Have NaN in src term")
+if not np.isfinite(b.array).all():
+    print(myid,"Have NaN in src term")
 
 x = b.duplicate()
 
