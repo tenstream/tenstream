@@ -462,7 +462,7 @@ module m_plex_rt
 
         ! Solve Direct Matrix
         call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-        call solve_plex_rt(solver%plex, solver%plex%edir_dm, solver%dirsrc, solver%Mdir, solver%kspdir, solution%edir, &
+        call solve_plex_rt(solver%plex%edir_dm, solver%dirsrc, solver%Mdir, solver%kspdir, solution%edir, &
           ksp_residual_history=solution%dir_ksp_residual_history, prefix='dir_')
         call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
         call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
@@ -505,7 +505,7 @@ module m_plex_rt
 
       ! Solve Diffuse Matrix
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
-      call solve_plex_rt(solver%plex, solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%kspdiff, solution%ediff, &
+      call solve_plex_rt(solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%kspdiff, solution%ediff, &
         ksp_residual_history=solution%diff_ksp_residual_history, prefix='diff_')
       call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
       call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
@@ -1048,8 +1048,7 @@ module m_plex_rt
         enddo
       end subroutine
 
-    subroutine solve_plex_rt(plex, dm, b, A, ksp, x, ksp_residual_history, prefix)
-      type(t_plexgrid), intent(in) :: plex
+    subroutine solve_plex_rt(dm, b, A, ksp, x, ksp_residual_history, prefix)
       type(tDM), intent(inout) :: dm
       type(tVec), allocatable, intent(in) :: b
       type(tMat), allocatable, intent(in) :: A
@@ -1063,7 +1062,7 @@ module m_plex_rt
       real(ireals) :: atol
       type(tPC) :: prec
 
-      integer(iintegers) :: Niterations, Nrows_global
+      integer(iintegers) :: Nrows_global
 
       integer(iintegers), parameter :: Nmaxhistory=1000
       integer(mpiint) :: comm, myid, numnodes, ierr
@@ -1105,7 +1104,6 @@ module m_plex_rt
         call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
         call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
         call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
-        call setup_fieldsplits()
         call KSPSetUp(ksp, ierr); call CHKERR(ierr)
 
       endif
@@ -1124,58 +1122,7 @@ module m_plex_rt
 
       call handle_diverged_solve()
 
-      !if(ldebug) print *,'plex_rt::solve Matrix...finished'
-      call KSPGetIterationNumber(ksp, Niterations, ierr); call CHKERR(ierr)
-      if(Niterations.gt.50) then
-        call KSPSetReusePreconditioner(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
-      else
-        call KSPSetReusePreconditioner(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
-      endif
-
       contains
-        subroutine setup_fieldsplits()
-          integer(iintegers) :: iface, fStart, fEnd
-          type(tPC) :: pc
-          type(tPetscSection) :: faceSection
-          !type(tIS) :: horizontal_face_dofs!, vertical_face_dofs!, all_dofs
-          !type(tIS) :: IS_boundary, IS_interior
-
-          integer(iintegers) :: min_dof, max_dof, voff, numDof
-
-          call KSPGetPC(ksp, pc, ierr); call CHKERR(ierr)
-
-          ! Determine the dofs of horizontal faces
-          call DMPlexGetDepthStratum (dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
-          call DMGetSection(dm, faceSection, ierr); call CHKERR(ierr)
-          call PetscSectionGetOffset(faceSection, fStart, min_dof, ierr); call CHKERR(ierr)
-          max_dof = min_dof
-          do iface = fStart, fEnd-1
-            if(plex%ltopfacepos(iface)) then
-              call PetscSectionGetDof(faceSection, iface, numDof, ierr); call CHKERR(ierr)
-              call PetscSectionGetOffset(faceSection, iface, voff, ierr); call CHKERR(ierr)
-              max_dof = max(max_dof, voff+numDof-1)
-            endif
-          enddo
-
-          !call ISCreateStride(comm, max_dof-min_dof+1, min_dof, i1, horizontal_face_dofs, ierr); call CHKERR(ierr)
-          !call PetscObjectViewFromOptions(horizontal_face_dofs, PETSC_NULL_IS, '-fieldsplit_horizontal_face_dofs', ierr); call CHKERR(ierr)
-          !call PCFieldSplitSetIS(pc, 'Eh', horizontal_face_dofs, ierr); call CHKERR(ierr)
-
-          !call PetscSectionGetOffsetRange(faceSection, min_dof, max_dof, ierr); call CHKERR(ierr)
-          !call ISComplement(horizontal_face_dofs, min_dof, max_dof, vertical_face_dofs, ierr); call CHKERR(ierr)
-          !call PetscObjectViewFromOptions(vertical_face_dofs, PETSC_NULL_IS, '-fieldsplit_vertical_face_dofs', ierr); call CHKERR(ierr)
-          !call PCFieldSplitSetIS(pc, 'Ev', vertical_face_dofs, ierr); call CHKERR(ierr)
-
-          !call PetscSectionGetOffsetRange(faceSection, min_dof, max_dof, ierr); call CHKERR(ierr)
-          !call ISCreateStride(comm, max_dof-min_dof+1, min_dof, i1, all_dofs, ierr); call CHKERR(ierr)
-          !call PCFieldSplitSetIS(pc, 'Ea', all_dofs, ierr); call CHKERR(ierr)
-
-          !call DMGetStratumIS(dm, 'DomainBoundary', SIDEFACE, IS_boundary, ierr); call CHKERR(ierr)
-          !call PCFieldSplitSetIS(pc, 'boundary', IS_boundary, ierr); call CHKERR(ierr)
-          !call DMPlexGetDepthStratum (dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
-          !call ISComplement(IS_boundary, fStart, fEnd-1, IS_interior, ierr); call CHKERR(ierr)
-          !call PCFieldSplitSetIS(pc, 'interior', IS_interior, ierr); call CHKERR(ierr)
-        end subroutine
         subroutine handle_diverged_solve()
           KSPConvergedReason :: reason
           KSPType :: old_ksp_type
