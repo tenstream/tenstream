@@ -419,9 +419,6 @@ module m_plex_rt
           solver%plex%wedge_orientation)
         call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
 
-        if(allocated(solver%Mdir)) then
-          call MatZeroEntries(solver%Mdir, ierr); call CHKERR(ierr)
-        endif
         last_sundir = sundir
       endif
 
@@ -887,7 +884,7 @@ module m_plex_rt
           call thermal_srfc_emission(xsrc)
 
           ! Scaling from [W/m2] to Energy [W]
-          call DMPlexGetDepthStratum(ediffdm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
+          call DMPlexGetDepthStratum(ediffdm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
           do iface = fStart, fEnd-1
             call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
             area = geoms(i1+geom_offset)
@@ -1208,7 +1205,7 @@ module m_plex_rt
 
     call VecGetArrayF90(faceVec, xv, ierr); call CHKERR(ierr)
 
-    call DMPlexGetDepthStratum(face_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
+    call DMPlexGetDepthStratum(face_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
     do iface = fStart, fEnd-1
       call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
       area = geoms(i1+geom_offset)
@@ -1301,10 +1298,22 @@ module m_plex_rt
       call DMCreateMatrix(plex%edir_dm, A, ierr); call CHKERR(ierr)
       call MatSetBlockSize(A,i1,ierr); call CHKERR(ierr)
       !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
+
+      call set_side_incoming_boundary_condition()
+
+      ! Set Diagonal Entries
+      call DMPlexGetDepthStratum(plex%edir_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
+      do iface = fStart, fEnd-1
+        call PetscSectionGetDof(sec, iface, numDst, ierr); call CHKERR(ierr)
+        do idst = 0, numDst-1
+          call PetscSectionGetOffset(sec, iface+idst, irow, ierr); call CHKERR(ierr)
+          call MatSetValuesLocal(A, i1, irow, i1, irow, [one], INSERT_VALUES, ierr); call CHKERR(ierr)
+        enddo
+      enddo
     endif
 
     do icell = plex%cStart, plex%cEnd-1
-      call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+      call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
 
       call PetscSectionGetOffset(wedgeSection, icell, wedge_offset, ierr); call CHKERR(ierr)
       zenith  = wedgeorient(wedge_offset+i1)
@@ -1379,18 +1388,6 @@ module m_plex_rt
       enddo ! enddo iface
 
       call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-    enddo
-
-    call set_side_incoming_boundary_condition()
-
-    ! Set Diagonal Entries
-    call DMPlexGetDepthStratum(plex%edir_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
-    do iface = fStart, fEnd-1
-      call PetscSectionGetDof(sec, iface, numDst, ierr); call CHKERR(ierr)
-      do idst = 0, numDst-1
-        call PetscSectionGetOffset(sec, iface+idst, irow, ierr); call CHKERR(ierr)
-        call MatSetValuesLocal(A, i1, irow, i1, irow, [one], INSERT_VALUES, ierr); call CHKERR(ierr)
-      enddo
     enddo
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
@@ -1584,6 +1581,10 @@ module m_plex_rt
       !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
     endif
 
+    call MatZeroEntries(solver%Mdir, ierr); call CHKERR(ierr)
+    call set_boundary_conditions()
+    call set_diagonal_entries()
+
     call ISGetIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
     do icell = plex%cStart, plex%cEnd-1
       call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
@@ -1657,7 +1658,7 @@ module m_plex_rt
         do j = 1, size(outgoing_offsets)
           c = -diff2diff(diff_plex2bmc(j))
           irow = outgoing_offsets(j)
-          if(irow.lt.0) cycle
+          if(c.ge.-epsilon(zero) .or. irow.lt.0) cycle
 
           !print *,'icell',icell,'isrc,jdst',i_inoff,j,'icol', icol, 'irow', irow, '=>', c
           call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
@@ -1670,10 +1671,6 @@ module m_plex_rt
       call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     enddo
     call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
-
-    call set_boundary_conditions()
-
-    call set_diagonal_entries()
 
     call MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
     call MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY, ierr); call CHKERR(ierr)
