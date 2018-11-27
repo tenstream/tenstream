@@ -418,6 +418,10 @@ module m_plex_rt
         call compute_wedge_orientation(solver%plex, sundir, solver%plex%wedge_orientation_dm, &
           solver%plex%wedge_orientation)
         call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
+
+        if(allocated(solver%Mdir)) then
+          call MatZeroEntries(solver%Mdir, ierr); call CHKERR(ierr)
+        endif
         last_sundir = sundir
       endif
 
@@ -1356,20 +1360,18 @@ module m_plex_rt
           do idst = 1, size(faces_of_cell)
             if(.not.lsrc(idst)) then
               c = -dir2dir(face_plex2bmc(idst))
-              if(c.lt.zero) then
 
-                call PetscSectionGetDof(sec, faces_of_cell(idst), numDst, ierr); call CHKERR(ierr)
-                if(numDst.eq.i0) cycle
+              call PetscSectionGetDof(sec, faces_of_cell(idst), numDst, ierr); call CHKERR(ierr)
+              if(numDst.eq.i0) cycle
 
-                call PetscSectionGetOffset(sec, faces_of_cell(idst), irow, ierr); call CHKERR(ierr)
-                !print *,'isrc', face_plex2bmc(iface), 'idst', face_plex2bmc(idst), &
-                !  'if', iface, 'id', idst, &
-                !  'srcface->dstface', faces_of_cell(iface),faces_of_cell(idst), &
-                !  'col -> row', icol, irow, c
-                call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
-                if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
-                  'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
-              endif
+              call PetscSectionGetOffset(sec, faces_of_cell(idst), irow, ierr); call CHKERR(ierr)
+              !print *,'isrc', face_plex2bmc(iface), 'idst', face_plex2bmc(idst), &
+              !  'if', iface, 'id', idst, &
+              !  'srcface->dstface', faces_of_cell(iface),faces_of_cell(idst), &
+              !  'col -> row', icol, irow, c
+              call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
+              if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
+                'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
             endif
           enddo
         endif
@@ -1654,15 +1656,13 @@ module m_plex_rt
 
         do j = 1, size(outgoing_offsets)
           c = -diff2diff(diff_plex2bmc(j))
-          if(c.lt.zero) then
-            irow = outgoing_offsets(j)
-            if(irow.lt.0) cycle
+          irow = outgoing_offsets(j)
+          if(irow.lt.0) cycle
 
-            !print *,'icell',icell,'isrc,jdst',i_inoff,j,'icol', icol, 'irow', irow, '=>', c
-            call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
-            if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
-              'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
-          endif
+          !print *,'icell',icell,'isrc,jdst',i_inoff,j,'icol', icol, 'irow', irow, '=>', c
+          call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
+          if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
+            'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
         enddo
 
       enddo ! enddo i_inoff
