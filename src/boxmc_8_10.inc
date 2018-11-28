@@ -130,7 +130,7 @@ else if(p%side.eq.5 .and. p%dir(3).le.zero ) then
   S(7) = S(7)+p%weight
   return
 else if(p%side.eq.5 .and. p%dir(3).gt.zero ) then
-  S(9) = S(7)+p%weight
+  S(9) = S(9)+p%weight
   return
 
 else if(p%side.eq.6 .and. p%dir(3).le.zero ) then
