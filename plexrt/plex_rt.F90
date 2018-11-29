@@ -502,6 +502,8 @@ module m_plex_rt
       call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
       call create_ediff_mat(solver, solver%plex, solver%OPP, &
         solver%kabs, solver%ksca, solver%g, solver%albedo, solver%Mdiff)
+      call PetscObjectViewFromOptions(solver%Mdiff, PETSC_NULL_MAT, &
+        '-show_Mediff_'//itoa(solution%uid), ierr); call CHKERR(ierr)
       call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
 
       ! Solve Diffuse Matrix
@@ -1103,10 +1105,6 @@ module m_plex_rt
 
         call KSPSetDM(ksp, dm, ierr); call CHKERR(ierr)
         call KSPSetDMActive(ksp, PETSC_FALSE, ierr); call CHKERR(ierr)
-        call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
-        call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
-        call KSPSetUp(ksp, ierr); call CHKERR(ierr)
-
       endif
 
       if(present(ksp_residual_history)) then
@@ -1119,11 +1117,33 @@ module m_plex_rt
         allocate(x)
         call VecDuplicate(b, x, ierr); call CHKERR(ierr)
       endif
+
+      call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
+      call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
+      call KSPSetUp(ksp, ierr); call CHKERR(ierr)
+
       call KSPSolve(ksp, b, x, ierr); call CHKERR(ierr)
 
       call handle_diverged_solve()
 
+      call handle_reuse_solver()
+
       contains
+        subroutine handle_reuse_solver()
+          logical :: ldestroy_solver, lflg
+          type(tMat) :: Amat, Pmat
+
+          ldestroy_solver = .False.
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-destroy_solver",&
+            ldestroy_solver, lflg, ierr) ;call CHKERR(ierr)
+          if(ldestroy_solver) then
+            if(myid.eq.0.and.ldebug) print *,'Zeroing KSP Operators...'
+            call KSPGetOperators(ksp, Amat, Pmat, ierr); call CHKERR(ierr)
+            call MatZeroEntries(Amat, ierr); call CHKERR(ierr)
+            call MatZeroEntries(Pmat, ierr); call CHKERR(ierr)
+            if(myid.eq.0.and.ldebug) print *,'Zeroing KSP Operators... done'
+          endif
+        end subroutine
         subroutine handle_diverged_solve()
           KSPConvergedReason :: reason
           KSPType :: old_ksp_type
@@ -1131,6 +1151,8 @@ module m_plex_rt
           integer(mpiint) :: myid
           character(len=*), parameter :: alternate_prefix='diverged_alternate_'
           character(len=default_str_len) :: old_prefix
+
+          type(tMat) :: A2
 
           call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
           if(reason.le.0) then
@@ -1150,6 +1172,9 @@ module m_plex_rt
 
             call KSPGetOptionsPrefix(ksp, old_prefix, ierr); call CHKERR(ierr)
             call KSPAppendOptionsPrefix(ksp, trim(alternate_prefix), ierr); call CHKERR(ierr)
+            call DMCreateMatrix(dm, A2, ierr); call CHKERR(ierr)
+            call MatCopy(A, A2, DIFFERENT_NONZERO_PATTERN, ierr); call CHKERR(ierr)
+            call KSPSetOperators(ksp, A2, A2, ierr); call CHKERR(ierr)
             call KSPSetFromOptions(ksp, ierr) ;call CHKERR(ierr)
 
             call KSPSetUp(ksp,ierr) ;call CHKERR(ierr)
@@ -1158,6 +1183,7 @@ module m_plex_rt
             call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
 
             ! And return to normal solver...
+            call KSPSetOperators(ksp, A, A, ierr); call CHKERR(ierr)
             call KSPSetOptionsPrefix(ksp, trim(old_prefix), ierr); call CHKERR(ierr)
             call KSPSetType(ksp, old_ksp_type,ierr) ;call CHKERR(ierr)
             call KSPSetFromOptions(ksp, ierr) ;call CHKERR(ierr)
@@ -1269,6 +1295,7 @@ module m_plex_rt
     real(ireals) :: dz, coeff(5**2) ! coefficients for each src=[1..5] and dst[1..5]
 
     logical, parameter :: lonline=.False.
+    logical :: lflg, ldestroy_mat
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
     !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...'
@@ -1293,24 +1320,38 @@ module m_plex_rt
     call DMGetSection(plex%edir_dm, sec, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(sec, PETSC_NULL_SECTION, '-show_edir_loc_section', ierr); call CHKERR(ierr)
 
+    if(allocated(A)) then
+      ldestroy_mat = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-destroy_mat",&
+        ldestroy_mat, lflg, ierr) ;call CHKERR(ierr)
+      if(ldestroy_mat) then
+        if(myid.eq.0.and.ldebug) print *,'Destroying Old Direct Matrix'
+        call MatDestroy(A, ierr); call CHKERR(ierr)
+        deallocate(A)
+      endif
+    endif
+
     if(.not.allocated(A)) then
       allocate(A)
+      if(myid.eq.0.and.ldebug) print *,'Creating Direct Matrix...'
       call DMCreateMatrix(plex%edir_dm, A, ierr); call CHKERR(ierr)
       call MatSetBlockSize(A,i1,ierr); call CHKERR(ierr)
-      !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
-
-      call set_side_incoming_boundary_condition()
-
-      ! Set Diagonal Entries
-      call DMPlexGetDepthStratum(plex%edir_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
-      do iface = fStart, fEnd-1
-        call PetscSectionGetDof(sec, iface, numDst, ierr); call CHKERR(ierr)
-        do idst = 0, numDst-1
-          call PetscSectionGetOffset(sec, iface+idst, irow, ierr); call CHKERR(ierr)
-          call MatSetValuesLocal(A, i1, irow, i1, irow, [one], INSERT_VALUES, ierr); call CHKERR(ierr)
-        enddo
-      enddo
+      if(myid.eq.0.and.ldebug) print *,'Creating Direct Matrix... done'
     endif
+
+    call MatZeroEntries(A, ierr); call CHKERR(ierr)
+
+    call set_side_incoming_boundary_condition()
+
+    ! Set Diagonal Entries
+    call DMPlexGetDepthStratum(plex%edir_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
+    do iface = fStart, fEnd-1
+      call PetscSectionGetDof(sec, iface, numDst, ierr); call CHKERR(ierr)
+      do idst = 0, numDst-1
+        call PetscSectionGetOffset(sec, iface+idst, irow, ierr); call CHKERR(ierr)
+        call MatSetValuesLocal(A, i1, irow, i1, irow, [one], INSERT_VALUES, ierr); call CHKERR(ierr)
+      enddo
+    enddo
 
     do icell = plex%cStart, plex%cEnd-1
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
@@ -1553,6 +1594,8 @@ module m_plex_rt
     real(ireals) :: area_top, area_bot
     real(ireals), parameter :: coeff_norm_err_tolerance=one+100*sqrt(epsilon(one))
 
+    logical :: lflg, ldestroy_mat, lreset_mat
+
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
     !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_ediff_mat...'
 
@@ -1574,14 +1617,36 @@ module m_plex_rt
 
     call DMGetSection(plex%ediff_dm, ediffSection, ierr); call CHKERR(ierr)
 
-    if(.not.allocated(A)) then
-      allocate(A)
-      call DMCreateMatrix(plex%ediff_dm, A, ierr); call CHKERR(ierr)
-      call MatSetBlockSize(A,i2,ierr); call CHKERR(ierr)
-      !call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE, ierr); call CHKERR(ierr)
+    if(allocated(A)) then
+      ldestroy_mat = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-destroy_mat",&
+        ldestroy_mat, lflg, ierr) ;call CHKERR(ierr)
+      if(ldestroy_mat) then
+        if(myid.eq.0.and.ldebug) print *,'Destroying Old Diffuse Matrix'
+        call MatDestroy(A, ierr); call CHKERR(ierr)
+        deallocate(A)
+      endif
     endif
 
-    call MatZeroEntries(solver%Mdir, ierr); call CHKERR(ierr)
+    if(.not.allocated(A)) then
+      allocate(A)
+      if(myid.eq.0.and.ldebug) print *,'Creating Diffuse Matrix...'
+      call DMCreateMatrix(plex%ediff_dm, A, ierr); call CHKERR(ierr)
+      call MatSetBlockSize(A,i2,ierr); call CHKERR(ierr)
+      call MatSetOption(A, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_TRUE, ierr); call CHKERR(ierr)
+      call MatSetOption(A, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_TRUE, ierr); call CHKERR(ierr)
+      if(myid.eq.0.and.ldebug) print *,'Creating Diffuse Matrix... done'
+    endif
+
+    lreset_mat = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-reset_mat",&
+      lreset_mat, lflg, ierr) ;call CHKERR(ierr)
+    if(lreset_mat) then
+      if(myid.eq.0.and.ldebug) print *,'Resetting Diffuse Matrix'
+      call MatResetPreallocation(A, ierr); call CHKERR(ierr)
+    endif
+    call MatZeroEntries(A, ierr); call CHKERR(ierr)
+
     call set_boundary_conditions()
     call set_diagonal_entries()
 
