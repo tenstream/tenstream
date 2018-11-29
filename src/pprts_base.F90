@@ -12,7 +12,8 @@ module m_pprts_base
 
   implicit none
 
-  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, &
+  public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
+    t_solver_8_10, t_solver_8_12, &
     t_coord, t_sunangles, t_suninfo, &
     t_state_container, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events, &
@@ -132,11 +133,13 @@ module m_pprts_base
 
   type, extends(t_solver) :: t_solver_1_2
   end type
-  type, extends(t_solver) :: t_solver_8_10
-  end type
   type, extends(t_solver) :: t_solver_3_6
   end type
   type, extends(t_solver) :: t_solver_3_10
+  end type
+  type, extends(t_solver) :: t_solver_8_10
+  end type
+  type, extends(t_solver) :: t_solver_8_12
   end type
 
 

@@ -33,7 +33,8 @@ module m_pprts
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
-  use m_optprop, only: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_8_10, t_optprop_3_10
+  use m_optprop, only: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
+    t_optprop_8_10, t_optprop_8_12
   use m_eddington, only : eddington_coeff_zdun
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -47,7 +48,8 @@ module m_pprts
 
   use m_mcrts_dmda, only : solve_mcrts
 
-  use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_8_10, t_solver_3_10, &
+  use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
+    t_solver_8_10, t_solver_8_12, &
     t_coord, t_sunangles, t_suninfo, t_atmosphere, &
     t_state_container, prepare_solution, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events, E_up, E_dn
@@ -127,6 +129,20 @@ module m_pprts
           allocate(solver%dirside%is_inward(1))
           solver%dirside%is_inward = [.True.]
 
+        class is (t_solver_3_10)
+
+          allocate(solver%difftop%is_inward(2))
+          solver%difftop%is_inward = [.False.,.True.]
+
+          allocate(solver%diffside%is_inward(4))
+          solver%diffside%is_inward = [.False.,.True.,.False.,.True.]
+
+          allocate(solver%dirtop%is_inward(1))
+          solver%dirtop%is_inward = [.True.]
+
+          allocate(solver%dirside%is_inward(1))
+          solver%dirside%is_inward = [.True.]
+
         class is (t_solver_8_10)
 
           allocate(solver%difftop%is_inward(2))
@@ -141,19 +157,20 @@ module m_pprts
           allocate(solver%dirside%is_inward(2))
           solver%dirside%is_inward = .True.
 
-        class is (t_solver_3_10)
+        class is (t_solver_8_12)
 
-          allocate(solver%difftop%is_inward(2))
-          solver%difftop%is_inward = [.False.,.True.]
+          allocate(solver%difftop%is_inward(4))
+          solver%difftop%is_inward = [.False.,.True.,.False.,.True.]
 
           allocate(solver%diffside%is_inward(4))
           solver%diffside%is_inward = [.False.,.True.,.False.,.True.]
 
-          allocate(solver%dirtop%is_inward(1))
-          solver%dirtop%is_inward = [.True.]
+          allocate(solver%dirtop%is_inward(4))
+          solver%dirtop%is_inward = .True.
 
-          allocate(solver%dirside%is_inward(1))
-          solver%dirside%is_inward = [.True.]
+          allocate(solver%dirside%is_inward(2))
+          solver%dirside%is_inward = .True.
+
         class default
           call CHKERR(1_mpiint, 'unexpected type for solver')
       end select
@@ -472,6 +489,9 @@ module m_pprts
 
         class is (t_solver_8_10)
            if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_10::solver%OPP)
+
+        class is (t_solver_8_12)
+           if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_12::solver%OPP)
 
         class is (t_solver_3_10)
            if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_10::solver%OPP)
@@ -1122,7 +1142,7 @@ module m_pprts
         do idof=1, solver%difftop%dof
           src = idof-1
           if (.not.solver%difftop%is_inward(idof)) then
-            call inc( xd(src, C%ze, i,j), one )
+            call inc( xd(src, C%ze, i,j), real(solver%difftop%dof/2, ireals) )
           endif
         enddo
 
@@ -3487,6 +3507,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 if (solver%difftop%is_inward(src)) then
                   col(MatStencil_c,i1) = src-1
                   row(MatStencil_c,i1) = dst-1
+                  !print *,solver%myid, 'i '//itoa(i)//' j '//itoa(j), ' Setting albedo for dst '//itoa(dst)//' src '//itoa(src)
                   call MatSetValuesStencil(A,i1, row, i1, col , [-solver%atm%albedo(i,j)/(solver%difftop%dof/2)] ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
                 endif
               enddo

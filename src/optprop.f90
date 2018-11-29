@@ -27,7 +27,8 @@ module m_optprop
 use m_optprop_parameters, only : ldebug_optprop, coeff_mode
 use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, swap
 use m_data_parameters, only: ireals,irealLUT,irealLUT,iintegers,one,zero,i0,i1,inil,mpiint
-use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_8_10, t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
+use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
+  t_optprop_LUT_8_10, t_optprop_LUT_8_12, &
   t_optprop_LUT_wedge_5_8
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
@@ -39,7 +40,8 @@ use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 implicit none
 
 private
-public :: t_optprop, t_optprop_1_2,t_optprop_8_10, t_optprop_3_6, t_optprop_3_10, t_optprop_wedge_5_8, &
+public :: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, t_optprop_wedge_5_8, &
+  t_optprop_8_10, t_optprop_8_12, &
   OPP_1D_RETCODE
 
 type,abstract :: t_optprop
@@ -57,13 +59,16 @@ end type
 type,extends(t_optprop) :: t_optprop_1_2
 end type
 
-type,extends(t_optprop) :: t_optprop_8_10
-end type
-
 type,extends(t_optprop) :: t_optprop_3_6
 end type
 
 type,extends(t_optprop) :: t_optprop_3_10
+end type
+
+type,extends(t_optprop) :: t_optprop_8_10
+end type
+
+type,extends(t_optprop) :: t_optprop_8_12
 end type
 
 type,extends(t_optprop) :: t_optprop_wedge_5_8
@@ -84,14 +89,17 @@ contains
               class is (t_optprop_1_2)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_1_2::OPP%OPP_LUT)
 
-              class is (t_optprop_8_10)
-               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_10::OPP%OPP_LUT)
-
               class is (t_optprop_3_6)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_6::OPP%OPP_LUT)
 
               class is (t_optprop_3_10)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_3_10::OPP%OPP_LUT)
+
+              class is (t_optprop_8_10)
+               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_10::OPP%OPP_LUT)
+
+              class is (t_optprop_8_12)
+               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_12::OPP%OPP_LUT)
 
               class is (t_optprop_wedge_5_8)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_5_8::OPP%OPP_LUT)
@@ -138,6 +146,9 @@ contains
           call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_8_10)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
+
+        class is (t_optprop_8_12)
           call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_wedge_5_8)
@@ -503,6 +514,18 @@ contains
           endif
         endif
 
+      class is (t_optprop_8_12)
+        if(present(lswitch_east)) then
+          if(lswitch_east) then
+            call CHKERR(1_mpiint, 'not yet implemented')
+          endif
+        endif
+        if(present(lswitch_north)) then
+          if (lswitch_north) then
+            call CHKERR(1_mpiint, 'not yet implemented')
+          endif
+        endif
+
       class is (t_optprop_8_10)
         !for solver_8_10 the offset is chaning and the destination order
         dof = 8
@@ -595,33 +618,42 @@ contains
         continue
 
       class is (t_optprop_8_10)
-        dof = 8
-        if(present(lswitch_east)) then
-          if(lswitch_east) then
-            newcoeff = coeff
-            coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof  )
-            coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]      )
-            coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*3)
-            coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*2)
-            coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*4)
-            coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*5)
-            coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*6)
-            coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*7)
-          endif
-        endif
-        if(present(lswitch_north)) then
-          if (lswitch_north) then
-            newcoeff = coeff
-            coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*2)
-            coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*3)
-            coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]      )
-            coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof  )
-            coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*4)
-            coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*5)
-            coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*6)
-            coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*7)
-          endif
-        endif
+        call symmetry_8()
+
+      class is (t_optprop_8_12)
+        call symmetry_8()
     end select
+
+  contains
+    subroutine symmetry_8()
+      dof = 8
+      if(present(lswitch_east)) then
+        if(lswitch_east) then
+          newcoeff = coeff
+          coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof  )
+          coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]      )
+          coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*3)
+          coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*2)
+          coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*4)
+          coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*5)
+          coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*6)
+          coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*7)
+        endif
+      endif
+      if(present(lswitch_north)) then
+        if (lswitch_north) then
+          newcoeff = coeff
+          coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*2)
+          coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*3)
+          coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]      )
+          coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof  )
+          coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*4)
+          coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*5)
+          coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*6)
+          coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*7)
+        endif
+      endif
+    end subroutine
+
   end subroutine
 end module

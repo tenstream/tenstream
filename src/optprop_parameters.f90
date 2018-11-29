@@ -58,10 +58,11 @@ module m_optprop_parameters
       ! interp_mode 1 == nearest neighbour interpolation
       ! interp_mode 2 == linear interpolation
 
-      integer(iintegers), parameter :: interp_mode_8_10=2
       integer(iintegers), parameter :: interp_mode_1_2=2
       integer(iintegers), parameter :: interp_mode_3_6=2
       integer(iintegers), parameter :: interp_mode_3_10=2
+      integer(iintegers), parameter :: interp_mode_8_10=2
+      integer(iintegers), parameter :: interp_mode_8_12=2
       integer(iintegers), parameter :: interp_mode_wedge_5_8=2
 
       ! We pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values

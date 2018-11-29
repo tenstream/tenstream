@@ -52,6 +52,7 @@ module m_boxmc
   public :: t_boxmc, t_photon, &
     t_boxmc_8_10, t_boxmc_1_2, &
     t_boxmc_3_10, t_boxmc_3_6, &
+    t_boxmc_8_12, &
     t_boxmc_wedge_5_5, t_boxmc_wedge_5_8, &
     scatter_photon, print_photon, roulette, R, &
     tau, distance, update_photon_loc, &
@@ -89,6 +90,15 @@ module m_boxmc
     procedure :: update_dir_stream  => update_dir_stream_1_2
     procedure :: update_diff_stream => update_diff_stream_1_2
   end type t_boxmc_1_2
+
+  type,extends(t_boxmc) :: t_boxmc_8_12
+  contains
+    procedure :: intersect_distance => intersect_distance_8_12
+    procedure :: init_dir_photon    => init_dir_photon_8_12
+    procedure :: init_diff_photon   => init_diff_photon_8_12
+    procedure :: update_dir_stream  => update_dir_stream_8_12
+    procedure :: update_diff_stream => update_diff_stream_8_12
+  end type t_boxmc_8_12
 
   type,extends(t_boxmc) :: t_boxmc_8_10
   contains
@@ -888,6 +898,9 @@ contains
     if(.not.lRNGseeded) call init_random_seed(seed, luse_random_seed)
 
     select type (bmc)
+    type is (t_boxmc_8_12)
+    bmc%dir_streams  =  8
+    bmc%diff_streams = 12
     type is (t_boxmc_8_10)
     bmc%dir_streams  =  8
     bmc%diff_streams = 10
@@ -916,6 +929,7 @@ contains
 end subroutine
 
 
+include 'boxmc_8_12.inc'
 include 'boxmc_8_10.inc'
 include 'boxmc_3_10.inc'
 include 'boxmc_1_2.inc'

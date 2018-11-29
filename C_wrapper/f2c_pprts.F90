@@ -29,7 +29,7 @@ module m_f2c_pprts
 
       use m_helper_functions, only: imp_bcast, meanval, CHKERR
 
-      use m_pprts_base, only : t_solver, t_solver_8_10, t_solver_3_10, t_solver_3_6, t_solver_1_2, t_coord
+      use m_pprts_base, only : t_solver, t_solver_8_12, t_solver_8_10, t_solver_3_10, t_solver_3_6, t_solver_1_2, t_coord
       use m_pprts, only : init_pprts, set_global_optical_properties, solve_pprts, destroy_pprts, &
         pprts_get_result_toZero
 
@@ -74,6 +74,8 @@ contains
     if(initialized) then
       ierr = 0
       select type(solver)
+        class is (t_solver_8_12)
+          if(solver_id.ne.SOLVER_ID_PPRTS_8_12) ierr = 1
         class is (t_solver_8_10)
           if(solver_id.ne.SOLVER_ID_PPRTS_8_10) ierr = 1
         class is (t_solver_3_10)
@@ -139,6 +141,8 @@ contains
     enddo
 
     select case(solver_id)
+    case(SOLVER_ID_PPRTS_8_12)
+      allocate(t_solver_8_12::solver)
     case(SOLVER_ID_PPRTS_8_10)
       allocate(t_solver_8_10::solver)
     case(SOLVER_ID_PPRTS_3_10)
