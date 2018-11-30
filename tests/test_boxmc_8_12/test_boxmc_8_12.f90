@@ -59,7 +59,7 @@ contains
     if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
-  !@test(npes =[1])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_direct_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
