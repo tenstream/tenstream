@@ -2526,6 +2526,8 @@ module m_plex_grid
       call DMGetCoordinatesLocal(dm, coordinates, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(coordinates, coords, ierr); call CHKERR(ierr)
 
+      vertices => NULL()
+      Nvertices = 0
       select case(Nedges)
       case (i3)
         vertices => vertices3
