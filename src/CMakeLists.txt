@@ -46,11 +46,12 @@ target_link_libraries( pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 add_library( pprts STATIC "pprts.f90")
 target_link_libraries( pprts pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
-file( GLOB streams createLUT_*.f90 )
+file( GLOB streams createLUT_*.[fF]90 )
 foreach ( stream ${streams} )
   GET_FILENAME_COMPONENT(basename "${stream}" NAME_WE )
+  GET_FILENAME_COMPONENT(fnameext "${stream}" EXT )
 
-  add_executable("${basename}" "${basename}.f90" )
+  add_executable("${basename}" "${basename}${fnameext}" )
   target_link_libraries( "${basename}" pprts_base)
 
   install(TARGETS ${basename} RUNTIME DESTINATION bin)

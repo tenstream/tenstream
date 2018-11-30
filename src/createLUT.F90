@@ -25,12 +25,21 @@ program main
       use m_data_parameters, only: mpiint, ireals, init_mpi_data_parameters
       use m_helper_functions, only: CHKERR
       use mpi
-      use m_optprop_LUT, only : t_optprop_LUT_8_10
+      use m_optprop_LUT, only : t_optprop_LUT, &
+        t_optprop_LUT_1_2,  &
+        t_optprop_LUT_3_6,  &
+        t_optprop_LUT_3_10, &
+        t_optprop_LUT_8_10, &
+        t_optprop_LUT_8_12, &
+        t_optprop_LUT_8_16, &
+        t_optprop_LUT_wedge_5_8
+
       use m_tenstream_options, only : read_commandline_options
 
       integer(mpiint) :: myid,comm
 
-      type(t_optprop_LUT_8_10) :: OPP
+      character(len=80) :: arg
+      class(t_optprop_LUT), allocatable :: OPP
 
       PetscErrorCode :: ierr
 
@@ -42,6 +51,42 @@ program main
       call init_mpi_data_parameters(MPI_COMM_WORLD)
 
       call read_commandline_options(comm)
+
+      call get_command_argument(1, arg)
+
+      select case(arg)
+      case ('1_2')
+        allocate(t_optprop_LUT_1_2::OPP)
+
+      case ('3_6')
+        allocate(t_optprop_LUT_3_6::OPP)
+
+      case ('3_10')
+        allocate(t_optprop_LUT_3_10::OPP)
+
+      case ('8_10')
+        allocate(t_optprop_LUT_8_10::OPP)
+
+      case ('8_12')
+        allocate(t_optprop_LUT_8_12::OPP)
+
+      case ('8_16')
+        allocate(t_optprop_LUT_8_16::OPP)
+
+      case ('wedge_5_8')
+        allocate(t_optprop_LUT_wedge_5_8::OPP)
+
+      case default
+        print *,'error, have to provide solver type as argument, e.g. call with'
+        print *,'createLUT_pprts 1_2'
+        print *,'createLUT_pprts 3_6'
+        print *,'createLUT_pprts 3_10'
+        print *,'createLUT_pprts 8_10'
+        print *,'createLUT_pprts 8_12'
+        print *,'createLUT_pprts 8_16'
+        print *,'createLUT_pprts wedge_5_8'
+        stop
+      end select
 
       call OPP%init(comm)
 
