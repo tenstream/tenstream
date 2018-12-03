@@ -18,15 +18,5 @@ add_executable( gen_fish_plex gen_fish_plex.F90 )
 target_link_libraries( gen_fish_plex plexrt pprts_base)
 install(TARGETS gen_fish_plex DESTINATION bin)
 
-file( GLOB streams createLUT_*.f90 )
-foreach ( stream ${streams} )
-  GET_FILENAME_COMPONENT(basename "${stream}" NAME_WE )
-
-  add_executable("${basename}" "${basename}.f90" )
-  target_link_libraries( "${basename}" plexrt pprts_base )
-
-  install(TARGETS ${basename} RUNTIME DESTINATION bin)
-endforeach ()
-
 install(TARGETS plexrt DESTINATION lib)
 install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")

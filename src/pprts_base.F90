@@ -13,7 +13,7 @@ module m_pprts_base
   implicit none
 
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
-    t_solver_8_10, t_solver_8_12, &
+    t_solver_8_10, t_solver_8_12, t_solver_8_16, &
     t_coord, t_sunangles, t_suninfo, &
     t_state_container, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events, &
@@ -79,7 +79,7 @@ module m_pprts_base
   end type
 
   type t_dof
-    integer(iintegers) :: dof
+    integer(iintegers) :: dof, area_divider, streams
     logical, allocatable :: is_inward(:)
   end type
 
@@ -140,6 +140,8 @@ module m_pprts_base
   type, extends(t_solver) :: t_solver_8_10
   end type
   type, extends(t_solver) :: t_solver_8_12
+  end type
+  type, extends(t_solver) :: t_solver_8_16
   end type
 
 

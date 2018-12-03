@@ -34,7 +34,7 @@ module m_pprts
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
   use m_optprop, only: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
-    t_optprop_8_10, t_optprop_8_12
+    t_optprop_8_10, t_optprop_8_12, t_optprop_8_16
   use m_eddington, only : eddington_coeff_zdun
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -49,7 +49,7 @@ module m_pprts
   use m_mcrts_dmda, only : solve_mcrts
 
   use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
-    t_solver_8_10, t_solver_8_12, &
+    t_solver_8_10, t_solver_8_12, t_solver_8_16, &
     t_coord, t_sunangles, t_suninfo, t_atmosphere, &
     t_state_container, prepare_solution, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events, E_up, E_dn
@@ -103,6 +103,12 @@ module m_pprts
 
     if(.not.solver%linitialized) then
 
+      solver%difftop%area_divider = 1
+      solver%diffside%area_divider = 1
+
+      solver%dirtop%area_divider = 1
+      solver%dirside%area_divider = 1
+
       select type(solver)
         class is (t_solver_1_2)
           allocate(solver%difftop%is_inward(2))
@@ -153,9 +159,11 @@ module m_pprts
 
           allocate(solver%dirtop%is_inward(4))
           solver%dirtop%is_inward = .True.
+          solver%dirtop%area_divider = 4
 
           allocate(solver%dirside%is_inward(2))
           solver%dirside%is_inward = .True.
+          solver%dirside%area_divider = 2
 
         class is (t_solver_8_12)
 
@@ -167,9 +175,24 @@ module m_pprts
 
           allocate(solver%dirtop%is_inward(4))
           solver%dirtop%is_inward = .True.
+          solver%dirtop%area_divider = 4
 
           allocate(solver%dirside%is_inward(2))
           solver%dirside%is_inward = .True.
+          solver%dirside%area_divider = 2
+
+        class is (t_solver_8_16)
+
+          allocate(solver%difftop%is_inward(8), source= &
+            [.False.,.True.,.False.,.True.,.False.,.True.,.False.,.True.])
+
+          allocate(solver%diffside%is_inward(4), source=[.False.,.True.,.False.,.True.])
+
+          allocate(solver%dirtop%is_inward(4), source=.True.)
+          solver%dirtop%area_divider = 4
+
+          allocate(solver%dirside%is_inward(2), source=.True.)
+          solver%dirside%area_divider = 2
 
         class default
           call CHKERR(1_mpiint, 'unexpected type for solver')
@@ -179,6 +202,11 @@ module m_pprts
       solver%diffside%dof= size(solver%diffside%is_inward)
       solver%dirtop%dof= size(solver%dirtop%is_inward)
       solver%dirside%dof= size(solver%dirside%is_inward)
+
+      solver%difftop%streams  = solver%difftop%dof/2
+      solver%diffside%streams = solver%diffside%dof/2
+      solver%dirtop%streams   = solver%dirtop%dof/2
+      solver%dirside%streams  = solver%dirside%dof/2
 
       call init_mpi_data_parameters(icomm)
 
@@ -487,14 +515,17 @@ module m_pprts
         class is (t_solver_3_6)
            if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_6::solver%OPP)
 
+        class is (t_solver_3_10)
+           if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_10::solver%OPP)
+
         class is (t_solver_8_10)
            if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_10::solver%OPP)
 
         class is (t_solver_8_12)
            if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_12::solver%OPP)
 
-        class is (t_solver_3_10)
-           if(.not.allocated(solver%OPP) ) allocate(t_optprop_3_10::solver%OPP)
+        class is (t_solver_8_16)
+           if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_16::solver%OPP)
 
         class default
            call CHKERR(1_mpiint, 'init pprts: unexpected type for solver')
@@ -1780,7 +1811,7 @@ module m_pprts
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling direct fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C%da ,xv1d, xv)
 
-      Az  = solver%atm%dx*solver%atm%dy / solver%dirtop%dof  ! size of a direct stream in m**2
+      Az  = solver%atm%dx*solver%atm%dy / solver%dirtop%area_divider  ! size of a direct stream in m**2
       fac = Az
 
       ! Scaling top faces
@@ -1801,7 +1832,7 @@ module m_pprts
           do k=C%zs,C%ze-1
             if(.not.atm%l1d(atmk(atm, k),i,j)) then
               ! First the faces in x-direction
-              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / solver%dirside%dof
+              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / solver%dirside%area_divider
               fac = Ax
               do iside=1,solver%dirside%dof
                 d = solver%dirtop%dof + iside-1
@@ -1809,7 +1840,7 @@ module m_pprts
               enddo
 
               ! Then the rest of the faces in y-direction
-              Ay = atm%dy*atm%dz(k,i,j) / solver%dirside%dof
+              Ay = atm%dy*atm%dz(k,i,j) / solver%dirside%area_divider
               fac = Ay
               do iside=1,solver%dirside%dof
                 d = solver%dirtop%dof + solver%dirside%dof + iside-1
@@ -1848,7 +1879,7 @@ module m_pprts
 
 
       ! Scaling top faces
-      Az = solver%atm%dx*solver%atm%dy/(solver%difftop%dof/2)
+      Az = solver%atm%dx*solver%atm%dy/solver%difftop%area_divider
       fac = Az
 
       do j=C%ys,C%ye
@@ -1869,20 +1900,20 @@ module m_pprts
             if(.not.solver%atm%l1d(atmk(solver%atm, k),i,j)) then
 
               ! faces in x-direction
-              Ax = solver%atm%dy*solver%atm%dz(k,i,j)/(solver%difftop%dof/2)
+              Ax = solver%atm%dy*solver%atm%dz(k,i,j)/solver%diffside%area_divider
               fac = Ax
 
-              do iside=1,solver%diffside%dof/2
+              do iside=1,solver%diffside%streams
                 src = solver%difftop%dof + iside -1
                 xv(src ,k,i,j) = fac
               enddo
 
               ! faces in y-direction
-              Ay = solver%atm%dx*solver%atm%dz(k,i,j)/(solver%difftop%dof/2)
+              Ay = solver%atm%dx*solver%atm%dz(k,i,j)/solver%difftop%area_divider
               fac = Ay
 
-              do iside=1,solver%diffside%dof/2
-                src = solver%difftop%dof + solver%diffside%dof/2 + iside -1
+              do iside=1,solver%diffside%streams
+                src = solver%difftop%dof + solver%diffside%streams + iside -1
                 xv(src ,k,i,j) = fac
               enddo
 
@@ -2673,7 +2704,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     real(ireals) :: fac
     integer(iintegers) :: i,j,src
 
-    fac = edirTOA * (solver%atm%dx*solver%atm%dy) / solver%dirtop%dof
+    fac = edirTOA * (solver%atm%dx*solver%atm%dy) / solver%dirtop%area_divider
 
     call VecSet(incSolar,zero,ierr) ;call CHKERR(ierr)
 
@@ -2891,7 +2922,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 C_diff  => solver%C_diff)
 
       if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms min/max planck', minval(atm%planck), maxval(atm%planck)
-      Az = atm%dx*atm%dy/(solver%difftop%dof/2)
+      Az = atm%dx*atm%dy/solver%difftop%area_divider
 
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
@@ -2920,8 +2951,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
               endif
 
             else ! Tenstream source terms
-              Ax = atm%dy*atm%dz(atmk(atm,k),i,j)/(solver%diffside%dof/2)
-              Ay = atm%dx*atm%dz(atmk(atm,k),i,j)/(solver%diffside%dof/2)
+              Ax = atm%dy*atm%dz(atmk(atm,k),i,j)/solver%diffside%area_divider
+              Ay = atm%dx*atm%dz(atmk(atm,k),i,j)/solver%diffside%area_divider
 
               call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
               call get_coeff(solver, &
@@ -3025,10 +3056,12 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                     do idiff=1,solver%difftop%dof
                       if (solver%difftop%is_inward(idiff)) then
                         ! fetch all diffuse downward fluxes at k+1
-                        xsrc(idiff-1,k+1,i,j) = xsrc(idiff-1,k+1,i,j) +  xedir(src-1,k,i,j) * atm%a23(atmk(atm,k),i,j)/(solver%difftop%dof/2)
+                        xsrc(idiff-1,k+1,i,j) = xsrc(idiff-1,k+1,i,j) + &
+                          xedir(src-1,k,i,j) * atm%a23(atmk(atm,k),i,j) / solver%difftop%streams
                       else
                         ! fetch all diffuse upward fluxes at k
-                        xsrc(idiff-1,k,i,j) = xsrc(idiff-1,k,i,j) +  xedir(src-1,k,i,j) * atm%a13(atmk(atm,k),i,j)/(solver%difftop%dof/2)
+                        xsrc(idiff-1,k,i,j) = xsrc(idiff-1,k,i,j) + &
+                          xedir(src-1,k,i,j) * atm%a13(atmk(atm,k),i,j) / solver%difftop%streams
                       endif
                     enddo
                   enddo
@@ -3176,7 +3209,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
           do dst=1, solver%difftop%dof
             if (.not. solver%difftop%is_inward(dst)) then
               do src=1, solver%dirtop%dof
-                xsrc(dst-1,k,i,j) = xsrc(dst-1, k, i, j) + xedir(src-1,k,i,j) * atm%albedo(i,j) *(2/solver%difftop%dof)
+                xsrc(dst-1,k,i,j) = xsrc(dst-1, k, i, j) + xedir(src-1,k,i,j) * atm%albedo(i,j) / solver%difftop%streams
               enddo
             endif
           enddo
@@ -3508,7 +3541,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                   col(MatStencil_c,i1) = src-1
                   row(MatStencil_c,i1) = dst-1
                   !print *,solver%myid, 'i '//itoa(i)//' j '//itoa(j), ' Setting albedo for dst '//itoa(dst)//' src '//itoa(src)
-                  call MatSetValuesStencil(A,i1, row, i1, col , [-solver%atm%albedo(i,j)/(solver%difftop%dof/2)] ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
+                  call MatSetValuesStencil(A, i1, row, i1, col, [-solver%atm%albedo(i,j) / solver%difftop%streams], INSERT_VALUES, ierr) ;call CHKERR(ierr)
                 endif
               enddo
             endif
@@ -3582,7 +3615,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
         if(solver%atm%lcollapse) call CHKERR(1_mpiint, 'pprts_get_result :: lcollapse needs to be implemented')
 
         call getVecPointer(solver%solutions(uid)%edir, solver%C_dir%da, x1d, x4d)
-        redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%dof, kind=ireals)  ! average of direct radiation of all fluxes through top faces
+        redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals) ! average of direct radiation of all fluxes through top faces
         call restoreVecPointer(solver%solutions(uid)%edir, x1d, x4d)
 
         if(ldebug) then
@@ -3606,14 +3639,14 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       call getVecPointer(solver%solutions(uid)%ediff, solver%C_diff%da, x1d, x4d)
       do iside=1,solver%difftop%dof
         if(solver%difftop%is_inward(iside)) then
-          redn = redn + x4d(iside-1, :, :, :)
+          redn = redn + x4d(iside-1, :, :, :) / solver%difftop%area_divider
         else
-          reup = reup + x4d(iside-1, :, :, :)
+          reup = reup + x4d(iside-1, :, :, :) / solver%difftop%area_divider
         endif
       enddo
       call restoreVecPointer(solver%solutions(uid)%ediff,x1d,x4d)
-      reup = reup / (solver%difftop%dof / 2)
-      redn = redn / (solver%difftop%dof / 2)
+      reup = reup
+      redn = redn
     endif
 
     if(solver%myid.eq.0 .and. ldebug .and. present(redir)) &

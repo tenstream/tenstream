@@ -29,7 +29,8 @@ module m_f2c_pprts
 
       use m_helper_functions, only: imp_bcast, meanval, CHKERR
 
-      use m_pprts_base, only : t_solver, t_solver_8_12, t_solver_8_10, t_solver_3_10, t_solver_3_6, t_solver_1_2, t_coord
+      use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_3_6, t_solver_1_2, t_coord, &
+        t_solver_8_10, t_solver_8_12, t_solver_8_16
       use m_pprts, only : init_pprts, set_global_optical_properties, solve_pprts, destroy_pprts, &
         pprts_get_result_toZero
 
@@ -74,16 +75,18 @@ contains
     if(initialized) then
       ierr = 0
       select type(solver)
-        class is (t_solver_8_12)
-          if(solver_id.ne.SOLVER_ID_PPRTS_8_12) ierr = 1
-        class is (t_solver_8_10)
-          if(solver_id.ne.SOLVER_ID_PPRTS_8_10) ierr = 1
-        class is (t_solver_3_10)
-          if(solver_id.ne.SOLVER_ID_PPRTS_3_10) ierr = 1
-        class is (t_solver_3_6)
-          if(solver_id.ne.SOLVER_ID_PPRTS_3_6) ierr = 1
         class is (t_solver_1_2)
           if(solver_id.ne.SOLVER_ID_PPRTS_1_2) ierr = 1
+        class is (t_solver_3_6)
+          if(solver_id.ne.SOLVER_ID_PPRTS_3_6) ierr = 1
+        class is (t_solver_3_10)
+          if(solver_id.ne.SOLVER_ID_PPRTS_3_10) ierr = 1
+        class is (t_solver_8_10)
+          if(solver_id.ne.SOLVER_ID_PPRTS_8_10) ierr = 1
+        class is (t_solver_8_12)
+          if(solver_id.ne.SOLVER_ID_PPRTS_8_12) ierr = 1
+        class is (t_solver_8_16)
+          if(solver_id.ne.SOLVER_ID_PPRTS_8_16) ierr = 1
       end select
       if(ierr.ne.0) call CHKERR(ierr, 'seems you changed the solver type id in between calls... you must destroy the solver first before you use a different kind of solver')
       return
@@ -141,16 +144,18 @@ contains
     enddo
 
     select case(solver_id)
-    case(SOLVER_ID_PPRTS_8_12)
-      allocate(t_solver_8_12::solver)
-    case(SOLVER_ID_PPRTS_8_10)
-      allocate(t_solver_8_10::solver)
-    case(SOLVER_ID_PPRTS_3_10)
-      allocate(t_solver_3_10::solver)
-    case(SOLVER_ID_PPRTS_3_6)
-      allocate(t_solver_3_6::solver)
     case(SOLVER_ID_PPRTS_1_2)
       allocate(t_solver_1_2::solver)
+    case(SOLVER_ID_PPRTS_3_6)
+      allocate(t_solver_3_6::solver)
+    case(SOLVER_ID_PPRTS_3_10)
+      allocate(t_solver_3_10::solver)
+    case(SOLVER_ID_PPRTS_8_10)
+      allocate(t_solver_8_10::solver)
+    case(SOLVER_ID_PPRTS_8_12)
+      allocate(t_solver_8_12::solver)
+    case(SOLVER_ID_PPRTS_8_16)
+      allocate(t_solver_8_16::solver)
     end select
 
     call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
