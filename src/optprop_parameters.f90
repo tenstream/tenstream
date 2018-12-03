@@ -64,6 +64,7 @@ module m_optprop_parameters
       integer(iintegers), parameter :: interp_mode_8_10=2
       integer(iintegers), parameter :: interp_mode_8_12=2
       integer(iintegers), parameter :: interp_mode_8_16=2
+      integer(iintegers), parameter :: interp_mode_8_18=2
       integer(iintegers), parameter :: interp_mode_wedge_5_8=2
 
       ! We pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values

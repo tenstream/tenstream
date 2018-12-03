@@ -28,7 +28,7 @@ use m_optprop_parameters, only : ldebug_optprop, coeff_mode
 use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, swap
 use m_data_parameters, only: ireals,irealLUT,irealLUT,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
-  t_optprop_LUT_8_10, t_optprop_LUT_8_12, t_optprop_LUT_8_16, &
+  t_optprop_LUT_8_10, t_optprop_LUT_8_12, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
   t_optprop_LUT_wedge_5_8
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
@@ -41,7 +41,7 @@ implicit none
 
 private
 public :: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, t_optprop_wedge_5_8, &
-  t_optprop_8_10, t_optprop_8_12, t_optprop_8_16, &
+  t_optprop_8_10, t_optprop_8_12, t_optprop_8_16, t_optprop_8_18, &
   OPP_1D_RETCODE
 
 type,abstract :: t_optprop
@@ -72,6 +72,9 @@ type,extends(t_optprop) :: t_optprop_8_12
 end type
 
 type,extends(t_optprop) :: t_optprop_8_16
+end type
+
+type,extends(t_optprop) :: t_optprop_8_18
 end type
 
 type,extends(t_optprop) :: t_optprop_wedge_5_8
@@ -106,6 +109,9 @@ contains
 
               class is (t_optprop_8_16)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_16::OPP%OPP_LUT)
+
+              class is (t_optprop_8_18)
+               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_8_18::OPP%OPP_LUT)
 
               class is (t_optprop_wedge_5_8)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_5_8::OPP%OPP_LUT)
@@ -158,6 +164,9 @@ contains
           call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_8_16)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
+
+        class is (t_optprop_8_18)
           call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_wedge_5_8)
@@ -615,6 +624,18 @@ contains
           endif
         endif
 
+      class is (t_optprop_8_18)
+        if(present(lswitch_east)) then
+          if(lswitch_east) then
+            call CHKERR(1_mpiint, 'not yet implemented')
+          endif
+        endif
+        if(present(lswitch_north)) then
+          if (lswitch_north) then
+            call CHKERR(1_mpiint, 'not yet implemented')
+          endif
+        endif
+
     end select
 
   end subroutine
@@ -646,6 +667,9 @@ contains
         call symmetry_8()
 
       class is (t_optprop_8_16)
+        call symmetry_8()
+
+      class is (t_optprop_8_18)
         call symmetry_8()
     end select
 

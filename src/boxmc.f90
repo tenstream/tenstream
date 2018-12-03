@@ -53,6 +53,7 @@ module m_boxmc
     t_boxmc_8_10, t_boxmc_1_2, &
     t_boxmc_3_10, t_boxmc_3_6, &
     t_boxmc_8_12, t_boxmc_8_16,&
+    t_boxmc_8_18, &
     t_boxmc_wedge_5_5, t_boxmc_wedge_5_8, &
     scatter_photon, print_photon, roulette, R, &
     tau, distance, update_photon_loc, &
@@ -91,32 +92,14 @@ module m_boxmc
     procedure :: update_diff_stream => update_diff_stream_1_2
   end type t_boxmc_1_2
 
-  type,extends(t_boxmc) :: t_boxmc_8_16
+  type,extends(t_boxmc) :: t_boxmc_3_6
   contains
-    procedure :: intersect_distance => intersect_distance_8_16
-    procedure :: init_dir_photon    => init_dir_photon_8_16
-    procedure :: init_diff_photon   => init_diff_photon_8_16
-    procedure :: update_dir_stream  => update_dir_stream_8_16
-    procedure :: update_diff_stream => update_diff_stream_8_16
-  end type t_boxmc_8_16
-
-  type,extends(t_boxmc) :: t_boxmc_8_12
-  contains
-    procedure :: intersect_distance => intersect_distance_8_12
-    procedure :: init_dir_photon    => init_dir_photon_8_12
-    procedure :: init_diff_photon   => init_diff_photon_8_12
-    procedure :: update_dir_stream  => update_dir_stream_8_12
-    procedure :: update_diff_stream => update_diff_stream_8_12
-  end type t_boxmc_8_12
-
-  type,extends(t_boxmc) :: t_boxmc_8_10
-  contains
-    procedure :: intersect_distance => intersect_distance_8_10
-    procedure :: init_dir_photon    => init_dir_photon_8_10
-    procedure :: init_diff_photon   => init_diff_photon_8_10
-    procedure :: update_dir_stream  => update_dir_stream_8_10
-    procedure :: update_diff_stream => update_diff_stream_8_10
-  end type t_boxmc_8_10
+    procedure :: intersect_distance => intersect_distance_3_6
+    procedure :: init_dir_photon    => init_dir_photon_3_6
+    procedure :: init_diff_photon   => init_diff_photon_3_6
+    procedure :: update_dir_stream  => update_dir_stream_3_6
+    procedure :: update_diff_stream => update_diff_stream_3_6
+  end type t_boxmc_3_6
 
   type,extends(t_boxmc) :: t_boxmc_3_10
   contains
@@ -127,14 +110,41 @@ module m_boxmc
     procedure :: update_diff_stream => update_diff_stream_3_10
   end type t_boxmc_3_10
 
-  type,extends(t_boxmc) :: t_boxmc_3_6
+  type,extends(t_boxmc) :: t_boxmc_8_10
   contains
-    procedure :: intersect_distance => intersect_distance_3_6
-    procedure :: init_dir_photon    => init_dir_photon_3_6
-    procedure :: init_diff_photon   => init_diff_photon_3_6
-    procedure :: update_dir_stream  => update_dir_stream_3_6
-    procedure :: update_diff_stream => update_diff_stream_3_6
-  end type t_boxmc_3_6
+    procedure :: intersect_distance => intersect_distance_8_10
+    procedure :: init_dir_photon    => init_dir_photon_8_10
+    procedure :: init_diff_photon   => init_diff_photon_8_10
+    procedure :: update_dir_stream  => update_dir_stream_8_10
+    procedure :: update_diff_stream => update_diff_stream_8_10
+  end type t_boxmc_8_10
+
+  type,extends(t_boxmc) :: t_boxmc_8_12
+  contains
+    procedure :: intersect_distance => intersect_distance_8_12
+    procedure :: init_dir_photon    => init_dir_photon_8_12
+    procedure :: init_diff_photon   => init_diff_photon_8_12
+    procedure :: update_dir_stream  => update_dir_stream_8_12
+    procedure :: update_diff_stream => update_diff_stream_8_12
+  end type t_boxmc_8_12
+
+  type,extends(t_boxmc) :: t_boxmc_8_16
+  contains
+    procedure :: intersect_distance => intersect_distance_8_16
+    procedure :: init_dir_photon    => init_dir_photon_8_16
+    procedure :: init_diff_photon   => init_diff_photon_8_16
+    procedure :: update_dir_stream  => update_dir_stream_8_16
+    procedure :: update_diff_stream => update_diff_stream_8_16
+  end type t_boxmc_8_16
+
+  type,extends(t_boxmc) :: t_boxmc_8_18
+  contains
+    procedure :: intersect_distance => intersect_distance_8_18
+    procedure :: init_dir_photon    => init_dir_photon_8_18
+    procedure :: init_diff_photon   => init_diff_photon_8_18
+    procedure :: update_dir_stream  => update_dir_stream_8_18
+    procedure :: update_diff_stream => update_diff_stream_8_18
+  end type t_boxmc_8_18
 
   type,extends(t_boxmc) :: t_boxmc_wedge_5_5
   contains
@@ -907,24 +917,27 @@ contains
     if(.not.lRNGseeded) call init_random_seed(seed, luse_random_seed)
 
     select type (bmc)
-    type is (t_boxmc_8_16)
-    bmc%dir_streams  =  8
-    bmc%diff_streams = 16
-    type is (t_boxmc_8_12)
-    bmc%dir_streams  =  8
-    bmc%diff_streams = 12
-    type is (t_boxmc_8_10)
-    bmc%dir_streams  =  8
-    bmc%diff_streams = 10
-    type is (t_boxmc_3_10)
-    bmc%dir_streams  =  3
-    bmc%diff_streams = 10
     type is (t_boxmc_1_2)
     bmc%dir_streams  =  1
     bmc%diff_streams =  2
     type is (t_boxmc_3_6)
     bmc%dir_streams = 3
     bmc%diff_streams = 6
+    type is (t_boxmc_3_10)
+    bmc%dir_streams  =  3
+    bmc%diff_streams = 10
+    type is (t_boxmc_8_10)
+    bmc%dir_streams  =  8
+    bmc%diff_streams = 10
+    type is (t_boxmc_8_12)
+    bmc%dir_streams  =  8
+    bmc%diff_streams = 12
+    type is (t_boxmc_8_16)
+    bmc%dir_streams  =  8
+    bmc%diff_streams = 16
+    type is (t_boxmc_8_18)
+    bmc%dir_streams  =  8
+    bmc%diff_streams = 18
     type is (t_boxmc_wedge_5_5)
     bmc%dir_streams  =  5
     bmc%diff_streams =  5
@@ -941,6 +954,7 @@ contains
 end subroutine
 
 
+include 'boxmc_8_18.inc'
 include 'boxmc_8_16.inc'
 include 'boxmc_8_12.inc'
 include 'boxmc_8_10.inc'

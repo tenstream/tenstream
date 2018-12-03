@@ -46,7 +46,7 @@ target_link_libraries( pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 add_library( pprts STATIC "pprts.f90")
 target_link_libraries( pprts pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
-file( GLOB streams createLUT_*.[fF]90 )
+file( GLOB streams createLUT*.[fF]90 )
 foreach ( stream ${streams} )
   GET_FILENAME_COMPONENT(basename "${stream}" NAME_WE )
   GET_FILENAME_COMPONENT(fnameext "${stream}" EXT )

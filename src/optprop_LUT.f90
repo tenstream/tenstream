@@ -42,6 +42,7 @@ module m_optprop_LUT
     interp_mode_1_2,interp_mode_8_10,     &
     interp_mode_3_6,interp_mode_3_10,     &
     interp_mode_8_12, interp_mode_8_16,   &
+    interp_mode_8_18,                     &
     interp_mode_wedge_5_8,                &
     ldelta_scale,delta_scale_truncate,    &
     stddev_atol, stddev_rtol,             &
@@ -58,6 +59,7 @@ module m_optprop_LUT
   use m_boxmc, only: t_boxmc, &
     t_boxmc_1_2, t_boxmc_3_6, t_boxmc_3_10, &
     t_boxmc_8_10, t_boxmc_8_12, t_boxmc_8_16, &
+    t_boxmc_8_18, &
     t_boxmc_wedge_5_8
   use m_tenstream_interpolation, only: interp_4d, interp_vec_simplex_nd
   use m_netcdfio
@@ -70,7 +72,7 @@ module m_optprop_LUT
 
   private
   public :: t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
-    t_optprop_LUT_8_10, t_optprop_LUT_8_12, t_optprop_LUT_8_16, &
+    t_optprop_LUT_8_10, t_optprop_LUT_8_12, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
     t_optprop_LUT_wedge_5_8, &
     find_lut_dim_by_name
   ! This module loads and generates the LUT-tables for Tenstream Radiation
@@ -136,6 +138,8 @@ module m_optprop_LUT
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_8_16
   end type
+  type,extends(t_optprop_LUT) :: t_optprop_LUT_8_18
+  end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_wedge_5_8
   end type
 
@@ -193,6 +197,12 @@ contains
             OPP%diff_streams = 16
             OPP%lutbasename=trim(lut_basename)//'_8_16.'
             allocate(t_boxmc_8_16::OPP%bmc)
+
+          class is (t_optprop_LUT_8_18)
+            OPP%dir_streams  = 8
+            OPP%diff_streams = 18
+            OPP%lutbasename=trim(lut_basename)//'_8_18.'
+            allocate(t_boxmc_8_18::OPP%bmc)
 
           class is (t_optprop_LUT_wedge_5_8)
             OPP%dir_streams  = 5
@@ -779,6 +789,9 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
       class is (t_optprop_LUT_8_16)
         call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
 
+      class is (t_optprop_LUT_8_18)
+        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+
       class is (t_optprop_LUT_wedge_5_8)
         call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
         call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
@@ -941,6 +954,21 @@ subroutine set_parameter_space(OPP)
 
       class is (t_optprop_LUT_8_16)
           OPP%interp_mode = interp_mode_8_16
+          allocate(OPP%dirconfig%dims(6))
+          call populate_LUT_dim('tau',       size(preset_tau20,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau20)
+          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
+          call populate_LUT_dim('g',         size(preset_g3,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g3)
+          call populate_LUT_dim('phi',       i2, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('theta',     i3, OPP%dirconfig%dims(6), vrange=real([55,60,65], irealLUT))
+          allocate(OPP%diffconfig%dims(4))
+          call populate_LUT_dim('tau',       size(preset_tau20,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau20)
+          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
+          call populate_LUT_dim('g',         size(preset_g3,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g3)
+
+      class is (t_optprop_LUT_8_18)
+          OPP%interp_mode = interp_mode_8_18
           allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau20,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau20)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)

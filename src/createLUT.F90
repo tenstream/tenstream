@@ -32,6 +32,7 @@ program main
         t_optprop_LUT_8_10, &
         t_optprop_LUT_8_12, &
         t_optprop_LUT_8_16, &
+        t_optprop_LUT_8_18, &
         t_optprop_LUT_wedge_5_8
 
       use m_tenstream_options, only : read_commandline_options
@@ -73,6 +74,9 @@ program main
       case ('8_16')
         allocate(t_optprop_LUT_8_16::OPP)
 
+      case ('8_18')
+        allocate(t_optprop_LUT_8_18::OPP)
+
       case ('wedge_5_8')
         allocate(t_optprop_LUT_wedge_5_8::OPP)
 
@@ -84,6 +88,7 @@ program main
         print *,'createLUT_pprts 8_10'
         print *,'createLUT_pprts 8_12'
         print *,'createLUT_pprts 8_16'
+        print *,'createLUT_pprts 8_18'
         print *,'createLUT_pprts wedge_5_8'
         stop
       end select

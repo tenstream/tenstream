@@ -34,7 +34,7 @@ module m_pprts
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
   use m_optprop, only: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
-    t_optprop_8_10, t_optprop_8_12, t_optprop_8_16
+    t_optprop_8_10, t_optprop_8_12, t_optprop_8_16, t_optprop_8_18
   use m_eddington, only : eddington_coeff_zdun
 
   use m_tenstream_options, only : read_commandline_options, ltwostr, luse_eddington, twostr_ratio, &
@@ -49,7 +49,7 @@ module m_pprts
   use m_mcrts_dmda, only : solve_mcrts
 
   use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
-    t_solver_8_10, t_solver_8_12, t_solver_8_16, &
+    t_solver_8_10, t_solver_8_12, t_solver_8_16, t_solver_8_18, &
     t_coord, t_sunangles, t_suninfo, t_atmosphere, &
     t_state_container, prepare_solution, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events, E_up, E_dn
@@ -185,6 +185,19 @@ module m_pprts
 
           allocate(solver%difftop%is_inward(8), source= &
             [.False.,.True.,.False.,.True.,.False.,.True.,.False.,.True.])
+
+          allocate(solver%diffside%is_inward(4), source=[.False.,.True.,.False.,.True.])
+
+          allocate(solver%dirtop%is_inward(4), source=.True.)
+          solver%dirtop%area_divider = 4
+
+          allocate(solver%dirside%is_inward(2), source=.True.)
+          solver%dirside%area_divider = 2
+
+        class is (t_solver_8_18)
+
+          allocate(solver%difftop%is_inward(10), source= &
+            [.False.,.True.,.False.,.True.,.False.,.True.,.False.,.True.,.False.,.True.])
 
           allocate(solver%diffside%is_inward(4), source=[.False.,.True.,.False.,.True.])
 
@@ -526,6 +539,9 @@ module m_pprts
 
         class is (t_solver_8_16)
            if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_16::solver%OPP)
+
+        class is (t_solver_8_18)
+           if(.not.allocated(solver%OPP) ) allocate(t_optprop_8_18::solver%OPP)
 
         class default
            call CHKERR(1_mpiint, 'init pprts: unexpected type for solver')
