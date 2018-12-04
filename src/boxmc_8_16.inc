@@ -94,82 +94,68 @@ subroutine update_diff_stream_8_16(bmc,vertices,p,S)
         real(ireal_dp),intent(in) :: vertices(:)
         type(t_photon),intent(in) :: p
         real(ireal_dp),intent(inout) :: S(:)
-        integer(iintegers) :: imu
-        real(ireal_dp) :: mu
-        ! rad2deg(arccos(mu_smpl_pts)) =  [ 0, 41, 60, 75, 90 ]
-        real(ireal_dp), parameter :: mu_smpl_pts(5)=[1._ireal_dp, .75_ireal_dp, .50_ireal_dp, .25_ireal_dp, 0._ireal_dp]
-        integer(iintegers),parameter :: soff=(size(mu_smpl_pts)-1)*2 ! offset for sideward streams
-
-!         _____1_3_5_____
-!        |           14  |
-!      9 |           12  | 10
-!        |               |
-!        |   13          |
-!        |   11          |
-!      7 |_______________| 8
-!              2 4 6
+        integer(iintegers),parameter :: soff=8 ! offset for sideward streams
 
 if(p%side.eq.1) then
-  mu = dot_product(p%dir, [zero, zero, one])
-  if(mu.lt.0) then
-    call print_photon(p)
-    call CHKERR(1_mpiint, 'wrong p%side?')
-  endif
-  do imu=1,size(mu_smpl_pts)-1
-    if(mu.le.mu_smpl_pts(imu) .and. mu.ge.mu_smpl_pts(imu+1)) then
-      S(imu*2-1) = S(imu*2-1)+p%weight
-      exit
+  if(abs(p%dir(2)).gt.abs(p%dir(1))) then
+    if(p%dir(2).gt.zero) then
+      S(1) = S(1) + p%weight
+    else
+      S(5) = S(5) + p%weight
     endif
-  enddo
-  return
+  else
+    if(p%dir(1).gt.zero) then
+      S(7) = S(7) + p%weight
+    else
+      S(3) = S(3) + p%weight
+    endif
+  endif
 
 else if(p%side.eq.2) then
-  mu = dot_product(p%dir, [zero, zero, -one])
-  if(mu.lt.0) then
-    call print_photon(p)
-    call CHKERR(1_mpiint, 'wrong p%side?')
-  endif
-  do imu=1,size(mu_smpl_pts)-1
-    if(mu.le.mu_smpl_pts(imu) .and. mu.ge.mu_smpl_pts(imu+1)) then
-      S(imu*2) = S(imu*2)+p%weight
-      exit
+  if(abs(p%dir(2)).gt.abs(p%dir(1))) then
+    if(p%dir(2).gt.zero) then
+      S(2) = S(2) + p%weight
+    else
+      S(6) = S(6) + p%weight
     endif
-  enddo
-  return
+  else
+    if(p%dir(1).gt.zero) then
+      S(8) = S(8) + p%weight
+    else
+      S(4) = S(4) + p%weight
+    endif
+  endif
 
 else if(p%side.eq.3 .and. p%dir(3).le.zero ) then
   S(soff+1) = S(soff+1)+p%weight
-  return
+
 else if(p%side.eq.3 .and. p%dir(3).gt.zero ) then
   S(soff+3) = S(soff+3)+p%weight
-  return
 
 else if(p%side.eq.4 .and. p%dir(3).le.zero ) then
   S(soff+2) = S(soff+2)+p%weight
-  return
 else if(p%side.eq.4 .and. p%dir(3).gt.zero ) then
   S(soff+4) = S(soff+4)+p%weight
-  return
 
 else if(p%side.eq.5 .and. p%dir(3).le.zero ) then
   S(soff+5) = S(soff+5)+p%weight
-  return
+
 else if(p%side.eq.5 .and. p%dir(3).gt.zero ) then
   S(soff+7) = S(soff+7)+p%weight
-  return
 
 else if(p%side.eq.6 .and. p%dir(3).le.zero ) then
   S(soff+6) = S(soff+6)+p%weight
-  return
+
 else if(p%side.eq.6 .and. p%dir(3).gt.zero ) then
   S(soff+8) =S(soff+8)+p%weight
-  return
+
 else
   print *,'Couldnt find a stream on to which I can put the photon weight on?!'
   call print_photon(p)
   call exit
   print *,'remove unused compiler warning', vertices
 endif
+
 select type(bmc)
 end select
 
@@ -245,8 +231,7 @@ subroutine init_diff_photon_8_16(bmc,p,src,vertices,ierr)
 
         real(ireal_dp) :: phi,mu
         real(ireal_dp) :: dx, dy, dz
-        real(ireal_dp), parameter :: mu_smpl_pts(5)=[1._ireal_dp, .75_ireal_dp, .50_ireal_dp, .25_ireal_dp, 0._ireal_dp] ** 2
-        integer(iintegers), parameter :: soff=(size(mu_smpl_pts)-1)*2
+        integer(iintegers), parameter :: soff=8
 
         call setup_cube_coords_from_vertices(vertices, dx, dy, dz)
 
@@ -255,36 +240,28 @@ subroutine init_diff_photon_8_16(bmc,p,src,vertices,ierr)
         select case(src)
         case (1)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
-                phi= deg2rad( R()*360 )
-                mu = sqrt(interv_R(mu_smpl_pts(2), mu_smpl_pts(1)))
+                phi= deg2rad(interv_R(-45._ireal_dp,45._ireal_dp))
         case (2)
                 p%loc = (/ L(dx) , L(dy) , dz    /)
-                phi= deg2rad( R()*360 )
-                mu = sqrt(interv_R(mu_smpl_pts(2), mu_smpl_pts(1)))
+                phi= deg2rad(interv_R(-45._ireal_dp,45._ireal_dp))
         case (3)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
-                phi= deg2rad( R()*360 )
-                mu = sqrt(interv_R(mu_smpl_pts(3), mu_smpl_pts(2)))
+                phi= deg2rad(interv_R(225._ireal_dp,315._ireal_dp))
         case (4)
                 p%loc = (/ L(dx) , L(dy) , dz    /)
-                phi= deg2rad( R()*360 )
-                mu = sqrt(interv_R(mu_smpl_pts(3), mu_smpl_pts(2)))
+                phi= deg2rad(interv_R(225._ireal_dp,315._ireal_dp))
         case (5)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
-                phi= deg2rad( R()*360 )
-                mu = sqrt(interv_R(mu_smpl_pts(4), mu_smpl_pts(3)))
+                phi= deg2rad(interv_R(135._ireal_dp,225._ireal_dp))
         case (6)
                 p%loc = (/ L(dx) , L(dy) , dz    /)
-                phi= deg2rad( R()*360 )
-                mu = sqrt(interv_R(mu_smpl_pts(4), mu_smpl_pts(3)))
+                phi= deg2rad(interv_R(135._ireal_dp,225._ireal_dp))
         case (7)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
-                phi= deg2rad( R()*360 )
-                mu = sqrt(interv_R(mu_smpl_pts(5), mu_smpl_pts(4)))
+                phi= deg2rad(interv_R(45._ireal_dp,135._ireal_dp))
         case (8)
                 p%loc = (/ L(dx) , L(dy) , dz    /)
-                phi= deg2rad( R()*360 )
-                mu = sqrt(interv_R(mu_smpl_pts(5), mu_smpl_pts(4)))
+                phi= deg2rad(interv_R(45._ireal_dp,135._ireal_dp))
         case (soff+1)
                 p%loc = (/ dx    , L(dy) , L(dz) /)
                 phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
@@ -313,20 +290,15 @@ subroutine init_diff_photon_8_16(bmc,p,src,vertices,ierr)
                 print *,'Dont know what to do with source spec:',src
                 call exit
         end select
-        select case(src)
-          case(1:soff)
-            phi= deg2rad( R()*360 )
-          case(soff+1:soff+8)
-            phi= deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
-        end select
 
+        ! phi 0(north) 90(east) 180(south) 270(west)
         p%dir = (/sin(phi)*sin(acos(mu)) , cos(phi)*sin(acos(mu)) , mu  /)
 
         select case(src)
           case(1,3,5,7)
             continue
           case(2,4,6,8)
-            p%dir = rotate_angle_y(p%dir,180*one)
+            p%dir(3) = -p%dir(3)
           case(soff+1)
             p%dir = rotate_angle_y(p%dir, 90*one)
             p%dir = rotate_angle_x(p%dir, 90*one)

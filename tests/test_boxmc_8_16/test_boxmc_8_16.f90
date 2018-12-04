@@ -6,7 +6,7 @@ module test_boxmc_8_16
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
   use m_boxmc_geometry, only : setup_default_unit_cube_geometry
-  use m_helper_functions, only: deg2rad
+  use m_helper_functions, only: deg2rad, itoa, ftoa
 
   use pfunit_mod
   implicit none
@@ -66,39 +66,34 @@ contains
 
     ! direct to diffuse tests
     bg  = [1e-3_ireals, 1e-1_ireals, one ]
-    phi = 0; src = 1
 
-    ! should send diffuse radiation into vertical angle stream
-    theta = 20
-    T_target = [0.56285, 0.00000, 0.02126, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
-    S_target = [0.00000, 0.41059, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
+    theta = 60
+    phi = 0; src=1
+    T_target = [0.30206, 0.00000, 0.06325, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
+    S_target = [0.00000, 0.62473, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
     call bmc_8_16%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src
+    write(msg,*) ' test_boxmc_select_cases_direct_srctopface'//itoa(src)//' phi='//ftoa(phi)
     call check(S_target,T_target, S,T, msg=msg)
 
-
-    ! send diffuse radiation into mid angle stream
-    theta = 50
-    T_target = [0.40155, 0.00000, 0.05429, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
-    S_target = [0.00000, 0.00000, 0.00000, 0.53641, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
+    phi = 270; src=2
+    T_target = [0.06317, 0.30127, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
+    S_target = [0.00000, 0.00000, 0.00000, 0.62561, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
     call bmc_8_16%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src
+    write(msg,*) ' test_boxmc_select_cases_direct_srctopface'//itoa(src)//' phi='//ftoa(phi)
     call check(S_target,T_target, S,T, msg=msg)
 
-    ! should send diffuse radiation into lower angle stream
-    theta = 70
-    T_target = [0.16569, 0.00000, 0.06262, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
-    S_target = [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.75717, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
+    phi = 180; src=3
+    T_target = [0.06300, 0.00000, 0.30112, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
+    S_target = [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.62593, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
     call bmc_8_16%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src
+    write(msg,*) ' test_boxmc_select_cases_direct_srctopface'//itoa(src)//' phi='//ftoa(phi)
     call check(S_target,T_target, S,T, msg=msg)
 
-    ! theta 85 should send diffuse radiation into lowest angle stream
-    theta = 85
-    T_target = [0.00000, 0.00000, 0.00263, 0.00000, 0.00000, 0.00000, 0.00063, 0.00000]
-    S_target = [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.80653, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.13494, 0.00000, 0.00000]
+    phi = 90; src=3
+    T_target = [0.00000, 0.00000, 0.30130, 0.06258, 0.00000, 0.00000, 0.00000, 0.00000]
+    S_target = [0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.62618, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000]
     call bmc_8_16%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    write(msg,*) ' test_boxmc_select_cases_direct_srctopface',src
+    write(msg,*) ' test_boxmc_select_cases_direct_srctopface'//itoa(src)//' phi='//ftoa(phi)
     call check(S_target,T_target, S,T, msg=msg)
   end subroutine
 
@@ -112,28 +107,25 @@ contains
 
     T_target = zero
 
-    src = 2   ! top face -- forward stream
-    S_target = [0.00000, 0.96704, 0.00000, 0.00018, 0.00000, 0.00002, 0.00000, 0.00001, 0.00819, 0.00818, 0.00000, 0.00000, 0.00819, 0.00817, 0.00000, 0.00000]
+    src = 2
+    S_target = [0.00004, 0.90780, 0.00001, 0.00013, 0.00001, 0.00001, 0.00001, 0.00012, 0.01306, 0.01308, 0.00001, 0.00000, 0.00000, 0.06572, 0.00000, 0.00001]
     call bmc_8_16%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface_vertical_angle')
+    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface_quadrant_north')
 
-
-    src = 4   ! top face -- low angle stream
-    S_target = [0.00000, 0.00026, 0.00000, 0.92175, 0.00001, 0.00029, 0.00001, 0.00002, 0.01940, 0.01942, 0.00000, 0.00000, 0.01942, 0.01941, 0.00000, 0.00000]
+    src = 4
+    S_target = [0.00001, 0.00013, 0.00003, 0.90747, 0.00001, 0.00012, 0.00000, 0.00001, 0.06606, 0.00000, 0.00002, 0.00000, 0.01299, 0.01313, 0.00000, 0.00000]
     call bmc_8_16%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface_mid_angle')
+    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface_quadrant_west')
 
-
-    src = 6   ! top face -- low angle stream
-    S_target = [0.00001, 0.00004, 0.00001, 0.00049, 0.00002, 0.84728, 0.00003, 0.00043, 0.03789, 0.03795, 0.00000, 0.00001, 0.03793, 0.03788, 0.00000, 0.00001]
+    src = 6
+    S_target = [0.00000, 0.00002, 0.00000, 0.00013, 0.00003, 0.90742, 0.00001, 0.00012, 0.01294, 0.01324, 0.00001, 0.00000, 0.06604, 0.00000, 0.00002, 0.00000]
     call bmc_8_16%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface_low_angle')
+    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface_quadrant_south')
 
-
-    src = 8   ! top face -- lowest angle stream
-    S_target = [0.00002, 0.00004, 0.00004, 0.00010, 0.00009, 0.00128, 0.00028, 0.59641, 0.10037, 0.10037, 0.00008, 0.00007, 0.10033, 0.10032, 0.00008, 0.00008]
+    src = 8
+    S_target = [0.00001, 0.00012, 0.00000, 0.00001, 0.00001, 0.00011, 0.00005, 0.90754, 0.00000, 0.06622, 0.00000, 0.00002, 0.01317, 0.01272, 0.00000, 0.00001]
     call bmc_8_16%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface_lowest_angle')
+    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface_quadrant_east')
   end subroutine
 
   @test(npes =[1])
@@ -146,25 +138,26 @@ contains
 
     T_target = zero
 
-    src = 1   ! bot face -- forward stream
-    S_target = [0.96703, 0.00000, 0.00018, 0.00000, 0.00002, 0.00000, 0.00001, 0.00000, 0.00000, 0.00000, 0.00818, 0.00819, 0.00000, 0.00000, 0.00819, 0.00819]
+    src = 1
+    S_target = [0.90792, 0.00003, 0.00013, 0.00001, 0.00002, 0.00000, 0.00009, 0.00001, 0.00000, 0.00000, 0.01283, 0.01301, 0.00000, 0.00002, 0.00000, 0.06591]
     call bmc_8_16%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_vert_angle')
+    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_quadrant_north')
 
-    src = 3   ! bot face -- mid stream
-    S_target = [0.00026, 0.00000, 0.92172, 0.00000, 0.00029, 0.00001, 0.00002, 0.00001, 0.00000, 0.00000, 0.01941, 0.01941, 0.00000, 0.00000, 0.01944, 0.01942]
+    src = 3
+    S_target = [0.00013, 0.00001, 0.90763, 0.00003, 0.00013, 0.00001, 0.00000, 0.00000, 0.00002, 0.00000, 0.06609, 0.00000, 0.00000, 0.00000, 0.01290, 0.01304]
     call bmc_8_16%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_mid_angle')
+    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_quadrant_west')
 
-    src = 5   ! bot face -- lower stream
-    S_target = [0.00004, 0.00001, 0.00049, 0.00001, 0.84715, 0.00002, 0.00044, 0.00003, 0.00000, 0.00001, 0.03803, 0.03792, 0.00001, 0.00001, 0.03787, 0.03796]
+    src = 5
+    S_target = [0.00001, 0.00001, 0.00013, 0.00000, 0.90761, 0.00004, 0.00012, 0.00001, 0.00001, 0.00001, 0.01296, 0.01327, 0.00001, 0.00000, 0.06581, 0.00000]
     call bmc_8_16%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_low_angle')
+    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_quadrant_south')
 
-    src = 7   ! bot face -- lowest stream
-    S_target = [0.00004, 0.00002, 0.00010, 0.00004, 0.00129, 0.00008, 0.59656, 0.00028, 0.00008, 0.00008, 0.10031, 0.10032, 0.00008, 0.00008, 0.10031, 0.10030]
+    src = 7
+    S_target = [0.00013, 0.00001, 0.00001, 0.00000, 0.00011, 0.00001, 0.90678, 0.00003, 0.00000, 0.00002, 0.00000, 0.06684, 0.00000, 0.00000, 0.01284, 0.01321]
     call bmc_8_16%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_lowest_angle')
+    call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_quadrant_east')
+
   end subroutine
 
   subroutine check(S_target,T_target, S,T, msg)
