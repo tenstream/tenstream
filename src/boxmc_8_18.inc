@@ -106,17 +106,17 @@ if(p%side.eq.1) then
   if(mu.ge..75_ireal_dp) then
     S(1) = S(1)+p%weight
   else
-    if(p%dir(2).ge.zero) then
-      if(p%dir(1).ge.zero) then
-        S(3) = S(3)+p%weight
+    if(abs(p%dir(2)).gt.abs(p%dir(1))) then
+      if(p%dir(2).gt.zero) then
+        S(3) = S(3) + p%weight
       else
-        S(5) = S(5)+p%weight
+        S(7) = S(7) + p%weight
       endif
     else
-      if(p%dir(1).le.zero) then
-        S(7) = S(7)+p%weight
+      if(p%dir(1).gt.zero) then
+        S(9) = S(9) + p%weight
       else
-        S(9) = S(9)+p%weight
+        S(5) = S(5) + p%weight
       endif
     endif
   endif
@@ -131,17 +131,17 @@ else if(p%side.eq.2) then
   if(mu.ge..75_ireal_dp) then
     S(2) = S(2)+p%weight
   else
-    if(p%dir(2).ge.zero) then
-      if(p%dir(1).ge.zero) then
-        S(4) = S(4)+p%weight
+    if(abs(p%dir(2)).gt.abs(p%dir(1))) then
+      if(p%dir(2).gt.zero) then
+        S(4) = S(4) + p%weight
       else
-        S(6) = S(6)+p%weight
+        S(8) = S(8) + p%weight
       endif
     else
-      if(p%dir(1).ge.zero) then
-        S(10) = S(10)+p%weight
+      if(p%dir(1).gt.zero) then
+        S(10) = S(10) + p%weight
       else
-        S(8) = S(8)+p%weight
+        S(6) = S(6) + p%weight
       endif
     endif
   endif
@@ -272,35 +272,35 @@ subroutine init_diff_photon_8_18(bmc,p,src,vertices,ierr)
                 mu = sqrt(interv_R(.75_ireal_dp**2, one))
         case (3)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
-                phi= deg2rad( interv_R(0._ireal_dp,90._ireal_dp) )
+                phi= deg2rad( interv_R(-45._ireal_dp,45._ireal_dp) )
                 mu = sqrt(interv_R(zero,.75_ireal_dp**2))
         case (4)
                 p%loc = (/ L(dx) , L(dy) , dz    /)
-                phi= deg2rad( interv_R(0._ireal_dp,90._ireal_dp) )
+                phi= deg2rad( interv_R(-45._ireal_dp,45._ireal_dp) )
                 mu = sqrt(interv_R(zero,.75_ireal_dp**2))
         case (5)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
-                phi= deg2rad( interv_R(270._ireal_dp,360._ireal_dp) )
+                phi= deg2rad( interv_R(225._ireal_dp,315._ireal_dp) )
                 mu = sqrt(interv_R(zero,.75_ireal_dp**2))
         case (6)
                 p%loc = (/ L(dx) , L(dy) , dz    /)
-                phi= deg2rad( interv_R(270._ireal_dp,360._ireal_dp) )
+                phi= deg2rad( interv_R(225._ireal_dp,315._ireal_dp) )
                 mu = sqrt(interv_R(zero,.75_ireal_dp**2))
         case (7)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
-                phi= deg2rad( interv_R(180._ireal_dp,270._ireal_dp) )
+                phi= deg2rad( interv_R(135._ireal_dp,225._ireal_dp) )
                 mu = sqrt(interv_R(zero,.75_ireal_dp**2))
         case (8)
                 p%loc = (/ L(dx) , L(dy) , dz    /)
-                phi= deg2rad( interv_R(180._ireal_dp,270._ireal_dp) )
+                phi= deg2rad( interv_R(135._ireal_dp,225._ireal_dp) )
                 mu = sqrt(interv_R(zero,.75_ireal_dp**2))
         case (9)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
-                phi= deg2rad( interv_R( 90._ireal_dp,180._ireal_dp) )
+                phi= deg2rad( interv_R( 45._ireal_dp,135._ireal_dp) )
                 mu = sqrt(interv_R(zero,.75_ireal_dp**2))
         case (10)
                 p%loc = (/ L(dx) , L(dy) , dz    /)
-                phi= deg2rad( interv_R( 90._ireal_dp,180._ireal_dp) )
+                phi= deg2rad( interv_R( 45._ireal_dp,135._ireal_dp) )
                 mu = sqrt(interv_R(zero,.75_ireal_dp**2))
         case (soff+1)
                 p%loc = (/ dx    , L(dy) , L(dz) /)
