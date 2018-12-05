@@ -3500,34 +3500,67 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       type(t_atmosphere)            :: atm
       type(tMat),intent(inout)      :: A
       integer(iintegers),intent(in) :: k,i,j
+      integer(iintegers) :: src, dst, idof
 
-      MatStencil         :: row(4,2)  ,col(4,2)
-      real(ireals)       :: v(4),twostr_coeff(4) ! v ==> a12,a11,a22,a21
-      integer(iintegers) :: src,dst
+      MatStencil   :: row(4,0:solver%difftop%dof-1)  ,col(4,0:solver%difftop%dof-1)
+      real(ireals) :: v(solver%difftop%dof**2)
 
-      if(luse_eddington ) then
-        v = [ atm%a12(atmk(atm,k),i,j), atm%a11(atmk(atm,k),i,j), atm%a22(atmk(atm,k),i,j), atm%a21(atmk(atm,k),i,j)]
-      else
-          call get_coeff(solver, &
-            atm%kabs(atmk(atm,k),i,j), &
-            atm%ksca(atmk(atm,k),i,j), &
-            atm%g(atmk(atm,k),i,j), &
-            atm%dz(atmk(atm,k),i,j), &
-            .False., twostr_coeff, &
-            atm%l1d(atmk(atm,k),i,j)) !twostr_coeff ==> a12,a11,a12,a11 !todo: check if this is the wrong order
-          v = [ twostr_coeff(1), twostr_coeff(2) , twostr_coeff(2) , twostr_coeff(1) ]
-      endif
+      do idof=1, solver%difftop%dof
+        src = idof-1
+        if (solver%difftop%is_inward(idof)) then
+          col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
+        else
+          col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k+1   ; col(MatStencil_c,src) = src
+        endif
+      enddo
 
-      src = 1; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = E_dn
-      src = 2; col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k+1   ; col(MatStencil_c,src) = E_up
+      do idof=1, solver%difftop%dof
+        dst = idof-1
+        if (solver%difftop%is_inward(idof)) then
+          row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k+1   ; row(MatStencil_c,dst) = dst
+        else
+          row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
+        endif
+      enddo
 
-      dst = 1; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = E_up
-      dst = 2; row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k+1   ; row(MatStencil_c,dst) = E_dn
+      ! for each destination, find all transmission coeffs
+      v = zero
+      do dst = 0, solver%difftop%dof-1
+          do src = 0, solver%difftop%dof-1
+              if(col(MatStencil_i,src).eq.row(MatStencil_i,dst)) then ! for reflection, has to be the same k layers
 
-      call MatSetValuesStencil(A,i2, row, i2, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
+                if(src.ne.inv_dof(dst)) cycle ! in 1D has to be the inverse stream
+                v(i1 + dst*solver%difftop%dof + src) = atm%a12(atmk(atm,k),i,j)
+                !print *,i,j,k,'setting r ',itoa(src)//' (k='//itoa(col(MatStencil_i,src))//') ->', &
+                !  itoa(dst)//' (k='//itoa(row(MatStencil_i,dst))//')'// &
+                !  ':', i1 + dst*solver%difftop%dof + src, v(i1 + dst*solver%difftop%dof + src), &
+                !  'invdof',src,dst,inv_dof(dst)
+              else
 
+                if(src.ne.dst) cycle ! in 1D has to be the same
+                v(i1 + dst*solver%difftop%dof + src) = atm%a11(atmk(atm,k),i,j)
+                !print *,i,j,k,'setting t ',itoa(src)//' (k='//itoa(col(MatStencil_i,src))//') ->', &
+                !  itoa(dst)//' (k='//itoa(row(MatStencil_i,dst))//') :', i1 + dst*solver%difftop%dof + src, v(i1 + dst*solver%difftop%dof + src)
+              endif ! which k-lev
+          enddo
+      enddo
 
+      call MatSetValuesStencil(A, solver%difftop%dof, row, solver%difftop%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
     end subroutine
+    pure function inv_dof(dof) ! returns the dof that is the same stream but the opposite direction
+      integer(iintegers), intent(in) :: dof
+      integer(iintegers) :: inv_dof, inc
+      if(solver%difftop%is_inward(1)) then ! starting with downward streams
+        inc = 1
+      else
+        inc = -1
+      endif
+      if(solver%difftop%is_inward(i1+dof)) then ! downward stream
+        inv_dof = dof + inc
+      else
+        inv_dof = dof - inc
+      endif
+    end function
 
     !> @brief insert lower boundary condition, i.e. diffuse reflection of downward radiation
     subroutine set_albedo_coeff(solver,C,A)
