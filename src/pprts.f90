@@ -2431,11 +2431,6 @@ module m_pprts
                 src = isrc + solver%dirtop%dof + solver%dirside%dof
                 xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src, k, i, j+i1-yinc) - xedir(src, k, i, j+yinc))
               enddo
-
-              if(xabso(i0,k,i,j).lt.-sqrt(epsilon(xabso))) then
-                print *,i,j,k,':',xabso(i0,k,i,j)
-                call CHKERR(1_mpiint, 'negative solar absorption... should not happen :(')
-              endif
             endif
 
             ! diffuse part of absorption
