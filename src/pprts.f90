@@ -3022,30 +3022,32 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 v(src:C_diff%dof**2:C_diff%dof) = diff2diff( i1+(src-i1)*C_diff%dof : src*C_diff%dof )
               enddo
 
-              b0 = atm%planck(atmk(atm,k),i,j) * pi
+              b0 = atm%planck(atmk(atm,k),i,j) * pi *Az / solver%difftop%streams
               do src=1,solver%difftop%dof
                 if (solver%difftop%is_inward(src) .eqv. .False.) then
-                  xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  ) *Az
+                  xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
                 else
-                  xsrc(src-1, k+1, i, j) = xsrc(src-1, k+1, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  ) *Az
+                  xsrc(src-1, k+1, i, j) = xsrc(src-1, k+1, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
                 endif
               enddo
 
+              b0 = atm%planck(atmk(atm,k),i,j) * pi *Ax / solver%diffside%streams
               do iside=1,solver%diffside%dof
                 src = iside+solver%difftop%dof
                 if (solver%diffside%is_inward(iside) .eqv. .False.) then
-                  xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  ) *Ax
+                  xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
                 else
-                  xsrc(src-1, k, i+1, j) = xsrc(src-1, k, i+1, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  ) *Ax
+                  xsrc(src-1, k, i+1, j) = xsrc(src-1, k, i+1, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
                 endif
               enddo
 
+              b0 = atm%planck(atmk(atm,k),i,j) * pi *Ay / solver%diffside%streams
               do iside=1,solver%diffside%dof
                 src = iside + solver%difftop%dof + solver%diffside%dof
                 if (solver%diffside%is_inward(iside) .eqv. .False.) then
-                  xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  ) *Ay
+                  xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
                 else
-                  xsrc(src-1, k, i, j+1) = xsrc(src-1, k, i, j+1) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  ) *Ay
+                  xsrc(src-1, k, i, j+1) = xsrc(src-1, k, i, j+1) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
                 endif
               enddo
 

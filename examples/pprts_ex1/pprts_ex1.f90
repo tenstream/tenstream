@@ -87,6 +87,7 @@ subroutine pprts_ex1()
     print *,'edir', fdir(:, nxp/2,nyp/2)
     print *,'edn:', fdn(:, nxp/2,nyp/2)
     print *,'eup:', fup(:, nxp/2,nyp/2)
+    print *,'divE', fdiv(:, nxp/2,nyp/2)
     call destroy_pprts(solver, .True.)
 end subroutine
 

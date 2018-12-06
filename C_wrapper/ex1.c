@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
   int    Nx=3, Ny=3, Nz=2;
   double dx=500,dy=500, dz=250;
   double phi0=0, theta0=60;
-  double albedo_th=1e-8, albedo_sol=.2;
+  double albedo_th=.005, albedo_sol=0.2;
   char   atm_filename[] = "afglus.dat";
   int    lsolar=1, lthermal=1;
 
@@ -98,19 +98,30 @@ int main(int argc, char *argv[]) {
       d_lwc, d_reliq, d_iwc, d_reice, &nprocx, nxproc, &nprocy, nyproc);
 
   // and the result will be reachable again in Fortran Order
-  for (int k=0; k<Nz_merged; k++) {
-    //for (int i=0; i<Nx; i++) {
-      //for (int j=0; j<Ny; j++) {
-        //int ind = k + i*Nz_merged + j*Nx*Nz_merged;  // `ind` gives index [k,i,j] (Fortran Order)
-        //fprintf(stdout, "%d :: %d %d %d :: %d :: %f \n", myid, k, i, j, ind, edir[ind]);
-        if(edir) {
-            fprintf(stdout, "%d :: %d :: %f %f %f %f\n", myid, k, edir[k], edn[k], eup[k], abso[k]);
-        } else {
-            fprintf(stdout, "%d :: %d :: %f %f %f\n", myid, k, edn[k], eup[k], abso[k]);
-        }
-      //}
-    //}
+  if(edir) {
+      fprintf(stdout, " rank :: level :: edir edn eup abso\n");
+  } else {
+      fprintf(stdout, " rank :: level :: edn eup abso\n");
   }
+  //for (int i=0; i<Nx; i++) {
+  //for (int j=0; j<Ny; j++) {
+  for (int k=0; k<Nz_merged; k++) {
+      //int ind = k + i*Nz_merged + j*Nx*Nz_merged;  // `ind` gives index [k,i,j] (Fortran Order)
+      //fprintf(stdout, "%d :: %d %d %d :: %d :: %f \n", myid, k, i, j, ind, edir[ind]);
+      if(edir) {
+          fprintf(stdout, "%d :: %d :: %f %f %f %f\n", myid, k, edir[k], edn[k], eup[k], abso[k]);
+      } else {
+          fprintf(stdout, "%d :: %d :: %f %f %f\n", myid, k, edn[k], eup[k], abso[k]);
+      }
+  }
+  int k = Nz_merged;
+  if(edir) {
+      fprintf(stdout, "%d :: %d :: %f %f %f %f\n", myid, k, edir[k], edn[k], eup[k], abso[k]);
+  } else {
+      fprintf(stdout, "%d :: %d :: %f %f %f\n", myid, k, edn[k], eup[k], abso[k]);
+  }
+  //}
+  //}
 
   int lfinalizepetsc = 0; // dont drop the Petsc environment if we called initialize here in the C program
   f2c_destroy_pprts_rrtmg(&lfinalizepetsc); // deletes the state of the pprts solver
