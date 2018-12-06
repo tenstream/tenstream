@@ -1097,8 +1097,13 @@ module m_pprts
         do k=C%zs,C%ze-1
 
           if( solver%atm%l1d(atmk(solver%atm, k),i,j) ) then
-            call inc( xd(E_dn, k+1, i,j), 2*one )
-            call inc( xd(E_up, k  , i,j), 2*one )
+            do idof=1, solver%difftop%dof
+              if (solver%difftop%is_inward(idof)) then
+                call inc( xd(idof-1, k+1, i, j), real(solver%difftop%dof, ireals) )
+              else
+                call inc( xd(idof-1, k  , i, j), real(solver%difftop%dof, ireals) )
+              endif
+            enddo
           else
 
             ! Diffuse Coefficients Code Begin
