@@ -16,8 +16,7 @@ module m_pprts_base
     t_solver_8_10, t_solver_8_12, t_solver_8_16, t_solver_8_18, &
     t_coord, t_sunangles, t_suninfo, &
     t_state_container, destroy_solution, &
-    t_dof, t_solver_log_events, setup_log_events, &
-    E_up, E_dn
+    t_dof, t_solver_log_events, setup_log_events
 
   type t_coord
     integer(iintegers)      :: xs,xe                   ! local domain start and end indices
@@ -146,8 +145,6 @@ module m_pprts_base
   type, extends(t_solver) :: t_solver_8_18
   end type
 
-
-  integer(iintegers), parameter :: E_up=0, E_dn=1 ! for 1D Solvers
 
   contains
     subroutine prepare_solution(edir_dm, ediff_dm, abso_dm, lsolar, solution, uid)

@@ -42,7 +42,7 @@ module m_mcrts_dmda
   use m_boxmc_geometry, only: setup_default_unit_cube_geometry
 
   use m_pprts_base, only: t_solver, t_solver_1_2, t_solver_3_6, &
-    t_state_container, t_coord, E_up, E_dn
+    t_state_container, t_coord
 
   use m_petsc_helpers, only: getVecPointer, restoreVecPointer
 
@@ -76,6 +76,7 @@ module m_mcrts_dmda
   logical, parameter :: ldebug=.False.
 
   real(ireal_dp), parameter :: loceps= zero !sqrt(epsilon(loceps))*1000
+  integer(iintegers), parameter :: E_up=0, E_dn=1
 
 contains
   subroutine solve_mcrts(solver, edirTOA, solution)

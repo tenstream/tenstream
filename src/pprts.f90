@@ -52,7 +52,7 @@ module m_pprts
     t_solver_8_10, t_solver_8_12, t_solver_8_16, t_solver_8_18, &
     t_coord, t_sunangles, t_suninfo, t_atmosphere, &
     t_state_container, prepare_solution, destroy_solution, &
-    t_dof, t_solver_log_events, setup_log_events, E_up, E_dn
+    t_dof, t_solver_log_events, setup_log_events
 
   implicit none
   private
@@ -1194,7 +1194,7 @@ module m_pprts
         do idof=1, solver%difftop%dof
           src = idof-1
           if (.not.solver%difftop%is_inward(idof)) then
-            call inc( xd(src, C%ze, i,j), real(solver%difftop%dof/2, ireals) )
+            call inc( xd(src, C%ze, i,j), real(solver%difftop%streams, ireals) )
           endif
         enddo
 
@@ -2170,7 +2170,7 @@ module m_pprts
         endif
 
         do src = 1, solver%difftop%dof
-          if (solver%difftop%is_inward(src) .eqv. .True.) then
+          if(solver%difftop%is_inward(src)) then
             xv_diff(src-1,C_diff%zs+1:C_diff%ze,i,j) = Edn(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze)
             xv_diff(src-1,C_diff%zs            ,i,j) = Edn(C_one_atm1%zs)
           else
@@ -2180,6 +2180,7 @@ module m_pprts
         enddo
       enddo
     enddo
+    xv_diff = xv_diff / solver%difftop%streams
 
     if(solution%lsolar_rad) &
       call restoreVecPointer(solution%edir, xv_dir1d, xv_dir  )
@@ -2208,7 +2209,7 @@ module m_pprts
 
     real(ireals),pointer,dimension(:,:,:,:) :: xv_diff=>null()
     real(ireals),pointer,dimension(:)       :: xv_diff1d=>null()
-    integer(iintegers) :: i,j
+    integer(iintegers) :: i,j,idof
 
     real(ireals),allocatable :: dtau(:),Edn(:),Eup(:)
 
@@ -2239,10 +2240,16 @@ module m_pprts
 
         call schwarzschild(dtau, atm%albedo(i,j), Edn, Eup, atm%planck(atmk(atm, C_one1%zs):C_one1%ze, i, j))
 
-        xv_diff(E_up,:,i,j) = Eup(:)
-        xv_diff(E_dn,:,i,j) = Edn(:)
+        do idof = 0, solver%difftop%dof-1
+          if (solver%difftop%is_inward(i1+idof)) then ! Edn
+            xv_diff(idof,:,i,j) = Edn(:)
+          else ! Eup
+            xv_diff(idof,:,i,j) = Eup(:)
+          endif
+        enddo
       enddo
     enddo
+    xv_diff = xv_diff / solver%difftop%streams
 
     call restoreVecPointer(solution%ediff, xv_diff1d, xv_diff )
 
@@ -2333,8 +2340,8 @@ module m_pprts
         do i=C_one%xs,C_one%xe
           do k=C_one%zs,C_one%ze
             if(solution%lsolar_rad) then
-              do src=i0,solver%dirtop%dof-1
-                xabso(i0,k,i,j) = xedir(src, k, i, j )  - xedir(src , k+i1 , i, j )
+              do isrc = i0, solver%dirtop%dof-1
+                xabso(i0,k,i,j) = xedir(isrc, k, i, j )  - xedir(isrc , k+i1 , i, j )
               enddo
             else
               xabso(i0,k,i,j) = zero
@@ -2342,12 +2349,11 @@ module m_pprts
 
             !xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
             !xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
-            do isrc = 1, solver%difftop%dof
-              src = isrc
-              if (solver%difftop%is_inward(isrc) .eqv. .True.) then
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i, j) - xediff(src-1, k+1, i, j))
+            do isrc = 0, solver%difftop%dof-1
+              if (solver%difftop%is_inward(i1+isrc)) then
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(isrc, k, i, j) - xediff(isrc, k+1, i, j))
               else
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k+1, i, j) - xediff(src-1, k, i, j))
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(isrc, k+1, i, j) - xediff(isrc, k, i, j))
               endif
             enddo
 
@@ -2392,63 +2398,73 @@ module m_pprts
 
           if(atm%l1d(atmk(atm, k),i,j)) then ! one dimensional i.e. twostream
             if(solution%lsolar_rad) then
-              do src=1,solver%dirtop%dof
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src-1, k, i, j )  - xedir(src-1 , k+i1 , i, j ))
+              do isrc=1,solver%dirtop%dof
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(isrc-1, k, i, j )  - xedir(isrc-1 , k+i1 , i, j ))
               enddo
             endif
 
-            xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
-            xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
+            !xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
+            !xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
+            do isrc = 0, solver%difftop%dof-1
+              if (solver%difftop%is_inward(i1+isrc)) then
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(isrc, k, i, j) - xediff(isrc, k+1, i, j))
+              else
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(isrc, k+1, i, j) - xediff(isrc, k, i, j))
+              endif
+            enddo
 
           else ! 3D-radiation
             offset = solver%dirtop%dof + solver%dirside%dof*2
 
+            ! direct part of absorption
             if(solution%lsolar_rad) then
-
               xinc = solver%sun%angles(k,i,j)%xinc
               yinc = solver%sun%angles(k,i,j)%yinc
 
-              do isrc = 1,solver%dirtop%dof
-                src = isrc
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src-1, k, i, j) - xedir(src-1, k+i1, i, j))
+              do isrc = 0,solver%dirtop%dof-1
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(isrc, k, i, j) - xedir(isrc, k+i1, i, j))
               enddo
 
-              do isrc = 1, solver%dirside%dof
+              do isrc = 0, solver%dirside%dof-1
                 src = isrc + solver%dirtop%dof
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src-1, k, i+1-xinc, j) - xedir(src-1, k, i+xinc, j))
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src, k, i+1-xinc, j) - xedir(src, k, i+xinc, j))
               enddo
 
-              do isrc = 1, solver%dirside%dof
+              do isrc = 0, solver%dirside%dof-1
                 src = isrc + solver%dirtop%dof + solver%dirside%dof
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src-1, k, i, j+i1-yinc) - xedir(src-1, k, i, j+yinc))
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src, k, i, j+i1-yinc) - xedir(src, k, i, j+yinc))
               enddo
+
+              if(xabso(i0,k,i,j).lt.-sqrt(epsilon(xabso))) then
+                print *,i,j,k,':',xabso(i0,k,i,j)
+                call CHKERR(1_mpiint, 'negative solar absorption... should not happen :(')
+              endif
             endif
 
             ! diffuse part of absorption
-            do isrc = 1, solver%difftop%dof
-              src = isrc
-              if (solver%difftop%is_inward(isrc) .eqv. .True.) then
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i, j) - xediff(src-1, k+1, i, j))
+            do isrc = 0, solver%difftop%dof-1
+              if (solver%difftop%is_inward(i1+isrc)) then
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(isrc, k, i, j) - xediff(isrc, k+1, i, j))
               else
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k+1, i, j) - xediff(src-1, k, i, j))
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(isrc, k+1, i, j) - xediff(isrc, k, i, j))
               endif
             enddo
 
-            do isrc = 1, solver%diffside%dof
+            do isrc = 0, solver%diffside%dof-1
               src = isrc + solver%difftop%dof
-              if (solver%diffside%is_inward(isrc) .eqv. .True.) then
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i, j) - xediff(src-1, k, i+1, j))
+              if (solver%diffside%is_inward(i1+isrc)) then
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src, k, i, j) - xediff(src, k, i+1, j))
               else
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i+1, j) - xediff(src-1, k, i, j))
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src, k, i+1, j) - xediff(src, k, i, j))
               endif
             enddo
 
-            do isrc = 1, solver%diffside%dof
+            do isrc = 0, solver%diffside%dof-1
               src = isrc + solver%difftop%dof + solver%diffside%dof
-              if (solver%diffside%is_inward(isrc) .eqv. .True.) then
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i, j) - xediff(src-1, k, i, j+1))
+              if (solver%diffside%is_inward(i1+isrc)) then
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src, k, i, j) - xediff(src, k, i, j+1))
               else
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src-1, k, i, j+1) - xediff(src-1, k, i, j))
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src, k, i, j+1) - xediff(src, k, i, j))
               endif
             enddo
 
@@ -2953,9 +2969,18 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
               if(luse_eddington ) then
 
-                b0 = atm%planck(atmk(atm,k),i,j) * (one-atm%a11(atmk(atm,k),i,j)-atm%a12(atmk(atm,k),i,j))
-                xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) + b0 *Az*pi
-                xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) + b0 *Az*pi
+                b0 = atm%planck(atmk(atm,k),i,j) * &
+                  (one-atm%a11(atmk(atm,k),i,j)-atm%a12(atmk(atm,k),i,j)) * Az * pi / solver%difftop%streams
+
+                do src = 0, solver%difftop%dof-1
+                  if (solver%difftop%is_inward(i1+src)) then !Edn
+                    xsrc(src, k+1, i, j) = xsrc(src, k+1, i, j) + b0
+                  else !E_up
+                    xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + b0
+                  endif
+                enddo
+                !xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) + b0 *Az*pi
+                !xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) + b0 *Az*pi
 
               else
                 call get_coeff(solver, &
@@ -2966,9 +2991,17 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                   .False., diff2diff1d, &
                   atm%l1d(atmk(atm,k),i,j))
 
-                b0 = atm%planck(atmk(atm,k),i,j) * pi
-                xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
-                xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) +  b0  *(one-diff2diff1d(1)-diff2diff1d(2) ) *Az
+                b0 = atm%planck(atmk(atm,k),i,j) * Az * pi * (one-diff2diff1d(1)-diff2diff1d(2) ) / solver%difftop%streams
+
+                do src = 0, solver%difftop%dof-1
+                  if (solver%difftop%is_inward(i1+src)) then !Edn
+                    xsrc(src, k+1, i, j) = xsrc(src, k+1, i, j) + b0
+                  else !E_up
+                    xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + b0
+                  endif
+                enddo
+                !xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) +  b0
+                !xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) +  b0
               endif
 
             else ! Tenstream source terms
@@ -3027,7 +3060,12 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       k = C_diff%ze
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
-          xsrc(E_up   ,k,i,j) = xsrc(E_up   ,k,i,j) + atm%planck(atmk(atm,k),i,j)*Az *(one-atm%albedo(i,j))*pi
+            do src = 0, solver%difftop%dof-1
+              if (.not.solver%difftop%is_inward(i1+src)) then !Eup
+                xsrc(src,k,i,j) = xsrc(src,k,i,j) + atm%planck(atmk(atm,k),i,j) &
+                  * Az * (one-atm%albedo(i,j)) * pi / solver%difftop%streams
+              endif
+            enddo
         enddo
       enddo
     end associate
@@ -3296,7 +3334,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     real(ireals),pointer,dimension(:)       :: xhr1d=>null()
     integer(iintegers) :: k
 
-    integer(iintegers),parameter :: idz=i2, iplanck=i3, ikabs=i4, ihr=i5
+    integer(iintegers),parameter :: E_up=i0, E_dn=i1, idz=i2, iplanck=i3, ikabs=i4, ihr=i5
 
     associate(  atm     => solver%atm, &
                 C_one   => solver%C_one, &
@@ -3623,6 +3661,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     if(ldebug .and. solver%myid.eq.0) print *,'calling pprts_get_result',present(redir),'for uid',uid
 
     if(solver%solutions(uid)%lchanged) call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
+
+    if(present(opt_solution_uid)) then
+      if(.not.solver%solutions(uid)%lWm2_diff) &
+        call CHKERR(1_mpiint, 'solution vecs for diffuse radiation are not in W/m2 ... this is not what I expected')
+    endif
 
     if(allocated(redn)) then
       if(.not.all(shape(redn).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
