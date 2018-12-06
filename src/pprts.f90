@@ -2341,10 +2341,8 @@ module m_pprts
           do k=C_one%zs,C_one%ze
             if(solution%lsolar_rad) then
               do isrc = i0, solver%dirtop%dof-1
-                xabso(i0,k,i,j) = xedir(isrc, k, i, j )  - xedir(isrc , k+i1 , i, j )
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + xedir(isrc, k, i, j ) - xedir(isrc , k+i1 , i, j )
               enddo
-            else
-              xabso(i0,k,i,j) = zero
             endif
 
             !xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
@@ -2356,7 +2354,6 @@ module m_pprts
                 xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(isrc, k+1, i, j) - xediff(isrc, k, i, j))
               endif
             enddo
-
           enddo
         enddo
       enddo
@@ -2398,8 +2395,8 @@ module m_pprts
 
           if(atm%l1d(atmk(atm, k),i,j)) then ! one dimensional i.e. twostream
             if(solution%lsolar_rad) then
-              do isrc=1,solver%dirtop%dof
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(isrc-1, k, i, j )  - xedir(isrc-1 , k+i1 , i, j ))
+              do isrc = 0, solver%dirtop%dof-1
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(isrc, k, i, j )  - xedir(isrc , k+i1 , i, j ))
               enddo
             endif
 

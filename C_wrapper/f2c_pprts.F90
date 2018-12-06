@@ -238,6 +238,7 @@ contains
       res_edir = real(redir(:, 1:Nx, 1:Ny), kind=c_float)
       print *,'pprts_f2c_get_result result_edir first column', res_edir(:,1,1)
       print *,'pprts_f2c_get_result redir first column', redir(:,1,1)
+      print *,'pprts_f2c_get_result rabso first column', rabso(:,1,1)
     endif
 
   end subroutine
