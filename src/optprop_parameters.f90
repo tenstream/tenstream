@@ -58,13 +58,7 @@ module m_optprop_parameters
       ! interp_mode 1 == nearest neighbour interpolation
       ! interp_mode 2 == linear interpolation
 
-      integer(iintegers), parameter :: interp_mode_1_2=2
-      integer(iintegers), parameter :: interp_mode_3_6=2
-      integer(iintegers), parameter :: interp_mode_3_10=2
-      integer(iintegers), parameter :: interp_mode_8_10=2
-      integer(iintegers), parameter :: interp_mode_8_12=2
-      integer(iintegers), parameter :: interp_mode_8_16=2
-      integer(iintegers), parameter :: interp_mode_8_18=2
+      integer(iintegers), parameter :: interp_mode_pprts=2
       integer(iintegers), parameter :: interp_mode_wedge_5_8=2
 
       ! We pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values
@@ -145,6 +139,6 @@ module m_optprop_parameters
       ! this is tuned towards earth radius and average dx = 100m sized elements
       real(irealLUT), parameter :: wedge_sphere_radius = -1._irealLUT ! 6378e3_irealLUT
 
-      real(irealLUT), parameter :: LUT_dump_interval=300
-      real(irealLUT), parameter :: LUT_max_create_jobtime=3600*1 ! after 6hrs, cancel the createLUT jobs in any case
+      real(irealLUT), parameter :: LUT_dump_interval=600 ! dump the LUT every 10 minutes
+      real(irealLUT), parameter :: LUT_max_create_jobtime=3600*3 ! after 3hrs, cancel the createLUT jobs in any case
 end module
