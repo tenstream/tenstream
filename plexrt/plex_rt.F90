@@ -490,8 +490,10 @@ module m_plex_rt
         ! Create Diffuse Src
         call PetscLogEventBegin(solver%logs%setup_diff_src, ierr)
         call create_ediff_src_vec(solver, solver%plex, solver%OPP, solver%plex%ediff_dm, &
-          solver%kabs, solver%ksca, solver%g, solver%plck, solver%albedo, solver%srfc_emission, &
-          solver%diffsrc, solver%plex%edir_dm, solution%edir)
+          solver%kabs, solver%ksca, solver%g, solver%albedo, &
+          lthermal, lsolar, solver%diffsrc, &
+          solver%plck, solver%srfc_emission, &
+          solver%plex%edir_dm, solution%edir)
         call PetscLogEventEnd(solver%logs%setup_diff_src, ierr)
 
         ! Output of Diffuse Src Vec
@@ -667,15 +669,20 @@ module m_plex_rt
     !> \n or it may be that we have a source term due to thermal emission --
     !> \n   to determine emissivity of box, we use the forward transport coefficients backwards
     !> \n   a la: transmissivity $T = \sum(coeffs)$ and therefore emissivity $E = 1 - T$
-    subroutine create_ediff_src_vec(solver, plex, OPP, ediffdm, kabs, ksca, g, plckVec, &
-      albedo, srfc_emission, srcVec, edirdm, edirVec)
+    subroutine create_ediff_src_vec(solver, plex, OPP, ediffdm, kabs, ksca, g, albedo, &
+        lthermal, lsolar, srcVec, &
+        plckVec, srfc_emission, edirdm, edirVec)
       class(t_plex_solver), allocatable, intent(in) :: solver
       type(t_plexgrid), intent(in) :: plex
       class(t_optprop), intent(in) :: OPP
       type(tDM), allocatable, intent(in) :: ediffdm
-      type(tVec), allocatable, intent(in) :: kabs, ksca, g, plckVec ! cell1_dm
-      type(tVec), allocatable, intent(in) :: albedo, srfc_emission  ! srfc_boundary_dm
+      type(tVec), allocatable, intent(in) :: kabs, ksca, g ! cell1_dm
+      type(tVec), allocatable, intent(in) :: albedo ! srfc_boundary_dm
+      logical, intent(in) :: lthermal, lsolar
       type(tVec), allocatable, intent(inout) :: srcVec
+
+      type(tVec), allocatable, intent(in), optional :: plckVec ! cell1_dm
+      type(tVec), allocatable, intent(in), optional :: srfc_emission  ! srfc_boundary_dm
 
       type(tDM), allocatable, intent(in), optional :: edirdm
       type(tVec), allocatable, intent(in), optional :: edirVec
@@ -719,8 +726,8 @@ module m_plex_rt
       call VecSet(lsrcVec, zero, ierr); call CHKERR(ierr)
       call VecGetArrayF90(lsrcVec, xb, ierr); call CHKERR(ierr)
 
-      call set_solar_source()
-      call set_thermal_source()
+      if(lsolar) call set_solar_source()
+      if(lthermal) call set_thermal_source()
 
       call VecRestoreArrayF90(lsrcVec, xb, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
@@ -894,6 +901,8 @@ module m_plex_rt
           integer(iintegers) :: fStart, fEnd, idof, iface, num_dof
           real(ireals) :: area
 
+          if(.not.present(plckVec)) return
+          if(.not.present(srfc_emission)) return
           if(.not.allocated(plckVec)) return
 
           call DMGetLocalVector(ediffdm, thermal_src_vec, ierr); call CHKERR(ierr)
@@ -2530,7 +2539,7 @@ module m_plex_rt
     type(tPetscSection) :: abso_section, ediff_section, edir_section
     real(ireals), pointer :: xediff(:), xedir(:), xabso(:)
 
-    integer(mpiint) :: ierr
+    integer(mpiint) :: myid, ierr
 
     call PetscLogEventBegin(solver%logs%get_result, ierr)
 
@@ -2605,8 +2614,9 @@ module m_plex_rt
 
         if(ldebug) then
           if(reup(ke1,i) .gt. redir(ke1,i)+redn(ke1,i)) then
+            call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
             do k = 1, size(redir,dim=1)
-              print *,'i', i, 'k', k, redir(k,i), redn(k,i), reup(k,i)
+              print *,'sgr ::', myid, 'i', i, 'k', k, redir(k,i), redn(k,i), reup(k,i)
             enddo
             call CHKERR(1_mpiint, 'solar get_result Eup cannot be bigger than Edir+Edn!')
           endif
@@ -2620,26 +2630,26 @@ module m_plex_rt
     call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
     call VecRestoreArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
 
-    !if(ldebug) then
-    !  call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
-    !  if(myid.eq.0) then
-    !    if(present(redir)) then
-    !      print *,'Get Result, k     Edir                   Edn                      Eup                  abso'
-    !      do k = 1, ke1-1
-    !        print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)!, &
-    !          !redir(k,1)-redir(k+1,1)+redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
-    !      enddo
-    !      print *,k, redir(k,1), redn(k,1), reup(k,1)
-    !    else
-    !      print *,'Get Result, k     Edn                    Eup                      abso'
-    !      do k = 1, ke1-1
-    !        print *,k, redn(k,1), reup(k,1), rabso(k,1)!, &
-    !          !redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
-    !      enddo
-    !      print *,k, redn(k,1), reup(k,1)
-    !    endif
-    !  endif
-    !endif
+    if(ldebug) then
+      call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
+      if(myid.eq.0) then
+        if(present(redir)) then
+          print *,'Get Result, k     Edir                   Edn                      Eup                  abso'
+          do k = 1, ke1-1
+            print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)!, &
+              !redir(k,1)-redir(k+1,1)+redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
+          enddo
+          print *,k, redir(k,1), redn(k,1), reup(k,1)
+        else
+          print *,'Get Result, k     Edn                    Eup                      abso'
+          do k = 1, ke1-1
+            print *,k, redn(k,1), reup(k,1), rabso(k,1)!, &
+              !redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
+          enddo
+          print *,k, redn(k,1), reup(k,1)
+        endif
+      endif
+    endif
 
     end associate
     call PetscLogEventEnd(solver%logs%get_result, ierr)
