@@ -867,8 +867,15 @@ module m_plex_rt
 
               call PetscSectionGetOffset(srfcSection, iface, offset_srfc, ierr); call CHKERR(ierr)
 
-              !print *,'Srfc Reflection of Edir',offset_Eup, offset_Edir, offset_srfc, &
-              !  '::', xedir(i1+offset_Edir), '*', xalbedo(i1+offset_srfc)
+              if(ldebug) then
+                if(xb(i1+offset_Eup).gt.zero) then
+                  print *,'Srfc Reflection of Edir',offset_Eup, offset_Edir, offset_srfc, &
+                    '::', xedir(i1+offset_Edir), '*', xalbedo(i1+offset_srfc), '::', xb(i1+offset_Eup)
+                  call CHKERR(1_mpiint, 'hah, I am setting '// &
+                    'edir -> eup but found a value in src vec that is already larger zero. '// &
+                    ' I did not expect that?!')
+                endif
+              endif
 
               xb(i1+offset_Eup) = xb(i1+offset_Eup) + xedir(i1+offset_Edir) * xalbedo(i1+offset_srfc)
             enddo
@@ -2595,6 +2602,15 @@ module m_plex_rt
           call PetscSectionGetFieldOffset(edir_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
           redir(i1+k, i) = xedir(i1+voff)
         enddo
+
+        if(ldebug) then
+          if(reup(ke1,i) .gt. redir(ke1,i)+redn(ke1,i)) then
+            do k = 1, size(redir,dim=1)
+              print *,'i', i, 'k', k, redir(k,i), redn(k,i), reup(k,i)
+            enddo
+            call CHKERR(1_mpiint, 'solar get_result Eup cannot be bigger than Edir+Edn!')
+          endif
+        endif
       endif
     enddo
 
