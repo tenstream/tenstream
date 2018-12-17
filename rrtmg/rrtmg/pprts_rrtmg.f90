@@ -101,7 +101,8 @@ contains
       edir,edn,eup,abso,                              &
       nxproc, nyproc, icollapse,                      &
       opt_time, solar_albedo_2d, thermal_albedo_2d,   &
-      phi2d, theta2d)
+      phi2d, theta2d,                                 &
+      opt_solar_constant)
 
     integer(mpiint), intent(in)     :: comm ! MPI Communicator
 
@@ -125,7 +126,7 @@ contains
     ! opt_time is the model time in seconds. If provided we will track the error growth of the solutions
     ! and compute new solutions only after threshold estimate is exceeded.
     ! If solar_albedo_2d is present, we use a 2D surface albedo
-    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:), thermal_albedo_2d(:,:)
+    real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:), thermal_albedo_2d(:,:), opt_solar_constant
 
     real(ireals), optional, intent(in) :: phi2d(:,:), theta2d(:,:)
 
@@ -203,7 +204,7 @@ contains
       call compute_solar(solver, atm, ie, je, ke, &
         phi0, theta0, albedo_solar, &
         edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
-        lrrtmg_only=lrrtmg_only, phi2d=phi2d, theta2d=theta2d)
+        lrrtmg_only=lrrtmg_only, phi2d=phi2d, theta2d=theta2d, opt_solar_constant=opt_solar_constant)
     endif
 
     !if(myid.eq.0 .and. ldebug) then
@@ -396,7 +397,7 @@ contains
   subroutine compute_solar(solver, atm, ie, je, ke, &
       phi0, theta0, albedo, &
       edir, edn, eup, abso, opt_time, solar_albedo_2d, lrrtmg_only, &
-      phi2d, theta2d)
+      phi2d, theta2d, opt_solar_constant)
 
       use m_tenstr_parrrsw, only: ngptsw
       use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
@@ -413,6 +414,9 @@ contains
 
     real(ireals), optional, intent(in) :: opt_time, solar_albedo_2d(:,:)
     logical, optional, intent(in) :: lrrtmg_only
+    real(ireals), intent(in), optional :: opt_solar_constant
+
+    real(ireals) :: edirTOA
 
     real(ireals),allocatable, dimension(:,:,:,:) :: tau, w0, g          ! [nlyr, ie, je, ngptsw]
     real(ireals),allocatable, dimension(:,:,:)   :: kabs, ksca, kg      ! [nlyr, local_nx, local_ny]
@@ -479,7 +483,8 @@ contains
             atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
             atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
             ptau, pw0, pg, &
-            pEup, pEdn, pabso)
+            pEup, pEdn, pabso, &
+            opt_solar_constant=opt_solar_constant)
 
           tau(:,i,j,:) = ptau(:,i1,:)
           w0 (:,i,j,:) = pw0(:,i1,:)
@@ -506,7 +511,8 @@ contains
             atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
             atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
             atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
-            ptau, pw0, pg)
+            ptau, pw0, pg, &
+            opt_solar_constant=opt_solar_constant)
 
           tau(:,i,j,:) = ptau(:,i1,:)
           w0 (:,i,j,:) = pw0(:,i1,:)
@@ -533,8 +539,14 @@ contains
         ksca = reverse(ksca / patm_dz)
         kg   = reverse(kg)
 
+        if(present(opt_solar_constant)) then
+          edirTOA = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
+        else
+          edirTOA = tenstr_solsrc(ib)
+        endif
+
         call set_optical_properties(solver, albedo, kabs, ksca, kg, local_albedo_2d=solar_albedo_2d)
-        call solve_pprts(solver, tenstr_solsrc(ib), opt_solution_uid=ib, opt_solution_time=opt_time)
+        call solve_pprts(solver, edirTOA, opt_solution_uid=ib, opt_solution_time=opt_time)
 
       endif
       call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)
