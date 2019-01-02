@@ -74,6 +74,9 @@ module m_helper_functions
   interface imp_allreduce_sum
     module procedure imp_allreduce_sum_ireals, imp_allreduce_sum_i32, imp_allreduce_sum_i64
   end interface
+  interface imp_allreduce_max
+    module procedure imp_allreduce_max_ireals, imp_allreduce_max_iintegers
+  end interface
   interface imp_bcast
     module procedure imp_bcast_real_1d, imp_bcast_real_3d, imp_bcast_real_5d, &
         imp_bcast_real32_2d, imp_bcast_real64_2d, imp_bcast_real32_2d_ptr, imp_bcast_real64_2d_ptr, &
@@ -477,14 +480,21 @@ module m_helper_functions
       real(ireals),intent(in) :: v
       real(ireals),intent(out) :: r
       integer(mpiint) :: mpierr
-      call mpi_allreduce(v,r,1_mpiint,imp_ireals, MPI_MIN,comm, mpierr); call CHKERR(mpierr)
+      call mpi_allreduce(v,r,1_mpiint,imp_ireals, MPI_MIN, comm, mpierr); call CHKERR(mpierr)
     end subroutine
-    subroutine imp_allreduce_max(comm,v,r)
+    subroutine imp_allreduce_max_iintegers(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      integer(iintegers),intent(in) :: v
+      integer(iintegers),intent(out) :: r
+      integer(mpiint) :: mpierr
+      call mpi_allreduce(v,r,1_mpiint,imp_iinteger, MPI_MAX, comm, mpierr); call CHKERR(mpierr)
+    end subroutine
+    subroutine imp_allreduce_max_ireals(comm,v,r)
       integer(mpiint),intent(in) :: comm
       real(ireals),intent(in) :: v
       real(ireals),intent(out) :: r
       integer(mpiint) :: mpierr
-      call mpi_allreduce(v,r,1_mpiint,imp_ireals, MPI_MAX,comm, mpierr); call CHKERR(mpierr)
+      call mpi_allreduce(v,r,1_mpiint,imp_ireals, MPI_MAX, comm, mpierr); call CHKERR(mpierr)
     end subroutine
     subroutine imp_allreduce_sum_ireals(comm,v,r)
       integer(mpiint),intent(in) :: comm

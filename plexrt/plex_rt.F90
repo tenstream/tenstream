@@ -2613,7 +2613,7 @@ module m_plex_rt
         enddo
 
         if(ldebug) then
-          if(reup(ke1,i) .gt. abs(redir(ke1,i))+abs(redn(ke1,i))) then
+          if(reup(ke1,i)-sqrt(epsilon(reup)) .gt. abs(redir(ke1,i))+abs(redn(ke1,i))) then
             call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
             do k = 1, size(redir,dim=1)
               print *,'sgr ::', myid, 'i', i, 'k', k, redir(k,i), redn(k,i), reup(k,i)

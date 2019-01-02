@@ -7,7 +7,7 @@ module m_plex_grid
     triangle_area_by_vertices, swap, norm, determine_normal_direction, &
     vec_proj_on_plane, angle_between_two_vec, cross_3d, rad2deg, &
     rotation_matrix_world_to_local_basis, resize_arr, get_arg, &
-    imp_bcast, itoa, ftoa
+    imp_bcast, itoa, ftoa, imp_allreduce_max
 
   use m_data_parameters, only : ireals, iintegers, mpiint, zero, one, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
@@ -728,7 +728,7 @@ module m_plex_grid
         type(tPetscSection) :: cellSection, faceVecSection
         integer(iintegers) :: icell, cStart, cEnd, cell_offset, iface, faceVec_offset
         integer(iintegers),pointer :: faces_of_cell(:)
-        integer(iintegers) :: idof, num_dof
+        integer(iintegers) :: idof, num_dof, max_num_dof
 
         integer(mpiint) :: myid, comm, ierr
         character(len=default_str_len) :: faceVecname, cellVecname
@@ -754,15 +754,29 @@ module m_plex_grid
         call DMGlobalToLocalBegin(faceVec_dm, global_faceVec, INSERT_VALUES, faceVec, ierr); call CHKERR(ierr)
         call DMGlobalToLocalEnd  (faceVec_dm, global_faceVec, INSERT_VALUES, faceVec, ierr); call CHKERR(ierr)
 
-        ! count number of dof on faces
         call DMPlexGetHeightStratum(celldm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
-        call DMPlexGetCone(celldm, cStart, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
-        num_dof = 0
-        do iface = 1, size(faces_of_cell)
-          call PetscSectionGetDof(faceVecSection, faces_of_cell(iface), idof, ierr); call CHKERR(ierr)
-          num_dof = num_dof + idof
+
+        ! count number of dof on faces
+        max_num_dof = 0
+        call DMPlexGetHeightStratum(celldm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+        do icell = cStart, cEnd-1
+          num_dof = 0
+          call DMPlexGetCone(celldm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+          do iface = 1, size(faces_of_cell)
+            call PetscSectionGetDof(faceVecSection, faces_of_cell(iface), idof, ierr); call CHKERR(ierr)
+            num_dof = num_dof + idof
+          enddo
+          call DMPlexRestoreCone(celldm, icell, faces_of_cell,ierr); call CHKERR(ierr)
+          max_num_dof = max(max_num_dof, num_dof)
         enddo
-        call DMPlexRestoreCone(celldm, icell, faces_of_cell,ierr); call CHKERR(ierr)
+
+        ! global max of dof is required to easily plot cell values in visit via xdmf if we do not want to write a custom xmf description
+        num_dof = max_num_dof
+        call imp_allreduce_max(comm, num_dof, max_num_dof)
+
+        if(ldebug.and.myid.eq.0) then
+          print *,'max number of dof on faces per cell is:', max_num_dof
+        endif
 
         call create_plex_section(celldm, 'Faces_to_Cells_Section', i1, [num_dof], [i0], [i0], [i0], cellSection)
         call DMSetSection(celldm, cellSection, ierr); call CHKERR(ierr)
