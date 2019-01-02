@@ -1275,6 +1275,7 @@ module m_pprts
 
     real(ireals)        :: tau, kext, w0, g
     integer(iintegers)  :: k, i, j
+    logical :: lpprts_delta_scale, lflg
 
     call PetscLogEventBegin(solver%logs%set_optprop, ierr); call CHKERR(ierr)
 
@@ -1346,7 +1347,14 @@ module m_pprts
       if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%kabs)
     endif
 
-    call delta_scale(atm%kabs, atm%ksca, atm%g)
+    lpprts_delta_scale=.True.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale", lpprts_delta_scale, lflg , ierr) ;call CHKERR(ierr)
+
+    if(lpprts_delta_scale) then
+      call delta_scale(atm%kabs, atm%ksca, atm%g)
+    else
+      if(solver%myid.eq.0) print *,"Skipping Delta scaling of optprops"
+    endif
 
     if(ltwostr_only) then
       if(ldebug .and. solver%myid.eq.0) then
