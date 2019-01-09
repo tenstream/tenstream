@@ -35,7 +35,7 @@ module m_helper_functions
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, cstr, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean, &
-    resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z
+    resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -1474,6 +1474,21 @@ module m_helper_functions
 
         rotate_angle_z = matmul(M,v)
       end function
+
+    pure function rotation_matrix_around_axis_vec(angle, rot_axis) result(M)
+      ! left hand rule
+      real(ireals) :: M(3,3)
+      real(ireals),intent(in) :: angle, rot_axis(3)
+      real(ireals) :: s,c,u(3),omc
+      u = rot_axis / norm(rot_axis)
+      s=sin(deg2rad(angle))
+      c=cos(deg2rad(angle))
+      omc = 1._ireals - c
+
+      M(1,:)=[u(1)*u(1)*omc + c     , u(1)*u(2)*omc - u(3)*s, u(1)*u(3)*omc + u(2)*s]
+      M(2,:)=[u(2)*u(1)*omc + u(3)*s, u(2)*u(2)*omc + c     , u(2)*U(3)*omc - u(1)*s]
+      M(3,:)=[u(3)*u(1)*omc - u(2)*s, u(3)*u(2)*omc + u(1)*s, u(3)*u(3)*omc + c     ]
+    end function
 
     pure function rotation_matrix_world_to_local_basis(ex, ey, ez)
       real(ireals), dimension(3), intent(in) :: ex, ey, ez

@@ -202,7 +202,7 @@ contains
     end subroutine
     subroutine init_sundir()
       use m_helper_functions, only: cross_3d, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
-        rotate_angle_x
+        rotate_angle_x, rotation_matrix_around_axis_vec
       logical :: lflg, lflg_xyz(3)
       integer(iintegers) :: nvals
       real(ireals) :: first_normal(3)
@@ -246,6 +246,19 @@ contains
         if(ldebug.and.myid.eq.0) print *,'rot_sundir', rot_sundir
         Mrot = rotation_matrix_local_basis_to_world(first_normal, U, V)
         rot_sundir = matmul(Mrot, rot_sundir)
+        if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
+        sundir = rot_sundir
+      endif
+
+      rot_angle = zero
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_theta", rot_angle, lflg, ierr) ; call CHKERR(ierr)
+      if(lflg) then
+        U = cross_3d(first_normal, sundir)
+        Mrot = rotation_matrix_around_axis_vec(rot_angle, U)
+        rot_sundir = matmul(Mrot, sundir)
+        if(ldebug.and.myid.eq.0) print *,'S', sundir, norm(sundir)
+        if(ldebug.and.myid.eq.0) print *,'U', U, norm(U)
+        if(ldebug.and.myid.eq.0) print *,'rot_sundir', rot_sundir
         if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
         sundir = rot_sundir
       endif
