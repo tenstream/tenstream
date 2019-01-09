@@ -242,7 +242,7 @@ contains
         real(h2ovmr,rb), real(o3vmr,rb), real(co2vmr,rb),      &
         real(ch4vmr,rb), real(n2ovmr,rb), real(o2vmr,rb),      &
         asdir, asdif, aldir, aldif, &
-        coszen, adjes, dyofyr, scon, &
+        coszen, adjes, dyofyr, solar_const, &
         inflgsw, iceflgsw, liqflgsw, cldfr, &
         taucld, ssacld, asmcld, fsfcld, &
         real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
@@ -261,7 +261,7 @@ contains
         real(h2ovmr,rb), real(o3vmr,rb), real(co2vmr,rb),      &
         real(ch4vmr,rb), real(n2ovmr,rb), real(o2vmr,rb),      &
         asdir, asdif, aldir, aldif, &
-        coszen, adjes, dyofyr, scon, &
+        coszen, adjes, dyofyr, solar_const, &
         inflgsw, iceflgsw, liqflgsw, cldfr, &
         taucld, ssacld, asmcld, fsfcld, &
         real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
