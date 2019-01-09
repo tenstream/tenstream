@@ -224,7 +224,8 @@ subroutine update_diff_stream_wedge_5_8(bmc,vertices,p,S)
 end subroutine
 
 subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
-  use m_helper_functions_dp, only : pnt_in_triangle,rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, rad2deg
+  use m_helper_functions, only : rotate_angle_x, rotate_angle_y, rotate_angle_z
+  use m_helper_functions_dp, only : pnt_in_triangle, angle_between_two_vec, rad2deg
   use m_helper_functions_dp, only : rotation_matrix_local_basis_to_world
   class(t_boxmc_wedge_5_8) :: bmc
   type(t_photon),intent(inout) :: p

@@ -29,7 +29,7 @@ module m_helper_functions_dp
           delta_scale_optprop, delta_scale, cumsum, inc, swap, &
           mpi_logical_and, mpi_logical_or, imp_allreduce_min, imp_allreduce_max, imp_reduce_sum, &
           pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, &
-          rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, determine_normal_direction, &
+          angle_between_two_vec, determine_normal_direction, &
           distance_to_edge, distances_to_triangle_edges, triangle_intersection, square_intersection, &
           triangle_area_by_vertices, rotation_matrix_local_basis_to_world, pnt_in_cube
 
@@ -766,47 +766,4 @@ module m_helper_functions_dp
       rotation_matrix_local_basis_to_world(3,2) = dot_product(kz, ey)
       rotation_matrix_local_basis_to_world(3,3) = dot_product(kz, ez)
     end function
-
-      pure function rotate_angle_x(v,angle)
-        ! left hand rule
-        real(ireal_dp) :: rotate_angle_x(3)
-        real(ireal_dp),intent(in) :: v(3), angle
-        real(ireal_dp) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
-
-        M(1,:)=[one ,zero ,zero]
-        M(2,:)=[zero, c   , s  ]
-        M(3,:)=[zero,-s   , c  ]
-
-        rotate_angle_x = matmul(M,v)
-      end function
-      pure function rotate_angle_y(v,angle)
-        ! left hand rule
-        real(ireal_dp) :: rotate_angle_y(3)
-        real(ireal_dp),intent(in) :: v(3), angle
-        real(ireal_dp) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
-
-        M(1,:)=[ c  ,zero , -s ]
-        M(2,:)=[zero, one ,zero]
-        M(3,:)=[ s  , zero, c  ]
-
-        rotate_angle_y = matmul(M,v)
-      end function
-      pure function rotate_angle_z(v,angle)
-        ! left hand rule
-        real(ireal_dp) :: rotate_angle_z(3)
-        real(ireal_dp),intent(in) :: v(3), angle
-        real(ireal_dp) :: M(3,3),s,c
-        s=sin(deg2rad(angle))
-        c=cos(deg2rad(angle))
-
-        M(1,:)=[ c  , s   ,zero]
-        M(2,:)=[-s  , c   ,zero]
-        M(3,:)=[zero, zero, one]
-
-        rotate_angle_z = matmul(M,v)
-      end function
     end module

@@ -35,8 +35,17 @@ module m_helper_functions
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, cstr, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean, &
-    resize_arr, reverse
+    resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z
 
+  interface rotate_angle_x
+    module procedure rotate_angle_x_r32, rotate_angle_x_r64
+  end interface
+  interface rotate_angle_y
+    module procedure rotate_angle_y_r32, rotate_angle_y_r64
+  end interface
+  interface rotate_angle_z
+    module procedure rotate_angle_z_r32, rotate_angle_z_r64
+  end interface
   interface rmse
     module procedure rmse_r32, rmse_r64
   end interface
@@ -1380,6 +1389,91 @@ module m_helper_functions
 
       distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
     end function
+
+      pure function rotate_angle_x_r32(v,angle) result(rotate_angle_x)
+        ! left hand rule
+        real(REAL32) :: rotate_angle_x(3)
+        real(REAL32),intent(in) :: v(3), angle
+        real(REAL32) :: M(3,3),s,c
+        s=sin(deg2rad(angle))
+        c=cos(deg2rad(angle))
+
+        M(1,:)=[1._REAL32 ,0._REAL32 ,0._REAL32]
+        M(2,:)=[0._REAL32, c   , s  ]
+        M(3,:)=[0._REAL32,-s   , c  ]
+
+        rotate_angle_x = matmul(M,v)
+      end function
+      pure function rotate_angle_x_r64(v,angle) result(rotate_angle_x)
+        ! left hand rule
+        real(REAL64) :: rotate_angle_x(3)
+        real(REAL64),intent(in) :: v(3), angle
+        real(REAL64) :: M(3,3),s,c
+        s=sin(deg2rad(angle))
+        c=cos(deg2rad(angle))
+
+        M(1,:)=[1._REAL64 ,0._REAL64 ,0._REAL64]
+        M(2,:)=[0._REAL64, c   , s  ]
+        M(3,:)=[0._REAL64,-s   , c  ]
+
+        rotate_angle_x = matmul(M,v)
+      end function
+      pure function rotate_angle_y_r32(v,angle) result(rotate_angle_y)
+        ! left hand rule
+        real(REAL32) :: rotate_angle_y(3)
+        real(REAL32),intent(in) :: v(3), angle
+        real(REAL32) :: M(3,3),s,c
+        s=sin(deg2rad(angle))
+        c=cos(deg2rad(angle))
+
+        M(1,:)=[ c  ,0._REAL32 , -s ]
+        M(2,:)=[0._REAL32, 1._REAL32 ,0._REAL32]
+        M(3,:)=[ s  , 0._REAL32, c  ]
+
+        rotate_angle_y = matmul(M,v)
+      end function
+      pure function rotate_angle_y_r64(v,angle) result(rotate_angle_y)
+        ! left hand rule
+        real(REAL64) :: rotate_angle_y(3)
+        real(REAL64),intent(in) :: v(3), angle
+        real(REAL64) :: M(3,3),s,c
+        s=sin(deg2rad(angle))
+        c=cos(deg2rad(angle))
+
+        M(1,:)=[ c  ,0._REAL64 , -s ]
+        M(2,:)=[0._REAL64, 1._REAL64 ,0._REAL64]
+        M(3,:)=[ s  , 0._REAL64, c  ]
+
+        rotate_angle_y = matmul(M,v)
+      end function
+      pure function rotate_angle_z_r32(v,angle) result(rotate_angle_z)
+        ! left hand rule
+        real(REAL32) :: rotate_angle_z(3)
+        real(REAL32),intent(in) :: v(3), angle
+        real(REAL32) :: M(3,3),s,c
+        s=sin(deg2rad(angle))
+        c=cos(deg2rad(angle))
+
+        M(1,:)=[ c  , s   ,0._REAL32]
+        M(2,:)=[-s  , c   ,0._REAL32]
+        M(3,:)=[0._REAL32, 0._REAL32, 1._REAL32]
+
+        rotate_angle_z = matmul(M,v)
+      end function
+      pure function rotate_angle_z_r64(v,angle) result(rotate_angle_z)
+        ! left hand rule
+        real(REAL64) :: rotate_angle_z(3)
+        real(REAL64),intent(in) :: v(3), angle
+        real(REAL64) :: M(3,3),s,c
+        s=sin(deg2rad(angle))
+        c=cos(deg2rad(angle))
+
+        M(1,:)=[ c  , s   ,0._REAL64]
+        M(2,:)=[-s  , c   ,0._REAL64]
+        M(3,:)=[0._REAL64, 0._REAL64, 1._REAL64]
+
+        rotate_angle_z = matmul(M,v)
+      end function
 
     pure function rotation_matrix_world_to_local_basis(ex, ey, ez)
       real(ireals), dimension(3), intent(in) :: ex, ey, ez
