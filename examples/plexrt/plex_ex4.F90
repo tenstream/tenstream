@@ -61,7 +61,7 @@ contains
     integer(iintegers) :: k, fStart, fEnd, Ncol, dNlev, dNlay, Nlev
     real(ireals), allocatable, dimension(:,:) :: edir,edn,eup,abso
 
-    real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
+    real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
 
     class(t_plex_solver), allocatable :: solver
 
@@ -164,11 +164,7 @@ contains
 
     call init_plex_rt_solver(plex, solver)
 
-    first_normal = get_normal_of_first_TOA_face(solver%plex)
-    sundir = first_normal + [zero, zero, 1e-2_ireals]
-    sundir = -[0.5368672026070134, 0.7320371297951827, 0.419398673538855] ! example on cut50
-    sundir = sundir/norm(sundir)
-    if(myid.eq.0) print *,myid,'Initial sundirection = ', sundir, ': sza', rad2deg(angle_between_two_vec(sundir, first_normal))
+    call init_sundir()
 
     if(lthermal) then
       call plexrt_rrtmg(solver, atm, sundir, &
@@ -189,6 +185,8 @@ contains
   contains
     subroutine init_data_strings()
       logical :: lflg
+      integer(iintegers) :: nvals
+      real(ireals) :: opt_sundir(3)
       lwc_data_string = 'clw'
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-lwc_data_string', lwc_data_string, lflg, ierr); call CHKERR(ierr)
       iwc_data_string = 'cli'
@@ -201,6 +199,58 @@ contains
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qv_data_string', qv_data_string, lflg, ierr); call CHKERR(ierr)
       atm_filename='afglus_100m.dat'
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
+    end subroutine
+    subroutine init_sundir()
+      use m_helper_functions, only: cross_3d, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
+        rotate_angle_x
+      logical :: lflg, lflg_xyz(3)
+      integer(iintegers) :: nvals
+      real(ireals) :: first_normal(3)
+      integer(mpiint) :: myid, ierr
+      real(ireals) :: rot_angle, Mrot(3,3), U(3), V(3), rot_sundir(3)
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      first_normal = get_normal_of_first_TOA_face(solver%plex)
+
+      sundir = zero
+      if(ldebug.and.myid.eq.0) print *,myid, 'determine initial sundirection ...'
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_x", sundir(1), lflg_xyz(1), ierr) ; call CHKERR(ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_y", sundir(2), lflg_xyz(2), ierr) ; call CHKERR(ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_z", sundir(3), lflg_xyz(3), ierr) ; call CHKERR(ierr)
+      if(any(lflg_xyz)) then
+        if(.not.all(lflg_xyz)) then
+          call CHKERR(1_mpiint, 'sundir needs 3 entries, you have to specify -sundir_x -sundir_y -sundir_z')
+        endif
+      else
+        sundir = first_normal + [zero, zero, 1e-2_ireals]
+        sundir = -[0.5368672026070134, 0.7320371297951827, 0.419398673538855] ! example on cut50
+        sundir = [-0.67442513891627376, 0.68211997954408909, -0.28260054052414002] ! example from ifc_icon run at 10863 sec
+      endif
+      sundir = sundir/norm(sundir)
+
+      if(ldebug.and.myid.eq.0) print *,'Initial sundirection = ', sundir, ': sza', angle_between_two_vec(sundir, first_normal), 'rad'
+      if(myid.eq.0) print *,'Initial sundirection = ', sundir, ': sza', rad2deg(angle_between_two_vec(sundir, first_normal)),'deg'
+
+
+      rot_angle = zero
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_phi", rot_angle, lflg, ierr) ; call CHKERR(ierr)
+      if(lflg) then
+        U = [first_normal(2), -first_normal(1), zero]
+        U = U / norm(U)
+        V = cross_3d(first_normal, U)
+        Mrot = rotation_matrix_world_to_local_basis(first_normal, U, V)
+        rot_sundir = matmul(Mrot, sundir)
+        rot_sundir = rotate_angle_x(rot_sundir, rot_angle)
+        if(ldebug.and.myid.eq.0) print *,'U', U
+        if(ldebug.and.myid.eq.0) print *,'V', V
+        if(ldebug.and.myid.eq.0) print *,'rot_sundir', rot_sundir
+        Mrot = rotation_matrix_local_basis_to_world(first_normal, U, V)
+        rot_sundir = matmul(Mrot, rot_sundir)
+        if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
+        sundir = rot_sundir
+      endif
+
+      if(ldebug.and.myid.eq.0) print *,'determine initial sundirection ... done'
     end subroutine
   end subroutine
 end module
