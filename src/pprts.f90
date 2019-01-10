@@ -60,7 +60,7 @@ module m_pprts
   public :: init_pprts, &
             set_optical_properties, set_global_optical_properties, &
             solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
-            pprts_get_result_toZero
+            pprts_get_result_toZero, gather_all_toZero
 
   KSP,save :: kspdir, kspdiff
   logical,save :: linit_kspdir=.False., linit_kspdiff=.False.
@@ -3796,14 +3796,14 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     if(present(gedir)) then
       call pprts_get_result(solver,redn,reup,rabso,redir=redir,opt_solution_uid=opt_solution_uid)
-      call exchange_var(solver%C_one_atm1, redir, gedir)
+      call gather_all_toZero(solver%C_one_atm1, redir, gedir)
     else
       call pprts_get_result(solver,redn,reup,rabso,opt_solution_uid=opt_solution_uid)
     endif
 
-    call exchange_var(solver%C_one_atm1, redn , gedn )
-    call exchange_var(solver%C_one_atm1, reup , geup )
-    call exchange_var(solver%C_one_atm , rabso, gabso)
+    call gather_all_toZero(solver%C_one_atm1, redn , gedn )
+    call gather_all_toZero(solver%C_one_atm1, reup , geup )
+    call gather_all_toZero(solver%C_one_atm , rabso, gabso)
 
     if(solver%myid.eq.0 .and. ldebug) then
       print *,'Retrieving results:'
@@ -3815,27 +3815,6 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     call PetscLogEventEnd(solver%logs%scatter_to_Zero, ierr); call CHKERR(ierr)
 
   contains
-    subroutine exchange_var(C, inp, outp)
-      type(t_coord),intent(in) :: C
-      real(ireals),intent(in), allocatable :: inp(:,:,:) ! local array from get_result
-      real(ireals),intent(inout),allocatable :: outp(:,:,:) ! global sized array on rank 0
-
-      type(tVec) :: vec, lvec_on_zero
-      if(ldebug) then
-        print *,solver%myid,'exchange_var',allocated(inp), allocated(outp)
-        print *,solver%myid,'exchange_var shape',shape(inp)
-      endif
-
-      call DMGetGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
-      call f90VecToPetsc(inp, C%da, vec)
-      call petscGlobalVecToZero(vec, C%da, lvec_on_zero)
-      call DMRestoreGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
-
-      if(solver%myid.eq.0) then
-        call petscVecToF90(lvec_on_zero, C%da, outp, opt_l_only_on_rank0=.True.)
-        call VecDestroy(lvec_on_zero, ierr); call CHKERR(ierr)
-      endif
-    end subroutine
     subroutine check_arr_size(C,inp)
       type(t_coord),intent(in) :: C
       real(ireals),intent(in), allocatable :: inp(:,:,:)
@@ -3848,6 +3827,32 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
         endif
       endif
     end subroutine
+  end subroutine
+
+  subroutine gather_all_toZero(C, inp, outp)
+    type(t_coord),intent(in) :: C
+    real(ireals),intent(in), allocatable :: inp(:,:,:) ! local array from get_result
+    real(ireals),intent(inout),allocatable :: outp(:,:,:) ! global sized array on rank 0
+
+    type(tVec) :: vec, lvec_on_zero
+
+    integer(mpiint) :: myid, ierr
+    call mpi_comm_rank(C%comm, myid, ierr)
+
+    if(ldebug) then
+      print *,myid,'exchange_var',allocated(inp), allocated(outp)
+      print *,myid,'exchange_var shape',shape(inp)
+    endif
+
+    call DMGetGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
+    call f90VecToPetsc(inp, C%da, vec)
+    call petscGlobalVecToZero(vec, C%da, lvec_on_zero)
+    call DMRestoreGlobalVector(C%da,vec,ierr) ; call CHKERR(ierr)
+
+    if(myid.eq.0) then
+      call petscVecToF90(lvec_on_zero, C%da, outp, opt_l_only_on_rank0=.True.)
+      call VecDestroy(lvec_on_zero, ierr); call CHKERR(ierr)
+    endif
   end subroutine
 
   subroutine destroy_pprts(solver, lfinalizepetsc)
