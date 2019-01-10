@@ -9,7 +9,7 @@ module m_plex_rt
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, &
     vec_proj_on_plane, cross_3d, norm, rotation_matrix_world_to_local_basis, &
     approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa, &
-    imp_allreduce_min
+    imp_allreduce_min, rotation_matrix_around_axis_vec
 
   use m_data_parameters, only : ireals, iintegers, mpiint, irealLUT, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
