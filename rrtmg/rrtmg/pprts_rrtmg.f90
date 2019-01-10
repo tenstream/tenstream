@@ -154,7 +154,7 @@ contains
     !logical :: lfile_exists
 
     integer(mpiint) :: myid, ierr
-    logical :: lrrtmg_only, lflg
+    logical :: lrrtmg_only, lskip_thermal, lflg
 
     if(present(icollapse)) call CHKERR(1_mpiint, 'Icollapse currently not tested. Dont Use it')
 
@@ -191,7 +191,10 @@ contains
     eup = zero
     abso= zero
 
-    if(lthermal) then
+    lskip_thermal = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-skip_thermal" , lskip_thermal, lflg , ierr) ;call CHKERR(ierr)
+    if(lthermal.and..not.lskip_thermal)then
       call compute_thermal(solver, atm, ie, je, ke, ke1, &
         albedo_thermal, &
         edn, eup, abso, opt_time=opt_time, lrrtmg_only=lrrtmg_only, &
