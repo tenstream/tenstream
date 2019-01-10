@@ -33,7 +33,7 @@ module m_netcdfIO
   implicit none
 
   private
-  public :: ncwrite, ncload, acquire_file_lock, release_file_lock
+  public :: ncwrite, ncload, acquire_file_lock, release_file_lock, get_global_attribute
 
 !  integer :: v=11
   integer,parameter :: deflate_lvl=9
@@ -54,6 +54,9 @@ module m_netcdfIO
         ncload_1d_r64, ncload_2d_r64, ncload_3d_r64, ncload_4d_r64, ncload_5d_r64, ncload_6d_r64, ncload_7d_r64, &
         ncload_2d_r32_ptr, ncload_2d_r64_ptr, &
         ncload_1dint, ncload_2dint
+  end interface
+  interface get_global_attribute
+    module procedure get_global_attribute_str, get_global_attribute_r32
   end interface
 
   contains
@@ -339,6 +342,29 @@ module m_netcdfIO
       enddo
       ierr = 1
       call CHKERR(1_mpiint, 'Error releasing file lock for unit '//itoa(flock_unit))
+    end subroutine
+
+    subroutine get_global_attribute_str(fname, attr_name, attr)
+      character(len=*) :: fname, attr_name, attr
+      integer :: ncid, ierr
+      integer :: attrLength
+      ierr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ierr)
+      ierr = nf90_inquire_attribute(ncid, nf90_global, attr_name, len=attrLength); call nccheck(ierr)
+      if(attrLength.gt.default_str_len) then
+        call CHKERR(1_mpiint, 'Cant fit attribute name into default_str_len, its too long: '//itoa(attrLength))
+      endif
+      ierr = nf90_get_att(ncid, nf90_global, trim(attr_name), attr); call nccheck(ierr)
+      print *,'ierr fetching get_att', ierr
+      ierr = nf90_close(ncid); call nccheck(ierr)
+    end subroutine
+
+    subroutine get_global_attribute_r32(fname, attr_name, attr)
+      character(len=*) :: fname, attr_name
+      real(REAL32) :: attr
+      integer :: ncid, ierr
+      ierr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ierr)
+      ierr = nf90_get_att(ncid, nf90_global, trim(attr_name), attr); call nccheck(ierr)
+      ierr = nf90_close(ncid); call nccheck(ierr)
     end subroutine
 
   end module
