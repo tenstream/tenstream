@@ -1,4 +1,4 @@
-module m_example_pprts_rrtm_lw_sw
+module m_example_uvspec_cld_file
   use mpi
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_3_16
@@ -274,7 +274,7 @@ program main
   use petsc
   use mpi
   use m_data_parameters, only : iintegers, mpiint
-  use m_example_pprts_rrtm_lw_sw
+  use m_example_uvspec_cld_file
 
   implicit none
 
