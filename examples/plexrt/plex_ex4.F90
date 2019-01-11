@@ -185,8 +185,6 @@ contains
   contains
     subroutine init_data_strings()
       logical :: lflg
-      integer(iintegers) :: nvals
-      real(ireals) :: opt_sundir(3)
       lwc_data_string = 'clw'
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-lwc_data_string', lwc_data_string, lflg, ierr); call CHKERR(ierr)
       iwc_data_string = 'cli'
@@ -204,7 +202,6 @@ contains
       use m_helper_functions, only: cross_3d, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
         rotate_angle_x, rotation_matrix_around_axis_vec
       logical :: lflg, lflg_xyz(3)
-      integer(iintegers) :: nvals
       real(ireals) :: first_normal(3)
       integer(mpiint) :: myid, ierr
       real(ireals) :: rot_angle, Mrot(3,3), U(3), V(3), rot_sundir(3)

@@ -50,7 +50,7 @@ logical, parameter :: ldebug=.True.
       integer(iintegers) :: k, vStart, vEnd!, fStart, fEnd
       !type(tVec) :: lwcvec, iwcvec
 
-      real(ireals) :: first_normal(3), sundir(3) ! cartesian direction of sun rays in a global reference system
+      real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
       !real(ireals),allocatable :: hhl(:)
       !character(len=default_str_len) :: ncgroups(2)
 
@@ -140,10 +140,9 @@ logical, parameter :: ldebug=.True.
           use m_helper_functions, only: cross_3d, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
             rotate_angle_x, rotation_matrix_around_axis_vec
           logical :: lflg, lflg_xyz(3)
-          integer(iintegers) :: nvals
           real(ireals) :: first_normal(3)
           integer(mpiint) :: myid, ierr
-          real(ireals) :: rot_angle, Mrot(3,3), U(3), V(3), rot_sundir(3)
+          real(ireals) :: rot_angle, Mrot(3,3), U(3), rot_sundir(3)
 
           call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
           first_normal = get_normal_of_first_TOA_face(solver%plex)
