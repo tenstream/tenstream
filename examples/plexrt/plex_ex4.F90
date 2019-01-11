@@ -185,8 +185,6 @@ contains
   contains
     subroutine init_data_strings()
       logical :: lflg
-      integer(iintegers) :: nvals
-      real(ireals) :: opt_sundir(3)
       lwc_data_string = 'clw'
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-lwc_data_string', lwc_data_string, lflg, ierr); call CHKERR(ierr)
       iwc_data_string = 'cli'
