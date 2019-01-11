@@ -27,9 +27,9 @@ module m_pprts
     zero, one, nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
     default_str_len
 
-  use m_helper_functions, only : CHKERR, deg2rad, rad2deg, norm, imp_allreduce_min, &
+  use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, norm, imp_allreduce_min, &
     imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
-    inc, itoa, imp_allreduce_mean
+    inc, itoa, ftoa, imp_allreduce_mean
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
@@ -1266,12 +1266,13 @@ module m_pprts
   end function
 
 
-  subroutine set_optical_properties(solver, albedo, local_kabs, local_ksca, local_g, local_planck, local_albedo_2d)
+  subroutine set_optical_properties(solver, albedo, local_kabs, local_ksca, local_g, local_planck, local_albedo_2d, ldelta_scaling)
     class(t_solver)                                   :: solver
     real(ireals), intent(in)                          :: albedo
     real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g ! dimensions (Nz  , Nx, Ny)
     real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny) layer quantity plus surface layer
     real(ireals),intent(in),dimension(:,:),optional   :: local_albedo_2d                 ! dimensions (Nx, Ny)
+    logical, intent(in), optional :: ldelta_scaling ! determines if we should try to delta scale these optprops
 
     real(ireals)        :: tau, kext, w0, g
     integer(iintegers)  :: k, i, j
@@ -1347,13 +1348,15 @@ module m_pprts
       if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%kabs)
     endif
 
-    lpprts_delta_scale=.True.
+    lpprts_delta_scale = get_arg(.True., ldelta_scaling)
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale", lpprts_delta_scale, lflg , ierr) ;call CHKERR(ierr)
 
     if(lpprts_delta_scale) then
       call delta_scale(atm%kabs, atm%ksca, atm%g)
     else
-      if(solver%myid.eq.0) print *,"Skipping Delta scaling of optprops"
+      if(solver%myid.eq.0.and.lflg) print *,"Skipping Delta scaling of optprops"
+      if(any(atm%g.ge.0.5_ireals)) &
+        call CHKWARN(1_mpiint, 'Skipping delta scaling but now we have values of g which are bigger .5 ('//ftoa(maxval(atm%g))//')')
     endif
 
     if(ltwostr_only) then
