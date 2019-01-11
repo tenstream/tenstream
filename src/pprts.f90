@@ -3299,6 +3299,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     integer(mpiint) :: ierr
 
     aspect_zx = real(dz / solver%atm%dx, irealLUT)
+    aspect_zx = max(solver%OPP%OPP_LUT%diffconfig%dims(3)%vrange(1),aspect_zx) !DEBUG
+
     tauz = max(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(1), &
       min(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), real((kabs+ksca) * dz, irealLUT)))
     w0 = max(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(1), &
