@@ -79,10 +79,10 @@ contains
 
     nxp = size(lwc, dim=2) / N_ranks_x
     nyp = size(lwc, dim=3) / N_ranks_y
-    call CHKERR(modulo(size(lwc, dim=2), N_ranks_x), &
+    call CHKERR(modulo(size(lwc, dim=2,kind=mpiint), int(N_ranks_x,mpiint)), &
       'x-dimension is not evenly distributable on given communicator!'// &
       'cant put'//itoa(size(lwc, dim=2))//' pixels on '//itoa(N_ranks_x)//' ranks')
-    call CHKERR(modulo(size(lwc, dim=3), N_ranks_y), &
+    call CHKERR(modulo(size(lwc, dim=3, kind=mpiint), int(N_ranks_y, mpiint)), &
       'y-dimension is not evenly distributable on given communicator!'// &
       'cant put'//itoa(size(lwc, dim=3))//' pixels on '//itoa(N_ranks_y)//' ranks')
 
@@ -90,7 +90,7 @@ contains
       print *,'Local Domain sizes are:',nxp,nyp
     endif
     jproc = myid / N_ranks_x
-    iproc = modulo(myid, N_ranks_x)
+    iproc = modulo(myid, int(N_ranks_x, mpiint))
 
     js = 1 + jproc * nyp
     je = js + nyp -1
@@ -206,8 +206,8 @@ contains
     endif
     if(ldebug .and. myid.eq.0) print *, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
 
-    allocate(nxproc(N_ranks_x), source=size(plev,2)) ! dimension will determine how many ranks are used along the axis
-    allocate(nyproc(N_ranks_y), source=size(plev,3)) ! values have to define the local domain sizes on each rank (here constant on all processes)
+    allocate(nxproc(N_ranks_x), source=size(plev,2, kind=iintegers)) ! dimension will determine how many ranks are used along the axis
+    allocate(nyproc(N_ranks_y), source=size(plev,3, kind=iintegers)) ! values have to define the local domain sizes on each rank (here constant on all processes)
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
     ! gases to the TenStream solver... this will then be interpolated from the
@@ -230,7 +230,8 @@ contains
       pplev, ptlev, atm, &
       d_lwc=plwc, d_reliq=preliq)
 
-    call pprts_rrtmg(comm, pprts_solver, atm, size(plev,2), size(plev,3), &
+    call pprts_rrtmg(comm, pprts_solver, atm, &
+      size(plev,2, kind=iintegers), size(plev,3, kind=iintegers), &
       dx, dy, phi0, theta0,                    &
       albedo_th, albedo_sol,                   &
       lthermal, lsolar,                        &
