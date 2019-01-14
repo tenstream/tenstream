@@ -194,4 +194,79 @@ subroutine test_netcdf_load_write_r64(this)
     enddo
 end subroutine
 
+@test(npes=[1])
+  subroutine test_netcdf_write_hyperslab_1d(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: numnodes, comm, myid, ierr, rank
+    integer(mpiint) :: i
+    real(ireals),allocatable :: a1d(:)
+
+    integer(mpiint),parameter :: N=10
+    character(len=default_str_len) :: groups(2)
+
+    groups(1) = 'pfunit_hyperslab_test.nc'
+    groups(2) = 'hyperslab1d'
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    allocate(a1d(N))
+    do i = 1, N
+      a1d(i) = i
+    enddo
+
+    call ncwrite(groups, a1d(1:N/2), ierr, &
+      arr_shape=shape(a1d), startp=[1], countp=[N/2])
+
+    call ncwrite(groups, a1d(N/2+1:N), ierr, &
+      arr_shape=shape(a1d), startp=[N/2+1], countp=[N/2])
+
+    deallocate(a1d)
+
+    call ncload(groups, a1d, ierr)
+
+    do i = 1, N
+      @assertEqual(i, a1d(i))
+    enddo
+  end subroutine
+
+@test(npes=[1])
+  subroutine test_netcdf_write_hyperslab_2d(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: numnodes, comm, myid, ierr, rank
+    integer(mpiint) :: i, j
+    real(ireals),allocatable :: a2d(:,:)
+
+    integer(mpiint),parameter :: N=10
+    character(len=default_str_len) :: groups(2)
+
+    groups(1) = 'pfunit_hyperslab_test.nc'
+    groups(2) = 'hyperslab2d'
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    allocate(a2d(N,N))
+    do i = 1, N
+      a2d(:, i) = i
+    enddo
+
+    do i = 1, N
+      call ncwrite(groups, a2d(i, 1:N), ierr, &
+        arr_shape=shape(a2d), startp=[1,i], countp=[N])
+    enddo
+
+    deallocate(a2d)
+
+    call ncload(groups, a2d, ierr)
+
+    do j = 1, N
+      do i = 1, N
+      @assertEqual(i, a2d(i,j))
+    enddo
+  enddo
+  end subroutine
+
 end module

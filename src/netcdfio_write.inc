@@ -17,6 +17,8 @@
 ! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
 !-------------------------------------------------------------------------
 
+integer, intent(in), optional :: arr_shape(:), startp(:), countp(:), stride(:), map(:)
+
 character(len=*) :: groups(:)
 
 character(len=default_str_len) :: fname,varname
@@ -43,10 +45,19 @@ if(ldebug) print *,'writing to file: ',trim(fname)
 if(ldebug) print *,'varname is: ',trim(varname)
 if(ldebug) print *,'***********************************************************************************************'
 
-Ndims = size(shape(arr))
+if(present(arr_shape)) then
+  Ndims = size(arr_shape)
+else
+  Ndims = size(shape(arr))
+endif
+allocate(dims(Ndims))
 
-allocate(dims   (Ndims))
-dims = shape(arr)
+if(present(arr_shape)) then
+  dims = arr_shape
+else
+  dims = shape(arr)
+endif
+
 allocate(dim_ids(Ndims))
 
 if(ldebug) print *,'Dimensions('//itoa(int(Ndims, iintegers))//') of array', dims

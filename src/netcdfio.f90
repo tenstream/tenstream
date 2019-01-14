@@ -71,75 +71,61 @@ module m_netcdfIO
 
   contains
 
-    subroutine ncwrite_1d_r32(groups,arr,ierr)
+    subroutine ncwrite_1d_r32(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL32),intent(in) :: arr(:)
-        real(4)     :: tmp(size(arr))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_2d_r32(groups,arr,ierr)
+    subroutine ncwrite_2d_r32(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL32),intent(in) :: arr(:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_3d_r32(groups,arr,ierr)
+    subroutine ncwrite_3d_r32(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL32),intent(in) :: arr(:,:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_4d_r32(groups,arr,ierr)
+    subroutine ncwrite_4d_r32(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL32),intent(in) :: arr(:,:,:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_5d_r32(groups,arr,ierr)
+    subroutine ncwrite_5d_r32(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL32),intent(in) :: arr(:,:,:,:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_6d_r32(groups,arr,ierr)
+    subroutine ncwrite_6d_r32(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL32),intent(in) :: arr(:,:,:,:,:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5),size(arr,6))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_7d_r32(groups,arr,ierr)
+    subroutine ncwrite_7d_r32(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL32),intent(in) :: arr(:,:,:,:,:,:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5),size(arr,6),size(arr,7))
         include 'netcdfio_write.inc'
     end subroutine
 
-    subroutine ncwrite_1d_r64(groups,arr,ierr)
+    subroutine ncwrite_1d_r64(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL64),intent(in) :: arr(:)
-        real(4)     :: tmp(size(arr))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_2d_r64(groups,arr,ierr)
+    subroutine ncwrite_2d_r64(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL64),intent(in) :: arr(:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_3d_r64(groups,arr,ierr)
+    subroutine ncwrite_3d_r64(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL64),intent(in) :: arr(:,:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_4d_r64(groups,arr,ierr)
+    subroutine ncwrite_4d_r64(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL64),intent(in) :: arr(:,:,:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_5d_r64(groups,arr,ierr)
+    subroutine ncwrite_5d_r64(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL64),intent(in) :: arr(:,:,:,:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_6d_r64(groups,arr,ierr)
+    subroutine ncwrite_6d_r64(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL64),intent(in) :: arr(:,:,:,:,:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5),size(arr,6))
         include 'netcdfio_write.inc'
     end subroutine
-    subroutine ncwrite_7d_r64(groups,arr,ierr)
+    subroutine ncwrite_7d_r64(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL64),intent(in) :: arr(:,:,:,:,:,:,:)
-        real(4)     :: tmp(size(arr,1),size(arr,2),size(arr,3),size(arr,4),size(arr,5),size(arr,6),size(arr,7))
         include 'netcdfio_write.inc'
     end subroutine
 
