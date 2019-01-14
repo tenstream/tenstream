@@ -56,7 +56,7 @@ module m_netcdfIO
         ncload_1dint, ncload_2dint
   end interface
   interface get_global_attribute
-    module procedure get_global_attribute_str, get_global_attribute_r32
+    module procedure get_global_attribute_str, get_global_attribute_r32, get_global_attribute_r64
   end interface
 
   contains
@@ -361,6 +361,14 @@ module m_netcdfIO
     subroutine get_global_attribute_r32(fname, attr_name, attr)
       character(len=*) :: fname, attr_name
       real(REAL32) :: attr
+      integer :: ncid, ierr
+      ierr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ierr)
+      ierr = nf90_get_att(ncid, nf90_global, trim(attr_name), attr); call nccheck(ierr)
+      ierr = nf90_close(ncid); call nccheck(ierr)
+    end subroutine
+    subroutine get_global_attribute_r64(fname, attr_name, attr)
+      character(len=*) :: fname, attr_name
+      real(REAL64) :: attr
       integer :: ncid, ierr
       ierr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ierr)
       ierr = nf90_get_att(ncid, nf90_global, trim(attr_name), attr); call nccheck(ierr)
