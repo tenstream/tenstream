@@ -390,13 +390,13 @@ module m_pprts
 
         C%dof = i1*dof
         if(present(nxproc) .and. present(nyproc) ) then
-          call DMDACreate3d( C%comm ,                                                   &
-            bn                      , boundary                 , boundary             , &
-            DMDA_STENCIL_STAR       ,                                                   &
-            Nz                      , i1*sum(nxproc)           , i1*sum(nyproc)       , &
-            i1                      , i1*size(nxproc)          , i1*size(nyproc)      , &
-            C%dof                   , stencil_size             ,                        &
-            [Nz]                    , nxproc                   , nyproc               , &
+          call DMDACreate3d( C%comm ,                                                     &
+            bn                      , boundary                   , boundary             , &
+            DMDA_STENCIL_STAR       ,                                                     &
+            Nz                      , sum(nxproc)                , sum(nyproc)          , &
+            i1                      , size(nxproc,kind=iintegers), size(nyproc,kind=iintegers), &
+            C%dof                   , stencil_size               ,                        &
+            [Nz]                    , nxproc                     , nyproc               , &
             C%da                    , ierr)
           call CHKERR(ierr)
         else
