@@ -1395,14 +1395,15 @@ module m_pprts
       if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
     endif
 
+    print *,'8'
     if(luse_eddington) then
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
           do k=C_one_atm%zs,C_one_atm%ze
             if( atm%l1d(k,i,j) ) then
               kext = atm%kabs(k,i,j) + atm%ksca(k,i,j)
-              w0   = atm%ksca(k,i,j) / kext
-              tau  = atm%dz(k,i,j)* kext
+              w0   = atm%ksca(k,i,j) / max(epsilon(kext), kext)
+              tau  = atm%dz(k,i,j) * kext
               g    = atm%g(k,i,j)
               call eddington_coeff_zdun ( tau , w0, g, sun%angles(C_one_atm%zs,i,j)%costheta, &
                 atm%a11(k,i,j),          &
