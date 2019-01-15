@@ -450,6 +450,8 @@ contains
     real(ireals), pointer, dimension(:,:,:) :: patm_dz
     real(ireals), pointer, dimension(:,:) :: pedn, peup, pabso
 
+    real(ireals) :: col_theta, col_albedo
+
     integer(iintegers) :: i, j, k, icol, ib
     logical :: need_any_new_solution
 
@@ -504,54 +506,26 @@ contains
           enddo
 
           if(present(theta2d)) then
-            if(present(solar_albedo_2d))then
-              call optprop_rrtm_sw(i1, ke, &
-                theta2d(i,j), solar_albedo_2d(i,j), &
-                atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
-                atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
-                atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-                atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
-                atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
-                ptau, pw0, pg, &
-                pEup, pEdn, pabso, &
-                opt_solar_constant=opt_solar_constant)
-            else
-              call optprop_rrtm_sw(i1, ke, &
-                theta2d(i,j), albedo, &
-                atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
-                atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
-                atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-                atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
-                atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
-                ptau, pw0, pg, &
-                pEup, pEdn, pabso, &
-                opt_solar_constant=opt_solar_constant)
-            endif
+            col_theta = theta2d(i,j)
           else
-            if(present(solar_albedo_2d))then
-              call optprop_rrtm_sw(i1, ke, &
-                theta0, solar_albedo_2d(i,j), &
-                atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
-                atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
-                atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-                atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
-                atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
-                ptau, pw0, pg, &
-                pEup, pEdn, pabso, &
-                opt_solar_constant=opt_solar_constant)
-            else
-              call optprop_rrtm_sw(i1, ke, &
-                theta0, albedo, &
-                atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
-                atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
-                atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-                atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
-                atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
-                ptau, pw0, pg, &
-                pEup, pEdn, pabso, &
-                opt_solar_constant=opt_solar_constant)
-            endif
+            col_theta = theta0
           endif
+
+          if(present(solar_albedo_2d)) then
+            col_albedo = solar_albedo_2d(i,j)
+          else
+            col_albedo = albedo
+          endif
+          call optprop_rrtm_sw(i1, ke, &
+            col_theta, col_albedo, &
+            atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
+            atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
+            atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
+            atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
+            atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
+            ptau, pw0, pg, &
+            pEup, pEdn, pabso, &
+            opt_solar_constant=opt_solar_constant)
 
           tau(:,i,j,:) = ptau(:,i1,:)
           w0 (:,i,j,:) = pw0(:,i1,:)
@@ -570,52 +544,31 @@ contains
           icol =  i+(j-1)*ie
           do k=1,ke
             integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
+
           enddo
+
           if(present(theta2d)) then
-            if(present(solar_albedo_2d))then
-              call optprop_rrtm_sw(i1, ke, &
-                theta2d(i,j), solar_albedo_2d(i,j), &
-                atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
-                atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
-                atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-                atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
-                atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
-                ptau, pw0, pg, &
-                opt_solar_constant=opt_solar_constant)
-            else
-              call optprop_rrtm_sw(i1, ke, &
-                theta2d(i,j), albedo, &
-                atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
-                atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
-                atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-                atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
-                atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
-                ptau, pw0, pg, &
-                opt_solar_constant=opt_solar_constant)
-            endif
+            col_theta = theta2d(i,j)
           else
-            if(present(solar_albedo_2d))then
-              call optprop_rrtm_sw(i1, ke, &
-                theta0, solar_albedo_2d(i,j), &
-                atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
-                atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
-                atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-                atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
-                atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
-                ptau, pw0, pg, &
-                opt_solar_constant=opt_solar_constant)
-            else
-              call optprop_rrtm_sw(i1, ke, &
-                theta0, albedo, &
-                atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
-                atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
-                atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
-                atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
-                atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
-                ptau, pw0, pg, &
-                opt_solar_constant=opt_solar_constant)
-            endif
+            col_theta = theta0
           endif
+
+          if(present(solar_albedo_2d)) then
+            col_albedo = solar_albedo_2d(i,j)
+          else
+            col_albedo = albedo
+          endif
+
+          call optprop_rrtm_sw(i1, ke, &
+            col_theta, col_albedo, &
+            atm%plev(:,icol), atm%tlev(:,icol), atm%tlay(:,icol), &
+            atm%h2o_lay(:,icol), atm%o3_lay(:,icol), atm%co2_lay(:,icol), &
+            atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay(:,icol), &
+            atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
+            atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
+            ptau, pw0, pg, &
+            opt_solar_constant=opt_solar_constant)
+
           tau(:,i,j,:) = ptau(:,i1,:)
           w0 (:,i,j,:) = pw0(:,i1,:)
           g  (:,i,j,:) = pg(:,i1,:)
@@ -648,7 +601,7 @@ contains
 
         ! dont use delta scaling here because rrtmg values should already be delta scaled
         call set_optical_properties(solver, albedo, kabs, ksca, kg, local_albedo_2d=solar_albedo_2d, ldelta_scaling=.False.)
-        call solve_pprts(solver, tenstr_solsrc(ib), opt_solution_uid=ib, opt_solution_time=opt_time)
+        call solve_pprts(solver, edirTOA, opt_solution_uid=ib, opt_solution_time=opt_time)
 
       endif
       call pprts_get_result(solver, spec_edn, spec_eup, spec_abso, spec_edir, opt_solution_uid=ib)
