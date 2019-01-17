@@ -53,7 +53,7 @@ module m_pprts_rrtmg
 
   use m_netcdfIO, only : ncwrite
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff,hydrostat_dz
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
 
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw
 
@@ -330,7 +330,7 @@ contains
           eup(:,i,j)  = eup(:,i,j)  + reverse(spec_eup (:,i,j))
           edn(:,i,j)  = edn(:,i,j)  + reverse(spec_edn (:,i,j))
           abso(:,i,j) = abso(:,i,j) + reverse( &
-            (spec_edn(2:ke1,i,j)-spec_edn(1:ke,i,j)+spec_eup(1:ke,i,j)-spec_eup(2:ke1,i,j))/ &
+            (spec_edn(2:ke1,i,j)-spec_edn(1:ke,i,j)+spec_eup(1:ke,i,j)-spec_eup(2:ke1,i,j)) / &
              atm%dz(:,icol))
 
         enddo
@@ -538,7 +538,7 @@ contains
           eup (:,i,j) = eup (:,i,j) + reverse(spec_eup (:, i, j))
           edn (:,i,j) = edn (:,i,j) + reverse(spec_edn (:, i, j))
           abso(:,i,j) = abso(:,i,j) + reverse( &
-            (spec_edn(2:ke+1,i,j)-spec_edn(1:ke,i,j)+spec_eup(1:ke,i,j)-spec_eup(2:ke+1,i,j))/ &
+            (spec_edn(2:ke+1,i,j)-spec_edn(1:ke,i,j)+spec_eup(1:ke,i,j)-spec_eup(2:ke+1,i,j)) / &
              atm%dz(:,icol))
         enddo
       enddo
