@@ -29,7 +29,7 @@ module m_petsc_helpers
     module procedure restoreVecPointer_2d, restoreVecPointer_3d
   end interface
 
-  logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug=.False.
 contains
 
   !> @brief Scatter a petsc global vector into a local vector on Rank 0
@@ -129,7 +129,8 @@ contains
 
     l_only_on_rank0 = get_arg(.False., opt_l_only_on_rank0)
 
-    if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
+    if(l_only_on_rank0 .and. myid.ne.0) &
+      call CHKERR(myid, 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.')
 
     call DMDAGetInfo(dm, dmdim, glob_zm, glob_xm, glob_ym,        &
       PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, PETSC_NULL_INTEGER, &
@@ -185,13 +186,15 @@ contains
 
     call DMDAGetCorners(dm, zs, xs, ys, zm, xm, ym, ierr) ;call CHKERR(ierr)
 
-    if(dof.ne.1) stop 'petscVecToF90_3d should only be called with anything else than DM%dof of 1'
+    if(dof.ne.1) &
+      call CHKERR(1_mpiint, 'petscVecToF90_3d should only be called with anything else than DM%dof of 1')
 
     call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
 
-    if(l_only_on_rank0 .and. myid.ne.0) stop 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.'
+    if(l_only_on_rank0 .and. myid.ne.0) &
+      call CHKERR(myid, 'Only rank 0 should call the routine petscVecToF90 with opt_l_only_on_rank0=.T.')
 
     if(.not.l_only_on_rank0) then
       call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
@@ -203,7 +206,7 @@ contains
 
     if(vecsize.ne.size(arr)) then
       print *,'petscVecToF90 Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
-      stop 'petscVecToF90 Vecsizes dont match!'
+      call CHKERR(1_mpiint, 'petscVecToF90 Vecsizes dont match!')
     endif
 
     if(.not.l_only_on_rank0) then
@@ -256,7 +259,7 @@ contains
     call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
     if(vecsize.ne.size(arr)) then
       print *,'f90VecToPetsc Vecsizes dont match! petsc:', vecsize, 'f90 arr', size(arr)
-      stop 'f90VecToPetsc Vecsizes dont match!'
+      call CHKERR(1_mpiint, 'f90VecToPetsc Vecsizes dont match!')
     endif
   end subroutine
 
@@ -304,7 +307,7 @@ contains
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       print *,myid,'Size N:', N, dof*xm*ym*zm, dof*glob_xm*glob_ym*glob_zm, dof*gxm*gym*gzm
-      stop 'Local Vector dimensions do not conform to DMDA size'
+      call CHKERR(1_mpiint, 'Local Vector dimensions do not conform to DMDA size')
     endif
 
     call VecGetArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
@@ -315,6 +318,7 @@ contains
     endif
 
   end subroutine
+
   subroutine restoreVecPointer_3d(vec,x1d,x4d)
     type(tVec) :: vec
     real(ireals),intent(inout),pointer,dimension(:,:,:,:) :: x4d
@@ -323,13 +327,14 @@ contains
 
     if(.not.associated(x1d).or..not.associated(x4d)) then
       print *,'ERROR : restoreVecPointer : input vector not yet associated!!',associated(x1d),associated(x4d)
-      call exit(1)
+      call CHKERR(1_mpiint, 'input vector not yet associated')
     endif
 
     x4d => null()
     call VecRestoreArrayF90(vec,x1d,ierr) ;call CHKERR(ierr)
     x1d => null()
   end subroutine
+
   subroutine getVecPointer_2d(vec,dm,x1d,x3d)
     type(tVec) :: vec
     type(tDM), intent(in) :: dm
