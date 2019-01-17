@@ -1,7 +1,7 @@
 module test_interp
     use m_data_parameters, only: iintegers, irealLUT, default_str_len
     use m_helper_functions, only: ndarray_offsets, meanval
-    use m_tenstream_interpolation, only: interp_1d, interp_vec_1d, interp_2d, &
+    use m_tenstream_interpolation, only: interp_1d, interp_2d, &
       interp_vec_simplex_nd
 
     use pfunit_mod
@@ -323,12 +323,14 @@ contains
       @assertEqual(db_1d(1,i) , res,  tol, msg)
     enddo
   end subroutine
+
   @test(npes =[1])
   subroutine test_interp1d_vec(this)
     class (MpiTestMethod), intent(inout) :: this
 
     real(irealLUT) :: db_1d(2,5)
     real(irealLUT) :: res(2)
+    integer(iintegers) :: offsets(1)
 
     integer :: i
 
@@ -350,39 +352,116 @@ contains
     db_1d(1,:) = [ -1, 1, 1, 10, -1 ]
     db_1d(2,:) = db_1d(1,:)
 
-    res = interp_vec_1d(1.5_irealLUT, db_1d)
+    call ndarray_offsets(shape(db_1d(1,:), kind=iintegers), offsets)
+
+    call interp_vec_simplex_nd([1.5_irealLUT], db_1d, offsets, res)
     @assertEqual(zero , res,  tol, msg)
 
-    res = interp_vec_1d(2.4_irealLUT, db_1d)
-    @assertEqual(one , res,  tol, msg)
-    res = interp_vec_1d(2.5_irealLUT, db_1d)
-    @assertEqual(one , res,  tol, msg)
-    res = interp_vec_1d(2.6_irealLUT, db_1d)
+    call interp_vec_simplex_nd([2.4_irealLUT], db_1d, offsets, res)
     @assertEqual(one , res,  tol, msg)
 
-    res = interp_vec_1d(3.5_irealLUT, db_1d)
+    call interp_vec_simplex_nd([2.5_irealLUT], db_1d, offsets, res)
+    @assertEqual(one , res,  tol, msg)
+
+    call interp_vec_simplex_nd([2.6_irealLUT], db_1d, offsets, res)
+    @assertEqual(one , res,  tol, msg)
+
+    call interp_vec_simplex_nd([3.5_irealLUT], db_1d, offsets, res)
     @assertEqual(5.5_irealLUT, res,  tol, msg)
 
-    res = interp_vec_1d(3.7_irealLUT, db_1d)
+    call interp_vec_simplex_nd([3.7_irealLUT], db_1d, offsets, res)
     @assertEqual(7.3_irealLUT, res,  tol, msg)
 
-    res = interp_vec_1d(4.1_irealLUT, db_1d)
+    call interp_vec_simplex_nd([4.1_irealLUT], db_1d, offsets, res)
     @assertEqual(8.9_irealLUT, res,  tol, msg)
 
-    res = interp_vec_1d(4.9_irealLUT, db_1d)
+    call interp_vec_simplex_nd([4.9_irealLUT], db_1d, offsets, res)
     @assertEqual(0.1_irealLUT, res,  tol, msg)
 
     do i=1,size(db_1d, dim=2)
-      res = interp_vec_1d(one*i, db_1d)
+    call interp_vec_simplex_nd([one*i], db_1d, offsets, res)
       @assertEqual(db_1d(1,i) , res,  tol, msg)
     enddo
     do i=2,size(db_1d, dim=2)
-      res = interp_vec_1d(one*i-epsilon(one), db_1d)
+    call interp_vec_simplex_nd([one*i-epsilon(one)], db_1d, offsets, res)
       @assertEqual(db_1d(1,i) , res,  tol, msg)
     enddo
     do i=1,size(db_1d, dim=2)-1
-      res = interp_vec_1d(one*i+epsilon(one), db_1d)
+    call interp_vec_simplex_nd([one*i+epsilon(one)], db_1d, offsets, res)
       @assertEqual(db_1d(1,i) , res,  tol, msg)
     enddo
   end subroutine
+
+
+  @test(npes =[1])
+  subroutine test_interp_vec_6d(this)
+    class (MpiTestMethod), intent(inout) :: this
+
+    integer(iintegers), parameter :: Nv=4
+    real(irealLUT) :: db_6d(2,Nv,Nv,Nv,Nv,Nv,Nv), db(2,Nv**6)
+    real(irealLUT) :: res(2)
+    integer(iintegers) :: db_offsets(6)
+
+    integer :: i, j, k, l, m, n
+
+    character(default_str_len) :: msg
+    write(msg,*) "6D linear interpolation not as expected: "
+
+    do n=1,Nv
+    do m=1,Nv
+    do l=1,Nv
+    do k=1,Nv
+    do j=1,Nv
+    do i=1,Nv
+      db_6d(1, i,j,k,l,m,n) = x(1.*i,1.*j,1.*k,1.*l,1.*m,1.*n)
+      db_6d(2, i,j,k,l,m,n) = x(2.*i,2.*j,2.*k,2.*l,2.*m,2.*n)
+    enddo
+    enddo
+    enddo
+    enddo
+    enddo
+    enddo
+
+    db(1,:) = pack(db_6d(1,:,:,:,:,:,:), .True.)
+    db(2,:) = pack(db_6d(2,:,:,:,:,:,:), .True.)
+
+    call ndarray_offsets(shape(db_6d(1,:,:,:,:,:,:), iintegers), db_offsets)
+
+    do n=1,Nv-1
+    do m=1,Nv-1
+    do l=1,Nv-1
+    do k=1,Nv-1
+    do j=1,Nv-1
+    do i=1,Nv-1
+      ! 0-dim, just check corners, this should actually not even end up in high dimensional interp but just go to 0D
+      call interp_vec_simplex_nd(real([i, j, k, l, m, n], irealLUT), db, db_offsets, res)
+      !print *,i, j, k, l, m, n, 'res', res, ':', x(1.*i,1.*j,1.*k,1.*l,1.*m,1.*n), x(2.*i,2.*j,2.*k,2.*l,2.*m,2.*n)
+      @assertEqual(x(1.*i,1.*j,1.*k,1.*l,1.*m,1.*n), res(1),  msg)
+      @assertEqual(x(2.*i,2.*j,2.*k,2.*l,2.*m,2.*n), res(2),  msg)
+
+      ! Then check in between
+      call interp_vec_simplex_nd(real([i, j, k, l, m, n], irealLUT)+.5, db, db_offsets, res)
+      @assertEqual(x(i+.5,j+.5,k+.5,l+.5,m+.5,n+.5) , res(1),  msg)
+      @assertEqual(x(2*(i+.5),2*(j+.5),2*(k+.5),2*(l+.5),2*(m+.5),2*(n+.5)) , res(2),  msg)
+    enddo
+    enddo
+    enddo
+    enddo
+    enddo
+    enddo
+
+    contains
+      function x(i,j,k,l,m,n)
+        real(irealLUT) :: i,j,k,l,m,n
+        real(irealLUT) :: x
+        x = &
+        2**0 * i + &
+        2**1 * j + &
+        2**3 * k + &
+        2**4 * l + &
+        2**5 * m + &
+        2**6 * n
+      end function
+  end subroutine
+
 end module

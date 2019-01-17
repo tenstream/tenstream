@@ -26,8 +26,7 @@ module m_tenstream_interpolation
 
   private
   public :: interp_4d, interp_4d_recursive, interp_2d, &
-    interp_1d, interp_vec_1d, &
-    interp_vec_simplex_nd
+    interp_1d, interp_vec_simplex_nd
 
   ! a has the bounds on axes
   ! t has the distance weights
@@ -96,7 +95,7 @@ contains
       else if (a0.le.a1) then
         s = sqrt(t)
       endif
-      !          s = t**2*(3_irealLUT - 2_irealLUT*t)
+      ! s = t**2*(3_irealLUT - 2_irealLUT*t)
     else
       s = t
     endif
@@ -133,28 +132,6 @@ contains
       res = a0(i)
     else
       res = (1._REAL64-offset) * a0(i) + offset * a0(min(i+1, size(a0,kind=iintegers)))
-    endif
-  end function
-
-  pure function interp_vec_1d(t,a0)
-    real(irealLUT),intent(in) :: t       ! t is weighting distance from [1, size(a0)]
-    real(irealLUT),intent(in) :: a0(:,:) ! first dimension is vector which is interpolated for
-    real(irealLUT) :: interp_vec_1d(size(a0,dim=1))
-    integer(iintegers) :: i
-    real(irealLUT) :: offset
-
-    !if(ldebug) then
-    !  if(t.lt.one .or. t.gt.size(a0, dim=2)) call CHKERR(1_mpiint, &
-    !    'Cannot use interp_1d with weights outside of the array bounds '//ftoa(t) &
-    !    //' : '//itoa(size(a0,dim=1,kind=iintegers))//','//itoa(size(a0,dim=2,kind=iintegers)))
-    !endif
-    i = floor(t)
-    offset = modulo(t,1._irealLUT)
-    if(approx(offset,0._irealLUT)) then
-      interp_vec_1d = a0(:,i)
-    else
-      !interp_vec_1d = (one-offset) * a0(:,i) + offset * a0(:,min(i+1, size(a0, dim=2)))
-      interp_vec_1d = spline(offset, a0(:,i), a0(:,i+1))
     endif
   end function
 
@@ -390,7 +367,7 @@ contains
 
   recursive pure subroutine interp_vec_bilinear_recursive(Ndim, pti, interp_dims, db, db_offsets, Cres)
     use m_helper_functions, only : distance, triangle_area_by_vertices
-    integer(iintegers),intent(in) :: Ndim
+    integer(iintegers),intent(in) :: Ndim ! Number of dimensions that still need interpolation
     real(irealLUT),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
     integer(iintegers),intent(in) :: interp_dims(:) ! dimensions in which the interpolation should happen
     real(irealLUT),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
@@ -401,7 +378,7 @@ contains
     real(irealLUT) :: pti_intermediate(size(pti)), db_intermediate(size(db,dim=1), 2), wgt_1d
 
     Ninterpdim=size(interp_dims)
-    ! Interpolate first two dimensions with simplex and then one 1d interpolation
+    ! Interpolate first two dimensions and then one 1d interpolation
 
     ! Simplex:
     pti_intermediate = pti
@@ -419,8 +396,8 @@ contains
       call interp_vec_bilinear_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,2))
     endif
 
-    wgt_1d = one + modulo(pti(interp_dims(Ninterpdim)), one)
-    Cres = interp_vec_1d(wgt_1d, db_intermediate)
+    wgt_1d = modulo(pti(interp_dims(Ninterpdim)), one)
+    Cres = spline(wgt_1d, db_intermediate(:, 1), db_intermediate(:, 2))
   end subroutine
 
   recursive subroutine interp_vec_simplex_recursive(Ndim, pti, interp_dims, db, db_offsets, Cres)
@@ -464,8 +441,8 @@ contains
       call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '//itoa(size(interp_dims, kind=iintegers))//' dimensions')
     end select
 
-    wgt_1d = one + modulo(pti(interp_dims(Ninterpdim)), one)
-    Cres = interp_vec_1d(wgt_1d, db_intermediate)
+    wgt_1d = modulo(pti(interp_dims(Ninterpdim)), one)
+    Cres = spline(wgt_1d, db_intermediate(:,1), db_intermediate(:,2))
   end subroutine
 
   pure subroutine get_dims_that_need_interpolation(pti, interpdims)
