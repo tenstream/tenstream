@@ -404,7 +404,6 @@ contains
     integer(iintegers), intent(in) :: kernel_width
     real(ireals), intent(inout) :: arr(:,:,:) ! shape (dof,x,y)
 
-
     type(tVec) :: gvec, lvec
     type(tDM) :: dm2d
 
@@ -471,6 +470,7 @@ contains
 
     call restoreVecPointer(lvec, x1d, x3d)
     call DMRestoreLocalVector(dm2d, lvec, ierr) ;call CHKERR(ierr)
+    call DMDestroy(dm2d, ierr); call CHKERR(ierr)
   end subroutine
 
   subroutine box_filter(im, kernel_width)

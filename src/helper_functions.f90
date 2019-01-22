@@ -74,6 +74,9 @@ module m_helper_functions
   interface imp_allreduce_sum
     module procedure imp_allreduce_sum_ireals, imp_allreduce_sum_i32, imp_allreduce_sum_i64
   end interface
+  interface imp_allreduce_min
+    module procedure imp_allreduce_min_ireals, imp_allreduce_min_iintegers
+  end interface
   interface imp_allreduce_max
     module procedure imp_allreduce_max_ireals, imp_allreduce_max_iintegers
   end interface
@@ -475,7 +478,14 @@ module m_helper_functions
       call mpi_allreduce(lval, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, comm, mpierr); call CHKERR(mpierr)
     end function
 
-    subroutine imp_allreduce_min(comm,v,r)
+    subroutine imp_allreduce_min_iintegers(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      integer(iintegers),intent(in) :: v
+      integer(iintegers),intent(out) :: r
+      integer(mpiint) :: mpierr
+      call mpi_allreduce(v,r,1_mpiint,imp_iinteger, MPI_MIN, comm, mpierr); call CHKERR(mpierr)
+    end subroutine
+    subroutine imp_allreduce_min_ireals(comm,v,r)
       integer(mpiint),intent(in) :: comm
       real(ireals),intent(in) :: v
       real(ireals),intent(out) :: r

@@ -48,8 +48,10 @@ module m_pprts_rrtmg
       pprts_get_result, pprts_get_result_toZero
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-      imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR, deg2rad, &
-      reverse
+      imp_allreduce_min, imp_allreduce_max, imp_allreduce_mean, &
+      search_sorted_bisection, CHKERR, deg2rad, &
+      reverse, approx, itoa
+  use m_petsc_helpers, only: dmda_convolve_ediff_srfc
 
   use m_netcdfIO, only : ncwrite
 
@@ -92,6 +94,78 @@ contains
       call init_pprts(comm, zm, xm, ym, dx, dy, phi0, theta0, solver, dz3d=dz)
     endif
 
+  end subroutine
+
+  subroutine smooth_surface_fluxes(solver, edn, eup)
+    class(t_solver), intent(inout)  :: solver                       ! solver type (e.g. t_solver_8_10)
+    real(ireals),allocatable, dimension(:,:,:), intent(inout) :: edn, eup  ! [nlyr+1, local_nx, local_ny ]
+    integer(iintegers) :: i, kernel_width, Niter
+    real(ireals) :: radius, mflx_up, mflx_dn
+    logical :: lflg
+    integer(mpiint) :: myid, ierr
+
+    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-pprts_smooth_srfc_flx", radius , lflg , ierr) ;call CHKERR(ierr)
+
+    if(.not.lflg) return
+
+    if(approx(radius, -one)) then
+      call imp_allreduce_mean(solver%comm,  edn(ubound(edn,1),:,:), mflx_dn); edn(ubound(edn,1),:,:) = mflx_dn
+      call imp_allreduce_mean(solver%comm,  eup(ubound(eup,1),:,:), mflx_up); eup(ubound(eup,1),:,:) = mflx_up
+      if(ldebug.and.myid.eq.0) &
+        print *,'Smoothing diffuse srfc fluxes over the entire domain mean downward flx', mflx_dn, 'up', mflx_up
+      return
+    endif
+
+    call find_iter_and_kernelwidth(Niter, kernel_width)
+    do i = 1, Niter
+      call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, edn(ubound(edn,1):ubound(edn,1),:,:))
+      call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, eup(ubound(eup,1):ubound(eup,1),:,:))
+    enddo
+    contains
+      subroutine find_iter_and_kernelwidth(Niter, kernel_width)
+        integer(iintegers), intent(out) :: kernel_width, Niter
+        integer(iintegers), parameter :: test_Ni=10
+        integer(iintegers) :: i, min_iter
+        real(ireals) :: test_k(test_Ni), residuals(test_Ni)
+        real(ireals) :: radius_in_pixel
+
+        radius_in_pixel = radius / ((solver%atm%dx+solver%atm%dy)/2)
+        ! Try a couple of number of iterations and determine optimal kernel_width
+        min_iter = 1
+        do i = 1, test_Ni
+          test_k(i) = (sqrt( (12*radius_in_pixel**2 + i)/i +1 ) -1 )/2
+          if(nint(test_k(i)).ge.min(solver%C_diff%xm,solver%C_diff%ym)) min_iter = i+1
+        enddo
+        if(min_iter.gt.test_Ni) &
+          call CHKERR(int(min_iter, mpiint), 'the smoothing iteration count would be larger than '// &
+            itoa(min_iter)//'... this would be really expensive, you can set the value higher but I'// &
+            'suspect that you are trying something weird')
+        ! We want it
+        ! as close as possible to an integer
+        ! and as big as possible
+        ! but not bigger than the local domain size
+        ! or a certain max value
+        residuals = abs(test_k - nint(test_k))
+
+        Niter = min_iter -1 + minloc(residuals(min_iter:test_Ni),dim=1)
+        kernel_width = nint(test_k(Niter))
+
+        call imp_allreduce_max(solver%comm, Niter, i); Niter = i
+        call imp_allreduce_min(solver%comm, kernel_width, i); kernel_width = i
+
+        if(kernel_width.eq.0) Niter=0
+
+        if(ldebug.and.myid.eq.0) then
+          do i = 1, test_Ni
+          print *, 'iter', i, 'test_k', test_k(i), residuals(i)
+          enddo
+          print *,'Smoothing diffuse srfc fluxes with radius', solver%atm%dx, radius, radius_in_pixel, 'Niter', Niter, 'kwidth', kernel_width
+        endif
+
+      end subroutine
   end subroutine
 
   subroutine pprts_rrtmg(comm, solver, atm, ie, je, &
@@ -209,6 +283,8 @@ contains
         edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
         lrrtmg_only=lrrtmg_only, phi2d=phi2d, theta2d=theta2d, opt_solar_constant=opt_solar_constant)
     endif
+
+    call smooth_surface_fluxes(solver, edn, eup)
 
     !if(myid.eq.0 .and. ldebug) then
     !  if(present(opt_time)) then
