@@ -2156,7 +2156,7 @@ module m_pprts
 
         kext = atm%kabs(:,i,j) + atm%ksca(:,i,j)
         dtau = atm%dz(:,i,j)* kext
-        w0   = atm%ksca(:,i,j) / kext
+        w0   = atm%ksca(:,i,j) / max(kext, epsilon(kext))
         g    = atm%g(:,i,j)
 
         if(allocated(atm%planck) ) then
@@ -3307,8 +3307,9 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     tauz = max(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(1), &
       min(solver%OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), real((kabs+ksca) * dz, irealLUT)))
+    w0 = real(ksca / max(kabs+ksca, epsilon(kabs)), irealLUT)
     w0 = max(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(1), &
-      min(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), real(ksca / (kabs+ksca), irealLUT)))
+      min(solver%OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), w0))
 
     if(lone_dimensional) then
       call CHKERR(1_mpiint, 'currently, we dont support using LUT Twostream for l1d layers')
