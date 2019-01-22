@@ -43,7 +43,7 @@ add_executable(
 target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
-  pprts_rrtmg pprts pprts_base
+  pprts pprts_base
   )
 
 add_test(NAME pfunit_${CDIR}
