@@ -1395,7 +1395,6 @@ module m_pprts
       if(.not.allocated(atm%g2 ) ) allocate(atm%g2  (C_one_atm%zs:C_one_atm%ze ,C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
     endif
 
-    print *,'8'
     if(luse_eddington) then
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
