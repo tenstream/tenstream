@@ -33,7 +33,7 @@ module m_helper_functions
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR, CHKWARN, assertEqual,   &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique, itoa, ftoa, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
+    vec_proj_on_plane, get_arg, unique, itoa, ftoa, cstr, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean, &
     resize_arr, reverse
 
@@ -1688,5 +1688,48 @@ module m_helper_functions
       case default
         call CHKERR(1_mpiint, 'dimension of reverse array does not fit input array')
       end select
+    end function
+
+    function cstr(inp, color)
+      character(len=*), intent(in) :: inp, color
+      character(len=len(inp)+9) :: cstr
+      cstr = achar(27)
+      select case(color)
+      case('dark grey')
+        cstr = achar(27)//'[90m'
+      case('black')
+        cstr = achar(27)//'[30m'
+      case('peach')
+        cstr = achar(27)//'[91m'
+      case('red')
+        cstr = achar(27)//'[31m'
+      case('light green')
+        cstr = achar(27)//'[92m'
+      case('green')
+        cstr = achar(27)//'[32m'
+      case('light yellow')
+        cstr = achar(27)//'[93m'
+      case('yellow')
+        cstr = achar(27)//'[33m'
+      case('light blue')
+        cstr = achar(27)//'[94m'
+      case('blue')
+        cstr = achar(27)//'[34m'
+      case('pink')
+        cstr = achar(27)//'[95m'
+      case('purple')
+        cstr = achar(27)//'[35m'
+      case('light aqua')
+        cstr = achar(27)//'[96m'
+      case('aqua')
+        cstr = achar(27)//'[36m'
+      case('pearl white')
+        cstr = achar(27)//'[97m'
+
+      case default
+        call CHKERR(1_mpiint, 'dont know the color code for '//color)
+      end select
+
+      cstr = trim(cstr)//trim(inp)//achar(27)//'[0m'
     end function
   end module
