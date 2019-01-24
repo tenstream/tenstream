@@ -19,7 +19,7 @@
 
 module m_helper_functions_dp
       use m_data_parameters,only : iintegers,ireal_dp,imp_real_dp,imp_iinteger,imp_logical,mpiint, pi_dp
-      use m_helper_functions, only: CHKERR
+      use m_helper_functions, only: CHKERR, itoa
       use mpi
 
       implicit none
@@ -31,7 +31,7 @@ module m_helper_functions_dp
           pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, &
           rotate_angle_x, rotate_angle_y, rotate_angle_z, angle_between_two_vec, determine_normal_direction, &
           distance_to_edge, distances_to_triangle_edges, triangle_intersection, square_intersection, &
-          triangle_area_by_vertices, rotation_matrix_local_basis_to_world
+          triangle_area_by_vertices, rotation_matrix_local_basis_to_world, pnt_in_cube
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -589,6 +589,37 @@ module m_helper_functions_dp
       hit(4) = T * rcpDet
       if(ldebug) print *,'Hit triangle', lhit, '::', hit
     end subroutine
+
+      !> @brief determine if point is inside a cube, given the corner vertices
+      function pnt_in_cube(verts, p)
+        real(ireal_dp), intent(in) :: verts(:) ! dim(3*8)
+        real(ireal_dp), intent(in) :: p(:)
+        logical :: pnt_in_cube
+        real(ireal_dp), parameter :: eps=epsilon(eps)
+        !real(ireal_dp), dimension(3) :: A, B, C, D, E, F, G, H
+
+        pnt_in_cube = .True.
+        if(size(verts).eq.2*4*3) then ! 3D coords
+          associate(&
+            A => verts( 1: 3),&
+            B => verts( 4: 6),&
+            C => verts( 7: 9),&
+            D => verts(10:12),&
+            E => verts(13:15),&
+            F => verts(16:18),&
+            G => verts(19:21),&
+            H => verts(22:24))
+            if( p(1)+eps.lt.minval([A(1), C(1), E(1), G(1)])) pnt_in_cube=.False.
+            if( p(1)-eps.gt.maxval([B(1), D(1), F(1), H(1)])) pnt_in_cube=.False.
+            if( p(2)+eps.lt.minval([A(2), B(2), E(2), F(2)])) pnt_in_cube=.False.
+            if( p(2)-eps.gt.maxval([C(2), D(2), G(2), H(2)])) pnt_in_cube=.False.
+            if( p(3)+eps.lt.minval([A(3), B(3), C(3), D(3)])) pnt_in_cube=.False.
+            if( p(3)-eps.gt.maxval([E(3), F(3), G(3), H(3)])) pnt_in_cube=.False.
+          end associate
+        else
+          call CHKERR(1_mpiint, 'pnt_in_cube not implemented for cube with vertex arr size'//itoa(size(verts)))
+        endif
+      end function
 
       !> @brief determine if point is inside a rectangle p1,p2,p3
       function pnt_in_rectangle(p1,p2,p3, p)

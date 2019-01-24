@@ -30,7 +30,7 @@ module m_mcrts_dmda
 
   use m_helper_functions, only: CHKERR, spherical_2_cartesian, &
     ind_nd_to_1d, ind_1d_to_nd, ndarray_offsets, imp_allreduce_sum, &
-    get_arg, itoa
+    get_arg, itoa, ftoa, cstr
 
   use m_helper_functions_dp, only : deg2rad
 
@@ -75,7 +75,7 @@ module m_mcrts_dmda
   !logical, parameter :: ldebug=.True.
   logical, parameter :: ldebug=.False.
 
-  real(ireal_dp), parameter :: loceps= zero !sqrt(epsilon(loceps))*1000
+  real(ireal_dp), parameter :: loceps = zero !sqrt(epsilon(loceps))
   integer(iintegers), parameter :: E_up=0, E_dn=1
 
 contains
@@ -105,7 +105,7 @@ contains
     call mpi_comm_size(solver%comm, numnodes, ierr); call CHKERR(ierr)
 
     if(ldebug) then
-      print *,myid,'Edir TOA', edirTOA
+      print *,myid,'Edir TOA', edirTOA, ':', Nphotons
       print *,myid,'Domain start:', solver%C_one%zs , solver%C_one%xs,  solver%C_one%ys
       print *,myid,'Domain end  :', solver%C_one%ze , solver%C_one%xe,  solver%C_one%ye
       print *,myid,'Domain Size :', solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym
@@ -133,13 +133,14 @@ contains
 
     select type (solver)
     class is (t_solver_1_2)
-    allocate(t_boxmc_1_2::bmc)
+      allocate(t_boxmc_1_2::bmc)
 
     class is (t_solver_3_6)
-    allocate(t_boxmc_3_6::bmc)
+      allocate(t_boxmc_3_6::bmc)
 
     class default
-    call CHKERR(1_mpiint, 'initialize bmc for mcrts: unexpected type for solver object for DMDA computations!')
+      call CHKERR(1_mpiint, 'initialize bmc for mcrts: unexpected type for solver object for DMDA computations!'// &
+      '-- call with -solver 1_2 or -solver 3_6')
 
   end select
 
@@ -191,7 +192,9 @@ contains
 
     call mpi_test(killed_request, lcomm_finished, mpi_status, ierr); call CHKERR(ierr)
     if(lcomm_finished) then
-      if(myid.eq.0) print *, myid, iter, 'Globally killed photons', globally_killed_photons, '/', globally_started_photons
+      if(myid.eq.0) print *, iter, &
+        'Globally killed photons', globally_killed_photons, '/', globally_started_photons, &
+        '('//ftoa(100 * real(globally_killed_photons)/real(globally_started_photons))//' % )'
       if(ldebug) then
         print *, myid, 'Globally killed photons', globally_killed_photons,'/',globally_started_photons
         call print_pqueue(pqueues(PQ_NORTH))
@@ -281,7 +284,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
 
   associate(p => pqueues(ipq)%photons(iphoton)%p)
 
-    if(ldebug) print *,myid,'Start of run_photon :: QUEUE:', ipq, 'iphoton', iphoton
+    if(ldebug) print *,myid,cstr('Start of run_photon :: QUEUE:','pink'), ipq, 'iphoton', iphoton
     if(ldebug) call print_photon(p)
     call check_if_photon_is_in_domain(solver%C_one, p)
 
@@ -324,7 +327,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
         g = solver%atm%g(p%k,p%i,p%j)
         call scatter_photon(p, g)
         p%tau_travel = tau(R())
-        if(ldebug) print *,myid,'******************************************************************** SCATTERING',p%k,p%i,p%j
+        if(ldebug) print *,myid,cstr('******************************************************************** SCATTERING','peach'),p%k,p%i,p%j
       else ! lexit_cell
         ! Determine actions on boundaries
         select case(p%side)
@@ -347,17 +350,18 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
             mu = sqrt(R())
             phi = deg2rad( R()*360 )
             p%dir = (/sin(phi)*sin(acos(mu)) , cos(phi)*sin(acos(mu)) , mu  /)
+            p%loc(3) = zero + loceps
 
             p%side = i1
             p%src_side = i2
             call update_flx(p, p%k+1, p%i, p%j, xv_dir, xv_diff)
-            if(ldebug) print *,myid,'*************************************************************** After  Reflection',p%k,p%i,p%j
+            if(ldebug) print *,myid,cstr('*************************************************************** After  Reflection','aqua'),p%k,p%i,p%j
             cycle move
           endif
         end select
 
         ! Move photon to new box
-        if(ldebug) print *,myid,'******************************************************************* MOVE Photon'
+        if(ldebug) print *,myid,cstr('******************************************************************* MOVE Photon','green')
         select case(p%side)
         case(1)
           p%loc(3) = zero + loceps
@@ -374,7 +378,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
           p%i = p%i-1
           p%src_side = 4
           if(p%i.eq.solver%C_one%xs-1) then
-            if(ldebug) print *,myid,'*************************************************************** Sending to WEST', pqueues(PQ_WEST)%owner, p%k,p%i,p%j
+            if(ldebug) print *,myid,cstr('*************************************************************** Sending to WEST','blue'), pqueues(PQ_WEST)%owner, p%k,p%i,p%j
             call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_WEST))
             exit move
           endif
@@ -383,7 +387,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
           p%i = p%i+1
           p%src_side = 3
           if(p%i.eq.solver%C_one%xe+1) then
-            if(ldebug) print *,myid,'*************************************************************** Sending to EAST', pqueues(PQ_EAST)%owner, p%k,p%i,p%j
+            if(ldebug) print *,myid,cstr('*************************************************************** Sending to EAST','blue'), pqueues(PQ_EAST)%owner, p%k,p%i,p%j
             call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_EAST))
             exit move
           endif
@@ -392,7 +396,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
           p%j = p%j-1
           p%src_side = 6
           if(p%j.eq.solver%C_one%ys-1) then
-            if(ldebug) print *,myid,'*************************************************************** Sending to SOUTH', pqueues(PQ_SOUTH)%owner, p%k,p%i,p%j
+            if(ldebug) print *,myid,cstr('*************************************************************** Sending to SOUTH','blue'), pqueues(PQ_SOUTH)%owner, p%k,p%i,p%j
             call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_SOUTH))
             exit move
           endif
@@ -401,7 +405,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
           p%j = p%j+1
           p%src_side = 5
           if(p%j.eq.solver%C_one%ye+1) then
-            if(ldebug) print *,myid,'*************************************************************** Sending to NORTH', pqueues(PQ_NORTH)%owner, p%k,p%i,p%j
+            if(ldebug) print *,myid,cstr('*************************************************************** Sending to NORTH','blue'), pqueues(PQ_NORTH)%owner, p%k,p%i,p%j
             call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_NORTH))
             exit move
           endif

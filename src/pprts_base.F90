@@ -6,7 +6,7 @@ module m_pprts_base
     zero, one, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
     default_str_len
 
-  use m_helper_functions, only : CHKERR, get_arg, itoa
+  use m_helper_functions, only : CHKWARN, CHKERR, get_arg, itoa
 
   use m_optprop, only: t_optprop
 
@@ -14,6 +14,7 @@ module m_pprts_base
 
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
     t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
+    allocate_pprts_solver_from_commandline, &
     t_coord, t_sunangles, t_suninfo, &
     t_state_container, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events
@@ -251,4 +252,58 @@ module m_pprts_base
       call PetscLogEventRegister(trim(s)//'orient_face_normals', cid, logs%orient_face_normals, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'debug_output', cid, logs%debug_output, ierr); call CHKERR(ierr)
     end subroutine
+
+  subroutine allocate_pprts_solver_from_commandline(pprts_solver, default_solver)
+    class(t_solver), intent(inout), allocatable :: pprts_solver
+    character(len=*), intent(in), optional :: default_solver
+
+    logical :: lflg
+    character(len=default_str_len) :: solver_str
+    integer(mpiint) :: ierr
+
+    if(allocated(pprts_solver)) then
+      call CHKWARN(1_mpiint, 'called allocate_pprts_solver_from_commandline on an already allocated solver...'//&
+        'have you been trying to change the solver type on the fly?'// &
+        'this is not possible, please destroy the old one and create a new one')
+      return
+    endif
+
+    solver_str = get_arg('none', trim(default_solver))
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
+
+    select case (solver_str)
+      case('1_2')
+        allocate(t_solver_1_2::pprts_solver)
+
+      case('3_6')
+        allocate(t_solver_3_6::pprts_solver)
+
+      case('3_10')
+        allocate(t_solver_3_10::pprts_solver)
+
+      case('8_10')
+        allocate(t_solver_8_10::pprts_solver)
+
+      case('3_16')
+        allocate(t_solver_3_16::pprts_solver)
+
+      case('8_16')
+        allocate(t_solver_8_16::pprts_solver)
+
+      case('8_18')
+        allocate(t_solver_8_18::pprts_solver)
+
+      case default
+        print *,'error, have to provide solver type as argument, e.g. call with'
+        print *,'-solver 1_2'
+        print *,'-solver 3_6'
+        print *,'-solver 3_10'
+        print *,'-solver 8_10'
+        print *,'-solver 3_16'
+        print *,'-solver 8_16'
+        print *,'-solver 8_18'
+        call CHKERR(1_mpiint, 'have to provide solver type')
+    end select
+
+  end subroutine
 end module

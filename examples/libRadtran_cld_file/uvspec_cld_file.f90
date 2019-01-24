@@ -1,7 +1,6 @@
 module m_example_uvspec_cld_file
   use mpi
-  ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
-  use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_3_16
+  use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
   use m_pprts, only: gather_all_toZero
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
@@ -36,7 +35,7 @@ contains
     real(ireals),allocatable, dimension(:,:,:) :: edir, edn, eup, abso ! [nlev_merged(-1), nxp, nyp]
     real(ireals),allocatable, dimension(:,:,:) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
 
-    type(t_solver_3_10) :: pprts_solver
+    class(t_solver), allocatable :: pprts_solver
 
     real(ireals) :: dx, dy
     integer(mpiint) :: myid, numnodes, ierr
@@ -117,6 +116,8 @@ contains
       enddo
     endif
 
+    call allocate_pprts_solver_from_commandline(pprts_solver, default_solver='3_10')
+
     call run_rrtmg_lw_sw(pprts_solver, dx, dy, phi0, theta0, &
       plev, tlev, &
       lwc(:, is:ie, js:je), reliq(:, is:ie, js:je), &
@@ -146,10 +147,11 @@ contains
 
     call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
   end subroutine
+
   subroutine run_rrtmg_lw_sw(pprts_solver, dx, dy, phi0, theta0, &
       plev, tlev, lwc, reliq, albedo_th, albedo_sol, lsolar, lthermal, &
       edir, edn, eup, abso)
-    type(t_solver_3_10) :: pprts_solver
+    class(t_solver) :: pprts_solver
     real(ireals),intent(in) :: dx, dy       ! horizontal grid spacing in [m]
     real(ireals), intent(in) :: phi0, theta0 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals), intent(in), dimension(:,:,:), contiguous, target :: lwc, reliq ! dim(Nz,Nx,Ny)

@@ -176,9 +176,17 @@ module m_boxmc
 
   type t_photon
     sequence
-    real(ireal_dp) :: loc(3)=nil,dir(3)=nil,weight=nil,tau_travel=nil
-    integer(iintegers) :: src_side=inil, side=inil, &
-      src=inil, scattercnt=0, cellid=inil, subface=inil
+    real(ireal_dp) :: loc(3)=nil,&
+                      dir(3)=nil,&
+                      weight=nil,&
+                      tau_travel=nil
+    integer(iintegers) :: &
+      src_side=inil, &
+      side=inil, &
+      src=inil, &
+      scattercnt=0, &
+      cellid=inil, &
+      subface=inil
     integer(iintegers) :: i, j, k
     logical :: alive=.True.,direct=.False.
   end type
@@ -260,7 +268,7 @@ contains
     integer(mpiint) :: ierr
 
     blocklengths(1) = 8 ! doubles to begin with
-    blocklengths(2) = 8 ! ints
+    blocklengths(2) = 9 ! ints
     blocklengths(3) = 2 ! logicals
 
     dtypes = [imp_real_dp, imp_iinteger, imp_logical]

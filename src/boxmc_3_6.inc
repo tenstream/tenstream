@@ -216,15 +216,23 @@ subroutine init_diff_photon_3_6(bmc,p,src,vertices,ierr)
 end subroutine
 
 subroutine intersect_distance_3_6(bmc,vertices,p,max_dist)
-  use m_helper_functions_dp, only: pnt_in_rectangle, angle_between_two_vec
+  use m_helper_functions, only: cstr
+  use m_helper_functions_dp, only: pnt_in_rectangle, angle_between_two_vec, pnt_in_cube
   class(t_boxmc_3_6) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(inout) :: p
   real(ireal_dp),intent(out) :: max_dist
 
+  if(.not.pnt_in_cube(vertices, p%loc)) then
+    print *,'Before intersection:', pnt_in_cube(vertices, p%loc), ':', vertices
+    call print_photon(p)
+    call CHKERR(1_mpiint, cstr('photon is not inside the local cube','red'))
+  endif
   call intersect_cube(vertices, p%loc, p%dir, p%scattercnt, p%src_side, &
     p%side, max_dist)
 
+  !print *,cstr('After intersection:','red'), pnt_in_cube(vertices, p%loc), ':', vertices
+  !call print_photon(p)
   select type(bmc)
   end select
 end subroutine
