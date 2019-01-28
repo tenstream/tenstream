@@ -784,7 +784,6 @@ module m_plex_rt
             call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
             call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
             call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
-            !call CHKERR(1_mpiint, 'DEBUG')
           endif ! TOA boundary ids
       end subroutine
     end subroutine
@@ -1551,15 +1550,15 @@ module m_plex_rt
       call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
       do iface = 1, size(faces_of_cell)
-
         if(lsrc(iface)) then
-          ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
-          dir2dir = coeff(face_plex2bmc(iface):size(coeff):i5)
 
           call PetscSectionGetDof(sec, faces_of_cell(iface), numSrc, ierr); call CHKERR(ierr)
           if(numSrc.eq.i0) cycle
           if(ldebug.and.numSrc.gt.i1) call CHKERR(1_mpiint, 'direct dof more than 1 is not implemented')
           call PetscSectionGetOffset(sec, faces_of_cell(iface), icol, ierr); call CHKERR(ierr)
+
+          ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
+          dir2dir = coeff(face_plex2bmc(iface):size(coeff):i5)
 
           do idst = 1, size(faces_of_cell)
             if(.not.lsrc(idst)) then
@@ -1603,10 +1602,10 @@ module m_plex_rt
         type(tIS) :: IS_side_faces
         integer(iintegers), pointer :: iside_faces(:), cell_support(:)
         real(ireals) :: dz
-        integer(iintegers) :: o, i, j, icell, iface_top, iface_side, irow, icol, idst, isrc
+        integer(iintegers) :: o, i, icell, iface_top, iface_side, irow, icol, idst
         real(ireals) :: dir2dir(5)
         real(ireals) :: inv_sundir(3), mean_dx
-        real(ireals) :: top_face_normal(3), side_face_normal(3), U(3), Mrot(3,3), coords_2d(6)
+        real(ireals) :: top_face_normal(3), side_face_normal(3), Mrot(3,3), coords_2d(6)
 
         integer(iintegers) :: upper_face, base_face, left_face, right_face, bottom_face, forient(5)
 
@@ -1631,16 +1630,10 @@ module m_plex_rt
             iface_top = faces_of_cell(1)
 
             call get_inward_face_normal(iface_top, icell, geomSection, geoms, top_face_normal)
-            U = cross_3d(top_face_normal, side_face_normal)
-
-            Mrot = rotation_matrix_world_to_local_basis(top_face_normal, side_face_normal, U)
+            Mrot = rotation_matrix_around_axis_vec(180._ireals, top_face_normal)
             inv_sundir = matmul(Mrot, sundir)
-            inv_sundir = [inv_sundir(1), -inv_sundir(2), -inv_sundir(3)] ! rotate by 180
-            Mrot = rotation_matrix_local_basis_to_world(top_face_normal, side_face_normal, U)
-            inv_sundir = matmul(Mrot, inv_sundir)
 
             !print *,sundir,'inv_sundir',inv_sundir
-
             !print *,'faces_of_cell', faces_of_cell, 'sideface', iface_side
 
             call compute_local_wedge_ordering(plex, icell, &
@@ -1664,7 +1657,7 @@ module m_plex_rt
             call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
             dz = geoms(i1+geom_offset)
 
-            !print *,'az', rad2deg(azimuth), rad2deg(zenith), dz
+            !print *,'az', rad2deg(azimuth), 'zenith', rad2deg(zenith), 'dz', dz
             !print *,'upper_face, bottom_face', upper_face, bottom_face
             !print *,'base_face, left_face, right_face', base_face, left_face, right_face
             !print *,'coords2d', coords_2d
@@ -1672,43 +1665,39 @@ module m_plex_rt
 
             call get_coeff(OPP, xkabs(i1+icell), xksca(i1+icell), xg(i1+icell), &
               dz, coords_2d, .True., coeff, ierr, &
-              angles=[real(rad2deg(azimuth),irealLUT), real(rad2deg(zenith),irealLUT)])
+              angles=[real(rad2deg(azimuth),irealLUT)-0, real(rad2deg(zenith),irealLUT)])
 
-            !do i=1,5
-            !  print *,'coeff for bmc dst',i, coeff((i-1)*5+1:i*5), ':', sum(coeff((i-1)*5+1:i*5))
-            !enddo
+            do iface = 1, size(faces_of_cell)
 
-            do i = 1, 5
-              if(faces_of_cell(i).eq.iface_side) then
-                call PetscSectionGetOffset(sec, faces_of_cell(i), irow, ierr); call CHKERR(ierr)
-                idst = face_plex2bmc(i)
-                !print *,i, 'idst', idst
-                dir2dir = coeff((idst-1)*5+1:idst*5)
-                !print *,'dir2dir', dir2dir
-                do j = 1, 5
-                  isrc = face_plex2bmc(j)
+              if(.not. lsrc(iface)) cycle
+              call PetscSectionGetDof(sec, faces_of_cell(iface), numSrc, ierr); call CHKERR(ierr)
+              if(numSrc.eq.i0) cycle
+              if(ldebug.and.numSrc.gt.i1) call CHKERR(1_mpiint, 'direct dof more than 1 is not implemented')
+              call PetscSectionGetOffset(sec, faces_of_cell(iface), icol, ierr); call CHKERR(ierr)
 
-                  call PetscSectionGetOffset(sec, faces_of_cell(j), icol, ierr); call CHKERR(ierr)
+              dir2dir = coeff(face_plex2bmc(iface):size(coeff):i5)
 
-                  !call get_inward_face_normal(faces_of_cell(j), icell, geomSection, geoms, side_face_normal)
-                  !print *,i,j,':', idst, isrc, ': faces', faces_of_cell(j),'->', faces_of_cell(i), &
-                  !  'icol', icol, '->', irow, '(',dir2dir(isrc),')', &
-                  !  is_solar_src(side_face_normal, sundir), is_solar_src(side_face_normal, inv_sundir)
+              do idst = 1, size(faces_of_cell)
+                if(faces_of_cell(idst).ne.iface_side) cycle
 
-                  !if(.not.is_solar_src(side_face_normal, inv_sundir)) cycle
+                c = -dir2dir(face_plex2bmc(idst))
+                if(c.ge.zero) cycle
 
-                  !if(dir2dir(isrc).le.zero) then
-                  !  call CHKERR(1_mpiint, 'encountered a small value... weird')
-                  !endif
-                  if(dir2dir(isrc).gt.zero) then
-                    call MatSetValuesLocal(A, i1, irow, i1, icol, -dir2dir(isrc), INSERT_VALUES, ierr); call CHKERR(ierr)
-                    if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
-                      'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
-                  endif
-                enddo
+                call PetscSectionGetDof(sec, faces_of_cell(idst), numDst, ierr); call CHKERR(ierr)
+                if(numDst.eq.i0) cycle
 
-              endif
-            enddo ! i
+                call PetscSectionGetOffset(sec, faces_of_cell(idst), irow, ierr); call CHKERR(ierr)
+                !print *,'isrc', face_plex2bmc(iface), 'idst', face_plex2bmc(idst), &
+                !  'if', iface, 'id', idst, &
+                !  'srcface->dstface', faces_of_cell(iface),faces_of_cell(idst), &
+                !  'col -> row', icol, irow, c
+                call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
+                if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
+                  'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
+              enddo
+
+            enddo ! enddo iface
+
           endif ! boundary side face is sunlit
         enddo
       end subroutine
@@ -2051,6 +2040,18 @@ module m_plex_rt
         call CHKERR(1_mpiint, 'Found corrupted coefficients!')
       endif
     endif
+
+    !call print_coeffs()
+
+    contains
+      subroutine print_coeffs()
+        integer(iintegers) :: isrc
+        if(ldir) then
+          do isrc = 1, 5
+            print *,isrc,'->',CC(isrc:size(CC):i5)
+          enddo
+        endif
+      end subroutine
   end subroutine
 
   subroutine restore_solution(solver, solution, time)

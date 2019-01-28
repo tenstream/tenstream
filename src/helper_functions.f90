@@ -1475,6 +1475,7 @@ module m_helper_functions
         rotate_angle_z = matmul(M,v)
       end function
 
+    ! https://en.wikipedia.org/wiki/Rotation_matrix#General_rotations
     pure function rotation_matrix_around_axis_vec(angle, rot_axis) result(M)
       ! left hand rule
       real(ireals) :: M(3,3)
@@ -1504,6 +1505,7 @@ module m_helper_functions
       rotation_matrix_world_to_local_basis(3,2) = dot_product(ez, ky)
       rotation_matrix_world_to_local_basis(3,3) = dot_product(ez, kz)
     end function
+
     pure function rotation_matrix_local_basis_to_world(ex, ey, ez)
       real(ireals), dimension(3), intent(in) :: ex, ey, ez
       real(ireals), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
