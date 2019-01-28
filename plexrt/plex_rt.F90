@@ -574,7 +574,6 @@ module m_plex_rt
 
       type(tVec) :: localVec
       real(ireals), pointer :: xv(:)
-      real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
 
       type(tIS) :: boundary_ids
       integer(iintegers) :: iface, icell
@@ -601,10 +600,6 @@ module m_plex_rt
 
       call DMGetSection(edirdm, edirsection, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(edirsection, PETSC_NULL_SECTION, '-show_src_section', ierr); call CHKERR(ierr)
-
-      call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-      call VecGetArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
 
       ! Now lets get vectors!
       if(.not.allocated(srcVec)) then
@@ -648,6 +643,8 @@ module m_plex_rt
 
       call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
 
+      !call set_sidewards_direct_fluxes()
+
       call DMLocalToGlobalBegin(edirdm, localVec, INSERT_VALUES, srcVec, ierr); call CHKERR(ierr)
       call DMLocalToGlobalEnd  (edirdm, localVec, INSERT_VALUES, srcVec, ierr); call CHKERR(ierr)
       call PetscObjectSetName(srcVec, 'srcVec', ierr); call CHKERR(ierr)
@@ -657,9 +654,139 @@ module m_plex_rt
       call DMRestoreLocalVector(edirdm, localVec, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
-      call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
-      call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
+      contains
+        subroutine set_sidewards_direct_fluxes()
+          type(tIS) :: IS_side_faces
+          integer(iintegers), pointer :: iside_faces(:), cell_support(:), faces_of_cell(:)
+          integer(iintegers), allocatable :: vert_cell_idx(:)
+          integer(iintegers) :: topface, botface, iface_side, k, o, topoffset, botoffset
+          real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
+          real(ireals) :: side_face_normal(3)
+          real(ireals) :: tau, dz, transport_this_cell, mu_side
+
+          type(tVec) :: vedir
+          real(ireals), pointer :: xedir(:)
+
+          call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', SIDEFACE, IS_side_faces, ierr); call CHKERR(ierr)
+          if (IS_side_faces.eq.PETSC_NULL_IS) then ! dont have side boundary faces
+          else
+
+            call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+            call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+            call VecGetArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
+
+
+            ! First we compute the edir vec on all columns that are on the domain side and the sun is shining on it
+            call DMGetGlobalVector(edirdm, vedir, ierr); call CHKERR(ierr)
+            call VecSet(vedir, -one, ierr); call CHKERR(ierr)
+            call VecGetArrayF90(vedir, xedir, ierr); call CHKERR(ierr)
+
+            call ISGetIndicesF90(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
+
+            do o = 1, size(iside_faces)
+              iface_side = iside_faces(o)
+
+              call DMPlexGetSupport(plex%edir_dm, iface_side, cell_support, ierr); call CHKERR(ierr)
+              icell = cell_support(1)
+              call DMPlexRestoreSupport(plex%edir_dm, iface_side, cell_support, ierr); call CHKERR(ierr)
+
+              k = plex%zindex(icell)
+              if(k.ne.1) cycle ! only start if side face, i.e. cell is close to TOA
+
+              call get_inward_face_normal(iface_side, icell, geomSection, geoms, side_face_normal)
+              if(.not.is_solar_src(side_face_normal, sundir)) cycle ! if sun is not shining on this side face, skip this column
+
+                call get_consecutive_vertical_cell_idx(plex, icell, vert_cell_idx)
+
+                call DMPlexGetCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+                topface = faces_of_cell(1)
+                botface = faces_of_cell(2)
+                call DMPlexRestoreCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+                call get_inward_face_normal(topface, icell, geomSection, geoms, face_normal)
+                mu = dot_product(sundir, face_normal)
+                if(.not.is_solar_src(face_normal, sundir)) cycle ! if sun is not shining on top of TOA face, skip it
+
+                ! compute direct radiation in 1D fashion
+                call PetscSectionGetOffset(edirsection, topface, topoffset, ierr); call CHKERR(ierr)
+                xedir(i1+topoffset) = E0
+                print *,icell,'edir', 1, xedir(i1+topoffset)
+
+                do k = 1, plex%Nlay
+                  icell = vert_cell_idx(k)
+
+                  call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+                  dz = geoms(i1+geom_offset)
+
+                  tau = (xkabs((i1+icell)) + xksca((i1+icell)))
+
+                  call DMPlexGetCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+                  topface = faces_of_cell(1)
+                  botface = faces_of_cell(2)
+                  call DMPlexRestoreCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+                  call PetscSectionGetOffset(edirsection, topface, topoffset, ierr); call CHKERR(ierr)
+                  call PetscSectionGetOffset(edirsection, botface, botoffset, ierr); call CHKERR(ierr)
+
+                  xedir(i1+botoffset) = xedir(i1+topoffset) * exp(-tau*dz/mu)
+
+                  print *,icell,'edir', k, xedir(i1+botoffset)
+                enddo
+            enddo
+
+            ! Now we go ahead and try to estimate the fluxes along the side boundary
+
+            call VecGetArrayF90(localVec, xv, ierr); call CHKERR(ierr)
+
+
+            do o = 1, size(iside_faces)
+              iface_side = iside_faces(o)
+
+              call DMPlexGetSupport(plex%edir_dm, iface_side, cell_support, ierr); call CHKERR(ierr)
+              icell = cell_support(1)
+              call DMPlexRestoreSupport(plex%edir_dm, iface_side, cell_support, ierr); call CHKERR(ierr)
+
+              call get_inward_face_normal(iface_side, icell, geomSection, geoms, side_face_normal)
+              if(.not.is_solar_src(side_face_normal, sundir)) cycle ! if sun is not shining on this side face, skip this
+
+              call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+              dz = geoms(i1+geom_offset)
+
+              tau = (xkabs((i1+icell)) + xksca((i1+icell)))
+
+              call DMPlexGetCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+              topface = faces_of_cell(1)
+              botface = faces_of_cell(2)
+              call DMPlexRestoreCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+              call PetscSectionGetOffset(edirsection, topface, topoffset, ierr); call CHKERR(ierr)
+
+              call PetscSectionGetFieldOffset(geomSection, iface_side, i2, geom_offset, ierr); call CHKERR(ierr)
+              area = geoms(i1+geom_offset)
+
+              call get_inward_face_normal(topface, icell, geomSection, geoms, face_normal)
+              mu = dot_product(sundir, face_normal)
+              transport_this_cell = exp(-tau*dz/mu)
+
+              mu_side = dot_product(sundir, side_face_normal)
+
+              call PetscSectionGetOffset(edirsection, iface_side, voff, ierr); call CHKERR(ierr)
+              xv(i1+voff) = xedir(i1+topoffset) * area * mu * transport_this_cell
+              print *,icell,'edir top', xedir(i1+topoffset), 'sidesrc', xv(i1+voff)
+            enddo
+
+            call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
+
+            call ISRestoreIndicesF90(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
+
+            call VecRestoreArrayF90(vedir, xedir, ierr); call CHKERR(ierr)
+
+            call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+            call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+            call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
+            !call CHKERR(1_mpiint, 'DEBUG')
+          endif ! TOA boundary ids
+      end subroutine
     end subroutine
 
     !> @brief setup source term for diffuse radiation
