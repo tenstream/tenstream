@@ -56,6 +56,7 @@ module m_boxmc
     t_boxmc_3_16, t_boxmc_8_16,&
     t_boxmc_8_18, &
     t_boxmc_wedge_5_5, t_boxmc_wedge_5_8, &
+    t_boxmc_wedge_18_8, &
     scatter_photon, print_photon, roulette, R, &
     tau, distance, update_photon_loc, &
     imp_t_photon
@@ -173,6 +174,15 @@ module m_boxmc
     procedure :: update_dir_stream  => update_dir_stream_wedge_5_8
     procedure :: update_diff_stream => update_diff_stream_wedge_5_8
   end type t_boxmc_wedge_5_8
+
+  type,extends(t_boxmc) :: t_boxmc_wedge_18_8
+  contains
+    procedure :: intersect_distance => intersect_distance_wedge_18_8
+    procedure :: init_dir_photon    => init_dir_photon_wedge_18_8
+    procedure :: init_diff_photon   => init_diff_photon_wedge_18_8
+    procedure :: update_dir_stream  => update_dir_stream_wedge_18_8
+    procedure :: update_diff_stream => update_diff_stream_wedge_18_8
+  end type t_boxmc_wedge_18_8
 
   type t_photon
     sequence
@@ -965,6 +975,9 @@ contains
     type is (t_boxmc_wedge_5_8)
     bmc%dir_streams  =  5
     bmc%diff_streams =  8
+    type is (t_boxmc_wedge_18_8)
+    bmc%dir_streams  =  18
+    bmc%diff_streams =  8
     class default
     stop 'initialize: unexpected type for boxmc object!'
   end select
@@ -985,5 +998,6 @@ include 'boxmc_1_2.inc'
 include 'boxmc_3_6.inc'
 include 'boxmc_wedge_5_5.inc'
 include 'boxmc_wedge_5_8.inc'
+include 'boxmc_wedge_18_8.inc'
 
 end module

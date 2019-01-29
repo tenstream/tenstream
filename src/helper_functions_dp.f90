@@ -419,7 +419,7 @@ module m_helper_functions_dp
       subroutine square_intersection(origin, direction, tA, tB, tC, tD, lhit, hit, iface)
       real(ireal_dp), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:), tD(:)
       logical, intent(out) :: lhit
-      real(ireal_dp), intent(out) :: hit(:)
+      real(ireal_dp), intent(out) :: hit(:) ! size(4), 3 for intersection, 1 for distance
       integer(iintegers), intent(out) :: iface
       logical :: lhit1, lhit2
       real(ireal_dp) :: hit1(size(hit)), hit2(size(hit))
