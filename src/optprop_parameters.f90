@@ -59,7 +59,7 @@ module m_optprop_parameters
       ! interp_mode 2 == linear interpolation
 
       integer(iintegers), parameter :: interp_mode_pprts=2
-      integer(iintegers), parameter :: interp_mode_wedge_5_8=2
+      integer(iintegers), parameter :: interp_mode_wedge=2
 
       ! We pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values
       !     -- see python script: ''eddington_to_LUT.py''

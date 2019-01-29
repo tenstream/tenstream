@@ -40,7 +40,7 @@ module m_optprop_LUT
     ldebug_optprop, lut_basename,         &
     LUT_dump_interval, LUT_max_create_jobtime, &
     interp_mode_pprts,                    &
-    interp_mode_wedge_5_8,                &
+    interp_mode_wedge,                &
     ldelta_scale,delta_scale_truncate,    &
     stddev_atol, stddev_rtol,             &
     wedge_sphere_radius,                  &
@@ -60,7 +60,7 @@ module m_optprop_LUT
     t_boxmc_3_6, t_boxmc_3_10, t_boxmc_3_16, &
     t_boxmc_8_10, t_boxmc_8_12, t_boxmc_8_16, &
     t_boxmc_8_18, &
-    t_boxmc_wedge_5_8
+    t_boxmc_wedge_5_8, t_boxmc_wedge_18_8
   use m_tenstream_interpolation, only: interp_4d, interp_vec_simplex_nd
   use m_netcdfio
 
@@ -74,7 +74,7 @@ module m_optprop_LUT
   public :: t_optprop_LUT, t_optprop_LUT_1_2, &
     t_optprop_LUT_3_6, t_optprop_LUT_3_10, t_optprop_LUT_3_16, &
     t_optprop_LUT_8_10, t_optprop_LUT_8_12, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
-    t_optprop_LUT_wedge_5_8, &
+    t_optprop_LUT_wedge_5_8, t_optprop_LUT_wedge_18_8, &
     find_lut_dim_by_name
   ! This module loads and generates the LUT-tables for Tenstream Radiation
   ! computations.
@@ -144,6 +144,8 @@ module m_optprop_LUT
   type,extends(t_optprop_LUT) :: t_optprop_LUT_8_18
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_wedge_5_8
+  end type
+  type,extends(t_optprop_LUT) :: t_optprop_LUT_wedge_18_8
   end type
 
   logical, parameter :: ldebug=.True.
@@ -218,6 +220,12 @@ contains
             OPP%diff_streams = 8
             OPP%lutbasename=trim(lut_basename)//'_wedge_5_8.Rsphere'//itoa(int(wedge_sphere_radius))//'.'
             allocate(t_boxmc_wedge_5_8::OPP%bmc)
+
+          class is (t_optprop_LUT_wedge_18_8)
+            OPP%dir_streams  = 18
+            OPP%diff_streams = 8
+            OPP%lutbasename=trim(lut_basename)//'_wedge_18_8.Rsphere'//itoa(int(wedge_sphere_radius))//'.'
+            allocate(t_boxmc_wedge_18_8::OPP%bmc)
 
           class default
             stop 'initialize LUT: unexpected type for optprop_LUT object!'
@@ -826,6 +834,12 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
           wedge_C, aspect_zx, vertices, &
           sphere_radius=real(wedge_sphere_radius, ireals))
 
+      class is (t_optprop_LUT_wedge_18_8)
+        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
+        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
+        call setup_default_wedge_geometry([zero, zero], [one, zero], wedge_C, aspect_zx, vertices, &
+          sphere_radius=real(wedge_sphere_radius, ireals))
+
       class default
         call CHKERR(1_mpiint, 'unexpected type for optprop_LUT object!')
     end select
@@ -1062,7 +1076,7 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
 
       class is (t_optprop_LUT_wedge_5_8)
-          OPP%interp_mode = interp_mode_wedge_5_8
+          OPP%interp_mode = interp_mode_wedge
           allocate(OPP%dirconfig%dims(7))
           call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
           call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
@@ -1092,6 +1106,30 @@ subroutine set_parameter_space(OPP)
           !call populate_LUT_dim('aspect_zx', i2, OPP%diffconfig%dims(3), vrange=real([.5,2.], irealLUT))
           !call populate_LUT_dim('wedge_coord_Cx', 2_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
           !call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .95], irealLUT))
+
+      class is (t_optprop_LUT_wedge_18_8)
+          OPP%interp_mode = interp_mode_wedge
+          allocate(OPP%dirconfig%dims(7))
+          call populate_LUT_dim('tau',       i2, OPP%dirconfig%dims(1), vrange=real([1e-3,1.], irealLUT))
+          call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.99999], irealLUT))
+          call populate_LUT_dim('aspect_zx', i2, OPP%dirconfig%dims(3), vrange=real([.5,2.], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%dirconfig%dims(5), vrange=real([.8, .95], irealLUT))
+          call populate_LUT_dim('phi',       i3, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
+          call populate_LUT_dim('theta',     i3, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
+
+          allocate(OPP%diffconfig%dims(5))
+          !call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
+          !call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w010)
+          !call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
+          !call populate_LUT_dim('wedge_coord_Cx', 10_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
+          !call populate_LUT_dim('wedge_coord_Cy', 10_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .95], irealLUT))
+
+          call populate_LUT_dim('tau',       i2, OPP%diffconfig%dims(1), vrange=real([1e-3,1.], irealLUT))
+          call populate_LUT_dim('w0',        i2, OPP%diffconfig%dims(2), vrange=real([.1,.999], irealLUT))
+          call populate_LUT_dim('aspect_zx', i2, OPP%diffconfig%dims(3), vrange=real([.5,2.], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cx', 2_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .95], irealLUT))
 
       class default
         call CHKERR(1_mpiint, 'set_parameter space: unexpected type for optprop_LUT object!')

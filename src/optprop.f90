@@ -29,7 +29,7 @@ use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, swap
 use m_data_parameters, only: ireals,irealLUT,irealLUT,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_8_10, t_optprop_LUT_3_16, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
-  t_optprop_LUT_wedge_5_8
+  t_optprop_LUT_wedge_5_8, t_optprop_LUT_wedge_18_8
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
 use m_eddington, only: eddington_coeff_zdun
@@ -40,7 +40,8 @@ use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 implicit none
 
 private
-public :: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, t_optprop_wedge_5_8, &
+public :: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
+  t_optprop_wedge_5_8, t_optprop_wedge_18_8, &
   t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
   OPP_1D_RETCODE
 
@@ -80,6 +81,9 @@ end type
 type,extends(t_optprop) :: t_optprop_wedge_5_8
 end type
 
+type,extends(t_optprop) :: t_optprop_wedge_18_8
+end type
+
 integer(mpiint), parameter :: OPP_1D_RETCODE = -1_mpiint
 
 contains
@@ -115,6 +119,9 @@ contains
 
               class is (t_optprop_wedge_5_8)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_5_8::OPP%OPP_LUT)
+
+              class is (t_optprop_wedge_18_8)
+               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_18_8::OPP%OPP_LUT)
               class default
                 stop ' init optprop : unexpected type for optprop object!'
             end select
@@ -170,6 +177,9 @@ contains
           call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_wedge_5_8)
+          call wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, wedge_coords)
+
+        class is (t_optprop_wedge_18_8)
           call wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, wedge_coords)
 
         class default
