@@ -50,6 +50,9 @@ dims = shape(arr)
 allocate(dim_ids(Ndims))
 
 if(ldebug) print *,'Dimensions('//itoa(int(Ndims, iintegers))//') of array', dims
+if(ldebug) then
+  ncerr = nf90_set_log_level(2); call nccheck(ncerr)
+endif
 
 inquire(file=fname, exist=file_exists)
 if(ldebug) print *,'file '//trim(fname)//' exists :: ', file_exists
@@ -59,10 +62,11 @@ ierr = 0
 if(.not.file_exists) then
   !ncerr = nf90_create(fname, NF90_NOCLOBBER, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
   !ncerr = nf90_create(fname, NF90_NETCDF4, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
-  ncerr = nf90_create(fname, NF90_64BIT_OFFSET , ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
+  !ncerr = nf90_create(fname, NF90_64BIT_OFFSET , ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
+  ncerr = nf90_create(trim(fname), NF90_HDF5, ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
   if(ldebug) print *,'opened file to append: ',trim(fname),' ::',ncerr
 else
-  ncerr = nf90_open(path=fname, mode=nf90_write, ncid=ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
+  ncerr = nf90_open(path=trim(fname), mode=NF90_WRITE, ncid=ncid) ; call nccheck(ncerr); ierr = ierr + ncerr
   if(ldebug) print *,'opened file to write: ',trim(fname),' ::',ncerr
 endif
 if(ncerr.ne.NF90_NOERR) call CHKERR(int(ncerr, mpiint),'stopping because we couldnt write to file')
@@ -89,18 +93,22 @@ var_exists = ncerr.eq.NF90_NOERR
 if(ldebug) print *,'Check if variable exists',ncerr,'::',var_exists
 
 if(.not.var_exists) then !Otherwise create it
-  if(ldebug) print *,'Create variable'
-  ncerr = nf90_def_var(ncid, varname, NF90_FLOAT, dim_ids, varid,deflate_level=deflate_lvl) ; call nccheck(ncerr)
+  if(ldebug) print *,'Create variable '//itoa(varid)
+  ncerr = nf90_def_var(ncid, varname, NF90_FLOAT, dim_ids, varid, deflate_level=deflate_lvl) ; call nccheck(ncerr)
+  ierr = ierr + ncerr
+  call CHKWARN(ncerr, 'Could not create new variable '//trim(varname)//' varid: '//itoa(varid))
 endif
+
 
 if(def_mode) then !if we created the file here, we need to leave define mode...
   ncerr = nf90_enddef(ncid); call nccheck(ncerr )
   if(ldebug) print *,'Putting netcdf file in datamode',ncerr
-  call CHKERR(ncerr, 'Could not put netcdf file in datamode')
+  call CHKWARN(ncerr, 'Could not put netcdf file in datamode')
 endif
 
-tmp=real(arr, kind=kind(tmp))
-ncerr = nf90_put_var(ncid, varid, tmp) ; call nccheck(ncerr); ierr = ierr + ncerr
+if(ldebug) print *,'writing data'
+ncerr = nf90_put_var(ncid, varid, values=arr, &
+  start=startp, count=countp, stride=stride, map=map)
 if(ldebug) print *,'written data',ncerr
 
 ncerr = nf90_close(ncid) ; call nccheck(ncerr); ierr = ierr + ncerr

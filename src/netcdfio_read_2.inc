@@ -18,9 +18,9 @@
 !-------------------------------------------------------------------------
 
   ncerr = nf90_get_var(ncid, varid, arr) ; call nccheck(ncerr) ; ierr = ierr+ncerr
-  ncerr = nf90_close(ncid)               ; call nccheck(ncerr) ; ierr = ierr+ncerr
 
   100 continue
+  ncerr = nf90_close(ncid)               ; call nccheck(ncerr) ; ierr = ierr+ncerr
   if(ldebug) print *,'Reading Netcdf file returned with ierr: ',ierr
   call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release file lock')
 

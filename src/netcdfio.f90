@@ -22,6 +22,7 @@ module m_netcdfIO
       use ifport
 #endif
 
+  use iso_c_binding
   use iso_fortran_env, only: REAL32, REAL64
 
   use netcdf
@@ -29,14 +30,14 @@ module m_netcdfIO
       default_str_len, &
       ireals,          &
       iintegers, mpiint
-  use m_helper_functions, only : CHKERR, itoa, get_arg
+  use m_helper_functions, only : CHKWARN, CHKERR, itoa, get_arg
   implicit none
 
   private
   public :: ncwrite, ncload, acquire_file_lock, release_file_lock, get_global_attribute
 
 !  integer :: v=11
-  integer,parameter :: deflate_lvl=9
+  integer,parameter :: deflate_lvl=1
 !  real(ireals),parameter :: maxwait=600 !in seconds
 !  real(ireals),parameter :: waitinterval=.01 ! amount of cpu time to wait before trying anew in seconds
 !  integer :: iwait
@@ -57,6 +58,15 @@ module m_netcdfIO
   end interface
   interface get_global_attribute
     module procedure get_global_attribute_str, get_global_attribute_r32, get_global_attribute_r64
+  end interface
+
+  interface
+    function nf90_set_log_level(level) bind (C, name = "nc_set_log_level")
+      use iso_c_binding
+      implicit none
+      integer(c_int) :: nf90_set_log_level
+      integer(c_int), intent (in) :: level
+    end function nf90_set_log_level
   end interface
 
   contains
