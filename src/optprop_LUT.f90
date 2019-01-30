@@ -701,19 +701,19 @@ subroutine prepare_table_space(OPP, config, S, T)
   integer(iintegers) :: errcnt
 
   if(present(T)) then
-    entries = real( &
+    entries = &
       OPP%diff_streams*OPP%dir_streams * product(config%dims(:)%N) + &
       OPP%dir_streams**2 * product(config%dims(:)%N) + &
       OPP%diff_streams*OPP%dir_streams * product(config%dims(:)%N) + &
-      OPP%dir_streams**2 * product(config%dims(:)%N), irealLUT)
+      OPP%dir_streams**2 * product(config%dims(:)%N)
   else
-    entries = real( &
+    entries = &
       OPP%diff_streams**2 * product(config%dims(:)%N) + &
-      OPP%diff_streams**2 * product(config%dims(:)%N), irealLUT)
+      OPP%diff_streams**2 * product(config%dims(:)%N)
   endif
-  bytesize = real(C_SIZEOF(bytesize), irealLUT) * entries
-
+  bytesize = C_SIZEOF(bytesize) * entries
   print *,'Allocating Space for LUTs ( '//ftoa(bytesize/1024**3)//' Gb)'
+
   errcnt = 0
   if(present(T)) then
     if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=real(nil,irealLUT))
@@ -837,7 +837,8 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
       class is (t_optprop_LUT_wedge_18_8)
         call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
         call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
-        call setup_default_wedge_geometry([zero, zero], [one, zero], wedge_C, aspect_zx, vertices, &
+        call setup_default_wedge_geometry([zero, zero], [one, zero], &
+          wedge_C, aspect_zx, vertices, &
           sphere_radius=real(wedge_sphere_radius, ireals))
 
       class default
@@ -896,7 +897,6 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
     T_dir  = real(rT_dir, irealLUT)
     S_tol  = real(rS_tol, irealLUT)
     T_tol  = real(rT_tol, irealLUT)
-    !print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
 
 function lin_index_to_param(idx,rng,N)
@@ -1110,26 +1110,20 @@ subroutine set_parameter_space(OPP)
       class is (t_optprop_LUT_wedge_18_8)
           OPP%interp_mode = interp_mode_wedge
           allocate(OPP%dirconfig%dims(7))
-          call populate_LUT_dim('tau',       i2, OPP%dirconfig%dims(1), vrange=real([1e-3,1.], irealLUT))
-          call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.99999], irealLUT))
-          call populate_LUT_dim('aspect_zx', i2, OPP%dirconfig%dims(3), vrange=real([.5,2.], irealLUT))
+          call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
+          call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect7,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect7)
           call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%dirconfig%dims(5), vrange=real([.8, .95], irealLUT))
-          call populate_LUT_dim('phi',       i3, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
-          call populate_LUT_dim('theta',     i3, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%dirconfig%dims(5), vrange=real([.8,.9485], irealLUT))
+          call populate_LUT_dim('phi',       35_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
+          call populate_LUT_dim('theta',     7_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
 
           allocate(OPP%diffconfig%dims(5))
-          !call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-          !call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w010)
-          !call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-          !call populate_LUT_dim('wedge_coord_Cx', 10_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
-          !call populate_LUT_dim('wedge_coord_Cy', 10_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .95], irealLUT))
-
-          call populate_LUT_dim('tau',       i2, OPP%diffconfig%dims(1), vrange=real([1e-3,1.], irealLUT))
-          call populate_LUT_dim('w0',        i2, OPP%diffconfig%dims(2), vrange=real([.1,.999], irealLUT))
-          call populate_LUT_dim('aspect_zx', i2, OPP%diffconfig%dims(3), vrange=real([.5,2.], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cx', 2_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .95], irealLUT))
+          call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
+          call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w010)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
+          call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 10_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .9485], irealLUT))
 
       class default
         call CHKERR(1_mpiint, 'set_parameter space: unexpected type for optprop_LUT object!')
