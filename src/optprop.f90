@@ -427,8 +427,8 @@ contains
       real(irealLUT),intent(out):: C(:)
       real(irealLUT),intent(in),optional :: angles(2)
 
-      real(ireals) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
-      real(ireals) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
+      real(irealLUT) :: S_diff(OPP%OPP_LUT%diff_streams),T_dir(OPP%OPP_LUT%dir_streams)
+      real(irealLUT) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
       integer(iintegers) :: isrc
 
       real(ireals), parameter :: atol=2e-4_ireals, rtol=1e-2_ireals
@@ -447,9 +447,9 @@ contains
               S_diff, T_dir, S_tol, T_tol, &
               inp_atol=atol, inp_rtol=rtol)
             if(dir) then !dir2dir
-              C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams) = real(T_dir, irealLUT)
+              C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams) = T_dir
             else ! dir2diff
-              C(isrc:OPP%OPP_LUT%dir_streams*OPP%OPP_LUT%diff_streams:OPP%OPP_LUT%dir_streams) = real(S_diff, irealLUT)
+              C(isrc:OPP%OPP_LUT%dir_streams*OPP%OPP_LUT%diff_streams:OPP%OPP_LUT%dir_streams) = S_diff
             endif
           enddo
       else
@@ -465,7 +465,7 @@ contains
               mpi_comm_self, &
               S_diff, T_dir, S_tol, T_tol, &
               inp_atol=atol, inp_rtol=rtol)
-          C(isrc:OPP%OPP_LUT%diff_streams**2:OPP%OPP_LUT%diff_streams) = real(S_diff, irealLUT)
+          C(isrc:OPP%OPP_LUT%diff_streams**2:OPP%OPP_LUT%diff_streams) = S_diff
         enddo
       endif ! angles_present
 

@@ -25,7 +25,7 @@ module m_optprop_LUT
   use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
 
   use m_helper_functions, only : approx,  &
-    rel_approx, imp_bcast, get_arg,       &
+    rel_approx, imp_bcast, get_arg, ftoa, &
     mpi_logical_and, mpi_logical_or,      &
     search_sorted_bisection, CHKERR, itoa,&
     triangle_area_by_vertices,            &
@@ -33,7 +33,7 @@ module m_optprop_LUT
 
   use m_data_parameters, only : ireals, iintegers, irealLUT, &
     one, zero, i0, i1, i2, i3, i10, mpiint, nil, inil,       &
-    imp_iinteger, imp_ireals, imp_logical,                   &
+    imp_iinteger, imp_ireals, imp_irealLUT, imp_logical,     &
     default_str_len
 
   use m_optprop_parameters, only:         &
@@ -453,8 +453,8 @@ subroutine createLUT(OPP, comm, config, S, T)
 
     logical :: gotmsg
     integer(mpiint) :: status(MPI_STATUS_SIZE)
-    real(ireals) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
-    real(ireals) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
+    real(irealLUT) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
+    real(irealLUT) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     integer(mpiint), parameter :: READYMSG=1,HAVERESULTSMSG=2, WORKMSG=3, FINALIZEMSG=4, RESULTMSG=5
 
@@ -562,41 +562,41 @@ subroutine createLUT(OPP, comm, config, S, T)
             case(HAVERESULTSMSG)
               call mpi_recv(lutindex, 1_mpiint, imp_iinteger, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
               call mpi_recv(isrc, 1_mpiint, imp_iinteger, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(S_diff, size(S_diff), imp_ireals, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(S_tol , size(S_tol ), imp_ireals, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(T_dir , size(T_dir ), imp_ireals, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(T_tol , size(T_tol ), imp_ireals, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(S_diff, size(S_diff), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(S_tol , size(S_tol ), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(T_dir , size(T_dir ), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(T_tol , size(T_tol ), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
 
               ! Sort coefficients into destination ordering and put em in LUT
               do idst = 1, OPP%diff_streams
                 ind = (idst-1) * Nsrc + isrc
-                S%c         (ind, lutindex) = real(S_diff(idst), irealLUT)
-                S%stddev_tol(ind, lutindex) = real(S_tol (idst), irealLUT)
+                S%c         (ind, lutindex) = S_diff(idst)
+                S%stddev_tol(ind, lutindex) = S_tol (idst)
               enddo
               if(present(T)) then
                 do idst = 1, OPP%dir_streams
                   ind = (idst-1)*OPP%dir_streams + isrc
-                  T%c         (ind, lutindex) = real(T_dir (idst), irealLUT)
-                  T%stddev_tol(ind, lutindex) = real(T_tol (idst), irealLUT)
+                  T%c         (ind, lutindex) = T_dir (idst)
+                  T%stddev_tol(ind, lutindex) = T_tol (idst)
                 enddo
               endif
 
               if( mod((lutindex-1)*Nsrc+isrc-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
-                  print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._ireals/total_size,'%'
+                  print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._irealLUT/total_size,'%'
 
               call cpu_time(now)
               if( (now-lastsavetime).gt.LUT_dump_interval .or. (now-starttime).gt.LUT_max_create_jobtime ) then !every 30 minutes wall clock time, dump the LUT.
                 print *,'Dumping LUT after ',(now-lastsavetime)/60,'minutes'
                 if(present(T)) then
-                  print *,'Writing table to file...', T%table_name_c
-                  call ncwrite(T%table_name_c, real(T%c, ireals), iierr); call CHKERR(iierr, 'Could not write Table to file')
-                  print *,'Writing table to file...', T%table_name_tol
-                  call ncwrite(T%table_name_tol, real(T%stddev_tol,ireals), iierr); call CHKERR(iierr, 'Could not write Table to file')
+                  print *,'Writing table to file... ', T%table_name_c
+                  call ncwrite(T%table_name_c, T%c, iierr); call CHKERR(iierr, 'Could not write Table to file')
+                  print *,'Writing table to file... ', T%table_name_tol
+                  call ncwrite(T%table_name_tol, T%stddev_tol, iierr); call CHKERR(iierr, 'Could not write Table to file')
                 endif
-                print *,'Writing table to file...', S%table_name_c
-                call ncwrite(S%table_name_c, real(S%c, ireals), iierr); call CHKERR(iierr, 'Could not write Table to file')
-                print *,'Writing table to file...', S%table_name_tol
-                call ncwrite(S%table_name_tol, real(S%stddev_tol,ireals) ,iierr); call CHKERR(iierr, 'Could not write Table to file')
+                print *,'Writing table to file... ', S%table_name_c
+                call ncwrite(S%table_name_c, S%c, iierr); call CHKERR(iierr, 'Could not write Table to file')
+                print *,'Writing table to file... ', S%table_name_tol
+                call ncwrite(S%table_name_tol, S%stddev_tol,iierr); call CHKERR(iierr, 'Could not write Table to file')
                 print *,'done writing!',iierr
                 lastsavetime = now ! reset the countdown
                 if((now-starttime).gt.LUT_max_create_jobtime) then
@@ -613,12 +613,12 @@ subroutine createLUT(OPP, comm, config, S, T)
           endif
         enddo
 
-        print *,'Writing table to file...'
-        call ncwrite(S%table_name_c  , real(S%c         ,ireals), iierr)
-        call ncwrite(S%table_name_tol, real(S%stddev_tol,ireals), iierr)
+        print *,'Writing table to file... '
+        call ncwrite(S%table_name_c  , S%c, iierr)
+        call ncwrite(S%table_name_tol, S%stddev_tol, iierr)
         if(present(T)) then
-          call ncwrite(T%table_name_c  , real(T%c         ,ireals), iierr)
-          call ncwrite(T%table_name_tol, real(T%stddev_tol,ireals), iierr)
+          call ncwrite(T%table_name_c  , T%c, iierr)
+          call ncwrite(T%table_name_tol, T%stddev_tol, iierr)
           print *,'done writing!',iierr,':: max_atol S',maxval(S%stddev_tol),'max_atol T',maxval(T%stddev_tol)
         else
           print *,'done writing!',iierr,':: max_atol S',maxval(S%stddev_tol)
@@ -661,10 +661,10 @@ subroutine createLUT(OPP, comm, config, S, T)
 
                 call mpi_send(lutindex , 1_mpiint     , imp_iinteger  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
                 call mpi_send(isrc , 1_mpiint     , imp_iinteger  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(S_diff    , size(S_diff) , imp_ireals , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(S_tol     , size(S_tol ) , imp_ireals , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(T_dir     , size(T_dir ) , imp_ireals , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(T_tol     , size(T_tol ) , imp_ireals , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(S_diff    , size(S_diff) , imp_irealLUT , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(S_tol     , size(S_tol ) , imp_irealLUT , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(T_dir     , size(T_dir ) , imp_irealLUT , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(T_tol     , size(T_tol ) , imp_irealLUT , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
 
                 call mpi_send(-i1       , 1_mpiint     , imp_iinteger  , 0_mpiint           , READYMSG       , comm , mpierr); call CHKERR(mpierr)
 
@@ -686,9 +686,23 @@ subroutine prepare_table_space(OPP, config, S, T)
   type(t_table),intent(inout) :: S
   type(t_table),intent(inout), optional :: T
 
+  real(irealLUT) :: bytesize, entries
   integer(iintegers) :: errcnt
 
-  print *,'Allocating Space for LUTs'
+  if(present(T)) then
+    entries = &
+      OPP%diff_streams*OPP%dir_streams * product(config%dims(:)%N) + &
+      OPP%dir_streams**2 * product(config%dims(:)%N) + &
+      OPP%diff_streams*OPP%dir_streams * product(config%dims(:)%N) + &
+      OPP%dir_streams**2 * product(config%dims(:)%N)
+  else
+    entries = &
+      OPP%diff_streams**2 * product(config%dims(:)%N) + &
+      OPP%diff_streams**2 * product(config%dims(:)%N)
+  endif
+  bytesize = C_SIZEOF(bytesize) * entries
+
+  print *,'Allocating Space for LUTs ( '//ftoa(bytesize/1024**3)//' Gb)'
   errcnt = 0
   if(present(T)) then
     if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=real(nil,irealLUT))
@@ -750,8 +764,8 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     logical, intent(in) :: dir
     integer(mpiint), intent(in) :: comm
 
-    real(ireals),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
-    real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
+    real(irealLUT),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
+    real(irealLUT),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     real(ireals) :: aspect_zx, aspect_zy, tauz, w0, g, phi, theta
     real(ireals), dimension(2) :: wedge_C
@@ -805,7 +819,8 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
       class is (t_optprop_LUT_wedge_5_8)
         call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
         call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
-        call setup_default_wedge_geometry([zero, zero], [one, zero], wedge_C, aspect_zx, vertices, &
+        call setup_default_wedge_geometry([zero, zero], [one, zero], &
+          wedge_C, aspect_zx, vertices, &
           sphere_radius=real(wedge_sphere_radius, ireals))
 
       class default
@@ -824,9 +839,11 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
     real(ireals), intent(in) :: tauz, w0, g, phi, theta
     real(ireals) :: vertices(:)
 
-    real(ireals),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
-    real(ireals),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
+    real(irealLUT),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
+    real(irealLUT),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
     real(ireals),intent(in),optional :: inp_atol, inp_rtol
+    real(ireals) :: rS_diff(OPP%diff_streams),rT_dir(OPP%dir_streams)
+    real(ireals) :: rS_tol (OPP%diff_streams),rT_tol(OPP%dir_streams)
 
     real(ireals) :: bg(3), dz, atol, rtol
 
@@ -856,8 +873,12 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
     !call CHKERR(1_mpiint, 'DEBUG')
     call OPP%bmc%get_coeff(comm, bg, src, &
       dir, phi, theta, vertices,   &
-      S_diff, T_dir, S_tol, T_tol, &
+      rS_diff, rT_dir, rS_tol, rT_tol, &
       inp_atol=atol, inp_rtol=rtol )
+    S_diff = rS_diff
+    T_dir  = rT_dir
+    S_tol  = rS_tol
+    T_tol  = rT_tol
     !print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
 
@@ -1226,7 +1247,7 @@ end subroutine
       iierr=0
       do src=1,OPP%dir_streams
         norm = sum(C( src:size(C):OPP%dir_streams))
-        if(real(norm).gt.one+1e-5_ireals) iierr=iierr+1
+        if(real(norm).gt.one+1e-5_irealLUT) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
         print *,'Error in dir2dir coeffs :: ierr',iierr,size(C),OPP%dir_streams,'::',C
@@ -1276,7 +1297,7 @@ end subroutine
       iierr=0
       do src=1,OPP%diff_streams
         norm = sum( C( src:size(C):OPP%dir_streams ) )
-        if(real(norm).gt.one+1e-5_ireals) iierr=iierr+1
+        if(real(norm).gt.one+1e-5_irealLUT) iierr=iierr+1
       enddo
       if(iierr.ne.0) then
         do src=1,OPP%diff_streams
