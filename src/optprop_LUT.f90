@@ -701,7 +701,7 @@ subroutine prepare_table_space(OPP, config, S, T)
       OPP%diff_streams**2 * product(config%dims(:)%N) + &
       OPP%diff_streams**2 * product(config%dims(:)%N)
   endif
-  bytesize = C_SIZEOF(bytesize) * entries
+  bytesize = real(C_SIZEOF(bytesize), irealLUT) * real(entries, irealLUT)
 
   print *,'Allocating Space for LUTs ( '//ftoa(bytesize/1024**3)//' Gb)'
   errcnt = 0
@@ -876,10 +876,10 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
       dir, phi, theta, vertices,   &
       rS_diff, rT_dir, rS_tol, rT_tol, &
       inp_atol=atol, inp_rtol=rtol )
-    S_diff = rS_diff
-    T_dir  = rT_dir
-    S_tol  = rS_tol
-    T_tol  = rT_tol
+    S_diff = real(rS_diff, irealLUT)
+    T_dir  = real(rT_dir, irealLUT)
+    S_tol  = real(rS_tol, irealLUT)
+    T_tol  = real(rT_tol, irealLUT)
     !print *,'BMC :: dir',T_dir,'diff',S_diff
 end subroutine
 
