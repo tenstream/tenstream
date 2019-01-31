@@ -104,7 +104,7 @@ subroutine test_netcdf_load_write_r32(this)
     ! Try reading it without barriers
     do rank = 0, numnodes-1
       deallocate(a1d)
-      groups(2) = 'rank'//itoa(rank)
+      groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a1d))
       call ncload(groups, a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file')
       @mpiassertEqual(real(rank, kind(a1d)), a1d(1))
       @mpiassertEqual(N, size(a1d))
@@ -112,7 +112,7 @@ subroutine test_netcdf_load_write_r32(this)
 
     allocate(a2d(N,N), source=real(myid, kind(a2d)))
     groups(1) = trim(fname)
-    groups(2) = 'rank'//itoa(myid)
+    groups(2) = 'rank'//itoa(myid)//'_kind_'//itoa(kind(a1d))
     groups(3) = 'a2d'
 
     do rank = 0, numnodes-1
@@ -125,7 +125,7 @@ subroutine test_netcdf_load_write_r32(this)
 
     do rank= 0, numnodes-1
       deallocate(a2d)
-      groups(2) = 'rank'//itoa(rank)
+      groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a1d))
       call ncload(groups, a2d, ierr); call CHKERR(ierr, 'Could not read 2d array from nc file')
       @mpiassertEqual(real(rank, kind(a2d)), a2d(1,1))
       @mpiassertEqual(N, size(a2d, dim=1))
@@ -165,7 +165,7 @@ subroutine test_netcdf_load_write_r64(this)
     ! Try reading it without barriers
     do rank = 0, numnodes-1
       deallocate(a1d)
-      groups(2) = 'rank'//itoa(rank)
+      groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a1d))
       call ncload(groups, a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file')
       @mpiassertEqual(real(rank, kind(a1d)), a1d(1))
       @mpiassertEqual(N, size(a1d))
@@ -173,7 +173,7 @@ subroutine test_netcdf_load_write_r64(this)
 
     allocate(a2d(N,N), source=real(myid, kind(a2d)))
     groups(1) = trim(fname)
-    groups(2) = 'rank'//itoa(myid)
+    groups(2) = 'rank'//itoa(myid)//'_kind_'//itoa(kind(a1d))
     groups(3) = 'a2d'
 
     do rank = 0, numnodes-1
@@ -186,7 +186,7 @@ subroutine test_netcdf_load_write_r64(this)
 
     do rank= 0, numnodes-1
       deallocate(a2d)
-      groups(2) = 'rank'//itoa(rank)
+      groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a1d))
       call ncload(groups, a2d, ierr); call CHKERR(ierr, 'Could not read 2d array from nc file')
       @mpiassertEqual(real(rank, kind(a2d)), a2d(1,1))
       @mpiassertEqual(N, size(a2d, dim=1))
