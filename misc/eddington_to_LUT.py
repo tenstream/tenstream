@@ -6,7 +6,7 @@ Ntau, Nw0, Ng, Nmu = 80, 30, 10, 20
 #tau = -log(transmission)
 tau = logspace(-10, 2, Ntau)
 w0 = linspace(0, .99999, Nw0)
-g = linspace(0, .5, Ng)
+g = linspace(0, .65, Ng)
 
 theta = np.linspace(0, 90, Nmu)
 mu = np.cos(np.deg2rad(theta))

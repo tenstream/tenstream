@@ -103,6 +103,7 @@ module m_optprop_parameters
 
       real(irealLUT), parameter :: preset_g2(2) = [0.0,0.5]
       real(irealLUT), parameter :: preset_g3(3) = [0.0,0.267018506789,0.5]
+      real(irealLUT), parameter :: preset_g4(4) = [0.0,0.1936,0.4258,0.65]
 
       !-----------------------------------------
       !- Define precision of coefficients      -
