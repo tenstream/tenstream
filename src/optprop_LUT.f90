@@ -650,7 +650,8 @@ subroutine createLUT(OPP, comm, config, S, T)
                 call OPP%LUT_bmc_wrapper(config, lutindex, isrc, ldir, &
                   mpi_comm_self, S_diff, T_dir, S_tol, T_tol)
 
-                if(maxval(S_tol).gt.stddev_atol .or. maxval(T_tol).gt.stddev_atol) then
+                if ( maxval(S_tol).gt.stddev_atol+sqrt(epsilon(stddev_atol)) &
+                .or. maxval(T_tol).gt.stddev_atol+sqrt(epsilon(stddev_atol))) then
                   print *,'Ttol', T_tol
                   print *,'Stol', S_tol
                   call CHKERR(1_mpiint, 'BOXMC violated stddev constraints!')
