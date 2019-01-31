@@ -691,17 +691,17 @@ subroutine prepare_table_space(OPP, config, S, T)
   integer(iintegers) :: errcnt
 
   if(present(T)) then
-    entries = &
+    entries = real( &
       OPP%diff_streams*OPP%dir_streams * product(config%dims(:)%N) + &
       OPP%dir_streams**2 * product(config%dims(:)%N) + &
       OPP%diff_streams*OPP%dir_streams * product(config%dims(:)%N) + &
-      OPP%dir_streams**2 * product(config%dims(:)%N)
+      OPP%dir_streams**2 * product(config%dims(:)%N), irealLUT)
   else
-    entries = &
+    entries = real( &
       OPP%diff_streams**2 * product(config%dims(:)%N) + &
-      OPP%diff_streams**2 * product(config%dims(:)%N)
+      OPP%diff_streams**2 * product(config%dims(:)%N), irealLUT)
   endif
-  bytesize = real(C_SIZEOF(bytesize), irealLUT) * real(entries, irealLUT)
+  bytesize = real(C_SIZEOF(bytesize), irealLUT) * entries
 
   print *,'Allocating Space for LUTs ( '//ftoa(bytesize/1024**3)//' Gb)'
   errcnt = 0
