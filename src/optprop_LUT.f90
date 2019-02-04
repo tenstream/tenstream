@@ -18,6 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_optprop_LUT
+  use iso_fortran_env, only: INT64
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -97,7 +98,7 @@ module m_optprop_LUT
 
   type t_table
     real(irealLUT), pointer :: c(:,:) => NULL() ! depending on config has Ndim_1*Ndim_2*etc. many entries
-    real(irealLUT), allocatable :: stddev_tol(:,:)
+    real(irealLUT), allocatable :: stddev_tol(:) ! maxval of tolerance for a given entry
     character(default_str_len), allocatable :: table_name_c(:)
     character(default_str_len), allocatable :: table_name_tol(:)
   end type
@@ -523,14 +524,14 @@ subroutine createLUT(OPP, comm, config, S, T)
                 ind = (idst-1) * Nsrc + isrc
                 ldoneS(idst) = ( ( S%c         ( ind, lutindex ).ge.zero)            &
                            .and. ( S%c         ( ind, lutindex ).le.one )            &
-                           .and. ( S%stddev_tol( ind, lutindex ).le.stddev_atol ) )
+                           .and. ( S%stddev_tol(      lutindex ).le.stddev_atol ) )
             enddo
             if(present(T)) then
               do idst = 1,OPP%dir_streams
                 ind = (idst-1)*OPP%dir_streams + isrc
                 ldoneT(idst) = ( ( T%c         ( ind, lutindex ).ge.zero)            &
                   .and. ( T%c         ( ind, lutindex ).le.one )            &
-                  .and. ( T%stddev_tol( ind, lutindex ).le.stddev_atol ) )
+                  .and. ( T%stddev_tol(      lutindex ).le.stddev_atol ) )
               enddo
             else
               ldoneT = .True.
@@ -581,13 +582,13 @@ subroutine createLUT(OPP, comm, config, S, T)
               do idst = 1, OPP%diff_streams
                 ind = (idst-1) * Nsrc + isrc
                 S%c         (ind, lutindex) = S_diff(idst)
-                S%stddev_tol(ind, lutindex) = S_tol (idst)
+                S%stddev_tol(     lutindex) = max(S%stddev_tol(lutindex), S_tol (idst))
               enddo
               if(present(T)) then
                 do idst = 1, OPP%dir_streams
                   ind = (idst-1)*OPP%dir_streams + isrc
                   T%c         (ind, lutindex) = T_dir (idst)
-                  T%stddev_tol(ind, lutindex) = T_tol (idst)
+                  T%stddev_tol(     lutindex) = max(T%stddev_tol(lutindex), T_tol (idst))
                 enddo
               endif
 
@@ -697,33 +698,31 @@ subroutine prepare_table_space(OPP, config, S, T)
   type(t_table),intent(inout) :: S
   type(t_table),intent(inout), optional :: T
 
-  real(irealLUT) :: bytesize, entries
+  integer(INT64) :: entries, bytesize
   integer(iintegers) :: errcnt
 
   if(present(T)) then
     entries = &
-      OPP%diff_streams*OPP%dir_streams * product(config%dims(:)%N) + &
-      OPP%dir_streams**2 * product(config%dims(:)%N) + &
-      OPP%diff_streams*OPP%dir_streams * product(config%dims(:)%N) + &
-      OPP%dir_streams**2 * product(config%dims(:)%N)
+      int(OPP%dir_streams**2, int64)               * int(product(config%dims(:)%N), int64) + &
+      int(OPP%diff_streams*OPP%dir_streams, int64) * int(product(config%dims(:)%N), int64) + &
+      2_int64 * int(product(config%dims(:)%N), int64) ! tolerances
   else
-    entries = &
-      OPP%diff_streams**2 * product(config%dims(:)%N) + &
-      OPP%diff_streams**2 * product(config%dims(:)%N)
+    entries = int(OPP%diff_streams**2+1, int64) * int(product(config%dims(:)%N), int64)
   endif
-  bytesize = C_SIZEOF(bytesize) * entries
-  print *,'Allocating Space for LUTs ( '//ftoa(bytesize/1024**3)//' Gb)'
+  bytesize = int(C_SIZEOF(1._irealLUT), INT64) * entries
+  print *,'Allocating Space for LUTs '//itoa(entries)//' entries ( '//ftoa(bytesize/1024._irealLUT**3)//' Gb) ...'
 
   errcnt = 0
   if(present(T)) then
-    if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=real(nil,irealLUT))
-    if(.not.associated(T%c)) allocate(T%c(OPP%dir_streams**2              , product(config%dims(:)%N)), source=real(nil,irealLUT))
-    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=1e8_irealLUT)
-    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(OPP%dir_streams**2,               product(config%dims(:)%N)), source=1e8_irealLUT)
+    if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)))
+    if(.not.associated(T%c)) allocate(T%c(OPP%dir_streams**2              , product(config%dims(:)%N)))
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=1e8_irealLUT)
+    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(product(config%dims(:)%N)), source=1e8_irealLUT)
   else
-    if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams**2, product(config%dims(:)%N)), source=real(nil,irealLUT))
-    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(OPP%diff_streams**2, product(config%dims(:)%N)), source=1e8_irealLUT)
+    if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams**2, product(config%dims(:)%N)))
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=1e8_irealLUT)
   endif
+  print *,'Allocating Space for LUTs '//itoa(entries)//' entries ( '//ftoa(bytesize/1024._irealLUT**3)//' Gb) ... done'
 end subroutine
 
 ! return the integer in config%dims that corresponds to the given dimension
