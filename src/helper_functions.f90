@@ -1124,6 +1124,7 @@ module m_helper_functions
       if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
     end function
 
+    !> @brief returns the angle between two not necessarily normed vectors. Result is in radians
     function angle_between_two_vec(p1, p2)
       real(ireals),intent(in) :: p1(:), p2(:)
       real(ireals) :: angle_between_two_vec
@@ -1482,8 +1483,8 @@ module m_helper_functions
       real(ireals),intent(in) :: angle, rot_axis(3)
       real(ireals) :: s,c,u(3),omc
       u = rot_axis / norm(rot_axis)
-      s=sin(deg2rad(angle))
-      c=cos(deg2rad(angle))
+      s=sin(angle)
+      c=cos(angle)
       omc = 1._ireals - c
 
       M(1,:)=[u(1)*u(1)*omc + c     , u(1)*u(2)*omc - u(3)*s, u(1)*u(3)*omc + u(2)*s]

@@ -3,7 +3,7 @@ module test_helper_functions
   use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
   use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
     compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction, &
-    cumprod, reverse
+    cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad
 
   use pfunit_mod
 
@@ -267,5 +267,37 @@ subroutine test_reverse(this)
 
   @assertEqual(reverse(arr+1), arr2d(1,:))
   @assertEqual(reverse(arr), arr2d(2,:))
+end subroutine
+
+@test(npes=[1])
+subroutine test_rotation_matrix_around_axis_vec(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals), dimension(3) :: ex, ey, ez, x1, x2
+  real(ireals) :: rot_angle, Mrot(3,3)
+  real(ireals), parameter :: eps=sqrt(epsilon(eps))
+  integer(iintegers) :: i
+
+  ex = [1,0,0]
+  ey = [0,1,0]
+  ez = [0,0,1]
+  x1 = [1,0,0]
+
+  Mrot = rotation_matrix_around_axis_vec(deg2rad(180._ireals), ez)
+  @assertEqual(-x1, matmul(Mrot, x1), eps)
+
+  Mrot = rotation_matrix_around_axis_vec(deg2rad(360._ireals), ez)
+  @assertEqual(x1, matmul(Mrot, x1), eps)
+
+  do i = 0, 360
+    rot_angle = real(i, ireals)
+    Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), ex)
+    @assertEqual(x1, matmul(Mrot, x1), eps)
+  enddo
+
+  Mrot = rotation_matrix_around_axis_vec(deg2rad(90._ireals), ey)
+  @assertEqual(-ez, matmul(Mrot, x1), eps)
+
+  Mrot = rotation_matrix_around_axis_vec(deg2rad(270._ireals), ey)
+  @assertEqual(ez, matmul(Mrot, x1), eps)
 end subroutine
 end module

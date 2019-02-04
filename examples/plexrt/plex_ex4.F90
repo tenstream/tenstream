@@ -6,7 +6,7 @@ module m_mpi_plex_ex4
   use m_tenstream_options, only : read_commandline_options
 
   use m_helper_functions, only: CHKERR, norm, imp_bcast, determine_normal_direction, &
-    spherical_2_cartesian, angle_between_two_vec, rad2deg, meanvec, reverse
+    spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, meanvec, reverse
 
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     default_str_len, &
@@ -251,7 +251,7 @@ contains
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_theta", rot_angle, lflg, ierr) ; call CHKERR(ierr)
       if(lflg) then
         U = cross_3d(first_normal, sundir)
-        Mrot = rotation_matrix_around_axis_vec(rot_angle, U)
+        Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), U)
         rot_sundir = matmul(Mrot, sundir)
         if(ldebug.and.myid.eq.0) print *,'S', sundir, norm(sundir)
         if(ldebug.and.myid.eq.0) print *,'U', U, norm(U)
