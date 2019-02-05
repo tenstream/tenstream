@@ -60,6 +60,7 @@ module m_netcdfIO
     module procedure get_global_attribute_str, get_global_attribute_r32, get_global_attribute_r64
   end interface
 
+#if __HAVE_NC_SET_LOG_LEVEL__
   interface
     function nf90_set_log_level(level) bind (C, name = "nc_set_log_level")
       use iso_c_binding
@@ -68,8 +69,17 @@ module m_netcdfIO
       integer(c_int), intent (in) :: level
     end function nf90_set_log_level
   end interface
+#endif
 
   contains
+
+#if !(__HAVE_NC_SET_LOG_LEVEL__)
+  integer(c_int) function nf90_set_log_level(level) result(r)
+    use iso_c_binding
+    integer(c_int), intent (in) :: level
+    r = 0
+  end function
+#endif
 
     subroutine ncwrite_1d_r32(groups,arr,ierr,arr_shape,startp,countp,stride,map)
         real(REAL32),intent(in) :: arr(:)

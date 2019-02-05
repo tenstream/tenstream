@@ -9,6 +9,18 @@ SET_SOURCE_FILES_PROPERTIES(pprts.f90 PROPERTIES COMPILE_FLAGS -Wno-unused-funct
 SET_SOURCE_FILES_PROPERTIES(tenstream.f90 PROPERTIES COMPILE_FLAGS -Wno-error)
 SET_SOURCE_FILES_PROPERTIES(c_syscall_constants.c PROPERTIES COMPILE_FLAGS "-D_BSD_SOURCE")
 
+check_function_exists(nc_set_log_level HAVE_NC_SET_LOG_LEVEL)
+if (${HAVE_NC_SET_LOG_LEVEL})
+  SET_SOURCE_FILES_PROPERTIES(netcdfio.f90 PROPERTIES COMPILE_DEFINITIONS __HAVE_NC_SET_LOG_LEVEL__=TRUE)
+else(${HAVE_NC_SET_LOG_LEVEL})
+  SET_SOURCE_FILES_PROPERTIES(netcdfio.f90 PROPERTIES COMPILE_DEFINITIONS __HAVE_NC_SET_LOG_LEVEL__=FALSE)
+  message("  INFO Could not find C function for 'nc_set_log_level'
+     -- this is however needed if you want to show hdf5 error messages through the netcdf functions.
+     If you need to debug file reading or writing,
+     please recompile your netcdf-c lib with --enable-logging")
+endif(${HAVE_NC_SET_LOG_LEVEL})
+
+
 set( general_sources
   "helper_functions.f90"
   "helper_functions_dp.f90"
