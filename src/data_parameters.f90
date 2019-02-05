@@ -18,13 +18,12 @@
 !-------------------------------------------------------------------------
 
 module m_data_parameters
-      use, intrinsic :: iso_fortran_env
-      use iso_fortran_env, only: REAL32
+      use iso_fortran_env, only: INT32, INT64, REAL32, REAL64
 
 #ifdef _XLF
         use mpi
 #else
-        use mpi ,only:mpi_sizeof, mpi_type_match_size
+        use mpi ,only: mpi_sizeof, mpi_type_match_size
 #endif
 
 #include <petsc/finclude/petscsys.h>
