@@ -172,61 +172,61 @@ contains
           class is (t_optprop_LUT_1_2)
             OPP%dir_streams  =  1
             OPP%diff_streams =  2
-            OPP%lutbasename=trim(lut_basename)//'_1_2.'
+            OPP%lutbasename=trim(lut_basename)
             allocate(t_boxmc_1_2::OPP%bmc)
 
           class is (t_optprop_LUT_3_6)
             OPP%dir_streams  = 3
             OPP%diff_streams = 6
-            OPP%lutbasename=trim(lut_basename)//'_3_6.'
+            OPP%lutbasename=trim(lut_basename)
             allocate(t_boxmc_3_6::OPP%bmc)
 
           class is (t_optprop_LUT_3_10)
             OPP%dir_streams  = 3
             OPP%diff_streams = 10
-            OPP%lutbasename=trim(lut_basename)//'_3_10.'
+            OPP%lutbasename=trim(lut_basename)
             allocate(t_boxmc_3_10::OPP%bmc)
 
           class is (t_optprop_LUT_3_16)
             OPP%dir_streams  = 3
             OPP%diff_streams = 16
-            OPP%lutbasename=trim(lut_basename)//'_3_16.'
+            OPP%lutbasename=trim(lut_basename)
             allocate(t_boxmc_3_16::OPP%bmc)
 
           class is (t_optprop_LUT_8_10)
             OPP%dir_streams  = 8
             OPP%diff_streams = 10
-            OPP%lutbasename=trim(lut_basename)//'_8_10.'
+            OPP%lutbasename=trim(lut_basename)
             allocate(t_boxmc_8_10::OPP%bmc)
 
           class is (t_optprop_LUT_8_12)
             OPP%dir_streams  = 8
             OPP%diff_streams = 12
-            OPP%lutbasename=trim(lut_basename)//'_8_12.'
+            OPP%lutbasename=trim(lut_basename)
             allocate(t_boxmc_8_12::OPP%bmc)
 
           class is (t_optprop_LUT_8_16)
             OPP%dir_streams  = 8
             OPP%diff_streams = 16
-            OPP%lutbasename=trim(lut_basename)//'_8_16.'
+            OPP%lutbasename=trim(lut_basename)
             allocate(t_boxmc_8_16::OPP%bmc)
 
           class is (t_optprop_LUT_8_18)
             OPP%dir_streams  = 8
             OPP%diff_streams = 18
-            OPP%lutbasename=trim(lut_basename)//'_8_18.'
+            OPP%lutbasename=trim(lut_basename)
             allocate(t_boxmc_8_18::OPP%bmc)
 
           class is (t_optprop_LUT_wedge_5_8)
             OPP%dir_streams  = 5
             OPP%diff_streams = 8
-            OPP%lutbasename=trim(lut_basename)//'_wedge_5_8.Rsphere'//itoa(int(wedge_sphere_radius))//'.'
+            OPP%lutbasename=trim(lut_basename)//'_wedge.Rsphere'//itoa(int(wedge_sphere_radius))
             allocate(t_boxmc_wedge_5_8::OPP%bmc)
 
           class is (t_optprop_LUT_wedge_18_8)
             OPP%dir_streams  = 18
             OPP%diff_streams = 8
-            OPP%lutbasename=trim(lut_basename)//'_wedge_18_8.Rsphere'//itoa(int(wedge_sphere_radius))//'.'
+            OPP%lutbasename=trim(lut_basename)//'_wedge.Rsphere'//itoa(int(wedge_sphere_radius))
             allocate(t_boxmc_wedge_18_8::OPP%bmc)
 
           class default
@@ -322,7 +322,7 @@ subroutine load_table_from_netcdf(table, istat)
       endif
     enddo
   endif
-  if(istat.ne.0) print *,'Test if coeffs are good results in:', istat
+  if(istat.ne.0) print *,'Test if coeffs in'//char_arr_to_str(table%table_name_tol,'/')//' are good results in:', istat
 end subroutine
 
 subroutine loadLUT_diff(OPP, comm)
@@ -343,7 +343,7 @@ subroutine loadLUT_diff(OPP, comm)
     errcnt = 0
 
     ! Set filename of LUT
-    descr = gen_lut_basename('diffuse', OPP%diffconfig)
+    descr = gen_lut_basename('_diffuse_'//itoa(OPP%diff_streams), OPP%diffconfig)
 
     str(1) = trim(OPP%lutbasename)//trim(descr)//'.nc'
     str(2) = 'diffuse'
@@ -391,7 +391,7 @@ subroutine loadLUT_dir(OPP, comm)
     errcnt = 0
 
     ! Set filename of LUT
-    descr = gen_lut_basename('direct', OPP%dirconfig)
+    descr = gen_lut_basename('_direct_'//itoa(OPP%dir_streams)//'_'//itoa(OPP%diff_streams), OPP%dirconfig)
 
     str(1) = trim(OPP%lutbasename)//trim(descr)//'.nc'
     str(2) = 'direct'
