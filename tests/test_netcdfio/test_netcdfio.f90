@@ -194,67 +194,6 @@ subroutine test_netcdf_load_write_r64(this)
     enddo
 end subroutine
 
-
-@test(npes =[2])
-subroutine test_netcdf_load_write_r64(this)
-    class (MpiTestMethod), intent(inout) :: this
-    integer(mpiint) :: numnodes, comm, myid, ierr, rank
-    real(REAL64),allocatable :: a1d(:)
-    real(REAL64),allocatable :: a2d(:,:)
-
-    integer(mpiint),parameter :: N=10
-    character(len=default_str_len) :: groups(3)
-
-    comm     = this%getMpiCommunicator()
-    numnodes = this%getNumProcesses()
-    myid     = this%getProcessRank()
-
-    groups(1) = trim(fname)
-    groups(2) = 'rank'//itoa(myid)//'_kind_'//itoa(kind(a1d))
-    groups(3) = 'a1d'
-
-    allocate(a1d(N), source=real(myid, kind(a1d)))
-    do rank = 0, numnodes-1
-      if(rank.eq.myid) then
-        call ncwrite(groups, a1d, ierr); call CHKERR(ierr, 'Could not write 1d array to nc file')
-      endif
-      call mpi_barrier(comm, ierr); call CHKERR(ierr)
-    enddo
-    ! Now everyone has written his stuff into the netcdf file
-    call mpi_barrier(comm, ierr); call CHKERR(ierr)
-
-    ! Try reading it without barriers
-    do rank = 0, numnodes-1
-      deallocate(a1d)
-      groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a1d))
-      call ncload(groups, a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file')
-      @mpiassertEqual(real(rank, kind(a1d)), a1d(1))
-      @mpiassertEqual(N, size(a1d))
-    enddo
-
-    allocate(a2d(N,N), source=real(myid, kind(a2d)))
-    groups(1) = trim(fname)
-    groups(2) = 'rank'//itoa(myid)//'_kind_'//itoa(kind(a1d))
-    groups(3) = 'a2d'
-
-    do rank = 0, numnodes-1
-      if(rank.eq.myid) then
-        call ncwrite(groups, a2d, ierr); call CHKERR(ierr, 'Could not write 2d array to nc file')
-      endif
-      call mpi_barrier(comm, ierr); call CHKERR(ierr)
-    enddo
-    call mpi_barrier(comm, ierr); call CHKERR(ierr)
-
-    do rank= 0, numnodes-1
-      deallocate(a2d)
-      groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a1d))
-      call ncload(groups, a2d, ierr); call CHKERR(ierr, 'Could not read 2d array from nc file')
-      @mpiassertEqual(real(rank, kind(a2d)), a2d(1,1))
-      @mpiassertEqual(N, size(a2d, dim=1))
-      @mpiassertEqual(N, size(a2d, dim=2))
-    enddo
-end subroutine
-
 @test(npes=[1])
   subroutine test_netcdf_write_hyperslab_1d(this)
     class (MpiTestMethod), intent(inout) :: this
