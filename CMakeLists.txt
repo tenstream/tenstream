@@ -21,7 +21,7 @@ endif (NOT CMAKE_BUILD_TYPE)
 
 # guard against in-source builds
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
-  message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there.")
+  message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR} !== CMAKE_BINARY_DIR: ${CMAKE_BINARY_DIR}")
 endif()
 
 ########################### Tenstream Project: ###################################
@@ -63,21 +63,6 @@ endif()
 #  message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
 #endif(${HDF5_FOUND})
 
-# NetCDF
-set (NETCDF_F90 "YES")
-find_package( NetCDF )
-if(${NETCDF_FOUND})
-  message(STATUS "Found NetCDF:    ${NETCDF_FOUND}" )
-  message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
-  message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
-  message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
-  include_directories(${NETCDF_INCLUDES})
-  include_directories(${NETCDF_INCLUDES_F90})
-  list (APPEND EXTLIB ${NETCDF_LIBRARIES})
-else(${NETCDF_FOUND})
-  message(WARNING "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
-endif(${NETCDF_FOUND})
-
 # Add Lapack
 find_package( LAPACK )
 if(${LAPACK_FOUND})
@@ -105,6 +90,22 @@ endif(PETSC_HDF5_LIB)
 add_definitions (${PETSC_DEFINITIONS})
 include_directories (${PETSC_INCLUDES})
 list (APPEND EXTLIB "${PETSC_LIBRARIES}" )
+
+# NetCDF
+set (NETCDF_F90 "YES")
+find_package( NetCDF )
+if(${NETCDF_FOUND})
+  message(STATUS "Found NetCDF:    ${NETCDF_FOUND}" )
+  message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
+  message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
+  message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
+  include_directories(${NETCDF_INCLUDES})
+  include_directories(${NETCDF_INCLUDES_F90})
+  list (APPEND EXTLIB ${NETCDF_LIBRARIES})
+else(${NETCDF_FOUND})
+  message(WARNING "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
+endif(${NETCDF_FOUND})
+
 
 ## Set MPI Stuff
 option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" OFF)
