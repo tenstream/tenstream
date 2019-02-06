@@ -22,7 +22,7 @@ module m_plex_grid
   public :: t_plexgrid, load_plex_from_file, create_plex_from_icongrid, &
     icell_icon_2_plex, iface_top_icon_2_plex, update_plex_indices, &
     compute_face_geometry, &
-    setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
+    setup_cell1_dmplex, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
     print_dmplex, ncvar2d_to_globalvec, facevec2cellvec, &
     orient_face_normals_along_sundir, compute_wedge_orientation, is_solar_src, &
     compute_local_wedge_ordering, compute_local_vertex_coordinates, &
@@ -501,11 +501,6 @@ module m_plex_grid
         call label_domain_boundary(plex%dm, plex%ltopfacepos, plex%zindex, &
           plex%boundarylabel, plex%domainboundarylabel, plex%ownerlabel)
         call setup_srfc_boundary_dm(plex, plex%srfc_boundary_dm)
-
-        call setup_cell1_dmplex(plex%dm, plex%cell1_dm)
-        call setup_edir_dmplex(plex, plex%dm, plex%edir_dm)
-        call setup_ediff_dmplex(plex, plex%dm, plex%ediff_dm)
-        call setup_abso_dmplex(plex%dm, plex%abso_dm)
       end subroutine
 
       subroutine gen_test_mat(dm)
@@ -1347,9 +1342,10 @@ module m_plex_grid
     call PetscSectionDestroy(edirSection, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine setup_edir_dmplex(plex, orig_dm, dm)
+  subroutine setup_edir_dmplex(plex, orig_dm, top_streams, side_streams, dof_per_stream, dm)
     type(t_plexgrid), intent(in) :: plex
     type(tDM), intent(in) :: orig_dm
+    integer(iintegers), intent(in) :: top_streams, side_streams, dof_per_stream
     type(tDM), allocatable, intent(inout) :: dm
     type(tPetscSection) :: section
     integer(mpiint) :: ierr
@@ -1364,8 +1360,8 @@ module m_plex_grid
     call DMSetOptionsPrefix(dm, 'dir', ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-    call gen_face_section(dm, top_streams=i1, side_streams=i1, dof_per_stream=i1, section=section, &
-      geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
+    call gen_face_section(dm, top_streams=top_streams, side_streams=side_streams, dof_per_stream=dof_per_stream, &
+      section=section, geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
 
     call DMSetSection(dm, section, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_section', ierr); call CHKERR(ierr)
@@ -1381,9 +1377,10 @@ module m_plex_grid
   !        * component 0: radiation travelling from cell_a to cell_b
   !        * component 1: radiation going from cell_b to cell_a
   !      where id of cell_b is larger id(cell_a)
-  subroutine setup_ediff_dmplex(plex, orig_dm, dm)
+  subroutine setup_ediff_dmplex(plex, orig_dm, top_streams, side_streams, dof_per_stream, dm)
     type(t_plexgrid), intent(in) :: plex
     type(tDM), intent(in) :: orig_dm
+    integer(iintegers), intent(in) :: top_streams, side_streams, dof_per_stream
     type(tDM), allocatable, intent(inout) :: dm
     type(tPetscSection) :: section
     integer(mpiint) :: ierr
@@ -1397,8 +1394,8 @@ module m_plex_grid
     call DMSetOptionsPrefix(dm, 'diff', ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-    call gen_face_section(dm, top_streams=i1, side_streams=i2, dof_per_stream=i2, section=section, &
-      geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
+    call gen_face_section(dm, top_streams=top_streams, side_streams=side_streams, dof_per_stream=dof_per_stream, &
+      section=section, geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
 
     call DMSetSection(dm, section, ierr); call CHKERR(ierr)
     call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_diff_section', ierr); call CHKERR(ierr)

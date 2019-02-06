@@ -19,17 +19,17 @@ use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
 
 use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
   setup_edir_dmplex, setup_abso_dmplex, compute_face_geometry, &
-  ncvar2d_to_globalvec, setup_plexgrid, &
+  ncvar2d_to_globalvec, setup_plexgrid, setup_cell1_dmplex, &
   gen_test_mat, get_normal_of_first_toa_face, get_horizontal_faces_around_vertex, &
   atm_dz_to_vertex_heights
 
-use m_plex_rt, only: compute_face_geometry, &
+use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandline, &
   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   plexrt_get_result, destroy_plexrt_solver
 
-use m_netcdfio, only : ncload
+use m_netcdfio, only : ncload, ncwrite
 
-use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D, dump_ownership
+use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D, dump_ownership, Nz_Ncol_vec_to_celldm1
 
 implicit none
 
@@ -47,12 +47,11 @@ logical, parameter :: ldebug=.True.
       !real(ireals), allocatable :: atm_dz(:,:)
 
       integer(mpiint) :: myid, numnodes, ierr
-      integer(iintegers) :: k, vStart, vEnd!, fStart, fEnd
+      integer(iintegers) :: icol, k, vStart, vEnd!, fStart, fEnd
       !type(tVec) :: lwcvec, iwcvec
 
       real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
       !real(ireals),allocatable :: hhl(:)
-      !character(len=default_str_len) :: ncgroups(2)
 
       type(t_plexgrid), allocatable :: plex
       integer(iintegers), allocatable :: zindex(:)
@@ -97,11 +96,12 @@ logical, parameter :: ldebug=.True.
       !call ncvar2d_to_globalvec(plexgrid, icondatafile, 'cli', iwcvec)
       !call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
+      call allocate_plexrt_solver_from_commandline(solver, '5_8')
       call init_plex_rt_solver(plex, solver)
 
       call init_sundir()
 
-      call set_plex_rt_optprop(solver, vert_integrated_kabs=one, vert_integrated_ksca=zero)
+      call set_plex_rt_optprop(solver, vert_integrated_kabs=1e-0_ireals, vert_integrated_ksca=zero)
 
       if(.not.allocated(solver%albedo)) then
         allocate(solver%albedo)
@@ -127,15 +127,37 @@ logical, parameter :: ldebug=.True.
       endif
 
       call plexrt_get_result(solver, edn, eup, abso, redir=edir)
+
+      do icol = 1, Nx
+        print *,''
+        print *,cstr('Column ','blue')//cstr(itoa(icol),'red')//&
+          cstr('  k  Edir              Edn              Eup              abso', 'blue')
+        do k = 1, ubound(abso,1)
+          print *,k, edir(k,icol), edn(k,icol), eup(k,icol), abso(k,icol)
+        enddo
+        print *,k, edir(k,icol), edn(k,icol), eup(k,icol)
+      enddo
+
+      call dump_result()
+
       call destroy_plexrt_solver(solver, lfinalizepetsc=.False.)
 
-      print *,'k                Edir                Edn                          Eup                          abso'
-      do k = 1, ubound(abso,1)
-        print *,k, edir(k,1), edn(k,1), eup(k,1), abso(k,1)
-      enddo
-      print *,k, edir(k,1), edn(k,1), eup(k,1)
-
       contains
+        subroutine dump_result()
+          logical :: lflg, ldump
+          type(tVec) :: vec=PETSC_NULL_VEC
+          call DMGetGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
+
+          ldump = .False.
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-ex_dump_result', ldump, lflg, ierr) ; call CHKERR(ierr)
+          if(ldump) then
+            call Nz_Ncol_vec_to_celldm1(solver%plex, edir(2:,:), vec)
+            call PetscObjectSetName(vec, 'ex_dump_result_edir', ierr);call CHKERR(ierr)
+            call PetscObjectViewFromOptions(solver%plex%cell1_dm, PETSC_NULL_DM, "-ex_dump_result_edir_dm", ierr); call CHKERR(ierr)
+            call PetscObjectViewFromOptions(vec, PETSC_NULL_DM, "-ex_dump_result_edir", ierr); call CHKERR(ierr)
+          endif
+          call DMRestoreGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
+        end subroutine
         subroutine init_sundir()
           use m_helper_functions, only: cross_3d, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
             rotate_angle_x, rotation_matrix_around_axis_vec

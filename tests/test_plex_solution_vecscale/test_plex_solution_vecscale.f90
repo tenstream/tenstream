@@ -19,7 +19,7 @@ use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
   ncvar2d_to_globalvec, setup_plexgrid, &
   gen_test_mat, get_normal_of_first_toa_face
 
-use m_plex_rt, only: compute_face_geometry, &
+use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandline, &
   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   plexrt_get_result, destroy_plexrt_solver, scale_flx
 
@@ -47,6 +47,7 @@ implicit none
       type(tVec), allocatable :: diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2
       type(t_state_container) :: solution
 
+      class(t_plex_solver), allocatable :: plex_solver
       type(t_plexgrid), allocatable :: plex
       integer(iintegers), allocatable :: zindex(:)
 
@@ -68,6 +69,9 @@ implicit none
 
       call setup_plexgrid(dm3d, Nz-1, zindex, plex)
       deallocate(zindex)
+
+      call allocate_plexrt_solver_from_commandline(plex_solver, '5_8')
+      call init_plex_rt_solver(plex, plex_solver)
 
       call prepare_solution(plex%edir_dm, plex%ediff_dm, plex%abso_dm, lsolar=.True., solution=solution)
 
@@ -95,11 +99,10 @@ implicit none
           call VecSet(solution_vec, initialvar, ierr); call CHKERR(ierr)
           call VecSet(tmp_vec, initialvar, ierr); call CHKERR(ierr)
 
-          call scale_flx(plex, &
+          call scale_flx(plex_solver, plex, &
             dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
             diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
             solution, lWm2=.True.)
-
 
           call VecGetArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
           call VecGetArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
@@ -109,7 +112,7 @@ implicit none
           call VecRestoreArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
           call VecRestoreArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
 
-          call scale_flx(plex, &
+          call scale_flx(plex_solver, plex, &
             dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
             diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
             solution, lWm2=.False.)
@@ -139,7 +142,7 @@ implicit none
           call VecRestoreArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
           call VecRestoreArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
 
-          call scale_flx(plex, &
+          call scale_flx(plex_solver, plex, &
             dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
             diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
             solution, lWm2=.True.)

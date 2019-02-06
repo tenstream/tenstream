@@ -20,7 +20,7 @@ module m_mpi_plex_ex4
 
   use m_plex_grid, only: t_plexgrid, setup_plexgrid, get_normal_of_first_toa_face, atm_dz_to_vertex_heights
 
-  use m_plex_rt, only: compute_face_geometry, &
+  use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandline, &
     t_plex_solver, init_plex_rt_solver
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, print_tenstr_atm, &
@@ -162,6 +162,7 @@ contains
       d_lwc=col_lwc, d_reliq=col_reliq, &
       d_iwc=col_iwc, d_reice=col_reice)
 
+    call allocate_plexrt_solver_from_commandline(solver, '5_8')
     call init_plex_rt_solver(plex, solver)
 
     call init_sundir()

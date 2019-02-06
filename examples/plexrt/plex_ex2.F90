@@ -19,7 +19,7 @@ use m_icon_plex_utils, only: gen_2d_plex_from_icongridfile, icon_hdcp2_default_h
 
 use m_plex_grid, only: t_plexgrid, setup_plexgrid, get_normal_of_first_toa_face
 
-use m_plex_rt, only: compute_face_geometry, &
+use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandline, &
   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   destroy_plexrt_solver
 
@@ -73,6 +73,7 @@ logical, parameter :: ldebug=.True.
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)
       call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
 
+      call allocate_plexrt_solver_from_commandline(solver, '5_8')
       call init_plex_rt_solver(plex, solver)
 
       first_normal = get_normal_of_first_TOA_face(solver%plex)

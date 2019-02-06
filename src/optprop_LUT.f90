@@ -291,23 +291,35 @@ subroutine load_table_from_netcdf(table, istat)
   type(t_table), intent(inout) :: table
   integer(mpiint), intent(out) :: istat
 
+  integer(iintegers) :: k
   integer(mpiint) :: ierr
   istat = 0
 
   call ncload(table%table_name_tol, table%stddev_tol, ierr); istat = istat + ierr
   if(ierr.eq.0) then ! we were able to load stddev but still have to check if they all have a good enough noise...
-    if(any(table%stddev_tol.gt.stddev_atol+10*epsilon(stddev_atol))) then
-      istat = istat + 1
-      print *,'coefficients not good enough', maxval(table%stddev_tol),'should be less than', stddev_atol+10*epsilon(stddev_atol)
-    endif
+    do k = 1, size(table%stddev_tol, kind=iintegers)
+      if(table%stddev_tol(k).gt.stddev_atol+10*epsilon(stddev_atol)) then
+        istat = istat + 1
+        if(istat.ne.0) then
+          print *,'coefficients not good enough', k, table%stddev_tol(k),&
+            'should be less than', stddev_atol+10*epsilon(stddev_atol)
+          exit
+        endif
+      endif
+    enddo
   endif
 
   call ncload(table%table_name_c, table%c, ierr); istat = istat + ierr
   if(ierr.eq.0) then ! we were able to load coeffs but still have to check if they are all ok...
-    if(any( table%c.gt.one ).or.any(table%c.lt.zero) ) then
-      istat = istat + 2
-      print *,'coefficients not good enough', minval(table%c), maxval(table%c),'should be between [0,1]'
-    endif
+    do k = 1, size(table%c, dim=2, kind=iintegers)
+      if(any(table%c(:,k).gt.one) .or. any(table%c(:,k).lt.zero)) then
+        istat = istat + 2
+        if(istat.ne.0) then
+          print *,'coefficients not good enough', k, table%c(:,k), 'should be between [0,1]'
+          exit
+        endif
+      endif
+    enddo
   endif
   if(istat.ne.0) print *,'Test if coeffs are good results in:', istat
 end subroutine
@@ -582,13 +594,21 @@ subroutine createLUT(OPP, comm, config, S, T)
               do idst = 1, OPP%diff_streams
                 ind = (idst-1) * Nsrc + isrc
                 S%c         (ind, lutindex) = S_diff(idst)
-                S%stddev_tol(     lutindex) = max(S%stddev_tol(lutindex), S_tol (idst))
+                if(S%stddev_tol(lutindex).gt.one) then ! never has been set
+                  S%stddev_tol(lutindex) = S_tol(idst)
+                else
+                  S%stddev_tol(lutindex) = max(S%stddev_tol(lutindex), S_tol(idst))
+                endif
               enddo
               if(present(T)) then
                 do idst = 1, OPP%dir_streams
                   ind = (idst-1)*OPP%dir_streams + isrc
                   T%c         (ind, lutindex) = T_dir (idst)
-                  T%stddev_tol(     lutindex) = max(T%stddev_tol(lutindex), T_tol (idst))
+                  if(T%stddev_tol(lutindex).gt.one) then ! never has been set
+                    T%stddev_tol(lutindex) = T_tol(idst)
+                  else
+                    T%stddev_tol(lutindex) = max(T%stddev_tol(lutindex), T_tol (idst))
+                  endif
                 enddo
               endif
 
@@ -599,14 +619,14 @@ subroutine createLUT(OPP, comm, config, S, T)
               if( (now-lastsavetime).gt.LUT_dump_interval .or. (now-starttime).gt.LUT_max_create_jobtime ) then !every 30 minutes wall clock time, dump the LUT.
                 print *,'Dumping LUT after ',(now-lastsavetime)/60,'minutes'
                 if(present(T)) then
-                  print *,'Writing table to file... ', T%table_name_c
+                  print *,'Writing table to file... ', trim(T%table_name_c)
                   call ncwrite(T%table_name_c, T%c, iierr); call CHKERR(iierr, 'Could not write Table to file')
-                  print *,'Writing table to file... ', T%table_name_tol
+                  print *,'Writing table to file... ', trim(T%table_name_tol)
                   call ncwrite(T%table_name_tol, T%stddev_tol, iierr); call CHKERR(iierr, 'Could not write Table to file')
                 endif
-                print *,'Writing table to file... ', S%table_name_c
+                print *,'Writing table to file... ', trim(S%table_name_c)
                 call ncwrite(S%table_name_c, S%c, iierr); call CHKERR(iierr, 'Could not write Table to file')
-                print *,'Writing table to file... ', S%table_name_tol
+                print *,'Writing table to file... ', trim(S%table_name_tol)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr); call CHKERR(iierr, 'Could not write Table to file')
                 print *,'done writing!',iierr
                 lastsavetime = now ! reset the countdown
@@ -1109,13 +1129,13 @@ subroutine set_parameter_space(OPP)
       class is (t_optprop_LUT_wedge_18_8)
           OPP%interp_mode = interp_mode_wedge
           allocate(OPP%dirconfig%dims(7))
-          call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
+          call populate_LUT_dim('tau',       size(preset_tau20,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau20)
           call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
           call populate_LUT_dim('aspect_zx', size(preset_aspect7,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect7)
           call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%dirconfig%dims(5), vrange=real([.8,.9485], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 10_iintegers, OPP%dirconfig%dims(5), vrange=real([.8,.9485], irealLUT))
           call populate_LUT_dim('phi',       35_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
-          call populate_LUT_dim('theta',     7_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
 
           allocate(OPP%diffconfig%dims(5))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)

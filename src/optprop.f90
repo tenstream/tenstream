@@ -123,7 +123,7 @@ contains
               class is (t_optprop_wedge_18_8)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_18_8::OPP%OPP_LUT)
               class default
-                stop ' init optprop : unexpected type for optprop object!'
+                call CHKERR(1_mpiint, ' init optprop : unexpected type for optprop object!')
             end select
             call OPP%OPP_LUT%init(comm)
 
@@ -131,7 +131,7 @@ contains
             call ANN_init(comm, ierr)
   !          stop 'ANN not yet implemented'
           case default
-            stop 'coeff mode optprop initialization not defined '
+            call CHKERR(1_mpiint, 'coeff mode optprop initialization not defined')
         end select
   end subroutine
   subroutine destroy(OPP)
@@ -299,12 +299,34 @@ contains
               c11,c12,c13,c23,c33,g1,g2)
 
             if(ldir) then
-              ! set the transport coeffs for src top to zero, leave the rest.
-              C(21) = real(c33, irealLUT) ! from top to bot
-              C(22:24) = 1 ! from sides to bot
+              select type(OPP)
+              class is (t_optprop_wedge_5_8)
+                ! set the transport coeffs for src top to zero, leave the rest.
+                C(5*4+1) = real(c33, irealLUT) ! from top to bot
+                C(22:24) = 1 ! from sides to bot
+              class is (t_optprop_wedge_18_8)
+                C(18*15+1) = real(c33, irealLUT) ! from top to bot
+                C(18*16+2) = real(c33, irealLUT) ! from top to bot
+                C(18*17+3) = real(c33, irealLUT) ! from top to bot
+              class default
+                call CHKERR(1_mpiint, 'wedge handle_aspect_zx_1D_case not implemented for this type of OPP')
+              end select
+
             else
-              C(1) = real(c13, irealLUT)
-              C(7*5+1) = real(c23, irealLUT)
+              select type(OPP)
+              class is (t_optprop_wedge_5_8)
+                C(0*5+1) = real(c13, irealLUT) ! reflection
+                C(7*5+1) = real(c23, irealLUT) ! transmission
+              class is (t_optprop_wedge_18_8)
+                C(0*18+1) = real(c13, irealLUT)
+                C(0*18+2) = real(c13, irealLUT)
+                C(0*18+3) = real(c13, irealLUT)
+                C(7*18+1) = real(c23, irealLUT)
+                C(7*18+2) = real(c23, irealLUT)
+                C(7*18+3) = real(c23, irealLUT)
+              class default
+                call CHKERR(1_mpiint, 'wedge handle_aspect_zx_1D_case not implemented for this type of OPP')
+              end select
             endif
 
             handle_aspect_zx_1D_case = .True.

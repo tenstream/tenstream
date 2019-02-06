@@ -132,7 +132,6 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         case (-1) ! thermal emission
                 p%loc = (/ L(dx) , L(dy) , L(dz) /)
                 mu = 2*mu2 - one
-                phi= deg2rad( R()*360 )
         case (1)
                 p%loc = (/ L(dx) , L(dy) , zero  /)
         case (2)
@@ -154,15 +153,16 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         case (10)
                 p%loc = (/ L(dx) , zero  , L(dz) /)
         case default
-                print *,'Dont know what to do with source spec:',src
-                call exit
+                call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
         end select
 
         select case(src)
-          case(1:2)
+          case(-1,1,2)
             phi = deg2rad( R()*360 )
           case(3:10)
             phi = deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
+          case default
+            call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
         end select
 
         p%dir = (/sin(phi)*sin(acos(mu)) , cos(phi)*sin(acos(mu)) , mu  /)

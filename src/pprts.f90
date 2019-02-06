@@ -98,7 +98,6 @@ module m_pprts
     character(len=*), optional, intent(in) :: solvername     !< @param[in] primarily for logging purposes, name will be prefix to logging stages
 
     integer(iintegers) :: k,i,j
-    !    character(default_str_len),parameter :: tenstreamrc='./.tenstreamrc'
     logical :: lpetsc_is_initialized
 
     if(.not.solver%linitialized) then
@@ -383,6 +382,7 @@ module m_pprts
         DMBoundaryType, intent(in) :: boundary
 
         integer(iintegers), parameter :: stencil_size=1
+        if(ldebug.and.present(nxproc).and.present(nyproc)) print *, solver%myid, 'setup_dmda', nxproc, nyproc
 
         allocate(C)
 

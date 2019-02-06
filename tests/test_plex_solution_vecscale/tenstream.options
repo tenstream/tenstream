@@ -1,3 +1,5 @@
+-twostr_only
+-skip_load_LUT
 -show_dm_geom_vec
 -show_dm_geom_vec ::ascii_info_detail
 -polar_coords no

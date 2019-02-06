@@ -12,7 +12,8 @@ module m_mpi_plex_ex1
                        setup_edir_dmplex, setup_abso_dmplex, &
                        get_normal_of_first_toa_face
 
-  use m_plex_rt, only: t_plex_solver, init_plex_rt_solver, run_plex_rt_solver
+  use m_plex_rt, only: t_plex_solver, allocate_plexrt_solver_from_commandline, &
+    init_plex_rt_solver, run_plex_rt_solver
 
   implicit none
 
@@ -29,6 +30,7 @@ module m_mpi_plex_ex1
 
       class(t_plex_solver), allocatable :: solver
 
+      call allocate_plexrt_solver_from_commandline(solver, '5_8')
       call init_plex_rt_solver(plex, solver)
 
       sundir = get_normal_of_first_TOA_face(plex)
