@@ -26,9 +26,10 @@ module m_optprop_LUT
   use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
 
   use m_helper_functions, only : approx,  &
-    rel_approx, imp_bcast, get_arg, ftoa, &
+    rel_approx, imp_bcast,                &
+    get_arg, ftoa, itoa, char_arr_to_str, &
     mpi_logical_and, mpi_logical_or,      &
-    search_sorted_bisection, CHKERR, itoa,&
+    search_sorted_bisection, CHKERR,      &
     triangle_area_by_vertices,            &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
 
@@ -619,14 +620,14 @@ subroutine createLUT(OPP, comm, config, S, T)
               if( (now-lastsavetime).gt.LUT_dump_interval .or. (now-starttime).gt.LUT_max_create_jobtime ) then !every 30 minutes wall clock time, dump the LUT.
                 print *,'Dumping LUT after ',(now-lastsavetime)/60,'minutes'
                 if(present(T)) then
-                  print *,'Writing table to file... ', trim(T%table_name_c)
+                  print *,'Writing table to file... ', char_arr_to_str(T%table_name_c)
                   call ncwrite(T%table_name_c, T%c, iierr); call CHKERR(iierr, 'Could not write Table to file')
-                  print *,'Writing table to file... ', trim(T%table_name_tol)
+                  print *,'Writing table to file... ', char_arr_to_str(T%table_name_tol)
                   call ncwrite(T%table_name_tol, T%stddev_tol, iierr); call CHKERR(iierr, 'Could not write Table to file')
                 endif
-                print *,'Writing table to file... ', trim(S%table_name_c)
+                print *,'Writing table to file... ', char_arr_to_str(S%table_name_c)
                 call ncwrite(S%table_name_c, S%c, iierr); call CHKERR(iierr, 'Could not write Table to file')
-                print *,'Writing table to file... ', trim(S%table_name_tol)
+                print *,'Writing table to file... ', char_arr_to_str(S%table_name_tol)
                 call ncwrite(S%table_name_tol, S%stddev_tol,iierr); call CHKERR(iierr, 'Could not write Table to file')
                 print *,'done writing!',iierr
                 lastsavetime = now ! reset the countdown

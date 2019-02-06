@@ -3,7 +3,7 @@ module test_helper_functions
   use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
   use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
     compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction, &
-    cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad
+    cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr
 
   use pfunit_mod
 
@@ -299,5 +299,17 @@ subroutine test_rotation_matrix_around_axis_vec(this)
 
   Mrot = rotation_matrix_around_axis_vec(deg2rad(270._ireals), ey)
   @assertEqual(ez, matmul(Mrot, x1), eps)
+end subroutine
+
+@test(npes=[1])
+subroutine test_char_arr_to_str(this)
+  class (MpiTestMethod), intent(inout) :: this
+  character(len=4)  :: a(3)
+  a(1) = '1'
+  a(2) = '23'
+  a(3) = '456'
+
+  @assertEqual('1, 23, 456', char_arr_to_str(a))
+  @assertEqual('1 :: 23 :: 456', char_arr_to_str(a, ' :: '))
 end subroutine
 end module

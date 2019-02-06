@@ -28,13 +28,16 @@ module m_helper_functions
   implicit none
 
   private
-  public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,delta_scale_optprop,delta_scale,cumsum, cumprod,   &
+  public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                           &
+    delta_scale_optprop,delta_scale,cumsum, cumprod,                                                                 &
     inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
-    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm, CHKERR, CHKWARN, assertEqual,   &
+    gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm,                        &
+    CHKERR, CHKWARN, assertEqual,                                                                                    &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique, itoa, ftoa, cstr, strF2C, distance, triangle_area_by_edgelengths, triangle_area_by_vertices, &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean, &
+    vec_proj_on_plane, get_arg, unique, itoa, ftoa, char_arr_to_str, cstr, strF2C,                                   &
+    distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
+    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean,           &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec
 
   interface rotate_angle_x
@@ -1843,5 +1846,29 @@ module m_helper_functions
       end select
 
       cstr = trim(cstr)//trim(inp)//achar(27)//'[0m'
+    end function
+
+    function char_arr_to_str(inp, deliminator) result(out_str)
+      character(len=*), intent(in) :: inp(:)
+      character(len=*), intent(in), optional :: deliminator
+      character(:), allocatable :: out_str, del
+      character(len=2),parameter :: default_delim=', '
+      integer :: i, slen, delim_len
+
+      if(size(inp).eq.0) then
+        out_str=''
+        return
+      endif
+
+      if(present(deliminator)) then
+        del = deliminator
+      else
+        del = default_delim
+      endif
+
+      out_str = trim(inp(1))
+      do i = 2, size(inp)
+        out_str = trim(out_str)//del//trim(inp(i))
+      enddo
     end function
   end module
