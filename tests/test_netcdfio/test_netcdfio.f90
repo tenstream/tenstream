@@ -2,7 +2,7 @@ module test_netcdfio
     use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters, default_str_len
     use iso_fortran_env, only: REAL32, REAL64
 
-    use m_helper_functions, only: CHKERR, itoa
+    use m_helper_functions, only: CHKERR, itoa, char_arr_to_str
 
     use m_netcdfIO, only: ncwrite, ncload, acquire_file_lock, release_file_lock
     use m_c_syscall_wrappers, only: acquire_flock_lock, release_flock_lock
@@ -105,14 +105,14 @@ subroutine test_netcdf_load_write_r32(this)
     do rank = 0, numnodes-1
       deallocate(a1d)
       groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a1d))
-      call ncload(groups, a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file')
+      call ncload(groups, a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file: '//char_arr_to_str(groups,' / '))
       @mpiassertEqual(real(rank, kind(a1d)), a1d(1))
       @mpiassertEqual(N, size(a1d))
     enddo
 
     allocate(a2d(N,N), source=real(myid, kind(a2d)))
     groups(1) = trim(fname)
-    groups(2) = 'rank'//itoa(myid)//'_kind_'//itoa(kind(a1d))
+    groups(2) = 'rank'//itoa(myid)//'_kind_'//itoa(kind(a2d))
     groups(3) = 'a2d'
 
     do rank = 0, numnodes-1
@@ -125,8 +125,8 @@ subroutine test_netcdf_load_write_r32(this)
 
     do rank= 0, numnodes-1
       deallocate(a2d)
-      groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a1d))
-      call ncload(groups, a2d, ierr); call CHKERR(ierr, 'Could not read 2d array from nc file')
+      groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a2d))
+      call ncload(groups, a2d, ierr); call CHKERR(ierr, 'Could not read 2d array from nc file: '//char_arr_to_str(groups,' / '))
       @mpiassertEqual(real(rank, kind(a2d)), a2d(1,1))
       @mpiassertEqual(N, size(a2d, dim=1))
       @mpiassertEqual(N, size(a2d, dim=2))
@@ -165,15 +165,15 @@ subroutine test_netcdf_load_write_r64(this)
     ! Try reading it without barriers
     do rank = 0, numnodes-1
       deallocate(a1d)
-      groups(2) = 'rank'//itoa(rank)
-      call ncload(groups, a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file')
+      groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a1d))
+      call ncload(groups, a1d, ierr); call CHKERR(ierr, 'Could not read 1d array from nc file: '//char_arr_to_str(groups,' / '))
       @mpiassertEqual(real(rank, kind(a1d)), a1d(1))
       @mpiassertEqual(N, size(a1d))
     enddo
 
     allocate(a2d(N,N), source=real(myid, kind(a2d)))
     groups(1) = trim(fname)
-    groups(2) = 'rank'//itoa(myid)
+    groups(2) = 'rank'//itoa(myid)//'_kind_'//itoa(kind(a2d))
     groups(3) = 'a2d'
 
     do rank = 0, numnodes-1
@@ -186,8 +186,8 @@ subroutine test_netcdf_load_write_r64(this)
 
     do rank= 0, numnodes-1
       deallocate(a2d)
-      groups(2) = 'rank'//itoa(rank)
-      call ncload(groups, a2d, ierr); call CHKERR(ierr, 'Could not read 2d array from nc file')
+      groups(2) = 'rank'//itoa(rank)//'_kind_'//itoa(kind(a2d))
+      call ncload(groups, a2d, ierr); call CHKERR(ierr, 'Could not read 2d array from nc file: '//char_arr_to_str(groups,' / '))
       @mpiassertEqual(real(rank, kind(a2d)), a2d(1,1))
       @mpiassertEqual(N, size(a2d, dim=1))
       @mpiassertEqual(N, size(a2d, dim=2))
