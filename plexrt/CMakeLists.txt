@@ -3,6 +3,7 @@ include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 set( general_sources
   "plex_grid.F90"
   "plex_rt.F90"
+  "plex2rayli.F90"
   "icon_grid.F90"
   "icon_plex_utils.F90"
   )
