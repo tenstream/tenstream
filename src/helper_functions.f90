@@ -1851,9 +1851,9 @@ module m_helper_functions
     function char_arr_to_str(inp, deliminator) result(out_str)
       character(len=*), intent(in) :: inp(:)
       character(len=*), intent(in), optional :: deliminator
-      character(:), allocatable :: out_str, del
+      character(:), allocatable :: out_str
       character(len=2),parameter :: default_delim=', '
-      integer :: i, slen, delim_len
+      integer :: i
 
       if(size(inp).eq.0) then
         out_str=''
@@ -1861,14 +1861,15 @@ module m_helper_functions
       endif
 
       if(present(deliminator)) then
-        del = deliminator
-      else
-        del = default_delim
-      endif
-
       out_str = trim(inp(1))
       do i = 2, size(inp)
-        out_str = trim(out_str)//del//trim(inp(i))
+        out_str = trim(out_str)//deliminator//trim(inp(i))
       enddo
+    else
+      out_str = trim(inp(1))
+      do i = 2, size(inp)
+        out_str = trim(out_str)//default_delim//trim(inp(i))
+      enddo
+    endif
     end function
   end module

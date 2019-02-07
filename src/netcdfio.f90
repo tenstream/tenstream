@@ -77,6 +77,7 @@ module m_netcdfIO
   integer(c_int) function nf90_set_log_level(level) result(r)
     use iso_c_binding
     integer(c_int), intent (in) :: level
+    r = level ! prevent unused warning
     r = 0
   end function
 #endif
