@@ -465,7 +465,7 @@ contains
       else
         S_out = S_out / (coeffnorm+epsilon(coeffnorm)*10)
         T_out = T_out / (coeffnorm+epsilon(coeffnorm)*10)
-        if(ldebug_optprop) print *,'renormalizing coefficients :: ',coeffnorm,' => ',sum(S_out)+sum(T_out)
+        if(ldebug) print *,'renormalizing coefficients :: ',coeffnorm,' => ',sum(S_out)+sum(T_out)
       endif
       if( (sum(S_out)+sum(T_out)).gt.one ) then
         print *,'norm still too big',sum(S_out)+sum(T_out)

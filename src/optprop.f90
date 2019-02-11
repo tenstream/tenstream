@@ -197,19 +197,11 @@ contains
     integer(mpiint), intent(out) :: ierr
 
     logical,parameter :: compute_coeff_online=.False.
-    real(ireals), allocatable :: vertices(:)
 
     ierr = 0
 
     if(compute_coeff_online) then
-      if(.not.present(wedge_coords)) &
-        call CHKERR(1_mpiint, 'if you want to compute wedge coeffs online, you need to supply wedge coords')
-      call setup_default_wedge_geometry( &
-        real(wedge_coords(1:2), ireals), &
-        real(wedge_coords(3:4), ireals), &
-        real(wedge_coords(5:6), ireals), &
-        real(aspect_zx, ireals), vertices)
-      call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, C, in_angles)
+      call do_bmc_computation(C)
       return
     endif
 
@@ -237,7 +229,42 @@ contains
 
     call do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
 
+    if(ldir) call print_coeff_diff()
     contains
+      subroutine do_bmc_computation(Cbmc)
+        real(irealLUT), intent(out) :: Cbmc(size(C))
+        real(ireals), allocatable :: vertices(:)
+
+        if(.not.present(wedge_coords)) &
+          call CHKERR(1_mpiint, 'if you want to compute wedge coeffs online, you need to supply wedge coords')
+        call setup_default_wedge_geometry( &
+          real(wedge_coords(1:2), ireals), &
+          real(wedge_coords(3:4), ireals), &
+          real(wedge_coords(5:6), ireals), &
+          real(aspect_zx, ireals), vertices)
+        call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, in_angles)
+      end subroutine
+      subroutine print_coeff_diff()
+        real(irealLUT) :: Cbmc(size(C))
+        real(ireals) :: err(2)
+        integer(iintegers) :: isrc
+
+        call do_bmc_computation(Cbmc)
+
+        err = rmse(real(C, ireals), real(Cbmc, ireals))
+        print *,'rmse', err
+        if(err(2).gt.one) then
+          do isrc=1,OPP%OPP_LUT%dir_streams
+            print *, 'lut src', isrc, ':', C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
+            print *, 'bmc src', isrc, ':', Cbmc(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
+          enddo
+          call CHKERR(1_mpiint, 'DEBUG')
+        endif
+        !do isrc=1,OPP%OPP_LUT%dir_streams
+        !  C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams) = Cbmc(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
+        !enddo
+        C = Cbmc
+      end subroutine
       subroutine do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
         real(irealLUT), intent(in) :: tauz, w0, aspect_zx
         logical,intent(in)       :: ldir
@@ -256,8 +283,10 @@ contains
               endif
               if(ldir) then ! dir2dir
                 call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), in_angles(1), save_theta], C)
+                !call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, in_angles(1), save_theta], C)
               else ! dir2diff
                 call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), in_angles(1), save_theta], C)
+                !call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, in_angles(1), save_theta], C)
               endif
               call handle_sza_gt_90_case()
             else
@@ -463,7 +492,7 @@ contains
       real(irealLUT) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
       integer(iintegers) :: isrc
 
-      real(ireals), parameter :: atol=2e-4_ireals, rtol=1e-2_ireals
+      real(ireals), parameter :: atol=1e-3_ireals, rtol=5e-2_ireals
 
       if(present(angles)) then
           do isrc=1,OPP%OPP_LUT%dir_streams

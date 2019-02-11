@@ -80,6 +80,13 @@ module m_c_syscall_wrappers
     end function
   end interface
 
+  interface
+    function fsync(fd) bind(c, name="fsync")
+      use iso_c_binding, only: c_int
+      integer(c_int), value :: fd
+      integer(c_int) :: fsync
+    end function fsync
+  end interface
 
   contains
   subroutine acquire_flock_lock(fname, ierr, l_throw_err)

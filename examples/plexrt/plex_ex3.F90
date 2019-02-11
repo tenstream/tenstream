@@ -6,7 +6,8 @@ use petsc
 use m_tenstream_options, only : read_commandline_options
 
 use m_helper_functions, only: CHKERR, norm, imp_bcast, determine_normal_direction, &
-  spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, reverse, itoa, cstr
+  spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, reverse, itoa, cstr, &
+  meanval
 
 use m_data_parameters, only : ireals, iintegers, mpiint, &
   default_str_len, &
@@ -137,6 +138,13 @@ logical, parameter :: ldebug=.True.
         enddo
         print *,k, edir(k,icol), edn(k,icol), eup(k,icol)
       enddo
+
+      print *, ''
+      print *, 'Averages'
+      do k = 1, ubound(abso,1)
+        print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
+      enddo
+      print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:))
 
       call dump_result()
 

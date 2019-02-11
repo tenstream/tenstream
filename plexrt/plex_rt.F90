@@ -1633,6 +1633,7 @@ module m_plex_rt
         dz, wedgeorient(wedge_offset+14:wedge_offset+19), .True., coeff, ierr, &
         angles=[real(rad2deg(azimuth), irealLUT), real(rad2deg(zenith), irealLUT)])
 
+      !print *,'tau',xkabs(i1+icell)+xksca(i1+icell),dz, ':', rad2deg(azimuth), rad2deg(zenith)
       !print *,'tau',xkabs(i1+icell)+xksca(i1+icell),dz, cos(zenith), ':', exp(-(xkabs(i1+icell)+xksca(i1+icell))*dz / cos(zenith))
 
       if(ldebug) then
@@ -2224,8 +2225,9 @@ module m_plex_rt
     real(ireals) :: dkabs, dksca, dg
     real(irealLUT) :: aspect, tauz, w0, dx, relcoords(6), CC(size(coeff))
     integer, parameter :: iC1=4, iC2=5
-    real(ireals), parameter :: dither=.0_ireals ! add dither on relcoords
-    real(ireals) :: Rdither
+    real(ireals), parameter :: dither_relcoords=.0_ireals ! add dither on relcoords
+    real(ireals), parameter :: dither_sundir=.0_ireals ! add dither on sun angles
+    real(irealLUT) :: Rdither, dither_angles(2)
 
 
     dx = real(wedge_coords(3), irealLUT)
@@ -2257,10 +2259,17 @@ module m_plex_rt
         min(OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), w0))
     endif
 
-    if(dither.gt.zero) then
+    if(present(angles)) then
+      dither_angles = angles
+      if(dither_sundir.gt.zero) then
+        call random_number(Rdither)
+        dither_angles(1) = dither_angles(1) * real((one+(dither_sundir*(-one+2*Rdither))), irealLUT)
+      endif
+    endif
+    if(dither_relcoords.gt.zero) then
       call random_number(Rdither)
-      relcoords(5) = relcoords(5) * real((one+(dither*(-one+2*Rdither))), irealLUT)
-      relcoords(6) = relcoords(6) * real((one+(dither*(-one+2*Rdither))), irealLUT)
+      relcoords(5) = relcoords(5) * real((one+(dither_relcoords*(-one+2*Rdither))), irealLUT)
+      relcoords(6) = relcoords(6) * real((one+(dither_relcoords*(-one+2*Rdither))), irealLUT)
     endif
 
     relcoords(5) = max(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(1), &
@@ -2269,7 +2278,14 @@ module m_plex_rt
                    min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6)))
 
     !print *,'DEBUG Coeffs', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
-    call OPP%get_coeff(tauz, w0, real(dg, irealLUT), aspect, ldir, CC, ierr, angles=angles, wedge_coords=relcoords)
+    if(present(angles)) then
+      !print *,'get_coeff angles', dither_angles, 'relcord',relcoords(5),relcoords(6)
+      call OPP%get_coeff(tauz, w0, real(dg, irealLUT), aspect, ldir, CC, ierr, &
+        angles=dither_angles, wedge_coords=relcoords)
+    else
+      call OPP%get_coeff(tauz, w0, real(dg, irealLUT), aspect, ldir, CC, ierr, &
+        angles=angles, wedge_coords=relcoords)
+    endif
     !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
     coeff = CC
     if(ldebug) then

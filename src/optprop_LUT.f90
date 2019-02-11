@@ -119,6 +119,7 @@ module m_optprop_LUT
       procedure :: LUT_get_dir2dir
       procedure :: LUT_get_dir2diff
       procedure :: LUT_get_diff2diff
+      procedure :: LUT_bmc_wrapper_determine_sample_pts
       procedure :: LUT_bmc_wrapper
       procedure :: bmc_wrapper
       procedure :: scatter_LUTtables
@@ -158,7 +159,8 @@ contains
       class(t_optprop_LUT) :: OPP
       integer(mpiint) ,intent(in) :: comm
 
-      integer(mpiint) :: comm_size, myid
+      integer(mpiint) :: comm_size, myid, ierr
+      logical :: load_diffuse_LUT_first, lflg
 
       if(OPP%LUT_initialized) return
 
@@ -238,8 +240,17 @@ contains
 
       call OPP%set_parameter_space()
 
-      call OPP%loadLUT_dir(comm)
-      call OPP%loadLUT_diff(comm)
+      load_diffuse_LUT_first = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-load_diffuse_LUT_first', load_diffuse_LUT_first, lflg, ierr); call CHKERR(ierr)
+
+      if(load_diffuse_LUT_first) then
+        call OPP%loadLUT_diff(comm)
+        call OPP%loadLUT_dir(comm)
+      else
+        call OPP%loadLUT_dir(comm)
+        call OPP%loadLUT_diff(comm)
+      endif
 
       call OPP%scatter_LUTtables(comm)
 
@@ -477,8 +488,6 @@ subroutine createLUT(OPP, comm, config, S, T)
 
     logical :: gotmsg
     integer(mpiint) :: status(MPI_STATUS_SIZE)
-    real(irealLUT) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
-    real(irealLUT) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
     integer(mpiint), parameter :: READYMSG=1,HAVERESULTSMSG=2, WORKMSG=3, FINALIZEMSG=4, RESULTMSG=5
 
@@ -512,7 +521,9 @@ subroutine createLUT(OPP, comm, config, S, T)
         integer(iintegers) :: Nsrc
         integer(iintegers) :: isrc, idst, ind
 
-        logical :: ldoneS(OPP%diff_streams), ldoneT(OPP%dir_streams)
+        logical :: ldoneS, ldoneT
+
+        real(irealLUT),allocatable, dimension(:,:) :: S_diff, T_dir, S_tol, T_tol
 
         real :: starttime, lastsavetime, now
         call cpu_time(starttime)
@@ -524,33 +535,30 @@ subroutine createLUT(OPP, comm, config, S, T)
         else
           Nsrc = OPP%diff_streams
         endif
-        total_size = size(S%c, dim=2) * Nsrc ! we have Ndims * Nsrc work packages
+        total_size = size(S%c, dim=2) ! we have Ndims work packages with Nsrc bmc calls each
 
-        cnt=1
-        do
+        allocate(S_diff(OPP%diff_streams, Nsrc), S_tol(OPP%diff_streams, Nsrc), &
+          T_dir(OPP%dir_streams, Nsrc), T_tol(OPP%dir_streams, Nsrc))
+
+        cnt = 1
+        do ! endless loop until everything has been done
+
           ! Check if we already calculated the coefficients
           if(cnt.le.total_size) then
-            isrc = modulo(cnt-1, Nsrc)+1
-            lutindex = (cnt-1) / Nsrc +1
 
-            do idst = 1,OPP%diff_streams
-                ind = (idst-1) * Nsrc + isrc
-                ldoneS(idst) = ( ( S%c         ( ind, lutindex ).ge.zero)            &
-                           .and. ( S%c         ( ind, lutindex ).le.one )            &
-                           .and. ( S%stddev_tol(      lutindex ).le.stddev_atol ) )
-            enddo
+            ldoneS = all(S%c(:,cnt).ge.zero) .and. all(S%c(:,cnt).le.one) &
+              .and. S%stddev_tol(cnt).le.stddev_atol &
+              .and. S%stddev_tol(cnt).ge.0._irealLUT
+
             if(present(T)) then
-              do idst = 1,OPP%dir_streams
-                ind = (idst-1)*OPP%dir_streams + isrc
-                ldoneT(idst) = ( ( T%c         ( ind, lutindex ).ge.zero)            &
-                  .and. ( T%c         ( ind, lutindex ).le.one )            &
-                  .and. ( T%stddev_tol(      lutindex ).le.stddev_atol ) )
-              enddo
+              ldoneT = all(T%c(:,cnt).ge.zero) .and. all(T%c(:,cnt).le.one) &
+                .and. T%stddev_tol(cnt).le.stddev_atol &
+                .and. T%stddev_tol(cnt).ge.0._irealLUT
             else
               ldoneT = .True.
             endif
 
-            if( all(ldoneS) .and. all(ldoneT) ) then
+            if( ldoneS .and. ldoneT ) then
               if( mod(cnt-1, total_size*1/100).eq.0 ) & !every 1 percent report status
                   print *,'Resuming from LUT... ',cnt/(total_size/100),'%'
               cnt=cnt+1
@@ -572,10 +580,8 @@ subroutine createLUT(OPP, comm, config, S, T)
               call mpi_recv(idummy, 1_mpiint, imp_iinteger, status(MPI_SOURCE), READYMSG, comm, status, mpierr) ; call CHKERR(mpierr)
 
               if(cnt.le.total_size) then ! we got something to do for a worker -- send him...
-                isrc = modulo(cnt-1, Nsrc) +1
-                lutindex = (cnt-1) / Nsrc +1
+                lutindex = cnt
                 call mpi_send(lutindex, 1_mpiint, imp_iinteger, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
-                call mpi_send(isrc, 1_mpiint, imp_iinteger, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
                 call mpi_send(present(T), 1_mpiint, imp_logical, status(MPI_SOURCE), WORKMSG, comm, mpierr); call CHKERR(mpierr)
 
               else ! no more work to do... tell the worker to quit
@@ -585,36 +591,33 @@ subroutine createLUT(OPP, comm, config, S, T)
 
             case(HAVERESULTSMSG)
               call mpi_recv(lutindex, 1_mpiint, imp_iinteger, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(isrc, 1_mpiint, imp_iinteger, status(MPI_SOURCE), HAVERESULTSMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(S_diff, size(S_diff), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(S_tol , size(S_tol ), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(T_dir , size(T_dir ), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
-              call mpi_recv(T_tol , size(T_tol ), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
 
-              ! Sort coefficients into destination ordering and put em in LUT
-              do idst = 1, OPP%diff_streams
-                ind = (idst-1) * Nsrc + isrc
-                S%c         (ind, lutindex) = S_diff(idst)
-                if(S%stddev_tol(lutindex).gt.one) then ! never has been set
-                  S%stddev_tol(lutindex) = S_tol(idst)
-                else
-                  S%stddev_tol(lutindex) = max(S%stddev_tol(lutindex), S_tol(idst))
-                endif
-              enddo
-              if(present(T)) then
-                do idst = 1, OPP%dir_streams
-                  ind = (idst-1)*OPP%dir_streams + isrc
-                  T%c         (ind, lutindex) = T_dir (idst)
-                  if(T%stddev_tol(lutindex).gt.one) then ! never has been set
-                    T%stddev_tol(lutindex) = T_tol(idst)
-                  else
-                    T%stddev_tol(lutindex) = max(T%stddev_tol(lutindex), T_tol (idst))
-                  endif
+              call mpi_recv(S_diff, size(S_diff, kind=mpiint), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(S_tol , size(S_tol , kind=mpiint), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(T_dir , size(T_dir , kind=mpiint), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+              call mpi_recv(T_tol , size(T_tol , kind=mpiint), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, status, mpierr); call CHKERR(mpierr)
+
+                ! Sort coefficients into destination ordering and put em in LUT
+              do isrc = 1, Nsrc
+                do idst = 1, OPP%diff_streams
+                  ind = (idst-1) * Nsrc + isrc
+                  S%c(ind, lutindex) = S_diff(idst, isrc)
                 enddo
-              endif
+                S%stddev_tol(lutindex) = max(S%stddev_tol(lutindex), maxval(S_tol(:, isrc)))
 
-              if( mod((lutindex-1)*Nsrc+isrc-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
-                  print *,'Calculated LUT...', lutindex, isrc, ((lutindex-1)*Nsrc+isrc-1)*100._irealLUT/total_size,'%'
+                if(present(T)) then
+                  do idst = 1, OPP%dir_streams
+                    ind = (idst-1) * Nsrc + isrc
+                    T%c(ind, lutindex) = T_dir(idst, isrc)
+                  enddo
+                  T%stddev_tol(lutindex) = max(T%stddev_tol(lutindex), maxval(T_tol(:, isrc)))
+                endif
+              enddo ! isrc
+
+
+              if( mod(lutindex-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
+                print *,'Calculated LUT...', lutindex, (lutindex-1)*100._irealLUT/total_size,'%'
+
 
               call cpu_time(now)
               if( (now-lastsavetime).gt.LUT_dump_interval .or. (now-starttime).gt.LUT_max_create_jobtime ) then !every 30 minutes wall clock time, dump the LUT.
@@ -658,8 +661,10 @@ subroutine createLUT(OPP, comm, config, S, T)
       end subroutine
       subroutine worker(config)
           type(t_lut_config), intent(in) :: config
-          integer(iintegers) :: isrc
+          integer(iintegers) :: isrc, Nsrc
           logical :: ldir
+
+          real(irealLUT),allocatable, dimension(:,:) :: S_diff, T_dir, S_tol, T_tol
 
           ! workers send READY message to master
           call mpi_send(-i1, 1_mpiint, imp_iinteger, 0_mpiint, READYMSG, comm, mpierr); call CHKERR(mpierr)
@@ -676,30 +681,40 @@ subroutine createLUT(OPP, comm, config, S, T)
               case(WORKMSG)
                 ! wait for work to arrive
                 call mpi_recv( lutindex, 1_mpiint, imp_iinteger, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
-                call mpi_recv( isrc, 1_mpiint, imp_iinteger, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
                 call mpi_recv( ldir, 1_mpiint, imp_logical, 0_mpiint, WORKMSG, comm, status, mpierr); call CHKERR(mpierr)
 
-                call OPP%LUT_bmc_wrapper(config, lutindex, isrc, ldir, &
-                  mpi_comm_self, S_diff, T_dir, S_tol, T_tol)
-
-                if ( maxval(S_tol).gt.stddev_atol+sqrt(epsilon(stddev_atol)) &
-                .or. maxval(T_tol).gt.stddev_atol+sqrt(epsilon(stddev_atol))) then
-                  print *,'Ttol', T_tol
-                  print *,'Stol', S_tol
-                  call CHKERR(1_mpiint, 'BOXMC violated stddev constraints!')
+                if(ldir) then
+                  Nsrc = OPP%dir_streams
+                else
+                  Nsrc = OPP%diff_streams
                 endif
+                allocate(S_diff(OPP%diff_streams, Nsrc), S_tol(OPP%diff_streams, Nsrc), &
+                         T_dir(OPP%dir_streams, Nsrc), T_tol(OPP%dir_streams, Nsrc))
+
+                do isrc = 1, Nsrc
+                  call OPP%LUT_bmc_wrapper(config, lutindex, isrc, ldir, &
+                    mpi_comm_self, S_diff(:,isrc), T_dir(:,isrc), S_tol(:,isrc), T_tol(:,isrc))
+
+                  if ( maxval(S_tol(:,isrc)).gt.stddev_atol+sqrt(epsilon(stddev_atol)) &
+                    .or. maxval(T_tol(:,isrc)).gt.stddev_atol+sqrt(epsilon(stddev_atol))) then
+                    print *,'Ttol', T_tol(:,isrc)
+                    print *,'Stol', S_tol(:,isrc)
+                    call CHKERR(1_mpiint, 'BOXMC violated stddev constraints!')
+                  endif
+                enddo
 
                 !print *,'Computed isrc',isrc,'aspect',aspect_zx,'tau',tau_z, w0, g,':', phi, theta
                 !print *,myid,'Computed values for ',lutindex, isrc, ldir
 
-                call mpi_send(lutindex , 1_mpiint     , imp_iinteger  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(isrc , 1_mpiint     , imp_iinteger  , status(MPI_SOURCE) , HAVERESULTSMSG , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(S_diff    , size(S_diff) , imp_irealLUT , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(S_tol     , size(S_tol ) , imp_irealLUT , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(T_dir     , size(T_dir ) , imp_irealLUT , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
-                call mpi_send(T_tol     , size(T_tol ) , imp_irealLUT , status(MPI_SOURCE) , RESULTMSG      , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(lutindex, 1_mpiint, imp_iinteger, status(MPI_SOURCE), HAVERESULTSMSG, comm, mpierr); call CHKERR(mpierr)
+                call mpi_send(S_diff, size(S_diff,kind=mpiint), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, mpierr); call CHKERR(mpierr)
+                call mpi_send(S_tol , size(S_tol ,kind=mpiint), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, mpierr); call CHKERR(mpierr)
+                call mpi_send(T_dir , size(T_dir ,kind=mpiint), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, mpierr); call CHKERR(mpierr)
+                call mpi_send(T_tol , size(T_tol ,kind=mpiint), imp_irealLUT, status(MPI_SOURCE), RESULTMSG, comm, mpierr); call CHKERR(mpierr)
 
-                call mpi_send(-i1       , 1_mpiint     , imp_iinteger  , 0_mpiint           , READYMSG       , comm , mpierr); call CHKERR(mpierr)
+                call mpi_send(-i1, 1_mpiint, imp_iinteger, 0_mpiint, READYMSG, comm, mpierr); call CHKERR(mpierr)
+
+                deallocate(S_diff, S_tol, T_dir, T_tol)
 
               case(FINALIZEMSG)
                 call mpi_recv(idummy, 1_mpiint, imp_iinteger, 0_mpiint, FINALIZEMSG, comm, status, mpierr); call CHKERR(mpierr)
@@ -735,13 +750,16 @@ subroutine prepare_table_space(OPP, config, S, T)
 
   errcnt = 0
   if(present(T)) then
-    if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)))
-    if(.not.associated(T%c)) allocate(T%c(OPP%dir_streams**2              , product(config%dims(:)%N)))
-    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=1e8_irealLUT)
-    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(product(config%dims(:)%N)), source=1e8_irealLUT)
+    if(.not.associated(S%c)) &
+      allocate(S%c(OPP%diff_streams*OPP%dir_streams, product(config%dims(:)%N)), source=-1._irealLUT)
+    if(.not.associated(T%c)) &
+      allocate(T%c(OPP%dir_streams*OPP%dir_streams , product(config%dims(:)%N)), source=-1._irealLUT)
+
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=-1._irealLUT)
+    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(product(config%dims(:)%N)), source=-1._irealLUT)
   else
     if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams**2, product(config%dims(:)%N)))
-    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=1e8_irealLUT)
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=-1._irealLUT)
   endif
   print *,'Allocating Space for LUTs '//itoa(entries)//' entries ( '//ftoa(bytesize/1024._irealLUT**3)//' Gb) ... done'
 end subroutine
@@ -766,7 +784,7 @@ subroutine get_sample_pnt_by_name_and_index(config, dimname, index_1d, sample_pn
   type(t_lut_config), intent(in) :: config
   character(len=*), intent(in) :: dimname
   integer(iintegers), intent(in) :: index_1d
-  real(ireals), intent(out) :: sample_pnt
+  real(ireals), intent(inout) :: sample_pnt
   integer(mpiint), intent(out) :: ierr
 
   integer(iintegers) :: kdim, nd_indices(size(config%dims))
@@ -776,7 +794,6 @@ subroutine get_sample_pnt_by_name_and_index(config, dimname, index_1d, sample_pn
   kdim = find_lut_dim_by_name(config, trim(dimname))
   if(kdim.lt.i1) then ! could not find the corresponding dimension
     ierr = 1
-    sample_pnt = nil
     return
   endif
   if(nd_indices(kdim).gt.size(config%dims(kdim)%v)) then
@@ -785,6 +802,101 @@ subroutine get_sample_pnt_by_name_and_index(config, dimname, index_1d, sample_pn
   endif
   sample_pnt = config%dims(kdim)%v(nd_indices(kdim))
   ierr = 0
+end subroutine
+
+subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
+    vertices, tauz, w0, g, phi, theta)
+  class(t_optprop_LUT) :: OPP
+  type(t_lut_config), intent(in) :: config
+  integer(iintegers), intent(in) :: index_1d
+  logical, intent(in) :: dir
+  real(ireals), intent(out), allocatable :: vertices(:)
+  real(ireals), intent(out) :: tauz, w0, g, phi, theta
+
+  real(ireals) :: aspect_zx, aspect_zy
+  real(ireals), dimension(2) :: wedge_C
+  integer(mpiint) :: ierr
+
+  call get_sample_pnt_by_name_and_index(config, 'aspect_zx', index_1d, aspect_zx, ierr)
+  call CHKERR(ierr, 'aspect_zx has to be present')
+
+  call get_sample_pnt_by_name_and_index(config, 'tau', index_1d, tauz, ierr)
+  call CHKERR(ierr, 'tauz has to be present')
+
+  call get_sample_pnt_by_name_and_index(config, 'w0', index_1d, w0, ierr)
+  call CHKERR(ierr, 'w0 has to be present')
+
+  if(dir) then
+    call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr)
+    call CHKERR(ierr, 'phi has to be present for direct calculations')
+    call get_sample_pnt_by_name_and_index(config, 'theta', index_1d, theta, ierr)
+    call CHKERR(ierr, 'theta has to be present for direct calculations')
+  endif
+
+  call get_sample_pnt_by_name_and_index(config, 'g', index_1d, g, ierr)
+  if(ierr.ne.0) then
+    g = zero ! defaults to isotropic scattering
+  endif
+
+  call get_sample_pnt_by_name_and_index(config, 'aspect_zy', index_1d, aspect_zy, ierr)
+  if(ierr.ne.0) then
+    aspect_zy = aspect_zx ! set dy = dx
+  endif
+
+  ! First define Default vertices for Cube Geometry
+  select type(OPP)
+  class is (t_optprop_LUT_1_2)
+    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+
+  class is (t_optprop_LUT_3_6)
+    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+
+  class is (t_optprop_LUT_3_10)
+    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+
+  class is (t_optprop_LUT_3_16)
+    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+
+  class is (t_optprop_LUT_8_10)
+    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+
+  class is (t_optprop_LUT_8_12)
+    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+
+  class is (t_optprop_LUT_8_16)
+    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+
+  class is (t_optprop_LUT_8_18)
+    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+
+  class is (t_optprop_LUT_wedge_5_8)
+    wedge_C(1) = .5_irealLUT
+    call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr)
+    call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
+
+    wedge_C(2) = 0.8660254_irealLUT
+    call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr)
+    call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
+
+    call setup_default_wedge_geometry([zero, zero], [one, zero], &
+      wedge_C, aspect_zx, vertices, &
+      sphere_radius=real(wedge_sphere_radius, ireals))
+
+  class is (t_optprop_LUT_wedge_18_8)
+    wedge_C(1) = .5_irealLUT
+    call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr)
+    call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
+
+    wedge_C(2) = 0.8660254_irealLUT
+    call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr)
+    call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
+
+    call setup_default_wedge_geometry([zero, zero], [one, zero], &
+      wedge_C, aspect_zx, vertices, &
+      sphere_radius=real(wedge_sphere_radius, ireals))
+  class default
+    call CHKERR(1_mpiint, 'unexpected type for optprop_LUT object!')
+end select
 end subroutine
 
 subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir, S_tol, T_tol)
@@ -798,75 +910,15 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     real(irealLUT),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(irealLUT),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
-    real(ireals) :: aspect_zx, aspect_zy, tauz, w0, g, phi, theta
-    real(ireals), dimension(2) :: wedge_C
     real(ireals), allocatable :: vertices(:)
-    integer(mpiint) :: ierr
+    real(ireals) :: tauz, w0, g, phi, theta
 
-    call get_sample_pnt_by_name_and_index(config, 'aspect_zx', index_1d, aspect_zx, ierr); call CHKERR(ierr, 'aspect_zx has to be present')
-    call get_sample_pnt_by_name_and_index(config, 'tau', index_1d, tauz, ierr); call CHKERR(ierr, 'tauz has to be present')
-    call get_sample_pnt_by_name_and_index(config, 'w0', index_1d, w0, ierr); call CHKERR(ierr, 'w0 has to be present')
-    if(dir) then
-      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
-      call get_sample_pnt_by_name_and_index(config, 'theta', index_1d, theta, ierr); call CHKERR(ierr, 'theta has to be present for direct calculations')
-    endif
-
-    call get_sample_pnt_by_name_and_index(config, 'g', index_1d, g, ierr)
-    if(ierr.ne.0) then
-      g = zero ! defaults to isotropic scattering
-    endif
-
-    call get_sample_pnt_by_name_and_index(config, 'aspect_zy', index_1d, aspect_zy, ierr)
-    if(ierr.ne.0) then
-      aspect_zy = aspect_zx ! set dy = dx
-    endif
-
-    ! First define Default vertices for Cube Geometry
-    select type(OPP)
-      class is (t_optprop_LUT_1_2)
-        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-
-      class is (t_optprop_LUT_3_6)
-        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-
-      class is (t_optprop_LUT_3_10)
-        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-
-      class is (t_optprop_LUT_3_16)
-        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-
-      class is (t_optprop_LUT_8_10)
-        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-
-      class is (t_optprop_LUT_8_12)
-        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-
-      class is (t_optprop_LUT_8_16)
-        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-
-      class is (t_optprop_LUT_8_18)
-        call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-
-      class is (t_optprop_LUT_wedge_5_8)
-        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
-        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
-        call setup_default_wedge_geometry([zero, zero], [one, zero], &
-          wedge_C, aspect_zx, vertices, &
-          sphere_radius=real(wedge_sphere_radius, ireals))
-
-      class is (t_optprop_LUT_wedge_18_8)
-        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr); call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
-        call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr); call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
-        call setup_default_wedge_geometry([zero, zero], [one, zero], &
-          wedge_C, aspect_zx, vertices, &
-          sphere_radius=real(wedge_sphere_radius, ireals))
-
-      class default
-        call CHKERR(1_mpiint, 'unexpected type for optprop_LUT object!')
-    end select
+    call OPP%LUT_bmc_wrapper_determine_sample_pts(config, index_1d, dir, &
+      vertices, tauz, w0, g, phi, theta)
 
     call bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
 
+    !print *,'LUTBMC :: calling bmc_get_coeff src',src,'tauz',tauz,w0,g,'angles',phi,theta,':ind1d',index_1d
 end subroutine
 
 subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol, inp_atol, inp_rtol)
@@ -973,7 +1025,7 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g4)
           call populate_LUT_dim('phi',       i1, OPP%dirconfig%dims(5), vrange=real([0], irealLUT)) ! azimithally average in 1D
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
           allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
@@ -987,8 +1039,8 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g4)
-          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
           allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
@@ -1027,8 +1079,8 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g4)
-          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
           allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
@@ -1042,8 +1094,8 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g4)
-          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
           allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
@@ -1057,8 +1109,8 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g4)
-          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
           allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
@@ -1072,8 +1124,8 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g4)
-          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
           allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
@@ -1087,8 +1139,8 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect23)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g4)
-          call populate_LUT_dim('phi',       i10, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
-          call populate_LUT_dim('theta',     i10, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('phi',       19_iintegers, OPP%dirconfig%dims(5), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('theta',     19_iintegers, OPP%dirconfig%dims(6), vrange=real([0,90], irealLUT))
           allocate(OPP%diffconfig%dims(4))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
@@ -1130,20 +1182,34 @@ subroutine set_parameter_space(OPP)
       class is (t_optprop_LUT_wedge_18_8)
           OPP%interp_mode = interp_mode_wedge
           allocate(OPP%dirconfig%dims(7))
+          !call populate_LUT_dim('tau',       i2, OPP%dirconfig%dims(1), vrange=real([1e-3,1.], irealLUT))
+          !call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.99999], irealLUT))
+          !call populate_LUT_dim('aspect_zx', i2, OPP%dirconfig%dims(3), vrange=real([.5,2.], irealLUT))
+          !call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
+          !call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([.8, .9485], irealLUT))
+          !call populate_LUT_dim('phi',       3_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
+          !call populate_LUT_dim('theta',     i3, OPP%dirconfig%dims(7), vrange=real([0,20], irealLUT))
+
           call populate_LUT_dim('tau',       size(preset_tau20,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau20)
           call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
           call populate_LUT_dim('aspect_zx', size(preset_aspect7,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect7)
           call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
           call populate_LUT_dim('wedge_coord_Cy', 10_iintegers, OPP%dirconfig%dims(5), vrange=real([.8,.9485], irealLUT))
-          call populate_LUT_dim('phi',       35_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
+          call populate_LUT_dim('phi',       25_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
           call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
 
           allocate(OPP%diffconfig%dims(5))
-          call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-          call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w010)
-          call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-          call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 10_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .9485], irealLUT))
+          call populate_LUT_dim('tau',       size(preset_tau20,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau20)
+          call populate_LUT_dim('w0',        i2, OPP%diffconfig%dims(2), vrange=real([.0,.99999], irealLUT))
+          call populate_LUT_dim('aspect_zx', size(preset_aspect7,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect7)
+          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .9485], irealLUT))
+
+          !call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
+          !call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w010)
+          !call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
+          !call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
+          !call populate_LUT_dim('wedge_coord_Cy', 10_iintegers, OPP%diffconfig%dims(5), vrange=real([.8, .9485], irealLUT))
 
       class default
         call CHKERR(1_mpiint, 'set_parameter space: unexpected type for optprop_LUT object!')

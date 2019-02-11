@@ -1352,7 +1352,7 @@ module m_pprts
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale", lpprts_delta_scale, lflg , ierr) ;call CHKERR(ierr)
 
     if(lpprts_delta_scale) then
-      call delta_scale(atm%kabs, atm%ksca, atm%g)
+      call delta_scale(atm%kabs, atm%ksca, atm%g, max_g=.65_ireals)
     else
       if(solver%myid.eq.0.and.lflg) print *,"Skipping Delta scaling of optprops"
       if(any(atm%g.ge.0.5_ireals)) &
