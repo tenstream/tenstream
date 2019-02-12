@@ -3,7 +3,7 @@ include(CMakeForceCompiler) #Necessary to change between MPI/parallel/profiler c
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
-cmake_minimum_required (VERSION 2.8.10)
+cmake_minimum_required (VERSION 3.6.0)
 
 #Load system specific settings
 if (NOT SYST)
@@ -48,29 +48,15 @@ else()
   MESSAGE(STATUS "Compiler Flags " ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_DEBUG})
 endif()
 
-# HDF5
-#find_package( HDF5 ) # use this for non-cmake install of HDF5
-#FIND_PACKAGE (HDF5 NAMES hdf5 ) # or this if HDF5 was built with cmake support
-#message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
-#if(${HDF5_FOUND})
-#  message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
-#  message(STATUS "HDF5 F90      : ${HDF5_BUILD_FORTRAN}" )
-#  message(STATUS "HDF5 Library  : ${HDF5_LIBRARIES}")
-#  include_directories(${HDF5_INCLUDE_DIR})
-#  include_directories(${HDF5_FORTRAN_INCLUDE_DIR})
-#  list (APPEND EXTLIB ${HDF5_LIBRARIES})
-#else(${HDF5_FOUND})
-#  message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
-#endif(${HDF5_FOUND})
-
-# Add Lapack
-find_package( LAPACK )
-if(${LAPACK_FOUND})
-  list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
-endif(${LAPACK_FOUND})
-
 # Petsc
-MESSAGE(STATUS "Using PETSC $ENV{PETSC_DIR} / $ENV{PETSC_ARCH} ")
+set(PETSCINSTALL "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}")
+MESSAGE(STATUS "Using PETSC ${PETSCINSTALL} ")
+if(NOT EXISTS "${PETSCINSTALL}" )
+  message(FATAL "Directory ${PETSCINSTALL} does not exist!")
+endif(NOT EXISTS "${PETSCINSTALL}" )
+
+set(CMAKE_PREFIX_PATH ${PETSCINSTALL} ${CMAKE_PREFIX_PATH})
+
 find_package( PETSc )
 message(STATUS "Found Petsc:    ${PETSC_FOUND}" )
 message(STATUS "Petsc Includes: ${PETSC_INCLUDES}" )
@@ -79,7 +65,7 @@ message(STATUS "Petsc compiler: ${PETSC_COMPILER}" )
 message(STATUS "Petsc VERSION : ${PETSC_VERSION}" )
 message(STATUS "Petsc definiti: ${PETSC_DEFINITIONS}")
 
-list(APPEND CMAKE_MODULE_PATH "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/lib/petsc/conf/")
+list(APPEND CMAKE_MODULE_PATH "${PETSCINSTALL}/lib/petsc/conf/")
 include(PETScConfig OPTIONAL)
 
 if(PETSC_HDF5_LIB)
@@ -90,6 +76,26 @@ endif(PETSC_HDF5_LIB)
 add_definitions (${PETSC_DEFINITIONS})
 include_directories (${PETSC_INCLUDES})
 list (APPEND EXTLIB "${PETSC_LIBRARIES}" )
+
+# Add Lapack
+find_package( LAPACK )
+if(${LAPACK_FOUND})
+  list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
+endif(${LAPACK_FOUND})
+
+# HDF5
+# find_package( HDF5 ) # use this for non-cmake install of HDF5
+# message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
+# if(${HDF5_FOUND})
+#   message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
+#   message(STATUS "HDF5 F90      : ${HDF5_BUILD_FORTRAN}" )
+#   message(STATUS "HDF5 Library  : ${HDF5_LIBRARIES}")
+#   include_directories(${HDF5_INCLUDE_DIR})
+#   include_directories(${HDF5_FORTRAN_INCLUDE_DIR})
+#   list (APPEND EXTLIB ${HDF5_LIBRARIES})
+# else(${HDF5_FOUND})
+#   message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
+# endif(${HDF5_FOUND})
 
 # NetCDF
 set (NETCDF_F90 "YES")
