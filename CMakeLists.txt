@@ -235,4 +235,6 @@ if(ENABLE_C_WRAPPER)
 	add_subdirectory(C_wrapper)
 endif(ENABLE_C_WRAPPER)
 
+add_subdirectory(rayli_wrapper)
+
 GET_DIRECTORY_PROPERTY(output INCLUDE_DIRECTORIES)
