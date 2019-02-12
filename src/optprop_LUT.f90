@@ -603,17 +603,21 @@ subroutine createLUT(OPP, comm, config, S, T)
                   ind = (idst-1) * Nsrc + isrc
                   S%c(ind, lutindex) = S_diff(idst, isrc)
                 enddo
-                S%stddev_tol(lutindex) = max(S%stddev_tol(lutindex), maxval(S_tol(:, isrc)))
 
                 if(present(T)) then
                   do idst = 1, OPP%dir_streams
                     ind = (idst-1) * Nsrc + isrc
                     T%c(ind, lutindex) = T_dir(idst, isrc)
                   enddo
-                  T%stddev_tol(lutindex) = max(T%stddev_tol(lutindex), maxval(T_tol(:, isrc)))
                 endif
               enddo ! isrc
 
+              S%stddev_tol(lutindex) = maxval(S_tol)
+              if(present(T)) then
+                T%stddev_tol(lutindex) = maxval(T_tol)
+              endif
+
+              if (ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
 
               if( mod(lutindex-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
                 print *,'Calculated LUT...', lutindex, (lutindex-1)*100._irealLUT/total_size,'%'
@@ -725,6 +729,22 @@ subroutine createLUT(OPP, comm, config, S, T)
 
             endif !gotmsg
           enddo
+      end subroutine
+      subroutine random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
+        integer(iintegers) :: lutindex
+        real(irealLUT), dimension(:,:) :: S_diff, T_dir, S_tol, T_tol
+        real(ireals) :: R
+        real(ireals), parameter :: chance=1e-4
+        integer(iintegers) :: isrc
+        call random_number(R)
+        if(R.lt.chance) then
+          do isrc=1,size(T_dir,dim=1)
+            print *,'lutindex '//itoa(lutindex)//' src '//itoa(isrc)//' :T', T_dir(:, isrc)
+          enddo
+          do isrc=1,size(T_dir,dim=1)
+            print *,'lutindex '//itoa(lutindex)//' src '//itoa(isrc)//' :S', S_diff(:, isrc)
+          enddo
+        endif
       end subroutine
 end subroutine createLUT
 
