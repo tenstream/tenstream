@@ -1,3 +1,7 @@
+if(NOT ENABLE_PLEXRT)
+  return()
+endif(NOT ENABLE_PLEXRT)
+
 get_filename_component(CDIR ${CMAKE_CURRENT_LIST_DIR} NAME)
 message( STATUS "Creating example for directory: CDIR=${CDIR}")
 

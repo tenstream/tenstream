@@ -234,7 +234,7 @@ module m_helper_functions
     pure function itoa_i4(i) result(res)
       character(:),allocatable :: res
       integer(kind=INT32),intent(in) :: i
-      character(range(i)+2) :: tmp
+      character(len=range(i)+2) :: tmp
       write(tmp,'(i0)') i
       res = trim(tmp)
     end function

@@ -9,8 +9,9 @@ if(RAYLI_DIR)
   find_library(RAYLI_LIB2 rayli_common    ${RAYLI_DIR} ${RAYLI_DIR}/lib )
   list(APPEND RAYLI_LIB ${RAYLI_LIB2})
   message(STATUS "Found RAYLI LIB: ${RAYLI_LIB}")
-
-  add_executable(tenstr2rayli "tenstr2rayli.c" )
-  target_link_libraries(tenstr2rayli ${RAYLI_LIB} stdc++ m)
 endif(RAYLI_DIR)
 
+if(HAVE_RAYLI)
+  add_executable(single_wedge_2_rayli "single_wedge_2_rayli.c" )
+  target_link_libraries(single_wedge_2_rayli ${RAYLI_LIB} stdc++ m)
+endif()
