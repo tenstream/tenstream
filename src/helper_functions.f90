@@ -549,7 +549,7 @@ module m_helper_functions
       call imp_allreduce_sum(comm, size(v, kind=INT64), global_size)
       my_avg = meanval(v) * size(v)
       call imp_allreduce_sum(comm, my_avg, r)
-      r = r/global_size
+      r = r / real(global_size, kind(r))
     end subroutine
     subroutine imp_allreduce_mean_3d(comm,v,r)
       integer(mpiint),intent(in) :: comm
@@ -561,7 +561,7 @@ module m_helper_functions
       call imp_allreduce_sum(comm, size(v, kind=INT64), global_size)
       my_avg = meanval(v) * size(v)
       call imp_allreduce_sum(comm, my_avg, r)
-      r = r/global_size
+      r = r / real(global_size, kind(r))
     end subroutine
     subroutine imp_reduce_sum(comm,v)
       real(ireals),intent(inout) :: v
@@ -981,7 +981,7 @@ module m_helper_functions
             else
               loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
             endif
-            res= min(max(1._REAL32*lbound(arr,1), i + loc_increment), 1._REAL32*ubound(arr,1)) ! return `real-numbered` location of val
+            res= min(max(real(lbound(arr,1), REAL32), real(i, REAL32) + loc_increment), real(ubound(arr,1), REAL32)) ! return `real-numbered` location of val
             return
           endif
         end do
@@ -1000,7 +1000,7 @@ module m_helper_functions
             else
               loc_increment = (val - arr(j)) / ( arr(i) - arr(j) )
             endif
-            res = min(max(1._REAL32*lbound(arr,1), j - loc_increment), 1._REAL32*ubound(arr,1)) ! return `real-numbered` location of val
+            res = min(max(real(lbound(arr,1), REAL32), real(j, REAL32) - loc_increment), real(ubound(arr,1), REAL32)) ! return `real-numbered` location of val
             return
           endif
         end do

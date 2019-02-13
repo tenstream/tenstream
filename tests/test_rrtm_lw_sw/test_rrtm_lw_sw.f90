@@ -101,8 +101,8 @@ contains
     ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
     ! Temperature difference of 50K
     do k=1,nzp+1
-      plev(k,:,:) = 1000_ireals - (k-one)*500._ireals/(nzp)
-      tlev(k,:,:) = 288._ireals - (k-one)*50._ireals/(nzp)
+      plev(k,:,:) = 1000_ireals - real(k-1, ireals)*500._ireals/real(nzp, ireals)
+      tlev(k,:,:) = 288._ireals - real(k-1, ireals)* 50._ireals/real(nzp, ireals)
     enddo
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
@@ -113,7 +113,7 @@ contains
     lwc = 0
     reliq = 0
 
-    icld = (nzp+1)/2
+    icld = int(real(nzp+1)/2)
     lwc  (icld, :,:) = 1e-2_ireals
     reliq(icld, :,:) = 10._ireals
 

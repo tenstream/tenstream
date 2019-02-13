@@ -276,12 +276,12 @@ module m_plex_rt
         dz = geoms(i1+geom_offset)
 
         if(present(vert_integrated_kabs)) then
-          kabs_tot = vert_integrated_kabs / solver%plex%Nlay / dz
+          kabs_tot = vert_integrated_kabs / real(solver%plex%Nlay, ireals) / dz
         else
           kabs_tot = rayleigh * (one - w0) * dz
         endif
         if(present(vert_integrated_ksca)) then
-          ksca_tot = vert_integrated_ksca / solver%plex%Nlay / dz
+          ksca_tot = vert_integrated_ksca / real(solver%plex%Nlay, ireals) / dz
         else
           ksca_tot = rayleigh * w0 *dz
         endif
@@ -703,7 +703,7 @@ module m_plex_rt
           call DMPlexRestoreSupport(edirdm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
 
           call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
-          area = geoms(i1+geom_offset) / solver%dirtop%area_divider
+          area = geoms(i1+geom_offset) / real(solver%dirtop%area_divider, ireals)
 
           call get_inward_face_normal(iface, icell, geomSection, geoms, face_normal)
 
@@ -721,7 +721,7 @@ module m_plex_rt
 
       call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
 
-      !call set_sidewards_direct_fluxes()
+      if(.False.) call set_sidewards_direct_fluxes()
 
       call DMLocalToGlobalBegin(edirdm, localVec, INSERT_VALUES, srcVec, ierr); call CHKERR(ierr)
       call DMLocalToGlobalEnd  (edirdm, localVec, INSERT_VALUES, srcVec, ierr); call CHKERR(ierr)
@@ -1214,7 +1214,7 @@ module m_plex_rt
 
                 emissivity = max(zero, one - sum(diff2diff))
 
-                xsrc(i1+icol) = xplanck(i1+icell) * pi * emissivity / (numDof/2)
+                xsrc(i1+icol) = xplanck(i1+icell) * pi * emissivity / real(numDof/2, ireals)
                 i = i+1
               enddo
             enddo
@@ -1326,7 +1326,7 @@ module m_plex_rt
         endif
 
         call MatGetSize(A, Nrows_global, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
-        call imp_allreduce_min(comm, rel_atol*Nrows_global, atol)
+        call imp_allreduce_min(comm, rel_atol*real(Nrows_global, ireals), atol)
         atol = max(1e-8_ireals, atol)
 
         call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -1480,9 +1480,9 @@ module m_plex_rt
       call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
       area = geoms(i1+geom_offset)
       if(plex%ltopfacepos(iface)) then
-        area = area / top_dof%area_divider
+        area = area / real(top_dof%area_divider, ireals)
       else
-        area = area / side_dof%area_divider
+        area = area / real(side_dof%area_divider, ireals)
       endif
 
       call PetscSectionGetOffset(faceSection, iface, face_offset, ierr); call CHKERR(ierr)
@@ -2295,7 +2295,7 @@ module m_plex_rt
       endif
     endif
 
-    !call print_coeffs()
+    if(.False.) call print_coeffs()
 
     contains
       subroutine print_coeffs()
@@ -3004,7 +3004,7 @@ module m_plex_rt
           do idof = 1, solver%dirtop%dof
             redir(i1+k,i) = redir(i1+k,i) + xedir(voff+idof)
           enddo
-          redir(i1+k,i) = redir(i1+k,i) / solver%dirtop%dof
+          redir(i1+k,i) = redir(i1+k,i) / real(solver%dirtop%dof, ireals)
         enddo
 
         if(ldebug) then

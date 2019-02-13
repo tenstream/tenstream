@@ -272,7 +272,7 @@ end subroutine
 @test(npes=[1])
 subroutine test_rotation_matrix_around_axis_vec(this)
   class (MpiTestMethod), intent(inout) :: this
-  real(ireals), dimension(3) :: ex, ey, ez, x1, x2
+  real(ireals), dimension(3) :: ex, ey, ez, x1
   real(ireals) :: rot_angle, Mrot(3,3)
   real(ireals), parameter :: eps=sqrt(epsilon(eps))
   integer(iintegers) :: i

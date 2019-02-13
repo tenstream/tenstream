@@ -143,8 +143,8 @@ contains
     ksca = 1._ireals/nv/dz
     g    = zero
 
-    cx = nxp/2+1
-    cy = nyp/2+1
+    cx = int(real(nxp)/2)+1
+    cy = int(real(nyp)/2)+1
 
     if(cx.le.(solver%C_one%xe+1) .and. cx.gt.solver%C_one%xs) then
       if(cy.le.(solver%C_one%ye+1) .and. cy.gt.solver%C_one%ys) then

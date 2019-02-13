@@ -186,7 +186,7 @@ module m_icon_plex_utils
         call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
         do i = e2dStart, e2dEnd-1
           call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
-          if(voff.lt.zero) then ! only add my local idx number if it belongs to me
+          if(voff.lt.i0) then ! only add my local idx number if it belongs to me
             call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
             do k = 0, ke1-1
               xv(i1+voff+k) = real(iedge_top_icon_2_plex(i, k), ireals)
@@ -198,7 +198,7 @@ module m_icon_plex_utils
         enddo
         do i = v2dStart, v2dEnd-1
           call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
-          if(voff.lt.zero) then
+          if(voff.lt.i0) then
             call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
             do k = 0, ke1-1
               xv(i1+voff+k) = real(ivertex_icon_2_plex(i, k), ireals)
@@ -225,7 +225,7 @@ module m_icon_plex_utils
         call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
         do i = e2dStart, e2dEnd-1
           call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
-          if(voff.ge.zero) then ! this is owned by someone else
+          if(voff.ge.i0) then ! this is owned by someone else
             owner = remote(i1+voff)%rank
             call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
             do k = 0, ke1-1
@@ -248,7 +248,7 @@ module m_icon_plex_utils
         enddo
         do i = v2dStart, v2dEnd-1
           call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
-          if(voff.ge.zero) then ! this is owned by someone else
+          if(voff.ge.i0) then ! this is owned by someone else
             owner = remote(i1+voff)%rank
             call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
             do k = 0, ke1-1
@@ -820,7 +820,9 @@ module m_icon_plex_utils
           do k=0,Nverts-1
             j = k / Nx ! row of verts
             i = k - j*Nx ! col of verts
-            vertexCoords(i1+k*i3:(k+i1)*i3) = [i*dx + real(modulo(j,i2),ireals)*dx/2, j*ds, dz]
+            vertexCoords(i1+k*i3:(k+i1)*i3) = [real(i, ireals)*dx + real(modulo(j,i2),ireals)*dx/2, &
+                                               real(j, ireals)*ds, &
+                                               dz]
             if(ldebug) print *,k,':',i,j,'vcoord', vertexCoords(i1+k*i3:(k+i1)*i3)
           enddo
           if(ldebug) then
@@ -955,7 +957,7 @@ module m_icon_plex_utils
               i = (iv-vStart) - j*vert_per_row
               z = 100
             x = (real(modulo(j,i2),ireals)*.5_ireals + real(i, ireals))*dx
-            y = j*ds
+            y = real(j, ireals) * ds
             !if(ldebug) print *,'iv',iv,':', i, j,'=>', x, y, z
 
             call PetscSectionGetOffset(coordSection, iv, voff, ierr); coords(voff+1:voff+3) = [x, y, z]
@@ -1434,17 +1436,17 @@ module m_icon_plex_utils
       B = 0
     else
       ! after start of Gregorian calendar
-      A = int(yearp / 100._ireals)
-      B = 2 - A + int(A / 4._ireals)
+      A = int(real(yearp, ireals) / 100._ireals)
+      B = 2 - A + int(real(A, ireals) / 4._ireals)
     endif
 
     if(yearp .lt. 0) then
-      C = int((365.25_ireals * yearp) - 0.75_ireals)
+      C = int((365.25_ireals * real(yearp, ireals)) - 0.75_ireals)
     else
-      C = int(365.25_ireals * yearp)
+      C = int(365.25_ireals * real(yearp, ireals))
     endif
-    D = int(30.6001_ireals * (monthp + 1))
-    jd = B + C + D + day + 1720994.5_ireals
+    D = int(30.6001_ireals * real(monthp + 1, ireals))
+    jd = real(B + C + D, ireals) + day + 1720994.5_ireals
   end function
 
   ! after the wiki page: https://en.wikipedia.org/wiki/Position_of_the_Sun

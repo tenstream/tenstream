@@ -1841,7 +1841,7 @@ module m_pprts
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling direct fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C%da ,xv1d, xv)
 
-      Az  = solver%atm%dx*solver%atm%dy / solver%dirtop%area_divider  ! size of a direct stream in m**2
+      Az  = solver%atm%dx*solver%atm%dy / real(solver%dirtop%area_divider, ireals)  ! size of a direct stream in m**2
       fac = Az
 
       ! Scaling top faces
@@ -1862,7 +1862,7 @@ module m_pprts
           do k=C%zs,C%ze-1
             if(.not.atm%l1d(atmk(atm, k),i,j)) then
               ! First the faces in x-direction
-              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / solver%dirside%area_divider
+              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
               fac = Ax
               do iside=1,solver%dirside%dof
                 d = solver%dirtop%dof + iside-1
@@ -1870,7 +1870,7 @@ module m_pprts
               enddo
 
               ! Then the rest of the faces in y-direction
-              Ay = atm%dy*atm%dz(k,i,j) / solver%dirside%area_divider
+              Ay = atm%dy*atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
               fac = Ay
               do iside=1,solver%dirside%dof
                 d = solver%dirtop%dof + solver%dirside%dof + iside-1
@@ -1909,7 +1909,7 @@ module m_pprts
 
 
       ! Scaling top faces
-      Az = solver%atm%dx*solver%atm%dy/solver%difftop%area_divider
+      Az = solver%atm%dx*solver%atm%dy / real(solver%difftop%area_divider, ireals)
       fac = Az
 
       do j=C%ys,C%ye
@@ -1930,7 +1930,7 @@ module m_pprts
             if(.not.solver%atm%l1d(atmk(solver%atm, k),i,j)) then
 
               ! faces in x-direction
-              Ax = solver%atm%dy*solver%atm%dz(k,i,j)/solver%diffside%area_divider
+              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / real(solver%diffside%area_divider, ireals)
               fac = Ax
 
               do iside=1,solver%diffside%streams
@@ -1939,7 +1939,7 @@ module m_pprts
               enddo
 
               ! faces in y-direction
-              Ay = solver%atm%dx*solver%atm%dz(k,i,j)/solver%difftop%area_divider
+              Ay = solver%atm%dx*solver%atm%dz(k,i,j) / real(solver%difftop%area_divider, ireals)
               fac = Ay
 
               do iside=1,solver%diffside%streams
@@ -2189,7 +2189,7 @@ module m_pprts
         enddo
       enddo
     enddo
-    xv_diff = xv_diff / solver%difftop%streams
+    xv_diff = xv_diff / real(solver%difftop%streams, ireals)
 
     if(solution%lsolar_rad) &
       call restoreVecPointer(solution%edir, xv_dir1d, xv_dir  )
@@ -2258,7 +2258,7 @@ module m_pprts
         enddo
       enddo
     enddo
-    xv_diff = xv_diff / solver%difftop%streams
+    xv_diff = xv_diff / real(solver%difftop%streams, ireals)
 
     call restoreVecPointer(solution%ediff, xv_diff1d, xv_diff )
 
@@ -2581,7 +2581,9 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   call mpi_comm_rank(C%comm, myid, ierr)     ; call CHKERR(ierr)
   call mpi_comm_size(C%comm, numnodes, ierr) ; call CHKERR(ierr)
 
-  call imp_allreduce_min(C%comm, rel_atol*(C%dof*C%glob_xm*C%glob_ym*C%glob_zm) * count(.not.atm%l1d)/(one*size(atm%l1d)), atol)
+  call imp_allreduce_min(C%comm, &
+    rel_atol * real(C%dof*C%glob_xm*C%glob_ym*C%glob_zm, ireals) &
+    * count(.not.atm%l1d)/real(size(atm%l1d), ireals), atol)
   atol = max(1e-8_ireals, atol)
 
   if(myid.eq.0.and.ldebug) &
@@ -2651,7 +2653,9 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       DM  :: coordDA
       integer(iintegers) :: mstart,nstart,pstart,m,n,p, i,j,k
 
-      call DMDASetUniformCoordinates(C%da,zero,one, zero, atm%dx*C%glob_xm,zero, atm%dy*C%glob_ym, ierr );call CHKERR(ierr)
+      call DMDASetUniformCoordinates(C%da, zero, one, &
+        zero, atm%dx * real(C%glob_xm, ireals), &
+        zero, atm%dy * real(C%glob_ym, ireals), ierr );call CHKERR(ierr)
       call DMGetCoordinateDM(C%da,coordDA,ierr);call CHKERR(ierr)
       call DMGetCoordinates(C%da, coordinates,ierr);call CHKERR(ierr)
 
@@ -2742,7 +2746,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     real(ireals) :: fac
     integer(iintegers) :: i,j,src
 
-    fac = edirTOA * (solver%atm%dx*solver%atm%dy) / solver%dirtop%area_divider
+    fac = edirTOA * solver%atm%dx*solver%atm%dy / real(solver%dirtop%area_divider, ireals)
 
     call VecSet(incSolar,zero,ierr) ;call CHKERR(ierr)
 
@@ -2959,8 +2963,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       associate(  atm     => solver%atm, &
                 C_diff  => solver%C_diff)
 
-      if(solver%myid.eq.0.and.ldebug) print *,'Assembly of SRC-Vector ... setting thermal source terms min/max planck', minval(atm%planck), maxval(atm%planck)
-      Az = atm%dx*atm%dy/solver%difftop%area_divider
+      if(solver%myid.eq.0.and.ldebug) &
+        print *,'Assembly of SRC-Vector ... setting thermal source terms min/max planck', &
+        minval(atm%planck), maxval(atm%planck)
+
+      Az = atm%dx * atm%dy / real(solver%difftop%area_divider, ireals)
 
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
@@ -2971,7 +2978,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
               if(luse_eddington ) then
 
                 b0 = atm%planck(atmk(atm,k),i,j) * &
-                  (one-atm%a11(atmk(atm,k),i,j)-atm%a12(atmk(atm,k),i,j)) * Az * pi / solver%difftop%streams
+                  (one-atm%a11(atmk(atm,k),i,j)-atm%a12(atmk(atm,k),i,j)) * Az * pi &
+                  / real(solver%difftop%streams, ireals)
 
                 do src = 0, solver%difftop%dof-1
                   if (solver%difftop%is_inward(i1+src)) then !Edn
@@ -2992,7 +3000,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                   .False., diff2diff1d, &
                   atm%l1d(atmk(atm,k),i,j))
 
-                b0 = atm%planck(atmk(atm,k),i,j) * Az * pi * (one-diff2diff1d(1)-diff2diff1d(2) ) / solver%difftop%streams
+                b0 = atm%planck(atmk(atm,k),i,j) * Az * pi * (one-diff2diff1d(1)-diff2diff1d(2) ) &
+                  / real(solver%difftop%streams, ireals)
 
                 do src = 0, solver%difftop%dof-1
                   if (solver%difftop%is_inward(i1+src)) then !Edn
@@ -3006,8 +3015,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
               endif
 
             else ! Tenstream source terms
-              Ax = atm%dy*atm%dz(atmk(atm,k),i,j)/solver%diffside%area_divider
-              Ay = atm%dx*atm%dz(atmk(atm,k),i,j)/solver%diffside%area_divider
+              Ax = atm%dy*atm%dz(atmk(atm,k),i,j) / real(solver%diffside%area_divider, ireals)
+              Ay = atm%dx*atm%dz(atmk(atm,k),i,j) / real(solver%diffside%area_divider, ireals)
 
               call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
               call get_coeff(solver, &
@@ -3023,7 +3032,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 v(src:C_diff%dof**2:C_diff%dof) = diff2diff( i1+(src-i1)*C_diff%dof : src*C_diff%dof )
               enddo
 
-              b0 = atm%planck(atmk(atm,k),i,j) * pi *Az / solver%difftop%streams
+              b0 = atm%planck(atmk(atm,k),i,j) * pi *Az / real(solver%difftop%streams, ireals)
               do src=1,solver%difftop%dof
                 if (solver%difftop%is_inward(src) .eqv. .False.) then
                   xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
@@ -3032,7 +3041,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 endif
               enddo
 
-              b0 = atm%planck(atmk(atm,k),i,j) * pi *Ax / solver%diffside%streams
+              b0 = atm%planck(atmk(atm,k),i,j) * pi *Ax / real(solver%diffside%streams, ireals)
               do iside=1,solver%diffside%dof
                 src = iside+solver%difftop%dof
                 if (solver%diffside%is_inward(iside) .eqv. .False.) then
@@ -3042,7 +3051,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                 endif
               enddo
 
-              b0 = atm%planck(atmk(atm,k),i,j) * pi *Ay / solver%diffside%streams
+              b0 = atm%planck(atmk(atm,k),i,j) * pi *Ay / real(solver%diffside%streams, ireals)
               do iside=1,solver%diffside%dof
                 src = iside + solver%difftop%dof + solver%diffside%dof
                 if (solver%diffside%is_inward(iside) .eqv. .False.) then
@@ -3066,7 +3075,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
             do src = 0, solver%difftop%dof-1
               if (.not.solver%difftop%is_inward(i1+src)) then !Eup
                 xsrc(src,k,i,j) = xsrc(src,k,i,j) + atm%planck(atmk(atm,k),i,j) &
-                  * Az * (one-atm%albedo(i,j)) * pi / solver%difftop%streams
+                  * Az * (one-atm%albedo(i,j)) * pi / real(solver%difftop%streams, ireals)
               endif
             enddo
         enddo
@@ -3119,11 +3128,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                       if (solver%difftop%is_inward(idiff)) then
                         ! fetch all diffuse downward fluxes at k+1
                         xsrc(idiff-1,k+1,i,j) = xsrc(idiff-1,k+1,i,j) + &
-                          xedir(src-1,k,i,j) * atm%a23(atmk(atm,k),i,j) / solver%difftop%streams
+                          xedir(src-1,k,i,j) * atm%a23(atmk(atm,k),i,j) / real(solver%difftop%streams, ireals)
                       else
                         ! fetch all diffuse upward fluxes at k
                         xsrc(idiff-1,k,i,j) = xsrc(idiff-1,k,i,j) + &
-                          xedir(src-1,k,i,j) * atm%a13(atmk(atm,k),i,j) / solver%difftop%streams
+                          xedir(src-1,k,i,j) * atm%a13(atmk(atm,k),i,j) / real(solver%difftop%streams, ireals)
                       endif
                     enddo
                   enddo
@@ -3271,7 +3280,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
           do dst=1, solver%difftop%dof
             if (.not. solver%difftop%is_inward(dst)) then
               do src=1, solver%dirtop%dof
-                xsrc(dst-1,k,i,j) = xsrc(dst-1, k, i, j) + xedir(src-1,k,i,j) * atm%albedo(i,j) / solver%difftop%streams
+                xsrc(dst-1,k,i,j) = xsrc(dst-1, k, i, j) + xedir(src-1,k,i,j) * atm%albedo(i,j) &
+                  / real(solver%difftop%streams, ireals)
               enddo
             endif
           enddo
@@ -3639,7 +3649,9 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                   col(MatStencil_c,i1) = src-1
                   row(MatStencil_c,i1) = dst-1
                   !print *,solver%myid, 'i '//itoa(i)//' j '//itoa(j), ' Setting albedo for dst '//itoa(dst)//' src '//itoa(src)
-                  call MatSetValuesStencil(A, i1, row, i1, col, [-solver%atm%albedo(i,j) / solver%difftop%streams], INSERT_VALUES, ierr) ;call CHKERR(ierr)
+                  call MatSetValuesStencil(A, i1, row, i1, col, &
+                    [-solver%atm%albedo(i,j) / real(solver%difftop%streams, ireals)], &
+                    INSERT_VALUES, ierr) ;call CHKERR(ierr)
                 endif
               enddo
             endif
@@ -3742,9 +3754,9 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       call getVecPointer(solver%solutions(uid)%ediff, solver%C_diff%da, x1d, x4d)
       do iside=1,solver%difftop%dof
         if(solver%difftop%is_inward(iside)) then
-          redn = redn + x4d(iside-1, :, :, :) / solver%difftop%area_divider
+          redn = redn + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
         else
-          reup = reup + x4d(iside-1, :, :, :) / solver%difftop%area_divider
+          reup = reup + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
         endif
       enddo
       call restoreVecPointer(solver%solutions(uid)%ediff,x1d,x4d)

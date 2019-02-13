@@ -605,7 +605,7 @@ contains
       img = tmp
     enddo !iter
 
-    img = img * (c/(2*k+1))**iter
+    img = img * (c/real(2*k+1, ireals))**iter
 
   end subroutine
 end module

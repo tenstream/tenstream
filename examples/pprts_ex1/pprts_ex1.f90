@@ -23,6 +23,7 @@ subroutine pprts_ex1()
 
     class(t_solver), allocatable :: solver
 
+    integer(iintegers) :: mid_idx_x, mid_idx_y, mid_idx_z
     character(len=80) :: arg
 
     dz1d = dz
@@ -73,9 +74,13 @@ subroutine pprts_ex1()
     ksca = 1e-3_ireals/(dz*nv)
     g    = zero
 
-    kabs((nv+1)/2,(nxp+1)/2,:) = 1/dz
-    ksca((nv+1)/2,(nxp+1)/2,:) = 1/dz
-    g   ((nv+1)/2,(nxp+1)/2,:) = .9
+    mid_idx_x = int(real(nxp+1)/2)
+    mid_idx_y = int(real(nyp+1)/2)
+    mid_idx_z = int(real(nv +1)/2)
+
+    kabs(mid_idx_z, mid_idx_x, :) = 1/dz
+    ksca(mid_idx_z, mid_idx_x, :) = 1/dz
+    g   (mid_idx_z, mid_idx_x, :) = .9
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call set_angles(solver, phi0, theta0)
@@ -84,10 +89,10 @@ subroutine pprts_ex1()
 
     call pprts_get_result(solver, fdn,fup,fdiv,fdir)
 
-    print *,'edir', fdir(:, nxp/2,nyp/2)
-    print *,'edn:', fdn(:, nxp/2,nyp/2)
-    print *,'eup:', fup(:, nxp/2,nyp/2)
-    print *,'divE', fdiv(:, nxp/2,nyp/2)
+    print *,'edir', fdir(:, mid_idx_x, mid_idx_y)
+    print *,'edn:', fdn (:, mid_idx_x, mid_idx_y)
+    print *,'eup:', fup (:, mid_idx_x, mid_idx_y)
+    print *,'divE', fdiv(:, mid_idx_x, mid_idx_y)
     call destroy_pprts(solver, .True.)
 end subroutine
 

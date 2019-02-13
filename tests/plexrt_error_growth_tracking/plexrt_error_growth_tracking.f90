@@ -88,7 +88,7 @@ contains
 
     do iter=1,5
       do k=1,2
-        time = iter*one
+        time = real(iter, ireals)
 
         lneed = need_new_solution(comm, solver%solutions(k), time, solver%lenable_solutions_err_estimates)
         print *, myid, 'Need_new_solution?', k, time, ' :: ', lneed

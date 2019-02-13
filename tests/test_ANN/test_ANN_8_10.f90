@@ -90,11 +90,11 @@ contains
 
                   itest = itest+1
 
-                  kabs = 10.**(-ikabs)
-                  ksca = 10.**(-iksca)
-                  g    = ig/10.
-                  phi  = 1.*iphi
-                  theta= 1.*itheta
+                  kabs = 10._ireals**(-ikabs)
+                  ksca = 10._ireals**(-iksca)
+                  g    = real(ig,ireals) / 10._ireals
+                  phi  = real(iphi, ireals)
+                  theta= real(itheta, ireals)
                   if(iloop.eq.2) params(itest) = newPeCase(kabs,ksca,g,phi,theta)
                 enddo
               enddo
@@ -159,7 +159,9 @@ contains
       numnodes = this%getNumProcesses()
       myid     = this%getProcessRank()
 
+      allocate(vertices(6*3), source=-one)
       call CHKERR(1_mpiint, 'implement computation of vertices coordinates')
+
 
       associate( &
             kabs => this%kabs, &

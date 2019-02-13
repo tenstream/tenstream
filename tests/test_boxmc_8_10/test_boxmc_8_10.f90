@@ -72,16 +72,16 @@ contains
 
     do iphi=0,45,20
       do itheta=0,85,40
-        phi = iphi * one
-        theta = itheta * one
-        Tsum = zero
+        phi   = real(iphi, ireals)
+        theta = real(itheta, ireals)
+        Tsum  = zero
 
         do src = 1,8
           call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
           Tsum(1) = Tsum(1) + sum(T)
         enddo
 
-        phi = 90._ireals - iphi
+        phi = 90._ireals - real(iphi, ireals)
         do src = 1,8
           call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
           Tsum(2) = Tsum(2) + sum(T)
@@ -111,7 +111,7 @@ contains
     S_target = zero
 
     do iphi=0,90,10
-      phi = iphi*one
+      phi = real(iphi, ireals)
       do src = 1,4
         T_target = zero
         T_target(src) = exp(-tau)

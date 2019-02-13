@@ -63,8 +63,8 @@ contains
     ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
     ! Temperature difference of 32.5K
     do k=1,nzp+1
-      plev(k,:) = 1000_ireals - (k-one)*500._ireals/(nzp)
-      tlev(k,:) = 288._ireals - (k-one)*(5*6.5_ireals)/(nzp)
+      plev(k,:) = 1000_ireals - real(k-1, ireals)*  500._ireals / real(nzp, ireals)
+      tlev(k,:) = 288._ireals - real(k-1, ireals)*(5*6.5_ireals)/ real(nzp, ireals)
     enddo
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
@@ -75,7 +75,7 @@ contains
     lwc = 0
     reliq = 0
 
-    icld = (nzp+1)/2
+    icld = int(real(nzp+1)/2)
     lwc  (icld, :) = 1e-2_ireals
     reliq(icld, :) = 10._ireals
 
@@ -198,8 +198,8 @@ contains
     ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
     ! Temperature difference of 32.5K
     do k=1,nzp+1
-      plev(k,:) = 1000_ireals - (k-one)*500._ireals/(nzp)
-      tlev(k,:) = 288._ireals - (k-one)*(5*6.5_ireals)/(nzp)
+      plev(k,:) = 1000_ireals - real(k-1, ireals)*  500._ireals / real(nzp, ireals)
+      tlev(k,:) = 288._ireals - real(k-1, ireals)*(5*6.5_ireals)/ real(nzp, ireals)
     enddo
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
@@ -210,7 +210,7 @@ contains
     lwc = 0
     reliq = 0
 
-    icld = (nzp+1)/2
+    icld = int(real(nzp+1)/2)
     lwc  (icld, :) = 1e-2_ireals
     reliq(icld, :) = 10._ireals
 
@@ -260,9 +260,9 @@ contains
       d_tlay=tlay, d_lwc=lwc, d_reliq=reliq)
 
     ! Now override the background profile
-    atm2%bg_atm%plev = -1
-    atm2%bg_atm%tlev = -1
-    atm2%bg_atm%tlay = -1
+    atm2%bg_atm%plev = -one
+    atm2%bg_atm%tlev = -one
+    atm2%bg_atm%tlay = -one
 
     ! Update atm2
     call setup_tenstr_atm(comm, .False., atm_filename, plev+one, tlev+one, atm2, &
@@ -357,8 +357,8 @@ contains
     ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
     ! Temperature difference of 32.5K
     do k=1,nzp+1
-      plev(k,:) = 1000_ireals - (k-one)*500._ireals/(nzp)
-      tlev(k,:) = 288._ireals - (k-one)*(5*6.5_ireals)/(nzp)
+      plev(k,:) = 1000_ireals - real(k-1, ireals)*  500._ireals / real(nzp, ireals)
+      tlev(k,:) = 288._ireals - real(k-1, ireals)*(5*6.5_ireals)/ real(nzp, ireals)
     enddo
     hsrfc = [zero, srfc_offset]
 

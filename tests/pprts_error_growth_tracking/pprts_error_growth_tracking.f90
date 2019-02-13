@@ -74,7 +74,7 @@ contains
 
     do iter=1,5
       do k=1,2
-        time = iter*one
+        time = real(iter, ireals)
 
         lneed = need_new_solution(comm, solver%solutions(k), time, solver%lenable_solutions_err_estimates)
         print *, myid, 'Need_new_solution?', k, time, ' :: ', lneed
@@ -86,7 +86,7 @@ contains
         endif
 
         call set_optical_properties(solver, albedo, kabs, ksca, g)
-        call solve_pprts(solver, incSolar, opt_solution_uid=k, opt_solution_time=iter*one)
+        call solve_pprts(solver, incSolar, opt_solution_uid=k, opt_solution_time=real(iter,ireals))
 
         !allocate(fdir (solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
         call pprts_get_result(solver, fdn, fup, fdiv, fdir, opt_solution_uid=k)

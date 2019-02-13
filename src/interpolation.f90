@@ -256,7 +256,7 @@ contains
 
     if(ldebug) then
       call ind_1d_to_nd(db_offsets, size(db, dim=2, kind=iintegers), nd_indices)
-      if(any(pti.lt.one).or.any(pti.gt.nd_indices)) then
+      if(any(pti.lt.one).or.any(pti.gt.real(nd_indices, irealLUT))) then
         print *,'db dimensions', nd_indices
         print *,'pti', pti
         call CHKERR(1_mpiint, 'called with pti that does not fit database dimensions')

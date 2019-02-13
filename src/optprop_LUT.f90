@@ -620,7 +620,8 @@ subroutine createLUT(OPP, comm, config, S, T)
               if (ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
 
               if( mod(lutindex-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
-                print *,'Calculated LUT...', lutindex, (lutindex-1)*100._irealLUT/total_size,'%'
+                print *,'Calculated LUT...', lutindex, &
+                        real(lutindex-1, irealLUT)*100._irealLUT/real(total_size, irealLUT),'%'
 
 
               call cpu_time(now)
@@ -741,9 +742,11 @@ subroutine createLUT(OPP, comm, config, S, T)
           do isrc=1,size(T_dir,dim=1)
             print *,'lutindex '//itoa(lutindex)//' src '//itoa(isrc)//' :T', T_dir(:, isrc)
           enddo
+          print *,'Min/Max T_tol ', minval(T_tol), maxval(T_tol)
           do isrc=1,size(T_dir,dim=1)
             print *,'lutindex '//itoa(lutindex)//' src '//itoa(isrc)//' :S', S_diff(:, isrc)
           enddo
+          print *,'Min/Max S_tol ', minval(S_tol), maxval(S_tol)
         endif
       end subroutine
 end subroutine createLUT
@@ -766,7 +769,8 @@ subroutine prepare_table_space(OPP, config, S, T)
     entries = int(OPP%diff_streams**2+1, int64) * int(product(config%dims(:)%N), int64)
   endif
   bytesize = int(C_SIZEOF(1._irealLUT), INT64) * entries
-  print *,'Allocating Space for LUTs '//itoa(entries)//' entries ( '//ftoa(bytesize/1024._irealLUT**3)//' Gb) ...'
+  print *,'Allocating Space for LUTs '//itoa(entries)// &
+    ' entries ( '//ftoa(real(bytesize, irealLUT)/1024._irealLUT**3)//' Gb) ...'
 
   errcnt = 0
   if(present(T)) then
@@ -781,7 +785,8 @@ subroutine prepare_table_space(OPP, config, S, T)
     if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams**2, product(config%dims(:)%N)))
     if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=-1._irealLUT)
   endif
-  print *,'Allocating Space for LUTs '//itoa(entries)//' entries ( '//ftoa(bytesize/1024._irealLUT**3)//' Gb) ... done'
+  print *,'Allocating Space for LUTs '//itoa(entries)// &
+    ' entries ( '//ftoa(real(bytesize, irealLUT)/1024._irealLUT**3)//' Gb) ... done'
 end subroutine
 
 ! return the integer in config%dims that corresponds to the given dimension
@@ -996,7 +1001,7 @@ function lin_index_to_param(idx,rng,N)
     real(irealLUT),intent(in) :: idx,rng(2)
     integer(iintegers),intent(in) :: N
     if(N.gt.i1) then
-      lin_index_to_param = rng(1) + (idx-1) * ( rng(2)-rng(1) ) / (N-1)
+      lin_index_to_param = rng(1) + (idx-1) * ( rng(2)-rng(1) ) / real(N-1, irealLUT)
     else
       lin_index_to_param = rng(1)
     endif

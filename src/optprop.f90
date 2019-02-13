@@ -229,7 +229,7 @@ contains
 
     call do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
 
-    if(ldir) call print_coeff_diff()
+    if(.False. .and. ldir) call print_coeff_diff()
     contains
       subroutine do_bmc_computation(Cbmc)
         real(irealLUT), intent(out) :: Cbmc(size(C))

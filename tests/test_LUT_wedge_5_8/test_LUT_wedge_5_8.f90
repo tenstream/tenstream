@@ -254,7 +254,7 @@ contains
 
       do itau = 1,max(i1, LUTconfig%dims(idim_tau)%N-1)
         do iw0  = 1,max(i1, LUTconfig%dims(idim_w0)%N-1)
-          do ig   = 1,max(i1, size(g_dim)-1)
+          do ig   = 1,max(i1, size(g_dim, kind=iintegers)-1)
             do iaspect = 1,max(i1, LUTconfig%dims(idim_aspect)%N-1)
               do iphi = 1,max(i1, LUTconfig%dims(idim_phi)%N-1)
                 do itheta = 1,max(i1, LUTconfig%dims(idim_theta)%N-1)

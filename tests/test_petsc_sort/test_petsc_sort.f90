@@ -28,7 +28,7 @@ contains
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers),parameter :: N=3, a=-1, b=2, c=5
     integer(iintegers) :: x(N), x2(N)
-    integer, parameter :: t(N)=[a,b,c]
+    integer(iintegers), parameter :: t(N)=[a,b,c]
     integer(mpiint) :: ierr
 
     x = [b,c,a]
@@ -47,7 +47,7 @@ contains
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers),parameter :: N=3, a=-1, b=2, c=5
     integer(mpiint) :: ierr
-    integer, parameter :: t(N)=[a,b,c]
+    integer(iintegers), parameter :: t(N)=[a,b,c]
     type t_test
       integer(iintegers) :: i,j
     end type

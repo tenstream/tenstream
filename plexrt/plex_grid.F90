@@ -1498,7 +1498,7 @@ module m_plex_grid
     call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
     if(ldebug) then
       print *,'Have '//itoa(num_constrained)//' constrained dofs :'//&
-        ftoa(num_constrained*100._ireals/real(num_unconstrained,ireals))//' %'
+        ftoa(real(num_constrained, ireals)*100._ireals/real(num_unconstrained,ireals))//' %'
     endif
 
     if(present(aspect_constraint)) then

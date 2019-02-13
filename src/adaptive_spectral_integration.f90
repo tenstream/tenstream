@@ -84,9 +84,6 @@ module m_adaptive_spectral_integration
         t(k) = solution%time(Nfit-k+1)
       enddo
 
-      !            call parabola(t2, e1, t3, e2, t4, e3, time, error_estimate)
-      !            call exponential(t3, e2, t4, e3, time, error_estimate)
-
       ! t is pts where the solution got updated
       ! tm is in between those time
       ! dt is the weight for the integral
@@ -186,33 +183,6 @@ module m_adaptive_spectral_integration
       endif
 
     contains
-      subroutine exponential(x1, y1, x2, y2, x3, y3)
-        ! fit to the function y = exp(alpha * x) +beta
-        real(ireals), intent(in)  :: x1, y1, x2, y2, x3
-        real(ireals), intent(out) :: y3
-        real(ireals)              :: alpha,beta
-        beta = y1 - one
-        alpha = log( max(y1,y2) -beta)/(x2-x1)
-        y3 = exp( alpha * (x3-x1) ) + beta
-        !                  if(myid.eq.0) print *,'exponential error_estimate:',x1,y1,x2,y2,'::',alpha,beta,'::',x3,y3
-        !                  if(myid.eq.0) print *,''
-      end subroutine
-
-      subroutine parabola(x1, y1, x2, y2, x3, y3, x4, y4)
-        ! Solve for coefficient in equation A.x**2 + B.x + C and evaluate polynomial at x4
-        real(ireals), intent(in)  :: x1, y1, x2, y2, x3, y3, x4
-        real(ireals), intent(out) :: y4
-        real(ireals)              :: denom,A,B,C
-
-        denom = (x1 - x2) * (x1 - x3) * (x2 - x3)
-        A     = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / denom
-        B     = (x3**2 * (y1 - y2) + x2**2 * (y3 - y1) + x1**2 * (y2 - y3)) / denom
-        C     = (x2 * x3 * (x2 - x3) * y1 + x3 * x1 * (x3 - x1) * y2 + &
-          x1 * x2 * (x1 - x2) * y3) / denom
-        y4 = x4*(A*x4+B)+C
-        !                  print *,'parabola:',denom,A,B,C,'::',y4
-      end subroutine
-
       function polyfit(vx, vy, d, ierr) !Rosetta Code http://rosettacode.org/wiki/Polynomial_regression#Fortran
         implicit none
         integer(iintegers), intent(in)            :: d

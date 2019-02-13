@@ -56,7 +56,7 @@ module m_schwarzschild
 
         ! Transmission coefficients
         do imu=1,Nmu
-          mu = (imu-.5_ireals)*dmu
+          mu = (real(imu, ireals)-.5_ireals)*dmu
           T = exp(- dtau/mu)
 
           ! zero incoming radiation at TOA

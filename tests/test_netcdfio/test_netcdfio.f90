@@ -197,7 +197,7 @@ end subroutine
 @test(npes=[1])
   subroutine test_netcdf_write_hyperslab_1d(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(mpiint) :: numnodes, comm, myid, ierr, rank
+    integer(mpiint) :: numnodes, comm, myid, ierr
     integer(mpiint) :: i
     real(ireals),allocatable :: a1d(:)
 
@@ -234,7 +234,7 @@ end subroutine
 @test(npes=[1])
   subroutine test_netcdf_write_hyperslab_2d(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(mpiint) :: numnodes, comm, myid, ierr, rank
+    integer(mpiint) :: numnodes, comm, myid, ierr
     integer(mpiint) :: i, j
     real(ireals),allocatable :: a2d(:,:)
 

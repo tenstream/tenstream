@@ -154,7 +154,7 @@ contains
   call prepare_locally_owned_photons(solver, bmc, pqueues(PQ_SELF), mcrts_photons_per_pixel)
 
   !pqueues(PQ_SELF)%photons(:)%p%weight = edirTOA*solver%atm%dx*solver%atm%dy/mcrts_photons_per_pixel
-  pqueues(PQ_SELF)%photons(:)%p%weight = edirTOA/mcrts_photons_per_pixel
+  pqueues(PQ_SELF)%photons(:)%p%weight = edirTOA/real(mcrts_photons_per_pixel, ireals)
 
   killed_photons = 0
   call mpi_iallreduce(killed_photons, globally_killed_photons, 1_mpiint, imp_iinteger, &
@@ -531,7 +531,7 @@ subroutine antialiased_photon_start(Nmax, ip, x, y, tilt_angle)
     return
   endif
 
-  Nx = int(sqrt(one * Nmax), iintegers)
+  Nx = int(sqrt(real(Nmax, ireal_dp)), iintegers)
   Ny = Nx
 
   if(ip.gt.Nx*Ny) then

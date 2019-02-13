@@ -136,7 +136,7 @@ contains
         ! Try a couple of number of iterations and determine optimal kernel_width
         min_iter = 1
         do i = 1, test_Ni
-          test_k(i) = (sqrt( (12*radius_in_pixel**2 + i)/i +1 ) -1 )/2
+          test_k(i) = (sqrt( (12*radius_in_pixel**2 + real(i, ireals)) / real(i, ireals) +1 ) -1 )/2
           if(nint(test_k(i)).ge.min(solver%C_diff%xm,solver%C_diff%ym)) min_iter = i+1
         enddo
         if(min_iter.gt.test_Ni) &
