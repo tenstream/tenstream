@@ -8,12 +8,18 @@ enable_language(Fortran)
 
 enable_testing()
 
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fprofile-arcs -ftest-coverage -DUSE_MPI")
+set(PFUNIT_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DUSE_MPI")
 
-# Find out if the compiler is Intel and if so add compile flag for parameter tests
 string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
 if(${_is_Intel})
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -assume realloc_lhs -check nobounds")
+# Find out if the compiler is Intel and if so add compile flag for parameter tests
+set(PFUNIT_Fortran_FLAGS "${PFUNIT_Fortran_FLAGS} -assume realloc_lhs -check nobounds -nowarn")
+  set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-warn noerrors -warn nounused")
+  set(EXTRA_TEST_COMPILE_FLAGS "-warn noerrors -warn nounused")
+else()
+  set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-Wno-error -w")
+  set(EXTRA_TEST_COMPILE_FLAGS "-Wno-error -Wno-unused-dummy-argument")
+  set(PFUNIT_Fortran_FLAGS "${PFUNIT_Fortran_FLAGS} -fprofile-arcs -ftest-coverage")
 endif(${_is_Intel})
 
 
@@ -36,7 +42,7 @@ else()
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/external/pfunit
         -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
-        -DCMAKE_Fortran_FLAGS=${CMAKE_Fortran_FLAGS}
+        -DCMAKE_Fortran_FLAGS=${PFUNIT_Fortran_FLAGS}
         -DMPI_USE_MPIEXEC=YES
         -DMPI=YES
         )
@@ -55,10 +61,6 @@ else()
     set(PFUNIT_DIR ${PROJECT_BINARY_DIR}/external/pfunit)
     set(MPIEXEC "mpirun")
 endif()
-
-set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-Wno-error -w")
-
-set(EXTRA_TEST_COMPILE_FLAGS "-Wno-error -Wno-unused-dummy-argument")
 
 include_directories(${PFUNIT_DIR}/mod)
 #include_directories( ${PROJECT_SOURCE_DIR} )

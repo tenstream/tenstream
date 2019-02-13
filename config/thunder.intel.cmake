@@ -12,10 +12,10 @@ set(CMAKE_C_COMPILER "mpicc")
 set(CMAKE_CXX_COMPILER "mpicxx")
 set(CMAKE_Fortran_COMPILER "mpif90")
 
-set(USER_C_FLAGS "-std=c99")
-set(USER_Fortran_FLAGS "-cpp -traceback -extend-source -g -mkl ")
+set(USER_C_FLAGS "-Wall -std=c99")
+set(USER_Fortran_FLAGS "-cpp -traceback -extend-source -g -mkl -warn all")
 set(USER_Fortran_FLAGS_RELEASE " -O3 -no-prec-div -xAVX -fp-model source -fno-omit-frame-pointer")
-set(USER_Fortran_FLAGS_DEBUG "-fpe0 -O0 -g -check all -check nopointers -check noarg_temp_created")
+set(USER_Fortran_FLAGS_DEBUG "-ftrapuv -warn errors -fpe0 -O0 -g -check all -check nopointers -check noarg_temp_created")
 
 # From bashrc:
 #    export NETCDFCROOT=/sw/squeeze-x64/netcdf-4.3.3.1-static/

@@ -197,7 +197,7 @@ module m_boxmc
       scattercnt=0, &
       cellid=inil, &
       subface=inil
-    integer(iintegers) :: i, j, k
+    integer(iintegers) :: i, j, k, alignment_dummy
     logical :: alive=.True.,direct=.False.
   end type
 
@@ -278,7 +278,7 @@ contains
     integer(mpiint) :: ierr
 
     blocklengths(1) = 8 ! doubles to begin with
-    blocklengths(2) = 9 ! ints
+    blocklengths(2) = 10 ! ints
     blocklengths(3) = 2 ! logicals
 
     dtypes = [imp_real_dp, imp_iinteger, imp_logical]

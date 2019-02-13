@@ -5,7 +5,12 @@ include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 file( GLOB files *.f* )
 
 # Dont use Werror for files that are not ours
-set(WNOERRORFLG "-w -Wno-error -Wno-pedantic")
+string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
+if(${_is_Intel})
+  set(WNOERRORFLG "-warn noerrors -warn nounused")
+else()
+  set(WNOERRORFLG "-w -Wno-error -Wno-pedantic")
+endif(${_is_Intel})
 file(GLOB rrtm_files *.f* )
 
 foreach(rrtm_file ${rrtm_files})

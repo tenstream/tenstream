@@ -142,6 +142,6 @@ module m_optprop_parameters
       ! this is tuned towards earth radius and average dx = 100m sized elements
       real(irealLUT), parameter :: wedge_sphere_radius = -1._irealLUT ! 6378e3_irealLUT
 
-      real(irealLUT), parameter :: LUT_dump_interval=600 ! dump the LUT every 10 minutes
+      real(irealLUT), parameter :: LUT_dump_interval=3600 ! dump the LUT every 10 minutes
       real(irealLUT), parameter :: LUT_max_create_jobtime=3600*3 ! after 3hrs, cancel the createLUT jobs in any case
 end module
