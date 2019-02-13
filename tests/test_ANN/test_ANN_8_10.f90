@@ -109,7 +109,7 @@ contains
       class(pECase), intent(in) :: this
       character(:), allocatable :: string
       allocate(character(default_str_len) :: string)
-      write(string,FMT='( 3E8.2, 2I0 )') &
+      write(string,FMT='( 3E9.2, 2I0 )') &
           this%kabs,this%ksca,this%g,int(this%phi),int(this%theta) !,':ranks',this%getNumProcessesRequested()
   end function toString
 

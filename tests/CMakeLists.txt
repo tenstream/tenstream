@@ -8,14 +8,15 @@ enable_language(Fortran)
 
 enable_testing()
 
-set(PFUNIT_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DUSE_MPI")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DUSE_MPI")
+set(PFUNIT_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
 
 string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
 if(${_is_Intel})
 # Find out if the compiler is Intel and if so add compile flag for parameter tests
-set(PFUNIT_Fortran_FLAGS "${PFUNIT_Fortran_FLAGS} -assume realloc_lhs -check nobounds -nowarn")
   set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-warn noerrors -warn nounused")
   set(EXTRA_TEST_COMPILE_FLAGS "-warn noerrors -warn nounused")
+  set(PFUNIT_Fortran_FLAGS "${PFUNIT_Fortran_FLAGS} -assume realloc_lhs -check nobounds -nowarn")
 else()
   set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-Wno-error -w")
   set(EXTRA_TEST_COMPILE_FLAGS "-Wno-error -Wno-unused-dummy-argument")
