@@ -43,7 +43,9 @@ module m_dyn_atm_to_rrtmg
   logical,parameter :: ldebug=.False.
 
   ! specific gas constant for dry air [J kg−1 K−1] and standard gravity on earth
-  real(ireals), parameter :: Ra=287.058_ireals, grav=9.80665_ireals
+  real(ireals), parameter :: Ra  =287.058_ireals, grav  =9.80665_ireals
+  real(REAL32), parameter :: Ra32=287.058_REAL32, grav32=9.80665_REAL32
+  real(REAL64), parameter :: Ra64=287.058_REAL64, grav64=9.80665_REAL64
 
   interface
     real function PLKINT(WVLLO, WVLHI, T)
@@ -699,14 +701,14 @@ module m_dyn_atm_to_rrtmg
     pure elemental function hydrostat_dz_real32(dp, p, T)
       real(REAL32), intent(in) :: dp, p, T
       real(REAL32) :: hydrostat_dz_real32, rho
-      rho = p / real(Ra, REAL32) / T
-      hydrostat_dz_real32 = dp / rho / real(grav, REAL32)
+      rho = p / Ra32 / T
+      hydrostat_dz_real32 = dp / rho / grav32
     end function
     pure elemental function hydrostat_dz_real64(dp, p, T)
       real(REAL64), intent(in) :: dp, p, T
       real(REAL64) :: hydrostat_dz_real64, rho
-      rho = p / real(Ra, REAL64) / T
-      hydrostat_dz_real64 = dp / rho / real(grav, REAL64)
+      rho = p / Ra64 / T
+      hydrostat_dz_real64 = dp / rho / grav64
     end function
 
     subroutine hydrostat_lev(plev,tlay, hsrfc, hhl, dz)
@@ -732,14 +734,14 @@ module m_dyn_atm_to_rrtmg
     pure elemental function hydrostat_dp_real32(dz, p, T)
       real(REAL32), intent(in) :: dz, p, T
       real(REAL32) :: hydrostat_dp_real32, rho
-      rho = p / real(Ra, REAL32) / T
-      hydrostat_dp_real32 = dz * rho * real(grav, REAL32)
+      rho = p / Ra32 / T
+      hydrostat_dp_real32 = dz * rho * grav32
     end function
     pure elemental function hydrostat_dp_real64(dz, p, T)
       real(REAL64), intent(in) :: dz, p, T
       real(REAL64) :: hydrostat_dp_real64, rho
-      rho = p / real(Ra, REAL64) / T
-      hydrostat_dp_real64 = dz * rho * real(grav, REAL64)
+      rho = p / Ra64 / T
+      hydrostat_dp_real64 = dz * rho * grav64
     end function
 
     subroutine hydrostat_plev(psrfc, tlay, hhl, plev, dp)

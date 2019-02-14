@@ -31,6 +31,9 @@ module m_plex_rt
   use m_pprts_base, only : t_state_container, prepare_solution, destroy_solution, &
     t_solver_log_events, setup_log_events
 
+  use m_plex2rayli, only: dm3d_to_rayli_dmplex
+  use m_f2c_rayli, only: rfft_wedgeF90
+
   implicit none
 
   private
@@ -433,6 +436,7 @@ module m_plex_rt
       integer(mpiint) :: myid, ierr
 
       real(ireals), save :: last_sundir(3) = [zero,zero,zero]
+      logical :: luse_rayli, lvacuum_domain_boundary, lflg
 
       if(.not.allocated(solver)) call CHKERR(1_mpiint, 'run_plex_rt_solver::solver has to be allocated')
 
@@ -471,6 +475,15 @@ module m_plex_rt
           lsolar=lsolar, solution=solver%solutions(suid), uid=suid)
       endif
 
+      lvacuum_domain_boundary=.False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-plexrt_vacuum_domain_boundary", lvacuum_domain_boundary, lflg, ierr) ;call CHKERR(ierr)
+      if(lvacuum_domain_boundary) then
+        call vacuum_domain_boundary(solver%plex%cell1_dm, &
+          solver%kabs, solver%ksca, solver%g, &
+          fill_kabs=zero, fill_ksca=zero, fill_g=zero)
+      endif
+
       call dump_optical_properties(solver%kabs, solver%ksca, solver%g, solver%albedo, &
         plck=solver%plck, srfc_emission=solver%srfc_emission, postfix='_'//itoa(suid))
 
@@ -503,6 +516,15 @@ module m_plex_rt
           call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
 
           ! if(ldebug) print *,'1D calculation done', suid
+          goto 99
+        endif
+
+        luse_rayli=.False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_use_rayli",&
+          luse_rayli, lflg, ierr) ;call CHKERR(ierr)
+        if(luse_rayli) then
+          call rayli_wrapper(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
+              solver%albedo, sundir, solution, plck=solver%plck, srfc_emission=solver%srfc_emission)
           goto 99
         endif
 
@@ -2834,6 +2856,164 @@ module m_plex_rt
     endif ! TOA boundary ids
   end subroutine
 
+  !> @brief wrapper for the rayli MonteCarlo solver
+  !> @details solve the radiative transfer equation with RayLi, currently only works for single task mpi runs
+  subroutine rayli_wrapper(solver, plex, kabs, ksca, g, albedo, sundir, solution, plck, srfc_emission)
+    use iso_c_binding
+    class(t_plex_solver), intent(inout) :: solver
+    type(t_plexgrid), intent(in) :: plex
+    type(tVec), intent(in) :: kabs, ksca, g, albedo
+    type(tVec), intent(in), optional :: plck, srfc_emission
+    real(ireals), intent(in) :: sundir(:)
+    type(t_state_container), intent(inout) :: solution
+
+    type(tDM) :: dmrayli
+
+    real(ireals), pointer :: xksca(:), xkabs(:), xg(:), xalbedo(:)
+    real(ireals), pointer :: xedir(:)!, xediff(:)
+    type(tPetscSection) :: edir_section!, ediff_section
+
+    logical :: lthermal, lsolar
+
+    integer(mpiint) :: comm, myid, numnodes, ierr
+
+    integer(iintegers) :: fStart, fEnd, cStart, cEnd, vStart, vEnd
+    integer(iintegers) :: ofStart, ofEnd
+    integer(iintegers) :: iface, ivert, voff, idof
+    integer(iintegers), pointer :: trans_closure(:), cells_of_face(:)
+
+    type(tVec) :: coordinates
+    real(ireals), pointer :: coords(:)
+    type(tPetscSection) :: coord_section
+
+
+    integer(c_size_t), allocatable :: verts_of_face(:,:)
+    integer(c_size_t), allocatable :: wedges_of_face(:,:)
+    real(c_double),    allocatable :: vert_coords(:,:)
+    real(c_double),    allocatable :: rkabs(:), rksca(:), rg(:)
+    real(c_double)                 :: rsundir(3)
+    real(c_double),    allocatable :: flx_through_faces(:)
+
+    integer(c_size_t) :: Nphotons, Nwedges, Nfaces, Nverts
+    real(ireals) :: opt_photons
+
+    integer(c_size_t) :: outer_id
+    logical :: lflg
+
+    opt_photons = 100000
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-rayli_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
+    Nphotons = int(opt_photons, c_size_t)
+
+    call PetscObjectGetComm(plex%dm, comm, ierr); call CHKERR(ierr)
+    call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    if(numnodes.gt.1) call CHKERR(numnodes, "Rayli currently only in single rank computations available")
+
+    lsolar = solution%lsolar_rad
+    lthermal = .not.solution%lsolar_rad
+
+    if(present(plck).or.present(srfc_emission).or.lthermal) &
+      call CHKERR(1_mpiint, "You provided planck stuff, I guess you want to use thermal radiation computations."// &
+                            "However, Rayli currently only supports solar radiation.")
+
+    if(solution%lsolar_rad) then
+      call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+    endif
+    call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+
+    if(solution%lsolar_rad .and. norm(sundir).le.zero) then
+      return
+    endif
+
+    call dm3d_to_rayli_dmplex(plex%dm, dmrayli)
+    call PetscObjectViewFromOptions(dmrayli, PETSC_NULL_DM, '-show_plexrt_dmrayli', ierr); call CHKERR(ierr)
+
+    call DMPlexGetDepthStratum(dmrayli, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! vertices
+    call DMPlexGetDepthStratum(dmrayli, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! vertices
+    call DMPlexGetDepthStratum(dmrayli, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+    Nwedges = cEnd - cStart
+    Nfaces = fEnd - fStart
+    Nverts = vEnd - vStart
+
+    outer_id = -1
+
+    allocate(verts_of_face(3, Nfaces), &
+             wedges_of_face(2, Nfaces), &
+             vert_coords(3, Nverts), &
+             rkabs(Nwedges), &
+             rksca(Nwedges), &
+             rg   (Nwedges), &
+             flx_through_faces(Nfaces), &
+           )
+    do iface = fStart, fEnd-1
+      call DMPlexGetTransitiveClosure(dmrayli, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
+      verts_of_face(:, iface-fStart+1) = trans_closure(9:size(trans_closure):2) - vStart
+      call DMPlexRestoreTransitiveClosure(dmrayli, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
+
+      call DMPlexGetSupport(dmrayli, iface, cells_of_face, ierr); call CHKERR(ierr)
+      select case(size(cells_of_face))
+      case(1)
+        wedges_of_face(1,iface-fStart+1) = cells_of_face(1) - cStart
+        wedges_of_face(2,iface-fStart+1) = outer_id
+      case(2)
+        wedges_of_face(:,iface-fStart+1) = cells_of_face - cStart
+      case default
+        call CHKERR(1_mpiint, 'did not expect '//itoa(size(cells_of_face))//'cells here')
+      end select
+      call DMPlexRestoreSupport(dmrayli, iface, cells_of_face, ierr); call CHKERR(ierr)
+    enddo
+
+    call DMGetCoordinateSection(dmrayli, coord_section, ierr); call CHKERR(ierr)
+    call DMGetCoordinatesLocal(dmrayli, coordinates, ierr); call CHKERR(ierr)
+    call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+
+    do ivert = vStart, vEnd-1
+      call PetscSectionGetOffset(coord_section, ivert, voff, ierr); call CHKERR(ierr)
+      vert_coords(:, ivert-vStart+1) = coords(voff+1:voff+3)
+    enddo
+    call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+
+    call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+
+    rkabs = xkabs
+    rksca = xksca
+    rg    = xg
+
+    call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
+
+    rsundir = -sundir
+
+    ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, &
+      verts_of_face, wedges_of_face, vert_coords, &
+      rkabs, rksca, rg, rsundir, flx_through_faces); call CHKERR(ierr)
+
+    call DMPlexGetDepthStratum(plex%dm, i2, ofStart, ofEnd, ierr); call CHKERR(ierr) ! vertices
+    if(lsolar) then
+      call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+      do iface = ofStart, ofEnd-1
+        call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
+        do idof = 1, solver%dirtop%dof
+          xedir(voff+idof) = abs(flx_through_faces(iface-ofStart+1))
+        enddo
+      enddo
+      call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+    endif
+    !Twostream solver returns fluxes as [W/m^2]
+    solution%lWm2_dir  = .True.
+    solution%lWm2_diff = .True.
+    ! and mark solution that it is not up to date
+    solution%lchanged  = .True.
+  end subroutine
+
+
   !> @brief renormalize fluxes with the size of a face(sides or lid)
   subroutine scale_flx(solver, plex, &
       dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
@@ -3101,5 +3281,46 @@ module m_plex_rt
         call CHKERR(1_mpiint, 'have to provide solver type')
     end select
 
+  end subroutine
+
+  subroutine vacuum_domain_boundary(dm, kabs, ksca, g, fill_kabs, fill_ksca, fill_g)
+    type(tDM), intent(in) :: dm
+    type(tVec), intent(inout) :: kabs, ksca, g
+    real(ireals), intent(in) :: fill_kabs, fill_ksca, fill_g
+
+    type(tIS) :: IS_side_faces
+    integer(iintegers), pointer :: iside_faces(:), cell_support(:)
+    integer(iintegers) :: o, iface_side
+
+    real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
+    integer(mpiint) :: comm, myid, ierr
+
+    call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    if(myid.eq.0) then
+      print *,'Vacuum shell of domain with ', fill_kabs, fill_ksca, fill_g
+    endif
+
+    call DMGetStratumIS(dm, 'DomainBoundary', SIDEFACE, IS_side_faces, ierr); call CHKERR(ierr)
+    if (IS_side_faces.eq.PETSC_NULL_IS) then ! dont have side boundary faces
+    else
+      call VecGetArrayF90(kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(ksca, xksca, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(g   , xg   , ierr); call CHKERR(ierr)
+
+      call ISGetIndicesF90(IS_side_faces, iside_faces, ierr); call CHKERR(ierr)
+      do o = 1, size(iside_faces)
+        iface_side = iside_faces(o)
+
+        call DMPlexGetSupport(dm, iface_side, cell_support, ierr); call CHKERR(ierr)
+        xkabs(i1+cell_support(1)) = fill_kabs
+        xksca(i1+cell_support(1)) = fill_ksca
+        xg   (i1+cell_support(1)) = fill_g
+        call DMPlexRestoreSupport(dm, iface_side, cell_support, ierr); call CHKERR(ierr)
+      enddo
+      call VecRestoreArrayF90(kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecRestoreArrayF90(ksca, xksca, ierr); call CHKERR(ierr)
+      call VecRestoreArrayF90(g   , xg   , ierr); call CHKERR(ierr)
+    endif
   end subroutine
 end module

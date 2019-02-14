@@ -171,6 +171,8 @@ endif(ENABLE_ALL)
 # Add Source Directories
 add_subdirectory (src)
 
+add_subdirectory(rayli_wrapper)
+
 option(ENABLE_PLEXRT "Enable PLEXRT, Radiative transfer on wedges" OFF)
 if(ENABLE_PLEXRT)
   add_subdirectory (plexrt)
@@ -234,7 +236,5 @@ option(ENABLE_C_WRAPPER "Enable creation of C Wrapper " ON)
 if(ENABLE_C_WRAPPER)
 	add_subdirectory(C_wrapper)
 endif(ENABLE_C_WRAPPER)
-
-add_subdirectory(rayli_wrapper)
 
 GET_DIRECTORY_PROPERTY(output INCLUDE_DIRECTORIES)

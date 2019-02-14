@@ -797,6 +797,8 @@ module m_icon_plex_utils
 
       if(present(opt_migration_sf)) opt_migration_sf = migration_sf
 
+      contains
+
         subroutine set_wedge_connectivity(dm, Nx, Nfaces, Nedges)
           type(tDM) :: dm
           integer(iintegers) :: Nx, Nfaces, Nedges

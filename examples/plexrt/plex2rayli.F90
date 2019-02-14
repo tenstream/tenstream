@@ -1,4 +1,4 @@
-module m_ex_plex2rayli
+module m_ex_fish_plex2rayli_dm
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -16,12 +16,12 @@ module m_ex_plex2rayli
   implicit none
 
   contains
-    subroutine fish_plex_to_rayli(comm, Nx, Ny, Nz, dz)
+    subroutine fish_plex_to_rayli_dm(comm, Nx, Ny, Nz, dz)
       MPI_Comm, intent(in)           :: comm
       integer(iintegers), intent(in) :: Nx, Ny, Nz
       real(ireals), intent(in)       :: dz
 
-      type(tDM)          :: dm2d, dm3d, dmrayli
+      type(tDM)          :: dm2d, dm2d_serial, dm3d, dmrayli
       real(ireals)       :: hhl(Nz)
       integer(iintegers) :: k
       integer(iintegers), allocatable :: zindex(:)
@@ -29,7 +29,8 @@ module m_ex_plex2rayli
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
-      call create_2d_fish_plex(Nx, Ny, dm2d)
+      call create_2d_fish_plex(comm, Nx, Ny, dm2d_serial, dm2d)
+      call DMDestroy(dm2d_serial, ierr); call CHKERR(ierr)
 
       hhl(1) = zero
       do k=2,Nz
@@ -51,7 +52,7 @@ end module
 program main
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_ex_plex2rayli, only: fish_plex_to_rayli
+  use m_ex_fish_plex2rayli_dm, only: fish_plex_to_rayli_dm
   use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len, init_mpi_data_parameters
   use m_helper_functions, only: CHKERR
   use m_tenstream_options, only : read_commandline_options
@@ -87,7 +88,7 @@ program main
   print *,'Adding default Petsc Options:', trim(default_options)
   call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
-  call fish_plex_to_rayli(PETSC_COMM_WORLD, Nx, Ny, Nz, dz)
+  call fish_plex_to_rayli_dm(PETSC_COMM_WORLD, Nx, Ny, Nz, dz)
 
   call mpi_barrier(PETSC_COMM_WORLD, ierr)
   call PetscFinalize(ierr)

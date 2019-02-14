@@ -10,6 +10,7 @@ void VecSet(size_t N, double *arr, double val) {
 int main(int argc, char **argv) {
 
     int ierr;
+    size_t Nphotons = 1000;
     size_t Nwedges = 2; // single wedge + 1 outer domain
     size_t Nfaces = 8;
     size_t Nverts = 6;
@@ -50,7 +51,7 @@ int main(int argc, char **argv) {
 
     fprintf(stderr, "Huhu %s \n", rayli_version());
 
-    ierr = rfft_wedge(Nwedges, Nfaces, Nverts,
+    ierr = rfft_wedge(Nphotons, Nwedges, Nfaces, Nverts,
             verts_of_face, wedges_of_face, vert_coords,
             kabs, ksca, g,
             sundir,

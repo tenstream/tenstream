@@ -18,7 +18,7 @@ use m_data_parameters, only : ireals, iintegers, mpiint, &
 use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
   bcast_icongrid, distribute_icon_grid
 
-use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
+use m_plex_grid, only: t_plexgrid, &
   setup_edir_dmplex, setup_abso_dmplex, compute_face_geometry, &
   ncvar2d_to_globalvec, setup_plexgrid, setup_cell1_dmplex, &
   gen_test_mat, get_normal_of_first_toa_face, get_horizontal_faces_around_vertex, &
@@ -43,16 +43,15 @@ logical, parameter :: ldebug=.True.
       integer(iintegers), intent(in) :: Nx, Ny, Nz
       real(ireals), intent(in) :: dz, Ag
 
-      type(tDM) :: dm2d, dm3d
+      type(tDM) :: dm2d, dm2d_dist, dm3d
+      type(tPetscSF) :: migration_sf
       real(ireals) :: hhl(Nz)
-      !real(ireals), allocatable :: atm_dz(:,:)
 
       integer(mpiint) :: myid, numnodes, ierr
-      integer(iintegers) :: icol, k, vStart, vEnd!, fStart, fEnd
+      integer(iintegers) :: icol, k
       !type(tVec) :: lwcvec, iwcvec
 
       real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
-      !real(ireals),allocatable :: hhl(:)
 
       type(t_plexgrid), allocatable :: plex
       integer(iintegers), allocatable :: zindex(:)
@@ -65,7 +64,7 @@ logical, parameter :: ldebug=.True.
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call create_2d_fish_plex(Nx, Ny, dm2d)
+      call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf)
 
       hhl(1) = zero
       do k=2,Nz
@@ -73,29 +72,12 @@ logical, parameter :: ldebug=.True.
       enddo
       hhl = reverse(hhl)
 
-      call DMPlexGetDepthStratum(dm2d, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! 2D vertices
-
-      call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex)
-
-      !call DMPlexGetDepthStratum(dm2d, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 2D vertices
-      !allocate(atm_dz(Nz-1, fEnd-fStart), source=one)
-      !call atm_dz_to_vertex_heights(atm_dz, dm3d)
+      call dmplex_2D_to_3D(dm2d_dist, Nz, hhl, dm3d, zindex)
 
       call setup_plexgrid(dm3d, Nz-1, zindex, plex)
       deallocate(zindex)
 
-      if(ldebug.and.myid.eq.0) print *,'create_plex_from_icongrid :: Setup Connections : show plex'
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
-      call dump_ownership(plex%dm, '-show_ownership')
-
-      !call create_plex_from_icongrid(comm, Nz, hhl, cell_ao, local_icongrid, plexgrid)
-      !deallocate(local_icongrid)
-
-      !call ncvar2d_to_globalvec(plexgrid, icondatafile, 'clw', lwcvec)
-      !call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
-
-      !call ncvar2d_to_globalvec(plexgrid, icondatafile, 'cli', iwcvec)
-      !call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
       call allocate_plexrt_solver_from_commandline(solver, '5_8')
       call init_plex_rt_solver(plex, solver)

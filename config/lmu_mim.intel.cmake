@@ -10,7 +10,7 @@ set(Fortran_COMPILER_WRAPPER "mpiifort")
 
 set(USER_C_FLAGS       "-Wall -std=c99 ")
 set(USER_Fortran_FLAGS "-cpp -sox -no-wrap-margin")
-set(USER_Fortran_FLAGS_RELEASE "-O3 -march=native -mtune=native -xHost -fp-model source -warn all ")
+set(USER_Fortran_FLAGS_RELEASE "-O3 -mtune=native -fp-model source -warn all ")
 set(USER_Fortran_FLAGS_DEBUG "-traceback -extend_source -g -fp-model strict -ftrapuv -warn all -warn errors -fpe0 -O2 -g -check all -check nopointers -check noarg_temp_created ")
 
 set(NETCDF_DIR      "$ENV{NETCDF}")

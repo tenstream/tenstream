@@ -53,6 +53,7 @@ target_link_libraries(
   ${PFUNIT_DIR}/lib/libpfunit.a
   plexrt
   pprts_base
+  f2c_rayli
   )
 
 add_test(pfunit_${CDIR} ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 2 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR})

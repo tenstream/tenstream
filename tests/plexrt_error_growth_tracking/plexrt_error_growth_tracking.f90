@@ -51,7 +51,7 @@ contains
     real(ireals) :: time
     logical :: lneed
 
-    type(tDM) :: dm2d, dm3d
+    type(tDM) :: dm_serial, dm2d, dm3d
     real(ireals) :: hhl(Nz)
     type(t_plexgrid), allocatable :: plex
     integer(iintegers), allocatable :: zindex(:)
@@ -62,7 +62,8 @@ contains
     call init_mpi_data_parameters(comm)
     call read_commandline_options(comm)
 
-    call create_2d_fish_plex(Nx, Ny, dm2d)
+    call create_2d_fish_plex(comm, Nx, Ny, dm_serial, dm2d)
+    call DMDestroy(dm_serial, ierr); call CHKERR(ierr)
 
     hhl(1) = zero
     do k=2,Nz

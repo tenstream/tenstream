@@ -14,7 +14,7 @@ use m_data_parameters, only : ireals, iintegers, mpiint, &
 use m_icon_grid, only: t_icongrid, read_icon_grid_file, &
   bcast_icongrid, distribute_icon_grid
 
-use m_plex_grid, only: t_plexgrid, create_plex_from_icongrid, &
+use m_plex_grid, only: t_plexgrid, &
   setup_edir_dmplex, setup_abso_dmplex, compute_face_geometry, &
   ncvar2d_to_globalvec, setup_plexgrid, &
   gen_test_mat, get_normal_of_first_toa_face
@@ -38,7 +38,7 @@ implicit none
       integer(iintegers), parameter :: Nx=2, Ny=3, Nz=2
       real(ireals), parameter :: dz=1.5_ireals
 
-      type(tDM) :: dm2d, dm3d
+      type(tDM) :: dm2d_serial, dm2d, dm3d
       real(ireals) :: hhl(Nz)
 
       integer(mpiint) :: myid, numnodes, comm, ierr
@@ -58,7 +58,8 @@ implicit none
       call init_mpi_data_parameters(comm)
       call read_commandline_options(comm)
 
-      call create_2d_fish_plex(Nx, Ny, dm2d)
+      call create_2d_fish_plex(comm, Nx, Ny, dm2d_serial, dm2d)
+      call DMDestroy(dm2d_serial, ierr); call CHKERR(ierr)
 
       hhl(1) = zero
       do k=2,Nz
