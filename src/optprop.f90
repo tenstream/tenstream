@@ -230,9 +230,49 @@ contains
     call do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
 
     if(.False. .and. ldir) call print_coeff_diff()
+
+    if(present(in_angles)) then
+      call handle_critical_azimuth()
+    endif
     contains
+      subroutine handle_critical_azimuth()
+        use m_data_parameters, only: pi
+        use m_helper_functions, only: angle_between_two_vec, search_sorted_bisection, rad2deg
+        use m_optprop_LUT, only: find_lut_dim_by_name
+
+        real(irealLUT) :: beta, alpha ! alpha is the angle between AB and AC
+        real(irealLUT) :: azimuth_pti ! the sample point for azimuth angles in the LUT
+        real(irealLUT) :: LUT_azimuths(2) ! LUT azimuth values that would be used
+        integer(iintegers), allocatable, save :: kdim ! azimuth dim index in LUT
+
+        logical :: lsample_critical
+
+        associate( pA => wedge_coords(1:2), pB => wedge_coords(3:4), pC => wedge_coords(5:6) )
+          alpha = angle_between_two_vec(real(pB-pA, ireals), real(pC-pA, ireals))
+          beta  = rad2deg(pi/2 - alpha)
+
+          if(.not.allocated(kdim)) then
+            allocate(kdim)
+            kdim = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'phi')
+          endif
+
+          azimuth_pti = search_sorted_bisection(OPP%OPP_LUT%dirconfig%dims(kdim)%v, in_angles(1))
+          !print *,'A',pA,'B',pB,'C',pC,'alpha',rad2deg(alpha),'azi', in_angles(1), 'azimuth pti', azimuth_pti
+
+          LUT_azimuths(1) = OPP%OPP_LUT%dirconfig%dims(kdim)%v(floor(azimuth_pti))
+          LUT_azimuths(2) = OPP%OPP_LUT%dirconfig%dims(kdim)%v(ceiling(azimuth_pti))
+
+          ! if both lut azis are on the same side of the one we want to use its fine, otherwise its critical
+          lsample_critical = ( (LUT_azimuths(1)-beta) * (LUT_azimuths(2)-beta) ) .le. zero
+
+          print *,'LUT azimuths', LUT_azimuths, ':', beta, lsample_critical
+
+          if(lsample_critical) call do_bmc_computation(C)
+        end associate
+
+      end subroutine
       subroutine do_bmc_computation(Cbmc)
-        real(irealLUT), intent(out) :: Cbmc(size(C))
+        real(irealLUT), intent(out) :: Cbmc(:)
         real(ireals), allocatable :: vertices(:)
 
         if(.not.present(wedge_coords)) &
@@ -492,7 +532,7 @@ contains
       real(irealLUT) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
       integer(iintegers) :: isrc
 
-      real(ireals), parameter :: atol=1e-3_ireals, rtol=5e-2_ireals
+      real(ireals), parameter :: atol=5e-3_ireals, rtol=5e-2_ireals
 
       if(present(angles)) then
           do isrc=1,OPP%OPP_LUT%dir_streams
