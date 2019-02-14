@@ -25,7 +25,25 @@ module m_icon_plex_utils
   logical, parameter :: ldebug=.False.
 
   real(ireals), parameter :: icon_hdcp2_default_hhl(151) = &
-    [21000.000   , 20617.792   , 20290.235   , 19982.347   , 19687.435   , 19402.393   , 19125.412   , 18855.302   , 18591.217   , 18332.527   , 18078.737   , 17829.452   , 17584.349   , 17343.154   , 17105.635   , 16871.593   , 16640.853   , 16413.261   , 16188.679   , 15966.985   , 15748.067   , 15531.826   , 15318.170   , 15107.015   , 14898.282   , 14691.901   , 14487.805   , 14285.932   , 14086.225   , 13888.630   , 13693.095   , 13499.575   , 13308.022   , 13118.397   , 12930.657   , 12744.766   , 12560.687   , 12378.386   , 12197.831   , 12018.990   , 11841.834   , 11666.334   , 11492.464   , 11320.198   , 11149.510   , 10980.378   , 10812.778   , 10646.689   , 10482.089   , 10318.958   , 10157.277   , 9997.027    , 9838.190    , 9680.749    , 9524.686    , 9369.987    , 9216.635    , 9064.616    , 8913.914    , 8764.517    , 8616.410    , 8469.580    , 8324.016    , 8179.704    , 8036.633    , 7894.793    , 7754.171    , 7614.758    , 7476.543    , 7339.516    , 7203.669    , 7068.992    , 6935.476    , 6803.113    , 6671.895    , 6541.813    , 6412.861    , 6285.031    , 6158.317    , 6032.711    , 5908.207    , 5784.800    , 5662.484    , 5541.252    , 5421.100    , 5302.024    , 5184.017    , 5067.077    , 4951.198    , 4836.377    , 4722.610    , 4609.895    , 4498.227    , 4387.605    , 4278.026    , 4169.487    , 4061.987    , 3955.525    , 3850.098    , 3745.707    , 3642.350    , 3540.027    , 3438.738    , 3338.483    , 3239.264    , 3141.081    , 3043.935    , 2947.829    , 2852.765    , 2758.746    , 2665.774    , 2573.854    , 2482.990    , 2393.185    , 2304.447    , 2216.779    , 2130.190    , 2044.686    , 1960.274    , 1876.965    , 1794.766    , 1713.690    , 1633.747    , 1554.949    , 1477.311    , 1400.848    , 1325.575    , 1251.512    , 1178.678    , 1107.095    , 1036.786    , 967.780     , 900.104     , 833.792     , 768.881     , 705.412     , 643.431     , 582.990     , 524.151     , 466.982     , 411.564     , 357.994     , 306.385     , 256.878     , 209.648     , 164.919     , 122.997     , 84.314      , 49.554      , 20.000      , 0.000 ]
+    [21000.000   , 20617.792   , 20290.235   , 19982.347   , 19687.435   , 19402.393   , 19125.412   , 18855.302   ,&
+     18591.217   , 18332.527   , 18078.737   , 17829.452   , 17584.349   , 17343.154   , 17105.635   , 16871.593   ,&
+     16640.853   , 16413.261   , 16188.679   , 15966.985   , 15748.067   , 15531.826   , 15318.170   , 15107.015   ,&
+     14898.282   , 14691.901   , 14487.805   , 14285.932   , 14086.225   , 13888.630   , 13693.095   , 13499.575   ,&
+     13308.022   , 13118.397   , 12930.657   , 12744.766   , 12560.687   , 12378.386   , 12197.831   , 12018.990   ,&
+     11841.834   , 11666.334   , 11492.464   , 11320.198   , 11149.510   , 10980.378   , 10812.778   , 10646.689   ,&
+     10482.089   , 10318.958   , 10157.277   , 9997.027    , 9838.190    , 9680.749    , 9524.686    , 9369.987    ,&
+     9216.635    , 9064.616    , 8913.914    , 8764.517    , 8616.410    , 8469.580    , 8324.016    , 8179.704    ,&
+     8036.633    , 7894.793    , 7754.171    , 7614.758    , 7476.543    , 7339.516    , 7203.669    , 7068.992    ,&
+     6935.476    , 6803.113    , 6671.895    , 6541.813    , 6412.861    , 6285.031    , 6158.317    , 6032.711    ,&
+     5908.207    , 5784.800    , 5662.484    , 5541.252    , 5421.100    , 5302.024    , 5184.017    , 5067.077    ,&
+     4951.198    , 4836.377    , 4722.610    , 4609.895    , 4498.227    , 4387.605    , 4278.026    , 4169.487    ,&
+     4061.987    , 3955.525    , 3850.098    , 3745.707    , 3642.350    , 3540.027    , 3438.738    , 3338.483    ,&
+     3239.264    , 3141.081    , 3043.935    , 2947.829    , 2852.765    , 2758.746    , 2665.774    , 2573.854    ,&
+     2482.990    , 2393.185    , 2304.447    , 2216.779    , 2130.190    , 2044.686    , 1960.274    , 1876.965    ,&
+     1794.766    , 1713.690    , 1633.747    , 1554.949    , 1477.311    , 1400.848    , 1325.575    , 1251.512    ,&
+     1178.678    , 1107.095    , 1036.786    , 967.780     , 900.104     , 833.792     , 768.881     , 705.412     ,&
+     643.431     , 582.990     , 524.151     , 466.982     , 411.564     , 357.994     , 306.385     , 256.878     ,&
+     209.648     , 164.919     , 122.997     , 84.314      , 49.554      , 20.000      , 0.000 ]
 
   contains
 
@@ -646,7 +664,7 @@ module m_icon_plex_utils
       ! Dump Cell Ownership
       call PetscObjectSetName(gVec, 'ownership_cells', ierr);call CHKERR(ierr)
       call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
-      xv(:) = myid*one
+      xv(:) = real(myid, ireals)
       call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string_dump_ownership, ierr); call CHKERR(ierr)
 
@@ -681,16 +699,17 @@ module m_icon_plex_utils
     end subroutine
 
     ! Create a 2D Torus grid with Nx vertices horizontally and Ny rows of Vertices vertically
-    subroutine create_2d_fish_plex(Nx, Ny, dm, dmserial)
-      type(tDM), intent(inout) :: dm
-      type(tDM), intent(inout), optional :: dmserial
-      type(tDM) :: dmdist
-      type(tPetscSF) :: psf
+    subroutine create_2d_fish_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf)
+      integer(mpiint), intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny
+      type(tDM), intent(out) :: dm, dmdist
+      type(tPetscSF), intent(out), optional :: opt_migration_sf
+
+      type(tPetscSF) :: migration_sf
 
       integer(iintegers) :: chartsize, Nfaces, Nedges, Nvertices
-      integer(iintegers), allocatable :: cellslist(:)
-      double precision, allocatable :: vertexCoords(:)
+      !integer(iintegers), allocatable :: cellslist(:)
+      !double precision, allocatable :: vertexCoords(:)
 
       integer(iintegers) :: pStart, pEnd
       integer(iintegers) :: fStart, fEnd
@@ -699,10 +718,8 @@ module m_icon_plex_utils
 
       integer(mpiint) :: myid, numnodes, ierr
 
-      logical, parameter :: lfromcelllist=.False.
-
-      call mpi_comm_rank(PETSC_COMM_WORLD, myid, ierr); call CHKERR(ierr)
-      call mpi_comm_size(PETSC_COMM_WORLD, numnodes, ierr); call CHKERR(ierr)
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
       if(modulo(Nx,i2).ne.0) call CHKERR(1_mpiint, 'Nx has to be even, e.g. 2,4,6...')
       if(modulo(Ny,i2).eq.0) call CHKERR(1_mpiint, 'Ny has to be uneven, e.g. 3,5...')
@@ -722,26 +739,20 @@ module m_icon_plex_utils
         print *, myid, 'Nverts', Nvertices
       endif
 
-      if(lfromcelllist) then
-        call gen_cellslist_array(Nx, Nfaces, Nvertices, cellslist, vertexCoords)
-        !print *,Nfaces, Nvertices, 'cells',cellslist,'vcord',vertexCoords
-        call DMPlexCreateFromCellList(PETSC_COMM_WORLD, i2, Nfaces, Nvertices, &
-                          i3, PETSC_TRUE, cellslist, i3, vertexCoords, dm, ierr); call CHKERR(ierr)
-      else
-        call DMPlexCreate(PETSC_COMM_WORLD, dm, ierr); call CHKERR(ierr)
-        call PetscObjectSetName(dm, 'testplex Nx'//itoa(Nx)//'_Ny'//itoa(Ny), ierr); call CHKERR(ierr)
-        call DMSetDimension(dm, i2, ierr); call CHKERR(ierr)
+      call DMPlexCreate(comm, dm, ierr); call CHKERR(ierr)
+      call PetscObjectSetName(dm, 'Fish_testplex_Nx'//itoa(Nx)//'_Ny'//itoa(Ny), ierr); call CHKERR(ierr)
+      call DMSetDimension(dm, i2, ierr); call CHKERR(ierr)
 
-        chartsize = Nfaces + Nedges + Nvertices
-        call DMPlexSetChart(dm, i0, chartsize, ierr); call CHKERR(ierr)
+      chartsize = Nfaces + Nedges + Nvertices
+      call DMPlexSetChart(dm, i0, chartsize, ierr); call CHKERR(ierr)
 
-        call set_wedge_connectivity(dm, Nx, Nfaces, Nedges)
+      call set_wedge_connectivity(dm, Nx, Nfaces, Nedges)
 
-        call DMPlexSymmetrize(dm, ierr); CHKERRQ(ierr)
-        call DMPlexStratify(dm, ierr); CHKERRQ(ierr)
+      call DMPlexSymmetrize(dm, ierr); call CHKERR(ierr)
+      call DMPlexStratify(dm, ierr); call CHKERR(ierr)
 
-        call set_coords_serial(dm, Nx)
-      endif
+      call set_coords_serial(dm, Nx)
+
       call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_2d_fish", ierr); call CHKERR(ierr)
 
       call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
@@ -759,20 +770,15 @@ module m_icon_plex_utils
       call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
       call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
 
-      if(present(dmserial)) then
-        call DMClone(dm, dmserial, ierr); call CHKERR(ierr)
-      endif
-
-      psf = PETSC_NULL_SF
-      call DMPlexDistribute(dm, i0, psf, dmdist, ierr); call CHKERR(ierr)
+      call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
       if(dmdist.ne.PETSC_NULL_DM) then
-        call DMDestroy(dm, ierr); call CHKERR(ierr)
-        dm = dmdist
+        call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
+          '-show_migration_sf', ierr); call CHKERR(ierr)
 
-        call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
-        call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-        call DMPlexGetHeightStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
-        call DMPlexGetHeightStratum(dm, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+        call DMPlexGetChart(dmdist, pStart, pEnd, ierr); call CHKERR(ierr)
+        call DMPlexGetHeightStratum(dmdist, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+        call DMPlexGetHeightStratum(dmdist, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
+        call DMPlexGetHeightStratum(dmdist, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
         if(ldebug) then
           print *,myid,'pStart,End distributed:: ',pStart, pEnd
@@ -780,55 +786,16 @@ module m_icon_plex_utils
           print *,myid,'eStart,End distributed:: ',eStart, eEnd
           print *,myid,'vStart,End distributed:: ',vStart, vEnd
         endif
+
+        call PetscObjectViewFromOptions(dmdist, PETSC_NULL_DM, &
+          '-show_migrated_dm', ierr); call CHKERR(ierr)
+
+      else
+        migration_sf = PETSC_NULL_SF
+        call DMClone(dm, dmdist, ierr); call CHKERR(ierr)
       endif
 
-      contains
-        subroutine gen_cellslist_array(Nx, Nfaces, Nverts, cellslist, vertexCoords)
-          integer(iintegers), intent(in) :: Nx, Nfaces, Nverts
-          integer(iintegers), allocatable, intent(out) :: cellslist(:)
-          double precision, allocatable, intent(out) :: vertexCoords(:)
-
-          integer(iintegers) :: i, j, k
-          integer(iintegers) :: v1, v2, v3
-          integer(iintegers) :: vert_per_row
-
-          real(ireals), parameter :: dx=1, dy=1, dz=100
-          real(ireals), parameter :: ds=sqrt(dy**2 - (dx/2)**2)
-
-          vert_per_row = Nx/2 + 1
-
-          allocate(cellslist(Nfaces*i3))
-          allocate(vertexCoords(Nverts*i3))
-          do k = 0, Nfaces-1
-            j = k / Nx ! row of faces
-            i = k - j*Nx ! col of faces
-            if(modulo(i+modulo(j,i2),i2).eq.0) then ! this has a bot edge
-              v1 = j*vert_per_row + i/2
-              v2 = j*vert_per_row + i/2 + i1
-              v3 = (j+1)*vert_per_row + i/2 + modulo(j,i2)
-              cellslist(i1+k*i3:(k+i1)*i3) = [v1, v2, v3]
-              if(ldebug) print *,k, ':',i, j, 'has bot edge', cellslist(k*i3+i1:(k+i1)*i3)
-            else
-              v1 = (j+1)*vert_per_row + i/2
-              v2 = (j+1)*vert_per_row + i/2 + i1
-              v3 = (j)*vert_per_row + i/2 + i1 - modulo(j,i2)
-              cellslist(k*i3+i1:(k+i1)*i3) = [v1, v2, v3]
-              if(ldebug) print *,k, ':',i, j, 'has top edge', cellslist(k*i3+i1:(k+i1)*i3)
-            endif
-          enddo
-
-          do k=0,Nverts-1
-            j = k / Nx ! row of verts
-            i = k - j*Nx ! col of verts
-            vertexCoords(i1+k*i3:(k+i1)*i3) = [real(i, ireals)*dx + real(modulo(j,i2),ireals)*dx/2, &
-                                               real(j, ireals)*ds, &
-                                               dz]
-            if(ldebug) print *,k,':',i,j,'vcoord', vertexCoords(i1+k*i3:(k+i1)*i3)
-          enddo
-          if(ldebug) then
-            call mpi_barrier(PETSC_COMM_WORLD, ierr); call CHKERR(ierr)
-          endif
-        end subroutine
+      if(present(opt_migration_sf)) opt_migration_sf = migration_sf
 
         subroutine set_wedge_connectivity(dm, Nx, Nfaces, Nedges)
           type(tDM) :: dm
@@ -908,7 +875,7 @@ module m_icon_plex_utils
           integer(iintegers), intent(in) :: Nx
           real(ireals), pointer:: coords(:)
           type(tVec)           :: coordinates
-          integer(iintegers)   :: dimEmbed, coordSize, vStart, vEnd, pStart, pEnd, eStart, eEnd, voff, cStart, cEnd
+          integer(iintegers)   :: coordSize, vStart, vEnd, voff
           type(tPetscSection)  :: coordSection
           integer(iintegers)   :: iv, i, j
 
@@ -919,38 +886,34 @@ module m_icon_plex_utils
           integer(iintegers) :: vert_per_row
           vert_per_row = Nx/2 + 1
 
-          call DMGetCoordinateDim(dm, dimEmbed, ierr); CHKERRQ(ierr)
-          dimEmbed = 3
+          if(ldebug) call mpi_barrier(comm, ierr)
+          call DMGetCoordinateSection(dm, coordSection, ierr); call CHKERR(ierr)
 
-          call DMGetCoordinateSection(dm, coordSection, ierr); CHKERRQ(ierr)
+          call PetscSectionSetNumFields(coordSection, i1, ierr); call CHKERR(ierr)
+          call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+          call PetscSectionSetFieldComponents(coordSection, i0, i3, ierr); call CHKERR(ierr)
 
-          call PetscSectionSetNumFields(coordSection, i1, ierr); CHKERRQ(ierr)
-          call PetscSectionSetUp(coordSection, ierr); CHKERRQ(ierr)
-          call PetscSectionSetFieldComponents(coordSection, i0, dimEmbed, ierr); CHKERRQ(ierr)
+          call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-          call DMPlexGetChart(dm, pStart, pEnd, ierr); CHKERRQ(ierr)
-          call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); CHKERRQ(ierr) ! vertices
-          call DMPlexGetDepthStratum (dm, i1, eStart, eEnd, ierr); CHKERRQ(ierr) ! edges
-          call DMPlexGetHeightStratum (dm, i0, cStart, cEnd, ierr); CHKERRQ(ierr) ! faces
-
-          call PetscSectionSetChart(coordSection, vStart, vEnd, ierr);CHKERRQ(ierr)
+          call PetscSectionSetChart(coordSection, vStart, vEnd, ierr);call CHKERR(ierr)
 
           do i = vStart, vEnd-1
-            call PetscSectionSetDof(coordSection, i, dimEmbed, ierr); CHKERRQ(ierr)
-            call PetscSectionSetFieldDof(coordSection, i, i0, dimEmbed, ierr); CHKERRQ(ierr)
+            call PetscSectionSetDof(coordSection, i, i3, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(coordSection, i, i0, i3, ierr); call CHKERR(ierr)
           enddo
 
-          call PetscSectionSetUp(coordSection, ierr); CHKERRQ(ierr)
-          call PetscSectionGetStorageSize(coordSection, coordSize, ierr); CHKERRQ(ierr)
+          call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+          call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
+          print *,myid,'Coord Section has size:', coordSize
 
-          call VecCreate(PETSC_COMM_SELF, coordinates, ierr); CHKERRQ(ierr)
-          call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);CHKERRQ(ierr)
-          call VecSetBlockSize(coordinates, dimEmbed, ierr);CHKERRQ(ierr)
-          call VecSetType(coordinates, VECSTANDARD, ierr);CHKERRQ(ierr)
+          call VecCreate(comm, coordinates, ierr); call CHKERR(ierr)
+          call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
+          call VecSetBlockSize(coordinates, i3, ierr);call CHKERR(ierr)
+          call VecSetType(coordinates, VECSTANDARD, ierr);call CHKERR(ierr)
 
-          call PetscObjectSetName(coordinates, "coordinates", ierr); CHKERRQ(ierr)
+          call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
 
-          call VecGetArrayF90(coordinates, coords, ierr); CHKERRQ(ierr)
+          call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
           do iv = vStart, vEnd-1
               j = (iv-vStart) / vert_per_row
@@ -958,15 +921,17 @@ module m_icon_plex_utils
               z = 100
             x = (real(modulo(j,i2),ireals)*.5_ireals + real(i, ireals))*dx
             y = real(j, ireals) * ds
-            !if(ldebug) print *,'iv',iv,':', i, j,'=>', x, y, z
 
-            call PetscSectionGetOffset(coordSection, iv, voff, ierr); coords(voff+1:voff+3) = [x, y, z]
+            call PetscSectionGetOffset(coordSection, iv, voff, ierr); call CHKERR(ierr)
+            if(ldebug) print *,myid,'iv',iv,':', i, j,': voff',voff,'=>', x, y, z
+            coords(voff+1:voff+3) = [x, y, z]
           enddo
 
-          call VecRestoreArrayF90(coordinates, coords, ierr); CHKERRQ(ierr)
-          call DMSetCoordinatesLocal(dm, coordinates, ierr);CHKERRQ(ierr)
-          call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); CHKERRQ(ierr)
-          call VecDestroy(coordinates, ierr);CHKERRQ(ierr)
+          call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+          call DMSetCoordinatesLocal(dm, coordinates, ierr);call CHKERR(ierr)
+          call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
+          call VecDestroy(coordinates, ierr); call CHKERR(ierr)
+          if(ldebug) call mpi_barrier(comm, ierr)
         end subroutine
       end subroutine
 

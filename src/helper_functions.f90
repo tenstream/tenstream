@@ -20,7 +20,7 @@
 module m_helper_functions
   use iso_fortran_env, only: INT32, INT64, REAL32, REAL64
   use m_data_parameters,only : iintegers, mpiint, ireals, irealLUT, ireal_dp, &
-    i1, pi, zero, one, imp_ireals, imp_REAL32, imp_REAL64, imp_logical, default_str_len, &
+    i1, pi, pi32, pi64, zero, one, imp_ireals, imp_REAL32, imp_REAL64, imp_logical, default_str_len, &
     imp_int4, imp_int8, imp_iinteger
 
   use mpi
@@ -365,22 +365,22 @@ module m_helper_functions
     elemental function deg2rad_r32(deg) result(r)
       real(REAL32) :: r
       real(REAL32),intent(in) :: deg
-      r = deg * real(pi, REAL32) / 180
+      r = deg * pi32 / 180_REAL32
     end function
     elemental function deg2rad_r64(deg) result(r)
       real(REAL64) :: r
       real(REAL64),intent(in) :: deg
-      r = deg * pi / 180
+      r = deg * pi64 / 180
     end function
     elemental function rad2deg_r32(rad) result(r)
       real(REAL32) :: r
       real(REAL32),intent(in) :: rad
-      r = rad / real(pi, REAL32) * 180
+      r = rad / pi32 * 180_REAL32
     end function
     elemental function rad2deg_r64(rad) result(r)
       real(REAL64) :: r
       real(REAL64),intent(in) :: rad
-      r = rad / pi * 180
+      r = rad / pi64 * 180
     end function
 
     pure function rmse_r32(a,b) result(rmse)

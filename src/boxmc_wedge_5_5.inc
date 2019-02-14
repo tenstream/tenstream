@@ -99,7 +99,7 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,ldirect,initial_dir,vertices,ierr
   triangle_center(3) = dz/2
   dir_p_to_triangle_center = triangle_center - p%loc
 
-  p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
+  p%loc = p%loc + sqrt(epsilon(pi64)) * dir_p_to_triangle_center
 
   select type(bmc)
   end select

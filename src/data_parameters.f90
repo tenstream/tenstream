@@ -32,7 +32,7 @@ module m_data_parameters
       implicit none
 
       private
-      public pi, pi_dp,clight,nil,zero,one,                      &
+      public pi, pi32, pi64, clight, nil, zero, one,              &
              i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil,         &
              iintegers,ireals,ireal128,ireal_dp,irealLUT,nan32,  &
              mpiint,imp_iinteger,imp_int4, imp_int8,             &
@@ -57,7 +57,8 @@ module m_data_parameters
           mpiint = kind(mpiint_dummy)
 
       real(ireals),parameter :: pi=3.141592653589793_ireals, clight=299792458._ireals, nil=-9999._ireals
-      real(ireal_dp),parameter :: pi_dp=3.141592653589793_ireal_dp
+      real(REAL32),parameter :: pi32=3.141592653589793_REAL32
+      real(REAL64),parameter :: pi64=3.141592653589793_REAL64
       real(ireals),parameter :: zero=0, one=1
       real(real32), parameter :: nan32 =  transfer(-4194304_int32, 1._real32)
       integer(iintegers) ,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,i5=5,i6=6,i7=7,i8=8,i9=9,i10=10,i11=11,inil=-9999_iintegers

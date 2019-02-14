@@ -36,7 +36,7 @@ module m_boxmc
   use m_helper_functions, only : CHKERR, get_arg, itoa
   use iso_c_binding
   use mpi
-  use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi_dp, &
+  use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi64, &
     imp_iinteger, imp_real_dp, imp_logical
 
   use m_optprop_parameters, only : delta_scale_truncate,stddev_atol,stddev_rtol,ldebug_optprop
@@ -641,7 +641,7 @@ contains
 
     if(angle.gt.delta_scale_truncate) then
       p%direct = .True.
-      !print *,'delta scaling photon initial', initial_dir,'dir',p%dir,'angle',angle,'cos', (acos(angle))*180/pi_dp
+      !print *,'delta scaling photon initial', initial_dir,'dir',p%dir,'angle',angle,'cos', (acos(angle))*180/pi64
     endif
   end subroutine
 
@@ -792,7 +792,7 @@ contains
     muys = p%dir(2)
     muzs = p%dir(3)
 
-    fi = R()*pi_dp*2
+    fi = R()*pi64*2
 
     costheta = (mutheta)
     sintheta = sqrt(one-costheta**2)

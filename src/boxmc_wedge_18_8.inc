@@ -171,7 +171,7 @@ subroutine init_dir_photon_wedge_18_8(bmc, p, src, ldirect, initial_dir, vertice
   ! always nudge the photon a little bit inside the volume
   dir_p_to_triangle_center = triangle_center - p%loc
 
-  p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
+  p%loc = p%loc + sqrt(epsilon(pi64)) * dir_p_to_triangle_center
 
   end associate
 
@@ -533,7 +533,7 @@ subroutine init_diff_photon_wedge_18_8(bmc, p, src, vertices, ierr)
   ! always nudge the photon a little bit inside the volume
   dir_p_to_triangle_center = triangle_center - p%loc
 
-  p%loc = p%loc + sqrt(epsilon(pi_dp)) * dir_p_to_triangle_center
+  p%loc = p%loc + sqrt(epsilon(pi64)) * dir_p_to_triangle_center
 
   if(.not. approx( norm(p%dir) ,one ) ) call CHKERR(1_mpiint, 'init_diff_photon_3_10 :: direction was not normed?!')
 

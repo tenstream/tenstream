@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_helper_functions_dp
-      use m_data_parameters,only : iintegers,ireal_dp,imp_real_dp,imp_iinteger,imp_logical,mpiint, pi_dp
+      use m_data_parameters,only : iintegers,ireal_dp,imp_real_dp,imp_iinteger,imp_logical,mpiint, pi64
       use m_helper_functions, only: CHKERR, itoa
       use mpi
 
@@ -89,12 +89,12 @@ module m_helper_functions_dp
       elemental function deg2rad(deg)
           real(ireal_dp) :: deg2rad
           real(ireal_dp),intent(in) :: deg
-          deg2rad = deg * pi_dp / 180
+          deg2rad = deg * pi64 / 180
       end function
       elemental function rad2deg(rad)
         real(ireal_dp) :: rad2deg
         real(ireal_dp),intent(in) :: rad
-        rad2deg = rad / pi_dp * 180
+        rad2deg = rad / pi64 * 180
       end function
 
       pure function rmse(a,b)
