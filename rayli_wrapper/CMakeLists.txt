@@ -23,5 +23,3 @@ endif()
 
 add_library( f2c_rayli STATIC "f2c_rayli.F90")
 target_link_libraries(f2c_rayli pprts_base ${RAYLI_LIB})
-
-list(APPEND LIB "f2c_rayli")
