@@ -1274,7 +1274,7 @@ module m_pprts
     real(ireals),intent(in),dimension(:,:),optional   :: local_albedo_2d                 ! dimensions (Nx, Ny)
     logical, intent(in), optional :: ldelta_scaling ! determines if we should try to delta scale these optprops
 
-    real(ireals)        :: tau, kext, w0, g
+    real(ireals)        :: tau, kext, w0, g, pprts_delta_scale_max_g
     integer(iintegers)  :: k, i, j
     logical :: lpprts_delta_scale, lflg
 
@@ -1352,10 +1352,13 @@ module m_pprts
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale", lpprts_delta_scale, lflg , ierr) ;call CHKERR(ierr)
 
     if(lpprts_delta_scale) then
-      call delta_scale(atm%kabs, atm%ksca, atm%g, max_g=.65_ireals)
+      pprts_delta_scale_max_g=.649_ireals
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-pprts_delta_scale_max_g", pprts_delta_scale_max_g, lflg , ierr) ;call CHKERR(ierr)
+
+      call delta_scale(atm%kabs, atm%ksca, atm%g, max_g=pprts_delta_scale_max_g)
     else
       if(solver%myid.eq.0.and.lflg) print *,"Skipping Delta scaling of optprops"
-      if(any(atm%g.ge.0.5_ireals)) &
+      if(any(atm%g.ge.0.649_ireals)) &
         call CHKWARN(1_mpiint, 'Skipping delta scaling but now we have values of g which are bigger .5 ('//ftoa(maxval(atm%g))//')')
     endif
 
