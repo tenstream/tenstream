@@ -3,7 +3,8 @@ module test_helper_functions
   use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
   use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
     compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction, &
-    cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr
+    cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
+    search_sorted_bisection
 
   use pfunit_mod
 
@@ -311,5 +312,21 @@ subroutine test_char_arr_to_str(this)
 
   @assertEqual('1, 23, 456', char_arr_to_str(a))
   @assertEqual('1 :: 23 :: 456', char_arr_to_str(a, ' :: '))
+end subroutine
+
+@test(npes=[1])
+subroutine test_search_sorted_bisection(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals), parameter :: A(3) = [-10, 0, 2]
+  !real(ireals) :: x
+
+  @assertEqual(1.0, search_sorted_bisection(A, -20._ireals))
+  @assertEqual(1.0, search_sorted_bisection(A, -10._ireals))
+  @assertEqual(1.5, search_sorted_bisection(A,  -5._ireals))
+  @assertEqual(2.0, search_sorted_bisection(A,  -0._ireals))
+  @assertEqual(2.0, search_sorted_bisection(A,   0._ireals))
+  @assertEqual(2.5, search_sorted_bisection(A,   1._ireals))
+  @assertEqual(3.0, search_sorted_bisection(A,   2._ireals))
+  @assertEqual(3.0, search_sorted_bisection(A,   3._ireals))
 end subroutine
 end module
