@@ -236,7 +236,7 @@ contains
     endif
     contains
       subroutine handle_critical_azimuth()
-        use m_data_parameters, only: pi
+        use m_data_parameters, only: pi=>pi_irealLUT
         use m_helper_functions, only: angle_between_two_vec, search_sorted_bisection, rad2deg
         use m_optprop_LUT, only: find_lut_dim_by_name
 
@@ -248,8 +248,13 @@ contains
         logical :: lsample_critical
 
         associate( pA => wedge_coords(1:2), pB => wedge_coords(3:4), pC => wedge_coords(5:6) )
-          alpha = angle_between_two_vec(real(pB-pA, ireals), real(pC-pA, ireals))
-          beta  = rad2deg(pi/2 - alpha)
+          if(in_angles(1).ge.0) then
+            alpha = angle_between_two_vec(pB-pA, pC-pA)
+            beta  = rad2deg( pi/2 - alpha )
+          else
+            alpha = angle_between_two_vec(pA-pB, pC-pB)
+            beta  = rad2deg( alpha - pi/2 )
+          endif
 
           if(.not.allocated(kdim)) then
             allocate(kdim)
@@ -265,7 +270,7 @@ contains
           ! if both lut azis are on the same side of the one we want to use its fine, otherwise its critical
           lsample_critical = ( (LUT_azimuths(1)-beta) * (LUT_azimuths(2)-beta) ) .le. zero
 
-          print *,'LUT azimuths', LUT_azimuths, ':', beta, lsample_critical
+          !print *,'azi', in_angles(1), 'LUT azimuths', LUT_azimuths, ':', beta, lsample_critical
 
           if(lsample_critical) call do_bmc_computation(C)
         end associate

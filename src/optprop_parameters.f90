@@ -64,6 +64,13 @@ module m_optprop_parameters
       ! We pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values
       !     -- see python script: ''eddington_to_LUT.py''
 
+      real(irealLUT), parameter :: preset_param_phi19(19) = [-2., -1.75, -1.5 , -1.25, &
+                                                          -1.-100*(epsilon(1._irealLUT)), &
+                                                          -1.+100*(epsilon(1._irealLUT)), &
+                                                          -0.75, -0.5 , -0.25,  0., 0.25, 0.5, 0.75, &
+                                                          +1.-100*(epsilon(1._irealLUT)), &
+                                                          +1.+100*(epsilon(1._irealLUT)), &
+                                                          1.25, 1.5, 1.75, 2.]
       real(irealLUT), parameter :: preset_aspect5(5) = [.2, .5, 1., 2., 5.]
       real(irealLUT), parameter :: preset_aspect7(7) = [0.03125, 0.0625, 0.125, 0.25, 0.5, 1., 2.]
       real(irealLUT), parameter :: preset_aspect13(13) = [0.02, 0.042, 0.075, 0.133, 0.237, 0.422, 0.75, 1., 1.25, &

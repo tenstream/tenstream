@@ -74,7 +74,7 @@ module m_helper_functions
     module procedure itoa_i4, itoa_i8, itoa_1d_i4, itoa_1d_i8
   end interface
   interface ftoa
-    module procedure ftoa_r32, ftoa_r64, ftoa_1d
+    module procedure ftoa_r32, ftoa_r64, ftoa_1d_r32, ftoa_1d_r64
   end interface
   interface meanval
     module procedure meanval_1d_r4, meanval_2d_r4, meanval_3d_r4, &
@@ -131,6 +131,9 @@ module m_helper_functions
   end interface
   interface cross_2d
     module procedure cross_2d_r32, cross_2d_r64
+  end interface
+  interface angle_between_two_vec
+    module procedure angle_between_two_vec_r32, angle_between_two_vec_r64
   end interface
 
   interface distances_to_triangle_edges
@@ -283,9 +286,23 @@ module m_helper_functions
       write(tmp,*) i
       res = trim(tmp)
     end function
-    pure function ftoa_1d(i) result(res)
+    pure function ftoa_1d_r32(i) result(res)
       character(:),allocatable :: res
-      real(ireals),intent(in) :: i(:)
+      real(REAL32),intent(in) :: i(:)
+      character(range(i)+2) :: tmp
+      integer :: digit
+      res = ''
+      res = ''
+      do digit = 1, size(i)
+        write(tmp,*) i(digit)
+        res = res//trim(tmp)//' '
+      enddo
+      res = trim(res)
+    end function
+
+    pure function ftoa_1d_r64(i) result(res)
+      character(:),allocatable :: res
+      real(REAL64),intent(in) :: i(:)
       character(range(i)+2) :: tmp
       integer :: digit
       res = ''
@@ -1134,23 +1151,44 @@ module m_helper_functions
     end function
 
     !> @brief returns the angle between two not necessarily normed vectors. Result is in radians
-    function angle_between_two_vec(p1, p2)
-      real(ireals),intent(in) :: p1(:), p2(:)
-      real(ireals) :: angle_between_two_vec
-      real(ireals) :: n1, n2, dp
+    function angle_between_two_vec_r32(p1, p2) result(angle_between_two_vec)
+      real(REAL32),intent(in) :: p1(:), p2(:)
+      real(REAL32) :: angle_between_two_vec
+      real(REAL32) :: n1, n2, dp
+      real(REAL32), parameter :: eps = 1._REAL32 + sqrt(epsilon(eps))
       if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
         angle_between_two_vec = 0
         return
       endif
       n1 = norm(p1)
       n2 = norm(p2)
-      if(any(approx([n1,n2],zero))) then
+      if(any(approx([n1,n2], 0._REAL32))) then
         call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
       endif
 
       dp = dot_product(p1/n1, p2/n2)
-      if(dp.gt.one.or.dp.lt.-one) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
-      dp = max( min(dp, one), -one)
+      if(dp.gt.eps.or.dp.lt.-eps) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
+      dp = max( min(dp, 1._REAL32), -1._REAL32)
+      angle_between_two_vec = acos(dp)
+    end function
+    function angle_between_two_vec_r64(p1, p2) result(angle_between_two_vec)
+      real(REAL64),intent(in) :: p1(:), p2(:)
+      real(REAL64) :: angle_between_two_vec
+      real(REAL64) :: n1, n2, dp
+      real(REAL64), parameter :: eps = 1._REAL64 + sqrt(epsilon(eps))
+      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
+        angle_between_two_vec = 0
+        return
+      endif
+      n1 = norm(p1)
+      n2 = norm(p2)
+      if(any(approx([n1,n2], 0._REAL64))) then
+        call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
+      endif
+
+      dp = dot_product(p1/n1, p2/n2)
+      if(dp.gt.eps.or.dp.lt.-eps) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
+      dp = max( min(dp, 1._REAL64), -1._REAL64)
       angle_between_two_vec = acos(dp)
     end function
 
