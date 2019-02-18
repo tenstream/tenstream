@@ -19,9 +19,6 @@ if(HAVE_RAYLI)
 
   add_executable(single_wedge_2_rayli "single_wedge_2_rayli.c" )
   target_link_libraries(single_wedge_2_rayli ${RAYLI_LIB})
-
-else()
-  message( FATAL "  NO RAYLI :(")
 endif()
 
 add_library( f2c_rayli STATIC "f2c_rayli.F90")
