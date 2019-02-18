@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+
 void VecSet(size_t N, double *arr, double val) {
     for(size_t i=0; i<N; i++) arr[i] = val;
 }
@@ -15,13 +16,14 @@ int main(int argc, char **argv) {
     size_t Nfaces = 8;
     size_t Nverts = 6;
     double *kabs, *ksca, *g;
-    double *flx_through_faces;
+    double *flx_through_faces_edir, *flx_through_faces_ediff;
     double sundir[] = {0,1/sqrt(2.),1/sqrt(2.)};
 
     kabs = malloc(Nwedges*sizeof(double)); VecSet(Nwedges, kabs, 1e-0);
     ksca = malloc(Nwedges*sizeof(double)); VecSet(Nwedges, ksca, 0e-1);
     g    = malloc(Nwedges*sizeof(double)); VecSet(Nwedges, g   , 1e-1);
-    flx_through_faces = malloc(Nfaces*sizeof(double));
+    flx_through_faces_edir = malloc(Nfaces*sizeof(double));
+    flx_through_faces_ediff = malloc(Nfaces*sizeof(double));
 
     double vert_coords[]={ 0, 0, 1,       0, 0, 0,
                            1, 0, 1,       1, 0, 0,
@@ -55,10 +57,10 @@ int main(int argc, char **argv) {
             verts_of_face, wedges_of_face, vert_coords,
             kabs, ksca, g,
             sundir,
-            flx_through_faces);
+            flx_through_faces_edir, flx_through_faces_ediff);
 
     for(size_t f=0; f<Nfaces; f++) {
-        fprintf(stderr, "Flux on face %d :: %f\n", f, flx_through_faces[f]);
+        fprintf(stderr, "on face %d :: Edir %f Ediff\n", f, flx_through_faces_edir[f], flx_through_faces_ediff[f]);
     }
 
     free(kabs);
