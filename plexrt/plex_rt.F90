@@ -2946,8 +2946,8 @@ module m_plex_rt
              rksca(Nwedges), &
              rg   (Nwedges), &
              flx_through_faces_edir(Nfaces), &
-             flx_through_faces_ediff(Nfaces), &
-           )
+             flx_through_faces_ediff(Nfaces) )
+
     do iface = fStart, fEnd-1
       call DMPlexGetTransitiveClosure(dmrayli, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
       verts_of_face(:, iface-fStart+1) = trans_closure(9:size(trans_closure):2) - vStart

@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
             flx_through_faces_edir, flx_through_faces_ediff);
 
     for(size_t f=0; f<Nfaces; f++) {
-        fprintf(stderr, "on face %d :: Edir %f Ediff\n", f, flx_through_faces_edir[f], flx_through_faces_ediff[f]);
+        fprintf(stderr, "on face %zu :: Edir %g Ediff %g \n", f, flx_through_faces_edir[f], flx_through_faces_ediff[f]);
     }
 
     free(kabs);
