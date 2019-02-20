@@ -74,10 +74,10 @@ contains
       call PetscFinalize(ierr)
   end subroutine teardown
 
-  @test(npes=[1])
+  !@test(npes=[1])
   subroutine test_LUT_wedge_custom1(this)
     class (MpiTestMethod), intent(inout) :: this
-    real(irealLUT) :: tau, w0, g, aspect, phi, theta, Cx, Cy
+    real(irealLUT) :: tau, w0, g, aspect, phi, param_phi, theta, Cx, Cy
     real(irealLUT), dimension(Ndir**2) :: d2d1, d2d4
     !real(irealLUT), dimension(Ndir**2) :: d2d2, d2d3
 
@@ -96,7 +96,7 @@ contains
     Cx = .5_irealLUT
     Cy = 0.8660254037844386_irealLUT
 
-    phi = -53.52941176_irealLUT
+    phi = -0._irealLUT
     call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], d2d1)
     call print_dir2dir(d2d1)
 
@@ -143,9 +143,7 @@ contains
             S, T, Stol, Ttol)
           d2d(isrc:Ndir**2:Ndir) = real(T, irealLUT)
         enddo
-
       end subroutine
-
 
       !subroutine compute_bmc_wrapper_coeff(d2d)
       !  real(irealLUT), intent(out) :: d2d(:)
@@ -210,9 +208,9 @@ contains
       class (MpiTestMethod), intent(inout) :: this
 
       integer(iintegers) :: isrc
-      integer(iintegers) :: idim_tau, idim_w0, idim_g, idim_aspect, idim_phi, idim_theta, idim_Cx, idim_Cy
-      integer(iintegers) :: itau, iw0, ig, iaspect, iphi, itheta, iCx, iCy
-      real(irealLUT) :: tau, w0, g, aspect, phi, theta, Cx, Cy
+      integer(iintegers) :: idim_tau, idim_w0, idim_g, idim_aspect, idim_param_phi, idim_theta, idim_Cx, idim_Cy
+      integer(iintegers) :: itau, iw0, ig, iaspect, iparam_phi, itheta, iCx, iCy
+      real(irealLUT) :: tau, w0, g, aspect, param_phi, phi, theta, Cx, Cy
 
       real(irealLUT) :: kabs, ksca, dz, err(2)
       real(ireals), allocatable :: vertices(:)
@@ -237,7 +235,7 @@ contains
         allocate(g_dim(LUTconfig%dims(idim_g)%N), source=LUTconfig%dims(idim_g     )%v(:))
       endif
       idim_aspect = find_lut_dim_by_name(LUTconfig, 'aspect_zx')
-      idim_phi    = find_lut_dim_by_name(LUTconfig, 'phi')
+      idim_param_phi    = find_lut_dim_by_name(LUTconfig, 'param_phi')
       idim_theta  = find_lut_dim_by_name(LUTconfig, 'theta')
       idim_Cx     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cx')
       idim_Cy     = find_lut_dim_by_name(LUTconfig, 'wedge_coord_Cy')
@@ -246,7 +244,7 @@ contains
         do iw0  = 1, LUTconfig%dims(idim_w0)%N, NSLICE
           do ig   = 1, size(g_dim), NSLICE
             do iaspect = 1, LUTconfig%dims(idim_aspect)%N, NSLICE
-              do iphi = 1, LUTconfig%dims(idim_phi)%N, NSLICE
+              do iparam_phi = 1, LUTconfig%dims(idim_param_phi)%N, NSLICE
                 do itheta = 1, LUTconfig%dims(idim_theta)%N, NSLICE
                   do iCx = 1, LUTconfig%dims(idim_Cx)%N, NSLICE
                     do iCy = 1, LUTconfig%dims(idim_Cy)%N, NSLICE
@@ -254,13 +252,14 @@ contains
                       w0     = LUTconfig%dims(idim_w0    )%v(iw0)
                       g      = g_dim(ig)
                       aspect = LUTconfig%dims(idim_aspect)%v(iaspect)
-                      phi    = LUTconfig%dims(idim_phi   )%v(iphi)
+                      param_phi    = LUTconfig%dims(idim_param_phi   )%v(iparam_phi)
                       theta  = LUTconfig%dims(idim_theta )%v(itheta)
                       Cx     = LUTconfig%dims(idim_Cx    )%v(iCx)
                       Cy     = LUTconfig%dims(idim_Cy    )%v(iCy)
+                      phi = rad2deg(azimuth_from_param_phi(param_phi, [Cx,Cy]))
 
-                      call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2dir)
-                      call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, phi, theta], LUT_dir2diff)
+                      call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2dir)
+                      call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2diff)
 
                       call setup_default_wedge_geometry(&
                         [0._ireals, 0._ireals], &
@@ -285,7 +284,7 @@ contains
 
                         err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), real(T_target, irealLUT))
                         if(err(1).ge.sigma*atol .or. err(2).ge.sigma*rtol) then
-                          print *,'Testing: ', tau, w0, g, aspect, phi, theta, Cx, Cy,':: RMSE', err
+                          print *,'Testing: ', tau, w0, g, aspect, param_phi, phi, theta, Cx, Cy,':: RMSE', err
                           print *,'LUT :::', isrc, LUT_dir2dir(isrc:Ndir**2:Ndir)
                           print *,'dir2dir', isrc, T_target
                         endif
@@ -295,7 +294,7 @@ contains
                     enddo !Cy
                   enddo !Cx
                 enddo !theta
-              enddo !phi
+              enddo !param_phi
             enddo !aspect
           enddo !g
         enddo !w0

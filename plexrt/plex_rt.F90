@@ -2245,12 +2245,11 @@ module m_plex_rt
     real(irealLUT),intent(in),optional  :: angles(2)
 
     real(ireals) :: dkabs, dksca, dg
-    real(irealLUT) :: aspect, tauz, w0, dx, relcoords(6), CC(size(coeff))
+    real(irealLUT) :: aspectzx, tauz, w0, dx, relcoords(6)
     integer, parameter :: iC1=4, iC2=5
     real(ireals), parameter :: dither_relcoords=.0_ireals ! add dither on relcoords
     real(ireals), parameter :: dither_sundir=.0_ireals ! add dither on sun angles
     real(irealLUT) :: Rdither, dither_angles(2)
-
 
     dx = real(wedge_coords(3), irealLUT)
 
@@ -2259,7 +2258,7 @@ module m_plex_rt
     dg    = g
     call delta_scale( dkabs, dksca, dg, opt_f=dg)
 
-    aspect = real(dz / dx, irealLUT)
+    aspectzx = real(dz / dx, irealLUT)
     tauz = real((dkabs+dksca) * dz, irealLUT)
     if(approx(tauz,0._irealLUT)) then
       w0 = 0
@@ -2294,25 +2293,35 @@ module m_plex_rt
       relcoords(6) = relcoords(6) * real((one+(dither_relcoords*(-one+2*Rdither))), irealLUT)
     endif
 
-    relcoords(5) = max(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(1), &
-                   min(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(2), relcoords(5)))
-    relcoords(6) = max(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(1), &
-                   min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6)))
+    !relcoords(5) = .5_irealLUT !DEBUG
+    !relcoords(6) = .8660254_irealLUT !DEBUG
 
-    !print *,'DEBUG Coeffs', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
+    !relcoords(5) = max(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(1), &
+    !               min(OPP%OPP_LUT%diffconfig%dims(iC1)%vrange(2), relcoords(5)))
+    !if(relcoords(6).gt.OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2)) then
+    !  if(relcoords(6).gt.OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2)*1.1_irealLUT) then
+    !    continue ! will run into LUT exception
+    !  else
+    !    relcoords(6) = min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6))
+    !  endif
+
+    !endif
+    !relcoords(6) = max(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(1), &
+    !               min(OPP%OPP_LUT%diffconfig%dims(iC2)%vrange(2), relcoords(6)))
+
+    !print *,'DEBUG Coeffs', tauz, w0, g, aspectzx, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords
     if(present(angles)) then
       !print *,'get_coeff angles', dither_angles, 'relcord',relcoords(5),relcoords(6)
-      call OPP%get_coeff(tauz, w0, real(dg, irealLUT), aspect, ldir, CC, ierr, &
+      call OPP%get_coeff(tauz, w0, real(dg, irealLUT), aspectzx, ldir, coeff, ierr, &
         angles=dither_angles, wedge_coords=relcoords)
     else
-      call OPP%get_coeff(tauz, w0, real(dg, irealLUT), aspect, ldir, CC, ierr, &
+      call OPP%get_coeff(tauz, w0, real(dg, irealLUT), aspectzx, ldir, coeff, ierr, &
         angles=angles, wedge_coords=relcoords)
     endif
-    !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspect, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
-    coeff = CC
+    !print *,'DEBUG Lookup Coeffs for', tauz, w0, g, aspectzx, angles, ':', norm(wedge_coords(3:4)-wedge_coords(1:2)), ':', relcoords, '::', coeff
     if(ldebug) then
       if(any(coeff.lt.zero).or.any(coeff.gt.one)) then
-        print *,'Lookup Coeffs for', aspect, tauz, w0, dg, angles,'::', coeff
+        print *,'Lookup Coeffs for', aspectzx, tauz, w0, dg, angles,'::', coeff
         call CHKERR(1_mpiint, 'Found corrupted coefficients!')
       endif
     endif
@@ -2324,7 +2333,7 @@ module m_plex_rt
         integer(iintegers) :: isrc
         if(ldir) then
           do isrc = 1, 18
-            print *,isrc,'->',CC(isrc:size(CC):18)
+            print *,isrc,'->',coeff(isrc:size(coeff):18)
           enddo
         endif
       end subroutine

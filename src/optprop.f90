@@ -29,7 +29,8 @@ use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, swap
 use m_data_parameters, only: ireals,irealLUT,irealLUT,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_8_10, t_optprop_LUT_3_16, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
-  t_optprop_LUT_wedge_5_8, t_optprop_LUT_wedge_18_8
+  t_optprop_LUT_wedge_5_8, t_optprop_LUT_wedge_18_8, &
+  param_phi_from_azimuth
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
 use m_eddington, only: eddington_coeff_zdun
@@ -200,11 +201,6 @@ contains
 
     ierr = 0
 
-    if(compute_coeff_online) then
-      call do_bmc_computation(C)
-      return
-    endif
-
     if(ldebug_optprop) then
       if(.not.present(wedge_coords)) call CHKERR(1_mpiint, 'If you use an wedge OPP object, I highly recommend that you provide the wedge coordinates')
     endif
@@ -227,11 +223,16 @@ contains
       return
     endif
 
+    if(ldir .and. compute_coeff_online) then
+      call do_bmc_computation(C)
+      return
+    endif
+
     call do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
 
     if(.False. .and. ldir) call print_coeff_diff()
 
-    if(present(in_angles)) then
+    if(.False. .and. ldir .and. present(in_angles)) then
       call handle_critical_azimuth()
     endif
     contains
@@ -240,7 +241,7 @@ contains
         use m_helper_functions, only: angle_between_two_vec, search_sorted_bisection, rad2deg
         use m_optprop_LUT, only: find_lut_dim_by_name
 
-        real(irealLUT) :: beta, alpha ! alpha is the angle between AB and AC
+        real(irealLUT) :: beta, alpha, param_phi ! alpha is the angle between AB and AC
         real(irealLUT) :: azimuth_pti ! the sample point for azimuth angles in the LUT
         real(irealLUT) :: LUT_azimuths(2) ! LUT azimuth values that would be used
         integer(iintegers), allocatable, save :: kdim ! azimuth dim index in LUT
@@ -248,31 +249,26 @@ contains
         logical :: lsample_critical
 
         associate( pA => wedge_coords(1:2), pB => wedge_coords(3:4), pC => wedge_coords(5:6) )
-          if(in_angles(1).ge.0) then
-            alpha = angle_between_two_vec(pB-pA, pC-pA)
-            beta  = rad2deg( pi/2 - alpha )
-          else
-            alpha = angle_between_two_vec(pA-pB, pC-pB)
-            beta  = rad2deg( alpha - pi/2 )
+          param_phi = param_phi_from_azimuth(deg2rad(in_angles(1)), pC)
+
+          lsample_critical = .False.
+          if(approx(abs(param_phi), 1._irealLUT, 1000*epsilon(1._irealLUT))) lsample_critical = .True.
+
+          !print *,'param_phi', param_phi, lsample_critical
+          if(lsample_critical) then
+            if(param_phi.le.-1._irealLUT) then
+              param_phi = -1._irealLUT-1000*(epsilon(1._irealLUT))
+            elseif(param_phi.ge.1._irealLUT) then !1.0001
+              param_phi = 1._irealLUT+1000*(epsilon(1._irealLUT))
+            elseif(param_phi.lt.0._irealLUT) then !-.999
+              param_phi = -1._irealLUT+1000*(epsilon(1._irealLUT))
+            else ! .999
+              param_phi = 1._irealLUT-1000*(epsilon(1._irealLUT))
+            endif
+            print *,'param_phi -> ', param_phi, lsample_critical
+            !call do_bmc_computation(C)
+            call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, pC(1), pC(2), param_phi, in_angles(2)], C)
           endif
-
-          if(.not.allocated(kdim)) then
-            allocate(kdim)
-            kdim = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'phi')
-          endif
-
-          azimuth_pti = search_sorted_bisection(OPP%OPP_LUT%dirconfig%dims(kdim)%v, in_angles(1))
-          !print *,'A',pA,'B',pB,'C',pC,'alpha',rad2deg(alpha),'azi', in_angles(1), 'azimuth pti', azimuth_pti
-
-          LUT_azimuths(1) = OPP%OPP_LUT%dirconfig%dims(kdim)%v(floor(azimuth_pti))
-          LUT_azimuths(2) = OPP%OPP_LUT%dirconfig%dims(kdim)%v(ceiling(azimuth_pti))
-
-          ! if both lut azis are on the same side of the one we want to use its fine, otherwise its critical
-          lsample_critical = ( (LUT_azimuths(1)-beta) * (LUT_azimuths(2)-beta) ) .le. zero
-
-          !print *,'azi', in_angles(1), 'LUT azimuths', LUT_azimuths, ':', beta, lsample_critical
-
-          if(lsample_critical) call do_bmc_computation(C)
         end associate
 
       end subroutine
@@ -305,16 +301,16 @@ contains
           enddo
           call CHKERR(1_mpiint, 'DEBUG')
         endif
-        !do isrc=1,OPP%OPP_LUT%dir_streams
-        !  C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams) = Cbmc(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
-        !enddo
+        do isrc=1,OPP%OPP_LUT%dir_streams
+          C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams) = Cbmc(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
+        enddo
         C = Cbmc
       end subroutine
       subroutine do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
         real(irealLUT), intent(in) :: tauz, w0, aspect_zx
         logical,intent(in)       :: ldir
         real(irealLUT),intent(in),optional :: in_angles(:)
-        real(irealLUT) :: save_theta
+        real(irealLUT) :: save_theta, param_phi
 
         associate( C_pnt => wedge_coords(5:6) )
 
@@ -326,11 +322,13 @@ contains
               else
                 save_theta = in_angles(2)
               endif
+              param_phi = param_phi_from_azimuth(deg2rad(in_angles(1)), C_pnt)
+
               if(ldir) then ! dir2dir
-                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), in_angles(1), save_theta], C)
+                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), param_phi, save_theta], C)
                 !call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, in_angles(1), save_theta], C)
               else ! dir2diff
-                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), in_angles(1), save_theta], C)
+                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), param_phi, save_theta], C)
                 !call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, in_angles(1), save_theta], C)
               endif
               call handle_sza_gt_90_case()
