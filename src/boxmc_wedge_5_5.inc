@@ -270,5 +270,13 @@ subroutine intersect_distance_wedge_5_5(bmc,vertices,p,max_dist)
   end select
 
 end subroutine
+subroutine wedge_halfspaces_5_5(bmc, vertices, origins, normals)
+    class(t_boxmc_wedge_5_5) :: bmc
+    real(ireal_dp),intent(in) :: vertices(:)
+    real(ireal_dp),allocatable,intent(out) :: origins(:,:), normals(:,:)
+    call wedge_halfspaces(vertices, origins, normals)
+    select type(bmc)
+    end select
+end subroutine
 ! ******************* BOXMC wedge 5 5 ************************
 

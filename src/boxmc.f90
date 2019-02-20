@@ -42,7 +42,8 @@ module m_boxmc
   use m_optprop_parameters, only : delta_scale_truncate,stddev_atol,stddev_rtol,ldebug_optprop
 
   use m_boxmc_geometry, only : setup_cube_coords_from_vertices, setup_wedge_coords_from_vertices, &
-      intersect_cube, intersect_wedge
+      intersect_cube, intersect_wedge, &
+      box_halfspaces, wedge_halfspaces
 
   use m_kiss_rng, only: kiss_real, kiss_init
 
@@ -78,6 +79,7 @@ module m_boxmc
     procedure :: get_coeff
     procedure :: move_photon
     procedure(intersect_distance),deferred :: intersect_distance
+    procedure(half_spaces),deferred :: half_spaces
 
     procedure(init_dir_photon),deferred  :: init_dir_photon
     procedure(init_diff_photon),deferred :: init_diff_photon
@@ -87,6 +89,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_1_2
   contains
+    procedure :: half_spaces        => box_halfspaces_1_2
     procedure :: intersect_distance => intersect_distance_1_2
     procedure :: init_dir_photon    => init_dir_photon_1_2
     procedure :: init_diff_photon   => init_diff_photon_1_2
@@ -96,6 +99,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_3_6
   contains
+    procedure :: half_spaces        => box_halfspaces_3_6
     procedure :: intersect_distance => intersect_distance_3_6
     procedure :: init_dir_photon    => init_dir_photon_3_6
     procedure :: init_diff_photon   => init_diff_photon_3_6
@@ -105,6 +109,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_3_10
   contains
+    procedure :: half_spaces        => box_halfspaces_3_10
     procedure :: intersect_distance => intersect_distance_3_10
     procedure :: init_dir_photon    => init_dir_photon_3_10
     procedure :: init_diff_photon   => init_diff_photon_3_10
@@ -114,6 +119,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_8_10
   contains
+    procedure :: half_spaces        => box_halfspaces_8_10
     procedure :: intersect_distance => intersect_distance_8_10
     procedure :: init_dir_photon    => init_dir_photon_8_10
     procedure :: init_diff_photon   => init_diff_photon_8_10
@@ -123,6 +129,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_8_12
   contains
+    procedure :: half_spaces        => box_halfspaces_8_12
     procedure :: intersect_distance => intersect_distance_8_12
     procedure :: init_dir_photon    => init_dir_photon_8_12
     procedure :: init_diff_photon   => init_diff_photon_8_12
@@ -132,6 +139,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_8_16
   contains
+    procedure :: half_spaces        => box_halfspaces_8_16
     procedure :: intersect_distance => intersect_distance_8_16
     procedure :: init_dir_photon    => init_dir_photon_8_16
     procedure :: init_diff_photon   => init_diff_photon_8_16
@@ -141,6 +149,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_3_16
   contains
+    procedure :: half_spaces        => box_halfspaces_3_16
     procedure :: intersect_distance => intersect_distance_3_16
     procedure :: init_dir_photon    => init_dir_photon_3_16
     procedure :: init_diff_photon   => init_diff_photon_3_16
@@ -150,6 +159,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_8_18
   contains
+    procedure :: half_spaces        => box_halfspaces_8_18
     procedure :: intersect_distance => intersect_distance_8_18
     procedure :: init_dir_photon    => init_dir_photon_8_18
     procedure :: init_diff_photon   => init_diff_photon_8_18
@@ -159,6 +169,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_wedge_5_5
   contains
+    procedure :: half_spaces        => wedge_halfspaces_5_5
     procedure :: intersect_distance => intersect_distance_wedge_5_5
     procedure :: init_dir_photon    => init_dir_photon_wedge_5_5
     procedure :: init_diff_photon   => init_diff_photon_wedge_5_5
@@ -168,6 +179,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_wedge_5_8
   contains
+    procedure :: half_spaces        => wedge_halfspaces_5_8
     procedure :: intersect_distance => intersect_distance_wedge_5_8
     procedure :: init_dir_photon    => init_dir_photon_wedge_5_8
     procedure :: init_diff_photon   => init_diff_photon_wedge_5_8
@@ -177,6 +189,7 @@ module m_boxmc
 
   type,extends(t_boxmc) :: t_boxmc_wedge_18_8
   contains
+    procedure :: half_spaces        => wedge_halfspaces_18_8
     procedure :: intersect_distance => intersect_distance_wedge_18_8
     procedure :: init_dir_photon    => init_dir_photon_wedge_18_8
     procedure :: init_diff_photon   => init_diff_photon_wedge_18_8
@@ -263,6 +276,15 @@ module m_boxmc
       real(ireal_dp),intent(in) :: vertices(:)
       type(t_photon),intent(inout) :: p
       real(ireal_dp),intent(out) :: max_dist
+    end subroutine
+  end interface
+
+  abstract interface
+    subroutine half_spaces(bmc, vertices, origins, normals)
+      import :: t_boxmc, ireal_dp
+      class(t_boxmc) :: bmc
+      real(ireal_dp),intent(in) :: vertices(:)
+      real(ireal_dp), allocatable, intent(out) :: origins(:,:), normals(:,:)
     end subroutine
   end interface
 ! ***************** INTERFACES ************
@@ -516,6 +538,8 @@ contains
       integer(iintegers) :: k,mycnt,mincnt
       integer(mpiint)    :: numnodes, ierr
 
+      real(ireal_dp), allocatable :: origins(:,:), normals(:,:)
+
       call mpi_comm_size(comm, numnodes, mpierr); call chkerr(mpierr)
       call cpu_time(time(1))
 
@@ -528,6 +552,7 @@ contains
       ! i.e. here we have azimuth phi = 0, beam going towards the north
       ! and phi = 90, beam going towards east
       initial_dir = spherical_2_cartesian(phi0, theta) * [-one, -one, one]
+      call bmc%half_spaces(vertices, origins, normals)
 
       mincnt= max( 100, int( 1e4 /numnodes ) )
       mycnt = int(1e8)/numnodes
@@ -674,6 +699,42 @@ contains
     L = ( eps + R()*(one-2*eps) ) *v
   end function
 
+  subroutine intersect_distance_convex_polytope(origins, normals, p, intersec_dist)
+    real(ireal_dp), intent(in) :: origins(:,:), normals(:,:)
+    type(t_photon), intent(inout) :: p
+    real(ireal_dp), intent(out) :: intersec_dist
+
+    real(ireal_dp) :: l
+    integer(iintegers) :: iface
+
+    p%subface = 1 ! TODO: check if this is ok todo
+
+    intersec_dist = huge(intersec_dist)
+    do iface = 1, size(origins, dim=2)
+      if(p%scattercnt.eq.0 .and. iface.eq.p%src_side) cycle
+      associate(o=>origins(:,iface), n=>normals(:,iface))
+        l = -dot_product(n,p%dir)
+        if(l.le.0) cycle
+
+        L = dot_product(n, p%loc - o) / l
+        if(L.lt.intersec_dist) then
+          intersec_dist = L
+          p%side = iface
+        endif
+      end associate
+    enddo
+
+    if(p%scattercnt.eq.0 .and. intersec_dist .eq. huge(intersec_dist) ) then
+      if((dot_product(normals(:, p%src_side),p%dir).ge.0._ireal_dp) .or. &
+         (dot_product(normals(:, p%src_side), p%loc - origins(:,p%src_side)).lt.0._ireal_dp)) then
+         call CHKERR(1_mpiint, 'Could not hit anything?!?')
+       else
+         p%side = p%src_side
+         p%weight = 0._ireal_dp
+       endif
+    endif
+  end subroutine
+
   !> @brief main function for a single photon
   !> @details this routine will incrementally move a photon until it is either out of the domain or it is time for a interaction with the medium
   subroutine move_photon(bmc, vertices, kabs, ksca, tau_scaling, p)
@@ -683,6 +744,7 @@ contains
     type(t_photon),intent(inout) :: p
     real(ireal_dp) :: dist, intersec_dist, travel_tau, wgt
 
+    !call intersect_distance_convex_polytope(origins, normals, p, intersec_dist)
     call bmc%intersect_distance(vertices, p, intersec_dist)
 
     if(tau_scaling.gt.5) then ! just lamber beer direct radiation
@@ -712,7 +774,6 @@ contains
       call update_photon_loc(p, intersec_dist, kabs, ksca)
       call print_photon(p)
     endif
-
   end subroutine move_photon
 
   !> @brief compute physical distance according to travel_tau
@@ -985,6 +1046,39 @@ contains
   call gen_mpi_photon_type()
 
   bmc%initialized = .True.
+end subroutine
+
+! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
+subroutine rand_pnt_on_triangle(A,B,C, pnt)
+  real(ireal_dp), dimension(:), intent(in) :: A, B, C
+  real(ireal_dp), dimension(:), intent(out) :: pnt
+  real(ireal_dp) :: r1, r2
+  r1 = R()
+  r2 = R()
+  pnt = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
+end subroutine
+subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal, U,V)
+  use m_helper_functions_dp, only: cross_3d, triangle_area_by_vertices
+  real(ireal_dp), dimension(3), intent(in) :: A, B, C, D
+  real(ireal_dp), dimension(3), intent(out) :: pnt, normal, U, V
+  real(ireal_dp) :: area(2)
+
+  area(1) = triangle_area_by_vertices(A,B,C)
+  area(2) = triangle_area_by_vertices(A,C,D)
+
+  if(R().lt.area(1)/sum(area)) then
+    call rand_pnt_on_triangle(A,B,C,pnt)
+    normal = compute_normal_3d(A,B,C)
+    U = (C-B)
+    U = U/norm(U)
+    V = -cross_3d(U,normal)
+  else
+    call rand_pnt_on_triangle(A,C,D,pnt)
+    normal = compute_normal_3d(A,C,D)
+    U = (D-A)
+    U = U/norm(U)
+    V = -cross_3d(U,normal)
+  endif
 end subroutine
 
 

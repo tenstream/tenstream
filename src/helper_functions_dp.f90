@@ -422,7 +422,7 @@ module m_helper_functions_dp
       real(ireal_dp), intent(out) :: hit(:) ! size(4), 3 for intersection, 1 for distance
       integer(iintegers), intent(out) :: iface
       logical :: lhit1, lhit2
-      real(ireal_dp) :: hit1(size(hit)), hit2(size(hit))
+      real(ireal_dp) :: hit1(4), hit2(4)
 
       lhit = .False.
       hit = huge(hit)
@@ -726,10 +726,16 @@ module m_helper_functions_dp
       end function
 
     !> @brief Determine Edge length/ distance between two points
-    function distance(p1,p2)
+    pure function distance(p1,p2)
       real(ireal_dp), intent(in) :: p1(:), p2(:)
       real(ireal_dp) :: distance
-      distance = abs(norm(p2-p1))
+      integer(iintegers) :: i
+      distance = 0
+      do i=1,size(p1)
+        distance = distance + (p2(i)-p1(i))**2
+      enddo
+      distance = sqrt(distance)
+      !distance = abs(norm(p2-p1))
     end function
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths

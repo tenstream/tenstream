@@ -132,9 +132,16 @@ module m_helper_functions
   interface cross_2d
     module procedure cross_2d_r32, cross_2d_r64
   end interface
+  interface cross_3d
+    module procedure cross_3d_r32, cross_3d_r64
+  end interface
   interface angle_between_two_vec
     module procedure angle_between_two_vec_r32, angle_between_two_vec_r64
   end interface
+  interface compute_normal_3d
+    module procedure compute_normal_3d_r32, compute_normal_3d_r64
+  end interface
+
 
   interface distances_to_triangle_edges
     module procedure distances_to_triangle_edges_r32, distances_to_triangle_edges_r64
@@ -338,14 +345,22 @@ module m_helper_functions
     end function
 
     !> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
-    pure function cross_3d(a, b)
-      real(ireals), dimension(3), intent(in) :: a, b
-      real(ireals), dimension(3) :: cross_3d
+    pure function cross_3d_r32(a, b) result(cross_3d)
+      real(REAL32), dimension(3), intent(in) :: a, b
+      real(REAL32), dimension(3) :: cross_3d
 
       cross_3d(1) = a(2) * b(3) - a(3) * b(2)
       cross_3d(2) = a(3) * b(1) - a(1) * b(3)
       cross_3d(3) = a(1) * b(2) - a(2) * b(1)
-    end function cross_3d
+    end function
+    pure function cross_3d_r64(a, b) result(cross_3d)
+      real(REAL64), dimension(3), intent(in) :: a, b
+      real(REAL64), dimension(3) :: cross_3d
+
+      cross_3d(1) = a(2) * b(3) - a(3) * b(2)
+      cross_3d(2) = a(3) * b(1) - a(1) * b(3)
+      cross_3d(3) = a(1) * b(2) - a(2) * b(1)
+    end function
 
     pure function cross_2d_r32(a, b) result(cross_2d)
       real(REAL32), dimension(2), intent(in) :: a, b
@@ -1103,13 +1118,32 @@ module m_helper_functions
       !print *,'setup_petsc_comm: MPI_COMM_WORLD',orig_id,'calc_id',petsc_id
     end subroutine
 
-    pure function compute_normal_3d(p1,p2,p3)
+    pure function compute_normal_3d_r32(p1,p2,p3) result(compute_normal_3d)
       ! for a triangle p1, p2, p3, if the vector U = p2 - p1 and the vector V = p3 - p1
       ! then the normal (right hand rotation)
       ! N = U X V and can be calculated by:
-      real(ireals), intent(in) :: p1(:), p2(:), p3(:)
-      real(ireals) :: compute_normal_3d(size(p1))
-      real(ireals) :: U(size(p1)), V(size(p1))
+      real(REAL32), intent(in) :: p1(:), p2(:), p3(:)
+      real(REAL32) :: compute_normal_3d(size(p1))
+      real(REAL32) :: U(size(p1)), V(size(p1))
+
+      if(size(p1).ne.size(p2) .or. size(p1).ne.size(p3)) then
+        compute_normal_3d = sqrt(-norm(p1))
+      endif
+
+      U = p2-p1
+      V = p3-p1
+
+      compute_normal_3d = cross_3d(U,V)
+
+      compute_normal_3d = compute_normal_3d / norm(compute_normal_3d)
+    end function
+    pure function compute_normal_3d_r64(p1,p2,p3) result(compute_normal_3d)
+      ! for a triangle p1, p2, p3, if the vector U = p2 - p1 and the vector V = p3 - p1
+      ! then the normal (right hand rotation)
+      ! N = U X V and can be calculated by:
+      real(REAL64), intent(in) :: p1(:), p2(:), p3(:)
+      real(REAL64) :: compute_normal_3d(size(p1))
+      real(REAL64) :: U(size(p1)), V(size(p1))
 
       if(size(p1).ne.size(p2) .or. size(p1).ne.size(p3)) then
         compute_normal_3d = sqrt(-norm(p1))

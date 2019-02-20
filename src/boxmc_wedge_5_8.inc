@@ -34,37 +34,6 @@
 ! 5 -> bottom face
 !
 ! We always assume the triangle to have dx edge length along y=0 (A,B) and dy is the edge length between (A,C)
-! Distribute Photons on triangles: https://doi.org/10.1145/571647.571648
-function rand_pnt_on_triangle(A,B,C) result(pnt)
-  real(ireal_dp), dimension(:), intent(in) :: A, B, C
-  real(ireal_dp) :: pnt(size(A))
-  real(ireal_dp) :: r1, r2
-  r1 = R()
-  r2 = R()
-  pnt = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
-end function
-subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal, U,V)
-  use m_helper_functions_dp, only: cross_3d
-  real(ireal_dp), dimension(:), intent(in) :: A, B, C, D
-  real(ireal_dp), dimension(size(A)), intent(out) :: pnt, normal, U, V
-  real(ireal_dp) :: area(2)
-
-  area(1) = triangle_area_by_vertices(A,B,C)
-  area(2) = triangle_area_by_vertices(A,C,D)
-
-  if(R().lt.area(1)/sum(area)) then
-    pnt = rand_pnt_on_triangle(A,B,C)
-    normal = compute_normal_3d(A,B,C)
-    U = (C-B)/norm(C-B)
-    V = -cross_3d(U,normal)
-  else
-    pnt = rand_pnt_on_triangle(A,C,D)
-    normal = compute_normal_3d(A,C,D)
-    U = (D-A)/norm(D-A)
-    V = -cross_3d(U,normal)
-  endif
-end subroutine
-
 subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices, ierr)
   use m_helper_functions_dp, only: pnt_in_triangle, determine_normal_direction, angle_between_two_vec, rad2deg
   class(t_boxmc_wedge_5_8) :: bmc
@@ -86,7 +55,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
 
   select case(src)
   case (1)
-    p%loc = rand_pnt_on_triangle(pD,pF,pE)
+    call rand_pnt_on_triangle(pD,pF,pE, p%loc)
     normal = compute_normal_3d(pD,pF,pE)
   case (2)
     call rand_pnt_on_plane(pA,pD,pE,pB, p%loc, normal, U, V)
@@ -96,7 +65,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   case (4)
     call rand_pnt_on_plane(pB,pE,pF,pC, p%loc, normal, U, V)
   case (5)
-    p%loc = rand_pnt_on_triangle(pA,pB,pC)
+    call rand_pnt_on_triangle(pA,pB,pC, p%loc)
     normal = compute_normal_3d(pA,pB,pC)
   case default
     call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
@@ -247,7 +216,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
 
   select case(src)
   case (1)
-    p%loc = rand_pnt_on_triangle(pD,pE,pF)
+    call rand_pnt_on_triangle(pD,pE,pF,p%loc)
     normal = compute_normal_3d(pD,pF,pE)
     p%src_side = 1
   case (2:3)
@@ -260,7 +229,7 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
     call rand_pnt_on_plane(pB,pE,pF,pC, p%loc, normal, U, V)
     p%src_side = 4
   case (8)
-    p%loc = rand_pnt_on_triangle(pA,pB,pC)
+    call rand_pnt_on_triangle(pA,pB,pC,p%loc)
     normal = compute_normal_3d(pA,pB,pC)
     p%src_side = 5
   case default
@@ -364,6 +333,14 @@ subroutine intersect_distance_wedge_5_8(bmc, vertices, p, max_dist)
 
   select type(bmc)
   end select
+end subroutine
+subroutine wedge_halfspaces_5_8(bmc, vertices, origins, normals)
+    class(t_boxmc_wedge_5_8) :: bmc
+    real(ireal_dp),intent(in) :: vertices(:)
+    real(ireal_dp),allocatable,intent(out) :: origins(:,:), normals(:,:)
+    call wedge_halfspaces(vertices, origins, normals)
+    select type(bmc)
+    end select
 end subroutine
 ! ******************* BOXMC wedge 5 8 ************************
 

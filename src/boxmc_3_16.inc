@@ -280,5 +280,13 @@ subroutine intersect_distance_3_16(bmc,vertices,p,max_dist)
         end select
 
 end subroutine
-  ! ******************* BOXMC 8 10 ************************
+subroutine box_halfspaces_3_16(bmc, vertices, origins, normals)
+    class(t_boxmc_3_16) :: bmc
+    real(ireal_dp),intent(in) :: vertices(:)
+    real(ireal_dp),allocatable,intent(out) :: origins(:,:), normals(:,:)
+    call box_halfspaces(vertices, origins, normals)
+    select type(bmc)
+    end select
+end subroutine
+  ! ******************* BOXMC 3 16 ************************
 

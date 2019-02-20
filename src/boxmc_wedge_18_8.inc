@@ -446,7 +446,7 @@ subroutine init_diff_photon_wedge_18_8(bmc, p, src, vertices, ierr)
 
   select case(src)
   case (1)
-    p%loc = rand_pnt_on_triangle(pD,pE,pF)
+    call rand_pnt_on_triangle(pD,pE,pF,p%loc)
     normal = compute_normal_3d(pD,pF,pE)
     p%src_side = 1
   case (2:3)
@@ -459,7 +459,7 @@ subroutine init_diff_photon_wedge_18_8(bmc, p, src, vertices, ierr)
     call rand_pnt_on_plane(pB,pE,pF,pC, p%loc, normal, U, V)
     p%src_side = 4
   case (8)
-    p%loc = rand_pnt_on_triangle(pA,pB,pC)
+    call rand_pnt_on_triangle(pA,pB,pC,p%loc)
     normal = compute_normal_3d(pA,pB,pC)
     p%src_side = 5
   case default
@@ -563,6 +563,14 @@ subroutine intersect_distance_wedge_18_8(bmc, vertices, p, max_dist)
 
   select type(bmc)
   end select
+end subroutine
+subroutine wedge_halfspaces_18_8(bmc, vertices, origins, normals)
+    class(t_boxmc_wedge_18_8) :: bmc
+    real(ireal_dp),intent(in) :: vertices(:)
+    real(ireal_dp),allocatable,intent(out) :: origins(:,:), normals(:,:)
+    call wedge_halfspaces(vertices, origins, normals)
+    select type(bmc)
+    end select
 end subroutine
 ! ******************* BOXMC wedge 18 8 ************************
 

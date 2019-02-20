@@ -20,7 +20,7 @@
 module m_boxmc_geometry
 
   use m_data_parameters, only : mpiint, iintegers, ireals, ireal_dp, one, zero
-  use m_helper_functions, only : CHKERR, itoa
+  use m_helper_functions, only : CHKERR, itoa, compute_normal_3d
   use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, &
     determine_normal_direction, angle_between_two_vec, &
     distances_to_triangle_edges, norm, mean, approx, &
@@ -464,4 +464,66 @@ module m_boxmc_geometry
         endif
       end associate
     end subroutine
+
+    subroutine box_halfspaces(vertices, origins, normals)
+      real(ireal_dp), intent(in) :: vertices(:)
+      real(ireal_dp), allocatable, intent(out) :: origins(:,:), normals(:,:) ! size 3,6
+
+      if(size(vertices).ne.2*4*3) call CHKERR(1_mpiint, 'did not expect that')
+
+      if(.not.allocated(origins)) allocate(origins(3,6))
+      if(.not.allocated(normals)) allocate(normals(3,6))
+      associate( &
+      A => vertices( 1: 3), &
+      B => vertices( 4: 6), &
+      C => vertices( 7: 9), &
+      D => vertices(10:12), &
+      E => vertices(13:15), &
+      F => vertices(16:18), &
+      G => vertices(19:21), &
+      H => vertices(22:24) )
+
+      origins(:,1) = H
+      origins(:,2) = A
+      origins(:,3) = A
+      origins(:,4) = H
+      origins(:,5) = A
+      origins(:,6) = H
+      normals(:,1) = compute_normal_3d(H,F,G)
+      normals(:,2) = compute_normal_3d(A,B,C)
+      normals(:,3) = compute_normal_3d(A,E,B)
+      normals(:,4) = compute_normal_3d(H,G,D)
+      normals(:,5) = compute_normal_3d(A,C,E)
+      normals(:,6) = compute_normal_3d(H,D,F)
+    end associate
+    end subroutine
+
+    subroutine wedge_halfspaces(vertices, origins, normals)
+      real(ireal_dp), intent(in) :: vertices(:)
+      real(ireal_dp), allocatable, intent(out) :: origins(:,:), normals(:,:) ! size 3,5
+
+      if(size(vertices).ne.2*3*3) call CHKERR(1_mpiint, 'did not expect that')
+      if(.not.allocated(origins)) allocate(origins(3,5))
+      if(.not.allocated(normals)) allocate(normals(3,5))
+      associate( &
+          A => vertices(1:3), &
+          B => vertices(4:6), &
+          C => vertices(7:9), &
+          D => vertices(10:12), &
+          E => vertices(13:15), &
+          F => vertices(16:18) )
+
+      origins(:,1) = E
+      origins(:,2) = E
+      origins(:,3) = A
+      origins(:,4) = E
+      origins(:,5) = A
+      normals(:,1) = compute_normal_3d(E,D,F)
+      normals(:,2) = compute_normal_3d(E,B,D)
+      normals(:,3) = compute_normal_3d(A,C,D)
+      normals(:,4) = compute_normal_3d(E,F,B)
+      normals(:,5) = compute_normal_3d(A,B,C)
+    end associate
+    end subroutine
+
   end module
