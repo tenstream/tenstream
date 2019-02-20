@@ -947,7 +947,7 @@ function param_phi_from_azimuth(phi, wedge_C) result (param_phi)
   real(irealLUT), intent(in) :: phi, wedge_C(:)
   real(irealLUT) :: param_phi
 
-  real(irealLUT) :: alpha, beta, slope
+  real(irealLUT) :: alpha, beta
   real(irealLUT) :: lb, rb, x1, x2! bounds of local spline
 
   associate( pA => [zero, zero], pB => [one, zero], pC => wedge_C )
@@ -984,7 +984,7 @@ function azimuth_from_param_phi(param_phi, wedge_C) result (phi)
   real(irealLUT), intent(in) :: param_phi, wedge_C(:)
   real(irealLUT) :: phi
 
-  real(irealLUT) :: alpha, beta, slope
+  real(irealLUT) :: alpha, beta
   real(irealLUT) :: lb, rb, x1, x2! bounds of local spline
 
   associate( pA => [zero, zero], pB => [one, zero], pC => wedge_C )

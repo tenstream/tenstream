@@ -54,7 +54,7 @@ contains
         Nphotons, Nwedges, Nfaces, Nverts, &
         verts_of_face, wedges_of_face, vert_coords, &
         kabs, ksca, g, sundir, &
-        flx_through_faces)
+        flx_through_faces_edir, flx_through_faces_ediff)
       use iso_c_binding
       integer(c_size_t), value :: Nphotons
       integer(c_size_t), value :: Nwedges
