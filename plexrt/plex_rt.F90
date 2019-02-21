@@ -2256,7 +2256,7 @@ module m_plex_rt
     dkabs = kabs
     dksca = ksca
     dg    = g
-    call delta_scale( dkabs, dksca, dg, opt_f=dg)
+    call delta_scale( dkabs, dksca, dg, max_g=zero)
 
     aspectzx = real(dz / dx, irealLUT)
     tauz = real((dkabs+dksca) * dz, irealLUT)
@@ -2273,11 +2273,13 @@ module m_plex_rt
         min(OPP%OPP_LUT%dirconfig%dims(1)%vrange(2), tauz))
       w0 = max(OPP%OPP_LUT%dirconfig%dims(2)%vrange(1), &
         min(OPP%OPP_LUT%dirconfig%dims(2)%vrange(2), w0))
+      aspectzx = max(aspectzx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1))
     else
       tauz = max(OPP%OPP_LUT%diffconfig%dims(1)%vrange(1), &
         min(OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), tauz))
       w0 = max(OPP%OPP_LUT%diffconfig%dims(2)%vrange(1), &
         min(OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), w0))
+      aspectzx = max(aspectzx, OPP%OPP_LUT%diffconfig%dims(3)%vrange(1))
     endif
 
     if(present(angles)) then

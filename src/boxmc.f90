@@ -379,16 +379,18 @@ contains
     !  inp_atol=inp_atol, inp_rtol=inp_rtol, inp_tau_scaling=tau_scaling, &
     !  inp_check_tol_dir=check_tol_dir, inp_check_tol_diff=check_tol_diff)
 
-    !print *,'Tdir', tmp_T_out
-    !print *,'Sdir', ret_S_out
-    !print *,'Ttol', tmp_T_tol
-    !print *,'Stol', ret_S_tol
 
     call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
       phi0, theta0, vertices, &
       ret_S_out, ret_T_out, &
       ret_S_tol, ret_T_tol, &
       inp_atol=inp_atol, inp_rtol=inp_rtol)
+
+    !print *,'bmc inp', src, op_bg, ldir, phi0, theta0, ':', vertices
+    !print *,'Tdir', ret_T_out
+    !print *,'Sdir', ret_S_out
+    !print *,'Ttol', tmp_T_tol
+    !print *,'Stol', ret_S_tol
   end subroutine
 
 

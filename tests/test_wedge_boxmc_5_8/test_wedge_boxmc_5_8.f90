@@ -5,8 +5,9 @@ module test_wedge_boxmc_5_8
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
-  use m_helper_functions, only : itoa, triangle_area_by_vertices
+  use m_helper_functions, only : itoa, triangle_area_by_vertices, rad2deg
   use m_boxmc_geometry, only : setup_default_unit_wedge_geometry, setup_default_wedge_geometry
+  use m_optprop_LUT, only : azimuth_from_param_phi
 
   use pfunit_mod
   implicit none

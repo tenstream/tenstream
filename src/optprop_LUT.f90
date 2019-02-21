@@ -52,8 +52,9 @@ module m_optprop_LUT
     preset_param_phi83,                   &
     preset_aspect5,                       &
     preset_aspect7,                       &
-    preset_aspect13,                      &
     preset_aspect11,                      &
+    preset_aspect13,                      &
+    preset_aspect17,                      &
     preset_aspect23,                      &
     preset_w010,                          &
     preset_w020,                          &
@@ -1269,11 +1270,11 @@ subroutine set_parameter_space(OPP)
           allocate(OPP%dirconfig%dims(7))
           call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
           !call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
-          call populate_LUT_dim('aspect_zx', size(preset_aspect11,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect11)
-          call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%dirconfig%dims(5), vrange=real([.8, .9485], irealLUT))
+          call populate_LUT_dim('aspect_zx', size(preset_aspect17,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect17)
+          call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%dirconfig%dims(5), vrange=real([0.7760254, 0.9560254], irealLUT))
           !call populate_LUT_dim('phi',       71_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
-          !call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
 
           !call populate_LUT_dim('tau',       i2, OPP%dirconfig%dims(1), vrange=real([1e-3,1.], irealLUT))
           call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.1], irealLUT))
@@ -1282,7 +1283,7 @@ subroutine set_parameter_space(OPP)
           !call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(5), vrange=real([.8, .95], irealLUT))
           !!call populate_LUT_dim('phi',       i2, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
           call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(6), preset=preset_param_phi19)
-          call populate_LUT_dim('theta',     i2, OPP%dirconfig%dims(7), vrange=real([56.31,56.32+1], irealLUT))
+          !call populate_LUT_dim('theta',     i2, OPP%dirconfig%dims(7), vrange=real([56.31,56.32+1], irealLUT))
 
           allocate(OPP%diffconfig%dims(5))
           !call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)

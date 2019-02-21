@@ -283,6 +283,8 @@ contains
           real(wedge_coords(3:4), ireals), &
           real(wedge_coords(5:6), ireals), &
           real(aspect_zx, ireals), vertices)
+
+        !print *,'Cbmc', tauz, w0, g, aspect_zx, in_angles, wedge_coords(5:6)
         call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, in_angles)
       end subroutine
       subroutine print_coeff_diff()
@@ -294,16 +296,13 @@ contains
 
         err = rmse(real(C, ireals), real(Cbmc, ireals))
         print *,'rmse', err
-        if(err(2).gt.one) then
           do isrc=1,OPP%OPP_LUT%dir_streams
             print *, 'lut src', isrc, ':', C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
             print *, 'bmc src', isrc, ':', Cbmc(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
           enddo
+        if(err(2).gt.one) then
           call CHKERR(1_mpiint, 'DEBUG')
         endif
-        do isrc=1,OPP%OPP_LUT%dir_streams
-          C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams) = Cbmc(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
-        enddo
         C = Cbmc
       end subroutine
       subroutine do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
@@ -403,11 +402,11 @@ contains
 
             handle_aspect_zx_1D_case = .True.
 
-          elseif(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
-            restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
-              OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
-            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, in_angles)
-            handle_aspect_zx_1D_case = .True.
+          !elseif(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
+          !  restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
+          !    OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
+          !  call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, in_angles)
+          !  handle_aspect_zx_1D_case = .True.
           endif
 
         else ! diffuse
