@@ -681,7 +681,7 @@ module m_plex_rt
       type(tPetscSection) :: geomSection
       real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
       integer(iintegers) :: geom_offset
-      real(ireals) :: area, mu, face_normal(3)
+      real(ireals) :: area, mu_top, face_normal(3)
 
       integer(mpiint) :: myid, ierr
 
@@ -730,11 +730,11 @@ module m_plex_rt
           call get_inward_face_normal(iface, icell, geomSection, geoms, face_normal)
 
           if(is_solar_src(face_normal, sundir)) then
-            mu = dot_product(sundir, face_normal)
+            mu_top = -dot_product(sundir, -face_normal)
             call PetscSectionGetOffset(edirsection, iface, voff, ierr); call CHKERR(ierr)
             call PetscSectionGetDof(edirSection, iface, numDof, ierr); call CHKERR(ierr)
             do idof = 1, numDof
-              xv(voff+idof) = E0 * area * mu
+              xv(voff+idof) = E0 * area * mu_top
             enddo
           endif
         enddo
@@ -743,7 +743,8 @@ module m_plex_rt
 
       call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
 
-      if(.False.) call set_sidewards_direct_fluxes()
+      !if(.False.) &
+        call set_sidewards_direct_fluxes()
 
       call DMLocalToGlobalBegin(edirdm, localVec, INSERT_VALUES, srcVec, ierr); call CHKERR(ierr)
       call DMLocalToGlobalEnd  (edirdm, localVec, INSERT_VALUES, srcVec, ierr); call CHKERR(ierr)
@@ -762,12 +763,14 @@ module m_plex_rt
           integer(iintegers) :: topface, botface, iface_side, k, o, topoffset, botoffset
           real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
           real(ireals) :: side_face_normal(3)
-          real(ireals) :: tau, dz, transport_this_cell, mu_side
+          real(ireals) :: tau, dz, transport_this_cell, mu_top, mu_side
 
           type(tVec) :: vedir
           real(ireals), pointer :: xedir(:)
 
-          call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', SIDEFACE, IS_side_faces, ierr); call CHKERR(ierr)
+          call DMGetGlobalVector(edirdm, vedir, ierr); call CHKERR(ierr)
+
+          call DMGetStratumIS(edirdm, 'DomainBoundary', SIDEFACE, IS_side_faces, ierr); call CHKERR(ierr)
           if (IS_side_faces.eq.PETSC_NULL_IS) then ! dont have side boundary faces
           else
 
@@ -777,7 +780,6 @@ module m_plex_rt
 
 
             ! First we compute the edir vec on all columns that are on the domain side and the sun is shining on it
-            call DMGetGlobalVector(edirdm, vedir, ierr); call CHKERR(ierr)
             call VecSet(vedir, -one, ierr); call CHKERR(ierr)
             call VecGetArrayF90(vedir, xedir, ierr); call CHKERR(ierr)
 
@@ -786,9 +788,9 @@ module m_plex_rt
             do o = 1, size(iside_faces)
               iface_side = iside_faces(o)
 
-              call DMPlexGetSupport(plex%edir_dm, iface_side, cell_support, ierr); call CHKERR(ierr)
+              call DMPlexGetSupport(edirdm, iface_side, cell_support, ierr); call CHKERR(ierr)
               icell = cell_support(1)
-              call DMPlexRestoreSupport(plex%edir_dm, iface_side, cell_support, ierr); call CHKERR(ierr)
+              call DMPlexRestoreSupport(edirdm, iface_side, cell_support, ierr); call CHKERR(ierr)
 
               k = plex%zindex(icell)
               if(k.ne.1) cycle ! only start if side face, i.e. cell is close to TOA
@@ -796,7 +798,26 @@ module m_plex_rt
               call get_inward_face_normal(iface_side, icell, geomSection, geoms, side_face_normal)
               if(.not.is_solar_src(side_face_normal, sundir)) cycle ! if sun is not shining on this side face, skip this column
 
-                call get_consecutive_vertical_cell_idx(plex, icell, vert_cell_idx)
+              call get_consecutive_vertical_cell_idx(plex, icell, vert_cell_idx)
+
+              call DMPlexGetCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+              topface = faces_of_cell(1)
+              botface = faces_of_cell(2)
+              call DMPlexRestoreCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+              call get_inward_face_normal(topface, icell, geomSection, geoms, face_normal)
+              if(.not.is_solar_src(face_normal, sundir)) cycle ! if sun is not shining on top of TOA face, skip it
+              mu_top = -dot_product(sundir, -face_normal)
+
+              ! compute direct radiation in 1D fashion
+              call PetscSectionGetOffset(edirsection, topface, topoffset, ierr); call CHKERR(ierr)
+              xedir(i1+topoffset) = E0
+
+              do k = 1, plex%Nlay
+                icell = vert_cell_idx(k)
+
+                call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+                dz = geoms(i1+geom_offset)
 
                 call DMPlexGetCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
                 topface = faces_of_cell(1)
@@ -804,34 +825,17 @@ module m_plex_rt
                 call DMPlexRestoreCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
 
                 call get_inward_face_normal(topface, icell, geomSection, geoms, face_normal)
-                mu = dot_product(sundir, face_normal)
-                if(.not.is_solar_src(face_normal, sundir)) cycle ! if sun is not shining on top of TOA face, skip it
+                mu_top = -dot_product(sundir, -face_normal)
 
-                ! compute direct radiation in 1D fashion
+                tau = (xkabs((i1+icell)) + xksca((i1+icell))) * dz / mu_top
+
                 call PetscSectionGetOffset(edirsection, topface, topoffset, ierr); call CHKERR(ierr)
-                xedir(i1+topoffset) = E0
-                print *,icell,'edir', 1, xedir(i1+topoffset)
+                call PetscSectionGetOffset(edirsection, botface, botoffset, ierr); call CHKERR(ierr)
 
-                do k = 1, plex%Nlay
-                  icell = vert_cell_idx(k)
+                xedir(i1+botoffset) = xedir(i1+topoffset) * exp(-tau)
 
-                  call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
-                  dz = geoms(i1+geom_offset)
-
-                  tau = (xkabs((i1+icell)) + xksca((i1+icell)))
-
-                  call DMPlexGetCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-                  topface = faces_of_cell(1)
-                  botface = faces_of_cell(2)
-                  call DMPlexRestoreCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-
-                  call PetscSectionGetOffset(edirsection, topface, topoffset, ierr); call CHKERR(ierr)
-                  call PetscSectionGetOffset(edirsection, botface, botoffset, ierr); call CHKERR(ierr)
-
-                  xedir(i1+botoffset) = xedir(i1+topoffset) * exp(-tau*dz/mu)
-
-                  print *,icell,'edir', k, xedir(i1+botoffset)
-                enddo
+                !print *,icell,'edir', k, xedir(i1+botoffset)
+              enddo
             enddo
 
             ! Now we go ahead and try to estimate the fluxes along the side boundary
@@ -842,17 +846,15 @@ module m_plex_rt
             do o = 1, size(iside_faces)
               iface_side = iside_faces(o)
 
-              call DMPlexGetSupport(plex%edir_dm, iface_side, cell_support, ierr); call CHKERR(ierr)
+              call DMPlexGetSupport(edirdm, iface_side, cell_support, ierr); call CHKERR(ierr)
               icell = cell_support(1)
-              call DMPlexRestoreSupport(plex%edir_dm, iface_side, cell_support, ierr); call CHKERR(ierr)
+              call DMPlexRestoreSupport(edirdm, iface_side, cell_support, ierr); call CHKERR(ierr)
 
               call get_inward_face_normal(iface_side, icell, geomSection, geoms, side_face_normal)
               if(.not.is_solar_src(side_face_normal, sundir)) cycle ! if sun is not shining on this side face, skip this
 
               call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
               dz = geoms(i1+geom_offset)
-
-              tau = (xkabs((i1+icell)) + xksca((i1+icell)))
 
               call DMPlexGetCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
               topface = faces_of_cell(1)
@@ -865,14 +867,17 @@ module m_plex_rt
               area = geoms(i1+geom_offset)
 
               call get_inward_face_normal(topface, icell, geomSection, geoms, face_normal)
-              mu = dot_product(sundir, face_normal)
-              transport_this_cell = exp(-tau*dz/mu)
+              mu_top = -dot_product(sundir, -face_normal)
 
-              mu_side = dot_product(sundir, side_face_normal)
+              tau = (xkabs((i1+icell)) + xksca((i1+icell))) * dz/2 / mu_top
+
+              mu_side = -dot_product(sundir, -side_face_normal)
+
+              transport_this_cell = exp(-tau) * mu_side
 
               call PetscSectionGetOffset(edirsection, iface_side, voff, ierr); call CHKERR(ierr)
-              xv(i1+voff) = xedir(i1+topoffset) * area * mu * transport_this_cell
-              print *,icell,'edir top', xedir(i1+topoffset), 'sidesrc', xv(i1+voff)
+              xv(i1+voff) = xedir(i1+topoffset) * area * transport_this_cell
+              !print *,icell,'edir top', xedir(i1+topoffset), 'sidesrc', xv(i1+voff)
             enddo
 
             call VecRestoreArrayF90(localVec, xv, ierr); call CHKERR(ierr)
@@ -885,6 +890,7 @@ module m_plex_rt
             call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
             call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
           endif ! TOA boundary ids
+          call DMRestoreGlobalVector(edirdm, vedir, ierr); call CHKERR(ierr)
       end subroutine
     end subroutine
 
@@ -1080,7 +1086,7 @@ module m_plex_rt
               enddo ! numSrc
             enddo ! srcfaces
 
-            call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+            call DMPlexRestoreCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
           enddo
 
           call set_Edir_srfc_reflection(edirSection, xedir)
@@ -1620,7 +1626,7 @@ module m_plex_rt
 
     call MatZeroEntries(A, ierr); call CHKERR(ierr)
 
-    call set_side_incoming_boundary_condition()
+    !call set_side_incoming_boundary_condition()
 
     ! Set Diagonal Entries
     call DMPlexGetDepthStratum(plex%edir_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
@@ -1696,7 +1702,7 @@ module m_plex_rt
         call PetscSectionGetDof(sec, faces_of_cell(isrc_side), numSrc, ierr); call CHKERR(ierr)
         do isrc = 1, numSrc
           in_dof = in_dof+1
-          if(.not.lsrc(isrc_side)) cycle
+          !if(.not.lsrc(isrc_side)) cycle
 
           bmcsrcdof = plex2bmc(in_dof)
           call get_side_and_offset_from_total_bmc_dofs(solver%dirtop, solver%dirside, bmcsrcdof, &
@@ -1713,28 +1719,47 @@ module m_plex_rt
             do idst = 1, numDst
               out_dof = out_dof+1
 
-              if(lsrc(idst_side)) cycle
+              !if(lsrc(idst_side)) cycle
               bmcdstdof = plex2bmc(out_dof)
               call get_side_and_offset_from_total_bmc_dofs(solver%dirtop, solver%dirside, bmcdstdof, &
                 bmcdstside, dof_dst_offset)
 
-              c = -dir2dir(bmcdstdof)
-              if(c.ge.zero) cycle
-
               call PetscSectionGetOffset(sec, faces_of_cell(idst_side), irow, ierr); call CHKERR(ierr)
               irow = irow + dof_dst_offset
 
-              !print *,'cell   ('//itoa(icell)//') '// &
-              !  'incoming dof -> out_dof   '//itoa(in_dof)//' -> '//itoa(out_dof)//' '// &
-              !  'src_side  '//itoa(isrc_side)//' '// &
-              !  ' ('//itoa(faces_of_cell(isrc_side))//') '// &
-              !  'dst_side  '//itoa(idst_side)//' '// &
-              !  ' ('//itoa(faces_of_cell(idst_side))//') '// &
-              !  'bmc_src_side   ('//itoa(bmcsrcside)//') '// &
-              !  'bmc_dst_side   ('//itoa(bmcdstside)//') '// &
-              !  'src_offset   ('//itoa(dof_src_offset)//') '// &
-              !  'dst_offset   ('//itoa(dof_dst_offset)//') '// &
-              !  'col -> row    '//itoa(icol)//' -> '//itoa(irow)//'   = ', c
+              c = -dir2dir(bmcdstdof)
+
+              if(c.lt.zero .and. .not.lsrc(isrc_side)) then
+                print *,'found transport coeff but I thought this incoming side is not a designated src face'
+              endif
+              if(c.lt.zero) then
+                ierr = 0
+                if(.not.lsrc(isrc_side)) ierr = 1
+                if(     lsrc(idst_side)) ierr = 2
+                if(ierr.ne.0) then
+                  print *,'numsrc', numSrc, 'kindex cell', plex%zindex(icell)
+                  print *,'faces of cell',faces_of_cell
+                  print *,'plexface 2 bmc', face_plex2bmc
+                  print *,'lsrc', lsrc
+                  print *,'zenith', rad2deg(zenith), 'azimuth', rad2deg(azimuth)
+                  print *,'cell   ('//itoa(icell)//') '// &
+                    'incoming dof -> out_dof   '//itoa(in_dof)//' -> '//itoa(out_dof)//' '// &
+                    'src_side  '//itoa(isrc_side)//' '// &
+                    ' ('//itoa(faces_of_cell(isrc_side))//') '// &
+                    'dst_side  '//itoa(idst_side)//' '// &
+                    ' ('//itoa(faces_of_cell(idst_side))//') '// &
+                    'bmc_src_dof    ('//itoa(bmcsrcdof)//') '// &
+                    'bmc_src_side   ('//itoa(bmcsrcside)//') '// &
+                    'bmc_dst_side   ('//itoa(bmcdstside)//') '// &
+                    'src_offset   ('//itoa(dof_src_offset)//') '// &
+                    'dst_offset   ('//itoa(dof_dst_offset)//') '// &
+                    'col -> row    '//itoa(icol)//' -> '//itoa(irow)//'   = ', c
+                  if(ierr.eq.1) call CHKERR(ierr, 'found coeff, but thought this incoming side is not a src face')
+                  if(ierr.eq.2) call CHKERR(ierr, 'have coeff, but the target dst is marked as being a src face')
+                endif
+              endif
+              if(c.ge.zero) cycle
+
               call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
 
 
@@ -1946,7 +1971,8 @@ module m_plex_rt
 
   ! gives the bmc side and bmc offset on this side for a given idof number in bmc ordering
   ! e.g. for dir_18 gives
-  ! top face first dof :: 1 -> (1,0)
+  ! top face first dof  :: 1 -> (1,0)
+  ! top face second dof :: 2 -> (1,1)
   ! base face first dof :: 4 -> (2,0)
   ! bot face second dof :: 17 -> (5,1)
   subroutine get_side_and_offset_from_total_bmc_dofs(t_top_dof, t_side_dof, idof, side, dof_offset)
@@ -2737,6 +2763,7 @@ module m_plex_rt
     real(ireals), pointer :: xedir(:), xediff(:), xgeoms(:)
     type(tPetscSection) :: edir_section, ediff_section, geom_section
 
+    real(ireals) :: dkabs, dksca, dg
     real(ireals) :: face_normal(3)
     logical :: lthermal, lsolar
 
@@ -2807,9 +2834,15 @@ module m_plex_rt
           call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
           dz = xgeoms(i1+geom_offset)
 
-          vdtau(k) = (xkabs(i1+icell) + xksca(i1+icell)) * dz
-          vw0(k)   = xksca(i1+icell) / max(epsilon(vw0), xkabs(i1+icell) + xksca(i1+icell))
-          vg(k)    = xg(i1+icell)
+          dkabs = xkabs(i1+icell)
+          dksca = xksca(i1+icell)
+          dg    = xg(i1+icell)
+
+          call delta_scale( dkabs, dksca, dg, max_g=zero)
+
+          vdtau(k) = (dkabs + dksca) * dz
+          vw0(k)   = dksca / max(epsilon(vw0), vdtau(k))
+          vg(k)    = dg
 
           !call delta_scale_optprop(vdtau(k), vw0(k), vg(k), vg(k))
 

@@ -230,9 +230,9 @@ contains
 
     call do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
 
-    if(.False. .and. ldir) call print_coeff_diff()
+    !if(ldir) call print_coeff_diff()
 
-    if(.False. .and. ldir .and. present(in_angles)) then
+    if(ldir .and. present(in_angles)) then
       call handle_critical_azimuth()
     endif
     contains
@@ -252,20 +252,20 @@ contains
           param_phi = param_phi_from_azimuth(deg2rad(in_angles(1)), pC)
 
           lsample_critical = .False.
-          if(approx(abs(param_phi), 1._irealLUT, 1000*epsilon(1._irealLUT))) lsample_critical = .True.
+          if(approx(abs(param_phi), 1._irealLUT, 100*epsilon(1._irealLUT))) lsample_critical = .True.
 
           !print *,'param_phi', param_phi, lsample_critical
           if(lsample_critical) then
             if(param_phi.le.-1._irealLUT) then
-              param_phi = -1._irealLUT-1000*(epsilon(1._irealLUT))
+              param_phi = -1._irealLUT-100*(epsilon(1._irealLUT))
             elseif(param_phi.ge.1._irealLUT) then !1.0001
-              param_phi = 1._irealLUT+1000*(epsilon(1._irealLUT))
+              param_phi = 1._irealLUT+100*(epsilon(1._irealLUT))
             elseif(param_phi.lt.0._irealLUT) then !-.999
-              param_phi = -1._irealLUT+1000*(epsilon(1._irealLUT))
+              param_phi = -1._irealLUT+100*(epsilon(1._irealLUT))
             else ! .999
-              param_phi = 1._irealLUT-1000*(epsilon(1._irealLUT))
+              param_phi = 1._irealLUT-100*(epsilon(1._irealLUT))
             endif
-            print *,'param_phi -> ', param_phi, lsample_critical
+            !print *,'param_phi -> ', param_phi, lsample_critical
             !call do_bmc_computation(C)
             call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, pC(1), pC(2), param_phi, in_angles(2)], C)
           endif
@@ -296,14 +296,14 @@ contains
 
         err = rmse(real(C, ireals), real(Cbmc, ireals))
         print *,'rmse', err
-          do isrc=1,OPP%OPP_LUT%dir_streams
-            print *, 'lut src', isrc, ':', C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
-            print *, 'bmc src', isrc, ':', Cbmc(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
-          enddo
+        do isrc=1,OPP%OPP_LUT%dir_streams
+          print *, 'lut src', isrc, ':', C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
+          print *, 'bmc src', isrc, ':', Cbmc(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams)
+        enddo
         if(err(2).gt.one) then
-          call CHKERR(1_mpiint, 'DEBUG')
+          !call CHKERR(1_mpiint, 'DEBUG')
         endif
-        C = Cbmc
+        !C = Cbmc
       end subroutine
       subroutine do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
         real(irealLUT), intent(in) :: tauz, w0, aspect_zx

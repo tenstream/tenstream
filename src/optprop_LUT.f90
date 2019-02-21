@@ -48,6 +48,7 @@ module m_optprop_LUT
     stddev_atol, stddev_rtol,             &
     wedge_sphere_radius,                  &
     preset_g2, preset_g3, preset_g4,      &
+    preset_param_phi11,                   &
     preset_param_phi19,                   &
     preset_param_phi83,                   &
     preset_aspect5,                       &
@@ -962,11 +963,11 @@ function param_phi_from_azimuth(phi, wedge_C) result (param_phi)
     alpha = angle_between_two_vec(pB-pA, pC-pA)
     beta  = angle_between_two_vec(pA-pB, pC-pB)
 
-    if(phi.lt.pi/2-alpha) then ! range [ . , -1]
+    if(phi.gt.pi/2-alpha) then ! range [ . , -1]
       x1 = -2; x2 = -1
       lb = pi/2 - alpha / 2
       rb = pi/2 - alpha
-    elseif (phi.gt.beta-pi/2) then ! between [ 1, .]
+    elseif (phi.lt.beta-pi/2) then ! between [ 1, .]
       x1 = 1; x2 = 2
       lb = beta - pi/2
       rb = beta/2 - pi/2
@@ -976,7 +977,6 @@ function param_phi_from_azimuth(phi, wedge_C) result (param_phi)
       rb = beta - pi/2
     endif
     param_phi = (x2-x1) / (rb - lb) * (phi - lb) + x1
-    param_phi = min(max(param_phi, -2._irealLUT), 2._irealLUT)
   end associate
 end function
 
@@ -1308,21 +1308,21 @@ subroutine set_parameter_space(OPP)
           OPP%interp_mode = interp_mode_wedge
           allocate(OPP%dirconfig%dims(7))
           !call populate_LUT_dim('tau',       i2, OPP%dirconfig%dims(1), vrange=real([1e-3,1.], irealLUT))
-          call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.01], irealLUT))
+          !call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.01], irealLUT))
           !call populate_LUT_dim('aspect_zx', i2, OPP%dirconfig%dims(3), vrange=real([.5,2.], irealLUT))
           !call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
           !call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([.8, .9485], irealLUT))
           !call populate_LUT_dim('phi',       3_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
-          call populate_LUT_dim('theta',     i2, OPP%dirconfig%dims(7), vrange=real([56.31,56.32+1], irealLUT))
+          !call populate_LUT_dim('theta',     i2, OPP%dirconfig%dims(7), vrange=real([56.31,56.32+1], irealLUT))
 
           call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
-          !call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
+          call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
           call populate_LUT_dim('aspect_zx', size(preset_aspect11,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect11)
-          call populate_LUT_dim('wedge_coord_Cx', 5_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 5_iintegers, OPP%dirconfig%dims(5), vrange=real([.8,.9485], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([.8,.9485], irealLUT))
           !call populate_LUT_dim('phi',       25_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
-          call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(6), preset=preset_param_phi19)
-          !call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
+          call populate_LUT_dim('param_phi', size(preset_param_phi11, kind=iintegers), OPP%dirconfig%dims(6), preset=preset_param_phi11)
+          call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
 
           allocate(OPP%diffconfig%dims(5))
           call populate_LUT_dim('tau',       size(preset_tau20,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau20)

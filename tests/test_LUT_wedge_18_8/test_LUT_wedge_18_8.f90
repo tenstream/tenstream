@@ -342,22 +342,30 @@ contains
 
     @assertEqual(+0.5_irealLUT, param_phi_from_azimuth(deg2rad(-15._irealLUT), C_wedge))
     @assertEqual(-0.5_irealLUT, param_phi_from_azimuth(deg2rad(+15._irealLUT), C_wedge))
+
+
+    C_wedge = [0.511973441, 0.943134367]
+    @assertTrue( param_phi_from_azimuth(deg2rad(-32.360667629177840_irealLUT), C_wedge) .gt. 1._irealLUT)
   end subroutine
 
   @test(npes=[1])
   subroutine test_param_phi_from_azimuth_and_back(this)
     class (MpiTestMethod), intent(inout) :: this
     real(irealLUT) :: param_phi, phi
-    integer(iintegers) :: iphi
+    integer(iintegers) :: iphi, iCx, iCy
     real(irealLUT) :: C_wedge(2)
     real(irealLUT), parameter :: eps = sqrt(epsilon(eps))
 
-    C_wedge = [.5, .8660254]
 
-    do iphi = -6000, 6000
-      phi = real(iphi, irealLUT)/100
-      param_phi = param_phi_from_azimuth(deg2rad(phi), C_wedge)
-      @assertEqual(phi, rad2deg(azimuth_from_param_phi( param_phi, C_wedge)), eps)
+    do iCx = -100, 100, 5
+      do iCy = -20, 20, 5
+        C_wedge = [.5+iCx*.01, .8660254+iCy*.01]
+        do iphi = -600, 600
+          phi = real(iphi, irealLUT)/10
+          param_phi = param_phi_from_azimuth(deg2rad(phi), C_wedge)
+          @assertEqual(phi, rad2deg(azimuth_from_param_phi( param_phi, C_wedge)), eps)
+        enddo
+      enddo
     enddo
   end subroutine
   subroutine check(S_target,T_target, S,T, msg, opt_atol, opt_rtol)

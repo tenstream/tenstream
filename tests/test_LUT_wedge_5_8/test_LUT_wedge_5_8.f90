@@ -81,13 +81,13 @@ contains
     real(irealLUT) :: tau, w0, g, aspect, phi, theta, Cx, Cy
     real(irealLUT) :: d2d1(5**2), d2d2(5**2)
 
-    tau = 1e-3_irealLUT
-    w0  = .5_irealLUT
-    g   = 0._irealLUT
-    aspect = 1._irealLUT
-    theta = 20._irealLUT
-    Cx = .5_irealLUT
-    Cy = 0.8660254037844386_irealLUT
+    tau    = 1.00000001E-10_irealLUT
+    w0     = .0_irealLUT
+    g      = 0._irealLUT
+    aspect = 0.419030696_irealLUT
+    theta  = 20._irealLUT
+    Cx     = .5_irealLUT
+    Cy     = 0.8660254037844386_irealLUT
 
     phi = -27._irealLUT
     call print_dir2dir()
