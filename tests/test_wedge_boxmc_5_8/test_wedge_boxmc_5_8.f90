@@ -1,8 +1,8 @@
 module test_wedge_boxmc_5_8
   use m_boxmc, only : t_boxmc,t_boxmc_wedge_5_8
-  use m_data_parameters, only :     &
-    mpiint, ireals, iintegers,      &
-    one, zero, i1, default_str_len, &
+  use m_data_parameters, only :          &
+    mpiint, ireals, irealLUT, iintegers, &
+    one, zero, i1, default_str_len,      &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
   use m_helper_functions, only : itoa, triangle_area_by_vertices, rad2deg
@@ -64,6 +64,48 @@ contains
       call PetscFinalize(ierr)
       if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
+
+  @test(npes =[1])
+  subroutine test_wedgemc_direct_custom_ex1(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers) :: isrc=2
+      real(ireals) :: tau, w0, g, aspectzx, phi, theta, Cx, Cy, verts(3*6)
+      myid     = this%getProcessRank()
+
+      tau      = 9.60528996E-06
+      w0       = 0.00000000
+      g        = 0.00000000
+      aspectzx = 0.217637643
+      Cx       = 0.500000000
+      Cy       = 0.948499978
+      phi      = rad2deg(azimuth_from_param_phi(.75, real([Cx, Cy], irealLUT)))
+      theta    = 56.3100014
+      !verts = [&
+      !   0.00000000  ,     0.00000000  ,     0.00000000,&
+      !   1.00000000  ,     0.00000000  ,     0.00000000,&
+      !   0.514306128 ,     0.947683156 ,     0.00000000,&
+      !   0.00000000  ,     0.00000000  ,     1.08398283,&
+      !   1.00000000  ,     0.00000000  ,     1.08398283,&
+      !   0.514306128 ,     0.947683156 ,     1.08398283 ]
+      verts = [&
+         zero , zero , zero       , &
+         one  , zero , zero       , &
+         Cx   , Cy   , zero       , &
+         zero , zero , aspectzx   , &
+         one  , zero , aspectzx   , &
+         Cx   , Cy   , aspectzx ]
+
+      bg  = [tau*(one-w0), tau*w0, g]
+
+      S_target = zero
+      T_target = zero
+      T_target([4]) = (sinh(tau)-cosh(tau)+1)/tau
+
+      do isrc=1,5
+        call bmc_wedge_5_8%get_coeff(comm,bg,isrc,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+        print *,'src', isrc, 'T', T
+      enddo
+  end subroutine
 
   @test(npes =[1,2])
   subroutine test_wedgemc_direct_negative_azimuth_src2(this)

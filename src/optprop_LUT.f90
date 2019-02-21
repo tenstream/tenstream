@@ -921,7 +921,7 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
     call get_sample_pnt_by_name_and_index(config, 'param_phi', index_1d, param_phi, ierr)
     if(dir) then
       call CHKERR(ierr, 'param_phi has to be present for wedge calculations')
-      phi = rad2deg(azimuth_from_param_phi(param_phi, wedge_C))
+      phi = rad2deg(azimuth_from_param_phi(real(param_phi, irealLUT), real(wedge_C, irealLUT)))
     endif
 
   class is (t_optprop_LUT_wedge_18_8)
@@ -940,7 +940,7 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
     call get_sample_pnt_by_name_and_index(config, 'param_phi', index_1d, param_phi, ierr)
     if(dir) then
       call CHKERR(ierr, 'param_phi has to be present for wedge calculations')
-      phi = rad2deg(azimuth_from_param_phi(param_phi, wedge_C))
+      phi = rad2deg(azimuth_from_param_phi(real(param_phi, irealLUT), real(wedge_C, irealLUT)))
     endif
 
   class default

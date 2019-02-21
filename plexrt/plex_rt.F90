@@ -988,7 +988,8 @@ module m_plex_rt
           real(ireals) :: dir2diff(solver%diffdof/2)
           logical :: lsrc(5)
 
-          real(ireals) :: dz, coeff(solver%dirdof*(solver%diffdof/2))
+          real(ireals) :: dz
+          real(irealLUT) :: coeff(solver%dirdof*(solver%diffdof/2))
           integer(iintegers), pointer :: xinoutdof(:)
 
           integer(mpiint) :: myid
@@ -1178,7 +1179,8 @@ module m_plex_rt
 
           integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
           integer(iintegers) :: i, j, icell, icol, iface, idof, numDof
-          real(ireals) :: dz, coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
+          real(ireals) :: dz
+          real(irealLUT) :: coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
 
           integer(iintegers), pointer :: xinoutdof(:)
           real(ireals), pointer :: xplanck(:)
@@ -1568,7 +1570,8 @@ module m_plex_rt
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
     integer(iintegers) :: numSrc, numDst
 
-    real(ireals) :: dz, coeff(solver%dirdof**2) ! coefficients for each src=[1..5] and dst[1..5]
+    real(ireals) :: dz
+    real(irealLUT) :: coeff(solver%dirdof**2) ! coefficients for each src=[1..5] and dst[1..5]
 
     logical, parameter :: lonline=.False.
     logical :: lflg, ldestroy_mat
@@ -1993,7 +1996,8 @@ module m_plex_rt
 
     real(ireals) :: diff2diff(solver%diffdof/2)
 
-    real(ireals) :: dz, coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
+    real(ireals) :: dz
+    real(irealLUT) :: coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
     integer(iintegers), pointer :: xinoutdof(:)
     real(ireals) :: area_top, area_bot
     real(ireals), parameter :: coeff_norm_err_tolerance=one+100*sqrt(epsilon(one))
@@ -2239,7 +2243,7 @@ module m_plex_rt
     real(ireals),intent(in)      :: dz
     real(ireals), intent(in)     :: wedge_coords(:) ! coordinates of upper triangle pts A,B,C in in (x,y)
     logical,intent(in)           :: ldir
-    real(ireals),intent(out)     :: coeff(:)
+    real(irealLUT),intent(out)     :: coeff(:)
     integer(mpiint), intent(out) :: ierr
 
     real(irealLUT),intent(in),optional  :: angles(2)
