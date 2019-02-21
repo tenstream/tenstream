@@ -2876,13 +2876,11 @@ module m_plex_rt
   subroutine rayli_wrapper(solver, plex, kabs, ksca, g, albedo, sundir, solution, plck, srfc_emission)
     use iso_c_binding
     class(t_plex_solver), intent(inout) :: solver
-    type(t_plexgrid), intent(in) :: plex
+    type(t_plexgrid), intent(inout) :: plex
     type(tVec), intent(in) :: kabs, ksca, g, albedo
     type(tVec), intent(in), optional :: plck, srfc_emission
     real(ireals), intent(in) :: sundir(:)
     type(t_state_container), intent(inout) :: solution
-
-    type(tDM) :: dmrayli
 
     real(ireals), pointer :: xksca(:), xkabs(:), xg(:), xalbedo(:)
     real(ireals), pointer :: xedir(:), xediff(:)
@@ -2942,12 +2940,15 @@ module m_plex_rt
       return
     endif
 
-    call dm3d_to_rayli_dmplex(plex%dm, dmrayli)
-    call PetscObjectViewFromOptions(dmrayli, PETSC_NULL_DM, '-show_plexrt_dmrayli', ierr); call CHKERR(ierr)
+    if(.not.allocated(plex%rayli_dm)) then
+      allocate(plex%rayli_dm)
+      call dm3d_to_rayli_dmplex(plex%dm, plex%rayli_dm)
+      call PetscObjectViewFromOptions(plex%rayli_dm, PETSC_NULL_DM, '-show_plexrt_dmrayli', ierr); call CHKERR(ierr)
+    endif
 
-    call DMPlexGetDepthStratum(dmrayli, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! vertices
-    call DMPlexGetDepthStratum(dmrayli, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! vertices
-    call DMPlexGetDepthStratum(dmrayli, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+    call DMPlexGetDepthStratum(plex%rayli_dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! vertices
+    call DMPlexGetDepthStratum(plex%rayli_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! vertices
+    call DMPlexGetDepthStratum(plex%rayli_dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
     Nwedges = cEnd - cStart
     Nfaces = fEnd - fStart
     Nverts = vEnd - vStart
@@ -2964,11 +2965,11 @@ module m_plex_rt
              flx_through_faces_ediff(Nfaces) )
 
     do iface = fStart, fEnd-1
-      call DMPlexGetTransitiveClosure(dmrayli, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
+      call DMPlexGetTransitiveClosure(plex%rayli_dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
       verts_of_face(:, iface-fStart+1) = trans_closure(9:size(trans_closure):2) - vStart
-      call DMPlexRestoreTransitiveClosure(dmrayli, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
+      call DMPlexRestoreTransitiveClosure(plex%rayli_dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
 
-      call DMPlexGetSupport(dmrayli, iface, cells_of_face, ierr); call CHKERR(ierr)
+      call DMPlexGetSupport(plex%rayli_dm, iface, cells_of_face, ierr); call CHKERR(ierr)
       select case(size(cells_of_face))
       case(1)
         wedges_of_face(1,iface-fStart+1) = cells_of_face(1) - cStart
@@ -2978,11 +2979,11 @@ module m_plex_rt
       case default
         call CHKERR(1_mpiint, 'did not expect '//itoa(size(cells_of_face))//'cells here')
       end select
-      call DMPlexRestoreSupport(dmrayli, iface, cells_of_face, ierr); call CHKERR(ierr)
+      call DMPlexRestoreSupport(plex%rayli_dm, iface, cells_of_face, ierr); call CHKERR(ierr)
     enddo
 
-    call DMGetCoordinateSection(dmrayli, coord_section, ierr); call CHKERR(ierr)
-    call DMGetCoordinatesLocal(dmrayli, coordinates, ierr); call CHKERR(ierr)
+    call DMGetCoordinateSection(plex%rayli_dm, coord_section, ierr); call CHKERR(ierr)
+    call DMGetCoordinatesLocal(plex%rayli_dm, coordinates, ierr); call CHKERR(ierr)
     call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
     do ivert = vStart, vEnd-1
@@ -2996,8 +2997,8 @@ module m_plex_rt
     call VecGetArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
 
-    rkabs = xkabs
-    rksca = xksca
+    rkabs = xkabs + xksca !DEBUG
+    rksca = zero ! DEBUG xksca
     rg    = xg
 
     call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
@@ -3019,7 +3020,7 @@ module m_plex_rt
       do iface = ofStart, ofEnd-1
         call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
         do idof = 1, solver%dirtop%dof
-          xedir(voff+idof) = abs(flx_through_faces_ediff(iface-ofStart+1))
+          xedir(voff+idof) = abs(flx_through_faces_edir(iface-ofStart+1))
         enddo
       enddo
       call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
@@ -3033,7 +3034,7 @@ module m_plex_rt
         xediff(voff+idof) = abs(flx_through_faces_ediff(iface-ofStart+1))
       enddo
     enddo
-    call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+    call VecRestoreArrayF90(solution%ediff , xediff , ierr); call CHKERR(ierr)
     !Twostream solver returns fluxes as [W/m^2]
     solution%lWm2_dir  = .True.
     solution%lWm2_diff = .True.

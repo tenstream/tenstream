@@ -46,6 +46,7 @@ module m_plex_grid
     type(tDM), allocatable :: geom_dm
     type(tDM), allocatable :: wedge_orientation_dm
     type(tDM), allocatable :: srfc_boundary_dm
+    type(tDM), allocatable :: rayli_dm
     type(tVec), allocatable :: geomVec ! see compute_face_geometry for details
     type(tVec), allocatable :: wedge_orientation ! see compute_wedge_orientation
 
@@ -87,35 +88,22 @@ module m_plex_grid
       type(t_plexgrid), intent(inout) :: plex
       integer(mpiint) :: ierr
 
-      if(allocated(plex%dm)) then
-        call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
-        deallocate(plex%dm)
-      endif
-      if(allocated(plex%abso_dm)) then
-        call DMDestroy(plex%abso_dm, ierr); call CHKERR(ierr)
-        deallocate(plex%abso_dm)
-      endif
-      if(allocated(plex%edir_dm)) then
-        call DMDestroy(plex%edir_dm, ierr); call CHKERR(ierr)
-        deallocate(plex%edir_dm)
-      endif
-      if(allocated(plex%geom_dm)) then
-        call DMDestroy(plex%geom_dm, ierr); call CHKERR(ierr)
-        deallocate(plex%geom_dm)
-      endif
-      if(allocated(plex%wedge_orientation_dm)) then
-        call DMDestroy(plex%wedge_orientation_dm, ierr); call CHKERR(ierr)
-        deallocate(plex%wedge_orientation_dm)
-      endif
+      call dealloc_dmlabel(plex%boundarylabel)
+      call dealloc_dmlabel(plex%domainboundarylabel)
+      call dealloc_dmlabel(plex%ownerlabel)
 
-      if(allocated(plex%geomVec)) then
-        call VecDestroy(plex%geomVec, ierr); call CHKERR(ierr)
-        deallocate(plex%geomVec)
-      endif
-      if(allocated(plex%wedge_orientation)) then
-        call VecDestroy(plex%wedge_orientation, ierr); call CHKERR(ierr)
-        deallocate(plex%wedge_orientation)
-      endif
+      call dealloc_vec(plex%geomVec)
+      call dealloc_vec(plex%wedge_orientation)
+
+      call dealloc_dm(plex%dm)
+      call dealloc_dm(plex%cell1_dm)
+      call dealloc_dm(plex%edir_dm)
+      call dealloc_dm(plex%ediff_dm)
+      call dealloc_dm(plex%abso_dm)
+      call dealloc_dm(plex%geom_dm)
+      call dealloc_dm(plex%wedge_orientation_dm)
+      call dealloc_dm(plex%srfc_boundary_dm)
+      call dealloc_dm(plex%rayli_dm)
 
       plex%pStart = -1; plex%pEnd = -1
       plex%cStart = -1; plex%cEnd = -1
@@ -139,20 +127,29 @@ module m_plex_grid
       if(allocated(plex%localiconindex )) deallocate(plex%localiconindex )
       if(allocated(plex%globaliconindex)) deallocate(plex%globaliconindex)
 
-      if(allocated(plex%boundarylabel)) then
-        call DMLabelDestroy(plex%boundarylabel, ierr); call chkerr(ierr)
-        deallocate(plex%boundarylabel)
-      endif
-      if(allocated(plex%domainboundarylabel)) then
-        call DMLabelDestroy(plex%domainboundarylabel, ierr); call chkerr(ierr)
-        deallocate(plex%domainboundarylabel)
-      endif
-      if(allocated(plex%ownerlabel)) then
-        call DMLabelDestroy(plex%ownerlabel, ierr); call chkerr(ierr)
-        deallocate(plex%ownerlabel)
-      endif
-
       plex%comm = -1
+      contains
+        subroutine dealloc_vec(vec)
+          type(tVec), allocatable, intent(inout) :: vec
+          if(allocated(vec)) then
+            call VecDestroy(vec, ierr); call CHKERR(ierr)
+            deallocate(vec)
+          endif
+        end subroutine
+        subroutine dealloc_dmlabel(label)
+          type(tDMLabel), allocatable, intent(inout) :: label
+          if(allocated(label)) then
+            call DMLabelDestroy(label, ierr); call CHKERR(ierr)
+            deallocate(label)
+          endif
+        end subroutine
+        subroutine dealloc_dm(dm)
+          type(tDM), allocatable, intent(inout) :: dm
+          if(allocated(dm)) then
+            call DMDestroy(dm, ierr); call CHKERR(ierr)
+            deallocate(dm)
+          endif
+        end subroutine
     end subroutine
 
     subroutine plex_set_ltopfacepos(dm, ltopfacepos)
