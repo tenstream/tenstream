@@ -142,7 +142,6 @@ module m_helper_functions
     module procedure compute_normal_3d_r32, compute_normal_3d_r64
   end interface
 
-
   interface distances_to_triangle_edges
     module procedure distances_to_triangle_edges_r32, distances_to_triangle_edges_r64
   end interface
@@ -154,6 +153,13 @@ module m_helper_functions
   end interface
   interface triangle_area_by_edgelengths
     module procedure triangle_area_by_edgelengths_r32, triangle_area_by_edgelengths_r64
+  end interface
+
+  interface delta_scale
+    module procedure delta_scale_r32, delta_scale_r64
+  end interface
+  interface delta_scale_optprop
+    module procedure delta_scale_optprop_r32, delta_scale_optprop_r64
   end interface
 
   integer(iintegers), parameter :: npar_cumprod=8
@@ -835,10 +841,10 @@ module m_helper_functions
       call mpi_bcast(arr,size(arr),imp_ireals,sendid,comm,mpierr); call CHKERR(mpierr)
     end subroutine
 
-    elemental subroutine delta_scale(kabs, ksca, g, opt_f, max_g)
-      real(ireals),intent(inout) :: kabs, ksca, g
-      real(ireals),intent(in), optional :: opt_f, max_g
-      real(ireals) :: dtau, w0, f
+    elemental subroutine delta_scale_r32(kabs, ksca, g, opt_f, max_g)
+      real(REAL32),intent(inout) :: kabs, ksca, g
+      real(REAL32),intent(in), optional :: opt_f, max_g
+      real(REAL32) :: dtau, w0, f
 
       if(present(opt_f)) then
         f = opt_f
@@ -848,7 +854,7 @@ module m_helper_functions
 
       if(present(max_g)) then
         if(g.lt.max_g) return
-        f = (max_g - g) / (max_g - 1._ireals)
+        f = (max_g - g) / (max_g - 1._REAL32)
       endif
 
       dtau = max( kabs+ksca, epsilon(dtau) )
@@ -860,9 +866,43 @@ module m_helper_functions
       kabs= dtau * (one-w0)
       ksca= dtau * w0
     end subroutine
-    elemental subroutine delta_scale_optprop(dtau, w0, g, f)
-      real(ireals), intent(inout) :: dtau,w0,g
-      real(ireals), intent(in) :: f
+    elemental subroutine delta_scale_r64(kabs, ksca, g, opt_f, max_g)
+      real(REAL64),intent(inout) :: kabs, ksca, g
+      real(REAL64),intent(in), optional :: opt_f, max_g
+      real(REAL64) :: dtau, w0, f
+
+      if(present(opt_f)) then
+        f = opt_f
+      else
+        f = g**2
+      endif
+
+      if(present(max_g)) then
+        if(g.lt.max_g) return
+        f = (max_g - g) / (max_g - 1._REAL64)
+      endif
+
+      dtau = max( kabs+ksca, epsilon(dtau) )
+      w0   = ksca/dtau
+      g    = g
+
+      call delta_scale_optprop( dtau, w0, g, f)
+
+      kabs= dtau * (one-w0)
+      ksca= dtau * w0
+    end subroutine
+    elemental subroutine delta_scale_optprop_r32(dtau, w0, g, f)
+      real(REAL32), intent(inout) :: dtau,w0,g
+      real(REAL32), intent(in) :: f
+
+      g = min( g, one-epsilon(g)*10)
+      dtau = dtau * ( one - w0 * f )
+      g    = ( g - f ) / ( one - f )
+      w0   = w0 * ( one - f ) / ( one - f * w0 )
+    end subroutine
+    elemental subroutine delta_scale_optprop_r64(dtau, w0, g, f)
+      real(REAL64), intent(inout) :: dtau,w0,g
+      real(REAL64), intent(in) :: f
 
       g = min( g, one-epsilon(g)*10)
       dtau = dtau * ( one - w0 * f )

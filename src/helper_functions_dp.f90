@@ -26,7 +26,7 @@ module m_helper_functions_dp
 
       private
       public imp_bcast, norm, cross_2d, cross_3d, deg2rad, rad2deg, rmse, mean, approx, rel_approx,&
-          delta_scale_optprop, delta_scale, cumsum, inc, swap, &
+          cumsum, inc, swap, &
           mpi_logical_and, mpi_logical_or, imp_allreduce_min, imp_allreduce_max, imp_reduce_sum, &
           pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, &
           angle_between_two_vec, determine_normal_direction, &
@@ -313,39 +313,6 @@ module m_helper_functions_dp
 
           if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3), Ntot(4), Ntot(5) ) )
           call mpi_bcast(arr,size(arr),imp_real_dp,sendid,comm,mpierr); call CHKERR(mpierr)
-      end subroutine
-
-      elemental subroutine delta_scale( kabs,ksca,g,factor )
-          real(ireal_dp),intent(inout) :: kabs,ksca,g ! kabs, ksca, g
-          real(ireal_dp),intent(in),optional :: factor
-          real(ireal_dp) :: dtau, w0
-          dtau = max( kabs+ksca, epsilon(dtau) )
-          w0   = ksca/dtau
-          g    = g
-
-          if(present(factor)) then
-            call delta_scale_optprop( dtau, w0, g, factor)
-          else
-            call delta_scale_optprop( dtau, w0, g)
-          endif
-
-          kabs= dtau * (one-w0)
-          ksca= dtau * w0
-      end subroutine
-      elemental subroutine delta_scale_optprop( dtau, w0, g,factor)
-          real(ireal_dp),intent(inout) :: dtau,w0,g
-          real(ireal_dp),intent(in),optional :: factor
-          real(ireal_dp) :: f
-
-          g = min( g, one-epsilon(g)*10)
-          if(present(factor)) then
-            f = factor
-          else
-            f = g**2
-          endif
-          dtau = dtau * ( one - w0 * f )
-          g    = ( g - f ) / ( one - f )
-          w0   = w0 * ( one - f ) / ( one - f * w0 )
       end subroutine
 
       function cumsum(arr)

@@ -3033,6 +3033,7 @@ module m_plex_rt
     rkabs = xkabs + xksca !DEBUG
     rksca = zero ! DEBUG xksca
     rg    = xg
+    call delta_scale(rkabs, rksca, rg, max_g=0._c_double)
 
     call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
