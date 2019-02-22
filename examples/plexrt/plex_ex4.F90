@@ -326,9 +326,9 @@ program main
   default_options=trim(default_options)//' -plexrt_dump_iwc hdf5:'//trim(outfile)//'::append'
   default_options=trim(default_options)//' -plexrt_dump_temp hdf5:'//trim(outfile)//'::append'
 
-  default_options=trim(default_options)//' -dump_optprop_kabs hdf5:'//trim(outfile)//'::append'
-  default_options=trim(default_options)//' -dump_optprop_ksca hdf5:'//trim(outfile)//'::append'
-  default_options=trim(default_options)//' -dump_optprop_g hdf5:'//trim(outfile)//'::append'
+  !default_options=trim(default_options)//' -dump_optprop_kabs hdf5:'//trim(outfile)//'::append'
+  !default_options=trim(default_options)//' -dump_optprop_ksca hdf5:'//trim(outfile)//'::append'
+  !default_options=trim(default_options)//' -dump_optprop_g hdf5:'//trim(outfile)//'::append'
 
   default_options=trim(default_options)//' -show_fV2cV_level_heights_vec hdf5:lvl_'//trim(outfile)//''
 

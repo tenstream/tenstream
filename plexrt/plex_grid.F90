@@ -537,7 +537,7 @@ module m_plex_grid
       call PetscObjectViewFromOptions(coordSection, PETSC_NULL_SECTION, "-show_dm_coord_section", ierr); call CHKERR(ierr)
       ! Geometry Vec Contains 3 Fields:
       ! field 0: 3 dof for centroid on cells and faces
-      ! field 1: 3 for normal vecs on faces
+      ! field 1: 2*3 for normal vecs on faces, first one is real normal, second one is normal as it is seen from bmc (respective to top faces)
       ! field 2: 1 dof on cells, faces and edges for volume, area, length
       ! field 3: dz on cells
       call create_plex_section(dm, 'Geometry Section', i4, &
@@ -652,10 +652,66 @@ module m_plex_grid
         geoms(i1+voff3) = height
       enddo
 
+      !call determine_2d_normals(geoms)
+
       call VecRestoreArrayReadF90(coordinates, coords, ierr); call CHKERR(ierr)
       call VecRestoreArrayF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(plex%geomVec, PETSC_NULL_VEC, "-show_dm_geom_vec", ierr); call CHKERR(ierr)
+      contains
+        !subroutine determine_2d_normals(geoms)
+        !  real(ireals), intent(inout), pointer :: geoms(:)
+        !  integer(iintegers), dimension(:), pointer :: faces_of_cell
+        !  integer(iintegers) :: icell, topface, i, num_faces
+        !  real(ireals), dimension(3) :: regular_normal, flat_normal, top_normal
+
+        !  ! Find '2D'-normals of side faces, i.e. normals if the wedges were straight down and not coned
+        !  do icell = cStart, cEnd-1
+        !    call DMPlexGetCone(dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+        !    ! search for topface
+        !    do i=1,size(faces_of_cell)
+        !      call DMPlexGetConeSize(dm, faces_of_cell(i), num_faces, ierr); call CHKERR(ierr)
+        !      if(num_faces.eq.i3) then
+        !        topface = faces_of_cell(i)
+        !        exit
+        !      endif
+        !    enddo
+
+        !    call PetscSectionGetFieldOffset(geomSection, topface, i1, voff1, ierr); call CHKERR(ierr)
+        !    top_normal = geoms(i1+voff1:voff1+Ndim)
+
+        !    do i=1,size(faces_of_cell)
+        !      call PetscSectionGetFieldOffset(geomSection, faces_of_cell(i), i1, voff1, ierr); call CHKERR(ierr)
+
+        !      call DMPlexGetConeSize(dm, faces_of_cell(i), num_faces, ierr); call CHKERR(ierr)
+        !      if(num_faces.eq.3) then ! just the regular normal for top and bot faces
+        !        geoms(i1+voff1+Ndim:voff1+2*Ndim) = top_normal
+
+        !      elseif(num_faces.eq.4) then
+        !        call PetscSectionGetFieldOffset(geomSection, faces_of_cell(i), i1, voff1, ierr); call CHKERR(ierr)
+        !        regular_normal = geoms(i1+voff1:voff1+Ndim)
+
+        !        flat_normal = vec_proj_on_plane(regular_normal, top_normal)
+        !        flat_normal = flat_normal / norm(flat_normal)
+
+        !        geoms(i1+voff1+Ndim:voff1+2*Ndim) = flat_normal
+
+        !        !print *,'top_normal    ', top_normal
+        !        !print *,'regular_normal', regular_normal
+        !        !print *,'flat_normal   ', flat_normal
+        !        !print *,'angle change', rad2deg(angle_between_two_vec(regular_normal,flat_normal))
+        !        !print *,'angle to top', rad2deg(angle_between_two_vec(top_normal,flat_normal)), &
+        !        !  rad2deg(angle_between_two_vec(top_normal,regular_normal))
+        !      else
+        !        call CHKERR(1_mpiint, 'Did not expect '//itoa(num_faces)//' faces')
+        !      endif
+        !    enddo
+        !    !call CHKERR(1_mpiint, 'DEBUG')
+        !    call DMPlexRestoreCone(dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+        !  enddo
+
+        !end subroutine
     end subroutine
 
     subroutine create_plex_section(dm, sectionname, numfields, cdof, fdof, edof, vdof, section, fieldnames)
@@ -1156,7 +1212,8 @@ module m_plex_grid
       call PetscSectionGetFieldOffset(geomSection, iface, i0, voff0, ierr); call CHKERR(ierr)
       call PetscSectionGetFieldOffset(geomSection, iface, i1, voff1, ierr); call CHKERR(ierr)
       face_center = geoms(voff0+i1: voff0+i3)
-      face_normal = geoms(voff1+i1: voff1+i3)
+      face_normal = geoms(voff1+i1: voff1+i3) ! DEBUG this is the 3D Normal
+      ! face_normal = geoms(voff1+i1+i3: voff1+i3+i3) ! DEBUG use 2d normal instead
 
       if(ldebug) then
         if(.not.approx(one, norm(face_normal))) then
