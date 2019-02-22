@@ -1626,7 +1626,7 @@ module m_plex_rt
 
     call MatZeroEntries(A, ierr); call CHKERR(ierr)
 
-    !call set_side_incoming_boundary_condition()
+    if(.False.) call set_side_incoming_boundary_condition()
 
     ! Set Diagonal Entries
     call DMPlexGetDepthStratum(plex%edir_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
@@ -3054,7 +3054,7 @@ module m_plex_rt
       do iface = ofStart, ofEnd-1
         call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
         do idof = 1, solver%dirtop%dof
-          xedir(voff+idof) = abs(flx_through_faces_edir(iface-ofStart+1))
+          xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-ofStart+1)), ireals)
         enddo
       enddo
       call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
@@ -3065,7 +3065,7 @@ module m_plex_rt
     do iface = ofStart, ofEnd-1
       call PetscSectionGetOffset(ediff_section, iface, voff, ierr); call CHKERR(ierr)
       do idof = 1, solver%dirtop%dof
-        xediff(voff+idof) = abs(flx_through_faces_ediff(iface-ofStart+1))
+        xediff(voff+idof) = real(abs(flx_through_faces_ediff(iface-ofStart+1)), ireals)
       enddo
     enddo
     call VecRestoreArrayF90(solution%ediff , xediff , ierr); call CHKERR(ierr)

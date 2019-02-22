@@ -230,7 +230,7 @@ contains
 
     call do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
 
-    !if(ldir) call print_coeff_diff()
+    if(.False. .and. ldir) call print_coeff_diff()
 
     if(ldir .and. present(in_angles)) then
       call handle_critical_azimuth()
@@ -241,11 +241,7 @@ contains
         use m_helper_functions, only: angle_between_two_vec, search_sorted_bisection, rad2deg
         use m_optprop_LUT, only: find_lut_dim_by_name
 
-        real(irealLUT) :: beta, alpha, param_phi ! alpha is the angle between AB and AC
-        real(irealLUT) :: azimuth_pti ! the sample point for azimuth angles in the LUT
-        real(irealLUT) :: LUT_azimuths(2) ! LUT azimuth values that would be used
-        integer(iintegers), allocatable, save :: kdim ! azimuth dim index in LUT
-
+        real(irealLUT) :: param_phi
         logical :: lsample_critical
 
         associate( pA => wedge_coords(1:2), pB => wedge_coords(3:4), pC => wedge_coords(5:6) )

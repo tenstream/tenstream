@@ -701,41 +701,41 @@ contains
     L = ( eps + R()*(one-2*eps) ) *v
   end function
 
-  subroutine intersect_distance_convex_polytope(origins, normals, p, intersec_dist)
-    real(ireal_dp), intent(in) :: origins(:,:), normals(:,:)
-    type(t_photon), intent(inout) :: p
-    real(ireal_dp), intent(out) :: intersec_dist
+  !subroutine intersect_distance_convex_polytope(origins, normals, p, intersec_dist)
+  !  real(ireal_dp), intent(in) :: origins(:,:), normals(:,:)
+  !  type(t_photon), intent(inout) :: p
+  !  real(ireal_dp), intent(out) :: intersec_dist
 
-    real(ireal_dp) :: l
-    integer(iintegers) :: iface
+  !  real(ireal_dp) :: l
+  !  integer(iintegers) :: iface
 
-    p%subface = 1 ! TODO: check if this is ok todo
+  !  p%subface = 1 ! TODO: check if this is ok todo
 
-    intersec_dist = huge(intersec_dist)
-    do iface = 1, size(origins, dim=2)
-      if(p%scattercnt.eq.0 .and. iface.eq.p%src_side) cycle
-      associate(o=>origins(:,iface), n=>normals(:,iface))
-        l = -dot_product(n,p%dir)
-        if(l.le.0) cycle
+  !  intersec_dist = huge(intersec_dist)
+  !  do iface = 1, size(origins, dim=2)
+  !    if(p%scattercnt.eq.0 .and. iface.eq.p%src_side) cycle
+  !    associate(o=>origins(:,iface), n=>normals(:,iface))
+  !      l = -dot_product(n,p%dir)
+  !      if(l.le.0) cycle
 
-        L = dot_product(n, p%loc - o) / l
-        if(L.lt.intersec_dist) then
-          intersec_dist = L
-          p%side = iface
-        endif
-      end associate
-    enddo
+  !      L = dot_product(n, p%loc - o) / l
+  !      if(L.lt.intersec_dist) then
+  !        intersec_dist = L
+  !        p%side = iface
+  !      endif
+  !    end associate
+  !  enddo
 
-    if(p%scattercnt.eq.0 .and. intersec_dist .eq. huge(intersec_dist) ) then
-      if((dot_product(normals(:, p%src_side),p%dir).ge.0._ireal_dp) .or. &
-         (dot_product(normals(:, p%src_side), p%loc - origins(:,p%src_side)).lt.0._ireal_dp)) then
-         call CHKERR(1_mpiint, 'Could not hit anything?!?')
-       else
-         p%side = p%src_side
-         p%weight = 0._ireal_dp
-       endif
-    endif
-  end subroutine
+  !  if(p%scattercnt.eq.0 .and. intersec_dist .eq. huge(intersec_dist) ) then
+  !    if((dot_product(normals(:, p%src_side),p%dir).ge.0._ireal_dp) .or. &
+  !       (dot_product(normals(:, p%src_side), p%loc - origins(:,p%src_side)).lt.0._ireal_dp)) then
+  !       call CHKERR(1_mpiint, 'Could not hit anything?!?')
+  !     else
+  !       p%side = p%src_side
+  !       p%weight = 0._ireal_dp
+  !     endif
+  !  endif
+  !end subroutine
 
   !> @brief main function for a single photon
   !> @details this routine will incrementally move a photon until it is either out of the domain or it is time for a interaction with the medium
