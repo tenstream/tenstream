@@ -32,7 +32,8 @@ module m_plex_rt
     t_solver_log_events, setup_log_events
 
   use m_plex2rayli, only: dm3d_to_rayli_dmplex
-  use m_f2c_rayli, only: rfft_wedgeF90
+  use m_f2c_rayli, only: rfft_wedgeF90, rpt_img_wedgeF90
+  use m_netcdfio, only: ncwrite
 
   implicit none
 
@@ -1220,14 +1221,14 @@ module m_plex_rt
               area_bot = geoms(i1+geom_offset)
               if(area_top.gt.area_bot) then
                 ! send overhanging energy to side faces
-                coeff(7*8+[2,4,6]) = coeff(7*8+[2,4,6]) + coeff(7*8+1) * (one - area_bot / area_top) / i3
+                coeff(7*8+[2,4,6]) = coeff(7*8+[2,4,6]) + coeff(7*8+1) * real(one - area_bot / area_top, irealLUT) / i3
                 ! reduce transmission bc receiver is smaller than top face
-                coeff(7*8+1) = coeff(7*8+1) * area_bot / area_top
+                coeff(7*8+1) = coeff(7*8+1) * real(area_bot / area_top, irealLUT)
               else
                 ! send overhanging energy to side faces
-                coeff([3,5,7]) = coeff([3,5,7]) + coeff(8) * (one - area_top / area_bot) / i3
+                coeff([3,5,7]) = coeff([3,5,7]) + coeff(8) * real(one - area_top / area_bot, irealLUT) / i3
                 ! transmission from bot to top face
-                coeff(8) = coeff(8) * area_top / area_bot
+                coeff(8) = coeff(8) * real(area_top / area_bot, irealLUT)
               endif
             endif
             call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
@@ -2932,11 +2933,11 @@ module m_plex_rt
     real(ireals), pointer :: coords(:)
     type(tPetscSection) :: coord_section
 
-
     integer(c_size_t), allocatable :: verts_of_face(:,:)
     integer(c_size_t), allocatable :: wedges_of_face(:,:)
     real(c_double),    allocatable :: vert_coords(:,:)
     real(c_double),    allocatable :: rkabs(:), rksca(:), rg(:)
+    real(c_double),    allocatable :: ralbedo_on_faces(:)
     real(c_double)                 :: rsundir(3)
     real(c_double),    allocatable :: flx_through_faces_edir(:)
     real(c_double),    allocatable :: flx_through_faces_ediff(:)
@@ -2994,6 +2995,7 @@ module m_plex_rt
              rkabs(Nwedges), &
              rksca(Nwedges), &
              rg   (Nwedges), &
+             ralbedo_on_faces(Nfaces), &
              flx_through_faces_edir(Nfaces), &
              flx_through_faces_ediff(Nfaces) )
 
@@ -3028,19 +3030,25 @@ module m_plex_rt
     call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     call VecGetArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
 
-    rkabs = xkabs + xksca !DEBUG
-    rksca = zero ! DEBUG xksca
+    rkabs = xkabs
+    rksca = xksca
     rg    = xg
     call delta_scale(rkabs, rksca, rg, max_g=0._c_double)
 
-    call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
 
+    call fill_albedo()
+
     rsundir = -sundir
+
+    call take_snap(ierr)
+    if(ierr.eq.1) return
+
+    rkabs = rkabs + rksca !DEBUG
+    rksca = 0 !DEBUG
 
     ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, &
       verts_of_face, wedges_of_face, vert_coords, &
@@ -3074,6 +3082,110 @@ module m_plex_rt
     solution%lWm2_diff = .True.
     ! and mark solution that it is not up to date
     solution%lchanged  = .True.
+    contains
+      subroutine fill_albedo()
+        type(tIS) :: toa_ids
+        integer(iintegers), pointer :: xtoa_faces(:)
+        integer(iintegers) :: srfc_face, i
+
+        call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
+        call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+
+        call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+
+        ralbedo_on_faces(:) = -one
+        do i=1,size(xtoa_faces)
+          srfc_face = xtoa_faces(i) + plex%Nlay
+          ralbedo_on_faces(srfc_face-fStart+1) = xalbedo(i)
+        enddo
+
+        call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+      end subroutine
+      subroutine take_snap(ierr)
+        integer(mpiint), intent(out) :: ierr
+        character(len=default_str_len) :: snap_path, groups(2)
+        logical :: lflg
+        integer(c_size_t) :: Nx=400, Ny=300
+        real(c_double), allocatable :: img(:,:)
+        real(c_double) :: cam_loc(3), cam_viewing_dir(3), cam_up_vec(3)
+        real(c_double) :: fov_width, fov_height
+        real(ireals), dimension(3) :: visit_focus, visit_view_normal, visit_view_up
+        real(ireals) :: visit_view_angle, visit_image_zoom, visit_parallel_scale
+        integer(iintegers) :: narg
+
+        ierr = 0
+
+        call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-rayli_snapshot", snap_path, lflg,ierr) ; call CHKERR(ierr)
+        if(lflg) then
+          Nx = 400
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-rayli_snap_Nx', narg, lflg, ierr); call CHKERR(ierr)
+          if(lflg) Nx = narg
+
+          Ny = 300
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-rayli_snap_Ny', narg, lflg, ierr); call CHKERR(ierr)
+          if(lflg) Ny = narg
+
+          allocate(img(Nx, Ny))
+
+          visit_view_angle = 30._ireals
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_view_angle', visit_view_angle, lflg, ierr); call CHKERR(ierr)
+
+          visit_image_zoom = 1._ireals
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_image_zoom', visit_image_zoom, lflg, ierr); call CHKERR(ierr)
+
+          visit_parallel_scale = 1e5_ireals
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_parallel_scale', visit_parallel_scale, lflg, ierr); call CHKERR(ierr)
+
+          visit_focus = 0._ireals
+          narg=3
+          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_focus', visit_focus, narg, lflg, ierr); call CHKERR(ierr)
+          if(lflg) &
+            call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
+
+          visit_view_normal = -sundir
+          narg=3
+          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_view_normal', visit_view_normal, narg, lflg, ierr); call CHKERR(ierr)
+          if(lflg) &
+            call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
+
+          visit_view_up = [0,0,1]
+          narg=3
+          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_view_up', visit_view_up, narg, lflg, ierr); call CHKERR(ierr)
+          if(lflg) &
+            call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
+
+          cam_viewing_dir = -visit_view_normal
+          cam_up_vec = visit_view_up
+          cam_loc = visit_focus + visit_view_normal * visit_parallel_scale / tan(deg2rad(visit_view_angle)/2)
+
+          fov_width = 2 * tan(deg2rad(visit_view_angle)/2) / visit_image_zoom
+          fov_height = fov_width * real(Ny, c_double) / real(Nx, c_double)
+
+          ierr = rpt_img_wedgeF90( Nx, Ny, &
+            Nphotons, Nwedges, Nfaces, Nverts, &
+            verts_of_face, wedges_of_face, vert_coords, &
+            rkabs, rksca, rg, &
+            ralbedo_on_faces, &
+            rsundir, & ! DEBUG note the kabs/ksca/
+            cam_loc, cam_viewing_dir, cam_up_vec, &
+            fov_width, fov_height, &
+            img); call CHKERR(ierr)
+
+          groups(1) = trim(snap_path)
+          groups(2) = "rpt_img_"//itoa(solution%uid)
+          call ncwrite(groups, img, ierr); call CHKERR(ierr)
+          ierr = 1
+          return
+        endif
+      end subroutine
   end subroutine
 
 

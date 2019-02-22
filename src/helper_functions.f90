@@ -55,6 +55,9 @@ module m_helper_functions
   interface search_sorted_bisection
     module procedure search_sorted_bisection_r32, search_sorted_bisection_r64
   end interface
+  interface spherical_2_cartesian
+    module procedure spherical_2_cartesian_r32, spherical_2_cartesian_r64
+  end interface
   interface rad2deg
     module procedure rad2deg_r32, rad2deg_r64
   end interface
@@ -96,6 +99,9 @@ module m_helper_functions
     module procedure imp_bcast_real_1d, imp_bcast_real_3d, imp_bcast_real_5d, &
         imp_bcast_real32_2d, imp_bcast_real64_2d, imp_bcast_real32_2d_ptr, imp_bcast_real64_2d_ptr, &
         imp_bcast_int_1d, imp_bcast_int_2d, imp_bcast_int4, imp_bcast_int8, imp_bcast_real, imp_bcast_logical
+  end interface
+  interface imp_reduce_sum
+    module procedure imp_reduce_sum_r32, imp_reduce_sum_r64
   end interface
   interface get_arg
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
@@ -140,6 +146,9 @@ module m_helper_functions
   end interface
   interface compute_normal_3d
     module procedure compute_normal_3d_r32, compute_normal_3d_r64
+  end interface
+  interface rotation_matrix_local_basis_to_world
+    module procedure rotation_matrix_local_basis_to_world_r32, rotation_matrix_local_basis_to_world_r64
   end interface
 
   interface distances_to_triangle_edges
@@ -601,8 +610,23 @@ module m_helper_functions
       call imp_allreduce_sum(comm, my_avg, r)
       r = r / real(global_size, kind(r))
     end subroutine
-    subroutine imp_reduce_sum(comm,v)
-      real(ireals),intent(inout) :: v
+    subroutine imp_reduce_sum_r32(comm,v)
+      real(REAL32),intent(inout) :: v
+      integer(mpiint),intent(in) :: comm
+      integer(mpiint) :: commsize, myid
+      integer(mpiint) :: mpierr
+      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
+      if(commsize.le.1) return
+      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
+
+      if(myid.eq.0) then
+        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_ireals, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+      else
+        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_ireals, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+      endif
+    end subroutine
+    subroutine imp_reduce_sum_r64(comm,v)
+      real(REAL64),intent(inout) :: v
       integer(mpiint),intent(in) :: comm
       integer(mpiint) :: commsize, myid
       integer(mpiint) :: mpierr
@@ -863,7 +887,7 @@ module m_helper_functions
 
       call delta_scale_optprop( dtau, w0, g, f)
 
-      kabs= dtau * (one-w0)
+      kabs= dtau * (1._REAL32-w0)
       ksca= dtau * w0
     end subroutine
     elemental subroutine delta_scale_r64(kabs, ksca, g, opt_f, max_g)
@@ -888,26 +912,26 @@ module m_helper_functions
 
       call delta_scale_optprop( dtau, w0, g, f)
 
-      kabs= dtau * (one-w0)
+      kabs= dtau * (1._REAL64-w0)
       ksca= dtau * w0
     end subroutine
     elemental subroutine delta_scale_optprop_r32(dtau, w0, g, f)
       real(REAL32), intent(inout) :: dtau,w0,g
       real(REAL32), intent(in) :: f
 
-      g = min( g, one-epsilon(g)*10)
-      dtau = dtau * ( one - w0 * f )
-      g    = ( g - f ) / ( one - f )
-      w0   = w0 * ( one - f ) / ( one - f * w0 )
+      g = min( g, 1._REAL32-epsilon(g)*10)
+      dtau = dtau * ( 1._REAL32 - w0 * f )
+      g    = ( g - f ) / ( 1._REAL32 - f )
+      w0   = w0 * ( 1._REAL32 - f ) / ( 1._REAL32 - f * w0 )
     end subroutine
     elemental subroutine delta_scale_optprop_r64(dtau, w0, g, f)
       real(REAL64), intent(inout) :: dtau,w0,g
       real(REAL64), intent(in) :: f
 
-      g = min( g, one-epsilon(g)*10)
-      dtau = dtau * ( one - w0 * f )
-      g    = ( g - f ) / ( one - f )
-      w0   = w0 * ( one - f ) / ( one - f * w0 )
+      g = min( g, 1._REAL64-epsilon(g)*10)
+      dtau = dtau * ( 1._REAL64 - w0 * f )
+      g    = ( g - f ) / ( 1._REAL64 - f )
+      w0   = w0 * ( 1._REAL64 - f ) / ( 1._REAL64 - f * w0 )
     end subroutine
 
     function cumsum_ireals(arr) result(cumsum)
@@ -1211,11 +1235,23 @@ module m_helper_functions
     !> @details theta == 0 :: z = -1, i.e. downward
     !> @details azimuth == 0 :: vector going toward minus y, i.e. sun shines from the north
     !> @details azimuth == 90 :: vector going toward minus x, i.e. sun shines from the east
-    pure function spherical_2_cartesian(phi, theta, r)
-      real(ireals), intent(in) :: phi, theta
-      real(ireals), intent(in), optional :: r
+    pure function spherical_2_cartesian_r32(phi, theta, r) result(spherical_2_cartesian)
+      real(real32), intent(in) :: phi, theta
+      real(real32), intent(in), optional :: r
 
-      real(ireals) :: spherical_2_cartesian(3)
+      real(real32) :: spherical_2_cartesian(3)
+
+      spherical_2_cartesian(1) = -sin(deg2rad(theta)) * sin(deg2rad(phi))
+      spherical_2_cartesian(2) = -sin(deg2rad(theta)) * cos(deg2rad(phi))
+      spherical_2_cartesian(3) = -cos(deg2rad(theta))
+
+      if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
+    end function
+    pure function spherical_2_cartesian_r64(phi, theta, r) result(spherical_2_cartesian)
+      real(real64), intent(in) :: phi, theta
+      real(real64), intent(in), optional :: r
+
+      real(real64) :: spherical_2_cartesian(3)
 
       spherical_2_cartesian(1) = -sin(deg2rad(theta)) * sin(deg2rad(phi))
       spherical_2_cartesian(2) = -sin(deg2rad(theta)) * cos(deg2rad(phi))
@@ -1628,19 +1664,33 @@ module m_helper_functions
       rotation_matrix_world_to_local_basis(3,3) = dot_product(ez, kz)
     end function
 
-    pure function rotation_matrix_local_basis_to_world(ex, ey, ez)
-      real(ireals), dimension(3), intent(in) :: ex, ey, ez
-      real(ireals), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
-      real(ireals), dimension(3,3) :: rotation_matrix_local_basis_to_world
-      rotation_matrix_local_basis_to_world(1,1) = dot_product(kx, ex)
-      rotation_matrix_local_basis_to_world(1,2) = dot_product(kx, ey)
-      rotation_matrix_local_basis_to_world(1,3) = dot_product(kx, ez)
-      rotation_matrix_local_basis_to_world(2,1) = dot_product(ky, ex)
-      rotation_matrix_local_basis_to_world(2,2) = dot_product(ky, ey)
-      rotation_matrix_local_basis_to_world(2,3) = dot_product(ky, ez)
-      rotation_matrix_local_basis_to_world(3,1) = dot_product(kz, ex)
-      rotation_matrix_local_basis_to_world(3,2) = dot_product(kz, ey)
-      rotation_matrix_local_basis_to_world(3,3) = dot_product(kz, ez)
+    pure function rotation_matrix_local_basis_to_world_r32(ex, ey, ez) result(M)
+      real(real32), dimension(3), intent(in) :: ex, ey, ez
+      real(real32), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
+      real(real32), dimension(3,3) :: M
+      M(1,1) = dot_product(kx, ex)
+      M(2,1) = dot_product(ky, ex)
+      M(3,1) = dot_product(kz, ex)
+      M(1,2) = dot_product(kx, ey)
+      M(2,2) = dot_product(ky, ey)
+      M(3,2) = dot_product(kz, ey)
+      M(1,3) = dot_product(kx, ez)
+      M(2,3) = dot_product(ky, ez)
+      M(3,3) = dot_product(kz, ez)
+    end function
+    pure function rotation_matrix_local_basis_to_world_r64(ex, ey, ez) result(M)
+      real(real64), dimension(3), intent(in) :: ex, ey, ez
+      real(real64), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
+      real(real64), dimension(3,3) :: M
+      M(1,1) = dot_product(kx, ex)
+      M(2,1) = dot_product(ky, ex)
+      M(3,1) = dot_product(kz, ex)
+      M(1,2) = dot_product(kx, ey)
+      M(2,2) = dot_product(ky, ey)
+      M(3,2) = dot_product(kz, ey)
+      M(1,3) = dot_product(kx, ez)
+      M(2,3) = dot_product(ky, ez)
+      M(3,3) = dot_product(kz, ez)
     end function
 
     ! https://www.maplesoft.com/support/help/maple/view.aspx?path=MathApps%2FProjectionOfVectorOntoPlane

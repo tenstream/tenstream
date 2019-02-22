@@ -139,8 +139,6 @@ subroutine update_diff_stream_3_6(bmc,vertices,p,S)
 end subroutine
 
 subroutine init_diff_photon_3_6(bmc,p,src,vertices,ierr)
-  use m_helper_functions, only : rotate_angle_x, rotate_angle_y, rotate_angle_z
-  use m_helper_functions_dp, only : pnt_in_triangle, angle_between_two_vec, rad2deg
   class(t_boxmc_3_6) :: bmc
   type(t_photon),intent(inout) :: p
   integer(iintegers),intent(in) :: src
@@ -217,8 +215,6 @@ subroutine init_diff_photon_3_6(bmc,p,src,vertices,ierr)
 end subroutine
 
 subroutine intersect_distance_3_6(bmc,vertices,p,max_dist)
-  use m_helper_functions, only: cstr
-  use m_helper_functions_dp, only: pnt_in_rectangle, angle_between_two_vec, pnt_in_cube
   class(t_boxmc_3_6) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(inout) :: p

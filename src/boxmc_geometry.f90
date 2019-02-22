@@ -20,9 +20,9 @@
 module m_boxmc_geometry
 
   use m_data_parameters, only : mpiint, iintegers, ireals, ireal_dp, one, zero
-  use m_helper_functions, only : CHKERR, itoa, compute_normal_3d
+  use m_helper_functions, only : CHKERR, itoa, compute_normal_3d, angle_between_two_vec
   use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, &
-    determine_normal_direction, angle_between_two_vec, &
+    determine_normal_direction, &
     distances_to_triangle_edges, norm, mean, approx, &
     triangle_intersection, square_intersection
 

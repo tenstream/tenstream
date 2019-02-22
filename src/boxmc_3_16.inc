@@ -150,7 +150,6 @@ subroutine init_dir_photon_3_16(bmc, p, src, ldirect, initial_dir, vertices, ier
 end subroutine
 
 subroutine init_diff_photon_3_16(bmc,p,src,vertices,ierr)
-        use m_helper_functions, only : rotate_angle_x, rotate_angle_y, rotate_angle_z
         class(t_boxmc_3_16)           :: bmc
         type(t_photon),intent(inout)    :: p
         real(ireal_dp),intent(in)     :: vertices(:)

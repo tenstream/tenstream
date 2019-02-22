@@ -97,7 +97,8 @@ contains
     Cy = 0.8660254037844386_irealLUT
 
     phi = -0._irealLUT
-    call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, phi, theta], d2d1)
+    param_phi = param_phi_from_azimuth(deg2rad(phi), [Cx, Cy])
+    call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], d2d1)
     call print_dir2dir(d2d1)
 
     !call compute_bmc_coeff(d2d2)
@@ -308,7 +309,6 @@ contains
   @test(npes=[1])
   subroutine test_azimuth_from_param_phi(this)
     class (MpiTestMethod), intent(inout) :: this
-    real(irealLUT) :: param_phi, phi
     real(irealLUT) :: C_wedge(2)
 
     C_wedge = [.5, .8660254]
@@ -329,7 +329,6 @@ contains
   @test(npes=[1])
   subroutine test_param_phi_from_azimuth(this)
     class (MpiTestMethod), intent(inout) :: this
-    real(irealLUT) :: param_phi, phi
     real(irealLUT) :: C_wedge(2)
 
     C_wedge = [.5, .8660254]

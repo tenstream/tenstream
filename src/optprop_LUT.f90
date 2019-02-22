@@ -959,7 +959,7 @@ function param_phi_from_azimuth(phi, wedge_C) result (param_phi)
   real(irealLUT) :: alpha, beta
   real(irealLUT) :: lb, rb, x1, x2! bounds of local spline
 
-  associate( pA => [zero, zero], pB => [one, zero], pC => wedge_C )
+  associate( pA => [0._irealLUT, 0._irealLUT], pB => [1._irealLUT, 0._irealLUT], pC => wedge_C )
     alpha = angle_between_two_vec(pB-pA, pC-pA)
     beta  = angle_between_two_vec(pA-pB, pC-pB)
 
@@ -996,25 +996,23 @@ function azimuth_from_param_phi(param_phi, wedge_C) result (phi)
   real(irealLUT) :: alpha, beta
   real(irealLUT) :: lb, rb, x1, x2! bounds of local spline
 
-  associate( pA => [zero, zero], pB => [one, zero], pC => wedge_C )
-    alpha = angle_between_two_vec(pB-pA, pC-pA)
-    beta  = angle_between_two_vec(pA-pB, pC-pB)
+  alpha = angle_between_two_vec([ 1._irealLUT, 0._irealLUT], wedge_C)
+  beta  = angle_between_two_vec([-1._irealLUT, 0._irealLUT], wedge_C - [1._irealLUT, 0._irealLUT])
 
-    if(param_phi.lt.-1._irealLUT) then ! range [ . , -1]
-      x1 = -2; x2 = -1
-      lb = pi/2 - alpha / 2
-      rb = pi/2 - alpha
-    elseif (param_phi.gt.1._irealLUT) then ! between [ 1, .]
-      x1 = 1; x2 = 2
-      lb = beta - pi/2
-      rb = beta/2 - pi/2
-    else ! range [-1, 1]
-      x1 = -1; x2 = 1
-      lb = pi/2 - alpha
-      rb = beta - pi/2
-    endif
-    phi = (rb - lb) / (x2-x1) * (param_phi - x1) + lb
-  end associate
+  if(param_phi.lt.-1._irealLUT) then ! range [ . , -1]
+    x1 = -2; x2 = -1
+    lb = pi/2 - alpha / 2
+    rb = pi/2 - alpha
+  elseif (param_phi.gt.1._irealLUT) then ! between [ 1, .]
+    x1 = 1; x2 = 2
+    lb = beta - pi/2
+    rb = beta/2 - pi/2
+  else ! range [-1, 1]
+    x1 = -1; x2 = 1
+    lb = pi/2 - alpha
+    rb = beta - pi/2
+  endif
+  phi = (rb - lb) / (x2-x1) * (param_phi - x1) + lb
 end function
 
 subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir, S_tol, T_tol)
@@ -1318,8 +1316,8 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
           call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
           call populate_LUT_dim('aspect_zx', size(preset_aspect11,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect11)
-          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([.8,.9485], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%dirconfig%dims(5), vrange=real([0.7760254, 0.9560254], irealLUT))
           !call populate_LUT_dim('phi',       25_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
           call populate_LUT_dim('param_phi', size(preset_param_phi11, kind=iintegers), OPP%dirconfig%dims(6), preset=preset_param_phi11)
           call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))

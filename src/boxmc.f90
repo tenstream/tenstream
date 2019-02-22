@@ -29,11 +29,16 @@ module m_boxmc
 #define isnan ieee_is_nan
 #endif
 
-  use m_helper_functions_dp, only : approx, mean, rmse, imp_reduce_sum, &
-    norm, deg2rad, compute_normal_3d, spherical_2_cartesian, &
-    hit_plane, square_intersection, triangle_intersection, &
+  use m_helper_functions_dp, only : &
+    hit_plane, square_intersection, triangle_intersection, pnt_in_cube
+
+  use m_helper_functions, only : CHKERR, get_arg, itoa ,cstr, &
+    rotate_angle_x, rotate_angle_y, rotate_angle_z, &
+    angle_between_two_vec, rotation_matrix_local_basis_to_world, &
+    approx, meanval, rmse, imp_reduce_sum, &
+    norm, deg2rad, rad2deg, pnt_in_triangle, &
+    compute_normal_3d, spherical_2_cartesian, &
     triangle_area_by_vertices
-  use m_helper_functions, only : CHKERR, get_arg, itoa
   use iso_c_binding
   use mpi
   use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi64, &
@@ -618,7 +623,7 @@ contains
 
     ! weight mean by calculated photons and compare it with results from other nodes
     Nglobal = Nlocal
-    call imp_reduce_sum(comm, Nglobal, myid)
+    call imp_reduce_sum(comm, Nglobal)
 
     call reduce_var(comm, Nlocal, Nglobal, S_out)
     call reduce_var(comm, Nlocal, Nglobal, T_out)
@@ -636,7 +641,7 @@ contains
 
       arr = arr*Nlocal
       do k=1,size(arr)
-        call imp_reduce_sum(comm, arr(k), myid)
+        call imp_reduce_sum(comm, arr(k))
       enddo
       arr = arr/Nglobal
     end subroutine

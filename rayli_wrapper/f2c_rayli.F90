@@ -46,6 +46,33 @@ module m_f2c_rayli
       real(c_double) :: flx_through_faces_ediff(1:Nfaces)
     end function
   end interface
+  interface
+    integer(c_int) function rpt_img_wedgeF90(&
+        img_Nx, img_Ny, &
+        Nphotons, Nwedges, Nfaces, Nverts, &
+        verts_of_face, wedges_of_face, vert_coords, &
+        kabs, ksca, g, albedo_on_faces, &
+        sundir, &
+        cam_location, cam_viewing_dir, cam_up_vec, &
+        fov_width, fov_height, &
+        img) bind(c, name='rpt_img_wedge')
+      use iso_c_binding
+      integer(c_size_t), value :: img_Nx, img_Ny
+      integer(c_size_t), value :: Nphotons
+      integer(c_size_t), value :: Nwedges
+      integer(c_size_t), value :: Nfaces
+      integer(c_size_t), value :: Nverts
+      integer(c_size_t) :: verts_of_face(1:3,1:Nfaces)
+      integer(c_size_t) :: wedges_of_face(1:2,1:Nfaces)
+      real(c_double) :: vert_coords(1:3,1:Nverts)
+      real(c_double) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
+      real(c_double) :: albedo_on_faces(1:Nfaces)
+      real(c_double) :: sundir(1:3)
+      real(c_double), dimension(1:3) :: cam_location, cam_viewing_dir, cam_up_vec
+      real(c_double), value :: fov_width, fov_height
+      real(c_double) :: img(1:img_Nx, 1:img_Ny)
+    end function
+  end interface
 
 #else
 
@@ -79,6 +106,40 @@ contains
       endif
     end function
 
+    integer(c_int) function rpt_img_wedgeF90(&
+        Nphotons, Nwedges, Nfaces, Nverts, &
+        verts_of_face, wedges_of_face, vert_coords, &
+        kabs, ksca, g, sundir, &
+        cam_location, cam_viewing_dir, cam_up_vec, &
+        fov_width, fov_height, img_dims, img) bind(c, name='rpt_img_wedge')
+      use iso_c_binding
+      integer(c_size_t), value :: Nphotons
+      integer(c_size_t), value :: Nwedges
+      integer(c_size_t), value :: Nfaces
+      integer(c_size_t), value :: Nverts
+      integer(c_size_t) :: verts_of_face(1:3,1:Nfaces)
+      integer(c_size_t) :: wedges_of_face(1:2,1:Nfaces)
+      real(c_double) :: vert_coords(1:3,1:Nverts)
+      real(c_double) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
+      real(c_double) :: albedo_on_faces(1:Nfaces)
+      real(c_double) :: sundir(1:3)
+      real(c_double), dimension(1:3) :: cam_location, cam_viewing_dir, cam_up_vec
+      real(c_double) :: fov_width, fov_height
+      integer(c_size_t) :: img_Nx, img_Ny
+      real(c_double) :: img(1:img_Nx, 1:img_Ny)
+
+      rpt_img_wedgeF90 = 1
+      call CHKERR(1_mpiint, "You tried calling The RayLi Monte Carlo solver "// &
+        "but the Tenstream package was not compiled to use it.."// &
+        " try to export RAYLI_DIR=<rayli-root>/build/package")
+
+      if(.False.) then ! unused var warnings
+        img(1,1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+wedges_of_face(1,1), c_double)
+        img(2,1) = vert_coords(1,1) + kabs(1) + ksca(1) + g(1) + sundir(1)
+        img(3,1) = cam_location(1) + cam_viewing_dir(1) + cam_up_vec(1) + fov_width + fov_height
+        img(4,1) = real(img_Nx+img_Ny, c_double)
+      endif
+    end function
 #endif
 end module
 

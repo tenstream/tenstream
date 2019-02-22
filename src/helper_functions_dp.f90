@@ -29,7 +29,7 @@ module m_helper_functions_dp
           cumsum, inc, swap, &
           mpi_logical_and, mpi_logical_or, imp_allreduce_min, imp_allreduce_max, imp_reduce_sum, &
           pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, &
-          angle_between_two_vec, determine_normal_direction, &
+          determine_normal_direction, &
           distance_to_edge, distances_to_triangle_edges, triangle_intersection, square_intersection, &
           triangle_area_by_vertices, rotation_matrix_local_basis_to_world, pnt_in_cube
 
@@ -357,15 +357,6 @@ module m_helper_functions_dp
       spherical_2_cartesian(3) = -cos(deg2rad(theta))
 
       if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
-    end function
-
-    pure function angle_between_two_vec(p1,p2)
-      real(ireal_dp),intent(in) :: p1(:), p2(:)
-      real(ireal_dp) :: angle_between_two_vec
-      real(ireal_dp) :: n1, n2
-      n1 = norm(p1)
-      n2 = norm(p2)
-      angle_between_two_vec = acos(dot_product(p1/norm(p1), p2/norm(p2)))
     end function
 
       !> @brief determine distance where a photon p intersects with a plane
