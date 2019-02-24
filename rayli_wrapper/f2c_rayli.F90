@@ -107,12 +107,15 @@ contains
     end function
 
     integer(c_int) function rpt_img_wedgeF90(&
+        img_Nx, img_Ny, &
         Nphotons, Nwedges, Nfaces, Nverts, &
         verts_of_face, wedges_of_face, vert_coords, &
         kabs, ksca, g, sundir, &
+        albedo_on_faces, &
         cam_location, cam_viewing_dir, cam_up_vec, &
-        fov_width, fov_height, img_dims, img) bind(c, name='rpt_img_wedge')
+        fov_width, fov_height, img) bind(c, name='rpt_img_wedge')
       use iso_c_binding
+      integer(c_size_t), value :: img_Nx, img_Ny
       integer(c_size_t), value :: Nphotons
       integer(c_size_t), value :: Nwedges
       integer(c_size_t), value :: Nfaces
@@ -125,7 +128,6 @@ contains
       real(c_double) :: sundir(1:3)
       real(c_double), dimension(1:3) :: cam_location, cam_viewing_dir, cam_up_vec
       real(c_double) :: fov_width, fov_height
-      integer(c_size_t) :: img_Nx, img_Ny
       real(c_double) :: img(1:img_Nx, 1:img_Ny)
 
       rpt_img_wedgeF90 = 1
@@ -135,7 +137,7 @@ contains
 
       if(.False.) then ! unused var warnings
         img(1,1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+wedges_of_face(1,1), c_double)
-        img(2,1) = vert_coords(1,1) + kabs(1) + ksca(1) + g(1) + sundir(1)
+        img(2,1) = vert_coords(1,1) + kabs(1) + ksca(1) + g(1) + sundir(1) + albedo_on_faces(1)
         img(3,1) = cam_location(1) + cam_viewing_dir(1) + cam_up_vec(1) + fov_width + fov_height
         img(4,1) = real(img_Nx+img_Ny, c_double)
       endif
