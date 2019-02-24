@@ -876,35 +876,51 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
   select type(OPP)
   class is (t_optprop_LUT_1_2)
     call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr)
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr)
+    endif
 
   class is (t_optprop_LUT_3_6)
     call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    endif
 
   class is (t_optprop_LUT_3_10)
     call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    endif
 
   class is (t_optprop_LUT_3_16)
     call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    endif
 
   class is (t_optprop_LUT_8_10)
     call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    endif
 
   class is (t_optprop_LUT_8_12)
     call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    endif
 
   class is (t_optprop_LUT_8_16)
     call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    endif
 
   class is (t_optprop_LUT_8_18)
     call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+    endif
 
   class is (t_optprop_LUT_wedge_5_8)
     wedge_C(1) = .5_irealLUT
