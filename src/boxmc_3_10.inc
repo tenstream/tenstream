@@ -219,14 +219,14 @@ subroutine update_diff_stream_3_10(bmc,vertices,p,S)
   type(t_photon),intent(in)    :: p
   real(ireal_dp),intent(inout) :: S(:)
 
-  !         _______2_______
-  !        |            9  |
-  !      6 |            7  | 5
+  !         _______1_______
+  !        |           10  |
+  !      5 |            8  | 6
   !        |               |
-  !        |   10          |
-  !        |   8           |
-  !      4 |_______________| 3
-  !                1
+  !        |   9           |
+  !        |   7           |
+  !      3 |_______________| 4
+  !                2
 
   if(p%side.eq.1) then
     S(1) = S(1)+p%weight

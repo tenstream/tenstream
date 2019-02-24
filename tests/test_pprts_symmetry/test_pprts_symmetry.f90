@@ -5,10 +5,11 @@ module test_pprts_symmetry
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_pprts_base, only : t_solver_3_10, t_solver_8_10
+  use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_8_10
   use m_pprts, only : init_pprts, set_optical_properties, &
     solve_pprts, set_angles, pprts_get_result_toZero, destroy_pprts
   use m_tenstream_options, only: read_commandline_options
+  use m_helper_functions, only: itoa
 
   use m_optprop, only: t_optprop, t_optprop_8_10, t_optprop_3_10
   use pfunit_mod
@@ -16,8 +17,8 @@ module test_pprts_symmetry
   implicit none
 
   class(t_optprop),allocatable :: OPP
-  type(t_solver_3_10)  :: solver
-  !type(t_solver_8_10) :: solver
+  type(t_solver_3_10) :: solver_3_10
+  type(t_solver_8_10) :: solver_8_10
 
 contains
   @before
@@ -34,8 +35,11 @@ contains
       deallocate(OPP)
     endif
 
-    if(solver%linitialized) then
-      call destroy_pprts(solver, lfinalizepetsc=.True.)
+    if(solver_8_10%linitialized) then
+      call destroy_pprts(solver_8_10, lfinalizepetsc=.True.)
+    endif
+    if(solver_3_10%linitialized) then
+      call destroy_pprts(solver_3_10, lfinalizepetsc=.True.)
     endif
   end subroutine teardown
 
@@ -104,18 +108,18 @@ contains
       end subroutine
     end subroutine
 
-  @test(npes =[2])
+  @test(npes =[1])
   subroutine test_pprts_symmetry_ex1(this)
     class (MpiTestMethod), intent(inout) :: this
 
     integer(mpiint) :: myid, numnodes, comm
 
-    integer(iintegers),parameter :: nxp=9,nyp=9,nv=100
+    integer(iintegers),parameter :: nxp=5,nyp=5,nv=5
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=10, theta0=60
     real(ireals),parameter :: albedo=0., dz=dx
     real(ireals),parameter :: incSolar=1000
-    real(ireals),parameter :: atolerance=1
+    real(ireals),parameter :: atolerance=.1
     real(ireals) :: dz1d(nv)
 
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
@@ -133,6 +137,11 @@ contains
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
 
+    call this_test(solver_3_10)
+
+    contains
+      subroutine this_test(solver)
+      class(t_solver), intent(inout) :: solver
     call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
 
     allocate(kabs(solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
@@ -148,9 +157,9 @@ contains
 
     if(cx.le.(solver%C_one%xe+1) .and. cx.gt.solver%C_one%xs) then
       if(cy.le.(solver%C_one%ye+1) .and. cy.gt.solver%C_one%ys) then
-        kabs(nv/2,  cx-solver%C_one%xs,  cy-solver%C_one%ys) = 1/dz
-        ksca(nv/2,  cx-solver%C_one%xs,  cy-solver%C_one%ys) = 1/dz
-        g   (nv/2,  cx-solver%C_one%xs,  cy-solver%C_one%ys) = .9
+        kabs(2,  cx-solver%C_one%xs,  cy-solver%C_one%ys) = 1/dz
+        ksca(2,  cx-solver%C_one%xs,  cy-solver%C_one%ys) = 1/dz
+        g   (2,  cx-solver%C_one%xs,  cy-solver%C_one%ys) = .9
       endif
     endif
 
@@ -176,37 +185,35 @@ contains
 
     if(myid.eq.0) then
       do j=lbound(fdir0,3), ubound(fdir0,3)
-        do i=lbound(fdir0,2), ubound(fdir0,2)
-          ni = ubound(fdir0,2)-i+lbound(fdir0,2)
-          nj = ubound(fdir0,3)-j+lbound(fdir0,3)
-
-          do k=lbound(fdiv0,1), ubound(fdiv0,1)
-            @assertEqual(fdiv0(k,ni,nj), fdiv1(k,i,j), atolerance, '10 -> 190: divergence not symmetric for azimuth')
-          enddo
-          do k=lbound(fdir0,1), ubound(fdir0,1)
-            @assertEqual(fdir0(k,ni,nj), fdir1(k,i,j), atolerance, '10 -> 190: Edirradiation not symmetric for azimuth')
-            @assertEqual(fdn0 (k,ni,nj), fdn1 (k,i,j), atolerance, '10 -> 190: Edn radiation not symmetric for azimuth')
-            @assertEqual(fup0 (k,ni,nj), fup1 (k,i,j), atolerance, '10 -> 190: Eup radiation not symmetric for azimuth')
-          enddo
-        enddo
+        print *, j, 'edir0', fdir0(4, :, j)
       enddo
-
-      do j=lbound(fdir2,3), ubound(fdir2,3)
-        do i=lbound(fdir2,2), ubound(fdir2,2)
-          ni = ubound(fdir2,2)-i+lbound(fdir2,2)
-          nj = ubound(fdir2,3)-j+lbound(fdir2,3)
-
-          do k=lbound(fdiv2,1), ubound(fdiv2,1)
-            @assertEqual(fdiv2(k,ni,nj), fdiv3(k,i,j), atolerance, '100 -> 280: divergence not symmetric for azimuth')
-          enddo
-          do k=lbound(fdir0,1), ubound(fdir0,1)
-            @assertEqual(fdir2(k,ni,nj), fdir3(k,i,j), atolerance, '100 -> 280: Edirradiation not symmetric for azimuth')
-            @assertEqual(fdn2 (k,ni,nj), fdn3 (k,i,j), atolerance, '100 -> 280: Edn radiation not symmetric for azimuth')
-            @assertEqual(fup2 (k,ni,nj), fup3 (k,i,j), atolerance, '100 -> 280: Eup radiation not symmetric for azimuth')
-          enddo
-        enddo
+      do j=lbound(fdir0,3), ubound(fdir0,3)
+        print *, j, 'edir1', fdir1(4, :, j)
       enddo
+      do j=lbound(fdir0,3), ubound(fdir0,3)
+        print *, j, 'edn0', fdn0(4, :, j)
+      enddo
+      do j=lbound(fdir0,3), ubound(fdir0,3)
+        print *, j, 'edn1', fdn1(4, :, j)
+      enddo
+      fdir1(:,:,:) = fdir1(:,nxp:1:-1,nyp:1:-1)
+      fdn1 (:,:,:) = fdn1 (:,nxp:1:-1,nyp:1:-1)
+      fup1 (:,:,:) = fup1 (:,nxp:1:-1,nyp:1:-1)
+      fdiv1(:,:,:) = fdiv1(:,nxp:1:-1,nyp:1:-1)
+      @assertEqual(fdiv0, fdiv1, atolerance, '10 -> 190: divergence not symmetric for azimuth')
+      @assertEqual(fdir0, fdir1, atolerance, '10 -> 190: Edirradiation not symmetric for azimuth ')
+      @assertEqual(fdn0 , fdn1 , atolerance, '10 -> 190: Edn radiation not symmetric for azimuth ')
+      @assertEqual(fup0 , fup1 , atolerance, '10 -> 190: Eup radiation not symmetric for azimuth ')
+
+      fdir3(:,:,:) = fdir3(:,nxp:1:-1,nyp:1:-1)
+      fdn3 (:,:,:) = fdn3 (:,nxp:1:-1,nyp:1:-1)
+      fup3 (:,:,:) = fup3 (:,nxp:1:-1,nyp:1:-1)
+      fdiv3(:,:,:) = fdiv3(:,nxp:1:-1,nyp:1:-1)
+      @assertEqual(fdiv2, fdiv3, atolerance, '10 -> 190: divergence not symmetric for azimuth')
+      @assertEqual(fdir2, fdir3, atolerance, '10 -> 190: Edirradiation not symmetric for azimuth ')
+      @assertEqual(fdn2 , fdn3 , atolerance, '10 -> 190: Edn radiation not symmetric for azimuth ')
+      @assertEqual(fup2 , fup3 , atolerance, '10 -> 190: Eup radiation not symmetric for azimuth ')
     endif
-    call destroy_pprts(solver, .True.)
+    end subroutine
   end subroutine
 end module

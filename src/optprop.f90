@@ -468,7 +468,7 @@ contains
     logical,intent(in)                :: dir
     real(irealLUT),intent(in)           :: tauz, w0, g, aspect_zx
     real(irealLUT),intent(in),optional  :: angles(:)
-    logical,intent(in),optional       :: lswitch_east, lswitch_north
+    logical,intent(in)                  :: lswitch_east, lswitch_north
     real(irealLUT),intent(out)          :: C(:)
 
     logical,parameter :: compute_coeff_online=.False.
@@ -603,7 +603,7 @@ contains
   subroutine dir2diff_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
 
     class(t_optprop) :: OPP
-    logical, intent(in),optional :: lswitch_east, lswitch_north
+    logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
 
     integer(iintegers)              :: dof
@@ -616,135 +616,111 @@ contains
       class is (t_optprop_3_6)
         !for solver_3_6 only the offset is changing in those sides which should be switched
         dof = 3
-        if(present(lswitch_east)) then
           if(lswitch_east) then
             newcoeff = coeff
             coeff(7:9)   = newcoeff([1, 2, 3] + dof*3)
             coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
           endif
-        endif
-        if(present(lswitch_north)) then
           if(lswitch_north) then
             newcoeff = coeff
             coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
             coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
           endif
-        endif
 
       class is (t_optprop_3_10)
         !for solver_3_10 the offset is chaning and the destination order
         dof = 3
-        if(present(lswitch_east)) then
           if(lswitch_east) then
             newcoeff = coeff
-            coeff( 1: 3) = newcoeff([1, 2, 3]        )
-            coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
+           !coeff( 1: 3) = newcoeff([1, 2, 3]        )
+           !coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
             coeff( 7: 9) = newcoeff([1, 2, 3] + dof*3)
             coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
             coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
             coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
-            coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
-            coeff(22:24) = newcoeff([1, 2, 3] + dof*7)
-            coeff(25:27) = newcoeff([1, 2, 3] + dof*8)
-            coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
+           ! coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
+           ! coeff(22:24) = newcoeff([1, 2, 3] + dof*7)
+           ! coeff(25:27) = newcoeff([1, 2, 3] + dof*8)
+           ! coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
           endif
-        endif
-        if(present(lswitch_north)) then
           if(lswitch_north) then
             newcoeff = coeff
-            coeff( 1: 3) = newcoeff([1, 2, 3]        )
-            coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
-            coeff( 7: 9) = newcoeff([1, 2, 3] + dof*3)
-            coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
-            coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
-            coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
+           !coeff( 1: 3) = newcoeff([1, 2, 3]        )
+           !coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
+           !coeff( 7: 9) = newcoeff([1, 2, 3] + dof*2)
+           !coeff(10:12) = newcoeff([1, 2, 3] + dof*3)
+           !coeff(13:15) = newcoeff([1, 2, 3] + dof*4)
+           !coeff(16:18) = newcoeff([1, 2, 3] + dof*5)
             coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
-            coeff(22:24) = newcoeff([1, 2, 3] + dof*7)
-            coeff(25:27) = newcoeff([1, 2, 3] + dof*8)
+            coeff(22:24) = newcoeff([1, 2, 3] + dof*8)
+            coeff(25:27) = newcoeff([1, 2, 3] + dof*7)
             coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
           endif
-        endif
 
 
       class is (t_optprop_3_16)
-        if(present(lswitch_east)) then
           if(lswitch_east) then
             call CHKERR(1_mpiint, 'not yet implemented')
-          endif
         endif
-        if(present(lswitch_north)) then
           if (lswitch_north) then
             call CHKERR(1_mpiint, 'not yet implemented')
           endif
-        endif
 
 
       class is (t_optprop_8_10)
         !for solver_8_10 the offset is chaning and the destination order
         dof = 8
-        if(present(lswitch_east)) then
           if(lswitch_east) then
             newcoeff = coeff
-            coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]        )
-            coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*1 )
+            !coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]        )
+            !coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*1 )
             coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*3 )
             coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*2 )
             coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*5 )
             coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*4 )
-            coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*6 )
-            coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*7 )
-            coeff(65:72) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*8 )
-            coeff(73:80) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*9 )
+            !coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*6 )
+            !coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*7 )
+            !coeff(65:72) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*8 )
+            !coeff(73:80) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*9 )
           endif
-        endif
-        if(present(lswitch_north)) then
           if (lswitch_north) then
             newcoeff =coeff
-            coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]        )
-            coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*1 )
-            coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*3 )
-            coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*2 )
-            coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*5 )
-            coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*4 )
+            !coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]        )
+            !coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*1 )
+            !coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*2 )
+            !coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*3 )
+            !coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*4 )
+            !coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*5 )
             coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*6 )
-            coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*7 )
-            coeff(65:72) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*8 )
+            coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*8 )
+            coeff(65:72) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*7 )
             coeff(73:80) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*9 )
           endif
-        endif
 
       class is (t_optprop_8_16)
-        if(present(lswitch_east)) then
           if(lswitch_east) then
             call CHKERR(1_mpiint, 'not yet implemented')
           endif
-        endif
-        if(present(lswitch_north)) then
           if (lswitch_north) then
             call CHKERR(1_mpiint, 'not yet implemented')
           endif
-        endif
 
       class is (t_optprop_8_18)
-        if(present(lswitch_east)) then
           if(lswitch_east) then
             call CHKERR(1_mpiint, 'not yet implemented')
           endif
-        endif
-        if(present(lswitch_north)) then
           if (lswitch_north) then
             call CHKERR(1_mpiint, 'not yet implemented')
           endif
-        endif
 
     end select
 
   end subroutine
 
   subroutine dir2dir_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
-    class(t_optprop)            :: OPP
-    logical, intent(in),optional:: lswitch_east, lswitch_north
-    real(irealLUT),intent(inout)  :: coeff(:)
+    class(t_optprop)             :: OPP
+    logical, intent(in)          :: lswitch_east, lswitch_north
+    real(irealLUT),intent(inout) :: coeff(:)
 
     integer(iintegers) :: dof
     real(irealLUT)       :: newcoeff(size(coeff))
@@ -777,7 +753,6 @@ contains
   contains
     subroutine symmetry_8()
       dof = 8
-      if(present(lswitch_east)) then
         if(lswitch_east) then
           newcoeff = coeff
           coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof  )
@@ -789,8 +764,6 @@ contains
           coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*6)
           coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*7)
         endif
-      endif
-      if(present(lswitch_north)) then
         if (lswitch_north) then
           newcoeff = coeff
           coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*2)
@@ -802,7 +775,6 @@ contains
           coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*6)
           coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*7)
         endif
-      endif
     end subroutine
 
   end subroutine

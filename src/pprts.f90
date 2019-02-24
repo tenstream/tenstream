@@ -646,7 +646,7 @@ module m_pprts
             sym_rot_phi = acos(cos(deg2rad(phi)))
             !print *,'1st phi swap',phi,' :: ',sym_rot_phi,'=',phi*pi/180,cos(phi*pi/180),acos(cos(phi*pi/180))
             ! and then mirror it onto range [0,90]
-            sym_rot_phi = int( rad2deg( asin(sin(sym_rot_phi)) ) )
+            sym_rot_phi = rad2deg( asin(sin(sym_rot_phi)) )
             !print *,'2nd phi swap',phi,' :: ',sym_rot_phi,'=',sin(sym_rot_phi),asin(sin(sym_rot_phi)),asin(sin(sym_rot_phi)) /pi * 180,int(asin(sin(sym_rot_phi)) /pi * 180)
         end function
   end subroutine
@@ -1653,6 +1653,7 @@ module m_pprts
 
     integer(iintegers) :: uid
     logical            :: lsolar
+    logical            :: lskip_diffuse_solve, lflg
 
     associate(  solutions => solver%solutions, &
                 C_dir     => solver%C_dir,     &
@@ -1746,6 +1747,12 @@ module m_pprts
     call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
     call setup_b(solver, solutions(uid),solver%b)
 
+    lskip_diffuse_solve = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-skip_diffuse_solve", lskip_diffuse_solve, lflg , ierr) ;call CHKERR(ierr)
+    if(lskip_diffuse_solve) then
+      call VecCopy(solver%b, solutions(uid)%ediff, ierr)
+    else
     ! ---------------------------- Ediff -------------------
     call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
     call set_diff_coeff(solver, Mdiff,C_diff)
@@ -1757,6 +1764,7 @@ module m_pprts
     call setup_ksp(solver%atm, kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
     call solve(solver, kspdiff, solver%b, solutions(uid)%ediff, solutions(uid)%diff_ksp_residual_history)
     call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
+    endif
 
     solutions(uid)%lchanged=.True.
     solutions(uid)%lWm2_diff=.False. !Tenstream solver returns fluxes as [W]
