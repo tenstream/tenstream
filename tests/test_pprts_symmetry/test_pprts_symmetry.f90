@@ -128,7 +128,7 @@ contains
     real(ireals),allocatable,dimension(:,:,:) :: fdir2,fdn2,fup2,fdiv2
     real(ireals),allocatable,dimension(:,:,:) :: fdir3,fdn3,fup3,fdiv3
 
-    integer(iintegers) :: i,j,k, ni,nj
+    integer(iintegers) :: j
     integer(iintegers) :: cx, cy      ! global indices of cloud
 
     dz1d = dz
