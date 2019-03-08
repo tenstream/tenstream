@@ -50,6 +50,7 @@ set( optprop_sources
   "boxmc_geometry.f90"
   "boxmc.f90"
   "optprop_parameters.f90"
+  "LUT_param_phi.F90"
   "optprop_LUT.f90"
   "optprop_ANN.f90"
   "optprop.f90"
