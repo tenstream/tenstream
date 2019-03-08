@@ -38,7 +38,8 @@ module m_helper_functions
     vec_proj_on_plane, get_arg, unique, itoa, ftoa, char_arr_to_str, cstr, strF2C,                                   &
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean,           &
-    resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec
+    resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
+    solve_quadratic
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -169,6 +170,10 @@ module m_helper_functions
   end interface
   interface delta_scale_optprop
     module procedure delta_scale_optprop_r32, delta_scale_optprop_r64
+  end interface
+
+  interface solve_quadratic
+    module procedure solve_quadratic_r32, solve_quadratic_r64
   end interface
 
   integer(iintegers), parameter :: npar_cumprod=8
@@ -1649,21 +1654,23 @@ module m_helper_functions
       M(3,:)=[u(3)*u(1)*omc - u(2)*s, u(3)*u(2)*omc + u(1)*s, u(3)*u(3)*omc + c     ]
     end function
 
-    pure function rotation_matrix_world_to_local_basis(ex, ey, ez)
+    ! the resulting matrix will transform a vector from world coords into the given new coord system
+    pure function rotation_matrix_world_to_local_basis(ex, ey, ez) result(M)
       real(ireals), dimension(3), intent(in) :: ex, ey, ez
       real(ireals), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
-      real(ireals), dimension(3,3) :: rotation_matrix_world_to_local_basis
-      rotation_matrix_world_to_local_basis(1,1) = dot_product(ex, kx)
-      rotation_matrix_world_to_local_basis(1,2) = dot_product(ex, ky)
-      rotation_matrix_world_to_local_basis(1,3) = dot_product(ex, kz)
-      rotation_matrix_world_to_local_basis(2,1) = dot_product(ey, kx)
-      rotation_matrix_world_to_local_basis(2,2) = dot_product(ey, ky)
-      rotation_matrix_world_to_local_basis(2,3) = dot_product(ey, kz)
-      rotation_matrix_world_to_local_basis(3,1) = dot_product(ez, kx)
-      rotation_matrix_world_to_local_basis(3,2) = dot_product(ez, ky)
-      rotation_matrix_world_to_local_basis(3,3) = dot_product(ez, kz)
+      real(ireals), dimension(3,3) :: M
+      M(1,1) = dot_product(ex, kx)
+      M(1,2) = dot_product(ex, ky)
+      M(1,3) = dot_product(ex, kz)
+      M(2,1) = dot_product(ey, kx)
+      M(2,2) = dot_product(ey, ky)
+      M(2,3) = dot_product(ey, kz)
+      M(3,1) = dot_product(ez, kx)
+      M(3,2) = dot_product(ez, ky)
+      M(3,3) = dot_product(ez, kz)
     end function
 
+    ! the resulting matrix will transform a vector from the given coord system into the world coordinate system
     pure function rotation_matrix_local_basis_to_world_r32(ex, ey, ez) result(M)
       real(real32), dimension(3), intent(in) :: ex, ey, ez
       real(real32), dimension(3), parameter :: kx=[1,0,0], ky=[0,1,0], kz=[0,0,1]
@@ -2040,4 +2047,54 @@ module m_helper_functions
       enddo
     endif
     end function
+
+
+! solve_quadratic equation ax2 + 2bx + c = 0
+pure subroutine solve_quadratic_r32(a, b, c, x, ierr)
+  real(kind=REAL32),intent(in) :: a,b,c
+  real(kind=REAL32),dimension(2), intent(out) :: x
+  integer(mpiint), intent(out) :: ierr
+
+  real(kind=REAL32) :: q ,dis
+  ierr = 0
+
+  dis = b**2 - 4*a*c
+  if (dis.lt.0) then
+    ierr = 1
+    return
+  endif
+
+  if (b.lt.0) then
+    q = -.5_REAL32*(b - sqrt(dis))
+  else
+    q = -.5_REAL32*(b + sqrt(dis))
+  endif
+  x(:) = [ q/a, c/q ]
+  if(x(1).gt.x(2)) x = [x(2), x(1)]
+end subroutine
+
+pure subroutine solve_quadratic_r64(a, b, c, x, ierr)
+  real(kind=REAL64),intent(in) :: a,b,c
+  real(kind=REAL64),dimension(2), intent(out) :: x
+  integer(mpiint), intent(out) :: ierr
+
+  real(kind=REAL64) :: q ,dis
+  ierr = 0
+
+  dis = b**2 - 4*a*c
+  if (dis.lt.0) then
+    ierr = 1
+    return
+  endif
+
+  if (b.lt.0) then
+    q = -.5_REAL64*(b - sqrt(dis))
+  else
+    q = -.5_REAL64*(b + sqrt(dis))
+  endif
+  x(:) = [ q/a, c/q ]
+  if(x(1).gt.x(2)) x = [x(2), x(1)]
+end subroutine
+
+
   end module

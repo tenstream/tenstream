@@ -4,7 +4,8 @@ module test_helper_functions
   use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
     compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction, &
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
-    search_sorted_bisection
+    search_sorted_bisection, solve_quadratic, &
+    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
 
   use pfunit_mod
 
@@ -303,6 +304,79 @@ subroutine test_rotation_matrix_around_axis_vec(this)
 end subroutine
 
 @test(npes=[1])
+subroutine test_rotation_matrix_world_to_local(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals), dimension(3) :: ex, ey, ez, x1
+  real(ireals) :: rot_angle, Mrot(3,3)
+  real(ireals), parameter :: eps=sqrt(epsilon(eps))
+  integer(iintegers) :: i
+
+  ex = [1,0,0]
+  ey = [0,1,0]
+  ez = [0,0,1]
+  x1 = [1,2,3]
+
+  ! because ex, ey, ez are just world coords, this transformation does not do anything
+  Mrot = rotation_matrix_world_to_local_basis(ex, ey, ez)
+  @assertEqual(x1, matmul(Mrot, x1), eps)
+
+  ! flip the coord system
+  Mrot = rotation_matrix_world_to_local_basis(-ex, -ey, -ez)
+  @assertEqual(x1, -matmul(Mrot, x1), eps)
+
+
+  ex = [0,0,1]
+  ey = [0,1,0]
+  ez = [1,0,0]
+  x1 = [1,2,3]
+
+  Mrot = rotation_matrix_world_to_local_basis(ex, ey, ez)
+  @assertEqual([3,2,1], matmul(Mrot, x1), eps)
+
+
+  ! have a local basis with 45 deg rotation in the xy-plane
+  ex = [ 1,1,0]; ex = ex/norm(ex)
+  ey = [-1,1,0]; ey = ey/norm(ey)
+  ez = [ 0,0,1]; ez = ez/norm(ez)
+  x1 = [ 1, 1, 1]
+
+  Mrot = rotation_matrix_world_to_local_basis(ex, ey, ez)
+  @assertEqual([ sqrt(2._ireals),0._ireals,1._ireals], matmul(Mrot, x1), eps)
+end subroutine
+
+@test(npes=[1])
+subroutine test_rotation_matrix_local_basis_to_world(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals), dimension(3) :: ex, ey, ez, x1
+  real(ireals) :: rot_angle, Mrot(3,3)
+  real(ireals), parameter :: eps=sqrt(epsilon(eps))
+  integer(iintegers) :: i
+
+  ex = [1,0,0]
+  ey = [0,1,0]
+  ez = [0,0,1]
+  x1 = [1,2,3]
+
+  ! because ex, ey, ez are the same as world coords, this transformation does not do anything
+  Mrot = rotation_matrix_local_basis_to_world(ex, ey, ez)
+  @assertEqual(x1, matmul(Mrot, x1), eps)
+
+  ! flip the coord system
+  Mrot = rotation_matrix_local_basis_to_world(-ex, -ey, -ez)
+  @assertEqual(x1, -matmul(Mrot, x1), eps)
+
+
+  ! have a local basis with 45 deg rotation in the xy-plane
+  ex = [ 1,1,0]; ex = ex/norm(ex)
+  ey = [-1,1,0]; ey = ey/norm(ey)
+  ez = [ 0,0,1]; ez = ez/norm(ez)
+  x1 = [ sqrt(2._ireals),0._ireals,1._ireals]
+
+  Mrot = rotation_matrix_local_basis_to_world(ex, ey, ez)
+  @assertEqual([1,1,1], matmul(Mrot, x1), eps)
+end subroutine
+
+@test(npes=[1])
 subroutine test_char_arr_to_str(this)
   class (MpiTestMethod), intent(inout) :: this
   character(len=4)  :: a(3)
@@ -328,5 +402,28 @@ subroutine test_search_sorted_bisection(this)
   @assertEqual(2.5, search_sorted_bisection(A,   1._ireals))
   @assertEqual(3.0, search_sorted_bisection(A,   2._ireals))
   @assertEqual(3.0, search_sorted_bisection(A,   3._ireals))
+end subroutine
+
+@test(npes=[1])
+subroutine test_solve_quadratic(this)
+  class (MpiTestMethod), intent(inout) :: this
+  integer(mpiint) :: ierr
+  real(ireals) :: x(2)
+
+
+  call solve_quadratic(1._ireals,-2._ireals,-3._ireals, x, ierr)
+  @assertEqual(0, ierr)
+  @assertEqual([-1._ireals, 3._ireals], x)
+
+  call solve_quadratic(2._ireals, 4._ireals, -4._ireals, x, ierr)
+  @assertEqual(0, ierr)
+  @assertEqual([-1._ireals - sqrt(3._ireals), -1._ireals + sqrt(3._ireals)], x)
+
+  call solve_quadratic(1._ireals, 2._ireals, 3._ireals, x, ierr)
+  @assertFalse(ierr.eq.0)
+
+  call solve_quadratic(1._ireals, 2._ireals, 1._ireals, x, ierr)
+  @assertEqual(0, ierr)
+  @assertEqual([-1._ireals, -1._ireals], x)
 end subroutine
 end module
