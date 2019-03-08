@@ -208,7 +208,7 @@ module m_boxmc_geometry
       real(ireals), intent(in) :: A(2), B(2), C(2), dz
       real(ireals), allocatable, intent(inout) :: vertices(:)
       real(ireals), intent(in), optional :: sphere_radius
-      real(ireals) :: s
+      real(ireals) :: s, center(3)
 
       if(allocated(vertices)) deallocate(vertices)
       allocate(vertices(2*3*3))
@@ -222,16 +222,29 @@ module m_boxmc_geometry
       vertices(16:17) = C
       vertices([12,15,18]) = dz
 
+      !print *,'A', vertices(1:3)
+      !print *,'B', vertices(4:6)
+      !print *,'C', vertices(7:9)
+      !print *,'D', vertices(10:12)
+      !print *,'E', vertices(13:15)
+      !print *,'F', vertices(16:18)
+
       if(present(sphere_radius)) then
         if(sphere_radius.gt.zero) then
-          s = one - (sphere_radius + dz) / sphere_radius
-          vertices(1:2) = A - s/4 * ((B-A) + (C-A))
-          vertices(4:5) = B - s/4 * ((A-B) + (C-B))
-          vertices(7:8) = C - s/4 * ((A-C) + (B-C))
-
-          vertices(10:11) = A + s/4 * ((B-A) + (C-A))
-          vertices(13:14) = B + s/4 * ((A-B) + (C-B))
-          vertices(16:17) = C + s/4 * ((A-C) + (B-C))
+          s = (sphere_radius + dz) / sphere_radius
+          associate(D=>vertices(10:12), E=>vertices(13:15), F=>vertices(16:18))
+            center = (D+E+F)/3
+            D = center + s * (D - center)
+            E = center + s * (E - center)
+            F = center + s * (F - center)
+          end associate
+          !print *,'center', center, 's', s
+          !print *,'sA', vertices(1:3)
+          !print *,'sB', vertices(4:6)
+          !print *,'sC', vertices(7:9)
+          !print *,'sD', vertices(10:12)
+          !print *,'sE', vertices(13:15)
+          !print *,'sF', vertices(16:18)
         endif
       endif
     end subroutine
@@ -500,11 +513,9 @@ module m_boxmc_geometry
 
     subroutine wedge_halfspaces(vertices, origins, normals)
       real(ireal_dp), intent(in) :: vertices(:)
-      real(ireal_dp), allocatable, intent(out) :: origins(:,:), normals(:,:) ! size 3,5
+      real(ireal_dp), intent(out) :: origins(:,:), normals(:,:) ! size 3,5
 
       if(size(vertices).ne.2*3*3) call CHKERR(1_mpiint, 'did not expect that')
-      if(.not.allocated(origins)) allocate(origins(3,5))
-      if(.not.allocated(normals)) allocate(normals(3,5))
       associate( &
           A => vertices(1:3), &
           B => vertices(4:6), &

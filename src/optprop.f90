@@ -24,17 +24,18 @@ module m_optprop
 #define isnan ieee_is_nan
 #endif
 
-use m_optprop_parameters, only : ldebug_optprop, coeff_mode
-use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, swap
+use m_optprop_parameters, only : ldebug_optprop, coeff_mode, wedge_sphere_radius
+use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, rad2deg, swap, norm
 use m_data_parameters, only: ireals,irealLUT,irealLUT,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_8_10, t_optprop_LUT_3_16, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
-  t_optprop_LUT_wedge_5_8, t_optprop_LUT_wedge_18_8, &
-  param_phi_from_azimuth
+  t_optprop_LUT_wedge_5_8, t_optprop_LUT_wedge_18_8
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
 use m_eddington, only: eddington_coeff_zdun
 use m_tenstream_options, only: twostr_ratio
+
+use m_LUT_param_phi, only: theta_from_param_theta, iterative_phi_theta_from_param_phi_and_param_theta
 
 use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 
@@ -149,7 +150,7 @@ contains
         real(irealLUT),intent(in)           :: tauz, w0, g, aspect_zx
         real(irealLUT),intent(in),optional  :: angles(:)             ! phi and azimuth in degree
         logical,intent(in),optional         :: lswitch_east, lswitch_north
-        real(irealLUT),intent(in),optional  :: wedge_coords(:)       ! 6 coordinates of wedge triangle, only used for wedge OPP types
+        real(irealLUT),intent(in),optional  :: wedge_coords(:)       ! 2 coordinates of wedge C_point, only used for wedge OPP types
         real(irealLUT),intent(out) :: C(:)
         integer(mpiint), intent(out) :: ierr
 
@@ -193,7 +194,7 @@ contains
     logical,intent(in)                :: ldir
     real(irealLUT),intent(in)           :: tauz, w0, g, aspect_zx
     real(irealLUT),intent(in),optional  :: in_angles(:)
-    real(irealLUT),intent(in),optional  :: wedge_coords(:) ! 6 coordinates of wedge triangle, only used for wedge OPP types, have to be in local coords already (i.e. A=[0,0], B=[0,1], C=[...])
+    real(irealLUT),intent(in),optional  :: wedge_coords(:) ! 2 coordinates of wedge C_point, only used for wedge OPP types
     real(irealLUT),intent(out)          :: C(:)
     integer(mpiint), intent(out) :: ierr
 
@@ -206,11 +207,11 @@ contains
     endif
 
     if(ldebug_optprop) then
-      if(.not.all(approx(wedge_coords([1,2,4]), 0._irealLUT)) &
-        .or. .not.approx(wedge_coords(3), 1._irealLUT)) then
-        print *,'wedge_coords:', wedge_coords
-        call CHKERR(1_mpiint, 'provided wedge coords have to in local bmc coordinate system!')
-      endif
+      !if(.not.all(approx(wedge_coords([1,2,4]), 0._irealLUT)) &
+      !  .or. .not.approx(wedge_coords(3), 1._irealLUT)) then
+      !  print *,'wedge_coords:', wedge_coords
+      !  call CHKERR(1_mpiint, 'provided wedge coords have to in local bmc coordinate system!')
+      !endif
       call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, in_angles)
     endif
 
@@ -232,56 +233,62 @@ contains
 
     if(.False. .and. ldir) call print_coeff_diff()
 
-    if(ldir .and. present(in_angles)) then
-      call handle_critical_azimuth()
-    endif
+    !if(ldir .and. present(in_angles)) then
+    !  call handle_critical_azimuth()
+    !endif
     contains
-      subroutine handle_critical_azimuth()
-        use m_data_parameters, only: pi=>pi_irealLUT
-        use m_helper_functions, only: angle_between_two_vec, search_sorted_bisection, rad2deg
-        use m_optprop_LUT, only: find_lut_dim_by_name
+      !subroutine handle_critical_azimuth()
+      !  use m_data_parameters, only: pi=>pi_irealLUT
+      !  use m_helper_functions, only: angle_between_two_vec, search_sorted_bisection, rad2deg
+      !  use m_optprop_LUT, only: find_lut_dim_by_name
 
-        real(irealLUT) :: param_phi
-        logical :: lsample_critical
+      !  real(irealLUT) :: param_phi
+      !  logical :: lsample_critical
 
-        associate( pA => wedge_coords(1:2), pB => wedge_coords(3:4), pC => wedge_coords(5:6) )
-          param_phi = param_phi_from_azimuth(deg2rad(in_angles(1)), pC)
+      !  associate( pA => wedge_coords(1:2), pB => wedge_coords(3:4), pC => wedge_coords(5:6) )
+      !    param_phi = param_phi_from_azimuth(deg2rad(in_angles(1)), pC)
 
-          lsample_critical = .False.
-          if(approx(abs(param_phi), 1._irealLUT, 100*epsilon(1._irealLUT))) lsample_critical = .True.
+      !    lsample_critical = .False.
+      !    if(approx(abs(param_phi), 1._irealLUT, 100*epsilon(1._irealLUT))) lsample_critical = .True.
 
-          !print *,'param_phi', param_phi, lsample_critical
-          if(lsample_critical) then
-            if(param_phi.le.-1._irealLUT) then
-              param_phi = -1._irealLUT-100*(epsilon(1._irealLUT))
-            elseif(param_phi.ge.1._irealLUT) then !1.0001
-              param_phi = 1._irealLUT+100*(epsilon(1._irealLUT))
-            elseif(param_phi.lt.0._irealLUT) then !-.999
-              param_phi = -1._irealLUT+100*(epsilon(1._irealLUT))
-            else ! .999
-              param_phi = 1._irealLUT-100*(epsilon(1._irealLUT))
-            endif
-            !print *,'param_phi -> ', param_phi, lsample_critical
-            !call do_bmc_computation(C)
-            call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, pC(1), pC(2), param_phi, in_angles(2)], C)
-          endif
-        end associate
+      !    !print *,'param_phi', param_phi, lsample_critical
+      !    if(lsample_critical) then
+      !      if(param_phi.le.-1._irealLUT) then
+      !        param_phi = -1._irealLUT-100*(epsilon(1._irealLUT))
+      !      elseif(param_phi.ge.1._irealLUT) then !1.0001
+      !        param_phi = 1._irealLUT+100*(epsilon(1._irealLUT))
+      !      elseif(param_phi.lt.0._irealLUT) then !-.999
+      !        param_phi = -1._irealLUT+100*(epsilon(1._irealLUT))
+      !      else ! .999
+      !        param_phi = 1._irealLUT-100*(epsilon(1._irealLUT))
+      !      endif
+      !      !print *,'param_phi -> ', param_phi, lsample_critical
+      !      !call do_bmc_computation(C)
+      !      call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, pC(1), pC(2), param_phi, in_angles(2)], C)
+      !    endif
+      !  end associate
 
-      end subroutine
+      !end subroutine
       subroutine do_bmc_computation(Cbmc)
         real(irealLUT), intent(out) :: Cbmc(:)
         real(ireals), allocatable :: vertices(:)
+        real(irealLUT) :: phi, theta
 
-        if(.not.present(wedge_coords)) &
-          call CHKERR(1_mpiint, 'if you want to compute wedge coeffs online, you need to supply wedge coords')
-        call setup_default_wedge_geometry( &
-          real(wedge_coords(1:2), ireals), &
-          real(wedge_coords(3:4), ireals), &
-          real(wedge_coords(5:6), ireals), &
-          real(aspect_zx, ireals), vertices)
+        call setup_default_wedge_geometry(&
+          real([0,0], ireals), &
+          real([1,0], ireals), &
+          real(wedge_coords, ireals), &
+          real(aspect_zx, ireals), &
+          vertices, &
+          real(wedge_sphere_radius, ireals))
 
-        !print *,'Cbmc', tauz, w0, g, aspect_zx, in_angles, wedge_coords(5:6)
-        call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, in_angles)
+        call iterative_phi_theta_from_param_phi_and_param_theta(&
+          real(vertices, irealLUT), &
+          in_angles(1), in_angles(2), phi, theta, ierr); call CHKERR(ierr)
+
+        print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, in_angles, rad2deg(phi), rad2deg(theta)
+        call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, &
+          [rad2deg(phi), rad2deg(theta)])
       end subroutine
       subroutine print_coeff_diff()
         real(irealLUT) :: Cbmc(size(C))
@@ -305,43 +312,38 @@ contains
         real(irealLUT), intent(in) :: tauz, w0, aspect_zx
         logical,intent(in)       :: ldir
         real(irealLUT),intent(in),optional :: in_angles(:)
-        real(irealLUT) :: save_theta, param_phi
-
-        associate( C_pnt => wedge_coords(5:6) )
 
           select case (coeff_mode)
           case(i0) ! LookUpTable Mode
             if(present(in_angles)) then ! obviously we want the direct coefficients
-              if(in_angles(2).gt.90._irealLUT) then
-                save_theta = 180._irealLUT - in_angles(2)
-              else
-                save_theta = in_angles(2)
-              endif
-              param_phi = param_phi_from_azimuth(deg2rad(in_angles(1)), C_pnt)
 
-              if(ldir) then ! dir2dir
-                call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), param_phi, save_theta], C)
-                !call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, in_angles(1), save_theta], C)
-              else ! dir2diff
-                call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2), param_phi, save_theta], C)
-                !call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, in_angles(1), save_theta], C)
-              endif
-              call handle_sza_gt_90_case()
+              associate(&
+                  Cx => wedge_coords(1), &
+                  Cy => wedge_coords(2), &
+                  param_phi => in_angles(1), &
+                  param_theta => in_angles(2) )
+                if(ldir) then ! dir2dir
+                  call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, Cx, Cy, param_phi, param_theta], C)
+                else ! dir2diff
+                  call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, Cx, Cy, param_phi, param_theta], C)
+                endif
+              end associate
             else
               ! diff2diff
-              call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, aspect_zx, C_pnt(1), C_pnt(2)], C)
+              associate(Cx => wedge_coords(1), Cy => wedge_coords(2))
+                call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, aspect_zx, Cx, Cy], C)
+              end associate
             endif
 
           case default
             call CHKERR(1_mpiint, 'particular value of coeff mode in optprop_parameters is not defined: '//itoa(coeff_mode))
           end select
-        end associate
       end subroutine
 
       logical function handle_aspect_zx_1D_case()
         real(ireals) :: c11,c12,c13,c23,c33,g1,g2
         real(irealLUT) :: restricted_aspect_zx
-        real(ireals) :: save_theta
+        real(irealLUT) :: mu
 
         handle_aspect_zx_1D_case = .False.
 
@@ -349,20 +351,16 @@ contains
         ! this has to be fixed for anisotropic grids
 
         if(present(in_angles)) then
-          if(in_angles(2).gt.90._irealLUT) then
-            save_theta = 180._irealLUT - in_angles(2)
-          else
-            save_theta = in_angles(2)
-          endif
-          !if(aspect_zx.gt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(2)) then
+
           if(aspect_zx.ge.twostr_ratio) then
             C = zero
+            mu = cos(theta_from_param_theta(in_angles(2), 0._irealLUT))
 
             call eddington_coeff_zdun(&
               real(tauz, ireals), &
               real(w0, ireals), &
               real(g, ireals), &
-              cos(deg2rad(save_theta)), &
+              real(mu, ireals), &
               c11,c12,c13,c23,c33,g1,g2)
 
             if(ldir) then
@@ -436,31 +434,6 @@ contains
 
         endif
       end function
-
-      subroutine handle_sza_gt_90_case()
-        if(in_angles(2).gt.90._irealLUT) then
-          if(ldir) then
-            call swap(C( 1: 5),C(21:25))
-            call swap(C( 6), C(10))
-            call swap(C(11), C(15))
-            call swap(C(16), C(20))
-          else
-            call swap(C( 1: 5), C(36:40))
-
-            call swap(C( 6:10), C(11:15))
-            call swap(C( 6), C(10))
-            call swap(C(11), C(15))
-
-            call swap(C(16:20), C(21:25))
-            call swap(C(16), C(20))
-            call swap(C(21), C(25))
-
-            call swap(C(26:30), C(31:35))
-            call swap(C(26), C(30))
-            call swap(C(31), C(35))
-          endif
-        endif
-      end subroutine
   end subroutine
 
   subroutine boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)

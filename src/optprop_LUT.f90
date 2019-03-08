@@ -51,6 +51,7 @@ module m_optprop_LUT
     preset_param_phi11,                   &
     preset_param_phi19,                   &
     preset_param_phi83,                   &
+    preset_param_theta13,                 &
     preset_aspect5,                       &
     preset_aspect7,                       &
     preset_aspect11,                      &
@@ -75,6 +76,9 @@ module m_optprop_LUT
   use m_mmap, only : arr_to_mmap, munmap_mmap_ptr
 
   use m_boxmc_geometry, only : setup_default_wedge_geometry, setup_default_unit_cube_geometry
+
+  use m_LUT_param_phi, only: param_phi_from_azimuth, azimuth_from_param_phi, &
+    iterative_phi_theta_from_param_phi_and_param_theta
 
   implicit none
 
@@ -623,7 +627,7 @@ subroutine createLUT(OPP, comm, config, S, T)
                 T%stddev_tol(lutindex) = maxval(T_tol)
               endif
 
-              if (ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
+              if (.False. .and. ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
 
               if( mod(lutindex-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
                 print *,'Calculated LUT...', lutindex, &
@@ -844,12 +848,8 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
   real(ireals), intent(out), allocatable :: vertices(:)
   real(ireals), intent(out) :: tauz, w0, g, phi, theta
 
-  real(ireals) :: aspect_zx, aspect_zy, param_phi
-  real(ireals), dimension(2) :: wedge_C
+  real(ireals) :: aspect_zx, aspect_zy
   integer(mpiint) :: ierr
-
-  call get_sample_pnt_by_name_and_index(config, 'aspect_zx', index_1d, aspect_zx, ierr)
-  call CHKERR(ierr, 'aspect_zx has to be present')
 
   call get_sample_pnt_by_name_and_index(config, 'tau', index_1d, tauz, ierr)
   call CHKERR(ierr, 'tauz has to be present')
@@ -857,15 +857,13 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
   call get_sample_pnt_by_name_and_index(config, 'w0', index_1d, w0, ierr)
   call CHKERR(ierr, 'w0 has to be present')
 
-  if(dir) then
-    call get_sample_pnt_by_name_and_index(config, 'theta', index_1d, theta, ierr)
-    call CHKERR(ierr, 'theta has to be present for direct calculations')
-  endif
-
   call get_sample_pnt_by_name_and_index(config, 'g', index_1d, g, ierr)
   if(ierr.ne.0) then
     g = zero ! defaults to isotropic scattering
   endif
+
+  call get_sample_pnt_by_name_and_index(config, 'aspect_zx', index_1d, aspect_zx, ierr)
+  call CHKERR(ierr, 'aspect_zx has to be present')
 
   call get_sample_pnt_by_name_and_index(config, 'aspect_zy', index_1d, aspect_zy, ierr)
   if(ierr.ne.0) then
@@ -875,161 +873,75 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
   ! First define Default vertices for Cube Geometry
   select type(OPP)
   class is (t_optprop_LUT_1_2)
-    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    if(dir) then
-      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr)
-    endif
+    call prep_pprts()
 
   class is (t_optprop_LUT_3_6)
-    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    if(dir) then
-      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
-    endif
+    call prep_pprts()
 
   class is (t_optprop_LUT_3_10)
-    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    if(dir) then
-      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
-    endif
+    call prep_pprts()
 
   class is (t_optprop_LUT_3_16)
-    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    if(dir) then
-      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
-    endif
+    call prep_pprts()
 
   class is (t_optprop_LUT_8_10)
-    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    if(dir) then
-      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
-    endif
+    call prep_pprts()
 
   class is (t_optprop_LUT_8_12)
-    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    if(dir) then
-      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
-    endif
+    call prep_pprts()
 
   class is (t_optprop_LUT_8_16)
-    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    if(dir) then
-      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
-    endif
+    call prep_pprts()
 
   class is (t_optprop_LUT_8_18)
-    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
-    if(dir) then
-      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
-    endif
+    call prep_pprts()
 
   class is (t_optprop_LUT_wedge_5_8)
-    wedge_C(1) = .5_irealLUT
-    call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr)
-    call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
-
-    wedge_C(2) = 0.8660254_irealLUT
-    call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr)
-    call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
-
-    call setup_default_wedge_geometry([zero, zero], [one, zero], &
-      wedge_C, aspect_zx, vertices, &
-      sphere_radius=real(wedge_sphere_radius, ireals))
-
-    call get_sample_pnt_by_name_and_index(config, 'param_phi', index_1d, param_phi, ierr)
-    if(dir) then
-      call CHKERR(ierr, 'param_phi has to be present for wedge calculations')
-      phi = rad2deg(azimuth_from_param_phi(real(param_phi, irealLUT), real(wedge_C, irealLUT)))
-    endif
+    call prep_plexrt()
 
   class is (t_optprop_LUT_wedge_18_8)
-    wedge_C(1) = .5_irealLUT
-    call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr)
-    call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
-
-    wedge_C(2) = 0.8660254_irealLUT
-    call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr)
-    call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
-
-    call setup_default_wedge_geometry([zero, zero], [one, zero], &
-      wedge_C, aspect_zx, vertices, &
-      sphere_radius=real(wedge_sphere_radius, ireals))
-
-    call get_sample_pnt_by_name_and_index(config, 'param_phi', index_1d, param_phi, ierr)
-    if(dir) then
-      call CHKERR(ierr, 'param_phi has to be present for wedge calculations')
-      phi = rad2deg(azimuth_from_param_phi(real(param_phi, irealLUT), real(wedge_C, irealLUT)))
-    endif
+    call prep_plexrt()
 
   class default
     call CHKERR(1_mpiint, 'unexpected type for optprop_LUT object!')
 end select
-end subroutine
-
-!> @brief reverse transformation from azimuth(radians) to param_phi[-2,2]
-function param_phi_from_azimuth(phi, wedge_C) result (param_phi)
-  use m_data_parameters, only: pi=>pi_irealLUT
-  use m_helper_functions, only: angle_between_two_vec, rad2deg
-  real(irealLUT), intent(in) :: phi, wedge_C(:)
-  real(irealLUT) :: param_phi
-
-  real(irealLUT) :: alpha, beta
-  real(irealLUT) :: lb, rb, x1, x2! bounds of local spline
-
-  associate( pA => [0._irealLUT, 0._irealLUT], pB => [1._irealLUT, 0._irealLUT], pC => wedge_C )
-    alpha = angle_between_two_vec(pB-pA, pC-pA)
-    beta  = angle_between_two_vec(pA-pB, pC-pB)
-
-    if(phi.gt.pi/2-alpha) then ! range [ . , -1]
-      x1 = -2; x2 = -1
-      lb = pi/2 - alpha / 2
-      rb = pi/2 - alpha
-    elseif (phi.lt.beta-pi/2) then ! between [ 1, .]
-      x1 = 1; x2 = 2
-      lb = beta - pi/2
-      rb = beta/2 - pi/2
-    else ! range [-1, 1]
-      x1 = -1; x2 = 1
-      lb = pi/2 - alpha
-      rb = beta - pi/2
+contains
+  subroutine prep_pprts()
+    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
+      call get_sample_pnt_by_name_and_index(config, 'theta', index_1d, theta, ierr); call CHKERR(ierr, 'theta has to be present for direct calculations')
     endif
-    param_phi = (x2-x1) / (rb - lb) * (phi - lb) + x1
-  end associate
-end function
+  end subroutine
+  subroutine prep_plexrt()
+    real(ireals) :: param_phi, param_theta
+    real(ireals), dimension(2) :: wedge_C
+    real(irealLUT) :: rphi, rtheta
 
-!> @brief translate from the parameterized azimuth [-2,2] to azimuth [radians]
-!> @details we use local splines so that it ensures we have mapped:
-!>   alpha and beta are the inner angles of a wedge triangle between AB and AC or BA and BC respectively
-!>   90 - alpha/2 -> -2
-!>   90 - alpha   -> -1
-!>   beta   - 90  ->  1
-!>   beta/2 - 90  ->  2
-function azimuth_from_param_phi(param_phi, wedge_C) result (phi)
-  use m_data_parameters, only: pi=>pi_irealLUT
-  use m_helper_functions, only: angle_between_two_vec, rad2deg
-  real(irealLUT), intent(in) :: param_phi, wedge_C(:)
-  real(irealLUT) :: phi
+    wedge_C(1) = .5_irealLUT
+    call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr)
+    call CHKERR(ierr, 'wedge_coord_Cx has to be present for wedge calculations')
 
-  real(irealLUT) :: alpha, beta
-  real(irealLUT) :: lb, rb, x1, x2! bounds of local spline
+    wedge_C(2) = 0.8660254_irealLUT
+    call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cy', index_1d, wedge_C(2), ierr)
+    call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
 
-  alpha = angle_between_two_vec([ 1._irealLUT, 0._irealLUT], wedge_C)
-  beta  = angle_between_two_vec([-1._irealLUT, 0._irealLUT], wedge_C - [1._irealLUT, 0._irealLUT])
+    call setup_default_wedge_geometry([zero, zero], [one, zero], &
+      wedge_C, aspect_zx, vertices, &
+      sphere_radius=real(wedge_sphere_radius, ireals))
 
-  if(param_phi.lt.-1._irealLUT) then ! range [ . , -1]
-    x1 = -2; x2 = -1
-    lb = pi/2 - alpha / 2
-    rb = pi/2 - alpha
-  elseif (param_phi.gt.1._irealLUT) then ! between [ 1, .]
-    x1 = 1; x2 = 2
-    lb = beta - pi/2
-    rb = beta/2 - pi/2
-  else ! range [-1, 1]
-    x1 = -1; x2 = 1
-    lb = pi/2 - alpha
-    rb = beta - pi/2
-  endif
-  phi = (rb - lb) / (x2-x1) * (param_phi - x1) + lb
-end function
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'param_phi', index_1d, param_phi, ierr)
+      call CHKERR(ierr, 'param_phi has to be present for wedge calculations')
+      call get_sample_pnt_by_name_and_index(config, 'param_theta', index_1d, param_theta, ierr)
+      call CHKERR(ierr, 'param_theta has to be present for wedge calculations')
+      call iterative_phi_theta_from_param_phi_and_param_theta(real(vertices, irealLUT), &
+        real(param_phi, irealLUT), real(param_theta, irealLUT), rphi, rtheta, ierr); call CHKERR(ierr)
+      phi = rad2deg(rphi)
+      theta = rad2deg(rtheta)
+    endif
+  end subroutine
+end subroutine
 
 subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir, S_tol, T_tol)
     class(t_optprop_LUT) :: OPP
@@ -1283,20 +1195,21 @@ subroutine set_parameter_space(OPP)
           OPP%interp_mode = interp_mode_wedge
           allocate(OPP%dirconfig%dims(7))
           call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
-          !call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
+          call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
           call populate_LUT_dim('aspect_zx', size(preset_aspect17,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect17)
           call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
           call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%dirconfig%dims(5), vrange=real([0.7760254, 0.9560254], irealLUT))
           !call populate_LUT_dim('phi',       71_iintegers, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
-          call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
+          !call populate_LUT_dim('theta',     10_iintegers, OPP%dirconfig%dims(7), vrange=real([0,90], irealLUT))
 
           !call populate_LUT_dim('tau',       i2, OPP%dirconfig%dims(1), vrange=real([1e-3,1.], irealLUT))
-          call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.1], irealLUT))
+          !call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.1], irealLUT))
           !call populate_LUT_dim('aspect_zx', i2, OPP%dirconfig%dims(3), vrange=real([.5,2.], irealLUT))
           !call populate_LUT_dim('wedge_coord_Cx', 2_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
           !call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(5), vrange=real([.8, .95], irealLUT))
           !!call populate_LUT_dim('phi',       i2, OPP%dirconfig%dims(6), vrange=real([-70,70], irealLUT))
           call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(6), preset=preset_param_phi19)
+          call populate_LUT_dim('param_theta', size(preset_param_theta13, kind=iintegers), OPP%dirconfig%dims(7), preset=preset_param_theta13)
           !call populate_LUT_dim('theta',     i2, OPP%dirconfig%dims(7), vrange=real([56.31,56.32+1], irealLUT))
 
           allocate(OPP%diffconfig%dims(5))

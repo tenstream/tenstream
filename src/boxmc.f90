@@ -517,7 +517,7 @@ contains
     ret_S_out = real(S_out, kind=ireals)
     ret_S_tol = real(S_tol, kind=ireals)
     if(ldebug) print *,'S out', ret_S_out, 'T_out', ret_T_out
-    if((maxval(ret_S_tol).gt.atol*1.1_ireals).or.(maxval(ret_T_tol).gt.atol*1.1_ireals)) then
+    if((maxval(ret_S_tol).gt.atol+100*epsilon(ret_S_tol)).or.(maxval(ret_T_tol).gt.atol+100*epsilon(ret_T_tol))) then
       print *,'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', vertices
       print *,'T_out', ret_T_out
       print *,'S out', ret_S_out

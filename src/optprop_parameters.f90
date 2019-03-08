@@ -65,30 +65,34 @@ module m_optprop_parameters
       !     -- see python script: ''eddington_to_LUT.py''
 
       real(irealLUT), parameter :: preset_param_phi11(11) = [-2., -1.5 , &
-                                                          -1.-100*(epsilon(1._irealLUT)), &
-                                                          -1.+100*(epsilon(1._irealLUT)), &
+                                                          -1.-100*(epsilon(1.)), &
+                                                          -1.+100*(epsilon(1.)), &
                                                           -0.5 , 0., 0.5, &
-                                                          +1.-100*(epsilon(1._irealLUT)), &
-                                                          +1.+100*(epsilon(1._irealLUT)), &
+                                                          +1.-100*(epsilon(1.)), &
+                                                          +1.+100*(epsilon(1.)), &
                                                           1.5, 2.]
       real(irealLUT), parameter :: preset_param_phi19(19) = [-2., -1.75, -1.5 , -1.25, &
-                                                          -1.-100*(epsilon(1._irealLUT)), &
-                                                          -1.+100*(epsilon(1._irealLUT)), &
+                                                          -1.-100*(epsilon(1.)), &
+                                                          -1.+100*(epsilon(1.)), &
                                                           -0.75, -0.5 , -0.25,  0., 0.25, 0.5, 0.75, &
-                                                          +1.-100*(epsilon(1._irealLUT)), &
-                                                          +1.+100*(epsilon(1._irealLUT)), &
+                                                          +1.-100*(epsilon(1.)), &
+                                                          +1.+100*(epsilon(1.)), &
                                                           1.25, 1.5, 1.75, 2.]
 
       real(irealLUT), parameter :: preset_param_phi83(83) = [-2.  , -1.95, -1.9 , -1.85, -1.8 , -1.75, -1.7 , -1.65, -1.6 , &
        -1.55, -1.5 , -1.45, -1.4 , -1.35, -1.3 , -1.25, -1.2 , -1.15, &
-       -1.1 , -1.05, -1.-100*(epsilon(1._irealLUT)), -1.+100*(epsilon(1._irealLUT)) , -0.95, -0.9 , -0.85, -0.8 , -0.75, -0.7 , &
+       -1.1 , -1.05, -1.-100*(epsilon(1.)), -1.+100*(epsilon(1.)) , -0.95, -0.9 , -0.85, -0.8 , -0.75, -0.7 , &
        -0.65, -0.6 , -0.55, -0.5 , -0.45, -0.4 , -0.35, -0.3 , -0.25, &
        -0.2 , -0.15, -0.1 , -0.05,  0.  ,  0.05,  0.1 ,  0.15,  0.2 , &
         0.25,  0.3 ,  0.35,  0.4 ,  0.45,  0.5 ,  0.55,  0.6 ,  0.65, &
-        0.7 ,  0.75,  0.8 ,  0.85,  0.9 ,  0.95,  +1.-100*(epsilon(1._irealLUT)), +1.+100*(epsilon(1._irealLUT))  ,  1.05,  1.1 , &
+        0.7 ,  0.75,  0.8 ,  0.85,  0.9 ,  0.95,  +1.-100*(epsilon(1.)), +1.+100*(epsilon(1.))  ,  1.05,  1.1 , &
         1.15,  1.2 ,  1.25,  1.3 ,  1.35,  1.4 ,  1.45,  1.5 ,  1.55, &
         1.6 ,  1.65,  1.7 ,  1.75,  1.8 ,  1.85,  1.9 ,  1.95,  2. ]
 
+      real(irealLUT), parameter :: preset_param_theta13(13) = [-1., &
+                                                          +0.-100*(epsilon(0.)), &
+                                                          +0.+100*(epsilon(0.)), &
+                                                          .1, .2, .3, .4, .5, .6, .7, .8, .9, 1.]
 
 
       real(irealLUT), parameter :: preset_aspect5(5) = [.2, .5, 1., 2., 5.]
@@ -173,8 +177,8 @@ module m_optprop_parameters
 !      real(irealLUT),parameter :: delta_scale_truncate=.8660_irealLUT ! .8660 = 30 degrees delta scaling
 
       ! spherical correction for wedge computations,
-      ! this is tuned towards earth radius and average dx = 100m sized elements
-      real(irealLUT), parameter :: wedge_sphere_radius = -1._irealLUT ! 6378e3_irealLUT
+      ! this is tuned towards earth radius and average dx = 1000m sized elements
+      real(irealLUT), parameter :: wedge_sphere_radius = 6371e3_irealLUT / 1000._irealLUT
 
       real(irealLUT), parameter :: LUT_dump_interval=3600 ! dump the LUT every 10 minutes
       real(irealLUT), parameter :: LUT_max_create_jobtime=3600*3 ! after 3hrs, cancel the createLUT jobs in any case
