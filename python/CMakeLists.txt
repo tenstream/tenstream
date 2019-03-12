@@ -1,9 +1,11 @@
 message(STATUS "Creating python interfaces with ${F2PY_PATH}")
 
-set(DEPENDENCY_LIST tenstream)
+set(DEPENDENCY_LIST pprts pprts_base)
 
 list(APPEND wrappers
-  "py_boxmc.f90" "py_eddington.f90"
+  "py_boxmc.f90"
+  "py_eddington.f90"
+  "py_param_phi.f90"
   )
 
 list(APPEND rrtm_wrappers
@@ -12,23 +14,25 @@ list(APPEND rrtm_wrappers
 
 if(ENABLE_RRTM)
   list(APPEND wrappers ${rrtm_wrappers} )
-  list(APPEND DEPENDENCY_LIST tenstr_rrtm_lw tenstr_rrtm_sw tenstr_rrtmg)
+  list(APPEND DEPENDENCY_LIST pprts_rrtmg pprts_rrtm_lw pprts_rrtm_sw)
 endif()
 
+set(lib_line "")
 foreach ( dep ${DEPENDENCY_LIST} )
-  set(lib_line "${lib_line} -l${dep}")
+  list(APPEND lib_line "-l${dep}")
 endforeach()
 foreach ( dep ${DEPENDENCY_LIST} )
-  set(lib_line "${lib_line} -l${dep}")
+  list(APPEND lib_line "-l${dep}")
 endforeach()
 foreach(extlib ${EXTLIB})
-  set(lib_line "${lib_line} ${extlib}")
+  list(APPEND lib_line "${extlib}")
 endforeach()
 message(STATUS "Linker line: ${lib_line}")
 
 get_property(include_dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+set(inc_line "")
 foreach ( inc_dir ${include_dirs} )
-  set(inc_line "${inc_line} -I${inc_dir}")
+  list(APPEND inc_line "-I${inc_dir}")
 endforeach()
 message(STATUS "Include line: ${inc_line}")
 

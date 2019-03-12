@@ -67,14 +67,14 @@ def py_rrtmg(
         reice = np.ones_like(co2) * 20
 
     # Either call with reduced interface
-    TS.rrtmg_minimal(fcomm,
+    TS.rrtmg(fcomm,
             dx, dy, phi0, theta0,
             albedo_thermal, albedo_solar,
             atm_filename,
             lthermal, lsolar,
             plev, tlev,
-            lwc, reliq, iwc, reice,
-            nxproc, nyproc)
+            nxproc, nyproc,
+            lwc, reliq)
 
     edir, edn, eup, abso = [ x.copy() for x in [TS.edir, TS.edn, TS.eup, TS.abso]]
 
@@ -90,24 +90,6 @@ def py_rrtmg(
     edir, edn, eup, abso = [ stitch(x) for x in [edir, edn, eup, abso]]
 
     return edir, edn, eup, abso
-
-    # Or provide the full set of options
-    #RRTM.rrtmg(fcomm,
-    #        dx, dy, phi0, theta0,
-    #        albedo_thermal, albedo_solar,
-    #        atm_filename,
-    #        lthermal, lsolar,
-    #        plev, tlev, nxproc, nyproc,
-    #        tlay, h2o, o3,
-    #        co2, ch4, no2,  o2,
-    #        lwc, reliq, iwc, reice,
-    #        icollapse, opt_time,
-    #        solar_albedo_2d)
-    #
-    ## Results are then available as RRTM module attributes
-    #if myid == 0:
-    #    for k, (dr, dn, up) in enumerate(zip(RRTM.edir, RRTM.edn, RRTM.eup)):
-    #        print('{:4d} {:12.2f} {:12.2f} {:12.2f}'.format(k, dr[0,0], dn[0,0], up[0,0]))
 
 
 def example():
