@@ -251,10 +251,10 @@ contains
     integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
     real(irealLUT),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
 
-    integer(iintegers), allocatable :: interp_dims(:)
-    integer(iintegers) :: nd_indices(size(pti))
+    integer(iintegers), allocatable :: nd_indices(:)
 
     if(ldebug) then
+      allocate(nd_indices(size(pti)))
       call ind_1d_to_nd(db_offsets, size(db, dim=2, kind=iintegers), nd_indices)
       if(any(pti.lt.one).or.any(pti.gt.real(nd_indices, irealLUT))) then
         print *,'db dimensions', nd_indices
@@ -263,19 +263,7 @@ contains
       endif
     endif
 
-    call get_dims_that_need_interpolation(pti, interp_dims)
-
-    select case (size(interp_dims))
-    case(0)
-      Cres = db(:, ind_nd_to_1d(db_offsets, nint(pti, iintegers)))
-    case(1)
-      call interp_vec_simplex_1d(pti, interp_dims(1), db, db_offsets, Cres)
-    case(2:10)
-      call interp_vec_bilinear_recursive(size(interp_dims, kind=iintegers), pti, interp_dims, db, db_offsets, Cres)
-      !call interp_vec_simplex_recursive(size(interp_dims, kind=iintegers), pti, interp_dims, db, db_offsets, Cres)
-    case default
-      call CHKERR(1_mpiint, 'interp_vec_simplex not implemented for '//itoa(size(interp_dims, kind=iintegers))//' dimensions')
-    end select
+    call interp_vec_bilinear_recursive(pti, db, db_offsets, Cres)
   end subroutine
 
   pure subroutine interp_vec_simplex_1d(pti, interp_dim, db, db_offsets, Cres)
@@ -365,39 +353,44 @@ contains
     end associate
   end subroutine
 
-  recursive pure subroutine interp_vec_bilinear_recursive(Ndim, pti, interp_dims, db, db_offsets, Cres)
-    use m_helper_functions, only : distance, triangle_area_by_vertices
-    integer(iintegers),intent(in) :: Ndim ! Number of dimensions that still need interpolation
+  recursive pure subroutine interp_vec_bilinear_recursive(pti, db, db_offsets, Cres)
     real(irealLUT),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
-    integer(iintegers),intent(in) :: interp_dims(:) ! dimensions in which the interpolation should happen
     real(irealLUT),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
     integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
     real(irealLUT),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
+    Cres = 0
+    call interp_vec_bilinear_recursive_(size(pti, kind=iintegers), pti, &
+      db, db_offsets, 1_iintegers, 1._irealLUT, Cres)
+  end subroutine
 
-    integer(iintegers) :: Ninterpdim
-    real(irealLUT) :: pti_intermediate(size(pti)), db_intermediate(size(db,dim=1), 2), wgt_1d
+  recursive pure subroutine interp_vec_bilinear_recursive_(Ndim, pti, db, db_offsets, ofs, weight, Cres)
+    integer(iintegers),intent(in) :: Ndim ! Number of dimensions that still need interpolation
+    real(irealLUT),intent(in) :: pti(:) ! weigths/indices in the respective unraveled db, dim(Ndimensions)
+    real(irealLUT),intent(in) :: db(:,:) ! first dimension is the vector dimension, ie if just one scalar should be interpolated, call it with shape [1, ravel(db)]
+    integer(iintegers),intent(in) :: db_offsets(:) ! offsets of the db dim(Ndimensions)
+    integer(iintegers),intent(in) :: ofs ! current database offset, in the end, will give raveled index
+    real(irealLUT), intent(in) :: weight
+    real(irealLUT),intent(out) :: Cres(:) ! output, has the dimension(size(db,dim=1))
+    integer(iintegers) :: ind
 
-    Ninterpdim=size(interp_dims)
-    ! Interpolate first two dimensions and then one 1d interpolation
+    real(irealLUT) :: wgt_1d
 
-    ! Simplex:
-    pti_intermediate = pti
-    pti_intermediate(interp_dims(Ninterpdim)) = floor(pti(interp_dims(Ninterpdim)))
-    if(Ndim.eq.2) then
-      call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), db, db_offsets, db_intermediate(:,1))
-    else
-      call interp_vec_bilinear_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,1))
+    if(Ndim.eq.0) then
+      Cres = Cres + weight * db(:,ofs)
+      return
     endif
 
-    pti_intermediate(interp_dims(Ninterpdim)) = ceiling(pti(interp_dims(Ninterpdim)))
-    if(Ndim.eq.2) then
-      call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), db, db_offsets, db_intermediate(:,2))
-    else
-      call interp_vec_bilinear_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,2))
+    if(dim_needs_interpolation(pti(Ndim))) then
+      ind = int(pti(Ndim))
+      wgt_1d = pti(Ndim) - ind ! === modulo(pti(Ndim), one)
+      call interp_vec_bilinear_recursive_(Ndim-1, pti, &
+        db, db_offsets, ofs + db_offsets(Ndim) * (ind-1), weight * (one-wgt_1d), Cres)
+      call interp_vec_bilinear_recursive_(Ndim-1, pti, &
+        db, db_offsets, ofs + db_offsets(Ndim) * ind, weight * wgt_1d, Cres)
+    else ! snap to nearest val
+      call interp_vec_bilinear_recursive_(Ndim-1, pti, &
+        db, db_offsets, ofs + db_offsets(Ndim) * (nint(pti(Ndim))-1), weight, Cres)
     endif
-
-    wgt_1d = modulo(pti(interp_dims(Ninterpdim)), one)
-    Cres = spline(wgt_1d, db_intermediate(:, 1), db_intermediate(:, 2))
   end subroutine
 
   recursive subroutine interp_vec_simplex_recursive(Ndim, pti, interp_dims, db, db_offsets, Cres)
@@ -445,23 +438,16 @@ contains
     Cres = spline(wgt_1d, db_intermediate(:,1), db_intermediate(:,2))
   end subroutine
 
-  pure subroutine get_dims_that_need_interpolation(pti, interpdims)
-    real(irealLUT),intent(in) :: pti(:)
-    integer(iintegers), allocatable, intent(out) :: interpdims(:)
-    integer(iintegers) :: i
-    integer(iintegers) :: rank(size(pti))
-    logical :: linterp(size(pti))
-    linterp = dim_needs_interpolation(pti)
-    rank = [ (i, i=1,size(pti)) ]
-
-    allocate(interpdims(count(linterp)))
-    interpdims = pack(rank, mask=linterp)
-  end subroutine
-
   elemental function dim_needs_interpolation(pti)
     real(irealLUT),intent(in) :: pti
     logical :: dim_needs_interpolation
-    dim_needs_interpolation = .not.approx(modulo(pti, 1._irealLUT), 0._irealLUT, interpolation_lattice_snapping)
+    if( pti - int(pti) .lt. interpolation_lattice_snapping ) then
+      dim_needs_interpolation = .False.
+    elseif(pti - int(pti) .gt. 1._irealLUT - interpolation_lattice_snapping) then
+      dim_needs_interpolation = .False.
+    else
+      dim_needs_interpolation = .True.
+    endif
   end function
 
 
