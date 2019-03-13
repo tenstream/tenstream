@@ -356,12 +356,14 @@ module m_helper_functions
     pure function norm_r32(v) result(norm)
       real(REAL32) :: norm
       real(REAL32),intent(in) :: v(:)
-      norm = sqrt(dot_product(v,v))
+      norm = norm2(v)
+      !norm = sqrt(dot_product(v,v))
     end function
     pure function norm_r64(v) result(norm)
       real(REAL64) :: norm
       real(REAL64),intent(in) :: v(:)
-      norm = sqrt(dot_product(v,v))
+      norm = norm2(v)
+      !norm = sqrt(dot_product(v,v))
     end function
 
     !> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
@@ -1193,9 +1195,9 @@ module m_helper_functions
       ! N = U X V and can be calculated by:
       real(REAL32), intent(in) :: p1(:), p2(:), p3(:)
       real(REAL32) :: compute_normal_3d(size(p1))
-      real(REAL32) :: U(size(p1)), V(size(p1))
+      real(REAL32) :: U(3), V(3)
 
-      if(size(p1).ne.size(p2) .or. size(p1).ne.size(p3)) then
+      if(size(p1).ne.3 .or. size(p2).ne.3 .or. size(p3).ne.3) then
         compute_normal_3d = sqrt(-norm(p1))
       endif
 
@@ -1311,12 +1313,22 @@ module m_helper_functions
     function distance_r32(p1,p2) result(distance)
       real(REAL32), intent(in) :: p1(:), p2(:)
       real(REAL32) :: distance
-      distance = norm(p2-p1)
+      integer(iintegers) :: i
+      distance = 0
+      do i=1,size(p1)
+        distance = distance + (p2(i) - p1(i))**2
+      enddo
+      distance = sqrt(distance)
     end function
     function distance_r64(p1,p2) result(distance)
       real(REAL64), intent(in) :: p1(:), p2(:)
       real(REAL64) :: distance
-      distance = norm(p2-p1)
+      integer(iintegers) :: i
+      distance = 0
+      do i=1,size(p1)
+        distance = distance + (p2(i) - p1(i))**2
+      enddo
+      distance = sqrt(distance)
     end function
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths

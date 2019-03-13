@@ -1390,7 +1390,8 @@ end subroutine
     real(irealLUT),intent(out):: C(:) ! dimension(OPP%dir_streams**2)
 
     integer(iintegers) :: src, kdim, ind1d
-    real(irealLUT) :: pti(size(sample_pts)), norm
+    real(irealLUT) :: pti_buffer(LUT_MAX_DIM)
+    real(irealLUT) :: norm
 
     if(ldebug_optprop) then
       if(size(sample_pts).ne.size(OPP%dirconfig%dims)) then
@@ -1401,20 +1402,22 @@ end subroutine
       call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%dirconfig)
     endif
 
-    do kdim = 1, size(sample_pts)
-      pti(kdim) = search_sorted_bisection(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
-    enddo
+    associate(pti => pti_buffer(1:size(sample_pts)))
+      do kdim = 1, size(sample_pts)
+        pti(kdim) = search_sorted_bisection(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
+      enddo
 
-    select case(OPP%interp_mode)
-    case(1)
-      ! Nearest neighbour
-      ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti, kind=iintegers))
-      C = OPP%Tdir%c(:, ind1d)
-    case(2)
-      call interp_vec_simplex_nd(pti, OPP%Tdir%c, OPP%dirconfig%offsets, C)
-    case default
-      call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
-    end select
+      select case(OPP%interp_mode)
+      case(1)
+        ! Nearest neighbour
+        ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti, kind=iintegers))
+        C = OPP%Tdir%c(:, ind1d)
+      case(2)
+        call interp_vec_simplex_nd(pti, OPP%Tdir%c, OPP%dirconfig%offsets, C)
+      case default
+        call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
+      end select
+    end associate
 
     if(ldebug_optprop) then
       !Check for energy conservation:
@@ -1440,7 +1443,8 @@ end subroutine
     real(irealLUT),intent(out):: C(:) ! dimension(OPP%dir_streams*OPP%diff_streams)
 
     integer(iintegers) :: src, kdim, ind1d
-    real(irealLUT) :: pti(size(sample_pts)), norm
+    real(irealLUT) :: pti_buffer(LUT_MAX_DIM)
+    real(irealLUT) :: norm
 
     if(ldebug_optprop) then
       if(size(sample_pts).ne.size(OPP%dirconfig%dims)) then
@@ -1451,20 +1455,22 @@ end subroutine
       call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%dirconfig)
     endif
 
-    do kdim = 1, size(sample_pts)
-      pti(kdim) = search_sorted_bisection(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
-    enddo
+    associate(pti => pti_buffer(1:size(sample_pts)))
+      do kdim = 1, size(sample_pts)
+        pti(kdim) = search_sorted_bisection(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
+      enddo
 
-    select case(OPP%interp_mode)
-    case(1)
-      ! Nearest neighbour
-      ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti, kind=iintegers))
-      C = OPP%Sdir%c(:, ind1d)
-    case(2)
-      call interp_vec_simplex_nd(pti, OPP%Sdir%c, OPP%dirconfig%offsets, C)
-    case default
-      call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
-    end select
+      select case(OPP%interp_mode)
+      case(1)
+        ! Nearest neighbour
+        ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti, kind=iintegers))
+        C = OPP%Sdir%c(:, ind1d)
+      case(2)
+        call interp_vec_simplex_nd(pti, OPP%Sdir%c, OPP%dirconfig%offsets, C)
+      case default
+        call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
+      end select
+    end associate
 
     if(ldebug_optprop) then
       !Check for energy conservation:
@@ -1488,7 +1494,8 @@ end subroutine
     real(irealLUT),intent(out):: C(:) ! dimension(OPP%diff_streams**2)
 
     integer(iintegers) :: src, kdim, ind1d
-    real(irealLUT) :: pti(size(sample_pts)), norm
+    real(irealLUT) :: pti_buffer(LUT_MAX_DIM)
+    real(irealLUT) :: norm
 
     if(ldebug_optprop) then
       if(size(sample_pts).ne.size(OPP%diffconfig%dims)) then
@@ -1499,20 +1506,22 @@ end subroutine
       call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%diffconfig)
     endif
 
-    do kdim = 1, size(sample_pts)
-      pti(kdim) = search_sorted_bisection(OPP%diffconfig%dims(kdim)%v, sample_pts(kdim))
-    enddo
+    associate(pti => pti_buffer(1:size(sample_pts)))
+      do kdim = 1, size(sample_pts)
+        pti(kdim) = search_sorted_bisection(OPP%diffconfig%dims(kdim)%v, sample_pts(kdim))
+      enddo
 
-    select case(OPP%interp_mode)
-    case(1)
-      ! Nearest neighbour
-      ind1d = ind_nd_to_1d(OPP%diffconfig%offsets, nint(pti, kind=iintegers))
-      C = OPP%Sdiff%c(:, ind1d)
-    case(2)
-      call interp_vec_simplex_nd(pti, OPP%Sdiff%c, OPP%diffconfig%offsets, C)
-    case default
-      call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
-    end select
+      select case(OPP%interp_mode)
+      case(1)
+        ! Nearest neighbour
+        ind1d = ind_nd_to_1d(OPP%diffconfig%offsets, nint(pti, kind=iintegers))
+        C = OPP%Sdiff%c(:, ind1d)
+      case(2)
+        call interp_vec_simplex_nd(pti, OPP%Sdiff%c, OPP%diffconfig%offsets, C)
+      case default
+        call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
+      end select
+    end associate
 
     if(ldebug_optprop) then
       !Check for energy conservation:

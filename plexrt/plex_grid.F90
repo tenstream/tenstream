@@ -521,7 +521,7 @@ module m_plex_grid
       type(tPetscSection) :: coordSection, geomSection
       integer(iintegers) :: Ndim, voff0, voff1, voff2, voff3
 
-      real(ireals), allocatable :: vertex_coord(:,:) ! shape (Nvertices, dims)
+      real(ireals) :: vertex_coord(3,6) ! shape (Ndim, Nvertices)
       real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
 
       real(ireals) :: area_top, area_bot, volume
@@ -566,7 +566,6 @@ module m_plex_grid
       call VecGetArrayF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
       ! First Set lengths of edges
-      allocate(vertex_coord(Ndim, 2))
       do iedge = eStart, eEnd-1
         call DMPlexGetCone(dm, iedge, vertices, ierr); call CHKERR(ierr)
 
@@ -582,7 +581,6 @@ module m_plex_grid
 
         call DMPlexRestoreCone(dm, iedge, vertices, ierr); call CHKERR(ierr)
       enddo
-      deallocate(vertex_coord)
 
       ! Then define geom info for faces
       do iface = fStart, fEnd-1
@@ -607,19 +605,16 @@ module m_plex_grid
           call CHKERR(1_mpiint, 'geometry not supported -- is this a wedge?')
         endif
 
-        vertices => vertices6
+        vertices6 = transclosure(size(transclosure)-11:size(transclosure):2)
 
-        vertices = transclosure(size(transclosure)-11:size(transclosure):2)
-
-        allocate(vertex_coord(Ndim, size(vertices)))
-        do ivert=1,size(vertices)
-          call PetscSectionGetOffset(coordSection, vertices(ivert), voff0, ierr); call CHKERR(ierr)
-          vertex_coord(:, ivert) = coords(i1+voff0:Ndim+voff0)
+        do ivert=1,size(vertices6)
+          call PetscSectionGetOffset(coordSection, vertices6(ivert), voff0, ierr); call CHKERR(ierr)
+          vertex_coord(1:Ndim, ivert) = coords(i1+voff0:Ndim+voff0)
         enddo
 
-        !print *,'centroid of cell:',icell,'::', sum(vertex_coord,dim=2)/size(vertices)
+        !print *,'centroid of cell:',icell,'::', sum(vertex_coord(1:Ndim,:),dim=2)/size(vertices6)
         call PetscSectionGetOffset(geomSection, icell, voff0, ierr); call CHKERR(ierr)
-        geoms(i1+voff0:voff0+Ndim) = sum(vertex_coord,dim=2)/size(vertices)
+        geoms(i1+voff0:voff0+Ndim) = sum(vertex_coord(1:Ndim,:),dim=2)/size(vertices6)
 
         ! Compute volume of wedges
         iface_up = transclosure(3)
@@ -646,7 +641,6 @@ module m_plex_grid
         !print *,'cell volume', geoms(i1+voff2)
 
         call DMPlexRestoreTransitiveClosure(dm, icell, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
-        deallocate(vertex_coord)
 
         ! dz as the distance between top and bot face centroids
         call PetscSectionGetFieldOffset(geomSection, icell, i3, voff3, ierr); call CHKERR(ierr)
@@ -1072,20 +1066,22 @@ module m_plex_grid
 
       call DMPlexGetCone(ediffdm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
-      if(allocated(incoming_offsets)) deallocate(incoming_offsets)
-      if(allocated(outgoing_offsets)) deallocate(outgoing_offsets)
+      num_dof = 0
+      do i = 1, size(faces_of_cell)
+        iface = faces_of_cell(i)
+        call PetscSectionGetDof(section, iface, idof, ierr); call CHKERR(ierr)
+        num_dof = num_dof + idof
+      enddo
 
-      if(.not.allocated(incoming_offsets).or..not.allocated(outgoing_offsets)) then
-        num_dof = 0
-        do i = 1, size(faces_of_cell)
-          iface = faces_of_cell(i)
-          call PetscSectionGetDof(section, iface, idof, ierr); call CHKERR(ierr)
-          num_dof = num_dof + idof
-        enddo
-
-        if(.not.allocated(incoming_offsets)) allocate(incoming_offsets(num_dof/2))
-        if(.not.allocated(outgoing_offsets)) allocate(outgoing_offsets(num_dof/2))
+      if(allocated(incoming_offsets)) then
+        if(size(incoming_offsets).ne.num_dof/2) deallocate(incoming_offsets)
       endif
+      if(allocated(outgoing_offsets)) then
+        if(size(outgoing_offsets).ne.num_dof/2) deallocate(outgoing_offsets)
+      endif
+
+      if(.not.allocated(incoming_offsets)) allocate(incoming_offsets(num_dof/2))
+      if(.not.allocated(outgoing_offsets)) allocate(outgoing_offsets(num_dof/2))
 
       j_incoming = 1; j_outgoing = 1
 

@@ -55,9 +55,9 @@ module m_tenstream_interpolation
   DATA permu4d(:,15) / 0,  1,  1,  1 /
   DATA permu4d(:,16) / 1,  1,  1,  1 /
 
-  logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug=.False.
 
-  real(irealLUT), parameter :: interpolation_lattice_snapping=max(1e-6_irealLUT, epsilon(interpolation_lattice_snapping))
+  real(irealLUT), parameter :: interpolation_lattice_snapping=max(1e-3_irealLUT, epsilon(interpolation_lattice_snapping))
   real(irealLUT), parameter :: zero=0, one=1
 
   interface interp_1d
