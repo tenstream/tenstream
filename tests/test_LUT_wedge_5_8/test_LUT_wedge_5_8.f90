@@ -183,7 +183,7 @@ contains
 
                       vertices = vertices * dx
                       do isrc = 1, Ndir
-                        dz = vertices(12)-vertices(3)
+                        dz = real(vertices(12)-vertices(3), irealLUT)
                         kabs = (one-w0) * tau / dz
                         ksca = w0 * tau / dz
 
@@ -289,7 +289,7 @@ contains
 
                       vertices = vertices * dx
                       do isrc = 1, Ndir
-                        dz = vertices(12)-vertices(3)
+                        dz = real(vertices(12)-vertices(3), irealLUT)
                         kabs = (one-w0) * tau / dz
                         ksca = w0 * tau / dz
 

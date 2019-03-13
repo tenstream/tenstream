@@ -307,9 +307,8 @@ end subroutine
 subroutine test_rotation_matrix_world_to_local(this)
   class (MpiTestMethod), intent(inout) :: this
   real(ireals), dimension(3) :: ex, ey, ez, x1
-  real(ireals) :: rot_angle, Mrot(3,3)
+  real(ireals) :: Mrot(3,3)
   real(ireals), parameter :: eps=sqrt(epsilon(eps))
-  integer(iintegers) :: i
 
   ex = [1,0,0]
   ey = [0,1,0]
@@ -348,9 +347,8 @@ end subroutine
 subroutine test_rotation_matrix_local_basis_to_world(this)
   class (MpiTestMethod), intent(inout) :: this
   real(ireals), dimension(3) :: ex, ey, ez, x1
-  real(ireals) :: rot_angle, Mrot(3,3)
+  real(ireals) :: Mrot(3,3)
   real(ireals), parameter :: eps=sqrt(epsilon(eps))
-  integer(iintegers) :: i
 
   ex = [1,0,0]
   ey = [0,1,0]

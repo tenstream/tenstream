@@ -1588,7 +1588,7 @@ module m_plex_rt
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
     integer(iintegers) :: numSrc, numDst
 
-    real(ireals) :: aspect_zx, param_phi, param_theta, azimuth, zenith, phi, theta
+    real(ireals) :: aspect_zx, param_phi, param_theta
     real(irealLUT) :: coeff(solver%dirdof**2) ! coefficients for each src=[1..5] and dst[1..5]
 
     logical, parameter :: lonline=.False.
@@ -1663,15 +1663,9 @@ module m_plex_rt
       !  print *,'faces of cell',iface, faces_of_cell(iface),':: offset',icol
       !enddo
 
-      azimuth = wedgeorient(wedge_offset1+i1)
-      zenith  = wedgeorient(wedge_offset1+i2)
       param_phi   = wedgeorient(wedge_offset1+i3)
       param_theta = wedgeorient(wedge_offset1+i4)
       aspect_zx   = wedgeorient(wedge_offset1+i5)
-
-      !if(ldebug) then
-      !  print *,'zenith', rad2deg(zenith), 'azimuth', rad2deg(azimuth)
-      !endif
 
       do iface = 1, size(faces_of_cell)
         face_plex2bmc(int(wedgeorient(wedge_offset2+iface), iintegers)) = iface
