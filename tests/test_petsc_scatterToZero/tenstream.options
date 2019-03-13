@@ -1,0 +1,14 @@
+-skip_load_LUT
+
+-dir_ksp_view
+-diff_ksp_view
+
+-dir_ksp_monitor
+-diff_ksp_monitor
+
+-dir_ksp_rtol 1e-8
+-diff_ksp_rtol 1e-8
+-dir_ksp_atol 1e-30
+-diff_ksp_atol 1e-30
+
+-skip_diffuse_solve
