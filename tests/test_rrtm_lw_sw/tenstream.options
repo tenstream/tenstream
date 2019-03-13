@@ -1,3 +1,4 @@
+-skip_load_LUT
 -dir_ksp_view
 -diff_ksp_view
 
