@@ -493,10 +493,10 @@ module m_plex_grid
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
       if (numnodes.gt.1_mpiint) then
         call DMPlexSetAdjacencyUseCone(plex%dm, PETSC_TRUE, ierr); call CHKERR(ierr)
-        call DMPlexSetAdjacencyUseClosure(plex%dm, PETSC_TRUE, ierr); call CHKERR(ierr)
+        call DMPlexSetAdjacencyUseClosure(plex%dm, PETSC_FALSE, ierr); call CHKERR(ierr)
         call DMPlexDistribute(plex%dm, i0, sf, dmdist, ierr); call CHKERR(ierr)
         call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
-        plex%dm   = dmdist
+        plex%dm = dmdist
       endif
       call PetscObjectViewFromOptions(sf, PETSC_NULL_SF, "-show_plex_sf", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
@@ -647,66 +647,10 @@ module m_plex_grid
         geoms(i1+voff3) = height
       enddo
 
-      !call determine_2d_normals(geoms)
-
       call VecRestoreArrayReadF90(coordinates, coords, ierr); call CHKERR(ierr)
       call VecRestoreArrayF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(plex%geomVec, PETSC_NULL_VEC, "-show_dm_geom_vec", ierr); call CHKERR(ierr)
-      contains
-        !subroutine determine_2d_normals(geoms)
-        !  real(ireals), intent(inout), pointer :: geoms(:)
-        !  integer(iintegers), dimension(:), pointer :: faces_of_cell
-        !  integer(iintegers) :: icell, topface, i, num_faces
-        !  real(ireals), dimension(3) :: regular_normal, flat_normal, top_normal
-
-        !  ! Find '2D'-normals of side faces, i.e. normals if the wedges were straight down and not coned
-        !  do icell = cStart, cEnd-1
-        !    call DMPlexGetCone(dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-
-        !    ! search for topface
-        !    do i=1,size(faces_of_cell)
-        !      call DMPlexGetConeSize(dm, faces_of_cell(i), num_faces, ierr); call CHKERR(ierr)
-        !      if(num_faces.eq.i3) then
-        !        topface = faces_of_cell(i)
-        !        exit
-        !      endif
-        !    enddo
-
-        !    call PetscSectionGetFieldOffset(geomSection, topface, i1, voff1, ierr); call CHKERR(ierr)
-        !    top_normal = geoms(i1+voff1:voff1+Ndim)
-
-        !    do i=1,size(faces_of_cell)
-        !      call PetscSectionGetFieldOffset(geomSection, faces_of_cell(i), i1, voff1, ierr); call CHKERR(ierr)
-
-        !      call DMPlexGetConeSize(dm, faces_of_cell(i), num_faces, ierr); call CHKERR(ierr)
-        !      if(num_faces.eq.3) then ! just the regular normal for top and bot faces
-        !        geoms(i1+voff1+Ndim:voff1+2*Ndim) = top_normal
-
-        !      elseif(num_faces.eq.4) then
-        !        call PetscSectionGetFieldOffset(geomSection, faces_of_cell(i), i1, voff1, ierr); call CHKERR(ierr)
-        !        regular_normal = geoms(i1+voff1:voff1+Ndim)
-
-        !        flat_normal = vec_proj_on_plane(regular_normal, top_normal)
-        !        flat_normal = flat_normal / norm(flat_normal)
-
-        !        geoms(i1+voff1+Ndim:voff1+2*Ndim) = flat_normal
-
-        !        !print *,'top_normal    ', top_normal
-        !        !print *,'regular_normal', regular_normal
-        !        !print *,'flat_normal   ', flat_normal
-        !        !print *,'angle change', rad2deg(angle_between_two_vec(regular_normal,flat_normal))
-        !        !print *,'angle to top', rad2deg(angle_between_two_vec(top_normal,flat_normal)), &
-        !        !  rad2deg(angle_between_two_vec(top_normal,regular_normal))
-        !      else
-        !        call CHKERR(1_mpiint, 'Did not expect '//itoa(num_faces)//' faces')
-        !      endif
-        !    enddo
-        !    !call CHKERR(1_mpiint, 'DEBUG')
-        !    call DMPlexRestoreCone(dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-        !  enddo
-
-        !end subroutine
     end subroutine
 
     subroutine create_plex_section(dm, sectionname, numfields, cdof, fdof, edof, vdof, section, fieldnames)
@@ -1239,7 +1183,7 @@ module m_plex_grid
       integer(iintegers) :: upper_face, base_face, left_face, right_face, bottom_face
       logical :: lsrc(5)
 
-      real(ireals) :: zenith, azimuth, param_phi, param_theta, Cx, Cy
+      real(ireals) :: zenith, azimuth, param_phi, param_theta, Cx, Cy, aspect_zx
       real(ireals),pointer :: xv(:), geoms(:)
 
       integer(mpiint) :: ierr
@@ -1248,12 +1192,12 @@ module m_plex_grid
         allocate(wedge_orientation_dm)
         call DMClone(plex%edir_dm, wedge_orientation_dm, ierr); ; call CHKERR(ierr)
         ! wedge_orientation Vec Contains 4 Fields:
-        ! 4 dof on cells for zenith, azimuth, param_phi, param_theta
+        ! 5 dof on cells for zenith, azimuth, param_phi, param_theta, aspect_zx
         ! 5 dof for permutation of faces from faces_of_cell to BoxMonteCarlo face ordering
         ! 5 dof that determine if a face is src or destination with respect to solar radiation (src=1, dst=0)
         ! 2 dof on cells for C point coordinates in local boxmc geometry(2D coords)
         call create_plex_section(wedge_orientation_dm, 'Wedge_Orientation_Section', i4, &
-          [i4, i5, i5, i2], &
+          [i5, i5, i5, i2], &
           [i0, i0, i0, i0], &
           [i0, i0, i0, i0], &
           [i0, i0, i0, i0], wedgeSection)
@@ -1278,7 +1222,7 @@ module m_plex_grid
         call compute_local_wedge_ordering(plex, icell, &
           geomSection, geoms, sundir, &
           lsrc, zenith, azimuth, param_phi, param_theta, &
-          Cx, Cy, &
+          Cx, Cy, aspect_zx, &
           upper_face, bottom_face, &
           base_face, left_face, right_face)
 
@@ -1287,7 +1231,7 @@ module m_plex_grid
         call PetscSectionGetFieldOffset(wedgeSection, icell, i2, wedge_offset3, ierr); call CHKERR(ierr)
         call PetscSectionGetFieldOffset(wedgeSection, icell, i3, wedge_offset4, ierr); call CHKERR(ierr)
 
-        xv(wedge_offset1+i1: wedge_offset1+i4) = [zenith, azimuth, param_phi, param_theta]
+        xv(wedge_offset1+i1: wedge_offset1+i5) = [zenith, azimuth, param_phi, param_theta, aspect_zx]
 
         ! set iwedge_plex2bmc, index mapping from plex faces_of_cell to bmc
         xv(wedge_offset2+i1: wedge_offset2+i5) = real([upper_face, base_face, left_face, right_face, bottom_face], ireals)
@@ -1306,6 +1250,220 @@ module m_plex_grid
       call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(wedge_orientation, PETSC_NULL_VEC, '-show_WedgeOrient', ierr); call CHKERR(ierr)
+    end subroutine
+
+    !> @brief translate the ordering of faces in the DMPlex to the ordering we assume in the box-montecarlo routines
+    subroutine compute_local_wedge_ordering(plex, icell, geomSection, geoms, sundir, &
+        lsrc, zenith, azimuth, param_phi, param_theta, Cx, Cy, aspect_zx, &
+        upper_face, bottom_face, base_face, left_face, right_face)
+      type(t_plexgrid), intent(in) :: plex
+      integer(iintegers), intent(in) :: icell
+      type(tPetscSection) :: geomSection
+      real(ireals), intent(in), pointer :: geoms(:) ! pointer to coordinates vec
+      real(ireals), intent(in) :: sundir(3)
+      real(ireals), intent(out) :: zenith, azimuth, param_phi, param_theta
+      real(ireals), intent(out) :: Cx, Cy, aspect_zx
+      integer(iintegers), intent(out) :: upper_face, bottom_face, base_face, left_face, right_face
+      logical, intent(out) :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
+
+      integer(iintegers), pointer :: faces_of_cell(:)!, edges_of_face(:)
+      integer(iintegers) :: iface, izindex(2) !,i
+
+      real(ireals) :: face_normals(3,5)
+      real(ireals) :: proj_angles_to_sun(3), proj_sundir(3)
+
+      real(ireals) :: e_x(3) ! unit vectors of local coord system in which we compute the transfer coefficients
+      real(ireals) :: MrotWorld2Local(3,3) ! Rotation Matrix into the local wedge space, (ex, ey, ez)
+      ! Normal vectors in local wedgemc geometry.
+      ! For even sided triangles, this is smth. like left: [.5, -.866] or right [-.5, -.866]
+      real(ireals) :: local_normal_base(3), local_normal_left(3), local_normal_right(3)
+
+      integer(iintegers) :: side_faces(3), top_faces(2) ! indices in faces_of_cell which give the top/bot and side faces via labeling
+      integer(iintegers) :: iside_faces, itop_faces, ibase_face, iright_face ! indices to fill above arrays
+
+      real(ireals) :: side_face_normal_projected_on_upperface(3,3)
+
+      real(irealLUT) :: rparam_phi, rparam_theta
+
+      integer(iintegers) :: geom_offset, iedge
+      integer(iintegers), target :: points(2)
+      integer(iintegers), pointer :: ppoints(:), coveredPoints(:)
+      real(ireals) :: dz, Atop
+
+      integer(mpiint) :: ierr
+
+      call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+
+      ! get numbering for 2 top/bot faces and 3 side faces which indicate the position in the faces_of_cell vec
+      iside_faces = 1; itop_faces = 1
+      do iface = 1, size(faces_of_cell)
+        if(plex%ltopfacepos(faces_of_cell(iface))) then
+          top_faces(itop_faces) = iface
+          itop_faces = itop_faces+1
+        else
+          side_faces(iside_faces) = iface
+          iside_faces = iside_faces+1
+        endif
+      enddo
+
+      izindex(1) = plex%zindex(faces_of_cell(top_faces(1)))
+      izindex(2) = plex%zindex(faces_of_cell(top_faces(2)))
+
+      if(izindex(1).gt.izindex(2)) then
+        upper_face = top_faces(2)
+        bottom_face = top_faces(1)
+      else
+        upper_face = top_faces(1)
+        bottom_face = top_faces(2)
+      endif
+
+      ! Now we have to find the solar azimuth, zenith angles
+      do iface = 1, size(faces_of_cell)
+        call get_inward_face_normal(faces_of_cell(iface), icell, geomSection, geoms, face_normals(:, iface))
+        lsrc(iface) = is_solar_src(face_normals(:,iface), sundir)
+      enddo
+
+      zenith = angle_between_two_vec(sundir, face_normals(:, upper_face))
+      proj_sundir = vec_proj_on_plane(sundir, face_normals(:,upper_face))
+      proj_sundir = proj_sundir / max(epsilon(proj_sundir), norm(proj_sundir))
+
+      do iface=1,size(side_faces)
+        side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
+        side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
+          max(epsilon(side_face_normal_projected_on_upperface), norm(side_face_normal_projected_on_upperface(:, iface)))
+        if(norm(proj_sundir).eq.zero) then
+          proj_angles_to_sun(iface) = zero
+          lsrc(side_faces(iface)) = .False.
+        else
+          proj_angles_to_sun(iface) = angle_between_two_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
+          !lsrc(side_faces(iface)) = is_solar_src(side_face_normal_projected_on_upperface(:, iface), proj_sundir)
+        endif
+        !print *,'iface',iface, ':', '->', rad2deg(proj_angles_to_sun(iface))
+      enddo
+
+      if(zenith.gt.10*epsilon(zenith)) then ! only do use azimuth computation if zenith is larger than 0 deg
+        ibase_face = minloc(proj_angles_to_sun,dim=1)
+        base_face  = side_faces(ibase_face)
+
+        ! Local unit vec on upperface, pointing towards '+x'
+        e_x = cross_3d(face_normals(:, upper_face), face_normals(:, base_face))
+        e_x = e_x / norm(e_x)
+
+        azimuth = proj_angles_to_sun(ibase_face)
+        azimuth = azimuth * sign(one, dot_product(proj_sundir, e_x))
+
+        left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
+        iright_face = modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1
+        right_face = side_faces(iright_face)
+
+        if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
+          call swap(right_face, left_face)
+        endif
+
+      else ! if sun is directly on top, i.e. zenith 0, just pick the first one
+        ibase_face = 1
+        do iface = 2, size(side_faces)
+          if(lsrc(side_faces(iface))) ibase_face = iface
+        enddo
+        e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), -face_normals(:, upper_face))
+        base_face  = side_faces(ibase_face)
+        left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
+        iright_face = modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1
+        right_face = side_faces(iright_face)
+
+        !print *,'side_face_normal_projected_on_upperface ibase_face', side_face_normal_projected_on_upperface(:, ibase_face)
+        !print *,'face normal upper face', -face_normals(:, upper_face)
+        !print *,'e_x', e_x
+        !print *,'side_face_normal_projected_on_upperface', side_face_normal_projected_on_upperface(:, iright_face)
+        if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
+          call swap(right_face, left_face)
+        endif
+
+        azimuth = zero
+        zenith = zero
+      endif
+
+      !print *,'norm proj_sundir', norm(proj_sundir),':', ibase_face, rad2deg(azimuth), ':', rad2deg(zenith),&
+      !  '::',norm(e_x), norm(side_face_normal_projected_on_upperface(:, iright_face))
+
+      ! Determine edge length of edge between base face and upper face triangle
+      ppoints => points
+      points = [faces_of_cell(upper_face), faces_of_cell(base_face)]
+      call DMPlexGetMeet(plex%edir_dm, i2, ppoints, coveredPoints, ierr); call CHKERR(ierr)
+      iedge = coveredPoints(1)
+      call DMPlexRestoreMeet(plex%edir_dm, i2, ppoints, coveredPoints, ierr); call CHKERR(ierr)
+
+      ! Determine mean edge length of upper face triangle
+      !call DMPlexGetCone(plex%edir_dm, faces_of_cell(upper_face), edges_of_face, ierr); call CHKERR(ierr)
+      !dx = 0
+      !do i=1,size(edges_of_face)
+      !  iedge = edges_of_face(i)
+      !  call PetscSectionGetOffset(geomSection, iedge, geom_offset, ierr); call CHKERR(ierr)
+      !  dx = dx + geoms(geom_offset+i1)
+      !  !print *,'Upper Edgelength', faces_of_cell(upper_face), ':', i, geoms(geom_offset+i1)
+      !enddo
+      !dx = dx / size(edges_of_face)
+      !call DMPlexRestoreCone(plex%edir_dm, faces_of_cell(upper_face), edges_of_face, ierr); call CHKERR(ierr)
+
+      !call PetscSectionGetOffset(geomSection, iedge, geom_offset, ierr); call CHKERR(ierr)
+      !dx = geoms(geom_offset+i1)
+      !print *,'base face edgelength', iedge, dx
+
+      call PetscSectionGetFieldOffset(geomSection, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+      dz = geoms(i1+geom_offset)
+      call PetscSectionGetFieldOffset(geomSection, faces_of_cell(upper_face), i2, geom_offset, ierr); call CHKERR(ierr)
+      Atop = geoms(i1+geom_offset)
+      aspect_zx = dz/sqrt(Atop)
+
+      ! Compute local vertex coordinates for upper face
+      call compute_local_vertex_coordinates(plex, &
+        faces_of_cell(upper_face), &
+        faces_of_cell(base_face), &
+        faces_of_cell(left_face), &
+        faces_of_cell(right_face), &
+        Cx, Cy)
+
+      MrotWorld2Local = rotation_matrix_world_to_local_basis(&
+        e_x, &
+        side_face_normal_projected_on_upperface(:, ibase_face), &
+        -face_normals(:, upper_face))
+
+       local_normal_base = matmul(MrotWorld2Local, face_normals(:, base_face))
+       local_normal_left = matmul(MrotWorld2Local, face_normals(:, left_face))
+       local_normal_right= matmul(MrotWorld2Local, face_normals(:, right_face))
+       !print *,'local normals base ', local_normal_base
+       !print *,'local normals left ', local_normal_left
+       !print *,'local normals right', local_normal_right
+
+       call param_phi_param_theta_from_phi_and_theta_withnormals(&
+         real(local_normal_base, irealLUT), &
+         real(local_normal_left, irealLUT), &
+         real(local_normal_right, irealLUT),&
+         real(Cx, irealLUT), real(Cy, irealLUT), &
+         real(azimuth, irealLUT), real(zenith, irealLUT), &
+         rparam_phi, rparam_theta, ierr)
+       param_phi   = real(rparam_phi, ireals)
+       param_theta = real(rparam_theta, ireals)
+
+       !print *,'azimuth, zenith ',rad2deg(azimuth), rad2deg(zenith), 'param phi/theta', param_phi, param_theta
+       !call CHKERR(1_mpiint, 'DEBUG')
+
+      if(ldebug) then
+        if(zenith.gt.10*epsilon(zenith) .and. .not.lsrc(base_face)) call CHKERR(1_mpiint, 'base face is not a src! this should not be the case!')
+        if(rad2deg(azimuth).lt.-90 .or. rad2deg(azimuth).gt.90) then
+          print *,'ibase_face', ibase_face
+          print *,'proj_normal', proj_sundir, '::norm', norm(proj_sundir)
+          print *,'face_normals(:,base_face)', face_normals(:,base_face)
+          print *,'face_normals(:,left_face)', face_normals(:,left_face)
+          print *,'face_normals(:,right_face)', face_normals(:,right_face)
+
+          ierr = int(rad2deg(azimuth), mpiint)
+          call CHKERR(ierr, 'local azimuth greater than 90 deg. something must have gone wrong with the base face selection!')
+        endif
+      endif
+
+
+      call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell,ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine compute_local_vertex_coordinates(plex, upperface, baseface, leftface, rightface, Cx, Cy)
@@ -1387,199 +1545,10 @@ module m_plex_grid
       Cx = mu * b
       Cy = sqrt(one - mu**2) * b
 
-      !print *,'local_coords C', local_coords(1:2)
-    end subroutine
+      Cx = Cx / c
+      Cy = Cy / c
 
-    !> @brief translate the ordering of faces in the DMPlex to the ordering we assume in the box-montecarlo routines
-    subroutine compute_local_wedge_ordering(plex, icell, geomSection, geoms, sundir, &
-        lsrc, zenith, azimuth, param_phi, param_theta, Cx, Cy, &
-        upper_face, bottom_face, base_face, left_face, right_face)
-      type(t_plexgrid), intent(in) :: plex
-      integer(iintegers), intent(in) :: icell
-      type(tPetscSection) :: geomSection
-      real(ireals), intent(in), pointer :: geoms(:) ! pointer to coordinates vec
-      real(ireals), intent(in) :: sundir(3)
-      real(ireals), intent(out) :: zenith, azimuth, param_phi, param_theta
-      real(ireals), intent(out) :: Cx, Cy
-      integer(iintegers), intent(out) :: upper_face, bottom_face, base_face, left_face, right_face
-      logical, intent(out) :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
-
-
-      integer(iintegers), pointer :: faces_of_cell(:)
-      integer(iintegers) :: iface, izindex(2)
-
-      real(ireals) :: face_normals(3,5)
-      real(ireals) :: proj_angles_to_sun(3), proj_sundir(3)
-
-      real(ireals) :: e_x(3) ! unit vectors of local coord system in which we compute the transfer coefficients
-      real(ireals) :: MrotWorld2Local(3,3) ! Rotation Matrix into the local wedge space, (ex, ey, ez)
-      ! Normal vectors in local wedgemc geometry.
-      ! For even sided triangles, this is smth. like left: [.5, -.866] or right [-.5, -.866]
-      real(ireals) :: local_normal_base(3), local_normal_left(3), local_normal_right(3)
-
-      integer(iintegers) :: side_faces(3), top_faces(2) ! indices in faces_of_cell which give the top/bot and side faces via labeling
-      integer(iintegers) :: iside_faces, itop_faces, ibase_face, iright_face ! indices to fill above arrays
-
-      real(ireals) :: side_face_normal_projected_on_upperface(3,3)
-
-      real(irealLUT) :: rparam_phi, rparam_theta
-
-      integer(mpiint) :: ierr
-
-      call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
-
-      ! get numbering for 2 top/bot faces and 3 side faces which indicate the position in the faces_of_cell vec
-      iside_faces = 1; itop_faces = 1
-      do iface = 1, size(faces_of_cell)
-        if(plex%ltopfacepos(faces_of_cell(iface))) then
-          top_faces(itop_faces) = iface
-          itop_faces = itop_faces+1
-        else
-          side_faces(iside_faces) = iface
-          iside_faces = iside_faces+1
-        endif
-      enddo
-
-      izindex(1) = plex%zindex(faces_of_cell(top_faces(1)))
-      izindex(2) = plex%zindex(faces_of_cell(top_faces(2)))
-
-      if(izindex(1).gt.izindex(2)) then
-        upper_face = top_faces(2)
-        bottom_face = top_faces(1)
-      else
-        upper_face = top_faces(1)
-        bottom_face = top_faces(2)
-      endif
-
-
-      ! Now we have to find the solar azimuth, zenith angles
-      do iface = 1, size(faces_of_cell)
-        call get_inward_face_normal(faces_of_cell(iface), icell, geomSection, geoms, face_normals(:, iface))
-        lsrc(iface) = is_solar_src(face_normals(:,iface), sundir)
-      enddo
-
-      zenith = angle_between_two_vec(sundir, face_normals(:, upper_face))
-      proj_sundir = vec_proj_on_plane(sundir, face_normals(:,upper_face))
-      proj_sundir = proj_sundir / max(epsilon(proj_sundir), norm(proj_sundir))
-
-      do iface=1,size(side_faces)
-        side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
-        side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
-          max(epsilon(side_face_normal_projected_on_upperface), norm(side_face_normal_projected_on_upperface(:, iface)))
-        if(norm(proj_sundir).eq.zero) then
-          proj_angles_to_sun(iface) = zero
-          lsrc(side_faces(iface)) = .False.
-        else
-          proj_angles_to_sun(iface) = angle_between_two_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
-          lsrc(side_faces(iface)) = is_solar_src(side_face_normal_projected_on_upperface(:, iface), proj_sundir)
-        endif
-        !print *,'iface',iface, ':', '->', rad2deg(proj_angles_to_sun(iface))
-      enddo
-
-      if(zenith.gt.10*epsilon(zenith)) then ! only do use azimuth computation if zenith is larger than 0 deg
-        ibase_face = minloc(proj_angles_to_sun,dim=1)
-
-        ! Local unit vec on upperface, pointing towards '+x'
-        e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), -face_normals(:, upper_face))
-
-        azimuth = proj_angles_to_sun(ibase_face)
-        azimuth = azimuth * sign(one, dot_product(proj_sundir, e_x))
-
-        base_face  = side_faces(ibase_face)
-        left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
-        iright_face = modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1
-        right_face = side_faces(iright_face)
-
-        if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
-          call swap(right_face, left_face)
-        endif
-
-      else ! if sun is directly on top, i.e. zenith 0, just pick the first one
-        ibase_face = 1
-        do iface = 2, size(side_faces)
-          if(lsrc(side_faces(iface))) ibase_face = iface
-        enddo
-        e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), -face_normals(:, upper_face))
-        base_face  = side_faces(ibase_face)
-        left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
-        iright_face = modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1
-        right_face = side_faces(iright_face)
-
-        !print *,'side_face_normal_projected_on_upperface ibase_face', side_face_normal_projected_on_upperface(:, ibase_face)
-        !print *,'face normal upper face', -face_normals(:, upper_face)
-        !print *,'e_x', e_x
-        !print *,'side_face_normal_projected_on_upperface', side_face_normal_projected_on_upperface(:, iright_face)
-        if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
-          call swap(right_face, left_face)
-        endif
-
-        azimuth = zero
-        zenith = zero
-      endif
-
-      !print *,'norm proj_sundir', norm(proj_sundir),':', ibase_face, rad2deg(azimuth), ':', rad2deg(zenith),&
-      !  '::',norm(e_x), norm(side_face_normal_projected_on_upperface(:, iright_face))
-
-      ! Compute local vertex coordinates for upper face
-      call compute_local_vertex_coordinates(plex, &
-        faces_of_cell(upper_face), &
-        faces_of_cell(base_face), &
-        faces_of_cell(left_face), &
-        faces_of_cell(right_face), &
-        Cx, Cy)
-      !print *,'Cx, Cy', Cx, Cy
-
-      MrotWorld2Local = rotation_matrix_world_to_local_basis(&
-        e_x, &
-        side_face_normal_projected_on_upperface(:, ibase_face), &
-        -face_normals(:, upper_face))
-
-       local_normal_base = matmul(MrotWorld2Local, face_normals(:, base_face))
-       local_normal_left = matmul(MrotWorld2Local, face_normals(:, left_face))
-       local_normal_right= matmul(MrotWorld2Local, face_normals(:, right_face))
-       !print *,'local normals base ', local_normal_base
-       !print *,'local normals left ', local_normal_left
-       !print *,'local normals right', local_normal_right
-
-       call param_phi_param_theta_from_phi_and_theta_withnormals(&
-         real(local_normal_base, irealLUT), &
-         real(local_normal_left, irealLUT), &
-         real(local_normal_right, irealLUT),&
-         real(Cx, irealLUT), real(Cy, irealLUT), &
-         real(azimuth, irealLUT), real(zenith, irealLUT), &
-         rparam_phi, rparam_theta, ierr)
-       param_phi   = real(rparam_phi, ireals)
-       param_theta = real(rparam_theta, ireals)
-
-       !print *,'azimuth, zenith ',rad2deg(azimuth), rad2deg(zenith), 'param phi/theta', param_phi, param_theta
-       !call CHKERR(1_mpiint, 'DEBUG')
-
-      if(ldebug) then
-        if(zenith.gt.10*epsilon(zenith) .and. .not.lsrc(base_face)) call CHKERR(1_mpiint, 'base face is not a src! this should not be the case!')
-        if(rad2deg(azimuth).lt.-90 .or. rad2deg(azimuth).gt.90) then
-          print *,'ibase_face', ibase_face
-          print *,'proj_normal', proj_sundir, '::norm', norm(proj_sundir)
-          print *,'face_normals(:,base_face)', face_normals(:,base_face)
-          print *,'face_normals(:,left_face)', face_normals(:,left_face)
-          print *,'face_normals(:,right_face)', face_normals(:,right_face)
-
-          ierr = int(rad2deg(azimuth), mpiint)
-          call CHKERR(ierr, 'local azimuth greater than 90 deg. something must have gone wrong with the base face selection!')
-        endif
-      endif
-
-      call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell,ierr); call CHKERR(ierr)
-
-      ! Determine edge length of edge between base face and upper face triangle
-      !ppoints => points
-      !points = [upper_face, base_face]
-      !call DMPlexGetMeet(plex%edir_dm, i2, ppoints, coveredPoints, ierr); call CHKERR(ierr)
-      !iedge = coveredPoints(1)
-      !call DMPlexRestoreMeet(plex%edir_dm, i2, ppoints, coveredPoints, ierr); call CHKERR(ierr)
-
-      !call PetscSectionGetOffset(geomSection, iedge, geom_offset, ierr); call CHKERR(ierr)
-      !baseface_upper_edgelength = geoms(geom_offset+i1)
-      !!print *,'Upper Edgelength', iedge, geoms(geom_offset+i1)
+      !print *,'local_coords C', Cx, Cy
     end subroutine
 
     function is_solar_src(face_normal, sundir)

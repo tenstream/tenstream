@@ -24,7 +24,7 @@ module m_optprop
 #define isnan ieee_is_nan
 #endif
 
-use m_optprop_parameters, only : ldebug_optprop, coeff_mode, wedge_sphere_radius
+use m_optprop_parameters, only : ldebug_optprop, coeff_mode, wedge_sphere_radius, param_eps
 use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, rad2deg, swap, norm
 use m_data_parameters, only: ireals,irealLUT,irealLUT,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
@@ -45,7 +45,7 @@ private
 public :: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
   t_optprop_wedge_5_8, t_optprop_wedge_18_8, &
   t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
-  OPP_1D_RETCODE
+  OPP_1D_RETCODE, OPP_TINYASPECT_RETCODE
 
 type,abstract :: t_optprop
   logical :: optprop_debug=ldebug_optprop
@@ -87,6 +87,7 @@ type,extends(t_optprop) :: t_optprop_wedge_18_8
 end type
 
 integer(mpiint), parameter :: OPP_1D_RETCODE = -1_mpiint
+integer(mpiint), parameter :: OPP_TINYASPECT_RETCODE = -2_mpiint
 
 contains
 
@@ -154,29 +155,27 @@ contains
         real(irealLUT),intent(out) :: C(:)
         integer(mpiint), intent(out) :: ierr
 
-        ierr = 0
-
         select type (OPP)
         class is (t_optprop_1_2)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_3_6)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_3_10)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_8_10)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_3_16)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_8_16)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_8_18)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
+          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
 
         class is (t_optprop_wedge_5_8)
           call wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, wedge_coords)
@@ -185,7 +184,8 @@ contains
           call wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, wedge_coords)
 
         class default
-          call CHKERR(1_mpiint, 'initialize LUT: unexpected type for optprop object!')
+          ierr = 1_mpiint
+          call CHKERR(ierr, 'initialize LUT: unexpected type for optprop object!')
       end select
   end subroutine
 
@@ -207,11 +207,6 @@ contains
     endif
 
     if(ldebug_optprop) then
-      !if(.not.all(approx(wedge_coords([1,2,4]), 0._irealLUT)) &
-      !  .or. .not.approx(wedge_coords(3), 1._irealLUT)) then
-      !  print *,'wedge_coords:', wedge_coords
-      !  call CHKERR(1_mpiint, 'provided wedge coords have to in local bmc coordinate system!')
-      !endif
       call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, in_angles)
     endif
 
@@ -220,7 +215,6 @@ contains
     endif
 
     if(handle_aspect_zx_1D_case()) then
-      ierr = OPP_1D_RETCODE
       return
     endif
 
@@ -312,6 +306,7 @@ contains
         real(irealLUT), intent(in) :: tauz, w0, aspect_zx
         logical,intent(in)       :: ldir
         real(irealLUT),intent(in),optional :: in_angles(:)
+        real(irealLUT) :: save_param_phi, save_param_theta
 
           select case (coeff_mode)
           case(i0) ! LookUpTable Mode
@@ -322,10 +317,16 @@ contains
                   Cy => wedge_coords(2), &
                   param_phi => in_angles(1), &
                   param_theta => in_angles(2) )
+
+                call handle_critical_param_phi(param_phi, save_param_phi)
+                call handle_critical_param_theta(param_theta, save_param_theta)
+
                 if(ldir) then ! dir2dir
-                  call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, Cx, Cy, param_phi, param_theta], C)
+                  call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, Cx, Cy, &
+                    save_param_phi, save_param_theta], C)
                 else ! dir2diff
-                  call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, Cx, Cy, param_phi, param_theta], C)
+                  call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, Cx, Cy, &
+                    save_param_phi, save_param_theta], C)
                 endif
               end associate
             else
@@ -338,6 +339,47 @@ contains
           case default
             call CHKERR(1_mpiint, 'particular value of coeff mode in optprop_parameters is not defined: '//itoa(coeff_mode))
           end select
+      end subroutine
+
+      subroutine handle_critical_param_phi(param_phi, save_param_phi)
+        real(irealLUT), intent(in) :: param_phi
+        real(irealLUT), intent(out) :: save_param_phi
+        logical :: lsample_critical
+
+        lsample_critical = .False.
+        if(approx(abs(param_phi), 1._irealLUT, param_eps)) lsample_critical = .True.
+
+        if(lsample_critical) then
+          if(param_phi.le.-1._irealLUT) then
+            save_param_phi = -1._irealLUT-param_eps
+          elseif(param_phi.ge.1._irealLUT) then !1.0001
+            save_param_phi = 1._irealLUT+param_eps
+          elseif(param_phi.lt.0._irealLUT) then !-.999
+            save_param_phi = -1._irealLUT+param_eps
+          else ! .999
+            save_param_phi = 1._irealLUT-param_eps
+          endif
+        else
+          save_param_phi = param_phi
+        endif
+      end subroutine
+      subroutine handle_critical_param_theta(param_theta, save_param_theta)
+        real(irealLUT), intent(in) :: param_theta
+        real(irealLUT), intent(out) :: save_param_theta
+        logical :: lsample_critical
+
+        lsample_critical = .False.
+        if(approx(abs(param_theta), 0._irealLUT, param_eps)) lsample_critical = .True.
+
+        if(lsample_critical) then
+          if(param_theta.lt.0._irealLUT) then
+            save_param_theta = -param_eps
+          else ! .0001
+            save_param_theta = param_eps
+          endif
+        else
+          save_param_theta = param_theta
+        endif
       end subroutine
 
       logical function handle_aspect_zx_1D_case()
@@ -368,7 +410,7 @@ contains
               class is (t_optprop_wedge_5_8)
                 ! set the transport coeffs for src top to zero, leave the rest.
                 C(5*4+1) = real(c33, irealLUT) ! from top to bot
-                C(22:24) = 1 ! from sides to bot
+                !C(22:24) = 1 ! from sides to bot
               class is (t_optprop_wedge_18_8)
                 C(18*15+1) = real(c33, irealLUT) ! from top to bot
                 C(18*16+2) = real(c33, irealLUT) ! from top to bot
@@ -395,12 +437,14 @@ contains
             endif
 
             handle_aspect_zx_1D_case = .True.
+            ierr = OPP_1D_RETCODE
 
-          !elseif(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
-          !  restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
-          !    OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
-          !  call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, in_angles)
-          !  handle_aspect_zx_1D_case = .True.
+          elseif(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
+            restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
+              OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
+            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, in_angles)
+            handle_aspect_zx_1D_case = .True.
+            ierr = OPP_TINYASPECT_RETCODE
           endif
 
         else ! diffuse
@@ -430,22 +474,26 @@ contains
               OPP%OPP_LUT%diffconfig%dims(3)%vrange(2))
             call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, in_angles)
             handle_aspect_zx_1D_case = .True.
+            ierr = OPP_TINYASPECT_RETCODE
           endif
 
         endif
       end function
   end subroutine
 
-  subroutine boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, angles, lswitch_east, lswitch_north)
+  subroutine boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
     class(t_optprop)                  :: OPP
     logical,intent(in)                :: dir
     real(irealLUT),intent(in)           :: tauz, w0, g, aspect_zx
     real(irealLUT),intent(in),optional  :: angles(:)
     logical,intent(in)                  :: lswitch_east, lswitch_north
     real(irealLUT),intent(out)          :: C(:)
+    integer(mpiint), intent(out) :: ierr
 
     logical,parameter :: compute_coeff_online=.False.
     real(ireals), allocatable :: vertices(:)
+    real(irealLUT) :: save_aspect_zx
+    ierr = 0
 
     if(compute_coeff_online) then
       call setup_default_unit_cube_geometry(one, one, real(aspect_zx, ireals), vertices)
@@ -455,21 +503,34 @@ contains
 
     if(ldebug_optprop) call check_inp(OPP, tauz, w0, g, aspect_zx, dir, C, angles)
 
+
     select case (coeff_mode)
 
     case(i0) ! LookUpTable Mode
 
       if(present(angles)) then ! obviously we want the direct coefficients
+        if(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
+          save_aspect_zx = OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)
+          ierr = OPP_TINYASPECT_RETCODE
+        else
+          save_aspect_zx = aspect_zx
+        endif
         if(dir) then ! dir2dir
-          call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, g, angles(1), angles(2)], C)
+          call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
           call OPP%dir2dir_coeff_symmetry(C, lswitch_east, lswitch_north)
         else         ! dir2diff
-          call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, aspect_zx, g, angles(1), angles(2)], C)
+          call OPP%OPP_LUT%LUT_get_dir2diff([tauz, w0, save_aspect_zx, g, angles(1), angles(2)], C)
           call OPP%dir2diff_coeff_symmetry(C, lswitch_east, lswitch_north)
         endif
       else
         ! diff2diff
-        call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, aspect_zx, g], C)
+        if(aspect_zx.lt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)) then
+          save_aspect_zx = OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)
+          ierr = OPP_TINYASPECT_RETCODE
+        else
+          save_aspect_zx = aspect_zx
+        endif
+        call OPP%OPP_LUT%LUT_get_diff2diff([tauz, w0, save_aspect_zx, g], C)
       endif
 
 

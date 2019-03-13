@@ -61,37 +61,40 @@ module m_optprop_parameters
       integer(iintegers), parameter :: interp_mode_pprts=2
       integer(iintegers), parameter :: interp_mode_wedge=2
 
+      integer(iintegers), parameter :: LUT_MAX_DIM=7
+
       ! We pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values
       !     -- see python script: ''eddington_to_LUT.py''
+      real(irealLUT), parameter :: param_eps = epsilon(1._irealLUT)*100
 
       real(irealLUT), parameter :: preset_param_phi11(11) = [-2., -1.5 , &
-                                                          -1.-100*(epsilon(1.)), &
-                                                          -1.+100*(epsilon(1.)), &
+                                                          -1.-param_eps, &
+                                                          -1.+param_eps, &
                                                           -0.5 , 0., 0.5, &
-                                                          +1.-100*(epsilon(1.)), &
-                                                          +1.+100*(epsilon(1.)), &
+                                                          +1.-param_eps, &
+                                                          +1.+param_eps, &
                                                           1.5, 2.]
       real(irealLUT), parameter :: preset_param_phi19(19) = [-2., -1.75, -1.5 , -1.25, &
-                                                          -1.-100*(epsilon(1.)), &
-                                                          -1.+100*(epsilon(1.)), &
+                                                          -1.-param_eps, &
+                                                          -1.+param_eps, &
                                                           -0.75, -0.5 , -0.25,  0., 0.25, 0.5, 0.75, &
-                                                          +1.-100*(epsilon(1.)), &
-                                                          +1.+100*(epsilon(1.)), &
+                                                          +1.-param_eps, &
+                                                          +1.+param_eps, &
                                                           1.25, 1.5, 1.75, 2.]
 
       real(irealLUT), parameter :: preset_param_phi83(83) = [-2.  , -1.95, -1.9 , -1.85, -1.8 , -1.75, -1.7 , -1.65, -1.6 , &
        -1.55, -1.5 , -1.45, -1.4 , -1.35, -1.3 , -1.25, -1.2 , -1.15, &
-       -1.1 , -1.05, -1.-100*(epsilon(1.)), -1.+100*(epsilon(1.)) , -0.95, -0.9 , -0.85, -0.8 , -0.75, -0.7 , &
+       -1.1 , -1.05, -1.-param_eps, -1.+param_eps, -0.95, -0.9 , -0.85, -0.8 , -0.75, -0.7 , &
        -0.65, -0.6 , -0.55, -0.5 , -0.45, -0.4 , -0.35, -0.3 , -0.25, &
        -0.2 , -0.15, -0.1 , -0.05,  0.  ,  0.05,  0.1 ,  0.15,  0.2 , &
         0.25,  0.3 ,  0.35,  0.4 ,  0.45,  0.5 ,  0.55,  0.6 ,  0.65, &
-        0.7 ,  0.75,  0.8 ,  0.85,  0.9 ,  0.95,  +1.-100*(epsilon(1.)), +1.+100*(epsilon(1.))  ,  1.05,  1.1 , &
+        0.7 ,  0.75,  0.8 ,  0.85,  0.9 ,  0.95,  +1.-param_eps, +1.+param_eps,  1.05,  1.1 , &
         1.15,  1.2 ,  1.25,  1.3 ,  1.35,  1.4 ,  1.45,  1.5 ,  1.55, &
         1.6 ,  1.65,  1.7 ,  1.75,  1.8 ,  1.85,  1.9 ,  1.95,  2. ]
 
       real(irealLUT), parameter :: preset_param_theta13(13) = [-1., &
-                                                          +0.-100*(epsilon(0.)), &
-                                                          +0.+100*(epsilon(0.)), &
+                                                          +0.-param_eps, &
+                                                          +0.+param_eps, &
                                                           .1, .2, .3, .4, .5, .6, .7, .8, .9, 1.]
 
 
@@ -104,6 +107,9 @@ module m_optprop_parameters
       real(irealLUT), parameter :: preset_aspect17(17) = [ &
       0.02, 0.032, 0.042, 0.056, 0.075, 0.1, 0.133, 0.178, 0.237, &
       0.316, 0.422, 0.562, 0.75, 1., 1.25, 1.562, 2.]
+      real(irealLUT), parameter :: preset_aspect18(18) = [ &
+      0.02, 0.032, 0.042, 0.056, 0.075, 0.1, 0.133, 0.178, 0.237, &
+      0.316, 0.422, 0.562, 0.75, 1., 1.25, 1.562, 2., 3.]
       real(irealLUT), parameter :: preset_aspect13(13) = [0.02, 0.042, 0.075, 0.133, 0.237, 0.422, 0.75, 1., 1.25, &
                                                         1.953, 3.052, 4.768, 7.451]
       real(irealLUT), parameter :: preset_aspect23(23) = [0.02, 0.032, 0.042, 0.056, 0.075, 0.1, 0.133, 0.178, 0.237, &
