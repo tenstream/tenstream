@@ -47,13 +47,14 @@ module m_icon_plex_utils
 
   contains
 
-    subroutine dmplex_2D_to_3D(dm2d, ke1, hhl, dm3d, zindex)
+    subroutine dmplex_2D_to_3D(dm2d, ke1, hhl, dm3d, zindex, lpolar_coords)
       type(tDM), intent(in) :: dm2d
       integer(iintegers), intent(in) :: ke1 ! number of levels for the 3D DMPlex
       real(ireals), intent(in) :: hhl(:) ! height levels of interfaces, those will be added to base height of 2D elements, either of shape(nlev) or shape(nlev*nverts)
       type(tDM), intent(out) :: dm3d
       ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1, fortran indexing, i.e. start with k=1
       integer(iintegers), allocatable, intent(out) :: zindex(:)
+      logical, intent(in), optional :: lpolar_coords ! assume that coordinates are projected on a sphere in the origin default(True)
 
       integer(iintegers) :: p2dStart, p2dEnd
       integer(iintegers) :: f2dStart, f2dEnd
@@ -108,7 +109,7 @@ module m_icon_plex_utils
 
       call set_sf_graph(dm2d, dm3d)
 
-      call set_coords(dm2d, dm3d)
+      call set_coords(dm2d, dm3d, lpolar_coords)
 
       call DMSetFromOptions(dm3d, ierr); call CHKERR(ierr)
 
@@ -454,9 +455,10 @@ module m_icon_plex_utils
         call DMPlexStratify(dm3d, ierr); call CHKERR(ierr)
       end subroutine
 
-      subroutine set_coords(dm2d, dm3d)
+      subroutine set_coords(dm2d, dm3d, lpolar_coords)
         type(tDM), intent(in) :: dm2d
         type(tDM), intent(inout) :: dm3d
+        logical, intent(in), optional :: lpolar_coords
 
         real(ireals), pointer :: coords2d(:), coords3d(:)
         type(tVec)            :: vec_coord2d, vec_coord3d
@@ -483,7 +485,7 @@ module m_icon_plex_utils
         call DMPlexGetDepthStratum (dm3d, i0, v3dStart, v3dEnd, ierr); call CHKERR(ierr) ! 3D vertices
         call DMPlexGetDepthStratum (dm2d, i0, v2dStart, v2dEnd, ierr); call CHKERR(ierr) ! 2D vertices
 
-        lpolar=.True.
+        lpolar=get_arg(.True., lpolar_coords)
         call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-polar_coords', lpolar, lflg, ierr); call CHKERR(ierr)
 
         ! Create Coordinate stuff for 3D DM

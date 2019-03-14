@@ -538,7 +538,7 @@ module m_plex_grid
       call PetscObjectViewFromOptions(coordSection, PETSC_NULL_SECTION, "-show_dm_coord_section", ierr); call CHKERR(ierr)
       ! Geometry Vec Contains 4 Fields:
       ! field 0: 3 dof for centroid on cells and faces
-      ! field 1: 2*3 for normal vecs on faces, first one is real normal, second one is normal as it is seen from bmc (respective to top faces)
+      ! field 1: 3 for normal vecs on faces
       ! field 2: 1 dof on cells, faces and edges for volume, area, length
       ! field 3: dz on cells
       call create_plex_section(dm, 'Geometry Section', i4, &

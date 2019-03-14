@@ -47,7 +47,7 @@ implicit none
       type(tVec), allocatable :: diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2
       type(t_state_container) :: solution
 
-      class(t_plex_solver), allocatable :: plex_solver
+      class(t_plex_solver), allocatable :: solver
       type(t_plexgrid), allocatable :: plex
       integer(iintegers), allocatable :: zindex(:)
 
@@ -66,15 +66,15 @@ implicit none
         hhl(k) = hhl(k-1) - dz
       enddo
 
-      call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex)
+      call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex, lpolar_coords=.False.)
 
       call setup_plexgrid(dm3d, Nz-1, zindex, plex)
       deallocate(zindex)
 
-      call allocate_plexrt_solver_from_commandline(plex_solver, '5_8')
-      call init_plex_rt_solver(plex, plex_solver)
+      call allocate_plexrt_solver_from_commandline(solver, '5_8')
+      call init_plex_rt_solver(plex, solver)
 
-      call prepare_solution(plex%edir_dm, plex%ediff_dm, plex%abso_dm, lsolar=.True., solution=solution)
+      call prepare_solution(solver%plex%edir_dm, solver%plex%ediff_dm, solver%plex%abso_dm, lsolar=.True., solution=solution)
 
       print *,'Testing Scalevec Direct'
       call init_and_scalevecs(solution, one, solution%edir, solution%lWm2_dir)
@@ -93,14 +93,15 @@ implicit none
           type(tVec) :: tmp_vec
           real(ireals), pointer :: xa(:), xb(:)
           integer(iintegers) :: i
-          real(ireals), parameter :: eps = 10*epsilon(eps), dx=1, dy=1, h=sqrt(dy**2 - (dx/2)**2)
+          real(ireals), parameter :: eps = 10*epsilon(eps)
+          real(ireals), parameter :: dx=1, dy=1, h=sqrt(dy**2 - (dx/2)**2)
 
           solution_lWm2 = .True.
           call VecDuplicate(solution_vec, tmp_vec, ierr); call CHKERR(ierr)
           call VecSet(solution_vec, initialvar, ierr); call CHKERR(ierr)
           call VecSet(tmp_vec, initialvar, ierr); call CHKERR(ierr)
 
-          call scale_flx(plex_solver, plex, &
+          call scale_flx(solver, solver%plex, &
             dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
             diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
             solution, lWm2=.True.)
@@ -113,7 +114,7 @@ implicit none
           call VecRestoreArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
           call VecRestoreArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
 
-          call scale_flx(plex_solver, plex, &
+          call scale_flx(solver, solver%plex, &
             dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
             diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
             solution, lWm2=.False.)
@@ -126,14 +127,14 @@ implicit none
           ! Some hardcoded values:
           if(size(xa).eq.52) then ! diffuse fish
             do i=1,16
-              @assertEqual(xb(i) * dx*h/2, xa(i), eps, 'Should match the top/bot area')
+              @assertEqual(xb(i) * dx*h/2, xa(i), eps, 'Should match the top/bot area of size 52 fish')
             enddo
             do i=17,52
               @assertEqual(xb(i) * dz * sqrt((dx/2)**2+h**2), xa(i), eps, 'Should match the side area')
             enddo
-          else
+          elseif(size(xa).eq.17) then
             do i=1,8
-              @assertEqual(xb(i) * dx*h/2, xa(i), eps, 'Should match the top/bot area')
+              @assertEqual(xb(i) * dx*h/2, xa(i), eps, 'Should match the top/bot area of size 17 fish')
             enddo
             do i=9,17
               @assertEqual(xb(i) * dz * sqrt((dx/2)**2+h**2), xa(i), eps, 'Should match the side area')
@@ -143,7 +144,7 @@ implicit none
           call VecRestoreArrayReadF90(tmp_vec, xb, ierr); call CHKERR(ierr)
           call VecRestoreArrayReadF90(solution_vec, xa, ierr); call CHKERR(ierr)
 
-          call scale_flx(plex_solver, plex, &
+          call scale_flx(solver, solver%plex, &
             dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
             diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
             solution, lWm2=.True.)

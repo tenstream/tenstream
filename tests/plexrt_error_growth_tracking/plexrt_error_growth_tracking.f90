@@ -13,7 +13,8 @@ module plexrt_error_growth_tracking
   use m_plex_grid, only: t_plexgrid, setup_plexgrid
   use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D
 
-  use m_plex_rt, only: t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
+  use m_plex_rt, only: t_plex_solver, allocate_plexrt_solver_from_commandline, &
+    init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
     plexrt_get_result, destroy_plexrt_solver
 
   use pfunit_mod
@@ -78,6 +79,7 @@ contains
     call setup_plexgrid(dm3d, Nz-1, zindex, plex)
     deallocate(zindex)
 
+    call allocate_plexrt_solver_from_commandline(solver, '5_8')
     call init_plex_rt_solver(plex, solver)
     deallocate(plex)
 
