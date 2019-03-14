@@ -382,7 +382,7 @@ contains
 
     if(dim_needs_interpolation(pti(Ndim))) then
       ind = int(pti(Ndim))
-      wgt_1d = pti(Ndim) - ind ! === modulo(pti(Ndim), one)
+      wgt_1d = pti(Ndim) - real(ind, irealLUT) ! === modulo(pti(Ndim), one)
       call interp_vec_bilinear_recursive_(Ndim-1, pti, &
         db, db_offsets, ofs + db_offsets(Ndim) * (ind-1), weight * (one-wgt_1d), Cres)
       call interp_vec_bilinear_recursive_(Ndim-1, pti, &

@@ -2081,7 +2081,12 @@ pure subroutine solve_quadratic_r32(a, b, c, x, ierr)
   else
     q = -.5_REAL32*(b + sqrt(dis))
   endif
-  x(:) = [ q/a, c/q ]
+  x(1) = q/a
+  if(abs(q).lt.epsilon(q)) then
+    x(2) = x(1)
+  else
+    x(2) = c/q
+  endif
   if(x(1).gt.x(2)) x = [x(2), x(1)]
 end subroutine
 
