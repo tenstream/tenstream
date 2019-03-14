@@ -191,6 +191,7 @@ contains
     real(ireals), dimension(2) :: A, B, C
     real(ireals) :: dz, sphere_radius
     real(ireals), allocatable :: vertices(:)
+    real(irealLUT), parameter :: eps=sqrt(epsilon(eps))
 
     A = [0._ireals, 0._ireals]
     B = [1._ireals, 0._ireals]
@@ -222,14 +223,14 @@ contains
       param_phi, param_theta, phi, theta, ierr)
 
     @assertEqual(0_mpiint, ierr)
-    @assertEqual(30._irealLUT, rad2deg(phi))
+    @assertEqual(30._irealLUT, rad2deg(phi), eps)
 
     param_phi = 1
     call iterative_phi_theta_from_param_phi_and_param_theta(real(vertices, irealLUT), &
       param_phi, param_theta, phi, theta, ierr)
 
     @assertEqual(0_mpiint, ierr)
-    @assertEqual(-30._irealLUT, rad2deg(phi))
+    @assertEqual(-30._irealLUT, rad2deg(phi), eps)
 
 
     C = [0.511973441_ireals, 0.943134367_ireals]
@@ -240,7 +241,7 @@ contains
       param_phi, param_theta, phi, theta, ierr)
 
     @assertEqual(0_mpiint, ierr)
-    @assertEqual(-27.3593781_irealLUT, rad2deg(phi))
+    @assertEqual(-27.3593781_irealLUT, rad2deg(phi), eps)
   end subroutine
 
   @test(npes=[1])

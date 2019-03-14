@@ -407,21 +407,21 @@ subroutine test_solve_quadratic(this)
   class (MpiTestMethod), intent(inout) :: this
   integer(mpiint) :: ierr
   real(ireals) :: x(2)
-
+  real(ireals), parameter :: eps=sqrt(epsilon(eps))
 
   call solve_quadratic(1._ireals,-2._ireals,-3._ireals, x, ierr)
   @assertEqual(0, ierr)
-  @assertEqual([-1._ireals, 3._ireals], x)
+  @assertEqual([-1._ireals, 3._ireals], x, eps)
 
   call solve_quadratic(2._ireals, 4._ireals, -4._ireals, x, ierr)
   @assertEqual(0, ierr)
-  @assertEqual([-1._ireals - sqrt(3._ireals), -1._ireals + sqrt(3._ireals)], x)
+  @assertEqual([-1._ireals - sqrt(3._ireals), -1._ireals + sqrt(3._ireals)], x, eps)
 
   call solve_quadratic(1._ireals, 2._ireals, 3._ireals, x, ierr)
   @assertFalse(ierr.eq.0)
 
   call solve_quadratic(1._ireals, 2._ireals, 1._ireals, x, ierr)
   @assertEqual(0, ierr)
-  @assertEqual([-1._ireals, -1._ireals], x)
+  @assertEqual([-1._ireals, -1._ireals], x, eps)
 end subroutine
 end module
