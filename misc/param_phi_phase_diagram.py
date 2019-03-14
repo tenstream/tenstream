@@ -46,29 +46,29 @@ props = dict(boxstyle='round', facecolor='gray', alpha=0.1)
 txtprops = dict(fontsize=10, verticalalignment='top', bbox=props)
 
 textstr = '\n'.join((
-    r'Base:  D',
     r'Left:  D',
+    r'Base:  D',
     r'Right: D',
     ))
 gca().text(2, 30, textstr, **txtprops)
 
 textstr = '\n'.join((
-    r'Base:  S',
     r'Left:  D',
+    r'Base:  S',
     r'Right: D',
     ))
 gca().text(30, 30, textstr, **txtprops)
 
 textstr = '\n'.join((
-    r'Base:  S',
     r'Left:  D',
+    r'Base:  S',
     r'Right: S',
     ))
 gca().text(70, -30, textstr, **txtprops)
 
 textstr = '\n'.join((
-    r'Base:  S',
     r'Left:  S',
+    r'Base:  S',
     r'Right: D',
     ))
 gca().text(75, 61, textstr, **txtprops)
@@ -79,11 +79,11 @@ gca().annotate(r'$\theta^* = 0$', xy=(theta, phi), xytext=(2,-40),
             arrowprops=dict(facecolor='black', arrowstyle = "->",))
 
 phi, theta = np.rad2deg(f(1, .5))
-gca().annotate(r'$\phi^* = 1$', xy=(theta, phi), xytext=(60,-0),
+gca().annotate(r'$\phi^* = +1$', xy=(theta, phi), xytext=(60,-0),
             bbox=props,
             arrowprops=dict(facecolor='black', arrowstyle = "->",))
 phi, theta = np.rad2deg(f(-1, .5))
-gca().annotate(r'$\phi^* = 2$', xy=(theta, phi), xytext=(60,15),
+gca().annotate(r'$\phi^* = -1$', xy=(theta, phi), xytext=(60,15),
             bbox=props,
             arrowprops=dict(facecolor='black', arrowstyle = "->",))
 
