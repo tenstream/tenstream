@@ -490,10 +490,12 @@ module m_helper_functions
       else
         factor = 10._REAL64*epsilon(b)
       endif
-      if( a.le.b+factor .and. a.ge.b-factor ) then
-        approx = .True.
-      else
+      if( a.lt.b-factor ) then
         approx = .False.
+      elseif(a.gt.b+factor) then
+        approx = .False.
+      else
+        approx = .True.
       endif
     end function
     elemental logical function approx_r32(a,b,precis) result(approx)

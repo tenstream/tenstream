@@ -16,6 +16,7 @@ module m_plex_grid
 
   use m_tenstream_options, only: read_commandline_options, twostr_ratio
   use m_LUT_param_phi, only: param_phi_param_theta_from_phi_and_theta_withnormals
+  use m_optprop_parameters, only: param_eps
 
   implicit none
 
@@ -1442,14 +1443,53 @@ module m_plex_grid
          real(Cx, irealLUT), real(Cy, irealLUT), &
          real(azimuth, irealLUT), real(zenith, irealLUT), &
          rparam_phi, rparam_theta, ierr)
-       param_phi   = real(rparam_phi, ireals)
-       param_theta = real(rparam_theta, ireals)
 
        !print *,'azimuth, zenith ',rad2deg(azimuth), rad2deg(zenith), 'param phi/theta', param_phi, param_theta
        !call CHKERR(1_mpiint, 'DEBUG')
+       if(ldebug) then
+         ierr = 0
+         if(rparam_phi.lt.-1_irealLUT-param_eps .and. .not.lsrc(left_face)) then
+           ierr = 1
+           print *,'param_phi > -1 but left face is not src', rparam_phi, base_face, left_face, right_face, lsrc
+         endif
+
+         if(rparam_phi.gt.-1_irealLUT+param_eps .and.      lsrc(left_face)) then
+           ierr = 2
+           print *,'param_phi > -1 but left face is not dst', rparam_phi, base_face, left_face, right_face, lsrc
+         endif
+
+         if(rparam_phi.gt.1_irealLUT+param_eps .and. .not.lsrc(right_face)) then
+           ierr = 3
+           print *,'param_phi > 1 but right face is not src', rparam_phi, base_face, left_face, right_face, lsrc
+         endif
+         if(rparam_phi.lt.1_irealLUT-param_eps .and.      lsrc(right_face)) then
+           ierr = 4
+           print *,'param_phi > 1 but right face is not dst', rparam_phi, base_face, left_face, right_face, lsrc
+         endif
+         call CHKERR(ierr, 'found bad param_phi')
+       endif
+
+       ! Snap param_phi to the correct side
+       if(approx(rparam_phi, -1._irealLUT, 100*epsilon(rparam_phi))) then
+         if(lsrc(left_face)) then
+           rparam_phi = -1._irealLUT-param_eps
+         else
+           rparam_phi = -1._irealLUT+param_eps
+         endif
+       elseif(approx(rparam_phi, +1._irealLUT, 100*epsilon(rparam_phi))) then
+         if(lsrc(right_face)) then
+           rparam_phi = 1._irealLUT+param_eps
+         else
+           rparam_phi = 1._irealLUT-param_eps
+         endif
+       endif
+
+       param_phi   = real(rparam_phi, ireals)
+       param_theta = real(rparam_theta, ireals)
 
       if(ldebug) then
-        if(zenith.gt.10*epsilon(zenith) .and. .not.lsrc(base_face)) call CHKERR(1_mpiint, 'base face is not a src! this should not be the case!')
+        if(zenith.gt.10*epsilon(zenith) .and. .not.lsrc(base_face)) &
+          call CHKERR(1_mpiint, 'base face is not a src! this should not be the case!')
         if(rad2deg(azimuth).lt.-90 .or. rad2deg(azimuth).gt.90) then
           print *,'ibase_face', ibase_face
           print *,'proj_normal', proj_sundir, '::norm', norm(proj_sundir)
