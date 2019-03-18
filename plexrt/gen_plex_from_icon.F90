@@ -15,7 +15,7 @@ module m_gen_plex_from_icon
 
   implicit none
 
-  logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug=.False.
 
   contains
 

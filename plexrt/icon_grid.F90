@@ -49,7 +49,7 @@ module m_icon_grid
     integer(iintegers), allocatable :: vertexowner(:) ! dim=(parent_Nvertices)
   end type
 
-  logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug=.False.
   integer(iintegers), parameter :: ICONULL=-1
 
   contains

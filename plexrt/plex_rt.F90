@@ -84,7 +84,7 @@ module m_plex_rt
   type, extends(t_plex_solver) :: t_plex_solver_18_8
   end type
 
-  logical, parameter :: ldebug=.True.
+  logical, parameter :: ldebug=.False.
   contains
     subroutine init_plex_rt_solver(plex, solver)
       type(t_plexgrid), intent(in) :: plex
