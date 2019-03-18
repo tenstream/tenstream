@@ -846,6 +846,8 @@ module m_plex_rt
 
             do o = 1, size(iside_faces)
               iface_side = iside_faces(o)
+              call PetscSectionGetDof(edirSection, iface_side, numDof, ierr); call CHKERR(ierr)
+              if(numDof.lt.i1) cycle
 
               call DMPlexGetSupport(edirdm, iface_side, cell_support, ierr); call CHKERR(ierr)
               icell = cell_support(1)
@@ -865,7 +867,7 @@ module m_plex_rt
               call PetscSectionGetOffset(edirsection, topface, topoffset, ierr); call CHKERR(ierr)
 
               call PetscSectionGetFieldOffset(geomSection, iface_side, i2, geom_offset, ierr); call CHKERR(ierr)
-              area = geoms(i1+geom_offset)
+              area = geoms(i1+geom_offset) / real(solver%dirtop%area_divider, ireals)
 
               call get_inward_face_normal(topface, icell, geomSection, geoms, face_normal)
               mu_top = -dot_product(sundir, -face_normal)
@@ -877,7 +879,9 @@ module m_plex_rt
               transport_this_cell = exp(-tau) * mu_side
 
               call PetscSectionGetOffset(edirsection, iface_side, voff, ierr); call CHKERR(ierr)
-              xv(i1+voff) = xedir(i1+topoffset) * area * transport_this_cell
+              do idof=1,numDof
+                xv(voff+idof) = xedir(i1+topoffset) * area * transport_this_cell
+              enddo
               !print *,icell,'edir top', xedir(i1+topoffset), 'sidesrc', xv(i1+voff)
             enddo
 
