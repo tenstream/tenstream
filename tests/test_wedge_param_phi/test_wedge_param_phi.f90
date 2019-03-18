@@ -267,8 +267,10 @@ contains
 
     do iphi = 1, Nphi
       do itheta = 1, Ntheta
-        param_phi = -1._irealLUT + 2._irealLUT / (Nphi-1) * (iphi-1)
-        param_theta = -1._irealLUT + 2._irealLUT / (Ntheta-1) * (itheta-1)
+        param_phi = -1._irealLUT + 2._irealLUT / &
+          real(Nphi-1, irealLUT) * real(iphi-1, irealLUT)
+        param_theta = -1._irealLUT + 2._irealLUT / &
+          real(Ntheta-1, irealLUT) * real(itheta-1, irealLUT)
         call iterative_phi_theta_from_param_phi_and_param_theta(real(vertices, irealLUT), &
           param_phi, param_theta, phi, theta, ierr)
 
@@ -284,8 +286,10 @@ contains
 
     do iphi = 1, Nphi
       do itheta = 1, Ntheta
-        param_phi = -2._irealLUT + 1._irealLUT / (Nphi-1) * (iphi-1)
-        param_theta = 1e-4_irealLUT + (1._irealLUT-1e-4_irealLUT) / (Ntheta-1) * (itheta-1)
+        param_phi = -2._irealLUT + 1._irealLUT / &
+          real(Nphi-1, irealLUT) * real(iphi-1, irealLUT)
+        param_theta = 1e-4_irealLUT + (1._irealLUT-1e-4_irealLUT) / &
+          real(Ntheta-1, irealLUT) * real(itheta-1, irealLUT)
         call iterative_phi_theta_from_param_phi_and_param_theta(real(vertices, irealLUT), &
           param_phi, param_theta, phi, theta, ierr)
 
@@ -302,8 +306,10 @@ contains
 
     do iphi = 1, Nphi
       do itheta = 1, Ntheta
-        param_phi = 1._irealLUT + 1._irealLUT / (Nphi-1) * (iphi-1)
-        param_theta = 1e-4_irealLUT + (1._irealLUT-1e-4_irealLUT) / (Ntheta-1) * (itheta-1)
+        param_phi = 1._irealLUT + 1._irealLUT / &
+          real(Nphi-1, irealLUT) * real(iphi-1, irealLUT)
+        param_theta = 1e-4_irealLUT + (1._irealLUT-1e-4_irealLUT) / &
+          real(Ntheta-1, irealLUT) * real(itheta-1, irealLUT)
         call iterative_phi_theta_from_param_phi_and_param_theta(real(vertices, irealLUT), &
           param_phi, param_theta, phi, theta, ierr)
 
@@ -342,8 +348,10 @@ contains
 
     do iphi = 1, Nphi
       do itheta = 1, Ntheta
-        phi   = deg2rad(-60._irealLUT + 120._irealLUT / (Nphi-1) * (iphi-1))
-        theta = deg2rad(0._irealLUT + 90._irealLUT / (Ntheta-1) * (itheta-1))
+        phi   = deg2rad(-60._irealLUT + 120._irealLUT / &
+          real(Nphi-1, irealLUT) * real(iphi-1, irealLUT))
+        theta = deg2rad(0._irealLUT + 90._irealLUT / &
+          real(Ntheta-1, irealLUT) * real(itheta-1, irealLUT))
 
         call param_phi_param_theta_from_phi_and_theta_withcoords(real(vertices, irealLUT), &
           phi, theta, pphi1, ptheta1, ierr)
