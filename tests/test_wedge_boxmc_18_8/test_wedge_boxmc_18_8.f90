@@ -1,7 +1,7 @@
 module test_wedge_boxmc_18_8
   use m_boxmc, only : t_boxmc,t_boxmc_wedge_18_8
   use m_data_parameters, only :     &
-    mpiint, ireals, iintegers,      &
+    mpiint, ireals, ireal_dp, iintegers, &
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
@@ -284,6 +284,88 @@ contains
       call check(S_target,T_target, S,T, &
         msg='test_wedgemc_direct_lambert_beer_top_to_side '//itoa(src))
   end subroutine
+
+
+  @test(npes =[1])
+  subroutine test_wedge_18_equal_areas(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers) :: idx, idy
+      real(ireals), dimension(2) :: A, B, C
+      real(ireals), allocatable :: vertices_ireals(:)
+      real(ireal_dp), allocatable :: vertices(:)
+      real(ireal_dp), dimension(3) :: top_center, bot_center, side_center_base, side_center_left, side_center_right
+      real(ireal_dp), dimension(3) :: pmAB, pmAC, pmBC, pmDE, pmDF, pmEF
+      real(ireal_dp), dimension(3) :: pmAD, pmBE, pmCF
+      real(ireal_dp) :: A1, A2, A3
+      real(ireal_dp), parameter :: eps=sqrt(epsilon(A1)), sphere_radius=1e3
+      integer(iintegers) :: Nx=200, Ny=200
+
+
+      dz = 100
+      A = [0,0]
+      B = [1,0]
+
+      do idx=1,Nx
+        do idy=1,Ny
+          C(1) = .25_ireals + .5_ireals * real(idx-1, ireals) / real(Nx-1, ireals)
+          C(2) = .50_ireals + .5_ireals * real(idy-1, ireals) / real(Ny-1, ireals)
+
+          call setup_default_wedge_geometry(A, B, C, dz, vertices_ireals, real(sphere_radius, ireals))
+          vertices = real(vertices_ireals, ireal_dp)
+
+          associate( &
+              pA => vertices(1:3), &
+              pB => vertices(4:6), &
+              pC => vertices(7:9), &
+              pD => vertices(10:12), &
+              pE => vertices(13:15), &
+              pF => vertices(16:18) )
+
+            bot_center = (pA+pB+pC)/3
+            top_center = (pD+pE+pF)/3
+
+            side_center_base = (pA+pB+pD+pE)/4
+            side_center_left = (pA+pC+pD+pF)/4
+            side_center_right= (pC+pB+pF+pE)/4
+
+            pmAB = (pA+pB)/2
+            pmAC = (pA+pC)/2
+            pmBC = (pB+pC)/2
+            pmDE = (pD+pE)/2
+            pmDF = (pD+pF)/2
+            pmEF = (pE+pF)/2
+
+            pmAD = (pA+pD)/2
+            pmBE = (pB+pE)/2
+            pmCF = (pC+pF)/2
+            ! Top sub-areas
+            A1 = triangle_area_by_vertices(pD,pmDF,top_center) + &
+                 triangle_area_by_vertices(pD,pmDE,top_center)
+            A2 = triangle_area_by_vertices(pE,pmEF,top_center) + &
+                 triangle_area_by_vertices(pE,pmDE,top_center)
+            A3 = triangle_area_by_vertices(pF,pmDF,top_center) + &
+                 triangle_area_by_vertices(pF,pmEF,top_center)
+            @assertEqual(A1, A2, eps, 'Top Sub-Areas should have the same size')
+            @assertEqual(A1, A3, eps, 'Top Sub-Areas should have the same size')
+
+            ! bot sub-areas
+            A1 = triangle_area_by_vertices(pA,pmAC,bot_center) + &
+                 triangle_area_by_vertices(pA,pmAB,bot_center)
+            A2 = triangle_area_by_vertices(pB,pmAB,bot_center) + &
+                 triangle_area_by_vertices(pB,pmBC,bot_center)
+            A3 = triangle_area_by_vertices(pC,pmAC,bot_center) + &
+                 triangle_area_by_vertices(pC,pmBC,bot_center)
+            @assertEqual(A1, A2, eps, 'Bot Sub-Areas should have the same size')
+            @assertEqual(A1, A3, eps, 'Bot Sub-Areas should have the same size')
+          end associate
+
+        enddo
+      enddo
+
+
+  end subroutine
+
+
 
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
