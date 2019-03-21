@@ -23,6 +23,7 @@ module test_wedge_param_phi
   implicit none
 
   integer(mpiint) :: myid,mpierr,numnodes,comm, ierr
+  real(irealLUT), parameter :: eps=10*epsilon(eps)
 
 contains
 
@@ -73,14 +74,14 @@ contains
 
     C_wedge = [.5, .8660254]
 
-    @assertEqual( -2._irealLUT, param_phi_from_azimuth(deg2rad( 60._irealLUT), C_wedge))
-    @assertEqual( -1._irealLUT, param_phi_from_azimuth(deg2rad( 30._irealLUT), C_wedge))
-    @assertEqual(  0._irealLUT, param_phi_from_azimuth(deg2rad(  0._irealLUT), C_wedge))
-    @assertEqual(  1._irealLUT, param_phi_from_azimuth(deg2rad(-30._irealLUT), C_wedge))
-    @assertEqual(  2._irealLUT, param_phi_from_azimuth(deg2rad(-60._irealLUT), C_wedge))
+    @assertEqual( -2._irealLUT, param_phi_from_azimuth(deg2rad( 60._irealLUT), C_wedge), eps)
+    @assertEqual( -1._irealLUT, param_phi_from_azimuth(deg2rad( 30._irealLUT), C_wedge), eps)
+    @assertEqual(  0._irealLUT, param_phi_from_azimuth(deg2rad(  0._irealLUT), C_wedge), eps)
+    @assertEqual(  1._irealLUT, param_phi_from_azimuth(deg2rad(-30._irealLUT), C_wedge), eps)
+    @assertEqual(  2._irealLUT, param_phi_from_azimuth(deg2rad(-60._irealLUT), C_wedge), eps)
 
-    @assertEqual(+0.5_irealLUT, param_phi_from_azimuth(deg2rad(-15._irealLUT), C_wedge))
-    @assertEqual(-0.5_irealLUT, param_phi_from_azimuth(deg2rad(+15._irealLUT), C_wedge))
+    @assertEqual(+0.5_irealLUT, param_phi_from_azimuth(deg2rad(-15._irealLUT), C_wedge), eps)
+    @assertEqual(-0.5_irealLUT, param_phi_from_azimuth(deg2rad(+15._irealLUT), C_wedge), eps)
 
 
     C_wedge = [0.511973441, 0.943134367]
@@ -168,19 +169,19 @@ contains
     side_normal = side_normal / norm(side_normal)
     phi = deg2rad(0._irealLUT)
     thetac = theta_crit(side_normal, phi)
-    @assertEqual(5.47000599_irealLUT, rad2deg(thetac))
+    @assertEqual(5.47000599_irealLUT, rad2deg(thetac), eps)
 
     side_normal = [0._irealLUT, 1._irealLUT, 0.1_irealLUT]
     side_normal = side_normal / norm(side_normal)
     phi = deg2rad(40._irealLUT)
     thetac = theta_crit(side_normal, phi)
-    @assertEqual(6.92789030_irealLUT, rad2deg(thetac))
+    @assertEqual(6.92789030_irealLUT, rad2deg(thetac), eps)
 
     side_normal = [0._irealLUT, 1._irealLUT, 0.1_irealLUT]
     side_normal = side_normal / norm(side_normal)
     phi = deg2rad(-40._irealLUT)
     thetac = theta_crit(side_normal, phi)
-    @assertEqual(6.92789030_irealLUT, rad2deg(thetac))
+    @assertEqual(6.92789030_irealLUT, rad2deg(thetac), eps)
   end subroutine
 
   @test(npes=[1])
