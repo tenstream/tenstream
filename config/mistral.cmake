@@ -89,10 +89,10 @@ set(HDF5_DIR        "$ENV{HDF5ROOT}")
 set(CMAKE_C_COMPILER       "$ENV{MYmpicc}") # see definition of compiler vars above in comments
 set(CMAKE_CXX_COMPILER     "$ENV{MYmpicxx}")
 set(CMAKE_Fortran_COMPILER "$ENV{MYmpif90}")
-set(CMAKE_AR               "xiar") # to allow for -ipo
-set(CMAKE_LINKER           "xild")
+
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
 
 set(USER_C_FLAGS "-Wall -std=c99")
-set(USER_Fortran_FLAGS "-warn all -cpp -extend_source -g -sox -no-wrap-margin -fp-model source -ipo -mkl -mkl=sequential")
+set(USER_Fortran_FLAGS "-warn all -cpp -extend_source -g -sox -no-wrap-margin -fp-model source -mkl -mkl=sequential")
 set(USER_Fortran_FLAGS_RELEASE "-march=native -O3 -ftz -pc64 -xCORE-AVX2 -fp-model fast=2 -no-prec-div -no-prec-sqrt -fast-transcendentals")
 set(USER_Fortran_FLAGS_DEBUG "-traceback -warn error -ftrapuv -fpe0 -O2 -g -check all -check nopointers -check noarg_temp_created")

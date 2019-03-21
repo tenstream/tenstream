@@ -1,9 +1,4 @@
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
-include(CMakeForceCompiler) #Necessary to change between MPI/parallel/profiler compilers, without having to do a make clean
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
-
-cmake_minimum_required (VERSION 3.6.0)
 
 #Load system specific settings
 if (NOT SYST)
@@ -11,6 +6,12 @@ if (NOT SYST)
       "Choose the location: mpipc thunder fedora archlinux supermuc jugene" FORCE )
 endif ()
 include (${SYST} OPTIONAL)
+
+# Add our custom cmake find scripts
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
+
+cmake_minimum_required (VERSION 3.6.0)
 
 # make sure that the default is a RELEASE
 if (NOT CMAKE_BUILD_TYPE)
