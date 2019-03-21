@@ -188,12 +188,12 @@ subroutine test_triangle_functions(this)
     @assertTrue(pnt_in_triangle(A,B,C, [new_loc(1), new_loc(2)]), 'custom edge case point should be in triangle!')
 
     normal = compute_normal_3d([A(1),A(2),zero], [B(1),B(2),zero], [C(1),C(2),zero])
-    @assertEqual([zero,zero,one], normal, '3D normal not as expected')
+    @assertEqual([zero,zero,one], normal, 10*epsilon(normal), '3D normal not as expected')
 
     normal = compute_normal_3d([A(1),A(2),zero], [C(1),C(2),zero], [B(1),B(2),zero])
-    @assertEqual([zero,zero,one], -normal, '3D normal not as expected')
+    @assertEqual([zero,zero,one], -normal, 10*epsilon(normal), '3D normal not as expected')
 
-    @assertEqual(one, norm(normal), 'returned normal is not normed to one')
+    @assertEqual(one, norm(normal), 10*epsilon(normal), 'returned normal is not normed to one')
 
     ! Check if we can determine if a point is in a triangle
     @assertTrue(pnt_in_triangle(A,B,C, A), 'pnt_in_triangle wrong for edge case in A')
