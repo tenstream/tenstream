@@ -60,7 +60,6 @@ else()
     include_directories(${PROJECT_BINARY_DIR}/external/pfunit/mod)
     add_dependencies(pfunit git_update)
     set(PFUNIT_DIR ${PROJECT_BINARY_DIR}/external/pfunit)
-    set(MPIEXEC "mpirun")
 endif()
 
 include_directories(${PFUNIT_DIR}/mod)

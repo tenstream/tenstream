@@ -116,6 +116,8 @@ endif(${NETCDF_FOUND})
 
 ## Set MPI Stuff
 option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" OFF)
+set(MPIEXEC mpirun CACHE STRING "Command to run MPI programs, e.g. used to run tests")
+set(MPIEXEC_NUMPROC_FLAG -n CACHE STRING "options to set number of MPI tasks/nodes")
 if(AUTODETECT_MPI)
   find_package( MPI REQUIRED )
   if(${MPI_Fortran_FOUND})
@@ -129,7 +131,6 @@ if(AUTODETECT_MPI)
     message(WARNING "!!!!!!! MPI MISSING")
   endif(${MPI_Fortran_FOUND})
 else(AUTODETECT_MPI)
-    set(MPIEXEC_NUMPROC_FLAG -np) # This is just a wild guess but needed to run tests succesfully
 endif(AUTODETECT_MPI)
 
 # Set Output Directories
@@ -198,9 +199,9 @@ endif(DOXYGEN_FOUND)
 # Add pfUnit for testing
 option(ENABLE_PFUNIT "Enable pfUnit testing Framework" OFF)
 if(ENABLE_PFUNIT)
-	enable_testing()
-	add_subdirectory(tests)
-	add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+  enable_testing()
+  add_subdirectory(tests)
+  add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
   set(CTEST_MPIRUN_FLAGS "" CACHE STRING "Additional mpiexec flags to run tests with")
 endif(ENABLE_PFUNIT)
 
