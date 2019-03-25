@@ -1,7 +1,7 @@
 module m_example_pprts_rrtm_lw_sw
   use mpi
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
-  use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_3_16
+  use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
 
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
@@ -62,7 +62,7 @@ contains
     logical,parameter :: ldebug=.True.
     logical :: lthermal, lsolar
 
-    type(t_solver_3_16) :: pprts_solver
+    class(t_solver), allocatable :: pprts_solver
     type(t_tenstr_atm) :: atm
 
     comm = MPI_COMM_WORLD
@@ -126,6 +126,7 @@ contains
     if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation...'
     lthermal=.False.; lsolar=.True.
 
+    call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
     call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
       dx, dy, phi0, theta0,   &
       albedo_th, albedo_sol,  &
