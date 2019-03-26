@@ -68,7 +68,7 @@ module m_search
           return
         endif
       enddo
-      loc = N
+      loc = real(N, real32)
     end function
     pure function find_real_location_linear_r64(arr, val) result(loc)
       real(REAL64),intent(in) :: arr(:)
@@ -90,7 +90,7 @@ module m_search
           return
         endif
       enddo
-      loc = N
+      loc = real(N, real64)
     end function
 
     ! return index+residula i where val is between arr(i) and arr(i+1)
@@ -142,7 +142,7 @@ module m_search
             return
           endif
         enddo
-        res = N
+        res = real(N, kind=kind(res))
         return
       endif
 
@@ -209,7 +209,7 @@ module m_search
             return
           endif
         enddo
-        res = N
+        res = real(N, kind=kind(res))
         return
       endif
 
