@@ -21,7 +21,7 @@ module m_plex_grid
   implicit none
 
   private
-  public :: t_plexgrid, load_plex_from_file, &
+  public :: t_plexgrid, &
     icell_icon_2_plex, iface_top_icon_2_plex, update_plex_indices, &
     compute_face_geometry, &
     setup_cell1_dmplex, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &

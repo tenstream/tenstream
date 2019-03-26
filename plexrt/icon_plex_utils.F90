@@ -769,9 +769,6 @@ module m_icon_plex_utils
         print *,'vStart,End serial :: ',vStart, vEnd
       endif
 
-      call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
-      call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
-
       call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
       if(dmdist.ne.PETSC_NULL_DM) then
         call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
@@ -1041,9 +1038,6 @@ module m_icon_plex_utils
         call AOCreateMapping(comm, Nfaces, cell_index-1, dmplex_idx, cell_ao_2d, ierr); call CHKERR(ierr)
         !call AOView(cell_ao_2d, PETSC_VIEWER_STDOUT_WORLD, ierr)
       endif
-
-      call DMPlexSetAdjacencyUseCone(dm, PETSC_TRUE, ierr); call CHKERR(ierr)
-      call DMPlexSetAdjacencyUseClosure(dm, PETSC_FALSE, ierr); call CHKERR(ierr)
 
       call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
 
