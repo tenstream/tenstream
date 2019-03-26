@@ -477,32 +477,6 @@ module m_plex_grid
       if(ldebug.and.myid.eq.0) print *,'facevec2cellvec :: end'//trim(faceVecname)
     end subroutine
 
-
-    subroutine load_plex_from_file(comm, gridfile, plex)
-      integer(mpiint), intent(in) :: comm
-      character(len=default_str_len),intent(in) :: gridfile
-      type(t_plexgrid), intent(inout) :: plex
-      integer(mpiint) :: numnodes, ierr
-
-      type(tPetscSF)  :: sf
-      DM       :: dmdist
-
-      if(ldebug) print *,'Loading Plex Grid from File:', trim(gridfile)
-      plex%comm = comm
-      allocate(plex%dm)
-      call DMPlexCreateFromFile(comm, trim(gridfile), PETSC_TRUE, plex%dm, ierr); call CHKERR(ierr)
-      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
-      if (numnodes.gt.1_mpiint) then
-        call DMPlexSetAdjacencyUseCone(plex%dm, PETSC_TRUE, ierr); call CHKERR(ierr)
-        call DMPlexSetAdjacencyUseClosure(plex%dm, PETSC_FALSE, ierr); call CHKERR(ierr)
-        call DMPlexDistribute(plex%dm, i0, sf, dmdist, ierr); call CHKERR(ierr)
-        call DMDestroy(plex%dm, ierr); call CHKERR(ierr)
-        plex%dm = dmdist
-      endif
-      call PetscObjectViewFromOptions(sf, PETSC_NULL_SF, "-show_plex_sf", ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
-    end subroutine
-
     subroutine compute_face_geometry(plex, dm)
       type(t_plexgrid), intent(inout) :: plex
       type(tDM), intent(inout), allocatable :: dm
