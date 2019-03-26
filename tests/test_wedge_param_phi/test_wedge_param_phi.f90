@@ -12,8 +12,9 @@ module test_wedge_param_phi
 
   use m_optprop, only : t_optprop_wedge_18_8
   use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: rmse, CHKERR, get_arg, itoa, search_sorted_bisection, &
+  use m_helper_functions, only: rmse, CHKERR, get_arg, itoa, &
     ind_nd_to_1d, ind_1d_to_nd, rad2deg, deg2rad
+  use m_search, only: find_real_location
   use m_boxmc_geometry, only : setup_default_wedge_geometry
 
 #include "petsc/finclude/petsc.h"

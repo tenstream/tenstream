@@ -29,10 +29,12 @@ module m_optprop_LUT
     rel_approx, imp_bcast,                &
     get_arg, ftoa, itoa, char_arr_to_str, &
     mpi_logical_and, mpi_logical_or,      &
-    search_sorted_bisection, CHKERR,      &
+    CHKERR,                               &
     triangle_area_by_vertices,            &
     rad2deg,                              &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
+
+  use m_search, only: find_real_location
 
   use m_data_parameters, only : ireals, iintegers, irealLUT, &
     one, zero, i0, i1, i2, i3, i10, mpiint, nil, inil,       &
@@ -1382,7 +1384,7 @@ end subroutine
 
     associate(pti => pti_buffer(1:size(sample_pts)))
       do kdim = 1, size(sample_pts)
-        pti(kdim) = search_sorted_bisection(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
+        pti(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
       enddo
 
       select case(OPP%interp_mode)
@@ -1435,7 +1437,7 @@ end subroutine
 
     associate(pti => pti_buffer(1:size(sample_pts)))
       do kdim = 1, size(sample_pts)
-        pti(kdim) = search_sorted_bisection(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
+        pti(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
       enddo
 
       select case(OPP%interp_mode)
@@ -1486,7 +1488,7 @@ end subroutine
 
     associate(pti => pti_buffer(1:size(sample_pts)))
       do kdim = 1, size(sample_pts)
-        pti(kdim) = search_sorted_bisection(OPP%diffconfig%dims(kdim)%v, sample_pts(kdim))
+        pti(kdim) = find_real_location(OPP%diffconfig%dims(kdim)%v, sample_pts(kdim))
       enddo
 
       select case(OPP%interp_mode)

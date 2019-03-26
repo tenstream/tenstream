@@ -44,6 +44,7 @@ set( general_sources
   "mmap.f90"
   "pprts_base.F90"
   "adaptive_spectral_integration.f90"
+  "search.F90"
   )
 
 set( optprop_sources

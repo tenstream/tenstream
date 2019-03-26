@@ -31,9 +31,10 @@ module m_dyn_atm_to_rrtmg
   use m_data_parameters, only : iintegers, mpiint, ireals, default_str_len, &
     zero, one, pi, i1, i2, i9, init_mpi_data_parameters
 
-  use m_helper_functions, only: CHKERR, search_sorted_bisection, reverse, &
+  use m_helper_functions, only: CHKERR, reverse, &
     imp_allreduce_min, imp_allreduce_max, meanvec, imp_bcast, read_ascii_file_2d, &
     gradient, get_arg, itoa
+  use m_search, only: find_real_location
 
   use m_tenstream_interpolation, only : interp_1d
 
@@ -383,8 +384,8 @@ module m_dyn_atm_to_rrtmg
           call imp_allreduce_max(comm, maxval(d_hhl), global_maxheight)
           call imp_allreduce_min(comm, minval(d_plev), global_minplev)
 
-          l = floor(search_sorted_bisection(bg_atm%zt, global_maxheight))
-          m = floor(search_sorted_bisection(bg_atm%plev, global_minplev))
+          l = floor(find_real_location(bg_atm%zt, global_maxheight))
+          m = floor(find_real_location(bg_atm%plev, global_minplev))
           allocate(atm%atm_ke)
           atm%atm_ke = min(l,m)
           ke  = atm%atm_ke + atm%d_ke
@@ -558,7 +559,7 @@ module m_dyn_atm_to_rrtmg
         if(lupdate_bg_entries) then
           do k=1,size(col_var)-atm_ke
             h = (d_hhl(k+1) + d_hhl(k)) / 2
-            col_var(k) = interp_1d(search_sorted_bisection(a_hhl, h), a_lev)
+            col_var(k) = interp_1d(find_real_location(a_hhl, h), a_lev)
           enddo
         endif
       endif

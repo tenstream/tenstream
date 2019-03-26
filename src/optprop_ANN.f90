@@ -24,7 +24,8 @@ module m_optprop_ANN
     ldelta_scale, delta_scale_truncate
   use m_netcdfio
   use mpi
-  use m_helper_functions, only : imp_bcast, search_sorted_bisection
+  use m_helper_functions, only : imp_bcast
+  use m_search, only: find_real_location
 
 
   implicit none
@@ -195,12 +196,12 @@ contains
 
       integer(mpiint) :: ierr
 
-      ind_aspect  = search_sorted_bisection(real(dir2dir_network%aspect,irealLUT), aspect)
-      ind_tauz    = search_sorted_bisection(real(dir2dir_network%tau   ,irealLUT), tauz)
-      ind_w0      = search_sorted_bisection(real(dir2dir_network%w0    ,irealLUT), w0  )
-      ind_g       = search_sorted_bisection(real(dir2dir_network%g     ,irealLUT), g    )
-      ind_phi     = search_sorted_bisection(real(dir2dir_network%phi   ,irealLUT), phi  )
-      ind_theta   = search_sorted_bisection(real(dir2dir_network%theta ,irealLUT), theta)
+      ind_aspect  = find_real_location(real(dir2dir_network%aspect,irealLUT), aspect)
+      ind_tauz    = find_real_location(real(dir2dir_network%tau   ,irealLUT), tauz)
+      ind_w0      = find_real_location(real(dir2dir_network%w0    ,irealLUT), w0  )
+      ind_g       = find_real_location(real(dir2dir_network%g     ,irealLUT), g    )
+      ind_phi     = find_real_location(real(dir2dir_network%phi   ,irealLUT), phi  )
+      ind_theta   = find_real_location(real(dir2dir_network%theta ,irealLUT), theta)
 
       call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta] , dir2dir_network,ierr )
       if(ierr.ne.0) then
@@ -243,12 +244,12 @@ contains
 
       integer(mpiint) :: ierr
 
-      ind_aspect  = search_sorted_bisection(real(dir2diff_network%aspect,irealLUT), aspect )
-      ind_tauz    = search_sorted_bisection(real(dir2diff_network%tau   ,irealLUT), tauz )
-      ind_w0      = search_sorted_bisection(real(dir2diff_network%w0    ,irealLUT), w0   )
-      ind_g       = search_sorted_bisection(real(dir2diff_network%g     ,irealLUT), g    )
-      ind_phi     = search_sorted_bisection(real(dir2diff_network%phi   ,irealLUT), phi  )
-      ind_theta   = search_sorted_bisection(real(dir2diff_network%theta ,irealLUT), theta)
+      ind_aspect  = find_real_location(real(dir2diff_network%aspect,irealLUT), aspect )
+      ind_tauz    = find_real_location(real(dir2diff_network%tau   ,irealLUT), tauz )
+      ind_w0      = find_real_location(real(dir2diff_network%w0    ,irealLUT), w0   )
+      ind_g       = find_real_location(real(dir2diff_network%g     ,irealLUT), g    )
+      ind_phi     = find_real_location(real(dir2diff_network%phi   ,irealLUT), phi  )
+      ind_theta   = find_real_location(real(dir2diff_network%theta ,irealLUT), theta)
 
       call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g, ind_phi, ind_theta] , dir2diff_network,ierr )
 !      C = C/1000.0
@@ -294,10 +295,10 @@ contains
         call exit()
       endif
 
-      ind_aspect = search_sorted_bisection(real(diff2diff_network%aspect,irealLUT), aspect)
-      ind_tauz   = search_sorted_bisection(real(diff2diff_network%tau   ,irealLUT), tauz)
-      ind_w0     = search_sorted_bisection(real(diff2diff_network%w0    ,irealLUT), w0  )
-      ind_g      = search_sorted_bisection(real(diff2diff_network%g     ,irealLUT), g   )
+      ind_aspect = find_real_location(real(diff2diff_network%aspect,irealLUT), aspect)
+      ind_tauz   = find_real_location(real(diff2diff_network%tau   ,irealLUT), tauz)
+      ind_w0     = find_real_location(real(diff2diff_network%w0    ,irealLUT), w0  )
+      ind_g      = find_real_location(real(diff2diff_network%g     ,irealLUT), g   )
 
       call calc_net(C, [ind_aspect, ind_tauz, ind_w0, ind_g], diff2diff_network, ierr )
  !     C = C/1000.0

@@ -30,7 +30,7 @@ module m_helper_functions
   private
   public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                           &
     delta_scale_optprop,delta_scale,cumsum, cumprod,                                                                 &
-    inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum, search_sorted_bisection, &
+    inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum,                          &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm,                        &
     CHKERR, CHKWARN, assertEqual,                                                                                    &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
@@ -52,9 +52,6 @@ module m_helper_functions
   end interface
   interface rmse
     module procedure rmse_r32, rmse_r64
-  end interface
-  interface search_sorted_bisection
-    module procedure search_sorted_bisection_r32, search_sorted_bisection_r64
   end interface
   interface spherical_2_cartesian
     module procedure spherical_2_cartesian_r32, spherical_2_cartesian_r64
@@ -1060,107 +1057,6 @@ module m_helper_functions
       print *,'I read ',nlines,'lines'
     end subroutine
 
-    ! return index+residula i where val is between arr(i) and arr(i+1)
-    function search_sorted_bisection_r32(arr,val) result(res)
-      real(REAL32),intent(in) :: arr(:)
-      real(REAL32),intent(in) :: val
-      real(REAL32) :: res
-      real(REAL32) :: loc_increment
-      integer(iintegers) :: i,j,k
-
-      i=lbound(arr,1)
-      j=ubound(arr,1)
-
-      if(arr(i).le.arr(j)) then ! ascending order
-        do
-          k=(i+j)/2
-          if (val < arr(k)) then
-            j=k
-          else
-            i=k
-          endif
-          if (i+1 >= j) then ! only single or tuple left
-            ! i is left bound and j is right bound index
-            if(i.eq.j) then
-              loc_increment = 0
-            else
-              loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
-            endif
-            res= min(max(real(lbound(arr,1), REAL32), real(i, REAL32) + loc_increment), real(ubound(arr,1), REAL32)) ! return `real-numbered` location of val
-            return
-          endif
-        end do
-      else !descending order
-        do
-          k=(i+j)/2
-          if (val > arr(k)) then
-            j=k
-          else
-            i=k
-          endif
-          if (i+1 >= j) then ! only single or tuple left
-            ! i is left bound and j is right bound index
-            if(i.eq.j) then
-              loc_increment = 0
-            else
-              loc_increment = (val - arr(j)) / ( arr(i) - arr(j) )
-            endif
-            res = min(max(real(lbound(arr,1), REAL32), real(j, REAL32) - loc_increment), real(ubound(arr,1), REAL32)) ! return `real-numbered` location of val
-            return
-          endif
-        end do
-      endif
-    end function
-    function search_sorted_bisection_r64(arr,val) result(res)
-      real(REAL64),intent(in) :: arr(:)
-      real(REAL64),intent(in) :: val
-      real(REAL64) :: res
-      real(REAL64) :: loc_increment
-      integer(iintegers) :: i,j,k
-
-      i=lbound(arr,1)
-      j=ubound(arr,1)
-
-      if(arr(i).le.arr(j)) then ! ascending order
-        do
-          k=(i+j)/2
-          if (val < arr(k)) then
-            j=k
-          else
-            i=k
-          endif
-          if (i+1 >= j) then ! only single or tuple left
-            ! i is left bound and j is right bound index
-            if(i.eq.j) then
-              loc_increment = 0
-            else
-              loc_increment = (val - arr(i)) / ( arr(j) - arr(i) )
-            endif
-            res= min(max(1._REAL64*lbound(arr,1), i + loc_increment), 1._REAL64*ubound(arr,1)) ! return `real-numbered` location of val
-            return
-          endif
-        end do
-      else !descending order
-        do
-          k=(i+j)/2
-          if (val > arr(k)) then
-            j=k
-          else
-            i=k
-          endif
-          if (i+1 >= j) then ! only single or tuple left
-            ! i is left bound and j is right bound index
-            if(i.eq.j) then
-              loc_increment = 0
-            else
-              loc_increment = (val - arr(j)) / ( arr(i) - arr(j) )
-            endif
-            res = min(max(1._REAL64*lbound(arr,1), j - loc_increment), 1._REAL64*ubound(arr,1)) ! return `real-numbered` location of val
-            return
-          endif
-        end do
-      endif
-    end function
 
     subroutine reorder_mpi_comm(icomm, Nrank_x, Nrank_y, new_comm)
       integer(mpiint), intent(in) :: icomm

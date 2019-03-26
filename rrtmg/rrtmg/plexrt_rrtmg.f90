@@ -44,8 +44,9 @@ module m_plexrt_rrtmg
       mpiint, pi, default_str_len
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-      imp_allreduce_min, imp_allreduce_max, search_sorted_bisection, CHKERR, deg2rad, &
+      imp_allreduce_min, imp_allreduce_max, CHKERR, deg2rad, &
       reverse, itoa, angle_between_two_vec, norm, rad2deg, get_arg
+  use m_search, only: find_real_location
   use m_tenstream_interpolation, only : interp_1d
 
   use m_plex_grid, only: TOAFACE, get_inward_face_normal, compute_face_geometry

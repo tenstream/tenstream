@@ -7,8 +7,9 @@ module test_LUT_wedge_18_8
     azimuth_from_param_phi, param_phi_from_azimuth
   use m_optprop, only : t_optprop_wedge_18_8
   use m_tenstream_options, only: read_commandline_options
-  use m_helper_functions, only: rmse, CHKERR, get_arg, itoa, search_sorted_bisection, &
+  use m_helper_functions, only: rmse, CHKERR, get_arg, itoa, &
     ind_nd_to_1d, ind_1d_to_nd, rad2deg, deg2rad
+  use m_search, only: find_real_location
   use m_boxmc_geometry, only : setup_default_wedge_geometry
 
 #include "petsc/finclude/petsc.h"
@@ -126,7 +127,7 @@ contains
         integer(iintegers) :: isrc
 
         do kdim = 1, size(sample_pts)
-          pti(kdim) = search_sorted_bisection(OPPLUT%dirconfig%dims(kdim)%v, sample_pts(kdim))
+          pti(kdim) = find_real_location(OPPLUT%dirconfig%dims(kdim)%v, sample_pts(kdim))
         enddo
         ind1d = ind_nd_to_1d(OPPLUT%dirconfig%offsets, nint(pti, kind=iintegers))
         call ind_1d_to_nd(OPPLUT%dirconfig%offsets, ind1d, rev_pti)

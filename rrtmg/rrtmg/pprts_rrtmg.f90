@@ -49,8 +49,9 @@ module m_pprts_rrtmg
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
       imp_allreduce_min, imp_allreduce_max, imp_allreduce_mean, &
-      search_sorted_bisection, CHKERR, deg2rad, &
+      CHKERR, deg2rad, &
       reverse, approx, itoa
+  use m_search, only: find_real_location
   use m_petsc_helpers, only: dmda_convolve_ediff_srfc
 
   use m_netcdfIO, only : ncwrite
