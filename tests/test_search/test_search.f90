@@ -1,6 +1,6 @@
 module test_search
   use iso_c_binding
-  use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
+  use m_data_parameters, only: ireals, ireal_dp, iintegers, mpiint, init_mpi_data_parameters
   use m_search, only: search_sorted_bisection, find_real_location_petsc, find_real_location_linear, &
     find_real_location
 
@@ -61,10 +61,10 @@ end subroutine
 @test(npes=[1])
 subroutine test_search_runtime(this)
   class (MpiTestMethod), intent(inout) :: this
-  integer(iintegers), parameter :: Niter=1000000, Nsize=200
+  integer(iintegers), parameter :: Nsize=200, Niter=100000*Nsize
   integer(iintegers) :: i, s, itest
   real(ireals) :: A(Nsize), r(Niter)
-  real(ireals) :: tstart, tend
+  real(ireal_dp) :: tstart, tend
   real(ireals) :: sum_res(4), time(4)
   print *,'Running performance test for search routines'
   do i=1,size(A)
@@ -82,43 +82,43 @@ subroutine test_search_runtime(this)
 
       itest = 1
       call cpu_time(tstart)
-      do i=1,Niter
+      do i=1,Niter/s
         sum_res(itest) = sum_res(itest) + find_real_location(arr, r(i))
       enddo
       call cpu_time(tend)
-      time(itest) = tend - tstart
+      time(itest) = real(tend - tstart, ireals)
 
       itest = 2
       call cpu_time(tstart)
-      do i=1,Niter
+      do i=1,Niter/s
         sum_res(itest) = sum_res(itest) + find_real_location_linear(arr, r(i))
       enddo
       call cpu_time(tend)
-      time(itest) = tend - tstart
+      time(itest) = real(tend - tstart, ireals)
 
       itest = 3
       call cpu_time(tstart)
-      do i=1,Niter
+      do i=1,Niter/s
         sum_res(itest) = sum_res(itest) + search_sorted_bisection(arr, r(i))
       enddo
       call cpu_time(tend)
-      time(itest) = tend - tstart
+      time(itest) = real(tend - tstart, ireals)
 
       itest = 4
       call cpu_time(tstart)
-      do i=1,Niter
+      do i=1,Niter/s
         sum_res(itest) = sum_res(itest) + find_real_location_petsc(arr, r(i))
       enddo
       call cpu_time(tend)
-      time(itest) = tend - tstart
+      time(itest) = real(tend - tstart, ireals)
 
       do itest=2,size(sum_res)
         @assertEqual(sum_res(1), sum_res(itest))
       enddo
       print *, 'arr size', s, 'time', time(2:), ':', time(2:) / minval(time), ': auto_select algorithm', time(1) / minval(time)
       ! make sure that the generic version of search algorithm is selected well,
-      ! i.e. that we are not off by a factor of 2
-      @assertTrue(time(1).lt.minval(time)*2, 'the auto selected search algorithm was the wrong one')
+      ! i.e. that we are not off by a factor of 3
+      @assertTrue(time(1).lt.minval(time)*3, 'the auto selected search algorithm was the wrong one')
     end associate
   enddo
 end subroutine
