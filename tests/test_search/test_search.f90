@@ -61,7 +61,7 @@ end subroutine
 @test(npes=[1])
 subroutine test_search_runtime(this)
   class (MpiTestMethod), intent(inout) :: this
-  integer(iintegers), parameter :: Niter=10000000, Nsize=200
+  integer(iintegers), parameter :: Niter=1000000, Nsize=200
   integer(iintegers) :: i, s, itest
   real(ireals) :: A(Nsize), r(Niter)
   real(ireals) :: tstart, tend
