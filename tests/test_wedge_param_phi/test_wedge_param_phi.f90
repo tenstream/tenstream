@@ -100,7 +100,7 @@ contains
 
     do iCx = -100, 100, 5
       do iCy = -20, 20, 5
-        C_wedge = [.5+iCx*.01, .8660254+iCy*.01]
+        C_wedge = [.5+real(iCx)*.01, .8660254+real(iCy)*.01]
         do iphi = -600, 600
           phi = real(iphi, irealLUT)/10
           param_phi = param_phi_from_azimuth(deg2rad(phi), C_wedge)

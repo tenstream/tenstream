@@ -68,7 +68,7 @@ subroutine test_search_runtime(this)
   real(ireals) :: sum_res(4), time(4)
   print *,'Running performance test for search routines'
   do i=1,size(A)
-    A(i) = i-1
+    A(i) = real(i-1, ireals)
   enddo
   do i=1,Niter
     call random_number(r(i))
