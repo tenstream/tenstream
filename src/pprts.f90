@@ -3479,58 +3479,60 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
       integer(iintegers) :: dst,src,idof
 
+      src = 0
       do idof=1, solver%difftop%dof
-        src = idof-1
         if (solver%difftop%is_inward(idof)) then
           col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
         else
           col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k+1   ; col(MatStencil_c,src) = src
         endif
+        src = src + 1
       enddo
 
       do idof=1, solver%diffside%dof
-        src = solver%difftop%dof + idof -1
         if (solver%diffside%is_inward(idof)) then
           col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
         else
           col(MatStencil_j,src) = i+1  ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
         endif
+        src = src + 1
       enddo
 
       do idof=1, solver%diffside%dof
-      src = solver%difftop%dof + solver%diffside%dof + idof -1
         if (solver%diffside%is_inward(idof)) then
           col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j     ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
         else
           col(MatStencil_j,src) = i    ; col(MatStencil_k,src) = j+1   ; col(MatStencil_i,src) = k     ; col(MatStencil_c,src) = src
         endif
+        src = src + 1
       enddo
 
+      dst = 0
       do idof=1, solver%difftop%dof
-        dst = idof-1
         if (solver%difftop%is_inward(idof)) then
           row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k+1   ; row(MatStencil_c,dst) = dst
         else
           row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
         endif
+        dst = dst + 1
       enddo
 
       do idof=1, solver%diffside%dof
-        dst = solver%difftop%dof + idof-1
         if (solver%diffside%is_inward(idof)) then
           row(MatStencil_j,dst) = i+1  ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
         else
           row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
         endif
+        dst = dst + 1
       enddo
 
       do idof=1, solver%diffside%dof
-        dst = solver%difftop%dof + solver%diffside%dof + idof-1
         if (solver%diffside%is_inward(idof)) then
           row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j+1   ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
         else
           row(MatStencil_j,dst) = i    ; row(MatStencil_k,dst) = j     ; row(MatStencil_i,dst) = k     ; row(MatStencil_c,dst) = dst
         endif
+        dst = dst + 1
       enddo
 
       call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)

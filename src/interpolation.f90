@@ -376,7 +376,9 @@ contains
     real(irealLUT) :: wgt_1d
 
     if(Ndim.eq.0) then
-      Cres = Cres + weight * db(:,ofs)
+      do ind=1,size(db, dim=1)
+        Cres(ind) = Cres(ind) + weight * db(ind,ofs)
+      enddo
       return
     endif
 
