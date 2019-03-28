@@ -167,6 +167,21 @@ if(ENABLE_ALL)
   set(ENABLE_EXAMPLES ON CACHE BOOL "Enable EXAMPLES" FORCE)
 endif(ENABLE_ALL)
 
+# Add IPO support if compiler allows it -- default is off because it A) doesnt work or B) compiles super slow
+option(ENABLE_IPO "enable link time optimizations, also called INTERPROCEDURAL_OPTIMIZATIONs" OFF)
+if(ENABLE_IPO)
+  cmake_minimum_required (VERSION 3.9.6)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT ipo_supported OUTPUT ipo_errmsg)
+  if(ipo_supported)
+    message(STATUS "IPO Enabled")
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  else()
+    message(WARNING "IPO could not be enabled ${ipo_errmsg}")
+  endif()
+endif()
+
+
 # Add Source Directories
 add_subdirectory (src)
 
