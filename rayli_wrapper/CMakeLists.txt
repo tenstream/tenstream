@@ -21,5 +21,7 @@ if(HAVE_RAYLI)
   target_link_libraries(single_wedge_2_rayli ${RAYLI_LIB})
 endif()
 
-add_library( f2c_rayli STATIC "f2c_rayli.F90")
+add_library( f2c_rayli_objs   OBJECT "f2c_rayli.F90")
+add_dependencies( f2c_rayli_objs pprts_base )
+add_library( f2c_rayli  $<TARGET_OBJECTS:f2c_rayli_objs> )
 target_link_libraries(f2c_rayli pprts_base ${RAYLI_LIB})

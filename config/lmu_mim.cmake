@@ -6,8 +6,8 @@
 #
 #  module load petsc
 #
-# if so, you might get away with copying the following into your .bashrc:
-# and use this config file here with `cmake <tenstream_root_dir> -DSYST:STRING=lmu_mim`
+# if so, you might get away and use this config file here with
+# `cmake <tenstream_root_dir> -DSYST:STRING=lmu_mim`
 
 set(CMAKE_C_COMPILER   "mpicc")
 set(CMAKE_Fortran_COMPILER   "mpif90")

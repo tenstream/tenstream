@@ -1,6 +1,7 @@
 #message( "Entering tenstream src dir with EXTLIB==${EXTLIB} ")
 
 include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
+install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")
 
 file( GLOB files *.f* )
 
@@ -20,8 +21,9 @@ endforeach()
 SET_SOURCE_FILES_PROPERTIES(rrtmg_sw_k_g.f90 PROPERTIES COMPILE_FLAGS "-O0 ${WNOERRORFLG}")
 SET_SOURCE_FILES_PROPERTIES(mcica_random_numbers.f90 PROPERTIES COMPILE_FLAGS "-fno-range-check ${WNOERRORFLG}")
 
-add_library( pprts_rrtm_sw STATIC ${files} )
-TARGET_LINK_LIBRARIES( pprts_rrtm_sw )
+add_library( pprts_rrtm_sw_objs   OBJECT ${files} )
+add_dependencies( pprts_rrtm_sw_objs pprts_objs )
+add_library( pprts_rrtm_sw $<TARGET_OBJECTS:pprts_rrtm_sw_objs> )
+TARGET_LINK_LIBRARIES( pprts_rrtm_sw pprts)
 
 install(TARGETS pprts_rrtm_sw   DESTINATION lib)
-install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")

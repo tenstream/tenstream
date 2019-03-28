@@ -48,11 +48,9 @@ target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
   pprts
-  pprts_base
   )
 
 add_test(
   NAME pfunit_${CDIR}
   COMMAND ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 2 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-

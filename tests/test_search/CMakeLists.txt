@@ -47,4 +47,3 @@ target_link_libraries(
   )
 
 add_test(pfunit_${CDIR} ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 2 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR})
-

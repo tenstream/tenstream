@@ -58,12 +58,18 @@ set( optprop_sources
   )
 
 
-add_library( pprts_base STATIC ${general_sources} ${optprop_sources} )
-target_link_libraries( pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
+# pprts_base libs
+add_library( pprts_base_objs OBJECT ${general_sources} ${optprop_sources} )
+add_library( pprts_base             $<TARGET_OBJECTS:pprts_base_objs> )
+target_link_libraries( pprts_base   ${EXTLIB} ${USERLIB} ${LIBS})
 
-add_library( pprts STATIC "pprts.f90")
-target_link_libraries( pprts pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
+# pprts libs
+add_library( pprts_objs OBJECT "pprts.f90")
+add_dependencies( pprts_objs pprts_base_objs )
+add_library( pprts        $<TARGET_OBJECTS:pprts_objs> )
+target_link_libraries( pprts     pprts_base        ${EXTLIB} ${USERLIB} ${LIBS})
 
+# CreateLUT binaries
 file( GLOB streams createLUT*.[fF]90 )
 foreach ( stream ${streams} )
   GET_FILENAME_COMPONENT(basename "${stream}" NAME_WE )

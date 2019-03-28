@@ -19,8 +19,8 @@ if(ENABLE_RRTM)
     FILES_MATCHING PATTERN "*.h" )
 
   add_executable( "Cwrapper_ex1" "ex1.c" )
-  target_link_libraries( "Cwrapper_ex1" f2c_pprts_rrtm pprts_rrtmg )
+  target_link_libraries( "Cwrapper_ex1" f2c_pprts_rrtm )
 
   add_executable( "Cwrapper_ex2" "ex2.c" )
-  target_link_libraries( "Cwrapper_ex2" f2c_pprts pprts_rrtmg )
+  target_link_libraries( "Cwrapper_ex2" f2c_pprts )
 endif()

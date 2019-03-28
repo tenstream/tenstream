@@ -29,9 +29,6 @@ endif()
 project (tenstream C Fortran)
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 
-# For python interfaces need -fPIC:
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CMAKE_C_FLAGS               ${USER_C_FLAGS} )
@@ -239,6 +236,8 @@ if(ENABLE_PYTHON)
   message(STATUS "Found f2py: ${F2PY_PATH}")
   add_custom_target(python_interface ALL)
 	add_subdirectory(python)
+  # For python interfaces need -fPIC:
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif(ENABLE_PYTHON)
 
 option(ENABLE_C_WRAPPER "Enable creation of C Wrapper " ON)
