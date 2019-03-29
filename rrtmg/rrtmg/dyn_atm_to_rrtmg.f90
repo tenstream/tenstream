@@ -387,7 +387,7 @@ module m_dyn_atm_to_rrtmg
           l = floor(find_real_location(bg_atm%zt, global_maxheight))
           m = floor(find_real_location(bg_atm%plev, global_minplev))
           allocate(atm%atm_ke)
-          atm%atm_ke = min(l,m)
+          atm%atm_ke = min(l,m)+1
           ke  = atm%atm_ke + atm%d_ke
           ke1 = atm%atm_ke + atm%d_ke1
 
