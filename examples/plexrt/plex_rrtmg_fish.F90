@@ -5,7 +5,7 @@ use petsc
 
 use m_tenstream_options, only : read_commandline_options
 
-use m_helper_functions, only: CHKERR, norm, imp_bcast, determine_normal_direction, &
+use m_helper_functions, only: CHKERR, imp_bcast, determine_normal_direction, &
   spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, reverse, itoa, cstr, &
   meanval, meanvec
 
@@ -206,9 +206,9 @@ logical, parameter :: ldebug=.True.
             endif
           else
             sundir = first_normal + [zero, -.5_ireals, zero]
-            sundir = sundir/norm(sundir)
+            sundir = sundir/norm2(sundir)
           endif
-          sundir = sundir/norm(sundir)
+          sundir = sundir/norm2(sundir)
 
           if(ldebug.and.myid.eq.0) print *,'Initial sundirection = ', sundir, ': sza', angle_between_two_vec(sundir, first_normal), 'rad'
           if(myid.eq.0) print *,'Initial sundirection = ', sundir, ': sza', rad2deg(angle_between_two_vec(sundir, first_normal)),'deg'
@@ -220,7 +220,7 @@ logical, parameter :: ldebug=.True.
             Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), first_normal)
             rot_sundir = matmul(Mrot, sundir)
             !U = [first_normal(2), -first_normal(1), zero]
-            !U = U / norm(U)
+            !U = U / norm2(U)
             !V = cross_3d(first_normal, U)
             !Mrot = rotation_matrix_world_to_local_basis(first_normal, U, V)
             !rot_sundir = matmul(Mrot, sundir)
@@ -239,8 +239,8 @@ logical, parameter :: ldebug=.True.
             U = cross_3d(first_normal, sundir)
             Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), U)
             rot_sundir = matmul(Mrot, sundir)
-            if(ldebug.and.myid.eq.0) print *,'S', sundir, norm(sundir)
-            if(ldebug.and.myid.eq.0) print *,'U', U, norm(U)
+            if(ldebug.and.myid.eq.0) print *,'S', sundir, norm2(sundir)
+            if(ldebug.and.myid.eq.0) print *,'U', U, norm2(U)
             if(ldebug.and.myid.eq.0) print *,'rot_sundir', rot_sundir
             if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
             sundir = rot_sundir

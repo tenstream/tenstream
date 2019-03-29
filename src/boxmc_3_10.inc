@@ -202,8 +202,8 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
         p%src  = src
         p%scattercnt  = 0
 
-        if(.not. approx( norm(p%dir) ,one ) ) then
-          print *,'p%dir',p%dir,'norm',norm(p%dir)
+        if(.not. approx( norm2(p%dir) ,one ) ) then
+          print *,'p%dir',p%dir,'norm',norm2(p%dir)
           stop 'init_diff_photon_3_10 :: direction was not normed?!'
         endif
 

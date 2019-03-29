@@ -28,7 +28,7 @@ module m_helper_functions
   implicit none
 
   private
-  public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                           &
+  public imp_bcast,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                           &
     delta_scale_optprop,delta_scale,cumsum, cumprod,                                                                 &
     inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum,                          &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm,                        &
@@ -61,9 +61,6 @@ module m_helper_functions
   end interface
   interface deg2rad
     module procedure deg2rad_r32, deg2rad_r64
-  end interface
-  interface norm
-    module procedure norm_r32, norm_r64
   end interface
   interface approx
     module procedure approx_r32, approx_r64
@@ -356,19 +353,6 @@ module m_helper_functions
       real(ireals),intent(in) :: v(:)
       real(ireals) :: meanvec(size(v)-1)
       meanvec = (v(2:size(v))+v(1:size(v)-1))*.5_ireals
-    end function
-
-    pure function norm_r32(v) result(norm)
-      real(REAL32) :: norm
-      real(REAL32),intent(in) :: v(:)
-      norm = norm2(v)
-      !norm = sqrt(dot_product(v,v))
-    end function
-    pure function norm_r64(v) result(norm)
-      real(REAL64) :: norm
-      real(REAL64),intent(in) :: v(:)
-      norm = norm2(v)
-      !norm = sqrt(dot_product(v,v))
     end function
 
     !> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
@@ -1103,16 +1087,12 @@ module m_helper_functions
       real(REAL32) :: compute_normal_3d(size(p1))
       real(REAL32) :: U(3), V(3)
 
-      if(size(p1).ne.3 .or. size(p2).ne.3 .or. size(p3).ne.3) then
-        compute_normal_3d = sqrt(-norm(p1))
-      endif
-
       U = p2-p1
       V = p3-p1
 
       compute_normal_3d = cross_3d(U,V)
 
-      compute_normal_3d = compute_normal_3d / norm(compute_normal_3d)
+      compute_normal_3d = compute_normal_3d / norm2(compute_normal_3d)
     end function
     pure function compute_normal_3d_r64(p1,p2,p3) result(compute_normal_3d)
       ! for a triangle p1, p2, p3, if the vector U = p2 - p1 and the vector V = p3 - p1
@@ -1122,16 +1102,12 @@ module m_helper_functions
       real(REAL64) :: compute_normal_3d(size(p1))
       real(REAL64) :: U(size(p1)), V(size(p1))
 
-      if(size(p1).ne.size(p2) .or. size(p1).ne.size(p3)) then
-        compute_normal_3d = sqrt(-norm(p1))
-      endif
-
       U = p2-p1
       V = p3-p1
 
       compute_normal_3d = cross_3d(U,V)
 
-      compute_normal_3d = compute_normal_3d / norm(compute_normal_3d)
+      compute_normal_3d = compute_normal_3d / norm2(compute_normal_3d)
     end function
 
     pure function determine_normal_direction(normal, center_face, center_cell)
@@ -1174,6 +1150,7 @@ module m_helper_functions
     end function
 
     !> @brief returns the angle between two not necessarily normed vectors. Result is in radians
+    !TODO: refactor in two functions, one for normed vecs and one for unnormed
     function angle_between_two_vec_r32(p1, p2) result(angle_between_two_vec)
       real(REAL32),intent(in) :: p1(:), p2(:)
       real(REAL32) :: angle_between_two_vec
@@ -1183,8 +1160,8 @@ module m_helper_functions
         angle_between_two_vec = 0
         return
       endif
-      n1 = norm(p1)
-      n2 = norm(p2)
+      n1 = norm2(p1)
+      n2 = norm2(p2)
       if(any(approx([n1,n2], 0._REAL32))) then
         call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
       endif
@@ -1203,8 +1180,8 @@ module m_helper_functions
         angle_between_two_vec = 0
         return
       endif
-      n1 = norm(p1)
-      n2 = norm(p2)
+      n1 = norm2(p1)
+      n2 = norm2(p2)
       if(any(approx([n1,n2], 0._REAL64))) then
         call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
       endif
@@ -1462,13 +1439,13 @@ module m_helper_functions
       real(REAL32), intent(in), dimension(2) :: p1,p2, p
       real(REAL32) :: distance_to_edge
 
-      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
+      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm2(p2-p1)
     end function
     pure function distance_to_edge_r64(p1,p2,p) result(distance_to_edge)
       real(REAL64), intent(in), dimension(2) :: p1,p2, p
       real(REAL64) :: distance_to_edge
 
-      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
+      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm2(p2-p1)
     end function
 
       pure function rotate_angle_x_r32(v,angle) result(rotate_angle_x)
@@ -1562,7 +1539,7 @@ module m_helper_functions
       real(ireals) :: M(3,3)
       real(ireals),intent(in) :: angle, rot_axis(3)
       real(ireals) :: s,c,u(3),omc
-      u = rot_axis / norm(rot_axis)
+      u = rot_axis / norm2(rot_axis)
       s=sin(angle)
       c=cos(angle)
       omc = 1._ireals - c
@@ -1622,7 +1599,7 @@ module m_helper_functions
     pure function vec_proj_on_plane(v, plane_normal)
       real(ireals), dimension(3), intent(in) :: v, plane_normal
       real(ireals) :: vec_proj_on_plane(3)
-      vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm(plane_normal)**2
+      vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm2(plane_normal)**2
     end function
 
     pure function get_arg_logical(default_value, opt_arg) result(arg)

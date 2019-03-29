@@ -25,7 +25,7 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, coeff_mode, wedge_sphere_radius, param_eps
-use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, rad2deg, swap, norm
+use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, rad2deg, swap
 use m_data_parameters, only: ireals,irealLUT,irealLUT,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_8_10, t_optprop_LUT_3_16, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &

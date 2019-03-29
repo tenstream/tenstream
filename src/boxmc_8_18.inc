@@ -368,8 +368,8 @@ subroutine init_diff_photon_8_18(bmc,p,src,vertices,ierr)
         p%side = int(nil)
         p%src  = src
         p%scattercnt  = 0
-        if(.not. approx( norm(p%dir) ,one ) ) then
-          print *,'p%dir',p%dir,'norm',norm(p%dir)
+        if(.not. approx( norm2(p%dir) ,one ) ) then
+          print *,'p%dir',p%dir,'norm',norm2(p%dir)
           stop 'init_diff_photon_8_18 :: direction was not normed?!'
         endif
         select type(bmc)

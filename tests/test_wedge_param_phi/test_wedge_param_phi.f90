@@ -13,7 +13,8 @@ module test_wedge_param_phi
   use m_optprop, only : t_optprop_wedge_18_8
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse, CHKERR, get_arg, itoa, &
-    ind_nd_to_1d, ind_1d_to_nd, rad2deg, deg2rad
+    ind_nd_to_1d, ind_1d_to_nd, rad2deg, deg2rad, &
+    angle_between_two_vec
   use m_search, only: find_real_location
   use m_boxmc_geometry, only : setup_default_wedge_geometry
 
@@ -112,7 +113,6 @@ contains
 
   @test(npes=[1])
   subroutine test_phi_crit(this)
-    use m_helper_functions, only: norm, angle_between_two_vec
     class (MpiTestMethod), intent(inout) :: this
     real(irealLUT) :: side_normal(3), theta, phic
 
@@ -128,14 +128,14 @@ contains
     @assertEqual(deg2rad(30._irealLUT), phic)
 
     side_normal = [.8660254_irealLUT, -.5_irealLUT, 0.1_irealLUT]
-    side_normal = side_normal / norm(side_normal)
+    side_normal = side_normal / norm2(side_normal)
     theta = deg2rad(10._irealLUT)
     call phi_crit(side_normal, theta, phic, ierr)
     @assertEqual(0_mpiint, ierr)
     @assertGreaterThan(rad2deg(phic), 60._irealLUT)
 
     side_normal = [-1._irealLUT, 0._irealLUT, 0.0_irealLUT]
-    side_normal = side_normal / norm(side_normal)
+    side_normal = side_normal / norm2(side_normal)
     theta = deg2rad(90._irealLUT)
     call phi_crit(side_normal, theta, phic, ierr)
     @assertEqual(0_mpiint, ierr)
@@ -148,7 +148,7 @@ contains
     @assertEqual(deg2rad(-30._irealLUT), phic)
 
     side_normal = [-.8660254_irealLUT, -.5_irealLUT, 0.1_irealLUT]
-    side_normal = side_normal / norm(side_normal)
+    side_normal = side_normal / norm2(side_normal)
     theta = deg2rad(0._irealLUT)
     call phi_crit(side_normal, theta, phic, ierr)
     @assertFalse(0_mpiint.eq.ierr)
@@ -157,7 +157,6 @@ contains
 
   @test(npes=[1])
   subroutine test_theta_crit(this)
-    use m_helper_functions, only: norm, angle_between_two_vec
     class (MpiTestMethod), intent(inout) :: this
     real(irealLUT) :: side_normal(3), thetac, phi
 
@@ -167,19 +166,19 @@ contains
     @assertEqual(0._irealLUT, rad2deg(thetac))
 
     side_normal = [0._irealLUT, 1._irealLUT, 0.1_irealLUT]
-    side_normal = side_normal / norm(side_normal)
+    side_normal = side_normal / norm2(side_normal)
     phi = deg2rad(0._irealLUT)
     thetac = theta_crit(side_normal, phi)
     @assertEqual(5.47000599_irealLUT, rad2deg(thetac), eps)
 
     side_normal = [0._irealLUT, 1._irealLUT, 0.1_irealLUT]
-    side_normal = side_normal / norm(side_normal)
+    side_normal = side_normal / norm2(side_normal)
     phi = deg2rad(40._irealLUT)
     thetac = theta_crit(side_normal, phi)
     @assertEqual(6.92789030_irealLUT, rad2deg(thetac), eps)
 
     side_normal = [0._irealLUT, 1._irealLUT, 0.1_irealLUT]
-    side_normal = side_normal / norm(side_normal)
+    side_normal = side_normal / norm2(side_normal)
     phi = deg2rad(-40._irealLUT)
     thetac = theta_crit(side_normal, phi)
     @assertEqual(6.92789030_irealLUT, rad2deg(thetac), eps)
@@ -187,7 +186,6 @@ contains
 
   @test(npes=[1])
   subroutine test_iterative_phi_theta_from_param_phi_and_param_theta(this)
-    use m_helper_functions, only: norm, angle_between_two_vec
     class (MpiTestMethod), intent(inout) :: this
     real(irealLUT) :: param_phi, param_theta, phi, theta
     real(ireals), dimension(2) :: A, B, C
@@ -248,7 +246,6 @@ contains
 
   @test(npes=[1])
   subroutine test_param_phi_and_param_theta_back_and_forth(this)
-    use m_helper_functions, only: norm, angle_between_two_vec
     class (MpiTestMethod), intent(inout) :: this
     real(irealLUT) :: param_phi, param_theta, phi, theta, pphi, ptheta
     real(ireals), dimension(2) :: A, B, C
@@ -328,7 +325,6 @@ contains
 
   @test(npes=[1])
   subroutine test_param_phi_and_param_theta_with_coords_vs_with_normals(this)
-    use m_helper_functions, only: norm, angle_between_two_vec
     class (MpiTestMethod), intent(inout) :: this
     real(irealLUT) :: phi, theta
     real(irealLUT) :: pphi1, ptheta1

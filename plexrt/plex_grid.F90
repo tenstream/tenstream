@@ -4,7 +4,7 @@ module m_plex_grid
   use m_netcdfIO, only: ncload
 
   use m_helper_functions, only: CHKERR, compute_normal_3d, approx, strF2C, distance, &
-    triangle_area_by_vertices, swap, norm, determine_normal_direction, &
+    triangle_area_by_vertices, swap, determine_normal_direction, &
     vec_proj_on_plane, angle_between_two_vec, cross_3d, rad2deg, &
     rotation_matrix_world_to_local_basis, resize_arr, get_arg, &
     imp_bcast, itoa, ftoa, imp_allreduce_max
@@ -1102,7 +1102,7 @@ module m_plex_grid
         call PetscSectionGetOffset(geomSection, iface, geom_offset, ierr); call CHKERR(ierr)
         face_normal = geoms(geom_offset+i4: geom_offset+i6)
 
-        mu = dot_product(sundir/norm(sundir), face_normal)
+        mu = dot_product(sundir/norm2(sundir), face_normal)
         if(mu.lt.zero) then ! normal is in the opposite direction of the sun -> turn it around
           geoms(geom_offset+i4: geom_offset+i6) = -face_normal
         endif
@@ -1132,7 +1132,7 @@ module m_plex_grid
       ! face_normal = geoms(voff1+i1+i3: voff1+i3+i3) ! DEBUG use 2d normal instead
 
       if(ldebug) then
-        if(.not.approx(one, norm(face_normal))) then
+        if(.not.approx(one, norm2(face_normal))) then
           print *,'cell', icell, 'face', iface, 'Face Normal:', face_normal
           call CHKERR(1_mpiint, 'face_normal not normed :( '//ftoa(face_normal))
         endif
@@ -1300,13 +1300,13 @@ module m_plex_grid
 
       zenith = angle_between_two_vec(sundir, face_normals(:, upper_face))
       proj_sundir = vec_proj_on_plane(sundir, face_normals(:,upper_face))
-      proj_sundir = proj_sundir / max(epsilon(proj_sundir), norm(proj_sundir))
+      proj_sundir = proj_sundir / max(epsilon(proj_sundir), norm2(proj_sundir))
 
       do iface=1,size(side_faces)
         side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
         side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
-          max(epsilon(side_face_normal_projected_on_upperface), norm(side_face_normal_projected_on_upperface(:, iface)))
-        if(norm(proj_sundir).eq.zero) then
+          max(epsilon(side_face_normal_projected_on_upperface), norm2(side_face_normal_projected_on_upperface(:, iface)))
+        if(norm2(proj_sundir).eq.zero) then
           proj_angles_to_sun(iface) = zero
           lsrc(side_faces(iface)) = .False.
         else
@@ -1322,7 +1322,7 @@ module m_plex_grid
 
         ! Local unit vec on upperface, pointing towards '+x'
         e_x = cross_3d(face_normals(:, upper_face), face_normals(:, base_face))
-        e_x = e_x / norm(e_x)
+        e_x = e_x / norm2(e_x)
 
         azimuth = proj_angles_to_sun(ibase_face)
         azimuth = azimuth * sign(one, dot_product(proj_sundir, e_x))
@@ -1358,8 +1358,8 @@ module m_plex_grid
         zenith = zero
       endif
 
-      !print *,'norm proj_sundir', norm(proj_sundir),':', ibase_face, rad2deg(azimuth), ':', rad2deg(zenith),&
-      !  '::',norm(e_x), norm(side_face_normal_projected_on_upperface(:, iright_face))
+      !print *,'norm proj_sundir', norm2(proj_sundir),':', ibase_face, rad2deg(azimuth), ':', rad2deg(zenith),&
+      !  '::',norm2(e_x), norm2(side_face_normal_projected_on_upperface(:, iright_face))
 
       ! Determine edge length of edge between base face and upper face triangle
       ppoints => points
@@ -1466,7 +1466,7 @@ module m_plex_grid
           call CHKERR(1_mpiint, 'base face is not a src! this should not be the case!')
         if(rad2deg(azimuth).lt.-90 .or. rad2deg(azimuth).gt.90) then
           print *,'ibase_face', ibase_face
-          print *,'proj_normal', proj_sundir, '::norm', norm(proj_sundir)
+          print *,'proj_normal', proj_sundir, '::norm', norm2(proj_sundir)
           print *,'face_normals(:,base_face)', face_normals(:,base_face)
           print *,'face_normals(:,left_face)', face_normals(:,left_face)
           print *,'face_normals(:,right_face)', face_normals(:,right_face)
@@ -1541,16 +1541,16 @@ module m_plex_grid
       BC = vertex_coord(:, 3) - vertex_coord(:, 2)
       AC = vertex_coord(:, 3) - vertex_coord(:, 1)
 
-      c = norm(AB)
-      a = norm(BC)
-      b = norm(AC)
+      c = norm2(AB)
+      a = norm2(BC)
+      b = norm2(AC)
 
       !print *,'A', ivertices(1), vertex_coord(:, 1),':AB', AB,' ::', a
       !print *,'B', ivertices(2), vertex_coord(:, 2),':BC', BC,' ::', b
       !print *,'C', ivertices(3), vertex_coord(:, 3),':AC', AC,' ::', c
 
       !nAB = cross_3d(vertex_coord(:, 1), AB)
-      !nAB = nAB / norm(nAB)
+      !nAB = nAB / norm2(nAB)
       !print *,'nAB', nAB
 
       ! law of cosines to get angle between AB and CA
@@ -1570,7 +1570,7 @@ module m_plex_grid
       logical :: is_solar_src
       real(ireals) :: mu
 
-      mu = dot_product(sundir/norm(sundir), face_normal/norm(face_normal))
+      mu = dot_product(sundir/norm2(sundir), face_normal/norm2(face_normal))
       is_solar_src = mu.gt.zero
       !print *,'is_solar_src', face_normal, sundir, ':', mu, '->', is_solar_src,'::', rad2deg(acos(mu))
     end function
@@ -2016,8 +2016,8 @@ module m_plex_grid
       if(ldebug) then
         call compute_face_geometry_info(dm, topface, centroid_top, normal, area)
         call compute_face_geometry_info(dm, botface, centroid_bot, normal, area)
-        if(norm(centroid_top).lt.norm(centroid_bot)) then
-          print *,'Centroid top/bot', centroid_top, ':', centroid_bot, '=>', norm(centroid_top), norm(centroid_bot)
+        if(norm2(centroid_top).lt.norm2(centroid_bot)) then
+          print *,'Centroid top/bot', centroid_top, ':', centroid_bot, '=>', norm2(centroid_top), norm2(centroid_bot)
           call CHKERR(1_mpiint, 'Hmpf, I guessed wrong, I confused top and bot face of cell')
         endif
       endif
@@ -2088,7 +2088,7 @@ module m_plex_grid
       !  normals(:,2) = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,3),vertex_coord(:,Nvertices))
       !  if(dot_product(normals(:,1),normals(:,2)).le.zero) normals(:,2) = -normals(:,2)
       !  normals(:,1) = (normals(:,1) + normals(:,2))/2
-      !  normals(:,1) = normals(:,1) / norm(normals(:,1))
+      !  normals(:,1) = normals(:,1) / norm2(normals(:,1))
       !  !print *,'normal of face', iface,'::', normals(:,2)
       !endif
       !
@@ -2097,7 +2097,7 @@ module m_plex_grid
       !print *,'-------------------------------'
 
       normal = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,2),vertex_coord(:,3))
-      if(.not.approx(norm(normal), one)) call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal))
+      if(.not.approx(norm2(normal), one)) call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal))
 
       if(Nvertices.eq.3) then
         area = triangle_area_by_vertices(vertex_coord(:,1), vertex_coord(:,2), vertex_coord(:,3))
@@ -2105,7 +2105,7 @@ module m_plex_grid
       else
         AB = vertex_coord(:,2) - vertex_coord(:,1)
         CD = vertex_coord(:,4) - vertex_coord(:,3)
-        dotp = dot_product(AB/norm(AB),CD/norm(CD))
+        dotp = dot_product(AB/norm2(AB),CD/norm2(CD))
         if(dotp.gt.zero) then
           !print *,'swapping vertex coordinates because dot_product>0', dotp
           call swap(vertex_coord(:,1),vertex_coord(:,2))
@@ -2267,11 +2267,11 @@ module m_plex_grid
 
         call PetscSectionGetOffset(vert_section, srfc_vert, voff, ierr); call CHKERR(ierr)
 
-        srfc_distance = norm(coords(i1+coff:coff+i3)) ! distance from origin till vertex at surface
+        srfc_distance = norm2(coords(i1+coff:coff+i3)) ! distance from origin till vertex at surface
 
         do k = Nlay, 0, -1
           call PetscSectionGetOffset(coord_section, srfc_vert-k, coff, ierr); call CHKERR(ierr)
-          coords(i1+coff:coff+i3) = coords(i1+coff:coff+i3) / norm(coords(i1+coff:coff+i3)) &
+          coords(i1+coff:coff+i3) = coords(i1+coff:coff+i3) / norm2(coords(i1+coff:coff+i3)) &
             * (srfc_distance + xvert(i1+voff-k))
           !print *,'xvert', srfc_vert, xvert(i1+voff-k), ':coords', coords(i1+coff:coff+i3),'fac',(srfc_distance + xvert(i1+voff-k))
         enddo

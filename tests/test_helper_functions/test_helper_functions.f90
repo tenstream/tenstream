@@ -2,7 +2,7 @@ module test_helper_functions
   use iso_c_binding
   use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
   use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
-    compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, determine_normal_direction, &
+    compute_normal_3d, hit_plane, pnt_in_triangle, distance_to_edge, determine_normal_direction, &
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
     solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
 
@@ -192,7 +192,7 @@ subroutine test_triangle_functions(this)
     normal = compute_normal_3d([A(1),A(2),zero], [C(1),C(2),zero], [B(1),B(2),zero])
     @assertEqual([zero,zero,one], -normal, 10*epsilon(normal), '3D normal not as expected')
 
-    @assertEqual(one, norm(normal), 10*epsilon(normal), 'returned normal is not normed to one')
+    @assertEqual(one, norm2(normal), 10*epsilon(normal), 'returned normal is not normed to one')
 
     ! Check if we can determine if a point is in a triangle
     @assertTrue(pnt_in_triangle(A,B,C, A), 'pnt_in_triangle wrong for edge case in A')
@@ -333,9 +333,9 @@ subroutine test_rotation_matrix_world_to_local(this)
 
 
   ! have a local basis with 45 deg rotation in the xy-plane
-  ex = [ 1,1,0]; ex = ex/norm(ex)
-  ey = [-1,1,0]; ey = ey/norm(ey)
-  ez = [ 0,0,1]; ez = ez/norm(ez)
+  ex = [ 1,1,0]; ex = ex/norm2(ex)
+  ey = [-1,1,0]; ey = ey/norm2(ey)
+  ez = [ 0,0,1]; ez = ez/norm2(ez)
   x1 = [ 1, 1, 1]
 
   Mrot = rotation_matrix_world_to_local_basis(ex, ey, ez)
@@ -364,9 +364,9 @@ subroutine test_rotation_matrix_local_basis_to_world(this)
 
 
   ! have a local basis with 45 deg rotation in the xy-plane
-  ex = [ 1,1,0]; ex = ex/norm(ex)
-  ey = [-1,1,0]; ey = ey/norm(ey)
-  ez = [ 0,0,1]; ez = ez/norm(ez)
+  ex = [ 1,1,0]; ex = ex/norm2(ex)
+  ey = [-1,1,0]; ey = ey/norm2(ey)
+  ez = [ 0,0,1]; ez = ez/norm2(ez)
   x1 = [ sqrt(2._ireals),0._ireals,1._ireals]
 
   Mrot = rotation_matrix_local_basis_to_world(ex, ey, ez)

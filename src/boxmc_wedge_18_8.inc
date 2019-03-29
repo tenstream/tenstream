@@ -531,7 +531,7 @@ subroutine init_diff_photon_wedge_18_8(bmc, p, src, vertices, ierr)
 
   p%loc = p%loc + sqrt(epsilon(pi64)) * dir_p_to_triangle_center
 
-  if(.not. approx( norm(p%dir) ,one ) ) call CHKERR(1_mpiint, 'init_diff_photon_3_10 :: direction was not normed?!')
+  if(.not. approx( norm2(p%dir) ,one ) ) call CHKERR(1_mpiint, 'init_diff_photon_3_10 :: direction was not normed?!')
 
   ierr = 0
   !call print_photon(p)
