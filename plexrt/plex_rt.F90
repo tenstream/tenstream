@@ -22,7 +22,7 @@ module m_plex_rt
     get_top_bot_face_of_cell, destroy_plexgrid, determine_diff_incoming_outgoing_offsets, &
     TOAFACE, BOTFACE, SIDEFACE
 
-  use m_optprop, only : t_optprop, t_optprop_wedge_5_8, t_optprop_wedge_18_8, OPP_1D_RETCODE
+  use m_optprop, only : t_optprop_wedge, t_optprop_wedge_5_8, t_optprop_wedge_18_8, OPP_1D_RETCODE
   use m_optprop_parameters, only : ldebug_optprop
 
   use m_schwarzschild, only: schwarzschild
@@ -52,7 +52,7 @@ module m_plex_rt
     type(t_dof) :: difftop, diffside, dirtop, dirside
     integer(iintegers) :: dirdof, diffdof
     type(t_plexgrid), allocatable :: plex
-    class(t_optprop), allocatable :: OPP
+    class(t_optprop_wedge), allocatable :: OPP
 
     type(tVec), allocatable :: kabs, ksca, g       ! in each cell [pStart..pEnd-1]
     type(tVec), allocatable :: albedo              ! on each surface face [defined on plex%srfc_boundary_dm]
@@ -911,7 +911,7 @@ module m_plex_rt
         plckVec, srfc_emission, edirdm, edirVec)
       class(t_plex_solver), allocatable, intent(in) :: solver
       type(t_plexgrid), intent(in) :: plex
-      class(t_optprop), intent(in) :: OPP
+      class(t_optprop_wedge), intent(in) :: OPP
       type(tDM), allocatable, intent(in) :: ediffdm
       type(tVec), allocatable, intent(in) :: kabs, ksca, g ! cell1_dm
       type(tVec), allocatable, intent(in) :: albedo ! srfc_boundary_dm
@@ -1557,7 +1557,7 @@ module m_plex_rt
   subroutine create_edir_mat(solver, plex, OPP, kabs, ksca, g, sundir, A)
     class(t_plex_solver), intent(in) :: solver
     type(t_plexgrid), intent(inout) :: plex
-    class(t_optprop), intent(in) :: OPP
+    class(t_optprop_wedge), intent(in) :: OPP
     type(tVec), allocatable, intent(in) :: kabs, ksca, g
     real(ireals), intent(in) :: sundir(3)
     type(tMat), allocatable, intent(inout) :: A
@@ -2017,7 +2017,7 @@ module m_plex_rt
   subroutine create_ediff_mat(solver, plex, OPP, kabs, ksca, g, albedo, A)
     class(t_plex_solver), intent(in) :: solver
     type(t_plexgrid), intent(in) :: plex
-    class(t_optprop), intent(in) :: OPP
+    class(t_optprop_wedge), intent(in) :: OPP
     type(tVec), allocatable, intent(in) :: kabs, ksca, g ! cell1_dm
     type(tVec), allocatable, intent(in) :: albedo        ! srfc_boundary_dm
     type(tMat), allocatable, intent(inout) :: A
@@ -2289,7 +2289,7 @@ module m_plex_rt
   !> @brief retrieve transport coefficients from optprop module
   !> @detail this may get the coeffs from a LUT or ANN or whatever and return diff2diff or dir2diff or dir2dir coeffs
   subroutine get_coeff(OPP, kabs, ksca, g, dz, aspect_zx, Cx, Cy, ldir, coeff, ierr, angles)
-    class(t_optprop), intent(in) :: OPP
+    class(t_optprop_wedge), intent(in) :: OPP
     real(ireals), intent(in)     :: kabs, ksca, g
     real(ireals),intent(in)      :: dz, aspect_zx
     real(ireals), intent(in)     :: Cx, Cy ! coordinates of upper triangle pts A,B,C in in (x,y)

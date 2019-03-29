@@ -42,7 +42,8 @@ use mpi!, only: MPI_Comm_rank,MPI_DOUBLE_PRECISION,MPI_INTEGER,MPI_Bcast
 implicit none
 
 private
-public :: t_optprop, t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
+public :: t_optprop, t_optprop_cube, t_optprop_wedge, &
+  t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
   t_optprop_wedge_5_8, t_optprop_wedge_18_8, &
   t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
   OPP_1D_RETCODE, OPP_TINYASPECT_RETCODE
@@ -52,38 +53,67 @@ type,abstract :: t_optprop
   class(t_optprop_LUT), allocatable :: OPP_LUT
   contains
     procedure :: init
-    procedure :: get_coeff
     procedure :: get_coeff_bmc
-    procedure :: dir2dir_coeff_symmetry
-    procedure :: dir2diff_coeff_symmetry
     procedure :: destroy
 end type
 
-type,extends(t_optprop) :: t_optprop_1_2
+! Cube types
+type,abstract,extends(t_optprop) :: t_optprop_cube
+  contains
+    procedure :: get_coeff => get_coeff_cube
+    procedure :: dir2dir_coeff_symmetry => dir2dir_coeff_symmetry_none
+    procedure :: dir2diff_coeff_symmetry => dir2diff_coeff_symmetry_none
 end type
 
-type,extends(t_optprop) :: t_optprop_3_6
+! we introduce one special cube type for 8 direct streams, this way, all of them can share dir2dir_coeff_symmetry
+type,abstract,extends(t_optprop_cube) :: t_optprop_cube_dir8
+  contains
+    procedure :: dir2dir_coeff_symmetry => dir2dir8_coeff_symmetry
 end type
 
-type,extends(t_optprop) :: t_optprop_3_10
+type,extends(t_optprop_cube) :: t_optprop_1_2
 end type
 
-type,extends(t_optprop) :: t_optprop_8_10
+type,extends(t_optprop_cube) :: t_optprop_3_6
+  contains
+    procedure :: dir2diff_coeff_symmetry => dir3_to_diff6_coeff_symmetry
 end type
 
-type,extends(t_optprop) :: t_optprop_3_16
+type,extends(t_optprop_cube) :: t_optprop_3_10
+  contains
+    procedure :: dir2diff_coeff_symmetry => dir3_to_diff10_coeff_symmetry
 end type
 
-type,extends(t_optprop) :: t_optprop_8_16
+type,extends(t_optprop_cube) :: t_optprop_3_16
+  contains
+    procedure :: dir2diff_coeff_symmetry => dir3_to_diff16_coeff_symmetry
 end type
 
-type,extends(t_optprop) :: t_optprop_8_18
+type,extends(t_optprop_cube_dir8) :: t_optprop_8_10
+  contains
+    procedure :: dir2diff_coeff_symmetry => dir8_to_diff10_coeff_symmetry
 end type
 
-type,extends(t_optprop) :: t_optprop_wedge_5_8
+type,extends(t_optprop_cube_dir8) :: t_optprop_8_16
+  contains
+    procedure :: dir2diff_coeff_symmetry => dir8_to_diff16_coeff_symmetry
 end type
 
-type,extends(t_optprop) :: t_optprop_wedge_18_8
+type,extends(t_optprop_cube_dir8) :: t_optprop_8_18
+  contains
+    procedure :: dir2diff_coeff_symmetry => dir8_to_diff18_coeff_symmetry
+end type
+
+! Wedge types
+type,abstract,extends(t_optprop) :: t_optprop_wedge
+  contains
+    procedure :: get_coeff => get_coeff_wedge
+end type
+
+type,extends(t_optprop_wedge) :: t_optprop_wedge_5_8
+end type
+
+type,extends(t_optprop_wedge) :: t_optprop_wedge_18_8
 end type
 
 integer(mpiint), parameter :: OPP_1D_RETCODE = -1_mpiint
@@ -145,56 +175,12 @@ contains
       endif
   end subroutine
 
-  subroutine get_coeff(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north, wedge_coords)
-        class(t_optprop)                    :: OPP
-        logical,intent(in)                  :: dir
-        real(irealLUT),intent(in)           :: tauz, w0, g, aspect_zx
-        real(irealLUT),intent(in),optional  :: angles(:)             ! phi and azimuth in degree
-        logical,intent(in),optional         :: lswitch_east, lswitch_north
-        real(irealLUT),intent(in),optional  :: wedge_coords(:)       ! 2 coordinates of wedge C_point, only used for wedge OPP types
-        real(irealLUT),intent(out) :: C(:)
-        integer(mpiint), intent(out) :: ierr
-
-        select type (OPP)
-        class is (t_optprop_1_2)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
-
-        class is (t_optprop_3_6)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
-
-        class is (t_optprop_3_10)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
-
-        class is (t_optprop_8_10)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
-
-        class is (t_optprop_3_16)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
-
-        class is (t_optprop_8_16)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
-
-        class is (t_optprop_8_18)
-          call boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
-
-        class is (t_optprop_wedge_5_8)
-          call wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, wedge_coords)
-
-        class is (t_optprop_wedge_18_8)
-          call wedge_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, wedge_coords)
-
-        class default
-          ierr = 1_mpiint
-          call CHKERR(ierr, 'initialize LUT: unexpected type for optprop object!')
-      end select
-  end subroutine
-
-  subroutine wedge_lut_call(OPP, tauz, w0, g, aspect_zx, ldir, C, ierr, in_angles, wedge_coords)
-    class(t_optprop)                  :: OPP
-    logical,intent(in)                :: ldir
+  subroutine get_coeff_wedge(OPP, tauz, w0, g, aspect_zx, ldir, C, ierr, wedge_coords, angles)
+    class(t_optprop_wedge)              :: OPP
+    logical,intent(in)                  :: ldir
     real(irealLUT),intent(in)           :: tauz, w0, g, aspect_zx
-    real(irealLUT),intent(in),optional  :: in_angles(:)
-    real(irealLUT),intent(in),optional  :: wedge_coords(:) ! 2 coordinates of wedge C_point, only used for wedge OPP types
+    real(irealLUT),intent(in)           :: wedge_coords(:) ! 2 coordinates of wedge C_point, only used for wedge OPP types
+    real(irealLUT),intent(in),optional  :: angles(:)
     real(irealLUT),intent(out)          :: C(:)
     integer(mpiint), intent(out) :: ierr
 
@@ -203,11 +189,7 @@ contains
     ierr = 0
 
     if(ldebug_optprop) then
-      if(.not.present(wedge_coords)) call CHKERR(1_mpiint, 'If you use an wedge OPP object, I highly recommend that you provide the wedge coordinates')
-    endif
-
-    if(ldebug_optprop) then
-      call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, in_angles)
+      call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, angles)
     endif
 
     if(ldebug_optprop) then
@@ -223,46 +205,14 @@ contains
       return
     endif
 
-    call do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
+    call do_wedge_lookup(tauz, w0, aspect_zx, ldir, angles)
 
     if(.False. .and. ldir) call print_coeff_diff()
 
-    !if(ldir .and. present(in_angles)) then
+    !if(ldir .and. present(angles)) then
     !  call handle_critical_azimuth()
     !endif
     contains
-      !subroutine handle_critical_azimuth()
-      !  use m_data_parameters, only: pi=>pi_irealLUT
-      !  use m_helper_functions, only: angle_between_two_vec, search_sorted_bisection, rad2deg
-      !  use m_optprop_LUT, only: find_lut_dim_by_name
-
-      !  real(irealLUT) :: param_phi
-      !  logical :: lsample_critical
-
-      !  associate( pA => wedge_coords(1:2), pB => wedge_coords(3:4), pC => wedge_coords(5:6) )
-      !    param_phi = param_phi_from_azimuth(deg2rad(in_angles(1)), pC)
-
-      !    lsample_critical = .False.
-      !    if(approx(abs(param_phi), 1._irealLUT, 100*epsilon(1._irealLUT))) lsample_critical = .True.
-
-      !    !print *,'param_phi', param_phi, lsample_critical
-      !    if(lsample_critical) then
-      !      if(param_phi.le.-1._irealLUT) then
-      !        param_phi = -1._irealLUT-100*(epsilon(1._irealLUT))
-      !      elseif(param_phi.ge.1._irealLUT) then !1.0001
-      !        param_phi = 1._irealLUT+100*(epsilon(1._irealLUT))
-      !      elseif(param_phi.lt.0._irealLUT) then !-.999
-      !        param_phi = -1._irealLUT+100*(epsilon(1._irealLUT))
-      !      else ! .999
-      !        param_phi = 1._irealLUT-100*(epsilon(1._irealLUT))
-      !      endif
-      !      !print *,'param_phi -> ', param_phi, lsample_critical
-      !      !call do_bmc_computation(C)
-      !      call OPP%OPP_LUT%LUT_get_dir2dir([tauz, w0, aspect_zx, pC(1), pC(2), param_phi, in_angles(2)], C)
-      !    endif
-      !  end associate
-
-      !end subroutine
       subroutine do_bmc_computation(Cbmc)
         real(irealLUT), intent(out) :: Cbmc(:)
         real(ireals), allocatable :: vertices(:)
@@ -278,9 +228,9 @@ contains
 
         call iterative_phi_theta_from_param_phi_and_param_theta(&
           real(vertices, irealLUT), &
-          in_angles(1), in_angles(2), phi, theta, ierr); call CHKERR(ierr)
+          angles(1), angles(2), phi, theta, ierr); call CHKERR(ierr)
 
-        print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, in_angles, rad2deg(phi), rad2deg(theta)
+        print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, angles, rad2deg(phi), rad2deg(theta)
         call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, &
           [rad2deg(phi), rad2deg(theta)])
       end subroutine
@@ -302,21 +252,21 @@ contains
         endif
         !C = Cbmc
       end subroutine
-      subroutine do_wedge_lookup(tauz, w0, aspect_zx, ldir, in_angles)
+      subroutine do_wedge_lookup(tauz, w0, aspect_zx, ldir, angles)
         real(irealLUT), intent(in) :: tauz, w0, aspect_zx
         logical,intent(in)       :: ldir
-        real(irealLUT),intent(in),optional :: in_angles(:)
+        real(irealLUT),intent(in),optional :: angles(:)
         real(irealLUT) :: save_param_phi, save_param_theta
 
           select case (coeff_mode)
           case(i0) ! LookUpTable Mode
-            if(present(in_angles)) then ! obviously we want the direct coefficients
+            if(present(angles)) then ! obviously we want the direct coefficients
 
               associate(&
                   Cx => wedge_coords(1), &
                   Cy => wedge_coords(2), &
-                  param_phi => in_angles(1), &
-                  param_theta => in_angles(2) )
+                  param_phi => angles(1), &
+                  param_theta => angles(2) )
 
                 call handle_critical_param_phi(param_phi, save_param_phi)
                 call handle_critical_param_theta(param_theta, save_param_theta)
@@ -392,11 +342,11 @@ contains
         !TODO: here we may have incoming radiation at the sides and we just drop that
         ! this has to be fixed for anisotropic grids
 
-        if(present(in_angles)) then
+        if(present(angles)) then
 
           if(aspect_zx.ge.twostr_ratio) then
             C = zero
-            mu = cos(theta_from_param_theta(in_angles(2), 0._irealLUT))
+            mu = cos(theta_from_param_theta(angles(2), 0._irealLUT))
 
             call eddington_coeff_zdun(&
               real(tauz, ireals), &
@@ -442,7 +392,7 @@ contains
           elseif(aspect_zx.lt.OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)) then
             restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%dirconfig%dims(3)%vrange(1)), &
               OPP%OPP_LUT%dirconfig%dims(3)%vrange(2))
-            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, in_angles)
+            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
             handle_aspect_zx_1D_case = .True.
             ierr = OPP_TINYASPECT_RETCODE
           endif
@@ -472,7 +422,7 @@ contains
           elseif(aspect_zx.lt.OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)) then
             restricted_aspect_zx = min(max(aspect_zx, OPP%OPP_LUT%diffconfig%dims(3)%vrange(1)), &
               OPP%OPP_LUT%diffconfig%dims(3)%vrange(2))
-            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, in_angles)
+            call do_wedge_lookup(tauz, w0, restricted_aspect_zx, ldir, angles)
             handle_aspect_zx_1D_case = .True.
             ierr = OPP_TINYASPECT_RETCODE
           endif
@@ -481,8 +431,8 @@ contains
       end function
   end subroutine
 
-  subroutine boxmc_lut_call(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
-    class(t_optprop)                  :: OPP
+  subroutine get_coeff_cube(OPP, tauz, w0, g, aspect_zx, dir, C, ierr, angles, lswitch_east, lswitch_north)
+    class(t_optprop_cube)             :: OPP
     logical,intent(in)                :: dir
     real(irealLUT),intent(in)           :: tauz, w0, g, aspect_zx
     real(irealLUT),intent(in),optional  :: angles(:)
@@ -634,182 +584,214 @@ contains
     endif
   end subroutine
 
-  subroutine dir2diff_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
-
-    class(t_optprop) :: OPP
+  subroutine dir2diff_coeff_symmetry_none(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop_cube)        :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
-
-    integer(iintegers)              :: dof
-    real(irealLUT)                    :: newcoeff(size(coeff))
-
-    select type(OPP)
-      class is (t_optprop_1_2)
-        continue
-
-      class is (t_optprop_3_6)
-        !for solver_3_6 only the offset is changing in those sides which should be switched
-        dof = 3
-          if(lswitch_east) then
-            newcoeff = coeff
-            coeff(7:9)   = newcoeff([1, 2, 3] + dof*3)
-            coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
-          endif
-          if(lswitch_north) then
-            newcoeff = coeff
-            coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
-            coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
-          endif
-
-      class is (t_optprop_3_10)
-        !for solver_3_10 the offset is chaning and the destination order
-        dof = 3
-          if(lswitch_east) then
-            newcoeff = coeff
-           !coeff( 1: 3) = newcoeff([1, 2, 3]        )
-           !coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
-            coeff( 7: 9) = newcoeff([1, 2, 3] + dof*3)
-            coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
-            coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
-            coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
-           ! coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
-           ! coeff(22:24) = newcoeff([1, 2, 3] + dof*7)
-           ! coeff(25:27) = newcoeff([1, 2, 3] + dof*8)
-           ! coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
-          endif
-          if(lswitch_north) then
-            newcoeff = coeff
-           !coeff( 1: 3) = newcoeff([1, 2, 3]        )
-           !coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
-           !coeff( 7: 9) = newcoeff([1, 2, 3] + dof*2)
-           !coeff(10:12) = newcoeff([1, 2, 3] + dof*3)
-           !coeff(13:15) = newcoeff([1, 2, 3] + dof*4)
-           !coeff(16:18) = newcoeff([1, 2, 3] + dof*5)
-            coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
-            coeff(22:24) = newcoeff([1, 2, 3] + dof*8)
-            coeff(25:27) = newcoeff([1, 2, 3] + dof*7)
-            coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
-          endif
-
-
-      class is (t_optprop_3_16)
-          if(lswitch_east) then
-            call CHKERR(1_mpiint, 'not yet implemented')
-        endif
-          if (lswitch_north) then
-            call CHKERR(1_mpiint, 'not yet implemented')
-          endif
-
-
-      class is (t_optprop_8_10)
-        !for solver_8_10 the offset is chaning and the destination order
-        dof = 8
-          if(lswitch_east) then
-            newcoeff = coeff
-            !coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]        )
-            !coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*1 )
-            coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*3 )
-            coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*2 )
-            coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*5 )
-            coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*4 )
-            !coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*6 )
-            !coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*7 )
-            !coeff(65:72) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*8 )
-            !coeff(73:80) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*9 )
-          endif
-          if (lswitch_north) then
-            newcoeff =coeff
-            !coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]        )
-            !coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*1 )
-            !coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*2 )
-            !coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*3 )
-            !coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*4 )
-            !coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*5 )
-            coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*6 )
-            coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*8 )
-            coeff(65:72) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*7 )
-            coeff(73:80) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*9 )
-          endif
-
-      class is (t_optprop_8_16)
-          if(lswitch_east) then
-            call CHKERR(1_mpiint, 'not yet implemented')
-          endif
-          if (lswitch_north) then
-            call CHKERR(1_mpiint, 'not yet implemented')
-          endif
-
-      class is (t_optprop_8_18)
-          if(lswitch_east) then
-            call CHKERR(1_mpiint, 'not yet implemented')
-          endif
-          if (lswitch_north) then
-            call CHKERR(1_mpiint, 'not yet implemented')
-          endif
-
-    end select
-
+    return
+    if(.False.) then ! remove compiler unused warnings
+      select type(OPP)
+      end select
+      if(lswitch_east .or. lswitch_north) coeff=coeff
+    endif
   end subroutine
 
-  subroutine dir2dir_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
-    class(t_optprop)             :: OPP
+  !for solver_3_6 only the offset is changing in those sides which should be switched
+  subroutine dir3_to_diff6_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop_3_6)         :: OPP
     logical, intent(in)          :: lswitch_east, lswitch_north
     real(irealLUT),intent(inout) :: coeff(:)
+    integer(iintegers), parameter:: dof = 3
+    real(irealLUT)               :: newcoeff(size(coeff))
+    if(lswitch_east) then
+      newcoeff = coeff
+      coeff(7:9)   = newcoeff([1, 2, 3] + dof*3)
+      coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
+    endif
+    if(lswitch_north) then
+      newcoeff = coeff
+      coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
+      coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
+    endif
+    if(.False.) then ! remove compiler unused warnings
+      select type(OPP)
+      end select
+    endif
+  end subroutine
 
-    integer(iintegers) :: dof
-    real(irealLUT)       :: newcoeff(size(coeff))
+  !for solver_3_10 the offset is chaning and the destination order
+  subroutine dir3_to_diff10_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop_3_10)        :: OPP
+    logical, intent(in)          :: lswitch_east, lswitch_north
+    real(irealLUT),intent(inout) :: coeff(:)
+    integer(iintegers), parameter:: dof = 3
+    real(irealLUT)               :: newcoeff(size(coeff))
+    if(lswitch_east) then
+      newcoeff = coeff
+      !coeff( 1: 3) = newcoeff([1, 2, 3]        )
+      !coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
+      coeff( 7: 9) = newcoeff([1, 2, 3] + dof*3)
+      coeff(10:12) = newcoeff([1, 2, 3] + dof*2)
+      coeff(13:15) = newcoeff([1, 2, 3] + dof*5)
+      coeff(16:18) = newcoeff([1, 2, 3] + dof*4)
+      ! coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
+      ! coeff(22:24) = newcoeff([1, 2, 3] + dof*7)
+      ! coeff(25:27) = newcoeff([1, 2, 3] + dof*8)
+      ! coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
+    endif
+    if(lswitch_north) then
+      newcoeff = coeff
+      !coeff( 1: 3) = newcoeff([1, 2, 3]        )
+      !coeff( 4: 6) = newcoeff([1, 2, 3] + dof*1)
+      !coeff( 7: 9) = newcoeff([1, 2, 3] + dof*2)
+      !coeff(10:12) = newcoeff([1, 2, 3] + dof*3)
+      !coeff(13:15) = newcoeff([1, 2, 3] + dof*4)
+      !coeff(16:18) = newcoeff([1, 2, 3] + dof*5)
+      coeff(19:21) = newcoeff([1, 2, 3] + dof*6)
+      coeff(22:24) = newcoeff([1, 2, 3] + dof*8)
+      coeff(25:27) = newcoeff([1, 2, 3] + dof*7)
+      coeff(28:30) = newcoeff([1, 2, 3] + dof*9)
+    endif
+    if(.False.) then ! remove compiler unused warnings
+      select type(OPP)
+      end select
+    endif
+  end subroutine
 
-    select type(OPP)
-      class is (t_optprop_1_2)
-        continue
+  subroutine dir3_to_diff16_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop_3_16)        :: OPP
+    logical, intent(in)          :: lswitch_east, lswitch_north
+    real(irealLUT),intent(inout) :: coeff(:)
+    if(lswitch_east) then
+      call CHKERR(1_mpiint, 'not yet implemented')
+    endif
+    if (lswitch_north) then
+      call CHKERR(1_mpiint, 'not yet implemented')
+    endif
+    if(.False.) then ! remove compiler unused warnings
+      select type(OPP)
+      end select
+      if(lswitch_east .or. lswitch_north) coeff=coeff
+    endif
+  end subroutine
 
-      class is (t_optprop_3_6)
-        !nothing to do because of symmetrie
-        continue
+  !for solver_8_10 the offset is chaning and the destination order
+  subroutine dir8_to_diff10_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop_8_10)        :: OPP
+    logical, intent(in)          :: lswitch_east, lswitch_north
+    real(irealLUT),intent(inout) :: coeff(:)
+    integer(iintegers), parameter :: dof = 8
+    real(irealLUT)               :: newcoeff(size(coeff))
+    if(lswitch_east) then
+      newcoeff = coeff
+      !coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]        )
+      !coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*1 )
+      coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*3 )
+      coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*2 )
+      coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*5 )
+      coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*4 )
+      !coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*6 )
+      !coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*7 )
+      !coeff(65:72) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*8 )
+      !coeff(73:80) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8] +dof*9 )
+    endif
+    if (lswitch_north) then
+      newcoeff = coeff
+      !coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]        )
+      !coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*1 )
+      !coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*2 )
+      !coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*3 )
+      !coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*4 )
+      !coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*5 )
+      coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*6 )
+      coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*8 )
+      coeff(65:72) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*7 )
+      coeff(73:80) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8] +dof*9 )
+    endif
+    if(.False.) then ! remove compiler unused warnings
+      select type(OPP)
+      end select
+    endif
+  end subroutine
 
-      class is (t_optprop_3_10)
-        !nothing to do because of symmetrie
-        continue
+  subroutine dir8_to_diff16_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop_8_16)        :: OPP
+    logical, intent(in)          :: lswitch_east, lswitch_north
+    real(irealLUT),intent(inout) :: coeff(:)
+    if(lswitch_east) then
+      call CHKERR(1_mpiint, 'not yet implemented')
+    endif
+    if (lswitch_north) then
+      call CHKERR(1_mpiint, 'not yet implemented')
+    endif
+    if(.False.) then ! remove compiler unused warnings
+      select type(OPP)
+      end select
+      if(lswitch_east .or. lswitch_north) coeff=coeff
+    endif
+  end subroutine
 
-      class is (t_optprop_3_16)
-        continue
+  subroutine dir8_to_diff18_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop_8_18)        :: OPP
+    logical, intent(in)          :: lswitch_east, lswitch_north
+    real(irealLUT),intent(inout) :: coeff(:)
+    if(lswitch_east) then
+      call CHKERR(1_mpiint, 'not yet implemented')
+    endif
+    if (lswitch_north) then
+      call CHKERR(1_mpiint, 'not yet implemented')
+    endif
+    if(.False.) then ! remove compiler unused warnings
+      select type(OPP)
+      end select
+      if(lswitch_east .or. lswitch_north) coeff=coeff
+    endif
+  end subroutine
 
-      class is (t_optprop_8_10)
-        call symmetry_8()
+  subroutine dir2dir_coeff_symmetry_none(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop_cube)        :: OPP
+    logical, intent(in)          :: lswitch_east, lswitch_north
+    real(irealLUT),intent(inout) :: coeff(:)
+    return
+    if(.False.) then ! remove compiler unused warnings
+      select type(OPP)
+      end select
+      if(lswitch_east .or. lswitch_north) coeff=coeff
+    endif
+  end subroutine
 
-      class is (t_optprop_8_16)
-        call symmetry_8()
+  subroutine dir2dir8_coeff_symmetry(OPP, coeff, lswitch_east, lswitch_north)
+    class(t_optprop_cube_dir8)   :: OPP
+    logical, intent(in)          :: lswitch_east, lswitch_north
+    real(irealLUT),intent(inout) :: coeff(:)
+    integer(iintegers), parameter:: dof=8
+    real(irealLUT)               :: newcoeff(size(coeff))
 
-      class is (t_optprop_8_18)
-        call symmetry_8()
-    end select
-
-  contains
-    subroutine symmetry_8()
-      dof = 8
-        if(lswitch_east) then
-          newcoeff = coeff
-          coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof  )
-          coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]      )
-          coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*3)
-          coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*2)
-          coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*4)
-          coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*5)
-          coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*6)
-          coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*7)
-        endif
-        if (lswitch_north) then
-          newcoeff = coeff
-          coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*2)
-          coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*3)
-          coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]      )
-          coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof  )
-          coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*4)
-          coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*5)
-          coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*6)
-          coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*7)
-        endif
-    end subroutine
-
+    if(lswitch_east) then
+      newcoeff = coeff
+      coeff(1:8)   = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof  )
+      coeff(9:16)  = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]      )
+      coeff(17:24) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*3)
+      coeff(25:32) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*2)
+      coeff(33:40) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*4)
+      coeff(41:48) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*5)
+      coeff(49:56) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*6)
+      coeff(57:64) = newcoeff([2, 1, 4, 3, 5, 6, 7, 8]+dof*7)
+    endif
+    if (lswitch_north) then
+      newcoeff = coeff
+      coeff(1:8)   = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*2)
+      coeff(9:16)  = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*3)
+      coeff(17:24) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]      )
+      coeff(25:32) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof  )
+      coeff(33:40) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*4)
+      coeff(41:48) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*5)
+      coeff(49:56) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*6)
+      coeff(57:64) = newcoeff([3, 4, 1, 2, 5, 6, 7, 8]+dof*7)
+    endif
+    if(.False.) then ! remove compiler unused warnings
+      select type(OPP)
+      end select
+    endif
   end subroutine
 end module

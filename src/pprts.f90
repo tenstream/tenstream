@@ -50,7 +50,7 @@ module m_pprts
 
   use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
     t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
-    t_coord, t_sunangles, t_suninfo, t_atmosphere, &
+    t_coord, t_suninfo, t_atmosphere, &
     t_state_container, prepare_solution, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events
 
@@ -483,7 +483,7 @@ module m_pprts
     end subroutine
 
     subroutine set_angles(solver, phi0, theta0, phi2d, theta2d)
-      class(t_solver), intent(inout)    :: solver
+      class(t_solver), intent(inout)   :: solver
       real(ireals),intent(in)          :: phi0           !< @param[in] phi0   solar azmiuth and zenith angle
       real(ireals),intent(in)          :: theta0         !< @param[in] theta0 solar azmiuth and zenith angle
       real(ireals),optional,intent(in) :: phi2d  (:,:)   !< @param[in] phi2d   if given, horizontally varying azimuth
@@ -497,21 +497,25 @@ module m_pprts
           ierr=1; call CHKERR(ierr)
       endif
 
-      if(allocated(solver%sun%angles)) then ! was initialized
+      lchanged_theta = .True.
+      lchanged_phi   = .True.
+      if(allocated(solver%sun%theta)) then ! was initialized
         if(present(theta2d)) then
-          lchanged_theta = any(.not.approx(theta2d, solver%sun%angles(1,:,:)%theta))
+          lchanged_theta = any(.not.approx(theta2d, solver%sun%theta(1,:,:)))
         else
-          lchanged_theta = any(.not.approx(theta0, solver%sun%angles(1,:,:)%theta))
+          lchanged_theta = any(.not.approx(theta0 , solver%sun%theta(1,:,:)))
         endif
+      endif
+      if(allocated(solver%sun%phi)) then
         if(present(phi2d)) then
-          lchanged_phi = any(.not.approx(phi2d, solver%sun%angles(1,:,:)%phi))
+          lchanged_phi = any(.not.approx(phi2d, solver%sun%phi(1,:,:)))
         else
-          lchanged_phi = any(.not.approx(phi0, solver%sun%angles(1,:,:)%phi))
+          lchanged_phi = any(.not.approx(phi0 , solver%sun%phi(1,:,:)))
         endif
-        if(solver%myid.eq.0 .and. ldebug) print *,'pprts set_angles -- changed angles?',lchanged_theta, lchanged_phi
-        if(.not. lchanged_theta .and. .not. lchanged_phi) then
-          return
-        endif
+      endif
+      if(solver%myid.eq.0 .and. ldebug) print *,'pprts set_angles -- changed angles?',lchanged_theta, lchanged_phi
+      if(.not. lchanged_theta .and. .not. lchanged_phi) then
+        return
       endif
 
       call setup_suninfo(solver, phi0, theta0, solver%sun, solver%C_one, phi2d=phi2d, theta2d=theta2d)
@@ -547,15 +551,6 @@ module m_pprts
 
       call solver%OPP%init(solver%comm)
 
-  !     allocate(solver%OPP)
-  !     call solver%OPP%init(pack(solver%sun%angles%symmetry_phi,.True.), &
-  !                          pack(solver%sun%angles%theta,.True.),solver%comm, &
-  !                          Ndiff=sum(solver%dofdiff), Ndir=sum(solver%dofdir))
-
-  !     if(any(solver%atm%l1d.eqv..False.)) call OPP_3_6%init(pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),solver%comm)
-  !  !   if(any(solver%atm%l1d.eqv..False.)) call OPP_8_10%init(pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),solver%comm)
-  !     if(.not.luse_eddington)      call OPP_1_2%init (pack(solver%sun%angles%symmetry_phi,.True.),pack(solver%sun%angles%theta,.True.),solver%comm)
-
       call init_Matrix(solver, solver%C_dir , solver%Mdir , setup_direct_preallocation)
       call init_Matrix(solver, solver%C_diff, solver%Mdiff, setup_diffuse_preallocation)
   end subroutine
@@ -575,38 +570,47 @@ module m_pprts
     real(ireals) :: avgphi
     logical :: use_avg_phi, lflg
     integer(mpiint) :: ierr
-    integer(iintegers) :: k
+    integer(iintegers) :: i,j
 
-    if(.not.allocated(sun%angles)) &
-        allocate(sun%angles(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
+    call alloc_sun_rfield(sun%symmetry_phi)
+    call alloc_sun_rfield(sun%theta)
+    call alloc_sun_rfield(sun%phi)
+    call alloc_sun_rfield(sun%costheta)
+    call alloc_sun_rfield(sun%sintheta)
+    call alloc_sun_ifield(sun%xinc)
+    call alloc_sun_ifield(sun%yinc)
 
     if(lforce_phi) then
-      sun%angles(:,:,:)%phi = options_phi
+      sun%phi(:,:,:) = options_phi
     else
       if(present(phi2d)) then
-        do k = C_one%zs, C_one%ze
-          sun%angles(k,:,:)%phi = phi2d
+        do j = C_one%ys, C_one%ye
+          do i = C_one%xs, C_one%xe
+            sun%phi(:,i,j) = phi2d(i-C_one%xs+1,j-C_one%ys+1)
+          enddo
         enddo
       else
-        sun%angles(:,:,:)%phi   = phi0
+        sun%phi(:,:,:) = phi0
       endif
       use_avg_phi=.False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-use_avg_phi", use_avg_phi, lflg , ierr) ;call CHKERR(ierr)
       if(use_avg_phi) then
-        call imp_allreduce_mean(solver%comm, sun%angles%phi, avgphi)
-        sun%angles%phi = avgphi
+        call imp_allreduce_mean(solver%comm, sun%phi, avgphi)
+        sun%phi(:,:,:) = avgphi
       endif
     endif
 
     if(lforce_theta) then
-      sun%angles(:,:,:)%theta = options_theta
+      sun%theta(:,:,:) = options_theta
     else
       if(present(theta2d)) then
-        do k = C_one%zs, C_one%ze
-          sun%angles(k,:,:)%theta = theta2d
+        do j = C_one%ys, C_one%ye
+          do i = C_one%xs, C_one%xe
+            sun%theta(:,i,j) = theta2d(i-C_one%xs+1,j-C_one%ys+1)
+          enddo
         enddo
       else
-        sun%angles(:,:,:)%theta = theta0
+        sun%theta(:,:,:) = theta0
       endif
     endif
 
@@ -614,32 +618,31 @@ module m_pprts
       call setup_topography(solver%atm, solver%C_one, solver%C_one1, sun)
     endif
 
-    sun%angles(:,:,:)%costheta = max( cos(deg2rad(sun%angles(:,:,:)%theta)), zero)
-    sun%angles(:,:,:)%sintheta = max( sin(deg2rad(sun%angles(:,:,:)%theta)), zero)
+    sun%costheta = max( cos(deg2rad(sun%theta)), zero)
+    sun%sintheta = max( sin(deg2rad(sun%theta)), zero)
 
     ! use symmetry for direct beam: always use azimuth [0,90] an just reverse the order where we insert the coeffs
-    sun%angles(:,:,:)%symmetry_phi = sym_rot_phi(sun%angles(:,:,:)%phi)
+    sun%symmetry_phi = sym_rot_phi(sun%phi)
 
-    where(sin(deg2rad(sun%angles%phi)).gt.zero ) ! phi between 0 and 180 degreee
-        sun%angles%xinc=i0
+    where(sin(deg2rad(sun%phi)).gt.zero ) ! phi between 0 and 180 degreee
+        sun%xinc=i0
     else where
-        sun%angles%xinc=i1
+        sun%xinc=i1
     end where
 
-    where(cos(deg2rad(sun%angles%phi)).lt.zero) ! phi between 90 and 270 degree
-        sun%angles%yinc=i1
+    where(cos(deg2rad(sun%phi)).lt.zero) ! phi between 90 and 270 degree
+        sun%yinc=i1
     else where
-        sun%angles%yinc=i0
+        sun%yinc=i0
     end where
 
     if(ldebug) print *,solver%myid,'setup_dir_inc done', &
-      count(sun%angles%xinc.eq.0),count(sun%angles%xinc.eq.i1), &
-      count(sun%angles%yinc.eq.0),count(sun%angles%yinc.eq.i1), &
-      '::', minval(sun%angles%xinc), maxval(sun%angles%xinc), minval(sun%angles%yinc), maxval(sun%angles%yinc)
+      count(sun%xinc.eq.0),count(sun%xinc.eq.i1), &
+      count(sun%yinc.eq.0),count(sun%yinc.eq.i1), &
+      '::', minval(sun%xinc), maxval(sun%xinc), minval(sun%yinc), maxval(sun%yinc)
 
-    !print *, 'phi', sun%angles(1,1,1)%phi, 'sym_phi', sun%angles(1,1,1)%symmetry_phi
     contains
-        elemental function sym_rot_phi(phi)
+        pure elemental function sym_rot_phi(phi)
             real(ireals) :: sym_rot_phi
             real(ireals),intent(in) :: phi
             ! ''swap'' phi axis down to the range of [0,180]
@@ -649,6 +652,15 @@ module m_pprts
             sym_rot_phi = min(90._ireals, max(0._ireals, rad2deg( asin(sin(sym_rot_phi)) )))
             !print *,'2nd phi swap',phi,' :: ',sym_rot_phi,'=',sin(sym_rot_phi),asin(sin(sym_rot_phi)),asin(sin(sym_rot_phi)) /pi * 180,int(asin(sin(sym_rot_phi)) /pi * 180)
         end function
+
+        subroutine alloc_sun_rfield(f)
+          real(ireals), allocatable, dimension(:,:,:) :: f
+          if(.not.allocated(f)) allocate(f(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
+        end subroutine
+        subroutine alloc_sun_ifield(f)
+          integer(iintegers), allocatable, dimension(:,:,:) :: f
+          if(.not.allocated(f)) allocate(f(C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye))
+        end subroutine
   end subroutine
 
   !> @brief setup topography information
@@ -668,7 +680,7 @@ module m_pprts
     real(ireals) :: newtheta, newphi, xsun(3)
     real(ireals) :: rotmat(3, 3), newxsun(3)
 
-    if(.not.allocated(sun%angles)) call CHKERR(1_mpiint, 'You called  setup_topography() &
+    if(.not.allocated(sun%theta)) call CHKERR(1_mpiint, 'You called  setup_topography() &
         &but the sun struct is not yet up, make sure setup_suninfo is called before')
     if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  setup_topography() &
         &but the atm struct is not yet up, make sure we have atm%dz before')
@@ -698,9 +710,9 @@ module m_pprts
 
 
                 ! Vector of sun direction
-                xsun(1) = sin(deg2rad(sun%angles(k,i,j)%theta))*sin(deg2rad(sun%angles(k,i,j)%phi))
-                xsun(2) = sin(deg2rad(sun%angles(k,i,j)%theta))*cos(deg2rad(sun%angles(k,i,j)%phi))
-                xsun(3) = cos(deg2rad(sun%angles(k,i,j)%theta))
+                xsun(1) = sin(deg2rad(sun%theta(k,i,j)))*sin(deg2rad(sun%phi(k,i,j)))
+                xsun(2) = sin(deg2rad(sun%theta(k,i,j)))*cos(deg2rad(sun%phi(k,i,j)))
+                xsun(3) = cos(deg2rad(sun%theta(k,i,j)))
 
                 xsun = xsun / norm(xsun)
 
@@ -716,8 +728,8 @@ module m_pprts
 
                 ! if(i.eq.C_one1%xs) print *,solver%myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
 
-                sun%angles(k,i,j)%theta = max(zero, min( 90._ireals, newtheta ))
-                sun%angles(k,i,j)%phi = newphi
+                sun%theta(k,i,j) = max(zero, min( 90._ireals, newtheta ))
+                sun%phi  (k,i,j) = newphi
             enddo
         enddo
     enddo
@@ -872,54 +884,25 @@ module m_pprts
 
     call MatSetUp(A,ierr) ;call CHKERR(ierr)
 
-    call mat_set_diagonal(A,C)
+    call mat_set_diagonal(A)
   contains
-    subroutine mat_set_diagonal(A,C,vdiag)
+    subroutine mat_set_diagonal(A,vdiag)
       type(tMat) :: A
-      type(t_coord),intent(in) :: C
       real(ireals),intent(in),optional :: vdiag
 
-      integer(iintegers) :: i,j,k,dof
-      MatStencil :: row(4,1), col(4,1)
-      real(ireals) :: v(1)
-
-      !TODO -- we should use this form... however this does somehow corrupt preallocation? - maybe fix this
-      !        Vec :: diag
-      !        call DMCreateGlobalVector(C%da,diag,ierr) ;call CHKERR(ierr)
-      !        call VecSet(diag,one,ierr) ;call CHKERR(ierr)
-      !        call MatDiagonalSet( A, diag, INSERT_VALUES,ierr) ;call CHKERR(ierr)
-      !        call VecDestroy(diag,ierr) ;call CHKERR(ierr)
+      integer(iintegers) :: is, ie, irow
+      real(ireals) :: v
 
       if(present(vdiag)) then
-        v(1) = vdiag
+        v = vdiag
       else
-        v(1)=one
+        v = one
       endif
 
-      do j=C%ys,C%ye
-        row(MatStencil_k,1) = j
-        col(MatStencil_k,1) = j
-
-        do i=C%xs,C%xe
-          row(MatStencil_j,1) = i
-          col(MatStencil_j,1) = i
-
-          do k=C%zs,C%ze
-            row(MatStencil_i,1) = k
-            col(MatStencil_i,1) = k
-
-            do dof=0,C%dof-1
-              row(MatStencil_c,1) = dof
-              col(MatStencil_c,1) = dof
-
-              call MatSetValuesStencil(A,i1, row,i1, col , v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
-            enddo
-          enddo
-        enddo
+      call MatGetOwnershipRange(A, is, ie, ierr); call CHKERR(ierr)
+      do irow = is, ie-1
+        call MatSetValue(A, irow, irow, v, INSERT_VALUES, ierr); call CHKERR(ierr)
       enddo
-
-      call MatAssemblyBegin(A,MAT_FLUSH_ASSEMBLY,ierr) ;call CHKERR(ierr)
-      call MatAssemblyEnd  (A,MAT_FLUSH_ASSEMBLY,ierr) ;call CHKERR(ierr)
     end subroutine
 
   end subroutine
@@ -963,8 +946,8 @@ module m_pprts
               call inc( xd(idst, k+1, i,j), one )
             enddo
           else
-            xinc = solver%sun%angles(k,i,j)%xinc
-            yinc = solver%sun%angles(k,i,j)%yinc
+            xinc = solver%sun%xinc(k,i,j)
+            yinc = solver%sun%yinc(k,i,j)
 
             do idst = 1, solver%dirtop%dof
               dst = idst
@@ -1274,7 +1257,7 @@ module m_pprts
     real(ireals),intent(in),dimension(:,:),optional   :: local_albedo_2d                 ! dimensions (Nx, Ny)
     logical, intent(in), optional :: ldelta_scaling ! determines if we should try to delta scale these optprops
 
-    real(ireals)        :: tau, kext, w0, g, pprts_delta_scale_max_g
+    real(ireals)        :: pprts_delta_scale_max_g
     integer(iintegers)  :: k, i, j
     logical :: lpprts_delta_scale, lflg
 
@@ -1315,7 +1298,7 @@ module m_pprts
       if(allocated(atm%planck)) deallocate(atm%planck)
     endif
 
-  !    if(ldebug) then
+    if(ldebug) then
       if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
         print *,solver%myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
         do k=C_one_atm%zs,C_one_atm%ze
@@ -1323,12 +1306,12 @@ module m_pprts
           print *,solver%myid,k,'local_ksca',local_ksca(k,:,:)
         enddo
       endif
-  !    endif
-  !    if(ldebug) then
+    endif
+    if(ldebug) then
       if( (any([atm%kabs,atm%ksca,atm%g].lt.zero)) .or. (any(isnan([atm%kabs,atm%ksca,atm%g]))) ) then
         print *,solver%myid,'set_optical_properties :: found illegal value in optical properties! abort!'
       endif
-  !    endif
+    endif
 
     if(ldebug.and.solver%myid.eq.0) then
       if(present(local_kabs) ) then
@@ -1399,15 +1382,16 @@ module m_pprts
     endif
 
     if(luse_eddington) then
+      !DIR$ IVDEP
       do j=C_one_atm%ys,C_one_atm%ye
         do i=C_one_atm%xs,C_one_atm%xe
           do k=C_one_atm%zs,C_one_atm%ze
             if( atm%l1d(k,i,j) ) then
-              kext = atm%kabs(k,i,j) + atm%ksca(k,i,j)
-              w0   = atm%ksca(k,i,j) / max(epsilon(kext), kext)
-              tau  = atm%dz(k,i,j) * kext
-              g    = atm%g(k,i,j)
-              call eddington_coeff_zdun ( tau , w0, g, sun%angles(C_one_atm%zs,i,j)%costheta, &
+              call eddington_coeff_zdun ( &
+                atm%dz(k,i,j) * (atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
+                atm%ksca(k,i,j) / (atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
+                atm%g(k,i,j), &
+                sun%costheta(k,i,j), &
                 atm%a11(k,i,j),          &
                 atm%a12(k,i,j),          &
                 atm%a13(k,i,j),          &
@@ -1430,24 +1414,28 @@ module m_pprts
               endif !ldebug
             endif !l1d
           enddo !k
-
-          ! Set symmetric up and down transport coefficients. If only for one
-          ! layer, they would be indeed symmetric. If we collapse the atmosphere
-          ! however, we have different transmission if we come from top or from
-          ! bottom.
-          atm%a21 = atm%a12
-          atm%a22 = atm%a11
-          if(atm%lcollapse) then
-              call adding(atm%a11(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-                          atm%a12(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-                          atm%a21(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-                          atm%a22(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-                          atm%a13(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-                          atm%a23(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-                          atm%a33(C_one_atm%zs:atmk(atm, C_one%zs), i, j))
-          endif !lcollapse
         enddo !i
       enddo !j
+
+      ! Set symmetric up and down transport coefficients. If only for one
+      ! layer, they would be indeed symmetric. If we collapse the atmosphere
+      ! however, we have different transmission if we come from top or from
+      ! bottom.
+      atm%a21 = atm%a12
+      atm%a22 = atm%a11
+      if(atm%lcollapse) then
+        do j=C_one_atm%ys,C_one_atm%ye
+          do i=C_one_atm%xs,C_one_atm%xe
+            call adding(atm%a11(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
+              atm%a12(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
+              atm%a21(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
+              atm%a22(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
+              atm%a13(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
+              atm%a23(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
+              atm%a33(C_one_atm%zs:atmk(atm, C_one%zs), i, j))
+          enddo !i
+        enddo !j
+      endif !lcollapse
     endif
 
     if(ldebug .and. solver%myid.eq.0) then
@@ -1669,7 +1657,7 @@ module m_pprts
       uid = i0 ! default solution is uid==0
     endif
 
-    lsolar = mpi_logical_and(solver%comm, edirTOA.gt.zero .and. any(solver%sun%angles%theta.ge.zero))
+    lsolar = mpi_logical_and(solver%comm, edirTOA.gt.zero .and. any(solver%sun%theta.ge.zero))
 
     if(.not.solutions(uid)%lset) then
       call prepare_solution(solver%C_dir%da, solver%C_diff%da, solver%C_one%da, &
@@ -2161,7 +2149,7 @@ module m_pprts
     do j=C_one_atm%ys,C_one_atm%ye
       do i=C_one_atm%xs,C_one_atm%xe
 
-        mu0 = solver%sun%angles(C_one_atm1%zs,i,j)%costheta
+        mu0 = solver%sun%costheta(C_one_atm1%zs,i,j)
         incSolar = edirTOA* mu0
 
         kext = atm%kabs(:,i,j) + atm%ksca(:,i,j)
@@ -2406,7 +2394,7 @@ module m_pprts
     call getVecPointer(solution%abso, C_one%da, xabso1d, xabso)
 
     ! calculate absorption by flux divergence
-
+    !DIR$ IVDEP
     do j=C_one%ys,C_one%ye
       do i=C_one%xs,C_one%xe
         do k=C_one%zs,C_one%ze
@@ -2435,53 +2423,59 @@ module m_pprts
 
             ! direct part of absorption
             if(solution%lsolar_rad) then
-              xinc = solver%sun%angles(k,i,j)%xinc
-              yinc = solver%sun%angles(k,i,j)%yinc
+              xinc = solver%sun%xinc(k,i,j)
+              yinc = solver%sun%yinc(k,i,j)
 
+              src = 0
               do isrc = 0,solver%dirtop%dof-1
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(isrc, k, i, j) - xedir(isrc, k+i1, i, j))
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src, k, i, j) - xedir(src, k+i1, i, j))
+                src = src+1
               enddo
 
               do isrc = 0, solver%dirside%dof-1
-                src = isrc + solver%dirtop%dof
                 xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src, k, i+1-xinc, j) - xedir(src, k, i+xinc, j))
+                src = src+1
               enddo
 
               do isrc = 0, solver%dirside%dof-1
-                src = isrc + solver%dirtop%dof + solver%dirside%dof
                 xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xedir(src, k, i, j+i1-yinc) - xedir(src, k, i, j+yinc))
+                src = src+1
               enddo
             endif
 
             ! diffuse part of absorption
+            src = 0
             do isrc = 0, solver%difftop%dof-1
               if (solver%difftop%is_inward(i1+isrc)) then
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(isrc, k, i, j) - xediff(isrc, k+1, i, j))
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src, k  , i, j) - xediff(src, k+1, i, j))
               else
-                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(isrc, k+1, i, j) - xediff(isrc, k, i, j))
+                xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src, k+1, i, j) - xediff(src, k  , i, j))
               endif
+              src = src+1
             enddo
 
             do isrc = 0, solver%diffside%dof-1
-              src = isrc + solver%difftop%dof
               if (solver%diffside%is_inward(i1+isrc)) then
                 xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src, k, i, j) - xediff(src, k, i+1, j))
               else
                 xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src, k, i+1, j) - xediff(src, k, i, j))
               endif
+              src = src+1
             enddo
 
             do isrc = 0, solver%diffside%dof-1
-              src = isrc + solver%difftop%dof + solver%diffside%dof
               if (solver%diffside%is_inward(i1+isrc)) then
                 xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src, k, i, j) - xediff(src, k, i, j+1))
               else
                 xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(src, k, i, j+1) - xediff(src, k, i, j))
               endif
+              src = src+1
             enddo
 
-            if( isnan(xabso(i0,k,i,j)) ) then
-              print *,'nan in flxdiv',k,i,j,'::',xabso(i0,k,i,j)
+            if( ldebug ) then
+              if( isnan(xabso(i0,k,i,j)) ) then
+                print *,'nan in flxdiv',k,i,j,'::',xabso(i0,k,i,j)
+              endif
             endif
           endif ! 1d/3D
         enddo
@@ -2519,12 +2513,22 @@ subroutine solve(solver, ksp, b, x, ksp_residual_history)
 
   KSPType :: old_ksp_type
 
+  logical :: lskip_ksp_solve, lflg
+
   if(solver%myid.eq.0.and.ldebug) print *,'Solving Matrix'
 
   if(present(ksp_residual_history)) then
     if(.not.allocated( ksp_residual_history) ) allocate(ksp_residual_history(100) )
     ksp_residual_history = -1
     call KSPSetResidualHistory(ksp, ksp_residual_history, 100_iintegers, PETSC_TRUE, ierr); call CHKERR(ierr)
+  endif
+
+  lskip_ksp_solve=.False.
+  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+    "-skip_ksp_solve" , lskip_ksp_solve, lflg , ierr) ;call CHKERR(ierr)
+  if(lskip_ksp_solve) then
+    call VecCopy(b, x, ierr); call CHKERR(ierr)
+    return
   endif
 
   call KSPSolve(ksp,b,x,ierr) ;call CHKERR(ierr)
@@ -2766,7 +2770,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     do j=solver%C_dir%ys,solver%C_dir%ye
       do i=solver%C_dir%xs,solver%C_dir%xe
         do src=1, solver%dirtop%dof
-          x4d(src-1,solver%C_dir%zs,i,j) = fac * solver%sun%angles(solver%C_dir%zs,i,j)%costheta
+          x4d(src-1,solver%C_dir%zs,i,j) = fac * solver%sun%costheta(solver%C_dir%zs,i,j)
         enddo
       enddo
     enddo
@@ -2820,12 +2824,12 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       integer(iintegers),intent(in) :: i,j,k
 
       MatStencil         :: row(4,C%dof)  ,col(4,C%dof)
-      real(ireals)       :: v(C%dof**2),norm
+      real(irealLUT)     :: v(C%dof**2), norm
 
       integer(iintegers) :: dst,src, xinc, yinc, isrc, idst
 
-      xinc = sun%angles(k,i,j)%xinc
-      yinc = sun%angles(k,i,j)%yinc
+      xinc = sun%xinc(k,i,j)
+      yinc = sun%yinc(k,i,j)
 
       do idst = 1, solver%dirtop%dof
         dst = idst
@@ -2865,11 +2869,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
         solver%atm%g(atmk(solver%atm,k),i,j), &
         solver%atm%dz(atmk(solver%atm,k),i,j), .True., v, &
         solver%atm%l1d(atmk(solver%atm,k),i,j), &
-        [real(sun%angles(k,i,j)%symmetry_phi, irealLUT), real(sun%angles(k,i,j)%theta, irealLUT)], &
+        [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)], &
         lswitch_east=xinc.eq.0, lswitch_north=yinc.eq.0)
       call PetscLogEventEnd(solver%logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
 
-      call MatSetValuesStencil(A, C%dof, row, C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
+      call MatSetValuesStencil(A, C%dof, row, C%dof, col, real(-v, ireals), INSERT_VALUES, ierr) ;call CHKERR(ierr)
 
       if(ldebug) then
         do src=1,C%dof
@@ -2891,11 +2895,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       integer(iintegers),intent(in)     :: i,j,k
 
       MatStencil :: row(4,1), col(4,1)
-      real(ireals) :: v(1)
+      real(irealLUT) :: v(1)
       integer(iintegers) :: src
 
       if(luse_eddington) then
-        v = atm%a33(atmk(atm,k),i,j)
+        v = real(atm%a33(atmk(atm,k),i,j), irealLUT)
       else
         call get_coeff(solver, &
           atm%kabs(atmk(atm,k),i,j), &
@@ -2903,7 +2907,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
           atm%g(atmk(atm,k),i,j), &
           atm%dz(atmk(atm,k),i,j),.True., v, &
           atm%l1d(atmk(atm,k),i,j), &
-          [real(sun%angles(k,i,j)%symmetry_phi, irealLUT), real(sun%angles(k,i,j)%theta, irealLUT)] )
+          [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j), irealLUT)] )
       endif
 
       col(MatStencil_j,i1) = i      ; col(MatStencil_k,i1) = j       ; col(MatStencil_i,i1) = k
@@ -2912,7 +2916,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       do src=i1,solver%dirtop%dof
         col(MatStencil_c,i1) = src-i1 ! Source may be the upper/lower lid:
         row(MatStencil_c,i1) = src-i1 ! Define transmission towards the lower/upper lid
-        call MatSetValuesStencil(A,i1, row,i1, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
+        call MatSetValuesStencil(A, i1, row, i1, col, real(-v, ireals), INSERT_VALUES, ierr); call CHKERR(ierr)
       enddo
     end subroutine
 
@@ -2967,8 +2971,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     subroutine set_thermal_source()
 
       real(ireals) :: Ax,Ay,Az,b0 !,c1,c2,c3,b1,dtau
-      real(ireals) :: diff2diff1d(4)
-      real(ireals) :: diff2diff(solver%C_diff%dof**2),v(solver%C_diff%dof**2)
+      real(irealLUT) :: diff2diff1d(4)
+      real(irealLUT) :: diff2diff(solver%C_diff%dof**2),v(solver%C_diff%dof**2)
       integer(iintegers) :: k,i,j,src,iside
 
       associate(  atm     => solver%atm, &
@@ -3011,7 +3015,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                   .False., diff2diff1d, &
                   atm%l1d(atmk(atm,k),i,j))
 
-                b0 = atm%planck(atmk(atm,k),i,j) * Az * pi * (one-diff2diff1d(1)-diff2diff1d(2) ) &
+                b0 = atm%planck(atmk(atm,k),i,j) * Az * pi * (one-real(diff2diff1d(1)+diff2diff1d(2), ireals) ) &
                   / real(solver%difftop%streams, ireals)
 
                 do src = 0, solver%difftop%dof-1
@@ -3098,7 +3102,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       class(t_solver)     :: solver
       type(tVec)          :: edir
 
-      real(ireals)        :: dir2diff(solver%C_dir%dof*solver%C_diff%dof), solrad
+      real(irealLUT)        :: dir2diff(solver%C_dir%dof*solver%C_diff%dof)
+      real(ireals)        :: solrad
       integer(iintegers)  :: idof, idofdst, idiff
       integer(iintegers)  :: k, i, j, src, dst
 
@@ -3155,8 +3160,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
 
               else ! Tenstream source terms
-                lsun_east  = sun%angles(k,i,j)%xinc.eq.i0
-                lsun_north = sun%angles(k,i,j)%yinc.eq.i0
+                lsun_east  = sun%xinc(k,i,j).eq.i0
+                lsun_north = sun%yinc(k,i,j).eq.i0
 
                 call PetscLogEventBegin(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
                 call get_coeff(solver, &
@@ -3166,107 +3171,112 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
                   atm%dz(atmk(atm,k),i,j), &
                   .False., dir2diff, &
                   atm%l1d(atmk(atm,k),i,j), &
-                  [real(sun%angles(k,i,j)%symmetry_phi, irealLUT), real(sun%angles(k,i,j)%theta,irealLUT)], &
+                  [real(sun%symmetry_phi(k,i,j), irealLUT), real(sun%theta(k,i,j),irealLUT)], &
                   lswitch_east=lsun_east, lswitch_north=lsun_north)
                 call PetscLogEventEnd(solver%logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)
 
+                dst = 0
                 do idofdst=1,solver%difftop%dof
-                  dst = idofdst
-                  do src=1, solver%dirtop%dof
-                    solrad = xedir( src-1 , k , i , j )
+                  src = 1
+                  do idof = 1, solver%dirtop%dof
+                    solrad = xedir( src-1, k , i , j )
 
                     if (solver%difftop%is_inward(idofdst)) then
-                      xsrc(dst-1,k+1,i,j)= xsrc(dst-1,k+1,i,j) + solrad * dir2diff((dst-1)*C_dir%dof+src)
+                      xsrc(dst,k+1,i,j)= xsrc(dst,k+1,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
                     else
-                      xsrc(dst-1,k,i,j)= xsrc(dst-1,k,i,j) + solrad * dir2diff((dst-1)*C_dir%dof+src)
+                      xsrc(dst,k  ,i,j)= xsrc(dst,k  ,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
                     endif
+                    src = src+1
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    src = idof + solver%dirtop%dof
-                    solrad = xedir( src-1, k , i+i1-sun%angles(k,i,j)%xinc , j )
+                    solrad = xedir( src-1, k , i+i1-sun%xinc(k,i,j) , j )
                     if (solver%difftop%is_inward(dst)) then
-                      xsrc(dst-1,k+1,i,j)= xsrc(dst-1,k+1,i,j) + solrad * dir2diff((dst-1)*C_dir%dof+src)
+                      xsrc(dst,k+1,i,j)= xsrc(dst,k+1,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
                     else
-                      xsrc(dst-1,k,i,j)= xsrc(dst-1,k,i,j) + solrad * dir2diff((dst-1)*C_dir%dof+src)
+                      xsrc(dst,k  ,i,j)= xsrc(dst,k  ,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
                     endif
+                    src = src+1
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    src = idof + solver%dirtop%dof + solver%dirside%dof
-                    solrad = xedir( src-1 , k , i , j+i1-sun%angles(k,i,j)%yinc )
+                    solrad = xedir( src-1 , k , i , j+i1-sun%yinc(k,i,j) )
                     if (solver%difftop%is_inward(dst)) then
-                      xsrc(dst-1,k+1,i,j)= xsrc(dst-1,k+1,i,j) + solrad * dir2diff((dst-1)*C_dir%dof+src)
+                      xsrc(dst,k+1,i,j)= xsrc(dst,k+1,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
                     else
-                      xsrc(dst-1,k,i,j)= xsrc(dst-1,k,i,j) + solrad * dir2diff((dst-1)*C_dir%dof+src)
+                      xsrc(dst,k  ,i,j)= xsrc(dst,k  ,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
                     endif
+                    src = src+1
                   enddo
+                  dst = dst+1
                 enddo
 
                 do idofdst = 1, solver%diffside%dof
-                  dst = idofdst + solver%difftop%dof
-
+                  src = 1
                   do idof = 1, solver%dirtop%dof
-                    src = idof
                     solrad = xedir( src-1 , k , i , j )
                     if(solver%diffside%is_inward(idofdst)) then
-                      xsrc(dst-1, k, i+1, j) = xsrc(dst-1, k, i+1, j) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i+1, j) = xsrc(dst, k, i+1, j) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else
-                      xsrc(dst-1, k, i, j) = xsrc(dst-1, k, i, j) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i  , j) = xsrc(dst, k, i  , j) + solrad * dir2diff((dst)*C_dir%dof + src)
                     endif
+                    src = src+1
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    src = idof + solver%dirtop%dof
-                    solrad = xedir(src-1, k, i+i1-sun%angles(k,i,j)%xinc , j )
+                    solrad = xedir(src-1, k, i+i1-sun%xinc(k,i,j) , j )
                     if (solver%diffside%is_inward(idofdst)) then
-                      xsrc(dst-1, k, i+1, j) = xsrc(dst-1, k, i+1, j) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i+1, j) = xsrc(dst, k, i+1, j) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else
-                      xsrc(dst-1, k, i, j) = xsrc(dst-1, k, i, j) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i  , j) = xsrc(dst, k, i  , j) + solrad * dir2diff((dst)*C_dir%dof + src)
                     endif
+                    src = src+1
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    src = idof + solver%dirtop%dof + solver%dirside%dof
-                    solrad = xedir( src-1 , k , i , j+i1-sun%angles(k,i,j)%yinc )
+                    solrad = xedir( src-1 , k , i , j+i1-sun%yinc(k,i,j) )
                     if (solver%diffside%is_inward(idofdst)) then
-                      xsrc(dst-1, k, i+1, j) = xsrc(dst-1, k, i+1, j) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i+1, j) = xsrc(dst, k, i+1, j) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else
-                      xsrc(dst-1, k, i, j) = xsrc(dst-1, k, i, j) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i  , j) = xsrc(dst, k, i  , j) + solrad * dir2diff((dst)*C_dir%dof + src)
                     endif
+                    src = src+1
                   enddo
+                  dst = dst+1
                 enddo
 
                 do idofdst = 1, solver%diffside%dof
-                  dst = idofdst + solver%difftop%dof + solver%diffside%dof
-                  do src = 1, solver%dirtop%dof
+                  src = 1
+                  do idof = 1, solver%dirtop%dof
                     solrad = xedir(src-1, k, i, j)
                     if(solver%diffside%is_inward(idofdst)) then
-                      xsrc(dst-1, k, i, j+1) = xsrc(dst-1, k, i, j+1) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i, j+1) = xsrc(dst, k, i, j+1) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else
-                      xsrc(dst-1, k, i, j) = xsrc(dst-1, k, i, j) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i, j  ) = xsrc(dst, k, i, j  ) + solrad * dir2diff((dst)*C_dir%dof + src)
                     endif
+                    src = src+1
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    src = idof + solver%dirtop%dof
-                    solrad = xedir(src-1, k, i+i1-sun%angles(k,i,j)%xinc , j)
+                    solrad = xedir(src-1, k, i+i1-sun%xinc(k,i,j) , j)
                     if(solver%diffside%is_inward(idofdst)) then
-                      xsrc(dst-1, k, i, j+1) = xsrc(dst-1, k, i, j+1) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i, j+1) = xsrc(dst, k, i, j+1) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else
-                      xsrc(dst-1, k, i, j) = xsrc(dst-1, k, i, j) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i, j  ) = xsrc(dst, k, i, j  ) + solrad * dir2diff((dst)*C_dir%dof + src)
                     endif
+                    src = src+1
                   enddo
 
                   do idof = 1, solver%dirside%dof
-                    src = idof + solver%dirtop%dof + solver%dirside%dof
-                    solrad = xedir( src-1 , k , i , j+i1-sun%angles(k,i,j)%yinc )
+                    solrad = xedir( src-1 , k , i , j+i1-sun%yinc(k,i,j) )
                     if(solver%diffside%is_inward(idofdst)) then
-                      xsrc(dst-1, k, i, j+1) = xsrc(dst-1, k, i, j+1) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i, j+1) = xsrc(dst, k, i, j+1) + solrad * dir2diff((dst)*C_dir%dof + src)
                     else
-                      xsrc(dst-1, k, i, j) = xsrc(dst-1, k, i, j) + solrad * dir2diff((dst-1)*C_dir%dof + src)
+                      xsrc(dst, k, i, j  ) = xsrc(dst, k, i, j  ) + solrad * dir2diff((dst)*C_dir%dof + src)
                     endif
+                    src = src+1
                   enddo
+                  dst = dst+1
                 enddo
 
                 if(ldebug) then
@@ -3286,12 +3296,12 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
       ! Ground Albedo reflecting direct radiation, the diffuse part is considered by the solver(Matrix)
       k = C_diff%ze
-      do j=C_diff%ys,C_diff%ye
-        do i=C_diff%xs,C_diff%xe
-          do dst=1, solver%difftop%dof
-            if (.not. solver%difftop%is_inward(dst)) then
-              do src=1, solver%dirtop%dof
-                xsrc(dst-1,k,i,j) = xsrc(dst-1, k, i, j) + xedir(src-1,k,i,j) * atm%albedo(i,j) &
+      do j = C_diff%ys, C_diff%ye
+        do i = C_diff%xs, C_diff%xe
+          do dst = 0, solver%difftop%dof-1
+            if (.not. solver%difftop%is_inward(dst+1)) then
+              do src = 0, solver%dirtop%dof-1
+                xsrc(dst,k,i,j) = xsrc(dst, k, i, j) + xedir(src,k,i,j) * atm%albedo(i,j) &
                   / real(solver%difftop%streams, ireals)
               enddo
             endif
@@ -3313,13 +3323,13 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     class(t_solver), intent(inout)    :: solver
     real(ireals),intent(in)           :: kabs, ksca, g, dz
     logical,intent(in)                :: ldir
-    real(ireals),intent(out)          :: coeff(:)
+    real(irealLUT),intent(out)        :: coeff(:)
 
     logical,intent(in)                :: lone_dimensional
     real(irealLUT),intent(in),optional:: angles(2)
     logical,intent(in),optional       :: lswitch_east, lswitch_north
 
-    real(irealLUT) :: aspect_zx, tauz, w0, CC(size(coeff))
+    real(irealLUT) :: aspect_zx, tauz, w0
     integer(mpiint) :: ierr
 
     aspect_zx = real(dz / solver%atm%dx, irealLUT)
@@ -3335,9 +3345,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       call CHKERR(1_mpiint, 'currently, we dont support using LUT Twostream for l1d layers')
       !call OPP_1_2%get_coeff (aspect, tauz, w0, g,ldir,coeff,angles)
     else
-      call solver%OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, CC, ierr, &
+      call solver%OPP%get_coeff(tauz, w0, real(g, irealLUT), aspect_zx, ldir, coeff, ierr, &
         angles, lswitch_east, lswitch_north); call CHKERR(ierr)
-      coeff = CC
     endif
   end subroutine
 
@@ -3475,7 +3484,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
       integer(mpiint),intent(out)   :: ierr
 
       MatStencil :: row(4,0:C%dof-1)  ,col(4,0:C%dof-1)
-      real(ireals) :: v(C%dof**2),norm
+      real(irealLUT) :: v(C%dof**2),norm
 
       integer(iintegers) :: dst,src,idof
 
@@ -3544,7 +3553,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
         .False., v, solver%atm%l1d(atmk(solver%atm, k),i,j))
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
-      call MatSetValuesStencil(A,C%dof, row,C%dof, col , -v ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
+      call MatSetValuesStencil(A,C%dof, row,C%dof, col , real(-v, ireals) ,INSERT_VALUES,ierr) ;call CHKERR(ierr)
 
       if(ldebug) then
         do src=1,C%dof
@@ -3670,10 +3679,8 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
             endif
           enddo
 
-
         enddo
       enddo
-
     end subroutine
   end subroutine
 
@@ -3940,7 +3947,13 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
       if(allocated(solver%atm)) deallocate(solver%atm)
 
-      if(allocated(solver%sun%angles)) deallocate(solver%sun%angles)
+      if(allocated(solver%sun%symmetry_phi)) deallocate(solver%sun%symmetry_phi)
+      if(allocated(solver%sun%theta       )) deallocate(solver%sun%theta       )
+      if(allocated(solver%sun%phi         )) deallocate(solver%sun%phi         )
+      if(allocated(solver%sun%costheta    )) deallocate(solver%sun%costheta    )
+      if(allocated(solver%sun%sintheta    )) deallocate(solver%sun%sintheta    )
+      if(allocated(solver%sun%xinc        )) deallocate(solver%sun%xinc        )
+      if(allocated(solver%sun%yinc        )) deallocate(solver%sun%yinc        )
 
       if(allocated(solver%OPP)) call solver%OPP%destroy()
       if(allocated(solver%C_dir     )) call DMDestroy(solver%C_dir%da ,ierr); deallocate(solver%C_dir )

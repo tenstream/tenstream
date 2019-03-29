@@ -44,8 +44,6 @@ module m_optprop_LUT
   use m_optprop_parameters, only:         &
     ldebug_optprop, lut_basename,         &
     LUT_dump_interval, LUT_max_create_jobtime, &
-    interp_mode_pprts,                    &
-    interp_mode_wedge,                    &
     LUT_MAX_DIM,                          &
     ldelta_scale,delta_scale_truncate,    &
     stddev_atol, stddev_rtol,             &
@@ -53,7 +51,6 @@ module m_optprop_LUT
     preset_g2, preset_g3, preset_g4,      &
     preset_param_phi11,                   &
     preset_param_phi19,                   &
-    preset_param_phi83,                   &
     preset_param_theta13,                 &
     preset_aspect5,                       &
     preset_aspect7,                       &
@@ -112,7 +109,7 @@ module m_optprop_LUT
   end type
 
   type t_table
-    real(irealLUT), pointer :: c(:,:) => NULL() ! depending on config has Ndim_1*Ndim_2*etc. many entries
+    real(irealLUT), contiguous, pointer :: c(:,:) => NULL() ! depending on config has Ndim_1*Ndim_2*etc. many entries
     real(irealLUT), allocatable :: stddev_tol(:) ! maxval of tolerance for a given entry
     character(default_str_len), allocatable :: table_name_c(:)
     character(default_str_len), allocatable :: table_name_tol(:)
@@ -123,7 +120,6 @@ module m_optprop_LUT
     type(t_table), allocatable :: Sdiff, Sdir, Tdir
     type(t_LUT_config), allocatable :: dirconfig, diffconfig
     integer(iintegers) :: dir_streams = inil, diff_streams = inil
-    integer(iintegers) :: interp_mode
     logical :: LUT_initialized=.False., optprop_LUT_debug=ldebug_optprop
     character(default_str_len) :: lutbasename
 
@@ -164,6 +160,12 @@ module m_optprop_LUT
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_wedge_18_8
   end type
+
+  ! You should not need to change this... but feel free to play around...
+  ! interp_mode 1 == nearest neighbour interpolation
+  ! interp_mode 2 == linear interpolation
+  integer(iintegers), parameter :: interp_mode=2
+
 
   logical, parameter :: ldebug=.False.
 
@@ -1071,7 +1073,6 @@ subroutine set_parameter_space(OPP)
 
     select type(OPP)
       class is (t_optprop_LUT_1_2)
-          OPP%interp_mode = interp_mode_pprts
           allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
@@ -1086,7 +1087,6 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
 
       class is (t_optprop_LUT_8_10)
-          OPP%interp_mode = interp_mode_pprts
           allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
@@ -1101,7 +1101,6 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
 
       class is (t_optprop_LUT_8_12)
-          OPP%interp_mode = interp_mode_pprts
           allocate(OPP%dirconfig%dims(6))
           !call populate_LUT_dim('tau',       i2, OPP%dirconfig%dims(1), vrange=real([1e-5,10.], irealLUT))
           !call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.99], irealLUT))
@@ -1126,7 +1125,6 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
 
       class is (t_optprop_LUT_8_16)
-          OPP%interp_mode = interp_mode_pprts
           allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
@@ -1141,7 +1139,6 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
 
       class is (t_optprop_LUT_8_18)
-          OPP%interp_mode = interp_mode_pprts
           allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
@@ -1156,7 +1153,6 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
 
       class is (t_optprop_LUT_3_10)
-          OPP%interp_mode = interp_mode_pprts
           allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
@@ -1171,7 +1167,6 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
 
       class is (t_optprop_LUT_3_16)
-          OPP%interp_mode = interp_mode_pprts
           allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
@@ -1186,7 +1181,6 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
 
       class is (t_optprop_LUT_3_6)
-          OPP%interp_mode = interp_mode_pprts
           allocate(OPP%dirconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
@@ -1201,7 +1195,6 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
 
       class is (t_optprop_LUT_wedge_5_8)
-          OPP%interp_mode = interp_mode_wedge
           allocate(OPP%dirconfig%dims(7))
           call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
           call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
@@ -1220,7 +1213,6 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%diffconfig%dims(5), vrange=real([0.7760254, 0.9560254], irealLUT))
 
       class is (t_optprop_LUT_wedge_18_8)
-          OPP%interp_mode = interp_mode_wedge
           allocate(OPP%dirconfig%dims(7))
           call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
           call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
@@ -1382,22 +1374,20 @@ end subroutine
       call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%dirconfig)
     endif
 
-    associate(pti => pti_buffer(1:size(sample_pts)))
-      do kdim = 1, size(sample_pts)
-        pti(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
-      enddo
+    do kdim = 1, size(sample_pts)
+      pti_buffer(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
+    enddo
 
-      select case(OPP%interp_mode)
-      case(1)
-        ! Nearest neighbour
-        ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti, kind=iintegers))
-        C = OPP%Tdir%c(:, ind1d)
-      case(2)
-        call interp_vec_simplex_nd(pti, OPP%Tdir%c, OPP%dirconfig%offsets, C)
-      case default
-        call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
-      end select
-    end associate
+    select case(interp_mode)
+    case(1)
+      ! Nearest neighbour
+      ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti_buffer(1:size(sample_pts)), kind=iintegers))
+      C = OPP%Tdir%c(:, ind1d)
+    case(2)
+      call interp_vec_simplex_nd(pti_buffer(1:size(sample_pts)), OPP%Tdir%c, OPP%dirconfig%offsets, C)
+    case default
+      call CHKERR(1_mpiint, 'interpolation mode '//itoa(interp_mode)//' not implemented yet! please choose something else!')
+    end select
 
     if(ldebug_optprop) then
       !Check for energy conservation:
@@ -1435,22 +1425,20 @@ end subroutine
       call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%dirconfig)
     endif
 
-    associate(pti => pti_buffer(1:size(sample_pts)))
-      do kdim = 1, size(sample_pts)
-        pti(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
-      enddo
+    do kdim = 1, size(sample_pts)
+      pti_buffer(kdim) = find_real_location(OPP%dirconfig%dims(kdim)%v, sample_pts(kdim))
+    enddo
 
-      select case(OPP%interp_mode)
-      case(1)
-        ! Nearest neighbour
-        ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti, kind=iintegers))
-        C = OPP%Sdir%c(:, ind1d)
-      case(2)
-        call interp_vec_simplex_nd(pti, OPP%Sdir%c, OPP%dirconfig%offsets, C)
-      case default
-        call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
-      end select
-    end associate
+    select case(interp_mode)
+    case(1)
+      ! Nearest neighbour
+      ind1d = ind_nd_to_1d(OPP%dirconfig%offsets, nint(pti_buffer(1:size(sample_pts)), kind=iintegers))
+      C = OPP%Sdir%c(:, ind1d)
+    case(2)
+      call interp_vec_simplex_nd(pti_buffer(1:size(sample_pts)), OPP%Sdir%c, OPP%dirconfig%offsets, C)
+    case default
+      call CHKERR(1_mpiint, 'interpolation mode '//itoa(interp_mode)//' not implemented yet! please choose something else!')
+    end select
 
     if(ldebug_optprop) then
       !Check for energy conservation:
@@ -1486,22 +1474,20 @@ end subroutine
       call check_if_samplepts_in_LUT_bounds(sample_pts, OPP%diffconfig)
     endif
 
-    associate(pti => pti_buffer(1:size(sample_pts)))
-      do kdim = 1, size(sample_pts)
-        pti(kdim) = find_real_location(OPP%diffconfig%dims(kdim)%v, sample_pts(kdim))
-      enddo
+    do kdim = 1, size(sample_pts)
+      pti_buffer(kdim) = find_real_location(OPP%diffconfig%dims(kdim)%v, sample_pts(kdim))
+    enddo
 
-      select case(OPP%interp_mode)
-      case(1)
-        ! Nearest neighbour
-        ind1d = ind_nd_to_1d(OPP%diffconfig%offsets, nint(pti, kind=iintegers))
-        C = OPP%Sdiff%c(:, ind1d)
-      case(2)
-        call interp_vec_simplex_nd(pti, OPP%Sdiff%c, OPP%diffconfig%offsets, C)
-      case default
-        call CHKERR(1_mpiint, 'interpolation mode '//itoa(OPP%interp_mode)//' not implemented yet! please choose something else!')
-      end select
-    end associate
+    select case(interp_mode)
+    case(1)
+      ! Nearest neighbour
+      ind1d = ind_nd_to_1d(OPP%diffconfig%offsets, nint(pti_buffer(1:size(sample_pts)), kind=iintegers))
+      C = OPP%Sdiff%c(:, ind1d)
+    case(2)
+      call interp_vec_simplex_nd(pti_buffer(1:size(sample_pts)), OPP%Sdiff%c, OPP%diffconfig%offsets, C)
+    case default
+      call CHKERR(1_mpiint, 'interpolation mode '//itoa(interp_mode)//' not implemented yet! please choose something else!')
+    end select
 
     if(ldebug_optprop) then
       !Check for energy conservation:

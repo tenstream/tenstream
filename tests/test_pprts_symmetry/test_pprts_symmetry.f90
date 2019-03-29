@@ -11,12 +11,13 @@ module test_pprts_symmetry
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: itoa
 
-  use m_optprop, only: t_optprop, t_optprop_8_10, t_optprop_3_10
+  use m_optprop, only: t_optprop, t_optprop_cube, &
+    t_optprop_3_10, t_optprop_8_10
   use pfunit_mod
 
   implicit none
 
-  class(t_optprop),allocatable :: OPP
+  class(t_optprop_cube),allocatable :: OPP
   type(t_solver_3_10) :: solver_3_10
   type(t_solver_8_10) :: solver_8_10
 
@@ -43,15 +44,14 @@ contains
     endif
   end subroutine teardown
 
-  @test(npes = [2])
+  @test(npes = [1])
   subroutine test_pprts_symmetry_ex2(this)
     class (MpiTestMethod), intent(inout) :: this
 
     integer(mpiint) :: myid, numnodes, comm, ierr
 
-    real(irealLUT),allocatable  :: dir2dir(:), dir2diff(:)
+    real(irealLUT), allocatable :: dir2dir(:), dir2diff(:)
     integer(iintegers) :: i
-
 
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
@@ -61,13 +61,13 @@ contains
     call this_test(OPP)
     deallocate(OPP)
 
-    !allocate (t_optprop_3_6 :: OPP)
-    !call this_test(OPP)
-    !deallocate(OPP)
+    allocate (t_optprop_8_10 :: OPP)
+    call this_test(OPP)
+    deallocate(OPP)
 
     contains
       subroutine this_test(OPP)
-        class(t_optprop)  :: OPP
+        class(t_optprop_cube)  :: OPP
 
         call init_mpi_data_parameters(comm)
 

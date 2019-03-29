@@ -25,28 +25,30 @@ module m_search
       real(REAL32),intent(in) :: arr(:)
       real(REAL32),intent(in) :: val
       real(REAL32)            :: loc
+      loc = search_sorted_bisection(arr,val)
       ! Seems that the Petsc Func is always the slowest implementation but unnoticeable after N>100
-      select case (size(arr))
-      case(:LINEAR_SEARCH_LIMIT)
-        loc = find_real_location_linear(arr, val)
-      case default
-        loc = search_sorted_bisection(arr,val)
-      end select
+      !select case (size(arr))
+      !case(:LINEAR_SEARCH_LIMIT)
+      !  loc = find_real_location_linear(arr, val)
+      !case default
+      !  loc = search_sorted_bisection(arr,val)
+      !end select
     end function
     pure function find_real_location_r64(arr, val) result(loc)
       real(REAL64),intent(in) :: arr(:)
       real(REAL64),intent(in) :: val
       real(REAL64)            :: loc
-      select case (size(arr))
-      case(:LINEAR_SEARCH_LIMIT)
-        loc = find_real_location_linear(arr, val)
-      case default
-        loc = search_sorted_bisection(arr,val)
-      end select
+      loc = search_sorted_bisection(arr,val)
+      !select case (size(arr))
+      !case(:LINEAR_SEARCH_LIMIT)
+      !  loc = find_real_location_linear(arr, val)
+      !case default
+      !  loc = search_sorted_bisection(arr,val)
+      !end select
     end function
 
     ! return index+residula i where val is between arr(i) and arr(i+1)
-    pure function find_real_location_linear_r32(arr, val) result(loc)
+    function find_real_location_linear_r32(arr, val) result(loc)
       real(REAL32),intent(in) :: arr(:)
       real(REAL32),intent(in) :: val
       real(REAL32)            :: loc
@@ -55,14 +57,15 @@ module m_search
 
       N = size(arr, kind=iintegers)
 
-      if(arr(1).ge.val) then
-        loc = 1
-        return
-      endif
+      !if(arr(1).ge.val) then
+      !  loc = 1
+      !  return
+      !endif
       do i=2,N
         if(arr(i).ge.val) then
           residual = (val - arr(i-1)) / (arr(i) - arr(i-1))
           loc = real(i-1, real32) + residual
+          loc = max(loc, 1._real32)
           return
         endif
       enddo
@@ -125,7 +128,24 @@ module m_search
       real(REAL32),intent(in) :: val
       real(REAL32) :: res
       real(REAL32) :: loc_increment
-      integer(iintegers) :: i,j,k
+      integer(iintegers) :: i,j,k,N
+
+      N = size(arr, kind=iintegers)
+      if(N.le.LINEAR_SEARCH_LIMIT) then ! for small arrays it is quicker to do a linear search
+        if(arr(1).ge.val) then
+          res = 1
+          return
+        endif
+        do i=2,N
+          if(arr(i).ge.val) then
+            loc_increment = (val - arr(i-1)) / (arr(i) - arr(i-1))
+            res = real(i-1, kind=kind(res)) + loc_increment
+            return
+          endif
+        enddo
+        res = real(N, kind=kind(res))
+        return
+      endif
 
       i=lbound(arr,1)
       j=ubound(arr,1)
@@ -175,7 +195,24 @@ module m_search
       real(REAL64),intent(in) :: val
       real(REAL64) :: res
       real(REAL64) :: loc_increment
-      integer(iintegers) :: i,j,k
+      integer(iintegers) :: i,j,k,N
+
+      N = size(arr, kind=iintegers)
+      if(N.le.LINEAR_SEARCH_LIMIT) then ! for small arrays it is quicker to do a linear search
+        if(arr(1).ge.val) then
+          res = 1
+          return
+        endif
+        do i=2,N
+          if(arr(i).ge.val) then
+            loc_increment = (val - arr(i-1)) / (arr(i) - arr(i-1))
+            res = real(i-1, kind=kind(res)) + loc_increment
+            return
+          endif
+        enddo
+        res = real(N, kind=kind(res))
+        return
+      endif
 
       i=lbound(arr,1)
       j=ubound(arr,1)

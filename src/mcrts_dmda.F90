@@ -485,8 +485,8 @@ subroutine prepare_locally_owned_photons(solver, bmc, pqueue, Nphotons_per_pixel
       call setup_default_unit_cube_geometry(solver%atm%dx, solver%atm%dy, &
         solver%atm%dz(i0, i, j), vertices)
 
-      phi0   = solver%sun%angles(i0, i, j)%phi
-      theta0 = solver%sun%angles(i0, i, j)%theta
+      phi0   = solver%sun%phi  (i0, i, j)
+      theta0 = solver%sun%theta(i0, i, j)
       initial_dir = spherical_2_cartesian(phi0, theta0)
 
       do l = 1,Nphotons_per_pixel

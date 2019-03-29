@@ -8,14 +8,14 @@ module m_pprts_base
 
   use m_helper_functions, only : CHKWARN, CHKERR, get_arg, itoa
 
-  use m_optprop, only: t_optprop
+  use m_optprop, only: t_optprop_cube
 
   implicit none
 
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
     t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
     allocate_pprts_solver_from_commandline, &
-    t_coord, t_sunangles, t_suninfo, &
+    t_coord, t_suninfo, &
     t_state_container, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events
 
@@ -48,15 +48,18 @@ module m_pprts_base
     logical                                               :: lcollapse = .False.
   end type
 
-  type t_sunangles
-    real(ireals)        :: symmetry_phi
-    integer(iintegers)  :: yinc,xinc
-    real(ireals)        :: theta, phi, costheta, sintheta
-  end type
+  !type t_sunangles
+  !  real(ireals)        :: symmetry_phi
+  !  integer(iintegers)  :: yinc,xinc
+  !  real(ireals)        :: theta, phi, costheta, sintheta
+  !end type
 
   type t_suninfo
-    type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
-    logical                       :: luse_topography=.False.
+    !type(t_sunangles),allocatable :: angles(:,:,:) ! defined on DMDA grid
+    real(ireals), allocatable, dimension(:,:,:) :: & ! C_one%zs:C_one%ze, C_one%xs:C_one%xe, C_one%ys:C_one%ye
+      symmetry_phi, theta, phi, costheta, sintheta
+    integer(iintegers), allocatable, dimension(:,:,:) :: xinc, yinc
+    logical :: luse_topography=.False.
   end type
 
   type t_state_container
@@ -116,7 +119,7 @@ module m_pprts_base
     type(t_atmosphere),allocatable  :: atm
     type(t_suninfo)                 :: sun
     type(tMat),allocatable          :: Mdir,Mdiff
-    class(t_optprop), allocatable   :: OPP
+    class(t_optprop_cube), allocatable   :: OPP
 
     type(t_dof)                     :: difftop, diffside, dirtop, dirside
 

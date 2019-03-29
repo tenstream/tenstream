@@ -54,13 +54,6 @@ module m_optprop_parameters
       !- Define the size of the Lookuptables:  -
       !-----------------------------------------
       !
-      ! You should not need to change this... but feel free to play around...
-      ! interp_mode 1 == nearest neighbour interpolation
-      ! interp_mode 2 == linear interpolation
-
-      integer(iintegers), parameter :: interp_mode_pprts=2
-      integer(iintegers), parameter :: interp_mode_wedge=2
-
       integer(iintegers), parameter :: LUT_MAX_DIM=7
 
       ! We pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values
@@ -168,8 +161,8 @@ module m_optprop_parameters
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
       ! what to expect.
-!      logical,parameter :: ldebug_optprop=.False.
-      logical,parameter :: ldebug_optprop=.True.
+      logical,parameter :: ldebug_optprop=.False.
+!      logical,parameter :: ldebug_optprop=.True.
 
       ! Use delta scaling on optical properties? -- this significantly reduces
       ! the size of the lookuptables.
