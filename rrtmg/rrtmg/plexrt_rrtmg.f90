@@ -64,8 +64,8 @@ module m_plexrt_rrtmg
   private
   public :: plexrt_rrtmg, destroy_plexrt_rrtmg
 
-  logical,parameter :: ldebug=.True.
-!  logical,parameter :: ldebug=.False.
+!  logical,parameter :: ldebug=.True.
+  logical,parameter :: ldebug=.False.
 
 contains
 
