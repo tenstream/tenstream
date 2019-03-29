@@ -211,6 +211,10 @@ module m_helper_functions
       character(len=*), intent(in), optional :: descr
       integer(mpiint) :: mpierr
 
+#ifdef __RELEASE_BUILD__
+      return
+#endif
+
       if(ierr.ne.0) then
         call CHKWARN(ierr, descr)
         call mpi_abort(mpi_comm_world, ierr, mpierr)
@@ -221,6 +225,10 @@ module m_helper_functions
       integer(mpiint),intent(in) :: ierr
       character(len=*), intent(in), optional :: descr
       integer(mpiint) :: myid, mpierr
+
+#ifdef __RELEASE_BUILD__
+      return
+#endif
 
       if(ierr.ne.0) then
         call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
