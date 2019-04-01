@@ -394,7 +394,7 @@ module m_dyn_atm_to_rrtmg
             if(dz.lt.one) then
               !call CHKWARN(1_mpiint, 'bg atmosphere and dynamics grid pressure are very close.' // &
               !  'Note that I`ll drop one layer here.')
-              minval_plev = min(minval_plev, (bg_atm%plev(m) + bg_atm%plev(max(1,m-1)))/2)
+              minval_plev = min(minval_plev, (bg_atm%plev(m) + bg_atm%plev(max(i1,m-i1)))*.5_ireals)
             endif
           enddo
 
