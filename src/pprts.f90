@@ -3191,7 +3191,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
                   do idof = 1, solver%dirside%dof
                     solrad = xedir( src-1, k , i+i1-sun%xinc(k,i,j) , j )
-                    if (solver%difftop%is_inward(dst)) then
+                    if (solver%difftop%is_inward(idofdst)) then
                       xsrc(dst,k+1,i,j)= xsrc(dst,k+1,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
                     else
                       xsrc(dst,k  ,i,j)= xsrc(dst,k  ,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
@@ -3201,7 +3201,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
                   do idof = 1, solver%dirside%dof
                     solrad = xedir( src-1 , k , i , j+i1-sun%yinc(k,i,j) )
-                    if (solver%difftop%is_inward(dst)) then
+                    if (solver%difftop%is_inward(idofdst)) then
                       xsrc(dst,k+1,i,j)= xsrc(dst,k+1,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
                     else
                       xsrc(dst,k  ,i,j)= xsrc(dst,k  ,i,j) + solrad * dir2diff((dst)*C_dir%dof+src)
