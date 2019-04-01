@@ -31,10 +31,13 @@ module m_dyn_atm_to_rrtmg
   use m_data_parameters, only : iintegers, mpiint, ireals, default_str_len, &
     zero, one, pi, i1, i2, i9, init_mpi_data_parameters
 
-  use m_helper_functions, only: CHKERR, reverse, &
-    imp_allreduce_min, imp_allreduce_max, meanvec, imp_bcast, read_ascii_file_2d, &
-    gradient, get_arg, itoa
-  use m_search, only: find_real_location
+  use m_helper_functions, only: CHKWARN, CHKERR, reverse, &
+    imp_allreduce_min, imp_allreduce_max, &
+    imp_bcast, read_ascii_file_2d, &
+    gradient, get_arg, itoa, ftoa, &
+    meanvec, meanval, assert_arr_is_monotonous
+
+  use m_search, only: search_sorted_bisection
 
   use m_tenstream_interpolation, only : interp_1d
 
@@ -151,14 +154,14 @@ module m_dyn_atm_to_rrtmg
 
       if(.not.allocated(atm%bg_atm)) then
         call load_atmfile(comm, atm_filename, atm%bg_atm)
-        call sanitize_input(atm%bg_atm%plev, atm%bg_atm%tlev, atm%bg_atm%tlay)
+        call sanitize_input(.True., atm%bg_atm%plev, atm%bg_atm%tlev, atm%bg_atm%tlay)
       endif
 
       do icol=lbound(d_plev,2),ubound(d_plev,2)
         if(present(d_tlay)) then
-          call sanitize_input(d_plev(:,icol), d_tlev(:,icol), d_tlay(:,icol))
+          call sanitize_input(lTOA_to_srfc, d_plev(:,icol), d_tlev(:,icol), d_tlay(:,icol))
         else
-          call sanitize_input(d_plev(:,icol), d_tlev(:,icol))
+          call sanitize_input(lTOA_to_srfc, d_plev(:,icol), d_tlev(:,icol))
         endif
       enddo
 
@@ -305,7 +308,7 @@ module m_dyn_atm_to_rrtmg
 
     !> Concatenate the dynamical grid with the background profile
     subroutine merge_dyn_rad_grid(comm, atm,   &
-        in_d_plev, d_tlev, d_tlay, d_h2ovmr,   &
+        d_plev, d_tlev, d_tlay, d_h2ovmr,   &
         d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr, &
         d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
         d_surface_height)
@@ -313,7 +316,7 @@ module m_dyn_atm_to_rrtmg
       integer(mpiint), intent(in) :: comm
       type(t_tenstr_atm),intent(inout) :: atm
 
-      real(ireals),intent(in) :: in_d_plev (:,:), d_tlev(:,:) ! dim(nlay_dynamics+1, ncol)
+      real(ireals),intent(in) :: d_plev (:,:), d_tlev(:,:) ! dim(nlay_dynamics+1, ncol)
 
       real(ireals),intent(in),optional :: d_tlay   (:,:) ! all have
       real(ireals),intent(in),optional :: d_h2ovmr (:,:) ! dim(nlay_dynamics, ncol)
@@ -328,7 +331,7 @@ module m_dyn_atm_to_rrtmg
       real(ireals),intent(in),optional :: d_reice  (:,:) !
       real(ireals),intent(in),optional :: d_surface_height(:)
 
-      real(ireals) :: d_plev (ubound(in_d_plev,1), ubound(in_d_plev,2))
+      !real(ireals) :: d_plev (ubound(in_d_plev,1), ubound(in_d_plev,2))
 
       integer(iintegers) :: ke, ke1 ! number of vertical levels of merged grid
       integer(iintegers) :: is, ie, icol, l,m
@@ -336,7 +339,8 @@ module m_dyn_atm_to_rrtmg
       real(ireals),allocatable :: d_hhl(:,:), d_dz(:)
       real(ireals) :: global_maxheight, global_minplev
       logical :: lupdate_bg_entries
-      real(ireals) :: hsrfc
+      real(ireals) :: hsrfc, dz, interface_pressures(2), tmp_lay_temp
+      real(ireals) :: minval_plev, maxval_hhl
 
       hsrfc = zero ! default value
 
@@ -356,17 +360,11 @@ module m_dyn_atm_to_rrtmg
         if(.not.allocated(atm%atm_ke)) then
           atm%d_ke1 = ubound(d_plev,1); atm%d_ke = atm%d_ke1-1
 
-          ! first put a tiny increment on the top of dynamics pressure value,
-          ! to handle a cornercase where dynamics and background profile are the same
-          ! because sometimes it happens that the layer between dynamics grid and profile
-          ! is so small that dz is very small and consequently not in LUT's
-          d_plev = in_d_plev
-          d_plev(atm%d_ke1, :) = 2* d_plev(atm%d_ke1, :) - d_plev(atm%d_ke, :)
-
           ! First get top height of dynamics grid
           allocate(d_hhl(atm%d_ke1, ie))
           allocate(d_dz(atm%d_ke))
 
+          maxval_hhl = zero
           do icol = is, ie
             if(present(d_surface_height)) then
               hsrfc = d_surface_height(icol)
@@ -377,17 +375,38 @@ module m_dyn_atm_to_rrtmg
               call hydrostat_lev(d_plev(:,icol),(d_tlev(1:atm%d_ke,icol)+d_tlev(2:atm%d_ke1,icol))/2, &
                 hsrfc, d_hhl(:, icol), d_dz)
             endif
+            maxval_hhl = max(maxval_hhl, d_hhl(size(d_hhl,dim=1),icol))
+          enddo
+
+          ! first put a tiny increment on the top of dynamics pressure value,
+          ! to handle a cornercase where dynamics and background profile are the same
+          ! because sometimes it happens that the layer between dynamics grid and profile
+          ! is so small that dz is very small and consequently not in LUT's
+          minval_plev = minval(d_plev(size(d_plev, dim=1), :))
+          m = floor(search_sorted_bisection(bg_atm%plev, minval_plev))
+          interface_pressures(2) = bg_atm%plev(m)
+          tmp_lay_temp = (bg_atm%tlev(m) + bg_atm%tlev(m+1)) * .5_ireals
+          minval_plev = d_plev(size(d_plev, dim=1), is)
+          do icol = is, ie
+            interface_pressures(1) = d_plev(size(d_plev, dim=1),icol)
+            dz = hydrostat_dz(abs(interface_pressures(1)-interface_pressures(2)), &
+              meanval(interface_pressures), tmp_lay_temp )
+            if(dz.lt.one) then
+              !call CHKWARN(1_mpiint, 'bg atmosphere and dynamics grid pressure are very close.' // &
+              !  'Note that I`ll drop one layer here.')
+              minval_plev = min(minval_plev, (bg_atm%plev(m) + bg_atm%plev(max(1,m-1)))/2)
+            endif
           enddo
 
           ! index of lowermost layer in atm: search for level where height is bigger and
           ! pressure is lower
-          call imp_allreduce_max(comm, maxval(d_hhl), global_maxheight)
-          call imp_allreduce_min(comm, minval(d_plev), global_minplev)
+          call imp_allreduce_max(comm, maxval_hhl, global_maxheight)
+          call imp_allreduce_min(comm, minval_plev, global_minplev)
 
-          l = floor(find_real_location(bg_atm%zt, global_maxheight))
-          m = floor(find_real_location(bg_atm%plev, global_minplev))
+          l = floor(search_sorted_bisection(bg_atm%zt, global_maxheight))
+          m = floor(search_sorted_bisection(bg_atm%plev, global_minplev))
           allocate(atm%atm_ke)
-          atm%atm_ke = min(l,m)+1
+          atm%atm_ke = min(l,m)
           ke  = atm%atm_ke + atm%d_ke
           ke1 = atm%atm_ke + atm%d_ke1
 
@@ -423,7 +442,7 @@ module m_dyn_atm_to_rrtmg
             if(lupdate_bg_entries) then
               atm%plev(ke1-atm_ke+1:ke1, icol) = reverse(bg_atm%plev(1:atm_ke))
             endif
-            atm%plev(1:atm%d_ke1, icol) = in_d_plev(:, icol)
+            atm%plev(1:atm%d_ke1, icol) = d_plev(:, icol)
             if(atm%plev(ke1-atm_ke+1, icol) .gt. atm%plev(atm%d_ke1, icol)) then
               print *,'background profile pressure is .ge. than uppermost pressure &
                 & level of dynamics grid -- this suggests the dynamics grid is way &
@@ -559,13 +578,14 @@ module m_dyn_atm_to_rrtmg
         if(lupdate_bg_entries) then
           do k=1,size(col_var)-atm_ke
             h = (d_hhl(k+1) + d_hhl(k)) / 2
-            col_var(k) = interp_1d(find_real_location(a_hhl, h), a_lev)
+            col_var(k) = interp_1d(search_sorted_bisection(a_hhl, h), a_lev)
           enddo
         endif
       endif
     end subroutine
 
-    subroutine sanitize_input(plev, tlev, tlay)
+    subroutine sanitize_input(lTOA_to_srfc, plev, tlev, tlay)
+      logical, intent(in) :: lTOA_to_srfc
       real(ireals),intent(in),dimension(:) :: plev, tlev
       real(ireals),intent(in),dimension(:),optional :: tlay
 
@@ -574,13 +594,30 @@ module m_dyn_atm_to_rrtmg
       logical :: lerr
 
       errcnt = 0
-      lerr = maxval(plev) .gt. 1050
+
+      lerr = .not.assert_arr_is_monotonous(plev, lincreasing=lTOA_to_srfc, lstrict=.True.)
+      if(lerr) then
+        print *,'Pressure is not strictly monotous decreasing, however, '// &
+          'we need this for hydrostatic integration. '// &
+          'If you cannot guarantee that, please ask me for non-hydrostatic support.', plev
+        errcnt = errcnt+1
+      endif
+
+      if(lTOA_to_srfc) then
+        lerr = plev(size(plev)) .gt. 1050
+      else
+        lerr = plev(1) .gt. 1050
+      endif
       if(lerr) then
         print *,'Pressure above 1050 hPa -- are you sure this is earth?', maxval(plev)
         errcnt = errcnt+1
       endif
 
-      lerr = minval(plev) .lt. zero
+      if(lTOA_to_srfc) then
+        lerr = plev(1) .lt. zero
+      else
+        lerr = plev(size(plev)) .lt. zero
+      endif
       if(lerr) then
         print *,'Pressure negative -- are you sure this is physically correct?', minval(plev)
         errcnt = errcnt+1
@@ -728,7 +765,7 @@ module m_dyn_atm_to_rrtmg
         print *,'tlay',tlay
         print *,'dz',dz
         print *,'hhl',hhl
-        stop 'error in dz'
+        call CHKERR(1_mpiint, 'error in dz, dz.le.zero minval:'//ftoa(minval(dz)))
       endif
     end subroutine
 

@@ -39,7 +39,7 @@ module m_helper_functions
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean,           &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
-    solve_quadratic
+    solve_quadratic, linspace, assert_arr_is_monotonous
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -168,6 +168,14 @@ module m_helper_functions
 
   interface solve_quadratic
     module procedure solve_quadratic_r32, solve_quadratic_r64
+  end interface
+
+  interface linspace
+    module procedure linspace_r32, linspace_r64
+  end interface
+
+  interface assert_arr_is_monotonous
+    module procedure assert_arr_is_monotonous_r32, assert_arr_is_monotonous_r64
   end interface
 
   integer(iintegers), parameter :: npar_cumprod=8
@@ -1996,5 +2004,110 @@ pure subroutine solve_quadratic_r64(a, b, c, x, ierr)
   if(x(1).gt.x(2)) x = [x(2), x(1)]
 end subroutine
 
+! helper to sample a linspace
+pure function linspace_r64(idx, rng, N) result(sample_pnt)
+  integer(iintegers),intent(in) :: idx, N
+  real(kind=REAL64),dimension(2), intent(in) :: rng
+  real(kind=kind(rng)) :: sample_pnt
+  if(N.gt.i1) then
+    sample_pnt = rng(1) + (real(idx, kind(rng))-1) * ( rng(2)-rng(1) ) &
+      / real(N-1, kind=kind(sample_pnt))
+  else
+    sample_pnt = rng(1)
+  endif
+end function
+pure function linspace_r32(idx, rng, N) result(sample_pnt)
+  integer(iintegers),intent(in) :: idx, N
+  real(kind=REAL32),dimension(2), intent(in) :: rng
+  real(kind=kind(rng)) :: sample_pnt
+  if(N.gt.i1) then
+    sample_pnt = rng(1) + (real(idx, kind(rng))-1) * ( rng(2)-rng(1) ) &
+      / real(N-1, kind=kind(sample_pnt))
+  else
+    sample_pnt = rng(1)
+  endif
+end function
 
+
+! determine if array is (strictly) monotoneous increasing/decreasing
+pure function assert_arr_is_monotonous_r32(arr, lincreasing, lstrict) result(lis_linear)
+  real(REAL32), intent(in) :: arr(:)
+  logical, intent(in) :: lincreasing, lstrict
+  logical :: lis_linear
+  integer(iintegers) :: k
+  if(lincreasing) then
+    if(lstrict) then
+      do k=2,size(arr)
+        if(arr(k).le.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    else
+      do k=2,size(arr)
+        if(arr(k).lt.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    endif
+  else
+    if(lstrict) then
+      do k=2,size(arr)
+        if(arr(k).ge.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    else
+      do k=2,size(arr)
+        if(arr(k).gt.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    endif
+  endif
+  lis_linear = .True.
+end function
+pure function assert_arr_is_monotonous_r64(arr, lincreasing, lstrict) result(lis_linear)
+  real(REAL64), intent(in) :: arr(:)
+  logical, intent(in) :: lincreasing, lstrict
+  logical :: lis_linear
+  integer(iintegers) :: k
+  if(lincreasing) then
+    if(lstrict) then
+      do k=2,size(arr)
+        if(arr(k).le.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    else
+      do k=2,size(arr)
+        if(arr(k).lt.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    endif
+  else
+    if(lstrict) then
+      do k=2,size(arr)
+        if(arr(k).ge.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    else
+      do k=2,size(arr)
+        if(arr(k).gt.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    endif
+  endif
+  lis_linear = .True.
+end function
   end module
