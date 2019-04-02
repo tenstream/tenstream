@@ -206,7 +206,7 @@ subroutine init_diff_photon_3_6(bmc,p,src,vertices,ierr)
   p%side = int(nil)
   p%src  = src
   p%scattercnt = 0
-  if(.not. approx( norm(p%dir) ,one ) ) stop 'init_diff_photon_3_10 :: direction was not normed?!'
+  if(.not. approx( norm2(p%dir) ,one ) ) stop 'init_diff_photon_3_10 :: direction was not normed?!'
 
   select type(bmc)
   end select

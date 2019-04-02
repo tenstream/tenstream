@@ -19,19 +19,19 @@
 
 module m_helper_functions_dp
       use m_data_parameters,only : iintegers,ireal_dp,imp_real_dp,imp_iinteger,imp_logical,mpiint, pi64
-      use m_helper_functions, only: CHKERR, itoa
+      use m_helper_functions, only: CHKERR, itoa, cross_2d
       use mpi
 
       implicit none
 
       private
-      public imp_bcast, norm, cross_2d, cross_3d, deg2rad, rad2deg, rmse, mean, approx, rel_approx,&
+      public imp_bcast, norm, deg2rad, rad2deg, rmse, mean, approx, rel_approx,&
           cumsum, inc, swap, &
           mpi_logical_and, mpi_logical_or, imp_allreduce_min, imp_allreduce_max, imp_reduce_sum, &
           pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, &
           determine_normal_direction, &
           distance_to_edge, distances_to_triangle_edges, triangle_intersection, square_intersection, &
-          triangle_area_by_vertices, rotation_matrix_local_basis_to_world, pnt_in_cube
+          rotation_matrix_local_basis_to_world, pnt_in_cube
 
       interface imp_bcast
         module procedure imp_bcast_real_1d,imp_bcast_real_2d,imp_bcast_real_3d,imp_bcast_real_5d,imp_bcast_int_1d,imp_bcast_int_2d,imp_bcast_int,imp_bcast_real,imp_bcast_logical
@@ -69,22 +69,6 @@ module m_helper_functions_dp
         real(ireal_dp),intent(in) :: v(:)
         norm = sqrt(dot_product(v,v))
       end function
-
-      pure function cross_3d(a, b)
-        real(ireal_dp), dimension(3), intent(in) :: a, b
-        real(ireal_dp), dimension(3) :: cross_3d
-
-        cross_3d(1) = a(2) * b(3) - a(3) * b(2)
-        cross_3d(2) = a(3) * b(1) - a(1) * b(3)
-        cross_3d(3) = a(1) * b(2) - a(2) * b(1)
-      end function cross_3d
-
-      pure function cross_2d(a, b)
-        real(ireal_dp), dimension(2), intent(in) :: a, b
-        real(ireal_dp) :: cross_2d
-
-        cross_2d = a(1) * b(2) - a(2) * b(1)
-      end function cross_2d
 
       elemental function deg2rad(deg)
           real(ireal_dp) :: deg2rad
@@ -694,26 +678,6 @@ module m_helper_functions_dp
       enddo
       distance = sqrt(distance)
       !distance = abs(norm(p2-p1))
-    end function
-
-    !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
-    function triangle_area_by_edgelengths(e1,e2,e3)
-      real(ireal_dp), intent(in) :: e1,e2,e3
-      real(ireal_dp) :: triangle_area_by_edgelengths
-      real(ireal_dp) :: p
-      p = (e1+e2+e3)/2
-      triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
-    end function
-
-    !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
-    function triangle_area_by_vertices(v1,v2,v3)
-      real(ireal_dp), intent(in) :: v1(:),v2(:),v3(:)
-      real(ireal_dp) :: triangle_area_by_vertices
-      real(ireal_dp) :: e1, e2, e3
-      e1 = distance(v1,v2)
-      e2 = distance(v2,v3)
-      e3 = distance(v3,v1)
-      triangle_area_by_vertices = triangle_area_by_edgelengths(e1,e2,e3)
     end function
 
     pure function rotation_matrix_local_basis_to_world(ex, ey, ez)

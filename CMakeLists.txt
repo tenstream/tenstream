@@ -42,8 +42,11 @@ MESSAGE(STATUS "Build Type " ${CMAKE_BUILD_TYPE})
 MESSAGE(STATUS "Compiler ID "  ${CMAKE_Fortran_COMPILER_ID})
 if (CMAKE_BUILD_TYPE STREQUAL "RELEASE")
   MESSAGE(STATUS "Compiler Flags " ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_RELEASE})
-else()
+  add_definitions(-D__RELEASE_BUILD__)
+elseif(CMAKE_BUILD_TYPE STREQUAL "DEBUG")
   MESSAGE(STATUS "Compiler Flags " ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_DEBUG})
+else()
+  message(FATAL " -- CMAKE_BUILD_TYPE should be either RELEASE or DEBUG")
 endif()
 
 # Petsc

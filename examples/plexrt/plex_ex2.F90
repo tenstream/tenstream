@@ -5,7 +5,7 @@ use petsc
 
 use m_tenstream_options, only : read_commandline_options
 
-use m_helper_functions, only: CHKERR, norm, imp_bcast, determine_normal_direction, &
+use m_helper_functions, only: CHKERR, imp_bcast, determine_normal_direction, &
   spherical_2_cartesian, angle_between_two_vec, rad2deg
 
 use m_data_parameters, only : ireals, iintegers, mpiint, &
@@ -85,7 +85,7 @@ logical, parameter :: ldebug=.True.
       !sundir = -[0.717145, 0.0262298, 0.696431] !further left
       sundir = -[0.717607, -0.690197, -0.0930992]
       sundir = -[0.88119, -0.0874145, 0.46461]
-      sundir = sundir/norm(sundir)
+      sundir = sundir/norm2(sundir)
       print *,myid,'Initial sundirection = ', sundir, rad2deg(angle_between_two_vec(sundir, first_normal))
 
       call set_plex_rt_optprop(solver, vlwc=lwcvec, viwc=iwcvec)

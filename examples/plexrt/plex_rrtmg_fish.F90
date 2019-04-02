@@ -1,4 +1,4 @@
-module m_mpi_plex_ex3
+module m_plex_rrtmg_fish
 
 #include "petsc/finclude/petsc.h"
 use petsc
@@ -7,7 +7,7 @@ use m_tenstream_options, only : read_commandline_options
 
 use m_helper_functions, only: CHKERR, imp_bcast, determine_normal_direction, &
   spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, reverse, itoa, cstr, &
-  meanval
+  meanval, meanvec
 
 use m_data_parameters, only : ireals, iintegers, mpiint, &
   default_str_len, &
@@ -28,7 +28,12 @@ use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandl
   t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   plexrt_get_result, destroy_plexrt_solver
 
+use m_plexrt_rrtmg, only: plexrt_rrtmg, destroy_plexrt_rrtmg
+
 use m_netcdfio, only : ncload, ncwrite
+
+use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, print_tenstr_atm, &
+  reff_from_lwc_and_N, hydrostat_plev
 
 use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D, dump_ownership, Nz_Ncol_vec_to_celldm1
 
@@ -38,18 +43,17 @@ logical, parameter :: ldebug=.True.
 
   contains
 
-    subroutine plex_ex3(comm, Nx, Ny, Nz, dz, Ag)
+    subroutine ex_plex_rrtmg_fish(comm, Nx, Ny, Nz, dx, dz, Ag, lthermal, lsolar)
       MPI_Comm, intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny, Nz
-      real(ireals), intent(in) :: dz, Ag
+      real(ireals), intent(in) :: dx, dz, Ag
+      logical, intent(in) :: lthermal, lsolar
 
       type(tDM) :: dm2d, dm2d_dist, dm3d
       type(tPetscSF) :: migration_sf
       real(ireals) :: hhl(Nz)
 
       integer(mpiint) :: myid, numnodes, ierr
-      integer(iintegers) :: icol, k
-      !type(tVec) :: lwcvec, iwcvec
 
       real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
 
@@ -57,76 +61,108 @@ logical, parameter :: ldebug=.True.
       integer(iintegers), allocatable :: zindex(:)
       class(t_plex_solver), allocatable :: solver
 
-      real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
+      type(t_tenstr_atm) :: atm
+      character(len=default_str_len) :: atm_filename
+      integer(iintegers) :: k, fStart, fEnd, Ncol, dNlev, dNlay, Nlev
+      real(ireals), allocatable :: col_plev(:,:), col_tlev(:,:), dp(:)
+      real(ireals), parameter :: lapse_rate=9.5e-3, Tsrfc=288.3, minTemp=Tsrfc-60._ireals
 
-      logical, parameter :: lthermal = .False.
+      real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf)
+      call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf, opt_dx=dx)
 
       hhl(1) = zero
       do k=2,Nz
         hhl(k) = hhl(k-1) + dz
       enddo
-      hhl = reverse(hhl)
 
-      call dmplex_2D_to_3D(dm2d_dist, Nz, hhl, dm3d, zindex)
+      call DMPlexGetHeightStratum(dm2d_dist, i0, fStart, fEnd, ierr); call CHKERR(ierr)
+      Ncol = fEnd - fStart
+      dNlev = Nz; dNlay = dNlev-1
 
-      call setup_plexgrid(dm3d, Nz-1, zindex, plex)
+      if(myid.eq.0) print *,'Dynamics Grid has Size Nlev, Ncol:', dNlev, Ncol
+
+      ! prepare atmosphere
+      allocate(col_tlev(dNlev, Ncol))
+      allocate(col_plev(dNlev, Ncol))
+
+      do k = 1, dNlev
+        col_tlev(k, i1) = max(minTemp, Tsrfc - (lapse_rate * hhl(k)))
+      enddo
+
+      allocate(dp(dNlay))
+      call hydrostat_plev(1013._ireals, meanvec(col_tlev(:,i1)), hhl, &
+        col_plev(:,i1), dp)
+      deallocate(dp)
+
+      if(myid.eq.0) then
+        print *,'Dynamics Grid Pressure and Temperature'
+        do k = 1, dNlev
+          print *,k, col_plev(k, i1), col_tlev(k, i1)
+        enddo
+      endif
+
+      do k = 2, Ncol
+        col_plev(:, k) =  col_plev(:, i1)
+        col_tlev(:, k) =  col_tlev(:, i1)
+      enddo
+
+      call init_data_strings()
+
+      call setup_tenstr_atm(comm, .False., atm_filename, col_plev, col_tlev, atm)
+      Nlev = size(atm%plev,1,kind=iintegers)
+
+      call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
+
+      call DMDestroy(dm2d, ierr); call CHKERR(ierr)
+      call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
+
+      call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
       deallocate(zindex)
 
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
+
+      call setup_tenstr_atm(comm, .False., atm_filename, &
+        col_plev, col_tlev, atm )
 
       call allocate_plexrt_solver_from_commandline(solver, '5_8')
       call init_plex_rt_solver(plex, solver)
 
       call init_sundir()
 
-      call set_plex_rt_optprop(solver, vert_integrated_kabs=1e-0_ireals, vert_integrated_ksca=zero)
-
-      if(.not.allocated(solver%albedo)) then
-        allocate(solver%albedo)
-        call DMCreateGlobalVector(solver%plex%srfc_boundary_dm, solver%albedo, ierr); call CHKERR(ierr)
-      endif
-      call VecSet(solver%albedo, Ag, ierr); call CHKERR(ierr)
-
       if(lthermal) then
-        if(.not.allocated(solver%plck)) then
-          allocate(solver%plck)
-          call DMCreateGlobalVector(solver%plex%cell1_dm, solver%plck, ierr); call CHKERR(ierr)
-        endif
-        call VecSet(solver%plck, 100._ireals, ierr); call CHKERR(ierr)
-
-        if(.not.allocated(solver%srfc_emission)) then
-          allocate(solver%srfc_emission)
-          call DMCreateGlobalVector(solver%plex%srfc_boundary_dm, solver%srfc_emission, ierr); call CHKERR(ierr)
-        endif
-        call VecSet(solver%srfc_emission, 400._ireals/3.1415_ireals, ierr); call CHKERR(ierr)
-        call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=sundir)
-      else
-        call run_plex_rt_solver(solver, lthermal=.False., lsolar=.True., sundir=sundir)
+        call plexrt_rrtmg(solver, atm, sundir, &
+          albedo_thermal=zero, albedo_solar=Ag, &
+          lthermal=.True., lsolar=.False., &
+          edir=edir, edn=edn, eup=eup, abso=abso)
+        print *, ''
+        print *, cstr('Thermal Radiation', 'green')
+        print *,cstr('Avg.horiz','blue')//&
+          cstr(' k  Edn             Eup           abso', 'blue')
+        do k = 1, ubound(abso,1)
+          print *,k, meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
+        enddo
+        print *,k, meanval(edn(k,:)), meanval(eup(k,:))
       endif
 
-      call plexrt_get_result(solver, edn, eup, abso, redir=edir)
+      if(lsolar) then
+        call plexrt_rrtmg(solver, atm, sundir, &
+          albedo_thermal=zero, albedo_solar=Ag, &
+          lthermal=.False., lsolar=.True., &
+          edir=edir, edn=edn, eup=eup, abso=abso)
 
-      do icol = 1, Nx
-        print *,''
-        print *,cstr('Column ','blue')//cstr(itoa(icol),'red')//&
-          cstr('  k  Edir              Edn              Eup              abso', 'blue')
+        print *, ''
+        print *, cstr('Solar Radiation', 'green')
+        print *,cstr('Avg.horiz','blue')//&
+          cstr(' k   Edir          Edn            Eup            abso', 'blue')
         do k = 1, ubound(abso,1)
-          print *,k, edir(k,icol), edn(k,icol), eup(k,icol), abso(k,icol)
+          print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
         enddo
-        print *,k, edir(k,icol), edn(k,icol), eup(k,icol)
-      enddo
-
-      print *, ''
-      print *, 'Averages'
-      do k = 1, ubound(abso,1)
-        print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
-      enddo
-      print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:))
+        print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:))
+      endif
 
       call dump_result()
 
@@ -212,20 +248,25 @@ logical, parameter :: ldebug=.True.
 
           if(ldebug.and.myid.eq.0) print *,'determine initial sundirection ... done'
         end subroutine
+        subroutine init_data_strings()
+          logical :: lflg
+          atm_filename='afglus_100m.dat'
+          call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
+        end subroutine
     end subroutine
 
   end module
 
   program main
-    use m_mpi_plex_ex3
+    use m_plex_rrtmg_fish
     implicit none
 
     character(len=default_str_len) :: outfile
-    logical :: lflg
+    logical :: lflg, lthermal, lsolar
     integer(mpiint) :: ierr
     character(len=10*default_str_len) :: default_options
     integer(iintegers) :: Nx, Ny, Nz
-    real(ireals) :: dz, Ag
+    real(ireals) :: dx, dz, Ag
 
     !character(len=*),parameter :: ex_out='plex_ex_dom1_out.h5'
     !character(len=*),parameter :: ex_out='plex_test_out.h5'
@@ -242,10 +283,17 @@ logical, parameter :: ldebug=.True.
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ny", Ny, lflg,ierr) ; call CHKERR(ierr)
     Nz = 2
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg,ierr) ; call CHKERR(ierr)
-    dz = one/real(Nz, ireals)
+    dx = 1e3_ireals
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg,ierr) ; call CHKERR(ierr)
+    dz = 1e2_ireals
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dz", dz, lflg,ierr) ; call CHKERR(ierr)
     Ag = .1_ireals
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Ag", Ag, lflg,ierr) ; call CHKERR(ierr)
+    lsolar = .True.
+    lthermal = .True.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
+
 
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
@@ -268,7 +316,7 @@ logical, parameter :: ldebug=.True.
     print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
-    call plex_ex3(PETSC_COMM_WORLD, Nx, Ny, Nz, dz, Ag)
+    call ex_plex_rrtmg_fish(PETSC_COMM_WORLD, Nx, Ny, Nz, dx, dz, Ag, lthermal, lsolar)
 
     call mpi_barrier(PETSC_COMM_WORLD, ierr)
     call PetscFinalize(ierr)

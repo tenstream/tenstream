@@ -45,7 +45,7 @@ module m_plexrt_rrtmg
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
       imp_allreduce_min, imp_allreduce_max, CHKERR, deg2rad, &
-      reverse, itoa, angle_between_two_vec, norm, rad2deg, get_arg
+      reverse, itoa, angle_between_two_vec, rad2deg, get_arg
   use m_search, only: find_real_location
   use m_tenstream_interpolation, only : interp_1d
 
@@ -64,8 +64,8 @@ module m_plexrt_rrtmg
   private
   public :: plexrt_rrtmg, destroy_plexrt_rrtmg
 
-  logical,parameter :: ldebug=.True.
-!  logical,parameter :: ldebug=.False.
+!  logical,parameter :: ldebug=.True.
+  logical,parameter :: ldebug=.False.
 
 contains
 
@@ -568,9 +568,9 @@ contains
         call Nz_Ncol_vec_to_celldm1(solver%plex, tmp, solver%g)
 
         if(present(opt_solar_constant)) then
-          rescaled_sundir = sundir/norm(sundir) * tenstr_solsrc(ib) / sum(tenstr_solsrc) * opt_solar_constant
+          rescaled_sundir = sundir/norm2(sundir) * tenstr_solsrc(ib) / sum(tenstr_solsrc) * opt_solar_constant
         else
-          rescaled_sundir = sundir/norm(sundir) * tenstr_solsrc(ib)
+          rescaled_sundir = sundir/norm2(sundir) * tenstr_solsrc(ib)
         endif
 
         call run_plex_rt_solver(solver, lthermal=.False., lsolar=.True., &

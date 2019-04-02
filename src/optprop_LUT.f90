@@ -32,7 +32,8 @@ module m_optprop_LUT
     CHKERR,                               &
     triangle_area_by_vertices,            &
     rad2deg,                              &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets
+    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, &
+    linspace
 
   use m_search, only: find_real_location
 
@@ -1026,16 +1027,16 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
     T_tol  = real(rT_tol, irealLUT)
 end subroutine
 
-function lin_index_to_param(idx,rng,N)
-    real(irealLUT) :: lin_index_to_param
-    real(irealLUT),intent(in) :: idx,rng(2)
-    integer(iintegers),intent(in) :: N
-    if(N.gt.i1) then
-      lin_index_to_param = rng(1) + (idx-1) * ( rng(2)-rng(1) ) / real(N-1, irealLUT)
-    else
-      lin_index_to_param = rng(1)
-    endif
-end function
+!function lin_index_to_param(idx,rng,N)
+!    real(irealLUT) :: lin_index_to_param
+!    real(irealLUT),intent(in) :: idx,rng(2)
+!    integer(iintegers),intent(in) :: N
+!    if(N.gt.i1) then
+!      lin_index_to_param = rng(1) + (idx-1) * ( rng(2)-rng(1) ) / real(N-1, irealLUT)
+!    else
+!      lin_index_to_param = rng(1)
+!    endif
+!end function
 
 subroutine populate_LUT_dim(dimname, N, lut_dim, vrange, preset)
   character(len=*),intent(in) :: dimname
@@ -1048,7 +1049,7 @@ subroutine populate_LUT_dim(dimname, N, lut_dim, vrange, preset)
 
   if(present(vrange)) then
     do k=1,N
-      lut_dim%v(k) = lin_index_to_param(real(k, irealLUT), vrange, N)
+      lut_dim%v(k) = linspace(k, vrange, N)
     enddo
   elseif(present(preset)) then
     if(size(preset).ne.N) &

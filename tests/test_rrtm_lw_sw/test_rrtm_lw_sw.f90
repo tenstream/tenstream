@@ -34,7 +34,7 @@ contains
     call destroy_tenstr_atm(atm)
   end subroutine teardown
 
-  @test(npes =[2,1])
+  @test(npes =[1,2])
   subroutine rrtm_lw_sw(this)
     class (MpiTestMethod), intent(inout) :: this
 

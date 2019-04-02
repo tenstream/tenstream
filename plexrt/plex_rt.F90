@@ -7,7 +7,7 @@ module m_plex_rt
 
   use m_helper_functions, only: CHKERR, CHKWARN, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, &
-    vec_proj_on_plane, cross_3d, norm, rotation_matrix_world_to_local_basis, &
+    vec_proj_on_plane, cross_3d, rotation_matrix_world_to_local_basis, &
     approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa, &
     imp_allreduce_min, rotation_matrix_around_axis_vec
 
@@ -532,9 +532,9 @@ module m_plex_rt
         if(solution%lsolar_rad) then
           ! Output of wedge_orient vec
           call PetscLogEventBegin(solver%logs%setup_dir_src, ierr)
-          call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm(sundir), &
+          call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm2(sundir), &
             solver%kabs, solver%ksca, solver%g, &
-            sundir/norm(sundir), solver%dirsrc)
+            sundir/norm2(sundir), solver%dirsrc)
           call PetscLogEventEnd(solver%logs%setup_dir_src, ierr)
 
           ! Output of srcVec
@@ -551,7 +551,7 @@ module m_plex_rt
           ! Create Direct Matrix
           call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
           call create_edir_mat(solver, solver%plex, solver%OPP, solver%kabs, solver%ksca, solver%g, &
-            sundir/norm(sundir), solver%Mdir)
+            sundir/norm2(sundir), solver%Mdir)
           call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
 
           call scale_flx(solver, solver%plex, &
@@ -1846,7 +1846,7 @@ module m_plex_rt
             Mrot = rotation_matrix_around_axis_vec(deg2rad(180._ireals), top_face_normal)
             inv_sundir = matmul(sundir, Mrot)
 
-            !print *,sundir, norm(sundir), 'inv_sundir',inv_sundir, norm(inv_sundir), &
+            !print *,sundir, norm2(sundir), 'inv_sundir',inv_sundir, norm2(inv_sundir), &
             !  'angle between', rad2deg( angle_between_two_vec(inv_sundir, sundir) )
             !call CHKERR(1_mpiint, 'DEBUG')
             !print *,'faces_of_cell', faces_of_cell, 'sideface', iface_side
@@ -2744,7 +2744,7 @@ module m_plex_rt
     endif
     call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
 
-    if(solution%lsolar_rad .and. norm(sundir).le.zero) then
+    if(solution%lsolar_rad .and. norm2(sundir).le.zero) then
       return
     endif
 
@@ -2823,11 +2823,11 @@ module m_plex_rt
 
         if(solution%lsolar_rad) then
           call delta_eddington_twostream(vdtau,vw0,vg,&
-            mu0,norm(sundir)*mu0,xalbedo(i), &
+            mu0,norm2(sundir)*mu0,xalbedo(i), &
             Edir, Edn, Eup )
         else
           call delta_eddington_twostream(vdtau,vw0,vg,&
-            mu0,norm(sundir)*mu0,xalbedo(i), &
+            mu0,norm2(sundir)*mu0,xalbedo(i), &
             Edir, Edn, Eup, Blev)
         endif
 
@@ -2940,7 +2940,7 @@ module m_plex_rt
     endif
     call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
 
-    if(solution%lsolar_rad .and. norm(sundir).le.zero) then
+    if(solution%lsolar_rad .and. norm2(sundir).le.zero) then
       return
     endif
 

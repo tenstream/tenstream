@@ -5,7 +5,7 @@ module test_icon_plex_utils
     i0, i1, i2, i3, i4,         &
     init_mpi_data_parameters
 
-  use m_helper_functions, only : CHKERR, norm, deg2rad, itoa
+  use m_helper_functions, only : CHKERR, deg2rad, itoa
 
   use m_icon_plex_utils, only : date_to_julian_day, get_sun_vector
 
@@ -63,7 +63,7 @@ contains
         sundir = get_sun_vector(year, month, day)
 
         @assertGreaterThan(sundir(1), zero)
-        @assertEqual(one, norm(sundir), sqrt(epsilon(sundir)))
+        @assertEqual(one, norm2(sundir), sqrt(epsilon(sundir)))
       enddo
 
       do hour = 1,10
@@ -71,7 +71,7 @@ contains
         sundir = get_sun_vector(year, month, day)
 
         @assertGreaterThan(sundir(2), zero, sqrt(epsilon(sundir)))
-        @assertEqual(one, norm(sundir), sqrt(epsilon(sundir)))
+        @assertEqual(one, norm2(sundir), sqrt(epsilon(sundir)))
       enddo
 
       do hour = 13,23
@@ -79,7 +79,7 @@ contains
         sundir = get_sun_vector(year, month, day)
 
         @assertLessThan(sundir(2), zero, sqrt(epsilon(sundir)))
-        @assertEqual(one, norm(sundir), sqrt(epsilon(sundir)))
+        @assertEqual(one, norm2(sundir), sqrt(epsilon(sundir)))
       enddo
 
       do iday = 1, 31

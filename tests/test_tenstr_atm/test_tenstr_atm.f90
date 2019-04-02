@@ -5,7 +5,10 @@ module test_tenstr_atm
     iintegers, ireals, mpiint,  &
     zero, one, default_str_len
 
+  use m_helper_functions, only: linspace
+
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, reff_from_lwc_and_N
+  use m_search, only : search_sorted_bisection
 
   use pfunit_mod
 
@@ -61,10 +64,11 @@ contains
     call init_mpi_data_parameters(comm)
 
     ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
-    ! Temperature difference of 32.5K
+    ! Temperature difference of approx 5km with const. lapse rate
     do k=1,nzp+1
-      plev(k,:) = 1000_ireals - real(k-1, ireals)*  500._ireals / real(nzp, ireals)
-      tlev(k,:) = 288._ireals - real(k-1, ireals)*(5*6.5_ireals)/ real(nzp, ireals)
+      !plev(k,:) = linspace(k, [1e3_ireals, 5e2_ireals], nzp+1)
+      plev(k,:) = linspace(k, [1e3_ireals , 500._ireals], nzp+1)
+      tlev(k,:) = linspace(k, [288._ireals, 252._ireals], nzp+1)
     enddo
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
@@ -79,7 +83,7 @@ contains
     lwc  (icld, :) = 1e-2_ireals
     reliq(icld, :) = 10._ireals
 
-    tlev (icld  , :) = 288._ireals
+    !tlev (icld  , :) = 288._ireals
     tlev (icld+1, :) = tlev (icld ,:)
 
     ! mean layer temperature is approx. arithmetic mean between layer interfaces
@@ -110,7 +114,8 @@ contains
     endif
 
     @mpiassertEqual(113_iintegers, size(atm%bg_atm%plev, kind=iintegers), 'background pressure profile has wrong shape')
-    @mpiassertEqual([54_iintegers+nzp, 3_iintegers], shape(atm%plev, kind=iintegers), 'merged pressure grid has wrong shape')
+    k = floor(search_sorted_bisection(atm%bg_atm%plev, 500._ireals))
+    @mpiassertEqual([k + (nzp+1), ncol], shape(atm%plev, kind=iintegers), 'merged pressure grid has wrong shape')
 
 
     do k = 1, size(plev,1)

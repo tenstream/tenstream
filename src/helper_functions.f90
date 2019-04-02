@@ -28,7 +28,7 @@ module m_helper_functions
   implicit none
 
   private
-  public imp_bcast,norm,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                           &
+  public imp_bcast,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                           &
     delta_scale_optprop,delta_scale,cumsum, cumprod,                                                                 &
     inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum,                          &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm,                        &
@@ -39,7 +39,7 @@ module m_helper_functions
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean,           &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
-    solve_quadratic
+    solve_quadratic, linspace, assert_arr_is_monotonous
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -61,9 +61,6 @@ module m_helper_functions
   end interface
   interface deg2rad
     module procedure deg2rad_r32, deg2rad_r64
-  end interface
-  interface norm
-    module procedure norm_r32, norm_r64
   end interface
   interface approx
     module procedure approx_r32, approx_r64
@@ -173,6 +170,14 @@ module m_helper_functions
     module procedure solve_quadratic_r32, solve_quadratic_r64
   end interface
 
+  interface linspace
+    module procedure linspace_r32, linspace_r64
+  end interface
+
+  interface assert_arr_is_monotonous
+    module procedure assert_arr_is_monotonous_r32, assert_arr_is_monotonous_r64
+  end interface
+
   integer(iintegers), parameter :: npar_cumprod=8
   contains
 
@@ -211,6 +216,10 @@ module m_helper_functions
       character(len=*), intent(in), optional :: descr
       integer(mpiint) :: mpierr
 
+#ifdef __RELEASE_BUILD__
+      return
+#endif
+
       if(ierr.ne.0) then
         call CHKWARN(ierr, descr)
         call mpi_abort(mpi_comm_world, ierr, mpierr)
@@ -221,6 +230,10 @@ module m_helper_functions
       integer(mpiint),intent(in) :: ierr
       character(len=*), intent(in), optional :: descr
       integer(mpiint) :: myid, mpierr
+
+#ifdef __RELEASE_BUILD__
+      return
+#endif
 
       if(ierr.ne.0) then
         call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
@@ -348,19 +361,6 @@ module m_helper_functions
       real(ireals),intent(in) :: v(:)
       real(ireals) :: meanvec(size(v)-1)
       meanvec = (v(2:size(v))+v(1:size(v)-1))*.5_ireals
-    end function
-
-    pure function norm_r32(v) result(norm)
-      real(REAL32) :: norm
-      real(REAL32),intent(in) :: v(:)
-      norm = norm2(v)
-      !norm = sqrt(dot_product(v,v))
-    end function
-    pure function norm_r64(v) result(norm)
-      real(REAL64) :: norm
-      real(REAL64),intent(in) :: v(:)
-      norm = norm2(v)
-      !norm = sqrt(dot_product(v,v))
     end function
 
     !> @brief Cross product, right hand rule, a(thumb), b(pointing finger)
@@ -1095,16 +1095,12 @@ module m_helper_functions
       real(REAL32) :: compute_normal_3d(size(p1))
       real(REAL32) :: U(3), V(3)
 
-      if(size(p1).ne.3 .or. size(p2).ne.3 .or. size(p3).ne.3) then
-        compute_normal_3d = sqrt(-norm(p1))
-      endif
-
       U = p2-p1
       V = p3-p1
 
       compute_normal_3d = cross_3d(U,V)
 
-      compute_normal_3d = compute_normal_3d / norm(compute_normal_3d)
+      compute_normal_3d = compute_normal_3d / norm2(compute_normal_3d)
     end function
     pure function compute_normal_3d_r64(p1,p2,p3) result(compute_normal_3d)
       ! for a triangle p1, p2, p3, if the vector U = p2 - p1 and the vector V = p3 - p1
@@ -1114,16 +1110,12 @@ module m_helper_functions
       real(REAL64) :: compute_normal_3d(size(p1))
       real(REAL64) :: U(size(p1)), V(size(p1))
 
-      if(size(p1).ne.size(p2) .or. size(p1).ne.size(p3)) then
-        compute_normal_3d = sqrt(-norm(p1))
-      endif
-
       U = p2-p1
       V = p3-p1
 
       compute_normal_3d = cross_3d(U,V)
 
-      compute_normal_3d = compute_normal_3d / norm(compute_normal_3d)
+      compute_normal_3d = compute_normal_3d / norm2(compute_normal_3d)
     end function
 
     pure function determine_normal_direction(normal, center_face, center_cell)
@@ -1166,6 +1158,7 @@ module m_helper_functions
     end function
 
     !> @brief returns the angle between two not necessarily normed vectors. Result is in radians
+    !TODO: refactor in two functions, one for normed vecs and one for unnormed
     function angle_between_two_vec_r32(p1, p2) result(angle_between_two_vec)
       real(REAL32),intent(in) :: p1(:), p2(:)
       real(REAL32) :: angle_between_two_vec
@@ -1175,8 +1168,8 @@ module m_helper_functions
         angle_between_two_vec = 0
         return
       endif
-      n1 = norm(p1)
-      n2 = norm(p2)
+      n1 = norm2(p1)
+      n2 = norm2(p2)
       if(any(approx([n1,n2], 0._REAL32))) then
         call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
       endif
@@ -1195,8 +1188,8 @@ module m_helper_functions
         angle_between_two_vec = 0
         return
       endif
-      n1 = norm(p1)
-      n2 = norm(p2)
+      n1 = norm2(p1)
+      n2 = norm2(p2)
       if(any(approx([n1,n2], 0._REAL64))) then
         call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
       endif
@@ -1454,13 +1447,13 @@ module m_helper_functions
       real(REAL32), intent(in), dimension(2) :: p1,p2, p
       real(REAL32) :: distance_to_edge
 
-      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
+      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm2(p2-p1)
     end function
     pure function distance_to_edge_r64(p1,p2,p) result(distance_to_edge)
       real(REAL64), intent(in), dimension(2) :: p1,p2, p
       real(REAL64) :: distance_to_edge
 
-      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm(p2-p1)
+      distance_to_edge = abs( (p2(2)-p1(2))*p(1) - (p2(1)-p1(1))*p(2) + p2(1)*p1(2) - p2(2)*p1(1) ) / norm2(p2-p1)
     end function
 
       pure function rotate_angle_x_r32(v,angle) result(rotate_angle_x)
@@ -1554,7 +1547,7 @@ module m_helper_functions
       real(ireals) :: M(3,3)
       real(ireals),intent(in) :: angle, rot_axis(3)
       real(ireals) :: s,c,u(3),omc
-      u = rot_axis / norm(rot_axis)
+      u = rot_axis / norm2(rot_axis)
       s=sin(angle)
       c=cos(angle)
       omc = 1._ireals - c
@@ -1614,7 +1607,7 @@ module m_helper_functions
     pure function vec_proj_on_plane(v, plane_normal)
       real(ireals), dimension(3), intent(in) :: v, plane_normal
       real(ireals) :: vec_proj_on_plane(3)
-      vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm(plane_normal)**2
+      vec_proj_on_plane = v - dot_product(v, plane_normal) * plane_normal  / norm2(plane_normal)**2
     end function
 
     pure function get_arg_logical(default_value, opt_arg) result(arg)
@@ -2011,5 +2004,110 @@ pure subroutine solve_quadratic_r64(a, b, c, x, ierr)
   if(x(1).gt.x(2)) x = [x(2), x(1)]
 end subroutine
 
+! helper to sample a linspace
+pure function linspace_r64(idx, rng, N) result(sample_pnt)
+  integer(iintegers),intent(in) :: idx, N
+  real(kind=REAL64),dimension(2), intent(in) :: rng
+  real(kind=kind(rng)) :: sample_pnt
+  if(N.gt.i1) then
+    sample_pnt = rng(1) + (real(idx, kind(rng))-1) * ( rng(2)-rng(1) ) &
+      / real(N-1, kind=kind(sample_pnt))
+  else
+    sample_pnt = rng(1)
+  endif
+end function
+pure function linspace_r32(idx, rng, N) result(sample_pnt)
+  integer(iintegers),intent(in) :: idx, N
+  real(kind=REAL32),dimension(2), intent(in) :: rng
+  real(kind=kind(rng)) :: sample_pnt
+  if(N.gt.i1) then
+    sample_pnt = rng(1) + (real(idx, kind(rng))-1) * ( rng(2)-rng(1) ) &
+      / real(N-1, kind=kind(sample_pnt))
+  else
+    sample_pnt = rng(1)
+  endif
+end function
 
+
+! determine if array is (strictly) monotoneous increasing/decreasing
+pure function assert_arr_is_monotonous_r32(arr, lincreasing, lstrict) result(lis_linear)
+  real(REAL32), intent(in) :: arr(:)
+  logical, intent(in) :: lincreasing, lstrict
+  logical :: lis_linear
+  integer(iintegers) :: k
+  if(lincreasing) then
+    if(lstrict) then
+      do k=2,size(arr)
+        if(arr(k).le.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    else
+      do k=2,size(arr)
+        if(arr(k).lt.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    endif
+  else
+    if(lstrict) then
+      do k=2,size(arr)
+        if(arr(k).ge.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    else
+      do k=2,size(arr)
+        if(arr(k).gt.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    endif
+  endif
+  lis_linear = .True.
+end function
+pure function assert_arr_is_monotonous_r64(arr, lincreasing, lstrict) result(lis_linear)
+  real(REAL64), intent(in) :: arr(:)
+  logical, intent(in) :: lincreasing, lstrict
+  logical :: lis_linear
+  integer(iintegers) :: k
+  if(lincreasing) then
+    if(lstrict) then
+      do k=2,size(arr)
+        if(arr(k).le.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    else
+      do k=2,size(arr)
+        if(arr(k).lt.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    endif
+  else
+    if(lstrict) then
+      do k=2,size(arr)
+        if(arr(k).ge.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    else
+      do k=2,size(arr)
+        if(arr(k).gt.arr(k-1)) then
+          lis_linear = .False.
+          return
+        endif
+      enddo
+    endif
+  endif
+  lis_linear = .True.
+end function
   end module

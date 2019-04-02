@@ -27,7 +27,7 @@ module m_pprts
     zero, one, nil, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
     default_str_len
 
-  use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, norm, imp_allreduce_min, &
+  use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, imp_allreduce_min, &
     imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
     inc, itoa, ftoa, imp_allreduce_mean
 
@@ -714,7 +714,7 @@ module m_pprts
                 xsun(2) = sin(deg2rad(sun%theta(k,i,j)))*cos(deg2rad(sun%phi(k,i,j)))
                 xsun(3) = cos(deg2rad(sun%theta(k,i,j)))
 
-                xsun = xsun / norm(xsun)
+                xsun = xsun / norm2(xsun)
 
                 rotmat(3, 1) = grad_x(i0, k, i, j)
                 rotmat(3, 2) = grad_y(i0, k, i, j)
@@ -1388,8 +1388,8 @@ module m_pprts
           do k=C_one_atm%zs,C_one_atm%ze
             if( atm%l1d(k,i,j) ) then
               call eddington_coeff_zdun ( &
-                atm%dz(k,i,j) * (atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
-                atm%ksca(k,i,j) / (atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
+                atm%dz(k,i,j) * max(epsilon(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
+                atm%ksca(k,i,j) / max(epsilon(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
                 atm%g(k,i,j), &
                 sun%costheta(k,i,j), &
                 atm%a11(k,i,j),          &
@@ -1968,7 +1968,7 @@ module m_pprts
         !        grad(2) = grad_y(i0,k,i,j)
         !        grad(3) = one
 
-        !        xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) / norm(grad)
+        !        xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) / norm2(grad)
         !      enddo
         !    enddo
         !  enddo
@@ -1998,7 +1998,7 @@ module m_pprts
         !  !      grad(2) = grad_y(i0,k,i,j)
         !  !      grad(3) = one
 
-        !  !      xv([E_up, E_dn],k,i,j) = xv([E_up, E_dn],k,i,j) / norm(grad)
+        !  !      xv([E_up, E_dn],k,i,j) = xv([E_up, E_dn],k,i,j) / norm2(grad)
         !  !    enddo
         !  !  enddo
         !  !enddo
@@ -2020,7 +2020,7 @@ module m_pprts
     real(ireals),intent(in),optional :: time
 
     character(default_str_len) :: vecname
-    real(ireals) :: norm1, norm2, norm3
+    real(ireals) :: two_norm, inf_norm
     type(tVec) :: abso_old
 
     if( .not. solution%lset ) call CHKERR(1_mpiint, 'cant restore solution that was not initialized')
@@ -2052,9 +2052,8 @@ module m_pprts
 
     if(present(time) .and. solver%lenable_solutions_err_estimates) then ! Compute norm between old absorption and new one
       call VecAXPY(abso_old, -one, solution%abso, ierr); call CHKERR(ierr) ! overwrite abso_old with difference to new one
-      call VecNorm(abso_old, NORM_1, norm1, ierr)       ; call CHKERR(ierr)
-      call VecNorm(abso_old, NORM_2, norm2, ierr)       ; call CHKERR(ierr)
-      call VecNorm(abso_old, NORM_INFINITY, norm3, ierr); call CHKERR(ierr)
+      call VecNorm(abso_old, NORM_2, two_norm, ierr)       ; call CHKERR(ierr)
+      call VecNorm(abso_old, NORM_INFINITY, inf_norm, ierr); call CHKERR(ierr)
 
       call DMRestoreGlobalVector(solver%C_one%da, abso_old, ierr)   ; call CHKERR(ierr)
 
@@ -2063,12 +2062,13 @@ module m_pprts
       solution%twonorm = eoshift ( solution%twonorm, shift = -1) !shift all values by 1 to the right
       solution%time    = eoshift ( solution%time   , shift = -1) !shift all values by 1 to the right
 
-      solution%maxnorm( 1 ) = norm3
-      solution%twonorm( 1 ) = norm2
+      solution%maxnorm( 1 ) = inf_norm
+      solution%twonorm( 1 ) = two_norm
       solution%time( 1 )    = time
 
       if(ldebug .and. solver%myid.eq.0) &
-        print *,'Updating error statistics for solution ',solution%uid,'at time ',time,'::',solution%time(1),':: norm',norm1,norm2,norm3,'[W] :: hr_norm approx:',norm3*86.1,'[K/d]'
+        print *,'Updating error statistics for solution ',solution%uid,'at time ',time,'::',solution%time(1), &
+                ':: norm',two_norm, inf_norm,'[W] :: hr_norm approx:',inf_norm*86.1,'[K/d]'
 
     endif !present(time) .and. solver%lenable_solutions_err_estimates
 

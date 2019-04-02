@@ -36,9 +36,9 @@ module m_boxmc
     rotate_angle_x, rotate_angle_y, rotate_angle_z, &
     angle_between_two_vec, rotation_matrix_local_basis_to_world, &
     approx, meanval, rmse, imp_reduce_sum, &
-    norm, deg2rad, rad2deg, pnt_in_triangle, &
+    deg2rad, rad2deg, pnt_in_triangle, &
     compute_normal_3d, spherical_2_cartesian, &
-    triangle_area_by_vertices
+    cross_3d, triangle_area_by_vertices
   use iso_c_binding
   use mpi
   use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi64, &
@@ -1065,7 +1065,6 @@ subroutine rand_pnt_on_triangle(A,B,C, pnt)
   pnt = (one - sqrt(r1)) * A + sqrt(r1) * (one - r2) * B + sqrt(r1) * r2 * C
 end subroutine
 subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal, U,V)
-  use m_helper_functions_dp, only: cross_3d, triangle_area_by_vertices
   real(ireal_dp), dimension(3), intent(in) :: A, B, C, D
   real(ireal_dp), dimension(3), intent(out) :: pnt, normal, U, V
   real(ireal_dp) :: area(2)
@@ -1077,13 +1076,13 @@ subroutine rand_pnt_on_plane(A,B,C,D, pnt, normal, U,V)
     call rand_pnt_on_triangle(A,B,C,pnt)
     normal = compute_normal_3d(A,B,C)
     U = (C-B)
-    U = U/norm(U)
+    U = U/norm2(U)
     V = -cross_3d(U,normal)
   else
     call rand_pnt_on_triangle(A,C,D,pnt)
     normal = compute_normal_3d(A,C,D)
     U = (D-A)
-    U = U/norm(U)
+    U = U/norm2(U)
     V = -cross_3d(U,normal)
   endif
 end subroutine

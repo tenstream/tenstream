@@ -6,7 +6,7 @@ module m_icon_plex_utils
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, zero, one, default_str_len, pi
 
-  use m_helper_functions, only: chkerr, itoa, norm, get_arg, imp_bcast, deg2rad
+  use m_helper_functions, only: chkerr, itoa, get_arg, imp_bcast, deg2rad
 
   use m_plex_grid, only: t_plexgrid, print_dmplex, create_plex_section, TOAFACE, &
     get_horizontal_faces_around_vertex
@@ -532,7 +532,7 @@ module m_icon_plex_utils
             endif
 
             if(lpolar) then
-              distance = norm(coords2d(voff2d+i1 : voff2d+i3))
+              distance = norm2(coords2d(voff2d+i1 : voff2d+i3))
               inv_distance = one / distance
 
               coords3d(voff3d+1:voff3d+3) = coords2d(voff2d+1:voff2d+3) * (distance + vert_height) * inv_distance
@@ -701,11 +701,12 @@ module m_icon_plex_utils
     end subroutine
 
     ! Create a 2D Torus grid with Nx vertices horizontally and Ny rows of Vertices vertically
-    subroutine create_2d_fish_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf)
+    subroutine create_2d_fish_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf, opt_dx)
       integer(mpiint), intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny
       type(tDM), intent(out) :: dm, dmdist
       type(tPetscSF), intent(out), optional :: opt_migration_sf
+      real(ireals), intent(in), optional :: opt_dx
 
       type(tPetscSF) :: migration_sf
 
@@ -880,12 +881,15 @@ module m_icon_plex_utils
           type(tPetscSection)  :: coordSection
           integer(iintegers)   :: iv, i, j
 
-          real(ireals), parameter :: dx=1, dy=1
-          real(ireals), parameter :: ds=sqrt(dy**2 - (dx/2)**2)
+          real(ireals) :: dx, dy, ds
           real(ireals) :: x, y, z
 
           integer(iintegers) :: vert_per_row
           vert_per_row = Nx/2 + 1
+
+          dx = get_arg(1._ireals, opt_dx)
+          dy = dx
+          ds = sqrt(dy**2 - (dx/2)**2)
 
           if(ldebug) call mpi_barrier(comm, ierr)
           call DMGetCoordinateSection(dm, coordSection, ierr); call CHKERR(ierr)
