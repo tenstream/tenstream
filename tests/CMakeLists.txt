@@ -44,6 +44,7 @@ else()
         -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}/external/pfunit
         -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
         -DCMAKE_Fortran_FLAGS=${PFUNIT_Fortran_FLAGS}
+        -DCMAKE_Fortran_FLAGS_RELEASE=
         -DMPI_USE_MPIEXEC=YES
         -DMPI=YES
         )
