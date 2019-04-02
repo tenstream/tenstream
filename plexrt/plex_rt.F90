@@ -488,8 +488,10 @@ module m_plex_rt
       call dump_optical_properties(solver%kabs, solver%ksca, solver%g, solver%albedo, &
         plck=solver%plck, srfc_emission=solver%srfc_emission, postfix='_'//itoa(suid))
 
+      !print *,'sundir/norm2(sundir)',sundir/norm2(sundir), 'vs', last_sundir, &
+      !  ':', all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir))))
       ! Wedge Orientation is used in solar and thermal case alike
-      if(any(last_sundir.ne.sundir).or.&                       ! update wedge orientations if sundir has changed
+      if(.not.all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir)))).or.&  ! update wedge orientations if sundir has changed
         .not.allocated(solver%plex%wedge_orientation_dm)) then ! or if we lost the info somehow... e.g. happens after destroy_solver
         call PetscLogEventBegin(solver%logs%orient_face_normals, ierr)
         call orient_face_normals_along_sundir(solver%plex, sundir)
@@ -500,7 +502,7 @@ module m_plex_rt
           solver%plex%wedge_orientation)
         call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
 
-        last_sundir = sundir
+        last_sundir = sundir/norm2(sundir)
       endif
 
       associate( solution => solver%solutions(suid) )
