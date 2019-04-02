@@ -118,7 +118,7 @@ module m_helper_functions_dp
           else
             factor = 10*epsilon(b)
           endif
-          rel_error = abs( (a-b)/ max(epsilon(a), ( (a+b)*.5_ireal_dp ) ) )
+          rel_error = abs( (a-b)/ max(tiny(a), ( (a+b)*.5_ireal_dp ) ) )
 
           if( rel_error .lt. precision ) then
             rel_approx = .True.

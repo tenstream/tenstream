@@ -350,8 +350,8 @@ module m_eddington
        e1 = exp( min(max_exponential, lambda*dtau))
        e2 = exp(-min(max_exponential, lambda*dtau))
 
-       alpha1_m_lambda = max(epsilon(alpha_1), alpha_1-lambda )
-       alpha1_p_lambda = max(epsilon(alpha_1), alpha_1+lambda )
+       alpha1_m_lambda = max(tiny(alpha_1), alpha_1-lambda )
+       alpha1_p_lambda = max(tiny(alpha_1), alpha_1+lambda )
 
        A = one / ( alpha_2/alpha1_m_lambda*e1 - alpha_2/alpha1_p_lambda * e2 )
 

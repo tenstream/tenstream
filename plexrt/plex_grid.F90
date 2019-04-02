@@ -1300,12 +1300,12 @@ module m_plex_grid
 
       zenith = angle_between_two_vec(sundir, face_normals(:, upper_face))
       proj_sundir = vec_proj_on_plane(sundir, face_normals(:,upper_face))
-      proj_sundir = proj_sundir / max(epsilon(proj_sundir), norm2(proj_sundir))
+      proj_sundir = proj_sundir / max(tiny(proj_sundir), norm2(proj_sundir))
 
       do iface=1,size(side_faces)
         side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
         side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
-          max(epsilon(side_face_normal_projected_on_upperface), norm2(side_face_normal_projected_on_upperface(:, iface)))
+          max(tiny(side_face_normal_projected_on_upperface), norm2(side_face_normal_projected_on_upperface(:, iface)))
         if(norm2(proj_sundir).eq.zero) then
           proj_angles_to_sun(iface) = zero
           lsrc(side_faces(iface)) = .False.
