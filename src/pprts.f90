@@ -1388,8 +1388,8 @@ module m_pprts
           do k=C_one_atm%zs,C_one_atm%ze
             if( atm%l1d(k,i,j) ) then
               call eddington_coeff_zdun ( &
-                atm%dz(k,i,j) * max(epsilon(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
-                atm%ksca(k,i,j) / max(epsilon(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
+                atm%dz(k,i,j) * max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
+                atm%ksca(k,i,j) / max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
                 atm%g(k,i,j), &
                 sun%costheta(k,i,j), &
                 atm%a11(k,i,j),          &
@@ -2717,7 +2717,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 
     flag=0
     if(n.eq.0) then
-      initial_rnorm=max(epsilon(rnorm),rnorm)
+      initial_rnorm=max(tiny(rnorm),rnorm)
       return
     endif
 

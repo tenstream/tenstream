@@ -817,9 +817,9 @@ module m_dyn_atm_to_rrtmg
         default_k = .75_ireals ! airmass factor in between
 
       if(present(k)) then
-        reff = 1e3_ireals * (3._ireals * lwc / (4._ireals*pi*rho*k*max(epsilon(N),N))) ** (one/3._ireals)
+        reff = 1e3_ireals * (3._ireals * lwc / (4._ireals*pi*rho*k*max(tiny(N),N))) ** (one/3._ireals)
       else
-        reff = 1e3_ireals * (3._ireals * lwc / (4._ireals*pi*rho*default_k*max(epsilon(N),N))) ** (one/3._ireals)
+        reff = 1e3_ireals * (3._ireals * lwc / (4._ireals*pi*rho*default_k*max(tiny(N),N))) ** (one/3._ireals)
       endif
     end function
 
@@ -844,7 +844,7 @@ module m_dyn_atm_to_rrtmg
       if(l_liquid) then
         zkap_default = 1.1_ireals
         if(present(zkap)) zkap_default = zkap
-        reff = zfact * zkap_default * (lwc / max(epsilon(N),N) )**(1._ireals/3._ireals)
+        reff = zfact * zkap_default * (lwc / max(tiny(N),N) )**(1._ireals/3._ireals)
       else
         reff = 83.8_ireals*lwc**0.216_ireals
       endif

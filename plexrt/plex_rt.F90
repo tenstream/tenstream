@@ -2811,7 +2811,7 @@ module m_plex_rt
           call delta_scale( dkabs, dksca, dg, max_g=zero)
 
           vdtau(k) = (dkabs + dksca)
-          vw0(k)   = dksca / max(epsilon(vw0), vdtau(k))
+          vw0(k)   = dksca / max(tiny(vw0), vdtau(k))
           vg(k)    = dg
           vdtau(k)    = vdtau(k) * dz
 
