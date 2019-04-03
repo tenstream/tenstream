@@ -1415,6 +1415,7 @@ module m_plex_rt
       call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
       call KSPSetUp(ksp, ierr); call CHKERR(ierr)
 
+      call hegedus_trick()
       call KSPSolve(ksp, b, x, ierr); call CHKERR(ierr)
 
       call handle_diverged_solve()
@@ -1422,6 +1423,49 @@ module m_plex_rt
       call handle_reuse_solver()
 
       contains
+        subroutine hegedus_trick()
+          type(tPC)  :: prec
+          type(tMat) :: A, P
+          type(tVec) :: MlAx0, z, bhegedus
+          real(ireals) :: znorm, norm
+          logical :: lhegedus, lflg
+
+          lhegedus = .False.
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+            "-use_hegedus" , lhegedus , lflg , ierr) ;call CHKERR(ierr)
+
+          if(lhegedus) then
+            call VecDuplicate(x,MlAx0,ierr); call CHKERR(ierr)
+            call VecDuplicate(x,z,ierr); call CHKERR(ierr)
+
+            call KSPGetPC(ksp,prec,ierr); call CHKERR(ierr)
+            call PCGetOperators(prec, A, P, ierr); call CHKERR(ierr)
+
+            call MatMult(A, x, MlAx0, ierr); call CHKERR(ierr)
+            call MatMult(P, MlAx0, z, ierr); call CHKERR(ierr)
+
+            call VecDot(z, MlAx0, znorm, ierr); call CHKERR(ierr)
+            call VecDot(z, b, norm, ierr); call CHKERR(ierr)
+
+            if(znorm.gt.epsilon(znorm)) then
+              print *,'hegedus_trick', norm, znorm, norm/znorm
+              call VecScale(x, norm / znorm, ierr); call CHKERR(ierr)
+            endif
+
+            call VecDestroy(MlAx0, ierr); call CHKERR(ierr)
+            call VecDestroy(z    , ierr); call CHKERR(ierr)
+          endif
+          !A = get_linearoperator(shape, A)
+          !M = get_linearoperator(shape, M)
+          !Ml = get_linearoperator(shape, Ml)
+          !MlAx0 = Ml*(A*x0)
+          !z = M*MlAx0
+          !znorm2 = inner(z, MlAx0, ip_B=ip_B)
+          !if znorm2 <= 1e-15:
+          !return numpy.zeros((N, 1))
+          !gamma = inner(z, Ml*b, ip_B=ip_B) / znorm2
+
+        end subroutine
         subroutine handle_reuse_solver()
           logical :: ldestroy_solver, lflg
           type(tMat) :: Amat, Pmat
