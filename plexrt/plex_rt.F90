@@ -1384,7 +1384,7 @@ module m_plex_rt
           print *,'Setup KSP -- tolerances:',rtol,atol,'::',rel_atol, Nrows_global
 
         call KSPSetType(ksp,KSPFGMRES,ierr); call CHKERR(ierr)
-        call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
+        !call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
         call KSPGetPC(ksp,prec,ierr); call CHKERR(ierr)
         if(numnodes.eq.0) then
           call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)

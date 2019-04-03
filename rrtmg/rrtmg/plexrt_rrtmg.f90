@@ -439,6 +439,9 @@ contains
     integer(iintegers), pointer :: cell_support(:), xitoa_faces(:)
     logical :: need_any_new_solution
 
+    logical :: lflg
+    integer(iintegers) :: num_spectral_bands
+
     integer(mpiint) :: myid,ierr
 
     allocate(spec_edir(ke1, Ncol))
@@ -554,7 +557,12 @@ contains
 
     allocate(tmp(ke1-1, Ncol))
 
-    do ib=1, ngptsw
+    num_spectral_bands = int(ngptsw, iintegers)
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+                             "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
+    num_spectral_bands = min(num_spectral_bands, int(ngptsw, iintegers))
+
+    do ib=1, num_spectral_bands
 
       if(need_new_solution(comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) then
 
