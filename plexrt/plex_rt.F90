@@ -488,23 +488,6 @@ module m_plex_rt
       call dump_optical_properties(solver%kabs, solver%ksca, solver%g, solver%albedo, &
         plck=solver%plck, srfc_emission=solver%srfc_emission, postfix='_'//itoa(suid))
 
-      !print *,'sundir/norm2(sundir)',sundir/norm2(sundir), 'vs', last_sundir, &
-      !  ':', all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir))))
-      ! Wedge Orientation is used in solar and thermal case alike
-      if(.not.all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir)))).or.&  ! update wedge orientations if sundir has changed
-        .not.allocated(solver%plex%wedge_orientation_dm)) then ! or if we lost the info somehow... e.g. happens after destroy_solver
-        call PetscLogEventBegin(solver%logs%orient_face_normals, ierr)
-        call orient_face_normals_along_sundir(solver%plex, sundir)
-        call PetscLogEventEnd(solver%logs%orient_face_normals, ierr)
-
-        call PetscLogEventBegin(solver%logs%compute_orientation, ierr)
-        call compute_wedge_orientation(solver%plex, sundir, solver%plex%wedge_orientation_dm, &
-          solver%plex%wedge_orientation)
-        call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
-
-        last_sundir = sundir/norm2(sundir)
-      endif
-
       associate( solution => solver%solutions(suid) )
 
         ! --------- Calculate 1D Radiative Transfer ------------
@@ -518,7 +501,7 @@ module m_plex_rt
           endif
           call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
 
-          ! if(ldebug) print *,'1D calculation done', suid
+          if(ldebug) print *,'1D calculation done', suid
           goto 99
         endif
 
@@ -532,6 +515,24 @@ module m_plex_rt
         endif
 
         if(solution%lsolar_rad) then
+
+          !print *,'sundir/norm2(sundir)',sundir/norm2(sundir), 'vs', last_sundir, &
+          !  ':', all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir))))
+          ! Wedge Orientation is used in solar and thermal case alike
+          if(.not.all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir)))).or.&  ! update wedge orientations if sundir has changed
+            .not.allocated(solver%plex%wedge_orientation_dm)) then ! or if we lost the info somehow... e.g. happens after destroy_solver
+            call PetscLogEventBegin(solver%logs%orient_face_normals, ierr)
+            call orient_face_normals_along_sundir(solver%plex, sundir)
+            call PetscLogEventEnd(solver%logs%orient_face_normals, ierr)
+
+            call PetscLogEventBegin(solver%logs%compute_orientation, ierr)
+            call compute_wedge_orientation(solver%plex, sundir, solver%plex%wedge_orientation_dm, &
+              solver%plex%wedge_orientation)
+            call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
+
+            last_sundir = sundir/norm2(sundir)
+          endif
+
           ! Output of wedge_orient vec
           call PetscLogEventBegin(solver%logs%setup_dir_src, ierr)
           call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm2(sundir), &
@@ -2511,9 +2512,6 @@ module m_plex_rt
     call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
     call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
-    call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
-    call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-
     call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
 
     ! Now lets get vectors!
@@ -2525,36 +2523,75 @@ module m_plex_rt
     call VecGetArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
     call VecGetArrayF90(abso, xabso, ierr); call CHKERR(ierr)
 
-    do icell = cStart, cEnd-1
 
-      call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr)
-      inv_volume = one / geoms(i1+geom_offset)
+    if(ltwostr_only) then
 
-      call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
-      call PetscSectionGetFieldOffset(wedgeSection, icell, i2, wedge_offset, ierr); call CHKERR(ierr)
-      call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+      do icell = cStart, cEnd-1
+        call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr)
+        inv_volume = one / geoms(i1+geom_offset)
 
-      do i = 1, size(faces_of_cell)
-        iface = faces_of_cell(i)
-        lsrc = int(wedgeorient(wedge_offset+i), iintegers) .eq. i1
+        call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
+        call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
-        call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
-        do idof = 0, numDof-1
-          call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
-
-          if(lsrc) then ! sun is shining into this face
-            xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1) * inv_volume
-            !print *,icell,'Dir Abso',abso_offset,'=',xabso(abso_offset+i1),'( did +',xedir(edir_offset+i1)*inv_volume,')'
+        do i = 1, 2
+          iface = faces_of_cell(i)
+          if(i.eq.1) then
+            lsrc = .True.
           else
-            xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1) * inv_volume
-            !print *,icell,'Dir Abso',abso_offset,'=',xabso(abso_offset+i1),'( did -',xedir(edir_offset+i1)*inv_volume,')'
+            lsrc=.False.
           endif
-        enddo
-      enddo
-      call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-    enddo
 
-    call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+          call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
+          do idof = 0, numDof-1
+            call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
+
+            if(lsrc) then ! sun is shining into this face
+              xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1) * inv_volume
+            else
+              xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1) * inv_volume
+            endif
+          enddo
+        enddo
+        call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+      enddo
+
+
+    else
+      call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+
+      do icell = cStart, cEnd-1
+
+        call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr)
+        inv_volume = one / geoms(i1+geom_offset)
+
+        call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
+        call PetscSectionGetFieldOffset(wedgeSection, icell, i2, wedge_offset, ierr); call CHKERR(ierr)
+        call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+
+        do i = 1, size(faces_of_cell)
+          iface = faces_of_cell(i)
+          lsrc = int(wedgeorient(wedge_offset+i), iintegers) .eq. i1
+
+          call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
+          do idof = 0, numDof-1
+            call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
+
+            if(lsrc) then ! sun is shining into this face
+              xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1) * inv_volume
+              !print *,icell,'Dir Abso',abso_offset,'=',xabso(abso_offset+i1),'( did +',xedir(edir_offset+i1)*inv_volume,')'
+            else
+              xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1) * inv_volume
+              !print *,icell,'Dir Abso',abso_offset,'=',xabso(abso_offset+i1),'( did -',xedir(edir_offset+i1)*inv_volume,')'
+            endif
+          enddo
+        enddo
+        call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+      enddo
+
+      call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
+    endif
+
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
     call VecRestoreArrayF90(abso, xabso, ierr); call CHKERR(ierr)
