@@ -999,7 +999,7 @@ module m_plex_rt
           integer(iintegers) :: dir_plex2bmc(solver%dirdof), diff_plex2bmc(solver%diffdof)
           real(ireals), pointer :: xedir(:)
           real(ireals) :: param_phi, param_theta, area_bot, area_top, dz
-          real(ireals) :: dir2diff(solver%diffdof/2)
+          !real(ireals) :: dir2diff(solver%diffdof/2)
           logical :: lsrc(5)
 
           real(irealLUT) :: coeff(solver%dirdof*(solver%diffdof/2))
@@ -1070,33 +1070,35 @@ module m_plex_rt
 
             in_dof = 0 ! this counts plex dofs from 1 to solver%dirdof
             do isrc_side = 1, size(faces_of_cell)
-              if(.not.lsrc(isrc_side)) cycle
-              call PetscSectionGetFieldDof(edirSection, faces_of_cell(isrc_side), i0, numSrc, ierr); call CHKERR(ierr)
-              if(numSrc.eq.i0) cycle ! dont have dofs on this incoming face
+              if(lsrc(isrc_side)) then
+                call PetscSectionGetFieldDof(edirSection, faces_of_cell(isrc_side), i0, numSrc, ierr); call CHKERR(ierr)
+                if(numSrc.gt.i0) then ! dont have dofs on this incoming face
 
-              do isrc = 1, numSrc
-                in_dof = in_dof+1
+                  do isrc = 1, numSrc
+                    in_dof = in_dof+1
 
-                bmcsrcdof = dir_plex2bmc(in_dof)
-                call get_side_and_offset_from_total_bmc_dofs(solver%dirtop, solver%dirside, bmcsrcdof, &
-                  bmcsrcside, dof_src_offset)
+                    bmcsrcdof = dir_plex2bmc(in_dof)
+                    call get_side_and_offset_from_total_bmc_dofs(solver%dirtop, solver%dirside, bmcsrcdof, &
+                      bmcsrcside, dof_src_offset)
 
-                call PetscSectionGetOffset(edirSection, faces_of_cell(isrc_side), icol, ierr); call CHKERR(ierr)
-                icol = icol + dof_src_offset
+                    call PetscSectionGetOffset(edirSection, faces_of_cell(isrc_side), icol, ierr); call CHKERR(ierr)
+                    icol = icol + dof_src_offset
 
-                dir2diff = coeff(bmcsrcdof:size(coeff):solver%dirdof) ! dir2diff in src ordering
+                    associate( dir2diff => coeff(bmcsrcdof:size(coeff):solver%dirdof) ) ! dir2diff in src ordering
+                      do idst = 1, size(outgoing_offsets)
+                        !if(dir2diff(diff_plex2bmc(idst)).gt.zero) then
+                        !  if(outgoing_offsets(idst).lt.0) call CHKERR(1_mpiint, 'does this happen?')
 
-                do idst = 1, size(outgoing_offsets)
-                  if(dir2diff(diff_plex2bmc(idst)).gt.zero) then
-                    if(outgoing_offsets(idst).lt.0) cycle
-
-                    !print *,'Setting diffsrc for dst', outgoing_offsets(idst),'= src, edir', isrc, xedir(i1+isrc),&
-                    !  '* idst, p2bmc coeff', idst, diff_plex2bmc(idst), dir2diff(diff_plex2bmc(idst))
-                    xb(i1+outgoing_offsets(idst)) = xb(i1+outgoing_offsets(idst)) + &
-                      xedir(i1+icol) * dir2diff(diff_plex2bmc(idst))
-                  endif
-                enddo ! outgoing_offsets
-              enddo ! numSrc
+                        !print *,'Setting diffsrc for dst', outgoing_offsets(idst),'= src, edir', isrc, xedir(i1+isrc),&
+                        !  '* idst, p2bmc coeff', idst, diff_plex2bmc(idst), dir2diff(diff_plex2bmc(idst))
+                        xb(i1+outgoing_offsets(idst)) = xb(i1+outgoing_offsets(idst)) + &
+                          xedir(i1+icol) * dir2diff(diff_plex2bmc(idst))
+                        !endif
+                      enddo ! outgoing_offsets
+                    end associate
+                  enddo ! numSrc
+                endif
+              endif
             enddo ! srcfaces
 
             call DMPlexRestoreCone(edirdm, icell, faces_of_cell, ierr); call CHKERR(ierr)
@@ -2028,8 +2030,9 @@ module m_plex_rt
 
     real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
     integer(iintegers), pointer :: faces_of_cell(:)
-    integer(iintegers) :: j, icell, iface, irow, icol, i_inoff
-    real(ireals) :: c
+    integer(iintegers) :: i, j, icell, iface
+    integer(iintegers), allocatable :: irows(:), icols(:)
+    real(ireals), allocatable :: c(:)
 
     type(tPetscSection) :: ediffSection, geomSection, wedgeSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
@@ -2043,7 +2046,7 @@ module m_plex_rt
     integer(iintegers) :: face_plex2bmc(5)
     integer(iintegers) :: diff_plex2bmc(solver%diffdof/2)
 
-    real(ireals) :: diff2diff(solver%diffdof/2)
+    !real(ireals) :: diff2diff(solver%diffdof/2)
 
     real(irealLUT) :: coeff((solver%diffdof/2)**2) ! coefficients for each src=[1..8] and dst[1..8]
     integer(iintegers), pointer :: xinoutdof(:)
@@ -2110,6 +2113,9 @@ module m_plex_rt
     do icell = plex%cStart, plex%cEnd-1
       call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
       call get_in_out_dof_offsets(solver%IS_diff_in_out_dof, icell, incoming_offsets, outgoing_offsets, xinoutdof)
+      if(.not.allocated(irows)) allocate(irows(size(outgoing_offsets)))
+      if(.not.allocated(icols)) allocate(icols(size(incoming_offsets)))
+      if(.not.allocated(c    )) allocate(c    (size(outgoing_offsets)*size(incoming_offsets)))
       !print *,'icell', icell, 'faces_of_cell', faces_of_cell
       !print *,'icell', icell, 'incoming_offsets', incoming_offsets
       !print *,'icell', icell, 'outgoing_offsets', outgoing_offsets
@@ -2136,13 +2142,14 @@ module m_plex_rt
         ldir=.False., coeff=coeff, ierr=ierr)
 
       if(ldebug_optprop) then
-        do i_inoff = 1, size(incoming_offsets)
-          diff2diff = coeff(diff_plex2bmc(i_inoff):size(coeff):solver%diffdof/2)
-          if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
-            print *,i_inoff,': bmcface', diff_plex2bmc(i_inoff), 'diff2diff gt one', diff2diff, &
-              ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE, 'tol', coeff_norm_err_tolerance
-            call CHKERR(1_mpiint, '1 energy conservation violated! '//ftoa(sum(diff2diff)))
-          endif
+        do i = 1, size(incoming_offsets)
+          associate(diff2diff => coeff(diff_plex2bmc(i):size(coeff):solver%diffdof/2))
+            if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
+              print *,i,': bmcface', diff_plex2bmc(i), 'diff2diff gt one', diff2diff, &
+                ':', sum(diff2diff), 'l1d', ierr.eq.OPP_1D_RETCODE, 'tol', coeff_norm_err_tolerance
+              call CHKERR(1_mpiint, '1 energy conservation violated! '//ftoa(sum(diff2diff)))
+            endif
+          end associate
         enddo
       endif
 
@@ -2166,33 +2173,14 @@ module m_plex_rt
       endif
       call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
 
-      do i_inoff = 1, size(incoming_offsets)
-        icol = incoming_offsets(i_inoff)
-        if(icol.lt.0) cycle
-
-        ! we have to reorder the coefficients to their correct position from the local LUT numbering into the petsc face numbering
-        diff2diff = coeff(diff_plex2bmc(i_inoff):size(coeff):i8)
-        if(ldebug_optprop) then
-          if(sum(diff2diff).gt.coeff_norm_err_tolerance) then
-            print *,i_inoff,': bmcface', diff_plex2bmc(i_inoff), 'diff2diff gt one', diff2diff,':',sum(diff2diff)
-            call CHKERR(1_mpiint, '2 energy conservation violated! '//ftoa(sum(diff2diff)))
-          endif
-        endif
-        if(sum(diff2diff).gt.one) &
-          diff2diff = diff2diff/(sum(diff2diff)+10*epsilon(diff2diff))
-
-        do j = 1, size(outgoing_offsets)
-          c = -diff2diff(diff_plex2bmc(j))
-          irow = outgoing_offsets(j)
-          if(c.ge.-epsilon(zero) .or. irow.lt.0) cycle
-
-          !print *,'icell',icell,'isrc,jdst',i_inoff,j,'icol', icol, 'irow', irow, '=>', c
-          call MatSetValuesLocal(A, i1, irow, i1, icol, c, INSERT_VALUES, ierr); call CHKERR(ierr)
-          if(ldebug.and.irow.eq.icol) call CHKERR(1_mpiint, &
-            'src and dst are the same :( ... should not happen here row '//itoa(irow)//' col '//itoa(icol))
+      do j = 1, size(outgoing_offsets)
+        do i = 1, size(incoming_offsets)
+          c((j-1)*size(outgoing_offsets) + i) = -coeff((diff_plex2bmc(j)-1)*(solver%diffdof/2) + diff_plex2bmc(i))
         enddo
-
-      enddo ! enddo i_inoff
+      enddo
+      call MatSetValuesLocal(A, &
+        size(outgoing_offsets, kind=iintegers), outgoing_offsets, &
+        size(incoming_offsets, kind=iintegers), incoming_offsets, c, INSERT_VALUES, ierr); call CHKERR(ierr)
 
       call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     enddo
