@@ -80,8 +80,8 @@ logical,parameter :: ldebug=.False.
 
           alpha1_m_lambda = alpha_1-lambda ! max(epsilon(alpha_1), alpha_1-lambda )
           alpha1_p_lambda = alpha_1+lambda ! max(epsilon(alpha_1), alpha_1+lambda )
-          if(approx(alpha1_m_lambda, 0._ireal128)) alpha1_m_lambda = sign(sqrt(tiny(alpha_1)), alpha1_m_lambda)
-          if(approx(alpha1_p_lambda, 0._ireal128)) alpha1_p_lambda = sign(sqrt(tiny(alpha_1)), alpha1_p_lambda)
+          if(approx(alpha1_m_lambda, 0._ireal128)) alpha1_m_lambda = sign(epsilon(alpha_1), alpha1_m_lambda)
+          if(approx(alpha1_p_lambda, 0._ireal128)) alpha1_p_lambda = sign(epsilon(alpha_1), alpha1_p_lambda)
 
           A = one / ( alpha_2/alpha1_m_lambda*e1 - alpha_2/alpha1_p_lambda * e2 )
 
