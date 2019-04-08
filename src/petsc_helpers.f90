@@ -3,7 +3,7 @@ module m_petsc_helpers
   use petsc
 
   use m_data_parameters, only : ireals, iintegers, mpiint, &
-    zero, i0, i1, i2, i3
+    zero, i0, i1, i2, i3, default_str_len
 
   use m_helper_functions, only : get_arg, CHKERR
 
@@ -14,7 +14,8 @@ module m_petsc_helpers
     petscVecToF90, &
     f90VecToPetsc, &
     getVecPointer, restoreVecPointer, &
-    dmda_convolve_ediff_srfc
+    dmda_convolve_ediff_srfc, &
+    hegedus_trick
 
   interface f90VecToPetsc
     module procedure f90VecToPetsc_3d, f90VecToPetsc_4d
@@ -607,5 +608,55 @@ contains
 
     img = img * (c/real(2*k+1, ireals))**iter
 
+  end subroutine
+
+  subroutine hegedus_trick(ksp, b, x)
+    type(tksp), intent(in) :: ksp
+    type(tVec), intent(in) :: b
+    type(tVec), intent(inout) :: x
+
+    type(tDM)  :: dm
+    character(len=default_str_len) :: prefix
+    type(tPC)  :: prec
+    type(tMat) :: A, P
+    type(tVec) :: Ax0, z
+    real(ireals) :: znorm, norm
+    logical :: lhegedus, lflg
+    integer(mpiint) :: comm, myid, ierr
+
+    call KSPGetOptionsPrefix(ksp, prefix, ierr); call CHKERR(ierr)
+    if(prefix.eq.'solar_diff_') then
+      lhegedus = .True.
+    else
+      lhegedus = .False.
+    endif
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, prefix, &
+      "-use_hegedus" , lhegedus , lflg , ierr) ;call CHKERR(ierr)
+
+    if(lhegedus) then
+      call KSPGetDM(ksp, dm, ierr); call CHKERR(ierr)
+
+      call DMGetGlobalVector(dm, Ax0, ierr); call CHKERR(ierr)
+      call DMGetGlobalVector(dm, z  , ierr); call CHKERR(ierr)
+
+      call KSPGetPC(ksp,prec,ierr); call CHKERR(ierr)
+      call PCGetOperators(prec, A, P, ierr); call CHKERR(ierr)
+
+      call MatMult(A, x, Ax0, ierr); call CHKERR(ierr)
+      call MatMult(P, Ax0, z, ierr); call CHKERR(ierr)
+
+      call VecDot(z, Ax0, znorm, ierr); call CHKERR(ierr)
+      call VecDot(z, b, norm, ierr); call CHKERR(ierr)
+
+      if(znorm.gt.epsilon(znorm)) then
+        call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+        if(myid.eq.0.and.ldebug) print *,'hegedus_trick', norm, znorm, norm/znorm
+        call VecScale(x, norm / znorm, ierr); call CHKERR(ierr)
+      endif
+
+      call DMRestoreglobalVector(dm, Ax0, ierr); call CHKERR(ierr)
+      call DMRestoreglobalVector(dm, z  , ierr); call CHKERR(ierr)
+    endif
   end subroutine
 end module

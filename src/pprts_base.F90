@@ -114,12 +114,15 @@ module m_pprts_base
   end type
 
   type, abstract :: t_solver
-    integer(mpiint)                 :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
-    type(t_coord), allocatable      :: C_dir, C_diff, C_one, C_one1, C_one_atm, C_one_atm1
-    type(t_atmosphere),allocatable  :: atm
-    type(t_suninfo)                 :: sun
-    type(tMat),allocatable          :: Mdir,Mdiff
-    class(t_optprop_cube), allocatable   :: OPP
+    integer(mpiint)                    :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
+    type(t_coord), allocatable         :: C_dir, C_diff, C_one, C_one1, C_one_atm, C_one_atm1
+    type(t_atmosphere),allocatable     :: atm
+    type(t_suninfo)                    :: sun
+    type(tMat),allocatable             :: Mdir,Mdiff
+    type(tKSP), allocatable            :: ksp_solar_dir
+    type(tKSP), allocatable            :: ksp_solar_diff
+    type(tKSP), allocatable            :: ksp_thermal_diff
+    class(t_optprop_cube), allocatable :: OPP
 
     type(t_dof)                     :: difftop, diffside, dirtop, dirside
 

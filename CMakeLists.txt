@@ -31,12 +31,50 @@ set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set(CMAKE_C_FLAGS               ${USER_C_FLAGS} )
-set(CMAKE_Fortran_FLAGS         ${USER_Fortran_FLAGS} )
-set(CMAKE_Fortran_FLAGS_RELEASE ${USER_Fortran_FLAGS_RELEASE} )
-set(CMAKE_Fortran_FLAGS_DEBUG   ${USER_Fortran_FLAGS_DEBUG})
+set(CMAKE_C_FLAGS               "${USER_C_FLAGS}               ${CMAKE_C_FLAGS}               " )
+set(CMAKE_Fortran_FLAGS         "${USER_Fortran_FLAGS}         ${CMAKE_Fortran_FLAGS}         " )
+set(CMAKE_Fortran_FLAGS_RELEASE "${USER_Fortran_FLAGS_RELEASE} ${CMAKE_Fortran_FLAGS_RELEASE} " )
+set(CMAKE_Fortran_FLAGS_DEBUG   "${USER_Fortran_FLAGS_DEBUG}   ${CMAKE_Fortran_FLAGS_DEBUG}   ")
 
 #set(CMAKE_INCLUDE_SYSTEM_FLAG_Fortran "-I")
+
+# Add PGO Options
+set(ENABLE_PGO "OFF" CACHE STRING "Use PGO in build, first compile with PGO set to `generate`, run make check, and then set to `use`")
+set_property(CACHE ENABLE_PGO PROPERTY STRINGS OFF GENERATE USE)
+
+if(NOT ENABLE_PGO STREQUAL "OFF")
+  enable_testing()
+  if ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
+    set(PGO_GEN_FLAGS "-fprofile-generate=${CMAKE_BINARY_DIR}/pgo")
+    set(PGO_USE_FLAGS "-fprofile-use=${CMAKE_BINARY_DIR}/pgo")
+  elseif ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "Intel")
+    set(PGO_GEN_FLAGS "-prof-gen -prof-dir=${CMAKE_BINARY_DIR}/pgo")
+    set(PGO_USE_FLAGS "-prof-use -prof-dir=${CMAKE_BINARY_DIR}/pgo")
+  else()
+    message(FATAL_ERROR " Dont know the PGO command line options for ${CMAKE_Fortran_COMPILER_ID}, please tell me")
+  endif()
+
+  if(ENABLE_PGO STREQUAL "GENERATE")
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/pgo)
+    set(CMAKE_C_FLAGS       "${CMAKE_C_FLAGS}       ${PGO_GEN_FLAGS} ")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${PGO_GEN_FLAGS} ")
+  elseif(ENABLE_PGO STREQUAL "USE")
+    enable_testing()
+    if(NOT EXISTS ${CMAKE_BINARY_DIR}/pgo)
+      message(FATAL_ERROR " Could not find profiling data in ${CMAKE_BINARY_DIR}/pgo, please configure first with -DENABLE_PGO=GENERATE,"
+        "then run examples and only then configure with -DENABLE_PGO=USE")
+    endif()
+    set(CMAKE_C_FLAGS       "${CMAKE_C_FLAGS}       ${PGO_USE_FLAGS} ")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${PGO_USE_FLAGS} ")
+  endif()
+endif()
+add_custom_target(pgobuild
+  COMMAND ${CMAKE_COMMAND} ${CMAKE_BINARY_DIR} -DENABLE_PGO=GENERATE
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} -j --
+  COMMAND ${CMAKE_CTEST_COMMAND} -E 'boxmc|LUT' -R 'pprts|plexrt'
+  COMMAND ${CMAKE_COMMAND} ${CMAKE_BINARY_DIR} -DENABLE_PGO=USE
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} -j --
+  )
 
 MESSAGE(STATUS "Build Type " ${CMAKE_BUILD_TYPE})
 MESSAGE(STATUS "Compiler ID "  ${CMAKE_Fortran_COMPILER_ID})

@@ -337,8 +337,8 @@ contains
     real(ireals), pointer, dimension(:,:,:) :: patm_dz
     real(ireals), pointer, dimension(:,:) :: pedn, peup, pabso
 
-    integer(iintegers) :: i, j, k, icol, ib, current_ibnd
-    logical :: need_any_new_solution
+    integer(iintegers) :: i, j, k, icol, ib, current_ibnd, num_spectral_bands
+    logical :: need_any_new_solution, lflg
 
     integer(mpiint) :: myid, ierr
 
@@ -452,7 +452,14 @@ contains
     allocate(g    (ke , i1:ie, i1:je), source=zero)
 
     current_ibnd = -1 ! current lw band
-    do ib = 1, ngptlw ! spectral integration
+
+    num_spectral_bands = int(ngptlw, iintegers)
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+                             "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
+    num_spectral_bands = min(num_spectral_bands, int(ngptlw, iintegers))
+
+    do ib=1, num_spectral_bands
+
       if(need_new_solution(solver%comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
         ! divide by thickness to convert from tau to coefficients per meter
         patm_dz(1:ke, i1:ie, i1:je) => atm%dz
@@ -534,6 +541,10 @@ contains
 
     integer(iintegers) :: i, j, k, icol, ib
     logical :: need_any_new_solution
+
+    logical :: lflg
+    integer(iintegers) :: num_spectral_bands
+    integer(mpiint) :: ierr
 
     allocate(spec_edir(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
     allocate(spec_edn (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
@@ -663,8 +674,12 @@ contains
     allocate(ksca(ke , i1:ie, i1:je))
     allocate(kg  (ke , i1:ie, i1:je))
 
+    num_spectral_bands = int(ngptsw, iintegers)
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+                             "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
+    num_spectral_bands = min(num_spectral_bands, int(ngptsw, iintegers))
 
-    do ib=1,ngptsw
+    do ib=1, num_spectral_bands
 
       if(need_new_solution(solver%comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) then
         patm_dz(1:ke, i1:ie, i1:je) => atm%dz

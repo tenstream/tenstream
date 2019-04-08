@@ -9,7 +9,7 @@ module m_plex_grid
     rotation_matrix_world_to_local_basis, resize_arr, get_arg, &
     imp_bcast, itoa, ftoa, imp_allreduce_max
 
-  use m_data_parameters, only : ireals, irealLUT, iintegers, mpiint, zero, one, &
+  use m_data_parameters, only : ireals, irealLUT, iintegers, mpiint, zero, one, pi, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
 
   use m_icon_grid, only : t_icongrid, ICONULL
@@ -1462,8 +1462,16 @@ module m_plex_grid
        param_theta = real(rparam_theta, ireals)
 
       if(ldebug) then
-        if(zenith.gt.10*epsilon(zenith) .and. .not.lsrc(base_face)) &
+        if(param_theta.ge.zero .and. zenith.le.pi/2 .and. .not.lsrc(base_face)) then
+          print *,'azimuth', rad2deg(azimuth), 'zenith', rad2deg(zenith)
+          print *,'param_phi', param_phi, 'param_theta', param_theta
+          print *,'ibase_face', ibase_face, 'baseface', base_face, 'lsrc', lsrc
+          print *,'proj_normal', proj_sundir, '::norm', norm2(proj_sundir)
+          print *,'face_normals(:,base_face)', face_normals(:,base_face)
+          print *,'face_normals(:,left_face)', face_normals(:,left_face)
+          print *,'face_normals(:,right_face)', face_normals(:,right_face)
           call CHKERR(1_mpiint, 'base face is not a src! this should not be the case!')
+        endif
         if(rad2deg(azimuth).lt.-90 .or. rad2deg(azimuth).gt.90) then
           print *,'ibase_face', ibase_face
           print *,'proj_normal', proj_sundir, '::norm', norm2(proj_sundir)
