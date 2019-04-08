@@ -1098,6 +1098,7 @@ module m_plex_rt
 
                     associate( dir2diff => coeff(bmcsrcdof:size(coeff):solver%dirdof) ) ! dir2diff in src ordering
                       do idst = 1, size(outgoing_offsets)
+                        if(outgoing_offsets(idst).gt.0) then
                         !if(dir2diff(diff_plex2bmc(idst)).gt.zero) then
                         !  if(outgoing_offsets(idst).lt.0) call CHKERR(1_mpiint, 'does this happen?')
 
@@ -1105,7 +1106,7 @@ module m_plex_rt
                         !  '* idst, p2bmc coeff', idst, diff_plex2bmc(idst), dir2diff(diff_plex2bmc(idst))
                         xb(i1+outgoing_offsets(idst)) = xb(i1+outgoing_offsets(idst)) + &
                           xedir(i1+icol) * dir2diff(diff_plex2bmc(idst))
-                        !endif
+                        endif
                       enddo ! outgoing_offsets
                     end associate
                   enddo ! numSrc

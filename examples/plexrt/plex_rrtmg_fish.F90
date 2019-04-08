@@ -122,11 +122,11 @@ logical, parameter :: ldebug=.True.
       col_lwc = 0
       col_reff = 10
 
-      col_lwc(Nz/2:Nz, 1:Ncol:10) = .1
-      col_lwc(Nz/2:Nz, 2:Ncol:10) = .1
-      col_lwc(Nz/2:Nz, 3:Ncol:10) = .1
-      col_lwc(Nz/2:Nz, 4:Ncol:10) = .1
-      col_lwc(Nz/2:Nz, 5:Ncol:10) = .1
+      col_lwc(1+dNlay/2:dNlay, 1:Ncol:10) = .1
+      col_lwc(1+dNlay/2:dNlay, 2:Ncol:10) = .1
+      col_lwc(1+dNlay/2:dNlay, 3:Ncol:10) = .1
+      col_lwc(1+dNlay/2:dNlay, 4:Ncol:10) = .1
+      col_lwc(1+dNlay/2:dNlay, 5:Ncol:10) = .1
 
       call init_data_strings()
 
