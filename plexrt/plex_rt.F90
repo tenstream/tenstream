@@ -34,6 +34,7 @@ module m_plex_rt
   use m_plex2rayli, only: dm3d_to_rayli_dmplex
   use m_f2c_rayli, only: rfft_wedgeF90, rpt_img_wedgeF90
   use m_netcdfio, only: ncwrite
+  use m_petsc_helpers, only: hegedus_trick
 
   implicit none
 
@@ -67,8 +68,9 @@ module m_plex_rt
     type(tVec), allocatable :: dirsrc, diffsrc
     type(tMat), allocatable :: Mdir
     type(tMat), allocatable :: Mdiff
-    type(tKSP), allocatable :: kspdir
-    type(tKSP), allocatable :: kspdiff
+    type(tKSP), allocatable :: ksp_solar_dir
+    type(tKSP), allocatable :: ksp_solar_diff
+    type(tKSP), allocatable :: ksp_thermal_diff
 
     type(tVec), allocatable :: dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2
     type(tVec), allocatable :: diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2
@@ -194,13 +196,17 @@ module m_plex_rt
           call MatDestroy(solver%Mdiff, ierr); call CHKERR(ierr)
           deallocate(solver%Mdiff)
         endif
-        if(allocated(solver%kspdir)) then
-          call KSPDestroy(solver%kspdir, ierr); call CHKERR(ierr)
-          deallocate(solver%kspdir)
+        if(allocated(solver%ksp_solar_dir)) then
+          call KSPDestroy(solver%ksp_solar_dir, ierr); call CHKERR(ierr)
+          deallocate(solver%ksp_solar_dir)
         endif
-        if(allocated(solver%kspdiff)) then
-          call KSPDestroy(solver%kspdiff, ierr); call CHKERR(ierr)
-          deallocate(solver%kspdiff)
+        if(allocated(solver%ksp_solar_dir)) then
+          call KSPDestroy(solver%ksp_solar_dir, ierr); call CHKERR(ierr)
+          deallocate(solver%ksp_solar_dir)
+        endif
+        if(allocated(solver%ksp_solar_diff)) then
+          call KSPDestroy(solver%ksp_solar_diff, ierr); call CHKERR(ierr)
+          deallocate(solver%ksp_solar_diff)
         endif
 
         do uid=lbound(solver%solutions,1),ubound(solver%solutions,1)
@@ -514,31 +520,31 @@ module m_plex_rt
           goto 99
         endif
 
+        !print *,'sundir/norm2(sundir)',sundir/norm2(sundir), 'vs', last_sundir, &
+        !  ':', all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir))))
+        ! Wedge Orientation is used in solar and thermal case alike
+        if(.not.all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir)))).or.&  ! update wedge orientations if sundir has changed
+          .not.allocated(solver%plex%wedge_orientation_dm)) then ! or if we lost the info somehow... e.g. happens after destroy_solver
+          call PetscLogEventBegin(solver%logs%orient_face_normals, ierr)
+          call orient_face_normals_along_sundir(solver%plex, sundir)
+          call PetscLogEventEnd(solver%logs%orient_face_normals, ierr)
+
+          call PetscLogEventBegin(solver%logs%compute_orientation, ierr)
+          call compute_wedge_orientation(solver%plex, sundir, solver%plex%wedge_orientation_dm, &
+            solver%plex%wedge_orientation)
+          call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
+
+          last_sundir = sundir/norm2(sundir)
+        endif
+
+        ! Output of wedge_orient vec
+        call PetscLogEventBegin(solver%logs%setup_dir_src, ierr)
+        call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm2(sundir), &
+          solver%kabs, solver%ksca, solver%g, &
+          sundir/norm2(sundir), solver%dirsrc)
+        call PetscLogEventEnd(solver%logs%setup_dir_src, ierr)
+
         if(solution%lsolar_rad) then
-
-          !print *,'sundir/norm2(sundir)',sundir/norm2(sundir), 'vs', last_sundir, &
-          !  ':', all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir))))
-          ! Wedge Orientation is used in solar and thermal case alike
-          if(.not.all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir)))).or.&  ! update wedge orientations if sundir has changed
-            .not.allocated(solver%plex%wedge_orientation_dm)) then ! or if we lost the info somehow... e.g. happens after destroy_solver
-            call PetscLogEventBegin(solver%logs%orient_face_normals, ierr)
-            call orient_face_normals_along_sundir(solver%plex, sundir)
-            call PetscLogEventEnd(solver%logs%orient_face_normals, ierr)
-
-            call PetscLogEventBegin(solver%logs%compute_orientation, ierr)
-            call compute_wedge_orientation(solver%plex, sundir, solver%plex%wedge_orientation_dm, &
-              solver%plex%wedge_orientation)
-            call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
-
-            last_sundir = sundir/norm2(sundir)
-          endif
-
-          ! Output of wedge_orient vec
-          call PetscLogEventBegin(solver%logs%setup_dir_src, ierr)
-          call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm2(sundir), &
-            solver%kabs, solver%ksca, solver%g, &
-            sundir/norm2(sundir), solver%dirsrc)
-          call PetscLogEventEnd(solver%logs%setup_dir_src, ierr)
 
           ! Output of srcVec
           if(ldebug) then
@@ -564,8 +570,8 @@ module m_plex_rt
 
           ! Solve Direct Matrix
           call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-          call solve_plex_rt(solver%plex%edir_dm, solver%dirsrc, solver%Mdir, solver%kspdir, solution%edir, &
-            ksp_residual_history=solution%dir_ksp_residual_history, prefix='dir_')
+          call solve_plex_rt(solver%plex%edir_dm, solver%dirsrc, solver%Mdir, solver%ksp_solar_dir, solution%edir, &
+            ksp_residual_history=solution%dir_ksp_residual_history, prefix='solar_dir_')
           call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
           call PetscObjectSetName(solution%edir, 'edir', ierr); call CHKERR(ierr)
           call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, &
@@ -620,8 +626,13 @@ module m_plex_rt
 
         ! Solve Diffuse Matrix
         call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
-        call solve_plex_rt(solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%kspdiff, solution%ediff, &
-          ksp_residual_history=solution%diff_ksp_residual_history, prefix='diff_')
+        if(solution%lsolar_rad) then
+          call solve_plex_rt(solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%ksp_solar_diff, solution%ediff, &
+            ksp_residual_history=solution%diff_ksp_residual_history, prefix='solar_diff_')
+        else
+          call solve_plex_rt(solver%plex%ediff_dm, solver%diffsrc, solver%Mdiff, solver%ksp_thermal_diff, solution%ediff, &
+            ksp_residual_history=solution%diff_ksp_residual_history, prefix='thermal_diff_')
+        endif
         call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
         call PetscObjectSetName(solution%ediff, 'ediff', ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(solution%ediff, PETSC_NULL_VEC, &
@@ -1387,7 +1398,7 @@ module m_plex_rt
           print *,'Setup KSP -- tolerances:',rtol,atol,'::',rel_atol, Nrows_global
 
         call KSPSetType(ksp,KSPFGMRES,ierr); call CHKERR(ierr)
-        !call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
+        call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr); call CHKERR(ierr)
         call KSPGetPC(ksp,prec,ierr); call CHKERR(ierr)
         if(numnodes.eq.0) then
           call PCSetType(prec, PCILU, ierr); call CHKERR(ierr)
@@ -1416,7 +1427,7 @@ module m_plex_rt
       call KSPSetFromOptions(ksp, ierr); call CHKERR(ierr)
       call KSPSetUp(ksp, ierr); call CHKERR(ierr)
 
-      call hegedus_trick()
+      call hegedus_trick(ksp, b, x)
       call KSPSolve(ksp, b, x, ierr); call CHKERR(ierr)
 
       call handle_diverged_solve()
@@ -1424,49 +1435,6 @@ module m_plex_rt
       call handle_reuse_solver()
 
       contains
-        subroutine hegedus_trick()
-          type(tPC)  :: prec
-          type(tMat) :: A, P
-          type(tVec) :: MlAx0, z, bhegedus
-          real(ireals) :: znorm, norm
-          logical :: lhegedus, lflg
-
-          lhegedus = .False.
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-            "-use_hegedus" , lhegedus , lflg , ierr) ;call CHKERR(ierr)
-
-          if(lhegedus) then
-            call VecDuplicate(x,MlAx0,ierr); call CHKERR(ierr)
-            call VecDuplicate(x,z,ierr); call CHKERR(ierr)
-
-            call KSPGetPC(ksp,prec,ierr); call CHKERR(ierr)
-            call PCGetOperators(prec, A, P, ierr); call CHKERR(ierr)
-
-            call MatMult(A, x, MlAx0, ierr); call CHKERR(ierr)
-            call MatMult(P, MlAx0, z, ierr); call CHKERR(ierr)
-
-            call VecDot(z, MlAx0, znorm, ierr); call CHKERR(ierr)
-            call VecDot(z, b, norm, ierr); call CHKERR(ierr)
-
-            if(znorm.gt.epsilon(znorm)) then
-              print *,'hegedus_trick', norm, znorm, norm/znorm
-              call VecScale(x, norm / znorm, ierr); call CHKERR(ierr)
-            endif
-
-            call VecDestroy(MlAx0, ierr); call CHKERR(ierr)
-            call VecDestroy(z    , ierr); call CHKERR(ierr)
-          endif
-          !A = get_linearoperator(shape, A)
-          !M = get_linearoperator(shape, M)
-          !Ml = get_linearoperator(shape, Ml)
-          !MlAx0 = Ml*(A*x0)
-          !z = M*MlAx0
-          !znorm2 = inner(z, MlAx0, ip_B=ip_B)
-          !if znorm2 <= 1e-15:
-          !return numpy.zeros((N, 1))
-          !gamma = inner(z, Ml*b, ip_B=ip_B) / znorm2
-
-        end subroutine
         subroutine handle_reuse_solver()
           logical :: ldestroy_solver, lflg
           type(tMat) :: Amat, Pmat
@@ -1809,7 +1777,7 @@ module m_plex_rt
               !if(c.lt.zero .and. .not.lsrc(isrc_side)) then
               !  print *,'found transport coeff but I thought this incoming side is not a designated src face'
               !endif
-              if(c.lt.zero.and..not.l1d) then
+              if(c.le.-1e-3_ireals.and..not.l1d) then
                 ierr = 0
                 if(.not.lsrc(isrc_side)) ierr = 1
                 if(     lsrc(idst_side)) ierr = 2

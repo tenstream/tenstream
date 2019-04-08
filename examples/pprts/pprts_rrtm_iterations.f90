@@ -1,4 +1,4 @@
-module m_example_pprts_rrtm_lw_sw
+module m_example_pprts_rrtm_iterations
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -31,7 +31,7 @@ contains
     ! MPI variables and domain decomposition sizes
     integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, ierr
 
-    real(ireals),parameter :: phi0=180, theta0=60 ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
+    real(ireals) :: phi0, theta0, theta              ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
     real(ireals),parameter :: albedo_th=0, albedo_sol=.3 ! broadband ground albedo for solar and thermal spectrum
 
     real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
@@ -57,7 +57,6 @@ contains
     ! Filename of background atmosphere file. ASCII file with columns:
     ! z(km)  p(hPa)  T(K)  air(cm-3)  o3(cm-3) o2(cm-3) h2o(cm-3)  co2(cm-3) no2(cm-3)
     character(len=default_str_len) :: atm_filename ! ='afglus_100m.dat'
-    logical :: lflg
 
     !------------ Local vars ------------------
     integer(iintegers) :: k, nlev, icld
@@ -71,6 +70,10 @@ contains
 
     class(t_solver), allocatable :: pprts_solver
     type(t_tenstr_atm) :: atm
+
+    integer(iintegers) :: solve_iterations, iter
+    real(ireals) :: solve_iterations_scale
+    logical :: lflg
 
     comm = MPI_COMM_WORLD
     call MPI_COMM_SIZE(comm, numnodes, ierr)
@@ -128,75 +131,78 @@ contains
     atm_filename='afglus_100m.dat'
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
 
-    call setup_tenstr_atm(comm, .False., atm_filename, &
-      pplev, ptlev, atm, &
-      d_lwc=plwc, d_reliq=preliq)
+    phi0 = 180
+    theta0 = 0
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-phi0", phi0, lflg, ierr)
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-theta0", theta0, lflg, ierr)
 
-    ! For comparison, compute lw and sw separately
-    if(myid.eq.0 .and. ldebug) print *,'Computing Solar Radiation...'
-    lthermal=.False.; lsolar=.True.
+    lsolar = .True.
+    lthermal = .True.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solar", lsolar, lflg,ierr) ; call CHKERR(ierr)
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-thermal", lthermal, lflg,ierr) ; call CHKERR(ierr)
 
     call allocate_pprts_solver_from_commandline(pprts_solver, '3_10')
-    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,   &
-      albedo_th, albedo_sol,  &
-      lthermal, lsolar,       &
-      edir, edn, eup, abso,   &
-      nxproc=nxproc, nyproc=nyproc, &
-      opt_time=zero)
 
-    if(myid.eq.0 .and. ldebug) print *,'Computing Thermal Radiation...'
-    lthermal=.True.; lsolar=.False.
+    solve_iterations = 1
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solve_iterations", solve_iterations, lflg,ierr) ; call CHKERR(ierr)
+    solve_iterations_scale = 0
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solve_iterations_scale", solve_iterations_scale, lflg,ierr) ; call CHKERR(ierr)
 
-    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,                    &
-      albedo_th, albedo_sol,                   &
-      lthermal, lsolar,                        &
-      edir, edn, eup, abso,                    &
-      nxproc=nxproc, nyproc=nyproc, opt_time=zero)
-
-    if(myid.eq.0 .and. ldebug) print *,'Computing Solar AND Thermal Radiation...'
-    lthermal=.True.; lsolar=.True.
-
-    call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
-      dx, dy, phi0, theta0,                    &
-      albedo_th, albedo_sol,                   &
-      lthermal, lsolar,                        &
-      edir, edn, eup, abso,                    &
-      nxproc=nxproc, nyproc=nyproc, opt_time=zero)
-
-    nlev = ubound(edn,1)
-    if(myid.eq.0) then
-      if(ldebug) then
-        do k=1,nlev
-          if(allocated(edir)) then
-          print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-        else
-          print *,k, 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-        endif
-        enddo
+    do iter = 1, solve_iterations
+      if(lthermal) then
+        ! Perform a circular shift of cloud field by one column
+        lwc   = cshift(lwc  , 1, dim=2)
+        reliq = cshift(reliq, 1, dim=2)
+      endif
+      if(lsolar) then
+        theta = theta0 + (iter-1) * solve_iterations_scale
       endif
 
-      if(allocated(edir)) &
-        print *,'surface :: direct flux', edir(nlev,1,1)
-      print *,'surface :: downw flux ', edn (nlev,1,1)
-      print *,'surface :: upward fl  ', eup (nlev,1,1)
-      print *,'surface :: absorption ', abso(nlev-1,1,1)
+      call setup_tenstr_atm(comm, .False., atm_filename, &
+        pplev, ptlev, atm, &
+        d_lwc=plwc, d_reliq=preliq)
 
-      if(allocated(edir)) &
-        print *,'TOA :: direct flux', edir(1,1,1)
-      print *,'TOA :: downw flux ', edn (1,1,1)
-      print *,'TOA :: upward fl  ', eup (1,1,1)
-      print *,'TOA :: absorption ', abso(1,1,1)
+      if(myid.eq.0) print *,'theta0 =', theta
+      call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
+        dx, dy, phi0, theta,   &
+        albedo_th, albedo_sol,  &
+        lthermal, lsolar,       &
+        edir, edn, eup, abso,   &
+        nxproc=nxproc, nyproc=nyproc )
 
-      if(allocated(edir)) &
-        print *,'icloud :: direct flux  ', edir(nlev-icld  ,1,1)
-      if(allocated(edir)) &
-        print *,'icloud+1 :: direct flux', edir(nlev-icld+1,1,1)
-      print *,'icloud :: downw flux   ', edn (nlev-icld+1,1,1)
-      print *,'icloud :: upward fl    ', eup (nlev-icld  ,1,1)
-      print *,'icloud :: absorption   ', abso(nlev-icld  ,1,1)
-    endif
+      nlev = ubound(edn,1)
+      if(myid.eq.0) then
+        if(ldebug) then
+          do k=1,nlev
+            if(allocated(edir)) then
+              print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
+            else
+              print *,k, 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
+            endif
+          enddo
+        endif
+
+        if(allocated(edir)) &
+          print *,'surface :: direct flux', edir(nlev,1,1)
+        print *,'surface :: downw flux ', edn (nlev,1,1)
+        print *,'surface :: upward fl  ', eup (nlev,1,1)
+        print *,'surface :: absorption ', abso(nlev-1,1,1)
+
+        if(allocated(edir)) &
+          print *,'TOA :: direct flux', edir(1,1,1)
+        print *,'TOA :: downw flux ', edn (1,1,1)
+        print *,'TOA :: upward fl  ', eup (1,1,1)
+        print *,'TOA :: absorption ', abso(1,1,1)
+
+        if(allocated(edir)) &
+          print *,'icloud :: direct flux  ', edir(nlev-icld  ,1,1)
+        if(allocated(edir)) &
+          print *,'icloud+1 :: direct flux', edir(nlev-icld+1,1,1)
+        print *,'icloud :: downw flux   ', edn (nlev-icld+1,1,1)
+        print *,'icloud :: upward fl    ', eup (nlev-icld  ,1,1)
+        print *,'icloud :: absorption   ', abso(nlev-icld  ,1,1)
+      endif
+    enddo
 
     ! Tidy up
     call destroy_pprts_rrtmg(pprts_solver, lfinalizepetsc=.True.)
@@ -210,7 +216,7 @@ program main
   use petsc
   use mpi
   use m_data_parameters, only : iintegers, mpiint, ireals
-  use m_example_pprts_rrtm_lw_sw, only: example_rrtm_lw_sw
+  use m_example_pprts_rrtm_iterations, only: example_rrtm_lw_sw
 
   implicit none
 
@@ -240,4 +246,3 @@ program main
 
   call mpi_finalize(ierr)
 end program
-

@@ -266,8 +266,8 @@ contains
 
     real(ireals), pointer :: xalbedo(:), xsrfc_emission(:)
 
-    integer(iintegers) :: i, ib, icol, k, current_ibnd
-    logical :: need_any_new_solution
+    integer(iintegers) :: i, ib, icol, k, current_ibnd, num_spectral_bands
+    logical :: need_any_new_solution, lflg
 
     integer(mpiint) :: ierr
 
@@ -358,7 +358,13 @@ contains
     allocate(plck(ke1, Ncol)) ! actually have ke entries for layers plus one for surface. the srfc plck val is put at the end of the vert. axis
 
     current_ibnd = -1 ! current lw band
-    do ib=1, ngptlw
+
+    num_spectral_bands = int(ngptlw, iintegers)
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+                             "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
+    num_spectral_bands = min(num_spectral_bands, int(ngptlw, iintegers))
+
+    do ib=1, num_spectral_bands
 
       if(need_new_solution(comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
 

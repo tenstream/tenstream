@@ -68,6 +68,7 @@ logical, parameter :: ldebug=.True.
       character(len=default_str_len) :: atm_filename
       integer(iintegers) :: k, fStart, fEnd, Ncol, dNlev, dNlay, Nlev
       real(ireals), allocatable :: col_plev(:,:), col_tlev(:,:), dp(:)
+      real(ireals), allocatable :: col_lwc(:,:), col_reff(:,:)
       real(ireals), parameter :: lapse_rate=9.5e-3, Tsrfc=288.3, minTemp=Tsrfc-60._ireals
 
       integer(iintegers) :: solve_iterations, iter
@@ -117,11 +118,23 @@ logical, parameter :: ldebug=.True.
         col_tlev(:, k) =  col_tlev(:, i1)
       enddo
 
+      allocate(col_lwc(dNlay, Ncol), col_reff(dNlay, Ncol))
+      col_lwc = 0
+      col_reff = 10
+
+      col_lwc(Nz/2:Nz, 1:Ncol:10) = .1
+      col_lwc(Nz/2:Nz, 2:Ncol:10) = .1
+      col_lwc(Nz/2:Nz, 3:Ncol:10) = .1
+      col_lwc(Nz/2:Nz, 4:Ncol:10) = .1
+      col_lwc(Nz/2:Nz, 5:Ncol:10) = .1
+
       call init_data_strings()
 
-      call setup_tenstr_atm(comm, .False., atm_filename, col_plev, col_tlev, atm)
-      Nlev = size(atm%plev,1,kind=iintegers)
+      call setup_tenstr_atm(comm, .False., atm_filename, &
+        col_plev, col_tlev, atm, &
+        d_lwc=col_lwc, d_reliq=col_reff)
 
+      Nlev = size(atm%plev,1,kind=iintegers)
       call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
 
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)
@@ -131,9 +144,6 @@ logical, parameter :: ldebug=.True.
       deallocate(zindex)
 
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
-
-      call setup_tenstr_atm(comm, .False., atm_filename, &
-        col_plev, col_tlev, atm )
 
       call allocate_plexrt_solver_from_commandline(solver, '5_8')
       call init_plex_rt_solver(plex, solver)
@@ -147,36 +157,47 @@ logical, parameter :: ldebug=.True.
 
       do iter = 1, solve_iterations
         if(lthermal) then
-          atm%tlev = atm%tlev + real(iter-1, ireals) * solve_iterations_scale
+
+          ! Perform a circular shift of cloud field by one column
+          col_lwc = cshift(col_lwc, 1, dim=2)
+          call setup_tenstr_atm(comm, .False., atm_filename, &
+            col_plev, col_tlev, atm, &
+            d_lwc=col_lwc, d_reliq=col_reff)
+
           call plexrt_rrtmg(solver, atm, sundir, &
             albedo_thermal=zero, albedo_solar=Ag, &
             lthermal=.True., lsolar=.False., &
             edir=edir, edn=edn, eup=eup, abso=abso)
-          print *, ''
-          print *, cstr('Thermal Radiation', 'green')
-          print *,cstr('Avg.horiz','blue')//&
-            cstr(' k  Edn             Eup           abso', 'blue')
-          do k = 1, ubound(abso,1)
-            print *,k, meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
-          enddo
-          print *,k, meanval(edn(k,:)), meanval(eup(k,:))
+          if(myid.eq.0) then
+            print *, ''
+            print *, cstr('Thermal Radiation', 'green')
+            print *,cstr('Avg.horiz','blue')//&
+              cstr(' k  Edn             Eup           abso', 'blue')
+            do k = 1, ubound(abso,1)
+              print *,k, meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
+            enddo
+            print *,k, meanval(edn(k,:)), meanval(eup(k,:))
+          endif
         endif
 
         if(lsolar) then
+          call init_sundir()
           call sundir_rot_theta(sundir, real(iter-1, ireals) * solve_iterations_scale)
           call plexrt_rrtmg(solver, atm, sundir, &
             albedo_thermal=zero, albedo_solar=Ag, &
             lthermal=.False., lsolar=.True., &
             edir=edir, edn=edn, eup=eup, abso=abso)
 
-          print *, ''
-          print *, cstr('Solar Radiation', 'green')
-          print *,cstr('Avg.horiz','blue')//&
-            cstr(' k   Edir          Edn            Eup            abso', 'blue')
-          do k = 1, ubound(abso,1)
-            print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
-          enddo
-          print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:))
+          if(myid.eq.0) then
+            print *, ''
+            print *, cstr('Solar Radiation', 'green')
+            print *,cstr('Avg.horiz','blue')//&
+              cstr(' k   Edir          Edn            Eup            abso', 'blue')
+            do k = 1, ubound(abso,1)
+              print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
+            enddo
+            print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:))
+          endif
         endif
       enddo ! solve_iterations
 
@@ -204,7 +225,7 @@ logical, parameter :: ldebug=.True.
           logical :: lflg, lflg_xyz(3)
           real(ireals) :: first_normal(3)
           integer(mpiint) :: myid, ierr
-          real(ireals) :: rot_angle, Mrot(3,3), U(3), rot_sundir(3)
+          real(ireals) :: rot_angle, Mrot(3,3), rot_sundir(3)
 
           call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
           first_normal = get_normal_of_first_TOA_face(solver%plex)
@@ -219,7 +240,7 @@ logical, parameter :: ldebug=.True.
               call CHKERR(1_mpiint, 'sundir needs 3 entries, you have to specify -sundir_x -sundir_y -sundir_z')
             endif
           else
-            sundir = first_normal + [zero, -.5_ireals, zero]
+            sundir = first_normal + [zero, +.5_ireals, zero]
             sundir = sundir/norm2(sundir)
           endif
           sundir = sundir/norm2(sundir)

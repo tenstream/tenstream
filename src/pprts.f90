@@ -44,7 +44,7 @@ module m_pprts
     lmcrts
 
   use m_petsc_helpers, only : petscGlobalVecToZero, scatterZerotoPetscGlobal, &
-    petscVecToF90, f90VecToPetsc, getVecPointer, restoreVecPointer
+    petscVecToF90, f90VecToPetsc, getVecPointer, restoreVecPointer, hegedus_trick
 
   use m_mcrts_dmda, only : solve_mcrts
 
@@ -61,9 +61,6 @@ module m_pprts
             set_optical_properties, set_global_optical_properties, &
             solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
             pprts_get_result_toZero, gather_all_toZero
-
-  KSP,save :: kspdir, kspdiff
-  logical,save :: linit_kspdir=.False., linit_kspdiff=.False.
 
   logical,parameter :: ldebug=.False.
   logical,parameter :: lcycle_dir=.True.
@@ -1719,8 +1716,8 @@ module m_pprts
       if(ldebug) call mat_info(solver%comm, solver%Mdir)
 
       call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
-      call setup_ksp(solver%atm, kspdir, C_dir, solver%Mdir, linit_kspdir, "dir_")
-      call solve(solver, kspdir, solver%incSolar, solutions(uid)%edir, solutions(uid)%dir_ksp_residual_history)
+      call setup_ksp(solver%atm, solver%ksp_solar_dir, C_dir, solver%Mdir, "solar_dir_")
+      call solve(solver, solver%ksp_solar_dir, solver%incSolar, solutions(uid)%edir, solutions(uid)%dir_ksp_residual_history)
       call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
 
       solutions(uid)%lchanged=.True.
@@ -1741,17 +1738,24 @@ module m_pprts
     if(lskip_diffuse_solve) then
       call VecCopy(solver%b, solutions(uid)%ediff, ierr)
     else
-    ! ---------------------------- Ediff -------------------
-    call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
-    call set_diff_coeff(solver, Mdiff,C_diff)
-    call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
+      ! ---------------------------- Ediff -------------------
+      call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
+      call set_diff_coeff(solver, Mdiff,C_diff)
+      call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
 
-    if(ldebug) call mat_info(solver%comm, solver%Mdiff)
+      if(ldebug) call mat_info(solver%comm, solver%Mdiff)
 
-    call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
-    call setup_ksp(solver%atm, kspdiff,C_diff,Mdiff,linit_kspdiff, "diff_")
-    call solve(solver, kspdiff, solver%b, solutions(uid)%ediff, solutions(uid)%diff_ksp_residual_history)
-    call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
+      call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
+      if( solutions(uid)%lsolar_rad ) then
+        call setup_ksp(solver%atm, solver%ksp_solar_diff, C_diff, Mdiff, "solar_diff_")
+        call solve(solver, solver%ksp_solar_diff, solver%b, &
+          solutions(uid)%ediff, solutions(uid)%diff_ksp_residual_history)
+      else
+        call setup_ksp(solver%atm, solver%ksp_thermal_diff, C_diff, Mdiff, "thermal_diff_")
+        call solve(solver, solver%ksp_thermal_diff, solver%b, &
+          solutions(uid)%ediff, solutions(uid)%diff_ksp_residual_history)
+      endif
+      call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
     endif
 
     solutions(uid)%lchanged=.True.
@@ -2531,6 +2535,7 @@ subroutine solve(solver, ksp, b, x, ksp_residual_history)
     return
   endif
 
+  call hegedus_trick(ksp, b, x)
   call KSPSolve(ksp,b,x,ierr) ;call CHKERR(ierr)
   call KSPGetIterationNumber(ksp,iter,ierr) ;call CHKERR(ierr)
   call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
@@ -2541,7 +2546,7 @@ subroutine solve(solver, ksp, b, x, ksp_residual_history)
   ! endif
 
   if(reason.le.0) then
-    if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Resetted initial guess to zero and try again with gmres:'
+    if(solver%myid.eq.0) print *,solver%myid,'Resetted initial guess to zero and try again with gmres:'
     call VecSet(x,zero,ierr) ;call CHKERR(ierr)
     call KSPGetType(ksp,old_ksp_type,ierr); call CHKERR(ierr)
     call KSPSetType(ksp,KSPGMRES,ierr) ;call CHKERR(ierr)
@@ -2564,12 +2569,12 @@ subroutine solve(solver, ksp, b, x, ksp_residual_history)
 end subroutine
 
 !> @brief initialize PETSc Krylov Subspace Solver
-!> @details default KSP solver is a FBCGS with BJCAOBI // ILU(1)
+!> @details default KSP solver is a FGMRES with BJCAOBI // ILU(1)
 !> \n -- the default does however not scale well -- and we configure petsc solvers per commandline anyway
 !> \n -- see documentation for details on how to do so
-subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
+subroutine setup_ksp(atm, ksp, C, A, prefix)
   type(t_atmosphere) :: atm
-  type(tKSP) :: ksp
+  type(tKSP), intent(inout), allocatable :: ksp
   type(t_coord) :: C
   type(tMat) :: A
   type(tPC)  :: prec
@@ -2591,6 +2596,7 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
 ! logical,parameter :: lset_nullspace=.True. ! set constant nullspace?
   logical,parameter :: lset_nullspace=.False. ! set constant nullspace?
 
+  linit = allocated(ksp)
   if(linit) return
 
   call mpi_comm_rank(C%comm, myid, ierr)     ; call CHKERR(ierr)
@@ -2604,10 +2610,11 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
   if(myid.eq.0.and.ldebug) &
     print *,'Setup KSP -- tolerances:',rtol,atol,'::',rel_atol,(C%dof*C%glob_xm*C%glob_ym*C%glob_zm),count(.not.atm%l1d),one*size(atm%l1d)
 
+  allocate(ksp)
   call KSPCreate(C%comm,ksp,ierr) ;call CHKERR(ierr)
   if(present(prefix) ) call KSPAppendOptionsPrefix(ksp,trim(prefix),ierr) ;call CHKERR(ierr)
 
-  call KSPSetType(ksp,KSPBCGS,ierr)  ;call CHKERR(ierr)
+  call KSPSetType(ksp,KSPGMRES,ierr)  ;call CHKERR(ierr)
   call KSPSetInitialGuessNonzero(ksp, PETSC_TRUE, ierr) ;call CHKERR(ierr)
   call KSPGetPC  (ksp,prec,ierr)  ;call CHKERR(ierr)
   if(numnodes.eq.0) then
@@ -3901,11 +3908,17 @@ subroutine setup_ksp(atm, ksp,C,A,linit, prefix)
     lfinalize = get_arg(.False., lfinalizepetsc)
 
     if(solver%linitialized) then
-      if(linit_kspdir) then
-        call KSPDestroy(kspdir , ierr) ;call CHKERR(ierr); linit_kspdir =.False.
+      if(allocated(solver%ksp_solar_dir)) then
+        call KSPDestroy(solver%ksp_solar_dir, ierr) ;call CHKERR(ierr)
+        deallocate(solver%ksp_solar_dir)
       endif
-      if(linit_kspdiff) then
-        call KSPDestroy(kspdiff, ierr) ;call CHKERR(ierr); linit_kspdiff=.False.
+      if(allocated(solver%ksp_solar_diff)) then
+        call KSPDestroy(solver%ksp_solar_diff, ierr) ;call CHKERR(ierr)
+        deallocate(solver%ksp_solar_diff)
+      endif
+      if(allocated(solver%ksp_thermal_diff)) then
+        call KSPDestroy(solver%ksp_thermal_diff, ierr) ;call CHKERR(ierr)
+        deallocate(solver%ksp_thermal_diff)
       endif
 
       if(.not. ltwostr_only) then
