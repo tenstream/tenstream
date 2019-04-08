@@ -155,7 +155,7 @@ contains
         reliq = cshift(reliq, 1, dim=2)
       endif
       if(lsolar) then
-        theta = theta0 + (iter-1) * solve_iterations_scale
+        theta = theta0 + real(iter-1, ireals) * solve_iterations_scale
       endif
 
       call setup_tenstr_atm(comm, .False., atm_filename, &
