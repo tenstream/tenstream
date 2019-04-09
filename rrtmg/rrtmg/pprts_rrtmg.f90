@@ -543,7 +543,6 @@ contains
                 col_dtau   = max(tiny(col_dtau), reverse(tau(:,i,j,ib)))
                 col_temper = reverse(atm%tlev(:, icol))
                 wvnms = [real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib)))]
-                !print *,'Temperature', col_temper
 
                 call default_flx_computation(&
                   mu0, &
@@ -559,7 +558,6 @@ contains
 
                 eup (:,i,j) = eup (:,i,j) + FLUP  * reverse(Bfrac(:,i,j,ib))
                 edn (:,i,j) = edn (:,i,j) + RFLDN * reverse(Bfrac(:,i,j,ib))
-                !call CHKERR(1_mpiint, 'DEBUG')
               enddo ! ib 1 -> nbndsw , i.e. spectral integration
             enddo
           enddo
@@ -761,7 +759,7 @@ contains
         kg   = reverse(kg)
 
         if(present(opt_solar_constant)) then
-          edirTOA = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
+          edirTOA = tenstr_solsrc(ib) / sum(tenstr_solsrc) * opt_solar_constant
         else
           edirTOA = tenstr_solsrc(ib)
         endif

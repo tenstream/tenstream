@@ -403,6 +403,11 @@ module m_dyn_atm_to_rrtmg
           call imp_allreduce_max(comm, maxval_hhl, global_maxheight)
           call imp_allreduce_min(comm, minval_plev, global_minplev)
 
+          if(global_maxheight.ge.bg_atm%zt(1)) &
+            call CHKERR(1_mpiint, 'background profile TOA height is smaller than dynamics grid height')
+          if(global_minplev.le.bg_atm%plev(1)) &
+            call CHKERR(1_mpiint, 'background profile TOA pressure is larger than dynamics grid pressure')
+
           l = floor(search_sorted_bisection(bg_atm%zt, global_maxheight))
           m = floor(search_sorted_bisection(bg_atm%plev, global_minplev))
           allocate(atm%atm_ke)

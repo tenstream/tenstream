@@ -27,7 +27,8 @@
       use m_tenstr_rrtmg_sw_vrtqdr, only: vrtqdr_sw
 
 
-      use m_data_parameters, only : ireals
+      use m_data_parameters, only : ireals, mpiint
+      use m_helper_functions, only: CHKERR
 
       implicit none
 
@@ -311,6 +312,14 @@
       if(.not.allocated(tenstr_solsrc) ) then
           allocate(tenstr_solsrc(ngptsw))
           tenstr_solsrc = zsflxzen
+          if(any(.not.tenstr_solsrc.ge.0._ireals)) then
+            do jb = 1, ngptsw
+              print *,'band', jb, 'solar source term', tenstr_solsrc(jb), 'valid?', tenstr_solsrc(jb).gt.0
+            enddo
+            call CHKERR(1_mpiint, 'bad value for solar src. '// &
+              'I saw this happening when I had an background atmosphere '// &
+              'that was too low. Maybe increasing that helps.')
+          endif
       endif
 
 ! Top of shortwave spectral band loop, jb = 16 -> 29; ibm = 1 -> 14
