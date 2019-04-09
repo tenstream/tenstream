@@ -27,6 +27,7 @@ endif()
 
 ########################### Tenstream Project: ###################################
 project (tenstream C Fortran)
+enable_testing()
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -225,6 +226,7 @@ endif()
 
 # Add Source Directories
 add_subdirectory (src)
+add_subdirectory (disort)
 
 add_subdirectory(rayli_wrapper)
 
@@ -252,7 +254,6 @@ endif(DOXYGEN_FOUND)
 # Add pfUnit for testing
 option(ENABLE_PFUNIT "Enable pfUnit testing Framework" OFF)
 if(ENABLE_PFUNIT)
-  enable_testing()
   add_subdirectory(tests)
   add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -E 'boxmc|LUT')
   set(CTEST_MPIRUN_FLAGS "" CACHE STRING "Additional mpiexec flags to run tests with")
