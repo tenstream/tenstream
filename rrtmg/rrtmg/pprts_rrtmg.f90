@@ -60,6 +60,8 @@ module m_pprts_rrtmg
 
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw
 
+  use m_tenstr_disort, only: default_flx_computation
+
   implicit none
 
   private
@@ -458,6 +460,8 @@ contains
                              "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
     num_spectral_bands = min(num_spectral_bands, int(ngptlw, iintegers))
 
+    if(compute_thermal_disort()) return
+
     do ib=1, num_spectral_bands
 
       if(need_new_solution(solver%comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
@@ -501,6 +505,70 @@ contains
       abso = abso + spec_abso
 
     enddo ! ib 1 -> nbndlw , i.e. spectral integration
+
+    contains
+      function compute_thermal_disort() result(ldisort_only)
+        logical :: ldisort_only
+        integer(iintegers) :: nstreams
+        real :: mu0, S0, col_albedo, wvnms(2)
+        real, dimension(size(tau,1))   :: col_dtau, col_w0, col_g
+        real, dimension(size(tau,1)+1) :: col_temper
+        real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
+
+        ldisort_only = .False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+          "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
+
+        if(ldisort_only) then
+          nstreams = 16
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+            "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
+
+          mu0 = 0
+          S0  = 0
+          col_w0 = 0
+          col_g  = 0
+
+          do j=1,je
+            do i=1,ie
+              icol =  i+(j-1)*ie
+
+              if(present(thermal_albedo_2d)) then
+                col_albedo = thermal_albedo_2d(i,j)
+              else
+                col_albedo = albedo
+              endif
+
+              do ib=1, num_spectral_bands
+                col_dtau   = max(tiny(col_dtau), reverse(tau(:,i,j,ib)))
+                col_temper = reverse(atm%tlev(:, icol))
+                wvnms = [real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib)))]
+                !print *,'Temperature', col_temper
+
+                call default_flx_computation(&
+                  mu0, &
+                  S0, &
+                  col_albedo, &
+                  .True., wvnms, &
+                  col_dtau, &
+                  col_w0,   &
+                  col_g,    &
+                  col_temper, &
+                  RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
+                  int(nstreams), lverbose=.False.)
+
+                eup (:,i,j) = eup (:,i,j) + FLUP  * reverse(Bfrac(:,i,j,ib))
+                edn (:,i,j) = edn (:,i,j) + RFLDN * reverse(Bfrac(:,i,j,ib))
+                !call CHKERR(1_mpiint, 'DEBUG')
+              enddo ! ib 1 -> nbndsw , i.e. spectral integration
+            enddo
+          enddo
+
+          patm_dz(1:ke, i1:ie, i1:je) => atm%dz
+          abso =( edn (1:ke,:,:) - edn (2:ke+1,:,:)   &
+                - eup (1:ke,:,:) + eup (2:ke+1,:,:) ) / patm_dz
+        endif
+      end function
   end subroutine compute_thermal
 
   subroutine compute_solar(solver, atm, ie, je, ke, &
@@ -670,14 +738,16 @@ contains
     endif
     w0 = min(one, max(zero, w0))
 
-    allocate(kabs(ke , i1:ie, i1:je))
-    allocate(ksca(ke , i1:ie, i1:je))
-    allocate(kg  (ke , i1:ie, i1:je))
-
     num_spectral_bands = int(ngptsw, iintegers)
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
                              "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
     num_spectral_bands = min(num_spectral_bands, int(ngptsw, iintegers))
+
+    if(compute_solar_disort()) return
+
+    allocate(kabs(ke , i1:ie, i1:je))
+    allocate(ksca(ke , i1:ie, i1:je))
+    allocate(kg  (ke , i1:ie, i1:je))
 
     do ib=1, num_spectral_bands
 
@@ -697,7 +767,8 @@ contains
         endif
 
         ! dont use delta scaling here because rrtmg values should already be delta scaled
-        call set_optical_properties(solver, albedo, kabs, ksca, kg, local_albedo_2d=solar_albedo_2d, ldelta_scaling=.False.)
+        call set_optical_properties(solver, albedo, kabs, ksca, kg, &
+          local_albedo_2d=solar_albedo_2d, ldelta_scaling=.False.)
         call solve_pprts(solver, edirTOA, opt_solution_uid=ib, opt_solution_time=opt_time)
 
       endif
@@ -709,6 +780,79 @@ contains
       abso = abso + spec_abso
 
     enddo ! ib 1 -> nbndsw , i.e. spectral integration
+
+    contains
+      function compute_solar_disort() result(ldisort_only)
+        logical :: ldisort_only
+        integer(iintegers) :: nstreams
+        real :: mu0
+        real, dimension(size(tau,1))   :: col_dtau, col_w0, col_g
+        real, dimension(size(tau,1)+1) :: col_temper
+        real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
+
+        ldisort_only = .False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+          "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
+
+        if(ldisort_only) then
+          nstreams = 16
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+            "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
+
+          col_temper = 0
+          do j=1,je
+            do i=1,ie
+              icol =  i+(j-1)*ie
+
+              if(present(theta2d)) then
+                col_theta = theta2d(i,j)
+              else
+                col_theta = theta0
+              endif
+
+              if(present(solar_albedo_2d)) then
+                col_albedo = solar_albedo_2d(i,j)
+              else
+                col_albedo = albedo
+              endif
+
+              do ib=1, num_spectral_bands
+                if(present(opt_solar_constant)) then
+                  edirTOA = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
+                else
+                  edirTOA = tenstr_solsrc(ib)
+                endif
+
+                col_dtau   = max(tiny(col_dtau), reverse(tau(:,i,j,ib)))
+                col_w0     = max(tiny(col_w0  ), reverse(w0 (:,i,j,ib)))
+                col_g      = max(tiny(col_g   ), reverse(g  (:,i,j,ib)))
+
+                mu0 = cos(deg2rad(col_theta))
+                call default_flx_computation(&
+                  mu0, &
+                  real(edirTOA), &
+                  real(col_albedo), &
+                  .False., [0., 0.], &
+                  col_dtau, &
+                  col_w0,   &
+                  col_g,    &
+                  col_temper, &
+                  RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
+                  int(nstreams), lverbose=.False.)
+
+                edir(:,i,j) = edir(:,i,j) + RFLDIR
+                eup (:,i,j) = eup (:,i,j) + FLUP
+                edn (:,i,j) = edn (:,i,j) + RFLDN
+              enddo ! ib 1 -> nbndsw , i.e. spectral integration
+            enddo
+          enddo
+
+          patm_dz(1:ke, i1:ie, i1:je) => atm%dz
+          abso =( edir(1:ke,:,:) - edir(2:ke+1,:,:)   &
+                + edn (1:ke,:,:) - edn (2:ke+1,:,:)   &
+                - eup (1:ke,:,:) + eup (2:ke+1,:,:) ) / patm_dz
+        endif
+      end function
   end subroutine compute_solar
 
   subroutine destroy_pprts_rrtmg(solver, lfinalizepetsc)

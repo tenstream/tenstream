@@ -15,6 +15,7 @@ add_dependencies(tenstr_rrtmg_objs
   plexrt
   pprts
   pprts_base
+  tenstr_disort
   )
 
 
@@ -26,6 +27,7 @@ TARGET_LINK_LIBRARIES( pprts_rrtmg
   pprts_rrtm_sw
   pprts
   pprts_base
+  tenstr_disort
   ${EXTLIB} ${USERLIB} ${LIBS})
 
 install(TARGETS pprts_rrtmg DESTINATION lib)

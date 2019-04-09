@@ -15,12 +15,6 @@ set( disort_sources
   tenstream_disort.F90
   )
 
-string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
-if(${_is_Intel})
-  SET_SOURCE_FILES_PROPERTIES(${disort_sources} PROPERTIES COMPILE_FLAGS -nowarn)
-else()
-  SET_SOURCE_FILES_PROPERTIES(${disort_sources} PROPERTIES COMPILE_FLAGS -Wno-error)
-endif(${_is_Intel})
 
 
 # disort lib
@@ -43,3 +37,14 @@ target_link_libraries( disort_tests tenstr_disort ${EXTLIB} ${USERLIB} ${LIBS})
 
 add_test(disort_tests
   ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 1 ${PROJECT_BINARY_DIR}/bin/disort_tests)
+
+
+# Ignore Warnings for disort files
+string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "Intel" _is_Intel)
+if(${_is_Intel})
+  SET_SOURCE_FILES_PROPERTIES(${disort_sources} ${disort_test_sources}
+    PROPERTIES COMPILE_FLAGS -nowarn)
+else()
+  SET_SOURCE_FILES_PROPERTIES(${disort_sources} ${disort_test_sources}
+    PROPERTIES COMPILE_FLAGS -Wno-error)
+endif(${_is_Intel})

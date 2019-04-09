@@ -1,4 +1,8 @@
 module m_tenstr_disort
+  use m_data_parameters, only: mpiint
+  use m_search, only: find_real_location
+  use m_helper_functions, only: CHKERR
+
   implicit none
 
   private
@@ -8,17 +12,18 @@ contains
   subroutine default_flx_computation(&
       mu0, S0, Ag, &
       lthermal, wvnm, &
-      dtau, ssalb, temper, &
+      dtau, ssalb, gasym, temper, &
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
       nstreams, lverbose)
 
-    real, intent(in) :: mu0   ! cos(solar zenith angle)
-    real, intent(in) :: S0    ! solar constant
-    real, intent(in) :: Ag    ! lambertian surface albedo
+    real, intent(in)    :: mu0   ! cos(solar zenith angle)
+    real, intent(in)    :: S0    ! solar constant
+    real, intent(in)    :: Ag    ! lambertian surface albedo
     logical, intent(in) :: lthermal ! do thermal computations ?
-    real, intent(in) :: wvnm(2) ! Wavenumbers low and high [inv cm], ignored if not lthermal
+    real, intent(in)    :: wvnm(2) ! Wavenumbers low and high [inv cm], ignored if not lthermal
     real, dimension(:), intent(in)  :: dtau        ! vertical optical thicknesses (nlay)
     real, dimension(:), intent(in)  :: ssalb       ! single scatter albedo        (nlay)
+    real, dimension(:), intent(in)  :: gasym       ! asymmetry parameter          (nlay)
     real, dimension(:), intent(in)  :: temper      ! level temperatures           (nlay+1)
     real, dimension(:), intent(out) :: RFLDIR      ! Direct-beam flux (without delta-M scaling)
     real, dimension(:), intent(out) :: RFLDN       ! Diffuse down-flux (total minus direct-beam) (without delta-M scaling)
@@ -114,7 +119,23 @@ contains
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, UU, &
       ALBMED, TRNMED )
 
+    call check_bad_mu0()
+
     contains
+      subroutine check_bad_mu0()
+        integer :: loc
+        loc = nint(find_real_location(umu, umu0))
+        if(abs(umu(loc)-umu0).le.epsilon(umu)*100) then
+          print *,'our choice of umu might be bad. '// &
+            'You could try to use a different number of disort streams. '// &
+            'Try to set a value where nstr/2 is an even number.'
+          print *,'sampling points: umu', umu
+          print *,'closest umu sampling point:', umu(loc)
+          print *,'solar mu0', umu0
+          call CHKERR(1_mpiint, 'bad disort umu sampling points')
+        endif
+
+      end subroutine
       subroutine set_default_values()
         allocate( utau(ntau) )
         allocate( pmom(0:nmom,nlyr) )
@@ -129,7 +150,9 @@ contains
         allocate( rhoq(nstr/2,0:nstr/2,0:(nstr-1)) )
         allocate( rhou(nstr/2,0:nstr/2,0:(nstr-1)) )
 
-        pmom = 0
+        pmom(0,:) = 1
+        pmom(1,:) = gasym
+        pmom(2:nmom,:) = 0
 
         usrtau=.False.
         utau = 0

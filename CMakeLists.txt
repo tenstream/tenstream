@@ -276,6 +276,7 @@ if(CTAGS_PATH)
     add_custom_target(tags ALL
       COMMAND ctags -R
       ${CMAKE_CURRENT_SOURCE_DIR}/src
+      ${CMAKE_CURRENT_SOURCE_DIR}/disort
       ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
       ${CMAKE_CURRENT_SOURCE_DIR}/C_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/plexrt
