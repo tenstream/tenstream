@@ -27,6 +27,22 @@ subroutine test_search_sorted_bisection(this)
 end subroutine
 
 @test(npes=[1])
+subroutine test_search_sorted_bisection_reversed(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(ireals), parameter :: A(3) = [10, 0, -2]
+
+  @assertEqual(1.0, search_sorted_bisection(A,  20._ireals))
+  @assertEqual(1.0, search_sorted_bisection(A,  10._ireals))
+  @assertEqual(1.25,search_sorted_bisection(A,  7.5_ireals))
+  @assertEqual(1.5, search_sorted_bisection(A,   5._ireals))
+  @assertEqual(2.0, search_sorted_bisection(A,   0._ireals))
+  @assertEqual(2.0, search_sorted_bisection(A,  -0._ireals))
+  @assertEqual(2.5, search_sorted_bisection(A,  -1._ireals))
+  @assertEqual(3.0, search_sorted_bisection(A,  -2._ireals))
+  @assertEqual(3.0, search_sorted_bisection(A,  -3._ireals))
+end subroutine
+
+@test(npes=[1])
 subroutine test_find_real_location(this)
   class (MpiTestMethod), intent(inout) :: this
   real(ireals), parameter :: A(3) = [-10, 0, 2]

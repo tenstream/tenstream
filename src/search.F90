@@ -132,17 +132,31 @@ module m_search
 
       N = size(arr, kind=iintegers)
       if(N.le.LINEAR_SEARCH_LIMIT) then ! for small arrays it is quicker to do a linear search
-        if(arr(1).ge.val) then
-          res = 1
-          return
-        endif
-        do i=2,N
-          if(arr(i).ge.val) then
-            loc_increment = (val - arr(i-1)) / (arr(i) - arr(i-1))
-            res = real(i-1, kind=kind(res)) + loc_increment
+        if(arr(1).le.arr(2)) then ! ascending order
+          if(arr(1).ge.val) then
+            res = 1
             return
           endif
-        enddo
+          do i=2,N
+            if(arr(i).ge.val) then
+              loc_increment = (val - arr(i-1)) / (arr(i) - arr(i-1))
+              res = real(i-1, kind=kind(res)) + loc_increment
+              return
+            endif
+          enddo
+        else !descending order
+          if(arr(1).le.val) then
+            res = 1
+            return
+          endif
+          do i=2,N
+            if(arr(i).le.val) then
+              loc_increment = (val - arr(i-1)) / (arr(i) - arr(i-1))
+              res = real(i-1, kind=kind(res)) + loc_increment
+              return
+            endif
+          enddo
+        endif !ordering
         res = real(N, kind=kind(res))
         return
       endif
@@ -199,17 +213,31 @@ module m_search
 
       N = size(arr, kind=iintegers)
       if(N.le.LINEAR_SEARCH_LIMIT) then ! for small arrays it is quicker to do a linear search
-        if(arr(1).ge.val) then
-          res = 1
-          return
-        endif
-        do i=2,N
-          if(arr(i).ge.val) then
-            loc_increment = (val - arr(i-1)) / (arr(i) - arr(i-1))
-            res = real(i-1, kind=kind(res)) + loc_increment
+        if(arr(1).le.arr(2)) then ! ascending order
+          if(arr(1).ge.val) then
+            res = 1
             return
           endif
-        enddo
+          do i=2,N
+            if(arr(i).ge.val) then
+              loc_increment = (val - arr(i-1)) / (arr(i) - arr(i-1))
+              res = real(i-1, kind=kind(res)) + loc_increment
+              return
+            endif
+          enddo
+        else !descending order
+          if(arr(1).le.val) then
+            res = 1
+            return
+          endif
+          do i=2,N
+            if(arr(i).le.val) then
+              loc_increment = (val - arr(i-1)) / (arr(i) - arr(i-1))
+              res = real(i-1, kind=kind(res)) + loc_increment
+              return
+            endif
+          enddo
+        endif !ordering
         res = real(N, kind=kind(res))
         return
       endif
