@@ -15,11 +15,9 @@ set( disort_sources
   tenstream_disort.F90
   )
 
-
-
 # disort lib
 add_library( tenstr_disort ${disort_sources} )
-target_link_libraries( tenstr_disort ${EXTLIB} ${USERLIB} ${LIBS})
+target_link_libraries( tenstr_disort pprts_base ${EXTLIB} ${USERLIB} ${LIBS})
 
 
 add_executable( ex_disort_tenstr ex_disort_tenstr.F90 )

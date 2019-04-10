@@ -3,12 +3,13 @@ program main
   implicit none
   integer, parameter :: nlyr=5, nstreams=16
   real, parameter :: mu0=.5, S0=1000, Ag=.2
-  real, dimension(nlyr) :: dtau, ssalb
+  real, dimension(nlyr) :: dtau, ssalb, gasym
   real, dimension(nlyr+1) :: temper, RFLDIR, RFLDN, FLUP, DFDT, UAVG
   integer :: k
 
   dtau = 1
   ssalb = 0
+  gasym = .5
   temper = 288
 
   call solar()
@@ -18,7 +19,7 @@ contains
     call default_flx_computation(&
       0., 0., Ag, &
       .True., [1., 10000.], &
-      dtau, ssalb, temper, &
+      dtau, ssalb, gasym, temper, &
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
       nstreams, lverbose=.False.)
 
@@ -34,7 +35,7 @@ contains
     call default_flx_computation(&
       mu0, S0, Ag, &
       .False., [0., 0.], &
-      dtau, ssalb, temper, &
+      dtau, ssalb, gasym, temper, &
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
       nstreams, lverbose=.False.)
 
