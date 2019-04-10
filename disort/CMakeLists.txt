@@ -5,7 +5,7 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${INCLUDE_DIRS})
 
 set( disort_sources
-  DISORT.f
+  disort.f
   ERRPACK.f
   BDREF.f
   DISOBRDF.f

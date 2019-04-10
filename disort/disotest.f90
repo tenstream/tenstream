@@ -25,7 +25,7 @@ INTEGER       NMUG
 REAL          BDREF
 EXTERNAL      BDREF
 
-real(kind=4),dimension(:),allocatable     :: DTAUC, PHI, SSALB, TEMPER, UMU, UTAU                             
+real(kind=4),dimension(:),allocatable     :: DTAUC, PHI, SSALB, TEMPER, UMU, UTAU, Bfracs
 real(kind=4),dimension(:,:),allocatable   :: PMOM          
 real(kind=4),dimension(:,:,:),allocatable :: RHOQ, RHOU 
 real(kind=4),dimension(:),allocatable     :: EMUST, BEMST   
@@ -40,12 +40,13 @@ subroutine allocate_disort_allocatable_arrays(NLYR, NMOM, NSTR, NUMU, NPHI, NTAU
 implicit none
 integer,intent(in) :: NLYR, NMOM, NSTR, NUMU, NPHI, NTAU 
 
-allocate( DTAUC( NLYR ), SSALB( NLYR ), PMOM( 0:NMOM, NLYR ), &
-          TEMPER( 0:NLYR ), UTAU( NTAU ), UMU( NUMU ), PHI( NPHI ), H_LYR( 0:NLYR ) )  
+allocate( DTAUC( NLYR ), SSALB( NLYR ), PMOM( 0:NMOM, NLYR ), Bfracs( NLYR ), &
+          TEMPER( 0:NLYR ), UTAU( NTAU ), UMU( NUMU ), PHI( NPHI ), H_LYR( 0:NLYR ) )
 allocate( RHOQ(NSTR/2, 0:NSTR/2, 0:(NSTR-1)), RHOU(NUMU, 0:NSTR/2, 0:(NSTR-1)), &
           EMUST(NUMU), BEMST(NSTR/2), RHO_ACCURATE(NUMU, NPHI) )                
 allocate( RFLDIR( NTAU ), RFLDN( NTAU ), FLUP( NTAU ), DFDT( NTAU ), UAVG( NTAU ),&
-          ALBMED( NUMU ), TRNMED( NUMU ), UU( NUMU, NTAU, NPHI ) )   
+          ALBMED( NUMU ), TRNMED( NUMU ), UU( NUMU, NTAU, NPHI ) )
+Bfracs = 1.0
 DTAUC = 0.0; SSALB = 0.0; PMOM = 0.0; TEMPER = 0.0; UTAU = 0.0; UMU = 0.0; PHI = 0.0;
 H_LYR = 0.0; RHOQ = 0.0; RHOU = 0.0; EMUST = 0.0; BEMST = 0.0; RHO_ACCURATE = 0.0;
 RFLDIR = 0.0; RFLDN = 0.0; FLUP = 0.0; DFDT = 0.0; UAVG = 0.0; UU = 0.0;
@@ -55,7 +56,7 @@ end subroutine allocate_disort_allocatable_arrays
 
 subroutine deallocate_disort_allocatable_arrays()
 
-deallocate( DTAUC, SSALB, PMOM, TEMPER, UTAU, UMU, PHI, H_LYR )  
+deallocate( DTAUC, SSALB, PMOM, TEMPER, UTAU, UMU, PHI, H_LYR, Bfracs )  
 deallocate( RHOQ, RHOU, EMUST, BEMST, RHO_ACCURATE )                
 deallocate( RFLDIR, RFLDN, FLUP, DFDT, UAVG, ALBMED, TRNMED, UU )  
 
@@ -212,9 +213,9 @@ IF( DOPROB(1) )  THEN
            ':  Isotropic Scattering, Ref. VH1, Table 12:  b =', &
            UTAU(2), ', a =', SSALB(1)
   
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -328,9 +329,9 @@ IF( DOPROB(2) )  THEN
            ', Rayleigh Scattering, Ref. SW, Table 1:  tau =', &
            UTAU(2), ', mu0 =', UMU0, ', ss-albedo =', SSALB(1)          
                    
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -415,9 +416,9 @@ IF( DOPROB(3) )  THEN
           ', Henyey-Greenstein Scattering, Ref. VH2, Table 37,'      &
           //' g = 0.75, b =', UTAU(2), ', a =', SSALB(1)
 
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -530,9 +531,9 @@ IF( DOPROB(4) )  THEN
        
     ENDIF
       
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -622,9 +623,9 @@ IF( DOPROB(5) )  THEN
        
     ENDIF
 
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -877,9 +878,9 @@ IF( DOPROB(6) )  THEN
 
     ENDIF
        
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -1101,9 +1102,9 @@ IF( DOPROB(7) )  THEN
                                       
       ENDIF
 
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -1216,9 +1217,9 @@ IF( DOPROB(8) )  THEN
 
     ENDIF
        
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -1385,9 +1386,9 @@ IF( DOPROB(9) )  THEN
                  
     ENDIF
 
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -1506,9 +1507,9 @@ IF( DOPROB(10) )  THEN
        
     ENDIF
 
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -1624,9 +1625,9 @@ IF( DOPROB(11) )  THEN
        
     ENDIF
        
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -1741,9 +1742,9 @@ IF( DOPROB(12) )  THEN
        
     ENDIF 
 
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -1942,9 +1943,9 @@ IF( DOPROB(13) )  THEN
 
     ENDIF
        
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -2175,9 +2176,9 @@ IF( DOPROB(14) )  THEN
     allocate( CMPFIR( NTAU ), CMPFDN( NTAU ), CMPFUP( NTAU ),  &
                  CMPDFD( NTAU ), CMPUU( NTAU, NUMU, NPHI ) )   
 
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -2437,9 +2438,9 @@ IF( DOPROB(15) )  THEN
 
     ENDIF
 
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -2550,9 +2551,9 @@ IF( DOPROB(16) ) THEN
   PRNT( 2 ) = .TRUE.
   PRNT( 3 ) = .TRUE.       
        
-  CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+  CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-               PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+               PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -2641,9 +2642,9 @@ IF( DOPROB(17) ) THEN
 
     END IF
 
-    CALL DISORT( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
+    CALL DISORT_rrtmg( NLYR, NMOM, NSTR, NUMU, NPHI, NTAU,           &
                  USRANG, USRTAU, IBCND, ONLYFL, PRNT,          &
-                 PLANK, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
+                 PLANK, Bfracs, LAMBER, DELTAMPLUS, DO_PSEUDO_SPHERE,  &          
                  DTAUC, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI,   & 
                  UTAU, UMU0, PHI0, UMU, PHI, FBEAM,            &                        
                  FISOT, ALBEDO, BTEMP, TTEMP, TEMIS,           &
@@ -2663,17 +2664,17 @@ ENDIF
 
 
 
-WRITE(*,*), ""
-WRITE(*,*), ""
-WRITE(*,*), "------------------------------------------"
-WRITE(*,*), "OVERVIEW OF DISORT UNIT TEST SUITE"
-WRITE(*,*), ""
-WRITE(*,'(A30,F7.2,A1)'), "Percent of unit tests passed: ",  &
+WRITE(*,*) ""
+WRITE(*,*) ""
+WRITE(*,*) "------------------------------------------"
+WRITE(*,*) "OVERVIEW OF DISORT UNIT TEST SUITE"
+WRITE(*,*) ""
+WRITE(*,'(A30,F7.2,A1)') "Percent of unit tests passed: ",  &
       REAL(NPASS)/REAL(NTEST)*100.0,'%'
-WRITE(*,'(A30,I4)'), "Number of unit tests:         ", NTEST
-WRITE(*,'(A30,I4)'), "Number of unit tests passed:  ", NPASS
-WRITE(*,'(A30,I4)'), "Number of unit tests failed:  ", NTEST-NPASS
-WRITE(*,*), "------------------------------------------"
-WRITE(*,*), ""
+WRITE(*,'(A30,I4)') "Number of unit tests:         ", NTEST
+WRITE(*,'(A30,I4)') "Number of unit tests passed:  ", NPASS
+WRITE(*,'(A30,I4)') "Number of unit tests failed:  ", NTEST-NPASS
+WRITE(*,*) "------------------------------------------"
+WRITE(*,*) ""
 
 end program DISOTEST

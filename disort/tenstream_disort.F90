@@ -11,7 +11,7 @@ module m_tenstr_disort
 contains
   subroutine default_flx_computation(&
       mu0, S0, Ag, &
-      lthermal, wvnm, &
+      lthermal, wvnm, Bfracs, &
       dtau, ssalb, gasym, temper, &
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
       nstreams, lverbose)
@@ -21,6 +21,7 @@ contains
     real, intent(in)    :: Ag    ! lambertian surface albedo
     logical, intent(in) :: lthermal ! do thermal computations ?
     real, intent(in)    :: wvnm(2) ! Wavenumbers low and high [inv cm], ignored if not lthermal
+    real, dimension(:), intent(in)  :: Bfracs      ! Planck fractions for vertical weighting (needed for RRTMG), otherwise use 1 (nlay)
     real, dimension(:), intent(in)  :: dtau        ! vertical optical thicknesses (nlay)
     real, dimension(:), intent(in)  :: ssalb       ! single scatter albedo        (nlay)
     real, dimension(:), intent(in)  :: gasym       ! asymmetry parameter          (nlay)
@@ -106,10 +107,10 @@ contains
 
     call set_default_values()
 
-    call DISORT( nlyr, nmom, numu, &
+    call DISORT_rrtmg( nlyr, nmom, numu, &
       MAXUMU, MAXPHI, MAXULV, &
       USRANG, USRTAU, IBCND, ONLYFL, PRNT, &
-      PLANK, LAMBER, DELTAM, PSEUDO_SPHERE, &
+      PLANK, Bfracs, LAMBER, DELTAM, PSEUDO_SPHERE, &
       DTAU, SSALB, PMOM, TEMPER, WVNMLO, WVNMHI, &
       UTAU, UMU0, PHI0, UMU, PHI, FBEAM, &
       FISOT, ALBEDO, BTEMP, TTEMP, TEMIS, &

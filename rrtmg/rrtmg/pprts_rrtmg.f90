@@ -511,7 +511,7 @@ contains
         logical :: ldisort_only
         integer(iintegers) :: nstreams
         real :: mu0, S0, col_albedo, wvnms(2)
-        real, dimension(size(tau,1))   :: col_dtau, col_w0, col_g
+        real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
         real, dimension(size(tau,1)+1) :: col_temper
         real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
@@ -540,6 +540,7 @@ contains
               endif
 
               do ib=1, num_spectral_bands
+                col_Bfrac  = real(reverse(Bfrac(1:ke,i,j,ib)))
                 col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,i,j,ib))))
                 col_temper = real(reverse(atm%tlev(:, icol)))
                 wvnms = [real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib)))]
@@ -548,7 +549,7 @@ contains
                   mu0, &
                   S0, &
                   col_albedo, &
-                  .True., wvnms, &
+                  .True., wvnms, col_Bfrac, &
                   col_dtau, &
                   col_w0,   &
                   col_g,    &
@@ -556,8 +557,8 @@ contains
                   RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
                   int(nstreams), lverbose=.False.)
 
-                eup (:,i,j) = eup (:,i,j) + FLUP  * reverse(Bfrac(:,i,j,ib))
-                edn (:,i,j) = edn (:,i,j) + RFLDN * reverse(Bfrac(:,i,j,ib))
+                eup (:,i,j) = eup (:,i,j) + FLUP
+                edn (:,i,j) = edn (:,i,j) + RFLDN
               enddo ! ib 1 -> nbndsw , i.e. spectral integration
             enddo
           enddo
@@ -784,7 +785,7 @@ contains
         logical :: ldisort_only
         integer(iintegers) :: nstreams
         real :: mu0
-        real, dimension(size(tau,1))   :: col_dtau, col_w0, col_g
+        real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
         real, dimension(size(tau,1)+1) :: col_temper
         real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
@@ -798,6 +799,7 @@ contains
             "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
 
           col_temper = 0
+          col_Bfrac = 1
           do j=1,je
             do i=1,ie
               icol =  i+(j-1)*ie
@@ -830,7 +832,7 @@ contains
                   mu0, &
                   real(edirTOA), &
                   real(col_albedo), &
-                  .False., [0., 0.], &
+                  .False., [0., 0.], col_Bfrac, &
                   col_dtau, &
                   col_w0,   &
                   col_g,    &
