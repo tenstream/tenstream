@@ -534,14 +534,14 @@ contains
               icol =  i+(j-1)*ie
 
               if(present(thermal_albedo_2d)) then
-                col_albedo = thermal_albedo_2d(i,j)
+                col_albedo = real(thermal_albedo_2d(i,j))
               else
-                col_albedo = albedo
+                col_albedo = real(albedo)
               endif
 
               do ib=1, num_spectral_bands
-                col_dtau   = max(tiny(col_dtau), reverse(tau(:,i,j,ib)))
-                col_temper = reverse(atm%tlev(:, icol))
+                col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,i,j,ib))))
+                col_temper = real(reverse(atm%tlev(:, icol)))
                 wvnms = [real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib)))]
 
                 call default_flx_computation(&
@@ -821,11 +821,11 @@ contains
                   edirTOA = tenstr_solsrc(ib)
                 endif
 
-                col_dtau   = max(tiny(col_dtau), reverse(tau(:,i,j,ib)))
-                col_w0     = max(tiny(col_w0  ), reverse(w0 (:,i,j,ib)))
-                col_g      = max(tiny(col_g   ), reverse(g  (:,i,j,ib)))
+                col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,i,j,ib))))
+                col_w0     = max(tiny(col_w0  ), real(reverse(w0 (:,i,j,ib))))
+                col_g      = max(tiny(col_g   ), real(reverse(g  (:,i,j,ib))))
 
-                mu0 = cos(deg2rad(col_theta))
+                mu0 = real(cos(deg2rad(col_theta)))
                 call default_flx_computation(&
                   mu0, &
                   real(edirTOA), &
