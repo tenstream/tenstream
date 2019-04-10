@@ -72,6 +72,7 @@ end function
     ! solve euqation system that arises for condition
     ! sunvec_crit = [sin(phi_crit) * sin(theta), cos(phi_crit) * sin(theta), -cos(theta)]
     ! left_side_face_normal .dot. sunvec_crit === 0
+    ! i.e. solve( 0 = n1 * sin ( phi ) * sin(theta) + n2 * cos(phi) * sin(theta) - n3 * cos(theta), phi)
 
     use m_helper_functions, only: solve_quadratic
     real(irealLUT), intent(in) :: side_normal(3)
@@ -79,9 +80,9 @@ end function
     real(irealLUT), intent(out) :: phic
     integer(mpiint), intent(out) :: ierr
 
-    real(irealLUT) :: a, b, c, y(2), x(2), z, sol(2)
-
-    ierr = 0
+    real(irealLUT) :: a, b, c, z, sol(2)
+    real(irealLUT) :: x(2), y(2)
+    !real(irealLUT) :: st, ct
 
     z = -cos(theta)
     a = side_normal(1)**2 + side_normal(2)**2
@@ -89,9 +90,7 @@ end function
     c = (side_normal(1)**2 + side_normal(3)**2) * z**2 - side_normal(1)**2
 
     call solve_quadratic(a,b,c, y, ierr)
-    if(ierr.ne.0) then
-      return
-    endif
+    if(ierr.ne.0) return
 
     x = (-side_normal(2)*y - side_normal(3) * z) / side_normal(1)
 
@@ -101,26 +100,76 @@ end function
     else
       phic = sol(1)
     endif
+
+    !associate( n1=>side_normal(1), n2=>side_normal(2), n3=>side_normal(3) )
+    !  st = sin(theta)
+    !  ct = cos(theta)
+    !  if(approx(n2,0._irealLUT) .and. approx(n3,0._irealLUT) .and. .not. approx(n1*st,0._irealLUT)) then
+    !    phic = 0._irealLUT
+    !    return
+    !  endif
+    !  if(approx(n2,0._irealLUT) .and. &
+    !    approx(ct, 0._irealLUT) .and. &
+    !    .not. approx(n3, 0._irealLUT) .and. &
+    !    .not. approx(n1*st, 0._irealLUT) ) then
+    !    phic = 0._irealLUT
+    !    return
+    !  endif
+    !  if(.not.approx(n2,0._irealLUT) .and. approx(st, -n3*ct/n2)) then
+    !    phic = pi_irealLUT
+    !    return
+    !  endif
+    !  z = n2*st+n3*ct
+    !  if(.not.approx(z,0._irealLUT)) then
+    !    b = n1**2*st**2 + n2**2*st**2 - n3**2*ct**2
+    !    if(b.lt.0._irealLUT) ierr = 1
+    !    a = n1*st / z
+    !    c = n2*st + n3*ct
+
+    !    if(approx(n1**2*st**2 - n1*st*sqrt(b) + n2**2*st**2 + n2*n3*st*ct, 0._irealLUT)) ierr = 2
+    !    sol(1) = 2*atan(a - sqrt(b)/c)
+    !    if(approx(n1**2*st**2 + n1*st*sqrt(b) + n2**2*st**2 + n2*n3*st*ct, 0._irealLUT)) ierr = 3
+    !    sol(2) = 2*atan(sqrt(b)/c + a)
+    !    !print *,'z',z,'a,b,c', a,b,c,'st', st,ct, 'sol', sol, ':', a - sqrt(b)/c, sqrt(b)/c + a
+    !    if(abs(sol(1)).ge.(abs(sol(2)))) then
+    !      phic = sol(2)
+    !    else
+    !      phic = sol(1)
+    !    endif
+    !    return
+    !  endif
+    !end associate
+    !ierr = 1
   end subroutine
 
   function theta_crit(side_normal, phi) result(thetac)
     ! solve euqation system that arises for condition
     ! sunvec_crit = [sin(phi) * sin(theta_crit), cos(phi) * sin(theta_crit), -cos(theta_crit)]
     ! base_face_normal .dot. sunvec_crit === 0
+    ! i.e. solve( 0 = n1 * sin ( phi ) * sin(theta) + n2 * cos(phi) * sin(theta) - n3 * cos(theta), theta)
 
-    use m_helper_functions, only: solve_quadratic
     real(irealLUT), intent(in) :: side_normal(3)
     real(irealLUT), intent(in) :: phi ! sun azimuth in [rad]
     real(irealLUT) :: thetac
-    integer(mpiint) :: ierr
 
-    real(irealLUT) :: discr
+    real(irealLUT) :: discr, frac
 
-    ierr = 0
-    discr = (side_normal(1)*sin(phi) + side_normal(2) * cos(phi))**2 + side_normal(3)
-    thetac = asin(side_normal(3) / sqrt(discr))
+    !discr = side_normal(1)*sin(phi) + side_normal(2)*cos(phi)
+
+    !frac = side_normal(3) / discr
+    !thetac = atan(frac)
+
+    associate( n1=>side_normal(1), n2=>side_normal(2), n3=>side_normal(3) )
+      discr = (n1*sin(phi) + n2*cos(phi))**2 + n3**2
+      frac = n3 / sqrt(discr)
+      thetac = asin( frac )
+    end associate
+
+    if(discr.le.0._irealLUT) then
+      print *,'discr', discr, side_normal, norm2(side_normal), '->', side_normal(3) / discr, 'thetac', thetac
+      call CHKERR(1_mpiint, 'no solution for theta crit')
+    endif
   end function
-
 
   subroutine iterative_phi_theta_from_param_phi_and_param_theta(wedge_coords3d, param_phi, param_theta, phi, theta, ierr)
     real(irealLUT), intent(in), dimension(:) :: wedge_coords3d ! dim 18
@@ -128,11 +177,11 @@ end function
     real(irealLUT), intent(out) :: phi, theta
     integer(mpiint), intent(out) :: ierr
     real(irealLUT) :: phic3, phic4, thetac, phie3, phie4
-    real(irealLUT) :: last_phi
+    real(irealLUT) :: last_phi, last_theta, new_phi
     real(irealLUT), dimension(3) :: n2, n3, n4
     integer(mpiint) :: iter
-    integer(mpiint), parameter :: Niter=25
-    real(irealLUT), parameter :: eps=100*epsilon(phi)
+    integer(mpiint), parameter :: Niter=100
+    real(irealLUT), parameter :: eps=epsilon(phi)*1
 
     call determine_end_phi_points_plus_geometry(wedge_coords3d, n2, n3, n4, phie3, phie4)
 
@@ -141,19 +190,21 @@ end function
 
     do iter=1,Niter
       thetac = theta_crit(n2, phi)
-      theta = theta_from_param_theta(param_theta, thetac)
+      theta  = theta_from_param_theta(param_theta, thetac)
 
       call determine_critical_phi_points(&
         n3, n4, theta, phie3, phie4, &
         phic3, phic4)
 
-      call phi_from_param_phi(param_phi, phic3, phie3, phic4, phie4, phi, ierr); call CHKERR(ierr)
-      !print *,iter, 'param_phi', param_phi, 'param_theta', param_theta, '=>', phi, theta
-      if(approx(last_phi,phi,eps)) then
+      call phi_from_param_phi(param_phi, phic3, phie3, phic4, phie4, new_phi, ierr); call CHKERR(ierr)
+      phi = phi + (new_phi - phi) * (1._irealLUT - real(iter-1, irealLUT)/real(Niter, irealLUT))**2
+      !print *,iter, 'param_phi', param_phi, 'param_theta', param_theta, ':', new_phi, '=>', phi, theta, 'thetac', thetac
+      if(approx(last_phi,phi,eps) .and. approx(last_theta, theta, eps)) then
         ierr = 0
         return
       endif
       last_phi = phi
+      last_theta = theta
     enddo
     ierr = iter
   end subroutine
@@ -289,7 +340,7 @@ end function
     real(irealLUT) :: param_theta
     real(irealLUT) :: lb, rb, x1, x2! bounds of local spline
 
-    if(theta.eq.thetac) then
+    if(approx(theta, thetac, epsilon(theta)*10)) then
       param_theta = 0
       return
     endif

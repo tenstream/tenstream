@@ -183,16 +183,7 @@ logical, parameter :: ldebug=.True.
           if(lflg) then
             Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), first_normal)
             rot_sundir = matmul(Mrot, sundir)
-            !U = [first_normal(2), -first_normal(1), zero]
-            !U = U / norm2(U)
-            !V = cross_3d(first_normal, U)
-            !Mrot = rotation_matrix_world_to_local_basis(first_normal, U, V)
-            !rot_sundir = matmul(Mrot, sundir)
-            !rot_sundir = rotate_angle_x(rot_sundir, rot_angle)
-            !if(ldebug.and.myid.eq.0) print *,'U', U
-            !if(ldebug.and.myid.eq.0) print *,'V', V
             if(ldebug.and.myid.eq.0) print *,'rot_sundir', rot_sundir
-            !Mrot = rotation_matrix_local_basis_to_world(first_normal, U, V)
             if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
             sundir = rot_sundir
           endif

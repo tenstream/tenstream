@@ -1778,7 +1778,7 @@ module m_plex_rt
               !if(c.lt.zero .and. .not.lsrc(isrc_side)) then
               !  print *,'found transport coeff but I thought this incoming side is not a designated src face'
               !endif
-              if(c.le.-1e-3_ireals.and..not.l1d) then
+              if(c.le.-1e-4_ireals.and..not.l1d.and.param_theta.gt.epsilon(zero)) then
                 ierr = 0
                 if(.not.lsrc(isrc_side)) ierr = 1
                 if(     lsrc(idst_side)) ierr = 2

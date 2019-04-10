@@ -6,8 +6,9 @@ module m_plex_grid
   use m_helper_functions, only: CHKERR, compute_normal_3d, approx, strF2C, distance, &
     triangle_area_by_vertices, swap, determine_normal_direction, &
     vec_proj_on_plane, angle_between_two_vec, cross_3d, rad2deg, &
-    rotation_matrix_world_to_local_basis, resize_arr, get_arg, &
-    imp_bcast, itoa, ftoa, imp_allreduce_max
+    resize_arr, get_arg, &
+    imp_bcast, itoa, ftoa, imp_allreduce_max, &
+    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
 
   use m_data_parameters, only : ireals, irealLUT, iintegers, mpiint, zero, one, pi, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
@@ -1228,14 +1229,14 @@ module m_plex_grid
     end subroutine
 
     !> @brief translate the ordering of faces in the DMPlex to the ordering we assume in the box-montecarlo routines
-    subroutine compute_local_wedge_ordering(plex, icell, geomSection, geoms, sundir, &
+    subroutine compute_local_wedge_ordering(plex, icell, geomSection, geoms, in_sundir, &
         lsrc, zenith, azimuth, param_phi, param_theta, Cx, Cy, aspect_zx, &
         upper_face, bottom_face, base_face, left_face, right_face)
       type(t_plexgrid), intent(in) :: plex
       integer(iintegers), intent(in) :: icell
       type(tPetscSection) :: geomSection
       real(ireals), intent(in), pointer :: geoms(:) ! pointer to coordinates vec
-      real(ireals), intent(in) :: sundir(3)
+      real(ireals), intent(in) :: in_sundir(3)
       real(ireals), intent(out) :: zenith, azimuth, param_phi, param_theta
       real(ireals), intent(out) :: Cx, Cy, aspect_zx
       integer(iintegers), intent(out) :: upper_face, bottom_face, base_face, left_face, right_face
@@ -1245,7 +1246,7 @@ module m_plex_grid
       integer(iintegers) :: iface, izindex(2) !,i
 
       real(ireals) :: face_normals(3,5)
-      real(ireals) :: proj_angles_to_sun(3), proj_sundir(3)
+      real(ireals) :: sundir(3), proj_angles_to_sun(3), proj_sundir(3)
 
       real(ireals) :: e_x(3) ! unit vectors of local coord system in which we compute the transfer coefficients
       real(ireals) :: MrotWorld2Local(3,3) ! Rotation Matrix into the local wedge space, (ex, ey, ez)
@@ -1266,6 +1267,8 @@ module m_plex_grid
       real(ireals) :: dz, Atop
 
       integer(mpiint) :: ierr
+
+      sundir = in_sundir / norm2(in_sundir)
 
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
@@ -1306,7 +1309,7 @@ module m_plex_grid
         side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
         side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
           max(tiny(side_face_normal_projected_on_upperface), norm2(side_face_normal_projected_on_upperface(:, iface)))
-        if(norm2(proj_sundir).eq.zero) then
+        if(norm2(proj_sundir).lt.epsilon(zero)) then
           proj_angles_to_sun(iface) = zero
           lsrc(side_faces(iface)) = .False.
         else
@@ -1321,7 +1324,7 @@ module m_plex_grid
         base_face  = side_faces(ibase_face)
 
         ! Local unit vec on upperface, pointing towards '+x'
-        e_x = cross_3d(face_normals(:, upper_face), face_normals(:, base_face))
+        e_x = cross_3d(face_normals(:, upper_face), side_face_normal_projected_on_upperface(:, ibase_face))
         e_x = e_x / norm2(e_x)
 
         azimuth = proj_angles_to_sun(ibase_face)
@@ -1330,10 +1333,6 @@ module m_plex_grid
         left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
         iright_face = modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1
         right_face = side_faces(iright_face)
-
-        if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
-          call swap(right_face, left_face)
-        endif
 
       else ! if sun is directly on top, i.e. zenith 0, just pick the first one
         ibase_face = 1
@@ -1350,12 +1349,13 @@ module m_plex_grid
         !print *,'face normal upper face', -face_normals(:, upper_face)
         !print *,'e_x', e_x
         !print *,'side_face_normal_projected_on_upperface', side_face_normal_projected_on_upperface(:, iright_face)
-        if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
-          call swap(right_face, left_face)
-        endif
 
         azimuth = zero
         zenith = zero
+      endif
+
+      if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
+        call swap(right_face, left_face)
       endif
 
       !print *,'norm proj_sundir', norm2(proj_sundir),':', ibase_face, rad2deg(azimuth), ':', rad2deg(zenith),&
@@ -1403,63 +1403,88 @@ module m_plex_grid
         side_face_normal_projected_on_upperface(:, ibase_face), &
         -face_normals(:, upper_face))
 
-       local_normal_base = matmul(MrotWorld2Local, face_normals(:, base_face))
-       local_normal_left = matmul(MrotWorld2Local, face_normals(:, left_face))
-       local_normal_right= matmul(MrotWorld2Local, face_normals(:, right_face))
-       !print *,'local normals base ', local_normal_base
-       !print *,'local normals left ', local_normal_left
-       !print *,'local normals right', local_normal_right
+      local_normal_base = matmul(MrotWorld2Local, face_normals(:, base_face))
+      local_normal_left = matmul(MrotWorld2Local, face_normals(:, left_face))
+      local_normal_right= matmul(MrotWorld2Local, face_normals(:, right_face))
 
-       call param_phi_param_theta_from_phi_and_theta_withnormals(&
-         real(local_normal_base, irealLUT), &
-         real(local_normal_left, irealLUT), &
-         real(local_normal_right, irealLUT),&
-         real(Cx, irealLUT), real(Cy, irealLUT), &
-         real(azimuth, irealLUT), real(zenith, irealLUT), &
-         rparam_phi, rparam_theta, ierr)
+      call param_phi_param_theta_from_phi_and_theta_withnormals(&
+        real(local_normal_base, irealLUT), &
+        real(local_normal_left, irealLUT), &
+        real(local_normal_right, irealLUT),&
+        real(Cx, irealLUT), real(Cy, irealLUT), &
+        real(azimuth, irealLUT), real(zenith, irealLUT), &
+        rparam_phi, rparam_theta, ierr); call CHKERR(ierr)
 
-       !print *,'azimuth, zenith ',rad2deg(azimuth), rad2deg(zenith), 'param phi/theta', param_phi, param_theta
-       !call CHKERR(1_mpiint, 'DEBUG')
-       if(ldebug) then
-         ierr = 0
-         if(rparam_phi.lt.-1_irealLUT-param_eps .and. .not.lsrc(left_face)) then
-           ierr = 1
-           print *,'param_phi > -1 but left face is not src', rparam_phi, base_face, left_face, right_face, lsrc
-         endif
 
-         if(rparam_phi.gt.-1_irealLUT+param_eps .and.      lsrc(left_face)) then
-           ierr = 2
-           print *,'param_phi > -1 but left face is not dst', rparam_phi, base_face, left_face, right_face, lsrc
-         endif
+      if(rparam_theta.gt.param_eps*100) then ! only if baseface should be src
+        ierr = 0
+        if(rparam_phi.lt.-1_irealLUT-param_eps*100 .and. .not.lsrc(left_face)) then
+          ierr = 1
+          print *,'param_phi < -1 but left face is not src', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
+        endif
 
-         if(rparam_phi.gt.1_irealLUT+param_eps .and. .not.lsrc(right_face)) then
-           ierr = 3
-           print *,'param_phi > 1 but right face is not src', rparam_phi, base_face, left_face, right_face, lsrc
-         endif
-         if(rparam_phi.lt.1_irealLUT-param_eps .and.      lsrc(right_face)) then
-           ierr = 4
-           print *,'param_phi > 1 but right face is not dst', rparam_phi, base_face, left_face, right_face, lsrc
-         endif
-         call CHKERR(ierr, 'found bad param_phi')
-       endif
+        if(rparam_phi.gt.-1_irealLUT+param_eps*100 .and.      lsrc(left_face)) then
+          ierr = 2
+          print *,'param_phi > -1 but left face is not dst', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
+        endif
 
-       ! Snap param_phi to the correct side
-       if(approx(rparam_phi, -1._irealLUT, 100*epsilon(rparam_phi))) then
-         if(lsrc(left_face)) then
-           rparam_phi = -1._irealLUT-param_eps
-         else
-           rparam_phi = -1._irealLUT+param_eps
-         endif
-       elseif(approx(rparam_phi, +1._irealLUT, 100*epsilon(rparam_phi))) then
-         if(lsrc(right_face)) then
-           rparam_phi = 1._irealLUT+param_eps
-         else
-           rparam_phi = 1._irealLUT-param_eps
-         endif
-       endif
+        if(rparam_phi.gt.1_irealLUT+param_eps*100 .and. .not.lsrc(right_face)) then
+          ierr = 3
+          print *,'param_phi > 1 but right face is not src', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
+        endif
+        if(rparam_phi.lt.1_irealLUT-param_eps*100 .and. lsrc(right_face)) then
+          ierr = 4
+          print *,'param_phi < 1 but right face is not dst', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
+        endif
+        if(ierr.ne.0) then
+          print *,'angles between local coords', &
+            dot_product(e_x, side_face_normal_projected_on_upperface(:, ibase_face)), &
+            dot_product(e_x, -face_normals(:, upper_face))
+          print *,'proj_angles_to_sun', rad2deg(proj_angles_to_sun)
+          print *,'azimuth, zenith ', azimuth, zenith, rad2deg(azimuth), rad2deg(zenith), &
+            'param phi/theta', rparam_phi, rparam_theta
+          print *,'Cx, Cy', Cx, Cy
+          print *,'local sundir      ', matmul(MrotWorld2Local, sundir)
+          print *,'local normal top  ', matmul(MrotWorld2Local, face_normals(:, upper_face))
+          print *,'local normal base ', local_normal_base, norm2(local_normal_base),  ':', &
+            dot_product(local_normal_base, matmul(MrotWorld2Local, sundir))
+          print *,'local normal left ', local_normal_left, norm2(local_normal_left),  ':', &
+            dot_product(local_normal_left, matmul(MrotWorld2Local, sundir))
+          print *,'local normal right', local_normal_right,norm2(local_normal_right), ':', &
+            dot_product(local_normal_right, matmul(MrotWorld2Local, sundir))
 
-       param_phi   = real(rparam_phi, ireals)
-       param_theta = real(rparam_theta, ireals)
+          do iface = 1, size(faces_of_cell)
+            print *,'iface', iface, 'solar_src', is_solar_src(face_normals(:,iface), sundir), &
+              ':', sundir/norm2(sundir), ',', &
+              face_normals(:, iface)/norm2(face_normals(:, iface)), &
+              '=', dot_product(sundir/norm2(sundir), face_normals(:, iface)/norm2(face_normals(:, iface)))
+          enddo
+          print *, 'local azimuth ', rad2deg(angle_between_two_vec(&
+            vec_proj_on_plane(local_normal_base,               matmul(MrotWorld2Local, face_normals(:, upper_face))), &
+            vec_proj_on_plane(matmul(MrotWorld2Local, sundir), matmul(MrotWorld2Local, face_normals(:, upper_face))) &
+            ))
+
+        endif
+        call CHKERR(ierr, 'found bad param_phi')
+      endif
+
+      ! Snap param_phi to the correct side
+      if(approx(rparam_phi, -1._irealLUT, 100*epsilon(rparam_phi))) then
+        if(lsrc(left_face)) then
+          rparam_phi = -1._irealLUT-param_eps
+        else
+          rparam_phi = -1._irealLUT+param_eps
+        endif
+      elseif(approx(rparam_phi, +1._irealLUT, 100*epsilon(rparam_phi))) then
+        if(lsrc(right_face)) then
+          rparam_phi = 1._irealLUT+param_eps
+        else
+          rparam_phi = 1._irealLUT-param_eps
+        endif
+      endif
+
+      param_phi   = real(rparam_phi, ireals)
+      param_theta = real(rparam_theta, ireals)
 
       if(ldebug) then
         if(param_theta.ge.zero .and. zenith.le.pi/2 .and. .not.lsrc(base_face)) then

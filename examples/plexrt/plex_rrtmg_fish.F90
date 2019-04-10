@@ -92,6 +92,8 @@ logical, parameter :: ldebug=.True.
       dNlev = Nz; dNlay = dNlev-1
 
       if(myid.eq.0) print *,'Dynamics Grid has Size Nlev, Ncol:', dNlev, Ncol
+      if(Ncol.eq.0) call CHKERR(1_mpiint, 'We have a process that has nothing to do? '// &
+        'Maybe decrease the number of processes or increase the problem size')
 
       ! prepare atmosphere
       allocate(col_tlev(dNlev, Ncol))
