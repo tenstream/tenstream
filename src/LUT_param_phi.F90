@@ -186,7 +186,9 @@ end function
     call determine_end_phi_points_plus_geometry(wedge_coords3d, n2, n3, n4, phie3, phie4)
 
     phi = 0._irealLUT
-    last_phi = phi
+    theta = 0._irealLUT
+    last_phi   = phi
+    last_theta = theta
 
     do iter=1,Niter
       thetac = theta_crit(n2, phi)
