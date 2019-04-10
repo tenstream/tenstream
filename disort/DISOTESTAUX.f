@@ -1021,7 +1021,7 @@ c     .. Statement Functions ..
 c     ..
 c     .. Statement Function definitions ..
 
-      BADRAT( RAT ) = (RAT.LT.0.99) .OR. (RAT.GT.1.01)
+      BADRAT( RAT ) = (RAT.LT.0.98) .OR. (RAT.GT.1.02)
 c     ..
 
       IF ( NTAU.GT.MXTAU .OR. NUMU.GT.MXMU .OR. NPHI.GT.MXPHI )  CALL
