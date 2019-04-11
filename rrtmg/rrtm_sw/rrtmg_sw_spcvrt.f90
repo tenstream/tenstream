@@ -312,7 +312,7 @@
       if(.not.allocated(tenstr_solsrc) ) then
           allocate(tenstr_solsrc(ngptsw))
           tenstr_solsrc = zsflxzen
-          if(any(.not.tenstr_solsrc.ge.0._ireals)) then
+          if(any(.not.tenstr_solsrc.gt.0._ireals)) then
             do jb = 1, ngptsw
               print *,'band', jb, 'solar source term', tenstr_solsrc(jb), 'valid?', tenstr_solsrc(jb).gt.0
             enddo

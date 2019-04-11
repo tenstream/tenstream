@@ -9,7 +9,7 @@ module m_example_pprts_rrtm_iterations
   ! the Tenstream uses.
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
 
-  use m_helper_functions, only : linspace, CHKERR
+  use m_helper_functions, only : linspace, CHKERR, meanval
   use m_search, only: search_sorted_bisection
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
@@ -164,6 +164,11 @@ contains
       call setup_tenstr_atm(comm, .False., atm_filename, &
         pplev, ptlev, atm, &
         d_lwc=plwc, d_reliq=preliq)
+
+      ! Hack the background atmosphere so that there is no jump in temperatures,
+      ! i.e. add the difference at the glue location to all background temps
+      atm%tlev(atm%d_ke1+1:size(atm%tlev,1),:) = atm%tlev(atm%d_ke1+1:size(atm%tlev,1),:) &
+        + meanval(atm%tlev(atm%d_ke1,:)-atm%tlev(atm%d_ke1+1,:))
       if(iter.eq.1.and.myid.eq.0) call print_tenstr_atm(atm)
 
       if(myid.eq.0) print *,'theta0 =', theta
