@@ -95,11 +95,11 @@ contains
     ! Have to call init_mpi_data_parameters() to define datatypes
     call init_mpi_data_parameters(comm)
 
-    ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
-    ! Temperature difference of 30K
+    ! Start with a dynamics grid ranging from 1000 hPa up to 250 hPa and a
+    ! Temperature difference of 60K
     do k=1,nzp+1
-      plev(k,:,:) = linspace(k, [1e3_ireals, 500._ireals], nzp+1)
-      tlev(k,:,:) = linspace(k, [290._ireals, 260._ireals], nzp+1)
+      plev(k,:,:) = linspace(k, [1e3_ireals, 250._ireals], nzp+1)
+      tlev(k,:,:) = linspace(k, [290._ireals, 230._ireals], nzp+1)
     enddo
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
