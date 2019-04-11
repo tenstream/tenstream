@@ -3,7 +3,7 @@ module m_mmap
   use iso_c_binding
 
   use m_data_parameters, only : iintegers, irealLUT, mpiint
-  use m_helper_functions, only : CHKERR, imp_bcast, itoa, resize_arr
+  use m_helper_functions, only : CHKWARN, CHKERR, imp_bcast, itoa, resize_arr
   use m_netcdfIO, only: acquire_file_lock, release_file_lock
 
   use m_c_syscall_wrappers, only: c_sysconf, c_mmap, c_munmap, &
@@ -67,11 +67,12 @@ contains
     call release_file_lock(flock_unit, ierr); call CHKERR(ierr)
   end subroutine
 
-  subroutine binary_file_to_mmap(fname, mmap_c_ptr, dtype_size, arr_shape)
+  subroutine binary_file_to_mmap(fname, mmap_c_ptr, dtype_size, arr_shape, ierr)
     character(len=*), intent(in) :: fname
     type(c_ptr), intent(out) :: mmap_c_ptr
     integer(c_size_t), intent(out) :: dtype_size
     integer(c_size_t), allocatable, intent(out), optional :: arr_shape(:)
+    integer(mpiint), intent(out) :: ierr
     integer(c_size_t) :: offset
 
     integer :: funit, i
@@ -89,7 +90,11 @@ contains
     offset = c_pagesize
 
     inquire(file=trim(fname), exist=lexists)
-    if(.not.lexists) call CHKERR(1_mpiint, 'Tried to create a mmap from a file that does not exist: '//fname)
+    if(.not.lexists) then
+      ierr = 1
+      call CHKWARN(1_mpiint, 'Tried to create a mmap from a file that does not exist: '//fname)
+      return
+    endif
 
     allocate(header(c_pagesize/bytesize_header))
 
@@ -111,17 +116,21 @@ contains
     mmap_c_ptr = c_mmap(0_c_int, bytesize_data, PROT_READ, IOR(MAP_PRIVATE, MAP_NORESERVE), c_fd, offset)
     c_fd = c_close(c_fd)
     if(c_fd.le.0) call CHKERR(c_fd, 'Could not close file descriptor to mmap file')
+
+    ierr = 0
   end subroutine
 
-  subroutine load_mmap_array_2d(fname, arr)
+  subroutine load_mmap_array_2d(fname, arr, ierr)
     character(len=*), intent(in) :: fname
     real(irealLUT), pointer, intent(out) :: arr(:,:)
+    integer(mpiint) :: ierr
 
     type(c_ptr) :: mmap_c_ptr
     integer(c_size_t), allocatable :: arrshape(:)
     integer(c_size_t) :: dtype_size
 
-    call binary_file_to_mmap(fname, mmap_c_ptr, dtype_size, arrshape)
+    call binary_file_to_mmap(fname, mmap_c_ptr, dtype_size, arrshape, ierr)
+    if(ierr.ne.0) return
 
     if(dtype_size.ne.c_sizeof(arr(1,1))) &
       call CHKERR(1_mpiint, 'size type of binary data '//itoa(dtype_size)//'does not match inp_arr_dtype'//itoa(c_sizeof(arr(1,1))))
@@ -165,7 +174,7 @@ contains
     endif
     call mpi_barrier(comm, ierr)
 
-    call load_mmap_array_2d(fname_fpsuffix, mmap_ptr)
+    call load_mmap_array_2d(fname_fpsuffix, mmap_ptr, ierr)
   end subroutine
 
   subroutine munmap_mmap_ptr(mmap_ptr, ierr)

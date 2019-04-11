@@ -95,7 +95,10 @@ subroutine test_write_read_mmap(this)
     call mpi_barrier(comm, ierr); call CHKERR(ierr)
 
 
-    call load_mmap_array(fname, mmap_ptr)
+    call load_mmap_array('<a non existing file>', mmap_ptr, ierr)
+    @assertTrue(ierr.ne.0)
+
+    call load_mmap_array(fname, mmap_ptr, ierr)
 
     do i = 1, N
       do j = 1, N

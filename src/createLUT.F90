@@ -103,7 +103,7 @@ program main
         stop
       end select
 
-      call OPP%init(comm)
+      call OPP%init(comm, skip_load_LUT=.False.)
 
       call mpi_finalize(ierr)
 end program

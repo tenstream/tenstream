@@ -214,10 +214,18 @@ module m_helper_functions
     subroutine CHKERR(ierr, descr)
       integer(mpiint),intent(in) :: ierr
       character(len=*), intent(in), optional :: descr
-      integer(mpiint) :: mpierr
+      integer(mpiint) :: myid, mpierr
 
       if(ierr.ne.0) then
-        call CHKWARN(ierr, descr)
+        call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
+        if(present(descr)) then
+          print *,itoa(myid)//cstr(' ERROR: '//itoa(ierr)//': '//trim(descr), 'red')
+        else
+          print *,itoa(myid)//cstr(' ERROR: '//itoa(ierr), 'red')
+        endif
+#ifdef _GNU
+        call BACKTRACE
+#endif
         call mpi_abort(mpi_comm_world, ierr, mpierr)
       endif
     end subroutine
@@ -230,13 +238,10 @@ module m_helper_functions
       if(ierr.ne.0) then
         call mpi_comm_rank(MPI_COMM_WORLD, myid, mpierr)
         if(present(descr)) then
-          print *,myid, 'Warning:', ierr, ':', trim(descr)
+          print *,itoa(myid)//cstr(' Warning: '//itoa(ierr)//': '//trim(descr), 'purple')
         else
-          print *,myid, 'Warning:', ierr
+          print *,itoa(myid)//cstr(' Warning: '//itoa(ierr), 'purple')
         endif
-#ifdef _GNU
-        call BACKTRACE
-#endif
       endif
     end subroutine
 

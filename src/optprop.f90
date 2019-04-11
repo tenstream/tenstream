@@ -121,9 +121,10 @@ integer(mpiint), parameter :: OPP_TINYASPECT_RETCODE = -2_mpiint
 
 contains
 
-  subroutine init(OPP, comm)
+  subroutine init(OPP, comm, skip_load_LUT)
       class(t_optprop), intent(inout) :: OPP
       integer(mpiint) ,intent(in) :: comm
+      logical, intent(in), optional :: skip_load_LUT
       integer(mpiint) :: ierr
 
       select case (coeff_mode)
@@ -158,7 +159,7 @@ contains
               class default
                 call CHKERR(1_mpiint, ' init optprop : unexpected type for optprop object!')
             end select
-            call OPP%OPP_LUT%init(comm)
+            call OPP%OPP_LUT%init(comm, skip_load_LUT)
 
           case(i1) ! ANN
             call ANN_init(comm, ierr)

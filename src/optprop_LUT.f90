@@ -43,6 +43,7 @@ module m_optprop_LUT
     default_str_len
 
   use m_optprop_parameters, only:         &
+    luse_memory_map,                      &
     ldebug_optprop, lut_basename,         &
     LUT_dump_interval, LUT_max_create_jobtime, &
     LUT_MAX_DIM,                          &
@@ -172,12 +173,13 @@ module m_optprop_LUT
 
 contains
 
-  subroutine init(OPP, comm)
+  subroutine init(OPP, comm, skip_load_LUT)
       class(t_optprop_LUT) :: OPP
       integer(mpiint) ,intent(in) :: comm
+      logical, intent(in), optional :: skip_load_LUT
 
       integer(mpiint) :: comm_size, myid, ierr
-      logical :: load_diffuse_LUT_first, lflg
+      logical :: lskip_load_LUT, load_diffuse_LUT_first, lflg
 
       if(OPP%LUT_initialized) return
 
@@ -261,12 +263,18 @@ contains
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         '-load_diffuse_LUT_first', load_diffuse_LUT_first, lflg, ierr); call CHKERR(ierr)
 
+      lskip_load_LUT = get_arg(.True., skip_load_LUT)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
+      if(.not.lskip_load_LUT .and. myid.eq.0) &
+        print *,'loading and checking LUT`s from netCDF', .not.lskip_load_LUT
+
       if(load_diffuse_LUT_first) then
-        call OPP%loadLUT_diff(comm)
-        call OPP%loadLUT_dir(comm)
+        call OPP%loadLUT_diff(comm, lskip_load_LUT)
+        call OPP%loadLUT_dir(comm, lskip_load_LUT)
       else
-        call OPP%loadLUT_dir(comm)
-        call OPP%loadLUT_diff(comm)
+        call OPP%loadLUT_dir(comm, lskip_load_LUT)
+        call OPP%loadLUT_diff(comm, lskip_load_LUT)
       endif
 
       call OPP%scatter_LUTtables(comm)
@@ -276,7 +284,6 @@ contains
   end subroutine
 
   subroutine destroy(OPP)
-      use m_optprop_parameters, only: luse_memory_map
       class(t_optprop_LUT) :: OPP
       integer(mpiint) :: ierr
       if(allocated(OPP%Tdir)) then
@@ -353,14 +360,15 @@ subroutine load_table_from_netcdf(table, istat)
   if(istat.ne.0) print *,'Test if coeffs in '//char_arr_to_str(table%table_name_tol,'/')//' are good results in:', istat
 end subroutine
 
-subroutine loadLUT_diff(OPP, comm)
+subroutine loadLUT_diff(OPP, comm, skip_load_LUT)
     class(t_optprop_LUT) :: OPP
     integer(mpiint),intent(in) :: comm
+    logical, intent(in) :: skip_load_LUT
+
     integer(iintegers) :: errcnt
     character(default_str_len) :: descr, str(3)
 
     integer(mpiint) :: comm_size, myid, ierr
-    logical :: lskip_load_LUT, lflg
 
     call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
     call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
@@ -379,10 +387,7 @@ subroutine loadLUT_diff(OPP, comm)
     str(3) = 'Stol'; allocate(OPP%Sdiff%table_name_tol(size(str)), source=str)
     str(3) = 'S'   ; allocate(OPP%Sdiff%table_name_c(size(str)), source=str)
 
-    lskip_load_LUT = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
-    if(lskip_load_LUT) return
+    if(skip_load_LUT) return
 
     if(myid.eq.0) then
       call load_table_from_netcdf(OPP%Sdiff, iierr); errcnt = errcnt + iierr
@@ -398,14 +403,15 @@ subroutine loadLUT_diff(OPP, comm)
     if(allocated(OPP%Sdiff%stddev_tol)) deallocate(OPP%Sdiff%stddev_tol)
 end subroutine
 
-subroutine loadLUT_dir(OPP, comm)
+subroutine loadLUT_dir(OPP, comm, skip_load_LUT)
     class(t_optprop_LUT) :: OPP
     integer(mpiint),intent(in) :: comm
+    logical, intent(in) :: skip_load_LUT
+
     integer(iintegers) :: errcnt
     character(default_str_len) :: descr, str(3)
 
     integer(mpiint) :: comm_size, myid, ierr
-    logical :: lskip_load_LUT, lflg
 
     call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
     call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
@@ -430,10 +436,7 @@ subroutine loadLUT_dir(OPP, comm)
     str(3) = 'Ttol'; allocate(OPP%Tdir%table_name_tol(size(str)), source=str)
     str(3) = 'T'   ; allocate(OPP%Tdir%table_name_c(size(str)), source=str)
 
-    lskip_load_LUT = .False.
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
-      '-skip_load_LUT', lskip_load_LUT, lflg, ierr); call CHKERR(ierr)
-    if(lskip_load_LUT) return
+    if(skip_load_LUT) return
 
     if(myid.eq.0) then
       call load_table_from_netcdf(OPP%Sdir, iierr); errcnt = errcnt + iierr
@@ -1258,7 +1261,6 @@ subroutine set_parameter_space(OPP)
 end subroutine
 
   subroutine scatter_LUTtables(OPP, comm)
-      use m_optprop_parameters, only: luse_memory_map
       integer(mpiint) ,intent(in) :: comm
       class(t_optprop_LUT) :: OPP
 
@@ -1277,6 +1279,12 @@ end subroutine
         endif
         OPP%Sdiff%c => mmap_ptr
 
+        call CHKERR(ierr, 'Could not generate mmap for LUT. '//new_line('')// &
+          '  If the binary dump (*.mmap) file does not yet exist, '//new_line('')// &
+          '  You probably need to run the createLUT program first '//new_line('')// &
+          '  or run with the additional option:'//new_line('')// &
+          '    -skip_load_LUT no')
+
         mmap_ptr => NULL()
         if(associated(OPP%Sdir%c)) then
           call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr, OPP%Sdir%c)
@@ -1285,6 +1293,12 @@ end subroutine
           call arr_to_mmap(comm, trim(OPP%Sdir%table_name_c(1))//'.Sdir.mmap', mmap_ptr, ierr)
         endif
         OPP%Sdir%c => mmap_ptr
+
+        call CHKERR(ierr, 'Could not generate mmap for LUT. '//new_line('')// &
+          '  If the binary dump (*.mmap) file does not yet exist, '//new_line('')// &
+          '  You probably need to run the createLUT program first '//new_line('')// &
+          '  or run with the additional option:'//new_line('')// &
+          '    -skip_load_LUT no')
 
         mmap_ptr => NULL()
         if(associated(OPP%Tdir%c)) then
@@ -1295,7 +1309,23 @@ end subroutine
         endif
         OPP%Tdir%c => mmap_ptr
 
+        call CHKERR(ierr, 'Could not generate mmap for LUT. '//new_line('')// &
+          '  If the binary dump (*.mmap) file does not yet exist, '//new_line('')// &
+          '  You probably need to run the createLUT program first '//new_line('')// &
+          '  or run with the additional option:'//new_line('')// &
+          '    -skip_load_LUT no')
+
       else
+        if(myid.eq.0) then
+          if(.not.associated(OPP%Sdir%c)) then
+            call CHKERR(1_mpiint, 'LUT data is not loaded. '//new_line('')// &
+            '  Somehow we ended up in a situation where we would like to distribute'//new_line('')// &
+            '  the LUT`s via MPI but rank 0 does not have the info. '//new_line('')// &
+            '  Did you use the option: -skip_load_LUT ? '//new_line('')// &
+            '  Maybe try to set it to -skip_load_LUT no')
+          endif
+        endif
+
         if( mpi_logical_or(comm, .not.associated(OPP%Sdir%c) )) &
           call imp_bcast(comm, OPP%Sdir%c, 0_mpiint)  ! DIRECT 2 DIRECT
 
