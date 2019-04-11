@@ -10,6 +10,7 @@ module m_example_pprts_rrtm_iterations
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
 
   use m_helper_functions, only : linspace, CHKERR
+  use m_search, only: search_sorted_bisection
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
@@ -17,7 +18,8 @@ module m_example_pprts_rrtm_iterations
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
 
-  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm
+  use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, &
+    destroy_tenstr_atm, print_tenstr_atm
 
   implicit none
 
@@ -59,7 +61,7 @@ contains
     character(len=default_str_len) :: atm_filename ! ='afglus_100m.dat'
 
     !------------ Local vars ------------------
-    integer(iintegers) :: k, nlev, icld
+    integer(iintegers) :: k, nlev, icld(2)
     integer(iintegers),allocatable :: nxproc(:), nyproc(:)
 
     ! reshape pointer to convert i,j vecs to column vecs
@@ -94,10 +96,10 @@ contains
     call init_mpi_data_parameters(comm)
 
     ! Start with a dynamics grid ranging from 1000 hPa up to 500 hPa and a
-    ! Temperature difference of 50K
+    ! Temperature difference of 30K
     do k=1,nzp+1
       plev(k,:,:) = linspace(k, [1e3_ireals, 500._ireals], nzp+1)
-      tlev(k,:,:) = linspace(k, [288._ireals, 250._ireals], nzp+1)
+      tlev(k,:,:) = linspace(k, [290._ireals, 260._ireals], nzp+1)
     enddo
 
     ! Not much going on in the dynamics grid, we actually don't supply trace
@@ -112,14 +114,15 @@ contains
 
     ! define a cloud, with liquid water content and effective radius 10 micron
     lwc = 0
-    reliq = 0
+    reliq = 10
 
-    icld = int(real(nzp+1)/2)
-    lwc  (icld, :,:) = 1e-2
-    reliq(icld, :,:) = 10
+    icld(1) = nint(search_sorted_bisection(plev(:,1,1), 800._ireals))
+    icld(2) = nint(search_sorted_bisection(plev(:,1,1), 700._ireals))
+
+    lwc  (icld(1):icld(2), :,:) = 1e-2
 
     !tlev (icld  , :,:) = 288
-    tlev (icld+1, :,:) = tlev (icld  , :,:)
+    !tlev (icld+1, :,:) = tlev (icld  , :,:)
 
     if(myid.eq.0 .and. ldebug) print *,'Setup Atmosphere...'
 
@@ -161,6 +164,7 @@ contains
       call setup_tenstr_atm(comm, .False., atm_filename, &
         pplev, ptlev, atm, &
         d_lwc=plwc, d_reliq=preliq)
+      if(iter.eq.1.and.myid.eq.0) call print_tenstr_atm(atm)
 
       if(myid.eq.0) print *,'theta0 =', theta
       call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
