@@ -368,7 +368,7 @@ subroutine loadLUT_diff(OPP, comm, skip_load_LUT)
     integer(iintegers) :: errcnt
     character(default_str_len) :: descr, str(3)
 
-    integer(mpiint) :: comm_size, myid, ierr
+    integer(mpiint) :: comm_size, myid
 
     call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
     call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
@@ -411,7 +411,7 @@ subroutine loadLUT_dir(OPP, comm, skip_load_LUT)
     integer(iintegers) :: errcnt
     character(default_str_len) :: descr, str(3)
 
-    integer(mpiint) :: comm_size, myid, ierr
+    integer(mpiint) :: comm_size, myid
 
     call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
     call MPI_Comm_size(comm, comm_size, mpierr); call CHKERR(mpierr)
