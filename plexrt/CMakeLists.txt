@@ -11,8 +11,8 @@ set( general_sources
 
 add_library( plexrt_objs OBJECT ${general_sources} )
 add_dependencies( plexrt_objs
-  pprts_base_objs
-  f2c_rayli_objs )
+  pprts_base
+  f2c_rayli)
 
 add_library( plexrt $<TARGET_OBJECTS:plexrt_objs> )
 target_link_libraries(plexrt

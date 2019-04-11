@@ -2223,6 +2223,8 @@ module m_pprts
     real(ireals),pointer,dimension(:,:,:,:) :: xv_diff=>null()
     real(ireals),pointer,dimension(:)       :: xv_diff1d=>null()
     integer(iintegers) :: i,j,idof
+    integer(iintegers) :: Nmu
+    logical :: lflg
 
     real(ireals),allocatable :: dtau(:),Edn(:),Eup(:)
 
@@ -2244,6 +2246,10 @@ module m_pprts
     allocate( Eup(C_diff%zm) )
     allocate( Edn(C_diff%zm) )
 
+    Nmu = 10
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-schwarzschild_Nmu" , Nmu, lflg , ierr) ;call CHKERR(ierr)
+
     if(solver%myid.eq.0 .and. ldebug) print *,' CALCULATING schwarzschild ::'
 
     do j = C_diff%ys, C_diff%ye
@@ -2251,7 +2257,7 @@ module m_pprts
 
         dtau = atm%dz(atmk(atm, C_one%zs):C_one%ze, i, j)* atm%kabs(atmk(atm, C_one%zs):C_one%ze, i, j)
 
-        call schwarzschild(dtau, atm%albedo(i,j), Edn, Eup, atm%planck(atmk(atm, C_one1%zs):C_one1%ze, i, j))
+        call schwarzschild(Nmu, dtau, atm%albedo(i,j), Edn, Eup, atm%planck(atmk(atm, C_one1%zs):C_one1%ze, i, j))
 
         do idof = 0, solver%difftop%dof-1
           if (solver%difftop%is_inward(i1+idof)) then ! Edn

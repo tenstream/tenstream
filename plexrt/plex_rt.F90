@@ -2676,10 +2676,16 @@ module m_plex_rt
     real(ireals), pointer :: xkabs(:), xalbedo(:), xplck(:), xsrfc_emission(:), xediff(:), xgeoms(:)
     type(tPetscSection) :: ediff_section, geom_section
 
+    integer(iintegers) :: Nmu
+    logical :: lflg
     integer(mpiint) :: ierr
 
     if(solution%lsolar_rad) call CHKERR(1_mpiint, 'Tried calling schwarschild solver for solar calculation -- stopping!')
     if( .not. allocated(solver%plck) ) call CHKERR(1_mpiint, 'Tried calling schwarschild solver but no planck was given -- stopping!')
+
+    Nmu = 10
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-schwarzschild_Nmu" , Nmu, lflg , ierr) ;call CHKERR(ierr)
 
     associate( plex => solver%plex )
 
@@ -2721,7 +2727,7 @@ module m_plex_rt
         enddo
         Blev(k) = xsrfc_emission(i)
 
-        call schwarzschild(dtau, xalbedo(i), Edn, Eup, Blev)
+        call schwarzschild(Nmu, dtau, xalbedo(i), Edn, Eup, Blev)
 
         do k = 0, ke1-2
           call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
