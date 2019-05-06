@@ -7,7 +7,7 @@ module m_example_pprts_rrtmg_hill
   ! Import datatype from the TenStream lib. Depending on how PETSC is
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
-  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, default_str_len
+  use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, i1, default_str_len
 
   use m_helper_functions, only : linspace, CHKERR, meanval, itoa
   use m_search, only: search_sorted_bisection
@@ -25,6 +25,13 @@ module m_example_pprts_rrtmg_hill
   implicit none
 
 contains
+
+  real(ireals) function hill_pressure_deficiency(jglob, ny_glob, hill_dP, hill_shape) result(dP)
+    integer(iintegers), intent(in) :: jglob, ny_glob
+    real(ireals), intent(in) :: hill_dP, hill_shape
+    dP = hill_dP / ( 1._ireals + ((real(jglob, ireals)-(real(ny_glob, ireals)+1._ireals)/2._ireals)/hill_shape)**2 )
+  end function
+
   subroutine example_pprts_rrtmg_hill(nxp, nyp, nzp, dx, dy)
 
     implicit none
@@ -104,8 +111,10 @@ contains
     do j=1,nyp
       jglob = j + nyp*myid
       ! dP gives pressure deficiency of hill, i.e. highest val at hill center
-      dP = hill_dP / ( 1 + ((jglob-(nyp*numnodes+1)/2._ireals)/hill_shape)**2 ) &
-         - hill_dP / ( 1 + ((    1-(nyp*numnodes+1)/2._ireals)/hill_shape)**2 )
+      !dP = hill_dP / ( 1 + ((jglob-(nyp*numnodes+1)/2._ireals)/hill_shape)**2 ) &
+      !   - hill_dP / ( 1 + ((    1-(nyp*numnodes+1)/2._ireals)/hill_shape)**2 )
+      dp = hill_pressure_deficiency(jglob, nyp*numnodes, hill_dP, hill_shape) &
+          -hill_pressure_deficiency(   i1, nyp*numnodes, hill_dP, hill_shape)
       dP = max(0._ireals, dP)
 
       do k=1,nzp+1
@@ -133,7 +142,7 @@ contains
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-lwc", cld_lwc, lflg, ierr)
     do j=1,nyp
       jglob = j + nyp*myid
-      if( abs(jglob - (nyp*numnodes+1)/2._ireals).le. 2 ) then
+      if( abs(jglob - (nyp*numnodes+1)/2).le. 2 ) then
         icld(1) = nint(search_sorted_bisection(plev(:,1,j), 750._ireals))
         icld(2) = nint(search_sorted_bisection(plev(:,1,j), 700._ireals))
 
@@ -239,7 +248,8 @@ contains
       outpath(2) = itoa(myid)//'edn' ; call ncwrite(outpath, edn , ierr); call CHKERR(ierr)
       outpath(2) = itoa(myid)//'eup' ; call ncwrite(outpath, eup , ierr); call CHKERR(ierr)
       outpath(2) = itoa(myid)//'abso'; call ncwrite(outpath, abso, ierr); call CHKERR(ierr)
-      outpath(2) = itoa(myid)//'zt'; call ncwrite(outpath, reshape(atm%zt, [size(atm%zt,dim=1),nxp,nyp]), ierr); call CHKERR(ierr)
+      outpath(2) = itoa(myid)//'zt'; call ncwrite(outpath, &
+        reshape(atm%zt, [int(size(atm%zt,dim=1), iintegers),nxp,nyp]), ierr); call CHKERR(ierr)
       outpath(2) = itoa(myid)//'dz'; call ncwrite(outpath, pprts_solver%atm%dz, ierr); call CHKERR(ierr)
     enddo
 

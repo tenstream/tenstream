@@ -85,7 +85,7 @@ public schwarzschild
 
         else
 
-          dmu = one/Nmu
+          dmu = one/real(Nmu, ireals)
           ! Transmission coefficients
           do imu=1,Nmu
             mu = (real(imu, ireals)-.5_ireals)*dmu
@@ -220,8 +220,8 @@ public schwarzschild
 
           !        iteration finished--calculate weights, abscissae for (-1,1)
 
-          gmu( k ) = - x
-          gwt( k ) = two / ( tmp * ( en * pm2 )**2 )
+          gmu( k ) = - real(x, kind(gmu))
+          gwt( k ) = real(two / ( tmp * ( en * pm2 )**2 ), kind(gmu))
           gmu( np1 - k ) = - gmu( k )
           gwt( np1 - k ) =   gwt( k )
 
@@ -235,7 +235,7 @@ public schwarzschild
           do  k = 3, m, 2
             prod = prod * k / ( k-1 )
           enddo
-          gwt( lim + 1 ) = two / prod**2
+          gwt( lim + 1 ) = real(two / prod**2, kind(gmu))
         endif
 
         !     convert from (-1,1) to (0,1) and resort
