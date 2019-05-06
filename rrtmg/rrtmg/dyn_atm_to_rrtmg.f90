@@ -142,8 +142,8 @@ module m_dyn_atm_to_rrtmg
       real(ireals),intent(in),optional :: d_reice  (:,:)      ! ice effective radius           [micron]
       real(ireals),intent(in),optional :: d_surface_height(:) ! surface height above sea       [m]
 
-
       integer(iintegers) :: icol
+      integer(mpiint) :: ierr
 
       if(lTOA_to_srfc) then
         call CHKERR(1_mpiint, 'currently not possible to supply dynamics input starting at the TOP,'// &
@@ -154,15 +154,17 @@ module m_dyn_atm_to_rrtmg
 
       if(.not.allocated(atm%bg_atm)) then
         call load_atmfile(comm, atm_filename, atm%bg_atm)
-        call sanitize_input(.True., atm%bg_atm%plev, atm%bg_atm%tlev, atm%bg_atm%tlay)
+        call sanitize_input(.True., atm%bg_atm%plev, atm%bg_atm%tlev, ierr, atm%bg_atm%tlay)
+        call CHKERR(ierr, 'bad input in bg_atmosphere file')
       endif
 
       do icol=lbound(d_plev,2),ubound(d_plev,2)
         if(present(d_tlay)) then
-          call sanitize_input(lTOA_to_srfc, d_plev(:,icol), d_tlev(:,icol), d_tlay(:,icol))
+          call sanitize_input(lTOA_to_srfc, d_plev(:,icol), d_tlev(:,icol), ierr, d_tlay(:,icol))
         else
-          call sanitize_input(lTOA_to_srfc, d_plev(:,icol), d_tlev(:,icol))
+          call sanitize_input(lTOA_to_srfc, d_plev(:,icol), d_tlev(:,icol), ierr)
         endif
+        call CHKERR(ierr, 'bad input from dynamics grid, column: '//itoa(icol))
       enddo
 
       call merge_dyn_rad_grid(comm, atm, &
@@ -589,23 +591,22 @@ module m_dyn_atm_to_rrtmg
       endif
     end subroutine
 
-    subroutine sanitize_input(lTOA_to_srfc, plev, tlev, tlay)
+    subroutine sanitize_input(lTOA_to_srfc, plev, tlev, ierr, tlay)
       logical, intent(in) :: lTOA_to_srfc
       real(ireals),intent(in),dimension(:) :: plev, tlev
+      integer(mpiint), intent(out) :: ierr
       real(ireals),intent(in),dimension(:),optional :: tlay
-
-      integer(mpiint) :: errcnt
       integer(iintegers) :: k
       logical :: lerr
 
-      errcnt = 0
+      ierr = 0
 
       lerr = .not.assert_arr_is_monotonous(plev, lincreasing=lTOA_to_srfc, lstrict=.True.)
       if(lerr) then
         print *,'Pressure is not strictly monotous decreasing, however, '// &
           'we need this for hydrostatic integration. '// &
           'If you cannot guarantee that, please ask me for non-hydrostatic support.', plev
-        errcnt = errcnt+1
+        ierr = ierr+1
       endif
 
       if(lTOA_to_srfc) then
@@ -615,7 +616,7 @@ module m_dyn_atm_to_rrtmg
       endif
       if(lerr) then
         print *,'Pressure above 1050 hPa -- are you sure this is earth?', maxval(plev)
-        errcnt = errcnt+1
+        ierr = ierr+1
       endif
 
       if(lTOA_to_srfc) then
@@ -625,19 +626,25 @@ module m_dyn_atm_to_rrtmg
       endif
       if(lerr) then
         print *,'Pressure negative -- are you sure this is physically correct?', minval(plev)
-        errcnt = errcnt+1
+        ierr = ierr+1
       endif
 
       lerr = minval(tlev) .lt. 180
       if(lerr) then
         print *,'Temperature is very low -- are you sure RRTMG can handle that?', minval(tlev)
-        errcnt = errcnt+1
+        do k=lbound(tlev,1), ubound(tlev,1)
+          print *,'lev',k,'T',tlev(k)
+        enddo
+        ierr = ierr+1
       endif
 
       lerr = maxval(tlev) .gt. 400
       if(lerr) then
         print *,'Temperature is very high -- are you sure RRTMG can handle that?', maxval(tlev)
-        errcnt = errcnt+1
+        do k=lbound(tlev,1), ubound(tlev,1)
+          print *,'lev',k,'T',tlev(k)
+        enddo
+        ierr = ierr+1
       endif
 
       if(present(tlay) .and. ldebug) then
@@ -645,14 +652,13 @@ module m_dyn_atm_to_rrtmg
           lerr = (tlay(k)-tlev(k).ge.zero) .eqv. (tlay(k)-tlev(k+1).gt.zero) ! different sign says its in between
           if(lerr) then
             print *,'Layer Temperature not between level temps?', k, tlev(k), '|', tlay(k), '|', tlev(k+1)
-            errcnt = errcnt+1
+            ierr = ierr+1
           endif
         enddo
       endif
 
-      if(errcnt.gt.0) then
-        print *,'Found wonky input to pprts_rrtm_lw -- please check! -- will abort now.'
-        call CHKERR(errcnt)
+      if(ierr.gt.0) then
+        print *,'Found wonky input to pprts_rrtm_lw -- please check! -- you should probably abort now.'
       endif
     end subroutine
 

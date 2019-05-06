@@ -644,11 +644,7 @@ contains
 
     allocate(integral_coeff(ke))
 
-    if(present(theta2d).and.present(phi2d)) then
-      call set_angles(solver, phi0, theta0, phi2d=phi2d, theta2d=theta2d)
-    else
-      call set_angles(solver, phi0, theta0)
-    endif
+    call set_angles(solver, phi0, theta0, phi2d=phi2d, theta2d=theta2d)
 
     if(lrrtmg_only) then
       do j=1,je
