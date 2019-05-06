@@ -676,6 +676,7 @@ module m_pprts
     integer(iintegers) :: i,j,k
     real(ireals) :: newtheta, newphi, xsun(3)
     real(ireals) :: rotmat(3, 3), newxsun(3)
+    integer(mpiint) :: comm, myid, ierr
 
     if(.not.allocated(sun%theta)) call CHKERR(1_mpiint, 'You called  setup_topography() &
         &but the sun struct is not yet up, make sure setup_suninfo is called before')
@@ -683,6 +684,9 @@ module m_pprts
         &but the atm struct is not yet up, make sure we have atm%dz before')
 
     call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
+
+    call PetscObjectGetComm(C_one%da, comm, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     call getVecPointer(vgrad_x , C_one1%da, grad_x1d, grad_x)
     call getVecPointer(vgrad_y , C_one1%da, grad_y1d, grad_y)
@@ -694,41 +698,42 @@ module m_pprts
                      (/3, 3/), order=(/2, 1/) )
 
     do j=C_one%ys,C_one%ye
-        do i=C_one%xs,C_one%xe
+      do i=C_one%xs,C_one%xe
+        do k=C_one%zs,C_one%ze
 
-            ! if we are at the global boundary we have to take that the gradient does not get too
-            ! steep. That wouldnt make sense for cyclic boundaries... ! todo: check what we should do?
-            !if(i.eq.i0 .or. i.eq.C_one%glob_xm-i1 .or. j.eq.i0 .or. j.eq.C_one%glob_ym-i1) then
-            !   !print *,solver%myid,'global edge at:',i,j
-            !    cycle
-            !endif
+          ! if we are at the global boundary we have to take care that the gradient does not get too
+          ! steep. That wouldnt make sense for cyclic boundaries... ! todo: check what we should do?
+          !if(i.eq.i0 .or. i.eq.C_one%glob_xm-i1 .or. j.eq.i0 .or. j.eq.C_one%glob_ym-i1) then
+          !   !print *,solver%myid,'global edge at:',i,j
+          !    cycle
+          !endif
 
-            do k=C_one%zs,C_one%ze
+          ! Vector of sun direction
+          xsun(1) = sin(deg2rad(sun%theta(k,i,j)))*sin(deg2rad(sun%phi(k,i,j)))
+          xsun(2) = sin(deg2rad(sun%theta(k,i,j)))*cos(deg2rad(sun%phi(k,i,j)))
+          xsun(3) = cos(deg2rad(sun%theta(k,i,j)))
 
+          xsun = xsun / norm2(xsun)
 
-                ! Vector of sun direction
-                xsun(1) = sin(deg2rad(sun%theta(k,i,j)))*sin(deg2rad(sun%phi(k,i,j)))
-                xsun(2) = sin(deg2rad(sun%theta(k,i,j)))*cos(deg2rad(sun%phi(k,i,j)))
-                xsun(3) = cos(deg2rad(sun%theta(k,i,j)))
+          rotmat(3, 1) = grad_x(i0, k, i, j)
+          rotmat(3, 2) = grad_y(i0, k, i, j)
 
-                xsun = xsun / norm2(xsun)
+          newxsun = matmul(rotmat, xsun)
+          newxsun = newxsun / norm2(newxsun)
 
-                rotmat(3, 1) = grad_x(i0, k, i, j)
-                rotmat(3, 2) = grad_y(i0, k, i, j)
+          newtheta = rad2deg(acos(newxsun(3)))
 
-                newxsun = matmul(rotmat, xsun)
+          !newphi in meteorologiecal definitions: clockwise from y-axis
+          newphi = rad2deg(atan2(newxsun(1), newxsun(2)))
 
-                newtheta = rad2deg(atan2(sqrt(newxsun(1)**2 + newxsun(2)**2), newxsun(3)))
+          !if(i.eq.C_one1%xs.and.k.eq.C_one%ze) print *,myid,i,j,k, &
+          !  '::', sun%theta(k,i,j), newtheta, &
+          !  '::', sun%phi  (k,i,j), newphi
 
-                !newphi in meteorologiecal definitions: clockwise from y-axis
-                newphi = rad2deg(atan2(newxsun(1), newxsun(2)))
-
-                ! if(i.eq.C_one1%xs) print *,solver%myid,i,j,k, '::',hhl(i0,k+1,i,j-1:j+1),'::', grad ,'::',sun%angles(k,i,j)%theta, newtheta, '::', sun%angles(k,i,j)%phi, newphi
-
-                sun%theta(k,i,j) = max(zero, min( 90._ireals, newtheta ))
-                sun%phi  (k,i,j) = newphi
-            enddo
+          sun%theta(k,i,j) = max(zero, min( 90._ireals, newtheta ))
+          sun%phi  (k,i,j) = newphi
         enddo
+      enddo
     enddo
 
     call restoreVecPointer(vgrad_x, grad_x1d, grad_x)
@@ -1839,6 +1844,14 @@ module m_pprts
       integer(iintegers)   :: i, j, k, d, iside
       real(ireals)         :: Ax, Ay, Az, fac
 
+      logical :: lslope_correction, lflg
+      type(tVec)           :: vgrad_x, vgrad_y
+      real(ireals),pointer :: grad_x  (:,:,:,:) =>null()
+      real(ireals),pointer :: grad_x1d(:)       =>null()
+      real(ireals),pointer :: grad_y  (:,:,:,:) =>null()
+      real(ireals),pointer :: grad_y1d(:)       =>null()
+      real(ireals) :: grad(3)
+
       associate(  atm     => solver%atm,    &
                   C_one1  => solver%C_one1)
 
@@ -1884,6 +1897,37 @@ module m_pprts
           enddo
         enddo
       enddo
+
+      lslope_correction = solver%sun%luse_topography
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-slope_correction", lslope_correction, lflg,ierr) ; call CHKERR(ierr)
+      if(lslope_correction) then ! This is direct rad and we use topography
+        call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
+
+        call getVecPointer(vgrad_x , C_one1%da, grad_x1d, grad_x)
+        call getVecPointer(vgrad_y , C_one1%da, grad_y1d, grad_y)
+
+        do j=C%ys,C%ye
+          do i=C%xs,C%xe
+            do k=C%zs,C%ze
+              !do k=C%ze,C%ze !TODO do we need it everywhere in the atmosphere or just at the surface?
+              grad(1) = grad_x(i0,k,i,j)
+              grad(2) = grad_y(i0,k,i,j)
+              grad(3) = one
+              grad = grad / norm2(grad)
+
+              do iside=0,solver%dirtop%dof-1
+                xv(iside,k,i,j) = xv(iside,k,i,j) / grad(3)
+              enddo
+            enddo
+          enddo
+        enddo
+
+        call restoreVecPointer(vgrad_x, grad_x1d, grad_x)
+        call restoreVecPointer(vgrad_y, grad_y1d, grad_y)
+
+        call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  call CHKERR(ierr)
+        call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  call CHKERR(ierr)
+      endif
 
       call restoreVecPointer(v, xv1d, xv )
 
@@ -1955,64 +1999,6 @@ module m_pprts
           enddo
         enddo
       enddo
-
-      if(solver%sun%luse_topography) then ! This is direct rad and we use topography !todo do we need this?
-        call CHKERR(1_mpiint, 'Dont know how i should rescale topography! - exit...')
-        !select case (C%dof)
-
-        !case(i8)
-        !  call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
-
-        !  call getVecPointer(vgrad_x , C_one1%da, grad_x1d, grad_x)
-        !  call getVecPointer(vgrad_y , C_one1%da, grad_y1d, grad_y)
-
-        !  do j=C%ys,C%ye
-        !    do i=C%xs,C%xe
-        !      do k=C%zs,C%ze
-        !        grad(1) = grad_x(i0,k,i,j)
-        !        grad(2) = grad_y(i0,k,i,j)
-        !        grad(3) = one
-
-        !        xv(i0:i3,k,i,j) = xv(i0:i3,k,i,j) / norm2(grad)
-        !      enddo
-        !    enddo
-        !  enddo
-
-        !  call restoreVecPointer(vgrad_x, grad_x1d, grad_x)
-        !  call restoreVecPointer(vgrad_y, grad_y1d, grad_y)
-
-        !  call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  call CHKERR(ierr)
-        !  call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  call CHKERR(ierr)
-
-        !case(i6)
-        !  ! Dont rescale diffuse fluxes
-
-        !case(i10)
-
-        !  ! Dont rescale diffuse fluxes
-
-        !  ! call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
-
-        !  ! call getVecPointer(vgrad_x , C_one1%da, grad_x1d, grad_x)
-        !  ! call getVecPointer(vgrad_y , C_one1%da, grad_y1d, grad_y)
-
-        !  !do j=C%ys,C%ye
-        !  !  do i=C%xs,C%xe
-        !  !    do k=C%zs,C%ze
-        !  !      grad(1) = grad_x(i0,k,i,j)
-        !  !      grad(2) = grad_y(i0,k,i,j)
-        !  !      grad(3) = one
-
-        !  !      xv([E_up, E_dn],k,i,j) = xv([E_up, E_dn],k,i,j) / norm2(grad)
-        !  !    enddo
-        !  !  enddo
-        !  !enddo
-
-        !case default
-        !  call CHKERR(1_mpiint, 'Dont know how I should topography rescale this! - exiting...')
-        !end select
-      endif
-
       call restoreVecPointer(v, xv1d, xv )
 
     end subroutine
