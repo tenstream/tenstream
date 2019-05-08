@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_helper_functions
-  use iso_fortran_env, only: INT32, INT64, REAL32, REAL64
+  use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
   use m_data_parameters,only : iintegers, mpiint, ireals, irealLUT, ireal_dp, &
     i1, pi, pi32, pi64, zero, one, imp_ireals, imp_REAL32, imp_REAL64, imp_logical, default_str_len, &
     imp_int4, imp_int8, imp_iinteger
@@ -63,7 +63,7 @@ module m_helper_functions
     module procedure deg2rad_r32, deg2rad_r64
   end interface
   interface approx
-    module procedure approx_r32, approx_r64
+    module procedure approx_r32, approx_r64, approx_r128
   end interface
   interface distance
     module procedure distance_r32, distance_r64
@@ -475,6 +475,23 @@ module m_helper_functions
       mean = sum(arr)/size(arr)
     end function
 
+    elemental logical function approx_r128(a,b,precis) result(approx)
+      real(REAL128),intent(in) :: a,b
+      real(REAL128),intent(in),optional :: precis
+      real(REAL128) :: factor
+      if(present(precis) ) then
+        factor = precis
+      else
+        factor = 10._REAL128*epsilon(b)
+      endif
+      if( a.lt.b-factor ) then
+        approx = .False.
+      elseif(a.gt.b+factor) then
+        approx = .False.
+      else
+        approx = .True.
+      endif
+    end function
     elemental logical function approx_r64(a,b,precis) result(approx)
       real(REAL64),intent(in) :: a,b
       real(REAL64),intent(in),optional :: precis
