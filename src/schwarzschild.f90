@@ -25,6 +25,7 @@ module m_schwarzschild
 #endif
 
 use m_data_parameters, only: ireals,iintegers,zero,one,pi
+use m_helper_functions, only: get_arg
 implicit none
 
 private
@@ -32,17 +33,19 @@ public schwarzschild
 
     contains
 
-      subroutine schwarzschild(Nmu, dtau, albedo, Edn, Eup, planck)
+      subroutine schwarzschild(Nmu, dtau, albedo, Edn, Eup, planck, opt_srfc_emission)
         integer(iintegers), intent(in) :: Nmu
         real(ireals),intent(in),dimension(:) :: dtau
         real(ireals),intent(in) :: albedo
         real(ireals),dimension(:),intent(out):: Edn,Eup
         real(ireals),dimension(:),intent(in) :: planck
+        ! planck value specific for surface. i.e. overrides last planck value
+        real(ireals), intent(in), optional :: opt_srfc_emission
 
         integer(iintegers) :: imu,k,ke,ke1
 
         real(ireals) :: T(size(dtau)) ! Transmission coefficients
-        real(ireals) :: Lup, Ldn, B
+        real(ireals) :: Lup, Ldn, B, Bsrfc
         real(ireals) :: dmu, mu
         real(ireals) :: legendre_wi(Nmu)
         real(ireals) :: legendre_pt(Nmu)
@@ -53,6 +56,8 @@ public schwarzschild
 
         ke = size(dtau)
         ke1 = ke+1
+
+        Bsrfc = get_arg(planck(ke1), opt_srfc_emission)
 
         if(use_legendre) then
           call dgauss(size(legendre_wi), legendre_pt, legendre_wi)
@@ -72,7 +77,7 @@ public schwarzschild
             enddo
 
             ! Boundary conditions at surface
-            Lup = planck(ke1) * (one-albedo) + albedo*Ldn
+            Lup = Bsrfc * (one-albedo) + albedo*Ldn
             Eup(ke1) = Eup(ke1) + Lup*mu*legendre_wi(imu)
 
             do k=ke,1,-1
@@ -104,7 +109,7 @@ public schwarzschild
             enddo
 
             ! Boundary conditions at surface
-            Lup = planck(ke1) * (one-albedo) + albedo*Ldn
+            Lup = Bsrfc * (one-albedo) + albedo*Ldn
             Eup(ke1) = Eup(ke1) + Lup*mu
 
             do k=ke,1,-1

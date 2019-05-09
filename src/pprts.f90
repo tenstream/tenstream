@@ -240,17 +240,9 @@ module m_pprts
       if(present(nxproc) .and. present(nyproc) ) then
         if(ldebug.and.solver%myid.eq.0) print *,'nxproc',shape(nxproc),'::',nxproc
         if(ldebug.and.solver%myid.eq.0) print *,'nyproc',shape(nyproc),'::',nyproc
-        if(present(collapseindex)) then
-          call setup_grid(solver, Nz, Nx, Ny, nxproc,nyproc, collapseindex=collapseindex)
-        else
-          call setup_grid(solver, Nz, Nx, Ny, nxproc,nyproc)
-        endif
+        call setup_grid(solver, Nz, Nx, Ny, nxproc,nyproc, collapseindex=collapseindex)
       else
-        if(present(collapseindex)) then
-          call setup_grid(solver, Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny), collapseindex=collapseindex)
-        else
-          call setup_grid(solver, Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny) )
-        endif
+        call setup_grid(solver, Nz, max(minimal_dimension, Nx), max(minimal_dimension, Ny), collapseindex=collapseindex)
       endif
 
       call setup_atm()
@@ -258,8 +250,9 @@ module m_pprts
       ! init work vectors
       call init_memory(solver%C_dir, solver%C_diff, solver%incSolar, solver%b)
 
+      if(present(solvername)) solver%solvername = trim(solver%solvername)//trim(solvername)
       ! init petsc logging facilities
-      call setup_log_events(solver%logs, solvername)
+      call setup_log_events(solver%logs, solver%solvername)
 
       solver%linitialized = .True.
     else
@@ -1290,13 +1283,6 @@ module m_pprts
       if(.not.allocated(atm%planck)) &
         allocate(atm%planck(C_one_atm1%zs:C_one_atm1%ze, C_one_atm1%xs:C_one_atm1%xe, C_one_atm1%ys:C_one_atm1%ye))
       atm%planck = local_planck
-      if(atm%lcollapse) then
-          !TODO: this does not work at the moment
-          print *,'You are trying to collapse the atmosphere in the thermal &
-                    &spectral range... this is not possible at the moment or at least not &
-                    &tested.'
-          ierr = 1; call CHKERR(ierr)
-      endif
     else
       if(allocated(atm%planck)) deallocate(atm%planck)
     endif
@@ -1441,19 +1427,7 @@ module m_pprts
       ! bottom.
       atm%a21 = atm%a12
       atm%a22 = atm%a11
-      if(atm%lcollapse) then
-        do j=C_one_atm%ys,C_one_atm%ye
-          do i=C_one_atm%xs,C_one_atm%xe
-            call adding(atm%a11(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-              atm%a12(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-              atm%a21(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-              atm%a22(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-              atm%a13(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-              atm%a23(C_one_atm%zs:atmk(atm, C_one%zs), i, j), &
-              atm%a33(C_one_atm%zs:atmk(atm, C_one%zs), i, j))
-          enddo !i
-        enddo !j
-      endif !lcollapse
+      call handle_atm_collapse()
     endif
 
     if(ldebug .and. solver%myid.eq.0) then
@@ -1475,71 +1449,122 @@ module m_pprts
     call PetscLogEventEnd(solver%logs%set_optprop, ierr); call CHKERR(ierr)
 
     contains
-        subroutine adding(a11,a12,a21,a22,a13,a23,a33)
-            real(ireals),intent(inout),dimension(:) :: a11,a12,a21,a22,a13,a23,a33
-            real(ireals) :: t, r, rdir, sdir, tdir
+      subroutine handle_atm_collapse()
+        real(ireals), allocatable :: Eup(:), Edn(:)
+        integer(iintegers) :: i,j,ak
+        associate( atm => solver%atm, &
+            C_one     => solver%C_one, &
+            C_one_atm => solver%C_one_atm )
 
-            integer(iintegers) :: N ! = size(a11)
-            integer(iintegers) :: k
-            real(ireals) :: rl, tl, Tbot, Ttop, Rbot, Rtop
-            N = size(a11)
+          if(atm%lcollapse) then
+            ak = atmk(atm, C_one%zs)
+            if(ak.ne.i1) then
+              if(present(local_planck)) allocate(Edn(C_one_atm%zs:ak+1), Eup(C_one_atm%zs:ak+1))
+              do j=C_one_atm%ys,C_one_atm%ye
+                do i=C_one_atm%xs,C_one_atm%xe
+                  if(present(local_planck)) then
+                    call adding(&
+                      atm%a11(C_one_atm%zs:ak, i, j), &
+                      atm%a12(C_one_atm%zs:ak, i, j), &
+                      atm%a21(C_one_atm%zs:ak, i, j), &
+                      atm%a22(C_one_atm%zs:ak, i, j), &
+                      atm%a13(C_one_atm%zs:ak, i, j), &
+                      atm%a23(C_one_atm%zs:ak, i, j), &
+                      atm%a33(C_one_atm%zs:ak, i, j), &
+                      atm%dz(C_one_atm%zs:ak, i, j) * atm%kabs(C_one_atm%zs:ak, i, j), &
+                      atm%planck(C_one_atm%zs:ak+1, i, j), &
+                      Eup, Edn)
+                  else
+                    call adding(&
+                      atm%a11(C_one_atm%zs:ak, i, j), &
+                      atm%a12(C_one_atm%zs:ak, i, j), &
+                      atm%a21(C_one_atm%zs:ak, i, j), &
+                      atm%a22(C_one_atm%zs:ak, i, j), &
+                      atm%a13(C_one_atm%zs:ak, i, j), &
+                      atm%a23(C_one_atm%zs:ak, i, j), &
+                      atm%a33(C_one_atm%zs:ak, i, j))
+                  endif
+                enddo !i
+              enddo !j
+            endif
+          endif !lcollapse
+        end associate
+      end subroutine
+      subroutine adding(a11,a12,a21,a22,a13,a23,a33,dtau,planck,Eup,Edn)
+        real(ireals),intent(inout),dimension(:) :: a11,a12,a21,a22,a13,a23,a33
+        real(ireals),intent(in)   ,dimension(:),optional :: dtau
+        real(ireals),intent(inout),dimension(:),optional :: planck, Eup, Edn
+        real(ireals) :: t, r, rdir, sdir, tdir
 
-            t = a11(1)
-            r = a12(1)
+        integer(iintegers) :: N ! = size(a11)
+        integer(iintegers) :: k
+        real(ireals) :: rl, tl, Tbot, Ttop, Rbot, Rtop
+        N = size(a11)
 
-            tdir = a33(1)
-            rdir = a13(1)
-            sdir = a23(1)
+        t = a11(1)
+        r = a12(1)
 
-            ! Reflectivity as seen from top
-            do k=2,N
-                rl = r
-                tl = t
+        tdir = a33(1)
+        rdir = a13(1)
+        sdir = a23(1)
 
-                r = r + (a12(k) * t**2) / (one - r*a12(k))
-                t = t * a11(k) / (one - rl * a12(k))
+        ! Reflectivity as seen from top
+        do k=2,N
+          rl = r
+          tl = t
 
-                sdir = (a11(k) * sdir + tdir * a13(k) * rl * a11(k)) / (one - rl * a12(k)) + tdir * a23(k)
-                rdir = rdir + ( tdir * a13(k) + sdir * a12(k) ) * tl
-                tdir = tdir*a33(k)
-            enddo
+          r = r + (a12(k) * t**2) / (one - r*a12(k))
+          t = t * a11(k) / (one - rl * a12(k))
 
-            Ttop = t
-            Rtop = r
+          sdir = (a11(k) * sdir + tdir * a13(k) * rl * a11(k)) / (one - rl * a12(k)) + tdir * a23(k)
+          rdir = rdir + ( tdir * a13(k) + sdir * a12(k) ) * tl
+          tdir = tdir*a33(k)
+        enddo
 
-            a13(N) = rdir
-            a23(N) = sdir
-            a33(N) = tdir
+        Ttop = t
+        Rtop = r
 
-            t = a22(N)
-            r = a21(N)
-            ! Reflectivity as seen from bottom
-            do k=N-1,1,-1
-                rl = r
-                tl = t
+        a13(N) = rdir
+        a23(N) = sdir
+        a33(N) = tdir
 
-                r = a12(k) + (r * a11(k)**2) / (one - r * a12(k))
-                t = t * a11(k) / (one - rl * a21(k))
-            enddo
+        t = a22(N)
+        r = a21(N)
+        ! Reflectivity as seen from bottom
+        do k=N-1,1,-1
+          rl = r
+          tl = t
 
-            Tbot = t
-            Rbot = r
+          r = a12(k) + (r * a11(k)**2) / (one - r * a12(k))
+          t = t * a11(k) / (one - rl * a21(k))
+        enddo
 
-            a12(N) = Rtop
-            a22(N) = Ttop
-            a11(N) = Tbot
-            a21(N) = Rbot
+        Tbot = t
+        Rbot = r
 
-            a11(1:N-1) = nil
-            a12(1:N-1) = nil
-            a21(1:N-1) = nil
-            a22(1:N-1) = nil
+        a12(N) = Rtop
+        a22(N) = Ttop
+        a11(N) = Tbot
+        a21(N) = Rbot
 
-            a13(1:N-1) = nil
-            a23(1:N-1) = nil
-            a33(1:N-1) = nil
-        end subroutine
-  end subroutine
+        a11(1:N-1) = nil
+        a12(1:N-1) = nil
+        a21(1:N-1) = nil
+        a22(1:N-1) = nil
+
+        a13(1:N-1) = nil
+        a23(1:N-1) = nil
+        a33(1:N-1) = nil
+
+        if(present(planck)) then
+          call schwarzschild(3_iintegers, dtau, 0._ireals, Edn, Eup, planck, &
+            opt_srfc_emission=0._ireals)
+          planck(N) = Edn(N+1) / pi
+          planck(1) = Eup(1) / pi
+          planck(2:N-1) = nil
+        endif
+      end subroutine
+    end subroutine
 
   subroutine set_global_optical_properties(solver, global_albedo, global_kabs, global_ksca, global_g, global_planck)
     class(t_solver),intent(in) :: solver
@@ -2989,7 +3014,7 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
   contains
     subroutine set_thermal_source()
 
-      real(ireals) :: Ax,Ay,Az,emis,b0,b1,bfac !,c1,c2,c3,b1,dtau
+      real(ireals) :: Ax,Ay,Az,emis,b0,b1,btop,bbot,bfac
       real(irealLUT) :: diff2diff1d(4)
       real(irealLUT) :: diff2diff(solver%C_diff%dof**2)
       integer(iintegers) :: k,i,j,src,iside, ak
@@ -3012,27 +3037,36 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
 
             if( atm%l1d(ak,i,j) ) then
 
-              if(luse_eddington ) then
-                emis = min(one, max(zero, one-atm%a11(ak,i,j)-atm%a12(ak,i,j)))
+              bfac = Az * pi / real(solver%difftop%streams, ireals)
+
+              if(atm%lcollapse.and.k.eq.i0) then
+                btop = atm%planck(i0,i,j) * bfac
+                bbot = atm%planck(ak,i,j) * bfac
+
               else
-                call get_coeff(solver, &
-                  atm%kabs(ak,i,j), &
-                  atm%ksca(ak,i,j), &
-                  atm%g(ak,i,j), &
-                  atm%dz(ak,i,j), &
-                  .False., diff2diff1d, &
-                  atm%l1d(ak,i,j))
+                if(luse_eddington ) then
+                  emis = min(one, max(zero, one-atm%a11(ak,i,j)-atm%a12(ak,i,j)))
+                else
+                  call get_coeff(solver, &
+                    atm%kabs(ak,i,j), &
+                    atm%ksca(ak,i,j), &
+                    atm%g(ak,i,j), &
+                    atm%dz(ak,i,j), &
+                    .False., diff2diff1d, &
+                    atm%l1d(ak,i,j))
 
-                emis = one-real(diff2diff1d(1)+diff2diff1d(2), ireals)
+                  emis = one-real(diff2diff1d(1)+diff2diff1d(2), ireals)
+                endif
+
+                btop = (emis*b0 + (one-emis)*b1) * bfac * emis
+                bbot = (emis*b1 + (one-emis)*b0) * bfac * emis
               endif
-
-              bfac = emis * Az * pi / real(solver%difftop%streams, ireals)
 
               do src = 0, solver%difftop%dof-1
                 if (solver%difftop%is_inward(i1+src)) then !Edn
-                  xsrc(src, k+1, i, j) = xsrc(src, k+1, i, j) + (emis*b1 + (one-emis)*b0) * bfac
+                  xsrc(src, k+1, i, j) = xsrc(src, k+1, i, j) + bbot
                 else !E_up
-                  xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + (emis*b0 + (one-emis)*b1) * bfac
+                  xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + btop
                 endif
               enddo
 
@@ -3770,7 +3804,6 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
         redir = zero
       else
         if(.not.solver%solutions(uid)%lWm2_dir) call CHKERR(1_mpiint, 'tried to get result from a result vector(dir) which is not in [W/m2]')
-        if(solver%atm%lcollapse) call CHKERR(1_mpiint, 'pprts_get_result :: lcollapse needs to be implemented')
 
         call getVecPointer(solver%solutions(uid)%edir, solver%C_dir%da, x1d, x4d)
         ! average of direct radiation of all fluxes through top faces

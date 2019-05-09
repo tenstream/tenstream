@@ -114,6 +114,7 @@ module m_pprts_base
   end type
 
   type, abstract :: t_solver
+    character(len=default_str_len)     :: solvername='' ! name to prefix e.g. log stages. If you create more than one solver, make sure that it has a unique name
     integer(mpiint)                    :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
     type(t_coord), allocatable         :: C_dir, C_diff, C_one, C_one1, C_one_atm, C_one_atm1
     type(t_atmosphere),allocatable     :: atm

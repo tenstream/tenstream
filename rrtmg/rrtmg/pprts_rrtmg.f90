@@ -49,7 +49,7 @@ module m_pprts_rrtmg
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
       imp_allreduce_min, imp_allreduce_max, imp_allreduce_mean, &
-      CHKERR, deg2rad, &
+      CHKERR, deg2rad, get_arg, &
       reverse, approx, itoa
   use m_search, only: find_real_location
   use m_petsc_helpers, only: dmda_convolve_ediff_srfc
@@ -74,7 +74,9 @@ contains
 
   subroutine init_pprts_rrtmg(comm, solver, dx, dy, dz, &
                   phi0, theta0, &
-                  xm, ym, zm, nxproc, nyproc)
+                  xm, ym, zm, &
+                  nxproc, nyproc, &
+                  pprts_icollapse)
 
     integer(mpiint), intent(in) :: comm
 
@@ -83,7 +85,7 @@ contains
     class(t_solver),intent(inout) :: solver
 
     ! arrays containing xm and ym for all nodes :: dim[x-ranks, y-ranks]
-    integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:)
+    integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:), pprts_icollapse
 
     if(present(nxproc) .neqv. present(nyproc)) then
       print *,'Wrong call to init_tenstream_rrtm_lw --    &
@@ -91,10 +93,13 @@ contains
             & the domain decomposition, call with nxproc AND nyproc'
       call CHKERR(1_mpiint, 'init_tenstream_rrtm_lw -- missing arguments nxproc or nyproc')
     endif
+
     if(present(nxproc) .and. present(nyproc)) then
-      call init_pprts(comm, zm, xm, ym, dx,dy,phi0, theta0, solver, nxproc=nxproc, nyproc=nyproc, dz3d=dz)
+      call init_pprts(comm, zm, xm, ym, dx,dy,phi0, theta0, solver, nxproc=nxproc, nyproc=nyproc, dz3d=dz, &
+        collapseindex=pprts_icollapse)
     else ! we let petsc decide where to put stuff
-      call init_pprts(comm, zm, xm, ym, dx, dy, phi0, theta0, solver, dz3d=dz)
+      call init_pprts(comm, zm, xm, ym, dx, dy, phi0, theta0, solver, dz3d=dz, &
+        collapseindex=pprts_icollapse)
     endif
 
   end subroutine
@@ -233,9 +238,18 @@ contains
     integer(mpiint) :: myid, ierr
     logical :: lrrtmg_only, lskip_thermal, lflg
 
-    if(present(icollapse)) call CHKERR(1_mpiint, 'Icollapse currently not tested. Dont Use it')
+    integer(iintegers) :: pprts_icollapse
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    pprts_icollapse = get_arg(i1, icollapse)
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+                             "-pprts_collapse" , pprts_icollapse, lflg , ierr) ;call CHKERR(ierr)
+    if(pprts_icollapse.eq.-1) then
+      if(ldebug.and.myid.eq.0) print *,'Collapsing background atmosphere', atm%atm_ke
+      pprts_icollapse = atm%atm_ke ! collapse the complete background atmosphere
+    endif
+    if(pprts_icollapse.ne.i1.and.ldebug.and.myid.eq.0) print *,'Collapsing atmosphere', pprts_icollapse
 
     ke1 = ubound(atm%plev,1)
     ke = ubound(atm%tlay,1)
@@ -254,7 +268,7 @@ contains
 
     if(.not.solver%linitialized) then
       call init_pprts_rrtmg(comm, solver, dx, dy, dz_t2b, phi0, theta0, &
-        ie,je,ke, nxproc, nyproc)
+        ie,je,ke, nxproc, nyproc, pprts_icollapse)
     endif
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
       "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
