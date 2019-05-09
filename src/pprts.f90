@@ -3798,9 +3798,10 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
       endif
 
       if( .not. solver%solutions(uid)%lsolar_rad ) then
-        print *,'Hey, You called pprts_get_result for uid',uid, &
-          'but in this particular band we dont have direct radiation'// &
-          'calculated... I will return with edir=0 but are you sure this is what you intended?'
+        print *,'Hey, You called pprts_get_result for uid '//itoa(uid)// &
+          ' and provided an array for direct radiation.'// &
+          ' However in this particular band we haven`t computed direct radiation.'// &
+          ' I will return with edir=0 but are you sure this is what you intended?'
         redir = zero
       else
         if(.not.solver%solutions(uid)%lWm2_dir) call CHKERR(1_mpiint, 'tried to get result from a result vector(dir) which is not in [W/m2]')
