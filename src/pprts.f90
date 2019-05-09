@@ -29,7 +29,7 @@ module m_pprts
 
   use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, imp_allreduce_min, &
     imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
-    inc, itoa, ftoa, imp_allreduce_mean
+    inc, ltoa, itoa, ftoa, imp_allreduce_mean
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild
@@ -1255,7 +1255,7 @@ module m_pprts
     class(t_solver)                                   :: solver
     real(ireals), intent(in)                          :: albedo
     real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g ! dimensions (Nz  , Nx, Ny)
-    real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny) layer quantity plus surface layer
+    real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny) planck radiation on levels
     real(ireals),intent(in),dimension(:,:),optional   :: local_albedo_2d                 ! dimensions (Nx, Ny)
     logical, intent(in), optional :: ldelta_scaling ! determines if we should try to delta scale these optprops
 
@@ -1287,7 +1287,8 @@ module m_pprts
     if(present(local_g   ) ) atm%g    = local_g
 
     if(present(local_planck) ) then
-      if (.not.allocated(atm%planck) ) allocate( atm%planck   (C_one_atm1%zs:C_one_atm1%ze, C_one_atm1%xs:C_one_atm1%xe, C_one_atm1%ys:C_one_atm1%ye ) )
+      if(.not.allocated(atm%planck)) &
+        allocate(atm%planck(C_one_atm1%zs:C_one_atm1%ze, C_one_atm1%xs:C_one_atm1%xe, C_one_atm1%ys:C_one_atm1%ye))
       atm%planck = local_planck
       if(atm%lcollapse) then
           !TODO: this does not work at the moment
@@ -1301,17 +1302,32 @@ module m_pprts
     endif
 
     if(ldebug) then
-      if( (any([local_kabs,local_ksca,local_g].lt.zero)) .or. (any(isnan([local_kabs,local_ksca,local_g]))) ) then
+      if( any([local_kabs,local_ksca,local_g].lt.zero) ) then
         print *,solver%myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
         do k=C_one_atm%zs,C_one_atm%ze
           print *,solver%myid,k,'local_kabs',local_kabs(k,:,:)
           print *,solver%myid,k,'local_ksca',local_ksca(k,:,:)
         enddo
+        call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in local_optical properties! '//&
+                              ' '//itoa(solver%myid)//&
+                              ' kabs min '//ftoa(minval(local_kabs))//' max '//ftoa(maxval(local_kabs))//&
+                              ' ksca min '//ftoa(minval(local_ksca))//' max '//ftoa(maxval(local_ksca))//&
+                              ' g    min '//ftoa(minval(local_g   ))//' max '//ftoa(maxval(local_g   )))
+      endif
+      if( any(isnan([local_kabs,local_ksca,local_g]))) then
+        call CHKERR(1_mpiint, 'set_optical_properties :: found NaN value in local_optical properties!'//&
+                              ' NaN in local_kabs? '//ltoa(any(isnan(local_kabs)))// &
+                              ' NaN in local_ksca? '//ltoa(any(isnan(local_ksca)))// &
+                              ' NaN in local_g   ? '//ltoa(any(isnan(local_g   ))))
       endif
     endif
     if(ldebug) then
       if( (any([atm%kabs,atm%ksca,atm%g].lt.zero)) .or. (any(isnan([atm%kabs,atm%ksca,atm%g]))) ) then
-        print *,solver%myid,'set_optical_properties :: found illegal value in optical properties! abort!'
+        call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in optical properties! '//&
+                              ' '//itoa(solver%myid)//&
+                              ' kabs min '//ftoa(minval(atm%kabs))//' max '//ftoa(maxval(atm%kabs))//&
+                              ' ksca min '//ftoa(minval(atm%ksca))//' max '//ftoa(maxval(atm%ksca))//&
+                              ' g    min '//ftoa(minval(atm%g   ))//' max '//ftoa(maxval(atm%g   )))
       endif
     endif
 
@@ -1393,7 +1409,7 @@ module m_pprts
                 atm%dz(k,i,j) * max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! tau
                 atm%ksca(k,i,j) / max(tiny(one), atm%kabs(k,i,j) + atm%ksca(k,i,j)), & ! w0
                 atm%g(k,i,j), &
-                sun%costheta(k,i,j), &
+                sun%costheta(i1,i,j), &
                 atm%a11(k,i,j),          &
                 atm%a12(k,i,j),          &
                 atm%a13(k,i,j),          &
@@ -1402,7 +1418,7 @@ module m_pprts
                 atm%g1(k,i,j),           &
                 atm%g2(k,i,j) )
             else
-              !TODO :: we should really not have this memeory accesible at all....
+              !TODO :: we should really not have this memeory accessible at all....
               !     :: the fix would be trivial at the moment, as long as all 1d layers start at same 'k',
               !     :: however if that is to change i.e. on staggered grid, we would need staggered array constructs....
               if(ldebug) then
@@ -2149,7 +2165,10 @@ module m_pprts
         g    = atm%g(:,i,j)
 
         if(allocated(atm%planck) ) then
-          call delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup, planck=atm%planck(:,i,j) )
+          call delta_eddington_twostream(dtau, w0, g, &
+            mu0, incSolar, atm%albedo(i,j), &
+            S, Edn, Eup, &
+            planck=atm%planck(:,i,j) )
         else
           !
           ! call adding_delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
@@ -2577,7 +2596,7 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
   type(tVec) :: nullvecs(0)
   character(len=*),optional :: prefix
 
-  real(ireals),parameter :: rtol=1e-4_ireals, rel_atol=1e-4_ireals
+  real(ireals),parameter :: rtol=1e-5_ireals, rel_atol=1e-5_ireals
   integer(iintegers),parameter  :: maxiter=1000
 
   integer(mpiint) :: myid, numnodes
@@ -2883,7 +2902,7 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
             print *,'direct coeff',norm,'::',v
             call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
           endif
-          v(src:C%dof**2:C%dof) = v(src:C%dof**2:C%dof) / norm
+          v(src:C%dof**2:C%dof) = v(src:C%dof**2:C%dof) / max(norm, tiny(norm))
         enddo
       endif
 
@@ -2970,10 +2989,10 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
   contains
     subroutine set_thermal_source()
 
-      real(ireals) :: Ax,Ay,Az,b0 !,c1,c2,c3,b1,dtau
+      real(ireals) :: Ax,Ay,Az,emis,b0,b1,bfac !,c1,c2,c3,b1,dtau
       real(irealLUT) :: diff2diff1d(4)
-      real(irealLUT) :: diff2diff(solver%C_diff%dof**2),v(solver%C_diff%dof**2)
-      integer(iintegers) :: k,i,j,src,iside
+      real(irealLUT) :: diff2diff(solver%C_diff%dof**2)
+      integer(iintegers) :: k,i,j,src,iside, ak
 
       associate(  atm     => solver%atm, &
                 C_diff  => solver%C_diff)
@@ -2987,109 +3006,108 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
           do k=C_diff%zs,C_diff%ze-1
+            ak = atmk(atm,k)
+            b0 = atm%planck(ak  ,i,j)
+            b1 = atm%planck(ak+1,i,j)
 
-            if( atm%l1d(atmk(atm,k),i,j) ) then
+            if( atm%l1d(ak,i,j) ) then
 
               if(luse_eddington ) then
-
-                b0 = atm%planck(atmk(atm,k),i,j) * &
-                  (one-atm%a11(atmk(atm,k),i,j)-atm%a12(atmk(atm,k),i,j)) * Az * pi &
-                  / real(solver%difftop%streams, ireals)
-
-                do src = 0, solver%difftop%dof-1
-                  if (solver%difftop%is_inward(i1+src)) then !Edn
-                    xsrc(src, k+1, i, j) = xsrc(src, k+1, i, j) + b0
-                  else !E_up
-                    xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + b0
-                  endif
-                enddo
-                !xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) + b0 *Az*pi
-                !xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) + b0 *Az*pi
-
+                emis = min(one, max(zero, one-atm%a11(ak,i,j)-atm%a12(ak,i,j)))
               else
                 call get_coeff(solver, &
-                  atm%kabs(atmk(atm,k),i,j), &
-                  atm%ksca(atmk(atm,k),i,j), &
-                  atm%g(atmk(atm,k),i,j), &
-                  atm%dz(atmk(atm,k),i,j), &
+                  atm%kabs(ak,i,j), &
+                  atm%ksca(ak,i,j), &
+                  atm%g(ak,i,j), &
+                  atm%dz(ak,i,j), &
                   .False., diff2diff1d, &
-                  atm%l1d(atmk(atm,k),i,j))
+                  atm%l1d(ak,i,j))
 
-                b0 = atm%planck(atmk(atm,k),i,j) * Az * pi * (one-real(diff2diff1d(1)+diff2diff1d(2), ireals) ) &
-                  / real(solver%difftop%streams, ireals)
-
-                do src = 0, solver%difftop%dof-1
-                  if (solver%difftop%is_inward(i1+src)) then !Edn
-                    xsrc(src, k+1, i, j) = xsrc(src, k+1, i, j) + b0
-                  else !E_up
-                    xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + b0
-                  endif
-                enddo
-                !xsrc(E_up   ,k  ,i,j) = xsrc(E_up   ,k  ,i,j) +  b0
-                !xsrc(E_dn   ,k+1,i,j) = xsrc(E_dn   ,k+1,i,j) +  b0
+                emis = one-real(diff2diff1d(1)+diff2diff1d(2), ireals)
               endif
 
+              bfac = emis * Az * pi / real(solver%difftop%streams, ireals)
+
+              do src = 0, solver%difftop%dof-1
+                if (solver%difftop%is_inward(i1+src)) then !Edn
+                  xsrc(src, k+1, i, j) = xsrc(src, k+1, i, j) + (emis*b1 + (one-emis)*b0) * bfac
+                else !E_up
+                  xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + (emis*b0 + (one-emis)*b1) * bfac
+                endif
+              enddo
+
             else ! Tenstream source terms
-              Ax = atm%dy*atm%dz(atmk(atm,k),i,j) / real(solver%diffside%area_divider, ireals)
-              Ay = atm%dx*atm%dz(atmk(atm,k),i,j) / real(solver%diffside%area_divider, ireals)
+              Ax = atm%dy*atm%dz(ak,i,j) / real(solver%diffside%area_divider, ireals)
+              Ay = atm%dx*atm%dz(ak,i,j) / real(solver%diffside%area_divider, ireals)
 
               call PetscLogEventBegin(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
               call get_coeff(solver, &
-                atm%kabs(atmk(atm,k),i,j), &
-                atm%ksca(atmk(atm,k),i,j), &
-                atm%g(atmk(atm,k),i,j), &
-                atm%dz(atmk(atm,k),i,j), &
+                atm%kabs(ak,i,j), &
+                atm%ksca(ak,i,j), &
+                atm%g(ak,i,j), &
+                atm%dz(ak,i,j), &
                 .False., diff2diff, &
-                atm%l1d(atmk(atm,k),i,j) )
+                atm%l1d(ak,i,j) )
               call PetscLogEventEnd(solver%logs%get_coeff_diff2diff, ierr); call CHKERR(ierr)
-              ! reorder from destination ordering to src ordering
-              do src=1,C_diff%dof
-                v(src:C_diff%dof**2:C_diff%dof) = diff2diff( i1+(src-i1)*C_diff%dof : src*C_diff%dof )
-              enddo
 
-              b0 = atm%planck(atmk(atm,k),i,j) * pi *Az / real(solver%difftop%streams, ireals)
-              do src=1,solver%difftop%dof
-                if (solver%difftop%is_inward(src) .eqv. .False.) then
-                  xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
+              src = 0
+              bfac = pi * Az / real(solver%difftop%streams, ireals)
+              do iside=1,solver%difftop%dof
+                emis = one-sum(diff2diff(src+1:C_diff%dof**2:C_diff%dof))
+                if (solver%difftop%is_inward(iside) .eqv. .False.) then ! outgoing means Eup
+                  xsrc(src, k  , i, j) = xsrc(src, k  , i, j) + (emis*b0+(one-emis)*b1) * bfac * emis
                 else
-                  xsrc(src-1, k+1, i, j) = xsrc(src-1, k+1, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
+                  xsrc(src, k+1, i, j) = xsrc(src, k+1, i, j) + (emis*b1+(one-emis)*b0) * bfac * emis
                 endif
+                src = src+1
               enddo
 
-              b0 = atm%planck(atmk(atm,k),i,j) * pi *Ax / real(solver%diffside%streams, ireals)
+              bfac = pi * Ax / real(solver%diffside%streams, ireals)
               do iside=1,solver%diffside%dof
-                src = iside+solver%difftop%dof
-                if (solver%diffside%is_inward(iside) .eqv. .False.) then
-                  xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
+                emis = one-sum(diff2diff(src+1:C_diff%dof**2:C_diff%dof))
+                if(iside.gt.solver%diffside%dof/2) then ! upward streams
+                  emis = (emis*b0+(one-emis)*b1) * emis
                 else
-                  xsrc(src-1, k, i+1, j) = xsrc(src-1, k, i+1, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
+                  emis = (emis*b1+(one-emis)*b0) * emis
                 endif
+                if (solver%diffside%is_inward(iside) .eqv. .False.) then ! outgoing means towards +x
+                  xsrc(src, k, i  , j) = xsrc(src, k, i  , j) + emis * bfac
+                else
+                  xsrc(src, k, i+1, j) = xsrc(src, k, i+1, j) + emis * bfac
+                endif
+                src = src+1
               enddo
 
-              b0 = atm%planck(atmk(atm,k),i,j) * pi *Ay / real(solver%diffside%streams, ireals)
+              bfac = pi * Ay / real(solver%diffside%streams, ireals)
               do iside=1,solver%diffside%dof
-                src = iside + solver%difftop%dof + solver%diffside%dof
-                if (solver%diffside%is_inward(iside) .eqv. .False.) then
-                  xsrc(src-1, k, i, j) = xsrc(src-1, k, i, j) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
+                emis = one-sum(diff2diff(src+1:C_diff%dof**2:C_diff%dof))
+                if(iside.gt.solver%diffside%dof/2) then ! upward streams
+                  emis = (emis*b0+(one-emis)*b1) * emis
                 else
-                  xsrc(src-1, k, i, j+1) = xsrc(src-1, k, i, j+1) +  b0 *(one-sum(v((src-1)*C_diff%dof+1:src*C_diff%dof )  )  )
+                  emis = (emis*b1+(one-emis)*b0) * emis
                 endif
+                if (solver%diffside%is_inward(iside) .eqv. .False.) then ! outgoing means towards +y
+                  xsrc(src, k, i, j  ) = xsrc(src, k, i, j  ) + emis * bfac
+                else
+                  xsrc(src, k, i, j+1) = xsrc(src, k, i, j+1) + emis * bfac
+                endif
+                src = src+1
               enddo
 
             endif ! 1D or Tenstream?
 
-          enddo
+          enddo ! k
         enddo
-
-      enddo ! k
+      enddo
 
       ! Thermal emission at surface
       k = C_diff%ze
+      ak = atmk(atm,k)
       do j=C_diff%ys,C_diff%ye
         do i=C_diff%xs,C_diff%xe
             do src = 0, solver%difftop%dof-1
               if (.not.solver%difftop%is_inward(i1+src)) then !Eup
-                xsrc(src,k,i,j) = xsrc(src,k,i,j) + atm%planck(atmk(atm,k),i,j) &
+                xsrc(src,k,i,j) = xsrc(src,k,i,j) + atm%planck(ak,i,j) &
                   * Az * (one-atm%albedo(i,j)) * pi / real(solver%difftop%streams, ireals)
               endif
             enddo
@@ -3708,7 +3726,8 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
     if(allocated(redn)) then
       if(.not.all(shape(redn).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
         print *,'Shape redn', shape(redn), 'vs', [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym]
-        call CHKERR(1_mpiint, 'the shape of edn result array which you provided does not conform to output size. either call with unallocated object or make sure it has the correct size')
+        call CHKERR(1_mpiint, 'the shape of edn result array which you provided does not conform to output size. '// &
+          'Either call with unallocated object or make sure it has the correct size')
       endif
     else
       allocate(redn(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
@@ -3717,7 +3736,8 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
     if(allocated(reup)) then
       if(.not.all(shape(reup).eq.[solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym])) then
         print *,'Shape reup', shape(reup), 'vs', [solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym]
-        call CHKERR(1_mpiint, 'the shape of eup result array which you provided does not conform to output size. either call with unallocated object or make sure it has the correct size')
+        call CHKERR(1_mpiint, 'the shape of eup result array which you provided does not conform to output size. '// &
+          'Either call with unallocated object or make sure it has the correct size')
       endif
     else
       allocate(reup(solver%C_diff%zm, solver%C_diff%xm, solver%C_diff%ym))
@@ -3726,7 +3746,8 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
     if(allocated(rabso)) then
       if(.not.all(shape(rabso).eq.[solver%C_one%zm, solver%C_one%xm, solver%C_one%ym])) then
         print *,'Shape rabso', shape(rabso), 'vs', [solver%C_one%zm, solver%C_one%xm, solver%C_one%ym]
-        call CHKERR(1_mpiint, 'the shape of absorption result array which you provided does not conform to output size. either call with unallocated object or make sure it has the correct size')
+        call CHKERR(1_mpiint, 'the shape of absorption result array which you provided does not conform to output size. '//&
+          'Either call with unallocated object or make sure it has the correct size')
       endif
     else
       allocate(rabso(solver%C_one%zm, solver%C_one%xm, solver%C_one%ym))
@@ -3743,14 +3764,17 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
       endif
 
       if( .not. solver%solutions(uid)%lsolar_rad ) then
-        print *,'Hey, You called pprts_get_result for uid',uid,'but in this particular band we dont have direct radiation calculated... I will return with edir=0 but are you sure this is what you intended?'
+        print *,'Hey, You called pprts_get_result for uid',uid, &
+          'but in this particular band we dont have direct radiation'// &
+          'calculated... I will return with edir=0 but are you sure this is what you intended?'
         redir = zero
       else
         if(.not.solver%solutions(uid)%lWm2_dir) call CHKERR(1_mpiint, 'tried to get result from a result vector(dir) which is not in [W/m2]')
         if(solver%atm%lcollapse) call CHKERR(1_mpiint, 'pprts_get_result :: lcollapse needs to be implemented')
 
         call getVecPointer(solver%solutions(uid)%edir, solver%C_dir%da, x1d, x4d)
-        redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals) ! average of direct radiation of all fluxes through top faces
+        ! average of direct radiation of all fluxes through top faces
+        redir = sum(x4d(0:solver%dirtop%dof-1, :, :, :), dim=1) / real(solver%dirtop%area_divider, ireals)
         call restoreVecPointer(solver%solutions(uid)%edir, x1d, x4d)
 
         if(ldebug) then
@@ -3766,23 +3790,17 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
     if(.not.solver%solutions(uid)%lWm2_diff) call CHKERR(1_mpiint, 'tried to get result from a result vector(diff) which is not in [W/m2]')
 
 
-    if(solver%atm%lcollapse) then
-      call CHKERR(1_mpiint, 'pprts_get_result :: lcollapse needs to be implemented')
-    else
-      redn = zero
-      reup = zero
-      call getVecPointer(solver%solutions(uid)%ediff, solver%C_diff%da, x1d, x4d)
-      do iside=1,solver%difftop%dof
-        if(solver%difftop%is_inward(iside)) then
-          redn = redn + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
-        else
-          reup = reup + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
-        endif
-      enddo
-      call restoreVecPointer(solver%solutions(uid)%ediff,x1d,x4d)
-      reup = reup
-      redn = redn
-    endif
+    redn = zero
+    reup = zero
+    call getVecPointer(solver%solutions(uid)%ediff, solver%C_diff%da, x1d, x4d)
+    do iside=1,solver%difftop%dof
+      if(solver%difftop%is_inward(iside)) then
+        redn = redn + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
+      else
+        reup = reup + x4d(iside-1, :, :, :) / real(solver%difftop%area_divider, ireals)
+      endif
+    enddo
+    call restoreVecPointer(solver%solutions(uid)%ediff,x1d,x4d)
 
     if(solver%myid.eq.0 .and. ldebug .and. present(redir)) &
       print *,'mean surface Edir',meanval(redir(ubound(redir,1),:,:))
@@ -3801,12 +3819,7 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
     endif
 
     call getVecPointer(solver%solutions(uid)%abso, solver%C_one%da, x1d, x4d)
-    if(solver%atm%lcollapse) then
-      rabso(1:atmk(solver%atm, solver%C_one%zs)+1, :, :) = zero
-      rabso(atmk(solver%atm, solver%C_one%zs)+2 :solver%C_one_atm%ze+1, :, :) = x4d(i0,solver%C_one%zs+1:solver%C_one%ze,:,:)
-    else
-      rabso = x4d(i0,:,:,:)
-    endif
+    rabso = x4d(i0,:,:,:)
     call restoreVecPointer(solver%solutions(uid)%abso,x1d,x4d)
     if(solver%myid.eq.0 .and. ldebug) print *,'get_result done'
   end subroutine

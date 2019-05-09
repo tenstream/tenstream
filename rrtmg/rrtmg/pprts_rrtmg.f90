@@ -477,10 +477,10 @@ contains
           do j=i1,je
             do i=i1,ie
               icol = i+(j-1)*ie
-              do k=i1,ke
-                Blev(k+1,i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlay(k, icol)))
+              do k=i1,ke1
+                Blev(k,i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k, icol)))
               enddo
-              Blev(1,i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(1, icol)))
+              !Blev(1,i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(1, icol)))
             enddo ! i
           enddo ! j
           current_ibnd = ngb(ib)

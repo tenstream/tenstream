@@ -42,7 +42,7 @@ public schwarzschild
         integer(iintegers) :: imu,k,ke,ke1
 
         real(ireals) :: T(size(dtau)) ! Transmission coefficients
-        real(ireals) :: Lup, Ldn
+        real(ireals) :: Lup, Ldn, B
         real(ireals) :: dmu, mu
         real(ireals) :: legendre_wi(Nmu)
         real(ireals) :: legendre_pt(Nmu)
@@ -66,7 +66,8 @@ public schwarzschild
             Edn(1) = Edn(1) + Ldn*mu*legendre_wi(imu)
 
             do k=1,ke
-              Ldn = Ldn * T(k) + planck(k)*(one-T(k))
+              B = (T(k)*planck(k) + (one-T(k))*planck(k+1))
+              Ldn = Ldn * T(k) + B*(one-T(k))
               Edn(k+1) = Edn(k+1) + Ldn*mu*legendre_wi(imu)
             enddo
 
@@ -75,7 +76,8 @@ public schwarzschild
             Eup(ke1) = Eup(ke1) + Lup*mu*legendre_wi(imu)
 
             do k=ke,1,-1
-              Lup = Lup * T(k) + planck(k)*(one-T(k))
+              B = (T(k)*planck(k+1) + (one-T(k))*planck(k))
+              Lup = Lup * T(k) + B*(one-T(k))
               Eup(k) = Eup(k) + Lup*mu*legendre_wi(imu)
             enddo
           enddo ! enddo mu
@@ -96,7 +98,8 @@ public schwarzschild
             Edn(1) = Edn(1) + Ldn*mu
 
             do k=1,ke
-              Ldn = Ldn * T(k) + planck(k)*(one-T(k))
+              B = (T(k)*planck(k) + (one-T(k))*planck(k+1))
+              Ldn = Ldn * T(k) + B*(one-T(k))
               Edn(k+1) = Edn(k+1) + Ldn*mu
             enddo
 
@@ -105,7 +108,8 @@ public schwarzschild
             Eup(ke1) = Eup(ke1) + Lup*mu
 
             do k=ke,1,-1
-              Lup = Lup * T(k) + planck(k)*(one-T(k))
+              B = (T(k)*planck(k+1) + (one-T(k))*planck(k))
+              Lup = Lup * T(k) + B*(one-T(k))
               Eup(k) = Eup(k) + Lup*mu
             enddo
 

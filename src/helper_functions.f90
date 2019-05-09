@@ -35,7 +35,7 @@ module m_helper_functions
     CHKERR, CHKWARN, assertEqual,                                                                                    &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
-    vec_proj_on_plane, get_arg, unique, itoa, ftoa, char_arr_to_str, cstr, strF2C,                                   &
+    vec_proj_on_plane, get_arg, unique, ltoa, itoa, ftoa, char_arr_to_str, cstr, strF2C,                             &
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean,           &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
@@ -268,6 +268,15 @@ module m_helper_functions
       endif
     end subroutine
 
+    pure function ltoa(l) result(res)
+      character(len=1) :: res
+      logical,intent(in) :: l
+      if(l) then
+        res = 'T'
+      else
+        res = 'F'
+      endif
+    end function
     pure function itoa_i4(i) result(res)
       character(:),allocatable :: res
       integer(kind=INT32),intent(in) :: i

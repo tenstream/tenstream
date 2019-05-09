@@ -192,24 +192,24 @@ contains
         endif
 
         if(allocated(edir)) &
-          print *,'surface :: direct flux', edir(nlev,1,1)
-        print *,'surface :: downw flux ', edn (nlev,1,1)
-        print *,'surface :: upward fl  ', eup (nlev,1,1)
-        print *,'surface :: absorption ', abso(nlev-1,1,1)
+          print *,'surface :: direct flux', meanval(edir(nlev,:,:))
+        print *,'surface :: downw flux ', meanval(edn (nlev,:,:))
+        print *,'surface :: upward fl  ', meanval(eup (nlev,:,:))
+        print *,'surface :: absorption ', meanval(abso(nlev-1,:,:))
 
         if(allocated(edir)) &
-          print *,'TOA :: direct flux', edir(1,1,1)
-        print *,'TOA :: downw flux ', edn (1,1,1)
-        print *,'TOA :: upward fl  ', eup (1,1,1)
-        print *,'TOA :: absorption ', abso(1,1,1)
+          print *,'TOA :: direct flux', meanval(edir(1,:,:))
+        print *,'TOA :: downw flux ', meanval(edn (1,:,:))
+        print *,'TOA :: upward fl  ', meanval(eup (1,:,:))
+        print *,'TOA :: absorption ', meanval(abso(1,:,:))
 
         if(allocated(edir)) &
-          print *,'icloud :: direct flux  ', edir(nlev-icld  ,1,1)
+          print *,'icloud :: direct flux  ', meanval(edir(nlev-icld,:,:))
         if(allocated(edir)) &
-          print *,'icloud+1 :: direct flux', edir(nlev-icld+1,1,1)
-        print *,'icloud :: downw flux   ', edn (nlev-icld+1,1,1)
-        print *,'icloud :: upward fl    ', eup (nlev-icld  ,1,1)
-        print *,'icloud :: absorption   ', abso(nlev-icld  ,1,1)
+          print *,'icloud+1 :: direct flux', meanval(edir(nlev-icld+1,:,:))
+        print *,'icloud :: downw flux   ', meanval(edn (nlev-icld+1,:,:))
+        print *,'icloud :: upward fl    ', meanval(eup (nlev-icld  ,:,:))
+        print *,'icloud :: absorption   ', meanval(abso(nlev-icld  ,:,:))
       endif
     enddo
 

@@ -50,11 +50,11 @@ contains
     real(ireals),dimension(size(dtau)) :: a11,a12,a13,a23,a33,g1,g2
 
     integer(iintegers) :: i,j,k,ke,ke1,bi
-    real(ireals) :: R,T
+    real(ireals) :: R,T, emis, b0, b1
     real(ireals),allocatable :: AB (:,:)
     real(ireals),allocatable :: B (:,:)
-    integer,allocatable :: IPIV(:)
-    integer :: N, KLU,  KL, KU, NRHS, LDAB, LDB, INFO
+    integer(iintegers), allocatable :: IPIV(:)
+    integer(iintegers) :: N, KLU,  KL, KU, NRHS, LDAB, LDB, INFO
 
     ke = size(dtau)
     ke1 = ke+1
@@ -100,8 +100,11 @@ contains
     ! Setup thermal src vector
     if(present(planck) ) then
       do k=1,ke
-        B(2*k-1,1) = B(2*k-1,1) + (one-a11(k)-a12(k)) * planck(k) *pi
-        B(2*k+2,1) = B(2*k+2,1) + (one-a11(k)-a12(k)) * planck(k) *pi
+        emis = max(zero, min(one, one-a11(k)-a12(k))) * pi
+        b0 = emis*planck(k  ) + (one-emis)*planck(k+1)
+        b1 = emis*planck(k+1) + (one-emis)*planck(k  )
+        B(2*k-1,1) = B(2*k-1,1) + emis * b0
+        B(2*k+2,1) = B(2*k+2,1) + emis * b1
       enddo
       B(2*ke1-1,1) = B(2*ke1-1,1) + planck(ke1)*(one-albedo)*pi
     endif
@@ -139,14 +142,13 @@ contains
     INFO=-1
     if(ireals.eq.REAL32) then !single_precision
       call SGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
-      info=0
     else if(ireals.eq.REAL64) then !double_precision
       call DGBSV( N, KL, KU, NRHS, AB, LDAB, IPIV, B, LDB, INFO )
     else
       call CHKERR(-5_mpiint, 'Dont know which LAPACK routine to call for real kind'//itoa(ireals))
     endif
 
-    call CHKERR(INFO, 'Error in twostream calculation - lapack returned Error')
+    call CHKERR(int(INFO, mpiint), 'Error in twostream calculation - lapack returned Error')
 
     ! retrieve result from solver
     do k=1,ke1
