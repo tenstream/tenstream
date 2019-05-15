@@ -579,7 +579,7 @@ contains
 
           patm_dz(1:ke, i1:ie, i1:je) => atm%dz
           abso =( edn (1:ke,:,:) - edn (2:ke+1,:,:)   &
-                - eup (1:ke,:,:) + eup (2:ke+1,:,:) ) / patm_dz
+                - eup (1:ke,:,:) + eup (2:ke+1,:,:) ) / reverse(patm_dz)
         endif
       end function
   end subroutine compute_thermal
@@ -860,7 +860,7 @@ contains
           patm_dz(1:ke, i1:ie, i1:je) => atm%dz
           abso =( edir(1:ke,:,:) - edir(2:ke+1,:,:)   &
                 + edn (1:ke,:,:) - edn (2:ke+1,:,:)   &
-                - eup (1:ke,:,:) + eup (2:ke+1,:,:) ) / patm_dz
+                - eup (1:ke,:,:) + eup (2:ke+1,:,:) ) / reverse(patm_dz)
         endif
       end function
   end subroutine compute_solar
