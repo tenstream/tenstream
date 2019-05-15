@@ -1950,19 +1950,17 @@ module m_pprts
         call getVecPointer(vgrad_x , C_one1%da, grad_x1d, grad_x)
         call getVecPointer(vgrad_y , C_one1%da, grad_y1d, grad_y)
 
+        k = C%ze
         do j=C%ys,C%ye
           do i=C%xs,C%xe
-            do k=C%zs,C%ze
-              !do k=C%ze,C%ze !TODO do we need it everywhere in the atmosphere or just at the surface?
               grad(1) = grad_x(i0,k,i,j)
               grad(2) = grad_y(i0,k,i,j)
               grad(3) = one
-              grad = grad / norm2(grad)
+              fac = norm2(grad)
 
               do iside=0,solver%dirtop%dof-1
-                xv(iside,k,i,j) = xv(iside,k,i,j) / grad(3)
+                xv(iside,k,i,j) = xv(iside,k,i,j) * fac
               enddo
-            enddo
           enddo
         enddo
 
