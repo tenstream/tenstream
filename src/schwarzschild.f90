@@ -24,14 +24,45 @@ module m_schwarzschild
 #define isnan ieee_is_nan
 #endif
 
-use m_data_parameters, only: ireals,iintegers,zero,one,pi
+use m_data_parameters, only: ireals,iintegers,zero,one,pi,EXP_MINVAL
 use m_helper_functions, only: get_arg
 implicit none
 
 private
-public schwarzschild
+public schwarzschild, B_eff
 
     contains
+
+      subroutine B_eff(B_far, B_near, tau, B)
+        real(ireals), intent(in) :: B_far, B_near, tau
+        real(ireals), intent(out) :: B
+        integer(iintegers) :: imu
+        real(ireals) :: mu
+        integer(iintegers), parameter :: Nmu=5
+        real(ireals), save :: legendre_wi(Nmu)=-1._ireals
+        real(ireals), save :: legendre_pt(Nmu)=-1._ireals
+
+        if(legendre_wi(1).lt.0._ireals) call dgauss(size(legendre_wi), legendre_pt, legendre_wi)
+
+        B=0
+        do imu=1,size(legendre_pt)
+          mu = legendre_pt(imu)
+          B = B + B_eff_mu(B_far, B_near, tau, mu) * mu * legendre_wi(imu)
+        enddo
+        B = B * 2
+
+        contains
+          real(ireals) function B_eff_mu(B_far, B_near, tau, mu)
+            real(ireals), intent(in) :: B_far, B_near, tau, mu
+            real(ireals) :: t
+            if(tau/mu.lt.sqrt(epsilon(tau))) then
+              B_eff_mu = (B_far+B_near)*.5_ireals
+            else
+              t = exp(-tau/mu)
+              B_eff_mu = (-B_near + B_far * t)/(-1._ireals + t) + ((B_far - B_near) *mu)/tau
+            endif
+          end function
+      end subroutine
 
       subroutine schwarzschild(Nmu, dtau, albedo, Edn, Eup, planck, opt_srfc_emission)
         integer(iintegers), intent(in) :: Nmu
@@ -71,7 +102,7 @@ public schwarzschild
             Edn(1) = Edn(1) + Ldn*mu*legendre_wi(imu)
 
             do k=1,ke
-              B = (T(k)*planck(k) + (one-T(k))*planck(k+1))
+              call B_eff(planck(k), planck(k+1), dtau(k), B)
               Ldn = Ldn * T(k) + B*(one-T(k))
               Edn(k+1) = Edn(k+1) + Ldn*mu*legendre_wi(imu)
             enddo
@@ -81,7 +112,7 @@ public schwarzschild
             Eup(ke1) = Eup(ke1) + Lup*mu*legendre_wi(imu)
 
             do k=ke,1,-1
-              B = (T(k)*planck(k+1) + (one-T(k))*planck(k))
+              call B_eff(planck(k+1), planck(k), dtau(k), B)
               Lup = Lup * T(k) + B*(one-T(k))
               Eup(k) = Eup(k) + Lup*mu*legendre_wi(imu)
             enddo
@@ -103,7 +134,7 @@ public schwarzschild
             Edn(1) = Edn(1) + Ldn*mu
 
             do k=1,ke
-              B = (T(k)*planck(k) + (one-T(k))*planck(k+1))
+              call B_eff(planck(k), planck(k+1), dtau(k), B)
               Ldn = Ldn * T(k) + B*(one-T(k))
               Edn(k+1) = Edn(k+1) + Ldn*mu
             enddo
@@ -113,7 +144,7 @@ public schwarzschild
             Eup(ke1) = Eup(ke1) + Lup*mu
 
             do k=ke,1,-1
-              B = (T(k)*planck(k+1) + (one-T(k))*planck(k))
+              call B_eff(planck(k+1), planck(k), dtau(k), B)
               Lup = Lup * T(k) + B*(one-T(k))
               Eup(k) = Eup(k) + Lup*mu
             enddo

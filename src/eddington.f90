@@ -35,9 +35,9 @@ logical,parameter :: ldebug=.False.
 
       contains
 
-        pure elemental subroutine eddington_coeff_zdun(dtau_in,omega_0_in,g_in,mu_0,c11,c12,c13,c23,c33,g1,g2)
+        pure elemental subroutine eddington_coeff_zdun(dtau_in,omega_0_in,g_in,mu_0,c11,c12,c13,c23,c33)
           real(ireals),intent(in) :: dtau_in,g_in,omega_0_in,mu_0
-          real(ireals),intent(out) :: c11,c12,c13,c23,c33,g1,g2
+          real(ireals),intent(out) :: c11,c12,c13,c23,c33
 
           real(ireal128) :: dtau,g,omega_0
           real(ireal128) :: a11,a12,a13,a23,a33
@@ -139,9 +139,6 @@ logical,parameter :: ldebug=.False.
           endif
 
           g0 = (one-omega_0)/mubar ! this is alpha3/pi in zdunkowsky for thermal part
-          g1 = real(g0 / (alpha_1-alpha_2), ireals)
-          g2 = real(g0 / lambda**2, ireals)
-
           c11 = real(a11, ireals)
           c12 = real(a12, ireals)
           c13 = real(a13, ireals)

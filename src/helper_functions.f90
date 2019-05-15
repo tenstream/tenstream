@@ -39,7 +39,7 @@ module m_helper_functions
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean,           &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
-    solve_quadratic, linspace, assert_arr_is_monotonous
+    solve_quadratic, linspace, assert_arr_is_monotonous, is_between
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -210,6 +210,11 @@ module m_helper_functions
       real(ireals),intent(in) :: i
       x=x+i
     end subroutine
+
+    pure elemental logical function is_between(x,a,b)
+      real(ireals), intent(in) :: x,a,b
+      is_between = (x-a) * (x-b) .lt. 0
+    end function
 
     subroutine CHKERR(ierr, descr)
       integer(mpiint),intent(in) :: ierr

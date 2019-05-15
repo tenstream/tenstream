@@ -334,7 +334,7 @@ contains
       end subroutine
 
       logical function handle_aspect_zx_1D_case()
-        real(ireals) :: c11,c12,c13,c23,c33,g1,g2
+        real(ireals) :: c11,c12,c13,c23,c33
         real(irealLUT) :: restricted_aspect_zx
         real(irealLUT) :: mu
 
@@ -354,7 +354,7 @@ contains
               real(w0, ireals), &
               real(g, ireals), &
               real(mu, ireals), &
-              c11,c12,c13,c23,c33,g1,g2)
+              c11,c12,c13,c23,c33)
 
             if(ldir) then
               select type(OPP)
@@ -409,7 +409,7 @@ contains
               real(w0, ireals), &
               real(g, ireals), &
               one, &
-              c11,c12,c13,c23,c33,g1,g2)
+              c11,c12,c13,c23,c33)
 
             ! transmission & reflection towards top plate
             C(1)     = real(c12, irealLUT)

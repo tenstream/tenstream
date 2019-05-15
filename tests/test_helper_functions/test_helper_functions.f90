@@ -4,7 +4,7 @@ module test_helper_functions
   use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
     compute_normal_3d, hit_plane, pnt_in_triangle, distance_to_edge, determine_normal_direction, &
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
-    solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
+    solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, is_between
 
   use pfunit_mod
 
@@ -406,5 +406,22 @@ subroutine test_solve_quadratic(this)
   call solve_quadratic(1._ireals, 2._ireals, 1._ireals, x, ierr)
   @assertEqual(0, ierr)
   @assertEqual([-1._ireals, -1._ireals], x, eps)
+end subroutine
+
+@test(npes=[1])
+subroutine test_is_between(this)
+  class (MpiTestMethod), intent(inout) :: this
+
+  @assertTrue(is_between(0.5_ireals, 0.0_ireals, 1.0_ireals))
+  @assertTrue(is_between(0.5_ireals, 1.0_ireals, 0.0_ireals))
+  @assertTrue(is_between(-0.5_ireals, 0.0_ireals, -1.0_ireals))
+  @assertTrue(is_between(-0.5_ireals, -1.0_ireals, 0.0_ireals))
+
+  @assertFalse(is_between(-0.5_ireals, 0.0_ireals, 1.0_ireals))
+  @assertFalse(is_between(-0.5_ireals, 1.0_ireals, 0.0_ireals))
+  @assertFalse(is_between(1.5_ireals, 0.0_ireals, 1.0_ireals))
+  @assertFalse(is_between(1.5_ireals, 1.0_ireals, 0.0_ireals))
+
+  @assertTrue(is_between(0.5_ireals, 1.0_ireals, 0.0_ireals))
 end subroutine
 end module

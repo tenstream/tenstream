@@ -34,6 +34,7 @@ contains
     integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, ierr
 
     real(ireals) :: phi0, theta0, theta              ! Sun's angles, azimuth phi(0=North, 90=East), zenith(0 high sun, 80=low sun)
+    real(ireals) :: lwc0                             ! cloud lwc content
     real(ireals),parameter :: albedo_th=0, albedo_sol=.3 ! broadband ground albedo for solar and thermal spectrum
 
     real(ireals), dimension(nzp+1,nxp,nyp), target :: plev ! pressure on layer interfaces [hPa]
@@ -119,7 +120,9 @@ contains
     icld(1) = nint(search_sorted_bisection(plev(:,1,1), 800._ireals))
     icld(2) = nint(search_sorted_bisection(plev(:,1,1), 700._ireals))
 
-    lwc  (icld(1):icld(2), :,:) = 1e-2
+    lwc0 = 1e-2
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-lwc", lwc0, lflg, ierr)
+    lwc  (icld(1):icld(2), :,:) = lwc0
 
     !tlev (icld  , :,:) = 288
     !tlev (icld+1, :,:) = tlev (icld  , :,:)
@@ -159,6 +162,8 @@ contains
       endif
       if(lsolar) then
         theta = theta0 + real(iter-1, ireals) * solve_iterations_scale
+      else
+        theta = 0
       endif
 
       call setup_tenstr_atm(comm, .False., atm_filename, &
@@ -171,7 +176,7 @@ contains
         + meanval(atm%tlev(atm%d_ke1,:)-atm%tlev(atm%d_ke1+1,:))
       if(iter.eq.1.and.myid.eq.0) call print_tenstr_atm(atm)
 
-      if(myid.eq.0) print *,'theta0 =', theta
+      if(lsolar.and.myid.eq.0) print *,'theta0 =', theta
       call pprts_rrtmg(comm, pprts_solver, atm, nxp, nyp, &
         dx, dy, phi0, theta,   &
         albedo_th, albedo_sol,  &
@@ -245,8 +250,8 @@ program main
   call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-Nz", Nz, lflg, ierr)
 
   dx = 500
-  dy = dx
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr)
+  dy = dx
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr)
 
   if (myid.eq.0) print *,'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz

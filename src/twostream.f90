@@ -30,6 +30,7 @@ module m_twostream
   use iso_fortran_env, only: REAL32, REAL64
 
   use m_data_parameters, only: ireals,iintegers,mpiint,zero,one,pi,i0,i1,i2
+  use m_schwarzschild, only: B_eff
   use m_eddington, only: eddington_coeff_zdun
   use m_helper_functions, only : delta_scale_optprop, CHKERR, itoa
   implicit none
@@ -47,7 +48,7 @@ contains
     real(ireals),dimension(:),intent(out):: S,Edn,Eup
     real(ireals),dimension(:),intent(in),optional :: planck
 
-    real(ireals),dimension(size(dtau)) :: a11,a12,a13,a23,a33,g1,g2
+    real(ireals),dimension(size(dtau)) :: a11,a12,a13,a23,a33
 
     integer(iintegers) :: i,j,k,ke,ke1,bi
     real(ireals) :: R,T, emis, b0, b1
@@ -67,10 +68,10 @@ contains
     KLU = KL+KU+1
 
     do k=1,ke
-      call eddington_coeff_zdun (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k), g1(k),g2(k) )
+      call eddington_coeff_zdun (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k) )
       if(ldebug) then
-        if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k),g1(k),g2(k)] )) ) then
-          print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k),'::',g1(k),g2(k)
+        if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k)] )) ) then
+          print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k)
           call exit()
         endif
       endif
@@ -101,8 +102,8 @@ contains
     if(present(planck) ) then
       do k=1,ke
         emis = max(zero, min(one, one-a11(k)-a12(k))) * pi
-        b0 = emis*planck(k  ) + (one-emis)*planck(k+1)
-        b1 = emis*planck(k+1) + (one-emis)*planck(k  )
+        call B_eff(planck(k+1), planck(k)  , dtau(k), b0)
+        call B_eff(planck(k)  , planck(k+1), dtau(k), b1)
         B(2*k-1,1) = B(2*k-1,1) + emis * b0
         B(2*k+2,1) = B(2*k+2,1) + emis * b1
       enddo
@@ -181,8 +182,9 @@ contains
       ''
 
     real(ireals),dimension(size(dtau_in)) :: dtau,w0,g
-    real(ireals),dimension(size(dtau_in)) :: a11,a12,a13,a23,a33,g1,g2
+    real(ireals),dimension(size(dtau_in)) :: a11,a12,a13,a23,a33
 
+    real(ireals) :: emis, b0, b1
     integer(iintegers) :: i,j,k, ke, ke1, N
     integer(mpiint) :: ierr
 
@@ -205,10 +207,10 @@ contains
     g    = g_in
 
     do k=1,ke
-      call eddington_coeff_zdun (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k), g1(k),g2(k) )
+      call eddington_coeff_zdun (dtau(k), w0(k),g(k), mu0,a11(k),a12(k),a13(k),a23(k),a33(k) )
       if(ldebug) then
-        if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k),g1(k),g2(k)] )) ) then
-          print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k),'::',g1(k),g2(k)
+        if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k)] )) ) then
+          print *,'eddington',k,' :: ',dtau(k), w0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k)
           call exit()
         endif
       endif
@@ -258,9 +260,12 @@ contains
     ! Setup thermal src vector
     if(present(planck) ) then
       do k=1,ke
+        emis = max(zero, min(one, one-a11(k)-a12(k))) * pi
+        call B_eff(planck(k+1), planck(k)  , dtau(k), b0)
+        call B_eff(planck(k)  , planck(k+1), dtau(k), b1)
         call VecSetValues(b, i2, &
           [2*k-2, 2*k+1], &
-          [(one-a11(k)-a12(k)) * planck(k) *pi, (one-a11(k)-a12(k)) * planck(k) *pi], &
+          [emis * b0, emis * b1], &
           ADD_VALUES, ierr)
         call CHKERR(ierr)
       enddo
@@ -315,18 +320,18 @@ contains
 
     integer(iintegers) :: k, ke, ke1
 
-    real(ireals),dimension(size(dtau)) :: a11,a12,a13,a23,a33,g1,g2
+    real(ireals),dimension(size(dtau)) :: a11,a12,a13,a23,a33
     real(ireals),dimension(size(dtau)) :: T, R, Tdir, Sdir
 
     ke = size(dtau)
     ke1 = ke+1
 
     do k=1,ke
-      call eddington_coeff_zdun (dtau(k), omega0(k),g(k), mu0, a11(k), a12(k), a13(k), a23(k), a33(k), g1(k), g2(k) )
+      call eddington_coeff_zdun (dtau(k), omega0(k),g(k), mu0, a11(k), a12(k), a13(k), a23(k), a33(k) )
       !call eddington_v2(dtau(k), omega0(k),g(k), mu0, a11(k), a12(k), a13(k), a23(k), a33(k))
       if(ldebug) then
-        if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k),g1(k),g2(k)] )) ) then
-          print *,'eddington',k,' :: ',dtau(k), omega0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k),'::',g1(k),g2(k)
+        if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k)] )) ) then
+          print *,'eddington',k,' :: ',dtau(k), omega0(k),g(k), mu0,'::',a11(k),a12(k),a13(k),a23(k),a33(k)
           call exit()
         endif
       endif

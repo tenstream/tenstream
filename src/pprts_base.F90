@@ -37,15 +37,15 @@ module m_pprts_base
   end type
 
   type t_atmosphere
-    real(ireals)         , allocatable , dimension(:,:,:) :: planck, kabs, ksca, g
-    real(ireals)         , allocatable , dimension(:,:,:) :: a11, a12, a21, a22, a13, a23, a33
-    real(ireals)         , allocatable , dimension(:,:,:) :: g1,g2
-    real(ireals)         , allocatable , dimension(:,:,:) :: dz
-    logical              , allocatable , dimension(:,:,:) :: l1d
-    real(ireals)         , allocatable , dimension(:,:)   :: albedo
-    real(ireals)                                          :: dx,dy
-    integer(iintegers)                                    :: icollapse=1
-    logical                                               :: lcollapse = .False.
+    real(ireals), allocatable , dimension(:,:,:) :: planck, kabs, ksca, g
+    real(ireals), allocatable , dimension(:,:,:) :: a11, a12, a21, a22, a13, a23, a33
+    real(ireals), allocatable , dimension(:,:,:) :: dz
+    logical     , allocatable , dimension(:,:,:) :: l1d
+    real(ireals), allocatable , dimension(:,:)   :: albedo
+    real(ireals), allocatable , dimension(:,:)   :: Btop, Bbot ! TOA layer planck emissions, special case memory for icollapse
+    real(ireals)                                 :: dx,dy
+    integer(iintegers)                           :: icollapse=1
+    logical                                      :: lcollapse = .False.
   end type
 
   !type t_sunangles
