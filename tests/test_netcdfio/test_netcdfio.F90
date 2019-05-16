@@ -4,7 +4,8 @@ module test_netcdfio
 
     use m_helper_functions, only: CHKERR, itoa, char_arr_to_str
 
-    use m_netcdfIO, only: ncwrite, ncload, acquire_file_lock, release_file_lock
+    use m_netcdfIO, only: ncwrite, ncload, acquire_file_lock, release_file_lock, &
+      get_global_attribute, set_global_attribute
     use m_c_syscall_wrappers, only: acquire_flock_lock, release_flock_lock
 
     use pfunit_mod
@@ -269,4 +270,31 @@ end subroutine
   enddo
   end subroutine
 
+@test(npes=[1])
+  subroutine test_get_set_global_attributes(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: numnodes, comm, myid, ierr
+    real(REAL32) :: attr_r32
+    real(REAL64) :: attr_r64
+    character(len=default_str_len) :: attr_str
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    attr_r32 = 7._REAL32
+    call set_global_attribute(fname, 'r32_test_attr', attr_r32)
+    call get_global_attribute(fname, 'r32_test_attr', attr_r32)
+    @assertEqual(7._REAL32, attr_r32)
+
+    attr_r64 = 7._REAL64
+    call set_global_attribute(fname, 'r64_test_attr', attr_r64)
+    call get_global_attribute(fname, 'r64_test_attr', attr_r64)
+    @assertEqual(7._REAL64, attr_r64)
+
+    attr_str = 'this is a test string'
+    call set_global_attribute(fname, 'str_test_attr', attr_str)
+    call get_global_attribute(fname, 'str_test_attr', attr_str)
+    @assertEqual('this is a test string', trim(attr_str))
+  end subroutine
 end module

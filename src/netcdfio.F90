@@ -34,7 +34,8 @@ module m_netcdfIO
   implicit none
 
   private
-  public :: ncwrite, ncload, acquire_file_lock, release_file_lock, get_global_attribute
+  public :: ncwrite, ncload, acquire_file_lock, release_file_lock, &
+    get_global_attribute, set_global_attribute
 
 !  integer :: v=11
   integer,parameter :: deflate_lvl=1
@@ -58,6 +59,9 @@ module m_netcdfIO
   end interface
   interface get_global_attribute
     module procedure get_global_attribute_str, get_global_attribute_r32, get_global_attribute_r64
+  end interface
+  interface set_global_attribute
+    module procedure set_global_attribute_str, set_global_attribute_r32, set_global_attribute_r64
   end interface
 
 #if __HAVE_NC_SET_LOG_LEVEL__
@@ -361,10 +365,8 @@ module m_netcdfIO
         call CHKERR(1_mpiint, 'Cant fit attribute name into default_str_len, its too long: '//itoa(attrLength))
       endif
       ierr = nf90_get_att(ncid, nf90_global, trim(attr_name), attr); call nccheck(ierr)
-      print *,'ierr fetching get_att', ierr
       ierr = nf90_close(ncid); call nccheck(ierr)
     end subroutine
-
     subroutine get_global_attribute_r32(fname, attr_name, attr)
       character(len=*) :: fname, attr_name
       real(REAL32) :: attr
@@ -380,6 +382,19 @@ module m_netcdfIO
       ierr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ierr)
       ierr = nf90_get_att(ncid, nf90_global, trim(attr_name), attr); call nccheck(ierr)
       ierr = nf90_close(ncid); call nccheck(ierr)
+    end subroutine
+
+    subroutine set_global_attribute_str(fname, attr_name, attr)
+      character(len=*), intent(in) :: attr
+      include 'netcdfio_attr.inc'
+    end subroutine
+    subroutine set_global_attribute_r32(fname, attr_name, attr)
+      real(REAL32), intent(in) :: attr
+      include 'netcdfio_attr.inc'
+    end subroutine
+    subroutine set_global_attribute_r64(fname, attr_name, attr)
+      real(REAL64), intent(in) :: attr
+      include 'netcdfio_attr.inc'
     end subroutine
 
   end module
