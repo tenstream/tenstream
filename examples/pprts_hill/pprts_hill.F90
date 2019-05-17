@@ -14,7 +14,7 @@ module m_example_pprts_rrtmg_hill
 
   ! Import specific solver type: 3_10 for example uses 3 streams direct, 10 streams for diffuse radiation
   use m_pprts_base, only : t_solver, allocate_pprts_solver_from_commandline
-  use m_netcdfIO, only : ncwrite
+  use m_netcdfIO, only : ncwrite, set_global_attribute
 
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -251,6 +251,16 @@ contains
       outpath(2) = itoa(myid)//'zt'; call ncwrite(outpath, &
         reshape(atm%zt, [int(size(atm%zt,dim=1), iintegers),nxp,nyp]), ierr); call CHKERR(ierr)
       outpath(2) = itoa(myid)//'dz'; call ncwrite(outpath, pprts_solver%atm%dz, ierr); call CHKERR(ierr)
+      outpath(2) = itoa(myid)//'lwc'; call ncwrite(outpath, lwc, ierr); call CHKERR(ierr)
+      outpath(2) = itoa(myid)//'reliq'; call ncwrite(outpath, reliq, ierr); call CHKERR(ierr)
+      call set_global_attribute(outpath(1), 'Nx', nxp)
+      call set_global_attribute(outpath(1), 'Ny', nyp)
+      call set_global_attribute(outpath(1), 'Nz', nzp)
+      call set_global_attribute(outpath(1), 'dx', dx)
+      call set_global_attribute(outpath(1), 'dy', dy)
+      call set_global_attribute(outpath(1), 'phi0', phi0)
+      call set_global_attribute(outpath(1), 'theta0', theta0)
+      call set_global_attribute(outpath(1), 'Ag_solar', albedo_sol)
     enddo
 
     ! Tidy up

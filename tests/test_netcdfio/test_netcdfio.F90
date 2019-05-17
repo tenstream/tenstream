@@ -1,6 +1,6 @@
 module test_netcdfio
     use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters, default_str_len
-    use iso_fortran_env, only: REAL32, REAL64
+    use iso_fortran_env, only: INT32, INT64, REAL32, REAL64
 
     use m_helper_functions, only: CHKERR, itoa, char_arr_to_str
 
@@ -276,6 +276,8 @@ end subroutine
     integer(mpiint) :: numnodes, comm, myid, ierr
     real(REAL32) :: attr_r32
     real(REAL64) :: attr_r64
+    integer(INT32) :: attr_i32
+    integer(INT64) :: attr_i64
     character(len=default_str_len) :: attr_str
 
     comm     = this%getMpiCommunicator()
@@ -291,6 +293,16 @@ end subroutine
     call set_global_attribute(fname, 'r64_test_attr', attr_r64)
     call get_global_attribute(fname, 'r64_test_attr', attr_r64)
     @assertEqual(7._REAL64, attr_r64)
+
+    attr_i32 = 8_INT32
+    call set_global_attribute(fname, 'i32_test_attr', attr_i32)
+    call get_global_attribute(fname, 'i32_test_attr', attr_i32)
+    @assertEqual(8_INT32, attr_i32)
+
+    attr_i64 = 9_INT64
+    call set_global_attribute(fname, 'i64_test_attr', attr_i64)
+    call get_global_attribute(fname, 'i64_test_attr', attr_i64)
+    @assertEqual(9_INT64, attr_i64)
 
     attr_str = 'this is a test string'
     call set_global_attribute(fname, 'str_test_attr', attr_str)

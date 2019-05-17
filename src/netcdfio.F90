@@ -23,7 +23,7 @@ module m_netcdfIO
 #endif
 
   use iso_c_binding
-  use iso_fortran_env, only: REAL32, REAL64, INT64
+  use iso_fortran_env, only: REAL32, REAL64, INT32, INT64
 
   use netcdf
   use m_data_parameters, only :   &
@@ -58,10 +58,14 @@ module m_netcdfIO
         ncload_1dint, ncload_2dint
   end interface
   interface get_global_attribute
-    module procedure get_global_attribute_str, get_global_attribute_r32, get_global_attribute_r64
+    module procedure get_global_attribute_str, &
+        get_global_attribute_i32, get_global_attribute_i64, &
+        get_global_attribute_r32, get_global_attribute_r64
   end interface
   interface set_global_attribute
-    module procedure set_global_attribute_str, set_global_attribute_r32, set_global_attribute_r64
+    module procedure set_global_attribute_str, &
+        set_global_attribute_i32, set_global_attribute_i64, &
+        set_global_attribute_r32, set_global_attribute_r64
   end interface
 
 #if __HAVE_NC_SET_LOG_LEVEL__
@@ -367,6 +371,22 @@ module m_netcdfIO
       ierr = nf90_get_att(ncid, nf90_global, trim(attr_name), attr); call nccheck(ierr)
       ierr = nf90_close(ncid); call nccheck(ierr)
     end subroutine
+    subroutine get_global_attribute_i32(fname, attr_name, attr)
+      character(len=*) :: fname, attr_name
+      integer(INT32) :: attr
+      integer :: ncid, ierr
+      ierr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ierr)
+      ierr = nf90_get_att(ncid, nf90_global, trim(attr_name), attr); call nccheck(ierr)
+      ierr = nf90_close(ncid); call nccheck(ierr)
+    end subroutine
+    subroutine get_global_attribute_i64(fname, attr_name, attr)
+      character(len=*) :: fname, attr_name
+      integer(INT64) :: attr
+      integer :: ncid, ierr
+      ierr = nf90_open(trim(fname), nf90_nowrite, ncid); call nccheck(ierr)
+      ierr = nf90_get_att(ncid, nf90_global, trim(attr_name), attr); call nccheck(ierr)
+      ierr = nf90_close(ncid); call nccheck(ierr)
+    end subroutine
     subroutine get_global_attribute_r32(fname, attr_name, attr)
       character(len=*) :: fname, attr_name
       real(REAL32) :: attr
@@ -386,6 +406,14 @@ module m_netcdfIO
 
     subroutine set_global_attribute_str(fname, attr_name, attr)
       character(len=*), intent(in) :: attr
+      include 'netcdfio_attr.inc'
+    end subroutine
+    subroutine set_global_attribute_i32(fname, attr_name, attr)
+      integer(INT32), intent(in) :: attr
+      include 'netcdfio_attr.inc'
+    end subroutine
+    subroutine set_global_attribute_i64(fname, attr_name, attr)
+      integer(INT64), intent(in) :: attr
       include 'netcdfio_attr.inc'
     end subroutine
     subroutine set_global_attribute_r32(fname, attr_name, attr)
