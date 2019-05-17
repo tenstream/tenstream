@@ -304,3 +304,18 @@ if(ENABLE_C_WRAPPER)
 endif(ENABLE_C_WRAPPER)
 
 GET_DIRECTORY_PROPERTY(output INCLUDE_DIRECTORIES)
+
+# Like a distclean
+add_custom_target(distclean_clean
+  COMMAND make clean
+  COMMENT "Deleting compiler and linker files" VERBATIM
+  )
+add_custom_target(distclean
+  DEPENDS distclean_clean
+  COMMAND rm -rf
+  ${CMAKE_BINARY_DIR}/CMakeCache.txt
+  ${CMAKE_BINARY_DIR}/*.cmake
+  ${CMAKE_BINARY_DIR}/CMakeFiles
+  ${CMAKE_BINARY_DIR}/*/CMakeFiles
+  COMMENT "Deleting CMake files" VERBATIM
+  )
