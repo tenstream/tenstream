@@ -50,7 +50,7 @@ module m_pprts
 
   use m_pprts_base, only : t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
     t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
-    t_coord, t_suninfo, t_atmosphere, &
+    t_coord, t_suninfo, t_atmosphere, compute_gradient, atmk, &
     t_state_container, prepare_solution, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events
 
@@ -362,6 +362,9 @@ module m_pprts
       call setup_dmda(solver%comm, solver%C_one , Nz  , Nx,Ny,  bp, i1)
       call setup_dmda(solver%comm, solver%C_one1, Nz+1, Nx,Ny,  bp, i1)
 
+      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_two'
+      call setup_dmda(solver%comm, solver%C_two1, Nz+1, Nx,Ny,  bp, i2)
+
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA atm'
       call setup_dmda(solver%comm, solver%C_one_atm , Nz_in  , Nx,Ny,  bp, i1)
       call setup_dmda(solver%comm, solver%C_one_atm1, Nz_in+1, Nx,Ny,  bp, i1)
@@ -608,7 +611,7 @@ module m_pprts
     endif
 
     if(sun%luse_topography) then
-      call setup_topography(solver%atm, solver%C_one, solver%C_one1, sun)
+      call setup_topography(solver%atm, solver%C_one, solver%C_one1, solver%C_two1, sun)
     endif
 
     sun%costheta = max( cos(deg2rad(sun%theta)), zero)
@@ -660,14 +663,12 @@ module m_pprts
   !> @details integrate dz3d from to top of atmosphere to bottom.
   !>   \n then build horizontal gradient of height information and
   !>   \n tweak the local sun angles to bend the rays.
-  subroutine setup_topography(atm, C_one, C_one1, sun)
+  subroutine setup_topography(atm, C_one, C_one1, C_two1, sun)
     type(t_atmosphere), intent(in) :: atm
-    type(t_coord), intent(in) :: C_one, C_one1
+    type(t_coord), intent(in) :: C_one, C_one1, C_two1
     type(t_suninfo),intent(inout) :: sun
 
-    type(tVec) :: vgrad_x, vgrad_y
-    real(ireals),Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
-    real(ireals),Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
+    real(ireals),Pointer :: grad(:,:,:,:)=>null(), grad_1d(:)=>null()
 
     integer(iintegers) :: i,j,k
     real(ireals) :: newtheta, newphi, xsun(3)
@@ -679,14 +680,12 @@ module m_pprts
     if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  setup_topography() &
         &but the atm struct is not yet up, make sure we have atm%dz before')
 
-    call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
+    call compute_gradient(atm, C_one1, C_two1, atm%hgrad)
 
     call PetscObjectGetComm(C_one%da, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-    call getVecPointer(vgrad_x , C_one1%da, grad_x1d, grad_x)
-    call getVecPointer(vgrad_y , C_one1%da, grad_y1d, grad_y)
-
+    call getVecPointer(atm%hgrad , C_two1%da, grad_1d, grad)
 
     rotmat = reshape((/ one , zero, zero,  &
                         zero, one , zero,  &
@@ -711,8 +710,8 @@ module m_pprts
 
           xsun = xsun / norm2(xsun)
 
-          rotmat(3, 1) = grad_x(i0, k, i, j)
-          rotmat(3, 2) = grad_y(i0, k, i, j)
+          rotmat(3, 1) = grad(i0, k, i, j)
+          rotmat(3, 2) = grad(i1, k, i, j)
 
           newxsun = matmul(rotmat, xsun)
           newxsun = newxsun / norm2(newxsun)
@@ -732,99 +731,7 @@ module m_pprts
       enddo
     enddo
 
-    call restoreVecPointer(vgrad_x, grad_x1d, grad_x)
-    call restoreVecPointer(vgrad_y, grad_y1d, grad_y)
-
-    call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  call CHKERR(ierr)
-    call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  call CHKERR(ierr)
-  end subroutine
-
-  !> @brief compute gradient from dz3d
-  !> @details integrate dz3d from to top of atmosphere to bottom.
-  !>   \n then build horizontal gradient of height information
-  subroutine compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
-    type(t_atmosphere),intent(in) :: atm
-    type(t_coord), intent(in) :: C_one1
-    type(tVec) :: vgrad_x, vgrad_y
-
-    type(tVec) :: vhhl
-    real(ireals),Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
-    real(ireals),Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
-    real(ireals),Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
-
-    integer(iintegers) :: i,j,k
-
-    real(ireals) :: zm(4), maxheight, global_maxheight
-
-    if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  compute_gradient()&
-      &but the atm struct is not yet up, make sure we have atm%dz before')
-
-    call DMGetLocalVector(C_one1%da, vhhl, ierr) ;call CHKERR(ierr)
-    call getVecPointer(vhhl, C_one1%da, hhl1d, hhl)
-
-    hhl(i0, C_one1%ze, :, :) = zero
-    do j=C_one1%ys,C_one1%ye
-      do i=C_one1%xs,C_one1%xe
-        hhl(i0, C_one1%ze, i, j ) = zero
-
-        do k=C_one1%ze-1,C_one1%zs,-1
-          hhl(i0,k,i,j) = hhl(i0,k+1,i,j)+atm%dz(atmk(atm, k),i,j)
-        enddo
-      enddo
-    enddo
-
-
-    maxheight = maxval(hhl(i0,C_one1%zs,C_one1%xs:C_one1%xe,C_one1%ys:C_one1%ye))
-    call imp_allreduce_max(C_one1%comm, maxheight, global_maxheight)
-
-    do j=C_one1%ys,C_one1%ye
-      do i=C_one1%xs,C_one1%xe
-        hhl(i0, :, i, j) = hhl(i0, :, i, j) + global_maxheight - hhl(i0, C_one1%zs, i, j)
-      enddo
-    enddo
-
-    call restoreVecPointer(vhhl, hhl1d, hhl)
-
-    call DMLocalToLocalBegin(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
-    call DMLocalToLocalEnd(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
-
-    call getVecPointer(vhhl , C_one1%da, hhl1d, hhl)
-
-    call DMGetLocalVector(C_one1%da, vgrad_x, ierr) ;call CHKERR(ierr)
-    call DMGetLocalVector(C_one1%da, vgrad_y, ierr) ;call CHKERR(ierr)
-
-    call getVecPointer(vgrad_x , C_one1%da, grad_x1d, grad_x)
-    call getVecPointer(vgrad_y , C_one1%da, grad_y1d, grad_y)
-
-    do j=C_one1%ys,C_one1%ye
-      do i=C_one1%xs,C_one1%xe
-        do k=C_one1%zs,C_one1%ze-1
-          ! Mean heights of adjacent columns
-          zm(1) = (hhl(i0,k,i-1,j) + hhl(i0,k+1,i-1,j)) / 2
-          zm(2) = (hhl(i0,k,i+1,j) + hhl(i0,k+1,i+1,j)) / 2
-
-          zm(3) = (hhl(i0,k,i,j-1) + hhl(i0,k+1,i,j-1)) / 2
-          zm(4) = (hhl(i0,k,i,j+1) + hhl(i0,k+1,i,j+1)) / 2
-
-          ! Gradient of height field
-          grad_x(i0, k, i, j) = -(zm(2)-zm(1)) / (2._ireals*atm%dx)
-          grad_y(i0, k, i, j) = -(zm(4)-zm(3)) / (2._ireals*atm%dy)
-        enddo
-        zm(1) = hhl(i0, C_one1%ze, i-1, j)
-        zm(2) = hhl(i0, C_one1%ze, i+1, j)
-        zm(3) = hhl(i0, C_one1%ze, i, j-1)
-        zm(4) = hhl(i0, C_one1%ze, i, j+1)
-        ! Gradient of height field
-        grad_x(i0, C_one1%ze, i, j) = -(zm(2)-zm(1)) / (2._ireals*atm%dx)
-        grad_y(i0, C_one1%ze, i, j) = -(zm(4)-zm(3)) / (2._ireals*atm%dy)
-      enddo
-    enddo
-
-    call restoreVecPointer(vhhl, hhl1d, hhl)
-    call DMRestoreLocalVector(C_one1%da ,vhhl ,ierr);  call CHKERR(ierr)
-
-    call restoreVecPointer(vgrad_x, grad_x1d, grad_x)
-    call restoreVecPointer(vgrad_y, grad_y1d, grad_y)
+    call restoreVecPointer(atm%hgrad, grad_1d, grad)
   end subroutine
 
   !> @brief create PETSc matrix and inserts diagonal elements
@@ -1239,14 +1146,6 @@ module m_pprts
     if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
     if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: Ownership range',m,n
   end subroutine
-  pure function atmk(atm, k) ! return vertical index value for DMDA grid on atmosphere grid
-    integer(iintegers) :: atmk
-    integer(iintegers),intent(in) :: k
-    type(t_atmosphere),intent(in) :: atm
-    atmk = k+atm%icollapse-1
-  end function
-
-
   subroutine set_optical_properties(solver, albedo, local_kabs, local_ksca, local_g, local_planck, local_albedo_2d, ldelta_scaling)
     class(t_solver)                                   :: solver
     real(ireals), intent(in)                          :: albedo
@@ -1888,16 +1787,7 @@ module m_pprts
       integer(iintegers)   :: i, j, k, d, iside
       real(ireals)         :: Ax, Ay, Az, fac
 
-      logical :: lslope_correction, lflg
-      type(tVec)           :: vgrad_x, vgrad_y
-      real(ireals),pointer :: grad_x  (:,:,:,:) =>null()
-      real(ireals),pointer :: grad_x1d(:)       =>null()
-      real(ireals),pointer :: grad_y  (:,:,:,:) =>null()
-      real(ireals),pointer :: grad_y1d(:)       =>null()
-      real(ireals) :: grad(3)
-
-      associate(  atm     => solver%atm,    &
-                  C_one1  => solver%C_one1)
+      associate( atm     => solver%atm )
 
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling direct fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C%da ,xv1d, xv)
@@ -1941,38 +1831,7 @@ module m_pprts
           enddo
         enddo
       enddo
-
-      lslope_correction = solver%sun%luse_topography
-      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-slope_correction", lslope_correction, lflg,ierr) ; call CHKERR(ierr)
-      if(lslope_correction) then ! This is direct rad and we use topography
-        call compute_gradient(atm, C_one1, vgrad_x, vgrad_y)
-
-        call getVecPointer(vgrad_x , C_one1%da, grad_x1d, grad_x)
-        call getVecPointer(vgrad_y , C_one1%da, grad_y1d, grad_y)
-
-        k = C%ze
-        do j=C%ys,C%ye
-          do i=C%xs,C%xe
-              grad(1) = grad_x(i0,k,i,j)
-              grad(2) = grad_y(i0,k,i,j)
-              grad(3) = one
-              fac = norm2(grad)
-
-              do iside=0,solver%dirtop%dof-1
-                xv(iside,k,i,j) = xv(iside,k,i,j) * fac
-              enddo
-          enddo
-        enddo
-
-        call restoreVecPointer(vgrad_x, grad_x1d, grad_x)
-        call restoreVecPointer(vgrad_y, grad_y1d, grad_y)
-
-        call DMRestoreLocalVector(C_one1%da, vgrad_x, ierr);  call CHKERR(ierr)
-        call DMRestoreLocalVector(C_one1%da, vgrad_y, ierr);  call CHKERR(ierr)
-      endif
-
       call restoreVecPointer(v, xv1d, xv )
-
       end associate
     end subroutine
     subroutine gen_scale_diff_flx_vec(solver, v, C)
@@ -2150,7 +2009,7 @@ module m_pprts
     integer(iintegers) :: i,j,src
 
     real(ireals),allocatable :: dtau(:),kext(:),w0(:),g(:),S(:),Edn(:),Eup(:)
-    real(ireals) :: mu0,incSolar,Az,fac
+    real(ireals) :: mu0,incSolar,fac
 
     associate(atm         => solver%atm, &
               C_diff      => solver%C_diff, &
@@ -2174,8 +2033,6 @@ module m_pprts
     if(solution%lsolar_rad) &
       call getVecPointer(solution%edir  ,C_dir%da  ,xv_dir1d , xv_dir)
     call getVecPointer(solution%ediff ,C_diff%da ,xv_diff1d, xv_diff)
-
-    Az  = solver%atm%dx * solver%atm%dy
 
     allocate( S  (C_one_atm1%zs:C_one_atm1%ze) )
     allocate( Eup(C_one_atm1%zs:C_one_atm1%ze) )
@@ -2209,14 +2066,14 @@ module m_pprts
         endif
 
         if(solution%lsolar_rad) then
-          fac = Az / real(solver%dirtop%area_divider, ireals)
+          fac = one / real(solver%dirtop%area_divider, ireals)
           do src=i0,solver%dirtop%dof-1
             xv_dir(src,C_dir%zs+1:C_dir%ze,i,j) = S(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
             xv_dir(src,C_dir%zs           ,i,j) = S(C_one_atm1%zs) * fac
           enddo
         endif
 
-        fac = Az / real(solver%difftop%streams, ireals)
+        fac = one / real(solver%difftop%streams, ireals)
         do src = 1, solver%difftop%dof
           if(solver%difftop%is_inward(src)) then
             xv_diff(src-1,C_diff%zs+1:C_diff%ze,i,j) = Edn(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
@@ -2234,8 +2091,8 @@ module m_pprts
     call restoreVecPointer(solution%ediff, xv_diff1d, xv_diff )
 
     !Twostream solver returns fluxes as [W]
-    solution%lWm2_dir  = .False.
-    solution%lWm2_diff = .False.
+    solution%lWm2_dir  = .True.
+    solution%lWm2_diff = .True.
     ! and mark solution that it is not up to date
     solution%lchanged  = .True.
 
@@ -4020,6 +3877,10 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
         deallocate(solver%abso_scalevec)
       endif
 
+      if(allocated(solver%atm%hgrad)) then
+        call VecDestroy(solver%atm%hgrad, ierr); call CHKERR(ierr)
+        deallocate(solver%atm%hgrad)
+      endif
       if(allocated(solver%atm)) deallocate(solver%atm)
 
       if(allocated(solver%sun%symmetry_phi)) deallocate(solver%sun%symmetry_phi)
@@ -4035,6 +3896,7 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
       if(allocated(solver%C_diff    )) call DMDestroy(solver%C_diff%da,ierr); deallocate(solver%C_diff)
       if(allocated(solver%C_one     )) call DMDestroy(solver%C_one%da ,ierr); deallocate(solver%C_one )
       if(allocated(solver%C_one1    )) call DMDestroy(solver%C_one1%da,ierr); deallocate(solver%C_one1)
+      if(allocated(solver%C_two1    )) call DMDestroy(solver%C_two1%da,ierr); deallocate(solver%C_two1)
       if(allocated(solver%C_one_atm )) call DMDestroy(solver%C_one_atm%da ,ierr); deallocate(solver%C_one_atm)
       if(allocated(solver%C_one_atm1)) call DMDestroy(solver%C_one_atm1%da,ierr); deallocate(solver%C_one_atm1)
 

@@ -43,16 +43,17 @@ module m_pprts_rrtmg
   use m_data_parameters, only : init_mpi_data_parameters, &
       iintegers, ireals, zero, one, i0, i1, i2, i9,         &
       mpiint, pi, default_str_len
-  use m_pprts_base, only : t_solver
+  use m_pprts_base, only : t_solver, compute_gradient
   use m_pprts, only : init_pprts, set_angles, set_optical_properties, solve_pprts, destroy_pprts,&
       pprts_get_result, pprts_get_result_toZero
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
       imp_allreduce_min, imp_allreduce_max, imp_allreduce_mean, &
       CHKERR, deg2rad, get_arg, &
-      reverse, approx, itoa
+      reverse, approx, itoa, spherical_2_cartesian
   use m_search, only: find_real_location
-  use m_petsc_helpers, only: dmda_convolve_ediff_srfc
+  use m_petsc_helpers, only: dmda_convolve_ediff_srfc, &
+    getvecpointer, restorevecpointer
 
   use m_netcdfIO, only : ncwrite
 
@@ -174,6 +175,55 @@ contains
         endif
 
       end subroutine
+  end subroutine
+
+  subroutine slope_correction_fluxes(solver, edir)
+    class(t_solver), intent(inout)  :: solver                         ! solver type (e.g. t_solver_8_10)
+    real(ireals),allocatable, dimension(:,:,:), intent(inout) :: edir ! [nlyr+1, local_nx, local_ny ]
+    logical :: lslope_correction, lflg
+    integer(mpiint) :: myid, ierr
+
+    real(ireals),pointer :: grad   (:,:,:,:) =>null()
+    real(ireals),pointer :: grad_1d(:)       =>null()
+    real(ireals) :: g(3), sundir(3), fac
+    integer(iintegers) :: i,j,k
+
+    call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
+
+    lslope_correction = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-pprts_slope_correction", lslope_correction, lflg, ierr) ;call CHKERR(ierr)
+
+    if(.not.lslope_correction) return
+
+    call compute_gradient(solver%atm, solver%C_one1, solver%C_two1, solver%atm%hgrad)
+
+    associate(&
+        atm     => solver%atm,  &
+        sun     => solver%sun,  &
+        C_dir   => solver%C_dir,&
+        C_two1  => solver%C_two1)
+
+      call getVecPointer(atm%hgrad, C_two1%da, grad_1d, grad)
+
+      k = C_two1%ze
+      do j=C_two1%ys,C_two1%ye
+        do i=C_two1%xs,C_two1%xe
+          sundir = spherical_2_cartesian(sun%phi(C_two1%zs,i,j), sun%theta(C_two1%zs,i,j))
+
+          g(1) = grad(i0,k,i,j)
+          g(2) = grad(i1,k,i,j)
+          g(3) = one
+          g = g/norm2(g)
+
+          !print *,k,i,j,'g',g,'sun',sundir,':', dot_product(g,-sundir), ':', dot_product([zero,zero,one],-sundir)
+          fac = dot_product([zero,zero,one],-sundir) / dot_product(g,-sundir)
+          edir(ubound(edir,1),i-C_two1%xs+1,j-C_two1%xe+1) = edir(ubound(edir,1),i-C_two1%xs+1,j-C_two1%xe+1) * fac
+        enddo
+      enddo
+
+      call restoreVecPointer(atm%hgrad, grad_1d, grad)
+    end associate
   end subroutine
 
   subroutine pprts_rrtmg(comm, solver, atm, ie, je, &
@@ -302,6 +352,7 @@ contains
     endif
 
     call smooth_surface_fluxes(solver, edn, eup)
+    call slope_correction_fluxes(solver, edir)
 
     !if(myid.eq.0 .and. ldebug) then
     !  if(present(opt_time)) then

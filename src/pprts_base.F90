@@ -7,6 +7,7 @@ module m_pprts_base
     default_str_len
 
   use m_helper_functions, only : CHKWARN, CHKERR, get_arg, itoa
+  use m_petsc_helpers, only: getvecpointer, restorevecpointer
 
   use m_optprop, only: t_optprop_cube
 
@@ -15,7 +16,7 @@ module m_pprts_base
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
     t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
     allocate_pprts_solver_from_commandline, &
-    t_coord, t_suninfo, &
+    t_coord, t_suninfo, compute_gradient, atmk, &
     t_state_container, destroy_solution, &
     t_dof, t_solver_log_events, setup_log_events
 
@@ -46,6 +47,7 @@ module m_pprts_base
     real(ireals)                                 :: dx,dy
     integer(iintegers)                           :: icollapse=1
     logical                                      :: lcollapse = .False.
+    type(tVec),allocatable                       :: hgrad ! horizontal gradient of heights, C_two1
   end type
 
   !type t_sunangles
@@ -117,6 +119,7 @@ module m_pprts_base
     character(len=default_str_len)     :: solvername='' ! name to prefix e.g. log stages. If you create more than one solver, make sure that it has a unique name
     integer(mpiint)                    :: comm, myid, numnodes     ! mpi communicator, my rank and number of ranks in comm
     type(t_coord), allocatable         :: C_dir, C_diff, C_one, C_one1, C_one_atm, C_one_atm1
+    type(t_coord), allocatable         :: C_two1
     type(t_atmosphere),allocatable     :: atm
     type(t_suninfo)                    :: sun
     type(tMat),allocatable             :: Mdir,Mdiff
@@ -313,4 +316,90 @@ module m_pprts_base
     end select
 
   end subroutine
+
+  !> @brief compute gradient from dz3d
+  !> @details integrate dz3d from to top of atmosphere to bottom.
+  !>   \n then build horizontal gradient of height information
+  subroutine compute_gradient(atm, C_one1, C_two1, vgrad)
+    type(t_atmosphere),intent(in) :: atm
+    type(t_coord), intent(in) :: C_one1, C_two1
+    type(tVec), allocatable :: vgrad
+
+    type(tVec) :: vhhl
+    real(ireals),Pointer :: hhl(:,:,:,:)=>null(), hhl1d(:)=>null()
+    real(ireals),Pointer :: grad(:,:,:,:)=>null(), grad_1d(:)=>null()
+
+    integer(iintegers) :: i,j,k
+
+    real(ireals) :: zm(4)
+    integer(mpiint) :: ierr
+
+    if(.not.allocated(atm%dz)) call CHKERR(1_mpiint, 'You called  compute_gradient()&
+      &but the atm struct is not yet up, make sure we have atm%dz before')
+
+    if(.not.allocated(vgrad)) then
+      allocate(vgrad)
+      call DMCreateLocalVector(C_two1%da, vgrad, ierr) ;call CHKERR(ierr)
+    endif
+
+    call DMGetLocalVector(C_one1%da, vhhl, ierr) ;call CHKERR(ierr)
+    call getVecPointer(vhhl, C_one1%da, hhl1d, hhl)
+    do j=C_one1%ys,C_one1%ye
+      do i=C_one1%xs,C_one1%xe
+        hhl(i0, C_one1%zs, i, j ) = zero
+
+        do k=C_one1%zs,C_one1%ze-1
+          hhl(i0,k+1,i,j) = hhl(i0,k,i,j)-atm%dz(atmk(atm, k),i,j)
+        enddo
+      enddo
+    enddo
+    call restoreVecPointer(vhhl, hhl1d, hhl)
+
+    call DMLocalToLocalBegin(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
+    call DMLocalToLocalEnd(C_one1%da, vhhl, INSERT_VALUES, vhhl,ierr) ;call CHKERR(ierr)
+
+    call getVecPointer(vhhl , C_one1%da, hhl1d, hhl)
+    call getVecPointer(vgrad, C_two1%da, grad_1d, grad)
+
+    do j=C_two1%ys,C_two1%ye
+      do i=C_two1%xs,C_two1%xe
+        do k=C_two1%zs,C_two1%ze-1
+          ! Mean heights of adjacent columns
+          zm(1) = (hhl(i0,k,i-1,j) + hhl(i0,k+1,i-1,j)) / 2
+          zm(2) = (hhl(i0,k,i+1,j) + hhl(i0,k+1,i+1,j)) / 2
+
+          zm(3) = (hhl(i0,k,i,j-1) + hhl(i0,k+1,i,j-1)) / 2
+          zm(4) = (hhl(i0,k,i,j+1) + hhl(i0,k+1,i,j+1)) / 2
+
+          ! Gradient of height field
+          grad(i0, k, i, j) = (zm(2)-zm(1)) / (2._ireals*atm%dx)
+          grad(i1, k, i, j) = (zm(4)-zm(3)) / (2._ireals*atm%dy)
+          !print *,k,i,j,'zm', zm,'::', grad(:, k, i, j)
+          if(grad(i0, k, i, j).gt.epsilon(one)) call CHKERR(1_mpiint, 'DEBUG')
+        enddo
+        zm(1) = hhl(i0, C_two1%ze, i-1, j)
+        zm(2) = hhl(i0, C_two1%ze, i+1, j)
+        zm(3) = hhl(i0, C_two1%ze, i, j-1)
+        zm(4) = hhl(i0, C_two1%ze, i, j+1)
+        ! Gradient of height field
+        grad(i0, C_two1%ze, i, j) = (zm(2)-zm(1)) / (2._ireals*atm%dx)
+        grad(i1, C_two1%ze, i, j) = (zm(4)-zm(3)) / (2._ireals*atm%dy)
+        !print *,k,i,j,'zm', zm,'::', grad_x(:, C_two1%ze, i, j)
+      enddo
+    enddo
+
+    call restoreVecPointer(vhhl, hhl1d, hhl)
+    call DMRestoreLocalVector(C_one1%da ,vhhl ,ierr);  call CHKERR(ierr)
+
+    call restoreVecPointer(vgrad, grad_1d, grad)
+
+    call PetscObjectViewFromOptions(vgrad, PETSC_NULL_VEC, "-pprts_show_grad", ierr); call CHKERR(ierr)
+  end subroutine
+
+  pure function atmk(atm, k) ! return vertical index value for DMDA grid on atmosphere grid
+    integer(iintegers) :: atmk
+    integer(iintegers),intent(in) :: k
+    type(t_atmosphere),intent(in) :: atm
+    atmk = k+atm%icollapse-1
+  end function
 end module
