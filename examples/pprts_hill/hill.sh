@@ -3,6 +3,7 @@ make -j -C $HOME/tenstream/build ex_pprts_hill && \
   $HOME/tenstream/build/bin/ex_pprts_hill \
   -atm_filename $HOME/tenstream/examples/pprts_hill/afglus_100m.dat \
   -twostr_only \
+  -pprts_slope_correction \
   -lwc .1 \
   -Ny 64 \
   -hill_dP 50 \
