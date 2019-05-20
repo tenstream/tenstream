@@ -128,7 +128,7 @@ verbose
                 cmd = ['salloc', '-n', '64', '--time=08:00:00', '--mem-per-cpu=4G',  '-C', 'GPU', '-p', 'vis,cluster,ws', 'bash', '-c', 'mpirun uvspec_mpi {} {}'.format(fh.name, ts_opt)]
             else:
                 cmd = ['srun', '-n', '1', '--time=08:00:00', '--mem=1G']
-                cmd += [os.path.join(libRadtran, 'bin', 'uvspec_mpi'), fh.name]
+                cmd += [os.path.join(libRadtran, 'bin', 'uvspec'),'-f', fh.name]
 
             print("calling subprocess", cmd)
             sp = subprocess.call(cmd)
@@ -333,7 +333,7 @@ with xr.open_dataset(tenstr_hill_fname) as D:
 	    'wc_file_3D': wcloud_file,
 	    'mc_forward_output': 'absorption K_per_day',
 
-	    'mc_photons': '{}'.format(int(1e7)),
+	    'mc_photons': '{}'.format(int(1e6)),
 	    'outdir': outdir_srfc,
 
             'mc_elevation_file': elev_file,

@@ -17,6 +17,6 @@ from pylab import *
 import xarray as xr
 D=xr.open_dataset("out_pprts_hill.nc")
 plot(D["0edir"][:,1,-1])
-#ylim(750,820)
+axvline((D["0edir"].shape[0]+1)//2, linestyle='--', color='.5')
 waitforbuttonpress()
 EOF
