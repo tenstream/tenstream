@@ -218,7 +218,7 @@ contains
 
           !print *,k,i,j,'g',g,'sun',sundir,':', dot_product(g,-sundir), ':', dot_product([zero,zero,one],-sundir)
           fac = dot_product([zero,zero,one],-sundir) / dot_product(g,-sundir)
-          edir(ubound(edir,1),i-C_two1%xs+1,j-C_two1%xe+1) = edir(ubound(edir,1),i-C_two1%xs+1,j-C_two1%xe+1) * fac
+          edir(ubound(edir,1), i-C_two1%xs+1, j-C_two1%ys+1) = edir(ubound(edir,1), i-C_two1%xs+1, j-C_two1%ys+1) * fac
         enddo
       enddo
 
@@ -352,7 +352,7 @@ contains
     endif
 
     call smooth_surface_fluxes(solver, edn, eup)
-    call slope_correction_fluxes(solver, edir)
+    if(lsolar) call slope_correction_fluxes(solver, edir)
 
     !if(myid.eq.0 .and. ldebug) then
     !  if(present(opt_time)) then

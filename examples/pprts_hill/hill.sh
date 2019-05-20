@@ -2,6 +2,7 @@ rm out_pprts_hill.nc
 make -j -C $HOME/tenstream/build ex_pprts_hill && \
   $HOME/tenstream/build/bin/ex_pprts_hill \
   -atm_filename $HOME/tenstream/examples/pprts_hill/afglus_100m.dat \
+  -thermal no \
   -twostr_only \
   -pprts_slope_correction \
   -lwc .1 \
