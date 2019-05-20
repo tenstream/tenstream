@@ -250,8 +250,14 @@ def tenstr_hill_2_cloud_file(fname, outfname=None, max_vert_resolution_decimals=
 
 import os
 import multiprocessing
+
 homedir = os.environ['HOME']
-libRadtran = os.path.join(homedir, 'libRadtran')
+if 'LIBRADTRAN_PATH' in os.environ:
+    libRadtran = os.environ['LIBRADTRAN_PATH']
+elif os.path.exists(os.path.join(homedir, 'libRadtran')):
+    libRadtran = os.path.join(homedir, 'libRadtran')
+else:
+    raise RuntimeError('Could not find libRadtran')
 
 tenstr_hill_fname='out_pprts_hill.nc'
 elev_file = 'uvspec_elevation.nc'
