@@ -2,7 +2,6 @@ import numpy as np
 import xarray as xr
 from scipy.interpolate import griddata
 import os
-import load_librad
 import glob
 
 ### Generating uvspec input files for calculations
@@ -126,15 +125,15 @@ verbose
                 ts_opt = ' '.join(map(str, datadict.pop('tenstream_options')))
 
             if 'mc_tenstream' in datadict:
-                cmd = ['salloc', '-n', '64', '--time=8:00:00', '--mem-per-cpu=4G',  '-C', 'GPU', '-p', 'vis,cluster,ws', 'bash', '-c', 'mpirun uvspec_mpi {} {}'.format(fh.name, ts_opt)]
+                cmd = ['salloc', '-n', '64', '--time=08:00:00', '--mem-per-cpu=4G',  '-C', 'GPU', '-p', 'vis,cluster,ws', 'bash', '-c', 'mpirun uvspec_mpi {} {}'.format(fh.name, ts_opt)]
             else:
-                cmd = ['srun', '-n', '1', '--time=72:00:00', '--mem=1G']
+                cmd = ['srun', '-n', '1', '--time=08:00:00', '--mem=1G']
                 cmd += [os.path.join(libRadtran, 'bin', 'uvspec_mpi'), fh.name]
 
             print("calling subprocess", cmd)
             sp = subprocess.call(cmd)
-            [ load_librad.load_flx_spc(flxfile) for flxfile in glob.glob(os.path.join(datadict['outdir'],'*.flx.spc')) ]
-            [ load_librad.load_abs_spc(absfile) for absfile in glob.glob(os.path.join(datadict['outdir'],'*.abs.spc')) ]
+            [ load_flx_spc(flxfile) for flxfile in glob.glob(os.path.join(datadict['outdir'],'*.flx.spc')) ]
+            [ load_abs_spc(absfile) for absfile in glob.glob(os.path.join(datadict['outdir'],'*.abs.spc')) ]
     else:
         print('outdir not in datadict, not sure where to put the results, skipping...')
 
@@ -246,6 +245,55 @@ def tenstr_hill_2_cloud_file(fname, outfname=None, max_vert_resolution_decimals=
             'dy': dy*1e-3,
         })
     D.to_netcdf(outfname)
+
+
+def load_flx_spc(fname,d=dict(),ret=True,delete=False):
+        from numpy import loadtxt,arange,zeros,array,save,load
+        import os
+
+        if os.path.splitext(fname) == '.npy':
+                if not ret:
+                	return
+                returnarr = load(fname+'.npy')
+        else:
+                print('\t \t ... converting flux file',fname)
+                x,y,z,edir,edn,eup,uavgdir,uavgdn ,uavgup = loadtxt(fname,unpack=True,usecols=(1,2,3,4,5,6,7,8,9) )
+                edir    = edir.reshape    (  ( -1 , int(max(x))+1 , int(max(y))+1 ))
+                edn     = edn.reshape     (  ( -1 , int(max(x))+1 , int(max(y))+1 ))
+                eup     = eup.reshape     (  ( -1 , int(max(x))+1 , int(max(y))+1 ))
+                uavgdir = uavgdir.reshape (  ( -1 , int(max(x))+1 , int(max(y))+1 ))
+                uavgdn  = uavgdn.reshape  (  ( -1 , int(max(x))+1 , int(max(y))+1 ))
+                uavgup  = uavgup.reshape  (  ( -1 , int(max(x))+1 , int(max(y))+1 ))
+                returnarr = array([edir,edn,eup ,uavgdir,uavgdn,uavgup]).swapaxes(2,3)
+                save(fname,returnarr)
+                if os.path.exists(fname+'.npy'):
+                    if delete:
+                        os.remove(fname)
+
+        d[str(len(d))+':'+(fname.rsplit('/')[-1]).replace('.out.flx.spc','')] = returnarr
+        return d
+
+
+def load_abs_spc(fname,d=dict(),ret=True, delete=False):
+    from numpy import loadtxt,arange,zeros,array,save,load
+    import os
+    if os.path.splitext(fname) == '.npy':
+        if not ret:
+            return
+        returnarr = load(fname+'.npy')
+    else:
+        print('\t \t ... converting flux file',fname)
+        wvl,x,y,z,abs = loadtxt(fname,unpack=True )
+        abs   = abs.reshape((-1 , int(max(x))+1 , int(max(y))+1 ))
+        returnarr = abs.swapaxes(1,2)
+        save(fname,returnarr)
+        if os.path.exists(fname+'.npy'):
+            if delete:
+                os.remove(fname)
+
+    d[str(len(d))+':'+(fname.rsplit('/')[-1]).replace('.out.flx.spc','')] = returnarr
+    return d
+
 # HILL JOB
 
 import os
