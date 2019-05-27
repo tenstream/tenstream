@@ -364,6 +364,8 @@ contains
                              "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
     num_spectral_bands = min(num_spectral_bands, int(ngptlw, iintegers))
 
+    if(handle_nina_rt_solvers()) return
+
     do ib=1, num_spectral_bands
 
       if(need_new_solution(comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
@@ -404,6 +406,22 @@ contains
       abso = abso + spec_abso
 
     enddo ! ib 1 -> nbndlw , i.e. spectral integration
+    contains
+        function handle_nina_rt_solvers()
+            logical :: handle_nina_rt_solvers, lflg
+            handle_nina_rt_solvers = .False.
+            call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+                "-plexrt_nina_lw", handle_nina_rt_solvers, lflg, ierr); call CHKERR(ierr)
+
+            if(.not.handle_nina_rt_solvers) return
+
+            if(.not.allocated(atm%cfrac)) &
+                call CHKERR(1_mpiint, 'Need to have cloud fraction allocated if we want to use Nina solvers... '// &
+                ' if you are calling from ICON, maybe call with option: -plexrt_nina_cfrac !')
+
+
+        end function
+
   end subroutine compute_thermal
 
   subroutine compute_solar(comm, solver, atm, Ncol, ke1, &

@@ -93,6 +93,7 @@ module m_dyn_atm_to_rrtmg
       real(ireals),allocatable :: reliq  (:,:) ! effective radius               [micron]
       real(ireals),allocatable :: iwc    (:,:) ! ice water content              [g/kg]
       real(ireals),allocatable :: reice  (:,:) ! ice effective radius           [micron]
+      real(ireals),allocatable :: cfrac  (:,:) ! cloud fraction
 
       real(ireals),allocatable :: opt_tau(:,:,:) ! optional optical properties: tau, w0, g dim (Nlay_dynamics, Ncol, Nbands(solar or thermal))
       real(ireals),allocatable :: opt_w0 (:,:,:) ! will be added to the rrtmg optical properties
@@ -114,7 +115,7 @@ module m_dyn_atm_to_rrtmg
 
     subroutine setup_tenstr_atm(comm, lTOA_to_srfc, atm_filename, d_plev, d_tlev, atm, &
         d_tlay, d_h2ovmr, d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr,  d_o2vmr, &
-        d_lwc, d_reliq, d_iwc, d_reice, d_surface_height)
+        d_lwc, d_reliq, d_iwc, d_reice, d_cloud_fraction, d_surface_height)
       integer(mpiint), intent(in) :: comm
       logical, intent(in) :: lTOA_to_srfc    ! True if provided variables go from TOA to srfc or False if starting at surface
 
@@ -140,6 +141,7 @@ module m_dyn_atm_to_rrtmg
       real(ireals),intent(in),optional :: d_reliq  (:,:)      ! effective radius               [micron]
       real(ireals),intent(in),optional :: d_iwc    (:,:)      ! ice water content              [g/kg]
       real(ireals),intent(in),optional :: d_reice  (:,:)      ! ice effective radius           [micron]
+      real(ireals),intent(in),optional :: d_cloud_fraction(:,:) ! cloud fraction
       real(ireals),intent(in),optional :: d_surface_height(:) ! surface height above sea       [m]
 
       integer(iintegers) :: icol
@@ -171,6 +173,7 @@ module m_dyn_atm_to_rrtmg
         d_plev, d_tlev, d_tlay, d_h2ovmr, &
         d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr, &
         d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
+        d_cloud_fraction, &
         d_surface_height)
 
       call check_shape_2d(d_tlev  , atm%d_ke1,size(d_plev, 2, kind=iintegers))
@@ -185,7 +188,8 @@ module m_dyn_atm_to_rrtmg
       call check_shape_2d(d_reliq , atm%d_ke, size(d_plev, 2, kind=iintegers))
       call check_shape_2d(d_iwc   , atm%d_ke, size(d_plev, 2, kind=iintegers))
       call check_shape_2d(d_reice , atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_1d(d_surface_height , ncol=size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_cloud_fraction, atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_1d(d_surface_height, ncol=size(d_plev, 2, kind=iintegers))
 
       contains
         subroutine check_shape_1d(d_arr, ncol)
@@ -276,6 +280,7 @@ module m_dyn_atm_to_rrtmg
       if(allocated(atm%reliq  )) deallocate(atm%reliq  )
       if(allocated(atm%iwc    )) deallocate(atm%iwc    )
       if(allocated(atm%reice  )) deallocate(atm%reice  )
+      if(allocated(atm%cfrac  )) deallocate(atm%cfrac  )
       if(allocated(atm%atm_ke )) deallocate(atm%atm_ke )
     end subroutine
 
@@ -304,6 +309,7 @@ module m_dyn_atm_to_rrtmg
       if(allocated(atm%reliq  )) atm%reliq   = reverse(atm%reliq  )
       if(allocated(atm%iwc    )) atm%iwc     = reverse(atm%iwc    )
       if(allocated(atm%reice  )) atm%reice   = reverse(atm%reice  )
+      if(allocated(atm%cfrac  )) atm%cfrac   = reverse(atm%cfrac  )
 
       atm%lTOA_to_srfc = lTOA_to_srfc
     end subroutine
@@ -313,6 +319,7 @@ module m_dyn_atm_to_rrtmg
         d_plev, d_tlev, d_tlay, d_h2ovmr,   &
         d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr, &
         d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
+        d_cfrac, &
         d_surface_height)
 
       integer(mpiint), intent(in) :: comm
@@ -331,6 +338,7 @@ module m_dyn_atm_to_rrtmg
       real(ireals),intent(in),optional :: d_reliq  (:,:) !
       real(ireals),intent(in),optional :: d_iwc    (:,:) !
       real(ireals),intent(in),optional :: d_reice  (:,:) !
+      real(ireals),intent(in),optional :: d_cfrac  (:,:) !
       real(ireals),intent(in),optional :: d_surface_height(:)
 
       !real(ireals) :: d_plev (ubound(in_d_plev,1), ubound(in_d_plev,2))
@@ -433,6 +441,9 @@ module m_dyn_atm_to_rrtmg
           if(.not.allocated(atm%reliq  )) allocate(atm%reliq  (ke,  ie))
           if(.not.allocated(atm%iwc    )) allocate(atm%iwc    (ke,  ie))
           if(.not.allocated(atm%reice  )) allocate(atm%reice  (ke,  ie))
+          if(present(d_cfrac)) then
+              if(.not.allocated(atm%cfrac  )) allocate(atm%cfrac  (ke,  ie))
+          endif
 
           lupdate_bg_entries = .True.
         else
@@ -453,8 +464,9 @@ module m_dyn_atm_to_rrtmg
             if(atm%plev(ke1-atm_ke+1, icol) .gt. atm%plev(atm%d_ke1, icol)) then
               print *,'background profile pressure is .ge. than uppermost pressure &
                 & level of dynamics grid -- this suggests the dynamics grid is way &
-                & off hydrostatic balance... please check', atm%plev(:, icol)
-              call CHKERR(1_mpiint, 'error in rrtm_lw merging grids')
+                & off hydrostatic balance... please check', icol, &
+                atm%plev(ke1-atm_ke+1, icol), atm%plev(atm%d_ke1, icol), atm%plev(:, icol)
+              call CHKWARN(1_mpiint, 'error in rrtm_lw merging grids')
             endif
 
             ! And also Tlev has to be present always
@@ -507,6 +519,11 @@ module m_dyn_atm_to_rrtmg
                 zero*bg_atm%tlay, zero*bg_atm%tlev, atm%reice(:,icol), d_reice(:,icol))
             else
               atm%reice = zero
+            endif
+
+            if(present(d_cfrac)) then
+              call merge_grid_var(lupdate_bg_entries, bg_atm%zt, atm%zt(:,icol), atm_ke, &
+                zero*bg_atm%tlay, zero*bg_atm%tlev, atm%cfrac(:,icol), d_cfrac(:,icol))
             endif
 
             if(present(d_h2ovmr)) then
