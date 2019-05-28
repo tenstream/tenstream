@@ -457,7 +457,7 @@ contains
               atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
               atm%lwc(:,icol)*integral_coeff, atm%reliq(:, icol), &
               atm%iwc(:,icol)*integral_coeff, atm%reice(:, icol), &
-              ptau, pBfrac, peup, pedn, pabso)
+              ptau, pBfrac, opt_lwuflx=peup, opt_lwdflx=pedn, opt_lwhr=pabso)
           else
             call optprop_rrtm_lw(i1, ke, albedo,      &
               atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
@@ -465,7 +465,7 @@ contains
               atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
               atm%lwc(:,icol)*integral_coeff, atm%reliq(:, icol), &
               atm%iwc(:,icol)*integral_coeff, atm%reice(:, icol), &
-              ptau, pBfrac, peup, pedn, pabso)
+              ptau, pBfrac, opt_lwuflx=peup, opt_lwdflx=pedn, opt_lwhr=pabso)
           endif
 
           tau  (:,i,j,:) = ptau(:,i1,:)
@@ -545,7 +545,6 @@ contains
               do k=i1,ke1
                 Blev(k,i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k, icol)))
               enddo
-              !Blev(1,i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(1, icol)))
             enddo ! i
           enddo ! j
           current_ibnd = ngb(ib)

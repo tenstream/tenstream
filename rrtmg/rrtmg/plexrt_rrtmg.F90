@@ -44,7 +44,7 @@ module m_plexrt_rrtmg
       mpiint, pi, default_str_len
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-      imp_allreduce_min, imp_allreduce_max, CHKERR, deg2rad, &
+      imp_allreduce_min, imp_allreduce_max, CHKERR, CHKWARN, deg2rad, &
       reverse, itoa, angle_between_two_vec, rad2deg, get_arg
   use m_search, only: find_real_location
   use m_tenstream_interpolation, only : interp_1d
@@ -55,9 +55,11 @@ module m_plexrt_rrtmg
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw
-  use m_icon_plex_utils, only: Nz_Ncol_vec_to_celldm1
+  use m_icon_plex_utils, only: Nz_Ncol_vec_to_celldm1, Nz_Ncol_vec_to_horizface1_dm
 
   use m_netcdfIO, only : ncwrite
+
+  use m_tenstr_disort, only: default_flx_computation
 
   implicit none
 
@@ -104,7 +106,7 @@ contains
 
     type(tIS) :: toa_ids
 
-    integer(iintegers) :: k, Ncol, ke1
+    integer(iintegers) :: k, Ncol, ke, ke1
 
     integer(mpiint) :: myid, comm, ierr
     logical :: lrrtmg_only, lflg
@@ -121,6 +123,7 @@ contains
 
     ke1 = solver%plex%Nlay+1
     call CHKERR(int(ke1 - size(atm%plev,dim=1),mpiint), 'Vertical Size of atm and plex solver dont match')
+    ke = ke1-1
 
     call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
     call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
@@ -133,7 +136,7 @@ contains
 
     if(.not.allocated(edn )) allocate(edn (ke1, Ncol))
     if(.not.allocated(eup )) allocate(eup (ke1, Ncol))
-    if(.not.allocated(abso)) allocate(abso(ke1-1, Ncol))
+    if(.not.allocated(abso)) allocate(abso(ke, Ncol))
     edn  = zero
     eup  = zero
     abso = zero
@@ -145,8 +148,7 @@ contains
     call allocate_optprop_vec(solver%plex%srfc_boundary_dm, solver%albedo)
 
     if(lthermal) then
-      call allocate_optprop_vec(solver%plex%cell1_dm, solver%plck)
-      call allocate_optprop_vec(solver%plex%srfc_boundary_dm, solver%srfc_emission)
+      call allocate_optprop_vec(solver%plex%horizface1_dm, solver%plck)
 
       call compute_thermal(comm, solver, atm, &
         Ncol, ke1, &
@@ -156,9 +158,9 @@ contains
         thermal_albedo_2d=thermal_albedo_2d, &
         lrrtmg_only=lrrtmg_only)
 
-      call dump_vec(edn(1:ke1-1,:), '-plexrt_dump_thermal_Edn_1_ke')
+      call dump_vec(edn(1:ke,:), '-plexrt_dump_thermal_Edn_1_ke')
       call dump_vec(edn(2:ke1,:) ,  '-plexrt_dump_thermal_Edn_2_ke1')
-      call dump_vec(eup(1:ke1-1,:), '-plexrt_dump_thermal_Eup_1_ke')
+      call dump_vec(eup(1:ke,:), '-plexrt_dump_thermal_Eup_1_ke')
       call dump_vec(eup(2:ke1,:),   '-plexrt_dump_thermal_Eup_2_ke1')
       call dump_vec(abso, '-plexrt_dump_thermal_abso')
     endif
@@ -175,14 +177,14 @@ contains
         lrrtmg_only=lrrtmg_only, &
         opt_solar_constant=opt_solar_constant)
 
-      call dump_vec(edir(1:ke1-1,:),'-plexrt_dump_Edir_1_ke')
+      call dump_vec(edir(1:ke,:),'-plexrt_dump_Edir_1_ke')
       call dump_vec(edir(2:ke1,:),  '-plexrt_dump_Edir_2_ke1')
     endif
 
     if(ldebug.and.myid.eq.0) then
       if(lsolar) then
         print *,'vert level    edir           edn              eup          abso'
-        do k = 1, ke1-1
+        do k = 1, ke
           print *,k, edir(k,i1), edn(k,i1), eup(k,i1), abso(k,i1)
         enddo
         print *,k, edir(ke1,i1), edn(ke1,i1), eup(ke1,i1)
@@ -192,7 +194,7 @@ contains
         endif
       else
         print *,'vert level    edn              eup          abso'
-        do k = 1, ke1-1
+        do k = 1, ke
           print *,k, edn(k,i1), eup(k,i1), abso(k,i1)
         enddo
         print *,k, edn(k,i1), eup(k,i1)
@@ -202,9 +204,9 @@ contains
       endif
     endif
 
-    call dump_vec(edn(1:ke1-1,:), '-plexrt_dump_Edn_1_ke')
+    call dump_vec(edn(1:ke,:), '-plexrt_dump_Edn_1_ke')
     call dump_vec(edn(2:ke1,:) ,  '-plexrt_dump_Edn_2_ke1')
-    call dump_vec(eup(1:ke1-1,:), '-plexrt_dump_Eup_1_ke')
+    call dump_vec(eup(1:ke,:), '-plexrt_dump_Eup_1_ke')
     call dump_vec(eup(2:ke1,:),   '-plexrt_dump_Eup_2_ke1')
 
     call dump_vec(abso, '-plexrt_dump_abso')
@@ -258,22 +260,27 @@ contains
     real(ireals), optional, intent(in) :: opt_time, thermal_albedo_2d(:)
     logical, optional, intent(in) :: lrrtmg_only
 
-    real(ireals),allocatable, dimension(:,:,:) :: tau, Bfrac          ! [nlyr, ncol, ngptlw]
+    integer(iintegers) :: ke
+
+    real(ireals),allocatable, dimension(:,:,:) :: tau, tau_f          ! [nlyr, ncol, ngptlw]
+    real(ireals),allocatable, dimension(:,:,:) :: Bfrac               ! [nlyr+1, ncol, ngptlw]
     real(ireals),allocatable, dimension(:,:)   :: spec_abso           ! [nlyr(+1), ncol ]
     real(ireals),allocatable, dimension(:,:)   :: spec_edn, spec_eup  ! [nlyr(+1), ncol ]
-    real(ireals),allocatable, dimension(:,:)   :: tmp, plck           ! [nlyr, ncol ]
+    real(ireals),allocatable, dimension(:,:)   :: Blev                ! [nlyr+1, ncol ]
     real(ireals),allocatable, dimension(:)     :: integral_coeff      ! [nlyr]
 
-    real(ireals), pointer :: xalbedo(:), xsrfc_emission(:)
+    real(ireals), pointer :: xalbedo(:)
 
+    real(ireals) :: Ag
     integer(iintegers) :: i, ib, icol, k, current_ibnd, num_spectral_bands
     logical :: need_any_new_solution, lflg
 
     integer(mpiint) :: ierr
 
+    ke = ke1-1
     allocate(spec_edn (ke1, Ncol))
     allocate(spec_eup (ke1, Ncol))
-    allocate(spec_abso(ke1-1, Ncol))
+    allocate(spec_abso(ke, Ncol))
 
     need_any_new_solution=.False.
     do ib=1,ngptlw
@@ -291,44 +298,50 @@ contains
     endif
 
     ! Compute optical properties with RRTMG
-    allocate(tau  (ke1-i1, Ncol, ngptlw))
-    allocate(Bfrac(ke1-i1, Ncol, ngptlw))
-    allocate(integral_coeff(ke1-i1))
+    allocate(tau  (ke , Ncol, ngptlw))
+    allocate(tau_f(ke , Ncol, ngptlw))
+    allocate(Bfrac(ke1, Ncol, ngptlw))
+    allocate(integral_coeff(ke))
+
+    Ag = albedo
 
     if(lrrtmg_only) then
         do i = 1, Ncol
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i))
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
+          if(present(thermal_albedo_2d)) Ag =  thermal_albedo_2d(i)
 
-          call optprop_rrtm_lw(i1, ke1-i1, albedo, &
+          call optprop_rrtm_lw(i1, ke, Ag, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
             atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
             atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
-            tau(:,i:i,:), Bfrac(:,i:i,:), &
+            tau(:,i:i,:), Bfrac(2:ke1,i:i,:), tau_f(:,i:i,:), &
             spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i))
 
           eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
           edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
           !abso(:,i) = abso(:,i) + reverse(spec_abso(:,i)) ! This would be in K/day
           abso(:,i) = abso(:,i) + reverse( ( &
-              - spec_edn(1:ke1-1,i) + spec_edn(2:ke1,i) &
-              + spec_eup(1:ke1-1,i) - spec_eup(2:ke1,i) ) / atm%dz(:,i) )
+              - spec_edn(1:ke,i) + spec_edn(2:ke1,i) &
+              + spec_eup(1:ke,i) - spec_eup(2:ke1,i) ) / atm%dz(:,i) )
         enddo
       return
     else
         do i = 1, Ncol
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i))
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
+          if(present(thermal_albedo_2d)) Ag =  thermal_albedo_2d(i)
 
-          call optprop_rrtm_lw(i1, ke1-i1, albedo, &
+          call optprop_rrtm_lw(i1, ke, Ag, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
             atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
             atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
-            tau(:,i:i,:), Bfrac(:,i:i,:))
+            tau(:,i:i,:), Bfrac(2:ke1,i:i,:), tau_f(:,i:i,:))
         enddo
     endif
+    Bfrac(1,:,:) = Bfrac(2,:,:)
 
     if(allocated(atm%opt_tau)) then
       if(.not.all( shape(atm%opt_tau) .eq. shape(tau(1:atm%d_ke,:,:)) )) then
@@ -354,8 +367,7 @@ contains
     endif
 
     ! tmp space for transformations of cell properties
-    allocate(tmp(ke1-1, Ncol))
-    allocate(plck(ke1, Ncol)) ! actually have ke entries for layers plus one for surface. the srfc plck val is put at the end of the vert. axis
+    allocate(Blev(ke1, Ncol))
 
     current_ibnd = -1 ! current lw band
 
@@ -364,36 +376,28 @@ contains
                              "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
     num_spectral_bands = min(num_spectral_bands, int(ngptlw, iintegers))
 
-    if(handle_nina_rt_solvers()) return
+    if(compute_thermal_disort()) return
+    if(handle_twomax_rt_solvers()) return
 
     do ib=1, num_spectral_bands
 
       if(need_new_solution(comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
 
-        tmp = reverse(max(zero, tau(:,:,ib)) / atm%dz)
-        call Nz_Ncol_vec_to_celldm1(solver%plex, tmp, solver%kabs)
+        call Nz_Ncol_vec_to_celldm1(solver%plex, reverse(max(zero, tau(:,:,ib) ) / atm%dz), solver%kabs)
 
         !Compute Plank Emission for nbndlw
         if(current_ibnd.eq.ngb(ib)) then ! still the same band, dont need to upgrade the plank emission
           continue
         else
           do icol=i1,Ncol
-            do k=i1,ke1-1
-              plck(k,icol) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlay(k,icol)))
+            do k=i1,ke1
+              Blev(k,icol) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k,icol)))
             enddo
-            plck(k,icol) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(1,icol)))
           enddo
           current_ibnd = ngb(ib)
         endif
 
-        tmp = reverse(plck(1:ke1-1,:) * Bfrac(:,:,ib))
-        call Nz_Ncol_vec_to_celldm1(solver%plex, tmp, solver%plck)
-
-        call VecGetArrayF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
-        do icol = i1, Ncol
-          xsrfc_emission(icol) = plck(ke1,icol) * Bfrac(1,icol,ib)
-        enddo
-        call VecRestoreArrayF90(solver%srfc_emission, xsrfc_emission, ierr); call CHKERR(ierr)
+        call Nz_Ncol_vec_to_horizface1_dm(solver%plex, reverse(Blev * Bfrac(:,:,ib)), solver%plck)
 
         call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=[zero, zero, one], &
           opt_solution_uid=500+ib, opt_solution_time=opt_time)
@@ -406,21 +410,145 @@ contains
       abso = abso + spec_abso
 
     enddo ! ib 1 -> nbndlw , i.e. spectral integration
-    contains
-        function handle_nina_rt_solvers()
-            logical :: handle_nina_rt_solvers, lflg
-            handle_nina_rt_solvers = .False.
-            call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-                "-plexrt_nina_lw", handle_nina_rt_solvers, lflg, ierr); call CHKERR(ierr)
 
-            if(.not.handle_nina_rt_solvers) return
+  contains
+      function compute_thermal_disort() result(ldisort_only)
+        logical :: ldisort_only
+        integer(iintegers) :: nstreams
+        real :: mu0, S0, col_albedo, wvnms(2)
+        real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
+        real, dimension(size(tau,1)+1) :: col_temper
+        real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
 
-            if(.not.allocated(atm%cfrac)) &
-                call CHKERR(1_mpiint, 'Need to have cloud fraction allocated if we want to use Nina solvers... '// &
-                ' if you are calling from ICON, maybe call with option: -plexrt_nina_cfrac !')
+        ldisort_only = .False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+          "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
 
+        if(ldisort_only) then
+          nstreams = 16
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+            "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
 
-        end function
+          mu0 = 0
+          S0  = 0
+          col_w0 = 0
+          col_g  = 0
+          col_albedo = albedo
+
+          do ib=1, num_spectral_bands
+          do icol=1,Ncol
+
+              if(present(thermal_albedo_2d)) col_albedo = thermal_albedo_2d(icol)
+
+                col_Bfrac  = real(reverse(Bfrac(1:ke,icol,ib)))
+                col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,icol,ib))))
+                col_temper = real(reverse(atm%tlev(:, icol)))
+                wvnms = [real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib)))]
+
+                call default_flx_computation(&
+                  mu0, &
+                  S0, &
+                  col_albedo, &
+                  .True., wvnms, col_Bfrac, &
+                  col_dtau, &
+                  col_w0,   &
+                  col_g,    &
+                  col_temper, &
+                  RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
+                  int(nstreams), lverbose=.False.)
+
+                eup (:,icol) = eup (:,icol) + FLUP
+                edn (:,icol) = edn (:,icol) + RFLDN
+              enddo ! ib 1 -> nbndsw , i.e. spectral integration
+          enddo
+
+          abso =( edn (1:ke,:) - edn (2:ke+1,:)   &
+                - eup (1:ke,:) + eup (2:ke+1,:) ) / reverse(atm%dz)
+        endif
+      end function
+    logical function handle_twomax_rt_solvers()
+      use m_f2c_twomax, only: twostream_maxrandF90
+      use iso_c_binding
+
+      real(c_double), dimension(ke) :: dtau_c, omega0_c, g_c
+      real(c_double), dimension(ke) :: dtau_f, omega0_f, g_f
+      real(c_double), dimension(ke) :: cfrac
+      real(c_double), dimension(ke1)    :: B, Edir, spec_Edn, spec_Eup
+      integer(c_int) :: ret, delta, flagSolar, flagThermal
+      integer(c_int) :: Nlev
+      real(c_double) :: S0, mu0
+      real(c_double) :: Bg, Ag
+      real(ireals) :: Blev(ke1)
+
+      integer(iintegers) :: ib, icol
+      integer(mpiint) :: ierr
+      logical :: lflg
+
+      handle_twomax_rt_solvers = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+        "-plexrt_twomax_lw", handle_twomax_rt_solvers, lflg, ierr); call CHKERR(ierr)
+
+      if(.not.handle_twomax_rt_solvers) return
+
+      if(.not.allocated(atm%cfrac)) then
+        call CHKWARN(1_mpiint, 'Need to have cloud fraction allocated if we want to use twomax solvers... '// &
+          ' if you are calling from ICON, maybe call with option: -plexrt_twomax_cfrac !')
+      endif
+
+      Ag = albedo
+      delta=0
+      flagSolar=0
+      flagThermal=1
+      S0=0
+      mu0=1
+      Nlev = ke1
+
+      omega0_c = 0
+      g_c      = 0
+
+      omega0_f = 0
+      g_f      = 0
+
+      cfrac = 1 ! TODO: this should be using atm%cfrac
+
+      current_ibnd = -1 ! current lw band
+      do ib=1, num_spectral_bands
+        !Compute Plank Emission for nbndlw, Bfrac starts at bot, dim(ke)
+        do icol=i1,Ncol
+          if(present(thermal_albedo_2d)) Ag = thermal_albedo_2d(icol)
+
+          dtau_f   = reverse(tau_f(:,icol,ib))
+          dtau_c   = reverse(tau(:,icol,ib)) - dtau_f
+
+          if(current_ibnd.eq.ngb(ib)) then ! still the same band, dont need to upgrade the plank emission
+            continue
+          else
+            do k=1,ke1
+              Blev(k) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k,icol)))
+            enddo
+            current_ibnd = ngb(ib)
+          endif
+
+          B  = reverse(Blev*Bfrac(:,icol,ib))
+          Bg = B(ke1)
+
+          ret = twostream_maxrandF90(&
+            dtau_c, omega0_c, g_c, &
+            dtau_f, omega0_f, g_f, &
+            cfrac, Nlev, S0, mu0, Ag, &
+            Bg, B, delta, flagSolar, flagThermal, &
+            Edir, spec_edn, spec_eup)
+          call CHKERR(int(ret, mpiint), 'twostream_maxrandF90 returned an error')
+
+          edn (:,icol) = edn (:,icol) + real(spec_edn, ireals)
+          eup (:,icol) = eup (:,icol) + real(spec_eup, ireals)
+          abso(:,icol) = abso(:,icol) + real(&
+            + spec_edn(1:ke) - spec_edn(2:ke1) &
+            - spec_eup(1:ke) + spec_eup(2:ke1), ireals) / reverse(atm%dz(:,icol))
+
+        enddo !icol
+      enddo !ib
+    end function handle_twomax_rt_solvers
 
   end subroutine compute_thermal
 
@@ -459,7 +587,7 @@ contains
     real(ireals) :: face_normal(3), theta0, Ag, rescaled_sundir(3)
 
     type(tIS) :: toa_ids
-    integer(iintegers) :: i, ib, iface
+    integer(iintegers) :: ke, i, ib, iface
     integer(iintegers), pointer :: cell_support(:), xitoa_faces(:)
     logical :: need_any_new_solution
 
@@ -468,10 +596,11 @@ contains
 
     integer(mpiint) :: myid,ierr
 
+    ke = ke1-1
     allocate(spec_edir(ke1, Ncol))
     allocate(spec_edn (ke1, Ncol))
     allocate(spec_eup (ke1, Ncol))
-    allocate(spec_abso(ke1-1, Ncol))
+    allocate(spec_abso(ke, Ncol))
 
     need_any_new_solution=.False.
     do ib=1,ngptsw
@@ -495,10 +624,10 @@ contains
     call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
 
     ! Compute optical properties with RRTMG
-    allocate(tau(ke1-i1, Ncol, ngptsw))
-    allocate(w0 (ke1-i1, Ncol, ngptsw))
-    allocate(g  (ke1-i1, Ncol, ngptsw))
-    allocate(integral_coeff(ke1-i1))
+    allocate(tau(ke, Ncol, ngptsw))
+    allocate(w0 (ke, Ncol, ngptsw))
+    allocate(g  (ke, Ncol, ngptsw))
+    allocate(integral_coeff(ke))
 
     if(lrrtmg_only) then
         do i = 1, Ncol
@@ -512,9 +641,9 @@ contains
 
 
           if(theta0.lt.90._ireals) then
-            integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i))
+            integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
 
-            call optprop_rrtm_sw(i1, ke1-i1, &
+            call optprop_rrtm_sw(i1, ke, &
               theta0, Ag, &
               atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
               atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
@@ -530,8 +659,8 @@ contains
             edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
             !abso(:,i) = abso(:,i) + reverse(spec_abso(:,i)) ! This would be in K/day
             abso(:,i) = abso(:,i) + reverse( ( &
-              - spec_edn(1:ke1-1,i) + spec_edn(2:ke1,i) &
-              + spec_eup(1:ke1-1,i) - spec_eup(2:ke1,i) ) / atm%dz(:,i) )
+              - spec_edn(1:ke,i) + spec_edn(2:ke1,i) &
+              + spec_eup(1:ke,i) - spec_eup(2:ke1,i) ) / atm%dz(:,i) )
           else
             edir(:,i) = edir(:,i) + zero
             eup (:,i) = eup (:,i) + zero
@@ -550,9 +679,9 @@ contains
           Ag = albedo
           if(present(solar_albedo_2d)) Ag = solar_albedo_2d(i)
 
-          integral_coeff = vert_integral_coeff(atm%plev(1:ke1-1,i), atm%plev(2:ke1,i))
+          integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
 
-          call optprop_rrtm_sw(i1, ke1-i1, &
+          call optprop_rrtm_sw(i1, ke, &
             theta0, Ag, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
@@ -579,7 +708,7 @@ contains
     endif
     call VecRestoreArrayF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
 
-    allocate(tmp(ke1-1, Ncol))
+    allocate(tmp(ke, Ncol))
 
     num_spectral_bands = int(ngptsw, iintegers)
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &

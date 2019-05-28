@@ -47,7 +47,7 @@ contains
   subroutine optprop_rrtm_lw(ncol_in, nlay_in, &
       albedo, plev, tlev, tlay, &
       h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
-      lwp, reliq, iwp, reice, tau, Bfrac, &
+      lwp, reliq, iwp, reice, tau, Bfrac, opt_tau_f, &
       opt_lwuflx, opt_lwdflx, opt_lwhr)
     ! RRTM needs the arrays to start at the surface
 
@@ -59,6 +59,7 @@ contains
     real(ireals),dimension(ncol_in,nlay_in)  , intent(in) :: lwp, reliq, iwp, reice
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [nlay, ncol, ngptlw]
+    real(ireals), dimension(:,:,:), intent(out), optional :: opt_tau_f ! [nlay, ncol, ngptlw]
     real(ireals), dimension(:,:), intent(out), optional :: opt_lwuflx, opt_lwdflx, opt_lwhr ! [nlay+1, ncol]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
@@ -98,11 +99,7 @@ contains
 
     emis = one - albedo
 
-    where ( lwp.gt.0 .or. iwp.gt.0 )
-      cldfr = 1
-    elsewhere
-      cldfr = 0
-    endwhere
+    cldfr = 1
 
     if(.not.linit_rrtmg_lw) then
       call rrtmg_lw_ini(1006._rb)
@@ -130,7 +127,7 @@ contains
         real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
         tauaer, &
         lwuflx, lwdflx  ,lwhr ,lwuflxc ,lwdflxc ,lwhrc, &
-        tau, Bfrac, loptprop_only=.False.)
+        tau, Bfrac, loptprop_only=.False., tenstr_tau_f=opt_tau_f)
       opt_lwuflx = transpose(real(lwuflx, ireals))
       opt_lwdflx = transpose(real(lwdflx, ireals))
       opt_lwhr   = transpose(real(lwhr, ireals))
@@ -146,7 +143,7 @@ contains
         real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
         tauaer, &
         lwuflx, lwdflx  ,lwhr ,lwuflxc ,lwdflxc ,lwhrc, &
-        tau, Bfrac, loptprop_only=.True.)
+        tau, Bfrac, loptprop_only=.True., tenstr_tau_f=opt_tau_f)
     endif
   end subroutine
 
@@ -215,11 +212,7 @@ contains
     asdif  = albedo; aldif  = albedo; swdflxc = 0; swuflxc = 0;
     coszen = cos(deg2rad(theta0));
 
-    where ( lwp.gt.0 .or. iwp.gt.0 )
-      cldfr = 1
-    elsewhere
-      cldfr = 0
-    endwhere
+    cldfr = 1
 
     if(.not.linit_rrtmg) then
       call rrtmg_sw_ini(1006._rb)

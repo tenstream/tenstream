@@ -18,7 +18,9 @@ module m_icon_plex_utils
   private
   public :: dmplex_2D_to_3D, create_2d_fish_plex, dump_ownership, &
     gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl, &
-    icon_ncvec_to_plex, Nz_Ncol_vec_to_celldm1, celldm1_vec_to_Nz_Ncol, &
+    icon_ncvec_to_plex, &
+    Nz_Ncol_vec_to_celldm1, Nz_Ncol_vec_to_horizface1_dm, &
+    celldm1_vec_to_Nz_Ncol, &
     celldm_veccopy, dm2d_vec_to_Nz_Ncol, date_to_julian_day, get_sun_vector
 
   !logical, parameter :: ldebug=.True.
@@ -1254,6 +1256,46 @@ module m_icon_plex_utils
         call PetscSectionGetOffset(sec, cell_support(1), voff, ierr); call CHKERR(ierr)
         xv(i1+voff: voff+ke) = inp(:,i)
         call DMPlexRestoreSupport(plex%cell1_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+      enddo
+      call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+
+      call VecRestoreArrayF90(vec, xv, ierr); call CHKERR(ierr)
+    end subroutine
+
+    subroutine Nz_Ncol_vec_to_horizface1_dm(plex, inp, vec)
+      type(t_plexgrid), intent(in)  :: plex
+      real(ireals), intent(in) :: inp(:,:)
+      type(tVec), intent(inout) :: vec
+
+      type(tPetscSection) :: sec
+      real(ireals), pointer :: xv(:)
+      type(tIS) :: toa_ids
+      integer(iintegers), pointer :: xitoa_faces(:)
+      integer(iintegers) :: i, k, iface, Ncol, N, vecsize, voff
+      integer(mpiint) :: ierr
+
+      if(.not.allocated(plex%horizface1_dm)) call CHKERR(1_mpiint, 'plex%horizface1_dm has to be allocated')
+      if(vec.eq.PETSC_NULL_VEC) call CHKERR(1_mpiint, 'input/output vec has to be an initialized Petsc Vec')
+
+      call DMGetStratumIS(plex%horizface1_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
+      call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
+      call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+      N = vecsize/Ncol
+
+      call CHKERR(int(N - (plex%Nlay+1), mpiint), &
+        'vertical vec sizes do not match '//itoa(N)//' vs '//itoa(plex%Nlay+1)//' => '//itoa(N - (plex%Nlay+1)))
+
+      call DMGetSection(plex%horizface1_dm, sec, ierr); call CHKERR(ierr)
+
+      call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
+
+      call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+      do i = 1, size(xitoa_faces)
+        iface = xitoa_faces(i)
+        do k=1,N
+          call PetscSectionGetFieldOffset(sec, iface+k-1, i0, voff, ierr); call CHKERR(ierr)
+          xv(i1+voff) = inp(k,i)
+        enddo
       enddo
       call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
 

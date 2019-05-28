@@ -43,6 +43,7 @@ module m_plex_grid
 
     type(tDM), allocatable :: dm
     type(tDM), allocatable :: cell1_dm
+    type(tDM), allocatable :: horizface1_dm
     type(tDM), allocatable :: edir_dm
     type(tDM), allocatable :: ediff_dm
     type(tDM), allocatable :: abso_dm
@@ -100,6 +101,7 @@ module m_plex_grid
 
       call dealloc_dm(plex%dm)
       call dealloc_dm(plex%cell1_dm)
+      call dealloc_dm(plex%horizface1_dm)
       call dealloc_dm(plex%edir_dm)
       call dealloc_dm(plex%ediff_dm)
       call dealloc_dm(plex%abso_dm)
