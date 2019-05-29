@@ -152,7 +152,8 @@ contains
       plev, tlev, tlay, &
       h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
       lwp, reliq, iwp, reice, tau, w0, g, &
-      opt_swuflx, opt_swdflx, opt_swhr, opt_solar_constant)
+      opt_swuflx, opt_swdflx, opt_swhr, opt_solar_constant, &
+      opt_tau_f, opt_w0_f, opt_g_f)
     ! RRTM needs the arrays to start at the surface
 
     integer(iintegers),intent(in)          :: ncol_in, nlay_in
@@ -165,6 +166,7 @@ contains
     real(ireals), dimension(:,:,:), intent(out) :: tau, w0, g ! [nlay, ncol, ngptsw]
     real(ireals), dimension(:,:), intent(out), optional :: opt_swuflx, opt_swdflx, opt_swhr ! [nlay+1, ncol]
     real(ireals), intent(in), optional :: opt_solar_constant
+    real(ireals), dimension(:,:,:), intent(out),optional :: opt_tau_f, opt_w0_f, opt_g_f ! [nlay, ncol, ngptsw]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -241,7 +243,8 @@ contains
         real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
         tauaer, ssaaer, asmaer, ecaer, &
         swuflx, swdflx, swhr, swuflxc, swdflxc, swhrc, &
-        tau, w0, g, loptprop_only=.False.)
+        tau, w0, g, loptprop_only=.False., &
+        tenstr_tau_f=opt_tau_f, tenstr_w_f=opt_w0_f, tenstr_g_f=opt_g_f)
 
       opt_swuflx = transpose(real(swuflx, ireals))
       opt_swdflx = transpose(real(swdflx, ireals))
@@ -260,7 +263,8 @@ contains
         real(iwp, rb), real(lwp, rb), real(reice, rb), real(reliq, rb), &
         tauaer, ssaaer, asmaer, ecaer, &
         swuflx, swdflx, swhr, swuflxc, swdflxc, swhrc, &
-        tau, w0, g, loptprop_only=.True.)
+        tau, w0, g, loptprop_only=.True., &
+        tenstr_tau_f=opt_tau_f, tenstr_w_f=opt_w0_f, tenstr_g_f=opt_g_f)
     endif
   end subroutine
 

@@ -492,7 +492,9 @@ contains
 
       if(.not.allocated(atm%cfrac)) then
         call CHKWARN(1_mpiint, 'Need to have cloud fraction allocated if we want to use twomax solvers... '// &
-          ' if you are calling from ICON, maybe call with option: -plexrt_twomax_cfrac !')
+          ' if you are calling from ICON, maybe call with option: -plexrt_twomax_cfrac !'// &
+          ' I will set it to 1 in the mean time')
+          cfrac = 1
       endif
 
       Ag = albedo
@@ -509,16 +511,16 @@ contains
       omega0_f = 0
       g_f      = 0
 
-      cfrac = 1 ! TODO: this should be using atm%cfrac
 
       current_ibnd = -1 ! current lw band
       do ib=1, num_spectral_bands
         !Compute Plank Emission for nbndlw, Bfrac starts at bot, dim(ke)
         do icol=i1,Ncol
+          if(allocated(atm%cfrac)) cfrac = atm%cfrac(:,icol)
           if(present(thermal_albedo_2d)) Ag = thermal_albedo_2d(icol)
 
           dtau_f   = reverse(tau_f(:,icol,ib))
-          dtau_c   = reverse(tau(:,icol,ib)) - dtau_f
+          dtau_c   = reverse(tau(:,icol,ib))
 
           if(current_ibnd.eq.ngb(ib)) then ! still the same band, dont need to upgrade the plank emission
             continue
@@ -575,6 +577,7 @@ contains
     real(ireals), intent(in), optional :: opt_solar_constant
 
     real(ireals),allocatable, dimension(:,:,:) :: tau, w0, g          ! [nlyr, ncol, ngptsw]
+    real(ireals),allocatable, dimension(:,:,:) :: tau_f, w0_f, g_f    ! [nlyr, ncol, ngptsw]
     real(ireals),allocatable, dimension(:,:)   :: spec_edir,spec_abso ! [nlyr(+1), ncol ]
     real(ireals),allocatable, dimension(:,:)   :: spec_edn, spec_eup  ! [nlyr(+1), ncol ]
     real(ireals),allocatable, dimension(:,:)   :: tmp  ! [nlyr, ncol ]
@@ -629,6 +632,10 @@ contains
     allocate(g  (ke, Ncol, ngptsw))
     allocate(integral_coeff(ke))
 
+    allocate(tau_f(ke, Ncol, ngptsw))
+    allocate(w0_f (ke, Ncol, ngptsw))
+    allocate(g_f  (ke, Ncol, ngptsw))
+
     if(lrrtmg_only) then
         do i = 1, Ncol
           iface = xitoa_faces(i)
@@ -652,7 +659,8 @@ contains
               atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
               tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
               spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i), &
-              opt_solar_constant=opt_solar_constant)
+              opt_solar_constant=opt_solar_constant, &
+              opt_tau_f=tau_f(:,i:i,:), opt_w0_f=w0_f(:,i:i,:), opt_g_f=g_f(:,i:i,:))
 
             edir(:,i) = edir(:,i) + zero
             eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
@@ -689,7 +697,8 @@ contains
             atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
             atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
             tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
-            opt_solar_constant=opt_solar_constant)
+            opt_solar_constant=opt_solar_constant, &
+            opt_tau_f=tau_f(:,i:i,:), opt_w0_f=w0_f(:,i:i,:), opt_g_f=g_f(:,i:i,:))
         enddo
     endif
     if(ldebug) then
@@ -714,6 +723,9 @@ contains
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
                              "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
     num_spectral_bands = min(num_spectral_bands, int(ngptsw, iintegers))
+
+    if(compute_solar_disort()) return
+    if(handle_twomax_rt_solvers()) return
 
     do ib=1, num_spectral_bands
 
@@ -746,6 +758,171 @@ contains
       abso = abso + spec_abso
 
     enddo ! ib 1 -> nbndsw , i.e. spectral integration
+  contains
+    function compute_solar_disort() result(ldisort_only)
+      logical :: ldisort_only
+      integer(iintegers) :: nstreams
+      integer(iintegers) :: icol, ib
+      real :: mu0, col_albedo, edirTOA
+      real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
+      real, dimension(size(tau,1)+1) :: col_temper
+      real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
+
+      ldisort_only = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+        "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
+
+      if(ldisort_only) then
+        nstreams = 16
+        call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+          "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
+
+        col_temper = 0
+        col_Bfrac = 1
+        col_albedo = albedo
+
+        call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
+        call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+        do icol=1,Ncol
+          iface = xitoa_faces(icol)
+          call DMPlexGetSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
+          call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
+          call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
+          theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
+
+          if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(icol)
+
+          do ib=1, num_spectral_bands
+            if(present(opt_solar_constant)) then
+              edirTOA = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
+            else
+              edirTOA = tenstr_solsrc(ib)
+            endif
+
+            col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,icol,ib))))
+            col_w0     = max(tiny(col_w0  ), real(reverse(w0 (:,icol,ib))))
+            col_g      = max(tiny(col_g   ), real(reverse(g  (:,icol,ib))))
+
+            mu0 = real(cos(deg2rad(theta0)))
+            call default_flx_computation(&
+              mu0, &
+              real(edirTOA), &
+              real(col_albedo), &
+              .False., [0., 0.], col_Bfrac, &
+              col_dtau, &
+              col_w0,   &
+              col_g,    &
+              col_temper, &
+              RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
+              int(nstreams), lverbose=.False.)
+
+            edir(:,icol) = edir(:,icol) + RFLDIR
+            eup (:,icol) = eup (:,icol) + FLUP
+            edn (:,icol) = edn (:,icol) + RFLDN
+          enddo ! ib 1 -> nbndsw , i.e. spectral integration
+        enddo
+
+        abso =( edir(1:ke,:) - edir(2:ke+1,:)   &
+          + edn (1:ke,:) - edn (2:ke+1,:)   &
+          - eup (1:ke,:) + eup (2:ke+1,:) ) / reverse(atm%dz)
+
+        call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+        call VecRestoreArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
+      endif
+
+    end function
+
+    logical function handle_twomax_rt_solvers()
+      use m_f2c_twomax, only: twostream_maxrandF90
+      use iso_c_binding
+
+      real(c_double), dimension(ke) :: dtau_c, omega0_c, g2_c
+      real(c_double), dimension(ke) :: dtau_f, omega0_f, g2_f
+      real(c_double), dimension(ke) :: cfrac
+      real(c_double), dimension(ke1) :: B, spec_edir, spec_Edn, spec_Eup
+      integer(c_int) :: ret, delta, flagSolar, flagThermal
+      integer(c_int) :: Nlev
+      real(c_double) :: S0, mu0
+      real(c_double) :: Bg, Ag
+
+      integer(iintegers) :: ib, icol
+      integer(mpiint) :: ierr
+      logical :: lflg
+
+      handle_twomax_rt_solvers = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+        "-plexrt_twomax_sw", handle_twomax_rt_solvers, lflg, ierr); call CHKERR(ierr)
+
+      if(.not.handle_twomax_rt_solvers) return
+
+      if(.not.allocated(atm%cfrac)) then
+        call CHKWARN(1_mpiint, 'Need to have cloud fraction allocated if we want to use twomax solvers... '// &
+          ' if you are calling from ICON, maybe call with option: -plexrt_twomax_cfrac !'// &
+          ' I will set it to 1 in the mean time')
+        cfrac = 1
+      endif
+
+      Ag = albedo
+      delta=0
+      flagSolar=1
+      flagThermal=0
+      Nlev = ke1
+      B = 0
+      Bg = 0
+
+
+      call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
+      call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+
+      do ib=1, num_spectral_bands
+        if(present(opt_solar_constant)) then
+          S0 = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
+        else
+          S0 = tenstr_solsrc(ib)
+        endif
+        do icol=i1,Ncol
+          if(allocated(atm%cfrac)) cfrac = atm%cfrac(:,icol)
+          if(present(solar_albedo_2d)) Ag = solar_albedo_2d(icol)
+
+          dtau_c   = reverse(tau(:,icol,ib))
+          omega0_c = reverse(w0 (:,icol,ib))
+          g2_c     = reverse(g  (:,icol,ib))
+          dtau_f   = reverse(tau_f(:,icol,ib))
+          omega0_f = reverse(w0_f (:,icol,ib))
+          g2_f     = reverse(g_f  (:,icol,ib))
+
+
+          iface = xitoa_faces(icol)
+          call DMPlexGetSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
+          call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
+          call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
+          theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
+
+          mu0 = real(cos(deg2rad(theta0)))
+
+          ret = twostream_maxrandF90(&
+            dtau_c, omega0_c, g2_c, &
+            dtau_f, omega0_f, g2_f, &
+            cfrac, Nlev, S0, mu0, Ag, &
+            Bg, B, delta, flagSolar, flagThermal, &
+            spec_edir, spec_edn, spec_eup)
+          call CHKERR(int(ret, mpiint), 'twostream_maxrandF90 returned an error')
+
+          edir(:,icol) = edir(:,icol) + real(spec_edir, ireals)
+          edn (:,icol) = edn (:,icol) + real(spec_edn, ireals)
+          eup (:,icol) = eup (:,icol) + real(spec_eup, ireals)
+          abso(:,icol) = abso(:,icol) + real(&
+            + spec_edir(1:ke) - spec_edir(2:ke1) &
+            + spec_edn (1:ke) - spec_edn (2:ke1) &
+            - spec_eup (1:ke) + spec_eup (2:ke1), ireals) / reverse(atm%dz(:,icol))
+
+        enddo !icol
+      enddo !ib
+
+      call ISRestoreIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
+    end function handle_twomax_rt_solvers
+
   end subroutine compute_solar
 
   subroutine allocate_optprop_vec(dm, vec, val)

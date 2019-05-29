@@ -283,6 +283,7 @@ if(CTAGS_PATH)
       ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/python
       ${CMAKE_CURRENT_SOURCE_DIR}/tests
+      ${CMAKE_CURRENT_SOURCE_DIR}/twomax
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Creating ctags" VERBATIM
         )
@@ -319,3 +320,6 @@ add_custom_target(distclean
   ${CMAKE_BINARY_DIR}/*/CMakeFiles
   COMMENT "Deleting CMake files" VERBATIM
   )
+
+# Add Twostream Solvers of Nina
+add_subdirectory(twomax)

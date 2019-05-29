@@ -95,15 +95,10 @@ logical, parameter :: ldebug=.True.
       if(lthermal) then
         if(.not.allocated(solver%plck)) then
           allocate(solver%plck)
-          call DMCreateGlobalVector(solver%plex%cell1_dm, solver%plck, ierr); call CHKERR(ierr)
+          call DMCreateGlobalVector(solver%plex%horizface1_dm, solver%plck, ierr); call CHKERR(ierr)
         endif
         call VecSet(solver%plck, 100._ireals, ierr); call CHKERR(ierr)
 
-        if(.not.allocated(solver%srfc_emission)) then
-          allocate(solver%srfc_emission)
-          call DMCreateGlobalVector(solver%plex%srfc_boundary_dm, solver%srfc_emission, ierr); call CHKERR(ierr)
-        endif
-        call VecSet(solver%srfc_emission, 400._ireals/3.1415_ireals, ierr); call CHKERR(ierr)
         call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=sundir)
       else
         call run_plex_rt_solver(solver, lthermal=.False., lsolar=.True., sundir=sundir)
