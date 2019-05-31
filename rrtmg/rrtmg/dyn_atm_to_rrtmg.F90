@@ -160,6 +160,21 @@ module m_dyn_atm_to_rrtmg
         call CHKERR(ierr, 'bad input in bg_atmosphere file')
       endif
 
+      call check_shape_2d(d_tlev          ,size(d_plev, 1, kind=iintegers)   , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_tlay          ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_h2ovmr        ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_o3vmr         ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_co2vmr        ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_ch4vmr        ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_n2ovmr        ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_o2vmr         ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_lwc           ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_reliq         ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_iwc           ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_reice         ,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_cloud_fraction,size(d_plev, 1, kind=iintegers)-1 , size(d_plev, 2, kind=iintegers))
+      call check_shape_1d(d_surface_height, ncol=size(d_plev, 2, kind=iintegers))
+
       do icol=lbound(d_plev,2),ubound(d_plev,2)
         if(present(d_tlay)) then
           call sanitize_input(lTOA_to_srfc, d_plev(:,icol), d_tlev(:,icol), ierr, d_tlay(:,icol))
@@ -173,23 +188,22 @@ module m_dyn_atm_to_rrtmg
         d_plev, d_tlev, d_tlay, d_h2ovmr, &
         d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr, &
         d_o2vmr, d_lwc, d_reliq, d_iwc, d_reice, &
-        d_cloud_fraction, &
-        d_surface_height)
+        d_cfrac=d_cloud_fraction, &
+        d_surface_height=d_surface_height)
 
-      call check_shape_2d(d_tlev  , atm%d_ke1,size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_tlay  , atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_h2ovmr, atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_o3vmr , atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_co2vmr, atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_ch4vmr, atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_n2ovmr, atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_o2vmr , atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_lwc   , atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_reliq , atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_iwc   , atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_2d(d_reice , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_tlev          , atm%d_ke1,size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_tlay          , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_h2ovmr        , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_o3vmr         , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_co2vmr        , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_ch4vmr        , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_n2ovmr        , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_o2vmr         , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_lwc           , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_reliq         , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_iwc           , atm%d_ke, size(d_plev, 2, kind=iintegers))
+      call check_shape_2d(d_reice         , atm%d_ke, size(d_plev, 2, kind=iintegers))
       call check_shape_2d(d_cloud_fraction, atm%d_ke, size(d_plev, 2, kind=iintegers))
-      call check_shape_1d(d_surface_height, ncol=size(d_plev, 2, kind=iintegers))
 
       contains
         subroutine check_shape_1d(d_arr, ncol)
@@ -429,8 +443,8 @@ module m_dyn_atm_to_rrtmg
           if(.not.allocated(atm%plev   )) allocate(atm%plev   (ke1, ie))
           if(.not.allocated(atm%tlev   )) allocate(atm%tlev   (ke1, ie))
           if(.not.allocated(atm%zt     )) allocate(atm%zt     (ke1, ie))
-          if(.not.allocated(atm%tlay   )) allocate(atm%tlay   (ke,  ie))
           if(.not.allocated(atm%dz     )) allocate(atm%dz     (ke,  ie))
+          if(.not.allocated(atm%tlay   )) allocate(atm%tlay   (ke,  ie))
           if(.not.allocated(atm%h2o_lay)) allocate(atm%h2o_lay(ke,  ie))
           if(.not.allocated(atm%o3_lay )) allocate(atm%o3_lay (ke,  ie))
           if(.not.allocated(atm%co2_lay)) allocate(atm%co2_lay(ke,  ie))
@@ -441,14 +455,13 @@ module m_dyn_atm_to_rrtmg
           if(.not.allocated(atm%reliq  )) allocate(atm%reliq  (ke,  ie))
           if(.not.allocated(atm%iwc    )) allocate(atm%iwc    (ke,  ie))
           if(.not.allocated(atm%reice  )) allocate(atm%reice  (ke,  ie))
-          if(present(d_cfrac)) then
-              if(.not.allocated(atm%cfrac  )) allocate(atm%cfrac  (ke,  ie))
-          endif
 
           lupdate_bg_entries = .True.
         else
           lupdate_bg_entries = .False.
         endif
+
+        call alloc_if_present(d_cfrac, atm%cfrac, [size(atm%lwc,dim=1), size(atm%lwc,dim=2)])
 
         associate(atm_ke => atm%atm_ke)
           ke  = atm_ke + atm%d_ke
@@ -573,6 +586,15 @@ module m_dyn_atm_to_rrtmg
         end associate
       end associate
       atm%lTOA_to_srfc = .False.
+      contains
+        subroutine alloc_if_present(opt_input_arr, atm_arr, dims)
+          real(ireals), optional, intent(in) :: opt_input_arr(:,:)
+          real(ireals), allocatable, intent(inout) :: atm_arr(:,:)
+          integer(iintegers), intent(in) :: dims(2)
+          if(present(opt_input_arr)) then
+            if(.not.allocated(atm_arr)) allocate(atm_arr(dims(1),dims(2)))
+          endif
+        end subroutine
     end subroutine
 
     ! merge the dynamics grid and the background profile together at lvl atm_ke
