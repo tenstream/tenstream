@@ -646,7 +646,7 @@ module m_dyn_atm_to_rrtmg
         ierr = ierr+1
       endif
 
-      lerr = minval(tlev) .lt. 180
+      lerr = minval(tlev) .lt. 159
       if(lerr) then
         print *,'Temperature is very low -- are you sure RRTMG can handle that?', minval(tlev)
         do k=lbound(tlev,1), ubound(tlev,1)
