@@ -566,11 +566,13 @@ int twostream_maxrand (double *dtau_org_c, double *omega0_org_c, double *g_org_c
         if(g_org_c[k]>1 || g_org_c[k]<0)
         {printf("Found bad value in cloudy    layer %d for assym param g: %f \n", k, g_org_c[k]); ierr++; }
 
-        if(omega0_org_f[k]>1 || omega0_org_f[k]<0)
+        if(omega0_org_f[k]>1.1 || omega0_org_f[k]<0)
         {printf("Found bad value in clear sky layer %d for w0: %f \n", k, omega0_org_f[k]); ierr++; }
+        omega0_org_f[k] = MIN(1., omega0_org_f[k]);
 
-        if(omega0_org_c[k]>1 || omega0_org_c[k]<0)
+        if(omega0_org_c[k]>1.1 || omega0_org_c[k]<0)
         {printf("Found bad value in cloudy    layer %d for w0: %f \n", k, omega0_org_c[k]); ierr++; }
+        omega0_org_c[k] = MIN(1., omega0_org_c[k]);
 
         if(ierr!=0) return ierr;
     }
@@ -700,11 +702,6 @@ int twostream_maxrand (double *dtau_org_c, double *omega0_org_c, double *g_org_c
     // AA is a 11-diagonal matrix; calculation could be sped up with a 11
     iStatus = solve_gauss (AA, bb, NFLUX*nlev, xx);
 
-    if(iStatus != 0){
-        fprintf (stderr, "Error %d solving equation system\n", iStatus);
-        return -9;
-    }//e-if
-
     for(int ilev=0;ilev<nlev;ilev++){
         Eup_f[ilev] = xx[NFLUX*ilev];
         Eup_c[ilev] = xx[NFLUX*ilev+1];
@@ -726,6 +723,14 @@ int twostream_maxrand (double *dtau_org_c, double *omega0_org_c, double *g_org_c
 
     for(int k=0; k < NFLUX*nlev; k++) free(AA[k]);
     free(AA);
+
+    if(iStatus != 0){
+        for(int k=0; k<nlev; ++k) {
+            fprintf(stderr, "%d %f %f %f\n", k, Edir[k], Edn[k], Eup[k]);
+        }
+        fprintf (stderr, "Error %d solving equation system\n", iStatus);
+        return -9;
+    }//e-if
 
     return iStatus;
 }//e-twostream_maxrand
