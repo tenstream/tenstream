@@ -323,3 +323,54 @@ add_custom_target(distclean
 
 # Add Twostream Solvers of Nina
 add_subdirectory(twomax)
+
+
+# Generate Master Library which contains all symbols
+if(NOT BUILD_SHARED_LIBS)
+	function(combine_archives output_archive list_of_input_archives)
+		set(mri_file ${CMAKE_BINARY_DIR}/${output_archive}.mri)
+		set(FULL_OUTPUT_PATH ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${output_archive}.a)
+		message(STATUS "Generating one lib to rule them all: ${FULL_OUTPUT_PATH} :: ${mri_file}")
+		file(WRITE ${mri_file} "create ${FULL_OUTPUT_PATH}\n")
+		FOREACH(in_archive ${list_of_input_archives})
+			message(STATUS "Adding static lib: ${in_archive}")
+			file(APPEND ${mri_file} "addlib ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${in_archive}.a\n")
+		ENDFOREACH()
+		file(APPEND ${mri_file} "save\n")
+		file(APPEND ${mri_file} "end\n")
+
+		set(output_archive_dummy_file ${CMAKE_BINARY_DIR}/${output_archive}.dummy.F90)
+		add_custom_command(OUTPUT ${output_archive_dummy_file}
+			COMMAND touch ${output_archive_dummy_file}
+			DEPENDS ${list_of_input_archives})
+
+		add_library(${output_archive} STATIC ${output_archive_dummy_file})
+		add_custom_command(TARGET ${output_archive}
+			POST_BUILD
+			COMMAND ${CMAKE_AR} -M < ${mri_file})
+	endfunction(combine_archives)
+
+	set(TENSTR_LIBS
+		pprts_base
+		pprts
+		f2c_twomax
+		tenstr_disort
+		)
+	if(RAYLI_DIR)
+		list(APPEND TENSTR_LIBS f2c_rayli)
+	endif()
+	if(ENABLE_C_WRAPPER)
+		list(APPEND TENSTR_LIBS f2c_pprts f2c_pprts_rrtm)
+	endif()
+	if(ENABLE_PLEXRT)
+		list(APPEND TENSTR_LIBS plexrt )
+		if(ENABLE_RRTM)
+			list(APPEND TENSTR_LIBS plexrt_rrtmg )
+		endif()
+	endif()
+	if(ENABLE_RRTM)
+		list(APPEND TENSTR_LIBS pprts_rrtm_sw pprts_rrtm_lw pprts_rrtmg)
+	endif()
+
+	combine_archives(tenstream "${TENSTR_LIBS}")
+endif()
