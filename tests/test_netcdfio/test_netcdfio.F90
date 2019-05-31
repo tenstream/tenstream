@@ -273,7 +273,7 @@ end subroutine
 @test(npes=[1])
   subroutine test_get_set_global_attributes(this)
     class (MpiTestMethod), intent(inout) :: this
-    integer(mpiint) :: numnodes, comm, myid, ierr
+    integer(mpiint) :: numnodes, comm, myid
     real(REAL32) :: attr_r32
     real(REAL64) :: attr_r64
     integer(INT32) :: attr_i32
