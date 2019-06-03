@@ -355,10 +355,8 @@ if(NOT BUILD_SHARED_LIBS)
 		pprts
 		f2c_twomax
 		tenstr_disort
+    f2c_rayli
 		)
-	if(RAYLI_DIR)
-		list(APPEND TENSTR_LIBS f2c_rayli)
-	endif()
 	if(ENABLE_C_WRAPPER)
 		list(APPEND TENSTR_LIBS f2c_pprts f2c_pprts_rrtm)
 	endif()
