@@ -470,7 +470,7 @@ c +--------------------------------------------------------------------
       else
         MU = COS_THETA/SIN_THETA
 
-        TERM1 = SQRT(SIGMA_SQ/PI)/MU*EXP( -min(max_exp, MU*MU/(SIGMA_SQ)) )
+        TERM1 = SQRT(SIGMA_SQ/PI)/MU*EXP(-min(max_exp,MU*MU/(SIGMA_SQ)))
         TERM2 = ERFC( MU/SQRT(SIGMA_SQ) )
 
         SHADOW_ETA = 0.5*(TERM1 - TERM2)
