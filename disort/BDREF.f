@@ -462,14 +462,18 @@ c +--------------------------------------------------------------------
       REAL COS_THETA, SIN_THETA
       REAL MU, SIGMA_SQ, PI
       REAL TERM1, TERM2
+      real, parameter :: max_exp=-log(epsilon(max_exp))
 
       SIN_THETA = SQRT(1.-COS_THETA*COS_THETA)
-      MU = COS_THETA/SIN_THETA
+      if(SIN_THETA.lt.epsilon(SIN_THETA)) then
+        SHADOW_ETA = 0
+      else
+        MU = COS_THETA/SIN_THETA
 
-      TERM1 = SQRT(SIGMA_SQ/PI)/MU*EXP( -MU*MU/(SIGMA_SQ) )
-      TERM2 = ERFC( MU/SQRT(SIGMA_SQ) )
+        TERM1 = SQRT(SIGMA_SQ/PI)/MU*EXP( -min(max_exp, MU*MU/(SIGMA_SQ)) )
+        TERM2 = ERFC( MU/SQRT(SIGMA_SQ) )
 
-      SHADOW_ETA = 0.5*(TERM1 - TERM2)
-
+        SHADOW_ETA = 0.5*(TERM1 - TERM2)
+      endif
       END
 c - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
