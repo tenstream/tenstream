@@ -271,7 +271,7 @@ contains
 
     real(ireals), pointer :: xalbedo(:)
 
-    real(ireals) :: Ag
+    real(ireals) :: col_albedo
     integer(iintegers) :: i, ib, icol, k, current_ibnd, num_spectral_bands
     logical :: need_any_new_solution, lflg
 
@@ -303,14 +303,14 @@ contains
     allocate(Bfrac(ke1, Ncol, ngptlw))
     allocate(integral_coeff(ke))
 
-    Ag = albedo
+    col_albedo = albedo
 
     if(lrrtmg_only) then
         do i = 1, Ncol
           integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
-          if(present(thermal_albedo_2d)) Ag =  thermal_albedo_2d(i)
+          if(present(thermal_albedo_2d)) col_albedo =  thermal_albedo_2d(i)
 
-          call optprop_rrtm_lw(i1, ke, Ag, &
+          call optprop_rrtm_lw(i1, ke, col_albedo, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
@@ -330,9 +330,9 @@ contains
     else
         do i = 1, Ncol
           integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
-          if(present(thermal_albedo_2d)) Ag =  thermal_albedo_2d(i)
+          if(present(thermal_albedo_2d)) col_albedo =  thermal_albedo_2d(i)
 
-          call optprop_rrtm_lw(i1, ke, Ag, &
+          call optprop_rrtm_lw(i1, ke, col_albedo, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
@@ -415,7 +415,7 @@ contains
       function compute_thermal_disort() result(ldisort_only)
         logical :: ldisort_only
         integer(iintegers) :: nstreams
-        real :: mu0, S0, col_albedo, wvnms(2)
+        real :: mu0, S0, wvnms(2)
         real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
         real, dimension(size(tau,1)+1) :: col_temper
         real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
@@ -448,7 +448,7 @@ contains
                 call default_flx_computation(&
                   mu0, &
                   S0, &
-                  col_albedo, &
+                  real(col_albedo), &
                   .True., wvnms, col_Bfrac, &
                   col_dtau, &
                   col_w0,   &
@@ -587,7 +587,7 @@ contains
 
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
     type(tPetscSection) :: geomSection
-    real(ireals) :: face_normal(3), theta0, Ag, rescaled_sundir(3)
+    real(ireals) :: face_normal(3), theta0, col_albedo, rescaled_sundir(3)
 
     type(tIS) :: toa_ids
     integer(iintegers) :: ke, i, ib, iface
@@ -643,15 +643,15 @@ contains
           call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
-          Ag = albedo
-          if(present(solar_albedo_2d)) Ag = solar_albedo_2d(i)
+          col_albedo = albedo
+          if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(i)
 
 
           if(theta0.lt.90._ireals) then
             integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
 
             call optprop_rrtm_sw(i1, ke, &
-              theta0, Ag, &
+              theta0, col_albedo, &
               atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
               atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
               atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
@@ -684,13 +684,13 @@ contains
           call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
-          Ag = albedo
-          if(present(solar_albedo_2d)) Ag = solar_albedo_2d(i)
+          col_albedo = albedo
+          if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(i)
 
           integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
 
           call optprop_rrtm_sw(i1, ke, &
-            theta0, Ag, &
+            theta0, col_albedo, &
             atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
@@ -763,7 +763,8 @@ contains
       logical :: ldisort_only
       integer(iintegers) :: nstreams
       integer(iintegers) :: icol, ib
-      real :: mu0, col_albedo, edirTOA
+      real :: mu0
+      real(ireals) :: edirTOA
       real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
       real, dimension(size(tau,1)+1) :: col_temper
       real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
