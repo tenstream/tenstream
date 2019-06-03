@@ -461,7 +461,7 @@ module m_dyn_atm_to_rrtmg
           lupdate_bg_entries = .False.
         endif
 
-        call alloc_if_present(d_cfrac, atm%cfrac, [size(atm%lwc,dim=1), size(atm%lwc,dim=2)])
+        call alloc_if_present(d_cfrac, atm%cfrac, [size(atm%lwc,dim=1,kind=iintegers), size(atm%lwc,dim=2,kind=iintegers)])
 
         associate(atm_ke => atm%atm_ke)
           ke  = atm_ke + atm%d_ke

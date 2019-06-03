@@ -503,7 +503,7 @@ contains
       flagThermal=1
       S0=0
       mu0=1
-      Nlev = ke1
+      Nlev = int(ke1, kind=c_int)
 
       omega0_c = 0
       g_c      = 0
@@ -867,7 +867,7 @@ contains
       delta=0
       flagSolar=1
       flagThermal=0
-      Nlev = ke1
+      Nlev = int(ke1, kind=c_int)
       B = 0
       Bg = 0
 
