@@ -1,7 +1,8 @@
 module test_helper_functions
   use iso_c_binding
   use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
-  use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, mpi_logical_and, mpi_logical_or, &
+  use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, &
+    mpi_logical_and, mpi_logical_or, mpi_logical_all_same, &
     compute_normal_3d, hit_plane, pnt_in_triangle, distance_to_edge, determine_normal_direction, &
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
     solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, is_between
@@ -156,6 +157,15 @@ subroutine test_mpi_functions(this)
       @assertEqual(.False., mpi_logical_or(comm, l_all_false), 'mpi_logical_or is wrong')
 
       @assertEqual(.True., mpi_logical_or(comm, l_even_true), 'mpi_logical_or is wrong')
+
+      ! check for `all the same` operations
+      @assertTrue(mpi_logical_all_same(comm, l_all_true), 'mpi_logical_all_same(l_all_true) is wrong')
+      @assertTrue(mpi_logical_all_same(comm, l_all_false), 'mpi_logical_all_same(l_all_false) is wrong')
+      if(numnodes.gt.1) then
+        @assertFalse(mpi_logical_all_same(comm, l_even_true), 'mpi_logical_all_same(l_even_true) is wrong')
+      else
+        @assertTrue(mpi_logical_all_same(comm, l_even_true), 'mpi_logical_all_same(l_all_true) is wrong')
+      endif
     enddo ! repetitions
 end subroutine
 

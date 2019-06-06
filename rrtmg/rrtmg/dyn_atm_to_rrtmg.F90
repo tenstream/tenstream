@@ -99,6 +99,9 @@ module m_dyn_atm_to_rrtmg
       real(ireals),allocatable :: opt_w0 (:,:,:) ! will be added to the rrtmg optical properties
       real(ireals),allocatable :: opt_g  (:,:,:) ! if only tau is allocated, assume it is absorption only
 
+
+      real(ireals),allocatable :: tskin  (:) ! skin temperature   [K] dim(ncol)
+
       logical :: lTOA_to_srfc
 
       ! index of lowermost layer in atm: search for level where height is bigger and pressure is lower:
@@ -115,7 +118,7 @@ module m_dyn_atm_to_rrtmg
 
     subroutine setup_tenstr_atm(comm, lTOA_to_srfc, atm_filename, d_plev, d_tlev, atm, &
         d_tlay, d_h2ovmr, d_o3vmr, d_co2vmr, d_ch4vmr, d_n2ovmr,  d_o2vmr, &
-        d_lwc, d_reliq, d_iwc, d_reice, d_cloud_fraction, d_surface_height)
+        d_lwc, d_reliq, d_iwc, d_reice, d_cloud_fraction, d_surface_height, d_skin_temperature)
       integer(mpiint), intent(in) :: comm
       logical, intent(in) :: lTOA_to_srfc    ! True if provided variables go from TOA to srfc or False if starting at surface
 
@@ -142,7 +145,8 @@ module m_dyn_atm_to_rrtmg
       real(ireals),intent(in),optional :: d_iwc    (:,:)      ! ice water content              [g/kg]
       real(ireals),intent(in),optional :: d_reice  (:,:)      ! ice effective radius           [micron]
       real(ireals),intent(in),optional :: d_cloud_fraction(:,:) ! cloud fraction
-      real(ireals),intent(in),optional :: d_surface_height(:) ! surface height above sea       [m]
+      real(ireals),intent(in),optional :: d_surface_height(:)   ! surface height above sea     [m]
+      real(ireals),intent(in),optional :: d_skin_temperature(:) ! skin tempertaure             [K]
 
       integer(iintegers) :: icol
       integer(mpiint) :: ierr
@@ -204,6 +208,12 @@ module m_dyn_atm_to_rrtmg
       call check_shape_2d(d_iwc           , atm%d_ke, size(d_plev, 2, kind=iintegers))
       call check_shape_2d(d_reice         , atm%d_ke, size(d_plev, 2, kind=iintegers))
       call check_shape_2d(d_cloud_fraction, atm%d_ke, size(d_plev, 2, kind=iintegers))
+
+      call check_shape_1d(d_skin_temperature, size(d_plev, 2, kind=iintegers))
+      if(present(d_skin_temperature)) then
+        if(.not.allocated(atm%tskin)) allocate(atm%tskin(size(d_plev, 2, kind=iintegers)))
+        atm%tskin = d_skin_temperature
+      endif
 
       contains
         subroutine check_shape_1d(d_arr, ncol)
@@ -284,6 +294,7 @@ module m_dyn_atm_to_rrtmg
       if(allocated(atm%zm     )) deallocate(atm%zm     )
       if(allocated(atm%dz     )) deallocate(atm%dz     )
       if(allocated(atm%tlay   )) deallocate(atm%tlay   )
+      if(allocated(atm%tskin  )) deallocate(atm%tskin  )
       if(allocated(atm%h2o_lay)) deallocate(atm%h2o_lay)
       if(allocated(atm%o3_lay )) deallocate(atm%o3_lay )
       if(allocated(atm%co2_lay)) deallocate(atm%co2_lay)

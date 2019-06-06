@@ -40,6 +40,7 @@ module m_pprts_rrtmg
 
   use mpi, only : mpi_comm_rank
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
+  use m_tenstream_options, only: read_commandline_options
   use m_data_parameters, only : init_mpi_data_parameters, &
       iintegers, ireals, zero, one, i0, i1, i2, i9,         &
       mpiint, pi, default_str_len
@@ -48,7 +49,7 @@ module m_pprts_rrtmg
       pprts_get_result, pprts_get_result_toZero
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-      imp_allreduce_min, imp_allreduce_max, imp_allreduce_mean, &
+      imp_allreduce_min, imp_allreduce_max, imp_allreduce_mean, mpi_logical_all_same, &
       CHKERR, deg2rad, get_arg, &
       reverse, approx, itoa, spherical_2_cartesian
   use m_search, only: find_real_location
@@ -102,7 +103,6 @@ contains
       call init_pprts(comm, zm, xm, ym, dx, dy, phi0, theta0, solver, dz3d=dz, &
         collapseindex=pprts_icollapse)
     endif
-
   end subroutine
 
   subroutine smooth_surface_fluxes(solver, edn, eup)
@@ -286,11 +286,28 @@ contains
     !logical :: lfile_exists
 
     integer(mpiint) :: myid, ierr
-    logical :: lrrtmg_only, lskip_thermal, lflg
+    logical :: lrrtmg_only, lskip_thermal, ldisort_only, lflg
 
     integer(iintegers) :: pprts_icollapse
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    if(ldebug) then ! make sure that all ranks give the same option for lsolar and lthermal
+      if(.not. mpi_logical_all_same(comm, lsolar)) &
+        call CHKERR(1_mpiint, 'all ranks have to give the same value for lsolar')
+      if(.not. mpi_logical_all_same(comm, lthermal)) &
+        call CHKERR(1_mpiint, 'all ranks have to give the same value for lthermal')
+    endif
+
+    if(.not.solver%linitialized) call read_commandline_options(comm) ! so that tenstream.options file are read in
+
+    lrrtmg_only=.False. ! by default use normal tenstream solver
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
+
+    ldisort_only = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
 
     pprts_icollapse = get_arg(i1, icollapse)
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
@@ -299,7 +316,12 @@ contains
       if(ldebug.and.myid.eq.0) print *,'Collapsing background atmosphere', atm%atm_ke
       pprts_icollapse = atm%atm_ke ! collapse the complete background atmosphere
     endif
-    if(pprts_icollapse.ne.i1.and.ldebug.and.myid.eq.0) print *,'Collapsing atmosphere', pprts_icollapse
+    if(pprts_icollapse.ne.i1) then
+      if(ldebug.and.myid.eq.0) print *,'Collapsing atmosphere', pprts_icollapse
+      if(ldisort_only) call CHKERR(1_mpiint, 'for disort_only, pprts_collapse has to be set to 1')
+      if(lrrtmg_only) call CHKERR(1_mpiint, 'for rrtmg_only, pprts_collapse has to be set to 1')
+    endif
+    print *,'icollapse', pprts_icollapse, 'disort_only', ldisort_only, 'rrtmg_only', lrrtmg_only
 
     ke1 = ubound(atm%plev,1)
     ke = ubound(atm%tlay,1)
@@ -320,9 +342,6 @@ contains
       call init_pprts_rrtmg(comm, solver, dx, dy, dz_t2b, phi0, theta0, &
         ie,je,ke, nxproc, nyproc, pprts_icollapse)
     endif
-    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-rrtmg_only" , lrrtmg_only , lflg , ierr) ;call CHKERR(ierr)
-    if(.not.lflg) lrrtmg_only=.False. ! by default use normal tenstream solver
 
     ! Allocate space for results -- for integrated values...
     if(.not.allocated(edn )) allocate(edn (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
@@ -397,12 +416,15 @@ contains
 
     real(ireals),allocatable, target, dimension(:,:,:,:) :: tau, Bfrac  ! [nlyr, ie, je, ngptlw]
     real(ireals),allocatable, dimension(:,:,:) :: kabs, ksca, g, Blev   ! [nlyr(+1), local_nx, local_ny]
+    real(ireals),allocatable, dimension(:,:)   :: Bsrfc                 ! [local_nx, local_ny]
     real(ireals),allocatable, dimension(:,:,:), target :: spec_edn,spec_eup,spec_abso  ! [nlyr(+1), local_nx, local_ny ]
     real(ireals),allocatable, dimension(:) :: integral_coeff            ! [nlyr]
 
     real(ireals), allocatable, dimension(:,:,:) :: ptau, pBfrac
     real(ireals), pointer, dimension(:,:,:) :: patm_dz
     real(ireals), pointer, dimension(:,:) :: pedn, peup, pabso
+
+    real(ireals) :: col_albedo, col_tskin(1)
 
     integer(iintegers) :: i, j, k, icol, ib, current_ibnd, num_spectral_bands
     logical :: need_any_new_solution, lflg
@@ -437,6 +459,8 @@ contains
     allocate(pBfrac(ke, i1, ngptlw))
     allocate(integral_coeff(ke))
 
+    col_albedo = albedo
+
     if(lrrtmg_only) then
       do j=i1,je
         do i=i1,ie
@@ -450,23 +474,21 @@ contains
             integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
           enddo
 
-          if (present(thermal_albedo_2d)) then
-            call optprop_rrtm_lw(i1, ke, thermal_albedo_2d(i,j),      &
-              atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
-              atm%h2o_lay(:, icol), atm%o3_lay(:, icol) , atm%co2_lay(:, icol),     &
-              atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
-              atm%lwc(:,icol)*integral_coeff, atm%reliq(:, icol), &
-              atm%iwc(:,icol)*integral_coeff, atm%reice(:, icol), &
-              ptau, pBfrac, opt_lwuflx=peup, opt_lwdflx=pedn, opt_lwhr=pabso)
+          if(present(thermal_albedo_2d)) col_albedo = thermal_albedo_2d(i,j)
+          if(allocated(atm%tskin)) then
+            col_tskin = atm%tskin(icol)
           else
-            call optprop_rrtm_lw(i1, ke, albedo,      &
-              atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
-              atm%h2o_lay(:, icol), atm%o3_lay(:, icol) , atm%co2_lay(:, icol),     &
-              atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
-              atm%lwc(:,icol)*integral_coeff, atm%reliq(:, icol), &
-              atm%iwc(:,icol)*integral_coeff, atm%reice(:, icol), &
-              ptau, pBfrac, opt_lwuflx=peup, opt_lwdflx=pedn, opt_lwhr=pabso)
+            col_tskin = atm%tlev(1,icol)
           endif
+
+          call optprop_rrtm_lw(i1, ke, col_albedo,                          &
+            atm%plev(:,icol), atm%tlev(:,icol),                             &
+            atm%tlay(:, icol), col_tskin,                                   &
+            atm%h2o_lay(:,icol), atm%o3_lay (:,icol), atm%co2_lay(:,icol),  &
+            atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay (:,icol) , &
+            atm%lwc(:,icol)*integral_coeff, atm%reliq(:, icol),             &
+            atm%iwc(:,icol)*integral_coeff, atm%reice(:, icol),             &
+            tau=ptau, Bfrac=pBfrac, opt_lwuflx=peup, opt_lwdflx=pedn, opt_lwhr=pabso)
 
           tau  (:,i,j,:) = ptau(:,i1,:)
           Bfrac(2:ke1,i,j,:) = pBfrac(:,i1,:)
@@ -487,23 +509,23 @@ contains
           do k=1,ke
             integral_coeff(k) = vert_integral_coeff(atm%plev(k,icol), atm%plev(k+1,icol))
           enddo
-          if (present(thermal_albedo_2d)) then
-            call optprop_rrtm_lw(i1, ke, thermal_albedo_2d(i,j), &
-              atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
-              atm%h2o_lay(:, icol), atm%o3_lay(:, icol) , atm%co2_lay(:, icol),     &
-              atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
-              atm%lwc(:, icol)*integral_coeff, atm%reliq(:, icol), &
-              atm%iwc(:, icol)*integral_coeff, atm%reice(:, icol), &
-              tau=ptau, Bfrac=pBfrac)
+
+          if (present(thermal_albedo_2d)) col_albedo = thermal_albedo_2d(i,j)
+          if(allocated(atm%tskin)) then
+            col_tskin = atm%tskin(icol)
           else
-            call optprop_rrtm_lw(i1, ke, albedo, &
-              atm%plev(:,icol), atm%tlev(:, icol), atm%tlay(:, icol),           &
-              atm%h2o_lay(:, icol), atm%o3_lay(:, icol) , atm%co2_lay(:, icol),     &
-              atm%ch4_lay(:, icol), atm%n2o_lay(:, icol), atm%o2_lay(:, icol) ,     &
-              atm%lwc(:, icol)*integral_coeff, atm%reliq(:, icol), &
-              atm%iwc(:, icol)*integral_coeff, atm%reice(:, icol), &
-              tau=ptau, Bfrac=pBfrac)
+            col_tskin = atm%tlev(1,icol)
           endif
+
+          call optprop_rrtm_lw(i1, ke, col_albedo,                          &
+            atm%plev(:,icol), atm%tlev(:, icol),                            &
+            atm%tlay(:, icol), col_tskin,                                   &
+            atm%h2o_lay(:,icol), atm%o3_lay (:,icol), atm%co2_lay(:,icol),  &
+            atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay (:,icol) , &
+            atm%lwc(:,icol)*integral_coeff, atm%reliq(:, icol),             &
+            atm%iwc(:,icol)*integral_coeff, atm%reice(:, icol),             &
+            tau=ptau, Bfrac=pBfrac)
+
           tau  (:,i,j,:) = ptau(:,i1,:)
           Bfrac(2:ke1,i,j,:) = pBfrac(:,i1,:)
         enddo
@@ -513,6 +535,7 @@ contains
 
     allocate(kabs (ke , i1:ie, i1:je))
     allocate(Blev (ke1, i1:ie, i1:je))
+    allocate(Bsrfc(i1:ie, i1:je))
 
     ! rrtmg_lw does not support thermal scattering... set to zero
     allocate(ksca (ke , i1:ie, i1:je), source=zero)
@@ -545,6 +568,11 @@ contains
               do k=i1,ke1
                 Blev(k,i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k, icol)))
               enddo
+              if(allocated(atm%tskin)) then
+                Bsrfc(i,j) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tskin(icol)))
+              else
+                Bsrfc(i,j) = Blev(1,i,j)
+              endif
             enddo ! i
           enddo ! j
           current_ibnd = ngb(ib)
@@ -557,8 +585,9 @@ contains
           endif
         endif
 
-        call set_optical_properties(solver, albedo, kabs, ksca, g, reverse(Blev*Bfrac(:,:,:,ib)), &
-            local_albedo_2d=thermal_albedo_2d, ldelta_scaling=.False.)
+        call set_optical_properties(solver, albedo, kabs, ksca, g, &
+            reverse(Blev*Bfrac(:,:,:,ib)), planck_srfc=Bsrfc*Bfrac(1,:,:,ib), &
+            albedo_2d=thermal_albedo_2d, ldelta_scaling=.False.)
         call solve_pprts(solver, zero, opt_solution_uid=500+ib, opt_solution_time=opt_time)
       endif
 
@@ -567,14 +596,13 @@ contains
       edn  = edn  + spec_edn
       eup  = eup  + spec_eup
       abso = abso + spec_abso
-
     enddo ! ib 1 -> nbndlw , i.e. spectral integration
 
     contains
       function compute_thermal_disort() result(ldisort_only)
         logical :: ldisort_only
         integer(iintegers) :: nstreams
-        real :: mu0, S0, col_albedo, wvnms(2)
+        real :: mu0, S0, col_albedo, wvnms(2), col_tskin
         real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
         real, dimension(size(tau,1)+1) :: col_temper
         real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
@@ -593,26 +621,31 @@ contains
           col_w0 = 0
           col_g  = 0
 
+          col_albedo = real(albedo)
           do j=1,je
             do i=1,ie
               icol =  i+(j-1)*ie
 
-              if(present(thermal_albedo_2d)) then
-                col_albedo = real(thermal_albedo_2d(i,j))
+              if(present(thermal_albedo_2d)) col_albedo = real(thermal_albedo_2d(i,j))
+
+              col_temper = real(reverse(atm%tlev(:, icol)))
+              if(allocated(atm%tskin)) then
+                col_tskin = real(atm%tskin(icol))
               else
-                col_albedo = real(albedo)
+                col_tskin = real(atm%tlev(1,icol))
               endif
+
 
               do ib=1, num_spectral_bands
                 col_Bfrac  = real(reverse(Bfrac(1:ke,i,j,ib)))
                 col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,i,j,ib))))
-                col_temper = real(reverse(atm%tlev(:, icol)))
                 wvnms = [real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib)))]
 
                 call default_flx_computation(&
                   mu0, &
                   S0, &
                   col_albedo, &
+                  col_tskin, &
                   .True., wvnms, col_Bfrac, &
                   col_dtau, &
                   col_w0,   &
@@ -827,7 +860,7 @@ contains
 
         ! dont use delta scaling here because rrtmg values should already be delta scaled
         call set_optical_properties(solver, albedo, kabs, ksca, kg, &
-          local_albedo_2d=solar_albedo_2d, ldelta_scaling=.False.)
+          albedo_2d=solar_albedo_2d, ldelta_scaling=.False.)
         call solve_pprts(solver, edirTOA, opt_solution_uid=ib, opt_solution_time=opt_time)
 
       endif
@@ -844,7 +877,7 @@ contains
       function compute_solar_disort() result(ldisort_only)
         logical :: ldisort_only
         integer(iintegers) :: nstreams
-        real :: mu0
+        real :: mu0, col_tskin
         real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
         real, dimension(size(tau,1)+1) :: col_temper
         real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
@@ -859,7 +892,9 @@ contains
             "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
 
           col_temper = 0
+          col_tskin = 0
           col_Bfrac = 1
+          col_albedo = albedo
           do j=1,je
             do i=1,ie
               icol =  i+(j-1)*ie
@@ -870,11 +905,7 @@ contains
                 col_theta = theta0
               endif
 
-              if(present(solar_albedo_2d)) then
-                col_albedo = solar_albedo_2d(i,j)
-              else
-                col_albedo = albedo
-              endif
+              if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(i,j)
 
               do ib=1, num_spectral_bands
                 if(present(opt_solar_constant)) then
@@ -892,6 +923,7 @@ contains
                   mu0, &
                   real(edirTOA), &
                   real(col_albedo), &
+                  col_tskin, &
                   .False., [0., 0.], col_Bfrac, &
                   col_dtau, &
                   col_w0,   &

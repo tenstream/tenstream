@@ -45,7 +45,7 @@ module m_optprop_rrtmg
 
 contains
   subroutine optprop_rrtm_lw(ncol_in, nlay_in, &
-      albedo, plev, tlev, tlay, &
+      albedo, plev, tlev, tlay, tsrfc, &
       h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
       lwp, reliq, iwp, reice, tau, Bfrac, opt_tau_f, &
       opt_lwuflx, opt_lwdflx, opt_lwhr)
@@ -57,6 +57,7 @@ contains
     real(ireals),dimension(ncol_in,nlay_in+1), intent(in) :: plev, tlev
     real(ireals),dimension(ncol_in,nlay_in)  , intent(in) :: tlay, h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr
     real(ireals),dimension(ncol_in,nlay_in)  , intent(in) :: lwp, reliq, iwp, reice
+    real(ireals),dimension(ncol_in)          , intent(in) :: tsrfc
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [nlay, ncol, ngptlw]
     real(ireals), dimension(:,:,:), intent(out), optional :: opt_tau_f ! [nlay, ncol, ngptlw]
@@ -69,8 +70,6 @@ contains
     real(rb),dimension(ncol_in, nbndlw ) :: emis
 
     real(rb),dimension(ncol_in, nlay_in)   :: cfc11vmr,cfc12vmr,cfc22vmr,ccl4vmr
-
-    real(rb),dimension(ncol_in) :: tsfc
 
     real(rb),dimension(ncol_in,nlay_in+1) :: lwuflx,lwdflx,lwuflxc,lwdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: lwhr,lwhrc
@@ -89,8 +88,6 @@ contains
     ! should probably use log interpolation for pressure...
     do icol=1,ncol
       play(icol,:) = .5_rb*(plev(icol,1:nlay)+plev(icol,2:nlay+1))
-
-      tsfc(icol)   = tlev(icol,1)
     enddo
 
     taucld   = 0;
@@ -119,7 +116,7 @@ contains
       call rrtmg_lw &
         (ncol, nlay, icld, idrv, &
         real(play,rb), real(plev,rb), &
-        real(tlay,rb), real(tlev,rb), tsfc, &
+        real(tlay,rb), real(tlev,rb), real(tsrfc, rb), &
         real(h2ovmr,rb), real(o3vmr,rb), real(co2vmr,rb), &
         real(ch4vmr,rb), real(n2ovmr,rb), real(o2vmr,rb), &
         cfc11vmr, cfc12vmr, cfc22vmr, ccl4vmr, emis, &
@@ -135,7 +132,7 @@ contains
       call rrtmg_lw &
         (ncol, nlay, icld, idrv, &
         real(play,rb), real(plev,rb), &
-        real(tlay,rb), real(tlev,rb), tsfc, &
+        real(tlay,rb), real(tlev,rb), real(tsrfc, rb), &
         real(h2ovmr,rb), real(o3vmr,rb), real(co2vmr,rb), &
         real(ch4vmr,rb), real(n2ovmr,rb), real(o2vmr,rb), &
         cfc11vmr, cfc12vmr, cfc22vmr, ccl4vmr, emis, &

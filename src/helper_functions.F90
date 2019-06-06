@@ -28,9 +28,10 @@ module m_helper_functions
   implicit none
 
   private
-  public imp_bcast,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                           &
+  public imp_bcast,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                                &
     delta_scale_optprop,delta_scale,cumsum, cumprod,                                                                 &
-    inc, mpi_logical_and,mpi_logical_or,imp_allreduce_min,imp_allreduce_max,imp_reduce_sum,                          &
+    inc, mpi_logical_and, mpi_logical_or, mpi_logical_all_same,                                                      &
+    imp_allreduce_min, imp_allreduce_max, imp_reduce_sum,                                                            &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm,                        &
     CHKERR, CHKWARN, assertEqual,                                                                                    &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
@@ -569,6 +570,30 @@ module m_helper_functions
       logical,intent(in) :: lval
       integer(mpiint) :: mpierr
       call mpi_allreduce(lval, mpi_logical_or, 1_mpiint, imp_logical, MPI_LOR, comm, mpierr); call CHKERR(mpierr)
+    end function
+
+    function mpi_logical_all_same(comm,lval) result(lsame)
+      integer(mpiint),intent(in) :: comm
+      logical :: lsame !, land, lor
+      logical,intent(in) :: lval
+      integer(mpiint) :: i, isum, commsize, ierr
+      ! Logical AND and OR version:
+      !     land = mpi_logical_and(comm, lval)
+      !     lor  = mpi_logical_or (comm, lval)
+      !     lsame = land.eqv.lor
+      ! howver, it is better cast to it to int and do a sum reduction, otherwise we need 2 logical reductions
+      if(lval) then
+        i = 1
+      else
+        i = 0
+      endif
+      call imp_allreduce_sum(comm, i, isum)
+      if(lval) then
+        call MPI_Comm_size( comm, commsize, ierr); call CHKERR(ierr)
+        lsame = isum.eq.commsize
+      else
+        lsame = isum.eq.0
+      endif
     end function
 
     subroutine imp_allreduce_min_iintegers(comm,v,r)

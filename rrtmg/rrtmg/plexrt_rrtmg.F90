@@ -271,7 +271,7 @@ contains
 
     real(ireals), pointer :: xalbedo(:)
 
-    real(ireals) :: col_albedo
+    real(ireals) :: col_albedo, col_tskin(1)
     integer(iintegers) :: i, ib, icol, k, current_ibnd, num_spectral_bands
     logical :: need_any_new_solution, lflg
 
@@ -310,8 +310,15 @@ contains
           integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
           if(present(thermal_albedo_2d)) col_albedo =  thermal_albedo_2d(i)
 
+          if(allocated(atm%tskin)) then
+            col_tskin = atm%tskin(icol)
+          else
+            col_tskin = atm%tlev(1,icol)
+          endif
+
           call optprop_rrtm_lw(i1, ke, col_albedo, &
-            atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
+            atm%plev(:,i), atm%tlev(:,i),          &
+            atm%tlay(:,i), col_tskin,              &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
             atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
@@ -415,7 +422,7 @@ contains
       function compute_thermal_disort() result(ldisort_only)
         logical :: ldisort_only
         integer(iintegers) :: nstreams
-        real :: mu0, S0, wvnms(2)
+        real :: mu0, S0, wvnms(2), col_tskin
         real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
         real, dimension(size(tau,1)+1) :: col_temper
         real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
@@ -444,11 +451,17 @@ contains
                 col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,icol,ib))))
                 col_temper = real(reverse(atm%tlev(:, icol)))
                 wvnms = [real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib)))]
+                if(allocated(atm%tskin)) then
+                  col_tskin = real(atm%tskin(icol))
+                else
+                  col_tskin = real(atm%tlev(1,icol))
+                endif
 
                 call default_flx_computation(&
                   mu0, &
                   S0, &
                   real(col_albedo), &
+                  col_tskin, &
                   .True., wvnms, col_Bfrac, &
                   col_dtau, &
                   col_w0,   &
@@ -764,7 +777,7 @@ contains
       integer(iintegers) :: nstreams
       integer(iintegers) :: icol, ib
       real :: mu0
-      real(ireals) :: edirTOA
+      real(ireals) :: edirTOA, col_tskin
       real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
       real, dimension(size(tau,1)+1) :: col_temper
       real, dimension(size(edn,1))   :: RFLDIR, RFLDN, FLUP, DFDT, UAVG
@@ -778,6 +791,7 @@ contains
         call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
           "-disort_streams" , nstreams , lflg , ierr) ;call CHKERR(ierr)
 
+        col_tskin = 0
         col_temper = 0
         col_Bfrac = 1
         col_albedo = albedo
@@ -809,6 +823,7 @@ contains
               mu0, &
               real(edirTOA), &
               real(col_albedo), &
+              real(col_tskin), &
               .False., [0., 0.], col_Bfrac, &
               col_dtau, &
               col_w0,   &

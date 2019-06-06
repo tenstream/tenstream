@@ -44,6 +44,7 @@ module m_pprts_base
     logical     , allocatable , dimension(:,:,:) :: l1d
     real(ireals), allocatable , dimension(:,:)   :: albedo
     real(ireals), allocatable , dimension(:,:)   :: Btop, Bbot ! TOA layer planck emissions, special case memory for icollapse
+    real(ireals), allocatable , dimension(:,:)   :: Bsrfc      ! Srfc planck emissions
     real(ireals)                                 :: dx,dy
     integer(iintegers)                           :: icollapse=1
     logical                                      :: lcollapse = .False.

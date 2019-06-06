@@ -2,7 +2,7 @@ program main
   use m_tenstr_disort, only: default_flx_computation
   implicit none
   integer, parameter :: nlyr=5, nstreams=16
-  real, parameter :: mu0=.5, S0=1000, Ag=.2
+  real, parameter :: mu0=.5, S0=1000, Ag=.2, tskin=300
   real, dimension(nlyr) :: Bfracs, dtau, ssalb, gasym
   real, dimension(nlyr+1) :: temper, RFLDIR, RFLDN, FLUP, DFDT, UAVG
   integer :: k
@@ -19,7 +19,7 @@ contains
   subroutine thermal()
     Bfracs = .1
     call default_flx_computation(&
-      0., 0., Ag, &
+      0., 0., Ag, tskin, &
       .True., [1., 10000.], Bfracs, &
       dtau, ssalb, gasym, temper, &
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
@@ -33,7 +33,7 @@ contains
 
     Bfracs = 1
     call default_flx_computation(&
-      0., 0., Ag, &
+      0., 0., Ag, tskin, &
       .True., [1., 10000.], Bfracs, &
       dtau, ssalb, gasym, temper, &
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
@@ -49,7 +49,7 @@ contains
   subroutine solar()
     real, dimension(nlyr+1) :: Transmission
     call default_flx_computation(&
-      mu0, S0, Ag, &
+      mu0, S0, Ag, tskin, &
       .False., [0., 0.], Bfracs, &
       dtau, ssalb, gasym, temper, &
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, &

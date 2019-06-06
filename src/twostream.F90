@@ -42,11 +42,12 @@ module m_twostream
 
 contains
 
-  subroutine delta_eddington_twostream(dtau,w0,g,mu0,incSolar,albedo, S,Edn,Eup, planck)
+  subroutine delta_eddington_twostream(dtau,w0,g,mu0,incSolar,albedo, S,Edn,Eup, planck, planck_srfc)
     real(ireals),intent(in),dimension(:) :: dtau,w0,g
     real(ireals),intent(in) :: albedo,mu0,incSolar
     real(ireals),dimension(:),intent(out):: S,Edn,Eup
     real(ireals),dimension(:),intent(in),optional :: planck
+    real(ireals),intent(in),optional :: planck_srfc
 
     real(ireals),dimension(size(dtau)) :: a11,a12,a13,a23,a33
 
@@ -107,7 +108,11 @@ contains
         B(2*k-1,1) = B(2*k-1,1) + emis * b0
         B(2*k+2,1) = B(2*k+2,1) + emis * b1
       enddo
-      B(2*ke1-1,1) = B(2*ke1-1,1) + planck(ke1)*(one-albedo)*pi
+      if(present(planck_srfc)) then
+        B(2*ke1-1,1) = B(2*ke1-1,1) + planck_srfc*(one-albedo)*pi
+      else
+        B(2*ke1-1,1) = B(2*ke1-1,1) + planck(ke1)*(one-albedo)*pi
+      endif
     endif
 
     !diagonal entries

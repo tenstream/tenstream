@@ -10,7 +10,7 @@ module m_tenstr_disort
 
 contains
   subroutine default_flx_computation(&
-      mu0, S0, Ag, &
+      mu0, S0, Ag, tskin, &
       lthermal, wvnm, Bfracs, &
       dtau, ssalb, gasym, temper, &
       RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
@@ -19,6 +19,7 @@ contains
     real, intent(in)    :: mu0   ! cos(solar zenith angle)
     real, intent(in)    :: S0    ! solar constant
     real, intent(in)    :: Ag    ! lambertian surface albedo
+    real, intent(in)    :: tskin ! skin temperatures
     logical, intent(in) :: lthermal ! do thermal computations ?
     real, intent(in)    :: wvnm(2) ! Wavenumbers low and high [inv cm], ignored if not lthermal
     real, dimension(:), intent(in)  :: Bfracs      ! Planck fractions for vertical weighting (needed for RRTMG), otherwise use 1 (nlay)
@@ -166,7 +167,7 @@ contains
         fisot=0
         lamber=.True.
 
-        btemp  = temper(size(temper))
+        btemp  = tskin
         ttemp  = 0
         temis  = 0
         bemst  = 0

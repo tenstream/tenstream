@@ -1146,12 +1146,17 @@ module m_pprts
     if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: MAT_INFO_USED',nz_used,'MAT_INFO_NZ_unneded',nz_unneeded
     if(myid.eq.0.and.ldebug) print *,myid,'mat_info :: Ownership range',m,n
   end subroutine
-  subroutine set_optical_properties(solver, albedo, local_kabs, local_ksca, local_g, local_planck, local_albedo_2d, ldelta_scaling)
+  subroutine set_optical_properties(solver, albedo, &
+      kabs, ksca, g, &
+      planck, planck_srfc, &
+      albedo_2d, &
+      ldelta_scaling)
     class(t_solver)                                   :: solver
     real(ireals), intent(in)                          :: albedo
-    real(ireals),intent(in),dimension(:,:,:),optional :: local_kabs, local_ksca, local_g ! dimensions (Nz  , Nx, Ny)
-    real(ireals),intent(in),dimension(:,:,:),optional :: local_planck                    ! dimensions (Nz+1, Nx, Ny) planck radiation on levels
-    real(ireals),intent(in),dimension(:,:),optional   :: local_albedo_2d                 ! dimensions (Nx, Ny)
+    real(ireals),intent(in),dimension(:,:,:),optional :: kabs, ksca, g ! dimensions (Nz  , Nx, Ny)
+    real(ireals),intent(in),dimension(:,:,:),optional :: planck                    ! dimensions (Nz+1, Nx, Ny) planck radiation on levels
+    real(ireals),intent(in),dimension(:,:),optional   :: planck_srfc               ! dimensions (Nx, Ny)
+    real(ireals),intent(in),dimension(:,:),optional   :: albedo_2d                 ! dimensions (Nx, Ny)
     logical, intent(in), optional :: ldelta_scaling ! determines if we should try to delta scale these optprops
 
     real(ireals)        :: pprts_delta_scale_max_g
@@ -1175,38 +1180,46 @@ module m_pprts
 
     if(.not.allocated(atm%albedo)) allocate(atm%albedo(C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
     atm%albedo = albedo
-    if(present(local_albedo_2d)) atm%albedo = local_albedo_2d
+    if(present(albedo_2d)) atm%albedo = albedo_2d
 
-    if(present(local_kabs) ) atm%kabs = local_kabs
-    if(present(local_ksca) ) atm%ksca = local_ksca
-    if(present(local_g   ) ) atm%g    = local_g
+    if(present(kabs) ) atm%kabs = kabs
+    if(present(ksca) ) atm%ksca = ksca
+    if(present(g   ) ) atm%g    = g
 
-    if(present(local_planck) ) then
+    if(present(planck) ) then
       if(.not.allocated(atm%planck)) &
         allocate(atm%planck(C_one_atm1%zs:C_one_atm1%ze, C_one_atm1%xs:C_one_atm1%xe, C_one_atm1%ys:C_one_atm1%ye))
-      atm%planck = local_planck
+      atm%planck = planck
     else
       if(allocated(atm%planck)) deallocate(atm%planck)
     endif
 
+    if(present(planck_srfc) ) then
+      if(.not.allocated(atm%Bsrfc)) &
+        allocate(atm%Bsrfc(C_one_atm1%xs:C_one_atm1%xe, C_one_atm1%ys:C_one_atm1%ye))
+      atm%Bsrfc = planck_srfc
+    else
+      if(allocated(atm%Bsrfc)) deallocate(atm%Bsrfc)
+    endif
+
     if(ldebug) then
-      if( any([local_kabs,local_ksca,local_g].lt.zero) ) then
+      if( any([kabs,ksca,g].lt.zero) ) then
         print *,solver%myid,'set_optical_properties :: found illegal value in local_optical properties! abort!'
         do k=C_one_atm%zs,C_one_atm%ze
-          print *,solver%myid,k,'local_kabs',local_kabs(k,:,:)
-          print *,solver%myid,k,'local_ksca',local_ksca(k,:,:)
+          print *,solver%myid,k,'kabs',kabs(k,:,:)
+          print *,solver%myid,k,'ksca',ksca(k,:,:)
         enddo
         call CHKERR(1_mpiint, 'set_optical_properties :: found illegal value in local_optical properties! '//&
                               ' '//itoa(solver%myid)//&
-                              ' kabs min '//ftoa(minval(local_kabs))//' max '//ftoa(maxval(local_kabs))//&
-                              ' ksca min '//ftoa(minval(local_ksca))//' max '//ftoa(maxval(local_ksca))//&
-                              ' g    min '//ftoa(minval(local_g   ))//' max '//ftoa(maxval(local_g   )))
+                              ' kabs min '//ftoa(minval(kabs))//' max '//ftoa(maxval(kabs))//&
+                              ' ksca min '//ftoa(minval(ksca))//' max '//ftoa(maxval(ksca))//&
+                              ' g    min '//ftoa(minval(g   ))//' max '//ftoa(maxval(g   )))
       endif
-      if( any(isnan([local_kabs,local_ksca,local_g]))) then
-        call CHKERR(1_mpiint, 'set_optical_properties :: found NaN value in local_optical properties!'//&
-                              ' NaN in local_kabs? '//ltoa(any(isnan(local_kabs)))// &
-                              ' NaN in local_ksca? '//ltoa(any(isnan(local_ksca)))// &
-                              ' NaN in local_g   ? '//ltoa(any(isnan(local_g   ))))
+      if( any(isnan([kabs,ksca,g]))) then
+        call CHKERR(1_mpiint, 'set_optical_properties :: found NaN value in optical properties!'//&
+                              ' NaN in kabs? '//ltoa(any(isnan(kabs)))// &
+                              ' NaN in ksca? '//ltoa(any(isnan(ksca)))// &
+                              ' NaN in g   ? '//ltoa(any(isnan(g   ))))
       endif
     endif
     if(ldebug) then
@@ -1220,21 +1233,21 @@ module m_pprts
     endif
 
     if(ldebug.and.solver%myid.eq.0) then
-      if(present(local_kabs) ) then
+      if(present(kabs) ) then
         print *,'atm_kabs     ',maxval(atm%kabs  )  ,shape(atm%kabs  )
       endif
-      if(present(local_ksca) ) then
+      if(present(ksca) ) then
         print *,'atm_ksca     ',maxval(atm%ksca  )  ,shape(atm%ksca  )
       endif
-      if(present(local_g) ) then
+      if(present(g) ) then
         print *,'atm_g        ',maxval(atm%g     )  ,shape(atm%g     )
       endif
-      if(present(local_planck) ) then
+      if(present(planck) ) then
         print *,'atm_planck   ',maxval(atm%planck   )  ,shape(atm%planck   )
       endif
 
       print *,'Number of 1D layers: ', count(atm%l1d) , size(atm%l1d),'(',(100._ireals* count(atm%l1d) )/size(atm%l1d),'%)'
-      if(present(local_kabs)) print *,'init local optprop:', shape(local_kabs), '::', shape(atm%kabs)
+      if(present(kabs)) print *,'init local optprop:', shape(kabs), '::', shape(atm%kabs)
     endif
 
     lpprts_delta_scale = get_arg(.True., ldelta_scaling)
@@ -1254,7 +1267,7 @@ module m_pprts
     if(ltwostr_only) then
       if(ldebug .and. solver%myid.eq.0) then
         do k=C_one_atm%zs,C_one_atm%ze
-          if(present(local_planck)) then
+          if(present(planck)) then
             print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
               minval(atm%kabs(k,:,:)), minval(atm%ksca(k,:,:)), minval(atm%g(k,:,:)),&
               maxval(atm%kabs(k,:,:)), maxval(atm%ksca(k,:,:)), maxval(atm%g(k,:,:)),&
@@ -1328,7 +1341,7 @@ module m_pprts
 
     if(ldebug .and. solver%myid.eq.0) then
       do k=C_one_atm%zs,C_one_atm%ze
-        if(present(local_planck)) then
+        if(present(planck)) then
           print *,solver%myid,'Optical Properties:',k,'dz',atm%dz(k,C_one_atm%xs,C_one_atm%ys),atm%l1d(k,C_one_atm%xs,C_one_atm%ys),'k',&
             minval(atm%kabs(k,:,:)), minval(atm%ksca(k,:,:)), minval(atm%g(k,:,:)),&
             maxval(atm%kabs(k,:,:)), maxval(atm%ksca(k,:,:)), maxval(atm%g(k,:,:)),&
@@ -1355,7 +1368,7 @@ module m_pprts
           if(atm%lcollapse) then
             ak = atmk(atm, C_one%zs)
             if(ak.ne.i1) then
-              if(present(local_planck)) then
+              if(present(planck)) then
                 allocate(Edn(C_one_atm%zs:ak+1), Eup(C_one_atm%zs:ak+1))
                 if(.not.allocated(atm%Bbot)) &
                   allocate(atm%Bbot(C_one_atm%xs:C_one_atm%xe, C_one_atm%ys:C_one_atm%ye))
@@ -1364,7 +1377,7 @@ module m_pprts
               endif
               do j=C_one_atm%ys,C_one_atm%ye
                 do i=C_one_atm%xs,C_one_atm%xe
-                  if(present(local_planck)) then
+                  if(present(planck)) then
                     call adding(&
                       atm%a11(C_one_atm%zs:ak, i, j), &
                       atm%a12(C_one_atm%zs:ak, i, j), &
@@ -1576,7 +1589,6 @@ module m_pprts
     end subroutine
 
   end subroutine
-
 
   subroutine solve_pprts(solver, edirTOA, opt_solution_uid, opt_solution_time)
     class(t_solver), intent(inout)          :: solver
@@ -2050,10 +2062,18 @@ module m_pprts
         g    = atm%g(:,i,j)
 
         if(allocated(atm%planck) ) then
-          call delta_eddington_twostream(dtau, w0, g, &
-            mu0, incSolar, atm%albedo(i,j), &
-            S, Edn, Eup, &
-            planck=atm%planck(:,i,j) )
+          if(allocated(atm%Bsrfc)) then
+            call delta_eddington_twostream(dtau, w0, g, &
+              mu0, incSolar, atm%albedo(i,j), &
+              S, Edn, Eup, &
+              planck=atm%planck(:,i,j), &
+              planck_srfc=atm%Bsrfc(i,j))
+          else
+            call delta_eddington_twostream(dtau, w0, g, &
+              mu0, incSolar, atm%albedo(i,j), &
+              S, Edn, Eup, &
+              planck=atm%planck(:,i,j) )
+          endif
         else
           !
           ! call adding_delta_eddington_twostream(dtau,w0,g,mu0,incSolar,atm%albedo(i,j), S,Edn,Eup )
@@ -2148,7 +2168,13 @@ module m_pprts
 
         dtau = atm%dz(:, i, j) * atm%kabs(:, i, j)
 
-        call schwarzschild(Nmu, dtau, atm%albedo(i,j), Edn, Eup, atm%planck(:, i, j))
+        if(allocated(atm%Bsrfc)) then
+          call schwarzschild(Nmu, dtau, atm%albedo(i,j), Edn, Eup, &
+            atm%planck(:, i, j), opt_srfc_emission=atm%Bsrfc(i,j))
+        else
+          call schwarzschild(Nmu, dtau, atm%albedo(i,j), Edn, Eup, &
+            atm%planck(:, i, j))
+        endif
 
         ! icollapse needs special case for TOA flx's
         do idof = 0, solver%difftop%dof-1
@@ -3015,17 +3041,30 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
 
       ! Thermal emission at surface
       k = C_diff%ze
-      ak = atmk(atm,k)
-      do j=C_diff%ys,C_diff%ye
-        do i=C_diff%xs,C_diff%xe
+      if(allocated(atm%Bsrfc)) then
+        do j=C_diff%ys,C_diff%ye
+          do i=C_diff%xs,C_diff%xe
+            do src = 0, solver%difftop%dof-1
+              if (.not.solver%difftop%is_inward(i1+src)) then !Eup
+                xsrc(src,k,i,j) = xsrc(src,k,i,j) + atm%Bsrfc(i,j) &
+                  * Az * (one-atm%albedo(i,j)) * pi / real(solver%difftop%streams, ireals)
+              endif
+            enddo
+          enddo
+        enddo
+      else
+        ak = atmk(atm,k)
+        do j=C_diff%ys,C_diff%ye
+          do i=C_diff%xs,C_diff%xe
             do src = 0, solver%difftop%dof-1
               if (.not.solver%difftop%is_inward(i1+src)) then !Eup
                 xsrc(src,k,i,j) = xsrc(src,k,i,j) + atm%planck(ak,i,j) &
                   * Az * (one-atm%albedo(i,j)) * pi / real(solver%difftop%streams, ireals)
               endif
             enddo
+          enddo
         enddo
-      enddo
+      endif
     end associate
     end subroutine
 
