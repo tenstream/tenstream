@@ -251,7 +251,7 @@ contains
     integer(mpiint), intent(in) :: comm
     class(t_plex_solver), allocatable, intent(inout)  :: solver
     type(t_tenstr_atm), intent(in), target :: atm
-    integer(iintegers),intent(in)   :: Ncol, ke1
+    integer(iintegers),intent(in) :: Ncol, ke1
 
     real(ireals),intent(in) :: albedo
 
@@ -262,17 +262,23 @@ contains
 
     integer(iintegers) :: ke
 
-    real(ireals),allocatable, dimension(:,:,:) :: tau, tau_f          ! [nlyr, ncol, ngptlw]
-    real(ireals),allocatable, dimension(:,:,:) :: Bfrac               ! [nlyr+1, ncol, ngptlw]
     real(ireals),allocatable, dimension(:,:)   :: spec_abso           ! [nlyr(+1), ncol ]
     real(ireals),allocatable, dimension(:,:)   :: spec_edn, spec_eup  ! [nlyr(+1), ncol ]
-    real(ireals),allocatable, dimension(:,:)   :: Blev                ! [nlyr+1, ncol ]
-    real(ireals),allocatable, dimension(:)     :: integral_coeff      ! [nlyr]
+
+    real(ireals), dimension(ke1-1,Ncol,ngptlw) :: tau                 ! [nlyr, ncol, ngptlw]
+    real(ireals), dimension(ke1  ,Ncol,ngptlw) :: Bfrac               ! [nlyr+1, ncol, ngptlw]
+    real(ireals), dimension(ke1-1)             :: integral_coeff      ! [nlyr]
+
+    real(ireals), dimension(ke1-1,ncol,ngptlw) :: tau_f               ! [nlyr, ncol, ngptlw]
+    real(ireals), dimension(ke1  ,Ncol)        :: Blev                ! [nlyr+1, ncol ]
+
+    real(ireals), dimension(ke1-1), target     :: cfrac  ! [nlyr]
+    real(ireals), dimension(:,:), pointer      :: xcfrac ! points to default 1D col cfrac or to atm%cfrac if allocated
 
     real(ireals), pointer :: xalbedo(:)
 
     real(ireals) :: col_albedo, col_tskin(1)
-    integer(iintegers) :: i, ib, icol, k, current_ibnd, num_spectral_bands
+    integer(iintegers) :: i, ib, k, current_ibnd, num_spectral_bands
     logical :: need_any_new_solution, lflg
 
     integer(mpiint) :: ierr
@@ -281,6 +287,7 @@ contains
     allocate(spec_edn (ke1, Ncol))
     allocate(spec_eup (ke1, Ncol))
     allocate(spec_abso(ke, Ncol))
+
 
     need_any_new_solution=.False.
     do ib=1,ngptlw
@@ -298,22 +305,30 @@ contains
     endif
 
     ! Compute optical properties with RRTMG
-    allocate(tau  (ke , Ncol, ngptlw))
-    allocate(tau_f(ke , Ncol, ngptlw))
-    allocate(Bfrac(ke1, Ncol, ngptlw))
-    allocate(integral_coeff(ke))
+
 
     col_albedo = albedo
 
+    xcfrac(1:ke,1:1) => cfrac
     if(lrrtmg_only) then
         do i = 1, Ncol
           integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
           if(present(thermal_albedo_2d)) col_albedo =  thermal_albedo_2d(i)
 
           if(allocated(atm%tskin)) then
-            col_tskin = atm%tskin(icol)
+            col_tskin = atm%tskin(i)
           else
-            col_tskin = atm%tlev(1,icol)
+            col_tskin = atm%tlev(1,i)
+          endif
+
+          if(allocated(atm%cfrac)) then
+            xcfrac(1:ke,1:1) => atm%cfrac(:,i)
+          else
+            where(atm%lwc(:,i).gt.0)
+              cfrac = 1
+            elsewhere
+              cfrac = 0
+            endwhere
           endif
 
           call optprop_rrtm_lw(i1, ke, col_albedo, &
@@ -323,8 +338,12 @@ contains
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
             atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
             atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
-            tau(:,i:i,:), Bfrac(2:ke1,i:i,:), tau_f(:,i:i,:), &
-            spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i))
+            tau=tau(:,i:i,:), Bfrac=Bfrac(2:ke1,i:i,:), &
+            opt_tau_f=tau_f(:,i:i,:),   &
+            opt_lwuflx=spec_eup(:,i:i), &
+            opt_lwdflx=spec_edn(:,i:i), &
+            opt_lwhr=spec_abso(:,i:i),  &
+            opt_cldfr=xcfrac)
 
           eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
           edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
@@ -340,12 +359,14 @@ contains
           if(present(thermal_albedo_2d)) col_albedo =  thermal_albedo_2d(i)
 
           call optprop_rrtm_lw(i1, ke, col_albedo, &
-            atm%plev(:,i), atm%tlev(:,i), atm%tlay(:,i), &
+            atm%plev(:,i), atm%tlev(:,i),          &
+            atm%tlay(:,i), col_tskin,              &
             atm%h2o_lay(:,i), atm%o3_lay(:,i), atm%co2_lay(:,i), &
             atm%ch4_lay(:,i), atm%n2o_lay(:,i), atm%o2_lay(:,i), &
             atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
             atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
-            tau(:,i:i,:), Bfrac(2:ke1,i:i,:), tau_f(:,i:i,:))
+            tau=tau(:,i:i,:), Bfrac=Bfrac(2:ke1,i:i,:), &
+            opt_tau_f=tau_f(:,i:i,:))
         enddo
     endif
     Bfrac(1,:,:) = Bfrac(2,:,:)
@@ -373,9 +394,6 @@ contains
       call VecSet(solver%albedo, albedo, ierr); call CHKERR(ierr)
     endif
 
-    ! tmp space for transformations of cell properties
-    allocate(Blev(ke1, Ncol))
-
     current_ibnd = -1 ! current lw band
 
     num_spectral_bands = int(ngptlw, iintegers)
@@ -396,9 +414,9 @@ contains
         if(current_ibnd.eq.ngb(ib)) then ! still the same band, dont need to upgrade the plank emission
           continue
         else
-          do icol=i1,Ncol
+          do i=i1,Ncol
             do k=i1,ke1
-              Blev(k,icol) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k,icol)))
+              Blev(k,i) = plkint(real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib))), real(atm%tlev(k,i)))
             enddo
           enddo
           current_ibnd = ngb(ib)
@@ -421,7 +439,7 @@ contains
   contains
       function compute_thermal_disort() result(ldisort_only)
         logical :: ldisort_only
-        integer(iintegers) :: nstreams
+        integer(iintegers) :: nstreams, icol
         real :: mu0, S0, wvnms(2), col_tskin
         real, dimension(size(tau,1))   :: col_Bfrac, col_dtau, col_w0, col_g
         real, dimension(size(tau,1)+1) :: col_temper
@@ -596,6 +614,9 @@ contains
     real(ireals),allocatable, dimension(:,:)   :: tmp  ! [nlyr, ncol ]
     real(ireals),allocatable, dimension(:)     :: integral_coeff  ! [nlyr]
 
+    real(ireals), dimension(ke1-1), target     :: cfrac  ! [nlyr]
+    real(ireals), dimension(:,:), pointer      :: xcfrac ! points to default 1D col cfrac or to atm%cfrac if allocated
+
     real(ireals), pointer :: xalbedo(:)
 
     real(ireals), pointer :: geoms(:) ! pointer to coordinates vec
@@ -649,6 +670,8 @@ contains
     allocate(w0_f (ke, Ncol, ngptsw))
     allocate(g_f  (ke, Ncol, ngptsw))
 
+    xcfrac(1:ke,1:1) => cfrac
+
     if(lrrtmg_only) then
         do i = 1, Ncol
           iface = xitoa_faces(i)
@@ -659,9 +682,18 @@ contains
           col_albedo = albedo
           if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(i)
 
-
           if(theta0.lt.90._ireals) then
             integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
+
+            if(allocated(atm%cfrac)) then
+              xcfrac(1:ke,1:1) => atm%cfrac(:,i)
+            else
+              where(atm%lwc(:,i).gt.0)
+                cfrac = 1
+              elsewhere
+                cfrac = 0
+              endwhere
+            endif
 
             call optprop_rrtm_sw(i1, ke, &
               theta0, col_albedo, &
@@ -673,7 +705,10 @@ contains
               tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
               spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i), &
               opt_solar_constant=opt_solar_constant, &
-              opt_tau_f=tau_f(:,i:i,:), opt_w0_f=w0_f(:,i:i,:), opt_g_f=g_f(:,i:i,:))
+              opt_tau_f=tau_f(:,i:i,:), &
+              opt_w0_f=w0_f(:,i:i,:), &
+              opt_g_f=g_f(:,i:i,:), &
+              opt_cldfr=xcfrac)
 
             edir(:,i) = edir(:,i) + zero
             eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
@@ -711,9 +746,11 @@ contains
             atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
             tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
             opt_solar_constant=opt_solar_constant, &
-            opt_tau_f=tau_f(:,i:i,:), opt_w0_f=w0_f(:,i:i,:), opt_g_f=g_f(:,i:i,:))
+            opt_tau_f=tau_f(:,i:i,:), &
+            opt_w0_f=w0_f(:,i:i,:), &
+            opt_g_f=g_f(:,i:i,:))
         enddo
-    endif
+      endif
     if(ldebug) then
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       if(myid.eq.0) print *,'DEBUG theta0', theta0, 'deg; 2d albedo?', present(solar_albedo_2d)

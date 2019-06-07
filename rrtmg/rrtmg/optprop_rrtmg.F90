@@ -48,7 +48,7 @@ contains
       albedo, plev, tlev, tlay, tsrfc, &
       h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
       lwp, reliq, iwp, reice, tau, Bfrac, opt_tau_f, &
-      opt_lwuflx, opt_lwdflx, opt_lwhr)
+      opt_lwuflx, opt_lwdflx, opt_lwhr, opt_cldfr)
     ! RRTM needs the arrays to start at the surface
 
     integer(iintegers),intent(in) :: ncol_in, nlay_in
@@ -62,6 +62,7 @@ contains
     real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [nlay, ncol, ngptlw]
     real(ireals), dimension(:,:,:), intent(out), optional :: opt_tau_f ! [nlay, ncol, ngptlw]
     real(ireals), dimension(:,:), intent(out), optional :: opt_lwuflx, opt_lwdflx, opt_lwhr ! [nlay+1, ncol]
+    real(ireals), dimension(:,:), intent(in), optional :: opt_cldfr ! [nlay+1, ncol]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -96,7 +97,15 @@ contains
 
     emis = one - albedo
 
-    cldfr = 1
+    if(present(opt_cldfr)) then
+      cldfr = real(opt_cldfr, rb)
+    else
+      where(lwp.gt.0)
+        cldfr = 1
+      elsewhere
+        cldfr = 0
+      end where
+    endif
 
     if(.not.linit_rrtmg_lw) then
       call rrtmg_lw_ini(1006._rb)
@@ -150,7 +159,7 @@ contains
       h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
       lwp, reliq, iwp, reice, tau, w0, g, &
       opt_swuflx, opt_swdflx, opt_swhr, opt_solar_constant, &
-      opt_tau_f, opt_w0_f, opt_g_f)
+      opt_tau_f, opt_w0_f, opt_g_f, opt_cldfr)
     ! RRTM needs the arrays to start at the surface
 
     integer(iintegers),intent(in)          :: ncol_in, nlay_in
@@ -164,6 +173,7 @@ contains
     real(ireals), dimension(:,:), intent(out), optional :: opt_swuflx, opt_swdflx, opt_swhr ! [nlay+1, ncol]
     real(ireals), intent(in), optional :: opt_solar_constant
     real(ireals), dimension(:,:,:), intent(out),optional :: opt_tau_f, opt_w0_f, opt_g_f ! [nlay, ncol, ngptsw]
+    real(ireals),dimension(:,:), intent(in), optional :: opt_cldfr ! [nlay+1, ncol]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -211,7 +221,15 @@ contains
     asdif  = albedo; aldif  = albedo; swdflxc = 0; swuflxc = 0;
     coszen = cos(deg2rad(theta0));
 
-    cldfr = 1
+    if(present(opt_cldfr)) then
+      cldfr = real(opt_cldfr, rb)
+    else
+      where(lwp.gt.0)
+        cldfr = 1
+      elsewhere
+        cldfr = 0
+      end where
+    endif
 
     if(.not.linit_rrtmg) then
       call rrtmg_sw_ini(1006._rb)
