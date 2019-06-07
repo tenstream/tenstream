@@ -22,6 +22,8 @@
       use m_tenstr_rrlw_cld, only: abscld1, absliq0, absliq1, &
                           absice0, absice1, absice2, absice3
       use m_tenstr_rrlw_vsn, only: hvrcld, hnamcld
+      use m_helper_functions, only: CHKERR, ftoa
+      use m_data_parameters, only: mpiint
 
       implicit none
 
@@ -190,13 +192,15 @@
                   iceind = 0
 
                elseif (iceflag .eq. 0) then
-                  if (radice .lt. 10.0_rb) stop 'ICE RADIUS TOO SMALL'
+                  if (radice .lt. 10.0_rb) &
+                    call CHKERR(1_mpiint, 'ICE RADIUS TOO SMALL 10 > '//ftoa(radice))
                   abscoice(1) = absice0(1) + absice0(2)/radice
                   iceind = 0
 
                elseif (iceflag .eq. 1) then
-                  if (radice .lt. 13.0_rb .or. radice .gt. 130._rb) stop &
-                       'ICE RADIUS OUT OF BOUNDS'
+                  if (radice .lt. 13.0_rb .or. radice .gt. 130._rb) &
+                    call CHKERR(1_mpiint, 'ICE EFFECTIVE RADIUS OUT OF BOUNDS '// &
+                                          '13 < '//ftoa(radliq)//' < 130')
                   ncbands = 5
                   do ib = 1, ncbands
                      abscoice(ib) = absice1(1,ib) + absice1(2,ib)/radice
@@ -206,7 +210,9 @@
 ! For iceflag=2 option, ice particle effective radius is limited to 5.0 to 131.0 microns
 
                elseif (iceflag .eq. 2) then
-                  if (radice .lt. 5.0_rb .or. radice .gt. 131.0_rb) stop 'ICE RADIUS OUT OF BOUNDS'
+                  if (radice .lt. 5.0_rb .or. radice .gt. 131.0_rb) &
+                       call CHKERR(1_mpiint, 'ICE EFFECTIVE RADIUS OUT OF BOUNDS '// &
+                                             '5 < '//ftoa(radliq)//' < 131')
                      ncbands = 16
                      factor = (radice - 2._rb)/3._rb
                      index = int(factor)
@@ -222,7 +228,9 @@
 ! For iceflag=3 option, ice particle generalized effective size is limited to 5.0 to 140.0 microns
 
                elseif (iceflag .eq. 3) then
-                  if (radice .lt. 5.0_rb .or. radice .gt. 140.0_rb) stop 'ICE GENERALIZED EFFECTIVE SIZE OUT OF BOUNDS'
+                  if (radice .lt. 5.0_rb .or. radice .gt. 140.0_rb) &
+                       call CHKERR(1_mpiint, 'ICE GENERALIZED EFFECTIVE SIZE OUT OF BOUNDS '// &
+                                             '5 < '//ftoa(radliq)//' < 140')
                      ncbands = 16
                      factor = (radice - 2._rb)/3._rb
                      index = int(factor)
@@ -234,9 +242,9 @@
                           (absice3(index+1,ib) - (absice3(index,ib)))
                      enddo
                      iceind = 2
-   
+
                endif
-                  
+
 ! Calculation of absorption coefficients due to water clouds.
                if (clwp(lay) .eq. 0.0_rb) then
                   abscoliq(1) = 0.0_rb
@@ -250,8 +258,9 @@
 
                elseif (liqflag .eq. 1) then
                   radliq = rel(lay)
-                  if (radliq .lt. 2.5_rb .or. radliq .gt. 60._rb) stop &
-                       'LIQUID EFFECTIVE RADIUS OUT OF BOUNDS'
+                  if (radliq .lt. 2.5_rb .or. radliq .gt. 60._rb) &
+                    call CHKERR(1_mpiint, 'LIQUID EFFECTIVE RADIUS OUT OF BOUNDS '// &
+                                          '2.5 < '//ftoa(radliq)//' < 60')
                   index = int(radliq - 1.5_rb)
                   if (index .eq. 0) index = 1
                   if (index .eq. 58) index = 57
