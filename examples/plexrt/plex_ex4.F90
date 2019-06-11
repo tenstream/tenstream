@@ -114,13 +114,13 @@ contains
 
     ! Setup 3D DMPLEX grid
     call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
-    call atm_dz_to_vertex_heights(atm%dz, dm3d)
+    !call atm_dz_to_vertex_heights(atm%dz, dm3d)
 
     call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
     call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
 
     !Load Data from iconfile and distribute it
-    if(myid.eq.0) print *,'Read data from icondatafile', trim(icondatafile)
+    if(myid.eq.0) print *,'Read data from icondatafile ', trim(icondatafile)
 
     call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qnc_data_string, qncvec)
     call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, lwc_data_string, lwcvec)
@@ -301,7 +301,7 @@ program main
 
   default_options=''
   default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
-  !default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
+  default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
   !default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
   !default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
   !default_options=trim(default_options)//' -show_domainboundary hdf5:'//trim(outfile)//'::append'

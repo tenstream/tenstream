@@ -642,9 +642,6 @@ module m_icon_plex_utils
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call DMClone(dm, owner_dm, ierr); call CHKERR(ierr)
-      if(present(cmd_string_dump_plex)) then
-        call PetscObjectViewFromOptions(owner_dm, PETSC_NULL_DM, cmd_string_dump_plex, ierr); call CHKERR(ierr)
-      endif
 
       call DMGetPointSF(owner_dm, sf, ierr); call CHKERR(ierr)
       call PetscSFGetGraph(sf, nroots, nleaves, pmyidx, premote, ierr); call CHKERR(ierr)
@@ -664,6 +661,11 @@ module m_icon_plex_utils
       call DMGetSection(owner_dm, sec, ierr); call CHKERR(ierr)
 
       call DMGetGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
+
+      ! Dump Plex itself
+      if(present(cmd_string_dump_plex)) then
+        call PetscObjectViewFromOptions(owner_dm, PETSC_NULL_DM, trim(cmd_string_dump_plex), ierr); call CHKERR(ierr)
+      endif
 
       ! Dump Cell Ownership
       call PetscObjectSetName(gVec, 'ownership_cells', ierr);call CHKERR(ierr)
@@ -771,6 +773,8 @@ module m_icon_plex_utils
         print *,'eStart,End serial :: ',eStart, eEnd
         print *,'vStart,End serial :: ',vStart, vEnd
       endif
+
+      call DMSetBasicAdjacency(dm, PETSC_TRUE, PETSC_FALSE, ierr); call CHKERR(ierr)
 
       call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
       if(dmdist.ne.PETSC_NULL_DM) then
@@ -1045,6 +1049,8 @@ module m_icon_plex_utils
         !call AOView(cell_ao_2d, PETSC_VIEWER_STDOUT_WORLD, ierr)
       endif
 
+      call DMSetBasicAdjacency(dm, PETSC_TRUE, PETSC_FALSE, ierr); call CHKERR(ierr)
+
       call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
 
       if(dmdist.ne.PETSC_NULL_DM) then
@@ -1115,6 +1121,7 @@ module m_icon_plex_utils
           !print *,'coords', shape(coords), '::', coords
           call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
+          call DMSetCoordinateSection(dm, i3, coordSection, ierr); call CHKERR(ierr)
           call DMSetCoordinatesLocal(dm, coordinates, ierr);call CHKERR(ierr)
           call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
           call VecDestroy(coordinates, ierr);call CHKERR(ierr)

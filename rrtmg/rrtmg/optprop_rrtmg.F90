@@ -62,7 +62,7 @@ contains
     real(ireals), dimension(:,:,:), intent(out) :: tau, Bfrac ! [nlay, ncol, ngptlw]
     real(ireals), dimension(:,:,:), intent(out), optional :: opt_tau_f ! [nlay, ncol, ngptlw]
     real(ireals), dimension(:,:), intent(out), optional :: opt_lwuflx, opt_lwdflx, opt_lwhr ! [nlay+1, ncol]
-    real(ireals), dimension(:,:), intent(in), optional :: opt_cldfr ! [nlay+1, ncol]
+    real(ireals), dimension(:,:), intent(in), optional :: opt_cldfr ! [ncol, nlay]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -75,7 +75,7 @@ contains
     real(rb),dimension(ncol_in,nlay_in+1) :: lwuflx,lwdflx,lwuflxc,lwdflxc
     real(rb),dimension(ncol_in,nlay_in  ) :: lwhr,lwhrc
 
-    integer(im) :: icol, ncol, nlay
+    integer(im) :: icol, ilay, ncol, nlay
 
     integer(im),parameter :: inflglw=2,liqflglw=1,iceflglw=3
     integer(kind=im) :: icld=2         ! Cloud overlap method
@@ -87,8 +87,10 @@ contains
 
     ! Take average pressure and temperature as mean values for voxels --
     ! should probably use log interpolation for pressure...
-    do icol=1,ncol
-      play(icol,:) = .5_rb*(plev(icol,1:nlay)+plev(icol,2:nlay+1))
+    do ilay=1,nlay
+      do icol=1,ncol
+        play(icol,ilay) = .5_rb*(plev(icol,ilay)+plev(icol,ilay+1))
+      enddo
     enddo
 
     taucld   = 0;
@@ -98,7 +100,9 @@ contains
     emis = one - albedo
 
     if(present(opt_cldfr)) then
-      cldfr = real(opt_cldfr, rb)
+      do icol=1,ncol
+        cldfr(icol,:) = real(opt_cldfr(:,icol), rb)
+      enddo
     else
       where(lwp.gt.0)
         cldfr = 1
@@ -173,7 +177,7 @@ contains
     real(ireals), dimension(:,:), intent(out), optional :: opt_swuflx, opt_swdflx, opt_swhr ! [nlay+1, ncol]
     real(ireals), intent(in), optional :: opt_solar_constant
     real(ireals), dimension(:,:,:), intent(out),optional :: opt_tau_f, opt_w0_f, opt_g_f ! [nlay, ncol, ngptsw]
-    real(ireals),dimension(:,:), intent(in), optional :: opt_cldfr ! [nlay+1, ncol]
+    real(ireals),dimension(:,:), intent(in), optional :: opt_cldfr ! [ncol, nlay]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 

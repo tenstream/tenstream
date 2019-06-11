@@ -309,7 +309,7 @@ contains
 
     col_albedo = albedo
 
-    xcfrac(1:ke,1:1) => cfrac
+    xcfrac(1:1,1:ke) => cfrac
     if(lrrtmg_only) then
         do i = 1, Ncol
           integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
@@ -322,12 +322,12 @@ contains
           endif
 
           if(allocated(atm%cfrac)) then
-            xcfrac(1:ke,1:1) => atm%cfrac(:,i)
+            xcfrac(1:1,1:ke) => atm%cfrac(:,i)
           else
             where(atm%lwc(:,i).gt.0)
-              cfrac = 1
+              xcfrac(1,:) = 1
             elsewhere
-              cfrac = 0
+              xcfrac(1,:) = 0
             endwhere
           endif
 
@@ -670,7 +670,7 @@ contains
     allocate(w0_f (ke, Ncol, ngptsw))
     allocate(g_f  (ke, Ncol, ngptsw))
 
-    xcfrac(1:ke,1:1) => cfrac
+    xcfrac(1:1,1:ke) => cfrac
 
     if(lrrtmg_only) then
         do i = 1, Ncol
@@ -686,12 +686,12 @@ contains
             integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
 
             if(allocated(atm%cfrac)) then
-              xcfrac(1:ke,1:1) => atm%cfrac(:,i)
+              xcfrac(1:1,1:ke) => atm%cfrac(:,i)
             else
               where(atm%lwc(:,i).gt.0)
-                cfrac = 1
+                xcfrac(1,:) = 1
               elsewhere
-                cfrac = 0
+                xcfrac(1,:) = 0
               endwhere
             endif
 

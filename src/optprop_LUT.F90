@@ -1265,7 +1265,7 @@ end subroutine
       class(t_optprop_LUT) :: OPP
 
       integer(mpiint) :: myid, ierr
-      real(irealLUT), pointer :: mmap_ptr(:,:)
+      real(irealLUT), contiguous, pointer :: mmap_ptr(:,:)
 
       call MPI_Comm_rank(comm, myid, mpierr); call CHKERR(mpierr)
 

@@ -145,7 +145,7 @@ logical, parameter :: ldebug=.True.
       call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
       deallocate(zindex)
 
-      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
+      call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
 
       call allocate_plexrt_solver_from_commandline(solver, '5_8')
       call init_plex_rt_solver(plex, solver)
@@ -331,8 +331,8 @@ logical, parameter :: ldebug=.True.
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
     default_options='-polar_coords no'
-    !default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
-    !default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
+    default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
+    default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'

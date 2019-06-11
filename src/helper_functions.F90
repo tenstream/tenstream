@@ -19,8 +19,11 @@
 
 module m_helper_functions
   use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
-  use m_data_parameters,only : iintegers, mpiint, ireals, irealLUT, ireal_dp, &
-    i1, pi, pi32, pi64, zero, one, imp_ireals, imp_REAL32, imp_REAL64, imp_logical, default_str_len, &
+  use m_data_parameters,only : iintegers, mpiint, &
+    ireals, irealLUT, ireal_dp, &
+    i1, pi, pi32, pi64, zero, one, &
+    imp_ireals, imp_REAL32, imp_REAL64, imp_logical, &
+    default_str_len, &
     imp_int4, imp_int8, imp_iinteger
 
   use mpi
@@ -40,7 +43,7 @@ module m_helper_functions
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean,           &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
-    solve_quadratic, linspace, assert_arr_is_monotonous, is_between
+    solve_quadratic, linspace, assert_arr_is_monotonous, is_between, sEXP
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -101,6 +104,9 @@ module m_helper_functions
   end interface
   interface get_arg
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
+  end interface
+  interface sEXP
+    module procedure sEXP_r32, sEXP_r64
   end interface
   interface swap
     module procedure swap_iintegers, swap_r32, swap_r64
@@ -187,6 +193,19 @@ module m_helper_functions
       character(len=*), intent(in) :: str
       character(len=len_trim(str)+1) :: strF2C
       strF2C = trim(str)//C_NULL_CHAR
+    end function
+
+    pure elemental function sEXP_r32(x) result(r)
+      real(REAL32),intent(in) :: x
+      real(REAL32) :: r
+      real(kind(x)), parameter :: exp_maxval=-log(epsilon(exp_maxval))
+      r = exp(sign( min(exp_maxval, abs(x)), x))
+    end function
+    pure elemental function sEXP_r64(x) result(r)
+      real(REAL64),intent(in) :: x
+      real(REAL64) :: r
+      real(kind(x)), parameter :: exp_maxval=-log(epsilon(exp_maxval))
+      r = exp(sign( min(exp_maxval, abs(x)), x))
     end function
 
     pure elemental subroutine swap_r32(x,y)
