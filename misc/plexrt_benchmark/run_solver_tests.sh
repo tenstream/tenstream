@@ -13,7 +13,7 @@ mkdir -p $OUT
 
 RESULT="${TESTIDENT}_log.npy"
 RUNLOG="$OUT/${TESTIDENT}_run.log"
-rm -f $OUT/$RUNLOG $OUT/$RESULT
+rm -f $OUT/$RUNLOG #$OUT/$RESULT
 
 cat > $OUT/concat_${TESTIDENT}_logs.py << EOF
 import os, sys, glob, numpy as np
@@ -23,16 +23,16 @@ result_file = "$RESULT"
 print("Result file:", result_file)
 
 result = list(np.load(result_file, allow_pickle=True)) if os.path.exists(result_file) else list();
-for logfile in logfiles:
+for ilogfile, logfile in enumerate(logfiles):
     have_entry_already=False
     for r in result:
-      if r['logfile'] == logfile:
-        have_entry_already=True
-        break
+        if r['logfile'] == logfile:
+            have_entry_already=True
+            break
     if have_entry_already:
-      print("Have entry already", logfile)
-      continue
-    print("Appending", logfile)
+        print("Have entry already", logfile)
+        continue
+    print("Appending: {} ({}/{})".format(logfile, ilogfile, len(logfiles)))
     try:
         exec(open(logfile).read());
     except NameError as e:
@@ -60,6 +60,8 @@ for logfile in logfiles:
     Stages['logfile'] = logfile
     result.append(Stages);
     del Stages
+    if ilogfile%10==0:
+        np.save(result_file, result)
 np.save(result_file, result)
 EOF
 
@@ -97,7 +99,7 @@ lines=[]
 
 if ldir:
   figure(1)
-  clf(); title('times for dir solves')
+  clf(); title('times for dir solves ${TESTIDENT}')
   stages = ['plexrtsolve_Mdir', 'plexrtsetup_Mdir']
 
   for isolve, solve in enumerate(results):
@@ -111,7 +113,7 @@ if ldir:
   grid(True, axis='y', which='both')
 
 figure(2)
-clf(); title('times for diff solves')
+clf(); title('times for diff solves ${TESTIDENT}')
 stages = ['plexrtsolve_Mdiff', 'plexrtsetup_Mdiff']
 
 for isolve, solve in enumerate(results):
@@ -149,7 +151,7 @@ runsolve() {
     echo "Running: $CMD"
     #salloc -p vis -C GPU --ntasks-per-core=1 -N 1 -n 10 --time=00:05:00 -w met-cl-vis01 bash -c "\
     #salloc -p ws -C GPU -N 2 -n 20 --exclusive --time=00:05:00 -w met-ws-970r18,met-ws-970r17 bash -c "\
-    salloc -p vis -N 1 -n 64 --exclusive --time=00:15:00 bash -c "\
+    salloc -p vis -N 1 -n 64 --exclusive --time=00:02:00 bash -c "\
       $CMD >> $RUNLOG; \
       echo \"Stages['description'] = \\\"$SOLVER\\\"\" |tee -a $LOGFILE; \
     "
@@ -252,13 +254,13 @@ do
     do
       for thresh in {2..-3..-1}
       do
-        for levels_ksp in "richardson" "cg" "bcgs"
+        for levels_ksp in "preonly" "richardson" "cg" "bcgs"
         do
           for levels_pc in "bjacobi -${TESTIDENT}_mg_levels_sub_pc_type ilu" "sor"
           do
             for coarse_ksp in "gmres" "preonly" "richardson" "cg"
             do
-              for coarse_pc in "sor ""bjacobi -${TESTIDENT}_mg_coarse_sub_pc_type ilu"
+              for coarse_pc in "sor" "bjacobi -${TESTIDENT}_mg_coarse_sub_pc_type ilu"
               do
                 for coarse_it in 0 1 10 100
                 do
