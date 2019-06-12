@@ -358,6 +358,12 @@ contains
           integral_coeff = vert_integral_coeff(atm%plev(1:ke,i), atm%plev(2:ke1,i))
           if(present(thermal_albedo_2d)) col_albedo =  thermal_albedo_2d(i)
 
+          if(allocated(atm%tskin)) then
+            col_tskin = atm%tskin(i)
+          else
+            col_tskin = atm%tlev(1,i)
+          endif
+
           call optprop_rrtm_lw(i1, ke, col_albedo, &
             atm%plev(:,i), atm%tlev(:,i),          &
             atm%tlay(:,i), col_tskin,              &
