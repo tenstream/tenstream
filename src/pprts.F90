@@ -2256,6 +2256,14 @@ module m_pprts
         enddo
       enddo
 
+      ! here a special case for icollapse, take the dz of all layers above dynamical grid
+      do j=C_one%ys,C_one%ye
+        do i=C_one%xs,C_one%xe
+          Volume = Az * sum(atm%dz(C_one%zs:atmk(atm, C_one%zs),i,j))
+          xabso(i0,C_one%zs,i,j) = one / Volume
+        enddo
+      enddo
+
       call restoreVecPointer(solver%abso_scalevec, xabso1d ,xabso)
     endif
 
