@@ -703,20 +703,24 @@ contains
               atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
               atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
               tau(:,i:i,:), w0(:,i:i,:), g(:,i:i,:), &
-              spec_eup(:,i:i), spec_edn(:,i:i), spec_abso(:,i:i), &
+              opt_swdirflx=spec_edir(:,i:i), &
+              opt_swuflx=spec_eup(:,i:i), &
+              opt_swdflx=spec_edn(:,i:i), &
+              opt_swhr=spec_abso(:,i:i), &
               opt_solar_constant=opt_solar_constant, &
               opt_tau_f=tau_f(:,i:i,:), &
               opt_w0_f=w0_f(:,i:i,:), &
               opt_g_f=g_f(:,i:i,:), &
               opt_cldfr=xcfrac)
 
-            edir(:,i) = edir(:,i) + zero
+            edir(:,i) = edir(:,i) + reverse(spec_edir(:,i))
             eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
             edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
             !abso(:,i) = abso(:,i) + reverse(spec_abso(:,i)) ! This would be in K/day
             abso(:,i) = abso(:,i) + reverse( ( &
-              - spec_edn(1:ke,i) + spec_edn(2:ke1,i) &
-              + spec_eup(1:ke,i) - spec_eup(2:ke1,i) ) / atm%dz(:,i) )
+              - spec_edir(1:ke,i) + spec_edir(2:ke1,i) &
+              - spec_edn (1:ke,i) + spec_edn (2:ke1,i) &
+              + spec_eup (1:ke,i) - spec_eup (2:ke1,i) ) / atm%dz(:,i) )
           else
             edir(:,i) = edir(:,i) + zero
             eup (:,i) = eup (:,i) + zero

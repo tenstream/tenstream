@@ -31,9 +31,10 @@ module m_optprop_rrtmg
   use m_tenstr_rrtmg_sw_init, only: rrtmg_sw_ini
   use m_tenstr_parrrsw, only: nbndsw, naerec
   use m_tenstr_rrtmg_sw_rad, only: rrtmg_sw
+  use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
 
-  use m_data_parameters, only: iintegers, ireals, one
-  use m_helper_functions, only: deg2rad
+  use m_data_parameters, only: iintegers, ireals, one, mpiint
+  use m_helper_functions, only: deg2rad, CHKERR
 
   implicit none
 
@@ -162,8 +163,9 @@ contains
       plev, tlev, tlay, &
       h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
       lwp, reliq, iwp, reice, tau, w0, g, &
-      opt_swuflx, opt_swdflx, opt_swhr, opt_solar_constant, &
-      opt_tau_f, opt_w0_f, opt_g_f, opt_cldfr)
+      opt_solar_constant, opt_cldfr, &
+      opt_swdirflx, opt_swuflx, opt_swdflx, opt_swhr, &
+      opt_tau_f, opt_w0_f, opt_g_f)
     ! RRTM needs the arrays to start at the surface
 
     integer(iintegers),intent(in)          :: ncol_in, nlay_in
@@ -174,10 +176,13 @@ contains
     real(ireals),dimension(ncol_in,nlay_in)  , intent(in) :: lwp, reliq, iwp, reice
 
     real(ireals), dimension(:,:,:), intent(out) :: tau, w0, g ! [nlay, ncol, ngptsw]
-    real(ireals), dimension(:,:), intent(out), optional :: opt_swuflx, opt_swdflx, opt_swhr ! [nlay+1, ncol]
+
     real(ireals), intent(in), optional :: opt_solar_constant
-    real(ireals), dimension(:,:,:), intent(out),optional :: opt_tau_f, opt_w0_f, opt_g_f ! [nlay, ncol, ngptsw]
     real(ireals),dimension(:,:), intent(in), optional :: opt_cldfr ! [ncol, nlay]
+
+    real(ireals), dimension(:,:), intent(out), optional :: opt_swdirflx, opt_swuflx, opt_swdflx ! [nlay+1, ncol]
+    real(ireals), dimension(:,:), intent(out), optional :: opt_swhr ! [nlay, ncol]
+    real(ireals), dimension(:,:,:), intent(out),optional :: opt_tau_f, opt_w0_f, opt_g_f ! [nlay, ncol, ngptsw]
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -249,7 +254,7 @@ contains
       endif
     endif
 
-    if (present(opt_swuflx).and.present(opt_swdflx).and.present(opt_swhr)) then
+    if ( all([ present(opt_swdirflx), present(opt_swuflx), present(opt_swdflx), present(opt_swhr) ])) then
       call rrtmg_sw &
         (ncol, nlay, icld, iaer, real(play,rb), real(plev,rb), &
         real(tlay,rb), real(tlev,rb), tsfc,                    &
@@ -268,7 +273,24 @@ contains
       opt_swuflx = transpose(real(swuflx, ireals))
       opt_swdflx = transpose(real(swdflx, ireals))
       opt_swhr   = transpose(real(swhr, ireals))
+
+      if(present(opt_solar_constant)) then
+        call Edir_lambert_beer(&
+          theta0, &
+          tenstr_solsrc(:) / sum(tenstr_solsrc) * opt_solar_constant, &
+          tau, opt_swdirflx)
+      else
+        call Edir_lambert_beer(&
+          theta0, &
+          tenstr_solsrc(:), &
+          tau, opt_swdirflx)
+      endif
+      opt_swdflx = opt_swdflx - opt_swdirflx ! remove direct radiation part from edn
+
     else
+      if ( any([ present(opt_swdirflx), present(opt_swuflx), present(opt_swdflx), present(opt_swhr) ])) &
+        call CHKERR(1_mpiint, 'guess you wanted to call rrtmg and compute fluxes '// &
+                              'but in this case you have to present all arguments!')
 
       call rrtmg_sw &
         (ncol, nlay, icld, iaer, real(play,rb), real(plev,rb), &
@@ -285,6 +307,34 @@ contains
         tau, w0, g, loptprop_only=.True., &
         tenstr_tau_f=opt_tau_f, tenstr_w_f=opt_w0_f, tenstr_g_f=opt_g_f)
     endif
+  end subroutine
+
+  ! Compute direct radiation from lambert beers law.
+  ! This is good to split the edn flx which rrtmg returns into a direct component and a diffuse component
+  ! ordering of tau and flx here start from surface and go up to TOA
+  subroutine Edir_lambert_beer(theta0, E0, dtau, edir)
+    real(ireals), intent(in) :: theta0     ! solar angle [deg]
+    real(ireals), intent(in) :: E0(:)      ! solar incident irradiance at TOA dim(nbands)
+    real(ireals), intent(in) :: dtau(:,:,:)  ! vertical optical depth dim(layers, ncol, nbands)
+    real(ireals), intent(out):: edir(:,:)  ! direct solar irradiance dim(levels, ncol)
+    real(ireals) :: mu, mu_inv
+    real(ireals) :: E
+    integer(iintegers) :: k, ib, i
+    mu = cos(deg2rad(theta0))
+    mu_inv = 1._ireals / mu
+    edir = 0
+
+    do ib=1,size(E0)
+      do i=1,size(dtau,2)
+        E = E0(ib) * mu
+        edir(size(edir),i) = edir(size(edir),i) + E
+
+        do k=size(dtau,1),1,-1
+          E = E * exp(- dtau(k,i,ib) * mu_inv )
+          edir(k,i) = edir(k,i) + E
+        enddo
+      enddo
+    enddo
   end subroutine
 
 end module

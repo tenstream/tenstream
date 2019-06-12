@@ -699,7 +699,7 @@ contains
 
     real(ireals), allocatable, dimension(:,:,:) :: ptau, pw0, pg
     real(ireals), pointer, dimension(:,:,:) :: patm_dz
-    real(ireals), pointer, dimension(:,:) :: pedn, peup, pabso
+    real(ireals), pointer, dimension(:,:) :: pedir, pedn, peup, pabso
 
     real(ireals) :: col_theta, col_albedo
 
@@ -748,6 +748,7 @@ contains
         do i=1,ie
           icol =  i+(j-1)*ie
 
+          pEdir(1:size(edir,1), 1:1) => spec_edir(:,i,j)
           pEdn (1:size(edn ,1), 1:1) => spec_edn (:,i,j)
           pEup (1:size(eup ,1), 1:1) => spec_eup (:,i,j)
           pabso(1:size(abso,1), 1:1) => spec_abso(:,i,j)
@@ -775,19 +776,21 @@ contains
             atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
             atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
             ptau, pw0, pg, &
-            pEup, pEdn, pabso, &
+            opt_swdirflx=pEdir, opt_swuflx=pEup, &
+            opt_swdflx=pEdn, opt_swhr=pabso, &
             opt_solar_constant=opt_solar_constant)
 
           tau(:,i,j,:) = ptau(:,i1,:)
           w0 (:,i,j,:) = pw0(:,i1,:)
           g  (:,i,j,:) = pg(:,i1,:)
 
-          edir(:,i,j) = edir(:,i,j) + zero
+          edir(:,i,j) = edir(:,i,j) + reverse(spec_edir(:, i, j))
           eup (:,i,j) = eup (:,i,j) + reverse(spec_eup (:, i, j))
           edn (:,i,j) = edn (:,i,j) + reverse(spec_edn (:, i, j))
-          abso(:,i,j) = abso(:,i,j) + reverse( &
-            (spec_edn(2:ke+1,i,j)-spec_edn(1:ke,i,j)+spec_eup(1:ke,i,j)-spec_eup(2:ke+1,i,j)) / &
-             atm%dz(:,icol))
+          abso(:,i,j) = abso(:,i,j) + reverse( ( &
+            - spec_edir(1:ke,i,j) + spec_edir(2:ke+1,i,j) &
+            - spec_edn (1:ke,i,j) + spec_edn (2:ke+1,i,j) &
+            + spec_eup (1:ke,i,j) - spec_eup (2:ke+1,i,j) ) / atm%dz(:,icol) )
         enddo
       enddo
       return
