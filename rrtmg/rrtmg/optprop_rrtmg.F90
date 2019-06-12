@@ -101,9 +101,7 @@ contains
     emis = one - albedo
 
     if(present(opt_cldfr)) then
-      do icol=1,ncol
-        cldfr(icol,:) = real(opt_cldfr(:,icol), rb)
-      enddo
+        cldfr = real(opt_cldfr, rb)
     else
       where(lwp.gt.0)
         cldfr = 1

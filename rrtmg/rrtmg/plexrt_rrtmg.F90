@@ -45,7 +45,7 @@ module m_plexrt_rrtmg
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
       imp_allreduce_min, imp_allreduce_max, CHKERR, CHKWARN, deg2rad, &
-      reverse, itoa, angle_between_two_vec, rad2deg, get_arg
+      reverse, itoa, angle_between_two_vec, rad2deg, get_arg, delta_scale_optprop
   use m_search, only: find_real_location
   use m_tenstream_interpolation, only : interp_1d
 
@@ -820,7 +820,7 @@ contains
     enddo ! ib 1 -> nbndsw , i.e. spectral integration
   contains
     function compute_solar_disort() result(ldisort_only)
-      logical :: ldisort_only
+      logical :: ldisort_only, ldelta_scale
       integer(iintegers) :: nstreams
       integer(iintegers) :: icol, ib
       real :: mu0
@@ -832,6 +832,10 @@ contains
       ldisort_only = .False.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
         "-disort_only" , ldisort_only , lflg , ierr) ;call CHKERR(ierr)
+
+      ldelta_scale = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+        "-disort_delta_scale" , ldelta_scale , lflg , ierr) ;call CHKERR(ierr)
 
       if(ldisort_only) then
         nstreams = 16
@@ -864,6 +868,8 @@ contains
             col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,icol,ib))))
             col_w0     = max(tiny(col_w0  ), real(reverse(w0 (:,icol,ib))))
             col_g      = max(tiny(col_g   ), real(reverse(g  (:,icol,ib))))
+
+            if(ldelta_scale) call delta_scale_optprop( col_dtau, col_w0, col_g, col_g )
 
             mu0 = real(cos(deg2rad(theta0)))
             call default_flx_computation(&
