@@ -19,6 +19,7 @@
 
 module m_data_parameters
       use iso_fortran_env, only: INT32, INT64, REAL32, REAL64
+      use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value
 
 #ifdef _XLF
         use mpi
@@ -34,7 +35,8 @@ module m_data_parameters
       private
       public pi, pi_irealLUT, pi32, pi64, clight, nil, zero, one,&
              i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil,         &
-             iintegers,ireals,ireal128,ireal_dp,irealLUT,nan32,  &
+             iintegers,ireals,ireal128,ireal_dp,irealLUT,        &
+             nan32, nan64,                                       &
              mpiint,imp_iinteger,imp_int4, imp_int8,             &
              imp_ireals,imp_real_dp,imp_irealLUT,imp_logical,    &
              imp_REAL32, imp_REAL64,                             &
@@ -61,12 +63,16 @@ module m_data_parameters
       real(REAL32),parameter :: pi32=3.141592653589793_REAL32
       real(REAL64),parameter :: pi64=3.141592653589793_REAL64
       real(ireals),parameter :: zero=0, one=1
-      real(real32), parameter :: nan32 =  transfer(-4194304_int32, 1._real32)
-      integer(iintegers) ,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,i5=5,i6=6,i7=7,i8=8,i9=9,i10=10,i11=11,inil=-9999_iintegers
+
+      integer(iintegers) ,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,&
+                                       i5=5,i6=6,i7=7,i8=8,i9=9,&
+                                       i10=10,i11=11,inil=-9999_iintegers
 
       real(ireals), parameter :: EXP_MINVAL=epsilon(EXP_MINVAL), EXP_MAXVAL=-log(epsilon(EXP_MAXVAL))
       real(ireal128), parameter :: EXP_MINVAL128=epsilon(EXP_MINVAL), EXP_MAXVAL128=-log(epsilon(EXP_MAXVAL))
 
+      real(real32) :: nan32 =  transfer(-4194304_int32, 1._real32)
+      real(real64) :: nan64 =  transfer(-2251799813685248_int64, 1._real64)
 
       integer(mpiint) :: imp_irealLUT, imp_ireals, imp_real_dp, imp_logical, imp_REAL32, imp_REAL64
       integer(mpiint) :: imp_iinteger, imp_int4, imp_int8
@@ -139,6 +145,9 @@ subroutine init_mpi_data_parameters(comm)
   if(ireal128.lt.i0) then
     if(myid.eq.0) print *,'128 bit reals not supported :( -- you can switch to double precision instead -- beware that the twostream coefficients may not be stable -- please edit data_parameters'
   endif
+
+  if(ieee_support_nan(nan32)) nan32=ieee_value(nan32, ieee_quiet_nan)
+  if(ieee_support_nan(nan64)) nan64=ieee_value(nan64, ieee_quiet_nan)
 
 !  if(myid.eq.0) print *,myid,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real,'epsilon(real)',epsilon(one)
 !  print *,'init_mpi_data_parameters :: MPI_INTEGER',MPI_INTEGER,' :: MPI_DOUBLE_PRECISION',MPI_DOUBLE_PRECISION,' :: MPI_REAL',MPI_REAL
