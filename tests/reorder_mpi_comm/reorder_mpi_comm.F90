@@ -42,9 +42,9 @@ subroutine test_tenstream_ex1(this)
     call init_pprts(comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
     call mpi_comm_rank( comm, myid, mpierr)
     print *,'I am originally', orig_id, 'my rank is now', myid, &
-      ' and Neighbors are', solver%C_one%neighbors([10,4,16,22])
+      ' and Neighbors are', solver%C_diff%neighbors([10,4,16,22])
 
-    neighbors_orig = solver%C_one%neighbors([10,4,16,22])
+    neighbors_orig = solver%C_diff%neighbors([10,4,16,22])
     call destroy_pprts(solver, .True.)
 
     call mpi_barrier(comm, mpierr)
@@ -56,9 +56,9 @@ subroutine test_tenstream_ex1(this)
     call init_pprts(reorder_comm, nv, nxp, nyp, dx, dy, phi0, theta0, solver, dz1d=dz1d)
     call mpi_comm_rank( comm, myid, mpierr)
     print *,'I am originally', orig_id, 'my rank is now', myid, &
-      ' and Neighbors are', solver%C_one%neighbors([10,4,16,22])
+      ' and Neighbors are', solver%C_diff%neighbors([10,4,16,22])
 
-    neighbors_reorder = solver%C_one%neighbors([10,4,16,22])
+    neighbors_reorder = solver%C_diff%neighbors([10,4,16,22])
     call destroy_pprts(solver, .True.)
 
 

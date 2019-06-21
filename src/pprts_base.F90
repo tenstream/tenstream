@@ -140,6 +140,7 @@ module m_pprts_base
     logical                         :: linitialized=.False.
     type(t_state_container)         :: solutions(-1000:1000)
     type(t_solver_log_events)       :: logs
+    logical                         :: lcyclic_boundary=.True.
   end type
 
   type, extends(t_solver) :: t_solver_1_2

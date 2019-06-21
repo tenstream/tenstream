@@ -29,7 +29,7 @@ module m_pprts
 
   use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, imp_allreduce_min, &
     imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
-    inc, ltoa, itoa, ftoa, imp_allreduce_mean
+    inc, ltoa, itoa, ftoa, imp_allreduce_mean, angle_between_two_vec, spherical_2_cartesian
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild, B_eff
@@ -63,7 +63,6 @@ module m_pprts
             pprts_get_result_toZero, gather_all_toZero
 
   logical,parameter :: ldebug=.False.
-  logical,parameter :: lcycle_dir=.True.
   logical,parameter :: lprealloc=.True.
 
   integer(iintegers),parameter :: minimal_dimension=3 ! this is the minimum number of gridpoints in x or y direction
@@ -76,7 +75,10 @@ module m_pprts
   !> @details This will setup the PETSc DMDA grid and set other grid information, needed for the pprts
   !> \n Nx, Ny Nz are either global domain size or have to be local sizes if present(nxproc,nyproc)
   !> \n where nxproc and nyproc then are the number of pixel per rank for all ranks -- i.e. sum(nxproc) != Nx_global
-  subroutine init_pprts(icomm, Nz,Nx,Ny, dx,dy, phi0, theta0, solver, dz1d, dz3d, nxproc, nyproc, collapseindex, solvername)
+  subroutine init_pprts(icomm, Nz, Nx, Ny, &
+      dx, dy, phi0, theta0, solver, &
+      dz1d, dz3d, nxproc, nyproc, &
+      lcyclic_boundary, collapseindex, solvername)
     MPI_Comm, intent(in)          :: icomm         !< @param MPI_Communicator for this solver
     integer(iintegers),intent(in) :: Nz            !< @param[in] Nz     Nz is the number of layers and Nz+1 would be the number of levels
     integer(iintegers),intent(in) :: Nx            !< @param[in] Nx     number of boxes in x-direction
@@ -91,11 +93,12 @@ module m_pprts
     real(ireals),optional,intent(in)       :: dz3d(:,:,:)    !< @param[in]    dz3d    if given, dz3d has to be local domain size, cannot have global shape
     integer(iintegers),optional,intent(in) :: nxproc(:)      !< @param[in]    nxproc  if given, Nx has to be the local size, dimension of nxproc is number of ranks along x-axis, and entries in nxproc are the size of local Nx
     integer(iintegers),optional,intent(in) :: nyproc(:)      !< @param[in]    nyproc  if given, Ny has to be the local size, dimension of nyproc is number of ranks along y-axis, and entries in nyproc are the number of local Ny
+    logical, intent(in), optional          :: lcyclic_boundary !< @param[in]  by default we have cyclic boundary conditions set this to false to have open boundary conditions for direct radiation and mirror bc for diffuse radiation
     integer(iintegers),optional,intent(in) :: collapseindex  !< @param[in]    collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
     character(len=*), optional, intent(in) :: solvername     !< @param[in] primarily for logging purposes, name will be prefix to logging stages
 
     integer(iintegers) :: k,i,j
-    logical :: lpetsc_is_initialized
+    logical :: lpetsc_is_initialized, lflg
 
     if(.not.solver%linitialized) then
 
@@ -239,6 +242,10 @@ module m_pprts
       call PetscPopSignalHandler(ierr); call CHKERR(ierr) ! in case of xlf ibm compilers, remove petsc signal handler -- otherwise we dont get fancy signal traps from boundschecking or FPE's
 #endif
 
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        "-pprts_cyclic_boundary", solver%lcyclic_boundary, lflg , ierr) ;call CHKERR(ierr)
+      solver%lcyclic_boundary = get_arg(solver%lcyclic_boundary, lcyclic_boundary)
+
       if(present(nxproc) .and. present(nyproc) ) then
         if(ldebug.and.solver%myid.eq.0) print *,'nxproc',shape(nxproc),'::',nxproc
         if(ldebug.and.solver%myid.eq.0) print *,'nyproc',shape(nyproc),'::',nyproc
@@ -340,34 +347,39 @@ module m_pprts
       integer(iintegers), optional :: nxproc(:), nyproc(:) ! size of local domains on each node
       integer(iintegers), optional, intent(in) :: collapseindex  !< @param[in] collapseindex if given, the upper n layers will be reduce to 1d and no individual output will be given for them
 
-      DMBoundaryType :: bp=DM_BOUNDARY_PERIODIC, bn=DM_BOUNDARY_NONE, bg=DM_BOUNDARY_GHOSTED
+      DMBoundaryType :: bn=DM_BOUNDARY_NONE, xyboundary
       integer(iintegers) :: Nz
+
+      if(solver%lcyclic_boundary) then
+        xyboundary = DM_BOUNDARY_PERIODIC
+      else
+        xyboundary = DM_BOUNDARY_GHOSTED
+      endif
 
       Nz = Nz_in
       if(present(collapseindex)) Nz = Nz_in-collapseindex+i1
 
-      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Setting up the DMDA grid for ',Nz,Nx,Ny,'using ',solver%numnodes,' nodes'
+      if(solver%myid.eq.0.and.ldebug) print *,solver%myid,&
+        'Setting up the DMDA grid for ',Nz,Nx,Ny,'using ',solver%numnodes,' nodes'
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_diff'
-      call setup_dmda(solver%comm, solver%C_diff, Nz+1,Nx,Ny, bp, solver%difftop%dof + 2* solver%diffside%dof)
+      call setup_dmda(solver%comm, solver%C_diff, Nz+1, Nx, Ny, &
+        xyboundary, solver%difftop%dof + 2* solver%diffside%dof)
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_dir'
-      if(lcycle_dir) then
-        call setup_dmda(solver%comm, solver%C_dir, Nz+1,Nx,Ny, bp, solver%dirtop%dof + 2* solver%dirside%dof)
-      else
-        call setup_dmda(solver%comm, solver%C_dir, Nz+1,Nx,Ny, bg, solver%dirtop%dof + 2* solver%dirside%dof)
-      endif
+      call setup_dmda(solver%comm, solver%C_dir, Nz+1, Nx, Ny, &
+        xyboundary, solver%dirtop%dof + 2* solver%dirside%dof)
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_one'
-      call setup_dmda(solver%comm, solver%C_one , Nz  , Nx,Ny,  bp, i1)
-      call setup_dmda(solver%comm, solver%C_one1, Nz+1, Nx,Ny,  bp, i1)
+      call setup_dmda(solver%comm, solver%C_one , Nz  , Nx,Ny, bn, i1)
+      call setup_dmda(solver%comm, solver%C_one1, Nz+1, Nx,Ny, bn, i1)
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA C_two'
-      call setup_dmda(solver%comm, solver%C_two1, Nz+1, Nx,Ny,  bp, i2)
+      call setup_dmda(solver%comm, solver%C_two1, Nz+1, Nx,Ny, bn, i2)
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'Configuring DMDA atm'
-      call setup_dmda(solver%comm, solver%C_one_atm , Nz_in  , Nx,Ny,  bp, i1)
-      call setup_dmda(solver%comm, solver%C_one_atm1, Nz_in+1, Nx,Ny,  bp, i1)
+      call setup_dmda(solver%comm, solver%C_one_atm , Nz_in  , Nx,Ny, bn, i1)
+      call setup_dmda(solver%comm, solver%C_one_atm1, Nz_in+1, Nx,Ny, bn, i1)
 
       if(solver%myid.eq.0.and.ldebug) print *,solver%myid,'DMDA grid ready'
     contains
@@ -2703,7 +2715,7 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
 
   !> @brief set solar incoming radiation at Top_of_Atmosphere
   !> @details todo: in case we do not have periodic boundaries, we should shine light in from the side of the domain...
-  subroutine setup_incSolar(solver, incSolar,edirTOA)
+  subroutine setup_incSolar(solver, incSolar, edirTOA)
     class(t_solver), intent(inout)  :: solver
     type(tVec), intent(inout)       :: incSolar
     real(ireals),intent(in)         :: edirTOA
@@ -2729,7 +2741,121 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
 
     call restoreVecPointer(incSolar, x1d, x4d)
 
+    call handle_open_boundary_conditions()
+
     if(solver%myid.eq.0 .and. ldebug) print *,solver%myid,'Setup of IncSolar done', edirTOA
+    contains
+      subroutine handle_open_boundary_conditions()
+        real(ireals), allocatable :: T(:)
+        real(ireals) :: E0, a33
+        integer(iintegers) :: k, isrc
+        logical :: lsun_east, lsun_north
+
+        !type(tVec) :: local_src
+
+        if(solver%lcyclic_boundary) return
+
+        !call DMGetLocalVector(solver%C_dir%da,local_src,ierr) ;call CHKERR(ierr)
+        !call VecSet(local_src,zero,ierr) ;call CHKERR(ierr)
+
+        call getVecPointer(incSolar, solver%C_dir%da, x1d, x4d)
+
+        allocate(T(solver%dirside%dof))
+
+        !if( C%neighbors(10).ne.myid .and. C%neighbors(10).ge.i0 .and. row(MatStencil_j,idst).lt.C%xs ) llocal_dst = .False. ! have real neighbor west  and is not local entry
+        !if( C%neighbors(16).ne.myid .and. C%neighbors(16).ge.i0 .and. row(MatStencil_j,idst).gt.C%xe ) llocal_dst = .False. ! have real neighbor east  and is not local entry
+        !if( C%neighbors( 4).ne.myid .and. C%neighbors( 4).ge.i0 .and. row(MatStencil_k,idst).lt.C%ys ) llocal_dst = .False. ! have real neighbor south and is not local entry
+        !if( C%neighbors(22).ne.myid .and. C%neighbors(22).ge.i0 .and. row(MatStencil_k,idst).gt.C%ye ) llocal_dst = .False. ! have real neighbor north and is not local entry
+        do j=solver%C_dir%ys,solver%C_dir%ye
+          ! Western Boundary
+          do i=solver%C_dir%xs,solver%C_dir%xs
+            lsun_east  = solver%sun%xinc(solver%C_dir%zs,i,j).eq.i0
+            if(.not.lsun_east) then
+              E0 = edirTOA
+              do k=solver%C_dir%zs,solver%C_dir%ze-1
+                call transport_to_sideface(k,i,j, solver%dirside%dof, [one, zero,zero], solver%atm%dy, T, a33)
+                if( .not. solver%atm%l1d(atmk(solver%atm,k),i,j) ) then
+                  src = solver%dirtop%dof
+                  do isrc=1,solver%dirside%dof
+                    x4d(src,k,i,j) = E0 * T(isrc); src = src+1
+                  enddo
+                endif
+                E0 = E0 * a33
+              enddo
+            endif
+          enddo
+          ! Eastern Boundary
+          do i=solver%C_dir%xe,solver%C_dir%xe
+            lsun_east  = solver%sun%xinc(solver%C_dir%zs,i,j).eq.i0
+            if(lsun_east) then
+              E0 = edirTOA
+              do k=solver%C_dir%zs,solver%C_dir%ze-1
+                call transport_to_sideface(k,i,j, solver%dirside%dof, [-one, zero,zero], solver%atm%dy, T, a33)
+                print *,'Eastern BNoundary: T', T
+                if( .not. solver%atm%l1d(atmk(solver%atm,k),i,j) ) then
+                  src = solver%dirtop%dof
+                  do isrc=1,solver%dirside%dof
+                    x4d(src,k,i+1,j) = E0 * T(isrc); src = src+1
+                  enddo
+                endif
+                E0 = E0 * a33
+              enddo
+            endif
+          enddo
+        enddo
+
+        do j=solver%C_dir%ye,solver%C_dir%ye
+          do i=solver%C_dir%xs,solver%C_dir%xe
+            lsun_north = solver%sun%yinc(solver%C_dir%zs,i,j).eq.i0
+            if(lsun_north) then
+              !call CHKERR(1_mpiint, 'not yet implemented')
+            else
+              !call CHKERR(1_mpiint, 'not yet implemented')
+            endif
+          enddo
+        enddo
+
+        call restoreVecPointer(incSolar, x1d, x4d)
+        !call DMLocalToGlobalBegin(solver%C_dir%da, local_src, ADD_VALUES, incSolar, ierr) ;call CHKERR(ierr) ! USE ADD_VALUES, so that also ghosted entries get updated
+        !call DMLocalToGlobalEnd  (solver%C_dir%da, local_src, ADD_VALUES, incSolar, ierr) ;call CHKERR(ierr)
+
+        !call DMRestoreLocalVector(solver%C_dir%da,local_src,ierr) ;call CHKERR(ierr)
+      end subroutine
+      subroutine transport_to_sideface(k,i,j, Nsidedof, face_normal, dx, T, a33)
+        integer(iintegers), intent(in) :: k,i,j, Nsidedof
+        real(ireals), intent(in) :: face_normal(3), dx
+        real(ireals), intent(out) :: T(:) ! transfer coefficients for direct radiation for all direct streams
+        real(ireals), intent(out) :: a33
+
+        real(ireals) :: xsun(3), area
+        real(ireals) :: mu_top, mu_side
+        real(ireals) :: kext, tau
+        integer(iintegers) :: idof
+
+        ! Vector of sun direction
+        xsun = spherical_2_cartesian(solver%sun%phi(k,i,j), solver%sun%theta(k,i,j))
+        xsun = xsun / norm2(xsun)
+
+        area = solver%atm%dz(k,i,j) * dx / real(solver%dirside%area_divider, ireals)
+
+        mu_top = solver%sun%costheta(k,i,j)
+        mu_side = dot_product(xsun, face_normal)
+
+        kext = ( solver%atm%kabs(k,i,j) + solver%atm%ksca(k,i,j) ) / Nsidedof
+        tau = kext * solver%atm%dz(k,i,j)
+        a33 = exp(-tau/mu_top)
+
+        ! transport in this cell:
+        ! integrate exp((- k * z)/ mu_0) * mu_side dz for z=0 to h
+        T(1) = area * mu_side * mu_top * (one - a33) / tau
+
+        do idof=2,Nsidedof
+          ! more than one dof, lets assume that the first half are for dofs on the upper hand,
+          !and the next one should be on the lower half
+          T(idof) = a33 * T(1)
+          a33 = a33 * a33
+        enddo
+      end subroutine
 
   end subroutine
 
