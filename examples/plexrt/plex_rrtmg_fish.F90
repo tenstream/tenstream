@@ -5,7 +5,7 @@ use petsc
 
 use m_tenstream_options, only : read_commandline_options
 
-use m_helper_functions, only: CHKERR, imp_bcast, determine_normal_direction, &
+use m_helper_functions, only: CHKERR, CHKWARN, imp_bcast, determine_normal_direction, &
   spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, reverse, itoa, cstr, &
   meanval, meanvec
 
@@ -180,6 +180,10 @@ logical, parameter :: ldebug=.True.
             enddo
             print *,k, meanval(edn(k,:)), meanval(eup(k,:))
           endif
+          if(meanval(edn).lt.epsilon(edn)) &
+            call CHKERR(1_mpiint, 'Mean Edn is really small,'// &
+            'the solver probably had a problem but did not fail.'// &
+            'Caution! Your results may be garbage!')
         endif
 
         if(lsolar) then
@@ -193,13 +197,17 @@ logical, parameter :: ldebug=.True.
           if(myid.eq.0) then
             print *, ''
             print *, cstr('Solar Radiation', 'green')
-            print *,cstr('Avg.horiz','blue')//&
+            print *, cstr('Avg.horiz','blue')//&
               cstr(' k   Edir          Edn            Eup            abso', 'blue')
             do k = 1, ubound(abso,1)
               print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
             enddo
             print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:))
           endif
+          if(meanval(edn).lt.epsilon(edn)) &
+            call CHKERR(1_mpiint, 'Mean Edn is really small,'// &
+            'the solver probably had a problem but did not fail.'// &
+            'Caution! Your results may be garbage!')
         endif
       enddo ! solve_iterations
 
@@ -331,8 +339,8 @@ logical, parameter :: ldebug=.True.
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
     default_options='-polar_coords no'
-    default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
-    default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
+    !default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
+    !default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
