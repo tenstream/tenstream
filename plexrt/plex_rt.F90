@@ -1382,7 +1382,7 @@ module m_plex_rt
       real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
       character(len=*),optional :: prefix
 
-      real(ireals),parameter :: rtol=1e-5_ireals, rel_atol=1e-5_ireals
+      real(ireals),parameter :: rtol=1e-6_ireals, rel_atol=1e-6_ireals
       integer(iintegers),parameter  :: maxiter=1000
       real(ireals) :: atol
       type(tPC) :: prec
@@ -1405,7 +1405,8 @@ module m_plex_rt
         endif
 
         call MatGetSize(A, Nrows_global, PETSC_NULL_INTEGER, ierr); call CHKERR(ierr)
-        call imp_allreduce_min(comm, rel_atol*real(Nrows_global, ireals), atol)
+        atol = rel_atol*real(Nrows_global, ireals)
+        !call imp_allreduce_min(comm, rel_atol*real(Nrows_global, ireals), atol)
         atol = max(1e-8_ireals, atol)
 
         call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -1476,6 +1477,7 @@ module m_plex_rt
           character(len=default_str_len) :: old_prefix
 
           type(tMat) :: A2
+          logical :: lhandle_diverged, lflg
 
           call KSPGetConvergedReason(ksp,reason,ierr) ;call CHKERR(ierr)
           if(reason.le.0) then
@@ -1484,6 +1486,11 @@ module m_plex_rt
             call PetscObjectViewFromOptions(A  , PETSC_NULL_MAT, '-show_diverged_A', ierr); call CHKERR(ierr)
             call PetscObjectViewFromOptions(ksp, PETSC_NULL_KSP, '-show_diverged_ksp', ierr); call CHKERR(ierr)
           endif
+
+          lhandle_diverged = .False.
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_handle_diverged_solver",&
+            lhandle_diverged, lflg, ierr) ;call CHKERR(ierr)
+          if(.not.lhandle_diverged) return
 
           if(reason.le.0) then
             call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
