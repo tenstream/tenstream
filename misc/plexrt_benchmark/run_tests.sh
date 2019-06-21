@@ -4,3 +4,4 @@ do
   bash run_solver_tests.sh solar_dir    True False $dx
   bash run_solver_tests.sh solar_diff   True False $dx
 done
+wait
