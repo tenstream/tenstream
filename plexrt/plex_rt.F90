@@ -509,15 +509,6 @@ module m_plex_rt
           goto 99
         endif
 
-        luse_rayli=.False.
-        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_use_rayli",&
-          luse_rayli, lflg, ierr) ;call CHKERR(ierr)
-        if(luse_rayli) then
-          call rayli_wrapper(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
-              solver%albedo, sundir, solution, plck=solver%plck)
-          goto 99
-        endif
-
         !print *,'sundir/norm2(sundir)',sundir/norm2(sundir), 'vs', last_sundir, &
         !  ':', all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir))))
         ! Wedge Orientation is used in solar and thermal case alike
@@ -533,6 +524,16 @@ module m_plex_rt
           call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
 
           last_sundir = sundir/norm2(sundir)
+        endif
+
+        ! RayLi Raytracer interface
+        luse_rayli=.False.
+        call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_use_rayli",&
+          luse_rayli, lflg, ierr) ;call CHKERR(ierr)
+        if(luse_rayli) then
+          call rayli_wrapper(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
+              solver%albedo, sundir, solution, plck=solver%plck)
+          goto 99
         endif
 
         ! Output of wedge_orient vec
@@ -2541,6 +2542,8 @@ module m_plex_rt
 
 
     else
+      if(.not.allocated(plex%wedge_orientation_dm)) &
+        call CHKERR(myid+1, 'called compute_edir_absorption with a dm which is not allocated: plex%wedge_orientation_dm?')
       call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
 
@@ -3081,8 +3084,6 @@ module m_plex_rt
     call take_snap(ierr)
     if(ierr.eq.1) return
 
-    rkabs = rkabs + rksca !DEBUG
-    rksca = 0 !DEBUG
 
     ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, &
       verts_of_face, wedges_of_face, vert_coords, &
