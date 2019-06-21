@@ -146,8 +146,8 @@ subroutine init_mpi_data_parameters(comm)
     if(myid.eq.0) print *,'128 bit reals not supported :( -- you can switch to double precision instead -- beware that the twostream coefficients may not be stable -- please edit data_parameters'
   endif
 
-  if(ieee_support_nan(nan32)) nan32=ieee_value(nan32, ieee_quiet_nan)
-  if(ieee_support_nan(nan64)) nan64=ieee_value(nan64, ieee_quiet_nan)
+  !if(ieee_support_nan(nan32)) nan32=ieee_value(1._real32, ieee_quiet_nan)
+  !if(ieee_support_nan(nan64)) nan64=ieee_value(1._real64, ieee_quiet_nan)
 
 !  if(myid.eq.0) print *,myid,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real,'epsilon(real)',epsilon(one)
 !  print *,'init_mpi_data_parameters :: MPI_INTEGER',MPI_INTEGER,' :: MPI_DOUBLE_PRECISION',MPI_DOUBLE_PRECISION,' :: MPI_REAL',MPI_REAL

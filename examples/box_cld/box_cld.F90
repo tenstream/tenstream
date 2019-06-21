@@ -4,7 +4,7 @@ module m_box_cld
 
   use m_pprts, only : init_pprts, set_optical_properties, solve_pprts, destroy_pprts, &
     pprts_get_result
-  use m_pprts_base, only: t_solver_3_10
+  use m_pprts_base, only: t_solver, allocate_pprts_solver_from_commandline
 
   use m_helper_functions, only : get_mem_footprint
 
@@ -20,10 +20,10 @@ module m_box_cld
 subroutine box_cld()
     implicit none
 
-    integer(iintegers),parameter :: nxp=3,nyp=3,nv=20
+    integer(iintegers),parameter :: nxp=16,nyp=3,nv=20
     real(ireals),parameter :: dx=500,dy=dx
-    real(ireals),parameter :: phi0=90, theta0=0
-    real(ireals),parameter :: albedo=0, dz=10
+    real(ireals),parameter :: phi0=90, theta0=40
+    real(ireals),parameter :: albedo=0, dz=100
     real(ireals),parameter :: incSolar = 1364
     real(ireals),parameter :: atolerance = 1
     real(ireals) :: dz1d(nv)
@@ -31,8 +31,12 @@ subroutine box_cld()
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g
     real(ireals),allocatable,dimension(:,:,:) :: fdir,fdn,fup,fdiv
 
-    type(t_solver_3_10) :: solver
+    class(t_solver), allocatable :: solver
 
+    ! Have to call init_mpi_data_parameters() to define datatypes
+    call init_mpi_data_parameters(MPI_COMM_WORLD)
+
+    call allocate_pprts_solver_from_commandline(solver, '8_16')
     dz1d = dz
 
     call init_pprts(MPI_COMM_WORLD, nv, nxp,nyp, dx,dy,phi0, theta0, solver, dz1d=dz1d)
@@ -46,9 +50,9 @@ subroutine box_cld()
     ksca = .005_ireals/(dz*nv)
     g    = zero
 
-    !kabs(nv/2,nxp/2,1:nyp) = 1/dz
-    !ksca(nv/2,nxp/2,1:nyp) = 1/dz
-    !g   (nv/2,nxp/2,1:nyp) = .9
+    kabs(nv/2,nxp/2,1:nyp) = 1/dz
+    ksca(nv/2,nxp/2,1:nyp) = 1/dz
+    g   (nv/2,nxp/2,1:nyp) = .9
 
     call set_optical_properties(solver, albedo, kabs, ksca, g)
     call solve_pprts(solver, incSolar)
