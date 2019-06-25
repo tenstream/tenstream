@@ -2986,6 +2986,7 @@ module m_plex_rt
     real(c_double),    allocatable :: flx_through_faces_edir(:)
     real(c_double),    allocatable :: flx_through_faces_ediff(:)
 
+    real(ireals) :: diffuse_point_origin(3)
     integer(c_size_t) :: Nphotons, Nwedges, Nfaces, Nverts
     real(ireals) :: opt_photons
 
@@ -2993,7 +2994,8 @@ module m_plex_rt
     logical :: lflg
 
     opt_photons = 100000
-    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-rayli_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-rayli_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
     Nphotons = int(opt_photons, c_size_t)
 
     call PetscObjectGetComm(plex%dm, comm, ierr); call CHKERR(ierr)
@@ -3008,6 +3010,11 @@ module m_plex_rt
     if(present(plck).or.lthermal) &
       call CHKERR(1_mpiint, "You provided planck stuff, I guess you want to use thermal radiation computations."// &
                             "However, Rayli currently only supports solar radiation.")
+
+    diffuse_point_origin = 0; idof=3
+    call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      '-rayli_diff_flx_origin',diffuse_point_origin, idof, lflg, ierr); call CHKERR(ierr)
+    if(lflg) call CHKERR(int(idof-i3, mpiint), 'must provide exactly 3 values for rayli_diff_flx_origin')
 
     if(solution%lsolar_rad) then
       call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
@@ -3041,7 +3048,7 @@ module m_plex_rt
              rg   (Nwedges), &
              ralbedo_on_faces(Nfaces), &
              flx_through_faces_edir(Nfaces), &
-             flx_through_faces_ediff(Nfaces) )
+             flx_through_faces_ediff(2*Nfaces) )
 
     do iface = fStart, fEnd-1
       call DMPlexGetTransitiveClosure(plex%rayli_dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
@@ -3091,40 +3098,68 @@ module m_plex_rt
     call take_snap(ierr)
     if(ierr.eq.1) return
 
-
     ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, &
       verts_of_face, wedges_of_face, vert_coords, &
-      rkabs, rksca, rg, rsundir, &
+      rkabs, rksca, rg, &
+      ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_double), &
       flx_through_faces_edir, flx_through_faces_ediff); call CHKERR(ierr)
 
-    call DMPlexGetDepthStratum(plex%dm, i2, ofStart, ofEnd, ierr); call CHKERR(ierr) ! vertices
-    if(lsolar) then
-      call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
-      call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
-      do iface = ofStart, ofEnd-1
-        call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
-        do idof = 1, solver%dirtop%dof
-          xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-ofStart+1)), ireals)
-        enddo
-      enddo
-      call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
-    endif
+    call get_result()
 
-    call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(solution%ediff , xediff , ierr); call CHKERR(ierr)
-    do iface = ofStart, ofEnd-1
-      call PetscSectionGetOffset(ediff_section, iface, voff, ierr); call CHKERR(ierr)
-      do idof = 1, solver%dirtop%dof
-        xediff(voff+idof) = real(abs(flx_through_faces_ediff(iface-ofStart+1)), ireals)
-      enddo
-    enddo
-    call VecRestoreArrayF90(solution%ediff , xediff , ierr); call CHKERR(ierr)
     !Twostream solver returns fluxes as [W/m^2]
     solution%lWm2_dir  = .True.
     solution%lWm2_diff = .True.
     ! and mark solution that it is not up to date
     solution%lchanged  = .True.
     contains
+      subroutine get_result()
+        type(tIS) :: toa_ids
+        integer(iintegers) :: i, k, ke1, Ncol, ridx
+        integer(iintegers), pointer :: xtoa_faces(:)
+
+        call DMPlexGetDepthStratum(plex%dm, i2, ofStart, ofEnd, ierr); call CHKERR(ierr) ! vertices
+        if(lsolar) then
+          call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+          call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+          do iface = ofStart, ofEnd-1
+            call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
+            do idof = 1, solver%dirtop%dof
+              xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-ofStart+1)), ireals)
+            enddo
+          enddo
+          call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+        endif
+
+        call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(solution%ediff , xediff , ierr); call CHKERR(ierr)
+
+        call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', &
+          TOAFACE, toa_ids, ierr); call CHKERR(ierr)
+        call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
+
+        ke1 = solver%plex%Nlay+1
+
+        call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+        ridx=1
+        do i = 1, size(xtoa_faces)
+          iface = xtoa_faces(i)
+          do k = 0, ke1-2
+            call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+            xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
+            xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
+            ridx = ridx+2
+          enddo
+          ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
+          call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
+          xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
+          xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
+          ridx = ridx+2
+        enddo
+
+        call ISRestoreIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+
+        call VecRestoreArrayF90(solution%ediff , xediff , ierr); call CHKERR(ierr)
+      end subroutine
       subroutine fill_albedo()
         type(tIS) :: toa_ids
         integer(iintegers), pointer :: xtoa_faces(:)
@@ -3228,51 +3263,51 @@ module m_plex_rt
           return
         endif
       end subroutine
-  end subroutine
+    end subroutine
 
 
-  !> @brief renormalize fluxes with the size of a face(sides or lid)
-  subroutine scale_flx(solver, plex, &
-      dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
-      diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
-      solution, lWm2, logevent)
-    class(t_plex_solver), intent(inout) :: solver
-    type(t_plexgrid), intent(in) :: plex
-    type(tVec), allocatable, intent(inout) :: dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2
-    type(tVec), allocatable, intent(inout) :: diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2
-    type(t_state_container),intent(inout)  :: solution  !< @param solution container with computed fluxes
-    logical,intent(in)                     :: lWm2      !< @param determines direction of scaling, if true, scale to W/m**2
-    PetscLogEvent, intent(in), optional    :: logevent
-    integer(mpiint) :: ierr
+    !> @brief renormalize fluxes with the size of a face(sides or lid)
+    subroutine scale_flx(solver, plex, &
+        dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &
+        diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2, &
+        solution, lWm2, logevent)
+      class(t_plex_solver), intent(inout) :: solver
+      type(t_plexgrid), intent(in) :: plex
+      type(tVec), allocatable, intent(inout) :: dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2
+      type(tVec), allocatable, intent(inout) :: diff_scalevec_Wm2_to_W, diff_scalevec_W_to_Wm2
+      type(t_state_container),intent(inout)  :: solution  !< @param solution container with computed fluxes
+      logical,intent(in)                     :: lWm2      !< @param determines direction of scaling, if true, scale to W/m**2
+      PetscLogEvent, intent(in), optional    :: logevent
+      integer(mpiint) :: ierr
 
-    call gen_scale_vecs()
+      call gen_scale_vecs()
 
-    if(present(logevent)) then
-      call PetscLogEventBegin(logevent, ierr); call CHKERR(ierr)
-    endif
+      if(present(logevent)) then
+        call PetscLogEventBegin(logevent, ierr); call CHKERR(ierr)
+      endif
 
-    if(solution%lsolar_rad) then
-      if(solution%lWm2_dir .neqv. lWm2) then
-        if(lWm2) then
-          call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-        else
-          call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+      if(solution%lsolar_rad) then
+        if(solution%lWm2_dir .neqv. lWm2) then
+          if(lWm2) then
+            call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+          else
+            call VecPointwiseMult(solution%edir, solution%edir, dir_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+          endif
+          solution%lWm2_dir = lWm2
         endif
-        solution%lWm2_dir = lWm2
       endif
-    endif
 
-    if(solution%lWm2_diff .neqv. lWm2) then
-      if(lWm2) then
-        call VecPointwiseMult(solution%ediff, solution%ediff, diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
-      else
-        call VecPointwiseMult(solution%ediff, solution%ediff, diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+      if(solution%lWm2_diff .neqv. lWm2) then
+        if(lWm2) then
+          call VecPointwiseMult(solution%ediff, solution%ediff, diff_scalevec_W_to_Wm2, ierr); call CHKERR(ierr)
+        else
+          call VecPointwiseMult(solution%ediff, solution%ediff, diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
+        endif
+        solution%lWm2_diff = lWm2
       endif
-      solution%lWm2_diff = lWm2
-    endif
-    if(present(logevent)) then
-      call PetscLogEventEnd(logevent, ierr); call CHKERR(ierr)
-    endif
+      if(present(logevent)) then
+        call PetscLogEventEnd(logevent, ierr); call CHKERR(ierr)
+      endif
 
     contains
       subroutine gen_scale_vecs()
@@ -3312,139 +3347,140 @@ module m_plex_rt
             diff_scalevec_Wm2_to_W, ierr); call CHKERR(ierr)
         endif
       end subroutine
-  end subroutine
+    end subroutine
 
-  subroutine plexrt_get_result(solver, redn, reup, rabso, redir, opt_solution_uid)
-    class(t_plex_solver), intent(inout) :: solver
-    real(ireals), allocatable, dimension(:,:), intent(inout) :: redn,reup,rabso
-    real(ireals), allocatable, dimension(:,:), intent(inout), optional :: redir
-    integer(iintegers),optional,intent(in) :: opt_solution_uid
+    subroutine plexrt_get_result(solver, redn, reup, rabso, redir, opt_solution_uid)
+      class(t_plex_solver), intent(inout) :: solver
+      real(ireals), allocatable, dimension(:,:), intent(inout) :: redn,reup,rabso
+      real(ireals), allocatable, dimension(:,:), intent(inout), optional :: redir
+      integer(iintegers),optional,intent(in) :: opt_solution_uid
 
-    type(tIS) :: toa_ids
-    integer(iintegers) :: Ncol, ke1, uid, i, k, iface, icell, voff, idof
-    integer(iintegers), pointer :: xtoa_faces(:), cell_support(:)
+      type(tIS) :: toa_ids
+      integer(iintegers) :: Ncol, ke1, uid, i, k, iface, icell, voff, idof
+      integer(iintegers), pointer :: xtoa_faces(:), cell_support(:)
 
-    type(tPetscSection) :: abso_section, ediff_section, edir_section
-    real(ireals), pointer :: xediff(:), xedir(:), xabso(:)
+      type(tPetscSection) :: abso_section, ediff_section, edir_section
+      real(ireals), pointer :: xediff(:), xedir(:), xabso(:)
 
-    integer(mpiint) :: myid, ierr
+      integer(mpiint) :: myid, ierr
 
-    call PetscLogEventBegin(solver%logs%get_result, ierr)
+      call PetscLogEventBegin(solver%logs%get_result, ierr)
 
-    uid = get_arg(0_iintegers, opt_solution_uid)
-    if(.not.solver%solutions(uid)%lset) &
-      call CHKERR(1_mpiint, 'You tried to retrieve results from a solution uid which has not yet been calculated')
+      uid = get_arg(0_iintegers, opt_solution_uid)
+      if(.not.solver%solutions(uid)%lset) &
+        call CHKERR(1_mpiint, 'You tried to retrieve results from a solution uid which has not yet been calculated')
 
-    call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
-    call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
+      call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
+      call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
 
-    ke1 = solver%plex%Nlay+1
+      ke1 = solver%plex%Nlay+1
 
-    call check_size_or_allocate(redn , [ke1, Ncol])
-    call check_size_or_allocate(reup , [ke1, Ncol])
-    call check_size_or_allocate(rabso, [ke1-1, Ncol])
-    if(present(redir)) call check_size_or_allocate(redir, [ke1, Ncol])
+      call check_size_or_allocate(redn , [ke1, Ncol])
+      call check_size_or_allocate(reup , [ke1, Ncol])
+      call check_size_or_allocate(rabso, [ke1-1, Ncol])
+      if(present(redir)) call check_size_or_allocate(redir, [ke1, Ncol])
 
-    associate(solution => solver%solutions(uid))
+      associate(solution => solver%solutions(uid))
 
-    if(.not.allocated(solution%ediff)) call CHKERR(1_mpiint, 'ediff vec not allocated')
-    if(.not.allocated(solution%abso)) call CHKERR(1_mpiint, 'abso vec not allocated')
-    if(solution%lchanged) call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
+        if(.not.allocated(solution%ediff)) call CHKERR(1_mpiint, 'ediff vec not allocated')
+        if(.not.allocated(solution%abso)) call CHKERR(1_mpiint, 'abso vec not allocated')
+        if(solution%lchanged) call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
 
-    if(present(redir) .and. .not.solution%lsolar_rad) &
-      call CHKERR(1_mpiint, 'you asked for direct radiation but solution does not have it')
+        if(present(redir) .and. .not.solution%lsolar_rad) &
+          call CHKERR(1_mpiint, 'you asked for direct radiation but solution does not have it')
 
-    call scale_flx(solver, solver%plex, &
-      solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
-      solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
-      solution, lWm2=.True., logevent=solver%logs%scale_flx)
+        call scale_flx(solver, solver%plex, &
+          solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+          solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+          solution, lWm2=.True., logevent=solver%logs%scale_flx)
 
-    if(present(redir)) then
-      call DMGetSection(solver%plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
-    endif
-    call DMGetSection(solver%plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-    call DMGetSection(solver%plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+        if(present(redir)) then
+          call DMGetSection(solver%plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+        endif
+        call DMGetSection(solver%plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+        call DMGetSection(solver%plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
-    if(present(redir)) then
-      call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
-    endif
-    call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
-    call VecGetArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
+        if(present(redir)) then
+          call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+        endif
+        call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
 
-    call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
-    do i = 1, size(xtoa_faces)
-      iface = xtoa_faces(i)
-      do k = 0, ke1-2
-        call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
-        redn(i1+k, i) = xediff(i1+voff)
-        reup(i1+k, i) = xediff(i2+voff)
-      enddo
-      ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
-      call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
-      redn(i1+k, i) = xediff(i2+voff)
-      reup(i1+k, i) = xediff(i1+voff)
-
-      ! Fill Absorption Vec
-      call DMPlexGetSupport(solver%plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr)
-      icell = cell_support(1)
-      call DMPlexRestoreSupport(solver%plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr)
-
-      do k = 0, ke1-2
-        call PetscSectionGetOffset(abso_section, icell+k, voff, ierr); call CHKERR(ierr)
-        rabso(i1+k, i) = xabso(i1+voff)
-      enddo
-
-      if(present(redir)) then
-        do k = 0, ke1-1
-          call PetscSectionGetFieldOffset(edir_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
-          redir(i1+k,i) = zero
-          do idof = 1, solver%dirtop%dof
-            redir(i1+k,i) = redir(i1+k,i) + xedir(voff+idof)
+        call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+        do i = 1, size(xtoa_faces)
+          iface = xtoa_faces(i)
+          do k = 0, ke1-2
+            call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+            redn(i1+k, i) = xediff(i1+voff)
+            reup(i1+k, i) = xediff(i2+voff)
           enddo
-          redir(i1+k,i) = redir(i1+k,i) / real(solver%dirtop%dof, ireals)
+          ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
+          call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
+          redn(i1+k, i) = xediff(i2+voff)
+          reup(i1+k, i) = xediff(i1+voff)
+
+          ! Fill Absorption Vec
+          call DMPlexGetSupport(solver%plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr)
+          icell = cell_support(1)
+          call DMPlexRestoreSupport(solver%plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr)
+
+          do k = 0, ke1-2
+            call PetscSectionGetOffset(abso_section, icell+k, voff, ierr); call CHKERR(ierr)
+            rabso(i1+k, i) = xabso(i1+voff)
+          enddo
+
+          if(present(redir)) then
+            do k = 0, ke1-1
+              call PetscSectionGetFieldOffset(edir_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+              redir(i1+k,i) = zero
+              do idof = 1, solver%dirtop%dof
+                redir(i1+k,i) = redir(i1+k,i) + xedir(voff+idof)
+              enddo
+              redir(i1+k,i) = redir(i1+k,i) / real(solver%dirtop%dof, ireals)
+            enddo
+
+            if(ldebug) then
+              if(reup(ke1,i)-sqrt(epsilon(reup)) .gt. abs(redir(ke1,i))+abs(redn(ke1,i))) then
+                call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
+                do k = 1, size(redir,dim=1)
+                  print *,'sgr ::', myid, 'i', i, 'k', k, redir(k,i), redn(k,i), reup(k,i)
+                enddo
+                call CHKERR(1_mpiint, 'solar get_result Eup cannot be bigger than Edir+Edn!')
+              endif
+            endif
+          endif
         enddo
+        call ISRestoreIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+
+        if(present(redir)) then
+          call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+        endif
+        call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+        call VecRestoreArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
 
         if(ldebug) then
-          if(reup(ke1,i)-sqrt(epsilon(reup)) .gt. abs(redir(ke1,i))+abs(redn(ke1,i))) then
-            call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
-            do k = 1, size(redir,dim=1)
-              print *,'sgr ::', myid, 'i', i, 'k', k, redir(k,i), redn(k,i), reup(k,i)
-            enddo
-            call CHKERR(1_mpiint, 'solar get_result Eup cannot be bigger than Edir+Edn!')
+          call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
+          if(myid.eq.0) then
+            if(present(redir)) then
+              print *,'Get Result, k     Edir                   Edn                      Eup                  abso'
+              do k = 1, ke1-1
+                print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)!, &
+                !redir(k,1)-redir(k+1,1)+redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
+              enddo
+              print *,k, redir(k,1), redn(k,1), reup(k,1)
+            else
+              print *,'Get Result, k     Edn                    Eup                      abso'
+              do k = 1, ke1-1
+                print *,k, redn(k,1), reup(k,1), rabso(k,1)!, &
+                !redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
+              enddo
+              print *,k, redn(k,1), reup(k,1)
+            endif
           endif
         endif
-      endif
-    enddo
 
-    if(present(redir)) then
-      call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
-    endif
-    call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
-    call VecRestoreArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
-
-    if(ldebug) then
-      call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
-      if(myid.eq.0) then
-        if(present(redir)) then
-          print *,'Get Result, k     Edir                   Edn                      Eup                  abso'
-          do k = 1, ke1-1
-            print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)!, &
-              !redir(k,1)-redir(k+1,1)+redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
-          enddo
-          print *,k, redir(k,1), redn(k,1), reup(k,1)
-        else
-          print *,'Get Result, k     Edn                    Eup                      abso'
-          do k = 1, ke1-1
-            print *,k, redn(k,1), reup(k,1), rabso(k,1)!, &
-              !redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
-          enddo
-          print *,k, redn(k,1), reup(k,1)
-        endif
-      endif
-    endif
-
-    end associate
-    call PetscLogEventEnd(solver%logs%get_result, ierr)
+      end associate
+      call PetscLogEventEnd(solver%logs%get_result, ierr)
 
     contains
       subroutine check_size_or_allocate(arr, expected_shape)
@@ -3464,27 +3500,27 @@ module m_plex_rt
           endif
         endif
       end subroutine
-  end subroutine
+    end subroutine
 
-  subroutine allocate_plexrt_solver_from_commandline(plexrt_solver, default_solver)
-    class(t_plex_solver), intent(inout), allocatable :: plexrt_solver
-    character(len=*), intent(in), optional :: default_solver
+    subroutine allocate_plexrt_solver_from_commandline(plexrt_solver, default_solver)
+      class(t_plex_solver), intent(inout), allocatable :: plexrt_solver
+      character(len=*), intent(in), optional :: default_solver
 
-    logical :: lflg
-    character(len=default_str_len) :: solver_str
-    integer(mpiint) :: ierr
+      logical :: lflg
+      character(len=default_str_len) :: solver_str
+      integer(mpiint) :: ierr
 
-    if(allocated(plexrt_solver)) then
-      call CHKWARN(1_mpiint, 'called allocate_plexrt_solver_from_commandline on an already allocated solver...'//&
-        'have you been trying to change the solver type on the fly?'// &
-        'this is not possible, please destroy the old one and create a new one')
-      return
-    endif
+      if(allocated(plexrt_solver)) then
+        call CHKWARN(1_mpiint, 'called allocate_plexrt_solver_from_commandline on an already allocated solver...'//&
+          'have you been trying to change the solver type on the fly?'// &
+          'this is not possible, please destroy the old one and create a new one')
+        return
+      endif
 
-    solver_str = get_arg('none', trim(default_solver))
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
+      solver_str = get_arg('none', trim(default_solver))
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-solver', solver_str, lflg, ierr) ; call CHKERR(ierr)
 
-    select case (solver_str)
+      select case (solver_str)
       case('5_8')
         allocate(t_plex_solver_5_8::plexrt_solver)
 
@@ -3496,9 +3532,9 @@ module m_plex_rt
         print *,'-solver 5_8'
         print *,'-solver 18_8'
         call CHKERR(1_mpiint, 'have to provide solver type')
-    end select
+      end select
 
-  end subroutine
+    end subroutine
 
   subroutine vacuum_domain_boundary(dm, kabs, ksca, g, fill_kabs, fill_ksca, fill_g)
     type(tDM), intent(in) :: dm

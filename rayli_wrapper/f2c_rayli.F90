@@ -30,7 +30,7 @@ module m_f2c_rayli
     integer(c_int) function rfft_wedgeF90(&
         Nphotons, Nwedges, Nfaces, Nverts, &
         verts_of_face, wedges_of_face, vert_coords, &
-        kabs, ksca, g, sundir, &
+        kabs, ksca, g, albedo_on_faces, sundir, diffuse_point_origin, &
         flx_through_faces_edir, flx_through_faces_ediff) bind(c, name='rfft_wedge')
       use iso_c_binding
       integer(c_size_t), value :: Nphotons
@@ -41,7 +41,9 @@ module m_f2c_rayli
       integer(c_size_t) :: wedges_of_face(1:2,1:Nfaces)
       real(c_double) :: vert_coords(1:3,1:Nverts)
       real(c_double) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
+      real(c_double) :: albedo_on_faces(1:Nfaces)
       real(c_double) :: sundir(1:3)
+      real(c_double) :: diffuse_point_origin(1:3)
       real(c_double) :: flx_through_faces_edir(1:Nfaces)
       real(c_double) :: flx_through_faces_ediff(1:Nfaces)
     end function
@@ -80,7 +82,7 @@ contains
   integer(c_int) function rfft_wedgeF90(&
         Nphotons, Nwedges, Nfaces, Nverts, &
         verts_of_face, wedges_of_face, vert_coords, &
-        kabs, ksca, g, sundir, &
+        kabs, ksca, g, albedo_on_faces, sundir, &
         flx_through_faces_edir, flx_through_faces_ediff)
       use iso_c_binding
       integer(c_size_t), value :: Nphotons
@@ -91,7 +93,8 @@ contains
       integer(c_size_t), intent(in) :: wedges_of_face(:,:)
       real(c_double), intent(in) :: vert_coords(:,:)
       real(c_double), intent(in) :: kabs(:), ksca(:), g(:)
-      real(c_double), intent(in) :: sundir(:)
+      real(c_double), intent(in) :: albedo_on_faces(1:Nfaces)
+      real(c_double), intent(in) :: sundir(:), diffuse_point_origin(:)
       real(c_double), intent(out) :: flx_through_faces_edir(:)
       real(c_double), intent(out) :: flx_through_faces_ediff(:)
 
@@ -102,7 +105,8 @@ contains
 
       if(.False.) then ! unused var warnings
         flx_through_faces_edir(1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+wedges_of_face(1,1), c_double)
-        flx_through_faces_ediff(1) = vert_coords(1,1) + kabs(1) + ksca(1) + g(1) + sundir(1)
+        flx_through_faces_ediff(1) = vert_coords(1,1) + kabs(1) + ksca(1) + g(1) + sundir(1) + &
+          albedo_on_faces(1) + diffuse_point_origin(1)
       endif
     end function
 
