@@ -321,7 +321,7 @@ contains
       if(ldisort_only) call CHKERR(1_mpiint, 'for disort_only, pprts_collapse has to be set to 1')
       if(lrrtmg_only) call CHKERR(1_mpiint, 'for rrtmg_only, pprts_collapse has to be set to 1')
     endif
-    print *,'icollapse', pprts_icollapse, 'disort_only', ldisort_only, 'rrtmg_only', lrrtmg_only
+    if(myid.eq.0.and.ldebug) print *,'icollapse', pprts_icollapse, 'disort_only', ldisort_only, 'rrtmg_only', lrrtmg_only
 
     ke1 = ubound(atm%plev,1)
     ke = ubound(atm%tlay,1)
