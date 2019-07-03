@@ -910,8 +910,12 @@ module m_plex_grid
       enddo
       call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
       if(ldebug) then
-        print *,'Have '//itoa(num_constrained)//' constrained dofs :'//&
-          ftoa(real(num_constrained, ireals)*100._ireals/real(num_unconstrained,ireals))//' %'
+        if(num_unconstrained.eq.0) then
+          print *,'Have '//itoa(num_constrained)//' constrained dofs : 100%'
+        else
+          print *,'Have '//itoa(num_constrained)//' constrained dofs :'//&
+            ftoa(real(num_constrained, ireals)*100._ireals/real(num_unconstrained, ireals))//' %'
+        endif
       endif
 
       if(present(aspect_constraint)) then
@@ -1489,7 +1493,7 @@ module m_plex_grid
       param_theta = real(rparam_theta, ireals)
 
       if(ldebug) then
-        if(param_theta.ge.zero .and. zenith.le.pi/2 .and. .not.lsrc(base_face)) then
+        if(param_theta.gt.zero .and. zenith.le.pi/2 .and. .not.lsrc(base_face)) then
           print *,'azimuth', rad2deg(azimuth), 'zenith', rad2deg(zenith)
           print *,'param_phi', param_phi, 'param_theta', param_theta
           print *,'ibase_face', ibase_face, 'baseface', base_face, 'lsrc', lsrc

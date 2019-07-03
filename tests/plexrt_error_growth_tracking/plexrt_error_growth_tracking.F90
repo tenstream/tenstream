@@ -63,7 +63,7 @@ contains
     call init_mpi_data_parameters(comm)
     call read_commandline_options(comm)
 
-    call create_2d_fish_plex(comm, Nx, Ny, dm_serial, dm2d)
+    call create_2d_fish_plex(comm, Nx, Ny, dm_serial, dm2d, opt_dx=dx)
     call DMDestroy(dm_serial, ierr); call CHKERR(ierr)
 
     hhl(1) = zero

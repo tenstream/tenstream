@@ -23,7 +23,7 @@ module m_plex2rayli
       integer(iintegers) :: fxStart, fxEnd, exStart, exEnd, vxStart, vxEnd ! start and end indices of new dm
       integer(iintegers) :: i, k, iface, new_side_edge, kside
       integer(iintegers) :: faces(8), edges(3), verts(2)
-      integer(iintegers), pointer :: faces_of_cell(:), cell_support(:), edges_of_face(:), verts_of_edge(:)
+      integer(iintegers), pointer :: faces_of_cell(:), edges_of_face(:), verts_of_edge(:)
       integer(iintegers), pointer :: transclosure(:)
       integer(iintegers), allocatable :: f2fx(:) ! offsets from original face into new faces dm
       integer(mpiint) :: comm, ierr
@@ -115,13 +115,11 @@ module m_plex2rayli
 
       new_side_edge = 0
       do i = fStart, fEnd-1
-        !call DMPlexGetSupport(dm, i, cell_support, ierr); call CHKERR(ierr)
 
         call DMPlexGetConeSize(dm, i, Nedges, ierr); call CHKERR(ierr)
         call DMPlexGetCone(dm, i, edges_of_face, ierr); call CHKERR(ierr)
 
         if(Nedges.eq.3) then
-          !call DMPlexSetSupport(dmrayli, k, cell_support, ierr); call CHKERR(ierr)
           edges = edges_of_face + Nsidefaces
           call DMPlexSetCone(dmrayli, k, edges, ierr); call CHKERR(ierr)
           if(ldebug) print *,'face',i,'=>', k, 'edges', edges
@@ -153,7 +151,6 @@ module m_plex2rayli
 
         endif
 
-        call DMPlexRestoreSupport(dm, iface, cell_support, ierr); call CHKERR(ierr)
         call DMPlexRestoreCone(dm, i, edges_of_face, ierr); call CHKERR(ierr)
       enddo
 

@@ -60,63 +60,64 @@ contains
 
     call init_pprts(comm, nv, nxp, nyp, dx,dy, phi0, theta0, solver, dz1d)
 
-    allocate(local_arr(solver%C_one%dof, solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym ))
+    associate(C=>solver%C_one)
+    allocate(local_arr(C%dof, C%zm, C%xm, C%ym))
 
     local_arr = myid
 
     ! Gen new global vector
-    call DMGetGlobalVector(solver%C_one%da, gvec, ierr); call CHKERR(ierr)
+    call DMGetGlobalVector(C%da, gvec, ierr); call CHKERR(ierr)
 
     ! copy local fortran array into global vec
-    print *,myid,'copy local fortran array into global vec'
-    call f90VecToPetsc(local_arr, solver%C_one%da, gvec)
+    call f90VecToPetsc(local_arr, C%da, gvec)
 
     ! Check that we can get an local array from a global petsc vec
-    call petscVecToF90(gvec, solver%C_one%da, local_arr_2)
-    call assert_equivalence(local_arr, local_arr_2)
+    call petscVecToF90(gvec, C%da, local_arr_2)
+    call assert_equivalence(local_arr, local_arr_2, 'get local arr from global petsc vec')
 
     deallocate(local_arr_2)
 
     ! do that feat again with a 3D array
-    call f90VecToPetsc(local_arr(1,:,:,:), solver%C_one%da, gvec)
-    call petscVecToF90(gvec, solver%C_one%da, local_arr_2)
-    call assert_equivalence(local_arr, local_arr_2)
+    call f90VecToPetsc(local_arr(:,:,:,:), C%da, gvec)
+    call petscVecToF90(gvec, C%da, local_arr_2)
+    call assert_equivalence(local_arr, local_arr_2, 'get local arr from global petsc vec in 3D')
+
+    ! Debug Output
+    call PetscObjectSetName(gvec, 'VecGlobal', ierr);call CHKERR(ierr)
+    call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_gvec', ierr); call CHKERR(ierr)
 
     ! copy global vec to rank 0, lVec(full size)
-    call petscGlobalVecToZero(gVec, solver%C_one%da, lVec)
+    call petscGlobalVecToZero(gVec, C%da, lVec)
+
+    ! Debug Output
+    call PetscObjectSetName(lvec, 'VecLocal', ierr);call CHKERR(ierr)
+    call PetscObjectViewFromOptions(lvec, PETSC_NULL_VEC, '-show_lvec', ierr); call CHKERR(ierr)
 
     ! Put data from petsc vec into fortran array
     if(myid.eq.0) then
-      call petscVecToF90(lvec, solver%C_one%da, global_arr_on_rank0, opt_l_only_on_rank0=.True.)
-      print *,myid,' size(global_arr_on_rank0)', size(global_arr_on_rank0)
+      call petscVecToF90(lvec, C%da, global_arr_on_rank0, opt_l_only_on_rank0=.True.)
       do j=1,ubound(global_arr_on_rank0,4)
         do i=1,ubound(global_arr_on_rank0,3)
           do k=1,ubound(global_arr_on_rank0,2)
             do d=1,ubound(global_arr_on_rank0,1)
-              @assertEqual(real((j-1)/solver%C_one%ym), global_arr_on_rank0(d,k,i,j))
+              @assertEqual(real((j-1)/C%ym), global_arr_on_rank0(d,k,i,j), '')
             enddo
           enddo
         enddo
       enddo
     endif
+  end associate
+    end subroutine
 
-    ! Debug Output
-    call PetscObjectSetName(gvec, 'VecGlobal', ierr);call CHKERR(ierr)
-    call PetscObjectViewFromOptions(gvec, PETSC_NULL_VEC, '-show_gvec', ierr); call CHKERR(ierr)
-    call PetscObjectSetName(lvec, 'VecLocal', ierr);call CHKERR(ierr)
-    call PetscObjectViewFromOptions(lvec, PETSC_NULL_VEC, '-show_lvec', ierr); call CHKERR(ierr)
-    ! Debug Output
-
-  end subroutine
-
-  subroutine assert_equivalence(a,b)
+  subroutine assert_equivalence(a,b,msg)
     real(ireals),dimension(:,:,:,:) :: a,b
+    character(len=*), intent(in) :: msg
     integer(iintegers) :: i,j,k,d
     do j=1,ubound(a,4)
       do i=1,ubound(a,3)
         do k=1,ubound(a,2)
           do d=1,ubound(a,1)
-            @assertEqual(a(d,k,i,j),b(d,k,i,j))
+            @assertEqual(a(d,k,i,j),b(d,k,i,j), trim(msg))
           enddo
         enddo
       enddo
