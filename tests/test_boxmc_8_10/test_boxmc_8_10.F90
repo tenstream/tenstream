@@ -1,7 +1,7 @@
 module test_boxmc_8_10
   use m_boxmc, only : t_boxmc, t_boxmc_8_10
   use m_data_parameters, only :     &
-    mpiint, ireals, iintegers,      &
+    mpiint, iintegers, ireals, ireal_dp, &
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
@@ -10,20 +10,20 @@ module test_boxmc_8_10
   use pfunit_mod
   implicit none
 
-  real(ireals) :: bg(3), phi,theta,dx,dy,dz
+  real(ireal_dp) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(10),T(8), S_target(10), T_target(8)
   real(ireals) :: S_tol(10),T_tol(8)
-  real(ireals), allocatable :: vertices(:)
+  real(ireal_dp), allocatable :: vertices(:)
 
   type(t_boxmc_8_10) :: bmc_8_10
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
   character(len=120) :: msg
 
-  real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
+  real(ireal_dp),parameter :: sigma = 3 ! normal test range for coefficients
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-2
-  !real(ireals),parameter :: atol=1e-5, rtol=1e-3
+  real(ireal_dp),parameter :: atol=1e-3, rtol=1e-2
+  !real(ireal_dp),parameter :: atol=1e-5, rtol=1e-3
 contains
 
   @before
@@ -62,26 +62,26 @@ contains
   subroutine test_boxmc_symmetry_in_phi(this)   ! Check that we have symmetry for total transmission for e.g. phi 0==90 or 10==80 etc.
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, iphi, itheta
-    real(ireals) :: tau, Tsum(2)
+    real(ireal_dp) :: tau, Tsum(2)
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, one/2 ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 1._ireal_dp/2 ]
 
     ! from top to bot face
     tau = (bg(1)+bg(2)) * dz
 
     do iphi=0,45,20
       do itheta=0,85,40
-        phi   = real(iphi, ireals)
-        theta = real(itheta, ireals)
-        Tsum  = zero
+        phi   = real(iphi, ireal_dp)
+        theta = real(itheta, ireal_dp)
+        Tsum  = 0._ireal_dp
 
         do src = 1,8
           call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
           Tsum(1) = Tsum(1) + sum(T)
         enddo
 
-        phi = 90._ireals - real(iphi, ireals)
+        phi = 90._ireal_dp - real(iphi, ireal_dp)
         do src = 1,8
           call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
           Tsum(2) = Tsum(2) + sum(T)
@@ -98,10 +98,10 @@ contains
   subroutine test_boxmc_select_cases_direct_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src,iphi
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, one/2 ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 1._ireal_dp/2 ]
 
     ! from top to bot face
     theta = 0
@@ -111,10 +111,10 @@ contains
     S_target = zero
 
     do iphi=0,90,10
-      phi = real(iphi, ireals)
+      phi = real(iphi, ireal_dp)
       do src = 1,4
         T_target = zero
-        T_target(src) = exp(-tau)
+        T_target(src) = real(exp(-tau), ireals)
         call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         write(msg,*) 'test_boxmc_select_cases_direct_srctopface top_to_bot',src,':: phi',phi
         call check(S_target,T_target, S,T, msg='')
@@ -126,21 +126,21 @@ contains
   subroutine test_boxmc_select_cases_direct_srctopface_45(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, one/2 ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 1._ireal_dp/2 ]
 
     ! outwards from face 2
-    phi = 0; theta = 45*one
+    phi = 0; theta = 45*1._ireal_dp
 
-    tau = (bg(1)+bg(2)) * dz * sqrt(2*one)
+    tau = (bg(1)+bg(2)) * dz * sqrt(2*1._ireal_dp)
 
     S_target = zero
 
     do src=1,2
       T_target = zero
-      T_target(2+src) = exp(-tau)
+      T_target(2+src) = real(exp(-tau), ireals)
       print *,'phi,theta test',phi,theta
       call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       print *,'phi,theta test2',phi,theta
@@ -151,7 +151,7 @@ contains
     phi=90
     do src=1,3,2
       T_target = zero
-      T_target(src+1) = exp(-tau)
+      T_target(src+1) = real(exp(-tau), ireals)
       call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       write(msg,*) ' test_boxmc_select_cases_direct_srctopface_45',src
       call check(S_target,T_target, S,T, msg=msg)
@@ -163,10 +163,10 @@ contains
   subroutine test_boxmc_select_cases_direct_srcsidefaces(this)
     class (MpiTestMethod), intent(inout)  :: this
     integer(iintegers)                    :: src, iphi
-    real(ireals)                          :: tau
+    real(ireal_dp)                          :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, one/2 ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 1._ireal_dp/2 ]
 
 
     ! along each of the side faces
@@ -182,7 +182,7 @@ contains
 
       T_target = zero
 
-      T_target(src+2) =  (sinh(tau)-cosh(tau)+1)/tau
+      T_target(src+2) =  real((sinh(tau)-cosh(tau)+1)/tau, ireals)
       call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
 
@@ -190,7 +190,7 @@ contains
 
       T_target = zero
 
-      T_target(src) =  exp(-tau)
+      T_target(src) =  real(exp(-tau), ireals)
       call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
     enddo
@@ -200,7 +200,7 @@ contains
 
       T_target = zero
 
-      T_target(src) = exp(-tau)
+      T_target(src) = real(exp(-tau), ireals)
       call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
 
@@ -208,38 +208,38 @@ contains
 
       T_target = zero
 
-      T_target(src-2) = (sinh(tau)-cosh(tau)+1)/tau
+      T_target(src-2) = real((sinh(tau)-cosh(tau)+1)/tau, ireals)
       call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
     enddo
 
     do iphi = 0,360,60
-      phi = real(iphi, ireals)
+      phi = real(iphi, ireal_dp)
       theta= 0
 
       tau = (bg(1)+bg(2)) * dz/2
 
       src = 5
       T_target = zero
-      T_target([1,3]) = (sinh(tau)-cosh(tau)+1)/tau/2
+      T_target([1,3]) = real((sinh(tau)-cosh(tau)+1)/tau/2, ireals)
       call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
 
       src = 6
       T_target = zero
-      T_target([1,3]) = (sinh(tau)-cosh(tau)+1)/tau/2 * exp(-tau)
+      T_target([1,3]) = real((sinh(tau)-cosh(tau)+1)/tau/2 * exp(-tau), ireals)
       call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
 
       src = 7
       T_target = zero
-      T_target([1,2]) = (sinh(tau)-cosh(tau)+1)/tau/2
+      T_target([1,2]) = real((sinh(tau)-cosh(tau)+1)/tau/2, ireals)
       call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
 
       src = 8
       T_target = zero
-      T_target([1,2]) = (sinh(tau)-cosh(tau)+1)/tau/2 * exp(-tau)
+      T_target([1,2]) = real((sinh(tau)-cosh(tau)+1)/tau/2 * exp(-tau), ireals)
       call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces theta = 0 down along sidefaces')
     enddo
@@ -250,10 +250,10 @@ contains
   subroutine test_boxmc_select_cases_diff_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, zero ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
     ! outwards from face 2
     phi = 0; theta = 0
@@ -274,10 +274,10 @@ contains
   subroutine test_boxmc_select_cases_diff_srcbottomface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, zero ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
     ! outwards from face 2
     phi = 0; theta = 0
@@ -297,11 +297,11 @@ contains
    subroutine test_boxmc_select_cases_diff_srcsideface(this)
      class (MpiTestMethod), intent(inout) :: this
      integer(iintegers) :: src
-     real(ireals) :: tau
+     real(ireal_dp) :: tau
      real(ireals), parameter :: top=0.56164175, side1=0.1047592, side2=0.14247725
 
      ! direct to diffuse tests
-     bg  = [1e-3_ireals, zero, zero ]
+     bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
      ! outwards from face 2
      phi = 0; theta = 0
@@ -381,11 +381,11 @@ contains
       print*,'---------------------'
       print*,''
 
-      @assertEqual(S_target, S, atol*sigma, local_msgS )
+      @assertEqual(S_target, S, real(atol*sigma, ireals), local_msgS )
       @assertLessThanOrEqual   (zero, S)
       @assertGreaterThanOrEqual(one , S)
 
-      @assertEqual(T_target, T, atol*sigma, local_msgT )
+      @assertEqual(T_target, T, real(atol*sigma, ireals), local_msgT )
       @assertLessThanOrEqual   (zero, T)
       @assertGreaterThanOrEqual(one , T)
     endif

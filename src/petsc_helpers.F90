@@ -305,6 +305,7 @@ contains
     else if( N .eq. dof*gxm*gym*gzm ) then
       lghosted=.True.
     else
+      lghosted=.False.
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       print *,myid,'Size N:', N, dof*xm*ym*zm, dof*glob_xm*glob_ym*glob_zm, dof*gxm*gym*gzm

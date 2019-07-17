@@ -22,7 +22,7 @@ module m_plex_rt
     get_top_bot_face_of_cell, destroy_plexgrid, determine_diff_incoming_outgoing_offsets, &
     TOAFACE, BOTFACE, SIDEFACE
 
-  use m_optprop, only : t_optprop_wedge, t_optprop_wedge_5_8, t_optprop_wedge_18_8, OPP_1D_RETCODE
+  use m_optprop, only : t_optprop_wedge, t_optprop_wedge_5_8, t_optprop_rectilinear_wedge_5_8, t_optprop_wedge_18_8, OPP_1D_RETCODE
   use m_optprop_parameters, only : ldebug_optprop
 
   use m_schwarzschild, only: schwarzschild, B_eff
@@ -83,12 +83,14 @@ module m_plex_rt
   type, extends(t_plex_solver) :: t_plex_solver_18_8
   end type
 
-  logical, parameter :: ldebug=.False.
+  !logical, parameter :: ldebug=.False.
+  logical, parameter :: ldebug=.True.
   contains
     subroutine init_plex_rt_solver(plex, solver)
       type(t_plexgrid), intent(in) :: plex
       class(t_plex_solver), allocatable, intent(inout) :: solver
       integer(mpiint) :: myid, ierr
+      logical :: lplexrt_skip_loadLUT, lflg
 
       call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
       if(ldebug.and.myid.eq.0) print *,'Init_plex_rt_solver ... '
@@ -100,6 +102,18 @@ module m_plex_rt
       select type(solver)
       class is (t_plex_solver_5_8)
         allocate(t_optprop_wedge_5_8::solver%OPP)
+        solver%dirtop%dof = 1
+        solver%dirtop%area_divider = 1
+        solver%dirside%dof = 1
+        solver%dirside%area_divider = 1
+
+        solver%difftop%dof = 2
+        solver%difftop%area_divider = 1
+        solver%diffside%dof = 4
+        solver%diffside%area_divider = 1
+
+      class is (t_plex_solver_rectilinear_5_8)
+        allocate(t_optprop_rectilinear_wedge_5_8::solver%OPP)
         solver%dirtop%dof = 1
         solver%dirtop%area_divider = 1
         solver%dirside%dof = 1
@@ -133,7 +147,10 @@ module m_plex_rt
 
       call setup_log_events(solver%logs, 'plexrt')
 
-      call solver%OPP%init(plex%comm)
+      lplexrt_skip_loadLUT=.False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_skip_loadLUT",&
+        lplexrt_skip_loadLUT, lflg, ierr) ;call CHKERR(ierr)
+      if(.not.lplexrt_skip_loadLUT) call solver%OPP%init(plex%comm)
 
       call setup_cell1_dmplex(solver%plex%dm, solver%plex%cell1_dm)
       call setup_abso_dmplex (solver%plex%dm, solver%plex%abso_dm)
@@ -1745,8 +1762,8 @@ module m_plex_rt
           dir2dir = coeff(bmcsrcdof:size(coeff):solver%dirdof)
           !write(*, FMT='("in_dof " I2  " bmc_src " I2 " : " 18(f10.5))') in_dof, bmcsrcdof, dir2dir
           !print *,in_dof, 'bmcsrc', bmcsrcdof, dir2dir
-          if(sum(dir2dir).gt.one+10*sqrt(epsilon(one))) then
-            print *,isrc_side,': bmcface', face_plex2bmc(isrc_side), 'dir2dir gt one', dir2dir,':',sum(dir2dir)
+          if(sum(dir2dir).gt.one+10*sqrt(epsilon(1._irealLUT))) then
+            print *,in_dof,': bmcface', bmcsrcdof, 'dir2dir gt one', dir2dir,':',sum(dir2dir)
             call CHKERR(1_mpiint, 'energy conservation violated! '//ftoa(sum(dir2dir)))
           endif
         enddo
@@ -2970,15 +2987,15 @@ module m_plex_rt
 
     integer(iintegers) :: fStart, fEnd, cStart, cEnd, vStart, vEnd
     integer(iintegers) :: ofStart, ofEnd
-    integer(iintegers) :: iface, ivert, voff, idof
-    integer(iintegers), pointer :: trans_closure(:), cells_of_face(:)
+    integer(iintegers) :: icell, iface, ivert, voff, idof
+    integer(iintegers), pointer :: trans_closure(:), faces_of_cell(:)
 
     type(tVec) :: coordinates
     real(ireals), pointer :: coords(:)
     type(tPetscSection) :: coord_section
 
     integer(c_size_t), allocatable :: verts_of_face(:,:)
-    integer(c_size_t), allocatable :: wedges_of_face(:,:)
+    integer(c_size_t), allocatable :: faces_of_wedges(:,:)
     real(c_double),    allocatable :: vert_coords(:,:)
     real(c_double),    allocatable :: rkabs(:), rksca(:), rg(:)
     real(c_double),    allocatable :: ralbedo_on_faces(:)
@@ -3025,23 +3042,18 @@ module m_plex_rt
       return
     endif
 
-    if(.not.allocated(plex%rayli_dm)) then
-      allocate(plex%rayli_dm)
-      call dm3d_to_rayli_dmplex(plex%dm, plex%rayli_dm)
-      call PetscObjectViewFromOptions(plex%rayli_dm, PETSC_NULL_DM, '-show_plexrt_dmrayli', ierr); call CHKERR(ierr)
-    endif
-
-    call DMPlexGetDepthStratum(plex%rayli_dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! vertices
-    call DMPlexGetDepthStratum(plex%rayli_dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! vertices
-    call DMPlexGetDepthStratum(plex%rayli_dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+    call DMPlexGetDepthStratum(plex%dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+    call DMPlexGetDepthStratum(plex%dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+    call DMPlexGetDepthStratum(plex%dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
     Nwedges = cEnd - cStart
     Nfaces = fEnd - fStart
     Nverts = vEnd - vStart
+    !print *,'Rayli Nwedges', Nwedges, 'Nfaces', Nfaces, 'Nverts', Nverts
 
     outer_id = -1
 
-    allocate(verts_of_face(3, Nfaces), &
-             wedges_of_face(2, Nfaces), &
+    allocate(verts_of_face(4, Nfaces), &
+             faces_of_wedges(5, Nwedges), &
              vert_coords(3, Nverts), &
              rkabs(Nwedges), &
              rksca(Nwedges), &
@@ -3050,26 +3062,26 @@ module m_plex_rt
              flx_through_faces_edir(Nfaces), &
              flx_through_faces_ediff(2*Nfaces) )
 
-    do iface = fStart, fEnd-1
-      call DMPlexGetTransitiveClosure(plex%rayli_dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
-      verts_of_face(:, iface-fStart+1) = trans_closure(9:size(trans_closure):2) - vStart
-      call DMPlexRestoreTransitiveClosure(plex%rayli_dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
-
-      call DMPlexGetSupport(plex%rayli_dm, iface, cells_of_face, ierr); call CHKERR(ierr)
-      select case(size(cells_of_face))
-      case(1)
-        wedges_of_face(1,iface-fStart+1) = cells_of_face(1) - cStart
-        wedges_of_face(2,iface-fStart+1) = outer_id
-      case(2)
-        wedges_of_face(:,iface-fStart+1) = cells_of_face - cStart
-      case default
-        call CHKERR(1_mpiint, 'did not expect '//itoa(size(cells_of_face))//'cells here')
-      end select
-      call DMPlexRestoreSupport(plex%rayli_dm, iface, cells_of_face, ierr); call CHKERR(ierr)
+    do icell = cStart, cEnd-1
+      call DMPlexGetCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+      faces_of_wedges(:,icell-cStart+1) = faces_of_cell - fStart
+      call DMPlexRestoreCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
     enddo
 
-    call DMGetCoordinateSection(plex%rayli_dm, coord_section, ierr); call CHKERR(ierr)
-    call DMGetCoordinatesLocal(plex%rayli_dm, coordinates, ierr); call CHKERR(ierr)
+    do iface = fStart, fEnd-1
+      call DMPlexGetTransitiveClosure(plex%dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
+      select case (size(trans_closure))
+      case(14) ! 3 edges
+        verts_of_face(1:3, iface-fStart+1) = trans_closure(9:size(trans_closure):2) - vStart
+        verts_of_face(4  , iface-fStart+1) = outer_id
+      case(18) ! 4 edges
+        verts_of_face(:, iface-fStart+1) = trans_closure(11:size(trans_closure):2) - vStart
+      end select
+      call DMPlexRestoreTransitiveClosure(plex%dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
+    enddo
+
+    call DMGetCoordinateSection(plex%dm, coord_section, ierr); call CHKERR(ierr)
+    call DMGetCoordinatesLocal(plex%dm, coordinates, ierr); call CHKERR(ierr)
     call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
 
     do ivert = vStart, vEnd-1
@@ -3099,7 +3111,7 @@ module m_plex_rt
     if(ierr.eq.1) return
 
     ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, &
-      verts_of_face, wedges_of_face, vert_coords, &
+      verts_of_face, faces_of_wedges, vert_coords, &
       rkabs, rksca, rg, &
       ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_double), &
       flx_through_faces_edir, flx_through_faces_ediff); call CHKERR(ierr)
@@ -3114,7 +3126,7 @@ module m_plex_rt
     contains
       subroutine get_result()
         type(tIS) :: toa_ids
-        integer(iintegers) :: i, k, ke1, Ncol, ridx
+        integer(iintegers) :: i, k, ke1, Ncol, ridx, numDof
         integer(iintegers), pointer :: xtoa_faces(:)
 
         call DMPlexGetDepthStratum(plex%dm, i2, ofStart, ofEnd, ierr); call CHKERR(ierr) ! vertices
@@ -3123,7 +3135,8 @@ module m_plex_rt
           call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
           do iface = ofStart, ofEnd-1
             call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
-            do idof = 1, solver%dirtop%dof
+            call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
+            do idof = 1, numDof
               xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-ofStart+1)), ireals)
             enddo
           enddo
@@ -3194,6 +3207,8 @@ module m_plex_rt
 
         call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-rayli_snapshot", snap_path, lflg,ierr) ; call CHKERR(ierr)
         if(lflg) then
+          if(len_trim(snap_path).eq.0) snap_path = 'rayli_snaphots.nc'
+          if(myid.eq.0) print *,'Capturing scene to file: '//trim(snap_path), len_trim(snap_path)
           Nx = 400
           call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
             '-rayli_snap_Nx', narg, lflg, ierr); call CHKERR(ierr)
@@ -3248,7 +3263,7 @@ module m_plex_rt
 
           ierr = rpt_img_wedgeF90( Nx, Ny, &
             Nphotons, Nwedges, Nfaces, Nverts, &
-            verts_of_face, wedges_of_face, vert_coords, &
+            verts_of_face, faces_of_wedges, vert_coords, &
             rkabs, rksca, rg, &
             ralbedo_on_faces, &
             rsundir, & ! DEBUG note the kabs/ksca/

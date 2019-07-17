@@ -26,10 +26,10 @@ module m_optprop
 
 use m_optprop_parameters, only : ldebug_optprop, coeff_mode, wedge_sphere_radius, param_eps
 use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, rad2deg, swap
-use m_data_parameters, only: ireals,irealLUT,irealLUT,iintegers,one,zero,i0,i1,inil,mpiint
+use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_8_10, t_optprop_LUT_3_16, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
-  t_optprop_LUT_wedge_5_8, t_optprop_LUT_wedge_18_8
+  t_optprop_LUT_wedge_5_8, t_optprop_LUT_rectilinear_wedge_5_8, t_optprop_LUT_wedge_18_8
 use m_optprop_ANN, only : ANN_init, ANN_get_dir2dir, ANN_get_dir2diff, ANN_get_diff2diff
 use m_boxmc_geometry, only : setup_default_unit_cube_geometry, setup_default_wedge_geometry
 use m_eddington, only: eddington_coeff_zdun
@@ -44,7 +44,7 @@ implicit none
 private
 public :: t_optprop, t_optprop_cube, t_optprop_wedge, &
   t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
-  t_optprop_wedge_5_8, t_optprop_wedge_18_8, &
+  t_optprop_wedge_5_8, t_optprop_LUT_rectilinear_wedge_5_8, t_optprop_wedge_18_8, &
   t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
   OPP_1D_RETCODE, OPP_TINYASPECT_RETCODE
 
@@ -113,6 +113,9 @@ end type
 type,extends(t_optprop_wedge) :: t_optprop_wedge_5_8
 end type
 
+type,extends(t_optprop_wedge) :: t_optprop_rectilinear_wedge_5_8
+end type
+
 type,extends(t_optprop_wedge) :: t_optprop_wedge_18_8
 end type
 
@@ -153,6 +156,9 @@ contains
 
               class is (t_optprop_wedge_5_8)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_5_8::OPP%OPP_LUT)
+
+              class is (t_optprop_rectilinear_wedge_5_8)
+               if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_rectilinear_wedge_5_8::OPP%OPP_LUT)
 
               class is (t_optprop_wedge_18_8)
                if(.not.allocated(OPP%OPP_LUT) ) allocate(t_optprop_LUT_wedge_18_8::OPP%OPP_LUT)
@@ -217,7 +223,7 @@ contains
       subroutine do_bmc_computation(Cbmc)
         real(irealLUT), intent(out) :: Cbmc(:)
         real(ireals), allocatable :: vertices(:)
-        real(irealLUT) :: phi, theta
+        real(ireal_params) :: phi, theta
 
         call setup_default_wedge_geometry(&
           real([0,0], ireals), &
@@ -228,12 +234,14 @@ contains
           real(wedge_sphere_radius, ireals))
 
         call iterative_phi_theta_from_param_phi_and_param_theta(&
-          real(vertices, irealLUT), &
-          angles(1), angles(2), phi, theta, ierr); call CHKERR(ierr)
+          real(vertices, ireal_params), &
+          real(angles(1), ireal_params), &
+          real(angles(2), ireal_params), &
+          phi, theta, ierr); call CHKERR(ierr)
 
         print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, angles, rad2deg(phi), rad2deg(theta)
         call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, &
-          [rad2deg(phi), rad2deg(theta)])
+          [rad2deg(real(phi, irealLUT)), rad2deg(real(theta, irealLUT))])
       end subroutine
       subroutine print_coeff_diff()
         real(irealLUT) :: Cbmc(size(C))
@@ -347,7 +355,7 @@ contains
 
           if(aspect_zx.ge.twostr_ratio) then
             C = zero
-            mu = cos(theta_from_param_theta(angles(2), 0._irealLUT))
+            mu = real( cos(theta_from_param_theta(real(angles(2), ireal_params), 0._ireal_params)), irealLUT)
 
             call eddington_coeff_zdun(&
               real(tauz, ireals), &
@@ -362,6 +370,10 @@ contains
                 ! set the transport coeffs for src top to zero, leave the rest.
                 C(5*4+1) = real(c33, irealLUT) ! from top to bot
                 !C(22:24) = 1 ! from sides to bot
+              class is (t_optprop_rectilinear_wedge_5_8)
+                ! set the transport coeffs for src top to zero, leave the rest.
+                C(5*4+1) = real(c33, irealLUT) ! from top to bot
+                !C(22:24) = 1 ! from sides to bot
               class is (t_optprop_wedge_18_8)
                 C(18*15+1) = real(c33, irealLUT) ! from top to bot
                 C(18*16+2) = real(c33, irealLUT) ! from top to bot
@@ -373,6 +385,9 @@ contains
             else
               select type(OPP)
               class is (t_optprop_wedge_5_8)
+                C(0*5+1) = real(c13, irealLUT) ! reflection
+                C(7*5+1) = real(c23, irealLUT) ! transmission
+              class is (t_optprop_rectilinear_wedge_5_8)
                 C(0*5+1) = real(c13, irealLUT) ! reflection
                 C(7*5+1) = real(c23, irealLUT) ! transmission
               class is (t_optprop_wedge_18_8)
@@ -515,21 +530,21 @@ contains
       real(irealLUT) :: S_tol (OPP%OPP_LUT%diff_streams),T_tol(OPP%OPP_LUT%dir_streams)
       integer(iintegers) :: isrc
 
-      real(ireals), parameter :: atol=5e-3_ireals, rtol=5e-2_ireals
+      real(irealLUT), parameter :: atol=5e-3_irealLUT, rtol=5e-2_irealLUT
 
       if(present(angles)) then
           do isrc=1,OPP%OPP_LUT%dir_streams
             call OPP%OPP_LUT%bmc_wrapper(isrc, &
-              real(vertices, ireals), &
-              real(tauz, ireals), &
-              real(w0, ireals), &
-              real(g, ireals), &
+              real(vertices, ireal_dp), &
+              real(tauz, irealLUT), &
+              real(w0, irealLUT), &
+              real(g, irealLUT), &
               .True.,   &
-              real(angles(1), ireals), &
-              real(angles(2), ireals), &
+              real(angles(1), irealLUT), &
+              real(angles(2), irealLUT), &
               mpi_comm_self, &
               S_diff, T_dir, S_tol, T_tol, &
-              inp_atol=atol, inp_rtol=rtol)
+              inp_atol=real(atol, irealLUT), inp_rtol=real(rtol, irealLUT))
             if(dir) then !dir2dir
               C(isrc:OPP%OPP_LUT%dir_streams**2:OPP%OPP_LUT%dir_streams) = T_dir
             else ! dir2diff
@@ -540,15 +555,15 @@ contains
         ! diff2diff
         do isrc=1,OPP%OPP_LUT%diff_streams
             call OPP%OPP_LUT%bmc_wrapper(isrc, &
-              real(vertices, ireals), &
-              real(tauz, ireals), &
-              real(w0, ireals), &
-              real(g, ireals), &
+              real(vertices, ireal_dp), &
+              real(tauz, irealLUT), &
+              real(w0, irealLUT), &
+              real(g, irealLUT), &
               .False.,   &
-              zero, zero, &
+              0._irealLUT, 0._irealLUT, &
               mpi_comm_self, &
               S_diff, T_dir, S_tol, T_tol, &
-              inp_atol=atol, inp_rtol=rtol)
+              inp_atol=real(atol, irealLUT), inp_rtol=real(rtol, irealLUT))
           C(isrc:OPP%OPP_LUT%diff_streams**2:OPP%OPP_LUT%diff_streams) = S_diff
         enddo
       endif ! angles_present

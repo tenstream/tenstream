@@ -1,7 +1,7 @@
 module test_boxmc_8_18
   use m_boxmc, only : t_boxmc, t_boxmc_8_18
   use m_data_parameters, only :     &
-    mpiint, ireals, iintegers,      &
+    mpiint, iintegers, ireals, ireal_dp, &
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
@@ -11,20 +11,20 @@ module test_boxmc_8_18
   use pfunit_mod
   implicit none
 
-  real(ireals) :: bg(3), phi,theta,dx,dy,dz
+  real(ireal_dp) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(18),T(8), S_target(18), T_target(8)
   real(ireals) :: S_tol(18),T_tol(8)
-  real(ireals), allocatable :: vertices(:)
+  real(ireal_dp), allocatable :: vertices(:)
 
   type(t_boxmc_8_18) :: bmc_8_18
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
   character(len=120) :: msg
 
-  real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
+  real(ireal_dp),parameter :: sigma = 3 ! normal test range for coefficients
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-2
-  !real(ireals),parameter :: atol=1e-5, rtol=1e-3
+  real(ireal_dp),parameter :: atol=1e-3, rtol=1e-2
+  !real(ireal_dp),parameter :: atol=1e-5, rtol=1e-3
 contains
 
   @before
@@ -65,7 +65,7 @@ contains
     integer(iintegers) :: src
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, 1e-1_ireals, one ]
+    bg  = [1e-3_ireal_dp, 1e-1_ireal_dp, 1._ireal_dp ]
 
     ! should send diffuse radiation into vertical angle stream
     theta = 20
@@ -114,7 +114,7 @@ contains
     integer(iintegers) :: src
 
     ! direct to diffuse tests
-    bg  = [1e-6_ireals, 1e-3_ireals, .99_ireals ]
+    bg  = [1e-6_ireal_dp, 1e-3_ireal_dp, .99_ireal_dp ]
 
     T_target = zero
 
@@ -154,7 +154,7 @@ contains
     integer(iintegers) :: src
 
     ! direct to diffuse tests
-    bg  = [1e-6_ireals, 1e-3_ireals, .99_ireals ]
+    bg  = [1e-6_ireal_dp, 1e-3_ireal_dp, .99_ireal_dp ]
 
     T_target = zero
 
@@ -217,11 +217,11 @@ contains
       print*,'---------------------'
       print*,''
 
-      @assertEqual(S_target, S, atol*sigma, local_msgS )
+      @assertEqual(S_target, S, real(atol*sigma, ireals), local_msgS )
       @assertLessThanOrEqual   (zero, S)
       @assertGreaterThanOrEqual(one , S)
 
-      @assertEqual(T_target, T, atol*sigma, local_msgT )
+      @assertEqual(T_target, T, real(atol*sigma, ireals), local_msgT )
       @assertLessThanOrEqual   (zero, T)
       @assertGreaterThanOrEqual(one , T)
     endif

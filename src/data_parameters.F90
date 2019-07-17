@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_data_parameters
-      use iso_fortran_env, only: INT32, INT64, REAL32, REAL64
+      use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
       use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value
 
 #ifdef _XLF
@@ -33,11 +33,13 @@ module m_data_parameters
       implicit none
 
       private
-      public pi, pi_irealLUT, pi32, pi64, clight, nil, zero, one,&
+      public pi, pi_irealLUT, pi_ireal_params, pi32, pi64, pi128,&
+             clight, nil, zero, one,                             &
              i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil,         &
-             iintegers,ireals,ireal128,ireal_dp,irealLUT,        &
+             iintegers,mpiint,                                   &
+             ireals,ireal128,ireal_dp,irealLUT,ireal_params,     &
              nan32, nan64,                                       &
-             mpiint,imp_iinteger,imp_int4, imp_int8,             &
+             imp_iinteger,imp_int4, imp_int8,                    &
              imp_ireals,imp_real_dp,imp_irealLUT,imp_logical,    &
              imp_REAL32, imp_REAL64,                             &
              init_mpi_data_parameters, default_str_len,          &
@@ -52,16 +54,18 @@ module m_data_parameters
           iintegers = kind(petscint_dummy), &
           irealLUT = REAL32,                &
           ireals = kind(petscreal_dummy),   &
+          ireal_params = REAL64, &
+          ireal_dp = REAL64, &
+          ireal128 = REAL128, &
 !          ireal128 = selected_real_kind(33, 4931), &
-!          ireal128 = selected_real_kind(6, 37), &
-          ireal128 = selected_real_kind(15, 307), &
-          ireal_dp = selected_real_kind(15, 307), &
           mpiint = kind(mpiint_dummy)
 
       real(ireals),parameter :: pi=3.141592653589793_ireals, clight=299792458._ireals, nil=-9999._ireals
-      real(REAL32),parameter :: pi_irealLUT=3.141592653589793_irealLUT
+      real(irealLUT),parameter :: pi_irealLUT=3.141592653589793_irealLUT
       real(REAL32),parameter :: pi32=3.141592653589793_REAL32
       real(REAL64),parameter :: pi64=3.141592653589793_REAL64
+      real(ireal_params),parameter :: pi_ireal_params=3.141592653589793_ireal_params
+      real(REAL128),parameter :: pi128=4 * ATAN (1._REAL128)
       real(ireals),parameter :: zero=0, one=1
 
       integer(iintegers) ,parameter :: i0=0,i1=1,i2=2,i3=3,i4=4,&

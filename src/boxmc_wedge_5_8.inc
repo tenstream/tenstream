@@ -59,8 +59,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   case (2)
     call rand_pnt_on_plane(pA,pD,pE,pB, p%loc, normal, U, V)
   case (3)
-    call rand_pnt_on_plane(pA,pD,pF,pC, p%loc, normal, U, V)
-    normal = -normal
+    call rand_pnt_on_plane(pA,pC,pF,pD, p%loc, normal, U, V)
   case (4)
     call rand_pnt_on_plane(pB,pE,pF,pC, p%loc, normal, U, V)
   case (5)
@@ -72,6 +71,8 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   end select
 
   triangle_center = (pA+pB+pC+pD+pE+pF)/6._ireal_dp
+
+  end associate
 
   p%src_side = src
 
@@ -88,12 +89,10 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
 
   p%loc = p%loc + sqrt(epsilon(pi64)) * dir_p_to_triangle_center
 
-  end associate
-
   select type(bmc)
   end select
 
-  if(dot_product(p%dir, normal).lt.zero) then
+  if(dot_product(p%dir, normal).le.zero) then
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
     if(ldebug) then
       print *,'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
@@ -105,6 +104,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     return
   endif
   ierr = 0
+
 end subroutine
 
 subroutine update_dir_stream_wedge_5_8(bmc,vertices,p,T)

@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_optprop_parameters
-      use m_data_parameters,only : ireals, irealLUT, iintegers, default_str_len
+      use m_data_parameters,only : irealLUT, iintegers, default_str_len
       implicit none
 
       !> \page optprop_parameters Parameters concerning the transport coefficients
@@ -58,36 +58,37 @@ module m_optprop_parameters
 
       ! We pre-compute the dimensions for the LUT using eddington coeffs as proxy for good values
       !     -- see python script: ''eddington_to_LUT.py''
-      real(irealLUT), parameter :: param_eps = epsilon(1._irealLUT)*100
+      real(irealLUT), parameter :: param_eps = 1e-3
+      real, parameter :: param_eps_r = real(param_eps)
 
       real(irealLUT), parameter :: preset_param_phi11(11) = [-2., -1.5 , &
-                                                          -1.-param_eps, &
-                                                          -1.+param_eps, &
+                                                          -1.-param_eps_r, &
+                                                          -1.+param_eps_r, &
                                                           -0.5 , 0., 0.5, &
-                                                          +1.-param_eps, &
-                                                          +1.+param_eps, &
+                                                          +1.-param_eps_r, &
+                                                          +1.+param_eps_r, &
                                                           1.5, 2.]
       real(irealLUT), parameter :: preset_param_phi19(19) = [-2., -1.75, -1.5 , -1.25, &
-                                                          -1.-param_eps, &
-                                                          -1.+param_eps, &
+                                                          -1.-param_eps_r, &
+                                                          -1.+param_eps_r, &
                                                           -0.75, -0.5 , -0.25,  0., 0.25, 0.5, 0.75, &
-                                                          +1.-param_eps, &
-                                                          +1.+param_eps, &
+                                                          +1.-param_eps_r, &
+                                                          +1.+param_eps_r, &
                                                           1.25, 1.5, 1.75, 2.]
 
       real(irealLUT), parameter :: preset_param_phi83(83) = [-2.  , -1.95, -1.9 , -1.85, -1.8 , -1.75, -1.7 , -1.65, -1.6 , &
        -1.55, -1.5 , -1.45, -1.4 , -1.35, -1.3 , -1.25, -1.2 , -1.15, &
-       -1.1 , -1.05, -1.-param_eps, -1.+param_eps, -0.95, -0.9 , -0.85, -0.8 , -0.75, -0.7 , &
+       -1.1 , -1.05, -1.-param_eps_r, -1.+param_eps_r, -0.95, -0.9 , -0.85, -0.8 , -0.75, -0.7 , &
        -0.65, -0.6 , -0.55, -0.5 , -0.45, -0.4 , -0.35, -0.3 , -0.25, &
        -0.2 , -0.15, -0.1 , -0.05,  0.  ,  0.05,  0.1 ,  0.15,  0.2 , &
         0.25,  0.3 ,  0.35,  0.4 ,  0.45,  0.5 ,  0.55,  0.6 ,  0.65, &
-        0.7 ,  0.75,  0.8 ,  0.85,  0.9 ,  0.95,  +1.-param_eps, +1.+param_eps,  1.05,  1.1 , &
+        0.7 ,  0.75,  0.8 ,  0.85,  0.9 ,  0.95,  +1.-param_eps_r, +1.+param_eps_r,  1.05,  1.1 , &
         1.15,  1.2 ,  1.25,  1.3 ,  1.35,  1.4 ,  1.45,  1.5 ,  1.55, &
         1.6 ,  1.65,  1.7 ,  1.75,  1.8 ,  1.85,  1.9 ,  1.95,  2. ]
 
       real(irealLUT), parameter :: preset_param_theta13(13) = [-1., &
-                                                          +0.-param_eps, &
-                                                          +0.+param_eps, &
+                                                          -1e-1, &
+                                                          +0.+param_eps_r, &
                                                           .1, .2, .3, .4, .5, .6, .7, .8, .9, 1.]
 
 
@@ -150,14 +151,14 @@ module m_optprop_parameters
       ! absolute tolerance and relatice tolerance have to be reached for every
       ! coefficient
 
-!      real(ireals),parameter :: stddev_atol=1e-2_ireals
-!      real(ireals),parameter :: stddev_atol=5e-3_ireals
-      real(ireals),parameter :: stddev_atol=1e-3_ireals
-!      real(ireals),parameter :: stddev_atol=2e-4_ireals
-!      real(ireals),parameter :: stddev_atol=5e-6_ireals
+!      real(irealLUT),parameter :: stddev_atol=1e-2_irealLUT
+!      real(irealLUT),parameter :: stddev_atol=5e-3_irealLUT
+      real(irealLUT),parameter :: stddev_atol=1e-3_irealLUT
+!      real(irealLUT),parameter :: stddev_atol=2e-4_irealLUT
+!      real(irealLUT),parameter :: stddev_atol=5e-6_irealLUT
 
-      real(ireals),parameter :: stddev_rtol=5e-1_ireals
-!      real(ireals),parameter :: stddev_rtol=1e-3_ireals
+      real(irealLUT),parameter :: stddev_rtol=2e-1_irealLUT
+!      real(irealLUT),parameter :: stddev_rtol=1e-3_irealLUT
 
       ! Do some sanity checks on coefficients -- only disable if you are sure
       ! what to expect.
@@ -179,6 +180,6 @@ module m_optprop_parameters
       ! this is tuned towards earth radius and average dx = 1000m sized elements
       real(irealLUT), parameter :: wedge_sphere_radius = 6371e3_irealLUT / 1000._irealLUT
 
-      real(irealLUT), parameter :: LUT_dump_interval=3600 ! dump the LUT every 10 minutes
+      real(irealLUT), parameter :: LUT_dump_interval=3600 ! dump the LUT every 60 minutes
       real(irealLUT), parameter :: LUT_max_create_jobtime=3600*3 ! after 3hrs, cancel the createLUT jobs in any case
 end module

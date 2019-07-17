@@ -21,7 +21,7 @@ module m_helper_functions
   use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
   use m_data_parameters,only : iintegers, mpiint, &
     ireals, irealLUT, ireal_dp, &
-    i1, pi, pi32, pi64, zero, one, &
+    i1, pi, pi32, pi64, pi128, zero, one, &
     imp_ireals, imp_REAL32, imp_REAL64, imp_logical, &
     default_str_len, &
     imp_int4, imp_int8, imp_iinteger
@@ -61,10 +61,10 @@ module m_helper_functions
     module procedure spherical_2_cartesian_r32, spherical_2_cartesian_r64
   end interface
   interface rad2deg
-    module procedure rad2deg_r32, rad2deg_r64
+    module procedure rad2deg_r32, rad2deg_r64, rad2deg_r128
   end interface
   interface deg2rad
-    module procedure deg2rad_r32, deg2rad_r64
+    module procedure deg2rad_r32, deg2rad_r64, deg2rad_r128
   end interface
   interface approx
     module procedure approx_r32, approx_r64, approx_r128
@@ -76,7 +76,7 @@ module m_helper_functions
     module procedure itoa_i4, itoa_i8, itoa_1d_i4, itoa_1d_i8
   end interface
   interface ftoa
-    module procedure ftoa_r32, ftoa_r64, ftoa_1d_r32, ftoa_1d_r64
+    module procedure ftoa_r32, ftoa_r64, ftoa_r128, ftoa_1d_r32, ftoa_1d_r64, ftoa_1d_r128
   end interface
   interface meanval
     module procedure meanval_1d_r4, meanval_2d_r4, meanval_3d_r4, &
@@ -144,7 +144,7 @@ module m_helper_functions
     module procedure cross_3d_r32, cross_3d_r64
   end interface
   interface angle_between_two_vec
-    module procedure angle_between_two_vec_r32, angle_between_two_vec_r64
+    module procedure angle_between_two_vec_r32, angle_between_two_vec_r64, angle_between_two_vec_r128
   end interface
   interface compute_normal_3d
     module procedure compute_normal_3d_r32, compute_normal_3d_r64
@@ -174,7 +174,7 @@ module m_helper_functions
   end interface
 
   interface solve_quadratic
-    module procedure solve_quadratic_r32, solve_quadratic_r64
+    module procedure solve_quadratic_r32, solve_quadratic_r64, solve_quadratic_r128
   end interface
 
   interface linspace
@@ -354,6 +354,14 @@ module m_helper_functions
       write(tmp,*) i
       res = trim(tmp)
     end function
+    pure function ftoa_r128(i) result(res)
+      character(:),allocatable :: res
+      real(REAL128),intent(in) :: i
+      character(range(i)+2) :: tmp
+      write(tmp,*) i
+      res = trim(tmp)
+    end function
+
     pure function ftoa_1d_r32(i) result(res)
       character(:),allocatable :: res
       real(REAL32),intent(in) :: i(:)
@@ -367,10 +375,22 @@ module m_helper_functions
       enddo
       res = trim(res)
     end function
-
     pure function ftoa_1d_r64(i) result(res)
       character(:),allocatable :: res
       real(REAL64),intent(in) :: i(:)
+      character(range(i)+2) :: tmp
+      integer :: digit
+      res = ''
+      res = ''
+      do digit = 1, size(i)
+        write(tmp,*) i(digit)
+        res = res//trim(tmp)//' '
+      enddo
+      res = trim(res)
+    end function
+    pure function ftoa_1d_r128(i) result(res)
+      character(:),allocatable :: res
+      real(REAL128),intent(in) :: i(:)
       character(range(i)+2) :: tmp
       integer :: digit
       res = ''
@@ -454,6 +474,12 @@ module m_helper_functions
       real(REAL64),intent(in) :: deg
       r = deg * pi64 / 180
     end function
+    elemental function deg2rad_r128(deg) result(r)
+      real(REAL128) :: r
+      real(REAL128),intent(in) :: deg
+      r = deg * pi128 / 180
+    end function
+
     elemental function rad2deg_r32(rad) result(r)
       real(REAL32) :: r
       real(REAL32),intent(in) :: rad
@@ -463,6 +489,11 @@ module m_helper_functions
       real(REAL64) :: r
       real(REAL64),intent(in) :: rad
       r = rad / pi64 * 180
+    end function
+    elemental function rad2deg_r128(rad) result(r)
+      real(REAL128) :: r
+      real(REAL128),intent(in) :: rad
+      r = rad / pi128 * 180
     end function
 
     pure function rmse_r32(a,b) result(rmse)
@@ -1271,6 +1302,26 @@ module m_helper_functions
       dp = max( min(dp, 1._REAL64), -1._REAL64)
       angle_between_two_vec = acos(dp)
     end function
+    function angle_between_two_vec_r128(p1, p2) result(angle_between_two_vec)
+      real(REAL128),intent(in) :: p1(:), p2(:)
+      real(REAL128) :: angle_between_two_vec
+      real(REAL128) :: n1, n2, dp
+      real(REAL128), parameter :: eps = 1._REAL128 + sqrt(epsilon(eps))
+      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
+        angle_between_two_vec = 0
+        return
+      endif
+      n1 = norm2(p1)
+      n2 = norm2(p2)
+      if(any(approx([n1,n2], 0._REAL128))) then
+        call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
+      endif
+
+      dp = dot_product(p1/n1, p2/n2)
+      if(dp.gt.eps.or.dp.lt.-eps) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
+      dp = max( min(dp, 1._REAL128), -1._REAL128)
+      angle_between_two_vec = acos(dp)
+    end function
 
     !> @brief Determine Edge length/ distance between two points
     function distance_r32(p1,p2) result(distance)
@@ -1619,6 +1670,12 @@ module m_helper_functions
       real(ireals) :: M(3,3)
       real(ireals),intent(in) :: angle, rot_axis(3)
       real(ireals) :: s,c,u(3),omc
+      if(norm2(rot_axis).lt.epsilon(rot_axis)) then ! cannot rotate into a zero vec
+        M(:,1) = [1,0,0]
+        M(:,2) = [0,1,0]
+        M(:,3) = [0,0,1]
+        return
+      endif
       u = rot_axis / norm2(rot_axis)
       s=sin(angle)
       c=cos(angle)
@@ -2039,20 +2096,20 @@ pure subroutine solve_quadratic_r32(a, b, c, x, ierr)
     return
   endif
 
-  if (b.lt.0) then
-    q = -.5_REAL32*(b - sqrt(dis))
+  if (b.eq.0) then
+    q = sqrt(abs(c)/abs(a))
+    x(:) = [q, -q]
   else
-    q = -.5_REAL32*(b + sqrt(dis))
+    if (b.ge.0) then
+      q = -b - sqrt(dis)
+    else
+      q = -b + sqrt(dis)
+    endif
+    x(:) = [2*c/q, q/(2*a)]
   endif
-  x(1) = q/a
-  if(abs(q).lt.epsilon(q)) then
-    x(2) = x(1)
-  else
-    x(2) = c/q
-  endif
+
   if(x(1).gt.x(2)) x = [x(2), x(1)]
 end subroutine
-
 pure subroutine solve_quadratic_r64(a, b, c, x, ierr)
   real(kind=REAL64),intent(in) :: a,b,c
   real(kind=REAL64),dimension(2), intent(out) :: x
@@ -2067,12 +2124,44 @@ pure subroutine solve_quadratic_r64(a, b, c, x, ierr)
     return
   endif
 
-  if (b.lt.0) then
-    q = -.5_REAL64*(b - sqrt(dis))
+  if (b.eq.0) then
+    q = sqrt(abs(c)/abs(a))
+    x(:) = [q, -q]
+  else if (b.gt.0) then
+    q = -b - sqrt(dis)
+    x(:) = [q/(2*a), 2*c/q]
   else
-    q = -.5_REAL64*(b + sqrt(dis))
+    q = -b + sqrt(dis)
+    x(:) = [2*c/q, q/(2*a)]
   endif
-  x(:) = [ q/a, c/q ]
+
+  if(x(1).gt.x(2)) x = [x(2), x(1)]
+end subroutine
+pure subroutine solve_quadratic_r128(a, b, c, x, ierr)
+  real(kind=REAL128),intent(in) :: a,b,c
+  real(kind=REAL128),dimension(2), intent(out) :: x
+  integer(mpiint), intent(out) :: ierr
+
+  real(kind=REAL128) :: q ,dis
+  ierr = 0
+
+  dis = b**2 - 4*a*c
+  if (dis.lt.0) then
+    ierr = 1
+    return
+  endif
+
+  if (b.eq.0) then
+    q = sqrt(abs(c)/abs(a))
+    x(:) = [q, -q]
+  else if (b.gt.0) then
+    q = -b - sqrt(dis)
+    x(:) = [q/(2*a), 2*c/q]
+  else
+    q = -b + sqrt(dis)
+    x(:) = [2*c/q, q/(2*a)]
+  endif
+
   if(x(1).gt.x(2)) x = [x(2), x(1)]
 end subroutine
 

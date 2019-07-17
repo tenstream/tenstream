@@ -36,7 +36,7 @@ subroutine test_eddington(this)
     enddo
 
     do itau=-100,40
-      tau = 10._ireals**(itau/10.)
+      tau = 10._ireals**(real(itau, ireals)/10)
       do k=1, Nlay
         call B_eff(Blev(k), Blev(k+1), tau, B)
         !print *,tau, k,Blev(k), Blev(k+1), B, is_between(B,Blev(k), Blev(k+1))
@@ -44,10 +44,9 @@ subroutine test_eddington(this)
       enddo
     enddo
 
-
     ! make sure that this also works in reverse
     do itau=-100,40
-      tau = 10._ireals**(itau/10.)
+      tau = 10._ireals**(real(itau, ireals)/10)
       do k=1, Nlay
         call B_eff(Blev(k+1), Blev(k), tau, B)
         !print *,tau, k,Blev(k), Blev(k+1), B, is_between(B,Blev(k), Blev(k+1))

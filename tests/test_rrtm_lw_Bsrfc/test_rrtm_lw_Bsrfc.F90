@@ -133,7 +133,7 @@ contains
     ptskin(1:size(tskin)) => tskin
 
     do iter = 0, 30, 10
-      tskin = 288 + iter
+      tskin = real(288 + iter, ireals)
       call setup_tenstr_atm(comm, .False., atm_filename, &
         pplev, ptlev, atm, &
         d_lwc=plwc, d_reliq=preliq, &

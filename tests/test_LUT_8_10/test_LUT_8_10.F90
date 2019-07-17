@@ -1,6 +1,7 @@
 module test_LUT_8_10
   use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
-  use m_data_parameters, only : mpiint, ireals, irealLUT, iintegers, &
+  use m_data_parameters, only : mpiint, iintegers, &
+    ireals, irealLUT, ireal_dp, &
     init_mpi_data_parameters, i1, default_str_len
   use m_optprop_LUT, only : t_optprop_LUT_8_10
   use m_tenstream_options, only: read_commandline_options
@@ -203,13 +204,13 @@ contains
         print*,taux, tauz
         do src=1,8
 
-          call bmc_8_10%get_coeff(comm,real([kabs,ksca,g], ireals), &
+          call bmc_8_10%get_coeff(comm,real([kabs,ksca,g], ireal_dp), &
             src, .True., &
-            real(phi, ireals), &
-            real(theta, ireals), &
-            real(vertices,ireals), &
+            real(phi, ireal_dp), &
+            real(theta, ireal_dp), &
+            real(vertices,ireal_dp), &
             S_target,T_target,S_tol,T_tol, &
-            inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
+            inp_atol=real(atol, ireal_dp), inp_rtol=real(rtol, ireal_dp))
 
           ! Rearrange coeffs from dst_ordering to src ordering:
           BMC_dir2diff(src : 8*10 : 8) = S_target
@@ -249,13 +250,13 @@ contains
         call OPP%LUT_get_diff2diff([tauz, w0, g, tauz/taux], LUT_diff2diff)
         do src=1,10
 
-          call bmc_8_10%get_coeff(comm,real([kabs,ksca,g], ireals), &
+          call bmc_8_10%get_coeff(comm,real([kabs,ksca,g], ireal_dp), &
             src, .False., &
-            real(phi, ireals), &
-            real(theta, ireals), &
-            real(vertices,ireals), &
+            real(phi, ireal_dp), &
+            real(theta, ireal_dp), &
+            real(vertices,ireal_dp), &
             S_target,T_target,S_tol,T_tol, &
-            inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
+            inp_atol=real(atol, ireal_dp), inp_rtol=real(rtol, ireal_dp))
 
           ! Rearrange coeffs from dst_ordering to src ordering:
           BMC_diff2diff(src : 10*10 : 10) = S_target

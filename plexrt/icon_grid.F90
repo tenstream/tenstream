@@ -67,6 +67,8 @@ module m_icon_grid
       logical,allocatable :: ladj_cell(:)
       integer(iintegers),allocatable :: par_cnt(:), iowner(:), unique_owner(:)
 
+      allocate(unique_owner(0))
+
       if(.not.allocated(icongrid)) stop 'distribute_icon_grid :: global icongrid not allocated!'
       allocate(local_icongrid)
 

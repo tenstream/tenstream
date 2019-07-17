@@ -16,7 +16,8 @@ module m_icon_plex_utils
   implicit none
 
   private
-  public :: dmplex_2D_to_3D, create_2d_fish_plex, dump_ownership, &
+  public :: dmplex_2D_to_3D, dump_ownership, &
+    create_2d_fish_plex, create_2d_regular_plex, &
     gen_2d_plex_from_icongridfile, icon_hdcp2_default_hhl, &
     icon_ncvec_to_plex, &
     Nz_Ncol_vec_to_celldm1, Nz_Ncol_vec_to_horizface1_dm, &
@@ -932,6 +933,256 @@ module m_icon_plex_utils
               z = 100
             x = (real(modulo(j,i2),ireals)*.5_ireals + real(i, ireals))*dx
             y = real(j, ireals) * ds
+
+            call PetscSectionGetOffset(coordSection, iv, voff, ierr); call CHKERR(ierr)
+            if(ldebug) print *,myid,'iv',iv,':', i, j,': voff',voff,'=>', x, y, z
+            coords(voff+1:voff+3) = [x, y, z]
+          enddo
+
+          call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+          call DMSetCoordinatesLocal(dm, coordinates, ierr);call CHKERR(ierr)
+          call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_plex_coordinates", ierr); call CHKERR(ierr)
+          call VecDestroy(coordinates, ierr); call CHKERR(ierr)
+          if(ldebug) call mpi_barrier(comm, ierr)
+        end subroutine
+      end subroutine
+
+    ! Create a 2D Regular grid with Nx vertices horizontally and Ny rows of Vertices vertically
+    subroutine create_2d_regular_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf, opt_dx)
+      integer(mpiint), intent(in) :: comm
+      integer(iintegers), intent(in) :: Nx, Ny
+      type(tDM), intent(out) :: dm, dmdist
+      type(tPetscSF), intent(out), optional :: opt_migration_sf
+      real(ireals), intent(in), optional :: opt_dx
+
+      type(tPetscSF) :: migration_sf
+
+      integer(iintegers) :: chartsize, Nfaces, Nedges, Nvertices
+
+      integer(iintegers) :: pStart, pEnd
+      integer(iintegers) :: fStart, fEnd
+      integer(iintegers) :: eStart, eEnd
+      integer(iintegers) :: vStart, vEnd
+
+      integer(mpiint) :: myid, numnodes, ierr
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+
+      if(Nx.le.i1) call CHKERR(1_mpiint, 'Nx has to be at least 2')
+      if(Ny.le.i1) call CHKERR(1_mpiint, 'Ny has to be at least 2')
+
+      if(myid.eq.0) then
+          Nfaces = (Nx-1) * (Ny-1) * 2      ! Number of faces
+          Nvertices = Nx * Ny               ! Number of vertices
+          Nedges = (Nx-1) * (Ny-1) + Nx * (Ny-1) + Ny * (Nx-1)
+      else
+        Nfaces = 0
+        Nedges = 0
+        Nvertices = 0
+      endif
+      if(ldebug) then
+        print *, myid, 'Nfaces', Nfaces
+        print *, myid, 'Nedges', Nedges
+        print *, myid, 'Nverts', Nvertices
+      endif
+
+      call DMPlexCreate(comm, dm, ierr); call CHKERR(ierr)
+      call PetscObjectSetName(dm, 'sh_testplex_Nx'//itoa(Nx)//'_Ny'//itoa(Ny), ierr); call CHKERR(ierr)
+      call DMSetDimension(dm, i2, ierr); call CHKERR(ierr)
+
+      chartsize = Nfaces + Nedges + Nvertices
+      call DMPlexSetChart(dm, i0, chartsize, ierr); call CHKERR(ierr)
+
+      call set_wedge_connectivity(dm, Nx, Nfaces, Nedges)
+
+      call DMPlexSymmetrize(dm, ierr); call CHKERR(ierr)
+      call DMPlexStratify(dm, ierr); call CHKERR(ierr)
+
+      call set_coords_serial(dm, Nx)
+
+      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_2d_fish", ierr); call CHKERR(ierr)
+
+      call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
+      call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+      call DMPlexGetHeightStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
+      call DMPlexGetHeightStratum(dm, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+
+      if(ldebug) then
+        print *,'pStart,End serial :: ',pStart, pEnd
+        print *,'fStart,End serial :: ',fStart, fEnd
+        print *,'eStart,End serial :: ',eStart, eEnd
+        print *,'vStart,End serial :: ',vStart, vEnd
+      endif
+
+      call DMSetBasicAdjacency(dm, PETSC_TRUE, PETSC_FALSE, ierr); call CHKERR(ierr)
+
+      call DMPlexDistribute(dm, i0, migration_sf, dmdist, ierr); call CHKERR(ierr)
+      if(dmdist.ne.PETSC_NULL_DM) then
+        call PetscObjectViewFromOptions(migration_sf, PETSC_NULL_SF, &
+          '-show_migration_sf', ierr); call CHKERR(ierr)
+
+        call DMPlexGetChart(dmdist, pStart, pEnd, ierr); call CHKERR(ierr)
+        call DMPlexGetHeightStratum(dmdist, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+        call DMPlexGetHeightStratum(dmdist, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
+        call DMPlexGetHeightStratum(dmdist, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+
+        if(ldebug) then
+          print *,myid,'pStart,End distributed:: ',pStart, pEnd
+          print *,myid,'fStart,End distributed:: ',fStart, fEnd
+          print *,myid,'eStart,End distributed:: ',eStart, eEnd
+          print *,myid,'vStart,End distributed:: ',vStart, vEnd
+        endif
+
+        call PetscObjectViewFromOptions(dmdist, PETSC_NULL_DM, &
+          '-show_migrated_dm', ierr); call CHKERR(ierr)
+
+      else
+        migration_sf = PETSC_NULL_SF
+        call DMClone(dm, dmdist, ierr); call CHKERR(ierr)
+      endif
+
+      if(present(opt_migration_sf)) opt_migration_sf = migration_sf
+
+      contains
+
+        subroutine set_wedge_connectivity(dm, Nx, Nfaces, Nedges)
+          type(tDM) :: dm
+          integer(iintegers) :: Nx, Nfaces, Nedges
+
+          integer(iintegers) :: k, i, j, ioff, cone3(3), cone2(2)
+          integer(iintegers) :: verts_per_row, edge_per_row, horiz_edges_per_row, bot_edges_per_row
+
+          verts_per_row = Nx
+          bot_edges_per_row = Nx-1
+          horiz_edges_per_row = Nx + Nx-1
+          edge_per_row = bot_edges_per_row + horiz_edges_per_row
+          if(ldebug) print *,'bot_edges_per_row, horiz_edges_per_row, edge_per_row', bot_edges_per_row, horiz_edges_per_row, edge_per_row
+
+          ! Preallocation
+          ! Faces have 3 edges
+          ioff = 0
+          do k = 1, Nfaces
+            call DMPlexSetConeSize(dm, ioff, i3, ierr); call CHKERR(ierr)
+            ioff = ioff + 1
+          enddo
+          ! Edges have 2 vertices
+          do k = 1, Nedges
+            call DMPlexSetConeSize(dm, ioff, i2, ierr); call CHKERR(ierr)
+            ioff = ioff + 1
+          enddo
+
+          call DMSetUp(dm, ierr); call CHKERR(ierr) ! Allocate space for cones
+
+          if(chartsize.lt.i1) return
+
+          ioff = 0
+          do j=0,Ny-2
+            do i=0,Nx-2
+              ! this has a bot edge
+              cone3(1) = Nfaces + j*edge_per_row + i                           ! bot edge
+              cone3(3) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2     ! left edge
+              cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 +1  ! center edge
+              if(ldebug) print *,'face',ioff,': i,j', i, j, 'edges', cone3
+              call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
+              ioff = ioff + 1
+
+              ! this has a top edge
+              cone3(3) = Nfaces + (j+1)*edge_per_row + i                       ! top edge
+              cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row + (i+1)*2 ! left edge
+              cone3(1) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 +1  ! center edge
+              if(ldebug) print *,'face',ioff,': i,j', i, j, 'edges', cone3
+              call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
+              ioff = ioff + 1
+            enddo
+          enddo
+
+          do j=0,Ny-1
+            do i=0,Nx-2 ! verts of horizontal edges
+              k = Nfaces + j*edge_per_row + i
+              cone2(1) = Nfaces + Nedges + j*verts_per_row + i
+              cone2(2) = Nfaces + Nedges + j*verts_per_row + i + 1
+              call DMPlexSetCone(dm, k, cone2, ierr); call CHKERR(ierr)
+              if(ldebug) print *,'edge',k,': i,j', i, j, 'verts', cone2
+            enddo
+          enddo
+
+          do j=0,Ny-2
+            do i=0,Nx-1 ! verts of vertical edges
+              k = Nfaces + j*edge_per_row + bot_edges_per_row + i*2
+              cone2(1) = Nfaces + Nedges + (j  )*verts_per_row + i
+              cone2(2) = Nfaces + Nedges + (j+1)*verts_per_row + i
+              call DMPlexSetCone(dm,  k, cone2, ierr); call CHKERR(ierr)
+              if(ldebug) print *,'edge',k,': i,j', i, j, 'verts', cone2
+            enddo
+          enddo
+
+          do j=0,Ny-2
+            do i=0,Nx-2 ! verts of center edges
+              k = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 + 1
+              cone2(1) = Nfaces + Nedges + (j  )*verts_per_row + i + 1
+              cone2(2) = Nfaces + Nedges + (j+1)*verts_per_row + i
+              call DMPlexSetCone(dm,  k, cone2, ierr); call CHKERR(ierr)
+              if(ldebug) print *,'edge',k,': i,j', i, j, 'verts', cone2
+            enddo
+          enddo
+
+        end subroutine
+
+        subroutine set_coords_serial(dm, Nx)
+          type(tDM) :: dm
+          integer(iintegers), intent(in) :: Nx
+          real(ireals), pointer:: coords(:)
+          type(tVec)           :: coordinates
+          integer(iintegers)   :: coordSize, vStart, vEnd, voff
+          type(tPetscSection)  :: coordSection
+          integer(iintegers)   :: iv, i, j
+
+          real(ireals) :: dx, dy, ds
+          real(ireals) :: x, y, z
+
+          integer(iintegers) :: vert_per_row
+          vert_per_row = Nx
+
+          dx = get_arg(1._ireals, opt_dx)
+          dy = dx
+          ds = sqrt(dy**2 - (dx/2)**2)
+
+          if(ldebug) call mpi_barrier(comm, ierr)
+          call DMGetCoordinateSection(dm, coordSection, ierr); call CHKERR(ierr)
+
+          call PetscSectionSetNumFields(coordSection, i1, ierr); call CHKERR(ierr)
+          call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+          call PetscSectionSetFieldComponents(coordSection, i0, i3, ierr); call CHKERR(ierr)
+
+          call DMPlexGetDepthStratum (dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+
+          call PetscSectionSetChart(coordSection, vStart, vEnd, ierr);call CHKERR(ierr)
+
+          do i = vStart, vEnd-1
+            call PetscSectionSetDof(coordSection, i, i3, ierr); call CHKERR(ierr)
+            call PetscSectionSetFieldDof(coordSection, i, i0, i3, ierr); call CHKERR(ierr)
+          enddo
+
+          call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
+          call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
+          print *,myid,'Coord Section has size:', coordSize
+
+          call VecCreate(comm, coordinates, ierr); call CHKERR(ierr)
+          call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
+          call VecSetBlockSize(coordinates, i3, ierr);call CHKERR(ierr)
+          call VecSetType(coordinates, VECSTANDARD, ierr);call CHKERR(ierr)
+
+          call PetscObjectSetName(coordinates, "coordinates", ierr); call CHKERR(ierr)
+
+          call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+
+          do iv = vStart, vEnd-1
+              j = (iv-vStart) / vert_per_row
+              i = (iv-vStart) - j*vert_per_row
+              z = 100
+            x = real(i, ireals) * dx
+            y = real(j, ireals) * dy
 
             call PetscSectionGetOffset(coordSection, iv, voff, ierr); call CHKERR(ierr)
             if(ldebug) print *,myid,'iv',iv,':', i, j,': voff',voff,'=>', x, y, z

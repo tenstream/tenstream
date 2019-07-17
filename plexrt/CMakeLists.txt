@@ -31,3 +31,7 @@ install(TARGETS gen_plex_from_icon DESTINATION bin)
 add_executable( gen_fish_plex gen_fish_plex.F90 )
 target_link_libraries( gen_fish_plex plexrt ${EXTLIB} ${USERLIB} ${LIBS})
 install(TARGETS gen_fish_plex DESTINATION bin)
+
+add_executable( gen_regular_plex gen_regular_plex.F90 )
+target_link_libraries( gen_regular_plex plexrt ${EXTLIB} ${USERLIB} ${LIBS})
+install(TARGETS gen_regular_plex DESTINATION bin)

@@ -1,7 +1,7 @@
 module test_boxmc_3_6
   use m_boxmc, only : t_boxmc, t_boxmc_3_6
   use m_data_parameters, only :     &
-    mpiint, ireals, iintegers,      &
+    mpiint, iintegers, ireals, ireal_dp, &
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
@@ -10,17 +10,17 @@ module test_boxmc_3_6
   use pfunit_mod
   implicit none
 
-  real(ireals) :: bg(3), phi,theta,dx,dy,dz
+  real(ireal_dp) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(6),T(3), S_target(6), T_target(3)
   real(ireals) :: S_tol(6),T_tol(3)
-  real(ireals), allocatable :: vertices(:)
+  real(ireal_dp), allocatable :: vertices(:)
 
   type(t_boxmc_3_6) :: bmc_3_6
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-2
-  ! real(ireals),parameter :: atol=1e-4, rtol=1e-3
+  real(ireal_dp),parameter :: atol=1e-3, rtol=1e-2
+  ! real(ireal_dp),parameter :: atol=1e-4, rtol=1e-3
 contains
 
   @before
@@ -61,10 +61,10 @@ contains
   subroutine test_boxmc_select_cases_direct_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, one/2 ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 1._ireal_dp/2 ]
 
     ! from top to bot face
     phi = 0; theta = 0
@@ -74,7 +74,7 @@ contains
     S_target = zero
 
     T_target = zero
-    T_target(1) = exp(-tau)
+    T_target(1) = real(exp(-tau), ireals)
 
     src = 1
     call bmc_3_6%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
@@ -86,21 +86,21 @@ contains
   subroutine test_boxmc_select_cases_direct_srctopface_45(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, one/2 ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 1._ireal_dp/2 ]
 
     ! outwards from face 2
-    phi = 0; theta = 45*one
+    phi = 0; theta = 45*1._ireal_dp
 
-    tau = (bg(1)+bg(2)) * dz * sqrt(2*one)
+    tau = (bg(1)+bg(2)) * dz * sqrt(2*1._ireal_dp)
 
     S_target = zero
 
     T_target = zero
-    T_target(1) = exp(-tau)/2
-    T_target(3) = (1-exp(-tau))/(2*tau)
+    T_target(1) = real(exp(-tau)/2, ireals)
+    T_target(3) = real((1-exp(-tau))/(2*tau), ireals)
     
     src = 1
 
@@ -113,10 +113,10 @@ contains
   subroutine test_boxmc_select_cases_direct_srcsidefaces(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src, iphi
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, one/2 ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 1._ireal_dp/2 ]
 
 
     ! along each of the side faces
@@ -127,10 +127,10 @@ contains
     S_target = zero
 
     T_target = zero
-    T_target(1) = (sinh(tau)-cosh(tau)+1)/tau
+    T_target(1) = real( (sinh(tau)-cosh(tau)+1)/tau, ireals)
 
     do iphi=0,360,30
-      phi = real(iphi, ireals)
+      phi = real(iphi, ireal_dp)
       do src = 2,3
         call bmc_3_6%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_srcsidefaces')
@@ -143,10 +143,10 @@ contains
   subroutine test_boxmc_select_cases_diff_srctopface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, zero ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
     ! outwards from face 2
     phi = 0; theta = 0
@@ -154,7 +154,7 @@ contains
     tau = (bg(1)+bg(2)) * dz
 
     S_target = zero
-    S_target = [zero, 0.242562*one, 0.177445*one, 0.177294*one, 0.177382*one, 0.177347*one]
+    S_target = [0., 0.242562, 0.177445, 0.177294, 0.177382, 0.177347]
 
 
     T_target = zero
@@ -169,10 +169,10 @@ contains
   subroutine test_boxmc_select_cases_diff_srcbottomface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, zero ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
     ! outwards from face 2
     phi = 0; theta = 0
@@ -181,7 +181,7 @@ contains
 
     T_target = zero
 
-    S_target = [0.242562*one, zero, 0.177445*one, 0.177294*one, 0.177382*one, 0.177347*one]
+    S_target = [0.242562, 0., 0.177445, 0.177294, 0.177382, 0.177347]
 
 
 
@@ -189,7 +189,7 @@ contains
     call bmc_3_6%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbottomface')
 
-    S_target = [zero, 0.242562*one, 0.177445*one, 0.177294*one, 0.177382*one, 0.177347*one]
+    S_target = [0., 0.242562, 0.177445, 0.177294, 0.177382, 0.177347]
    !src = 1
    !call bmc_3_6%get_coeff(comm,bg,src,.False.,phi,theta,1e3_ireals, 1e3_ireals, 1e2_ireals,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
    !call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbottomface')
@@ -199,10 +199,10 @@ contains
   subroutine test_boxmc_select_cases_diff_srcsideface(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! direct to diffuse tests
-    bg  = [1e-3_ireals, zero, zero ]
+    bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
     ! outwards from face 2
     phi = 0; theta = 0
@@ -235,7 +235,7 @@ contains
   subroutine check(S_target,T_target, S,T, msg)
     real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
 
-    real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
+    real(ireal_dp),parameter :: sigma = 3 ! normal test range for coefficients
 
     character(len=*),optional :: msg
     character(default_str_len) :: local_msgS, local_msgT
@@ -263,11 +263,11 @@ contains
       print*,'---------------------'
       print*,''
 
-      @assertEqual(S_target, S, atol*sigma, local_msgS )
+      @assertEqual(S_target, S, real(atol*sigma, ireals), local_msgS )
       @assertLessThanOrEqual   (zero, S)
       @assertGreaterThanOrEqual(one , S)
 
-      @assertEqual(T_target, T, atol*sigma, local_msgT )
+      @assertEqual(T_target, T, real(atol*sigma, ireals), local_msgT )
       @assertLessThanOrEqual   (zero, T)
       @assertGreaterThanOrEqual(one , T)
     endif

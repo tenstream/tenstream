@@ -18,7 +18,7 @@
 !-------------------------------------------------------------------------
 
 module m_boxmc_geometry
-
+  use iso_fortran_env, only: REAL32, REAL64
   use m_data_parameters, only : mpiint, iintegers, ireals, ireal_dp, one, zero
   use m_helper_functions, only : CHKERR, itoa, compute_normal_3d, angle_between_two_vec
   use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, &
@@ -27,6 +27,13 @@ module m_boxmc_geometry
     triangle_intersection, square_intersection
 
   implicit none
+
+  interface setup_default_unit_cube_geometry
+    module procedure setup_default_unit_cube_geometry_r32, setup_default_unit_cube_geometry_r64
+  end interface
+  interface setup_default_wedge_geometry
+    module procedure setup_default_wedge_geometry_r32, setup_default_wedge_geometry_r64
+  end interface
 
   contains
     ! Defining related geometric variables given the following vertex coordinates
@@ -108,9 +115,36 @@ module m_boxmc_geometry
       vertices(22:23) = D
       vertices([15,18,21,24]) = dz
     end subroutine
-    pure subroutine setup_default_unit_cube_geometry(dx, dy, dz, vertices)
-      real(ireals), intent(in) :: dx, dy, dz
-      real(ireals), allocatable, intent(inout) :: vertices(:)
+    pure subroutine setup_default_unit_cube_geometry_r32(dx, dy, dz, vertices)
+      real(REAL32), intent(in) :: dx, dy, dz
+      real(REAL32), allocatable, intent(inout) :: vertices(:)
+      real(kind=kind(dx)), parameter :: zero=0
+
+      if(allocated(vertices)) then
+        if(size(vertices).ne.2*4*3) then
+          deallocate(vertices)
+          allocate(vertices(2*4*3))
+        endif
+      else
+        allocate(vertices(2*4*3))
+      endif
+      vertices( 1: 2) = [zero,zero]
+
+      vertices( 4: 5) = [  dx,zero]
+      vertices( 7: 8) = [zero,  dy]
+      vertices(10:11) = [  dx,  dy]
+      vertices([3,6,9,12]) = zero
+
+      vertices(13:14) = [zero,zero]
+      vertices(16:17) = [  dx,zero]
+      vertices(19:20) = [zero,  dy]
+      vertices(22:23) = [  dx,  dy]
+      vertices([15,18,21,24]) = dz
+    end subroutine
+    pure subroutine setup_default_unit_cube_geometry_r64(dx, dy, dz, vertices)
+      real(REAL64), intent(in) :: dx, dy, dz
+      real(REAL64), allocatable, intent(inout) :: vertices(:)
+      real(kind=kind(dx)), parameter :: zero=0
 
       if(allocated(vertices)) then
         if(size(vertices).ne.2*4*3) then
@@ -204,11 +238,55 @@ module m_boxmc_geometry
       endif
     end subroutine
 
-    subroutine setup_default_wedge_geometry(A, B, C, dz, vertices, sphere_radius)
-      real(ireals), intent(in) :: A(2), B(2), C(2), dz
-      real(ireals), allocatable, intent(inout) :: vertices(:)
-      real(ireals), intent(in), optional :: sphere_radius
-      real(ireals) :: s, center(3)
+    subroutine setup_default_wedge_geometry_r32(A, B, C, dz, vertices, sphere_radius)
+      real(REAL32), intent(in) :: A(2), B(2), C(2), dz
+      real(REAL32), allocatable, intent(inout) :: vertices(:)
+      real(REAL32), intent(in), optional :: sphere_radius
+      real(REAL32) :: s, center(3)
+
+      if(allocated(vertices)) deallocate(vertices)
+      allocate(vertices(2*3*3))
+      vertices(1:2) = A
+      vertices(4:5) = B
+      vertices(7:8) = C
+      vertices([3,6,9]) = zero
+
+      vertices(10:11) = A
+      vertices(13:14) = B
+      vertices(16:17) = C
+      vertices([12,15,18]) = dz
+
+      !print *,'A', vertices(1:3)
+      !print *,'B', vertices(4:6)
+      !print *,'C', vertices(7:9)
+      !print *,'D', vertices(10:12)
+      !print *,'E', vertices(13:15)
+      !print *,'F', vertices(16:18)
+
+      if(present(sphere_radius)) then
+        if(sphere_radius.gt.zero) then
+          s = (sphere_radius + dz) / sphere_radius
+          associate(D=>vertices(10:12), E=>vertices(13:15), F=>vertices(16:18))
+            center = (D+E+F)/3
+            D = center + s * (D - center)
+            E = center + s * (E - center)
+            F = center + s * (F - center)
+          end associate
+          !print *,'center', center, 's', s
+          !print *,'sA', vertices(1:3)
+          !print *,'sB', vertices(4:6)
+          !print *,'sC', vertices(7:9)
+          !print *,'sD', vertices(10:12)
+          !print *,'sE', vertices(13:15)
+          !print *,'sF', vertices(16:18)
+        endif
+      endif
+    end subroutine
+    subroutine setup_default_wedge_geometry_r64(A, B, C, dz, vertices, sphere_radius)
+      real(REAL64), intent(in) :: A(2), B(2), C(2), dz
+      real(REAL64), allocatable, intent(inout) :: vertices(:)
+      real(REAL64), intent(in), optional :: sphere_radius
+      real(REAL64) :: s, center(3)
 
       if(allocated(vertices)) deallocate(vertices)
       allocate(vertices(2*3*3))
@@ -249,8 +327,9 @@ module m_boxmc_geometry
       endif
     end subroutine
     subroutine setup_default_unit_wedge_geometry(dx, dy, dz, vertices)
-      real(ireals), intent(in) :: dx, dy, dz
-      real(ireals), allocatable, intent(inout) :: vertices(:)
+      real(ireal_dp), intent(in) :: dx, dy, dz
+      real(ireal_dp), allocatable, intent(inout) :: vertices(:)
+      real(ireal_dp), parameter :: zero=0
 
       if(allocated(vertices)) deallocate(vertices)
       allocate(vertices(2*3*3))

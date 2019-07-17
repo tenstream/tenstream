@@ -138,6 +138,7 @@ contains
     lwc = 0
     reliq = 10
 
+    icld = -1
     cld_lwc = 0e-2
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-lwc", cld_lwc, lflg, ierr)
     do j=1,nyp
@@ -232,13 +233,15 @@ contains
         print *,'TOA :: upward fl  ', eup (1,1,1)
         print *,'TOA :: absorption ', abso(1,1,1)
 
-        if(allocated(edir)) &
-          print *,'icloud :: direct flux  ', edir(nlev-icld  ,1,1)
-        if(allocated(edir)) &
-          print *,'icloud+1 :: direct flux', edir(nlev-icld+1,1,1)
-        print *,'icloud :: downw flux   ', edn (nlev-icld+1,1,1)
-        print *,'icloud :: upward fl    ', eup (nlev-icld  ,1,1)
-        print *,'icloud :: absorption   ', abso(nlev-icld  ,1,1)
+        if(all(icld.ne.-1)) then
+          if(allocated(edir)) then
+            print *,'icloud :: direct flux  ', edir(nlev-icld  ,1,1)
+            print *,'icloud+1 :: direct flux', edir(nlev-icld+1,1,1)
+          endif
+          print *,'icloud :: downw flux   ', edn (nlev-icld+1,1,1)
+          print *,'icloud :: upward fl    ', eup (nlev-icld  ,1,1)
+          print *,'icloud :: absorption   ', abso(nlev-icld  ,1,1)
+        endif
       endif
 
       outpath(1) = 'out_pprts_hill.nc'

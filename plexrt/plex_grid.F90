@@ -10,7 +10,8 @@ module m_plex_grid
     imp_bcast, itoa, ftoa, imp_allreduce_max, &
     rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
 
-  use m_data_parameters, only : ireals, irealLUT, iintegers, mpiint, zero, one, pi, &
+  use m_data_parameters, only : ireals, irealLUT, ireal_params, &
+    iintegers, mpiint, zero, one, pi, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
 
   use m_icon_grid, only : t_icongrid, ICONULL
@@ -1265,7 +1266,7 @@ module m_plex_grid
 
       real(ireals) :: side_face_normal_projected_on_upperface(3,3)
 
-      real(irealLUT) :: rparam_phi, rparam_theta
+      real(ireal_params) :: rparam_phi, rparam_theta
 
       integer(iintegers) :: geom_offset, iedge
       integer(iintegers), target :: points(2)
@@ -1414,11 +1415,11 @@ module m_plex_grid
       local_normal_right= matmul(MrotWorld2Local, face_normals(:, right_face))
 
       call param_phi_param_theta_from_phi_and_theta_withnormals(&
-        real(local_normal_base, irealLUT), &
-        real(local_normal_left, irealLUT), &
-        real(local_normal_right, irealLUT),&
-        real(Cx, irealLUT), real(Cy, irealLUT), &
-        real(azimuth, irealLUT), real(zenith, irealLUT), &
+        real(local_normal_base , ireal_params), &
+        real(local_normal_left , ireal_params), &
+        real(local_normal_right, ireal_params), &
+        real(Cx, ireal_params), real(Cy, ireal_params), &
+        real(azimuth, ireal_params), real(zenith, ireal_params), &
         rparam_phi, rparam_theta, ierr); call CHKERR(ierr)
 
 
@@ -1475,17 +1476,17 @@ module m_plex_grid
       endif
 
       ! Snap param_phi to the correct side
-      if(approx(rparam_phi, -1._irealLUT, 100*epsilon(rparam_phi))) then
+      if(approx(rparam_phi, -1._ireal_params, 100*epsilon(rparam_phi))) then
         if(lsrc(left_face)) then
-          rparam_phi = -1._irealLUT-param_eps
+          rparam_phi = -1._ireal_params-param_eps
         else
-          rparam_phi = -1._irealLUT+param_eps
+          rparam_phi = -1._ireal_params+param_eps
         endif
-      elseif(approx(rparam_phi, +1._irealLUT, 100*epsilon(rparam_phi))) then
+      elseif(approx(rparam_phi, +1._ireal_params, 100*epsilon(rparam_phi))) then
         if(lsrc(right_face)) then
-          rparam_phi = 1._irealLUT+param_eps
+          rparam_phi = 1._ireal_params+param_eps
         else
-          rparam_phi = 1._irealLUT-param_eps
+          rparam_phi = 1._ireal_params-param_eps
         endif
       endif
 
@@ -2098,6 +2099,7 @@ module m_plex_grid
         Nvertices = i4
 
       case default
+        vertices => vertices3 ! to get rid of -Werror=maybe-uninitialized
         print *,'Computation of face normal not implemented for faces with ',Nedges,'edges/vertices'
         call CHKERR(1_mpiint, 'Invalid number of edges for face normal computation')
       end select

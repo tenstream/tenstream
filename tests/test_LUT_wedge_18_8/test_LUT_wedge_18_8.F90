@@ -1,6 +1,7 @@
 module test_LUT_wedge_18_8
   use m_boxmc, only : t_boxmc_wedge_18_8
-  use m_data_parameters, only : mpiint, ireals, irealLUT, iintegers, &
+  use m_data_parameters, only : ireals, irealLUT, ireal_params, ireal_dp, &
+    iintegers, mpiint, &
     init_mpi_data_parameters, default_str_len, &
     i1, i2, i3, i4, i5
   use m_optprop_LUT, only : t_optprop_LUT_wedge_18_8, find_lut_dim_by_name, &
@@ -98,7 +99,7 @@ contains
     Cy = 0.8660254037844386_irealLUT
 
     phi = -0._irealLUT
-    param_phi = param_phi_from_azimuth(deg2rad(phi), [Cx, Cy])
+    param_phi = real(param_phi_from_azimuth(deg2rad(real(phi, ireal_params)), real([Cx, Cy], ireal_params)), irealLUT)
     call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], d2d1)
     call print_dir2dir(d2d1)
 
@@ -121,9 +122,10 @@ contains
         integer(iintegers) :: rev_pti(size(sample_pts))
         integer(iintegers) :: kdim, ind1d
 
-        real(ireals), allocatable :: vertices(:)
-        real(ireals) :: tauz, w0, g, phi, theta
+        real(ireal_dp), allocatable :: vertices(:)
+        real(irealLUT) :: tauz, w0, g, phi, theta
         logical, parameter :: dir=.True.
+        logical :: lvalid_entry
         integer(iintegers) :: isrc
 
         do kdim = 1, size(sample_pts)
@@ -135,7 +137,7 @@ contains
 
 
         call OPPLUT%LUT_bmc_wrapper_determine_sample_pts(OPPLUT%dirconfig, ind1d, dir, &
-          vertices, tauz, w0, g, phi, theta)
+          vertices, tauz, w0, g, phi, theta, lvalid_entry)
 
         do isrc = 1, Ndir
           call OPPLUT%bmc_wrapper(isrc, vertices, &
@@ -254,11 +256,12 @@ contains
                       w0     = LUTconfig%dims(idim_w0    )%v(iw0)
                       g      = g_dim(ig)
                       aspect = LUTconfig%dims(idim_aspect)%v(iaspect)
-                      param_phi    = LUTconfig%dims(idim_param_phi   )%v(iparam_phi)
+                      param_phi = LUTconfig%dims(idim_param_phi   )%v(iparam_phi)
                       theta  = LUTconfig%dims(idim_theta )%v(itheta)
                       Cx     = LUTconfig%dims(idim_Cx    )%v(iCx)
                       Cy     = LUTconfig%dims(idim_Cy    )%v(iCy)
-                      phi = rad2deg(azimuth_from_param_phi(param_phi, [Cx,Cy]))
+                      phi    =real(rad2deg(azimuth_from_param_phi(&
+                        real(param_phi, ireal_params), real([Cx,Cy], ireal_params))), irealLUT)
 
                       call OPPLUT%LUT_get_dir2dir ([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2dir)
                       call OPPLUT%LUT_get_dir2diff([tau, w0, aspect, Cx, Cy, param_phi, theta], LUT_dir2diff)
@@ -276,13 +279,13 @@ contains
                         ksca = w0 * tau / dz
 
                         call bmc%get_coeff(comm,&
-                          real([kabs,ksca,g], ireals), &
+                          real([kabs,ksca,g], ireal_dp), &
                           isrc, .True., &
-                          real(phi, ireals), &
-                          real(theta, ireals), &
-                          real(vertices,ireals), &
+                          real(phi, ireal_dp), &
+                          real(theta, ireal_dp), &
+                          real(vertices,ireal_dp), &
                           S_target,T_target,S_tol,T_tol, &
-                          inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
+                          inp_atol=real(atol, ireal_dp), inp_rtol=real(rtol, ireal_dp))
 
                         err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), real(T_target, irealLUT))
                         if(err(1).ge.sigma*atol .or. err(2).ge.sigma*rtol) then

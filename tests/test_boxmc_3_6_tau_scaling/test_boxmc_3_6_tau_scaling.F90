@@ -1,7 +1,7 @@
 module test_boxmc_3_6_tau_scaling
   use m_boxmc, only : t_boxmc, t_boxmc_3_6
   use m_data_parameters, only :     &
-    mpiint, ireals, iintegers,      &
+    mpiint, iintegers, ireals, ireal_dp, &
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
@@ -11,20 +11,20 @@ module test_boxmc_3_6_tau_scaling
   use pfunit_mod
   implicit none
 
-  real(ireals) :: bg(3), phi,theta,dx,dy,dz
+  real(ireal_dp) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(6),T(3), S_target(6), T_target(3)
   real(ireals) :: S_tol(6),T_tol(3)
-  real(ireals), allocatable :: vertices(:)
+  real(ireal_dp), allocatable :: vertices(:)
 
   type(t_boxmc_3_6) :: bmc_3_6
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
   character(len=120) :: msg
 
-  real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
+  real(ireal_dp),parameter :: sigma = 3 ! normal test range for coefficients
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-2
-  !real(ireals),parameter :: atol=1e-5, rtol=1e-3
+  real(ireal_dp),parameter :: atol=1e-3, rtol=1e-2
+  !real(ireal_dp),parameter :: atol=1e-5, rtol=1e-3
 contains
 
   @before
@@ -61,20 +61,20 @@ contains
   subroutine test_boxmc_tau_scaling3(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! from top to bot face
     phi = 0; theta = 0
 
     ! direct to diffuse tests
-    bg  = [1e-4_ireals, 1e-1_ireals, zero ]
+    bg  = [1e-4_ireal_dp, 1e-1_ireal_dp, 0._ireal_dp ]
 
     tau = (bg(1)+bg(2)) * dz
 
     S_target = [4.99310E-01, 1.03362E-01, 9.60417E-02, 9.60534E-02, 9.60340E-02, 9.60392E-02]
 
     T_target = zero
-    T_target(1) = exp(-tau)
+    T_target(1) = real(exp(-tau), ireals)
 
     src = 1
     call bmc_3_6%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, &
@@ -86,13 +86,13 @@ contains
   subroutine test_boxmc_tau_scaling1(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! from top to bot face
     phi = 0; theta = 0
 
     ! direct to diffuse tests
-    bg  = [1e-9_ireals, 1e-3_ireals, zero ]
+    bg  = [1e-9_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
 
     tau = (bg(1)+bg(2)) * dz
 
@@ -100,7 +100,7 @@ contains
     S_target(3:6) = (6.10860E-03 + 6.07660E-03 + 6.12260E-03 + 6.14420E-03)/4
 
     T_target = zero
-    T_target(1) = exp(-tau)
+    T_target(1) = real(exp(-tau), ireals)
 
     src = 1
     call bmc_3_6%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, &
@@ -112,13 +112,13 @@ contains
   subroutine test_boxmc_tau_scaling2(this)
     class (MpiTestMethod), intent(inout) :: this
     integer(iintegers) :: src
-    real(ireals) :: tau
+    real(ireal_dp) :: tau
 
     ! from top to bot face
     phi = 0; theta = 0
 
     ! direct to diffuse tests
-    bg  = [1e-30_ireals, 1e-5_ireals/dz, zero ]
+    bg  = [1e-30_ireal_dp, 1e-5_ireal_dp/dz, 0._ireal_dp ]
 
     tau = (bg(1)+bg(2)) * dz
 
@@ -127,7 +127,7 @@ contains
       + 1.24400E-06 + 1.23000E-06 + 1.28000E-06 + 1.26000E-06)/8
 
     T_target = zero
-    T_target(1) = exp(-tau)
+    T_target(1) = real(exp(-tau), ireals)
 
     src = 1
     call bmc_3_6%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, &
@@ -165,11 +165,11 @@ contains
       print*,'---------------------'
       print*,''
 
-      @assertEqual(S_target, S, atol*sigma, local_msgS )
+      @assertEqual(S_target, S, real(atol*sigma, ireals), local_msgS )
       @assertLessThanOrEqual   (zero, S)
       @assertGreaterThanOrEqual(one , S)
 
-      @assertEqual(T_target, T, atol*sigma, local_msgT )
+      @assertEqual(T_target, T, real(atol*sigma, ireals), local_msgT )
       @assertLessThanOrEqual   (zero, T)
       @assertGreaterThanOrEqual(one , T)
     endif

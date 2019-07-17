@@ -330,96 +330,23 @@ contains
       phi0, theta0, vertices, &
       ret_S_out, ret_T_out, &
       ret_S_tol,ret_T_tol, &
-      inp_atol, inp_rtol)
-    class(t_boxmc)                :: bmc             !< @param[in] bmc Raytracer Type - determines number of streams
-    real(ireals),intent(in)       :: op_bg(3)        !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
-    real(ireals),intent(in)       :: phi0            !< @param[in] phi0 solar azimuth angle
-    real(ireals),intent(in)       :: theta0          !< @param[in] theta0 solar zenith angle
-    integer(iintegers),intent(in) :: src             !< @param[in] src stream from which to start photons - see init_photon routines
-    integer(mpiint),intent(in)    :: comm            !< @param[in] comm MPI Communicator
-    logical,intent(in)            :: ldir            !< @param[in] ldir determines if photons should be started with a fixed incidence angle
-    real(ireals),intent(in)       :: vertices(:)     !< @param[in] vertex coordinates of box with dimensions in [m]
-    real(ireals),intent(out)      :: ret_S_out(:)    !< @param[out] S_out diffuse streams transfer coefficients
-    real(ireals),intent(out)      :: ret_T_out(:)    !< @param[out] T_out direct streams transfer coefficients
-    real(ireals),intent(out)      :: ret_S_tol(:)    !< @param[out] absolute tolerances of results
-    real(ireals),intent(out)      :: ret_T_tol(:)    !< @param[out] absolute tolerances of results
-    real(ireals),intent(in),optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
-    real(ireals),intent(in),optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
-
-    !real(ireals) :: tmp_T_out(size(ret_T_out))
-    !real(ireals) :: tmp_T_tol(size(ret_T_tol))
-
-    !real(ireals) :: tau_scaling
-    !logical :: check_tol_dir, check_tol_diff
-
-    !if(ldir) then
-    !  check_tol_dir=.True.
-    !  check_tol_diff=.False.
-    !  tau_scaling = 10
-
-    !  call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
-    !    phi0, theta0, vertices, &
-    !    ret_S_out, ret_T_out, &
-    !    ret_S_tol, ret_T_tol, &
-    !    inp_atol=inp_atol, inp_rtol=inp_rtol, inp_tau_scaling=tau_scaling, &
-    !    inp_check_tol_dir=check_tol_dir, inp_check_tol_diff=check_tol_diff)
-
-    !  !print *,'Tdir', ret_T_out
-    !  !print *,'Sdir', ret_S_out
-    !  !print *,'Ttol', ret_T_tol
-    !  !print *,'Stol', ret_S_tol
-    !else
-    !  ret_T_out = zero
-    !  ret_T_tol = zero
-    !endif
-
-    !check_tol_dir=.False.
-    !check_tol_diff=.True.
-    !tau_scaling = one ! max(.6_ireals, min(2._ireals, one-(log10(vertices(size(vertices))*op_bg(2))/-10._ireals) )) ! Turns out this is not such a good idea because with Importance Sampling we get values gt one which violates energy conservation constraints
-    !!print *,'tauscaling:', tau_scaling
-    !call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
-    !  phi0, theta0, vertices, &
-    !  ret_S_out, tmp_T_out, &
-    !  ret_S_tol, tmp_T_tol, &
-    !  inp_atol=inp_atol, inp_rtol=inp_rtol, inp_tau_scaling=tau_scaling, &
-    !  inp_check_tol_dir=check_tol_dir, inp_check_tol_diff=check_tol_diff)
-
-
-    call get_coeff_internal(bmc, comm, op_bg, src, ldir, &
-      phi0, theta0, vertices, &
-      ret_S_out, ret_T_out, &
-      ret_S_tol, ret_T_tol, &
-      inp_atol=inp_atol, inp_rtol=inp_rtol)
-
-    !print *,'bmc inp', src, op_bg, ldir, phi0, theta0, ':', vertices
-    !print *,'Tdir', ret_T_out
-    !print *,'Sdir', ret_S_out
-    !print *,'Ttol', tmp_T_tol
-    !print *,'Stol', ret_S_tol
-  end subroutine
-
-
-  subroutine get_coeff_internal(bmc, comm, op_bg, src, ldir, &
-      phi0, theta0, vertices, &
-      ret_S_out, ret_T_out, &
-      ret_S_tol,ret_T_tol, &
       inp_atol, inp_rtol, inp_tau_scaling, &
       inp_check_tol_dir, inp_check_tol_diff)
     class(t_boxmc)                :: bmc             !< @param[in] bmc Raytracer Type - determines number of streams
-    real(ireals),intent(in)       :: op_bg(3)        !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
-    real(ireals),intent(in)       :: phi0            !< @param[in] phi0 solar azimuth angle
-    real(ireals),intent(in)       :: theta0          !< @param[in] theta0 solar zenith angle
+    real(ireal_dp),intent(in)     :: op_bg(3)        !< @param[in] op_bg optical properties have to be given as [kabs,ksca,g]
+    real(ireal_dp),intent(in)     :: phi0            !< @param[in] phi0 solar azimuth angle
+    real(ireal_dp),intent(in)     :: theta0          !< @param[in] theta0 solar zenith angle
     integer(iintegers),intent(in) :: src             !< @param[in] src stream from which to start photons - see init_photon routines
     integer(mpiint),intent(in)    :: comm            !< @param[in] comm MPI Communicator
     logical,intent(in)            :: ldir            !< @param[in] ldir determines if photons should be started with a fixed incidence angle
-    real(ireals),intent(in)       :: vertices(:)     !< @param[in] vertex coordinates of box with dimensions in [m]
+    real(ireal_dp),intent(in)     :: vertices(:)     !< @param[in] vertex coordinates of box with dimensions in [m]
     real(ireals),intent(out)      :: ret_S_out(:)    !< @param[out] S_out diffuse streams transfer coefficients
     real(ireals),intent(out)      :: ret_T_out(:)    !< @param[out] T_out direct streams transfer coefficients
     real(ireals),intent(out)      :: ret_S_tol(:)    !< @param[out] absolute tolerances of results
     real(ireals),intent(out)      :: ret_T_tol(:)    !< @param[out] absolute tolerances of results
-    real(ireals),intent(in),optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
-    real(ireals),intent(in),optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
-    real(ireals),intent(in),optional :: inp_tau_scaling !< @param[in] inp_tau_scaling if given, determines a roulette factor which may be used to enhance unlikely paths, e.g. to force diffuse radiation computations for low optical thicknesses
+    real(ireal_dp),intent(in),optional :: inp_atol     !< @param[in] inp_atol if given, determines targeted absolute stddeviation
+    real(ireal_dp),intent(in),optional :: inp_rtol     !< @param[in] inp_rtol if given, determines targeted relative stddeviation
+    real(ireal_dp),intent(in),optional :: inp_tau_scaling !< @param[in] inp_tau_scaling if given, determines a roulette factor which may be used to enhance unlikely paths, e.g. to force diffuse radiation computations for low optical thicknesses
     logical, intent(in), optional :: inp_check_tol_dir, inp_check_tol_diff ! default: True, adhere to the tolerance checks for direct or diffuse tolerances
 
     real(ireal_dp) :: S_out(bmc%diff_streams)
@@ -439,10 +366,10 @@ contains
 
     call mpi_comm_size(comm, numnodes, mpierr); call chkerr(mpierr)
 
-    atol = get_arg(stddev_atol, inp_atol)
-    rtol = get_arg(stddev_rtol, inp_rtol)
+    atol = get_arg(real(stddev_atol, ireal_dp), inp_atol)
+    rtol = get_arg(real(stddev_rtol, ireal_dp), inp_rtol)
 
-    tau_scaling = get_arg(1._ireals, inp_tau_scaling)
+    tau_scaling = get_arg(1._ireal_dp, inp_tau_scaling)
     check_tol_dir = get_arg(.True., inp_check_tol_dir)
     check_tol_diff = get_arg(.True., inp_check_tol_diff)
 

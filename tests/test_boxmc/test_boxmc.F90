@@ -1,7 +1,7 @@
 module test_boxmc
   use m_boxmc, only : t_boxmc,t_boxmc_8_10,t_boxmc_1_2,t_boxmc_3_10
   use m_data_parameters, only :     &
-    mpiint, ireals, iintegers,      &
+    mpiint, iintegers, ireals, ireal_dp, &
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
@@ -10,16 +10,16 @@ module test_boxmc
   use pfunit_mod
   implicit none
 
-  real(ireals) :: bg(3), phi,theta,dx,dy,dz
+  real(ireal_dp) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(10),T(8), S_target(10), T_target(8)
   real(ireals) :: S_tol(10),T_tol(8)
-  real(ireals), allocatable :: vertices(:)
+  real(ireal_dp), allocatable :: vertices(:)
 
   type(t_boxmc_8_10) :: bmc_8_10
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-2, rtol=1e-1
+  real(ireal_dp),parameter :: atol=1e-2, rtol=1e-1
 contains
 
   @before
@@ -147,11 +147,11 @@ contains
         print*,'---------------------'
         print*,''
 
-        @assertEqual(S_target, S, atol*sigma, local_msgS )
+        @assertEqual(S_target, S, real(atol,ireals)*sigma, local_msgS )
         @assertLessThanOrEqual   (zero, S)
         @assertGreaterThanOrEqual(one , S)
 
-        @assertEqual(T_target, T, atol*sigma, local_msgT )
+        @assertEqual(T_target, T, real(atol,ireals)*sigma, local_msgT )
         @assertLessThanOrEqual   (zero, T)
         @assertGreaterThanOrEqual(one , T)
       endif

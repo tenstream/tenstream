@@ -1,7 +1,7 @@
 module test_wedge_boxmc_5_8_spherical
   use m_boxmc, only : t_boxmc,t_boxmc_wedge_5_8
   use m_data_parameters, only :     &
-    mpiint, ireals, iintegers,      &
+    mpiint, iintegers, ireals, ireal_dp, &
     one, zero, i1, default_str_len, &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
@@ -11,7 +11,7 @@ module test_wedge_boxmc_5_8_spherical
   use pfunit_mod
   implicit none
 
-  real(ireals) :: bg(3), phi,theta,dx,dy,dz
+  real(ireal_dp) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(8),T(5), S_target(8), T_target(5)
   real(ireals) :: S_tol(8),T_tol(5)
 
@@ -19,8 +19,8 @@ module test_wedge_boxmc_5_8_spherical
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-2
-  !real(ireals),parameter :: atol=1e-4, rtol=1e-2
+  real(ireal_dp),parameter :: atol=1e-3, rtol=1e-2
+  !real(ireal_dp),parameter :: atol=1e-4, rtol=1e-2
 contains
 
   @before
@@ -61,29 +61,29 @@ contains
   subroutine test_boxmc_spherical_direct_src1(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=1
-      real(ireals), allocatable :: sverts(:)
-      real(ireals) :: Atop, Abot
-      real(ireals),parameter :: R = 6374e1_ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp) :: Atop, Abot
+      real(ireal_dp),parameter :: R = 6374e1_ireal_dp
 
-      call setup_default_wedge_geometry([zero, zero], [dx, zero], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([0._ireal_dp, 0._ireal_dp], [dx, 0._ireal_dp], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       Abot = triangle_area_by_vertices(sverts(1:3), sverts(4:6), sverts(7:9))
       Atop = triangle_area_by_vertices(sverts(10:12), sverts(13:15), sverts(16:18))
 
       ! direct to diffuse tests, straight down
-      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp/2 ]
 
       phi = 0; theta = 0
       T_target = zero
-      T_target(5) = exp(-(bg(1)+bg(2))*dz) * Abot / Atop
+      T_target(5) = real(exp(-(bg(1)+bg(2))*dz) * Abot / Atop, ireals)
       T_target(2:4) = 0.06665
       S_target = [0.0026, 0.0055, 0.0016, 0.0056, 0.0016, 0.0056, 0.0016, 0.0175]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_direct_src1_2')
 
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
       S_target = [0.009, 0.0046, 0.0040, 0.0046, 0.0040, 0.0046, 0.0040, 0.0071]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
@@ -94,29 +94,29 @@ contains
   subroutine test_boxmc_spherical_direct_src5(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=5
-      real(ireals), allocatable :: sverts(:)
-      real(ireals) :: Atop, Abot
-      real(ireals),parameter :: R = 6374e1_ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp) :: Atop, Abot
+      real(ireal_dp),parameter :: R = 6374e1_ireal_dp
 
-      call setup_default_wedge_geometry([zero, zero], [dx, zero], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([0._ireal_dp, 0._ireal_dp], [dx, 0._ireal_dp], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       Abot = triangle_area_by_vertices(sverts(1:3), sverts(4:6), sverts(7:9))
       Atop = triangle_area_by_vertices(sverts(10:12), sverts(13:15), sverts(16:18))
 
       ! direct to diffuse tests, straight down
-      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp/2 ]
 
       phi = 0; theta = 180
       T_target = zero
-      T_target(1) = exp(-(bg(1)+bg(2))*dz) * Abot / Atop
+      T_target(1) = real(exp(-(bg(1)+bg(2))*dz) * Abot / Atop, ireals)
       T_target(2:4) = 0.06665
       S_target = [0.0175, 0.0016, 0.0055, 0.0016, 0.0055, 0.0016, 0.0055, 0.0026]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_direct_src1_2')
 
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
       S_target = [0.0071, 0.0040, 0.0046, 0.0040, 0.0046, 0.0040, 0.0046, 0.0090]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
@@ -127,16 +127,16 @@ contains
   subroutine test_boxmc_spherical_direct_src2(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=2
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374._ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374._ireal_dp
 
-      call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([-dx/2, 0._ireal_dp], [dx/2, 0._ireal_dp], [0._ireal_dp,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       ! straight outwards from face 2
       phi = 0; theta = 90
 
-      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp/2 ]
       T_target = zero
       T_target([3,4]) = 0.4548_ireals
 
@@ -146,7 +146,7 @@ contains
         S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_direct_src2_2')
 
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
       S_target = [0.015, 0.0029, 0.0065, 0.0063, 0.0027, 0.0063, 0.0027, 0.0015]
 
       call bmc_wedge_5_8%get_coeff(comm, bg, src, .True., phi, theta, sverts, &
@@ -158,16 +158,16 @@ contains
   subroutine test_boxmc_spherical_direct_src3(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=3
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374._ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374._ireal_dp
 
-      call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([-dx/2, 0._ireal_dp], [dx/2, 0._ireal_dp], [0._ireal_dp,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       ! straight outwards from face 2
       phi = 120; theta = 90
 
-      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp/2 ]
       T_target = zero
       T_target([2,4]) = 0.4548_ireals
 
@@ -177,7 +177,7 @@ contains
         S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_direct_src3_2')
 
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
       S_target = [0.015, 0.0063, 0.0027, 0.0029, 0.0065, 0.0063, 0.0027, 0.0015]
 
       call bmc_wedge_5_8%get_coeff(comm, bg, src, .True., phi, theta, sverts, &
@@ -189,16 +189,16 @@ contains
   subroutine test_boxmc_spherical_direct_src4(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=4
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374._ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374._ireal_dp
 
-      call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([-dx/2, 0._ireal_dp], [dx/2, 0._ireal_dp], [0._ireal_dp,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       ! straight outwards from face 2
       phi = 240; theta = 90
 
-      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp/2 ]
       T_target = zero
       T_target([2,3]) = 0.4548_ireals
 
@@ -208,7 +208,7 @@ contains
         S, T, S_tol, T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_direct_src4_2')
 
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
       S_target = [0.015, 0.0063, 0.0027, 0.0063, 0.0027, 0.0029, 0.0065, 0.0015]
 
       call bmc_wedge_5_8%get_coeff(comm, bg, src, .True., phi, theta, sverts, &
@@ -220,16 +220,16 @@ contains
   subroutine test_boxmc_spherical_diffuse_src1(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=1
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374e1_ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374e1_ireal_dp
 
-      call setup_default_wedge_geometry([zero, zero], [dx, zero], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([0._ireal_dp, 0._ireal_dp], [dx, 0._ireal_dp], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       T_target = zero
 
       ! direct to diffuse tests, straight down
-      bg  = [1e-3_ireals, zero, one/2 ]
+      bg  = [1e-3_ireal_dp, 0._ireal_dp, 1._ireal_dp/2 ]
 
       S_target = [0.0000, 0.2455, 0.0015, 0.2455, 0.0015, 0.2455, 0.0015, 0.2220]
 
@@ -237,13 +237,13 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src1_1')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, one ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp ]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src1_2')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp/2 ]
 
       S_target = [0.0041, 0.2437, 0.0033, 0.2437, 0.0033, 0.2437, 0.0033, 0.2179]
 
@@ -255,16 +255,16 @@ contains
   subroutine test_boxmc_spherical_diffuse_src2(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=2
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374e1_ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374e1_ireal_dp
 
-      call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([-dx/2, 0._ireal_dp], [dx/2, 0._ireal_dp], [0._ireal_dp,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       T_target = zero
 
       ! direct to diffuse tests, straight down
-      bg  = [1e-3_ireals, zero, zero ]
+      bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
       S_target = [0.0019, 0.0000, 0.0000, 0.2362, 0.0712, 0.2362, 0.0712, 0.3474]
 
@@ -272,13 +272,13 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src2_1')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, one ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp ]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src2_2')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
 
       S_target = [0.0075, 0.0043, 0.0052, 0.2301, 0.0716, 0.2302, 0.0716, 0.3435]
 
@@ -290,16 +290,16 @@ contains
   subroutine test_boxmc_spherical_diffuse_src3(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=3
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374e1_ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374e1_ireal_dp
 
-      call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([-dx/2, 0._ireal_dp], [dx/2, 0._ireal_dp], [0._ireal_dp,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       T_target = zero
 
       ! direct to diffuse tests, straight down
-      bg  = [1e-3_ireals, zero, zero ]
+      bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
       S_target = [0.4775, 0.0000, 0.0000, 0.0000, 0.2450, 0.0000, 0.2450, 0.0000]
 
@@ -307,13 +307,13 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src3_1')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, one ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp ]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src3_2')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
 
       S_target = [0.4702, 0.0047, 0.0043, 0.0029, 0.2388, 0.0029, 0.2388, 0.0042]
 
@@ -325,16 +325,16 @@ contains
   subroutine test_boxmc_spherical_diffuse_src4(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=4
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374e1_ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374e1_ireal_dp
 
-      call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([-dx/2, 0._ireal_dp], [dx/2, 0._ireal_dp], [0._ireal_dp,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       T_target = zero
 
       ! direct to diffuse tests, straight down
-      bg  = [1e-3_ireals, zero, zero ]
+      bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
       S_target = [0.0019, 0.2362, 0.0712, 0.0000, 0.0000, 0.2362, 0.0712, 0.3474]
 
@@ -342,13 +342,13 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src4_1')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, one ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp ]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src4_2')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
 
       S_target = [0.0075, 0.2301, 0.0716, 0.0043, 0.0052, 0.2302, 0.0716, 0.3435]
 
@@ -360,16 +360,16 @@ contains
   subroutine test_boxmc_spherical_diffuse_src5(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=5
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374e1_ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374e1_ireal_dp
 
-      call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([-dx/2, 0._ireal_dp], [dx/2, 0._ireal_dp], [0._ireal_dp,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       T_target = zero
 
       ! direct to diffuse tests, straight down
-      bg  = [1e-3_ireals, zero, zero ]
+      bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
       S_target = [0.4775, 0.0000, 0.2450, 0.0000, 0.0000, 0.0000, 0.2450, 0.0000]
 
@@ -377,13 +377,13 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src5_1')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, one ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp ]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src5_2')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
 
       S_target = [0.4702, 0.0029, 0.2388, 0.0047, 0.0043, 0.0029, 0.2388, 0.0042]
 
@@ -395,16 +395,16 @@ contains
   subroutine test_boxmc_spherical_diffuse_src6(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=6
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374e1_ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374e1_ireal_dp
 
-      call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([-dx/2, 0._ireal_dp], [dx/2, 0._ireal_dp], [0._ireal_dp,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       T_target = zero
 
       ! direct to diffuse tests, straight down
-      bg  = [1e-3_ireals, zero, zero ]
+      bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
       S_target = [0.0019, 0.2362, 0.0712, 0.2362, 0.0712, 0.0000, 0.0000, 0.3474]
 
@@ -412,13 +412,13 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src6_1')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, one ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp ]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src6_2')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
 
       S_target = [0.0075, 0.2301, 0.0716, 0.2302, 0.0716, 0.0043, 0.0052, 0.3435]
 
@@ -430,16 +430,16 @@ contains
   subroutine test_boxmc_spherical_diffuse_src7(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=7
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374e1_ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374e1_ireal_dp
 
-      call setup_default_wedge_geometry([-dx/2, zero], [dx/2, zero], [zero,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([-dx/2, 0._ireal_dp], [dx/2, 0._ireal_dp], [0._ireal_dp,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       T_target = zero
 
       ! direct to diffuse tests, straight down
-      bg  = [1e-3_ireals, zero, zero ]
+      bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
 
       S_target = [0.4775, 0.0000, 0.2450, 0.0000, 0.2450, 0.0000, 0.0000, 0.0000]
 
@@ -447,13 +447,13 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src7_1')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, one ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp ]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src7_2')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, zero ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
 
       S_target = [0.4702, 0.0029, 0.2388, 0.0029, 0.2388, 0.0047, 0.0043, 0.0042]
 
@@ -465,16 +465,16 @@ contains
   subroutine test_boxmc_spherical_diffuse_src8(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=8
-      real(ireals), allocatable :: sverts(:)
-      real(ireals),parameter :: R = 6374e1_ireals
+      real(ireal_dp), allocatable :: sverts(:)
+      real(ireal_dp),parameter :: R = 6374e1_ireal_dp
 
-      call setup_default_wedge_geometry([zero, zero], [dx, zero], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
+      call setup_default_wedge_geometry([0._ireal_dp, 0._ireal_dp], [dx, 0._ireal_dp], [dx/2,sqrt(dy**2 - (dx/2)**2)], &
         dz, sverts, sphere_radius=R/dx)
 
       T_target = zero
 
       ! direct to diffuse tests, straight down
-      bg  = [1e-3_ireals, zero, one/2 ]
+      bg  = [1e-3_ireal_dp, 0._ireal_dp, 1._ireal_dp/2 ]
 
       S_target = [0.2812, 0.0000, 0.268, 0.0000, 0.268, 0.0000, 0.268, 0.0000]
 
@@ -482,13 +482,13 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src8_1')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, one ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp ]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,sverts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_boxmc_spherical_diffuse_src8_2')
 
       ! with strict forward scattering the same as without ksca
-      bg  = [1e-3_ireals, 1e-3_ireals, one/2 ]
+      bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp/2 ]
 
       S_target = [0.2759, 0.0014, 0.2259, 0.0014, 0.2259, 0.0014, 0.2259, 0.0038]
 
@@ -500,7 +500,7 @@ contains
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
 
-      real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
+      real(ireal_dp),parameter :: sigma = 3 ! normal test range for coefficients
 
       character(len=*),optional :: msg
       character(default_str_len) :: local_msgS, local_msgT
@@ -528,11 +528,11 @@ contains
         print*,'---------------------'
         print*,''
 
-        @assertEqual(S_target, S, atol*sigma, local_msgS )
+        @assertEqual(S_target, S, real(atol*sigma, ireals), local_msgS )
         @assertLessThanOrEqual   (zero, S)
         @assertGreaterThanOrEqual(one , S)
 
-        @assertEqual(T_target, T, atol*sigma, local_msgT )
+        @assertEqual(T_target, T, real(atol*sigma, ireals), local_msgT )
         @assertLessThanOrEqual   (zero, T)
         @assertGreaterThanOrEqual(one , T)
       endif

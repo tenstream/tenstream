@@ -38,7 +38,8 @@ use m_netcdfio, only : ncload, ncwrite
 use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, print_tenstr_atm, &
   reff_from_lwc_and_N, hydrostat_plev
 
-use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D, dump_ownership, Nz_Ncol_vec_to_celldm1
+use m_icon_plex_utils, only: create_2d_fish_plex, create_2d_regular_plex, &
+  dmplex_2D_to_3D, dump_ownership, Nz_Ncol_vec_to_celldm1
 
 implicit none
 
@@ -62,7 +63,7 @@ logical, parameter :: ldebug=.True.
 
       type(t_plexgrid), allocatable :: plex
       integer(iintegers), allocatable :: zindex(:)
-      class(t_plex_solver), allocatable :: solver
+    class(t_plex_solver), allocatable :: solver
 
       type(t_tenstr_atm) :: atm
       character(len=default_str_len) :: atm_filename
@@ -73,14 +74,22 @@ logical, parameter :: ldebug=.True.
 
       integer(iintegers) :: solve_iterations, iter
       real(ireals) :: solve_iterations_scale
-      logical :: lflg
+      logical :: lregular_mesh, lflg
 
       real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf, opt_dx=dx)
+      lregular_mesh = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-use_regular_mesh', lregular_mesh, lflg, ierr) ; call CHKERR(ierr)
+      if(lregular_mesh) then
+        call create_2d_regular_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf, opt_dx=dx)
+      else
+        call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf, opt_dx=dx)
+      endif
+
 
       hhl(1) = zero
       do k=2,Nz
@@ -213,7 +222,7 @@ logical, parameter :: ldebug=.True.
 
       call dump_result()
 
-      call destroy_plexrt_solver(solver, lfinalizepetsc=.False.)
+      call destroy_plexrt_rrtmg(solver, lfinalizepetsc=.False.)
 
       contains
         subroutine dump_result()
@@ -232,26 +241,23 @@ logical, parameter :: ldebug=.True.
           call DMRestoreGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
         end subroutine
         subroutine init_sundir()
-          logical :: lflg, lflg_xyz(3)
+          logical :: lflg
           real(ireals) :: first_normal(3)
           integer(mpiint) :: myid, ierr
           real(ireals) :: rot_angle, Mrot(3,3), rot_sundir(3)
+          integer(iintegers) :: argcnt
 
           call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
           first_normal = get_normal_of_first_TOA_face(solver%plex)
 
           sundir = zero
           if(ldebug.and.myid.eq.0) print *,myid, 'determine initial sundirection ...'
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_x", sundir(1), lflg_xyz(1), ierr) ; call CHKERR(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_y", sundir(2), lflg_xyz(2), ierr) ; call CHKERR(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_z", sundir(3), lflg_xyz(3), ierr) ; call CHKERR(ierr)
-          if(any(lflg_xyz)) then
-            if(.not.all(lflg_xyz)) then
-              call CHKERR(1_mpiint, 'sundir needs 3 entries, you have to specify -sundir_x -sundir_y -sundir_z')
-            endif
+          argcnt = 3
+          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir", sundir, argcnt, lflg, ierr) ; call CHKERR(ierr)
+          if(lflg) then
+            call CHKERR(int(argcnt-i3, mpiint), "must provide 3 values for sundir, comma separated, no spaces")
           else
             sundir = first_normal + [zero, +.5_ireals, zero]
-            sundir = sundir/norm2(sundir)
           endif
           sundir = sundir/norm2(sundir)
 
@@ -339,7 +345,7 @@ logical, parameter :: ldebug=.True.
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
     default_options='-polar_coords no'
-    !default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
+    default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
     !default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'

@@ -31,14 +31,15 @@ module m_optprop_LUT
     mpi_logical_and, mpi_logical_or,      &
     CHKERR,                               &
     triangle_area_by_vertices,            &
-    rad2deg,                              &
+    rad2deg, deg2rad,                     &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, &
     linspace
 
   use m_search, only: find_real_location
 
-  use m_data_parameters, only : ireals, iintegers, irealLUT, &
-    one, zero, i0, i1, i2, i3, i10, mpiint, nil, inil,       &
+  use m_data_parameters, only : iintegers, mpiint,           &
+    ireals, ireal_dp, irealLUT, ireal_params,                &
+    one, zero, i0, i1, i2, i3, i10, nil, inil,               &
     imp_iinteger, imp_ireals, imp_irealLUT, imp_logical,     &
     default_str_len
 
@@ -81,15 +82,23 @@ module m_optprop_LUT
   use m_boxmc_geometry, only : setup_default_wedge_geometry, setup_default_unit_cube_geometry
 
   use m_LUT_param_phi, only: param_phi_from_azimuth, azimuth_from_param_phi, &
-    iterative_phi_theta_from_param_phi_and_param_theta
+    iterative_phi_theta_from_param_phi_and_param_theta, param_phi_param_theta_from_phi_and_theta_withcoords
 
   implicit none
 
   private
-  public :: t_optprop_LUT, t_optprop_LUT_1_2, &
-    t_optprop_LUT_3_6, t_optprop_LUT_3_10, t_optprop_LUT_3_16, &
-    t_optprop_LUT_8_10, t_optprop_LUT_8_12, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
-    t_optprop_LUT_wedge_5_8, t_optprop_LUT_wedge_18_8, &
+  public :: t_optprop_LUT, &
+    t_optprop_LUT_1_2, &
+    t_optprop_LUT_3_6, &
+    t_optprop_LUT_3_10, &
+    t_optprop_LUT_3_16, &
+    t_optprop_LUT_8_10, &
+    t_optprop_LUT_8_12, &
+    t_optprop_LUT_8_16, &
+    t_optprop_LUT_8_18, &
+    t_optprop_LUT_wedge_5_8, &
+    t_optprop_LUT_rectilinear_wedge_5_8, &
+    t_optprop_LUT_wedge_18_8, &
     find_lut_dim_by_name, azimuth_from_param_phi, param_phi_from_azimuth
   ! This module loads and generates the LUT-tables for Tenstream Radiation
   ! computations.
@@ -159,6 +168,8 @@ module m_optprop_LUT
   type,extends(t_optprop_LUT) :: t_optprop_LUT_8_18
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_wedge_5_8
+  end type
+  type,extends(t_optprop_LUT) :: t_optprop_LUT_rectilinear_wedge_5_8
   end type
   type,extends(t_optprop_LUT) :: t_optprop_LUT_wedge_18_8
   end type
@@ -242,6 +253,12 @@ contains
             OPP%dir_streams  = 5
             OPP%diff_streams = 8
             OPP%lutbasename=trim(lut_basename)//'_wedge.Rsphere'//itoa(int(wedge_sphere_radius))
+            allocate(t_boxmc_wedge_5_8::OPP%bmc)
+
+          class is (t_optprop_LUT_rectilinear_wedge_5_8)
+            OPP%dir_streams  = 5
+            OPP%diff_streams = 8
+            OPP%lutbasename=trim(lut_basename)//'_rectilinear_wedge'
             allocate(t_boxmc_wedge_5_8::OPP%bmc)
 
           class is (t_optprop_LUT_wedge_18_8)
@@ -829,7 +846,7 @@ subroutine get_sample_pnt_by_name_and_index(config, dimname, index_1d, sample_pn
   type(t_lut_config), intent(in) :: config
   character(len=*), intent(in) :: dimname
   integer(iintegers), intent(in) :: index_1d
-  real(ireals), intent(inout) :: sample_pnt
+  real(irealLUT), intent(inout) :: sample_pnt
   integer(mpiint), intent(out) :: ierr
 
   integer(iintegers) :: kdim, nd_indices(size(config%dims))
@@ -850,16 +867,19 @@ subroutine get_sample_pnt_by_name_and_index(config, dimname, index_1d, sample_pn
 end subroutine
 
 subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
-    vertices, tauz, w0, g, phi, theta)
+    vertices, tauz, w0, g, phi, theta, lvalid_entry)
   class(t_optprop_LUT) :: OPP
   type(t_lut_config), intent(in) :: config
   integer(iintegers), intent(in) :: index_1d
   logical, intent(in) :: dir
-  real(ireals), intent(out), allocatable :: vertices(:)
-  real(ireals), intent(out) :: tauz, w0, g, phi, theta
+  real(ireal_dp), intent(out), allocatable :: vertices(:)
+  real(irealLUT), intent(out) :: tauz, w0, g, phi, theta
+  logical, intent(out) :: lvalid_entry
 
-  real(ireals) :: aspect_zx, aspect_zy
+  real(irealLUT) :: aspect_zx, aspect_zy
   integer(mpiint) :: ierr
+
+  lvalid_entry = .True.
 
   call get_sample_pnt_by_name_and_index(config, 'tau', index_1d, tauz, ierr)
   call CHKERR(ierr, 'tauz has to be present')
@@ -907,27 +927,33 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
     call prep_pprts()
 
   class is (t_optprop_LUT_wedge_5_8)
+    call prep_plexrt(sphere_radius=real(wedge_sphere_radius, ireal_dp))
+
+  class is (t_optprop_LUT_rectilinear_wedge_5_8)
     call prep_plexrt()
 
   class is (t_optprop_LUT_wedge_18_8)
-    call prep_plexrt()
+    call prep_plexrt(sphere_radius=real(wedge_sphere_radius, ireal_dp))
 
   class default
     call CHKERR(1_mpiint, 'unexpected type for optprop_LUT object!')
 end select
 contains
   subroutine prep_pprts()
-    call setup_default_unit_cube_geometry(one, aspect_zx/aspect_zy, aspect_zx, vertices)
+    call setup_default_unit_cube_geometry(1._ireal_dp, &
+      real(aspect_zx/aspect_zy, ireal_dp), real(aspect_zx, ireal_dp), &
+      vertices)
     if(dir) then
       call get_sample_pnt_by_name_and_index(config, 'phi', index_1d, phi, ierr); call CHKERR(ierr, 'phi has to be present for direct calculations')
       call get_sample_pnt_by_name_and_index(config, 'theta', index_1d, theta, ierr); call CHKERR(ierr, 'theta has to be present for direct calculations')
     endif
   end subroutine
-  subroutine prep_plexrt()
-    real(ireals) :: param_phi, param_theta
-    real(ireals), dimension(2) :: wedge_C
-    real(irealLUT) :: rphi, rtheta
-    real(ireals) :: Atop, dz
+  subroutine prep_plexrt(sphere_radius)
+    real(ireal_dp), intent(in), optional :: sphere_radius
+    real(irealLUT) :: param_phi, param_theta
+    real(irealLUT), dimension(2) :: wedge_C
+    real(ireal_params) :: rphi, rtheta
+    real(irealLUT) :: Atop, dz
 
     wedge_C(1) = .5_irealLUT
     call get_sample_pnt_by_name_and_index(config, 'wedge_coord_Cx', index_1d, wedge_C(1), ierr)
@@ -938,22 +964,112 @@ contains
     call CHKERR(ierr, 'wedge_coord_Cy has to be present for wedge calculations')
 
 
-    Atop = triangle_area_by_vertices([zero, zero], [one, zero], wedge_C)
+    Atop = triangle_area_by_vertices([0._irealLUT, 0._irealLUT], [1._irealLUT, 0._irealLUT], wedge_C)
     dz = sqrt(Atop) * aspect_zx
 
-    call setup_default_wedge_geometry([zero, zero], [one, zero], &
-      wedge_C, dz, vertices, &
-      sphere_radius=real(wedge_sphere_radius, ireals))
+    call setup_default_wedge_geometry([0._ireal_dp, 0._ireal_dp], &
+                                      [1._ireal_dp, 0._ireal_dp], &
+                                      real(wedge_C, ireal_dp), &
+                                      real(dz, ireal_dp), &
+                                      vertices, sphere_radius=sphere_radius)
 
     if(dir) then
       call get_sample_pnt_by_name_and_index(config, 'param_phi', index_1d, param_phi, ierr)
       call CHKERR(ierr, 'param_phi has to be present for wedge calculations')
       call get_sample_pnt_by_name_and_index(config, 'param_theta', index_1d, param_theta, ierr)
       call CHKERR(ierr, 'param_theta has to be present for wedge calculations')
-      call iterative_phi_theta_from_param_phi_and_param_theta(real(vertices, irealLUT), &
-        real(param_phi, irealLUT), real(param_theta, irealLUT), rphi, rtheta, ierr); call CHKERR(ierr)
-      phi = rad2deg(rphi)
-      theta = rad2deg(rtheta)
+      call iterative_phi_theta_from_param_phi_and_param_theta(real(vertices, ireal_params), &
+        real(param_phi, ireal_params), real(param_theta, ireal_params), rphi, rtheta, ierr); call CHKERR(ierr)
+      phi   = real(rad2deg(rphi), irealLUT)
+      theta = real(rad2deg(rtheta), irealLUT)
+
+      if(param_theta.le.0._ireals) then
+        if(param_phi.lt.-1._ireals .or. param_phi.gt.1._ireals) then
+          lvalid_entry = .False.
+        endif
+      endif
+    endif
+  end subroutine
+end subroutine
+
+subroutine LUT_bmc_wrapper_validate(OPP, config, index_1d, src, dir, T, S, ierr)
+  class(t_optprop_LUT) :: OPP
+  type(t_lut_config), intent(in) :: config
+  integer(iintegers), intent(in) :: index_1d
+  logical, intent(in) :: dir
+  integer(iintegers), intent(in) :: src
+  real(irealLUT), intent(in), dimension(:) :: T, S
+
+  integer(mpiint), intent(out) :: ierr
+  ierr=0
+
+  if(any(T.lt.0._ireals)) ierr = 10
+  if(any(S.lt.0._ireals)) ierr = 10
+  if(any(T.gt.1._ireals)) ierr = 20
+  if(any(S.gt.1._ireals)) ierr = 20
+
+
+  select type(OPP)
+
+  class is (t_optprop_LUT_wedge_5_8)
+    call validate_plexrt()
+
+  class is (t_optprop_LUT_wedge_18_8)
+    call validate_plexrt()
+
+  class default
+    continue
+end select
+contains
+  subroutine src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
+    real(irealLUT), intent(in) :: param_phi, param_theta
+    logical, intent(out) :: lsrc(:)
+    if(param_theta.le.0._irealLUT) then
+      lsrc(1) = .True.
+      lsrc(2:5) = .False.
+      return
+    endif
+    if(param_phi.lt.-1._irealLUT) then
+      lsrc(1:3) = .True.
+      lsrc(4:5) = .False.
+      return
+    endif
+    if(param_phi.gt.1._irealLUT) then
+      lsrc([1,2,4]) = .True.
+      lsrc([3,5]) = .False.
+      return
+    endif
+    if(param_phi.gt.-1._irealLUT .and. param_phi.lt.1._irealLUT) then
+      lsrc(1:2) = .True.
+      lsrc(3:5) = .False.
+      return
+    endif
+    call CHKERR(1_mpiint, 'should not be here? '// &
+      'param_phi '//ftoa(param_phi)// &
+      'param_theta '//ftoa(param_theta))
+  end subroutine
+  subroutine validate_plexrt()
+    real(irealLUT) :: param_phi, param_theta
+    logical :: lsrc5(5)
+
+    if(dir) then
+      call get_sample_pnt_by_name_and_index(config, 'param_phi', index_1d, param_phi, ierr)
+      call CHKERR(ierr, 'param_phi has to be present for wedge calculations')
+      call get_sample_pnt_by_name_and_index(config, 'param_theta', index_1d, param_theta, ierr)
+      call CHKERR(ierr, 'param_theta has to be present for wedge calculations')
+
+      select type(OPP)
+      class is (t_optprop_LUT_wedge_5_8)
+        associate(lsrc => lsrc5)
+          call src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
+
+          if(lsrc(src)) then ! I am a src face
+            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+1 ! all srcs cannot have any incoming energy
+          else
+            if(any(T.gt.0._irealLUT)) ierr = ierr+1 ! if I am a dst, nobody should get any radiation anyway
+          endif
+        end associate
+      end select
     endif
   end subroutine
 end subroutine
@@ -969,39 +1085,67 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     real(irealLUT),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(irealLUT),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
 
-    real(ireals), allocatable :: vertices(:)
-    real(ireals) :: tauz, w0, g, phi, theta
+    real(ireal_dp), allocatable :: vertices(:)
+    real(irealLUT) :: tauz, w0, g, phi, theta
+    real(ireal_params) :: param_phi, param_theta
+
+    logical :: lvalid
+    integer(mpiint) :: ierr
 
     call OPP%LUT_bmc_wrapper_determine_sample_pts(config, index_1d, dir, &
-      vertices, tauz, w0, g, phi, theta)
+      vertices, tauz, w0, g, phi, theta, lvalid)
+
+    if(.not.lvalid) then
+      S_diff = 0
+      T_dir = 0
+      S_tol = 0
+      T_tol = 0
+      return
+    endif
 
     call bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
 
-    !print *,'LUTBMC :: calling bmc_get_coeff src',src,'tauz',tauz,w0,g,'angles',phi,theta,':ind1d',index_1d
+    call LUT_bmc_wrapper_validate(OPP, config, index_1d, src, dir, T_dir, S_diff, ierr)
+    if(ierr.ne.0) then
+      call param_phi_param_theta_from_phi_and_theta_withcoords(real(vertices, ireal_params), &
+        real(deg2rad(phi), ireal_params), real(deg2rad(theta), ireal_params), &
+        param_phi, param_theta, ierr)
+      print *,'LUTBMC :: calling bmc_get_coeff src',src,'tauz',tauz,w0,g,'angles',phi,theta,&
+        ':ind1d',index_1d, ':',T_dir, '::', S_diff, ': verts', vertices, &
+        'param phi/theta_afterwards', param_phi, param_theta
+      call CHKERR(1_mpiint, 'found bad results for a given geometry')
+    endif
+
+    !print *,'LUTBMC :: calling bmc_get_coeff src',src,'tauz',tauz,w0,g,'angles',phi,theta,&
+    !  ':ind1d',index_1d, ':',T_dir
 end subroutine
 
-subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol, inp_atol, inp_rtol)
+subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, &
+    S_diff, T_dir, S_tol, T_tol, inp_atol, inp_rtol)
     class(t_optprop_LUT) :: OPP
     integer(iintegers),intent(in) :: src
     logical,intent(in) :: dir
     integer(mpiint),intent(in) :: comm
-    real(ireals), intent(in) :: tauz, w0, g, phi, theta
-    real(ireals) :: vertices(:)
+    real(irealLUT), intent(in) :: tauz, w0, g, phi, theta
+    real(ireal_dp) :: vertices(:)
 
     real(irealLUT),intent(out) :: S_diff(OPP%diff_streams),T_dir(OPP%dir_streams)
     real(irealLUT),intent(out) :: S_tol (OPP%diff_streams),T_tol(OPP%dir_streams)
-    real(ireals),intent(in),optional :: inp_atol, inp_rtol
+    real(irealLUT),intent(in),optional :: inp_atol, inp_rtol
     real(ireals) :: rS_diff(OPP%diff_streams),rT_dir(OPP%dir_streams)
     real(ireals) :: rS_tol (OPP%diff_streams),rT_tol(OPP%dir_streams)
 
-    real(ireals) :: bg(3), dz, atol, rtol
+    real(ireal_dp) :: bg(3), dz, atol, rtol
 
-    atol = get_arg(stddev_atol-epsilon(atol)*10, inp_atol)
-    rtol = get_arg(stddev_rtol-epsilon(rtol)*10, inp_rtol)
+    atol = get_arg(stddev_atol, inp_atol)
+    rtol = get_arg(stddev_rtol, inp_rtol)
 
-    dz = vertices(size(vertices))
+    atol = atol-epsilon(atol)*10
+    rtol = rtol-epsilon(rtol)*10
 
-    bg(1) = tauz / dz * (one-w0)
+    dz = real(vertices(size(vertices)), kind(dz))
+
+    bg(1) = tauz / dz * (1._irealLUT-w0)
     bg(2) = tauz / dz * w0
     bg(3) = g
 
@@ -1020,10 +1164,13 @@ subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S
     !print *,'area_ratio:', triangle_area_by_vertices(vertices(1:3), vertices(4:6), vertices(7:9)) &
     !  / triangle_area_by_vertices(vertices(10:12), vertices(13:15), vertices(16:18))
     !call CHKERR(1_mpiint, 'DEBUG')
-    call OPP%bmc%get_coeff(comm, bg, src, &
-      dir, phi, theta, vertices,   &
-      rS_diff, rT_dir, rS_tol, rT_tol, &
-      inp_atol=atol, inp_rtol=rtol )
+    call OPP%bmc%get_coeff(comm, bg, &
+      src, dir, &
+      real(phi, ireal_dp), real(theta, ireal_dp), &
+      vertices,   &
+      rS_diff, rT_dir, &
+      rS_tol, rT_tol, &
+      inp_atol=atol, inp_rtol=rtol)
     S_diff = real(rS_diff, irealLUT)
     T_dir  = real(rT_dir, irealLUT)
     S_tol  = real(rS_tol, irealLUT)
@@ -1210,11 +1357,29 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('param_theta', size(preset_param_theta13, kind=iintegers), OPP%dirconfig%dims(7), preset=preset_param_theta13)
 
           allocate(OPP%diffconfig%dims(5))
-          call populate_LUT_dim('tau',       size(preset_tau20,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau20)
-          call populate_LUT_dim('w0',        i2, OPP%diffconfig%dims(2), vrange=real([.0,.99999], irealLUT))
-          call populate_LUT_dim('aspect_zx', size(preset_aspect7,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect7)
+          call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
+          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
           call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
           call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%diffconfig%dims(5), vrange=real([0.7760254, 0.9560254], irealLUT))
+
+      class is (t_optprop_LUT_rectilinear_wedge_5_8)
+          allocate(OPP%dirconfig%dims(7))
+          call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
+          call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect18,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect18)
+          call populate_LUT_dim('wedge_coord_Cx', 2_iintegers, OPP%dirconfig%dims(4), vrange=real([0.,1.], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 8_iintegers, OPP%dirconfig%dims(5), vrange=real([0.7355054, 1.0440454], irealLUT))
+
+          call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(6), preset=preset_param_phi19)
+          call populate_LUT_dim('param_theta', size(preset_param_theta13, kind=iintegers), OPP%dirconfig%dims(7), preset=preset_param_theta13)
+
+          allocate(OPP%diffconfig%dims(5))
+          call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
+          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
+          call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
+          call populate_LUT_dim('wedge_coord_Cx', 2_iintegers, OPP%diffconfig%dims(4), vrange=real([0.,1.], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 8_iintegers, OPP%diffconfig%dims(5), vrange=real([0.7355054, 1.0440454], irealLUT))
 
       class is (t_optprop_LUT_wedge_18_8)
           allocate(OPP%dirconfig%dims(7))

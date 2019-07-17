@@ -11,17 +11,17 @@ module test_wedge_boxmc_18_8
   use pfunit_mod
   implicit none
 
-  real(ireals) :: bg(3), phi,theta,dx,dy,dz
+  real(ireal_dp) :: bg(3), phi,theta,dx,dy,dz
   real(ireals) :: S(8),T(18), S_target(8), T_target(18)
   real(ireals) :: S_tol(8),T_tol(18)
-  real(ireals), allocatable :: vertices(:)
+  real(ireal_dp), allocatable :: vertices(:)
 
   type(t_boxmc_wedge_18_8) :: bmc_wedge_18_8
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireals),parameter :: atol=1e-3, rtol=1e-2
-  !real(ireals),parameter :: atol=1e-4, rtol=1e-2
+  real(ireal_dp),parameter :: atol=1e-3, rtol=1e-2
+  !real(ireal_dp),parameter :: atol=1e-4, rtol=1e-2
 contains
 
   @before
@@ -50,8 +50,8 @@ contains
       T_target = zero
 
       ! computed target with stddev_atol=5e-6, stddev_rtol=1e-4 in optprop_parameters
-      ! inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) !
-      !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,vertices,S,T,S_tol,T_tol,inp_atol=1e-6_ireals, inp_rtol=1e-4_ireals) ! inp_atol=atol, inp_rtol=rtol)
+      ! inp_atol=1e-6_ireal_dp, inp_rtol=1e-4_ireal_dp) !
+      !    call bmc_8_10%get_coeff(comm,bg,1,.True.,phi,theta,vertices,S,T,S_tol,T_tol,inp_atol=1e-6_ireal_dp, inp_rtol=1e-4_ireal_dp) ! inp_atol=atol, inp_rtol=rtol)
 
   end subroutine setup
 
@@ -76,7 +76,7 @@ contains
 
       do src = 1, 3
         T_target = zero
-        T_target(15+src) = exp(-(bg(1)+bg(2))*dz)
+        T_target(15+src) = real(exp(-(bg(1)+bg(2))*dz), ireals)
         call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
           phi,theta,vertices,S,T,S_tol,T_tol, &
           inp_atol=atol, inp_rtol=rtol)
@@ -89,7 +89,7 @@ contains
       theta = 180
       do src = 16, 18
         T_target = zero
-        T_target(-15+src) = exp(-(bg(1)+bg(2))*dz)
+        T_target(-15+src) = real(exp(-(bg(1)+bg(2))*dz), ireals)
         call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
           phi,theta,vertices,S,T,S_tol,T_tol, &
           inp_atol=atol, inp_rtol=rtol)
@@ -104,7 +104,7 @@ contains
   subroutine test_boxmc_direct_lambert_beer_side_to_bottom(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers) :: src
-      real(ireals) :: tau
+      real(ireal_dp) :: tau
 
       ! direct tests
       bg  = [1e-3, 0., 0. ]
@@ -114,7 +114,7 @@ contains
       tau = (bg(1)+bg(2))*dz / 2
 
       src = 4
-      T_target = zero; T_target(16) = (sinh(tau)-cosh(tau)+1) / tau * exp(-tau)
+      T_target = zero; T_target(16) = real((sinh(tau)-cosh(tau)+1) / tau * exp(-tau), ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -123,7 +123,7 @@ contains
         msg='test_wedgemc_direct_lambert_beer_side_to_bottom '//itoa(src))
 
       src = 5
-      T_target = zero; T_target(17) = (sinh(tau)-cosh(tau)+1) / tau * exp(-tau)
+      T_target = zero; T_target(17) = real((sinh(tau)-cosh(tau)+1) / tau * exp(-tau), ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -134,7 +134,7 @@ contains
 
 
       src = 6
-      T_target = zero; T_target(16) = (sinh(tau)-cosh(tau)+1) / tau
+      T_target = zero; T_target(16) = real((sinh(tau)-cosh(tau)+1) / tau, ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -143,7 +143,7 @@ contains
         msg='test_wedgemc_direct_lambert_beer_side_to_bottom '//itoa(src))
 
       src = 7
-      T_target = zero; T_target(17) = (sinh(tau)-cosh(tau)+1) / tau
+      T_target = zero; T_target(17) = real((sinh(tau)-cosh(tau)+1) / tau, ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -154,7 +154,7 @@ contains
 
       phi = 120
       src = 8
-      T_target = zero; T_target(16) = (sinh(tau)-cosh(tau)+1) / tau * exp(-tau)
+      T_target = zero; T_target(16) = real((sinh(tau)-cosh(tau)+1) / tau * exp(-tau), ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -163,7 +163,7 @@ contains
         msg='test_wedgemc_direct_lambert_beer_side_to_bottom '//itoa(src))
 
       src = 9
-      T_target = zero; T_target(18) = (sinh(tau)-cosh(tau)+1) / tau * exp(-tau)
+      T_target = zero; T_target(18) = real((sinh(tau)-cosh(tau)+1) / tau * exp(-tau), ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -174,7 +174,7 @@ contains
 
 
       src = 10
-      T_target = zero; T_target(16) = (sinh(tau)-cosh(tau)+1) / tau
+      T_target = zero; T_target(16) = real((sinh(tau)-cosh(tau)+1) / tau, ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -183,7 +183,7 @@ contains
         msg='test_wedgemc_direct_lambert_beer_side_to_bottom '//itoa(src))
 
       src = 11
-      T_target = zero; T_target(18) = (sinh(tau)-cosh(tau)+1) / tau
+      T_target = zero; T_target(18) = real((sinh(tau)-cosh(tau)+1) / tau, ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -193,7 +193,7 @@ contains
 
       phi = 240
       src = 12
-      T_target = zero; T_target(18) = (sinh(tau)-cosh(tau)+1) / tau * exp(-tau)
+      T_target = zero; T_target(18) = real((sinh(tau)-cosh(tau)+1) / tau * exp(-tau), ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -202,7 +202,7 @@ contains
         msg='test_wedgemc_direct_lambert_beer_side_to_bottom '//itoa(src))
 
       src = 13
-      T_target = zero; T_target(17) = (sinh(tau)-cosh(tau)+1) / tau * exp(-tau)
+      T_target = zero; T_target(17) = real((sinh(tau)-cosh(tau)+1) / tau * exp(-tau), ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -213,7 +213,7 @@ contains
 
 
       src = 14
-      T_target = zero; T_target(18) = (sinh(tau)-cosh(tau)+1) / tau
+      T_target = zero; T_target(18) = real((sinh(tau)-cosh(tau)+1) / tau, ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -222,7 +222,7 @@ contains
         msg='test_wedgemc_direct_lambert_beer_side_to_bottom '//itoa(src))
 
       src = 15
-      T_target = zero; T_target(17) = (sinh(tau)-cosh(tau)+1) / tau
+      T_target = zero; T_target(17) = real((sinh(tau)-cosh(tau)+1) / tau, ireals)
       call bmc_wedge_18_8%get_coeff(comm,bg,src,.True.,&
         phi,theta,vertices,S,T,S_tol,T_tol, &
         inp_atol=atol, inp_rtol=rtol)
@@ -290,8 +290,7 @@ contains
   subroutine test_wedge_18_equal_areas(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers) :: idx, idy
-      real(ireals), dimension(2) :: A, B, C
-      real(ireals), allocatable :: vertices_ireals(:)
+      real(ireal_dp), dimension(2) :: A, B, C
       real(ireal_dp), allocatable :: vertices(:)
       real(ireal_dp), dimension(3) :: top_center, bot_center, side_center_base, side_center_left, side_center_right
       real(ireal_dp), dimension(3) :: pmAB, pmAC, pmBC, pmDE, pmDF, pmEF
@@ -307,11 +306,10 @@ contains
 
       do idx=1,Nx
         do idy=1,Ny
-          C(1) = .25_ireals + .5_ireals * real(idx-1, ireals) / real(Nx-1, ireals)
-          C(2) = .50_ireals + .5_ireals * real(idy-1, ireals) / real(Ny-1, ireals)
+          C(1) = .25_ireal_dp + .5_ireal_dp * real(idx-1, ireal_dp) / real(Nx-1, ireal_dp)
+          C(2) = .50_ireal_dp + .5_ireal_dp * real(idy-1, ireal_dp) / real(Ny-1, ireal_dp)
 
-          call setup_default_wedge_geometry(A, B, C, dz, vertices_ireals, real(sphere_radius, ireals))
-          vertices = real(vertices_ireals, ireal_dp)
+          call setup_default_wedge_geometry(A, B, C, dz, vertices, sphere_radius)
 
           associate( &
               pA => vertices(1:3), &
@@ -370,7 +368,7 @@ contains
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
 
-      real(ireals),parameter :: sigma = 3 ! normal test range for coefficients
+      real(ireal_dp),parameter :: sigma = 3 ! normal test range for coefficients
 
       character(len=*),optional :: msg
       character(default_str_len) :: local_msgS, local_msgT
@@ -398,11 +396,11 @@ contains
         print*,'---------------------'
         print*,''
 
-        @assertEqual(S_target, S, atol*sigma, local_msgS )
+        @assertEqual(S_target, S, real(atol*sigma, ireals), local_msgS )
         @assertLessThanOrEqual   (zero, S)
         @assertGreaterThanOrEqual(one , S)
 
-        @assertEqual(T_target, T, atol*sigma, local_msgT )
+        @assertEqual(T_target, T, real(atol*sigma, ireals), local_msgT )
         @assertLessThanOrEqual   (zero, T)
         @assertGreaterThanOrEqual(one , T)
       endif

@@ -1,6 +1,7 @@
 module test_LUT_wedge_5_8
   use m_boxmc, only : t_boxmc_wedge_5_8
-  use m_data_parameters, only : mpiint, ireals, irealLUT, iintegers, &
+  use m_data_parameters, only : mpiint, iintegers, &
+    ireals, irealLUT, ireal_dp, &
     init_mpi_data_parameters, default_str_len, &
     i1, i2, i3, i4, i5
   use m_optprop_LUT, only : t_optprop_LUT_wedge_5_8, find_lut_dim_by_name
@@ -188,13 +189,13 @@ contains
                         ksca = w0 * tau / dz
 
                         call bmc%get_coeff(comm,&
-                          real([kabs,ksca,g], ireals), &
+                          real([kabs,ksca,g], ireal_dp), &
                           isrc, .True., &
-                          real(phi, ireals), &
-                          real(theta, ireals), &
-                          real(vertices,ireals), &
+                          real(phi, ireal_dp), &
+                          real(theta, ireal_dp), &
+                          real(vertices,ireal_dp), &
                           S_target,T_target,S_tol,T_tol, &
-                          inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
+                          inp_atol=real(atol, ireal_dp), inp_rtol=real(rtol, ireal_dp))
 
                         err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), real(T_target, irealLUT))
                         if(err(1).ge.sigma*atol .or. err(2).ge.sigma*rtol) then
@@ -294,13 +295,13 @@ contains
                         ksca = w0 * tau / dz
 
                         call bmc%get_coeff(comm,&
-                          real([kabs,ksca,g], ireals), &
+                          real([kabs,ksca,g], ireal_dp), &
                           isrc, .True., &
-                          real(phi, ireals), &
-                          real(theta, ireals), &
-                          real(vertices,ireals), &
+                          real(phi, ireal_dp), &
+                          real(theta, ireal_dp), &
+                          real(vertices,ireal_dp), &
                           S_target,T_target,S_tol,T_tol, &
-                          inp_atol=real(atol, ireals), inp_rtol=real(rtol, ireals))
+                          inp_atol=real(atol, ireal_dp), inp_rtol=real(rtol, ireal_dp))
 
                         err = rmse(LUT_dir2dir(isrc:Ndir**2:Ndir), real(T_target, irealLUT))
                         ! Not really an error if they dont match, its an interpolation in the end, discrepancies might be ok if the
