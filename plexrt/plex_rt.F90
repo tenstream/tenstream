@@ -22,7 +22,10 @@ module m_plex_rt
     get_top_bot_face_of_cell, destroy_plexgrid, determine_diff_incoming_outgoing_offsets, &
     TOAFACE, BOTFACE, SIDEFACE
 
-  use m_optprop, only : t_optprop_wedge, t_optprop_wedge_5_8, t_optprop_rectilinear_wedge_5_8, t_optprop_wedge_18_8, OPP_1D_RETCODE
+  use m_optprop, only : t_optprop_wedge, OPP_1D_RETCODE, &
+    t_optprop_wedge_5_8, &
+    t_optprop_rectilinear_wedge_5_8, &
+    t_optprop_wedge_18_8
   use m_optprop_parameters, only : ldebug_optprop
 
   use m_schwarzschild, only: schwarzschild, B_eff
@@ -79,6 +82,8 @@ module m_plex_rt
   end type
 
   type, extends(t_plex_solver) :: t_plex_solver_5_8
+  end type
+  type, extends(t_plex_solver) :: t_plex_solver_rectilinear_5_8
   end type
   type, extends(t_plex_solver) :: t_plex_solver_18_8
   end type

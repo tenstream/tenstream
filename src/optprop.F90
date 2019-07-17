@@ -44,7 +44,7 @@ implicit none
 private
 public :: t_optprop, t_optprop_cube, t_optprop_wedge, &
   t_optprop_1_2, t_optprop_3_6, t_optprop_3_10, &
-  t_optprop_wedge_5_8, t_optprop_LUT_rectilinear_wedge_5_8, t_optprop_wedge_18_8, &
+  t_optprop_wedge_5_8, t_optprop_rectilinear_wedge_5_8, t_optprop_wedge_18_8, &
   t_optprop_8_10, t_optprop_3_16, t_optprop_8_16, t_optprop_8_18, &
   OPP_1D_RETCODE, OPP_TINYASPECT_RETCODE
 
