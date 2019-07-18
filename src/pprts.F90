@@ -458,6 +458,10 @@ module m_pprts
                                                                                            C%neighbors(5), &
                                                                              'while I am ',C%neighbors(4)
         endif
+        if(C%glob_xm.lt.i3) call CHKERR(1_mpiint, 'Global domain is too small in x-direction (Nx='//itoa(C%glob_xm)// &
+          '). However, need at least 3 because of horizontal ghost cells')
+        if(C%glob_ym.lt.i3) call CHKERR(1_mpiint, 'Global domain is too small in y-direction (Ny='//itoa(C%glob_ym)// &
+          '). However, need at least 3 because of horizontal ghost cells')
       end subroutine
     end subroutine
 
