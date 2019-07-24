@@ -11,8 +11,11 @@ module test_icon_plex_utils
 
   use m_helper_functions, only : CHKERR, deg2rad, itoa
 
+  use m_plex_grid, only: create_plex_section
+
   use m_icon_plex_utils, only : date_to_julian_day, get_sun_vector, &
-    create_2d_regular_plex, rank0_f90vec_to_plex, plex_gVec_toZero
+    create_2d_regular_plex, rank0_f90vec_to_plex, plex_gVec_toZero, &
+    dmplex_gVec_from_f90_array
 
   use pfunit_mod
   implicit none
@@ -179,5 +182,100 @@ contains
     call VecRestoreArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
 
     endif
+  end subroutine
+
+
+  @test(npes =[2])
+  subroutine test_dmplex_gVec_from_f90_array(this)
+  class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: comm
+    integer(iintegers), parameter :: Ny_global=1, Nz=3
+    type(tDM) :: dm2d, dm2d_dist
+    type(tPetscSF) :: migration_sf
+    type(tPetscSection) :: parSection, r0Section
+    real(ireals), allocatable :: arr(:,:)
+    real(ireals), pointer :: xarr(:), xxarr(:,:)
+    type(tVec) :: gVec, r0Vec
+
+    real(ireals) :: trg
+    integer(iintegers) :: i, k, Nx_global, fStart, fEnd
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    Nx_global = numnodes
+
+    call create_2d_regular_plex(comm, Nx_global+1, Ny_global+1, dm2d, dm2d_dist, opt_migration_sf=migration_sf)
+    call DMPlexGetDepthStratum(dm2d_dist, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+
+    ! Serial Case
+    if(myid.eq.0) then
+      allocate(arr(Nz,Nx_global*Ny_global*2))
+      do i=1,size(arr,dim=2)
+      do k=1,size(arr,dim=1)
+        arr(k,i) = (i-1)*Nz + k-1
+      enddo
+      enddo
+    else
+      allocate(arr(Nz,0))
+    endif
+
+    call dmplex_gVec_from_f90_array(comm, arr, gVec)
+
+    call VecGetArrayF90(gVec, xarr,ierr); call CHKERR(ierr)
+    xxarr(1:Nz, 1:size(arr, dim=2)) => xarr
+    !print *,myid,'xxarr',xxarr(:,:)
+    @assertEqual(arr, xxarr, epsilon(xxarr))
+    nullify(xxarr)
+    call VecRestoreArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
+
+    call VecDestroy(gvec, ierr); call CHKERR(ierr)
+    deallocate(arr)
+
+
+    ! All ranks having entries
+    allocate(arr(Nz,Nx_global))
+    do i=1,size(arr,dim=2)
+      do k=1,size(arr,dim=1)
+        arr(k,i) = (i-1)*Nz + k-1 + myid*100
+      enddo
+    enddo
+
+    call dmplex_gVec_from_f90_array(comm, arr, gVec)
+
+    call VecGetArrayF90(gVec, xarr,ierr); call CHKERR(ierr)
+    xxarr(1:Nz, fStart:fEnd-1) => xarr
+    !print *,myid,'xxarr',xxarr(:,:)
+    @assertEqual(arr, xxarr, epsilon(xxarr))
+    nullify(xxarr)
+    call VecRestoreArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
+
+    ! Test if we can do scatters with this vec
+    call create_plex_section(dm2d_dist, 'face_section', i1, &
+      [i0], [Nz], [i0], [i0], parSection)
+    call plex_gVec_toZero(dm2d_dist, migration_sf, parSection, gVec, &
+      r0Section, r0Vec)
+
+    call VecDestroy(gvec, ierr); call CHKERR(ierr)
+    deallocate(arr)
+
+
+    if(myid.eq.0) then
+      call VecGetArrayF90(r0Vec, xarr,ierr); call CHKERR(ierr)
+      xxarr(1:Nz, 1:Nx_global*Ny_global*2) => xarr
+      !print *,myid,'xxarr',xxarr(:,:)
+      do i=1,size(arr,dim=2)
+        do k=1,size(arr,dim=1)
+          ! this assumes that petsc distribute splits the x axis uniformly...
+          ! 2 faces for each proc
+          trg = (i-1)*Nz + k-1 + real((i-1)/fEnd, ireals)*100
+          @assertEqual(trg, xxarr(k,i), epsilon(trg))
+        enddo
+      enddo
+      nullify(xxarr)
+      call VecRestoreArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
+    endif
+
   end subroutine
 end module

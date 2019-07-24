@@ -22,7 +22,9 @@ module m_icon_plex_utils
     icon_ncvec_to_plex, rank0_f90vec_to_plex, plex_gVec_toZero, &
     Nz_Ncol_vec_to_celldm1, Nz_Ncol_vec_to_horizface1_dm, &
     celldm1_vec_to_Nz_Ncol, &
-    celldm_veccopy, dm2d_vec_to_Nz_Ncol, date_to_julian_day, get_sun_vector
+    celldm_veccopy, dm2d_vec_to_Nz_Ncol, &
+    dmplex_gVec_from_f90_array, &
+    date_to_julian_day, get_sun_vector
 
   !logical, parameter :: ldebug=.True.
   logical, parameter :: ldebug=.False.
@@ -47,6 +49,10 @@ module m_icon_plex_utils
      1178.678    , 1107.095    , 1036.786    , 967.780     , 900.104     , 833.792     , 768.881     , 705.412     ,&
      643.431     , 582.990     , 524.151     , 466.982     , 411.564     , 357.994     , 306.385     , 256.878     ,&
      209.648     , 164.919     , 122.997     , 84.314      , 49.554      , 20.000      , 0.000 ]
+
+   interface dmplex_gVec_from_f90_array
+     module procedure dmplex_gVec_from_f90_array_2d
+   end interface
 
   contains
 
@@ -1379,6 +1385,48 @@ module m_icon_plex_utils
         end subroutine
     end subroutine
 
+    ! Creates a global dmplex vec from an F90 array
+    ! the space for the values is borrowed from the F90 array
+    ! and while the petsc vec lives, you should not deallocate the memory
+    subroutine dmplex_gVec_from_f90_array_2d(comm, arr, pVec, dm, blocksize)
+      integer(mpiint), intent(in) :: comm
+      real(ireals), intent(in) ::  arr(:,:)
+      type(tVec), intent(out) :: pVec
+      type(tDM), intent(in), optional :: dm
+      integer(iintegers), intent(in), optional :: blocksize
+
+      integer(mpiint) :: numnodes, ierr
+      integer(iintegers) :: localsize, section_size, bs
+      type(tPetscSection) :: lsection
+      VecType :: vectype
+
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+      localsize = size(arr)
+
+      bs = get_arg(i1, blocksize)
+
+      if(numnodes.gt.1) then
+        call VecCreateMPIWithArray(comm, bs, localsize, PETSC_DECIDE, arr, pVec, ierr); call CHKERR(ierr)
+      else
+        call VecCreateSeqWithArray(comm, bs, localsize, arr, pVec, ierr); call CHKERR(ierr)
+      endif
+
+      if(present(dm)) then
+        call DMGetSection(dm, lsection, ierr); call CHKERR(ierr)
+        call PetscSectionGetStorageSize(lsection, section_size, ierr); call CHKERR(ierr)
+        call CHKERR(int(localsize-section_size,mpiint), &
+          'Default section of the DM does not fit with the local input array size'// &
+          ' Section ( '//itoa(section_size)//' ) vs arr ( '//itoa(localsize)//' )')
+
+        call DMGetVecType(dm, vectype, ierr); call CHKERR(ierr)
+        if(vectype.ne.VECSTANDARD) &
+          call CHKERR(1_mpiint, 'this routine is currently only capable '// &
+          'to create VECSTANDARD vectypes but this DM is of a different vectype')
+      endif
+
+      call PetscObjectViewFromOptions(pVec, PETSC_NULL_VEC, "-dmplex_gVec_from_f90_array_show_vec", ierr); call CHKERR(ierr)
+    end subroutine
+
     subroutine rank0_f90vec_to_plex(dm2d_serial, dm2d_parallel, migration_sf, &
         arr, parSection, parVec)
       type(tDM), intent(in) :: dm2d_serial
@@ -1471,7 +1519,6 @@ module m_icon_plex_utils
       type(tPetscSection), intent(out) :: r0Section
       type(tVec), intent(inout) :: r0Vec
 
-      type(tDM) :: dmc
       type(tPetscSF) :: sf_to_0
 
       integer(mpiint) :: comm, numnodes, ierr
@@ -1500,13 +1547,10 @@ module m_icon_plex_utils
       call PetscObjectViewFromOptions(gSection, PETSC_NULL_SECTION, "-plex_gVec_toZero_show_vec", ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(gVec, PETSC_NULL_Vec, "-plex_gVec_toZero_show_vec", ierr); call CHKERR(ierr)
 
-      call DMClone(dm, dmc, ierr); call CHKERR(ierr)
-      call DMSetSection(dm, gSection, ierr); call CHKERR(ierr)
-
       call PetscSectionCreate(comm, r0Section, ierr); call CHKERR(ierr)
       call VecCreate(PETSC_COMM_SELF, r0Vec, ierr); call CHKERR(ierr)
 
-      call DMPlexDistributeField(dmc, sf_to_0, gSection, gVec, &
+      call DMPlexDistributeField(dm, sf_to_0, gSection, gVec, &
         r0Section, r0Vec, ierr)
     end subroutine
 
