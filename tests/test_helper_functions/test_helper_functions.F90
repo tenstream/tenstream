@@ -5,7 +5,8 @@ module test_helper_functions
     mpi_logical_and, mpi_logical_or, mpi_logical_all_same, &
     compute_normal_3d, hit_plane, pnt_in_triangle, distance_to_edge, determine_normal_direction, &
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
-    solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, is_between
+    solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, is_between, &
+    resize_arr
 
   use pfunit_mod
 
@@ -433,5 +434,70 @@ subroutine test_is_between(this)
   @assertFalse(is_between(1.5_ireals, 1.0_ireals, 0.0_ireals))
 
   @assertTrue(is_between(0.5_ireals, 1.0_ireals, 0.0_ireals))
+end subroutine
+
+@test(npes=[1])
+subroutine test_resize_arr(this)
+  class (MpiTestMethod), intent(inout) :: this
+  integer(iintegers), allocatable :: i1d(:)
+  real(ireals), allocatable :: i2d(:,:), i3d(:,:,:)
+
+  allocate(i1d(3), source=[0,1,2])
+  call resize_arr(2_iintegers, i1d)
+  @assertEqual([2], shape(i1d), 'wrong dimension after shrinking')
+
+  call resize_arr(1_iintegers, i1d)
+  @assertEqual([1], shape(i1d), 'wrong dimension after shrinking')
+
+  call resize_arr(2_iintegers, i1d, fillVal=1)
+  @assertEqual([2], shape(i1d), 'wrong dimension after shrinking')
+  @assertEqual([0,1], i1d, 'wrong values after repeat')
+
+  call resize_arr(4_iintegers, i1d, lrepeat=.True.)
+  @assertEqual([4], shape(i1d), 'wrong dimension after shrinking')
+  @assertEqual([0,1,0,1], i1d, 'wrong values after repeat')
+
+  call resize_arr(5_iintegers, i1d, lrepeat=.False., fillVal=5)
+  @assertEqual([0,1,0,1,5], i1d, 'wrong values after repeat')
+
+  allocate(i2d(2,3))
+  i2d(:,1) = [1,2]
+  i2d(:,2) = [3,4]
+  i2d(:,3) = [5,6]
+
+  call resize_arr(1_iintegers, i2d, dim=1)
+  @assertEqual([1,3], shape(i2d), 'wrong dimension after shrinking')
+
+  call resize_arr(2_iintegers, i2d, dim=1, lrepeat=.False., fillVal=8._ireals)
+  @assertEqual([2,3], shape(i2d), 'wrong dimension after shrinking')
+  @assertEqual(8, i2d(2,:), 'wrong values after fill in dim 1')
+
+  call resize_arr(2_iintegers, i2d, dim=2)
+  @assertEqual([2,2], shape(i2d), 'wrong dimension after shrinking')
+
+  call resize_arr(3_iintegers, i2d, dim=2, lrepeat=.False., fillVal=9._ireals)
+  @assertEqual([2,3], shape(i2d), 'wrong dimension after shrinking')
+  @assertEqual(9, i2d(:,3), 'wrong values after fill in dim 2')
+
+
+  allocate(i3d(2,1,3))
+  i3d(:,1,1) = [1,2]
+  i3d(:,1,2) = [3,4]
+  i3d(:,1,3) = [5,6]
+
+  call resize_arr(1_iintegers, i3d, dim=1)
+  @assertEqual([1,1,3], shape(i3d), 'wrong dimension after shrinking')
+
+  call resize_arr(1_iintegers, i3d, dim=3)
+  @assertEqual([1,1,1], shape(i3d), 'wrong dimension after shrinking')
+
+  call resize_arr(2_iintegers, i3d, dim=2, lrepeat=.False., fillVal=5._ireals)
+  @assertEqual([1,2,1], shape(i3d), 'wrong dimension after shrinking')
+  @assertEqual(5, i3d(:,2,:), 'wrong values after fill in dim 2')
+
+  call resize_arr(4_iintegers, i3d, dim=2, lrepeat=.True.)
+  @assertEqual([1,4,1], shape(i3d), 'wrong dimension after shrinking')
+  @assertEqual(5, i3d(:,2,:), 'wrong values after fill in dim 2')
+  @assertEqual(5, i3d(:,4,:), 'wrong values after fill in dim 2')
 end subroutine
 end module
