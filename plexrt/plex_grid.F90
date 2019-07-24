@@ -230,6 +230,7 @@ module m_plex_grid
         plex%boundarylabel, plex%domainboundarylabel, plex%ownerlabel)
 
       call setup_srfc_boundary_dm(plex, plex%srfc_boundary_dm)
+      call setup_cell1_dmplex(plex%dm, plex%cell1_dm)
     end subroutine
 
     subroutine gen_test_mat(dm)
@@ -751,7 +752,7 @@ module m_plex_grid
       call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
 
       call PetscObjectSetName(dm, 'plex_cell1_dm', ierr);call CHKERR(ierr)
-      call create_plex_section(dm, 'face_section', i1, [i1], [i0], [i0], [i0], edirSection)
+      call create_plex_section(dm, 'cell_section', i1, [i1], [i0], [i0], [i0], edirSection)
       call DMSetSection(dm, edirSection, ierr); call CHKERR(ierr)
       call PetscSectionDestroy(edirSection, ierr); call CHKERR(ierr)
     end subroutine

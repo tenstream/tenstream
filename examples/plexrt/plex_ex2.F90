@@ -40,6 +40,7 @@ logical, parameter :: ldebug=.True.
       integer(mpiint) :: myid, numnodes, ierr
       type(tDM) :: dm2d, dm2d_dist, dm3d
       type(tPetscSF) :: migration_sf
+      type(tPetscSection) :: par_cell_Section
       AO, allocatable :: cell_ao_2d
       type(t_plexgrid), allocatable :: plex
       type(tVec), allocatable :: lwcvec, iwcvec
@@ -64,10 +65,10 @@ logical, parameter :: ldebug=.True.
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
       call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
 
-      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'clw', lwcvec, dm3d=dm3d)
+      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'clw', par_cell_Section, lwcvec)
       call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
 
-      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'cli', iwcvec, dm3d=dm3d)
+      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'cli', par_cell_Section, iwcvec)
       call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)

@@ -46,6 +46,7 @@ contains
     integer(mpiint) :: myid, numnodes, ierr
     type(tDM) :: dm2d, dm2d_dist, dm3d
     type(tPetscSF) :: migration_sf
+    type(tPetscSection) :: par_cell_Section
     AO, allocatable :: cell_ao_2d
     type(t_plexgrid), allocatable :: plex
     !type(tVec), allocatable :: lwcvec2d, iwcvec2d
@@ -122,8 +123,8 @@ contains
     !Load Data from iconfile and distribute it
     if(myid.eq.0) print *,'Read data from icondatafile ', trim(icondatafile)
 
-    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qnc_data_string, qncvec)
-    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, lwc_data_string, lwcvec)
+    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qnc_data_string, par_cell_Section, qncvec)
+    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, lwc_data_string, par_cell_Section, lwcvec)
     call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
 
     call dm2d_vec_to_Nz_Ncol(dm2d_dist, lwcvec, col_lwc); col_lwc = col_lwc * 1e3
@@ -135,8 +136,8 @@ contains
     deallocate(col_qnc)
     if(myid.eq.0) print *,'Min/Max Liquid effective Radius', minval(col_reliq), maxval(col_reliq)
 
-    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qni_data_string, qnivec)
-    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, iwc_data_string, iwcvec)
+    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qni_data_string, par_cell_Section, qnivec)
+    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, iwc_data_string, par_cell_Section, iwcvec)
     call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
     call dm2d_vec_to_Nz_Ncol(dm2d_dist, iwcvec, col_iwc); col_iwc = col_iwc * 1e3
@@ -149,7 +150,7 @@ contains
     deallocate(col_qni)
     if(myid.eq.0) print *,'Min/Max Ice effective Radius', minval(col_reice), maxval(col_reice)
 
-    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qv_data_string, qvvec)
+    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qv_data_string, par_cell_Section, qvvec)
     call dm2d_vec_to_Nz_Ncol(dm2d_dist, qvvec, col_qv)
     call VecDestroy(qvvec, ierr); call CHKERR(ierr)
 

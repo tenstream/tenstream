@@ -157,7 +157,6 @@ module m_plex_rt
         lplexrt_skip_loadLUT, lflg, ierr) ;call CHKERR(ierr)
       if(.not.lplexrt_skip_loadLUT) call solver%OPP%init(plex%comm)
 
-      call setup_cell1_dmplex(solver%plex%dm, solver%plex%cell1_dm)
       call setup_abso_dmplex (solver%plex%dm, solver%plex%abso_dm)
       call setup_edir_dmplex (solver%plex, solver%plex%dm, &
         i1, i0, i1, &
