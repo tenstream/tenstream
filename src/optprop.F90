@@ -309,7 +309,7 @@ contains
         if(approx(abs(param_phi), 1._irealLUT, param_eps)) lsample_critical = .True.
 
         if(lsample_critical) then
-          if(param_phi.le.-1._irealLUT) then
+          if(param_phi.lt.-1._irealLUT) then
             save_param_phi = -1._irealLUT-param_eps
           elseif(param_phi.ge.1._irealLUT) then !1.0001
             save_param_phi = 1._irealLUT+param_eps
@@ -331,7 +331,7 @@ contains
         if(approx(abs(param_theta), 0._irealLUT, param_eps)) lsample_critical = .True.
 
         if(lsample_critical) then
-          if(param_theta.lt.0._irealLUT) then
+          if(param_theta.le.0._irealLUT) then
             save_param_theta = -param_eps
           else ! .0001
             save_param_theta = param_eps

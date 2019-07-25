@@ -16,13 +16,14 @@ module m_example_uvspec_cld_file
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, hydrostat_dp
 
-  use m_helper_functions, only: CHKERR, itoa, imp_bcast, reverse, spherical_2_cartesian
+  use m_helper_functions, only: CHKERR, itoa, imp_bcast, reverse, spherical_2_cartesian, resize_arr
   use m_netcdfio, only: ncload, ncwrite, get_global_attribute
 
-  use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D
+  use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
+    rank0_f90vec_to_plex, dmplex_gvec_from_f90_array, plex_gvec_tozero
 
   use m_plex_grid, only: t_plexgrid, &
-    setup_plexgrid
+    setup_plexgrid, create_plex_section
 
   use m_plex_rt, only: t_plex_solver, allocate_plexrt_solver_from_commandline, init_plex_rt_solver
 
@@ -65,6 +66,12 @@ contains
     groups(2) = trim('lwc'); call ncload(groups, lwc, ierr); call CHKERR(ierr)
     groups(2) = trim('reff'); call ncload(groups, reliq, ierr); call CHKERR(ierr)
     groups(2) = trim('z'); call ncload(groups, hhl, ierr); call CHKERR(ierr)
+
+    if(size(lwc  ,dim=2).eq.1) call resize_arr(3_iintegers, lwc  , dim=2, lrepeat=.True.)
+    if(size(reliq,dim=2).eq.1) call resize_arr(3_iintegers, reliq, dim=2, lrepeat=.True.)
+
+    if(size(lwc  ,dim=3).eq.1) call resize_arr(3_iintegers, lwc  , dim=3, lrepeat=.True.)
+    if(size(reliq,dim=3).eq.1) call resize_arr(3_iintegers, reliq, dim=3, lrepeat=.True.)
 
     dx  = dx  * 1e+3_ireals
     dy  = dy  * 1e+3_ireals
@@ -128,7 +135,7 @@ contains
       enddo
     endif
 
-    call allocate_pprts_solver_from_commandline(pprts_solver, default_solver='3_10')
+    call allocate_pprts_solver_from_commandline(pprts_solver, default_solver='8_10')
 
     call run_rrtmg_lw_sw(pprts_solver, atm_filename, dx, dy, phi0, theta0, &
       plev, tlev, &
@@ -300,19 +307,21 @@ contains
 
     real(ireals) :: dx, dy
     integer(mpiint) :: myid, numnodes, ierr
-    integer(iintegers) :: i,j,k
+    integer(iintegers) :: k
 
     integer(iintegers) :: Nx_global, Ny_global, Nz
     integer(iintegers) :: fStart, fEnd, Ncol, Nlev
 
     type(tDM) :: dm2d, dm2d_dist, dm3d
     type(tPetscSF) :: migration_sf
+    type(tPetscSection) :: parCellSection
 
     type(t_plexgrid), allocatable :: plex
     integer(iintegers), allocatable :: zindex(:)
     class(t_plex_solver), allocatable :: solver
     type(t_tenstr_atm) :: atm
-    real(ireals), allocatable :: col_lwc(:,:), col_reff(:,:)
+    real(ireals), pointer :: xlwc(:), xreff(:), col_lwc(:,:), col_reff(:,:)
+    type(tVec) :: vlwc, vreff
 
     real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
 
@@ -327,6 +336,16 @@ contains
       groups(2) = trim('lwc') ; call ncload(groups, glob_lwc,   ierr); call CHKERR(ierr)
       groups(2) = trim('reff'); call ncload(groups, glob_reliq, ierr); call CHKERR(ierr)
       groups(2) = trim('z')   ; call ncload(groups, hhl,        ierr); call CHKERR(ierr)
+
+      if(size(glob_lwc  ,dim=2).eq.1) call resize_arr(3_iintegers, glob_lwc  , dim=2, lrepeat=.True.)
+      print *,'shape lwc', shape(glob_lwc)
+      if(size(glob_reliq,dim=2).eq.1) call resize_arr(3_iintegers, glob_reliq, dim=2, lrepeat=.True.)
+      print *,'shape lwc', shape(glob_lwc)
+
+      if(size(glob_lwc  ,dim=3).eq.1) call resize_arr(3_iintegers, glob_lwc  , dim=3, lrepeat=.True.)
+      print *,'shape lwc', shape(glob_lwc)
+      if(size(glob_reliq,dim=3).eq.1) call resize_arr(3_iintegers, glob_reliq, dim=3, lrepeat=.True.)
+      print *,'shape lwc', shape(glob_lwc)
 
       dx  = dx  * 1e+3_ireals
       dy  = dy  * 1e+3_ireals
@@ -377,30 +396,51 @@ contains
     endif
     hhl = reverse(hhl)
 
-    if(numnodes.gt.1) call CHKERR(1_mpiint, 'currently this example cannot cope with mpi parallel runs.' // &
-      'Missing copying and retrieving results')
-    k=fStart
-    allocate(col_lwc(Nz, fStart:fEnd-1), col_reff(Nz, fStart:fEnd-1))
-    do j=1,Ny_global
-      do i=1,Nx_global
-        col_lwc (:,k) = glob_lwc  (:,i,j)
-        col_reff(:,k) = glob_reliq(:,i,j)
-        k=k+1
-      enddo
-    enddo
+    call setup_tenstr_atm(comm, .False., atm_filename, &
+      plev, tlev, atm)
+
+    Nlev = size(atm%plev,1,kind=iintegers)
+    call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex, lpolar_coords=.False.)
+
+    call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
+    deallocate(zindex)
+
+    if(myid.eq.0) then
+      ! increase the size by two in the x direction,
+      ! i.e. from boxes to wedges with 2 elements per box
+      call resize_arr(size(glob_lwc,2)*2, glob_lwc, dim=2, fillVal=-1._ireals)
+      call resize_arr(size(glob_reliq,2)*2, glob_reliq, dim=2, fillVal=-1._ireals)
+      glob_lwc(:, 1:size(glob_lwc,dim=2):2, :) = glob_lwc(:, 1:size(glob_lwc,dim=2)/2, :)
+      glob_lwc(:, 2:size(glob_lwc,dim=2):2, :) = glob_lwc(:, 1:size(glob_lwc,dim=2):2, :)
+      glob_reliq(:, 1:size(glob_reliq,dim=2):2, :) = glob_reliq(:, 1:size(glob_reliq,dim=2)/2, :)
+      glob_reliq(:, 2:size(glob_reliq,dim=2):2, :) = glob_reliq(:, 1:size(glob_reliq,dim=2):2, :)
+
+      col_lwc (1:size(glob_lwc ,1),1:size(glob_lwc ,2)*size(glob_lwc ,3)) => glob_lwc
+      col_reff(1:size(glob_lwc ,1),1:size(glob_lwc ,2)*size(glob_lwc ,3)) => glob_reliq
+      print *,myid,'global shape col lwc', shape(col_lwc)
+    endif
+
+    call rank0_f90vec_to_plex(dm2d, dm2d_dist, migration_sf, col_lwc , parCellSection, vlwc)
+    call rank0_f90vec_to_plex(dm2d, dm2d_dist, migration_sf, col_reff, parCellSection, vreff)
+    nullify(col_lwc)
+    nullify(col_reff)
+
+    call VecGetArrayReadF90(vlwc , xlwc , ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(vreff, xreff, ierr); call CHKERR(ierr)
+
+    col_lwc (1:Nz, fstart:fEnd-1) => xlwc
+    col_reff(1:Nz, fstart:fEnd-1) => xreff
 
     call setup_tenstr_atm(comm, .False., atm_filename, &
       plev, tlev, atm, &
       d_lwc=col_lwc, d_reliq=col_reff)
 
-    Nlev = size(atm%plev,1,kind=iintegers)
-    call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex, lpolar_coords=.False.)
+    nullify(col_lwc)
+    nullify(col_reff)
+    call VecRestoreArrayReadF90(vlwc , xlwc , ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(vreff, xreff, ierr); call CHKERR(ierr)
 
-    call DMDestroy(dm2d, ierr); call CHKERR(ierr)
-    call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
-
-    call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
-    deallocate(zindex)
+    ! Finished preparing input, lets do the computations
 
     call allocate_plexrt_solver_from_commandline(solver, '5_8')
     call init_plex_rt_solver(plex, solver)
@@ -413,37 +453,80 @@ contains
       lthermal=lthermal, lsolar=lsolar, &
       edir=edir, edn=edn, eup=eup, abso=abso)
 
-    if(myid.eq.0) call dump_results()
+    call dump_results()
 
-!    if(allocated(edir)) then
-!      call gather_all_toZero(pprts_solver%C_one_atm1, edir, gedir)
-!      if(myid.eq.0) then
-!        print *,'dumping direct radiation with local and global shape', shape(edir), ':', shape(gedir)
-!        groups(2) = 'edir'; call ncwrite(groups, gedir, ierr); call CHKERR(ierr)
-!      endif
-!    endif
-!    call gather_all_toZero(pprts_solver%C_one_atm1, edn, gedn)
-!    call gather_all_toZero(pprts_solver%C_one_atm1, eup, geup)
-!    call gather_all_toZero(pprts_solver%C_one_atm, abso, gabso)
-!    if(myid.eq.0) then
-!      print *,'dumping edn radiation with local and global shape', shape(edn), ':', shape(gedn)
-!      groups(2) = 'edn' ; call ncwrite(groups, gedn , ierr); call CHKERR(ierr)
-!      print *,'dumping eup radiation with local and global shape', shape(eup), ':', shape(geup)
-!      groups(2) = 'eup' ; call ncwrite(groups, geup , ierr); call CHKERR(ierr)
-!      print *,'dumping abso radiation with local and global shape', shape(abso), ':', shape(gabso)
-!      groups(2) = 'abso'; call ncwrite(groups, gabso, ierr); call CHKERR(ierr)
-!    endif
+    call DMDestroy(dm2d, ierr); call CHKERR(ierr)
+    call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
 
     call destroy_plexrt_rrtmg(solver, lfinalizepetsc=.False.)
     contains
-      subroutine dump_results()
+      subroutine transfer_arr(col_inp, arr3d, idof_start, idof_end)
+        real(ireals), intent(in) :: col_inp(:,:)
+        real(ireals), intent(out) :: arr3d(:,:,:)
+        integer(iintegers), intent(in) :: idof_start, idof_end
+        integer(iintegers) :: i, j, icol, idof
+        do j=1,Ny_global
+          do i=1,Nx_global
+            icol = Nx_global*(j-1) + i
+            arr3d(:,i,j) = 0
+            do idof = idof_start, idof_end
+              arr3d(:,i,j) = arr3d(:,i,j) + col_inp(:,2*(icol-1)+idof)
+            enddo
+            arr3d(:,i,j) = arr3d(:,i,j) / (idof_end-idof_start+1)
+          enddo
+        enddo
+      end subroutine
+      subroutine dump_var(var, varname)
+        real(ireals), allocatable, intent(in) :: var(:,:)
+        character(len=*), intent(in) :: varname
+        type(tPetscSection) :: flxSection, r0flxSection
+        type(tVec) :: v_var
+        type(tVec) :: r0var
+
+        real(ireals), pointer :: xarr(:), xxarr(:,:)
+        real(ireals), dimension(:,:,:), allocatable :: oarr
+
         groups(1) = trim(outfile)
-        groups(2) = 'edir'; call ncwrite(groups, edir, ierr); call CHKERR(ierr)
-        groups(2) = 'edn' ; call ncwrite(groups, edn , ierr); call CHKERR(ierr)
-        groups(2) = 'eup' ; call ncwrite(groups, eup , ierr); call CHKERR(ierr)
-        groups(2) = 'abso'; call ncwrite(groups, abso, ierr); call CHKERR(ierr)
-        groups(2) = 'lwc' ; call ncwrite(groups, glob_lwc, ierr); call CHKERR(ierr)
-        groups(2) = 'reff'; call ncwrite(groups, glob_reliq, ierr); call CHKERR(ierr)
+        if(myid.eq.0) allocate(oarr (size(var,dim=1), Nx_global, Ny_global))
+
+        if(.not. allocated(var)) return
+
+        call create_plex_section(dm2d_dist, 'face_section', i1, &
+          [i0], [size(var,dim=1,kind=iintegers)], [i0], [i0], flxSection)
+
+        call dmplex_gVec_from_f90_array(comm, var, v_var)
+        call plex_gVec_toZero(dm2d_dist, migration_sf, flxSection, v_var, &
+          r0flxSection, r0var)
+
+        call VecGetArrayF90(r0var, xarr,ierr); call CHKERR(ierr)
+        if(myid.eq.0) then
+          xxarr(1:size(var,dim=1), 1:Nx_global*Ny_global*2) => xarr
+
+          call transfer_arr(xxarr, oarr, 1, 1)
+          groups(2) = trim(varname)//'_leftvertices'; call ncwrite(groups, oarr, ierr); call CHKERR(ierr)
+          call transfer_arr(xxarr, oarr, 2, 2)
+          groups(2) = trim(varname)//'_rightvertices'; call ncwrite(groups, oarr, ierr); call chkerr(ierr)
+          call transfer_arr(xxarr, oarr, 1, 2)
+          groups(2) = trim(varname) ; call ncwrite(groups, oarr, ierr); call chkerr(ierr)
+
+          nullify(xxarr)
+        endif
+        call VecRestoreArrayF90(r0var, xarr, ierr); call CHKERR(ierr)
+
+        call VecDestroy(v_var, ierr); call CHKERR(ierr)
+        call VecDestroy(r0var, ierr); call CHKERR(ierr)
+      end subroutine
+      subroutine dump_results()
+
+        call dump_var(edir, 'edir')
+        call dump_var(edn , 'edn')
+        call dump_var(eup , 'eup')
+        call dump_var(abso, 'abso')
+
+        if(myid.eq.0) then
+          groups(2) = 'lwc'  ; call ncwrite(groups, glob_lwc  , ierr); call CHKERR(ierr)
+          groups(2) = 'reff' ; call ncwrite(groups, glob_reliq, ierr); call CHKERR(ierr)
+        endif
       end subroutine
   end subroutine
 
@@ -464,11 +547,11 @@ program main
   real(ireals) :: Ag, phi0, theta0, Tsrfc, dTdz
   character(len=default_str_len) :: atm_filename
 
-  logical :: luse_pprts
+  logical :: luse_plexrt
 
   call mpi_init(ierr)
-  call mpi_comm_rank(mpi_comm_world, myid, ierr)
   call init_mpi_data_parameters(mpi_comm_world)
+  call mpi_comm_rank(mpi_comm_world, myid, ierr)
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-cld', cldfile, lflg, ierr); call CHKERR(ierr)
   if(.not.lflg) call CHKERR(1_mpiint, 'need to supply a cloud filename... please call with -cld <libRadtran_cloud_file.nc>')
@@ -498,16 +581,16 @@ program main
   dTdz = -6.5_ireals * 1e-3_ireals
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dTdz", dTdz, lflg,ierr) ; call CHKERR(ierr)
 
-  luse_pprts = .True.
-  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-use_pprts", luse_pprts, lflg,ierr) ; call CHKERR(ierr)
+  luse_plexrt = .False.
+  call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-use_plexrt", luse_plexrt, lflg,ierr) ; call CHKERR(ierr)
 
-  if(luse_pprts) then
-    call example_uvspec_cld_file(mpi_comm_world, cldfile, atm_filename, outfile, &
+  if(luse_plexrt) then
+    call example_uvspec_cld_file_with_plexrt(mpi_comm_world, cldfile, atm_filename, outfile, &
       zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
   else
-    call example_uvspec_cld_file_with_plexrt(mpi_comm_world, cldfile, atm_filename, outfile, &
+    call example_uvspec_cld_file(mpi_comm_world, cldfile, atm_filename, outfile, &
       zero, Ag, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
   endif
   call PetscFinalize(ierr)
+  call mpi_finalize(ierr)
 end program
-

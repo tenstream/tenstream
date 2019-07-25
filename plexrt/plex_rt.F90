@@ -1822,7 +1822,7 @@ module m_plex_rt
               !if(c.lt.zero .and. .not.lsrc(isrc_side)) then
               !  print *,'found transport coeff but I thought this incoming side is not a designated src face'
               !endif
-              if(c.le.-1e-4_ireals.and..not.l1d.and.param_theta.gt.epsilon(zero)) then
+              if(c.le.-1e-3_ireals.and..not.l1d.and.param_theta.gt.epsilon(zero)) then
                 ierr = 0
                 if(.not.lsrc(isrc_side)) ierr = 1
                 if(     lsrc(idst_side)) ierr = 2
@@ -3543,12 +3543,16 @@ module m_plex_rt
       case('5_8')
         allocate(t_plex_solver_5_8::plexrt_solver)
 
+      case('rectilinear_5_8')
+        allocate(t_plex_solver_rectilinear_5_8::plexrt_solver)
+
       case('18_8')
         allocate(t_plex_solver_18_8::plexrt_solver)
 
       case default
         print *,'error, have to provide solver type as argument, e.g. call with'
         print *,'-solver 5_8'
+        print *,'-solver rectilinear_5_8'
         print *,'-solver 18_8'
         call CHKERR(1_mpiint, 'have to provide solver type')
       end select

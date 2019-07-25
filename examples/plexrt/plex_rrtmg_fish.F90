@@ -73,7 +73,7 @@ logical, parameter :: ldebug=.True.
       real(ireals), parameter :: lapse_rate=9.5e-3, Tsrfc=288.3, minTemp=Tsrfc-60._ireals
 
       integer(iintegers) :: solve_iterations, iter
-      real(ireals) :: solve_iterations_scale
+      real(ireals) :: solve_iterations_scale, lwcval
       logical :: lregular_mesh, lflg
 
       real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
@@ -133,11 +133,14 @@ logical, parameter :: ldebug=.True.
       col_lwc = 0
       col_reff = 10
 
-      col_lwc(1+dNlay/2:dNlay, 1:Ncol:10) = .1
-      col_lwc(1+dNlay/2:dNlay, 2:Ncol:10) = .1
-      col_lwc(1+dNlay/2:dNlay, 3:Ncol:10) = .1
-      col_lwc(1+dNlay/2:dNlay, 4:Ncol:10) = .1
-      col_lwc(1+dNlay/2:dNlay, 5:Ncol:10) = .1
+      lwcval = .1
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-lwc", lwcval, lflg,ierr) ; call CHKERR(ierr)
+
+      col_lwc(1+dNlay/2:dNlay, 1:Ncol:10) = lwcval
+      col_lwc(1+dNlay/2:dNlay, 2:Ncol:10) = lwcval
+      col_lwc(1+dNlay/2:dNlay, 3:Ncol:10) = lwcval
+      col_lwc(1+dNlay/2:dNlay, 4:Ncol:10) = lwcval
+      col_lwc(1+dNlay/2:dNlay, 5:Ncol:10) = lwcval
 
       call init_data_strings()
 
@@ -156,7 +159,11 @@ logical, parameter :: ldebug=.True.
 
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
 
-      call allocate_plexrt_solver_from_commandline(solver, '5_8')
+      if(lregular_mesh) then
+        call allocate_plexrt_solver_from_commandline(solver, 'rectilinear_5_8')
+      else
+        call allocate_plexrt_solver_from_commandline(solver, '5_8')
+      endif
       call init_plex_rt_solver(plex, solver)
 
       call init_sundir()

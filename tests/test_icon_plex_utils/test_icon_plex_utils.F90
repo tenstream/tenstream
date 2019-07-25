@@ -164,8 +164,8 @@ contains
 
     call VecGetArrayF90(gVec, xarr,ierr); call CHKERR(ierr)
     xxarr(1:Nz, fStart:fEnd-1) => xarr
-    !print *,myid,'xxarr',xxarr(:,:)
-    @assertEqual(real(myid, ireals), xxarr, epsilon(xxarr))
+    print *,myid,'xxarr',xxarr(:,:)
+    @assertEqual(real(myid, ireals), xxarr, sqrt(epsilon(xxarr)))
     nullify(xxarr)
     call VecRestoreArrayF90(gVec, xarr, ierr); call CHKERR(ierr)
 
@@ -177,7 +177,7 @@ contains
       call VecGetArrayF90(r0Vec, xarr,ierr); call CHKERR(ierr)
       xxarr(1:Nz, 1:Nx_global*Ny_global*2) => xarr
       !print *,myid,'xxarr',xxarr(:,:)
-      @assertEqual(arr, xxarr, epsilon(xxarr))
+      @assertEqual(arr, xxarr, sqrt(epsilon(xxarr)))
       nullify(xxarr)
     call VecRestoreArrayF90(r0Vec, xarr, ierr); call CHKERR(ierr)
 
@@ -185,7 +185,7 @@ contains
   end subroutine
 
 
-  @test(npes =[2])
+  @test(npes =[1,2,3])
   subroutine test_dmplex_gVec_from_f90_array(this)
   class (MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: comm
@@ -235,7 +235,7 @@ contains
 
 
     ! All ranks having entries
-    allocate(arr(Nz,Nx_global))
+    allocate(arr(Nz,fEnd-fStart))
     do i=1,size(arr,dim=2)
       do k=1,size(arr,dim=1)
         arr(k,i) = (i-1)*Nz + k-1 + myid*100

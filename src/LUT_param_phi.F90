@@ -321,8 +321,16 @@ end function
     real(ireal_params) :: alpha, beta
     real(ireal_params) :: phic3, phic4, thetac, phie3, phie4
 
-    alpha = atan(Cy/Cx)
-    beta  = atan(Cy/(1._ireal_params - Cx))
+    if(approx(Cx, 0._ireal_params)) then
+      alpha = 0
+    else
+      alpha = atan(Cy/Cx)
+    endif
+    if(approx(Cx, 1._ireal_params)) then
+      beta = 0
+    else
+      beta  = atan(Cy/(1._ireal_params - Cx))
+    endif
     phie3 = pi/2 - alpha / 2
     phie4 = beta/2 - pi/2
 
@@ -399,8 +407,10 @@ end function
     endif
     if(abs(rb - lb).lt.epsilon(rb)) then
       print *,'tiny rb-lb:', rb - lb, ':', rb, lb, phie3, phic3, phie4, phic4, phi
+      param_phi = 0
+    else
+      param_phi = (phi - lb) / (rb - lb) * (x2-x1) + x1
     endif
-    param_phi = (phi - lb) / (rb - lb) * (x2-x1) + x1
 
     ierr = 0
   end subroutine

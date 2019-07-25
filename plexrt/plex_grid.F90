@@ -1423,6 +1423,11 @@ module m_plex_grid
         real(azimuth, ireal_params), real(zenith, ireal_params), &
         rparam_phi, rparam_theta, ierr); call CHKERR(ierr)
 
+      !print *,'normals base', local_normal_base
+      !print *,'normals left', local_normal_left
+      !print *,'normals righte', local_normal_right
+      !print *,'Cx/Cy', Cx, Cy
+      !print *,'rparam_phi, rparam_theta',rparam_phi, rparam_theta
 
       if(rparam_theta.gt.param_eps*100) then ! only if baseface should be src
         ierr = 0

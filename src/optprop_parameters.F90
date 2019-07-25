@@ -87,8 +87,8 @@ module m_optprop_parameters
         1.6 ,  1.65,  1.7 ,  1.75,  1.8 ,  1.85,  1.9 ,  1.95,  2. ]
 
       real(irealLUT), parameter :: preset_param_theta13(13) = [-1., &
-                                                          -1e-1, &
-                                                          +0.+param_eps_r, &
+                                                          -param_eps_r, &
+                                                          +param_eps_r, &
                                                           .1, .2, .3, .4, .5, .6, .7, .8, .9, 1.]
 
 

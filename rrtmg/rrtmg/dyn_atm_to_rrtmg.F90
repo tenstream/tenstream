@@ -229,8 +229,10 @@ module m_dyn_atm_to_rrtmg
           integer(iintegers), intent(in), optional :: k, ncol
 
           if(present(d_arr)) then
-            if(present(k))    call CHKERR(int(size(d_arr,1)-k, mpiint), 'bad vert size. got'//itoa(size(d_arr,1))//' expect '//itoa(k))
-            if(present(ncol)) call CHKERR(int(size(d_arr,2)-ncol, mpiint), 'bad nr cols got'//itoa(size(d_arr,2))//' expect '//itoa(ncol))
+            if(present(k))    call CHKERR(int(size(d_arr,1)-k   , mpiint), &
+              'bad vert size! got '//itoa(size(d_arr,1))//' but expected '//itoa(k))
+            if(present(ncol)) call CHKERR(int(size(d_arr,2)-ncol, mpiint), &
+              'bad nr cols got '//itoa(size(d_arr,2))//' but expected '//itoa(ncol))
           endif
         end subroutine
     end subroutine
