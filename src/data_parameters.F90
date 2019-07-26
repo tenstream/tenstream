@@ -18,17 +18,11 @@
 !-------------------------------------------------------------------------
 
 module m_data_parameters
+#include <petsc/finclude/petsc.h>
+      use petsc
+
       use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
       use ieee_arithmetic, only: ieee_support_nan, ieee_quiet_nan, ieee_value
-
-#ifdef _XLF
-        use mpi
-#else
-        use mpi ,only: mpi_sizeof, mpi_type_match_size
-#endif
-
-#include <petsc/finclude/petscsys.h>
-      use petscsys
 
       implicit none
 

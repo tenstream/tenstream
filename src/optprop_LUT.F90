@@ -23,8 +23,6 @@ module m_optprop_LUT
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use mpi!, only: MPI_BCAST,MPI_LAND,MPI_LOR
-
   use m_helper_functions, only : approx,  &
     rel_approx, imp_bcast,                &
     get_arg, ftoa, itoa, char_arr_to_str, &

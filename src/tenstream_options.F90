@@ -19,15 +19,12 @@
 
 module m_tenstream_options
 
-  use mpi
-
   use m_data_parameters, only : init_mpi_data_parameters, ireals, iintegers, mpiint, &
     zero, one, i0, default_str_len
   use m_optprop_parameters, only: lut_basename, coeff_mode
   use m_helper_functions, only: CHKERR
 
 #include "petsc/finclude/petsc.h"
-
   use petsc
 
   implicit none
