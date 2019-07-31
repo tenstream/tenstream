@@ -2,8 +2,9 @@
 
 . $WORKDIR/.profile
 
-mkdir -p $WORKDIR/TenstreamLUT
-cd $WORKDIR/TenstreamLUT
+mkdir -p $WORKDIR/TenstreamLUT_cpy
+cd $WORKDIR/TenstreamLUT_cpy
+cp -rns $WORKDIR/TenstreamLUT/* .
 echo "-lut_basename $(pwd)/LUT" >> $HOME/.petscrc
 
 cd $WORKDIR/tenstream || exit
