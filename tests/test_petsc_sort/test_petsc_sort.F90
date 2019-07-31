@@ -3,6 +3,7 @@ module test_petsc_sort
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_data_parameters, only : iintegers, ireals, mpiint, zero, one
+  use m_helper_functions, only: CHKERR
 
   use pfunit_mod
 
@@ -21,7 +22,6 @@ contains
     class (MpiTestMethod), intent(inout) :: this
     continue
   end subroutine teardown
-
 
   @Test(npes=[1])
   subroutine petsc_sort_int_arrays(this)
