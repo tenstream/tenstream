@@ -12,4 +12,5 @@ mkdir -p build && cd build && cmake .. -DSYST=$SYST -DCMAKE_BUILD_TYPE=$CMAKE_BU
 make -j all || exit
 bin/createLUT 3_10 || exit
 bin/createLUT 8_10 || exit
+bin/createLUT rectilinear_wedge_5_8 || exit
 make check || exit

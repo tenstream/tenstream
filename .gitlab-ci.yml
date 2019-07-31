@@ -1,4 +1,5 @@
 .build_docker_img: &build_docker_img
+  stage: build
   script:
     - echo '(Re-)Generating Dockerfile Images for' $CC $BUILD_TYPE $DOCKERFILE
     - export WORKDIR=/root
@@ -10,6 +11,8 @@
     - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_diffuse_10.tau31.w020.aspect_zx23.g4.ds1000.nc
     - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_direct_3_10.tau31.w020.aspect_zx23.g4.phi19.theta19.ds1000.nc
     - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_direct_8_10.tau31.w020.aspect_zx23.g4.phi19.theta19.ds1000.nc
+    - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_rectilinear_wedge_diffuse_8.tau31.w020.aspect_zx23.wedge_coord_Cx3.wedge_coord_Cy2.ds1000.nc
+    - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_rectilinear_wedge_direct_5_8.tau15.w010.aspect_zx18.wedge_coord_Cx3.wedge_coord_Cy2.param_phi19.param_theta13.ds1000.nc
     - popd
     - podman run -v $(pwd):$WORKDIR/tenstream -v $LUTTMP:$WORKDIR/TenstreamLUT --rm -e BUILD_TYPE -e CC -e FC -e CXX -e WORKDIR -e SYST -t $myHASH $WORKDIR/tenstream/docker/build_and_run_tenstream_tests.sh
 
@@ -32,6 +35,28 @@ build_ubuntu_rolling_GCC_DEBUG:
     FC: "mpif90"
     CXX: "mpicxx"
     BUILD_TYPE: "DEBUG"
+    DOCKERFILE: "ubuntu_rolling"
+    SYST: "ubuntu"
+    LUTTMP: "/local/gitlabCI_TenstreamLUT"
+
+build_ubuntu_rolling_GCC_DEBUG_int64:
+  <<: *build_docker_img
+  variables:
+    CC: "mpicc"
+    FC: "mpif90"
+    CXX: "mpicxx"
+    BUILD_TYPE: "DEBUG_int64"
+    DOCKERFILE: "ubuntu_rolling"
+    SYST: "ubuntu"
+    LUTTMP: "/local/gitlabCI_TenstreamLUT"
+
+build_ubuntu_rolling_GCC_DEBUG_single:
+  <<: *build_docker_img
+  variables:
+    CC: "mpicc"
+    FC: "mpif90"
+    CXX: "mpicxx"
+    BUILD_TYPE: "DEBUG_single"
     DOCKERFILE: "ubuntu_rolling"
     SYST: "ubuntu"
     LUTTMP: "/local/gitlabCI_TenstreamLUT"
