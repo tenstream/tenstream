@@ -22,7 +22,7 @@ program main
 #include "petsc/finclude/petsc.h"
       use petsc
 
-      use m_data_parameters, only: mpiint, ireals, init_mpi_data_parameters
+      use m_data_parameters, only: mpiint, init_mpi_data_parameters
       use m_helper_functions, only: CHKERR
       use m_optprop_LUT, only : t_optprop_LUT, &
         t_optprop_LUT_1_2,  &
