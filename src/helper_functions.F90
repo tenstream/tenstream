@@ -1802,7 +1802,7 @@ module m_helper_functions
     function pnt_in_triangle_r32(p1,p2,p3, p) result(pnt_in_triangle)
       real(REAL32), intent(in), dimension(2) :: p1,p2,p3, p
       logical :: pnt_in_triangle
-      real(REAL32),parameter :: eps = epsilon(eps), eps2 = 100*eps
+      real(REAL32),parameter :: eps = epsilon(eps)
       real(REAL32) :: a, b, c, edge_dist
 
       logical, parameter :: ldebug=.False.
@@ -1843,7 +1843,7 @@ module m_helper_functions
     function pnt_in_triangle_r64(p1,p2,p3, p) result(pnt_in_triangle)
       real(REAL64), intent(in), dimension(2) :: p1,p2,p3, p
       logical :: pnt_in_triangle
-      real(REAL64),parameter :: eps = epsilon(eps), eps2 = 100*eps
+      real(REAL64),parameter :: eps = epsilon(eps)
       real(REAL64) :: a, b, c, edge_dist
 
       logical, parameter :: ldebug=.False.
@@ -2464,7 +2464,7 @@ pure subroutine solve_quadratic_r32(a, b, c, x, ierr)
     return
   endif
 
-  if (b.eq.0) then
+  if(abs(b).lt.epsilon(b)) then
     q = sqrt(abs(c)/abs(a))
     x(:) = [q, -q]
   else
@@ -2492,7 +2492,7 @@ pure subroutine solve_quadratic_r64(a, b, c, x, ierr)
     return
   endif
 
-  if (b.eq.0) then
+  if(abs(b).lt.epsilon(b)) then
     q = sqrt(abs(c)/abs(a))
     x(:) = [q, -q]
   else if (b.gt.0) then
@@ -2519,7 +2519,7 @@ pure subroutine solve_quadratic_r128(a, b, c, x, ierr)
     return
   endif
 
-  if (b.eq.0) then
+  if(abs(b).lt.epsilon(b)) then
     q = sqrt(abs(c)/abs(a))
     x(:) = [q, -q]
   else if (b.gt.0) then

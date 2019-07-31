@@ -429,7 +429,7 @@ contains
       thermal_albedo_2d)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
-    use m_tenstr_parrrtm, only: ngptlw, nbndlw
+    use m_tenstr_parrrtm, only: ngptlw
 
     class(t_solver),    intent(inout) :: solver
     type(t_tenstr_atm), intent(in), target :: atm

@@ -672,7 +672,7 @@ contains
   !> @brief main function for a single photon
   !> @details this routine will incrementally move a photon until it is either out of the domain or it is time for a interaction with the medium
   subroutine move_photon(bmc, vertices, kabs, ksca, tau_scaling, p)
-    use m_data_parameters, only: EXP_MINVAL, EXP_MAXVAL
+    use m_data_parameters, only: EXP_MAXVAL
     class(t_boxmc) :: bmc
     real(ireal_dp), intent(in) :: vertices(:), kabs, ksca, tau_scaling
     type(t_photon),intent(inout) :: p

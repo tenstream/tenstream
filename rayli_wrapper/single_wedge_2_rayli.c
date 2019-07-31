@@ -8,7 +8,7 @@ void VecSet(size_t N, double *arr, double val) {
     for(size_t i=0; i<N; i++) arr[i] = val;
 }
 
-int main(int argc, char **argv) {
+int main() {
 
     int ierr;
     size_t Nphotons = 1000;
@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
     free(ksca);
     free(g);
     free(albedo);
-    return 0;
+    return ierr;
 }
 
 

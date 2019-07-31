@@ -1657,7 +1657,6 @@ module m_plex_rt
     real(ireals) :: aspect_zx, param_phi, param_theta
     real(irealLUT) :: coeff(solver%dirdof**2) ! coefficients for each src=[1..5] and dst[1..5]
 
-    logical, parameter :: lonline=.False.
     logical :: lflg, ldestroy_mat, l1d
 
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
@@ -2349,8 +2348,6 @@ module m_plex_rt
 
     real(ireals) :: dkabs, dksca, dg
     real(irealLUT) :: tauz, w0
-    real(irealLUT), parameter :: dx=1._irealLUT
-    integer, parameter :: iC1=4, iC2=5
 
     dkabs = kabs
     dksca = ksca

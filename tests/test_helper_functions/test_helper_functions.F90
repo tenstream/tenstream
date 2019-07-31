@@ -442,14 +442,14 @@ subroutine test_resize_arr(this)
   integer(iintegers), allocatable :: i1d(:)
   real(ireals), allocatable :: i2d(:,:), i3d(:,:,:)
 
-  allocate(i1d(3), source=[0,1,2])
+  allocate(i1d(3), source=int([0,1,2], kind(i1d)))
   call resize_arr(2_iintegers, i1d)
   @assertEqual([2], shape(i1d), 'wrong dimension after shrinking')
 
   call resize_arr(1_iintegers, i1d)
   @assertEqual([1], shape(i1d), 'wrong dimension after shrinking')
 
-  call resize_arr(2_iintegers, i1d, fillVal=1)
+  call resize_arr(2_iintegers, i1d, fillVal=1_iintegers)
   @assertEqual([2], shape(i1d), 'wrong dimension after shrinking')
   @assertEqual([0,1], i1d, 'wrong values after repeat')
 
@@ -457,13 +457,13 @@ subroutine test_resize_arr(this)
   @assertEqual([4], shape(i1d), 'wrong dimension after shrinking')
   @assertEqual([0,1,0,1], i1d, 'wrong values after repeat')
 
-  call resize_arr(5_iintegers, i1d, lrepeat=.False., fillVal=5)
+  call resize_arr(5_iintegers, i1d, lrepeat=.False., fillVal=5_iintegers)
   @assertEqual([0,1,0,1,5], i1d, 'wrong values after repeat')
 
   allocate(i2d(2,3))
-  i2d(:,1) = [1,2]
-  i2d(:,2) = [3,4]
-  i2d(:,3) = [5,6]
+  i2d(:,1) = real([1,2], ireals)
+  i2d(:,2) = real([3,4], ireals)
+  i2d(:,3) = real([5,6], ireals)
 
   call resize_arr(1_iintegers, i2d, dim=1)
   @assertEqual([1,3], shape(i2d), 'wrong dimension after shrinking')

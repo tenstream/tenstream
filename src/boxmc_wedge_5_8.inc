@@ -41,7 +41,6 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   integer(iintegers),intent(in) :: src
   logical,intent(in) :: ldirect
   real(ireal_dp), dimension(3) :: normal, triangle_center, dir_p_to_triangle_center, U, V
-  real(ireal_dp),parameter :: edge_start_range=.999_ireal_dp
   integer(mpiint),intent(out) :: ierr
 
   associate( &

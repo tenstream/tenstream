@@ -246,7 +246,7 @@ contains
       edn, eup, abso, opt_time, thermal_albedo_2d, lrrtmg_only)
 
     use m_tenstr_rrlw_wvn, only : ngb, wavenum1, wavenum2
-    use m_tenstr_parrrtm, only: ngptlw, nbndlw
+    use m_tenstr_parrrtm, only: ngptlw
 
     integer(mpiint), intent(in) :: comm
     class(t_plex_solver), allocatable, intent(inout)  :: solver

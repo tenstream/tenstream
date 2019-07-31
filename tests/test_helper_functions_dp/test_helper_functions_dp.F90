@@ -141,7 +141,7 @@ end subroutine
 @test(npes =[1])
 subroutine test_triangle_intersection()
 
-    use m_data_parameters, only: ireal_dp, iintegers
+    use m_data_parameters, only: ireal_dp
     use m_helper_functions_dp, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, &
       determine_normal_direction, triangle_intersection
 

@@ -25,7 +25,6 @@ subroutine box_cld()
     real(ireals),parameter :: phi0=90, theta0=40
     real(ireals),parameter :: albedo=0, dz=100
     real(ireals),parameter :: incSolar = 1364
-    real(ireals),parameter :: atolerance = 1
     real(ireals) :: dz1d(nv)
 
     real(ireals),allocatable,dimension(:,:,:) :: kabs,ksca,g

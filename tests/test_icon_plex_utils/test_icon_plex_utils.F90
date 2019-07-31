@@ -214,7 +214,7 @@ contains
       allocate(arr(Nz,Nx_global*Ny_global*2))
       do i=1,size(arr,dim=2)
       do k=1,size(arr,dim=1)
-        arr(k,i) = (i-1)*Nz + k-1
+        arr(k,i) = real((i-1)*Nz + k-1, ireals)
       enddo
       enddo
     else
@@ -238,7 +238,7 @@ contains
     allocate(arr(Nz,fEnd-fStart))
     do i=1,size(arr,dim=2)
       do k=1,size(arr,dim=1)
-        arr(k,i) = (i-1)*Nz + k-1 + myid*100
+        arr(k,i) = real((i-1)*Nz + k-1 + myid*100, ireals)
       enddo
     enddo
 
@@ -269,7 +269,7 @@ contains
         do k=1,size(arr,dim=1)
           ! this assumes that petsc distribute splits the x axis uniformly...
           ! 2 faces for each proc
-          trg = (i-1)*Nz + k-1 + real((i-1)/fEnd, ireals)*100
+          trg = real( (i-1)*Nz + k-1 + (i-1)/fEnd*100, ireals)
           @assertEqual(trg, xxarr(k,i), epsilon(trg))
         enddo
       enddo

@@ -177,7 +177,7 @@ logical, parameter :: ldebug=.True.
         if(lthermal) then
 
           ! Perform a circular shift of cloud field by one column
-          col_lwc = cshift(col_lwc, 1, dim=2)
+          col_lwc = cshift(col_lwc, shift=1, dim=2)
           call setup_tenstr_atm(comm, .False., atm_filename, &
             col_plev, col_tlev, atm, &
             d_lwc=col_lwc, d_reliq=col_reff)

@@ -28,7 +28,6 @@ contains
     real(ireals),parameter :: dx=100,dy=dx
     real(ireals),parameter :: phi0=180, theta0=60
     real(ireals),parameter :: albedo_sol=0.2, albedo_th=0
-    integer(iintegers),parameter :: icollapse=40
 
     real(ireals),allocatable,dimension(:,:,:), target :: plev, tlev    ! nlay+1, nxp, nyp
     real(ireals),allocatable,dimension(:,:,:), target :: lwc, reliq    ! nlay  , nxp, nyp

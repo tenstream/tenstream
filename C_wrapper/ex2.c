@@ -25,7 +25,6 @@
 
 static char help[] = "This is the C wrapper interface to the pprts solver environment.\n\n";
 
-static const int solveriterations = 1;
 int collapseindex = 1;
 
 int master(int fcomm) {

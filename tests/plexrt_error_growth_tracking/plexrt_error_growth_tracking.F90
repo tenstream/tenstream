@@ -42,10 +42,9 @@ contains
     integer(mpiint) :: comm, myid, numnodes, ierr
 
     integer(iintegers),parameter :: Nx=2,Ny=3,Nz=3
-    real(ireals),parameter :: dx=100,dy=dx
+    real(ireals),parameter :: dx=100
     real(ireals),parameter :: sundir(3) = [zero, zero, -one]
     real(ireals),parameter :: albedo=0, dz=dx
-    real(ireals),parameter :: incSolar = 1000
 
     real(ireals),allocatable,dimension(:,:) :: fdir,fdn,fup,fdiv
 

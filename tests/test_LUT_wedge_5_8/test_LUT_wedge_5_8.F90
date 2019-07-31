@@ -338,7 +338,6 @@ contains
       real(irealLUT) :: tau, w0, g, aspect, phi, theta, Cx, Cy
 
       real(irealLUT) :: err(2)
-      real(irealLUT), parameter :: dx = 911
       real(irealLUT),allocatable :: g_dim(:)
       integer(mpiint) :: ierr
 
@@ -408,8 +407,6 @@ contains
       enddo !tau
 
       end associate
-
-
   endsubroutine
 
   subroutine check(S_target,T_target, S,T, msg, opt_atol, opt_rtol)

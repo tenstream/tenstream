@@ -9,7 +9,7 @@ module m_example_uvspec_cld_file
   ! compiled(single or double floats, or long ints), this will determine what
   ! the Tenstream uses.
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, &
-    i0, i1, zero, one, default_str_len
+    i0, i1, i2, zero, one, default_str_len
 
   ! main entry point for solver, and desctructor
   use m_pprts_rrtmg, only : pprts_rrtmg, destroy_pprts_rrtmg
@@ -408,8 +408,8 @@ contains
     if(myid.eq.0) then
       ! increase the size by two in the x direction,
       ! i.e. from boxes to wedges with 2 elements per box
-      call resize_arr(size(glob_lwc,2)*2, glob_lwc, dim=2, fillVal=-1._ireals)
-      call resize_arr(size(glob_reliq,2)*2, glob_reliq, dim=2, fillVal=-1._ireals)
+      call resize_arr(size(glob_lwc,2,kind=iintegers)*2, glob_lwc, dim=2, fillVal=-1._ireals)
+      call resize_arr(size(glob_reliq,2,kind=iintegers)*2, glob_reliq, dim=2, fillVal=-1._ireals)
       glob_lwc(:, 1:size(glob_lwc,dim=2):2, :) = glob_lwc(:, 1:size(glob_lwc,dim=2)/2, :)
       glob_lwc(:, 2:size(glob_lwc,dim=2):2, :) = glob_lwc(:, 1:size(glob_lwc,dim=2):2, :)
       glob_reliq(:, 1:size(glob_reliq,dim=2):2, :) = glob_reliq(:, 1:size(glob_reliq,dim=2)/2, :)
@@ -472,7 +472,7 @@ contains
             do idof = idof_start, idof_end
               arr3d(:,i,j) = arr3d(:,i,j) + col_inp(:,2*(icol-1)+idof)
             enddo
-            arr3d(:,i,j) = arr3d(:,i,j) / (idof_end-idof_start+1)
+            arr3d(:,i,j) = arr3d(:,i,j) / real(idof_end-idof_start+1, ireals)
           enddo
         enddo
       end subroutine
@@ -502,11 +502,11 @@ contains
         if(myid.eq.0) then
           xxarr(1:size(var,dim=1), 1:Nx_global*Ny_global*2) => xarr
 
-          call transfer_arr(xxarr, oarr, 1, 1)
+          call transfer_arr(xxarr, oarr, i1, i1)
           groups(2) = trim(varname)//'_leftvertices'; call ncwrite(groups, oarr, ierr); call CHKERR(ierr)
-          call transfer_arr(xxarr, oarr, 2, 2)
+          call transfer_arr(xxarr, oarr, i2, i2)
           groups(2) = trim(varname)//'_rightvertices'; call ncwrite(groups, oarr, ierr); call chkerr(ierr)
-          call transfer_arr(xxarr, oarr, 1, 2)
+          call transfer_arr(xxarr, oarr, i1, i2)
           groups(2) = trim(varname) ; call ncwrite(groups, oarr, ierr); call chkerr(ierr)
 
           nullify(xxarr)
@@ -536,7 +536,7 @@ program main
 #include "petsc/finclude/petsc.h"
   use petsc
   use mpi
-  use m_data_parameters, only : iintegers, mpiint
+  use m_data_parameters, only : mpiint
   use m_example_uvspec_cld_file
 
   implicit none

@@ -83,7 +83,7 @@ contains
 
       do src=1,4
         T_target = zero
-        T_target(src) = exp(- (bg(1)+bg(2))*dz )
+        T_target(src) = real(exp(- (bg(1)+bg(2))*dz ), ireals)
 
         call bmc_8_10%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_boxmc_direct_lambert_beer')

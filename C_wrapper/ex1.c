@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
   int        numprocs, myid, fcomm;
 
   int    Nx=3, Ny=3, Nz=2;
-  double dx=500,dy=500, dz=250;
+  double dx=500,dy=500;
   double phi0=0, theta0=60;
   double albedo_th=.005, albedo_sol=0.2;
   char   atm_filename[] = "afglus.dat";

@@ -67,7 +67,6 @@ subroutine init_dir_photon_wedge_18_8(bmc, p, src, ldirect, initial_dir, vertice
   real(ireal_dp), dimension(3) :: top_center, bot_center, side_center_base, side_center_left, side_center_right
   real(ireal_dp), dimension(3) :: pmAB, pmAC, pmBC, pmDE, pmDF, pmEF
   real(ireal_dp), dimension(3) :: pmAD, pmBE, pmCF
-  real(ireal_dp),parameter :: edge_start_range=.999_ireal_dp
   integer(mpiint),intent(out) :: ierr
 
   associate( &

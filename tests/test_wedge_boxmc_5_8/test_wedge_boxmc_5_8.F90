@@ -524,7 +524,7 @@ contains
 
         ! Or start the photons at the top and they should still go to the side faces
         T_target = zero
-        T_target([3,4]) = 0.485865
+        T_target([3,4]) = 0.485865_ireals
         phi = 0; theta = 90
         src = 1
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
@@ -532,7 +532,7 @@ contains
         @assertEqual(T(3), T(4), real(3*atol, ireals), 'stream should be same 101')
 
         T_target = zero
-        T_target([2,4]) = 0.485865
+        T_target([2,4]) = 0.485865_ireals
         phi = 120; theta = 90
         src = 1
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
@@ -541,7 +541,7 @@ contains
 
 
         T_target = zero
-        T_target([2,3]) = 0.485865
+        T_target([2,3]) = 0.485865_ireals
         phi = 240; theta = 90
         src = 1
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
