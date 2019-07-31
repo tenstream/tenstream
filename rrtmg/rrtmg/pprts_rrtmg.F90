@@ -54,7 +54,7 @@ module m_pprts_rrtmg
       reverse, approx, itoa, spherical_2_cartesian
   use m_search, only: find_real_location
   use m_petsc_helpers, only: dmda_convolve_ediff_srfc, &
-    getvecpointer, restorevecpointer
+    getvecpointer, restorevecpointer, f90vectopetsc
 
   use m_netcdfIO, only : ncwrite
 
@@ -373,6 +373,8 @@ contains
     call smooth_surface_fluxes(solver, edn, eup)
     if(lsolar) call slope_correction_fluxes(solver, edir)
 
+    call dump_results()
+
     !if(myid.eq.0 .and. ldebug) then
     !  if(present(opt_time)) then
     !    write (output_path(1), "(A,I6.6,L1,L1,A3)") "3dout_",int(opt_time),lthermal,lsolar, '.nc'
@@ -393,6 +395,32 @@ contains
     !    endif
     !  endif
     !endif
+    contains
+      subroutine dump_variable(var, dm, dumpstring)
+        real(ireals), intent(in) :: var(:,:,:)
+        type(tDM), intent(in) :: dm
+        character(len=*), intent(in) :: dumpstring
+        logical :: lflg
+        type(tVec) :: dumpvec
+
+        call PetscOptionsHasName(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+          trim(dumpstring), lflg , ierr) ;call CHKERR(ierr)
+        if(lflg) then
+          call DMGetGlobalVector(dm ,dumpvec ,ierr); call CHKERR(ierr)
+          call PetscObjectSetName(dumpvec, trim(dumpstring), ierr); call CHKERR(ierr)
+          call f90VecToPetsc(var, dm, dumpvec)
+
+          call PetscObjectViewFromOptions(dumpvec, PETSC_NULL_VEC, &
+            trim(dumpstring), ierr); call CHKERR(ierr)
+          call DMRestoreGlobalVector(dm ,dumpvec ,ierr); call CHKERR(ierr)
+        endif
+      end subroutine
+      subroutine dump_results()
+        call dump_variable(edir, solver%C_one1%da, "-pprts_rrtmg_dump_edir")
+        call dump_variable(edn , solver%C_one1%da, "-pprts_rrtmg_dump_edn")
+        call dump_variable(eup , solver%C_one1%da, "-pprts_rrtmg_dump_eup")
+        call dump_variable(abso, solver%C_one%da,  "-pprts_rrtmg_dump_abso")
+      end subroutine
   end subroutine
 
   subroutine compute_thermal(solver, atm, ie, je, ke, ke1, &
