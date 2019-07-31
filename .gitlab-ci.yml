@@ -1,9 +1,3 @@
-stages:
-  - build_images
-  - build
-  - test
-
-
 .build_docker_img: &build_docker_img
   stage: build_images
   script:
@@ -13,12 +7,12 @@ stages:
     - export myHASH=${DOCKERFILE}_$(md5sum mydockerfile|cut -f 1 -d ' ')
     - echo "Docker Image Tag" $myHASH
     - podman build -f mydockerfile -t $myHASH
-    - mkdir -p /tmp/TenstreamLUT && pushd /tmp/TenstreamLUT
+    - mkdir -p $LUTTMP && pushd $LUTTMP
     - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_diffuse_10.tau31.w020.aspect_zx23.g4.ds1000.nc
     - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_direct_3_10.tau31.w020.aspect_zx23.g4.phi19.theta19.ds1000.nc
     - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_direct_8_10.tau31.w020.aspect_zx23.g4.phi19.theta19.ds1000.nc
     - popd
-    - podman run -v $(pwd):$WORKDIR/tenstream -v /tmp/TenstreamLUT:$WORKDIR/TenstreamLUT --rm -e BUILD_TYPE -e CC -e FC -e CXX -e WORKDIR -e SYST -t $myHASH $WORKDIR/tenstream/docker/build_and_run_tenstream_tests.sh
+    - podman run -v $(pwd):$WORKDIR/tenstream -v $LUTTMP:$WORKDIR/TenstreamLUT --rm -e BUILD_TYPE -e CC -e FC -e CXX -e WORKDIR -e SYST -t $myHASH $WORKDIR/tenstream/docker/build_and_run_tenstream_tests.sh
 
 
 build_GCC_DEBUG:
@@ -30,39 +24,15 @@ build_GCC_DEBUG:
     BUILD_TYPE: "DEBUG"
     DOCKERFILE: "ubuntu_latest"
     SYST: "ubuntu"
+    LUTTMP: "/local/gitlabCI_TenstreamLUT"
 
-    #build_GCC_RELEASE:
-    #  <<: *build_docker_img
-    #  variables:
-    #    CC: "mpicc"
-    #    FC: "mpif90"
-    #    CXX: "mpicxx"
-    #    BUILD_TYPE: "RELEASE"
-    #    DOCKERFILE: "ubuntu_latest"
-    #
-    #build_GCC_DEBUG_single:
-    #  <<: *build_docker_img
-    #  variables:
-    #    CC: "mpicc"
-    #    FC: "mpif90"
-    #    CXX: "mpicxx"
-    #    BUILD_TYPE: "DEBUG_single"
-    #    DOCKERFILE: "ubuntu_latest"
-    #
-    #build_GCC_DEBUG_int64:
-    #  <<: *build_docker_img
-    #  variables:
-    #    CC: "mpicc"
-    #    FC: "mpif90"
-    #    CXX: "mpicxx"
-    #    BUILD_TYPE: "DEBUG_int64"
-    #    DOCKERFILE: "ubuntu_latest"
-    #
-    #build_GCC_DEBUG_single_int64:
-    #  <<: *build_docker_img
-    #  variables:
-    #    CC: "mpicc"
-    #    FC: "mpif90"
-    #    CXX: "mpicxx"
-    #    BUILD_TYPE: "DEBUG_single_int64"
-    #    DOCKERFILE: "ubuntu_latest"
+build_GCC_DEBUG:
+  <<: *build_docker_img
+  variables:
+    CC: "mpicc"
+    FC: "mpif90"
+    CXX: "mpicxx"
+    BUILD_TYPE: "DEBUG"
+    DOCKERFILE: "ubuntu_rolling"
+    SYST: "ubuntu"
+    LUTTMP: "/local/gitlabCI_TenstreamLUT"
