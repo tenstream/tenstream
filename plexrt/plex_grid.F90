@@ -743,18 +743,19 @@ module m_plex_grid
     subroutine setup_cell1_dmplex(orig_dm, dm)
       type(tDM), intent(in) :: orig_dm
       type(tDM), allocatable, intent(inout) :: dm
-      type(tPetscSection) :: edirSection
+      type(tPetscSection) :: sec
       integer(mpiint) :: ierr
 
       if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_cell1_dmplex on an already allocated DM')
       allocate(dm)
 
       call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
+      call DMSetNumFields(dm, i1, ierr); call CHKERR(ierr)
 
       call PetscObjectSetName(dm, 'plex_cell1_dm', ierr);call CHKERR(ierr)
-      call create_plex_section(dm, 'cell_section', i1, [i1], [i0], [i0], [i0], edirSection)
-      call DMSetSection(dm, edirSection, ierr); call CHKERR(ierr)
-      call PetscSectionDestroy(edirSection, ierr); call CHKERR(ierr)
+      call create_plex_section(dm, 'cell_section', i1, [i1], [i0], [i0], [i0], sec)
+      call DMSetSection(dm, sec, ierr); call CHKERR(ierr)
+      call PetscSectionDestroy(sec, ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine setup_edir_dmplex(plex, orig_dm, top_streams, side_streams, dof_per_stream, dm)
