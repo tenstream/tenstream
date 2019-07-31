@@ -92,7 +92,7 @@ contains
     integer(iintegers) :: ip, kp, iter
     integer(iintegers) :: started_photons, globally_started_photons
     integer(iintegers) :: killed_photons, globally_killed_photons
-    integer(mpiint) :: killed_request, mpi_status(mpi_status_size)
+    integer(mpiint) :: killed_request, stat(mpi_status_size)
     logical :: lcomm_finished
 
 
@@ -190,7 +190,7 @@ contains
       if(started_photons.eq.0) exit remote_photons
     enddo remote_photons
 
-    call mpi_test(killed_request, lcomm_finished, mpi_status, ierr); call CHKERR(ierr)
+    call mpi_test(killed_request, lcomm_finished, stat, ierr); call CHKERR(ierr)
     if(lcomm_finished) then
       if(myid.eq.0) print *, iter, &
         'Globally killed photons', globally_killed_photons, '/', globally_started_photons, &
@@ -721,7 +721,7 @@ subroutine finalize_msgs(pqueue, lwait)
   logical, intent(in) :: lwait
 
   integer(iintegers) :: i
-  integer(mpiint) :: iter, mpi_status(mpi_status_size), ierr
+  integer(mpiint) :: iter, stat(mpi_status_size), ierr
   integer(mpiint) :: cnt_finished_msgs
   logical :: lcomm_finished
 
@@ -730,7 +730,7 @@ subroutine finalize_msgs(pqueue, lwait)
     ! See if we can close messages already
     do i = 1, size(pqueue%photons)
       if(pqueue%photons(i)%pstatus .eq. PQ_SENDING) then
-        call mpi_test(pqueue%photons(i)%request, lcomm_finished, mpi_status, ierr); call CHKERR(ierr)
+        call mpi_test(pqueue%photons(i)%request, lcomm_finished, stat, ierr); call CHKERR(ierr)
         if(lcomm_finished) then
           call pqueue_set_status(pqueue, i, PQ_NULL)
           cnt_finished_msgs = cnt_finished_msgs +1
