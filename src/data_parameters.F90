@@ -141,7 +141,10 @@ subroutine init_mpi_data_parameters(comm)
   imp_logical = mpi_logical
 
   if(ireal128.lt.i0) then
-    if(myid.eq.0) print *,'128 bit reals not supported :( -- you can switch to double precision instead -- beware that the twostream coefficients may not be stable -- please edit data_parameters'
+    if(myid.eq.0) print *,'128 bit reals not supported :( -- '// &
+      'you can switch to double precision instead -- '// &
+      'beware that the twostream coefficients may not be stable -- '// &
+      'please edit data_parameters'
   endif
 
   !if(ieee_support_nan(nan32)) nan32=ieee_value(1._real32, ieee_quiet_nan)
