@@ -60,3 +60,14 @@ build_ubuntu_rolling_GCC_DEBUG_single:
     DOCKERFILE: "ubuntu_rolling"
     SYST: "ubuntu"
     LUTTMP: "/local/gitlabCI_TenstreamLUT"
+
+build_ubuntu_rolling_GCC_RELEASE_single_int64:
+  <<: *build_docker_img
+  variables:
+    CC: "mpicc"
+    FC: "mpif90"
+    CXX: "mpicxx"
+    BUILD_TYPE: "RELEASE_single_int64"
+    DOCKERFILE: "ubuntu_rolling"
+    SYST: "ubuntu"
+    LUTTMP: "/local/gitlabCI_TenstreamLUT"
