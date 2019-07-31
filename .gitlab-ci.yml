@@ -1,5 +1,4 @@
 .build_docker_img: &build_docker_img
-  stage: build_images
   script:
     - echo '(Re-)Generating Dockerfile Images for' $CC $BUILD_TYPE $DOCKERFILE
     - export WORKDIR=/root
@@ -15,7 +14,7 @@
     - podman run -v $(pwd):$WORKDIR/tenstream -v $LUTTMP:$WORKDIR/TenstreamLUT --rm -e BUILD_TYPE -e CC -e FC -e CXX -e WORKDIR -e SYST -t $myHASH $WORKDIR/tenstream/docker/build_and_run_tenstream_tests.sh
 
 
-build_GCC_DEBUG:
+build_ubuntu_latest_GCC_DEBUG:
   <<: *build_docker_img
   variables:
     CC: "mpicc"
@@ -26,7 +25,7 @@ build_GCC_DEBUG:
     SYST: "ubuntu"
     LUTTMP: "/local/gitlabCI_TenstreamLUT"
 
-build_GCC_DEBUG:
+build_ubuntu_rolling_GCC_DEBUG:
   <<: *build_docker_img
   variables:
     CC: "mpicc"
