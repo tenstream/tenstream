@@ -7,7 +7,7 @@ if(RAYLI_DIR)
   include_directories(${RAYLI_DIR}/include)
   find_library(RAYLI_LIB rayli_c_wrapper ${RAYLI_DIR} ${RAYLI_DIR}/lib )
   find_library(RAYLI_LIB2 rayli_common    ${RAYLI_DIR} ${RAYLI_DIR}/lib )
-  list(APPEND RAYLI_LIB ${RAYLI_LIB2} stdc++ m)
+  list(APPEND RAYLI_LIB ${RAYLI_LIB2} stdc++ pthread m)
   message(STATUS "Found RAYLI LIB: ${RAYLI_LIB}")
 endif(RAYLI_DIR)
 
