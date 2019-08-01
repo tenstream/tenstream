@@ -163,6 +163,7 @@ subroutine init_diff_photon_3_10(bmc, p, src, vertices, ierr)
             phi = deg2rad( interv_R(-90._ireal_dp,90._ireal_dp) )
           case default
             call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+            call exit
         end select
 
         p%dir = (/sin(phi)*sin(acos(mu)) , cos(phi)*sin(acos(mu)) , mu  /)

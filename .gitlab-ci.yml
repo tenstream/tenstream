@@ -8,11 +8,7 @@
     - echo "Docker Image Tag" $myHASH
     - podman build -f mydockerfile -t $myHASH
     - mkdir -p $LUTTMP && pushd $LUTTMP
-    - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_diffuse_10.tau31.w020.aspect_zx23.g4.ds1000.nc
-    - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_direct_3_10.tau31.w020.aspect_zx23.g4.phi19.theta19.ds1000.nc
-    - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_direct_8_10.tau31.w020.aspect_zx23.g4.phi19.theta19.ds1000.nc
-    - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_rectilinear_wedge_diffuse_8.tau31.w020.aspect_zx23.wedge_coord_Cx3.wedge_coord_Cy2.ds1000.nc
-    - wget -N https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/LUT_rectilinear_wedge_direct_5_8.tau15.w010.aspect_zx18.wedge_coord_Cx3.wedge_coord_Cy2.param_phi19.param_theta13.ds1000.nc
+    - wget -cN -r -l 1 -nd -nH -A 'LUT*' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
     - popd
     - podman run -v $(pwd):$WORKDIR/tenstream -v $LUTTMP:$WORKDIR/TenstreamLUT --rm -e BUILD_TYPE -e CC -e FC -e CXX -e WORKDIR -e SYST -t $myHASH $WORKDIR/tenstream/docker/build_and_run_tenstream_tests.sh
 

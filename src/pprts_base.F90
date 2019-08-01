@@ -314,6 +314,7 @@ module m_pprts_base
         print *,'-solver 8_16'
         print *,'-solver 8_18'
         call CHKERR(1_mpiint, 'have to provide solver type')
+        call exit
     end select
 
   end subroutine

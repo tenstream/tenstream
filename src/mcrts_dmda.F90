@@ -582,6 +582,7 @@ subroutine find_empty_entry_in_pqueue(pqueue, emptyid, ierr)
       return
     endif
   enddo
+  emptyid = -1
   ierr = 1
 end subroutine
 

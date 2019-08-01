@@ -469,6 +469,9 @@ subroutine init_diff_photon_wedge_18_8(bmc, p, src, vertices, ierr)
     phi= deg2rad( R()*360 )
   case(2:7)
     phi= deg2rad( interv_R(0._ireal_dp, 180._ireal_dp) ) ! from +x to -x through +y
+  case default
+    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+    call exit
   end select
 
   mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu --> Lambertian
