@@ -19,7 +19,7 @@ echo "Installing PETSc :: $PETSC_DIR // $PETSC_ARCH // $CC // $FC // $CXX"
 
 PETSC_OPT="--with-cc=$CC --with-fc=$FC --with-cxx=$CXX \
   --with-fortran --with-fortran-interfaces \
-  --with-valgrind --download-hdf5 --download-zlib"
+  --with-valgrind --download-hdf5 --download-zlib --download-openmpi"
 
 CMAKE_BUILD_TYPE="RELEASE"
 [[ $PETSC_ARCH = *"DEBUG"* ]] && CMAKE_BUILD_TYPE="DEBUG"

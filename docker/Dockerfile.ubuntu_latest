@@ -1,5 +1,5 @@
 FROM ubuntu:latest
 
 RUN apt-get update && \
-      apt-get install -fy build-essential cmake gfortran git libcurl4-openssl-dev libopenblas-dev openmpi-bin m4 python valgrind wget && \
+      apt-get install -fy build-essential cmake gfortran git libcurl4-openssl-dev libopenblas-dev m4 python valgrind wget && \
       apt-get autoremove && apt-get clean
