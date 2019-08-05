@@ -40,6 +40,7 @@ export NETCDF_DIR=$PETSC_DIR/$PETSC_ARCH
 cat >> $DOCKER_TARGET << EOF
 RUN echo "export PETSC_DIR=$PETSC_DIR" >> $WORKDIR/.profile && \
     echo "export PETSC_ARCH=$PETSC_ARCH" >> $WORKDIR/.profile && \
+    echo "export PATH=\$PETSC_DIR/\$PETSC_ARCH/bin:\$PATH" >> $WORKDIR/.profile && \
     echo "export NETCDF_DIR=$NETCDF_DIR" >> $WORKDIR/.profile && \
     echo "export CMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" >> $WORKDIR/.profile
 
