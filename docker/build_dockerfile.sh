@@ -17,9 +17,13 @@ export PETSC_ARCH=$BUILD_TYPE
 echo "Using Work Dir :: $WORKDIR"
 echo "Installing PETSc :: $PETSC_DIR // $PETSC_ARCH // $CC // $FC // $CXX"
 
-PETSC_OPT="--with-cc=$CC --with-fc=$FC --with-cxx=$CXX \
+#PETSC_OPT="--with-cc=$CC --with-fc=$FC --with-cxx=$CXX \
+#  --with-fortran --with-fortran-interfaces \
+#  --with-valgrind --download-hdf5 --download-zlib --download-openmpi"
+
+PETSC_OPT="--download-openmpi \
   --with-fortran --with-fortran-interfaces \
-  --with-valgrind --download-hdf5 --download-zlib --download-openmpi"
+  --with-valgrind --download-hdf5 --download-zlib"
 
 CMAKE_BUILD_TYPE="RELEASE"
 [[ $PETSC_ARCH = *"DEBUG"* ]] && CMAKE_BUILD_TYPE="DEBUG"
