@@ -17,9 +17,21 @@ export PETSC_ARCH=$BUILD_TYPE
 echo "Using Work Dir :: $WORKDIR"
 echo "Installing PETSc :: $PETSC_DIR // $PETSC_ARCH // $CC // $FC // $CXX"
 
-PETSC_OPT="--with-cc=$CC --with-fc=$FC --with-cxx=$CXX \
+#PETSC_OPT="--with-cc=$CC --with-fc=$FC --with-cxx=$CXX \
+#  --with-fortran --with-fortran-interfaces \
+#  --with-valgrind --download-hdf5 --download-zlib --download-openmpi"
+
+PETSC_OPT="\
   --with-fortran --with-fortran-interfaces \
   --with-valgrind --download-hdf5 --download-zlib"
+
+if grep openmpi $DOCKERBASEFILE; then
+  echo "Found MPI installed"
+  PETSC_OPT="$PETSC_OPT --with-cc=$CC --with-fc=$FC --with-cxx=$CXX"
+else
+  echo "Cannot find mpirun ... will petsc install openmpi"
+  PETSC_OPT="$PETSC_OPT --download-openmpi"
+fi
 
 CMAKE_BUILD_TYPE="RELEASE"
 [[ $PETSC_ARCH = *"DEBUG"* ]] && CMAKE_BUILD_TYPE="DEBUG"
@@ -36,21 +48,23 @@ export NETCDF_DIR=$PETSC_DIR/$PETSC_ARCH
 cat >> $DOCKER_TARGET << EOF
 RUN echo "export PETSC_DIR=$PETSC_DIR" >> $WORKDIR/.profile && \
     echo "export PETSC_ARCH=$PETSC_ARCH" >> $WORKDIR/.profile && \
+    echo "export PATH=$PETSC_DIR/$PETSC_ARCH/bin:\$PATH" >> $WORKDIR/.profile && \
     echo "export NETCDF_DIR=$NETCDF_DIR" >> $WORKDIR/.profile && \
-    echo "export CMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" >> $WORKDIR/.profile
-
-RUN cd $WORKDIR && . $WORKDIR/.profile && \
+    echo "export CMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" >> $WORKDIR/.profile && \
+    cat $WORKDIR/.profile && \
+  \
+  cd $WORKDIR && . $WORKDIR/.profile && \
   git clone --depth=1 https://bitbucket.org/petsc/petsc -b master \$PETSC_DIR && \
   cd \$PETSC_DIR && git checkout $CURRENT_PETSC_HASH && \
-  ./configure $PETSC_OPT || (cat configure.log; false) && make
-
-RUN cd $WORKDIR && . $WORKDIR/.profile && \
+  ./configure $PETSC_OPT || (cat configure.log; false) && make && \
+  \
+  cd $WORKDIR && . $WORKDIR/.profile && \
   wget ftp://ftp.unidata.ucar.edu/pub/netcdf/${NCFC}.tar.gz && \
   tar -xzf ${NCFC}.tar.gz && cd $NCFC && \
   CC=$CC CPPFLAGS=-I\$PETSC_DIR/\$PETSC_ARCH/include LDFLAGS=-L\$PETSC_DIR/\$PETSC_ARCH/lib ./configure --prefix=\$NETCDF_DIR && \
-  make -j install
-
-RUN cd $WORKDIR && . $WORKDIR/.profile && \
+  make -j install && \
+  \
+  cd $WORKDIR && . $WORKDIR/.profile && \
   wget ftp://ftp.unidata.ucar.edu/pub/netcdf/${NCFF}.tar.gz && \
   tar -xzf ${NCFF}.tar.gz && cd $NCFF && \
   CC=$CC FC=$FC F70=$FC CPPFLAGS=-I\$PETSC_DIR/\$PETSC_ARCH/include LDFLAGS=-L\$PETSC_DIR/\$PETSC_ARCH/lib ./configure --prefix=\$NETCDF_DIR && \
