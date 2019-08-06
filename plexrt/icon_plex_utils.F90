@@ -972,16 +972,26 @@ module m_icon_plex_utils
 
       integer(mpiint) :: myid, numnodes, ierr
 
+      logical :: lcircular, lflg
+
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
       if(Nx.le.i1) call CHKERR(1_mpiint, 'Nx has to be at least 2')
       if(Ny.le.i1) call CHKERR(1_mpiint, 'Ny has to be at least 2')
 
+      lcircular=.False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-circular_mesh', lcircular, lflg, ierr) ; call CHKERR(ierr)
+
       if(myid.eq.0) then
           Nfaces = (Nx-1) * (Ny-1) * 2      ! Number of faces
           Nvertices = Nx * Ny               ! Number of vertices
           Nedges = (Nx-1) * (Ny-1) + Nx * (Ny-1) + Ny * (Nx-1)
+          if(lcircular) then
+            Nvertices = (Nx-1)*(Ny-1)
+            Nedges = (Nx-1) * (Ny-1) + 2 * (Nx-1) * (Ny-1)
+          endif
       else
         Nfaces = 0
         Nedges = 0
@@ -1060,10 +1070,15 @@ module m_icon_plex_utils
           integer(iintegers) :: verts_per_row, edge_per_row, horiz_edges_per_row, bot_edges_per_row
 
           verts_per_row = Nx
+          if(lcircular) verts_per_row = Nx - 1
+
           bot_edges_per_row = Nx-1
           horiz_edges_per_row = Nx + Nx-1
+          if(lcircular) horiz_edges_per_row = 2 * (Nx-1)
+
           edge_per_row = bot_edges_per_row + horiz_edges_per_row
-          if(ldebug) print *,'bot_edges_per_row, horiz_edges_per_row, edge_per_row', bot_edges_per_row, horiz_edges_per_row, edge_per_row
+          if(ldebug) print *,'bot_edges_per_row, horiz_edges_per_row, edge_per_row', &
+            bot_edges_per_row, horiz_edges_per_row, edge_per_row
 
           ! Preallocation
           ! Faces have 3 edges
@@ -1095,8 +1110,10 @@ module m_icon_plex_utils
 
               ! this has a top edge
               cone3(3) = Nfaces + (j+1)*edge_per_row + i                       ! top edge
-              cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row + (i+1)*2 ! left edge
+              cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row + (i+1)*2 ! right edge
               cone3(1) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 +1  ! center edge
+              if(lcircular.and.j.eq.Ny-2) cone3(3) = Nfaces + i
+              if(lcircular.and.i.eq.Nx-2) cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row
               if(ldebug) print *,'face',ioff,': i,j', i, j, 'edges', cone3
               call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
               ioff = ioff + 1
@@ -1105,21 +1122,32 @@ module m_icon_plex_utils
 
           do j=0,Ny-1
             do i=0,Nx-2 ! verts of horizontal edges
+              if(lcircular.and.j.eq.Ny-1) cycle
+
               k = Nfaces + j*edge_per_row + i
               cone2(1) = Nfaces + Nedges + j*verts_per_row + i
               cone2(2) = Nfaces + Nedges + j*verts_per_row + i + 1
+
+              if(lcircular.and.i.eq.Nx-2) cone2(2) = Nfaces + Nedges + j*verts_per_row
+
               call DMPlexSetCone(dm, k, cone2, ierr); call CHKERR(ierr)
-              if(ldebug) print *,'edge',k,': i,j', i, j, 'verts', cone2
+              if(ldebug) print *,'verts of horiz edge',k,': i,j', i, j, 'verts', cone2
             enddo
           enddo
 
           do j=0,Ny-2
             do i=0,Nx-1 ! verts of vertical edges
+              if(lcircular.and.i.eq.Nx-1) cycle
+
+
               k = Nfaces + j*edge_per_row + bot_edges_per_row + i*2
               cone2(1) = Nfaces + Nedges + (j  )*verts_per_row + i
               cone2(2) = Nfaces + Nedges + (j+1)*verts_per_row + i
+
+              if(lcircular.and.j.eq.Ny-2) cone2(2) = Nfaces + Nedges + i
+
               call DMPlexSetCone(dm,  k, cone2, ierr); call CHKERR(ierr)
-              if(ldebug) print *,'edge',k,': i,j', i, j, 'verts', cone2
+              if(ldebug) print *,'verts of vert edge',k,': i,j', i, j, 'verts', cone2
             enddo
           enddo
 
@@ -1128,11 +1156,14 @@ module m_icon_plex_utils
               k = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 + 1
               cone2(1) = Nfaces + Nedges + (j  )*verts_per_row + i + 1
               cone2(2) = Nfaces + Nedges + (j+1)*verts_per_row + i
+
+              if(lcircular.and.i.eq.Nx-2) cone2(1) = Nfaces + Nedges + j*verts_per_row
+              if(lcircular.and.j.eq.Ny-2) cone2(2) = Nfaces + Nedges + i
+
               call DMPlexSetCone(dm,  k, cone2, ierr); call CHKERR(ierr)
-              if(ldebug) print *,'edge',k,': i,j', i, j, 'verts', cone2
+              if(ldebug) print *,'verts of center edge',k,': i,j', i, j, 'verts', cone2
             enddo
           enddo
-
         end subroutine
 
         subroutine set_coords_serial(dm, Nx)
@@ -1148,7 +1179,11 @@ module m_icon_plex_utils
           real(ireals) :: x, y, z
 
           integer(iintegers) :: vert_per_row
-          vert_per_row = Nx
+          if(lcircular) then
+            vert_per_row = Nx-1
+          else
+            vert_per_row = Nx
+          endif
 
           dx = get_arg(1._ireals, opt_dx)
           dy = dx
