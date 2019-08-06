@@ -4,14 +4,25 @@
     - echo '(Re-)Generating Dockerfile Images for' $CC $BUILD_TYPE $DOCKERFILE
     - export WORKDIR=/root
     - docker/build_dockerfile.sh "docker/Dockerfile.$DOCKERFILE" "$BUILD_TYPE" "$WORKDIR" "$CC" "$FC" "$CXX" mydockerfile && cat mydockerfile
-    - export myHASH=${DOCKERFILE}_$(md5sum mydockerfile|cut -f 1 -d ' ')
+    - export myHASH=$( echo ${DOCKERFILE}_$(md5sum mydockerfile|cut -f 1 -d ' ') | tr '[:upper:]' '[:lower:]')
     - echo "Docker Image Tag" $myHASH
     - podman build -f mydockerfile -t $myHASH
     - mkdir -p $LUTTMP && pushd $LUTTMP
-    - wget -cN -r -l 1 -nd -nH -A 'LUT*' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
+    - wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
     - popd
     - podman run -v $(pwd):$WORKDIR/tenstream -v $LUTTMP:$WORKDIR/TenstreamLUT --rm -e BUILD_TYPE -e CC -e FC -e CXX -e WORKDIR -e SYST -t $myHASH $WORKDIR/tenstream/docker/build_and_run_tenstream_tests.sh
 
+
+build_ubuntu_latest_noMPI_GCC_DEBUG:
+  <<: *build_docker_img
+  variables:
+    CC: "mpicc"
+    FC: "mpif90"
+    CXX: "mpicxx"
+    BUILD_TYPE: "DEBUG"
+    DOCKERFILE: "ubuntu_latest_noMPI"
+    SYST: "ubuntu"
+    LUTTMP: "/local/gitlabCI_TenstreamLUT"
 
 build_ubuntu_latest_GCC_DEBUG:
   <<: *build_docker_img
