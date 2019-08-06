@@ -4,7 +4,7 @@
 
 mkdir -p $WORKDIR/TenstreamLUT_cpy
 cd $WORKDIR/TenstreamLUT_cpy
-cp $WORKDIR/TenstreamLUT/*.mmap4 $WORKDIR/TenstreamLUT_cpy
+cp -v $WORKDIR/TenstreamLUT/*.mmap4 $WORKDIR/TenstreamLUT_cpy
 echo "-lut_basename $(pwd)/LUT" >> $HOME/.petscrc
 
 cd $WORKDIR/tenstream || exit
