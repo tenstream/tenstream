@@ -30,7 +30,8 @@ use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandl
 
 use m_netcdfio, only : ncload, ncwrite
 
-use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D, dump_ownership, Nz_Ncol_vec_to_celldm1
+use m_icon_plex_utils, only: create_2d_fish_plex, create_2d_regular_plex, &
+  dmplex_2D_to_3D, dump_ownership, Nz_Ncol_vec_to_celldm1
 
 implicit none
 
@@ -60,11 +61,19 @@ logical, parameter :: ldebug=.True.
       real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
 
       logical, parameter :: lthermal = .False.
+      logical :: lregular_mesh, lflg
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf)
+      lregular_mesh = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-use_regular_mesh', lregular_mesh, lflg, ierr) ; call CHKERR(ierr)
+      if(lregular_mesh) then
+        call create_2d_regular_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf)
+      else
+        call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf)
+      endif
 
       hhl(1) = zero
       do k=2,Nz
@@ -79,7 +88,11 @@ logical, parameter :: ldebug=.True.
 
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-      call allocate_plexrt_solver_from_commandline(solver, '5_8')
+      if(lregular_mesh) then
+        call allocate_plexrt_solver_from_commandline(solver, 'rectilinear_5_8')
+      else
+        call allocate_plexrt_solver_from_commandline(solver, '5_8')
+      endif
       call init_plex_rt_solver(plex, solver)
 
       call init_sundir()
