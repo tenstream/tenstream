@@ -4,7 +4,7 @@
     - echo '(Re-)Generating Dockerfile Images for' $CC $BUILD_TYPE $DOCKERFILE
     - export WORKDIR=/root
     - docker/build_dockerfile.sh "docker/Dockerfile.$DOCKERFILE" "$BUILD_TYPE" "$WORKDIR" "$CC" "$FC" "$CXX" mydockerfile && cat mydockerfile
-    - export myHASH=${DOCKERFILE}_$(md5sum mydockerfile|cut -f 1 -d ' ')
+    - export myHASH=$( echo ${DOCKERFILE}_$(md5sum mydockerfile|cut -f 1 -d ' ') | tr '[:upper:]' '[:lower:]')
     - echo "Docker Image Tag" $myHASH
     - podman build -f mydockerfile -t $myHASH
     - mkdir -p $LUTTMP && pushd $LUTTMP
