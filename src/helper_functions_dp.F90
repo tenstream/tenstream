@@ -515,7 +515,7 @@ module m_helper_functions_dp
           lhit = .False.
         endif
       endif
-      if(det.eq.zero) then
+      if(approx(det,zero,tiny(det))) then
         lhit = .False.
         hit(:) = huge(one)
         return
