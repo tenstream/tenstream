@@ -44,6 +44,7 @@ module m_plex_rt
   private
 
   public :: t_plex_solver, allocate_plexrt_solver_from_commandline, &
+    t_plex_solver_rectilinear_5_8, &
     init_plex_rt_solver, run_plex_rt_solver, &
     compute_face_geometry, set_plex_rt_optprop, destroy_plexrt_solver, &
     plexrt_get_result, scale_flx
@@ -3403,20 +3404,20 @@ module m_plex_rt
         if(solution%lchanged) call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
 
         if(present(redir) .and. .not.solution%lsolar_rad) &
-          call CHKERR(1_mpiint, 'you asked for direct radiation but solution does not have it')
+          call CHKWARN(1_mpiint, 'you asked for direct radiation but solution does not have it')
 
         call scale_flx(solver, solver%plex, &
           solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
           solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
           solution, lWm2=.True., logevent=solver%logs%scale_flx)
 
-        if(present(redir)) then
+        if(present(redir).and.solution%lsolar_rad) then
           call DMGetSection(solver%plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
         endif
         call DMGetSection(solver%plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
         call DMGetSection(solver%plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
 
-        if(present(redir)) then
+        if(present(redir).and.solution%lsolar_rad) then
           call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
         endif
         call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
@@ -3445,7 +3446,7 @@ module m_plex_rt
             rabso(i1+k, i) = xabso(i1+voff)
           enddo
 
-          if(present(redir)) then
+          if(present(redir).and.solution%lsolar_rad) then
             do k = 0, ke1-1
               call PetscSectionGetFieldOffset(edir_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
               redir(i1+k,i) = zero
@@ -3468,7 +3469,7 @@ module m_plex_rt
         enddo
         call ISRestoreIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
 
-        if(present(redir)) then
+        if(present(redir).and.solution%lsolar_rad) then
           call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
         endif
         call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
@@ -3477,7 +3478,7 @@ module m_plex_rt
         if(ldebug) then
           call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
           if(myid.eq.0) then
-            if(present(redir)) then
+            if(present(redir).and.solution%lsolar_rad) then
               print *,'Get Result, k     Edir                   Edn                      Eup                  abso'
               do k = 1, ke1-1
                 print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)!, &

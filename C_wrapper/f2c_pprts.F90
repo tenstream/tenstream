@@ -18,16 +18,19 @@
 !-------------------------------------------------------------------------
 
 module m_f2c_pprts
+#include "petsc/finclude/petsc.h"
+      use petsc
 
       use iso_c_binding
 
       use m_data_parameters, only : init_mpi_data_parameters, &
         iintegers, ireals, mpiint, default_str_len, &
-        zero, one
+        i0, i1, zero, one
 
       use m_tenstream_options, only: read_commandline_options
 
-      use m_helper_functions, only: imp_bcast, meanval, CHKERR
+      use m_helper_functions, only: imp_bcast, meanval, CHKERR, &
+        resize_arr, spherical_2_cartesian, itoa
 
       use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_3_6, t_solver_1_2, t_coord, &
         t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18
@@ -36,8 +39,13 @@ module m_f2c_pprts
 
       use m_petsc_helpers, only : petscVecToF90, petscGlobalVecToZero, f90VecToPetsc
 
-#include "petsc/finclude/petsc.h"
-      use petsc
+      use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
+        rank0_f90vec_to_plex, dmplex_gvec_from_f90_array, plex_gvec_tozero
+      use m_plex_grid, only: t_plexgrid, setup_plexgrid, create_plex_section
+      use m_plex_rt, only: allocate_plexrt_solver_from_commandline, &
+        init_plex_rt_solver, run_plex_rt_solver, plexrt_get_result, destroy_plexrt_solver, &
+        t_plex_solver, t_plex_solver_rectilinear_5_8
+
       implicit none
 
       private
@@ -45,6 +53,10 @@ module m_f2c_pprts
         pprts_f2c_solve, pprts_f2c_get_result, pprts_f2c_destroy
 
       class(t_solver), allocatable :: solver
+      class(t_plex_solver), allocatable :: plex_solver
+      type(tDM) :: dm2d, dm2d_dist
+      type(tPetscSF) :: migration_sf
+      real(ireals) :: sundir(3)
 
 #include "f2c_solver_ids.h"
 
@@ -74,7 +86,8 @@ contains
 
     if(initialized) then
       ierr = 0
-      select type(solver)
+      if(allocated(solver)) then
+        select type(solver)
         class is (t_solver_1_2)
           if(solver_id.ne.SOLVER_ID_PPRTS_1_2) ierr = 1
         class is (t_solver_3_6)
@@ -89,7 +102,14 @@ contains
           if(solver_id.ne.SOLVER_ID_PPRTS_8_16) ierr = 1
         class is (t_solver_8_18)
           if(solver_id.ne.SOLVER_ID_PPRTS_8_18) ierr = 1
-      end select
+        end select
+      endif
+      if(allocated(plex_solver)) then
+        select type(plex_solver)
+        class is (t_plex_solver_rectilinear_5_8)
+          if(solver_id.ne.SOLVER_ID_PLEXRT_RECTILINEAR_5_8) ierr = 1
+        end select
+      endif
       if(ierr.ne.0) call CHKERR(ierr, 'seems you changed the solver type id in between calls... you must destroy the solver first before you use a different kind of solver')
       return
     endif
@@ -148,21 +168,28 @@ contains
     select case(solver_id)
     case(SOLVER_ID_PPRTS_1_2)
       allocate(t_solver_1_2::solver)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_3_6)
       allocate(t_solver_3_6::solver)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_3_10)
       allocate(t_solver_3_10::solver)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_8_10)
       allocate(t_solver_8_10::solver)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_3_16)
       allocate(t_solver_3_16::solver)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_8_16)
       allocate(t_solver_8_16::solver)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_8_18)
       allocate(t_solver_8_18::solver)
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
+    case(SOLVER_ID_PLEXRT_RECTILINEAR_5_8)
+      call pprts_plexrt_f2c_init(comm, osolver_id, oNx, oNy, oNz+1, odx, ohhl, ophi0, otheta0)
     end select
-
-    call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
 
     initialized=.True.
   end subroutine
@@ -176,25 +203,31 @@ contains
     real(ireals) :: oalbedo
     real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og, oplanck
 
-    if(solver%myid.eq.0) then
-      oalbedo = real(albedo, kind=ireals)
-      allocate( okabs  (Nz  ,Nx,Ny) ); okabs   = real(kabs, ireals)
-      allocate( oksca  (Nz  ,Nx,Ny) ); oksca   = real(ksca, ireals)
-      allocate( og     (Nz  ,Nx,Ny) ); og      = real(g, ireals)
-      allocate( oplanck(Nz+1,Nx,Ny) ); oplanck = real(planck, ireals)
+    if(allocated(solver)) then
+      if(solver%myid.eq.0) then
+        oalbedo = real(albedo, kind=ireals)
+        allocate( okabs  (Nz  ,Nx,Ny) ); okabs   = real(kabs, ireals)
+        allocate( oksca  (Nz  ,Nx,Ny) ); oksca   = real(ksca, ireals)
+        allocate( og     (Nz  ,Nx,Ny) ); og      = real(g, ireals)
+        allocate( oplanck(Nz+1,Nx,Ny) ); oplanck = real(planck, ireals)
 
-      if(any(oplanck.gt.zero)) then
-        call set_global_optical_properties(solver, oalbedo, okabs, oksca, og, oplanck)
-      else
-        call set_global_optical_properties(solver, oalbedo, okabs, oksca, og)
+        if(any(oplanck.gt.zero)) then
+          call set_global_optical_properties(solver, oalbedo, okabs, oksca, og, oplanck)
+        else
+          call set_global_optical_properties(solver, oalbedo, okabs, oksca, og)
+        endif
+
+        print *,'mean kabs  ',meanval(okabs)
+        print *,'mean ksca  ',meanval(oksca)
+        print *,'mean g     ',meanval(og)
+        print *,'mean planck',meanval(oplanck)
+      else !slave
+        call set_global_optical_properties(solver)
       endif
+    endif
 
-      print *,'mean kabs  ',meanval(okabs)
-      print *,'mean ksca  ',meanval(oksca)
-      print *,'mean g     ',meanval(og)
-      print *,'mean planck',meanval(oplanck)
-    else !slave
-      call set_global_optical_properties(solver)
+    if(allocated(plex_solver)) then
+      call pprts_plexrt_f2c_set_global_optical_properties(Nz, Nx, Ny, albedo, kabs, ksca, g, planck)
     endif
   end subroutine
 
@@ -205,16 +238,18 @@ contains
     integer(c_int), value :: comm
     real(c_float), value :: edirTOA
     real(ireals) :: oedirTOA
+    logical :: lthermal
 
-    if(solver%myid.eq.0) oedirTOA = real(edirTOA, ireals)
-    call imp_bcast(comm, oedirTOA, 0_mpiint)
+    if(allocated(solver)) then
+      if(solver%myid.eq.0) oedirTOA = real(edirTOA, ireals)
+      call imp_bcast(comm, oedirTOA, 0_mpiint)
 
-    call solve_pprts(solver, oedirTOA)
-  end subroutine
-
-  subroutine pprts_f2c_destroy() bind(c)
-    call destroy_pprts(solver, lfinalizepetsc=.True.)
-    deallocate(solver)
+      call solve_pprts(solver, oedirTOA)
+    endif
+    if(allocated(plex_solver)) then
+      lthermal = allocated(plex_solver%plck)
+      call run_plex_rt_solver(plex_solver, lthermal=lthermal, lsolar=.not.lthermal, sundir=sundir)
+    endif
   end subroutine
 
   subroutine pprts_f2c_get_result(Nz,Nx,Ny, res_edn, res_eup, res_abso, res_edir) bind(c)
@@ -228,10 +263,20 @@ contains
     real(c_float),intent(out),dimension(Nz+1,Nx,Ny) :: res_edir
 
     real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
+    integer(mpiint) :: comm, myid, ierr
 
-    call pprts_get_result_toZero(solver,redn,reup,rabso,redir)
+    if(allocated(solver)) then
+      call pprts_get_result_toZero(solver,redn,reup,rabso,redir)
+      comm = solver%comm
+    endif
 
-    if(solver%myid.eq.0) then
+    if(allocated(plex_solver)) then
+      call PetscObjectGetComm(plex_solver%plex%dm, comm, ierr); call CHKERR(ierr)
+      call plex_solver_retrieve_and_average_results(comm, res_edn, res_eup, res_abso, res_edir)
+    endif
+
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    if(myid.eq.0) then
       res_edn  = real(redn (:, 1:Nx, 1:Ny), kind=c_float)
       res_eup  = real(reup (:, 1:Nx, 1:Ny), kind=c_float)
       res_abso = real(rabso(:, 1:Nx, 1:Ny), kind=c_float)
@@ -241,5 +286,154 @@ contains
       print *,'pprts_f2c_get_result rabso first column', rabso(:,1,1)
     endif
 
+    contains
+      subroutine plex_solver_retrieve_and_average_results(comm, res_edn, res_eup, res_abso, res_edir)
+        integer(mpiint), intent(in) :: comm
+        real(c_float), intent(out), dimension(:,:,:) :: res_edn, res_eup, res_abso, res_edir
+        real(ireals),allocatable,dimension(:,:) :: redir,redn,reup,rabso
+
+        call plexrt_get_result(plex_solver, redn, reup, rabso, redir)
+
+        call transfer_one_var(comm, redn, res_edn)
+      end subroutine
+      subroutine transfer_one_var(comm, var, var0)
+        integer(mpiint), intent(in) :: comm
+        real(ireals), intent(in) :: var(:,:) ! output from plexrt dim (Nz, Ncol), i.e. Ncol==2*Nx*Ny
+        real(c_float), intent(out) :: var0(:,:,:) ! output on rank0 dim (Nz, Nx, Ny)
+        type(tPetscSection) :: flxSection, r0flxSection
+        type(tVec) :: v_var
+        type(tVec) :: r0var
+        real(ireals), pointer :: xv(:), xxv(:,:,:)
+        integer(mpiint) :: myid, ierr
+
+        call create_plex_section(dm2d_dist, 'face_section', i1, &
+          [i0], [size(var,dim=1,kind=iintegers)], [i0], [i0], flxSection)
+
+        call dmplex_gVec_from_f90_array(comm, var, v_var)
+        call plex_gVec_toZero(dm2d_dist, migration_sf, flxSection, v_var, &
+          r0flxSection, r0var)
+
+        call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+        if(myid.eq.0) then
+          call VecGetArrayF90(r0var, xv,ierr); call CHKERR(ierr)
+          call CHKERR(int(size(xv)/2-size(var0), mpiint), 'Global array sizes do not match, expected input size'// &
+            itoa(shape(var0))//' to be half the size of the plexrt mesh result: '//itoa(shape(xv)))
+          xxv(1:size(var,dim=1), 1:2*Nx, 1:Ny) => xv
+          var0 = ( xxv(:, 1:size(xxv,2):2, :) + xxv(:, 2:size(xxv,2):2, :) ) / 2
+          nullify(xxv)
+          call VecRestoreArrayF90(r0var, xv,ierr); call CHKERR(ierr)
+        endif
+      end subroutine
+
   end subroutine
+
+  subroutine pprts_f2c_destroy() bind(c)
+    integer(mpiint) :: ierr
+    if(allocated(solver)) then
+      call destroy_pprts(solver, lfinalizepetsc=.True.)
+      deallocate(solver)
+    endif
+    if(allocated(plex_solver)) then
+      call PetscSFDestroy(migration_sf, ierr); call CHKERR(ierr)
+      call DMDestroy(dm2d, ierr); call CHKERR(ierr)
+      call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
+      call destroy_plexrt_solver(plex_solver, lfinalizepetsc=.True.)
+      deallocate(plex_solver)
+    endif
+  end subroutine
+
+
+  ! --------------------- Start of PLEXRT Routines -------------------
+  subroutine pprts_plexrt_f2c_init(comm, solver_id, &
+      Nx_global, Ny_global, Nlev, &
+      dx, hhl, phi0, theta0 )
+    integer(mpiint), intent(in) :: comm
+    integer(iintegers), intent(in) :: solver_id, Nx_global, Ny_global, Nlev
+    real(ireals), intent(in) :: dx, hhl(:), phi0, theta0
+
+    type(t_plexgrid), allocatable :: plex
+    integer(iintegers), allocatable :: zindex(:)
+    integer(iintegers) :: fStart, fEnd, Ncol
+    type(tDM) :: dm3d
+    integer(mpiint) :: myid, ierr
+
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    call create_2d_regular_plex(comm, Nx_global+1, Ny_global+1, dm2d, dm2d_dist, &
+      opt_migration_sf=migration_sf, opt_dx=dx)
+
+    call DMPlexGetHeightStratum(dm2d_dist, i0, fStart, fEnd, ierr); call CHKERR(ierr)
+    Ncol = fEnd - fStart
+
+    print *,myid,'Local Domain sizes are:',Ncol,Nlev
+
+    call dmplex_2D_to_3D(dm2d_dist, Nlev, hhl, dm3d, zindex, lpolar_coords=.False.)
+
+    call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
+    call DMDestroy(dm3d, ierr); call CHKERR(ierr)
+    deallocate(zindex)
+
+    select case(solver_id)
+    case(SOLVER_ID_PLEXRT_RECTILINEAR_5_8)
+      call allocate_plexrt_solver_from_commandline(plex_solver, 'rectilinear_5_8')
+    end select
+
+    call init_plex_rt_solver(plex, plex_solver)
+
+    sundir = spherical_2_cartesian(phi0,theta0)
+    print *,'sundir', sundir
+  end subroutine
+
+  subroutine pprts_plexrt_f2c_set_global_optical_properties(Nz, Nx, Ny, albedo, kabs, ksca, g, planck) bind(c)
+    integer(c_int), value :: Nx,Ny,Nz
+    real(c_float),intent(in) :: albedo
+    real(c_float),intent(in),dimension(Nz  ,Nx,Ny) :: kabs, ksca, g
+    real(c_float),intent(in),dimension(Nz+1,Nx,Ny) :: planck
+
+    real(ireals) :: oalbedo
+    real(ireals),allocatable,target,dimension(:,:,:) :: work
+    integer(mpiint) :: comm, myid, ierr
+
+    call PetscObjectGetComm(plex_solver%plex%dm, comm, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    if(myid.eq.0) oalbedo = real(albedo, ireals)
+    call imp_bcast(comm, oalbedo, 0_mpiint); call CHKERR(ierr)
+
+    if(.not.allocated(plex_solver%albedo)) then
+      allocate(plex_solver%albedo)
+      call DMCreateGlobalVector(plex_solver%plex%srfc_boundary_dm, plex_solver%albedo, ierr); call CHKERR(ierr)
+    endif
+    call VecSet(plex_solver%albedo, oalbedo, ierr); call CHKERR(ierr)
+
+    if(solver%myid.eq.0) allocate( work(Nz  ,2*Nx,Ny) )
+    call propagate_vars_from_Zero_to_solver_optprop(kabs, work, plex_solver%kabs)
+    call propagate_vars_from_Zero_to_solver_optprop(ksca, work, plex_solver%ksca)
+    call propagate_vars_from_Zero_to_solver_optprop(g   , work, plex_solver%g   )
+
+    if(solver%myid.eq.0) then
+      deallocate(work)
+      allocate( work(Nz+1,2*Nx,Ny) )
+    endif
+    call propagate_vars_from_Zero_to_solver_optprop(planck, work, plex_solver%plck   )
+
+  contains
+    subroutine propagate_vars_from_Zero_to_solver_optprop(arr, work, solvervec)
+      real(c_float), intent(in) :: arr(:,:,:) ! has global cartesian mesh dimensions
+      real(ireals), intent(inout), contiguous, target :: work(:,:,:) ! has global rectilinear mesh dimensions
+      type(tVec), allocatable, intent(inout) :: solvervec ! e.g. solver%kabs
+      real(ireals), pointer :: col_arr(:,:)
+      type(tPetscSection) :: parCellSection
+
+      if(myid.eq.0) then
+        work(:, 1:size(work,2):2, :) = arr
+        work(:, 2:size(work,2):2, :) = arr
+        col_arr(1:size(arr,1), 1:size(work,2)*size(work,3)) => work
+      endif
+
+      call rank0_f90vec_to_plex(dm2d, dm2d_dist, migration_sf, &
+        col_arr, parCellSection, solvervec)
+      call PetscSectionDestroy(parCellSection, ierr); call CHKERR(ierr)
+    end subroutine
+  end subroutine
+
 end module
