@@ -735,8 +735,8 @@ module m_helper_functions
       logical, intent(in), optional :: lrepeat
 
       integer(kind(arr)), allocatable :: tmp(:)
-      integer(kind(N)) :: sdim
-      integer(mpiint) :: idim, i, j
+      integer(kind(N)) :: sdim, i, j
+      integer(mpiint) :: idim
       logical :: repeat_dim
 
       idim = get_arg(1_mpiint, dim)
