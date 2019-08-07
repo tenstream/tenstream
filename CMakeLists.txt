@@ -88,6 +88,23 @@ else()
   message(FATAL " -- CMAKE_BUILD_TYPE should be either RELEASE or DEBUG")
 endif()
 
+
+# NetCDF
+set (NETCDF_F90 "YES")
+find_package( NetCDF )
+if(${NETCDF_FOUND})
+  message(STATUS "Found NetCDF:    ${NETCDF_FOUND}" )
+  message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
+  message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
+  message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
+  include_directories(${NETCDF_INCLUDES})
+  include_directories(${NETCDF_INCLUDES_F90})
+  list (APPEND EXTLIB ${NETCDF_LIBRARIES})
+else(${NETCDF_FOUND})
+  message(WARNING "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
+endif(${NETCDF_FOUND})
+
+
 # Petsc
 set(PETSCINSTALL "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}")
 MESSAGE(STATUS "Using PETSC ${PETSCINSTALL} ")
@@ -117,6 +134,7 @@ add_definitions (${PETSC_DEFINITIONS})
 include_directories (${PETSC_INCLUDES})
 list (APPEND EXTLIB "${PETSC_LIBRARIES}" )
 
+
 # Add Lapack
 find_package( LAPACK )
 if(${LAPACK_FOUND})
@@ -136,21 +154,6 @@ endif(${LAPACK_FOUND})
 # else(${HDF5_FOUND})
 #   message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
 # endif(${HDF5_FOUND})
-
-# NetCDF
-set (NETCDF_F90 "YES")
-find_package( NetCDF )
-if(${NETCDF_FOUND})
-  message(STATUS "Found NetCDF:    ${NETCDF_FOUND}" )
-  message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
-  message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
-  message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
-  include_directories(${NETCDF_INCLUDES})
-  include_directories(${NETCDF_INCLUDES_F90})
-  list (APPEND EXTLIB ${NETCDF_LIBRARIES})
-else(${NETCDF_FOUND})
-  message(WARNING "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
-endif(${NETCDF_FOUND})
 
 
 ## Set MPI Stuff
@@ -174,6 +177,14 @@ if(AUTODETECT_MPI)
   endif(${MPI_Fortran_FOUND})
 else(AUTODETECT_MPI)
 endif(AUTODETECT_MPI)
+
+
+## Add User Libs
+if(DEFINED USER_LIBS)
+    list (APPEND EXTLIB "${USER_LIBS}" )
+    message(INFO " EXTLIB after user LIBS: ${USER_LIBS}")
+endif()
+
 
 # Set Output Directories
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE PATH "Output directory for Dohp archives")
