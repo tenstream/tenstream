@@ -16,7 +16,7 @@ set(Fortran_COMPILER_WRAPPER "mpif90")
 set(USER_C_FLAGS               "-W -std=c99")
 set(USER_Fortran_FLAGS         "-ffree-line-length-none -g")
 set(USER_Fortran_FLAGS_RELEASE "-fno-range-check -O3 -mtune=native")
-set(USER_Fortran_FLAGS_DEBUG   "-O0 -fbacktrace -finit-real=nan -Werror -Wall -pedantic -g -pg -fcheck=all -fbounds-check -ffpe-trap=invalid")
+set(USER_Fortran_FLAGS_DEBUG   "-fbacktrace -finit-real=snan -Werror -Wall -pedantic -g -pg -fcheck=all -fbounds-check -Wuninitialized -ffpe-trap=invalid ")
 
 set(NETCDF_DIR      "$ENV{NETCDF}")
 set(NETCDF_DIR_F90  "$ENV{NETCDF}")
