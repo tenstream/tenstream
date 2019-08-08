@@ -31,7 +31,8 @@ module m_f2c_rayli
         Nphotons, Nwedges, Nfaces, Nverts, &
         verts_of_face, faces_of_wedges, vert_coords, &
         kabs, ksca, g, albedo_on_faces, sundir, diffuse_point_origin, &
-        flx_through_faces_edir, flx_through_faces_ediff) bind(c, name='rfft_wedge')
+        flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells) &
+        bind(c, name='rfft_wedge')
       use iso_c_binding
       integer(c_size_t), value :: Nphotons
       integer(c_size_t), value :: Nwedges
@@ -46,6 +47,7 @@ module m_f2c_rayli
       real(c_double) :: diffuse_point_origin(1:3)
       real(c_double) :: flx_through_faces_edir(1:Nfaces)
       real(c_double) :: flx_through_faces_ediff(1:Nfaces)
+      real(c_double) :: abso_in_cells(1:Nwedges)
     end function
   end interface
   interface
@@ -83,7 +85,7 @@ contains
         Nphotons, Nwedges, Nfaces, Nverts, &
         verts_of_face, faces_of_wedges, vert_coords, &
         kabs, ksca, g, albedo_on_faces, sundir, diffuse_point_origin, &
-        flx_through_faces_edir, flx_through_faces_ediff)
+        flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells)
       use iso_c_binding
       integer(c_size_t), value :: Nphotons
       integer(c_size_t), value :: Nwedges
@@ -97,6 +99,7 @@ contains
       real(c_double), intent(in) :: sundir(:), diffuse_point_origin(:)
       real(c_double), intent(out) :: flx_through_faces_edir(:)
       real(c_double), intent(out) :: flx_through_faces_ediff(:)
+      real(c_double), intent(out) :: abso_in_cells(:)
 
       rfft_wedgeF90 = 1
       call CHKERR(1_mpiint, "You tried calling The RayLi Monte Carlo solver "// &
@@ -107,6 +110,7 @@ contains
         flx_through_faces_edir(1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_double)
         flx_through_faces_ediff(1) = vert_coords(1,1) + kabs(1) + ksca(1) + g(1) + sundir(1) + &
           albedo_on_faces(1) + diffuse_point_origin(1)
+        abso_in_cells(1) = 0
       endif
     end function
 

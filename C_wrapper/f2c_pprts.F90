@@ -34,6 +34,7 @@ module m_f2c_pprts
 
       use m_pprts_base, only : t_solver, t_solver_3_10, t_solver_3_6, t_solver_1_2, t_coord, &
         t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18
+
       use m_pprts, only : init_pprts, set_global_optical_properties, solve_pprts, destroy_pprts, &
         pprts_get_result_toZero
 
@@ -46,17 +47,21 @@ module m_f2c_pprts
         init_plex_rt_solver, run_plex_rt_solver, plexrt_get_result, destroy_plexrt_solver, &
         t_plex_solver, t_plex_solver_rectilinear_5_8
 
+      use m_netcdfio, only: ncwrite
+
       implicit none
 
       private
       public :: pprts_f2c_init, pprts_f2c_set_global_optical_properties, &
         pprts_f2c_solve, pprts_f2c_get_result, pprts_f2c_destroy
 
-      class(t_solver), allocatable :: solver
+      class(t_solver), allocatable :: pprts_solver
       class(t_plex_solver), allocatable :: plex_solver
       type(tDM) :: dm2d, dm2d_dist
       type(tPetscSF) :: migration_sf
       real(ireals) :: sundir(3)
+
+      logical, parameter :: ldebug=.False.
 
 #include "f2c_solver_ids.h"
 
@@ -86,8 +91,8 @@ contains
 
     if(initialized) then
       ierr = 0
-      if(allocated(solver)) then
-        select type(solver)
+      if(allocated(pprts_solver)) then
+        select type(pprts_solver)
         class is (t_solver_1_2)
           if(solver_id.ne.SOLVER_ID_PPRTS_1_2) ierr = 1
         class is (t_solver_3_6)
@@ -157,39 +162,41 @@ contains
     collapseindex = int(ocollapseindex, kind=c_int)
 
     ! Now every process has the correct values
-    print *,myid,'Initializing pprts environment from C Language :: solver_id', solver_id
-    print *,myid,'Initializing pprts environment from C Language :: domainshape',oNx,oNy,oNz,'::',shape(ohhl)
+    if(ldebug) print *,myid,'Initializing pprts environment from C Language :: solver_id', solver_id
+    if(ldebug) print *,myid,'Initializing pprts environment from C Language :: domainshape',oNx,oNy,oNz,'::',shape(ohhl)
 
     allocate(odz(oNz))
     do k=1,Nz
       odz(k) = ohhl(k) - ohhl(k+1)
     enddo
 
+    ierr=1
     select case(solver_id)
     case(SOLVER_ID_PPRTS_1_2)
-      allocate(t_solver_1_2::solver)
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
+      allocate(t_solver_1_2::pprts_solver); ierr=0
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_3_6)
-      allocate(t_solver_3_6::solver)
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
+      allocate(t_solver_3_6::pprts_solver); ierr=0
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_3_10)
-      allocate(t_solver_3_10::solver)
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
+      allocate(t_solver_3_10::pprts_solver); ierr=0
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_8_10)
-      allocate(t_solver_8_10::solver)
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
+      allocate(t_solver_8_10::pprts_solver); ierr=0
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_3_16)
-      allocate(t_solver_3_16::solver)
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
+      allocate(t_solver_3_16::pprts_solver); ierr=0
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_8_16)
-      allocate(t_solver_8_16::solver)
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
+      allocate(t_solver_8_16::pprts_solver); ierr=0
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
     case(SOLVER_ID_PPRTS_8_18)
-      allocate(t_solver_8_18::solver)
-      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, solver, dz1d=odz)
-    case(SOLVER_ID_PLEXRT_RECTILINEAR_5_8)
+      allocate(t_solver_8_18::pprts_solver); ierr=0
+      call init_pprts(comm, oNz,oNx,oNy, odx,ody, ophi0, otheta0, pprts_solver, dz1d=odz)
+    case(SOLVER_ID_PLEXRT_RECTILINEAR_5_8); ierr=0
       call pprts_plexrt_f2c_init(comm, osolver_id, oNx, oNy, oNz+1, odx, ohhl, ophi0, otheta0)
     end select
+    call CHKERR(ierr, 'Could not find a suitable solver to allocate for solver_id: '//itoa(solver_id))
 
     initialized=.True.
   end subroutine
@@ -203,8 +210,8 @@ contains
     real(ireals) :: oalbedo
     real(ireals),allocatable,dimension(:,:,:) :: okabs, oksca, og, oplanck
 
-    if(allocated(solver)) then
-      if(solver%myid.eq.0) then
+    if(allocated(pprts_solver)) then
+      if(pprts_solver%myid.eq.0) then
         oalbedo = real(albedo, kind=ireals)
         allocate( okabs  (Nz  ,Nx,Ny) ); okabs   = real(kabs, ireals)
         allocate( oksca  (Nz  ,Nx,Ny) ); oksca   = real(ksca, ireals)
@@ -212,17 +219,17 @@ contains
         allocate( oplanck(Nz+1,Nx,Ny) ); oplanck = real(planck, ireals)
 
         if(any(oplanck.gt.zero)) then
-          call set_global_optical_properties(solver, oalbedo, okabs, oksca, og, oplanck)
+          call set_global_optical_properties(pprts_solver, oalbedo, okabs, oksca, og, oplanck)
         else
-          call set_global_optical_properties(solver, oalbedo, okabs, oksca, og)
+          call set_global_optical_properties(pprts_solver, oalbedo, okabs, oksca, og)
         endif
 
-        print *,'mean kabs  ',meanval(okabs)
-        print *,'mean ksca  ',meanval(oksca)
-        print *,'mean g     ',meanval(og)
-        print *,'mean planck',meanval(oplanck)
+        if(ldebug) print *,'mean kabs  ',meanval(okabs)
+        if(ldebug) print *,'mean ksca  ',meanval(oksca)
+        if(ldebug) print *,'mean g     ',meanval(og)
+        if(ldebug) print *,'mean planck',meanval(oplanck)
       else !slave
-        call set_global_optical_properties(solver)
+        call set_global_optical_properties(pprts_solver)
       endif
     endif
 
@@ -240,15 +247,15 @@ contains
     real(ireals) :: oedirTOA
     logical :: lthermal
 
-    if(allocated(solver)) then
-      if(solver%myid.eq.0) oedirTOA = real(edirTOA, ireals)
+    if(allocated(pprts_solver)) then
+      if(pprts_solver%myid.eq.0) oedirTOA = real(edirTOA, ireals)
       call imp_bcast(comm, oedirTOA, 0_mpiint)
 
-      call solve_pprts(solver, oedirTOA)
+      call solve_pprts(pprts_solver, oedirTOA)
     endif
     if(allocated(plex_solver)) then
       lthermal = allocated(plex_solver%plck)
-      call run_plex_rt_solver(plex_solver, lthermal=lthermal, lsolar=.not.lthermal, sundir=sundir)
+      call run_plex_rt_solver(plex_solver, lthermal=lthermal, lsolar=.True., sundir=sundir)
     endif
   end subroutine
 
@@ -264,10 +271,18 @@ contains
 
     real(ireals),allocatable,dimension(:,:,:) :: redir,redn,reup,rabso
     integer(mpiint) :: comm, myid, ierr
+    logical :: lflg
+    character(len=default_str_len) :: dump_fname(2)
 
-    if(allocated(solver)) then
-      call pprts_get_result_toZero(solver,redn,reup,rabso,redir)
-      comm = solver%comm
+    if(allocated(pprts_solver)) then
+      call pprts_get_result_toZero(pprts_solver,redn,reup,rabso,redir)
+      comm = pprts_solver%comm
+      if(pprts_solver%myid.eq.0) then
+        res_edn  = real(redn (:, 1:Nx, 1:Ny), kind=c_float)
+        res_eup  = real(reup (:, 1:Nx, 1:Ny), kind=c_float)
+        res_abso = real(rabso(:, 1:Nx, 1:Ny), kind=c_float)
+        res_edir = real(redir(:, 1:Nx, 1:Ny), kind=c_float)
+      endif
     endif
 
     if(allocated(plex_solver)) then
@@ -276,14 +291,19 @@ contains
     endif
 
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
     if(myid.eq.0) then
-      res_edn  = real(redn (:, 1:Nx, 1:Ny), kind=c_float)
-      res_eup  = real(reup (:, 1:Nx, 1:Ny), kind=c_float)
-      res_abso = real(rabso(:, 1:Nx, 1:Ny), kind=c_float)
-      res_edir = real(redir(:, 1:Nx, 1:Ny), kind=c_float)
-      print *,'pprts_f2c_get_result result_edir first column', res_edir(:,1,1)
-      print *,'pprts_f2c_get_result redir first column', redir(:,1,1)
-      print *,'pprts_f2c_get_result rabso first column', rabso(:,1,1)
+      if(ldebug) print *,'pprts_f2c_get_result result_edir first column', res_edir(:,1,1)
+      if(ldebug) print *,'pprts_f2c_get_result result_edn  first column', res_edn (:,1,1)
+      if(ldebug) print *,'pprts_f2c_get_result result_eup  first column', res_eup (:,1,1)
+      if(ldebug) print *,'pprts_f2c_get_result rabso first column', res_abso(:,1,1)
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-f2c_dump_result", dump_fname(1), lflg , ierr) ;call CHKERR(ierr)
+      if(lflg) then
+        dump_fname(2) = "edir"; call ncwrite(dump_fname, res_edir, ierr); call CHKERR(ierr)
+        dump_fname(2) = "edn" ; call ncwrite(dump_fname, res_edn, ierr); call CHKERR(ierr)
+        dump_fname(2) = "eup" ; call ncwrite(dump_fname, res_eup, ierr); call CHKERR(ierr)
+        dump_fname(2) = "abso"; call ncwrite(dump_fname, res_abso, ierr); call CHKERR(ierr)
+      endif
     endif
 
     contains
@@ -295,6 +315,9 @@ contains
         call plexrt_get_result(plex_solver, redn, reup, rabso, redir)
 
         call transfer_one_var(comm, redn, res_edn)
+        call transfer_one_var(comm, reup, res_eup)
+        call transfer_one_var(comm, rabso, res_abso)
+        call transfer_one_var(comm, redir, res_edir)
       end subroutine
       subroutine transfer_one_var(comm, var, var0)
         integer(mpiint), intent(in) :: comm
@@ -316,28 +339,35 @@ contains
         call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
         if(myid.eq.0) then
           call VecGetArrayF90(r0var, xv,ierr); call CHKERR(ierr)
-          call CHKERR(int(size(xv)/2-size(var0), mpiint), 'Global array sizes do not match, expected input size'// &
-            itoa(shape(var0))//' to be half the size of the plexrt mesh result: '//itoa(shape(xv)))
+          call CHKERR(int(size(xv)/2-size(var0), mpiint), 'Global array sizes do not match, expected input size ('// &
+            itoa(shape(var0))//') to be half the size of the plexrt mesh result: ('//itoa(shape(xv))//')')
           xxv(1:size(var,dim=1), 1:2*Nx, 1:Ny) => xv
-          var0 = ( xxv(:, 1:size(xxv,2):2, :) + xxv(:, 2:size(xxv,2):2, :) ) / 2
+          var0 = real( xxv(:, 1:size(xxv,2):2, :) + xxv(:, 2:size(xxv,2):2, :), c_float) / 2
           nullify(xxv)
           call VecRestoreArrayF90(r0var, xv,ierr); call CHKERR(ierr)
         endif
+        call PetscSectionDestroy(flxSection, ierr); call CHKERR(ierr)
+        call PetscSectionDestroy(r0flxSection, ierr); call CHKERR(ierr)
+        call VecDestroy(v_var, ierr); call CHKERR(ierr)
+        call VecDestroy(r0var, ierr); call CHKERR(ierr)
       end subroutine
 
   end subroutine
 
-  subroutine pprts_f2c_destroy() bind(c)
+  subroutine pprts_f2c_destroy(ifinalizepetsc) bind(c)
+    integer(c_int), value, intent(in) :: ifinalizepetsc
+    logical :: lfinalizepetsc
     integer(mpiint) :: ierr
-    if(allocated(solver)) then
-      call destroy_pprts(solver, lfinalizepetsc=.True.)
-      deallocate(solver)
+    lfinalizepetsc = ifinalizepetsc.ne.0
+    if(allocated(pprts_solver)) then
+      call destroy_pprts(pprts_solver, lfinalizepetsc=lfinalizepetsc)
+      deallocate(pprts_solver)
     endif
     if(allocated(plex_solver)) then
       call PetscSFDestroy(migration_sf, ierr); call CHKERR(ierr)
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)
       call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
-      call destroy_plexrt_solver(plex_solver, lfinalizepetsc=.True.)
+      call destroy_plexrt_solver(plex_solver, lfinalizepetsc=lfinalizepetsc)
       deallocate(plex_solver)
     endif
   end subroutine
@@ -365,7 +395,7 @@ contains
     call DMPlexGetHeightStratum(dm2d_dist, i0, fStart, fEnd, ierr); call CHKERR(ierr)
     Ncol = fEnd - fStart
 
-    print *,myid,'Local Domain sizes are:',Ncol,Nlev
+    if(ldebug) print *,myid,'plexrt_f2c_init: Local Domain sizes are:', Nlev, Ncol
 
     call dmplex_2D_to_3D(dm2d_dist, Nlev, hhl, dm3d, zindex, lpolar_coords=.False.)
 
@@ -381,7 +411,7 @@ contains
     call init_plex_rt_solver(plex, plex_solver)
 
     sundir = spherical_2_cartesian(phi0,theta0)
-    print *,'sundir', sundir
+    if(ldebug) print *,'sundir', sundir
   end subroutine
 
   subroutine pprts_plexrt_f2c_set_global_optical_properties(Nz, Nx, Ny, albedo, kabs, ksca, g, planck) bind(c)
@@ -393,6 +423,7 @@ contains
     real(ireals) :: oalbedo
     real(ireals),allocatable,target,dimension(:,:,:) :: work
     integer(mpiint) :: comm, myid, ierr
+    logical :: lthermal
 
     call PetscObjectGetComm(plex_solver%plex%dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -405,16 +436,21 @@ contains
     endif
     call VecSet(plex_solver%albedo, oalbedo, ierr); call CHKERR(ierr)
 
-    if(solver%myid.eq.0) allocate( work(Nz  ,2*Nx,Ny) )
+    if(myid.eq.0) allocate( work(Nz,2*Nx,Ny) )
     call propagate_vars_from_Zero_to_solver_optprop(kabs, work, plex_solver%kabs)
     call propagate_vars_from_Zero_to_solver_optprop(ksca, work, plex_solver%ksca)
     call propagate_vars_from_Zero_to_solver_optprop(g   , work, plex_solver%g   )
 
-    if(solver%myid.eq.0) then
-      deallocate(work)
-      allocate( work(Nz+1,2*Nx,Ny) )
+    if(myid.eq.0) lthermal = any(planck.gt.zero)
+    call imp_bcast(comm, lthermal, 0_mpiint)
+
+    if(lthermal) then
+      if(myid.eq.0) then
+        deallocate(work)
+        allocate( work(Nz+1,2*Nx,Ny) )
+      endif
+      call propagate_vars_from_Zero_to_solver_optprop(planck, work, plex_solver%plck)
     endif
-    call propagate_vars_from_Zero_to_solver_optprop(planck, work, plex_solver%plck   )
 
   contains
     subroutine propagate_vars_from_Zero_to_solver_optprop(arr, work, solvervec)
@@ -430,6 +466,7 @@ contains
         col_arr(1:size(arr,1), 1:size(work,2)*size(work,3)) => work
       endif
 
+      if(.not.allocated(solvervec)) allocate(solvervec)
       call rank0_f90vec_to_plex(dm2d, dm2d_dist, migration_sf, &
         col_arr, parCellSection, solvervec)
       call PetscSectionDestroy(parCellSection, ierr); call CHKERR(ierr)
