@@ -48,5 +48,5 @@ void f2c_destroy_pprts_rrtmg(int *lfinalizepetsc);
 void pprts_f2c_init(int fcomm, int *solver_id, int *Nz,int *Nx,int *Ny,double *dx,double *dy,float *hhl, float *phi0, float *theta0, int *collapseindex);
 void pprts_f2c_set_global_optical_properties(int Nz,int Nx,int Ny, float *albedo, float *kabs, float *ksca, float *g, float *planck);
 void pprts_f2c_solve(int fcomm, float edirTOA);
-void pprts_f2c_destroy();
+void pprts_f2c_destroy(int *lfinalizepetsc);
 void pprts_f2c_get_result(int Nz,int Nx,int Ny, float *edn, float *eup, float *abso, float *edir);

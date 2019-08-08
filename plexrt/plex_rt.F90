@@ -2379,7 +2379,7 @@ module m_plex_rt
       angles=angles, wedge_coords=real([Cx, Cy], irealLUT))
 
     if(ldebug) then
-      if(any(coeff.lt.zero).or.any(coeff.gt.one)) then
+      if(any(coeff.lt.0._irealLUT).or.any(coeff.gt.1._irealLUT+sqrt(epsilon(coeff)))) then
         print *,'Lookup Coeffs for', aspect_zx, tauz, w0, dg, angles,'::', coeff
         call CHKERR(1_mpiint, 'Found corrupted coefficients!')
       endif
@@ -2980,8 +2980,6 @@ module m_plex_rt
     type(t_state_container), intent(inout) :: solution
 
     real(ireals), pointer :: xksca(:), xkabs(:), xg(:), xalbedo(:)
-    real(ireals), pointer :: xedir(:), xediff(:)
-    type(tPetscSection) :: edir_section, ediff_section
 
     logical :: lthermal, lsolar
 
@@ -3004,6 +3002,7 @@ module m_plex_rt
     real(c_double)                 :: rsundir(3)
     real(c_double),    allocatable :: flx_through_faces_edir(:)
     real(c_double),    allocatable :: flx_through_faces_ediff(:)
+    real(c_double),    allocatable :: abso_in_cells(:)
 
     real(ireals) :: diffuse_point_origin(3)
     integer(c_size_t) :: Nphotons, Nwedges, Nfaces, Nverts
@@ -3062,7 +3061,8 @@ module m_plex_rt
              rg   (Nwedges), &
              ralbedo_on_faces(Nfaces), &
              flx_through_faces_edir(Nfaces), &
-             flx_through_faces_ediff(2*Nfaces) )
+             flx_through_faces_ediff(2*Nfaces), &
+             abso_in_cells(Nwedges) )
 
     do icell = cStart, cEnd-1
       call DMPlexGetCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
@@ -3116,37 +3116,48 @@ module m_plex_rt
       verts_of_face, faces_of_wedges, vert_coords, &
       rkabs, rksca, rg, &
       ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_double), &
-      flx_through_faces_edir, flx_through_faces_ediff); call CHKERR(ierr)
+      flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
 
     call get_result()
 
     !Twostream solver returns fluxes as [W/m^2]
     solution%lWm2_dir  = .True.
     solution%lWm2_diff = .True.
-    ! and mark solution that it is not up to date
-    solution%lchanged  = .True.
+    ! and mark solution that it is up to date, otherwise abso would be overwritten
+    solution%lchanged  = .False.
     contains
       subroutine get_result()
         type(tIS) :: toa_ids
-        integer(iintegers) :: i, k, ke1, Ncol, ridx, numDof
+        integer(iintegers) :: i, k, ke1, Ncol, ridx, numDof, geom_offset
         integer(iintegers), pointer :: xtoa_faces(:)
+        real(ireals), pointer :: xedir(:), xediff(:), xabso(:), geoms(:)
+        real(ireals) :: area
+        type(tPetscSection) :: edir_section, ediff_section, abso_section, geomSection
 
+        call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+        call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+        ! --------------------------- Direct Radiation ------------------
         call DMPlexGetDepthStratum(plex%dm, i2, ofStart, ofEnd, ierr); call CHKERR(ierr) ! vertices
         if(lsolar) then
           call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
-          call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+          call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
           do iface = ofStart, ofEnd-1
+            call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
+            area = geoms(i1+geom_offset)
+
             call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
             call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
             do idof = 1, numDof
-              xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-ofStart+1)), ireals)
+              xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-ofStart+1)), ireals)! / area
             enddo
           enddo
-          call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+          call VecRestoreArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
         endif
 
+        ! --------------------------- Diffuse Radiation -----------------
         call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
-        call VecGetArrayF90(solution%ediff , xediff , ierr); call CHKERR(ierr)
+        call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
 
         call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', &
           TOAFACE, toa_ids, ierr); call CHKERR(ierr)
@@ -3160,21 +3171,41 @@ module m_plex_rt
           iface = xtoa_faces(i)
           do k = 0, ke1-2
             call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
-            xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
-            xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
+            call PetscSectionGetFieldOffset(geomSection, iface+k, i2, geom_offset, ierr); call CHKERR(ierr)
+            area = geoms(i1+geom_offset)
+
+            xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)! / area
+            xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)! / area
+
             ridx = ridx+2
           enddo
+
           ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
           call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
-          xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)
-          xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)
+          call PetscSectionGetFieldOffset(geomSection, iface+ke1-1, i2, geom_offset, ierr); call CHKERR(ierr)
+          area = geoms(i1+geom_offset)
+
+          xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)! / area
+          xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)! / area
           ridx = ridx+2
         enddo
 
         call ISRestoreIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+        call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
 
-        call VecRestoreArrayF90(solution%ediff , xediff , ierr); call CHKERR(ierr)
+        ! --------------------------- Absorption ------------------------
+        call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
+        call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+        do icell = cStart, cEnd-1
+          call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr) ! cell volume
+          call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
+          xabso(i1+voff) = real(abso_in_cells(i1+icell-cStart), ireals) / geoms(i1+geom_offset)
+        enddo
+        call VecRestoreArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
+        call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
       end subroutine
+
       subroutine fill_albedo()
         type(tIS) :: toa_ids
         integer(iintegers), pointer :: xtoa_faces(:)
@@ -3193,6 +3224,7 @@ module m_plex_rt
 
         call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
       end subroutine
+
       subroutine take_snap(ierr)
         integer(mpiint), intent(out) :: ierr
         character(len=default_str_len) :: snap_path, groups(2)
