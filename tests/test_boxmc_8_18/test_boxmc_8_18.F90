@@ -125,25 +125,25 @@ contains
 
 
     src = 4   ! top face -- low angle stream upper right quadrant
-    S_target = [0.00001, 0.00016, 0.00005, 0.86118, 0.00001, 0.00010, 0.00000, 0.00000, 0.00001, 0.00010, 0.00000, 0.06917, 0.00000, 0.00002, 0.00000, 0.06915, 0.00000, 0.00002]
+    S_target = [0.00001, 0.00016, 0.00005, 0.86118, 0.00001, 0.00010, 0.00000, 0.00000, 0.00001, 0.00010, 0.01920, 0.01920, 0.00000, 0.00002, 0.00000, 0.09960, 0.00000, 0.00002]
     call bmc_8_18%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface_low_angle_quadrant_1')
 
 
     src = 6   ! top face -- low angle stream upper left quadrant
-    S_target = [0.00001, 0.00016, 0.00001, 0.00010, 0.00005, 0.86114, 0.00001, 0.00010, 0.00000, 0.00000, 0.06920, 0.00000, 0.00002, 0.00000, 0.00000, 0.06916, 0.00000, 0.00002]
+    S_target = [0.00001, 0.00016, 0.00001, 0.00010, 0.00005, 0.86114, 0.00001, 0.00010, 0.00000, 0.00000, 0.09960, 0.00000, 0.00002, 0.00000, 0.01920, 0.01920, 0.00000, 0.00002]
     call bmc_8_18%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srctopface_low_angle_quadrant_2')
 
 
     src = 8   ! top face -- low angle stream lower left quadrant
-    s_target = [0.00001, 0.00016, 0.00000, 0.00000, 0.00001, 0.00010, 0.00006, 0.86123, 0.00001, 0.00009, 0.06918, 0.00000, 0.00002, 0.00000, 0.06909, 0.00000, 0.00002, 0.00000]
+    s_target = [0.00001, 0.00016, 0.00000, 0.00000, 0.00001, 0.00010, 0.00006, 0.86123, 0.00001, 0.00009, 0.01920, 0.01920, 0.00002, 0.00000, 0.09960, 0.00000, 0.00002, 0.00000]
     call bmc_8_18%get_coeff(comm,bg,src,.false.,phi,theta,vertices,s,t,s_tol,t_tol, inp_atol=atol, inp_rtol=rtol)
     call check(s_target,t_target, s,t, msg=' test_boxmc_select_cases_diff_srctopface_low_angle_quadrant_3')
 
 
     src = 10   ! top face -- low angle stream lower right quadrant
-    s_target = [0.00001, 0.00016, 0.00001, 0.00010, 0.00000, 0.00000, 0.00001, 0.00010, 0.00005, 0.86115, 0.00000, 0.06919, 0.00000, 0.00002, 0.06917, 0.00000, 0.00002, 0.00000]
+    s_target = [0.00001, 0.00016, 0.00001, 0.00010, 0.00000, 0.00000, 0.00001, 0.00010, 0.00005, 0.86115, 0.00000, 0.09960, 0.00000, 0.00002, 0.01920, 0.01920, 0.00002, 0.00000]
     call bmc_8_18%get_coeff(comm,bg,src,.false.,phi,theta,vertices,s,t,s_tol,t_tol, inp_atol=atol, inp_rtol=rtol)
     call check(s_target,t_target, s,t, msg=' test_boxmc_select_cases_diff_srctopface_low_angle_quadrant_4')
   end subroutine
@@ -158,32 +158,32 @@ contains
 
     T_target = zero
 
-    src = 1   ! top face -- forward stream
-    S_target = [0.96691, 0.00000, 0.00000, 0.00006, 0.00000, 0.00005, 0.00000, 0.00006, 0.00000, 0.00005, 0.00000, 0.00000,  0.00817, 0.00827, 0.00000, 0.00000, 0.00819, 0.00824]
+    src = 1   ! bot face -- vertical stream
+    S_target = [0.96691, 0.00000, 0.00000, 0.00006, 0.00000, 0.00005, 0.00000, 0.00006, 0.00000, 0.00005, 0.00000, 0.00000, 0.00817, 0.00827, 0.00000, 0.00000, 0.00819, 0.00824]
     call bmc_8_18%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_vertical_angle')
 
 
-    src = 3   ! bot face -- low angle stream upper right quadrant
-    S_target = [0.00021, 0.00002, 0.86106, 0.00004, 0.00010, 0.00001, 0.00001, 0.00000, 0.00010, 0.00001, 0.00001, 0.00001, 0.00000, 0.06881, 0.00000, 0.00004, 0.00000, 0.06954]
+    src = 3   ! bot face -- low angle stream upper quadrant
+    S_target = [0.00021, 0.00002, 0.86106, 0.00004, 0.00010, 0.00001, 0.00001, 0.00000, 0.00010, 0.00001, 0.00001, 0.00001, 0.01926, 0.01926, 0.00000, 0.00004, 0.00000, 0.09911]
     call bmc_8_18%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_low_angle_quadrant_1')
 
 
-    src = 5   ! bot face -- low angle stream upper left quadrant
-    S_target = [0.00017, 0.00001, 0.00014, 0.00000, 0.86051, 0.00004, 0.00013, 0.00001, 0.00001, 0.00000, 0.00001, 0.00000, 0.06958, 0.00000, 0.00000, 0.00001, 0.00000, 0.06936]
+    src = 5   ! bot face -- low angle stream left quadrant
+    S_target = [0.00017, 0.00001, 0.00014, 0.00000, 0.86051, 0.00004, 0.00013, 0.00001, 0.00001, 0.00000, 0.00001, 0.00000, 0.09911, 0.00000, 0.00000, 0.00001, 0.01920, 0.01920]
     call bmc_8_18%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
     call check(S_target,T_target, S,T, msg=' test_boxmc_select_cases_diff_srcbotface_low_angle_quadrant_2')
 
 
-    src = 7   ! bot face -- low angle stream lower left quadrant
-    s_target = [0.00014, 0.00001, 0.00001, 0.00000, 0.00010, 0.00001, 0.86030, 0.00003, 0.00013, 0.00001, 0.00003, 0.00000, 0.06929, 0.00001, 0.00002, 0.00000, 0.06990, 0.00000]
+    src = 7   ! bot face -- low angle stream bot quadrant
+    s_target = [0.00014, 0.00001, 0.00001, 0.00000, 0.00010, 0.00001, 0.86030, 0.00003, 0.00013, 0.00001, 0.00003, 0.00001, 0.01920, 0.01920, 0.00002, 0.00000, 0.09911, 0.00000]
     call bmc_8_18%get_coeff(comm,bg,src,.false.,phi,theta,vertices,s,t,s_tol,t_tol, inp_atol=atol, inp_rtol=rtol)
     call check(s_target,t_target, s,t, msg=' test_boxmc_select_cases_diff_srcbotface_low_angle_quadrant_3')
 
 
-    src = 9   ! bot face -- low angle stream lower right quadrant
-    s_target = [0.00020, 0.00001, 0.00011, 0.00002, 0.00001, 0.00001, 0.00007, 0.00001, 0.86021, 0.00007, 0.00000, 0.00001, 0.00001, 0.06922, 0.00004, 0.00000, 0.06999, 0.00000]
+    src = 9   ! bot face -- low angle stream right quadrant
+    s_target = [0.00020, 0.00001, 0.00011, 0.00002, 0.00001, 0.00001, 0.00007, 0.00001, 0.86021, 0.00007, 0.00000, 0.00001, 0.00001, 0.09911, 0.00004, 0.00000, 0.01920, 0.01920]
     call bmc_8_18%get_coeff(comm,bg,src,.false.,phi,theta,vertices,s,t,s_tol,t_tol, inp_atol=atol, inp_rtol=rtol)
     call check(s_target,t_target, s,t, msg=' test_boxmc_select_cases_diff_srcbotface_low_angle_quadrant_4')
   end subroutine
