@@ -753,15 +753,14 @@ contains
     real(irealLUT),intent(inout) :: coeff(:)
     if(lswitch_east) then
       call CHKERR(1_mpiint, 'not yet implemented')
+      coeff = coeff
     endif
     if (lswitch_north) then
       call CHKERR(1_mpiint, 'not yet implemented')
+      coeff = coeff
     endif
-    if(.False.) then ! remove compiler unused warnings
-      select type(OPP)
-      end select
-      if(lswitch_east .or. lswitch_north) coeff=coeff
-    endif
+    select type(OPP)
+    end select
   end subroutine
 
   subroutine dir2dir_coeff_symmetry_none(OPP, coeff, lswitch_east, lswitch_north)
