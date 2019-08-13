@@ -6,7 +6,7 @@ module m_plex_rt
   use m_tenstream_options, only : read_commandline_options, ltwostr_only, lschwarzschild
 
   use m_helper_functions, only: CHKERR, CHKWARN, determine_normal_direction, &
-    angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, &
+    angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, meanval, &
     vec_proj_on_plane, cross_3d, rotation_matrix_world_to_local_basis, &
     approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa, &
     imp_allreduce_min, rotation_matrix_around_axis_vec
@@ -2353,7 +2353,7 @@ module m_plex_rt
     dkabs = kabs
     dksca = ksca
     dg    = g
-    call delta_scale( dkabs, dksca, dg, max_g=zero)
+    call delta_scale( dkabs, dksca, dg, max_g=.5_irealLUT)
 
     tauz = real((dkabs+dksca) * dz, irealLUT)
     if(approx(tauz,0._irealLUT)) then
@@ -3099,7 +3099,7 @@ module m_plex_rt
     rkabs = xkabs
     rksca = xksca
     rg    = xg
-    call delta_scale(rkabs, rksca, rg, max_g=0._c_double)
+    !call delta_scale(rkabs, rksca, rg, max_g=0._c_double)
 
     call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
@@ -3513,7 +3513,7 @@ module m_plex_rt
             if(present(redir).and.solution%lsolar_rad) then
               print *,'Get Result, k     Edir                   Edn                      Eup                  abso'
               do k = 1, ke1-1
-                print *,k, redir(k,1), redn(k,1), reup(k,1), rabso(k,1)!, &
+                print *,k, meanval(redir(k,:)), meanval(redn(k,:)), meanval(reup(k,:)), meanval(rabso(k,:))!, &
                 !redir(k,1)-redir(k+1,1)+redn(k,1)-redn(k+1,1)-reup(k,1)+reup(k+1,1)
               enddo
               print *,k, redir(k,1), redn(k,1), reup(k,1)

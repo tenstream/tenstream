@@ -80,7 +80,9 @@ module m_optprop_LUT
   use m_boxmc_geometry, only : setup_default_wedge_geometry, setup_default_unit_cube_geometry
 
   use m_LUT_param_phi, only: param_phi_from_azimuth, azimuth_from_param_phi, &
-    iterative_phi_theta_from_param_phi_and_param_theta, param_phi_param_theta_from_phi_and_theta_withcoords
+    iterative_phi_theta_from_param_phi_and_param_theta, &
+    param_phi_param_theta_from_phi_and_theta_withcoords, &
+    LUT_wedge_dz
 
   implicit none
 
@@ -97,7 +99,8 @@ module m_optprop_LUT
     t_optprop_LUT_wedge_5_8, &
     t_optprop_LUT_rectilinear_wedge_5_8, &
     t_optprop_LUT_wedge_18_8, &
-    find_lut_dim_by_name, azimuth_from_param_phi, param_phi_from_azimuth
+    find_lut_dim_by_name, t_LUT_config, &
+    azimuth_from_param_phi, param_phi_from_azimuth
   ! This module loads and generates the LUT-tables for Tenstream Radiation
   ! computations.
   ! It also holds functions for interpolation on the regular LUT grid.
@@ -963,7 +966,7 @@ contains
 
 
     Atop = triangle_area_by_vertices([0._irealLUT, 0._irealLUT], [1._irealLUT, 0._irealLUT], wedge_C)
-    dz = sqrt(Atop) * aspect_zx
+    dz = LUT_wedge_dz(Atop, aspect_zx)
 
     call setup_default_wedge_geometry([0._ireal_dp, 0._ireal_dp], &
                                       [1._ireal_dp, 0._ireal_dp], &
@@ -983,7 +986,7 @@ contains
 
       if(param_theta.le.0._ireals) then
         if(param_phi.lt.-1._ireals .or. param_phi.gt.1._ireals) then
-          lvalid_entry = .False.
+          lvalid_entry = .False. ! this is a dead zone in the param space. Should never happen in a mesh
         endif
       endif
     endif
@@ -1362,26 +1365,28 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%diffconfig%dims(5), vrange=real([0.7760254, 0.9560254], irealLUT))
 
       class is (t_optprop_LUT_rectilinear_wedge_5_8)
-          allocate(OPP%dirconfig%dims(7))
-          call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
-          call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
+          allocate(OPP%dirconfig%dims(8))
+          call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
+          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect18,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect18)
-          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(4), vrange=real([0.,1.], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(5), vrange=real([.5,1.], irealLUT))
+          call populate_LUT_dim('g',         size(preset_g2,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g2)
+          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([0.,1.], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(6), vrange=real([.5,1.], irealLUT))
 
-          call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(6), preset=preset_param_phi19)
-          call populate_LUT_dim('param_theta', size(preset_param_theta13, kind=iintegers), OPP%dirconfig%dims(7), preset=preset_param_theta13)
+          call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(7), preset=preset_param_phi19)
+          call populate_LUT_dim('param_theta', size(preset_param_theta13, kind=iintegers), OPP%dirconfig%dims(8), preset=preset_param_theta13)
 
           !call populate_LUT_dim('tau',       i1, OPP%dirconfig%dims(1), vrange=real([1e-10,1e-5], irealLUT))
           !call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.9], irealLUT))
           !call populate_LUT_dim('aspect_zx', i2, OPP%dirconfig%dims(3), vrange=real([.1,2.], irealLUT))
 
-          allocate(OPP%diffconfig%dims(5))
+          allocate(OPP%diffconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(4), vrange=real([0.,1.], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(5), vrange=real([.5,1.], irealLUT))
+          call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
+          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(5), vrange=real([0.,1.], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(6), vrange=real([.5,1.], irealLUT))
 
       class is (t_optprop_LUT_wedge_18_8)
           allocate(OPP%dirconfig%dims(7))
