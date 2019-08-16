@@ -127,9 +127,9 @@ contains
     call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, lwc_data_string, par_cell_Section, lwcvec)
     call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
 
-    call dm2d_vec_to_Nz_Ncol(dm2d_dist, lwcvec, col_lwc); col_lwc = col_lwc * 1e3
+    call dm2d_vec_to_Nz_Ncol(par_cell_Section, lwcvec, col_lwc); col_lwc = col_lwc * 1e3
     call VecDestroy(lwcvec, ierr); call CHKERR(ierr)
-    call dm2d_vec_to_Nz_Ncol(dm2d_dist, qncvec, col_qnc); col_qnc = col_qnc * 1e-3
+    call dm2d_vec_to_Nz_Ncol(par_cell_Section, qncvec, col_qnc); col_qnc = col_qnc * 1e-3
     call VecDestroy(qncvec, ierr); call CHKERR(ierr)
     allocate(col_reliq(dNlay, Ncol))
     col_reliq = min(40._ireals, max(2.5_ireals, reff_from_lwc_and_N(col_lwc, col_qnc)))
@@ -140,9 +140,9 @@ contains
     call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, iwc_data_string, par_cell_Section, iwcvec)
     call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
-    call dm2d_vec_to_Nz_Ncol(dm2d_dist, iwcvec, col_iwc); col_iwc = col_iwc * 1e3
+    call dm2d_vec_to_Nz_Ncol(par_cell_Section, iwcvec, col_iwc); col_iwc = col_iwc * 1e3
     call VecDestroy(iwcvec, ierr); call CHKERR(ierr)
-    call dm2d_vec_to_Nz_Ncol(dm2d_dist, qnivec, col_qni); col_qni = col_qni * 1e-3
+    call dm2d_vec_to_Nz_Ncol(par_cell_Section, qnivec, col_qni); col_qni = col_qni * 1e-3
     call VecDestroy(qnivec, ierr); call CHKERR(ierr)
     allocate(col_reice(dNlay, Ncol))
     ! k == .8 is for clean air
@@ -151,7 +151,7 @@ contains
     if(myid.eq.0) print *,'Min/Max Ice effective Radius', minval(col_reice), maxval(col_reice)
 
     call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qv_data_string, par_cell_Section, qvvec)
-    call dm2d_vec_to_Nz_Ncol(dm2d_dist, qvvec, col_qv)
+    call dm2d_vec_to_Nz_Ncol(par_cell_Section, qvvec, col_qv)
     call VecDestroy(qvvec, ierr); call CHKERR(ierr)
 
     call DMDestroy(dm2d, ierr); call CHKERR(ierr)
