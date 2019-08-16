@@ -1605,6 +1605,7 @@ module m_icon_plex_utils
         arr = reverse(arr) ! icon data is going from bot to top, tenstream petsc vecs go from top to bot
       endif ! rank 0
 
+      allocate(gVec)
       call rank0_f90vec_to_plex(dm2d_serial, dm2d_parallel, migration_sf, arr, &
         parSection, gVec)
     end subroutine
