@@ -1738,36 +1738,38 @@ module m_icon_plex_utils
       call VecRestoreArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine dm2d_vec_to_Nz_Ncol(dm, vec, arr)
-      type(tDM), intent(in)  :: dm
+    subroutine dm2d_vec_to_Nz_Ncol(section, vec, arr)
+      type(tPetscSection), intent(in) :: section
       type(tVec), intent(in) :: vec
       real(ireals), allocatable, intent(inout) :: arr(:,:)
 
-      type(tPetscSection) :: sec
       real(ireals), pointer :: xv(:)
       integer(iintegers) :: fStart, fEnd
-      integer(iintegers) :: iface, Ncol, ke, voff
+      integer(iintegers) :: iface, Ncol, ke, voff, vecsize
       integer(mpiint) :: ierr
 
-      call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-      call DMGetSection(dm, sec, ierr); call CHKERR(ierr)
-      call PetscSectionGetDof(sec, fStart, ke, ierr); call CHKERR(ierr)
+      call PetscSectionGetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
+      call PetscSectionGetDof(section, fStart, ke, ierr); call CHKERR(ierr)
       Ncol = fEnd - fStart
+
+      call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
+      call CHKERR(int(vecsize - ke*Ncol, mpiint), 'Size of PetscSection and vecsize do not match! '// &
+        'Ncol/ke ( '//itoa(Ncol)//' / '//itoa(ke)//' ) vs vecsize ( '//itoa(vecsize)//' )'   )
 
       if(.not.allocated(arr)) then
         allocate(arr(ke, Ncol))
       else
         ke = min(ke, size(arr, dim=1, kind=iintegers))
         if(.not.all(shape(arr).eq.[ke, Ncol])) then
-          print *,'shape cell1dm', [ke, Ncol], 'shape out_arr', shape(arr)
-          call CHKERR(1_mpiint, 'shape of out_arr does not conform to cell1dm sizes')
+          print *,'shape section', [ke, Ncol], 'shape out_arr', shape(arr)
+          call CHKERR(1_mpiint, 'shape of out_arr does not conform to section sizes')
         endif
       endif
 
       call VecGetArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
 
       do iface = fStart, fEnd-1
-        call PetscSectionGetOffset(sec, iface, voff, ierr); call CHKERR(ierr)
+        call PetscSectionGetOffset(section, iface, voff, ierr); call CHKERR(ierr)
         arr(i1:ke, i1+iface-fStart) = xv(i1+voff: voff+ke)
       enddo
 
