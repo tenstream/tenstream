@@ -25,7 +25,8 @@ module m_optprop_LUT
 
   use m_helper_functions, only : approx,  &
     rel_approx, imp_bcast,                &
-    get_arg, ftoa, itoa, char_arr_to_str, &
+    get_arg, ftoa, itoa,                  &
+    cstr, char_arr_to_str,                &
     mpi_logical_and, mpi_logical_or,      &
     CHKERR,                               &
     triangle_area_by_vertices,            &
@@ -350,18 +351,25 @@ subroutine load_table_from_netcdf(table, istat)
   istat = 0
 
   call ncload(table%table_name_tol, table%stddev_tol, ierr); istat = istat + ierr
-  if(ierr.eq.0) then ! we were able to load stddev but still have to check if they all have a good enough noise...
+  if(ierr.eq.0) then
+    if(ldebug) print *,'we were able to load stddev from file '//new_line('')// &
+      cstr(char_arr_to_str(table%table_name_tol,'/'), 'green')//new_line('')// &
+      ' but still have to check if they all have a good enough precision / noise level...'
     do k = 1, size(table%stddev_tol, kind=iintegers)
-      if(table%stddev_tol(k).gt.stddev_atol+10*epsilon(stddev_atol)) then
+      if(table%stddev_tol(k).gt.stddev_atol+10*epsilon(stddev_atol) &
+        .or. table%stddev_tol(k).lt.0._irealLUT) then
         istat = istat + 1
         if(istat.ne.0) then
-          print *,'coefficients not good enough', k, table%stddev_tol(k),&
-            'should be less than', stddev_atol+10*epsilon(stddev_atol)
+          print *,'coefficients stddev not good enough', k, table%stddev_tol(k),&
+            'should be positive and less than', stddev_atol+10*epsilon(stddev_atol)
           exit
         endif
       endif
     enddo
+  else
+    if(ldebug) print *,'loading stddev_tolerances failed'
   endif
+  if(istat.ne.0) print *,'Test if coeffs in '//char_arr_to_str(table%table_name_tol,'/')//' are good results in:', istat
 
   call ncload(table%table_name_c, table%c, ierr); istat = istat + ierr
   if(ierr.eq.0) then ! we were able to load coeffs but still have to check if they are all ok...
@@ -375,7 +383,7 @@ subroutine load_table_from_netcdf(table, istat)
       endif
     enddo
   endif
-  if(istat.ne.0) print *,'Test if coeffs in '//char_arr_to_str(table%table_name_tol,'/')//' are good results in:', istat
+  if(istat.ne.0) print *,'Test if coeffs in '//char_arr_to_str(table%table_name_c,'/')//' are good results in:', istat
 end subroutine
 
 subroutine loadLUT_diff(OPP, comm, skip_load_LUT)
@@ -584,9 +592,11 @@ subroutine createLUT(OPP, comm, config, S, T)
           ! Check if we already calculated the coefficients
           if(cnt.le.total_size) then
 
-            ldoneS = all(S%c(:,cnt).ge.zero) .and. all(S%c(:,cnt).le.one) &
-              .and. S%stddev_tol(cnt).le.stddev_atol &
-              .and. S%stddev_tol(cnt).ge.0._irealLUT
+            ldoneS = all( [ &
+              all(S%c(:,cnt).ge.zero), &
+              all(S%c(:,cnt).le.one), &
+              S%stddev_tol(cnt).le.stddev_atol, &
+              S%stddev_tol(cnt).ge.0._irealLUT ] )
 
             if(present(T)) then
               ldoneT = all(T%c(:,cnt).ge.zero) .and. all(T%c(:,cnt).le.one) &
@@ -901,6 +911,10 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
     aspect_zy = aspect_zx ! set dy = dx
   endif
 
+  ! default values for angles in case of diff2diff and such
+  phi = 0
+  theta = -1
+
   ! First define Default vertices for Cube Geometry
   select type(OPP)
   class is (t_optprop_LUT_1_2)
@@ -993,9 +1007,10 @@ contains
   end subroutine
 end subroutine
 
-subroutine LUT_bmc_wrapper_validate(OPP, config, index_1d, src, dir, T, S, ierr)
+subroutine LUT_bmc_wrapper_validate(OPP, config, tauz, w0, index_1d, src, dir, T, S, ierr)
   class(t_optprop_LUT) :: OPP
   type(t_lut_config), intent(in) :: config
+  real(irealLUT), intent(in) :: tauz, w0
   integer(iintegers), intent(in) :: index_1d
   logical, intent(in) :: dir
   integer(iintegers), intent(in) :: src
@@ -1004,15 +1019,17 @@ subroutine LUT_bmc_wrapper_validate(OPP, config, index_1d, src, dir, T, S, ierr)
   integer(mpiint), intent(out) :: ierr
   ierr=0
 
-  if(any(T.lt.0._ireals)) ierr = 10
-  if(any(S.lt.0._ireals)) ierr = 10
-  if(any(T.gt.1._ireals)) ierr = 20
-  if(any(S.gt.1._ireals)) ierr = 20
-
+  if(any(T.lt.0._ireals)) ierr = ierr+3
+  if(any(S.lt.0._ireals)) ierr = ierr+5
+  if(any(T.gt.1._ireals)) ierr = ierr+7
+  if(any(S.gt.1._ireals)) ierr = ierr+11
 
   select type(OPP)
 
   class is (t_optprop_LUT_wedge_5_8)
+    call validate_plexrt()
+
+  class is (t_optprop_LUT_rectilinear_wedge_5_8)
     call validate_plexrt()
 
   class is (t_optprop_LUT_wedge_18_8)
@@ -1020,7 +1037,15 @@ subroutine LUT_bmc_wrapper_validate(OPP, config, index_1d, src, dir, T, S, ierr)
 
   class default
     continue
-end select
+  end select
+
+  if(.not.dir .and. tauz*(1._irealLUT - w0) .lt. 1._irealLUT) then
+    if(all(S.lt.tiny(S))) then
+      call CHKERR(1_mpiint, 'Found all diff2diff coefficients to be zero but absorption is not that high.'// &
+        'Something weird is going on. Please investigate!')
+    endif
+  endif
+
 contains
   subroutine src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
     real(irealLUT), intent(in) :: param_phi, param_theta
@@ -1070,6 +1095,16 @@ contains
             if(any(T.gt.0._irealLUT)) ierr = ierr+1 ! if I am a dst, nobody should get any radiation anyway
           endif
         end associate
+      class is (t_optprop_LUT_rectilinear_wedge_5_8)
+        associate(lsrc => lsrc5)
+          call src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
+
+          if(lsrc(src)) then ! I am a src face
+            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+1 ! all srcs cannot have any incoming energy
+          else
+            if(any(T.gt.0._irealLUT)) ierr = ierr+1 ! if I am a dst, nobody should get any radiation anyway
+          endif
+        end associate
       end select
     endif
   end subroutine
@@ -1097,6 +1132,8 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
       vertices, tauz, w0, g, phi, theta, lvalid)
 
     if(.not.lvalid) then
+      if(.not.dir) call CHKERR(1_mpiint, 'all diff2diff coeffs should be valid?')
+      if(ldebug) print *,'have an invalid coeff here, skipping computations', index_1d
       S_diff = 0
       T_dir = 0
       S_tol = 0
@@ -1106,7 +1143,7 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
 
     call bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
 
-    call LUT_bmc_wrapper_validate(OPP, config, index_1d, src, dir, T_dir, S_diff, ierr)
+    call LUT_bmc_wrapper_validate(OPP, config, tauz, w0, index_1d, src, dir, T_dir, S_diff, ierr)
     if(ierr.ne.0) then
       call param_phi_param_theta_from_phi_and_theta_withcoords(real(vertices, ireal_params), &
         real(deg2rad(phi), ireal_params), real(deg2rad(theta), ireal_params), &
@@ -1117,8 +1154,9 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
       call CHKERR(1_mpiint, 'found bad results for a given geometry')
     endif
 
-    !print *,'LUTBMC :: calling bmc_get_coeff src',src,'tauz',tauz,w0,g,'angles',phi,theta,&
-    !  ':ind1d',index_1d, ':',T_dir
+    if(ldebug) print *,'LUTBMC :: calling bmc_get_coeff src', src, &
+      'tauz',tauz,w0,g,'angles',phi,theta, ':ind1d',index_1d, ':', &
+      T_dir, ':(', T_tol, ') //', S_diff, ':(', S_tol, ')'
 end subroutine
 
 subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, &
