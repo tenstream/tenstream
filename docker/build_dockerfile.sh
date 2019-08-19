@@ -10,7 +10,7 @@ DOCKER_TARGET=$7
 
 cat $DOCKERBASEFILE > $DOCKER_TARGET
 
-CURRENT_PETSC_HASH=$(git ls-remote https://bitbucket.org/petsc/petsc | head -n 1 | awk '{print $1}')
+CURRENT_PETSC_HASH=$(git ls-remote https://gitlab.com/petsc/petsc | head -n 1 | awk '{print $1}')
 
 export PETSC_DIR=$WORKDIR/petsc
 export PETSC_ARCH=$BUILD_TYPE
@@ -54,7 +54,7 @@ RUN echo "export PETSC_DIR=$PETSC_DIR" >> $WORKDIR/.profile && \
     cat $WORKDIR/.profile && \
   \
   cd $WORKDIR && . $WORKDIR/.profile && \
-  git clone --depth=1 https://bitbucket.org/petsc/petsc -b master \$PETSC_DIR && \
+  git clone --depth=1 https://gitlab.com/petsc/petsc -b master \$PETSC_DIR && \
   cd \$PETSC_DIR && git checkout $CURRENT_PETSC_HASH && \
   ./configure $PETSC_OPT || (cat configure.log; false) && make && \
   \
