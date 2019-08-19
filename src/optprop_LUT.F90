@@ -367,9 +367,14 @@ subroutine load_table_from_netcdf(table, istat)
       endif
     enddo
   else
-    if(ldebug) print *,'loading stddev_tolerances failed'
+    print *,'loading stddev_tolerances from '//new_line('')// &
+      cstr(char_arr_to_str(table%table_name_tol,'/'), 'purple')//new_line('')// &
+      ' failed', istat, ierr
   endif
-  if(istat.ne.0) print *,'Test if coeffs in '//char_arr_to_str(table%table_name_tol,'/')//' are good results in:', istat
+  if(istat.ne.0) &
+    print *,'Test if coeffs in '//new_line('')// &
+      cstr(char_arr_to_str(table%table_name_tol,'/'), 'purple')//new_line('')// &
+      ' are good results in:', istat
 
   call ncload(table%table_name_c, table%c, ierr); istat = istat + ierr
   if(ierr.eq.0) then ! we were able to load coeffs but still have to check if they are all ok...
@@ -382,8 +387,17 @@ subroutine load_table_from_netcdf(table, istat)
         endif
       endif
     enddo
+  else
+    print *,'loading coeffs from '//new_line('')// &
+      cstr(char_arr_to_str(table%table_name_c,'/'), 'purple')//new_line('')// &
+      ' failed', istat, ierr
   endif
-  if(istat.ne.0) print *,'Test if coeffs in '//char_arr_to_str(table%table_name_c,'/')//' are good results in:', istat
+
+  if(istat.ne.0) then
+    print *,'Test if coeffs in '//new_line('')// &
+      cstr(char_arr_to_str(table%table_name_c,'/'), 'purple')//new_line('')// &
+      ' are good results in:', istat
+  endif
 end subroutine
 
 subroutine loadLUT_diff(OPP, comm, skip_load_LUT)
@@ -427,6 +441,7 @@ subroutine loadLUT_diff(OPP, comm, skip_load_LUT)
     endif
 
     if(allocated(OPP%Sdiff%stddev_tol)) deallocate(OPP%Sdiff%stddev_tol)
+    if(ldebug) print *,'Loaded Diff2Diff LUT with shape:', shape(OPP%Sdiff%c)
 end subroutine
 
 subroutine loadLUT_dir(OPP, comm, skip_load_LUT)
@@ -548,11 +563,12 @@ subroutine createLUT(OPP, comm, config, S, T)
     endif
 
     if(myid.le.0 .and. comm_size.le.1) &
-      stop 'At the moment creation of direct Lookuptable needs at least two mpi-ranks to work... please run with more ranks.'
+      call CHKERR(1_mpiint, 'At the moment creation of direct Lookuptable needs at least two mpi-ranks to work...'// &
+        'please run with more ranks.')
 
     if(myid.eq.0) then
       call master(S, T)
-      print *,'done calculating direct coefficients'
+      print *,'done calculating coefficients. present(T)?', present(T)
     else
       call worker(config)
     endif
@@ -597,11 +613,14 @@ subroutine createLUT(OPP, comm, config, S, T)
               all(S%c(:,cnt).le.one), &
               S%stddev_tol(cnt).le.stddev_atol, &
               S%stddev_tol(cnt).ge.0._irealLUT ] )
+            !print *,'ldoneS', cnt, ldoneS, ':', S%stddev_tol(cnt)
 
             if(present(T)) then
-              ldoneT = all(T%c(:,cnt).ge.zero) .and. all(T%c(:,cnt).le.one) &
-                .and. T%stddev_tol(cnt).le.stddev_atol &
-                .and. T%stddev_tol(cnt).ge.0._irealLUT
+              ldoneT = all( [ &
+                all(T%c(:,cnt).ge.zero), &
+                all(T%c(:,cnt).le.one), &
+                T%stddev_tol(cnt).le.stddev_atol, &
+                T%stddev_tol(cnt).ge.0._irealLUT ] )
             else
               ldoneT = .True.
             endif
@@ -665,12 +684,11 @@ subroutine createLUT(OPP, comm, config, S, T)
                 T%stddev_tol(lutindex) = maxval(T_tol)
               endif
 
-              if (.False. .and. ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
+              if (.True. .and. ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
 
               if( mod(lutindex-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
                 print *,'Calculated LUT...', lutindex, &
                         real(lutindex-1, irealLUT)*100._irealLUT/real(total_size, irealLUT),'%'
-
 
               call cpu_time(now)
               if( (now-lastsavetime).gt.LUT_dump_interval .or. (now-starttime).gt.LUT_max_create_jobtime ) then !every 30 minutes wall clock time, dump the LUT.
