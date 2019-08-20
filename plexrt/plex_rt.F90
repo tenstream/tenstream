@@ -553,8 +553,10 @@ module m_plex_rt
         call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_use_rayli",&
           luse_rayli, lflg, ierr) ;call CHKERR(ierr)
         if(luse_rayli) then
+          call PetscLogEventBegin(solver%logs%solve_rayli, ierr)
           call rayli_wrapper(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
               solver%albedo, sundir, solution, plck=solver%plck)
+          call PetscLogEventEnd(solver%logs%solve_rayli, ierr)
           goto 99
         endif
 
