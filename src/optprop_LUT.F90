@@ -493,6 +493,8 @@ subroutine loadLUT_dir(OPP, comm, skip_load_LUT)
 
     if(allocated(OPP%Tdir%stddev_tol)) deallocate(OPP%Tdir%stddev_tol)
     if(allocated(OPP%Sdir%stddev_tol)) deallocate(OPP%Sdir%stddev_tol)
+    if(ldebug) print *,'Loaded Dir2Dir LUT with shape:', shape(OPP%Tdir%c)
+    if(ldebug) print *,'Loaded Dir2Diff LUT with shape:', shape(OPP%Sdir%c)
 end subroutine
 
 subroutine write_pspace(fname, config)
