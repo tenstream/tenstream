@@ -26,6 +26,7 @@ module m_plex_rt
     t_optprop_wedge_5_8, &
     t_optprop_rectilinear_wedge_5_8, &
     t_optprop_wedge_18_8
+  use m_optprop_LUT, only : find_lut_dim_by_name
   use m_optprop_parameters, only : ldebug_optprop
 
   use m_schwarzschild, only: schwarzschild, B_eff
@@ -367,28 +368,28 @@ module m_plex_rt
       integer(iintegers), allocatable, intent(inout) :: incoming_offsets(:), outgoing_offsets(:)
       integer(iintegers), pointer, intent(in), optional :: opt_xv(:)
       integer(iintegers), pointer :: xv(:)
-      integer(iintegers) :: bs, idx_offset
       integer(mpiint) :: ierr
 
       if(present(opt_xv)) then
-        bs = opt_xv(size(opt_xv))
-        if(.not.allocated(incoming_offsets)) allocate(incoming_offsets(bs))
-        if(.not.allocated(outgoing_offsets)) allocate(outgoing_offsets(bs))
-
-        idx_offset = icell*bs
-        incoming_offsets = opt_xv(i1+idx_offset:idx_offset+bs/2)
-        outgoing_offsets = opt_xv(i1+idx_offset+bs/2:idx_offset+bs)
+        call with_is_vec(opt_xv)
       else
         call ISGetIndicesF90(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
-        bs = xv(size(xv))
+        call with_is_vec(xv)
+        call ISRestoreIndicesF90(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
+      endif
+    contains
+      subroutine with_is_vec(xis)
+        integer(iintegers), intent(in), pointer :: xis(:)
+        integer(iintegers) :: bs, idx_offset
+
+        bs = xis(size(xis))
         if(.not.allocated(incoming_offsets)) allocate(incoming_offsets(bs))
         if(.not.allocated(outgoing_offsets)) allocate(outgoing_offsets(bs))
 
         idx_offset = icell*bs
-        incoming_offsets = xv(i1+idx_offset:idx_offset+bs/2)
-        outgoing_offsets = xv(i1+idx_offset+bs/2:idx_offset+bs)
-        call ISRestoreIndicesF90(IS_diff_in_out_dof, xv, ierr); call CHKERR(ierr)
-      endif
+        incoming_offsets = xis(i1+idx_offset:idx_offset+bs/2)
+        outgoing_offsets = xis(i1+idx_offset+bs/2:idx_offset+bs)
+      end subroutine
     end subroutine
 
     subroutine setup_IS_diff_in_out_dof(plex, ediffdm, IS_diff_in_out_dof)
@@ -1824,7 +1825,7 @@ module m_plex_rt
               !if(c.lt.zero .and. .not.lsrc(isrc_side)) then
               !  print *,'found transport coeff but I thought this incoming side is not a designated src face'
               !endif
-              if(c.le.-1e-3_ireals.and..not.l1d.and.param_theta.gt.epsilon(zero)) then
+              if(c.le.-1e-6_ireals.and..not.l1d.and.param_theta.gt.epsilon(zero)) then
                 ierr = 0
                 if(.not.lsrc(isrc_side)) ierr = 1
                 if(     lsrc(idst_side)) ierr = 2
@@ -2352,6 +2353,23 @@ module m_plex_rt
     real(ireals) :: dkabs, dksca, dg
     real(irealLUT) :: tauz, w0
 
+    integer(iintegers), save :: dimidx(9)
+    logical, save :: linit_idx=.False.
+
+    if(.not.linit_idx) then
+      dimidx(1) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'tau')
+      dimidx(2) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'w0')
+      dimidx(3) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'wedge_coord_Cx')
+      dimidx(4) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'wedge_coord_Cy')
+
+      dimidx(6) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'tau')
+      dimidx(7) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'w0')
+      dimidx(8) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'wedge_coord_Cx')
+      dimidx(9) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'wedge_coord_Cy')
+
+      linit_idx = .True.
+    endif
+
     dkabs = kabs
     dksca = ksca
     dg    = g
@@ -2365,15 +2383,15 @@ module m_plex_rt
     endif
 
     if(present(angles)) then
-      tauz = max(OPP%OPP_LUT%dirconfig%dims(1)%vrange(1), &
-        min(OPP%OPP_LUT%dirconfig%dims(1)%vrange(2), tauz))
-      w0 = max(OPP%OPP_LUT%dirconfig%dims(2)%vrange(1), &
-        min(OPP%OPP_LUT%dirconfig%dims(2)%vrange(2), w0))
+      tauz = max(OPP%OPP_LUT%dirconfig%dims(dimidx(1))%vrange(1), &
+        min(OPP%OPP_LUT%dirconfig%dims(dimidx(1))%vrange(2), tauz))
+      w0 = max(OPP%OPP_LUT%dirconfig%dims(dimidx(2))%vrange(1), &
+        min(OPP%OPP_LUT%dirconfig%dims(dimidx(2))%vrange(2), w0))
     else
-      tauz = max(OPP%OPP_LUT%diffconfig%dims(1)%vrange(1), &
-        min(OPP%OPP_LUT%diffconfig%dims(1)%vrange(2), tauz))
-      w0 = max(OPP%OPP_LUT%diffconfig%dims(2)%vrange(1), &
-        min(OPP%OPP_LUT%diffconfig%dims(2)%vrange(2), w0))
+      tauz = max(OPP%OPP_LUT%diffconfig%dims(dimidx(6))%vrange(1), &
+        min(OPP%OPP_LUT%diffconfig%dims(dimidx(6))%vrange(2), tauz))
+      w0 = max(OPP%OPP_LUT%diffconfig%dims(dimidx(7))%vrange(1), &
+        min(OPP%OPP_LUT%diffconfig%dims(dimidx(7))%vrange(2), w0))
     endif
 
     call OPP%get_coeff(tauz, w0, real(dg, irealLUT), real(aspect_zx, irealLUT), &
@@ -2381,6 +2399,16 @@ module m_plex_rt
       angles=angles, wedge_coords=real([Cx, Cy], irealLUT))
 
     if(ldebug) then
+      if(any(coeff.lt.0._irealLUT).or.any(coeff.gt.1._irealLUT+sqrt(epsilon(coeff)))) then
+        if(ldir) print *,'Lookup Coeffs for', tauz, w0, aspect_zx, dg, angles,'::', coeff
+        if(.not.ldir.and.present(angles)) print *,'Lookup Coeffs for dir2diff', tauz, w0, aspect_zx, dg, angles,'::', coeff
+      endif
+      if(.not.ldir.and..not.present(angles)) then
+        if(tauz.lt.1._irealLUT .and. all(coeff.eq.0)) then
+          print *,'Lookup Coeffs for diff2diff', tauz, w0, dg, aspect_zx, ':', Cx, Cy, '::', coeff
+          call CHKERR(1_mpiint, 'Found all zero entries where I would not expect it')
+        endif
+      endif
       if(any(coeff.lt.0._irealLUT).or.any(coeff.gt.1._irealLUT+sqrt(epsilon(coeff)))) then
         print *,'Lookup Coeffs for', aspect_zx, tauz, w0, dg, angles,'::', coeff
         call CHKERR(1_mpiint, 'Found corrupted coefficients!')
@@ -2568,7 +2596,6 @@ module m_plex_rt
         call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
       enddo
 
-
     else
       if(.not.allocated(plex%wedge_orientation_dm)) &
         call CHKERR(myid+1, 'called compute_edir_absorption with a dm which is not allocated: plex%wedge_orientation_dm?')
@@ -2644,9 +2671,12 @@ module m_plex_rt
     if(.not.allocated(plex)) stop 'called compute_ediff_absorption but plex is not allocated'
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
 
-    if(.not.allocated(plex%ediff_dm)) call CHKERR(myid+1, 'called compute_ediff_absorption with a dm which is not allocated?')
-    if(.not.allocated(plex%abso_dm)) call CHKERR(myid+1, 'called compute_ediff_absorption with a dm which is not allocated?')
-    if(.not.allocated(abso)) call CHKERR(myid+1, 'called compute_ediff_absorption with an unallocated abso vec')
+    if(.not.allocated(plex%ediff_dm)) &
+      call CHKERR(myid+1, 'called compute_ediff_absorption with a dm which is not allocated?')
+    if(.not.allocated(plex%abso_dm)) &
+      call CHKERR(myid+1, 'called compute_ediff_absorption with a dm which is not allocated?')
+    if(.not.allocated(abso)) &
+      call CHKERR(myid+1, 'called compute_ediff_absorption with an unallocated abso vec')
 
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....'
 
