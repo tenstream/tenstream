@@ -2691,8 +2691,6 @@ module m_plex_rt
 
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
 
-      xabso(i1+abso_offset) = zero
-
       do i = 1, size(incoming_offsets)
         !print *,'icell', icell, incoming_offsets(i), outgoing_offsets(i), 'abso', &
         !  xabso(i1+abso_offset), &
