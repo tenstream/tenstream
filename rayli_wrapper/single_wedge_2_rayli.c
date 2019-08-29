@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <math.h>
 
-void VecSet(size_t N, double *arr, double val) {
+void VecSet(size_t N, float *arr, float val) {
     for(size_t i=0; i<N; i++) arr[i] = val;
 }
 
@@ -15,19 +15,19 @@ int main() {
     size_t Nwedges = 2; // single wedge + 1 outer domain
     size_t Nfaces = 8;
     size_t Nverts = 6;
-    double *kabs, *ksca, *g, *albedo;
-    double *flx_through_faces_edir, *flx_through_faces_ediff, *abso_in_cells;
-    double sundir[] = {0,1/sqrt(2.),1/sqrt(2.)};
-    double diffuse_point_origin[] = {0.,0.,0.};
+    float  *kabs, *ksca, *g, *albedo;
+    float *flx_through_faces_edir, *flx_through_faces_ediff, *abso_in_cells;
+    float sundir[] = {0,1/sqrt(2.),1/sqrt(2.)};
+    float diffuse_point_origin[] = {0.,0.,0.};
 
-    kabs = malloc(Nwedges*sizeof(double)); VecSet(Nwedges, kabs, 1e-0);
-    ksca = malloc(Nwedges*sizeof(double)); VecSet(Nwedges, ksca, 0e-1);
-    g    = malloc(Nwedges*sizeof(double)); VecSet(Nwedges, g   , 1e-1);
-    flx_through_faces_edir  = malloc(Nfaces*sizeof(double));
-    flx_through_faces_ediff = malloc(2*Nfaces*sizeof(double));
-    abso_in_cells           = malloc(Nwedges*sizeof(double));
+    kabs = malloc(Nwedges*sizeof(float)); VecSet(Nwedges, kabs, 1e-0);
+    ksca = malloc(Nwedges*sizeof(float)); VecSet(Nwedges, ksca, 0e-1);
+    g    = malloc(Nwedges*sizeof(float)); VecSet(Nwedges, g   , 1e-1);
+    flx_through_faces_edir  = malloc(Nfaces*sizeof(float));
+    flx_through_faces_ediff = malloc(2*Nfaces*sizeof(float));
+    abso_in_cells           = malloc(Nwedges*sizeof(float));
 
-    albedo = malloc(Nfaces*sizeof(double)); VecSet(Nfaces, albedo, -1);
+    albedo = malloc(Nfaces*sizeof(float)); VecSet(Nfaces, albedo, -1);
 
     double vert_coords[]={ 0, 0, 1,       0, 0, 0,
                            1, 0, 1,       1, 0, 0,

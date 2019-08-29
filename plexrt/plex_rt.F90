@@ -3029,12 +3029,12 @@ module m_plex_rt
     integer(c_size_t), allocatable :: verts_of_face(:,:)
     integer(c_size_t), allocatable :: faces_of_wedges(:,:)
     real(c_double),    allocatable :: vert_coords(:,:)
-    real(c_double),    allocatable :: rkabs(:), rksca(:), rg(:)
-    real(c_double),    allocatable :: ralbedo_on_faces(:)
-    real(c_double)                 :: rsundir(3)
-    real(c_double),    allocatable :: flx_through_faces_edir(:)
-    real(c_double),    allocatable :: flx_through_faces_ediff(:)
-    real(c_double),    allocatable :: abso_in_cells(:)
+    real(c_float),    allocatable :: rkabs(:), rksca(:), rg(:)
+    real(c_float),    allocatable :: ralbedo_on_faces(:)
+    real(c_float)                 :: rsundir(3)
+    real(c_float),    allocatable :: flx_through_faces_edir(:)
+    real(c_float),    allocatable :: flx_through_faces_ediff(:)
+    real(c_float),    allocatable :: abso_in_cells(:)
 
     real(ireals) :: diffuse_point_origin(3)
     integer(c_size_t) :: Nphotons, Nwedges, Nfaces, Nverts
@@ -3147,7 +3147,7 @@ module m_plex_rt
     ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, &
       verts_of_face, faces_of_wedges, vert_coords, &
       rkabs, rksca, rg, &
-      ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_double), &
+      ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_float), &
       flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
 
     call get_result()
@@ -3262,9 +3262,9 @@ module m_plex_rt
         character(len=default_str_len) :: snap_path, groups(2)
         logical :: lflg
         integer(c_size_t) :: Nx=400, Ny=300
-        real(c_double), allocatable :: img(:,:)
-        real(c_double) :: cam_loc(3), cam_viewing_dir(3), cam_up_vec(3)
-        real(c_double) :: fov_width, fov_height
+        real(c_float), allocatable :: img(:,:)
+        real(c_float) :: cam_loc(3), cam_viewing_dir(3), cam_up_vec(3)
+        real(c_float) :: fov_width, fov_height
         real(ireals), dimension(3) :: visit_focus, visit_view_normal, visit_view_up
         real(ireals) :: visit_view_angle, visit_image_zoom, visit_parallel_scale
         integer(iintegers) :: narg
@@ -3325,7 +3325,7 @@ module m_plex_rt
           cam_loc = visit_focus + visit_view_normal * visit_parallel_scale / tan(deg2rad(visit_view_angle)/2)
 
           fov_width = 2 * tan(deg2rad(visit_view_angle)/2) / visit_image_zoom
-          fov_height = fov_width * real(Ny, c_double) / real(Nx, c_double)
+          fov_height = fov_width * real(Ny, c_float) / real(Nx, c_float)
 
           ierr = rpt_img_wedgeF90( Nx, Ny, &
             Nphotons, Nwedges, Nfaces, Nverts, &

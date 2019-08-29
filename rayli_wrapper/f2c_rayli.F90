@@ -41,13 +41,13 @@ module m_f2c_rayli
       integer(c_size_t) :: verts_of_face(1:4,1:Nfaces)
       integer(c_size_t) :: faces_of_wedges(1:5,1:Nfaces)
       real(c_double) :: vert_coords(1:3,1:Nverts)
-      real(c_double) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
-      real(c_double) :: albedo_on_faces(1:Nfaces)
-      real(c_double) :: sundir(1:3)
-      real(c_double) :: diffuse_point_origin(1:3)
-      real(c_double) :: flx_through_faces_edir(1:Nfaces)
-      real(c_double) :: flx_through_faces_ediff(1:Nfaces)
-      real(c_double) :: abso_in_cells(1:Nwedges)
+      real(c_float ) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
+      real(c_float) :: albedo_on_faces(1:Nfaces)
+      real(c_float) :: sundir(1:3)
+      real(c_float) :: diffuse_point_origin(1:3)
+      real(c_float) :: flx_through_faces_edir(1:Nfaces)
+      real(c_float) :: flx_through_faces_ediff(1:Nfaces)
+      real(c_float) :: abso_in_cells(1:Nwedges)
     end function
   end interface
   interface
@@ -69,12 +69,12 @@ module m_f2c_rayli
       integer(c_size_t) :: verts_of_face(1:4,1:Nfaces)
       integer(c_size_t) :: faces_of_wedges(1:5,1:Nfaces)
       real(c_double) :: vert_coords(1:3,1:Nverts)
-      real(c_double) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
-      real(c_double) :: albedo_on_faces(1:Nfaces)
-      real(c_double) :: sundir(1:3)
-      real(c_double), dimension(1:3) :: cam_location, cam_viewing_dir, cam_up_vec
-      real(c_double), value :: fov_width, fov_height
-      real(c_double) :: img(1:img_Nx, 1:img_Ny)
+      real(c_float ) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
+      real(c_float) :: albedo_on_faces(1:Nfaces)
+      real(c_float) :: sundir(1:3)
+      real(c_float), dimension(1:3) :: cam_location, cam_viewing_dir, cam_up_vec
+      real(c_float), value :: fov_width, fov_height
+      real(c_float) :: img(1:img_Nx, 1:img_Ny)
     end function
   end interface
 
@@ -94,12 +94,12 @@ contains
       integer(c_size_t), intent(in) :: verts_of_face(:,:)
       integer(c_size_t), intent(in) :: faces_of_wedges(:,:)
       real(c_double), intent(in) :: vert_coords(:,:)
-      real(c_double), intent(in) :: kabs(:), ksca(:), g(:)
-      real(c_double), intent(in) :: albedo_on_faces(1:Nfaces)
-      real(c_double), intent(in) :: sundir(:), diffuse_point_origin(:)
-      real(c_double), intent(out) :: flx_through_faces_edir(:)
-      real(c_double), intent(out) :: flx_through_faces_ediff(:)
-      real(c_double), intent(out) :: abso_in_cells(:)
+      real(c_float ), intent(in) :: kabs(:), ksca(:), g(:)
+      real(c_float ), intent(in) :: albedo_on_faces(1:Nfaces)
+      real(c_float ), intent(in) :: sundir(:), diffuse_point_origin(:)
+      real(c_float ), intent(out) :: flx_through_faces_edir(:)
+      real(c_float ), intent(out) :: flx_through_faces_ediff(:)
+      real(c_float ), intent(out) :: abso_in_cells(:)
 
       rfft_wedgeF90 = 1
       call CHKERR(1_mpiint, "You tried calling The RayLi Monte Carlo solver "// &
@@ -107,8 +107,8 @@ contains
         " try to export RAYLI_DIR=<rayli-root>/build/package")
 
       if(.False.) then ! unused var warnings
-        flx_through_faces_edir(1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_double)
-        flx_through_faces_ediff(1) = vert_coords(1,1) + kabs(1) + ksca(1) + g(1) + sundir(1) + &
+        flx_through_faces_edir(1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_float)
+        flx_through_faces_ediff(1) = real(vert_coords(1,1), c_float) + kabs(1) + ksca(1) + g(1) + sundir(1) + &
           albedo_on_faces(1) + diffuse_point_origin(1)
         abso_in_cells(1) = 0
       endif
@@ -131,12 +131,12 @@ contains
       integer(c_size_t) :: verts_of_face(1:4,1:Nfaces)
       integer(c_size_t) :: faces_of_wedges(1:5,1:Nfaces)
       real(c_double) :: vert_coords(1:3,1:Nverts)
-      real(c_double) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
-      real(c_double) :: albedo_on_faces(1:Nfaces)
-      real(c_double) :: sundir(1:3)
-      real(c_double), dimension(1:3) :: cam_location, cam_viewing_dir, cam_up_vec
-      real(c_double) :: fov_width, fov_height
-      real(c_double) :: img(1:img_Nx, 1:img_Ny)
+      real(c_float ) :: kabs(1:Nwedges), ksca(1:Nwedges), g(1:Nwedges)
+      real(c_float) :: albedo_on_faces(1:Nfaces)
+      real(c_float) :: sundir(1:3)
+      real(c_float), dimension(1:3) :: cam_location, cam_viewing_dir, cam_up_vec
+      real(c_float) :: fov_width, fov_height
+      real(c_float) :: img(1:img_Nx, 1:img_Ny)
 
       rpt_img_wedgeF90 = 1
       call CHKERR(1_mpiint, "You tried calling The RayLi Monte Carlo solver "// &
@@ -144,10 +144,10 @@ contains
         " try to export RAYLI_DIR=<rayli-root>/build/package")
 
       if(.False.) then ! unused var warnings
-        img(1,1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_double)
-        img(2,1) = vert_coords(1,1) + kabs(1) + ksca(1) + g(1) + sundir(1) + albedo_on_faces(1)
+        img(1,1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_float)
+        img(2,1) = real(vert_coords(1,1), c_float) + kabs(1) + ksca(1) + g(1) + sundir(1) + albedo_on_faces(1)
         img(3,1) = cam_location(1) + cam_viewing_dir(1) + cam_up_vec(1) + fov_width + fov_height
-        img(4,1) = real(img_Nx+img_Ny, c_double)
+        img(4,1) = real(img_Nx+img_Ny, c_float)
       endif
     end function
 #endif
