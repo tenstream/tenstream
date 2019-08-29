@@ -2706,23 +2706,20 @@ module m_plex_rt
 
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
 
-      call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
-      i = 1
-      do j = 1, size(faces_of_cell)
-        iface = faces_of_cell(j)
-        call PetscSectionGetDof(ediff_section, iface, numDof, ierr); call CHKERR(ierr)
-        do idof = 1, numDof/2
-          !print *,'Current Abso', xabso(i1+abso_offset)
-          xabso(i1+abso_offset) = xabso(i1+abso_offset) + (xediff(i1+incoming_offsets(i)) * inv_volume)
-          xabso(i1+abso_offset) = xabso(i1+abso_offset) - (xediff(i1+outgoing_offsets(i)) * inv_volume)
-          !print *,'iface', iface, numDof, incoming_offsets(i), outgoing_offsets(i), 'abso', &
-          !  '+', xediff(i1+incoming_offsets(i)) * inv_volume, &
-          !  '-', xediff(i1+outgoing_offsets(i)) * inv_volume, &
-          !  '=', xabso(i1+abso_offset)
-          i = i+1
-        enddo
+      xabso(i1+abso_offset) = zero
+
+      do i = 1, size(incoming_offsets)
+        !print *,'icell', icell, incoming_offsets(i), outgoing_offsets(i), 'abso', &
+        !  xabso(i1+abso_offset), &
+        !  '+', xediff(i1+incoming_offsets(i)) * inv_volume, &
+        !  '-', xediff(i1+outgoing_offsets(i)) * inv_volume, &
+        !  '=', xabso(i1+abso_offset) + &
+        !       ( xediff(i1+incoming_offsets(i)) - xediff(i1+outgoing_offsets(i)) ) * inv_volume
+        if(incoming_offsets(i).ge.i0) xabso(i1+abso_offset) = xabso(i1+abso_offset) + xediff(i1+incoming_offsets(i))
+        if(outgoing_offsets(i).ge.i0) xabso(i1+abso_offset) = xabso(i1+abso_offset) - xediff(i1+outgoing_offsets(i))
       enddo
-      call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+      xabso(i1+abso_offset) = xabso(i1+abso_offset) * inv_volume
     enddo
     call ISRestoreIndicesF90(IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
 
