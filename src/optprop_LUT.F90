@@ -299,6 +299,7 @@ contains
       call OPP%scatter_LUTtables(comm)
 
       OPP%LUT_initialized=.True.
+      if(ldebug.and.myid.eq.0) call print_configs(OPP)
       if(OPP%optprop_LUT_debug .and. myid.eq.0) print *,'Initializing LUT`s... finished'
   end subroutine
 

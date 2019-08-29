@@ -50,8 +50,9 @@ module m_plexrt_rrtmg
   use m_tenstream_interpolation, only : interp_1d
 
   use m_plex_grid, only: TOAFACE, get_inward_face_normal, compute_face_geometry
-  use m_plex_rt, only: t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, destroy_plexrt_solver, &
-    plexrt_get_result
+  use m_plex_rt_base, only: t_plex_solver
+  use m_plex_rt, only: init_plex_rt_solver, run_plex_rt_solver, &
+    destroy_plexrt_solver, plexrt_get_result
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw

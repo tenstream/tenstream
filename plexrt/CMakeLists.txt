@@ -2,8 +2,9 @@ include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")
 
 set( general_sources
-  "plex_grid.F90"
+  "plex_rt_base.F90"
   "plex_rt.F90"
+  "plex_grid.F90"
   "plex2rayli.F90"
   "icon_grid.F90"
   "icon_plex_utils.F90"

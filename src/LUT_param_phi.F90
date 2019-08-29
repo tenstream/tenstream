@@ -414,8 +414,8 @@ end function
       rb = phic4
     endif
     if(abs(rb - lb).lt.epsilon(rb)) then
-      print *,'tiny rb-lb:', rb - lb, ':', rb, lb, phie3, phic3, phie4, phic4, phi
-      param_phi = 0
+      print *,'tiny rb-lb:', rb - lb, ':', rb, lb, phie3, phic3, phie4, phic4, phi, ':', x1, x2
+      param_phi = x1
     else
       param_phi = (phi - lb) / (rb - lb) * (x2-x1) + x1
     endif

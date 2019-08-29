@@ -13,7 +13,8 @@ module plexrt_error_growth_tracking
   use m_plex_grid, only: t_plexgrid, setup_plexgrid
   use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D
 
-  use m_plex_rt, only: t_plex_solver, allocate_plexrt_solver_from_commandline, &
+  use m_plex_rt_base, only: t_plex_solver, allocate_plexrt_solver_from_commandline
+  use m_plex_rt, only: &
     init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
     plexrt_get_result, destroy_plexrt_solver
 
@@ -73,7 +74,7 @@ contains
 
     call DMPlexGetDepthStratum(dm2d, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! 2D vertices
 
-    call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex)
+    call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex, lpolar_coords=.False.)
 
     call setup_plexgrid(dm3d, Nz-1, zindex, plex)
     deallocate(zindex)

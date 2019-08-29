@@ -1437,23 +1437,23 @@ module m_plex_grid
       !print *,'Cx/Cy', Cx, Cy
       !print *,'rparam_phi, rparam_theta',rparam_phi, rparam_theta
 
-      if(rparam_theta.gt.param_eps*100) then ! only if baseface should be src
+      if(rparam_theta.gt.param_eps) then ! only if baseface should be src
         ierr = 0
-        if(rparam_phi.lt.-1_irealLUT-param_eps*100 .and. .not.lsrc(left_face)) then
+        if(rparam_phi.lt.-1_irealLUT-param_eps .and. .not.lsrc(left_face)) then
           ierr = 1
           print *,'param_phi < -1 but left face is not src', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
         endif
 
-        if(rparam_phi.gt.-1_irealLUT+param_eps*100 .and.      lsrc(left_face)) then
+        if(rparam_phi.gt.-1_irealLUT+param_eps .and.      lsrc(left_face)) then
           ierr = 2
           print *,'param_phi > -1 but left face is not dst', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
         endif
 
-        if(rparam_phi.gt.1_irealLUT+param_eps*100 .and. .not.lsrc(right_face)) then
+        if(rparam_phi.gt.1_irealLUT+param_eps .and. .not.lsrc(right_face)) then
           ierr = 3
           print *,'param_phi > 1 but right face is not src', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
         endif
-        if(rparam_phi.lt.1_irealLUT-param_eps*100 .and. lsrc(right_face)) then
+        if(rparam_phi.lt.1_irealLUT-param_eps .and. lsrc(right_face)) then
           ierr = 4
           print *,'param_phi < 1 but right face is not dst', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
         endif
@@ -1490,13 +1490,13 @@ module m_plex_grid
       endif
 
       ! Snap param_phi to the correct side
-      if(approx(rparam_phi, -1._ireal_params, 100*epsilon(rparam_phi))) then
+      if(approx(rparam_phi, -1._ireal_params, epsilon(rparam_phi))) then
         if(lsrc(left_face)) then
           rparam_phi = -1._ireal_params-param_eps
         else
           rparam_phi = -1._ireal_params+param_eps
         endif
-      elseif(approx(rparam_phi, +1._ireal_params, 100*epsilon(rparam_phi))) then
+      elseif(approx(rparam_phi, +1._ireal_params, epsilon(rparam_phi))) then
         if(lsrc(right_face)) then
           rparam_phi = 1._ireal_params+param_eps
         else

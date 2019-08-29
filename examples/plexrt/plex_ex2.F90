@@ -19,8 +19,10 @@ use m_icon_plex_utils, only: gen_2d_plex_from_icongridfile, icon_hdcp2_default_h
 
 use m_plex_grid, only: t_plexgrid, setup_plexgrid, get_normal_of_first_toa_face
 
-use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandline, &
-  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
+use m_plex_rt_base, only: t_plex_solver, allocate_plexrt_solver_from_commandline
+
+use m_plex_rt, only: compute_face_geometry, &
+  init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   destroy_plexrt_solver
 
 

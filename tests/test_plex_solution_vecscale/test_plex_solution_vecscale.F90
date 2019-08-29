@@ -19,8 +19,10 @@ use m_plex_grid, only: t_plexgrid, &
   ncvar2d_to_globalvec, setup_plexgrid, &
   gen_test_mat, get_normal_of_first_toa_face
 
-use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandline, &
-  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
+use m_plex_rt_base, only: t_plex_solver, allocate_plexrt_solver_from_commandline
+
+use m_plex_rt, only: compute_face_geometry, &
+  init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   plexrt_get_result, destroy_plexrt_solver, scale_flx
 
 use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D

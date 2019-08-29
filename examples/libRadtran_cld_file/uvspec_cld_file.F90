@@ -25,7 +25,9 @@ module m_example_uvspec_cld_file
   use m_plex_grid, only: t_plexgrid, &
     setup_plexgrid, create_plex_section
 
-  use m_plex_rt, only: t_plex_solver, allocate_plexrt_solver_from_commandline, init_plex_rt_solver
+  use m_plex_rt_base, only: t_plex_solver, allocate_plexrt_solver_from_commandline
+
+  use m_plex_rt, only: init_plex_rt_solver
 
   use m_plexrt_rrtmg, only: plexrt_rrtmg, destroy_plexrt_rrtmg
 

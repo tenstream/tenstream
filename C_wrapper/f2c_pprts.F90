@@ -43,9 +43,13 @@ module m_f2c_pprts
       use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
         rank0_f90vec_to_plex, dmplex_gvec_from_f90_array, plex_gvec_tozero
       use m_plex_grid, only: t_plexgrid, setup_plexgrid, create_plex_section
-      use m_plex_rt, only: allocate_plexrt_solver_from_commandline, &
-        init_plex_rt_solver, run_plex_rt_solver, plexrt_get_result, destroy_plexrt_solver, &
+
+      use m_plex_rt_base, only: allocate_plexrt_solver_from_commandline, &
         t_plex_solver, t_plex_solver_rectilinear_5_8
+
+      use m_plex_rt, only: &
+        init_plex_rt_solver, run_plex_rt_solver, plexrt_get_result, &
+        destroy_plexrt_solver
 
       use m_netcdfio, only: ncwrite
 
