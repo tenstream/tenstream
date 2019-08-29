@@ -9,6 +9,7 @@ set( general_sources
   "plex2rayli.F90"
   "icon_grid.F90"
   "icon_plex_utils.F90"
+  "nca_multi_tri.F90"
   )
 
 add_library( plexrt_objs OBJECT ${general_sources} )
