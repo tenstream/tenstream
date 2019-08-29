@@ -1,9 +1,17 @@
 module m_LUT_param_phi
+  use iso_fortran_env, only: REAL32, REAL64
   use m_data_parameters, only : irealLUT, mpiint, ireal_dp, ireal_params
   use m_data_parameters, only: pi=>pi_ireal_params
   use m_helper_functions, only : angle_between_two_vec, rad2deg, approx, CHKERR
   use m_boxmc_geometry, only: wedge_halfspaces
   implicit none
+
+  interface LUT_wedge_aspect_zx
+    module procedure LUT_wedge_aspect_zx_r32, LUT_wedge_aspect_zx_r64
+  end interface
+  interface LUT_wedge_dz
+    module procedure LUT_wedge_dz_r32, LUT_wedge_dz_r64
+  end interface
 
   contains
 !> @brief reverse transformation from azimuth(radians) to param_phi[-2,2]
@@ -415,12 +423,20 @@ end function
     ierr = 0
   end subroutine
 
-  real(irealLUT) function LUT_wedge_aspect_zx(Atop, dz) result(aspect_zx)
-    real(irealLUT), intent(in) :: Atop, dz
+  real(REAL32) function LUT_wedge_aspect_zx_r32(Atop, dz) result(aspect_zx)
+    real(REAL32), intent(in) :: Atop, dz
     aspect_zx = dz / sqrt(Atop * 2)
   end function
-  real(irealLUT) function LUT_wedge_dz(Atop, aspect_zx) result(dz)
-    real(irealLUT), intent(in) :: Atop, aspect_zx
+  real(REAL64) function LUT_wedge_aspect_zx_r64(Atop, dz) result(aspect_zx)
+    real(REAL64), intent(in) :: Atop, dz
+    aspect_zx = dz / sqrt(Atop * 2)
+  end function
+  real(REAL32) function LUT_wedge_dz_r32(Atop, aspect_zx) result(dz)
+    real(REAL32), intent(in) :: Atop, aspect_zx
+    dz = sqrt(Atop * 2) * aspect_zx
+  end function
+  real(REAL64) function LUT_wedge_dz_r64(Atop, aspect_zx) result(dz)
+    real(REAL64), intent(in) :: Atop, aspect_zx
     dz = sqrt(Atop * 2) * aspect_zx
   end function
 end module
