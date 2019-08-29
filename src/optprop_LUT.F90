@@ -518,7 +518,9 @@ subroutine write_pspace(fname, config)
     call ncload(groups, existing_values, ierr)
     if(ierr.eq.0) then
       if(.not.all(approx(existing_values, config%dims(kdim)%v, sqrt(epsilon(1._irealLUT))*10))) then
-        print *, kdim, trim(groups(1)), trim(groups(3)), ':existing', existing_values, ':new', config%dims(kdim)%v
+        print *, kdim, trim(groups(1)), trim(groups(3)), new_line(''), &
+          ':existing', existing_values, new_line(''), &
+          ':new', config%dims(kdim)%v
         call CHKERR(1_mpiint, 'Dimensions of LUT and in optprop_parameters definition do not match!')
       endif
     else ! Otherwise, just save the current ones
@@ -847,11 +849,11 @@ subroutine prepare_table_space(OPP, config, S, T)
     if(.not.associated(T%c)) &
       allocate(T%c(OPP%dir_streams*OPP%dir_streams , product(config%dims(:)%N)), source=-1._irealLUT)
 
-    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=-1._irealLUT)
-    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(product(config%dims(:)%N)), source=-1._irealLUT)
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=huge(-1._irealLUT))
+    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(product(config%dims(:)%N)), source=huge(-1._irealLUT))
   else
     if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams**2, product(config%dims(:)%N)))
-    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=-1._irealLUT)
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=huge(-1._irealLUT))
   endif
   print *,'Allocating Space for LUTs '//itoa(entries)// &
     ' entries ( '//ftoa(real(bytesize, irealLUT)/1024._irealLUT**3)//' Gb) ... done'
@@ -1110,9 +1112,9 @@ contains
           call src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
 
           if(lsrc(src)) then ! I am a src face
-            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+1 ! all srcs cannot have any incoming energy
+            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr + 3 ! all srcs cannot have any incoming energy
           else
-            if(any(T.gt.0._irealLUT)) ierr = ierr+1 ! if I am a dst, nobody should get any radiation anyway
+            if(any(T.gt.0._irealLUT)) ierr = ierr+5 ! if I am a dst, nobody should get any radiation anyway
           endif
         end associate
       class is (t_optprop_LUT_rectilinear_wedge_5_8)
@@ -1120,9 +1122,11 @@ contains
           call src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
 
           if(lsrc(src)) then ! I am a src face
-            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+1 ! all srcs cannot have any incoming energy
+            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+3 ! all srcs cannot have any incoming energy
           else
-            if(any(T.gt.0._irealLUT)) ierr = ierr+1 ! if I am a dst, nobody should get any radiation anyway
+            if(any(T.gt.0._irealLUT)) then
+              ierr = ierr+5 ! if I am a dst, nobody should get any radiation anyway
+            endif
           endif
         end associate
       end select
@@ -1146,14 +1150,14 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     real(ireal_params) :: param_phi, param_theta
 
     logical :: lvalid
-    integer(mpiint) :: ierr
+    integer(mpiint) :: ierr, ierr2
 
     call OPP%LUT_bmc_wrapper_determine_sample_pts(config, index_1d, dir, &
       vertices, tauz, w0, g, phi, theta, lvalid)
 
     if(.not.lvalid) then
       if(.not.dir) call CHKERR(1_mpiint, 'all diff2diff coeffs should be valid?')
-      if(ldebug) print *,'have an invalid coeff here, skipping computations', index_1d
+      !if(ldebug) print *,'have an invalid coeff here, skipping computations', index_1d
       S_diff = 0
       T_dir = 0
       S_tol = 0
@@ -1165,13 +1169,14 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
 
     call LUT_bmc_wrapper_validate(OPP, config, tauz, w0, index_1d, src, dir, T_dir, S_diff, ierr)
     if(ierr.ne.0) then
+      ierr2 = ierr
       call param_phi_param_theta_from_phi_and_theta_withcoords(real(vertices, ireal_params), &
         real(deg2rad(phi), ireal_params), real(deg2rad(theta), ireal_params), &
         param_phi, param_theta, ierr)
       print *,'LUTBMC :: calling bmc_get_coeff src',src,'tauz',tauz,w0,g,'angles',phi,theta,&
         ':ind1d',index_1d, ':',T_dir, '::', S_diff, ': verts', vertices, &
         'param phi/theta_afterwards', param_phi, param_theta
-      call CHKERR(1_mpiint, 'found bad results for a given geometry')
+      call CHKERR(ierr2, 'found bad results for a given geometry')
     endif
 
     if(ldebug) print *,'LUTBMC :: calling bmc_get_coeff src', src, &

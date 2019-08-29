@@ -791,8 +791,9 @@ module m_plex_grid
     !    The direction for the fields is given as:
     !      * field 0: radiation travelling vertical
     !      * field 1: radiation travelling horizontally
-    !        * component 0: radiation travelling from cell_a to cell_b
-    !        * component 1: radiation going from cell_b to cell_a
+    !
+    !      * component 0: radiation travelling from cell_a to cell_b
+    !      * component 1: radiation going from cell_b to cell_a
     !      where id of cell_b is larger id(cell_a)
     subroutine setup_ediff_dmplex(plex, orig_dm, top_streams, side_streams, dof_per_stream, dm)
       type(t_plexgrid), intent(in) :: plex
