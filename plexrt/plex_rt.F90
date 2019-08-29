@@ -2389,7 +2389,7 @@ module m_plex_rt
         if(.not.ldir.and.present(angles)) print *,'Lookup Coeffs for dir2diff', tauz, w0, aspect_zx, dg, angles,'::', coeff
       endif
       if(.not.ldir.and..not.present(angles)) then
-        if(tauz.lt.1._irealLUT .and. all(coeff.eq.0)) then
+        if(tauz.lt.1._irealLUT .and. all(coeff.le.0)) then
           print *,'Lookup Coeffs for diff2diff', tauz, w0, dg, aspect_zx, ':', Cx, Cy, '::', coeff
           call CHKERR(1_mpiint, 'Found all zero entries where I would not expect it')
         endif
