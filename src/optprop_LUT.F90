@@ -25,7 +25,8 @@ module m_optprop_LUT
 
   use m_helper_functions, only : approx,  &
     rel_approx, imp_bcast,                &
-    get_arg, ftoa, itoa, char_arr_to_str, &
+    get_arg, ftoa, itoa,                  &
+    cstr, char_arr_to_str,                &
     mpi_logical_and, mpi_logical_or,      &
     CHKERR,                               &
     triangle_area_by_vertices,            &
@@ -80,7 +81,9 @@ module m_optprop_LUT
   use m_boxmc_geometry, only : setup_default_wedge_geometry, setup_default_unit_cube_geometry
 
   use m_LUT_param_phi, only: param_phi_from_azimuth, azimuth_from_param_phi, &
-    iterative_phi_theta_from_param_phi_and_param_theta, param_phi_param_theta_from_phi_and_theta_withcoords
+    iterative_phi_theta_from_param_phi_and_param_theta, &
+    param_phi_param_theta_from_phi_and_theta_withcoords, &
+    LUT_wedge_dz
 
   implicit none
 
@@ -97,7 +100,8 @@ module m_optprop_LUT
     t_optprop_LUT_wedge_5_8, &
     t_optprop_LUT_rectilinear_wedge_5_8, &
     t_optprop_LUT_wedge_18_8, &
-    find_lut_dim_by_name, azimuth_from_param_phi, param_phi_from_azimuth
+    find_lut_dim_by_name, t_LUT_config, &
+    azimuth_from_param_phi, param_phi_from_azimuth
   ! This module loads and generates the LUT-tables for Tenstream Radiation
   ! computations.
   ! It also holds functions for interpolation on the regular LUT grid.
@@ -347,18 +351,30 @@ subroutine load_table_from_netcdf(table, istat)
   istat = 0
 
   call ncload(table%table_name_tol, table%stddev_tol, ierr); istat = istat + ierr
-  if(ierr.eq.0) then ! we were able to load stddev but still have to check if they all have a good enough noise...
+  if(ierr.eq.0) then
+    if(ldebug) print *,'we were able to load stddev from file '//new_line('')// &
+      cstr(char_arr_to_str(table%table_name_tol,'/'), 'green')//new_line('')// &
+      ' but still have to check if they all have a good enough precision / noise level...'
     do k = 1, size(table%stddev_tol, kind=iintegers)
-      if(table%stddev_tol(k).gt.stddev_atol+10*epsilon(stddev_atol)) then
+      if(table%stddev_tol(k).gt.stddev_atol+10*epsilon(stddev_atol) &
+        .or. table%stddev_tol(k).lt.0._irealLUT) then
         istat = istat + 1
         if(istat.ne.0) then
-          print *,'coefficients not good enough', k, table%stddev_tol(k),&
-            'should be less than', stddev_atol+10*epsilon(stddev_atol)
+          print *,'coefficients stddev not good enough', k, table%stddev_tol(k),&
+            'should be positive and less than', stddev_atol+10*epsilon(stddev_atol)
           exit
         endif
       endif
     enddo
+  else
+    print *,'loading stddev_tolerances from '//new_line('')// &
+      cstr(char_arr_to_str(table%table_name_tol,'/'), 'purple')//new_line('')// &
+      ' failed', istat, ierr
   endif
+  if(istat.ne.0) &
+    print *,'Test if coeffs in '//new_line('')// &
+      cstr(char_arr_to_str(table%table_name_tol,'/'), 'purple')//new_line('')// &
+      ' are good results in:', istat
 
   call ncload(table%table_name_c, table%c, ierr); istat = istat + ierr
   if(ierr.eq.0) then ! we were able to load coeffs but still have to check if they are all ok...
@@ -371,8 +387,17 @@ subroutine load_table_from_netcdf(table, istat)
         endif
       endif
     enddo
+  else
+    print *,'loading coeffs from '//new_line('')// &
+      cstr(char_arr_to_str(table%table_name_c,'/'), 'purple')//new_line('')// &
+      ' failed', istat, ierr
   endif
-  if(istat.ne.0) print *,'Test if coeffs in '//char_arr_to_str(table%table_name_tol,'/')//' are good results in:', istat
+
+  if(istat.ne.0) then
+    print *,'Test if coeffs in '//new_line('')// &
+      cstr(char_arr_to_str(table%table_name_c,'/'), 'purple')//new_line('')// &
+      ' are good results in:', istat
+  endif
 end subroutine
 
 subroutine loadLUT_diff(OPP, comm, skip_load_LUT)
@@ -416,6 +441,7 @@ subroutine loadLUT_diff(OPP, comm, skip_load_LUT)
     endif
 
     if(allocated(OPP%Sdiff%stddev_tol)) deallocate(OPP%Sdiff%stddev_tol)
+    if(ldebug) print *,'Loaded Diff2Diff LUT with shape:', shape(OPP%Sdiff%c)
 end subroutine
 
 subroutine loadLUT_dir(OPP, comm, skip_load_LUT)
@@ -467,6 +493,8 @@ subroutine loadLUT_dir(OPP, comm, skip_load_LUT)
 
     if(allocated(OPP%Tdir%stddev_tol)) deallocate(OPP%Tdir%stddev_tol)
     if(allocated(OPP%Sdir%stddev_tol)) deallocate(OPP%Sdir%stddev_tol)
+    if(ldebug) print *,'Loaded Dir2Dir LUT with shape:', shape(OPP%Tdir%c)
+    if(ldebug) print *,'Loaded Dir2Diff LUT with shape:', shape(OPP%Sdir%c)
 end subroutine
 
 subroutine write_pspace(fname, config)
@@ -490,7 +518,9 @@ subroutine write_pspace(fname, config)
     call ncload(groups, existing_values, ierr)
     if(ierr.eq.0) then
       if(.not.all(approx(existing_values, config%dims(kdim)%v, sqrt(epsilon(1._irealLUT))*10))) then
-        print *, kdim, trim(groups(1)), trim(groups(3)), ':existing', existing_values, ':new', config%dims(kdim)%v
+        print *, kdim, trim(groups(1)), trim(groups(3)), new_line(''), &
+          ':existing', existing_values, new_line(''), &
+          ':new', config%dims(kdim)%v
         call CHKERR(1_mpiint, 'Dimensions of LUT and in optprop_parameters definition do not match!')
       endif
     else ! Otherwise, just save the current ones
@@ -537,11 +567,12 @@ subroutine createLUT(OPP, comm, config, S, T)
     endif
 
     if(myid.le.0 .and. comm_size.le.1) &
-      stop 'At the moment creation of direct Lookuptable needs at least two mpi-ranks to work... please run with more ranks.'
+      call CHKERR(1_mpiint, 'At the moment creation of direct Lookuptable needs at least two mpi-ranks to work...'// &
+        'please run with more ranks.')
 
     if(myid.eq.0) then
       call master(S, T)
-      print *,'done calculating direct coefficients'
+      print *,'done calculating coefficients. present(T)?', present(T)
     else
       call worker(config)
     endif
@@ -581,14 +612,19 @@ subroutine createLUT(OPP, comm, config, S, T)
           ! Check if we already calculated the coefficients
           if(cnt.le.total_size) then
 
-            ldoneS = all(S%c(:,cnt).ge.zero) .and. all(S%c(:,cnt).le.one) &
-              .and. S%stddev_tol(cnt).le.stddev_atol &
-              .and. S%stddev_tol(cnt).ge.0._irealLUT
+            ldoneS = all( [ &
+              all(S%c(:,cnt).ge.zero), &
+              all(S%c(:,cnt).le.one), &
+              S%stddev_tol(cnt).le.stddev_atol, &
+              S%stddev_tol(cnt).ge.0._irealLUT ] )
+            !print *,'ldoneS', cnt, ldoneS, ':', S%stddev_tol(cnt)
 
             if(present(T)) then
-              ldoneT = all(T%c(:,cnt).ge.zero) .and. all(T%c(:,cnt).le.one) &
-                .and. T%stddev_tol(cnt).le.stddev_atol &
-                .and. T%stddev_tol(cnt).ge.0._irealLUT
+              ldoneT = all( [ &
+                all(T%c(:,cnt).ge.zero), &
+                all(T%c(:,cnt).le.one), &
+                T%stddev_tol(cnt).le.stddev_atol, &
+                T%stddev_tol(cnt).ge.0._irealLUT ] )
             else
               ldoneT = .True.
             endif
@@ -652,12 +688,11 @@ subroutine createLUT(OPP, comm, config, S, T)
                 T%stddev_tol(lutindex) = maxval(T_tol)
               endif
 
-              if (.False. .and. ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
+              if (.True. .and. ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
 
               if( mod(lutindex-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
                 print *,'Calculated LUT...', lutindex, &
                         real(lutindex-1, irealLUT)*100._irealLUT/real(total_size, irealLUT),'%'
-
 
               call cpu_time(now)
               if( (now-lastsavetime).gt.LUT_dump_interval .or. (now-starttime).gt.LUT_max_create_jobtime ) then !every 30 minutes wall clock time, dump the LUT.
@@ -814,11 +849,11 @@ subroutine prepare_table_space(OPP, config, S, T)
     if(.not.associated(T%c)) &
       allocate(T%c(OPP%dir_streams*OPP%dir_streams , product(config%dims(:)%N)), source=-1._irealLUT)
 
-    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=-1._irealLUT)
-    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(product(config%dims(:)%N)), source=-1._irealLUT)
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=huge(-1._irealLUT))
+    if(.not.allocated (T%stddev_tol)) allocate(T%stddev_tol(product(config%dims(:)%N)), source=huge(-1._irealLUT))
   else
     if(.not.associated(S%c)) allocate(S%c(OPP%diff_streams**2, product(config%dims(:)%N)))
-    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=-1._irealLUT)
+    if(.not.allocated (S%stddev_tol)) allocate(S%stddev_tol(product(config%dims(:)%N)), source=huge(-1._irealLUT))
   endif
   print *,'Allocating Space for LUTs '//itoa(entries)// &
     ' entries ( '//ftoa(real(bytesize, irealLUT)/1024._irealLUT**3)//' Gb) ... done'
@@ -898,6 +933,10 @@ subroutine LUT_bmc_wrapper_determine_sample_pts(OPP, config, index_1d, dir, &
     aspect_zy = aspect_zx ! set dy = dx
   endif
 
+  ! default values for angles in case of diff2diff and such
+  phi = 0
+  theta = -1
+
   ! First define Default vertices for Cube Geometry
   select type(OPP)
   class is (t_optprop_LUT_1_2)
@@ -963,7 +1002,7 @@ contains
 
 
     Atop = triangle_area_by_vertices([0._irealLUT, 0._irealLUT], [1._irealLUT, 0._irealLUT], wedge_C)
-    dz = sqrt(Atop) * aspect_zx
+    dz = LUT_wedge_dz(Atop, aspect_zx)
 
     call setup_default_wedge_geometry([0._ireal_dp, 0._ireal_dp], &
                                       [1._ireal_dp, 0._ireal_dp], &
@@ -983,16 +1022,17 @@ contains
 
       if(param_theta.le.0._ireals) then
         if(param_phi.lt.-1._ireals .or. param_phi.gt.1._ireals) then
-          lvalid_entry = .False.
+          lvalid_entry = .False. ! this is a dead zone in the param space. Should never happen in a mesh
         endif
       endif
     endif
   end subroutine
 end subroutine
 
-subroutine LUT_bmc_wrapper_validate(OPP, config, index_1d, src, dir, T, S, ierr)
+subroutine LUT_bmc_wrapper_validate(OPP, config, tauz, w0, index_1d, src, dir, T, S, ierr)
   class(t_optprop_LUT) :: OPP
   type(t_lut_config), intent(in) :: config
+  real(irealLUT), intent(in) :: tauz, w0
   integer(iintegers), intent(in) :: index_1d
   logical, intent(in) :: dir
   integer(iintegers), intent(in) :: src
@@ -1001,15 +1041,17 @@ subroutine LUT_bmc_wrapper_validate(OPP, config, index_1d, src, dir, T, S, ierr)
   integer(mpiint), intent(out) :: ierr
   ierr=0
 
-  if(any(T.lt.0._ireals)) ierr = 10
-  if(any(S.lt.0._ireals)) ierr = 10
-  if(any(T.gt.1._ireals)) ierr = 20
-  if(any(S.gt.1._ireals)) ierr = 20
-
+  if(any(T.lt.0._ireals)) ierr = ierr+3
+  if(any(S.lt.0._ireals)) ierr = ierr+5
+  if(any(T.gt.1._ireals)) ierr = ierr+7
+  if(any(S.gt.1._ireals)) ierr = ierr+11
 
   select type(OPP)
 
   class is (t_optprop_LUT_wedge_5_8)
+    call validate_plexrt()
+
+  class is (t_optprop_LUT_rectilinear_wedge_5_8)
     call validate_plexrt()
 
   class is (t_optprop_LUT_wedge_18_8)
@@ -1017,7 +1059,15 @@ subroutine LUT_bmc_wrapper_validate(OPP, config, index_1d, src, dir, T, S, ierr)
 
   class default
     continue
-end select
+  end select
+
+  if(.not.dir .and. tauz*(1._irealLUT - w0) .lt. 1._irealLUT) then
+    if(all(S.lt.tiny(S))) then
+      call CHKERR(1_mpiint, 'Found all diff2diff coefficients to be zero but absorption is not that high.'// &
+        'Something weird is going on. Please investigate!')
+    endif
+  endif
+
 contains
   subroutine src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
     real(irealLUT), intent(in) :: param_phi, param_theta
@@ -1062,9 +1112,21 @@ contains
           call src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
 
           if(lsrc(src)) then ! I am a src face
-            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+1 ! all srcs cannot have any incoming energy
+            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr + 3 ! all srcs cannot have any incoming energy
           else
-            if(any(T.gt.0._irealLUT)) ierr = ierr+1 ! if I am a dst, nobody should get any radiation anyway
+            if(any(T.gt.0._irealLUT)) ierr = ierr+5 ! if I am a dst, nobody should get any radiation anyway
+          endif
+        end associate
+      class is (t_optprop_LUT_rectilinear_wedge_5_8)
+        associate(lsrc => lsrc5)
+          call src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
+
+          if(lsrc(src)) then ! I am a src face
+            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+3 ! all srcs cannot have any incoming energy
+          else
+            if(any(T.gt.0._irealLUT)) then
+              ierr = ierr+5 ! if I am a dst, nobody should get any radiation anyway
+            endif
           endif
         end associate
       end select
@@ -1088,12 +1150,14 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
     real(ireal_params) :: param_phi, param_theta
 
     logical :: lvalid
-    integer(mpiint) :: ierr
+    integer(mpiint) :: ierr, ierr2
 
     call OPP%LUT_bmc_wrapper_determine_sample_pts(config, index_1d, dir, &
       vertices, tauz, w0, g, phi, theta, lvalid)
 
     if(.not.lvalid) then
+      if(.not.dir) call CHKERR(1_mpiint, 'all diff2diff coeffs should be valid?')
+      !if(ldebug) print *,'have an invalid coeff here, skipping computations', index_1d
       S_diff = 0
       T_dir = 0
       S_tol = 0
@@ -1103,19 +1167,21 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
 
     call bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, S_diff, T_dir, S_tol, T_tol)
 
-    call LUT_bmc_wrapper_validate(OPP, config, index_1d, src, dir, T_dir, S_diff, ierr)
+    call LUT_bmc_wrapper_validate(OPP, config, tauz, w0, index_1d, src, dir, T_dir, S_diff, ierr)
     if(ierr.ne.0) then
+      ierr2 = ierr
       call param_phi_param_theta_from_phi_and_theta_withcoords(real(vertices, ireal_params), &
         real(deg2rad(phi), ireal_params), real(deg2rad(theta), ireal_params), &
         param_phi, param_theta, ierr)
       print *,'LUTBMC :: calling bmc_get_coeff src',src,'tauz',tauz,w0,g,'angles',phi,theta,&
         ':ind1d',index_1d, ':',T_dir, '::', S_diff, ': verts', vertices, &
         'param phi/theta_afterwards', param_phi, param_theta
-      call CHKERR(1_mpiint, 'found bad results for a given geometry')
+      call CHKERR(ierr2, 'found bad results for a given geometry')
     endif
 
-    !print *,'LUTBMC :: calling bmc_get_coeff src',src,'tauz',tauz,w0,g,'angles',phi,theta,&
-    !  ':ind1d',index_1d, ':',T_dir
+    if(ldebug) print *,'LUTBMC :: calling bmc_get_coeff src', src, &
+      'tauz',tauz,w0,g,'angles',phi,theta, ':ind1d',index_1d, ':', &
+      T_dir, ':(', T_tol, ') //', S_diff, ':(', S_tol, ')'
 end subroutine
 
 subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, &
@@ -1362,26 +1428,28 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%diffconfig%dims(5), vrange=real([0.7760254, 0.9560254], irealLUT))
 
       class is (t_optprop_LUT_rectilinear_wedge_5_8)
-          allocate(OPP%dirconfig%dims(7))
-          call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
-          call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
+          allocate(OPP%dirconfig%dims(8))
+          call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
+          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect18,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect18)
-          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(4), vrange=real([0.,1.], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(5), vrange=real([.5,1.], irealLUT))
+          call populate_LUT_dim('g',         size(preset_g2,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g2)
+          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([-0.000001,1.000001], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(6), vrange=real([.499999,1.000001], irealLUT))
 
-          call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(6), preset=preset_param_phi19)
-          call populate_LUT_dim('param_theta', size(preset_param_theta13, kind=iintegers), OPP%dirconfig%dims(7), preset=preset_param_theta13)
+          call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(7), preset=preset_param_phi19)
+          call populate_LUT_dim('param_theta', size(preset_param_theta13, kind=iintegers), OPP%dirconfig%dims(8), preset=preset_param_theta13)
 
           !call populate_LUT_dim('tau',       i1, OPP%dirconfig%dims(1), vrange=real([1e-10,1e-5], irealLUT))
           !call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.9], irealLUT))
           !call populate_LUT_dim('aspect_zx', i2, OPP%dirconfig%dims(3), vrange=real([.1,2.], irealLUT))
 
-          allocate(OPP%diffconfig%dims(5))
+          allocate(OPP%diffconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(4), vrange=real([0.,1.], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(5), vrange=real([.5,1.], irealLUT))
+          call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
+          call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(5), vrange=real([-0.000001,1.000001], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(6), vrange=real([.499999,1.000001], irealLUT))
 
       class is (t_optprop_LUT_wedge_18_8)
           allocate(OPP%dirconfig%dims(7))

@@ -93,17 +93,17 @@ program main
 
       case default
         print *,'error, have to provide solver type as argument, e.g. call with'
-        print *,'createLUT_pprts 1_2'
-        print *,'createLUT_pprts 3_6'
-        print *,'createLUT_pprts 3_10'
-        print *,'createLUT_pprts 3_16'
-        print *,'createLUT_pprts 8_10'
-        print *,'createLUT_pprts 8_12'
-        print *,'createLUT_pprts 8_16'
-        print *,'createLUT_pprts 8_18'
-        print *,'createLUT_pprts wedge_5_8'
-        print *,'createLUT_pprts rectilinear_wedge_5_8'
-        print *,'createLUT_pprts wedge_18_8'
+        print *,'createLUT 1_2'
+        print *,'createLUT 3_6'
+        print *,'createLUT 3_10'
+        print *,'createLUT 3_16'
+        print *,'createLUT 8_10'
+        print *,'createLUT 8_12'
+        print *,'createLUT 8_16'
+        print *,'createLUT 8_18'
+        print *,'createLUT wedge_5_8'
+        print *,'createLUT rectilinear_wedge_5_8'
+        print *,'createLUT wedge_18_8'
         stop
       end select
 

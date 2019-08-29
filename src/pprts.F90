@@ -212,8 +212,8 @@ module m_pprts
 
       solver%difftop%streams  = solver%difftop%dof/2
       solver%diffside%streams = solver%diffside%dof/2
-      solver%dirtop%streams   = solver%dirtop%dof/2
-      solver%dirside%streams  = solver%dirside%dof/2
+      solver%dirtop%streams   = solver%dirtop%dof
+      solver%dirside%streams  = solver%dirside%dof
 
       call init_mpi_data_parameters(icomm)
 
@@ -2090,14 +2090,14 @@ module m_pprts
         endif
 
         if(solution%lsolar_rad) then
-          fac = one / real(solver%dirtop%area_divider, ireals)
+          fac = real(solver%dirtop%area_divider, ireals) / real(solver%dirtop%streams, ireals)
           do src=i0,solver%dirtop%dof-1
             xv_dir(src,C_dir%zs+1:C_dir%ze,i,j) = S(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac
             xv_dir(src,C_dir%zs           ,i,j) = S(C_one_atm1%zs) * fac
           enddo
         endif
 
-        fac = one / real(solver%difftop%streams, ireals)
+        fac = real(solver%difftop%area_divider, ireals) / real(solver%difftop%streams, ireals)
         do src = 1, solver%difftop%dof
           if(solver%difftop%is_inward(src)) then
             xv_diff(src-1,C_diff%zs+1:C_diff%ze,i,j) = Edn(atmk(atm, C_one_atm1%zs)+1:C_one_atm1%ze) * fac

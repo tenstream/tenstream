@@ -103,6 +103,7 @@ module m_pprts_base
     PetscLogEvent :: compute_absorption
 
     PetscLogEvent :: solve_twostream
+    PetscLogEvent :: solve_rayli
     PetscLogEvent :: solve_mcrts
     PetscLogEvent :: get_coeff_dir2dir
     PetscLogEvent :: get_coeff_dir2diff
@@ -251,6 +252,7 @@ module m_pprts_base
       call PetscLogEventRegister(trim(s)//'compute_absorption', cid, logs%compute_absorption, ierr); call CHKERR(ierr)
 
       call PetscLogEventRegister(trim(s)//'solve_twostr', cid, logs%solve_twostream, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'solve_rayli', cid, logs%solve_rayli, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'solve_mcrts', cid, logs%solve_mcrts, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'dir2dir', cid, logs%get_coeff_dir2dir, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'dir2diff', cid, logs%get_coeff_dir2diff, ierr); call CHKERR(ierr)

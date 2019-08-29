@@ -17,7 +17,8 @@ module m_plex_grid
   use m_icon_grid, only : t_icongrid, ICONULL
 
   use m_tenstream_options, only: read_commandline_options, twostr_ratio
-  use m_LUT_param_phi, only: param_phi_param_theta_from_phi_and_theta_withnormals
+  use m_LUT_param_phi, only: param_phi_param_theta_from_phi_and_theta_withnormals, &
+    LUT_wedge_aspect_zx
   use m_optprop_parameters, only: param_eps
 
   implicit none
@@ -790,8 +791,9 @@ module m_plex_grid
     !    The direction for the fields is given as:
     !      * field 0: radiation travelling vertical
     !      * field 1: radiation travelling horizontally
-    !        * component 0: radiation travelling from cell_a to cell_b
-    !        * component 1: radiation going from cell_b to cell_a
+    !
+    !      * component 0: radiation travelling from cell_a to cell_b
+    !      * component 1: radiation going from cell_b to cell_a
     !      where id of cell_b is larger id(cell_a)
     subroutine setup_ediff_dmplex(plex, orig_dm, top_streams, side_streams, dof_per_stream, dm)
       type(t_plexgrid), intent(in) :: plex
@@ -831,9 +833,9 @@ module m_plex_grid
       logical :: l1d
       type(tPetscSection) :: geomSection
       real(ireals), pointer :: geoms(:)
-      real(ireals) :: face_area, dx, dz, aspect
+      real(ireals) :: face_area, dz, aspect
       integer(iintegers) :: ic, geom_offset, num_constrained, num_unconstrained
-      integer(iintegers), pointer :: cells_of_face(:)
+      integer(iintegers), pointer :: cells_of_face(:), faces_of_cell(:)
 
       integer(iintegers) :: iface, fStart, fEnd, istream, num_edges_of_face, tot_top_dof, tot_side_dof
       integer(mpiint) :: comm, ierr
@@ -892,11 +894,16 @@ module m_plex_grid
             do ic = 1, size(cells_of_face)
               call PetscSectionGetFieldOffset(geomSection, cells_of_face(ic), i3, geom_offset, ierr); call CHKERR(ierr)
               dz = geoms(i1+geom_offset)
-              dx = face_area / dz
-              aspect = dz/dx
+
+              call DMPlexGetCone(geomdm, cells_of_face(ic), faces_of_cell, ierr); call CHKERR(ierr)
+              call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
+              face_area = geoms(i1+geom_offset) ! top face area
+              call DMPlexRestoreCone(geomdm, cells_of_face(ic), faces_of_cell, ierr); call CHKERR(ierr)
+
+              aspect = LUT_wedge_aspect_zx(face_area, dz)
               if(aspect.lt.aspect_constraint) l1d=.False.
             enddo
-            call DMPlexRestoreSupport(geomdm, iface, cells_of_face, ierr); call CHKERR(ierr) ! Get Faces of cell
+            call DMPlexRestoreSupport(geomdm, iface, cells_of_face, ierr); call CHKERR(ierr)
           endif
 
           if(.not.l1d) then
@@ -1397,7 +1404,7 @@ module m_plex_grid
       dz = geoms(i1+geom_offset)
       call PetscSectionGetFieldOffset(geomSection, faces_of_cell(upper_face), i2, geom_offset, ierr); call CHKERR(ierr)
       Atop = geoms(i1+geom_offset)
-      aspect_zx = dz/sqrt(Atop)
+      aspect_zx = LUT_wedge_aspect_zx(Atop, dz)
 
       ! Compute local vertex coordinates for upper face
       call compute_local_vertex_coordinates(plex, &

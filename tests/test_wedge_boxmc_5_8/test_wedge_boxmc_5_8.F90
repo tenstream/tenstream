@@ -9,6 +9,7 @@ module test_wedge_boxmc_5_8
   use m_helper_functions, only : itoa, triangle_area_by_vertices, rad2deg
   use m_boxmc_geometry, only : setup_default_unit_wedge_geometry, setup_default_wedge_geometry
   use m_optprop_LUT, only : azimuth_from_param_phi
+  use m_LUT_param_phi, only: LUT_wedge_dz
 
   use pfunit_mod
   implicit none
@@ -108,7 +109,7 @@ contains
       enddo
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_wedgemc_direct_negative_azimuth_src2(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=2
@@ -135,7 +136,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_wedgemc_direct_negative_azimuth_src2_-60')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_direct_src4(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=4
@@ -203,7 +204,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_6')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_direct_src3(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=3
@@ -265,7 +266,7 @@ contains
 
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_direct_src2(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=2
@@ -341,7 +342,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_4')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_direct_src1(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=1
@@ -364,7 +365,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src1_1')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_direct_lambert_beer(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers) :: src, iphi
@@ -550,7 +551,7 @@ contains
       endif ! lchecksideward
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diffuse_src1(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=1
@@ -570,7 +571,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_1')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diffuse_src8(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=8
@@ -584,13 +585,13 @@ contains
 
       ! ----------------------------------
       bg = [1e-3, 0., .0 ]
-      S_target = [0.2511, 0.0, 0.2374, 0.0, 0.2274, 0.0, 0.2274, 0.0]
+      S_target = [0.2516, 0.0, 0.2370, 0.0, 0.2370, 0.0, 0.2370, 0.0]
 
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src8_1')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diffuse_src2(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=2
@@ -617,7 +618,7 @@ contains
 
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diffuse_src3(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=3
@@ -643,7 +644,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src3_3')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diffuse_src4(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=4
@@ -669,27 +670,33 @@ contains
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src4_3')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diffuse_src5(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=5
+      real,parameter :: c1=0.2772, c2=0.4107, c3=0.3651, c4=0.0237, c5=0.2155, c6=0.0437, c7=0.0389, c8=0.0390
       myid     = this%getProcessRank()
 
       ! ----------------------------------
+      bg = [1e-3, 0., .0 ]
+      S_target = [c2, 0.0, c1, 0.0, 0.0, 0.0, c1, 0.0]
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_1')
+
+      ! ----------------------------------
       bg = [1e-3, 1e-2, .0 ]
-      S_target = [0.1791, 0.0226, 0.2107, 0.0226, 0.2107, 0.0226, 0.2107, 0.0833]
+      S_target = [c3, c4, c5, c6, c7, c4, c5, c8]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_2')
 
       ! ----------------------------------
-      bg = [1e-3, 0., .0 ]
-      S_target = [0.2511, 0.0000, 0.2374, 0.0000, 0.2374, 0.0000, 0.2374, 0.0000]
-
+      bg = [1e-3, 1e-2, 1.0 ] ! in case of pure forward scattering, it should be the same as just absorption
+      S_target = [c2, 0.0, c1, 0.0, 0.0, 0.0, c1, 0.0]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_1')
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src5_3')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diffuse_src6(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=6
@@ -715,7 +722,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src6_3')
   end subroutine
 
-  @test(npes =[1,2])
+  @test(npes =[1])
   subroutine test_boxmc_select_cases_diffuse_src7(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers),parameter :: src=7
@@ -739,6 +746,60 @@ contains
       S_target = [c2, 0.0, c1, 0.0, c1, 0.0, 0.0, 0.0]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
       call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src7_3')
+  end subroutine
+
+  @test(npes =[1])
+  subroutine test_boxmc_select_cases_diffuse_src1_rectilinear_C(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers),parameter :: src=1
+      real(ireal_dp) :: aspect_zx, dz, Atop, dtau, w0
+      real(ireal_dp), dimension(2) :: A, B, C
+      myid     = this%getProcessRank()
+
+      aspect_zx = 0.473405033
+      dtau = 7.63205662E-06
+      w0 = 0.109288104
+
+      A = [0._ireal_dp, 0._ireal_dp]
+      B = [1._ireal_dp, 0._ireal_dp]
+      C = [.0_ireal_dp, 1.0_ireal_dp]
+
+      Atop = triangle_area_by_vertices(A,B,C)
+      dz = LUT_wedge_dz(real(Atop, irealLUT), real(aspect_zx, irealLUT))
+      if(allocated(vertices)) deallocate(vertices)
+      call setup_default_wedge_geometry(&
+        A, B, C, &
+        real(dz, ireal_dp), &
+        vertices)
+
+      ! ----------------------------------
+
+      bg = [dtau*(1._ireal_dp-w0), dtau*w0, 0._ireal_dp ]
+      S_target = [0.0000, 0.2114, 0.0000, 0.2114, 0.0000, 0.2828, 0.0000, 0.2945]
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_C01')
+
+      deallocate(vertices)
+
+
+      C = [1.0_ireal_dp, 1.0_ireal_dp]
+
+      Atop = triangle_area_by_vertices(A,B,C)
+      dz = LUT_wedge_dz(real(Atop, irealLUT), real(aspect_zx, irealLUT))
+      if(allocated(vertices)) deallocate(vertices)
+      call setup_default_wedge_geometry(&
+        A, B, C, &
+        real(dz, ireal_dp), &
+        vertices)
+
+      ! ----------------------------------
+
+      bg = [dtau*(1._ireal_dp-w0), dtau*w0, 0._ireal_dp ]
+      S_target = [0.0000, 0.2114, 0.0000, 0.2828, 0.0000, 0.2114, 0.0000, 0.2945]
+      call bmc_wedge_5_8%get_coeff(comm,bg,src,.False.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+      call check(S_target,T_target, S,T, msg='test_wedgemc_diffuse_src1_C01')
+
+      deallocate(vertices)
   end subroutine
 
   subroutine check(S_target,T_target, S,T, msg)

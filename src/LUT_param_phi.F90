@@ -415,4 +415,12 @@ end function
     ierr = 0
   end subroutine
 
+  real(irealLUT) function LUT_wedge_aspect_zx(Atop, dz) result(aspect_zx)
+    real(irealLUT), intent(in) :: Atop, dz
+    aspect_zx = dz / sqrt(Atop * 2)
+  end function
+  real(irealLUT) function LUT_wedge_dz(Atop, aspect_zx) result(dz)
+    real(irealLUT), intent(in) :: Atop, aspect_zx
+    dz = sqrt(Atop * 2) * aspect_zx
+  end function
 end module

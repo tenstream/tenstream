@@ -1437,6 +1437,7 @@ module m_icon_plex_utils
       type(tPetscSection), intent(inout) :: parSection
       type(tVec), intent(inout) :: parVec
 
+      type(tDM) :: dm2d_serial_clone
       type(tVec) :: rank0vec
       type(tPetscSection) :: rank0section
 
@@ -1454,28 +1455,35 @@ module m_icon_plex_utils
       endif ! rank 0
       call imp_bcast(comm, ke, 0_mpiint); call CHKERR(ierr)
 
-      call create_plex_section(dm2d_serial, 'face_section', i1, [i0], [ke], [i0], [i0], rank0section)
-      call DMSetSection(dm2d_serial, rank0section, ierr); call CHKERR(ierr)
+      call DMClone(dm2d_serial, dm2d_serial_clone, ierr); call CHKERR(ierr)
+      call create_plex_section(dm2d_serial_clone, 'face_section', i1, [i0], [ke], [i0], [i0], rank0section)
+      call DMSetSection(dm2d_serial_clone, rank0section, ierr); call CHKERR(ierr)
 
-      call DMGetGlobalVector(dm2d_serial, rank0vec, ierr); call CHKERR(ierr)
+      call DMGetGlobalVector(dm2d_serial_clone, rank0vec, ierr); call CHKERR(ierr)
       call Vecset(rank0vec, 0._ireals, ierr); call CHKERR(ierr)
 
       if(myid.eq.0) then
         call VecGetArrayF90(rank0Vec, xloc,ierr); call CHKERR(ierr)
+
+        call CHKERR(int(size(xloc)-size(arr), mpiint), 'Global array sizes do not match, expected input size ('// &
+          itoa(shape(arr))//') to be the size of the plexrt mesh vec: ('//itoa(shape(xloc))//')')
+
         do i = 0, size(arr, dim=2)-1
           call PetscSectionGetOffset(rank0Section, i, voff, ierr); call CHKERR(ierr)
-          do k = 1, size(arr, dim=1)
-            xloc(i1+voff+k-i1) = arr(k, i1+i)
+          do k = 0, size(arr, dim=1)-1
+            xloc(i1+voff+k) = arr(i1+k, i1+i)
           enddo
         enddo
+
         call VecRestoreArrayF90(rank0Vec, xloc,ierr) ;call CHKERR(ierr)
       endif ! rank 0
 
-      call rank0_vec_to_plex(dm2d_serial, dm2d_parallel, migration_sf, &
+      call rank0_vec_to_plex(dm2d_serial_clone, dm2d_parallel, migration_sf, &
         rank0Section, rank0Vec, parSection, parVec)
 
-      call DMRestoreGlobalVector(dm2d_serial, rank0vec, ierr); call CHKERR(ierr)
+      call DMRestoreGlobalVector(dm2d_serial_clone, rank0vec, ierr); call CHKERR(ierr)
       call PetscSectionDestroy(rank0section, ierr); call CHKERR(ierr)
+      call DMDestroy(dm2d_serial_clone, ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine rank0_vec_to_plex(dm2d_serial, dm2d_parallel, migration_sf, &
@@ -1597,6 +1605,7 @@ module m_icon_plex_utils
         arr = reverse(arr) ! icon data is going from bot to top, tenstream petsc vecs go from top to bot
       endif ! rank 0
 
+      allocate(gVec)
       call rank0_f90vec_to_plex(dm2d_serial, dm2d_parallel, migration_sf, arr, &
         parSection, gVec)
     end subroutine
@@ -1729,36 +1738,38 @@ module m_icon_plex_utils
       call VecRestoreArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
     end subroutine
 
-    subroutine dm2d_vec_to_Nz_Ncol(dm, vec, arr)
-      type(tDM), intent(in)  :: dm
+    subroutine dm2d_vec_to_Nz_Ncol(section, vec, arr)
+      type(tPetscSection), intent(in) :: section
       type(tVec), intent(in) :: vec
       real(ireals), allocatable, intent(inout) :: arr(:,:)
 
-      type(tPetscSection) :: sec
       real(ireals), pointer :: xv(:)
       integer(iintegers) :: fStart, fEnd
-      integer(iintegers) :: iface, Ncol, ke, voff
+      integer(iintegers) :: iface, Ncol, ke, voff, vecsize
       integer(mpiint) :: ierr
 
-      call DMPlexGetHeightStratum(dm, i0, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
-      call DMGetSection(dm, sec, ierr); call CHKERR(ierr)
-      call PetscSectionGetDof(sec, fStart, ke, ierr); call CHKERR(ierr)
+      call PetscSectionGetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
+      call PetscSectionGetDof(section, fStart, ke, ierr); call CHKERR(ierr)
       Ncol = fEnd - fStart
+
+      call VecGetSize(vec, vecsize, ierr); call CHKERR(ierr)
+      call CHKERR(int(vecsize - ke*Ncol, mpiint), 'Size of PetscSection and vecsize do not match! '// &
+        'Ncol/ke ( '//itoa(Ncol)//' / '//itoa(ke)//' ) vs vecsize ( '//itoa(vecsize)//' )'   )
 
       if(.not.allocated(arr)) then
         allocate(arr(ke, Ncol))
       else
         ke = min(ke, size(arr, dim=1, kind=iintegers))
         if(.not.all(shape(arr).eq.[ke, Ncol])) then
-          print *,'shape cell1dm', [ke, Ncol], 'shape out_arr', shape(arr)
-          call CHKERR(1_mpiint, 'shape of out_arr does not conform to cell1dm sizes')
+          print *,'shape section', [ke, Ncol], 'shape out_arr', shape(arr)
+          call CHKERR(1_mpiint, 'shape of out_arr does not conform to section sizes')
         endif
       endif
 
       call VecGetArrayReadF90(vec, xv, ierr); call CHKERR(ierr)
 
       do iface = fStart, fEnd-1
-        call PetscSectionGetOffset(sec, iface, voff, ierr); call CHKERR(ierr)
+        call PetscSectionGetOffset(section, iface, voff, ierr); call CHKERR(ierr)
         arr(i1:ke, i1+iface-fStart) = xv(i1+voff: voff+ke)
       enddo
 
