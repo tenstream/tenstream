@@ -2651,7 +2651,7 @@ module m_plex_rt
 
     integer(iintegers), pointer :: xinoutdof(:)
 
-    real(ireals) :: inv_volume
+    real(ireals) :: inv_volume, cell_abso
 
     if(.not.allocated(plex)) stop 'called compute_ediff_absorption but plex is not allocated'
     call mpi_comm_rank(plex%comm, myid, ierr); call CHKERR(ierr)
@@ -2691,6 +2691,7 @@ module m_plex_rt
 
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
 
+      cell_abso = zero
       do i = 1, size(incoming_offsets)
         !print *,'icell', icell, incoming_offsets(i), outgoing_offsets(i), 'abso', &
         !  xabso(i1+abso_offset), &
@@ -2698,11 +2699,11 @@ module m_plex_rt
         !  '-', xediff(i1+outgoing_offsets(i)) * inv_volume, &
         !  '=', xabso(i1+abso_offset) + &
         !       ( xediff(i1+incoming_offsets(i)) - xediff(i1+outgoing_offsets(i)) ) * inv_volume
-        if(incoming_offsets(i).ge.i0) xabso(i1+abso_offset) = xabso(i1+abso_offset) + xediff(i1+incoming_offsets(i))
-        if(outgoing_offsets(i).ge.i0) xabso(i1+abso_offset) = xabso(i1+abso_offset) - xediff(i1+outgoing_offsets(i))
+        if(incoming_offsets(i).ge.i0) cell_abso = cell_abso + xediff(i1+incoming_offsets(i))
+        if(outgoing_offsets(i).ge.i0) cell_abso = cell_abso - xediff(i1+outgoing_offsets(i))
       enddo
 
-      xabso(i1+abso_offset) = xabso(i1+abso_offset) * inv_volume
+      xabso(i1+abso_offset) = xabso(i1+abso_offset) + cell_abso * inv_volume
     enddo
     call ISRestoreIndicesF90(IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
 
