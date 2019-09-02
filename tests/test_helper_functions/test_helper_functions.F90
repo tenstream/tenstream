@@ -1,4 +1,5 @@
 module test_helper_functions
+  use iso_fortran_env, only: REAL32, REAL64
   use iso_c_binding
   use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
   use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, &
@@ -6,7 +7,7 @@ module test_helper_functions
     compute_normal_3d, hit_plane, pnt_in_triangle, distance_to_edge, determine_normal_direction, &
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
     solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, is_between, &
-    resize_arr
+    resize_arr, normalize_vec
 
   use pfunit_mod
 
@@ -434,6 +435,39 @@ subroutine test_is_between(this)
   @assertFalse(is_between(1.5_ireals, 1.0_ireals, 0.0_ireals))
 
   @assertTrue(is_between(0.5_ireals, 1.0_ireals, 0.0_ireals))
+end subroutine
+
+@test(npes=[1])
+subroutine test_normalize_vec(this)
+  class (MpiTestMethod), intent(inout) :: this
+  real(REAL32) :: v1(2), v2(2)
+  real(REAL64) :: p1(2), p2(2)
+  integer(mpiint) :: ierr
+  v1 = [2,0]
+  call normalize_vec(v1, v2, ierr)
+  @assertEqual(0_mpiint, ierr)
+  @assertEqual([1,0], v2, epsilon(v2))
+
+  call normalize_vec(v1, v1, ierr)
+  @assertEqual(0_mpiint, ierr)
+  @assertEqual([1,0], v1, epsilon(v1))
+
+  v1 = [0,0]
+  call normalize_vec(v1, v1, ierr)
+  @assertTrue(0_mpiint.ne.ierr)
+
+  p1 = [2,0]
+  call normalize_vec(p1, p2, ierr)
+  @assertEqual(0_mpiint, ierr)
+  @assertEqual([1,0], p2, epsilon(p2))
+
+  call normalize_vec(p1, p1, ierr)
+  @assertEqual(0_mpiint, ierr)
+  @assertEqual([1,0], p1, epsilon(p1))
+
+  p1 = [0,0]
+  call normalize_vec(p1, p1, ierr)
+  @assertTrue(0_mpiint.ne.ierr)
 end subroutine
 
 @test(npes=[1])

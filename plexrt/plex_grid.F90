@@ -5,8 +5,9 @@ module m_plex_grid
 
   use m_helper_functions, only: CHKERR, compute_normal_3d, approx, strF2C, distance, &
     triangle_area_by_vertices, swap, determine_normal_direction, &
-    vec_proj_on_plane, angle_between_two_vec, cross_3d, rad2deg, &
-    resize_arr, get_arg, &
+    vec_proj_on_plane, cross_3d, rad2deg, &
+    angle_between_two_vec, angle_between_two_normed_vec, &
+    resize_arr, get_arg, normalize_vec, &
     imp_bcast, itoa, ftoa, imp_allreduce_max, &
     rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
 
@@ -1319,29 +1320,32 @@ module m_plex_grid
 
       zenith = angle_between_two_vec(sundir, face_normals(:, upper_face))
       proj_sundir = vec_proj_on_plane(sundir, face_normals(:,upper_face))
-      proj_sundir = proj_sundir / max(tiny(proj_sundir), norm2(proj_sundir))
+      call normalize_vec(proj_sundir, ierr) !; call CHKERR(ierr, 'bad proj_sundir'//ftoa(proj_sundir))
 
       do iface=1,size(side_faces)
-        side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
-        side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
-          max(tiny(side_face_normal_projected_on_upperface), norm2(side_face_normal_projected_on_upperface(:, iface)))
-        if(norm2(proj_sundir).lt.epsilon(zero)) then
-          proj_angles_to_sun(iface) = zero
-          lsrc(side_faces(iface)) = .False.
-        else
-          proj_angles_to_sun(iface) = angle_between_two_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
-          !lsrc(side_faces(iface)) = is_solar_src(side_face_normal_projected_on_upperface(:, iface), proj_sundir)
-        endif
-        !print *,'iface',iface, ':', '->', rad2deg(proj_angles_to_sun(iface))
+        side_face_normal_projected_on_upperface(:, iface) = &
+          vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
+        call normalize_vec(side_face_normal_projected_on_upperface(:, iface), &
+                           side_face_normal_projected_on_upperface(:, iface), ierr)
+        call CHKERR(ierr, 'bad side face normal '//ftoa(side_face_normal_projected_on_upperface(:, iface)))
+        !if(norm2(proj_sundir).lt.epsilon(zero)) then
+        !  proj_angles_to_sun(iface) = zero
+        !  lsrc(side_faces(iface)) = .False.
+        !else
+
+        proj_angles_to_sun(iface) = &
+          angle_between_two_normed_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
+
+        !endif
+        !print *,'iface',iface, ':', lsrc(side_faces(iface)), '->', proj_angles_to_sun(iface), rad2deg(proj_angles_to_sun(iface))
       enddo
 
-      if(zenith.gt.10*epsilon(zenith)) then ! only do use azimuth computation if zenith is larger than 0 deg
+      if(zenith.gt.10*epsilon(zenith)) then ! only do the azimuth computation if zenith is larger than 0 deg
         ibase_face = minloc(proj_angles_to_sun,dim=1)
         base_face  = side_faces(ibase_face)
 
         ! Local unit vec on upperface, pointing towards '+x'
         e_x = cross_3d(face_normals(:, upper_face), side_face_normal_projected_on_upperface(:, ibase_face))
-        e_x = e_x / norm2(e_x)
 
         azimuth = proj_angles_to_sun(ibase_face)
         azimuth = azimuth * sign(one, dot_product(proj_sundir, e_x))
@@ -1355,7 +1359,7 @@ module m_plex_grid
         do iface = 2, size(side_faces)
           if(lsrc(side_faces(iface))) ibase_face = iface
         enddo
-        e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), -face_normals(:, upper_face))
+        e_x = cross_3d(face_normals(:, upper_face), side_face_normal_projected_on_upperface(:, ibase_face))
         base_face  = side_faces(ibase_face)
         left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
         iright_face = modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1

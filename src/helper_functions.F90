@@ -37,7 +37,8 @@ module m_helper_functions
     imp_allreduce_min, imp_allreduce_max, imp_reduce_sum,                                                            &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm,                        &
     CHKERR, CHKWARN, assertEqual,                                                                                    &
-    compute_normal_3d, determine_normal_direction, spherical_2_cartesian, angle_between_two_vec, hit_plane,          &
+    compute_normal_3d, determine_normal_direction, spherical_2_cartesian, hit_plane,                                 &
+    angle_between_two_vec, angle_between_two_normed_vec, normalize_vec,                                              &
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, ltoa, itoa, ftoa, char_arr_to_str, cstr, strF2C,                             &
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
@@ -154,8 +155,15 @@ module m_helper_functions
   interface angle_between_two_vec
     module procedure angle_between_two_vec_r32, angle_between_two_vec_r64, angle_between_two_vec_r128
   end interface
+  interface angle_between_two_normed_vec
+    module procedure angle_between_two_normed_vec_r32, angle_between_two_normed_vec_r64, angle_between_two_normed_vec_r128
+  end interface
   interface compute_normal_3d
     module procedure compute_normal_3d_r32, compute_normal_3d_r64
+  end interface
+  interface normalize_vec
+    module procedure normalize_vec_r32, normalize_vec_r64, normalize_vec_r128, &
+      normalize_vec_inplace_r32, normalize_vec_inplace_r64, normalize_vec_inplace_r128
   end interface
   interface rotation_matrix_local_basis_to_world
     module procedure rotation_matrix_local_basis_to_world_r32, rotation_matrix_local_basis_to_world_r64
@@ -1635,66 +1643,148 @@ module m_helper_functions
       if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
     end function
 
+    subroutine normalize_vec_r32(vec, normed_vec, ierr)
+      real(REAL32), intent(in) :: vec(:)
+      real(kind(vec)), intent(out) :: normed_vec(:)
+      integer(mpiint), intent(out) :: ierr
+      real(kind(vec)) :: norm
+      ierr = 0
+      norm = norm2(vec)
+      if(norm.le.tiny(norm)) then
+        ierr = 1
+        norm = 1
+      endif
+      normed_vec = vec/norm
+    end subroutine
+    subroutine normalize_vec_r64(vec, normed_vec, ierr)
+      real(REAL64), intent(in) :: vec(:)
+      real(kind(vec)), intent(out) :: normed_vec(:)
+      integer(mpiint), intent(out) :: ierr
+      real(kind(vec)) :: norm
+      ierr = 0
+      norm = norm2(vec)
+      if(norm.le.tiny(norm)) then
+        ierr = 1
+        norm = 1
+      endif
+      normed_vec = vec/norm
+    end subroutine
+    subroutine normalize_vec_r128(vec, normed_vec, ierr)
+      real(REAL128), intent(in) :: vec(:)
+      real(kind(vec)), intent(out) :: normed_vec(:)
+      integer(mpiint), intent(out) :: ierr
+      real(kind(vec)) :: norm
+      ierr = 0
+      norm = norm2(vec)
+      if(norm.le.tiny(norm)) then
+        ierr = 1
+        norm = 1
+      endif
+      normed_vec = vec/norm
+    end subroutine
+    subroutine normalize_vec_inplace_r32(vec, ierr)
+      real(REAL32), intent(inout) :: vec(:)
+      integer(mpiint), intent(out) :: ierr
+      real(kind(vec)) :: norm
+      ierr = 0
+      norm = norm2(vec)
+      if(norm.le.tiny(norm)) then
+        ierr = 1
+        norm = 1
+      endif
+      vec = vec/norm
+    end subroutine
+    subroutine normalize_vec_inplace_r64(vec, ierr)
+      real(REAL64), intent(inout) :: vec(:)
+      integer(mpiint), intent(out) :: ierr
+      real(kind(vec)) :: norm
+      ierr = 0
+      norm = norm2(vec)
+      if(norm.le.tiny(norm)) then
+        ierr = 1
+        norm = 1
+      endif
+      vec = vec/norm
+    end subroutine
+    subroutine normalize_vec_inplace_r128(vec, ierr)
+      real(REAL128), intent(inout) :: vec(:)
+      integer(mpiint), intent(out) :: ierr
+      real(kind(vec)) :: norm
+      ierr = 0
+      norm = norm2(vec)
+      if(norm.le.tiny(norm)) then
+        ierr = 1
+        norm = 1
+      endif
+      vec = vec/norm
+    end subroutine
+
     !> @brief returns the angle between two not necessarily normed vectors. Result is in radians
-    !TODO: refactor in two functions, one for normed vecs and one for unnormed
     function angle_between_two_vec_r32(p1, p2) result(angle_between_two_vec)
       real(REAL32),intent(in) :: p1(:), p2(:)
       real(REAL32) :: angle_between_two_vec
-      real(REAL32) :: n1, n2, dp
-      real(REAL32), parameter :: eps = 1._REAL32 + sqrt(epsilon(eps))
-      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
-        angle_between_two_vec = 0
-        return
-      endif
-      n1 = norm2(p1)
-      n2 = norm2(p2)
-      if(any(approx([n1,n2], 0._REAL32))) then
-        call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
-      endif
-
-      dp = dot_product(p1/n1, p2/n2)
-      if(dp.gt.eps.or.dp.lt.-eps) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
-      dp = max( min(dp, 1._REAL32), -1._REAL32)
-      angle_between_two_vec = acos(dp)
+      real(REAL32) :: np1(size(p1)), np2(size(p2))
+      integer(mpiint) :: ierr
+      call normalize_vec(p1, np1, ierr); call CHKERR(ierr, 'bad vec norm')
+      call normalize_vec(p2, np2, ierr); call CHKERR(ierr, 'bad vec norm')
+      angle_between_two_vec = angle_between_two_normed_vec(np1, np2)
     end function
     function angle_between_two_vec_r64(p1, p2) result(angle_between_two_vec)
       real(REAL64),intent(in) :: p1(:), p2(:)
       real(REAL64) :: angle_between_two_vec
-      real(REAL64) :: n1, n2, dp
-      real(REAL64), parameter :: eps = 1._REAL64 + sqrt(epsilon(eps))
-      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
-        angle_between_two_vec = 0
-        return
-      endif
-      n1 = norm2(p1)
-      n2 = norm2(p2)
-      if(any(approx([n1,n2], 0._REAL64))) then
-        call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
-      endif
-
-      dp = dot_product(p1/n1, p2/n2)
-      if(dp.gt.eps.or.dp.lt.-eps) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
-      dp = max( min(dp, 1._REAL64), -1._REAL64)
-      angle_between_two_vec = acos(dp)
+      real(REAL64) :: np1(size(p1)), np2(size(p2))
+      integer(mpiint) :: ierr
+      call normalize_vec(p1, np1, ierr); call CHKERR(ierr, 'bad vec norm')
+      call normalize_vec(p2, np2, ierr); call CHKERR(ierr, 'bad vec norm')
+      angle_between_two_vec = angle_between_two_normed_vec(np1, np2)
     end function
     function angle_between_two_vec_r128(p1, p2) result(angle_between_two_vec)
       real(REAL128),intent(in) :: p1(:), p2(:)
       real(REAL128) :: angle_between_two_vec
-      real(REAL128) :: n1, n2, dp
-      real(REAL128), parameter :: eps = 1._REAL128 + sqrt(epsilon(eps))
+      real(REAL128) :: np1(size(p1)), np2(size(p2))
+      integer(mpiint) :: ierr
+      call normalize_vec(p1, np1, ierr); call CHKERR(ierr, 'bad vec norm')
+      call normalize_vec(p2, np2, ierr); call CHKERR(ierr, 'bad vec norm')
+      angle_between_two_vec = angle_between_two_normed_vec(np1, np2)
+    end function
+
+    function angle_between_two_normed_vec_r32(p1, p2) result(angle_between_two_vec)
+      real(REAL32),intent(in) :: p1(:), p2(:)
+      real(kind(p1)) :: angle_between_two_vec, dp
+      real(kind(p1)), parameter :: eps = 1 + sqrt(epsilon(eps))
       if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
         angle_between_two_vec = 0
         return
       endif
-      n1 = norm2(p1)
-      n2 = norm2(p2)
-      if(any(approx([n1,n2], 0._REAL128))) then
-        call CHKWARN(1_mpiint, 'FPE exception angle_between_two_vec :: '//ftoa(p1)//' : '//ftoa(p2))
-      endif
-
-      dp = dot_product(p1/n1, p2/n2)
+      dp = dot_product(p1, p2)
       if(dp.gt.eps.or.dp.lt.-eps) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
-      dp = max( min(dp, 1._REAL128), -1._REAL128)
+      dp = max( min(dp, real(1, kind(dp))), real(-1, kind(dp)))
+      angle_between_two_vec = acos(dp)
+    end function
+    function angle_between_two_normed_vec_r64(p1, p2) result(angle_between_two_vec)
+      real(REAL64),intent(in) :: p1(:), p2(:)
+      real(kind(p1)) :: angle_between_two_vec, dp
+      real(kind(p1)), parameter :: eps = 1 + sqrt(epsilon(eps))
+      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
+        angle_between_two_vec = 0
+        return
+      endif
+      dp = dot_product(p1, p2)
+      if(dp.gt.eps.or.dp.lt.-eps) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
+      dp = max( min(dp, real(1, kind(dp))), real(-1, kind(dp)))
+      angle_between_two_vec = acos(dp)
+    end function
+    function angle_between_two_normed_vec_r128(p1, p2) result(angle_between_two_vec)
+      real(REAL128),intent(in) :: p1(:), p2(:)
+      real(kind(p1)) :: angle_between_two_vec, dp
+      real(kind(p1)), parameter :: eps = 1 + sqrt(epsilon(eps))
+      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
+        angle_between_two_vec = 0
+        return
+      endif
+      dp = dot_product(p1, p2)
+      if(dp.gt.eps.or.dp.lt.-eps) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
+      dp = max( min(dp, real(1, kind(dp))), real(-1, kind(dp)))
       angle_between_two_vec = acos(dp)
     end function
 

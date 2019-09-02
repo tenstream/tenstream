@@ -1,8 +1,8 @@
 module m_LUT_param_phi
   use iso_fortran_env, only: REAL32, REAL64
-  use m_data_parameters, only : irealLUT, mpiint, ireal_dp, ireal_params
+  use m_data_parameters, only : irealLUT, mpiint, ireal_dp, ireal_params, ireals
   use m_data_parameters, only: pi=>pi_ireal_params
-  use m_helper_functions, only : angle_between_two_vec, rad2deg, approx, CHKERR
+  use m_helper_functions, only : angle_between_two_vec, rad2deg, approx, is_between, CHKERR, ftoa
   use m_boxmc_geometry, only: wedge_halfspaces
   implicit none
 
@@ -12,6 +12,8 @@ module m_LUT_param_phi
   interface LUT_wedge_dz
     module procedure LUT_wedge_dz_r32, LUT_wedge_dz_r64
   end interface
+
+  logical, parameter :: ldebug=.False.
 
   contains
 !> @brief reverse transformation from azimuth(radians) to param_phi[-2,2]
@@ -399,6 +401,7 @@ end function
     integer(mpiint), intent(out) :: ierr
 
     real(ireal_params) :: lb, rb, x1, x2! bounds of local spline
+    real(ireal_params) :: eps=10*epsilon(1._ireals)
 
     if(phi.gt.phic3) then ! range [ . , -1]
       x1 = -2; x2 = -1
@@ -421,6 +424,24 @@ end function
     endif
 
     ierr = 0
+    if(ldebug) then
+      if(.not.is_between(param_phi, &
+        -2._ireal_params-eps, &
+         2._ireal_params+eps )) &
+        call CHKERR(1_mpiint, 'not in range '// &
+        '('//ftoa(-2._ireal_params-eps)// &
+        ' '//ftoa( 2._ireal_params+eps)//') '// &
+        'param_phi= '//ftoa(param_phi)//new_line('')// &
+        'phi      = '//ftoa(phi)  //'('//ftoa(rad2deg(phi))  //'deg)'//new_line('')// &
+        'phic3    = '//ftoa(phic3)//'('//ftoa(rad2deg(phic3))//'deg)'//new_line('')// &
+        'phie3    = '//ftoa(phie3)//'('//ftoa(rad2deg(phie3))//'deg)'//new_line('')// &
+        'phic4    = '//ftoa(phic4)//'('//ftoa(rad2deg(phic4))//'deg)'//new_line('')// &
+        'phie4    = '//ftoa(phie4)//'('//ftoa(rad2deg(phie4))//'deg)'//new_line('')// &
+        'x1       = '//ftoa(x1)//new_line('')// &
+        'x2       = '//ftoa(x2)//new_line('')// &
+        'lb       = '//ftoa(lb)//'('//ftoa(rad2deg(lb))//'deg)'//new_line('')// &
+        'rb       = '//ftoa(rb)//'('//ftoa(rad2deg(rb))//'deg)'//new_line('') )
+    endif
   end subroutine
 
   real(REAL32) function LUT_wedge_aspect_zx_r32(Atop, dz) result(aspect_zx)
