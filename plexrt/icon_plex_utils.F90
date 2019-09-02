@@ -1085,21 +1085,39 @@ module m_icon_plex_utils
           ioff = 0
           do j=0,Ny-2
             do i=0,Nx-2
-              ! this has a bot edge
-              cone3(1) = Nfaces + j*edge_per_row + i                           ! bot edge
-              cone3(3) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2     ! left edge
-              cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 +1  ! center edge
-              if(ldebug) print *,'face',ioff,': i,j', i, j, 'edges', cone3
-              call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
-              ioff = ioff + 1
+              if(modulo(j,2_iintegers).eq.0) then
+                ! this has a bot edge
+                cone3(1) = Nfaces + j*edge_per_row + i                           ! bot edge
+                cone3(3) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2     ! left edge
+                cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 +1  ! center edge
+                if(ldebug) print *,'face',ioff,': i,j', i, j, 'edges', cone3
+                call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
+                ioff = ioff + 1
 
-              ! this has a top edge
-              cone3(3) = Nfaces + (j+1)*edge_per_row + i                       ! top edge
-              cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row + (i+1)*2 ! left edge
-              cone3(1) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 +1  ! center edge
-              if(ldebug) print *,'face',ioff,': i,j', i, j, 'edges', cone3
-              call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
-              ioff = ioff + 1
+                ! this has a top edge
+                cone3(3) = Nfaces + (j+1)*edge_per_row + i                       ! top edge
+                cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row + (i+1)*2 ! right edge
+                cone3(1) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 +1  ! center edge
+                if(ldebug) print *,'face',ioff,': i,j', i, j, 'edges', cone3
+                call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
+                ioff = ioff + 1
+              else
+                ! this has a top edge
+                cone3(3) = Nfaces + (j+1)*edge_per_row + i                       ! top edge
+                cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2     ! left edge
+                cone3(1) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 +1  ! center edge
+                if(ldebug) print *,'face',ioff,': i,j', i, j, 'edges', cone3
+                call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
+                ioff = ioff + 1
+
+                ! this has a bot edge
+                cone3(1) = Nfaces + j*edge_per_row + i                           ! bot edge
+                cone3(3) = Nfaces + j*edge_per_row + bot_edges_per_row + (i+1)*2 ! right edge
+                cone3(2) = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 +1  ! center edge
+                if(ldebug) print *,'face',ioff,': i,j', i, j, 'edges', cone3
+                call DMPlexSetCone(dm,  ioff, cone3, ierr); call CHKERR(ierr)
+                ioff = ioff + 1
+              endif
             enddo
           enddo
 
@@ -1126,8 +1144,13 @@ module m_icon_plex_utils
           do j=0,Ny-2
             do i=0,Nx-2 ! verts of center edges
               k = Nfaces + j*edge_per_row + bot_edges_per_row + i*2 + 1
-              cone2(1) = Nfaces + Nedges + (j  )*verts_per_row + i + 1
-              cone2(2) = Nfaces + Nedges + (j+1)*verts_per_row + i
+              if(modulo(j,2_iintegers).eq.0) then
+                cone2(1) = Nfaces + Nedges + (j  )*verts_per_row + i + 1
+                cone2(2) = Nfaces + Nedges + (j+1)*verts_per_row + i
+              else
+                cone2(1) = Nfaces + Nedges + (j  )*verts_per_row + i
+                cone2(2) = Nfaces + Nedges + (j+1)*verts_per_row + i + 1
+              endif
               call DMPlexSetCone(dm,  k, cone2, ierr); call CHKERR(ierr)
               if(ldebug) print *,'edge',k,': i,j', i, j, 'verts', cone2
             enddo
