@@ -1,5 +1,10 @@
 module disort_vars
-implicit none 
+  use m_tenstr_disort_internal, only: DISORT_rrtmg
+  use m_tenstr_disort_DISOTESTAUX, only: getmom, prtfin, prtfin2, flux_analytic
+  use m_tenstr_disort_errpack, only: ErrMsg
+  use m_tenstr_disort_bdref, only: bdref
+  use m_tenstr_disort_disobrdf, only: DISOBRDF, QGAUSN2
+implicit none
 
 LOGICAL DOPROB( 17 )
 DATA DOPROB / 17*.TRUE. /
@@ -22,8 +27,8 @@ REAL          K_VOL, K_ISO, K_GEO
 REAL          RHO_0, KAPPA, G, H0
 REAL          FLUX_UP, DFDTAU
 INTEGER       NMUG
-REAL          BDREF
-EXTERNAL      BDREF
+!REAL          BDREF
+!EXTERNAL      BDREF
 
 real(kind=4),dimension(:),allocatable     :: DTAUC, PHI, SSALB, TEMPER, UMU, UTAU, Bfracs
 real(kind=4),dimension(:,:),allocatable   :: PMOM          
@@ -63,7 +68,6 @@ deallocate( RFLDIR, RFLDN, FLUP, DFDT, UAVG, ALBMED, TRNMED, UU )
 end subroutine deallocate_disort_allocatable_arrays
 
 end module disort_vars
-
 
 program DISOTEST
 use disort_vars

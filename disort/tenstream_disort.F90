@@ -2,6 +2,7 @@ module m_tenstr_disort
   use m_data_parameters, only: mpiint
   use m_search, only: find_real_location
   use m_helper_functions, only: CHKERR
+  use m_tenstr_disort_internal, only: DISORT_rrtmg
 
   implicit none
 

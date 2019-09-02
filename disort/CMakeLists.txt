@@ -5,13 +5,13 @@ include_directories (${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${INCLUDE_DIRS})
 
 set( disort_sources
-  disort.f
-  ERRPACK.f
-  BDREF.f
-  DISOBRDF.f
-  RDI1MACH.f
-  DISOTESTAUX.f
-  LINPAK.f
+  disort.f90
+  ERRPACK.f90
+  BDREF.f90
+  DISOBRDF.f90
+  RDI1MACH.f90
+  DISOTESTAUX.f90
+  LINPAK.f90
   tenstream_disort.F90
   )
 
@@ -27,7 +27,6 @@ target_link_libraries( ex_disort_tenstr tenstr_disort ${EXTLIB} ${USERLIB} ${LIB
 # Official DISORT tests
 set( disort_test_sources
   disotest.f90
-  DISOTESTAUX.f
   )
 
 add_executable( disort_tests ${disort_test_sources} )
