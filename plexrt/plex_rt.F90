@@ -2487,6 +2487,11 @@ module m_plex_rt
 
     if(.not.solution%lset) call CHKERR(1_mpiint, 'compute_absorption needs to get an initialized solution obj')
 
+    if(.not.allocated(solution%abso)) then
+      allocate(solution%abso)
+      call DMCreateGlobalVector(solver%plex%abso_dm, solution%abso, ierr); call CHKERR(ierr)
+    endif
+
     if(solution%lchanged) then
       if(solution%lsolar_rad .and. .not.allocated(solution%edir)) &
         call CHKERR(1_mpiint, 'solution%lsolar_rad true but edir not allocated')
@@ -2498,10 +2503,6 @@ module m_plex_rt
         solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
         solution, lWm2=.False., logevent=solver%logs%scale_flx)
 
-      if(.not.allocated(solution%abso)) then
-        allocate(solution%abso)
-        call DMCreateGlobalVector(solver%plex%abso_dm, solution%abso, ierr); call CHKERR(ierr)
-      endif
       call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
 
       if(solution%lsolar_rad) then

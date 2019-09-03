@@ -432,7 +432,7 @@ module m_plex_grid
         print *,'max number of dof on faces per cell is:', max_num_dof
       endif
 
-      call create_plex_section(celldm, 'Faces_to_Cells_Section', i1, [num_dof], [i0], [i0], [i0], cellSection)
+      call create_plex_section(celldm, 'Faces_to_Cells_Section', i1, [max_num_dof], [i0], [i0], [i0], cellSection)
       call DMSetSection(celldm, cellSection, ierr); call CHKERR(ierr)
       call PetscSectionDestroy(cellSection, ierr); call CHKERR(ierr)
 

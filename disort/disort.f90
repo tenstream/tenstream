@@ -3548,7 +3548,7 @@ module m_tenstr_disort_internal
       REAL     RHOU(0:*)
       REAL     RHO_APPROX, RHO_FLOURIER(0:NSTR)
 
-      REAL     BDREF
+     !REAL     BDREF
      !EXTERNAL BDREF
 
       REAL     COSMPHI
