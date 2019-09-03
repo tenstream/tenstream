@@ -7,7 +7,7 @@ module test_helper_functions
     compute_normal_3d, hit_plane, pnt_in_triangle, distance_to_edge, determine_normal_direction, &
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
     solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, is_between, &
-    resize_arr, normalize_vec
+    resize_arr, normalize_vec, approx
 
   use pfunit_mod
 
@@ -533,5 +533,23 @@ subroutine test_resize_arr(this)
   @assertEqual([1,4,1], shape(i3d), 'wrong dimension after shrinking')
   @assertEqual(5, i3d(:,2,:), 'wrong values after fill in dim 2')
   @assertEqual(5, i3d(:,4,:), 'wrong values after fill in dim 2')
+end subroutine
+
+@test(npes=[1])
+subroutine test_approx(this)
+  class (MpiTestMethod), intent(inout) :: this
+  @assertTrue(     approx(0._ireals, 0.0_ireals, epsilon(0._ireals)))
+  @assertTrue(.not.approx(0._ireals, 1.0_ireals, epsilon(0._ireals)))
+
+  @assertTrue(     approx(0._ireals, 0.9_ireals, 1._ireals))
+  @assertTrue(.not.approx(0._ireals, 1.1_ireals, 1._ireals))
+
+  @assertTrue(     approx(0._ireals,-0.9_ireals, 1._ireals))
+  @assertTrue(.not.approx(0._ireals,-1.1_ireals, 1._ireals))
+
+  @assertTrue(     approx(0._ireals, 1.0_ireals-epsilon(1.0_ireals), 1._ireals))
+  @assertTrue(.not.approx(0._ireals, 1.0_ireals+epsilon(1.0_ireals), 1._ireals))
+  @assertTrue(     approx(0._ireals,-1.0_ireals+epsilon(1.0_ireals), 1._ireals))
+  @assertTrue(.not.approx(0._ireals,-1.0_ireals-epsilon(1.0_ireals), 1._ireals))
 end subroutine
 end module
