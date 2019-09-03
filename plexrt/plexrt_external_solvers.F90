@@ -384,7 +384,7 @@ contains
         call DMPlexRestoreSupport(plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
         call get_inward_face_normal(iface, icell, geom_section, xgeoms, face_normal)
         theta0 = angle_between_two_vec(face_normal, sundir)
-        mu0 = cos(theta0)
+        mu0 = real(cos(theta0))
 
         call get_consecutive_vertical_cell_idx(plex, icell, cell_idx)
         ke1 = size(cell_idx)+1
@@ -400,12 +400,12 @@ contains
 
           if(ldelta_scale) call delta_scale( dkabs, dksca, dg, max_g=.65_ireals)
 
-          vdtau(k) = (dkabs + dksca) * dz
-          vw0(k)   = dksca / max(tiny(dksca), dkabs + dksca)
-          vg(k)    = dg
+          vdtau(k) = real((dkabs + dksca) * dz)
+          vw0(k)   = real(dksca / max(tiny(dksca), dkabs + dksca))
+          vg(k)    = real(dg)
         enddo
 
-        col_albedo = xalbedo(i)
+        col_albedo = real(xalbedo(i))
 
         if(solution%lsolar_rad) then
             call default_flx_computation(&
