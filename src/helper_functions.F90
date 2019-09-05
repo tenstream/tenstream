@@ -21,8 +21,9 @@ module m_helper_functions
   use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
   use m_data_parameters,only : iintegers, mpiint, &
     ireals, irealLUT, ireal_dp, &
-    i1, pi, pi32, pi64, pi128, zero, one, &
-    imp_ireals, imp_REAL32, imp_REAL64, imp_logical, &
+    i1, pi, pi32, pi64, pi128, zero, one, nan, &
+    imp_ireals, imp_logical, &
+    imp_REAL32, imp_REAL64, imp_REAL128, &
     default_str_len, &
     imp_int4, imp_int8, imp_iinteger
 
@@ -34,7 +35,8 @@ module m_helper_functions
   public imp_bcast,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                                &
     delta_scale_optprop,delta_scale,cumsum,cumprod,                                                                  &
     inc, mpi_logical_and, mpi_logical_or, mpi_logical_all_same,                                                      &
-    imp_allreduce_min, imp_allreduce_max, imp_reduce_sum,                                                            &
+    imp_allreduce_min, imp_allreduce_max, imp_allreduce_sum, imp_allreduce_mean,                                     &
+    imp_reduce_sum, imp_reduce_mean,                                                                                 &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm,                        &
     CHKERR, CHKWARN, assertEqual,                                                                                    &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, hit_plane,                                 &
@@ -42,7 +44,7 @@ module m_helper_functions
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, ltoa, itoa, ftoa, char_arr_to_str, cstr, strF2C,                             &
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean,           &
+    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint,            &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
     solve_quadratic, linspace, assert_arr_is_monotonous, is_between, sEXP, transposed_arr
 
@@ -84,7 +86,7 @@ module m_helper_functions
         meanval_1d_r8, meanval_2d_r8, meanval_3d_r8
   end interface
   interface imp_allreduce_mean
-    module procedure imp_allreduce_mean_2d, imp_allreduce_mean_3d
+    module procedure imp_allreduce_mean_0d, imp_allreduce_mean_1d, imp_allreduce_mean_2d, imp_allreduce_mean_3d
   end interface
   interface imp_allreduce_sum
     module procedure imp_allreduce_sum_ireals, imp_allreduce_sum_i32, imp_allreduce_sum_i64
@@ -95,13 +97,16 @@ module m_helper_functions
   interface imp_allreduce_max
     module procedure imp_allreduce_max_ireals, imp_allreduce_max_iintegers
   end interface
+  interface imp_reduce_sum
+    module procedure imp_reduce_sum_r32, imp_reduce_sum_r64, imp_reduce_sum_r128
+  end interface
+  interface imp_reduce_mean
+    module procedure imp_reduce_mean_1d
+  end interface
   interface imp_bcast
     module procedure imp_bcast_real_1d, imp_bcast_real_3d, imp_bcast_real_5d, &
         imp_bcast_real32_2d, imp_bcast_real64_2d, imp_bcast_real32_2d_ptr, imp_bcast_real64_2d_ptr, &
         imp_bcast_int_1d, imp_bcast_int_2d, imp_bcast_int4, imp_bcast_int8, imp_bcast_real, imp_bcast_logical
-  end interface
-  interface imp_reduce_sum
-    module procedure imp_reduce_sum_r32, imp_reduce_sum_r64
   end interface
   interface get_arg
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
@@ -994,7 +999,7 @@ module m_helper_functions
       !     land = mpi_logical_and(comm, lval)
       !     lor  = mpi_logical_or (comm, lval)
       !     lsame = land.eqv.lor
-      ! howver, it is better cast to it to int and do a sum reduction, otherwise we need 2 logical reductions
+      ! however, it is better cast to it to int and do a sum reduction, otherwise we need 2 logical reductions
       if(lval) then
         i = 1
       else
@@ -1058,6 +1063,27 @@ module m_helper_functions
       integer(mpiint) :: mpierr
       call mpi_allreduce(v, r, 1_mpiint, imp_int8, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
     end subroutine
+    subroutine imp_allreduce_mean_0d(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      real(ireals),intent(in) :: v
+      real(ireals),intent(out) :: r
+      integer(mpiint) :: numnodes, ierr
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+      call imp_allreduce_sum(comm, v, r)
+      r = r / real(numnodes, kind(r))
+    end subroutine
+    subroutine imp_allreduce_mean_1d(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      real(ireals),intent(in) :: v(:)
+      real(ireals),intent(out) :: r
+      integer(INT64)  :: global_size
+      real(ireals) :: my_avg
+
+      call imp_allreduce_sum(comm, size(v, kind=INT64), global_size)
+      my_avg = meanval(v) * size(v)
+      call imp_allreduce_sum(comm, my_avg, r)
+      r = r / real(global_size, kind(r))
+    end subroutine
     subroutine imp_allreduce_mean_2d(comm,v,r)
       integer(mpiint),intent(in) :: comm
       real(ireals),intent(in) :: v(:,:)
@@ -1082,6 +1108,7 @@ module m_helper_functions
       call imp_allreduce_sum(comm, my_avg, r)
       r = r / real(global_size, kind(r))
     end subroutine
+
     subroutine imp_reduce_sum_r32(comm,v)
       real(REAL32),intent(inout) :: v
       integer(mpiint),intent(in) :: comm
@@ -1092,9 +1119,9 @@ module m_helper_functions
       call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
       if(myid.eq.0) then
-        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_ireals, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_REAL32, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
       else
-        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_ireals, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_REAL32, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
       endif
     end subroutine
     subroutine imp_reduce_sum_r64(comm,v)
@@ -1107,10 +1134,41 @@ module m_helper_functions
       call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
       if(myid.eq.0) then
-        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_ireals, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_REAL64, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
       else
-        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_ireals, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_REAL64, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
       endif
+    end subroutine
+    subroutine imp_reduce_sum_r128(comm,v)
+      ! sad hack for the moment because i have lots of problems with openmpi and quad prec reductions
+      real(REAL128),intent(inout) :: v
+      integer(mpiint),intent(in) :: comm
+      real(REAL64) :: r
+
+      r = real(v, kind(r))
+      call imp_reduce_sum(comm, r)
+      v = real(r, kind(v))
+    end subroutine
+    subroutine imp_reduce_mean_1d(comm,v,r,root)
+      integer(mpiint),intent(in) :: comm
+      real(ireals),intent(in) :: v(:)
+      real(ireals),intent(out) :: r
+      integer(mpiint), intent(in), optional :: root
+      real(ireals) :: my_avg
+      integer(INT64)  :: global_size
+      integer(mpiint) ::trgt, ierr
+
+      if(present(root)) then
+        trgt = root
+      else
+        trgt = 0_mpiint
+      endif
+
+      my_avg = meanval(v) * size(v)
+      call mpi_reduce(my_avg, r, 1_mpiint, imp_ireals, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
+
+      call mpi_reduce(size(v, kind=INT64), global_size, 1_mpiint, imp_int8, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
+      r = r / real(global_size, kind(r))
     end subroutine
 
     subroutine imp_allgather_int_inplace(comm,v)
