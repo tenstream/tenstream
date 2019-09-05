@@ -21,7 +21,7 @@ subroutine update_dir_stream_3_16(bmc,vertices,p,T)
         class(t_boxmc_3_16)          :: bmc
         real(ireal_dp),intent(in)    :: vertices(:)
         type(t_photon),intent(in)    :: p
-        real(ireal_dp),intent(inout) :: T(:)
+        real(irealbmc),intent(inout) :: T(:)
         select case(p%side)
         case(1,2)
           T(1)=T(1)+p%weight
@@ -41,7 +41,7 @@ subroutine update_diff_stream_3_16(bmc,vertices,p,S)
         class(t_boxmc_3_16) :: bmc
         real(ireal_dp),intent(in) :: vertices(:)
         type(t_photon),intent(in) :: p
-        real(ireal_dp),intent(inout) :: S(:)
+        real(irealbmc),intent(inout) :: S(:)
         integer(iintegers),parameter :: soff=8 ! offset for sideward streams
 
 if(p%side.eq.1) then

@@ -204,7 +204,7 @@ contains
       return
     endif
 
-    if(ldir .and. compute_coeff_online) then
+    if(compute_coeff_online) then
       call do_bmc_computation(C)
       return
     endif

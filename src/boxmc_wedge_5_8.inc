@@ -91,7 +91,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   select type(bmc)
   end select
 
-  if(dot_product(p%dir, normal).lt.sqrt(epsilon(normal))) then
+  if(dot_product(p%dir, normal).lt.-epsilon(zero)) then
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
     if(ldebug) then
       call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the wedge')
@@ -110,7 +110,7 @@ subroutine update_dir_stream_wedge_5_8(bmc,vertices,p,T)
   class(t_boxmc_wedge_5_8) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
-  real(ireal_dp),intent(inout) :: T(:)
+  real(irealbmc),intent(inout) :: T(:)
 
   T(p%side) = T(p%side) + p%weight
   select type(bmc)
@@ -122,7 +122,7 @@ subroutine update_diff_stream_wedge_5_8(bmc,vertices,p,S)
   class(t_boxmc_wedge_5_8) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
-  real(ireal_dp),intent(inout) :: S(:)
+  real(irealbmc),intent(inout) :: S(:)
   real(ireal_dp) :: normal(3)
 
   ! in case of spherically distorted elements,
