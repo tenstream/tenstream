@@ -8,12 +8,12 @@ module m_plex_rt
   use m_helper_functions, only: CHKERR, CHKWARN, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, meanval, &
     vec_proj_on_plane, cross_3d, rotation_matrix_world_to_local_basis, &
-    approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa, &
-    imp_allreduce_min, rotation_matrix_around_axis_vec
+    approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa, cstr, &
+    imp_reduce_mean, rotation_matrix_around_axis_vec
 
-  use m_data_parameters, only : ireals, iintegers, mpiint, irealLUT, &
+  use m_data_parameters, only : ireals, iintegers, mpiint, irealLUT, imp_ireals, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
-    zero, one, pi, EXP_MINVAL, EXP_MAXVAL
+    zero, one, pi, EXP_MINVAL, EXP_MAXVAL, nan
 
   use m_plex_grid, only: t_plexgrid, compute_face_geometry, &
     setup_cell1_dmplex, setup_edir_dmplex, setup_ediff_dmplex, setup_abso_dmplex, &
@@ -479,22 +479,10 @@ module m_plex_rt
       call dump_optical_properties(solver%kabs, solver%ksca, solver%g, solver%albedo, &
         plck=solver%plck, postfix='_'//itoa(suid))
 
+      call print_optical_properties_summary(solver%plex%comm, solver%plex%Nlay, &
+        solver%kabs, solver%ksca, solver%g, solver%albedo, solver%plck)
+
       associate( solution => solver%solutions(suid) )
-
-        ! --------- Calculate 1D Radiative Transfer ------------
-        if(ltwostr_only) then
-          call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
-          if( (solution%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
-            call plexrt_schwarz(solver, solution)
-          else
-            call plexrt_twostream(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
-              solver%albedo, sundir, solution, plck=solver%plck)
-          endif
-          call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
-
-          if(ldebug) print *,'1D calculation done', suid
-          goto 99
-        endif
 
         !print *,'sundir/norm2(sundir)',sundir/norm2(sundir), 'vs', last_sundir, &
         !  ':', all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir))))
@@ -512,6 +500,21 @@ module m_plex_rt
           call PetscLogEventEnd(solver%logs%compute_orientation, ierr)
 
           last_sundir = sundir/norm2(sundir)
+        endif
+
+        ! --------- Calculate 1D Radiative Transfer ------------
+        if(ltwostr_only) then
+          call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
+          if( (solution%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
+            call plexrt_schwarz(solver, solution)
+          else
+            call plexrt_twostream(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
+              solver%albedo, sundir, solution, plck=solver%plck)
+          endif
+          call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
+
+          if(ldebug) print *,'1D calculation done', suid
+          goto 99
         endif
 
         ! DISORT interface
@@ -674,6 +677,96 @@ module m_plex_rt
         call PetscObjectViewFromOptions(var, PETSC_NULL_VEC, '-dump_optprop_'//trim(varname), ierr); call CHKERR(ierr)
         call PetscObjectSetName(var, trim(oldname), ierr); call CHKERR(ierr)
       end subroutine
+    end subroutine
+
+    subroutine print_optical_properties_summary(comm, Nlay, kabs, ksca, g, albedo, plck)
+      integer(mpiint), intent(in) :: comm
+      integer(iintegers), intent(in) :: Nlay
+      type(tVec), allocatable, intent(in) :: kabs, ksca, g, albedo, plck
+      real(ireals), pointer, dimension(:) :: xkabs, xksca, xg, xalbedo, xplck
+      real(ireals), pointer, dimension(:,:) :: xxkabs, xxksca, xxg, xxalbedo, xxplck
+      ! min mean max vals:
+      real(ireals), dimension(3) :: mkabs, mksca, mg, malbedo, mplck
+      integer(iintegers) :: k
+      integer(mpiint) :: myid, ierr
+      logical :: lview, lflg
+
+      lview=.False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_view_optprop",&
+            lview, lflg, ierr) ;call CHKERR(ierr)
+      if(.not.lview) return
+
+      call get_col_vec(albedo, i1    , xalbedo, xxalbedo)
+      call get_col_vec(kabs  , Nlay  , xkabs  , xxkabs  )
+      call get_col_vec(ksca  , Nlay  , xksca  , xxksca  )
+      call get_col_vec(g     , Nlay  , xg     , xxg     )
+      call get_col_vec(plck  , Nlay+1, xplck  , xxplck  )
+
+
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      mkabs=nan
+      mksca=nan
+      mg=nan
+      malbedo=nan
+      mplck=nan
+
+      if(myid.eq.0) print *,'*        k  '// &
+        '                                '//cstr('kabs(min/mean/max)', 'blue')//'                            '// &
+        '                                '//cstr('ksca              ', 'red' )//'                            '// &
+        '                                '//cstr('g                 ', 'blue')//'                            '// &
+        '                                '//cstr('plck              ', 'red')
+      if(myid.eq.0) print *,cstr('-----------------------------------------------------------------------------------------', 'blue')
+      do k=1,Nlay
+      if(allocated(kabs)) call min_max_mean(xxkabs(k,:), mkabs)
+      if(allocated(ksca)) call min_max_mean(xxksca(k,:), mksca)
+      if(allocated(g   )) call min_max_mean(xxg   (k,:), mg   )
+      if(allocated(plck)) call min_max_mean(xxplck(k,:), mplck)
+      if(allocated(plck)) then
+        if(myid.eq.0) print *,k, cstr(ftoa(mkabs), 'blue'), cstr(ftoa(mksca), 'red'), cstr(ftoa(mg), 'blue'), cstr(ftoa(mplck), 'red')
+      else
+        if(myid.eq.0) print *,k, cstr(ftoa(mkabs), 'blue'), cstr(ftoa(mksca), 'red'), cstr(ftoa(mg), 'blue')
+      endif
+      enddo
+      if(myid.eq.0) print *,cstr('-----------------------------------------------------------------------------------------', 'blue')
+      if(allocated(albedo)) call min_max_mean(xxalbedo(i1,:), malbedo)
+      if(myid.eq.0) print *,cstr('Surface Albedo (min,mean,max) '//ftoa(malbedo), 'blue')
+
+      call restore_col_vec(albedo, xalbedo, xxalbedo)
+      call restore_col_vec(kabs  , xkabs  , xxkabs  )
+      call restore_col_vec(ksca  , xksca  , xxksca  )
+      call restore_col_vec(g     , xg     , xxg     )
+      call restore_col_vec(plck  , xplck  , xxplck  )
+      contains
+        subroutine min_max_mean(arr, mmm)
+          real(ireals), intent(in) :: arr(:)
+          real(ireals), intent(out) :: mmm(:)
+          call mpi_reduce(minval(arr), mmm(1), 1_mpiint, imp_ireals, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
+          call imp_reduce_mean(comm, arr, mmm(2))
+          call mpi_reduce(maxval(arr), mmm(3), 1_mpiint, imp_ireals, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
+        end subroutine
+        subroutine get_col_vec(vec, N, xv, xxv)
+          type(tVec), allocatable, intent(in) :: vec
+          integer(iintegers), intent(in) :: N ! number of entries per column/stride
+          real(ireals), intent(inout), pointer :: xv(:), xxv(:,:)
+          integer(iintegers) :: vecsize, Ncol
+          if(allocated(vec)) then
+            call VecGetLocalSize(vec, vecsize, ierr); call CHKERR(ierr)
+            Ncol = vecsize / N
+            call CHKERR(int(Ncol*N-vecsize, mpiint), 'stride size of vec not as expected. '//new_line('')// &
+              'Given stride size '//itoa(N)//new_line('')// &
+              'Local vector size '//itoa(vecsize)//new_line('')// &
+              'expected number of columns/strides '//itoa(Ncol)//' would result in '//itoa(Ncol*N)//'entries')
+
+            call VecGetArrayF90(vec, xv, ierr); call CHKERR(ierr)
+            xxv(1:N, 1:Ncol) => xv(:)
+          endif
+        end subroutine
+        subroutine restore_col_vec(vec, xv, xxv)
+          type(tVec), allocatable, intent(in) :: vec
+          real(ireals), intent(inout), pointer :: xv(:), xxv(:,:)
+          if(associated(xxv)) nullify(xxv)
+          if(allocated(vec)) call VecRestoreArrayF90(vec, xv, ierr); call CHKERR(ierr)
+        end subroutine
     end subroutine
 
     subroutine create_edir_src_vec(solver, plex, edirdm, E0, kabs, ksca, g, sundir, srcVec)
@@ -2578,38 +2671,38 @@ module m_plex_rt
     call VecGetArrayF90(abso, xabso, ierr); call CHKERR(ierr)
 
 
-    if(ltwostr_only) then
-
-      do icell = cStart, cEnd-1
-        call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr)
-        inv_volume = one / geoms(i1+geom_offset)
-
-        call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
-        call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
-
-        do i = 1, 2
-          iface = faces_of_cell(i)
-          if(i.eq.1) then
-            lsrc = .True.
-          else
-            lsrc=.False.
-          endif
-
-          call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
-          do idof = 0, numDof-1
-            call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
-
-            if(lsrc) then ! sun is shining into this face
-              xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1) * inv_volume
-            else
-              xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1) * inv_volume
-            endif
-          enddo
-        enddo
-        call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
-      enddo
-
-    else
+!    if(ltwostr_only) then
+!
+!      do icell = cStart, cEnd-1
+!        call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr)
+!        inv_volume = one / geoms(i1+geom_offset)
+!
+!        call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
+!        call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+!
+!        do i = 1, 2
+!          iface = faces_of_cell(i)
+!          if(i.eq.1) then
+!            lsrc = .True.
+!          else
+!            lsrc=.False.
+!          endif
+!
+!          call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
+!          do idof = 0, numDof-1
+!            call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
+!
+!            if(lsrc) then ! sun is shining into this face
+!              xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1) * inv_volume
+!            else
+!              xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1) * inv_volume
+!            endif
+!          enddo
+!        enddo
+!        call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+!      enddo
+!
+!    else
       if(.not.allocated(plex%wedge_orientation_dm)) &
         call CHKERR(myid+1, 'called compute_edir_absorption with a dm which is not allocated: plex%wedge_orientation_dm?')
       call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
@@ -2645,7 +2738,7 @@ module m_plex_rt
       enddo
 
       call VecRestoreArrayReadF90(plex%wedge_orientation, wedgeorient, ierr); call CHKERR(ierr)
-    endif
+!    endif
 
     call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
     call VecRestoreArrayReadF90(local_edir, xedir, ierr); call CHKERR(ierr)
