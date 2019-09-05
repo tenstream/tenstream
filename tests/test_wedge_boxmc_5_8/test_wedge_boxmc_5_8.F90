@@ -212,7 +212,7 @@ contains
       myid     = this%getProcessRank()
 
       ! going towards the src face should not give any fluxes to anywhere
-      phi = 30; theta = 0
+      phi = -30; theta = 0
 
       bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
       tau = (bg(1)+bg(2)) * dz

@@ -63,6 +63,7 @@ module m_optprop_LUT
     preset_aspect23,                      &
     preset_w010,                          &
     preset_w020,                          &
+    preset_w021,                          &
     preset_tau15,                         &
     preset_tau20,                         &
     preset_tau31
@@ -1431,7 +1432,7 @@ subroutine set_parameter_space(OPP)
       class is (t_optprop_LUT_rectilinear_wedge_5_8)
           allocate(OPP%dirconfig%dims(8))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
+          call populate_LUT_dim('w0',        size(preset_w021,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w021)
           call populate_LUT_dim('aspect_zx', size(preset_aspect18,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect18)
           call populate_LUT_dim('g',         size(preset_g2,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g2)
           call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([-0.000001,1.000001], irealLUT))
@@ -1446,7 +1447,7 @@ subroutine set_parameter_space(OPP)
 
           allocate(OPP%diffconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
+          call populate_LUT_dim('w0',        size(preset_w021,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w021)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
           call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(5), vrange=real([-0.000001,1.000001], irealLUT))
