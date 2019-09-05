@@ -1494,13 +1494,13 @@ module m_plex_grid
       endif
 
       ! Snap param_phi to the correct side
-      if(approx(rparam_phi, -1._ireal_params, epsilon(rparam_phi))) then
+      if(approx(rparam_phi, -1._ireal_params, real(param_eps, kind(rparam_phi)))) then
         if(lsrc(left_face)) then
           rparam_phi = -1._ireal_params-param_eps
         else
           rparam_phi = -1._ireal_params+param_eps
         endif
-      elseif(approx(rparam_phi, +1._ireal_params, epsilon(rparam_phi))) then
+      elseif(approx(rparam_phi, +1._ireal_params, real(param_eps, kind(rparam_phi)))) then
         if(lsrc(right_face)) then
           rparam_phi = 1._ireal_params+param_eps
         else
