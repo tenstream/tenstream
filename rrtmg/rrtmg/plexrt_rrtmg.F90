@@ -279,7 +279,7 @@ contains
     real(ireals), pointer :: xalbedo(:)
 
     real(ireals) :: col_albedo, col_tskin(1)
-    integer(iintegers) :: i, ib, k, current_ibnd, num_spectral_bands
+    integer(iintegers) :: i, ib, k, current_ibnd, spectral_bands(2)
     logical :: need_any_new_solution, lflg
 
     integer(mpiint) :: ierr
@@ -403,15 +403,12 @@ contains
 
     current_ibnd = -1 ! current lw band
 
-    num_spectral_bands = int(ngptlw, iintegers)
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-                             "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
-    num_spectral_bands = min(num_spectral_bands, int(ngptlw, iintegers))
+    spectral_bands = get_spectral_bands(comm, i1, ngptlw)
 
     if(compute_thermal_disort()) return
     if(handle_twomax_rt_solvers()) return
 
-    do ib=1, num_spectral_bands
+    do ib=spectral_bands(1), spectral_bands(2)
 
       if(need_new_solution(comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
 
@@ -467,7 +464,7 @@ contains
           col_g  = 0
           col_albedo = albedo
 
-          do ib=1, num_spectral_bands
+          do ib=spectral_bands(1), spectral_bands(2)
           do icol=1,Ncol
 
               if(present(thermal_albedo_2d)) col_albedo = thermal_albedo_2d(icol)
@@ -551,7 +548,7 @@ contains
 
 
       current_ibnd = -1 ! current lw band
-      do ib=1, num_spectral_bands
+      do ib=spectral_bands(1), spectral_bands(2)
         !Compute Plank Emission for nbndlw, Bfrac starts at bot, dim(ke)
         do icol=i1,Ncol
           if(allocated(atm%cfrac)) cfrac = atm%cfrac(:,icol)
@@ -636,7 +633,7 @@ contains
     logical :: need_any_new_solution
 
     logical :: lflg
-    integer(iintegers) :: num_spectral_bands
+    integer(iintegers) :: spectral_bands(2)
 
     integer(mpiint) :: myid,ierr
 
@@ -780,15 +777,12 @@ contains
 
     allocate(tmp(ke, Ncol))
 
-    num_spectral_bands = int(ngptsw, iintegers)
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-                             "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
-    num_spectral_bands = min(num_spectral_bands, int(ngptsw, iintegers))
+    spectral_bands = get_spectral_bands(comm, i1, ngptsw)
 
     if(compute_solar_disort()) return
     if(handle_twomax_rt_solvers()) return
 
-    do ib=1, num_spectral_bands
+    do ib=spectral_bands(1), spectral_bands(2)
 
       if(need_new_solution(comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) then
 
@@ -859,7 +853,7 @@ contains
 
           if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(icol)
 
-          do ib=1, num_spectral_bands
+          do ib=spectral_bands(1), spectral_bands(2)
             if(present(opt_solar_constant)) then
               edirTOA = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
             else
@@ -944,7 +938,7 @@ contains
       call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
       call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
 
-      do ib=1, num_spectral_bands
+      do ib=spectral_bands(1), spectral_bands(2)
         if(present(opt_solar_constant)) then
           S0 = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
         else
@@ -994,6 +988,32 @@ contains
     end function handle_twomax_rt_solvers
 
   end subroutine compute_solar
+
+  function get_spectral_bands(comm, min_band, max_band) result(spectral_bands)
+    integer(mpiint), intent(in) :: comm
+    integer(iintegers), intent(in) :: min_band, max_band
+    integer(iintegers) :: spectral_bands(2)
+
+    integer(iintegers) :: argcnt
+    integer(mpiint) :: myid, ierr
+    logical :: lflg
+
+    argcnt=2
+    spectral_bands = [min_band, max_band]
+
+    call PetscOptionsGetIntArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-rrtm_bands" , spectral_bands, argcnt, lflg , ierr) ;call CHKERR(ierr)
+    if(lflg) call CHKERR(int(argcnt-i2, mpiint), "must provide 2 values for rrtm_bands, comma separated, no spaces")
+    if(spectral_bands(1).gt.spectral_bands(2)) call CHKERR(1_mpiint, 'first value of rrtm_bands('// &
+      itoa(spectral_bands(1))//') has to <= second ('//itoa(spectral_bands(2))//')')
+
+    spectral_bands = max(min_band, min(max_band, spectral_bands))
+    if(lflg) then
+      call mpi_comm_rank(comm, myid,ierr); call CHKERR(ierr)
+      if(myid.eq.0) print *,'Manually setting RRTMG bands to: '//itoa(spectral_bands)// &
+        ', valid range('//itoa([min_band,max_band])//')'
+    endif
+  end function
 
   subroutine allocate_optprop_vec(dm, vec, val)
     type(tDM), intent(in) :: dm
