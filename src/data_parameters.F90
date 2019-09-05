@@ -31,11 +31,11 @@ module m_data_parameters
              clight, nil, zero, one,                             &
              i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil,         &
              iintegers,mpiint,                                   &
-             ireals,ireal128,ireal_dp,irealLUT,ireal_params,     &
-             nan32, nan64,                                       &
+             ireals,ireal128,ireal_dp,irealLUT,ireal_params, irealbmc, &
+             nan32, nan64, nan,                                  &
              imp_iinteger,imp_int4, imp_int8,                    &
              imp_ireals,imp_real_dp,imp_irealLUT,imp_logical,    &
-             imp_REAL32, imp_REAL64,                             &
+             imp_REAL32, imp_REAL64, imp_REAL128,                &
              init_mpi_data_parameters, default_str_len,          &
              EXP_MINVAL, EXP_MAXVAL, EXP_MINVAL128, EXP_MAXVAL128
 
@@ -51,6 +51,7 @@ module m_data_parameters
           ireal_params = REAL64, &
           ireal_dp = REAL64, &
           ireal128 = REAL128, &
+          irealbmc = REAL128, &
 !          ireal128 = selected_real_kind(33, 4931), &
           mpiint = kind(mpiint_dummy)
 
@@ -72,8 +73,9 @@ module m_data_parameters
       real(real32) :: nan32 =  transfer(-4194304_int32, 1._real32)
       real(real64) :: nan64 =  transfer(-2251799813685248_int64, 1._real64)
 
-      integer(mpiint) :: imp_irealLUT, imp_ireals, imp_real_dp, imp_logical, imp_REAL32, imp_REAL64
+      integer(mpiint) :: imp_irealLUT, imp_ireals, imp_real_dp, imp_logical, imp_REAL32, imp_REAL64, imp_REAL128
       integer(mpiint) :: imp_iinteger, imp_int4, imp_int8
+      real(ireals) :: nan
 
 contains
 subroutine init_mpi_data_parameters(comm)
@@ -133,6 +135,11 @@ subroutine init_mpi_data_parameters(comm)
   call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_real64, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
 
+  call MPI_SIZEOF(1._REAL128, dtsize, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+  call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_real128, mpierr)
+  if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
+
   call MPI_SIZEOF(1._ireal_dp, dtsize, mpierr)
   if(mpierr.ne.0) call mpi_abort(comm, mpierr, ierr)
   call MPI_TYPE_MATCH_SIZE(MPI_TYPECLASS_REAL, dtsize, imp_real_dp, mpierr)
@@ -152,5 +159,14 @@ subroutine init_mpi_data_parameters(comm)
 
 !  if(myid.eq.0) print *,myid,'init_mpi_data_parameters :: imp_int',imp_int,' :: imp_real',imp_real,'epsilon(real)',epsilon(one)
 !  print *,'init_mpi_data_parameters :: MPI_INTEGER',MPI_INTEGER,' :: MPI_DOUBLE_PRECISION',MPI_DOUBLE_PRECISION,' :: MPI_REAL',MPI_REAL
+  select case(kind(nan))
+  case (kind(nan32))
+    nan = nan32
+  case (kind(nan64))
+    nan = nan64
+  case default
+    nan = -2
+    nan = sqrt(nan)
+  end select
 end subroutine
 end module
