@@ -2426,7 +2426,7 @@ module m_plex_rt
     real(irealLUT) :: dkabs, dksca, dg
     real(irealLUT) :: tauz, w0, param_phi
 
-    real(irealLUT), save :: max_g(2)
+    real(irealLUT), save :: max_g(4)
     integer(iintegers), save :: dimidx(10)
     logical, save :: linit_idx=.False.
     integer, parameter :: itaudir=1, itaudiff=6
@@ -2448,17 +2448,17 @@ module m_plex_rt
       dimidx(iCydiff ) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'wedge_coord_Cy')
 
       if(find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'g').ge.1) then
-        max_g(1) = OPP%OPP_LUT%dirconfig%dims(&
-          find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'g'))%vrange(2)
+        max_g(1:2) = OPP%OPP_LUT%dirconfig%dims(&
+          find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'g'))%vrange
       else
-        max_g(1) = 0._irealLUT
+        max_g(1:2) = 0._irealLUT
       endif
 
       if(find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'g').ge.1) then
-        max_g(2) = OPP%OPP_LUT%diffconfig%dims(&
-          find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'g'))%vrange(2)
+        max_g(3:4) = OPP%OPP_LUT%diffconfig%dims(&
+          find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'g'))%vrange
       else
-        max_g(2) = 0._irealLUT
+        max_g(3:4) = 0._irealLUT
       endif
 
       if(ldebug) print *,'found LUT max_g to be:', max_g
@@ -2475,6 +2475,7 @@ module m_plex_rt
     if(present(angles)) then
       tauz = snap_limits(tauz, OPP%OPP_LUT%dirconfig%dims(dimidx(itaudir))%vrange)
       w0   = snap_limits(w0  , OPP%OPP_LUT%dirconfig%dims(dimidx(iw0dir ))%vrange)
+      dg   = snap_limits(dg  , max_g(1:2))
 
       param_phi = max(OPP%OPP_LUT%dirconfig%dims(dimidx(iphidir))%vrange(1), &
         min(OPP%OPP_LUT%dirconfig%dims(dimidx(iphidir))%vrange(2), angles(1)))
@@ -2488,6 +2489,7 @@ module m_plex_rt
     else
       tauz = snap_limits(tauz, OPP%OPP_LUT%diffconfig%dims(dimidx(itaudiff))%vrange)
       w0   = snap_limits(w0  , OPP%OPP_LUT%diffconfig%dims(dimidx(iw0diff ))%vrange)
+      dg   = snap_limits(dg  , max_g(3:4))
 
       call delta_scale( dkabs, dksca, dg, max_g=max_g(2))
 
