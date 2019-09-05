@@ -429,14 +429,14 @@ contains
 
   function interpol_emis (tauxx, tauzz, eps_tab, ntau) 
 
-    real*8, intent(in) :: tauxx, tauzz
-    real*4, intent(in) :: eps_tab(:,:)
-    integer*4, intent(in) :: ntau
-    integer*4 :: ix, iy, i
-    real*8 :: epsilon, tauhx, tauz
-    real*8 :: f1,  f2
-    real*8 :: interpol_emis
-    REAL*4, DIMENSION(:), allocatable :: tau_hx, tau_z
+    real(ireals), intent(in) :: tauxx, tauzz
+    real(ireals), intent(in) :: eps_tab(:,:)
+    integer(ireals), intent(in) :: ntau
+    integer(ireals) :: ix, iy, i
+    real(ireals) :: epsilon, tauhx, tauz
+    real(ireals) :: f1,  f2
+    real(ireals) :: interpol_emis
+    real(ireals), DIMENSION(:), allocatable :: tau_hx, tau_z
    
     allocate(tau_hx(ntau))
     allocate(tau_z(ntau))
@@ -529,13 +529,13 @@ contains
 
   function interpol_2d (var1, var2, tab1)
 
-    real*8, intent(in) :: var1, var2
-    real*4, intent(in) :: tab1(:,:)
-    integer*4 :: ix, iy, i, n1, n2
-    real*8 :: out
-    real*8 :: f1,  f2, tmp1
-    real*8 :: interpol_2d
-    REAL*4, DIMENSION(:), allocatable :: var_1, var_2
+    real(ireals), intent(in) :: var1, var2
+    real(ireals), intent(in) :: tab1(:,:)
+    integer(ireals) :: ix, iy, i, n1, n2
+    real(ireals) :: out
+    real(ireals) :: f1,  f2, tmp1
+    real(ireals) :: interpol_2d
+    real(ireals), DIMENSION(:), allocatable :: var_1, var_2
     n1=9
     n2=36
     
