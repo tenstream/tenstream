@@ -1,19 +1,4 @@
 !----------------------------------------------------------------------------
-! This file is part of the tenstream solver.
-!
-! This program is free software: you can redistribute it and/or modify
-! it under the terms of the GNU General Public License as published by
-! the Free Software Foundation, either version 3 of the License, or
-! (at your option) any later version.
-!
-! This program is distributed in the hope that it will be useful,
-! but WITHOUT ANY WARRANTY; without even the implied warranty of
-! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-! GNU General Public License for more details.
-!
-! You should have received a copy of the GNU General Public License
-! along with this program.  If not, see <http://www.gnu.org/licenses/>.
-!
 ! Copyright (C) 2010-2019  Carolin Klinger, <carolin.klinger@physik.lmu.de>
 !----------------------------------------------------------------------------
 ! Neighbouring Column Approximation
@@ -429,7 +414,206 @@ contains
 #ifndef _XLF
       if(isnan(hr)) print *, 'nca shows nan', hr
 #endif
-    
+
+     
       
     end subroutine plexrt_nca
-end module m_plexrt_nca
+
+
+
+  
+  ! ################################################################################ 
+  ! ################## Function - interpolate emissivity ########################### 
+  ! # This function interpolates in 3D space between different emissivities ######## 
+  ! ################################################################################ 
+
+  function interpol_emis (tauxx, tauzz, eps_tab, ntau) 
+
+    real*8, intent(in) :: tauxx, tauzz
+    real*4, intent(in) :: eps_tab(:,:)
+    integer*4, intent(in) :: ntau
+    integer*4 :: ix, iy, i
+    real*8 :: epsilon, tauhx, tauz
+    real*8 :: f1,  f2
+    real*8 :: interpol_emis
+    REAL*4, DIMENSION(:), allocatable :: tau_hx, tau_z
+   
+    allocate(tau_hx(ntau))
+    allocate(tau_z(ntau))
+    
+    epsilon = 0
+
+    tau_hx(:) = [0.0001, 0.00025, 0.000625, 0.0015625, 0.00390625, &
+         0.00976562, 0.0244141, 0.0610352, 0.152588, 0.38147, 0.953674, &
+         2.38419, 5.96046, 14.9012, 37.2529, 93.1323]
+
+    tau_z(:) = [0.0001, 0.00025, 0.000625, 0.0015625, 0.00390625, &
+         0.00976562, 0.0244141, 0.0610352, 0.152588, 0.38147, 0.953674, &
+         2.38419, 5.96046, 14.9012, 37.2529, 93.1323]
+    
+    tauhx=tauxx
+    tauz=tauzz
+
+ 
+    ! find indeces of tauhx and tauz
+    ! at the table limits: set to lower or upper boundary
+    do i=1,ntau,1
+       if ((tauhx).gt.tau_hx(i) .and. (tauhx).lt.tau_hx(ntau) .and. (tauhx).gt.tau_hx(1)) then
+          ix = i
+       else if((tauxx).le.tau_hx(1)) then
+          ix=1
+       else if ((tauxx).gt.tau_hx(ntau))then
+          ix = ntau
+          tauhx=tau_hx(ntau)
+       end if
+    enddo
+  
+    do i=1,ntau,1
+       if ((tauz).gt.tau_z(i) .and. (tauz).lt.tau_z(ntau) .and. (tauz).gt.tau_z(1)) then
+          iy = i
+       else if((tauz).le.tau_z(1)) then
+          iy=1
+       else if ((tauz).gt.tau_z(ntau))then
+          iy = ntau
+          tauz=tau_z(ntau)
+       end if
+    enddo
+
+   !  if optical depth is lower than lookup table, set to 1-exp(-tau) and exit program
+    if(tauxx.lt.tau_hx(1) .or. tauzz.lt.tau_z(1)) then
+       if(tauzz.lt.tauxx)then
+          epsilon=1-(exp(-tauzz))
+       else
+          epsilon=1-(exp(-tauxx))
+       end if
+    else if(tauxx.lt.tau_hx(ntau).and. tauxx.gt.tau_hx(1))then
+       if(tauzz.lt.tau_z(ntau).and.tauzz.gt.tau_z(1))then
+          f1=(tau_hx(ix+1)-tauhx)/(tau_hx(ix+1)-tau_hx(ix)) *eps_tab(ix,iy) + (tauhx-tau_hx(ix)) &
+               / (tau_hx(ix+1)-tau_hx(ix))*eps_tab(ix+1,iy)
+          f2=(tau_hx(ix+1)-tauhx)/(tau_hx(ix+1)-tau_hx(ix))*eps_tab(ix,iy+1) + (tauhx-tau_hx(ix)) &
+               / (tau_hx(ix+1)-tau_hx(ix))*eps_tab(ix+1,iy+1)
+          epsilon = (tau_z(iy+1)-tauz)/(tau_z(iy+1)-tau_z(iy)) *f1 + (tauz-tau_z(iy)) &
+               / (tau_z(iy+1)-tau_z(iy))*f2
+       else if(tauzz.ge.tau_z(ntau)) then
+          f1=(tau_hx(ix+1)-tauhx)/(tau_hx(ix+1)-tau_hx(ix)) *eps_tab(ix,iy) + (tauhx-tau_hx(ix)) &
+               / (tau_hx(ix+1)-tau_hx(ix))*eps_tab(ix+1,iy)
+          f2=(tau_hx(ix+1)-tauhx)/(tau_hx(ix+1)-tau_hx(ix))*eps_tab(ix,iy) + (tauhx-tau_hx(ix)) &
+               / (tau_hx(ix+1)-tau_hx(ix))*eps_tab(ix+1,iy)
+          epsilon=(tau_hx(ix+1)-tauhx)/(tau_hx(ix+1)-tau_hx(ix))*eps_tab(ix,iy) + (tauhx-tau_hx(ix)) &
+               / (tau_hx(ix+1)-tau_hx(ix))*eps_tab(ix+1,iy)
+       end if
+    else if(tauxx.ge.tau_hx(ntau-1))then
+       f1=1
+       f2=1
+       if(tauzz.lt.tau_z(ntau).and.tauzz.gt.tau_z(1))then
+          epsilon = (tau_z(iy+1)-tauz)/(tau_z(iy+1)-tau_z(iy)) * eps_tab(ix,iy)+ (tauz-tau_z(iy)) &
+               / (tau_z(iy+1)-tau_z(iy))*eps_tab(ix,iy+1)
+       else if(tauzz.ge.tau_z(ntau-1))then
+          epsilon=eps_tab(ix,iy)
+       end if
+    end if
+   
+    !correct monte carlo noise in lookup table for high optical thickness (must be 1 in the limit)
+    if(epsilon.gt.1)then
+       epsilon=1.
+    end if
+
+
+    
+  end function interpol_emis
+
+  ! ################################################################################
+  ! ################## Function - interpolate emissivity ###########################
+  ! # This function interpolates in 3D space between different emissivities ########
+  ! ################################################################################
+
+  function interpol_2d (var1, var2, tab1)
+
+    real*8, intent(in) :: var1, var2
+    real*4, intent(in) :: tab1(:,:)
+    integer*4 :: ix, iy, i, n1, n2
+    real*8 :: out
+    real*8 :: f1,  f2, tmp1
+    real*8 :: interpol_2d
+    REAL*4, DIMENSION(:), allocatable :: var_1, var_2
+    n1=9
+    n2=36
+    
+    allocate(var_1(n1+2))
+    allocate(var_2(n2+2))
+    f1=0
+    f2=0
+    out=0
+
+
+    !var_1(:) = [0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0]
+    var_1(:) = [0.11547, 0.23094, 0.34641, 0.57735, 1.1547, 2.3094, &
+         3.4641, 5.7735, 11.547]
+
+    var_2(:) = [0.00015, 0.000225, 0.000338, 0.000506, 0.000759, &
+         0.001139, 0.001709, 0.002563, 0.003844, 0.005766, 0.00865, &
+         0.012975, 0.019462, 0.029193, 0.043789, 0.065684, 0.098526, &
+         0.147789, 0.221684, 0.332526, 0.498789, 0.748183, 1.12227, &
+         1.68341, 2.52512, 3.78768, 5.68151, 8.52227, 12.7834, 19.1751, &
+         28.7627, 43.144, 64.716, 97.074, 145.611, 218.416]
+
+    ! find indeces of var1 and var2
+    ! at the table limits: set to lower or upper boundary
+    do i=1,n1,1
+       if ((var1).gt.var_1(i) .and. (var1).lt.var_1(n1) .and. (var1).gt.var_1(1)) then
+          ix = i
+       else if((var1).le.var_1(1)) then
+          ix=1
+       else if ((var1).ge.var_1(n1))then
+          ix = n1
+       end if
+    enddo
+
+    do i=1,n2,1
+       if ((var2).gt.var_2(i) .and. (var2).lt.var_2(n2) .and. (var2).gt.var_2(1)) then
+          iy = i
+       else if((var2).le.var_2(1)) then
+          iy=1
+       else if ((var2).ge.var_2(n2))then
+          iy = n2
+
+       end if
+    enddo
+
+    !if optical depth is lower than lookup table, set to 1-exp(-tau) and exit program
+    if(var1.lt.var_1(n1) .and. var1.ge.var_1(1)) then
+       if(var2.lt.var_2(n2).and.var2.ge.var_2(1))then
+          f1=(var_1(ix+1)-var1)/(var_1(ix+1)-var_1(ix)) *tab1(ix,iy) + (var1-var_1(ix)) &
+               / (var_1(ix+1)-var_1(ix))*tab1(ix+1,iy)
+          f2=(var_1(ix+1)-var1)/(var_1(ix+1)-var_1(ix))*tab1(ix,iy+1) + (var1-var_1(ix)) &
+               / (var_1(ix+1)-var_1(ix))*tab1(ix+1,iy+1)
+          out = (var_2(iy+1)-var2)/(var_2(iy+1)-var_2(iy)) *f1 + (var2-var_2(iy)) &
+               / (var_2(iy+1)-var_2(iy))*f2
+       else if(var2.ge.var_2(n2)) then
+          f1=(var_1(ix+1)-var1)/(var_1(ix+1)-var_1(ix)) *tab1(ix,iy) + (var1-var_1(ix)) &
+               / (var_1(ix+1)-var_1(ix))*tab1(ix+1,iy)
+          f2=(var_1(ix+1)-var1)/(var_1(ix+1)-var_1(ix))*tab1(ix,iy) + (var1-var_1(ix)) &
+               / (var_1(ix+1)-var_1(ix))*tab1(ix+1,iy)
+          out=(var_1(ix+1)-var1)/(var_1(ix+1)-var_1(ix))*tab1(ix,iy) + (var1-var_1(ix)) &
+               / (var_1(ix+1)-var_1(ix))*tab1(ix+1,iy)
+       else if (var2.lt.var_2(1)) then
+          tmp1= tab1(ix, iy)
+          out=tmp1
+       end if
+
+    else if (var1.ge.var_1(n1))then
+       if(var2.lt.var_2(n2).and.var2.gt.var_2(1))then
+          out=(var_2(iy+1)-var2)/(var_2(iy+1)-var_2(iy)) * tab1(ix,iy) + (var2-var_2(iy)) &
+               / (var_2(iy+1)-var_2(iy))* tab1(ix,iy+1)
+       else if(var2.ge.var_2(n2)) then
+          tmp1=tab1(n1,n2)
+          out=tmp1
+       else
+          tmp1=tab1(1,1)
+          out=tmp1
+       end if
+    end if
+
+  end function interpol_2d
+    
+ end module m_plexrt_nca
