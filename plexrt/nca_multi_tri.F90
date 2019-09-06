@@ -138,12 +138,12 @@ contains
 
       real(ireals)           :: Absup     ! Upwelling, Absorption, bottom
       real(ireals)           :: Absdn     ! Downwelling Absorption, top
-      real(ireals)           :: Absup_s   ! Upwelling, Absorption, side
-      real(ireals)           :: Absdn_s   ! Downwelling Absorption, side  
+      real(ireals)           :: Absups   ! Upwelling, Absorption, side
+      real(ireals)           :: Absdns   ! Downwelling Absorption, side  
       real(ireals)           :: Emup      ! Upwelling, Emission, bottom
       real(ireals)           :: Emdn      ! Downwelling Emission, top
-      real(ireals)           :: Emup_s    ! Upwelling, Emission, side
-      real(ireals)           :: Emdn_s    ! Downwelling Emission, side  
+      real(ireals)           :: Emups    ! Upwelling, Emission, side
+      real(ireals)           :: Emdns    ! Downwelling Emission, side  
       real(ireals)           :: B         ! Average Planck of Layer
 
       real(ireals)           :: asp       ! Aspect Ratio
@@ -158,14 +158,25 @@ contains
       real(ireals)           :: eps_s3    ! Emissivity from Side Face 3
 
       real(ireals)           :: f_final_t, f_final_b, f_final_s1, f_final_s2, f_final_s3  ! Correction factors
-
+      real(ireals)           :: l, Trans
+      
       ! factors and weights
       real(ireals)           :: f1
       real(ireals)           :: f2
       real(ireals)           :: w1,w2
       real(ireals)           :: wa,wb,wc
-    
+
+      ! Variables from main program
+      real(ireals)           :: Ldn_top, Ldn_top_s1, Ldn_top_s2, Ldn_top_s3
+      real(ireals)           :: Lup_top, Lup_top_s1, Lup_top_s2, Lup_top_s3
+      real(ireals)           :: Ldn_bot, Ldn_bot_s1, Ldn_bot_s2, Ldn_bot_s3
+      real(ireals)           :: Lup_bot, Lup_bot_s1, Lup_bot_s2, Lup_bot_s3
+      real(ireals)           :: Btop, Bbot
+      real(ireals)           :: kabs, kabs_top, kabs_bot, kabs_s1, kabs_s2, kabs_s3
+      
       real(ireals),parameter :: pi=3.141592653589793
+
+      integer(iintegers) :: ntau=16, n1=9, n2=36
       
       if(.not. all( [ &
         allocated(eps_tab_side), &
@@ -188,8 +199,7 @@ contains
                  Bbot     => base_info(4), &             
                  kabs     => base_info(5), &
                  kabs_top => base_info(6), &
-                 kabs_bot => base_info(7)      
-        )
+                 kabs_bot => base_info(7) )
       end associate
       
       associate( Ldn_top_s1  => side_info(1)/pi, &
@@ -206,8 +216,7 @@ contains
                  Lup_bot_s3  => side_info(12)/pi, &
                  kabs_s1     => side_info(13), &
                  kabs_s2     => side_info(14), &
-                 kabs_s3     => side_info(15)
-        )
+                 kabs_s3     => side_info(15) )
       end associate
       
 
@@ -544,7 +553,6 @@ contains
     f1=0
     f2=0
     out=0
-
 
     !var_1(:) = [0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0]
     var_1(:) = [0.11547, 0.23094, 0.34641, 0.57735, 1.1547, 2.3094, &
