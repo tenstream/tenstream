@@ -1,0 +1,1 @@
+/usr/bin/mpif90   -ffree-line-length-none -W -Wall -g                   -fno-backtrace -fno-range-check -O3 -O3 -DNDEBUG -O3  CMakeFiles/ex_pprts_ex1.dir/pprts_ex1.F90.o  -o ../../bin/ex_pprts_ex1 ../../lib/libpprts.a ../../lib/libpprts_base.a /usr/lib/x86_64-linux-gnu/libopenblas.so 

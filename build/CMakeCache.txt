@@ -14,47 +14,14 @@
 # EXTERNAL cache entries
 ########################
 
-//Path to a library.
-BLAS_Accelerate_LIBRARY:FILEPATH=BLAS_Accelerate_LIBRARY-NOTFOUND
-
-//Path to a library.
-BLAS_acml_LIBRARY:FILEPATH=BLAS_acml_LIBRARY-NOTFOUND
-
-//Path to a library.
-BLAS_acml_mp_LIBRARY:FILEPATH=BLAS_acml_mp_LIBRARY-NOTFOUND
-
-//Path to a library.
-BLAS_blas_LIBRARY:FILEPATH=/usr/lib64/libblas.so
-
-//Path to a library.
-BLAS_complib.sgimath_LIBRARY:FILEPATH=BLAS_complib.sgimath_LIBRARY-NOTFOUND
-
-//Path to a library.
-BLAS_cxml_LIBRARY:FILEPATH=BLAS_cxml_LIBRARY-NOTFOUND
-
-//Path to a library.
-BLAS_dxml_LIBRARY:FILEPATH=BLAS_dxml_LIBRARY-NOTFOUND
-
-//Path to a library.
-BLAS_essl_LIBRARY:FILEPATH=BLAS_essl_LIBRARY-NOTFOUND
-
-//Path to a library.
-BLAS_f77blas_LIBRARY:FILEPATH=BLAS_f77blas_LIBRARY-NOTFOUND
+//Let CMAKE try to find MPI variables
+AUTODETECT_MPI:BOOL=OFF
 
 //Path to a library.
 BLAS_goto2_LIBRARY:FILEPATH=BLAS_goto2_LIBRARY-NOTFOUND
 
 //Path to a library.
-BLAS_scsl_LIBRARY:FILEPATH=BLAS_scsl_LIBRARY-NOTFOUND
-
-//Path to a library.
-BLAS_sgemm_LIBRARY:FILEPATH=BLAS_sgemm_LIBRARY-NOTFOUND
-
-//Path to a library.
-BLAS_sunperf_LIBRARY:FILEPATH=BLAS_sunperf_LIBRARY-NOTFOUND
-
-//Path to a library.
-BLAS_vecLib_LIBRARY:FILEPATH=BLAS_vecLib_LIBRARY-NOTFOUND
+BLAS_openblas_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libopenblas.so
 
 //Path to a program.
 CMAKE_AR:FILEPATH=/usr/bin/ar
@@ -70,6 +37,14 @@ CMAKE_COLOR_MAKEFILE:BOOL=ON
 
 //CXX compiler
 CMAKE_CXX_COMPILER:FILEPATH=/usr/bin/c++
+
+//A wrapper around 'ar' adding the appropriate '--plugin' option
+// for the GCC compiler
+CMAKE_CXX_COMPILER_AR:FILEPATH=/usr/bin/gcc-ar-7
+
+//A wrapper around 'ranlib' adding the appropriate '--plugin' option
+// for the GCC compiler
+CMAKE_CXX_COMPILER_RANLIB:FILEPATH=/usr/bin/gcc-ranlib-7
 
 //Flags used by the compiler during all build types.
 CMAKE_CXX_FLAGS:STRING=
@@ -87,8 +62,13 @@ CMAKE_CXX_FLAGS_RELEASE:STRING=-O3 -DNDEBUG
 //Flags used by the compiler during release builds with debug info.
 CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG
 
-//C compiler
-CMAKE_C_COMPILER:FILEPATH=/usr/bin/cc
+//A wrapper around 'ar' adding the appropriate '--plugin' option
+// for the GCC compiler
+CMAKE_C_COMPILER_AR:FILEPATH=/usr/bin/gcc-ar-7
+
+//A wrapper around 'ranlib' adding the appropriate '--plugin' option
+// for the GCC compiler
+CMAKE_C_COMPILER_RANLIB:FILEPATH=/usr/bin/gcc-ranlib-7
 
 //Flags used by the compiler during all build types.
 CMAKE_C_FLAGS:STRING=
@@ -124,6 +104,14 @@ CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO:STRING=
 //Enable/Disable output of compile commands during generation.
 CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=OFF
 
+//A wrapper around 'ar' adding the appropriate '--plugin' option
+// for the GCC compiler
+CMAKE_Fortran_COMPILER_AR:FILEPATH=/usr/bin/gcc-ar-7
+
+//A wrapper around 'ranlib' adding the appropriate '--plugin' option
+// for the GCC compiler
+CMAKE_Fortran_COMPILER_RANLIB:FILEPATH=/usr/bin/gcc-ranlib-7
+
 //Flags for Fortran compiler.
 CMAKE_Fortran_FLAGS:STRING=
 
@@ -132,16 +120,16 @@ CMAKE_Fortran_FLAGS_DEBUG:STRING=-g
 
 //Flags used by the compiler during release builds for minimum
 // size.
-CMAKE_Fortran_FLAGS_MINSIZEREL:STRING=-Os
+CMAKE_Fortran_FLAGS_MINSIZEREL:STRING=-Os -DNDEBUG -Os
 
 //Flags used by the compiler during release builds.
-CMAKE_Fortran_FLAGS_RELEASE:STRING=-O3
+CMAKE_Fortran_FLAGS_RELEASE:STRING=-O3 -DNDEBUG -O3
 
 //Flags used by the compiler during release builds with debug info.
 CMAKE_Fortran_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG
 
-//Install path prefix, prepended onto install directories.
-CMAKE_INSTALL_PREFIX:PATH=/usr/local
+//default install path
+CMAKE_INSTALL_PREFIX:PATH=/home/c/Carolin.Klinger/tenstream/build/install
 
 //Output directory for Dohp libraries
 CMAKE_LIBRARY_OUTPUT_DIRECTORY:PATH=/home/c/Carolin.Klinger/tenstream/build/lib
@@ -150,7 +138,7 @@ CMAKE_LIBRARY_OUTPUT_DIRECTORY:PATH=/home/c/Carolin.Klinger/tenstream/build/lib
 CMAKE_LINKER:FILEPATH=/usr/bin/ld
 
 //Path to a program.
-CMAKE_MAKE_PROGRAM:FILEPATH=/usr/bin/gmake
+CMAKE_MAKE_PROGRAM:FILEPATH=/usr/bin/make
 
 //Flags used by the linker during the creation of modules.
 CMAKE_MODULE_LINKER_FLAGS:STRING=
@@ -231,167 +219,141 @@ CMAKE_STRIP:FILEPATH=/usr/bin/strip
 // Studio IDE projects all commands are done without /nologo.
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
-//Graphviz Dot tool for using Doxygen
+//Path to a program.
+CTAGS_PATH:FILEPATH=/usr/bin/ctags
+
+//Additional mpiexec flags to run tests with
+CTEST_MPIRUN_FLAGS:STRING=
+
+//Dot tool for use with Doxygen
 DOXYGEN_DOT_EXECUTABLE:FILEPATH=/usr/bin/dot
 
 //Doxygen documentation generation tool (http://www.doxygen.org)
 DOXYGEN_EXECUTABLE:FILEPATH=/usr/bin/doxygen
 
+//Enable use of all additional modules 
+ENABLE_ALL:BOOL=ON
+
+//Enable creation of C Wrapper 
+ENABLE_C_WRAPPER:BOOL=ON
+
+//Enable compilation of EXAMPLES
+ENABLE_EXAMPLES:BOOL=ON
+
+//enable link time optimizations, also called INTERPROCEDURAL_OPTIMIZATIONs
+ENABLE_IPO:BOOL=OFF
+
 //Enable pfUnit testing Framework
-ENABLE_PFUNIT:BOOL=OFF
+ENABLE_PFUNIT:BOOL=ON
 
-//Path to a file.
-HDF5_INCLUDE_DIRS:PATH=/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/include
+//Use PGO in build, first compile with PGO set to `generate`, run
+// make check, and then set to `use`
+ENABLE_PGO:STRING=OFF
 
-//Path to a file.
-HDF5_ROOT_DIR:PATH=/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/share/cmake/hdf5
+//Enable PLEXRT, Radiative transfer on wedges
+ENABLE_PLEXRT:BOOL=ON
 
-//Path to a library.
-LAPACK_Accelerate_LIBRARY:FILEPATH=LAPACK_Accelerate_LIBRARY-NOTFOUND
+//Enable creation of Python Interfaces via f2py
+ENABLE_PYTHON:BOOL=OFF
+
+//Enable use of RRTM
+ENABLE_RRTM:BOOL=ON
+
+//Installation directory for executables
+INSTALL_BIN_DIR:PATH=bin
+
+//Installation directory for header files
+INSTALL_INCLUDE_DIR:PATH=include
+
+//Installation directory for libraries
+INSTALL_LIB_DIR:PATH=lib
 
 //Path to a library.
 LAPACK_goto2_LIBRARY:FILEPATH=LAPACK_goto2_LIBRARY-NOTFOUND
 
 //Path to a library.
-LAPACK_lapack_LIBRARY:FILEPATH=/usr/lib64/liblapack.so
-
-//Path to a library.
-LAPACK_vecLib_LIBRARY:FILEPATH=LAPACK_vecLib_LIBRARY-NOTFOUND
+LAPACK_openblas_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libopenblas.so
 
 //Path to a program.
 MAKE_EXECUTABLE:FILEPATH=/usr/bin/make
 
-//Executable for running MPI programs.
-MPIEXEC:FILEPATH=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpiexec
+//Command to run MPI programs, e.g. used to run tests
+MPIEXEC:STRING=mpirun
 
-//Maximum number of processors available to run MPI applications.
-MPIEXEC_MAX_NUMPROCS:STRING=2
-
-//Flag used by MPI to specify the number of processes for MPIEXEC;
-// the next option will be the number of processes.
-MPIEXEC_NUMPROC_FLAG:STRING=-np
-
-//These flags will come after all flags given to MPIEXEC.
-MPIEXEC_POSTFLAGS:STRING=
-
-//These flags will be directly before the executable that is being
-// run by MPIEXEC.
-MPIEXEC_PREFLAGS:STRING=
-
-//Path to a program.
-MPI_CXX_COMPILER:FILEPATH=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpicxx
-
-//MPI CXX compilation flags
-MPI_CXX_COMPILE_FLAGS:STRING=
-
-//MPI CXX include path
-MPI_CXX_INCLUDE_PATH:STRING=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include
-
-//MPI CXX libraries to link against
-MPI_CXX_LIBRARIES:STRING=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_cxx.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so
-
-//MPI CXX linking flags
-MPI_CXX_LINK_FLAGS:STRING= -Wl,-rpath  -Wl,/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64  -Wl,--enable-new-dtags
-
-//Path to a program.
-MPI_C_COMPILER:FILEPATH=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpicc
-
-//MPI C compilation flags
-MPI_C_COMPILE_FLAGS:STRING=
-
-//MPI C include path
-MPI_C_INCLUDE_PATH:STRING=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include
-
-//MPI C libraries to link against
-MPI_C_LIBRARIES:STRING=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so
-
-//MPI C linking flags
-MPI_C_LINK_FLAGS:STRING= -Wl,-rpath  -Wl,/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64  -Wl,--enable-new-dtags
-
-//Extra MPI libraries to link against
-MPI_EXTRA_LIBRARY:STRING=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so
-
-//Path to a program.
-MPI_Fortran_COMPILER:FILEPATH=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90
-
-//MPI Fortran compilation flags
-MPI_Fortran_COMPILE_FLAGS:STRING=
-
-//MPI Fortran include path
-MPI_Fortran_INCLUDE_PATH:STRING=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64
-
-//MPI Fortran libraries to link against
-MPI_Fortran_LIBRARIES:STRING=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_usempi.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_mpifh.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so
-
-//MPI Fortran linking flags
-MPI_Fortran_LINK_FLAGS:STRING= -Wl,-rpath  -Wl,/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64  -Wl,--enable-new-dtags
-
-//MPI library to link against
-MPI_LIBRARY:FILEPATH=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_cxx.so
+//options to set number of MPI tasks/nodes
+MPIEXEC_NUMPROC_FLAG:STRING=-n
 
 //Path to a file.
-NETCDF_INCLUDES:PATH=/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/include
+NETCDF_INCLUDES:PATH=NETCDF_INCLUDES-NOTFOUND
 
 //Path to a file.
-NETCDF_INCLUDES_F90:PATH=/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/include
+NETCDF_INCLUDES_F90:PATH=NETCDF_INCLUDES_F90-NOTFOUND
 
 //All NetCDF libraries required for interface level
-NETCDF_LIBRARIES:STRING=/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdff.so;/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdf.so
+NETCDF_LIBRARIES:STRING=NETCDF_LIBRARIES_C-NOTFOUND
 
 //Path to a library.
-NETCDF_LIBRARIES_C:FILEPATH=/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdf.so
+NETCDF_LIBRARIES_C:FILEPATH=NETCDF_LIBRARIES_C-NOTFOUND
 
 //Path to a library.
-NETCDF_LIBRARIES_F90:FILEPATH=/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdff.so
-
-//PETSc build architecture
-PETSC_ARCH:STRING=fast_single
-
-//PETSc compiler
-PETSC_COMPILER:FILEPATH=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpicc
+NETCDF_LIBRARIES_F90:FILEPATH=NETCDF_LIBRARIES_F90-NOTFOUND
 
 //Is the configuration for PETSc current?  Set to "NO" to reconfigure.
 PETSC_CURRENT:BOOL=YES
 
-//PETSc definitions
-PETSC_DEFINITIONS:STRING=-D__INSDIR__=
-
 //PETSc Directory
-PETSC_DIR:PATH=/home/opt/cosmo_tica_lib/ompi1.8.1/petsc-maint
-
-//Can the system successfully run a PETSc executable?  This variable
-// can be manually set to "YES" to force CMake to accept a given
-// PETSc configuration, but this will almost always result in a
-// broken build.  If you change PETSC_DIR, PETSC_ARCH, or PETSC_CURRENT
-// you would have to reset this variable.
-PETSC_EXECUTABLE_RUNS:BOOL=YES
-
-//PETSc include path
-PETSC_INCLUDES:STRING=/home/opt/cosmo_tica_lib/ompi1.8.1/petsc/include;/home/opt/cosmo_tica_lib/ompi1.8.1/petsc/fast_single/include;/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/include;/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/include;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include
-
-//Path to a file.
-PETSC_INCLUDE_CONF:PATH=/home/opt/cosmo_tica_lib/ompi1.8.1/petsc-maint/fast_single/include
-
-//Path to a file.
-PETSC_INCLUDE_DIR:PATH=/home/opt/cosmo_tica_lib/ompi1.8.1/petsc-maint/include
-
-//PETSc libraries
-PETSC_LIBRARIES:STRING=/home/opt/cosmo_tica_lib/ompi1.8.1/petsc-maint/fast_single/lib/libpetsc.a;/usr/lib64/liblapack.so;/usr/lib64/libblas.so;/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdf.so;/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/lib/libhdf5_hl.so;/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/lib/libhdf5.so;/usr/lib64/libX11.so;/usr/lib64/libssl.so;/usr/lib64/libcrypto.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_usempi.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_mpifh.so;/usr/lib64/gcc/x86_64-suse-linux/4.8/libgfortran.so;/usr/lib64/gcc/x86_64-suse-linux/4.8/libquadmath.so;/usr/lib64/libm.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_cxx.so;/usr/lib64/gcc/x86_64-suse-linux/4.8/libstdc++.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so;/usr/lib64/gcc/x86_64-suse-linux/4.8/libgcc_s.so;/usr/lib64/libpthread.so;/usr/lib64/libdl.so
-
-//Cleared
-PETSC_LIBRARY_SINGLE:FILEPATH=/home/opt/cosmo_tica_lib/ompi1.8.1/petsc-maint/fast_single/lib/libpetsc.a
-
-//Executable for running PETSc MPI programs
-PETSC_MPIEXEC:FILEPATH=/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpiexec
+PETSC_DIR:PATH=PETSC_DIR-NOTFOUND
 
 //No help, variable specified on the command line.
-SYST:UNINITIALIZED=lmu_mim
+SYST:UNINITIALIZED=ubuntu
+
+//Dependencies for the target
+f2c_pprts_LIB_DEPENDS:STATIC=general;pprts;general;plexrt;general;pprts_base;
+
+//Dependencies for the target
+f2c_pprts_rrtm_LIB_DEPENDS:STATIC=general;pprts_rrtmg;general;pprts;general;pprts_base;
+
+//Dependencies for the target
+f2c_rayli_LIB_DEPENDS:STATIC=general;pprts_base;
+
+//Dependencies for the target
+f2c_twomax_LIB_DEPENDS:STATIC=general;pprts_base;
+
+//Dependencies for the target
+plexrt_LIB_DEPENDS:STATIC=general;pprts_base;general;f2c_rayli;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;
+
+//Dependencies for the target
+plexrt_rrtmg_LIB_DEPENDS:STATIC=general;pprts_rrtm_lw;general;pprts_rrtm_sw;general;plexrt;general;f2c_twomax;general;pprts_base;general;tenstr_disort;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;
+
+//Dependencies for the target
+pprts_LIB_DEPENDS:STATIC=general;pprts_base;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;
+
+//Dependencies for the target
+pprts_base_LIB_DEPENDS:STATIC=general;/usr/lib/x86_64-linux-gnu/libopenblas.so;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;
+
+//Dependencies for the target
+pprts_rrtm_lw_LIB_DEPENDS:STATIC=general;pprts;
+
+//Dependencies for the target
+pprts_rrtm_sw_LIB_DEPENDS:STATIC=general;pprts;
+
+//Dependencies for the target
+pprts_rrtmg_LIB_DEPENDS:STATIC=general;pprts_rrtm_lw;general;pprts_rrtm_sw;general;pprts;general;pprts_base;general;tenstr_disort;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;
+
+//Dependencies for the target
+tenstr_disort_LIB_DEPENDS:STATIC=general;pprts_base;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;general;/usr/lib/x86_64-linux-gnu/libopenblas.so;
+
+//Value Computed by CMake
+tenstr_rrtm_wrapper_BINARY_DIR:STATIC=/home/c/Carolin.Klinger/tenstream/build/rrtmg
+
+//Value Computed by CMake
+tenstr_rrtm_wrapper_SOURCE_DIR:STATIC=/home/c/Carolin.Klinger/tenstream/rrtmg
 
 //Value Computed by CMake
 tenstream_BINARY_DIR:STATIC=/home/c/Carolin.Klinger/tenstream/build
 
-//Dependencies for the target
-tenstream_LIB_DEPENDS:STATIC=general;/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdff.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdf.so;general;/usr/lib64/liblapack.so;general;/usr/lib64/libblas.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/petsc-maint/fast_single/lib/libpetsc.a;general;/usr/lib64/liblapack.so;general;/usr/lib64/libblas.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdf.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/lib/libhdf5_hl.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/lib/libhdf5.so;general;/usr/lib64/libX11.so;general;/usr/lib64/libssl.so;general;/usr/lib64/libcrypto.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_usempi.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_mpifh.so;general;/usr/lib64/gcc/x86_64-suse-linux/4.8/libgfortran.so;general;/usr/lib64/gcc/x86_64-suse-linux/4.8/libquadmath.so;general;/usr/lib64/libm.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_cxx.so;general;/usr/lib64/gcc/x86_64-suse-linux/4.8/libstdc++.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so;general;/usr/lib64/gcc/x86_64-suse-linux/4.8/libgcc_s.so;general;/usr/lib64/libpthread.so;general;/usr/lib64/libdl.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_usempi.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_mpifh.so;general;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so;
+//Dependencies for target
+tenstream_LIB_DEPENDS:STATIC=
 
 //Value Computed by CMake
 tenstream_SOURCE_DIR:STATIC=/home/c/Carolin.Klinger/tenstream
@@ -401,38 +363,14 @@ tenstream_SOURCE_DIR:STATIC=/home/c/Carolin.Klinger/tenstream
 # INTERNAL cache entries
 ########################
 
-//ADVANCED property for variable: BLAS_Accelerate_LIBRARY
-BLAS_Accelerate_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_acml_LIBRARY
-BLAS_acml_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_acml_mp_LIBRARY
-BLAS_acml_mp_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_blas_LIBRARY
-BLAS_blas_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_blas_WORKS
-BLAS_blas_WORKS-ADVANCED:INTERNAL=1
-//Have Fortran function sgemm
-BLAS_blas_WORKS:INTERNAL=1
-//ADVANCED property for variable: BLAS_complib.sgimath_LIBRARY
-BLAS_complib.sgimath_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_cxml_LIBRARY
-BLAS_cxml_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_dxml_LIBRARY
-BLAS_dxml_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_essl_LIBRARY
-BLAS_essl_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_f77blas_LIBRARY
-BLAS_f77blas_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: BLAS_goto2_LIBRARY
 BLAS_goto2_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_scsl_LIBRARY
-BLAS_scsl_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_sgemm_LIBRARY
-BLAS_sgemm_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_sunperf_LIBRARY
-BLAS_sunperf_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: BLAS_vecLib_LIBRARY
-BLAS_vecLib_LIBRARY-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: BLAS_openblas_LIBRARY
+BLAS_openblas_LIBRARY-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: BLAS_openblas_WORKS
+BLAS_openblas_WORKS-ADVANCED:INTERNAL=1
+//Have Fortran function sgemm
+BLAS_openblas_WORKS:INTERNAL=1
 //ADVANCED property for variable: CMAKE_AR
 CMAKE_AR-ADVANCED:INTERNAL=1
 //This is the directory where this CMakeCache.txt was created
@@ -440,9 +378,9 @@ CMAKE_CACHEFILE_DIR:INTERNAL=/home/c/Carolin.Klinger/tenstream/build
 //Major version of cmake used to create the current loaded cache
 CMAKE_CACHE_MAJOR_VERSION:INTERNAL=3
 //Minor version of cmake used to create the current loaded cache
-CMAKE_CACHE_MINOR_VERSION:INTERNAL=5
+CMAKE_CACHE_MINOR_VERSION:INTERNAL=10
 //Patch version of cmake used to create the current loaded cache
-CMAKE_CACHE_PATCH_VERSION:INTERNAL=1
+CMAKE_CACHE_PATCH_VERSION:INTERNAL=2
 //ADVANCED property for variable: CMAKE_COLOR_MAKEFILE
 CMAKE_COLOR_MAKEFILE-ADVANCED:INTERNAL=1
 //Path to CMake executable.
@@ -453,6 +391,10 @@ CMAKE_CPACK_COMMAND:INTERNAL=/usr/bin/cpack
 CMAKE_CTEST_COMMAND:INTERNAL=/usr/bin/ctest
 //ADVANCED property for variable: CMAKE_CXX_COMPILER
 CMAKE_CXX_COMPILER-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_CXX_COMPILER_AR
+CMAKE_CXX_COMPILER_AR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_CXX_COMPILER_RANLIB
+CMAKE_CXX_COMPILER_RANLIB-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_CXX_FLAGS
 CMAKE_CXX_FLAGS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_CXX_FLAGS_DEBUG
@@ -463,8 +405,10 @@ CMAKE_CXX_FLAGS_MINSIZEREL-ADVANCED:INTERNAL=1
 CMAKE_CXX_FLAGS_RELEASE-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_CXX_FLAGS_RELWITHDEBINFO
 CMAKE_CXX_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: CMAKE_C_COMPILER
-CMAKE_C_COMPILER-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_C_COMPILER_AR
+CMAKE_C_COMPILER_AR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_C_COMPILER_RANLIB
+CMAKE_C_COMPILER_RANLIB-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_C_FLAGS
 CMAKE_C_FLAGS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_C_FLAGS_DEBUG
@@ -493,6 +437,10 @@ CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 CMAKE_EXPORT_COMPILE_COMMANDS-ADVANCED:INTERNAL=1
 //Name of external makefile project generator.
 CMAKE_EXTRA_GENERATOR:INTERNAL=
+//ADVANCED property for variable: CMAKE_Fortran_COMPILER_AR
+CMAKE_Fortran_COMPILER_AR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_Fortran_COMPILER_RANLIB
+CMAKE_Fortran_COMPILER_RANLIB-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_Fortran_FLAGS
 CMAKE_Fortran_FLAGS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_Fortran_FLAGS_DEBUG
@@ -510,18 +458,14 @@ CMAKE_GENERATOR_PLATFORM:INTERNAL=
 //Name of generator toolset.
 CMAKE_GENERATOR_TOOLSET:INTERNAL=
 //Have symbol pthread_create
-CMAKE_HAVE_LIBC_CREATE:INTERNAL=
-//Have library pthreads
-CMAKE_HAVE_PTHREADS_CREATE:INTERNAL=
-//Have library pthread
-CMAKE_HAVE_PTHREAD_CREATE:INTERNAL=1
+CMAKE_HAVE_LIBC_CREATE:INTERNAL=1
 //Have include pthread.h
 CMAKE_HAVE_PTHREAD_H:INTERNAL=1
 //Source directory with the top level CMakeLists.txt file for this
 // project
 CMAKE_HOME_DIRECTORY:INTERNAL=/home/c/Carolin.Klinger/tenstream
 //Install .so files without execute permission.
-CMAKE_INSTALL_SO_NO_EXE:INTERNAL=0
+CMAKE_INSTALL_SO_NO_EXE:INTERNAL=1
 //ADVANCED property for variable: CMAKE_LINKER
 CMAKE_LINKER-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_MAKE_PROGRAM
@@ -539,15 +483,17 @@ CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_NM
 CMAKE_NM-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=2
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=62
 //ADVANCED property for variable: CMAKE_OBJCOPY
 CMAKE_OBJCOPY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_OBJDUMP
 CMAKE_OBJDUMP-ADVANCED:INTERNAL=1
+//Platform information initialized
+CMAKE_PLATFORM_INFO_INITIALIZED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_RANLIB
 CMAKE_RANLIB-ADVANCED:INTERNAL=1
 //Path to CMake installation.
-CMAKE_ROOT:INTERNAL=/usr/share/cmake
+CMAKE_ROOT:INTERNAL=/usr/share/cmake-3.10
 //ADVANCED property for variable: CMAKE_SHARED_LINKER_FLAGS
 CMAKE_SHARED_LINKER_FLAGS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_SHARED_LINKER_FLAGS_DEBUG
@@ -575,103 +521,29 @@ CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_STRIP
 CMAKE_STRIP-ADVANCED:INTERNAL=1
 //uname command
-CMAKE_UNAME:INTERNAL=/usr/bin/uname
+CMAKE_UNAME:INTERNAL=/bin/uname
 //ADVANCED property for variable: CMAKE_VERBOSE_MAKEFILE
 CMAKE_VERBOSE_MAKEFILE-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: DOXYGEN_DOT_EXECUTABLE
 DOXYGEN_DOT_EXECUTABLE-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: DOXYGEN_EXECUTABLE
 DOXYGEN_EXECUTABLE-ADVANCED:INTERNAL=1
+//STRINGS property for variable: ENABLE_PGO
+ENABLE_PGO-STRINGS:INTERNAL=OFF;GENERATE;USE
 //Details about finding Doxygen
-FIND_PACKAGE_MESSAGE_DETAILS_Doxygen:INTERNAL=[/usr/bin/doxygen][v1.8.11()]
-//Details about finding MPI_C
-FIND_PACKAGE_MESSAGE_DETAILS_MPI_C:INTERNAL=[/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so][/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include][v()]
-//Details about finding MPI_CXX
-FIND_PACKAGE_MESSAGE_DETAILS_MPI_CXX:INTERNAL=[/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_cxx.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so][/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include][v()]
-//Details about finding MPI_Fortran
-FIND_PACKAGE_MESSAGE_DETAILS_MPI_Fortran:INTERNAL=[/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_usempi.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_mpifh.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so][/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64][v()]
-//Details about finding NetCDF
-FIND_PACKAGE_MESSAGE_DETAILS_NetCDF:INTERNAL=[/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdff.so;/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdf.so][/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/include][YES][v()]
-//Details about finding PETSc
-FIND_PACKAGE_MESSAGE_DETAILS_PETSc:INTERNAL=[/home/opt/cosmo_tica_lib/ompi1.8.1/petsc/include;/home/opt/cosmo_tica_lib/ompi1.8.1/petsc/fast_single/include;/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/include;/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/include;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include][/home/opt/cosmo_tica_lib/ompi1.8.1/petsc-maint/fast_single/lib/libpetsc.a;/usr/lib64/liblapack.so;/usr/lib64/libblas.so;/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdf.so;/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/lib/libhdf5_hl.so;/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/lib/libhdf5.so;/usr/lib64/libX11.so;/usr/lib64/libssl.so;/usr/lib64/libcrypto.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_usempi.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_mpifh.so;/usr/lib64/gcc/x86_64-suse-linux/4.8/libgfortran.so;/usr/lib64/gcc/x86_64-suse-linux/4.8/libquadmath.so;/usr/lib64/libm.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_cxx.so;/usr/lib64/gcc/x86_64-suse-linux/4.8/libstdc++.so;/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so;/usr/lib64/gcc/x86_64-suse-linux/4.8/libgcc_s.so;/usr/lib64/libpthread.so;/usr/lib64/libdl.so][YES][v()]
+FIND_PACKAGE_MESSAGE_DETAILS_Doxygen:INTERNAL=[/usr/bin/doxygen][cfound components:  doxygen dot ][v1.8.13()]
 //Details about finding Threads
 FIND_PACKAGE_MESSAGE_DETAILS_Threads:INTERNAL=[TRUE][v()]
-//ADVANCED property for variable: LAPACK_Accelerate_LIBRARY
-LAPACK_Accelerate_LIBRARY-ADVANCED:INTERNAL=1
+//Have function nc_set_log_level
+HAVE_NC_SET_LOG_LEVEL:INTERNAL=
 //ADVANCED property for variable: LAPACK_goto2_LIBRARY
 LAPACK_goto2_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: LAPACK_lapack_LIBRARY
-LAPACK_lapack_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: LAPACK_lapack_WORKS
-LAPACK_lapack_WORKS-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: LAPACK_openblas_LIBRARY
+LAPACK_openblas_LIBRARY-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: LAPACK_openblas_WORKS
+LAPACK_openblas_WORKS-ADVANCED:INTERNAL=1
 //Have Fortran function cheev
-LAPACK_lapack_WORKS:INTERNAL=1
-//ADVANCED property for variable: LAPACK_vecLib_LIBRARY
-LAPACK_vecLib_LIBRARY-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPIEXEC
-MPIEXEC-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPIEXEC_MAX_NUMPROCS
-MPIEXEC_MAX_NUMPROCS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPIEXEC_NUMPROC_FLAG
-MPIEXEC_NUMPROC_FLAG-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPIEXEC_POSTFLAGS
-MPIEXEC_POSTFLAGS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPIEXEC_PREFLAGS
-MPIEXEC_PREFLAGS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_CXX_COMPILER
-MPI_CXX_COMPILER-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_CXX_COMPILE_FLAGS
-MPI_CXX_COMPILE_FLAGS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_CXX_INCLUDE_PATH
-MPI_CXX_INCLUDE_PATH-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_CXX_LIBRARIES
-MPI_CXX_LIBRARIES-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_CXX_LINK_FLAGS
-MPI_CXX_LINK_FLAGS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_C_COMPILER
-MPI_C_COMPILER-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_C_COMPILE_FLAGS
-MPI_C_COMPILE_FLAGS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_C_INCLUDE_PATH
-MPI_C_INCLUDE_PATH-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_C_LIBRARIES
-MPI_C_LIBRARIES-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_C_LINK_FLAGS
-MPI_C_LINK_FLAGS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_Fortran_COMPILER
-MPI_Fortran_COMPILER-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_Fortran_COMPILE_FLAGS
-MPI_Fortran_COMPILE_FLAGS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_Fortran_INCLUDE_PATH
-MPI_Fortran_INCLUDE_PATH-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_Fortran_LIBRARIES
-MPI_Fortran_LIBRARIES-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: MPI_Fortran_LINK_FLAGS
-MPI_Fortran_LINK_FLAGS-ADVANCED:INTERNAL=1
-//Scratch variable for MPI header detection
-MPI_HEADER_PATH:INTERNAL=MPI_HEADER_PATH-NOTFOUND
-//Scratch variable for MPI lib detection
-MPI_LIB:INTERNAL=MPI_LIB-NOTFOUND
-//Test MULTIPASS_TEST_1_petsc_works_minimal
-MULTIPASS_TEST_1_petsc_works_minimal:INTERNAL=
-//Result of TRY_COMPILE
-MULTIPASS_TEST_1_petsc_works_minimal_COMPILED:INTERNAL=FALSE
-//Test MULTIPASS_TEST_2_petsc_works_allincludes
-MULTIPASS_TEST_2_petsc_works_allincludes:INTERNAL=
-//Result of TRY_COMPILE
-MULTIPASS_TEST_2_petsc_works_allincludes_COMPILED:INTERNAL=FALSE
-//Test MULTIPASS_TEST_3_petsc_works_alllibraries
-MULTIPASS_TEST_3_petsc_works_alllibraries:INTERNAL=
-//Result of TRY_COMPILE
-MULTIPASS_TEST_3_petsc_works_alllibraries_COMPILED:INTERNAL=FALSE
-//Test MULTIPASS_TEST_4_petsc_works_all
-MULTIPASS_TEST_4_petsc_works_all:INTERNAL=1
-//Result of TRY_COMPILE
-MULTIPASS_TEST_4_petsc_works_all_COMPILED:INTERNAL=TRUE
-//Result of TRY_RUN
-MULTIPASS_TEST_4_petsc_works_all_EXITCODE:INTERNAL=0
-//Unique test ID
-MULTIPASS_TEST_COUNT:INTERNAL=4
+LAPACK_openblas_WORKS:INTERNAL=1
 //ADVANCED property for variable: NETCDF_INCLUDES
 NETCDF_INCLUDES-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: NETCDF_INCLUDES_F90
@@ -683,47 +555,9 @@ NETCDF_LIBRARIES_C-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: NETCDF_LIBRARIES_F90
 NETCDF_LIBRARIES_F90-ADVANCED:INTERNAL=1
 //Stored state for PETSc.
-PACKAGE_MULTIPASS_PETSC_ARCH:INTERNAL=fast_single
+PACKAGE_MULTIPASS_PETSC_ARCH:INTERNAL=
 //Stored state for PETSc.
-PACKAGE_MULTIPASS_PETSC_DIR:INTERNAL=/home/opt/cosmo_tica_lib/ompi1.8.1/petsc-maint
+PACKAGE_MULTIPASS_PETSC_DIR:INTERNAL=PETSC_DIR-NOTFOUND
 //Private
 PACKAGE_MULTIPASS__CALLED:INTERNAL=YES
-//ADVANCED property for variable: PETSC_COMPILER
-PETSC_COMPILER-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: PETSC_DEFINITIONS
-PETSC_DEFINITIONS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: PETSC_EXECUTABLE_RUNS
-PETSC_EXECUTABLE_RUNS-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: PETSC_INCLUDES
-PETSC_INCLUDES-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: PETSC_INCLUDE_CONF
-PETSC_INCLUDE_CONF-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: PETSC_INCLUDE_DIR
-PETSC_INCLUDE_DIR-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: PETSC_LIBRARIES
-PETSC_LIBRARIES-ADVANCED:INTERNAL=1
-//ADVANCED property for variable: PETSC_LIBRARY_SINGLE
-PETSC_LIBRARY_SINGLE-ADVANCED:INTERNAL=1
-//Cleared
-PETSC_LIBRARY_VEC:INTERNAL=NOTFOUND
-//ADVANCED property for variable: PETSC_MPIEXEC
-PETSC_MPIEXEC-ADVANCED:INTERNAL=1
-//Scratch variable
-_lib:INTERNAL=NOTFOUND
-//Cleared
-petsc_cc:INTERNAL=NOTFOUND
-//Cleared
-petsc_cc_flags:INTERNAL=NOTFOUND
-//Cleared
-petsc_cpp_line:INTERNAL=NOTFOUND
-//Cleared
-petsc_include:INTERNAL=NOTFOUND
-//Cleared
-petsc_lib_dir:INTERNAL=NOTFOUND
-//Cleared
-petsc_libs_external:INTERNAL=NOTFOUND
-//Cleared
-petsc_mpiexec:INTERNAL=NOTFOUND
-//Scratch variable
-petscconf:INTERNAL=NOTFOUND
 

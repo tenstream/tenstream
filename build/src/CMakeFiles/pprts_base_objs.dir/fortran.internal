@@ -1,0 +1,27 @@
+# The fortran modules provided by this target.
+provides
+ m_adaptive_spectral_integration
+ m_boxmc
+ m_boxmc_geometry
+ m_c_syscall_wrappers
+ m_data_parameters
+ m_eddington
+ m_helper_functions
+ m_helper_functions_dp
+ m_kiss_rng
+ m_lut_param_phi
+ m_mcrts_dmda
+ m_mmap
+ m_netcdfio
+ m_optprop
+ m_optprop_ann
+ m_optprop_lut
+ m_optprop_parameters
+ m_petsc_helpers
+ m_pprts_base
+ m_schwarzschild
+ m_search
+ m_tenstream_interpolation
+ m_tenstream_options
+ m_ts_nca
+ m_twostream

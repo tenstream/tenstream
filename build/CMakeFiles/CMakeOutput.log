@@ -1,8 +1,8 @@
-The system is: Linux - 4.1.13-5-default - x86_64
+The system is: Linux - 4.15.0-58-generic - x86_64
 Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
-Compiler: /usr/bin/cc 
+Compiler: /usr/bin/mpicc 
 Build flags: 
-Id flags: 
+Id flags:  
 
 The output was:
 0
@@ -10,126 +10,201 @@ The output was:
 
 Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
 
-The C compiler identification is GNU, found in "/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/3.4.1/CompilerIdC/a.out"
+The C compiler identification is GNU, found in "/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/3.10.2/CompilerIdC/a.out"
 
-Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
-Compiler: /usr/bin/c++ 
+Compiling the Fortran compiler identification source file "CMakeFortranCompilerId.F" succeeded.
+Compiler: /usr/bin/mpif90 
 Build flags: 
-Id flags: 
+Id flags: -v 
 
 The output was:
 0
+Driving: /usr/bin/gfortran -v CMakeFortranCompilerId.F -I/usr/lib/x86_64-linux-gnu/openmpi/include -pthread -I/usr/lib/x86_64-linux-gnu/openmpi/lib -L/usr//lib -L/usr/lib/x86_64-linux-gnu/openmpi/lib -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc
+Using built-in specs.
+COLLECT_GCC=/usr/bin/gfortran
+COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper
+OFFLOAD_TARGET_NAMES=nvptx-none
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Ubuntu 7.4.0-1ubuntu1~18.04.1' --with-bugurl=file:///usr/share/doc/gcc-7/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++ --prefix=/usr --with-gcc-major-version-only --program-suffix=-7 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-libmpx --enable-plugin --enable-default-pie --with-system-zlib --with-target-system-zlib --enable-objc-gc=auto --enable-multiarch --disable-werror --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu
+Thread model: posix
+gcc version 7.4.0 (Ubuntu 7.4.0-1ubuntu1~18.04.1) 
+COLLECT_GCC_OPTIONS='-v' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/lib' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ /usr/lib/gcc/x86_64-linux-gnu/7/f951 CMakeFortranCompilerId.F -ffixed-form -cpp=/tmp/ccNwTg5V.f90 -quiet -v -I /usr/lib/x86_64-linux-gnu/openmpi/include -I /usr/lib/x86_64-linux-gnu/openmpi/lib -imultiarch x86_64-linux-gnu -D_REENTRANT CMakeFortranCompilerId.F -quiet -dumpbase CMakeFortranCompilerId.F -mtune=generic -march=x86-64 -auxbase CMakeFortranCompilerId -version -fintrinsic-modules-path /usr/lib/gcc/x86_64-linux-gnu/7/finclude -o /tmp/ccF3dWUm.s
+GNU Fortran (Ubuntu 7.4.0-1ubuntu1~18.04.1) version 7.4.0 (x86_64-linux-gnu)
+	compiled by GNU C version 7.4.0, GMP version 6.1.2, MPFR version 4.0.1, MPC version 1.1.0, isl version isl-0.19-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+ignoring nonexistent directory "/usr/local/include/x86_64-linux-gnu"
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/7/../../../../x86_64-linux-gnu/include"
+ignoring duplicate directory "/opt/slurm/include/slurm"
+#include "..." search starts here:
+#include <...> search starts here:
+ /usr/lib/x86_64-linux-gnu/openmpi/include
+ /usr/lib/x86_64-linux-gnu/openmpi/lib
+ /usr/lib/gcc/x86_64-linux-gnu/7/finclude
+ /opt/slurm/include/slurm
+ .
+ /usr/lib/gcc/x86_64-linux-gnu/7/include
+ /usr/local/include
+ /usr/lib/gcc/x86_64-linux-gnu/7/include-fixed
+ /usr/include/x86_64-linux-gnu
+ /usr/include
+End of search list.
+GNU Fortran2008 (Ubuntu 7.4.0-1ubuntu1~18.04.1) version 7.4.0 (x86_64-linux-gnu)
+	compiled by GNU C version 7.4.0, GMP version 6.1.2, MPFR version 4.0.1, MPC version 1.1.0, isl version isl-0.19-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+COLLECT_GCC_OPTIONS='-v' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/lib' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ as -v -I /usr/lib/x86_64-linux-gnu/openmpi/include -I /usr/lib/x86_64-linux-gnu/openmpi/lib --64 -o /tmp/ccQJS5WN.o /tmp/ccF3dWUm.s
+GNU assembler version 2.30 (x86_64-linux-gnu) using BFD version (GNU Binutils for Ubuntu) 2.30
+Reading specs from /usr/lib/gcc/x86_64-linux-gnu/7/libgfortran.spec
+rename spec lib to liborig
+COLLECT_GCC_OPTIONS='-v' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/lib' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/lib' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ /usr/lib/gcc/x86_64-linux-gnu/7/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/7/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper -plugin-opt=-fresolution=/tmp/cchWLy0e.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lquadmath -plugin-opt=-pass-through=-lm -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --sysroot=/ --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/7/crtbeginS.o -L/usr//lib -L/usr/lib/x86_64-linux-gnu/openmpi/lib -L/usr/lib/gcc/x86_64-linux-gnu/7 -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/7/../../.. /tmp/ccQJS5WN.o -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/7/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/lib' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
 
 
-Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
+Compilation of the Fortran compiler identification source "CMakeFortranCompilerId.F" produced "a.out"
 
-The CXX compiler identification is GNU, found in "/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/3.4.1/CompilerIdCXX/a.out"
+The Fortran compiler identification is GNU, found in "/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/3.10.2/CompilerIdFortran/a.out"
 
 Determining if the C compiler works passed with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_13efc/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_13efc.dir/build.make CMakeFiles/cmTC_13efc.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_13efc.dir/testCCompiler.c.o
-/usr/bin/cc     -o CMakeFiles/cmTC_13efc.dir/testCCompiler.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testCCompiler.c
-Linking C executable cmTC_13efc
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_13efc.dir/link.txt --verbose=1
-/usr/bin/cc       CMakeFiles/cmTC_13efc.dir/testCCompiler.c.o  -o cmTC_13efc -rdynamic 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_53eea/fast"
+/usr/bin/make -f CMakeFiles/cmTC_53eea.dir/build.make CMakeFiles/cmTC_53eea.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_53eea.dir/testCCompiler.c.o
+/usr/bin/mpicc    -o CMakeFiles/cmTC_53eea.dir/testCCompiler.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testCCompiler.c
+Linking C executable cmTC_53eea
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_53eea.dir/link.txt --verbose=1
+/usr/bin/mpicc      CMakeFiles/cmTC_53eea.dir/testCCompiler.c.o  -o cmTC_53eea 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
 Detecting C compiler ABI info compiled with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_99f88/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_99f88.dir/build.make CMakeFiles/cmTC_99f88.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_99f88.dir/CMakeCCompilerABI.c.o
-/usr/bin/cc     -o CMakeFiles/cmTC_99f88.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c
-Linking C executable cmTC_99f88
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_99f88.dir/link.txt --verbose=1
-/usr/bin/cc      -v CMakeFiles/cmTC_99f88.dir/CMakeCCompilerABI.c.o  -o cmTC_99f88 -rdynamic  
+Run Build Command:"/usr/bin/make" "cmTC_22c82/fast"
+/usr/bin/make -f CMakeFiles/cmTC_22c82.dir/build.make CMakeFiles/cmTC_22c82.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_22c82.dir/CMakeCCompilerABI.c.o
+/usr/bin/mpicc    -o CMakeFiles/cmTC_22c82.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake-3.10/Modules/CMakeCCompilerABI.c
+Linking C executable cmTC_22c82
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_22c82.dir/link.txt --verbose=1
+/usr/bin/mpicc     -v CMakeFiles/cmTC_22c82.dir/CMakeCCompilerABI.c.o  -o cmTC_22c82 
 Using built-in specs.
-COLLECT_GCC=/usr/bin/cc
-COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper
-Target: x86_64-suse-linux
-Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
+COLLECT_GCC=/usr/bin/gcc
+COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper
+OFFLOAD_TARGET_NAMES=nvptx-none
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Ubuntu 7.4.0-1ubuntu1~18.04.1' --with-bugurl=file:///usr/share/doc/gcc-7/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++ --prefix=/usr --with-gcc-major-version-only --program-suffix=-7 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-libmpx --enable-plugin --enable-default-pie --with-system-zlib --with-target-system-zlib --enable-objc-gc=auto --enable-multiarch --disable-werror --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu
 Thread model: posix
-gcc version 4.8.5 (SUSE Linux) 
-COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/
-LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_99f88' '-rdynamic' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_99f88 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_99f88.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+gcc version 7.4.0 (Ubuntu 7.4.0-1ubuntu1~18.04.1) 
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_22c82' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/opal/mca/event/libevent2022/libevent' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/opal/mca/event/libevent2022/libevent/include' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-mtune=generic' '-march=x86-64'
+ /usr/lib/gcc/x86_64-linux-gnu/7/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/7/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper -plugin-opt=-fresolution=/tmp/cceTmkSE.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --sysroot=/ --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_22c82 /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/7/crtbeginS.o -L/usr//lib -L/usr/lib/x86_64-linux-gnu/openmpi/lib -L/usr/lib/gcc/x86_64-linux-gnu/7 -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/7/../../.. CMakeFiles/cmTC_22c82.dir/CMakeCCompilerABI.c.o -lmpi -lgcc --push-state --as-needed -lgcc_s --pop-state -lpthread -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-linux-gnu/7/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_22c82' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/opal/mca/event/libevent2022/libevent' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/opal/mca/event/libevent2022/libevent/include' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-mtune=generic' '-march=x86-64'
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
 Parsed C implicit link information from above output:
-  link line regex: [^( *|.*[/\])(ld|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
   ignore line: [Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp]
   ignore line: []
-  ignore line: [Run Build Command:"/usr/bin/gmake" "cmTC_99f88/fast"]
-  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_99f88.dir/build.make CMakeFiles/cmTC_99f88.dir/build]
-  ignore line: [gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
-  ignore line: [Building C object CMakeFiles/cmTC_99f88.dir/CMakeCCompilerABI.c.o]
-  ignore line: [/usr/bin/cc     -o CMakeFiles/cmTC_99f88.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c]
-  ignore line: [Linking C executable cmTC_99f88]
-  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_99f88.dir/link.txt --verbose=1]
-  ignore line: [/usr/bin/cc      -v CMakeFiles/cmTC_99f88.dir/CMakeCCompilerABI.c.o  -o cmTC_99f88 -rdynamic  ]
+  ignore line: [Run Build Command:"/usr/bin/make" "cmTC_22c82/fast"]
+  ignore line: [/usr/bin/make -f CMakeFiles/cmTC_22c82.dir/build.make CMakeFiles/cmTC_22c82.dir/build]
+  ignore line: [make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
+  ignore line: [Building C object CMakeFiles/cmTC_22c82.dir/CMakeCCompilerABI.c.o]
+  ignore line: [/usr/bin/mpicc    -o CMakeFiles/cmTC_22c82.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake-3.10/Modules/CMakeCCompilerABI.c]
+  ignore line: [Linking C executable cmTC_22c82]
+  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_22c82.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/mpicc     -v CMakeFiles/cmTC_22c82.dir/CMakeCCompilerABI.c.o  -o cmTC_22c82 ]
   ignore line: [Using built-in specs.]
-  ignore line: [COLLECT_GCC=/usr/bin/cc]
-  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper]
-  ignore line: [Target: x86_64-suse-linux]
-  ignore line: [Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux]
+  ignore line: [COLLECT_GCC=/usr/bin/gcc]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper]
+  ignore line: [OFFLOAD_TARGET_NAMES=nvptx-none]
+  ignore line: [OFFLOAD_TARGET_DEFAULT=1]
+  ignore line: [Target: x86_64-linux-gnu]
+  ignore line: [Configured with: ../src/configure -v --with-pkgversion='Ubuntu 7.4.0-1ubuntu1~18.04.1' --with-bugurl=file:///usr/share/doc/gcc-7/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++ --prefix=/usr --with-gcc-major-version-only --program-suffix=-7 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-libmpx --enable-plugin --enable-default-pie --with-system-zlib --with-target-system-zlib --enable-objc-gc=auto --enable-multiarch --disable-werror --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu]
   ignore line: [Thread model: posix]
-  ignore line: [gcc version 4.8.5 (SUSE Linux) ]
-  ignore line: [COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/]
-  ignore line: [LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/]
-  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_99f88' '-rdynamic' '-mtune=generic' '-march=x86-64']
-  link line: [ /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_99f88 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_99f88.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o]
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/collect2] ==> ignore
+  ignore line: [gcc version 7.4.0 (Ubuntu 7.4.0-1ubuntu1~18.04.1) ]
+  ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_22c82' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/opal/mca/event/libevent2022/libevent' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/opal/mca/event/libevent2022/libevent/include' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-mtune=generic' '-march=x86-64']
+  link line: [ /usr/lib/gcc/x86_64-linux-gnu/7/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/7/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper -plugin-opt=-fresolution=/tmp/cceTmkSE.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --sysroot=/ --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_22c82 /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/7/crtbeginS.o -L/usr//lib -L/usr/lib/x86_64-linux-gnu/openmpi/lib -L/usr/lib/gcc/x86_64-linux-gnu/7 -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/7/../../.. CMakeFiles/cmTC_22c82.dir/CMakeCCompilerABI.c.o -lmpi -lgcc --push-state --as-needed -lgcc_s --pop-state -lpthread -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-linux-gnu/7/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crtn.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/cceTmkSE.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lpthread] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [--sysroot=/] ==> ignore
     arg [--build-id] ==> ignore
     arg [--eh-frame-hdr] ==> ignore
     arg [-m] ==> ignore
     arg [elf_x86_64] ==> ignore
-    arg [-export-dynamic] ==> ignore
+    arg [--hash-style=gnu] ==> ignore
+    arg [--as-needed] ==> ignore
     arg [-dynamic-linker] ==> ignore
     arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-pie] ==> ignore
+    arg [-znow] ==> ignore
+    arg [-zrelro] ==> ignore
     arg [-o] ==> ignore
-    arg [cmTC_99f88] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o] ==> ignore
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64]
-    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
-    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..]
-    arg [CMakeFiles/cmTC_99f88.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [cmTC_22c82] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/Scrt1.o] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crti.o] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/crtbeginS.o] ==> ignore
+    arg [-L/usr//lib] ==> dir [/usr//lib]
+    arg [-L/usr/lib/x86_64-linux-gnu/openmpi/lib] ==> dir [/usr/lib/x86_64-linux-gnu/openmpi/lib]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib]
+    arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+    arg [-L/lib/../lib] ==> dir [/lib/../lib]
+    arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+    arg [-L/usr/lib/../lib] ==> dir [/usr/lib/../lib]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7/../../..] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../..]
+    arg [CMakeFiles/cmTC_22c82.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [-lmpi] ==> lib [mpi]
     arg [-lgcc] ==> lib [gcc]
+    arg [--push-state] ==> ignore
     arg [--as-needed] ==> ignore
     arg [-lgcc_s] ==> lib [gcc_s]
-    arg [--no-as-needed] ==> ignore
+    arg [--pop-state] ==> ignore
+    arg [-lpthread] ==> lib [pthread]
     arg [-lc] ==> lib [c]
     arg [-lgcc] ==> lib [gcc]
+    arg [--push-state] ==> ignore
     arg [--as-needed] ==> ignore
     arg [-lgcc_s] ==> lib [gcc_s]
-    arg [--no-as-needed] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o] ==> ignore
-  remove lib [gcc]
-  remove lib [gcc_s]
-  remove lib [gcc]
-  remove lib [gcc_s]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> [/usr/lib64]
-  collapse library dir [/lib/../lib64] ==> [/lib64]
-  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> [/usr/x86_64-suse-linux/lib]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> [/usr/lib64]
-  implicit libs: [c]
-  implicit dirs: [/usr/lib64/gcc/x86_64-suse-linux/4.8;/usr/lib64;/lib64;/usr/x86_64-suse-linux/lib]
+    arg [--pop-state] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/crtendS.o] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crtn.o] ==> ignore
+  collapse library dir [/usr//lib] ==> [/usr/lib]
+  collapse library dir [/usr/lib/x86_64-linux-gnu/openmpi/lib] ==> [/usr/lib/x86_64-linux-gnu/openmpi/lib]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7] ==> [/usr/lib/gcc/x86_64-linux-gnu/7]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib] ==> [/usr/lib]
+  collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+  collapse library dir [/lib/../lib] ==> [/lib]
+  collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/../lib] ==> [/usr/lib]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../..] ==> [/usr/lib]
+  implicit libs: [mpi;gcc;gcc_s;pthread;c;gcc;gcc_s]
+  implicit dirs: [/usr/lib;/usr/lib/x86_64-linux-gnu/openmpi/lib;/usr/lib/gcc/x86_64-linux-gnu/7;/usr/lib/x86_64-linux-gnu;/lib/x86_64-linux-gnu;/lib]
   implicit fwks: []
 
 
@@ -138,15 +213,15 @@ Parsed C implicit link information from above output:
 Detecting C [-std=c11] compiler features compiled with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_60474/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_60474.dir/build.make CMakeFiles/cmTC_60474.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_60474.dir/feature_tests.c.o
-/usr/bin/cc    -std=c11 -o CMakeFiles/cmTC_60474.dir/feature_tests.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.c
-Linking C executable cmTC_60474
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_60474.dir/link.txt --verbose=1
-/usr/bin/cc       CMakeFiles/cmTC_60474.dir/feature_tests.c.o  -o cmTC_60474 -rdynamic 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_c170c/fast"
+/usr/bin/make -f CMakeFiles/cmTC_c170c.dir/build.make CMakeFiles/cmTC_c170c.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_c170c.dir/feature_tests.c.o
+/usr/bin/mpicc   -std=c11 -o CMakeFiles/cmTC_c170c.dir/feature_tests.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_c170c
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_c170c.dir/link.txt --verbose=1
+/usr/bin/mpicc      CMakeFiles/cmTC_c170c.dir/feature_tests.c.o  -o cmTC_c170c 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
     Feature record: C_FEATURE:1c_function_prototypes
@@ -158,15 +233,15 @@ gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/
 Detecting C [-std=c99] compiler features compiled with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_cc406/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_cc406.dir/build.make CMakeFiles/cmTC_cc406.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_cc406.dir/feature_tests.c.o
-/usr/bin/cc    -std=c99 -o CMakeFiles/cmTC_cc406.dir/feature_tests.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.c
-Linking C executable cmTC_cc406
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_cc406.dir/link.txt --verbose=1
-/usr/bin/cc       CMakeFiles/cmTC_cc406.dir/feature_tests.c.o  -o cmTC_cc406 -rdynamic 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_b6237/fast"
+/usr/bin/make -f CMakeFiles/cmTC_b6237.dir/build.make CMakeFiles/cmTC_b6237.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_b6237.dir/feature_tests.c.o
+/usr/bin/mpicc   -std=c99 -o CMakeFiles/cmTC_b6237.dir/feature_tests.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_b6237
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b6237.dir/link.txt --verbose=1
+/usr/bin/mpicc      CMakeFiles/cmTC_b6237.dir/feature_tests.c.o  -o cmTC_b6237 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
     Feature record: C_FEATURE:1c_function_prototypes
@@ -178,495 +253,141 @@ gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/
 Detecting C [-std=c90] compiler features compiled with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_99c47/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_99c47.dir/build.make CMakeFiles/cmTC_99c47.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_99c47.dir/feature_tests.c.o
-/usr/bin/cc    -std=c90 -o CMakeFiles/cmTC_99c47.dir/feature_tests.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.c
-Linking C executable cmTC_99c47
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_99c47.dir/link.txt --verbose=1
-/usr/bin/cc       CMakeFiles/cmTC_99c47.dir/feature_tests.c.o  -o cmTC_99c47 -rdynamic 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_4fc3c/fast"
+/usr/bin/make -f CMakeFiles/cmTC_4fc3c.dir/build.make CMakeFiles/cmTC_4fc3c.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_4fc3c.dir/feature_tests.c.o
+/usr/bin/mpicc   -std=c90 -o CMakeFiles/cmTC_4fc3c.dir/feature_tests.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_4fc3c
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4fc3c.dir/link.txt --verbose=1
+/usr/bin/mpicc      CMakeFiles/cmTC_4fc3c.dir/feature_tests.c.o  -o cmTC_4fc3c 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
     Feature record: C_FEATURE:1c_function_prototypes
     Feature record: C_FEATURE:0c_restrict
     Feature record: C_FEATURE:0c_static_assert
     Feature record: C_FEATURE:0c_variadic_macros
-Determining if the CXX compiler works passed with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_1f64d/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_1f64d.dir/build.make CMakeFiles/cmTC_1f64d.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_1f64d.dir/testCXXCompiler.cxx.o
-/usr/bin/c++      -o CMakeFiles/cmTC_1f64d.dir/testCXXCompiler.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testCXXCompiler.cxx
-Linking CXX executable cmTC_1f64d
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1f64d.dir/link.txt --verbose=1
-/usr/bin/c++        CMakeFiles/cmTC_1f64d.dir/testCXXCompiler.cxx.o  -o cmTC_1f64d -rdynamic 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-Detecting CXX compiler ABI info compiled with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_7f664/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_7f664.dir/build.make CMakeFiles/cmTC_7f664.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_7f664.dir/CMakeCXXCompilerABI.cpp.o
-/usr/bin/c++      -o CMakeFiles/cmTC_7f664.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake/Modules/CMakeCXXCompilerABI.cpp
-Linking CXX executable cmTC_7f664
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7f664.dir/link.txt --verbose=1
-/usr/bin/c++       -v CMakeFiles/cmTC_7f664.dir/CMakeCXXCompilerABI.cpp.o  -o cmTC_7f664 -rdynamic  
-Using built-in specs.
-COLLECT_GCC=/usr/bin/c++
-COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper
-Target: x86_64-suse-linux
-Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
-Thread model: posix
-gcc version 4.8.5 (SUSE Linux) 
-COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/
-LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_7f664' '-rdynamic' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_7f664 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_7f664.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-Parsed CXX implicit link information from above output:
-  link line regex: [^( *|.*[/\])(ld|([^/\]+-)?ld|collect2)[^/\]*( |$)]
-  ignore line: [Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp]
-  ignore line: []
-  ignore line: [Run Build Command:"/usr/bin/gmake" "cmTC_7f664/fast"]
-  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_7f664.dir/build.make CMakeFiles/cmTC_7f664.dir/build]
-  ignore line: [gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
-  ignore line: [Building CXX object CMakeFiles/cmTC_7f664.dir/CMakeCXXCompilerABI.cpp.o]
-  ignore line: [/usr/bin/c++      -o CMakeFiles/cmTC_7f664.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake/Modules/CMakeCXXCompilerABI.cpp]
-  ignore line: [Linking CXX executable cmTC_7f664]
-  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7f664.dir/link.txt --verbose=1]
-  ignore line: [/usr/bin/c++       -v CMakeFiles/cmTC_7f664.dir/CMakeCXXCompilerABI.cpp.o  -o cmTC_7f664 -rdynamic  ]
-  ignore line: [Using built-in specs.]
-  ignore line: [COLLECT_GCC=/usr/bin/c++]
-  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper]
-  ignore line: [Target: x86_64-suse-linux]
-  ignore line: [Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux]
-  ignore line: [Thread model: posix]
-  ignore line: [gcc version 4.8.5 (SUSE Linux) ]
-  ignore line: [COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/]
-  ignore line: [LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/]
-  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_7f664' '-rdynamic' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
-  link line: [ /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_7f664 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_7f664.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o]
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/collect2] ==> ignore
-    arg [--build-id] ==> ignore
-    arg [--eh-frame-hdr] ==> ignore
-    arg [-m] ==> ignore
-    arg [elf_x86_64] ==> ignore
-    arg [-export-dynamic] ==> ignore
-    arg [-dynamic-linker] ==> ignore
-    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
-    arg [-o] ==> ignore
-    arg [cmTC_7f664] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o] ==> ignore
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64]
-    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
-    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..]
-    arg [CMakeFiles/cmTC_7f664.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
-    arg [-lstdc++] ==> lib [stdc++]
-    arg [-lm] ==> lib [m]
-    arg [-lgcc_s] ==> lib [gcc_s]
-    arg [-lgcc] ==> lib [gcc]
-    arg [-lc] ==> lib [c]
-    arg [-lgcc_s] ==> lib [gcc_s]
-    arg [-lgcc] ==> lib [gcc]
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o] ==> ignore
-  remove lib [gcc_s]
-  remove lib [gcc]
-  remove lib [gcc_s]
-  remove lib [gcc]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> [/usr/lib64]
-  collapse library dir [/lib/../lib64] ==> [/lib64]
-  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> [/usr/x86_64-suse-linux/lib]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> [/usr/lib64]
-  implicit libs: [stdc++;m;c]
-  implicit dirs: [/usr/lib64/gcc/x86_64-suse-linux/4.8;/usr/lib64;/lib64;/usr/x86_64-suse-linux/lib]
-  implicit fwks: []
-
-
-
-
-Detecting CXX [-std=c++1y] compiler features compiled with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_43265/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_43265.dir/build.make CMakeFiles/cmTC_43265.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_43265.dir/feature_tests.cxx.o
-/usr/bin/c++     -std=c++1y -o CMakeFiles/cmTC_43265.dir/feature_tests.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.cxx
-Linking CXX executable cmTC_43265
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_43265.dir/link.txt --verbose=1
-/usr/bin/c++        CMakeFiles/cmTC_43265.dir/feature_tests.cxx.o  -o cmTC_43265 -rdynamic 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-    Feature record: CXX_FEATURE:0cxx_aggregate_default_initializers
-    Feature record: CXX_FEATURE:1cxx_alias_templates
-    Feature record: CXX_FEATURE:1cxx_alignas
-    Feature record: CXX_FEATURE:1cxx_alignof
-    Feature record: CXX_FEATURE:1cxx_attributes
-    Feature record: CXX_FEATURE:0cxx_attribute_deprecated
-    Feature record: CXX_FEATURE:1cxx_auto_type
-    Feature record: CXX_FEATURE:0cxx_binary_literals
-    Feature record: CXX_FEATURE:1cxx_constexpr
-    Feature record: CXX_FEATURE:0cxx_contextual_conversions
-    Feature record: CXX_FEATURE:1cxx_decltype
-    Feature record: CXX_FEATURE:0cxx_decltype_auto
-    Feature record: CXX_FEATURE:1cxx_decltype_incomplete_return_types
-    Feature record: CXX_FEATURE:1cxx_default_function_template_args
-    Feature record: CXX_FEATURE:1cxx_defaulted_functions
-    Feature record: CXX_FEATURE:1cxx_defaulted_move_initializers
-    Feature record: CXX_FEATURE:1cxx_delegating_constructors
-    Feature record: CXX_FEATURE:1cxx_deleted_functions
-    Feature record: CXX_FEATURE:0cxx_digit_separators
-    Feature record: CXX_FEATURE:1cxx_enum_forward_declarations
-    Feature record: CXX_FEATURE:1cxx_explicit_conversions
-    Feature record: CXX_FEATURE:1cxx_extended_friend_declarations
-    Feature record: CXX_FEATURE:1cxx_extern_templates
-    Feature record: CXX_FEATURE:1cxx_final
-    Feature record: CXX_FEATURE:1cxx_func_identifier
-    Feature record: CXX_FEATURE:1cxx_generalized_initializers
-    Feature record: CXX_FEATURE:0cxx_generic_lambdas
-    Feature record: CXX_FEATURE:1cxx_inheriting_constructors
-    Feature record: CXX_FEATURE:1cxx_inline_namespaces
-    Feature record: CXX_FEATURE:1cxx_lambdas
-    Feature record: CXX_FEATURE:0cxx_lambda_init_captures
-    Feature record: CXX_FEATURE:1cxx_local_type_template_args
-    Feature record: CXX_FEATURE:1cxx_long_long_type
-    Feature record: CXX_FEATURE:1cxx_noexcept
-    Feature record: CXX_FEATURE:1cxx_nonstatic_member_init
-    Feature record: CXX_FEATURE:1cxx_nullptr
-    Feature record: CXX_FEATURE:1cxx_override
-    Feature record: CXX_FEATURE:1cxx_range_for
-    Feature record: CXX_FEATURE:1cxx_raw_string_literals
-    Feature record: CXX_FEATURE:1cxx_reference_qualified_functions
-    Feature record: CXX_FEATURE:0cxx_relaxed_constexpr
-    Feature record: CXX_FEATURE:0cxx_return_type_deduction
-    Feature record: CXX_FEATURE:1cxx_right_angle_brackets
-    Feature record: CXX_FEATURE:1cxx_rvalue_references
-    Feature record: CXX_FEATURE:1cxx_sizeof_member
-    Feature record: CXX_FEATURE:1cxx_static_assert
-    Feature record: CXX_FEATURE:1cxx_strong_enums
-    Feature record: CXX_FEATURE:1cxx_template_template_parameters
-    Feature record: CXX_FEATURE:1cxx_thread_local
-    Feature record: CXX_FEATURE:1cxx_trailing_return_types
-    Feature record: CXX_FEATURE:1cxx_unicode_literals
-    Feature record: CXX_FEATURE:1cxx_uniform_initialization
-    Feature record: CXX_FEATURE:1cxx_unrestricted_unions
-    Feature record: CXX_FEATURE:1cxx_user_literals
-    Feature record: CXX_FEATURE:0cxx_variable_templates
-    Feature record: CXX_FEATURE:1cxx_variadic_macros
-    Feature record: CXX_FEATURE:1cxx_variadic_templates
-
-
-Detecting CXX [-std=c++11] compiler features compiled with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_0f3ff/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_0f3ff.dir/build.make CMakeFiles/cmTC_0f3ff.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_0f3ff.dir/feature_tests.cxx.o
-/usr/bin/c++     -std=c++11 -o CMakeFiles/cmTC_0f3ff.dir/feature_tests.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.cxx
-Linking CXX executable cmTC_0f3ff
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0f3ff.dir/link.txt --verbose=1
-/usr/bin/c++        CMakeFiles/cmTC_0f3ff.dir/feature_tests.cxx.o  -o cmTC_0f3ff -rdynamic 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-    Feature record: CXX_FEATURE:0cxx_aggregate_default_initializers
-    Feature record: CXX_FEATURE:1cxx_alias_templates
-    Feature record: CXX_FEATURE:1cxx_alignas
-    Feature record: CXX_FEATURE:1cxx_alignof
-    Feature record: CXX_FEATURE:1cxx_attributes
-    Feature record: CXX_FEATURE:0cxx_attribute_deprecated
-    Feature record: CXX_FEATURE:1cxx_auto_type
-    Feature record: CXX_FEATURE:0cxx_binary_literals
-    Feature record: CXX_FEATURE:1cxx_constexpr
-    Feature record: CXX_FEATURE:0cxx_contextual_conversions
-    Feature record: CXX_FEATURE:1cxx_decltype
-    Feature record: CXX_FEATURE:0cxx_decltype_auto
-    Feature record: CXX_FEATURE:1cxx_decltype_incomplete_return_types
-    Feature record: CXX_FEATURE:1cxx_default_function_template_args
-    Feature record: CXX_FEATURE:1cxx_defaulted_functions
-    Feature record: CXX_FEATURE:1cxx_defaulted_move_initializers
-    Feature record: CXX_FEATURE:1cxx_delegating_constructors
-    Feature record: CXX_FEATURE:1cxx_deleted_functions
-    Feature record: CXX_FEATURE:0cxx_digit_separators
-    Feature record: CXX_FEATURE:1cxx_enum_forward_declarations
-    Feature record: CXX_FEATURE:1cxx_explicit_conversions
-    Feature record: CXX_FEATURE:1cxx_extended_friend_declarations
-    Feature record: CXX_FEATURE:1cxx_extern_templates
-    Feature record: CXX_FEATURE:1cxx_final
-    Feature record: CXX_FEATURE:1cxx_func_identifier
-    Feature record: CXX_FEATURE:1cxx_generalized_initializers
-    Feature record: CXX_FEATURE:0cxx_generic_lambdas
-    Feature record: CXX_FEATURE:1cxx_inheriting_constructors
-    Feature record: CXX_FEATURE:1cxx_inline_namespaces
-    Feature record: CXX_FEATURE:1cxx_lambdas
-    Feature record: CXX_FEATURE:0cxx_lambda_init_captures
-    Feature record: CXX_FEATURE:1cxx_local_type_template_args
-    Feature record: CXX_FEATURE:1cxx_long_long_type
-    Feature record: CXX_FEATURE:1cxx_noexcept
-    Feature record: CXX_FEATURE:1cxx_nonstatic_member_init
-    Feature record: CXX_FEATURE:1cxx_nullptr
-    Feature record: CXX_FEATURE:1cxx_override
-    Feature record: CXX_FEATURE:1cxx_range_for
-    Feature record: CXX_FEATURE:1cxx_raw_string_literals
-    Feature record: CXX_FEATURE:1cxx_reference_qualified_functions
-    Feature record: CXX_FEATURE:0cxx_relaxed_constexpr
-    Feature record: CXX_FEATURE:0cxx_return_type_deduction
-    Feature record: CXX_FEATURE:1cxx_right_angle_brackets
-    Feature record: CXX_FEATURE:1cxx_rvalue_references
-    Feature record: CXX_FEATURE:1cxx_sizeof_member
-    Feature record: CXX_FEATURE:1cxx_static_assert
-    Feature record: CXX_FEATURE:1cxx_strong_enums
-    Feature record: CXX_FEATURE:1cxx_template_template_parameters
-    Feature record: CXX_FEATURE:1cxx_thread_local
-    Feature record: CXX_FEATURE:1cxx_trailing_return_types
-    Feature record: CXX_FEATURE:1cxx_unicode_literals
-    Feature record: CXX_FEATURE:1cxx_uniform_initialization
-    Feature record: CXX_FEATURE:1cxx_unrestricted_unions
-    Feature record: CXX_FEATURE:1cxx_user_literals
-    Feature record: CXX_FEATURE:0cxx_variable_templates
-    Feature record: CXX_FEATURE:1cxx_variadic_macros
-    Feature record: CXX_FEATURE:1cxx_variadic_templates
-
-
-Detecting CXX [-std=c++98] compiler features compiled with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_93e41/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_93e41.dir/build.make CMakeFiles/cmTC_93e41.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_93e41.dir/feature_tests.cxx.o
-/usr/bin/c++     -std=c++98 -o CMakeFiles/cmTC_93e41.dir/feature_tests.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.cxx
-Linking CXX executable cmTC_93e41
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_93e41.dir/link.txt --verbose=1
-/usr/bin/c++        CMakeFiles/cmTC_93e41.dir/feature_tests.cxx.o  -o cmTC_93e41 -rdynamic 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-    Feature record: CXX_FEATURE:0cxx_aggregate_default_initializers
-    Feature record: CXX_FEATURE:0cxx_alias_templates
-    Feature record: CXX_FEATURE:0cxx_alignas
-    Feature record: CXX_FEATURE:0cxx_alignof
-    Feature record: CXX_FEATURE:0cxx_attributes
-    Feature record: CXX_FEATURE:0cxx_attribute_deprecated
-    Feature record: CXX_FEATURE:0cxx_auto_type
-    Feature record: CXX_FEATURE:0cxx_binary_literals
-    Feature record: CXX_FEATURE:0cxx_constexpr
-    Feature record: CXX_FEATURE:0cxx_contextual_conversions
-    Feature record: CXX_FEATURE:0cxx_decltype
-    Feature record: CXX_FEATURE:0cxx_decltype_auto
-    Feature record: CXX_FEATURE:0cxx_decltype_incomplete_return_types
-    Feature record: CXX_FEATURE:0cxx_default_function_template_args
-    Feature record: CXX_FEATURE:0cxx_defaulted_functions
-    Feature record: CXX_FEATURE:0cxx_defaulted_move_initializers
-    Feature record: CXX_FEATURE:0cxx_delegating_constructors
-    Feature record: CXX_FEATURE:0cxx_deleted_functions
-    Feature record: CXX_FEATURE:0cxx_digit_separators
-    Feature record: CXX_FEATURE:0cxx_enum_forward_declarations
-    Feature record: CXX_FEATURE:0cxx_explicit_conversions
-    Feature record: CXX_FEATURE:0cxx_extended_friend_declarations
-    Feature record: CXX_FEATURE:0cxx_extern_templates
-    Feature record: CXX_FEATURE:0cxx_final
-    Feature record: CXX_FEATURE:0cxx_func_identifier
-    Feature record: CXX_FEATURE:0cxx_generalized_initializers
-    Feature record: CXX_FEATURE:0cxx_generic_lambdas
-    Feature record: CXX_FEATURE:0cxx_inheriting_constructors
-    Feature record: CXX_FEATURE:0cxx_inline_namespaces
-    Feature record: CXX_FEATURE:0cxx_lambdas
-    Feature record: CXX_FEATURE:0cxx_lambda_init_captures
-    Feature record: CXX_FEATURE:0cxx_local_type_template_args
-    Feature record: CXX_FEATURE:0cxx_long_long_type
-    Feature record: CXX_FEATURE:0cxx_noexcept
-    Feature record: CXX_FEATURE:0cxx_nonstatic_member_init
-    Feature record: CXX_FEATURE:0cxx_nullptr
-    Feature record: CXX_FEATURE:0cxx_override
-    Feature record: CXX_FEATURE:0cxx_range_for
-    Feature record: CXX_FEATURE:0cxx_raw_string_literals
-    Feature record: CXX_FEATURE:0cxx_reference_qualified_functions
-    Feature record: CXX_FEATURE:0cxx_relaxed_constexpr
-    Feature record: CXX_FEATURE:0cxx_return_type_deduction
-    Feature record: CXX_FEATURE:0cxx_right_angle_brackets
-    Feature record: CXX_FEATURE:0cxx_rvalue_references
-    Feature record: CXX_FEATURE:0cxx_sizeof_member
-    Feature record: CXX_FEATURE:0cxx_static_assert
-    Feature record: CXX_FEATURE:0cxx_strong_enums
-    Feature record: CXX_FEATURE:1cxx_template_template_parameters
-    Feature record: CXX_FEATURE:0cxx_thread_local
-    Feature record: CXX_FEATURE:0cxx_trailing_return_types
-    Feature record: CXX_FEATURE:0cxx_unicode_literals
-    Feature record: CXX_FEATURE:0cxx_uniform_initialization
-    Feature record: CXX_FEATURE:0cxx_unrestricted_unions
-    Feature record: CXX_FEATURE:0cxx_user_literals
-    Feature record: CXX_FEATURE:0cxx_variable_templates
-    Feature record: CXX_FEATURE:0cxx_variadic_macros
-    Feature record: CXX_FEATURE:0cxx_variadic_templates
-Compiling the Fortran compiler identification source file "CMakeFortranCompilerId.F" succeeded.
-Compiler: /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90 
-Build flags: 
-Id flags: -v
-
-The output was:
-0
-Driving: /usr/bin/gfortran -v CMakeFortranCompilerId.F -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include -pthread -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,-rpath -Wl,/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,--enable-new-dtags -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -lmpi_usempi -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc
-Using built-in specs.
-COLLECT_GCC=/usr/bin/gfortran
-COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper
-Target: x86_64-suse-linux
-Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
-Thread model: posix
-gcc version 4.8.5 (SUSE Linux) 
-COLLECT_GCC_OPTIONS='-v' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/f951 CMakeFortranCompilerId.F -ffixed-form -cpp=/tmp/cc3UT0oT.f90 -quiet -v -I /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include -I /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -D_REENTRANT CMakeFortranCompilerId.F -quiet -dumpbase CMakeFortranCompilerId.F -mtune=generic -march=x86-64 -auxbase CMakeFortranCompilerId -version -fintrinsic-modules-path /usr/lib64/gcc/x86_64-suse-linux/4.8/finclude -o /tmp/cc7sRGex.s
-GNU Fortran (SUSE Linux) version 4.8.5 (x86_64-suse-linux)
-	compiled by GNU C version 4.8.5, GMP version 5.1.3, MPFR version 3.1.2, MPC version 1.0.2
-warning: MPFR header version 3.1.2 differs from library version 3.1.3.
-GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
-ignoring duplicate directory "/home/opt/cosmo_tica_lib//valgrind-svn/install/include"
-#include "..." search starts here:
-#include <...> search starts here:
- /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include
- /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64
- /usr/lib64/gcc/x86_64-suse-linux/4.8/finclude
- /home/opt/cosmo_tica_lib//valgrind-svn/install/include
- .
- /usr/lib64/gcc/x86_64-suse-linux/4.8/include
- /usr/local/include
- /usr/lib64/gcc/x86_64-suse-linux/4.8/include-fixed
- /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/include
- /usr/include
-End of search list.
-GNU Fortran (SUSE Linux) version 4.8.5 (x86_64-suse-linux)
-	compiled by GNU C version 4.8.5, GMP version 5.1.3, MPFR version 3.1.2, MPC version 1.0.2
-warning: MPFR header version 3.1.2 differs from library version 3.1.3.
-GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
-COLLECT_GCC_OPTIONS='-v' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/as -v -I /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include -I /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 --64 -o /tmp/ccvVbG7a.o /tmp/cc7sRGex.s
-GNU assembler version 2.25.0 (x86_64-suse-linux) using BFD version (GNU Binutils; openSUSE Leap 42.1) 2.25.0
-Reading specs from /usr/lib64/gcc/x86_64-suse-linux/4.8/libgfortran.spec
-rename spec lib to liborig
-COLLECT_GCC_OPTIONS='-v' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
-COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/
-LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/
-COLLECT_GCC_OPTIONS='-v' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. /tmp/ccvVbG7a.o -rpath /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 --enable-new-dtags -lmpi_usempi -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o
-
-
-Compilation of the Fortran compiler identification source "CMakeFortranCompilerId.F" produced "a.out"
-
-The Fortran compiler identification is GNU, found in "/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/3.4.1/CompilerIdFortran/a.out"
-
 Determining if the Fortran compiler works passed with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_f8388/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_f8388.dir/build.make CMakeFiles/cmTC_f8388.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_f8388.dir/testFortranCompiler.f.o
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90     -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_f8388.dir/testFortranCompiler.f.o
-Linking Fortran executable cmTC_f8388
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_f8388.dir/link.txt --verbose=1
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90       CMakeFiles/cmTC_f8388.dir/testFortranCompiler.f.o  -o cmTC_f8388  
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_89ed1/fast"
+/usr/bin/make -f CMakeFiles/cmTC_89ed1.dir/build.make CMakeFiles/cmTC_89ed1.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_89ed1.dir/testFortranCompiler.f.o
+/usr/bin/mpif90    -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_89ed1.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_89ed1
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_89ed1.dir/link.txt --verbose=1
+/usr/bin/mpif90      CMakeFiles/cmTC_89ed1.dir/testFortranCompiler.f.o  -o cmTC_89ed1 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
 Detecting Fortran compiler ABI info compiled with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_81555/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_81555.dir/build.make CMakeFiles/cmTC_81555.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90     -c /usr/share/cmake/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o
-Linking Fortran executable cmTC_81555
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_81555.dir/link.txt --verbose=1
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90    -v   CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o  -o cmTC_81555   
-Driving: /usr/bin/gfortran -v CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o -o cmTC_81555 -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include -pthread -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,-rpath -Wl,/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,--enable-new-dtags -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -lmpi_usempi -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc
+Run Build Command:"/usr/bin/make" "cmTC_165c5/fast"
+/usr/bin/make -f CMakeFiles/cmTC_165c5.dir/build.make CMakeFiles/cmTC_165c5.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o
+/usr/bin/mpif90    -c /usr/share/cmake-3.10/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o
+Linking Fortran executable cmTC_165c5
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_165c5.dir/link.txt --verbose=1
+/usr/bin/mpif90   -v   CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o  -o cmTC_165c5 
+Driving: /usr/bin/gfortran -v CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o -o cmTC_165c5 -I/usr/lib/x86_64-linux-gnu/openmpi/include -pthread -I/usr/lib/x86_64-linux-gnu/openmpi/lib -L/usr//lib -L/usr/lib/x86_64-linux-gnu/openmpi/lib -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc
 Using built-in specs.
 COLLECT_GCC=/usr/bin/gfortran
-COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper
-Target: x86_64-suse-linux
-Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
+COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper
+OFFLOAD_TARGET_NAMES=nvptx-none
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Ubuntu 7.4.0-1ubuntu1~18.04.1' --with-bugurl=file:///usr/share/doc/gcc-7/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++ --prefix=/usr --with-gcc-major-version-only --program-suffix=-7 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-libmpx --enable-plugin --enable-default-pie --with-system-zlib --with-target-system-zlib --enable-objc-gc=auto --enable-multiarch --disable-werror --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu
 Thread model: posix
-gcc version 4.8.5 (SUSE Linux) 
-Reading specs from /usr/lib64/gcc/x86_64-suse-linux/4.8/libgfortran.spec
+gcc version 7.4.0 (Ubuntu 7.4.0-1ubuntu1~18.04.1) 
+Reading specs from /usr/lib/gcc/x86_64-linux-gnu/7/libgfortran.spec
 rename spec lib to liborig
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_81555' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
-COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/
-LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_81555' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_81555 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o -rpath /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 --enable-new-dtags -lmpi_usempi -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_165c5' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/lib' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_165c5' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/lib' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ /usr/lib/gcc/x86_64-linux-gnu/7/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/7/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper -plugin-opt=-fresolution=/tmp/ccyKNOyT.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lquadmath -plugin-opt=-pass-through=-lm -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --sysroot=/ --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_165c5 /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/7/crtbeginS.o -L/usr//lib -L/usr/lib/x86_64-linux-gnu/openmpi/lib -L/usr/lib/gcc/x86_64-linux-gnu/7 -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/7/../../.. CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/7/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_165c5' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/lib' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
 Parsed Fortran implicit link information from above output:
-  link line regex: [^( *|.*[/\])(ld|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
   ignore line: [Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp]
   ignore line: []
-  ignore line: [Run Build Command:"/usr/bin/gmake" "cmTC_81555/fast"]
-  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_81555.dir/build.make CMakeFiles/cmTC_81555.dir/build]
-  ignore line: [gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
-  ignore line: [Building Fortran object CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o]
-  ignore line: [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90     -c /usr/share/cmake/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o]
-  ignore line: [Linking Fortran executable cmTC_81555]
-  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_81555.dir/link.txt --verbose=1]
-  ignore line: [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90    -v   CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o  -o cmTC_81555   ]
-  ignore line: [Driving: /usr/bin/gfortran -v CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o -o cmTC_81555 -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include -pthread -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,-rpath -Wl,/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,--enable-new-dtags -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -lmpi_usempi -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc]
+  ignore line: [Run Build Command:"/usr/bin/make" "cmTC_165c5/fast"]
+  ignore line: [/usr/bin/make -f CMakeFiles/cmTC_165c5.dir/build.make CMakeFiles/cmTC_165c5.dir/build]
+  ignore line: [make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
+  ignore line: [Building Fortran object CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o]
+  ignore line: [/usr/bin/mpif90    -c /usr/share/cmake-3.10/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o]
+  ignore line: [Linking Fortran executable cmTC_165c5]
+  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_165c5.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/mpif90   -v   CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o  -o cmTC_165c5 ]
+  ignore line: [Driving: /usr/bin/gfortran -v CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o -o cmTC_165c5 -I/usr/lib/x86_64-linux-gnu/openmpi/include -pthread -I/usr/lib/x86_64-linux-gnu/openmpi/lib -L/usr//lib -L/usr/lib/x86_64-linux-gnu/openmpi/lib -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc]
   ignore line: [Using built-in specs.]
   ignore line: [COLLECT_GCC=/usr/bin/gfortran]
-  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper]
-  ignore line: [Target: x86_64-suse-linux]
-  ignore line: [Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper]
+  ignore line: [OFFLOAD_TARGET_NAMES=nvptx-none]
+  ignore line: [OFFLOAD_TARGET_DEFAULT=1]
+  ignore line: [Target: x86_64-linux-gnu]
+  ignore line: [Configured with: ../src/configure -v --with-pkgversion='Ubuntu 7.4.0-1ubuntu1~18.04.1' --with-bugurl=file:///usr/share/doc/gcc-7/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++ --prefix=/usr --with-gcc-major-version-only --program-suffix=-7 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-libmpx --enable-plugin --enable-default-pie --with-system-zlib --with-target-system-zlib --enable-objc-gc=auto --enable-multiarch --disable-werror --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu]
   ignore line: [Thread model: posix]
-  ignore line: [gcc version 4.8.5 (SUSE Linux) ]
-  ignore line: [Reading specs from /usr/lib64/gcc/x86_64-suse-linux/4.8/libgfortran.spec]
+  ignore line: [gcc version 7.4.0 (Ubuntu 7.4.0-1ubuntu1~18.04.1) ]
+  ignore line: [Reading specs from /usr/lib/gcc/x86_64-linux-gnu/7/libgfortran.spec]
   ignore line: [rename spec lib to liborig]
-  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_81555' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
-  ignore line: [COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/]
-  ignore line: [LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/]
-  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_81555' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
-  link line: [ /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_81555 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o -rpath /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 --enable-new-dtags -lmpi_usempi -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o]
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/collect2] ==> ignore
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_165c5' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/lib' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
+  ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_165c5' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/include' '-pthread' '-I' '/usr/lib/x86_64-linux-gnu/openmpi/lib' '-L/usr//lib' '-L/usr/lib/x86_64-linux-gnu/openmpi/lib' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
+  link line: [ /usr/lib/gcc/x86_64-linux-gnu/7/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/7/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper -plugin-opt=-fresolution=/tmp/ccyKNOyT.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lquadmath -plugin-opt=-pass-through=-lm -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --sysroot=/ --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_165c5 /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/7/crtbeginS.o -L/usr//lib -L/usr/lib/x86_64-linux-gnu/openmpi/lib -L/usr/lib/gcc/x86_64-linux-gnu/7 -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/7/../../.. CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/7/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crtn.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/ccyKNOyT.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lquadmath] ==> ignore
+    arg [-plugin-opt=-pass-through=-lm] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lpthread] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [--sysroot=/] ==> ignore
     arg [--build-id] ==> ignore
     arg [--eh-frame-hdr] ==> ignore
     arg [-m] ==> ignore
     arg [elf_x86_64] ==> ignore
+    arg [--hash-style=gnu] ==> ignore
+    arg [--as-needed] ==> ignore
     arg [-dynamic-linker] ==> ignore
     arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-pie] ==> ignore
+    arg [-znow] ==> ignore
+    arg [-zrelro] ==> ignore
     arg [-o] ==> ignore
-    arg [cmTC_81555] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o] ==> ignore
-    arg [-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64] ==> dir [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64]
-    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
-    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..]
-    arg [CMakeFiles/cmTC_81555.dir/CMakeFortranCompilerABI.F.o] ==> ignore
-    arg [-rpath] ==> ignore
-    arg [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64] ==> ignore
-    arg [--enable-new-dtags] ==> ignore
-    arg [-lmpi_usempi] ==> lib [mpi_usempi]
+    arg [cmTC_165c5] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/Scrt1.o] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crti.o] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/crtbeginS.o] ==> ignore
+    arg [-L/usr//lib] ==> dir [/usr//lib]
+    arg [-L/usr/lib/x86_64-linux-gnu/openmpi/lib] ==> dir [/usr/lib/x86_64-linux-gnu/openmpi/lib]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib]
+    arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+    arg [-L/lib/../lib] ==> dir [/lib/../lib]
+    arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+    arg [-L/usr/lib/../lib] ==> dir [/usr/lib/../lib]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7/../../..] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../..]
+    arg [CMakeFiles/cmTC_165c5.dir/CMakeFortranCompilerABI.F.o] ==> ignore
+    arg [-lmpi_usempif08] ==> lib [mpi_usempif08]
+    arg [-lmpi_usempi_ignore_tkr] ==> lib [mpi_usempi_ignore_tkr]
     arg [-lmpi_mpifh] ==> lib [mpi_mpifh]
     arg [-lmpi] ==> lib [mpi]
     arg [-lgfortran] ==> lib [gfortran]
@@ -681,144 +402,111 @@ Parsed Fortran implicit link information from above output:
     arg [-lc] ==> lib [c]
     arg [-lgcc_s] ==> lib [gcc_s]
     arg [-lgcc] ==> lib [gcc]
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o] ==> ignore
-  remove lib [gcc_s]
-  remove lib [gcc]
-  remove lib [gcc_s]
-  remove lib [gcc]
-  remove lib [gcc_s]
-  remove lib [gcc]
-  collapse library dir [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64] ==> [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> [/usr/lib64]
-  collapse library dir [/lib/../lib64] ==> [/lib64]
-  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> [/usr/x86_64-suse-linux/lib]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> [/usr/lib64]
-  implicit libs: [mpi_usempi;mpi_mpifh;mpi;gfortran;m;quadmath;m;pthread;c]
-  implicit dirs: [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64;/usr/lib64/gcc/x86_64-suse-linux/4.8;/usr/lib64;/lib64;/usr/x86_64-suse-linux/lib]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/crtendS.o] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crtn.o] ==> ignore
+  collapse library dir [/usr//lib] ==> [/usr/lib]
+  collapse library dir [/usr/lib/x86_64-linux-gnu/openmpi/lib] ==> [/usr/lib/x86_64-linux-gnu/openmpi/lib]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7] ==> [/usr/lib/gcc/x86_64-linux-gnu/7]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib] ==> [/usr/lib]
+  collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+  collapse library dir [/lib/../lib] ==> [/lib]
+  collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/../lib] ==> [/usr/lib]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../..] ==> [/usr/lib]
+  implicit libs: [mpi_usempif08;mpi_usempi_ignore_tkr;mpi_mpifh;mpi;gfortran;m;gcc_s;gcc;quadmath;m;gcc_s;gcc;pthread;c;gcc_s;gcc]
+  implicit dirs: [/usr/lib;/usr/lib/x86_64-linux-gnu/openmpi/lib;/usr/lib/gcc/x86_64-linux-gnu/7;/usr/lib/x86_64-linux-gnu;/lib/x86_64-linux-gnu;/lib]
   implicit fwks: []
 
 
 Determining if the Fortran compiler supports Fortran 90 passed with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_129c8/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_129c8.dir/build.make CMakeFiles/cmTC_129c8.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_129c8.dir/testFortranCompilerF90.f90.o
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90     -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testFortranCompilerF90.f90 -o CMakeFiles/cmTC_129c8.dir/testFortranCompilerF90.f90.o
-Linking Fortran executable cmTC_129c8
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_129c8.dir/link.txt --verbose=1
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90       CMakeFiles/cmTC_129c8.dir/testFortranCompilerF90.f90.o  -o cmTC_129c8  
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_7be99/fast"
+/usr/bin/make -f CMakeFiles/cmTC_7be99.dir/build.make CMakeFiles/cmTC_7be99.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_7be99.dir/testFortranCompilerF90.f90.o
+/usr/bin/mpif90    -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testFortranCompilerF90.f90 -o CMakeFiles/cmTC_7be99.dir/testFortranCompilerF90.f90.o
+Linking Fortran executable cmTC_7be99
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7be99.dir/link.txt --verbose=1
+/usr/bin/mpif90      CMakeFiles/cmTC_7be99.dir/testFortranCompilerF90.f90.o  -o cmTC_7be99 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
 Determining if the Fortran sgemm exists passed with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_3fefc/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_3fefc.dir/build.make CMakeFiles/cmTC_3fefc.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_3fefc.dir/testFortranCompiler.f.o
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90    -cpp -ffree-line-length-none -g    -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_3fefc.dir/testFortranCompiler.f.o
-Linking Fortran executable cmTC_3fefc
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_3fefc.dir/link.txt --verbose=1
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90     -cpp -ffree-line-length-none -g  CMakeFiles/cmTC_3fefc.dir/testFortranCompiler.f.o  -o cmTC_3fefc  /usr/lib64/libblas.so 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_a4b9b/fast"
+/usr/bin/make -f CMakeFiles/cmTC_a4b9b.dir/build.make CMakeFiles/cmTC_a4b9b.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_a4b9b.dir/testFortranCompiler.f.o
+/usr/bin/mpif90   -ffree-line-length-none -W -Wall -g                      -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_a4b9b.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_a4b9b
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a4b9b.dir/link.txt --verbose=1
+/usr/bin/mpif90    -ffree-line-length-none -W -Wall -g                    CMakeFiles/cmTC_a4b9b.dir/testFortranCompiler.f.o  -o cmTC_a4b9b /usr/lib/x86_64-linux-gnu/libopenblas.so 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
 Determining if the include file pthread.h exists passed with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_e5880/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_e5880.dir/build.make CMakeFiles/cmTC_e5880.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_e5880.dir/CheckIncludeFile.c.o
-/usr/bin/cc    -cpp -W -std=c99    -o CMakeFiles/cmTC_e5880.dir/CheckIncludeFile.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
-Linking C executable cmTC_e5880
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e5880.dir/link.txt --verbose=1
-/usr/bin/cc  -cpp -W -std=c99     CMakeFiles/cmTC_e5880.dir/CheckIncludeFile.c.o  -o cmTC_e5880 -rdynamic 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_764d3/fast"
+/usr/bin/make -f CMakeFiles/cmTC_764d3.dir/build.make CMakeFiles/cmTC_764d3.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_764d3.dir/CheckIncludeFile.c.o
+/usr/bin/mpicc   -W -Wall -Wuninitialized --std=c99                                  -o CMakeFiles/cmTC_764d3.dir/CheckIncludeFile.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
+Linking C executable cmTC_764d3
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_764d3.dir/link.txt --verbose=1
+/usr/bin/mpicc -W -Wall -Wuninitialized --std=c99                                   CMakeFiles/cmTC_764d3.dir/CheckIncludeFile.c.o  -o cmTC_764d3 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
-Determining if the function pthread_create exists in the pthread passed with the following output:
+Determining if the pthread_create exist passed with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_e5152/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_e5152.dir/build.make CMakeFiles/cmTC_e5152.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_e5152.dir/CheckFunctionExists.c.o
-/usr/bin/cc    -cpp -W -std=c99 -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_e5152.dir/CheckFunctionExists.c.o   -c /usr/share/cmake/Modules/CheckFunctionExists.c
-Linking C executable cmTC_e5152
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e5152.dir/link.txt --verbose=1
-/usr/bin/cc  -cpp -W -std=c99 -DCHECK_FUNCTION_EXISTS=pthread_create    CMakeFiles/cmTC_e5152.dir/CheckFunctionExists.c.o  -o cmTC_e5152 -rdynamic -lpthread 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_9a8ff/fast"
+/usr/bin/make -f CMakeFiles/cmTC_9a8ff.dir/build.make CMakeFiles/cmTC_9a8ff.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_9a8ff.dir/CheckSymbolExists.c.o
+/usr/bin/mpicc   -W -Wall -Wuninitialized --std=c99                                  -o CMakeFiles/cmTC_9a8ff.dir/CheckSymbolExists.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_9a8ff
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_9a8ff.dir/link.txt --verbose=1
+/usr/bin/mpicc -W -Wall -Wuninitialized --std=c99                                   CMakeFiles/cmTC_9a8ff.dir/CheckSymbolExists.c.o  -o cmTC_9a8ff 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
+File /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_create
+  return ((int*)(&pthread_create))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
 
 Determining if the Fortran cheev exists passed with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_972ef/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_972ef.dir/build.make CMakeFiles/cmTC_972ef.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_972ef.dir/testFortranCompiler.f.o
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90    -cpp -ffree-line-length-none -g    -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_972ef.dir/testFortranCompiler.f.o
-Linking Fortran executable cmTC_972ef
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_972ef.dir/link.txt --verbose=1
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90     -cpp -ffree-line-length-none -g  CMakeFiles/cmTC_972ef.dir/testFortranCompiler.f.o  -o cmTC_972ef  /usr/lib64/liblapack.so /usr/lib64/libblas.so 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_6bf29/fast"
+/usr/bin/make -f CMakeFiles/cmTC_6bf29.dir/build.make CMakeFiles/cmTC_6bf29.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_6bf29.dir/testFortranCompiler.f.o
+/usr/bin/mpif90   -ffree-line-length-none -W -Wall -g                      -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_6bf29.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_6bf29
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6bf29.dir/link.txt --verbose=1
+/usr/bin/mpif90    -ffree-line-length-none -W -Wall -g                    CMakeFiles/cmTC_6bf29.dir/testFortranCompiler.f.o  -o cmTC_6bf29 /usr/lib/x86_64-linux-gnu/libopenblas.so /usr/lib/x86_64-linux-gnu/libopenblas.so 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
-
-Performing C SOURCE FILE Test MULTIPASS_TEST_4_petsc_works_all succeded with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_5c636/fast"
-/usr/bin/gmake -f CMakeFiles/cmTC_5c636.dir/build.make CMakeFiles/cmTC_5c636.dir/build
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_5c636.dir/src.c.o
-/usr/bin/cc   -I/home/opt/cosmo_tica_lib/ompi1.8.1/petsc/include -I/home/opt/cosmo_tica_lib/ompi1.8.1/petsc/fast_single/include -I/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/include -I/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/include -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include  -cpp -W -std=c99 -DMULTIPASS_TEST_4_petsc_works_all   -o CMakeFiles/cmTC_5c636.dir/src.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/src.c
-Linking C executable cmTC_5c636
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_5c636.dir/link.txt --verbose=1
-/usr/bin/cc  -cpp -W -std=c99 -DMULTIPASS_TEST_4_petsc_works_all    CMakeFiles/cmTC_5c636.dir/src.c.o  -o cmTC_5c636 -rdynamic /home/opt/cosmo_tica_lib/ompi1.8.1/petsc-maint/fast_single/lib/libpetsc.a /usr/lib64/liblapack.so /usr/lib64/libblas.so /home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64/libnetcdf.so /home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/lib/libhdf5_hl.so /home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/lib/libhdf5.so /usr/lib64/libX11.so /usr/lib64/libssl.so /usr/lib64/libcrypto.so /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_usempi.so /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_mpifh.so /usr/lib64/gcc/x86_64-suse-linux/4.8/libgfortran.so /usr/lib64/gcc/x86_64-suse-linux/4.8/libquadmath.so /usr/lib64/libm.so /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi_cxx.so /usr/lib64/gcc/x86_64-suse-linux/4.8/libstdc++.so /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64/libmpi.so /usr/lib64/gcc/x86_64-suse-linux/4.8/libgcc_s.so -lpthread /usr/lib64/libdl.so -Wl,-rpath,/home/opt/cosmo_tica_lib/ompi1.8.1/netcdf-latest/lib64:/home/opt/cosmo_tica_lib/ompi1.8.1/hdf5/HDF5-1.8.13-Linux/HDF_Group/HDF5/1.8.13/lib:/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-Return value: 1
-Source file was:
-
-static const char help[] = "PETSc test program.";
-#include <petscts.h>
-int main(int argc,char *argv[]) {
-  PetscErrorCode ierr;
-  TS ts;
-
-  ierr = PetscInitialize(&argc,&argv,0,help);CHKERRQ(ierr);
-  ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
-  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
-  ierr = TSDestroy(&ts);CHKERRQ(ierr);
-  ierr = PetscFinalize();CHKERRQ(ierr);
-  return 0;
-}
-
-The system is: Linux - 4.1.15-8-default - x86_64
-Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
-Compiler: /usr/bin/cc 
-Build flags: 
-Id flags: 
-
-The output was:
-0
-
-
-Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
-
-The C compiler identification is GNU, found in "/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/3.5.1/CompilerIdC/a.out"
 
 Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
 Compiler: /usr/bin/c++ 
 Build flags: 
-Id flags: 
+Id flags:  
 
 The output was:
 0
@@ -826,274 +514,111 @@ The output was:
 
 Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
 
-The CXX compiler identification is GNU, found in "/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/3.5.1/CompilerIdCXX/a.out"
+The CXX compiler identification is GNU, found in "/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/3.10.2/CompilerIdCXX/a.out"
 
-Determining if the C compiler works passed with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_4ea28/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_4ea28.dir/build.make CMakeFiles/cmTC_4ea28.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_4ea28.dir/testCCompiler.c.o
-/usr/bin/cc     -o CMakeFiles/cmTC_4ea28.dir/testCCompiler.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testCCompiler.c
-Linking C executable cmTC_4ea28
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4ea28.dir/link.txt --verbose=1
-/usr/bin/cc       CMakeFiles/cmTC_4ea28.dir/testCCompiler.c.o  -o cmTC_4ea28 -rdynamic 
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-Detecting C compiler ABI info compiled with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_4b8e8/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_4b8e8.dir/build.make CMakeFiles/cmTC_4b8e8.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_4b8e8.dir/CMakeCCompilerABI.c.o
-/usr/bin/cc     -o CMakeFiles/cmTC_4b8e8.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c
-Linking C executable cmTC_4b8e8
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4b8e8.dir/link.txt --verbose=1
-/usr/bin/cc      -v CMakeFiles/cmTC_4b8e8.dir/CMakeCCompilerABI.c.o  -o cmTC_4b8e8 -rdynamic  
-Using built-in specs.
-COLLECT_GCC=/usr/bin/cc
-COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper
-Target: x86_64-suse-linux
-Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
-Thread model: posix
-gcc version 4.8.5 (SUSE Linux) 
-COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/
-LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_4b8e8' '-rdynamic' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_4b8e8 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_4b8e8.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-Parsed C implicit link information from above output:
-  link line regex: [^( *|.*[/\])(ld|([^/\]+-)?ld|collect2)[^/\]*( |$)]
-  ignore line: [Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp]
-  ignore line: []
-  ignore line: [Run Build Command:"/usr/bin/gmake" "cmTC_4b8e8/fast"]
-  ignore line: [gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
-  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_4b8e8.dir/build.make CMakeFiles/cmTC_4b8e8.dir/build]
-  ignore line: [gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
-  ignore line: [Building C object CMakeFiles/cmTC_4b8e8.dir/CMakeCCompilerABI.c.o]
-  ignore line: [/usr/bin/cc     -o CMakeFiles/cmTC_4b8e8.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c]
-  ignore line: [Linking C executable cmTC_4b8e8]
-  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4b8e8.dir/link.txt --verbose=1]
-  ignore line: [/usr/bin/cc      -v CMakeFiles/cmTC_4b8e8.dir/CMakeCCompilerABI.c.o  -o cmTC_4b8e8 -rdynamic  ]
-  ignore line: [Using built-in specs.]
-  ignore line: [COLLECT_GCC=/usr/bin/cc]
-  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper]
-  ignore line: [Target: x86_64-suse-linux]
-  ignore line: [Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux]
-  ignore line: [Thread model: posix]
-  ignore line: [gcc version 4.8.5 (SUSE Linux) ]
-  ignore line: [COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/]
-  ignore line: [LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/]
-  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_4b8e8' '-rdynamic' '-mtune=generic' '-march=x86-64']
-  link line: [ /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_4b8e8 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_4b8e8.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o]
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/collect2] ==> ignore
-    arg [--build-id] ==> ignore
-    arg [--eh-frame-hdr] ==> ignore
-    arg [-m] ==> ignore
-    arg [elf_x86_64] ==> ignore
-    arg [-export-dynamic] ==> ignore
-    arg [-dynamic-linker] ==> ignore
-    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
-    arg [-o] ==> ignore
-    arg [cmTC_4b8e8] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o] ==> ignore
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64]
-    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
-    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..]
-    arg [CMakeFiles/cmTC_4b8e8.dir/CMakeCCompilerABI.c.o] ==> ignore
-    arg [-lgcc] ==> lib [gcc]
-    arg [--as-needed] ==> ignore
-    arg [-lgcc_s] ==> lib [gcc_s]
-    arg [--no-as-needed] ==> ignore
-    arg [-lc] ==> lib [c]
-    arg [-lgcc] ==> lib [gcc]
-    arg [--as-needed] ==> ignore
-    arg [-lgcc_s] ==> lib [gcc_s]
-    arg [--no-as-needed] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o] ==> ignore
-  remove lib [gcc]
-  remove lib [gcc_s]
-  remove lib [gcc]
-  remove lib [gcc_s]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> [/usr/lib64]
-  collapse library dir [/lib/../lib64] ==> [/lib64]
-  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> [/usr/x86_64-suse-linux/lib]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> [/usr/lib64]
-  implicit libs: [c]
-  implicit dirs: [/usr/lib64/gcc/x86_64-suse-linux/4.8;/usr/lib64;/lib64;/usr/x86_64-suse-linux/lib]
-  implicit fwks: []
-
-
-
-
-Detecting C [-std=c11] compiler features compiled with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_91b66/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_91b66.dir/build.make CMakeFiles/cmTC_91b66.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_91b66.dir/feature_tests.c.o
-/usr/bin/cc    -std=c11 -o CMakeFiles/cmTC_91b66.dir/feature_tests.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.c
-Linking C executable cmTC_91b66
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_91b66.dir/link.txt --verbose=1
-/usr/bin/cc       CMakeFiles/cmTC_91b66.dir/feature_tests.c.o  -o cmTC_91b66 -rdynamic 
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-    Feature record: C_FEATURE:1c_function_prototypes
-    Feature record: C_FEATURE:1c_restrict
-    Feature record: C_FEATURE:1c_static_assert
-    Feature record: C_FEATURE:1c_variadic_macros
-
-
-Detecting C [-std=c99] compiler features compiled with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_92dff/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_92dff.dir/build.make CMakeFiles/cmTC_92dff.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_92dff.dir/feature_tests.c.o
-/usr/bin/cc    -std=c99 -o CMakeFiles/cmTC_92dff.dir/feature_tests.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.c
-Linking C executable cmTC_92dff
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_92dff.dir/link.txt --verbose=1
-/usr/bin/cc       CMakeFiles/cmTC_92dff.dir/feature_tests.c.o  -o cmTC_92dff -rdynamic 
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-    Feature record: C_FEATURE:1c_function_prototypes
-    Feature record: C_FEATURE:1c_restrict
-    Feature record: C_FEATURE:0c_static_assert
-    Feature record: C_FEATURE:1c_variadic_macros
-
-
-Detecting C [-std=c90] compiler features compiled with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_a5709/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_a5709.dir/build.make CMakeFiles/cmTC_a5709.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building C object CMakeFiles/cmTC_a5709.dir/feature_tests.c.o
-/usr/bin/cc    -std=c90 -o CMakeFiles/cmTC_a5709.dir/feature_tests.c.o   -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.c
-Linking C executable cmTC_a5709
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a5709.dir/link.txt --verbose=1
-/usr/bin/cc       CMakeFiles/cmTC_a5709.dir/feature_tests.c.o  -o cmTC_a5709 -rdynamic 
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-    Feature record: C_FEATURE:1c_function_prototypes
-    Feature record: C_FEATURE:0c_restrict
-    Feature record: C_FEATURE:0c_static_assert
-    Feature record: C_FEATURE:0c_variadic_macros
 Determining if the CXX compiler works passed with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_04df0/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_04df0.dir/build.make CMakeFiles/cmTC_04df0.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_04df0.dir/testCXXCompiler.cxx.o
-/usr/bin/c++      -o CMakeFiles/cmTC_04df0.dir/testCXXCompiler.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testCXXCompiler.cxx
-Linking CXX executable cmTC_04df0
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_04df0.dir/link.txt --verbose=1
-/usr/bin/c++        CMakeFiles/cmTC_04df0.dir/testCXXCompiler.cxx.o  -o cmTC_04df0 -rdynamic 
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_917b2/fast"
+/usr/bin/make -f CMakeFiles/cmTC_917b2.dir/build.make CMakeFiles/cmTC_917b2.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_917b2.dir/testCXXCompiler.cxx.o
+/usr/bin/c++     -o CMakeFiles/cmTC_917b2.dir/testCXXCompiler.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testCXXCompiler.cxx
+Linking CXX executable cmTC_917b2
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_917b2.dir/link.txt --verbose=1
+/usr/bin/c++       CMakeFiles/cmTC_917b2.dir/testCXXCompiler.cxx.o  -o cmTC_917b2 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
 Detecting CXX compiler ABI info compiled with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_ea6fd/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_ea6fd.dir/build.make CMakeFiles/cmTC_ea6fd.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_ea6fd.dir/CMakeCXXCompilerABI.cpp.o
-/usr/bin/c++      -o CMakeFiles/cmTC_ea6fd.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake/Modules/CMakeCXXCompilerABI.cpp
-Linking CXX executable cmTC_ea6fd
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ea6fd.dir/link.txt --verbose=1
-/usr/bin/c++       -v CMakeFiles/cmTC_ea6fd.dir/CMakeCXXCompilerABI.cpp.o  -o cmTC_ea6fd -rdynamic  
+Run Build Command:"/usr/bin/make" "cmTC_16cb6/fast"
+/usr/bin/make -f CMakeFiles/cmTC_16cb6.dir/build.make CMakeFiles/cmTC_16cb6.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_16cb6.dir/CMakeCXXCompilerABI.cpp.o
+/usr/bin/c++     -o CMakeFiles/cmTC_16cb6.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-3.10/Modules/CMakeCXXCompilerABI.cpp
+Linking CXX executable cmTC_16cb6
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_16cb6.dir/link.txt --verbose=1
+/usr/bin/c++      -v CMakeFiles/cmTC_16cb6.dir/CMakeCXXCompilerABI.cpp.o  -o cmTC_16cb6 
 Using built-in specs.
 COLLECT_GCC=/usr/bin/c++
-COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper
-Target: x86_64-suse-linux
-Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
+COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper
+OFFLOAD_TARGET_NAMES=nvptx-none
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Ubuntu 7.4.0-1ubuntu1~18.04.1' --with-bugurl=file:///usr/share/doc/gcc-7/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++ --prefix=/usr --with-gcc-major-version-only --program-suffix=-7 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-libmpx --enable-plugin --enable-default-pie --with-system-zlib --with-target-system-zlib --enable-objc-gc=auto --enable-multiarch --disable-werror --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu
 Thread model: posix
-gcc version 4.8.5 (SUSE Linux) 
-COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/
-LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_ea6fd' '-rdynamic' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_ea6fd /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_ea6fd.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+gcc version 7.4.0 (Ubuntu 7.4.0-1ubuntu1~18.04.1) 
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_16cb6' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+ /usr/lib/gcc/x86_64-linux-gnu/7/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/7/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper -plugin-opt=-fresolution=/tmp/cck22Ncx.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --sysroot=/ --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_16cb6 /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/7/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/7 -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/7/../../.. CMakeFiles/cmTC_16cb6.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/7/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_16cb6' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
 Parsed CXX implicit link information from above output:
-  link line regex: [^( *|.*[/\])(ld|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
   ignore line: [Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp]
   ignore line: []
-  ignore line: [Run Build Command:"/usr/bin/gmake" "cmTC_ea6fd/fast"]
-  ignore line: [gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
-  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_ea6fd.dir/build.make CMakeFiles/cmTC_ea6fd.dir/build]
-  ignore line: [gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
-  ignore line: [Building CXX object CMakeFiles/cmTC_ea6fd.dir/CMakeCXXCompilerABI.cpp.o]
-  ignore line: [/usr/bin/c++      -o CMakeFiles/cmTC_ea6fd.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake/Modules/CMakeCXXCompilerABI.cpp]
-  ignore line: [Linking CXX executable cmTC_ea6fd]
-  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ea6fd.dir/link.txt --verbose=1]
-  ignore line: [/usr/bin/c++       -v CMakeFiles/cmTC_ea6fd.dir/CMakeCXXCompilerABI.cpp.o  -o cmTC_ea6fd -rdynamic  ]
+  ignore line: [Run Build Command:"/usr/bin/make" "cmTC_16cb6/fast"]
+  ignore line: [/usr/bin/make -f CMakeFiles/cmTC_16cb6.dir/build.make CMakeFiles/cmTC_16cb6.dir/build]
+  ignore line: [make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
+  ignore line: [Building CXX object CMakeFiles/cmTC_16cb6.dir/CMakeCXXCompilerABI.cpp.o]
+  ignore line: [/usr/bin/c++     -o CMakeFiles/cmTC_16cb6.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-3.10/Modules/CMakeCXXCompilerABI.cpp]
+  ignore line: [Linking CXX executable cmTC_16cb6]
+  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_16cb6.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/c++      -v CMakeFiles/cmTC_16cb6.dir/CMakeCXXCompilerABI.cpp.o  -o cmTC_16cb6 ]
   ignore line: [Using built-in specs.]
   ignore line: [COLLECT_GCC=/usr/bin/c++]
-  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper]
-  ignore line: [Target: x86_64-suse-linux]
-  ignore line: [Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper]
+  ignore line: [OFFLOAD_TARGET_NAMES=nvptx-none]
+  ignore line: [OFFLOAD_TARGET_DEFAULT=1]
+  ignore line: [Target: x86_64-linux-gnu]
+  ignore line: [Configured with: ../src/configure -v --with-pkgversion='Ubuntu 7.4.0-1ubuntu1~18.04.1' --with-bugurl=file:///usr/share/doc/gcc-7/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++ --prefix=/usr --with-gcc-major-version-only --program-suffix=-7 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-libmpx --enable-plugin --enable-default-pie --with-system-zlib --with-target-system-zlib --enable-objc-gc=auto --enable-multiarch --disable-werror --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu]
   ignore line: [Thread model: posix]
-  ignore line: [gcc version 4.8.5 (SUSE Linux) ]
-  ignore line: [COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/]
-  ignore line: [LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/]
-  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_ea6fd' '-rdynamic' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
-  link line: [ /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_ea6fd /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_ea6fd.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o]
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/collect2] ==> ignore
+  ignore line: [gcc version 7.4.0 (Ubuntu 7.4.0-1ubuntu1~18.04.1) ]
+  ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/7/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/7/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_16cb6' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
+  link line: [ /usr/lib/gcc/x86_64-linux-gnu/7/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/7/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper -plugin-opt=-fresolution=/tmp/cck22Ncx.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --sysroot=/ --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_16cb6 /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/7/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/7 -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/7/../../.. CMakeFiles/cmTC_16cb6.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/7/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crtn.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/7/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/cck22Ncx.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [--sysroot=/] ==> ignore
     arg [--build-id] ==> ignore
     arg [--eh-frame-hdr] ==> ignore
     arg [-m] ==> ignore
     arg [elf_x86_64] ==> ignore
-    arg [-export-dynamic] ==> ignore
+    arg [--hash-style=gnu] ==> ignore
+    arg [--as-needed] ==> ignore
     arg [-dynamic-linker] ==> ignore
     arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-pie] ==> ignore
+    arg [-znow] ==> ignore
+    arg [-zrelro] ==> ignore
     arg [-o] ==> ignore
-    arg [cmTC_ea6fd] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o] ==> ignore
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64]
-    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
-    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..]
-    arg [CMakeFiles/cmTC_ea6fd.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
+    arg [cmTC_16cb6] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/Scrt1.o] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crti.o] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/crtbeginS.o] ==> ignore
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib]
+    arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+    arg [-L/lib/../lib] ==> dir [/lib/../lib]
+    arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+    arg [-L/usr/lib/../lib] ==> dir [/usr/lib/../lib]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/7/../../..] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../..]
+    arg [CMakeFiles/cmTC_16cb6.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
     arg [-lstdc++] ==> lib [stdc++]
     arg [-lm] ==> lib [m]
     arg [-lgcc_s] ==> lib [gcc_s]
@@ -1101,60 +626,56 @@ Parsed CXX implicit link information from above output:
     arg [-lc] ==> lib [c]
     arg [-lgcc_s] ==> lib [gcc_s]
     arg [-lgcc] ==> lib [gcc]
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o] ==> ignore
-  remove lib [gcc_s]
-  remove lib [gcc]
-  remove lib [gcc_s]
-  remove lib [gcc]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> [/usr/lib64]
-  collapse library dir [/lib/../lib64] ==> [/lib64]
-  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> [/usr/x86_64-suse-linux/lib]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> [/usr/lib64]
-  implicit libs: [stdc++;m;c]
-  implicit dirs: [/usr/lib64/gcc/x86_64-suse-linux/4.8;/usr/lib64;/lib64;/usr/x86_64-suse-linux/lib]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/crtendS.o] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu/crtn.o] ==> ignore
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7] ==> [/usr/lib/gcc/x86_64-linux-gnu/7]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../../../lib] ==> [/usr/lib]
+  collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+  collapse library dir [/lib/../lib] ==> [/lib]
+  collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/../lib] ==> [/usr/lib]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/7/../../..] ==> [/usr/lib]
+  implicit libs: [stdc++;m;gcc_s;gcc;c;gcc_s;gcc]
+  implicit dirs: [/usr/lib/gcc/x86_64-linux-gnu/7;/usr/lib/x86_64-linux-gnu;/usr/lib;/lib/x86_64-linux-gnu;/lib]
   implicit fwks: []
 
 
 
 
-Detecting CXX [-std=c++1y] compiler features compiled with the following output:
+Detecting CXX [-std=c++1z] compiler features compiled with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_d02be/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_d02be.dir/build.make CMakeFiles/cmTC_d02be.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_d02be.dir/feature_tests.cxx.o
-/usr/bin/c++     -std=c++1y -o CMakeFiles/cmTC_d02be.dir/feature_tests.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.cxx
-Linking CXX executable cmTC_d02be
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d02be.dir/link.txt --verbose=1
-/usr/bin/c++        CMakeFiles/cmTC_d02be.dir/feature_tests.cxx.o  -o cmTC_d02be -rdynamic 
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_a5482/fast"
+/usr/bin/make -f CMakeFiles/cmTC_a5482.dir/build.make CMakeFiles/cmTC_a5482.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_a5482.dir/feature_tests.cxx.o
+/usr/bin/c++    -std=c++1z -o CMakeFiles/cmTC_a5482.dir/feature_tests.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.cxx
+Linking CXX executable cmTC_a5482
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a5482.dir/link.txt --verbose=1
+/usr/bin/c++       CMakeFiles/cmTC_a5482.dir/feature_tests.cxx.o  -o cmTC_a5482 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
-    Feature record: CXX_FEATURE:0cxx_aggregate_default_initializers
+    Feature record: CXX_FEATURE:1cxx_aggregate_default_initializers
     Feature record: CXX_FEATURE:1cxx_alias_templates
     Feature record: CXX_FEATURE:1cxx_alignas
     Feature record: CXX_FEATURE:1cxx_alignof
     Feature record: CXX_FEATURE:1cxx_attributes
-    Feature record: CXX_FEATURE:0cxx_attribute_deprecated
+    Feature record: CXX_FEATURE:1cxx_attribute_deprecated
     Feature record: CXX_FEATURE:1cxx_auto_type
-    Feature record: CXX_FEATURE:0cxx_binary_literals
+    Feature record: CXX_FEATURE:1cxx_binary_literals
     Feature record: CXX_FEATURE:1cxx_constexpr
-    Feature record: CXX_FEATURE:0cxx_contextual_conversions
+    Feature record: CXX_FEATURE:1cxx_contextual_conversions
     Feature record: CXX_FEATURE:1cxx_decltype
-    Feature record: CXX_FEATURE:0cxx_decltype_auto
+    Feature record: CXX_FEATURE:1cxx_decltype_auto
     Feature record: CXX_FEATURE:1cxx_decltype_incomplete_return_types
     Feature record: CXX_FEATURE:1cxx_default_function_template_args
     Feature record: CXX_FEATURE:1cxx_defaulted_functions
     Feature record: CXX_FEATURE:1cxx_defaulted_move_initializers
     Feature record: CXX_FEATURE:1cxx_delegating_constructors
     Feature record: CXX_FEATURE:1cxx_deleted_functions
-    Feature record: CXX_FEATURE:0cxx_digit_separators
+    Feature record: CXX_FEATURE:1cxx_digit_separators
     Feature record: CXX_FEATURE:1cxx_enum_forward_declarations
     Feature record: CXX_FEATURE:1cxx_explicit_conversions
     Feature record: CXX_FEATURE:1cxx_extended_friend_declarations
@@ -1162,11 +683,11 @@ gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/
     Feature record: CXX_FEATURE:1cxx_final
     Feature record: CXX_FEATURE:1cxx_func_identifier
     Feature record: CXX_FEATURE:1cxx_generalized_initializers
-    Feature record: CXX_FEATURE:0cxx_generic_lambdas
+    Feature record: CXX_FEATURE:1cxx_generic_lambdas
     Feature record: CXX_FEATURE:1cxx_inheriting_constructors
     Feature record: CXX_FEATURE:1cxx_inline_namespaces
     Feature record: CXX_FEATURE:1cxx_lambdas
-    Feature record: CXX_FEATURE:0cxx_lambda_init_captures
+    Feature record: CXX_FEATURE:1cxx_lambda_init_captures
     Feature record: CXX_FEATURE:1cxx_local_type_template_args
     Feature record: CXX_FEATURE:1cxx_long_long_type
     Feature record: CXX_FEATURE:1cxx_noexcept
@@ -1176,8 +697,8 @@ gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/
     Feature record: CXX_FEATURE:1cxx_range_for
     Feature record: CXX_FEATURE:1cxx_raw_string_literals
     Feature record: CXX_FEATURE:1cxx_reference_qualified_functions
-    Feature record: CXX_FEATURE:0cxx_relaxed_constexpr
-    Feature record: CXX_FEATURE:0cxx_return_type_deduction
+    Feature record: CXX_FEATURE:1cxx_relaxed_constexpr
+    Feature record: CXX_FEATURE:1cxx_return_type_deduction
     Feature record: CXX_FEATURE:1cxx_right_angle_brackets
     Feature record: CXX_FEATURE:1cxx_rvalue_references
     Feature record: CXX_FEATURE:1cxx_sizeof_member
@@ -1190,7 +711,80 @@ gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/
     Feature record: CXX_FEATURE:1cxx_uniform_initialization
     Feature record: CXX_FEATURE:1cxx_unrestricted_unions
     Feature record: CXX_FEATURE:1cxx_user_literals
-    Feature record: CXX_FEATURE:0cxx_variable_templates
+    Feature record: CXX_FEATURE:1cxx_variable_templates
+    Feature record: CXX_FEATURE:1cxx_variadic_macros
+    Feature record: CXX_FEATURE:1cxx_variadic_templates
+
+
+Detecting CXX [-std=c++14] compiler features compiled with the following output:
+Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_d1ca4/fast"
+/usr/bin/make -f CMakeFiles/cmTC_d1ca4.dir/build.make CMakeFiles/cmTC_d1ca4.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_d1ca4.dir/feature_tests.cxx.o
+/usr/bin/c++    -std=c++14 -o CMakeFiles/cmTC_d1ca4.dir/feature_tests.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.cxx
+Linking CXX executable cmTC_d1ca4
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d1ca4.dir/link.txt --verbose=1
+/usr/bin/c++       CMakeFiles/cmTC_d1ca4.dir/feature_tests.cxx.o  -o cmTC_d1ca4 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: CXX_FEATURE:1cxx_aggregate_default_initializers
+    Feature record: CXX_FEATURE:1cxx_alias_templates
+    Feature record: CXX_FEATURE:1cxx_alignas
+    Feature record: CXX_FEATURE:1cxx_alignof
+    Feature record: CXX_FEATURE:1cxx_attributes
+    Feature record: CXX_FEATURE:1cxx_attribute_deprecated
+    Feature record: CXX_FEATURE:1cxx_auto_type
+    Feature record: CXX_FEATURE:1cxx_binary_literals
+    Feature record: CXX_FEATURE:1cxx_constexpr
+    Feature record: CXX_FEATURE:1cxx_contextual_conversions
+    Feature record: CXX_FEATURE:1cxx_decltype
+    Feature record: CXX_FEATURE:1cxx_decltype_auto
+    Feature record: CXX_FEATURE:1cxx_decltype_incomplete_return_types
+    Feature record: CXX_FEATURE:1cxx_default_function_template_args
+    Feature record: CXX_FEATURE:1cxx_defaulted_functions
+    Feature record: CXX_FEATURE:1cxx_defaulted_move_initializers
+    Feature record: CXX_FEATURE:1cxx_delegating_constructors
+    Feature record: CXX_FEATURE:1cxx_deleted_functions
+    Feature record: CXX_FEATURE:1cxx_digit_separators
+    Feature record: CXX_FEATURE:1cxx_enum_forward_declarations
+    Feature record: CXX_FEATURE:1cxx_explicit_conversions
+    Feature record: CXX_FEATURE:1cxx_extended_friend_declarations
+    Feature record: CXX_FEATURE:1cxx_extern_templates
+    Feature record: CXX_FEATURE:1cxx_final
+    Feature record: CXX_FEATURE:1cxx_func_identifier
+    Feature record: CXX_FEATURE:1cxx_generalized_initializers
+    Feature record: CXX_FEATURE:1cxx_generic_lambdas
+    Feature record: CXX_FEATURE:1cxx_inheriting_constructors
+    Feature record: CXX_FEATURE:1cxx_inline_namespaces
+    Feature record: CXX_FEATURE:1cxx_lambdas
+    Feature record: CXX_FEATURE:1cxx_lambda_init_captures
+    Feature record: CXX_FEATURE:1cxx_local_type_template_args
+    Feature record: CXX_FEATURE:1cxx_long_long_type
+    Feature record: CXX_FEATURE:1cxx_noexcept
+    Feature record: CXX_FEATURE:1cxx_nonstatic_member_init
+    Feature record: CXX_FEATURE:1cxx_nullptr
+    Feature record: CXX_FEATURE:1cxx_override
+    Feature record: CXX_FEATURE:1cxx_range_for
+    Feature record: CXX_FEATURE:1cxx_raw_string_literals
+    Feature record: CXX_FEATURE:1cxx_reference_qualified_functions
+    Feature record: CXX_FEATURE:1cxx_relaxed_constexpr
+    Feature record: CXX_FEATURE:1cxx_return_type_deduction
+    Feature record: CXX_FEATURE:1cxx_right_angle_brackets
+    Feature record: CXX_FEATURE:1cxx_rvalue_references
+    Feature record: CXX_FEATURE:1cxx_sizeof_member
+    Feature record: CXX_FEATURE:1cxx_static_assert
+    Feature record: CXX_FEATURE:1cxx_strong_enums
+    Feature record: CXX_FEATURE:1cxx_template_template_parameters
+    Feature record: CXX_FEATURE:1cxx_thread_local
+    Feature record: CXX_FEATURE:1cxx_trailing_return_types
+    Feature record: CXX_FEATURE:1cxx_unicode_literals
+    Feature record: CXX_FEATURE:1cxx_uniform_initialization
+    Feature record: CXX_FEATURE:1cxx_unrestricted_unions
+    Feature record: CXX_FEATURE:1cxx_user_literals
+    Feature record: CXX_FEATURE:1cxx_variable_templates
     Feature record: CXX_FEATURE:1cxx_variadic_macros
     Feature record: CXX_FEATURE:1cxx_variadic_templates
 
@@ -1198,17 +792,15 @@ gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/
 Detecting CXX [-std=c++11] compiler features compiled with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_58405/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_58405.dir/build.make CMakeFiles/cmTC_58405.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_58405.dir/feature_tests.cxx.o
-/usr/bin/c++     -std=c++11 -o CMakeFiles/cmTC_58405.dir/feature_tests.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.cxx
-Linking CXX executable cmTC_58405
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_58405.dir/link.txt --verbose=1
-/usr/bin/c++        CMakeFiles/cmTC_58405.dir/feature_tests.cxx.o  -o cmTC_58405 -rdynamic 
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_b9226/fast"
+/usr/bin/make -f CMakeFiles/cmTC_b9226.dir/build.make CMakeFiles/cmTC_b9226.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_b9226.dir/feature_tests.cxx.o
+/usr/bin/c++    -std=c++11 -o CMakeFiles/cmTC_b9226.dir/feature_tests.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.cxx
+Linking CXX executable cmTC_b9226
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b9226.dir/link.txt --verbose=1
+/usr/bin/c++       CMakeFiles/cmTC_b9226.dir/feature_tests.cxx.o  -o cmTC_b9226 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
     Feature record: CXX_FEATURE:0cxx_aggregate_default_initializers
@@ -1273,17 +865,15 @@ gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/
 Detecting CXX [-std=c++98] compiler features compiled with the following output:
 Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
 
-Run Build Command:"/usr/bin/gmake" "cmTC_552d2/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_552d2.dir/build.make CMakeFiles/cmTC_552d2.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building CXX object CMakeFiles/cmTC_552d2.dir/feature_tests.cxx.o
-/usr/bin/c++     -std=c++98 -o CMakeFiles/cmTC_552d2.dir/feature_tests.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.cxx
-Linking CXX executable cmTC_552d2
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_552d2.dir/link.txt --verbose=1
-/usr/bin/c++        CMakeFiles/cmTC_552d2.dir/feature_tests.cxx.o  -o cmTC_552d2 -rdynamic 
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Run Build Command:"/usr/bin/make" "cmTC_1af39/fast"
+/usr/bin/make -f CMakeFiles/cmTC_1af39.dir/build.make CMakeFiles/cmTC_1af39.dir/build
+make[1]: Entering directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_1af39.dir/feature_tests.cxx.o
+/usr/bin/c++    -std=c++98 -o CMakeFiles/cmTC_1af39.dir/feature_tests.cxx.o -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/feature_tests.cxx
+Linking CXX executable cmTC_1af39
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1af39.dir/link.txt --verbose=1
+/usr/bin/c++       CMakeFiles/cmTC_1af39.dir/feature_tests.cxx.o  -o cmTC_1af39 
+make[1]: Leaving directory '/filer/z-sv-pool06/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
 
 
     Feature record: CXX_FEATURE:0cxx_aggregate_default_initializers
@@ -1343,207 +933,3 @@ gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/
     Feature record: CXX_FEATURE:0cxx_variable_templates
     Feature record: CXX_FEATURE:0cxx_variadic_macros
     Feature record: CXX_FEATURE:0cxx_variadic_templates
-Compiling the Fortran compiler identification source file "CMakeFortranCompilerId.F" succeeded.
-Compiler: /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90 
-Build flags: 
-Id flags: -v
-
-The output was:
-0
-Driving: /usr/bin/gfortran -v CMakeFortranCompilerId.F -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include -pthread -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,-rpath -Wl,/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,--enable-new-dtags -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -lmpi_usempi -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc
-Using built-in specs.
-COLLECT_GCC=/usr/bin/gfortran
-COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper
-Target: x86_64-suse-linux
-Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
-Thread model: posix
-gcc version 4.8.5 (SUSE Linux) 
-COLLECT_GCC_OPTIONS='-v' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/f951 CMakeFortranCompilerId.F -ffixed-form -cpp=/tmp/ccuJ1WJ0.f90 -quiet -v -I /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include -I /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -D_REENTRANT CMakeFortranCompilerId.F -quiet -dumpbase CMakeFortranCompilerId.F -mtune=generic -march=x86-64 -auxbase CMakeFortranCompilerId -version -fintrinsic-modules-path /usr/lib64/gcc/x86_64-suse-linux/4.8/finclude -o /tmp/ccrkkAfH.s
-GNU Fortran (SUSE Linux) version 4.8.5 (x86_64-suse-linux)
-	compiled by GNU C version 4.8.5, GMP version 5.1.3, MPFR version 3.1.2, MPC version 1.0.2
-warning: MPFR header version 3.1.2 differs from library version 3.1.4.
-GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
-ignoring duplicate directory "/home/opt/cosmo_tica_lib//valgrind-svn/install/include"
-#include "..." search starts here:
-#include <...> search starts here:
- /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include
- /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64
- /usr/lib64/gcc/x86_64-suse-linux/4.8/finclude
- /home/opt/cosmo_tica_lib//valgrind-svn/install/include
- .
- /usr/lib64/gcc/x86_64-suse-linux/4.8/include
- /usr/local/include
- /usr/lib64/gcc/x86_64-suse-linux/4.8/include-fixed
- /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/include
- /usr/include
-End of search list.
-GNU Fortran (SUSE Linux) version 4.8.5 (x86_64-suse-linux)
-	compiled by GNU C version 4.8.5, GMP version 5.1.3, MPFR version 3.1.2, MPC version 1.0.2
-warning: MPFR header version 3.1.2 differs from library version 3.1.4.
-GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
-COLLECT_GCC_OPTIONS='-v' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/as -v -I /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include -I /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 --64 -o /tmp/ccVSmePn.o /tmp/ccrkkAfH.s
-GNU assembler version 2.25.0 (x86_64-suse-linux) using BFD version (GNU Binutils; openSUSE Leap 42.1) 2.25.0
-Reading specs from /usr/lib64/gcc/x86_64-suse-linux/4.8/libgfortran.spec
-rename spec lib to liborig
-COLLECT_GCC_OPTIONS='-v' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
-COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/
-LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/
-COLLECT_GCC_OPTIONS='-v' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. /tmp/ccVSmePn.o -rpath /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 --enable-new-dtags -lmpi_usempi -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o
-
-
-Compilation of the Fortran compiler identification source "CMakeFortranCompilerId.F" produced "a.out"
-
-The Fortran compiler identification is GNU, found in "/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/3.5.1/CompilerIdFortran/a.out"
-
-Determining if the Fortran compiler works passed with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_9862c/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_9862c.dir/build.make CMakeFiles/cmTC_9862c.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_9862c.dir/testFortranCompiler.f.o
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90     -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_9862c.dir/testFortranCompiler.f.o
-Linking Fortran executable cmTC_9862c
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_9862c.dir/link.txt --verbose=1
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90       CMakeFiles/cmTC_9862c.dir/testFortranCompiler.f.o  -o cmTC_9862c  
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-Detecting Fortran compiler ABI info compiled with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_72520/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_72520.dir/build.make CMakeFiles/cmTC_72520.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90     -c /usr/share/cmake/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o
-Linking Fortran executable cmTC_72520
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_72520.dir/link.txt --verbose=1
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90    -v   CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o  -o cmTC_72520   
-Driving: /usr/bin/gfortran -v CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o -o cmTC_72520 -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include -pthread -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,-rpath -Wl,/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,--enable-new-dtags -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -lmpi_usempi -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc
-Using built-in specs.
-COLLECT_GCC=/usr/bin/gfortran
-COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper
-Target: x86_64-suse-linux
-Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
-Thread model: posix
-gcc version 4.8.5 (SUSE Linux) 
-Reading specs from /usr/lib64/gcc/x86_64-suse-linux/4.8/libgfortran.spec
-rename spec lib to liborig
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_72520' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
-COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/
-LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/
-COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_72520' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64'
- /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_72520 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o -rpath /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 --enable-new-dtags -lmpi_usempi -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-
-Parsed Fortran implicit link information from above output:
-  link line regex: [^( *|.*[/\])(ld|([^/\]+-)?ld|collect2)[^/\]*( |$)]
-  ignore line: [Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp]
-  ignore line: []
-  ignore line: [Run Build Command:"/usr/bin/gmake" "cmTC_72520/fast"]
-  ignore line: [gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
-  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_72520.dir/build.make CMakeFiles/cmTC_72520.dir/build]
-  ignore line: [gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp']
-  ignore line: [Building Fortran object CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o]
-  ignore line: [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90     -c /usr/share/cmake/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o]
-  ignore line: [Linking Fortran executable cmTC_72520]
-  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_72520.dir/link.txt --verbose=1]
-  ignore line: [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90    -v   CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o  -o cmTC_72520   ]
-  ignore line: [Driving: /usr/bin/gfortran -v CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o -o cmTC_72520 -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include -pthread -I/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,-rpath -Wl,/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -Wl,--enable-new-dtags -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -lmpi_usempi -lmpi_mpifh -lmpi -l gfortran -l m -shared-libgcc]
-  ignore line: [Using built-in specs.]
-  ignore line: [COLLECT_GCC=/usr/bin/gfortran]
-  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/4.8/lto-wrapper]
-  ignore line: [Target: x86_64-suse-linux]
-  ignore line: [Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,java,ada --enable-checking=release --with-gxx-include-dir=/usr/include/c++/4.8 --enable-ssp --disable-libssp --disable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --disable-libgcj --disable-libmudflap --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --enable-linker-build-id --enable-linux-futex --program-suffix=-4.8 --without-system-libunwind --with-arch-32=i586 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux]
-  ignore line: [Thread model: posix]
-  ignore line: [gcc version 4.8.5 (SUSE Linux) ]
-  ignore line: [Reading specs from /usr/lib64/gcc/x86_64-suse-linux/4.8/libgfortran.spec]
-  ignore line: [rename spec lib to liborig]
-  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_72520' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
-  ignore line: [COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/bin/]
-  ignore line: [LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/4.8/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../:/lib/:/usr/lib/]
-  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_72520' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/include' '-pthread' '-I' '/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64' '-shared-libgcc' '-mtune=generic' '-march=x86-64']
-  link line: [ /usr/lib64/gcc/x86_64-suse-linux/4.8/collect2 --build-id --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_72520 /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o -L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../.. CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o -rpath /home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64 --enable-new-dtags -lmpi_usempi -lmpi_mpifh -lmpi -lgfortran -lm -lgcc_s -lgcc -lquadmath -lm -lgcc_s -lgcc -lpthread -lc -lgcc_s -lgcc /usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o]
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/collect2] ==> ignore
-    arg [--build-id] ==> ignore
-    arg [--eh-frame-hdr] ==> ignore
-    arg [-m] ==> ignore
-    arg [elf_x86_64] ==> ignore
-    arg [-dynamic-linker] ==> ignore
-    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
-    arg [-o] ==> ignore
-    arg [cmTC_72520] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crt1.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crti.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtbegin.o] ==> ignore
-    arg [-L/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64] ==> dir [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64]
-    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
-    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib]
-    arg [-L/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..]
-    arg [CMakeFiles/cmTC_72520.dir/CMakeFortranCompilerABI.F.o] ==> ignore
-    arg [-rpath] ==> ignore
-    arg [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64] ==> ignore
-    arg [--enable-new-dtags] ==> ignore
-    arg [-lmpi_usempi] ==> lib [mpi_usempi]
-    arg [-lmpi_mpifh] ==> lib [mpi_mpifh]
-    arg [-lmpi] ==> lib [mpi]
-    arg [-lgfortran] ==> lib [gfortran]
-    arg [-lm] ==> lib [m]
-    arg [-lgcc_s] ==> lib [gcc_s]
-    arg [-lgcc] ==> lib [gcc]
-    arg [-lquadmath] ==> lib [quadmath]
-    arg [-lm] ==> lib [m]
-    arg [-lgcc_s] ==> lib [gcc_s]
-    arg [-lgcc] ==> lib [gcc]
-    arg [-lpthread] ==> lib [pthread]
-    arg [-lc] ==> lib [c]
-    arg [-lgcc_s] ==> lib [gcc_s]
-    arg [-lgcc] ==> lib [gcc]
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/crtend.o] ==> ignore
-    arg [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64/crtn.o] ==> ignore
-  remove lib [gcc_s]
-  remove lib [gcc]
-  remove lib [gcc_s]
-  remove lib [gcc]
-  remove lib [gcc_s]
-  remove lib [gcc]
-  collapse library dir [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64] ==> [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8] ==> [/usr/lib64/gcc/x86_64-suse-linux/4.8]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../lib64] ==> [/usr/lib64]
-  collapse library dir [/lib/../lib64] ==> [/lib64]
-  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../../../x86_64-suse-linux/lib] ==> [/usr/x86_64-suse-linux/lib]
-  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/4.8/../../..] ==> [/usr/lib64]
-  implicit libs: [mpi_usempi;mpi_mpifh;mpi;gfortran;m;quadmath;m;pthread;c]
-  implicit dirs: [/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/lib64;/usr/lib64/gcc/x86_64-suse-linux/4.8;/usr/lib64;/lib64;/usr/x86_64-suse-linux/lib]
-  implicit fwks: []
-
-
-Determining if the Fortran compiler supports Fortran 90 passed with the following output:
-Change Dir: /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp
-
-Run Build Command:"/usr/bin/gmake" "cmTC_4166e/fast"
-gmake[1]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-/usr/bin/gmake -f CMakeFiles/cmTC_4166e.dir/build.make CMakeFiles/cmTC_4166e.dir/build
-gmake[2]: Entering directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_4166e.dir/testFortranCompilerF90.f90.o
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90     -c /home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp/testFortranCompilerF90.f90 -o CMakeFiles/cmTC_4166e.dir/testFortranCompilerF90.f90.o
-Linking Fortran executable cmTC_4166e
-/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4166e.dir/link.txt --verbose=1
-/home/opt/cosmo_tica_lib/ompi1.8.1/openmpi-1.8.1/install/bin/mpif90       CMakeFiles/cmTC_4166e.dir/testFortranCompilerF90.f90.o  -o cmTC_4166e  
-gmake[2]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-gmake[1]: Leaving directory '/home/c/Carolin.Klinger/tenstream/build/CMakeFiles/CMakeTmp'
-
-

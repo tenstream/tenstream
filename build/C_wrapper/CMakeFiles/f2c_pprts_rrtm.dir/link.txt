@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../lib/libf2c_pprts_rrtm.a  CMakeFiles/f2c_pprts_rrtm.dir/f2c_pprts_rrtm.F90.o
+/usr/bin/ranlib ../lib/libf2c_pprts_rrtm.a

@@ -1,0 +1,1 @@
+/usr/bin/mpif90   -ffree-line-length-none -W -Wall -g                   -fno-backtrace -fno-range-check -O3 -O3 -DNDEBUG -O3  CMakeFiles/ex_disort_tenstr.dir/ex_disort_tenstr.F90.o  -o ../bin/ex_disort_tenstr ../lib/libtenstr_disort.a /usr/lib/x86_64-linux-gnu/libopenblas.so /usr/lib/x86_64-linux-gnu/libopenblas.so ../lib/libpprts_base.a /usr/lib/x86_64-linux-gnu/libopenblas.so 

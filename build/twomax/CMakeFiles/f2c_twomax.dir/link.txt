@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../lib/libf2c_twomax.a  CMakeFiles/f2c_twomax.dir/twomaxrnd.c.o CMakeFiles/f2c_twomax.dir/f2c_twomax.F90.o
+/usr/bin/ranlib ../lib/libf2c_twomax.a

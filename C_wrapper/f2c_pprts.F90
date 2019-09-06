@@ -44,12 +44,9 @@ module m_f2c_pprts
         rank0_f90vec_to_plex, dmplex_gvec_from_f90_array, plex_gvec_tozero
       use m_plex_grid, only: t_plexgrid, setup_plexgrid, create_plex_section
 
-      use m_plex_rt_base, only: allocate_plexrt_solver_from_commandline, &
+      use m_plex_rt, only: allocate_plexrt_solver_from_commandline, &
+        init_plex_rt_solver, run_plex_rt_solver, plexrt_get_result, destroy_plexrt_solver, &
         t_plex_solver, t_plex_solver_rectilinear_5_8
-
-      use m_plex_rt, only: &
-        init_plex_rt_solver, run_plex_rt_solver, plexrt_get_result, &
-        destroy_plexrt_solver
 
       use m_netcdfio, only: ncwrite
 
@@ -375,6 +372,7 @@ contains
       deallocate(plex_solver)
     endif
   end subroutine
+<<<<<<< HEAD
 
 
   ! --------------------- Start of PLEXRT Routines -------------------
@@ -434,6 +432,67 @@ contains
     if(myid.eq.0) oalbedo = real(albedo, ireals)
     call imp_bcast(comm, oalbedo, 0_mpiint); call CHKERR(ierr)
 
+=======
+
+
+  ! --------------------- Start of PLEXRT Routines -------------------
+  subroutine pprts_plexrt_f2c_init(comm, solver_id, &
+      Nx_global, Ny_global, Nlev, &
+      dx, hhl, phi0, theta0 )
+    integer(mpiint), intent(in) :: comm
+    integer(iintegers), intent(in) :: solver_id, Nx_global, Ny_global, Nlev
+    real(ireals), intent(in) :: dx, hhl(:), phi0, theta0
+
+    type(t_plexgrid), allocatable :: plex
+    integer(iintegers), allocatable :: zindex(:)
+    integer(iintegers) :: fStart, fEnd, Ncol
+    type(tDM) :: dm3d
+    integer(mpiint) :: myid, ierr
+
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    call create_2d_regular_plex(comm, Nx_global+1, Ny_global+1, dm2d, dm2d_dist, &
+      opt_migration_sf=migration_sf, opt_dx=dx)
+
+    call DMPlexGetHeightStratum(dm2d_dist, i0, fStart, fEnd, ierr); call CHKERR(ierr)
+    Ncol = fEnd - fStart
+
+    if(ldebug) print *,myid,'plexrt_f2c_init: Local Domain sizes are:', Nlev, Ncol
+
+    call dmplex_2D_to_3D(dm2d_dist, Nlev, hhl, dm3d, zindex, lpolar_coords=.False.)
+
+    call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
+    call DMDestroy(dm3d, ierr); call CHKERR(ierr)
+    deallocate(zindex)
+
+    select case(solver_id)
+    case(SOLVER_ID_PLEXRT_RECTILINEAR_5_8)
+      call allocate_plexrt_solver_from_commandline(plex_solver, 'rectilinear_5_8')
+    end select
+
+    call init_plex_rt_solver(plex, plex_solver)
+
+    sundir = spherical_2_cartesian(phi0,theta0)
+    if(ldebug) print *,'sundir', sundir
+  end subroutine
+
+  subroutine pprts_plexrt_f2c_set_global_optical_properties(Nz, Nx, Ny, albedo, kabs, ksca, g, planck) bind(c)
+    integer(c_int), value :: Nx,Ny,Nz
+    real(c_float),intent(in) :: albedo
+    real(c_float),intent(in),dimension(Nz  ,Nx,Ny) :: kabs, ksca, g
+    real(c_float),intent(in),dimension(Nz+1,Nx,Ny) :: planck
+
+    real(ireals) :: oalbedo
+    real(ireals),allocatable,target,dimension(:,:,:) :: work
+    integer(mpiint) :: comm, myid, ierr
+    logical :: lthermal
+
+    call PetscObjectGetComm(plex_solver%plex%dm, comm, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    if(myid.eq.0) oalbedo = real(albedo, ireals)
+    call imp_bcast(comm, oalbedo, 0_mpiint); call CHKERR(ierr)
+
+>>>>>>> 0221292e30fc29c7c76fe99b26fc2f3b449d91e7
     if(.not.allocated(plex_solver%albedo)) then
       allocate(plex_solver%albedo)
       call DMCreateGlobalVector(plex_solver%plex%srfc_boundary_dm, plex_solver%albedo, ierr); call CHKERR(ierr)

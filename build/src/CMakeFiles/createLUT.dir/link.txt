@@ -1,0 +1,1 @@
+/usr/bin/mpif90   -ffree-line-length-none -W -Wall -g                   -fno-backtrace -fno-range-check -O3 -O3 -DNDEBUG -O3  CMakeFiles/createLUT.dir/createLUT.F90.o  -o ../bin/createLUT ../lib/libpprts_base.a /usr/lib/x86_64-linux-gnu/libopenblas.so 

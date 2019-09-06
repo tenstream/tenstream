@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_rrtm_lw_sw_suite)

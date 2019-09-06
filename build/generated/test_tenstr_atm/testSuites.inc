@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_tenstr_atm_suite)

@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_icon_plex_utils_suite)

@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/c/Carolin.Klinger/tenstream/build/tests/CMakeFiles/pfunit"
+		},
+		{
+			"file" : "/home/c/Carolin.Klinger/tenstream/build/tests/CMakeFiles/pfunit.rule"
+		},
+		{
+			"file" : "/home/c/Carolin.Klinger/tenstream/build/tests/CMakeFiles/pfunit-complete.rule"
+		},
+		{
+			"file" : "/home/c/Carolin.Klinger/tenstream/build/external/pfunit-stamp/pfunit-install.rule"
+		},
+		{
+			"file" : "/home/c/Carolin.Klinger/tenstream/build/external/pfunit-stamp/pfunit-mkdir.rule"
+		},
+		{
+			"file" : "/home/c/Carolin.Klinger/tenstream/build/external/pfunit-stamp/pfunit-download.rule"
+		},
+		{
+			"file" : "/home/c/Carolin.Klinger/tenstream/build/external/pfunit-stamp/pfunit-update.rule"
+		},
+		{
+			"file" : "/home/c/Carolin.Klinger/tenstream/build/external/pfunit-stamp/pfunit-patch.rule"
+		},
+		{
+			"file" : "/home/c/Carolin.Klinger/tenstream/build/external/pfunit-stamp/pfunit-configure.rule"
+		},
+		{
+			"file" : "/home/c/Carolin.Klinger/tenstream/build/external/pfunit-stamp/pfunit-build.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"pfunit"
+		],
+		"name" : "pfunit"
+	}
+}

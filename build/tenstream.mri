@@ -1,0 +1,15 @@
+create /home/c/Carolin.Klinger/tenstream/build/lib/libtenstream.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libpprts_base.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libpprts.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libf2c_twomax.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libtenstr_disort.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libf2c_rayli.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libf2c_pprts.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libf2c_pprts_rrtm.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libplexrt.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libplexrt_rrtmg.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libpprts_rrtm_sw.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libpprts_rrtm_lw.a
+addlib /home/c/Carolin.Klinger/tenstream/build/lib/libpprts_rrtmg.a
+save
+end

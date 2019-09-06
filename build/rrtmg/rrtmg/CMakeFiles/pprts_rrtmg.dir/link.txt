@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../lib/libpprts_rrtmg.a  CMakeFiles/pprts_rrtmg.dir/pprts_rrtmg.F90.o CMakeFiles/tenstr_rrtmg_objs.dir/dyn_atm_to_rrtmg.F90.o CMakeFiles/tenstr_rrtmg_objs.dir/optprop_rrtmg.F90.o
+/usr/bin/ranlib ../../lib/libpprts_rrtmg.a

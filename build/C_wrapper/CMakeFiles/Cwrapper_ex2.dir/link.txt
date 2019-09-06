@@ -1,0 +1,1 @@
+/usr/bin/mpicc -W -Wall -Wuninitialized --std=c99                               -O3 -DNDEBUG   CMakeFiles/Cwrapper_ex2.dir/ex2.c.o  -o ../bin/Cwrapper_ex2 ../lib/libf2c_pprts.a ../lib/libpprts.a ../lib/libplexrt.a ../lib/libf2c_rayli.a ../lib/libpprts_base.a /usr/lib/x86_64-linux-gnu/libopenblas.so -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lgfortran -lm -lquadmath -lm 

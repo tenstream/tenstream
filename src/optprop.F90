@@ -264,7 +264,8 @@ contains
         real(irealLUT),intent(in),optional :: angles(:)
         real(irealLUT) :: save_param_phi, save_param_theta
 
-        real(irealLUT), save, allocatable :: inp_arr_dir(:), inp_arr_diff(:)
+        real(ireals), save, allocatable :: inp_arr_dir(:), inp_arr_diff(:)
+
         integer(iintegers), save :: dimidx_dir(8)
         integer(iintegers), save :: dimidx_diff(6)
         logical, save :: linit=.False.

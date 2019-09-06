@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../lib/libtenstr_disort.a  CMakeFiles/tenstr_disort.dir/disort.f.o CMakeFiles/tenstr_disort.dir/ERRPACK.f.o CMakeFiles/tenstr_disort.dir/BDREF.f.o CMakeFiles/tenstr_disort.dir/DISOBRDF.f.o CMakeFiles/tenstr_disort.dir/RDI1MACH.f.o CMakeFiles/tenstr_disort.dir/DISOTESTAUX.f.o CMakeFiles/tenstr_disort.dir/LINPAK.f.o CMakeFiles/tenstr_disort.dir/tenstream_disort.F90.o
+/usr/bin/ranlib ../lib/libtenstr_disort.a

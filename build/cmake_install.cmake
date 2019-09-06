@@ -2,7 +2,7 @@
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/usr/local")
+  set(CMAKE_INSTALL_PREFIX "/home/c/Carolin.Klinger/tenstream/build/install")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -29,16 +29,29 @@ endif()
 
 # Install shared libraries without execute permission?
 if(NOT DEFINED CMAKE_INSTALL_SO_NO_EXE)
-  set(CMAKE_INSTALL_SO_NO_EXE "0")
+  set(CMAKE_INSTALL_SO_NO_EXE "1")
 endif()
 
-if(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "Unspecified")
+# Is this installation the result of a crosscompile?
+if(NOT DEFINED CMAKE_CROSSCOMPILING)
+  set(CMAKE_CROSSCOMPILING "FALSE")
+endif()
+
+if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/include" TYPE DIRECTORY FILES "/home/c/Carolin.Klinger/tenstream/build/include/")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
   include("/home/c/Carolin.Klinger/tenstream/build/src/cmake_install.cmake")
+  include("/home/c/Carolin.Klinger/tenstream/build/disort/cmake_install.cmake")
+  include("/home/c/Carolin.Klinger/tenstream/build/rayli_wrapper/cmake_install.cmake")
+  include("/home/c/Carolin.Klinger/tenstream/build/plexrt/cmake_install.cmake")
+  include("/home/c/Carolin.Klinger/tenstream/build/tests/cmake_install.cmake")
+  include("/home/c/Carolin.Klinger/tenstream/build/rrtmg/cmake_install.cmake")
+  include("/home/c/Carolin.Klinger/tenstream/build/examples/cmake_install.cmake")
+  include("/home/c/Carolin.Klinger/tenstream/build/C_wrapper/cmake_install.cmake")
+  include("/home/c/Carolin.Klinger/tenstream/build/twomax/cmake_install.cmake")
 
 endif()
 

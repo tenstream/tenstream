@@ -444,20 +444,13 @@ end function
     endif
   end subroutine
 
-  real(REAL32) function LUT_wedge_aspect_zx_r32(Atop, dz) result(aspect_zx)
-    real(REAL32), intent(in) :: Atop, dz
+  real(irealLUT) function LUT_wedge_aspect_zx(Atop, dz) result(aspect_zx)
+    real(irealLUT), intent(in) :: Atop, dz
     aspect_zx = dz / sqrt(Atop * 2)
   end function
-  real(REAL64) function LUT_wedge_aspect_zx_r64(Atop, dz) result(aspect_zx)
-    real(REAL64), intent(in) :: Atop, dz
-    aspect_zx = dz / sqrt(Atop * 2)
-  end function
-  real(REAL32) function LUT_wedge_dz_r32(Atop, aspect_zx) result(dz)
-    real(REAL32), intent(in) :: Atop, aspect_zx
-    dz = sqrt(Atop * 2) * aspect_zx
-  end function
-  real(REAL64) function LUT_wedge_dz_r64(Atop, aspect_zx) result(dz)
-    real(REAL64), intent(in) :: Atop, aspect_zx
+  real(irealLUT) function LUT_wedge_dz(Atop, aspect_zx) result(dz)
+    real(irealLUT), intent(in) :: Atop, aspect_zx
+
     dz = sqrt(Atop * 2) * aspect_zx
   end function
 end module

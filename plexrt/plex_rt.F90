@@ -49,7 +49,13 @@ module m_plex_rt
 
   private
 
+<<<<<<< HEAD
   public :: init_plex_rt_solver, run_plex_rt_solver, &
+=======
+  public :: t_plex_solver, allocate_plexrt_solver_from_commandline, &
+    t_plex_solver_rectilinear_5_8, &
+    init_plex_rt_solver, run_plex_rt_solver, &
+>>>>>>> 0221292e30fc29c7c76fe99b26fc2f3b449d91e7
     compute_face_geometry, set_plex_rt_optprop, destroy_plexrt_solver, &
     plexrt_get_result, scale_flx
 
@@ -535,7 +541,11 @@ module m_plex_rt
           luse_rayli, lflg, ierr) ;call CHKERR(ierr)
         if(luse_rayli) then
           call PetscLogEventBegin(solver%logs%solve_rayli, ierr)
+<<<<<<< HEAD
           call rayli_wrapper(solver%plex, solver%kabs, solver%ksca, solver%g, &
+=======
+          call rayli_wrapper(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
+>>>>>>> 0221292e30fc29c7c76fe99b26fc2f3b449d91e7
               solver%albedo, sundir, solution, plck=solver%plck)
           call PetscLogEventEnd(solver%logs%solve_rayli, ierr)
           goto 99
@@ -2361,12 +2371,36 @@ module m_plex_rt
         max_g(1) = 0._irealLUT
       endif
 
+<<<<<<< HEAD
       if(find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'g').ge.1) then
         max_g(2) = OPP%OPP_LUT%diffconfig%dims(&
           find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'g'))%vrange(2)
       else
         max_g(2) = 0._irealLUT
       endif
+=======
+    integer(iintegers), save :: dimidx(9)
+    logical, save :: linit_idx=.False.
+
+    if(.not.linit_idx) then
+      dimidx(1) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'tau')
+      dimidx(2) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'w0')
+      dimidx(3) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'wedge_coord_Cx')
+      dimidx(4) = find_lut_dim_by_name(OPP%OPP_LUT%dirconfig, 'wedge_coord_Cy')
+
+      dimidx(6) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'tau')
+      dimidx(7) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'w0')
+      dimidx(8) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'wedge_coord_Cx')
+      dimidx(9) = find_lut_dim_by_name(OPP%OPP_LUT%diffconfig, 'wedge_coord_Cy')
+
+      linit_idx = .True.
+    endif
+
+    dkabs = kabs
+    dksca = ksca
+    dg    = g
+    call delta_scale( dkabs, dksca, dg, max_g=.5_irealLUT)
+>>>>>>> 0221292e30fc29c7c76fe99b26fc2f3b449d91e7
 
       if(ldebug) print *,'found LUT max_g to be:', max_g
       linit_idx = .True.
@@ -2380,6 +2414,7 @@ module m_plex_rt
     w0 = real(dksca / max(dkabs+dksca, tiny(dksca)), irealLUT)
 
     if(present(angles)) then
+<<<<<<< HEAD
       tauz = snap_limits(tauz, OPP%OPP_LUT%dirconfig%dims(dimidx(itaudir))%vrange)
       w0   = snap_limits(w0  , OPP%OPP_LUT%dirconfig%dims(dimidx(iw0dir ))%vrange)
 
@@ -2397,6 +2432,18 @@ module m_plex_rt
       w0   = snap_limits(w0  , OPP%OPP_LUT%diffconfig%dims(dimidx(iw0diff ))%vrange)
 
       call delta_scale( dkabs, dksca, dg, max_g=max_g(2))
+=======
+      tauz = max(OPP%OPP_LUT%dirconfig%dims(dimidx(1))%vrange(1), &
+        min(OPP%OPP_LUT%dirconfig%dims(dimidx(1))%vrange(2), tauz))
+      w0 = max(OPP%OPP_LUT%dirconfig%dims(dimidx(2))%vrange(1), &
+        min(OPP%OPP_LUT%dirconfig%dims(dimidx(2))%vrange(2), w0))
+    else
+      tauz = max(OPP%OPP_LUT%diffconfig%dims(dimidx(6))%vrange(1), &
+        min(OPP%OPP_LUT%diffconfig%dims(dimidx(6))%vrange(2), tauz))
+      w0 = max(OPP%OPP_LUT%diffconfig%dims(dimidx(7))%vrange(1), &
+        min(OPP%OPP_LUT%diffconfig%dims(dimidx(7))%vrange(2), w0))
+    endif
+>>>>>>> 0221292e30fc29c7c76fe99b26fc2f3b449d91e7
 
       call OPP%get_coeff(tauz, w0, real(dg, irealLUT), real(aspect_zx, irealLUT), &
         ldir, coeff, ierr, &
@@ -2409,7 +2456,11 @@ module m_plex_rt
         if(.not.ldir.and.present(angles)) print *,'Lookup Coeffs for dir2diff', tauz, w0, aspect_zx, dg, angles,'::', coeff
       endif
       if(.not.ldir.and..not.present(angles)) then
+<<<<<<< HEAD
         if(tauz.lt.1._irealLUT .and. all(coeff.le.0)) then
+=======
+        if(tauz.lt.1._irealLUT .and. all(coeff.eq.0)) then
+>>>>>>> 0221292e30fc29c7c76fe99b26fc2f3b449d91e7
           print *,'Lookup Coeffs for diff2diff', tauz, w0, dg, aspect_zx, ':', Cx, Cy, '::', coeff
           call CHKERR(1_mpiint, 'Found all zero entries where I would not expect it')
         endif
@@ -2719,7 +2770,12 @@ module m_plex_rt
 
       call PetscSectionGetOffset(abso_section, icell, abso_offset, ierr); call CHKERR(ierr)
 
+<<<<<<< HEAD
       cell_abso = zero
+=======
+      xabso(i1+abso_offset) = zero
+
+>>>>>>> 0221292e30fc29c7c76fe99b26fc2f3b449d91e7
       do i = 1, size(incoming_offsets)
         !print *,'icell', icell, incoming_offsets(i), outgoing_offsets(i), 'abso', &
         !  xabso(i1+abso_offset), &
@@ -2727,11 +2783,19 @@ module m_plex_rt
         !  '-', xediff(i1+outgoing_offsets(i)) * inv_volume, &
         !  '=', xabso(i1+abso_offset) + &
         !       ( xediff(i1+incoming_offsets(i)) - xediff(i1+outgoing_offsets(i)) ) * inv_volume
+<<<<<<< HEAD
         if(incoming_offsets(i).ge.i0) cell_abso = cell_abso + xediff(i1+incoming_offsets(i))
         if(outgoing_offsets(i).ge.i0) cell_abso = cell_abso - xediff(i1+outgoing_offsets(i))
       enddo
 
       xabso(i1+abso_offset) = xabso(i1+abso_offset) + cell_abso * inv_volume
+=======
+        if(incoming_offsets(i).ge.i0) xabso(i1+abso_offset) = xabso(i1+abso_offset) + xediff(i1+incoming_offsets(i))
+        if(outgoing_offsets(i).ge.i0) xabso(i1+abso_offset) = xabso(i1+abso_offset) - xediff(i1+outgoing_offsets(i))
+      enddo
+
+      xabso(i1+abso_offset) = xabso(i1+abso_offset) * inv_volume
+>>>>>>> 0221292e30fc29c7c76fe99b26fc2f3b449d91e7
     enddo
     call ISRestoreIndicesF90(IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
 
@@ -2743,6 +2807,622 @@ module m_plex_rt
     !if(ldebug) print *,'plex_rt::compute_ediff_absorption....finished'
   end subroutine
 
+<<<<<<< HEAD
+=======
+  !> @brief simple schwarzschild solver
+  !> @details Wrapper for the schwarzschild solver for the radiative transfer equation
+  !> \n The solver neglects the scattering term and just solves for lambert beerschen transport + emission
+  !> \n This is the simplest radiation solver but quite accurate for thermal calculations
+  subroutine schwarz(solver, solution)
+    class(t_plex_solver)    :: solver
+    type(t_state_container) :: solution
+
+    real(ireals),allocatable :: dtau(:), Blev(:), Edn(:),Eup(:)
+
+    type(tIS) :: boundary_ids
+    integer(iintegers), pointer :: xitoa(:), cell_support(:)
+    integer(iintegers), allocatable :: cell_idx(:)
+    integer(iintegers) :: i, k, icell, iface, voff, ke1, geom_offset
+    real(ireals) :: dz
+    real(ireals), pointer :: xkabs(:), xalbedo(:), xplck(:), xediff(:), xgeoms(:)
+    type(tPetscSection) :: ediff_section, plck_section, geom_section
+
+    integer(iintegers) :: Nmu
+    logical :: lflg
+    integer(mpiint) :: ierr
+
+    if(solution%lsolar_rad) call CHKERR(1_mpiint, 'Tried calling schwarschild solver for solar calculation -- stopping!')
+    if( .not. allocated(solver%plck) ) call CHKERR(1_mpiint, 'Tried calling schwarschild solver but no planck was given -- stopping!')
+
+    Nmu = 10
+    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-schwarzschild_Nmu" , Nmu, lflg , ierr) ;call CHKERR(ierr)
+
+    associate( plex => solver%plex )
+
+    call DMGetStratumIS(plex%ediff_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
+    if (boundary_ids.eq.PETSC_NULL_IS) then ! dont have TOA boundary faces
+    else
+      allocate(dtau(plex%Nlay))
+      allocate(Blev(plex%Nlay+1))
+      allocate(Edn (plex%Nlay+1))
+      allocate(Eup (plex%Nlay+1))
+
+      call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+      call DMGetSection(plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
+      call DMGetSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+
+      call VecGetArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(solver%plck, xplck, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+
+      call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+      do i = 1, size(xitoa)
+        iface = xitoa(i)
+        call DMPlexGetSupport(plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+        icell = cell_support(1)
+        call DMPlexRestoreSupport(plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+
+        call get_consecutive_vertical_cell_idx(plex, icell, cell_idx)
+        ke1 = size(cell_idx)+1
+        do k=1,ke1-1
+          icell = cell_idx(k)
+
+          call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          dz = xgeoms(i1+geom_offset)
+
+          dtau(k) = xkabs(i1+icell) * dz
+        enddo
+
+        do k=1,ke1
+          call PetscSectionGetFieldOffset(plck_section, iface+k-1, i0, voff, ierr); call CHKERR(ierr)
+          Blev(k) = xplck(i1+voff)
+        enddo
+
+        call schwarzschild(Nmu, dtau, xalbedo(i), Edn, Eup, Blev)
+
+        do k = 0, ke1-2
+          call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+          xediff(i1+voff) = Edn(i1+k)
+          xediff(i2+voff) = Eup(i1+k)
+        enddo
+        ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
+        call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
+        xediff(i1+voff) = Eup(i1+k)
+        xediff(i2+voff) = Edn(i1+k)
+      enddo
+      call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+
+      call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(solver%plck, xplck, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+
+
+      !Schwarzschild solver returns fluxes as [W/m^2]
+      solution%lWm2_dir  = .True.
+      solution%lWm2_diff = .True.
+      ! and mark solution that it is not up to date
+      solution%lchanged  = .True.
+    endif ! TOA boundary ids
+
+    end associate
+  end subroutine
+
+  !> @brief wrapper for the delta-eddington twostream solver
+  !> @details solve the radiative transfer equation for infinite horizontal slabs
+  subroutine twostream(solver, plex, kabs, ksca, g, albedo, sundir, solution, plck)
+    class(t_plex_solver), intent(inout) :: solver
+    type(t_plexgrid), intent(in) :: plex
+    type(tVec), intent(in) :: kabs, ksca, g, albedo
+    type(tVec), intent(in), optional :: plck
+    real(ireals), intent(in) :: sundir(:)
+    type(t_state_container) :: solution
+
+    real(ireals),allocatable :: vdtau(:), vw0(:), vg(:), Blev(:), Edir(:), Edn(:),Eup(:)
+
+    type(tIS) :: boundary_ids
+    integer(iintegers), pointer :: xitoa(:), cell_support(:)
+    integer(iintegers), allocatable :: cell_idx(:)
+    integer(iintegers) :: i, k, icell, iface, voff, ke1, geom_offset, idof
+    real(ireals) :: dz, theta0, mu0
+    real(ireals), pointer :: xksca(:), xkabs(:), xg(:), xalbedo(:), xplck(:)
+    real(ireals), pointer :: xedir(:), xediff(:), xgeoms(:)
+    type(tPetscSection) :: edir_section, ediff_section, plck_section, geom_section
+
+    real(ireals) :: dkabs, dksca, dg
+    real(ireals) :: face_normal(3)
+    logical :: lthermal, lsolar
+
+    integer(mpiint) :: ierr
+
+    if(solution%lsolar_rad) then
+      call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+    endif
+    call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+
+    if(solution%lsolar_rad .and. norm2(sundir).le.zero) then
+      return
+    endif
+
+    lsolar = solution%lsolar_rad
+    lthermal = .not.solution%lsolar_rad
+
+    call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
+    if (boundary_ids.eq.PETSC_NULL_IS) then ! dont have TOA boundary faces
+    else
+      allocate(vdtau(plex%Nlay))
+      allocate(vw0  (plex%Nlay))
+      allocate(vg   (plex%Nlay))
+      allocate(Edir(plex%Nlay+1))
+      allocate(Edn (plex%Nlay+1))
+      allocate(Eup (plex%Nlay+1))
+
+      call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+      call DMGetSection(plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
+      call DMGetSection(plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
+
+      call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+
+
+      if(lthermal) then
+        if(.not.present(plck)) call CHKERR(1_mpiint, 'have to provide planck vec to compute thermal rad with twostr')
+        allocate(Blev(plex%Nlay+1))
+        call VecGetArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
+      endif
+
+      call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      if(lsolar) then
+        call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
+      endif
+
+      call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+      do i = 1, size(xitoa)
+        iface = xitoa(i)
+
+        call DMPlexGetSupport(plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+        icell = cell_support(1)
+        call DMPlexRestoreSupport(plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+        call get_inward_face_normal(iface, icell, geom_section, xgeoms, face_normal)
+        theta0 = angle_between_two_vec(face_normal, sundir)
+        mu0 = cos(theta0)
+
+        call get_consecutive_vertical_cell_idx(plex, icell, cell_idx)
+        ke1 = size(cell_idx)+1
+        do k=1,ke1-1
+          icell = cell_idx(k)
+
+          call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          dz = xgeoms(i1+geom_offset)
+
+          dkabs = xkabs(i1+icell)
+          dksca = xksca(i1+icell)
+          dg    = xg(i1+icell)
+
+          call delta_scale( dkabs, dksca, dg, max_g=zero)
+
+          vdtau(k) = (dkabs + dksca)
+          vw0(k)   = dksca / max(tiny(vw0), vdtau(k))
+          vg(k)    = dg
+          vdtau(k)    = vdtau(k) * dz
+
+          !call delta_scale_optprop(vdtau(k), vw0(k), vg(k), vg(k))
+        enddo
+        if(lthermal) then
+          do k=1,ke1
+            call PetscSectionGetFieldOffset(plck_section, iface+k-1, i0, voff, ierr); call CHKERR(ierr)
+            Blev(k) = xplck(i1+voff)
+          enddo
+        endif
+
+        if(solution%lsolar_rad) then
+          call delta_eddington_twostream(vdtau,vw0,vg,&
+            mu0,norm2(sundir)*mu0,xalbedo(i), &
+            Edir, Edn, Eup )
+        else
+          call delta_eddington_twostream(vdtau,vw0,vg,&
+            mu0,norm2(sundir)*mu0,xalbedo(i), &
+            Edir, Edn, Eup, Blev)
+        endif
+
+        if(lsolar) then
+          do k = 0, ke1-1
+            call PetscSectionGetOffset(edir_section, iface+k, voff, ierr); call CHKERR(ierr)
+            do idof = 1, solver%dirtop%dof
+              xedir(voff+idof) = edir(i1+k)
+            enddo
+          enddo
+        endif
+
+        do k = 0, ke1-2
+          call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+          xediff(i1+voff) = Edn(i1+k)
+          xediff(i1+voff+i1) = Eup(i1+k)
+        enddo
+        ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
+        call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+        xediff(i1+voff) = Eup(i1+k)
+        xediff(i1+voff+i1) = Edn(i1+k)
+      enddo
+      call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+
+      call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
+      call VecRestoreArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+
+      if(lsolar) then
+        call VecRestoreArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
+      endif
+      if(lthermal) then
+        call VecRestoreArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
+      endif
+
+      !Twostream solver returns fluxes as [W/m^2]
+      solution%lWm2_dir  = .True.
+      solution%lWm2_diff = .True.
+      ! and mark solution that it is not up to date
+      solution%lchanged  = .True.
+    endif ! TOA boundary ids
+  end subroutine
+
+  !> @brief wrapper for the rayli MonteCarlo solver
+  !> @details solve the radiative transfer equation with RayLi, currently only works for single task mpi runs
+  subroutine rayli_wrapper(solver, plex, kabs, ksca, g, albedo, sundir, solution, plck)
+    use iso_c_binding
+    class(t_plex_solver), intent(inout) :: solver
+    type(t_plexgrid), intent(inout) :: plex
+    type(tVec), intent(in) :: kabs, ksca, g, albedo
+    type(tVec), intent(in), optional :: plck
+    real(ireals), intent(in) :: sundir(:)
+    type(t_state_container), intent(inout) :: solution
+
+    real(ireals), pointer :: xksca(:), xkabs(:), xg(:), xalbedo(:)
+
+    logical :: lthermal, lsolar
+
+    integer(mpiint) :: comm, myid, numnodes, ierr
+
+    integer(iintegers) :: fStart, fEnd, cStart, cEnd, vStart, vEnd
+    integer(iintegers) :: ofStart, ofEnd
+    integer(iintegers) :: icell, iface, ivert, voff, idof
+    integer(iintegers), pointer :: trans_closure(:), faces_of_cell(:)
+
+    type(tVec) :: coordinates
+    real(ireals), pointer :: coords(:)
+    type(tPetscSection) :: coord_section
+
+    integer(c_size_t), allocatable :: verts_of_face(:,:)
+    integer(c_size_t), allocatable :: faces_of_wedges(:,:)
+    real(c_double),    allocatable :: vert_coords(:,:)
+    real(c_float),    allocatable :: rkabs(:), rksca(:), rg(:)
+    real(c_float),    allocatable :: ralbedo_on_faces(:)
+    real(c_float)                 :: rsundir(3)
+    real(c_float),    allocatable :: flx_through_faces_edir(:)
+    real(c_float),    allocatable :: flx_through_faces_ediff(:)
+    real(c_float),    allocatable :: abso_in_cells(:)
+
+    real(ireals) :: diffuse_point_origin(3)
+    integer(c_size_t) :: Nphotons, Nwedges, Nfaces, Nverts
+    real(ireals) :: opt_photons
+
+    integer(c_size_t) :: outer_id
+    logical :: lflg
+
+    opt_photons = 100000
+    call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      "-rayli_photons", opt_photons, lflg,ierr) ; call CHKERR(ierr)
+    Nphotons = int(opt_photons, c_size_t)
+
+    call PetscObjectGetComm(plex%dm, comm, ierr); call CHKERR(ierr)
+    call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+    if(numnodes.gt.1) call CHKERR(numnodes, "Rayli currently only in single rank computations available")
+
+    lsolar = solution%lsolar_rad
+    lthermal = .not.solution%lsolar_rad
+
+    if(present(plck).or.lthermal) &
+      call CHKERR(1_mpiint, "You provided planck stuff, I guess you want to use thermal radiation computations."// &
+                            "However, Rayli currently only supports solar radiation.")
+
+    diffuse_point_origin = 0; idof=3
+    call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      '-rayli_diff_flx_origin',diffuse_point_origin, idof, lflg, ierr); call CHKERR(ierr)
+    if(lflg) call CHKERR(int(idof-i3, mpiint), 'must provide exactly 3 values for rayli_diff_flx_origin')
+
+    if(solution%lsolar_rad) then
+      call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
+    endif
+    call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
+
+    if(solution%lsolar_rad .and. norm2(sundir).le.zero) then
+      return
+    endif
+
+    call DMPlexGetDepthStratum(plex%dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+    call DMPlexGetDepthStratum(plex%dm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! faces
+    call DMPlexGetDepthStratum(plex%dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
+    Nwedges = cEnd - cStart
+    Nfaces = fEnd - fStart
+    Nverts = vEnd - vStart
+    !print *,'Rayli Nwedges', Nwedges, 'Nfaces', Nfaces, 'Nverts', Nverts
+
+    outer_id = -1
+
+    allocate(verts_of_face(4, Nfaces), &
+             faces_of_wedges(5, Nwedges), &
+             vert_coords(3, Nverts), &
+             rkabs(Nwedges), &
+             rksca(Nwedges), &
+             rg   (Nwedges), &
+             ralbedo_on_faces(Nfaces), &
+             flx_through_faces_edir(Nfaces), &
+             flx_through_faces_ediff(2*Nfaces), &
+             abso_in_cells(Nwedges) )
+
+    do icell = cStart, cEnd-1
+      call DMPlexGetCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+      faces_of_wedges(:,icell-cStart+1) = faces_of_cell - fStart
+      call DMPlexRestoreCone(plex%dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+    enddo
+
+    do iface = fStart, fEnd-1
+      call DMPlexGetTransitiveClosure(plex%dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
+      select case (size(trans_closure))
+      case(14) ! 3 edges
+        verts_of_face(1:3, iface-fStart+1) = trans_closure(9:size(trans_closure):2) - vStart
+        verts_of_face(4  , iface-fStart+1) = outer_id
+      case(18) ! 4 edges
+        verts_of_face(:, iface-fStart+1) = trans_closure(11:size(trans_closure):2) - vStart
+      end select
+      call DMPlexRestoreTransitiveClosure(plex%dm, iface, PETSC_TRUE, trans_closure, ierr); call CHKERR(ierr)
+    enddo
+
+    call DMGetCoordinateSection(plex%dm, coord_section, ierr); call CHKERR(ierr)
+    call DMGetCoordinatesLocal(plex%dm, coordinates, ierr); call CHKERR(ierr)
+    call VecGetArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+
+    do ivert = vStart, vEnd-1
+      call PetscSectionGetOffset(coord_section, ivert, voff, ierr); call CHKERR(ierr)
+      vert_coords(:, ivert-vStart+1) = coords(voff+1:voff+3)
+    enddo
+    call VecRestoreArrayF90(coordinates, coords, ierr); call CHKERR(ierr)
+
+    call VecGetArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
+
+    rkabs = xkabs
+    rksca = xksca
+    rg    = xg
+    !call delta_scale(rkabs, rksca, rg, max_g=0._c_double)
+
+    call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(ksca, xksca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(g   , xg   , ierr); call CHKERR(ierr)
+
+    call fill_albedo()
+
+    rsundir = -sundir
+
+    call take_snap(ierr)
+    if(ierr.eq.1) return
+
+    ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, &
+      verts_of_face, faces_of_wedges, vert_coords, &
+      rkabs, rksca, rg, &
+      ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_float), &
+      flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells ); call CHKERR(ierr)
+
+    call get_result()
+
+    !Twostream solver returns fluxes as [W/m^2]
+    solution%lWm2_dir  = .True.
+    solution%lWm2_diff = .True.
+    ! and mark solution that it is up to date, otherwise abso would be overwritten
+    solution%lchanged  = .False.
+    contains
+      subroutine get_result()
+        type(tIS) :: toa_ids
+        integer(iintegers) :: i, k, ke1, Ncol, ridx, numDof, geom_offset
+        integer(iintegers), pointer :: xtoa_faces(:)
+        real(ireals), pointer :: xedir(:), xediff(:), xabso(:), geoms(:)
+        real(ireals) :: area
+        type(tPetscSection) :: edir_section, ediff_section, abso_section, geomSection
+
+        call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
+        call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+
+        ! --------------------------- Direct Radiation ------------------
+        call DMPlexGetDepthStratum(plex%dm, i2, ofStart, ofEnd, ierr); call CHKERR(ierr) ! vertices
+        if(lsolar) then
+          call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+          call VecGetArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
+          do iface = ofStart, ofEnd-1
+            call PetscSectionGetFieldOffset(geomSection, iface, i2, geom_offset, ierr); call CHKERR(ierr)
+            area = geoms(i1+geom_offset)
+
+            call PetscSectionGetOffset(edir_section, iface, voff, ierr); call CHKERR(ierr)
+            call PetscSectionGetDof(edir_section, iface, numDof, ierr); call CHKERR(ierr)
+            do idof = 1, numDof
+              xedir(voff+idof) = real(abs(flx_through_faces_edir(iface-ofStart+1)), ireals)! / area
+            enddo
+          enddo
+          call VecRestoreArrayF90(solution%edir, xedir, ierr); call CHKERR(ierr)
+        endif
+
+        ! --------------------------- Diffuse Radiation -----------------
+        call DMGetSection(plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+
+        call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', &
+          TOAFACE, toa_ids, ierr); call CHKERR(ierr)
+        call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
+
+        ke1 = solver%plex%Nlay+1
+
+        call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+        ridx=1
+        do i = 1, size(xtoa_faces)
+          iface = xtoa_faces(i)
+          do k = 0, ke1-2
+            call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+            call PetscSectionGetFieldOffset(geomSection, iface+k, i2, geom_offset, ierr); call CHKERR(ierr)
+            area = geoms(i1+geom_offset)
+
+            xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)! / area
+            xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)! / area
+
+            ridx = ridx+2
+          enddo
+
+          ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
+          call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
+          call PetscSectionGetFieldOffset(geomSection, iface+ke1-1, i2, geom_offset, ierr); call CHKERR(ierr)
+          area = geoms(i1+geom_offset)
+
+          xediff(i2+voff) = real(abs( flx_through_faces_ediff(ridx  ) ), ireals)! / area
+          xediff(i1+voff) = real(abs( flx_through_faces_ediff(ridx+1) ), ireals)! / area
+          ridx = ridx+2
+        enddo
+
+        call ISRestoreIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+        call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+
+        ! --------------------------- Absorption ------------------------
+        call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
+        call DMPlexGetHeightStratum(plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+        do icell = cStart, cEnd-1
+          call PetscSectionGetFieldOffset(geomSection, icell, i2, geom_offset, ierr); call CHKERR(ierr) ! cell volume
+          call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
+          xabso(i1+voff) = real(abso_in_cells(i1+icell-cStart), ireals) / geoms(i1+geom_offset)
+        enddo
+        call VecRestoreArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
+        call VecRestoreArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
+      end subroutine
+
+      subroutine fill_albedo()
+        type(tIS) :: toa_ids
+        integer(iintegers), pointer :: xtoa_faces(:)
+        integer(iintegers) :: srfc_face, i
+
+        call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
+        call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+
+        call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+
+        ralbedo_on_faces(:) = -one
+        do i=1,size(xtoa_faces)
+          srfc_face = xtoa_faces(i) + plex%Nlay
+          ralbedo_on_faces(srfc_face-fStart+1) = xalbedo(i)
+        enddo
+
+        call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
+      end subroutine
+
+      subroutine take_snap(ierr)
+        integer(mpiint), intent(out) :: ierr
+        character(len=default_str_len) :: snap_path, groups(2)
+        logical :: lflg
+        integer(c_size_t) :: Nx=400, Ny=300
+        real(c_float), allocatable :: img(:,:)
+        real(c_float) :: cam_loc(3), cam_viewing_dir(3), cam_up_vec(3)
+        real(c_float) :: fov_width, fov_height
+        real(ireals), dimension(3) :: visit_focus, visit_view_normal, visit_view_up
+        real(ireals) :: visit_view_angle, visit_image_zoom, visit_parallel_scale
+        integer(iintegers) :: narg
+
+        ierr = 0
+
+        call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-rayli_snapshot", snap_path, lflg,ierr) ; call CHKERR(ierr)
+        if(lflg) then
+          if(len_trim(snap_path).eq.0) snap_path = 'rayli_snaphots.nc'
+          if(myid.eq.0) print *,'Capturing scene to file: '//trim(snap_path), len_trim(snap_path)
+          Nx = 400
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-rayli_snap_Nx', narg, lflg, ierr); call CHKERR(ierr)
+          if(lflg) Nx = narg
+
+          Ny = 300
+          call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-rayli_snap_Ny', narg, lflg, ierr); call CHKERR(ierr)
+          if(lflg) Ny = narg
+
+          allocate(img(Nx, Ny))
+
+          visit_view_angle = 30._ireals
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_view_angle', visit_view_angle, lflg, ierr); call CHKERR(ierr)
+
+          visit_image_zoom = 1._ireals
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_image_zoom', visit_image_zoom, lflg, ierr); call CHKERR(ierr)
+
+          visit_parallel_scale = 1e5_ireals
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_parallel_scale', visit_parallel_scale, lflg, ierr); call CHKERR(ierr)
+
+          visit_focus = 0._ireals
+          narg=3
+          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_focus', visit_focus, narg, lflg, ierr); call CHKERR(ierr)
+          if(lflg) &
+            call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
+
+          visit_view_normal = -sundir
+          narg=3
+          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_view_normal', visit_view_normal, narg, lflg, ierr); call CHKERR(ierr)
+          if(lflg) &
+            call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
+
+          visit_view_up = [0,0,1]
+          narg=3
+          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,&
+            '-visit_view_up', visit_view_up, narg, lflg, ierr); call CHKERR(ierr)
+          if(lflg) &
+            call CHKERR(int(narg-3, mpiint), 'wrong number of input, need to be given comma separated without spaces')
+
+          cam_viewing_dir = -visit_view_normal
+          cam_up_vec = visit_view_up
+          cam_loc = visit_focus + visit_view_normal * visit_parallel_scale / tan(deg2rad(visit_view_angle)/2)
+
+          fov_width = 2 * tan(deg2rad(visit_view_angle)/2) / visit_image_zoom
+          fov_height = fov_width * real(Ny, c_float) / real(Nx, c_float)
+
+          ierr = rpt_img_wedgeF90( Nx, Ny, &
+            Nphotons, Nwedges, Nfaces, Nverts, &
+            verts_of_face, faces_of_wedges, vert_coords, &
+            rkabs, rksca, rg, &
+            ralbedo_on_faces, &
+            rsundir, & ! DEBUG note the kabs/ksca/
+            cam_loc, cam_viewing_dir, cam_up_vec, &
+            fov_width, fov_height, &
+            img); call CHKERR(ierr)
+
+          groups(1) = trim(snap_path)
+          groups(2) = "rpt_img_"//itoa(solution%uid)
+          call ncwrite(groups, img, ierr); call CHKERR(ierr)
+          ierr = 1
+          return
+        endif
+      end subroutine
+    end subroutine
+
+
+>>>>>>> 0221292e30fc29c7c76fe99b26fc2f3b449d91e7
     !> @brief renormalize fluxes with the size of a face(sides or lid)
     subroutine scale_flx(solver, plex, &
         dir_scalevec_Wm2_to_W, dir_scalevec_W_to_Wm2, &

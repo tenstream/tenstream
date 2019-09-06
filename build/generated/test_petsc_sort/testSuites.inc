@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_petsc_sort_suite)

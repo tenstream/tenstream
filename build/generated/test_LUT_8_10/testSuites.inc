@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_LUT_8_10_suite)

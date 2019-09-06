@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_plex_solution_vecscale_suite)

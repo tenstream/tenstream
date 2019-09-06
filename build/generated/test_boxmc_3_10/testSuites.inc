@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_boxmc_3_10_suite)

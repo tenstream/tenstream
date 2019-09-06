@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_boxmc_3_6_tau_scaling_suite)

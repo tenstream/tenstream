@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../lib/libplexrt.a  CMakeFiles/plexrt_objs.dir/plex_grid.F90.o CMakeFiles/plexrt_objs.dir/plex_rt.F90.o CMakeFiles/plexrt_objs.dir/plex2rayli.F90.o CMakeFiles/plexrt_objs.dir/icon_grid.F90.o CMakeFiles/plexrt_objs.dir/icon_plex_utils.F90.o CMakeFiles/plexrt_objs.dir/nca_multi_tri.F90.o
+/usr/bin/ranlib ../lib/libplexrt.a

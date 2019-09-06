@@ -1,0 +1,2 @@
+/usr/bin/ar qc lib/libtenstream.a  CMakeFiles/tenstream.dir/tenstream.dummy.F90.o
+/usr/bin/ranlib lib/libtenstream.a

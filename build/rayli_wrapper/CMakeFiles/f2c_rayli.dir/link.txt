@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../lib/libf2c_rayli.a  CMakeFiles/f2c_rayli_objs.dir/f2c_rayli.F90.o
+/usr/bin/ranlib ../lib/libf2c_rayli.a

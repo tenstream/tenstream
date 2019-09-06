@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_LUT_wedge_18_8_suite)

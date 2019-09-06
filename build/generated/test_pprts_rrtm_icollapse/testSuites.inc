@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_pprts_rrtm_icollapse_suite)

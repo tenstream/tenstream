@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(test_pprts_symmetry_suite)

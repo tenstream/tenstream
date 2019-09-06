@@ -1,0 +1,1 @@
+ADD_TEST_SUITE(plexrt_error_growth_tracking_suite)
