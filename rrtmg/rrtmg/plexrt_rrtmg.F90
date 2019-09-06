@@ -43,9 +43,9 @@ module m_plexrt_rrtmg
       iintegers, ireals, zero, one, i0, i1, i2, i9,         &
       mpiint, pi, default_str_len
   use m_adaptive_spectral_integration, only: need_new_solution
-  use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-      imp_allreduce_min, imp_allreduce_max, CHKERR, CHKWARN, deg2rad, &
-      reverse, itoa, angle_between_two_vec, rad2deg, get_arg, delta_scale_optprop
+  use m_helper_functions, only : &
+      CHKERR, CHKWARN, deg2rad, reverse, itoa, angle_between_two_vec, &
+      rad2deg, get_arg, delta_scale_optprop
   use m_search, only: find_real_location
   use m_tenstream_interpolation, only : interp_1d
 

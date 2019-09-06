@@ -8,7 +8,8 @@ module test_helper_functions
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
     solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, is_between, &
     resize_arr, normalize_vec, approx, itoa, ftoa, &
-    imp_reduce_sum, imp_allreduce_sum, imp_reduce_mean, imp_allreduce_mean
+    imp_reduce_sum, imp_allreduce_sum, imp_reduce_mean, imp_allreduce_mean, &
+    read_ascii_file_2d
 
   use pfunit_mod
 
@@ -621,4 +622,43 @@ subroutine test_approx(this)
   @assertTrue(     approx(0._ireals,-1.0_ireals+epsilon(1.0_ireals), 1._ireals))
   @assertTrue(.not.approx(0._ireals,-1.0_ireals-epsilon(1.0_ireals), 1._ireals))
 end subroutine
+
+@test(npes=[1])
+subroutine test_read_ascii_file(this)
+  class (MpiTestMethod), intent(inout) :: this
+  character(len=*), parameter :: test_fname="tenstream_test_ascii_file.txt"
+  real(ireals), allocatable :: arr(:,:)
+  integer(mpiint) :: ierr
+  integer :: funit
+
+  open (newunit=funit, file=test_fname, action="write", status="replace", iostat=ierr)
+  @assertEqual(0, ierr, 'error when trying to write a test ascii file')
+  write (funit,*) 1, 2, 3
+  write (funit,*)"# skip this line"
+  write (funit,*) "     # also skip this one"
+  write (funit,*) 4, 5, 6
+  write (funit,*) 7, 8, 9
+  close (funit)
+
+  call read_ascii_file_2d(test_fname, arr, ierr, verbose=.True.)
+  @assertEqual(0_mpiint, ierr)
+  @assertEqual(3, size(arr,dim=1), 'line count not correct')
+  @assertEqual(3, size(arr,dim=2), 'column count not correct')
+  deallocate(arr)
+
+  call read_ascii_file_2d(test_fname, arr, ierr, &
+    skiplines=2_iintegers, verbose=.True.)
+  @assertEqual(0_mpiint, ierr)
+  @assertEqual(2, size(arr,dim=1), 'line count not correct')
+  @assertEqual(3, size(arr,dim=2), 'column count not correct')
+  deallocate(arr)
+
+  open (newunit=funit, file=test_fname, status="old", position="append", iostat=ierr)
+  @assertEqual(0, ierr, 'error when trying to append to a test ascii file')
+  write (funit,*) 10, 11, 12, 13
+  close (funit)
+  call read_ascii_file_2d(test_fname, arr, ierr, verbose=.True.)
+  @assertFalse(0_mpiint.eq.ierr)
+end subroutine
+
 end module

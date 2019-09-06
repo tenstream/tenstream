@@ -1548,61 +1548,114 @@ module m_helper_functions
       end if
     end function
 
-    subroutine read_ascii_file_2d(filename, arr, ncolumns, skiplines, ierr)
+    subroutine read_ascii_file_2d(filename, arr, ierr, skiplines, verbose)
       character(len=*),intent(in) :: filename
-      integer(iintegers),intent(in) :: ncolumns
       integer(iintegers),intent(in),optional :: skiplines
 
-      real(ireals),allocatable,intent(out) :: arr(:,:)
+      real(ireals),allocatable,intent(out) :: arr(:,:) ! shape nlines, ncolumns
+      integer(mpiint), intent(out) :: ierr
+      logical, intent(in), optional :: verbose
 
-      integer(mpiint) :: ierr
+      real(ireals), allocatable :: line(:)
+      character(len=2**14) :: line_str
 
-      real :: line(ncolumns)
-
-      integer(iintegers) :: unit, nlines, i, io
-      logical :: file_exists=.False.
+      integer :: funit, io
+      integer(iintegers) :: nlines, valid_lines, i, j, max_cols
+      logical :: lverbose, file_exists
 
       ierr=0
       inquire(file=filename, exist=file_exists)
 
+      lverbose = get_arg(.False., verbose)
+
       if(.not.file_exists) then
-        print *,'File ',trim(filename), 'does not exist!'
+        if(lverbose) print *,'File ',trim(filename), 'does not exist!'
         ierr=1
         return
       endif
 
-      open(newunit=unit, file=filename)
+      open(newunit=funit, file=filename)
       if(present(skiplines)) then
         do i=1,skiplines
-          read(unit,*)
+          read(funit,*)
         enddo
       endif
 
+      print *,''
       nlines = 0
+      valid_lines = 0
+      max_cols = 0
       do
-        read(unit, *, iostat=io) line
-        !print *,'line',line
-        if (io/=0) exit
+        read(funit, '(A)', iostat=io) line_str
+
+        if(io.eq.0) then
+          call split(line_str, line, ' ', ierr)
+
+          if(ierr.eq.0)then
+            valid_lines = valid_lines + 1
+            if(max_cols.gt.1 .and. size(line).ne.max_cols) then
+              ierr = 3
+              if(lverbose) &
+                call CHKWARN(ierr, 'Found a varying number of columns in the ascii file.. cannot read that')
+              return
+            endif
+            max_cols = size(line)
+          endif
+          deallocate(line)
+
+        elseif (io.lt.0) then ! end of file
+          exit
+        endif
+
         nlines = nlines + 1
       end do
 
-      rewind(unit)
+      rewind(funit)
       if(present(skiplines)) then
         do i=1,skiplines
-          read(unit,*)
+          read(funit,*)
         enddo
       endif
 
-      allocate(arr(nlines,ncolumns))
+      allocate(line(max_cols))
+      allocate(arr(valid_lines,max_cols))
 
+      j = 1
       do i=1,nlines
-        read(unit, *, iostat=io) line
-        arr(i,:) = line
+        read(funit, *, iostat=io) line
+        if(io.eq.0) then
+          arr(j,:) = line
+          j = j + 1
+        endif
       end do
 
-      close(unit)
-      print *,'I read ',nlines,'lines'
-    end subroutine
+      close(funit)
+      if(lverbose) print *,'I read '// &
+        itoa(valid_lines)//' lines of ascii : '// &
+        '('//itoa(nlines)//' total ) '// &
+        'with '//itoa(max_cols)//' columns'
+
+      contains
+        subroutine split(str, a, sep, ierr)
+          character(len=*), intent(in) :: str, sep
+          real(ireals), intent(out), allocatable :: a(:)
+          integer(mpiint), intent(out) :: ierr
+          integer(iintegers) :: i,n
+          logical :: last_char_was_sep
+          last_char_was_sep = .True.
+          n = 0
+          do i=1,len(str)
+            if( str(i:i) == sep) then
+              if(.not.last_char_was_sep) n = n + 1
+              last_char_was_sep = .True.
+            else
+              last_char_was_sep = .False.
+            endif
+          end do
+          allocate (a(n))
+          read(unit=str, fmt=*, iostat=ierr) a
+        end subroutine
+      end subroutine
 
 
     subroutine reorder_mpi_comm(icomm, Nrank_x, Nrank_y, new_comm)
