@@ -156,11 +156,11 @@ subroutine init_mpi_data_parameters(comm)
 !  print *,'init_mpi_data_parameters :: MPI_INTEGER',MPI_INTEGER,' :: MPI_DOUBLE_PRECISION',MPI_DOUBLE_PRECISION,' :: MPI_REAL',MPI_REAL
   select case(kind(nan))
   case (kind(nan32))
-    nan = nan32
+    nan = real(nan32, kind(nan))
   case (kind(nan64))
-    nan = nan64
+    nan = real(nan64, kind(nan))
   case default
-    nan = -99999
+    nan = real(-99999, kind(nan))
   end select
 
   call PetscInitialized(lpetsc_is_initialized, mpierr)

@@ -1079,12 +1079,12 @@ contains
       lsrc(2:5) = .False.
       return
     endif
-    if(param_phi.lt.-1._irealLUT) then
+    if(param_phi.le.-1._irealLUT) then
       lsrc(1:3) = .True.
       lsrc(4:5) = .False.
       return
     endif
-    if(param_phi.gt.1._irealLUT) then
+    if(param_phi.ge.1._irealLUT) then
       lsrc([1,2,4]) = .True.
       lsrc([3,5]) = .False.
       return
@@ -1114,9 +1114,9 @@ contains
           call src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
 
           if(lsrc(src)) then ! I am a src face
-            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr + 3 ! all srcs cannot have any incoming energy
+            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr + 13 ! all srcs cannot have any incoming energy
           else
-            if(any(T.gt.0._irealLUT)) ierr = ierr+5 ! if I am a dst, nobody should get any radiation anyway
+            if(any(T.gt.0._irealLUT)) ierr = ierr+17 ! if I am a dst, nobody should get any radiation anyway
           endif
         end associate
       class is (t_optprop_LUT_rectilinear_wedge_5_8)
@@ -1124,10 +1124,10 @@ contains
           call src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
 
           if(lsrc(src)) then ! I am a src face
-            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+3 ! all srcs cannot have any incoming energy
+            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+13 ! all srcs cannot have any incoming energy
           else
             if(any(T.gt.0._irealLUT)) then
-              ierr = ierr+5 ! if I am a dst, nobody should get any radiation anyway
+              ierr = ierr+17 ! if I am a dst, nobody should get any radiation anyway
             endif
           endif
         end associate
@@ -1176,14 +1176,14 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
         real(deg2rad(phi), ireal_params), real(deg2rad(theta), ireal_params), &
         param_phi, param_theta, ierr)
       print *,'LUTBMC :: calling bmc_get_coeff src',src,'tauz',tauz,w0,g,'angles',phi,theta,&
-        ':ind1d',index_1d, ':',T_dir, '::', S_diff, ': verts', vertices, &
+        ':ind1d',index_1d, ': T', T_dir, ':: S ', S_diff, ': verts', vertices, &
         'param phi/theta_afterwards', param_phi, param_theta
       call CHKERR(ierr2, 'found bad results for a given geometry')
     endif
 
-    if(ldebug) print *,'LUTBMC :: calling bmc_get_coeff src', src, &
-      'tauz',tauz,w0,g,'angles',phi,theta, ':ind1d',index_1d, ':', &
-      T_dir, ':(', T_tol, ') //', S_diff, ':(', S_tol, ')'
+    !if(ldebug) print *,'LUTBMC :: calling bmc_get_coeff src', src, &
+    !  'tauz',tauz,w0,g,'angles',phi,theta, ':ind1d',index_1d, ':', &
+    !  T_dir, ':(', T_tol, ') //', S_diff, ':(', S_tol, ')'
 end subroutine
 
 subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, &

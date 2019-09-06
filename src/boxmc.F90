@@ -32,7 +32,7 @@ module m_boxmc
   use m_helper_functions_dp, only : &
     hit_plane, square_intersection, triangle_intersection, pnt_in_cube
 
-  use m_helper_functions, only : CHKERR, get_arg, itoa ,cstr, &
+  use m_helper_functions, only : CHKERR, get_arg, itoa, ftoa, cstr, &
     rotate_angle_x, rotate_angle_y, rotate_angle_z, &
     angle_between_two_vec, rotation_matrix_local_basis_to_world, &
     approx, meanval, rmse, imp_reduce_sum, &
@@ -457,6 +457,12 @@ contains
       print *,'S tol', ret_S_tol
       call CHKERR(1_mpiint, 'BOXMC violates stddev constraints!')
     endif
+    if(any(ret_S_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in S(:) '//ftoa(ret_S_out))
+    if(any(ret_T_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in T(:) '//ftoa(ret_T_out))
+    if(any(ret_S_out.gt.1)) call CHKERR(1_mpiint, 'Have a coeff > 1 in S(:) '//ftoa(ret_S_out))
+    if(any(ret_T_out.gt.1)) call CHKERR(1_mpiint, 'Have a coeff > 1 in T(:) '//ftoa(ret_T_out))
+    if(any(ret_S_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in S(:) '//ftoa(ret_S_tol))
+    if(any(ret_T_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in T(:) '//ftoa(ret_T_tol))
   end subroutine
 
   subroutine run_photons(bmc, comm, src, kabs, ksca, g, vertices, &
