@@ -690,7 +690,7 @@ subroutine createLUT(OPP, comm, config, S, T)
                 T%stddev_tol(lutindex) = maxval(T_tol)
               endif
 
-              if (.True. .and. ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
+              if (.False. .and. ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
 
               if( mod(lutindex-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
                 print *,'Calculated LUT...', lutindex, &

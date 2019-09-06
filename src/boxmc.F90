@@ -413,8 +413,8 @@ contains
 
     ! some debug output at the end...
     coeffnorm = sum(S_out)+sum(T_out)
-    if( coeffnorm.gt.one ) then
-      if(coeffnorm.gt.one+epsilon(coeffnorm)*10) then
+    if( coeffnorm.gt.1 ) then
+      if(coeffnorm.gt.1+sqrt(epsilon(coeffnorm))) then
         print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
         sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',op_bg,'eps',epsilon(one)
         print *,'S   ',S_out
@@ -423,13 +423,9 @@ contains
         print *,'Ttol',T_tol
         call CHKERR(1_mpiint, 'sum of coeffs is way too big')
       else
-        S_out = S_out / (coeffnorm+epsilon(coeffnorm))
-        T_out = T_out / (coeffnorm+epsilon(coeffnorm))
+        S_out = S_out / (coeffnorm+real(epsilon(ret_S_out), kind(coeffnorm)))
+        T_out = T_out / (coeffnorm+real(epsilon(ret_T_out), kind(coeffnorm)))
         if(ldebug) print *,'renormalizing coefficients :: ',coeffnorm,' => ',sum(S_out)+sum(T_out)
-      endif
-      if( (sum(S_out)+sum(T_out)).gt.one ) then
-        print *,'norm still too big',sum(S_out)+sum(T_out)
-        call CHKERR(1_mpiint, 'sum of coeffs is still too big')
       endif
     endif
     if( (any(isnan(S_out) )) .or. (any(isnan(T_out)) ) ) then
@@ -459,10 +455,16 @@ contains
     endif
     if(any(ret_S_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in S(:) '//ftoa(ret_S_out))
     if(any(ret_T_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in T(:) '//ftoa(ret_T_out))
-    if(any(ret_S_out.gt.1)) call CHKERR(1_mpiint, 'Have a coeff > 1 in S(:) '//ftoa(ret_S_out))
-    if(any(ret_T_out.gt.1)) call CHKERR(1_mpiint, 'Have a coeff > 1 in T(:) '//ftoa(ret_T_out))
     if(any(ret_S_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in S(:) '//ftoa(ret_S_tol))
     if(any(ret_T_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in T(:) '//ftoa(ret_T_tol))
+
+    if( (sum(ret_S_out)+sum(ret_T_out)).gt.1 ) then
+      call CHKERR(1_mpiint, 'norm of coeffs '// &
+        ftoa([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
+        ' is still too big! '//new_line('')// &
+        'T = '//ftoa(ret_T_out)//new_line('')// &
+        'S = '//ftoa(ret_S_out))
+    endif
   end subroutine
 
   subroutine run_photons(bmc, comm, src, kabs, ksca, g, vertices, &
