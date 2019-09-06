@@ -174,9 +174,9 @@ contains
       real(ireals)           :: Btop, Bbot
       real(ireals)           :: kabs, kabs_top, kabs_bot, kabs_s1, kabs_s2, kabs_s3
       
-      real(ireals),parameter :: pi=3.141592653589793
-
       integer(iintegers) :: ntau=16, n1=9, n2=36
+    
+      real(ireals),parameter :: pi=3.141592653589793
       
       if(.not. all( [ &
         allocated(eps_tab_side), &
