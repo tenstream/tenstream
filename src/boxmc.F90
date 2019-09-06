@@ -357,6 +357,7 @@ contains
     real(irealbmc) :: S_tol(bmc%diff_streams)
     real(irealbmc) :: T_tol(bmc%dir_streams)
     real(irealbmc) :: coeffnorm
+    real(kind(ret_S_OUT)) :: retnorm
 
     real(ireal_dp) :: atol,rtol, tau_scaling
     logical :: check_tol_dir, check_tol_diff
@@ -413,20 +414,14 @@ contains
 
     ! some debug output at the end...
     coeffnorm = sum(S_out)+sum(T_out)
-    if( coeffnorm.gt.1 ) then
-      if(coeffnorm.gt.1+sqrt(epsilon(coeffnorm))) then
-        print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
-        sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',op_bg,'eps',epsilon(one)
-        print *,'S   ',S_out
-        print *,'Stol',S_tol
-        print *,'T   ',T_out
-        print *,'Ttol',T_tol
-        call CHKERR(1_mpiint, 'sum of coeffs is way too big')
-      else
-        S_out = S_out / (coeffnorm+real(epsilon(ret_S_out), kind(coeffnorm)))
-        T_out = T_out / (coeffnorm+real(epsilon(ret_T_out), kind(coeffnorm)))
-        if(ldebug) print *,'renormalizing coefficients :: ',coeffnorm,' => ',sum(S_out)+sum(T_out)
-      endif
+    if(coeffnorm.gt.1+sqrt(epsilon(coeffnorm))) then
+      print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
+      sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',op_bg,'eps',epsilon(one)
+      print *,'S   ',S_out
+      print *,'Stol',S_tol
+      print *,'T   ',T_out
+      print *,'Ttol',T_tol
+      call CHKERR(1_mpiint, 'sum of coeffs is way too big')
     endif
     if( (any(isnan(S_out) )) .or. (any(isnan(T_out)) ) ) then
       print *,'Found a NaN in output! this should not happen! dir',T_out,'diff',S_out
@@ -458,12 +453,28 @@ contains
     if(any(ret_S_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in S(:) '//ftoa(ret_S_tol))
     if(any(ret_T_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in T(:) '//ftoa(ret_T_tol))
 
-    if( (sum(ret_S_out)+sum(ret_T_out)).gt.1 ) then
-      call CHKERR(1_mpiint, 'norm of coeffs '// &
-        ftoa([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
-        ' is still too big! '//new_line('')// &
-        'T = '//ftoa(ret_T_out)//new_line('')// &
-        'S = '//ftoa(ret_S_out))
+    retnorm = sum(ret_S_out)+sum(ret_T_out)
+    if( retnorm.gt.1 ) then
+      if(ldebug) then
+        call CHKWARN(1_mpiint, 'norm of coeffs '// &
+          'internal '//ftoa([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
+          'returned '//ftoa([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
+          ' is quite large! ... will try to renormalize ...'//new_line('')// &
+          'T = '//ftoa(ret_T_out)//new_line('')// &
+          'S = '//ftoa(ret_S_out))
+      endif
+
+      ret_S_out = ret_S_out / (retnorm+epsilon(retnorm)*100)
+      ret_T_out = ret_T_out / (retnorm+epsilon(retnorm)*100)
+
+      if( (sum(ret_S_out)+sum(ret_T_out)).gt.1 ) then
+        call CHKERR(1_mpiint, 'norm of coeffs '// &
+          'internal '//ftoa([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
+          'returned '//ftoa([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
+          ' is still too big! '//new_line('')// &
+          'T = '//ftoa(ret_T_out)//new_line('')// &
+          'S = '//ftoa(ret_S_out))
+      endif
     endif
   end subroutine
 

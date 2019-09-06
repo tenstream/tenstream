@@ -23,7 +23,7 @@ module m_helper_functions
     ireals, irealLUT, ireal_dp, &
     i1, pi, pi32, pi64, pi128, zero, one, nan, &
     imp_ireals, imp_logical, &
-    imp_REAL32, imp_REAL64, imp_REAL128, &
+    imp_REAL32, imp_REAL64, &
     default_str_len, &
     imp_int4, imp_int8, imp_iinteger
 
