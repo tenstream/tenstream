@@ -1144,6 +1144,9 @@ module m_helper_functions
       real(REAL128),intent(inout) :: v
       integer(mpiint),intent(in) :: comm
       real(REAL64) :: r
+      integer(mpiint) :: ierr, commsize
+      call MPI_Comm_size( comm, commsize, ierr); call CHKERR(ierr)
+      if(commsize.le.1) return
 
       r = real(v, kind(r))
       call imp_reduce_sum(comm, r)
