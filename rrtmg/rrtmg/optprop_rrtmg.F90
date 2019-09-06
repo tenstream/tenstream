@@ -23,6 +23,8 @@
 !! or may also use the rrtmg solver to compute radiative fluxes
 
 module m_optprop_rrtmg
+#include "petsc/finclude/petsc.h"
+  use petsc
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
   use m_tenstr_rrtmg_lw_init, only: rrtmg_lw_ini
   use m_tenstr_parrrtm, only: nbndlw
@@ -34,12 +36,12 @@ module m_optprop_rrtmg
   use m_tenstr_rrtmg_sw_spcvrt, only: tenstr_solsrc
 
   use m_data_parameters, only: iintegers, ireals, one, mpiint
-  use m_helper_functions, only: deg2rad, CHKERR
+  use m_helper_functions, only: deg2rad, CHKERR, itoa
 
   implicit none
 
   private
-  public :: optprop_rrtm_lw, optprop_rrtm_sw, linit_rrtmg_lw
+  public :: optprop_rrtm_lw, optprop_rrtm_sw, linit_rrtmg_lw, get_spectral_bands
 
   logical,parameter :: ldebug=.False.
   logical,save :: linit_rrtmg_lw=.False.
@@ -334,5 +336,31 @@ contains
       enddo
     enddo
   end subroutine
+
+  function get_spectral_bands(comm, min_band, max_band) result(spectral_bands)
+    integer(mpiint), intent(in) :: comm
+    integer(iintegers), intent(in) :: min_band, max_band
+    integer(iintegers) :: spectral_bands(2)
+
+    integer(iintegers) :: argcnt
+    integer(mpiint) :: myid, ierr
+    logical :: lflg
+
+    argcnt=2
+    spectral_bands = [min_band, max_band]
+
+    call PetscOptionsGetIntArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-rrtm_bands" , spectral_bands, argcnt, lflg , ierr) ;call CHKERR(ierr)
+    if(lflg) call CHKERR(int(argcnt-2_iintegers, mpiint), "must provide 2 values for rrtm_bands, comma separated, no spaces")
+    if(spectral_bands(1).gt.spectral_bands(2)) call CHKERR(1_mpiint, 'first value of rrtm_bands('// &
+      itoa(spectral_bands(1))//') has to <= second ('//itoa(spectral_bands(2))//')')
+
+    spectral_bands = max(min_band, min(max_band, spectral_bands))
+    if(lflg) then
+      call mpi_comm_rank(comm, myid,ierr); call CHKERR(ierr)
+      if(myid.eq.0) print *,'Manually setting RRTMG bands to: '//itoa(spectral_bands)// &
+        ', valid range('//itoa([min_band,max_band])//')'
+    endif
+  end function
 
 end module

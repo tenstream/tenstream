@@ -60,7 +60,7 @@ module m_pprts_rrtmg
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
 
-  use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw
+  use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
 
   use m_tenstr_disort, only: default_flx_computation
 
@@ -454,7 +454,7 @@ contains
 
     real(ireals) :: col_albedo, col_tskin(1)
 
-    integer(iintegers) :: i, j, k, icol, ib, current_ibnd, num_spectral_bands
+    integer(iintegers) :: i, j, k, icol, ib, current_ibnd, spectral_bands(2)
     logical :: need_any_new_solution, lflg
 
     integer(mpiint) :: myid, ierr
@@ -571,14 +571,11 @@ contains
 
     current_ibnd = -1 ! current lw band
 
-    num_spectral_bands = int(ngptlw, iintegers)
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-                             "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
-    num_spectral_bands = min(num_spectral_bands, int(ngptlw, iintegers))
+    spectral_bands = get_spectral_bands(solver%comm, i1, int(ngptlw, iintegers))
 
     if(compute_thermal_disort()) return
 
-    do ib=1, num_spectral_bands
+    do ib=spectral_bands(1), spectral_bands(2)
 
       if(need_new_solution(solver%comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
         ! divide by thickness to convert from tau to coefficients per meter
@@ -664,7 +661,7 @@ contains
               endif
 
 
-              do ib=1, num_spectral_bands
+              do ib=spectral_bands(1), spectral_bands(2)
                 col_Bfrac  = real(reverse(Bfrac(1:ke,i,j,ib)))
                 col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,i,j,ib))))
                 wvnms = [real(wavenum1(ngb(ib))), real(wavenum2(ngb(ib)))]
@@ -735,7 +732,7 @@ contains
     logical :: need_any_new_solution
 
     logical :: lflg
-    integer(iintegers) :: num_spectral_bands
+    integer(iintegers) :: spectral_bands(2)
     integer(mpiint) :: ierr
 
     allocate(spec_edir(solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
@@ -861,10 +858,7 @@ contains
     endif
     w0 = min(one, max(zero, w0))
 
-    num_spectral_bands = int(ngptsw, iintegers)
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-                             "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
-    num_spectral_bands = min(num_spectral_bands, int(ngptsw, iintegers))
+    spectral_bands = get_spectral_bands(solver%comm, i1, int(ngptsw, iintegers))
 
     if(compute_solar_disort()) return
 
@@ -872,7 +866,7 @@ contains
     allocate(ksca(ke , i1:ie, i1:je))
     allocate(kg  (ke , i1:ie, i1:je))
 
-    do ib=1, num_spectral_bands
+    do ib=spectral_bands(1), spectral_bands(2)
 
       if(need_new_solution(solver%comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) then
         patm_dz(1:ke, i1:ie, i1:je) => atm%dz
@@ -938,7 +932,7 @@ contains
 
               if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(i,j)
 
-              do ib=1, num_spectral_bands
+              do ib=spectral_bands(1), spectral_bands(2)
                 if(present(opt_solar_constant)) then
                   edirTOA = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
                 else

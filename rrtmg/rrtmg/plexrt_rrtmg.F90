@@ -55,7 +55,7 @@ module m_plexrt_rrtmg
     destroy_plexrt_solver, plexrt_get_result
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
-  use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw
+  use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
   use m_icon_plex_utils, only: Nz_Ncol_vec_to_celldm1, Nz_Ncol_vec_to_horizface1_dm
 
   use m_netcdfIO, only : ncwrite
@@ -403,7 +403,7 @@ contains
 
     current_ibnd = -1 ! current lw band
 
-    spectral_bands = get_spectral_bands(comm, i1, ngptlw)
+    spectral_bands = get_spectral_bands(comm, i1, int(ngptlw, iintegers))
 
     if(compute_thermal_disort()) return
     if(handle_twomax_rt_solvers()) return
@@ -777,7 +777,7 @@ contains
 
     allocate(tmp(ke, Ncol))
 
-    spectral_bands = get_spectral_bands(comm, i1, ngptsw)
+    spectral_bands = get_spectral_bands(comm, i1, int(ngptsw, iintegers))
 
     if(compute_solar_disort()) return
     if(handle_twomax_rt_solvers()) return
@@ -988,32 +988,6 @@ contains
     end function handle_twomax_rt_solvers
 
   end subroutine compute_solar
-
-  function get_spectral_bands(comm, min_band, max_band) result(spectral_bands)
-    integer(mpiint), intent(in) :: comm
-    integer(iintegers), intent(in) :: min_band, max_band
-    integer(iintegers) :: spectral_bands(2)
-
-    integer(iintegers) :: argcnt
-    integer(mpiint) :: myid, ierr
-    logical :: lflg
-
-    argcnt=2
-    spectral_bands = [min_band, max_band]
-
-    call PetscOptionsGetIntArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-      "-rrtm_bands" , spectral_bands, argcnt, lflg , ierr) ;call CHKERR(ierr)
-    if(lflg) call CHKERR(int(argcnt-i2, mpiint), "must provide 2 values for rrtm_bands, comma separated, no spaces")
-    if(spectral_bands(1).gt.spectral_bands(2)) call CHKERR(1_mpiint, 'first value of rrtm_bands('// &
-      itoa(spectral_bands(1))//') has to <= second ('//itoa(spectral_bands(2))//')')
-
-    spectral_bands = max(min_band, min(max_band, spectral_bands))
-    if(lflg) then
-      call mpi_comm_rank(comm, myid,ierr); call CHKERR(ierr)
-      if(myid.eq.0) print *,'Manually setting RRTMG bands to: '//itoa(spectral_bands)// &
-        ', valid range('//itoa([min_band,max_band])//')'
-    endif
-  end function
 
   subroutine allocate_optprop_vec(dm, vec, val)
     type(tDM), intent(in) :: dm
