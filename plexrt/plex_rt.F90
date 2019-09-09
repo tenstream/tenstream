@@ -134,7 +134,97 @@ module m_plex_rt
         solver%difftop%dof/2, solver%diffside%dof/2, i2, &
         solver%plex%ediff_dm)
 
+      call plexrt_view_geometry(plex%comm)
       if(ldebug.and.myid.eq.0) print *,'Init_plex_rt_solver ... done'
+      contains
+        subroutine plexrt_view_geometry(comm)
+          integer(mpiint) :: comm
+          logical :: lview, lflg
+          type(tPetscSection) :: geom_section
+          real(ireals), pointer :: xgeoms(:) ! pointer to coordinates vec
+          integer(iintegers) :: geom_offset
+          integer(iintegers), pointer :: xitoa(:), cell_support(:)
+          type(tIS) :: boundary_ids
+
+          real(ireals), allocatable, dimension(:,:) :: top_area, bot_area, dz, vol
+          real(ireals), dimension(3) :: mtop_area, mbot_area, mdz, mvol
+          integer(iintegers), allocatable :: cell_idx(:)
+          integer(iintegers) :: i, k, icell, iface
+
+          integer(mpiint) :: myid, ierr
+
+          if(.not.allocated(solver%plex%geom_dm)) &
+            call CHKERR(1_mpiint, 'run_plex_rt_solver::geom_dm has to be allocated first')
+
+          lview=.False.
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-plexrt_view_geometry",&
+            lview, lflg, ierr) ;call CHKERR(ierr)
+          if(.not.lview) return
+
+          associate( plex => solver%plex, geom_dm => solver%plex%geom_dm )
+
+            call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
+            if (boundary_ids.eq.PETSC_NULL_IS) then ! dont have TOA boundary faces
+              allocate(dz(plex%Nlay,0), vol(plex%Nlay,0), top_area(plex%Nlay,0), bot_area(plex%Nlay,0))
+            else
+              call DMGetSection(geom_dm, geom_section, ierr); CHKERRQ(ierr)
+              call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+              call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+
+              allocate(&
+                dz (plex%Nlay,size(xitoa)), &
+                vol(plex%Nlay,size(xitoa)), &
+                top_area(plex%Nlay,size(xitoa)), &
+                bot_area(plex%Nlay,size(xitoa)))
+
+              do i = 1, size(xitoa)
+                iface = xitoa(i)
+
+                call DMPlexGetSupport(geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+                icell = cell_support(1)
+                call DMPlexRestoreSupport(geom_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+                call get_consecutive_vertical_cell_idx(plex, icell, cell_idx)
+                do k = 0, size(cell_idx)-1
+                  icell = cell_idx(i1+k)
+
+                  call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+                  dz(i1+k,i) = xgeoms(i1+geom_offset)
+
+                  call PetscSectionGetFieldOffset(geom_section, icell, i2, geom_offset, ierr); call CHKERR(ierr)
+                  vol(i1+k,i) = xgeoms(i1+geom_offset)
+
+                  call PetscSectionGetFieldOffset(geom_section, iface+k, i2, geom_offset, ierr); call CHKERR(ierr)
+                  top_area(i1+k,i) = xgeoms(i1+geom_offset)
+                  call PetscSectionGetFieldOffset(geom_section, iface+k+1, i2, geom_offset, ierr); call CHKERR(ierr)
+                  bot_area(i1+k,i) = xgeoms(i1+geom_offset)
+                enddo
+              enddo
+
+              call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+              call VecRestoreArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+            endif
+          end associate
+
+          call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+
+          if(myid.eq.0) print *,'*        k  '// &
+            '                       '//cstr(' dz (min/mean/max)', 'blue')//'                      '// &
+            '                       '//cstr(' volume           ', 'red' )//'                      '// &
+            '                       '//cstr(' cell_top_area    ', 'blue')//'                      '// &
+            '                       '//cstr(' cell_bot_area    ', 'red')
+
+          do k = 1, size(dz,dim=1)
+            call imp_min_mean_max(comm, dz      (k,:), mdz      )
+            call imp_min_mean_max(comm, vol     (k,:), mvol     )
+            call imp_min_mean_max(comm, top_area(k,:), mtop_area)
+            call imp_min_mean_max(comm, bot_area(k,:), mbot_area)
+
+            if(myid.eq.0) then
+              print *,k, cstr(ftoa(mdz), 'blue'), cstr(ftoa(mvol), 'red'), &
+                cstr(ftoa(mtop_area), 'blue'), cstr(ftoa(mbot_area), 'red')
+            endif
+          enddo
+        end subroutine
     end subroutine
 
     subroutine destroy_plexrt_solver(solver, lfinalizepetsc)
@@ -704,17 +794,24 @@ module m_plex_rt
       malbedo=nan
       mplck=nan
 
-      if(myid.eq.0) print *,'*        k  '// &
-        '                                '//cstr('kabs(min/mean/max)', 'blue')//'                            '// &
-        '                                '//cstr('ksca              ', 'red' )//'                            '// &
-        '                                '//cstr('g                 ', 'blue')//'                            '// &
-        '                                '//cstr('plck              ', 'red')
+      if(allocated(plck)) then
+        if(myid.eq.0) print *,'*        k  '// &
+          '                                '//cstr('kabs(min/mean/max)', 'blue')//'                            '// &
+          '                                '//cstr('ksca              ', 'red' )//'                            '// &
+          '                                '//cstr('g                 ', 'blue')//'                            '// &
+          '                                '//cstr('plck              ', 'red')
+      else
+        if(myid.eq.0) print *,'*        k  '// &
+          '                                '//cstr('kabs(min/mean/max)', 'blue')//'                            '// &
+          '                                '//cstr('ksca              ', 'red' )//'                            '// &
+          '                                '//cstr('g                 ', 'blue')
+    endif
       if(myid.eq.0) print *,cstr('-----------------------------------------------------------------------------------------', 'blue')
       do k=1,Nlay
-      if(allocated(kabs)) call min_max_mean(xxkabs(k,:), mkabs)
-      if(allocated(ksca)) call min_max_mean(xxksca(k,:), mksca)
-      if(allocated(g   )) call min_max_mean(xxg   (k,:), mg   )
-      if(allocated(plck)) call min_max_mean(xxplck(k,:), mplck)
+      if(allocated(kabs)) call imp_min_mean_max(comm, xxkabs(k,:), mkabs)
+      if(allocated(ksca)) call imp_min_mean_max(comm, xxksca(k,:), mksca)
+      if(allocated(g   )) call imp_min_mean_max(comm, xxg   (k,:), mg   )
+      if(allocated(plck)) call imp_min_mean_max(comm, xxplck(k,:), mplck)
       if(allocated(plck)) then
         if(myid.eq.0) print *,k, cstr(ftoa(mkabs), 'blue'), cstr(ftoa(mksca), 'red'), cstr(ftoa(mg), 'blue'), cstr(ftoa(mplck), 'red')
       else
@@ -722,7 +819,7 @@ module m_plex_rt
       endif
       enddo
       if(myid.eq.0) print *,cstr('-----------------------------------------------------------------------------------------', 'blue')
-      if(allocated(albedo)) call min_max_mean(xxalbedo(i1,:), malbedo)
+      if(allocated(albedo)) call imp_min_mean_max(comm, xxalbedo(i1,:), malbedo)
       if(myid.eq.0) print *,cstr('Surface Albedo (min,mean,max) '//ftoa(malbedo), 'blue')
 
       call restore_col_vec(albedo, xalbedo, xxalbedo)
@@ -731,13 +828,6 @@ module m_plex_rt
       call restore_col_vec(g     , xg     , xxg     )
       call restore_col_vec(plck  , xplck  , xxplck  )
       contains
-        subroutine min_max_mean(arr, mmm)
-          real(ireals), intent(in) :: arr(:)
-          real(ireals), intent(out) :: mmm(:)
-          call mpi_reduce(minval(arr), mmm(1), 1_mpiint, imp_ireals, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
-          call imp_reduce_mean(comm, arr, mmm(2))
-          call mpi_reduce(maxval(arr), mmm(3), 1_mpiint, imp_ireals, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
-        end subroutine
         subroutine get_col_vec(vec, N, xv, xxv)
           type(tVec), allocatable, intent(in) :: vec
           integer(iintegers), intent(in) :: N ! number of entries per column/stride
