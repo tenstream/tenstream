@@ -68,6 +68,45 @@ contains
   end subroutine teardown
 
   @test(npes =[1])
+  subroutine test_wedgemc_no_absorption(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers) :: isrc, itau
+      real(ireal_dp) :: tau, w0, g, aspectzx, phi, theta, Cx, Cy, verts(3*6)
+
+      myid     = this%getProcessRank()
+
+      w0       = 1
+      g        = 0
+      aspectzx = 1
+      !Cx       = 0.500000000
+      !Cy       = 0.866
+      Cx       = 1.00000000
+      Cy       = 0.5
+      phi      = 270
+      theta    = 20
+      verts = [&
+         0._ireal_dp , 0._ireal_dp , 0._ireal_dp       , &
+         1._ireal_dp  , 0._ireal_dp , 0._ireal_dp       , &
+         Cx   , Cy   , 0._ireal_dp       , &
+         0._ireal_dp , 0._ireal_dp , aspectzx   , &
+         1._ireal_dp  , 0._ireal_dp , aspectzx   , &
+         Cx   , Cy   , aspectzx ]
+
+
+      do itau=-10,2,4
+        tau = 10._ireal_dp**(itau)
+        do isrc=1,5
+          bg  = [tau*(1-w0), tau*w0, g]
+          call bmc_wedge_5_8%get_coeff(comm,bg,isrc,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          print *,'tau', tau, 'src', isrc, 'T', sum(T), 'S', sum(S), 'divergence', 1 - (sum(T)+sum(S))
+          if(any(T_tol.gt.0) .or. any(S_tol.gt.0)) then
+            @assertLessThan(1 - (sum(T)+sum(S)), 1e-6_ireals, 'given w0 is 1, there should be no divergence' )
+          endif
+        enddo
+      enddo
+  end subroutine
+
+  @test(npes =[1])
   subroutine test_wedgemc_direct_custom_ex1(this)
       class (MpiTestMethod), intent(inout) :: this
       integer(iintegers) :: isrc=2

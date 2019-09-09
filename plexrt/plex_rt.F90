@@ -1192,14 +1192,14 @@ module m_plex_rt
           integer(iintegers) :: wedge_offset1, wedge_offset2, wedge_offset3, wedge_offset4
           integer(iintegers) :: dir_plex2bmc(solver%dirdof), diff_plex2bmc(solver%diffdof)
           real(ireals), pointer :: xedir(:)
-          real(ireals) :: param_phi, param_theta, area_bot, area_top, dz
+          real(ireals) :: param_phi, param_theta, area_bot, area_top, dz, incsol
           !real(ireals) :: dir2diff(solver%diffdof/2)
           logical :: lsrc(5)
 
           real(irealLUT) :: coeff(solver%dirdof*(solver%diffdof/2))
           integer(iintegers), pointer :: xinoutdof(:)
 
-          integer(mpiint) :: myid
+          integer(mpiint) :: myid, cerr
 
           if(.not.allocated(edirVec)) return
 
@@ -1249,10 +1249,11 @@ module m_plex_rt
               aspect_zx=wedgeorient(wedge_offset1+i5), &
               Cx=wedgeorient(wedge_offset4+i1), &
               Cy=wedgeorient(wedge_offset4+i2), &
-              ldir=.False., coeff=coeff, ierr=ierr, &
+              ldir=.False., coeff=coeff, ierr=cerr, &
               angles=[real(param_phi, irealLUT), real(param_theta, irealLUT)])
 
-            if(ierr.eq.OPP_1D_RETCODE) then
+            !if(cerr.eq.OPP_TINYASPECT_RETCODE) call CHKERR(1_mpiint, 'tiny aspect !DEBUG')
+            if(cerr.eq.OPP_1D_RETCODE) then
               call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
               area_top = geoms(i1+geom_offset)
               call PetscSectionGetFieldOffset(geomSection, faces_of_cell(2), i2, geom_offset, ierr); call CHKERR(ierr)
@@ -1277,17 +1278,35 @@ module m_plex_rt
 
                     call PetscSectionGetOffset(edirSection, faces_of_cell(isrc_side), icol, ierr); call CHKERR(ierr)
                     icol = icol + dof_src_offset
+                    incsol = xedir(i1+icol)
 
                     associate( dir2diff => coeff(bmcsrcdof:size(coeff):solver%dirdof) ) ! dir2diff in src ordering
+                      !print *,icell, 'dir2diff', dir2diff, ':', cstr(ftoa(sum(dir2diff)), 'green')
+
                       do idst = 1, size(outgoing_offsets)
                         if(outgoing_offsets(idst).gt.0) then
-                        !if(dir2diff(diff_plex2bmc(idst)).gt.zero) then
-                        !  if(outgoing_offsets(idst).lt.0) call CHKERR(1_mpiint, 'does this happen?')
+                        if(dir2diff(diff_plex2bmc(idst)).gt.zero) then
+                          if(outgoing_offsets(idst).lt.0) call CHKERR(1_mpiint, 'does this happen?')
+                        endif
 
-                        !print *,'Setting diffsrc for dst', outgoing_offsets(idst),'= src, edir', isrc, xedir(i1+isrc),&
-                        !  '* idst, p2bmc coeff', idst, diff_plex2bmc(idst), dir2diff(diff_plex2bmc(idst))
                         xb(i1+outgoing_offsets(idst)) = xb(i1+outgoing_offsets(idst)) + &
-                          xedir(i1+icol) * dir2diff(diff_plex2bmc(idst))
+                          incsol * dir2diff(diff_plex2bmc(idst))
+
+                        if(.False.) then
+                          call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
+                          area_top = geoms(i1+geom_offset)
+
+                          print *,cstr('Setting diffsrc for ', 'blue')// &
+                            ' dst '//itoa(outgoing_offsets(idst))//&
+                            ' src '//itoa(isrc)//' edir_off '//itoa(icol)// &
+                            ' edir='//ftoa(incsol/area_top)//  &
+                            ' * idst ('//itoa(idst)//')'// &
+                            ' p2bmc '//itoa(diff_plex2bmc(idst))// &
+                            ' coeff:'//ftoa(dir2diff(diff_plex2bmc(idst)))// &
+                            ' xb '//ftoa(xb(i1+outgoing_offsets(idst))/area_top)// &
+                            ' ('//ftoa(xb(i1+outgoing_offsets(idst)))//')'
+                        endif
+
                         endif
                       enddo ! outgoing_offsets
                     end associate
@@ -1923,9 +1942,8 @@ module m_plex_rt
         enddo
         do in_dof = 1, solver%dirdof
           bmcsrcdof = plex2bmc(in_dof)
-          dir2dir = coeff(bmcsrcdof:size(coeff):solver%dirdof)
-          !write(*, FMT='("in_dof " I2  " bmc_src " I2 " : " 18(f10.5))') in_dof, bmcsrcdof, dir2dir
-          !print *,in_dof, 'bmcsrc', bmcsrcdof, dir2dir
+          dir2dir = real(coeff(bmcsrcdof:size(coeff):solver%dirdof), ireals)
+          !print *, icell, in_dof, 'dir2dir', dir2dir, ':', cstr(ftoa(1-sum(dir2dir)),'green')
           if(sum(dir2dir).gt.one+10*sqrt(epsilon(1._irealLUT))) then
             print *,in_dof,': bmcface', bmcsrcdof, 'dir2dir gt one', dir2dir,':',sum(dir2dir)
             call CHKERR(1_mpiint, 'energy conservation violated! '//ftoa(sum(dir2dir)))
@@ -1979,9 +1997,9 @@ module m_plex_rt
 
               c = -dir2dir(bmcdstdof)
 
-              !if(c.lt.zero .and. .not.lsrc(isrc_side)) then
-              !  print *,'found transport coeff but I thought this incoming side is not a designated src face'
-              !endif
+              if(c.lt.zero .and. .not.lsrc(isrc_side)) then
+                call CHKERR(1_mpiint, 'found transport coeff but I thought this incoming side is not a designated src face')
+              endif
               if(c.le.-1e-6_ireals.and..not.l1d.and.param_theta.gt.epsilon(zero)) then
                 ierr = 0
                 if(.not.lsrc(isrc_side)) ierr = 1
@@ -2545,7 +2563,11 @@ module m_plex_rt
         max_g(3:4) = 0._irealLUT
       endif
 
-      if(ldebug) print *,'found LUT max_g to be:', max_g
+      if(ldebug) then
+        print *,'found LUT max_g to be:', max_g
+        print *,'found direct LUT range tau to be:', OPP%OPP_LUT%dirconfig%dims(dimidx(itaudir))%vrange
+        print *,'found direct LUT range  w0 to be:', OPP%OPP_LUT%dirconfig%dims(dimidx(iw0dir ))%vrange
+      endif
       linit_idx = .True.
     endif
 
@@ -2570,6 +2592,13 @@ module m_plex_rt
         ldir, coeff, ierr, &
         angles=[param_phi, angles(2)], wedge_coords=real([Cx, Cy], irealLUT))
 
+      !if(.not.ldir) then
+      !  print *,'dir2diff optprop', &
+      !    'kabs, ksca, g', kabs, ksca, g, new_line(''), &
+      !    'dkabs, dksca, dg', dkabs, dksca, dg, new_line(''), &
+      !    'tau w0, g', tauz, w0, dg, &
+      !    '::', dksca / (dkabs+dksca), ':', max(dkabs+dksca, tiny(dksca))
+      !endif
     else
       tauz = snap_limits(tauz, OPP%OPP_LUT%diffconfig%dims(dimidx(itaudiff))%vrange)
       w0   = snap_limits(w0  , OPP%OPP_LUT%diffconfig%dims(dimidx(iw0diff ))%vrange)
@@ -2583,16 +2612,18 @@ module m_plex_rt
     endif
 
     if(ldebug) then
-      if(any(coeff.lt.0._irealLUT).or.any(coeff.gt.1._irealLUT+sqrt(epsilon(coeff)))) then
-        if(ldir) print *,'Lookup Coeffs for', tauz, w0, aspect_zx, dg, angles,'::', coeff
-        if(.not.ldir.and.present(angles)) print *,'Lookup Coeffs for dir2diff', tauz, w0, aspect_zx, dg, angles,'::', coeff
-      endif
-      if(.not.ldir.and..not.present(angles)) then
+      if(present(angles)) then
+        if(any(coeff.lt.0._irealLUT).or.any(coeff.gt.1._irealLUT+sqrt(epsilon(coeff)))) then
+          if(     ldir) print *,'Lookup Coeffs for dir2dir', tauz, w0, aspect_zx, dg, angles,'::', coeff
+          if(.not.ldir) print *,'Lookup Coeffs for dir2diff', tauz, w0, aspect_zx, dg, angles,'::', coeff
+        endif
+      else
         if(tauz.lt.1._irealLUT .and. all(coeff.le.0)) then
           print *,'Lookup Coeffs for diff2diff', tauz, w0, dg, aspect_zx, ':', Cx, Cy, '::', coeff
           call CHKERR(1_mpiint, 'Found all zero entries where I would not expect it')
         endif
       endif
+
       if(any(coeff.lt.0._irealLUT).or.any(coeff.gt.1._irealLUT+sqrt(epsilon(coeff)))) then
         print *,'Lookup Coeffs for', aspect_zx, tauz, w0, dg, angles,'::', coeff
         call CHKERR(1_mpiint, 'Found corrupted coefficients!')
@@ -2726,7 +2757,7 @@ module m_plex_rt
     real(ireals), pointer :: geoms(:), wedgeorient(:) ! pointer to coordinates and orientation vec
     integer(iintegers) :: geom_offset, abso_offset, edir_offset, wedge_offset
 
-    real(ireals) :: inv_volume
+    real(ireals) :: cell_abso, inv_volume
 
     logical :: lsrc ! is src or destination of solar beam
 
@@ -2803,6 +2834,7 @@ module m_plex_rt
         call PetscSectionGetFieldOffset(wedgeSection, icell, i2, wedge_offset, ierr); call CHKERR(ierr)
         call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
+        cell_abso = 0
         do i = 1, size(faces_of_cell)
           iface = faces_of_cell(i)
           lsrc = int(wedgeorient(wedge_offset+i), iintegers) .eq. i1
@@ -2812,14 +2844,15 @@ module m_plex_rt
             call PetscSectionGetOffset(edir_section, iface, edir_offset, ierr); call CHKERR(ierr)
 
             if(lsrc) then ! sun is shining into this face
-              xabso(abso_offset+i1) = xabso(abso_offset+i1) + xedir(edir_offset+i1) * inv_volume
-              !print *,icell,'Dir Abso',abso_offset,'=',xabso(abso_offset+i1),'( did +',xedir(edir_offset+i1)*inv_volume,')'
+              cell_abso = cell_abso + xedir(edir_offset+i1)
+              !print *,i1+icell,'Dir Abso',abso_offset,'=',cell_abso,'( did +',xedir(edir_offset+i1),')'
             else
-              xabso(abso_offset+i1) = xabso(abso_offset+i1) - xedir(edir_offset+i1) * inv_volume
-              !print *,icell,'Dir Abso',abso_offset,'=',xabso(abso_offset+i1),'( did -',xedir(edir_offset+i1)*inv_volume,')'
+              cell_abso = cell_abso - xedir(edir_offset+i1)
+              !print *,i1+icell,'Dir Abso',abso_offset,'=',cell_abso,'( did -',xedir(edir_offset+i1),')'
             endif
           enddo
         enddo
+        xabso(i1+abso_offset) = xabso(i1+abso_offset) + cell_abso * inv_volume
         call DMPlexRestoreCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
       enddo
 
@@ -2851,6 +2884,9 @@ module m_plex_rt
     integer(mpiint) :: myid, ierr
 
     integer(iintegers), allocatable :: incoming_offsets(:), outgoing_offsets(:)
+
+    integer(iintegers), pointer :: faces_of_cell(:)
+    real(ireals) :: area_top
 
     type(tPetscSection) :: geomSection
     real(ireals), pointer :: geoms(:) ! pointer to coordinates and orientation vec
@@ -2900,14 +2936,20 @@ module m_plex_rt
 
       cell_abso = zero
       do i = 1, size(incoming_offsets)
-        !print *,'icell', icell, incoming_offsets(i), outgoing_offsets(i), 'abso', &
-        !  xabso(i1+abso_offset), &
-        !  '+', xediff(i1+incoming_offsets(i)) * inv_volume, &
-        !  '-', xediff(i1+outgoing_offsets(i)) * inv_volume, &
-        !  '=', xabso(i1+abso_offset) + &
-        !       ( xediff(i1+incoming_offsets(i)) - xediff(i1+outgoing_offsets(i)) ) * inv_volume
         if(incoming_offsets(i).ge.i0) cell_abso = cell_abso + xediff(i1+incoming_offsets(i))
         if(outgoing_offsets(i).ge.i0) cell_abso = cell_abso - xediff(i1+outgoing_offsets(i))
+        if(.False.) then
+          call DMPlexGetCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+          call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
+          area_top = geoms(i1+geom_offset)
+          call DMPlexRestoreCone(plex%ediff_dm, icell, faces_of_cell, ierr); call CHKERR(ierr)
+
+          print *,'icell', i1+icell, incoming_offsets(i), outgoing_offsets(i), 'abso', &
+            xabso(i1+abso_offset), &
+            '+', xediff(i1+incoming_offsets(i))/area_top, &
+            '-', xediff(i1+outgoing_offsets(i))/area_top, &
+            '=', xabso(i1+abso_offset) + cell_abso * inv_volume
+        endif
       enddo
 
       xabso(i1+abso_offset) = xabso(i1+abso_offset) + cell_abso * inv_volume
