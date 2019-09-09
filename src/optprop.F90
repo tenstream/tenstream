@@ -200,9 +200,7 @@ contains
       call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, angles, wedge_coords)
     endif
 
-    if(handle_aspect_zx_1D_case()) then
-      return
-    endif
+    if(handle_aspect_zx_1D_case()) return
 
     if(compute_coeff_online) then
       call do_bmc_computation(C)
@@ -236,9 +234,9 @@ contains
           real(angles(2), ireal_params), &
           phi, theta, ierr); call CHKERR(ierr)
 
-        print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, angles, rad2deg(phi), rad2deg(theta)
         call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, &
           [rad2deg(real(phi, irealLUT)), rad2deg(real(theta, irealLUT))])
+        !print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, angles, rad2deg(phi), rad2deg(theta), new_line(':'), Cbmc
       end subroutine
       subroutine print_coeff_diff()
         real(irealLUT) :: Cbmc(size(C))
