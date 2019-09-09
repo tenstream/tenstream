@@ -369,8 +369,8 @@ module m_plex_grid
     end subroutine
 
 
-    subroutine facevec2cellvec(cellVec_dm, faceVec_dm, global_faceVec, vecshow_string)
-      type(tDM), intent(in) :: cellVec_dm, faceVec_dm
+    subroutine facevec2cellvec(faceVec_dm, global_faceVec, vecshow_string)
+      type(tDM), intent(in) :: faceVec_dm
       type(tVec),intent(in) :: global_faceVec
       character(len=*), intent(in), optional :: vecshow_string
 
@@ -388,7 +388,7 @@ module m_plex_grid
       character(len=default_str_len) :: faceVecname, cellVecname
       logical :: option_is_set
 
-      call PetscObjectGetComm(cellVec_dm, comm, ierr); call CHKERR(ierr)
+      call PetscObjectGetComm(faceVec_dm, comm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       call PetscObjectGetName(global_faceVec, faceVecname, ierr); call CHKERR(ierr)
@@ -400,7 +400,7 @@ module m_plex_grid
 
       if(ldebug.and.myid.eq.0) print *,'facevec2cellvec :: starting..'//trim(faceVecname)
 
-      call DMClone(cellVec_dm, celldm, ierr); ; call CHKERR(ierr)
+      call DMClone(faceVec_dm, celldm, ierr); ; call CHKERR(ierr)
 
       call DMGetSection(faceVec_dm, faceVecSection, ierr); call CHKERR(ierr)
 
@@ -2306,7 +2306,7 @@ module m_plex_grid
 
       if(ldebug) then
         call PetscObjectSetName(level_heights_vec, 'level_heights_vec', ierr); call CHKERR(ierr)
-        call facevec2cellvec(facedm, facedm, level_heights_vec)
+        call facevec2cellvec(facedm, level_heights_vec)
       endif
 
       call interpolate_horizontal_face_var_onto_vertices(facedm, level_heights_vec, vertdm, vertvec)

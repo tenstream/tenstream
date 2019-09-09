@@ -9,7 +9,7 @@ module m_plex_rt
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, meanval, &
     vec_proj_on_plane, cross_3d, rotation_matrix_world_to_local_basis, &
     approx, swap, delta_scale, delta_scale_optprop, itoa, ftoa, cstr, &
-    imp_reduce_mean, rotation_matrix_around_axis_vec
+    imp_reduce_mean, imp_min_mean_max, rotation_matrix_around_axis_vec
 
   use m_data_parameters, only : ireals, iintegers, mpiint, irealLUT, imp_ireals, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len, &
@@ -544,25 +544,18 @@ module m_plex_rt
           goto 99
         endif
 
-        ! Output of wedge_orient vec
-        call PetscLogEventBegin(solver%logs%setup_dir_src, ierr)
-        call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm2(sundir), &
-          solver%kabs, solver%ksca, solver%g, &
-          sundir/norm2(sundir), solver%dirsrc)
-        call PetscLogEventEnd(solver%logs%setup_dir_src, ierr)
-
         if(solution%lsolar_rad) then
 
+          ! Setup direct source term
+          call PetscLogEventBegin(solver%logs%setup_dir_src, ierr)
+          call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm2(sundir), &
+            solver%kabs, solver%ksca, solver%g, &
+            sundir/norm2(sundir), solver%dirsrc)
+          call PetscLogEventEnd(solver%logs%setup_dir_src, ierr)
+
           ! Output of srcVec
-          if(ldebug) then
-            call PetscLogEventBegin(solver%logs%debug_output, ierr)
-            call scale_facevec(solver%plex, solver%plex%edir_dm, solver%dirtop, solver%dirside, &
-              solver%dirsrc, lW_to_Wm2=.True.)
-            call facevec2cellvec(solver%plex%dm, solver%plex%edir_dm, solver%dirsrc)
-            call scale_facevec(solver%plex, solver%plex%edir_dm, solver%dirtop, solver%dirside, &
-              solver%dirsrc, lW_to_Wm2=.False.)
-            call PetscLogEventEnd(solver%logs%debug_output, ierr)
-          endif
+          if(ldebug) &
+            call debug_dump_vec(solver%plex%edir_dm, solver%dirsrc, solver%dir_scalevec_W_to_Wm2)
 
           ! Create Direct Matrix
           call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
@@ -570,10 +563,6 @@ module m_plex_rt
             sundir/norm2(sundir), solver%Mdir)
           call PetscLogEventEnd(solver%logs%setup_Mdir, ierr)
 
-          call scale_flx(solver, solver%plex, &
-            solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
-            solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
-            solution, lWm2=.False., logevent=solver%logs%scale_flx)
 
           ! Solve Direct Matrix
           call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
@@ -587,15 +576,8 @@ module m_plex_rt
           solution%lchanged = .True.
 
           ! Output of Edir Vec
-          if(ldebug) then
-            call PetscLogEventBegin(solver%logs%debug_output, ierr)
-            call scale_facevec(solver%plex, solver%plex%edir_dm, solver%difftop, solver%diffside, &
-              solution%edir, lW_to_Wm2=.True.)
-            call facevec2cellvec(solver%plex%dm, solver%plex%edir_dm, solution%edir)
-            call scale_facevec(solver%plex, solver%plex%edir_dm, solver%difftop, solver%diffside, &
-              solution%edir, lW_to_Wm2=.False.)
-            call PetscLogEventEnd(solver%logs%debug_output, ierr)
-          endif
+          if(ldebug) &
+            call debug_dump_vec(solver%plex%edir_dm, solution%edir, solver%dir_scalevec_W_to_Wm2)
         endif
 
         ! Create Diffuse Src
@@ -607,16 +589,9 @@ module m_plex_rt
           solver%plex%edir_dm, solution%edir)
         call PetscLogEventEnd(solver%logs%setup_diff_src, ierr)
 
-        ! Output of Diffuse Src Vec
-        if(ldebug) then
-          call PetscLogEventBegin(solver%logs%debug_output, ierr)
-          call scale_facevec(solver%plex, solver%plex%ediff_dm, solver%difftop, solver%diffside, &
-            solver%diffsrc, lW_to_Wm2=.True.)
-          call facevec2cellvec(solver%plex%dm, solver%plex%ediff_dm, solver%diffsrc)
-          call scale_facevec(solver%plex, solver%plex%ediff_dm, solver%difftop, solver%diffside, &
-            solver%diffsrc, lW_to_Wm2=.False.)
-          call PetscLogEventEnd(solver%logs%debug_output, ierr)
-        endif
+!        ! Output of Diffuse Src Vec
+        if(ldebug) &
+          call debug_dump_vec(solver%plex%ediff_dm, solver%diffsrc, solver%diff_scalevec_W_to_Wm2)
 
         ! Create Diffuse Matrix
         call PetscLogEventBegin(solver%logs%setup_Mdiff, ierr)
@@ -626,10 +601,6 @@ module m_plex_rt
           '-show_Mediff_'//itoa(solution%uid), ierr); call CHKERR(ierr)
         call PetscLogEventEnd(solver%logs%setup_Mdiff, ierr)
 
-        call scale_flx(solver, solver%plex, &
-          solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
-          solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
-          solution, lWm2=.False., logevent=solver%logs%scale_flx)
 
         ! Solve Diffuse Matrix
         call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
@@ -655,6 +626,29 @@ module m_plex_rt
       end associate
 
       call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_solve
+      contains
+
+        subroutine debug_dump_vec(dm, vec, scalevec)
+          type(tDM), intent(in) :: dm
+          type(tVec), intent(in) :: vec
+          type(tVec), intent(in), optional :: scalevec
+          type(tVec) :: cpy
+          character(len=default_str_len) :: vecname
+          call PetscLogEventBegin(solver%logs%debug_output, ierr)
+          call VecDuplicate(vec, cpy, ierr); call CHKERR(ierr)
+          call PetscObjectGetName(vec, vecname, ierr); call CHKERR(ierr)
+          call PetscObjectSetName(cpy, trim(vecname), ierr); call CHKERR(ierr)
+
+          if(present(scalevec)) then
+            call VecPointwiseMult(cpy, vec, scalevec, ierr); call CHKERR(ierr) ! cpy = v1*v2
+          else
+            call VecCopy(vec, cpy, ierr); call CHKERR(ierr)
+          endif
+
+          call facevec2cellvec(dm, cpy)
+          call VecDestroy(cpy, ierr); call CHKERR(ierr)
+          call PetscLogEventEnd(solver%logs%debug_output, ierr)
+        end subroutine
     end subroutine
 
     subroutine dump_optical_properties(kabs, ksca, g, albedo, plck, postfix)
