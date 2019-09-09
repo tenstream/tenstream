@@ -36,7 +36,7 @@ module m_helper_functions
     delta_scale_optprop,delta_scale,cumsum,cumprod,                                                                  &
     inc, mpi_logical_and, mpi_logical_or, mpi_logical_all_same,                                                      &
     imp_allreduce_min, imp_allreduce_max, imp_allreduce_sum, imp_allreduce_mean,                                     &
-    imp_reduce_sum, imp_reduce_mean,                                                                                 &
+    imp_reduce_sum, imp_reduce_mean, imp_min_mean_max,                                                               &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm,                        &
     CHKERR, CHKWARN, assertEqual,                                                                                    &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, hit_plane,                                 &
@@ -1159,7 +1159,7 @@ module m_helper_functions
       integer(mpiint), intent(in), optional :: root
       real(ireals) :: my_avg
       integer(INT64)  :: global_size
-      integer(mpiint) ::trgt, ierr
+      integer(mpiint) ::trgt, ierr, myid
 
       if(present(root)) then
         trgt = root
@@ -1171,7 +1171,18 @@ module m_helper_functions
       call mpi_reduce(my_avg, r, 1_mpiint, imp_ireals, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
 
       call mpi_reduce(size(v, kind=INT64), global_size, 1_mpiint, imp_int8, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
-      r = r / real(global_size, kind(r))
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      if(myid.eq.trgt) r = r / real(global_size, kind(r))
+    end subroutine
+
+    subroutine imp_min_mean_max(comm, arr, mmm)
+      integer(mpiint), intent(in) :: comm
+      real(ireals), intent(in) :: arr(:)
+      real(ireals), intent(out) :: mmm(:)
+      integer(mpiint) :: ierr
+      call mpi_reduce(minval(arr), mmm(1), 1_mpiint, imp_ireals, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
+      call imp_reduce_mean(comm, arr, mmm(2))
+      call mpi_reduce(maxval(arr), mmm(3), 1_mpiint, imp_ireals, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine imp_allgather_int_inplace(comm,v)
