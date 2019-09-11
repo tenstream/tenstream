@@ -228,15 +228,21 @@ contains
           vertices, &
           real(wedge_sphere_radius, ireals))
 
-        call iterative_phi_theta_from_param_phi_and_param_theta(&
-          real(vertices, ireal_params), &
-          real(angles(1), ireal_params), &
-          real(angles(2), ireal_params), &
-          phi, theta, ierr); call CHKERR(ierr)
+        if(present(angles)) then
+          call iterative_phi_theta_from_param_phi_and_param_theta(&
+            real(vertices, ireal_params), &
+            real(angles(1), ireal_params), &
+            real(angles(2), ireal_params), &
+            phi, theta, ierr); call CHKERR(ierr)
 
-        call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, &
-          [rad2deg(real(phi, irealLUT)), rad2deg(real(theta, irealLUT))])
-        !print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, ':', angles, rad2deg(phi), rad2deg(theta), '=>', new_line(':'), Cbmc
+          call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, &
+            [rad2deg(real(phi, irealLUT)), rad2deg(real(theta, irealLUT))])
+          print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, ':', angles, rad2deg(phi), rad2deg(theta), '=>', new_line(':'), Cbmc
+        else
+          call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc)
+          print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, '=>', new_line(':'), Cbmc
+        endif
+
       end subroutine
       subroutine print_coeff_diff()
         real(irealLUT) :: Cbmc(size(C))
