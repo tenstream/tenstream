@@ -450,7 +450,7 @@ contains
         if(solution%lsolar_rad) then
             call default_flx_computation(&
               mu0, &
-              real(norm2(sundir)*mu0), &
+              real(norm2(sundir)), &
               col_albedo, &
               col_tskin, &
               .False., [0., 0.], col_Bfrac, &
