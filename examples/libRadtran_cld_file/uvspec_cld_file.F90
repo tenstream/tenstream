@@ -410,10 +410,10 @@ contains
     if(myid.eq.0) then
       ! increase the size by two in the x direction,
       ! i.e. from boxes to wedges with 2 elements per box
-      call resize_arr(size(glob_lwc,2,kind=iintegers)*2, glob_lwc, dim=2, fillVal=-1._ireals)
+      call resize_arr(size(glob_lwc  ,2,kind=iintegers)*2, glob_lwc  , dim=2, fillVal=-1._ireals)
       call resize_arr(size(glob_reliq,2,kind=iintegers)*2, glob_reliq, dim=2, fillVal=-1._ireals)
-      glob_lwc(:, 1:size(glob_lwc,dim=2):2, :) = glob_lwc(:, 1:size(glob_lwc,dim=2)/2, :)
-      glob_lwc(:, 2:size(glob_lwc,dim=2):2, :) = glob_lwc(:, 1:size(glob_lwc,dim=2):2, :)
+      glob_lwc  (:, 1:size(glob_lwc  ,dim=2):2, :) = glob_lwc  (:, 1:size(glob_lwc  ,dim=2)/2, :)
+      glob_lwc  (:, 2:size(glob_lwc  ,dim=2):2, :) = glob_lwc  (:, 1:size(glob_lwc  ,dim=2):2, :)
       glob_reliq(:, 1:size(glob_reliq,dim=2):2, :) = glob_reliq(:, 1:size(glob_reliq,dim=2)/2, :)
       glob_reliq(:, 2:size(glob_reliq,dim=2):2, :) = glob_reliq(:, 1:size(glob_reliq,dim=2):2, :)
 
@@ -526,6 +526,7 @@ contains
         call dump_var(abso, 'abso')
 
         if(myid.eq.0) then
+          groups(1) = trim(outfile)
           groups(2) = 'lwc'  ; call ncwrite(groups, glob_lwc  , ierr); call CHKERR(ierr)
           groups(2) = 'reff' ; call ncwrite(groups, glob_reliq, ierr); call CHKERR(ierr)
         endif
