@@ -1232,7 +1232,7 @@ module m_plex_grid
           if(lsrc(iface)) then
             xv(wedge_offset3+iface) = one
           else
-            xv(wedge_offset3+iface) = zero
+            xv(wedge_offset3+iface) = -one
           endif
         enddo
 
