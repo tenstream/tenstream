@@ -50,7 +50,7 @@ module m_optprop_LUT
     ldelta_scale,delta_scale_truncate,    &
     stddev_atol, stddev_rtol,             &
     wedge_sphere_radius,                  &
-    preset_g2, preset_g3, preset_g4,      &
+    preset_g2, preset_g4, preset_g6,      &
     preset_param_phi11,                   &
     preset_param_phi19,                   &
     preset_param_theta13,                 &
@@ -1433,8 +1433,8 @@ subroutine set_parameter_space(OPP)
           allocate(OPP%dirconfig%dims(8))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w021,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w021)
+          call populate_LUT_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
           call populate_LUT_dim('aspect_zx', size(preset_aspect18,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect18)
-          call populate_LUT_dim('g',         size(preset_g2,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g2)
           call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([-0.000001,1.000001], irealLUT))
           call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(6), vrange=real([.499999,1.000001], irealLUT))
 
@@ -1448,8 +1448,8 @@ subroutine set_parameter_space(OPP)
           allocate(OPP%diffconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
           call populate_LUT_dim('w0',        size(preset_w021,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w021)
+          call populate_LUT_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-          call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
           call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(5), vrange=real([-0.000001,1.000001], irealLUT))
           call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(6), vrange=real([.499999,1.000001], irealLUT))
 
