@@ -1847,7 +1847,7 @@ module m_plex_rt
 
     real(ireals) :: dz, area_top, area_bot
 
-    real(ireals) :: dir2dir(solver%dirdof)
+    real(irealLUT) :: dir2dir(solver%dirdof)
     logical :: lsrc(5) ! is src or destination of solar beam (5 faces in a wedge)
     integer(iintegers) :: numSrc, numDst
 
@@ -1959,9 +1959,9 @@ module m_plex_rt
         enddo
         do in_dof = 1, solver%dirdof
           bmcsrcdof = plex2bmc(in_dof)
-          dir2dir = real(coeff(bmcsrcdof:size(coeff):solver%dirdof), ireals)
+          dir2dir = coeff(bmcsrcdof:size(coeff):solver%dirdof)
           !print *, icell, in_dof, 'dir2dir', dir2dir, ':', cstr(ftoa(sum(dir2dir)),'green')
-          if(sum(dir2dir).gt.one+sqrt(epsilon(one))*10) then
+          if(sum(dir2dir).gt.1+sqrt(epsilon(dir2dir))*100) then
             print *,in_dof,': bmcface', bmcsrcdof, 'dir2dir gt one', dir2dir,':',sum(dir2dir)
             call CHKERR(1_mpiint, 'energy conservation violated! '//ftoa(sum(dir2dir)))
           endif
@@ -1998,7 +1998,7 @@ module m_plex_rt
           icol = icol + dof_src_offset
 
           dir2dir = coeff(bmcsrcdof:size(coeff):solver%dirdof)
-          if(sum(dir2dir).gt.one) dir2dir = dir2dir / sum(dir2dir)
+          if(sum(dir2dir).gt.1+sqrt(epsilon(dir2dir))) dir2dir = dir2dir / sum(dir2dir)
 
           out_dof = 0
           do idst_side = 1, size(faces_of_cell)
@@ -2014,7 +2014,7 @@ module m_plex_rt
               call PetscSectionGetOffset(sec, faces_of_cell(idst_side), irow, ierr); call CHKERR(ierr)
               irow = irow + dof_dst_offset
 
-              c = -dir2dir(bmcdstdof)
+              c = -real(dir2dir(bmcdstdof), kind(c))
 
               if(c.lt.zero .and. .not.lsrc(isrc_side)) then
                 call CHKERR(1_mpiint, 'found transport coeff but I thought this incoming side is not a designated src face')
@@ -2176,7 +2176,7 @@ module m_plex_rt
                     call get_side_and_offset_from_total_bmc_dofs(solver%dirtop, solver%dirside, bmcdstdof, &
                       bmcdstside, dof_dst_offset)
 
-                    c = -dir2dir(bmcdstdof)
+                    c = -real(dir2dir(bmcdstdof), kind(c))
 
                     call PetscSectionGetOffset(sec, faces_of_cell(idst_side), irow, ierr); call CHKERR(ierr)
                     irow = irow + dof_dst_offset
@@ -2542,6 +2542,9 @@ module m_plex_rt
                   'src and dst are the same :( ... should not happen here'// &
                   ' row '//itoa(offset_Ein)// &
                   ' col '//itoa(offset_Eout))
+              elseif (numDof.eq.i0) then
+              else
+                call CHKERR(1_mpiint, 'dont expect to have this numbering of dof, please check')
               endif
             enddo
           enddo
@@ -2636,12 +2639,11 @@ module m_plex_rt
     if(present(angles)) then
       tauz = snap_limits(tauz, OPP%OPP_LUT%dirconfig%dims(dimidx(itaudir))%vrange)
       w0   = snap_limits(w0  , OPP%OPP_LUT%dirconfig%dims(dimidx(iw0dir ))%vrange)
-      dg   = snap_limits(dg  , max_g(1:2))
 
       param_phi = max(OPP%OPP_LUT%dirconfig%dims(dimidx(iphidir))%vrange(1), &
         min(OPP%OPP_LUT%dirconfig%dims(dimidx(iphidir))%vrange(2), angles(1)))
 
-      call delta_scale( dkabs, dksca, dg, max_g=max_g(2))
+      !call delta_scale( dkabs, dksca, dg, max_g=max_g(2))
 
       call OPP%get_coeff(tauz, w0, real(dg, irealLUT), real(aspect_zx, irealLUT), &
         ldir, coeff, ierr, &
@@ -2657,9 +2659,8 @@ module m_plex_rt
     else
       tauz = snap_limits(tauz, OPP%OPP_LUT%diffconfig%dims(dimidx(itaudiff))%vrange)
       w0   = snap_limits(w0  , OPP%OPP_LUT%diffconfig%dims(dimidx(iw0diff ))%vrange)
-      dg   = snap_limits(dg  , max_g(3:4))
 
-      call delta_scale( dkabs, dksca, dg, max_g=max_g(4))
+      !call delta_scale( dkabs, dksca, dg, max_g=max_g(4))
 
       call OPP%get_coeff(tauz, w0, real(dg, irealLUT), real(aspect_zx, irealLUT), &
         ldir, coeff, ierr, &
