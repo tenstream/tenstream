@@ -163,7 +163,7 @@ end function
   end subroutine
 
   function theta_crit(side_normal, phi) result(thetac)
-    ! solve euqation system that arises for condition
+    ! solve equation system that arises for condition
     ! sunvec_crit = [sin(phi) * sin(theta_crit), cos(phi) * sin(theta_crit), -cos(theta_crit)]
     ! base_face_normal .dot. sunvec_crit === 0
     ! i.e. solve( 0 = n1 * sin ( phi ) * sin(theta) + n2 * cos(phi) * sin(theta) - n3 * cos(theta), theta)
@@ -174,15 +174,9 @@ end function
 
     real(ireal_params) :: discr, frac
 
-    !discr = side_normal(1)*sin(phi) + side_normal(2)*cos(phi)
-
-    !frac = side_normal(3) / discr
-    !thetac = atan(frac)
-
     associate( n1=>side_normal(1), n2=>side_normal(2), n3=>side_normal(3) )
-      discr = (n1*sin(phi) + n2*cos(phi))**2 + n3**2
-      frac = n3 / sqrt(discr)
-      thetac = asin( frac )
+      discr  = (n1*sin(phi) + n2 * cos(phi))**2 + n3
+      thetac = asin(n3 / sqrt(discr))
     end associate
 
     if(discr.le.0._ireal_params) then
