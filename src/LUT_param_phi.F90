@@ -172,7 +172,7 @@ end function
     real(ireal_params), intent(in) :: phi ! sun azimuth in [rad]
     real(ireal_params) :: thetac
 
-    real(ireal_params) :: discr, frac
+    real(ireal_params) :: discr
 
     associate( n1=>side_normal(1), n2=>side_normal(2), n3=>side_normal(3) )
       discr  = (n1*sin(phi) + n2 * cos(phi))**2 + n3

@@ -1340,7 +1340,7 @@ module m_plex_grid
         !print *,'iface',iface, ':', lsrc(side_faces(iface)), '->', proj_angles_to_sun(iface), rad2deg(proj_angles_to_sun(iface))
       enddo
 
-      if(zenith.gt.10*epsilon(zenith)) then ! only do the azimuth computation if zenith is larger than 0 deg
+      if(norm2(proj_sundir).gt.10*epsilon(zenith)) then ! only do the azimuth computation if zenith is larger than 0 deg
         ibase_face = minloc(proj_angles_to_sun,dim=1)
         base_face  = side_faces(ibase_face)
 
