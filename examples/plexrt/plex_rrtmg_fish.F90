@@ -152,14 +152,13 @@ logical, parameter :: ldebug=.True.
 
       Nlev = size(atm%plev,1,kind=iintegers)
       call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
+      call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
 
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)
       call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
 
       call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
       deallocate(zindex)
-
-      call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
 
       if(lregular_mesh) then
         call allocate_plexrt_solver_from_commandline(solver, 'rectilinear_5_8')

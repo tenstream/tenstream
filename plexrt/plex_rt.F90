@@ -574,8 +574,8 @@ module m_plex_rt
 
       associate( solution => solver%solutions(suid) )
 
-        !print *,'sundir/norm2(sundir)',sundir/norm2(sundir), 'vs', last_sundir, &
-        !  ':', all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir))))
+        if(ldebug) print *,'sundir/norm2(sundir)',sundir/norm2(sundir), 'vs', last_sundir, &
+          ':', all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir))))
         ! Wedge Orientation is used in solar and thermal case alike
         if(.not.all(approx(last_sundir, sundir/norm2(sundir), sqrt(epsilon(sundir)))).or.&  ! update wedge orientations if sundir has changed
           .not.allocated(solver%plex%wedge_orientation_dm)) then ! or if we lost the info somehow... e.g. happens after destroy_solver
@@ -603,7 +603,7 @@ module m_plex_rt
           endif
           call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
 
-          if(ldebug) print *,'1D calculation done', suid
+          if(ldebug) print *,'1D calculation done', suid, ':', solution%lsolar_rad, lschwarzschild
           goto 99
         endif
 
@@ -2625,6 +2625,7 @@ module m_plex_rt
         max_g([2,4]) = max(max_g([1,3]), min(max_g([2,4]), real(max_g_delta, kind(max_g))))
         if(ldebug) print *,'found deltascaling max_g -> setting limits to:', cstr(ftoa(max_g), 'green')
       endif
+      max_g([2,4]) = max_g([2,4]) - sqrt(epsilon(max_g))
 
       linit_idx = .True.
     endif
@@ -2643,7 +2644,7 @@ module m_plex_rt
       param_phi = max(OPP%OPP_LUT%dirconfig%dims(dimidx(iphidir))%vrange(1), &
         min(OPP%OPP_LUT%dirconfig%dims(dimidx(iphidir))%vrange(2), angles(1)))
 
-      !call delta_scale( dkabs, dksca, dg, max_g=max_g(2))
+      call delta_scale( dkabs, dksca, dg, max_g=max_g(2))
 
       call OPP%get_coeff(tauz, w0, real(dg, irealLUT), real(aspect_zx, irealLUT), &
         ldir, coeff, ierr, &
@@ -2660,7 +2661,7 @@ module m_plex_rt
       tauz = snap_limits(tauz, OPP%OPP_LUT%diffconfig%dims(dimidx(itaudiff))%vrange)
       w0   = snap_limits(w0  , OPP%OPP_LUT%diffconfig%dims(dimidx(iw0diff ))%vrange)
 
-      !call delta_scale( dkabs, dksca, dg, max_g=max_g(4))
+      call delta_scale( dkabs, dksca, dg, max_g=max_g(4))
 
       call OPP%get_coeff(tauz, w0, real(dg, irealLUT), real(aspect_zx, irealLUT), &
         ldir, coeff, ierr, &
@@ -3408,8 +3409,10 @@ module m_plex_rt
         if(.not.allocated(solution%abso)) call CHKERR(1_mpiint, 'abso vec not allocated')
         if(solution%lchanged) call CHKERR(1_mpiint, 'tried to get results from unrestored solution -- call restore_solution first')
 
-        if(present(redir) .and. .not.solution%lsolar_rad) &
+        if(present(redir) .and. .not.solution%lsolar_rad) then
           call CHKWARN(1_mpiint, 'you asked for direct radiation but solution does not have it')
+          redir(:,:) = 0
+        endif
 
         call scale_flx(solver, solver%plex, &
           solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &

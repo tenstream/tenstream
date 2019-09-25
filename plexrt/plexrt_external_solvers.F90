@@ -133,7 +133,7 @@ contains
     solution%lWm2_dir  = .True.
     solution%lWm2_diff = .True.
     ! and mark solution that it is not up to date
-    solution%lchanged  = .True.
+    solution%lchanged  = .False.
 
     end associate
   end subroutine
@@ -144,7 +144,7 @@ contains
     class(t_plex_solver), intent(inout) :: solver
     type(t_plexgrid), intent(in) :: plex
     type(tVec), intent(in) :: kabs, ksca, g, albedo
-    type(tVec), intent(in), optional :: plck
+    type(tVec), allocatable, intent(in), optional :: plck
     real(ireals), intent(in) :: sundir(:)
     type(t_state_container) :: solution
 
@@ -165,17 +165,23 @@ contains
 
     integer(mpiint) :: ierr
 
-    if(solution%lsolar_rad) then
+    lsolar = solution%lsolar_rad
+    if(present(plck)) then
+      lthermal = allocated(plck)
+    else
+      lthermal = .False.
+    endif
+
+    if(allocated(solution%edir)) then
       call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
     endif
     call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
 
-    if(solution%lsolar_rad .and. norm2(sundir).le.zero) then
+
+    if(.not.lthermal .and. (lsolar .and. norm2(sundir).le.zero)) then
       return
     endif
 
-    lsolar = solution%lsolar_rad
-    lthermal = .not.solution%lsolar_rad
 
     call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
     if (boundary_ids.eq.PETSC_NULL_IS) then ! dont have TOA boundary faces
@@ -201,7 +207,6 @@ contains
       call VecGetArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
 
       if(lthermal) then
-        if(.not.present(plck)) call CHKERR(1_mpiint, 'have to provide planck vec to compute thermal rad with twostr')
         allocate(Blev(plex%Nlay+1))
         call VecGetArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
       endif
@@ -245,19 +250,19 @@ contains
         enddo
         if(lthermal) then
           do k=1,ke1
-            call PetscSectionGetFieldOffset(plck_section, iface+k-1, i0, voff, ierr); call CHKERR(ierr)
+            call PetscSectionGetOffset(plck_section, iface+k-1, voff, ierr); call CHKERR(ierr)
             Blev(k) = xplck(i1+voff)
           enddo
         endif
 
-        if(solution%lsolar_rad) then
-          call delta_eddington_twostream(vdtau,vw0,vg,&
-            mu0,norm2(sundir)*mu0,xalbedo(i), &
-            Edir, Edn, Eup )
-        else
+        if(lthermal) then
           call delta_eddington_twostream(vdtau,vw0,vg,&
             mu0,norm2(sundir)*mu0,xalbedo(i), &
             Edir, Edn, Eup, Blev)
+        else
+          call delta_eddington_twostream(vdtau,vw0,vg,&
+            mu0,norm2(sundir)*mu0,xalbedo(i), &
+            Edir, Edn, Eup )
         endif
 
         if(lsolar) then

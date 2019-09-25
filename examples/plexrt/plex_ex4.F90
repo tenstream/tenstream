@@ -198,7 +198,7 @@ contains
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qni_data_string', qni_data_string, lflg, ierr); call CHKERR(ierr)
       qv_data_string = 'qv'
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qv_data_string', qv_data_string, lflg, ierr); call CHKERR(ierr)
-      atm_filename='afglus_100m.dat'
+      atm_filename='atm.dat'
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
     end subroutine
     subroutine init_sundir()

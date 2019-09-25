@@ -2156,7 +2156,8 @@ module m_plex_grid
       !print *,'-------------------------------'
 
       normal = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,2),vertex_coord(:,3))
-      if(.not.approx(norm2(normal), one)) call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal))
+      if(.not.approx(norm2(normal), one, 10*epsilon(one))) &
+        call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal)//' ( '//ftoa(norm2(normal))//' )')
 
       if(Nvertices.eq.3) then
         area = triangle_area_by_vertices(vertex_coord(:,1), vertex_coord(:,2), vertex_coord(:,3))

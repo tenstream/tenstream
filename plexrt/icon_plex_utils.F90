@@ -6,7 +6,7 @@ module m_icon_plex_utils
   use m_data_parameters, only : ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, zero, one, default_str_len, pi
 
-  use m_helper_functions, only: chkerr, itoa, get_arg, imp_bcast, deg2rad, reverse
+  use m_helper_functions, only: chkerr, chkwarn, itoa, get_arg, imp_bcast, deg2rad, reverse
 
   use m_plex_grid, only: t_plexgrid, print_dmplex, create_plex_section, TOAFACE, &
     get_horizontal_faces_around_vertex
@@ -639,14 +639,26 @@ module m_icon_plex_utils
       real(ireals), pointer :: xv(:)
       integer(iintegers), pointer :: faces_of_cell(:)
 
-      integer(iintegers) :: cStart, cEnd
+      integer(iintegers) :: cStart, cEnd, depth
       integer(iintegers) :: i, icell, idx, voff
       integer(iintegers), allocatable :: myidx(:)
       type(PetscSFNode), allocatable :: remote(:)
 
-      integer(mpiint) :: comm, myid, ierr
+      integer(mpiint) :: comm, numnodes, myid, ierr
+
+      ! Dump Plex itself
+      if(present(cmd_string_dump_plex)) then
+        call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, trim(cmd_string_dump_plex), ierr); call CHKERR(ierr)
+      endif
 
       call PetscObjectGetComm(dm, comm, ierr); call CHKERR(ierr)
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+      if(numnodes.le.1) then
+        call CHKWARN(1_mpiint, 'You called dump_ownership in a serial job.'//new_line('')// &
+          '   This is currently not supported/tested.'//new_line('')// &
+          '   I wont write the output vectors...')
+        return ! code currently doesnt work for serial jobs
+      endif
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call DMClone(dm, owner_dm, ierr); call CHKERR(ierr)
 
@@ -660,8 +672,17 @@ module m_icon_plex_utils
       premote => NULL()
       call PetscSortIntWithArrayPair(nleaves, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
 
-      call create_plex_section(owner_dm, 'dmplex_ownership info', i1, &
-        [i1], [i0], [i0], [i0], sec)
+      call DMPlexGetDepth(owner_dm, depth, ierr); call CHKERR(ierr)
+      select case(depth)
+      case(i3)
+        call create_plex_section(owner_dm, 'dmplex_ownership info', i1, &
+          [i1], [i0], [i0], [i0], sec)
+      case(i2)
+        call create_plex_section(owner_dm, 'dmplex_ownership info', i1, &
+          [i0], [i1], [i0], [i0], sec)
+      case default
+        call CHKERR(1_mpiint, 'cannot handle dm with depth: '// itoa(depth))
+      end select
       call DMSetSection(owner_dm, sec, ierr); call CHKERR(ierr)
       call PetscSectionDestroy(sec, ierr); call CHKERR(ierr)
 
@@ -669,17 +690,12 @@ module m_icon_plex_utils
 
       call DMGetGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
 
-      ! Dump Plex itself
-      if(present(cmd_string_dump_plex)) then
-        call PetscObjectViewFromOptions(owner_dm, PETSC_NULL_DM, trim(cmd_string_dump_plex), ierr); call CHKERR(ierr)
-      endif
-
       ! Dump Cell Ownership
       call PetscObjectSetName(gVec, 'ownership_cells', ierr);call CHKERR(ierr)
       call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
       xv(:) = real(myid, ireals)
       call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string_dump_ownership, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, trim(cmd_string_dump_ownership), ierr); call CHKERR(ierr)
 
       ! Dump Face Ownership
       call PetscObjectSetName(gVec, 'ownership_non_local_faces', ierr);call CHKERR(ierr)
@@ -697,7 +713,7 @@ module m_icon_plex_utils
         enddo
       enddo
       call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string_dump_ownership, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, trim(cmd_string_dump_ownership), ierr); call CHKERR(ierr)
 
       ! Dump Sum of cell Ownership
       call PetscObjectSetName(gVec, 'ownership_sum_cells', ierr);call CHKERR(ierr)
@@ -705,7 +721,7 @@ module m_icon_plex_utils
       call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
       xv(:) = real(cEnd-cStart-i1, ireals)
       call VecRestoreArrayF90(gVec, xv, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, cmd_string_dump_ownership, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(gVec, PETSC_NULL_VEC, trim(cmd_string_dump_ownership), ierr); call CHKERR(ierr)
 
       call DMRestoreGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
       call DMDestroy(owner_dm, ierr); call CHKERR(ierr)
