@@ -15,7 +15,7 @@ module test_wedge_param_phi
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse, CHKERR, get_arg, itoa, &
     ind_nd_to_1d, ind_1d_to_nd, rad2deg, deg2rad, &
-    angle_between_two_vec, linspace
+    angle_between_two_vec, linspace, normalize_vec
   use m_search, only: find_real_location
   use m_boxmc_geometry, only : setup_default_wedge_geometry
 
@@ -165,12 +165,18 @@ contains
     thetac = theta_crit(side_normal, phi)
     @assertEqual(0._ireal_params, rad2deg(thetac))
 
-    side_normal = [0._ireal_params, 1._ireal_params, 0.1_ireal_params]
-    side_normal = side_normal / norm2(side_normal)
+    side_normal = [0._ireal_params, 1._ireal_params, 1._ireal_params]
+    call normalize_vec(side_normal, side_normal, ierr)
+    phi = deg2rad(0._ireal_params)
+    thetac = theta_crit(side_normal, phi)
+    @assertEqual(45._ireal_params, rad2deg(thetac), eps, 'expected 45 degree?')
+
+    side_normal = [0._ireal_params, 1._ireal_params, .1_ireal_params]
+    call normalize_vec(side_normal, side_normal, ierr)
     phi = deg2rad(0._ireal_params)
     thetac = theta_crit(side_normal, phi)
     theta_target = angle_between_two_vec(side_normal, [0._ireal_params, 0._ireal_params, -1._ireal_params]) - pi_ireal_params/2
-    @assertEqual(rad2deg(theta_target), rad2deg(thetac), eps)
+    @assertEqual(rad2deg(theta_target), rad2deg(thetac), eps, 'fixed thetac not as expected')
 
     side_normal = [0._ireal_params, 1._ireal_params, 0.1_ireal_params]
     side_normal = side_normal / norm2(side_normal)

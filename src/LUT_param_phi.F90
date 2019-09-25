@@ -172,17 +172,19 @@ end function
     real(ireal_params), intent(in) :: phi ! sun azimuth in [rad]
     real(ireal_params) :: thetac
 
-    real(ireal_params) :: discr
+    !real(ireal_params) :: discr
 
     associate( n1=>side_normal(1), n2=>side_normal(2), n3=>side_normal(3) )
-      discr  = (n1*sin(phi) + n2 * cos(phi))**2 + n3
-      thetac = asin(n3 / sqrt(discr))
+       !discr  = ( n1*sin(phi) + n2*cos(phi) )**2 + n3**2
+       !thetac = asin(n3 / sqrt(discr))
+       thetac = atan(n3 / (n1*sin(phi) + n2*cos(phi)) )
+       !thetac = asin(n3 / sqrt( ( n1*sin(phi) + n2*cos(phi) )**2 + n3**2 ) )
     end associate
 
-    if(discr.le.0._ireal_params) then
-      print *,'discr', discr, side_normal, norm2(side_normal), '->', side_normal(3) / discr, 'thetac', thetac
-      call CHKERR(1_mpiint, 'no solution for theta crit')
-    endif
+    !if(ldebug .and. discr.le.0._ireal_params) then
+    !  print *,'discr', discr, side_normal, norm2(side_normal), '->', side_normal(3) / discr, 'thetac', thetac
+    !  call CHKERR(1_mpiint, 'no solution for theta crit')
+    !endif
   end function
 
   subroutine iterative_phi_theta_from_param_phi_and_param_theta(wedge_coords3d, &
