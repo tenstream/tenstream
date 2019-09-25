@@ -259,7 +259,7 @@ contains
     endif
     if(allocated(plex_solver)) then
       lthermal = allocated(plex_solver%plck)
-      call run_plex_rt_solver(plex_solver, lthermal=lthermal, lsolar=.True., sundir=sundir)
+      call run_plex_rt_solver(plex_solver, lthermal=lthermal, lsolar=edirTOA.gt.0, sundir=sundir)
     endif
   end subroutine
 
@@ -415,7 +415,7 @@ contains
     call init_plex_rt_solver(plex, plex_solver)
 
     sundir = spherical_2_cartesian(phi0,theta0)
-    if(ldebug) print *,'sundir', sundir
+    if(ldebug) print *,'f2c_pprts::sundir', sundir, '(', phi0,theta0, ')'
   end subroutine
 
   subroutine pprts_plexrt_f2c_set_global_optical_properties(Nz, Nx, Ny, albedo, kabs, ksca, g, planck) bind(c)
