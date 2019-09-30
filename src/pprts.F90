@@ -227,6 +227,7 @@ module m_pprts
         call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//ftoa(dx)//' vs '//ftoa(dy))
 
       if(ldebug.and.solver%myid.eq.0) then
+        print *,'atm dx/dy '//ftoa(dx)//' , '//ftoa(dy)
         print *,'Solver dirtop:', solver%dirtop%is_inward, ':', solver%dirtop%dof
         print *,'Solver dirside:', solver%dirside%is_inward, ':', solver%dirside%dof
         print *,'Solver difftop:', solver%difftop%is_inward, ':', solver%difftop%dof
@@ -1265,7 +1266,9 @@ module m_pprts
     else
       if(solver%myid.eq.0.and.lflg) print *,"Skipping Delta scaling of optprops"
       if(any(atm%g.ge.0.649_ireals)) &
-        call CHKWARN(1_mpiint, 'Skipping delta scaling but now we have values of g which are bigger .5 ('//ftoa(maxval(atm%g))//')')
+        call CHKWARN(1_mpiint, 'Skipping delta scaling but now we have values of '// &
+        'g > '//ftoa(pprts_delta_scale_max_g)// &
+        ' ('//ftoa(maxval(atm%g))//')')
     endif
 
     if(ltwostr_only) then
@@ -2839,7 +2842,6 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
             print *,'direct coeff',norm,'::',v
             call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
           endif
-          v(src:C%dof**2:C%dof) = v(src:C%dof**2:C%dof) / max(norm, tiny(norm))
         enddo
       endif
 
@@ -3549,9 +3551,6 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
                 solver%atm%dz(atmk(solver%atm, k),i,j), &
                 .False., solver%atm%l1d(atmk(solver%atm, k),i,j), '=>', v
               call CHKERR(1_mpiint, 'omg.. shouldnt be happening')
-            else
-              ! rescale values
-              v(src:C%dof**2:C%dof) = v(src:C%dof**2:C%dof) / norm
             endif
           endif
         enddo

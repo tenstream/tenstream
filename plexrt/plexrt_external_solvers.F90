@@ -36,8 +36,8 @@ contains
     integer(iintegers), allocatable :: cell_idx(:)
     integer(iintegers) :: i, k, icell, iface, voff, ke1, geom_offset
     real(ireals) :: dz
-    real(ireals), pointer :: xkabs(:), xalbedo(:), xplck(:), xediff(:), xgeoms(:)
-    type(tPetscSection) :: ediff_section, plck_section, geom_section
+    real(ireals), pointer :: xkabs(:), xalbedo(:), xplck(:), xediff(:), xabso(:), xgeoms(:)
+    type(tPetscSection) :: ediff_section, abso_section, plck_section, geom_section
 
     integer(iintegers) :: Nmu
     logical :: lflg
@@ -69,6 +69,9 @@ contains
       call VecGetArrayReadF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(solver%plck, xplck, ierr); call CHKERR(ierr)
       call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+
+      call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
 
       call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
       do i = 1, size(xitoa)
@@ -104,21 +107,33 @@ contains
         call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
         xediff(i1+voff) = Eup(i1+k)
         xediff(i2+voff) = Edn(i1+k)
+
+        ! compute absorption as flux divergence
+        do k = 1, ke1-1
+          icell = cell_idx(k)
+          call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          dz = xgeoms(i1+geom_offset)
+
+          call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
+          xabso(i1+voff) = Edn(k) - Edn(k+1) - Eup(k) + Eup(k+1)
+          xabso(i1+voff) = xabso(i1+voff) / dz
+        enddo
       enddo
       call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
 
+      call VecRestoreArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
       call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(solver%plck, xplck, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(solver%albedo, xalbedo, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
 
-
-      !Schwarzschild solver returns fluxes as [W/m^2]
-      solution%lWm2_dir  = .True.
-      solution%lWm2_diff = .True.
-      ! and mark solution that it is not up to date
-      solution%lchanged  = .True.
     endif ! TOA boundary ids
+
+    !Schwarzschild solver returns fluxes as [W/m^2]
+    solution%lWm2_dir  = .True.
+    solution%lWm2_diff = .True.
+    ! and mark solution that it is not up to date
+    solution%lchanged  = .False.
 
     end associate
   end subroutine
@@ -129,7 +144,7 @@ contains
     class(t_plex_solver), intent(inout) :: solver
     type(t_plexgrid), intent(in) :: plex
     type(tVec), intent(in) :: kabs, ksca, g, albedo
-    type(tVec), intent(in), optional :: plck
+    type(tVec), allocatable, intent(in), optional :: plck
     real(ireals), intent(in) :: sundir(:)
     type(t_state_container) :: solution
 
@@ -141,8 +156,8 @@ contains
     integer(iintegers) :: i, k, icell, iface, voff, ke1, geom_offset, idof
     real(ireals) :: dz, theta0, mu0
     real(ireals), pointer :: xksca(:), xkabs(:), xg(:), xalbedo(:), xplck(:)
-    real(ireals), pointer :: xedir(:), xediff(:), xgeoms(:)
-    type(tPetscSection) :: edir_section, ediff_section, plck_section, geom_section
+    real(ireals), pointer :: xedir(:), xediff(:), xabso(:), xgeoms(:)
+    type(tPetscSection) :: edir_section, ediff_section, abso_section, plck_section, geom_section
 
     real(ireals) :: dkabs, dksca, dg
     real(ireals) :: face_normal(3)
@@ -150,17 +165,23 @@ contains
 
     integer(mpiint) :: ierr
 
-    if(solution%lsolar_rad) then
+    lsolar = solution%lsolar_rad
+    if(present(plck)) then
+      lthermal = allocated(plck)
+    else
+      lthermal = .False.
+    endif
+
+    if(allocated(solution%edir)) then
       call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
     endif
     call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
 
-    if(solution%lsolar_rad .and. norm2(sundir).le.zero) then
+
+    if(.not.lthermal .and. (lsolar .and. norm2(sundir).le.zero)) then
       return
     endif
 
-    lsolar = solution%lsolar_rad
-    lthermal = .not.solution%lsolar_rad
 
     call DMGetStratumIS(plex%edir_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
     if (boundary_ids.eq.PETSC_NULL_IS) then ! dont have TOA boundary faces
@@ -182,9 +203,10 @@ contains
       call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
+      call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
 
       if(lthermal) then
-        if(.not.present(plck)) call CHKERR(1_mpiint, 'have to provide planck vec to compute thermal rad with twostr')
         allocate(Blev(plex%Nlay+1))
         call VecGetArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
       endif
@@ -228,19 +250,19 @@ contains
         enddo
         if(lthermal) then
           do k=1,ke1
-            call PetscSectionGetFieldOffset(plck_section, iface+k-1, i0, voff, ierr); call CHKERR(ierr)
+            call PetscSectionGetOffset(plck_section, iface+k-1, voff, ierr); call CHKERR(ierr)
             Blev(k) = xplck(i1+voff)
           enddo
         endif
 
-        if(solution%lsolar_rad) then
-          call delta_eddington_twostream(vdtau,vw0,vg,&
-            mu0,norm2(sundir)*mu0,xalbedo(i), &
-            Edir, Edn, Eup )
-        else
+        if(lthermal) then
           call delta_eddington_twostream(vdtau,vw0,vg,&
             mu0,norm2(sundir)*mu0,xalbedo(i), &
             Edir, Edn, Eup, Blev)
+        else
+          call delta_eddington_twostream(vdtau,vw0,vg,&
+            mu0,norm2(sundir)*mu0,xalbedo(i), &
+            Edir, Edn, Eup )
         endif
 
         if(lsolar) then
@@ -261,9 +283,25 @@ contains
         call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
         xediff(i1+voff) = Eup(i1+k)
         xediff(i1+voff+i1) = Edn(i1+k)
+
+        ! compute absorption as flux divergence
+        do k = 1, ke1-1
+          icell = cell_idx(k)
+          call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          dz = xgeoms(i1+geom_offset)
+
+          call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
+          if(lsolar) then
+            xabso(i1+voff) = edn(k) - edn(k+1) - eup(k) + eup(k+1) + edir(k) - edir(k+1)
+          else
+            xabso(i1+voff) = edn(k) - edn(k+1) - eup(k) + eup(k+1)
+          endif
+          xabso(i1+voff) = xabso(i1+voff) / dz
+        enddo
       enddo
       call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
 
+      call VecRestoreArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
       call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
@@ -277,13 +315,13 @@ contains
       if(lthermal) then
         call VecRestoreArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
       endif
-
-      !Twostream solver returns fluxes as [W/m^2]
-      solution%lWm2_dir  = .True.
-      solution%lWm2_diff = .True.
-      ! and mark solution that it is not up to date
-      solution%lchanged  = .True.
     endif ! TOA boundary ids
+
+    !Twostream solver returns fluxes as [W/m^2]
+    solution%lWm2_dir  = .True.
+    solution%lWm2_diff = .True.
+    ! and mark solution that it is not up to date
+    solution%lchanged  = .False.
   end subroutine
 
   !> @brief wrapper for the disort solver
@@ -307,8 +345,8 @@ contains
     integer(iintegers) :: i, k, icell, iface, voff, ke1, geom_offset, idof
     real(ireals) :: dz, theta0
     real(ireals), pointer :: xksca(:), xkabs(:), xg(:), xalbedo(:), xplck(:)
-    real(ireals), pointer :: xedir(:), xediff(:), xgeoms(:)
-    type(tPetscSection) :: edir_section, ediff_section, plck_section, geom_section
+    real(ireals), pointer :: xedir(:), xediff(:), xabso(:), xgeoms(:)
+    type(tPetscSection) :: edir_section, ediff_section, abso_section, plck_section, geom_section
 
     real(ireals) :: dkabs, dksca, dg
     real(ireals) :: face_normal(3)
@@ -369,6 +407,9 @@ contains
       call VecGetArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
       call VecGetArrayReadF90(plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
 
+      call DMGetSection(plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+      call VecGetArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
+
       call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
       if(lsolar) then
         call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
@@ -401,7 +442,11 @@ contains
           if(ldelta_scale) call delta_scale( dkabs, dksca, dg, max_g=.65_ireals)
 
           vdtau(k) = real((dkabs + dksca) * dz)
-          vw0(k)   = real(dksca / max(tiny(dksca), dkabs + dksca))
+          if(dkabs.le.tiny(dkabs)) then
+            vw0 = 1
+          else
+            vw0(k) = real(dksca / (dkabs + dksca))
+          endif
           vg(k)    = real(dg)
         enddo
 
@@ -410,7 +455,7 @@ contains
         if(solution%lsolar_rad) then
             call default_flx_computation(&
               mu0, &
-              real(norm2(sundir)*mu0), &
+              real(norm2(sundir)), &
               col_albedo, &
               col_tskin, &
               .False., [0., 0.], col_Bfrac, &
@@ -440,9 +485,25 @@ contains
         call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
         xediff(i1+voff) = FLUP(i1+k)
         xediff(i1+voff+i1) = RFLDN(i1+k)
+
+        ! compute absorption as flux divergence
+        do k = 1, ke1-1
+          icell = cell_idx(k)
+          call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+          dz = xgeoms(i1+geom_offset)
+
+          call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
+          if(lsolar) then
+            xabso(i1+voff) = RFLDN(k) - RFLDN(k+1) - FLUP(k) + FLUP(k+1) + RFLDIR(k) - RFLDIR(k+1)
+          else
+            xabso(i1+voff) = RFLDN(k) - RFLDN(k+1) - FLUP(k) + FLUP(k+1)
+          endif
+          xabso(i1+voff) = xabso(i1+voff) / dz
+        enddo
       enddo
       call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
 
+      call VecRestoreArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
       call VecRestoreArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(albedo, xalbedo, ierr); call CHKERR(ierr)
       call VecRestoreArrayReadF90(kabs, xkabs, ierr); call CHKERR(ierr)
@@ -456,13 +517,13 @@ contains
       if(lthermal) then
         call VecRestoreArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
       endif
-
-      !Twostream solver returns fluxes as [W/m^2]
-      solution%lWm2_dir  = .True.
-      solution%lWm2_diff = .True.
-      ! and mark solution that it is not up to date
-      solution%lchanged  = .True.
     endif ! TOA boundary ids
+
+    !Twostream solver returns fluxes as [W/m^2]
+    solution%lWm2_dir  = .True.
+    solution%lWm2_diff = .True.
+    ! and mark solution that it is not up to date
+    solution%lchanged  = .False.
   end subroutine
 
 end module

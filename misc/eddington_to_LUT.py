@@ -1,12 +1,12 @@
 from pylab import *
 
 # Define the benchmark grid... we will use eddington coeffs on that highres grid to find suitable LUT supports
-Ntau, Nw0, Ng, Nmu = 80, 30, 10, 20
+Ntau, Nw0, Ng, Nmu = 80, 30, 20, 20
 #transmission = linspace(1.-1e-10, 1e-10, Ntau)
 #tau = -log(transmission)
 tau = logspace(-10, 2, Ntau)
 w0 = linspace(0, .99999, Nw0)
-g = linspace(0, .65, Ng)
+g = linspace(0, .85, Ng)
 
 theta = np.linspace(0, 90, Nmu)
 mu = np.cos(np.deg2rad(theta))
@@ -93,10 +93,10 @@ def find_supports(c, N, dim, axvalues=None):
         rdx[...,:] = dx
         dxnd = np.rollaxis(rdx, len(np.shape(dxnd))-1, start=dim)
 
-    dc = np.gradient(c, dxnd)[dim]
+    dc = np.gradient(c)[dim]
     dc = np.mean(dc, axis=reduc_dims)
 
-    d2c = np.abs(np.gradient(dc, dx))**.2  # beware the magic factor here, this gives more small values for tau, otherwise values are represented well for mennos thin atmospheres
+    d2c = np.abs(np.gradient(dc))**.2  # beware the magic factor here, this gives more small values for tau, otherwise values are represented well for mennos thin atmospheres
 
     curvature = np.cumsum(d2c)/ np.sum(d2c)
     support_indices = np.interp(np.linspace(0,1,N), curvature, np.arange(c.shape[dim]))

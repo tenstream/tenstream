@@ -1,13 +1,15 @@
 module test_helper_functions
   use iso_fortran_env, only: REAL32, REAL64
   use iso_c_binding
-  use m_data_parameters, only: ireals, iintegers, mpiint, init_mpi_data_parameters
+  use m_data_parameters, only: ireals, ireal128, iintegers, mpiint, init_mpi_data_parameters
   use m_helper_functions, only : imp_bcast, imp_allgather_int_inplace, &
     mpi_logical_and, mpi_logical_or, mpi_logical_all_same, &
     compute_normal_3d, hit_plane, pnt_in_triangle, distance_to_edge, determine_normal_direction, &
     cumprod, reverse, rotation_matrix_around_axis_vec, deg2rad, char_arr_to_str, cstr, &
     solve_quadratic, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, is_between, &
-    resize_arr, normalize_vec
+    resize_arr, normalize_vec, approx, itoa, ftoa, &
+    imp_reduce_sum, imp_allreduce_sum, imp_reduce_mean, imp_allreduce_mean, &
+    read_ascii_file_2d
 
   use pfunit_mod
 
@@ -15,7 +17,24 @@ module test_helper_functions
 
 contains
 
-@test(npes =[2,1])
+@before
+subroutine setup(this)
+class (MpiTestMethod), intent(inout) :: this
+  integer(mpiint) :: comm
+  comm     = this%getMpiCommunicator()
+  call init_mpi_data_parameters(comm)
+end subroutine setup
+
+@after
+subroutine teardown(this)
+class (MpiTestMethod), intent(inout) :: this
+  logical :: lpetsc_is_initialized
+  integer(mpiint) :: ierr
+  call PetscInitialized(lpetsc_is_initialized, ierr)
+  if(lpetsc_is_initialized) call PetscFinalize(ierr)
+end subroutine teardown
+
+@test(npes =[1,2,3])
 subroutine test_mpi_functions(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -43,8 +62,6 @@ subroutine test_mpi_functions(this)
     comm     = this%getMpiCommunicator()
     numnodes = this%getNumProcesses()
     myid     = this%getProcessRank()
-
-    call init_mpi_data_parameters(comm)
 
     do rep=1,repetitions
       if(.not.allocated(arr)) allocate(arr(numnodes), source=-1_iintegers)
@@ -169,6 +186,59 @@ subroutine test_mpi_functions(this)
         @assertTrue(mpi_logical_all_same(comm, l_even_true), 'mpi_logical_all_same(l_all_true) is wrong')
       endif
     enddo ! repetitions
+end subroutine
+
+@test(npes =[1,2,3])
+subroutine test_mpi_reductions(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: numnodes, comm, myid
+    real(ireals)   :: v_ireals, sireals
+    real(ireal128) :: v_128, s128
+    real(ireals)  , allocatable :: m_ireals(:), mean
+    real(ireal128), allocatable :: m_128   (:)
+    integer(iintegers) :: i, s
+
+    comm     = this%getMpiCommunicator()
+    numnodes = this%getNumProcesses()
+    myid     = this%getProcessRank()
+
+    v_ireals = real(myid, ireals)
+    v_128    = real(myid, ireal128)
+
+    sireals = (numnodes-1)*numnodes/2
+    s128    = (numnodes-1)*numnodes/2
+    print *,myid, numnodes, 'v128', v_128
+
+    call imp_reduce_sum(comm, v_ireals)
+    call imp_reduce_sum(comm, v_128   )
+    if(myid.eq.0) then
+      @assertEqual(sireals, v_ireals, epsilon(v_ireals), 'ireals reduce_sum is not correct')
+      sireals  = real(s128 , ireals)
+      v_ireals = real(v_128, ireals)
+      @assertEqual(sireals, v_ireals, epsilon(v_ireals), '128 bit reduce_sum is not correct Nranks:'//itoa(numnodes))
+    endif
+
+    call imp_allreduce_sum(comm, real(myid, ireals  ), v_ireals)
+    @assertEqual(sireals, v_ireals, epsilon(v_ireals), 'all reduce sum is not correct')
+
+
+    ! allreduce_mean scalar
+    call imp_allreduce_mean(comm, real(myid, ireals), sireals)
+    @assertEqual(real(numnodes-1, ireals)/2, sireals, epsilon(v_ireals), 'ireals reduce_mean scalar is not correct')
+
+    allocate(m_ireals(myid+1)); m_ireals = real(myid, kind(m_ireals))
+    allocate(m_128   (myid+1)); m_128    = real(myid, kind(m_128   ))
+
+    mean = 0
+    s = 0
+    do i=1, numnodes
+      s    = s + i
+      mean = mean + i*(i-1) ! i entries with the value i-1 in them
+    enddo
+    mean = mean / s
+
+    call imp_allreduce_mean(comm, m_ireals, sireals)
+    @assertEqual(mean, sireals, epsilon(v_ireals), 'ireals reduce_mean is not correct Nranks:'//itoa(numnodes))
 end subroutine
 
 @test(npes =[1])
@@ -448,12 +518,12 @@ subroutine test_normalize_vec(this)
   @assertEqual(0_mpiint, ierr)
   @assertEqual([1,0], v2, epsilon(v2))
 
-  call normalize_vec(v1, v1, ierr)
+  call normalize_vec(v1, ierr)
   @assertEqual(0_mpiint, ierr)
   @assertEqual([1,0], v1, epsilon(v1))
 
   v1 = [0,0]
-  call normalize_vec(v1, v1, ierr)
+  call normalize_vec(v1, ierr)
   @assertTrue(0_mpiint.ne.ierr)
 
   p1 = [2,0]
@@ -461,12 +531,12 @@ subroutine test_normalize_vec(this)
   @assertEqual(0_mpiint, ierr)
   @assertEqual([1,0], p2, epsilon(p2))
 
-  call normalize_vec(p1, p1, ierr)
+  call normalize_vec(p1, ierr)
   @assertEqual(0_mpiint, ierr)
   @assertEqual([1,0], p1, epsilon(p1))
 
   p1 = [0,0]
-  call normalize_vec(p1, p1, ierr)
+  call normalize_vec(p1, ierr)
   @assertTrue(0_mpiint.ne.ierr)
 end subroutine
 
@@ -534,4 +604,61 @@ subroutine test_resize_arr(this)
   @assertEqual(5, i3d(:,2,:), 'wrong values after fill in dim 2')
   @assertEqual(5, i3d(:,4,:), 'wrong values after fill in dim 2')
 end subroutine
+
+@test(npes=[1])
+subroutine test_approx(this)
+  class (MpiTestMethod), intent(inout) :: this
+  @assertTrue(     approx(0._ireals, 0.0_ireals, epsilon(0._ireals)))
+  @assertTrue(.not.approx(0._ireals, 1.0_ireals, epsilon(0._ireals)))
+
+  @assertTrue(     approx(0._ireals, 0.9_ireals, 1._ireals))
+  @assertTrue(.not.approx(0._ireals, 1.1_ireals, 1._ireals))
+
+  @assertTrue(     approx(0._ireals,-0.9_ireals, 1._ireals))
+  @assertTrue(.not.approx(0._ireals,-1.1_ireals, 1._ireals))
+
+  @assertTrue(     approx(0._ireals, 1.0_ireals-epsilon(1.0_ireals), 1._ireals))
+  @assertTrue(.not.approx(0._ireals, 1.0_ireals+epsilon(1.0_ireals), 1._ireals))
+  @assertTrue(     approx(0._ireals,-1.0_ireals+epsilon(1.0_ireals), 1._ireals))
+  @assertTrue(.not.approx(0._ireals,-1.0_ireals-epsilon(1.0_ireals), 1._ireals))
+end subroutine
+
+@test(npes=[1])
+subroutine test_read_ascii_file(this)
+  class (MpiTestMethod), intent(inout) :: this
+  character(len=*), parameter :: test_fname="tenstream_test_ascii_file.txt"
+  real(ireals), allocatable :: arr(:,:)
+  integer(mpiint) :: ierr
+  integer :: funit
+
+  open (newunit=funit, file=test_fname, action="write", status="replace", iostat=ierr)
+  @assertEqual(0, ierr, 'error when trying to write a test ascii file')
+  write (funit,*) 1, 2, 3
+  write (funit,*)"# skip this line"
+  write (funit,*) "     # also skip this one"
+  write (funit,*) 4, 5, 6
+  write (funit,*) 7, 8, 9
+  close (funit)
+
+  call read_ascii_file_2d(test_fname, arr, ierr, verbose=.True.)
+  @assertEqual(0_mpiint, ierr)
+  @assertEqual(3, size(arr,dim=1), 'line count not correct')
+  @assertEqual(3, size(arr,dim=2), 'column count not correct')
+  deallocate(arr)
+
+  call read_ascii_file_2d(test_fname, arr, ierr, &
+    skiplines=2_iintegers, verbose=.True.)
+  @assertEqual(0_mpiint, ierr)
+  @assertEqual(2, size(arr,dim=1), 'line count not correct')
+  @assertEqual(3, size(arr,dim=2), 'column count not correct')
+  deallocate(arr)
+
+  open (newunit=funit, file=test_fname, status="old", position="append", iostat=ierr)
+  @assertEqual(0, ierr, 'error when trying to append to a test ascii file')
+  write (funit,*) 10, 11, 12, 13
+  close (funit)
+  call read_ascii_file_2d(test_fname, arr, ierr, verbose=.True.)
+  @assertFalse(0_mpiint.eq.ierr)
+end subroutine
+
 end module

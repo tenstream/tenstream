@@ -6,7 +6,7 @@ module test_wedge_boxmc_5_8
     one, zero, i1, default_str_len,      &
     init_mpi_data_parameters
   use m_optprop_parameters, only : stddev_atol
-  use m_helper_functions, only : itoa, triangle_area_by_vertices, rad2deg
+  use m_helper_functions, only : itoa, ftoa, triangle_area_by_vertices, rad2deg
   use m_boxmc_geometry, only : setup_default_unit_wedge_geometry, setup_default_wedge_geometry
   use m_optprop_LUT, only : azimuth_from_param_phi
   use m_LUT_param_phi, only: LUT_wedge_dz
@@ -23,7 +23,7 @@ module test_wedge_boxmc_5_8
 
   integer(mpiint) :: myid,mpierr,numnodes,comm
 
-  real(ireal_dp),parameter :: atol=1e-3, rtol=1e-2
+  real(ireal_dp),parameter :: atol=1e-3, rtol=1e-1, theta_eps=1e-3
   !real(ireal_dp),parameter :: atol=1e-4, rtol=1e-2
 contains
 
@@ -66,6 +66,45 @@ contains
       call PetscFinalize(ierr)
       if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
+
+  @test(npes =[1])
+  subroutine test_wedgemc_no_absorption(this)
+      class (MpiTestMethod), intent(inout) :: this
+      integer(iintegers) :: isrc, itau
+      real(ireal_dp) :: tau, w0, g, aspectzx, phi, theta, Cx, Cy, verts(3*6)
+
+      myid     = this%getProcessRank()
+
+      w0       = 1
+      g        = 0
+      aspectzx = 1
+      !Cx       = 0.500000000
+      !Cy       = 0.866
+      Cx       = 1.00000000
+      Cy       = 0.5
+      phi      = 270
+      theta    = 20
+      verts = [&
+         0._ireal_dp , 0._ireal_dp , 0._ireal_dp       , &
+         1._ireal_dp  , 0._ireal_dp , 0._ireal_dp       , &
+         Cx   , Cy   , 0._ireal_dp       , &
+         0._ireal_dp , 0._ireal_dp , aspectzx   , &
+         1._ireal_dp  , 0._ireal_dp , aspectzx   , &
+         Cx   , Cy   , aspectzx ]
+
+
+      do itau=-10,2,4
+        tau = 10._ireal_dp**(itau)
+        do isrc=1,5
+          bg  = [tau*(1-w0), tau*w0, g]
+          call bmc_wedge_5_8%get_coeff(comm,bg,isrc,.True.,phi,theta,verts,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
+          print *,'tau', tau, 'src', isrc, 'T', sum(T), 'S', sum(S), 'divergence', 1 - (sum(T)+sum(S))
+          if(any(T_tol.gt.0) .or. any(S_tol.gt.0)) then
+            @assertLessThan(1 - (sum(T)+sum(S)), 1e-6_ireals, 'given w0 is 1, there should be no divergence' )
+          endif
+        enddo
+      enddo
+  end subroutine
 
   @test(npes =[1])
   subroutine test_wedgemc_direct_custom_ex1(this)
@@ -146,7 +185,7 @@ contains
       ! direct to diffuse tests
 
       ! down along face 4
-      phi = 240; theta = 0
+      phi = 240; theta = theta_eps
 
       bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp/2 ]
       tau = (bg(1)+bg(2)) * dz
@@ -158,7 +197,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_1')
 
       ! up along face 4
-      theta=180
+      theta = 180 - theta_eps
       T_target = zero
       T_target(1) = real((sinh(tau)-cosh(tau)+1)/tau, ireals)
       S_target = [0.0075, 0.0007, 0.0012, 0.0007, 0.0012, 0.0021, 0.0101, 0.0006]
@@ -167,7 +206,7 @@ contains
 
 
       ! down along face 4
-      phi = 240; theta = 0
+      phi = 240; theta = theta_eps
       bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 0._ireal_dp ]
       T_target = zero
       T_target(5) = real((sinh(tau)-cosh(tau)+1)/tau, ireals)
@@ -176,7 +215,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src4_3')
 
       ! up along face 4
-      theta=180
+      theta = 180 - theta_eps
       T_target = zero
       T_target(1) = real((sinh(tau)-cosh(tau)+1)/tau, ireals)
       S_target = [0.0036, 0.0018, 0.0012, 0.0017, 0.0012, 0.0061, 0.0061, 0.0022]
@@ -185,7 +224,7 @@ contains
 
 
       ! outwards from face 4
-      phi = 240; theta = 90
+      phi = 240; theta = 90 - theta_eps
 
       bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp/2 ]
       tau = (bg(1)+bg(2)) * sqrt(dy**2 - (dx/2)**2)
@@ -212,7 +251,7 @@ contains
       myid     = this%getProcessRank()
 
       ! going towards the src face should not give any fluxes to anywhere
-      phi = 30; theta = 0
+      phi = -30; theta = 0
 
       bg  = [1e-3_ireal_dp, 0._ireal_dp, 0._ireal_dp ]
       tau = (bg(1)+bg(2)) * dz
@@ -224,7 +263,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src3_4')
 
       ! down along face 3
-      phi = 120; theta = 0
+      phi = 120; theta = theta_eps
 
       bg  = [1e-3_ireal_dp, 1e-3_ireal_dp, 1._ireal_dp/2 ]
       tau = (bg(1)+bg(2)) * dz
@@ -281,7 +320,7 @@ contains
       T_target(5) = real((sinh(tau)-cosh(tau)+1)/tau, ireals)
 
       ! down along face 2
-      phi = 0; theta = 0
+      phi = 0; theta = theta_eps
 
       S_target = [0.0006, 0.0101, 0.0021, 0.0012, 0.0007, 0.0012, 0.0007, 0.0074]
       call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
@@ -315,7 +354,7 @@ contains
       call check(S_target,T_target, S,T, msg='test_boxmc_select_cases_direct_src2_4')
 
       ! outwards from face 2 towards the right face(4)
-      phi = 60; theta = 90
+      phi = 60; theta = 90 - theta_eps
 
       bg  = [1e-3_ireal_dp, 0._ireal_dp, 1._ireal_dp/2 ]
       S_target = zero
@@ -371,6 +410,9 @@ contains
       integer(iintegers) :: src, iphi
       real(ireal_dp) :: tau
       logical, parameter :: lcheckdownward=.True., lcheckupward=.True., lchecksideward=.True.
+      !logical, parameter :: lcheckdownward=.True., lcheckupward=.False., lchecksideward=.False.
+      !logical, parameter :: lcheckdownward=.False., lcheckupward=.True., lchecksideward=.False.
+      !logical, parameter :: lcheckdownward=.False., lcheckupward=.False., lchecksideward=.True.
 
       ! direct tests
       bg  = [1e-3, 0., 0. ]
@@ -383,7 +425,6 @@ contains
           phi = real(iphi, ireal_dp)
           T_target = zero
 
-          print *,'downward phi', phi
           ! Integral from top face, towards the bottom face
           do src=1,1
             T_target(5) = real(exp(- (bg(1)+bg(2))*dz ), ireals)
@@ -392,46 +433,19 @@ contains
           enddo
         enddo
 
-        do iphi = -89, 89, 1
+        theta = theta_eps
+        tau = bg(1) * dz
+        do iphi = 0, 360, 10
+          phi = real(iphi, ireal_dp)
           ! Integral along each of the faces, towards the bottom face
           do src=2,4
-            print *,'downward along sides', src, ': phi' ,phi
-            tau = bg(1) * dz
             T_target(5)=zero
-            if(phi.ge.  0._ireal_dp.and.phi.lt. 90._ireal_dp.and.src.eq.2) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.270._ireal_dp.and.phi.le.360._ireal_dp.and.src.eq.2) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
+            if(phi.gt.-90._ireal_dp.and.phi.lt. 90._ireal_dp.and.src.eq.2) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
+            if(phi.gt.270._ireal_dp.and.phi.le.430._ireal_dp.and.src.eq.2) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
             if(phi.gt. 30._ireal_dp.and.phi.lt.210._ireal_dp.and.src.eq.3) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.120._ireal_dp.and.phi.lt.330._ireal_dp.and.src.eq.4) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
+            if(phi.gt.150._ireal_dp.and.phi.lt.330._ireal_dp.and.src.eq.4) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
             call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-            call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
-          enddo
-        enddo
-        do iphi = 31, 209, 1
-          ! Integral along each of the faces, towards the bottom face
-          do src=2,2
-            print *,'downward along sides', src, ': phi' ,phi
-            tau = bg(1) * dz
-            T_target(5)=zero
-            if(phi.ge.  0._ireal_dp.and.phi.lt. 90._ireal_dp.and.src.eq.2) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.270._ireal_dp.and.phi.le.360._ireal_dp.and.src.eq.2) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt. 30._ireal_dp.and.phi.lt.210._ireal_dp.and.src.eq.3) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.120._ireal_dp.and.phi.lt.330._ireal_dp.and.src.eq.4) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-            call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
-          enddo
-        enddo
-        do iphi = 121, 329, 1
-          ! Integral along each of the faces, towards the bottom face
-          do src=2,2
-            print *,'downward along sides', src, ': phi' ,phi
-            tau = bg(1) * dz
-            T_target(5)=zero
-            if(phi.ge.  0._ireal_dp.and.phi.lt. 90._ireal_dp.and.src.eq.2) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.270._ireal_dp.and.phi.le.360._ireal_dp.and.src.eq.2) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt. 30._ireal_dp.and.phi.lt.210._ireal_dp.and.src.eq.3) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.120._ireal_dp.and.phi.lt.330._ireal_dp.and.src.eq.4) T_target(5)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-            call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
+            call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides / downward '//itoa(src)//' phi '//ftoa(phi))
           enddo
         enddo
       endif ! lcheckdownward
@@ -444,7 +458,6 @@ contains
           phi = real(iphi, ireal_dp)
           T_target = zero
 
-          print *,'upward phi', phi
           ! Integral from bot face, towards the top face
           do src=5,5
             T_target(1) = real(exp(- (bg(1)+bg(2))*dz ), ireals)
@@ -453,45 +466,19 @@ contains
           enddo
         enddo
 
-        do iphi = -89, 89, 1
+        theta = 180 - theta_eps
+        tau = bg(1) * dz
+        do iphi = 0, 360, 10
+          phi = real(iphi, ireal_dp)
           ! Integral along each of the faces, towards the top face
           do src=2,4
-            tau = bg(1) * dz
             T_target(1)=zero
-            if(phi.ge.  0._ireal_dp.and.phi.lt. 90._ireal_dp.and.src.eq.2) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.270._ireal_dp.and.phi.le.360._ireal_dp.and.src.eq.2) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
+            if(phi.gt.-90._ireal_dp.and.phi.lt. 90._ireal_dp.and.src.eq.2) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
+            if(phi.gt.270._ireal_dp.and.phi.lt.430._ireal_dp.and.src.eq.2) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
             if(phi.gt. 30._ireal_dp.and.phi.lt.210._ireal_dp.and.src.eq.3) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.120._ireal_dp.and.phi.lt.330._ireal_dp.and.src.eq.4) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
+            if(phi.gt.150._ireal_dp.and.phi.lt.330._ireal_dp.and.src.eq.4) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
             call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-            call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
-          enddo
-        enddo
-        do iphi = 31, 209, 1
-          ! Integral along each of the faces, towards the top face
-          do src=2,2
-            print *,'downward along sides', src, ': phi' ,phi
-            tau = bg(1) * dz
-            T_target(1)=zero
-            if(phi.ge.  0._ireal_dp.and.phi.lt. 90._ireal_dp.and.src.eq.2) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.270._ireal_dp.and.phi.le.360._ireal_dp.and.src.eq.2) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt. 30._ireal_dp.and.phi.lt.210._ireal_dp.and.src.eq.3) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.120._ireal_dp.and.phi.lt.330._ireal_dp.and.src.eq.4) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-            call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
-          enddo
-        enddo
-        do iphi = 121, 329, 1
-          ! Integral along each of the faces, towards the top face
-          do src=2,2
-            print *,'downward along sides', src, ': phi' ,phi
-            tau = bg(1) * dz
-            T_target(1)=zero
-            if(phi.ge.  0._ireal_dp.and.phi.lt. 90._ireal_dp.and.src.eq.2) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.270._ireal_dp.and.phi.le.360._ireal_dp.and.src.eq.2) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt. 30._ireal_dp.and.phi.lt.210._ireal_dp.and.src.eq.3) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            if(phi.gt.120._ireal_dp.and.phi.lt.330._ireal_dp.and.src.eq.4) T_target(1)=real((sinh(tau)-cosh(tau)+1)/tau, ireals)
-            call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-            call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides '//itoa(src)//' phi '//itoa(iphi))
+            call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_along_sides / upward '//itoa(src)//' phi '//ftoa(phi))
           enddo
         enddo
       endif
@@ -505,14 +492,14 @@ contains
         tau = bg(1) * sqrt(dy**2 - (dx/2)**2)
         t_target([3,4]) = real((sinh(tau)-cosh(tau)+1) / tau / 2, ireals)
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-        call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
+        call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards src='//itoa(src)//' phi='//ftoa(phi))
 
         phi = 120
         src = 3
         T_target = zero
         T_target([2,4]) = real((sinh(tau)-cosh(tau)+1) / tau / 2, ireals)
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-        call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
+        call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards src='//itoa(src)//' phi='//ftoa(phi))
 
 
         phi = 240
@@ -520,34 +507,34 @@ contains
         T_target = zero
         T_target([2,3]) = real((sinh(tau)-cosh(tau)+1) / tau / 2, ireals)
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
-        call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards')
+        call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_sidewards src='//itoa(src)//' phi='//ftoa(phi))
 
 
         ! Or start the photons at the top and they should still go to the side faces
         T_target = zero
         T_target([3,4]) = 0.485865_ireals
-        phi = 0; theta = 90
+        phi = 0; theta = 90 - theta_eps
         src = 1
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 101')
-        @assertEqual(T(3), T(4), real(3*atol, ireals), 'stream should be same 101')
+        @assertEqual(T(3), T(4), real(2*3*atol, ireals), 'stream should be same 101')
 
         T_target = zero
         T_target([2,4]) = 0.485865_ireals
-        phi = 120; theta = 90
+        phi = 120; theta = 90 - theta_eps
         src = 1
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 102')
-        @assertEqual(T(2), T(4), real(3*atol, ireals), 'stream should be same 102')
+        @assertEqual(T(2), T(4), real(2*3*atol, ireals), 'stream should be same 102')
 
 
         T_target = zero
         T_target([2,3]) = 0.485865_ireals
-        phi = 240; theta = 90
+        phi = 240; theta = 90 - theta_eps
         src = 1
         call bmc_wedge_5_8%get_coeff(comm,bg,src,.True.,phi,theta,vertices,S,T,S_tol,T_tol, inp_atol=atol, inp_rtol=rtol)
         call check(S_target,T_target, S,T, msg='test_wedgemc_direct_lambert_beer_top_plate_towards sidefaces 103')
-        @assertEqual(T(2), T(3), real(3*atol, ireals), 'stream should be same 103')
+        @assertEqual(T(2), T(3), real(2*3*atol, ireals), 'stream should be same 103')
       endif ! lchecksideward
   end subroutine
 
@@ -805,7 +792,7 @@ contains
   subroutine check(S_target,T_target, S,T, msg)
       real(ireals),intent(in),dimension(:) :: S_target,T_target, S,T
 
-      real(ireal_dp),parameter :: sigma = 3 ! normal test range for coefficients
+      real(ireal_dp),parameter :: sigma = 6 ! normal test range for coefficients
 
       character(len=*),optional :: msg
       character(default_str_len) :: local_msgS, local_msgT

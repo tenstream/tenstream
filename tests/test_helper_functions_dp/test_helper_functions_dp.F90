@@ -65,7 +65,8 @@ end subroutine
 subroutine test_triangle_functions_dp()
 
     use m_data_parameters, only: ireal_dp
-    use m_helper_functions_dp, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge
+    use m_helper_functions, only : compute_normal_3d
+    use m_helper_functions_dp, only : hit_plane, pnt_in_triangle, norm, distance_to_edge
 
     use pfunit_mod
 
@@ -142,7 +143,7 @@ end subroutine
 subroutine test_triangle_intersection()
 
     use m_data_parameters, only: ireal_dp
-    use m_helper_functions_dp, only : compute_normal_3d, hit_plane, pnt_in_triangle, norm, distance_to_edge, &
+    use m_helper_functions_dp, only : hit_plane, pnt_in_triangle, norm, distance_to_edge, &
       determine_normal_direction, triangle_intersection
 
     use pfunit_mod

@@ -369,8 +369,8 @@ module m_plex_grid
     end subroutine
 
 
-    subroutine facevec2cellvec(cellVec_dm, faceVec_dm, global_faceVec, vecshow_string)
-      type(tDM), intent(in) :: cellVec_dm, faceVec_dm
+    subroutine facevec2cellvec(faceVec_dm, global_faceVec, vecshow_string)
+      type(tDM), intent(in) :: faceVec_dm
       type(tVec),intent(in) :: global_faceVec
       character(len=*), intent(in), optional :: vecshow_string
 
@@ -388,7 +388,7 @@ module m_plex_grid
       character(len=default_str_len) :: faceVecname, cellVecname
       logical :: option_is_set
 
-      call PetscObjectGetComm(cellVec_dm, comm, ierr); call CHKERR(ierr)
+      call PetscObjectGetComm(faceVec_dm, comm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       call PetscObjectGetName(global_faceVec, faceVecname, ierr); call CHKERR(ierr)
@@ -400,7 +400,7 @@ module m_plex_grid
 
       if(ldebug.and.myid.eq.0) print *,'facevec2cellvec :: starting..'//trim(faceVecname)
 
-      call DMClone(cellVec_dm, celldm, ierr); ; call CHKERR(ierr)
+      call DMClone(faceVec_dm, celldm, ierr); ; call CHKERR(ierr)
 
       call DMGetSection(faceVec_dm, faceVecSection, ierr); call CHKERR(ierr)
 
@@ -1232,7 +1232,7 @@ module m_plex_grid
           if(lsrc(iface)) then
             xv(wedge_offset3+iface) = one
           else
-            xv(wedge_offset3+iface) = zero
+            xv(wedge_offset3+iface) = -one
           endif
         enddo
 
@@ -1276,7 +1276,7 @@ module m_plex_grid
 
       real(ireals) :: side_face_normal_projected_on_upperface(3,3)
 
-      real(ireal_params) :: rparam_phi, rparam_theta
+      real(ireal_params) :: rparam_phi, rparam_theta, n2(3), n3(3), n4(4)
 
       integer(iintegers) :: geom_offset, iedge
       integer(iintegers), target :: points(2)
@@ -1340,7 +1340,7 @@ module m_plex_grid
         !print *,'iface',iface, ':', lsrc(side_faces(iface)), '->', proj_angles_to_sun(iface), rad2deg(proj_angles_to_sun(iface))
       enddo
 
-      if(zenith.gt.10*epsilon(zenith)) then ! only do the azimuth computation if zenith is larger than 0 deg
+      if(norm2(proj_sundir).gt.10*epsilon(zenith)) then ! only do the azimuth computation if zenith is larger than 0 deg
         ibase_face = minloc(proj_angles_to_sun,dim=1)
         base_face  = side_faces(ibase_face)
 
@@ -1427,10 +1427,13 @@ module m_plex_grid
       local_normal_left = matmul(MrotWorld2Local, face_normals(:, left_face))
       local_normal_right= matmul(MrotWorld2Local, face_normals(:, right_face))
 
+      ! renormalize because of precision gain/loss from ireals to ireal_params
+      call normalize_vec(real(local_normal_base , ireal_params), n2, ierr)
+      call normalize_vec(real(local_normal_left , ireal_params), n3, ierr)
+      call normalize_vec(real(local_normal_right, ireal_params), n4, ierr)
+
       call param_phi_param_theta_from_phi_and_theta_withnormals(&
-        real(local_normal_base , ireal_params), &
-        real(local_normal_left , ireal_params), &
-        real(local_normal_right, ireal_params), &
+        n2, n3, n4, &
         real(Cx, ireal_params), real(Cy, ireal_params), &
         real(azimuth, ireal_params), real(zenith, ireal_params), &
         rparam_phi, rparam_theta, ierr); call CHKERR(ierr)
@@ -1494,13 +1497,13 @@ module m_plex_grid
       endif
 
       ! Snap param_phi to the correct side
-      if(approx(rparam_phi, -1._ireal_params, epsilon(rparam_phi))) then
+      if(approx(rparam_phi, -1._ireal_params, real(param_eps, kind(rparam_phi)))) then
         if(lsrc(left_face)) then
           rparam_phi = -1._ireal_params-param_eps
         else
           rparam_phi = -1._ireal_params+param_eps
         endif
-      elseif(approx(rparam_phi, +1._ireal_params, epsilon(rparam_phi))) then
+      elseif(approx(rparam_phi, +1._ireal_params, real(param_eps, kind(rparam_phi)))) then
         if(lsrc(right_face)) then
           rparam_phi = 1._ireal_params+param_eps
         else
@@ -2156,7 +2159,8 @@ module m_plex_grid
       !print *,'-------------------------------'
 
       normal = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,2),vertex_coord(:,3))
-      if(.not.approx(norm2(normal), one)) call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal))
+      if(.not.approx(norm2(normal), one, 10*epsilon(one))) &
+        call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal)//' ( '//ftoa(norm2(normal))//' )')
 
       if(Nvertices.eq.3) then
         area = triangle_area_by_vertices(vertex_coord(:,1), vertex_coord(:,2), vertex_coord(:,3))
@@ -2306,7 +2310,7 @@ module m_plex_grid
 
       if(ldebug) then
         call PetscObjectSetName(level_heights_vec, 'level_heights_vec', ierr); call CHKERR(ierr)
-        call facevec2cellvec(facedm, facedm, level_heights_vec)
+        call facevec2cellvec(facedm, level_heights_vec)
       endif
 
       call interpolate_horizontal_face_var_onto_vertices(facedm, level_heights_vec, vertdm, vertvec)

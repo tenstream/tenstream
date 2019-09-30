@@ -20,7 +20,7 @@
 module m_boxmc_geometry
   use iso_fortran_env, only: REAL32, REAL64
   use m_data_parameters, only : mpiint, iintegers, ireals, ireal_dp, one, zero
-  use m_helper_functions, only : CHKERR, itoa, compute_normal_3d, angle_between_two_vec
+  use m_helper_functions, only : CHKERR, itoa, compute_normal_3d, angle_between_two_vec, triangle_inner_circle_center
   use m_helper_functions_dp, only: pnt_in_triangle, distance_to_edge, &
     determine_normal_direction, &
     distances_to_triangle_edges, norm, mean, approx, &
@@ -267,7 +267,8 @@ module m_boxmc_geometry
         if(sphere_radius.gt.zero) then
           s = (sphere_radius + dz) / sphere_radius
           associate(D=>vertices(10:12), E=>vertices(13:15), F=>vertices(16:18))
-            center = (D+E+F)/3
+            call triangle_inner_circle_center(D,E,F, center)
+
             D = center + s * (D - center)
             E = center + s * (E - center)
             F = center + s * (F - center)
@@ -311,7 +312,7 @@ module m_boxmc_geometry
         if(sphere_radius.gt.zero) then
           s = (sphere_radius + dz) / sphere_radius
           associate(D=>vertices(10:12), E=>vertices(13:15), F=>vertices(16:18))
-            center = (D+E+F)/3
+            call triangle_inner_circle_center(D,E,F, center)
             D = center + s * (D - center)
             E = center + s * (E - center)
             F = center + s * (F - center)

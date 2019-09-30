@@ -729,7 +729,7 @@ module m_dyn_atm_to_rrtmg
       allocate(atm)
 
       if(myid.eq.0) then
-        call read_ascii_file_2d(atm_filename, prof, i9, i2, ierr)
+        call read_ascii_file_2d(atm_filename, prof, ierr)
         if(ierr.ne.0) then
           print *,'************* Error occured reading the atmosphere file:', atm_filename, '::', ierr
           call CHKERR(ierr)

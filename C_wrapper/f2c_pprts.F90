@@ -238,7 +238,7 @@ contains
     endif
 
     if(allocated(plex_solver)) then
-      call pprts_plexrt_f2c_set_global_optical_properties(Nz, Nx, Ny, albedo, kabs, ksca, g, planck)
+      call pprts_plexrt_f2c_set_global_optprop(Nz, Nx, Ny, albedo, kabs, ksca, g, planck)
     endif
   end subroutine
 
@@ -259,7 +259,7 @@ contains
     endif
     if(allocated(plex_solver)) then
       lthermal = allocated(plex_solver%plck)
-      call run_plex_rt_solver(plex_solver, lthermal=lthermal, lsolar=.True., sundir=sundir)
+      call run_plex_rt_solver(plex_solver, lthermal=lthermal, lsolar=edirTOA.gt.0, sundir=sundir)
     endif
   end subroutine
 
@@ -415,10 +415,10 @@ contains
     call init_plex_rt_solver(plex, plex_solver)
 
     sundir = spherical_2_cartesian(phi0,theta0)
-    if(ldebug) print *,'sundir', sundir
+    if(ldebug) print *,'f2c_pprts::sundir', sundir, '(', phi0,theta0, ')'
   end subroutine
 
-  subroutine pprts_plexrt_f2c_set_global_optical_properties(Nz, Nx, Ny, albedo, kabs, ksca, g, planck) bind(c)
+  subroutine pprts_plexrt_f2c_set_global_optprop(Nz, Nx, Ny, albedo, kabs, ksca, g, planck) bind(c)
     integer(c_int), value :: Nx,Ny,Nz
     real(c_float),intent(in) :: albedo
     real(c_float),intent(in),dimension(Nz  ,Nx,Ny) :: kabs, ksca, g
@@ -441,9 +441,9 @@ contains
     call VecSet(plex_solver%albedo, oalbedo, ierr); call CHKERR(ierr)
 
     if(myid.eq.0) allocate( work(Nz,2*Nx,Ny) )
-    call propagate_vars_from_Zero_to_solver_optprop(kabs, work, plex_solver%kabs)
-    call propagate_vars_from_Zero_to_solver_optprop(ksca, work, plex_solver%ksca)
-    call propagate_vars_from_Zero_to_solver_optprop(g   , work, plex_solver%g   )
+    call propagate_from_Zero_to_solver_optprop(kabs, work, plex_solver%kabs)
+    call propagate_from_Zero_to_solver_optprop(ksca, work, plex_solver%ksca)
+    call propagate_from_Zero_to_solver_optprop(g   , work, plex_solver%g   )
 
     if(myid.eq.0) lthermal = any(planck.gt.zero)
     call imp_bcast(comm, lthermal, 0_mpiint)
@@ -453,11 +453,11 @@ contains
         deallocate(work)
         allocate( work(Nz+1,2*Nx,Ny) )
       endif
-      call propagate_vars_from_Zero_to_solver_optprop(planck, work, plex_solver%plck)
+      call propagate_from_Zero_to_solver_optprop(planck, work, plex_solver%plck)
     endif
 
   contains
-    subroutine propagate_vars_from_Zero_to_solver_optprop(arr, work, solvervec)
+    subroutine propagate_from_Zero_to_solver_optprop(arr, work, solvervec)
       real(c_float), intent(in) :: arr(:,:,:) ! has global cartesian mesh dimensions
       real(ireals), intent(inout), contiguous, target :: work(:,:,:) ! has global rectilinear mesh dimensions
       type(tVec), allocatable, intent(inout) :: solvervec ! e.g. solver%kabs

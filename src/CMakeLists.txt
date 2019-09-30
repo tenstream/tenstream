@@ -25,8 +25,28 @@ else(${HAVE_NC_SET_LOG_LEVEL})
 endif(${HAVE_NC_SET_LOG_LEVEL})
 
 
+set(preprocessed_files "")
+file( GLOB preprocessing_files *.fypp )
+foreach ( infile ${preprocessing_files} )
+  GET_FILENAME_COMPONENT(basename "${infile}" NAME_WE )
+
+  SET(outfile "${CMAKE_CURRENT_BINARY_DIR}/${basename}.F90")
+  message(STATUS "Preprocessing <${FYPP_EXE}> ${infile} -> ${outfile}")
+
+  ADD_CUSTOM_COMMAND(
+    OUTPUT "${outfile}"
+    COMMAND ${FYPP_EXE} "${infile}" "${outfile}"
+    MAIN_DEPENDENCY "${infile}"
+    DEPENDS ${FYPP_EXE}
+    VERBATIM
+    )
+
+  list(APPEND preprocessed_files "${outfile}")
+endforeach ()
+
+
 set( general_sources
-  "helper_functions.F90"
+  ${preprocessed_files}
   "helper_functions_dp.F90"
   "c_syscall_wrappers.F90"
   "c_syscall_constants.c"

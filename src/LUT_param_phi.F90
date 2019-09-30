@@ -2,7 +2,8 @@ module m_LUT_param_phi
   use iso_fortran_env, only: REAL32, REAL64
   use m_data_parameters, only : irealLUT, mpiint, ireal_dp, ireal_params, ireals
   use m_data_parameters, only: pi=>pi_ireal_params
-  use m_helper_functions, only : angle_between_two_vec, rad2deg, approx, is_between, CHKERR, ftoa
+  use m_helper_functions, only : angle_between_two_vec, rad2deg, approx, is_between, CHKERR, ftoa, solve_quadratic, &
+    normalize_vec
   use m_boxmc_geometry, only: wedge_halfspaces
   implicit none
 
@@ -84,7 +85,6 @@ end function
     ! left_side_face_normal .dot. sunvec_crit === 0
     ! i.e. solve( 0 = n1 * sin ( phi ) * sin(theta) + n2 * cos(phi) * sin(theta) - n3 * cos(theta), phi)
 
-    use m_helper_functions, only: solve_quadratic
     real(ireal_params), intent(in) :: side_normal(3)
     real(ireal_params), intent(in) :: theta ! sun zenith in [rad]
     real(ireal_params), intent(out) :: phic
@@ -94,6 +94,12 @@ end function
     real(ireal_params) :: x(2), y(2)
     !real(ireal_params) :: st, ct
 
+    if(ldebug) then
+      if(.not.approx(norm2(side_normal), 1._ireal_params, 10*epsilon(side_normal))) then
+        call CHKERR(1_mpiint, 'side_normal needs to be normed: '// &
+          ftoa(side_normal)//' ( '//ftoa(norm2(side_normal))//' )')
+      endif
+    endif
     z = -cos(theta)
     a = side_normal(1)**2 + side_normal(2)**2
     if(abs(side_normal(1)).gt.abs(side_normal(2))) then
@@ -163,7 +169,7 @@ end function
   end subroutine
 
   function theta_crit(side_normal, phi) result(thetac)
-    ! solve euqation system that arises for condition
+    ! solve equation system that arises for condition
     ! sunvec_crit = [sin(phi) * sin(theta_crit), cos(phi) * sin(theta_crit), -cos(theta_crit)]
     ! base_face_normal .dot. sunvec_crit === 0
     ! i.e. solve( 0 = n1 * sin ( phi ) * sin(theta) + n2 * cos(phi) * sin(theta) - n3 * cos(theta), theta)
@@ -172,23 +178,19 @@ end function
     real(ireal_params), intent(in) :: phi ! sun azimuth in [rad]
     real(ireal_params) :: thetac
 
-    real(ireal_params) :: discr, frac
-
-    !discr = side_normal(1)*sin(phi) + side_normal(2)*cos(phi)
-
-    !frac = side_normal(3) / discr
-    !thetac = atan(frac)
+    !real(ireal_params) :: discr
 
     associate( n1=>side_normal(1), n2=>side_normal(2), n3=>side_normal(3) )
-      discr = (n1*sin(phi) + n2*cos(phi))**2 + n3**2
-      frac = n3 / sqrt(discr)
-      thetac = asin( frac )
+       !discr  = ( n1*sin(phi) + n2*cos(phi) )**2 + n3**2
+       !thetac = asin(n3 / sqrt(discr))
+       thetac = atan(n3 / (n1*sin(phi) + n2*cos(phi)) )
+       !thetac = asin(n3 / sqrt( ( n1*sin(phi) + n2*cos(phi) )**2 + n3**2 ) )
     end associate
 
-    if(discr.le.0._ireal_params) then
-      print *,'discr', discr, side_normal, norm2(side_normal), '->', side_normal(3) / discr, 'thetac', thetac
-      call CHKERR(1_mpiint, 'no solution for theta crit')
-    endif
+    !if(ldebug .and. discr.le.0._ireal_params) then
+    !  print *,'discr', discr, side_normal, norm2(side_normal), '->', side_normal(3) / discr, 'thetac', thetac
+    !  call CHKERR(1_mpiint, 'no solution for theta crit')
+    !endif
   end function
 
   subroutine iterative_phi_theta_from_param_phi_and_param_theta(wedge_coords3d, &
@@ -242,12 +244,13 @@ end function
 
     real(ireal_dp) :: origins(3,5), normals(3,5)
     real(ireal_params) :: alpha, beta
+    integer(mpiint) :: ierr
 
     call wedge_halfspaces(real(wedge_coords3d, ireal_dp), origins, normals)
 
-    n2 = real(normals(:,2), ireal_params)
-    n3 = real(normals(:,3), ireal_params)
-    n4 = real(normals(:,4), ireal_params)
+    call normalize_vec(real(normals(:,2), ireal_params), n2, ierr); call CHKERR(ierr)
+    call normalize_vec(real(normals(:,3), ireal_params), n3, ierr); call CHKERR(ierr)
+    call normalize_vec(real(normals(:,4), ireal_params), n4, ierr); call CHKERR(ierr)
 
     associate(A => wedge_coords3d(1:3), B => wedge_coords3d(4:6), C => wedge_coords3d(7:9))
       alpha = angle_between_two_vec(B-A, C-A)
@@ -417,8 +420,12 @@ end function
       rb = phic4
     endif
     if(abs(rb - lb).lt.epsilon(rb)) then
-      print *,'tiny rb-lb:', rb - lb, ':', rb, lb, phie3, phic3, phie4, phic4, phi, ':', x1, x2
-      param_phi = x1
+      print *,'tiny rb-lb:', rb - lb, ':', rb, lb, &
+        'phi:', phi, new_line(''), &
+        ':', phic3         , phie3         , phie4         , phic4         , new_line(''), &
+        ':', rad2deg(phic3), rad2deg(phie3), rad2deg(phie4), rad2deg(phic4), new_line(''), &
+        ':', x1, x2
+      param_phi = (x1+x2)/2
     else
       param_phi = (phi - lb) / (rb - lb) * (x2-x1) + x1
     endif

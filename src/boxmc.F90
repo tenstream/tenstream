@@ -32,7 +32,7 @@ module m_boxmc
   use m_helper_functions_dp, only : &
     hit_plane, square_intersection, triangle_intersection, pnt_in_cube
 
-  use m_helper_functions, only : CHKERR, get_arg, itoa ,cstr, &
+  use m_helper_functions, only : CHKERR, CHKWARN, get_arg, itoa, ftoa, cstr, &
     rotate_angle_x, rotate_angle_y, rotate_angle_z, &
     angle_between_two_vec, rotation_matrix_local_basis_to_world, &
     approx, meanval, rmse, imp_reduce_sum, &
@@ -41,7 +41,9 @@ module m_boxmc
     cross_3d, triangle_area_by_vertices
   use iso_c_binding
   use mpi
-  use m_data_parameters, only: mpiint,iintegers,ireals,ireal_dp,i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi64, &
+  use m_data_parameters, only: &
+    mpiint,iintegers,ireals,ireal_dp,irealbmc, &
+    i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10, inil, pi64, &
     imp_iinteger, imp_real_dp, imp_logical
 
   use m_optprop_parameters, only : delta_scale_truncate,stddev_atol,stddev_rtol,ldebug_optprop
@@ -222,9 +224,9 @@ module m_boxmc
   integer(mpiint) :: imp_t_photon
 
   type stddev
-    real(ireal_dp),allocatable,dimension(:) :: inc,delta,mean,mean2,var,relvar
+    real(irealbmc),allocatable,dimension(:) :: inc,delta,mean,mean2,var,relvar
     logical :: converged=.False.
-    real(ireal_dp) :: atol=zero, rtol=zero
+    real(irealbmc) :: atol=zero, rtol=zero
     logical :: active ! are we checking for convergence at all?
   end type
   ! ******************** TYPE DEFINITIONS ************************
@@ -255,24 +257,25 @@ module m_boxmc
   end interface
 
   abstract interface
-    subroutine update_diff_stream(bmc,vertices,p,S)
-      import :: t_boxmc,t_photon,iintegers,ireal_dp
+    subroutine update_dir_stream(bmc,vertices,p,T)
+      import :: t_boxmc,t_photon,iintegers,ireal_dp,irealbmc
       class(t_boxmc) :: bmc
       real(ireal_dp),intent(in) :: vertices(:)
       type(t_photon),intent(in) :: p
-      real(ireal_dp),intent(inout) :: S(:)
+      real(irealbmc),intent(inout) :: T(:)
     end subroutine
   end interface
 
   abstract interface
-    subroutine update_dir_stream(bmc,vertices,p,T)
-      import :: t_boxmc,t_photon,iintegers,ireal_dp
+    subroutine update_diff_stream(bmc,vertices,p,S)
+      import :: t_boxmc,t_photon,iintegers,ireal_dp,irealbmc
       class(t_boxmc) :: bmc
       real(ireal_dp),intent(in) :: vertices(:)
       type(t_photon),intent(in) :: p
-      real(ireal_dp),intent(inout) :: T(:)
+      real(irealbmc),intent(inout) :: S(:)
     end subroutine
   end interface
+
 
   abstract interface
     subroutine intersect_distance(bmc,vertices,p,max_dist)
@@ -349,12 +352,14 @@ contains
     real(ireal_dp),intent(in),optional :: inp_tau_scaling !< @param[in] inp_tau_scaling if given, determines a roulette factor which may be used to enhance unlikely paths, e.g. to force diffuse radiation computations for low optical thicknesses
     logical, intent(in), optional :: inp_check_tol_dir, inp_check_tol_diff ! default: True, adhere to the tolerance checks for direct or diffuse tolerances
 
-    real(ireal_dp) :: S_out(bmc%diff_streams)
-    real(ireal_dp) :: T_out(bmc%dir_streams)
-    real(ireal_dp) :: S_tol(bmc%diff_streams)
-    real(ireal_dp) :: T_tol(bmc%dir_streams)
+    real(irealbmc) :: S_out(bmc%diff_streams)
+    real(irealbmc) :: T_out(bmc%dir_streams)
+    real(irealbmc) :: S_tol(bmc%diff_streams)
+    real(irealbmc) :: T_tol(bmc%dir_streams)
+    real(irealbmc) :: coeffnorm
+    real(kind(ret_S_OUT)) :: retnorm
 
-    real(ireal_dp) :: atol,rtol, tau_scaling, coeffnorm
+    real(ireal_dp) :: atol,rtol, tau_scaling
     logical :: check_tol_dir, check_tol_diff
 
     type(stddev) :: std_Sdir, std_Sdiff
@@ -409,29 +414,19 @@ contains
 
     ! some debug output at the end...
     coeffnorm = sum(S_out)+sum(T_out)
-    if( coeffnorm.gt.one ) then
-      if(coeffnorm.ge.one+1e-1_ireal_dp) then
-        print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
-        sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',op_bg,'eps',epsilon(one)
-        print *,'S   ',S_out
-        print *,'Stol',S_tol
-        print *,'T   ',T_out
-        print *,'Ttol',T_tol
-        call exit
-      else
-        S_out = S_out / (coeffnorm+epsilon(coeffnorm)*10)
-        T_out = T_out / (coeffnorm+epsilon(coeffnorm)*10)
-        if(ldebug) print *,'renormalizing coefficients :: ',coeffnorm,' => ',sum(S_out)+sum(T_out)
-      endif
-      if( (sum(S_out)+sum(T_out)).gt.one ) then
-        print *,'norm still too big',sum(S_out)+sum(T_out)
-        call exit
-      endif
+    if(coeffnorm.gt.1+sqrt(epsilon(coeffnorm))) then
+      print *,'ohoh something is wrong! - sum of streams is bigger 1, this cant be due to energy conservation',&
+      sum(S_out),'+',sum(T_out),'=',sum(S_out)+sum(T_out),'.gt',one,':: op',op_bg,'eps',epsilon(one)
+      print *,'S   ',S_out
+      print *,'Stol',S_tol
+      print *,'T   ',T_out
+      print *,'Ttol',T_tol
+      call CHKERR(1_mpiint, 'sum of coeffs is way too big')
     endif
     if( (any(isnan(S_out) )) .or. (any(isnan(T_out)) ) ) then
       print *,'Found a NaN in output! this should not happen! dir',T_out,'diff',S_out
       print *,'Input:', op_bg, '::', phi0, theta0, src, ldir, '::', vertices
-      call exit()
+      call CHKERR(1_mpiint, 'Found a NaN in boxmc output!')
     endif
 
     iout = 0
@@ -452,6 +447,34 @@ contains
       print *,'T_tol', ret_T_tol
       print *,'S tol', ret_S_tol
       call CHKERR(1_mpiint, 'BOXMC violates stddev constraints!')
+    endif
+    if(any(ret_S_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in S(:) '//ftoa(ret_S_out))
+    if(any(ret_T_out.lt.0)) call CHKERR(1_mpiint, 'Have a negative coeff in T(:) '//ftoa(ret_T_out))
+    if(any(ret_S_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in S(:) '//ftoa(ret_S_tol))
+    if(any(ret_T_tol.lt.0)) call CHKERR(1_mpiint, 'Have a negative tolerance in T(:) '//ftoa(ret_T_tol))
+
+    retnorm = sum(ret_S_out)+sum(ret_T_out)
+    if( retnorm.gt.1 ) then
+      if(ldebug) then
+        call CHKWARN(1_mpiint, 'norm of coeffs '// &
+          'internal '//ftoa([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
+          'returned '//ftoa([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
+          ' is quite large! ... will try to renormalize ...'//new_line('')// &
+          'T = '//ftoa(ret_T_out)//new_line('')// &
+          'S = '//ftoa(ret_S_out))
+      endif
+
+      ret_S_out = ret_S_out / (retnorm+epsilon(retnorm)*100)
+      ret_T_out = ret_T_out / (retnorm+epsilon(retnorm)*100)
+
+      if( (sum(ret_S_out)+sum(ret_T_out)).gt.1 ) then
+        call CHKERR(1_mpiint, 'norm of coeffs '// &
+          'internal '//ftoa([sum(S_out), sum(T_out), sum(S_out)+sum(T_out)])// &
+          'returned '//ftoa([sum(ret_S_out), sum(ret_T_out), sum(ret_S_out)+sum(ret_T_out)])// &
+          ' is still too big! '//new_line('')// &
+          'T = '//ftoa(ret_T_out)//new_line('')// &
+          'S = '//ftoa(ret_S_out))
+      endif
     endif
   end subroutine
 
@@ -488,8 +511,8 @@ contains
       initial_dir = spherical_2_cartesian(phi0, theta) * [-one, -one, one]
       call bmc%half_spaces(vertices, origins, normals)
 
-      mincnt= max( 100, int( 1e4 /numnodes ) )
-      mycnt = int(1e8)/numnodes
+      mincnt= max( 100_iintegers, int( 1e4_ireal_dp / numnodes, iintegers) )
+      mycnt = int(1e9_ireal_dp / numnodes, iintegers)
       mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
       do k=1, mycnt
 
@@ -510,19 +533,19 @@ contains
             call scatter_photon(p, g)
           enddo move
 
-          if(ldir) call refill_direct_stream(p,initial_dir)
+          if(ldir) call refill_direct_stream(p, initial_dir)
 
-          std_Sdir%inc  = zero
-          std_Sdiff%inc = zero
+          std_Sdiff%inc = 0
+          std_Sdir%inc  = 0
 
           if(p%direct) then
-            call bmc%update_dir_stream(vertices, p,std_Sdir%inc)
+            call bmc%update_dir_stream(vertices, p, std_Sdir%inc)
           else
-            call bmc%update_diff_stream(vertices, p,std_Sdiff%inc)
+            call bmc%update_diff_stream(vertices, p, std_Sdiff%inc)
           endif
 
-          if (ldir) call std_update( std_Sdir , k, i1*numnodes )
-          call std_update( std_Sdiff, k, i1*numnodes )
+          if (ldir) call std_update( std_Sdir , k, numnodes )
+          call std_update( std_Sdiff, k, numnodes )
       enddo ! k photons
       Nphotons = k
 
@@ -538,10 +561,10 @@ contains
   subroutine reduce_output(Nlocal, comm, S_out, T_out, S_tol, T_tol)
     integer(iintegers),intent(in) :: Nlocal
     integer(mpiint),intent(in)    :: comm
-    real(ireal_dp),intent(inout)      :: S_out(:)
-    real(ireal_dp),intent(inout)      :: T_out(:)
-    real(ireal_dp),intent(inout)      :: S_tol(:)
-    real(ireal_dp),intent(inout)      :: T_tol(:)
+    real(irealbmc),intent(inout)      :: S_out(:)
+    real(irealbmc),intent(inout)      :: T_out(:)
+    real(irealbmc),intent(inout)      :: S_tol(:)
+    real(irealbmc),intent(inout)      :: T_tol(:)
 
     real(ireal_dp) :: Nglobal
     integer(mpiint) :: myid
@@ -562,7 +585,7 @@ contains
     subroutine reduce_var(comm, Nlocal, Nglobal, arr)
       integer(iintegers),intent(in) :: Nlocal
       real(ireal_dp),intent(in) :: Nglobal
-      real(ireal_dp),intent(inout) :: arr(:)
+      real(irealbmc),intent(inout) :: arr(:)
       integer(mpiint),intent(in) :: comm
       integer(iintegers) :: k
 
@@ -882,22 +905,23 @@ contains
     if( allocated(std%mean2   ) ) deallocate( std%mean2)
     if( allocated(std%var     ) ) deallocate( std%var  )
     if( allocated(std%relvar  ) ) deallocate( std%relvar)
-    allocate( std%inc   (N)) ; std%inc   = zero
-    allocate( std%delta (N)) ; std%delta = zero
-    allocate( std%mean  (N)) ; std%mean  = zero
-    allocate( std%mean2 (N)) ; std%mean2 = zero
-    allocate( std%var   (N)) ; std%var   = zero
-    allocate( std%relvar(N)) ; std%relvar= zero
-    std%atol = atol
-    std%rtol = rtol
+    allocate( std%inc   (N)) ; std%inc   = 0
+    allocate( std%delta (N)) ; std%delta = 0
+    allocate( std%mean  (N)) ; std%mean  = 0
+    allocate( std%mean2 (N)) ; std%mean2 = 0
+    allocate( std%var   (N)) ; std%var   = 0
+    allocate( std%relvar(N)) ; std%relvar= 0
+    std%atol = real(atol, kind(std%atol))
+    std%rtol = real(rtol, kind(std%rtol))
     std%converged = .True.
     std%active = .True.
   end subroutine
 
   subroutine std_update(std, N, numnodes)
     type(stddev),intent(inout) :: std
-    integer(iintegers),intent(in) :: N, numnodes
-    real(ireal_dp),parameter :: relvar_limit=1e-5_ireal_dp
+    integer(iintegers),intent(in) :: N
+    integer(mpiint),intent(in) :: numnodes
+    real(irealbmc),parameter :: relvar_limit=1e-5_irealbmc
     integer :: i
 
     std%converged = .True.
@@ -907,12 +931,12 @@ contains
       std%delta(i) = std%inc(i)  - std%mean(i)
       std%mean(i)  = std%mean(i) + std%delta(i)/N
       std%mean2(i) = std%mean2(i) + std%delta(i) * ( std%inc(i) - std%mean(i) )
-      std%var(i) = sqrt( std%mean2(i)/N ) / sqrt( one*N*numnodes )
+      std%var(i) = sqrt( std%mean2(i)/N ) / sqrt( real(N, kind(std%var))*numnodes )
 
       if(std%mean(i).ge.max(std%atol, relvar_limit)) then
         std%relvar(i) = std%var(i) / std%mean(i)
       else
-        std%relvar(i) = zero
+        std%relvar(i) = 0
       endif
     enddo
     do i = 1,size(std%var)

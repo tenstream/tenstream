@@ -15,7 +15,7 @@ module test_wedge_param_phi
   use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only: rmse, CHKERR, get_arg, itoa, &
     ind_nd_to_1d, ind_1d_to_nd, rad2deg, deg2rad, &
-    angle_between_two_vec, linspace
+    angle_between_two_vec, linspace, normalize_vec
   use m_search, only: find_real_location
   use m_boxmc_geometry, only : setup_default_wedge_geometry
 
@@ -118,25 +118,27 @@ contains
     real(ireal_params) :: side_normal(3), theta, phic
 
     side_normal = [1._ireal_params, 0._ireal_params, 0._ireal_params]
+    call normalize_vec(side_normal, ierr)
     theta = pi_ireal_params/2
     call phi_crit(side_normal, theta, phic, ierr)
     @assertEqual(0_mpiint, ierr)
     @assertEqual(deg2rad(0._ireal_params), phic)
 
     side_normal = [.8660254_ireal_params, -.5_ireal_params, 0._ireal_params]
+    call normalize_vec(side_normal, ierr)
     call phi_crit(side_normal, theta, phic, ierr)
     @assertEqual(0_mpiint, ierr)
     @assertEqual(deg2rad(30._ireal_params), phic, eps)
 
     side_normal = [.8660254_ireal_params, -.5_ireal_params, 0.1_ireal_params]
-    side_normal = side_normal / norm2(side_normal)
+    call normalize_vec(side_normal, ierr)
     theta = deg2rad(10._ireal_params)
     call phi_crit(side_normal, theta, phic, ierr)
     @assertEqual(0_mpiint, ierr)
     @assertGreaterThan(rad2deg(phic), 60._ireal_params, eps)
 
     side_normal = [-1._ireal_params, 0._ireal_params, 0.0_ireal_params]
-    side_normal = side_normal / norm2(side_normal)
+    call normalize_vec(side_normal, ierr)
     theta = deg2rad(90._ireal_params)
     call phi_crit(side_normal, theta, phic, ierr)
     @assertEqual(0_mpiint, ierr)
@@ -144,12 +146,13 @@ contains
 
 
     side_normal = [-.8660254_ireal_params, -.5_ireal_params, 0._ireal_params]
+    call normalize_vec(side_normal, ierr)
     call phi_crit(side_normal, theta, phic, ierr)
     @assertEqual(0_mpiint, ierr)
     @assertEqual(-30._ireal_params, rad2deg(phic), eps)
 
     side_normal = [-.8660254_ireal_params, -.5_ireal_params, 0.1_ireal_params]
-    side_normal = side_normal / norm2(side_normal)
+    call normalize_vec(side_normal, ierr)
     theta = deg2rad(0._ireal_params)
     call phi_crit(side_normal, theta, phic, ierr)
     @assertFalse(0_mpiint.eq.ierr)
@@ -161,25 +164,32 @@ contains
     real(ireal_params) :: side_normal(3), thetac, phi, theta_target
 
     side_normal = [0._ireal_params, 1._ireal_params, 0._ireal_params]
+    call normalize_vec(side_normal, ierr)
     phi = deg2rad(0._ireal_params)
     thetac = theta_crit(side_normal, phi)
     @assertEqual(0._ireal_params, rad2deg(thetac))
 
-    side_normal = [0._ireal_params, 1._ireal_params, 0.1_ireal_params]
-    side_normal = side_normal / norm2(side_normal)
+    side_normal = [0._ireal_params, 1._ireal_params, 1._ireal_params]
+    call normalize_vec(side_normal, ierr)
+    phi = deg2rad(0._ireal_params)
+    thetac = theta_crit(side_normal, phi)
+    @assertEqual(45._ireal_params, rad2deg(thetac), eps, 'expected 45 degree?')
+
+    side_normal = [0._ireal_params, 1._ireal_params, .1_ireal_params]
+    call normalize_vec(side_normal, side_normal, ierr)
     phi = deg2rad(0._ireal_params)
     thetac = theta_crit(side_normal, phi)
     theta_target = angle_between_two_vec(side_normal, [0._ireal_params, 0._ireal_params, -1._ireal_params]) - pi_ireal_params/2
-    @assertEqual(rad2deg(theta_target), rad2deg(thetac), eps)
+    @assertEqual(rad2deg(theta_target), rad2deg(thetac), eps, 'fixed thetac not as expected')
 
     side_normal = [0._ireal_params, 1._ireal_params, 0.1_ireal_params]
-    side_normal = side_normal / norm2(side_normal)
+    call normalize_vec(side_normal, ierr)
     phi = deg2rad(40._ireal_params)
     thetac = theta_crit(side_normal, phi)
     @assertEqual(7.437376_ireal_params, rad2deg(thetac), eps)
 
     side_normal = [0._ireal_params, 1._ireal_params, 0.1_ireal_params]
-    side_normal = side_normal / norm2(side_normal)
+    call normalize_vec(side_normal, ierr)
     phi = deg2rad(-40._ireal_params)
     thetac = theta_crit(side_normal, phi)
     @assertEqual(7.437376_ireal_params, rad2deg(thetac), eps)
@@ -332,10 +342,13 @@ contains
     integer(iintegers), parameter :: Nphi=200, Ntheta=200
     integer(iintegers) :: iphi, itheta
     real(ireal_params), parameter :: eps=1e-4_ireal_params
+    real(ireal_params), dimension(3) :: local_normal_base, local_normal_left, local_normal_right
 
     A = [0._ireal_params, 0._ireal_params]
     B = [1._ireal_params, 0._ireal_params]
     C = [0.5_ireal_params, 0.8660254_ireal_params]
+
+    local_normal_base = [0, 1, 0]
 
     dz = 1
 
@@ -352,10 +365,15 @@ contains
           phi, theta, pphi1, ptheta1, ierr)
         @assertEqual(0_mpiint, ierr)
 
+        local_normal_left  = [ C(2), -C(1), 0._ireal_params]
+        local_normal_right = [-C(2), -C(1), 0._ireal_params]
+        call normalize_vec(local_normal_left , ierr)
+        call normalize_vec(local_normal_right, ierr)
+
         call param_phi_param_theta_from_phi_and_theta_withnormals(&
-          [0._ireal_params, 1._ireal_params, 0._ireal_params], &
-          [ C(2), -C(1), 0._ireal_params], &
-          [-C(2), -C(1), 0._ireal_params], &
+          local_normal_base, &
+          local_normal_left, &
+          local_normal_right, &
           C(1), C(2), &
           phi, theta, pphi2, ptheta2, ierr)
 
@@ -380,6 +398,9 @@ contains
     local_normal_base  = [ 7.45058060E-09_ireal_params, 0.998655736_ireal_params, 5.18334582E-02_ireal_params]
     local_normal_left  = [ 0.826860547_ireal_params   ,-0.510045707_ireal_params, 0.236970723_ireal_params]
     local_normal_right = [-0.853828311_ireal_params   ,-0.427395433_ireal_params,-0.297170728_ireal_params]
+    call normalize_vec(local_normal_base , ierr)
+    call normalize_vec(local_normal_left , ierr)
+    call normalize_vec(local_normal_right, ierr)
 
     Cx = 0.552032232_ireal_params
     Cy = 0.894926786_ireal_params

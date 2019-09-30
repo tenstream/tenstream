@@ -28,7 +28,7 @@ module m_helper_functions_dp
       public imp_bcast, norm, deg2rad, rad2deg, rmse, mean, approx, rel_approx,&
           cumsum, inc, swap, &
           mpi_logical_and, mpi_logical_or, imp_allreduce_min, imp_allreduce_max, imp_reduce_sum, &
-          pnt_in_triangle, pnt_in_rectangle, compute_normal_3d, hit_plane, spherical_2_cartesian, &
+          pnt_in_triangle, pnt_in_rectangle, hit_plane, spherical_2_cartesian, &
           determine_normal_direction, &
           distance_to_edge, distances_to_triangle_edges, triangle_intersection, square_intersection, &
           rotation_matrix_local_basis_to_world, pnt_in_cube
@@ -307,23 +307,6 @@ module m_helper_functions_dp
           do i=2,size(arr)
             cumsum(i) = cumsum(i-1) + arr(i)
           enddo
-      end function
-
-      pure function compute_normal_3d(p1,p2,p3)
-        ! for a triangle p1, p2, p3, if the vector U = p2 - p1 and the vector V = p3 - p1 then the normal
-        ! N = U X V and can be calculated by:
-        real(ireal_dp), intent(in) :: p1(3), p2(3), p3(3)
-        real(ireal_dp) :: compute_normal_3d(3)
-        real(ireal_dp) :: U(3), V(3)
-
-        U = p2-p1
-        V = p3-p1
-
-        compute_normal_3d(1) = U(2)*V(3) - U(3)*V(2)
-        compute_normal_3d(2) = U(3)*V(1) - U(1)*V(3)
-        compute_normal_3d(3) = U(1)*V(2) - U(2)*V(1)
-
-        compute_normal_3d = compute_normal_3d / norm(compute_normal_3d)
       end function
 
     !> @brief For local azimuth and zenith angles, return the local cartesian vectors phi azimuth, theta zenith angles, angles are input in degrees.

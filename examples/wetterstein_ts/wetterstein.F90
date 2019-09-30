@@ -5,7 +5,7 @@ module m_wetterstein
 
   use m_tenstream_options, only: read_commandline_options
 
-  use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, CHKERR
+  use m_helper_functions, only : imp_bcast, CHKERR
 
   use m_netcdfIO, only : ncwrite, ncload
 

@@ -195,7 +195,7 @@ subroutine update_dir_stream_wedge_18_8(bmc,vertices,p,T)
   class(t_boxmc_wedge_18_8) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
-  real(ireal_dp),intent(inout) :: T(:)
+  real(irealbmc),intent(inout) :: T(:)
 
   real(ireal_dp), dimension(3) :: top_center, bot_center
   real(ireal_dp), dimension(3) :: side_center_base, side_center_left, side_center_right
@@ -352,7 +352,7 @@ subroutine update_diff_stream_wedge_18_8(bmc,vertices,p,S)
   class(t_boxmc_wedge_18_8) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
-  real(ireal_dp),intent(inout) :: S(:)
+  real(irealbmc),intent(inout) :: S(:)
   real(ireal_dp) :: normal(3)
 
   ! in case of spherically distorted elements,

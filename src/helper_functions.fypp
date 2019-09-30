@@ -17,12 +17,18 @@
 ! Copyright (C) 2010-2015  Fabian Jakub, <fabian@jakub.com>
 !-------------------------------------------------------------------------
 
+! FyPP Rank suffix generator to template over scalar an N-d functions
+#:def ranksuffix(RANK)
+$:'' if RANK == 0 else '(' + ':' + ',:' * (RANK - 1) + ')'
+#:enddef ranksuffix
+
 module m_helper_functions
   use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
   use m_data_parameters,only : iintegers, mpiint, &
     ireals, irealLUT, ireal_dp, &
-    i1, pi, pi32, pi64, pi128, zero, one, &
-    imp_ireals, imp_REAL32, imp_REAL64, imp_logical, &
+    i1, pi, pi32, pi64, pi128, zero, one, nan, &
+    imp_ireals, imp_logical, &
+    imp_REAL32, imp_REAL64, &
     default_str_len, &
     imp_int4, imp_int8, imp_iinteger
 
@@ -34,7 +40,8 @@ module m_helper_functions
   public imp_bcast,cross_2d, cross_3d,rad2deg,deg2rad,rmse,meanval,approx,rel_approx,                                &
     delta_scale_optprop,delta_scale,cumsum,cumprod,                                                                  &
     inc, mpi_logical_and, mpi_logical_or, mpi_logical_all_same,                                                      &
-    imp_allreduce_min, imp_allreduce_max, imp_reduce_sum,                                                            &
+    imp_allreduce_min, imp_allreduce_max, imp_allreduce_sum, imp_allreduce_mean,                                     &
+    imp_reduce_sum, imp_reduce_mean, imp_min_mean_max,                                                               &
     gradient, read_ascii_file_2d, meanvec, swap, imp_allgather_int_inplace, reorder_mpi_comm,                        &
     CHKERR, CHKWARN, assertEqual,                                                                                    &
     compute_normal_3d, determine_normal_direction, spherical_2_cartesian, hit_plane,                                 &
@@ -42,9 +49,9 @@ module m_helper_functions
     pnt_in_triangle, distance_to_edge, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world,   &
     vec_proj_on_plane, get_arg, unique, ltoa, itoa, ftoa, char_arr_to_str, cstr, strF2C,                             &
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
-    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint, imp_allreduce_sum, imp_allreduce_mean,           &
+    ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint,            &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
-    solve_quadratic, linspace, assert_arr_is_monotonous, is_between, sEXP, transposed_arr
+    solve_quadratic, linspace, assert_arr_is_monotonous, is_between, sEXP, transposed_arr, triangle_inner_circle_center
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -71,7 +78,9 @@ module m_helper_functions
     module procedure approx_r32, approx_r64, approx_r128
   end interface
   interface distance
-    module procedure distance_r32, distance_r64
+#:for dtype in ['REAL32', 'REAL64']
+    module procedure distance_${dtype}$
+#:endfor
   end interface
   interface itoa
     module procedure itoa_i4, itoa_i8, itoa_1d_i4, itoa_1d_i8
@@ -84,7 +93,10 @@ module m_helper_functions
         meanval_1d_r8, meanval_2d_r8, meanval_3d_r8
   end interface
   interface imp_allreduce_mean
-    module procedure imp_allreduce_mean_2d, imp_allreduce_mean_3d
+    module procedure imp_allreduce_mean_0d
+#:for RANK in range(1, 4)
+    module procedure imp_allreduce_mean_${RANK}$d
+#:endfor
   end interface
   interface imp_allreduce_sum
     module procedure imp_allreduce_sum_ireals, imp_allreduce_sum_i32, imp_allreduce_sum_i64
@@ -95,13 +107,16 @@ module m_helper_functions
   interface imp_allreduce_max
     module procedure imp_allreduce_max_ireals, imp_allreduce_max_iintegers
   end interface
+  interface imp_reduce_sum
+    module procedure imp_reduce_sum_r32, imp_reduce_sum_r64, imp_reduce_sum_r128
+  end interface
+  interface imp_reduce_mean
+    module procedure imp_reduce_mean_1d
+  end interface
   interface imp_bcast
     module procedure imp_bcast_real_1d, imp_bcast_real_3d, imp_bcast_real_5d, &
         imp_bcast_real32_2d, imp_bcast_real64_2d, imp_bcast_real32_2d_ptr, imp_bcast_real64_2d_ptr, &
         imp_bcast_int_1d, imp_bcast_int_2d, imp_bcast_int4, imp_bcast_int8, imp_bcast_real, imp_bcast_logical
-  end interface
-  interface imp_reduce_sum
-    module procedure imp_reduce_sum_r32, imp_reduce_sum_r64
   end interface
   interface get_arg
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
@@ -153,17 +168,23 @@ module m_helper_functions
     module procedure cross_3d_r32, cross_3d_r64
   end interface
   interface angle_between_two_vec
-    module procedure angle_between_two_vec_r32, angle_between_two_vec_r64, angle_between_two_vec_r128
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure angle_between_two_vec_${dtype}$
+#:endfor
   end interface
   interface angle_between_two_normed_vec
-    module procedure angle_between_two_normed_vec_r32, angle_between_two_normed_vec_r64, angle_between_two_normed_vec_r128
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure angle_between_two_normed_vec_${dtype}$
+#:endfor
   end interface
   interface compute_normal_3d
     module procedure compute_normal_3d_r32, compute_normal_3d_r64
   end interface
   interface normalize_vec
-    module procedure normalize_vec_r32, normalize_vec_r64, normalize_vec_r128, &
-      normalize_vec_inplace_r32, normalize_vec_inplace_r64, normalize_vec_inplace_r128
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure normalize_vec_${dtype}$
+    module procedure normalize_vec_inplace_${dtype}$
+#:endfor
   end interface
   interface rotation_matrix_local_basis_to_world
     module procedure rotation_matrix_local_basis_to_world_r32, rotation_matrix_local_basis_to_world_r64
@@ -176,10 +197,19 @@ module m_helper_functions
     module procedure distance_to_edge_r32, distance_to_edge_r64
   end interface
   interface triangle_area_by_vertices
-    module procedure triangle_area_by_vertices_r32, triangle_area_by_vertices_r64
+#:for dtype in ['REAL32', 'REAL64']
+    module procedure triangle_area_by_vertices_${dtype}$
+#:endfor
   end interface
   interface triangle_area_by_edgelengths
-    module procedure triangle_area_by_edgelengths_r32, triangle_area_by_edgelengths_r64
+#:for dtype in ['REAL32', 'REAL64']
+    module procedure triangle_area_by_edgelengths_${dtype}$
+#:endfor
+  end interface
+  interface triangle_inner_circle_center
+#:for dtype in ['REAL32', 'REAL64']
+    module procedure triangle_inner_circle_center_${dtype}$
+#:endfor
   end interface
 
   interface delta_scale
@@ -994,7 +1024,7 @@ module m_helper_functions
       !     land = mpi_logical_and(comm, lval)
       !     lor  = mpi_logical_or (comm, lval)
       !     lsame = land.eqv.lor
-      ! howver, it is better cast to it to int and do a sum reduction, otherwise we need 2 logical reductions
+      ! however, it is better cast to it to int and do a sum reduction, otherwise we need 2 logical reductions
       if(lval) then
         i = 1
       else
@@ -1058,9 +1088,21 @@ module m_helper_functions
       integer(mpiint) :: mpierr
       call mpi_allreduce(v, r, 1_mpiint, imp_int8, MPI_SUM, comm, mpierr); call CHKERR(mpierr)
     end subroutine
-    subroutine imp_allreduce_mean_2d(comm,v,r)
+
+
+    subroutine imp_allreduce_mean_0d(comm,v,r)
       integer(mpiint),intent(in) :: comm
-      real(ireals),intent(in) :: v(:,:)
+      real(ireals),intent(in) :: v
+      real(ireals),intent(out) :: r
+      integer(mpiint) :: numnodes, ierr
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+      call imp_allreduce_sum(comm, v, r)
+      r = r / real(numnodes, kind(r))
+    end subroutine
+#:for RANK in range(1, 4)
+    subroutine imp_allreduce_mean_${RANK}$d(comm,v,r)
+      integer(mpiint),intent(in) :: comm
+      real(ireals),intent(in) :: v${ranksuffix(RANK)}$
       real(ireals),intent(out) :: r
       integer(INT64)  :: global_size
       real(ireals) :: my_avg
@@ -1070,18 +1112,8 @@ module m_helper_functions
       call imp_allreduce_sum(comm, my_avg, r)
       r = r / real(global_size, kind(r))
     end subroutine
-    subroutine imp_allreduce_mean_3d(comm,v,r)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),intent(in) :: v(:,:,:)
-      real(ireals),intent(out) :: r
-      integer(INT64)  :: global_size
-      real(ireals) :: my_avg
+#:endfor
 
-      call imp_allreduce_sum(comm, size(v, kind=INT64), global_size)
-      my_avg = meanval(v) * size(v)
-      call imp_allreduce_sum(comm, my_avg, r)
-      r = r / real(global_size, kind(r))
-    end subroutine
     subroutine imp_reduce_sum_r32(comm,v)
       real(REAL32),intent(inout) :: v
       integer(mpiint),intent(in) :: comm
@@ -1092,9 +1124,9 @@ module m_helper_functions
       call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
       if(myid.eq.0) then
-        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_ireals, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_REAL32, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
       else
-        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_ireals, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_REAL32, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
       endif
     end subroutine
     subroutine imp_reduce_sum_r64(comm,v)
@@ -1107,10 +1139,55 @@ module m_helper_functions
       call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
 
       if(myid.eq.0) then
-        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_ireals, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+        call mpi_reduce(MPI_IN_PLACE, v, 1_mpiint, imp_REAL64, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
       else
-        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_ireals, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
+        call mpi_reduce(v, MPI_IN_PLACE, 1_mpiint, imp_REAL64, MPI_SUM, 0_mpiint, comm, mpierr); call CHKERR(mpierr)
       endif
+    end subroutine
+    subroutine imp_reduce_sum_r128(comm,v)
+      ! sad hack for the moment because i have lots of problems with openmpi and quad prec reductions
+      real(REAL128),intent(inout) :: v
+      integer(mpiint),intent(in) :: comm
+      real(REAL64) :: r
+      integer(mpiint) :: ierr, commsize
+      call MPI_Comm_size( comm, commsize, ierr); call CHKERR(ierr)
+      if(commsize.le.1) return
+
+      r = real(v, kind(r))
+      call imp_reduce_sum(comm, r)
+      v = real(r, kind(v))
+    end subroutine
+    subroutine imp_reduce_mean_1d(comm,v,r,root)
+      integer(mpiint),intent(in) :: comm
+      real(ireals),intent(in) :: v(:)
+      real(ireals),intent(out) :: r
+      integer(mpiint), intent(in), optional :: root
+      real(ireals) :: my_avg
+      integer(INT64)  :: global_size
+      integer(mpiint) ::trgt, ierr, myid
+
+      if(present(root)) then
+        trgt = root
+      else
+        trgt = 0_mpiint
+      endif
+
+      my_avg = meanval(v) * size(v)
+      call mpi_reduce(my_avg, r, 1_mpiint, imp_ireals, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
+
+      call mpi_reduce(size(v, kind=INT64), global_size, 1_mpiint, imp_int8, MPI_SUM, trgt, comm, ierr); call CHKERR(ierr)
+      call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      if(myid.eq.trgt) r = r / real(global_size, kind(r))
+    end subroutine
+
+    subroutine imp_min_mean_max(comm, arr, mmm)
+      integer(mpiint), intent(in) :: comm
+      real(ireals), intent(in) :: arr(:)
+      real(ireals), intent(out) :: mmm(:)
+      integer(mpiint) :: ierr
+      call mpi_reduce(minval(arr), mmm(1), 1_mpiint, imp_ireals, MPI_MIN, 0_mpiint, comm, ierr); call CHKERR(ierr)
+      call imp_reduce_mean(comm, arr, mmm(2))
+      call mpi_reduce(maxval(arr), mmm(3), 1_mpiint, imp_ireals, MPI_MAX, 0_mpiint, comm, ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine imp_allgather_int_inplace(comm,v)
@@ -1487,61 +1564,114 @@ module m_helper_functions
       end if
     end function
 
-    subroutine read_ascii_file_2d(filename, arr, ncolumns, skiplines, ierr)
+    subroutine read_ascii_file_2d(filename, arr, ierr, skiplines, verbose)
       character(len=*),intent(in) :: filename
-      integer(iintegers),intent(in) :: ncolumns
       integer(iintegers),intent(in),optional :: skiplines
 
-      real(ireals),allocatable,intent(out) :: arr(:,:)
+      real(ireals),allocatable,intent(out) :: arr(:,:) ! shape nlines, ncolumns
+      integer(mpiint), intent(out) :: ierr
+      logical, intent(in), optional :: verbose
 
-      integer(mpiint) :: ierr
+      real(ireals), allocatable :: line(:)
+      character(len=2**14) :: line_str
 
-      real :: line(ncolumns)
-
-      integer(iintegers) :: unit, nlines, i, io
-      logical :: file_exists=.False.
+      integer :: funit, io
+      integer(iintegers) :: nlines, valid_lines, i, j, max_cols
+      logical :: lverbose, file_exists
 
       ierr=0
       inquire(file=filename, exist=file_exists)
 
+      lverbose = get_arg(.False., verbose)
+
       if(.not.file_exists) then
-        print *,'File ',trim(filename), 'does not exist!'
+        if(lverbose) print *,'File ',trim(filename), 'does not exist!'
         ierr=1
         return
       endif
 
-      open(newunit=unit, file=filename)
+      open(newunit=funit, file=filename)
       if(present(skiplines)) then
         do i=1,skiplines
-          read(unit,*)
+          read(funit,*)
         enddo
       endif
 
+      print *,''
       nlines = 0
+      valid_lines = 0
+      max_cols = 0
       do
-        read(unit, *, iostat=io) line
-        !print *,'line',line
-        if (io/=0) exit
+        read(funit, '(A)', iostat=io) line_str
+
+        if(io.eq.0) then
+          call split(line_str, line, ' ', ierr)
+
+          if(ierr.eq.0)then
+            valid_lines = valid_lines + 1
+            if(max_cols.gt.1 .and. size(line).ne.max_cols) then
+              ierr = 3
+              if(lverbose) &
+                call CHKWARN(ierr, 'Found a varying number of columns in the ascii file.. cannot read that')
+              return
+            endif
+            max_cols = size(line)
+          endif
+          deallocate(line)
+
+        elseif (io.lt.0) then ! end of file
+          exit
+        endif
+
         nlines = nlines + 1
       end do
 
-      rewind(unit)
+      rewind(funit)
       if(present(skiplines)) then
         do i=1,skiplines
-          read(unit,*)
+          read(funit,*)
         enddo
       endif
 
-      allocate(arr(nlines,ncolumns))
+      allocate(line(max_cols))
+      allocate(arr(valid_lines,max_cols))
 
+      j = 1
       do i=1,nlines
-        read(unit, *, iostat=io) line
-        arr(i,:) = line
+        read(funit, *, iostat=io) line
+        if(io.eq.0) then
+          arr(j,:) = line
+          j = j + 1
+        endif
       end do
 
-      close(unit)
-      print *,'I read ',nlines,'lines'
-    end subroutine
+      close(funit)
+      if(lverbose) print *,'I read '// &
+        itoa(valid_lines)//' lines of ascii : '// &
+        '('//itoa(nlines)//' total ) '// &
+        'with '//itoa(max_cols)//' columns'
+
+      contains
+        subroutine split(str, a, sep, ierr)
+          character(len=*), intent(in) :: str, sep
+          real(ireals), intent(out), allocatable :: a(:)
+          integer(mpiint), intent(out) :: ierr
+          integer(iintegers) :: i,n
+          logical :: last_char_was_sep
+          last_char_was_sep = .True.
+          n = 0
+          do i=1,len(str)
+            if( str(i:i) == sep) then
+              if(.not.last_char_was_sep) n = n + 1
+              last_char_was_sep = .True.
+            else
+              last_char_was_sep = .False.
+            endif
+          end do
+          allocate (a(n))
+          read(unit=str, fmt=*, iostat=ierr) a
+        end subroutine
+      end subroutine
 
 
     subroutine reorder_mpi_comm(icomm, Nrank_x, Nrank_y, new_comm)
@@ -1643,8 +1773,9 @@ module m_helper_functions
       if(present(r)) spherical_2_cartesian = spherical_2_cartesian*r
     end function
 
-    subroutine normalize_vec_r32(vec, normed_vec, ierr)
-      real(REAL32), intent(in) :: vec(:)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    subroutine normalize_vec_${dtype}$(vec, normed_vec, ierr)
+      real(${dtype}$), intent(in) :: vec(:)
       real(kind(vec)), intent(out) :: normed_vec(:)
       integer(mpiint), intent(out) :: ierr
       real(kind(vec)) :: norm
@@ -1656,34 +1787,8 @@ module m_helper_functions
       endif
       normed_vec = vec/norm
     end subroutine
-    subroutine normalize_vec_r64(vec, normed_vec, ierr)
-      real(REAL64), intent(in) :: vec(:)
-      real(kind(vec)), intent(out) :: normed_vec(:)
-      integer(mpiint), intent(out) :: ierr
-      real(kind(vec)) :: norm
-      ierr = 0
-      norm = norm2(vec)
-      if(norm.le.tiny(norm)) then
-        ierr = 1
-        norm = 1
-      endif
-      normed_vec = vec/norm
-    end subroutine
-    subroutine normalize_vec_r128(vec, normed_vec, ierr)
-      real(REAL128), intent(in) :: vec(:)
-      real(kind(vec)), intent(out) :: normed_vec(:)
-      integer(mpiint), intent(out) :: ierr
-      real(kind(vec)) :: norm
-      ierr = 0
-      norm = norm2(vec)
-      if(norm.le.tiny(norm)) then
-        ierr = 1
-        norm = 1
-      endif
-      normed_vec = vec/norm
-    end subroutine
-    subroutine normalize_vec_inplace_r32(vec, ierr)
-      real(REAL32), intent(inout) :: vec(:)
+    subroutine normalize_vec_inplace_${dtype}$(vec, ierr)
+      real(${dtype}$), intent(inout) :: vec(:)
       integer(mpiint), intent(out) :: ierr
       real(kind(vec)) :: norm
       ierr = 0
@@ -1694,62 +1799,24 @@ module m_helper_functions
       endif
       vec = vec/norm
     end subroutine
-    subroutine normalize_vec_inplace_r64(vec, ierr)
-      real(REAL64), intent(inout) :: vec(:)
-      integer(mpiint), intent(out) :: ierr
-      real(kind(vec)) :: norm
-      ierr = 0
-      norm = norm2(vec)
-      if(norm.le.tiny(norm)) then
-        ierr = 1
-        norm = 1
-      endif
-      vec = vec/norm
-    end subroutine
-    subroutine normalize_vec_inplace_r128(vec, ierr)
-      real(REAL128), intent(inout) :: vec(:)
-      integer(mpiint), intent(out) :: ierr
-      real(kind(vec)) :: norm
-      ierr = 0
-      norm = norm2(vec)
-      if(norm.le.tiny(norm)) then
-        ierr = 1
-        norm = 1
-      endif
-      vec = vec/norm
-    end subroutine
+#:endfor
 
     !> @brief returns the angle between two not necessarily normed vectors. Result is in radians
-    function angle_between_two_vec_r32(p1, p2) result(angle_between_two_vec)
-      real(REAL32),intent(in) :: p1(:), p2(:)
-      real(REAL32) :: angle_between_two_vec
-      real(REAL32) :: np1(size(p1)), np2(size(p2))
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    function angle_between_two_vec_${dtype}$(p1, p2) result(angle_between_two_vec)
+      real(${dtype}$),intent(in) :: p1(:), p2(:)
+      real(kind(p1)) :: angle_between_two_vec
+      real(kind(p1)) :: np1(size(p1)), np2(size(p2))
       integer(mpiint) :: ierr
       call normalize_vec(p1, np1, ierr); call CHKERR(ierr, 'bad vec norm')
       call normalize_vec(p2, np2, ierr); call CHKERR(ierr, 'bad vec norm')
       angle_between_two_vec = angle_between_two_normed_vec(np1, np2)
     end function
-    function angle_between_two_vec_r64(p1, p2) result(angle_between_two_vec)
-      real(REAL64),intent(in) :: p1(:), p2(:)
-      real(REAL64) :: angle_between_two_vec
-      real(REAL64) :: np1(size(p1)), np2(size(p2))
-      integer(mpiint) :: ierr
-      call normalize_vec(p1, np1, ierr); call CHKERR(ierr, 'bad vec norm')
-      call normalize_vec(p2, np2, ierr); call CHKERR(ierr, 'bad vec norm')
-      angle_between_two_vec = angle_between_two_normed_vec(np1, np2)
-    end function
-    function angle_between_two_vec_r128(p1, p2) result(angle_between_two_vec)
-      real(REAL128),intent(in) :: p1(:), p2(:)
-      real(REAL128) :: angle_between_two_vec
-      real(REAL128) :: np1(size(p1)), np2(size(p2))
-      integer(mpiint) :: ierr
-      call normalize_vec(p1, np1, ierr); call CHKERR(ierr, 'bad vec norm')
-      call normalize_vec(p2, np2, ierr); call CHKERR(ierr, 'bad vec norm')
-      angle_between_two_vec = angle_between_two_normed_vec(np1, np2)
-    end function
+#:endfor
 
-    function angle_between_two_normed_vec_r32(p1, p2) result(angle_between_two_vec)
-      real(REAL32),intent(in) :: p1(:), p2(:)
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    function angle_between_two_normed_vec_${dtype}$(p1, p2) result(angle_between_two_vec)
+      real(${dtype}$),intent(in) :: p1(:), p2(:)
       real(kind(p1)) :: angle_between_two_vec, dp
       real(kind(p1)), parameter :: eps = 1 + sqrt(epsilon(eps))
       if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
@@ -1761,37 +1828,13 @@ module m_helper_functions
       dp = max( min(dp, real(1, kind(dp))), real(-1, kind(dp)))
       angle_between_two_vec = acos(dp)
     end function
-    function angle_between_two_normed_vec_r64(p1, p2) result(angle_between_two_vec)
-      real(REAL64),intent(in) :: p1(:), p2(:)
-      real(kind(p1)) :: angle_between_two_vec, dp
-      real(kind(p1)), parameter :: eps = 1 + sqrt(epsilon(eps))
-      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
-        angle_between_two_vec = 0
-        return
-      endif
-      dp = dot_product(p1, p2)
-      if(dp.gt.eps.or.dp.lt.-eps) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
-      dp = max( min(dp, real(1, kind(dp))), real(-1, kind(dp)))
-      angle_between_two_vec = acos(dp)
-    end function
-    function angle_between_two_normed_vec_r128(p1, p2) result(angle_between_two_vec)
-      real(REAL128),intent(in) :: p1(:), p2(:)
-      real(kind(p1)) :: angle_between_two_vec, dp
-      real(kind(p1)), parameter :: eps = 1 + sqrt(epsilon(eps))
-      if(all(approx(p1,p2))) then ! if p1 and p2 are the same, just return
-        angle_between_two_vec = 0
-        return
-      endif
-      dp = dot_product(p1, p2)
-      if(dp.gt.eps.or.dp.lt.-eps) print *,'FPE exception angle_between_two_vec :: dp wrong', dp
-      dp = max( min(dp, real(1, kind(dp))), real(-1, kind(dp)))
-      angle_between_two_vec = acos(dp)
-    end function
+#:endfor
 
     !> @brief Determine Edge length/ distance between two points
-    function distance_r32(p1,p2) result(distance)
-      real(REAL32), intent(in) :: p1(:), p2(:)
-      real(REAL32) :: distance
+#:for dtype in ['REAL32', 'REAL64']
+    function distance_${dtype}$(p1,p2) result(distance)
+      real(${dtype}$), intent(in) :: p1(:), p2(:)
+      real(kind(p1)) :: distance
       integer(iintegers) :: i
       distance = 0
       do i=1,size(p1)
@@ -1799,52 +1842,45 @@ module m_helper_functions
       enddo
       distance = sqrt(distance)
     end function
-    function distance_r64(p1,p2) result(distance)
-      real(REAL64), intent(in) :: p1(:), p2(:)
-      real(REAL64) :: distance
-      integer(iintegers) :: i
-      distance = 0
-      do i=1,size(p1)
-        distance = distance + (p2(i) - p1(i))**2
-      enddo
-      distance = sqrt(distance)
-    end function
+#:endfor
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 edge lengths
-    function triangle_area_by_edgelengths_r32(e1,e2,e3) result(triangle_area_by_edgelengths)
-      real(REAL32), intent(in) :: e1,e2,e3
-      real(REAL32) :: triangle_area_by_edgelengths
-      real(REAL32) :: p
+#:for dtype in ['REAL32', 'REAL64']
+    function triangle_area_by_edgelengths_${dtype}$(e1,e2,e3) result(triangle_area_by_edgelengths)
+      real(${dtype}$), intent(in) :: e1,e2,e3
+      real(${dtype}$) :: triangle_area_by_edgelengths
+      real(${dtype}$) :: p
       p = (e1+e2+e3)/2
       triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
     end function
-    function triangle_area_by_edgelengths_r64(e1,e2,e3) result(triangle_area_by_edgelengths)
-      real(REAL64), intent(in) :: e1,e2,e3
-      real(REAL64) :: triangle_area_by_edgelengths
-      real(REAL64) :: p
-      p = (e1+e2+e3)/2
-      triangle_area_by_edgelengths = sqrt(p*(p-e1)*(p-e2)*(p-e3))
-    end function
+#:endfor
 
     !> @brief Use Herons Formula to determine the area of a triangle given the 3 vertices
-    function triangle_area_by_vertices_r32(v1,v2,v3) result(triangle_area_by_vertices)
-      real(REAL32), intent(in) :: v1(:),v2(:),v3(:)
-      real(REAL32) :: triangle_area_by_vertices
-      real(REAL32) :: e1, e2, e3
+#:for dtype in ['REAL32', 'REAL64']
+    function triangle_area_by_vertices_${dtype}$(v1,v2,v3) result(triangle_area_by_vertices)
+      real(${dtype}$), intent(in) :: v1(:),v2(:),v3(:)
+      real(${dtype}$) :: triangle_area_by_vertices
+      real(${dtype}$) :: e1, e2, e3
       e1 = distance(v1,v2)
       e2 = distance(v2,v3)
       e3 = distance(v3,v1)
       triangle_area_by_vertices = triangle_area_by_edgelengths(e1,e2,e3)
     end function
-    function triangle_area_by_vertices_r64(v1,v2,v3) result(triangle_area_by_vertices)
-      real(REAL64), intent(in) :: v1(:),v2(:),v3(:)
-      real(REAL64) :: triangle_area_by_vertices
-      real(REAL64) :: e1, e2, e3
-      e1 = distance(v1,v2)
-      e2 = distance(v2,v3)
-      e3 = distance(v3,v1)
-      triangle_area_by_vertices = triangle_area_by_edgelengths(e1,e2,e3)
-    end function
+#:endfor
+
+    !> @brief compute the inner circle center of a triangle
+#:for dtype in ['REAL32', 'REAL64']
+    subroutine triangle_inner_circle_center_${dtype}$(p1, p2, p3, center)
+      real(${dtype}$), dimension(:), intent(in) :: p1, p2, p3
+      real(kind(p1)), dimension(:) :: center
+      real(kind(p1)) :: e1, e2, e3
+      e1 = distance(p2,p3)
+      e2 = distance(p3,p1)
+      e3 = distance(p1,p2)
+
+      center = (e1*p1 + e2*p2 + e3*p3) / (e1+e2+e3)
+    end subroutine
+#:endfor
 
     !> @brief determine distance where a photon p intersects with a plane
     !> @details inputs are the location and direction of a photon aswell as the origin and surface normal of the plane

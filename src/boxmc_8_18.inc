@@ -22,7 +22,7 @@ subroutine update_dir_stream_8_18(bmc,vertices,p,T)
         class(t_boxmc_8_18) :: bmc
         type(t_photon),intent(in) :: p
         real(ireal_dp),intent(in)     :: vertices(:)
-        real(ireal_dp),intent(inout) :: T(:)
+        real(irealbmc),intent(inout) :: T(:)
         real(ireal_dp),parameter :: h=.5_ireal_dp
         real(ireal_dp) :: dx, dy, dz
 
@@ -93,7 +93,7 @@ subroutine update_diff_stream_8_18(bmc,vertices,p,S)
         class(t_boxmc_8_18) :: bmc
         real(ireal_dp),intent(in) :: vertices(:)
         type(t_photon),intent(in) :: p
-        real(ireal_dp),intent(inout) :: S(:)
+        real(irealbmc),intent(inout) :: S(:)
         real(ireal_dp) :: mu
         integer(iintegers),parameter :: soff=10 ! offset for sideward streams
 

@@ -50,7 +50,7 @@ module m_optprop_LUT
     ldelta_scale,delta_scale_truncate,    &
     stddev_atol, stddev_rtol,             &
     wedge_sphere_radius,                  &
-    preset_g2, preset_g3, preset_g4,      &
+    preset_g2, preset_g4, preset_g6,      &
     preset_param_phi11,                   &
     preset_param_phi19,                   &
     preset_param_theta13,                 &
@@ -63,6 +63,7 @@ module m_optprop_LUT
     preset_aspect23,                      &
     preset_w010,                          &
     preset_w020,                          &
+    preset_w021,                          &
     preset_tau15,                         &
     preset_tau20,                         &
     preset_tau31
@@ -689,7 +690,7 @@ subroutine createLUT(OPP, comm, config, S, T)
                 T%stddev_tol(lutindex) = maxval(T_tol)
               endif
 
-              if (.True. .and. ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
+              if (.False. .and. ldebug) call random_print_coeffs(lutindex, S_diff, T_dir, S_tol, T_tol)
 
               if( mod(lutindex-1, max(i1, total_size/1000_iintegers)).eq.0 ) & !every .1 percent report status
                 print *,'Calculated LUT...', lutindex, &
@@ -1078,12 +1079,12 @@ contains
       lsrc(2:5) = .False.
       return
     endif
-    if(param_phi.lt.-1._irealLUT) then
+    if(param_phi.le.-1._irealLUT) then
       lsrc(1:3) = .True.
       lsrc(4:5) = .False.
       return
     endif
-    if(param_phi.gt.1._irealLUT) then
+    if(param_phi.ge.1._irealLUT) then
       lsrc([1,2,4]) = .True.
       lsrc([3,5]) = .False.
       return
@@ -1113,9 +1114,9 @@ contains
           call src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
 
           if(lsrc(src)) then ! I am a src face
-            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr + 3 ! all srcs cannot have any incoming energy
+            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr + 13 ! all srcs cannot have any incoming energy
           else
-            if(any(T.gt.0._irealLUT)) ierr = ierr+5 ! if I am a dst, nobody should get any radiation anyway
+            if(any(T.gt.0._irealLUT)) ierr = ierr+17 ! if I am a dst, nobody should get any radiation anyway
           endif
         end associate
       class is (t_optprop_LUT_rectilinear_wedge_5_8)
@@ -1123,10 +1124,10 @@ contains
           call src_or_dst_by_param_phi_param_theta5(param_phi, param_theta, lsrc)
 
           if(lsrc(src)) then ! I am a src face
-            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+3 ! all srcs cannot have any incoming energy
+            if(any(lsrc .and. T.gt.0._irealLUT)) ierr = ierr+13 ! all srcs cannot have any incoming energy
           else
             if(any(T.gt.0._irealLUT)) then
-              ierr = ierr+5 ! if I am a dst, nobody should get any radiation anyway
+              ierr = ierr+17 ! if I am a dst, nobody should get any radiation anyway
             endif
           endif
         end associate
@@ -1175,14 +1176,14 @@ subroutine LUT_bmc_wrapper(OPP, config, index_1d, src, dir, comm, S_diff, T_dir,
         real(deg2rad(phi), ireal_params), real(deg2rad(theta), ireal_params), &
         param_phi, param_theta, ierr)
       print *,'LUTBMC :: calling bmc_get_coeff src',src,'tauz',tauz,w0,g,'angles',phi,theta,&
-        ':ind1d',index_1d, ':',T_dir, '::', S_diff, ': verts', vertices, &
+        ':ind1d',index_1d, ': T', T_dir, ':: S ', S_diff, ': verts', vertices, &
         'param phi/theta_afterwards', param_phi, param_theta
       call CHKERR(ierr2, 'found bad results for a given geometry')
     endif
 
-    if(ldebug) print *,'LUTBMC :: calling bmc_get_coeff src', src, &
-      'tauz',tauz,w0,g,'angles',phi,theta, ':ind1d',index_1d, ':', &
-      T_dir, ':(', T_tol, ') //', S_diff, ':(', S_tol, ')'
+    !if(ldebug) print *,'LUTBMC :: calling bmc_get_coeff src', src, &
+    !  'tauz',tauz,w0,g,'angles',phi,theta, ':ind1d',index_1d, ':', &
+    !  T_dir, ':(', T_tol, ') //', S_diff, ':(', S_tol, ')'
 end subroutine
 
 subroutine bmc_wrapper(OPP, src, vertices, tauz, w0, g, dir, phi, theta, comm, &
@@ -1411,44 +1412,42 @@ subroutine set_parameter_space(OPP)
           call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
 
       class is (t_optprop_LUT_wedge_5_8)
-          allocate(OPP%dirconfig%dims(7))
+          allocate(OPP%dirconfig%dims(8))
           call populate_LUT_dim('tau',       size(preset_tau15,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau15)
           call populate_LUT_dim('w0',        size(preset_w010,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w010)
           call populate_LUT_dim('aspect_zx', size(preset_aspect18,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect18)
-          call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%dirconfig%dims(4), vrange=real([.35,.65], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%dirconfig%dims(5), vrange=real([0.7760254, 0.9560254], irealLUT))
+          call populate_LUT_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
+          call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%dirconfig%dims(5), vrange=real([.35,.65], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%dirconfig%dims(6), vrange=real([0.7760254, 0.9560254], irealLUT))
 
-          call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(6), preset=preset_param_phi19)
-          call populate_LUT_dim('param_theta', size(preset_param_theta13, kind=iintegers), OPP%dirconfig%dims(7), preset=preset_param_theta13)
+          call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(7), preset=preset_param_phi19)
+          call populate_LUT_dim('param_theta', size(preset_param_theta13, kind=iintegers), OPP%dirconfig%dims(8), preset=preset_param_theta13)
 
-          allocate(OPP%diffconfig%dims(5))
+          allocate(OPP%diffconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
+          call populate_LUT_dim('w0',        size(preset_w021,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w021)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-          call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%diffconfig%dims(4), vrange=real([.35,.65], irealLUT))
-          call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%diffconfig%dims(5), vrange=real([0.7760254, 0.9560254], irealLUT))
+          call populate_LUT_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
+          call populate_LUT_dim('wedge_coord_Cx', 7_iintegers, OPP%diffconfig%dims(5), vrange=real([.35,.65], irealLUT))
+          call populate_LUT_dim('wedge_coord_Cy', 7_iintegers, OPP%diffconfig%dims(6), vrange=real([0.7760254, 0.9560254], irealLUT))
 
       class is (t_optprop_LUT_rectilinear_wedge_5_8)
           allocate(OPP%dirconfig%dims(8))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%dirconfig%dims(1), preset=preset_tau31)
-          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w020)
+          call populate_LUT_dim('w0',        size(preset_w021,kind=iintegers), OPP%dirconfig%dims(2), preset=preset_w021)
           call populate_LUT_dim('aspect_zx', size(preset_aspect18,kind=iintegers), OPP%dirconfig%dims(3), preset=preset_aspect18)
-          call populate_LUT_dim('g',         size(preset_g2,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g2)
+          call populate_LUT_dim('g',         size(preset_g6,kind=iintegers), OPP%dirconfig%dims(4), preset=preset_g6)
           call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%dirconfig%dims(5), vrange=real([-0.000001,1.000001], irealLUT))
           call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%dirconfig%dims(6), vrange=real([.499999,1.000001], irealLUT))
 
           call populate_LUT_dim('param_phi', size(preset_param_phi19, kind=iintegers), OPP%dirconfig%dims(7), preset=preset_param_phi19)
           call populate_LUT_dim('param_theta', size(preset_param_theta13, kind=iintegers), OPP%dirconfig%dims(8), preset=preset_param_theta13)
 
-          !call populate_LUT_dim('tau',       i1, OPP%dirconfig%dims(1), vrange=real([1e-10,1e-5], irealLUT))
-          !call populate_LUT_dim('w0',        i2, OPP%dirconfig%dims(2), vrange=real([.0,.9], irealLUT))
-          !call populate_LUT_dim('aspect_zx', i2, OPP%dirconfig%dims(3), vrange=real([.1,2.], irealLUT))
-
           allocate(OPP%diffconfig%dims(6))
           call populate_LUT_dim('tau',       size(preset_tau31,kind=iintegers), OPP%diffconfig%dims(1), preset=preset_tau31)
-          call populate_LUT_dim('w0',        size(preset_w020,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w020)
+          call populate_LUT_dim('w0',        size(preset_w021,kind=iintegers), OPP%diffconfig%dims(2), preset=preset_w021)
           call populate_LUT_dim('aspect_zx', size(preset_aspect23,kind=iintegers), OPP%diffconfig%dims(3), preset=preset_aspect23)
-          call populate_LUT_dim('g',         size(preset_g4,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g4)
+          call populate_LUT_dim('g',         size(preset_g6,kind=iintegers), OPP%diffconfig%dims(4), preset=preset_g6)
           call populate_LUT_dim('wedge_coord_Cx', 3_iintegers, OPP%diffconfig%dims(5), vrange=real([-0.000001,1.000001], irealLUT))
           call populate_LUT_dim('wedge_coord_Cy', 2_iintegers, OPP%diffconfig%dims(6), vrange=real([.499999,1.000001], irealLUT))
 

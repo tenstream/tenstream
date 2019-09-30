@@ -25,7 +25,7 @@ module m_optprop
 #endif
 
 use m_optprop_parameters, only : ldebug_optprop, coeff_mode, wedge_sphere_radius, param_eps
-use m_helper_functions, only : rmse, CHKERR, itoa, ftoa, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str
+use m_helper_functions, only : rmse, CHKERR, CHKWARN, itoa, ftoa, approx, deg2rad, rad2deg, swap, is_between, char_arr_to_str
 use m_data_parameters, only: ireals,ireal_dp,irealLUT,ireal_params,iintegers,one,zero,i0,i1,inil,mpiint
 use m_optprop_LUT, only : t_optprop_LUT, t_optprop_LUT_1_2,t_optprop_LUT_3_6, t_optprop_LUT_3_10, &
   t_optprop_LUT_8_10, t_optprop_LUT_3_16, t_optprop_LUT_8_16, t_optprop_LUT_8_18, &
@@ -200,11 +200,9 @@ contains
       call check_inp(OPP, tauz, w0, g, aspect_zx, ldir, C, angles, wedge_coords)
     endif
 
-    if(handle_aspect_zx_1D_case()) then
-      return
-    endif
+    if(handle_aspect_zx_1D_case()) return
 
-    if(ldir .and. compute_coeff_online) then
+    if(compute_coeff_online) then
       call do_bmc_computation(C)
       return
     endif
@@ -230,15 +228,21 @@ contains
           vertices, &
           real(wedge_sphere_radius, ireals))
 
-        call iterative_phi_theta_from_param_phi_and_param_theta(&
-          real(vertices, ireal_params), &
-          real(angles(1), ireal_params), &
-          real(angles(2), ireal_params), &
-          phi, theta, ierr); call CHKERR(ierr)
+        if(present(angles)) then
+          call iterative_phi_theta_from_param_phi_and_param_theta(&
+            real(vertices, ireal_params), &
+            real(angles(1), ireal_params), &
+            real(angles(2), ireal_params), &
+            phi, theta, ierr); call CHKERR(ierr)
 
-        print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, angles, rad2deg(phi), rad2deg(theta)
-        call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, &
-          [rad2deg(real(phi, irealLUT)), rad2deg(real(theta, irealLUT))])
+          call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc, &
+            [rad2deg(real(phi, irealLUT)), rad2deg(real(theta, irealLUT))])
+          print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, ':', angles, rad2deg(phi), rad2deg(theta), '=>', new_line(':'), Cbmc
+        else
+          call get_coeff_bmc(OPP, vertices, real(tauz, ireals), real(w0, ireals), real(g, ireals), ldir, Cbmc)
+          print *,'Cbmc', tauz, w0, g, aspect_zx, wedge_coords, '=>', new_line(':'), Cbmc
+        endif
+
       end subroutine
       subroutine print_coeff_diff()
         real(irealLUT) :: Cbmc(size(C))
@@ -583,6 +587,14 @@ contains
             else ! dir2diff
               C(isrc:OPP%OPP_LUT%dir_streams*OPP%OPP_LUT%diff_streams:OPP%OPP_LUT%dir_streams) = S_diff
             endif
+            if(w0.ge.1) then
+              if(any(S_tol.gt.0).or.any(T_tol.gt.0)) then
+                print *,'SumT', sum(T_dir), 'SumS', sum(S_diff), 'Divergence', (1- (sum(T_dir)+sum(S_diff))), any(S_tol.gt.0), any(T_tol.gt.0)
+                if(abs(1- (sum(T_dir)+sum(S_diff))).ge.1e-6_irealLUT) then
+                  call CHKWARN(1_mpiint, 'divergence '//ftoa(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//ftoa(w0))
+                endif
+              endif
+            endif
           enddo
       else
         ! diff2diff
@@ -598,6 +610,14 @@ contains
               S_diff, T_dir, S_tol, T_tol, &
               inp_atol=real(atol, irealLUT), inp_rtol=real(rtol, irealLUT))
           C(isrc:OPP%OPP_LUT%diff_streams**2:OPP%OPP_LUT%diff_streams) = S_diff
+          if(w0.ge.1) then
+            if(any(S_tol.gt.0).or.any(T_tol.gt.0)) then
+              print *,'SumT', sum(T_dir), 'SumS', sum(S_diff), 'Divergence', (1- (sum(T_dir)+sum(S_diff))), any(S_tol.gt.0), any(T_tol.gt.0)
+              if(abs(1- (sum(T_dir)+sum(S_diff))).ge.1e-6_irealLUT) then
+                call CHKWARN(1_mpiint, 'divergence '//ftoa(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//ftoa(w0))
+              endif
+            endif
+          endif
         enddo
       endif ! angles_present
 

@@ -43,9 +43,9 @@ module m_plexrt_rrtmg
       iintegers, ireals, zero, one, i0, i1, i2, i9,         &
       mpiint, pi, default_str_len
   use m_adaptive_spectral_integration, only: need_new_solution
-  use m_helper_functions, only : read_ascii_file_2d, gradient, meanvec, imp_bcast, &
-      imp_allreduce_min, imp_allreduce_max, CHKERR, CHKWARN, deg2rad, &
-      reverse, itoa, angle_between_two_vec, rad2deg, get_arg, delta_scale_optprop
+  use m_helper_functions, only : &
+      CHKERR, CHKWARN, deg2rad, reverse, itoa, angle_between_two_vec, &
+      rad2deg, get_arg, delta_scale_optprop
   use m_search, only: find_real_location
   use m_tenstream_interpolation, only : interp_1d
 
@@ -55,7 +55,7 @@ module m_plexrt_rrtmg
     destroy_plexrt_solver, plexrt_get_result
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, plkint, print_tenstr_atm, vert_integral_coeff
-  use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw
+  use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
   use m_icon_plex_utils, only: Nz_Ncol_vec_to_celldm1, Nz_Ncol_vec_to_horizface1_dm
 
   use m_netcdfIO, only : ncwrite
@@ -279,7 +279,7 @@ contains
     real(ireals), pointer :: xalbedo(:)
 
     real(ireals) :: col_albedo, col_tskin(1)
-    integer(iintegers) :: i, ib, k, current_ibnd, num_spectral_bands
+    integer(iintegers) :: i, ib, k, current_ibnd, spectral_bands(2)
     logical :: need_any_new_solution, lflg
 
     integer(mpiint) :: ierr
@@ -403,15 +403,12 @@ contains
 
     current_ibnd = -1 ! current lw band
 
-    num_spectral_bands = int(ngptlw, iintegers)
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-                             "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
-    num_spectral_bands = min(num_spectral_bands, int(ngptlw, iintegers))
+    spectral_bands = get_spectral_bands(comm, i1, int(ngptlw, iintegers))
 
     if(compute_thermal_disort()) return
     if(handle_twomax_rt_solvers()) return
 
-    do ib=1, num_spectral_bands
+    do ib=spectral_bands(1), spectral_bands(2)
 
       if(need_new_solution(comm, solver%solutions(500+ib), opt_time, solver%lenable_solutions_err_estimates)) then
 
@@ -467,7 +464,7 @@ contains
           col_g  = 0
           col_albedo = albedo
 
-          do ib=1, num_spectral_bands
+          do ib=spectral_bands(1), spectral_bands(2)
           do icol=1,Ncol
 
               if(present(thermal_albedo_2d)) col_albedo = thermal_albedo_2d(icol)
@@ -551,7 +548,7 @@ contains
 
 
       current_ibnd = -1 ! current lw band
-      do ib=1, num_spectral_bands
+      do ib=spectral_bands(1), spectral_bands(2)
         !Compute Plank Emission for nbndlw, Bfrac starts at bot, dim(ke)
         do icol=i1,Ncol
           if(allocated(atm%cfrac)) cfrac = atm%cfrac(:,icol)
@@ -636,7 +633,7 @@ contains
     logical :: need_any_new_solution
 
     logical :: lflg
-    integer(iintegers) :: num_spectral_bands
+    integer(iintegers) :: spectral_bands(2)
 
     integer(mpiint) :: myid,ierr
 
@@ -780,15 +777,12 @@ contains
 
     allocate(tmp(ke, Ncol))
 
-    num_spectral_bands = int(ngptsw, iintegers)
-    call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
-                             "-N_first_bands_only" , num_spectral_bands, lflg , ierr) ;call CHKERR(ierr)
-    num_spectral_bands = min(num_spectral_bands, int(ngptsw, iintegers))
+    spectral_bands = get_spectral_bands(comm, i1, int(ngptsw, iintegers))
 
     if(compute_solar_disort()) return
     if(handle_twomax_rt_solvers()) return
 
-    do ib=1, num_spectral_bands
+    do ib=spectral_bands(1), spectral_bands(2)
 
       if(need_new_solution(comm, solver%solutions(ib), opt_time, solver%lenable_solutions_err_estimates)) then
 
@@ -859,7 +853,7 @@ contains
 
           if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(icol)
 
-          do ib=1, num_spectral_bands
+          do ib=spectral_bands(1), spectral_bands(2)
             if(present(opt_solar_constant)) then
               edirTOA = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
             else
@@ -944,7 +938,7 @@ contains
       call VecGetArrayReadF90(solver%plex%geomVec, geoms, ierr); call CHKERR(ierr)
       call ISGetIndicesF90(toa_ids, xitoa_faces, ierr); call CHKERR(ierr)
 
-      do ib=1, num_spectral_bands
+      do ib=spectral_bands(1), spectral_bands(2)
         if(present(opt_solar_constant)) then
           S0 = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
         else
