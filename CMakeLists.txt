@@ -243,6 +243,7 @@ add_subdirectory (src)
 add_subdirectory (disort)
 
 add_subdirectory(rayli_wrapper)
+add_subdirectory(external)
 
 option(ENABLE_PLEXRT "Enable PLEXRT, Radiative transfer on wedges" OFF)
 if(ENABLE_PLEXRT)
