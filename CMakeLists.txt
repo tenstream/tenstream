@@ -237,13 +237,11 @@ if(ENABLE_IPO)
   endif()
 endif()
 
-
 # Add Source Directories
-add_subdirectory (src)
-add_subdirectory (disort)
-
-add_subdirectory(rayli_wrapper)
 add_subdirectory(external)
+add_subdirectory(src)
+add_subdirectory(disort)
+add_subdirectory(rayli_wrapper)
 
 option(ENABLE_PLEXRT "Enable PLEXRT, Radiative transfer on wedges" OFF)
 if(ENABLE_PLEXRT)
