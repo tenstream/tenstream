@@ -15,10 +15,11 @@ module m_py_param_phi
 
     subroutine py_iterative_phi_theta_from_param_phi_and_param_theta( &
         sphere_radius, dz, Cx, Cy, &
-        param_phi, param_theta, pyphi, pytheta)
+        param_phi, param_theta, pyphi, pytheta, verbose)
 
     double precision, intent(in)  :: param_phi, param_theta, dz, sphere_radius, Cx, Cy
     double precision, intent(out) :: pyphi, pytheta
+    logical, intent(in), optional :: verbose
 
     real(ireals), allocatable :: vertices(:)
     real(ireal_params) :: phi, theta
@@ -30,6 +31,12 @@ module m_py_param_phi
       real([Cx, Cy], ireals), &
       real(dz, ireals), vertices, &
       sphere_radius=real(sphere_radius, ireals))
+
+    if(present(verbose)) then
+      if(verbose) then
+        print *,'Coordinates:', vertices
+      endif
+    endif
 
     call iterative_phi_theta_from_param_phi_and_param_theta(&
       real(vertices, ireal_params), &

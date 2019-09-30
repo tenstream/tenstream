@@ -1276,7 +1276,7 @@ module m_plex_grid
 
       real(ireals) :: side_face_normal_projected_on_upperface(3,3)
 
-      real(ireal_params) :: rparam_phi, rparam_theta
+      real(ireal_params) :: rparam_phi, rparam_theta, n2(3), n3(3), n4(4)
 
       integer(iintegers) :: geom_offset, iedge
       integer(iintegers), target :: points(2)
@@ -1427,10 +1427,13 @@ module m_plex_grid
       local_normal_left = matmul(MrotWorld2Local, face_normals(:, left_face))
       local_normal_right= matmul(MrotWorld2Local, face_normals(:, right_face))
 
+      ! renormalize because of precision gain/loss from ireals to ireal_params
+      call normalize_vec(real(local_normal_base , ireal_params), n2, ierr)
+      call normalize_vec(real(local_normal_left , ireal_params), n3, ierr)
+      call normalize_vec(real(local_normal_right, ireal_params), n4, ierr)
+
       call param_phi_param_theta_from_phi_and_theta_withnormals(&
-        real(local_normal_base , ireal_params), &
-        real(local_normal_left , ireal_params), &
-        real(local_normal_right, ireal_params), &
+        n2, n3, n4, &
         real(Cx, ireal_params), real(Cy, ireal_params), &
         real(azimuth, ireal_params), real(zenith, ireal_params), &
         rparam_phi, rparam_theta, ierr); call CHKERR(ierr)

@@ -46,7 +46,7 @@ module m_helper_functions
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint,            &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
-    solve_quadratic, linspace, assert_arr_is_monotonous, is_between, sEXP, transposed_arr
+    solve_quadratic, linspace, assert_arr_is_monotonous, is_between, sEXP, transposed_arr, triangle_inner_circle_center
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -185,6 +185,9 @@ module m_helper_functions
   end interface
   interface triangle_area_by_edgelengths
     module procedure triangle_area_by_edgelengths_r32, triangle_area_by_edgelengths_r64
+  end interface
+  interface triangle_inner_circle_center
+    module procedure triangle_inner_circle_center_r32, triangle_inner_circle_center_r64
   end interface
 
   interface delta_scale
@@ -1970,6 +1973,29 @@ module m_helper_functions
       e3 = distance(v3,v1)
       triangle_area_by_vertices = triangle_area_by_edgelengths(e1,e2,e3)
     end function
+
+    !> @brief compute the inner circle center of a triangle
+    subroutine triangle_inner_circle_center_r32(p1, p2, p3, center)
+      real(REAL32), dimension(:), intent(in) :: p1, p2, p3
+      real(kind(p1)), dimension(:) :: center
+      real(kind(p1)) :: e1, e2, e3
+      e1 = distance(p2,p3)
+      e2 = distance(p3,p1)
+      e3 = distance(p1,p2)
+
+      center = (e1*p1 + e2*p2 + e3*p3) / (e1+e2+e3)
+    end subroutine
+    subroutine triangle_inner_circle_center_r64(p1, p2, p3, center)
+      real(REAL64), dimension(:), intent(in) :: p1, p2, p3
+      real(kind(p1)), dimension(:) :: center
+      real(kind(p1)) :: e1, e2, e3
+      e1 = distance(p2,p3)
+      e2 = distance(p3,p1)
+      e3 = distance(p1,p2)
+
+      center = (e1*p1 + e2*p2 + e3*p3) / (e1+e2+e3)
+    end subroutine
+
 
     !> @brief determine distance where a photon p intersects with a plane
     !> @details inputs are the location and direction of a photon aswell as the origin and surface normal of the plane

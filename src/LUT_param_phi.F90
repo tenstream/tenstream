@@ -2,7 +2,8 @@ module m_LUT_param_phi
   use iso_fortran_env, only: REAL32, REAL64
   use m_data_parameters, only : irealLUT, mpiint, ireal_dp, ireal_params, ireals
   use m_data_parameters, only: pi=>pi_ireal_params
-  use m_helper_functions, only : angle_between_two_vec, rad2deg, approx, is_between, CHKERR, ftoa
+  use m_helper_functions, only : angle_between_two_vec, rad2deg, approx, is_between, CHKERR, ftoa, solve_quadratic, &
+    normalize_vec
   use m_boxmc_geometry, only: wedge_halfspaces
   implicit none
 
@@ -84,7 +85,6 @@ end function
     ! left_side_face_normal .dot. sunvec_crit === 0
     ! i.e. solve( 0 = n1 * sin ( phi ) * sin(theta) + n2 * cos(phi) * sin(theta) - n3 * cos(theta), phi)
 
-    use m_helper_functions, only: solve_quadratic
     real(ireal_params), intent(in) :: side_normal(3)
     real(ireal_params), intent(in) :: theta ! sun zenith in [rad]
     real(ireal_params), intent(out) :: phic
@@ -94,6 +94,12 @@ end function
     real(ireal_params) :: x(2), y(2)
     !real(ireal_params) :: st, ct
 
+    if(ldebug) then
+      if(.not.approx(norm2(side_normal), 1._ireal_params, 10*epsilon(side_normal))) then
+        call CHKERR(1_mpiint, 'side_normal needs to be normed: '// &
+          ftoa(side_normal)//' ( '//ftoa(norm2(side_normal))//' )')
+      endif
+    endif
     z = -cos(theta)
     a = side_normal(1)**2 + side_normal(2)**2
     if(abs(side_normal(1)).gt.abs(side_normal(2))) then
@@ -238,12 +244,13 @@ end function
 
     real(ireal_dp) :: origins(3,5), normals(3,5)
     real(ireal_params) :: alpha, beta
+    integer(mpiint) :: ierr
 
     call wedge_halfspaces(real(wedge_coords3d, ireal_dp), origins, normals)
 
-    n2 = real(normals(:,2), ireal_params)
-    n3 = real(normals(:,3), ireal_params)
-    n4 = real(normals(:,4), ireal_params)
+    call normalize_vec(real(normals(:,2), ireal_params), n2, ierr); call CHKERR(ierr)
+    call normalize_vec(real(normals(:,3), ireal_params), n3, ierr); call CHKERR(ierr)
+    call normalize_vec(real(normals(:,4), ireal_params), n4, ierr); call CHKERR(ierr)
 
     associate(A => wedge_coords3d(1:3), B => wedge_coords3d(4:6), C => wedge_coords3d(7:9))
       alpha = angle_between_two_vec(B-A, C-A)
