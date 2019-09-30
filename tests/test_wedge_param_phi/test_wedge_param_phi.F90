@@ -176,7 +176,7 @@ contains
     @assertEqual(45._ireal_params, rad2deg(thetac), eps, 'expected 45 degree?')
 
     side_normal = [0._ireal_params, 1._ireal_params, .1_ireal_params]
-    call normalize_vec(side_normal, side_normal, ierr)
+    call normalize_vec(side_normal, ierr)
     phi = deg2rad(0._ireal_params)
     thetac = theta_crit(side_normal, phi)
     theta_target = angle_between_two_vec(side_normal, [0._ireal_params, 0._ireal_params, -1._ireal_params]) - pi_ireal_params/2
