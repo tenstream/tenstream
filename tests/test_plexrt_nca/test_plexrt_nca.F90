@@ -18,7 +18,7 @@ contains
     real(ireals), parameter :: dx1=1e3, dx2=dx1, dx3=dx1, dz=1e3
     real(ireals) :: atop, abot, a1, a2, a3, vol, hr
     real(ireals) :: base_info(7), side_info(3*5)
-    real(ireals), parameter :: kabs=1e-3
+    real(ireals), parameter :: kabs=1e-5
 
     atop = triangle_area_by_edgelengths(dx1, dx2, dx3)
     abot = atop
@@ -31,17 +31,17 @@ contains
     base_info = [        &
             kabs,        & !kabs    
             kabs,        & !kabs_top
-            250._ireals, & !Ldn_top 
-            100._ireals, & !Btop    
+            0._ireals,   & !Ldn_top 
+            1._ireals,   & !Btop    
             kabs,        & !kabs_bot
             0._ireals,   & !Lup_bot 
-            0._ireals    & !Bbot    
+            1._ireals    & !Bbot    
             ]
     side_info(1:5) = [   &
             kabs,        & !kabs
-            250._ireals, & !Ldn_top
+            0._ireals,   & !Ldn_top
             0._ireals,   & !Lup_top
-            250._ireals, & !Ldn_bot
+            0._ireals,   & !Ldn_bot
             0._ireals    & !Lup_bot
             ]
 
@@ -55,7 +55,7 @@ contains
             base_info, side_info, hr)
 
     print *,'hr:', hr
-    @assertEqual(1._ireals, hr, epsilon(hr)*10, 'NCA Heating Test 1 false')
+    @assertEqual(-9.9e-5, hr, epsilon(hr)*10, 'NCA Heating Test 1 false')
 
   end subroutine
 

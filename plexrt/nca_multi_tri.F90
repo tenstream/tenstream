@@ -263,12 +263,14 @@ contains
       ! get tau in vertical dimension (same for all considerations)
       tauz = kabs * dz
 
+      
       ! find emissivity for top face
       ! get tau of average side edge length
       tauhx     = kabs * ( dx1 + dx2 + dx3 ) / 3 * 0.86603
       eps_top   = interpol_emis(tauhx, tauz,  eps_tab_top)
       f_final_t = interpol_2d(asp, tauz, corr_tab_top)
-
+ 
+      
       asp = dz / (( 2._ireals / (( dx1 + dx2 + dx3 ) / 3._ireals )) * abot )
       ! Lookup table from  0.11 to 11, for asp=dz/hc
       if( asp > 11._ireals )then
@@ -342,7 +344,7 @@ contains
       Absdns = ( f1 * Ldn_top_s1 + f2 * Ldn_bot_s1 ) * a1 * eps_s1 * f_final_s1
       Emdns  = -B * a1 * eps_s1 * f_final_s1
 
-
+      
       ! #### Second side face ####
       f1 = atan( kabs_s2 * dz * ( -2.08 / ( dz / dx2 ) )) * 0.31192 + 0.49
       if(f1 < 0._ireals)then
@@ -363,7 +365,7 @@ contains
 
       Absdns = Absdns + ( f1 * Ldn_top_s3 + f2 * Ldn_bot_s3 ) * a3 * eps_s3 * f_final_s3
       Emdns  = Emdns  - B * a3 * eps_s3 * f_final_s3
-
+ 
 
       !#############################################################################################################
 
@@ -414,7 +416,7 @@ contains
       end if
       f2 = 1._ireals - f1
 
-      Absups = Absup + ( f1 * Lup_bot_s2 + f2 * Lup_top_s2 ) * a2 * eps_s2 * f_final_s2
+      Absups = Absups + ( f1 * Lup_bot_s2 + f2 * Lup_top_s2 ) * a2 * eps_s2 * f_final_s2
       Emups  = Emups - B * a2 * eps_s2 * f_final_s2
 
 
@@ -425,13 +427,15 @@ contains
       end if
       f2 = 1._ireals - f1
 
-      Absups = Absup + ( f1 * Lup_bot_s3 + f2 * Lup_top_s3 ) * a3 * eps_s3 * f_final_s3
+      Absups = Absups + ( f1 * Lup_bot_s3 + f2 * Lup_top_s3 ) * a3 * eps_s3 * f_final_s3
       Emups  = Emups - B * a3 * eps_s3 * f_final_s3
 
       ! Calculate total heating rate from single contributions
       hr = ( Absup + Emup + Absdn + Emdn &
            + ( Absups + Emups+ Absdns + Emdns ) / 2._ireals ) / v * pi
 
+     
+      
 #ifndef _XLF
       if(isnan(hr)) print *, 'nca shows nan', hr
 #endif
