@@ -8,8 +8,10 @@
 !----------------------------------------------------------------------------
 
 module m_plexrt_nca
+#include "petsc/finclude/petsc.h"
+  use petsc
   use m_helper_functions, only: CHKERR
-  use m_data_parameters, only : ireals, iintegers, mpiint
+  use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len
   implicit none
 
   private
@@ -23,21 +25,29 @@ module m_plexrt_nca
 contains
   subroutine plexrt_nca_init()
     integer(iintegers) :: i,j
-    integer :: funit
+    integer :: funit, ierr
+    logical :: lflg
 
     integer(iintegers), parameter :: ntau=16, n1=9, n2=36
-    character(len=*), parameter :: eps_tab_side_fname = "Lookup/lookup_side_triangle.dat"
-    character(len=*), parameter :: eps_tab_top_fname  = "Lookup/lookup_top_triangle.dat"
-    character(len=*), parameter :: cor_tab_side_fname = "Lookup/lookup_correct_triangle_side.dat"
-    character(len=*), parameter :: cor_tab_top_fname  = "Lookup/lookup_correct_triangle_top.dat"
+    character(len=*), parameter :: eps_tab_side_fname = "lookup_side_triangle.dat"
+    character(len=*), parameter :: eps_tab_top_fname  = "lookup_top_triangle.dat"
+    character(len=*), parameter :: cor_tab_side_fname = "lookup_correct_triangle_side.dat"
+    character(len=*), parameter :: cor_tab_top_fname  = "lookup_correct_triangle_top.dat"
+    character(len=default_str_len) :: lut_dir
+
+    lut_dir = '.'
+    call PetscInitialized(lflg, ierr)
+    if(lflg) then
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-nca_lut_dir', lut_dir, lflg, ierr); call CHKERR(ierr)
+    endif
 
     ! lookup table for emissivity
-    call load_table(eps_tab_side_fname, ntau, ntau, eps_tab_side)
-    call load_table(eps_tab_top_fname, ntau, ntau, eps_tab_top)
+    call load_table(trim(lut_dir)//'/'//eps_tab_side_fname, ntau, ntau, eps_tab_side)
+    call load_table(trim(lut_dir)//'/'//eps_tab_top_fname, ntau, ntau, eps_tab_top)
 
     ! lookup table for correction
-    call load_table(cor_tab_side_fname, n1, n2, corr_tab_side)
-    call load_table(cor_tab_top_fname, n1, n2, corr_tab_top)
+    call load_table(trim(lut_dir)//'/'//cor_tab_side_fname, n1, n2, corr_tab_side)
+    call load_table(trim(lut_dir)//'/'//cor_tab_top_fname, n1, n2, corr_tab_top)
 
     allocate(tau_hx(ntau))
     allocate(tau_z (ntau))

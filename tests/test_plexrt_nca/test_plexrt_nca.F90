@@ -8,7 +8,6 @@ module test_plexrt_nca
 
     use pfunit_mod
 
-
     implicit none
 
 contains
@@ -29,13 +28,13 @@ contains
     vol = atop * dz
 
     base_info = [        &
-            kabs,        & !kabs    
+            kabs,        & !kabs
             kabs,        & !kabs_top
-            0._ireals,   & !Ldn_top 
-            1._ireals,   & !Btop    
+            0._ireals,   & !Ldn_top
+            1._ireals,   & !Btop
             kabs,        & !kabs_bot
-            0._ireals,   & !Lup_bot 
-            1._ireals    & !Bbot    
+            0._ireals,   & !Lup_bot
+            1._ireals    & !Bbot
             ]
     side_info(1:5) = [   &
             kabs,        & !kabs
@@ -54,9 +53,7 @@ contains
             dz, atop, abot, a1, a2, a3, vol, &
             base_info, side_info, hr)
 
-    print *,'hr:', hr
-    @assertEqual(-9.9e-5, hr, epsilon(hr)*10, 'NCA Heating Test 1 false')
-
+    @assertEqual(-9.9e-5_ireals, hr, 1e-6_ireals, 'NCA Heating Test 1 false')
   end subroutine
 
 end module
