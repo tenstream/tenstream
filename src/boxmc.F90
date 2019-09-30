@@ -32,7 +32,7 @@ module m_boxmc
   use m_helper_functions_dp, only : &
     hit_plane, square_intersection, triangle_intersection, pnt_in_cube
 
-  use m_helper_functions, only : CHKERR, get_arg, itoa, ftoa, cstr, &
+  use m_helper_functions, only : CHKERR, CHKWARN, get_arg, itoa, ftoa, cstr, &
     rotate_angle_x, rotate_angle_y, rotate_angle_z, &
     angle_between_two_vec, rotation_matrix_local_basis_to_world, &
     approx, meanval, rmse, imp_reduce_sum, &
