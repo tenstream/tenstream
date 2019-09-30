@@ -22,6 +22,7 @@ echo "Installing PETSc :: $PETSC_DIR // $PETSC_ARCH // $CC // $FC // $CXX"
 #  --with-valgrind --download-hdf5 --download-zlib --download-openmpi"
 
 PETSC_OPT="\
+  --with-mpiexec=/bin/true \
   --with-fortran --with-fortran-interfaces \
   --with-valgrind --download-hdf5 --download-zlib"
 
