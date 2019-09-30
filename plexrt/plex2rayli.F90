@@ -262,7 +262,8 @@ module m_plex2rayli
     real(ireals) :: opt_photons
 
     integer(c_size_t) :: outer_id
-    logical :: lflg
+    logical :: lcyclic, lflg
+    integer(c_int) :: icyclic
 
     opt_photons = 100000
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
@@ -286,6 +287,15 @@ module m_plex2rayli
     call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
       '-rayli_diff_flx_origin',diffuse_point_origin, idof, lflg, ierr); call CHKERR(ierr)
     if(lflg) call CHKERR(int(idof-i3, mpiint), 'must provide exactly 3 values for rayli_diff_flx_origin')
+
+    lcyclic=.False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+      '-rayli_cylic_bc', lcyclic, lflg, ierr); call CHKERR(ierr)
+    if(lcyclic) then
+      icyclic = 1
+    else
+      icyclic = 0
+    endif
 
     if(solution%lsolar_rad) then
       call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
@@ -371,7 +381,7 @@ module m_plex2rayli
       solution, ierr)
     if(ierr.eq.1) return
 
-    ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, &
+    ierr = rfft_wedgeF90(Nphotons, Nwedges, Nfaces, Nverts, icyclic, &
       verts_of_face, faces_of_wedges, vert_coords, &
       rkabs, rksca, rg, &
       ralbedo_on_faces, rsundir, real(diffuse_point_origin, c_float), &

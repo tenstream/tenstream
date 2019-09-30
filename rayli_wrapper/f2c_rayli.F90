@@ -28,7 +28,7 @@ module m_f2c_rayli
 #ifdef __HAVE_RAYLI__
   interface
     integer(c_int) function rfft_wedgeF90(&
-        Nphotons, Nwedges, Nfaces, Nverts, &
+        Nphotons, Nwedges, Nfaces, Nverts, cyclic, &
         verts_of_face, faces_of_wedges, vert_coords, &
         kabs, ksca, g, albedo_on_faces, sundir, diffuse_point_origin, &
         flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells) &
@@ -38,6 +38,7 @@ module m_f2c_rayli
       integer(c_size_t), value :: Nwedges
       integer(c_size_t), value :: Nfaces
       integer(c_size_t), value :: Nverts
+      integer(c_int)   , value :: cyclic
       integer(c_size_t) :: verts_of_face(1:4,1:Nfaces)
       integer(c_size_t) :: faces_of_wedges(1:5,1:Nfaces)
       real(c_double) :: vert_coords(1:3,1:Nverts)
@@ -82,7 +83,7 @@ module m_f2c_rayli
 
 contains
   integer(c_int) function rfft_wedgeF90(&
-        Nphotons, Nwedges, Nfaces, Nverts, &
+        Nphotons, Nwedges, Nfaces, Nverts, cyclic, &
         verts_of_face, faces_of_wedges, vert_coords, &
         kabs, ksca, g, albedo_on_faces, sundir, diffuse_point_origin, &
         flx_through_faces_edir, flx_through_faces_ediff, abso_in_cells)
@@ -91,6 +92,7 @@ contains
       integer(c_size_t), value :: Nwedges
       integer(c_size_t), value :: Nfaces
       integer(c_size_t), value :: Nverts
+      integer(c_int),    value :: cyclic
       integer(c_size_t), intent(in) :: verts_of_face(:,:)
       integer(c_size_t), intent(in) :: faces_of_wedges(:,:)
       real(c_double), intent(in) :: vert_coords(:,:)
@@ -107,7 +109,7 @@ contains
         " try to export RAYLI_DIR=<rayli-root>/build/package")
 
       if(.False.) then ! unused var warnings
-        flx_through_faces_edir(1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1), c_float)
+        flx_through_faces_edir(1) = real(Nphotons+Nwedges+Nfaces+Nverts+verts_of_face(1,1)+faces_of_wedges(1,1)+lcyclic, c_float)
         flx_through_faces_ediff(1) = real(vert_coords(1,1), c_float) + kabs(1) + ksca(1) + g(1) + sundir(1) + &
           albedo_on_faces(1) + diffuse_point_origin(1)
         abso_in_cells(1) = 0

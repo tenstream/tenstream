@@ -15,6 +15,7 @@ int main() {
     size_t Nwedges = 2; // single wedge + 1 outer domain
     size_t Nfaces = 8;
     size_t Nverts = 6;
+    int    cyclic = 1;
     float  *kabs, *ksca, *g, *albedo;
     float *flx_through_faces_edir, *flx_through_faces_ediff, *abso_in_cells;
     float sundir[] = {0,1/sqrt(2.),1/sqrt(2.)};
@@ -57,7 +58,7 @@ int main() {
 
     fprintf(stderr, "Huhu %s \n", rayli_version());
 
-    ierr = rfft_wedge(Nphotons, Nwedges, Nfaces, Nverts,
+    ierr = rfft_wedge(Nphotons, Nwedges, Nfaces, Nverts, cyclic,
             verts_of_face, wedges_of_face, vert_coords,
             kabs, ksca, g, albedo,
             sundir, diffuse_point_origin,
