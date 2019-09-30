@@ -1276,7 +1276,7 @@ module m_plex_grid
 
       real(ireals) :: side_face_normal_projected_on_upperface(3,3)
 
-      real(ireal_params) :: rparam_phi, rparam_theta, n2(3), n3(3), n4(4)
+      real(ireal_params) :: rparam_phi, rparam_theta, n2(3), n3(3), n4(3)
 
       integer(iintegers) :: geom_offset, iedge
       integer(iintegers), target :: points(2)
