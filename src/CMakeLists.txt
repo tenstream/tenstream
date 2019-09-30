@@ -31,7 +31,7 @@ foreach ( infile ${preprocessing_files} )
   GET_FILENAME_COMPONENT(basename "${infile}" NAME_WE )
 
   SET(outfile "${CMAKE_CURRENT_BINARY_DIR}/${basename}.F90")
-  message(STATUS "Preprocessing ${FYPP_EXE} ${infile} -> ${outfile}")
+  message(STATUS "Preprocessing <${FYPP_EXE}> ${infile} -> ${outfile}")
 
   ADD_CUSTOM_COMMAND(
     OUTPUT "${outfile}"
