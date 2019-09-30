@@ -233,9 +233,9 @@ subroutine test_mpi_reductions(this)
     s = 0
     do i=1, numnodes
       s    = s + i
-      mean = mean + i*(i-1) ! i entries with the value i-1 in them
+      mean = mean + real(i*(i-1), ireals) ! i entries with the value i-1 in them
     enddo
-    mean = mean / s
+    mean = mean / real(s, ireals)
 
     call imp_allreduce_mean(comm, m_ireals, sireals)
     @assertEqual(mean, sireals, epsilon(v_ireals), 'ireals reduce_mean is not correct Nranks:'//itoa(numnodes))

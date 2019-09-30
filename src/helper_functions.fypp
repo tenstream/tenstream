@@ -21,6 +21,9 @@
 #:def ranksuffix(RANK)
 $:'' if RANK == 0 else '(' + ':' + ',:' * (RANK - 1) + ')'
 #:enddef ranksuffix
+#:def rankallocdims(RANK)
+$:'' if RANK == 0 else '('+','.join(['Ntot({})'.format(_) for _ in range(1,RANK+1)]) + ')'
+#:enddef rankallocdims
 
 module m_helper_functions
   use iso_fortran_env, only: INT32, INT64, REAL32, REAL64, REAL128
@@ -114,9 +117,23 @@ module m_helper_functions
     module procedure imp_reduce_mean_1d
   end interface
   interface imp_bcast
-    module procedure imp_bcast_real_1d, imp_bcast_real_3d, imp_bcast_real_5d, &
-        imp_bcast_real32_2d, imp_bcast_real64_2d, imp_bcast_real32_2d_ptr, imp_bcast_real64_2d_ptr, &
-        imp_bcast_int_1d, imp_bcast_int_2d, imp_bcast_int4, imp_bcast_int8, imp_bcast_real, imp_bcast_logical
+#:for method,dtype,mpitype in [ &
+  ('logical', ''      , 'imp_logical'), &
+  ('integer', 'INT32' , 'imp_int4')   , &
+  ('integer', 'INT64' , 'imp_int8')   , &
+  ('real'   , 'REAL32', 'imp_REAL32') , &
+  ('real'   , 'REAL64', 'imp_REAL64')]
+#:for RANK in range(0, 8)
+#:for modifier in [None, 'allocatable', 'pointer']
+#:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
+    module procedure imp_bcast_${method}$_${dtype}$_${RANK}$d_${modifier}$
+#:endif
+#:endfor
+#:endfor
+#:endfor
+!    module procedure imp_bcast_real_1d, imp_bcast_real_3d, imp_bcast_real_5d, &
+!        imp_bcast_real32_2d, imp_bcast_real64_2d, imp_bcast_real32_2d_ptr, imp_bcast_real64_2d_ptr, &
+!        imp_bcast_int_1d, imp_bcast_int_2d, imp_bcast_int4, imp_bcast_int8, imp_bcast_real, imp_bcast_logical
   end interface
   interface get_arg
     module procedure get_arg_logical, get_arg_i32, get_arg_i64, get_arg_real32, get_arg_real64, get_arg_char
@@ -1197,222 +1214,56 @@ module m_helper_functions
       call mpi_allgather(MPI_IN_PLACE, 0_mpiint, MPI_DATATYPE_NULL, v, 1_mpiint, imp_iinteger, comm, mpierr); call CHKERR(mpierr)
     end subroutine
 
-    subroutine  imp_bcast_logical(comm,val,sendid)
+#:for method,dtype,mpitype in [ &
+  ('logical', '', 'imp_logical'), &
+  ('integer', 'INT32', 'imp_int4'), &
+  ('integer', 'INT64', 'imp_int8'), &
+  ('real', 'REAL32', 'imp_REAL32'), &
+  ('real', 'REAL64', 'imp_REAL64')]
+#:set dKIND = '' if method == 'logical' else '('+dtype+')'
+#:for RANK in range(0, 8)
+#:for modifier in [None, 'allocatable', 'pointer']
+#:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
+    subroutine  imp_bcast_${method}$_${dtype}$_${RANK}$d_${modifier}$(comm,arr,sendid)
       integer(mpiint),intent(in) :: comm
-      logical,intent(inout) :: val
+      ${method}$ ${dKIND}$ #{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
       integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-
-      call mpi_bcast(val, 1_mpiint, imp_logical, sendid, comm, mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine  imp_bcast_int4(comm,val,sendid)
-      integer(mpiint),intent(in) :: comm
-      integer(kind=4),intent(inout) :: val
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-
-      call mpi_bcast(val,1_mpiint,imp_int4,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine  imp_bcast_int8(comm,val,sendid)
-      integer(mpiint),intent(in) :: comm
-      integer(kind=8),intent(inout) :: val
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-
-      call mpi_bcast(val,1_mpiint,imp_int8,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine  imp_bcast_int_1d(comm,arr,sendid)
-      integer(mpiint),intent(in) :: comm
-      integer(iintegers),allocatable,intent(inout) :: arr(:)
-      integer(mpiint),intent(in) :: sendid
+      integer(mpiint) :: commsize, ierr
+#:if RANK > 0
       integer(mpiint) :: myid
-
-      integer(iintegers) :: Ntot
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
-
-      if(sendid.eq.myid) Ntot = size(arr)
-      call mpi_bcast(Ntot,1_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
-
-      if(myid.ne.sendid) allocate( arr(Ntot) )
-      call mpi_bcast(arr,size(arr),imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine  imp_bcast_int_2d(comm,arr,sendid)!
-      integer(mpiint),intent(in) :: comm
-      integer(iintegers),allocatable,intent(inout) :: arr(:,:)
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: myid
-
-      integer(iintegers) :: Ntot(2)
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
+      integer(iintegers) :: Ntot(${RANK}$)
+#:endif
+      call MPI_Comm_size( comm, commsize, ierr); call CHKERR(ierr)
       if(commsize.le.1) return
 
+#:if RANK==0
+      call mpi_bcast(arr,1_mpiint,${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
+#:else
+      call mpi_comm_rank( comm, myid, ierr); call chkerr(ierr)
       if(sendid.eq.myid) Ntot = shape(arr)
-      call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
 
-      if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
-      call mpi_bcast(arr,size(arr),imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
+      call mpi_bcast(Ntot,${RANK}$_mpiint,imp_iinteger,sendid,comm,ierr); call CHKERR(ierr)
+
+      if(myid.ne.sendid) then
+#:if modifier == 'allocatable'
+        if(allocated(arr)) &
+          call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank')
+#:endif
+#:if modifier is not None
+        allocate( arr ${rankallocdims(RANK)}$ )
+#:endif
+
+        if(.not.all(shape(arr).eq.Ntot)) &
+          call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank.'// &
+          ' However, it has the wrong shape: send_array is shape '//itoa(Ntot)//' inp_arr is shape '//itoa(shape(arr)))
+      endif
+      call mpi_bcast(arr,size(arr),${mpitype}$,sendid,comm,ierr); call CHKERR(ierr)
+#:endif
     end subroutine
-    subroutine  imp_bcast_real(comm,val,sendid)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),intent(inout) :: val
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-
-      call mpi_bcast(val,1_mpiint,imp_ireals,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine  imp_bcast_real_1d(comm,arr,sendid)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),allocatable,intent(inout) :: arr(:)
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: myid
-
-      integer(iintegers) :: Ntot
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
-
-      if(sendid.eq.myid) Ntot = size(arr)
-      call mpi_bcast(Ntot,1_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
-
-      if(myid.ne.sendid) allocate( arr(Ntot) )
-      call mpi_bcast(arr,size(arr),imp_ireals,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
-
-    subroutine  imp_bcast_real32_2d_ptr(comm,arr,sendid)
-      integer(mpiint),intent(in) :: comm
-      real(REAL32),pointer,intent(inout) :: arr(:,:)
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: myid
-
-      integer(iintegers) :: Ntot(2)
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
-
-      if(sendid.eq.myid) Ntot = shape(arr)
-      call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
-
-      if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
-      call mpi_bcast(arr,size(arr),imp_REAL32,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine  imp_bcast_real64_2d_ptr(comm,arr,sendid)
-      integer(mpiint),intent(in) :: comm
-      real(REAL64),pointer,intent(inout) :: arr(:,:)
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: myid
-
-      integer(iintegers) :: Ntot(2)
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
-
-      if(sendid.eq.myid) Ntot = shape(arr)
-      call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
-
-      if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
-      call mpi_bcast(arr,size(arr),imp_REAL64,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine  imp_bcast_real32_2d(comm,arr,sendid)
-      integer(mpiint),intent(in) :: comm
-      real(REAL32),allocatable,intent(inout) :: arr(:,:)
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: myid
-
-      integer(iintegers) :: Ntot(2)
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
-
-      if(sendid.eq.myid) Ntot = shape(arr)
-      call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
-
-      if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
-      call mpi_bcast(arr,size(arr),imp_REAL32,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine  imp_bcast_real64_2d(comm,arr,sendid)
-      integer(mpiint),intent(in) :: comm
-      real(REAL64),allocatable,intent(inout) :: arr(:,:)
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: myid
-
-      integer(iintegers) :: Ntot(2)
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
-
-      if(sendid.eq.myid) Ntot = shape(arr)
-      call mpi_bcast(Ntot,2_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
-
-      if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2)) )
-      call mpi_bcast(arr,size(arr),imp_REAL64,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine  imp_bcast_real_3d(comm,arr,sendid)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),allocatable,intent(inout) :: arr(:,:,:)
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: myid
-
-      integer(iintegers) :: Ntot(3)
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size( comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
-
-      if(sendid.eq.myid) Ntot = shape(arr)
-      call mpi_bcast(Ntot,3_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
-
-      if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3) ) )
-      call mpi_bcast(arr,size(arr),imp_ireals,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
-    subroutine  imp_bcast_real_5d(comm,arr,sendid)
-      integer(mpiint),intent(in) :: comm
-      real(ireals),allocatable,intent(inout) :: arr(:,:,:,:,:)
-      integer(mpiint),intent(in) :: sendid
-      integer(mpiint) :: myid
-
-      integer(iintegers) :: Ntot(5)
-      integer(mpiint) :: commsize
-      integer(mpiint) :: mpierr
-      call MPI_Comm_size(comm, commsize, mpierr); call CHKERR(mpierr)
-      if(commsize.le.1) return
-      call MPI_Comm_rank( comm, myid, mpierr); call CHKERR(mpierr)
-
-      if(sendid.eq.myid) Ntot = shape(arr)
-      call mpi_bcast(Ntot,5_mpiint,imp_iinteger,sendid,comm,mpierr); call CHKERR(mpierr)
-
-      if(myid.ne.sendid) allocate( arr(Ntot(1), Ntot(2), Ntot(3), Ntot(4), Ntot(5) ) )
-      call mpi_bcast(arr,size(arr),imp_ireals,sendid,comm,mpierr); call CHKERR(mpierr)
-    end subroutine
+#:endif
+#:endfor
+#:endfor
+#:endfor
 
     elemental subroutine delta_scale_r32(kabs, ksca, g, opt_f, max_g)
       real(REAL32),intent(inout) :: kabs, ksca, g
