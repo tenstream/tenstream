@@ -161,11 +161,12 @@ contains
 
     subroutine plexrt_nca (dx1, dx2, dx3, dz, atop, abot, a1, a2, a3, v, &
         base_info, side_info, hr)
-      real(ireals), intent(in) :: dx1, dx2, dx3          ! edge lengths of triangle: dx1, dx2, dx3
-      real(ireals), intent(in) :: a1, a2, a3, atop, abot ! area of side faces and top and bot faces
-      real(ireals), intent(in) :: dz, v                  ! height of grid box and volume
+      real(ireals), intent(in) :: dx1, dx2, dx3          ! edge lengths of triangle: dx1, dx2, dx3 [m]
+      real(ireals), intent(in) :: a1, a2, a3, atop, abot ! area of side faces and top and bot faces [m**2]
+      real(ireals), intent(in) :: dz, v                  ! height of grid box and volume [m], [m**3]
 
-      ! info on this voxel dim(7) ( kabs, kabs_top, Ldn_top, Btop, kabs_bot, Lup_bot, Bbot)
+      ! info on this voxel dim(7) ( kabs, kabs_top, Edn_top, Btop, kabs_bot, Eup_bot, Bbot)
+      ! kabs in [1/m]; E in [w/m2]; B in [W/m2]
       real(ireals), intent(in), dimension(:) :: base_info
 
       ! info for each of the side voxels dim(3 * 5) ( kabs, Edn_top, Eup_top, Edn_bot, Eup_bot )
@@ -235,12 +236,6 @@ contains
                  Ldn_bot_s3  => side_info(14)/pi, &
                  Lup_bot_s3  => side_info(15)/pi )
 
-      !print *,'kabs', kabs, kabs_top, kabs_bot, kabs_s1, kabs_s2, kabs_s3
-      !print *,'B', Btop, Bbot
-      !print *,'Ldn', Ldn_top, Ldn_top_s1, Ldn_bot_s1, Ldn_top_s2, Ldn_bot_s2, Ldn_top_s3, Ldn_bot_s3
-      !print *,'Lup', Lup_bot, Lup_top_s1, Lup_bot_s1, Lup_top_s2, Lup_bot_s2, Lup_top_s3, Lup_bot_s3
-      !print *,''
-
       ! ## Average Planck of layer
       B = ( Btop + Bbot ) / 2._ireals
 
@@ -309,9 +304,9 @@ contains
       Absdns = 0
       Emdns = 0
 
-      call Absside(kabs_s1, dz, dx1, Ldn_bot_s1, Ldn_top_s1, a1, eps_s1, f_final_s1, Absdns, Emdns)
-      call Absside(kabs_s2, dz, dx2, Ldn_bot_s2, Ldn_top_s2, a2, eps_s2, f_final_s2, Absdns, Emdns)
-      call Absside(kabs_s3, dz, dx3, Ldn_bot_s3, Ldn_top_s3, a3, eps_s3, f_final_s3, Absdns, Emdns)
+      call Absside(kabs_s1, dz, dx1, Ldn_top_s1, Ldn_bot_s1, a1, eps_s1, f_final_s1, Absdns, Emdns)
+      call Absside(kabs_s2, dz, dx2, Ldn_top_s2, Ldn_bot_s2, a2, eps_s2, f_final_s2, Absdns, Emdns)
+      call Absside(kabs_s3, dz, dx3, Ldn_top_s3, Ldn_bot_s3, a3, eps_s3, f_final_s3, Absdns, Emdns)
 
       ! #### upwelling ####
       call determine_weights(abot, kabs_bot, w1, w2)
@@ -336,6 +331,18 @@ contains
       hr = ( Absup + Emup + Absdn + Emdn &
            + ( Absups + Emups+ Absdns + Emdns ) / 2._ireals ) / v * pi
 
+      !print *,''
+      !print *,'geoms', dx1, dx2, dx3, V, dz
+      !print *,'areas', a1, a2, a3, atop, abot
+      !print *,'kabs', kabs, kabs_top, kabs_bot, kabs_s1, kabs_s2, kabs_s3
+      !print *,'B', Btop, Bbot
+      !print *,'Ldn', Ldn_top, Ldn_top_s1, Ldn_bot_s1, Ldn_top_s2, Ldn_bot_s2, Ldn_top_s3, Ldn_bot_s3
+      !print *,'Lup', Lup_bot, Lup_top_s1, Lup_bot_s1, Lup_top_s2, Lup_bot_s2, Lup_top_s3, Lup_bot_s3
+
+      !print *,'tau`s', tauhx, tauz
+      !print *,'eps`s', eps_top, eps_bot, eps_s1, eps_s2, eps_s3
+      !print *,'f`s', f_final_t, f_final_b, f_final_s1, f_final_s2, f_final_s3
+
       end associate
       contains
         ! Fit was made form 0.1 to 10, for asp=dz/hc
@@ -358,8 +365,8 @@ contains
           w2 = 1._ireals - w1
         end subroutine
 
-        subroutine Absside(kabs, dz, dx, Lup_bot, Lup_top, area, eps, f_final, rAbs, rEms)
-          real(ireals), intent(in) :: kabs, dz, dx, Lup_bot, Lup_top, area, eps, f_final
+        subroutine Absside(kabs, dz, dx, L1, L2, area, eps, f_final, rAbs, rEms)
+          real(ireals), intent(in) :: kabs, dz, dx, L1, L2, area, eps, f_final
           real(ireals), intent(inout) :: rAbs, rEms
           real(ireals) :: f1, f2
           f1 = atan( kabs * dz * ( -2.08 / ( dz / dx ) )) * 0.31192 + 0.49
@@ -368,8 +375,8 @@ contains
           end if
           f2 = 1._ireals - f1
 
-          rAbs = rAbs + ( f1 *Lup_bot + f2 * Lup_top ) * area * eps * f_final
-          rEms = rEms -B * a1 * eps * f_final
+          rAbs = rAbs + ( f1 *L1 + f2 * L2 ) * area * eps * f_final
+          rEms = rEms -B * area * eps * f_final
         end
     end subroutine plexrt_nca
 
@@ -453,7 +460,7 @@ contains
     end if
 
     !correct monte carlo noise in lookup table for high optical thickness (must be 1 in the limit)
-    emis = min(emis,real(1._ireals))
+    emis = min(emis,1._ireals)
   end function interpol_emis
 
   ! ################################################################################
