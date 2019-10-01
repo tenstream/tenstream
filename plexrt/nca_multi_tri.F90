@@ -10,8 +10,9 @@
 module m_plexrt_nca
 #include "petsc/finclude/petsc.h"
   use petsc
-  use m_helper_functions, only: CHKERR
-  use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len
+  use m_helper_functions, only: CHKERR, CHKWARN, imp_bcast
+  use m_data_parameters, only : ireals, iintegers, mpiint, default_str_len, pi
+  use m_netcdfio, only: ncload
   implicit none
 
   private
@@ -23,17 +24,37 @@ module m_plexrt_nca
   real(ireals), dimension(:)  , allocatable :: var_1, var_2
 
 contains
-  subroutine plexrt_nca_init()
-    integer(iintegers) :: i,j
-    integer :: funit, ierr
+  subroutine plexrt_nca_init(comm)
+    integer(mpiint), intent(in) :: comm
+    integer(mpiint) :: myid, ierr
     logical :: lflg
 
-    integer(iintegers), parameter :: ntau=16, n1=9, n2=36
-    character(len=*), parameter :: eps_tab_side_fname = "lookup_side_triangle.dat"
-    character(len=*), parameter :: eps_tab_top_fname  = "lookup_top_triangle.dat"
-    character(len=*), parameter :: cor_tab_side_fname = "lookup_correct_triangle_side.dat"
-    character(len=*), parameter :: cor_tab_top_fname  = "lookup_correct_triangle_top.dat"
     character(len=default_str_len) :: lut_dir
+
+    if(any([ &
+      allocated(eps_tab_side), &
+      allocated(eps_tab_top), &
+      allocated(corr_tab_side), &
+      allocated(corr_tab_top), &
+      allocated(tau_hx), &
+      allocated(tau_z), &
+      allocated(var_1), &
+      allocated(var_2)])) then
+      if(.not.all([ &
+        allocated(eps_tab_side), &
+        allocated(eps_tab_top), &
+        allocated(corr_tab_side), &
+        allocated(corr_tab_top), &
+        allocated(tau_hx), &
+        allocated(tau_z), &
+        allocated(var_1), &
+        allocated(var_2)])) then
+          call CHKERR(1_mpiint, 'Huh, I found some allocated arrays from NCA but not all!'// &
+          'Something must have gone wrong when we called init')
+      endif
+    endif
+
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
     lut_dir = '.'
     call PetscInitialized(lflg, ierr)
@@ -41,59 +62,42 @@ contains
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-nca_lut_dir', lut_dir, lflg, ierr); call CHKERR(ierr)
     endif
 
-    ! lookup table for emissivity
-    call load_table(trim(lut_dir)//'/'//eps_tab_side_fname, ntau, ntau, eps_tab_side)
-    call load_table(trim(lut_dir)//'/'//eps_tab_top_fname, ntau, ntau, eps_tab_top)
+    ! TODO: Caro you had +2 as dimension for var_1 and var_2 but this does not fit with the static allocations you had
+    call loadvar_2d('eps_side' , eps_tab_side )
+    call loadvar_2d('eps_top'  , eps_tab_top  )
+    call loadvar_2d('corr_side', corr_tab_side)
+    call loadvar_2d('corr_top' , corr_tab_top )
+    call loadvar_1d('tau_hx'   , tau_hx       )
+    call loadvar_1d('tau_z'    , tau_z        )
+    call loadvar_1d('var_1'    , var_1        )
+    call loadvar_1d('var_2'    , var_2        )
 
-    ! lookup table for correction
-    call load_table(trim(lut_dir)//'/'//cor_tab_side_fname, n1, n2, corr_tab_side)
-    call load_table(trim(lut_dir)//'/'//cor_tab_top_fname, n1, n2, corr_tab_top)
-
-    allocate(tau_hx(ntau))
-    allocate(tau_z (ntau))
-
-    tau_hx(:) = [0.0001, 0.00025, 0.000625, 0.0015625, 0.00390625, &
-         0.00976562, 0.0244141, 0.0610352, 0.152588, 0.38147, 0.953674, &
-         2.38419, 5.96046, 14.9012, 37.2529, 93.1323]
-
-    tau_z(:) = [0.0001, 0.00025, 0.000625, 0.0015625, 0.00390625, &
-         0.00976562, 0.0244141, 0.0610352, 0.152588, 0.38147, 0.953674, &
-         2.38419, 5.96046, 14.9012, 37.2529, 93.1323]
-
-    allocate(var_1(n1+2))
-    allocate(var_2(n2+2))
-    !var_1(:) = [0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0]
-    var_1(:) = [0.11547, 0.23094, 0.34641, 0.57735, 1.1547, 2.3094, &
-         3.4641, 5.7735, 11.547]
-
-    var_2(:) = [0.00015, 0.000225, 0.000338, 0.000506, 0.000759, &
-         0.001139, 0.001709, 0.002563, 0.003844, 0.005766, 0.00865, &
-         0.012975, 0.019462, 0.029193, 0.043789, 0.065684, 0.098526, &
-         0.147789, 0.221684, 0.332526, 0.498789, 0.748183, 1.12227, &
-         1.68341, 2.52512, 3.78768, 5.68151, 8.52227, 12.7834, 19.1751, &
-         28.7627, 43.144, 64.716, 97.074, 145.611, 218.416]
   contains
-    subroutine load_table(fname, n1, n2, arr)
-      character(len=*), intent(in) :: fname
-      integer(iintegers), intent(in) :: n1, n2
-      real(ireals), allocatable, intent(inout) :: arr(:,:)
-      logical :: lexists
-      real(ireals) :: tmp
-
-      if(.not.allocated(arr)) then
-        allocate(arr(n1,n2))
-
-        inquire(file=trim(fname), exist=lexists)
-        if(.not.lexists) call CHKERR(1_mpiint, 'Could not find NCA LUT : '//trim(fname))
-
-        open (newunit=funit, file=trim(fname), status="old", action="read")
-        do i = 1, n1
-          do j = 1, n2
-            read(funit,*) tmp, tmp, arr(i,j)
-          end do
-        end do
-        close(funit)
+    subroutine loadvar_1d(vname, arr)
+      character(len=*), intent(in) :: vname
+      real(ireals), allocatable, intent(inout) :: arr(:)
+      character(len=default_str_len) :: groups(2)
+      if(myid.eq.0) then
+        groups(1) = trim(lut_dir)//'/nca_data.nc'
+        if(.not.allocated(arr)) then
+          groups(2) = vname
+          call ncload(groups, arr, ierr); call CHKERR(ierr)
+        endif
       endif
+      call imp_bcast(comm, arr, 0_mpiint)
+    end subroutine
+    subroutine loadvar_2d(vname, arr)
+      character(len=*), intent(in) :: vname
+      real(ireals), allocatable, intent(inout) :: arr(:,:)
+      character(len=default_str_len) :: groups(2)
+      if(myid.eq.0) then
+        groups(1) = trim(lut_dir)//'/nca_data.nc'
+        if(.not.allocated(arr)) then
+          groups(2) = vname
+          call ncload(groups, arr, ierr); call CHKERR(ierr)
+        endif
+      endif
+      call imp_bcast(comm, arr, 0_mpiint)
     end subroutine
   end subroutine
 

@@ -54,6 +54,7 @@ module m_plex_grid
     type(tDM), allocatable :: wedge_orientation_dm
     type(tDM), allocatable :: srfc_boundary_dm
     type(tDM), allocatable :: rayli_dm
+    type(tDM), allocatable :: nca_dm
     type(tVec), allocatable :: geomVec ! see compute_face_geometry for details
     type(tVec), allocatable :: wedge_orientation ! see compute_wedge_orientation
 
@@ -112,6 +113,7 @@ module m_plex_grid
       call dealloc_dm(plex%wedge_orientation_dm)
       call dealloc_dm(plex%srfc_boundary_dm)
       call dealloc_dm(plex%rayli_dm)
+      call dealloc_dm(plex%nca_dm)
 
       plex%pStart = -1; plex%pEnd = -1
       plex%cStart = -1; plex%cEnd = -1

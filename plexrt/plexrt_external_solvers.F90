@@ -3,7 +3,7 @@ module m_plexrt_external_solvers
   use petsc
 
   use m_data_parameters, only: ireals, iintegers, mpiint, &
-    i0, i1, i2, i3, zero
+    i0, i1, i2, i3, i4, i5, zero
   use m_helper_functions, only: CHKERR, angle_between_two_vec, delta_scale
 
   use m_pprts_base, only : t_state_container
@@ -12,11 +12,13 @@ module m_plexrt_external_solvers
   use m_plex_grid, only: t_plexgrid, &
     get_inward_face_normal, &
     get_consecutive_vertical_cell_idx, &
-    TOAFACE
+    TOAFACE, create_plex_section
 
   use m_schwarzschild, only: schwarzschild, B_eff
   use m_twostream, only: delta_eddington_twostream
   use m_tenstr_disort, only: default_flx_computation
+
+  use m_plexrt_nca, only: plexrt_nca_init, plexrt_nca
 
   implicit none
 
@@ -526,4 +528,233 @@ contains
     solution%lchanged  = .False.
   end subroutine
 
+  !> @brief wrapper to apply NCA on (preferably 1D) solutions
+  subroutine plexrt_NCA_wrapper(solver, solution, ierr)
+    class(t_plex_solver), intent(inout) :: solver
+    type(t_state_container), intent(inout) :: solution
+    integer(mpiint) :: comm, myid, ierr
+
+    ! NCA Variables
+    real(ireals) :: dx(3)                  ! edge lengths of triangle: dx1, dx2, dx3
+    real(ireals) :: areas(5)               ! area of side faces and top and bot faces
+    real(ireals) :: dz, volume             ! height of grid box and volume
+    real(ireals) :: base_info(7)           ! current voxel ( Edn_top, Btop, Eup_bot, Bbot, kabs, kabs_top, kabs_bot)
+    real(ireals) :: side_info(15)          ! side voxels dim(3 * 5) ( Edn_top, Eup_top, Edn_bot, Eup_bot, kabs)
+    real(ireals) :: hr ! new 3D heating rate in the voxel
+
+    type(tPetscSection) :: geom_section, ediff_section, plck_section, abso_section, nca_section
+    integer(iintegers) :: geom_offset, nca_offset
+
+    integer(iintegers) :: icell, iface, iside, iedge, isup, nca_iface, neigh_cell, cStart, cEnd
+    integer(iintegers) :: top_face, bot_face, voff
+    integer(iintegers), pointer :: faces_of_cell(:), nca_faces_of_cell(:), cell_support(:)
+
+    integer(iintegers), target :: points(2)
+    integer(iintegers), pointer :: ppoints(:), coveredPoints(:)
+
+    real(ireals), pointer :: xgeoms(:), xkabs(:), xplck(:), xediff(:), xabso(:), xnca(:)
+
+    type(tVec) :: lnca ! has 5 dof on cells for ( Edn_top, Eup_top, Edn_bot, Eup_bot, kabs )
+
+    if(solution%lsolar_rad) call CHKERR(1_mpiint, 'Tried calling NCA for solar calculation!')
+    if(.not.solution%lWm2_diff) call CHKERR(1_mpiint, 'Tried to compute NCA on solution which is not in [W per m2]')
+    ierr = 0
+
+    call PetscObjectGetComm(solver%plex%abso_dm, comm, ierr); call CHKERR(ierr)
+    call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+    call plexrt_nca_init(comm)
+
+    if(.not.allocated(solver%plex%nca_dm)) call generate_NCA_dm(solver%plex)
+    call DMGetLocalVector(solver%plex%nca_dm, lnca, ierr); call CHKERR(ierr)
+
+    call DMGetSection(solver%plex%ediff_dm, ediff_section, ierr); call CHKERR(ierr)
+    call DMGetSection(solver%plex%horizface1_dm, plck_section, ierr); call CHKERR(ierr)
+    call DMGetSection(solver%plex%geom_dm, geom_section, ierr); call CHKERR(ierr)
+    call DMGetSection(solver%plex%abso_dm, abso_section, ierr); call CHKERR(ierr)
+    call DMGetSection(solver%plex%nca_dm, nca_section, ierr); call CHKERR(ierr)
+
+    call VecGetArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(solver%plck, xplck, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+    call VecGetArrayReadF90(solver%plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+    call VecGetArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
+
+    call fill_nca_vec(solver%plex, lnca)
+
+    call VecGetArrayReadF90(lnca, xnca, ierr); call CHKERR(ierr)
+
+    call DMPlexGetHeightStratum(solver%plex%abso_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+    do icell = cStart, cEnd-1
+      call PetscSectionGetFieldOffset(geom_section, icell, i2, geom_offset, ierr); call CHKERR(ierr)
+      volume = xgeoms(i1+geom_offset)
+      call PetscSectionGetFieldOffset(geom_section, icell, i3, geom_offset, ierr); call CHKERR(ierr)
+      dz = xgeoms(i1+geom_offset)
+
+      call DMPlexGetCone(solver%plex%abso_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+      call DMPlexGetCone(solver%plex%nca_dm, icell, nca_faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+      top_face = faces_of_cell(1)
+      bot_face = faces_of_cell(2)
+
+      call PetscSectionGetFieldOffset(plck_section, top_face, i0, voff, ierr); call CHKERR(ierr)
+      base_info(2) = xplck(i1+voff)
+      call PetscSectionGetFieldOffset(plck_section, bot_face, i0, voff, ierr); call CHKERR(ierr)
+      base_info(4) = xplck(i1+voff)
+
+      call PetscSectionGetFieldOffset(plck_section, bot_face, i0, voff, ierr); call CHKERR(ierr)
+
+      do iside = 1, size(faces_of_cell)
+        call PetscSectionGetFieldOffset(geom_section, faces_of_cell(iside), i2, geom_offset, ierr); call CHKERR(ierr)
+        areas(iside) = xgeoms(i1+geom_offset)
+      enddo
+
+      ! Find side_info
+      do iside=1,3
+        iface = faces_of_cell(2+iside)
+        nca_iface = nca_faces_of_cell(2+iside)
+
+        ! Determine edge length of edge between base face and upper face triangle
+        ppoints => points
+        points = [top_face, iface]
+        call DMPlexGetMeet(solver%plex%abso_dm, i2, ppoints, coveredPoints, ierr); call CHKERR(ierr)
+        iedge = coveredPoints(1)
+        call DMPlexRestoreMeet(solver%plex%abso_dm, i2, ppoints, coveredPoints, ierr); call CHKERR(ierr)
+        call PetscSectionGetOffset(geom_section, iedge, geom_offset, ierr); call CHKERR(ierr)
+        dx(iside) = xgeoms(i1+geom_offset)
+
+        ! Determine edge length of edge between base face and lower face triangle
+        ppoints => points
+        points = [bot_face, iface]
+        call DMPlexGetMeet(solver%plex%abso_dm, i2, ppoints, coveredPoints, ierr); call CHKERR(ierr)
+        iedge = coveredPoints(1)
+        call DMPlexRestoreMeet(solver%plex%abso_dm, i2, ppoints, coveredPoints, ierr); call CHKERR(ierr)
+        call PetscSectionGetOffset(geom_section, iedge, geom_offset, ierr); call CHKERR(ierr)
+        dx(iside) = ( dx(iside) + xgeoms(i1+geom_offset) ) / 2
+
+        neigh_cell = icell ! if we dont have a neighbor, use this cell`s properties
+        call DMPlexGetSupport(solver%plex%nca_dm, nca_iface, cell_support, ierr); call CHKERR(ierr)
+        do isup=1,size(cell_support)
+          if(cell_support(isup).ne.icell) neigh_cell = cell_support(isup)
+        enddo
+        !print *,myid,'icell', icell, 'iface', iface, 'nca_iface', nca_iface, 'neigh_cells', cell_support, '->', neigh_cell
+        call DMPlexRestoreSupport(solver%plex%nca_dm, nca_iface, cell_support, ierr); call CHKERR(ierr)
+
+        call PetscSectionGetFieldOffset(nca_section, neigh_cell, i0, nca_offset, ierr); call CHKERR(ierr)
+        side_info( (iside-1)*5 + i1 : iside*5) = xnca(i1+nca_offset:i5+nca_offset)
+      enddo
+
+      ! Find base_info
+      call PetscSectionGetFieldOffset(nca_section, icell, i0, nca_offset, ierr); call CHKERR(ierr)
+      base_info(1) = xnca(nca_offset+i1)
+      base_info(3) = xnca(nca_offset+i4)
+      base_info(5) = xnca(nca_offset+i5)
+
+      neigh_cell = icell ! if we dont have a neighbor, use this cell`s properties
+      call DMPlexGetSupport(solver%plex%nca_dm, nca_faces_of_cell(1), cell_support, ierr); call CHKERR(ierr)
+      do isup=1,size(cell_support)
+        if(cell_support(isup).ne.icell) neigh_cell = cell_support(isup)
+      enddo
+      call PetscSectionGetFieldOffset(nca_section, neigh_cell, i0, nca_offset, ierr); call CHKERR(ierr)
+      base_info(6) = xnca(nca_offset+i5)
+
+      neigh_cell = icell ! if we dont have a neighbor, use this cell`s properties
+      call DMPlexGetSupport(solver%plex%nca_dm, nca_faces_of_cell(2), cell_support, ierr); call CHKERR(ierr)
+      do isup=1,size(cell_support)
+        if(cell_support(isup).ne.icell) neigh_cell = cell_support(isup)
+      enddo
+      call PetscSectionGetFieldOffset(nca_section, neigh_cell, i0, nca_offset, ierr); call CHKERR(ierr)
+      base_info(7) = xnca(nca_offset+i5)
+
+      call DMPlexRestoreCone(solver%plex%abso_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+      call DMPlexRestoreCone(solver%plex%nca_dm, icell, nca_faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
+
+      call plexrt_nca (dx(1), dx(2), dx(3), dz, &
+        areas(1), areas(2), areas(3), areas(4), areas(5), volume, &
+        base_info, side_info, hr)
+
+      call PetscSectionGetOffset(abso_section, icell, voff, ierr); call CHKERR(ierr)
+      !print *, myid, 'icell', icell, 'before:', xabso(i1+voff), 'after', hr
+      xabso(i1+voff) = hr
+    enddo
+
+    call VecRestoreArrayReadF90(lnca, xnca, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(solver%plck, xplck, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
+    call VecRestoreArrayReadF90(solver%plex%geomVec, xgeoms, ierr); call CHKERR(ierr)
+    call VecRestoreArrayF90(solution%abso, xabso, ierr); call CHKERR(ierr)
+
+    contains
+      subroutine fill_nca_vec(plex, lnca)
+        class(t_plexgrid), intent(in) :: plex
+        type(tVec), intent(inout) :: lnca ! has 5 dof on cells for ( Edn_top, Eup_top, Edn_bot, Eup_bot, kabs )
+        ! Set the side information into the nca_dm global vec and copy that stuff over to neighboring processes
+        type(tVec) :: vnca ! global nca vec
+        type(tIS) :: boundary_ids
+        integer(iintegers), pointer :: xitoa(:), cell_support(:)
+        integer(iintegers), allocatable :: cell_idx(:)
+        integer(iintegers) :: i, k, ke1
+
+        call DMGetGlobalVector(solver%plex%nca_dm, vnca, ierr); call CHKERR(ierr)
+        call VecGetArrayF90(vnca, xnca, ierr); call CHKERR(ierr)
+
+        call DMGetStratumIS(plex%ediff_dm, 'DomainBoundary', TOAFACE, boundary_ids, ierr); call CHKERR(ierr)
+        if (boundary_ids.eq.PETSC_NULL_IS) then ! dont have TOA boundary faces
+        else
+          call ISGetIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+          do i = 1, size(xitoa)
+            iface = xitoa(i)
+            call DMPlexGetSupport(plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+            icell = cell_support(1)
+            call DMPlexRestoreSupport(plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr) ! support of face is cell
+
+            call get_consecutive_vertical_cell_idx(plex, icell, cell_idx)
+            ke1 = size(cell_idx)+1
+            do k = 0, ke1-2
+              call PetscSectionGetFieldOffset(nca_section, cell_idx(k+i1), i0, nca_offset, ierr); call CHKERR(ierr)
+              call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+              xnca(nca_offset+i1) = xediff(i1+voff) ! Edn_top
+              xnca(nca_offset+i2) = xediff(i2+voff) ! Eup_top
+              call PetscSectionGetFieldOffset(ediff_section, iface+k+i1, i0, voff, ierr); call CHKERR(ierr)
+              xnca(nca_offset+i3) = xediff(i1+voff) ! Edn_bot
+              xnca(nca_offset+i4) = xediff(i2+voff) ! Eup_bot
+
+              xnca(nca_offset+i5) = xkabs(i1+icell)
+            enddo
+            ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
+            call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
+            xnca(nca_offset+i3) = xediff(i2+voff) ! Edn_bot
+            xnca(nca_offset+i4) = xediff(i1+voff) ! Eup_bot
+        enddo
+        call ISRestoreIndicesF90(boundary_ids, xitoa, ierr); call CHKERR(ierr)
+      endif
+      call VecRestoreArrayF90(vnca, xnca, ierr); call CHKERR(ierr)
+
+      call DMGlobalToLocalBegin(solver%plex%nca_dm, vnca, INSERT_VALUES, lnca, ierr); call CHKERR(ierr)
+      call DMGlobalToLocalEnd  (solver%plex%nca_dm, vnca, INSERT_VALUES, lnca, ierr); call CHKERR(ierr)
+      call DMRestoreGlobalVector(solver%plex%nca_dm, vnca, ierr); call CHKERR(ierr)
+      end subroutine
+
+      subroutine generate_NCA_dm(plex)
+        class(t_plexgrid), intent(inout) :: plex
+        type(tDM) :: nca_dm
+        type(tPetscSection) :: ncaSection
+        integer(mpiint) :: ierr
+        call DMClone(plex%dm, nca_dm, ierr); ; call CHKERR(ierr)
+        call create_plex_section(nca_dm, 'NCA Section', i1, &
+          [1_iintegers], [i0], [i0], [i0], ncaSection)
+        call DMSetSection(nca_dm, ncaSection, ierr); call CHKERR(ierr)
+        call PetscSectionDestroy(ncaSection, ierr); call CHKERR(ierr)
+        call DMSetAdjacency(nca_dm, i0, PETSC_TRUE, PETSC_FALSE, ierr); call CHKERR(ierr)
+
+        allocate(plex%nca_dm)
+        call DMPlexDistribute(nca_dm, i1, PETSC_NULL_SF, plex%nca_dm, ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(nca_dm, PETSC_NULL_DM, '-show_nca_DM_before', ierr); call CHKERR(ierr)
+        call PetscObjectViewFromOptions(plex%nca_dm, PETSC_NULL_DM, '-show_nca_DM', ierr); call CHKERR(ierr)
+        call DMDestroy(nca_dm, ierr); call CHKERR(ierr)
+        call create_plex_section(plex%nca_dm, 'NCA Section', i1, &
+          [5_iintegers], [i0], [i0], [i0], ncaSection)
+        call DMSetSection(plex%nca_dm, ncaSection, ierr); call CHKERR(ierr)
+        call PetscSectionDestroy(ncaSection, ierr); call CHKERR(ierr)
+      end subroutine
+  end subroutine
 end module
