@@ -75,6 +75,54 @@ contains
   end subroutine
 
   @test(npes =[1])
+  subroutine test_horizontally_homogeneous_layer(this)
+    class (MpiTestMethod), intent(inout) :: this
+    integer(mpiint) :: comm
+    real(ireals), parameter :: dx1=1e3, dx2=dx1, dx3=dx1, dz=1e3
+    real(ireals) :: atop, abot, a1, a2, a3, vol, hr
+    real(ireals) :: base_info(7), side_info(3*5)
+    real(ireals), parameter :: kabs=10
+
+    comm     = this%getMpiCommunicator()
+
+    atop = triangle_area_by_edgelengths(dx1, dx2, dx3)
+    abot = atop
+    a1   = dx1 * dz
+    a2   = dx2 * dz
+    a3   = dx3 * dz
+
+    vol = atop * dz
+
+    base_info = [        &
+      kabs,        & !kabs
+      0._ireals,   & !kabs_top
+      0._ireals,   & !Ldn_top
+      1._ireals,   & !Btop
+      0._ireals,   & !kabs_bot
+      0._ireals,   & !Lup_bot
+      1._ireals    & !Bbot
+      ]
+    side_info(1:5) = [   &
+      kabs,        & !kabs
+      0._ireals,   & !Ldn_top
+     10._ireals,   & !Lup_top
+     10._ireals,   & !Ldn_bot
+      0._ireals    & !Lup_bot
+      ]
+
+    side_info( 6:10) = side_info(1:5)
+    side_info(11:15) = side_info(1:5)
+
+    call plexrt_nca_init(comm)
+
+    call plexrt_nca (dx1, dx2, dx3, &
+      dz, atop, abot, a1, a2, a3, vol, &
+      base_info, side_info, hr)
+
+    @assertEqual(0._ireals, hr, 1e-6_ireals)
+  end subroutine
+
+  @test(npes =[1])
   subroutine test_nca_dmplex_interface(this)
   class (MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: myid, numnodes, comm, ierr
