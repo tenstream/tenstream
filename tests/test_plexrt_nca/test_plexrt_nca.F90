@@ -74,12 +74,12 @@ contains
     @assertEqual(-9.9e-5_ireals, hr, 1e-6_ireals, 'NCA Heating Test 1 false')
   end subroutine
 
-  @test(npes =[2])
+  @test(npes =[1])
   subroutine test_nca_dmplex_interface(this)
   class (MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: myid, numnodes, comm, ierr
 
-    integer(iintegers), parameter :: Nx=2, Ny=3, Nz=6
+    integer(iintegers), parameter :: Nx=2, Ny=3, Nz=4
     real(ireals), parameter :: dz=1_ireals, Ag=1
     real(ireals), parameter :: sundir(3)=[0,0,1]
 

@@ -165,10 +165,10 @@ contains
       real(ireals), intent(in) :: a1, a2, a3, atop, abot ! area of side faces and top and bot faces
       real(ireals), intent(in) :: dz, v                  ! height of grid box and volume
 
-      ! info on this voxel dim(7) ( Edn_top, Btop, Eup_bot, Bbot, kabs, kabs_top, kabs_bot)
+      ! info on this voxel dim(7) ( kabs, kabs_top, Ldn_top, Btop, kabs_bot, Lup_bot, Bbot)
       real(ireals), intent(in), dimension(:) :: base_info
 
-      ! info for each of the side voxels dim(3 * 5) ( Edn_top, Eup_top, Edn_bot, Eup_bot, kabs)
+      ! info for each of the side voxels dim(3 * 5) ( kabs, Edn_top, Eup_top, Edn_bot, Eup_bot )
       real(ireals), intent(in), dimension(:) :: side_info
       real(ireals), intent(out) :: hr        ! new 3D heating rate in the voxel
 
@@ -235,6 +235,11 @@ contains
                  Ldn_bot_s3  => side_info(14)/pi, &
                  Lup_bot_s3  => side_info(15)/pi )
 
+      !print *,'kabs', kabs, kabs_top, kabs_bot, kabs_s1, kabs_s2, kabs_s3
+      !print *,'B', Btop, Bbot
+      !print *,'Ldn', Ldn_top, Ldn_top_s1, Ldn_bot_s1, Ldn_top_s2, Ldn_bot_s2, Ldn_top_s3, Ldn_bot_s3
+      !print *,'Lup', Lup_bot, Lup_top_s1, Lup_bot_s1, Lup_top_s2, Lup_bot_s2, Lup_top_s3, Lup_bot_s3
+      !print *,''
 
       ! ## Average Planck of layer
       B = ( Btop + Bbot ) / 2._ireals
