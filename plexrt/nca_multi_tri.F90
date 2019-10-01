@@ -199,13 +199,8 @@ contains
       real(ireals)           :: l, Trans
 
       ! factors and weights
-      real(ireals)           :: f1
-      real(ireals)           :: f2
       real(ireals)           :: w1,w2
-      real(ireals)           :: wa,wb,wc
-
-      ! Variables from main program
-      real(ireals),parameter :: pi=3.141592653589793
+      real(ireals), parameter :: H=0.86603_ireals
 
       if(.not. all( [ &
         allocated(eps_tab_side), &
@@ -215,13 +210,8 @@ contains
           call CHKERR(1_mpiint, 'called NCA but seems the NCA LUT`s havent been loaded ...'// &
           ' Try to call plexrt_nca_init() first')
 
-      ! Dummy computations to get rid of unused compiler warnings
-      !hr = dx1 + dx2 + dx3 + a1 + a2 + a3 + atop + abot + dz + v + base_info(1) + side_info(1)
-
-
-      ! Get variables form input array and convert flux to radiance
+      ! Get variables from input array and convert flux to radiance
       ! (necessary because of planck - will be converted back at the end)
-
       associate( kabs        => base_info(1),     &
                  kabs_top    => base_info(2),     &
                  Ldn_top     => base_info(3)/pi,  &
@@ -246,22 +236,6 @@ contains
                  Lup_bot_s3  => side_info(15)/pi )
 
 
-
-      ! ###########################################################
-      ! ################# start 3d calculation ####################
-      ! ###########################################################
-
-      ! set and reset boundary conditions
-      Emdn   = 0._ireals
-      Emdns  = 0._ireals
-      Absdn  = 0._ireals
-      Absdns = 0._ireals
-      Emup   = 0._ireals
-      Emups  = 0._ireals
-      Absup  = 0._ireals
-      Absups = 0._ireals
-
-
       ! ## Average Planck of layer
       B = ( Btop + Bbot ) / 2._ireals
 
@@ -277,14 +251,12 @@ contains
       ! get tau in vertical dimension (same for all considerations)
       tauz = kabs * dz
 
-      
       ! find emissivity for top face
       ! get tau of average side edge length
       tauhx     = kabs * ( dx1 + dx2 + dx3 ) / 3 * 0.86603
       eps_top   = interpol_emis(tauhx, tauz,  eps_tab_top)
       f_final_t = interpol_2d(asp, tauz, corr_tab_top)
- 
-      
+
       asp = dz / (( 2._ireals / (( dx1 + dx2 + dx3 ) / 3._ireals )) * abot )
       ! Lookup table from  0.11 to 11, for asp=dz/hc
       if( asp > 11._ireals )then
@@ -295,50 +267,31 @@ contains
 
       ! find emissivity for base face
       ! get tau of average side edge length
-      tauhx     = kabs * ( dx1 + dx2 + dx3 ) / 3 * 0.86603
+      tauhx     = kabs * ( dx1 + dx2 + dx3 ) / 3 * H
       eps_bot   = interpol_emis(tauhx, tauz,  eps_tab_top)
       f_final_b = interpol_2d(asp, tauz, corr_tab_top)
 
       ! find emissivity for side face 1 (index 3)
       ! get tau for specific side edge length
-      tauhx      = kabs * dx1 * 0.86603
+      tauhx      = kabs * dx1 * H
       eps_s1     = interpol_emis(tauhx, tauz, eps_tab_side)
       f_final_s1 = interpol_2d(asp, tauhx, corr_tab_side)
 
       ! find emissivity for side face 2 (index 4)
       ! get tau for specific side edge length
-      tauhx      = kabs * dx2 * 0.86603
+      tauhx      = kabs * dx2 * H
       eps_s2     = interpol_emis(tauhx, tauz, eps_tab_side)
       f_final_s2 = interpol_2d(asp, tauhx, corr_tab_side)
 
       ! find emissivity for side face 3 (index 5)
       ! get tau for specific side edge length
-      tauhx      = kabs * dx3 * 0.86603
+      tauhx      = kabs * dx3 * H
       eps_s3     = interpol_emis(tauhx, tauz, eps_tab_side)
       f_final_s3 = interpol_2d(asp, tauhx, corr_tab_side)
 
 
-      !#############################################################################################################
-
       ! #### downwelling ####
-
-      ! #### top ####
-      ! Fit was made form 0.1 to 10, for asp = dz / hc
-      ! get aspect ratio of
-
-      asp = dz / (( 2._ireals / (( dx1 + dx2 + dx3 ) / 3._ireals )) * atop )
-      if( asp >  10._ireals )then
-         asp = 10._ireals
-      else if( asp < 0.1 )then
-         asp = 0.1
-      end if
-
-      ! get weights for incoming top flux
-      wa = atan( asp * 1.29 ) * ( -0.75 ) + 1.21
-      wb = ( asp**0.027 ) * ( -7.98 ) + asp * ( -0.01 ) + atan( asp * 0.11 ) + 7.36
-      wc = ( asp**0.49 ) * ( 1.46 )   + asp * ( -0.25 ) + atan( asp * (-0.29)) -0.12
-      w1 = atan( kabs_top * dz * wa ) * wb + wc
-      w2 = 1._ireals - w1
+      call determine_weights(atop, kabs_top, w1, w2)
 
       Trans = Ldn_top_s1 + Ldn_top_s2 + Ldn_top_s3  ! side face
       l = w1 * Trans / 3._ireals + Ldn_top * w2     ! weight average of side fluxes and top flux
@@ -348,60 +301,15 @@ contains
       Absdn = l  * atop * eps_top * f_final_t
       Emdn  = -B * atop * eps_top * f_final_t
 
-      ! #### First side face ####
-      f1 = atan( kabs_s1 * dz *( -2.08 / ( dz / dx1 ) )) * 0.31192 + 0.49
-      if( f1 < 0._ireals )then
-         f1 = 0._ireals
-      end if
-      f2 = 1._ireals-f1
+      Absdns = 0
+      Emdns = 0
 
-      Absdns = ( f1 * Ldn_top_s1 + f2 * Ldn_bot_s1 ) * a1 * eps_s1 * f_final_s1
-      Emdns  = -B * a1 * eps_s1 * f_final_s1
-
-      
-      ! #### Second side face ####
-      f1 = atan( kabs_s2 * dz * ( -2.08 / ( dz / dx2 ) )) * 0.31192 + 0.49
-      if(f1 < 0._ireals)then
-         f1 = 0._ireals
-      end if
-      f2 = 1._ireals-f1
-
-      Absdns = Absdns + ( f1 * Ldn_top_s2 + f2 * Ldn_bot_s2 ) * a2 * eps_s2 * f_final_s2
-      Emdns  = Emdns - B * a2 * eps_s2 * f_final_s2
-
-
-      ! #### Third side face ####
-      f1 = atan( kabs_s3 * dz * ( -2.08  / ( dz / dx3 ) )) * 0.31192 + 0.49
-      if( f1 < 0._ireals )then
-         f1 = 0._ireals
-      end if
-      f2 = 1._ireals-f1
-
-      Absdns = Absdns + ( f1 * Ldn_top_s3 + f2 * Ldn_bot_s3 ) * a3 * eps_s3 * f_final_s3
-      Emdns  = Emdns  - B * a3 * eps_s3 * f_final_s3
- 
-
-      !#############################################################################################################
-
+      call Absside(kabs_s1, dz, dx1, Ldn_bot_s1, Ldn_top_s1, a1, eps_s1, f_final_s1, Absdns, Emdns)
+      call Absside(kabs_s2, dz, dx2, Ldn_bot_s2, Ldn_top_s2, a2, eps_s2, f_final_s2, Absdns, Emdns)
+      call Absside(kabs_s3, dz, dx3, Ldn_bot_s3, Ldn_top_s3, a3, eps_s3, f_final_s3, Absdns, Emdns)
 
       ! #### upwelling ####
-
-      ! #### bot ####
-      ! Fit was made form 0.1 to 10, for asp=dz/hc
-
-      asp = dz / (( 2._ireals / (( dx1 + dx2 + dx3 ) / 3._ireals )) *abot )
-      if( asp > 10._ireals )then
-         asp = 10._ireals
-      else if( asp < 0.1 )then
-         asp = 0.1
-      end if
-
-      ! get weights for incoming bot flux
-      wa = atan( asp * 1.29 ) * ( -0.75 ) + 1.21
-      wb = ( asp**0.027 ) * ( -7.98 ) + asp * ( -0.01 ) + atan( asp * 0.11 ) + 7.36
-      wc = ( asp**0.49 ) * ( 1.46 ) + asp * ( -0.25 ) + atan( asp * (-0.29) ) - 0.12
-      w1 = atan( kabs_bot * dz * wa) * wb + wc     ! kabs of grid box (index 0) is needed
-      w2 = 1._ireals - w1
+      call determine_weights(abot, kabs_bot, w1, w2)
 
       Trans = Lup_bot_s1 + Lup_bot_s2 + Lup_bot_s3 ! side face
       l = w1 * Trans / 3._ireals + Lup_bot * w2
@@ -412,49 +320,52 @@ contains
       Absup = l  * abot * eps_bot * f_final_b
       Emup  = -B * abot * eps_bot * f_final_b
 
-      ! ####  First side face ####
-      f1 = atan( kabs_s1 * dz * ( -2.08 / ( dz / dx1 ) )) * 0.31192 + 0.49
-      if( f1 < 0._ireals )then
-         f1 = 0._ireals
-      end if
-      f2 = 1._ireals - f1
+      Absups = 0
+      Emups = 0
 
-      Absups = ( f1 *Lup_bot_s1 + f2 * Lup_top_s1 ) * a1 * eps_s1 * f_final_s1
-      Emups  = -B * a1 * eps_s1 * f_final_s1
-
-
-      ! #### Second side face ####
-      f1 = atan( kabs_s2 * dz *( -2.08 / ( dz / dx2 ) )) * 0.31192 + 0.49
-      if( f1 < 0._ireals )then
-         f1 = 0._ireals
-      end if
-      f2 = 1._ireals - f1
-
-      Absups = Absups + ( f1 * Lup_bot_s2 + f2 * Lup_top_s2 ) * a2 * eps_s2 * f_final_s2
-      Emups  = Emups - B * a2 * eps_s2 * f_final_s2
-
-
-      ! #### Third side face ####
-      f1 = atan( kabs_s3 * dz * ( -2.08 / ( dz / dx3 ) )) * 0.31192 + 0.49
-      if( f1 < 0._ireals )then
-         f1 = 0._ireals
-      end if
-      f2 = 1._ireals - f1
-
-      Absups = Absups + ( f1 * Lup_bot_s3 + f2 * Lup_top_s3 ) * a3 * eps_s3 * f_final_s3
-      Emups  = Emups - B * a3 * eps_s3 * f_final_s3
+      call Absside(kabs_s1, dz, dx1, Lup_bot_s1, Lup_top_s1, a1, eps_s1, f_final_s1, Absups, Emups)
+      call Absside(kabs_s2, dz, dx2, Lup_bot_s2, Lup_top_s2, a2, eps_s2, f_final_s2, Absups, Emups)
+      call Absside(kabs_s3, dz, dx3, Lup_bot_s3, Lup_top_s3, a3, eps_s3, f_final_s3, Absups, Emups)
 
       ! Calculate total heating rate from single contributions
       hr = ( Absup + Emup + Absdn + Emdn &
            + ( Absups + Emups+ Absdns + Emdns ) / 2._ireals ) / v * pi
 
-     
-      
-#ifndef _XLF
-      if(isnan(hr)) print *, 'nca shows nan', hr
-#endif
-
       end associate
+      contains
+        ! Fit was made form 0.1 to 10, for asp=dz/hc
+        subroutine determine_weights(area, kabs, w1, w2)
+          real(ireals), intent(in) :: area, kabs
+          real(ireals), intent(out) :: w1, w2
+          real(ireals) :: asp, wa, wb, wc
+          asp = dz / (( 2._ireals / (( dx1 + dx2 + dx3 ) / 3._ireals )) *area )
+          if( asp > 10._ireals )then
+            asp = 10._ireals
+          else if( asp < 0.1 )then
+            asp = 0.1
+          end if
+
+          ! get weights for incoming bot flux
+          wa = atan( asp * 1.29 ) * ( -0.75 ) + 1.21
+          wb = ( asp**0.027 ) * ( -7.98 ) + asp * ( -0.01 ) + atan( asp * 0.11 ) + 7.36
+          wc = ( asp**0.49 ) * ( 1.46 ) + asp * ( -0.25 ) + atan( asp * (-0.29) ) - 0.12
+          w1 = atan( kabs * dz * wa) * wb + wc     ! kabs of grid box (index 0) is needed
+          w2 = 1._ireals - w1
+        end subroutine
+
+        subroutine Absside(kabs, dz, dx, Lup_bot, Lup_top, area, eps, f_final, rAbs, rEms)
+          real(ireals), intent(in) :: kabs, dz, dx, Lup_bot, Lup_top, area, eps, f_final
+          real(ireals), intent(inout) :: rAbs, rEms
+          real(ireals) :: f1, f2
+          f1 = atan( kabs * dz * ( -2.08 / ( dz / dx ) )) * 0.31192 + 0.49
+          if( f1 < 0._ireals )then
+            f1 = 0._ireals
+          end if
+          f2 = 1._ireals - f1
+
+          rAbs = rAbs + ( f1 *Lup_bot + f2 * Lup_top ) * area * eps * f_final
+          rEms = rEms -B * a1 * eps * f_final
+        end
     end subroutine plexrt_nca
 
 
