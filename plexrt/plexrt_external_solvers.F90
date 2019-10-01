@@ -749,8 +749,14 @@ contains
         allocate(plex%nca_dm)
         call DMPlexDistribute(nca_dm, i1, PETSC_NULL_SF, plex%nca_dm, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(nca_dm, PETSC_NULL_DM, '-show_nca_DM_before', ierr); call CHKERR(ierr)
+
+        if(plex%nca_dm.eq.PETSC_NULL_DM) then
+          plex%nca_dm = nca_dm
+        else
+          call DMDestroy(nca_dm, ierr); call CHKERR(ierr)
+        endif
+
         call PetscObjectViewFromOptions(plex%nca_dm, PETSC_NULL_DM, '-show_nca_DM', ierr); call CHKERR(ierr)
-        call DMDestroy(nca_dm, ierr); call CHKERR(ierr)
         call create_plex_section(plex%nca_dm, 'NCA Section', i1, &
           [5_iintegers], [i0], [i0], [i0], ncaSection)
         call DMSetSection(plex%nca_dm, ncaSection, ierr); call CHKERR(ierr)
