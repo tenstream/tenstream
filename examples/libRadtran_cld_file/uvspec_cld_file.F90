@@ -404,7 +404,7 @@ contains
     Nlev = size(atm%plev,1,kind=iintegers)
     call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex, lpolar_coords=.False.)
 
-    call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
+    call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, reverse(atm%zt(:, i1)))
     deallocate(zindex)
 
     if(myid.eq.0) then

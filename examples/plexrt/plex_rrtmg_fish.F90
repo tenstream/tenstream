@@ -92,7 +92,6 @@ logical, parameter :: ldebug=.True.
         call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf, opt_dx=dx)
       endif
 
-
       hhl(1) = zero
       do k=2,Nz
         hhl(k) = hhl(k-1) + dz
@@ -152,12 +151,13 @@ logical, parameter :: ldebug=.True.
 
       Nlev = size(atm%plev,1,kind=iintegers)
       call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
+
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
+
+      call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, hhl=reverse(atm%zt(:, i1)))
 
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)
       call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
-
-      call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
       deallocate(zindex)
 
       if(lregular_mesh) then
@@ -321,6 +321,7 @@ logical, parameter :: ldebug=.True.
     character(len=10*default_str_len) :: default_options
     integer(iintegers) :: Nx, Ny, Nz
     real(ireals) :: dx, dz, Ag
+
 
     !character(len=*),parameter :: ex_out='plex_ex_dom1_out.h5'
     !character(len=*),parameter :: ex_out='plex_test_out.h5'

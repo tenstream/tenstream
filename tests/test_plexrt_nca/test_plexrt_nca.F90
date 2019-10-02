@@ -5,7 +5,7 @@ use petsc
 use m_tenstream_options, only : read_commandline_options
 use m_data_parameters, only: init_mpi_data_parameters, &
   iintegers, ireals, mpiint, default_str_len, &
-  i0
+  i0, pi
 use m_helper_functions, only: triangle_area_by_edgelengths, chkerr, meanval, itoa
 
 use m_plexrt_nca, only: plexrt_nca_init, plexrt_nca
@@ -81,7 +81,7 @@ contains
     real(ireals), parameter :: dx1=1e3, dx2=dx1, dx3=dx1, dz=1e3
     real(ireals) :: atop, abot, a1, a2, a3, vol, hr
     real(ireals) :: base_info(7), side_info(3*5)
-    real(ireals), parameter :: kabs=10
+    real(ireals), parameter :: kabs=100
 
     comm     = this%getMpiCommunicator()
 
@@ -96,18 +96,18 @@ contains
     base_info = [        &
       kabs,        & !kabs
       0._ireals,   & !kabs_top
-      0._ireals,   & !Ldn_top
-      1._ireals,   & !Btop
+      10._ireals,   & !Ldn_top
+      10._ireals/pi,   & !Btop
       0._ireals,   & !kabs_bot
-      0._ireals,   & !Lup_bot
-      1._ireals    & !Bbot
+      10._ireals,   & !Lup_bot
+      10._ireals/pi    & !Bbot
       ]
     side_info(1:5) = [   &
       kabs,        & !kabs
-      0._ireals,   & !Ldn_top
+     10._ireals,   & !Ldn_top
      10._ireals,   & !Lup_top
      10._ireals,   & !Ldn_bot
-      0._ireals    & !Lup_bot
+     10._ireals    & !Lup_bot
       ]
 
     side_info( 6:10) = side_info(1:5)
@@ -120,9 +120,37 @@ contains
       base_info, side_info, hr)
 
     @assertEqual(0._ireals, hr, 1e-6_ireals)
+
+    base_info = [        &
+      kabs,        & !kabs
+      0._ireals,   & !kabs_top
+     10._ireals,   & !Ldn_top
+     10._ireals/pi,   & !Btop
+      0._ireals,   & !kabs_bot
+     20._ireals,   & !Lup_bot
+     20._ireals/pi    & !Bbot
+      ]
+    side_info(1:5) = [   &
+      kabs,        & !kabs
+     10._ireals,   & !Ldn_top
+     10._ireals,   & !Lup_top
+     20._ireals,   & !Ldn_bot
+     20._ireals    & !Lup_bot
+      ]
+
+    side_info( 6:10) = side_info(1:5)
+    side_info(11:15) = side_info(1:5)
+
+    call plexrt_nca_init(comm)
+
+    call plexrt_nca (dx1, dx2, dx3, &
+      dz, atop, abot, a1, a2, a3, vol, &
+      base_info, side_info, hr)
+
+    !@assertEqual(0._ireals, hr, 1e-6_ireals, 'varying fluxes')
   end subroutine
 
-  @test(npes =[1])
+  @test(npes =[2])
   subroutine test_nca_dmplex_interface(this)
   class (MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: myid, numnodes, comm, ierr
@@ -161,7 +189,7 @@ contains
     call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex, lpolar_coords=.False.)
     call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
 
-    call setup_plexgrid(dm3d, Nz-1, zindex, plex)
+    call setup_plexgrid(dm2d, dm3d, Nz-1, zindex, plex, hhl)
     deallocate(zindex)
 
     call allocate_plexrt_solver_from_commandline(solver, '5_8')

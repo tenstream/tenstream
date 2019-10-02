@@ -12,13 +12,14 @@ module m_plexrt_external_solvers
   use m_plex_grid, only: t_plexgrid, &
     get_inward_face_normal, &
     get_consecutive_vertical_cell_idx, &
-    TOAFACE, create_plex_section
+    TOAFACE, dmplex_set_new_section
 
   use m_schwarzschild, only: schwarzschild, B_eff
   use m_twostream, only: delta_eddington_twostream
   use m_tenstr_disort, only: default_flx_computation
 
   use m_plexrt_nca, only: plexrt_nca_init, plexrt_nca
+  use m_icon_plex_utils, only: dump_ownership, dmplex_2d_to_3d
 
   implicit none
 
@@ -736,31 +737,44 @@ contains
 
       subroutine generate_NCA_dm(plex)
         class(t_plexgrid), intent(inout) :: plex
-        type(tDM) :: nca_dm
-        type(tPetscSection) :: ncaSection
         integer(mpiint) :: ierr
-        call DMClone(plex%dm, nca_dm, ierr); ; call CHKERR(ierr)
-        call create_plex_section(nca_dm, 'NCA Section', i1, &
-          [1_iintegers], [i0], [i0], [i0], ncaSection)
-        call DMSetSection(nca_dm, ncaSection, ierr); call CHKERR(ierr)
-        call PetscSectionDestroy(ncaSection, ierr); call CHKERR(ierr)
-        call DMSetAdjacency(nca_dm, i0, PETSC_TRUE, PETSC_FALSE, ierr); call CHKERR(ierr)
+        !type(tDM) :: dm2d, dm2d_redist
+        !integer(iintegers), allocatable :: zindex(:)
+
+        if(.not.allocated(plex%dm)) call CHKERR(1_mpiint, 'parent dm not allocated')
+        if(plex%dm.eq.PETSC_NULL_DM) call CHKERR(1_mpiint, 'parent dm is null_dm')
+        if(allocated(plex%nca_dm)) call CHKERR(1_mpiint, 'nca_dm already allocated')
 
         allocate(plex%nca_dm)
-        call DMPlexDistribute(nca_dm, i1, PETSC_NULL_SF, plex%nca_dm, ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(nca_dm, PETSC_NULL_DM, '-show_nca_DM_before', ierr); call CHKERR(ierr)
+        !call dump_ownership(plex%dm, '-orig_dump_ownership', '-orig_show_plex')
 
-        if(plex%nca_dm.eq.PETSC_NULL_DM) then
-          plex%nca_dm = nca_dm
-        else
-          call DMDestroy(nca_dm, ierr); call CHKERR(ierr)
-        endif
+        ! TODO: dmplex partitioner redistributes the underlying mesh.
+        !       Therefore, the cell ownerships may change and consequently the meshes dont have the same cell ids
+        !       This is not clear how to manage this. i.e. at the moment NCA is not really parallelized
+        !       until I come up with a good strategy to do so...
+        call DMClone(plex%dm, plex%nca_dm, ierr); call CHKERR(ierr)
 
-        call create_plex_section(plex%nca_dm, 'NCA Section', i1, &
-          [5_iintegers], [i0], [i0], [i0], ncaSection)
-        call DMSetSection(plex%nca_dm, ncaSection, ierr); call CHKERR(ierr)
-        call PetscSectionDestroy(ncaSection, ierr); call CHKERR(ierr)
-        call PetscObjectViewFromOptions(plex%nca_dm, PETSC_NULL_DM, '-show_nca_DM', ierr); call CHKERR(ierr)
+        !call DMClone(plex%dm2d, dm2d, ierr); ; call CHKERR(ierr)
+        !call PetscObjectViewFromOptions(dm2d, PETSC_NULL_DM, '-show_nca_DM_before', ierr); call CHKERR(ierr)
+
+        !dm2d_redist = PETSC_NULL_DM
+        !call DMPlexDistribute(dm2d, i0, PETSC_NULL_SF, dm2d_redist, ierr); call CHKERR(ierr)
+
+        !if(dm2d_redist.eq.PETSC_NULL_DM) then
+        !  call DMClone(dm2d, dm2d_redist, ierr); call CHKERR(ierr)
+        !endif
+        !call DMDestroy(dm2d, ierr); call CHKERR(ierr)
+        !call dump_ownership(dm2d_redist, '-orig2d_dump_ownership', '-orig2d_show_plex')
+
+        !call dmplex_2D_to_3D(dm2d_redist, plex%Nlay+1, plex%hhl1d, plex%nca_dm, zindex)
+        !deallocate(zindex)
+        !call DMDestroy(dm2d_redist, ierr); call CHKERR(ierr)
+
+        call dmplex_set_new_section(plex%nca_dm, 'NCA Section', i1, &
+          [i5], [i0], [i0], [i0])
+
+        !call PetscObjectViewFromOptions(plex%nca_dm, PETSC_NULL_DM, '-show_nca_DM', ierr); call CHKERR(ierr)
+        !call dump_ownership(plex%nca_dm, '-nca_dump_ownership', '-nca_show_plex')
       end subroutine
   end subroutine
 end module

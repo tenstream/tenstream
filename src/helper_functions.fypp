@@ -1246,11 +1246,16 @@ module m_helper_functions
 
       if(myid.ne.sendid) then
 #:if modifier == 'allocatable'
-        if(allocated(arr)) &
-          call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank')
+        if(allocated(arr)) then
+          if(.not.all(shape(arr).eq.Ntot)) &
+            call CHKERR(1_mpiint, 'Called a imp_bcast with an already allocated array on a receiving rank.'// &
+            ' However, it has the wrong shape: send_array is shape '//itoa(Ntot)//' inp_arr is shape '//itoa(shape(arr)))
+        else
+          allocate( arr ${rankallocdims(RANK)}$ )
+        endif
 #:endif
-#:if modifier is not None
-        allocate( arr ${rankallocdims(RANK)}$ )
+#:if modifier == 'pointer'
+        if(.not.associated(arr)) allocate( arr ${rankallocdims(RANK)}$ )
 #:endif
 
         if(.not.all(shape(arr).eq.Ntot)) &

@@ -420,11 +420,11 @@ end function
       rb = phic4
     endif
     if(abs(rb - lb).lt.epsilon(rb)) then
-      print *,'tiny rb-lb:', rb - lb, ':', rb, lb, &
-        'phi:', phi, new_line(''), &
-        ':', phic3         , phie3         , phie4         , phic4         , new_line(''), &
-        ':', rad2deg(phic3), rad2deg(phie3), rad2deg(phie4), rad2deg(phic4), new_line(''), &
-        ':', x1, x2
+      !print *,'tiny rb-lb:', rb - lb, ':', rb, lb, &
+      !  'phi:', phi, new_line(''), &
+      !  ':', phic3         , phie3         , phie4         , phic4         , new_line(''), &
+      !  ':', rad2deg(phic3), rad2deg(phie3), rad2deg(phie4), rad2deg(phic4), new_line(''), &
+      !  ':', x1, x2
       param_phi = (x1+x2)/2
     else
       param_phi = (phi - lb) / (rb - lb) * (x2-x1) + x1

@@ -7,9 +7,11 @@ module test_fish_plex
     i0, i1, i2, i3, i4,         &
     init_mpi_data_parameters
 
+  use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only : CHKERR
 
   use m_icon_plex_utils, only : create_2d_fish_plex
+  use m_plex_grid, only: print_dmplex, dmplex_set_new_section
 
   use pfunit_mod
   implicit none
@@ -26,12 +28,13 @@ contains
       myid     = this%getProcessRank()
 
       call init_mpi_data_parameters(comm)
-
+      call read_commandline_options(comm)
   end subroutine setup
 
   @after
   subroutine teardown(this)
       class (MpiTestMethod), intent(inout) :: this
+      call PetscFinalize(ierr)
       if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
@@ -72,6 +75,9 @@ contains
 
       target_closure(1:14:2) = [3, 8,10,11, 15, 16, 18]
       call check_transclosure(dm, i3, target_closure)
+
+      call DMDestroy(dm, ierr)
+      call DMDestroy(dmdist, ierr)
   end subroutine
 
   @test(npes =[1])
@@ -117,6 +123,9 @@ contains
 
       target_closure(1:14:2) = [15, 38, 42, 43, 56, 57, 60]
       call check_transclosure(dm, target_closure(1), target_closure)
+
+      call DMDestroy(dm, ierr)
+      call DMDestroy(dmdist, ierr)
   end subroutine
 
   subroutine check_transclosure(dm, icell, target_closure)
@@ -141,5 +150,68 @@ contains
       @assertEqual(target_closure(i), transclosure(i))
     enddo
     call DMPlexRestoreTransitiveClosure(dm, i1, PETSC_TRUE, transclosure, ierr); call CHKERR(ierr)
+  end subroutine
+
+  @test(npes =[4])
+  subroutine test_distribute(this)
+      class (MpiTestMethod), intent(inout) :: this
+      type(tDM) :: dm, dmdist, dmoverlap
+      type(tPetscSection) :: section
+      integer(iintegers) :: fStart, fEnd, nr_neighbours
+      integer(iintegers), parameter :: Nx=4*2, Ny=5
+
+      if(myid.eq.0) print *,myid,'starting test_distribute_Nx2_Ny3 test'
+      if(myid.eq.0 .or. myid.eq.numnodes-1) then
+        nr_neighbours = 1
+      else
+        nr_neighbours = 2
+      endif
+
+      call create_2d_fish_plex(comm, Nx, Ny, dm, dmdist)
+      call print_dmplex(comm, dmdist)
+
+      call dmplex_set_new_section(dmdist, 'Face_Section', i1, [i0], [i1], [i0], [i0])
+      call PetscObjectViewFromOptions(dmdist, PETSC_NULL_DM, '-view_distributed_dm', ierr); call CHKERR(ierr)
+
+      call DMGetLocalSection(dmdist, section, ierr); call CHKERR(ierr)
+      call PetscSectionGetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
+      @assertEqual(0_iintegers, fStart)
+      @assertEqual(8_iintegers, fEnd)
+
+      if(myid.eq.0) print *,'Distributed DM overlap 1'
+      call mpi_barrier(comm, ierr); call CHKERR(ierr)
+      call DMPlexDistribute(dmdist, i1, PETSC_NULL_SF, dmoverlap, ierr); call CHKERR(ierr)
+      if(dmoverlap.eq.PETSC_NULL_DM) then
+        dmoverlap = dmdist
+      endif
+
+      call dmplex_set_new_section(dmoverlap, 'Face_Section', i1, [i0], [i1], [i0], [i0])
+      call print_dmplex(comm, dmoverlap)
+
+      call PetscObjectViewFromOptions(dmoverlap, PETSC_NULL_DM, '-view_distributed_dm_with_overlap', ierr); call CHKERR(ierr)
+
+      call DMGetLocalSection(dmoverlap, section, ierr); call CHKERR(ierr)
+      call PetscSectionGetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
+      @assertEqual(0_iintegers, fStart)
+      @assertEqual(12_iintegers, fEnd)
+
+      if(myid.eq.0) print *,'Distributed DM overlap 2'
+      call mpi_barrier(comm, ierr); call CHKERR(ierr)
+      call DMPlexDistribute(dmdist, i2, PETSC_NULL_SF, dmoverlap, ierr); call CHKERR(ierr)
+      if(dmoverlap.eq.PETSC_NULL_DM) then
+        dmoverlap = dmdist
+      endif
+      call dmplex_set_new_section(dmoverlap, 'Face_Section', i1, [i0], [i1], [i0], [i0])
+      call print_dmplex(comm, dmoverlap)
+
+      call PetscObjectViewFromOptions(dmoverlap, PETSC_NULL_DM, '-view_distributed_dm_with_overlap', ierr); call CHKERR(ierr)
+
+      call DMGetLocalSection(dmoverlap, section, ierr); call CHKERR(ierr)
+      call PetscSectionGetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
+      @assertEqual(0_iintegers, fStart)
+      @assertGreaterThan(fEnd, 16_iintegers)
+
+
+      if(myid.eq.0) print *,myid,'finished test_distribute_Nx2_Ny3 test'
   end subroutine
 end module

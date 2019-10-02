@@ -2711,7 +2711,9 @@ module m_plex_rt
     call compute_absorption(solver, solution)
     solution%lchanged = .False.
 
-    if(lcalc_nca) call plexrt_NCA_wrapper(solver, solution, ierr); call CHKERR(ierr)
+    if(lcalc_nca) then
+      call plexrt_NCA_wrapper(solver, solution, ierr); call CHKERR(ierr)
+    endif
 
     call update_absorption_norms_for_adaptive_spectral_integration()
 

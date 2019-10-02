@@ -119,7 +119,7 @@ contains
     !call atm_dz_to_vertex_heights(atm%dz, dm3d)
 
     call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
-    call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
+    call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, reverse(atm%zt(:, i1)))
 
     !Load Data from iconfile and distribute it
     if(myid.eq.0) print *,'Read data from icondatafile ', trim(icondatafile)

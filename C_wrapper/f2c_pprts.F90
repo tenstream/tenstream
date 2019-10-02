@@ -403,7 +403,7 @@ contains
 
     call dmplex_2D_to_3D(dm2d_dist, Nlev, hhl, dm3d, zindex, lpolar_coords=.False.)
 
-    call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
+    call setup_plexgrid(dm2d_dist, dm3d, Nlev-1,zindex, plex, hhl)
     call DMDestroy(dm3d, ierr); call CHKERR(ierr)
     deallocate(zindex)
 
