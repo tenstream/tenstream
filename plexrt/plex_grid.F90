@@ -34,7 +34,7 @@ module m_plex_grid
     compute_local_wedge_ordering, compute_local_vertex_coordinates, &
     get_inward_face_normal, create_plex_section, setup_plexgrid, &
     get_consecutive_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
-    TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, &
+    TOAFACE, BOTFACE, SIDEFACE, INNERSIDEFACE, destroy_plexgrid, &
     determine_diff_incoming_outgoing_offsets, get_normal_of_first_TOA_face, &
     interpolate_horizontal_face_var_onto_vertices, get_horizontal_faces_around_vertex, &
     atm_dz_to_vertex_heights, dmplex_set_new_section
@@ -87,10 +87,10 @@ module m_plex_grid
 
     type(tDMLabel), allocatable :: boundarylabel        ! 1 if boundary of local mesh
     type(tDMLabel), allocatable :: domainboundarylabel  ! TOAFACE if top, SIDEFACE if side face, BOTFACE if bot face, -1 otherwise
-    type(tDMLabel), allocatable :: ownerlabel           ! rank that posses this element
+    type(tDMLabel), allocatable :: ownerlabel           ! rank that posesses this element
   end type
 
-  integer(iintegers), parameter :: TOAFACE=1, SIDEFACE=2, BOTFACE=3
+  integer(iintegers), parameter :: TOAFACE=1, SIDEFACE=2, BOTFACE=3, INNERSIDEFACE=4
 
   contains
 
@@ -355,7 +355,8 @@ module m_plex_grid
       call VecGetArrayReadF90(lVec, xv, ierr); call CHKERR(ierr)
       do iface = fStart, fEnd-1
         call PetscSectionGetOffset(facesection, iface, voff, ierr); call CHKERR(ierr)
-        if(int(xv(i1+voff), iintegers) .eq. i1) then ! if the additive val is not 2 it must be at the domain edge
+        select case(int(xv(i1+voff), iintegers))
+        case(i1) ! if the additive val is 1 it must be at the domain edge
           if(ltopfacepos(iface)) then
             if(zindex(iface).eq.1) then
               call DMLabelSetValue(domainboundarylabel, iface, TOAFACE, ierr); call CHKERR(ierr)
@@ -365,7 +366,9 @@ module m_plex_grid
           else
             call DMLabelSetValue(domainboundarylabel, iface, SIDEFACE, ierr); call CHKERR(ierr)
           endif
-        endif
+        case(i2) ! if the additive val is 2 it must be at the inner domain edge
+          call DMLabelSetValue(domainboundarylabel, iface, INNERSIDEFACE, ierr); call CHKERR(ierr)
+        end select
       enddo
       call VecRestoreArrayReadF90(lVec, xv, ierr); call CHKERR(ierr)
 
@@ -788,6 +791,7 @@ module m_plex_grid
       type(tDM), allocatable, intent(inout) :: dm
       type(tPetscSection) :: section
       integer(mpiint) :: ierr
+      !logical :: luseCone, luseClosure
 
 
       if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_edir_dmplex on an already allocated DM')

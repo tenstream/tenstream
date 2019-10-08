@@ -197,7 +197,7 @@ module m_icon_plex_utils
         call PetscSortIntWithArrayPair(nleaves2d, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
 
         call dmplex_set_new_section(dmsf2d, 'plex_2d_to_3d_sf_graph_info', i1, &
-          [i0], [i0], [ke1+ke], [ke1+ke])
+          [i0], [ke1+ke], [ke1+ke], [ke1+ke])
 
         call DMGetSection(dmsf2d, section_2d_to_3d, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(section_2d_to_3d, PETSC_NULL_SECTION, &
@@ -214,11 +214,24 @@ module m_icon_plex_utils
           print *, myid, 'remote', remote
         endif
 
-        ! Distribute Info for 2D edges,
+        ! Distribute Info for 2D faces, i.e. horizontal faces and cells
         call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
-        do i = e2dStart, e2dEnd-1
+        do i = f2dStart, f2dEnd-1
           call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
           if(voff.lt.i0) then ! only add my local idx number if it belongs to me
+            call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
+            do k = 0, ke1-1
+              xv(i1+voff+k) = real(iface_top_icon_2_plex(i, k), ireals)
+            enddo
+            do k = 0, ke-1
+              xv(i1+ke1+voff+k) = real(icell_icon_2_plex(i, k), ireals)
+            enddo
+          endif
+        enddo
+        ! Distribute Info for 2D edges, i.e. horizontal edges and vertical faces
+        do i = e2dStart, e2dEnd-1
+          call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+          if(voff.lt.i0) then
             call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
             do k = 0, ke1-1
               xv(i1+voff+k) = real(iedge_top_icon_2_plex(i, k), ireals)
@@ -228,6 +241,7 @@ module m_icon_plex_utils
             enddo
           endif
         enddo
+        ! Distribute Info for vertices, i.e. vertices and vertical edges
         do i = v2dStart, v2dEnd-1
           call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
           if(voff.lt.i0) then
@@ -255,6 +269,29 @@ module m_icon_plex_utils
 
         ileaf = 1
         call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+        do i = f2dStart, f2dEnd-1
+          call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+          if(voff.ge.i0) then ! this face is owned by someone else
+            owner = remote(i1+voff)%rank
+            call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
+            do k = 0, ke1-1
+              ilocal_elements(ileaf) = iface_top_icon_2_plex(i, k)
+              iremote_elements(ileaf)%rank = owner
+              iremote_elements(ileaf)%index = int(xv(i1+voff+k), iintegers)
+              !if(ldebug) print *,myid,' 2dFace top', i,'::', k,' local face index', iface_top_icon_2_plex(i, k), &
+              !  'remote idx', xv(i1+voff+k)
+              ileaf = ileaf+1
+            enddo
+            do k = 0, ke-1
+              ilocal_elements(ileaf) = icell_icon_2_plex(i, k)
+              iremote_elements(ileaf)%rank = owner
+              iremote_elements(ileaf)%index = int(xv(i1+ke1+voff+k), iintegers)
+              !if(ldebug) print *,myid,' 2dface cell', i,'::', k,' local face index', ilocal_elements(ileaf), &
+              !  'remote idx', xv(i1+ke1+voff+k)
+              ileaf = ileaf+1
+            enddo
+          endif
+        enddo
         do i = e2dStart, e2dEnd-1
           call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
           if(voff.ge.i0) then ! this is owned by someone else
@@ -688,6 +725,12 @@ module m_icon_plex_utils
       end select
       call DMGetSection(owner_dm, sec, ierr); call CHKERR(ierr)
 
+      call DMPlexGetDepthStratum(owner_dm, depth, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+      do icell = cStart, cEnd-1
+        call PetscFindInt(icell, nleaves, myidx, idx, ierr); call CHKERR(ierr)
+        if(idx.ge.i0) print *,myid,'cell',icell, 'is not local'
+      enddo
+
       call DMGetGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
 
       ! Dump Cell Ownership
@@ -699,7 +742,6 @@ module m_icon_plex_utils
 
       ! Dump Face Ownership
       call PetscObjectSetName(gVec, 'ownership_non_local_faces', ierr);call CHKERR(ierr)
-      call DMPlexGetDepthStratum(owner_dm, depth, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
       call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
       xv(:) = zero
       do icell = cStart, cEnd-1
