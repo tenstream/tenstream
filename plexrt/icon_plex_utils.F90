@@ -8,7 +8,7 @@ module m_icon_plex_utils
 
   use m_helper_functions, only: chkerr, chkwarn, itoa, get_arg, imp_bcast, deg2rad, reverse
 
-  use m_plex_grid, only: t_plexgrid, print_dmplex, create_plex_section, TOAFACE, &
+  use m_plex_grid, only: t_plexgrid, print_dmplex, dmplex_set_new_section, TOAFACE, &
     get_horizontal_faces_around_vertex
 
   use m_netcdfio, only: ncload
@@ -73,6 +73,7 @@ module m_icon_plex_utils
       integer(iintegers) :: Nfaces2d, Nedges2d, Nverts2d
       integer(iintegers) :: Ncells, Nfaces, Nedges, Nverts
       integer(mpiint) :: comm, ierr
+      logical :: luseCone, luseClosure
 
       ke = ke1-1
 
@@ -120,6 +121,9 @@ module m_icon_plex_utils
 
       call set_coords(dm2d, dm3d, lpolar_coords)
 
+      call DMGetBasicAdjacency(dm2d, luseCone, luseClosure, ierr); call CHKERR(ierr)
+      call DMSetBasicAdjacency(dm3d, luseCone, luseClosure, ierr); call CHKERR(ierr)
+
       call DMSetFromOptions(dm3d, ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(dm2d, PETSC_NULL_DM, "-show_iconplex_2d", ierr); call CHKERR(ierr)
@@ -135,16 +139,16 @@ module m_icon_plex_utils
 
       subroutine gen_test_mat(dm)
         type(tDM), intent(in) :: dm
-        type(tPetscSection) :: sec
+        type(tDM) :: ldm
         type(tMat) :: A
 
-        call create_plex_section(dm, 'face_test_section', i1, [i0], [i1], [i0], [i0], sec)
-        call DMSetSection(dm, sec, ierr); call CHKERR(ierr)
-        call PetscSectionDestroy(sec, ierr); call CHKERR(ierr)
+        call DMClone(dm, ldm, ierr); call CHKERR(ierr)
+        call dmplex_set_new_section(ldm, 'face_test_section', i1, [i0], [i1], [i0], [i0])
 
-        call DMCreateMatrix(dm, A, ierr); call CHKERR(ierr)
+        call DMCreateMatrix(ldm, A, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(A, PETSC_NULL_MAT, "-show_dmplex_2D_to_3D_test_mat", ierr); call CHKERR(ierr)
         call MatDestroy(A, ierr); call CHKERR(ierr)
+        call DMDestroy(ldm, ierr); call CHKERR(ierr)
       end subroutine
 
       subroutine set_sf_graph(dm2d, dm3d)
@@ -192,10 +196,10 @@ module m_icon_plex_utils
         pmyidx => NULL(); premote=>NULL()
         call PetscSortIntWithArrayPair(nleaves2d, myidx, remote(:)%rank, remote(:)%index, ierr); call CHKERR(ierr)
 
-        call create_plex_section(dmsf2d, 'plex_2d_to_3d_sf_graph_info', i1, &
-          [i0], [i0], [ke1+ke], [ke1+ke], section_2d_to_3d)
+        call dmplex_set_new_section(dmsf2d, 'plex_2d_to_3d_sf_graph_info', i1, &
+          [i0], [ke1+ke], [ke1+ke], [ke1+ke])
 
-        call DMSetSection(dmsf2d, section_2d_to_3d, ierr); call CHKERR(ierr)
+        call DMGetSection(dmsf2d, section_2d_to_3d, ierr); call CHKERR(ierr)
         call PetscObjectViewFromOptions(section_2d_to_3d, PETSC_NULL_SECTION, &
           '-show_dm2d_section_2d_to_3d', ierr); call CHKERR(ierr)
 
@@ -210,11 +214,24 @@ module m_icon_plex_utils
           print *, myid, 'remote', remote
         endif
 
-        ! Distribute Info for 2D edges,
+        ! Distribute Info for 2D faces, i.e. horizontal faces and cells
         call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
-        do i = e2dStart, e2dEnd-1
+        do i = f2dStart, f2dEnd-1
           call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
           if(voff.lt.i0) then ! only add my local idx number if it belongs to me
+            call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
+            do k = 0, ke1-1
+              xv(i1+voff+k) = real(iface_top_icon_2_plex(i, k), ireals)
+            enddo
+            do k = 0, ke-1
+              xv(i1+ke1+voff+k) = real(icell_icon_2_plex(i, k), ireals)
+            enddo
+          endif
+        enddo
+        ! Distribute Info for 2D edges, i.e. horizontal edges and vertical faces
+        do i = e2dStart, e2dEnd-1
+          call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+          if(voff.lt.i0) then
             call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
             do k = 0, ke1-1
               xv(i1+voff+k) = real(iedge_top_icon_2_plex(i, k), ireals)
@@ -224,6 +241,7 @@ module m_icon_plex_utils
             enddo
           endif
         enddo
+        ! Distribute Info for vertices, i.e. vertices and vertical edges
         do i = v2dStart, v2dEnd-1
           call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
           if(voff.lt.i0) then
@@ -251,6 +269,29 @@ module m_icon_plex_utils
 
         ileaf = 1
         call VecGetArrayF90(lVec, xv, ierr); call CHKERR(ierr)
+        do i = f2dStart, f2dEnd-1
+          call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
+          if(voff.ge.i0) then ! this face is owned by someone else
+            owner = remote(i1+voff)%rank
+            call PetscSectionGetOffset(section_2d_to_3d, i, voff, ierr); call CHKERR(ierr)
+            do k = 0, ke1-1
+              ilocal_elements(ileaf) = iface_top_icon_2_plex(i, k)
+              iremote_elements(ileaf)%rank = owner
+              iremote_elements(ileaf)%index = int(xv(i1+voff+k), iintegers)
+              !if(ldebug) print *,myid,' 2dFace top', i,'::', k,' local face index', iface_top_icon_2_plex(i, k), &
+              !  'remote idx', xv(i1+voff+k)
+              ileaf = ileaf+1
+            enddo
+            do k = 0, ke-1
+              ilocal_elements(ileaf) = icell_icon_2_plex(i, k)
+              iremote_elements(ileaf)%rank = owner
+              iremote_elements(ileaf)%index = int(xv(i1+ke1+voff+k), iintegers)
+              !if(ldebug) print *,myid,' 2dface cell', i,'::', k,' local face index', ilocal_elements(ileaf), &
+              !  'remote idx', xv(i1+ke1+voff+k)
+              ileaf = ileaf+1
+            enddo
+          endif
+        enddo
         do i = e2dStart, e2dEnd-1
           call PetscFindInt(i, nleaves2d, myidx, voff, ierr); call CHKERR(ierr)
           if(voff.ge.i0) then ! this is owned by someone else
@@ -303,7 +344,6 @@ module m_icon_plex_utils
         call PetscObjectViewFromOptions(lVec, PETSC_NULL_VEC, "-show_dm2d_sf_vec", ierr); call CHKERR(ierr)
         call DMRestoreLocalVector(dmsf2d, lVec, ierr); call CHKERR(ierr)
         call DMRestoreGlobalVector(dmsf2d, gVec, ierr); call CHKERR(ierr)
-        call PetscSectionDestroy(section_2d_to_3d, ierr); call CHKERR(ierr)
         call DMDestroy(dmsf2d, ierr); call CHKERR(ierr)
 
         call DMGetPointSF(dm3d, sf3d, ierr); call CHKERR(ierr)
@@ -664,8 +704,8 @@ module m_icon_plex_utils
 
       call DMGetPointSF(owner_dm, sf, ierr); call CHKERR(ierr)
       call PetscSFGetGraph(sf, nroots, nleaves, pmyidx, premote, ierr); call CHKERR(ierr)
-      call CHKERR(int(nleaves-size(pmyidx), mpiint), 'wrong size of array')
-      call CHKERR(int(nleaves-size(premote), mpiint), 'wrong size of array')
+      if(nleaves.ge.0) call CHKERR(int(nleaves-size(pmyidx), mpiint), 'wrong size of array nleaves: '//itoa(nleaves))
+      if(nleaves.ge.0) call CHKERR(int(nleaves-size(premote), mpiint), 'wrong size of array nleaves: '//itoa(nleaves))
       allocate(myidx(nleaves), source=pmyidx)
       allocate(remote(nleaves), source=premote)
       pmyidx => NULL()
@@ -675,18 +715,21 @@ module m_icon_plex_utils
       call DMPlexGetDepth(owner_dm, depth, ierr); call CHKERR(ierr)
       select case(depth)
       case(i3)
-        call create_plex_section(owner_dm, 'dmplex_ownership info', i1, &
-          [i1], [i0], [i0], [i0], sec)
+        call dmplex_set_new_section(owner_dm, 'dmplex_ownership info', i1, &
+          [i1], [i0], [i0], [i0])
       case(i2)
-        call create_plex_section(owner_dm, 'dmplex_ownership info', i1, &
-          [i0], [i1], [i0], [i0], sec)
+        call dmplex_set_new_section(owner_dm, 'dmplex_ownership info', i1, &
+          [i0], [i1], [i0], [i0])
       case default
         call CHKERR(1_mpiint, 'cannot handle dm with depth: '// itoa(depth))
       end select
-      call DMSetSection(owner_dm, sec, ierr); call CHKERR(ierr)
-      call PetscSectionDestroy(sec, ierr); call CHKERR(ierr)
-
       call DMGetSection(owner_dm, sec, ierr); call CHKERR(ierr)
+
+      call DMPlexGetDepthStratum(owner_dm, depth, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
+      do icell = cStart, cEnd-1
+        call PetscFindInt(icell, nleaves, myidx, idx, ierr); call CHKERR(ierr)
+        if(idx.ge.i0) print *,myid,'cell',icell, 'is not local'
+      enddo
 
       call DMGetGlobalVector(owner_dm, gVec, ierr); call CHKERR(ierr)
 
@@ -699,11 +742,13 @@ module m_icon_plex_utils
 
       ! Dump Face Ownership
       call PetscObjectSetName(gVec, 'ownership_non_local_faces', ierr);call CHKERR(ierr)
-      call DMPlexGetHeightStratum(owner_dm, i0, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
       call VecGetArrayF90(gVec, xv, ierr); call CHKERR(ierr)
+      xv(:) = zero
       do icell = cStart, cEnd-1
+        call PetscFindInt(icell, nleaves, myidx, idx, ierr); call CHKERR(ierr)
+        if(idx.ge.i0) cycle ! not a local element
+
         call PetscSectionGetOffset(sec, icell, voff, ierr); call CHKERR(ierr)
-        xv(i1+voff) = zero
         call DMPlexGetCone(owner_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
         do i=1,size(faces_of_cell)
           call PetscFindInt(faces_of_cell(i), nleaves, myidx, idx, ierr); call CHKERR(ierr)
@@ -1063,6 +1108,7 @@ module m_icon_plex_utils
         migration_sf = PETSC_NULL_SF
         call DMClone(dm, dmdist, ierr); call CHKERR(ierr)
       endif
+      call DMSetBasicAdjacency(dmdist, PETSC_TRUE, PETSC_FALSE, ierr); call CHKERR(ierr)
 
       if(present(opt_migration_sf)) opt_migration_sf = migration_sf
 
@@ -1495,8 +1541,8 @@ module m_icon_plex_utils
       call imp_bcast(comm, ke, 0_mpiint); call CHKERR(ierr)
 
       call DMClone(dm2d_serial, dm2d_serial_clone, ierr); call CHKERR(ierr)
-      call create_plex_section(dm2d_serial_clone, 'face_section', i1, [i0], [ke], [i0], [i0], rank0section)
-      call DMSetSection(dm2d_serial_clone, rank0section, ierr); call CHKERR(ierr)
+      call dmplex_set_new_section(dm2d_serial_clone, 'face_section', i1, [i0], [ke], [i0], [i0])
+      call DMGetSection(dm2d_serial_clone, rank0section, ierr); call CHKERR(ierr)
 
       call DMGetGlobalVector(dm2d_serial_clone, rank0vec, ierr); call CHKERR(ierr)
       call Vecset(rank0vec, 0._ireals, ierr); call CHKERR(ierr)
@@ -1521,7 +1567,6 @@ module m_icon_plex_utils
         rank0Section, rank0Vec, parSection, parVec)
 
       call DMRestoreGlobalVector(dm2d_serial_clone, rank0vec, ierr); call CHKERR(ierr)
-      call PetscSectionDestroy(rank0section, ierr); call CHKERR(ierr)
       call DMDestroy(dm2d_serial_clone, ierr); call CHKERR(ierr)
     end subroutine
 

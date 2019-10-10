@@ -70,7 +70,7 @@ implicit none
 
       call dmplex_2D_to_3D(dm2d, Nz, hhl, dm3d, zindex, lpolar_coords=.False.)
 
-      call setup_plexgrid(dm3d, Nz-1, zindex, plex)
+      call setup_plexgrid(dm2d, dm3d, Nz-1, zindex, plex, hhl)
       deallocate(zindex)
 
       call allocate_plexrt_solver_from_commandline(solver, '5_8')

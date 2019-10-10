@@ -7,9 +7,11 @@ module test_fish_plex
     i0, i1, i2, i3, i4,         &
     init_mpi_data_parameters
 
+  use m_tenstream_options, only: read_commandline_options
   use m_helper_functions, only : CHKERR
 
   use m_icon_plex_utils, only : create_2d_fish_plex
+  use m_plex_grid, only: print_dmplex, dmplex_set_new_section
 
   use pfunit_mod
   implicit none
@@ -26,12 +28,13 @@ contains
       myid     = this%getProcessRank()
 
       call init_mpi_data_parameters(comm)
-
+      call read_commandline_options(comm)
   end subroutine setup
 
   @after
   subroutine teardown(this)
       class (MpiTestMethod), intent(inout) :: this
+      call PetscFinalize(ierr)
       if(myid.eq.0) print *,'Finishing boxmc tests module'
   end subroutine teardown
 
@@ -72,6 +75,9 @@ contains
 
       target_closure(1:14:2) = [3, 8,10,11, 15, 16, 18]
       call check_transclosure(dm, i3, target_closure)
+
+      call DMDestroy(dm, ierr)
+      call DMDestroy(dmdist, ierr)
   end subroutine
 
   @test(npes =[1])
@@ -117,6 +123,9 @@ contains
 
       target_closure(1:14:2) = [15, 38, 42, 43, 56, 57, 60]
       call check_transclosure(dm, target_closure(1), target_closure)
+
+      call DMDestroy(dm, ierr)
+      call DMDestroy(dmdist, ierr)
   end subroutine
 
   subroutine check_transclosure(dm, icell, target_closure)

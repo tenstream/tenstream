@@ -3,7 +3,7 @@ module m_plex_rt
 #include "petsc/finclude/petsc.h"
   use petsc
 
-  use m_tenstream_options, only : read_commandline_options, ltwostr_only, lschwarzschild
+  use m_tenstream_options, only : read_commandline_options, ltwostr_only, lschwarzschild, lcalc_nca
 
   use m_helper_functions, only: CHKERR, CHKWARN, determine_normal_direction, &
     angle_between_two_vec, rad2deg, deg2rad, strF2C, get_arg, meanval, &
@@ -39,7 +39,7 @@ module m_plex_rt
     t_plex_solver_18_8, &
     t_dof
 
-  use m_plexrt_external_solvers, only: plexrt_schwarz, plexrt_twostream, plexrt_disort
+  use m_plexrt_external_solvers, only: plexrt_schwarz, plexrt_twostream, plexrt_disort, plexrt_NCA_wrapper
   use m_plex2rayli, only: rayli_wrapper
   use m_schwarzschild, only: B_eff
   use m_netcdfio, only: ncwrite
@@ -2710,6 +2710,10 @@ module m_plex_rt
 
     call compute_absorption(solver, solution)
     solution%lchanged = .False.
+
+    if(lcalc_nca) then
+      call plexrt_NCA_wrapper(solver, solution, ierr); call CHKERR(ierr)
+    endif
 
     call update_absorption_norms_for_adaptive_spectral_integration()
 

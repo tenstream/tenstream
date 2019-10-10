@@ -50,5 +50,6 @@ target_link_libraries(
   plexrt
   )
 
-add_test(pfunit_${CDIR} ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 2 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR})
-
+add_test(NAME pfunit_${CDIR}
+  COMMAND ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 4 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

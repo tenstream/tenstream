@@ -85,7 +85,7 @@ logical, parameter :: ldebug=.True.
 
       call dmplex_2D_to_3D(dm2d_dist, Nz, hhl, dm3d, zindex)
 
-      call setup_plexgrid(dm3d, Nz-1, zindex, plex)
+      call setup_plexgrid(dm2d_dist, dm3d, Nz-1, zindex, plex, hhl)
       deallocate(zindex)
 
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
