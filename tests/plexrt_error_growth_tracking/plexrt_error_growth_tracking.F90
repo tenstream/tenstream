@@ -35,7 +35,7 @@ contains
     class (MpiTestMethod), intent(inout) :: this
   end subroutine teardown
 
-  @test(npes =[2,1])
+  @test(npes =[1,2])
   subroutine error_growth_tracking(this)
     class (MpiTestMethod), intent(inout) :: this
 

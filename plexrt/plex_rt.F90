@@ -3397,10 +3397,14 @@ module m_plex_rt
       if(.not.solver%solutions(uid)%lset) &
         call CHKERR(1_mpiint, 'You tried to retrieve results from a solution uid which has not yet been calculated')
 
-      call DMGetStratumIS(solver%plex%geom_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
-      call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
-
       ke1 = solver%plex%Nlay+1
+
+      call DMGetStratumIS(solver%plex%ediff_dm, 'DomainBoundary', TOAFACE, toa_ids, ierr); call CHKERR(ierr)
+      if (toa_ids.ne.PETSC_NULL_IS) then
+        call ISGetSize(toa_ids, Ncol, ierr); call CHKERR(ierr)
+      else
+        Ncol=0
+      endif
 
       call check_size_or_allocate(redn , [ke1, Ncol])
       call check_size_or_allocate(reup , [ke1, Ncol])
@@ -3435,51 +3439,53 @@ module m_plex_rt
         call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
         call VecGetArrayF90(solution%abso , xabso , ierr); call CHKERR(ierr)
 
-        call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
-        do i = 1, size(xtoa_faces)
-          iface = xtoa_faces(i)
-          do k = 0, ke1-2
-            call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
-            redn(i1+k, i) = xediff(i1+voff)
-            reup(i1+k, i) = xediff(i2+voff)
-          enddo
-          ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
-          call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
-          redn(i1+k, i) = xediff(i2+voff)
-          reup(i1+k, i) = xediff(i1+voff)
+        if (toa_ids.ne.PETSC_NULL_IS) then
+          call ISGetIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+          do i = 1, size(xtoa_faces)
+            iface = xtoa_faces(i)
+            do k = 0, ke1-2
+              call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+              redn(i1+k, i) = xediff(i1+voff)
+              reup(i1+k, i) = xediff(i2+voff)
+            enddo
+            ! at the surface, the ordering of incoming/outgoing fluxes is reversed because of cellid_surface == -1
+            call PetscSectionGetFieldOffset(ediff_section, iface+ke1-1, i0, voff, ierr); call CHKERR(ierr)
+            redn(i1+k, i) = xediff(i2+voff)
+            reup(i1+k, i) = xediff(i1+voff)
 
-          ! Fill Absorption Vec
-          call DMPlexGetSupport(solver%plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr)
-          icell = cell_support(1)
-          call DMPlexRestoreSupport(solver%plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr)
+            ! Fill Absorption Vec
+            call DMPlexGetSupport(solver%plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr)
+            icell = cell_support(1)
+            call DMPlexRestoreSupport(solver%plex%ediff_dm, iface, cell_support, ierr); call CHKERR(ierr)
 
-          do k = 0, ke1-2
-            call PetscSectionGetOffset(abso_section, icell+k, voff, ierr); call CHKERR(ierr)
-            rabso(i1+k, i) = xabso(i1+voff)
-          enddo
-
-          if(present(redir).and.solution%lsolar_rad) then
-            do k = 0, ke1-1
-              call PetscSectionGetFieldOffset(edir_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
-              redir(i1+k,i) = zero
-              do idof = 1, solver%dirtop%dof
-                redir(i1+k,i) = redir(i1+k,i) + xedir(voff+idof)
-              enddo
-              redir(i1+k,i) = redir(i1+k,i) / real(solver%dirtop%dof, ireals)
+            do k = 0, ke1-2
+              call PetscSectionGetOffset(abso_section, icell+k, voff, ierr); call CHKERR(ierr)
+              rabso(i1+k, i) = xabso(i1+voff)
             enddo
 
-            if(ldebug) then
-              if(reup(ke1,i)-sqrt(epsilon(reup)) .gt. abs(redir(ke1,i))+abs(redn(ke1,i))) then
-                call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
-                do k = 1, size(redir,dim=1)
-                  print *,'sgr ::', myid, 'i', i, 'k', k, redir(k,i), redn(k,i), reup(k,i)
+            if(present(redir).and.solution%lsolar_rad) then
+              do k = 0, ke1-1
+                call PetscSectionGetFieldOffset(edir_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
+                redir(i1+k,i) = zero
+                do idof = 1, solver%dirtop%dof
+                  redir(i1+k,i) = redir(i1+k,i) + xedir(voff+idof)
                 enddo
-                call CHKERR(1_mpiint, 'solar get_result Eup cannot be bigger than Edir+Edn!')
+                redir(i1+k,i) = redir(i1+k,i) / real(solver%dirtop%dof, ireals)
+              enddo
+
+              if(ldebug) then
+                if(reup(ke1,i)-sqrt(epsilon(reup)) .gt. abs(redir(ke1,i))+abs(redn(ke1,i))) then
+                  call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
+                  do k = 1, size(redir,dim=1)
+                    print *,'sgr ::', myid, 'i', i, 'k', k, redir(k,i), redn(k,i), reup(k,i)
+                  enddo
+                  call CHKERR(1_mpiint, 'solar get_result Eup cannot be bigger than Edir+Edn!')
+                endif
               endif
             endif
-          endif
-        enddo
-        call ISRestoreIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+          enddo
+          call ISRestoreIndicesF90(toa_ids, xtoa_faces, ierr); call CHKERR(ierr)
+        endif
 
         if(present(redir).and.solution%lsolar_rad) then
           call VecRestoreArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)

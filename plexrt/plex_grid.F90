@@ -151,7 +151,7 @@ module m_plex_grid
         subroutine dealloc_dmlabel(label)
           type(tDMLabel), allocatable, intent(inout) :: label
           if(allocated(label)) then
-            call DMLabelDestroy(label, ierr); call CHKERR(ierr)
+            ! call DMLabelDestroy(label, ierr); call CHKERR(ierr) ! dont destroy the label here, DMDestroy takes care of it
             deallocate(label)
           endif
         end subroutine
@@ -232,12 +232,12 @@ module m_plex_grid
       plex%Nlay = Nlay
       allocate(plex%zindex(pStart:pEnd-1), source=zindex)
 
-      call compute_face_geometry(plex, plex%geom_dm)
-
       call plex_set_ltopfacepos(plex%dm, plex%ltopfacepos)
 
       call label_domain_boundary(plex%dm, plex%ltopfacepos, plex%zindex, &
         plex%boundarylabel, plex%domainboundarylabel, plex%ownerlabel)
+
+      call compute_face_geometry(plex, plex%geom_dm)
 
       call setup_srfc_boundary_dm(plex, plex%srfc_boundary_dm)
       call setup_cell1_dmplex(plex%dm, plex%cell1_dm)
@@ -287,12 +287,6 @@ module m_plex_grid
       if(.not.allocated(ltopfacepos)) call CHKERR(1_mpiint, 'ltopfacepos has to be allocated')
       if(.not.allocated(zindex)) call CHKERR(1_mpiint, 'zindex has to be allocated')
 
-      if(.not.allocated(domainboundarylabel)) then
-        allocate(domainboundarylabel)
-        call DMCreateLabel(dm, "DomainBoundary", ierr); call CHKERR(ierr)
-      endif
-      call DMGetLabel(dm, "DomainBoundary", domainboundarylabel, ierr); call CHKERR(ierr)
-
       if(.not.allocated(ownerlabel)) then
         allocate(ownerlabel)
         call DMCreateLabel(dm, "owner", ierr); call CHKERR(ierr)
@@ -305,7 +299,16 @@ module m_plex_grid
       endif
       call DMGetLabel(dm, "Boundary", boundarylabel, ierr); call CHKERR(ierr)
       call DMPlexMarkBoundaryFaces(dm, i1, boundarylabel, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_Boundary_DM', ierr); call CHKERR(ierr)
+      ! The following code should do the same as DMPlexMarkBoundaryFaces...
+      ! and is placed here for historic reasons to debug a PETSc issue
+      !   call DMLabelSetDefaultValue(boundarylabel, i0, ierr); call CHKERR(ierr)
+      !   call DMPlexGetDepthStratum (dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
+      !   do iface = fStart, fEnd-1
+      !     call DMPlexGetSupportSize(dm, iface, i, ierr); call CHKERR(ierr)
+      !     if(i.lt.i2) then
+      !       call DMLabelSetValue(boundarylabel, iface, i1, ierr); call CHKERR(ierr)
+      !     endif
+      !   enddo
 
       call DMLabelSetDefaultValue(ownerlabel, int(myid, kind=iintegers), ierr); call CHKERR(ierr)
 
@@ -350,12 +353,18 @@ module m_plex_grid
       call DMGlobalToLocalBegin(facedm, gVec, INSERT_VALUES, lVec, ierr); call CHKERR(ierr)
       call DMGlobalToLocalEnd  (facedm, gVec, INSERT_VALUES, lVec, ierr); call CHKERR(ierr)
 
-      call DMPlexGetDepthStratum (facedm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
+      call DMPlexGetDepthStratum (facedm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
+
+      if(.not.allocated(domainboundarylabel)) then
+        allocate(domainboundarylabel)
+        call DMCreateLabel(dm, "DomainBoundary", ierr); call CHKERR(ierr)
+      endif
+      call DMGetLabel(dm, "DomainBoundary", domainboundarylabel, ierr); call CHKERR(ierr)
 
       call VecGetArrayReadF90(lVec, xv, ierr); call CHKERR(ierr)
       do iface = fStart, fEnd-1
         call PetscSectionGetOffset(facesection, iface, voff, ierr); call CHKERR(ierr)
-        select case(int(xv(i1+voff), iintegers))
+        select case(nint(xv(i1+voff), iintegers))
         case(i1) ! if the additive val is 1 it must be at the domain edge
           if(ltopfacepos(iface)) then
             if(zindex(iface).eq.1) then
@@ -372,10 +381,11 @@ module m_plex_grid
       enddo
       call VecRestoreArrayReadF90(lVec, xv, ierr); call CHKERR(ierr)
 
-
       call DMRestoreLocalVector(facedm, lVec, ierr); call CHKERR(ierr)
       call DMRestoreGlobalVector(facedm, gVec, ierr); call CHKERR(ierr)
       call DMDestroy(facedm, ierr); call CHKERR(ierr)
+
+      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_Boundary_DM', ierr); call CHKERR(ierr)
     end subroutine
 
     subroutine facevec2cellvec(faceVec_dm, global_faceVec, vecshow_string)
@@ -994,7 +1004,7 @@ module m_plex_grid
         call PetscSectionSetFieldComponents(section, i0, i1, ierr); call CHKERR(ierr)
         call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
 
-        call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
+        call DMGetStratumIS(plex%dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
         if (srfc_ids.eq.PETSC_NULL_IS) then ! dont have surface points
         else
           call ISGetIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
