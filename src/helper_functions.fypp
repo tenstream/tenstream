@@ -54,7 +54,8 @@ module m_helper_functions
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint,            &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
-    solve_quadratic, linspace, assert_arr_is_monotonous, is_between, sEXP, transposed_arr, triangle_inner_circle_center
+    solve_quadratic, linspace, assert_arr_is_monotonous, is_between, sEXP, transposed_arr,                           &
+    triangle_inner_circle_center, domain_decompose_2d
 
   interface rotate_angle_x
     module procedure rotate_angle_x_r32, rotate_angle_x_r64
@@ -2628,4 +2629,29 @@ pure function assert_arr_is_monotonous_r64(arr, lincreasing, lstrict) result(lis
   endif
   lis_linear = .True.
 end function
+
+subroutine domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr)
+  ! Determine Domain Decomposition in 2D
+  integer(mpiint), intent(in) :: comm
+  integer(iintegers), intent(out) :: N_ranks_x, N_ranks_y
+  integer(mpiint), intent(out) :: ierr
+
+  integer(mpiint) :: numnodes
+  integer(iintegers) :: j
+
+  call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
+
+  N_ranks_y = ceiling(sqrt(1.*numnodes))
+  do j = 1, N_ranks_y
+    if(modulo(numnodes, j).eq.0) then
+      N_ranks_y = j
+      N_ranks_x = numnodes / N_ranks_y
+      ierr = 0
+    endif
+  enddo
+
+  if(N_ranks_y*N_ranks_x .ne. numnodes) then
+    ierr = 1
+  endif
+end subroutine
   end module

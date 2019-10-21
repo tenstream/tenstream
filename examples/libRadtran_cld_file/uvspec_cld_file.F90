@@ -16,7 +16,8 @@ module m_example_uvspec_cld_file
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, destroy_tenstr_atm, hydrostat_dp
 
-  use m_helper_functions, only: CHKERR, itoa, imp_bcast, reverse, spherical_2_cartesian, resize_arr
+  use m_helper_functions, only: CHKERR, itoa, imp_bcast, reverse, spherical_2_cartesian, resize_arr, &
+    domain_decompose_2d
   use m_netcdfio, only: ncload, ncwrite, get_global_attribute
 
   use m_icon_plex_utils, only: create_2d_regular_plex, dmplex_2D_to_3D, &
@@ -88,13 +89,14 @@ contains
     endif
 
     ! Determine Domain Decomposition
-    call mpi_comm_size(comm, numnodes, ierr)
-    N_ranks_y = int(sqrt(1.*numnodes))
-    N_ranks_x = numnodes / N_ranks_y
-    if(N_ranks_y*N_ranks_x .ne. numnodes) then
-      N_ranks_x = numnodes
-      N_ranks_y = 1
-    endif
+    !call mpi_comm_size(comm, numnodes, ierr)
+    !N_ranks_y = int(sqrt(1.*numnodes))
+    !N_ranks_x = numnodes / N_ranks_y
+    !if(N_ranks_y*N_ranks_x .ne. numnodes) then
+    !  N_ranks_x = numnodes
+    !  N_ranks_y = 1
+    !endif
+    call domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr); call CHKERR(ierr)
     if(myid.eq.0) print *, myid, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
 
     nxp = size(lwc, dim=2) / N_ranks_x
