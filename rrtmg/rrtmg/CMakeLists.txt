@@ -4,6 +4,7 @@ include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")
 
 set( files
+  "tenstr_rrtmg_base.F90"
   "dyn_atm_to_rrtmg.F90"
   "optprop_rrtmg.F90"
   )

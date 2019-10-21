@@ -1613,8 +1613,6 @@ module m_pprts
                 Mdir      => solver%Mdir,      &
                 Mdiff     => solver%Mdiff     )
 
-    call PetscLogStagePush(solver%logs%stage_solve, ierr); call CHKERR(ierr)
-
     if(solver%lenable_solutions_err_estimates .and. present(opt_solution_uid)) then
       uid = opt_solution_uid
     else
@@ -1734,7 +1732,6 @@ module m_pprts
     99 continue ! this is the quick exit final call where we clean up before the end of the routine
 
     call restore_solution(solver, solutions(uid), opt_solution_time)
-    call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_solve
 
     end associate
   end subroutine

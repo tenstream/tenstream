@@ -90,7 +90,6 @@ module m_pprts_base
   end type
 
   type t_solver_log_events
-    PetscLogStage :: stage_solve
     PetscLogEvent :: set_optprop
     PetscLogEvent :: setup_dir_src
     PetscLogEvent :: compute_edir
@@ -237,8 +236,6 @@ module m_pprts_base
       character(len=default_str_len) :: s
 
       s = get_arg('pprts.', solvername)
-
-      call PetscLogStageRegister(trim(s)//'solve_stage', logs%stage_solve, ierr); call CHKERR(ierr)
 
       call PetscLogEventRegister(trim(s)//'set_optprop', cid, logs%set_optprop, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'setup_dir_src', cid, logs%setup_dir_src, ierr); call CHKERR(ierr)

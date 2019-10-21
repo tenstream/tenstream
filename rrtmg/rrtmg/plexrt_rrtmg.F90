@@ -61,6 +61,7 @@ module m_plexrt_rrtmg
   use m_netcdfIO, only : ncwrite
 
   use m_tenstr_disort, only: default_flx_computation
+  use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
 
   implicit none
 
@@ -70,6 +71,7 @@ module m_plexrt_rrtmg
 !  logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
 
+  type(t_rrtmg_log_events), allocatable :: log_events
 contains
 
   subroutine plexrt_rrtmg(solver, atm, sundir,     &
@@ -114,6 +116,10 @@ contains
 
     if(.not.allocated(solver)) call CHKERR(1_mpiint, 'solver has to be setup beforehand')
     if(.not.allocated(solver%plex)) call CHKERR(1_mpiint, 'Solver has to have a ready to go Plexgrid')
+    if(.not.allocated(log_events)) then
+      allocate(log_events)
+      call setup_log_events(log_events, 'plexrt_')
+    endif
 
     call PetscObjectGetComm(solver%plex%dm, comm, ierr); call CHKERR(ierr)
     call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
@@ -151,6 +157,7 @@ contains
     if(lthermal) then
       call allocate_optprop_vec(solver%plex%horizface1_dm, solver%plck)
 
+      call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(comm, solver, atm, &
         Ncol, ke1, &
         albedo_thermal, &
@@ -158,16 +165,18 @@ contains
         opt_time=opt_time, &
         thermal_albedo_2d=thermal_albedo_2d, &
         lrrtmg_only=lrrtmg_only)
+      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
 
-      call dump_vec(edn(1:ke,:), '-plexrt_dump_thermal_Edn_1_ke')
-      call dump_vec(edn(2:ke1,:) ,  '-plexrt_dump_thermal_Edn_2_ke1')
-      call dump_vec(eup(1:ke,:), '-plexrt_dump_thermal_Eup_1_ke')
-      call dump_vec(eup(2:ke1,:),   '-plexrt_dump_thermal_Eup_2_ke1')
-      call dump_vec(abso, '-plexrt_dump_thermal_abso')
+      call dump_vec(edn(1:ke,:)  , '-plexrt_dump_thermal_Edn_1_ke')
+      call dump_vec(edn(2:ke1,:) , '-plexrt_dump_thermal_Edn_2_ke1')
+      call dump_vec(eup(1:ke,:)  , '-plexrt_dump_thermal_Eup_1_ke')
+      call dump_vec(eup(2:ke1,:) , '-plexrt_dump_thermal_Eup_2_ke1')
+      call dump_vec(abso         , '-plexrt_dump_thermal_abso')
     endif
 
     if(lsolar) then
       if(.not.allocated(edir)) allocate(edir(ke1, Ncol))
+      call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
       edir = zero
       call compute_solar(comm, solver, atm, &
         Ncol, ke1, &
@@ -177,9 +186,10 @@ contains
         solar_albedo_2d=solar_albedo_2d, &
         lrrtmg_only=lrrtmg_only, &
         opt_solar_constant=opt_solar_constant)
+      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
 
-      call dump_vec(edir(1:ke,:),'-plexrt_dump_Edir_1_ke')
-      call dump_vec(edir(2:ke1,:),  '-plexrt_dump_Edir_2_ke1')
+      call dump_vec(edir(1:ke,:) , '-plexrt_dump_Edir_1_ke')
+      call dump_vec(edir(2:ke1,:), '-plexrt_dump_Edir_2_ke1')
     endif
 
     if(ldebug.and.myid.eq.0) then
@@ -344,7 +354,8 @@ contains
             opt_lwuflx=spec_eup(:,i:i), &
             opt_lwdflx=spec_edn(:,i:i), &
             opt_lwhr=spec_abso(:,i:i),  &
-            opt_cldfr=xcfrac)
+            opt_cldfr=xcfrac,           &
+            log_event=log_events%rrtmg_optprop_lw)
 
           eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
           edn (:,i) = edn (:,i) + reverse(spec_edn (:,i))
@@ -373,7 +384,8 @@ contains
             atm%lwc(:,i)*integral_coeff, atm%reliq(:,i), &
             atm%iwc(:,i)*integral_coeff, atm%reice(:,i), &
             tau=tau(:,i:i,:), Bfrac=Bfrac(2:ke1,i:i,:), &
-            opt_tau_f=tau_f(:,i:i,:))
+            opt_tau_f=tau_f(:,i:i,:),                   &
+            log_event=log_events%rrtmg_optprop_lw)
         enddo
     endif
     Bfrac(1,:,:) = Bfrac(2,:,:)
@@ -715,7 +727,8 @@ contains
               opt_tau_f=tau_f(:,i:i,:), &
               opt_w0_f=w0_f(:,i:i,:), &
               opt_g_f=g_f(:,i:i,:), &
-              opt_cldfr=xcfrac)
+              opt_cldfr=xcfrac, &
+              log_event=log_events%rrtmg_optprop_sw)
 
             edir(:,i) = edir(:,i) + reverse(spec_edir(:,i))
             eup (:,i) = eup (:,i) + reverse(spec_eup (:,i))
@@ -756,7 +769,8 @@ contains
             opt_solar_constant=opt_solar_constant, &
             opt_tau_f=tau_f(:,i:i,:), &
             opt_w0_f=w0_f(:,i:i,:), &
-            opt_g_f=g_f(:,i:i,:))
+            opt_g_f=g_f(:,i:i,:), &
+            log_event=log_events%rrtmg_optprop_sw)
         enddo
       endif
     if(ldebug) then

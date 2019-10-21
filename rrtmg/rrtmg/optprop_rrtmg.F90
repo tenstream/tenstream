@@ -51,7 +51,7 @@ contains
       albedo, plev, tlev, tlay, tsrfc, &
       h2ovmr, o3vmr, co2vmr, ch4vmr, n2ovmr, o2vmr, &
       lwp, reliq, iwp, reice, tau, Bfrac, opt_tau_f, &
-      opt_lwuflx, opt_lwdflx, opt_lwhr, opt_cldfr)
+      opt_lwuflx, opt_lwdflx, opt_lwhr, opt_cldfr, log_event)
     ! RRTM needs the arrays to start at the surface
 
     integer(iintegers),intent(in) :: ncol_in, nlay_in
@@ -66,6 +66,7 @@ contains
     real(ireals), dimension(:,:,:), intent(out), optional :: opt_tau_f ! [nlay, ncol, ngptlw]
     real(ireals), dimension(:,:), intent(out), optional :: opt_lwuflx, opt_lwdflx, opt_lwhr ! [nlay+1, ncol]
     real(ireals), dimension(:,:), intent(in), optional :: opt_cldfr ! [ncol, nlay]
+    PetscLogEvent, intent(in), optional :: log_event
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -83,6 +84,11 @@ contains
     integer(im),parameter :: inflglw=2,liqflglw=1,iceflglw=3
     integer(kind=im) :: icld=2         ! Cloud overlap method
     integer(kind=im) :: idrv=0         ! Flag for calculation of dFdT
+    integer(mpiint) :: ierr
+
+    if(present(log_event)) then
+      call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
+    endif
 
     ! copy from TenStream to RRTM precision:
     ncol   = int(ncol_in, kind=im)
@@ -156,6 +162,10 @@ contains
         lwuflx, lwdflx  ,lwhr ,lwuflxc ,lwdflxc ,lwhrc, &
         tau, Bfrac, loptprop_only=.True., tenstr_tau_f=opt_tau_f)
     endif
+
+    if(present(log_event)) then
+      call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
+    endif
   end subroutine
 
   subroutine optprop_rrtm_sw(ncol_in, nlay_in, &
@@ -165,7 +175,7 @@ contains
       lwp, reliq, iwp, reice, tau, w0, g, &
       opt_solar_constant, opt_cldfr, &
       opt_swdirflx, opt_swuflx, opt_swdflx, opt_swhr, &
-      opt_tau_f, opt_w0_f, opt_g_f)
+      opt_tau_f, opt_w0_f, opt_g_f, log_event)
     ! RRTM needs the arrays to start at the surface
 
     integer(iintegers),intent(in)          :: ncol_in, nlay_in
@@ -183,6 +193,7 @@ contains
     real(ireals), dimension(:,:), intent(out), optional :: opt_swdirflx, opt_swuflx, opt_swdflx ! [nlay+1, ncol]
     real(ireals), dimension(:,:), intent(out), optional :: opt_swhr ! [nlay, ncol]
     real(ireals), dimension(:,:,:), intent(out),optional :: opt_tau_f, opt_w0_f, opt_g_f ! [nlay, ncol, ngptsw]
+    PetscLogEvent, intent(in), optional :: log_event
 
     real(rb),dimension(ncol_in,nlay_in) :: play, cldfr
 
@@ -204,6 +215,11 @@ contains
     integer(kind=im) :: iaer=0         ! Aerosol option flag
 
     logical,save :: linit_rrtmg=.False.
+    integer(mpiint) :: ierr
+
+    if(present(log_event)) then
+      call PetscLogEventBegin(log_event, ierr); call CHKERR(ierr)
+    endif
 
     if(present(opt_solar_constant)) then
       solar_const = opt_solar_constant
@@ -306,6 +322,10 @@ contains
         swuflx, swdflx, swhr, swuflxc, swdflxc, swhrc, &
         tau, w0, g, loptprop_only=.True., &
         tenstr_tau_f=opt_tau_f, tenstr_w_f=opt_w0_f, tenstr_g_f=opt_g_f)
+    endif
+
+    if(present(log_event)) then
+      call PetscLogEventEnd(log_event, ierr); call CHKERR(ierr)
     endif
   end subroutine
 

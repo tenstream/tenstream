@@ -24,6 +24,8 @@
 !!
 
 module m_dyn_atm_to_rrtmg
+#include "petsc/finclude/petsc.h"
+  use petsc
 
   use iso_fortran_env, only: REAL32, REAL64
   use m_tenstr_parkind_sw, only: im => kind_im, rb => kind_rb
@@ -114,6 +116,10 @@ module m_dyn_atm_to_rrtmg
       integer(iintegers) :: d_ke, d_ke1
     end type
 
+    type t_rrtmg_dyn_atm_log_events
+      PetscLogEvent :: setup_tenstr_atm
+    end type
+    type(t_rrtmg_dyn_atm_log_events), allocatable :: logs
   contains
 
     subroutine setup_tenstr_atm(comm, lTOA_to_srfc, atm_filename, d_plev, d_tlev, atm, &
@@ -149,6 +155,7 @@ module m_dyn_atm_to_rrtmg
       real(ireals),intent(in),optional :: d_skin_temperature(:) ! skin tempertaure             [K]
 
       integer(iintegers) :: icol
+      PetscClassId, parameter :: cid=0
       integer(mpiint) :: ierr
 
       if(lTOA_to_srfc) then
@@ -157,6 +164,12 @@ module m_dyn_atm_to_rrtmg
       endif
 
       call init_mpi_data_parameters(comm)
+      if(.not.allocated(logs)) then
+        allocate(logs)
+        call PetscLogEventRegister('setup_tenstr_atm', cid, logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
+      endif
+
+      call PetscLogEventBegin(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
 
       if(.not.allocated(atm%bg_atm)) then
         call load_atmfile(comm, atm_filename, atm%bg_atm)
@@ -215,6 +228,7 @@ module m_dyn_atm_to_rrtmg
         atm%tskin = d_skin_temperature
       endif
 
+      call PetscLogEventEnd(logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
       contains
         subroutine check_shape_1d(d_arr, ncol)
           real(ireals), intent(in), optional :: d_arr(:)

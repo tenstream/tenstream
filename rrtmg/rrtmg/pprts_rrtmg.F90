@@ -63,6 +63,7 @@ module m_pprts_rrtmg
   use m_optprop_rrtmg, only: optprop_rrtm_lw, optprop_rrtm_sw, get_spectral_bands
 
   use m_tenstr_disort, only: default_flx_computation
+  use m_tenstr_rrtmg_base, only: t_rrtmg_log_events, setup_log_events
 
   implicit none
 
@@ -72,6 +73,7 @@ module m_pprts_rrtmg
 !  logical,parameter :: ldebug=.True.
   logical,parameter :: ldebug=.False.
 
+  type(t_rrtmg_log_events) :: log_events
 contains
 
   subroutine init_pprts_rrtmg(comm, solver, dx, dy, dz, &
@@ -82,12 +84,20 @@ contains
 
     integer(mpiint), intent(in) :: comm
 
-    real(ireals), intent(in)      :: dx, dy, phi0, theta0, dz(:,:,:)
+    real(ireals), intent(in)      :: dx, dy, phi0, theta0
+    real(ireals), intent(in)      :: dz(:,:) ! bot to top, e.g. from atm%dz
     integer(iintegers),intent(in) :: xm, ym, zm
     class(t_solver),intent(inout) :: solver
 
     ! arrays containing xm and ym for all nodes :: dim[x-ranks, y-ranks]
     integer(iintegers),intent(in), optional :: nxproc(:), nyproc(:), pprts_icollapse
+
+    integer(iintegers) :: i, j, icol
+
+    ! vertical thickness in [m]
+    real(ireals),allocatable :: dz_t2b(:,:,:) ! dz (t2b := top 2 bottom)
+
+    call setup_log_events(log_events, 'pprts_')
 
     if(present(nxproc) .neqv. present(nyproc)) then
       print *,'Wrong call to init_tenstream_rrtm_lw --    &
@@ -96,11 +106,19 @@ contains
       call CHKERR(1_mpiint, 'init_tenstream_rrtm_lw -- missing arguments nxproc or nyproc')
     endif
 
+    allocate(dz_t2b(zm, xm, ym))
+    do j=i1,ym
+      do i=i1,xm
+        icol =  i+(j-1)*xm
+        dz_t2b(:,i,j) = reverse(dz(:,icol))
+      enddo
+    enddo
+
     if(present(nxproc) .and. present(nyproc)) then
-      call init_pprts(comm, zm, xm, ym, dx,dy,phi0, theta0, solver, nxproc=nxproc, nyproc=nyproc, dz3d=dz, &
+      call init_pprts(comm, zm, xm, ym, dx,dy,phi0, theta0, solver, nxproc=nxproc, nyproc=nyproc, dz3d=dz_t2b, &
         collapseindex=pprts_icollapse)
     else ! we let petsc decide where to put stuff
-      call init_pprts(comm, zm, xm, ym, dx, dy, phi0, theta0, solver, dz3d=dz, &
+      call init_pprts(comm, zm, xm, ym, dx, dy, phi0, theta0, solver, dz3d=dz_t2b, &
         collapseindex=pprts_icollapse)
     endif
   end subroutine
@@ -275,11 +293,7 @@ contains
     ! ---------- end of API ----------------
 
     ! Counters
-    integer(iintegers) :: i, j, icol
     integer(iintegers) :: ke, ke1
-
-    ! vertical thickness in [m]
-    real(ireals),allocatable :: dz_t2b(:,:,:) ! dz (t2b := top 2 bottom)
 
     ! for debug purposes, can output variables into netcdf files
     !character(default_str_len) :: output_path(2) ! [ filename, varname ]
@@ -326,21 +340,16 @@ contains
     ke1 = ubound(atm%plev,1)
     ke = ubound(atm%tlay,1)
 
-    allocate(dz_t2b(ke, ie, je))
-    do j=i1,je
-      do i=i1,ie
-        icol =  i+(j-1)*ie
-        dz_t2b(:,i,j) = reverse(atm%dz(:,icol))
-      enddo
-    enddo
-
     if(ldebug .and. myid.eq.0) then
       call print_tenstr_atm(atm)
     endif
 
     if(.not.solver%linitialized) then
-      call init_pprts_rrtmg(comm, solver, dx, dy, dz_t2b, phi0, theta0, &
-        ie,je,ke, nxproc, nyproc, pprts_icollapse)
+      call init_pprts_rrtmg(comm, solver, &
+        dx, dy, atm%dz, &
+        phi0, theta0, &
+        ie, je, ke, &
+        nxproc, nyproc, pprts_icollapse)
     endif
 
     ! Allocate space for results -- for integrated values...
@@ -355,19 +364,23 @@ contains
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
       "-skip_thermal" , lskip_thermal, lflg , ierr) ;call CHKERR(ierr)
     if(lthermal.and..not.lskip_thermal)then
+      call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
       call compute_thermal(solver, atm, ie, je, ke, ke1, &
         albedo_thermal, &
         edn, eup, abso, opt_time=opt_time, lrrtmg_only=lrrtmg_only, &
         thermal_albedo_2d=thermal_albedo_2d)
+      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_thermal
     endif
 
     if(lsolar) then
       if(.not.allocated(edir)) allocate(edir (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
       edir = zero
+      call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
       call compute_solar(solver, atm, ie, je, ke, &
         phi0, theta0, albedo_solar, &
         edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
         lrrtmg_only=lrrtmg_only, phi2d=phi2d, theta2d=theta2d, opt_solar_constant=opt_solar_constant)
+      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
     endif
 
     call smooth_surface_fluxes(solver, edn, eup)
@@ -516,7 +529,8 @@ contains
             atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay (:,icol) , &
             atm%lwc(:,icol)*integral_coeff, atm%reliq(:, icol),             &
             atm%iwc(:,icol)*integral_coeff, atm%reice(:, icol),             &
-            tau=ptau, Bfrac=pBfrac, opt_lwuflx=peup, opt_lwdflx=pedn, opt_lwhr=pabso)
+            tau=ptau, Bfrac=pBfrac, opt_lwuflx=peup, opt_lwdflx=pedn, opt_lwhr=pabso, &
+            log_event=log_events%rrtmg_optprop_lw)
 
           tau  (:,i,j,:) = ptau(:,i1,:)
           Bfrac(2:ke1,i,j,:) = pBfrac(:,i1,:)
@@ -552,7 +566,8 @@ contains
             atm%ch4_lay(:,icol), atm%n2o_lay(:,icol), atm%o2_lay (:,icol) , &
             atm%lwc(:,icol)*integral_coeff, atm%reliq(:, icol),             &
             atm%iwc(:,icol)*integral_coeff, atm%reice(:, icol),             &
-            tau=ptau, Bfrac=pBfrac)
+            tau=ptau, Bfrac=pBfrac,                                         &
+            log_event=log_events%rrtmg_optprop_lw)
 
           tau  (:,i,j,:) = ptau(:,i1,:)
           Bfrac(2:ke1,i,j,:) = pBfrac(:,i1,:)
@@ -803,7 +818,8 @@ contains
             ptau, pw0, pg, &
             opt_swdirflx=pEdir, opt_swuflx=pEup, &
             opt_swdflx=pEdn, opt_swhr=pabso, &
-            opt_solar_constant=opt_solar_constant)
+            opt_solar_constant=opt_solar_constant, &
+            log_event=log_events%rrtmg_optprop_sw)
 
           tau(:,i,j,:) = ptau(:,i1,:)
           w0 (:,i,j,:) = pw0(:,i1,:)
@@ -848,7 +864,8 @@ contains
             atm%lwc(:,icol)*integral_coeff, atm%reliq(:,icol), &
             atm%iwc(:,icol)*integral_coeff, atm%reice(:,icol), &
             ptau, pw0, pg, &
-            opt_solar_constant=opt_solar_constant)
+            opt_solar_constant=opt_solar_constant, &
+            log_event=log_events%rrtmg_optprop_sw)
 
           tau(:,i,j,:) = ptau(:,i1,:)
           w0 (:,i,j,:) = pw0(:,i1,:)

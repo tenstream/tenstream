@@ -536,8 +536,6 @@ module m_plex_rt
         if(.not.allocated(solver%plck)) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, planck radiation vec has to be allocated first')
       endif
 
-      call PetscLogStagePush(solver%logs%stage_solve, ierr); call CHKERR(ierr)
-
       if(.not.allocated(solver%plex%geom_dm))  call compute_face_geometry(solver%plex, solver%plex%geom_dm)
       if(.not.allocated(solver%plex%edir_dm))  &
         call CHKERR(1_mpiint, 'solver%plex%edir_dm not allocated, should have happened in init_solver?')
@@ -635,7 +633,7 @@ module m_plex_rt
         endif
 
         if(solution%lsolar_rad) then
-
+          call PetscLogEventBegin(solver%logs%compute_Edir, ierr)
           ! Setup direct source term
           call PetscLogEventBegin(solver%logs%setup_dir_src, ierr)
           call create_edir_src_vec(solver, solver%plex, solver%plex%edir_dm, norm2(sundir), &
@@ -668,9 +666,12 @@ module m_plex_rt
           ! Output of Edir Vec
           if(ldebug) &
             call debug_dump_vec(solver%plex%edir_dm, solution%edir, solver%dir_scalevec_W_to_Wm2)
+
+          call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
         endif
 
         ! Create Diffuse Src
+        call PetscLogEventBegin(solver%logs%compute_Ediff, ierr)
         call PetscLogEventBegin(solver%logs%setup_diff_src, ierr)
         call create_ediff_src_vec(solver, solver%plex, solver%OPP, solver%plex%ediff_dm, &
           solver%kabs, solver%ksca, solver%g, solver%albedo, &
@@ -679,7 +680,7 @@ module m_plex_rt
           solver%plex%edir_dm, solution%edir)
         call PetscLogEventEnd(solver%logs%setup_diff_src, ierr)
 
-!        ! Output of Diffuse Src Vec
+        ! Output of Diffuse Src Vec
         if(ldebug) &
           call debug_dump_vec(solver%plex%ediff_dm, solver%diffsrc, solver%diff_scalevec_W_to_Wm2)
 
@@ -708,6 +709,8 @@ module m_plex_rt
         solution%lWm2_diff = .False.
         solution%lchanged = .True.
 
+        call PetscLogEventEnd(solver%logs%compute_Ediff, ierr)
+
         99 continue ! this is the quick exit final call where we clean up before the end of the routine
 
         ! Bring solution into a coherent state, i.e. update absorption etc.
@@ -715,7 +718,6 @@ module m_plex_rt
 
       end associate
 
-      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_solve
       contains
 
         subroutine debug_dump_vec(dm, vec, scalevec)
