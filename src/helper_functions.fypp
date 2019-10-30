@@ -2633,7 +2633,7 @@ end function
 subroutine domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr)
   ! Determine Domain Decomposition in 2D
   integer(mpiint), intent(in) :: comm
-  integer(iintegers), intent(out) :: N_ranks_x, N_ranks_y
+  integer(mpiint), intent(out) :: N_ranks_x, N_ranks_y
   integer(mpiint), intent(out) :: ierr
 
   integer(mpiint) :: numnodes

@@ -54,8 +54,8 @@ contains
     class(t_solver), allocatable :: pprts_solver
 
     real(ireals) :: dx, dy
-    integer(mpiint) :: myid, numnodes, ierr
-    integer(iintegers) :: N_ranks_x, N_ranks_y, iproc, jproc, is, ie, js, je
+    integer(mpiint) :: myid, N_ranks_x, N_ranks_y, ierr
+    integer(iintegers) :: iproc, jproc, is, ie, js, je
     integer(iintegers) :: nxp, nyp, nzp ! local sizes of domain, nzp being number of layers
 
     integer(iintegers) :: k
@@ -89,15 +89,8 @@ contains
     endif
 
     ! Determine Domain Decomposition
-    !call mpi_comm_size(comm, numnodes, ierr)
-    !N_ranks_y = int(sqrt(1.*numnodes))
-    !N_ranks_x = numnodes / N_ranks_y
-    !if(N_ranks_y*N_ranks_x .ne. numnodes) then
-    !  N_ranks_x = numnodes
-    !  N_ranks_y = 1
-    !endif
     call domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr); call CHKERR(ierr)
-    if(myid.eq.0) print *, myid, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
+    if(myid.eq.0) print *, myid, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y
 
     nxp = size(lwc, dim=2) / N_ranks_x
     nyp = size(lwc, dim=3) / N_ranks_y
@@ -184,7 +177,7 @@ contains
     real(ireals), dimension(:,:,:), contiguous, target, intent(in) :: tlev ! Temperature on layer interfaces [K]  dim=nzp+1,nxp,nyp
 
     ! MPI variables and domain decomposition sizes
-    integer(mpiint) :: numnodes, comm, myid, N_ranks_x, N_ranks_y, mpierr
+    integer(mpiint) :: comm, myid, N_ranks_x, N_ranks_y, ierr
 
 
     ! Layer values for the atmospheric constituents -- those are actually all
@@ -219,17 +212,12 @@ contains
 
     type(t_tenstr_atm) :: atm
 
-    comm = MPI_COMM_WORLD
-    call MPI_COMM_SIZE(comm, numnodes, mpierr)
-    call MPI_COMM_RANK(comm, myid, mpierr)
+    comm = mpi_comm_world
+    call mpi_comm_rank(comm, myid, ierr)
 
-    N_ranks_y = int(sqrt(1.*numnodes))
-    N_ranks_x = numnodes / N_ranks_y
-    if(N_ranks_y*N_ranks_x .ne. numnodes) then
-      N_ranks_x = numnodes
-      N_ranks_y = 1
-    endif
-    if(ldebug .and. myid.eq.0) print *, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
+    ! Determine Domain Decomposition
+    call domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr); call CHKERR(ierr)
+    if(myid.eq.0) print *, myid, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y
 
     allocate(nxproc(N_ranks_x), source=size(plev,2, kind=iintegers)) ! dimension will determine how many ranks are used along the axis
     allocate(nyproc(N_ranks_y), source=size(plev,3, kind=iintegers)) ! values have to define the local domain sizes on each rank (here constant on all processes)
@@ -310,7 +298,7 @@ contains
     !real(ireals),allocatable, dimension(:,:) :: gedir, gedn, geup, gabso ! global arrays which we will dump to netcdf
 
     real(ireals) :: dx, dy
-    integer(mpiint) :: myid, numnodes, ierr
+    integer(mpiint) :: myid, ierr
     integer(iintegers) :: k
 
     integer(iintegers) :: Nx_global, Ny_global, Nz
@@ -330,7 +318,6 @@ contains
     real(ireals) :: sundir(3) ! cartesian direction of sun rays in a global reference system
 
     call mpi_comm_rank(comm, myid, ierr)
-    call mpi_comm_size(comm, numnodes, ierr)
 
     if(myid.eq.0) then
       ! Load LibRadtran Cloud File
