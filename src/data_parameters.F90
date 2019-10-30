@@ -31,7 +31,8 @@ module m_data_parameters
              clight, nil, zero, one,                             &
              i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11,inil,         &
              iintegers,mpiint,                                   &
-             ireals,ireal128,ireal_dp,irealLUT,ireal_params, irealbmc, &
+             ireals,ireal128,ireal_dp,irealLUT,                  &
+             ireal_params, irealbmc, irealeddington,             &
              nan32, nan64, nan,                                  &
              imp_iinteger,imp_int4, imp_int8,                    &
              imp_ireals,imp_real_dp,imp_irealLUT,imp_logical,    &
@@ -53,6 +54,7 @@ module m_data_parameters
           ireal128     = REAL128, &
 !         ireal128 = selected_real_kind(33, 4931), &
           irealbmc     = REAL64, &
+          irealeddington = REAL64, &
           mpiint = kind(mpiint_dummy)
 
       real(ireals),parameter :: pi=3.141592653589793_ireals, clight=299792458._ireals, nil=-9999._ireals
