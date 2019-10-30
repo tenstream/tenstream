@@ -2232,7 +2232,6 @@ module m_pprts
     integer(iintegers) :: i, j, k, xinc, yinc
     type(tVec)         :: ledir,lediff ! local copies of vectors, including ghosts
     real(ireals)       :: Volume,Az
-    logical            :: lhave_no_3d_layer
 
     if(allocated(solution%edir)) then
       call PetscObjectViewFromOptions(solution%edir, PETSC_NULL_VEC, "-show_flxdiv_edir", ierr); call CHKERR(ierr)
@@ -2285,8 +2284,8 @@ module m_pprts
     call VecSet(solution%abso,zero,ierr) ;call CHKERR(ierr)
 
     ! if there are no 3D layers globally, we should skip the ghost value copying....
-    lhave_no_3d_layer = mpi_logical_and(solver%comm, all(atm%l1d.eqv..True.))
-    if(lhave_no_3d_layer) then
+    !lhave_no_3d_layer = mpi_logical_and(solver%comm, all(atm%l1d.eqv..True.))
+    if(ltwostr_only) then
       if(ldebug.and.solver%myid.eq.0) print *,'lhave_no_3d_layer => will use 1D absorption computation'
       call scale_flx(solver, solution, lWm2=.False.)
 
@@ -2306,8 +2305,6 @@ module m_pprts
               enddo
             endif
 
-            !xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_up  ,k+1,i  ,j  )  - xediff(E_up  ,k  ,i  ,j  )  )
-            !xabso(i0,k,i,j) = xabso(i0,k,i,j) + ( xediff(E_dn  ,k  ,i  ,j  )  - xediff(E_dn  ,k+1,i  ,j  )  )
             do isrc = 0, solver%difftop%dof-1
               if (solver%difftop%is_inward(i1+isrc)) then
                 xabso(i0,k,i,j) = xabso(i0,k,i,j) + (xediff(isrc, k, i, j) - xediff(isrc, k+1, i, j))
