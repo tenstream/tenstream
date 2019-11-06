@@ -164,7 +164,9 @@ module m_helper_functions
         reverse_3d_real32, reverse_3d_real64, reverse_4d_real32, reverse_4d_real64
   end interface
   interface is_between
-    module procedure is_between_r32, is_between_r64
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure is_between_${dtype}$
+#:endfor
   end interface
   interface assertEqual
     module procedure assertEqual_i32, assertEqual_i64
@@ -302,14 +304,12 @@ module m_helper_functions
       x=x+i
     end subroutine
 
-    pure elemental logical function is_between_r32(x,a,b) result(is_between)
-      real(REAL32), intent(in) :: x,a,b
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    pure elemental logical function is_between_${dtype}$(x,a,b) result(is_between)
+      real(${dtype}$), intent(in) :: x,a,b
       is_between = (x-a) * (x-b) .lt. 0
     end function
-    pure elemental logical function is_between_r64(x,a,b) result(is_between)
-      real(REAL64), intent(in) :: x,a,b
-      is_between = (x-a) * (x-b) .lt. 0
-    end function
+#:endfor
 
     subroutine CHKERR(ierr, descr)
       integer(mpiint),intent(in) :: ierr
