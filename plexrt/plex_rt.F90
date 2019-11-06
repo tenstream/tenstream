@@ -593,10 +593,12 @@ module m_plex_rt
         ! --------- Calculate 1D Radiative Transfer ------------
         if(ltwostr_only) then
           call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
-          if( (solution%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
+          if( (lsolar.eqv..False.) .and. lschwarzschild ) then
             call plexrt_schwarz(solver, solution)
           else
-            call plexrt_twostream(solver, solver%plex, solver%kabs, solver%ksca, solver%g, &
+            call plexrt_twostream(solver, solver%plex, &
+              lthermal, lsolar, &
+              solver%kabs, solver%ksca, solver%g, &
               solver%albedo, sundir, solution, plck=solver%plck)
           endif
           call PetscLogEventEnd(solver%logs%solve_twostream, ierr)

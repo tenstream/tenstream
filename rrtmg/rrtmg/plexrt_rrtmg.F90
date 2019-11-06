@@ -44,8 +44,8 @@ module m_plexrt_rrtmg
       mpiint, pi, default_str_len
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : &
-      CHKERR, CHKWARN, deg2rad, reverse, itoa, angle_between_two_vec, &
-      rad2deg, get_arg, delta_scale_optprop
+      CHKERR, CHKWARN, deg2rad, reverse, itoa, ftoa, angle_between_two_vec, &
+      rad2deg, get_arg, delta_scale_optprop, is_between
   use m_search, only: find_real_location
   use m_tenstream_interpolation, only : interp_1d
 
@@ -139,6 +139,17 @@ contains
       call print_tenstr_atm(atm,Ncol)
       print *,'m_plexrt_rrtmg sundir:', sundir, 'albedo th,sol',albedo_thermal, albedo_solar,'lth/lsol', lthermal, lsolar
       if(present(opt_time)) print *,'time', opt_time
+    endif
+
+    if(ldebug) then
+      if(present(solar_albedo_2d)) then
+        if(any(.not.is_between(solar_albedo_2d, zero, one))) &
+          call CHKERR(1_mpiint, 'Bad solar albedo value min: '//ftoa(minval(solar_albedo_2d))//' max: '//ftoa(maxval(solar_albedo_2d)))
+      endif
+      if(present(thermal_albedo_2d)) then
+        if(any(.not.is_between(thermal_albedo_2d, zero, one))) &
+          call CHKERR(1_mpiint, 'Bad thermal albedo value min: '//ftoa(minval(thermal_albedo_2d))//' max: '//ftoa(maxval(thermal_albedo_2d)))
+      endif
     endif
 
     if(.not.allocated(edn )) allocate(edn (ke1, Ncol))
@@ -863,41 +874,46 @@ contains
           call DMPlexGetSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
-          theta0 = rad2deg(angle_between_two_vec(face_normal, sundir))
+          mu0 = dot_product(face_normal, sundir)
+          if(mu0.gt.0) then
 
-          if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(icol)
+            if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(icol)
 
-          do ib=spectral_bands(1), spectral_bands(2)
-            if(present(opt_solar_constant)) then
-              edirTOA = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
-            else
-              edirTOA = tenstr_solsrc(ib)
-            endif
+            do ib=spectral_bands(1), spectral_bands(2)
+              if(present(opt_solar_constant)) then
+                edirTOA = tenstr_solsrc(ib) /sum(tenstr_solsrc) * opt_solar_constant
+              else
+                edirTOA = tenstr_solsrc(ib)
+              endif
 
-            col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,icol,ib))))
-            col_w0     = max(tiny(col_w0  ), real(reverse(w0 (:,icol,ib))))
-            col_g      = max(tiny(col_g   ), real(reverse(g  (:,icol,ib))))
+              col_dtau   = max(tiny(col_dtau), real(reverse(tau(:,icol,ib))))
+              col_w0     = max(tiny(col_w0  ), real(reverse(w0 (:,icol,ib))))
+              col_g      = max(tiny(col_g   ), real(reverse(g  (:,icol,ib))))
 
-            if(ldelta_scale) call delta_scale_optprop( col_dtau, col_w0, col_g, col_g )
+              if(ldelta_scale) call delta_scale_optprop( col_dtau, col_w0, col_g, col_g )
 
-            mu0 = real(cos(deg2rad(theta0)))
-            call default_flx_computation(&
-              mu0, &
-              real(edirTOA), &
-              real(col_albedo), &
-              real(col_tskin), &
-              .False., [0., 0.], col_Bfrac, &
-              col_dtau, &
-              col_w0,   &
-              col_g,    &
-              col_temper, &
-              RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
-              int(nstreams), lverbose=.False.)
+              call default_flx_computation(&
+                mu0, &
+                real(edirTOA), &
+                real(col_albedo), &
+                real(col_tskin), &
+                .False., [0., 0.], col_Bfrac, &
+                col_dtau, &
+                col_w0,   &
+                col_g,    &
+                col_temper, &
+                RFLDIR, RFLDN, FLUP, DFDT, UAVG, &
+                int(nstreams), lverbose=.False.)
 
-            edir(:,icol) = edir(:,icol) + RFLDIR
-            eup (:,icol) = eup (:,icol) + FLUP
-            edn (:,icol) = edn (:,icol) + RFLDN
-          enddo ! ib 1 -> nbndsw , i.e. spectral integration
+              edir(:,icol) = edir(:,icol) + RFLDIR
+              eup (:,icol) = eup (:,icol) + FLUP
+              edn (:,icol) = edn (:,icol) + RFLDN
+            enddo ! ib 1 -> nbndsw , i.e. spectral integration
+          else !no sun
+            edir(:,icol) = 0
+            eup (:,icol) = 0
+            edn (:,icol) = 0
+          endif
         enddo
 
         abso =( edir(1:ke,:) - edir(2:ke+1,:)   &

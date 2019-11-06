@@ -5,7 +5,7 @@ module m_plex_grid
 
   use m_helper_functions, only: CHKERR, compute_normal_3d, approx, strF2C, distance, &
     triangle_area_by_vertices, swap, determine_normal_direction, &
-    vec_proj_on_plane, cross_3d, rad2deg, &
+    vec_proj_on_plane, cross_3d, rad2deg, is_between, &
     angle_between_two_vec, angle_between_two_normed_vec, &
     resize_arr, get_arg, normalize_vec, &
     imp_bcast, itoa, ftoa, imp_allreduce_max, &
@@ -1473,7 +1473,7 @@ module m_plex_grid
       !print *,'Cx/Cy', Cx, Cy
       !print *,'rparam_phi, rparam_theta',rparam_phi, rparam_theta
 
-      if(rparam_theta.gt.param_eps) then ! only if baseface should be src
+      if(is_between(rparam_theta, real(param_eps, ireal_params), 1._ireal_params)) then ! only if baseface should be src
         ierr = 0
         if(rparam_phi.lt.-1_irealLUT-param_eps .and. .not.lsrc(left_face)) then
           ierr = 1

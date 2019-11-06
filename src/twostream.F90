@@ -32,7 +32,7 @@ module m_twostream
   use m_data_parameters, only: ireals,iintegers,mpiint,zero,one,pi,i0,i1,i2
   use m_schwarzschild, only: B_eff
   use m_eddington, only: eddington_coeff_zdun
-  use m_helper_functions, only : delta_scale_optprop, CHKERR, itoa
+  use m_helper_functions, only : delta_scale_optprop, CHKERR, itoa, ftoa, approx
   implicit none
 
   private
@@ -139,7 +139,8 @@ contains
     if(ldebug) then
       do k=1,ke
         if(any(isnan( [a11(k),a12(k),a13(k),a23(k),a33(k)] )) ) then
-          print *,'eddington coefficients',k,' source',B(2*k-1,1),B(2*k,1), 'eddington',a11(k),a12(k),' :: ',a13(k),a23(k), ' :: ',a33(k), ' :: ',dtau(k),w0(k),g(k),mu0,'S=',S(k)
+          print *,'eddington coefficients',k,' source',B(2*k-1,1),B(2*k,1), &
+            'eddington',a11(k),a12(k),' :: ',a13(k),a23(k), ' :: ',a33(k), ' :: ',dtau(k),w0(k),g(k),mu0,'S=',S(k)
           call exit()
         endif
       enddo
@@ -166,6 +167,12 @@ contains
         if(any(isnan( [Eup(k),Edn(k)] )) ) &
           print *,'setting value for Eup,Edn',k,' LAPACK entries',B(2*k-1,1),B(2*k,1),'Eup/dn', Eup(k),Edn(k),'IPIV',IPIV(2*k-1:2*k)
       enddo
+      if((.not.present(planck)) .and. (.not.approx( (S(ke1)+Edn(ke1)) * albedo, Eup(ke1), sqrt(epsilon(Eup)) ))) &
+        call CHKERR(1_mpiint, 'Reflected Radiation at the surface does not match the given '//new_line('')// &
+        'albedo: '//ftoa(albedo)//new_line('')// &
+        'Edir: '//ftoa(S(ke1))//new_line('')// &
+        'Edn: '//ftoa(Edn(ke1))//new_line('')// &
+        'Eup: '//ftoa(Eup(ke1))//new_line('') )
     endif
 
   end subroutine

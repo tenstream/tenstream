@@ -4,8 +4,9 @@ module m_plexrt_external_solvers
 
   use m_data_parameters, only: ireals, iintegers, mpiint, &
     i0, i1, i2, i3, i4, i5, zero
-  use m_helper_functions, only: CHKERR, angle_between_two_vec, delta_scale, &
-    cstr, itoa, ftoa
+  use m_helper_functions, only: CHKERR, CHKWARN, &
+    angle_between_two_vec, delta_scale, &
+    cstr, itoa, ftoa, approx
 
   use m_pprts_base, only : t_state_container
   use m_plex_rt_base, only: t_plex_solver
@@ -144,9 +145,10 @@ contains
 
   !> @brief wrapper for the delta-eddington twostream solver
   !> @details solve the radiative transfer equation for infinite horizontal slabs
-  subroutine plexrt_twostream(solver, plex, kabs, ksca, g, albedo, sundir, solution, plck)
+  subroutine plexrt_twostream(solver, plex, lthermal, lsolar, kabs, ksca, g, albedo, sundir, solution, plck)
     class(t_plex_solver), intent(inout) :: solver
     type(t_plexgrid), intent(in) :: plex
+    logical, intent(in) :: lthermal, lsolar
     type(tVec), intent(in) :: kabs, ksca, g, albedo
     type(tVec), allocatable, intent(in), optional :: plck
     real(ireals), intent(in) :: sundir(:)
@@ -165,15 +167,12 @@ contains
 
     real(ireals) :: dkabs, dksca, dg
     real(ireals) :: face_normal(3)
-    logical :: lthermal, lsolar
 
     integer(mpiint) :: ierr
 
-    lsolar = solution%lsolar_rad
-    if(present(plck)) then
-      lthermal = allocated(plck)
-    else
-      lthermal = .False.
+    if(lthermal) then
+      if(.not.present(plck)) call CHKERR(1_mpiint, 'planck vec has to be present if thermal computations are wanted')
+      if(.not.allocated(plck)) call CHKERR(1_mpiint, 'planck vec is present but not allocated')
     endif
 
     if(allocated(solution%edir)) then
@@ -215,9 +214,11 @@ contains
         call VecGetArrayReadF90(plck, xplck, ierr); call CHKERR(ierr)
       endif
 
+      call VecSet(solution%ediff, zero, ierr); call CHKERR(ierr)
       call VecGetArrayF90(solution%ediff, xediff, ierr); call CHKERR(ierr)
       if(lsolar) then
         call DMGetSection(plex%edir_dm, edir_section, ierr); call CHKERR(ierr)
+        call VecSet(solution%edir, zero, ierr); call CHKERR(ierr)
         call VecGetArrayF90(solution%edir , xedir , ierr); call CHKERR(ierr)
       endif
 
@@ -273,7 +274,7 @@ contains
           do k = 0, ke1-1
             call PetscSectionGetOffset(edir_section, iface+k, voff, ierr); call CHKERR(ierr)
             do idof = 1, solver%dirtop%dof
-              xedir(voff+idof) = edir(i1+k)
+              xedir(voff+idof) = Edir(i1+k)
             enddo
           enddo
         endif
@@ -287,6 +288,15 @@ contains
         call PetscSectionGetFieldOffset(ediff_section, iface+k, i0, voff, ierr); call CHKERR(ierr)
         xediff(i1+voff) = Eup(i1+k)
         xediff(i1+voff+i1) = Edn(i1+k)
+
+
+        if(lsolar .and. (.not.approx( (Edir(ke1)+Edn(ke1)) * xalbedo(i), Eup(ke1), sqrt(epsilon(Eup)) ))) &
+          call CHKERR(1_mpiint, 'Reflected Radiation at the surface does not match the given '//new_line('')// &
+          'albedo: '//ftoa(xalbedo(i))//new_line('')// &
+          'Edir: '//ftoa(Edir(ke1))//new_line('')// &
+          'Edn: '//ftoa(Edn(ke1))//new_line('')// &
+          'Eup: '//ftoa(Eup(ke1))//new_line('')// &
+          'should be: '//ftoa((Edir(ke1)+Edn(ke1))*xalbedo(i))//new_line('') )
 
         ! compute absorption as flux divergence
         do k = 1, ke1-1
@@ -324,7 +334,7 @@ contains
     !Twostream solver returns fluxes as [W/m^2]
     solution%lWm2_dir  = .True.
     solution%lWm2_diff = .True.
-    ! and mark solution that it is not up to date
+    ! and mark solution that it is up to date
     solution%lchanged  = .False.
   end subroutine
 
