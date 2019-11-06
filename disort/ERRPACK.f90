@@ -12,7 +12,7 @@ module m_tenstr_disort_errpack
       CHARACTER*(*) MESSAG
       INTEGER       MaxMsg, NumMsg
       SAVE          MaxMsg, NumMsg, MsgLim
-      DATA NumMsg / 0 /,  MaxMsg / 100 /,  MsgLim / .FALSE. /
+      DATA NumMsg / 0 /,  MaxMsg / 10 /,  MsgLim / .FALSE. /
 
 
       IF ( FATAL )  THEN
@@ -46,7 +46,7 @@ module m_tenstr_disort_errpack
       CHARACTER*(*)  VarNam
       INTEGER        MaxMsg, NumMsg
       SAVE  NumMsg, MaxMsg
-      DATA  NumMsg / 0 /,  MaxMsg / 50 /
+      DATA  NumMsg / 0 /,  MaxMsg / 5 /
 
 
       WrtBad = .TRUE.

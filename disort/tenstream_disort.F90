@@ -128,7 +128,7 @@ contains
       subroutine check_bad_mu0()
         integer :: loc
         loc = nint(find_real_location(umu, umu0))
-        if(abs(umu(loc)-umu0).le.epsilon(umu)*100) then
+        if(abs(umu(loc)-umu0).le.epsilon(umu)*10) then
           print *,'our choice of umu might be bad. '// &
             'You could try to use a different number of disort streams. '// &
             'Try to set a value where nstr/2 is an even number.'
