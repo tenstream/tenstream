@@ -874,7 +874,7 @@ contains
           call DMPlexGetSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
           call get_inward_face_normal(iface, cell_support(1), geomSection, geoms, face_normal)
           call DMPlexRestoreSupport(solver%plex%geom_dm, iface, cell_support, ierr); call CHKERR(ierr)
-          mu0 = dot_product(face_normal, sundir)
+          mu0 = real(dot_product(face_normal, sundir), kind(mu0))
           if(mu0.gt.0) then
 
             if(present(solar_albedo_2d)) col_albedo = solar_albedo_2d(icol)
