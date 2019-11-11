@@ -1640,17 +1640,19 @@ module m_pprts
       .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lcalc_nca) &
       .or. ((solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild) ) then
 
-      call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
 
       if( (solutions(uid)%lsolar_rad.eqv..False.) .and. lschwarzschild ) then
+        call PetscLogEventBegin(solver%logs%solve_schwarzschild, ierr)
         call schwarz(solver, solutions(uid))
+        call PetscLogEventEnd(solver%logs%solve_schwarzschild, ierr)
       else
+        call PetscLogEventBegin(solver%logs%solve_twostream, ierr)
         call twostream(solver, edirTOA,  solutions(uid) )
+        call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
       endif
 
       if(ldebug .and. solver%myid.eq.0) print *,'1D calculation done'
 
-      call PetscLogEventEnd(solver%logs%solve_twostream, ierr)
 
       if( ltwostr_only ) goto 99
       if( all(solver%atm%l1d.eqv..True.) ) goto 99
