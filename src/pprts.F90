@@ -1942,9 +1942,6 @@ module m_pprts
       call VecCopy( solution%abso, abso_old, ierr)     ; call CHKERR(ierr)
     endif
 
-    ! make sure to bring the fluxes into [W] before the absorption calculation
-    call scale_flx(solver, solution, lWm2=.False.)
-
     ! update absorption
     call calc_flx_div(solver, solution)
 
@@ -2268,24 +2265,22 @@ module m_pprts
       call restoreVecPointer(solver%abso_scalevec, xabso1d ,xabso)
     endif
 
-    if(solution%lsolar_rad .and. (solution%lWm2_dir .eqv..True.)) call CHKERR(1_mpiint, 'tried calculating absorption but dir  vector was in [W/m**2], not in [W], scale first!')
-    if(                          (solution%lWm2_diff.eqv..True.)) call CHKERR(1_mpiint, 'tried calculating absorption but diff vector was in [W/m**2], not in [W], scale first!')
-
     if( (solution%lsolar_rad.eqv..False.) .and. lcalc_nca ) then ! if we should calculate NCA (Klinger), we can just return afterwards
       call scale_flx(solver, solution, lWm2=.True.)
       call nca_wrapper(solver, solution%ediff, solution%abso)
-      call scale_flx(solver, solution, lWm2=.False.)
       return
     endif
 
     if(solver%myid.eq.0.and.ldebug) print *,'Calculating flux divergence',solution%lsolar_rad,lcalc_nca
     call VecSet(solution%abso,zero,ierr) ;call CHKERR(ierr)
 
+    ! make sure to bring the fluxes into [W] before the absorption calculation
+    call scale_flx(solver, solution, lWm2=.False.)
+
     ! if there are no 3D layers globally, we should skip the ghost value copying....
     !lhave_no_3d_layer = mpi_logical_and(solver%comm, all(atm%l1d.eqv..True.))
     if(ltwostr_only) then
       if(ldebug.and.solver%myid.eq.0) print *,'lhave_no_3d_layer => will use 1D absorption computation'
-      call scale_flx(solver, solution, lWm2=.False.)
 
       if(solution%lsolar_rad) call getVecPointer(solution%edir, C_dir%da ,xedir1d ,xedir )
 
