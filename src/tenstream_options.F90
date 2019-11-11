@@ -127,10 +127,11 @@ contains
       call CHKERR(1_mpiint, 'option -ident '//trim(ident)//' requires also -dx option')
     endif
 
+    options_max_solution_err = 0.01
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-max_solution_err",options_max_solution_err, lflg,ierr)  ; call CHKERR(ierr)
-    if (lflg.eqv.PETSC_FALSE ) options_max_solution_err=0.01
+
+    options_max_solution_time = 0
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-max_solution_time",options_max_solution_time, lflg,ierr)  ; call CHKERR(ierr)
-    if (lflg.eqv.PETSC_FALSE ) options_max_solution_time=60
 
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-dy",ident_dy, lflg,ierr)  ; call CHKERR(ierr)
     if(lflg.eqv.PETSC_FALSE) ident_dy = ident_dx

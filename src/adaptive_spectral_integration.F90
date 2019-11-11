@@ -66,7 +66,9 @@ module m_adaptive_spectral_integration
         return
       endif
 
-      if( .not. lenable_solutions_err_estimates ) then
+      if( (.not.lenable_solutions_err_estimates) .or. &
+         options_max_solution_time.le.zero .or. &
+         options_max_solution_err.le.zero ) then
         need_new_solution=.True.
         write(reason,*) 'solutions_err_estimates disabled'
         if(ldebug .and. myid.eq.0) print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid
@@ -178,7 +180,6 @@ module m_adaptive_spectral_integration
 
         write (out_unit,*) solution%uid,solution%maxnorm
         write (out_unit,*) solution%uid,time
-        write (out_unit,*) solution%uid,solution%twonorm
         close (out_unit)
       endif
 

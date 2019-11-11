@@ -79,7 +79,6 @@ module m_pprts_base
     !save error statistics
     real(ireals)        :: time   (30) = -one
     real(ireals)        :: maxnorm(30) = zero
-    real(ireals)        :: twonorm(30) = zero
     real(ireals),allocatable :: dir_ksp_residual_history(:)
     real(ireals),allocatable :: diff_ksp_residual_history(:)
   end type

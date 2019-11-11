@@ -29,7 +29,7 @@ module m_pprts
 
   use m_helper_functions, only : CHKERR, CHKWARN, deg2rad, rad2deg, imp_allreduce_min, &
     imp_bcast, imp_allreduce_max, delta_scale, mpi_logical_and, meanval, get_arg, approx, &
-    inc, ltoa, itoa, ftoa, imp_allreduce_mean
+    inc, ltoa, cstr, itoa, ftoa, imp_allreduce_mean
 
   use m_twostream, only: delta_eddington_twostream, adding_delta_eddington_twostream
   use m_schwarzschild, only: schwarzschild, B_eff
@@ -222,6 +222,9 @@ module m_pprts
       call mpi_comm_size(solver%comm, solver%numnodes, ierr) ; call CHKERR(ierr)
 
       call read_commandline_options(solver%comm)
+
+      solver%lenable_solutions_err_estimates = &
+        options_max_solution_err.gt.zero .and. options_max_solution_time.gt.zero
 
       if(.not.approx(dx,dy)) &
         call CHKERR(1_mpiint, 'dx and dy currently have to be the same '//ftoa(dx)//' vs '//ftoa(dy))
@@ -1613,11 +1616,7 @@ module m_pprts
                 Mdir      => solver%Mdir,      &
                 Mdiff     => solver%Mdiff     )
 
-    if(solver%lenable_solutions_err_estimates .and. present(opt_solution_uid)) then
-      uid = opt_solution_uid
-    else
-      uid = i0 ! default solution is uid==0
-    endif
+    uid = get_arg(0_iintegers, opt_solution_uid)
 
     lsolar = mpi_logical_and(solver%comm, edirTOA.gt.zero .and. any(solver%sun%theta.ge.zero))
     if(ldebug) print *,'uid', uid, 'lsolar', lsolar, 'edirTOA', edirTOA, ':', any(solver%sun%theta.ge.zero)
@@ -1928,7 +1927,7 @@ module m_pprts
     real(ireals),intent(in),optional :: time
 
     character(default_str_len) :: vecname
-    real(ireals) :: two_norm, inf_norm
+    real(ireals) :: inf_norm
     type(tVec) :: abso_old
 
     if( .not. solution%lset ) call CHKERR(1_mpiint, 'cant restore solution that was not initialized')
@@ -1960,23 +1959,20 @@ module m_pprts
 
     if(present(time) .and. solver%lenable_solutions_err_estimates) then ! Compute norm between old absorption and new one
       call VecAXPY(abso_old, -one, solution%abso, ierr); call CHKERR(ierr) ! overwrite abso_old with difference to new one
-      call VecNorm(abso_old, NORM_2, two_norm, ierr)       ; call CHKERR(ierr)
       call VecNorm(abso_old, NORM_INFINITY, inf_norm, ierr); call CHKERR(ierr)
 
       call DMRestoreGlobalVector(solver%C_one%da, abso_old, ierr)   ; call CHKERR(ierr)
 
       ! Save norm for later analysis
       solution%maxnorm = eoshift ( solution%maxnorm, shift = -1) !shift all values by 1 to the right
-      solution%twonorm = eoshift ( solution%twonorm, shift = -1) !shift all values by 1 to the right
       solution%time    = eoshift ( solution%time   , shift = -1) !shift all values by 1 to the right
 
       solution%maxnorm( 1 ) = inf_norm
-      solution%twonorm( 1 ) = two_norm
       solution%time( 1 )    = time
 
       if(ldebug .and. solver%myid.eq.0) &
         print *,'Updating error statistics for solution ',solution%uid,'at time ',time,'::',solution%time(1), &
-                ':: norm',two_norm, inf_norm,'[W] :: hr_norm approx:',inf_norm*86.1,'[K/d]'
+                ':: norm', inf_norm,'[W] :: hr_norm approx:',inf_norm*86.1,'[K/d]'
 
     endif !present(time) .and. solver%lenable_solutions_err_estimates
 
@@ -3669,7 +3665,6 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
     real(ireals),pointer :: x1d(:)=>null(),x4d(:,:,:,:)=>null()
 
     uid = get_arg(0_iintegers, opt_solution_uid)
-    if(.not.solver%lenable_solutions_err_estimates) uid = 0
 
     if(ldebug .and. solver%myid.eq.0) print *,'calling pprts_get_result',present(redir),'for uid',uid
 
