@@ -45,7 +45,7 @@ module m_plexrt_rrtmg
   use m_adaptive_spectral_integration, only: need_new_solution
   use m_helper_functions, only : &
       CHKERR, CHKWARN, deg2rad, reverse, itoa, ftoa, angle_between_two_vec, &
-      rad2deg, get_arg, delta_scale_optprop, is_between
+      rad2deg, get_arg, delta_scale_optprop, is_inrange
   use m_search, only: find_real_location
   use m_tenstream_interpolation, only : interp_1d
 
@@ -143,11 +143,11 @@ contains
 
     if(ldebug) then
       if(present(solar_albedo_2d)) then
-        if(any(.not.is_between(solar_albedo_2d, zero, one))) &
+        if(any(.not.is_inrange(solar_albedo_2d, zero, one))) &
           call CHKERR(1_mpiint, 'Bad solar albedo value min: '//ftoa(minval(solar_albedo_2d))//' max: '//ftoa(maxval(solar_albedo_2d)))
       endif
       if(present(thermal_albedo_2d)) then
-        if(any(.not.is_between(thermal_albedo_2d, zero, one))) &
+        if(any(.not.is_inrange(thermal_albedo_2d, zero, one))) &
           call CHKERR(1_mpiint, 'Bad thermal albedo value min: '//ftoa(minval(thermal_albedo_2d))//' max: '//ftoa(maxval(thermal_albedo_2d)))
       endif
     endif

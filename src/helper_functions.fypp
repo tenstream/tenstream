@@ -54,7 +54,7 @@ module m_helper_functions
     distance, triangle_area_by_edgelengths, triangle_area_by_vertices,                                               &
     ind_1d_to_nd, ind_nd_to_1d, ndarray_offsets, get_mem_footprint,            &
     resize_arr, reverse, rotate_angle_x, rotate_angle_y, rotate_angle_z, rotation_matrix_around_axis_vec,            &
-    solve_quadratic, linspace, assert_arr_is_monotonous, is_between, sEXP, transposed_arr,                           &
+    solve_quadratic, linspace, assert_arr_is_monotonous, is_between, is_inrange, sEXP, transposed_arr,               &
     triangle_inner_circle_center, domain_decompose_2d
 
   interface rotate_angle_x
@@ -166,6 +166,11 @@ module m_helper_functions
   interface is_between
 #:for dtype in ['REAL32', 'REAL64', 'REAL128']
     module procedure is_between_${dtype}$
+#:endfor
+  end interface
+  interface is_inrange
+#:for dtype in ['REAL32', 'REAL64', 'REAL128']
+    module procedure is_inrange_${dtype}$
 #:endfor
   end interface
   interface assertEqual
@@ -308,6 +313,10 @@ module m_helper_functions
     pure elemental logical function is_between_${dtype}$(x,a,b) result(is_between)
       real(${dtype}$), intent(in) :: x,a,b
       is_between = (x-a) * (x-b) .lt. 0
+    end function
+    pure elemental logical function is_inrange_${dtype}$(x,a,b) result(is_between)
+      real(${dtype}$), intent(in) :: x,a,b
+      is_between = (x-a) * (x-b) .le. 0
     end function
 #:endfor
 
