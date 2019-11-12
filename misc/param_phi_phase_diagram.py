@@ -22,13 +22,14 @@ f = lambda pphi, ptheta: py_param_phi.m_py_param_phi.py_iterative_phi_theta_from
 
 figure(num=2, figsize=(8,4))
 clf()
+N=1e5
 Cx, Cy = .8, 0.9660254
 for ptheta in [0,]:
-    phi,theta=np.array([ f(pphi, ptheta) for pphi in  linspace(-2,2,1e5)]).T
+    phi,theta=np.array([ f(pphi, ptheta) for pphi in  linspace(-2,2,N)]).T
     plot(rad2deg(theta), rad2deg(phi))
 
 for pphi in [-1,-2,1,2]:
-    phi,theta=np.array([ f(pphi, ptheta) for ptheta in  linspace(-1,1,1e5)]).T
+    phi,theta=np.array([ f(pphi, ptheta) for ptheta in  linspace(-1,1,N)]).T
     plot(rad2deg(theta), rad2deg(phi))
 
 

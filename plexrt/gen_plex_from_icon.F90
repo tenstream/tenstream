@@ -59,7 +59,7 @@ module m_gen_plex_from_icon
       call dmplex_2D_to_3D(dm2d_dist, Nlev, icon_hdcp2_default_hhl, dm3d, zindex)
 
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
-      call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
+      call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, icon_hdcp2_default_hhl)
 
       call ncvar2d_to_globalvec(plex, datafile, 'clw', clw, cell_ao_2d=cell_ao_2d)
       call PetscObjectViewFromOptions(clw, PETSC_NULL_VEC, '-show_clw', ierr); call CHKERR(ierr)

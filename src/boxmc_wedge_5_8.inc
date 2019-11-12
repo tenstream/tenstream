@@ -41,7 +41,6 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   integer(iintegers),intent(in) :: src
   logical,intent(in) :: ldirect
   real(ireal_dp), dimension(3) :: normal, triangle_center, dir_p_to_triangle_center, U, V
-  real(ireal_dp),parameter :: edge_start_range=.999_ireal_dp
   integer(mpiint),intent(out) :: ierr
 
   associate( &
@@ -59,8 +58,7 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   case (2)
     call rand_pnt_on_plane(pA,pD,pE,pB, p%loc, normal, U, V)
   case (3)
-    call rand_pnt_on_plane(pA,pD,pF,pC, p%loc, normal, U, V)
-    normal = -normal
+    call rand_pnt_on_plane(pA,pC,pF,pD, p%loc, normal, U, V)
   case (4)
     call rand_pnt_on_plane(pB,pE,pF,pC, p%loc, normal, U, V)
   case (5)
@@ -72,6 +70,8 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
   end select
 
   triangle_center = (pA+pB+pC+pD+pE+pF)/6._ireal_dp
+
+  end associate
 
   p%src_side = src
 
@@ -88,30 +88,29 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
 
   p%loc = p%loc + sqrt(epsilon(pi64)) * dir_p_to_triangle_center
 
-  end associate
-
   select type(bmc)
   end select
 
-  if(dot_product(p%dir, normal).lt.zero) then
+  if(dot_product(p%dir, normal).le.sqrt(epsilon(zero))) then
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
     if(ldebug) then
+      call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the wedge')
       print *,'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
       print *,'src', src, 'initial_dir', initial_dir
       print *,'normal',normal,'direction',p%dir
       call print_photon(p)
     endif
-    !stop 'initial direction of the wedge triangle'
     return
   endif
   ierr = 0
+
 end subroutine
 
 subroutine update_dir_stream_wedge_5_8(bmc,vertices,p,T)
   class(t_boxmc_wedge_5_8) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
-  real(ireal_dp),intent(inout) :: T(:)
+  real(irealbmc),intent(inout) :: T(:)
 
   T(p%side) = T(p%side) + p%weight
   select type(bmc)
@@ -123,7 +122,7 @@ subroutine update_diff_stream_wedge_5_8(bmc,vertices,p,S)
   class(t_boxmc_wedge_5_8) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
-  real(ireal_dp),intent(inout) :: S(:)
+  real(irealbmc),intent(inout) :: S(:)
   real(ireal_dp) :: normal(3)
 
   ! in case of spherically distorted elements,
@@ -240,6 +239,9 @@ subroutine init_diff_photon_wedge_5_8(bmc, p, src, vertices, ierr)
     phi= deg2rad( R()*360 )
   case(2:7)
     phi= deg2rad( interv_R(0._ireal_dp, 180._ireal_dp) ) ! from +x to -x through +y
+  case default
+    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+    call exit
   end select
 
   mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu --> Lambertian

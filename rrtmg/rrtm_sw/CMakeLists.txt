@@ -12,7 +12,7 @@ if(${_is_Intel})
 else()
   set(WNOERRORFLG "-w -Wno-error -Wno-pedantic")
 endif(${_is_Intel})
-file(GLOB rrtm_files *.f* )
+file(GLOB rrtm_files *.f*)
 
 foreach(rrtm_file ${rrtm_files})
   SET_SOURCE_FILES_PROPERTIES(${rrtm_file} PROPERTIES COMPILE_FLAGS "${WNOERRORFLG}")

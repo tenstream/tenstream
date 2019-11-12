@@ -86,7 +86,8 @@
              cicewp  ,cliqwp  ,reice   ,reliq   , &
              tauaer  ,ssaaer  ,asmaer  ,ecaer   , &
              swuflx  ,swdflx  ,swhr    ,swuflxc ,swdflxc ,swhrc, &
-             tenstr_tau, tenstr_w, tenstr_g, loptprop_only)
+             tenstr_tau, tenstr_w, tenstr_g, loptprop_only, &
+             tenstr_tau_f, tenstr_w_f, tenstr_g_f)
 
 ! ------- Description -------
 
@@ -296,9 +297,12 @@
       real(kind=rb), intent(out) :: swhrc(:,:)        ! Clear sky shortwave radiative heating rate (K/d)
                                                       !    Dimensions: (ncol,nlay)
 
-      real(ireals), intent(out) :: tenstr_tau(:,:,:)   ! (nlayers, ncol, nbands)
-      real(ireals), intent(out) :: tenstr_w(:,:,:)     ! (nlayers, ncol, nbands)
-      real(ireals), intent(out) :: tenstr_g(:,:,:)     ! (nlayers, ncol, nbands)
+      real(ireals), intent(out) :: tenstr_tau(:,:,:)   ! total optprops (nlayers, ncol, nbands)
+      real(ireals), intent(out) :: tenstr_w(:,:,:)     ! total optprops (nlayers, ncol, nbands)
+      real(ireals), intent(out) :: tenstr_g(:,:,:)     ! total optprops (nlayers, ncol, nbands)
+      real(ireals), intent(out),optional :: tenstr_tau_f(:,:,:)   ! clearsky optprops (nlayers, ncol, nbands)
+      real(ireals), intent(out),optional :: tenstr_w_f(:,:,:)     ! clearsky optprops (nlayers, ncol, nbands)
+      real(ireals), intent(out),optional :: tenstr_g_f(:,:,:)     ! clearsky optprops (nlayers, ncol, nbands)
       logical, intent(in) :: loptprop_only
 ! ----- Local -----
 
@@ -672,18 +676,34 @@
             znifddir(i) = 0._rb
          enddo
 
-         call spcvrt_sw &
+         if(all([present(tenstr_tau_f), present(tenstr_w_f), present(tenstr_g_f)])) then
+           call spcvrt_sw &
              (nlayers, istart, iend, icpr, idelm, iout, &
-              pavel, tavel, pz, tz, tbound, albdif, albdir, &
-              cldfrac, ztauc, zasyc, zomgc, ztaucorig, &
-              ztaua, zasya, zomga, cossza, coldry, wkl, adjflux, &
-              laytrop, layswtch, laylow, jp, jt, jt1, &
-              co2mult, colch4, colco2, colh2o, colmol, coln2o, colo2, colo3, &
-              fac00, fac01, fac10, fac11, &
-              selffac, selffrac, indself, forfac, forfrac, indfor, &
-              zbbfd, zbbfu, zbbcd, zbbcu, zuvfd, zuvcd, znifd, znicd, &
-              zbbfddir, zbbcddir, zuvfddir, zuvcddir, znifddir, znicddir, &
-              tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), tenstr_g(:, iplon, :), loptprop_only)
+             pavel, tavel, pz, tz, tbound, albdif, albdir, &
+             cldfrac, ztauc, zasyc, zomgc, ztaucorig, &
+             ztaua, zasya, zomga, cossza, coldry, wkl, adjflux, &
+             laytrop, layswtch, laylow, jp, jt, jt1, &
+             co2mult, colch4, colco2, colh2o, colmol, coln2o, colo2, colo3, &
+             fac00, fac01, fac10, fac11, &
+             selffac, selffrac, indself, forfac, forfrac, indfor, &
+             zbbfd, zbbfu, zbbcd, zbbcu, zuvfd, zuvcd, znifd, znicd, &
+             zbbfddir, zbbcddir, zuvfddir, zuvcddir, znifddir, znicddir, &
+             tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), tenstr_g(:, iplon, :), loptprop_only, &
+             tenstr_tau_f(:, iplon, :), tenstr_w_f(:, iplon, :), tenstr_g_f(:, iplon, :))
+         else
+           call spcvrt_sw &
+             (nlayers, istart, iend, icpr, idelm, iout, &
+             pavel, tavel, pz, tz, tbound, albdif, albdir, &
+             cldfrac, ztauc, zasyc, zomgc, ztaucorig, &
+             ztaua, zasya, zomga, cossza, coldry, wkl, adjflux, &
+             laytrop, layswtch, laylow, jp, jt, jt1, &
+             co2mult, colch4, colco2, colh2o, colmol, coln2o, colo2, colo3, &
+             fac00, fac01, fac10, fac11, &
+             selffac, selffrac, indself, forfac, forfrac, indfor, &
+             zbbfd, zbbfu, zbbcd, zbbcu, zuvfd, zuvcd, znifd, znicd, &
+             zbbfddir, zbbcddir, zuvfddir, zuvcddir, znifddir, znicddir, &
+             tenstr_tau(:, iplon, :), tenstr_w(:, iplon, :), tenstr_g(:, iplon, :), loptprop_only)
+         endif
 
 ! Transfer up and down, clear and total sky fluxes to output arrays.
 ! Vertical indexing goes from bottom to top; reverse here for GCM if necessary.

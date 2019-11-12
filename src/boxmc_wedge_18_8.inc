@@ -67,7 +67,6 @@ subroutine init_dir_photon_wedge_18_8(bmc, p, src, ldirect, initial_dir, vertice
   real(ireal_dp), dimension(3) :: top_center, bot_center, side_center_base, side_center_left, side_center_right
   real(ireal_dp), dimension(3) :: pmAB, pmAC, pmBC, pmDE, pmDF, pmEF
   real(ireal_dp), dimension(3) :: pmAD, pmBE, pmCF
-  real(ireal_dp),parameter :: edge_start_range=.999_ireal_dp
   integer(mpiint),intent(out) :: ierr
 
   associate( &
@@ -196,7 +195,7 @@ subroutine update_dir_stream_wedge_18_8(bmc,vertices,p,T)
   class(t_boxmc_wedge_18_8) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
-  real(ireal_dp),intent(inout) :: T(:)
+  real(irealbmc),intent(inout) :: T(:)
 
   real(ireal_dp), dimension(3) :: top_center, bot_center
   real(ireal_dp), dimension(3) :: side_center_base, side_center_left, side_center_right
@@ -353,7 +352,7 @@ subroutine update_diff_stream_wedge_18_8(bmc,vertices,p,S)
   class(t_boxmc_wedge_18_8) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
-  real(ireal_dp),intent(inout) :: S(:)
+  real(irealbmc),intent(inout) :: S(:)
   real(ireal_dp) :: normal(3)
 
   ! in case of spherically distorted elements,
@@ -470,6 +469,9 @@ subroutine init_diff_photon_wedge_18_8(bmc, p, src, vertices, ierr)
     phi= deg2rad( R()*360 )
   case(2:7)
     phi= deg2rad( interv_R(0._ireal_dp, 180._ireal_dp) ) ! from +x to -x through +y
+  case default
+    call CHKERR(1_mpiint, 'Dont know what to do with source spec: '//itoa(src))
+    call exit
   end select
 
   mu = sqrt(R()) ! distribution between 0 and 90 degree with more towards 90 , i.e. mu --> Lambertian

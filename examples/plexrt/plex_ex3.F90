@@ -24,13 +24,16 @@ use m_plex_grid, only: t_plexgrid, &
   gen_test_mat, get_normal_of_first_toa_face, get_horizontal_faces_around_vertex, &
   atm_dz_to_vertex_heights
 
-use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandline, &
-  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
+use m_plex_rt_base, only: t_plex_solver, allocate_plexrt_solver_from_commandline
+
+use m_plex_rt, only: compute_face_geometry, &
+  init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   plexrt_get_result, destroy_plexrt_solver
 
 use m_netcdfio, only : ncload, ncwrite
 
-use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D, dump_ownership, Nz_Ncol_vec_to_celldm1
+use m_icon_plex_utils, only: create_2d_fish_plex, create_2d_regular_plex, &
+  dmplex_2D_to_3D, dump_ownership, Nz_Ncol_vec_to_celldm1
 
 implicit none
 
@@ -60,11 +63,19 @@ logical, parameter :: ldebug=.True.
       real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
 
       logical, parameter :: lthermal = .False.
+      logical :: lregular_mesh, lflg
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf)
+      lregular_mesh = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-use_regular_mesh', lregular_mesh, lflg, ierr) ; call CHKERR(ierr)
+      if(lregular_mesh) then
+        call create_2d_regular_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf)
+      else
+        call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf)
+      endif
 
       hhl(1) = zero
       do k=2,Nz
@@ -74,12 +85,16 @@ logical, parameter :: ldebug=.True.
 
       call dmplex_2D_to_3D(dm2d_dist, Nz, hhl, dm3d, zindex)
 
-      call setup_plexgrid(dm3d, Nz-1, zindex, plex)
+      call setup_plexgrid(dm2d_dist, dm3d, Nz-1, zindex, plex, hhl)
       deallocate(zindex)
 
       call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-      call allocate_plexrt_solver_from_commandline(solver, '5_8')
+      if(lregular_mesh) then
+        call allocate_plexrt_solver_from_commandline(solver, 'rectilinear_5_8')
+      else
+        call allocate_plexrt_solver_from_commandline(solver, '5_8')
+      endif
       call init_plex_rt_solver(plex, solver)
 
       call init_sundir()
@@ -95,15 +110,10 @@ logical, parameter :: ldebug=.True.
       if(lthermal) then
         if(.not.allocated(solver%plck)) then
           allocate(solver%plck)
-          call DMCreateGlobalVector(solver%plex%cell1_dm, solver%plck, ierr); call CHKERR(ierr)
+          call DMCreateGlobalVector(solver%plex%horizface1_dm, solver%plck, ierr); call CHKERR(ierr)
         endif
         call VecSet(solver%plck, 100._ireals, ierr); call CHKERR(ierr)
 
-        if(.not.allocated(solver%srfc_emission)) then
-          allocate(solver%srfc_emission)
-          call DMCreateGlobalVector(solver%plex%srfc_boundary_dm, solver%srfc_emission, ierr); call CHKERR(ierr)
-        endif
-        call VecSet(solver%srfc_emission, 400._ireals/3.1415_ireals, ierr); call CHKERR(ierr)
         call run_plex_rt_solver(solver, lthermal=.True., lsolar=.False., sundir=sundir)
       else
         call run_plex_rt_solver(solver, lthermal=.False., lsolar=.True., sundir=sundir)
@@ -183,16 +193,7 @@ logical, parameter :: ldebug=.True.
           if(lflg) then
             Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), first_normal)
             rot_sundir = matmul(Mrot, sundir)
-            !U = [first_normal(2), -first_normal(1), zero]
-            !U = U / norm2(U)
-            !V = cross_3d(first_normal, U)
-            !Mrot = rotation_matrix_world_to_local_basis(first_normal, U, V)
-            !rot_sundir = matmul(Mrot, sundir)
-            !rot_sundir = rotate_angle_x(rot_sundir, rot_angle)
-            !if(ldebug.and.myid.eq.0) print *,'U', U
-            !if(ldebug.and.myid.eq.0) print *,'V', V
             if(ldebug.and.myid.eq.0) print *,'rot_sundir', rot_sundir
-            !Mrot = rotation_matrix_local_basis_to_world(first_normal, U, V)
             if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
             sundir = rot_sundir
           endif

@@ -126,7 +126,7 @@ subroutine update_dir_stream_wedge_5_5(bmc,vertices,p,T)
   class(t_boxmc_wedge_5_5) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
-  real(ireal_dp),intent(inout) :: T(:)
+  real(irealbmc),intent(inout) :: T(:)
 
   T(p%side) = T(p%side) + p%weight
   select type(bmc)
@@ -138,7 +138,7 @@ subroutine update_diff_stream_wedge_5_5(bmc,vertices,p,S)
   class(t_boxmc_wedge_5_5) :: bmc
   real(ireal_dp),intent(in) :: vertices(:)
   type(t_photon),intent(in) :: p
-  real(ireal_dp),intent(inout) :: S(:)
+  real(irealbmc),intent(inout) :: S(:)
 
   S(p%side) = S(p%side) + p%weight
   select type(bmc)

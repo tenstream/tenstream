@@ -5,17 +5,21 @@ module m_plex_grid
 
   use m_helper_functions, only: CHKERR, compute_normal_3d, approx, strF2C, distance, &
     triangle_area_by_vertices, swap, determine_normal_direction, &
-    vec_proj_on_plane, angle_between_two_vec, cross_3d, rad2deg, &
-    rotation_matrix_world_to_local_basis, resize_arr, get_arg, &
-    imp_bcast, itoa, ftoa, imp_allreduce_max
+    vec_proj_on_plane, cross_3d, rad2deg, is_between, &
+    angle_between_two_vec, angle_between_two_normed_vec, &
+    resize_arr, get_arg, normalize_vec, &
+    imp_bcast, itoa, ftoa, imp_allreduce_max, &
+    rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world
 
-  use m_data_parameters, only : ireals, irealLUT, iintegers, mpiint, zero, one, pi, &
+  use m_data_parameters, only : ireals, irealLUT, ireal_params, &
+    iintegers, mpiint, zero, one, pi, &
     i0, i1, i2, i3, i4, i5, i6, i7, i8, default_str_len
 
   use m_icon_grid, only : t_icongrid, ICONULL
 
   use m_tenstream_options, only: read_commandline_options, twostr_ratio
-  use m_LUT_param_phi, only: param_phi_param_theta_from_phi_and_theta_withnormals
+  use m_LUT_param_phi, only: param_phi_param_theta_from_phi_and_theta_withnormals, &
+    LUT_wedge_aspect_zx
   use m_optprop_parameters, only: param_eps
 
   implicit none
@@ -30,18 +34,20 @@ module m_plex_grid
     compute_local_wedge_ordering, compute_local_vertex_coordinates, &
     get_inward_face_normal, create_plex_section, setup_plexgrid, &
     get_consecutive_vertical_cell_idx, get_top_bot_face_of_cell, gen_test_mat, &
-    TOAFACE, BOTFACE, SIDEFACE, destroy_plexgrid, &
+    TOAFACE, BOTFACE, SIDEFACE, INNERSIDEFACE, destroy_plexgrid, &
     determine_diff_incoming_outgoing_offsets, get_normal_of_first_TOA_face, &
     interpolate_horizontal_face_var_onto_vertices, get_horizontal_faces_around_vertex, &
-    atm_dz_to_vertex_heights
+    atm_dz_to_vertex_heights, dmplex_set_new_section
 
   logical, parameter :: ldebug=.False.
 
   type :: t_plexgrid
     integer(mpiint) :: comm
 
+    type(tDM), allocatable :: dm2d
     type(tDM), allocatable :: dm
     type(tDM), allocatable :: cell1_dm
+    type(tDM), allocatable :: horizface1_dm
     type(tDM), allocatable :: edir_dm
     type(tDM), allocatable :: ediff_dm
     type(tDM), allocatable :: abso_dm
@@ -49,6 +55,7 @@ module m_plex_grid
     type(tDM), allocatable :: wedge_orientation_dm
     type(tDM), allocatable :: srfc_boundary_dm
     type(tDM), allocatable :: rayli_dm
+    type(tDM), allocatable :: nca_dm
     type(tVec), allocatable :: geomVec ! see compute_face_geometry for details
     type(tVec), allocatable :: wedge_orientation ! see compute_wedge_orientation
 
@@ -74,15 +81,16 @@ module m_plex_grid
 
     logical,allocatable :: ltopfacepos(:)                ! TOP_BOT_FACE or SIDE_FACE of faces and edges, fStart..eEnd-1
     integer(iintegers),allocatable :: zindex(:)          ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1
+    real(ireals), allocatable :: hhl1d(:)                ! 1D vertical height levels which were used in 2D_to_3D extrusion
     integer(iintegers),allocatable :: localiconindex(:)  ! local index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. on each rank from 1..Ncell, 1..Nedges etc..
     integer(iintegers),allocatable :: globaliconindex(:) ! global index of face, edge, vertex on icongrid, pStart, pEnd-1, i.e. for each rank has the indices of the global icon grid as it is read from nc
 
     type(tDMLabel), allocatable :: boundarylabel        ! 1 if boundary of local mesh
     type(tDMLabel), allocatable :: domainboundarylabel  ! TOAFACE if top, SIDEFACE if side face, BOTFACE if bot face, -1 otherwise
-    type(tDMLabel), allocatable :: ownerlabel           ! rank that posses this element
+    type(tDMLabel), allocatable :: ownerlabel           ! rank that posesses this element
   end type
 
-  integer(iintegers), parameter :: TOAFACE=1, SIDEFACE=2, BOTFACE=3
+  integer(iintegers), parameter :: TOAFACE=1, SIDEFACE=2, BOTFACE=3, INNERSIDEFACE=4
 
   contains
 
@@ -99,6 +107,7 @@ module m_plex_grid
 
       call dealloc_dm(plex%dm)
       call dealloc_dm(plex%cell1_dm)
+      call dealloc_dm(plex%horizface1_dm)
       call dealloc_dm(plex%edir_dm)
       call dealloc_dm(plex%ediff_dm)
       call dealloc_dm(plex%abso_dm)
@@ -106,6 +115,7 @@ module m_plex_grid
       call dealloc_dm(plex%wedge_orientation_dm)
       call dealloc_dm(plex%srfc_boundary_dm)
       call dealloc_dm(plex%rayli_dm)
+      call dealloc_dm(plex%nca_dm)
 
       plex%pStart = -1; plex%pEnd = -1
       plex%cStart = -1; plex%cEnd = -1
@@ -141,7 +151,7 @@ module m_plex_grid
         subroutine dealloc_dmlabel(label)
           type(tDMLabel), allocatable, intent(inout) :: label
           if(allocated(label)) then
-            call DMLabelDestroy(label, ierr); call CHKERR(ierr)
+            ! call DMLabelDestroy(label, ierr); call CHKERR(ierr) ! dont destroy the label here, DMDestroy takes care of it
             deallocate(label)
           endif
         end subroutine
@@ -191,10 +201,11 @@ module m_plex_grid
       if(ldebug) print *,'plex_set_ltopfacepos... end'
     end subroutine
 
-    subroutine setup_plexgrid(dm, Nlay, zindex, plex)
-      type(tDM), intent(in) :: dm
+    subroutine setup_plexgrid(dm2d, dm3d, Nlay, zindex, plex, hhl)
+      type(tDM), intent(in) :: dm2d, dm3d
       integer(iintegers), intent(in) :: Nlay, zindex(:)
       type(t_plexgrid), allocatable, intent(inout) :: plex
+      real(ireals), optional :: hhl(:)
 
       integer(iintegers) :: pStart, pEnd
       integer(mpiint) :: ierr
@@ -203,11 +214,14 @@ module m_plex_grid
       if(allocated(plex)) call CHKERR(1_mpiint, 'Dont call setup_plexgrid on already allocated object')
       allocate(plex)
 
-      call PetscObjectGetComm(dm, plex%comm, ierr); call CHKERR(ierr)
+      call PetscObjectGetComm(dm3d, plex%comm, ierr); call CHKERR(ierr)
       call read_commandline_options(plex%comm)
 
+      allocate(plex%dm2d)
+      call DMClone(dm2d, plex%dm2d, ierr); call CHKERR(ierr)
+
       allocate(plex%dm)
-      call DMClone(dm, plex%dm, ierr); call CHKERR(ierr)
+      call DMClone(dm3d, plex%dm, ierr); call CHKERR(ierr)
       call DMPlexGetChart(plex%dm, pStart, pEnd, ierr); call CHKERR(ierr)
 
       call DMPlexGetDepthStratum(plex%dm, i3, plex%cStart, plex%cEnd, ierr); call CHKERR(ierr) ! cells
@@ -218,25 +232,27 @@ module m_plex_grid
       plex%Nlay = Nlay
       allocate(plex%zindex(pStart:pEnd-1), source=zindex)
 
-      call compute_face_geometry(plex, plex%geom_dm)
-
       call plex_set_ltopfacepos(plex%dm, plex%ltopfacepos)
 
       call label_domain_boundary(plex%dm, plex%ltopfacepos, plex%zindex, &
         plex%boundarylabel, plex%domainboundarylabel, plex%ownerlabel)
 
+      call compute_face_geometry(plex, plex%geom_dm)
+
       call setup_srfc_boundary_dm(plex, plex%srfc_boundary_dm)
+      call setup_cell1_dmplex(plex%dm, plex%cell1_dm)
+
+      if(present(hhl)) then
+        allocate(plex%hhl1d(size(hhl)), source=hhl)
+      endif
     end subroutine
 
     subroutine gen_test_mat(dm)
-      type(tDM), intent(in) :: dm
-      type(tPetscSection) :: sec
+      type(tDM), intent(inout) :: dm
       type(tMat) :: A
       integer(mpiint) :: ierr
 
-      call create_plex_section(dm, 'face_test_section', i1, [i0], [i1], [i0], [i0], sec)
-      call DMSetSection(dm, sec, ierr); call CHKERR(ierr)
-      call PetscSectionDestroy(sec, ierr); call CHKERR(ierr)
+      call dmplex_set_new_section(dm, 'face_test_section', i1, [i0], [i1], [i0], [i0])
 
       call DMCreateMatrix(dm, A, ierr); call CHKERR(ierr)
       call MatDestroy(A, ierr); call CHKERR(ierr)
@@ -271,12 +287,6 @@ module m_plex_grid
       if(.not.allocated(ltopfacepos)) call CHKERR(1_mpiint, 'ltopfacepos has to be allocated')
       if(.not.allocated(zindex)) call CHKERR(1_mpiint, 'zindex has to be allocated')
 
-      if(.not.allocated(domainboundarylabel)) then
-        allocate(domainboundarylabel)
-        call DMCreateLabel(dm, "DomainBoundary", ierr); call CHKERR(ierr)
-      endif
-      call DMGetLabel(dm, "DomainBoundary", domainboundarylabel, ierr); call CHKERR(ierr)
-
       if(.not.allocated(ownerlabel)) then
         allocate(ownerlabel)
         call DMCreateLabel(dm, "owner", ierr); call CHKERR(ierr)
@@ -289,7 +299,16 @@ module m_plex_grid
       endif
       call DMGetLabel(dm, "Boundary", boundarylabel, ierr); call CHKERR(ierr)
       call DMPlexMarkBoundaryFaces(dm, i1, boundarylabel, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_Boundary_DM', ierr); call CHKERR(ierr)
+      ! The following code should do the same as DMPlexMarkBoundaryFaces...
+      ! and is placed here for historic reasons to debug a PETSc issue
+      !   call DMLabelSetDefaultValue(boundarylabel, i0, ierr); call CHKERR(ierr)
+      !   call DMPlexGetDepthStratum (dm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
+      !   do iface = fStart, fEnd-1
+      !     call DMPlexGetSupportSize(dm, iface, i, ierr); call CHKERR(ierr)
+      !     if(i.lt.i2) then
+      !       call DMLabelSetValue(boundarylabel, iface, i1, ierr); call CHKERR(ierr)
+      !     endif
+      !   enddo
 
       call DMLabelSetDefaultValue(ownerlabel, int(myid, kind=iintegers), ierr); call CHKERR(ierr)
 
@@ -303,9 +322,7 @@ module m_plex_grid
 
       call DMClone(dm, facedm, ierr); call CHKERR(ierr)
 
-      call create_plex_section(facedm, 'Face_Section', i1, [i0], [i1], [i0], [i0], facesection)  ! Contains 1 dof on each side
-      call DMSetSection(facedm, facesection, ierr); call CHKERR(ierr)
-      call PetscSectionDestroy(facesection, ierr); call CHKERR(ierr)
+      call dmplex_set_new_section(facedm, 'Face_Section', i1, [i0], [i1], [i0], [i0])  ! Contains 1 dof on each side
       call DMGetSection(facedm, facesection, ierr); call CHKERR(ierr)
 
       call DMGetGlobalVector(facedm, gVec, ierr); call CHKERR(ierr)
@@ -336,12 +353,19 @@ module m_plex_grid
       call DMGlobalToLocalBegin(facedm, gVec, INSERT_VALUES, lVec, ierr); call CHKERR(ierr)
       call DMGlobalToLocalEnd  (facedm, gVec, INSERT_VALUES, lVec, ierr); call CHKERR(ierr)
 
-      call DMPlexGetDepthStratum (facedm, i2, fStart, fEnd, ierr); call CHKERR(ierr) ! 3D vertices
+      call DMPlexGetDepthStratum (facedm, i2, fStart, fEnd, ierr); call CHKERR(ierr)
+
+      if(.not.allocated(domainboundarylabel)) then
+        allocate(domainboundarylabel)
+        call DMCreateLabel(dm, "DomainBoundary", ierr); call CHKERR(ierr)
+      endif
+      call DMGetLabel(dm, "DomainBoundary", domainboundarylabel, ierr); call CHKERR(ierr)
 
       call VecGetArrayReadF90(lVec, xv, ierr); call CHKERR(ierr)
       do iface = fStart, fEnd-1
         call PetscSectionGetOffset(facesection, iface, voff, ierr); call CHKERR(ierr)
-        if(int(xv(i1+voff), iintegers) .eq. i1) then ! if the additive val is not 2 it must be at the domain edge
+        select case(nint(xv(i1+voff), iintegers))
+        case(i1) ! if the additive val is 1 it must be at the domain edge
           if(ltopfacepos(iface)) then
             if(zindex(iface).eq.1) then
               call DMLabelSetValue(domainboundarylabel, iface, TOAFACE, ierr); call CHKERR(ierr)
@@ -351,19 +375,21 @@ module m_plex_grid
           else
             call DMLabelSetValue(domainboundarylabel, iface, SIDEFACE, ierr); call CHKERR(ierr)
           endif
-        endif
+        case(i2) ! if the additive val is 2 it must be at the inner domain edge
+          call DMLabelSetValue(domainboundarylabel, iface, INNERSIDEFACE, ierr); call CHKERR(ierr)
+        end select
       enddo
       call VecRestoreArrayReadF90(lVec, xv, ierr); call CHKERR(ierr)
-
 
       call DMRestoreLocalVector(facedm, lVec, ierr); call CHKERR(ierr)
       call DMRestoreGlobalVector(facedm, gVec, ierr); call CHKERR(ierr)
       call DMDestroy(facedm, ierr); call CHKERR(ierr)
+
+      call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, '-show_Boundary_DM', ierr); call CHKERR(ierr)
     end subroutine
 
-
-    subroutine facevec2cellvec(cellVec_dm, faceVec_dm, global_faceVec, vecshow_string)
-      type(tDM), intent(in) :: cellVec_dm, faceVec_dm
+    subroutine facevec2cellvec(faceVec_dm, global_faceVec, vecshow_string)
+      type(tDM), intent(in) :: faceVec_dm
       type(tVec),intent(in) :: global_faceVec
       character(len=*), intent(in), optional :: vecshow_string
 
@@ -381,7 +407,7 @@ module m_plex_grid
       character(len=default_str_len) :: faceVecname, cellVecname
       logical :: option_is_set
 
-      call PetscObjectGetComm(cellVec_dm, comm, ierr); call CHKERR(ierr)
+      call PetscObjectGetComm(faceVec_dm, comm, ierr); call CHKERR(ierr)
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
       call PetscObjectGetName(global_faceVec, faceVecname, ierr); call CHKERR(ierr)
@@ -393,7 +419,7 @@ module m_plex_grid
 
       if(ldebug.and.myid.eq.0) print *,'facevec2cellvec :: starting..'//trim(faceVecname)
 
-      call DMClone(cellVec_dm, celldm, ierr); ; call CHKERR(ierr)
+      call DMClone(faceVec_dm, celldm, ierr); ; call CHKERR(ierr)
 
       call DMGetSection(faceVec_dm, faceVecSection, ierr); call CHKERR(ierr)
 
@@ -425,9 +451,7 @@ module m_plex_grid
         print *,'max number of dof on faces per cell is:', max_num_dof
       endif
 
-      call create_plex_section(celldm, 'Faces_to_Cells_Section', i1, [num_dof], [i0], [i0], [i0], cellSection)
-      call DMSetSection(celldm, cellSection, ierr); call CHKERR(ierr)
-      call PetscSectionDestroy(cellSection, ierr); call CHKERR(ierr)
+      call dmplex_set_new_section(celldm, 'Faces_to_Cells_Section', i1, [max_num_dof], [i0], [i0], [i0])
 
       call DMGetSection(celldm, cellSection, ierr); call CHKERR(ierr)
       call DMGetLocalVector(celldm, cellVec, ierr); call CHKERR(ierr)
@@ -516,13 +540,13 @@ module m_plex_grid
       ! field 1: 3 for normal vecs on faces
       ! field 2: 1 dof on cells, faces and edges for volume, area, length
       ! field 3: dz on cells
-      call create_plex_section(dm, 'Geometry Section', i4, &
-        [i3, i0, i1, i1], [i3, i3, i1, i0], [i0, i0, i1, i0], [i0, i0, i0, i0], geomSection)
-      call DMSetSection(dm, geomSection, ierr); call CHKERR(ierr)
-      call PetscSectionDestroy(geomSection, ierr); call CHKERR(ierr)
+      call dmplex_set_new_section(dm, 'Geometry Section', i4, &
+        [i3, i0, i1, i1], &
+        [i3, i3, i1, i0], &
+        [i0, i0, i1, i0], &
+        [i0, i0, i0, i0] )
       call DMGetSection(dm, geomSection, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(geomSection, PETSC_NULL_SECTION, "-show_dm_geom_section", ierr); call CHKERR(ierr)
-
 
       call DMGetCoordinatesLocal(dm, coordinates, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(coordinates, PETSC_NULL_VEC, "-show_dm_coord", ierr); call CHKERR(ierr)
@@ -626,6 +650,28 @@ module m_plex_grid
       call VecRestoreArrayF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
       call PetscObjectViewFromOptions(plex%geomVec, PETSC_NULL_VEC, "-show_dm_geom_vec", ierr); call CHKERR(ierr)
+    end subroutine
+
+    subroutine dmplex_set_new_section(dm, sectionname, numfields, cdof, fdof, edof, vdof, fieldnames)
+      type(tDM), intent(inout) :: dm
+      character(len=*), intent(in) :: sectionname
+      integer(iintegers), intent(in) :: numfields
+      integer(iintegers), intent(in) :: cdof(:), fdof(:), edof(:), vdof(:) ! dim=numfields
+      character(len=*), intent(in), optional :: fieldnames(:)
+      type(tPetscSection) :: section
+      integer(mpiint) :: ierr
+      integer(iintegers) :: ifield
+      logical :: luseCone, luseClosure
+
+      call DMGetBasicAdjacency(dm, luseCone, luseClosure, ierr); call CHKERR(ierr)
+      call create_plex_section(dm, sectionname, numfields, cdof, fdof, edof, vdof, section, fieldnames)
+
+      call DMSetLocalSection(dm, section, ierr); call CHKERR(ierr)
+      call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
+
+      do ifield = 0, numfields-1
+        call DMSetAdjacency(dm, ifield, luseCone, luseClosure, ierr); call CHKERR(ierr)
+      enddo
     end subroutine
 
     subroutine create_plex_section(dm, sectionname, numfields, cdof, fdof, edof, vdof, section, fieldnames)
@@ -738,18 +784,14 @@ module m_plex_grid
     subroutine setup_cell1_dmplex(orig_dm, dm)
       type(tDM), intent(in) :: orig_dm
       type(tDM), allocatable, intent(inout) :: dm
-      type(tPetscSection) :: edirSection
       integer(mpiint) :: ierr
 
       if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_cell1_dmplex on an already allocated DM')
       allocate(dm)
 
       call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
-
       call PetscObjectSetName(dm, 'plex_cell1_dm', ierr);call CHKERR(ierr)
-      call create_plex_section(dm, 'face_section', i1, [i1], [i0], [i0], [i0], edirSection)
-      call DMSetSection(dm, edirSection, ierr); call CHKERR(ierr)
-      call PetscSectionDestroy(edirSection, ierr); call CHKERR(ierr)
+      call dmplex_set_new_section(dm, 'cell_section', i1, [i1], [i0], [i0], [i0])
     end subroutine
 
     subroutine setup_edir_dmplex(plex, orig_dm, top_streams, side_streams, dof_per_stream, dm)
@@ -759,12 +801,13 @@ module m_plex_grid
       type(tDM), allocatable, intent(inout) :: dm
       type(tPetscSection) :: section
       integer(mpiint) :: ierr
+      !logical :: luseCone, luseClosure
+
 
       if(allocated(dm)) call CHKERR(1_mpiint, 'called setup_edir_dmplex on an already allocated DM')
       allocate(dm)
 
       call DMClone(orig_dm, dm, ierr); call CHKERR(ierr)
-
 
       call PetscObjectSetName(dm, 'plex_direct_radiation', ierr);call CHKERR(ierr)
       call DMSetOptionsPrefix(dm, 'dir', ierr); call CHKERR(ierr)
@@ -773,9 +816,10 @@ module m_plex_grid
       call gen_face_section(dm, top_streams=top_streams, side_streams=side_streams, dof_per_stream=dof_per_stream, &
         section=section, geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
 
-      call DMSetSection(dm, section, ierr); call CHKERR(ierr)
+      call DMSetLocalSection(dm, section, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_section', ierr); call CHKERR(ierr)
       call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
+
       call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
     end subroutine
 
@@ -784,8 +828,9 @@ module m_plex_grid
     !    The direction for the fields is given as:
     !      * field 0: radiation travelling vertical
     !      * field 1: radiation travelling horizontally
-    !        * component 0: radiation travelling from cell_a to cell_b
-    !        * component 1: radiation going from cell_b to cell_a
+    !
+    !      * component 0: radiation travelling from cell_a to cell_b
+    !      * component 1: radiation going from cell_b to cell_a
     !      where id of cell_b is larger id(cell_a)
     subroutine setup_ediff_dmplex(plex, orig_dm, top_streams, side_streams, dof_per_stream, dm)
       type(t_plexgrid), intent(in) :: plex
@@ -807,7 +852,7 @@ module m_plex_grid
       call gen_face_section(dm, top_streams=top_streams, side_streams=side_streams, dof_per_stream=dof_per_stream, &
         section=section, geomdm=plex%geom_dm, geomVec=plex%geomVec, aspect_constraint=twostr_ratio)
 
-      call DMSetSection(dm, section, ierr); call CHKERR(ierr)
+      call DMSetLocalSection(dm, section, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(section, PETSC_NULL_SECTION, '-show_diff_section', ierr); call CHKERR(ierr)
       call PetscSectionDestroy(section, ierr); call CHKERR(ierr)
       call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
@@ -825,9 +870,9 @@ module m_plex_grid
       logical :: l1d
       type(tPetscSection) :: geomSection
       real(ireals), pointer :: geoms(:)
-      real(ireals) :: face_area, dx, dz, aspect
+      real(ireals) :: face_area, dz, aspect
       integer(iintegers) :: ic, geom_offset, num_constrained, num_unconstrained
-      integer(iintegers), pointer :: cells_of_face(:)
+      integer(iintegers), pointer :: cells_of_face(:), faces_of_cell(:)
 
       integer(iintegers) :: iface, fStart, fEnd, istream, num_edges_of_face, tot_top_dof, tot_side_dof
       integer(mpiint) :: comm, ierr
@@ -886,11 +931,16 @@ module m_plex_grid
             do ic = 1, size(cells_of_face)
               call PetscSectionGetFieldOffset(geomSection, cells_of_face(ic), i3, geom_offset, ierr); call CHKERR(ierr)
               dz = geoms(i1+geom_offset)
-              dx = face_area / dz
-              aspect = dz/dx
+
+              call DMPlexGetCone(geomdm, cells_of_face(ic), faces_of_cell, ierr); call CHKERR(ierr)
+              call PetscSectionGetFieldOffset(geomSection, faces_of_cell(1), i2, geom_offset, ierr); call CHKERR(ierr)
+              face_area = geoms(i1+geom_offset) ! top face area
+              call DMPlexRestoreCone(geomdm, cells_of_face(ic), faces_of_cell, ierr); call CHKERR(ierr)
+
+              aspect = LUT_wedge_aspect_zx(face_area, dz)
               if(aspect.lt.aspect_constraint) l1d=.False.
             enddo
-            call DMPlexRestoreSupport(geomdm, iface, cells_of_face, ierr); call CHKERR(ierr) ! Get Faces of cell
+            call DMPlexRestoreSupport(geomdm, iface, cells_of_face, ierr); call CHKERR(ierr)
           endif
 
           if(.not.l1d) then
@@ -907,8 +957,12 @@ module m_plex_grid
       enddo
       call PetscSectionSetUp(section, ierr); call CHKERR(ierr)
       if(ldebug) then
-        print *,'Have '//itoa(num_constrained)//' constrained dofs :'//&
-          ftoa(real(num_constrained, ireals)*100._ireals/real(num_unconstrained,ireals))//' %'
+        if(num_unconstrained.eq.0) then
+          print *,'Have '//itoa(num_constrained)//' constrained dofs : 100%'
+        else
+          print *,'Have '//itoa(num_constrained)//' constrained dofs :'//&
+            ftoa(real(num_constrained, ireals)*100._ireals/real(num_unconstrained, ireals))//' %'
+        endif
       endif
 
       if(present(aspect_constraint)) then
@@ -950,7 +1004,7 @@ module m_plex_grid
         call PetscSectionSetFieldComponents(section, i0, i1, ierr); call CHKERR(ierr)
         call PetscSectionSetChart(section, fStart, fEnd, ierr); call CHKERR(ierr)
 
-        call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
+        call DMGetStratumIS(plex%dm, 'DomainBoundary', BOTFACE, srfc_ids, ierr); call CHKERR(ierr)
         if (srfc_ids.eq.PETSC_NULL_IS) then ! dont have surface points
         else
           call ISGetIndicesF90(srfc_ids, xi, ierr); call CHKERR(ierr)
@@ -1059,9 +1113,7 @@ module m_plex_grid
     subroutine setup_abso_dmplex(orig_dm, dm)
       type(tDM), intent(in) :: orig_dm
       type(tDM), allocatable, intent(inout) :: dm
-      type(tPetscSection) :: s
       integer(mpiint) :: ierr
-
 
       if(allocated(dm)) stop 'called setup_abso_dmplex on an already allocated DM'
       allocate(dm)
@@ -1072,10 +1124,7 @@ module m_plex_grid
       call DMSetOptionsPrefix(dm, 'abso', ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
 
-      call create_plex_section(dm, 'Absorption Section', i1, [i1], [i0], [i0], [i0], s)  ! Contains 1 dof on each cell
-      call DMSetSection(dm, s, ierr); call CHKERR(ierr)
-      call PetscObjectViewFromOptions(s, PETSC_NULL_SECTION, '-show_section', ierr); call CHKERR(ierr)
-      call PetscSectionDestroy(s, ierr); call CHKERR(ierr)
+      call dmplex_set_new_section(dm, 'absorption_section', i1, [i1], [i0], [i0], [i0])
       call DMSetFromOptions(dm, ierr); call CHKERR(ierr)
     end subroutine
 
@@ -1171,23 +1220,21 @@ module m_plex_grid
         ! 5 dof for permutation of faces from faces_of_cell to BoxMonteCarlo face ordering
         ! 5 dof that determine if a face is src or destination with respect to solar radiation (src=1, dst=0)
         ! 2 dof on cells for C point coordinates in local boxmc geometry(2D coords)
-        call create_plex_section(wedge_orientation_dm, 'Wedge_Orientation_Section', i4, &
+        call dmplex_set_new_section(wedge_orientation_dm, 'Wedge_Orientation_Section', i4, &
           [i5, i5, i5, i2], &
           [i0, i0, i0, i0], &
           [i0, i0, i0, i0], &
-          [i0, i0, i0, i0], wedgeSection)
-        call PetscObjectViewFromOptions(wedgeSection, PETSC_NULL_SECTION, '-show_WedgeSection', ierr); call CHKERR(ierr)
-        call DMSetSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
-        call PetscSectionDestroy(wedgeSection, ierr); call CHKERR(ierr)
+          [i0, i0, i0, i0])
       endif
+      call DMGetSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
+      call PetscObjectViewFromOptions(wedgeSection, PETSC_NULL_SECTION, '-show_WedgeSection', ierr); call CHKERR(ierr)
+
       if(.not.allocated(wedge_orientation)) then
         allocate(wedge_orientation)
         call DMCreateGlobalVector(wedge_orientation_dm, wedge_orientation, ierr); call CHKERR(ierr)
         call PetscObjectSetName(wedge_orientation, 'WedgeOrient', ierr);call CHKERR(ierr)
       endif
-
       call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
-      call DMGetSection(wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
 
       call VecGetArrayReadF90(plex%geomVec, geoms, ierr); call CHKERR(ierr)
 
@@ -1214,7 +1261,7 @@ module m_plex_grid
           if(lsrc(iface)) then
             xv(wedge_offset3+iface) = one
           else
-            xv(wedge_offset3+iface) = zero
+            xv(wedge_offset3+iface) = -one
           endif
         enddo
 
@@ -1228,14 +1275,14 @@ module m_plex_grid
     end subroutine
 
     !> @brief translate the ordering of faces in the DMPlex to the ordering we assume in the box-montecarlo routines
-    subroutine compute_local_wedge_ordering(plex, icell, geomSection, geoms, sundir, &
+    subroutine compute_local_wedge_ordering(plex, icell, geomSection, geoms, in_sundir, &
         lsrc, zenith, azimuth, param_phi, param_theta, Cx, Cy, aspect_zx, &
         upper_face, bottom_face, base_face, left_face, right_face)
       type(t_plexgrid), intent(in) :: plex
       integer(iintegers), intent(in) :: icell
       type(tPetscSection) :: geomSection
       real(ireals), intent(in), pointer :: geoms(:) ! pointer to coordinates vec
-      real(ireals), intent(in) :: sundir(3)
+      real(ireals), intent(in) :: in_sundir(3)
       real(ireals), intent(out) :: zenith, azimuth, param_phi, param_theta
       real(ireals), intent(out) :: Cx, Cy, aspect_zx
       integer(iintegers), intent(out) :: upper_face, bottom_face, base_face, left_face, right_face
@@ -1245,7 +1292,7 @@ module m_plex_grid
       integer(iintegers) :: iface, izindex(2) !,i
 
       real(ireals) :: face_normals(3,5)
-      real(ireals) :: proj_angles_to_sun(3), proj_sundir(3)
+      real(ireals) :: sundir(3), proj_angles_to_sun(3), proj_sundir(3)
 
       real(ireals) :: e_x(3) ! unit vectors of local coord system in which we compute the transfer coefficients
       real(ireals) :: MrotWorld2Local(3,3) ! Rotation Matrix into the local wedge space, (ex, ey, ez)
@@ -1258,7 +1305,7 @@ module m_plex_grid
 
       real(ireals) :: side_face_normal_projected_on_upperface(3,3)
 
-      real(irealLUT) :: rparam_phi, rparam_theta
+      real(ireal_params) :: rparam_phi, rparam_theta, n2(3), n3(3), n4(3)
 
       integer(iintegers) :: geom_offset, iedge
       integer(iintegers), target :: points(2)
@@ -1266,6 +1313,8 @@ module m_plex_grid
       real(ireals) :: dz, Atop
 
       integer(mpiint) :: ierr
+
+      sundir = in_sundir / norm2(in_sundir)
 
       call DMPlexGetCone(plex%edir_dm, icell, faces_of_cell, ierr); call CHKERR(ierr) ! Get Faces of cell
 
@@ -1300,29 +1349,32 @@ module m_plex_grid
 
       zenith = angle_between_two_vec(sundir, face_normals(:, upper_face))
       proj_sundir = vec_proj_on_plane(sundir, face_normals(:,upper_face))
-      proj_sundir = proj_sundir / max(tiny(proj_sundir), norm2(proj_sundir))
+      call normalize_vec(proj_sundir, ierr) !; call CHKERR(ierr, 'bad proj_sundir'//ftoa(proj_sundir))
 
       do iface=1,size(side_faces)
-        side_face_normal_projected_on_upperface(:, iface) = vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
-        side_face_normal_projected_on_upperface(:, iface) = side_face_normal_projected_on_upperface(:,iface) / &
-          max(tiny(side_face_normal_projected_on_upperface), norm2(side_face_normal_projected_on_upperface(:, iface)))
-        if(norm2(proj_sundir).eq.zero) then
-          proj_angles_to_sun(iface) = zero
-          lsrc(side_faces(iface)) = .False.
-        else
-          proj_angles_to_sun(iface) = angle_between_two_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
-          !lsrc(side_faces(iface)) = is_solar_src(side_face_normal_projected_on_upperface(:, iface), proj_sundir)
-        endif
-        !print *,'iface',iface, ':', '->', rad2deg(proj_angles_to_sun(iface))
+        side_face_normal_projected_on_upperface(:, iface) = &
+          vec_proj_on_plane(face_normals(:,side_faces(iface)), face_normals(:,upper_face))
+        call normalize_vec(side_face_normal_projected_on_upperface(:, iface), &
+                           side_face_normal_projected_on_upperface(:, iface), ierr)
+        call CHKERR(ierr, 'bad side face normal '//ftoa(side_face_normal_projected_on_upperface(:, iface)))
+        !if(norm2(proj_sundir).lt.epsilon(zero)) then
+        !  proj_angles_to_sun(iface) = zero
+        !  lsrc(side_faces(iface)) = .False.
+        !else
+
+        proj_angles_to_sun(iface) = &
+          angle_between_two_normed_vec(proj_sundir, side_face_normal_projected_on_upperface(:, iface))
+
+        !endif
+        !print *,'iface',iface, ':', lsrc(side_faces(iface)), '->', proj_angles_to_sun(iface), rad2deg(proj_angles_to_sun(iface))
       enddo
 
-      if(zenith.gt.10*epsilon(zenith)) then ! only do use azimuth computation if zenith is larger than 0 deg
+      if(norm2(proj_sundir).gt.10*epsilon(zenith)) then ! only do the azimuth computation if zenith is larger than 0 deg
         ibase_face = minloc(proj_angles_to_sun,dim=1)
         base_face  = side_faces(ibase_face)
 
         ! Local unit vec on upperface, pointing towards '+x'
-        e_x = cross_3d(face_normals(:, upper_face), face_normals(:, base_face))
-        e_x = e_x / norm2(e_x)
+        e_x = cross_3d(face_normals(:, upper_face), side_face_normal_projected_on_upperface(:, ibase_face))
 
         azimuth = proj_angles_to_sun(ibase_face)
         azimuth = azimuth * sign(one, dot_product(proj_sundir, e_x))
@@ -1331,16 +1383,12 @@ module m_plex_grid
         iright_face = modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1
         right_face = side_faces(iright_face)
 
-        if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
-          call swap(right_face, left_face)
-        endif
-
       else ! if sun is directly on top, i.e. zenith 0, just pick the first one
         ibase_face = 1
         do iface = 2, size(side_faces)
           if(lsrc(side_faces(iface))) ibase_face = iface
         enddo
-        e_x = cross_3d(side_face_normal_projected_on_upperface(:, ibase_face), -face_normals(:, upper_face))
+        e_x = cross_3d(face_normals(:, upper_face), side_face_normal_projected_on_upperface(:, ibase_face))
         base_face  = side_faces(ibase_face)
         left_face  = side_faces(modulo(ibase_face,size(side_faces, kind=iintegers))+i1)
         iright_face = modulo(ibase_face+i1,size(side_faces, kind=iintegers))+i1
@@ -1350,12 +1398,13 @@ module m_plex_grid
         !print *,'face normal upper face', -face_normals(:, upper_face)
         !print *,'e_x', e_x
         !print *,'side_face_normal_projected_on_upperface', side_face_normal_projected_on_upperface(:, iright_face)
-        if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
-          call swap(right_face, left_face)
-        endif
 
         azimuth = zero
         zenith = zero
+      endif
+
+      if(dot_product(e_x, side_face_normal_projected_on_upperface(:, iright_face)).gt.zero) then
+        call swap(right_face, left_face)
       endif
 
       !print *,'norm proj_sundir', norm2(proj_sundir),':', ibase_face, rad2deg(azimuth), ':', rad2deg(zenith),&
@@ -1388,7 +1437,7 @@ module m_plex_grid
       dz = geoms(i1+geom_offset)
       call PetscSectionGetFieldOffset(geomSection, faces_of_cell(upper_face), i2, geom_offset, ierr); call CHKERR(ierr)
       Atop = geoms(i1+geom_offset)
-      aspect_zx = dz/sqrt(Atop)
+      aspect_zx = LUT_wedge_aspect_zx(Atop, dz)
 
       ! Compute local vertex coordinates for upper face
       call compute_local_vertex_coordinates(plex, &
@@ -1403,66 +1452,99 @@ module m_plex_grid
         side_face_normal_projected_on_upperface(:, ibase_face), &
         -face_normals(:, upper_face))
 
-       local_normal_base = matmul(MrotWorld2Local, face_normals(:, base_face))
-       local_normal_left = matmul(MrotWorld2Local, face_normals(:, left_face))
-       local_normal_right= matmul(MrotWorld2Local, face_normals(:, right_face))
-       !print *,'local normals base ', local_normal_base
-       !print *,'local normals left ', local_normal_left
-       !print *,'local normals right', local_normal_right
+      local_normal_base = matmul(MrotWorld2Local, face_normals(:, base_face))
+      local_normal_left = matmul(MrotWorld2Local, face_normals(:, left_face))
+      local_normal_right= matmul(MrotWorld2Local, face_normals(:, right_face))
 
-       call param_phi_param_theta_from_phi_and_theta_withnormals(&
-         real(local_normal_base, irealLUT), &
-         real(local_normal_left, irealLUT), &
-         real(local_normal_right, irealLUT),&
-         real(Cx, irealLUT), real(Cy, irealLUT), &
-         real(azimuth, irealLUT), real(zenith, irealLUT), &
-         rparam_phi, rparam_theta, ierr)
+      ! renormalize because of precision gain/loss from ireals to ireal_params
+      call normalize_vec(real(local_normal_base , ireal_params), n2, ierr)
+      call normalize_vec(real(local_normal_left , ireal_params), n3, ierr)
+      call normalize_vec(real(local_normal_right, ireal_params), n4, ierr)
 
-       !print *,'azimuth, zenith ',rad2deg(azimuth), rad2deg(zenith), 'param phi/theta', param_phi, param_theta
-       !call CHKERR(1_mpiint, 'DEBUG')
-       if(ldebug) then
-         ierr = 0
-         if(rparam_phi.lt.-1_irealLUT-param_eps .and. .not.lsrc(left_face)) then
-           ierr = 1
-           print *,'param_phi > -1 but left face is not src', rparam_phi, base_face, left_face, right_face, lsrc
-         endif
+      call param_phi_param_theta_from_phi_and_theta_withnormals(&
+        n2, n3, n4, &
+        real(Cx, ireal_params), real(Cy, ireal_params), &
+        real(azimuth, ireal_params), real(zenith, ireal_params), &
+        rparam_phi, rparam_theta, ierr); call CHKERR(ierr)
 
-         if(rparam_phi.gt.-1_irealLUT+param_eps .and.      lsrc(left_face)) then
-           ierr = 2
-           print *,'param_phi > -1 but left face is not dst', rparam_phi, base_face, left_face, right_face, lsrc
-         endif
+      !print *,'normals base', local_normal_base
+      !print *,'normals left', local_normal_left
+      !print *,'normals righte', local_normal_right
+      !print *,'Cx/Cy', Cx, Cy
+      !print *,'rparam_phi, rparam_theta',rparam_phi, rparam_theta
 
-         if(rparam_phi.gt.1_irealLUT+param_eps .and. .not.lsrc(right_face)) then
-           ierr = 3
-           print *,'param_phi > 1 but right face is not src', rparam_phi, base_face, left_face, right_face, lsrc
-         endif
-         if(rparam_phi.lt.1_irealLUT-param_eps .and.      lsrc(right_face)) then
-           ierr = 4
-           print *,'param_phi > 1 but right face is not dst', rparam_phi, base_face, left_face, right_face, lsrc
-         endif
-         call CHKERR(ierr, 'found bad param_phi')
-       endif
+      if(is_between(rparam_theta, real(param_eps, ireal_params), 1._ireal_params)) then ! only if baseface should be src
+        ierr = 0
+        if(rparam_phi.lt.-1_irealLUT-param_eps .and. .not.lsrc(left_face)) then
+          ierr = 1
+          print *,'param_phi < -1 but left face is not src', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
+        endif
 
-       ! Snap param_phi to the correct side
-       if(approx(rparam_phi, -1._irealLUT, 100*epsilon(rparam_phi))) then
-         if(lsrc(left_face)) then
-           rparam_phi = -1._irealLUT-param_eps
-         else
-           rparam_phi = -1._irealLUT+param_eps
-         endif
-       elseif(approx(rparam_phi, +1._irealLUT, 100*epsilon(rparam_phi))) then
-         if(lsrc(right_face)) then
-           rparam_phi = 1._irealLUT+param_eps
-         else
-           rparam_phi = 1._irealLUT-param_eps
-         endif
-       endif
+        if(rparam_phi.gt.-1_irealLUT+param_eps .and.      lsrc(left_face)) then
+          ierr = 2
+          print *,'param_phi > -1 but left face is not dst', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
+        endif
 
-       param_phi   = real(rparam_phi, ireals)
-       param_theta = real(rparam_theta, ireals)
+        if(rparam_phi.gt.1_irealLUT+param_eps .and. .not.lsrc(right_face)) then
+          ierr = 3
+          print *,'param_phi > 1 but right face is not src', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
+        endif
+        if(rparam_phi.lt.1_irealLUT-param_eps .and. lsrc(right_face)) then
+          ierr = 4
+          print *,'param_phi < 1 but right face is not dst', rparam_phi, rparam_theta, base_face, left_face, right_face, lsrc
+        endif
+        if(ierr.ne.0) then
+          print *,'angles between local coords', &
+            dot_product(e_x, side_face_normal_projected_on_upperface(:, ibase_face)), &
+            dot_product(e_x, -face_normals(:, upper_face))
+          print *,'proj_angles_to_sun', rad2deg(proj_angles_to_sun)
+          print *,'azimuth, zenith ', azimuth, zenith, rad2deg(azimuth), rad2deg(zenith), &
+            'param phi/theta', rparam_phi, rparam_theta
+          print *,'Cx, Cy', Cx, Cy
+          print *,'local sundir      ', matmul(MrotWorld2Local, sundir)
+          print *,'local normal top  ', matmul(MrotWorld2Local, face_normals(:, upper_face))
+          print *,'local normal base ', local_normal_base, norm2(local_normal_base),  ':', &
+            dot_product(local_normal_base, matmul(MrotWorld2Local, sundir))
+          print *,'local normal left ', local_normal_left, norm2(local_normal_left),  ':', &
+            dot_product(local_normal_left, matmul(MrotWorld2Local, sundir))
+          print *,'local normal right', local_normal_right,norm2(local_normal_right), ':', &
+            dot_product(local_normal_right, matmul(MrotWorld2Local, sundir))
+
+          do iface = 1, size(faces_of_cell)
+            print *,'iface', iface, 'solar_src', is_solar_src(face_normals(:,iface), sundir), &
+              ':', sundir/norm2(sundir), ',', &
+              face_normals(:, iface)/norm2(face_normals(:, iface)), &
+              '=', dot_product(sundir/norm2(sundir), face_normals(:, iface)/norm2(face_normals(:, iface)))
+          enddo
+          print *, 'local azimuth ', rad2deg(angle_between_two_vec(&
+            vec_proj_on_plane(local_normal_base,               matmul(MrotWorld2Local, face_normals(:, upper_face))), &
+            vec_proj_on_plane(matmul(MrotWorld2Local, sundir), matmul(MrotWorld2Local, face_normals(:, upper_face))) &
+            ))
+
+        endif
+        call CHKERR(ierr, 'found bad param_phi')
+      endif
+
+      ! Snap param_phi to the correct side
+      if(approx(rparam_phi, -1._ireal_params, real(param_eps, kind(rparam_phi)))) then
+        if(lsrc(left_face)) then
+          rparam_phi = -1._ireal_params-param_eps
+        else
+          rparam_phi = -1._ireal_params+param_eps
+        endif
+      elseif(approx(rparam_phi, +1._ireal_params, real(param_eps, kind(rparam_phi)))) then
+        if(lsrc(right_face)) then
+          rparam_phi = 1._ireal_params+param_eps
+        else
+          rparam_phi = 1._ireal_params-param_eps
+        endif
+      endif
+
+      param_phi   = real(rparam_phi, ireals)
+      param_theta = real(rparam_theta, ireals)
 
       if(ldebug) then
-        if(param_theta.ge.zero .and. zenith.le.pi/2 .and. .not.lsrc(base_face)) then
+        if(param_theta.gt.zero .and. zenith.le.pi/2 .and. .not.lsrc(base_face)) then
           print *,'azimuth', rad2deg(azimuth), 'zenith', rad2deg(zenith)
           print *,'param_phi', param_phi, 'param_theta', param_theta
           print *,'ibase_face', ibase_face, 'baseface', base_face, 'lsrc', lsrc
@@ -1587,7 +1669,7 @@ module m_plex_grid
       integer(mpiint), intent(in) :: comm
       type(tDM),intent(in) :: dm
 
-      integer(mpiint) :: myid, ierr
+      integer(mpiint) :: i, myid, numnodes, ierr
       integer(iintegers) :: pStart, pEnd
       integer(iintegers) :: cStart, cEnd
       integer(iintegers) :: fStart, fEnd
@@ -1595,6 +1677,7 @@ module m_plex_grid
       integer(iintegers) :: vStart, vEnd
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
+      call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
       call DMPlexGetChart(dm, pStart, pEnd, ierr); call CHKERR(ierr)
       call DMPlexGetDepthStratum(dm, i3, cStart, cEnd, ierr); call CHKERR(ierr) ! cells
@@ -1602,11 +1685,16 @@ module m_plex_grid
       call DMPlexGetDepthStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
       call DMPlexGetDepthStratum(dm, i0, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-      print *,myid,'pStart,End :: ',pStart, pEnd
-      print *,myid,'cStart,End :: ',cStart, cEnd
-      print *,myid,'fStart,End :: ',fStart, fEnd
-      print *,myid,'eStart,End :: ',eStart, eEnd
-      print *,myid,'vStart,End :: ',vStart, vEnd
+      do i = 0, numnodes-1
+      if(myid.eq.i) then
+        print *,myid,'pStart,End :: ',pStart, pEnd
+        print *,myid,'cStart,End :: ',cStart, cEnd
+        print *,myid,'fStart,End :: ',fStart, fEnd
+        print *,myid,'eStart,End :: ',eStart, eEnd
+        print *,myid,'vStart,End :: ',vStart, vEnd
+      endif
+      call mpi_barrier(comm, ierr); call CHKERR(ierr)
+      enddo
     end subroutine
 
     subroutine ncvar2d_to_globalvec(plexgrid, filename, varname, gvec, timeidx, cell_ao_2d, cell_ao_3d)
@@ -1617,7 +1705,6 @@ module m_plex_grid
       AO, optional, intent(in), target :: cell_ao_2d, cell_ao_3d ! mapping into 2D or 3D plex cells on rank0
 
       type(tDM) :: celldm
-      type(tPetscSection) :: cellsection
       type(tVec) :: rank0Vec
       type(tVecScatter) :: scatter_context
       real(ireals), pointer :: xloc(:)=>null()
@@ -1636,9 +1723,7 @@ module m_plex_grid
       call print_dmplex(plexgrid%comm, plexgrid%dm)
 
       call DMClone(plexgrid%dm, celldm, ierr); call CHKERR(ierr)
-      call create_plex_section(celldm, 'Cell_Section', i1, [i1], [i0], [i0], [i0], cellsection)
-      call DMSetSection(celldm, cellsection, ierr); call CHKERR(ierr)
-      call PetscSectionDestroy(cellsection, ierr); call CHKERR(ierr)
+      call dmplex_set_new_section(celldm, 'Cell_Section', i1, [i1], [i0], [i0], [i0])
 
       ! Now lets get vectors!
       if(.not.allocated(gvec)) then
@@ -2067,6 +2152,7 @@ module m_plex_grid
         Nvertices = i4
 
       case default
+        vertices => vertices3 ! to get rid of -Werror=maybe-uninitialized
         print *,'Computation of face normal not implemented for faces with ',Nedges,'edges/vertices'
         call CHKERR(1_mpiint, 'Invalid number of edges for face normal computation')
       end select
@@ -2105,7 +2191,8 @@ module m_plex_grid
       !print *,'-------------------------------'
 
       normal = compute_normal_3d(vertex_coord(:,1),vertex_coord(:,2),vertex_coord(:,3))
-      if(.not.approx(norm2(normal), one)) call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal))
+      if(.not.approx(norm2(normal), one, 10*epsilon(one))) &
+        call CHKERR(1_mpiint, 'face normal not normed :( '//ftoa(normal)//' ( '//ftoa(norm2(normal))//' )')
 
       if(Nvertices.eq.3) then
         area = triangle_area_by_vertices(vertex_coord(:,1), vertex_coord(:,2), vertex_coord(:,3))
@@ -2220,8 +2307,8 @@ module m_plex_grid
       call DMSetSection(facedm, face_section, ierr); call CHKERR(ierr)
 
       call DMClone(dm3d, vertdm, ierr); call CHKERR(ierr)
-      call create_plex_section(vertdm, 'vert_section', i1, [i0], [i0], [i0], [i1], vert_section)
-      call DMSetSection(vertdm, vert_section, ierr); call CHKERR(ierr)
+      call dmplex_set_new_section(vertdm, 'vert_section', i1, [i0], [i0], [i0], [i1])
+      call DMGetLocalSection(vertdm, vert_section, ierr); call CHKERR(ierr)
 
       Nlay = size(atm_dz, 1)
       Ncol = size(atm_dz, 2)
@@ -2255,7 +2342,7 @@ module m_plex_grid
 
       if(ldebug) then
         call PetscObjectSetName(level_heights_vec, 'level_heights_vec', ierr); call CHKERR(ierr)
-        call facevec2cellvec(facedm, facedm, level_heights_vec)
+        call facevec2cellvec(facedm, level_heights_vec)
       endif
 
       call interpolate_horizontal_face_var_onto_vertices(facedm, level_heights_vec, vertdm, vertvec)

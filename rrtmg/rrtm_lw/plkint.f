@@ -99,8 +99,8 @@ c     .. Local Arrays ..
 c     ..
 c     .. External Functions ..
 
-      REAL      R1MACH
-      EXTERNAL  R1MACH
+      REAL      TENSTR_R1MACH
+      EXTERNAL  TENSTR_R1MACH
 c     ..
 c     .. External Subroutines ..
 
@@ -128,8 +128,8 @@ c     ..
       IF( PI .EQ. 0.0 ) THEN
 
          PI     = 2.*ASIN( 1.0 )
-         VMAX   = LOG( R1MACH( 2 ) )
-         EPSIL  = R1MACH( 4 )
+         VMAX   = LOG( TENSTR_R1MACH( 2 ) )
+         EPSIL  = TENSTR_R1MACH( 4 )
          SIGDPI = SIGMA / PI
          CONC   = 15. / PI**4
 
@@ -248,7 +248,7 @@ c                                    ** WNUMLO and WNUMHI both large
 
 
 C  From http://www.netlib.org/port/ May 29, 2007
-      REAL FUNCTION R1MACH(I)
+      REAL FUNCTION TENSTR_R1MACH(I)
       INTEGER I
 C
 C  SINGLE-PRECISION MACHINE CONSTANTS
@@ -441,7 +441,7 @@ C
          WRITE(*,*) 'R1MACH(I): I =',I,' is out of bounds.'
          STOP
          END IF
-      R1MACH = RMACH(I)
+      TENSTR_R1MACH = RMACH(I)
       RETURN
  9010 FORMAT(/' Adjust autodoubled R1MACH by getting data'/
      *' appropriate for your machine from D1MACH.')

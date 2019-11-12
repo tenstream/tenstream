@@ -20,6 +20,8 @@
       use m_tenstr_rrsw_wvn
       use m_tenstr_rrtmg_sw_setcoef, only: swatmref
 
+      use m_helper_functions, only: sEXP
+
       implicit none
 
       contains
@@ -100,7 +102,7 @@
       do itr = 1, ntbl-1
          tfn = real(itr,kind=rb) / real(ntbl,kind=rb)
          tau_tbl = bpade * tfn / (1._rb - tfn)
-         exp_tbl(itr) = exp(-tau_tbl)
+         exp_tbl(itr) = sEXP(-tau_tbl)
          if (exp_tbl(itr) .le. expeps) exp_tbl(itr) = expeps
       enddo
 

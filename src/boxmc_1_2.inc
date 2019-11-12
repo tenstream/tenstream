@@ -22,7 +22,7 @@ subroutine update_dir_stream_1_2(bmc,vertices,p,T)
     class(t_boxmc_1_2) :: bmc
     real(ireal_dp),intent(in) :: vertices(:)
     type(t_photon),intent(in) :: p
-    real(ireal_dp),intent(inout) :: T(:)
+    real(irealbmc),intent(inout) :: T(:)
 
     select case (p%side)
     case(1:2)
@@ -39,7 +39,7 @@ subroutine update_diff_stream_1_2(bmc,vertices,p,S)
     class(t_boxmc_1_2) :: bmc
     real(ireal_dp),intent(in) :: vertices(:)
     type(t_photon),intent(in) :: p
-    real(ireal_dp),intent(inout) :: S(:)
+    real(irealbmc),intent(inout) :: S(:)
 
     !         _______1_______
     !        |           10  |

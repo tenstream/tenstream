@@ -20,8 +20,9 @@ module m_mpi_plex_ex4
 
   use m_plex_grid, only: t_plexgrid, setup_plexgrid, get_normal_of_first_toa_face, atm_dz_to_vertex_heights
 
-  use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandline, &
-    t_plex_solver, init_plex_rt_solver
+  use m_plex_rt_base, only: t_plex_solver, allocate_plexrt_solver_from_commandline
+
+  use m_plex_rt, only: compute_face_geometry, init_plex_rt_solver
 
   use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, print_tenstr_atm, &
     reff_from_lwc_and_N, hydrostat_plev
@@ -46,6 +47,7 @@ contains
     integer(mpiint) :: myid, numnodes, ierr
     type(tDM) :: dm2d, dm2d_dist, dm3d
     type(tPetscSF) :: migration_sf
+    type(tPetscSection) :: par_cell_Section
     AO, allocatable :: cell_ao_2d
     type(t_plexgrid), allocatable :: plex
     !type(tVec), allocatable :: lwcvec2d, iwcvec2d
@@ -114,34 +116,34 @@ contains
 
     ! Setup 3D DMPLEX grid
     call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
-    call atm_dz_to_vertex_heights(atm%dz, dm3d)
+    !call atm_dz_to_vertex_heights(atm%dz, dm3d)
 
     call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
-    call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
+    call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, reverse(atm%zt(:, i1)))
 
     !Load Data from iconfile and distribute it
-    if(myid.eq.0) print *,'Read data from icondatafile', trim(icondatafile)
+    if(myid.eq.0) print *,'Read data from icondatafile ', trim(icondatafile)
 
-    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qnc_data_string, qncvec)
-    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, lwc_data_string, lwcvec)
+    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qnc_data_string, par_cell_Section, qncvec)
+    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, lwc_data_string, par_cell_Section, lwcvec)
     call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
 
-    call dm2d_vec_to_Nz_Ncol(dm2d_dist, lwcvec, col_lwc); col_lwc = col_lwc * 1e3
+    call dm2d_vec_to_Nz_Ncol(par_cell_Section, lwcvec, col_lwc); col_lwc = col_lwc * 1e3
     call VecDestroy(lwcvec, ierr); call CHKERR(ierr)
-    call dm2d_vec_to_Nz_Ncol(dm2d_dist, qncvec, col_qnc); col_qnc = col_qnc * 1e-3
+    call dm2d_vec_to_Nz_Ncol(par_cell_Section, qncvec, col_qnc); col_qnc = col_qnc * 1e-3
     call VecDestroy(qncvec, ierr); call CHKERR(ierr)
     allocate(col_reliq(dNlay, Ncol))
     col_reliq = min(40._ireals, max(2.5_ireals, reff_from_lwc_and_N(col_lwc, col_qnc)))
     deallocate(col_qnc)
     if(myid.eq.0) print *,'Min/Max Liquid effective Radius', minval(col_reliq), maxval(col_reliq)
 
-    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qni_data_string, qnivec)
-    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, iwc_data_string, iwcvec)
+    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qni_data_string, par_cell_Section, qnivec)
+    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, iwc_data_string, par_cell_Section, iwcvec)
     call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
-    call dm2d_vec_to_Nz_Ncol(dm2d_dist, iwcvec, col_iwc); col_iwc = col_iwc * 1e3
+    call dm2d_vec_to_Nz_Ncol(par_cell_Section, iwcvec, col_iwc); col_iwc = col_iwc * 1e3
     call VecDestroy(iwcvec, ierr); call CHKERR(ierr)
-    call dm2d_vec_to_Nz_Ncol(dm2d_dist, qnivec, col_qni); col_qni = col_qni * 1e-3
+    call dm2d_vec_to_Nz_Ncol(par_cell_Section, qnivec, col_qni); col_qni = col_qni * 1e-3
     call VecDestroy(qnivec, ierr); call CHKERR(ierr)
     allocate(col_reice(dNlay, Ncol))
     ! k == .8 is for clean air
@@ -149,8 +151,8 @@ contains
     deallocate(col_qni)
     if(myid.eq.0) print *,'Min/Max Ice effective Radius', minval(col_reice), maxval(col_reice)
 
-    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qv_data_string, qvvec)
-    call dm2d_vec_to_Nz_Ncol(dm2d_dist, qvvec, col_qv)
+    call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, qv_data_string, par_cell_Section, qvvec)
+    call dm2d_vec_to_Nz_Ncol(par_cell_Section, qvvec, col_qv)
     call VecDestroy(qvvec, ierr); call CHKERR(ierr)
 
     call DMDestroy(dm2d, ierr); call CHKERR(ierr)
@@ -196,7 +198,7 @@ contains
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qni_data_string', qni_data_string, lflg, ierr); call CHKERR(ierr)
       qv_data_string = 'qv'
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-qv_data_string', qv_data_string, lflg, ierr); call CHKERR(ierr)
-      atm_filename='afglus_100m.dat'
+      atm_filename='atm.dat'
       call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
     end subroutine
     subroutine init_sundir()
@@ -301,7 +303,7 @@ program main
 
   default_options=''
   default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
-  !default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
+  default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
   !default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'
   !default_options=trim(default_options)//' -show_zindex hdf5:'//trim(outfile)//'::append'
   !default_options=trim(default_options)//' -show_domainboundary hdf5:'//trim(outfile)//'::append'

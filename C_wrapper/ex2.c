@@ -22,15 +22,15 @@
 #include <petscsys.h>
 #include <mpi.h>
 #include <f2c_pprts.h>
+#include "f2c_solver_ids.h"
 
 static char help[] = "This is the C wrapper interface to the pprts solver environment.\n\n";
 
-static const int solveriterations = 1;
 int collapseindex = 1;
 
 int master(int fcomm) {
   int Nx=3, Ny=12, Nz=64;
-  int solver_id=0;
+  int solver_id=SOLVER_ID_PPRTS_3_10;
   double dx=100,dy=100, dz=40.414518843273818;
   float phi0=0, theta0=60;
   float albedo=.2;
@@ -92,7 +92,7 @@ int master(int fcomm) {
   pprts_f2c_solve(fcomm, 1. );
   pprts_f2c_get_result(Nz,Nx,Ny, edn, eup, abso, edir);
 
-  pprts_f2c_destroy();
+  pprts_f2c_destroy(0);
 
   for(int j=0;j<Ny/10;j++){
     int i=1;
@@ -148,7 +148,7 @@ int slave(int fcomm) {
   pprts_f2c_solve(fcomm, 1.);
   pprts_f2c_get_result(Nz,Nx,Ny, edn, eup, abso, edir);
 
-  pprts_f2c_destroy();
+  pprts_f2c_destroy(0);
   return 0;
 }
 

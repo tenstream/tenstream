@@ -6,6 +6,7 @@ module m_py_rrtm_lw_sw
 
   implicit none
 
+  private
   public :: edir,edn,eup,abso, rrtmg, destroy_rrtmg
 
   ! Fluxes and absorption in [W/m2] and [W/m3] respectively.

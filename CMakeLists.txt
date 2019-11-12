@@ -27,6 +27,7 @@ endif()
 
 ########################### Tenstream Project: ###################################
 project (tenstream C Fortran)
+enable_testing()
 set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 
 #set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -87,6 +88,23 @@ else()
   message(FATAL " -- CMAKE_BUILD_TYPE should be either RELEASE or DEBUG")
 endif()
 
+
+# NetCDF
+set (NETCDF_F90 "YES")
+find_package( NetCDF )
+if(${NETCDF_FOUND})
+  message(STATUS "Found NetCDF:    ${NETCDF_FOUND}" )
+  message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
+  message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
+  message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
+  include_directories(${NETCDF_INCLUDES})
+  include_directories(${NETCDF_INCLUDES_F90})
+  list (APPEND EXTLIB ${NETCDF_LIBRARIES})
+else(${NETCDF_FOUND})
+  message(WARNING "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
+endif(${NETCDF_FOUND})
+
+
 # Petsc
 set(PETSCINSTALL "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}")
 MESSAGE(STATUS "Using PETSC ${PETSCINSTALL} ")
@@ -116,6 +134,7 @@ add_definitions (${PETSC_DEFINITIONS})
 include_directories (${PETSC_INCLUDES})
 list (APPEND EXTLIB "${PETSC_LIBRARIES}" )
 
+
 # Add Lapack
 find_package( LAPACK )
 if(${LAPACK_FOUND})
@@ -136,25 +155,13 @@ endif(${LAPACK_FOUND})
 #   message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
 # endif(${HDF5_FOUND})
 
-# NetCDF
-set (NETCDF_F90 "YES")
-find_package( NetCDF )
-if(${NETCDF_FOUND})
-  message(STATUS "Found NetCDF:    ${NETCDF_FOUND}" )
-  message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
-  message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
-  message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
-  include_directories(${NETCDF_INCLUDES})
-  include_directories(${NETCDF_INCLUDES_F90})
-  list (APPEND EXTLIB ${NETCDF_LIBRARIES})
-else(${NETCDF_FOUND})
-  message(WARNING "CMake could not find your NETCDF install, you may need to add the NETCDF libraries in config/<loc>.cmake by hand." )
-endif(${NETCDF_FOUND})
-
 
 ## Set MPI Stuff
 option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" OFF)
 set(MPIEXEC mpirun CACHE STRING "Command to run MPI programs, e.g. used to run tests")
+if(DEFINED USER_MPIEXEC)
+  set(MPIEXEC ${USER_MPIEXEC})
+endif()
 set(MPIEXEC_NUMPROC_FLAG -n CACHE STRING "options to set number of MPI tasks/nodes")
 if(AUTODETECT_MPI)
   find_package( MPI REQUIRED )
@@ -170,6 +177,14 @@ if(AUTODETECT_MPI)
   endif(${MPI_Fortran_FOUND})
 else(AUTODETECT_MPI)
 endif(AUTODETECT_MPI)
+
+
+## Add User Libs
+if(DEFINED USER_LIBS)
+    list (APPEND EXTLIB "${USER_LIBS}" )
+    message(INFO " EXTLIB after user LIBS: ${USER_LIBS}")
+endif()
+
 
 # Set Output Directories
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib CACHE PATH "Output directory for Dohp archives")
@@ -222,10 +237,10 @@ if(ENABLE_IPO)
   endif()
 endif()
 
-
 # Add Source Directories
-add_subdirectory (src)
-
+add_subdirectory(external)
+add_subdirectory(src)
+add_subdirectory(disort)
 add_subdirectory(rayli_wrapper)
 
 option(ENABLE_PLEXRT "Enable PLEXRT, Radiative transfer on wedges" OFF)
@@ -252,7 +267,6 @@ endif(DOXYGEN_FOUND)
 # Add pfUnit for testing
 option(ENABLE_PFUNIT "Enable pfUnit testing Framework" OFF)
 if(ENABLE_PFUNIT)
-  enable_testing()
   add_subdirectory(tests)
   add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -E 'boxmc|LUT')
   set(CTEST_MPIRUN_FLAGS "" CACHE STRING "Additional mpiexec flags to run tests with")
@@ -275,13 +289,15 @@ if(CTAGS_PATH)
     add_custom_target(tags ALL
       COMMAND ctags -R
       ${CMAKE_CURRENT_SOURCE_DIR}/src
+      ${CMAKE_CURRENT_SOURCE_DIR}/disort
       ${CMAKE_CURRENT_SOURCE_DIR}/rrtmg
       ${CMAKE_CURRENT_SOURCE_DIR}/C_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/plexrt
       ${CMAKE_CURRENT_SOURCE_DIR}/rayli_wrapper
       ${CMAKE_CURRENT_SOURCE_DIR}/python
       ${CMAKE_CURRENT_SOURCE_DIR}/tests
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      ${CMAKE_CURRENT_SOURCE_DIR}/twomax
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Creating ctags" VERBATIM
         )
 endif(CTAGS_PATH)
@@ -302,3 +318,70 @@ if(ENABLE_C_WRAPPER)
 endif(ENABLE_C_WRAPPER)
 
 GET_DIRECTORY_PROPERTY(output INCLUDE_DIRECTORIES)
+
+# Like a distclean
+add_custom_target(distclean_clean
+  COMMAND make clean
+  COMMENT "Deleting compiler and linker files" VERBATIM
+  )
+add_custom_target(distclean
+  DEPENDS distclean_clean
+  COMMAND rm -rf
+  ${CMAKE_BINARY_DIR}/CMakeCache.txt
+  ${CMAKE_BINARY_DIR}/*.cmake
+  ${CMAKE_BINARY_DIR}/CMakeFiles
+  ${CMAKE_BINARY_DIR}/*/CMakeFiles
+  COMMENT "Deleting CMake files" VERBATIM
+  )
+
+# Add Twostream Solvers of Nina
+add_subdirectory(twomax)
+
+
+# Generate Master Library which contains all symbols
+if(NOT BUILD_SHARED_LIBS)
+	function(combine_archives output_archive list_of_input_archives)
+		set(mri_file ${CMAKE_BINARY_DIR}/${output_archive}.mri)
+		set(FULL_OUTPUT_PATH ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${output_archive}.a)
+		message(STATUS "Generating one lib to rule them all: ${FULL_OUTPUT_PATH} :: ${mri_file}")
+		file(WRITE ${mri_file} "create ${FULL_OUTPUT_PATH}\n")
+		FOREACH(in_archive ${list_of_input_archives})
+			message(STATUS "Adding static lib: ${in_archive}")
+			file(APPEND ${mri_file} "addlib ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${in_archive}.a\n")
+		ENDFOREACH()
+		file(APPEND ${mri_file} "save\n")
+		file(APPEND ${mri_file} "end\n")
+
+		set(output_archive_dummy_file ${CMAKE_BINARY_DIR}/${output_archive}.dummy.F90)
+		add_custom_command(OUTPUT ${output_archive_dummy_file}
+			COMMAND touch ${output_archive_dummy_file}
+			DEPENDS ${list_of_input_archives})
+
+		add_library(${output_archive} STATIC ${output_archive_dummy_file})
+		add_custom_command(TARGET ${output_archive}
+			POST_BUILD
+			COMMAND ${CMAKE_AR} -M < ${mri_file})
+	endfunction(combine_archives)
+
+	set(TENSTR_LIBS
+		pprts_base
+		pprts
+		f2c_twomax
+		tenstr_disort
+    f2c_rayli
+		)
+	if(ENABLE_C_WRAPPER)
+		list(APPEND TENSTR_LIBS f2c_pprts f2c_pprts_rrtm)
+	endif()
+	if(ENABLE_PLEXRT)
+		list(APPEND TENSTR_LIBS plexrt )
+		if(ENABLE_RRTM)
+			list(APPEND TENSTR_LIBS plexrt_rrtmg )
+		endif()
+	endif()
+	if(ENABLE_RRTM)
+		list(APPEND TENSTR_LIBS pprts_rrtm_sw pprts_rrtm_lw pprts_rrtmg)
+	endif()
+
+	combine_archives(tenstream "${TENSTR_LIBS}")
+endif()

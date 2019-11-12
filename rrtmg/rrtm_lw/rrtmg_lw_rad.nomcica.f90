@@ -89,7 +89,7 @@
              taucld  ,cicewp  ,cliqwp  ,reice   ,reliq   , &
              tauaer  , &
              uflx    ,dflx    ,hr      ,uflxc   ,dflxc,  hrc, &
-             tenstr_tau, tenstr_Bfrac, loptprop_only, &
+             tenstr_tau, tenstr_Bfrac, loptprop_only, tenstr_tau_f, &
              duflx_dt, duflxc_dt )
 
 
@@ -297,9 +297,10 @@
       real(kind=rb), intent(out) :: hrc(:,:)          ! Clear sky longwave radiative heating rate (K/d)
                                                       !    Dimensions: (ncol,nlay)
 
-      real(ireals), intent(out) :: tenstr_tau(:,:,:)  ! (nlayers+1, ncol, ngptlw)
+      real(ireals), intent(out) :: tenstr_tau  (:,:,:)  ! (nlayers, ncol, ngptlw)
       real(ireals), intent(out) :: tenstr_Bfrac(:,:,:)! (nlayers, ncol, ngptlw)
       logical, intent(in) :: loptprop_only
+      real(ireals), intent(out), optional :: tenstr_tau_f(:,:,:)  ! (nlayers, ncol, ngptlw)
 
 ! ----- Optional Output -----
       real(kind=rb), intent(out), optional :: duflx_dt(:,:)     
@@ -532,8 +533,10 @@
          endif
 
          do ig=1,ngptlw
-           tenstr_tau(:, iplon, ig) = taut(1:nlay, ig) + taucloud(1:nlay, ngb(ig)) * cldfrac(1:nlay)
+           tenstr_tau(:, iplon, ig)   = taut(1:nlay, ig) + taucloud(1:nlay, ngb(ig)) * cldfrac(1:nlay)
            tenstr_Bfrac(:, iplon, ig) = fracs(1:nlay,ig)
+           if(present(tenstr_tau_f)) &
+             tenstr_tau_f(:, iplon, ig) = taut(1:nlay, ig)
          enddo
 
          if(loptprop_only) cycle

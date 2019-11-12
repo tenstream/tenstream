@@ -19,8 +19,10 @@ use m_icon_plex_utils, only: gen_2d_plex_from_icongridfile, icon_hdcp2_default_h
 
 use m_plex_grid, only: t_plexgrid, setup_plexgrid, get_normal_of_first_toa_face
 
-use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandline, &
-  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
+use m_plex_rt_base, only: t_plex_solver, allocate_plexrt_solver_from_commandline
+
+use m_plex_rt, only: compute_face_geometry, &
+  init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   destroy_plexrt_solver
 
 
@@ -40,6 +42,7 @@ logical, parameter :: ldebug=.True.
       integer(mpiint) :: myid, numnodes, ierr
       type(tDM) :: dm2d, dm2d_dist, dm3d
       type(tPetscSF) :: migration_sf
+      type(tPetscSection) :: par_cell_Section
       AO, allocatable :: cell_ao_2d
       type(t_plexgrid), allocatable :: plex
       type(tVec), allocatable :: lwcvec, iwcvec
@@ -62,12 +65,12 @@ logical, parameter :: ldebug=.True.
       call dmplex_2D_to_3D(dm2d_dist, Nlev, icon_hdcp2_default_hhl, dm3d, zindex)
 
       call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
-      call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
+      call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, icon_hdcp2_default_hhl)
 
-      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'clw', lwcvec, dm3d=dm3d)
+      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'clw', par_cell_Section, lwcvec)
       call PetscObjectViewFromOptions(lwcvec, PETSC_NULL_VEC, '-show_lwc', ierr); call CHKERR(ierr)
 
-      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'cli', iwcvec, dm3d=dm3d)
+      call icon_ncvec_to_plex(dm2d, dm2d_dist, migration_sf, icondatafile, 'cli', par_cell_Section, iwcvec)
       call PetscObjectViewFromOptions(iwcvec, PETSC_NULL_VEC, '-show_iwc', ierr); call CHKERR(ierr)
 
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)

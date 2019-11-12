@@ -4,8 +4,9 @@ include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")
 install(DIRECTORY ./ DESTINATION include/ FILES_MATCHING PATTERN "*.h")
 
 set( files
-  "dyn_atm_to_rrtmg.f90"
-  "optprop_rrtmg.f90"
+  "tenstr_rrtmg_base.F90"
+  "dyn_atm_to_rrtmg.F90"
+  "optprop_rrtmg.F90"
   )
 
 add_library( tenstr_rrtmg_objs OBJECT ${files} )
@@ -15,30 +16,34 @@ add_dependencies(tenstr_rrtmg_objs
   plexrt
   pprts
   pprts_base
+  tenstr_disort
   )
 
 
 # PPRTS
-add_library( pprts_rrtmg "pprts_rrtmg.f90" $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
+add_library( pprts_rrtmg "pprts_rrtmg.F90" $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
 
 TARGET_LINK_LIBRARIES( pprts_rrtmg
   pprts_rrtm_lw
   pprts_rrtm_sw
   pprts
   pprts_base
+  tenstr_disort
   ${EXTLIB} ${USERLIB} ${LIBS})
 
 install(TARGETS pprts_rrtmg DESTINATION lib)
 
 
 # PlexRT
-add_library( plexrt_rrtmg "plexrt_rrtmg.f90" $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
+add_library( plexrt_rrtmg "plexrt_rrtmg.F90" $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
 
 TARGET_LINK_LIBRARIES( plexrt_rrtmg
   pprts_rrtm_lw
   pprts_rrtm_sw
   plexrt
+  f2c_twomax
   pprts_base
+  tenstr_disort
   ${EXTLIB} ${USERLIB} ${LIBS})
 
 install(TARGETS plexrt_rrtmg DESTINATION lib)

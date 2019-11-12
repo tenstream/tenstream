@@ -1,1 +1,1 @@
--skip_load_LUT
+-max_solution_time 60

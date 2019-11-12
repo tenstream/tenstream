@@ -22,9 +22,8 @@ program main
 #include "petsc/finclude/petsc.h"
       use petsc
 
-      use m_data_parameters, only: mpiint, ireals, init_mpi_data_parameters
+      use m_data_parameters, only: mpiint, init_mpi_data_parameters
       use m_helper_functions, only: CHKERR
-      use mpi
       use m_optprop_LUT, only : t_optprop_LUT, &
         t_optprop_LUT_1_2,  &
         t_optprop_LUT_3_6,  &
@@ -35,6 +34,7 @@ program main
         t_optprop_LUT_8_16, &
         t_optprop_LUT_8_18, &
         t_optprop_LUT_wedge_5_8, &
+        t_optprop_LUT_rectilinear_wedge_5_8, &
         t_optprop_LUT_wedge_18_8
 
       use m_tenstream_options, only : read_commandline_options
@@ -85,25 +85,29 @@ program main
       case ('wedge_5_8')
         allocate(t_optprop_LUT_wedge_5_8::OPP)
 
+      case ('rectilinear_wedge_5_8')
+        allocate(t_optprop_LUT_rectilinear_wedge_5_8::OPP)
+
       case ('wedge_18_8')
         allocate(t_optprop_LUT_wedge_18_8::OPP)
 
       case default
         print *,'error, have to provide solver type as argument, e.g. call with'
-        print *,'createLUT_pprts 1_2'
-        print *,'createLUT_pprts 3_6'
-        print *,'createLUT_pprts 3_10'
-        print *,'createLUT_pprts 3_16'
-        print *,'createLUT_pprts 8_10'
-        print *,'createLUT_pprts 8_12'
-        print *,'createLUT_pprts 8_16'
-        print *,'createLUT_pprts 8_18'
-        print *,'createLUT_pprts wedge_5_8'
-        print *,'createLUT_pprts wedge_18_8'
+        print *,'createLUT 1_2'
+        print *,'createLUT 3_6'
+        print *,'createLUT 3_10'
+        print *,'createLUT 3_16'
+        print *,'createLUT 8_10'
+        print *,'createLUT 8_12'
+        print *,'createLUT 8_16'
+        print *,'createLUT 8_18'
+        print *,'createLUT wedge_5_8'
+        print *,'createLUT rectilinear_wedge_5_8'
+        print *,'createLUT wedge_18_8'
         stop
       end select
 
-      call OPP%init(comm)
+      call OPP%init(comm, skip_load_LUT=.False.)
 
       call mpi_finalize(ierr)
 end program

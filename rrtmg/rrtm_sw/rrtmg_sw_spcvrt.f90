@@ -27,7 +27,8 @@
       use m_tenstr_rrtmg_sw_vrtqdr, only: vrtqdr_sw
 
 
-      use m_data_parameters, only : ireals
+      use m_data_parameters, only : ireals, mpiint
+      use m_helper_functions, only: CHKERR
 
       implicit none
 
@@ -52,7 +53,8 @@
              selffac, selffrac, indself, forfac, forfrac, indfor, &
              pbbfd, pbbfu, pbbcd, pbbcu, puvfd, puvcd, pnifd, pnicd, &
              pbbfddir, pbbcddir, puvfddir, puvcddir, pnifddir, pnicddir, &
-             tenstr_tau, tenstr_w, tenstr_g, loptprop_only)
+             tenstr_tau, tenstr_w, tenstr_g, loptprop_only, &
+             tenstr_tau_f, tenstr_w_f, tenstr_g_f)
 ! ---------------------------------------------------------------------------
 !
 ! Purpose: Contains spectral loop to compute the shortwave radiative fluxes, 
@@ -200,9 +202,12 @@
       real(kind=rb), intent(out) :: pnicddir(:)
       real(kind=rb), intent(out) :: pnifddir(:)
 
-      real(ireals), intent(out) :: tenstr_tau(:,:)            ! (nlayers, nbands)
-      real(ireals), intent(out) :: tenstr_w(:,:)              ! (nlayers, nbands)
-      real(ireals), intent(out) :: tenstr_g(:,:)              ! (nlayers, nbands)
+      real(ireals), intent(out) :: tenstr_tau(:,:)            ! total optprops (nlayers, nbands)
+      real(ireals), intent(out) :: tenstr_w(:,:)              ! total optprops (nlayers, nbands)
+      real(ireals), intent(out) :: tenstr_g(:,:)              ! total optprops (nlayers, nbands)
+      real(ireals), intent(out), optional :: tenstr_tau_f(:,:)! clearsky optical props(nlayers, nbands)
+      real(ireals), intent(out), optional :: tenstr_w_f(:,:)  ! clearsky optical props(nlayers, nbands)
+      real(ireals), intent(out), optional :: tenstr_g_f(:,:)  ! clearsky optical props(nlayers, nbands)
 
       logical, intent(in) :: loptprop_only
 
@@ -311,6 +316,14 @@
       if(.not.allocated(tenstr_solsrc) ) then
           allocate(tenstr_solsrc(ngptsw))
           tenstr_solsrc = zsflxzen
+          if(any(.not.tenstr_solsrc.gt.0._ireals)) then
+            do jb = 1, ngptsw
+              print *,'band', jb, 'solar source term', tenstr_solsrc(jb), 'valid?', tenstr_solsrc(jb).gt.0
+            enddo
+            call CHKERR(1_mpiint, 'bad value for solar src. '// &
+              'I saw this happening when I had an background atmosphere '// &
+              'that was too low. Maybe increasing that helps.')
+          endif
       endif
 
 ! Top of shortwave spectral band loop, jb = 16 -> 29; ibm = 1 -> 14
@@ -506,6 +519,12 @@
                   zgco (jk) = (zgco(jk) - zf) / (1.0_rb - zf)
                endif 
 
+               ! clearsky optprops
+               if(present(tenstr_tau_f)) tenstr_tau_f(ikl, iw) = ztauc(jk)
+               if(present(tenstr_w_f  )) tenstr_w_f  (ikl, iw) = zomcc(jk)
+               if(present(tenstr_g_f  )) tenstr_g_f  (ikl, iw) = zgcc(jk)
+
+               ! total optprops
                tenstr_tau(ikl, iw) = ztauo(jk)
                tenstr_w(ikl, iw) = zomco(jk)
                tenstr_g(ikl, iw) = zgco(jk)

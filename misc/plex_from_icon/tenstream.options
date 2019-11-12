@@ -1,0 +1,203 @@
+#-twostr_ratio 0.
+
+#-N_first_bands_only 1
+#-twostr_only
+
+-max_solution_time 300
+-max_solution_err .01
+
+-solar_dir_ksp_converged_reason
+-solar_diff_ksp_converged_reason
+-thermal_diff_ksp_converged_reason
+
+#-solar_dir_ksp_rtol 1e-8
+#-solar_dir_ksp_atol 1e-20
+#-solar_diff_ksp_rtol 1e-8
+#-solar_diff_ksp_atol 1e-20
+
+-solar_dir_ksp_type fgmres
+-solar_dir_pc_type gamg
+-solar_dir_pc_gamg_agg_nsmooths 0
+-solar_dir_pc_gamg_sym_graph true
+-solar_dir_pc_gamg_threshold 1
+-solar_dir_pc_gamg_square_graph 0
+#-solar_dir_pc_gamg_coarse_eq_limit 100000
+-solar_dir_pc_gamg_reuse_interpolation
+-solar_dir_mg_levels_ksp_type richardson
+-solar_dir_mg_levels_ksp_richardson_self_scale
+-solar_dir_mg_levels_ksp_max_it 1
+-solar_dir_mg_levels_pc_type bjacobi
+-solar_dir_mg_levels_sub_pc_type ilu
+-solar_dir_mg_coarse_ksp_type preonly
+-solar_dir_mg_coarse_ksp_max_it 1
+-solar_dir_mg_coarse_pc_type bjacobi
+-solar_dir_mg_coarse_sub_pc_type ilu
+-solar_dir_use_hegedus no
+
+-solar_diff_ksp_type fgmres
+-solar_diff_pc_type gamg
+-solar_diff_pc_gamg_agg_nsmooths 0
+-solar_diff_pc_gamg_sym_graph true
+-solar_diff_pc_gamg_threshold 1
+-solar_diff_pc_gamg_square_graph 0
+#-solar_diff_pc_gamg_coarse_eq_limit 100000
+-solar_diff_pc_gamg_reuse_interpolation
+-solar_diff_mg_levels_ksp_type richardson
+-solar_diff_mg_levels_ksp_richardson_self_scale
+-solar_diff_mg_levels_ksp_max_it 2
+-solar_diff_mg_levels_pc_type sor
+-solar_diff_mg_coarse_ksp_type gmres
+-solar_diff_mg_coarse_ksp_max_it 1
+-solar_diff_mg_coarse_pc_type sor
+-solar_diff_use_hegedus no
+
+-thermal_diff_ksp_type fgmres
+-thermal_diff_pc_type gamg
+-thermal_diff_pc_gamg_agg_nsmooths 0
+-thermal_diff_pc_gamg_sym_graph true
+-thermal_diff_pc_gamg_threshold 10
+-thermal_diff_pc_gamg_square_graph 0
+#-thermal_diff_pc_gamg_coarse_eq_limit 100000
+-thermal_diff_pc_gamg_reuse_interpolation
+-thermal_diff_mg_levels_ksp_type richardson
+-thermal_diff_mg_levels_ksp_richardson_self_scale
+-thermal_diff_mg_levels_ksp_max_it 1
+-thermal_diff_mg_levels_pc_type sor
+-thermal_diff_mg_coarse_ksp_type preonly
+-thermal_diff_mg_coarse_ksp_max_it 1
+-thermal_diff_mg_coarse_pc_type sor
+-thermal_diff_use_hegedus no
+
+#  -tenstr_view
+#  -max_solution_time 600
+#  -max_solution_err 1
+#  
+#  #-dir_ksp_monitor
+#  #-dir_ksp_monitor_true_residual
+#  #-dir_ksp_view
+#  -dir_ksp_converged_reason
+#  
+#  #-diff_ksp_monitor
+#  #-diff_ksp_monitor_true_residual
+#  #-diff_ksp_view
+#  -diff_ksp_converged_reason
+#  
+#  -dir_ksp_initial_guess_nonzero
+#  -diff_ksp_initial_guess_nonzero
+#  
+#  #-dir_ksp_rtol 1e-6
+#  #-dir_ksp_atol 1e-3
+#  
+#  #-diff_ksp_rtol 1e-6
+#  #-diff_ksp_atol 1e-3
+#  
+#  -show_diverged_A binary:diverged_A.bin
+#  -show_diverged_b binary:diverged_b.bin
+#  
+#  -dir_ksp_type fgmres
+#  -dir_ksp_max_it 1000
+#  
+#  -dir_pc_type asm
+#  -dir_pc_asm_overlap 1
+#  -dir_sub_ksp_type richardson
+#  -dir_sub_ksp_max_it 3
+#  -dir_sub_pc_type sor
+#  -dir_sub_pc_sor_local_forward
+#  
+#  -diff_ksp_type fgmres
+#  -diff_ksp_max_it 200
+#  
+#  -diff_pc_type asm
+#  #-diff_pc_asm_blocks 100
+#  -diff_pc_asm_overlap 1
+#  -diff_sub_ksp_type richardson
+#  -diff_sub_ksp_max_it 3
+#  -diff_sub_pc_type sor
+#  
+#  #-diff_pc_type gamg
+#  -diff_pc_gamg_agg_nsmooths 0
+#  -diff_pc_gamg_sym_graph true
+#  -diff_pc_gamg_threshold 1e-3
+#  -diff_pc_gamg_square_graph 1
+#  -diff_mg_levels_ksp_type richardson
+#  -diff_mg_levels_ksp_richardson_self_scale
+#  -diff_mg_levels_ksp_max_it 3
+#  -diff_mg_levels_pc_type sor
+#  
+#  #-diff_pc_gamg_reuse_interpolation TODO test this
+#  #-diff_pc_gamg_coarse_eq_limit 10000
+#  
+#  -diff_diverged_alternate_ksp_max_it 1000
+#  -diff_diverged_alternate_ksp_monitor
+#  -diff_diverged_alternate_ksp_view
+#  -diff_diverged_alternate_ksp_converged_reason
+#  -diff_diverged_alternate_pc_type asm
+#  -diff_diverged_alternate_sub_pc_type ilu
+#  -diff_diverged_alternate_sub_pc_factor_levels 3
+#  -diff_diverged_alternate_sub_pc_factor_fill 5
+#  
+#  # Diffuse Fieldsplits
+#  #-diff_pc_type fieldsplit
+#  -diff_pc_fieldsplit_0_fields 0
+#  -diff_pc_fieldsplit_1_fields 1,2
+#  -diff_pc_fieldsplit_type schur
+#  -diff_pc_fieldsplit_schur_precondition a11
+#  -diff_pc_fieldsplit_schur_precondition selfp
+#  
+#  -diff_fieldsplit_Etop1_ksp_type preonly
+#  -diff_fieldsplit_Etop1_pc_type sor
+#  
+#  -diff_fieldsplit_1_ksp_type richardson
+#  -diff_fieldsplit_1_ksp_max_it 5
+#  
+#  -diff_fieldsplit_1_pc_type gamg
+#  -diff_fieldsplit_1_pc_gamg_coarse_eq_limit 1000
+#  -diff_fieldsplit_1_pc_gamg_agg_nsmooths 0
+#  -diff_fieldsplit_1_pc_gamg_sym_graph true
+#  -diff_fieldsplit_1_pc_gamg_threshold 0
+#  -diff_fieldsplit_1_pc_gamg_square_graph 1
+#  -diff_fieldsplit_1_mg_levels_ksp_type richardson
+#  -diff_fieldsplit_1_mg_levels_ksp_richardson_self_scale
+#  -diff_fieldsplit_1_mg_levels_ksp_max_it 1
+#  -diff_fieldsplit_1_mg_levels_pc_type sor
+#  
+#  -diff_fieldsplit_Eside1_pc_type asm
+#  -diff_fieldsplit_Eside1_pc_asm_overlap 2
+#  -diff_fieldsplit_Eside1_sub_ksp_type richardson
+#  -diff_fieldsplit_Eside1_sub_ksp_max_it 6
+#  -diff_fieldsplit_Eside1_sub_ksp_richardson_self_scale
+#  -diff_fieldsplit_Eside1_sub_pc_type sor
+#  -diff_fieldsplit_Eside1_sub_pc_sor_local_forward
+#  
+#  
+#  
+#  # Direct Fieldsplits
+#  #-dir_pc_type fieldsplit
+#  -dir_pc_fieldsplit_type schur
+#  -dir_pc_fieldsplit_schur_precondition a11
+#  -dir_pc_fieldsplit_schur_precondition selfp
+#  
+#  -dir_fieldsplit_Etop1_ksp_type preonly
+#  -dir_fieldsplit_Etop1_pc_type sor
+#  -dir_fieldsplit_Etop1_pc_sor_forward_local
+#  
+#  -dir_fieldsplit_Eside1_ksp_type preonly
+#  
+#  -dir_fieldsplit_Eside1_pc_type gamg
+#  -dir_fieldsplit_Eside1_pc_gamg_coarse_eq_limit 1000
+#  -dir_fieldsplit_Eside1_pc_gamg_agg_nsmooths 0
+#  -dir_fieldsplit_Eside1_pc_gamg_sym_graph true
+#  -dir_fieldsplit_Eside1_pc_gamg_threshold 0
+#  -dir_fieldsplit_Eside1_pc_gamg_square_graph 1
+#  -dir_fieldsplit_Eside1_mg_levels_ksp_type richardson
+#  -dir_fieldsplit_Eside1_mg_levels_ksp_richardson_self_scale
+#  -dir_fieldsplit_Eside1_mg_levels_ksp_max_it 1
+#  -dir_fieldsplit_Eside1_mg_levels_pc_type sor
+#  
+#  -dir_fieldsplit_Eside1_pc_type asm
+#  -dir_fieldsplit_Eside1_pc_asm_overlap 2
+#  -dir_fieldsplit_Eside1_sub_ksp_type richardson
+#  -dir_fieldsplit_Eside1_sub_ksp_max_it 8
+#  -dir_fieldsplit_Eside1_sub_ksp_richardson_self_scale
+#  -dir_fieldsplit_Eside1_sub_pc_type sor
+#  -dir_fieldsplit_Eside1_sub_pc_sor_local_forward

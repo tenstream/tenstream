@@ -270,11 +270,17 @@ int main(int argc,char *argv[]) {
   return 0;
 }
 ")
-    multipass_source_runs ("${includes}" "${libraries}" "${_PETSC_TEST_SOURCE}" ${runs} "${PETSC_LANGUAGE_BINDINGS}")
+    if(PETSC_SKIP_TEST_RUNS)
+      message("You have set PETSC_SKIP_TEST_RUNS (${PETSC_SKIP_TEST_RUNS})... will skip the compilation and running of petsc test runs and hope that you know what you are doing.")
+      set (PETSC_EXECUTABLE_RUNS "YES" CACHE BOOL
+        "Can the system successfully run a PETSc executable?  This variable can be manually set to \"YES\" to force CMake to accept a given PETSc configuration, but this will almost always result in a broken build.  If you change PETSC_DIR, PETSC_ARCH, or PETSC_CURRENT you would have to reset this variable." FORCE)
+    else()
+      multipass_source_runs ("${includes}" "${libraries}" "${_PETSC_TEST_SOURCE}" ${runs} "${PETSC_LANGUAGE_BINDINGS}")
     if (${${runs}})
       set (PETSC_EXECUTABLE_RUNS "YES" CACHE BOOL
         "Can the system successfully run a PETSc executable?  This variable can be manually set to \"YES\" to force CMake to accept a given PETSc configuration, but this will almost always result in a broken build.  If you change PETSC_DIR, PETSC_ARCH, or PETSC_CURRENT you would have to reset this variable." FORCE)
     endif (${${runs}})
+    endif()
   endmacro (PETSC_TEST_RUNS)
 
 

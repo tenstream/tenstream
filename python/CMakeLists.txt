@@ -1,6 +1,6 @@
 message(STATUS "Creating python interfaces with ${F2PY_PATH}")
 
-set(DEPENDENCY_LIST pprts pprts_base)
+set(DEPENDENCY_LIST tenstream)
 
 list(APPEND wrappers
   "py_boxmc.f90"
@@ -11,11 +11,6 @@ list(APPEND wrappers
 list(APPEND rrtm_wrappers
   "py_rrtm_lw_sw.f90"
   )
-
-if(ENABLE_RRTM)
-  list(APPEND wrappers ${rrtm_wrappers} )
-  list(APPEND DEPENDENCY_LIST pprts_rrtmg pprts_rrtm_lw pprts_rrtm_sw)
-endif()
 
 set(lib_line "")
 foreach ( dep ${DEPENDENCY_LIST} )
@@ -30,6 +25,7 @@ endforeach()
 message(STATUS "Linker line: ${lib_line}")
 
 get_property(include_dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+list(APPEND include_dirs "${CMAKE_Fortran_MODULE_DIRECTORY}")
 set(inc_line "")
 foreach ( inc_dir ${include_dirs} )
   list(APPEND inc_line "-I${inc_dir}")
@@ -56,3 +52,6 @@ foreach ( wrapper ${wrappers} )
   add_custom_target(do_python_interface_${basename} DEPENDS ${basename}.so)
   add_dependencies(python_interface do_python_interface_${basename})
 endforeach ()
+
+#add_executable(test_f2py "py_boxmc.f90" )
+#target_link_libraries( test_f2py pprts_base)

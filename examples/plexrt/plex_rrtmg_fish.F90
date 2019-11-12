@@ -5,7 +5,7 @@ use petsc
 
 use m_tenstream_options, only : read_commandline_options
 
-use m_helper_functions, only: CHKERR, imp_bcast, determine_normal_direction, &
+use m_helper_functions, only: CHKERR, CHKWARN, imp_bcast, determine_normal_direction, &
   spherical_2_cartesian, angle_between_two_vec, rad2deg, deg2rad, reverse, itoa, cstr, &
   meanval, meanvec
 
@@ -27,8 +27,10 @@ use m_plex_grid, only: t_plexgrid, &
   gen_test_mat, get_normal_of_first_toa_face, get_horizontal_faces_around_vertex, &
   atm_dz_to_vertex_heights
 
-use m_plex_rt, only: compute_face_geometry, allocate_plexrt_solver_from_commandline, &
-  t_plex_solver, init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
+use m_plex_rt_base, only: t_plex_solver, allocate_plexrt_solver_from_commandline
+
+use m_plex_rt, only: compute_face_geometry, &
+  init_plex_rt_solver, run_plex_rt_solver, set_plex_rt_optprop, &
   plexrt_get_result, destroy_plexrt_solver
 
 use m_plexrt_rrtmg, only: plexrt_rrtmg, destroy_plexrt_rrtmg
@@ -38,7 +40,8 @@ use m_netcdfio, only : ncload, ncwrite
 use m_dyn_atm_to_rrtmg, only: t_tenstr_atm, setup_tenstr_atm, print_tenstr_atm, &
   reff_from_lwc_and_N, hydrostat_plev
 
-use m_icon_plex_utils, only: create_2d_fish_plex, dmplex_2D_to_3D, dump_ownership, Nz_Ncol_vec_to_celldm1
+use m_icon_plex_utils, only: create_2d_fish_plex, create_2d_regular_plex, &
+  dmplex_2D_to_3D, dump_ownership, Nz_Ncol_vec_to_celldm1
 
 implicit none
 
@@ -62,7 +65,7 @@ logical, parameter :: ldebug=.True.
 
       type(t_plexgrid), allocatable :: plex
       integer(iintegers), allocatable :: zindex(:)
-      class(t_plex_solver), allocatable :: solver
+    class(t_plex_solver), allocatable :: solver
 
       type(t_tenstr_atm) :: atm
       character(len=default_str_len) :: atm_filename
@@ -72,15 +75,22 @@ logical, parameter :: ldebug=.True.
       real(ireals), parameter :: lapse_rate=9.5e-3, Tsrfc=288.3, minTemp=Tsrfc-60._ireals
 
       integer(iintegers) :: solve_iterations, iter
-      real(ireals) :: solve_iterations_scale
-      logical :: lflg
+      real(ireals) :: solve_iterations_scale, lwcval
+      logical :: lregular_mesh, lflg
 
       real(ireals), allocatable, dimension(:,:) :: edir, edn, eup, abso
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
-      call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf, opt_dx=dx)
+      lregular_mesh = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+        '-use_regular_mesh', lregular_mesh, lflg, ierr) ; call CHKERR(ierr)
+      if(lregular_mesh) then
+        call create_2d_regular_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf, opt_dx=dx)
+      else
+        call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf, opt_dx=dx)
+      endif
 
       hhl(1) = zero
       do k=2,Nz
@@ -92,6 +102,8 @@ logical, parameter :: ldebug=.True.
       dNlev = Nz; dNlay = dNlev-1
 
       if(myid.eq.0) print *,'Dynamics Grid has Size Nlev, Ncol:', dNlev, Ncol
+      if(Ncol.eq.0) call CHKERR(1_mpiint, 'We have a process that has nothing to do? '// &
+        'Maybe decrease the number of processes or increase the problem size')
 
       ! prepare atmosphere
       allocate(col_tlev(dNlev, Ncol))
@@ -122,11 +134,14 @@ logical, parameter :: ldebug=.True.
       col_lwc = 0
       col_reff = 10
 
-      col_lwc(1+dNlay/2:dNlay, 1:Ncol:10) = .1
-      col_lwc(1+dNlay/2:dNlay, 2:Ncol:10) = .1
-      col_lwc(1+dNlay/2:dNlay, 3:Ncol:10) = .1
-      col_lwc(1+dNlay/2:dNlay, 4:Ncol:10) = .1
-      col_lwc(1+dNlay/2:dNlay, 5:Ncol:10) = .1
+      lwcval = .1
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-lwc", lwcval, lflg,ierr) ; call CHKERR(ierr)
+
+      col_lwc(1+dNlay/2:dNlay, 1:Ncol:10) = lwcval
+      col_lwc(1+dNlay/2:dNlay, 2:Ncol:10) = lwcval
+      col_lwc(1+dNlay/2:dNlay, 3:Ncol:10) = lwcval
+      col_lwc(1+dNlay/2:dNlay, 4:Ncol:10) = lwcval
+      col_lwc(1+dNlay/2:dNlay, 5:Ncol:10) = lwcval
 
       call init_data_strings()
 
@@ -137,15 +152,19 @@ logical, parameter :: ldebug=.True.
       Nlev = size(atm%plev,1,kind=iintegers)
       call dmplex_2D_to_3D(dm2d_dist, Nlev, reverse(atm%zt(:, i1)), dm3d, zindex)
 
+      call dump_ownership(dm3d, '-dump_ownership', '-show_plex')
+
+      call setup_plexgrid(dm2d_dist, dm3d, Nlev-1, zindex, plex, hhl=reverse(atm%zt(:, i1)))
+
       call DMDestroy(dm2d, ierr); call CHKERR(ierr)
       call DMDestroy(dm2d_dist, ierr); call CHKERR(ierr)
-
-      call setup_plexgrid(dm3d, Nlev-1, zindex, plex)
       deallocate(zindex)
 
-      call PetscObjectViewFromOptions(plex%dm, PETSC_NULL_DM, "-show_plex", ierr); call CHKERR(ierr)
-
-      call allocate_plexrt_solver_from_commandline(solver, '5_8')
+      if(lregular_mesh) then
+        call allocate_plexrt_solver_from_commandline(solver, 'rectilinear_5_8')
+      else
+        call allocate_plexrt_solver_from_commandline(solver, '5_8')
+      endif
       call init_plex_rt_solver(plex, solver)
 
       call init_sundir()
@@ -159,7 +178,7 @@ logical, parameter :: ldebug=.True.
         if(lthermal) then
 
           ! Perform a circular shift of cloud field by one column
-          col_lwc = cshift(col_lwc, 1, dim=2)
+          col_lwc = cshift(col_lwc, shift=1, dim=2)
           call setup_tenstr_atm(comm, .False., atm_filename, &
             col_plev, col_tlev, atm, &
             d_lwc=col_lwc, d_reliq=col_reff)
@@ -178,6 +197,10 @@ logical, parameter :: ldebug=.True.
             enddo
             print *,k, meanval(edn(k,:)), meanval(eup(k,:))
           endif
+          if(meanval(edn).lt.epsilon(edn)) &
+            call CHKERR(1_mpiint, 'Mean Edn is really small,'// &
+            'the solver probably had a problem but did not fail.'// &
+            'Caution! Your results may be garbage!')
         endif
 
         if(lsolar) then
@@ -191,19 +214,23 @@ logical, parameter :: ldebug=.True.
           if(myid.eq.0) then
             print *, ''
             print *, cstr('Solar Radiation', 'green')
-            print *,cstr('Avg.horiz','blue')//&
+            print *, cstr('Avg.horiz','blue')//&
               cstr(' k   Edir          Edn            Eup            abso', 'blue')
             do k = 1, ubound(abso,1)
               print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
             enddo
             print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:))
           endif
+          if(meanval(edn).lt.epsilon(edn)) &
+            call CHKERR(1_mpiint, 'Mean Edn is really small,'// &
+            'the solver probably had a problem but did not fail.'// &
+            'Caution! Your results may be garbage!')
         endif
       enddo ! solve_iterations
 
       call dump_result()
 
-      call destroy_plexrt_solver(solver, lfinalizepetsc=.False.)
+      call destroy_plexrt_rrtmg(solver, lfinalizepetsc=.False.)
 
       contains
         subroutine dump_result()
@@ -222,26 +249,23 @@ logical, parameter :: ldebug=.True.
           call DMRestoreGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
         end subroutine
         subroutine init_sundir()
-          logical :: lflg, lflg_xyz(3)
+          logical :: lflg
           real(ireals) :: first_normal(3)
           integer(mpiint) :: myid, ierr
           real(ireals) :: rot_angle, Mrot(3,3), rot_sundir(3)
+          integer(iintegers) :: argcnt
 
           call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
           first_normal = get_normal_of_first_TOA_face(solver%plex)
 
           sundir = zero
           if(ldebug.and.myid.eq.0) print *,myid, 'determine initial sundirection ...'
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_x", sundir(1), lflg_xyz(1), ierr) ; call CHKERR(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_y", sundir(2), lflg_xyz(2), ierr) ; call CHKERR(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_z", sundir(3), lflg_xyz(3), ierr) ; call CHKERR(ierr)
-          if(any(lflg_xyz)) then
-            if(.not.all(lflg_xyz)) then
-              call CHKERR(1_mpiint, 'sundir needs 3 entries, you have to specify -sundir_x -sundir_y -sundir_z')
-            endif
+          argcnt = 3
+          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir", sundir, argcnt, lflg, ierr) ; call CHKERR(ierr)
+          if(lflg) then
+            call CHKERR(int(argcnt-i3, mpiint), "must provide 3 values for sundir, comma separated, no spaces")
           else
             sundir = first_normal + [zero, +.5_ireals, zero]
-            sundir = sundir/norm2(sundir)
           endif
           sundir = sundir/norm2(sundir)
 
@@ -298,6 +322,7 @@ logical, parameter :: ldebug=.True.
     integer(iintegers) :: Nx, Ny, Nz
     real(ireals) :: dx, dz, Ag
 
+
     !character(len=*),parameter :: ex_out='plex_ex_dom1_out.h5'
     !character(len=*),parameter :: ex_out='plex_test_out.h5'
     !character(len=*),parameter :: lwcfile='lwc_ex_24_3.nc'
@@ -329,7 +354,7 @@ logical, parameter :: ldebug=.True.
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
     default_options='-polar_coords no'
-    !default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
+    default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
     !default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_abso hdf5:'//trim(outfile)//'::append'
     !default_options=trim(default_options)//' -show_iconindex hdf5:'//trim(outfile)//'::append'

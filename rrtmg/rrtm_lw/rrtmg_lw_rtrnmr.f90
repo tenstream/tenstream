@@ -397,8 +397,8 @@
                   rat2 = 0._rb
                endif
             endif
-            faccmb1(lev+1) = facclr1(lev+1) * faccld2(lev) * cldfrac(lev-1) 
-            faccmb2(lev+1) = faccld1(lev+1) * facclr2(lev) * (1._rb - cldfrac(lev-1)) 
+            faccmb1(lev+1) = facclr1(lev+1) * faccld2(lev) * cldfrac(max(1,lev-1))
+            faccmb2(lev+1) = faccld1(lev+1) * facclr2(lev) * (1._rb - cldfrac(max(1,lev-1)))
          else
             istcld(lev+1) = 1
          endif
@@ -471,8 +471,8 @@
                   rat2 = 0._rb
                endif
             endif
-            faccmb1d(lev-1) = facclr1d(lev-1) * faccld2d(lev) * cldfrac(lev+1) 
-            faccmb2d(lev-1) = faccld1d(lev-1) * facclr2d(lev) * (1._rb - cldfrac(lev+1))
+            faccmb1d(lev-1) = facclr1d(lev-1) * faccld2d(lev) * cldfrac(min(nlayers,lev+1))
+            faccmb2d(lev-1) = faccld1d(lev-1) * facclr2d(lev) * (1._rb - cldfrac(min(nlayers,lev+1)))
          else
             istcldd(lev-1) = 1
          endif
