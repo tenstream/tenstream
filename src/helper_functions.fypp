@@ -2645,8 +2645,7 @@ subroutine domain_decompose_2d(comm, N_ranks_x, N_ranks_y, ierr)
   integer(mpiint), intent(out) :: N_ranks_x, N_ranks_y
   integer(mpiint), intent(out) :: ierr
 
-  integer(mpiint) :: numnodes
-  integer(iintegers) :: j
+  integer(mpiint) :: numnodes, j
 
   call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)
 
