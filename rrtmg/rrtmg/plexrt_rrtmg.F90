@@ -112,7 +112,7 @@ contains
     integer(iintegers) :: k, Ncol, ke, ke1
 
     integer(mpiint) :: myid, comm, ierr
-    logical :: lrrtmg_only, lflg
+    logical :: lrrtmg_only, lskip_thermal, lskip_solar, lflg
 
     if(.not.allocated(solver)) call CHKERR(1_mpiint, 'solver has to be setup beforehand')
     if(.not.allocated(solver%plex)) call CHKERR(1_mpiint, 'Solver has to have a ready to go Plexgrid')
@@ -165,7 +165,10 @@ contains
     call allocate_optprop_vec(solver%plex%cell1_dm, solver%g   )
     call allocate_optprop_vec(solver%plex%srfc_boundary_dm, solver%albedo)
 
-    if(lthermal) then
+    lskip_thermal = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+      "-skip_thermal" , lskip_thermal, lflg , ierr) ;call CHKERR(ierr)
+    if(lthermal.and..not.lskip_thermal) then
       call allocate_optprop_vec(solver%plex%horizface1_dm, solver%plck)
 
       call PetscLogStagePush(log_events%stage_rrtmg_thermal, ierr); call CHKERR(ierr)
@@ -187,17 +190,23 @@ contains
 
     if(lsolar) then
       if(.not.allocated(edir)) allocate(edir(ke1, Ncol))
-      call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
       edir = zero
-      call compute_solar(comm, solver, atm, &
-        Ncol, ke1, &
-        sundir, albedo_solar, &
-        edir, edn, eup, abso, &
-        opt_time=opt_time, &
-        solar_albedo_2d=solar_albedo_2d, &
-        lrrtmg_only=lrrtmg_only, &
-        opt_solar_constant=opt_solar_constant)
-      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
+
+      lskip_solar = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+        "-skip_solar" , lskip_solar, lflg , ierr) ;call CHKERR(ierr)
+      if(.not.lskip_solar) then
+        call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
+        call compute_solar(comm, solver, atm, &
+          Ncol, ke1, &
+          sundir, albedo_solar, &
+          edir, edn, eup, abso, &
+          opt_time=opt_time, &
+          solar_albedo_2d=solar_albedo_2d, &
+          lrrtmg_only=lrrtmg_only, &
+          opt_solar_constant=opt_solar_constant)
+        call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
+      endif
 
       call dump_vec(edir(1:ke,:) , '-plexrt_dump_Edir_1_ke')
       call dump_vec(edir(2:ke1,:), '-plexrt_dump_Edir_2_ke1')
