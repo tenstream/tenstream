@@ -300,7 +300,7 @@ contains
     !logical :: lfile_exists
 
     integer(mpiint) :: myid, ierr
-    logical :: lrrtmg_only, lskip_thermal, ldisort_only, lflg
+    logical :: lrrtmg_only, lskip_thermal, lskip_solar, ldisort_only, lflg
 
     integer(iintegers) :: pprts_icollapse
 
@@ -375,12 +375,18 @@ contains
     if(lsolar) then
       if(.not.allocated(edir)) allocate(edir (solver%C_one1%zm, solver%C_one1%xm, solver%C_one1%ym))
       edir = zero
-      call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
-      call compute_solar(solver, atm, ie, je, ke, &
-        phi0, theta0, albedo_solar, &
-        edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
-        lrrtmg_only=lrrtmg_only, phi2d=phi2d, theta2d=theta2d, opt_solar_constant=opt_solar_constant)
-      call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
+
+      lskip_solar = .False.
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
+        "-skip_solar" , lskip_solar, lflg , ierr) ;call CHKERR(ierr)
+      if(.not.lskip_solar) then
+        call PetscLogStagePush(log_events%stage_rrtmg_solar, ierr); call CHKERR(ierr)
+        call compute_solar(solver, atm, ie, je, ke, &
+          phi0, theta0, albedo_solar, &
+          edir, edn, eup, abso, opt_time=opt_time, solar_albedo_2d=solar_albedo_2d, &
+          lrrtmg_only=lrrtmg_only, phi2d=phi2d, theta2d=theta2d, opt_solar_constant=opt_solar_constant)
+        call PetscLogStagePop(ierr); call CHKERR(ierr) ! pop solver%logs%stage_rrtmg_solar
+      endif
     endif
 
     call smooth_surface_fluxes(solver, edn, eup)
