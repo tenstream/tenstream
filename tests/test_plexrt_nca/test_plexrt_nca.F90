@@ -146,7 +146,7 @@ contains
       base_info, side_info, hr)
 
     !check if NCA result is within 15% of 1D
-    @assertEqual(-0.053829, hr, 0.053829*0.15)
+    @assertEqual(-0.053829_ireals, hr, 0.053829_ireals*0.15_ireals)
 
   end subroutine
 
@@ -233,7 +233,7 @@ contains
               hr= meanval(abso(k,:))
               print *, k, hr_1d, hr
               !check if NCA (@kabs=100) result is within 15% of 1D
-              @assertEqual(hr_1d, hr, (-1)*hr_1d*0.15)
+              @assertEqual(hr_1d, hr, abs(hr_1d)*0.15_ireals)
            endif
         enddo
         print *, k, meanval(edn(k,:)), meanval(eup(k,:))
