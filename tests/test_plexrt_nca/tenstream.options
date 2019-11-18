@@ -1,6 +1,7 @@
 -twostr_only
 -schwarzschild
 -calc_nca
+-plexrt_skip_loadLUT
 #-show_plex hdf5:/tmp/plex.h5
 #-dump_ownership hdf5:/tmp/plex.h5::append
 #-show_nca_DM_before
