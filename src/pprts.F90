@@ -60,7 +60,7 @@ module m_pprts
   public :: init_pprts, &
             set_optical_properties, set_global_optical_properties, &
             solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
-            pprts_get_result_toZero, gather_all_toZero
+            pprts_get_result_toZero, gather_all_toZero, scale_flx
 
   logical,parameter :: ldebug=.False.
   logical,parameter :: lcycle_dir=.True.
@@ -1615,6 +1615,12 @@ module m_pprts
                 C_diff    => solver%C_diff,    &
                 Mdir      => solver%Mdir,      &
                 Mdiff     => solver%Mdiff     )
+
+    if(.not.allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
+    if(.not.allocated(solver%atm%kabs)) &
+      call CHKERR(1_mpiint, 'atmosphere%kabs is not allocated! - maybe you need to call set_optical_properties() first')
+    if(.not.allocated(solver%atm%ksca)) &
+      call CHKERR(1_mpiint, 'atmosphere%ksca is not allocated! - maybe you need to call set_optical_properties() first')
 
     uid = get_arg(0_iintegers, opt_solution_uid)
 

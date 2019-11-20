@@ -6,19 +6,21 @@ module m_pprts_base
     zero, one, i0, i1, i2, i3, i4, i5, i6, i7, i8, i10, pi, &
     default_str_len
 
-  use m_helper_functions, only : CHKWARN, CHKERR, get_arg, itoa
+  use m_helper_functions, only : CHKWARN, CHKERR, get_arg, itoa, ltoa, ftoa, cstr
   use m_petsc_helpers, only: getvecpointer, restorevecpointer
 
   use m_optprop, only: t_optprop_cube
 
   implicit none
 
+  private
   public :: t_solver, t_solver_1_2, t_solver_3_6, t_solver_3_10, &
     t_solver_8_10, t_solver_3_16, t_solver_8_16, t_solver_8_18, &
     allocate_pprts_solver_from_commandline, &
     t_coord, t_suninfo, compute_gradient, atmk, &
-    t_state_container, destroy_solution, &
-    t_dof, t_solver_log_events, setup_log_events
+    t_state_container, prepare_solution, destroy_solution, print_solution, &
+    t_dof, t_solver_log_events, setup_log_events, &
+    t_atmosphere
 
   type t_coord
     integer(iintegers)      :: xs,xe                   ! local domain start and end indices
@@ -226,6 +228,34 @@ module m_pprts_base
 
         solution%lset = .False.
       endif
+    end subroutine
+    subroutine print_solution(solution)
+      type(t_state_container), intent(inout) :: solution
+      integer(mpiint) :: ierr
+      character(len=30) :: header
+      header = cstr('Solution('//itoa(solution%uid)//') ', 'blue')
+      print *, trim(header)//'is initialized?', solution%lset
+      if(.not.solution%lset) return
+      print *, trim(header)//'is a solar solution?', solution%lsolar_rad
+      print *, trim(header)//'has changed?', solution%lchanged
+      print *, trim(header)//'direct  radiation is in W/m2?', solution%lWm2_dir
+      print *, trim(header)//'diffuse radiation is in W/m2?', solution%lWm2_diff
+
+      call investigate_vec(solution%edir , 'Edir ')
+      call investigate_vec(solution%ediff, 'Ediff')
+      call investigate_vec(solution%abso , 'Abso ')
+      contains
+        subroutine investigate_vec(v, title)
+          type(tVec), allocatable, intent(in) :: v
+          character(len=*), intent(in) :: title
+          real(ireals) :: n2
+          n2 = -1
+          if(allocated(v)) then
+            call VecNorm(v, NORM_2, n2, ierr); call CHKERR(ierr)
+          endif
+          print *, trim(header)//title// &
+            ' (alloc='//ltoa(allocated(v))//' 2-norm = '//ftoa(n2)
+        end subroutine
     end subroutine
 
     subroutine setup_log_events(logs, solvername)
