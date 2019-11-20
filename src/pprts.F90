@@ -1690,7 +1690,13 @@ module m_pprts
 
       call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
       call setup_ksp(solver%atm, solver%ksp_solar_dir, C_dir, solver%Mdir, "solar_dir_")
-      call solve(solver, solver%ksp_solar_dir, solver%incSolar, solutions(uid)%edir, solutions(uid)%dir_ksp_residual_history)
+      call solve(solver, &
+        solver%ksp_solar_dir, &
+        solver%incSolar, &
+        solutions(uid)%edir, &
+        solutions(uid)%Niter_dir, &
+        solutions(uid)%dir_ksp_residual_history)
+
       call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
 
       solutions(uid)%lchanged=.True.
@@ -1721,12 +1727,20 @@ module m_pprts
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
       if( solutions(uid)%lsolar_rad ) then
         call setup_ksp(solver%atm, solver%ksp_solar_diff, C_diff, Mdiff, "solar_diff_")
-        call solve(solver, solver%ksp_solar_diff, solver%b, &
-          solutions(uid)%ediff, solutions(uid)%diff_ksp_residual_history)
+        call solve(solver, &
+          solver%ksp_solar_diff, &
+          solver%b, &
+          solutions(uid)%ediff, &
+          solutions(uid)%Niter_diff, &
+          solutions(uid)%diff_ksp_residual_history)
       else
         call setup_ksp(solver%atm, solver%ksp_thermal_diff, C_diff, Mdiff, "thermal_diff_")
-        call solve(solver, solver%ksp_thermal_diff, solver%b, &
-          solutions(uid)%ediff, solutions(uid)%diff_ksp_residual_history)
+        call solve(solver, &
+          solver%ksp_thermal_diff, &
+          solver%b, &
+          solutions(uid)%ediff, &
+          solutions(uid)%Niter_diff, &
+          solutions(uid)%diff_ksp_residual_history)
       endif
       call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
     endif
@@ -2442,15 +2456,15 @@ end subroutine
 !> @details solve with ksp and save residual history of solver
 !> \n -- this may be handy later to decide next time if we have to calculate radiation again
 !> \n if we did not get convergence, we try again with standard GMRES and a resetted(zero) initial guess -- if that doesnt help, we got a problem!
-subroutine solve(solver, ksp, b, x, ksp_residual_history)
+subroutine solve(solver, ksp, b, x, iter, ksp_residual_history)
   class(t_solver) :: solver
   type(tKSP) :: ksp
   type(tVec) :: b
   type(tVec) :: x
+  integer(iintegers), intent(out) :: iter
   real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
 
   KSPConvergedReason :: reason
-  integer(iintegers) :: iter
 
   KSPType :: old_ksp_type
 

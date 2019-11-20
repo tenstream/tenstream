@@ -83,6 +83,8 @@ module m_pprts_base
     real(ireals)        :: maxnorm(30) = zero
     real(ireals),allocatable :: dir_ksp_residual_history(:)
     real(ireals),allocatable :: diff_ksp_residual_history(:)
+
+    integer(iintegers) :: Niter_dir=-1, Niter_diff=-1
   end type
 
   type t_dof
