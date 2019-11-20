@@ -68,7 +68,6 @@ contains
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
 
-    logical,parameter :: ldebug=.True.
     logical :: lverbose, lthermal, lsolar, lrandom_lwc
 
     class(t_solver), allocatable :: pprts_solver
