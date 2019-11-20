@@ -6,7 +6,8 @@ use m_tenstream_options, only : read_commandline_options
 use m_data_parameters, only: init_mpi_data_parameters, &
   iintegers, ireals, mpiint, default_str_len, &
   i0, pi
-use m_helper_functions, only: triangle_area_by_edgelengths, chkerr, meanval, itoa
+use m_helper_functions, only: triangle_area_by_edgelengths, chkerr, itoa, &
+  approx, meanval, imp_allreduce_mean
 
 use m_plexrt_nca, only: plexrt_nca_init, plexrt_nca
 
@@ -52,21 +53,21 @@ contains
          5.e-4, &
          1.e2   &
          ]
-    
+
     results = [                &
          -9.9e-5_ireals,       &
          -0.4382770e-2_ireals, &
          -0.2198385e-1_ireals  &
          ]
-    
+
     delta = [          &
          1.e-6_ireals, &
          1.e-3_ireals, &
          1.e-2_ireals  &
-         ] 
-    
+         ]
+
     do itest=1,3
-       
+
        base_info = [     &
             kabs(itest), & !kabs
             kabs(1),     & !kabs_top
@@ -83,20 +84,20 @@ contains
             0._ireals,    & !Ldn_bot
             0._ireals     & !Lup_bot
             ]
-       
+
        side_info( 6:10) = side_info(1:5)
        side_info(11:15) = side_info(1:5)
-       
+
        call plexrt_nca_init(comm)
-       
+
        call plexrt_nca (dx1, dx2, dx3, &
             dz, atop, abot, a1, a2, a3, vol, &
             base_info, side_info, hr)
-       
+
        @assertEqual(results(itest), hr, delta(itest), 'NCA Heating Test 1')
-       
+
     enddo
- 
+
   end subroutine
 
   @test(npes =[1])
@@ -135,7 +136,6 @@ contains
       372.23_ireals     & !Lup_bot
       ]
 
-    
     side_info( 6:10) = side_info(1:5)
     side_info(11:15) = side_info(1:5)
 
@@ -150,19 +150,19 @@ contains
 
   end subroutine
 
-  @test(npes =[1,2,3])
+  @test(npes =[3])
   subroutine test_nca_dmplex_interface(this)
   class (MpiTestMethod), intent(inout) :: this
     integer(mpiint) :: myid, numnodes, comm, ierr
 
-    integer(iintegers), parameter :: Nx=2, Ny=3, Nz=4
+    integer(iintegers), parameter :: Nx=4, Ny=3, Nz=4
     real(ireals), parameter :: dz=1_ireals, Ag=1
     real(ireals), parameter :: sundir(3)=[0,0,1]
 
     type(tDM) :: dm2d_serial, dm2d, dm3d
     real(ireals) :: hhl(Nz)
-    real(ireals) :: hr_1d, hr
-    
+    real(ireals) :: hr_1d, hr, hr_mean
+
     class(t_plex_solver), allocatable :: solver
     type(t_plexgrid), allocatable :: plex
     integer(iintegers), allocatable :: zindex(:)
@@ -199,9 +199,8 @@ contains
 
     call VecGetArrayF90(solver%kabs, xv, ierr); call CHKERR(ierr)
     xxv(1:Nz-1, 1:Ncol) => xv
-    !if(myid.eq.0) &
     xxv(Nz/2,:) = 100
-  
+
     nullify(xxv)
     call VecRestoreArrayF90(solver%kabs, xv, ierr); call CHKERR(ierr)
 
@@ -222,24 +221,31 @@ contains
     call plexrt_get_result(solver, edn, eup, abso)
 
     if(allocated(abso)) then
+      ! Print output
       do i=0,numnodes-1
-      if(myid.eq.i) then
-        print *, ''
-        print *, 'Averages on rank'//itoa(myid)
-        do k = 1, ubound(abso,1)
-           print *, k, meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
-           if(k.eq.Nz/2) then
-              hr_1d=meanval(edn(k,:))-meanval(edn(k+1,:))+meanval(eup(k+1,:))-meanval(eup(k,:))
-              hr= meanval(abso(k,:))
-              print *, k, hr_1d, hr
-              !check if NCA (@kabs=100) result is within 15% of 1D
-              @assertEqual(hr_1d, hr, abs(hr_1d)*0.15_ireals)
-           endif
-        enddo
-        print *, k, meanval(edn(k,:)), meanval(eup(k,:))
-      endif
-      call mpi_barrier(comm, ierr); call CHKERR(ierr)
+        if(myid.eq.i) then
+          print *, ''
+          print *, 'Averages on rank'//itoa(myid)
+          do k = 1, ubound(abso,1)
+            print *, k, meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
+          enddo
+          print *, k, meanval(edn(k,:)), meanval(eup(k,:))
+        endif
+        call mpi_barrier(comm, ierr); call CHKERR(ierr)
       enddo
+
+      ! make sure that all heating rates are the same horizontally
+      do k = 1, ubound(abso,1)
+        call imp_allreduce_mean(comm, abso(k,:), hr_mean)
+        @mpiassertTrue(all(approx(hr_mean, abso(k,:), epsilon(abso))), 'heating rates vary horizontally but should be homogeneous!')
+      enddo
+
+      !check if NCA (@cld layer, kabs=100) result is within 15% of 1D
+      k = Nz/2
+      hr_1d = meanval(edn(k,:))-meanval(edn(k+1,:))+meanval(eup(k+1,:))-meanval(eup(k,:))
+      hr    = meanval(abso(k,:))
+      @assertEqual(hr_1d, hr, abs(hr_1d)*0.15_ireals)
+
     endif
 
     call destroy_plexrt_solver(solver, lfinalizepetsc=.True.)
