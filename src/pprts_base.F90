@@ -170,7 +170,6 @@ module m_pprts_base
 
       if(solution%lset) call CHKERR(1_mpiint, 'solution has already been prepared before')
 
-      solution%lset = .True.
       solution%lsolar_rad = lsolar
 
       solution%lchanged = .True.
@@ -199,6 +198,7 @@ module m_pprts_base
       call VecSet(solution%abso, zero, ierr); call CHKERR(ierr)
       call PetscObjectViewFromOptions(solution%abso, PETSC_NULL_VEC, "-show_init_abso", ierr); call CHKERR(ierr)
 
+      solution%lset = .True.
     end subroutine
     subroutine destroy_solution(solution)
       type(t_state_container), intent(inout) :: solution

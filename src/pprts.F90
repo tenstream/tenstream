@@ -1834,24 +1834,24 @@ module m_pprts
       do j=C%ys,C%ye
         do i=C%xs,C%xe
           do k=C%zs,C%ze-1
-            if(.not.atm%l1d(atmk(atm, k),i,j)) then
-              ! First the faces in x-direction
-              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
-              fac = Ax
-              do iside=1,solver%dirside%dof
-                d = solver%dirtop%dof + iside-1
-                xv(d,k,i,j) = fac
-              enddo
+            ! First the faces in x-direction
+            Ax = solver%atm%dy*solver%atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
+            fac = Ax
+            do iside=1,solver%dirside%dof
+              d = solver%dirtop%dof + iside-1
+              xv(d,k,i,j) = fac
+            enddo
 
-              ! Then the rest of the faces in y-direction
-              Ay = atm%dy*atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
-              fac = Ay
-              do iside=1,solver%dirside%dof
-                d = solver%dirtop%dof + solver%dirside%dof + iside-1
-                xv(d,k,i,j) = fac
-              enddo
-            endif
+            ! Then the rest of the faces in y-direction
+            Ay = atm%dy*atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
+            fac = Ay
+            do iside=1,solver%dirside%dof
+              d = solver%dirtop%dof + solver%dirside%dof + iside-1
+              xv(d,k,i,j) = fac
+            enddo
           enddo
+          ! the side faces underneath the surface are always scaled by unity
+          xv(solver%dirtop%dof:ubound(xv,dim=1),k,i,j) = one
         enddo
       enddo
       call restoreVecPointer(v, xv1d, xv )
@@ -1866,19 +1866,13 @@ module m_pprts
 
       integer(iintegers)  :: iside, src, i, j, k
       real(ireals)        :: Az, Ax, Ay, fac
-      !Vec                 :: vgrad_x, vgrad_y
-      !PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
-      !PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
-      !real(ireals)        :: grad(3)  ! is the cos(zenith_angle) of the tilted box in case of topography
 
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C%da ,xv1d, xv)
 
-
       if(C%dof.eq.i3 .or. C%dof.eq.i8) then
         print *,'scale_flx_vec is just for diffuse radia'
       endif
-
 
       ! Scaling top faces
       Az = solver%atm%dx*solver%atm%dy / real(solver%difftop%area_divider, ireals)
@@ -1898,14 +1892,12 @@ module m_pprts
       ! Scaling side faces
       do j=C%ys,C%ye
         do i=C%xs,C%xe
-          do k=C%zs,C%ze-i1
-            if(.not.solver%atm%l1d(atmk(solver%atm, k),i,j)) then
-
+          do k=C%zs,C%ze-1
               ! faces in x-direction
               Ax = solver%atm%dy*solver%atm%dz(k,i,j) / real(solver%diffside%area_divider, ireals)
               fac = Ax
 
-              do iside=1,solver%diffside%streams
+              do iside=1,solver%diffside%dof
                 src = solver%difftop%dof + iside -1
                 xv(src ,k,i,j) = fac
               enddo
@@ -1914,13 +1906,13 @@ module m_pprts
               Ay = solver%atm%dx*solver%atm%dz(k,i,j) / real(solver%difftop%area_divider, ireals)
               fac = Ay
 
-              do iside=1,solver%diffside%streams
-                src = solver%difftop%dof + solver%diffside%streams + iside -1
+              do iside=1,solver%diffside%dof
+                src = solver%difftop%dof + solver%diffside%dof + iside -1
                 xv(src ,k,i,j) = fac
               enddo
-
-            endif
           enddo
+          ! the side faces underneath the surface are always scaled by unity
+          xv(solver%difftop%dof:ubound(xv,dim=1),k,i,j) = one
         enddo
       enddo
       call restoreVecPointer(v, xv1d, xv )
