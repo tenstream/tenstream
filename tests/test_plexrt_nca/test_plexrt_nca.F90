@@ -237,7 +237,7 @@ contains
       ! make sure that all heating rates are the same horizontally
       do k = 1, ubound(abso,1)
         call imp_allreduce_mean(comm, abso(k,:), hr_mean)
-        @mpiassertTrue(all(approx(hr_mean, abso(k,:), epsilon(abso))), 'heating rates vary horizontally but should be homogeneous!')
+        @mpiassertTrue(all(approx(hr_mean, abso(k,:), sqrt(epsilon(abso)))), 'heating rates vary horizontally but should be homogeneous!')
       enddo
 
       !check if NCA (@cld layer, kabs=100) result is within 15% of 1D
