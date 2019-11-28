@@ -32,7 +32,7 @@ stages:
 build_ubuntu_latest_GCC_PETSC_DEFAULT:
   image: ubuntu
   before_script:
-    - apt update && apt install git build-essential gfortran
+    - apt update && apt install -fy git build-essential gfortran
   <<: *build_petsc
   tags:
     - docker.meteo.physik.lmu.de
