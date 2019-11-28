@@ -33,7 +33,7 @@ stages:
 
 
 build:docker:ubuntu:default:
-  extends: build_petsc:default
+  extends: .build_petsc:default
   image: ubuntu
   before_script:
     - apt -qq update && apt -qq install -fy build-essential gfortran python git openmpi-bin libopenmpi-dev
