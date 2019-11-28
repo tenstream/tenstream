@@ -3,37 +3,40 @@ stages:
   - build
   - test
 
-.standard_petsc_build_script: &build_petsc
-    stage: build_petsc
-    script:
-        - git clone --depth=1 https://gitlab.com/petsc/petsc
-        - cd petsc && export PETSC_DIR=$(pwd) && echo PETSC_ARCH=$(uname -a)
-        - >
-          ./configure
-          --with-fortran
-          --with-fortran-interfaces
-          --with-valgrind
-          --download-hdf5
-          --download-zlib
-          --with-precision $PETSC_PRECISION
-          --with-64-bit-indices=$PETSC_64_INTEGERS
-          ----with-debugging=$PETSC_DEBUGGING
-        - make
-    artifacts:
-        paths:
-            - $(uname -a)/
-        expire_in: 1 day
-    variables:
-      PETSC_PRECISION: double
-      PETSC_64_INTEGERS: 0
-      PETSC_DEBUGGING: 1
+.build_petsc:default:
+  stage: build_petsc
+  script:
+    - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
+    - git clone --depth=1 https://gitlab.com/petsc/petsc.git $PETSC_DIR
+    - cd $PETSC_DIR
+    - >
+      ./configure
+      --with-fortran
+      --with-fortran-interfaces
+      --with-valgrind
+      --download-hdf5
+      --download-zlib
+      --with-precision $PETSC_PRECISION
+      --with-64-bit-indices=$PETSC_64_INTEGERS
+      --with-debugging=$PETSC_DEBUGGING
+    - make $PETSC_ARCH
+  artifacts:
+    paths:
+      - ${PETSC_DIR}/${PETSC_ARCH}
+    expire_in: 1 day
+  variables:
+    PETSC_DIR: petsc
+    PETSC_ARCH: default
+    PETSC_PRECISION: double
+    PETSC_64_INTEGERS: 0
+    PETSC_DEBUGGING: 1
 
 
-build_ubuntu_latest_GCC_PETSC_DEFAULT:
+build:docker:ubuntu:default:
+  extends: build_petsc:default
   image: ubuntu
   before_script:
-    - apt update && apt install -fy git build-essential gfortran
-  <<: *build_petsc
+    - apt -qq update && apt -qq install -fy build-essential gfortran python git openmpi-bin libopenmpi-dev
   tags:
     - docker.meteo.physik.lmu.de
 
