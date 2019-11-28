@@ -1,80 +1,114 @@
-.build_docker_img: &build_docker_img
-  stage: build
-  script:
-    - echo '(Re-)Generating Dockerfile Images for' $CC $BUILD_TYPE $DOCKERFILE
-    - export WORKDIR=/root
-    - docker/build_dockerfile.sh "docker/Dockerfile.$DOCKERFILE" "$BUILD_TYPE" "$WORKDIR" "$CC" "$FC" "$CXX" mydockerfile && cat mydockerfile
-    - export myHASH=$( echo ${DOCKERFILE}_$(md5sum mydockerfile|cut -f 1 -d ' ') | tr '[:upper:]' '[:lower:]')
-    - echo "Docker Image Tag" $myHASH
-    - podman build -f mydockerfile -t $myHASH
-    - mkdir -p $LUTTMP && pushd $LUTTMP
-    - wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
-    - popd
-    - podman run -v $(pwd):$WORKDIR/tenstream -v $LUTTMP:$WORKDIR/TenstreamLUT --rm -e BUILD_TYPE -e CC -e FC -e CXX -e WORKDIR -e SYST -t $myHASH $WORKDIR/tenstream/docker/build_and_run_tenstream_tests.sh
+stages:
+  - build_base
+  - build
+  - test
+
+.standard_petsc_build_script: &build_petsc
+    stage: build_petsc
+    script:
+        - git clone --depth=1 https://gitlab.com/petsc/petsc
+        - cd petsc && export PETSC_DIR=$(pwd) && echo PETSC_ARCH=$(uname -a)
+        - >
+          ./configure
+          --with-fortran
+          --with-fortran-interfaces
+          --with-valgrind
+          --download-hdf5
+          --download-zlib
+          --with-precision $PETSC_PRECISION
+          --with-64-bit-indices=$PETSC_64_INTEGERS
+          ----with-debugging=$PETSC_DEBUGGING
+        - make
+    artifacts:
+        paths:
+            - $(uname -a)/
+        expire_in: 1 day
+    variables:
+      PETSC_PRECISION: double
+      PETSC_64_INTEGERS: 0
+      PETSC_DEBUGGING: 1
 
 
-build_ubuntu_latest_noMPI_GCC_DEBUG:
-  <<: *build_docker_img
-  variables:
-    CC: "mpicc"
-    FC: "mpif90"
-    CXX: "mpicxx"
-    BUILD_TYPE: "DEBUG"
-    DOCKERFILE: "ubuntu_latest_noMPI"
-    SYST: "ubuntu"
-    LUTTMP: "/local/gitlabCI_TenstreamLUT"
+build_ubuntu_latest_GCC_PETSC_DEFAULT:
+  <<: *&build_petsc
 
-build_ubuntu_latest_GCC_DEBUG:
-  <<: *build_docker_img
-  variables:
-    CC: "mpicc"
-    FC: "mpif90"
-    CXX: "mpicxx"
-    BUILD_TYPE: "DEBUG"
-    DOCKERFILE: "ubuntu_latest"
-    SYST: "ubuntu"
-    LUTTMP: "/local/gitlabCI_TenstreamLUT"
-
-build_ubuntu_rolling_GCC_DEBUG:
-  <<: *build_docker_img
-  variables:
-    CC: "mpicc"
-    FC: "mpif90"
-    CXX: "mpicxx"
-    BUILD_TYPE: "DEBUG"
-    DOCKERFILE: "ubuntu_rolling"
-    SYST: "ubuntu"
-    LUTTMP: "/local/gitlabCI_TenstreamLUT"
-
-build_ubuntu_rolling_GCC_DEBUG_int64:
-  <<: *build_docker_img
-  variables:
-    CC: "mpicc"
-    FC: "mpif90"
-    CXX: "mpicxx"
-    BUILD_TYPE: "DEBUG_int64"
-    DOCKERFILE: "ubuntu_rolling"
-    SYST: "ubuntu"
-    LUTTMP: "/local/gitlabCI_TenstreamLUT"
-
-build_ubuntu_rolling_GCC_DEBUG_single:
-  <<: *build_docker_img
-  variables:
-    CC: "mpicc"
-    FC: "mpif90"
-    CXX: "mpicxx"
-    BUILD_TYPE: "DEBUG_single"
-    DOCKERFILE: "ubuntu_rolling"
-    SYST: "ubuntu"
-    LUTTMP: "/local/gitlabCI_TenstreamLUT"
-
-build_ubuntu_rolling_GCC_RELEASE_single_int64:
-  <<: *build_docker_img
-  variables:
-    CC: "mpicc"
-    FC: "mpif90"
-    CXX: "mpicxx"
-    BUILD_TYPE: "RELEASE_single_int64"
-    DOCKERFILE: "ubuntu_rolling"
-    SYST: "ubuntu"
-    LUTTMP: "/local/gitlabCI_TenstreamLUT"
+#.build_docker_img: &build_docker_img
+#  stage: build
+#  script:
+#    - echo '(Re-)Generating Dockerfile Images for' $CC $BUILD_TYPE $DOCKERFILE
+#    - export WORKDIR=/root
+#    - docker/build_dockerfile.sh "docker/Dockerfile.$DOCKERFILE" "$BUILD_TYPE" "$WORKDIR" "$CC" "$FC" "$CXX" mydockerfile && cat mydockerfile
+#    - export myHASH=$( echo ${DOCKERFILE}_$(md5sum mydockerfile|cut -f 1 -d ' ') | tr '[:upper:]' '[:lower:]')
+#    - echo "Docker Image Tag" $myHASH
+#    - podman build -f mydockerfile -t $myHASH
+#    - mkdir -p $LUTTMP && pushd $LUTTMP
+#    - wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
+#    - popd
+#    - podman run -v $(pwd):$WORKDIR/tenstream -v $LUTTMP:$WORKDIR/TenstreamLUT --rm -e BUILD_TYPE -e CC -e FC -e CXX -e WORKDIR -e SYST -t $myHASH $WORKDIR/tenstream/docker/build_and_run_tenstream_tests.sh
+#
+#
+#build_ubuntu_latest_noMPI_GCC_DEBUG:
+#  <<: *build_docker_img
+#  variables:
+#    CC: "mpicc"
+#    FC: "mpif90"
+#    CXX: "mpicxx"
+#    BUILD_TYPE: "DEBUG"
+#    DOCKERFILE: "ubuntu_latest_noMPI"
+#    SYST: "ubuntu"
+#    LUTTMP: "/local/gitlabCI_TenstreamLUT"
+#
+#build_ubuntu_latest_GCC_DEBUG:
+#  <<: *build_docker_img
+#  variables:
+#    CC: "mpicc"
+#    FC: "mpif90"
+#    CXX: "mpicxx"
+#    BUILD_TYPE: "DEBUG"
+#    DOCKERFILE: "ubuntu_latest"
+#    SYST: "ubuntu"
+#    LUTTMP: "/local/gitlabCI_TenstreamLUT"
+#
+#build_ubuntu_rolling_GCC_DEBUG:
+#  <<: *build_docker_img
+#  variables:
+#    CC: "mpicc"
+#    FC: "mpif90"
+#    CXX: "mpicxx"
+#    BUILD_TYPE: "DEBUG"
+#    DOCKERFILE: "ubuntu_rolling"
+#    SYST: "ubuntu"
+#    LUTTMP: "/local/gitlabCI_TenstreamLUT"
+#
+#build_ubuntu_rolling_GCC_DEBUG_int64:
+#  <<: *build_docker_img
+#  variables:
+#    CC: "mpicc"
+#    FC: "mpif90"
+#    CXX: "mpicxx"
+#    BUILD_TYPE: "DEBUG_int64"
+#    DOCKERFILE: "ubuntu_rolling"
+#    SYST: "ubuntu"
+#    LUTTMP: "/local/gitlabCI_TenstreamLUT"
+#
+#build_ubuntu_rolling_GCC_DEBUG_single:
+#  <<: *build_docker_img
+#  variables:
+#    CC: "mpicc"
+#    FC: "mpif90"
+#    CXX: "mpicxx"
+#    BUILD_TYPE: "DEBUG_single"
+#    DOCKERFILE: "ubuntu_rolling"
+#    SYST: "ubuntu"
+#    LUTTMP: "/local/gitlabCI_TenstreamLUT"
+#
+#build_ubuntu_rolling_GCC_RELEASE_single_int64:
+#  <<: *build_docker_img
+#  variables:
+#    CC: "mpicc"
+#    FC: "mpif90"
+#    CXX: "mpicxx"
+#    BUILD_TYPE: "RELEASE_single_int64"
+#    DOCKERFILE: "ubuntu_rolling"
+#    SYST: "ubuntu"
+#    LUTTMP: "/local/gitlabCI_TenstreamLUT"
