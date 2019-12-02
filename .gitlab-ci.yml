@@ -7,7 +7,8 @@ stages:
   stage: build_petsc
   script:
     - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
-    - git clone --depth=1 https://gitlab.com/petsc/petsc.git $PETSC_DIR
+    - git clone -q --depth=1 https://gitlab.com/petsc/petsc.git $PETSC_DIR
+    - export PETSC_DIR=$(pwd)/${PETSC_DIR}
     - cd $PETSC_DIR
     - >
       CMD="./configure
@@ -23,6 +24,7 @@ stages:
     - make $PETSC_ARCH
   artifacts:
     paths:
+      - ${PETSC_DIR}/configure.log
       - ${PETSC_DIR}/${PETSC_ARCH}
     expire_in: 1 day
   variables:
