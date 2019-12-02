@@ -39,7 +39,7 @@ build:docker:ubuntu:default:
   extends: .build_petsc:default
   image: ubuntu
   before_script:
-    - apt-get -qq update && apt-get -qq install -fy build-essential gfortran python git openmpi-bin libopenmpi-dev
+    - apt-get -qq update && apt-get -qq install -fy build-essential gfortran python git openmpi-bin libopenmpi-dev libopenblas-dev
   tags:
     - docker.meteo.physik.lmu.de
 
