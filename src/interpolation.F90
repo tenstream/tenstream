@@ -326,7 +326,9 @@ contains
       do ipnt = 1, 3
         nd_indices(interp_dims) = nint(points(:,ipnt))
         interp_values(:,ipnt) = db(:, ind_nd_to_1d(db_offsets, nd_indices))
-        interp_areas(ipnt) = triangle_area_by_vertices(points(:,modulo(ipnt,3_iintegers)+1), points(:,modulo(ipnt+1,3_iintegers)+1), P)
+        interp_areas(ipnt) = triangle_area_by_vertices(  &
+                points(:, modulo(ipnt,3_iintegers)+1  ), &
+                points(:, modulo(ipnt+1,3_iintegers)+1), P)
       enddo
       do ipnt = 1, 3
         ! if the point lies on the newly made up line, quick exit with 1D interpolation
@@ -415,25 +417,33 @@ contains
     pti_intermediate(interp_dims(Ninterpdim)) = floor(pti(interp_dims(Ninterpdim)))
     select case (Ndim)
     case(2)
-      call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), db, db_offsets, db_intermediate(:,1))
+      call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), &
+              db, db_offsets, db_intermediate(:,1))
     case(3)
-      call interp_vec_simplex_2d(pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,1))
+      call interp_vec_simplex_2d(pti_intermediate, interp_dims(1:Ninterpdim-1), &
+              db, db_offsets, db_intermediate(:,1))
     case(4,5,6,7)
-      call interp_vec_simplex_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,1))
+      call interp_vec_simplex_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), &
+              db, db_offsets, db_intermediate(:,1))
     case default
-      call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '//itoa(size(interp_dims, kind=iintegers))//' dimensions')
+      call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '// &
+              itoa(size(interp_dims, kind=iintegers))//' dimensions')
     end select
 
     pti_intermediate(interp_dims(Ninterpdim)) = ceiling(pti(interp_dims(Ninterpdim)))
     select case (Ndim)
     case(2)
-      call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), db, db_offsets, db_intermediate(:,2))
+      call interp_vec_simplex_1d(pti_intermediate, interp_dims(1), &
+              db, db_offsets, db_intermediate(:,2))
     case(3)
-      call interp_vec_simplex_2d(pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,2))
+      call interp_vec_simplex_2d(pti_intermediate, interp_dims(1:Ninterpdim-1), &
+              db, db_offsets, db_intermediate(:,2))
     case(4,5,6,7)
-      call interp_vec_simplex_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), db, db_offsets, db_intermediate(:,2))
+      call interp_vec_simplex_recursive(Ndim-1, pti_intermediate, interp_dims(1:Ninterpdim-1), &
+              db, db_offsets, db_intermediate(:,2))
     case default
-      call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '//itoa(size(interp_dims, kind=iintegers))//' dimensions')
+      call CHKERR(1_mpiint, 'interp_vec_simplex_recursive not implemented for '// &
+              itoa(size(interp_dims, kind=iintegers))//' dimensions')
     end select
 
     wgt_1d = modulo(pti(interp_dims(Ninterpdim)), one)

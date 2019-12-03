@@ -35,7 +35,12 @@ module m_example_uvspec_cld_file
   implicit none
 
 contains
-  subroutine example_uvspec_cld_file(comm, cldfile, atm_filename, outfile, albedo_th, albedo_sol, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
+  subroutine example_uvspec_cld_file(comm, &
+      cldfile, atm_filename, outfile, &
+      albedo_th, albedo_sol, &
+      lsolar, lthermal, &
+      phi0, theta0, &
+      Tsrfc, dTdz)
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: cldfile, atm_filename, outfile
     real(ireals), intent(in) :: albedo_th, albedo_sol
@@ -281,7 +286,12 @@ contains
     call destroy_tenstr_atm(atm)
   end subroutine
 
-  subroutine example_uvspec_cld_file_with_plexrt(comm, cldfile, atm_filename, outfile, albedo_th, albedo_sol, lsolar, lthermal, phi0, theta0, Tsrfc, dTdz)
+  subroutine example_uvspec_cld_file_with_plexrt(comm, &
+      cldfile, atm_filename, outfile, &
+      albedo_th, albedo_sol, &
+      lsolar, lthermal, &
+      phi0, theta0, &
+      Tsrfc, dTdz)
     integer(mpiint), intent(in) :: comm
     character(len=*), intent(in) :: cldfile, atm_filename, outfile
     real(ireals), intent(in) :: albedo_th, albedo_sol

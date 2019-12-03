@@ -95,7 +95,8 @@ subroutine init_dir_photon_wedge_5_8(bmc, p, src, ldirect, initial_dir, vertices
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
     if(ldebug) then
       call CHKWARN(1_mpiint, 'initial direction of the photon is pointing outside of the wedge')
-      print *,'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
+      print *,'UUPS, are we starting in a wrong direction?'// &
+	      ' :: init_dir_photon_wedge_5_8', rad2deg(angle_between_two_vec(p%dir, normal))
       print *,'src', src, 'initial_dir', initial_dir
       print *,'normal',normal,'direction',p%dir
       call print_photon(p)

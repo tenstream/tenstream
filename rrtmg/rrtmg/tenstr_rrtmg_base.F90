@@ -11,6 +11,7 @@ module m_tenstr_rrtmg_base
     PetscLogEvent :: setup_tenstr_atm
     PetscLogEvent :: rrtmg_optprop_lw
     PetscLogEvent :: rrtmg_optprop_sw
+    PetscLogEvent :: smooth_surface_fluxes
   end type
 
   private
@@ -32,6 +33,7 @@ module m_tenstr_rrtmg_base
       call PetscLogEventRegister(trim(s)//'setup_tenstr_atm', cid, logs%setup_tenstr_atm, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'rrtmg_optprop_lw', cid, logs%rrtmg_optprop_lw, ierr); call CHKERR(ierr)
       call PetscLogEventRegister(trim(s)//'rrtmg_optprop_sw', cid, logs%rrtmg_optprop_sw, ierr); call CHKERR(ierr)
+      call PetscLogEventRegister(trim(s)//'smooth_surface_fluxes', cid, logs%smooth_surface_fluxes, ierr); call CHKERR(ierr)
 
       contains
         subroutine setup_stage(stagename, logstage)

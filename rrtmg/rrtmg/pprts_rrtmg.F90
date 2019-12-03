@@ -131,30 +131,36 @@ contains
     logical :: lflg
     integer(mpiint) :: myid, ierr
 
+    call PetscLogEventBegin(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
     call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &
       "-pprts_smooth_srfc_flx", radius , lflg , ierr) ;call CHKERR(ierr)
 
-    if(.not.lflg) return
+    if (lflg) then
 
-    if(approx(radius, -one)) then
-      call imp_allreduce_mean(solver%comm,  edn(ubound(edn,1),:,:), mflx_dn); edn(ubound(edn,1),:,:) = mflx_dn
-      call imp_allreduce_mean(solver%comm,  eup(ubound(eup,1),:,:), mflx_up); eup(ubound(eup,1),:,:) = mflx_up
-      if(ldebug.and.myid.eq.0) &
-        print *,'Smoothing diffuse srfc fluxes over the entire domain mean downward flx', mflx_dn, 'up', mflx_up
-      return
+      if(radius.lt.zero) then
+        call imp_allreduce_mean(solver%comm,  edn(ubound(edn,1),:,:), mflx_dn); edn(ubound(edn,1),:,:) = mflx_dn
+        call imp_allreduce_mean(solver%comm,  eup(ubound(eup,1),:,:), mflx_up); eup(ubound(eup,1),:,:) = mflx_up
+        if(ldebug.and.myid.eq.0) &
+          print *,'Smoothing diffuse srfc fluxes over the entire domain '// &
+                  'mean downward flx', mflx_dn, 'up', mflx_up
+
+      else
+
+        call find_iter_and_kernelwidth(Niter, kernel_width)
+        do i = 1, Niter
+        call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, edn(ubound(edn,1):ubound(edn,1),:,:))
+        call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, eup(ubound(eup,1):ubound(eup,1),:,:))
+        enddo
+      endif
     endif
-
-    call find_iter_and_kernelwidth(Niter, kernel_width)
-    do i = 1, Niter
-      call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, edn(ubound(edn,1):ubound(edn,1),:,:))
-      call dmda_convolve_ediff_srfc(solver%C_diff%da, kernel_width, eup(ubound(eup,1):ubound(eup,1),:,:))
-    enddo
+    call PetscLogEventEnd(log_events%smooth_surface_fluxes, ierr); call CHKERR(ierr)
     contains
       subroutine find_iter_and_kernelwidth(Niter, kernel_width)
         integer(iintegers), intent(out) :: kernel_width, Niter
-        integer(iintegers), parameter :: test_Ni=10
+        integer(iintegers), parameter :: test_Ni=500
+        integer(iintegers), parameter :: Ni_limit=250
         integer(iintegers) :: i, min_iter
         real(ireals) :: test_k(test_Ni), residuals(test_Ni)
         real(ireals) :: radius_in_pixel
@@ -166,9 +172,9 @@ contains
           test_k(i) = (sqrt( (12*radius_in_pixel**2 + real(i, ireals)) / real(i, ireals) +1 ) -1 )/2
           if(nint(test_k(i)).ge.min(solver%C_diff%xm,solver%C_diff%ym)) min_iter = i+1
         enddo
-        if(min_iter.gt.test_Ni) &
+        if(min_iter.gt.Ni_limit) &
           call CHKERR(int(min_iter, mpiint), 'the smoothing iteration count would be larger than '// &
-            itoa(min_iter)//'... this would be really expensive, you can set the value higher but I'// &
+            itoa(Ni_limit)//'... this could become expensive, you can set the value higher but I'// &
             'suspect that you are trying something weird')
         ! We want it
         ! as close as possible to an integer
@@ -189,7 +195,8 @@ contains
           do i = 1, test_Ni
           print *, 'iter', i, 'test_k', test_k(i), residuals(i)
           enddo
-          print *,'Smoothing diffuse srfc fluxes with radius', solver%atm%dx, radius, radius_in_pixel, 'Niter', Niter, 'kwidth', kernel_width
+          print *,'Smoothing diffuse srfc fluxes with radius', solver%atm%dx, radius, radius_in_pixel, &
+            'Niter', Niter, 'kwidth', kernel_width
         endif
 
       end subroutine

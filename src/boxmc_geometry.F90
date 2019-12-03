@@ -430,7 +430,8 @@ module m_boxmc_geometry
       enddo
 
       if(max_dist.gt.norm([dx,dy,dz])) then
-        print *,'should actually not be here at the end of crossings in intersect distance! - however, please check if distance makes sense?:', &
+        print *,'should actually not be here at the end of crossings in intersect distance! '// &
+                '- however, please check if distance makes sense?:', &
         max_dist, norm([dx,dy,dz]), '::', dist, ':', vertices, &
           'pdir', pdir, 'ploc side', ploc, psrc_side, 'target_side', pside
         call CHKERR(1_mpiint, 'DEBUG')

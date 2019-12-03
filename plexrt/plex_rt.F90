@@ -526,14 +526,14 @@ module m_plex_rt
       if(.not.allocated(solver%plex)) call CHKERR(1_mpiint, 'run_plex_rt_solver::plex has to be allocated first')
       call mpi_comm_rank(solver%plex%comm, myid, ierr); call CHKERR(ierr)
 
-      if(.not.allocated(solver%plex%geom_dm)) call CHKERR(1_mpiint, 'run_plex_rt_solver::geom_dm has to be allocated first')
-      if(.not.allocated(solver%plex%srfc_boundary_dm)) call CHKERR(1_mpiint, 'run_plex_rt_solver::srfc_boundary_dm has to be allocated first')
-      if(.not.allocated(solver%kabs  )) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
-      if(.not.allocated(solver%ksca  )) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
-      if(.not.allocated(solver%g     )) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, kabs, ksca, g have to be allocated first')
-      if(.not.allocated(solver%albedo)) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, albedo has to be allocated first')
+      if(.not.allocated(solver%plex%geom_dm)) call CHKERR(1_mpiint, 'geom_dm has to be allocated first')
+      if(.not.allocated(solver%plex%srfc_boundary_dm)) call CHKERR(1_mpiint, 'srfc_boundary_dm has to be allocated first')
+      if(.not.allocated(solver%kabs  )) call CHKERR(1_mpiint, 'kabs   has to be allocated first')
+      if(.not.allocated(solver%ksca  )) call CHKERR(1_mpiint, 'ksca   has to be allocated first')
+      if(.not.allocated(solver%g     )) call CHKERR(1_mpiint, 'g      has to be allocated first')
+      if(.not.allocated(solver%albedo)) call CHKERR(1_mpiint, 'albedo has to be allocated first')
       if(lthermal) then
-        if(.not.allocated(solver%plck)) call CHKERR(1_mpiint, 'run_plex_rt_solver::optprop, planck radiation vec has to be allocated first')
+        if(.not.allocated(solver%plck)) call CHKERR(1_mpiint, 'planck radiation vec has to be allocated first')
       endif
 
       if(.not.allocated(solver%plex%geom_dm))  call compute_face_geometry(solver%plex, solver%plex%geom_dm)
@@ -812,19 +812,19 @@ module m_plex_rt
           '                                '//cstr('ksca              ', 'red' )//'                            '// &
           '                                '//cstr('g                 ', 'blue')
     endif
-      if(myid.eq.0) print *,cstr('-----------------------------------------------------------------------------------------', 'blue')
+      if(myid.eq.0) print *,cstr('---------------------------------------------------------------------------------------', 'blue')
       do k=1,Nlay
       if(allocated(kabs)) call imp_min_mean_max(comm, xxkabs(k,:), mkabs)
       if(allocated(ksca)) call imp_min_mean_max(comm, xxksca(k,:), mksca)
       if(allocated(g   )) call imp_min_mean_max(comm, xxg   (k,:), mg   )
       if(allocated(plck)) call imp_min_mean_max(comm, xxplck(k,:), mplck)
       if(allocated(plck)) then
-        if(myid.eq.0) print *,k, cstr(ftoa(mkabs), 'blue'), cstr(ftoa(mksca), 'red'), cstr(ftoa(mg), 'blue'), cstr(ftoa(mplck), 'red')
+        if(myid.eq.0) print *,k,cstr(ftoa(mkabs),'blue'), cstr(ftoa(mksca),'red'), cstr(ftoa(mg),'blue'), cstr(ftoa(mplck),'red')
       else
-        if(myid.eq.0) print *,k, cstr(ftoa(mkabs), 'blue'), cstr(ftoa(mksca), 'red'), cstr(ftoa(mg), 'blue')
+        if(myid.eq.0) print *,k,cstr(ftoa(mkabs),'blue'), cstr(ftoa(mksca),'red'), cstr(ftoa(mg),'blue')
       endif
       enddo
-      if(myid.eq.0) print *,cstr('-----------------------------------------------------------------------------------------', 'blue')
+      if(myid.eq.0) print *,cstr('---------------------------------------------------------------------------------------', 'blue')
       if(allocated(albedo)) call imp_min_mean_max(comm, xxalbedo(i1,:), malbedo)
       if(myid.eq.0) print *,cstr('Surface Albedo (min,mean,max) '//ftoa(malbedo), 'blue')
 
@@ -1866,11 +1866,12 @@ module m_plex_rt
     !if(ldebug.and.myid.eq.0) print *,'plex_rt::create_edir_mat...'
 
     if(.not.allocated(plex%geom_dm)) call CHKERR(1_mpiint, 'geom_dm has to allocated in order to create an Edir Matrix')
-    if(.not.allocated(plex%wedge_orientation_dm)) call CHKERR(1_mpiint, 'wedge_orientation_dm has to allocated in order to create an Edir Matrix')
     if(.not.allocated(plex%edir_dm)) call CHKERR(1_mpiint, 'edir_dm has to allocated in order to create an Edir Matrix')
     if(.not.allocated(kabs  )) call CHKERR(1_mpiint, 'kabs   has to be allocated')
     if(.not.allocated(ksca  )) call CHKERR(1_mpiint, 'ksca   has to be allocated')
     if(.not.allocated(g     )) call CHKERR(1_mpiint, 'g      has to be allocated')
+    if(.not.allocated(plex%wedge_orientation_dm)) &
+      call CHKERR(1_mpiint, 'wedge_orientation_dm has to allocated in order to create an Edir Matrix')
 
     call DMGetSection(plex%geom_dm, geomSection, ierr); call CHKERR(ierr)
     call DMGetSection(plex%wedge_orientation_dm, wedgeSection, ierr); call CHKERR(ierr)
@@ -2516,7 +2517,8 @@ module m_plex_rt
                 call PetscSectionGetFieldOffset(ediffSection, iface, istream-i1, offset_Ein, ierr); call CHKERR(ierr)
                 offset_Eout = offset_Ein+i1
 
-                call MatSetValuesLocal(A, i1, offset_Ein, i1, offset_Eout, -xalbedo(i1+offset_srfc), INSERT_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValuesLocal(A, i1, offset_Ein, i1, offset_Eout, -xalbedo(i1+offset_srfc), INSERT_VALUES, ierr)
+                call CHKERR(ierr)
               endif
             enddo
           enddo
@@ -2526,7 +2528,8 @@ module m_plex_rt
 
 
         sideward_bc_coeff = one
-        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-sideward_bc_coeff", sideward_bc_coeff, lflg, ierr)  ; call CHKERR(ierr)
+        call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-sideward_bc_coeff", &
+          sideward_bc_coeff, lflg, ierr); call CHKERR(ierr)
 
         call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', SIDEFACE, bc_ids, ierr); call CHKERR(ierr)
         if (bc_ids.eq.PETSC_NULL_IS.or.sideward_bc_coeff.le.zero) then ! dont have surface points
@@ -2543,7 +2546,8 @@ module m_plex_rt
                 call PetscSectionGetFieldOffset(ediffSection, iface, istream-i1, offset_Ein, ierr); call CHKERR(ierr)
                 offset_Eout = offset_Ein+i1
 
-                call MatSetValuesLocal(A, i1, offset_Ein, i1, offset_Eout, -sideward_bc_coeff, INSERT_VALUES, ierr); call CHKERR(ierr)
+                call MatSetValuesLocal(A, i1, offset_Ein, i1, offset_Eout, -sideward_bc_coeff, INSERT_VALUES, ierr)
+                call CHKERR(ierr)
                 if(ldebug.and.offset_Ein.eq.offset_Eout) call CHKERR(1_mpiint, &
                   'src and dst are the same :( ... should not happen here'// &
                   ' row '//itoa(offset_Ein)// &

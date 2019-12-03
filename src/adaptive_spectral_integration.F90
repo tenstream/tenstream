@@ -167,7 +167,8 @@ module m_adaptive_spectral_integration
       if(ldebug.and. myid.eq.0) then
         print *,''
         print *,''
-        print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid,'    ::     est.',error_estimate,'[W]',error_estimate*86.1,'[K/d]'
+        print *,'new calc',need_new_solution,' bc ',trim(reason),' t',time,solution%uid, &
+          '    ::     est.',error_estimate,'[W]',error_estimate*86.1,'[K/d]'
         if(allocated(solution%dir_ksp_residual_history) ) &
           print *,' dir residuals _solver ::', solution%dir_ksp_residual_history(1:4)
         if(allocated(solution%diff_ksp_residual_history) ) &
