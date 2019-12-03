@@ -1,11 +1,10 @@
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
 
+set (NETCDF_DIR     "/usr" CACHE PATH "default netcdf  path" FORCE )
+set (NETCDF_DIR_F90 "/usr" CACHE PATH "default netcdff path" FORCE )
 #Load system specific settings
-if (NOT SYST)
-  set (SYST default CACHE STRING
-      "Choose the location: mpipc thunder fedora archlinux supermuc jugene" FORCE )
-endif ()
-include (${SYST} OPTIONAL)
+set (SYST default CACHE STRING "Location specific settings from config/<SYST>.cmake files" FORCE )
+include (config/${SYST} OPTIONAL)
 
 # Add our custom cmake find scripts
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
@@ -90,10 +89,11 @@ endif()
 
 
 # NetCDF
+message(STATUS "Looking for NETCDF in ${NETCDF_DIR}")
 set (NETCDF_F90 "YES")
-find_package( NetCDF )
+find_package( NetCDF REQUIRED)
 if(${NETCDF_FOUND})
-  message(STATUS "Found NetCDF:    ${NETCDF_FOUND}" )
+  message(STATUS "Found NetCDF:     ${NETCDF_FOUND}" )
   message(STATUS "NetCDF  Includes: ${NETCDF_INCLUDES}" )
   message(STATUS "NetCDFF Includes: ${NETCDF_INCLUDES_F90}" )
   message(STATUS "NetCDF  Library : ${NETCDF_LIBRARIES}")
@@ -157,7 +157,7 @@ endif(${LAPACK_FOUND})
 
 
 ## Set MPI Stuff
-option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" OFF)
+option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" ON)
 set(MPIEXEC mpirun CACHE STRING "Command to run MPI programs, e.g. used to run tests")
 if(DEFINED USER_MPIEXEC)
   set(MPIEXEC ${USER_MPIEXEC})

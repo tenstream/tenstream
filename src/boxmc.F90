@@ -725,7 +725,9 @@ contains
     endif
 
     if(p%scattercnt.gt.1e9_iintegers) then
-      print *,'Scattercnt:',p%scattercnt,' -- maybe this photon got stuck? -- I will move this one out of the box but keep in mind, that this is a dirty hack i.e. absorption will be wrong!'
+      print *,'Scattercnt:',p%scattercnt,' -- maybe this photon got stuck?'// &
+              ' -- I will move this one out of the box but keep in mind,'// &
+              ' that this is a dirty hack i.e. absorption will be wrong!'
       call print_photon(p)
       p%alive=.False.
       call update_photon_loc(p, intersec_dist, kabs, ksca)

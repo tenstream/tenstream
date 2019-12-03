@@ -161,7 +161,8 @@ contains
 
     if(myid.eq.0.and.present(inp_arr)) then
       call arr_to_binary_datafile(inp_arr, fname_fpsuffix, ierr)
-      if(ierr.ne.0) print *,'arr_to_mmap::binary file already exists, I did not overwrite it... YOU have to make sure that the file is as expected or delete it...'
+      if(ierr.ne.0) print *,'arr_to_mmap::binary file already exists, I did not overwrite it...'// &
+                      ' YOU have to make sure that the file is as expected or delete it...'
       size_of_inp_arr = size(inp_arr, kind=c_size_t)
       bytesize = dtype_size * size_of_inp_arr
       if(size_of_inp_arr.ge.huge(size_of_inp_arr)/dtype_size) then
