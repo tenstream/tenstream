@@ -21,7 +21,7 @@ variables:
       --with-64-bit-indices=$PETSC_64_INTEGERS
       --with-debugging=$PETSC_DEBUGGING"
     - echo $CMD && $CMD
-    - make $PETSC_ARCH
+    - make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
   artifacts:
     paths:
       - ${PETSC_DIR}
