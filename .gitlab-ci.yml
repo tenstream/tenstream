@@ -32,11 +32,35 @@ stages:
     PETSC_DEBUGGING: 1
 
 
-build:docker:ubuntu:default:
+build_petsc:docker:ubuntu:default:
   extends: .build_petsc:default
   image: ubuntu
   before_script:
     - apt-get -qq update && apt-get -qq install -fy build-essential gfortran python git openmpi-bin libopenmpi-dev libopenblas-dev
+  tags:
+    - docker.meteo.physik.lmu.de
+
+
+
+
+
+
+.build:default:
+  stage: build
+  script:
+    - mkdir build && cd build
+    - cmake .. && make
+  artifacts:
+    paths:
+      - build/bin
+    expire_in: 1 day
+
+build:docker:ubuntu:default:
+  extends: .build:default
+  image: ubuntu
+  needs: ["build_petsc:docker:ubuntu:default"]
+  before_script:
+    - apt-get -qq update && apt-get -qq install -fy build-essential gfortran python git openmpi-bin libopenmpi-dev libopenblas-dev libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev m4
   tags:
     - docker.meteo.physik.lmu.de
 
