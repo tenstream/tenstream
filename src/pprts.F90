@@ -60,7 +60,7 @@ module m_pprts
   public :: init_pprts, &
             set_optical_properties, set_global_optical_properties, &
             solve_pprts, set_angles, destroy_pprts, pprts_get_result, &
-            pprts_get_result_toZero, gather_all_toZero
+            pprts_get_result_toZero, gather_all_toZero, scale_flx
 
   logical,parameter :: ldebug=.False.
   logical,parameter :: lcycle_dir=.True.
@@ -1616,6 +1616,12 @@ module m_pprts
                 Mdir      => solver%Mdir,      &
                 Mdiff     => solver%Mdiff     )
 
+    if(.not.allocated(solver%atm)) call CHKERR(1_mpiint, 'atmosphere is not allocated?!')
+    if(.not.allocated(solver%atm%kabs)) &
+      call CHKERR(1_mpiint, 'atmosphere%kabs is not allocated! - maybe you need to call set_optical_properties() first')
+    if(.not.allocated(solver%atm%ksca)) &
+      call CHKERR(1_mpiint, 'atmosphere%ksca is not allocated! - maybe you need to call set_optical_properties() first')
+
     uid = get_arg(0_iintegers, opt_solution_uid)
 
     lsolar = mpi_logical_and(solver%comm, edirTOA.gt.zero .and. any(solver%sun%theta.ge.zero))
@@ -1684,7 +1690,13 @@ module m_pprts
 
       call PetscLogEventBegin(solver%logs%solve_Mdir, ierr)
       call setup_ksp(solver%atm, solver%ksp_solar_dir, C_dir, solver%Mdir, "solar_dir_")
-      call solve(solver, solver%ksp_solar_dir, solver%incSolar, solutions(uid)%edir, solutions(uid)%dir_ksp_residual_history)
+      call solve(solver, &
+        solver%ksp_solar_dir, &
+        solver%incSolar, &
+        solutions(uid)%edir, &
+        solutions(uid)%Niter_dir, &
+        solutions(uid)%dir_ksp_residual_history)
+
       call PetscLogEventEnd(solver%logs%solve_Mdir, ierr)
 
       solutions(uid)%lchanged=.True.
@@ -1715,12 +1727,20 @@ module m_pprts
       call PetscLogEventBegin(solver%logs%solve_Mdiff, ierr)
       if( solutions(uid)%lsolar_rad ) then
         call setup_ksp(solver%atm, solver%ksp_solar_diff, C_diff, Mdiff, "solar_diff_")
-        call solve(solver, solver%ksp_solar_diff, solver%b, &
-          solutions(uid)%ediff, solutions(uid)%diff_ksp_residual_history)
+        call solve(solver, &
+          solver%ksp_solar_diff, &
+          solver%b, &
+          solutions(uid)%ediff, &
+          solutions(uid)%Niter_diff, &
+          solutions(uid)%diff_ksp_residual_history)
       else
         call setup_ksp(solver%atm, solver%ksp_thermal_diff, C_diff, Mdiff, "thermal_diff_")
-        call solve(solver, solver%ksp_thermal_diff, solver%b, &
-          solutions(uid)%ediff, solutions(uid)%diff_ksp_residual_history)
+        call solve(solver, &
+          solver%ksp_thermal_diff, &
+          solver%b, &
+          solutions(uid)%ediff, &
+          solutions(uid)%Niter_diff, &
+          solutions(uid)%diff_ksp_residual_history)
       endif
       call PetscLogEventEnd(solver%logs%solve_Mdiff, ierr)
     endif
@@ -1828,24 +1848,24 @@ module m_pprts
       do j=C%ys,C%ye
         do i=C%xs,C%xe
           do k=C%zs,C%ze-1
-            if(.not.atm%l1d(atmk(atm, k),i,j)) then
-              ! First the faces in x-direction
-              Ax = solver%atm%dy*solver%atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
-              fac = Ax
-              do iside=1,solver%dirside%dof
-                d = solver%dirtop%dof + iside-1
-                xv(d,k,i,j) = fac
-              enddo
+            ! First the faces in x-direction
+            Ax = solver%atm%dy*solver%atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
+            fac = Ax
+            do iside=1,solver%dirside%dof
+              d = solver%dirtop%dof + iside-1
+              xv(d,k,i,j) = fac
+            enddo
 
-              ! Then the rest of the faces in y-direction
-              Ay = atm%dy*atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
-              fac = Ay
-              do iside=1,solver%dirside%dof
-                d = solver%dirtop%dof + solver%dirside%dof + iside-1
-                xv(d,k,i,j) = fac
-              enddo
-            endif
+            ! Then the rest of the faces in y-direction
+            Ay = atm%dy*atm%dz(k,i,j) / real(solver%dirside%area_divider, ireals)
+            fac = Ay
+            do iside=1,solver%dirside%dof
+              d = solver%dirtop%dof + solver%dirside%dof + iside-1
+              xv(d,k,i,j) = fac
+            enddo
           enddo
+          ! the side faces underneath the surface are always scaled by unity
+          xv(solver%dirtop%dof:ubound(xv,dim=1),k,i,j) = one
         enddo
       enddo
       call restoreVecPointer(v, xv1d, xv )
@@ -1860,19 +1880,13 @@ module m_pprts
 
       integer(iintegers)  :: iside, src, i, j, k
       real(ireals)        :: Az, Ax, Ay, fac
-      !Vec                 :: vgrad_x, vgrad_y
-      !PetscScalar,Pointer :: grad_x(:,:,:,:)=>null(), grad_x1d(:)=>null()
-      !PetscScalar,Pointer :: grad_y(:,:,:,:)=>null(), grad_y1d(:)=>null()
-      !real(ireals)        :: grad(3)  ! is the cos(zenith_angle) of the tilted box in case of topography
 
       if(solver%myid.eq.0.and.ldebug) print *,'rescaling fluxes',C%zm,C%xm,C%ym
       call getVecPointer(v ,C%da ,xv1d, xv)
 
-
       if(C%dof.eq.i3 .or. C%dof.eq.i8) then
         print *,'scale_flx_vec is just for diffuse radia'
       endif
-
 
       ! Scaling top faces
       Az = solver%atm%dx*solver%atm%dy / real(solver%difftop%area_divider, ireals)
@@ -1892,14 +1906,12 @@ module m_pprts
       ! Scaling side faces
       do j=C%ys,C%ye
         do i=C%xs,C%xe
-          do k=C%zs,C%ze-i1
-            if(.not.solver%atm%l1d(atmk(solver%atm, k),i,j)) then
-
+          do k=C%zs,C%ze-1
               ! faces in x-direction
               Ax = solver%atm%dy*solver%atm%dz(k,i,j) / real(solver%diffside%area_divider, ireals)
               fac = Ax
 
-              do iside=1,solver%diffside%streams
+              do iside=1,solver%diffside%dof
                 src = solver%difftop%dof + iside -1
                 xv(src ,k,i,j) = fac
               enddo
@@ -1908,13 +1920,13 @@ module m_pprts
               Ay = solver%atm%dx*solver%atm%dz(k,i,j) / real(solver%difftop%area_divider, ireals)
               fac = Ay
 
-              do iside=1,solver%diffside%streams
-                src = solver%difftop%dof + solver%diffside%streams + iside -1
+              do iside=1,solver%diffside%dof
+                src = solver%difftop%dof + solver%diffside%dof + iside -1
                 xv(src ,k,i,j) = fac
               enddo
-
-            endif
           enddo
+          ! the side faces underneath the surface are always scaled by unity
+          xv(solver%difftop%dof:ubound(xv,dim=1),k,i,j) = one
         enddo
       enddo
       call restoreVecPointer(v, xv1d, xv )
@@ -2444,15 +2456,15 @@ end subroutine
 !> @details solve with ksp and save residual history of solver
 !> \n -- this may be handy later to decide next time if we have to calculate radiation again
 !> \n if we did not get convergence, we try again with standard GMRES and a resetted(zero) initial guess -- if that doesnt help, we got a problem!
-subroutine solve(solver, ksp, b, x, ksp_residual_history)
+subroutine solve(solver, ksp, b, x, iter, ksp_residual_history)
   class(t_solver) :: solver
   type(tKSP) :: ksp
   type(tVec) :: b
   type(tVec) :: x
+  integer(iintegers), intent(out) :: iter
   real(ireals), allocatable, intent(inout), optional :: ksp_residual_history(:)
 
   KSPConvergedReason :: reason
-  integer(iintegers) :: iter
 
   KSPType :: old_ksp_type
 
@@ -2523,7 +2535,7 @@ subroutine setup_ksp(atm, ksp, C, A, prefix)
   type(tVec) :: nullvecs(0)
   character(len=*),optional :: prefix
 
-  real(ireals),parameter :: rtol=1e-5_ireals, rel_atol=1e-5_ireals
+  real(ireals),parameter :: rtol=1e-5_ireals, rel_atol=1e-4_ireals
   integer(iintegers),parameter  :: maxiter=1000
 
   integer(mpiint) :: myid, numnodes

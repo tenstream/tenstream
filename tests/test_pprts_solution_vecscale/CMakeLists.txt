@@ -1,7 +1,3 @@
-if(NOT ENABLE_PLEXRT)
-  return()
-endif(NOT ENABLE_PLEXRT)
-
 get_filename_component(CDIR ${CMAKE_CURRENT_LIST_DIR} NAME)
 set(TESTDIR "${PROJECT_BINARY_DIR}/generated/${CDIR}" )
 
@@ -47,10 +43,9 @@ add_executable(
 target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
-  plexrt
-  pprts_base
+  pprts
   )
 
 add_test(NAME pfunit_${CDIR}
-  COMMAND ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 3 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
+  COMMAND ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 2 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

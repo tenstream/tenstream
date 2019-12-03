@@ -127,7 +127,7 @@ contains
       call CHKERR(1_mpiint, 'option -ident '//trim(ident)//' requires also -dx option')
     endif
 
-    options_max_solution_err = 0.01
+    options_max_solution_err = 5e3_ireals/real(3600*24, ireals)
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-max_solution_err",options_max_solution_err, lflg,ierr)  ; call CHKERR(ierr)
 
     options_max_solution_time = 0

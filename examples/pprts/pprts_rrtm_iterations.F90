@@ -68,8 +68,7 @@ contains
     ! reshape pointer to convert i,j vecs to column vecs
     real(ireals), pointer, dimension(:,:) :: pplev, ptlev, plwc, preliq
 
-    logical,parameter :: ldebug=.True.
-    logical :: lthermal, lsolar
+    logical :: lverbose, lthermal, lsolar, lrandom_lwc
 
     class(t_solver), allocatable :: pprts_solver
     type(t_tenstr_atm) :: atm
@@ -82,13 +81,20 @@ contains
     call MPI_COMM_SIZE(comm, numnodes, ierr)
     call MPI_COMM_RANK(comm, myid, ierr)
 
+    lverbose = .True.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-v", lverbose, lflg,ierr) ; call CHKERR(ierr)
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "--verbose", lverbose, lflg,ierr) ; call CHKERR(ierr)
+
+    if (myid.eq.0.and.lverbose) print *,'Running rrtm_lw_sw example with grid size:', nxp, nyp, nzp
+
+
     N_ranks_y = int(sqrt(1.*numnodes))
     N_ranks_x = numnodes / N_ranks_y
     if(N_ranks_y*N_ranks_x .ne. numnodes) then
       N_ranks_x = numnodes
       N_ranks_y = 1
     endif
-    if(ldebug .and. myid.eq.0) print *, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
+    if(lverbose .and. myid.eq.0) print *, 'Domain Decomposition will be', N_ranks_x, 'and', N_ranks_y, '::', numnodes
 
     allocate(nxproc(N_ranks_x), source=nxp) ! dimension will determine how many ranks are used along the axis
     allocate(nyproc(N_ranks_y), source=nyp) ! values have to define the local domain sizes on each rank (here constant on all processes)
@@ -124,10 +130,17 @@ contains
     call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-lwc", lwc0, lflg, ierr)
     lwc  (icld(1):icld(2), :,:) = lwc0
 
+    lrandom_lwc = .False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-random_lwc", lrandom_lwc, lflg,ierr) ; call CHKERR(ierr)
+    if(lrandom_lwc) then
+      call random_number(lwc(icld(1):icld(2), :,:))
+      lwc(icld(1):icld(2), :,:) = lwc(icld(1):icld(2), :,:) * lwc0
+    endif
+
     !tlev (icld  , :,:) = 288
     !tlev (icld+1, :,:) = tlev (icld  , :,:)
 
-    if(myid.eq.0 .and. ldebug) print *,'Setup Atmosphere...'
+    if(myid.eq.0 .and. lverbose) print *,'Setup Atmosphere...'
 
     pplev(1:size(plev,1),1:size(plev,2)*size(plev,3)) => plev
     ptlev(1:size(tlev,1),1:size(tlev,2)*size(tlev,3)) => tlev
@@ -185,16 +198,14 @@ contains
         nxproc=nxproc, nyproc=nyproc )
 
       nlev = ubound(edn,1)
-      if(myid.eq.0) then
-        if(ldebug) then
-          do k=1,nlev
-            if(allocated(edir)) then
-              print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-            else
-              print *,k, 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
-            endif
-          enddo
-        endif
+      if(myid.eq.0 .and. lverbose) then
+        do k=1,nlev
+          if(allocated(edir)) then
+            print *,k,'edir', edir(k,1,1), 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
+          else
+            print *,k, 'edn', edn(k,1,1), 'eup', eup(k,1,1), abso(min(nlev-1,k),1,1)
+          endif
+        enddo
 
         if(allocated(edir)) &
           print *,'surface :: direct flux', meanval(edir(nlev,:,:))
@@ -253,8 +264,6 @@ program main
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dx", dx, lflg, ierr)
   dy = dx
   call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-dy", dy, lflg, ierr)
-
-  if (myid.eq.0) print *,'Running rrtm_lw_sw example with grid size:', Nx, Ny, Nz
 
   call example_rrtm_lw_sw(Nx, Ny, Nz, dx, dy)
 
