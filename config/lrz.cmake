@@ -19,6 +19,3 @@ set(USER_Fortran_FLAGS_DEBUG "-fpe0 -O0 -g -check all -check nopointers -check n
 
 set(USER_MPIEXEC "mpiexec")
 set(PETSC_SKIP_TEST_RUNS True)
-
-set(NETCDF_DIR "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/")
-set(NETCDF_DIR_F90 "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/")

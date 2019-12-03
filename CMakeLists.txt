@@ -1,10 +1,10 @@
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
 
-set (NETCDF_DIR     "/usr" CACHE PATH "default netcdf  path" FORCE )
-set (NETCDF_DIR_F90 "/usr" CACHE PATH "default netcdff path" FORCE )
+set (NETCDF_DIR     "/usr" CACHE PATH "default netcdf  path")
+set (NETCDF_DIR_F90 "/usr" CACHE PATH "default netcdff path")
 #Load system specific settings
-set (SYST default CACHE STRING "Location specific settings from config/<SYST>.cmake files" FORCE )
-include (config/${SYST} OPTIONAL)
+set (SYST default CACHE STRING "Location specific settings from config/<SYST>.cmake files")
+include (${SYST} OPTIONAL)
 
 # Add our custom cmake find scripts
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
