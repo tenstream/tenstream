@@ -4,7 +4,7 @@ stages:
   - test
 
 variables:
-  PETSC_DIR: /petsc
+  PETSC_DIR: petsc
 
 # PETSc Build Stage
 .build_petsc:default:
@@ -20,9 +20,8 @@ variables:
       --with-precision=$PETSC_PRECISION
       --with-64-bit-indices=$PETSC_64_INTEGERS
       --with-debugging=$PETSC_DEBUGGING"
-    - echo $CMD && $CMD
-    - make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
-    - make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH check
+      #    - echo $CMD && $CMD
+      #    - make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
   artifacts:
     paths:
       - $PETSC_DIR
