@@ -25,7 +25,10 @@ variables:
     - make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
   artifacts:
     paths:
-      - $PETSC_DIR
+      - $PETSC_DIR/include
+      - $PETSC_DIR/lib
+      - $PETSC_DIR/$PETSC_ARCH/include
+      - $PETSC_DIR/$PETSC_ARCH/lib
     expire_in: 1 day
   variables:
     PETSC_ARCH: default
