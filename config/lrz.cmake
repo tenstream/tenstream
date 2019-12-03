@@ -8,9 +8,7 @@
 # module load mpi.intel/2019
 # module load mkl/2019_s
 
-set(CMAKE_C_COMPILER   "mpiicc")
 set(CMAKE_Fortran_COMPILER   "mpiifort")
-set(Fortran_COMPILER_WRAPPER "mpiifort")
 
 set(USER_C_FLAGS "-std=c99")
 set(USER_Fortran_FLAGS "-cpp -traceback -extend_source -g")
@@ -19,6 +17,3 @@ set(USER_Fortran_FLAGS_DEBUG "-fpe0 -O0 -g -check all -check nopointers -check n
 
 set(USER_MPIEXEC "mpiexec")
 set(PETSC_SKIP_TEST_RUNS True)
-
-set(NETCDF_DIR "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/")
-set(NETCDF_DIR_F90 "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/")

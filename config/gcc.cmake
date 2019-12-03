@@ -10,17 +10,7 @@
 
 message(STATUS "### USING GCC CONFIG ###")
 
-set(CMAKE_C_COMPILER   "mpicc")
-set(CMAKE_Fortran_COMPILER   "/usr/bin/mpif90")
-set(Fortran_COMPILER_WRAPPER "/usr/bin/mpif90")
-
 set(USER_C_FLAGS               "-cpp -W -Wall -Wuninitialized --std=c99")
 set(USER_Fortran_FLAGS         "-cpp -W -Wall -Wuninitialized -g")
 set(USER_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3")
 set(USER_Fortran_FLAGS_DEBUG   "-fbacktrace -finit-real=nan -pg -fcheck=all -fbounds-check -pedantic -Wsurprising")
-
-# Help Cmake find the netcdf installation
-#set(NETCDF_ROOT      "/usr")
-#set(HDF5_DIR  "/usr")
-set(NETCDF_DIR      "$ENV{NETCDF}")
-set(NETCDF_DIR_F90  "$ENV{NETCDF}")

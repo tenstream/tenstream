@@ -46,6 +46,7 @@ set (_HDF5_HINTS
     $ENV{HOME}/.local
     $ENV{HDF5_ROOT}
     $ENV{HDF5_ROOT_DIR_HINT}
+    $ENV{PETSC_DIR}/$ENV{PETSC_ARCH}
 )
 # Hard-coded guesses should still go in PATHS. This ensures that the user
 # environment can always override hard guesses.

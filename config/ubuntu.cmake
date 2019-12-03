@@ -6,10 +6,6 @@
 
 message(STATUS "### Using ubuntu.cmake config ###")
 
-set(CMAKE_C_COMPILER   "mpicc")
-set(CMAKE_Fortran_COMPILER   "mpif90")
-set(Fortran_COMPILER_WRAPPER "mpif90")
-
 set(USER_C_FLAGS               "-W -Wall -Wuninitialized --std=c99")
 set(USER_Fortran_FLAGS         "-W -Wall -g")
 set(USER_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3")

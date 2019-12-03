@@ -1,10 +1,10 @@
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
 
-set (NETCDF_DIR     "/usr" CACHE PATH "default netcdf  path" FORCE )
-set (NETCDF_DIR_F90 "/usr" CACHE PATH "default netcdff path" FORCE )
+set (NETCDF_DIR     "/usr" CACHE PATH "default netcdf  path")
+set (NETCDF_DIR_F90 "/usr" CACHE PATH "default netcdff path")
 #Load system specific settings
-set (SYST default CACHE STRING "Location specific settings from config/<SYST>.cmake files" FORCE )
-include (config/${SYST} OPTIONAL)
+set (SYST default CACHE STRING "Location specific settings from config/<SYST>.cmake files")
+include (${SYST} OPTIONAL)
 
 # Add our custom cmake find scripts
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/petsc_cmake_modules/")
@@ -88,6 +88,45 @@ else()
 endif()
 
 
+## Set MPI Stuff
+option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" ON)
+set(MPIEXEC mpirun CACHE STRING "Command to run MPI programs, e.g. used to run tests")
+if(DEFINED USER_MPIEXEC)
+  set(MPIEXEC ${USER_MPIEXEC})
+endif()
+set(MPIEXEC_NUMPROC_FLAG -n CACHE STRING "options to set number of MPI tasks/nodes")
+if(AUTODETECT_MPI)
+  find_package( MPI REQUIRED )
+  if(${MPI_Fortran_FOUND})
+    add_definitions(${MPI_Fortran_COMPILE_FLAGS})
+    include_directories(${MPI_Fortran_INCLUDE_PATH})
+    link_directories(${MPI_Fortran_LIBRARIES})
+    list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
+    add_definitions(${MPI_C_COMPILE_FLAGS})
+    include_directories(${MPI_C_INCLUDE_PATH})
+    list (APPEND EXTLIB "${MPI_C_LIBRARIES}" )
+    include_directories(${ITAPS_INCLUDES})
+  else(${MPI_Fortran_FOUND})
+    message(WARNING "!!!!!!! MPI MISSING")
+  endif(${MPI_Fortran_FOUND})
+else(AUTODETECT_MPI)
+endif(AUTODETECT_MPI)
+
+
+# HDF5
+find_package( HDF5 REQUIRED ) # use this for non-cmake install of HDF5
+message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
+if(${HDF5_FOUND})
+  message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
+  message(STATUS "HDF5 F90      : ${HDF5_BUILD_FORTRAN}" )
+  message(STATUS "HDF5 Library  : ${HDF5_LIBRARIES}")
+  include_directories(${HDF5_INCLUDE_DIR})
+  include_directories(${HDF5_FORTRAN_INCLUDE_DIR})
+  list (APPEND EXTLIB ${HDF5_LIBRARIES})
+else(${HDF5_FOUND})
+  message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
+endif(${HDF5_FOUND})
+
 # NetCDF
 message(STATUS "Looking for NETCDF in ${NETCDF_DIR}")
 set (NETCDF_F90 "YES")
@@ -140,43 +179,6 @@ find_package( LAPACK )
 if(${LAPACK_FOUND})
   list (APPEND EXTLIB "${LAPACK_LIBRARIES}")
 endif(${LAPACK_FOUND})
-
-# HDF5
-# find_package( HDF5 ) # use this for non-cmake install of HDF5
-# message(STATUS "Found HDF5    : ${HDF5_FOUND}" )
-# if(${HDF5_FOUND})
-#   message(STATUS "HDF5  Includes: ${HDF5_INCLUDE_DIR}" )
-#   message(STATUS "HDF5 F90      : ${HDF5_BUILD_FORTRAN}" )
-#   message(STATUS "HDF5 Library  : ${HDF5_LIBRARIES}")
-#   include_directories(${HDF5_INCLUDE_DIR})
-#   include_directories(${HDF5_FORTRAN_INCLUDE_DIR})
-#   list (APPEND EXTLIB ${HDF5_LIBRARIES})
-# else(${HDF5_FOUND})
-#   message(WARNING "CMake could not find your HDF5 install, you may need to add the hdf5 libraries in config/<loc>.cmake by hand." )
-# endif(${HDF5_FOUND})
-
-
-## Set MPI Stuff
-option(AUTODETECT_MPI "Let CMAKE try to find MPI variables" ON)
-set(MPIEXEC mpirun CACHE STRING "Command to run MPI programs, e.g. used to run tests")
-if(DEFINED USER_MPIEXEC)
-  set(MPIEXEC ${USER_MPIEXEC})
-endif()
-set(MPIEXEC_NUMPROC_FLAG -n CACHE STRING "options to set number of MPI tasks/nodes")
-if(AUTODETECT_MPI)
-  find_package( MPI REQUIRED )
-  if(${MPI_Fortran_FOUND})
-    add_definitions(${MPI_Fortran_COMPILE_FLAGS})
-    include_directories(${MPI_Fortran_INCLUDE_PATH})
-    link_directories(${MPI_Fortran_LIBRARIES})
-    list (APPEND EXTLIB "${MPI_Fortran_LIBRARIES}" )
-    include_directories(${ITAPS_INCLUDES})
-    message(STATUS "+++++++ MPI FOUND")
-  else(${MPI_Fortran_FOUND})
-    message(WARNING "!!!!!!! MPI MISSING")
-  endif(${MPI_Fortran_FOUND})
-else(AUTODETECT_MPI)
-endif(AUTODETECT_MPI)
 
 
 ## Add User Libs
