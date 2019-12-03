@@ -1125,7 +1125,8 @@ module m_icon_plex_utils
           bot_edges_per_row = Nx-1
           horiz_edges_per_row = Nx + Nx-1
           edge_per_row = bot_edges_per_row + horiz_edges_per_row
-          if(ldebug) print *,'bot_edges_per_row, horiz_edges_per_row, edge_per_row', bot_edges_per_row, horiz_edges_per_row, edge_per_row
+          if(ldebug) print *,'bot_edges_per_row, horiz_edges_per_row, edge_per_row', &
+            bot_edges_per_row, horiz_edges_per_row, edge_per_row
 
           ! Preallocation
           ! Faces have 3 edges

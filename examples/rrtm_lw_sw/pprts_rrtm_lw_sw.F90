@@ -126,7 +126,8 @@ contains
     preliq(1:size(reliq,1),1:size(reliq,2)*size(reliq,3)) => reliq
 
     atm_filename='afglus_100m.dat'
-    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
+    call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', &
+      atm_filename, lflg, ierr); call CHKERR(ierr)
 
     call setup_tenstr_atm(comm, .False., atm_filename, &
       pplev, ptlev, atm, &

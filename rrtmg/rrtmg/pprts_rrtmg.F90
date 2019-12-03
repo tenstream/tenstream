@@ -195,7 +195,8 @@ contains
           do i = 1, test_Ni
           print *, 'iter', i, 'test_k', test_k(i), residuals(i)
           enddo
-          print *,'Smoothing diffuse srfc fluxes with radius', solver%atm%dx, radius, radius_in_pixel, 'Niter', Niter, 'kwidth', kernel_width
+          print *,'Smoothing diffuse srfc fluxes with radius', solver%atm%dx, radius, radius_in_pixel, &
+            'Niter', Niter, 'kwidth', kernel_width
         endif
 
       end subroutine

@@ -19,7 +19,7 @@ if(${_is_Intel})
   set(PFUNIT_Fortran_FLAGS "${PFUNIT_Fortran_FLAGS} -assume realloc_lhs -check nobounds -nowarn")
 else()
   set(EXTRA_TESTDRIVER_COMPILE_FLAGS "-Wno-error -w")
-  set(EXTRA_TEST_COMPILE_FLAGS "-Wno-error -Wno-unused-dummy-argument")
+  set(EXTRA_TEST_COMPILE_FLAGS "-Wno-error -Wno-unused-dummy-argument -ffree-line-length-none")
   set(PFUNIT_Fortran_FLAGS "${PFUNIT_Fortran_FLAGS} -fprofile-arcs -ftest-coverage")
 endif(${_is_Intel})
 

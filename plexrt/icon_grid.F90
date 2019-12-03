@@ -408,7 +408,9 @@ module m_icon_grid
       type(tIS)  :: is, isg, is_my_icon_cells
       MatPartitioning :: part
 
-      if(.not. allocated(icongrid%cell_index)) stop 'decompose_icon_grid :: the grid is not loaded from an icon gridfile ... cant be decomposed with this method'
+      if(.not. allocated(icongrid%cell_index)) &
+        call CHKERR(1_mpiint, 'decompose_icon_grid :: the grid is not loaded from an icon gridfile...'// &
+          'cant be decomposed with this method')
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
       call mpi_comm_size(comm, numnodes, ierr); call CHKERR(ierr)

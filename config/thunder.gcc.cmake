@@ -2,7 +2,7 @@
 # module setting:
 #   module switch openmpi openmpi/1.6.5-static-gcc48
 #   module switch gcc gcc/4.8.2
-#   
+#
 
 set(CMAKE_C_COMPILER       "mpicc")
 set(CMAKE_Fortran_COMPILER "mpif90")

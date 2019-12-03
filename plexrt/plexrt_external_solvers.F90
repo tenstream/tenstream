@@ -49,7 +49,7 @@ contains
     integer(mpiint) :: ierr
 
     if(solution%lsolar_rad) call CHKERR(1_mpiint, 'Tried calling schwarschild solver for solar calculation -- stopping!')
-    if( .not. allocated(solver%plck) ) call CHKERR(1_mpiint, 'Tried calling schwarschild solver but no planck was given -- stopping!')
+    if(.not.allocated(solver%plck)) call CHKERR(1_mpiint, 'Tried calling schwarschild solver but no planck was given -- stopping!')
 
     Nmu = 10
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER , &

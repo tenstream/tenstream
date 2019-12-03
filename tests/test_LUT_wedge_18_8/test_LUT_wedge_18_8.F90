@@ -54,7 +54,8 @@ contains
       numnodes = this%getNumProcesses()
       myid     = this%getProcessRank()
 
-      if(myid.eq.0) print *,'Testing LUT coefficients against BOXMC with tolerances atol/rtol :: ',atol,rtol,' :: on ',numnodes,'ranks'
+      if(myid.eq.0) &
+        print *,'Testing LUT coefficients against BOXMC with tolerances atol/rtol ::',atol,rtol,':: on',numnodes,'ranks'
 
       PETSC_COMM_WORLD = comm
       call PetscInitialize(PETSC_NULL_CHARACTER ,ierr)

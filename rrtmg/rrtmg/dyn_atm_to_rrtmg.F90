@@ -235,7 +235,8 @@ module m_dyn_atm_to_rrtmg
           integer(iintegers), intent(in), optional :: ncol
 
           if(present(d_arr)) then
-            if(present(ncol)) call CHKERR(int(size(d_arr,1)-ncol, mpiint), 'bad nr cols got'//itoa(size(d_arr,1))//' expect '//itoa(ncol))
+            if(present(ncol)) call CHKERR(int(size(d_arr,1)-ncol, mpiint), &
+              'bad nr cols got'//itoa(size(d_arr,1))//' expect '//itoa(ncol))
           endif
         end subroutine
         subroutine check_shape_2d(d_arr, k, ncol)
@@ -395,7 +396,7 @@ module m_dyn_atm_to_rrtmg
 
       hsrfc = zero ! default value
 
-      if(.not.allocated(atm%bg_atm)) call CHKERR(1_mpiint, 'bg_atm has to be allocated before merging with dynamics grid variables')
+      if(.not.allocated(atm%bg_atm)) call CHKERR(1_mpiint,'bg_atm has to be allocated before merging with dynamics grid variables')
       associate( bg_atm => atm%bg_atm )
 
         is = lbound(d_plev,2); ie = ubound(d_plev,2)
@@ -773,7 +774,8 @@ module m_dyn_atm_to_rrtmg
 
         if(ldebug .and. myid.eq.0) then
           do k=1, nlev
-            print *,k,'zt', atm%zt(k), 'plev', atm%plev(k), 'T', atm%tlev(k), 'CO2', atm%co2_lev(k), 'H2O', atm%h2o_lev(k), 'O3', atm%o3_lev(k),'N2O' , atm%n2o_lev(k), 'O2', atm%o2_lev(k)
+            print *,k,'zt', atm%zt(k), 'plev', atm%plev(k), 'T', atm%tlev(k), 'CO2', atm%co2_lev(k), &
+              'H2O', atm%h2o_lev(k), 'O3', atm%o3_lev(k),'N2O' , atm%n2o_lev(k), 'O2', atm%o2_lev(k)
           enddo
 
         endif

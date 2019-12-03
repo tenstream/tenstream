@@ -111,7 +111,8 @@ contains
       print *,myid,'Domain Size :', solver%C_one%zm , solver%C_one%xm,  solver%C_one%ym
       print *,myid,'Global Size :', solver%C_one%glob_zm , solver%C_one%glob_xm,  solver%C_one%glob_ym
 
-      print *,myid,'my neighs NESW',solver%C_one%neighbors(22), solver%C_one%neighbors(16), solver%C_one%neighbors( 4), solver%C_one%neighbors(10)
+      print *, myid, 'my neighs NESW', &
+        solver%C_one%neighbors(22), solver%C_one%neighbors(16), solver%C_one%neighbors( 4), solver%C_one%neighbors(10)
     endif
 
     !if(numnodes.ne.1) call CHKERR(1_mpiint, 'cannot run mcrts in parallel, would need to implement message passing and for that, need global unique indices')
@@ -168,7 +169,8 @@ contains
     photon_limit = size(pqueues(PQ_NORTH)%photons, kind=iintegers)/100_iintegers
     photon_limit = max(mcrts_photons_per_pixel, photon_limit)
 
-    call run_photon_queue(solver, bmc, solution, pqueues, PQ_SELF, started_photons=ip, killed_photons=kp, limit_number_photons=photon_limit)
+    call run_photon_queue(solver, bmc, solution, pqueues, PQ_SELF, &
+      started_photons=ip, killed_photons=kp, limit_number_photons=photon_limit)
     started_photons = ip; killed_photons = killed_photons + kp
 
     remote_photons: do ! Run remote photons until they are done, only then go on, this hopefully keeps the queue small
@@ -278,7 +280,8 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
 
   call mpi_comm_rank(solver%comm, myid, ierr); call CHKERR(ierr)
 
-  if(pqueues(ipq)%photons(iphoton)%pstatus.ne.PQ_READY_TO_RUN) call CHKERR(1_mpiint, 'We cannot run photons that are not in READY_TO_RUN state')
+  if(pqueues(ipq)%photons(iphoton)%pstatus.ne.PQ_READY_TO_RUN) &
+    call CHKERR(1_mpiint, 'We cannot run photons that are not in READY_TO_RUN state')
 
   call pqueue_set_status(pqueues(ipq), iphoton, PQ_RUNNING)
 
@@ -327,21 +330,21 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
         g = solver%atm%g(p%k,p%i,p%j)
         call scatter_photon(p, g)
         p%tau_travel = tau(R())
-        if(ldebug) print *,myid,cstr('******************************************************************** SCATTERING','peach'),p%k,p%i,p%j
+        if(ldebug) print *,myid,cstr('********************* SCATTERING','peach'),p%k,p%i,p%j
       else ! lexit_cell
         ! Determine actions on boundaries
         select case(p%side)
         case(1)
           if(p%k.eq.solver%C_one%zs) then ! outgoing at TOA
             call update_flx(p, p%k, p%i, p%j, xv_dir, xv_diff)
-            if(ldebug) print *,myid,'**************************************************************** Exit TOA',p%k,p%i,p%j
+            if(ldebug) print *,myid,'********************* Exit TOA',p%k,p%i,p%j
             lkilled_photon=.True.
             exit move
           endif
         case(2)
           if(p%k.eq.solver%C_one%ze) then ! hit the surface, need reflection
             call update_flx(p, p%k, p%i, p%j, xv_dir, xv_diff)
-            if(ldebug) print *,myid,'**************************************************************** Before Reflection',p%k,p%i,p%j
+            if(ldebug) print *,myid,'********************* Before Reflection',p%k,p%i,p%j
 
             p%weight = p%weight * solver%atm%albedo(p%i,p%j)
             p%direct=.False.
@@ -355,13 +358,13 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
             p%side = i1
             p%src_side = i2
             call update_flx(p, p%k+1, p%i, p%j, xv_dir, xv_diff)
-            if(ldebug) print *,myid,cstr('*************************************************************** After  Reflection','aqua'),p%k,p%i,p%j
+            if(ldebug) print *,myid,cstr('********************* After  Reflection','aqua'),p%k,p%i,p%j
             cycle move
           endif
         end select
 
         ! Move photon to new box
-        if(ldebug) print *,myid,cstr('******************************************************************* MOVE Photon','green')
+        if(ldebug) print *,myid,cstr('********************* MOVE Photon','green')
         select case(p%side)
         case(1)
           p%loc(3) = zero + loceps
@@ -378,7 +381,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
           p%i = p%i-1
           p%src_side = 4
           if(p%i.eq.solver%C_one%xs-1) then
-            if(ldebug) print *,myid,cstr('*************************************************************** Sending to WEST','blue'), pqueues(PQ_WEST)%owner, p%k,p%i,p%j
+            if(ldebug) print *,myid,cstr('********************* Sending to WEST','blue'), pqueues(PQ_WEST)%owner, p%k,p%i,p%j
             call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_WEST))
             exit move
           endif
@@ -387,7 +390,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
           p%i = p%i+1
           p%src_side = 3
           if(p%i.eq.solver%C_one%xe+1) then
-            if(ldebug) print *,myid,cstr('*************************************************************** Sending to EAST','blue'), pqueues(PQ_EAST)%owner, p%k,p%i,p%j
+            if(ldebug) print *,myid,cstr('********************* Sending to EAST','blue'), pqueues(PQ_EAST)%owner, p%k,p%i,p%j
             call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_EAST))
             exit move
           endif
@@ -396,7 +399,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
           p%j = p%j-1
           p%src_side = 6
           if(p%j.eq.solver%C_one%ys-1) then
-            if(ldebug) print *,myid,cstr('*************************************************************** Sending to SOUTH','blue'), pqueues(PQ_SOUTH)%owner, p%k,p%i,p%j
+            if(ldebug) print *,myid,cstr('********************* Sending to SOUTH','blue'), pqueues(PQ_SOUTH)%owner, p%k,p%i,p%j
             call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_SOUTH))
             exit move
           endif
@@ -405,7 +408,7 @@ subroutine run_photon(solver, bmc, pqueues, ipq, iphoton, xv_dir, xv_diff, xv_ab
           p%j = p%j+1
           p%src_side = 5
           if(p%j.eq.solver%C_one%ye+1) then
-            if(ldebug) print *,myid,cstr('*************************************************************** Sending to NORTH','blue'), pqueues(PQ_NORTH)%owner, p%k,p%i,p%j
+            if(ldebug) print *,myid,cstr('********************* Sending to NORTH','blue'), pqueues(PQ_NORTH)%owner, p%k,p%i,p%j
             call send_photon_to_neighbor(solver, solver%C_one, p, pqueues(PQ_NORTH))
             exit move
           endif
@@ -618,7 +621,8 @@ subroutine pqueue_add_photon(pqueue, p, pstatus, request, ind)
   call find_empty_entry_in_pqueue(pqueue, ind, ierr)
   if(ierr.ne.0) then
     call finalize_msgs(pqueue, lwait=.True.)
-    call find_empty_entry_in_pqueue(pqueue, ind, ierr); call CHKERR(ierr, 'Could not find an empty slot in neighbor queue '//itoa(pqueue%queue_index))
+    call find_empty_entry_in_pqueue(pqueue, ind, ierr)
+    call CHKERR(ierr, 'Could not find an empty slot in neighbor queue '//itoa(pqueue%queue_index))
   endif
 
   pqueue%current = ind
@@ -780,7 +784,8 @@ subroutine exchange_photons(solver, pqueues)
       call find_empty_entry_in_pqueue(pqueues(ipq), pqueues(ipq)%current, ierr)
       if(ierr.ne.0) then
         call finalize_msgs(pqueues(ipq), lwait=.True.)
-        call find_empty_entry_in_pqueue(pqueues(ipq), pqueues(ipq)%current, ierr); call CHKERR(ierr, 'no space in queue to receive a msg')
+        call find_empty_entry_in_pqueue(pqueues(ipq), pqueues(ipq)%current, ierr)
+        call CHKERR(ierr, 'no space in queue to receive a msg')
       endif
 
       call mpi_recv(pqueues(ipq)%photons(pqueues(ipq)%current)%p, 1_mpiint, imp_t_photon, &
@@ -862,8 +867,11 @@ end subroutine move_photon
 subroutine check_if_photon_is_in_domain(C, p)
   type(t_coord), intent(in) :: C
   type(t_photon),intent(in) :: p
-  if(p%k.lt.C%zs .or. p%k.gt.C%ze) call CHKERR(1_mpiint, 'Wrong index(dim1) '//itoa(p%k)//' not in ('//itoa(C%zs)//'/'//itoa(C%ze)//')')
-  if(p%i.lt.C%xs .or. p%i.gt.C%xe) call CHKERR(1_mpiint, 'Wrong index(dim2) '//itoa(p%i)//' not in ('//itoa(C%xs)//'/'//itoa(C%xe)//')')
-  if(p%j.lt.C%ys .or. p%j.gt.C%ye) call CHKERR(1_mpiint, 'Wrong index(dim3) '//itoa(p%j)//' not in ('//itoa(C%ys)//'/'//itoa(C%ye)//')')
+  if(p%k.lt.C%zs .or. p%k.gt.C%ze) &
+    call CHKERR(1_mpiint, 'Wrong index(dim1) '//itoa(p%k)//' not in ('//itoa(C%zs)//'/'//itoa(C%ze)//')')
+  if(p%i.lt.C%xs .or. p%i.gt.C%xe) &
+    call CHKERR(1_mpiint, 'Wrong index(dim2) '//itoa(p%i)//' not in ('//itoa(C%xs)//'/'//itoa(C%xe)//')')
+  if(p%j.lt.C%ys .or. p%j.gt.C%ye) &
+    call CHKERR(1_mpiint, 'Wrong index(dim3) '//itoa(p%j)//' not in ('//itoa(C%ys)//'/'//itoa(C%ye)//')')
 end subroutine
 end module

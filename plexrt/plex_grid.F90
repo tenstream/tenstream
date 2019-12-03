@@ -2046,7 +2046,8 @@ module m_plex_grid
           if(neigh_cells(i).lt.i0) cycle
           if(any(neigh_cells(i).eq.idx(max(i1,[k-i1, k-i2])))) cycle ! already have this neigh cell in index set
           if(ldebug) then
-            if(k.gt.idx_maxsize) call CHKERR(int(k, mpiint), 'found more cells than we have space to store in idx('//itoa(idx_maxsize)//')')
+            if(k.gt.idx_maxsize) &
+              call CHKERR(int(k, mpiint), 'found more cells than we have space to store in idx('//itoa(idx_maxsize)//')')
             !print *,'Adding new cell ', neigh_cells(i), '=>', idx
           endif
           idx(k) = neigh_cells(i)

@@ -144,11 +144,13 @@ contains
     if(ldebug) then
       if(present(solar_albedo_2d)) then
         if(any(.not.is_inrange(solar_albedo_2d, zero, one))) &
-          call CHKERR(1_mpiint, 'Bad solar albedo value min: '//ftoa(minval(solar_albedo_2d))//' max: '//ftoa(maxval(solar_albedo_2d)))
+          call CHKERR(1_mpiint, 'Bad solar albedo value min: '//ftoa(minval(solar_albedo_2d))// &
+          ' max: '//ftoa(maxval(solar_albedo_2d)))
       endif
       if(present(thermal_albedo_2d)) then
         if(any(.not.is_inrange(thermal_albedo_2d, zero, one))) &
-          call CHKERR(1_mpiint, 'Bad thermal albedo value min: '//ftoa(minval(thermal_albedo_2d))//' max: '//ftoa(maxval(thermal_albedo_2d)))
+          call CHKERR(1_mpiint, 'Bad thermal albedo value min: '//ftoa(minval(thermal_albedo_2d))// &
+          ' max: '//ftoa(maxval(thermal_albedo_2d)))
       endif
     endif
 

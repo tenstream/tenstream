@@ -119,7 +119,8 @@ contains
           if(solver_id.ne.SOLVER_ID_PLEXRT_RECTILINEAR_5_8) ierr = 1
         end select
       endif
-      if(ierr.ne.0) call CHKERR(ierr, 'seems you changed the solver type id in between calls... you must destroy the solver first before you use a different kind of solver')
+      if(ierr.ne.0) call CHKERR(ierr, 'seems you changed the solver type id in between calls...'// &
+        'you must destroy the solver first before you use a different kind of solver')
       return
     endif
 
@@ -301,7 +302,8 @@ contains
       if(ldebug) print *,'pprts_f2c_get_result result_edn  first column', res_edn (:,1,1)
       if(ldebug) print *,'pprts_f2c_get_result result_eup  first column', res_eup (:,1,1)
       if(ldebug) print *,'pprts_f2c_get_result rabso first column', res_abso(:,1,1)
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-f2c_dump_result", dump_fname(1), lflg , ierr) ;call CHKERR(ierr)
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-f2c_dump_result", &
+        dump_fname(1), lflg , ierr) ;call CHKERR(ierr)
       if(lflg) then
         dump_fname(2) = "edir"; call ncwrite(dump_fname, res_edir, ierr); call CHKERR(ierr)
         dump_fname(2) = "edn" ; call ncwrite(dump_fname, res_edn, ierr); call CHKERR(ierr)

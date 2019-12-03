@@ -589,9 +589,11 @@ contains
             endif
             if(w0.ge.1) then
               if(any(S_tol.gt.0).or.any(T_tol.gt.0)) then
-                print *,'SumT', sum(T_dir), 'SumS', sum(S_diff), 'Divergence', (1- (sum(T_dir)+sum(S_diff))), any(S_tol.gt.0), any(T_tol.gt.0)
+                print *,'SumT', sum(T_dir), 'SumS', sum(S_diff), &
+                  'Divergence', (1- (sum(T_dir)+sum(S_diff))), any(S_tol.gt.0), any(T_tol.gt.0)
                 if(abs(1- (sum(T_dir)+sum(S_diff))).ge.1e-6_irealLUT) then
-                  call CHKWARN(1_mpiint, 'divergence '//ftoa(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//ftoa(w0))
+                  call CHKWARN(1_mpiint, 'divergence '// &
+                    ftoa(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//ftoa(w0))
                 endif
               endif
             endif
@@ -612,9 +614,11 @@ contains
           C(isrc:OPP%OPP_LUT%diff_streams**2:OPP%OPP_LUT%diff_streams) = S_diff
           if(w0.ge.1) then
             if(any(S_tol.gt.0).or.any(T_tol.gt.0)) then
-              print *,'SumT', sum(T_dir), 'SumS', sum(S_diff), 'Divergence', (1- (sum(T_dir)+sum(S_diff))), any(S_tol.gt.0), any(T_tol.gt.0)
+              print *,'SumT', sum(T_dir), 'SumS', sum(S_diff), &
+                'Divergence', (1- (sum(T_dir)+sum(S_diff))), any(S_tol.gt.0), any(T_tol.gt.0)
               if(abs(1- (sum(T_dir)+sum(S_diff))).ge.1e-6_irealLUT) then
-                call CHKWARN(1_mpiint, 'divergence '//ftoa(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//ftoa(w0))
+                call CHKWARN(1_mpiint, 'divergence '// &
+                  ftoa(1- (sum(T_dir)+sum(S_diff)))//' seems quite large for w0='//ftoa(w0))
               endif
             endif
           endif
@@ -656,7 +660,8 @@ contains
         print *,'direct called get_coeff with wrong shaped output array:',size(C),'should be ',OPP%OPP_LUT%dir_streams**2
       endif
       if(.not.dir .and. size(C).ne. OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams) then
-        print *,'dir2diffuse called get_coeff with wrong shaped output array:',size(C),'should be',OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams
+        print *,'dir2diffuse called get_coeff with wrong shaped output array:',size(C), &
+          'should be',OPP%OPP_LUT%diff_streams*OPP%OPP_LUT%dir_streams
       endif
     else
       if(dir .and. size(C).ne. OPP%OPP_LUT%diff_streams) then

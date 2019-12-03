@@ -149,7 +149,8 @@ logical, parameter :: ldebug=.True.
           call DMGetGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
 
           ldump = .False.
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-ex_dump_result', ldump, lflg, ierr) ; call CHKERR(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-ex_dump_result', &
+            ldump, lflg, ierr) ; call CHKERR(ierr)
           if(ldump) then
             call Nz_Ncol_vec_to_celldm1(solver%plex, edir(2:,:), vec)
             call PetscObjectSetName(vec, 'ex_dump_result_edir', ierr);call CHKERR(ierr)
@@ -164,42 +165,46 @@ logical, parameter :: ldebug=.True.
           logical :: lflg, lflg_xyz(3)
           real(ireals) :: first_normal(3)
           integer(mpiint) :: myid, ierr
+          integer(iintegers) :: nargs
           real(ireals) :: rot_angle, Mrot(3,3), U(3), rot_sundir(3)
 
           call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
           first_normal = get_normal_of_first_TOA_face(solver%plex)
 
-          sundir = zero
           if(ldebug.and.myid.eq.0) print *,myid, 'determine initial sundirection ...'
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_x", sundir(1), lflg_xyz(1), ierr) ; call CHKERR(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_y", sundir(2), lflg_xyz(2), ierr) ; call CHKERR(ierr)
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_z", sundir(3), lflg_xyz(3), ierr) ; call CHKERR(ierr)
-          if(any(lflg_xyz)) then
-            if(.not.all(lflg_xyz)) then
-              call CHKERR(1_mpiint, 'sundir needs 3 entries, you have to specify -sundir_x -sundir_y -sundir_z')
-            endif
+          nargs = i3
+          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
+            "-sundir", sundir, nargs, lflg, ierr) ; call CHKERR(ierr)
+          if(lflg) then
+            call CHKERR(int(nargs-i3, mpiint), 'must provide exactly 3 values for -sundir. '// &
+              'Need to be given comma separated without spaces')
           else
             sundir = first_normal + [zero, -.5_ireals, zero]
             sundir = sundir/norm2(sundir)
           endif
           sundir = sundir/norm2(sundir)
 
-          if(ldebug.and.myid.eq.0) print *,'Initial sundirection = ', sundir, ': sza', angle_between_two_vec(sundir, first_normal), 'rad'
-          if(myid.eq.0) print *,'Initial sundirection = ', sundir, ': sza', rad2deg(angle_between_two_vec(sundir, first_normal)),'deg'
+          if(ldebug.and.myid.eq.0) &
+            print *,'Initial sundirection = ', sundir, ': sza', angle_between_two_vec(sundir, first_normal), 'rad'
+          if(myid.eq.0) &
+            print *,'Initial sundirection = ', sundir, ': sza', rad2deg(angle_between_two_vec(sundir, first_normal)),'deg'
 
 
           rot_angle = zero
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_phi", rot_angle, lflg, ierr) ; call CHKERR(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_phi", &
+            rot_angle, lflg, ierr) ; call CHKERR(ierr)
           if(lflg) then
             Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), first_normal)
             rot_sundir = matmul(Mrot, sundir)
             if(ldebug.and.myid.eq.0) print *,'rot_sundir', rot_sundir
-            if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
+            if(myid.eq.0) &
+              print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
             sundir = rot_sundir
           endif
 
           rot_angle = zero
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_theta", rot_angle, lflg, ierr) ; call CHKERR(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_theta", &
+            rot_angle, lflg, ierr) ; call CHKERR(ierr)
           if(lflg) then
             U = cross_3d(first_normal, sundir)
             Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), U)
@@ -207,7 +212,8 @@ logical, parameter :: ldebug=.True.
             if(ldebug.and.myid.eq.0) print *,'S', sundir, norm2(sundir)
             if(ldebug.and.myid.eq.0) print *,'U', U, norm2(U)
             if(ldebug.and.myid.eq.0) print *,'rot_sundir', rot_sundir
-            if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
+            if(myid.eq.0) &
+              print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
             sundir = rot_sundir
           endif
 

@@ -170,9 +170,11 @@ logical, parameter :: ldebug=.True.
       call init_sundir()
 
       solve_iterations = 1
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solve_iterations", solve_iterations, lflg,ierr) ; call CHKERR(ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solve_iterations", &
+        solve_iterations, lflg,ierr) ; call CHKERR(ierr)
       solve_iterations_scale = 0
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solve_iterations_scale", solve_iterations_scale, lflg,ierr) ; call CHKERR(ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-solve_iterations_scale", &
+        solve_iterations_scale, lflg,ierr) ; call CHKERR(ierr)
 
       do iter = 1, solve_iterations
         if(lthermal) then
@@ -239,7 +241,8 @@ logical, parameter :: ldebug=.True.
           call DMGetGlobalVector(solver%plex%cell1_dm, vec, ierr); call CHKERR(ierr)
 
           ldump = .False.
-          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-ex_dump_result', ldump, lflg, ierr) ; call CHKERR(ierr)
+          call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-ex_dump_result', &
+            ldump, lflg, ierr) ; call CHKERR(ierr)
           if(ldump) then
             call Nz_Ncol_vec_to_celldm1(solver%plex, edir(2:,:), vec)
             call PetscObjectSetName(vec, 'ex_dump_result_edir', ierr);call CHKERR(ierr)
@@ -261,7 +264,8 @@ logical, parameter :: ldebug=.True.
           sundir = zero
           if(ldebug.and.myid.eq.0) print *,myid, 'determine initial sundirection ...'
           argcnt = 3
-          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir", sundir, argcnt, lflg, ierr) ; call CHKERR(ierr)
+          call PetscOptionsGetRealArray(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir", &
+            sundir, argcnt, lflg, ierr) ; call CHKERR(ierr)
           if(lflg) then
             call CHKERR(int(argcnt-i3, mpiint), "must provide 3 values for sundir, comma separated, no spaces")
           else
@@ -269,20 +273,25 @@ logical, parameter :: ldebug=.True.
           endif
           sundir = sundir/norm2(sundir)
 
-          if(ldebug.and.myid.eq.0) print *,'Initial sundirection = ', sundir, ': sza', angle_between_two_vec(sundir, first_normal), 'rad'
-          if(myid.eq.0) print *,'Initial sundirection = ', sundir, ': sza', rad2deg(angle_between_two_vec(sundir, first_normal)),'deg'
+          if(ldebug.and.myid.eq.0) print *,'Initial sundirection = ', sundir, &
+            ': sza', angle_between_two_vec(sundir, first_normal), 'rad'
+          if(myid.eq.0) print *,'Initial sundirection = ', sundir, &
+            ': sza', rad2deg(angle_between_two_vec(sundir, first_normal)),'deg'
 
           rot_angle = zero
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_phi", rot_angle, lflg, ierr) ; call CHKERR(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_phi", &
+            rot_angle, lflg, ierr) ; call CHKERR(ierr)
           if(lflg) then
             Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), first_normal)
             rot_sundir = matmul(Mrot, sundir)
-            if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
+            if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, &
+              ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
             sundir = rot_sundir
           endif
 
           rot_angle = zero
-          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_theta", rot_angle, lflg, ierr) ; call CHKERR(ierr)
+          call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-sundir_rot_theta", &
+            rot_angle, lflg, ierr) ; call CHKERR(ierr)
           if(lflg) then
             call sundir_rot_theta(sundir, rot_angle)
           endif
@@ -299,13 +308,15 @@ logical, parameter :: ldebug=.True.
           U = cross_3d(first_normal, sundir)
           Mrot = rotation_matrix_around_axis_vec(deg2rad(rot_angle), U)
           rot_sundir = matmul(Mrot, sundir)
-          if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
+          if(myid.eq.0) print *,'rotated sundirection = ', rot_sundir, ': sza', &
+            rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
           sundir = rot_sundir
         end subroutine
         subroutine init_data_strings()
           logical :: lflg
           atm_filename='afglus_100m.dat'
-          call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', atm_filename, lflg, ierr); call CHKERR(ierr)
+          call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-atm_filename', &
+            atm_filename, lflg, ierr); call CHKERR(ierr)
         end subroutine
     end subroutine
 

@@ -552,7 +552,8 @@ module m_plex2rayli
 
       call mpi_comm_rank(comm, myid, ierr); call CHKERR(ierr)
 
-      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-rayli_snapshot", snap_path, lflg,ierr) ; call CHKERR(ierr)
+      call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-rayli_snapshot", &
+        snap_path, lflg,ierr) ; call CHKERR(ierr)
       if(lflg) then
         if(len_trim(snap_path).eq.0) snap_path = 'rayli_snaphots.nc'
         if(myid.eq.0) print *,'Capturing scene to file: '//trim(snap_path), len_trim(snap_path)

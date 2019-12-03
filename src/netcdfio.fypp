@@ -59,11 +59,7 @@ module m_netcdfIO
   ('real'   , 'REAL32') , &
   ('real'   , 'REAL64')]
 #:for RANK in range(1, 8)
-#:for modifier in [None, 'allocatable', 'pointer']
-#:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
-    module procedure ncwrite_${method}$_${dtype}$_${RANK}$d_${modifier}$
-#:endif
-#:endfor
+    module procedure ncwrite_${method}$_${dtype}$_${RANK}$d
 #:endfor
 #:endfor
   end interface
@@ -124,13 +120,10 @@ module m_netcdfIO
   ('real'   , 'REAL64')]
 #:set dKIND = '' if method == 'logical' else '('+dtype+')'
 #:for RANK in range(1, 8)
-#:for modifier in [None, 'allocatable', 'pointer']
-#:if (modifier is None and (RANK==0)) or (modifier is not None and (RANK>0))
-
-    subroutine  ncwrite_${method}$_${dtype}$_${RANK}$d_${modifier}$ &
+    subroutine  ncwrite_${method}$_${dtype}$_${RANK}$d &
                    (groups,arr,ierr,arr_shape,startp,countp,stride,map)
 
-      ${method}$ ${dKIND}$ #{if modifier}#,${modifier}$#{endif}#, intent(inout) :: arr${ranksuffix(RANK)}$
+      ${method}$ ${dKIND}$, intent(in) :: arr${ranksuffix(RANK)}$
       integer, intent(in), optional :: arr_shape(:), startp(:), countp(:), stride(:), map(:)
 
       character(len=*) :: groups(:)
@@ -239,8 +232,6 @@ module m_netcdfIO
 
       call release_file_lock(flock_unit, ncerr); call CHKERR(ncerr, 'Could not release filelock')
     end subroutine
-#:endif
-#:endfor
 #:endfor
 #:endfor
 
