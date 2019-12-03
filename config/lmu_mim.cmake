@@ -9,11 +9,7 @@
 # if so, you might get away and use this config file here with
 # `cmake <tenstream_root_dir> -DSYST:STRING=lmu_mim`
 
-set(CMAKE_C_COMPILER   "mpicc")
-set(CMAKE_Fortran_COMPILER   "mpif90")
-set(Fortran_COMPILER_WRAPPER "mpif90")
-
-set(USER_C_FLAGS               "-W -std=c99 --coverage")
-set(USER_Fortran_FLAGS         "-g --coverage")
+set(USER_C_FLAGS               "-W -std=c99")
+set(USER_Fortran_FLAGS         "-g")
 set(USER_Fortran_FLAGS_RELEASE "-fno-range-check -O3 -mtune=native")
 set(USER_Fortran_FLAGS_DEBUG   "-fbacktrace -finit-real=snan -Werror -Wall -pedantic -g -pg -fcheck=all -fbounds-check -Wuninitialized -ffpe-trap=invalid ")

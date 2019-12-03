@@ -8,9 +8,7 @@
 # module load mpi.intel/2019
 # module load mkl/2019_s
 
-set(CMAKE_C_COMPILER   "mpiicc")
 set(CMAKE_Fortran_COMPILER   "mpiifort")
-set(Fortran_COMPILER_WRAPPER "mpiifort")
 
 set(USER_C_FLAGS "-std=c99")
 set(USER_Fortran_FLAGS "-cpp -traceback -extend_source -g")

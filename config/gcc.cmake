@@ -10,10 +10,6 @@
 
 message(STATUS "### USING GCC CONFIG ###")
 
-set(CMAKE_C_COMPILER   "mpicc")
-set(CMAKE_Fortran_COMPILER   "/usr/bin/mpif90")
-set(Fortran_COMPILER_WRAPPER "/usr/bin/mpif90")
-
 set(USER_C_FLAGS               "-cpp -W -Wall -Wuninitialized --std=c99")
 set(USER_Fortran_FLAGS         "-cpp -W -Wall -Wuninitialized -g")
 set(USER_Fortran_FLAGS_RELEASE "-fno-backtrace -fno-range-check -O3")
