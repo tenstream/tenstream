@@ -24,8 +24,7 @@ variables:
     - make $PETSC_ARCH
   artifacts:
     paths:
-      - ${PETSC_DIR}/configure.log
-      - ${PETSC_DIR}/${PETSC_ARCH}
+      - ${PETSC_DIR}
     expire_in: 1 day
   variables:
     PETSC_ARCH: default
