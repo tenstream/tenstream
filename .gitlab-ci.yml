@@ -12,6 +12,7 @@ variables:
   script:
     - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
     - git clone -q --depth=1 https://gitlab.com/petsc/petsc.git $PETSC_DIR
+    - export PETSC_DIR=$(pwd)/$PETSC_DIR
     - cd $PETSC_DIR
     - >
       CMD="./configure
