@@ -40,7 +40,13 @@ build_petsc:docker:ubuntu:default:
   tags:
     - docker.meteo.physik.lmu.de
 
-
+build_petsc:docker:ubuntu:rolling:
+  extends: .build_petsc:default
+  image: ubuntu:rolling
+  before_script:
+    - apt-get -qq update && apt-get -qq install -fy build-essential gfortran python git openmpi-bin libopenmpi-dev libopenblas-dev
+  tags:
+    - docker.meteo.physik.lmu.de
 
 
 
