@@ -5,7 +5,7 @@ stages:
 .build:default:
   stage: build
   script:
-    - \\\[ ! -z $MODULES \\\] && module load $MODULES
+    - if [ ! -z "$MODULES" ]; then module load $MODULES; fi
     - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR
     - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
     - git clone -q --depth=1 https://gitlab.com/petsc/petsc.git $PETSC_DIR
