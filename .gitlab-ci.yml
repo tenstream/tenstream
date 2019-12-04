@@ -116,13 +116,13 @@ build:mim:default:
 # Tests
 .test:mim:
   extends: .test:default
-before_script:
-  - module load $MODULES
-tags:
-  - slurm.meteo.physik.lmu.de
-variables:
-  PETSC_ARCH: default
-  MODULES: "gcc openmpi"
+  before_script:
+    - module load $MODULES
+  tags:
+    - slurm.meteo.physik.lmu.de
+  variables:
+    PETSC_ARCH: default
+    MODULES: "gcc openmpi"
 
 test:mim:default:
   extends: .test:mim
