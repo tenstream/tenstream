@@ -5,9 +5,10 @@ stages:
 .build:default:
   stage: build
   script:
+    - [ ! -z $MODULES ] && module load $MODULES
     - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
+    - export PETSC_DIR=$CI_BUILDS_DIR/$PETSC_DIR
     - git clone -q --depth=1 https://gitlab.com/petsc/petsc.git $PETSC_DIR
-    - export PETSC_DIR=$(pwd)/$PETSC_DIR
     - cd $PETSC_DIR
     - >
       CMD="./configure
@@ -18,12 +19,14 @@ stages:
       --with-debugging=$PETSC_DEBUGGING"
     - echo $CMD && $CMD
     - make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
-    - cd && mkdir build && cd build
+
+    - mkdir $CI_BUILDS_DIR/build && cd $CI_BUILDS_DIR/build
     - cmake .. -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS
-    - cd && make -C build all
+    - make -C $CI_BUILDS_DIR/build all
+  after_script:
     - wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
-    - echo "-lut_basename $(pwd)/LUT" >> $HOME/.petscrc
-    - cd && make -C build check
+    - echo "-lut_basename $(pwd)/LUT" > $HOME/.petscrc
+    - make -C $CI_BUILDS_DIR/build check
   variables:
     PETSC_DIR: petsc
     PETSC_ARCH: default
@@ -32,15 +35,8 @@ stages:
     PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
     MPIRUN_FLAGS: '' #--allow-run-as-root
+    MODULES: ''
 
-
-    #build_petsc:docker:ubuntu:default:
-    #  extends: .build_petsc:default
-    #  image: ubuntu
-    #  before_script:
-    #    - apt-get -qq update && apt-get -qq install -fy build-essential gfortran python git openmpi-bin libopenmpi-dev libopenblas-dev
-    #  tags:
-    #    - docker.meteo.physik.lmu.de
 
 build:docker:ubuntu-rolling:
   extends: .build:default
@@ -50,9 +46,15 @@ build:docker:ubuntu-rolling:
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    MPIRUN_FLAGS: '' #--allow-run-as-root
-    SRUN_OPTIONS: "--time 02:00:00"
+    MPIRUN_FLAGS: "--allow-run-as-root"
 
+build:mim:
+  extends: .build:default
+  tags:
+    - slurm.meteo.physik.lmu.de
+  variables:
+    MODULES: "gcc openmpi"
+    SRUN_OPTIONS: "--time 02:00:00"
 
 
 
