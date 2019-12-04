@@ -91,7 +91,7 @@ build:docker:ubuntu:default:
     - make all check
   variables:
     BUILD_TYPE: Release
-    MPIRUN_FLAGS: #--allow-run-as-root
+    MPIRUN_FLAGS: '' #--allow-run-as-root
 
 
 # Builds with MIM Infrastructure
