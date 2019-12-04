@@ -77,6 +77,7 @@ build:docker:ubuntu:default:
   tags:
     - docker.meteo.physik.lmu.de
   variables:
+    PETSC_DIR: /root/$PETSC_DIR
     PETSC_ARCH: default
 
 #.build_docker_img: &build_docker_img
