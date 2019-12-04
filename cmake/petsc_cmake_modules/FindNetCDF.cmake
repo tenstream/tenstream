@@ -33,14 +33,14 @@ endif (NETCDF_INCLUDES AND NETCDF_LIBRARIES)
 find_path (NETCDF_INCLUDES
   NAMES netcdf.h
   NO_DEFAULT_PATH
-  HINTS "${NETCDF_DIR}" "${NETCDF_DIR}/include" "$ENV{NETCDF_DIR}" "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/include"
+  HINTS "${NETCDF_DIR}" "${NETCDF_DIR}/include" "$ENV{NETCDF}" "$ENV{NETCDF_DIR}" "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/include"
   PATHS "/usr" "/usr/include" "/usr/local/include"
   )
 
 find_library (NETCDF_LIBRARIES_C
   NAMES netcdf
   NO_DEFAULT_PATH
-  HINTS "${NETCDF_DIR}" "${NETCDF_DIR}/lib" "${NETCDF_DIR}/lib64" "$ENV{NETCDF_DIR}" "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/lib"
+  HINTS "${NETCDF_DIR}" "${NETCDF_DIR}/lib" "${NETCDF_DIR}/lib64" "$ENV{NETCDF}" "$ENV{NETCDF_DIR}" "$ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/lib"
   PATHS "/usr" "/usr/lib" "/usr/local/lib" "/usr/lib/x86_64-linux-gnu/"
   )
 
