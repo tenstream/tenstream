@@ -17,11 +17,12 @@ stages:
       --with-precision=$PETSC_PRECISION
       --with-64-bit-indices=$PETSC_64_INTEGERS
       --with-debugging=$PETSC_DEBUGGING"
-    - echo $CMD && $CMD
-    - make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
+    - echo $CMD #&& $CMD && make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
 
+    - export
     - mkdir $CI_PROJECT_DIR/build && cd $CI_PROJECT_DIR/build && cmake $CI_PROJECT_DIR/ -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS -DMPIEXEC=$MPIEXEC
     - make -C $CI_PROJECT_DIR/build all
+
     - mkdir $CI_PROJECT_DIR/LUT && cd $CI_PROJECT_DIR/LUT && wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
     - echo "-lut_basename $$CI_PROJECT_DIR/LUT/LUT" > $HOME/.petscrc
     - make -C $CI_PROJECT_DIR/build check
