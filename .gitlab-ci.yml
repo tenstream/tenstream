@@ -45,7 +45,7 @@ variables:
     #  tags:
     #    - docker.meteo.physik.lmu.de
 
-build_petsc:docker:ubuntu:rolling:
+build_petsc:docker:ubuntu-rolling:
   extends: .build_petsc:default
   image: ubuntu:rolling
   before_script:
@@ -69,10 +69,10 @@ build_petsc:docker:ubuntu:rolling:
   variables:
     PETSC_ARCH: default
 
-build:docker:ubuntu:default:
+build:docker:ubuntu-rolling:default:
   extends: .build:default
-  image: ubuntu
-  needs: ["build_petsc:docker:ubuntu:rolling"]
+  image: ubuntu:rolling
+  needs: ["build_petsc:docker:ubuntu-rolling"]
   before_script:
     - apt-get -qq update && apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python
   tags:
