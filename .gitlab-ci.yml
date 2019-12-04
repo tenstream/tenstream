@@ -52,7 +52,7 @@ build:mim:
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
-    MODULES: "gcc openmpi"
+    MODULES: "gcc/9.1.0 openmpi/4.0.1-gcc-9 netcdf/4.7.0-gcc-9"
     SRUN_OPTIONS: "--time 02:00:00 --mem 4G"
     MPIEXEC: "srun"
 
