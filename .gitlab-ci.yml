@@ -1,14 +1,9 @@
 stages:
-  - build_petsc
   - build
-  - test
-
-variables:
-  PETSC_DIR: petsc
 
 # PETSc Build Stage
-.build_petsc:default:
-  stage: build_petsc
+.build:default:
+  stage: build
   script:
     - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
     - git clone -q --depth=1 https://gitlab.com/petsc/petsc.git $PETSC_DIR
@@ -23,18 +18,20 @@ variables:
       --with-debugging=$PETSC_DEBUGGING"
     - echo $CMD && $CMD
     - make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
-  artifacts:
-    paths:
-      - $PETSC_DIR/include
-      - $PETSC_DIR/lib
-      - $PETSC_DIR/$PETSC_ARCH/include
-      - $PETSC_DIR/$PETSC_ARCH/lib
-    expire_in: 1 day
+    - cd && mkdir build && cd build
+    - cmake .. -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS
+    - cd && make -C build all
+    - wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
+    - echo "-lut_basename $(pwd)/LUT" >> $HOME/.petscrc
+    - cd && make -C build check
   variables:
+    PETSC_DIR: petsc
     PETSC_ARCH: default
     PETSC_PRECISION: double
     PETSC_64_INTEGERS: 0
     PETSC_DEBUGGING: 1
+    BUILD_TYPE: RELEASE
+    MPIRUN_FLAGS: '' #--allow-run-as-root
 
 
     #build_petsc:docker:ubuntu:default:
@@ -45,98 +42,102 @@ variables:
     #  tags:
     #    - docker.meteo.physik.lmu.de
 
-build_petsc:docker:ubuntu-rolling:
-  extends: .build_petsc:default
-  image: ubuntu:rolling
-  before_script:
-    - apt-get -qq update && apt-get -qq install -fy build-essential gfortran python git openmpi-bin libopenmpi-dev libopenblas-dev
-  tags:
-    - docker.meteo.physik.lmu.de
-
-
-
-# TenStream Build Stage
-.build:default:
-  stage: build
-  script:
-    - export PETSC_DIR=$(pwd)/$PETSC_DIR
-    - mkdir build && cd build
-    - cmake .. && make
-  artifacts:
-    paths:
-      - build
-    expire_in: 1 day
-  variables:
-    PETSC_ARCH: default
-
-build:docker:ubuntu-rolling:default:
+build:docker:ubuntu-rolling:
   extends: .build:default
   image: ubuntu:rolling
-  needs: ["build_petsc:docker:ubuntu-rolling"]
   before_script:
     - apt-get -qq update && apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python
   tags:
     - docker.meteo.physik.lmu.de
   variables:
-    PETSC_ARCH: default
-
-
-.test:default:
-  stage: test
-  script:
-    - wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
-    - echo "-lut_basename $(pwd)/LUT" >> $HOME/.petscrc
-    - cd build
-    - cmake . -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS
-    - make all check
-  variables:
-    BUILD_TYPE: Release
     MPIRUN_FLAGS: '' #--allow-run-as-root
+    SRUN_OPTIONS: "--time 02:00:00"
 
 
-# Builds with MIM Infrastructure
-# ------------------------------------
 
-build_petsc:mim:default:
-  extends: .build_petsc:default
-  before_script:
-    - module load $MODULES
-  tags:
-    - slurm.meteo.physik.lmu.de
-  variables:
-    SRUN_OPTIONS: "--time 01:00:00"
 
-build:mim:default:
-  extends: .build:default
-  needs: ["build_petsc:mim:default"]
-  tags:
-    - slurm.meteo.physik.lmu.de
-  variables:
-    PETSC_ARCH: default
-    MODULES: "gcc openmpi"
-
-# Tests
-.test:mim:
-  extends: .test:default
-  before_script:
-    - module load $MODULES
-  tags:
-    - slurm.meteo.physik.lmu.de
-  variables:
-    PETSC_ARCH: default
-    MODULES: "gcc openmpi"
-
-test:mim:default:
-  extends: .test:mim
-  needs: ["build:mim:default", "build_petsc:mim:default"]
-
-test:mim:debug:
-  extends: .test:mim
-  needs: ["build:mim:default", "build_petsc:mim:default"]
-  variables:
-    BUILD_TYPE: DEBUG
-    PETSC_ARCH: default
-    MODULES: "gcc openmpi"
+      ## TenStream Build Stage
+      #.build:default:
+      #  stage: build
+      #  script:
+      #    - export PETSC_DIR=$(pwd)/$PETSC_DIR
+      #    - mkdir build && cd build
+      #    - cmake .. && make
+      #  artifacts:
+      #    paths:
+      #      - build/bin
+      #    expire_in: 1 day
+      #  variables:
+      #    PETSC_ARCH: default
+      #
+      #build:docker:ubuntu-rolling:default:
+      #  extends: .build:default
+      #  image: ubuntu:rolling
+      #  needs: ["build_petsc:docker:ubuntu-rolling"]
+      #  before_script:
+      #    - apt-get -qq update && apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python
+      #  tags:
+      #    - docker.meteo.physik.lmu.de
+      #  variables:
+      #    PETSC_ARCH: default
+      #
+      #
+      #.test:default:
+      #  stage: test
+      #  script:
+      #    - wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
+      #    - echo "-lut_basename $(pwd)/LUT" >> $HOME/.petscrc
+      #    - cd build
+      #    - cmake . -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS
+      #    - make all check
+      #  variables:
+      #    BUILD_TYPE: Release
+      #    MPIRUN_FLAGS: '' #--allow-run-as-root
+      #
+      #
+      ## Builds with MIM Infrastructure
+      ## ------------------------------------
+      #
+      #build_petsc:mim:default:
+      #  extends: .build_petsc:default
+      #  before_script:
+      #    - module load $MODULES
+      #  tags:
+      #    - slurm.meteo.physik.lmu.de
+      #  variables:
+      #    SRUN_OPTIONS: "--time 01:00:00"
+      #
+      #build:mim:default:
+      #  extends: .build:default
+      #  needs: ["build_petsc:mim:default"]
+      #  tags:
+      #    - slurm.meteo.physik.lmu.de
+      #  variables:
+      #    PETSC_ARCH: default
+      #    MODULES: "gcc openmpi"
+      #
+      ## Tests
+      #.test:mim:
+      #  extends: .test:default
+      #  before_script:
+      #    - module load $MODULES
+      #  tags:
+      #    - slurm.meteo.physik.lmu.de
+      #  variables:
+      #    PETSC_ARCH: default
+      #    MODULES: "gcc openmpi"
+      #
+      #test:mim:default:
+      #  extends: .test:mim
+      #  needs: ["build:mim:default", "build_petsc:mim:default"]
+      #
+      #test:mim:debug:
+      #  extends: .test:mim
+      #  needs: ["build:mim:default", "build_petsc:mim:default"]
+      #  variables:
+      #    BUILD_TYPE: DEBUG
+      #    PETSC_ARCH: default
+      #    MODULES: "gcc openmpi"
 
 #.build_docker_img: &build_docker_img
 #  stage: build
