@@ -38,7 +38,7 @@ find_path (NETCDF_INCLUDES
   $ENV{NETCDF}     $ENV{NETCDF}/include
   $ENV{NETCDF_DIR} $ENV{NETCDF_DIR}/include
   $ENV{PETSC_DIR}/$ENV{PETSC_ARCH}/include
-  PATHS "/usr" "/usr/include" "/usr/local/include
+  PATHS "/usr" "/usr/include" "/usr/local/include"
   )
 
 find_library (NETCDF_LIBRARIES_C
