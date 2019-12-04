@@ -103,6 +103,8 @@ build_petsc:mim:default:
     - module load $MODULES
   tags:
     - slurm.meteo.physik.lmu.de
+  variables:
+    SRUN_OPTIONS: "--time 01:00:00"
 
 build:mim:default:
   extends: .build:default
@@ -126,11 +128,11 @@ build:mim:default:
 
 test:mim:default:
   extends: .test:mim
-  needs: ["build:mim:default"]
+  needs: ["build:mim:default", "build_petsc:mim:default"]
 
 test:mim:debug:
   extends: .test:mim
-  needs: ["build:mim:default"]
+  needs: ["build:mim:default", "build_petsc:mim:default"]
   variables:
     BUILD_TYPE: DEBUG
     PETSC_ARCH: default
