@@ -23,7 +23,7 @@ stages:
   stage: build
   script:
     - if [ ! -z "$MODULES" ]; then module load $MODULES; module list; fi
-    - *template:build_PETSC
+    *template:build_PETSC
     - mkdir $CI_PROJECT_DIR/build && cd $CI_PROJECT_DIR/build
     - cmake $CI_PROJECT_DIR/ -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS -DMPIEXEC=$MPIEXEC
     - make -C $CI_PROJECT_DIR/build all
