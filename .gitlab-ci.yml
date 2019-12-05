@@ -1,11 +1,8 @@
 stages:
   - build
 
-# PETSc Build Stage
-.build:default:
-  stage: build
-  script:
-    - if [ ! -z "$MODULES" ]; then module load $MODULES; module list; fi
+
+.template:build_PETSC: &template:build_PETSC |
     - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR
     - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
     - git clone -q --depth=1 https://gitlab.com/petsc/petsc.git $PETSC_DIR
@@ -18,9 +15,17 @@ stages:
       --with-64-bit-indices=$PETSC_64_INTEGERS
       --with-debugging=$PETSC_DEBUGGING"
     - echo $CMD && $CMD && make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
+    - cd $CI_PROJECT_DIR
 
-    - export
-    - mkdir $CI_PROJECT_DIR/build && cd $CI_PROJECT_DIR/build && cmake $CI_PROJECT_DIR/ -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS -DMPIEXEC=$MPIEXEC
+
+# PETSc Build Stage
+.build:default:
+  stage: build
+  script:
+    - if [ ! -z "$MODULES" ]; then module load $MODULES; module list; fi
+    - *template:build_PETSC
+    - mkdir $CI_PROJECT_DIR/build && cd $CI_PROJECT_DIR/build
+    - cmake $CI_PROJECT_DIR/ -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS -DMPIEXEC=$MPIEXEC
     - make -C $CI_PROJECT_DIR/build all
 
     - mkdir $CI_PROJECT_DIR/LUT && cd $CI_PROJECT_DIR/LUT && wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
@@ -36,7 +41,6 @@ stages:
     MPIEXEC: "mpirun"
     MPIRUN_FLAGS: '' #--allow-run-as-root;-A;bm0974;-p;shared
     MODULES: ''
-
 
 build:docker:ubuntu-rolling:
   extends: .build:default
