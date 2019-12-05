@@ -1,7 +1,7 @@
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/config)
 
-set (NETCDF_DIR     "/usr" CACHE PATH "default netcdf  path")
-set (NETCDF_DIR_F90 "/usr" CACHE PATH "default netcdff path")
+set (NETCDF_DIR     "" CACHE PATH "default netcdf  path")
+set (NETCDF_DIR_F90 "" CACHE PATH "default netcdff path")
 #Load system specific settings
 set (SYST default CACHE STRING "Location specific settings from config/<SYST>.cmake files")
 include (${SYST} OPTIONAL)
@@ -128,7 +128,6 @@ else(${HDF5_FOUND})
 endif(${HDF5_FOUND})
 
 # NetCDF
-message(STATUS "Looking for NETCDF in ${NETCDF_DIR}")
 set (NETCDF_F90 "YES")
 find_package( NetCDF REQUIRED)
 if(${NETCDF_FOUND})
