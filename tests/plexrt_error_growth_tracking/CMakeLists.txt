@@ -1,7 +1,3 @@
-if(NOT ENABLE_PLEXRT)
-  return()
-endif(NOT ENABLE_PLEXRT)
-
 get_filename_component(CDIR ${CMAKE_CURRENT_LIST_DIR} NAME)
 set(TESTDIR "${PROJECT_BINARY_DIR}/generated/${CDIR}" )
 
@@ -10,18 +6,18 @@ message( STATUS "Creating Cmake Test wrapper for directory :: ${TESTDIR} :: CDIR
 file(MAKE_DIRECTORY  ${TESTDIR} )
 include_directories( ${TESTDIR} )
 
+set(NUMPROC 1)
+include(test_settings.cmake OPTIONAL)
 
 file(WRITE ${TESTDIR}/testSuites.inc "")
 set(_test_sources)
 
 file(GLOB files "${CMAKE_CURRENT_SOURCE_DIR}/*.[fF]90")
-message(STATUS "Found following test files: ${files}")
 foreach(_file ${files})
   get_filename_component (_test_NAME ${_file} NAME   )
   get_filename_component (_test_WE   ${_file} NAME_WE)
   get_filename_component (_test_EXT  ${_file} EXT    )
 
-  message(STATUS "FNAMES are: ${_test_NAME} :: ${_test_WE} :: ${_test_EXT}")
   if (DEFINED PFUNIT_INSTALL)
     set(test_dependency ${_file})
   else()
@@ -36,12 +32,15 @@ foreach(_file ${files})
   file(APPEND ${TESTDIR}/testSuites.inc "ADD_TEST_SUITE(${_test_WE}_suite)\n")
 endforeach()
 
+file(GLOB options_files "tenstream.options")
+foreach(_options_file ${options_files})
+configure_file(${_options_file} ${TESTDIR}/ COPYONLY)
+endforeach()
+
 set_source_files_properties(${_test_sources} PROPERTIES COMPILE_FLAGS "${EXTRA_TEST_COMPILE_FLAGS}")
 set_source_files_properties(${PFUNIT_DIR}/include/driver.F90 PROPERTIES
   GENERATED 1
   COMPILE_FLAGS "${EXTRA_TESTDRIVER_COMPILE_FLAGS}")
-
-message(STATUS "Source files determined as :: ${_test_sources}")
 
 add_executable(
   pfunit_${CDIR}
@@ -51,11 +50,9 @@ add_executable(
 target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
-  plexrt
-  pprts_base
-  f2c_rayli
+  ${TENSTR_LIBS}
   )
-
-add_test(NAME pfunit_${CDIR}
-  COMMAND ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 2 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(
+  NAME pfunit_${CDIR}
+  COMMAND ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} ${NUMPROC} ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
+  WORKING_DIRECTORY ${TESTDIR})

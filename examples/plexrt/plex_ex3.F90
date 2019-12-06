@@ -162,7 +162,7 @@ logical, parameter :: ldebug=.True.
         subroutine init_sundir()
           use m_helper_functions, only: cross_3d, rotation_matrix_world_to_local_basis, rotation_matrix_local_basis_to_world, &
             rotate_angle_x, rotation_matrix_around_axis_vec
-          logical :: lflg, lflg_xyz(3)
+          logical :: lflg
           real(ireals) :: first_normal(3)
           integer(mpiint) :: myid, ierr
           integer(iintegers) :: nargs

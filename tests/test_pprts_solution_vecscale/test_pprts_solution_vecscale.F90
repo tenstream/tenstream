@@ -36,7 +36,7 @@ contains
     call PetscFinalize(ierr) ;call CHKERR(ierr)
   end subroutine teardown
 
-  @test(npes =[1,2])
+  @test(npes =[2,1])
   subroutine test_pprts_solution_vecscale_back_and_forth(this)
     class (MpiTestMethod), intent(inout) :: this
 

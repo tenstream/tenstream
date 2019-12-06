@@ -122,7 +122,7 @@ contains
     if(allocated(nyproc)) deallocate(nyproc)
   end subroutine teardown
 
-  @test(npes =[1,2])
+  @test(npes =[2,1])
   subroutine pprts_rrtm_icollapse_solar(this)
     class (MpiTestMethod), intent(inout) :: this
 
@@ -206,7 +206,7 @@ contains
   end subroutine
 
 
-  @test(npes =[1,2])
+  @test(npes =[2,1])
   subroutine pprts_rrtm_icollapse_thermal(this)
     class (MpiTestMethod), intent(inout) :: this
 

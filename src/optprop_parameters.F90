@@ -36,7 +36,7 @@ module m_optprop_parameters
       !!  '/scratch/mpi/mpiaes/m300362/tenstream_LUT/LUT'
       !-----------------------------------------
 
-      character(default_str_len) :: lut_basename='./LUT' !'/scratch/mpi/mpiaes/m300362/tenstream_LUT/LUT'
+      character(default_str_len) :: lut_basename='./LUT'
 
       !-----------------------------------------
       !> Define the mode to calculate coeffs   -
@@ -60,6 +60,10 @@ module m_optprop_parameters
       !     -- see python script: ''eddington_to_LUT.py''
       real(irealLUT), parameter :: param_eps = 1e-4
       real, parameter :: peps_r = real(param_eps)
+
+      real(irealLUT), parameter :: preset_param_phi6(6) = &
+        [-2.      , -1.-peps_r, -1.+peps_r, &
+        +1.-peps_r, +1.+peps_r, 2.]
 
       real(irealLUT), parameter :: preset_param_phi11(11) = &
         [-2.      , -1.5      , &
@@ -87,6 +91,10 @@ module m_optprop_parameters
         +1.-peps_r, +1.+peps_r, 1.05      , 1.1       , &
         1.15      , 1.2       , 1.25      , 1.3       , 1.35 , 1.4  , 1.45 , 1.5  , 1.55 , &
         1.6       , 1.65      , 1.7       , 1.75      , 1.8  , 1.85 , 1.9  , 1.95 , 2. ]
+
+
+      real(irealLUT), parameter :: preset_param_theta4(4) = [ &
+        -1., -peps_r, +peps_r, 1.]
 
       real(irealLUT), parameter :: preset_param_theta13(13) = [ &
         -1., -peps_r, +peps_r, &
@@ -170,11 +178,11 @@ module m_optprop_parameters
 
 !      real(irealLUT),parameter :: stddev_atol=1e-2_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=5e-3_irealLUT
-      real(irealLUT),parameter :: stddev_atol=1e-3_irealLUT
+      real(irealLUT) :: stddev_atol=1e-3_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=2e-4_irealLUT
 !      real(irealLUT),parameter :: stddev_atol=5e-6_irealLUT
 
-      real(irealLUT),parameter :: stddev_rtol=2e-1_irealLUT
+      real(irealLUT) :: stddev_rtol=2e-1_irealLUT
 !      real(irealLUT),parameter :: stddev_rtol=1e-3_irealLUT
 
       ! Do some sanity checks on coefficients -- only disable if you are sure

@@ -1,4 +1,5 @@
--skip_load_LUT
+-skip_load_LUT no
+-LUT_mockup
 
 -dir_ksp_view
 -diff_ksp_view

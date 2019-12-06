@@ -21,8 +21,8 @@ module m_tenstream_options
 
   use m_data_parameters, only : init_mpi_data_parameters, ireals, iintegers, mpiint, &
     zero, one, i0, default_str_len
-  use m_optprop_parameters, only: lut_basename, coeff_mode
-  use m_helper_functions, only: CHKERR
+  use m_optprop_parameters, only: lut_basename, coeff_mode, stddev_atol, stddev_rtol
+  use m_helper_functions, only: CHKERR, CHKWARN
 
 #include "petsc/finclude/petsc.h"
   use petsc
@@ -40,7 +40,8 @@ module m_tenstream_options
     lskip_thermal     =.False., & ! Skip thermal calculations and just return zero for fluxes and absorption
     ltopography       =.False., & ! use raybending to include surface topography
     lforce_phi        =.False., & ! Force to use the phi given in options entries(overrides values given to tenstream calls
-    lforce_theta      =.False.
+    lforce_theta      =.False., & !
+    lLUT_mockup       =.False.
 
   real(ireals) :: twostr_ratio, &
     ident_dx,               &
@@ -95,6 +96,7 @@ contains
     logical :: ltenstr_view=.False.
 
     integer(mpiint) :: myid, numnodes
+    character(len=default_str_len) :: env_lut_basename
 
     call init_mpi_data_parameters(comm)
 
@@ -168,8 +170,20 @@ contains
     call PetscOptionsGetInt(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-pert_yshift",pert_yshift, lflg,ierr); call CHKERR(ierr)
     if(lflg.eqv.PETSC_FALSE) pert_yshift=0
 
+    call get_environment_variable("LUT_BASENAME", env_lut_basename, status=ierr)
+    if(ierr.eq.0) lut_basename = trim(env_lut_basename)
+
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,'-lut_basename', &
       lut_basename, lflg, ierr); call CHKERR(ierr)
+
+    lLUT_mockup=.False.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-LUT_mockup", &
+      lLUT_mockup , lflg , ierr) ;call CHKERR(ierr)
+    if(lLUT_mockup) then
+      call CHKWARN(1_mpiint, 'Using LUT_mockup, setting the LUT constraints to zero. Your results will be wrong!')
+      stddev_atol = 1._ireals
+      stddev_rtol = 1._ireals
+    endif
 
     call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, "-calc_nca", &
       lcalc_nca , lflg , ierr) ;call CHKERR(ierr)
