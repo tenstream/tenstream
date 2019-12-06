@@ -31,7 +31,7 @@ stages:
     MPIRUN_FLAGS: '' #--allow-run-as-root;-A;bm0974;-p;shared
     MODULES: ''
 
-build:docker:ubuntu-rolling:
+.build:docker:ubuntu-rolling:
   extends: .build:default
   image: ubuntu:rolling
   before_script:
@@ -51,9 +51,12 @@ build:docker:ubuntu-rolling:
 
 build:mim:
   extends: .build:default
+  before_script:
+    - cp -rsn $SLURM_RUNNER_LUT_PATH/* .
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
+    SLURM_RUNNER_LUT_PATH: "/project/meteo/homepages/Fabian.Jakub/TenstreamLUT"
     MODULES: "petsc/debug-gcc-9 netcdf/4.7.0-gcc-9"
     SRUN_OPTIONS: "--time 01:00:00 --mem 4G -n 9"
     MPIEXEC: "srun"
