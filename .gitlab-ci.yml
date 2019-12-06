@@ -75,6 +75,7 @@ build:mim:gcc:debug:
   extends: .build:mim:default
   variables:
     MODULES: "petsc/debug-gcc-9 netcdf/4.7.0-gcc-9"
+    BUILD_TYPE: DEBUG
 
       ## TenStream Build Stage
       #.build:default:
