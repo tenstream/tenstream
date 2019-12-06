@@ -1,2 +1,3 @@
--skip_load_LUT
+-skip_load_LUT no
+-LUT_mockup
 -max_solution_time 60

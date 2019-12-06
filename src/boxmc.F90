@@ -511,9 +511,12 @@ contains
       initial_dir = spherical_2_cartesian(phi0, theta) * [-one, -one, one]
       call bmc%half_spaces(vertices, origins, normals)
 
-      mincnt= max( 100_iintegers, int( 1e4_ireal_dp / numnodes, iintegers) )
-      mycnt = int(1e9_ireal_dp / numnodes, iintegers)
-      mycnt = min( max(mincnt, mycnt ), huge(k)-1 )
+      mincnt = int(1._ireal_dp/std_Sdir%rtol &
+             + 1._ireal_dp/std_Sdir%atol &
+             + 1._ireal_dp/std_Sdiff%rtol &
+             + 1._ireal_dp/std_Sdiff%atol, iintegers)
+      mycnt  = int(1e9_ireal_dp / numnodes, iintegers)
+      mycnt  = min( max(mincnt, mycnt ), huge(k)-1 )
       do k=1, mycnt
 
           if((k.gt.mincnt) .and. std_Sdir%converged .and. std_Sdiff%converged) exit

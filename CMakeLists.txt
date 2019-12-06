@@ -249,21 +249,57 @@ if(ENABLE_PLEXRT)
   add_subdirectory (plexrt)
 endif(ENABLE_PLEXRT)
 
-# Documentation targets
-add_custom_target(doc DEPENDS doxygen)
+# Add Twostream Solvers of Nina
+add_subdirectory(twomax)
 
-# add a target to generate API documentation with Doxygen
-find_package(Doxygen)
-if(DOXYGEN_FOUND)
-  configure_file(${PROJECT_SOURCE_DIR}/doc/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/doc/Doxyfile @ONLY)
-  add_custom_target(doxygen
-    ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/doc/Doxyfile
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Generating API documentation with Doxygen" VERBATIM
-    )
-else(FOXYGEN_FOUND)
-  message(STATUS "Could not find Doxygen to create source code documentation")
-endif(DOXYGEN_FOUND)
+set(TENSTR_LIBS
+  pprts_base
+  pprts
+  f2c_twomax
+  tenstr_disort
+  f2c_rayli
+  )
+if(ENABLE_C_WRAPPER)
+  list(APPEND TENSTR_LIBS f2c_pprts f2c_pprts_rrtm)
+endif()
+if(ENABLE_PLEXRT)
+  list(APPEND TENSTR_LIBS plexrt )
+  if(ENABLE_RRTM)
+    list(APPEND TENSTR_LIBS plexrt_rrtmg )
+  endif()
+endif()
+if(ENABLE_RRTM)
+  list(APPEND TENSTR_LIBS pprts_rrtm_sw pprts_rrtm_lw pprts_rrtmg)
+endif()
+
+
+# Generate Master Library which contains all symbols
+if(NOT BUILD_SHARED_LIBS)
+	function(combine_archives output_archive list_of_input_archives)
+		set(mri_file ${CMAKE_BINARY_DIR}/${output_archive}.mri)
+		set(FULL_OUTPUT_PATH ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${output_archive}.a)
+		message(STATUS "Generating one lib to rule them all: ${FULL_OUTPUT_PATH} :: ${mri_file}")
+		file(WRITE ${mri_file} "create ${FULL_OUTPUT_PATH}\n")
+		FOREACH(in_archive ${list_of_input_archives})
+			message(STATUS "Adding static lib: ${in_archive}")
+			file(APPEND ${mri_file} "addlib ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${in_archive}.a\n")
+		ENDFOREACH()
+		file(APPEND ${mri_file} "save\n")
+		file(APPEND ${mri_file} "end\n")
+
+		set(output_archive_dummy_file ${CMAKE_BINARY_DIR}/${output_archive}.dummy.F90)
+		add_custom_command(OUTPUT ${output_archive_dummy_file}
+			COMMAND touch ${output_archive_dummy_file}
+			DEPENDS ${list_of_input_archives})
+
+		add_library(${output_archive} STATIC ${output_archive_dummy_file})
+		add_custom_command(TARGET ${output_archive}
+			POST_BUILD
+			COMMAND ${CMAKE_AR} -M < ${mri_file})
+	endfunction(combine_archives)
+
+	combine_archives(tenstream "${TENSTR_LIBS}")
+endif()
 
 # Add pfUnit for testing
 option(ENABLE_PFUNIT "Enable pfUnit testing Framework" OFF)
@@ -335,54 +371,18 @@ add_custom_target(distclean
   COMMENT "Deleting CMake files" VERBATIM
   )
 
-# Add Twostream Solvers of Nina
-add_subdirectory(twomax)
+# Documentation targets
+add_custom_target(doc DEPENDS doxygen)
 
-
-# Generate Master Library which contains all symbols
-if(NOT BUILD_SHARED_LIBS)
-	function(combine_archives output_archive list_of_input_archives)
-		set(mri_file ${CMAKE_BINARY_DIR}/${output_archive}.mri)
-		set(FULL_OUTPUT_PATH ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${output_archive}.a)
-		message(STATUS "Generating one lib to rule them all: ${FULL_OUTPUT_PATH} :: ${mri_file}")
-		file(WRITE ${mri_file} "create ${FULL_OUTPUT_PATH}\n")
-		FOREACH(in_archive ${list_of_input_archives})
-			message(STATUS "Adding static lib: ${in_archive}")
-			file(APPEND ${mri_file} "addlib ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/lib${in_archive}.a\n")
-		ENDFOREACH()
-		file(APPEND ${mri_file} "save\n")
-		file(APPEND ${mri_file} "end\n")
-
-		set(output_archive_dummy_file ${CMAKE_BINARY_DIR}/${output_archive}.dummy.F90)
-		add_custom_command(OUTPUT ${output_archive_dummy_file}
-			COMMAND touch ${output_archive_dummy_file}
-			DEPENDS ${list_of_input_archives})
-
-		add_library(${output_archive} STATIC ${output_archive_dummy_file})
-		add_custom_command(TARGET ${output_archive}
-			POST_BUILD
-			COMMAND ${CMAKE_AR} -M < ${mri_file})
-	endfunction(combine_archives)
-
-	set(TENSTR_LIBS
-		pprts_base
-		pprts
-		f2c_twomax
-		tenstr_disort
-    f2c_rayli
-		)
-	if(ENABLE_C_WRAPPER)
-		list(APPEND TENSTR_LIBS f2c_pprts f2c_pprts_rrtm)
-	endif()
-	if(ENABLE_PLEXRT)
-		list(APPEND TENSTR_LIBS plexrt )
-		if(ENABLE_RRTM)
-			list(APPEND TENSTR_LIBS plexrt_rrtmg )
-		endif()
-	endif()
-	if(ENABLE_RRTM)
-		list(APPEND TENSTR_LIBS pprts_rrtm_sw pprts_rrtm_lw pprts_rrtmg)
-	endif()
-
-	combine_archives(tenstream "${TENSTR_LIBS}")
-endif()
+# add a target to generate API documentation with Doxygen
+find_package(Doxygen)
+if(DOXYGEN_FOUND)
+  configure_file(${PROJECT_SOURCE_DIR}/doc/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/doc/Doxyfile @ONLY)
+  add_custom_target(doxygen
+    ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/doc/Doxyfile
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Generating API documentation with Doxygen" VERBATIM
+    )
+else(FOXYGEN_FOUND)
+  message(STATUS "Could not find Doxygen to create source code documentation")
+endif(DOXYGEN_FOUND)

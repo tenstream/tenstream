@@ -105,7 +105,7 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,ldirect,initial_dir,vertices,ierr
 
   if(.not. pnt_in_triangle(A,B,C, p%loc)) then
     print *,'UUPS, the initial location of the photon seems to be outside of the wedge triangle'// &
-	    ' :: init_dir_photon_wedge_5_8'
+      ' :: init_dir_photon_wedge_5_8'
     call print_photon(p)
     call CHKERR(1_mpiint, 'initial location outside of the wedge triangle')
   endif
@@ -114,7 +114,7 @@ subroutine init_dir_photon_wedge_5_5(bmc,p,src,ldirect,initial_dir,vertices,ierr
     ierr = 1000_mpiint + int(angle_between_two_vec(p%dir, normal), kind=mpiint)
     if(ldebug) then
       print *,'UUPS, are we starting in a wrong direction? :: init_dir_photon_wedge_5_8', &
-	      rad2deg(angle_between_two_vec(p%dir, normal))
+        rad2deg(angle_between_two_vec(p%dir, normal))
       print *,'normal',normal,'direction',p%dir
       call print_photon(p)
     endif

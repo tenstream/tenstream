@@ -6,6 +6,9 @@ message( STATUS "Creating Cmake Test wrapper for directory :: ${TESTDIR} :: CDIR
 file(MAKE_DIRECTORY  ${TESTDIR} )
 include_directories( ${TESTDIR} )
 
+set(NUMPROC 1)
+include(test_settings.cmake OPTIONAL)
+
 file(WRITE ${TESTDIR}/testSuites.inc "")
 set(_test_sources)
 
@@ -29,6 +32,11 @@ foreach(_file ${files})
   file(APPEND ${TESTDIR}/testSuites.inc "ADD_TEST_SUITE(${_test_WE}_suite)\n")
 endforeach()
 
+file(GLOB options_files "tenstream.options")
+foreach(_options_file ${options_files})
+configure_file(${_options_file} ${TESTDIR}/ COPYONLY)
+endforeach()
+
 set_source_files_properties(${_test_sources} PROPERTIES COMPILE_FLAGS "${EXTRA_TEST_COMPILE_FLAGS}")
 set_source_files_properties(${PFUNIT_DIR}/include/driver.F90 PROPERTIES
   GENERATED 1
@@ -42,8 +50,9 @@ add_executable(
 target_link_libraries(
   pfunit_${CDIR}
   ${PFUNIT_DIR}/lib/libpfunit.a
-  pprts_base
+  ${TENSTR_LIBS}
   )
-
-add_test(pfunit_${CDIR} ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} 1 ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR})
-
+add_test(
+  NAME pfunit_${CDIR}
+  COMMAND ${MPIEXEC} ${CTEST_MPIRUN_FLAGS} ${MPIEXEC_NUMPROC_FLAG} ${NUMPROC} ${PROJECT_BINARY_DIR}/bin/pfunit_${CDIR}
+  WORKING_DIRECTORY ${TESTDIR})

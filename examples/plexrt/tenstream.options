@@ -1,0 +1,23 @@
+-dir_ksp_monitor
+-dir_ksp_converged_reason
+
+-diff_ksp_monitor
+-diff_ksp_converged_reason
+
+-dir_ksp_initial_guess_nonzero
+-diff_ksp_initial_guess_nonzero
+
+-dir_ksp_type fgmres
+-dir_pc_type gamg
+-dir_pc_gamg_agg_nsmooths 0
+-dir_pc_gamg_sym_graph true
+
+
+-diff_ksp_type fgmres
+-diff_pc_type gamg
+-diff_pc_gamg_agg_nsmooths 0
+-diff_pc_gamg_sym_graph true
+-diff_pc_gamg_threshold 1e-2
+-diff_mg_levels_ksp_type richardson
+-diff_mg_levels_pc_type sor
+-diff_mg_levels_ksp_max_it 1
