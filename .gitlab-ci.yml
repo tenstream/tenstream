@@ -57,7 +57,7 @@ build:mim:icc:single:
     - slurm.meteo.physik.lmu.de
   variables:
     LUT_BASENAME: "/project/meteo/homepages/Fabian.Jakub/TenstreamLUT"
-    MODULES: "petsc/single-icc-9 netcdf/4.7.0-icc-9"
+    MODULES: "petsc/single-icc-19 netcdf/4.7.0-icc-19"
     SRUN_OPTIONS: "--time 01:00:00 --mem 4G -n 9"
     MPIEXEC: "srun"
 
