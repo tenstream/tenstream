@@ -25,7 +25,7 @@ stages:
     - cmake .. -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS -DMPIEXEC=$MPIEXEC
     - make all -j
   after_script:
-    - make check
+    - cd build && make check
   variables:
     BUILD_TYPE: RELEASE
     MPIEXEC: "mpirun"
@@ -39,7 +39,7 @@ build:docker:ubuntu-rolling:
     - apt-get -qq update && apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python wget
     - *template_build_PETSC
   after_script:
-    - ctest -E 'boxmc|LUT|pfunit_test_pprts_symmetry|pfunit_test_rrtm_lw_Bsrfc|pfunit_test_rrtm_lw_sw'
+    - cd build && ctest -E 'boxmc|LUT|pfunit_test_pprts_symmetry|pfunit_test_rrtm_lw_Bsrfc|pfunit_test_rrtm_lw_sw'
   tags:
     - docker.meteo.physik.lmu.de
   variables:
@@ -51,35 +51,31 @@ build:docker:ubuntu-rolling:
     PETSC_DEBUGGING: 1
 
 # MIM runs
-build:mim:icc:single:
+.build:mim:default:
   extends: .build:default
+  before_script:
+    - mkdir -p LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* LUT
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
-    LUT_BASENAME: "/project/meteo/homepages/Fabian.Jakub/TenstreamLUT"
-    MODULES: "petsc/single-icc-19 netcdf/4.7.0-icc-19"
+    LUT_BASENAME: "LUT/LUT"
     SRUN_OPTIONS: "--time 01:00:00 --mem 4G -n 9"
     MPIEXEC: "srun"
+
+build:mim:icc:single:
+  extends: .build:mim:default
+  variables:
+    MODULES: "petsc/single-icc-19 netcdf/4.7.0-icc-19"
 
 build:mim:gcc:single:
-  extends: .build:default
-  tags:
-    - slurm.meteo.physik.lmu.de
+  extends: .build:mim:default
   variables:
-    LUT_BASENAME: "/project/meteo/homepages/Fabian.Jakub/TenstreamLUT"
     MODULES: "petsc/single-gcc-9 netcdf/4.7.0-gcc-9"
-    SRUN_OPTIONS: "--time 01:00:00 --mem 4G -n 9"
-    MPIEXEC: "srun"
 
 build:mim:gcc:debug:
-  extends: .build:default
-  tags:
-    - slurm.meteo.physik.lmu.de
+  extends: .build:mim:default
   variables:
-    LUT_BASENAME: "/project/meteo/homepages/Fabian.Jakub/TenstreamLUT"
     MODULES: "petsc/debug-gcc-9 netcdf/4.7.0-gcc-9"
-    SRUN_OPTIONS: "--time 01:00:00 --mem 4G -n 9"
-    MPIEXEC: "srun"
 
       ## TenStream Build Stage
       #.build:default:
