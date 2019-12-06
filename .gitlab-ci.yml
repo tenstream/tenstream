@@ -1,7 +1,6 @@
 stages:
   - build
 
-
 .template_build_PETSC: &template_build_PETSC
     - export PETSC_DIR=$CI_PROJECT_DIR/$PETSC_DIR
     - echo "Installing Petsc in ${PETSC_DIR}/${PETSC_ARCH}"
@@ -17,26 +16,16 @@ stages:
     - echo $CMD && $CMD && make PETSC_DIR=$PETSC_DIR PETSC_ARCH=$PETSC_ARCH all
     - cd $CI_PROJECT_DIR
 
-
-# PETSc Build Stage
+# Build Stage
 .build:default:
   stage: build
   script:
     - if [ ! -z "$MODULES" ]; then module load $MODULES; module list; fi
-    - *template_build_PETSC
-    - mkdir $CI_PROJECT_DIR/build && cd $CI_PROJECT_DIR/build
-    - cmake $CI_PROJECT_DIR/ -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS -DMPIEXEC=$MPIEXEC
-    - make -C $CI_PROJECT_DIR/build all
-
-    - mkdir $CI_PROJECT_DIR/LUT && cd $CI_PROJECT_DIR/LUT && wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
-    - echo "-lut_basename $$CI_PROJECT_DIR/LUT/LUT" > $HOME/.petscrc
-    - make -C $CI_PROJECT_DIR/build check
+    - mkdir build && cd build
+    - cmake .. -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS -DMPIEXEC=$MPIEXEC
+    - make all
+    - make check
   variables:
-    PETSC_DIR: petsc
-    PETSC_ARCH: default
-    PETSC_PRECISION: double
-    PETSC_64_INTEGERS: 0
-    PETSC_DEBUGGING: 1
     BUILD_TYPE: RELEASE
     MPIEXEC: "mpirun"
     MPIRUN_FLAGS: '' #--allow-run-as-root;-A;bm0974;-p;shared
@@ -47,18 +36,26 @@ build:docker:ubuntu-rolling:
   image: ubuntu:rolling
   before_script:
     - apt-get -qq update && apt-get -qq install -fy build-essential cmake gfortran git libhdf5-mpi-dev libnetcdf-dev libnetcdff-dev libopenblas-dev libopenmpi-dev m4 openmpi-bin python wget
+#    - mkdir $CI_PROJECT_DIR/LUT && cd $CI_PROJECT_DIR/LUT && wget -q -cN -r -l 1 -nd -nH -A 'LUT*.mmap4' https://www.meteo.physik.uni-muenchen.de/~Fabian.Jakub/TenstreamLUT/
+#    - echo "-lut_basename $CI_PROJECT_DIR/LUT/LUT" > $HOME/.petscrc
+    - *template_build_PETSC
   tags:
     - docker.meteo.physik.lmu.de
   variables:
     MPIRUN_FLAGS: "--allow-run-as-root"
+    PETSC_DIR: petsc
+    PETSC_ARCH: default
+    PETSC_PRECISION: double
+    PETSC_64_INTEGERS: 0
+    PETSC_DEBUGGING: 1
 
 build:mim:
   extends: .build:default
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
-    MODULES: "gcc/9.1.0 openmpi/4.0.1-gcc-9 netcdf/4.7.0-gcc-9"
-    SRUN_OPTIONS: "--time 02:00:00 --mem 4G"
+    MODULES: "petsc/debug-gcc-9 netcdf/4.7.0-gcc-9"
+    SRUN_OPTIONS: "--time 01:00:00 --mem 4G -n 9"
     MPIEXEC: "srun"
 
 
