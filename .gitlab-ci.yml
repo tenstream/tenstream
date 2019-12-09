@@ -53,11 +53,11 @@ build:docker:ubuntu-rolling:
 .build:mim:default:
   extends: .build:default
   before_script:
-    - mkdir -p LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* LUT
+    - mkdir -p $CI_PROJECT_DIR/LUT; cp -rsn /project/meteo/homepages/Fabian.Jakub/TenstreamLUT/* $CI_PROJECT_DIR/LUT/
   tags:
     - slurm.meteo.physik.lmu.de
   variables:
-    LUT_BASENAME: "LUT/LUT"
+    LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
     SRUN_OPTIONS: "--time 02:00:00 --mem 4G -n 9"
     MPIEXEC: "srun"
     CTEST_ARGS: "-V -E 'boxmc|LUT'"
