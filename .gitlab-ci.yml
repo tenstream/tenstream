@@ -20,11 +20,11 @@ stages:
 .build:default:
   stage: build
   script:
-    - if [ ! -z "$MODULES" ]; then module load $MODULES; module list; fi
+    - if [ ! -z "$MODULES" ]; then (module load $MODULES || exit 1); module list; fi
     - mkdir -p build && cd build
-    - cmake .. -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS -DMPIEXEC=$MPIEXEC
-    - make all -j
-    - ctest $CTEST_ARGS
+    - cmake .. -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCTEST_MPIRUN_FLAGS=$MPIRUN_FLAGS -DMPIEXEC=$MPIEXEC || exit 1
+    - make all -j || exit 2
+    - ctest $CTEST_ARGS || exit 3
   variables:
     CTEST_ARGS: "-E 'boxmc|LUT'"
     BUILD_TYPE: RELEASE
@@ -58,7 +58,7 @@ build:docker:ubuntu-rolling:
     - slurm.meteo.physik.lmu.de
   variables:
     LUT_BASENAME: "LUT/LUT"
-    SRUN_OPTIONS: "--time 01:00:00 --mem 4G -n 9"
+    SRUN_OPTIONS: "--time 02:00:00 --mem 4G -n 9"
     MPIEXEC: "srun"
 
 build:mim:icc:single:
