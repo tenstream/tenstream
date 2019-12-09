@@ -67,6 +67,7 @@ build:mim:icc:single:
   extends: .build:mim:default
   variables:
     MODULES: "petsc/single-icc-19 netcdf/4.7.0-icc-19"
+    SRUN_OPTIONS: "--time 02:00:00 --mem 8G -n 9"
 
 build:mim:gcc:single:
   extends: .build:mim:default
