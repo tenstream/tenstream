@@ -61,7 +61,7 @@ build:docker:ubuntu-rolling:
     LUT_BASENAME: "$CI_PROJECT_DIR/LUT/LUT"
     SRUN_OPTIONS: "--time 02:00:00 --mem 4G -n 9"
     MPIEXEC: "srun"
-    CTEST_ARGS: 'E "boxmc|LUT"'
+    CTEST_ARGS: '-E "boxmc|LUT"'
 
 build:mim:icc:single:
   extends: .build:mim:default
