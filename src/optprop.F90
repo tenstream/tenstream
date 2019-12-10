@@ -636,9 +636,9 @@ contains
     integer(iintegers), save :: dimidx_dir(8)=-2
     integer(iintegers), save :: dimidx_diff(6)=-2
 
-    if( (any([aspect_zx, tauz, w0, g].lt.zero)) .or. (any(isnan([aspect_zx, tauz, w0, g]))) ) then
-      print *,'optprop_lookup_coeff :: corrupt optical properties: bg:: ',[aspect_zx, tauz, w0, g]
-      call exit
+    if( (any([tauz, w0, g, aspect_zx].lt.zero)) .or. (any(isnan([tauz, w0, g, aspect_zx]))) ) then
+      call CHKERR(1_mpiint,'optprop_lookup_coeff :: '// &
+        'corrupt optical properties: bg:: '//ftoa([tauz, w0, g, aspect_zx]))
     endif
 
     if(dir) then
