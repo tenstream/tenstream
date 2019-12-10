@@ -41,7 +41,7 @@ find_path (NETCDF_INCLUDES
 find_library (NETCDF_LIBRARIES_C
   NAMES netcdf
   HINTS ${NETCDF_DIR} $ENV{PETSC_DIR}/$ENV{PETSC_ARCH} ENV NETCDF ENV NETCDF_DIR
-  PATH_SUFFIXES "lib" "lib64"
+  PATH_SUFFIXES "lib" "lib64" "lib/x86_64-linux-gnu"
   PATHS "/usr" "/usr/local"
   NO_DEFAULT_PATH
   )
