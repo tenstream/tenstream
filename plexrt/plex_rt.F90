@@ -2635,7 +2635,7 @@ module m_plex_rt
         max_g([2,4]) = max(max_g([1,3]), min(max_g([2,4]), real(max_g_delta, kind(max_g))))
         if(ldebug) print *,'found deltascaling max_g -> setting limits to:', cstr(ftoa(max_g), 'green')
       endif
-      max_g([2,4]) = max_g([2,4]) - sqrt(epsilon(max_g))
+      max_g([2,4]) = max(max_g([1,3]), max_g([2,4]) - sqrt(epsilon(max_g)))
 
       linit_idx = .True.
     endif
