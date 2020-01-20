@@ -3,6 +3,7 @@ module test_convolution
 #include "petsc/finclude/petsc.h"
   use petsc
   use m_data_parameters, only : init_mpi_data_parameters, iintegers, ireals, mpiint, zero, one, i1, i2
+  use m_tenstream_options, only : read_commandline_options
   use m_pprts_base, only : t_solver_3_10
   use m_pprts, only : init_pprts, destroy_pprts
   use m_petsc_helpers, only : petscVecToF90, petscGlobalVecToZero, f90VecToPetsc, dmda_convolve_ediff_srfc
@@ -21,6 +22,7 @@ contains
   subroutine setup(this)
     class (MpiTestMethod), intent(inout) :: this
     call init_mpi_data_parameters(this%getMpiCommunicator())
+    call read_commandline_options(this%getMpiCommunicator())
     continue
   end subroutine setup
 
