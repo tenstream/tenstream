@@ -64,7 +64,7 @@ build:docker:ubuntu-rolling:
     MPIEXEC: "srun"
     CTEST_ARGS: '-E boxmc|LUT'
 
-build:mim:icc:single:
+.build:mim:icc:single:
   extends: .build:mim:default
   variables:
     MODULES: "petsc/single-icc-19 netcdf/4.7.0-icc-19"
