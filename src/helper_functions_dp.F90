@@ -479,6 +479,8 @@ module m_helper_functions_dp
       Bz = Sz * B(kz)
       Cz = Sz * C(kz)
       T = U * Az + V * Bz + W * Cz
+      rcpDet = one / det
+      hit(4) = T * rcpDet
 
       if(BACKFACE_CULLING) then
         if (T < zero .or. T > hit(4) * det) then
@@ -506,13 +508,11 @@ module m_helper_functions_dp
       endif
 
       ! normalize U, V, W, and T
-      rcpDet = one / det
       b0 = U * rcpDet
       b1 = V * rcpDet
       b2 = W * rcpDet
 
       hit(1:3) = b0*tA + b1*tB + b2*tC
-      hit(4) = T * rcpDet
       if(ldebug) print *,'Hit triangle', lhit, '::', hit
     end subroutine
 
