@@ -349,14 +349,15 @@ module m_helper_functions_dp
       integer(iintegers), intent(out) :: iface
       logical :: lhit1, lhit2
       real(ireal_dp) :: hit1(4), hit2(4)
+      real(ireal_dp),parameter :: rng(2) = [0._ireal_dp, huge(rng)]
 
       lhit = .False.
       hit = huge(hit)
       iface = -1
 
       ! 2 Triangles incorporating, cut along (AC)
-      call triangle_intersection(origin, direction, tA, tB, tC, lhit1, hit1)
-      call triangle_intersection(origin, direction, tA, tC, tD, lhit2, hit2)
+      call triangle_intersection(origin, direction, tA, tB, tC, rng, lhit1, hit1)
+      call triangle_intersection(origin, direction, tA, tC, tD, rng, lhit2, hit2)
       if(lhit1) then
         lhit = lhit1
         hit = hit1
@@ -370,8 +371,8 @@ module m_helper_functions_dp
     end subroutine
 
     ! Watertight ray -> triangle intersection code from http://jcgt.org/published/0002/01/05/
-    subroutine triangle_intersection(origin, direction, tA, tB, tC, lhit, hit)
-      real(ireal_dp), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:)
+    subroutine triangle_intersection(origin, direction, tA, tB, tC, rng, lhit, hit)
+      real(ireal_dp), intent(in) :: origin(:), direction(:), tA(:), tB(:), tC(:), rng(:)
       logical, intent(out) :: lhit
       real(ireal_dp), intent(out) :: hit(:)
 
@@ -384,7 +385,7 @@ module m_helper_functions_dp
       real(ireal_dp) :: Az, Bz, Cz, T
       real(ireal_dp) :: U, V, W
       real(ireal_dp) :: b0, b1, b2
-      real(ireal_dp) :: det, rcpDet
+      real(ireal_dp) :: det, rcpDet, dist_times_det
 
 
       real(ireal_dp) :: CxBy, CyBx, AxCy, AyCx, BxAy, ByAx
@@ -469,6 +470,11 @@ module m_helper_functions_dp
 
       ! calculate determinant
       det = U + V + W
+      if(det.eq.0) then
+        lhit = .False.
+        hit(:) = huge(one)
+        return
+      endif
       if (.not.HIT_EDGE .and. approx(det, zero)) then
         if(ldebug) print *,'determinant zero: on edge?', det
         lhit=.False.
@@ -482,11 +488,8 @@ module m_helper_functions_dp
       rcpDet = one / det
       hit(4) = T * rcpDet
 
-      if(approx(det,zero,tiny(det))) then
-        lhit = .False.
-        hit(:) = huge(one)
-        return
-      endif
+      if(hit(4).lt.rng(1)) lhit = .False.
+      if(hit(4).gt.rng(2)) lhit = .False.
 
       ! normalize U, V, W, and T
       b0 = U * rcpDet
