@@ -375,7 +375,7 @@ module m_helper_functions_dp
       logical, intent(out) :: lhit
       real(ireal_dp), intent(out) :: hit(:)
 
-      logical, parameter :: ldebug = .False. , BACKFACE_CULLING=.False., HIT_EDGE=.True.
+      logical, parameter :: ldebug=.False., BACKFACE_CULLING=.False., HIT_EDGE=.True.
 
       real(ireal_dp) :: org(0:2), dir(0:2), A(0:2), B(0:2), C(0:2)
       integer(iintegers) :: kx, ky, kz
@@ -384,7 +384,7 @@ module m_helper_functions_dp
       real(ireal_dp) :: Az, Bz, Cz, T
       real(ireal_dp) :: U, V, W
       real(ireal_dp) :: b0, b1, b2
-      real(ireal_dp) :: det, rcpDet, dist_times_det
+      real(ireal_dp) :: det, rcpDet
 
 
       real(ireal_dp) :: CxBy, CyBx, AxCy, AyCx, BxAy, ByAx
@@ -482,25 +482,6 @@ module m_helper_functions_dp
       rcpDet = one / det
       hit(4) = T * rcpDet
 
-      if(BACKFACE_CULLING) then
-        if (T < zero .or. T > hit(4) * det) then
-          if(ldebug) print *,'BACKFACE_CULLING T<0', T
-          lhit = .False.
-        endif
-      else
-        if(hit(4).ge.huge(hit)) then
-          dist_times_det = sign(huge(det), det)
-        else
-          dist_times_det = hit(4)*det
-        endif
-        if(det < zero .and. ((T >= zero) .or. (T < dist_times_det))) then
-          if(ldebug) print *,'det<0 && T>0', det, T
-          lhit = .False.
-        else if(det > zero .and. ((T <= zero) .or. (T > dist_times_det))) then
-          if(ldebug) print *,'det>0 && T<0', det, T
-          lhit = .False.
-        endif
-      endif
       if(approx(det,zero,tiny(det))) then
         lhit = .False.
         hit(:) = huge(one)
