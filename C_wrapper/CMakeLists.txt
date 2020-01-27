@@ -9,11 +9,6 @@ if(ENABLE_RRTM)
   add_library( f2c_pprts_rrtm f2c_pprts_rrtm.F90 )
   target_link_libraries( f2c_pprts_rrtm pprts_rrtmg pprts pprts_base )
 
-  install(TARGETS f2c_pprts
-    DESTINATION lib/
-    LIBRARY DESTINATION lib/
-    PUBLIC_HEADER DESTINATION include/)
-
   file(COPY ./
     DESTINATION ${CMAKE_BINARY_DIR}/include/
     FILES_MATCHING PATTERN "*.h" )

@@ -25,18 +25,12 @@ target_link_libraries(plexrt
   f2c_rayli
   ${EXTLIB} ${USERLIB} ${LIBS})
 
-install(TARGETS plexrt DESTINATION lib)
-
-
 # example executables to generate meshes
 add_executable( gen_plex_from_icon gen_plex_from_icon.F90 )
 target_link_libraries( gen_plex_from_icon plexrt ${EXTLIB} ${USERLIB} ${LIBS})
-install(TARGETS gen_plex_from_icon DESTINATION bin)
 
 add_executable( gen_fish_plex gen_fish_plex.F90 )
 target_link_libraries( gen_fish_plex plexrt ${EXTLIB} ${USERLIB} ${LIBS})
-install(TARGETS gen_fish_plex DESTINATION bin)
 
 add_executable( gen_regular_plex gen_regular_plex.F90 )
 target_link_libraries( gen_regular_plex plexrt ${EXTLIB} ${USERLIB} ${LIBS})
-install(TARGETS gen_regular_plex DESTINATION bin)

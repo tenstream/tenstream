@@ -96,6 +96,4 @@ foreach ( stream ${streams} )
 
   add_executable("${basename}" "${basename}${fnameext}" )
   target_link_libraries( "${basename}" pprts_base)
-
-  install(TARGETS ${basename} RUNTIME DESTINATION bin)
 endforeach ()

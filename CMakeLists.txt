@@ -298,7 +298,10 @@ if(NOT BUILD_SHARED_LIBS)
 			COMMAND ${CMAKE_AR} -M < ${mri_file})
 	endfunction(combine_archives)
 
+  install(FILES ${FULL_OUTPUT_PATH} DESTINATION lib)
 	combine_archives(tenstream "${TENSTR_LIBS}")
+else()
+  install(DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/ DESTINATION lib)
 endif()
 
 # Add pfUnit for testing
