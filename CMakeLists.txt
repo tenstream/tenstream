@@ -200,6 +200,7 @@ install(DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY}/ DESTINATION include)
 if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "default install path" FORCE )
 endif()
+install(DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/ DESTINATION lib)
 
 # Find out if the compiler is XLF and if so give this to the C preprocessor
 string(COMPARE EQUAL ${CMAKE_Fortran_COMPILER_ID} "XL" _is_XLF)
@@ -298,10 +299,7 @@ if(NOT BUILD_SHARED_LIBS)
 			COMMAND ${CMAKE_AR} -M < ${mri_file})
 	endfunction(combine_archives)
 
-  install(FILES ${FULL_OUTPUT_PATH} DESTINATION lib)
 	combine_archives(tenstream "${TENSTR_LIBS}")
-else()
-  install(DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/ DESTINATION lib)
 endif()
 
 # Add pfUnit for testing

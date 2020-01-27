@@ -31,8 +31,6 @@ TARGET_LINK_LIBRARIES( pprts_rrtmg
   tenstr_disort
   ${EXTLIB} ${USERLIB} ${LIBS})
 
-install(TARGETS pprts_rrtmg DESTINATION lib)
-
 
 # PlexRT
 add_library( plexrt_rrtmg "plexrt_rrtmg.F90" $<TARGET_OBJECTS:tenstr_rrtmg_objs> )
@@ -45,5 +43,3 @@ TARGET_LINK_LIBRARIES( plexrt_rrtmg
   pprts_base
   tenstr_disort
   ${EXTLIB} ${USERLIB} ${LIBS})
-
-install(TARGETS plexrt_rrtmg DESTINATION lib)

@@ -25,5 +25,3 @@ add_library( pprts_rrtm_lw_objs   OBJECT ${files} )
 add_dependencies( pprts_rrtm_lw_objs pprts )
 add_library( pprts_rrtm_lw $<TARGET_OBJECTS:pprts_rrtm_lw_objs> )
 TARGET_LINK_LIBRARIES( pprts_rrtm_lw pprts)
-
-install(TARGETS pprts_rrtm_lw DESTINATION lib)
