@@ -37,14 +37,15 @@ use m_icon_plex_utils, only: create_2d_fish_plex, create_2d_regular_plex, &
 
 implicit none
 
-logical, parameter :: ldebug=.True.
+logical, parameter :: ldebug=.False.
 
   contains
 
-    subroutine plex_ex3(comm, Nx, Ny, Nz, dz, Ag)
+    subroutine plex_ex3(comm, Nx, Ny, Nz, dz, Ag, lverbose)
       MPI_Comm, intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny, Nz
       real(ireals), intent(in) :: dz, Ag
+      logical, intent(in) :: lverbose
 
       type(tDM) :: dm2d, dm2d_dist, dm3d
       type(tPetscSF) :: migration_sf
@@ -72,9 +73,9 @@ logical, parameter :: ldebug=.True.
       call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, &
         '-use_regular_mesh', lregular_mesh, lflg, ierr) ; call CHKERR(ierr)
       if(lregular_mesh) then
-        call create_2d_regular_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf)
+        call create_2d_regular_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf, lverbose=lverbose)
       else
-        call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf)
+        call create_2d_fish_plex(comm, Nx, Ny, dm2d, dm2d_dist, migration_sf, lverbose=lverbose)
       endif
 
       hhl(1) = zero
@@ -83,7 +84,7 @@ logical, parameter :: ldebug=.True.
       enddo
       hhl = reverse(hhl)
 
-      call dmplex_2D_to_3D(dm2d_dist, Nz, hhl, dm3d, zindex)
+      call dmplex_2D_to_3D(dm2d_dist, Nz, hhl, dm3d, zindex, lverbose=lverbose)
 
       call setup_plexgrid(dm2d_dist, dm3d, Nz-1, zindex, plex, hhl)
       deallocate(zindex)
@@ -99,7 +100,7 @@ logical, parameter :: ldebug=.True.
 
       call init_sundir()
 
-      call set_plex_rt_optprop(solver, vert_integrated_kabs=1e-0_ireals, vert_integrated_ksca=zero)
+      call set_plex_rt_optprop(solver, vert_integrated_kabs=1e-0_ireals, vert_integrated_ksca=one, lverbose=lverbose)
 
       if(.not.allocated(solver%albedo)) then
         allocate(solver%albedo)
@@ -121,22 +122,24 @@ logical, parameter :: ldebug=.True.
 
       call plexrt_get_result(solver, edn, eup, abso, redir=edir)
 
-      do icol = 1, Nx
+      if(lverbose) then
+        do icol = 1, Nx
         print *,''
         print *,cstr('Column ','blue')//cstr(itoa(icol),'red')//&
           cstr('  k  Edir              Edn              Eup              abso', 'blue')
         do k = 1, ubound(abso,1)
-          print *,k, edir(k,icol), edn(k,icol), eup(k,icol), abso(k,icol)
+        print *,k, edir(k,icol), edn(k,icol), eup(k,icol), abso(k,icol)
         enddo
         print *,k, edir(k,icol), edn(k,icol), eup(k,icol)
-      enddo
+        enddo
 
-      print *, ''
-      print *, 'Averages'
-      do k = 1, ubound(abso,1)
+        print *, ''
+        print *, 'Averages'
+        do k = 1, ubound(abso,1)
         print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:)), meanval(abso(k,:))
-      enddo
-      print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:))
+        enddo
+        print *,k, meanval(edir(k,:)), meanval(edn(k,:)), meanval(eup(k,:))
+      endif
 
       call dump_result()
 
@@ -184,10 +187,10 @@ logical, parameter :: ldebug=.True.
           endif
           sundir = sundir/norm2(sundir)
 
-          if(ldebug.and.myid.eq.0) &
+          if(lverbose.and.myid.eq.0) then
             print *,'Initial sundirection = ', sundir, ': sza', angle_between_two_vec(sundir, first_normal), 'rad'
-          if(myid.eq.0) &
             print *,'Initial sundirection = ', sundir, ': sza', rad2deg(angle_between_two_vec(sundir, first_normal)),'deg'
+          endif
 
 
           rot_angle = zero
@@ -212,7 +215,7 @@ logical, parameter :: ldebug=.True.
             if(ldebug.and.myid.eq.0) print *,'S', sundir, norm2(sundir)
             if(ldebug.and.myid.eq.0) print *,'U', U, norm2(U)
             if(ldebug.and.myid.eq.0) print *,'rot_sundir', rot_sundir
-            if(myid.eq.0) &
+            if(lverbose.and.myid.eq.0) &
               print *,'rotated sundirection = ', rot_sundir, ': sza', rad2deg(angle_between_two_vec(rot_sundir, first_normal)),'deg'
             sundir = rot_sundir
           endif
@@ -233,11 +236,7 @@ logical, parameter :: ldebug=.True.
     character(len=10*default_str_len) :: default_options
     integer(iintegers) :: Nx, Ny, Nz
     real(ireals) :: dz, Ag
-
-    !character(len=*),parameter :: ex_out='plex_ex_dom1_out.h5'
-    !character(len=*),parameter :: ex_out='plex_test_out.h5'
-    !character(len=*),parameter :: lwcfile='lwc_ex_24_3.nc'
-    !character(len=*),parameter :: lwcfile='lwc_ex_dom1.nc'
+    logical :: lverbose
 
     call PetscInitialize(PETSC_NULL_CHARACTER,ierr); call CHKERR(ierr)
     call init_mpi_data_parameters(PETSC_COMM_WORLD)
@@ -257,6 +256,10 @@ logical, parameter :: ldebug=.True.
     call PetscOptionsGetString(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-out', outfile, lflg, ierr); call CHKERR(ierr)
     if(.not.lflg) stop 'need to supply a output filename... please call with -out <fname_of_output_file.h5>'
 
+    lverbose = .True.
+    call PetscOptionsGetBool(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER, '-verbose', &
+      lverbose, lflg, ierr) ; call CHKERR(ierr)
+
     default_options='-polar_coords no'
     default_options=trim(default_options)//' -show_plex hdf5:'//trim(outfile)
     default_options=trim(default_options)//' -show_ownership hdf5:'//trim(outfile)//'::append'
@@ -272,10 +275,10 @@ logical, parameter :: ldebug=.True.
     default_options=trim(default_options)//' -show_fV2cV_ediff hdf5:'//trim(outfile)//'::append'
     default_options=trim(default_options)//' -show_WedgeOrient hdf5:'//trim(outfile)//'::append'
 
-    print *,'Adding default Petsc Options:', trim(default_options)
+    if(lverbose) print *,'Adding default Petsc Options:', trim(default_options)
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, default_options, ierr)
 
-    call plex_ex3(PETSC_COMM_WORLD, Nx, Ny, Nz, dz, Ag)
+    call plex_ex3(PETSC_COMM_WORLD, Nx, Ny, Nz, dz, Ag, lverbose)
 
     call mpi_barrier(PETSC_COMM_WORLD, ierr)
     call PetscFinalize(ierr)

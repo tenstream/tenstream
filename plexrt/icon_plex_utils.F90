@@ -56,7 +56,7 @@ module m_icon_plex_utils
 
   contains
 
-    subroutine dmplex_2D_to_3D(dm2d, ke1, hhl, dm3d, zindex, lpolar_coords)
+    subroutine dmplex_2D_to_3D(dm2d, ke1, hhl, dm3d, zindex, lpolar_coords, lverbose)
       type(tDM), intent(in) :: dm2d
       integer(iintegers), intent(in) :: ke1 ! number of levels for the 3D DMPlex
       real(ireals), intent(in) :: hhl(:) ! height levels of interfaces, those will be added to base height of 2D elements, either of shape(nlev) or shape(nlev*nverts)
@@ -64,6 +64,7 @@ module m_icon_plex_utils
       ! vertical layer / level of cells/faces/edges/vertices , pStart..pEnd-1, fortran indexing, i.e. start with k=1
       integer(iintegers), allocatable, intent(out) :: zindex(:)
       logical, intent(in), optional :: lpolar_coords ! assume that coordinates are projected on a sphere in the origin default(True)
+      logical, intent(in), optional :: lverbose
 
       integer(iintegers) :: p2dStart, p2dEnd
       integer(iintegers) :: f2dStart, f2dEnd
@@ -79,7 +80,9 @@ module m_icon_plex_utils
 
       call PetscObjectGetComm(dm2d, comm, ierr); call CHKERR(ierr)
 
-      call print_dmplex(comm, dm2d)
+      if(get_arg(.False.,lverbose).or.ldebug) then
+        call print_dmplex(comm, dm2d)
+      endif
 
       call DMPlexGetChart(dm2d, p2dStart, p2dEnd, ierr); call CHKERR(ierr)
       call DMPlexGetHeightStratum(dm2d, i0, f2dStart, f2dEnd, ierr); call CHKERR(ierr) ! faces
@@ -97,7 +100,7 @@ module m_icon_plex_utils
 
       chartsize = Ncells + Nfaces + Nedges + Nverts
 
-      if(ldebug) then
+      if(get_arg(.False.,lverbose).or.ldebug) then
         print *,'Nlev    ', ke1
         print *,'size hhl', size(hhl)
         print *,'Nfaces2d', Nfaces2d
@@ -773,18 +776,17 @@ module m_icon_plex_utils
     end subroutine
 
     ! Create a 2D Torus grid with Nx vertices horizontally and Ny rows of Vertices vertically
-    subroutine create_2d_fish_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf, opt_dx)
+    subroutine create_2d_fish_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf, opt_dx, lverbose)
       integer(mpiint), intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny
       type(tDM), intent(out) :: dm, dmdist
       type(tPetscSF), intent(out), optional :: opt_migration_sf
       real(ireals), intent(in), optional :: opt_dx
+      logical, intent(in), optional :: lverbose
 
       type(tPetscSF) :: migration_sf
 
       integer(iintegers) :: chartsize, Nfaces, Nedges, Nvertices
-      !integer(iintegers), allocatable :: cellslist(:)
-      !double precision, allocatable :: vertexCoords(:)
 
       integer(iintegers) :: pStart, pEnd
       integer(iintegers) :: fStart, fEnd
@@ -808,7 +810,7 @@ module m_icon_plex_utils
         Nedges = 0
         Nvertices = 0
       endif
-      if(ldebug) then
+      if(get_arg(.False.,lverbose).or.ldebug) then
         print *, myid, 'Nfaces', Nfaces
         print *, myid, 'Nedges', Nedges
         print *, myid, 'Nverts', Nvertices
@@ -835,7 +837,7 @@ module m_icon_plex_utils
       call DMPlexGetHeightStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
       call DMPlexGetHeightStratum(dm, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-      if(ldebug) then
+      if(get_arg(.False.,lverbose).or.ldebug) then
         print *,'pStart,End serial :: ',pStart, pEnd
         print *,'fStart,End serial :: ',fStart, fEnd
         print *,'eStart,End serial :: ',eStart, eEnd
@@ -854,7 +856,7 @@ module m_icon_plex_utils
         call DMPlexGetHeightStratum(dmdist, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
         call DMPlexGetHeightStratum(dmdist, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-        if(ldebug) then
+        if(get_arg(.False.,lverbose).or.ldebug) then
           print *,myid,'pStart,End distributed:: ',pStart, pEnd
           print *,myid,'fStart,End distributed:: ',fStart, fEnd
           print *,myid,'eStart,End distributed:: ',eStart, eEnd
@@ -983,7 +985,9 @@ module m_icon_plex_utils
 
           call PetscSectionSetUp(coordSection, ierr); call CHKERR(ierr)
           call PetscSectionGetStorageSize(coordSection, coordSize, ierr); call CHKERR(ierr)
-          print *,myid,'Coord Section has size:', coordSize
+          if(get_arg(.False.,lverbose).or.ldebug) then
+            print *,myid,'Coord Section has size:', coordSize
+          endif
 
           call VecCreate(comm, coordinates, ierr); call CHKERR(ierr)
           call VecSetSizes(coordinates, coordSize, PETSC_DETERMINE, ierr);call CHKERR(ierr)
@@ -1015,12 +1019,13 @@ module m_icon_plex_utils
       end subroutine
 
     ! Create a 2D Regular grid with Nx vertices horizontally and Ny rows of Vertices vertically
-    subroutine create_2d_regular_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf, opt_dx)
+    subroutine create_2d_regular_plex(comm, Nx, Ny, dm, dmdist, opt_migration_sf, opt_dx, lverbose)
       integer(mpiint), intent(in) :: comm
       integer(iintegers), intent(in) :: Nx, Ny
       type(tDM), intent(out) :: dm, dmdist
       type(tPetscSF), intent(out), optional :: opt_migration_sf
       real(ireals), intent(in), optional :: opt_dx
+      logical, intent(in), optional :: lverbose
 
       type(tPetscSF) :: migration_sf
 
@@ -1048,7 +1053,7 @@ module m_icon_plex_utils
         Nedges = 0
         Nvertices = 0
       endif
-      if(ldebug) then
+      if(get_arg(.False., lverbose).or.ldebug) then
         print *, myid, 'Nfaces', Nfaces
         print *, myid, 'Nedges', Nedges
         print *, myid, 'Nverts', Nvertices
@@ -1075,7 +1080,7 @@ module m_icon_plex_utils
       call DMPlexGetHeightStratum(dm, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
       call DMPlexGetHeightStratum(dm, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-      if(ldebug) then
+      if(get_arg(.False., lverbose).or.ldebug) then
         print *,'pStart,End serial :: ',pStart, pEnd
         print *,'fStart,End serial :: ',fStart, fEnd
         print *,'eStart,End serial :: ',eStart, eEnd
@@ -1094,7 +1099,7 @@ module m_icon_plex_utils
         call DMPlexGetHeightStratum(dmdist, i1, eStart, eEnd, ierr); call CHKERR(ierr) ! edges
         call DMPlexGetHeightStratum(dmdist, i2, vStart, vEnd, ierr); call CHKERR(ierr) ! vertices
 
-        if(ldebug) then
+        if(get_arg(.False., lverbose).or.ldebug) then
           print *,myid,'pStart,End distributed:: ',pStart, pEnd
           print *,myid,'fStart,End distributed:: ',fStart, fEnd
           print *,myid,'eStart,End distributed:: ',eStart, eEnd

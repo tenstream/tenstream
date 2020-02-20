@@ -304,11 +304,12 @@ module m_plex_rt
       end subroutine
     end subroutine
 
-    subroutine set_plex_rt_optprop(solver, vlwc, viwc, vert_integrated_kabs, vert_integrated_ksca)
+    subroutine set_plex_rt_optprop(solver, vlwc, viwc, vert_integrated_kabs, vert_integrated_ksca, lverbose)
       use m_helper_functions, only : delta_scale
       class(t_plex_solver), allocatable, intent(inout) :: solver
       type(tVec),intent(in), optional :: vlwc, viwc
       real(ireals), optional :: vert_integrated_kabs, vert_integrated_ksca
+      logical, intent(in), optional :: lverbose
       real(ireals), pointer :: xlwc(:), xiwc(:)
       real(ireals), pointer :: xkabs(:), xksca(:), xg(:)
 
@@ -407,9 +408,11 @@ module m_plex_rt
         call VecRestoreArrayReadF90(viwc, xiwc, ierr); call CHKERR(ierr)
       endif
 
-      print *,'Min/Max of kabs', minval(xkabs), maxval(xkabs)
-      print *,'Min/Max of ksca', minval(xksca), maxval(xksca)
-      print *,'Min/Max of g   ', minval(xg   ), maxval(xg   )
+      if(get_arg(.False., lverbose)) then
+        print *,'Min/Max of kabs', minval(xkabs), maxval(xkabs)
+        print *,'Min/Max of ksca', minval(xksca), maxval(xksca)
+        print *,'Min/Max of g   ', minval(xg   ), maxval(xg   )
+      endif
 
       call VecRestoreArrayF90(solver%kabs, xkabs, ierr); call CHKERR(ierr)
       call VecRestoreArrayF90(solver%ksca, xksca, ierr); call CHKERR(ierr)
@@ -646,8 +649,13 @@ module m_plex_rt
           call PetscLogEventEnd(solver%logs%setup_dir_src, ierr)
 
           ! Output of srcVec
-          if(ldebug) &
+          if(ldebug) then
+            call scale_flx(solver, solver%plex, &
+              solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+              solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+              solution, lWm2=.False., logevent=solver%logs%scale_flx)
             call debug_dump_vec(solver%plex%edir_dm, solver%dirsrc, solver%dir_scalevec_W_to_Wm2)
+          endif
 
           ! Create Direct Matrix
           call PetscLogEventBegin(solver%logs%setup_Mdir, ierr)
@@ -668,8 +676,13 @@ module m_plex_rt
           solution%lchanged = .True.
 
           ! Output of Edir Vec
-          if(ldebug) &
+          if(ldebug) then
+            call scale_flx(solver, solver%plex, &
+              solver%dir_scalevec_Wm2_to_W, solver%dir_scalevec_W_to_Wm2, &
+              solver%diff_scalevec_Wm2_to_W, solver%diff_scalevec_W_to_Wm2, &
+              solution, lWm2=.False., logevent=solver%logs%scale_flx)
             call debug_dump_vec(solver%plex%edir_dm, solution%edir, solver%dir_scalevec_W_to_Wm2)
+          endif
 
           call PetscLogEventEnd(solver%logs%compute_Edir, ierr)
         endif
@@ -714,6 +727,10 @@ module m_plex_rt
         solution%lchanged = .True.
 
         call PetscLogEventEnd(solver%logs%compute_Ediff, ierr)
+
+        ! Output of Diffuse Vec
+        if(ldebug) &
+          call debug_dump_vec(solver%plex%ediff_dm, solution%ediff, solver%diff_scalevec_W_to_Wm2)
 
         99 continue ! this is the quick exit final call where we clean up before the end of the routine
 
@@ -1198,7 +1215,6 @@ module m_plex_rt
           integer(iintegers) :: dir_plex2bmc(solver%dirdof), diff_plex2bmc(solver%diffdof)
           real(ireals), pointer :: xedir(:)
           real(ireals) :: param_phi, param_theta, area_bot, area_top, dz, incsol
-          !real(ireals) :: dir2diff(solver%diffdof/2)
           logical :: lsrc(5)
 
           real(irealLUT) :: coeff(solver%dirdof*(solver%diffdof/2)), sumcoeff
@@ -1277,7 +1293,6 @@ module m_plex_rt
                 call PetscSectionGetDof(edirSection, isrc_face, numSrc, ierr); call CHKERR(ierr)
                 do isrc = 1, numSrc
                   in_dof = in_dof+1
-
                   if(.not.lsrc(isrc_side)) cycle
 
                   bmcsrcdof = dir_plex2bmc(in_dof)
@@ -1320,9 +1335,6 @@ module m_plex_rt
 
                     enddo ! outgoing_offsets
                   end associate
-!                        todo: sum up the coeffs and check that this is one-sum(dir2dir) if kabs=0, i.e. make sure that the sum of
-!                        coeffs that have been used is the sum of dir2diff, this energy conservation check would be useful in dir2dir
-!                        and diff2diff as well, just to make sure that we dont neglect any lut coeff contributions
                 enddo ! numSrc
             enddo ! srcfaces
             if(ldebug) then
@@ -1342,6 +1354,7 @@ module m_plex_rt
           enddo
 
           call set_Edir_srfc_reflection(edirSection, xedir)
+          !TODO: develop set_outside_incoming_src()
 
           call VecRestoreArrayReadF90(ledirVec, xedir, ierr); call CHKERR(ierr)
           call ISRestoreIndicesF90(solver%IS_diff_in_out_dof, xinoutdof, ierr); call CHKERR(ierr)
@@ -2527,12 +2540,12 @@ module m_plex_rt
         endif
 
 
-        sideward_bc_coeff = one
+        sideward_bc_coeff = -one
         call PetscOptionsGetReal(PETSC_NULL_OPTIONS, PETSC_NULL_CHARACTER,"-sideward_bc_coeff", &
           sideward_bc_coeff, lflg, ierr); call CHKERR(ierr)
 
         call DMGetStratumIS(plex%geom_dm, 'DomainBoundary', SIDEFACE, bc_ids, ierr); call CHKERR(ierr)
-        if (bc_ids.eq.PETSC_NULL_IS.or.sideward_bc_coeff.le.zero) then ! dont have surface points
+        if (bc_ids.eq.PETSC_NULL_IS.or.sideward_bc_coeff.eq.zero) then ! dont have surface points
         else
           call ISGetIndicesF90(bc_ids, xi, ierr); call CHKERR(ierr)
           do i = 1, size(xi)
@@ -2546,7 +2559,7 @@ module m_plex_rt
                 call PetscSectionGetFieldOffset(ediffSection, iface, istream-i1, offset_Ein, ierr); call CHKERR(ierr)
                 offset_Eout = offset_Ein+i1
 
-                call MatSetValuesLocal(A, i1, offset_Ein, i1, offset_Eout, -sideward_bc_coeff, INSERT_VALUES, ierr)
+                call MatSetValuesLocal(A, i1, offset_Ein, i1, offset_Eout, sideward_bc_coeff, INSERT_VALUES, ierr)
                 call CHKERR(ierr)
                 if(ldebug.and.offset_Ein.eq.offset_Eout) call CHKERR(1_mpiint, &
                   'src and dst are the same :( ... should not happen here'// &
